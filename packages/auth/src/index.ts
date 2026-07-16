@@ -19,6 +19,21 @@ function hexDecode(hex: string): Uint8Array {
 	return new Uint8Array(matches.map((byte) => Number.parseInt(byte, 16)));
 }
 
+/** Compare password-derived bytes without leaking the first mismatched byte. */
+export function constantTimeEqual(
+	left: Uint8Array,
+	right: Uint8Array
+): boolean {
+	// biome-ignore lint/suspicious/noBitwiseOperators: XOR folds the length mismatch without data-dependent branching.
+	let difference = left.length ^ right.length;
+	const maxLength = Math.max(left.length, right.length);
+	for (let index = 0; index < maxLength; index += 1) {
+		// biome-ignore lint/suspicious/noBitwiseOperators: XOR/OR accumulates every byte mismatch in constant work.
+		difference |= (left[index] ?? 0) ^ (right[index] ?? 0);
+	}
+	return difference === 0;
+}
+
 async function hashPassword(password: string): Promise<string> {
 	const salt = crypto.getRandomValues(new Uint8Array(16));
 	const keyMaterial = await crypto.subtle.importKey(
@@ -66,7 +81,7 @@ async function verifyPassword(data: {
 		keyMaterial,
 		256
 	);
-	return hexEncode(new Uint8Array(derivedBits)) === storedHash;
+	return constantTimeEqual(new Uint8Array(derivedBits), hexDecode(storedHash));
 }
 
 const authSchema = {
@@ -86,7 +101,40 @@ interface AuthOptions {
 	discordClientSecret?: string;
 	googleClientId?: string;
 	googleClientSecret?: string;
+	/**
+	 * Fired after better-auth persists a new user row. Used to seed the
+	 * per-user game-group / game-variant masters (mix-game rework) so every
+	 * new account starts with the full builtin list — see
+	 * `@sapphire2/api/services/seed-game-data`. Optional so callers that don't
+	 * need it (e.g. tests) can omit it.
+	 */
+	onUserCreated?: (userId: string) => Promise<void>;
 	secret: string;
+}
+
+/**
+ * Body of the `databaseHooks.user.create.after` hook, extracted so it is
+ * directly unit-testable without going through better-auth's internals
+ * (which are impractical to invoke from a unit test).
+ *
+ * `onUserCreated` (in practice, `seedDefaultGameData`) is wrapped in a
+ * try/catch: signup must succeed even if seeding fails, since every
+ * gameGroup/gameVariant/gameMix `list` procedure already self-seeds on next
+ * read (c13) — a seed failure here would otherwise take down account
+ * creation entirely for an unrelated, retriable side effect.
+ */
+export async function runUserCreatedHook(
+	options: Pick<AuthOptions, "onUserCreated">,
+	createdUser: { id: string }
+): Promise<void> {
+	try {
+		await options.onUserCreated?.(createdUser.id);
+	} catch (error) {
+		console.error(
+			`onUserCreated hook failed for user ${createdUser.id}`,
+			error
+		);
+	}
 }
 
 export function createAuth(
@@ -135,6 +183,13 @@ export function createAuth(
 			accountLinking: {
 				enabled: true,
 				trustedProviders: ["google", "discord", "credential"],
+			},
+		},
+		databaseHooks: {
+			user: {
+				create: {
+					after: (createdUser) => runUserCreatedHook(options, createdUser),
+				},
 			},
 		},
 		plugins: [],

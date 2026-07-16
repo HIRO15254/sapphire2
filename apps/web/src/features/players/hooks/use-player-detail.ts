@@ -1,10 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	cancelTargets,
+	createOptimisticId,
 	invalidateTargets,
 	restoreSnapshots,
 	snapshotQueries,
 	snapshotQuery,
+	updateQueriesData,
+	updateQueryData,
 	updateQueryEntity,
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
@@ -77,18 +80,21 @@ export function usePlayerDetail(playerId: string | null) {
 							values.tagIds?.includes(tag.id)
 						);
 			updateQueryEntity<PlayerDetailData>(queryClient, playerKey, (old) => ({
-				memo: values.memo ?? old.memo,
+				memo: Object.hasOwn(values, "memo") ? (values.memo ?? null) : old.memo,
 				name: values.name ?? old.name,
 				tags: nextTags as PlayerTagWithColor[],
 			}));
-			queryClient.setQueriesData<PlayerListItemWithTags[]>(
+			updateQueriesData<PlayerListItemWithTags[]>(
+				queryClient,
 				{ queryKey: playerListKey },
 				(old) =>
 					old?.map((player) =>
 						player.id === values.id
 							? {
 									...player,
-									memo: values.memo ?? player.memo,
+									memo: Object.hasOwn(values, "memo")
+										? (values.memo ?? null)
+										: player.memo,
 									name: values.name ?? player.name,
 									tags: nextTags as PlayerTagWithColor[],
 								}
@@ -120,7 +126,8 @@ export function usePlayerDetail(playerId: string | null) {
 			const previousLists = snapshotQueries(queryClient, {
 				queryKey: playerListKey,
 			});
-			queryClient.setQueriesData<PlayerListItemWithTags[]>(
+			updateQueriesData<PlayerListItemWithTags[]>(
+				queryClient,
 				{ queryKey: playerListKey },
 				(old) => old?.filter((player) => player.id !== id)
 			);
@@ -144,12 +151,12 @@ export function usePlayerDetail(playerId: string | null) {
 			const optimisticTag: PlayerTagQueryItem = {
 				color: "gray",
 				createdAt: new Date().toISOString(),
-				id: `temp-tag-${Date.now()}`,
+				id: createOptimisticId("temp-tag"),
 				name,
 				updatedAt: new Date().toISOString(),
 				userId: "",
 			};
-			queryClient.setQueryData<PlayerTagQueryItem[]>(tagsKey, (old) => [
+			updateQueryData<PlayerTagQueryItem[]>(queryClient, tagsKey, (old) => [
 				...(old ?? []),
 				optimisticTag,
 			]);
@@ -172,6 +179,8 @@ export function usePlayerDetail(playerId: string | null) {
 		deletePlayer: deleteMutation.mutate,
 		isDeleting: deleteMutation.isPending,
 		isLoading: playerQuery.isLoading,
+		isInitialLoadError: playerQuery.isError && playerQuery.data === undefined,
+		onRetry: playerQuery.refetch,
 		isSaving: updateMutation.isPending,
 		player: playerQuery.data ?? null,
 		updatePlayer: updateMutation.mutate,

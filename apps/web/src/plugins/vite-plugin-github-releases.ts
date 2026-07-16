@@ -1,4 +1,6 @@
 import type { Plugin } from "vite";
+import type { UpdateNoteSection } from "../features/update-notes/utils/parse-release-body";
+import { parseReleaseBody } from "../features/update-notes/utils/parse-release-body";
 
 interface GitHubRelease {
 	body: string | null;
@@ -10,46 +12,38 @@ interface GitHubRelease {
 }
 
 interface UpdateNote {
-	changes: string[];
+	changes: UpdateNoteSection[];
 	releasedAt: string;
 	title: string;
 	version: string;
 }
 
-const LIST_ITEM_PREFIX = /^[-*]\s+/;
-
-function parseReleaseBody(body: string | null): string[] {
-	if (!body) {
-		return [];
-	}
-	return body
-		.split("\n")
-		.map((line) => line.replace(LIST_ITEM_PREFIX, "").trim())
-		.filter((line) => line.length > 0 && !line.startsWith("#"));
-}
-
 async function fetchGitHubReleases(repo: string): Promise<UpdateNote[]> {
 	const url = `https://api.github.com/repos/${repo}/releases?per_page=50`;
+	const token = process.env.GITHUB_TOKEN;
 	const res = await fetch(url, {
-		headers: { Accept: "application/vnd.github.v3+json" },
+		headers: {
+			Accept: "application/vnd.github.v3+json",
+			...(token ? { Authorization: `Bearer ${token}` } : {}),
+		},
 	});
 
 	if (!res.ok) {
-		console.warn(
-			`[github-releases] Failed to fetch releases (${res.status}). Using empty list.`
+		throw new Error(
+			`[github-releases] Failed to fetch releases (${res.status})`
 		);
-		return [];
 	}
 
 	const releases: GitHubRelease[] = await res.json();
 
 	return releases
-		.filter((r) => !r.draft)
+		.filter((r) => !(r.draft || r.prerelease))
 		.map((r) => ({
 			version: r.tag_name,
-			releasedAt: r.published_at
-				? r.published_at.split("T")[0]
-				: new Date().toISOString().split("T")[0],
+			releasedAt:
+				r.published_at?.split("T")[0] ??
+				new Date().toISOString().split("T")[0] ??
+				"",
 			title: r.name || r.tag_name,
 			changes: parseReleaseBody(r.body),
 		}));
@@ -89,7 +83,7 @@ export function githubReleasesPlugin(repo: string): Plugin {
 			}
 
 			return `export const UPDATE_NOTES = ${JSON.stringify(cachedNotes, null, 2)};
-export const LATEST_VERSION = ${cachedNotes.length > 0 ? JSON.stringify(cachedNotes[0].version) : "null"};`;
+export const LATEST_VERSION = ${JSON.stringify(cachedNotes[0]?.version ?? null)};`;
 		},
 	};
 }

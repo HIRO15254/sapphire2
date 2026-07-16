@@ -1,5 +1,7 @@
+import type { ReactNode } from "react";
 import { BreakdownTable } from "@/features/statistics/pages/statistics-page/breakdown-section/breakdown-table";
 import { useBreakdownSection } from "@/features/statistics/pages/statistics-page/breakdown-section/use-breakdown-section";
+import { StatsQueryError } from "@/features/statistics/pages/statistics-page/stats-query-error";
 import type { StatsSectionContext } from "@/features/statistics/types";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
@@ -11,10 +13,30 @@ export function BreakdownSection({ ctx }: { ctx: StatsSectionContext }) {
 		setActiveTab,
 		rows,
 		isPending,
+		isError,
+		retry,
 		normalized,
 		showCashColumn,
+		showNetColumn,
 		showTournamentColumn,
 	} = useBreakdownSection(ctx);
+
+	let content: ReactNode;
+	if (isPending) {
+		content = <Skeleton className="h-48 rounded-xl" />;
+	} else if (isError) {
+		content = <StatsQueryError onRetry={retry} />;
+	} else {
+		content = (
+			<BreakdownTable
+				normalized={normalized}
+				rows={rows}
+				showCashColumn={showCashColumn}
+				showNetColumn={showNetColumn}
+				showTournamentColumn={showTournamentColumn}
+			/>
+		);
+	}
 
 	return (
 		<div className="space-y-3">
@@ -34,16 +56,7 @@ export function BreakdownSection({ ctx }: { ctx: StatsSectionContext }) {
 					</TabsList>
 				</div>
 			</Tabs>
-			{isPending ? (
-				<Skeleton className="h-48 rounded-xl" />
-			) : (
-				<BreakdownTable
-					normalized={normalized}
-					rows={rows}
-					showCashColumn={showCashColumn}
-					showTournamentColumn={showTournamentColumn}
-				/>
-			)}
+			{content}
 		</div>
 	);
 }

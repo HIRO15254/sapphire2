@@ -15,15 +15,22 @@ import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, inArray } from "drizzle-orm";
-import { z } from "zod";
+import { and, eq, inArray } from "drizzle-orm";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { type BatchStatement, runBatch } from "../lib/batch";
 import { computeSeatedPlayersFromEvents } from "../services/live-session-pl";
+import { assertSeatPositionFitsTableSize } from "../utils/seat-position";
 import {
 	floorToMinute,
-	nextAppendSortOrder,
+	nextAppendSortOrderSql,
+	sessionEventOrderBy,
 } from "../utils/session-event-time";
-import { validateTagsOwnership } from "./session";
+import {
+	chunkForInsert,
+	selectInChunks,
+	validateTagsOwnership,
+} from "./session";
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
@@ -49,20 +56,60 @@ async function resolveSessionOwnership(
 	const [session] = await db
 		.select()
 		.from(gameSession)
-		.where(eq(gameSession.id, sessionId));
+		.where(and(eq(gameSession.id, sessionId), eq(gameSession.userId, userId)));
 	if (!session || session.userId !== userId) {
 		throw new TRPCError({
-			code: "NOT_FOUND",
-			message: "Session not found",
+			code: "FORBIDDEN",
+			message: "You do not own this session",
 		});
 	}
 	return { sessionType: session.kind as "cash_game" | "tournament" };
 }
 
+async function validatePlayerOwnership(
+	db: DbInstance,
+	playerId: string,
+	userId: string
+): Promise<void> {
+	const [ownedPlayer] = await db
+		.select({ id: player.id })
+		.from(player)
+		.where(and(eq(player.id, playerId), eq(player.userId, userId)));
+	if (!ownedPlayer) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this player",
+		});
+	}
+}
+
+async function validateSeatPositionForSession(
+	db: DbInstance,
+	sessionId: string,
+	sessionType: "cash_game" | "tournament",
+	seatPosition: number | null | undefined
+): Promise<void> {
+	if (seatPosition === null || seatPosition === undefined) {
+		return;
+	}
+	const [detail] =
+		sessionType === "cash_game"
+			? await db
+					.select({ tableSize: sessionCashDetail.tableSize })
+					.from(sessionCashDetail)
+					.where(eq(sessionCashDetail.sessionId, sessionId))
+			: await db
+					.select({ tableSize: sessionTournamentDetail.tableSize })
+					.from(sessionTournamentDetail)
+					.where(eq(sessionTournamentDetail.sessionId, sessionId));
+	assertSeatPositionFitsTableSize(seatPosition, detail?.tableSize ?? null);
+}
+
 async function fetchSessionContext(
 	db: DbInstance,
 	sessionId: string,
-	sessionType: "cash_game" | "tournament"
+	sessionType: "cash_game" | "tournament",
+	userId: string
 ): Promise<{ roomName: string | null; gameName: string | null }> {
 	let roomName: string | null = null;
 	let gameName: string | null = null;
@@ -71,7 +118,7 @@ async function fetchSessionContext(
 	const [session] = await db
 		.select({ roomId: gameSession.roomId })
 		.from(gameSession)
-		.where(eq(gameSession.id, sessionId));
+		.where(and(eq(gameSession.id, sessionId), eq(gameSession.userId, userId)));
 
 	roomId = session?.roomId ?? null;
 
@@ -88,7 +135,12 @@ async function fetchSessionContext(
 					name: ringGame.name,
 				})
 				.from(ringGame)
-				.where(eq(ringGame.id, cashDetail.ringGameId));
+				.where(
+					and(
+						eq(ringGame.id, cashDetail.ringGameId),
+						eq(ringGame.userId, userId)
+					)
+				);
 			if (gameRow) {
 				const blinds =
 					gameRow.blind1 !== null && gameRow.blind2 !== null
@@ -106,6 +158,10 @@ async function fetchSessionContext(
 			const [tourneyRow] = await db
 				.select({ name: tournament.name })
 				.from(tournament)
+				.innerJoin(
+					room,
+					and(eq(room.id, tournament.roomId), eq(room.userId, userId))
+				)
 				.where(eq(tournament.id, tournDetail.tournamentId));
 			gameName = tourneyRow?.name ?? null;
 		}
@@ -115,7 +171,7 @@ async function fetchSessionContext(
 		const [roomRow] = await db
 			.select({ name: room.name })
 			.from(room)
-			.where(eq(room.id, roomId));
+			.where(and(eq(room.id, roomId), eq(room.userId, userId)));
 		roomName = roomRow?.name ?? null;
 	}
 
@@ -138,7 +194,32 @@ function fetchSeatEvents(db: DbInstance, sessionId: string) {
 		})
 		.from(sessionEvent)
 		.where(eq(sessionEvent.sessionId, sessionId))
-		.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
+		.orderBy(...sessionEventOrderBy());
+}
+
+function buildPlayerJoinEventStatement(
+	db: DbInstance,
+	sessionId: string,
+	playerId: string,
+	seatPosition?: number
+): { statement: BatchStatement } {
+	const now = new Date();
+	const payload: { playerId: string; seatPosition?: number } = { playerId };
+	if (seatPosition !== undefined) {
+		payload.seatPosition = seatPosition;
+	}
+
+	return {
+		statement: db.insert(sessionEvent).values({
+			id: crypto.randomUUID(),
+			sessionId,
+			eventType: "player_join",
+			occurredAt: floorToMinute(now),
+			sortOrder: nextAppendSortOrderSql(sessionId),
+			payload: JSON.stringify(payload),
+			updatedAt: now,
+		}) as unknown as BatchStatement,
+	};
 }
 
 export async function insertPlayerJoinEvent(
@@ -147,23 +228,13 @@ export async function insertPlayerJoinEvent(
 	playerId: string,
 	seatPosition?: number
 ) {
-	const now = new Date();
-	const sortOrder = await nextAppendSortOrder(db, sessionId);
-
-	const payload: { playerId: string; seatPosition?: number } = { playerId };
-	if (seatPosition !== undefined) {
-		payload.seatPosition = seatPosition;
-	}
-
-	await db.insert(sessionEvent).values({
-		id: crypto.randomUUID(),
+	const { statement } = buildPlayerJoinEventStatement(
+		db,
 		sessionId,
-		eventType: "player_join",
-		occurredAt: floorToMinute(now),
-		sortOrder,
-		payload: JSON.stringify(payload),
-		updatedAt: now,
-	});
+		playerId,
+		seatPosition
+	);
+	await statement;
 }
 
 export async function insertPlayerLeaveEvent(
@@ -172,14 +243,12 @@ export async function insertPlayerLeaveEvent(
 	playerId: string
 ) {
 	const now = new Date();
-	const sortOrder = await nextAppendSortOrder(db, sessionId);
-
 	await db.insert(sessionEvent).values({
 		id: crypto.randomUUID(),
 		sessionId,
 		eventType: "player_leave",
 		occurredAt: floorToMinute(now),
-		sortOrder,
+		sortOrder: nextAppendSortOrderSql(sessionId),
 		payload: JSON.stringify({ playerId }),
 		updatedAt: now,
 	});
@@ -226,20 +295,20 @@ export const sessionTablePlayerRouter = router({
 				return { items: [] };
 			}
 
-			const playerRows = await ctx.db
-				.select({
-					id: player.id,
-					name: player.name,
-					memo: player.memo,
-					isTemporary: player.isTemporary,
-				})
-				.from(player)
-				.where(
-					inArray(
-						player.id,
-						seated.map((s) => s.playerId)
-					)
-				);
+			const playerRows = await selectInChunks(
+				seated.map((state) => state.playerId),
+				(chunk) =>
+					ctx.db
+						.select({
+							id: player.id,
+							name: player.name,
+							memo: player.memo,
+							isTemporary: player.isTemporary,
+						})
+						.from(player)
+						.where(and(eq(player.userId, userId), inArray(player.id, chunk))),
+				1
+			);
 			const playerById = new Map(playerRows.map((p) => [p.id, p]));
 
 			const items: {
@@ -298,15 +367,18 @@ export const sessionTablePlayerRouter = router({
 			const sessionId = requireSessionId(input);
 			const { playerId, seatPosition } = input;
 			const userId = ctx.session.user.id;
-			await resolveSessionOwnership(ctx.db, sessionId, userId);
-
-			const [foundPlayer] = await ctx.db
-				.select()
-				.from(player)
-				.where(and(eq(player.id, playerId), eq(player.userId, userId)));
-			if (!foundPlayer) {
-				throw new TRPCError({ code: "NOT_FOUND", message: "Player not found" });
-			}
+			const { sessionType } = await resolveSessionOwnership(
+				ctx.db,
+				sessionId,
+				userId
+			);
+			await validatePlayerOwnership(ctx.db, playerId, userId);
+			await validateSeatPositionForSession(
+				ctx.db,
+				sessionId,
+				sessionType,
+				seatPosition
+			);
 
 			const events = await fetchSeatEvents(ctx.db, sessionId);
 			const seated = computeSeatedPlayersFromEvents(events);
@@ -338,7 +410,17 @@ export const sessionTablePlayerRouter = router({
 			const sessionId = requireSessionId(input);
 			const { seatPosition } = input;
 			const userId = ctx.session.user.id;
-			await resolveSessionOwnership(ctx.db, sessionId, userId);
+			const { sessionType } = await resolveSessionOwnership(
+				ctx.db,
+				sessionId,
+				userId
+			);
+			await validateSeatPositionForSession(
+				ctx.db,
+				sessionId,
+				sessionType,
+				seatPosition
+			);
 			// Reject foreign player tags before creating the player (IDOR).
 			await validateTagsOwnership(
 				ctx.db,
@@ -349,25 +431,39 @@ export const sessionTablePlayerRouter = router({
 
 			const now = new Date();
 			const playerId = crypto.randomUUID();
-			await ctx.db.insert(player).values({
-				id: playerId,
-				memo: input.playerMemo ?? null,
-				name: input.playerName,
-				updatedAt: now,
-				userId,
-			});
+			const statements: BatchStatement[] = [
+				ctx.db.insert(player).values({
+					id: playerId,
+					memo: input.playerMemo ?? null,
+					name: input.playerName,
+					updatedAt: now,
+					userId,
+				}) as unknown as BatchStatement,
+			];
 
 			if (input.playerTagIds && input.playerTagIds.length > 0) {
-				await ctx.db.insert(playerToPlayerTag).values(
-					input.playerTagIds.map((tagId, index) => ({
-						playerId,
-						playerTagId: tagId,
-						position: index,
-					}))
-				);
+				const tagRows = input.playerTagIds.map((tagId, index) => ({
+					playerId,
+					playerTagId: tagId,
+					position: index,
+				}));
+				for (const chunk of chunkForInsert(tagRows, 3)) {
+					statements.push(
+						ctx.db
+							.insert(playerToPlayerTag)
+							.values(chunk) as unknown as BatchStatement
+					);
+				}
 			}
 
-			await insertPlayerJoinEvent(ctx.db, sessionId, playerId, seatPosition);
+			const { statement: joinStatement } = await buildPlayerJoinEventStatement(
+				ctx.db,
+				sessionId,
+				playerId,
+				seatPosition
+			);
+			statements.push(joinStatement);
+			await runBatch(ctx.db, statements);
 
 			return { id: playerId, playerId };
 		}),
@@ -383,7 +479,18 @@ export const sessionTablePlayerRouter = router({
 			const sessionId = requireSessionId(input);
 			const { playerId, seatPosition } = input;
 			const userId = ctx.session.user.id;
-			await resolveSessionOwnership(ctx.db, sessionId, userId);
+			const { sessionType } = await resolveSessionOwnership(
+				ctx.db,
+				sessionId,
+				userId
+			);
+			await validatePlayerOwnership(ctx.db, playerId, userId);
+			await validateSeatPositionForSession(
+				ctx.db,
+				sessionId,
+				sessionType,
+				seatPosition
+			);
 
 			const events = await fetchSeatEvents(ctx.db, sessionId);
 			const seated = computeSeatedPlayersFromEvents(events);
@@ -441,6 +548,7 @@ export const sessionTablePlayerRouter = router({
 			const { playerId } = input;
 			const userId = ctx.session.user.id;
 			await resolveSessionOwnership(ctx.db, sessionId, userId);
+			await validatePlayerOwnership(ctx.db, playerId, userId);
 
 			const events = await fetchSeatEvents(ctx.db, sessionId);
 			const seated = computeSeatedPlayersFromEvents(events);
@@ -474,11 +582,18 @@ export const sessionTablePlayerRouter = router({
 				sessionId,
 				userId
 			);
+			await validateSeatPositionForSession(
+				ctx.db,
+				sessionId,
+				sessionType,
+				seatPosition
+			);
 
 			const { roomName, gameName } = await fetchSessionContext(
 				ctx.db,
 				sessionId,
-				sessionType
+				sessionType,
+				userId
 			);
 
 			const now = new Date();
@@ -500,16 +615,25 @@ export const sessionTablePlayerRouter = router({
 			const finalName = "Anonymous";
 
 			const playerId = crypto.randomUUID();
-			await ctx.db.insert(player).values({
-				id: playerId,
-				isTemporary: true,
-				memo,
-				name: finalName,
-				updatedAt: now,
-				userId,
-			});
+			const statements: BatchStatement[] = [
+				ctx.db.insert(player).values({
+					id: playerId,
+					isTemporary: true,
+					memo,
+					name: finalName,
+					updatedAt: now,
+					userId,
+				}) as unknown as BatchStatement,
+			];
 
-			await insertPlayerJoinEvent(ctx.db, sessionId, playerId, seatPosition);
+			const { statement: joinStatement } = await buildPlayerJoinEventStatement(
+				ctx.db,
+				sessionId,
+				playerId,
+				seatPosition
+			);
+			statements.push(joinStatement);
+			await runBatch(ctx.db, statements);
 
 			return { id: playerId, playerId };
 		}),

@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
 	sessions: [] as Array<{ id: string }>,
 	availableTags: [] as Array<{ id: string; name: string }>,
 	isLoading: false,
+	isInitialLoadError: false,
 	isCreatePending: false,
+	onRetry: vi.fn(),
 }));
 
 vi.mock("@/features/sessions/hooks/use-sessions", () => ({
@@ -20,9 +22,11 @@ vi.mock("@/features/sessions/hooks/use-sessions", () => ({
 			sessions: mocks.sessions,
 			availableTags: mocks.availableTags,
 			isLoading: mocks.isLoading,
+			isInitialLoadError: mocks.isInitialLoadError,
 			hasNextPage: false,
 			isFetchingNextPage: false,
 			fetchNextPage: vi.fn(),
+			onRetry: mocks.onRetry,
 			isCreatePending: mocks.isCreatePending,
 			create: mocks.create,
 			update: vi.fn(),
@@ -95,6 +99,13 @@ describe("useSessionsPage", () => {
 			mocks.isLoading = true;
 			const { result } = renderHook(() => useSessionsPage());
 			expect(result.current.isLoading).toBe(true);
+		});
+
+		it("forwards the initial-load error state and retry callback", () => {
+			mocks.isInitialLoadError = true;
+			const { result } = renderHook(() => useSessionsPage());
+			expect(result.current.isInitialLoadError).toBe(true);
+			expect(result.current.onRetry).toBe(mocks.onRetry);
 		});
 
 		it("forwards isCreatePending from the data hook", () => {

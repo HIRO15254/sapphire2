@@ -1,6 +1,6 @@
 import { updateNoteView } from "@sapphire2/db/schema/update-note-view";
 import { and, desc, eq } from "drizzle-orm";
-import { z } from "zod";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
 
 export const updateNoteViewRouter = router({
@@ -18,7 +18,15 @@ export const updateNoteViewRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 
-			const [existing] = await ctx.db
+			const id = crypto.randomUUID();
+			await ctx.db
+				.insert(updateNoteView)
+				.values({ id, userId, version: input.version })
+				.onConflictDoNothing({
+					target: [updateNoteView.userId, updateNoteView.version],
+				});
+
+			const [viewed] = await ctx.db
 				.select()
 				.from(updateNoteView)
 				.where(
@@ -27,36 +35,6 @@ export const updateNoteViewRouter = router({
 						eq(updateNoteView.version, input.version)
 					)
 				);
-
-			if (existing) {
-				return existing;
-			}
-
-			const id = crypto.randomUUID();
-			await ctx.db
-				.insert(updateNoteView)
-				.values({ id, userId, version: input.version });
-
-			const [created] = await ctx.db
-				.select()
-				.from(updateNoteView)
-				.where(eq(updateNoteView.id, id));
-			return created;
+			return viewed;
 		}),
-
-	getLatestViewedVersion: protectedProcedure.query(async ({ ctx }) => {
-		const userId = ctx.session.user.id;
-		const [latest] = await ctx.db
-			.select()
-			.from(updateNoteView)
-			.where(eq(updateNoteView.userId, userId))
-			.orderBy(desc(updateNoteView.viewedAt))
-			.limit(1);
-
-		if (!latest) {
-			return { version: null, viewedAt: null };
-		}
-
-		return { version: latest.version, viewedAt: latest.viewedAt };
-	}),
 });

@@ -16,6 +16,8 @@ export function TournamentTab({ roomId }: { roomId: string }) {
 		currencies,
 		activeLoading,
 		archivedLoading,
+		isInitialLoadError,
+		onRetry,
 		showArchived,
 		toggleArchived,
 		isCreateOpen,
@@ -26,7 +28,9 @@ export function TournamentTab({ roomId }: { roomId: string }) {
 		pendingDelete,
 		isCreateLoading,
 		isUpdateLoading,
+		editBlindLevelsError,
 		editBlindLevelsLoading,
+		retryEditBlindLevels,
 		editInitialFormValues,
 		editInitialLevels,
 		handleCreate,
@@ -58,7 +62,9 @@ export function TournamentTab({ roomId }: { roomId: string }) {
 				archivedLoading={archivedLoading}
 				archivedTournaments={archivedTournaments}
 				currencies={currencies}
+				isInitialLoadError={isInitialLoadError}
 				onOpenActions={openActions}
+				onRetry={onRetry}
 				showArchived={showArchived}
 			/>
 
@@ -89,6 +95,7 @@ export function TournamentTab({ roomId }: { roomId: string }) {
 
 			<TournamentFormSheet
 				aiMode="edit"
+				editBlindLevelsError={editBlindLevelsError}
 				formId={EDIT_FORM_ID}
 				initialBlindLevels={editInitialLevels}
 				initialFormValues={editInitialFormValues}
@@ -99,6 +106,7 @@ export function TournamentTab({ roomId }: { roomId: string }) {
 						setEditingTournament(null);
 					}
 				}}
+				onRetryBlindLevels={retryEditBlindLevels}
 				onSave={handleUpdate}
 				open={editingTournament !== null}
 				resetKey={editingTournament?.id}

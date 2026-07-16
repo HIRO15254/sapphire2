@@ -70,7 +70,9 @@ describe("Field", () => {
 				<Input />
 			</Field>
 		);
-		expect(screen.getByText("Required")).toBeInTheDocument();
+		const error = screen.getByText("Required");
+		expect(error).toBeInTheDocument();
+		expect(error).toHaveAttribute("role", "alert");
 	});
 
 	it("injects aria-invalid=true onto a single React-element child when error is truthy", () => {
@@ -142,4 +144,19 @@ describe("Field", () => {
 		expect(wrap).toHaveClass("custom-cls");
 		expect(container.firstChild).toBe(wrap);
 	});
+});
+
+it("links a single input to its validation error", () => {
+	render(
+		<Field error="Required" label="Name">
+			<Input data-testid="name" />
+		</Field>
+	);
+
+	const error = screen.getByRole("alert");
+	expect(error).toHaveAttribute("id");
+	expect(screen.getByTestId("name")).toHaveAttribute(
+		"aria-describedby",
+		error.id
+	);
 });

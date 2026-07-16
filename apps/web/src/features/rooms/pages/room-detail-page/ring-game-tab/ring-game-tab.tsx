@@ -24,6 +24,8 @@ export function RingGameTab({ roomId }: { roomId: string }) {
 		archivedGames,
 		currencies,
 		activeLoading,
+		isInitialLoadError,
+		onRetry,
 		archivedLoading,
 		isCreatePending,
 		isUpdatePending,
@@ -56,7 +58,9 @@ export function RingGameTab({ roomId }: { roomId: string }) {
 				archivedGames={archivedGames}
 				archivedLoading={archivedLoading}
 				currencies={currencies}
+				isInitialLoadError={isInitialLoadError}
 				onOpenActions={openActions}
+				onRetry={onRetry}
 				showArchived={showArchived}
 			/>
 
@@ -100,6 +104,9 @@ export function RingGameTab({ roomId }: { roomId: string }) {
 						defaultValues={{
 							name: editingGame.name,
 							variant: editingGame.variant,
+							// Omitting the frozen snapshot here made every edit of a
+							// mix ring game submit mixGames: null and wipe it (c02).
+							mixGames: editingGame.mixGames ?? null,
 							blind1: editingGame.blind1 ?? undefined,
 							blind2: editingGame.blind2 ?? undefined,
 							blind3: editingGame.blind3 ?? undefined,

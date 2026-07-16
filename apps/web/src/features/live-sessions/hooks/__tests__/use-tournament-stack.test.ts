@@ -322,7 +322,17 @@ describe("useTournamentStack", () => {
 				await Promise.resolve();
 			});
 			await waitFor(() => {
-				expect(trpcMocks.sessionEventCreate).toHaveBeenCalled();
+				expect(trpcMocks.sessionEventCreate).toHaveBeenCalledTimes(1);
+				expect(trpcMocks.sessionEventCreate).toHaveBeenCalledWith({
+					eventType: "update_stack",
+					liveTournamentSessionId: "t1",
+					payload: {
+						chipPurchaseCounts: [],
+						remainingPlayers: null,
+						stackAmount: 30_000,
+						totalEntries: null,
+					},
+				});
 			});
 		});
 	});
@@ -505,8 +515,13 @@ describe("useTournamentStack", () => {
 				await Promise.resolve();
 			});
 			await waitFor(() =>
-				expect(trpcMocks.sessionEventCreate).toHaveBeenCalled()
+				expect(trpcMocks.sessionEventCreate).toHaveBeenCalledTimes(1)
 			);
+			expect(trpcMocks.sessionEventCreate).toHaveBeenCalledWith({
+				eventType: "update_stack",
+				liveTournamentSessionId: "t1",
+				payload: { stackAmount: 5000 },
+			});
 			await waitFor(() => {
 				const session = qc.getQueryData<{
 					summary: { currentStack: number };

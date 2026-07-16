@@ -214,6 +214,26 @@ describe("payload schemas", () => {
 			expect(result.potSize).toBe(1000);
 			expect(result.equity).toBe(55.5);
 		});
+
+		it.each([
+			0, 1, 1000,
+		])("accepts a non-negative integer potSize (%s)", (potSize) => {
+			expect(
+				allInPayload.parse({ potSize, trials: 1, equity: 50, wins: 0 }).potSize
+			).toBe(potSize);
+		});
+
+		it.each([
+			-1,
+			0.5,
+			Number.NaN,
+			Number.POSITIVE_INFINITY,
+			Number.NEGATIVE_INFINITY,
+		])("rejects an invalid potSize (%s)", (potSize) => {
+			expect(() =>
+				allInPayload.parse({ potSize, trials: 1, equity: 50, wins: 0 })
+			).toThrow();
+		});
 	});
 
 	describe("purchaseChipsPayload", () => {
@@ -495,6 +515,15 @@ describe("getSessionCurrentState", () => {
 		expect(getSessionCurrentState(events)).toBe("active");
 	});
 
+	it("uses id as the deterministic final tie-breaker", () => {
+		const occurredAt = new Date(1_000_000);
+		const events = [
+			{ id: "a-resume", eventType: "session_resume", occurredAt, sortOrder: 1 },
+			{ id: "z-pause", eventType: "session_pause", occurredAt, sortOrder: 1 },
+		];
+		expect(getSessionCurrentState(events)).toBe("paused");
+	});
+
 	it('returns "completed" after session_end', () => {
 		const events = [
 			makeEvent("session_start", 0),
@@ -707,16 +736,84 @@ describe("payload schema edge cases", () => {
 			).toThrow();
 		});
 
-		it("rejects wins > trials (logical boundary, may be schema or app-level)", () => {
+		it("rejects wins > trials (single trial)", () => {
 			const result = allInPayload.safeParse({
 				potSize: 1000,
 				trials: 1,
 				equity: 50,
 				wins: 2,
 			});
-			// If schema enforces it, should fail. If not, still boundary-tests the shape.
-			// This test accepts either behavior to match the schema's actual rules.
-			expect(typeof result.success).toBe("boolean");
+			expect(result.success).toBe(false);
+		});
+
+		it("rejects wins greater than trials by exactly one (off-by-one boundary)", () => {
+			const result = allInPayload.safeParse({
+				potSize: 1000,
+				trials: 3,
+				equity: 50,
+				wins: 4,
+			});
+			expect(result.success).toBe(false);
+		});
+
+		it("accepts a fractional wins (a chopped pot counts as a partial win)", () => {
+			const result = allInPayload.parse({
+				potSize: 1000,
+				trials: 3,
+				equity: 50,
+				wins: 1.5,
+			});
+			expect(result.wins).toBe(1.5);
+		});
+
+		it("rejects a fractional wins that still exceeds trials", () => {
+			const result = allInPayload.safeParse({
+				potSize: 1000,
+				trials: 1,
+				equity: 50,
+				wins: 1.5,
+			});
+			expect(result.success).toBe(false);
+		});
+
+		it("rejects a negative wins", () => {
+			const result = allInPayload.safeParse({
+				potSize: 1000,
+				trials: 3,
+				equity: 50,
+				wins: -1,
+			});
+			expect(result.success).toBe(false);
+		});
+
+		it("accepts wins equal to trials (upper boundary)", () => {
+			const result = allInPayload.parse({
+				potSize: 1000,
+				trials: 3,
+				equity: 50,
+				wins: 3,
+			});
+			expect(result.wins).toBe(3);
+		});
+
+		it("accepts wins less than trials", () => {
+			const result = allInPayload.parse({
+				potSize: 1000,
+				trials: 3,
+				equity: 50,
+				wins: 1,
+			});
+			expect(result.wins).toBe(1);
+		});
+
+		it("accepts wins = 0 with trials = 1 (lower boundary)", () => {
+			const result = allInPayload.parse({
+				potSize: 1000,
+				trials: 1,
+				equity: 50,
+				wins: 0,
+			});
+			expect(result.wins).toBe(0);
 		});
 
 		it("accepts equity exactly at 0 and 100", () => {

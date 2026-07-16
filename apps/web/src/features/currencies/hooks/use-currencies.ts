@@ -10,10 +10,12 @@ export type { Transaction } from "@/features/currencies/utils/types";
 import type { Transaction } from "@/features/currencies/utils/types";
 import {
 	cancelTargets,
+	createOptimisticId,
 	invalidateTargets,
 	restoreSnapshots,
 	snapshotQuery,
 	updateInfiniteQueryItems,
+	updateQueryItems,
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -31,6 +33,7 @@ export interface TransactionValues {
 }
 
 export interface CurrencyItem {
+	balance?: number;
 	createdAt: Date | string;
 	description?: string | null;
 	id: string;
@@ -70,16 +73,16 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		onMutate: async (newCurrency) => {
 			await cancelTargets(queryClient, [{ queryKey: currencyListKey }]);
 			const previous = snapshotQuery(queryClient, currencyListKey);
-			queryClient.setQueryData(currencyListKey, (old) => {
-				if (!old) {
+			updateQueryItems<CurrencyItem>(queryClient, currencyListKey, (old) => {
+				const base = old[0];
+				if (!base) {
 					return old;
 				}
-				const base = old[0];
 				return [
 					...old,
 					{
 						...base,
-						id: `temp-${Date.now()}`,
+						id: createOptimisticId("temp"),
 						name: newCurrency.name,
 						unit: newCurrency.unit ?? null,
 						description: newCurrency.description ?? null,
@@ -112,8 +115,8 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		onMutate: async (updated) => {
 			await cancelTargets(queryClient, [{ queryKey: currencyListKey }]);
 			const previous = snapshotQuery(queryClient, currencyListKey);
-			queryClient.setQueryData(currencyListKey, (old) =>
-				old?.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))
+			updateQueryItems<CurrencyItem>(queryClient, currencyListKey, (old) =>
+				old.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))
 			);
 			return { previous };
 		},
@@ -130,8 +133,8 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		onMutate: async (id) => {
 			await cancelTargets(queryClient, [{ queryKey: currencyListKey }]);
 			const previous = snapshotQuery(queryClient, currencyListKey);
-			queryClient.setQueryData(currencyListKey, (old) =>
-				old?.filter((c) => c.id !== id)
+			updateQueryItems<CurrencyItem>(queryClient, currencyListKey, (old) =>
+				old.filter((c) => c.id !== id)
 			);
 			return { previous };
 		},
@@ -235,10 +238,7 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		onMutate: async (id) => {
 			await cancelTargets(queryClient, [{ queryKey: currencyListKey }]);
 			const previous = snapshotQuery(queryClient, currencyListKey);
-			queryClient.setQueryData(currencyListKey, (old) => {
-				if (!old) {
-					return old;
-				}
+			updateQueryItems<CurrencyItem>(queryClient, currencyListKey, (old) => {
 				const toggled = old.map((c) =>
 					c.id === id ? { ...c, isFavorite: !c.isFavorite } : c
 				);
@@ -278,8 +278,16 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 	return {
 		currencies,
 		isLoading: currenciesQuery.isLoading,
+		isError: currenciesQuery.isError,
+		isInitialLoadError:
+			currenciesQuery.isError && currenciesQuery.data === undefined,
+		retry: currenciesQuery.refetch,
+		onRetry: currenciesQuery.refetch,
 		allTransactions,
 		isTransactionsLoading: transactionsQuery.isLoading,
+		isTransactionsInitialLoadError:
+			transactionsQuery.isError && transactionsQuery.data === undefined,
+		onRetryTransactions: transactionsQuery.refetch,
 		hasNextPage: transactionsQuery.hasNextPage,
 		isFetchingNextPage: transactionsQuery.isFetchingNextPage,
 		isCreatePending: createMutation.isPending,

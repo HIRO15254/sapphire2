@@ -191,6 +191,7 @@ function aggregateSingle(
 	};
 	const dayBuckets = new Map<number, AggregatedPoint>();
 	const result: AggregatedPoint[] = [];
+	let firstIncludedDate: number | null = null;
 	let skippedCount = 0;
 
 	for (const p of sorted) {
@@ -200,6 +201,7 @@ function aggregateSingle(
 			skippedCount++;
 			continue;
 		}
+		firstIncludedDate ??= p.sessionDate;
 		if (value !== null) {
 			acc.cumulative += value;
 		}
@@ -235,8 +237,7 @@ function aggregateSingle(
 	}
 
 	if (result.length > 0) {
-		const firstDate = sorted[0]?.sessionDate ?? null;
-		const oX = originX(xAxis, firstDate);
+		const oX = originX(xAxis, firstIncludedDate);
 		result.unshift(makeSinglePoint(oX, 0, 0, showEvCash));
 	}
 	return { points: result, skippedCount };
@@ -283,6 +284,7 @@ function aggregateDual(
 	};
 	const dayBuckets = new Map<number, AggregatedPoint>();
 	const result: AggregatedPoint[] = [];
+	let firstIncludedDate: number | null = null;
 	let skippedCount = 0;
 
 	for (const p of sorted) {
@@ -295,6 +297,7 @@ function aggregateDual(
 			skippedCount++;
 			continue;
 		}
+		firstIncludedDate ??= p.sessionDate;
 		applyDualDeltas(acc, deltas);
 		acc.sessionIndex++;
 		acc.cumulativeMinutes += p.playMinutes ?? 0;
@@ -326,8 +329,7 @@ function aggregateDual(
 	}
 
 	if (result.length > 0) {
-		const firstDate = sorted[0]?.sessionDate ?? null;
-		const oX = originX(xAxis, firstDate);
+		const oX = originX(xAxis, firstIncludedDate);
 		result.unshift(makeDualPoint(oX, 0, 0, 0, showEvCash));
 	}
 	return { points: result, skippedCount };

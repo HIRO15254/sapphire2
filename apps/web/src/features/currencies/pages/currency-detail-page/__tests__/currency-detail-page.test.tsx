@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -208,6 +208,8 @@ function baseState() {
 	return {
 		currency: { ...currencyC1 } as typeof currencyC1 | null,
 		isLoading: false,
+		isInitialLoadError: false,
+		onRetry: vi.fn(),
 		transactions: [] as Transaction[],
 		isTransactionsLoading: false,
 		hasNextPage: false,
@@ -271,6 +273,22 @@ describe("CurrencyDetailPage", () => {
 			setState({ isLoading: true });
 			render(<CurrencyDetailPage currencyId="c99" />);
 			expect(hoisted.useCurrencyDetailPage).toHaveBeenCalledWith("c99");
+		});
+	});
+
+	describe("query error state", () => {
+		it("shows a retryable error instead of not-found when the initial query fails", () => {
+			const onRetry = vi.fn();
+			setState({ currency: null, isInitialLoadError: true, onRetry });
+			render(<Component />);
+			expect(screen.getByRole("alert")).toHaveTextContent(
+				"Unable to load currency. Please try again."
+			);
+			expect(
+				screen.queryByRole("heading", { name: "Currency not found" })
+			).not.toBeInTheDocument();
+			fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+			expect(onRetry).toHaveBeenCalledTimes(1);
 		});
 	});
 

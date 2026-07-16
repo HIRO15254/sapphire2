@@ -5,6 +5,11 @@ interface OverrideLabelProps {
 	label: string;
 	/** The set of field labels that diverge from the picked master. */
 	overridden?: ReadonlySet<string>;
+	/**
+	 * Stable membership key when the displayed label is dynamic (e.g.
+	 * variant-aware blind labels). Defaults to `label`.
+	 */
+	overrideKey?: string;
 }
 
 /**
@@ -16,8 +21,9 @@ interface OverrideLabelProps {
 export function OverrideLabel({
 	label,
 	overridden,
+	overrideKey,
 }: OverrideLabelProps): ReactNode {
-	if (!overridden?.has(label)) {
+	if (!overridden?.has(overrideKey ?? label)) {
 		return label;
 	}
 	return (

@@ -131,16 +131,18 @@ export async function applyRow(
 export function computeRowWarning({
 	action,
 	occupiedSeatPositions,
+	seatCount = 9,
 	seatNumber,
 	seatPosition,
 }: {
 	action: RowAction;
 	occupiedSeatPositions: Set<number>;
+	seatCount?: number;
 	seatNumber: number;
 	seatPosition: number;
 }): string | null {
-	if (seatPosition < 0 || seatPosition > 8) {
-		return `Seat ${seatNumber} is out of range (1-9).`;
+	if (seatPosition < 0 || seatPosition >= seatCount) {
+		return `Seat ${seatNumber} is out of range (1-${seatCount}).`;
 	}
 	if (
 		action !== "hero" &&
@@ -189,6 +191,7 @@ export function buildRow({
 	name,
 	occupiedSeatPositions,
 	playersByNormalizedName,
+	seatCount = 9,
 	preferredAction,
 	seatNumber,
 	seatPosition,
@@ -201,6 +204,7 @@ export function buildRow({
 		{ id: string; name: string; count: number }[]
 	>;
 	preferredAction?: RowAction;
+	seatCount?: number;
 	seatNumber: number;
 	seatPosition: number;
 }): ReviewRow {
@@ -209,7 +213,7 @@ export function buildRow({
 	const key = normalizeName(trimmedName);
 	const matches = trimmedName ? (playersByNormalizedName.get(key) ?? []) : [];
 	const ambiguous = matches.length > 1;
-	const matchedPlayer = matches.length === 1 ? matches[0] : null;
+	const matchedPlayer = matches.length === 1 ? (matches[0] ?? null) : null;
 	const isHeroCandidate = isHero;
 
 	const effectivePreferredAction = preferredAction;
@@ -224,6 +228,7 @@ export function buildRow({
 		action,
 		occupiedSeatPositions,
 		seatNumber,
+		seatCount,
 		seatPosition,
 	});
 

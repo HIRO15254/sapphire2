@@ -1,3 +1,4 @@
+import type { MixGameGroup } from "@sapphire2/db/schemas/game";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -13,6 +14,7 @@ import type {
 import { resolveDateRange } from "@/shared/lib/period-filter";
 import {
 	cancelTargets,
+	createOptimisticId,
 	invalidateTargets,
 	prependInfiniteQueryItem,
 	restoreSnapshots,
@@ -45,6 +47,8 @@ export interface SessionItem {
 	cashBlind3: number | null;
 	cashMaxBuyIn: number | null;
 	cashMinBuyIn: number | null;
+	/** Frozen mix-game groups (cash). Optional: older cached shapes omit it. */
+	cashMixGames?: MixGameGroup[] | null;
 	cashOut: number | null;
 	cashTableSize: number | null;
 	cashVariant: string | null;
@@ -166,6 +170,7 @@ export function buildCreatePayload(values: SessionFormValues) {
 			tableSize: values.tableSize,
 			minBuyIn: values.minBuyIn,
 			maxBuyIn: values.maxBuyIn,
+			mixGames: values.mixGames,
 			ringGameId: values.ringGameId,
 		};
 	}
@@ -235,6 +240,7 @@ export function buildUpdatePayload(values: SessionFormValues & { id: string }) {
 			tableSize: values.tableSize,
 			minBuyIn: values.minBuyIn ?? null,
 			maxBuyIn: values.maxBuyIn ?? null,
+			mixGames: values.mixGames ?? null,
 			ringGameId: values.ringGameId ?? null,
 		};
 	}
@@ -257,11 +263,28 @@ export function buildUpdatePayload(values: SessionFormValues & { id: string }) {
 	};
 }
 
+function applyCashSnapshot(
+	item: SessionItem,
+	newSession: Extract<SessionFormValues, { type: "cash_game" }>
+) {
+	item.ringGameName = newSession.ruleName ?? null;
+	item.cashVariant = newSession.variant ?? null;
+	item.cashBlind1 = newSession.blind1 ?? null;
+	item.ringGameBlind2 = newSession.blind2 ?? null;
+	item.cashBlind3 = newSession.blind3 ?? null;
+	item.cashAnte = newSession.ante ?? null;
+	item.cashAnteType = newSession.anteType ?? null;
+	item.cashMinBuyIn = newSession.minBuyIn ?? null;
+	item.cashMaxBuyIn = newSession.maxBuyIn ?? null;
+	item.cashTableSize = newSession.tableSize ?? null;
+	item.cashMixGames = newSession.mixGames ?? null;
+}
+
 export function buildOptimisticItem(
 	newSession: SessionFormValues
 ): SessionItem {
 	const item: SessionItem = {
-		id: `temp-${Date.now()}`,
+		id: createOptimisticId("temp"),
 		type: newSession.type,
 		sessionDate: newSession.sessionDate,
 		buyIn: null,
@@ -307,6 +330,7 @@ export function buildOptimisticItem(
 		cashBlind3: null,
 		cashMaxBuyIn: null,
 		cashMinBuyIn: null,
+		cashMixGames: null,
 		cashTableSize: null,
 		cashVariant: null,
 		tournamentBountyAmount: null,
@@ -318,6 +342,7 @@ export function buildOptimisticItem(
 		item.buyIn = newSession.buyIn;
 		item.cashOut = newSession.cashOut;
 		item.evCashOut = newSession.evCashOut ?? null;
+		applyCashSnapshot(item, newSession);
 		item.profitLoss = newSession.cashOut - newSession.buyIn;
 		if (newSession.evCashOut !== undefined) {
 			item.evProfitLoss = newSession.evCashOut - newSession.buyIn;
@@ -346,6 +371,7 @@ function cashSnapshotDefaults(session: SessionItem) {
 		minBuyIn: session.cashMinBuyIn ?? undefined,
 		maxBuyIn: session.cashMaxBuyIn ?? undefined,
 		tableSize: session.cashTableSize ?? undefined,
+		mixGames: session.cashMixGames ?? undefined,
 	};
 }
 
@@ -392,6 +418,7 @@ export function buildEditDefaults(session: SessionItem) {
 			blind3: level.blind3,
 			ante: level.ante,
 			minutes: level.minutes,
+			games: level.games ?? null,
 		})),
 		startTime: formatTimeFromDate(session.startedAt),
 		endTime: formatTimeFromDate(session.endedAt),
@@ -484,6 +511,9 @@ export function useSessions(filters: SessionFilterValues) {
 
 	const handleCreateTag = async (name: string) => {
 		const result = await createTagMutation.mutateAsync(name);
+		if (!result) {
+			throw new Error("Failed to create session tag");
+		}
 		return { id: result.id, name: result.name };
 	};
 
@@ -596,6 +626,9 @@ export function useSessions(filters: SessionFilterValues) {
 		sessions,
 		availableTags,
 		isLoading: sessionsQuery.isLoading,
+		isInitialLoadError:
+			sessionsQuery.isError && sessionsQuery.data === undefined,
+		onRetry: sessionsQuery.refetch,
 		hasNextPage: sessionsQuery.hasNextPage,
 		isFetchingNextPage: sessionsQuery.isFetchingNextPage,
 		fetchNextPage,

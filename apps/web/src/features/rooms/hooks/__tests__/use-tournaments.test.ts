@@ -10,6 +10,7 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 }
 
 const trpcMocks = vi.hoisted(() => ({
+	tournamentListError: false,
 	tournamentCreate: vi.fn(),
 	tournamentUpdate: vi.fn(),
 	tournamentArchive: vi.fn(),
@@ -17,8 +18,6 @@ const trpcMocks = vi.hoisted(() => ({
 	tournamentDelete: vi.fn(),
 	tournamentAddTag: vi.fn(),
 	tournamentRemoveTag: vi.fn(),
-	createWithLevels: vi.fn(),
-	updateWithLevels: vi.fn(),
 	cpCreate: vi.fn(),
 	cpDelete: vi.fn(),
 }));
@@ -29,7 +28,10 @@ vi.mock("@/utils/trpc", () => ({
 			listByRoom: {
 				queryOptions: (input: unknown) => ({
 					queryKey: buildKey("tournament", "listByRoom", input),
-					queryFn: () => Promise.resolve([]),
+					queryFn: () =>
+						trpcMocks.tournamentListError
+							? Promise.reject(new Error("tournaments unavailable"))
+							: Promise.resolve([]),
 				}),
 			},
 		},
@@ -59,8 +61,6 @@ vi.mock("@/utils/trpc", () => ({
 			delete: { mutate: trpcMocks.tournamentDelete },
 			addTag: { mutate: trpcMocks.tournamentAddTag },
 			removeTag: { mutate: trpcMocks.tournamentRemoveTag },
-			createWithLevels: { mutate: trpcMocks.createWithLevels },
-			updateWithLevels: { mutate: trpcMocks.updateWithLevels },
 		},
 		tournamentChipPurchase: {
 			create: { mutate: trpcMocks.cpCreate },
@@ -127,14 +127,37 @@ function makeWrapper(client: QueryClient) {
 describe("useTournaments", () => {
 	beforeEach(() => {
 		for (const m of Object.values(trpcMocks)) {
-			m.mockReset();
+			if (typeof m === "function" && "mockReset" in m) {
+				m.mockReset();
+			}
 		}
+		trpcMocks.tournamentListError = false;
 	});
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});
 
 	describe("initial state", () => {
+		it("exposes the initial load error and retries the active tournament query", async () => {
+			trpcMocks.tournamentListError = true;
+			const qc = createClient();
+			const { result } = renderHook(
+				() => useTournaments({ roomId: STORE_ID, showArchived: false }),
+				{ wrapper: makeWrapper(qc) }
+			);
+
+			await waitFor(() => expect(result.current.isInitialLoadError).toBe(true));
+			expect(result.current.onRetry).toEqual(expect.any(Function));
+
+			trpcMocks.tournamentListError = false;
+			await act(async () => {
+				await result.current.onRetry();
+			});
+			await waitFor(() =>
+				expect(result.current.isInitialLoadError).toBe(false)
+			);
+		});
+
 		it("returns empty lists and false pending flags when caches are empty", () => {
 			const qc = createClient();
 			const { result } = renderHook(
@@ -145,8 +168,26 @@ describe("useTournaments", () => {
 			expect(result.current.archivedTournaments).toEqual([]);
 			expect(result.current.isCreatePending).toBe(false);
 			expect(result.current.isUpdatePending).toBe(false);
-			expect(result.current.isCreateWithLevelsPending).toBe(false);
-			expect(result.current.isUpdateWithLevelsPending).toBe(false);
+		});
+
+		it("keeps cached active tournaments when a background refetch fails", async () => {
+			const qc = createClient();
+			qc.setQueryData(activeKey, [makeTournament()]);
+			const { result } = renderHook(
+				() => useTournaments({ roomId: STORE_ID, showArchived: false }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() =>
+				expect(result.current.activeTournaments).toHaveLength(1)
+			);
+
+			trpcMocks.tournamentListError = true;
+			await act(async () => {
+				await qc.refetchQueries({ queryKey: activeKey });
+			});
+
+			expect(result.current.activeTournaments).toHaveLength(1);
+			expect(result.current.isInitialLoadError).toBe(false);
 		});
 
 		it("exposes seeded active tournaments", async () => {
@@ -433,89 +474,6 @@ describe("useTournaments", () => {
 				expect(archived).toEqual([]);
 			});
 			resolve?.({ id: "t1" });
-		});
-	});
-
-	describe("createWithLevels and updateWithLevels", () => {
-		it("createWithLevels forwards all values + blindLevels and invalidates both lists", async () => {
-			const qc = createClient();
-			qc.setQueryData(activeKey, []);
-			const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
-			trpcMocks.createWithLevels.mockResolvedValue({ id: "t-new" });
-			const { result } = renderHook(
-				() => useTournaments({ roomId: STORE_ID, showArchived: false }),
-				{ wrapper: makeWrapper(qc) }
-			);
-			await act(async () => {
-				await result.current.createWithLevels(
-					{
-						name: "Turbo",
-						variant: "holdem",
-						buyIn: 50,
-						chipPurchases: [],
-					},
-					[{ isBreak: false, blind1: 1, blind2: 2 }]
-				);
-			});
-			expect(trpcMocks.createWithLevels).toHaveBeenCalledWith(
-				expect.objectContaining({
-					roomId: STORE_ID,
-					name: "Turbo",
-					variant: "holdem",
-					buyIn: 50,
-					blindLevels: [{ isBreak: false, blind1: 1, blind2: 2 }],
-				})
-			);
-			const invalidated = invalidateSpy.mock.calls.map(
-				(c) => (c[0] as { queryKey: unknown[] } | undefined)?.queryKey
-			);
-			expect(invalidated).toEqual(
-				expect.arrayContaining([activeKey, archivedKey])
-			);
-		});
-
-		it("updateWithLevels additionally invalidates the blindLevel listByTournament query for the target id", async () => {
-			const qc = createClient();
-			qc.setQueryData(activeKey, [makeTournament({ id: "t1" })]);
-			const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
-			trpcMocks.updateWithLevels.mockResolvedValue({ id: "t1" });
-			const { result } = renderHook(
-				() => useTournaments({ roomId: STORE_ID, showArchived: false }),
-				{ wrapper: makeWrapper(qc) }
-			);
-			await act(async () => {
-				await result.current.updateWithLevels(
-					"t1",
-					{
-						name: "Renamed",
-						variant: "holdem",
-						chipPurchases: [],
-					},
-					[]
-				);
-			});
-			expect(trpcMocks.updateWithLevels).toHaveBeenCalledWith(
-				expect.objectContaining({
-					id: "t1",
-					name: "Renamed",
-					variant: "holdem",
-					buyIn: null,
-					entryFee: null,
-					startingStack: null,
-					bountyAmount: null,
-					tableSize: null,
-					currencyId: null,
-					memo: null,
-				})
-			);
-			const keys = invalidateSpy.mock.calls.map(
-				(c) => (c[0] as { queryKey: unknown[] } | undefined)?.queryKey
-			);
-			expect(keys).toEqual(
-				expect.arrayContaining([
-					["blindLevel", "listByTournament", { tournamentId: "t1" }],
-				])
-			);
 		});
 	});
 });

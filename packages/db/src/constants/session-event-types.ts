@@ -1,4 +1,4 @@
-import { z } from "zod";
+import z from "zod";
 
 // Session statuses
 export const SESSION_STATUSES = ["active", "paused", "completed"] as const;
@@ -64,9 +64,8 @@ export const cashSessionEndPayload = z.object({
 	cashOutAmount: z.number().int().min(0),
 });
 
-export const tournamentSessionEndPayload = z.discriminatedUnion(
-	"beforeDeadline",
-	[
+export const tournamentSessionEndPayload = z
+	.discriminatedUnion("beforeDeadline", [
 		z.object({
 			beforeDeadline: z.literal(false),
 			placement: z.number().int().min(1),
@@ -79,8 +78,15 @@ export const tournamentSessionEndPayload = z.discriminatedUnion(
 			prizeMoney: z.number().int().min(0),
 			bountyPrizes: z.number().int().min(0),
 		}),
-	]
-);
+	])
+	.refine(
+		(data) =>
+			data.beforeDeadline === true || data.placement <= data.totalEntries,
+		{
+			message: "Placement must be less than or equal to total entries",
+			path: ["placement"],
+		}
+	);
 
 // Pause/Resume payloads
 export const sessionPausePayload = z.object({});
@@ -99,12 +105,24 @@ export const chipsAddRemovePayload = z.object({
 		.refine((n) => n !== 0, { message: "amount must be non-zero" }),
 });
 
-export const allInPayload = z.object({
-	potSize: z.number().min(0),
-	trials: z.number().int().min(1),
-	equity: z.number().min(0).max(100),
-	wins: z.number().min(0),
-});
+// `wins` is the number of favorable all-in run-outs across `trials`, counted as
+// a fraction when the pot is chopped (a split counts as a partial win). It is
+// therefore a non-negative number — NOT necessarily an integer — that never
+// exceeds `trials`. The object-level `wins <= trials` refine blocks the real bug:
+// a payload like `{ potSize: 1000, trials: 1, wins: 5 }` used to validate and let
+// the EV math compute a wins-share larger than the pot, corrupting
+// `evCashOut` / `evDiff` (SA2-156).
+export const allInPayload = z
+	.object({
+		potSize: z.number().int().min(0),
+		trials: z.number().int().min(1),
+		equity: z.number().min(0).max(100),
+		wins: z.number().min(0),
+	})
+	.refine((data) => data.wins <= data.trials, {
+		message: "wins must not exceed trials",
+		path: ["wins"],
+	});
 
 // Tournament event payloads
 //
@@ -239,6 +257,7 @@ export function isValidEventTypeForSessionType(
 
 interface EventForState {
 	eventType: string;
+	id?: string;
 	occurredAt: Date | string;
 	sortOrder: number;
 }
@@ -273,7 +292,10 @@ export function getSessionCurrentState(events: EventForState[]): SessionStatus {
 		if (timeB !== timeA) {
 			return timeB - timeA;
 		}
-		return b.sortOrder - a.sortOrder;
+		if (b.sortOrder !== a.sortOrder) {
+			return b.sortOrder - a.sortOrder;
+		}
+		return (b.id ?? "").localeCompare(a.id ?? "");
 	});
 
 	const latest = sorted[0] as EventForState | undefined;

@@ -4,6 +4,7 @@ import {
 	invalidateTargets,
 	restoreSnapshots,
 	snapshotQuery,
+	updateQueryData,
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -36,7 +37,8 @@ export function useSessionTags() {
 		onMutate: async ({ id, name }) => {
 			await cancelTargets(queryClient, [{ queryKey: tagsKey }]);
 			const previous = snapshotQuery(queryClient, tagsKey);
-			queryClient.setQueryData<SessionTag[]>(
+			updateQueryData<SessionTag[]>(
+				queryClient,
 				tagsKey,
 				(old) =>
 					old?.map((tag) => (tag.id === id ? { ...tag, name } : tag)) ?? []
@@ -59,7 +61,8 @@ export function useSessionTags() {
 		onMutate: async (id) => {
 			await cancelTargets(queryClient, [{ queryKey: tagsKey }]);
 			const previous = snapshotQuery(queryClient, tagsKey);
-			queryClient.setQueryData<SessionTag[]>(
+			updateQueryData<SessionTag[]>(
+				queryClient,
 				tagsKey,
 				(old) => old?.filter((tag) => tag.id !== id) ?? []
 			);

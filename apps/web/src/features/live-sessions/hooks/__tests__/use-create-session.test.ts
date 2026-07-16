@@ -353,7 +353,10 @@ describe("useCreateSession", () => {
 				await Promise.resolve();
 			});
 			await waitFor(() => {
-				expect(trpcMocks.createTournament).toHaveBeenCalled();
+				expect(trpcMocks.createTournament).toHaveBeenCalledTimes(1);
+				expect(trpcMocks.createTournament).toHaveBeenCalledWith({
+					buyIn: 10_000,
+				});
 			});
 			await Promise.resolve();
 			expect(trpcMocks.sessionEventCreate).not.toHaveBeenCalled();

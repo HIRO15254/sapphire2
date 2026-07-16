@@ -21,6 +21,7 @@ export function toBlindLevelRows(
 		blind3: level.blind3,
 		ante: level.ante,
 		minutes: level.minutes,
+		games: level.games ?? null,
 	}));
 }
 
@@ -35,5 +36,6 @@ export function toSessionBlindLevels(
 		blind3: row.blind3,
 		ante: row.ante,
 		minutes: row.minutes,
+		games: row.games ?? null,
 	}));
 }

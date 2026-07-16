@@ -22,8 +22,6 @@ function tx(
 	};
 }
 
-const YMD_MARCH_5 = /^2026\/03\/05$/;
-
 describe("buildGroupFormatter", () => {
 	it("produces a plain formatter when max < 10k", () => {
 		const txs: TransactionDisplayItem[] = [
@@ -113,13 +111,12 @@ describe("getAmountDisplay", () => {
 });
 
 describe("getDateDisplay", () => {
-	it("formats Date input as Y/MM/DD", () => {
-		expect(getDateDisplay(new Date(2026, 2, 5))).toBe("2026/03/05");
+	it("formats a UTC Date input as Y/MM/DD", () => {
+		expect(getDateDisplay(new Date(Date.UTC(2026, 2, 5)))).toBe("2026/03/05");
 	});
 
-	it("formats ISO string input", () => {
-		// Date-only ISO normalizes in UTC; assert it matches Y/MM/DD shape.
-		expect(getDateDisplay("2026-03-05T12:00:00")).toMatch(YMD_MARCH_5);
+	it("formats an explicit UTC ISO string", () => {
+		expect(getDateDisplay("2026-03-05T12:00:00Z")).toBe("2026/03/05");
 	});
 });
 

@@ -45,6 +45,20 @@ describe("useAllInForm", () => {
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
+	it("rejects fractional pot size on submit", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useAllInForm({ open: false, onSubmit })
+		);
+		act(() => {
+			result.current.form.setFieldValue("potSize", "1.5");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
 	it("rejects trials = 0 on submit (min 1 integer)", async () => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() =>
@@ -78,6 +92,67 @@ describe("useAllInForm", () => {
 			trials: 2,
 			equity: 40,
 			wins: 1,
+		});
+	});
+
+	it("rejects wins greater than trials on submit", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useAllInForm({ open: false, onSubmit })
+		);
+		act(() => {
+			result.current.form.setFieldValue("potSize", "1000");
+			result.current.form.setFieldValue("trials", "1");
+			result.current.form.setFieldValue("equity", "50");
+			result.current.form.setFieldValue("wins", "2");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("accepts a fractional wins on submit (a chopped pot counts as a partial win)", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useAllInForm({ open: false, onSubmit })
+		);
+		act(() => {
+			result.current.form.setFieldValue("potSize", "1000");
+			result.current.form.setFieldValue("trials", "3");
+			result.current.form.setFieldValue("equity", "50");
+			result.current.form.setFieldValue("wins", "1.5");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledWith({
+			potSize: 1000,
+			trials: 3,
+			equity: 50,
+			wins: 1.5,
+		});
+	});
+
+	it("accepts wins equal to trials on submit (upper boundary)", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useAllInForm({ open: false, onSubmit })
+		);
+		act(() => {
+			result.current.form.setFieldValue("potSize", "1000");
+			result.current.form.setFieldValue("trials", "3");
+			result.current.form.setFieldValue("equity", "50");
+			result.current.form.setFieldValue("wins", "3");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledWith({
+			potSize: 1000,
+			trials: 3,
+			equity: 50,
+			wins: 3,
 		});
 	});
 

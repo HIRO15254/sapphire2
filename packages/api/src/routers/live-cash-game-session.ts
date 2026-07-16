@@ -1,3 +1,4 @@
+import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import {
 	cashSessionEndPayload,
 	cashSessionStartPayload,
@@ -5,33 +6,138 @@ import {
 	MAX_SEAT_POSITION,
 	updateStackPayload,
 } from "@sapphire2/db/constants/session-event-types";
-import { currency } from "@sapphire2/db/schema/currency";
+import { currency, currencyTransaction } from "@sapphire2/db/schema/currency";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
+import { mixGamesSchema } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, max, sql } from "drizzle-orm";
-import { z } from "zod";
+import { and, desc, eq, sql } from "drizzle-orm";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
+import {
+	ACTIVE_SESSION_CONFLICT_MESSAGE,
+	runUnfinishedLiveSessionWrite,
+} from "../lib/db-errors";
 import {
 	computeCashGamePLFromEvents,
 	computeHeroSeatPositionFromEvents,
 	recalculateCashGameSession,
 } from "../services/live-session-pl";
-import { floorToMinute } from "../utils/session-event-time";
+import { assertSeatPositionFitsTableSize } from "../utils/seat-position";
 import {
+	floorToMinute,
+	latestSessionEventOrderBy,
+	nextAppendSortOrderSql,
+	sessionEventOrderBy,
+} from "../utils/session-event-time";
+import {
+	buildRingGameCreateStatement,
+	ringGameCreateInputSchema,
+} from "./ring-game";
+import {
+	cashMixFlatFieldClearPatch,
+	encodeSessionCursor,
+	getSessionEventMap,
+	reconcileCashRuleSelection,
 	resolveCashRuleSnapshot,
+	sessionKeysetCondition,
+	sessionOrderKeySql,
 	validateEntityOwnership,
 	validateLiveLinkOwnership,
 } from "./session";
 
 const DEFAULT_LIMIT = 20;
+const nullableNonnegativeSafeIntegerSchema = z
+	.number()
+	.int()
+	.min(0)
+	.max(Number.MAX_SAFE_INTEGER)
+	.nullable()
+	.optional();
+const nullableTableSizeSchema = z
+	.number()
+	.int()
+	.min(2)
+	.max(10)
+	.nullable()
+	.optional();
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
 >[0]["ctx"]["db"];
+
+type BatchStatement = Parameters<DbInstance["batch"]>[0][number];
+
+/**
+ * Atomically re-open a completed live cash session: delete its `session_end`
+ * event and re-stamp the closing stack as an `update_stack` + a `pause`/`resume`
+ * pair. Event replacement, reopening the session row, and removing the completed
+ * session's currency ledger entry share one `db.batch`, so a conflict or write
+ * failure rolls back the entire reopen (SA2-116, SA2-211).
+ */
+export async function persistCashSessionReopenEvents(
+	db: DbInstance,
+	params: {
+		cashOutAmount: number;
+		endSortOrder: number;
+		flooredEndOccurredAt: Date;
+		flooredNow: Date;
+		now: Date;
+		sessionEndEventId: string;
+		sessionId: string;
+	}
+): Promise<void> {
+	const statements: [BatchStatement, ...BatchStatement[]] = [
+		db
+			.delete(sessionEvent)
+			.where(eq(sessionEvent.id, params.sessionEndEventId)),
+		db.insert(sessionEvent).values({
+			id: crypto.randomUUID(),
+			sessionId: params.sessionId,
+			eventType: "update_stack",
+			occurredAt: params.flooredEndOccurredAt,
+			sortOrder: params.endSortOrder,
+			payload: JSON.stringify({ stackAmount: params.cashOutAmount }),
+			updatedAt: params.now,
+		}),
+		db.insert(sessionEvent).values({
+			id: crypto.randomUUID(),
+			sessionId: params.sessionId,
+			eventType: "session_pause",
+			occurredAt: params.flooredEndOccurredAt,
+			sortOrder: params.endSortOrder + 1,
+			payload: JSON.stringify({}),
+			updatedAt: params.now,
+		}),
+		// session_resume must sort strictly after session_pause so
+		// computeSessionStateFromEvents sees the pair in the right order and
+		// break-minute calculation can close the pause.
+		db.insert(sessionEvent).values({
+			id: crypto.randomUUID(),
+			sessionId: params.sessionId,
+			eventType: "session_resume",
+			occurredAt: params.flooredNow,
+			sortOrder: params.endSortOrder + 2,
+			payload: JSON.stringify({}),
+			updatedAt: params.now,
+		}),
+		db
+			.update(gameSession)
+			.set({
+				endedAt: null,
+				status: "active",
+				updatedAt: params.now,
+			})
+			.where(eq(gameSession.id, params.sessionId)),
+		db
+			.delete(currencyTransaction)
+			.where(eq(currencyTransaction.sessionId, params.sessionId)),
+	];
+	await db.batch(statements);
+}
 
 async function findLiveCashGameSession(
 	db: DbInstance,
@@ -45,21 +151,20 @@ async function findLiveCashGameSession(
 			and(
 				eq(gameSession.id, id),
 				eq(gameSession.kind, "cash_game"),
-				eq(gameSession.source, "live")
+				eq(gameSession.source, "live"),
+				eq(gameSession.userId, userId)
 			)
 		);
 
-	if (!found) {
+	if (
+		!found ||
+		found.kind !== "cash_game" ||
+		found.source !== "live" ||
+		found.userId !== userId
+	) {
 		throw new TRPCError({
-			code: "NOT_FOUND",
-			message: "Live cash game session not found",
-		});
-	}
-
-	if (found.userId !== userId) {
-		throw new TRPCError({
-			code: "NOT_FOUND",
-			message: "Live cash game session not found",
+			code: "FORBIDDEN",
+			message: "You do not own this live cash game session",
 		});
 	}
 
@@ -136,12 +241,12 @@ async function resolveRingGameAssignment(
 	const [foundRingGame] = await db
 		.select()
 		.from(ringGame)
-		.where(eq(ringGame.id, ringGameId));
+		.where(and(eq(ringGame.id, ringGameId), eq(ringGame.userId, userId)));
 
 	if (!foundRingGame) {
 		throw new TRPCError({
-			code: "NOT_FOUND",
-			message: "Ring game not found",
+			code: "FORBIDDEN",
+			message: "You do not own this ring game",
 		});
 	}
 
@@ -199,10 +304,12 @@ export const liveCashGameSessionRouter = router({
 			if (input.status) {
 				conditions.push(eq(gameSession.status, input.status));
 			}
-			if (input.cursor) {
-				conditions.push(
-					sql`${gameSession.startedAt} < (SELECT started_at FROM game_session WHERE id = ${input.cursor} AND user_id = ${userId})`
-				);
+			// Composite (startedAt, id) keyset — a malformed / deleted-row cursor
+			// degrades to "no cursor" instead of silently emptying the page
+			// (SA2-150). Shared with session.list so both stay in lockstep.
+			const keyset = sessionKeysetCondition(input.cursor);
+			if (keyset) {
+				conditions.push(keyset);
 			}
 
 			const rows = await ctx.db
@@ -218,6 +325,7 @@ export const liveCashGameSessionRouter = router({
 					currencyName: currency.name,
 					currencyUnit: currency.unit,
 					startedAt: gameSession.startedAt,
+					sessionDate: gameSession.sessionDate,
 					endedAt: gameSession.endedAt,
 					memo: gameSession.memo,
 					createdAt: gameSession.createdAt,
@@ -228,46 +336,55 @@ export const liveCashGameSessionRouter = router({
 					sessionCashDetail,
 					eq(sessionCashDetail.sessionId, gameSession.id)
 				)
-				.leftJoin(room, eq(room.id, gameSession.roomId))
-				.leftJoin(currency, eq(currency.id, gameSession.currencyId))
+				.leftJoin(
+					room,
+					and(eq(room.id, gameSession.roomId), eq(room.userId, userId))
+				)
+				.leftJoin(
+					currency,
+					and(
+						eq(currency.id, gameSession.currencyId),
+						eq(currency.userId, userId)
+					)
+				)
 				.where(and(...conditions))
-				.orderBy(desc(gameSession.startedAt))
+				.orderBy(desc(sessionOrderKeySql()), desc(gameSession.id))
 				.limit(input.limit + 1);
 
 			const hasMore = rows.length > input.limit;
 			const items = hasMore ? rows.slice(0, input.limit) : rows;
-			const nextCursor = hasMore ? items.at(-1)?.id : undefined;
+			const last = items.at(-1);
+			const nextCursor =
+				hasMore && last ? encodeSessionCursor(last) : undefined;
 
-			const enrichedItems = await Promise.all(
-				items.map(async (item) => {
-					const events = await ctx.db
-						.select({
-							eventType: sessionEvent.eventType,
-							payload: sessionEvent.payload,
-							sortOrder: sessionEvent.sortOrder,
-						})
-						.from(sessionEvent)
-						.where(eq(sessionEvent.sessionId, item.id))
-						.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
+			// SA2-151: fetch every page item's events in one batched inArray
+			// query, then bucket by session id, instead of a per-item query
+			// (an N+1 whose per-query latency dominated under D1). getSessionEventMap
+			// preserves the (occurredAt, sortOrder, id) ordering the reverse scan needs.
+			const eventMap = await getSessionEventMap(
+				ctx.db,
+				items.map((item) => item.id)
+			);
 
-					const eventCount = events.length;
-					let latestStackAmount: number | null = null;
+			const enrichedItems = items.map((item) => {
+				const events = eventMap.get(item.id) ?? [];
+				const eventCount = events.length;
+				let latestStackAmount: number | null = null;
 
-					for (const event of [...events].reverse()) {
-						if (event.eventType === "update_stack") {
-							const parsed = updateStackPayload.safeParse(
-								JSON.parse(event.payload)
-							);
-							if (parsed.success) {
-								latestStackAmount = parsed.data.stackAmount;
-								break;
-							}
+				for (const event of [...events].reverse()) {
+					if (event.eventType === "update_stack") {
+						const parsed = updateStackPayload.safeParse(
+							JSON.parse(event.payload)
+						);
+						if (parsed.success) {
+							latestStackAmount = parsed.data.stackAmount;
+							break;
 						}
 					}
+				}
 
-					return { ...item, eventCount, latestStackAmount };
-				})
-			);
+				return { ...item, eventCount, latestStackAmount };
+			});
 
 			return { items: enrichedItems, nextCursor };
 		}),
@@ -287,7 +404,7 @@ export const liveCashGameSessionRouter = router({
 				.select()
 				.from(sessionEvent)
 				.where(eq(sessionEvent.sessionId, input.id))
-				.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
+				.orderBy(...sessionEventOrderBy());
 
 			const mappedEvents = events.map((e) => ({
 				eventType: e.eventType,
@@ -322,6 +439,7 @@ export const liveCashGameSessionRouter = router({
 				// the master ring_game never propagate.
 				ruleName: cashDetail?.ruleName ?? null,
 				variant: cashDetail?.variant ?? null,
+				mixGames: cashDetail?.mixGames ?? null,
 				blind1: cashDetail?.blind1 ?? null,
 				blind2: cashDetail?.blind2 ?? null,
 				blind3: cashDetail?.blind3 ?? null,
@@ -336,16 +454,30 @@ export const liveCashGameSessionRouter = router({
 	create: protectedProcedure
 		.input(
 			z.object({
-				roomId: z.string().optional(),
-				ringGameId: z.string().optional(),
-				currencyId: z.string().optional(),
+				roomId: z.string().min(1).optional(),
+				ringGameId: z.string().min(1).optional(),
+				currencyId: z.string().min(1).optional(),
 				memo: z.string().optional(),
-				initialBuyIn: z.number().min(0),
+				// Must be an integer: it is re-read through cashSessionStartPayload's
+				// z.number().int().min(0), so a decimal here would parse on create but
+				// throw ZodError on every subsequent getById, making the session
+				// permanently unreadable (SA2-148 write==read).
+				initialBuyIn: z.number().int().min(0),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const now = new Date();
+
+			await validateLiveLinkOwnership(ctx.db, input, userId);
+			if (input.ringGameId) {
+				await validateEntityOwnership(
+					ctx.db,
+					"ringGame",
+					input.ringGameId,
+					userId
+				);
+			}
 
 			const anyActive = await ctx.db
 				.select({ id: gameSession.id })
@@ -361,27 +493,23 @@ export const liveCashGameSessionRouter = router({
 
 			if (anyActive.length > 0) {
 				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message: "Another session is already active",
+					code: "CONFLICT",
+					message: ACTIVE_SESSION_CONFLICT_MESSAGE,
 				});
 			}
 
 			if (input.ringGameId) {
 				// Verify ring-game ownership BEFORE any ring_game read so a caller
 				// cannot probe another user's config via the buy-in bounds (SA2-174).
-				await validateEntityOwnership(
-					ctx.db,
-					"ringGame",
-					input.ringGameId,
-					userId
-				);
 				const [foundRingGame] = await ctx.db
 					.select({
 						minBuyIn: ringGame.minBuyIn,
 						maxBuyIn: ringGame.maxBuyIn,
 					})
 					.from(ringGame)
-					.where(eq(ringGame.id, input.ringGameId));
+					.where(
+						and(eq(ringGame.id, input.ringGameId), eq(ringGame.userId, userId))
+					);
 
 				if (foundRingGame) {
 					if (
@@ -405,53 +533,147 @@ export const liveCashGameSessionRouter = router({
 				}
 			}
 
-			await validateLiveLinkOwnership(ctx.db, input, userId);
-
 			const id = crypto.randomUUID();
-
-			await ctx.db.insert(gameSession).values({
-				id,
-				userId,
-				kind: "cash_game",
-				status: "active",
-				source: "live",
-				roomId: input.roomId ?? null,
-				currencyId: input.currencyId ?? null,
-				startedAt: now,
-				memo: input.memo ?? null,
-				sessionDate: now,
-				updatedAt: now,
-			});
 
 			const snapshot = await resolveCashRuleSnapshot(ctx.db, {
 				ringGameId: input.ringGameId,
 			});
-			await ctx.db.insert(sessionCashDetail).values({
-				sessionId: id,
-				ringGameId: input.ringGameId ?? null,
-				ruleName: input.ringGameId ? snapshot.ruleName : "Cash Game",
-				variant: snapshot.variant,
-				blind1: snapshot.blind1,
-				blind2: snapshot.blind2,
-				blind3: snapshot.blind3,
-				ante: snapshot.ante,
-				anteType: snapshot.anteType,
-				minBuyIn: snapshot.minBuyIn,
-				maxBuyIn: snapshot.maxBuyIn,
-				tableSize: snapshot.tableSize,
-			});
-
-			await ctx.db.insert(sessionEvent).values({
-				id: crypto.randomUUID(),
-				sessionId: id,
-				eventType: "session_start",
-				occurredAt: floorToMinute(now),
-				sortOrder: 0,
-				payload: JSON.stringify({ buyInAmount: input.initialBuyIn }),
-				updatedAt: now,
-			});
+			await runUnfinishedLiveSessionWrite(() =>
+				ctx.db.batch([
+					ctx.db.insert(gameSession).values({
+						id,
+						userId,
+						kind: "cash_game",
+						status: "active",
+						source: "live",
+						roomId: input.roomId ?? null,
+						currencyId: input.currencyId ?? null,
+						startedAt: now,
+						memo: input.memo ?? null,
+						sessionDate: now,
+						updatedAt: now,
+					}),
+					ctx.db.insert(sessionCashDetail).values({
+						sessionId: id,
+						ringGameId: input.ringGameId ?? null,
+						ruleName: input.ringGameId ? snapshot.ruleName : "Cash Game",
+						variant: snapshot.variant,
+						mixGames: snapshot.mixGames,
+						blind1: snapshot.blind1,
+						blind2: snapshot.blind2,
+						blind3: snapshot.blind3,
+						ante: snapshot.ante,
+						anteType: snapshot.anteType,
+						minBuyIn: snapshot.minBuyIn,
+						maxBuyIn: snapshot.maxBuyIn,
+						tableSize: snapshot.tableSize,
+					}),
+					ctx.db.insert(sessionEvent).values({
+						id: crypto.randomUUID(),
+						sessionId: id,
+						eventType: "session_start",
+						occurredAt: floorToMinute(now),
+						sortOrder: 0,
+						payload: JSON.stringify({ buyInAmount: input.initialBuyIn }),
+						updatedAt: now,
+					}),
+				])
+			);
 
 			return { id };
+		}),
+
+	createAndAssignRingGame: protectedProcedure
+		.input(ringGameCreateInputSchema.extend({ sessionId: z.string() }))
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const existing = await findLiveCashGameSession(
+				ctx.db,
+				input.sessionId,
+				userId
+			);
+			await validateLiveLinkOwnership(ctx.db, input, userId);
+			if (existing.roomId && existing.roomId !== input.roomId) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "Ring game belongs to a different room than the session",
+				});
+			}
+
+			const selection = await reconcileCashRuleSelection(
+				ctx.db,
+				userId,
+				undefined,
+				input
+			);
+			const frozenFlatFields = cashMixFlatFieldClearPatch(selection.mixGames);
+			const now = new Date();
+			const ringGameId = crypto.randomUUID();
+
+			const sessionUpdate: Partial<typeof gameSession.$inferInsert> = {
+				updatedAt: now,
+			};
+			if (!existing.roomId) {
+				sessionUpdate.roomId = input.roomId;
+			}
+			if (!existing.currencyId && input.currencyId) {
+				sessionUpdate.currencyId = input.currencyId;
+			}
+
+			const snapshot = {
+				ringGameId,
+				ruleName: input.name,
+				variant: selection.variant,
+				mixGames: selection.mixGames,
+				blind1: input.blind1 ?? null,
+				blind2: input.blind2 ?? null,
+				blind3: input.blind3 ?? null,
+				ante: input.ante ?? null,
+				anteType: input.anteType ?? null,
+				minBuyIn: input.minBuyIn ?? null,
+				maxBuyIn: input.maxBuyIn ?? null,
+				tableSize: input.tableSize ?? null,
+				...frozenFlatFields,
+			};
+			// Upsert (rather than select-then-update/insert) keeps an FK-checked
+			// session-detail write inside the batch. If the live session disappears
+			// after the authorization read, the FK violation rolls the master insert
+			// back instead of leaving an orphan ring game.
+			const detailStatement = ctx.db
+				.insert(sessionCashDetail)
+				.values({
+					sessionId: input.sessionId,
+					...snapshot,
+				})
+				.onConflictDoUpdate({
+					target: sessionCashDetail.sessionId,
+					set: snapshot,
+				});
+			const statements: [BatchStatement, ...BatchStatement[]] = [
+				buildRingGameCreateStatement(ctx.db, {
+					id: ringGameId,
+					input,
+					userId,
+					variant: selection.variant,
+					mixGames: selection.mixGames,
+					now,
+				}),
+				ctx.db
+					.update(gameSession)
+					.set(sessionUpdate)
+					.where(
+						and(
+							eq(gameSession.id, input.sessionId),
+							eq(gameSession.userId, userId),
+							eq(gameSession.kind, "cash_game"),
+							eq(gameSession.source, "live")
+						)
+					),
+				detailStatement,
+			];
+			await ctx.db.batch(statements);
+
+			return { sessionId: input.sessionId, ringGameId };
 		}),
 
 	update: protectedProcedure
@@ -459,9 +681,9 @@ export const liveCashGameSessionRouter = router({
 			z.object({
 				id: z.string(),
 				memo: z.string().nullable().optional(),
-				roomId: z.string().nullable().optional(),
-				currencyId: z.string().nullable().optional(),
-				ringGameId: z.string().nullable().optional(),
+				roomId: z.string().min(1).nullable().optional(),
+				currencyId: z.string().min(1).nullable().optional(),
+				ringGameId: z.string().min(1).nullable().optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -528,6 +750,7 @@ export const liveCashGameSessionRouter = router({
 				});
 				cashDetailUpdate.ruleName = snapshot.ruleName;
 				cashDetailUpdate.variant = snapshot.variant;
+				cashDetailUpdate.mixGames = snapshot.mixGames;
 				cashDetailUpdate.blind1 = snapshot.blind1;
 				cashDetailUpdate.blind2 = snapshot.blind2;
 				cashDetailUpdate.blind3 = snapshot.blind3;
@@ -552,9 +775,21 @@ export const liveCashGameSessionRouter = router({
 				} else {
 					await ctx.db.insert(sessionCashDetail).values({
 						sessionId: input.id,
+						// Explicit fallback so this insert never relies on the column
+						// default (F5/c12) — overridden below by
+						// cashDetailUpdate.variant when a ring game snapshot already
+						// supplied one.
+						variant: DEFAULT_VARIANT_LABEL,
 						...cashDetailUpdate,
 					});
 				}
+			}
+
+			if (
+				existing.status === "completed" &&
+				updateData.currencyId !== undefined
+			) {
+				await recalculateCashGameSession(ctx.db, input.id, userId);
 			}
 
 			const [updated] = await ctx.db
@@ -580,19 +815,35 @@ export const liveCashGameSessionRouter = router({
 				id: z.string(),
 				ruleName: z.string().min(1).optional(),
 				variant: z.string().optional(),
-				blind1: z.number().int().nullable().optional(),
-				blind2: z.number().int().nullable().optional(),
-				blind3: z.number().int().nullable().optional(),
-				ante: z.number().int().nullable().optional(),
+				mixGames: mixGamesSchema.nullish(),
+				blind1: nullableNonnegativeSafeIntegerSchema,
+				blind2: nullableNonnegativeSafeIntegerSchema,
+				blind3: nullableNonnegativeSafeIntegerSchema,
+				ante: nullableNonnegativeSafeIntegerSchema,
 				anteType: z.enum(["none", "all", "bb"]).nullable().optional(),
-				minBuyIn: z.number().int().nullable().optional(),
-				maxBuyIn: z.number().int().nullable().optional(),
-				tableSize: z.number().int().nullable().optional(),
+				minBuyIn: nullableNonnegativeSafeIntegerSchema,
+				maxBuyIn: nullableNonnegativeSafeIntegerSchema,
+				tableSize: nullableTableSizeSchema,
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await findLiveCashGameSession(ctx.db, input.id, userId);
+			const [existingDetail] = await ctx.db
+				.select()
+				.from(sessionCashDetail)
+				.where(eq(sessionCashDetail.sessionId, input.id));
+			const selection = await reconcileCashRuleSelection(
+				ctx.db,
+				userId,
+				existingDetail
+					? {
+							variant: existingDetail.variant,
+							mixGames: existingDetail.mixGames ?? null,
+						}
+					: undefined,
+				input
+			);
 
 			const detailUpdate: Partial<typeof sessionCashDetail.$inferInsert> = {};
 			if (input.ruleName !== undefined) {
@@ -600,6 +851,9 @@ export const liveCashGameSessionRouter = router({
 			}
 			if (input.variant !== undefined) {
 				detailUpdate.variant = input.variant;
+			}
+			if (selection.shouldWriteMixGames) {
+				detailUpdate.mixGames = selection.mixGames;
 			}
 			if (input.blind1 !== undefined) {
 				detailUpdate.blind1 = input.blind1;
@@ -624,6 +878,12 @@ export const liveCashGameSessionRouter = router({
 			}
 			if (input.tableSize !== undefined) {
 				detailUpdate.tableSize = input.tableSize;
+			}
+			if (Object.keys(detailUpdate).length > 0) {
+				Object.assign(
+					detailUpdate,
+					cashMixFlatFieldClearPatch(selection.mixGames)
+				);
 			}
 			if (Object.keys(detailUpdate).length === 0) {
 				return { id: input.id };
@@ -655,22 +915,12 @@ export const liveCashGameSessionRouter = router({
 
 			const now = new Date();
 
-			const existingEvents = await ctx.db
-				.select({ sortOrder: sessionEvent.sortOrder })
-				.from(sessionEvent)
-				.where(eq(sessionEvent.sessionId, input.id))
-				.orderBy(desc(sessionEvent.sortOrder))
-				.limit(1);
-
-			const nextSortOrder =
-				existingEvents.length > 0 ? (existingEvents[0]?.sortOrder ?? 0) + 1 : 0;
-
 			await ctx.db.insert(sessionEvent).values({
 				id: crypto.randomUUID(),
 				sessionId: input.id,
 				eventType: "session_end",
 				occurredAt: floorToMinute(now),
-				sortOrder: nextSortOrder,
+				sortOrder: nextAppendSortOrderSql(input.id),
 				payload: JSON.stringify({ cashOutAmount: input.finalStack }),
 				updatedAt: now,
 			});
@@ -707,8 +957,8 @@ export const liveCashGameSessionRouter = router({
 
 			if (anyActive.length > 0) {
 				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message: "Another session is already active",
+					code: "CONFLICT",
+					message: ACTIVE_SESSION_CONFLICT_MESSAGE,
 				});
 			}
 
@@ -728,6 +978,7 @@ export const liveCashGameSessionRouter = router({
 						eq(sessionEvent.eventType, "session_end")
 					)
 				)
+				.orderBy(...latestSessionEventOrderBy())
 				.limit(1);
 
 			if (!sessionEndEvent) {
@@ -744,47 +995,20 @@ export const liveCashGameSessionRouter = router({
 			const endOccurredAt = sessionEndEvent.occurredAt;
 			const endSortOrder = sessionEndEvent.sortOrder;
 
-			await ctx.db
-				.delete(sessionEvent)
-				.where(eq(sessionEvent.id, sessionEndEvent.id));
-
 			const flooredEndOccurredAt = floorToMinute(endOccurredAt);
 			const flooredNow = floorToMinute(now);
 
-			await ctx.db.insert(sessionEvent).values({
-				id: crypto.randomUUID(),
-				sessionId: input.id,
-				eventType: "update_stack",
-				occurredAt: flooredEndOccurredAt,
-				sortOrder: endSortOrder,
-				payload: JSON.stringify({ stackAmount: cashOutAmount }),
-				updatedAt: now,
-			});
-
-			await ctx.db.insert(sessionEvent).values({
-				id: crypto.randomUUID(),
-				sessionId: input.id,
-				eventType: "session_pause",
-				occurredAt: flooredEndOccurredAt,
-				sortOrder: endSortOrder + 1,
-				payload: JSON.stringify({}),
-				updatedAt: now,
-			});
-
-			// session_resume must sort strictly after session_pause so
-			// computeSessionStateFromEvents sees the pair in the right order
-			// and break-minute calculation can close the pause.
-			await ctx.db.insert(sessionEvent).values({
-				id: crypto.randomUUID(),
-				sessionId: input.id,
-				eventType: "session_resume",
-				occurredAt: flooredNow,
-				sortOrder: endSortOrder + 2,
-				payload: JSON.stringify({}),
-				updatedAt: now,
-			});
-
-			await recalculateCashGameSession(ctx.db, input.id, userId);
+			await runUnfinishedLiveSessionWrite(() =>
+				persistCashSessionReopenEvents(ctx.db, {
+					sessionId: input.id,
+					sessionEndEventId: sessionEndEvent.id,
+					flooredEndOccurredAt,
+					endSortOrder,
+					cashOutAmount,
+					flooredNow,
+					now,
+				})
+			);
 
 			return { id: input.id };
 		}),
@@ -822,6 +1046,14 @@ export const liveCashGameSessionRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await findLiveCashGameSession(ctx.db, input.id, userId);
+			const [detail] = await ctx.db
+				.select({ tableSize: sessionCashDetail.tableSize })
+				.from(sessionCashDetail)
+				.where(eq(sessionCashDetail.sessionId, input.id));
+			assertSeatPositionFitsTableSize(
+				input.heroSeatPosition,
+				detail?.tableSize ?? null
+			);
 
 			const events = await ctx.db
 				.select({
@@ -830,7 +1062,7 @@ export const liveCashGameSessionRouter = router({
 				})
 				.from(sessionEvent)
 				.where(eq(sessionEvent.sessionId, input.id))
-				.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
+				.orderBy(...sessionEventOrderBy());
 
 			const previousHeroSeat = computeHeroSeatPositionFromEvents(events);
 
@@ -847,11 +1079,6 @@ export const liveCashGameSessionRouter = router({
 			}
 
 			const now = new Date();
-			const [latest] = await ctx.db
-				.select({ maxSort: max(sessionEvent.sortOrder) })
-				.from(sessionEvent)
-				.where(eq(sessionEvent.sessionId, input.id));
-			const sortOrder = (latest?.maxSort ?? -1) + 1;
 
 			if (input.heroSeatPosition === null) {
 				await ctx.db.insert(sessionEvent).values({
@@ -859,7 +1086,7 @@ export const liveCashGameSessionRouter = router({
 					sessionId: input.id,
 					eventType: "player_leave",
 					occurredAt: floorToMinute(now),
-					sortOrder,
+					sortOrder: nextAppendSortOrderSql(input.id),
 					payload: JSON.stringify({ isHero: true }),
 					updatedAt: now,
 				});
@@ -869,7 +1096,7 @@ export const liveCashGameSessionRouter = router({
 					sessionId: input.id,
 					eventType: "player_join",
 					occurredAt: floorToMinute(now),
-					sortOrder,
+					sortOrder: nextAppendSortOrderSql(input.id),
 					payload: JSON.stringify({
 						isHero: true,
 						seatPosition: input.heroSeatPosition,

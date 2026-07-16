@@ -10,6 +10,7 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 }
 
 const trpcMocks = vi.hoisted(() => ({
+	list: vi.fn(),
 	create: vi.fn(),
 	update: vi.fn(),
 	delete: vi.fn(),
@@ -22,7 +23,7 @@ vi.mock("@/utils/trpc", () => ({
 			list: {
 				queryOptions: () => ({
 					queryKey: buildKey("room", "list", undefined),
-					queryFn: () => Promise.resolve([]),
+					queryFn: trpcMocks.list,
 				}),
 			},
 		},
@@ -62,6 +63,7 @@ describe("useRooms", () => {
 		for (const m of Object.values(trpcMocks)) {
 			m.mockReset();
 		}
+		trpcMocks.list.mockResolvedValue([]);
 		trpcMocks.toggleFavorite.mockResolvedValue({ id: "s1" });
 	});
 	afterEach(() => {
@@ -93,6 +95,48 @@ describe("useRooms", () => {
 		});
 	});
 
+	it("keeps cached rooms usable after a refetch failure", async () => {
+		const qc = createClient();
+		qc.setQueryData(STORE_KEY, [{ id: "s1", name: "Main", memo: null }]);
+		trpcMocks.list.mockRejectedValueOnce(new Error("network failure"));
+		const { result } = renderHook(() => useRooms(), {
+			wrapper: makeWrapper(qc),
+		});
+
+		expect(result.current.rooms).toEqual([
+			{ id: "s1", name: "Main", memo: null },
+		]);
+
+		await act(async () => {
+			await result.current.onRetry();
+		});
+
+		await waitFor(() => expect(trpcMocks.list).toHaveBeenCalledTimes(1));
+		expect(result.current.isInitialLoadError).toBe(false);
+		expect(result.current.rooms).toEqual([
+			{ id: "s1", name: "Main", memo: null },
+		]);
+	});
+
+	it("exposes query errors and retries the rooms query", async () => {
+		const qc = createClient();
+		const error = new Error("network failure");
+		trpcMocks.list.mockRejectedValueOnce(error).mockResolvedValue([]);
+		const { result } = renderHook(() => useRooms(), {
+			wrapper: makeWrapper(qc),
+		});
+
+		await waitFor(() => expect(result.current.isError).toBe(true));
+		expect(result.current.isInitialLoadError).toBe(true);
+		expect(result.current.rooms).toEqual([]);
+
+		await act(async () => {
+			await result.current.onRetry();
+		});
+		await waitFor(() => expect(result.current.isError).toBe(false));
+		expect(result.current.isInitialLoadError).toBe(false);
+		expect(trpcMocks.list).toHaveBeenCalledTimes(2);
+	});
 	describe("create (optimistic)", () => {
 		it("appends a temp-id room to the cached list during mutation", async () => {
 			const qc = createClient();

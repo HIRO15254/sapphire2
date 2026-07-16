@@ -7,12 +7,6 @@ const mocks = vi.hoisted(() => ({
 	menuState: {
 		session: null as null | { user: { email: string; name: string } },
 		isPending: false,
-		updateNotesSheet: {
-			isOpen: false,
-			open: vi.fn(),
-			close: vi.fn(),
-			setIsOpen: vi.fn(),
-		},
 		onSignOut: vi.fn(),
 	},
 	useUserMenu: vi.fn(),
@@ -30,7 +24,6 @@ vi.mock("./use-user-menu", () => ({
 
 describe("UserMenu", () => {
 	beforeEach(() => {
-		mocks.menuState.updateNotesSheet.open.mockReset();
 		mocks.menuState.onSignOut.mockReset();
 		mocks.useUserMenu.mockReset();
 		mocks.useUserMenu.mockImplementation(() => mocks.menuState);
@@ -51,10 +44,13 @@ describe("UserMenu", () => {
 
 		render(<UserMenu />);
 
-		expect(screen.getByRole("link", { name: "Sign In" })).toHaveAttribute(
-			"href",
-			"/login"
-		);
+		const signInLink = screen.getByRole("link", { name: "Sign In" });
+
+		expect(signInLink).toHaveAttribute("href", "/login");
+		expect(signInLink.querySelector("button")).toBeNull();
+		expect(
+			screen.queryByRole("button", { name: "Sign In" })
+		).not.toBeInTheDocument();
 	});
 
 	it("renders the user trigger and calls onSignOut", async () => {

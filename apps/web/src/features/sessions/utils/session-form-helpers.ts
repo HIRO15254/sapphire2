@@ -1,11 +1,19 @@
+import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
+import type { LevelGameGroup, MixGameGroup } from "@sapphire2/db/schemas/game";
 import z from "zod";
-import { optionalNumericString } from "@/shared/lib/form-fields";
+import {
+	optionalNumericString,
+	parseOptionalInt,
+	requiredNumericString,
+} from "@/shared/lib/form-fields";
 
 export interface SessionBlindLevelInput {
 	ante: number | null;
 	blind1: number | null;
 	blind2: number | null;
 	blind3: number | null;
+	/** Per-level game groups for mix tournaments; null = single structure. */
+	games?: LevelGameGroup[] | null;
 	isBreak: boolean;
 	minutes: number | null;
 }
@@ -33,6 +41,7 @@ export interface CashGameFormValues {
 	maxBuyIn?: number;
 	memo?: string;
 	minBuyIn?: number;
+	mixGames?: MixGameGroup[] | null;
 	ringGameId?: string;
 	roomId?: string;
 	ruleName?: string;
@@ -85,6 +94,7 @@ export interface RingGameOption {
 	id: string;
 	maxBuyIn?: number | null;
 	minBuyIn?: number | null;
+	mixGames?: MixGameGroup[] | null;
 	name: string;
 	tableSize?: number | null;
 	variant?: string | null;
@@ -123,6 +133,7 @@ export interface SessionFormDefaults {
 	maxBuyIn?: number;
 	memo?: string;
 	minBuyIn?: number;
+	mixGames?: MixGameGroup[] | null;
 	placement?: number;
 	prizeMoney?: number;
 	ringGameId?: string;
@@ -157,11 +168,7 @@ export function numStrOrEmpty(value: number | undefined): string {
 }
 
 export function parseOptInt(value: string): number | undefined {
-	if (value === "") {
-		return undefined;
-	}
-	const parsed = Number.parseInt(value, 10);
-	return Number.isFinite(parsed) ? parsed : undefined;
+	return parseOptionalInt(value);
 }
 
 export const sessionFormSchema = z.object({
@@ -171,8 +178,8 @@ export const sessionFormSchema = z.object({
 	breakMinutes: optionalNumericString({ integer: true, min: 0 }),
 	memo: z.string(),
 	ruleName: z.string(),
-	buyIn: optionalNumericString({ integer: true, min: 0 }),
-	cashOut: optionalNumericString({ integer: true, min: 0 }),
+	buyIn: requiredNumericString({ integer: true, min: 0 }),
+	cashOut: requiredNumericString({ integer: true, min: 0 }),
 	evCashOut: optionalNumericString({ integer: true, min: 0 }),
 	variant: z.string(),
 	blind1: optionalNumericString({ integer: true, min: 0 }),
@@ -180,10 +187,10 @@ export const sessionFormSchema = z.object({
 	blind3: optionalNumericString({ integer: true, min: 0 }),
 	ante: optionalNumericString({ integer: true, min: 0 }),
 	anteType: z.string(),
-	tableSize: z.string(),
+	tableSize: optionalNumericString({ integer: true, min: 2, max: 10 }),
 	minBuyIn: optionalNumericString({ integer: true, min: 0 }),
 	maxBuyIn: optionalNumericString({ integer: true, min: 0 }),
-	tournamentBuyIn: optionalNumericString({ integer: true, min: 0 }),
+	tournamentBuyIn: requiredNumericString({ integer: true, min: 0 }),
 	entryFee: optionalNumericString({ integer: true, min: 0 }),
 	startingStack: optionalNumericString({ integer: true, min: 0 }),
 	bountyAmount: optionalNumericString({ integer: true, min: 0 }),
@@ -193,6 +200,27 @@ export const sessionFormSchema = z.object({
 	totalEntries: optionalNumericString({ integer: true, min: 1 }),
 	prizeMoney: optionalNumericString({ integer: true, min: 0 }),
 	bountyPrizes: optionalNumericString({ integer: true, min: 0 }),
+});
+
+export const cashSessionFormSchema = sessionFormSchema.extend({
+	tournamentBuyIn: optionalNumericString({ integer: true, min: 0 }),
+});
+
+/**
+ * Cash schema for the live "Start Live Session" flow. A live session is
+ * created before it ends, so the result-only cash-out is unknown and the live
+ * form never renders it — keeping the shared `cashOut` requirement made the
+ * ✓ Confirm silently fail (the empty field always failed validation and the
+ * error routed to a "result" step that the single-screen live form doesn't
+ * render). The initial buy-in stays required.
+ */
+export const liveCashSessionFormSchema = cashSessionFormSchema.extend({
+	cashOut: optionalNumericString({ integer: true, min: 0 }),
+});
+
+export const tournamentSessionFormSchema = sessionFormSchema.extend({
+	buyIn: optionalNumericString({ integer: true, min: 0 }),
+	cashOut: optionalNumericString({ integer: true, min: 0 }),
 });
 
 export function buildDefaults(defaults: SessionFormDefaults | undefined) {
@@ -206,7 +234,7 @@ export function buildDefaults(defaults: SessionFormDefaults | undefined) {
 		buyIn: numStrOrEmpty(defaults?.buyIn),
 		cashOut: numStrOrEmpty(defaults?.cashOut),
 		evCashOut: numStrOrEmpty(defaults?.evCashOut),
-		variant: defaults?.variant ?? "nlh",
+		variant: defaults?.variant ?? DEFAULT_VARIANT_LABEL,
 		blind1: numStrOrEmpty(defaults?.blind1),
 		blind2: numStrOrEmpty(defaults?.blind2),
 		blind3: numStrOrEmpty(defaults?.blind3),
@@ -256,7 +284,7 @@ export function cashOverriddenFields(
 	}
 	const checks: [string, string, string][] = [
 		["Rule name", values.ruleName, master.name],
-		["Variant", values.variant, master.variant ?? "nlh"],
+		["Variant", values.variant, master.variant ?? DEFAULT_VARIANT_LABEL],
 		["SB", values.blind1, numStrOrEmpty(master.blind1 ?? undefined)],
 		["BB", values.blind2, numStrOrEmpty(master.blind2 ?? undefined)],
 		["Straddle", values.blind3, numStrOrEmpty(master.blind3 ?? undefined)],
@@ -299,7 +327,7 @@ export function tournamentOverriddenFields(
 	}
 	const checks: [string, string, string][] = [
 		["Rule name", values.ruleName, master.name],
-		["Variant", values.variant, master.variant ?? "nlh"],
+		["Variant", values.variant, master.variant ?? DEFAULT_VARIANT_LABEL],
 		[
 			"Buy-in",
 			values.tournamentBuyIn,

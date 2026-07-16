@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	cancelTargets,
+	createOptimisticId,
 	invalidateTargets,
 	restoreSnapshots,
 	snapshotQuery,
+	updateQueryItems,
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -38,16 +40,19 @@ export function useRooms() {
 		onMutate: async (newRoom) => {
 			await cancelTargets(queryClient, [{ queryKey: roomListKey }]);
 			const previous = snapshotQuery(queryClient, roomListKey);
-			queryClient.setQueryData(roomListKey, (old) => {
+			updateQueryItems<RoomItem>(queryClient, roomListKey, (old) => {
 				if (!old) {
 					return old;
 				}
 				const base = old[0];
+				if (!base) {
+					return old;
+				}
 				return [
 					...old,
 					{
 						...base,
-						id: `temp-${Date.now()}`,
+						id: createOptimisticId("temp"),
 						name: newRoom.name,
 						memo: newRoom.memo ?? null,
 						latitude: newRoom.latitude ?? null,
@@ -83,7 +88,7 @@ export function useRooms() {
 		onMutate: async (updated) => {
 			await cancelTargets(queryClient, [{ queryKey: roomListKey }]);
 			const previous = snapshotQuery(queryClient, roomListKey);
-			queryClient.setQueryData(roomListKey, (old) =>
+			updateQueryItems<RoomItem>(queryClient, roomListKey, (old) =>
 				old?.map((s) => (s.id === updated.id ? { ...s, ...updated } : s))
 			);
 			return { previous };
@@ -101,7 +106,7 @@ export function useRooms() {
 		onMutate: async (id) => {
 			await cancelTargets(queryClient, [{ queryKey: roomListKey }]);
 			const previous = snapshotQuery(queryClient, roomListKey);
-			queryClient.setQueryData(roomListKey, (old) =>
+			updateQueryItems<RoomItem>(queryClient, roomListKey, (old) =>
 				old?.filter((s) => s.id !== id)
 			);
 			return { previous };
@@ -119,7 +124,7 @@ export function useRooms() {
 		onMutate: async (id) => {
 			await cancelTargets(queryClient, [{ queryKey: roomListKey }]);
 			const previous = snapshotQuery(queryClient, roomListKey);
-			queryClient.setQueryData(roomListKey, (old) => {
+			updateQueryItems<RoomItem>(queryClient, roomListKey, (old) => {
 				if (!old) {
 					return old;
 				}
@@ -149,6 +154,9 @@ export function useRooms() {
 	return {
 		rooms,
 		isLoading: roomsQuery.isLoading,
+		isError: roomsQuery.isError,
+		isInitialLoadError: roomsQuery.isError && roomsQuery.data === undefined,
+		onRetry: roomsQuery.refetch,
 		isCreatePending: createMutation.isPending,
 		isUpdatePending: updateMutation.isPending,
 		isToggleFavoritePending: toggleFavoriteMutation.isPending,

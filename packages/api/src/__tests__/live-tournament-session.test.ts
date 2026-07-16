@@ -1,12 +1,16 @@
 import { currency } from "@sapphire2/db/schema/currency";
 import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
+import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { TRPCError } from "@trpc/server";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { describe, expect, it, vi } from "vitest";
 import { t } from "../index";
 import { appRouter } from "../routers";
-import { persistSessionBlindLevels } from "../routers/session";
+import {
+	encodeSessionCursor,
+	persistSessionBlindLevels,
+} from "../routers/session";
 import {
 	createChainableMockDb,
 	expectAccepts,
@@ -15,8 +19,8 @@ import {
 	expectType,
 } from "./test-utils";
 
-const BLIND_LEVEL_COLUMNS = 9;
-const MAX_ROWS_PER_INSERT = Math.floor(100 / BLIND_LEVEL_COLUMNS); // 11
+const BLIND_LEVEL_COLUMNS = 10;
+const MAX_ROWS_PER_INSERT = Math.floor(100 / BLIND_LEVEL_COLUMNS); // 10
 
 interface BlindLevelInput {
 	ante?: number | null;
@@ -28,6 +32,7 @@ interface BlindLevelInput {
 }
 
 interface InsertedRow {
+	games?: unknown;
 	level: number;
 	sessionId: string;
 }
@@ -48,12 +53,18 @@ function createBlindLevelMockDb() {
 	const del = vi.fn(() => ({ where: deleteWhere }));
 	const values = vi.fn().mockResolvedValue(undefined);
 	const insert = vi.fn(() => ({ values }));
+	// persistSessionBlindLevels now commits the DELETE + chunked INSERTs through
+	// a single db.batch (SA2-116); each statement is a resolved promise here.
+	const batch = vi.fn((statements: unknown[]) =>
+		Promise.all(statements as Promise<unknown>[])
+	);
 	return {
-		db: { delete: del, insert } as never,
+		db: { delete: del, insert, batch } as never,
 		del,
 		deleteWhere,
 		insert,
 		values,
+		batch,
 	};
 }
 
@@ -81,7 +92,14 @@ type Rows = Record<string, unknown>[];
  */
 type ChainablePromise = Promise<Rows> & Record<string, () => ChainablePromise>;
 
-function createMockDb(tableRows: Map<unknown, Rows>) {
+interface MockDbOptions {
+	batchError?: Error;
+}
+
+function createMockDb(
+	tableRows: Map<unknown, Rows>,
+	options: MockDbOptions = {}
+) {
 	const makeResult = (table: unknown): ChainablePromise => {
 		const promise = Promise.resolve(
 			tableRows.get(table) ?? []
@@ -106,13 +124,23 @@ function createMockDb(tableRows: Map<unknown, Rows>) {
 			set: () => ({ where: () => Promise.resolve(undefined) }),
 		}),
 		delete: () => ({ where: () => Promise.resolve(undefined) }),
+		batch: (statements: Promise<unknown>[]) => {
+			if (options.batchError) {
+				return Promise.reject(options.batchError);
+			}
+			return Promise.all(statements);
+		},
 	};
 }
 
-function makeCaller(userId: string, tableRows: Map<unknown, Rows>) {
+function makeCaller(
+	userId: string,
+	tableRows: Map<unknown, Rows>,
+	options?: MockDbOptions
+) {
 	return appRouter.createCaller({
 		session: { user: { id: userId } },
-		db: createMockDb(tableRows),
+		db: createMockDb(tableRows, options),
 	} as unknown as Parameters<typeof appRouter.createCaller>[0])
 		.liveTournamentSession;
 }
@@ -178,26 +206,39 @@ describe("liveTournamentSession.create ownership validation (SA2-102)", () => {
 		);
 	});
 
-	it("rejects a non-existent room with NOT_FOUND", async () => {
+	it("rejects a non-existent room with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, []],
 			[room, []],
 		]);
 		await expectTrpcCode(
 			makeCaller(OWNER, rows).create({ roomId: "room-x" }),
-			"NOT_FOUND"
+			"FORBIDDEN"
 		);
 	});
 
-	it("rejects a non-existent currency with NOT_FOUND", async () => {
+	it("rejects a non-existent currency with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, []],
 			[currency, []],
 		]);
 		await expectTrpcCode(
 			makeCaller(OWNER, rows).create({ currencyId: "cur-x" }),
-			"NOT_FOUND"
+			"FORBIDDEN"
 		);
+	});
+
+	it("checks link ownership before reporting an active-session conflict", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[room, [{ id: "room-1", userId: OTHER }]],
+		]);
+		await expect(
+			makeCaller(OWNER, rows).create({ roomId: "room-1" })
+		).rejects.toMatchObject({
+			code: "FORBIDDEN",
+			message: "You do not own this room",
+		});
 	});
 
 	it("does not validate ownership when room/currency are omitted", async () => {
@@ -209,6 +250,43 @@ describe("liveTournamentSession.create ownership validation (SA2-102)", () => {
 		await expect(makeCaller(OWNER, rows).create({})).resolves.toEqual(
 			expect.objectContaining({ id: expect.any(String) })
 		);
+	});
+});
+
+describe("liveTournamentSession.create unfinished-session conflicts (SA2-211)", () => {
+	it("returns CONFLICT when the preflight finds an unfinished live session", async () => {
+		const rows = new Map<unknown, Rows>([[gameSession, [ownedSession]]]);
+
+		await expect(makeCaller(OWNER, rows).create({})).rejects.toMatchObject({
+			code: "CONFLICT",
+			message: "Another session is already active",
+		});
+	});
+
+	it("maps the authoritative unique-index race to CONFLICT", async () => {
+		const rows = new Map<unknown, Rows>([[gameSession, []]]);
+		const batchError = new Error(
+			"D1_ERROR: UNIQUE constraint failed: game_session.user_id: SQLITE_CONSTRAINT"
+		);
+
+		await expect(
+			makeCaller(OWNER, rows, { batchError }).create({})
+		).rejects.toMatchObject({
+			code: "CONFLICT",
+			message: "Another session is already active",
+		});
+	});
+
+	it("does not hide unrelated batch failures", async () => {
+		const rows = new Map<unknown, Rows>([[gameSession, []]]);
+		const batchError = new Error("D1 unavailable");
+
+		await expect(
+			makeCaller(OWNER, rows, { batchError }).create({})
+		).rejects.toMatchObject({
+			code: "INTERNAL_SERVER_ERROR",
+			message: batchError.message,
+		});
 	});
 });
 
@@ -250,25 +328,25 @@ describe("liveTournamentSession.update ownership validation (SA2-102)", () => {
 		);
 	});
 
-	it("rejects a non-existent room with NOT_FOUND", async () => {
+	it("rejects a non-existent room with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, [ownedSession]],
 			[room, []],
 		]);
 		await expectTrpcCode(
 			makeCaller(OWNER, rows).update({ id: "s1", roomId: "room-x" }),
-			"NOT_FOUND"
+			"FORBIDDEN"
 		);
 	});
 
-	it("rejects a non-existent currency with NOT_FOUND", async () => {
+	it("rejects a non-existent currency with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, [ownedSession]],
 			[currency, []],
 		]);
 		await expectTrpcCode(
 			makeCaller(OWNER, rows).update({ id: "s1", currencyId: "cur-x" }),
-			"NOT_FOUND"
+			"FORBIDDEN"
 		);
 	});
 
@@ -320,6 +398,12 @@ describe("liveTournamentSession router", () => {
 		expect(appRouter.liveTournamentSession.update).toBeDefined();
 	});
 
+	it("has atomic createAndAssignTournament procedure", () => {
+		expect(
+			appRouter.liveTournamentSession.createAndAssignTournament
+		).toBeDefined();
+	});
+
 	it("has discard procedure", () => {
 		expect(appRouter.liveTournamentSession.discard).toBeDefined();
 	});
@@ -344,6 +428,7 @@ describe("liveTournamentSession router", () => {
 			[
 				"complete",
 				"create",
+				"createAndAssignTournament",
 				"discard",
 				"getById",
 				"list",
@@ -365,6 +450,7 @@ describe("liveTournamentSession router", () => {
 	it("all mutations are protected mutations", () => {
 		for (const name of [
 			"create",
+			"createAndAssignTournament",
 			"update",
 			"complete",
 			"reopen",
@@ -376,6 +462,123 @@ describe("liveTournamentSession router", () => {
 			expectProtected(proc);
 			expectType(proc, "mutation");
 		}
+	});
+});
+
+describe("liveTournamentSession.createAndAssignTournament input validation", () => {
+	it("accepts a full tournament-with-structure payload plus sessionId", () => {
+		expectAccepts(appRouter.liveTournamentSession.createAndAssignTournament, {
+			sessionId: "s1",
+			roomId: "room-1",
+			name: "Main",
+			variant: "NL Hold'em",
+			buyIn: 100,
+			entryFee: 10,
+			startingStack: 20_000,
+			bountyAmount: 25,
+			tableSize: 9,
+			currencyId: "cur-1",
+			memo: "note",
+			tags: ["Deep"],
+			chipPurchases: [{ name: "Rebuy", cost: 100, chips: 10_000 }],
+			blindLevels: [{ isBreak: false, blind1: 100, blind2: 200, minutes: 15 }],
+		});
+	});
+
+	it("rejects missing sessionId, roomId, or an empty name", () => {
+		expectRejects(appRouter.liveTournamentSession.createAndAssignTournament, {
+			roomId: "room-1",
+			name: "Main",
+		});
+		expectRejects(appRouter.liveTournamentSession.createAndAssignTournament, {
+			sessionId: "s1",
+			name: "Main",
+		});
+		expectRejects(appRouter.liveTournamentSession.createAndAssignTournament, {
+			sessionId: "s1",
+			roomId: "room-1",
+			name: "",
+		});
+	});
+});
+
+describe("liveTournamentSession.createAndAssignTournament authorization", () => {
+	const payload = {
+		sessionId: "s1",
+		roomId: "room-1",
+		name: "Main",
+	};
+
+	it("rejects a live tournament session owned by another user before writing", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [{ ...ownedSession, userId: OTHER }]],
+		]);
+		await expect(
+			makeCaller(OWNER, rows).createAndAssignTournament(payload)
+		).rejects.toMatchObject({
+			code: "FORBIDDEN",
+			message: "You do not own this live tournament session",
+		});
+	});
+
+	it("uses the same ownership error when the live tournament session is missing", async () => {
+		const rows = new Map<unknown, Rows>([[gameSession, []]]);
+		await expect(
+			makeCaller(OWNER, rows).createAndAssignTournament(payload)
+		).rejects.toMatchObject({
+			code: "FORBIDDEN",
+			message: "You do not own this live tournament session",
+		});
+	});
+
+	it("rejects non-tournament and non-live sessions before writing", async () => {
+		for (const session of [
+			{ ...ownedSession, kind: "cash_game" },
+			{ ...ownedSession, source: "manual" },
+		]) {
+			const rows = new Map<unknown, Rows>([[gameSession, [session]]]);
+			await expectTrpcCode(
+				makeCaller(OWNER, rows).createAndAssignTournament(payload),
+				"FORBIDDEN"
+			);
+		}
+	});
+
+	it("rejects a room owned by another user before writing", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[room, [{ id: "room-1", userId: OTHER }]],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).createAndAssignTournament(payload),
+			"FORBIDDEN"
+		);
+	});
+
+	it("rejects a currency owned by another user before writing", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[room, [{ id: "room-1", userId: OWNER }]],
+			[currency, [{ id: "cur-1", userId: OTHER }]],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).createAndAssignTournament({
+				...payload,
+				currencyId: "cur-1",
+			}),
+			"FORBIDDEN"
+		);
+	});
+
+	it("rejects assigning a new master from a different room than the session", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [{ ...ownedSession, roomId: "room-existing" }]],
+			[room, [{ id: "room-1", userId: OWNER }]],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).createAndAssignTournament(payload),
+			"BAD_REQUEST"
+		);
 	});
 });
 
@@ -615,16 +818,129 @@ describe("liveTournamentSession.updateSnapshot input validation", () => {
 			blindLevels: [{ blind1: 100 }],
 		});
 	});
+
+	it("accepts zero, the safe maximum, and null for nullable tournament integers", () => {
+		for (const field of [
+			"tournamentBuyIn",
+			"entryFee",
+			"startingStack",
+			"bountyAmount",
+		] as const) {
+			for (const value of [0, Number.MAX_SAFE_INTEGER, null]) {
+				expectAccepts(appRouter.liveTournamentSession.updateSnapshot, {
+					id: "s1",
+					[field]: value,
+				});
+			}
+		}
+	});
+
+	it("rejects negative, fractional, and unsafe tournament snapshot integers", () => {
+		for (const field of [
+			"tournamentBuyIn",
+			"entryFee",
+			"startingStack",
+			"bountyAmount",
+		] as const) {
+			for (const value of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]) {
+				expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
+					id: "s1",
+					[field]: value,
+				});
+			}
+		}
+	});
+
+	it("accepts zero, the safe maximum, and null for blind-level integers", () => {
+		for (const field of [
+			"blind1",
+			"blind2",
+			"blind3",
+			"ante",
+			"minutes",
+		] as const) {
+			for (const value of [0, Number.MAX_SAFE_INTEGER, null]) {
+				expectAccepts(appRouter.liveTournamentSession.updateSnapshot, {
+					id: "s1",
+					blindLevels: [{ isBreak: false, [field]: value }],
+				});
+			}
+		}
+	});
+
+	it("rejects negative, fractional, and unsafe blind-level integers", () => {
+		for (const field of [
+			"blind1",
+			"blind2",
+			"blind3",
+			"ante",
+			"minutes",
+		] as const) {
+			for (const value of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]) {
+				expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
+					id: "s1",
+					blindLevels: [{ isBreak: false, [field]: value }],
+				});
+			}
+		}
+	});
+
+	it("accepts zero and the safe maximum for chip-purchase integers", () => {
+		for (const field of ["cost", "chips"] as const) {
+			for (const value of [0, Number.MAX_SAFE_INTEGER]) {
+				expectAccepts(appRouter.liveTournamentSession.updateSnapshot, {
+					id: "s1",
+					chipPurchases: [{ name: "Rebuy", cost: 1, chips: 1, [field]: value }],
+				});
+			}
+		}
+	});
+
+	it("rejects negative, fractional, and unsafe chip-purchase integers", () => {
+		for (const field of ["cost", "chips"] as const) {
+			for (const value of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]) {
+				expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
+					id: "s1",
+					chipPurchases: [{ name: "Rebuy", cost: 1, chips: 1, [field]: value }],
+				});
+			}
+		}
+	});
+
+	it("rejects an empty chip-purchase name", () => {
+		expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
+			id: "s1",
+			chipPurchases: [{ name: "", cost: 0, chips: 0 }],
+		});
+	});
+
+	it("accepts tableSize 2, 10, and null", () => {
+		for (const tableSize of [2, 10, null]) {
+			expectAccepts(appRouter.liveTournamentSession.updateSnapshot, {
+				id: "s1",
+				tableSize,
+			});
+		}
+	});
+
+	it("rejects tableSize 1, 11, and fractional values", () => {
+		for (const tableSize of [1, 11, 2.5]) {
+			expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
+				id: "s1",
+				tableSize,
+			});
+		}
+	});
 });
 
 // Regression guard for SA2-115: updateSnapshot re-seeds blind levels via the
 // shared persistSessionBlindLevels helper, which DELETEs then re-INSERTs. D1
-// rejects any statement binding >100 params, so a 9-column blind row must be
-// chunked at 11 rows/INSERT. A single unchunked INSERT of >=12 levels (>=108
+// rejects any statement binding >100 params, so a 10-column blind row must be
+// chunked at 10 rows/INSERT. A single unchunked INSERT of >=11 levels (>=110
 // params) would throw at runtime AFTER the DELETE already committed, wiping the
 // session's blind structure permanently.
 describe("persistSessionBlindLevels chunking (SA2-115)", () => {
-	it("splits >11 blind levels into multiple INSERTs each within D1's 100-param cap", async () => {
+	it("splits >10 blind levels into multiple INSERTs each within D1's 100-param cap", async () => {
 		const { db, del, deleteWhere, insert, values } = createBlindLevelMockDb();
 
 		await persistSessionBlindLevels(db, "sess-1", makeBlindLevels(12));
@@ -632,11 +948,14 @@ describe("persistSessionBlindLevels chunking (SA2-115)", () => {
 		// DELETE runs exactly once before any INSERT.
 		expect(del).toHaveBeenCalledTimes(1);
 		expect(deleteWhere).toHaveBeenCalledTimes(1);
-		// 12 rows -> 11 + 1 => two INSERT statements.
+		// 12 rows -> 10 + 2 => two INSERT statements.
 		expect(insert).toHaveBeenCalledTimes(2);
-		expect(del.mock.invocationCallOrder[0]).toBeLessThan(
-			insert.mock.invocationCallOrder[0]
-		);
+		const deleteOrder = del.mock.invocationCallOrder[0];
+		const insertOrder = insert.mock.invocationCallOrder[0];
+		if (deleteOrder === undefined || insertOrder === undefined) {
+			throw new Error("expected delete and insert invocations");
+		}
+		expect(deleteOrder).toBeLessThan(insertOrder);
 		expect(values).toHaveBeenCalledTimes(2);
 		const [firstChunk, secondChunk] = insertedChunks(values);
 		expect(firstChunk).toHaveLength(MAX_ROWS_PER_INSERT);
@@ -662,23 +981,39 @@ describe("persistSessionBlindLevels chunking (SA2-115)", () => {
 		}
 	});
 
-	it("keeps a single INSERT for exactly 11 levels (chunk boundary)", async () => {
+	it("keeps a single INSERT for exactly 10 levels (chunk boundary)", async () => {
+		const { db, insert, values } = createBlindLevelMockDb();
+
+		await persistSessionBlindLevels(db, "sess-1", makeBlindLevels(10));
+
+		expect(insert).toHaveBeenCalledTimes(1);
+		expect(values).toHaveBeenCalledTimes(1);
+		expect(insertedChunks(values).flat()).toHaveLength(10);
+	});
+
+	it("splits into two INSERTs for 11 levels (one over the boundary)", async () => {
 		const { db, insert, values } = createBlindLevelMockDb();
 
 		await persistSessionBlindLevels(db, "sess-1", makeBlindLevels(11));
 
-		expect(insert).toHaveBeenCalledTimes(1);
-		expect(values).toHaveBeenCalledTimes(1);
-		expect(insertedChunks(values).flat()).toHaveLength(11);
-	});
-
-	it("splits into two INSERTs for 12 levels (one over the boundary)", async () => {
-		const { db, insert, values } = createBlindLevelMockDb();
-
-		await persistSessionBlindLevels(db, "sess-1", makeBlindLevels(12));
-
 		expect(insert).toHaveBeenCalledTimes(2);
 		expect(values).toHaveBeenCalledTimes(2);
+	});
+
+	it("writes per-level game groups through the re-seed", async () => {
+		const { db, values } = createBlindLevelMockDb();
+		const games = [
+			{ name: "Limit", variants: ["lhe", "o8"], blind1: 400, blind2: 800 },
+		];
+
+		await persistSessionBlindLevels(db, "sess-1", [
+			{ isBreak: false, blind1: 100, blind2: 200, games },
+			{ isBreak: false, blind1: 200, blind2: 400 },
+		]);
+
+		const allRows = insertedChunks(values).flat();
+		expect(allRows[0]?.games).toEqual(games);
+		expect(allRows[1]?.games).toBeNull();
 	});
 
 	it("keeps a single INSERT for the small-N case (behavior unchanged)", async () => {
@@ -782,7 +1117,7 @@ describe("liveTournamentSession.create tournament ownership (IDOR guard)", () =>
 		expect(inserted.session_blind_level).toBeUndefined();
 	});
 
-	it("throws NOT_FOUND and writes nothing when the tournament does not exist", async () => {
+	it("throws FORBIDDEN and writes nothing when the tournament does not exist", async () => {
 		const { db, inserted } = mockDb({ tournament: [] });
 
 		await expect(
@@ -790,8 +1125,7 @@ describe("liveTournamentSession.create tournament ownership (IDOR guard)", () =>
 				tournamentId: "missing",
 			})
 		).rejects.toMatchObject({
-			code: "NOT_FOUND",
-			message: "Tournament not found",
+			code: "FORBIDDEN",
 		});
 		expect(inserted.game_session).toBeUndefined();
 	});
@@ -812,50 +1146,383 @@ describe("liveTournamentSession.create tournament ownership (IDOR guard)", () =>
 
 const listCursorDialect = new SQLiteSyncDialect();
 
+type ChainableAny = Promise<Rows> &
+	Record<string, (...args: unknown[]) => ChainableAny>;
+
 /**
- * Mock db recording the SQL params bound to the list query's `.where(...)` so
- * the cursor-boundary subquery can be shown to be scoped to the caller
- * (SA2-182). `select().from()` resolves to no rows; enrichment is skipped.
+ * Mock db that captures the list query's `.where(...)` (SQL + bound params) and
+ * `.orderBy(...)` (SQL), and resolves the `game_session` select to `listRows`
+ * while every other read (the per-item enrichment) resolves to `[]`. Lets the
+ * composite-keyset cursor (SA2-150) be inspected end-to-end: the boundary must
+ * embed the cursor's `(timestamp, id)` directly rather than run a subquery on
+ * the raw id (which returned NULL — and dropped the whole page — once the cursor
+ * row was discarded), and `nextCursor` must echo the last kept row's composite.
  */
-function createListWhereMockDb() {
-	const selectWhereParams: unknown[][] = [];
-	const makeChain = () => {
-		const chain = Promise.resolve([] as Rows) as Promise<Rows> &
-			Record<string, (...args: unknown[]) => unknown>;
-		chain.from = () => chain;
+function createListMockDb(listRows: Rows = []) {
+	const listWhere: { params: unknown[]; sql: string }[] = [];
+	const listOrderBy: string[] = [];
+	const listJoins: { params: unknown[]; table: unknown }[] = [];
+	const makeChain = (rows: Rows, isList: boolean): ChainableAny => {
+		const chain = Promise.resolve(rows) as ChainableAny;
+		chain.from = (table: unknown) => {
+			const list = table === gameSession;
+			return makeChain(list ? listRows : [], list);
+		};
 		chain.where = (cond: unknown) => {
-			selectWhereParams.push(
-				listCursorDialect.sqlToQuery(cond as never).params
-			);
+			if (isList) {
+				const q = listCursorDialect.sqlToQuery(cond as never);
+				listWhere.push({ sql: q.sql, params: q.params });
+			}
+			return chain;
+		};
+		chain.orderBy = (...cols: unknown[]) => {
+			if (isList) {
+				listOrderBy.push(
+					cols
+						.map((c) => listCursorDialect.sqlToQuery(c as never).sql)
+						.join(", ")
+				);
+			}
+			return chain;
+		};
+		chain.limit = () => chain;
+		chain.leftJoin = (table: unknown, condition: unknown) => {
+			if (isList && (table === room || table === currency)) {
+				listJoins.push({
+					table,
+					params: listCursorDialect.sqlToQuery(condition as never).params,
+				});
+			}
+			return chain;
+		};
+		chain.innerJoin = () => chain;
+		return chain;
+	};
+	const db = { select: () => makeChain([], false) };
+	return { db, listJoins, listOrderBy, listWhere };
+}
+
+function listCaller(db: unknown) {
+	return callerFor(db, OWNER).liveTournamentSession;
+}
+
+interface CursorRow {
+	id: string;
+	sessionDate: Date;
+	startedAt: Date | null;
+}
+
+function makeTournamentRows(n: number): Rows {
+	return Array.from({ length: n }, (_, i) => ({
+		id: `s${i}`,
+		userId: OWNER,
+		status: "active",
+		startedAt: new Date((i + 1) * 1_000_000),
+		sessionDate: new Date((i + 1) * 1_000_000),
+		startingStack: null,
+	}));
+}
+
+describe("liveTournamentSession.list composite keyset cursor (SA2-150)", () => {
+	it("orders by the coalesced start key then id descending (stable tiebreak)", async () => {
+		const { db, listOrderBy } = createListMockDb();
+
+		await listCaller(db).list({ limit: 10 });
+		expect(listOrderBy).toHaveLength(1);
+		const order = listOrderBy[0]?.toLowerCase() ?? "";
+		expect(order).toContain("coalesce");
+		expect(order).toContain('"game_session"."id" desc');
+	});
+
+	it("scopes room and currency joins to the caller", async () => {
+		const { db, listJoins } = createListMockDb();
+		await listCaller(db).list({ limit: 10 });
+
+		expect(listJoins).toHaveLength(2);
+		expect(listJoins.map((join) => join.table)).toEqual([room, currency]);
+		expect(listJoins.map((join) => join.params)).toEqual([[OWNER], [OWNER]]);
+	});
+
+	it("adds no keyset condition when no cursor is supplied", async () => {
+		const { db, listWhere } = createListMockDb();
+		await listCaller(db).list({ limit: 10 });
+		const base = listWhere[0];
+		expect(base).toBeDefined();
+		expect(base?.params.filter((p) => p === OWNER)).toHaveLength(1);
+		expect(base?.sql.toLowerCase()).not.toContain("coalesce");
+	});
+
+	it("treats a malformed cursor as no cursor (does not filter every row out)", async () => {
+		const { db, listWhere } = createListMockDb();
+		await listCaller(db).list({ cursor: "no-separator", limit: 10 });
+		const base = listWhere[0];
+		expect(base?.params).not.toContain("no-separator");
+		expect(base?.params.filter((p) => p === OWNER)).toHaveLength(1);
+		expect(base?.sql.toLowerCase()).not.toContain("coalesce");
+	});
+
+	it("embeds the cursor's (timestamp, id) as a keyset, not a subquery on the id", async () => {
+		const { db, listWhere } = createListMockDb();
+		const cursor = encodeSessionCursor({
+			id: "cur-id",
+			startedAt: new Date(5_000_000),
+			sessionDate: new Date(5_000_000),
+		});
+		await listCaller(db).list({ cursor, limit: 10 });
+		const where = listWhere[0];
+		expect(where?.sql.toLowerCase()).not.toContain("select");
+		expect(where?.params.filter((p) => p === 5000)).toHaveLength(2);
+		expect(where?.params).toContain("cur-id");
+		expect(where?.params).not.toContain(cursor);
+	});
+
+	it("keeps paginating from the same keyset even when the cursor row was deleted", async () => {
+		const { db, listWhere } = createListMockDb(makeTournamentRows(2));
+		const cursor = encodeSessionCursor({
+			id: "deleted-id",
+			startedAt: new Date(9_000_000),
+			sessionDate: new Date(9_000_000),
+		});
+		const result = await listCaller(db).list({ cursor, limit: 10 });
+		const where = listWhere[0];
+		expect(where?.sql.toLowerCase()).not.toContain("select");
+		expect(where?.params.filter((p) => p === 9000)).toHaveLength(2);
+		expect(where?.params).toContain("deleted-id");
+		expect(result.items).toHaveLength(2);
+	});
+
+	it("returns nextCursor as the last kept row's composite value when more rows exist", async () => {
+		const rows = makeTournamentRows(3);
+		const { db } = createListMockDb(rows);
+		const result = await listCaller(db).list({ limit: 2 });
+		expect(result.items).toHaveLength(2);
+		expect(result.nextCursor).toBe(
+			encodeSessionCursor(rows[1] as unknown as CursorRow)
+		);
+	});
+
+	it("returns no nextCursor at exactly the page-size boundary", async () => {
+		const { db } = createListMockDb(makeTournamentRows(2));
+		const result = await listCaller(db).list({ limit: 2 });
+		expect(result.items).toHaveLength(2);
+		expect(result.nextCursor).toBeUndefined();
+	});
+
+	it("returns no nextCursor for a partial single page", async () => {
+		const { db } = createListMockDb(makeTournamentRows(1));
+		const result = await listCaller(db).list({ limit: 2 });
+		expect(result.items).toHaveLength(1);
+		expect(result.nextCursor).toBeUndefined();
+	});
+
+	it("returns empty items and no nextCursor when there are no sessions", async () => {
+		const { db } = createListMockDb([]);
+		const result = await listCaller(db).list({ limit: 2 });
+		expect(result.items).toEqual([]);
+		expect(result.nextCursor).toBeUndefined();
+	});
+});
+
+// SA2-151: the list endpoint fetched session_event with one query per page item
+// (an N+1 that D1's per-query latency made expensive at page size). It now
+// collects the page's session ids and fetches every event in ONE inArray batch,
+// then buckets rows by session id. These tests pin the single-query shape, the
+// per-session bucketing (eventCount + the computeStackStats-derived fields), and
+// the (occurredAt, sortOrder) ordering the current-stack derivation depends on.
+const listEventBatchDialect = new SQLiteSyncDialect();
+
+function sessionEventRow(
+	sessionId: string,
+	eventType: string,
+	payload: Record<string, unknown>,
+	occurredAt: number,
+	sortOrder: number
+): Record<string, unknown> {
+	return {
+		sessionId,
+		eventType,
+		payload: JSON.stringify(payload),
+		occurredAt: new Date(occurredAt),
+		sortOrder,
+	};
+}
+
+/**
+ * Mock db for the list-enrichment path: `select().from(gameSession)` resolves
+ * to the page rows, `select().from(sessionEvent)` resolves to every event row
+ * (the mock ignores the `inArray` filter, so bucketing must be done in app
+ * code). It records which table each `.from(...)` targeted and the conditions
+ * bound to the sessionEvent `.where(...)` so a single batched IN can be proven.
+ */
+function createEventBatchMockDb(sessions: Rows, events: Rows) {
+	const fromCalls: unknown[] = [];
+	const eventWhere: unknown[] = [];
+	const makeChain = (table: unknown) => {
+		const rows = table === sessionEvent ? events : sessions;
+		const chain = Promise.resolve(rows) as Promise<Rows> &
+			Record<string, (...args: unknown[]) => unknown>;
+		chain.where = (cond: unknown) => {
+			if (table === sessionEvent) {
+				eventWhere.push(cond);
+			}
 			return chain;
 		};
 		chain.orderBy = () => chain;
 		chain.limit = () => chain;
 		chain.leftJoin = () => chain;
 		chain.innerJoin = () => chain;
+		chain.groupBy = () => chain;
 		return chain;
 	};
-	const db = { select: () => makeChain() };
-	return { db, selectWhereParams };
+	const db = {
+		select: () => ({
+			from: (table: unknown) => {
+				fromCalls.push(table);
+				return makeChain(table);
+			},
+		}),
+	};
+	return { db, fromCalls, eventWhere };
 }
 
-describe("liveTournamentSession.list cursor scoping (SA2-182)", () => {
-	it("scopes the cursor boundary subquery to the caller's user id", async () => {
-		const { db, selectWhereParams } = createListWhereMockDb();
-		await callerFor(db, OWNER).liveTournamentSession.list({
-			cursor: "s-cursor",
-			limit: 10,
-		});
-		const listWhere = selectWhereParams.find((p) => p.includes("s-cursor"));
-		expect(listWhere).toBeDefined();
-		// userId appears twice: the base filter + the cursor subquery scope.
-		expect((listWhere as unknown[]).filter((p) => p === OWNER)).toHaveLength(2);
+function sessionEventFromCount(fromCalls: unknown[]): number {
+	return fromCalls.filter((t) => t === sessionEvent).length;
+}
+
+describe("liveTournamentSession.list event batching (SA2-151)", () => {
+	it("fetches the whole page's events in a single inArray query, not one per session", async () => {
+		const sessions: Rows = [
+			{ id: "s1", startingStack: 20_000 },
+			{ id: "s2", startingStack: 20_000 },
+			{ id: "s3", startingStack: null },
+		];
+		const events: Rows = [
+			sessionEventRow("s1", "session_start", {}, 1000, 0),
+			sessionEventRow("s2", "session_start", {}, 1000, 0),
+		];
+		const { db, fromCalls, eventWhere } = createEventBatchMockDb(
+			sessions,
+			events
+		);
+
+		const result = await listCaller(db).list({ limit: 20 });
+
+		expect(sessionEventFromCount(fromCalls)).toBe(1);
+		const query = listEventBatchDialect.sqlToQuery(eventWhere[0] as never);
+		expect(query.sql).toContain("in (");
+		expect(query.params).toEqual(["s1", "s2", "s3"]);
+		expect(result.items).toHaveLength(3);
 	});
 
-	it("does not add a cursor subquery when no cursor is supplied", async () => {
-		const { db, selectWhereParams } = createListWhereMockDb();
-		await callerFor(db, OWNER).liveTournamentSession.list({ limit: 10 });
-		const base = selectWhereParams[0] as unknown[];
-		expect(base.filter((p) => p === OWNER)).toHaveLength(1);
+	it("buckets events by session id so each item derives from only its own events", async () => {
+		const sessions: Rows = [
+			{ id: "s1", startingStack: 20_000 },
+			{ id: "s2", startingStack: 20_000 },
+		];
+		const events: Rows = [
+			sessionEventRow("s1", "session_start", {}, 1000, 0),
+			sessionEventRow(
+				"s1",
+				"update_stack",
+				{ stackAmount: 25_000, remainingPlayers: 100, totalEntries: 100 },
+				2000,
+				1
+			),
+			sessionEventRow(
+				"s1",
+				"update_stack",
+				{ stackAmount: 30_000, remainingPlayers: 50 },
+				3000,
+				2
+			),
+			// s2 has no events.
+		];
+		const { db } = createEventBatchMockDb(sessions, events);
+
+		const result = await listCaller(db).list({ limit: 20 });
+		const byId = Object.fromEntries(result.items.map((i) => [i.id, i]));
+
+		expect(byId.s1?.eventCount).toBe(3);
+		expect(byId.s1?.latestStackAmount).toBe(30_000);
+		expect(byId.s1?.remainingPlayers).toBe(50);
+		// (startingStack * totalEntries + chipTotal) / remainingPlayers
+		// = (20000 * 100 + 0) / 50 = 40000.
+		expect(byId.s1?.averageStack).toBe(40_000);
+		expect(byId.s2?.eventCount).toBe(0);
+		expect(byId.s2?.latestStackAmount).toBeNull();
+		expect(byId.s2?.remainingPlayers).toBeNull();
+		expect(byId.s2?.averageStack).toBeNull();
+	});
+
+	it("derives the current stack from (occurredAt, sortOrder) order, not array order", async () => {
+		const sessions: Rows = [{ id: "s1", startingStack: null }];
+		const events: Rows = [
+			sessionEventRow("s1", "update_stack", { stackAmount: 3000 }, 3000, 1),
+			sessionEventRow("s1", "update_stack", { stackAmount: 1000 }, 1000, 1),
+			sessionEventRow("s1", "update_stack", { stackAmount: 2000 }, 2000, 1),
+		];
+		const { db } = createEventBatchMockDb(sessions, events);
+
+		const result = await listCaller(db).list({ limit: 20 });
+
+		expect(result.items[0]?.latestStackAmount).toBe(3000);
+	});
+
+	it("batches once for a single-session page", async () => {
+		const sessions: Rows = [{ id: "only", startingStack: 15_000 }];
+		const events: Rows = [
+			sessionEventRow("only", "session_start", {}, 1000, 0),
+			sessionEventRow("only", "update_stack", { stackAmount: 18_000 }, 2000, 1),
+		];
+		const { db, fromCalls } = createEventBatchMockDb(sessions, events);
+
+		const result = await listCaller(db).list({ limit: 20 });
+
+		expect(sessionEventFromCount(fromCalls)).toBe(1);
+		expect(result.items).toHaveLength(1);
+		expect(result.items[0]?.eventCount).toBe(2);
+		expect(result.items[0]?.latestStackAmount).toBe(18_000);
+	});
+
+	it("issues no event query and returns no items for an empty page", async () => {
+		const { db, fromCalls } = createEventBatchMockDb([], []);
+
+		const result = await listCaller(db).list({ limit: 20 });
+
+		expect(result.items).toEqual([]);
+		expect(result.nextCursor).toBeUndefined();
+		expect(sessionEventFromCount(fromCalls)).toBe(0);
+	});
+});
+
+describe("liveTournamentSession.updateSnapshot per-level games", () => {
+	it("accepts blind levels carrying game groups", () => {
+		expectAccepts(appRouter.liveTournamentSession.updateSnapshot, {
+			id: "session-1",
+			blindLevels: [
+				{
+					isBreak: false,
+					blind1: 100,
+					blind2: 200,
+					minutes: 20,
+					games: [
+						{ name: "Limit", variants: ["lhe"], blind1: 400, blind2: 800 },
+						{ variants: ["nlh"], blind1: 100, blind2: 200 },
+					],
+				},
+			],
+		});
+	});
+
+	it("rejects duplicate variants across a level's groups", () => {
+		expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
+			id: "session-1",
+			blindLevels: [
+				{
+					isBreak: false,
+					games: [{ variants: ["lhe"] }, { variants: ["lhe"] }],
+				},
+			],
+		});
 	});
 });

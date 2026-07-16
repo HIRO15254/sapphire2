@@ -1,5 +1,6 @@
 import { sessionTag } from "@sapphire2/db/schema/session-tag";
 import { TRPCError } from "@trpc/server";
+import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import {
@@ -9,7 +10,9 @@ import {
 	encodeSessionCursor,
 	type ProfitLossSeriesRow,
 	parseSessionCursor,
+	resolveCashRuleSnapshot,
 	selectInChunks,
+	sessionKeysetCondition,
 	toProfitLossSeriesPoint,
 	validateEntityOwnership,
 	validateTagsOwnership,
@@ -25,8 +28,8 @@ const TOURNAMENT_ID_RE = /tournamentId/;
 
 describe("chunkForInsert", () => {
 	it("keeps each chunk under D1's 100 bound-parameter cap for 9-column rows", () => {
-		// A 14-level blind structure (9 columns) would bind 126 params in one
-		// INSERT — over D1's cap of 100. It must split into <=11-row chunks.
+		// Generic illustration: 14 rows at 9 columns bind 126 params in one
+		// INSERT — over D1's cap of 100 — and must split into <=11-row chunks.
 		const rows = Array.from({ length: 14 }, (_, i) => i);
 		const chunks = chunkForInsert(rows, 9);
 		expect(chunks).toHaveLength(2);
@@ -34,6 +37,20 @@ describe("chunkForInsert", () => {
 		expect(chunks[1]).toHaveLength(3);
 		for (const chunk of chunks) {
 			expect(chunk.length * 9).toBeLessThanOrEqual(100);
+		}
+		expect(chunks.flat()).toEqual(rows);
+	});
+
+	it("caps session_blind_level (10 columns) at 10 rows = exactly 100 params (SA2-115 boundary)", () => {
+		// session_blind_level gained the `games` column (9 -> 10). At 10 columns
+		// the safe max is floor(100 / 10) = 10 rows/INSERT (10 x 10 = 100). This
+		// guards the zero-headroom boundary: an 11th column silently overflows.
+		const rows = Array.from({ length: 21 }, (_, i) => i);
+		const chunks = chunkForInsert(rows, 10);
+		expect(chunks[0]).toHaveLength(10);
+		expect(chunks.map((c) => c.length)).toEqual([10, 10, 1]);
+		for (const chunk of chunks) {
+			expect(chunk.length * 10).toBeLessThanOrEqual(100);
 		}
 		expect(chunks.flat()).toEqual(rows);
 	});
@@ -81,6 +98,29 @@ describe("selectInChunks", () => {
 		expect(rows.at(-1)).toEqual({ id: "s100" });
 	});
 
+	it("reserves fixed bind parameters when chunking an IN query", async () => {
+		const ids = Array.from({ length: 101 }, (_, index) => `s${index}`);
+		const chunkSizes: number[] = [];
+
+		await selectInChunks(
+			ids,
+			(chunk) => {
+				chunkSizes.push(chunk.length);
+				return Promise.resolve([]);
+			},
+			1
+		);
+
+		expect(chunkSizes).toEqual([99, 2]);
+	});
+
+	it.each([
+		-1, 0.5, 100,
+	])("rejects an invalid fixed-bind count of %s", async (extraBoundParams) => {
+		await expect(
+			selectInChunks(["s1"], () => Promise.resolve([]), extraBoundParams)
+		).rejects.toThrow(RangeError);
+	});
 	it("runs a single query when the id list fits under the cap", async () => {
 		const ids = Array.from({ length: 100 }, (_, i) => `s${i}`);
 		let calls = 0;
@@ -188,6 +228,22 @@ describe("session router input validation", () => {
 		tournamentBuyIn: 10_000,
 	} as const;
 
+	const CASH_RULE_AMOUNT_FIELDS = [
+		"blind1",
+		"blind2",
+		"blind3",
+		"ante",
+		"minBuyIn",
+		"maxBuyIn",
+	] as const;
+	const TOURNAMENT_BLIND_LEVEL_AMOUNT_FIELDS = [
+		"blind1",
+		"blind2",
+		"blind3",
+		"ante",
+		"minutes",
+	] as const;
+
 	it("create accepts a valid cash_game session", () => {
 		const schema = (
 			appRouter.session.create as unknown as {
@@ -195,6 +251,25 @@ describe("session router input validation", () => {
 			}
 		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
 		expect(schema.safeParse(CASH_BASE).success).toBe(true);
+	});
+
+	it("create leaves cash_game variant undefined when omitted (c10: no schema default that would defeat ring-game inheritance)", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as {
+			safeParse: (v: unknown) => {
+				success: true;
+				data: { variant?: string };
+			};
+		};
+		const parsed = schema.safeParse(CASH_BASE) as unknown as {
+			success: true;
+			data: { variant?: string };
+		};
+		expect(parsed.success).toBe(true);
+		expect(parsed.data.variant).toBeUndefined();
 	});
 
 	it("create accepts a valid tournament session (entryFee defaults to 0)", () => {
@@ -269,6 +344,83 @@ describe("session router input validation", () => {
 			}
 		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
 		expect(schema.safeParse({ ...CASH_BASE, buyIn: -1 }).success).toBe(false);
+	});
+
+	it("create accepts zero cash rule amounts and rejects every negative cash rule amount", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		const zeroAmounts = Object.fromEntries(
+			CASH_RULE_AMOUNT_FIELDS.map((field) => [field, 0])
+		);
+		expect(schema.safeParse({ ...CASH_BASE, ...zeroAmounts }).success).toBe(
+			true
+		);
+		for (const field of CASH_RULE_AMOUNT_FIELDS) {
+			expect(schema.safeParse({ ...CASH_BASE, [field]: -1 }).success).toBe(
+				false
+			);
+		}
+		for (const [tableSize, expected] of [
+			[1, false],
+			[2, true],
+			[10, true],
+			[11, false],
+		] as const) {
+			expect(schema.safeParse({ ...CASH_BASE, tableSize }).success).toBe(
+				expected
+			);
+		}
+	});
+
+	it("create accepts zero tournament rule amounts and rejects invalid structure values", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		const zeroBlindLevel = Object.fromEntries(
+			TOURNAMENT_BLIND_LEVEL_AMOUNT_FIELDS.map((field) => [field, 0])
+		);
+		expect(
+			schema.safeParse({
+				...TOURNAMENT_BASE,
+				startingStack: 0,
+				bountyAmount: 0,
+				blindLevels: [{ isBreak: false, ...zeroBlindLevel }],
+			}).success
+		).toBe(true);
+		for (const field of ["startingStack", "bountyAmount"] as const) {
+			expect(
+				schema.safeParse({ ...TOURNAMENT_BASE, [field]: -1 }).success
+			).toBe(false);
+		}
+		for (const field of TOURNAMENT_BLIND_LEVEL_AMOUNT_FIELDS) {
+			expect(
+				schema.safeParse({
+					...TOURNAMENT_BASE,
+					blindLevels: [{ isBreak: false, [field]: -1 }],
+				}).success
+			).toBe(false);
+		}
+		for (const [tableSize, expected] of [
+			[1, false],
+			[2, true],
+			[10, true],
+			[11, false],
+		] as const) {
+			expect(schema.safeParse({ ...TOURNAMENT_BASE, tableSize }).success).toBe(
+				expected
+			);
+		}
+		expect(
+			schema.safeParse({
+				...TOURNAMENT_BASE,
+				chipPurchases: [{ name: "", cost: 0, chips: 0 }],
+			}).success
+		).toBe(false);
 	});
 
 	it("list accepts empty object (all filters optional)", () => {
@@ -360,6 +512,62 @@ describe("session router input validation", () => {
 		it("returns null for an empty id", () => {
 			expect(parseSessionCursor("1000_")).toBeNull();
 		});
+
+		it.each([
+			["8640000000000000_s1", 8_640_000_000_000_000],
+			["-8640000000000000_s1", -8_640_000_000_000_000],
+		])("accepts a timestamp at the Date range boundary: %s", (cursor, ms) => {
+			expect(parseSessionCursor(cursor)?.sortKey.getTime()).toBe(ms);
+		});
+
+		it.each([
+			"8640000000000001_s1",
+			"-8640000000000001_s1",
+			"9007199254740991_s1",
+		])("returns null for a timestamp outside the Date range: %s", (cursor) => {
+			expect(parseSessionCursor(cursor)).toBeNull();
+		});
+	});
+
+	describe("sessionKeysetCondition (SA2-150)", () => {
+		const keysetDialect = new SQLiteSyncDialect();
+
+		it("returns undefined for an omitted cursor (start from the beginning)", () => {
+			expect(sessionKeysetCondition(undefined)).toBeUndefined();
+		});
+
+		it("returns undefined for an empty-string cursor", () => {
+			expect(sessionKeysetCondition("")).toBeUndefined();
+		});
+
+		it("returns undefined for a malformed cursor instead of filtering everything", () => {
+			// A garbage / deleted-row cursor must degrade to 'no cursor', never to
+			// a boundary that drops the whole page (the SA2-150 regression).
+			expect(sessionKeysetCondition("no-separator")).toBeUndefined();
+			expect(sessionKeysetCondition("abc_s1")).toBeUndefined();
+		});
+
+		it("returns undefined for a cursor timestamp outside the Date range", () => {
+			expect(sessionKeysetCondition("8640000000000001_s1")).toBeUndefined();
+			expect(sessionKeysetCondition("-8640000000000001_s1")).toBeUndefined();
+		});
+
+		it("binds the floored-seconds order key twice and the id once, with no subquery", () => {
+			const cursor = encodeSessionCursor({
+				id: "cur-id",
+				startedAt: new Date(5_000_000),
+				sessionDate: new Date(5_000_000),
+			});
+			const condition = sessionKeysetCondition(cursor);
+			expect(condition).toBeDefined();
+			const query = keysetDialect.sqlToQuery(condition as never);
+			// The comparison embeds the value directly — no `SELECT ... WHERE id`.
+			expect(query.sql.toLowerCase()).not.toContain("select");
+			// 5_000_000 ms floored to 5000 s, bound in both the `<` and `=` arms.
+			expect(query.params.filter((p) => p === 5000)).toHaveLength(2);
+			expect(query.params).toContain("cur-id");
+			expect(query.params).not.toContain(cursor);
+		});
 	});
 
 	describe("toProfitLossSeriesPoint sortKey (SA2-98)", () => {
@@ -440,6 +648,95 @@ describe("session router input validation", () => {
 		expect(schema.safeParse({ id: "s1", buyIn: -1 }).success).toBe(false);
 	});
 
+	it("update accepts zero and null cash rule values and rejects invalid values", () => {
+		const schema = (
+			appRouter.session.update as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		for (const value of [0, null]) {
+			for (const field of CASH_RULE_AMOUNT_FIELDS) {
+				expect(schema.safeParse({ id: "s1", [field]: value }).success).toBe(
+					true
+				);
+			}
+		}
+		for (const field of CASH_RULE_AMOUNT_FIELDS) {
+			expect(schema.safeParse({ id: "s1", [field]: -1 }).success).toBe(false);
+		}
+		for (const [tableSize, expected] of [
+			[1, false],
+			[2, true],
+			[10, true],
+			[11, false],
+			[null, true],
+		] as const) {
+			expect(schema.safeParse({ id: "s1", tableSize }).success).toBe(expected);
+		}
+	});
+
+	it("update accepts zero and null tournament rule values and rejects invalid values", () => {
+		const schema = (
+			appRouter.session.update as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		const zeroBlindLevel = Object.fromEntries(
+			TOURNAMENT_BLIND_LEVEL_AMOUNT_FIELDS.map((field) => [field, 0])
+		);
+		expect(
+			schema.safeParse({
+				id: "s1",
+				startingStack: 0,
+				bountyAmount: 0,
+				blindLevels: [{ isBreak: false, ...zeroBlindLevel }],
+			}).success
+		).toBe(true);
+		expect(
+			schema.safeParse({
+				id: "s1",
+				startingStack: null,
+				bountyAmount: null,
+				blindLevels: [
+					{
+						isBreak: false,
+						blind1: null,
+						blind2: null,
+						blind3: null,
+						ante: null,
+						minutes: null,
+					},
+				],
+			}).success
+		).toBe(true);
+		for (const field of ["startingStack", "bountyAmount"] as const) {
+			expect(schema.safeParse({ id: "s1", [field]: -1 }).success).toBe(false);
+		}
+		for (const field of TOURNAMENT_BLIND_LEVEL_AMOUNT_FIELDS) {
+			expect(
+				schema.safeParse({
+					id: "s1",
+					blindLevels: [{ isBreak: false, [field]: -1 }],
+				}).success
+			).toBe(false);
+		}
+		for (const [tableSize, expected] of [
+			[1, false],
+			[2, true],
+			[10, true],
+			[11, false],
+			[null, true],
+		] as const) {
+			expect(schema.safeParse({ id: "s1", tableSize }).success).toBe(expected);
+		}
+		expect(
+			schema.safeParse({
+				id: "s1",
+				chipPurchases: [{ name: "", cost: 0, chips: 0 }],
+			}).success
+		).toBe(false);
+	});
+
 	it("update rejects placement < 1", () => {
 		const schema = (
 			appRouter.session.update as unknown as {
@@ -449,6 +746,14 @@ describe("session router input validation", () => {
 		expect(schema.safeParse({ id: "s1", placement: 0 }).success).toBe(false);
 	});
 
+	it("update rejects placement greater than totalEntries", () => {
+		const schema = (
+			appRouter.session.update as unknown as { _def: { inputs: unknown[] } }
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(
+			schema.safeParse({ id: "s1", placement: 11, totalEntries: 10 }).success
+		).toBe(false);
+	});
 	it("update accepts and retains an edited rule name", () => {
 		const schema = (
 			appRouter.session.update as unknown as {
@@ -912,7 +1217,7 @@ describe("validateEntityOwnership (tournament branch)", () => {
 		});
 		await expect(
 			validateEntityOwnership(db, "tournament", TOURNAMENT_ID, CALLER)
-		).resolves.toBeUndefined();
+		).resolves.toMatchObject({ id: TOURNAMENT_ID, roomId: ROOM_ID });
 		// The room must be read to confirm ownership.
 		expect(selectedTables).toEqual(["tournament", "room"]);
 	});
@@ -930,13 +1235,13 @@ describe("validateEntityOwnership (tournament branch)", () => {
 		});
 	});
 
-	it("throws NOT_FOUND when the tournament does not exist", async () => {
+	it("throws FORBIDDEN when the tournament does not exist", async () => {
 		const { db, selectedTables } = mockDbFor({ tournament: [] });
 		await expect(
 			validateEntityOwnership(db, "tournament", "missing", CALLER)
 		).rejects.toMatchObject({
-			code: "NOT_FOUND",
-			message: "Tournament not found",
+			code: "FORBIDDEN",
+			message: "You do not own this tournament",
 		});
 		// Must short-circuit before reading the room.
 		expect(selectedTables).toEqual(["tournament"]);
@@ -977,7 +1282,11 @@ describe("validateEntityOwnership (ringGame branch) (SA2-181)", () => {
 		});
 		await expect(
 			validateEntityOwnership(db, "ringGame", RING_GAME_ID, CALLER)
-		).resolves.toBeUndefined();
+		).resolves.toMatchObject({
+			id: RING_GAME_ID,
+			roomId: ROOM_ID,
+			userId: CALLER,
+		});
 		// Ownership is a direct userId check; the room is never read (SA2-181).
 		expect(selectedTables).toEqual(["ring_game"]);
 	});
@@ -988,7 +1297,11 @@ describe("validateEntityOwnership (ringGame branch) (SA2-181)", () => {
 		});
 		await expect(
 			validateEntityOwnership(db, "ringGame", RING_GAME_ID, CALLER)
-		).resolves.toBeUndefined();
+		).resolves.toMatchObject({
+			id: RING_GAME_ID,
+			roomId: null,
+			userId: CALLER,
+		});
 		expect(selectedTables).toEqual(["ring_game"]);
 	});
 
@@ -1018,13 +1331,13 @@ describe("validateEntityOwnership (ringGame branch) (SA2-181)", () => {
 		});
 	});
 
-	it("throws NOT_FOUND when the ring game does not exist", async () => {
+	it("throws FORBIDDEN when the ring game does not exist", async () => {
 		const { db, selectedTables } = mockDbFor({ ringGame: [] });
 		await expect(
 			validateEntityOwnership(db, "ringGame", "missing", CALLER)
 		).rejects.toMatchObject({
-			code: "NOT_FOUND",
-			message: "Ring game not found",
+			code: "FORBIDDEN",
+			message: "You do not own this ring game",
 		});
 		expect(selectedTables).toEqual(["ring_game"]);
 	});
@@ -1053,6 +1366,98 @@ describe("session.create auto-generated ring game ownership (SA2-181)", () => {
 			userId: CALLER,
 			roomId: null,
 		});
+	});
+});
+
+describe("session.create auto-generated ring game derived name (c11)", () => {
+	const CALLER = "user-1";
+
+	function callerFor(select: Record<string, Record<string, unknown>[]> = {}) {
+		const { db, inserted } = createChainableMockDb({ select });
+		const caller = appRouter.createCaller({
+			session: { user: { id: CALLER } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
+		return { caller, inserted };
+	}
+
+	it("derives 'Variant blind1/blind2' when blinds are provided (non-mix)", async () => {
+		const { caller, inserted } = callerFor();
+		await caller.session.create({
+			type: "cash_game",
+			sessionDate: 1_700_000_000,
+			buyIn: 1000,
+			cashOut: 2000,
+			blind1: 1,
+			blind2: 2,
+		});
+		const [created] = inserted.ring_game ?? [];
+		expect(created).toMatchObject({ name: "NL Hold'em 1/2" });
+	});
+
+	it("derives the display label alone (no '0/0' suffix) for a mix rule with no direct blinds", async () => {
+		const { caller, inserted } = callerFor({
+			game_variant: [
+				{ id: "variant-1", userId: CALLER, label: "NL Hold'em" },
+				{
+					id: "variant-2",
+					userId: CALLER,
+					label: "Pot Limit Omaha",
+				},
+			],
+		});
+		await caller.session.create({
+			type: "cash_game",
+			sessionDate: 1_700_000_000,
+			buyIn: 1000,
+			cashOut: 2000,
+			variant: "mix",
+			mixGames: [
+				{
+					name: "Limit",
+					variants: ["NL Hold'em", "Pot Limit Omaha"],
+					blind1: 1,
+					blind2: 2,
+					blind3: null,
+					ante: null,
+					anteType: null,
+				},
+			],
+			blind1: 10,
+			blind2: 20,
+			blind3: 40,
+			ante: 5,
+			anteType: "all",
+		});
+		const [created] = inserted.ring_game ?? [];
+		expect(created).toMatchObject({
+			name: "Mixed Game",
+			blind1: null,
+			blind2: null,
+			blind3: null,
+			ante: null,
+			anteType: null,
+		});
+		expect(inserted.session_cash_detail?.[0]).toMatchObject({
+			blind1: null,
+			blind2: null,
+			blind3: null,
+			ante: null,
+			anteType: null,
+		});
+	});
+
+	it("derives the display label alone (no '0/0' suffix) for a non-mix rule with no blinds at all", async () => {
+		const { caller, inserted } = callerFor();
+		await caller.session.create({
+			type: "cash_game",
+			sessionDate: 1_700_000_000,
+			buyIn: 1000,
+			cashOut: 2000,
+			variant: "Dealer's Choice",
+		});
+		const [created] = inserted.ring_game ?? [];
+		expect(created).toMatchObject({ name: "Dealer's Choice" });
 	});
 });
 
@@ -1094,6 +1499,29 @@ describe("validateTagsOwnership (SA2-177)", () => {
 		).resolves.toBeUndefined();
 	});
 
+	it.each([
+		{ count: 100, boundCounts: [100, 2] },
+		{ count: 101, boundCounts: [100, 3] },
+	])("keeps every ownership query under the bind cap for $count unique tags", async ({
+		count,
+		boundCounts,
+	}) => {
+		const ids = Array.from({ length: count }, (_, index) => `t${index}`);
+		const { db, selectWhereParams } = createChainableMockDb({
+			select: { session_tag: [] },
+		});
+
+		await expect(
+			validateTagsOwnership(db, sessionTag, ids, CALLER)
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+		expect(selectWhereParams.map((params) => params.length)).toEqual(
+			boundCounts
+		);
+		expect(selectWhereParams.every((params) => params.length <= 100)).toBe(
+			true
+		);
+	});
 	it("throws FORBIDDEN when a tag is owned by another user (fewer rows returned)", async () => {
 		const { db } = createChainableMockDb({
 			select: { session_tag: [{ id: "t1" }] },
@@ -1111,5 +1539,693 @@ describe("validateTagsOwnership (SA2-177)", () => {
 		await expect(
 			validateTagsOwnership(db, sessionTag, ["t1"], CALLER)
 		).rejects.toMatchObject({ code: "FORBIDDEN" });
+	});
+});
+
+describe("cash rule snapshot: mixGames freezing", () => {
+	const parentMix = [
+		{
+			name: "Limit",
+			variants: ["lhe", "o8"],
+			blind1: 400,
+			blind2: 800,
+			blind3: null,
+			ante: null,
+			anteType: null,
+		},
+	];
+
+	it("copies the parent ring game's mixGames into the snapshot", async () => {
+		const db = createChainableMockDb({
+			select: {
+				ring_game: [{ id: "rg-1", variant: "mix", mixGames: parentMix }],
+			},
+		});
+		const snapshot = await resolveCashRuleSnapshot(db as never, {
+			ringGameId: "rg-1",
+		});
+		expect(snapshot.mixGames).toEqual(parentMix);
+	});
+
+	it("lets an explicit input mixGames override the parent's", async () => {
+		const override = [
+			{ variants: ["nlh"], blind1: 1, blind2: 2 },
+			{ variants: ["plo"], blind1: 2, blind2: 5 },
+		];
+		const db = createChainableMockDb({
+			select: {
+				ring_game: [{ id: "rg-1", variant: "mix", mixGames: parentMix }],
+			},
+		});
+		const snapshot = await resolveCashRuleSnapshot(db as never, {
+			ringGameId: "rg-1",
+			mixGames: override as never,
+		});
+		expect(snapshot.mixGames).toEqual(override);
+	});
+
+	it("clears the parent's mixGames on an explicit null override", async () => {
+		const db = createChainableMockDb({
+			select: {
+				ring_game: [{ id: "rg-1", variant: "mix", mixGames: parentMix }],
+			},
+		});
+		const snapshot = await resolveCashRuleSnapshot(db as never, {
+			ringGameId: "rg-1",
+			mixGames: null,
+		});
+		expect(snapshot.mixGames).toBeNull();
+	});
+
+	it("defaults mixGames to null with no master and no input", async () => {
+		const db = createChainableMockDb({ select: {} });
+		const snapshot = await resolveCashRuleSnapshot(db as never, {});
+		expect(snapshot.mixGames).toBeNull();
+	});
+});
+
+describe("cash rule snapshot: variant inheritance (c10)", () => {
+	it("inherits the parent ring game's variant when input omits it", async () => {
+		const db = createChainableMockDb({
+			select: {
+				ring_game: [{ id: "rg-1", variant: "Pot Limit Omaha" }],
+			},
+		});
+		const snapshot = await resolveCashRuleSnapshot(db as never, {
+			ringGameId: "rg-1",
+		});
+		expect(snapshot.variant).toBe("Pot Limit Omaha");
+	});
+
+	it("lets an explicit input variant override the parent's", async () => {
+		const db = createChainableMockDb({
+			select: {
+				ring_game: [{ id: "rg-1", variant: "Pot Limit Omaha" }],
+			},
+		});
+		const snapshot = await resolveCashRuleSnapshot(db as never, {
+			ringGameId: "rg-1",
+			variant: "Short Deck",
+		});
+		expect(snapshot.variant).toBe("Short Deck");
+	});
+
+	it('defaults variant to "NL Hold\'em" with no master and no input', async () => {
+		const db = createChainableMockDb({ select: {} });
+		const snapshot = await resolveCashRuleSnapshot(db as never, {});
+		expect(snapshot.variant).toBe("NL Hold'em");
+	});
+});
+
+describe("session.create cash variant / mixGames persistence invariant", () => {
+	const CALLER = "user-1";
+	const parentMix = [
+		{
+			name: "Big Bet",
+			variants: ["NL Hold'em", "Pot Limit Omaha"],
+			blind1: 1,
+			blind2: 2,
+		},
+	];
+
+	it("clears an inherited mix definition when an explicit plain variant overrides the parent", async () => {
+		const { db, inserted } = createChainableMockDb({
+			select: {
+				ring_game: [
+					{
+						id: "rg-1",
+						userId: CALLER,
+						name: "8-Game",
+						variant: "8-Game",
+						mixGames: parentMix,
+					},
+				],
+				game_mix: [],
+			},
+		});
+		const caller = appRouter.createCaller({
+			session: { user: { id: CALLER } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
+
+		await caller.session.create({
+			type: "cash_game",
+			sessionDate: 1_700_000_000,
+			buyIn: 1000,
+			cashOut: 2000,
+			ringGameId: "rg-1",
+			variant: "NL Hold'em",
+		});
+
+		expect(inserted.session_cash_detail).toHaveLength(1);
+		expect(inserted.session_cash_detail?.[0]).toMatchObject({
+			variant: "NL Hold'em",
+			mixGames: null,
+		});
+	});
+
+	it("rejects a manually defined plain variant carrying mixGames", async () => {
+		const { db, inserted, batch } = createChainableMockDb({
+			select: { game_mix: [] },
+		});
+		const caller = appRouter.createCaller({
+			session: { user: { id: CALLER } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
+
+		await expect(
+			caller.session.create({
+				type: "cash_game",
+				sessionDate: 1_700_000_000,
+				buyIn: 1000,
+				cashOut: 2000,
+				variant: "NL Hold'em",
+				mixGames: parentMix,
+			})
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(inserted.session_cash_detail).toBeUndefined();
+		expect(batch).toHaveBeenCalledTimes(0);
+	});
+
+	it("accepts a manually defined owned named mix", async () => {
+		const { db, inserted } = createChainableMockDb({
+			select: {
+				game_mix: [
+					{
+						id: "mix-1",
+						userId: CALLER,
+						label: "8-Game",
+						games: ["variant-1", "variant-2"],
+					},
+				],
+				game_variant: [
+					{
+						id: "variant-1",
+						userId: CALLER,
+						label: "NL Hold'em",
+						groupId: "group-bigbet",
+					},
+					{
+						id: "variant-2",
+						userId: CALLER,
+						label: "Pot Limit Omaha",
+						groupId: "group-bigbet",
+					},
+				],
+				game_group: [
+					{
+						id: "group-bigbet",
+						userId: CALLER,
+						builtinKey: "bigbet",
+						label: "Big Bet",
+					},
+				],
+			},
+		});
+		const caller = appRouter.createCaller({
+			session: { user: { id: CALLER } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
+
+		await caller.session.create({
+			type: "cash_game",
+			sessionDate: 1_700_000_000,
+			buyIn: 1000,
+			cashOut: 2000,
+			variant: "8-Game",
+			mixGames: parentMix,
+		});
+
+		expect(inserted.session_cash_detail?.[0]).toMatchObject({
+			variant: "8-Game",
+			mixGames: parentMix,
+		});
+	});
+});
+
+describe("session.update cash variant / mixGames persistence invariant", () => {
+	it("rejects invalid tags before mutating the session", async () => {
+		const { batch, db, updateWhereParams } = createChainableMockDb({
+			select: {
+				game_session: [
+					{
+						id: "session-1",
+						userId: "user-1",
+						kind: "cash_game",
+						source: "manual",
+						currencyId: null,
+						sessionDate: new Date(1_700_000_000_000),
+					},
+				],
+				session_cash_detail: [
+					{
+						sessionId: "session-1",
+						variant: "NL Hold'em",
+						mixGames: null,
+						buyIn: 100,
+						cashOut: 200,
+						evCashOut: null,
+					},
+				],
+				session_tournament_detail: [],
+				session_chip_purchase: [],
+				game_mix: [],
+				session_tag: [{ id: "tag-1", userId: "user-1" }],
+			},
+		});
+		const caller = appRouter.createCaller({
+			session: { user: { id: "user-1" } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
+
+		await expect(
+			caller.session.update({
+				id: "session-1",
+				memo: "changed",
+				tagIds: ["tag-1", "foreign-tag"],
+			})
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+		expect(updateWhereParams).toHaveLength(0);
+		expect(batch).toHaveBeenCalledTimes(0);
+	});
+	it("clears the existing mix definition when variant changes to a plain game", async () => {
+		const frozenMix = [
+			{
+				name: "Big Bet",
+				variants: ["NL Hold'em", "Pot Limit Omaha"],
+			},
+		];
+		const { db: baseDb } = createChainableMockDb({
+			select: {
+				game_session: [
+					{
+						id: "session-1",
+						userId: "user-1",
+						kind: "cash_game",
+						source: "manual",
+						currencyId: null,
+						sessionDate: new Date(1_700_000_000_000),
+					},
+				],
+				session_cash_detail: [
+					{
+						sessionId: "session-1",
+						variant: "8-Game",
+						mixGames: frozenMix,
+						buyIn: 100,
+						cashOut: 200,
+						evCashOut: null,
+					},
+				],
+				game_mix: [],
+				session_tournament_detail: [],
+				session_chip_purchase: [],
+			},
+		});
+		const updates: Record<string, unknown>[] = [];
+		const db = {
+			...(baseDb as unknown as Record<string, unknown>),
+			update: () => ({
+				set: (value: Record<string, unknown>) => {
+					updates.push(value);
+					return { where: () => Promise.resolve(undefined) };
+				},
+			}),
+		};
+		const caller = appRouter.createCaller({
+			session: { user: { id: "user-1" } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
+
+		await caller.session.update({
+			id: "session-1",
+			variant: "NL Hold'em",
+		});
+
+		expect(updates).toContainEqual(
+			expect.objectContaining({
+				variant: "NL Hold'em",
+				mixGames: null,
+			})
+		);
+	});
+
+	it("replaces tag links atomically in a single batch (SA2-116)", async () => {
+		const { db, inserted, batch, deleteWhereParams } = createChainableMockDb({
+			select: {
+				game_session: [
+					{
+						id: "session-1",
+						userId: "user-1",
+						kind: "cash_game",
+						source: "manual",
+						currencyId: null,
+						sessionDate: new Date(1_700_000_000_000),
+					},
+				],
+				session_cash_detail: [
+					{
+						sessionId: "session-1",
+						variant: "NL Hold'em",
+						mixGames: null,
+						buyIn: 100,
+						cashOut: 200,
+						evCashOut: null,
+					},
+				],
+				session_tournament_detail: [],
+				session_chip_purchase: [],
+				game_mix: [],
+				session_tag: [
+					{ id: "tag-1", userId: "user-1" },
+					{ id: "tag-2", userId: "user-1" },
+				],
+			},
+		});
+		const caller = appRouter.createCaller({
+			session: { user: { id: "user-1" } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
+
+		await caller.session.update({
+			id: "session-1",
+			tagIds: ["tag-1", "tag-2"],
+		});
+
+		// The DELETE and the re-INSERT of the tag links commit together — a bare
+		// DELETE followed by a separate awaited INSERT could strand the session
+		// with no tags on a failed re-insert. Exactly one batch fires for the
+		// whole replace, and it bundles both statements (the scoped DELETE +
+		// the single re-INSERT chunk) so they roll back together (SA2-116).
+		expect(batch).toHaveBeenCalledTimes(1);
+		expect(batch.mock.calls[0]?.[0]).toHaveLength(2);
+		expect(deleteWhereParams).toContainEqual(["session-1"]);
+		expect(inserted.session_to_session_tag).toHaveLength(1);
+		expect(inserted.session_to_session_tag?.[0]).toEqual([
+			{ sessionId: "session-1", sessionTagId: "tag-1" },
+			{ sessionId: "session-1", sessionTagId: "tag-2" },
+		]);
+	});
+});
+
+describe("session.update tournament placement integrity (SA2-161)", () => {
+	const existingSession = {
+		id: "session-1",
+		userId: "user-1",
+		kind: "tournament",
+		source: "manual",
+		currencyId: null,
+		sessionDate: new Date(1_700_000_000_000),
+	};
+
+	function makeCaller(detail: {
+		beforeDeadline: boolean | null;
+		placement: number | null;
+		totalEntries: number | null;
+	}) {
+		const mock = createChainableMockDb({
+			select: {
+				game_session: [existingSession],
+				session_tournament_detail: [{ sessionId: "session-1", ...detail }],
+			},
+		});
+		return {
+			...mock,
+			caller: appRouter.createCaller({
+				session: { user: { id: "user-1" } },
+				db: mock.db,
+			} as unknown as Parameters<typeof appRouter.createCaller>[0]),
+		};
+	}
+
+	it("rejects a placement-only patch above the existing total entries", async () => {
+		const { caller, updateWhereParams } = makeCaller({
+			beforeDeadline: false,
+			placement: 3,
+			totalEntries: 10,
+		});
+
+		await expect(
+			caller.session.update({ id: "session-1", placement: 11 })
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(updateWhereParams).toHaveLength(0);
+	});
+
+	it("rejects a totalEntries-only patch below the existing placement", async () => {
+		const { caller, updateWhereParams } = makeCaller({
+			beforeDeadline: false,
+			placement: 7,
+			totalEntries: 10,
+		});
+
+		await expect(
+			caller.session.update({ id: "session-1", totalEntries: 6 })
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(updateWhereParams).toHaveLength(0);
+	});
+
+	it("accepts beforeDeadline true and clears placement fields like create", async () => {
+		const { db: baseDb } = createChainableMockDb({
+			select: {
+				game_session: [existingSession],
+				session_tournament_detail: [
+					{
+						sessionId: "session-1",
+						beforeDeadline: false,
+						placement: 3,
+						totalEntries: 10,
+					},
+				],
+			},
+		});
+		const updates: Record<string, unknown>[] = [];
+		const db = {
+			...(baseDb as unknown as Record<string, unknown>),
+			update: () => ({
+				set: (value: Record<string, unknown>) => {
+					updates.push(value);
+					return { where: () => Promise.resolve(undefined) };
+				},
+			}),
+		};
+		const caller = appRouter.createCaller({
+			session: { user: { id: "user-1" } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
+
+		await caller.session.update({
+			id: "session-1",
+			beforeDeadline: true,
+			placement: 99,
+			totalEntries: 1,
+		});
+
+		expect(updates).toContainEqual(
+			expect.objectContaining({
+				beforeDeadline: true,
+				placement: null,
+				totalEntries: null,
+			})
+		);
+	});
+});
+
+describe("session joined ownership scoping", () => {
+	it("owner-scopes room, currency, and tag joins that surface names", async () => {
+		const { db, selectJoinParams } = createChainableMockDb({
+			select: {
+				game_session: [
+					{
+						id: "session-1",
+						type: "cash_game",
+						source: "manual",
+						buyIn: null,
+						cashOut: null,
+						evCashOut: null,
+					},
+				],
+				session_chip_purchase: [],
+				session_blind_level: [],
+				session_to_session_tag: [],
+			},
+		});
+		const caller = appRouter.createCaller({
+			session: { user: { id: "user-1" } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
+
+		await caller.session.list({});
+
+		const ownerScopedJoins = selectJoinParams.filter((params) =>
+			params.includes("user-1")
+		);
+		expect(ownerScopedJoins).toHaveLength(3);
+	});
+});
+
+describe("session.list filter ownership", () => {
+	const CALLER = "user-1";
+	const OTHER = "user-2";
+	const FILTER_CASES = [
+		{ input: { roomId: "room-1" }, table: "room" },
+		{ input: { currencyId: "currency-1" }, table: "currency" },
+	] as const;
+
+	function makeCaller(select: Record<string, Record<string, unknown>[]>) {
+		const mock = createChainableMockDb({ select });
+		return {
+			...mock,
+			caller: appRouter.createCaller({
+				session: { user: { id: CALLER } },
+				db: mock.db,
+			} as unknown as Parameters<typeof appRouter.createCaller>[0]),
+		};
+	}
+
+	it("continues to the session query when no ownership-scoped filter is supplied", async () => {
+		const { caller, selectedTables } = makeCaller({ game_session: [] });
+
+		await expect(caller.session.list({})).resolves.toMatchObject({ items: [] });
+
+		expect(selectedTables).toContain("game_session");
+		expect(selectedTables).not.toContain("room");
+		expect(selectedTables).not.toContain("currency");
+	});
+
+	it.each(
+		FILTER_CASES
+	)("rejects a missing $table filter with uniform FORBIDDEN before querying sessions", async ({
+		input,
+		table,
+	}) => {
+		const { caller, selectedTables } = makeCaller({ [table]: [] });
+
+		await expect(caller.session.list(input)).rejects.toMatchObject({
+			code: "FORBIDDEN",
+		});
+
+		expect(selectedTables).toEqual([table]);
+	});
+
+	it.each(
+		FILTER_CASES
+	)("rejects another user's $table filter with uniform FORBIDDEN before querying sessions", async ({
+		input,
+		table,
+	}) => {
+		const { caller, selectedTables } = makeCaller({
+			[table]: [{ id: Object.values(input)[0], userId: OTHER }],
+		});
+
+		await expect(caller.session.list(input)).rejects.toMatchObject({
+			code: "FORBIDDEN",
+		});
+
+		expect(selectedTables).toEqual([table]);
+	});
+
+	it.each(
+		FILTER_CASES
+	)("accepts an owned $table filter and continues to the session query", async ({
+		input,
+		table,
+	}) => {
+		const { caller, selectedTables } = makeCaller({
+			[table]: [{ id: Object.values(input)[0], userId: CALLER }],
+			game_session: [],
+		});
+
+		await expect(caller.session.list(input)).resolves.toMatchObject({
+			items: [],
+		});
+
+		expect(selectedTables).toContain(table);
+		expect(selectedTables).toContain("game_session");
+	});
+});
+
+describe("session.profitLossSeries filter ownership", () => {
+	const CALLER = "user-1";
+	const OTHER = "user-2";
+	const FILTER_CASES = [
+		{ input: { roomId: "room-1" }, table: "room" },
+		{ input: { currencyId: "currency-1" }, table: "currency" },
+		{ input: { ringGameId: "ring-game-1" }, table: "ring_game" },
+	] as const;
+
+	function makeCaller(select: Record<string, Record<string, unknown>[]>) {
+		const mock = createChainableMockDb({ select });
+		return {
+			...mock,
+			caller: appRouter.createCaller({
+				session: { user: { id: CALLER } },
+				db: mock.db,
+			} as unknown as Parameters<typeof appRouter.createCaller>[0]),
+		};
+	}
+
+	it("continues to the session query when no ownership-scoped filter is supplied", async () => {
+		const { caller, selectedTables } = makeCaller({ game_session: [] });
+
+		await expect(caller.session.profitLossSeries({})).resolves.toEqual({
+			points: [],
+		});
+
+		expect(selectedTables).toContain("game_session");
+		expect(selectedTables).not.toContain("room");
+		expect(selectedTables).not.toContain("currency");
+		expect(selectedTables).not.toContain("ring_game");
+	});
+
+	it.each(
+		FILTER_CASES
+	)("rejects a missing $table filter with uniform FORBIDDEN before querying sessions", async ({
+		input,
+		table,
+	}) => {
+		const { caller, selectedTables } = makeCaller({ [table]: [] });
+
+		await expect(caller.session.profitLossSeries(input)).rejects.toMatchObject({
+			code: "FORBIDDEN",
+		});
+
+		expect(selectedTables).toEqual([table]);
+	});
+
+	it.each(
+		FILTER_CASES
+	)("rejects another user's $table filter with uniform FORBIDDEN before querying sessions", async ({
+		input,
+		table,
+	}) => {
+		const { caller, selectedTables } = makeCaller({
+			[table]: [{ id: Object.values(input)[0], userId: OTHER }],
+		});
+
+		await expect(caller.session.profitLossSeries(input)).rejects.toMatchObject({
+			code: "FORBIDDEN",
+		});
+
+		expect(selectedTables).toEqual([table]);
+	});
+
+	it.each(
+		FILTER_CASES
+	)("accepts an owned $table filter and continues to the session query", async ({
+		input,
+		table,
+	}) => {
+		const { caller, selectedTables } = makeCaller({
+			[table]: [{ id: Object.values(input)[0], userId: CALLER }],
+			game_session: [],
+		});
+
+		await expect(caller.session.profitLossSeries(input)).resolves.toEqual({
+			points: [],
+		});
+
+		expect(selectedTables).toContain(table);
+		expect(selectedTables).toContain("game_session");
 	});
 });

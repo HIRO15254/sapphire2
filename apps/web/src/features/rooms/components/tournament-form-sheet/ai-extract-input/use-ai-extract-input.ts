@@ -1,13 +1,7 @@
 import type { ExtractedTournamentData } from "@sapphire2/api/routers/ai-extract";
 import { useMutation } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/utils/trpc";
-
-export interface UrlItem {
-	id: string;
-	kind: "url";
-	value: string;
-}
 
 export interface ImageItem {
 	base64: string;
@@ -17,8 +11,6 @@ export interface ImageItem {
 	name: string;
 	previewUrl: string;
 }
-
-export type SourceItem = ImageItem | UrlItem;
 
 const ACCEPTED_TYPES = [
 	"image/jpeg",
@@ -49,9 +41,9 @@ interface UseAiExtractInputOptions {
 }
 
 export function useAiExtractInput({ onExtracted }: UseAiExtractInputOptions) {
-	const [items, setItems] = useState<SourceItem[]>([
-		{ id: crypto.randomUUID(), kind: "url", value: "" },
-	]);
+	const [items, setItems] = useState<ImageItem[]>([]);
+	const itemsRef = useRef<ImageItem[]>([]);
+	const previewUrlsRef = useRef(new Set<string>());
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const mutation = useMutation(
@@ -60,32 +52,35 @@ export function useAiExtractInput({ onExtracted }: UseAiExtractInputOptions) {
 		})
 	);
 
-	const addUrl = () => {
-		if (items.length >= 5) {
-			return;
-		}
-		setItems((prev) => [
-			...prev,
-			{ id: crypto.randomUUID(), kind: "url", value: "" },
-		]);
-	};
+	useEffect(
+		() => () => {
+			for (const previewUrl of previewUrlsRef.current) {
+				URL.revokeObjectURL(previewUrl);
+			}
+			previewUrlsRef.current.clear();
+		},
+		[]
+	);
 
 	const removeItem = (id: string) => {
-		setItems((prev) => prev.filter((item) => item.id !== id));
-	};
-
-	const updateUrl = (id: string, value: string) => {
-		setItems((prev) =>
-			prev.map((item) =>
-				item.id === id && item.kind === "url" ? { ...item, value } : item
-			)
+		const item = itemsRef.current.find((candidate) => candidate.id === id);
+		if (!item) {
+			return;
+		}
+		itemsRef.current = itemsRef.current.filter(
+			(candidate) => candidate.id !== id
 		);
+		setItems(itemsRef.current);
+		if (previewUrlsRef.current.delete(item.previewUrl)) {
+			URL.revokeObjectURL(item.previewUrl);
+		}
 	};
 
 	const handleImageSelect = async (
 		e: React.ChangeEvent<HTMLInputElement>
 	): Promise<void> => {
-		const file = e.target.files?.[0];
+		const input = e.target;
+		const file = input.files?.[0];
 		if (!file) {
 			return;
 		}
@@ -93,46 +88,40 @@ export function useAiExtractInput({ onExtracted }: UseAiExtractInputOptions) {
 		if (!isAcceptedMediaType(mediaType)) {
 			return;
 		}
-		if (items.length >= 5) {
+		if (itemsRef.current.length >= 5) {
 			return;
 		}
 
 		const base64 = await fileToBase64(file);
+		if (itemsRef.current.length >= 5) {
+			return;
+		}
 		const previewUrl = URL.createObjectURL(file);
-		setItems((prev) => [
-			...prev,
-			{
-				id: crypto.randomUUID(),
-				kind: "image",
-				base64,
-				mediaType,
-				name: file.name,
-				previewUrl,
-			},
-		]);
-		// Reset so same file can be re-selected
-		e.target.value = "";
+		const item: ImageItem = {
+			id: crypto.randomUUID(),
+			kind: "image",
+			base64,
+			mediaType,
+			name: file.name,
+			previewUrl,
+		};
+		previewUrlsRef.current.add(previewUrl);
+		itemsRef.current = [...itemsRef.current, item];
+		setItems(itemsRef.current);
+		input.value = "";
 	};
 
 	const handleAnalyze = () => {
-		const sources = items.flatMap(
-			(item): Parameters<typeof mutation.mutate>[0]["sources"] => {
-				if (item.kind === "url") {
-					const url = item.value.trim();
-					if (!url) {
-						return [];
-					}
-					return [{ kind: "url", url }];
-				}
-				return [
-					{ kind: "image", data: item.base64, mediaType: item.mediaType },
-				];
-			}
-		);
-		if (sources.length === 0) {
+		if (itemsRef.current.length === 0) {
 			return;
 		}
-		mutation.mutate({ sources });
+		mutation.mutate({
+			sources: itemsRef.current.map((item) => ({
+				kind: "image" as const,
+				data: item.base64,
+				mediaType: item.mediaType,
+			})),
+		});
 	};
 
 	const triggerFileInput = () => {
@@ -145,9 +134,7 @@ export function useAiExtractInput({ onExtracted }: UseAiExtractInputOptions) {
 		canAdd: items.length < 5,
 		isPending: mutation.isPending,
 		error: mutation.error,
-		addUrl,
 		removeItem,
-		updateUrl,
 		handleImageSelect,
 		handleAnalyze,
 		triggerFileInput,

@@ -1,6 +1,6 @@
 import type { ReactFormExtendedApi } from "@tanstack/react-form";
-import type { ChipPurchaseRow } from "@/features/rooms/components/chip-purchases-editor";
 import { OverrideLabel } from "@/features/sessions/components/override-label";
+import type { ChipPurchaseRow } from "@/shared/components/chip-purchases-editor";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";

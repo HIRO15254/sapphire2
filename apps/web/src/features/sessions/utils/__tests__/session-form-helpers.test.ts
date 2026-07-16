@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	buildDefaults,
 	cashOverriddenFields,
+	cashSessionFormSchema,
 	getTodayDateString,
+	liveCashSessionFormSchema,
 	NONE_VALUE,
 	numStrOrEmpty,
 	parseOptInt,
@@ -72,8 +74,20 @@ describe("parseOptInt", () => {
 		expect(parseOptInt("abc")).toBeUndefined();
 	});
 
-	it("truncates decimal strings (parseInt semantics)", () => {
-		expect(parseOptInt("3.7")).toBe(3);
+	it("rejects decimal strings instead of truncating them", () => {
+		expect(parseOptInt("3.7")).toBeUndefined();
+	});
+
+	it.each([
+		"12abc",
+		"Infinity",
+		"9007199254740992",
+	])("rejects unsafe or partially numeric input: %s", (value) => {
+		expect(parseOptInt(value)).toBeUndefined();
+	});
+
+	it("trims surrounding whitespace around an integer", () => {
+		expect(parseOptInt(" 42 ")).toBe(42);
 	});
 
 	it("returns 0 as 0 (finite)", () => {
@@ -90,8 +104,8 @@ describe("sessionFormSchema", () => {
 			breakMinutes: "",
 			memo: "",
 			ruleName: "",
-			buyIn: "",
-			cashOut: "",
+			buyIn: "100",
+			cashOut: "100",
 			evCashOut: "",
 			variant: "nlh",
 			blind1: "",
@@ -102,7 +116,7 @@ describe("sessionFormSchema", () => {
 			tableSize: "",
 			minBuyIn: "",
 			maxBuyIn: "",
-			tournamentBuyIn: "",
+			tournamentBuyIn: "100",
 			entryFee: "",
 			startingStack: "",
 			bountyAmount: "",
@@ -129,6 +143,21 @@ describe("sessionFormSchema", () => {
 	it("rejects negative optional numeric values", () => {
 		expect(
 			sessionFormSchema.safeParse(validPayload({ buyIn: "-1" })).success
+		).toBe(false);
+	});
+
+	it.each([
+		"buyIn",
+		"cashOut",
+	])("rejects an empty required cash result field: %s", (field) => {
+		expect(
+			sessionFormSchema.safeParse(validPayload({ [field]: "" })).success
+		).toBe(false);
+	});
+
+	it("rejects an empty required tournament buy-in", () => {
+		expect(
+			sessionFormSchema.safeParse(validPayload({ tournamentBuyIn: "" })).success
 		).toBe(false);
 	});
 
@@ -162,6 +191,92 @@ describe("sessionFormSchema", () => {
 			).success
 		).toBe(true);
 	});
+
+	it("accepts an optional table size only from 2 through 10", () => {
+		for (const value of ["2", "10"]) {
+			expect(
+				sessionFormSchema.safeParse(validPayload({ tableSize: value })).success
+			).toBe(true);
+		}
+		expect(
+			sessionFormSchema.safeParse(validPayload({ tableSize: "" })).success
+		).toBe(true);
+		for (const value of ["1", "11", "3.5", "12abc", "Infinity"]) {
+			expect(
+				sessionFormSchema.safeParse(validPayload({ tableSize: value })).success
+			).toBe(false);
+		}
+	});
+});
+
+describe("liveCashSessionFormSchema", () => {
+	function livePayload(overrides: Record<string, unknown> = {}) {
+		return {
+			sessionDate: "2026-04-01",
+			startTime: "",
+			endTime: "",
+			breakMinutes: "",
+			memo: "",
+			ruleName: "",
+			buyIn: "100",
+			// The live "Start Live Session" form never renders a cash-out field —
+			// the session hasn't ended yet — so it always submits empty here.
+			cashOut: "",
+			evCashOut: "",
+			variant: "nlh",
+			blind1: "",
+			blind2: "",
+			blind3: "",
+			ante: "",
+			anteType: "none",
+			tableSize: "",
+			minBuyIn: "",
+			maxBuyIn: "",
+			tournamentBuyIn: "",
+			entryFee: "",
+			startingStack: "",
+			bountyAmount: "",
+			beforeDeadline: false,
+			timerStartedAt: "",
+			placement: "",
+			totalEntries: "",
+			prizeMoney: "",
+			bountyPrizes: "",
+			...overrides,
+		};
+	}
+
+	it("accepts a live cash payload with an empty cash-out (session not ended yet)", () => {
+		expect(liveCashSessionFormSchema.safeParse(livePayload()).success).toBe(
+			true
+		);
+	});
+
+	it("still requires the initial buy-in", () => {
+		expect(
+			liveCashSessionFormSchema.safeParse(livePayload({ buyIn: "" })).success
+		).toBe(false);
+	});
+
+	it("still requires a session date", () => {
+		expect(
+			liveCashSessionFormSchema.safeParse(livePayload({ sessionDate: "" }))
+				.success
+		).toBe(false);
+	});
+
+	it("still rejects a negative cash-out when one is supplied", () => {
+		expect(
+			liveCashSessionFormSchema.safeParse(livePayload({ cashOut: "-1" }))
+				.success
+		).toBe(false);
+	});
+
+	it("diverges from cashSessionFormSchema, which requires the cash-out", () => {
+		const payload = livePayload();
+		expect(cashSessionFormSchema.safeParse(payload).success).toBe(false);
+		expect(liveCashSessionFormSchema.safeParse(payload).success).toBe(true);
+	});
 });
 
 describe("buildDefaults", () => {
@@ -179,7 +294,7 @@ describe("buildDefaults", () => {
 		expect(defaults.sessionDate).toBe("2026-04-05");
 		expect(defaults.startTime).toBe("");
 		expect(defaults.endTime).toBe("");
-		expect(defaults.variant).toBe("nlh");
+		expect(defaults.variant).toBe("NL Hold'em");
 		expect(defaults.anteType).toBe("none");
 		expect(defaults.tableSize).toBe("");
 		expect(defaults.beforeDeadline).toBe(false);

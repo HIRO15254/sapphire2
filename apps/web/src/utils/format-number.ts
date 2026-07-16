@@ -1,5 +1,9 @@
 const TRAILING_ZERO = /\.0$/;
 
+const NUMBER_FORMATTER = new Intl.NumberFormat("en-US");
+
+export const formatNumber = (value: number) => NUMBER_FORMATTER.format(value);
+
 /**
  * Format a single number with compact notation (k, M, B).
  * Threshold: 10,000+
@@ -14,7 +18,7 @@ export function formatCompactNumber(value: number): string {
 	if (Math.abs(value) >= 10_000) {
 		return `${(value / 1000).toFixed(1).replace(TRAILING_ZERO, "")}k`;
 	}
-	return value.toLocaleString();
+	return formatNumber(value);
 }
 
 interface UnitTier {
@@ -31,7 +35,7 @@ const TIERS: UnitTier[] = [
 
 function formatWithTier(value: number, tier: UnitTier | undefined): string {
 	if (!tier) {
-		return value.toLocaleString();
+		return formatNumber(value);
 	}
 	return `${(value / tier.divisor).toFixed(1).replace(TRAILING_ZERO, "")}${tier.suffix}`;
 }

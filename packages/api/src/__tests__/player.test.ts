@@ -4,9 +4,11 @@ import {
 	playerToPlayerTag,
 } from "@sapphire2/db/schema/player";
 import { TRPCError } from "@trpc/server";
+import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import {
+	createChainableMockDb,
 	expectAccepts,
 	expectProtected,
 	expectRejects,
@@ -14,6 +16,7 @@ import {
 } from "./test-utils";
 
 type Rows = Record<string, unknown>[];
+const dialect = new SQLiteSyncDialect();
 
 /**
  * Mock db keyed by schema-table reference: `select().from(t)...` resolves to
@@ -22,12 +25,18 @@ type Rows = Record<string, unknown>[];
  * write (SA2-178).
  */
 function createMockDb(rowsByTable: Map<unknown, Rows>) {
+	const batchCalls: unknown[][] = [];
 	const inserted: { table: unknown; values: unknown }[] = [];
+	const selectWhereParams: unknown[][] = [];
+	const updateCalls: unknown[] = [];
 	const makeChain = (rows: Rows) => {
 		const chain = Promise.resolve(rows) as Promise<Rows> &
 			Record<string, (...args: unknown[]) => unknown>;
 		chain.from = (table: unknown) => makeChain(rowsByTable.get(table) ?? []);
-		chain.where = () => chain;
+		chain.where = (cond: unknown) => {
+			selectWhereParams.push(dialect.sqlToQuery(cond as never).params);
+			return chain;
+		};
 		chain.orderBy = () => chain;
 		chain.limit = () => chain;
 		chain.innerJoin = () => chain;
@@ -43,20 +52,29 @@ function createMockDb(rowsByTable: Map<unknown, Rows>) {
 			},
 		}),
 		update: () => ({
-			set: () => ({ where: () => Promise.resolve(undefined) }),
+			set: (values: unknown) => {
+				updateCalls.push(values);
+				return { where: () => Promise.resolve(undefined) };
+			},
 		}),
 		delete: () => ({ where: () => Promise.resolve(undefined) }),
+		batch: (statements: unknown[]) => {
+			batchCalls.push(statements);
+			return Promise.all(statements as Promise<unknown>[]);
+		},
 	};
-	return { db, inserted };
+	return { batchCalls, db, inserted, selectWhereParams, updateCalls };
 }
 
+const PLAYER_ID_PATTERN = /^p\d+$/;
+
 function makeCaller(userId: string, rowsByTable: Map<unknown, Rows>) {
-	const { db, inserted } = createMockDb(rowsByTable);
+	const mock = createMockDb(rowsByTable);
 	const caller = appRouter.createCaller({
 		session: { user: { id: userId } },
-		db,
+		db: mock.db,
 	} as unknown as Parameters<typeof appRouter.createCaller>[0]).player;
-	return { caller, inserted };
+	return { caller, ...mock };
 }
 
 async function expectTrpcCode(
@@ -75,6 +93,14 @@ async function expectTrpcCode(
 
 const OWNER = "user-1";
 const OTHER = "user-2";
+function makeJoinCaller(select: Record<string, Rows>) {
+	const mock = createChainableMockDb({ select });
+	const caller = appRouter.createCaller({
+		session: { user: { id: OWNER } },
+		db: mock.db,
+	} as unknown as Parameters<typeof appRouter.createCaller>[0]).player;
+	return { caller, ...mock };
+}
 
 describe("player router structure", () => {
 	it("appRouter has player namespace", () => {
@@ -136,6 +162,83 @@ describe("player.list input validation", () => {
 
 	it("rejects non-array tagIds", () => {
 		expectRejects(appRouter.player.list, { tagIds: "t1" });
+	});
+});
+
+describe("player.list ownership and D1 bounds", () => {
+	it("rejects a filter containing a tag not owned by the caller", async () => {
+		const rows = new Map<unknown, Rows>([
+			[playerTag, [{ id: "t1", userId: OWNER }]],
+			[playerToPlayerTag, []],
+		]);
+		const { caller } = makeCaller(OWNER, rows);
+
+		await expectTrpcCode(
+			caller.list({ tagIds: ["t1", "foreign-tag"] }),
+			"FORBIDDEN"
+		);
+	});
+
+	it("chunks tag hydration below 100 binds and scopes every chunk to the caller", async () => {
+		const players = Array.from({ length: 101 }, (_, index) => ({
+			id: `p${index}`,
+			userId: OWNER,
+			isTemporary: false,
+			name: `Player ${index}`,
+		}));
+		const rows = new Map<unknown, Rows>([
+			[player, players],
+			[playerToPlayerTag, []],
+		]);
+		const { caller, selectWhereParams } = makeCaller(OWNER, rows);
+
+		await caller.list({});
+
+		const hydrationParams = selectWhereParams.filter((params) =>
+			params.some(
+				(param) => typeof param === "string" && PLAYER_ID_PATTERN.test(param)
+			)
+		);
+		expect(hydrationParams.map((params) => params.length)).toEqual([100, 3]);
+		expect(hydrationParams.every((params) => params.includes(OWNER))).toBe(
+			true
+		);
+	});
+});
+describe("tag-filter D1 bounds", () => {
+	it("chunks the player-id filter when a tag matches more than 100 players", async () => {
+		const tags = [{ id: "t0", userId: OWNER }];
+		const links = Array.from({ length: 101 }, (_, index) => ({
+			playerId: `p${index}`,
+			playerTagId: "t0",
+			position: 0,
+		}));
+		const players = links.map((link) => ({
+			id: link.playerId,
+			userId: OWNER,
+			isTemporary: false,
+			name: `Player ${link.playerId}`,
+		}));
+		const rows = new Map<unknown, Rows>([
+			[playerTag, tags],
+			[playerToPlayerTag, links],
+			[player, players],
+		]);
+		const { caller, selectWhereParams } = makeCaller(OWNER, rows);
+
+		const result = await caller.list({ tagIds: ["t0"] });
+
+		expect(result).toHaveLength(101);
+		const playerFilterSizes = selectWhereParams
+			.map(
+				(params) =>
+					params.filter(
+						(param) =>
+							typeof param === "string" && PLAYER_ID_PATTERN.test(param)
+					).length
+			)
+			.filter((size) => size > 0);
+		expect(Math.max(...playerFilterSizes)).toBeLessThanOrEqual(100);
 	});
 });
 
@@ -251,11 +354,13 @@ describe("player.create tag ownership (SA2-178)", () => {
 			[player, [{ id: "p-new", userId: OWNER }]],
 			[playerToPlayerTag, []],
 		]);
-		const { caller, inserted } = makeCaller(OWNER, rows);
+		const { batchCalls, caller, inserted } = makeCaller(OWNER, rows);
 		await expect(
 			caller.create({ name: "Alice", tagIds: ["t1", "t2"] })
 		).resolves.toBeDefined();
 		expect(inserted.some((i) => i.table === playerToPlayerTag)).toBe(true);
+		expect(batchCalls).toHaveLength(1);
+		expect(batchCalls[0]).toHaveLength(2);
 	});
 
 	it("rejects a tag owned by another user and skips the join insert", async () => {
@@ -272,6 +377,26 @@ describe("player.create tag ownership (SA2-178)", () => {
 		expect(inserted.some((i) => i.table === playerToPlayerTag)).toBe(false);
 	});
 
+	it("chunks 34 tag links and commits them with the player in one batch", async () => {
+		const tagIds = Array.from({ length: 34 }, (_, index) => `t${index}`);
+		const rows = new Map<unknown, Rows>([
+			[playerTag, tagIds.map((id) => ({ id, userId: OWNER }))],
+			[player, [{ id: "p-new", userId: OWNER }]],
+			[playerToPlayerTag, []],
+		]);
+		const { batchCalls, caller, inserted } = makeCaller(OWNER, rows);
+
+		await caller.create({ name: "Alice", tagIds });
+
+		expect(batchCalls).toHaveLength(1);
+		expect(batchCalls[0]).toHaveLength(3);
+		const linkInserts = inserted.filter(
+			(entry) => entry.table === playerToPlayerTag
+		);
+		expect(
+			linkInserts.map((entry) => (entry.values as unknown[]).length)
+		).toEqual([33, 1]);
+	});
 	it("does not validate tags when tagIds is omitted", async () => {
 		const rows = new Map<unknown, Rows>([
 			[player, [{ id: "p-new", userId: OWNER }]],
@@ -299,25 +424,52 @@ describe("player.update tag ownership (SA2-178)", () => {
 		const rows = ownedPlayerRows(
 			new Map<unknown, Rows>([[playerTag, [{ id: "t1" }, { id: "t2" }]]])
 		);
-		const { caller, inserted } = makeCaller(OWNER, rows);
+		const { batchCalls, caller, inserted } = makeCaller(OWNER, rows);
 		await expect(
 			caller.update({ id: "p1", tagIds: ["t1", "t2"] })
 		).resolves.toBeDefined();
 		expect(inserted.some((i) => i.table === playerToPlayerTag)).toBe(true);
+		expect(batchCalls).toHaveLength(1);
+		expect(batchCalls[0]).toHaveLength(3);
 	});
 
 	it("rejects a tag owned by another user and skips the join insert", async () => {
 		const rows = ownedPlayerRows(
 			new Map<unknown, Rows>([[playerTag, [{ id: "t1" }]]])
 		);
-		const { caller, inserted } = makeCaller(OWNER, rows);
+		const { batchCalls, caller, inserted, updateCalls } = makeCaller(
+			OWNER,
+			rows
+		);
 		await expectTrpcCode(
 			caller.update({ id: "p1", tagIds: ["t1", "t2"] }),
 			"FORBIDDEN"
 		);
 		expect(inserted.some((i) => i.table === playerToPlayerTag)).toBe(false);
+		expect(updateCalls).toHaveLength(0);
+		expect(batchCalls).toHaveLength(0);
 	});
 
+	it("chunks 34 replacement links in the same batch as the player update and delete", async () => {
+		const tagIds = Array.from({ length: 34 }, (_, index) => `t${index}`);
+		const rows = ownedPlayerRows(
+			new Map<unknown, Rows>([
+				[playerTag, tagIds.map((id) => ({ id, userId: OWNER }))],
+			])
+		);
+		const { batchCalls, caller, inserted } = makeCaller(OWNER, rows);
+
+		await caller.update({ id: "p1", tagIds });
+
+		expect(batchCalls).toHaveLength(1);
+		expect(batchCalls[0]).toHaveLength(4);
+		const linkInserts = inserted.filter(
+			(entry) => entry.table === playerToPlayerTag
+		);
+		expect(
+			linkInserts.map((entry) => (entry.values as unknown[]).length)
+		).toEqual([33, 1]);
+	});
 	it("does not validate tags when tagIds is omitted", async () => {
 		const rows = ownedPlayerRows(new Map());
 		const { caller, inserted } = makeCaller(OWNER, rows);
@@ -338,5 +490,40 @@ describe("player.update tag ownership (SA2-178)", () => {
 			"FORBIDDEN"
 		);
 		expect(inserted.some((i) => i.table === playerToPlayerTag)).toBe(false);
+	});
+});
+
+describe("player tag hydration ownership joins", () => {
+	const select = {
+		player: [{ id: "p1", userId: OWNER, name: "Alice" }],
+		player_tag: [{ id: "t1", userId: OWNER, name: "Tag", color: "blue" }],
+		player_to_player_tag: [],
+	};
+
+	it("getById scopes the tag join to the caller", async () => {
+		const { caller, selectJoinParams } = makeJoinCaller(select);
+
+		await caller.getById({ id: "p1" });
+
+		expect(selectJoinParams).toHaveLength(1);
+		expect(selectJoinParams[0]).toContain(OWNER);
+	});
+
+	it("create scopes the tag join to the caller", async () => {
+		const { caller, selectJoinParams } = makeJoinCaller(select);
+
+		await caller.create({ name: "Alice", tagIds: ["t1"] });
+
+		expect(selectJoinParams).toHaveLength(1);
+		expect(selectJoinParams[0]).toContain(OWNER);
+	});
+
+	it("update scopes the tag join to the caller", async () => {
+		const { caller, selectJoinParams } = makeJoinCaller(select);
+
+		await caller.update({ id: "p1", tagIds: ["t1"] });
+
+		expect(selectJoinParams).toHaveLength(1);
+		expect(selectJoinParams[0]).toContain(OWNER);
 	});
 });

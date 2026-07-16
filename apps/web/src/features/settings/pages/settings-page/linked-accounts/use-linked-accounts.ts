@@ -10,6 +10,7 @@ interface LinkedAccount {
 
 interface UseLinkedAccountsResult {
 	accounts: LinkedAccount[];
+	error: string | null;
 	fetchAccounts: () => Promise<void>;
 	handleLink: (provider: string) => Promise<void>;
 	handleUnlink: (providerId: string) => Promise<void>;
@@ -25,11 +26,19 @@ export function useLinkedAccounts(): UseLinkedAccountsResult {
 	const [accounts, setAccounts] = useState<LinkedAccount[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [isSetPasswordOpen, setIsSetPasswordOpen] = useState(false);
+	const [error, setError] = useState<string | null>(null);
 
 	const fetchAccounts = useCallback(async () => {
-		const result = await authClient.listAccounts();
-		setAccounts((result.data as LinkedAccount[]) ?? []);
-		setLoading(false);
+		try {
+			const result = await authClient.listAccounts();
+			setAccounts((result.data as LinkedAccount[]) ?? []);
+			setError(null);
+		} catch {
+			setError("Unable to load linked accounts");
+			setAccounts([]);
+		} finally {
+			setLoading(false);
+		}
 	}, []);
 
 	useEffect(() => {
@@ -64,6 +73,7 @@ export function useLinkedAccounts(): UseLinkedAccountsResult {
 
 	return {
 		accounts,
+		error,
 		fetchAccounts,
 		handleLink,
 		handleUnlink,

@@ -1,5 +1,5 @@
 import { getTableColumns } from "drizzle-orm";
-import { getTableConfig } from "drizzle-orm/sqlite-core";
+import { getTableConfig, SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
 import {
 	currency,
@@ -195,6 +195,7 @@ describe("Currency schema — FKs and indexes", () => {
 
 describe("TransactionType schema — FKs and indexes", () => {
 	const config = getTableConfig(transactionType);
+	const dialect = new SQLiteSyncDialect();
 
 	it("userId FK cascades on user deletion", () => {
 		const fks = config.foreignKeys.map((fk) => ({
@@ -210,6 +211,22 @@ describe("TransactionType schema — FKs and indexes", () => {
 	it("has a userId index", () => {
 		const idxNames = config.indexes.map((i) => i.config.name);
 		expect(idxNames).toContain("transactionType_userId_idx");
+	});
+
+	it("allows only one Session Result type per user", () => {
+		const index = config.indexes.find(
+			(i) => i.config.name === "transactionType_sessionResultPerUser_idx"
+		);
+		expect(index).toBeDefined();
+		expect((index?.config as unknown as { unique: boolean }).unique).toBe(true);
+		expect(index?.config.columns).toEqual([
+			getTableColumns(transactionType).userId,
+		]);
+
+		const where = dialect.sqlToQuery(index?.config.where as never);
+		expect(where.sql).toContain(
+			'"transaction_type"."name" = \'Session Result\''
+		);
 	});
 
 	it("createdAt has a default", () => {
@@ -268,6 +285,7 @@ describe("CurrencyTransaction schema — FKs and indexes", () => {
 	it("has indexes on currencyId and sessionId for lookup performance", () => {
 		const idxNames = config.indexes.map((i) => i.config.name);
 		expect(idxNames).toContain("currencyTransaction_currencyId_idx");
+		expect(idxNames).toContain("currencyTransaction_transactionTypeId_idx");
 		expect(idxNames).toContain("currencyTransaction_sessionId_idx");
 	});
 

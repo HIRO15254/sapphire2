@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const hoisted = vi.hoisted(() => ({
@@ -69,8 +69,10 @@ interface MockState {
 	handleEdit: ReturnType<typeof vi.fn>;
 	isActionsOpen: boolean;
 	isEditOpen: boolean;
+	isInitialLoadError: boolean;
 	isLoading: boolean;
 	isSaving: boolean;
+	onRetry: ReturnType<typeof vi.fn>;
 	openDeleteFromActions: ReturnType<typeof vi.fn>;
 	openEditFromActions: ReturnType<typeof vi.fn>;
 	player: MockPlayer | null;
@@ -90,6 +92,8 @@ function setMockState(overrides: Partial<MockState> = {}): MockState {
 		availableTags: [],
 		createTag: vi.fn(),
 		isLoading: false,
+		isInitialLoadError: false,
+		onRetry: vi.fn(),
 		isSaving: false,
 		isActionsOpen: false,
 		isEditOpen: false,
@@ -118,6 +122,22 @@ describe("PlayerDetailPage", () => {
 			render(<PlayerDetailPage playerId="p1" />);
 			expect(screen.getByTestId("player-detail-skeleton")).toBeInTheDocument();
 			expect(screen.queryByTestId("top-bar")).not.toBeInTheDocument();
+		});
+	});
+
+	describe("query error branch", () => {
+		it("shows a retryable error instead of not-found when the initial query fails", () => {
+			const onRetry = vi.fn();
+			setMockState({ player: null, isInitialLoadError: true, onRetry });
+			render(<PlayerDetailPage playerId="p1" />);
+			expect(screen.getByRole("alert")).toHaveTextContent(
+				"Unable to load player. Please try again."
+			);
+			expect(
+				screen.queryByRole("heading", { name: "Player not found" })
+			).not.toBeInTheDocument();
+			fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+			expect(onRetry).toHaveBeenCalledTimes(1);
 		});
 	});
 

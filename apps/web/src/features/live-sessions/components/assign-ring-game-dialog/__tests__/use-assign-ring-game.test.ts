@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 	roomList: vi.fn(),
 	ringGamesByRoom: vi.fn(),
 	updateCashSession: vi.fn(),
-	createRingGame: vi.fn(),
+	createAndAssignRingGame: vi.fn(),
 	toastSuccess: vi.fn(),
 	toastError: vi.fn(),
 }));
@@ -59,9 +59,7 @@ vi.mock("@/utils/trpc", () => ({
 	trpcClient: {
 		liveCashGameSession: {
 			update: { mutate: mocks.updateCashSession },
-		},
-		ringGame: {
-			create: { mutate: mocks.createRingGame },
+			createAndAssignRingGame: { mutate: mocks.createAndAssignRingGame },
 		},
 	},
 }));
@@ -92,6 +90,8 @@ describe("useAssignRingGame", () => {
 		for (const m of Object.values(mocks)) {
 			m.mockReset();
 		}
+		mocks.roomList.mockResolvedValue([]);
+		mocks.ringGamesByRoom.mockResolvedValue([]);
 	});
 	afterEach(() => {
 		vi.restoreAllMocks();
@@ -230,14 +230,17 @@ describe("useAssignRingGame", () => {
 			});
 		});
 		expect(mocks.toastError).toHaveBeenCalledWith("Select a room first");
-		expect(mocks.createRingGame).not.toHaveBeenCalled();
+		expect(mocks.createAndAssignRingGame).not.toHaveBeenCalled();
 	});
 
-	it("handleCreate calls ringGame.create then session.update, toasts success, and closes", async () => {
+	it("handleCreate calls the atomic create-and-assign RPC once, invalidates every affected query, toasts success, and closes", async () => {
 		const qc = createClient();
 		const onClose = vi.fn();
-		mocks.createRingGame.mockResolvedValue({ id: "new-rg" });
-		mocks.updateCashSession.mockResolvedValue({ id: "s1" });
+		const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+		mocks.createAndAssignRingGame.mockResolvedValue({
+			sessionId: "s1",
+			ringGameId: "new-rg",
+		});
 		const { result } = renderHook(
 			() =>
 				useAssignRingGame({
@@ -262,23 +265,48 @@ describe("useAssignRingGame", () => {
 			});
 		});
 		await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
-		expect(mocks.createRingGame).toHaveBeenCalledTimes(1);
-		expect(mocks.updateCashSession).toHaveBeenCalledWith({
-			id: "s1",
-			ringGameId: "new-rg",
+		expect(mocks.createAndAssignRingGame).toHaveBeenCalledTimes(1);
+		expect(mocks.createAndAssignRingGame).toHaveBeenCalledWith({
+			sessionId: "s1",
+			roomId: "room-a",
+			name: "1/2",
+			variant: "nlh",
+			blind1: 1,
+			blind2: 2,
+			anteType: "none",
+			tableSize: 9,
+			minBuyIn: 40,
+			maxBuyIn: 200,
+			currencyId: "c1",
+		});
+		expect(mocks.updateCashSession).not.toHaveBeenCalled();
+		expect(invalidateSpy).toHaveBeenCalledTimes(4);
+		expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
+			queryKey: ["liveCashGameSession", "getById", { id: "s1" }],
+		});
+		expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
+			queryKey: ["liveCashGameSession", "list", {}],
+		});
+		expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
+			queryKey: ["session", "list", {}],
+		});
+		expect(invalidateSpy).toHaveBeenNthCalledWith(4, {
+			queryKey: ["ringGame", "listByRoom", { roomId: "room-a" }],
 		});
 		expect(mocks.toastSuccess).toHaveBeenCalledWith(
 			"Game created and assigned"
 		);
 	});
 
-	it("handleCreate failure toasts the error message", async () => {
+	it("handleCreate failure toasts once, leaves the dialog open, and invalidates nothing", async () => {
 		const qc = createClient();
-		mocks.createRingGame.mockRejectedValue(new Error("name taken"));
+		const onClose = vi.fn();
+		const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+		mocks.createAndAssignRingGame.mockRejectedValue(new Error("name taken"));
 		const { result } = renderHook(
 			() =>
 				useAssignRingGame({
-					onClose: vi.fn(),
+					onClose,
 					open: true,
 					sessionId: "s1",
 					sessionRoomId: "room-a",
@@ -298,6 +326,35 @@ describe("useAssignRingGame", () => {
 		await waitFor(() =>
 			expect(mocks.toastError).toHaveBeenCalledWith("name taken")
 		);
+		expect(mocks.toastError).toHaveBeenCalledTimes(1);
+		expect(mocks.toastSuccess).not.toHaveBeenCalled();
+		expect(onClose).not.toHaveBeenCalled();
+		expect(invalidateSpy).not.toHaveBeenCalled();
+		expect(mocks.updateCashSession).not.toHaveBeenCalled();
+	});
+
+	it("handleCreate uses the atomic-operation fallback when the server error has no message", async () => {
+		const qc = createClient();
+		mocks.createAndAssignRingGame.mockRejectedValue({ message: "" });
+		const { result } = renderHook(
+			() =>
+				useAssignRingGame({
+					onClose: vi.fn(),
+					open: true,
+					sessionId: "s1",
+					sessionRoomId: "room-a",
+				}),
+			{ wrapper: makeWrapper(qc) }
+		);
+		act(() => {
+			result.current.handleCreate({ name: "1/2", variant: "nlh" });
+		});
+		await waitFor(() =>
+			expect(mocks.toastError).toHaveBeenCalledWith(
+				"Failed to create and assign game"
+			)
+		);
+		expect(mocks.toastError).toHaveBeenCalledTimes(1);
 	});
 
 	it("setMode toggles between 'existing' and 'create'", () => {

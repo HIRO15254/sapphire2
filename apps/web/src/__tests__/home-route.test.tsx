@@ -27,6 +27,9 @@ vi.mock("@/lib/auth-client", () => ({
 	},
 }));
 
+vi.mock("@/shared/hooks/use-pwa-update", () => ({
+	usePwaUpdate: vi.fn(),
+}));
 // __root.tsx value imports — stubbed so the test does not load the full shell.
 vi.mock("@/shared/components/authenticated-shell", () => ({
 	AuthenticatedShell: () => null,
@@ -173,14 +176,14 @@ describe("HomeRoute dispatch", () => {
 
 			await expect(
 				rootBeforeLoad({ location: { pathname: "/" } })
-			).resolves.toEqual({ session });
+			).resolves.toEqual({ session, sessionUnavailable: false });
 			expect(mocks.getSession).toHaveBeenCalledTimes(1);
 		});
 
 		it("returns a null session for /login without fetching", async () => {
 			await expect(
 				rootBeforeLoad({ location: { pathname: "/login" } })
-			).resolves.toEqual({ session: null });
+			).resolves.toEqual({ session: null, sessionUnavailable: false });
 			expect(mocks.getSession).not.toHaveBeenCalled();
 		});
 	});

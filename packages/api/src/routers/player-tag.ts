@@ -2,8 +2,9 @@ import { TAG_COLOR_NAMES } from "@sapphire2/db/constants/player-tag-colors";
 import { playerTag, playerToPlayerTag } from "@sapphire2/db/schema/player";
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
-import { z } from "zod";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { runBatch } from "../lib/batch";
 
 const colorSchema = z.enum(TAG_COLOR_NAMES);
 
@@ -54,10 +55,7 @@ export const playerTagRouter = router({
 				.select()
 				.from(playerTag)
 				.where(eq(playerTag.id, input.id));
-			if (!found) {
-				throw new TRPCError({ code: "NOT_FOUND", message: "Tag not found" });
-			}
-			if (found.userId !== userId) {
+			if (!found || found.userId !== userId) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this tag",
@@ -85,19 +83,18 @@ export const playerTagRouter = router({
 				.select()
 				.from(playerTag)
 				.where(eq(playerTag.id, input.id));
-			if (!found) {
-				throw new TRPCError({ code: "NOT_FOUND", message: "Tag not found" });
-			}
-			if (found.userId !== userId) {
+			if (!found || found.userId !== userId) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this tag",
 				});
 			}
-			await ctx.db
-				.delete(playerToPlayerTag)
-				.where(eq(playerToPlayerTag.playerTagId, input.id));
-			await ctx.db.delete(playerTag).where(eq(playerTag.id, input.id));
+			await runBatch(ctx.db, [
+				ctx.db
+					.delete(playerToPlayerTag)
+					.where(eq(playerToPlayerTag.playerTagId, input.id)),
+				ctx.db.delete(playerTag).where(eq(playerTag.id, input.id)),
+			]);
 			return { success: true };
 		}),
 });

@@ -14,6 +14,8 @@ const hoisted = vi.hoisted(() => ({
 	} | null,
 	availableTags: [] as Array<{ color: string; id: string; name: string }>,
 	isLoading: false,
+	isInitialLoadError: false,
+	onRetry: vi.fn(),
 	isSaving: false,
 }));
 
@@ -27,6 +29,8 @@ vi.mock("@/features/players/hooks/use-player-detail", () => ({
 		availableTags: hoisted.availableTags,
 		createTag: hoisted.createTag,
 		isLoading: hoisted.isLoading,
+		isInitialLoadError: hoisted.isInitialLoadError,
+		onRetry: hoisted.onRetry,
 		isSaving: hoisted.isSaving,
 		isDeleting: false,
 		updatePlayer: hoisted.updatePlayer,
@@ -52,6 +56,8 @@ describe("usePlayerDetailPage", () => {
 		hoisted.player = null;
 		hoisted.availableTags = [];
 		hoisted.isLoading = false;
+		hoisted.isInitialLoadError = false;
+		hoisted.onRetry.mockReset();
 		hoisted.isSaving = false;
 	});
 
@@ -65,6 +71,13 @@ describe("usePlayerDetailPage", () => {
 		hoisted.isLoading = true;
 		const { result } = renderHook(() => usePlayerDetailPage("p1"));
 		expect(result.current.isLoading).toBe(true);
+	});
+
+	it("forwards the initial-load error state and retry callback", () => {
+		hoisted.isInitialLoadError = true;
+		const { result } = renderHook(() => usePlayerDetailPage("p1"));
+		expect(result.current.isInitialLoadError).toBe(true);
+		expect(result.current.onRetry).toBe(hoisted.onRetry);
 	});
 
 	it("forwards isSaving and availableTags from the data hook", () => {

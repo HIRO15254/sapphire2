@@ -7,6 +7,7 @@ import { AuthenticatedShell } from "../shared/components/authenticated-shell";
 const mocks = vi.hoisted(() => ({
 	useLocation: vi.fn(() => ({ pathname: "/statistics" })),
 	getSession: vi.fn(),
+	useSession: { get: vi.fn() },
 	redirect: vi.fn((input: unknown) => {
 		const err = new Error("redirect");
 		(err as Error & { redirectTo?: unknown }).redirectTo = input;
@@ -26,7 +27,12 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("@/lib/auth-client", () => ({
 	authClient: {
 		getSession: mocks.getSession,
+		useSession: mocks.useSession,
 	},
+}));
+
+vi.mock("@/shared/hooks/use-pwa-update", () => ({
+	usePwaUpdate: vi.fn(),
 }));
 
 vi.mock(
@@ -158,6 +164,7 @@ describe("RootComponent", () => {
 describe("Root route beforeLoad guard", () => {
 	beforeEach(() => {
 		mocks.getSession.mockReset();
+		mocks.useSession.get.mockReset();
 		mocks.redirect.mockClear();
 	});
 
@@ -171,7 +178,7 @@ describe("Root route beforeLoad guard", () => {
 
 		await expect(
 			beforeLoad({ location: { pathname: "/login" } })
-		).resolves.toEqual({ session: null });
+		).resolves.toEqual({ session: null, sessionUnavailable: false });
 		expect(mocks.getSession).not.toHaveBeenCalled();
 		expect(mocks.redirect).not.toHaveBeenCalled();
 	});
@@ -195,8 +202,42 @@ describe("Root route beforeLoad guard", () => {
 
 		await expect(
 			beforeLoad({ location: { pathname: "/statistics" } })
-		).resolves.toEqual({ session });
+		).resolves.toEqual({ session, sessionUnavailable: false });
 		expect(mocks.getSession).toHaveBeenCalledTimes(1);
 		expect(mocks.redirect).not.toHaveBeenCalled();
+	});
+	it("continues with an unavailable session when offline verification fails", async () => {
+		mocks.getSession.mockRejectedValue(new Error("network unavailable"));
+		Object.defineProperty(window.navigator, "onLine", {
+			configurable: true,
+			value: false,
+		});
+		const { Route } = await import("../routes/__root");
+		const beforeLoad = (Route as unknown as RouteWithBeforeLoad).beforeLoad;
+		await expect(
+			beforeLoad({ location: { pathname: "/statistics" } })
+		).resolves.toEqual({ session: null, sessionUnavailable: true });
+		expect(mocks.redirect).not.toHaveBeenCalled();
+	});
+
+	it("rethrows session errors while online", async () => {
+		mocks.getSession.mockRejectedValue(new Error("network unavailable"));
+		Object.defineProperty(window.navigator, "onLine", {
+			configurable: true,
+			value: true,
+		});
+		const { Route } = await import("../routes/__root");
+		const beforeLoad = (Route as unknown as RouteWithBeforeLoad).beforeLoad;
+		await expect(
+			beforeLoad({ location: { pathname: "/statistics" } })
+		).rejects.toThrow("network unavailable");
+		expect(mocks.redirect).not.toHaveBeenCalled();
+	});
+
+	it("provides an explicit route error component for transient auth failures", async () => {
+		const { Route } = await import("../routes/__root");
+		expect(
+			(Route as unknown as { errorComponent?: unknown }).errorComponent
+		).toBeDefined();
 	});
 });

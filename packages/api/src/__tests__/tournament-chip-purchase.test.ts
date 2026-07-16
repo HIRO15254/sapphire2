@@ -33,6 +33,7 @@ function makeSelectChain(rows: Rows) {
  */
 function createReorderMockDb(rowsByTable: Map<unknown, Rows>) {
 	const updateWhereParams: unknown[][] = [];
+	const batchCalls: Promise<unknown>[][] = [];
 	const db = {
 		select: () => ({
 			from: (table: unknown) => makeSelectChain(rowsByTable.get(table) ?? []),
@@ -45,8 +46,12 @@ function createReorderMockDb(rowsByTable: Map<unknown, Rows>) {
 				},
 			}),
 		}),
+		batch: (statements: Promise<unknown>[]) => {
+			batchCalls.push(statements);
+			return Promise.all(statements);
+		},
 	};
-	return { db, updateWhereParams };
+	return { db, updateWhereParams, batchCalls };
 }
 
 async function expectTrpcCode(
@@ -64,14 +69,15 @@ async function expectTrpcCode(
 }
 
 function makeCaller(userId: string, rowsByTable: Map<unknown, Rows>) {
-	const { db, updateWhereParams } = createReorderMockDb(rowsByTable);
+	const { db, updateWhereParams, batchCalls } =
+		createReorderMockDb(rowsByTable);
 	const caller = appRouter.createCaller({
 		session: { user: { id: userId } },
 		db,
 	} as unknown as Parameters<
 		typeof appRouter.createCaller
 	>[0]).tournamentChipPurchase;
-	return { caller, updateWhereParams };
+	return { caller, updateWhereParams, batchCalls };
 }
 
 const CALLER = "user-1";
@@ -131,16 +137,6 @@ describe("tournamentChipPurchase.create input validation", () => {
 			...valid,
 			cost: 0,
 			chips: 0,
-		});
-	});
-
-	it("accepts negative cost (correction) — schema is permissive", () => {
-		// The schema uses z.number().int() without a min; runtime-level business
-		// validation would live elsewhere. We pin this to prevent silent
-		// tightening.
-		expectAccepts(appRouter.tournamentChipPurchase.create, {
-			...valid,
-			cost: -50,
 		});
 	});
 
@@ -260,8 +256,12 @@ describe("tournamentChipPurchase.reorder tournament scoping (SA2-123)", () => {
 	}
 
 	it("scopes each UPDATE to both the row id and the owned tournament", async () => {
-		const { caller, updateWhereParams } = makeCaller(CALLER, ownedRows());
+		const { caller, updateWhereParams, batchCalls } = makeCaller(
+			CALLER,
+			ownedRows()
+		);
 		await caller.reorder({ tournamentId: "tn1", ids: ["cp1", "cp2"] });
+		expect(batchCalls).toHaveLength(1);
 		expect(updateWhereParams).toHaveLength(2);
 		expect(updateWhereParams[0]).toContain("cp1");
 		expect(updateWhereParams[0]).toContain("tn1");
@@ -287,5 +287,85 @@ describe("tournamentChipPurchase.reorder tournament scoping (SA2-123)", () => {
 			"FORBIDDEN"
 		);
 		expect(updateWhereParams).toHaveLength(0);
+	});
+});
+
+describe("tournamentChipPurchase ownership failures hide entity existence", () => {
+	it("returns FORBIDDEN when the tournament does not exist", async () => {
+		const { caller } = makeCaller(
+			CALLER,
+			new Map<unknown, Rows>([
+				[tournament, []],
+				[room, []],
+				[tournamentChipPurchase, []],
+			])
+		);
+		await expectTrpcCode(
+			caller.listByTournament({ tournamentId: "missing" }),
+			"FORBIDDEN"
+		);
+	});
+
+	it("returns FORBIDDEN when the tournament room does not exist", async () => {
+		const { caller } = makeCaller(
+			CALLER,
+			new Map<unknown, Rows>([
+				[tournament, [{ id: "tn1", roomId: "missing" }]],
+				[room, []],
+				[tournamentChipPurchase, []],
+			])
+		);
+		await expectTrpcCode(
+			caller.listByTournament({ tournamentId: "tn1" }),
+			"FORBIDDEN"
+		);
+	});
+
+	it("returns FORBIDDEN when the chip purchase does not exist", async () => {
+		const { caller } = makeCaller(
+			CALLER,
+			new Map<unknown, Rows>([[tournamentChipPurchase, []]])
+		);
+		await expectTrpcCode(
+			caller.update({ id: "missing", name: "Rebuy" }),
+			"FORBIDDEN"
+		);
+	});
+});
+
+describe("tournamentChipPurchase numeric boundaries", () => {
+	it("rejects negative cost/chips and accepts zero and one on create/update", () => {
+		for (const field of ["cost", "chips"] as const) {
+			expectRejects(appRouter.tournamentChipPurchase.create, {
+				tournamentId: "tn1",
+				name: "Rebuy",
+				cost: field === "cost" ? -1 : 1,
+				chips: field === "chips" ? -1 : 1,
+			});
+			expectAccepts(appRouter.tournamentChipPurchase.create, {
+				tournamentId: "tn1",
+				name: "Rebuy",
+				cost: field === "cost" ? 0 : 1,
+				chips: field === "chips" ? 0 : 1,
+			});
+			expectAccepts(appRouter.tournamentChipPurchase.create, {
+				tournamentId: "tn1",
+				name: "Rebuy",
+				cost: field === "cost" ? 1 : 1,
+				chips: field === "chips" ? 1 : 1,
+			});
+			expectRejects(appRouter.tournamentChipPurchase.update, {
+				id: "cp1",
+				[field]: -1,
+			});
+			expectAccepts(appRouter.tournamentChipPurchase.update, {
+				id: "cp1",
+				[field]: 0,
+			});
+			expectAccepts(appRouter.tournamentChipPurchase.update, {
+				id: "cp1",
+				[field]: 1,
+			});
+		}
 	});
 });

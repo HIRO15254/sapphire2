@@ -1,65 +1,87 @@
+import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
-import { room } from "@sapphire2/db/schema/room";
-import { TRPCError } from "@trpc/server";
+import { mixGamesSchema } from "@sapphire2/db/schemas/game";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
-import { z } from "zod";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
-import { validateEntityOwnership } from "./session";
+import {
+	cashMixFlatFieldClearPatch,
+	reconcileCashRuleSelection,
+	validateEntityOwnership,
+} from "./session";
 
-async function validateRoomOwnership(
-	db: Parameters<
-		Parameters<typeof protectedProcedure.query>[0]
-	>[0]["ctx"]["db"],
-	roomId: string,
-	userId: string
-) {
-	const [found] = await db.select().from(room).where(eq(room.id, roomId));
+type DbInstance = Parameters<
+	Parameters<typeof protectedProcedure.query>[0]
+>[0]["ctx"]["db"];
 
-	if (!found) {
-		throw new TRPCError({ code: "NOT_FOUND", message: "Room not found" });
-	}
+type BatchStatement = Parameters<DbInstance["batch"]>[0][number];
 
-	if (found.userId !== userId) {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: "You do not own this room",
-		});
-	}
-
-	return found;
+function validateRoomOwnership(db: DbInstance, roomId: string, userId: string) {
+	return validateEntityOwnership(db, "room", roomId, userId);
 }
 
-async function validateRingGameOwnership(
-	db: Parameters<
-		Parameters<typeof protectedProcedure.query>[0]
-	>[0]["ctx"]["db"],
+function validateRingGameOwnership(
+	db: DbInstance,
 	ringGameId: string,
 	userId: string
 ) {
-	const [found] = await db
-		.select()
-		.from(ringGame)
-		.where(eq(ringGame.id, ringGameId));
+	return validateEntityOwnership(db, "ringGame", ringGameId, userId);
+}
 
-	if (!found) {
-		throw new TRPCError({
-			code: "NOT_FOUND",
-			message: "Ring game not found",
-		});
+const nonNegativeIntegerSchema = z.number().int().min(0);
+const tableSizeSchema = z.number().int().min(2).max(10);
+
+export const ringGameCreateInputSchema = z.object({
+	roomId: z.string(),
+	name: z.string().min(1),
+	variant: z.string().default(DEFAULT_VARIANT_LABEL),
+	mixGames: mixGamesSchema.nullish(),
+	blind1: nonNegativeIntegerSchema.optional(),
+	blind2: nonNegativeIntegerSchema.optional(),
+	blind3: nonNegativeIntegerSchema.optional(),
+	ante: nonNegativeIntegerSchema.optional(),
+	anteType: z.enum(["none", "all", "bb"]).optional(),
+	minBuyIn: nonNegativeIntegerSchema.optional(),
+	maxBuyIn: nonNegativeIntegerSchema.optional(),
+	tableSize: tableSizeSchema.optional(),
+	currencyId: z.string().min(1).optional(),
+	memo: z.string().optional(),
+});
+
+type RingGameCreateInput = z.infer<typeof ringGameCreateInputSchema>;
+
+export function buildRingGameCreateStatement(
+	db: DbInstance,
+	params: {
+		id: string;
+		input: RingGameCreateInput;
+		mixGames: NonNullable<RingGameCreateInput["mixGames"]> | null;
+		now: Date;
+		userId: string;
+		variant: string;
 	}
-
-	// Ownership is now anchored on ring_game.userId (SA2-181). A null userId is a
-	// legacy/orphan row that predates the backfill and cannot be proven owned →
-	// FORBIDDEN. This closes the null-roomId IDOR gap the room-derived check left
-	// open for auto-generated snapshot rows.
-	if (found.userId !== userId) {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: "You do not own this ring game",
-		});
-	}
-
-	return found;
+): BatchStatement {
+	const frozenFlatFields = cashMixFlatFieldClearPatch(params.mixGames);
+	return db.insert(ringGame).values({
+		id: params.id,
+		roomId: params.input.roomId,
+		userId: params.userId,
+		name: params.input.name,
+		variant: params.variant,
+		mixGames: params.mixGames,
+		blind1: params.input.blind1 ?? null,
+		blind2: params.input.blind2 ?? null,
+		blind3: params.input.blind3 ?? null,
+		ante: params.input.ante ?? null,
+		anteType: params.input.anteType ?? null,
+		...frozenFlatFields,
+		minBuyIn: params.input.minBuyIn ?? null,
+		maxBuyIn: params.input.maxBuyIn ?? null,
+		tableSize: params.input.tableSize ?? null,
+		currencyId: params.input.currencyId ?? null,
+		memo: params.input.memo ?? null,
+		updatedAt: params.now,
+	});
 }
 
 export const ringGameRouter = router({
@@ -85,23 +107,7 @@ export const ringGameRouter = router({
 		}),
 
 	create: protectedProcedure
-		.input(
-			z.object({
-				roomId: z.string(),
-				name: z.string().min(1),
-				variant: z.string().default("nlh"),
-				blind1: z.number().int().optional(),
-				blind2: z.number().int().optional(),
-				blind3: z.number().int().optional(),
-				ante: z.number().int().optional(),
-				anteType: z.enum(["none", "all", "bb"]).optional(),
-				minBuyIn: z.number().int().optional(),
-				maxBuyIn: z.number().int().optional(),
-				tableSize: z.number().int().optional(),
-				currencyId: z.string().optional(),
-				memo: z.string().optional(),
-			})
-		)
+		.input(ringGameCreateInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await validateRoomOwnership(ctx.db, input.roomId, userId);
@@ -113,25 +119,21 @@ export const ringGameRouter = router({
 					userId
 				);
 			}
+			const selection = await reconcileCashRuleSelection(
+				ctx.db,
+				userId,
+				undefined,
+				input
+			);
 
 			const id = crypto.randomUUID();
-			await ctx.db.insert(ringGame).values({
+			await buildRingGameCreateStatement(ctx.db, {
 				id,
-				roomId: input.roomId,
+				input,
 				userId,
-				name: input.name,
-				variant: input.variant,
-				blind1: input.blind1 ?? null,
-				blind2: input.blind2 ?? null,
-				blind3: input.blind3 ?? null,
-				ante: input.ante ?? null,
-				anteType: input.anteType ?? null,
-				minBuyIn: input.minBuyIn ?? null,
-				maxBuyIn: input.maxBuyIn ?? null,
-				tableSize: input.tableSize ?? null,
-				currencyId: input.currencyId ?? null,
-				memo: input.memo ?? null,
-				updatedAt: new Date(),
+				mixGames: selection.mixGames,
+				variant: selection.variant,
+				now: new Date(),
 			});
 
 			const [created] = await ctx.db
@@ -147,15 +149,16 @@ export const ringGameRouter = router({
 				id: z.string(),
 				name: z.string().min(1).optional(),
 				variant: z.string().optional(),
-				blind1: z.number().int().nullable().optional(),
-				blind2: z.number().int().nullable().optional(),
-				blind3: z.number().int().nullable().optional(),
-				ante: z.number().int().nullable().optional(),
+				mixGames: mixGamesSchema.nullish(),
+				blind1: nonNegativeIntegerSchema.nullable().optional(),
+				blind2: nonNegativeIntegerSchema.nullable().optional(),
+				blind3: nonNegativeIntegerSchema.nullable().optional(),
+				ante: nonNegativeIntegerSchema.nullable().optional(),
 				anteType: z.enum(["none", "all", "bb"]).nullable().optional(),
-				minBuyIn: z.number().int().nullable().optional(),
-				maxBuyIn: z.number().int().nullable().optional(),
-				tableSize: z.number().int().nullable().optional(),
-				currencyId: z.string().nullable().optional(),
+				minBuyIn: nonNegativeIntegerSchema.nullable().optional(),
+				maxBuyIn: nonNegativeIntegerSchema.nullable().optional(),
+				tableSize: tableSizeSchema.nullable().optional(),
+				currencyId: z.string().min(1).nullable().optional(),
 				memo: z.string().nullable().optional(),
 			})
 		)
@@ -170,6 +173,15 @@ export const ringGameRouter = router({
 					userId
 				);
 			}
+			const selection = await reconcileCashRuleSelection(
+				ctx.db,
+				userId,
+				{
+					variant: found.variant,
+					mixGames: found.mixGames ?? null,
+				},
+				input
+			);
 
 			const updateData: Partial<typeof found> = { updatedAt: new Date() };
 			if (input.name !== undefined) {
@@ -177,6 +189,9 @@ export const ringGameRouter = router({
 			}
 			if (input.variant !== undefined) {
 				updateData.variant = input.variant;
+			}
+			if (selection.shouldWriteMixGames) {
+				updateData.mixGames = selection.mixGames;
 			}
 			if (input.blind1 !== undefined) {
 				updateData.blind1 = input.blind1;
@@ -208,6 +223,7 @@ export const ringGameRouter = router({
 			if (input.memo !== undefined) {
 				updateData.memo = input.memo;
 			}
+			Object.assign(updateData, cashMixFlatFieldClearPatch(selection.mixGames));
 
 			await ctx.db
 				.update(ringGame)

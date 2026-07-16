@@ -55,6 +55,7 @@ export function MemoEditor({
 			>
 				{(field) => (
 					<MemoFields
+						error={field.state.meta.errors[0]?.toString()}
 						onTextChange={(v) => field.handleChange(v)}
 						text={field.state.value}
 					/>

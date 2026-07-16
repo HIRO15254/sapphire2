@@ -200,6 +200,7 @@ export function CashGameStackForm({
 					<memoForm.Field name="text">
 						{(field) => (
 							<MemoFields
+								error={field.state.meta.errors[0]?.message}
 								onTextChange={(v) => field.handleChange(v)}
 								text={field.state.value}
 							/>

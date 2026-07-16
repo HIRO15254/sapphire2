@@ -8,34 +8,70 @@ import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionBlindLevel } from "@sapphire2/db/schema/session-blind-level";
 import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
+import { sessionChipPurchaseResult } from "@sapphire2/db/schema/session-chip-purchase-result";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { tournament } from "@sapphire2/db/schema/tournament";
+import { levelGamesSchema } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, max, sql } from "drizzle-orm";
-import { z } from "zod";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
+import {
+	ACTIVE_SESSION_CONFLICT_MESSAGE,
+	runUnfinishedLiveSessionWrite,
+} from "../lib/db-errors";
 import {
 	computeHeroSeatPositionFromEvents,
 	computeTournamentPLFromEvents,
 	recalculateTournamentSession,
 } from "../services/live-session-pl";
-import { floorToMinute } from "../utils/session-event-time";
+import { assertSeatPositionFitsTableSize } from "../utils/seat-position";
 import {
+	floorToMinute,
+	nextAppendSortOrderSql,
+	sessionEventOrderBy,
+} from "../utils/session-event-time";
+import {
+	buildTournamentStructureStatements,
+	encodeSessionCursor,
+	getSessionEventMap,
 	persistSessionBlindLevels,
 	persistSessionChipPurchases,
 	resnapshotTournamentStructure,
 	resolveTournamentRuleSnapshot,
-	snapshotTournamentStructure,
+	sessionKeysetCondition,
+	sessionOrderKeySql,
 	validateEntityOwnership,
 	validateLiveLinkOwnership,
 } from "./session";
+import {
+	buildTournamentCreateStatements,
+	tournamentCreateWithLevelsInputSchema,
+} from "./tournament";
 
 const DEFAULT_LIMIT = 20;
+const nonnegativeSafeIntegerSchema = z
+	.number()
+	.int()
+	.min(0)
+	.max(Number.MAX_SAFE_INTEGER);
+const nullableNonnegativeSafeIntegerSchema = nonnegativeSafeIntegerSchema
+	.nullable()
+	.optional();
+const nullableTableSizeSchema = z
+	.number()
+	.int()
+	.min(2)
+	.max(10)
+	.nullable()
+	.optional();
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
 >[0]["ctx"]["db"];
+
+type BatchStatement = Parameters<DbInstance["batch"]>[0][number];
 
 async function findLiveTournamentSession(
 	db: DbInstance,
@@ -49,21 +85,20 @@ async function findLiveTournamentSession(
 			and(
 				eq(gameSession.id, id),
 				eq(gameSession.kind, "tournament"),
-				eq(gameSession.source, "live")
+				eq(gameSession.source, "live"),
+				eq(gameSession.userId, userId)
 			)
 		);
 
-	if (!found) {
+	if (
+		!found ||
+		found.kind !== "tournament" ||
+		found.source !== "live" ||
+		found.userId !== userId
+	) {
 		throw new TRPCError({
-			code: "NOT_FOUND",
-			message: "Live tournament session not found",
-		});
-	}
-
-	if (found.userId !== userId) {
-		throw new TRPCError({
-			code: "NOT_FOUND",
-			message: "Live tournament session not found",
+			code: "FORBIDDEN",
+			message: "You do not own this live tournament session",
 		});
 	}
 
@@ -88,8 +123,8 @@ async function assertNoActiveSession(
 
 	if (anyActive.length > 0) {
 		throw new TRPCError({
-			code: "BAD_REQUEST",
-			message: "Another session is already active",
+			code: "CONFLICT",
+			message: ACTIVE_SESSION_CONFLICT_MESSAGE,
 		});
 	}
 }
@@ -379,22 +414,18 @@ async function resolveTournamentAssignment(
 	currencyId?: string;
 }> {
 	const [foundTournament] = await db
-		.select()
+		.select({
+			roomId: tournament.roomId,
+			currencyId: tournament.currencyId,
+		})
 		.from(tournament)
+		.innerJoin(
+			room,
+			and(eq(room.id, tournament.roomId), eq(room.userId, userId))
+		)
 		.where(eq(tournament.id, tournamentId));
 
 	if (!foundTournament) {
-		throw new TRPCError({
-			code: "NOT_FOUND",
-			message: "Tournament not found",
-		});
-	}
-
-	const [foundRoom] = await db
-		.select()
-		.from(room)
-		.where(eq(room.id, foundTournament.roomId));
-	if (!foundRoom || foundRoom.userId !== userId) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
 			message: "You do not own this tournament",
@@ -420,19 +451,6 @@ async function resolveTournamentAssignment(
 		patch.currencyId = foundTournament.currencyId;
 	}
 	return patch;
-}
-
-async function getNextEventSortOrder(
-	db: DbInstance,
-	sessionId: string
-): Promise<number> {
-	const [latest] = await db
-		.select({ sortOrder: sessionEvent.sortOrder })
-		.from(sessionEvent)
-		.where(eq(sessionEvent.sessionId, sessionId))
-		.orderBy(desc(sessionEvent.sortOrder))
-		.limit(1);
-	return latest ? (latest.sortOrder ?? 0) + 1 : 0;
 }
 
 type CompleteInput =
@@ -468,6 +486,10 @@ function buildTournamentEndPayload(input: CompleteInput) {
 	});
 }
 
+const liveTournamentCompleteInputSchema = z
+	.object({ id: z.string() })
+	.and(tournamentSessionEndPayload);
+
 export const liveTournamentSessionRouter = router({
 	list: protectedProcedure
 		.input(
@@ -488,10 +510,12 @@ export const liveTournamentSessionRouter = router({
 			if (input.status) {
 				conditions.push(eq(gameSession.status, input.status));
 			}
-			if (input.cursor) {
-				conditions.push(
-					sql`${gameSession.startedAt} < (SELECT started_at FROM game_session WHERE id = ${input.cursor} AND user_id = ${userId})`
-				);
+			// Composite (startedAt, id) keyset — a malformed / deleted-row cursor
+			// degrades to "no cursor" instead of silently emptying the page
+			// (SA2-150). Shared with session.list so both stay in lockstep.
+			const keyset = sessionKeysetCondition(input.cursor);
+			if (keyset) {
+				conditions.push(keyset);
 			}
 
 			const rows = await ctx.db
@@ -508,6 +532,7 @@ export const liveTournamentSessionRouter = router({
 					currencyName: currency.name,
 					currencyUnit: currency.unit,
 					startedAt: gameSession.startedAt,
+					sessionDate: gameSession.sessionDate,
 					endedAt: gameSession.endedAt,
 					memo: gameSession.memo,
 					createdAt: gameSession.createdAt,
@@ -518,46 +543,49 @@ export const liveTournamentSessionRouter = router({
 					sessionTournamentDetail,
 					eq(sessionTournamentDetail.sessionId, gameSession.id)
 				)
-				.leftJoin(room, eq(room.id, gameSession.roomId))
-				.leftJoin(currency, eq(currency.id, gameSession.currencyId))
+				.leftJoin(
+					room,
+					and(eq(room.id, gameSession.roomId), eq(room.userId, userId))
+				)
+				.leftJoin(
+					currency,
+					and(
+						eq(currency.id, gameSession.currencyId),
+						eq(currency.userId, userId)
+					)
+				)
 				.where(and(...conditions))
-				.orderBy(desc(gameSession.startedAt))
+				.orderBy(desc(sessionOrderKeySql()), desc(gameSession.id))
 				.limit(input.limit + 1);
 
 			const hasMore = rows.length > input.limit;
 			const items = hasMore ? rows.slice(0, input.limit) : rows;
-			const nextCursor = hasMore ? items.at(-1)?.id : undefined;
+			const last = items.at(-1);
+			const nextCursor =
+				hasMore && last ? encodeSessionCursor(last) : undefined;
 
-			const enrichedItems = await Promise.all(
-				items.map(async (item) => {
-					const events = await ctx.db
-						.select({
-							eventType: sessionEvent.eventType,
-							payload: sessionEvent.payload,
-							sortOrder: sessionEvent.sortOrder,
-						})
-						.from(sessionEvent)
-						.where(eq(sessionEvent.sessionId, item.id))
-						.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
-
-					const eventCount = events.length;
-					const statsForList = computeStackStats(
-						events.map((e) => ({
-							eventType: e.eventType,
-							payload: e.payload,
-						})),
-						item.startingStack
-					);
-
-					return {
-						...item,
-						eventCount,
-						latestStackAmount: statsForList.currentStack,
-						remainingPlayers: statsForList.remainingPlayers,
-						averageStack: statsForList.averageStack,
-					};
-				})
+			// SA2-151: fetch every page item's events in one batched inArray
+			// query, then bucket by session id, instead of a per-item query
+			// (an N+1 whose per-query latency dominated under D1). getSessionEventMap
+			// preserves the (occurredAt, sortOrder, id) ordering computeStackStats needs.
+			const eventMap = await getSessionEventMap(
+				ctx.db,
+				items.map((item) => item.id)
 			);
+
+			const enrichedItems = items.map((item) => {
+				const events = eventMap.get(item.id) ?? [];
+				const eventCount = events.length;
+				const statsForList = computeStackStats(events, item.startingStack);
+
+				return {
+					...item,
+					eventCount,
+					latestStackAmount: statsForList.currentStack,
+					remainingPlayers: statsForList.remainingPlayers,
+					averageStack: statsForList.averageStack,
+				};
+			});
 
 			return { items: enrichedItems, nextCursor };
 		}),
@@ -583,7 +611,7 @@ export const liveTournamentSessionRouter = router({
 				.select()
 				.from(sessionEvent)
 				.where(eq(sessionEvent.sessionId, input.id))
-				.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
+				.orderBy(...sessionEventOrderBy());
 
 			const blindLevels = await ctx.db
 				.select()
@@ -654,9 +682,9 @@ export const liveTournamentSessionRouter = router({
 	create: protectedProcedure
 		.input(
 			z.object({
-				roomId: z.string().optional(),
-				tournamentId: z.string().optional(),
-				currencyId: z.string().optional(),
+				roomId: z.string().min(1).optional(),
+				tournamentId: z.string().min(1).optional(),
+				currencyId: z.string().min(1).optional(),
 				buyIn: z.number().int().min(0).optional(),
 				entryFee: z.number().int().min(0).optional(),
 				memo: z.string().optional(),
@@ -665,8 +693,6 @@ export const liveTournamentSessionRouter = router({
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-
-			await assertNoActiveSession(ctx.db, userId);
 
 			await validateLiveLinkOwnership(ctx.db, input, userId);
 			// Validate tournament ownership before reading its structure so a
@@ -680,62 +706,188 @@ export const liveTournamentSessionRouter = router({
 					userId
 				);
 			}
+			await assertNoActiveSession(ctx.db, userId);
 
 			const id = crypto.randomUUID();
 			const now = new Date();
-
-			await ctx.db.insert(gameSession).values({
-				id,
-				userId,
-				kind: "tournament",
-				status: "active",
-				source: "live",
-				roomId: input.roomId ?? null,
-				currencyId: input.currencyId ?? null,
-				startedAt: now,
-				memo: input.memo ?? null,
-				sessionDate: now,
-				updatedAt: now,
-			});
 
 			const snapshot = await resolveTournamentRuleSnapshot(ctx.db, {
 				tournamentId: input.tournamentId,
 				tournamentBuyIn: input.buyIn,
 				entryFee: input.entryFee,
 			});
-			await ctx.db.insert(sessionTournamentDetail).values({
-				sessionId: id,
-				tournamentId: input.tournamentId ?? null,
-				tournamentBuyIn: snapshot.tournamentBuyIn,
-				entryFee: snapshot.entryFee,
-				timerStartedAt:
-					input.timerStartedAt === undefined
-						? null
-						: new Date(input.timerStartedAt * 1000),
-				ruleName: input.tournamentId ? snapshot.ruleName : "Tournament",
-				variant: snapshot.variant,
-				startingStack: snapshot.startingStack,
-				bountyAmount: snapshot.bountyAmount,
-				tableSize: snapshot.tableSize,
-			});
+			const structureStatements = input.tournamentId
+				? await buildTournamentStructureStatements(
+						ctx.db,
+						id,
+						input.tournamentId
+					)
+				: [];
 
-			await ctx.db.insert(sessionEvent).values({
-				id: crypto.randomUUID(),
-				sessionId: id,
-				eventType: "session_start",
-				occurredAt: floorToMinute(now),
-				sortOrder: 0,
-				payload: JSON.stringify({
-					timerStartedAt: input.timerStartedAt ?? null,
-				}),
-				updatedAt: now,
-			});
-
-			if (input.tournamentId) {
-				await snapshotTournamentStructure(ctx.db, id, input.tournamentId);
-			}
+			await runUnfinishedLiveSessionWrite(() =>
+				ctx.db.batch([
+					ctx.db.insert(gameSession).values({
+						id,
+						userId,
+						kind: "tournament",
+						status: "active",
+						source: "live",
+						roomId: input.roomId ?? null,
+						currencyId: input.currencyId ?? null,
+						startedAt: now,
+						memo: input.memo ?? null,
+						sessionDate: now,
+						updatedAt: now,
+					}),
+					ctx.db.insert(sessionTournamentDetail).values({
+						sessionId: id,
+						tournamentId: input.tournamentId ?? null,
+						tournamentBuyIn: snapshot.tournamentBuyIn,
+						entryFee: snapshot.entryFee,
+						timerStartedAt:
+							input.timerStartedAt === undefined
+								? null
+								: new Date(input.timerStartedAt * 1000),
+						ruleName: input.tournamentId ? snapshot.ruleName : "Tournament",
+						variant: snapshot.variant,
+						startingStack: snapshot.startingStack,
+						bountyAmount: snapshot.bountyAmount,
+						tableSize: snapshot.tableSize,
+					}),
+					ctx.db.insert(sessionEvent).values({
+						id: crypto.randomUUID(),
+						sessionId: id,
+						eventType: "session_start",
+						occurredAt: floorToMinute(now),
+						sortOrder: 0,
+						payload: JSON.stringify({
+							timerStartedAt: input.timerStartedAt ?? null,
+						}),
+						updatedAt: now,
+					}),
+					...structureStatements,
+				])
+			);
 
 			return { id };
+		}),
+
+	createAndAssignTournament: protectedProcedure
+		.input(
+			tournamentCreateWithLevelsInputSchema.extend({ sessionId: z.string() })
+		)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const existing = await findLiveTournamentSession(
+				ctx.db,
+				input.sessionId,
+				userId
+			);
+			await validateLiveLinkOwnership(ctx.db, input, userId);
+			if (existing.roomId && existing.roomId !== input.roomId) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "Tournament belongs to a different room than the session",
+				});
+			}
+
+			const now = new Date();
+			const tournamentId = crypto.randomUUID();
+			const blindLevels = input.blindLevels ?? [];
+			const chipPurchases = input.chipPurchases ?? [];
+
+			const sessionUpdate: Partial<typeof gameSession.$inferInsert> = {
+				updatedAt: now,
+			};
+			if (!existing.roomId) {
+				sessionUpdate.roomId = input.roomId;
+			}
+			if (!existing.currencyId && input.currencyId) {
+				sessionUpdate.currencyId = input.currencyId;
+			}
+			const detailSnapshot = {
+				tournamentId,
+				tournamentBuyIn: input.buyIn ?? null,
+				entryFee: input.entryFee ?? null,
+				ruleName: input.name,
+				variant: input.variant,
+				startingStack: input.startingStack ?? null,
+				bountyAmount: input.bountyAmount ?? null,
+				tableSize: input.tableSize ?? null,
+			};
+			// The FK-checked upsert is intentionally in the same batch as the master
+			// insert. A concurrent session deletion therefore makes the whole batch
+			// fail instead of committing an orphan tournament.
+			const detailStatement = ctx.db
+				.insert(sessionTournamentDetail)
+				.values({
+					sessionId: input.sessionId,
+					...detailSnapshot,
+				})
+				.onConflictDoUpdate({
+					target: sessionTournamentDetail.sessionId,
+					set: detailSnapshot,
+				});
+
+			const sessionPurchaseRows = chipPurchases.map((purchase, sortOrder) => ({
+				id: crypto.randomUUID(),
+				sessionId: input.sessionId,
+				name: purchase.name,
+				cost: purchase.cost,
+				chips: purchase.chips,
+				sortOrder,
+			}));
+			const statements: [BatchStatement, ...BatchStatement[]] = [
+				...buildTournamentCreateStatements(ctx.db, {
+					id: tournamentId,
+					input,
+					now,
+				}),
+				ctx.db
+					.update(gameSession)
+					.set(sessionUpdate)
+					.where(
+						and(
+							eq(gameSession.id, input.sessionId),
+							eq(gameSession.userId, userId),
+							eq(gameSession.kind, "tournament"),
+							eq(gameSession.source, "live")
+						)
+					),
+				detailStatement,
+				ctx.db
+					.delete(sessionBlindLevel)
+					.where(eq(sessionBlindLevel.sessionId, input.sessionId)),
+				ctx.db
+					.delete(sessionChipPurchase)
+					.where(eq(sessionChipPurchase.sessionId, input.sessionId)),
+				...blindLevels.map((level, index) =>
+					ctx.db.insert(sessionBlindLevel).values({
+						id: crypto.randomUUID(),
+						sessionId: input.sessionId,
+						level: index + 1,
+						isBreak: level.isBreak,
+						blind1: level.blind1 ?? null,
+						blind2: level.blind2 ?? null,
+						blind3: level.blind3 ?? null,
+						ante: level.ante ?? null,
+						minutes: level.minutes ?? null,
+						games: level.games ?? null,
+					})
+				),
+				...sessionPurchaseRows.map((row) =>
+					ctx.db.insert(sessionChipPurchase).values(row)
+				),
+				...sessionPurchaseRows.map((row) =>
+					ctx.db.insert(sessionChipPurchaseResult).values({
+						sessionChipPurchaseId: row.id,
+						count: 0,
+					})
+				),
+			];
+			await ctx.db.batch(statements);
+
+			return { sessionId: input.sessionId, tournamentId };
 		}),
 
 	update: protectedProcedure
@@ -743,9 +895,9 @@ export const liveTournamentSessionRouter = router({
 			z.object({
 				id: z.string(),
 				memo: z.string().nullable().optional(),
-				roomId: z.string().nullable().optional(),
-				currencyId: z.string().nullable().optional(),
-				tournamentId: z.string().nullable().optional(),
+				roomId: z.string().min(1).nullable().optional(),
+				currencyId: z.string().min(1).nullable().optional(),
+				tournamentId: z.string().min(1).nullable().optional(),
 				timerStartedAt: z.number().int().nullable().optional(),
 			})
 		)
@@ -797,6 +949,13 @@ export const liveTournamentSessionRouter = router({
 
 			await syncTimerStartedAtEvent(ctx.db, input.id, input.timerStartedAt);
 
+			if (
+				existing.status === "completed" &&
+				patchedUpdateData.currencyId !== undefined
+			) {
+				await recalculateTournamentSession(ctx.db, input.id, userId);
+			}
+
 			const [updated] = await ctx.db
 				.select()
 				.from(gameSession)
@@ -827,29 +986,30 @@ export const liveTournamentSessionRouter = router({
 				id: z.string(),
 				ruleName: z.string().min(1).optional(),
 				variant: z.string().optional(),
-				tournamentBuyIn: z.number().int().nullable().optional(),
-				entryFee: z.number().int().nullable().optional(),
-				startingStack: z.number().int().nullable().optional(),
-				bountyAmount: z.number().int().nullable().optional(),
-				tableSize: z.number().int().nullable().optional(),
+				tournamentBuyIn: nullableNonnegativeSafeIntegerSchema,
+				entryFee: nullableNonnegativeSafeIntegerSchema,
+				startingStack: nullableNonnegativeSafeIntegerSchema,
+				bountyAmount: nullableNonnegativeSafeIntegerSchema,
+				tableSize: nullableTableSizeSchema,
 				blindLevels: z
 					.array(
 						z.object({
 							isBreak: z.boolean(),
-							blind1: z.number().int().nullable().optional(),
-							blind2: z.number().int().nullable().optional(),
-							blind3: z.number().int().nullable().optional(),
-							ante: z.number().int().nullable().optional(),
-							minutes: z.number().int().nullable().optional(),
+							blind1: nullableNonnegativeSafeIntegerSchema,
+							blind2: nullableNonnegativeSafeIntegerSchema,
+							blind3: nullableNonnegativeSafeIntegerSchema,
+							ante: nullableNonnegativeSafeIntegerSchema,
+							minutes: nullableNonnegativeSafeIntegerSchema,
+							games: levelGamesSchema.nullish(),
 						})
 					)
 					.optional(),
 				chipPurchases: z
 					.array(
 						z.object({
-							name: z.string(),
-							cost: z.number().int(),
-							chips: z.number().int(),
+							name: z.string().min(1),
+							cost: nonnegativeSafeIntegerSchema,
+							chips: nonnegativeSafeIntegerSchema,
 						})
 					)
 					.optional(),
@@ -891,10 +1051,11 @@ export const liveTournamentSessionRouter = router({
 
 			if (input.blindLevels !== undefined) {
 				// Reuse the shared helper so the DELETE + re-INSERT is chunked
-				// under D1's 100 bound-parameter cap (9 columns/row => 11 rows
-				// max per INSERT). A single unchunked INSERT of >=12 levels
-				// overflows and throws AFTER the DELETE commits, permanently
-				// wiping the session's blind structure (SA2-115).
+				// under D1's 100 bound-parameter cap (10 columns/row => 10 rows
+				// max per INSERT since the `games` column). A single unchunked
+				// INSERT of >=11 levels overflows and throws AFTER the DELETE
+				// commits, permanently wiping the session's blind structure
+				// (SA2-115).
 				await persistSessionBlindLevels(ctx.db, input.id, input.blindLevels);
 			}
 
@@ -914,24 +1075,7 @@ export const liveTournamentSessionRouter = router({
 		}),
 
 	complete: protectedProcedure
-		.input(
-			z.discriminatedUnion("beforeDeadline", [
-				z.object({
-					id: z.string(),
-					beforeDeadline: z.literal(false),
-					placement: z.number().int().min(1),
-					totalEntries: z.number().int().min(1),
-					prizeMoney: z.number().int().min(0),
-					bountyPrizes: z.number().int().min(0),
-				}),
-				z.object({
-					id: z.string(),
-					beforeDeadline: z.literal(true),
-					prizeMoney: z.number().int().min(0),
-					bountyPrizes: z.number().int().min(0),
-				}),
-			])
-		)
+		.input(liveTournamentCompleteInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const session = await findLiveTournamentSession(ctx.db, input.id, userId);
@@ -944,7 +1088,6 @@ export const liveTournamentSessionRouter = router({
 			}
 
 			const now = new Date();
-			const nextSortOrder = await getNextEventSortOrder(ctx.db, input.id);
 			const endPayload = buildTournamentEndPayload(input);
 
 			await ctx.db.insert(sessionEvent).values({
@@ -952,7 +1095,7 @@ export const liveTournamentSessionRouter = router({
 				sessionId: input.id,
 				eventType: "session_end",
 				occurredAt: floorToMinute(now),
-				sortOrder: nextSortOrder,
+				sortOrder: nextAppendSortOrderSql(input.id),
 				payload: JSON.stringify(endPayload),
 				updatedAt: now,
 			});
@@ -1004,6 +1147,14 @@ export const liveTournamentSessionRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await findLiveTournamentSession(ctx.db, input.id, userId);
+			const [detail] = await ctx.db
+				.select({ tableSize: sessionTournamentDetail.tableSize })
+				.from(sessionTournamentDetail)
+				.where(eq(sessionTournamentDetail.sessionId, input.id));
+			assertSeatPositionFitsTableSize(
+				input.heroSeatPosition,
+				detail?.tableSize ?? null
+			);
 
 			const events = await ctx.db
 				.select({
@@ -1012,7 +1163,7 @@ export const liveTournamentSessionRouter = router({
 				})
 				.from(sessionEvent)
 				.where(eq(sessionEvent.sessionId, input.id))
-				.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
+				.orderBy(...sessionEventOrderBy());
 
 			const previousHeroSeat = computeHeroSeatPositionFromEvents(events);
 
@@ -1029,11 +1180,6 @@ export const liveTournamentSessionRouter = router({
 			}
 
 			const now = new Date();
-			const [latest] = await ctx.db
-				.select({ maxSort: max(sessionEvent.sortOrder) })
-				.from(sessionEvent)
-				.where(eq(sessionEvent.sessionId, input.id));
-			const sortOrder = (latest?.maxSort ?? -1) + 1;
 
 			if (input.heroSeatPosition === null) {
 				await ctx.db.insert(sessionEvent).values({
@@ -1041,7 +1187,7 @@ export const liveTournamentSessionRouter = router({
 					sessionId: input.id,
 					eventType: "player_leave",
 					occurredAt: floorToMinute(now),
-					sortOrder,
+					sortOrder: nextAppendSortOrderSql(input.id),
 					payload: JSON.stringify({ isHero: true }),
 					updatedAt: now,
 				});
@@ -1051,7 +1197,7 @@ export const liveTournamentSessionRouter = router({
 					sessionId: input.id,
 					eventType: "player_join",
 					occurredAt: floorToMinute(now),
-					sortOrder,
+					sortOrder: nextAppendSortOrderSql(input.id),
 					payload: JSON.stringify({
 						isHero: true,
 						seatPosition: input.heroSeatPosition,

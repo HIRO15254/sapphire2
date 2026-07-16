@@ -1,4 +1,5 @@
 import { lazy, Suspense } from "react";
+import { QueryError } from "@/shared/components/query-error";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useSessionResultChart } from "./use-session-result-chart";
 
@@ -17,7 +18,7 @@ export function SessionResultChart({
 	liveSessionId,
 	sessionType,
 }: SessionResultChartProps) {
-	const { isEmpty, isLoading, points } = useSessionResultChart({
+	const { error, isEmpty, isLoading, points, retry } = useSessionResultChart({
 		enabled,
 		liveSessionId,
 		sessionType,
@@ -28,6 +29,15 @@ export function SessionResultChart({
 	}
 	if (isLoading) {
 		return <Skeleton className="h-40 w-full" />;
+	}
+	if (error) {
+		return (
+			<QueryError
+				className="h-40"
+				message="Unable to load statistics"
+				onRetry={retry}
+			/>
+		);
 	}
 	if (isEmpty) {
 		return (

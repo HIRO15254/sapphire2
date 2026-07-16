@@ -1,5 +1,11 @@
 import { relations, sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+	index,
+	integer,
+	sqliteTable,
+	text,
+	uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 import { user } from "./auth";
 import { gameSession } from "./session";
 
@@ -42,7 +48,12 @@ export const transactionType = sqliteTable(
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
 	},
-	(table) => [index("transactionType_userId_idx").on(table.userId)]
+	(table) => [
+		index("transactionType_userId_idx").on(table.userId),
+		uniqueIndex("transactionType_sessionResultPerUser_idx")
+			.on(table.userId)
+			.where(sql`${table.name} = 'Session Result'`),
+	]
 );
 
 export const currencyTransaction = sqliteTable(
@@ -68,6 +79,9 @@ export const currencyTransaction = sqliteTable(
 	(table) => [
 		index("currencyTransaction_currencyId_idx").on(table.currencyId),
 		index("currencyTransaction_sessionId_idx").on(table.sessionId),
+		index("currencyTransaction_transactionTypeId_idx").on(
+			table.transactionTypeId
+		),
 	]
 );
 

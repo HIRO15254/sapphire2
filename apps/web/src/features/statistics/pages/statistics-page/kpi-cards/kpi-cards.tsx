@@ -2,6 +2,7 @@ import {
 	type KpiCard,
 	useKpiCards,
 } from "@/features/statistics/pages/statistics-page/kpi-cards/use-kpi-cards";
+import { StatsQueryError } from "@/features/statistics/pages/statistics-page/stats-query-error";
 import type { StatsSectionContext } from "@/features/statistics/types";
 import { cn } from "@/lib/utils";
 import { Card } from "@/shared/components/ui/card";
@@ -27,7 +28,7 @@ function KpiCardItem({ card }: { card: KpiCard }) {
 }
 
 export function KpiCards({ ctx }: { ctx: StatsSectionContext }) {
-	const { cards, isPending } = useKpiCards(ctx);
+	const { cards, isError, isPending, retry } = useKpiCards(ctx);
 
 	if (isPending) {
 		return (
@@ -37,6 +38,10 @@ export function KpiCards({ ctx }: { ctx: StatsSectionContext }) {
 				))}
 			</div>
 		);
+	}
+
+	if (isError) {
+		return <StatsQueryError onRetry={retry} />;
 	}
 
 	return (

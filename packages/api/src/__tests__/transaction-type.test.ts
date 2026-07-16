@@ -5,7 +5,25 @@ import {
 	expectProtected,
 	expectRejects,
 	expectType,
+	getInputSchema,
 } from "./test-utils";
+
+function expectReservedNameRejection(
+	procedure: unknown,
+	input: Record<string, unknown>
+) {
+	const result = getInputSchema(procedure).safeParse(input);
+	expect(result.success).toBe(false);
+	if (result.success) {
+		return;
+	}
+	expect(result.error.issues).toEqual([
+		expect.objectContaining({
+			path: ["name"],
+			message: "Session Result is reserved",
+		}),
+	]);
+}
 
 describe("transactionType router", () => {
 	it("appRouter has transactionType namespace", () => {
@@ -67,6 +85,15 @@ describe("transactionType.create input validation", () => {
 	it("rejects non-string name", () => {
 		expectRejects(appRouter.transactionType.create, { name: 123 });
 	});
+
+	it.each([
+		"Session Result",
+		"session result",
+		"SeSsIoN ReSuLt",
+		" Session Result ",
+	])("rejects the reserved name %j before the mutation runs", (name) => {
+		expectReservedNameRejection(appRouter.transactionType.create, { name });
+	});
 });
 
 describe("transactionType.update input validation", () => {
@@ -90,6 +117,18 @@ describe("transactionType.update input validation", () => {
 
 	it("rejects missing id", () => {
 		expectRejects(appRouter.transactionType.update, { name: "x" });
+	});
+
+	it.each([
+		"Session Result",
+		"session result",
+		"SeSsIoN ReSuLt",
+		" Session Result ",
+	])("rejects renaming to the reserved name %j before the mutation runs", (name) => {
+		expectReservedNameRejection(appRouter.transactionType.update, {
+			id: "tt1",
+			name,
+		});
 	});
 });
 

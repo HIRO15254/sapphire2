@@ -7,6 +7,7 @@ import { TransactionActionsDrawer } from "@/features/currencies/pages/currency-d
 import { TransactionFormV2 } from "@/features/currencies/pages/currency-detail-page/transaction-form";
 import { FormSheet } from "@/shared/components/form-sheet";
 import { PageHeader } from "@/shared/components/page-header";
+import { QueryError } from "@/shared/components/query-error";
 import { Button } from "@/shared/components/ui/button";
 import { CurrencyBalanceHero } from "./currency-balance-hero";
 import { CurrencyDescription } from "./currency-description";
@@ -27,8 +28,12 @@ export function CurrencyDetailPage({ currencyId }: CurrencyDetailPageProps) {
 	const {
 		currency,
 		isLoading,
+		isInitialLoadError,
+		onRetry,
 		transactions,
 		isTransactionsLoading,
+		isTransactionsInitialLoadError,
+		onRetryTransactions,
 		hasNextPage,
 		isFetchingNextPage,
 		isUpdatePending,
@@ -68,6 +73,19 @@ export function CurrencyDetailPage({ currencyId }: CurrencyDetailPageProps) {
 			<div className="min-h-full bg-background text-foreground">
 				<div className="p-4">
 					<CurrencyDetailSkeleton />
+				</div>
+			</div>
+		);
+	}
+
+	if (isInitialLoadError) {
+		return (
+			<div className="min-h-full bg-background text-foreground">
+				<div className="p-4">
+					<QueryError
+						message="Unable to load currency. Please try again."
+						onRetry={onRetry}
+					/>
 				</div>
 			</div>
 		);
@@ -136,11 +154,13 @@ export function CurrencyDetailPage({ currencyId }: CurrencyDetailPageProps) {
 					</h2>
 					<TransactionListV2
 						hasMore={hasNextPage}
+						isError={isTransactionsInitialLoadError}
 						isLoading={isTransactionsLoading}
 						isLoadingMore={isFetchingNextPage}
 						onLoadMore={fetchNextPage}
 						onNavigateToSession={handleNavigateToSession}
 						onOpenActions={openTransactionActions}
+						onRetry={onRetryTransactions}
 						transactions={transactions}
 					/>
 				</section>

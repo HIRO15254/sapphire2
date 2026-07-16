@@ -1,6 +1,9 @@
 import {
 	formatAnteSuffix,
 	formatBlindParts,
+	formatGroupStakes,
+	type GameGroupLike,
+	groupDisplayLabel,
 	variantLabel,
 } from "@/features/live-sessions/utils/game-scene-formatters";
 import { formatCompactNumber, formatYmdSlash } from "@/utils/format-number";
@@ -55,12 +58,21 @@ export function formatSessionDuration(
 	if (!(startedAt && endedAt)) {
 		return null;
 	}
-	const diffMs = new Date(endedAt).getTime() - new Date(startedAt).getTime();
+	const startedMs = new Date(startedAt).getTime();
+	const endedMs = new Date(endedAt).getTime();
+	if (!(Number.isFinite(startedMs) && Number.isFinite(endedMs))) {
+		return null;
+	}
+	let diffMs = endedMs - startedMs;
+	if (diffMs < 0) {
+		diffMs += 24 * 60 * 60 * 1000;
+	}
 	const breakMs = (breakMinutes ?? 0) * 60 * 1000;
-	// Clamp to zero so a legacy row saved before the day-crossing fix (endedAt
-	// before startedAt) — or an over-long break — never renders a negative
-	// duration (SA2-157). New rows are corrected at write time in use-sessions.ts.
-	const hours = Math.max(0, (diffMs - breakMs) / (1000 * 60 * 60));
+	const playedMs = diffMs - breakMs;
+	if (playedMs < 0) {
+		return null;
+	}
+	const hours = playedMs / (1000 * 60 * 60);
 	return `${hours.toFixed(1)}h`;
 }
 
@@ -69,6 +81,7 @@ interface CashRuleInput {
 	cashAnteType: string | null;
 	cashBlind1: number | null;
 	cashBlind3: number | null;
+	cashMixGames?: GameGroupLike[] | null;
 	cashTableSize: number | null;
 	cashVariant: string | null;
 	ringGameBlind2: number | null;
@@ -84,6 +97,19 @@ export function buildCashRuleRows(session: CashRuleInput): StatRow[] {
 	const rows: StatRow[] = [];
 	if (session.cashVariant) {
 		rows.push({ label: "Variant", value: variantLabel(session.cashVariant) });
+	}
+	// Mix sessions show one row per game group instead of a flat blinds row.
+	if (session.cashMixGames && session.cashMixGames.length > 0) {
+		for (const group of session.cashMixGames) {
+			rows.push({
+				label: groupDisplayLabel(group),
+				value: formatGroupStakes(group),
+			});
+		}
+		if (session.cashTableSize != null) {
+			rows.push({ label: "Table", value: `${session.cashTableSize}-max` });
+		}
+		return rows;
 	}
 	const blinds = formatBlindParts({
 		ante: session.cashAnte,

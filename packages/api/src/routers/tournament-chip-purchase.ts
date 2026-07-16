@@ -1,49 +1,19 @@
-import { room } from "@sapphire2/db/schema/room";
-import {
-	tournament,
-	tournamentChipPurchase,
-} from "@sapphire2/db/schema/tournament";
+import { tournamentChipPurchase } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq } from "drizzle-orm";
-import { z } from "zod";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { runBatch } from "../lib/batch";
+import { validateEntityOwnership } from "./session";
 
-async function validateTournamentOwnership(
+function validateTournamentOwnership(
 	db: Parameters<
 		Parameters<typeof protectedProcedure.query>[0]
 	>[0]["ctx"]["db"],
 	tournamentId: string,
 	userId: string
 ) {
-	const [found] = await db
-		.select()
-		.from(tournament)
-		.where(eq(tournament.id, tournamentId));
-
-	if (!found) {
-		throw new TRPCError({
-			code: "NOT_FOUND",
-			message: "Tournament not found",
-		});
-	}
-
-	const [foundRoom] = await db
-		.select()
-		.from(room)
-		.where(eq(room.id, found.roomId));
-
-	if (!foundRoom) {
-		throw new TRPCError({ code: "NOT_FOUND", message: "Room not found" });
-	}
-
-	if (foundRoom.userId !== userId) {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: "You do not own this room",
-		});
-	}
-
-	return found;
+	return validateEntityOwnership(db, "tournament", tournamentId, userId);
 }
 
 async function validateChipPurchaseOwnership(
@@ -60,8 +30,8 @@ async function validateChipPurchaseOwnership(
 
 	if (!found) {
 		throw new TRPCError({
-			code: "NOT_FOUND",
-			message: "Chip purchase not found",
+			code: "FORBIDDEN",
+			message: "You do not own this chip purchase",
 		});
 	}
 
@@ -89,8 +59,8 @@ export const tournamentChipPurchaseRouter = router({
 			z.object({
 				tournamentId: z.string(),
 				name: z.string().min(1),
-				cost: z.number().int(),
-				chips: z.number().int(),
+				cost: z.number().int().min(0),
+				chips: z.number().int().min(0),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -127,8 +97,8 @@ export const tournamentChipPurchaseRouter = router({
 			z.object({
 				id: z.string(),
 				name: z.string().min(1).optional(),
-				cost: z.number().int().optional(),
-				chips: z.number().int().optional(),
+				cost: z.number().int().min(0).optional(),
+				chips: z.number().int().min(0).optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -185,7 +155,8 @@ export const tournamentChipPurchaseRouter = router({
 			const userId = ctx.session.user.id;
 			await validateTournamentOwnership(ctx.db, input.tournamentId, userId);
 
-			await Promise.all(
+			await runBatch(
+				ctx.db,
 				input.ids.map((id, index) =>
 					ctx.db
 						.update(tournamentChipPurchase)

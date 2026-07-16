@@ -1,10 +1,16 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { renderWithQueryClient as render } from "@/__tests__/test-utils";
 
 // LocalBlindStructureContent (reused by the tournament Rules step) pulls in
 // the rooms blind-level editor, which transitively imports @/utils/trpc.
-// Stub it so the env-validating import chain is not loaded under jsdom.
+// Stub it so the env-validating import chain is not loaded under jsdom. The
+// rule bodies also render VariantSelect / useVariantLabels, which use real
+// react-query hooks against trpc.gameVariant.list — provide a queryFn (the
+// tests below render with mode="nlh" default variant, a preset, so the
+// blind labels resolve synchronously regardless of when this query settles)
+// and rely on the renderWithQueryClient wrapper above for a QueryClient.
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		blindLevel: {
@@ -12,8 +18,36 @@ vi.mock("@/utils/trpc", () => ({
 				queryOptions: () => ({ queryKey: ["blindLevel.listByTournament"] }),
 			},
 		},
+		gameVariant: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["gameVariant", "list"],
+					queryFn: async () => [],
+				}),
+			},
+		},
+		gameGroup: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["gameGroup", "list"],
+					queryFn: async () => [],
+				}),
+			},
+		},
+		gameMix: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["gameMix", "list"],
+					queryFn: async () => [],
+				}),
+			},
+		},
 	},
-	trpcClient: {},
+	trpcClient: {
+		gameVariant: {
+			create: { mutate: vi.fn() },
+		},
+	},
 }));
 
 import { SessionWizard } from "./session-wizard";
@@ -77,6 +111,31 @@ describe("SessionWizard — step gating", () => {
 		await user.click(screen.getByRole("button", { name: BACK_RE }));
 		expect(screen.getByText("Cash game")).toBeInTheDocument();
 	});
+});
+
+it("returns to the first invalid hidden step when submit fails", async () => {
+	const user = userEvent.setup();
+	const onSubmit = vi.fn();
+	render(<SessionWizard onSubmit={onSubmit} rooms={[STORE]} />);
+
+	await user.click(screen.getByRole("button", { name: NEXT_RE }));
+	const smallBlind = document.getElementById("blind1");
+	expect(smallBlind).toBeInstanceOf(HTMLInputElement);
+	await user.type(smallBlind as HTMLInputElement, "invalid");
+	await user.click(screen.getByRole("button", { name: NEXT_RE }));
+
+	const buyIn = document.getElementById("buyIn");
+	const cashOut = document.getElementById("cashOut");
+	expect(buyIn).toBeInstanceOf(HTMLInputElement);
+	expect(cashOut).toBeInstanceOf(HTMLInputElement);
+	await user.type(buyIn as HTMLInputElement, "100");
+	await user.type(cashOut as HTMLInputElement, "100");
+	await user.click(screen.getByRole("button", { name: SAVE_RE }));
+
+	await waitFor(() => {
+		expect(document.getElementById("blind1")).toBeInTheDocument();
+	});
+	expect(onSubmit).toHaveBeenCalledTimes(0);
 });
 
 describe("SessionWizard — tournament mode", () => {

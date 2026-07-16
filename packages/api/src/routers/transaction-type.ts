@@ -5,8 +5,16 @@ import {
 } from "@sapphire2/db/schema/currency";
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
-import { z } from "zod";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { isSessionResultTypeName } from "../services/session-result-type";
+
+const transactionTypeNameSchema = z
+	.string()
+	.min(1)
+	.refine((name) => !isSessionResultTypeName(name), {
+		message: "Session Result is reserved",
+	});
 
 export const transactionTypeRouter = router({
 	list: protectedProcedure.query(async ({ ctx }) => {
@@ -23,7 +31,10 @@ export const transactionTypeRouter = router({
 				name,
 				updatedAt: new Date(),
 			}));
-			await ctx.db.insert(transactionType).values(defaults);
+			await ctx.db
+				.insert(transactionType)
+				.values(defaults)
+				.onConflictDoNothing();
 			return ctx.db
 				.select()
 				.from(transactionType)
@@ -34,7 +45,7 @@ export const transactionTypeRouter = router({
 	}),
 
 	create: protectedProcedure
-		.input(z.object({ name: z.string().min(1) }))
+		.input(z.object({ name: transactionTypeNameSchema }))
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const id = crypto.randomUUID();
@@ -52,7 +63,7 @@ export const transactionTypeRouter = router({
 		}),
 
 	update: protectedProcedure
-		.input(z.object({ id: z.string(), name: z.string().min(1) }))
+		.input(z.object({ id: z.string(), name: transactionTypeNameSchema }))
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const [found] = await ctx.db
@@ -60,14 +71,7 @@ export const transactionTypeRouter = router({
 				.from(transactionType)
 				.where(eq(transactionType.id, input.id));
 
-			if (!found) {
-				throw new TRPCError({
-					code: "NOT_FOUND",
-					message: "Transaction type not found",
-				});
-			}
-
-			if (found.userId !== userId) {
+			if (!found || found.userId !== userId) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this transaction type",
@@ -95,14 +99,7 @@ export const transactionTypeRouter = router({
 				.from(transactionType)
 				.where(eq(transactionType.id, input.id));
 
-			if (!found) {
-				throw new TRPCError({
-					code: "NOT_FOUND",
-					message: "Transaction type not found",
-				});
-			}
-
-			if (found.userId !== userId) {
+			if (!found || found.userId !== userId) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this transaction type",

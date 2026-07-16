@@ -1,10 +1,11 @@
 import { useCashGameStats } from "@/features/statistics/pages/statistics-page/cash-game-stats/use-cash-game-stats";
 import { StatTable } from "@/features/statistics/pages/statistics-page/stat-table";
+import { StatsQueryError } from "@/features/statistics/pages/statistics-page/stats-query-error";
 import type { StatsSectionContext } from "@/features/statistics/types";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 
 export function CashGameStats({ ctx }: { ctx: StatsSectionContext }) {
-	const { isEmpty, isPending, rows } = useCashGameStats(ctx);
+	const { isEmpty, isError, isPending, retry, rows } = useCashGameStats(ctx);
 
 	if (isPending) {
 		return (
@@ -13,6 +14,9 @@ export function CashGameStats({ ctx }: { ctx: StatsSectionContext }) {
 				<Skeleton className="h-64 rounded-xl" />
 			</div>
 		);
+	}
+	if (isError) {
+		return <StatsQueryError onRetry={retry} />;
 	}
 
 	if (isEmpty) {

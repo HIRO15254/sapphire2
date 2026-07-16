@@ -88,6 +88,36 @@ describe("toSessionChipPurchases", () => {
 		).toEqual([{ name: "Bad", cost: 0, chips: 0, count: 0 }]);
 	});
 
+	it("does not truncate decimal, partial, infinite, or unsafe integer cells", () => {
+		expect(
+			toSessionChipPurchases([
+				{
+					uid: "u1",
+					name: "Bad",
+					cost: "1.5",
+					chips: "12abc",
+				},
+				{
+					uid: "u2",
+					name: "Bad",
+					cost: "Infinity",
+					chips: "9007199254740992",
+				},
+			])
+		).toEqual([
+			{ name: "Bad", cost: 0, chips: 0, count: 0 },
+			{ name: "Bad", cost: 0, chips: 0, count: 0 },
+		]);
+	});
+
+	it("maps negative cells to zero for non-negative API fields", () => {
+		expect(
+			toSessionChipPurchases([
+				{ uid: "u1", name: "Negative", cost: "-1", chips: "-2" },
+			])
+		).toEqual([{ name: "Negative", cost: 0, chips: 0, count: 0 }]);
+	});
+
 	it("round-trips through toChipPurchaseRows preserving counts", () => {
 		const original = [{ name: "Rebuy", cost: 50, chips: 10_000, count: 4 }];
 		const { rows, counts } = toChipPurchaseRows(original);

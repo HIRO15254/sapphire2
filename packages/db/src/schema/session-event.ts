@@ -1,5 +1,11 @@
 import { relations, sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+	index,
+	integer,
+	sqliteTable,
+	text,
+	uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 import { gameSession } from "./session";
 
 export const sessionEvent = sqliteTable(
@@ -21,7 +27,10 @@ export const sessionEvent = sqliteTable(
 			.notNull(),
 	},
 	(table) => [
-		index("sessionEvent_sessionId_idx").on(table.sessionId),
+		uniqueIndex("sessionEvent_sessionId_sortOrder_idx").on(
+			table.sessionId,
+			table.sortOrder
+		),
 		index("sessionEvent_eventType_idx").on(table.eventType),
 	]
 );

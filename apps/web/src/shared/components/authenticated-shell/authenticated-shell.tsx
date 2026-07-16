@@ -14,7 +14,7 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { useAuthenticatedShell } from "./use-authenticated-shell";
 
 export function AuthenticatedShell({ children }: { children: ReactNode }) {
-	const { isDesktop } = useAuthenticatedShell();
+	const { isDesktop, activeSessionId } = useAuthenticatedShell();
 
 	if (isDesktop) {
 		return (
@@ -30,7 +30,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
 	}
 
 	return (
-		<SessionFormProvider>
+		<SessionFormProvider sessionId={activeSessionId}>
 			<StackSheetProvider>
 				<UpdateNotesProvider>
 					<div className="min-h-svh bg-background">

@@ -47,14 +47,14 @@ export function resolveDateRange(
 	nowSec: number = Math.floor(Date.now() / 1000)
 ): { dateFrom?: number; dateTo?: number } {
 	const dayStart = startOfUtcDaySec(nowSec);
-	const dayEnd = dayStart + DAY_SECONDS;
+	const dayEnd = dayStart + DAY_SECONDS - 1;
 	switch (filters.period) {
 		case "7d":
-			return { dateFrom: dayStart - 7 * DAY_SECONDS, dateTo: dayEnd };
+			return { dateFrom: dayStart - 6 * DAY_SECONDS, dateTo: dayEnd };
 		case "30d":
-			return { dateFrom: dayStart - 30 * DAY_SECONDS, dateTo: dayEnd };
+			return { dateFrom: dayStart - 29 * DAY_SECONDS, dateTo: dayEnd };
 		case "90d":
-			return { dateFrom: dayStart - 90 * DAY_SECONDS, dateTo: dayEnd };
+			return { dateFrom: dayStart - 89 * DAY_SECONDS, dateTo: dayEnd };
 		case "ytd":
 			return { dateFrom: startOfUtcYearSec(nowSec), dateTo: dayEnd };
 		case "custom": {
@@ -86,7 +86,7 @@ export function dateInputToEpochSec(
 	if (!DATE_INPUT_RE.test(value)) {
 		return undefined;
 	}
-	const [y, m, d] = value.split("-").map(Number);
+	const [y = 0, m = 1, d = 1] = value.split("-").map(Number);
 	const ms = endOfDay
 		? Date.UTC(y, m - 1, d, 23, 59, 59)
 		: Date.UTC(y, m - 1, d, 0, 0, 0);

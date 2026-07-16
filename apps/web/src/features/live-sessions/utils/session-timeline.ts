@@ -55,7 +55,11 @@ export function deriveCashGameTimeline(
 	if (startIndex === -1) {
 		return [];
 	}
-	const anchor = toMs(events[startIndex].occurredAt);
+	const startEvent = events[startIndex];
+	if (!startEvent) {
+		return [];
+	}
+	const anchor = toMs(startEvent.occurredAt);
 	const acc: CashAcc = {
 		stack: 0,
 		totalBuyIn: 0,
@@ -66,6 +70,9 @@ export function deriveCashGameTimeline(
 
 	for (let i = startIndex; i < events.length; i++) {
 		const e = events[i];
+		if (!e) {
+			continue;
+		}
 		const t = toMs(e.occurredAt) - anchor;
 
 		if (e.eventType === "session_start") {
@@ -199,8 +206,9 @@ function findTournamentStartingStack(
 	startIndex: number
 ): number | null {
 	for (let i = startIndex; i < events.length; i++) {
-		if (events[i].eventType === "update_stack") {
-			return updateStackPayload.parse(events[i].payload).stackAmount;
+		const event = events[i];
+		if (event?.eventType === "update_stack") {
+			return updateStackPayload.parse(event.payload).stackAmount;
 		}
 	}
 	return null;
@@ -243,7 +251,11 @@ export function deriveTournamentTimeline(
 	if (startIndex === -1) {
 		return [];
 	}
-	const anchor = toMs(events[startIndex].occurredAt);
+	const startEvent = events[startIndex];
+	if (!startEvent) {
+		return [];
+	}
+	const anchor = toMs(startEvent.occurredAt);
 	const startingStack = findTournamentStartingStack(events, startIndex);
 	const acc: TournamentAcc = {
 		stack: 0,
@@ -256,6 +268,9 @@ export function deriveTournamentTimeline(
 
 	for (let i = startIndex; i < events.length; i++) {
 		const e = events[i];
+		if (!e) {
+			continue;
+		}
 		const handled = applyTournamentEvent(
 			acc,
 			e.eventType,

@@ -1,20 +1,12 @@
-/// <reference path="../types/turndown.d.ts" />
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-// Cloudflare Workers には DOMParser が存在しないため、Turndown の内部 HTML 解析の
-// 代わりに純粋 JS DOM 実装の domino を使用する（Turndown の依存として同梱済み）
-import domino from "@mixmark-io/domino";
 import { TRPCError } from "@trpc/server";
-import TurndownService from "turndown";
-import { tables } from "turndown-plugin-gfm";
-import { z } from "zod";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
 import {
 	TABLE_PLAYER_SOURCE_APP_IDS,
 	TABLE_PLAYER_SOURCE_APPS,
 } from "./ai-extract-sources";
-
-const IMAGE_URL_RE = /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i;
 
 const MEDIA_TYPES = [
 	"image/jpeg",
@@ -24,30 +16,27 @@ const MEDIA_TYPES = [
 ] as const;
 type MediaType = (typeof MEDIA_TYPES)[number];
 
-const SourceSchema = z.discriminatedUnion("kind", [
-	z.object({
-		kind: z.literal("url"),
-		url: z.string().url(),
-	}),
-	z.object({
-		kind: z.literal("image"),
-		data: z.string(),
-		mediaType: z.enum(MEDIA_TYPES),
-	}),
-]);
+const SourceSchema = z.object({
+	kind: z.literal("image"),
+	data: z.string().min(1),
+	mediaType: z.enum(MEDIA_TYPES),
+});
 
-const ExtractedTournamentDataSchema = z.object({
+const nonNegativeIntegerSchema = z.number().int().min(0);
+const tableSizeSchema = z.number().int().min(2).max(10);
+
+export const ExtractedTournamentDataSchema = z.object({
 	name: z.string().optional(),
-	buyIn: z.number().optional(),
-	entryFee: z.number().optional(),
-	startingStack: z.number().optional(),
-	tableSize: z.number().optional(),
+	buyIn: nonNegativeIntegerSchema.optional(),
+	entryFee: nonNegativeIntegerSchema.optional(),
+	startingStack: nonNegativeIntegerSchema.optional(),
+	tableSize: tableSizeSchema.optional(),
 	chipPurchases: z
 		.array(
 			z.object({
 				name: z.string(),
-				cost: z.number(),
-				chips: z.number(),
+				cost: nonNegativeIntegerSchema,
+				chips: nonNegativeIntegerSchema,
 			})
 		)
 		.optional(),
@@ -55,11 +44,11 @@ const ExtractedTournamentDataSchema = z.object({
 		.array(
 			z.object({
 				isBreak: z.boolean(),
-				blind1: z.number().nullable().optional(),
-				blind2: z.number().nullable().optional(),
-				blind3: z.number().nullable().optional(),
-				ante: z.number().nullable().optional(),
-				minutes: z.number().nullable().optional(),
+				blind1: nonNegativeIntegerSchema.nullable().optional(),
+				blind2: nonNegativeIntegerSchema.nullable().optional(),
+				blind3: nonNegativeIntegerSchema.nullable().optional(),
+				ante: nonNegativeIntegerSchema.nullable().optional(),
+				minutes: nonNegativeIntegerSchema.nullable().optional(),
 			})
 		)
 		.optional(),
@@ -85,7 +74,7 @@ const ExtractedTablePlayersSchema = z.object({
 
 export type ExtractedTablePlayers = z.infer<typeof ExtractedTablePlayersSchema>;
 
-const TOOL_INPUT_SCHEMA = {
+export const TOOL_INPUT_SCHEMA = {
 	type: "object" as const,
 	// 全フィールド省略可能 — ソースに明確に記載されているものだけ含める
 	required: [] as string[],
@@ -96,22 +85,27 @@ const TOOL_INPUT_SCHEMA = {
 				"トーナメント名。ソースに明示されている場合のみ含める。不明な場合は省略（空文字列不可）。",
 		},
 		buyIn: {
-			type: "number",
+			type: "integer",
+			minimum: 0,
 			description:
 				"バイイン金額（数値のみ）。ソースに明示されている場合のみ含める。",
 		},
 		entryFee: {
-			type: "number",
+			type: "integer",
+			minimum: 0,
 			description:
 				"エントリーフィー・レイク（数値のみ）。ソースに明示されている場合のみ含める。",
 		},
 		startingStack: {
-			type: "number",
+			type: "integer",
+			minimum: 0,
 			description:
 				"スターティングスタック（チップ数）。ソースに明示されている場合のみ含める。",
 		},
 		tableSize: {
-			type: "number",
+			type: "integer",
+			minimum: 2,
+			maximum: 10,
 			description:
 				"1テーブルの最大人数（通常9または10）。ソースに明示されている場合のみ含める。",
 		},
@@ -123,8 +117,8 @@ const TOOL_INPUT_SCHEMA = {
 				type: "object",
 				properties: {
 					name: { type: "string" },
-					cost: { type: "number" },
-					chips: { type: "number" },
+					cost: { type: "integer", minimum: 0 },
+					chips: { type: "integer", minimum: 0 },
 				},
 				required: ["name", "cost", "chips"],
 			},
@@ -141,23 +135,28 @@ const TOOL_INPUT_SCHEMA = {
 						description: "ブレイクはtrue、通常レベルはfalse",
 					},
 					blind1: {
-						type: "number",
+						type: "integer",
+						minimum: 0,
 						description: "スモールブラインド（SB）。不明な場合は省略。",
 					},
 					blind2: {
-						type: "number",
+						type: "integer",
+						minimum: 0,
 						description: "ビッグブラインド（BB）。不明な場合は省略。",
 					},
 					blind3: {
-						type: "number",
+						type: "integer",
+						minimum: 0,
 						description: "ストラドル。存在する場合のみ含める。",
 					},
 					ante: {
-						type: "number",
+						type: "integer",
+						minimum: 0,
 						description: "アンティ。存在する場合のみ含める。",
 					},
 					minutes: {
-						type: "number",
+						type: "integer",
+						minimum: 0,
 						description: "レベルの時間（分）。記載がある場合のみ含める。",
 					},
 				},
@@ -166,38 +165,6 @@ const TOOL_INPUT_SCHEMA = {
 		},
 	},
 };
-
-async function fetchAndConvertToMarkdown(url: string): Promise<string> {
-	const res = await fetch(url, {
-		headers: {
-			"User-Agent": "Mozilla/5.0 (compatible; TournamentExtractor/1.0)",
-		},
-	});
-	const cleanedHtml = await new HTMLRewriter()
-		.on("script, style, noscript, nav, header, footer, aside", {
-			element(el) {
-				el.remove();
-			},
-		})
-		.transform(res)
-		.text();
-
-	const trimmed = cleanedHtml.trim();
-	if (!trimmed) {
-		return "";
-	}
-
-	// Cloudflare Workers には DOMParser が存在しない。
-	// Turndown の依存パッケージ @mixmark-io/domino（純粋 JS DOM 実装）で
-	// パースし DOM ノードを渡すことで Turndown の内部 HTML 解析を迂回する。
-	const doc = domino.createDocument(trimmed);
-	const td = new TurndownService({
-		headingStyle: "atx",
-		codeBlockStyle: "fenced",
-	});
-	td.use(tables);
-	return td.turndown(doc.body).trim().slice(0, 30_000);
-}
 
 export const aiExtractRouter = router({
 	extractTournamentData: protectedProcedure
@@ -217,44 +184,17 @@ export const aiExtractRouter = router({
 
 			const client = new Anthropic({ apiKey: ctx.anthropicApiKey });
 
-			const allBlocks = await Promise.all(
-				input.sources.map(
-					async (
-						source
-					): Promise<
-						Anthropic.ImageBlockParam | Anthropic.TextBlockParam | null
-					> => {
-						if (source.kind === "image") {
-							return {
-								type: "image",
-								source: {
-									type: "base64",
-									media_type: source.mediaType as MediaType,
-									data: source.data,
-								},
-							};
-						}
-						if (IMAGE_URL_RE.test(source.url)) {
-							return {
-								type: "image",
-								source: { type: "url", url: source.url },
-							};
-						}
-						const markdown = await fetchAndConvertToMarkdown(source.url);
-						if (!markdown) {
-							return null;
-						}
-						return {
-							type: "text",
-							text: `[ソース: ${source.url}]\n\n${markdown}`,
-						};
-					}
-				)
-			);
 			const contentBlocks: (
 				| Anthropic.ImageBlockParam
 				| Anthropic.TextBlockParam
-			)[] = allBlocks.filter((b) => b !== null);
+			)[] = input.sources.map((source) => ({
+				type: "image",
+				source: {
+					type: "base64",
+					media_type: source.mediaType as MediaType,
+					data: source.data,
+				},
+			}));
 
 			contentBlocks.push({
 				type: "text",
@@ -315,22 +255,14 @@ export const aiExtractRouter = router({
 			const appConfig = TABLE_PLAYER_SOURCE_APPS[input.sourceApp];
 
 			const imageBlocks: Anthropic.ImageBlockParam[] = input.sources.map(
-				(source) => {
-					if (source.kind === "image") {
-						return {
-							type: "image",
-							source: {
-								type: "base64",
-								media_type: source.mediaType as MediaType,
-								data: source.data,
-							},
-						};
-					}
-					return {
-						type: "image",
-						source: { type: "url", url: source.url },
-					};
-				}
+				(source) => ({
+					type: "image",
+					source: {
+						type: "base64",
+						media_type: source.mediaType as MediaType,
+						data: source.data,
+					},
+				})
 			);
 
 			const contentBlocks: (

@@ -5,6 +5,7 @@ import type { RingGame } from "@/features/rooms/hooks/use-ring-games";
 
 const hoisted = vi.hoisted(() => ({
 	useRingGameTab: vi.fn(),
+	ringGameFormProps: vi.fn(),
 }));
 
 vi.mock("./use-ring-game-tab", () => ({
@@ -12,7 +13,10 @@ vi.mock("./use-ring-game-tab", () => ({
 }));
 
 vi.mock("@/features/rooms/components/ring-game-form", () => ({
-	RingGameForm: () => <div data-testid="ring-game-form" />,
+	RingGameForm: (props: Record<string, unknown>) => {
+		hoisted.ringGameFormProps(props);
+		return <div data-testid="ring-game-form" />;
+	},
 }));
 
 vi.mock("@/shared/components/form-sheet", () => ({
@@ -107,7 +111,9 @@ interface TabState {
 	handleUpdate: ReturnType<typeof vi.fn>;
 	isCreateOpen: boolean;
 	isCreatePending: boolean;
+	isInitialLoadError: boolean;
 	isUpdatePending: boolean;
+	onRetry: ReturnType<typeof vi.fn>;
 	openActions: ReturnType<typeof vi.fn>;
 	openDeleteFromActions: ReturnType<typeof vi.fn>;
 	openEditFromActions: ReturnType<typeof vi.fn>;
@@ -132,6 +138,8 @@ function setState(overrides: Partial<TabState> = {}): TabState {
 		archivedGames: [],
 		currencies: [{ id: "currency-1", name: "USD", unit: "$" }],
 		activeLoading: false,
+		isInitialLoadError: false,
+		onRetry: vi.fn(),
 		archivedLoading: false,
 		isCreatePending: false,
 		isUpdatePending: false,
@@ -154,6 +162,7 @@ function setState(overrides: Partial<TabState> = {}): TabState {
 describe("RingGameTab", () => {
 	beforeEach(() => {
 		hoisted.useRingGameTab.mockReset();
+		hoisted.ringGameFormProps.mockReset();
 	});
 
 	it("renders the add control without a redundant section heading", () => {
@@ -245,11 +254,60 @@ describe("RingGameTab", () => {
 		expect(screen.getByTestId("ring-game-form")).toBeInTheDocument();
 	});
 
+	it("passes the stored mixGames snapshot into the edit form's defaultValues", () => {
+		const mixGames = [
+			{
+				name: null,
+				variants: ["NL Hold'em", "PL Omaha"],
+				blind1: 10,
+				blind2: 20,
+				blind3: null,
+				ante: null,
+				anteType: "none" as const,
+			},
+		];
+		setState({
+			editingGame: baseGame({ variant: "8-Game", mixGames }),
+		});
+		render(<RingGameTab roomId="room-1" />);
+		expect(hoisted.ringGameFormProps).toHaveBeenCalledWith(
+			expect.objectContaining({
+				defaultValues: expect.objectContaining({
+					variant: "8-Game",
+					mixGames,
+				}),
+			})
+		);
+	});
+
+	it("passes mixGames as null into the edit form for a plain-variant game", () => {
+		setState({ editingGame: baseGame() });
+		render(<RingGameTab roomId="room-1" />);
+		expect(hoisted.ringGameFormProps).toHaveBeenCalledWith(
+			expect.objectContaining({
+				defaultValues: expect.objectContaining({ mixGames: null }),
+			})
+		);
+	});
+
 	it("shows the delete dialog with the pending game name", () => {
 		setState({ pendingDelete: baseGame({ name: "Doomed game" }) });
 		render(<RingGameTab roomId="room-1" />);
 		expect(screen.getByTestId("delete-dialog")).toHaveTextContent(
 			"Doomed game"
 		);
+	});
+
+	it("shows a retryable error instead of the empty state when the initial list fails", async () => {
+		const state = setState({ isInitialLoadError: true });
+		render(<RingGameTab roomId="room-1" />);
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"Unable to load cash games"
+		);
+		expect(screen.queryByText("No cash games yet.")).not.toBeInTheDocument();
+		await userEvent
+			.setup()
+			.click(screen.getByRole("button", { name: "Retry" }));
+		expect(state.onRetry).toHaveBeenCalledTimes(1);
 	});
 });

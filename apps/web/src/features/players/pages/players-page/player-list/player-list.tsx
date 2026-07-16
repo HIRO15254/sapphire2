@@ -1,4 +1,5 @@
 import { IconPlus, IconUsers } from "@tabler/icons-react";
+import { QueryError } from "@/shared/components/query-error";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PlayerListCard, PlayerListCardSkeleton } from "../player-list-card";
@@ -11,12 +12,16 @@ interface PlayerListItem {
 }
 
 interface PlayerListProps {
+	/** The initial players fetch failed before any rows were cached. */
+	isInitialLoadError?: boolean;
 	/** Initial players fetch is in flight (no rows yet). */
 	isLoading: boolean;
 	/** A search term is active — changes the empty-state copy and hides the CTA. */
 	isSearching: boolean;
 	/** Open the create sheet — wired to the empty-state CTA. */
 	onCreate: () => void;
+	/** Retry the players query. */
+	onRetry?: () => void;
 	players: PlayerListItem[];
 }
 
@@ -29,9 +34,11 @@ const SKELETON_COUNT = 5;
  * so a search that matches nothing reads differently from an empty account.
  */
 export function PlayerList({
+	isInitialLoadError = false,
 	isLoading,
 	isSearching,
 	onCreate,
+	onRetry = () => undefined,
 	players,
 }: PlayerListProps) {
 	if (isLoading) {
@@ -46,6 +53,10 @@ export function PlayerList({
 				))}
 			</div>
 		);
+	}
+
+	if (isInitialLoadError) {
+		return <QueryError message="Unable to load players" onRetry={onRetry} />;
 	}
 
 	if (players.length === 0) {

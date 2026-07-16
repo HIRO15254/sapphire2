@@ -1,11 +1,40 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { FormEvent } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { withQueryClient } from "@/__tests__/test-utils";
 
 // RulesStepBody (tournament) transitively imports @/utils/trpc; stub it so the
-// env-validating import chain never loads under jsdom.
+// env-validating import chain never loads under jsdom. useSessionFormState now
+// calls useGameGroups (trpc.gameGroup.list / trpc.gameVariant.list) for the
+// mix-games master mapping — mock the procedures to the fallback (empty) path,
+// none of the assertions below exercise mix-game rows.
 vi.mock("@/utils/trpc", () => ({
-	trpc: {},
+	trpc: {
+		gameGroup: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["gameGroup", "list"],
+					queryFn: () => Promise.resolve([]),
+				}),
+			},
+		},
+		gameVariant: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["gameVariant", "list"],
+					queryFn: () => Promise.resolve([]),
+				}),
+			},
+		},
+		gameMix: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["gameMix", "list"],
+					queryFn: () => Promise.resolve([]),
+				}),
+			},
+		},
+	},
 	trpcClient: {
 		blindLevel: {
 			listByTournament: { query: vi.fn().mockResolvedValue([]) },
@@ -33,8 +62,9 @@ const RING_GAME: RingGameOption = {
 };
 
 function renderForm(onSubmit = vi.fn()) {
-	return renderHook(() =>
-		useLiveSessionForm({ onSubmit, ringGames: [RING_GAME] })
+	return renderHook(
+		() => useLiveSessionForm({ onSubmit, ringGames: [RING_GAME] }),
+		{ wrapper: withQueryClient() }
 	);
 }
 
@@ -64,13 +94,15 @@ describe("useLiveSessionForm — rule disclosure", () => {
 describe("useLiveSessionForm — geolocation default room", () => {
 	it("seeds the room selection from defaultRoomId", async () => {
 		const onRoomChange = vi.fn();
-		const { result } = renderHook(() =>
-			useLiveSessionForm({
-				defaultRoomId: "room-near",
-				onRoomChange,
-				onSubmit: vi.fn(),
-				ringGames: [RING_GAME],
-			})
+		const { result } = renderHook(
+			() =>
+				useLiveSessionForm({
+					defaultRoomId: "room-near",
+					onRoomChange,
+					onSubmit: vi.fn(),
+					ringGames: [RING_GAME],
+				}),
+			{ wrapper: withQueryClient() }
 		);
 		await waitFor(() =>
 			expect(result.current.state.selectedRoomId).toBe("room-near")
@@ -86,7 +118,10 @@ describe("useLiveSessionForm — geolocation default room", () => {
 					onSubmit: vi.fn(),
 					ringGames: [RING_GAME],
 				}),
-			{ initialProps: { defaultRoomId: undefined as string | undefined } }
+			{
+				initialProps: { defaultRoomId: undefined as string | undefined },
+				wrapper: withQueryClient(),
+			}
 		);
 
 		act(() => result.current.state.handleRoomChange("room-manual"));
@@ -99,12 +134,14 @@ describe("useLiveSessionForm — geolocation default room", () => {
 	});
 
 	it("does not re-seed after the user clears the selection", async () => {
-		const { result } = renderHook(() =>
-			useLiveSessionForm({
-				defaultRoomId: "room-near",
-				onSubmit: vi.fn(),
-				ringGames: [RING_GAME],
-			})
+		const { result } = renderHook(
+			() =>
+				useLiveSessionForm({
+					defaultRoomId: "room-near",
+					onSubmit: vi.fn(),
+					ringGames: [RING_GAME],
+				}),
+			{ wrapper: withQueryClient() }
 		);
 		await waitFor(() =>
 			expect(result.current.state.selectedRoomId).toBe("room-near")
@@ -127,6 +164,11 @@ describe("useLiveSessionForm — submit", () => {
 		const stopPropagation = vi.fn();
 
 		act(() => {
+			result.current.state.form.setFieldValue("buyIn", "100");
+			result.current.state.form.setFieldValue("cashOut", "125");
+		});
+
+		act(() => {
 			result.current.onFormSubmit({
 				preventDefault,
 				stopPropagation,
@@ -135,9 +177,55 @@ describe("useLiveSessionForm — submit", () => {
 
 		expect(preventDefault).toHaveBeenCalledTimes(1);
 		expect(stopPropagation).toHaveBeenCalledTimes(1);
+
 		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
 		expect(onSubmit).toHaveBeenCalledWith(
 			expect.objectContaining({ type: "cash_game" })
 		);
+	});
+
+	it("confirms a cash session with only the initial buy-in — the live form never shows a cash-out field", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderForm(onSubmit);
+
+		// Mirror the real UI: the user fills the initial buy-in and taps ✓.
+		// There is no cash-out input on the live form, so it stays empty.
+		act(() => {
+			result.current.state.form.setFieldValue("buyIn", "100");
+		});
+		act(() => {
+			result.current.onFormSubmit({
+				preventDefault: vi.fn(),
+				stopPropagation: vi.fn(),
+			} as unknown as FormEvent);
+		});
+
+		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({ type: "cash_game", buyIn: 100 })
+		);
+	});
+
+	it("opens the collapsed rules section when submit fails on a rule field", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderForm(onSubmit);
+
+		// A tournament needs a buy-in, which lives behind the collapsed
+		// "Customize rules" section. Submitting it empty must surface the section
+		// instead of silently doing nothing.
+		act(() => {
+			result.current.state.setSessionType("tournament");
+		});
+		expect(result.current.rulesOpen).toBe(false);
+
+		act(() => {
+			result.current.onFormSubmit({
+				preventDefault: vi.fn(),
+				stopPropagation: vi.fn(),
+			} as unknown as FormEvent);
+		});
+
+		await waitFor(() => expect(result.current.rulesOpen).toBe(true));
+		expect(onSubmit).not.toHaveBeenCalled();
 	});
 });

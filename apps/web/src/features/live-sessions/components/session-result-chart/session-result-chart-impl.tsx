@@ -140,7 +140,11 @@ function activeSeries(
 		return CASH_SERIES;
 	}
 	const hasAverage = points.some((p) => p.averageStack != null);
-	return hasAverage ? TOURNAMENT_SERIES : [TOURNAMENT_SERIES[0]];
+	if (hasAverage) {
+		return TOURNAMENT_SERIES;
+	}
+	const stackSeries = TOURNAMENT_SERIES[0];
+	return stackSeries ? [stackSeries] : [];
 }
 
 export default function SessionResultChartImpl({
@@ -149,8 +153,12 @@ export default function SessionResultChartImpl({
 }: SessionResultChartImplProps) {
 	const series = activeSeries(sessionType, points);
 	const isCash = sessionType === "cash_game";
+	const chartSummary = `${isCash ? "Cash game" : "Tournament"} result chart: ${series
+		.map(({ name }) => name)
+		.join(" and ")} series with ${points.length} data points`;
 	return (
 		<div className="h-full w-full">
+			<p className="sr-only">{chartSummary}</p>
 			<ResponsiveContainer height="100%" width="100%">
 				<LineChart
 					data={points}

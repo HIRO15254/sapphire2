@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
 	getBalanceColorClass,
 	getBalanceDisplay,
@@ -20,6 +20,21 @@ describe("getBalanceDisplay", () => {
 		});
 	});
 
+	it("uses the fixed shared locale for the exact value", () => {
+		const localeSpy = vi
+			.spyOn(Number.prototype, "toLocaleString")
+			.mockReturnValue("10.000");
+
+		try {
+			expect(getBalanceDisplay(10_000)).toEqual({
+				compact: "10k",
+				exact: "10,000",
+			});
+			expect(localeSpy).not.toHaveBeenCalled();
+		} finally {
+			localeSpy.mockRestore();
+		}
+	});
 	it("returns both compact and exact for a large abbreviated value", () => {
 		expect(getBalanceDisplay(100_000)).toEqual({
 			compact: "100k",

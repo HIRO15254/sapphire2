@@ -13,7 +13,7 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useUserMenu } from "./use-user-menu";
 
 export function UserMenu() {
-	const { session, isPending, updateNotesSheet, onSignOut } = useUserMenu();
+	const { session, isPending, onSignOut } = useUserMenu();
 
 	if (isPending) {
 		return <Skeleton className="h-8 w-24" />;
@@ -21,11 +21,9 @@ export function UserMenu() {
 
 	if (!session) {
 		return (
-			<Link to="/login">
-				<Button className="h-8 px-3" size="sm" variant="outline">
-					Sign In
-				</Button>
-			</Link>
+			<Button asChild className="h-8 px-3" size="sm" variant="outline">
+				<Link to="/login">Sign In</Link>
+			</Button>
 		);
 	}
 
@@ -41,9 +39,6 @@ export function UserMenu() {
 					<DropdownMenuLabel>My Account</DropdownMenuLabel>
 					<DropdownMenuSeparator />
 					<DropdownMenuItem>{session.user.email}</DropdownMenuItem>
-					<DropdownMenuItem onClick={updateNotesSheet.open}>
-						Update Notes
-					</DropdownMenuItem>
 					<DropdownMenuItem onClick={onSignOut} variant="destructive">
 						Sign Out
 					</DropdownMenuItem>

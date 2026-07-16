@@ -1,3 +1,5 @@
+import { formatCompactNumber } from "@/utils/format-number";
+import { formatSessionDuration } from "./session-display";
 export interface ShareableSession {
 	beforeDeadline: boolean | null;
 	bountyPrizes: number | null;
@@ -21,35 +23,10 @@ export interface ShareableSession {
 	type: string;
 }
 
-function formatCompactNumberForShare(value: number): string {
-	if (Math.abs(value) >= 1_000_000) {
-		return `${(value / 1_000_000).toFixed(1)}M`;
-	}
-	if (Math.abs(value) >= 1000) {
-		return `${(value / 1000).toFixed(1)}K`;
-	}
-	return Math.round(value).toString();
-}
-
 function formatOrdinal(n: number): string {
 	const suffix = ["th", "st", "nd", "rd"];
 	const v = n % 100;
 	return `${n}${suffix[(v - 20) % 10] ?? suffix[v] ?? suffix[0]}`;
-}
-
-function formatDuration(
-	startedAt: string | null,
-	endedAt: string | null
-): string | null {
-	if (!(startedAt && endedAt)) {
-		return null;
-	}
-	// Clamp to zero so a legacy row saved before the day-crossing fix (endedAt
-	// before startedAt) never leaks a negative duration into the share text
-	// (SA2-157).
-	const diffMs = new Date(endedAt).getTime() - new Date(startedAt).getTime();
-	const hours = Math.max(0, diffMs / (1000 * 60 * 60));
-	return `${hours.toFixed(1)}h`;
 }
 
 function buildProfitLossLine(
@@ -59,19 +36,19 @@ function buildProfitLossLine(
 	profitLoss: number,
 	currencyUnit: string
 ): string {
-	const baseAmount = formatCompactNumberForShare(profitLoss);
+	const baseAmount = formatCompactNumber(profitLoss);
 	let line = `${plIcon} ${plSign}${baseAmount} ${currencyUnit}`;
 
 	if (session.type === "tournament") {
 		if (session.prizeMoney !== null && session.prizeMoney > 0) {
-			const prize = formatCompactNumberForShare(session.prizeMoney);
+			const prize = formatCompactNumber(session.prizeMoney);
 			line += ` (Prize: +${prize} ${currencyUnit})`;
 		}
 	} else {
-		const duration = formatDuration(session.startedAt, session.endedAt);
+		const duration = formatSessionDuration(session.startedAt, session.endedAt);
 		if (session.evProfitLoss !== null) {
 			const evSign = session.evProfitLoss >= 0 ? "+" : "";
-			const evAmount = formatCompactNumberForShare(session.evProfitLoss);
+			const evAmount = formatCompactNumber(session.evProfitLoss);
 			line += ` (EV: ${evSign}${evAmount} ${currencyUnit})`;
 		}
 		if (duration) {

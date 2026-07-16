@@ -33,16 +33,6 @@ vi.mock("@/utils/trpc", () => {
 				markViewed: {
 					mutationOptions: markViewedOptions,
 				},
-				getLatestViewedVersion: {
-					queryOptions: () => ({
-						queryKey: buildKey(
-							"updateNoteView",
-							"getLatestViewedVersion",
-							undefined
-						),
-						queryFn: () => Promise.resolve(null),
-					}),
-				},
 			},
 		},
 	};
@@ -214,10 +204,9 @@ describe("useUpdateNotesViewed", () => {
 	});
 
 	describe("onSettled invalidation", () => {
-		it("invalidates both list and getLatestViewedVersion queries after mutation settles", async () => {
+		it("invalidates the list query after mutation settles", async () => {
 			const qc = createClient();
 			qc.setQueryData(listKey, []);
-			qc.setQueryData(latestKey, null);
 			const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
 			trpcMocks.markViewed.mockResolvedValue({ id: "ok" });
 
@@ -231,8 +220,29 @@ describe("useUpdateNotesViewed", () => {
 				const calls = invalidateSpy.mock.calls.map(
 					(c) => (c[0] as { queryKey: unknown[] } | undefined)?.queryKey
 				);
-				expect(calls).toEqual(expect.arrayContaining([listKey, latestKey]));
+				expect(calls).toEqual(expect.arrayContaining([listKey]));
 			});
+		});
+
+		it("does not invalidate the removed getLatestViewedVersion query", async () => {
+			const qc = createClient();
+			qc.setQueryData(listKey, []);
+			const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+			trpcMocks.markViewed.mockResolvedValue({ id: "ok" });
+
+			const { result } = renderHook(() => useUpdateNotesViewed(), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.handleAccordionChange(["9.9.9"]);
+			});
+			await waitFor(() => {
+				expect(invalidateSpy).toHaveBeenCalled();
+			});
+			const invalidatedKeys = invalidateSpy.mock.calls.map(
+				(c) => (c[0] as { queryKey: unknown[] } | undefined)?.queryKey
+			);
+			expect(invalidatedKeys).not.toContainEqual(latestKey);
 		});
 
 		it("also invalidates after a failed mutation (onSettled runs regardless)", async () => {
@@ -256,6 +266,78 @@ describe("useUpdateNotesViewed", () => {
 				);
 				expect(calls).toEqual(expect.arrayContaining([listKey]));
 			});
+		});
+	});
+
+	describe("markViewed", () => {
+		it("marks an unviewed version optimistically and fires the mutation", async () => {
+			const qc = createClient();
+			qc.setQueryData(listKey, []);
+			trpcMocks.markViewed.mockResolvedValue({ id: "x" });
+			const { result } = renderHook(() => useUpdateNotesViewed(), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.markViewed("4.0.0");
+			});
+			await waitFor(() => {
+				expect(result.current.viewedVersions.has("4.0.0")).toBe(true);
+			});
+			expect(trpcMocks.markViewed).toHaveBeenCalledTimes(1);
+			expect(trpcMocks.markViewed).toHaveBeenCalledWith({ version: "4.0.0" });
+		});
+
+		it("skips the mutation when the version is already in the server viewed list", async () => {
+			const qc = createClient();
+			qc.setQueryData(listKey, [{ id: "1", version: "1.0.0" }]);
+			const { result } = renderHook(() => useUpdateNotesViewed(), {
+				wrapper: makeWrapper(qc),
+			});
+			await waitFor(() =>
+				expect(result.current.viewedVersions.has("1.0.0")).toBe(true)
+			);
+			act(() => {
+				result.current.markViewed("1.0.0");
+			});
+			expect(trpcMocks.markViewed).not.toHaveBeenCalled();
+		});
+
+		it("skips the mutation on a repeated call for the same version (optimistic dedup)", async () => {
+			const qc = createClient();
+			qc.setQueryData(listKey, []);
+			trpcMocks.markViewed.mockResolvedValue({ id: "x" });
+			const { result } = renderHook(() => useUpdateNotesViewed(), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.markViewed("4.0.0");
+			});
+			await waitFor(() =>
+				expect(result.current.viewedVersions.has("4.0.0")).toBe(true)
+			);
+			act(() => {
+				result.current.markViewed("4.0.0");
+			});
+			expect(trpcMocks.markViewed).toHaveBeenCalledTimes(1);
+		});
+	});
+
+	describe("isViewedListLoaded", () => {
+		it("is false before the list query resolves", () => {
+			const qc = createClient();
+			const { result } = renderHook(() => useUpdateNotesViewed(), {
+				wrapper: makeWrapper(qc),
+			});
+			expect(result.current.isViewedListLoaded).toBe(false);
+		});
+
+		it("is true once the list query has data (including an empty list)", async () => {
+			const qc = createClient();
+			qc.setQueryData(listKey, []);
+			const { result } = renderHook(() => useUpdateNotesViewed(), {
+				wrapper: makeWrapper(qc),
+			});
+			await waitFor(() => expect(result.current.isViewedListLoaded).toBe(true));
 		});
 	});
 });

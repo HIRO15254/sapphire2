@@ -80,6 +80,26 @@ describe("useAllInEditor", () => {
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
+	it("rejects fractional pot size on submit", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useAllInEditor({
+				event: baseEvent({}),
+				isLoading: false,
+				maxTime: null,
+				minTime: null,
+				onSubmit,
+			})
+		);
+		act(() => {
+			result.current.form.setFieldValue("potSize", "1.5");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
 	it("submits numeric payload and a computed occurredAt timestamp", async () => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() =>
@@ -105,6 +125,87 @@ describe("useAllInEditor", () => {
 		const [payload, ts] = onSubmit.mock.calls[0];
 		expect(payload).toEqual({ potSize: 1000, trials: 2, equity: 40, wins: 1 });
 		expect(typeof ts).toBe("number");
+	});
+
+	it("rejects submission when wins exceeds trials", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useAllInEditor({
+				event: baseEvent({}),
+				isLoading: false,
+				maxTime: null,
+				minTime: null,
+				onSubmit,
+			})
+		);
+		act(() => {
+			result.current.form.setFieldValue("potSize", "1000");
+			result.current.form.setFieldValue("trials", "1");
+			result.current.form.setFieldValue("equity", "50");
+			result.current.form.setFieldValue("wins", "2");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("accepts a fractional wins (a chopped pot counts as a partial win)", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useAllInEditor({
+				event: baseEvent({}),
+				isLoading: false,
+				maxTime: null,
+				minTime: null,
+				onSubmit,
+			})
+		);
+		act(() => {
+			result.current.form.setFieldValue("potSize", "1000");
+			result.current.form.setFieldValue("trials", "3");
+			result.current.form.setFieldValue("equity", "50");
+			result.current.form.setFieldValue("wins", "1.5");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit.mock.calls[0][0]).toEqual({
+			potSize: 1000,
+			trials: 3,
+			equity: 50,
+			wins: 1.5,
+		});
+	});
+
+	it("accepts submission when wins equals trials (upper boundary)", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useAllInEditor({
+				event: baseEvent({}, "2026-04-10T12:30:00"),
+				isLoading: false,
+				maxTime: null,
+				minTime: null,
+				onSubmit,
+			})
+		);
+		act(() => {
+			result.current.form.setFieldValue("potSize", "1000");
+			result.current.form.setFieldValue("trials", "3");
+			result.current.form.setFieldValue("equity", "50");
+			result.current.form.setFieldValue("wins", "3");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit.mock.calls[0][0]).toEqual({
+			potSize: 1000,
+			trials: 3,
+			equity: 50,
+			wins: 3,
+		});
 	});
 
 	it("timeValidator surfaces an error when time is before minTime", () => {

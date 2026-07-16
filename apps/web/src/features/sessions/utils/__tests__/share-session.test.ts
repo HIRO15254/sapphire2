@@ -65,7 +65,7 @@ describe("createSessionShareText", () => {
 			expect(text).toContain("📅 ");
 			expect(text).toContain("📍 Downtown");
 			expect(text).toContain("💲 NL2k/5k");
-			expect(text).toContain("📈 +5.0K JPY");
+			expect(text).toContain("📈 +5,000 JPY");
 		});
 
 		// SA2-145: the 📅 date must not roll back a day west of UTC.
@@ -94,12 +94,12 @@ describe("createSessionShareText", () => {
 
 		it("uses 📉 and no '+' prefix for negative PL", () => {
 			const text = createSessionShareText(cashSession({ profitLoss: -3000 }));
-			expect(text).toContain("📉 -3.0K JPY");
+			expect(text).toContain("📉 -3,000 JPY");
 		});
 
 		it("adds EV line when evProfitLoss is present", () => {
 			const text = createSessionShareText(cashSession({ evProfitLoss: 1200 }));
-			expect(text).toContain("(EV: +1.2K JPY)");
+			expect(text).toContain("(EV: +1,200 JPY)");
 		});
 
 		it("adds duration when both startedAt and endedAt are set", () => {
@@ -122,15 +122,14 @@ describe("createSessionShareText", () => {
 			expect(text).not.toMatch(ANY_DURATION);
 		});
 
-		it("clamps a negative duration to '0.0h' (legacy day-crossing row, SA2-157)", () => {
-			// endedAt before startedAt must not leak a "-20.0h" into the share text.
+		it("adds 24 hours for a legacy day-crossing duration (SA2-157)", () => {
 			const text = createSessionShareText(
 				cashSession({
 					startedAt: "2026-04-22T22:00:00Z",
 					endedAt: "2026-04-22T02:00:00Z",
 				})
 			);
-			expect(text).toContain("0.0h");
+			expect(text).toContain("4.0h");
 			expect(text).not.toMatch(NEGATIVE_DURATION);
 		});
 
@@ -202,7 +201,7 @@ describe("createSessionShareText", () => {
 					evProfitLoss: 12_345, // should be ignored in tournament branch
 				})
 			);
-			expect(text).toContain("(Prize: +30.0K JPY)");
+			expect(text).toContain("(Prize: +30k JPY)");
 			expect(text).not.toContain("EV:");
 		});
 
@@ -215,11 +214,9 @@ describe("createSessionShareText", () => {
 	});
 
 	describe("formatters", () => {
-		it("M tier triggers at >= 1M", () => {
-			const text = createSessionShareText(
-				cashSession({ profitLoss: 1_500_000 })
-			);
-			expect(text).toContain("📈 +1.5M JPY");
+		it("uses the in-app compact tier and rounding", () => {
+			const text = createSessionShareText(cashSession({ profitLoss: 12_500 }));
+			expect(text).toContain("📈 +12.5k JPY");
 		});
 
 		it("empty currency produces 'X k' then space then unit (empty)", () => {

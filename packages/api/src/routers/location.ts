@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { z } from "zod";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
 
 // Short-link hosts are the only URLs we ever fetch server-side (to follow the
@@ -47,6 +47,62 @@ function inRange(latitude: number, longitude: number): boolean {
 	return (
 		latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180
 	);
+}
+
+const MAX_SHORT_MAPS_REDIRECTS = 5;
+
+function unresolvedShortLink(): TRPCError {
+	return new TRPCError({
+		code: "BAD_REQUEST",
+		message: "Could not resolve the link",
+	});
+}
+
+async function resolveShortMapsUrl(initialUrl: string): Promise<string> {
+	const visited = new Set([initialUrl]);
+	let currentUrl = initialUrl;
+
+	for (let redirects = 0; redirects < MAX_SHORT_MAPS_REDIRECTS; redirects++) {
+		let response: Response;
+		try {
+			response = await fetch(currentUrl, {
+				redirect: "manual",
+				headers: {
+					"User-Agent": "Mozilla/5.0 (compatible; Sapphire2/1.0)",
+				},
+			});
+		} catch {
+			throw unresolvedShortLink();
+		}
+
+		if (response.status < 300 || response.status >= 400) {
+			throw unresolvedShortLink();
+		}
+
+		const location = response.headers.get("location");
+		if (!location) {
+			throw unresolvedShortLink();
+		}
+
+		let nextUrl: string;
+		try {
+			nextUrl = new URL(location, currentUrl).toString();
+		} catch {
+			throw unresolvedShortLink();
+		}
+
+		if (!isGoogleMapsUrl(nextUrl) || visited.has(nextUrl)) {
+			throw unresolvedShortLink();
+		}
+		if (!isShortMapsUrl(nextUrl)) {
+			return nextUrl;
+		}
+
+		visited.add(nextUrl);
+		currentUrl = nextUrl;
+	}
+
+	throw unresolvedShortLink();
 }
 
 // Ordered by specificity: `!3d!4d` is the place's actual location, `@lat,lng`
@@ -156,24 +212,9 @@ export const locationRouter = router({
 				});
 			}
 
-			let finalUrl = input.url;
-			if (isShortMapsUrl(input.url)) {
-				let res: Response;
-				try {
-					res = await fetch(input.url, {
-						redirect: "follow",
-						headers: {
-							"User-Agent": "Mozilla/5.0 (compatible; Sapphire2/1.0)",
-						},
-					});
-				} catch {
-					throw new TRPCError({
-						code: "BAD_REQUEST",
-						message: "Could not resolve the link",
-					});
-				}
-				finalUrl = res.url || input.url;
-			}
+			const finalUrl = isShortMapsUrl(input.url)
+				? await resolveShortMapsUrl(input.url)
+				: input.url;
 
 			const coords = extractCoordsFromMapsUrl(finalUrl);
 			if (!coords) {

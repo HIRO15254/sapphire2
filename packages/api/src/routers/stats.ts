@@ -4,7 +4,7 @@ import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { TRPCError } from "@trpc/server";
 import { and, eq, gte, lte } from "drizzle-orm";
-import { z } from "zod";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
 import {
 	computeCashGamePL,
@@ -12,6 +12,7 @@ import {
 	fetchProfitLossSeries,
 	getSessionChipPurchaseMap,
 	sumChipPurchaseCost,
+	validateEntityOwnership,
 } from "./session";
 
 type DbInstance = Parameters<
@@ -29,9 +30,9 @@ type DbInstance = Parameters<
  * unless the caller has opted into normalized values.
  */
 export const statsFilterShape = {
-	currencyId: z.string().optional(),
+	currencyId: z.string().min(1).optional(),
 	type: z.enum(["cash_game", "tournament"]).optional(),
-	roomId: z.string().optional(),
+	roomId: z.string().min(1).optional(),
 	dateFrom: z.number().optional(),
 	dateTo: z.number().optional(),
 	normalized: z.boolean().default(false),
@@ -47,6 +48,7 @@ export const breakdownGroupByEnum = z.enum([
 	"length",
 	"month",
 	"year",
+	"variant",
 ]);
 
 export type BreakdownGroupBy = z.infer<typeof breakdownGroupByEnum>;
@@ -78,6 +80,18 @@ export function assertCurrencyScope(filters: {
 		});
 	}
 }
+async function validateStatsFiltersOwnership(
+	db: DbInstance,
+	userId: string,
+	filters: Pick<StatsFilters, "currencyId" | "roomId">
+): Promise<void> {
+	if (filters.currencyId) {
+		await validateEntityOwnership(db, "currency", filters.currencyId, userId);
+	}
+	if (filters.roomId) {
+		await validateEntityOwnership(db, "room", filters.roomId, userId);
+	}
+}
 
 // ---------------------------------------------------------------------------
 // Internal row type + fetch
@@ -101,6 +115,7 @@ export interface StatsSessionRow {
 	sessionDate: number; // unix seconds
 	totalEntries: number | null;
 	type: "cash_game" | "tournament";
+	variant: string | null; // frozen detail-row variant (cash or tournament)
 }
 
 interface RawStatsRow {
@@ -110,6 +125,7 @@ interface RawStatsRow {
 	breakMinutes: number | null;
 	buyIn: number | null;
 	cashOut: number | null;
+	cashVariant: string | null;
 	endedAt: Date | null;
 	entryFee: number | null;
 	evCashOut: number | null;
@@ -122,6 +138,7 @@ interface RawStatsRow {
 	startedAt: Date | null;
 	totalEntries: number | null;
 	tournamentBuyIn: number | null;
+	tournamentVariant: string | null;
 	type: string;
 }
 
@@ -155,6 +172,7 @@ function mapStatsRow(
 		roomName: r.roomName,
 		blind1: r.blind1,
 		blind2: r.blind2,
+		variant: r.type === "cash_game" ? r.cashVariant : r.tournamentVariant,
 	};
 
 	if (r.type === "cash_game") {
@@ -237,12 +255,14 @@ export async function fetchStatsRows(
 			evCashOut: sessionCashDetail.evCashOut,
 			blind1: sessionCashDetail.blind1,
 			blind2: sessionCashDetail.blind2,
+			cashVariant: sessionCashDetail.variant,
 			tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
 			entryFee: sessionTournamentDetail.entryFee,
 			placement: sessionTournamentDetail.placement,
 			totalEntries: sessionTournamentDetail.totalEntries,
 			prizeMoney: sessionTournamentDetail.prizeMoney,
 			bountyPrizes: sessionTournamentDetail.bountyPrizes,
+			tournamentVariant: sessionTournamentDetail.variant,
 			roomId: gameSession.roomId,
 			roomName: room.name,
 		})
@@ -255,7 +275,10 @@ export async function fetchStatsRows(
 			sessionTournamentDetail,
 			eq(sessionTournamentDetail.sessionId, gameSession.id)
 		)
-		.leftJoin(room, eq(room.id, gameSession.roomId))
+		.leftJoin(
+			room,
+			and(eq(room.id, gameSession.roomId), eq(room.userId, userId))
+		)
 		.where(and(...conditions));
 
 	const chipPurchaseMap = await getSessionChipPurchaseMap(
@@ -310,6 +333,7 @@ export interface StatsSummary {
 	// ratio), so it is safe across currencies — unlike the aggregate `roi`.
 	avgRoi: number | null;
 	bbPerHour: number | null;
+	cashBbCount: number;
 	// EV diff (actual − EV) of cash sessions normalized to big blinds (bb).
 	// Null when no normalizable cash session has EV data.
 	cashEvDiffNormalized: number | null;
@@ -326,6 +350,7 @@ export interface StatsSummary {
 	totalPrizeMoney: number | null;
 	totalProfitLoss: number;
 	totalSessions: number;
+	tournamentBiCount: number;
 	// Tournament sessions normalized to buy-ins (bi). Null when none.
 	tournamentNormalizedProfitLoss: number | null;
 	winRate: number;
@@ -333,6 +358,8 @@ export interface StatsSummary {
 
 const EMPTY_SUMMARY: StatsSummary = {
 	totalSessions: 0,
+	cashBbCount: 0,
+	tournamentBiCount: 0,
 	totalProfitLoss: 0,
 	cashNormalizedProfitLoss: null,
 	cashEvDiffNormalized: null,
@@ -438,6 +465,8 @@ function buildSummary(
 	const cashHours = acc.cashPlayMinutes / 60;
 	return {
 		totalSessions,
+		cashBbCount: acc.cashBbCount,
+		tournamentBiCount: acc.tournamentBiCount,
 		totalProfitLoss: acc.totalProfitLoss,
 		cashNormalizedProfitLoss: acc.cashBbCount > 0 ? acc.cashBbSum : null,
 		cashEvDiffNormalized:
@@ -571,6 +600,14 @@ export function breakdownKeyLabel(
 		}
 		const bucket = Math.floor(row.playMinutes / 60);
 		return { key: String(bucket), label: `${bucket}~${bucket + 1}h` };
+	}
+	if (groupBy === "variant") {
+		// The server returns the RAW variant string as the label; the client maps
+		// it to a display label (variantDisplayLabel maps "mix"). A mix session has
+		// variant "mix" and therefore groups as ONE bucket, never decomposed into
+		// its sub-games.
+		const key = row.variant ?? "unknown";
+		return { key, label: key };
 	}
 
 	const date = new Date(row.sessionDate * 1000);
@@ -712,6 +749,7 @@ export const statsRouter = router({
 		.input(statsFilterSchema)
 		.query(async ({ ctx, input }) => {
 			assertCurrencyScope(input);
+			await validateStatsFiltersOwnership(ctx.db, ctx.session.user.id, input);
 			const rows = await fetchStatsRows(ctx.db, ctx.session.user.id, input);
 			return summarizeStats(rows);
 		}),
@@ -720,14 +758,16 @@ export const statsRouter = router({
 		.input(breakdownFilterSchema)
 		.query(async ({ ctx, input }) => {
 			assertCurrencyScope(input);
+			await validateStatsFiltersOwnership(ctx.db, ctx.session.user.id, input);
 			const rows = await fetchStatsRows(ctx.db, ctx.session.user.id, input);
 			return { groups: breakdownStats(rows, input.groupBy) };
 		}),
 
 	profitLossSeries: protectedProcedure
 		.input(statsFilterSchema)
-		.query(({ ctx, input }) => {
+		.query(async ({ ctx, input }) => {
 			assertCurrencyScope(input);
+			await validateStatsFiltersOwnership(ctx.db, ctx.session.user.id, input);
 			return fetchProfitLossSeries(ctx.db, ctx.session.user.id, input);
 		}),
 });

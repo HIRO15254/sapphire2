@@ -1,4 +1,5 @@
 import type { ExtractedTournamentData } from "@sapphire2/api/routers/ai-extract";
+import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import type { TournamentPartialFormValues } from "@/features/rooms/components/tournament-modal-content";
 
 // AI 抽出結果が「空白」のフィールドは、既にユーザーが入力済みの情報を上書き
@@ -31,7 +32,7 @@ export function mergeExtractedTournamentData(
 	return {
 		...base,
 		name: hasText(extracted.name) ? extracted.name : (base?.name ?? ""),
-		variant: base?.variant ?? "nlh",
+		variant: base?.variant ?? DEFAULT_VARIANT_LABEL,
 		...(isMeaningfulNumber(extracted.buyIn) && { buyIn: extracted.buyIn }),
 		...(isMeaningfulNumber(extracted.entryFee) && {
 			entryFee: extracted.entryFee,

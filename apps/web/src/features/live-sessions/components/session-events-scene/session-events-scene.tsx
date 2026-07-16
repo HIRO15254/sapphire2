@@ -175,6 +175,9 @@ export function SessionEventsScene({
 							return renderEventRow(group.event);
 						}
 						const first = group.events[0];
+						if (!first) {
+							return null;
+						}
 						const last = group.events.at(-1);
 						const timeRange = `${toTimeInputValue(first.occurredAt)}–${toTimeInputValue(last?.occurredAt ?? first.occurredAt)}`;
 						const summary = `${group.events.length} player changes`;

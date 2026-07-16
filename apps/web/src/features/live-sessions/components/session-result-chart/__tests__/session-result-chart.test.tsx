@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { createElement, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -86,6 +87,31 @@ describe("SessionResultChart", () => {
 				})
 			)
 		);
+		expect(await screen.findByText("Not enough data yet")).toBeTruthy();
+	});
+
+	it("shows a retryable error instead of the empty state when the query fails", async () => {
+		queryFn.mockClear();
+		queryFn.mockRejectedValueOnce(new Error("Request failed"));
+		queryFn.mockResolvedValueOnce([]);
+		const user = userEvent.setup();
+		render(
+			wrap(
+				createElement(SessionResultChart, {
+					enabled: true,
+					liveSessionId: "s1",
+					sessionType: "cash_game",
+				})
+			)
+		);
+
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			"Unable to load statistics"
+		);
+		expect(screen.queryByText("Not enough data yet")).toBeNull();
+
+		await user.click(screen.getByRole("button", { name: "Retry" }));
+		await waitFor(() => expect(queryFn).toHaveBeenCalledTimes(2));
 		expect(await screen.findByText("Not enough data yet")).toBeTruthy();
 	});
 

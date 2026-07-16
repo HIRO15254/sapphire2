@@ -95,6 +95,18 @@ describe("CurrencyListCard", () => {
 		expect(link).toHaveAttribute("href", "/currencies/c42");
 	});
 
+	it("keeps the favorite button outside the detail link", async () => {
+		renderCard({
+			id: "c1",
+			name: "Chips",
+			unit: null,
+			balance: 0,
+			isFavorite: false,
+		});
+		const link = await screen.findByRole("link");
+		expect(link.querySelector("button")).toBeNull();
+	});
+
 	it("uses compact notation for balances at the 10k boundary", async () => {
 		renderCard({
 			id: "c1",

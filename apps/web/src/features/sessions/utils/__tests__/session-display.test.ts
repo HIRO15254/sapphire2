@@ -126,18 +126,37 @@ describe("formatSessionDuration", () => {
 		).toBe("0.7h");
 	});
 
-	it("clamps a negative raw span to '0.0h' (legacy day-crossing row, SA2-157)", () => {
-		// endedAt before startedAt (a row saved before the day-crossing fix) must
-		// never surface a negative "-20.0h" duration.
+	it("adds 24 hours for a legacy day-crossing row (SA2-157)", () => {
 		expect(
 			formatSessionDuration("2026-01-01T22:00:00", "2026-01-01T02:00:00")
+		).toBe("4.0h");
+	});
+
+	it("returns null when break minutes exceed the played span", () => {
+		expect(
+			formatSessionDuration("2026-01-01T10:00:00", "2026-01-01T11:00:00", 120)
+		).toBeNull();
+	});
+
+	it("keeps zero when break minutes exactly equal the played span", () => {
+		expect(
+			formatSessionDuration("2026-01-01T10:00:00", "2026-01-01T11:00:00", 60)
 		).toBe("0.0h");
 	});
 
-	it("clamps to '0.0h' when break minutes exceed the played span (SA2-157)", () => {
+	it("returns null for invalid timestamps", () => {
 		expect(
-			formatSessionDuration("2026-01-01T10:00:00", "2026-01-01T11:00:00", 120)
-		).toBe("0.0h");
+			formatSessionDuration("not-a-date", "2026-01-01T11:00:00")
+		).toBeNull();
+		expect(
+			formatSessionDuration("2026-01-01T10:00:00", "not-a-date")
+		).toBeNull();
+	});
+
+	it("returns null when one-day correction still leaves a negative span", () => {
+		expect(
+			formatSessionDuration("2026-01-03T10:00:00", "2026-01-01T10:00:00")
+		).toBeNull();
 	});
 });
 
@@ -148,13 +167,13 @@ describe("buildCashRuleRows", () => {
 		cashBlind1: 1,
 		cashBlind3: null,
 		cashTableSize: null,
-		cashVariant: "nlh",
+		cashVariant: "NL Hold'em",
 		ringGameBlind2: 2,
 	};
 
 	it("renders variant, blinds, and table size", () => {
 		expect(buildCashRuleRows({ ...base, cashTableSize: 6 })).toEqual([
-			{ label: "Variant", value: "NLH" },
+			{ label: "Variant", value: "NL Hold'em" },
 			{ label: "Blinds", value: "1/2" },
 			{ label: "Table", value: "6-max" },
 		]);
@@ -266,12 +285,12 @@ describe("buildTournamentRuleRows", () => {
 		expect(
 			buildTournamentRuleRows({
 				...base,
-				tournamentVariant: "nlh",
+				tournamentVariant: "NL Hold'em",
 				tournamentStartingStack: 20_000,
 				tournamentTableSize: 9,
 			})
 		).toEqual([
-			{ label: "Variant", value: "NLH" },
+			{ label: "Variant", value: "NL Hold'em" },
 			{ label: "Buy-in", value: "5,000" },
 			{ label: "Starting stack", value: "20k" },
 			{ label: "Table", value: "9-max" },
@@ -614,5 +633,69 @@ describe("formatSessionEvDisplay", () => {
 		expect(
 			formatSessionEvDisplay({ ...cash, evProfitLoss: 13_480.6 }, false)
 		).toBe("+13.5k $");
+	});
+});
+
+describe("buildCashRuleRows — mix games", () => {
+	const base = {
+		cashAnte: null,
+		cashAnteType: null,
+		cashBlind1: null,
+		cashBlind3: null,
+		cashTableSize: null,
+		cashVariant: "mix",
+		ringGameBlind2: null,
+	};
+	const mixGames = [
+		{
+			name: "Limit",
+			variants: ["lhe", "o8"],
+			blind1: 400,
+			blind2: 800,
+			blind3: null,
+			ante: null,
+			anteType: null,
+		},
+		{
+			name: null,
+			variants: ["NL Hold'em", "Pot Limit Omaha"],
+			blind1: 100,
+			blind2: 200,
+			blind3: null,
+			ante: null,
+			anteType: null,
+		},
+	];
+
+	it("renders one row per game group after the variant row", () => {
+		expect(buildCashRuleRows({ ...base, cashMixGames: mixGames })).toEqual([
+			{ label: "Variant", value: "Mixed Game" },
+			{ label: "Limit", value: "400/800" },
+			{ label: "NL Hold'em+Pot Limit Omaha", value: "100/200" },
+		]);
+	});
+
+	it("suppresses the flat blinds row for a mix session", () => {
+		const rows = buildCashRuleRows({
+			...base,
+			cashBlind1: 1,
+			ringGameBlind2: 2,
+			cashMixGames: mixGames,
+		});
+		expect(rows.find((r) => r.label === "Blinds")).toBeUndefined();
+	});
+
+	it("keeps the flat blinds row when mixGames is empty", () => {
+		const rows = buildCashRuleRows({
+			...base,
+			cashVariant: "nlh",
+			cashBlind1: 1,
+			ringGameBlind2: 2,
+			cashMixGames: [],
+		});
+		expect(rows.find((r) => r.label === "Blinds")).toEqual({
+			label: "Blinds",
+			value: "1/2",
+		});
 	});
 });

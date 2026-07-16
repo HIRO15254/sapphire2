@@ -7,6 +7,7 @@ import { RoomLocationLink } from "@/features/rooms/pages/room-detail-page/room-l
 import { TournamentTab } from "@/features/rooms/pages/room-detail-page/tournament-tab";
 import { FormSheet } from "@/shared/components/form-sheet";
 import { PageHeader } from "@/shared/components/page-header";
+import { QueryError } from "@/shared/components/query-error";
 import {
 	Tabs,
 	TabsContent,
@@ -27,6 +28,8 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 	const {
 		room,
 		isLoading,
+		isInitialLoadError,
+		onRetry,
 		isUpdatePending,
 		isActionsOpen,
 		isEditOpen,
@@ -51,6 +54,19 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 		);
 	}
 
+	if (isInitialLoadError) {
+		return (
+			<div className="min-h-full bg-background text-foreground">
+				<div className="p-4">
+					<QueryError
+						message="Unable to load room. Please try again."
+						onRetry={onRetry}
+					/>
+				</div>
+			</div>
+		);
+	}
+
 	if (!room) {
 		return (
 			<div className="min-h-full bg-background text-foreground">
@@ -70,26 +86,24 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 			<div className="p-4">
 				<TopBar onOpenActions={() => setIsActionsOpen(true)} />
 				<PageHeader
-					description={room.memo ?? undefined}
-					heading={
-						<span className="flex items-center gap-2">
-							<button
-								aria-label={
-									room.isFavorite ? "Remove from favorites" : "Add to favorites"
-								}
-								className="-m-1.5 shrink-0 rounded p-1.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
-								onClick={handleToggleFavorite}
-								type="button"
-							>
-								{room.isFavorite ? (
-									<IconStarFilled className="size-5 text-yellow-500" />
-								) : (
-									<IconStar className="size-5" />
-								)}
-							</button>
-							{room.name}
-						</span>
+					actions={
+						<button
+							aria-label={
+								room.isFavorite ? "Remove from favorites" : "Add to favorites"
+							}
+							className="-m-1.5 shrink-0 rounded p-1.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
+							onClick={handleToggleFavorite}
+							type="button"
+						>
+							{room.isFavorite ? (
+								<IconStarFilled className="size-5 text-yellow-500" />
+							) : (
+								<IconStar className="size-5" />
+							)}
+						</button>
 					}
+					description={room.memo ?? undefined}
+					heading={room.name}
 				/>
 
 				<RoomLocationLink latitude={room.latitude} longitude={room.longitude} />

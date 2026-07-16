@@ -46,16 +46,30 @@ The ledger drifted once (SA2-158): `meta/_journal.json` and the snapshots froze 
 `0012_boring_vivisector` while 0013–0034 were added by hand. Diffing the real schema against a
 20-migration-old snapshot made `db:generate` emit a giant, destructive migration under a filename
 that collided with an existing one. It was re-baselined by registering 0013–0034 in
-`_journal.json` and adding a single tip snapshot (`0034_snapshot.json`) that captures the true
-current schema, chained onto `0012`. There are intentionally no per-migration snapshots for
+`_journal.json` and adding a tip snapshot (`0034_snapshot.json`) that captured the true schema at
+that point, chained onto `0012`. There are intentionally no per-migration snapshots for
 0013–0033 — those migrations were authored in bulk, outside Drizzle, so faithful intermediate
-snapshots do not exist and were not fabricated. `db:generate` only ever reads the newest snapshot,
-so this is sufficient and correct.
+snapshots do not exist and were not fabricated. Generated migrations 0035–0046 each added their
+own snapshot; the current ledger tip is `0046_snapshot.json` (`0046_session_event_sort_order_unique`).
+`db:generate` reads this newest snapshot, so future migrations continue from the current schema.
 
 > Caveat: `drizzle-kit check` (not currently in CI) validates that a snapshot exists for every
 > journal entry and would flag the intentionally-absent 0013–0033 snapshots. Do not add it to CI
 > without first regenerating a full snapshot chain (or dropping the unbacked journal entries) — the
 > re-baseline above deliberately trades a complete snapshot history for a lean, honest ledger.
+
+## Manual SQLite triggers are outside the Drizzle ledger
+
+Migration `0041_amazing_amphibian` installs ten manual integrity triggers on `game_group`,
+`game_variant`, and `game_mix` for normalized label uniqueness and JSON reference integrity.
+Drizzle snapshots do not model triggers, and SQLite drops a table's triggers when a table-rebuild
+migration drops that table. Therefore, any migration that recreates one of these three tables must
+recreate its `0041` triggers in the same migration.
+
+[`migration-0041.test.ts`](../../packages/db/src/__tests__/migration-0041.test.ts) applies every
+numbered migration from an empty database and asserts the final trigger names and target tables.
+Keep this full-history guard intact and run it after touching these tables; `db:generate` reporting
+no schema changes does not verify manual triggers.
 
 ## Keeping the ledger from drifting again
 

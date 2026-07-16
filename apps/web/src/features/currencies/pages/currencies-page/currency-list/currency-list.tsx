@@ -1,4 +1,5 @@
 import { IconCoins, IconPlus } from "@tabler/icons-react";
+import { QueryError } from "@/shared/components/query-error";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import {
@@ -16,10 +17,12 @@ interface CurrencyListItem {
 
 interface CurrencyListProps {
 	currencies: CurrencyListItem[];
+	isError: boolean;
 	/** Initial currencies fetch is in flight (no rows yet). */
 	isLoading: boolean;
 	/** Open the create sheet — wired to the empty-state CTA. */
 	onCreate: () => void;
+	onRetry: () => void;
 	onToggleFavorite: (id: string) => void;
 }
 
@@ -33,10 +36,21 @@ const SKELETON_COUNT = 5;
  */
 export function CurrencyList({
 	currencies,
+	isError,
 	isLoading,
 	onCreate,
+	onRetry,
 	onToggleFavorite,
 }: CurrencyListProps) {
+	if (isError) {
+		return (
+			<QueryError
+				message="Unable to load currencies. Please try again."
+				onRetry={onRetry}
+			/>
+		);
+	}
+
 	if (isLoading) {
 		return (
 			<div

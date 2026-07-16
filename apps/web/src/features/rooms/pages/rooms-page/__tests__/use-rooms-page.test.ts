@@ -13,12 +13,18 @@ const mocks = vi.hoisted(() => ({
 	}>,
 	isCreatePending: false,
 	isLoading: false,
+	isError: false,
+	onRetry: vi.fn(),
+	isInitialLoadError: false,
 }));
 
 vi.mock("@/features/rooms/hooks/use-rooms", () => ({
 	useRooms: () => ({
 		rooms: mocks.rooms,
 		isLoading: mocks.isLoading,
+		isError: mocks.isError,
+		onRetry: mocks.onRetry,
+		isInitialLoadError: mocks.isInitialLoadError,
 		isCreatePending: mocks.isCreatePending,
 		isUpdatePending: false,
 		isToggleFavoritePending: false,
@@ -38,6 +44,9 @@ describe("useRoomsPage", () => {
 		mocks.rooms = [];
 		mocks.isCreatePending = false;
 		mocks.isLoading = false;
+		mocks.isError = false;
+		mocks.onRetry.mockReset();
+		mocks.isInitialLoadError = false;
 	});
 
 	describe("initial state", () => {
@@ -85,8 +94,31 @@ describe("useRoomsPage", () => {
 			const { result } = renderHook(() => useRoomsPage());
 			expect(result.current.isLoading).toBe(false);
 		});
+
+		it("forwards an initial query error and retry callback", () => {
+			mocks.isError = true;
+			mocks.isInitialLoadError = true;
+			const { result } = renderHook(() => useRoomsPage());
+			expect(result.current.isError).toBe(true);
+			expect(result.current.onRetry).toBe(mocks.onRetry);
+		});
 	});
 
+	it("keeps cached rooms visible when a background refetch fails", () => {
+		mocks.rooms = [
+			{
+				id: "s1",
+				name: "Akiba",
+				ringGameCount: 1,
+				tournamentCount: 2,
+			},
+		];
+		mocks.isError = true;
+		mocks.isInitialLoadError = false;
+		const { result } = renderHook(() => useRoomsPage());
+		expect(result.current.isError).toBe(false);
+		expect(result.current.rooms).toHaveLength(1);
+	});
 	describe("setIsCreateOpen", () => {
 		it("opens the create sheet when called with true", () => {
 			const { result } = renderHook(() => useRoomsPage());

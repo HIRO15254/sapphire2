@@ -14,8 +14,10 @@ export interface UsePnlGraphResult {
 	dual: boolean;
 	evToggleAvailable: boolean;
 	isEmpty: boolean;
+	isError: boolean;
 	isPending: boolean;
 	points: AggregatedPoint[];
+	retry: () => void;
 	setShowEvCash: (value: boolean) => void;
 	setXAxis: (value: PnlGraphXAxis) => void;
 	showEvCash: boolean;
@@ -72,6 +74,10 @@ export function usePnlGraph(ctx: StatsSectionContext): UsePnlGraphResult {
 		dual,
 		unit,
 		isPending: ctx.enabled && query.isPending,
+		isError: query.isError,
+		retry: () => {
+			query.refetch();
+		},
 		isEmpty: points.length === 0,
 	};
 }

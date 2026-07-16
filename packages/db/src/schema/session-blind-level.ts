@@ -1,5 +1,6 @@
 import { relations } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import type { LevelGameGroup } from "../schemas/game";
 import { gameSession } from "./session";
 
 export const sessionBlindLevel = sqliteTable(
@@ -16,6 +17,9 @@ export const sessionBlindLevel = sqliteTable(
 		blind3: integer("blind3"),
 		ante: integer("ante"),
 		minutes: integer("minutes"),
+		// Per-level game groups for mix tournaments (levelGamesSchema in
+		// ../schemas/game). NULL = legacy single-structure level.
+		games: text("games", { mode: "json" }).$type<LevelGameGroup[]>(),
 	},
 	(t) => [index("session_blind_level_session_idx").on(t.sessionId)]
 );

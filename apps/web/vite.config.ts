@@ -14,10 +14,10 @@ export default defineConfig({
 		tanstackRouter({}),
 		react(),
 		VitePWA({
-			registerType: "autoUpdate",
+			registerType: "prompt",
 			manifest: pwaManifest,
 			pwaAssets: { disabled: false, config: true },
-			devOptions: { enabled: true },
+			devOptions: { enabled: false },
 		}),
 	],
 	resolve: {

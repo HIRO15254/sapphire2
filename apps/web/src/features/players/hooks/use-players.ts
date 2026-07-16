@@ -2,9 +2,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PlayerFormValues } from "@/features/players/components/player-form";
 import {
 	cancelTargets,
+	createOptimisticId,
 	invalidateTargets,
 	restoreSnapshots,
 	snapshotQuery,
+	updateQueryItems,
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -42,6 +44,9 @@ export function usePlayers(filterTagIds: string[]) {
 		invalidateTargets(queryClient, [
 			{ queryKey: trpc.playerTag.list.queryOptions().queryKey },
 		]);
+		if (!created) {
+			throw new Error("Failed to create player tag");
+		}
 		return { id: created.id, name: created.name, color: created.color };
 	};
 
@@ -54,30 +59,25 @@ export function usePlayers(filterTagIds: string[]) {
 		onMutate: async (newPlayer) => {
 			await cancelTargets(queryClient, [{ queryKey: playerListKey }]);
 			const previous = snapshotQuery(queryClient, playerListKey);
-			queryClient.setQueryData(
-				playerListKey,
-				(old: PlayerItem[] | undefined) => {
-					if (!old) {
-						return old;
-					}
-					const newTags = newPlayer.tagIds
-						? availableTags.filter((t) => newPlayer.tagIds?.includes(t.id))
-						: [];
-					return [
-						...old,
-						{
-							id: `temp-${Date.now()}`,
-							isTemporary: false,
-							name: newPlayer.name,
-							memo: newPlayer.memo ?? null,
-							tags: newTags,
-							createdAt: new Date().toISOString(),
-							updatedAt: new Date().toISOString(),
-							userId: "",
-						},
-					];
-				}
-			);
+			updateQueryItems<PlayerItem>(queryClient, playerListKey, (old) => {
+				const tagIds = newPlayer.tagIds;
+				const newTags = tagIds
+					? availableTags.filter((t) => tagIds.includes(t.id))
+					: [];
+				return [
+					...old,
+					{
+						id: createOptimisticId("temp"),
+						isTemporary: false,
+						name: newPlayer.name,
+						memo: newPlayer.memo ?? null,
+						tags: newTags,
+						createdAt: new Date().toISOString(),
+						updatedAt: new Date().toISOString(),
+						userId: "",
+					},
+				];
+			});
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
@@ -94,28 +94,25 @@ export function usePlayers(filterTagIds: string[]) {
 		onMutate: async (updated) => {
 			await cancelTargets(queryClient, [{ queryKey: playerListKey }]);
 			const previous = snapshotQuery(queryClient, playerListKey);
-			queryClient.setQueryData(
-				playerListKey,
-				(old: PlayerItem[] | undefined) => {
-					if (!old) {
-						return old;
+			updateQueryItems<PlayerItem>(queryClient, playerListKey, (old) => {
+				return old.map((p) => {
+					if (p.id !== updated.id) {
+						return p;
 					}
-					return old.map((p) => {
-						if (p.id !== updated.id) {
-							return p;
-						}
-						const newTags = updated.tagIds
-							? availableTags.filter((t) => updated.tagIds?.includes(t.id))
-							: p.tags;
-						return {
-							...p,
-							name: updated.name,
-							memo: updated.memo ?? p.memo,
-							tags: newTags,
-						};
-					});
-				}
-			);
+					const tagIds = updated.tagIds;
+					const newTags = tagIds
+						? availableTags.filter((t) => tagIds.includes(t.id))
+						: p.tags;
+					return {
+						...p,
+						name: updated.name,
+						memo: Object.hasOwn(updated, "memo")
+							? (updated.memo ?? null)
+							: p.memo,
+						tags: newTags,
+					};
+				});
+			});
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
@@ -131,7 +128,7 @@ export function usePlayers(filterTagIds: string[]) {
 		onMutate: async (id) => {
 			await cancelTargets(queryClient, [{ queryKey: playerListKey }]);
 			const previous = snapshotQuery(queryClient, playerListKey);
-			queryClient.setQueryData(playerListKey, (old: PlayerItem[] | undefined) =>
+			updateQueryItems<PlayerItem>(queryClient, playerListKey, (old) =>
 				old?.filter((p) => p.id !== id)
 			);
 			return { previous };
@@ -148,6 +145,8 @@ export function usePlayers(filterTagIds: string[]) {
 		players,
 		availableTags,
 		isLoading: playersQuery.isLoading,
+		isInitialLoadError: playersQuery.isError && playersQuery.data === undefined,
+		onRetry: playersQuery.refetch,
 		isCreatePending: createMutation.isPending,
 		isUpdatePending: updateMutation.isPending,
 		create: (values: PlayerFormValues) => createMutation.mutateAsync(values),

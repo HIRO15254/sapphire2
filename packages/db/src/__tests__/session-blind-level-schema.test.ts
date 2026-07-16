@@ -103,4 +103,11 @@ describe("SessionBlindLevel — table name", () => {
 		const config = getTableConfig(sessionBlindLevel);
 		expect(config.name).toBe("session_blind_level");
 	});
+
+	it("games is a nullable JSON column (per-level game groups)", () => {
+		const columns = getTableColumns(sessionBlindLevel);
+		expect(columns.games).toBeDefined();
+		expect(columns.games.notNull).toBe(false);
+		expect(columns.games.columnType).toBe("SQLiteTextJson");
+	});
 });

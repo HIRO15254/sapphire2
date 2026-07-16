@@ -1,3 +1,7 @@
+import {
+	formatMixSummary,
+	type GameGroupLike,
+} from "@/features/live-sessions/utils/game-scene-formatters";
 import { createGroupFormatter } from "@/utils/format-number";
 
 interface RingGameBlindFields {
@@ -6,17 +10,23 @@ interface RingGameBlindFields {
 	blind1: number | null;
 	blind2: number | null;
 	blind3: number | null;
+	mixGames?: GameGroupLike[] | null;
 }
 
 /**
  * Compact one-line summary of a cash game's blind structure plus ante, with an
  * optional trailing currency unit. Extracted from the legacy ring-game tab so
- * both the V2 row and any future surface share one implementation.
+ * both the V2 row and any future surface share one implementation. Mix games
+ * render their grouped summary ("Mix · Limit 400/800 · …") instead.
  */
 export function formatRingGameBlinds(
 	game: RingGameBlindFields,
 	currencyUnit?: string | null
 ): string {
+	if (game.mixGames && game.mixGames.length > 0) {
+		const unitStr = currencyUnit ?? "";
+		return [formatMixSummary(game.mixGames), unitStr].filter(Boolean).join(" ");
+	}
 	const fmt = createGroupFormatter([
 		game.blind1,
 		game.blind2,

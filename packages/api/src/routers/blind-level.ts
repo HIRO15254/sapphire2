@@ -1,46 +1,20 @@
-import { room } from "@sapphire2/db/schema/room";
-import { blindLevel, tournament } from "@sapphire2/db/schema/tournament";
+import { blindLevel } from "@sapphire2/db/schema/tournament";
+import { levelGamesSchema } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq } from "drizzle-orm";
-import { z } from "zod";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { runBatch } from "../lib/batch";
+import { validateEntityOwnership } from "./session";
 
-async function validateTournamentOwnership(
+function validateTournamentOwnership(
 	db: Parameters<
 		Parameters<typeof protectedProcedure.query>[0]
 	>[0]["ctx"]["db"],
 	tournamentId: string,
 	userId: string
 ) {
-	const [found] = await db
-		.select()
-		.from(tournament)
-		.where(eq(tournament.id, tournamentId));
-
-	if (!found) {
-		throw new TRPCError({
-			code: "NOT_FOUND",
-			message: "Tournament not found",
-		});
-	}
-
-	const [foundRoom] = await db
-		.select()
-		.from(room)
-		.where(eq(room.id, found.roomId));
-
-	if (!foundRoom) {
-		throw new TRPCError({ code: "NOT_FOUND", message: "Room not found" });
-	}
-
-	if (foundRoom.userId !== userId) {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: "You do not own this room",
-		});
-	}
-
-	return found;
+	return validateEntityOwnership(db, "tournament", tournamentId, userId);
 }
 
 async function validateBlindLevelOwnership(
@@ -57,8 +31,8 @@ async function validateBlindLevelOwnership(
 
 	if (!found) {
 		throw new TRPCError({
-			code: "NOT_FOUND",
-			message: "Blind level not found",
+			code: "FORBIDDEN",
+			message: "You do not own this blind level",
 		});
 	}
 
@@ -85,13 +59,14 @@ export const blindLevelRouter = router({
 		.input(
 			z.object({
 				tournamentId: z.string(),
-				level: z.number().int(),
+				level: z.number().int().min(1),
 				isBreak: z.boolean().optional(),
-				blind1: z.number().int().optional(),
-				blind2: z.number().int().optional(),
-				blind3: z.number().int().optional(),
-				ante: z.number().int().optional(),
-				minutes: z.number().int().optional(),
+				blind1: z.number().int().min(0).optional(),
+				blind2: z.number().int().min(0).optional(),
+				blind3: z.number().int().min(0).optional(),
+				ante: z.number().int().min(0).optional(),
+				minutes: z.number().int().min(0).optional(),
+				games: levelGamesSchema.nullish(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -109,6 +84,7 @@ export const blindLevelRouter = router({
 				blind3: input.blind3 ?? null,
 				ante: input.ante ?? null,
 				minutes: input.minutes ?? null,
+				games: input.games ?? null,
 			});
 
 			const [created] = await ctx.db
@@ -122,13 +98,14 @@ export const blindLevelRouter = router({
 		.input(
 			z.object({
 				id: z.string(),
-				level: z.number().int().optional(),
+				level: z.number().int().min(1).optional(),
 				isBreak: z.boolean().optional(),
-				blind1: z.number().int().nullable().optional(),
-				blind2: z.number().int().nullable().optional(),
-				blind3: z.number().int().nullable().optional(),
-				ante: z.number().int().nullable().optional(),
-				minutes: z.number().int().nullable().optional(),
+				blind1: z.number().int().min(0).nullable().optional(),
+				blind2: z.number().int().min(0).nullable().optional(),
+				blind3: z.number().int().min(0).nullable().optional(),
+				ante: z.number().int().min(0).nullable().optional(),
+				minutes: z.number().int().min(0).nullable().optional(),
+				games: levelGamesSchema.nullish(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -156,6 +133,9 @@ export const blindLevelRouter = router({
 			}
 			if (input.minutes !== undefined) {
 				updateData.minutes = input.minutes;
+			}
+			if (input.games !== undefined) {
+				updateData.games = input.games;
 			}
 
 			await ctx.db
@@ -191,7 +171,8 @@ export const blindLevelRouter = router({
 			const userId = ctx.session.user.id;
 			await validateTournamentOwnership(ctx.db, input.tournamentId, userId);
 
-			await Promise.all(
+			await runBatch(
+				ctx.db,
 				input.levelIds.map((id, index) =>
 					ctx.db
 						.update(blindLevel)

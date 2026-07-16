@@ -1,7 +1,7 @@
 import { room } from "@sapphire2/db/schema/room";
 import { TRPCError } from "@trpc/server";
 import { asc, desc, eq, sql } from "drizzle-orm";
-import { z } from "zod";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
 
 // Coordinates move as a pair: latitude and longitude must both be omitted
@@ -59,11 +59,7 @@ export const roomRouter = router({
 				.from(room)
 				.where(eq(room.id, input.id));
 
-			if (!found) {
-				throw new TRPCError({ code: "NOT_FOUND", message: "Room not found" });
-			}
-
-			if (found.userId !== userId) {
+			if (!found || found.userId !== userId) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this room",
@@ -123,11 +119,7 @@ export const roomRouter = router({
 				.from(room)
 				.where(eq(room.id, input.id));
 
-			if (!found) {
-				throw new TRPCError({ code: "NOT_FOUND", message: "Room not found" });
-			}
-
-			if (found.userId !== userId) {
+			if (!found || found.userId !== userId) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this room",
@@ -163,11 +155,7 @@ export const roomRouter = router({
 				.from(room)
 				.where(eq(room.id, input.id));
 
-			if (!found) {
-				throw new TRPCError({ code: "NOT_FOUND", message: "Room not found" });
-			}
-
-			if (found.userId !== userId) {
+			if (!found || found.userId !== userId) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this room",
@@ -187,11 +175,7 @@ export const roomRouter = router({
 				.from(room)
 				.where(eq(room.id, input.id));
 
-			if (!found) {
-				throw new TRPCError({ code: "NOT_FOUND", message: "Room not found" });
-			}
-
-			if (found.userId !== userId) {
+			if (!found || found.userId !== userId) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this room",

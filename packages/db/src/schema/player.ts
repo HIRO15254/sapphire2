@@ -60,7 +60,10 @@ export const playerToPlayerTag = sqliteTable(
 			.references(() => playerTag.id, { onDelete: "cascade" }),
 		position: integer("position").notNull().default(0),
 	},
-	(table) => [primaryKey({ columns: [table.playerId, table.playerTagId] })]
+	(table) => [
+		primaryKey({ columns: [table.playerId, table.playerTagId] }),
+		index("playerToPlayerTag_playerTagId_idx").on(table.playerTagId),
+	]
 );
 
 export const playerRelations = relations(player, ({ one, many }) => ({

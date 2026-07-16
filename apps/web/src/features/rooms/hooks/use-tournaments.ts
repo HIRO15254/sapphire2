@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	cancelTargets,
+	createOptimisticId,
 	invalidateTargets,
 	restoreSnapshots,
 	snapshotQuery,
+	updateQueryItems,
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -184,6 +186,9 @@ export function useTournaments({
 				roomId,
 				...rest,
 			});
+			if (!created) {
+				return created;
+			}
 			if (tags && tags.length > 0) {
 				await syncTags(created.id, tags, []);
 			}
@@ -205,16 +210,16 @@ export function useTournaments({
 				queryClient,
 				archivedQueryOptions.queryKey
 			);
-			queryClient.setQueryData<Tournament[]>(
+			const optimisticTournament = buildOptimisticTournament(
+				roomId,
+				values,
+				createOptimisticId("temp-tournament")
+			);
+			updateQueryItems<Tournament>(
+				queryClient,
 				activeQueryOptions.queryKey,
-				(old) => [
-					...(old ?? []),
-					buildOptimisticTournament(
-						roomId,
-						values,
-						`temp-tournament-${Date.now()}`
-					),
-				]
+				(items) => [...items, optimisticTournament],
+				[optimisticTournament]
 			);
 			return { previousActive, previousArchived };
 		},
@@ -272,8 +277,18 @@ export function useTournaments({
 						? buildOptimisticTournament(roomId, values, values.id, tournament)
 						: tournament
 				) ?? [];
-			queryClient.setQueryData(activeQueryOptions.queryKey, applyUpdate);
-			queryClient.setQueryData(archivedQueryOptions.queryKey, applyUpdate);
+			updateQueryItems<Tournament>(
+				queryClient,
+				activeQueryOptions.queryKey,
+				applyUpdate,
+				[]
+			);
+			updateQueryItems<Tournament>(
+				queryClient,
+				archivedQueryOptions.queryKey,
+				applyUpdate,
+				[]
+			);
 			return { previousActive, previousArchived };
 		},
 		onError: (_error, _variables, context) => {
@@ -303,17 +318,22 @@ export function useTournaments({
 			const archivedTournament = (
 				previousActive.data as Tournament[] | undefined
 			)?.find((tournament) => tournament.id === id);
-			queryClient.setQueryData<Tournament[]>(
+			updateQueryItems<Tournament>(
+				queryClient,
 				activeQueryOptions.queryKey,
-				(old) => old?.filter((tournament) => tournament.id !== id) ?? []
+				(items) => items.filter((tournament) => tournament.id !== id),
+				[]
 			);
 			if (archivedTournament) {
-				queryClient.setQueryData<Tournament[]>(
+				const optimisticArchivedTournament = {
+					...archivedTournament,
+					archivedAt: new Date().toISOString(),
+				};
+				updateQueryItems<Tournament>(
+					queryClient,
 					archivedQueryOptions.queryKey,
-					(old) => [
-						...(old ?? []),
-						{ ...archivedTournament, archivedAt: new Date().toISOString() },
-					]
+					(items) => [...items, optimisticArchivedTournament],
+					[optimisticArchivedTournament]
 				);
 			}
 			return { previousActive, previousArchived };
@@ -345,14 +365,22 @@ export function useTournaments({
 			const restoredTournament = (
 				previousArchived.data as Tournament[] | undefined
 			)?.find((tournament) => tournament.id === id);
-			queryClient.setQueryData<Tournament[]>(
+			updateQueryItems<Tournament>(
+				queryClient,
 				archivedQueryOptions.queryKey,
-				(old) => old?.filter((tournament) => tournament.id !== id) ?? []
+				(items) => items.filter((tournament) => tournament.id !== id),
+				[]
 			);
 			if (restoredTournament) {
-				queryClient.setQueryData<Tournament[]>(
+				const optimisticRestoredTournament = {
+					...restoredTournament,
+					archivedAt: null,
+				};
+				updateQueryItems<Tournament>(
+					queryClient,
 					activeQueryOptions.queryKey,
-					(old) => [...(old ?? []), { ...restoredTournament, archivedAt: null }]
+					(items) => [...items, optimisticRestoredTournament],
+					[optimisticRestoredTournament]
 				);
 			}
 			return { previousActive, previousArchived };
@@ -366,74 +394,11 @@ export function useTournaments({
 		onSettled: invalidateBoth,
 	});
 
-	const createWithLevelsMutation = useMutation({
-		mutationFn: (input: {
-			blindLevels: Array<{
-				ante?: number | null;
-				blind1?: number | null;
-				blind2?: number | null;
-				blind3?: number | null;
-				isBreak: boolean;
-				minutes?: number | null;
-			}>;
-			values: TournamentFormValues;
-		}) =>
-			trpcClient.tournament.createWithLevels.mutate({
-				roomId,
-				name: input.values.name,
-				variant: input.values.variant,
-				buyIn: input.values.buyIn,
-				entryFee: input.values.entryFee,
-				startingStack: input.values.startingStack,
-				bountyAmount: input.values.bountyAmount,
-				tableSize: input.values.tableSize,
-				currencyId: input.values.currencyId,
-				memo: input.values.memo,
-				tags: input.values.tags,
-				chipPurchases: input.values.chipPurchases,
-				blindLevels: input.blindLevels,
-			}),
-		onSettled: invalidateBoth,
-	});
-
-	const updateWithLevelsMutation = useMutation({
-		mutationFn: (input: {
-			blindLevels: Array<{
-				ante?: number | null;
-				blind1?: number | null;
-				blind2?: number | null;
-				blind3?: number | null;
-				isBreak: boolean;
-				minutes?: number | null;
-			}>;
-			id: string;
-			values: TournamentFormValues;
-		}) =>
-			trpcClient.tournament.updateWithLevels.mutate({
-				id: input.id,
-				name: input.values.name,
-				variant: input.values.variant,
-				buyIn: input.values.buyIn ?? null,
-				entryFee: input.values.entryFee ?? null,
-				startingStack: input.values.startingStack ?? null,
-				bountyAmount: input.values.bountyAmount ?? null,
-				tableSize: input.values.tableSize ?? null,
-				currencyId: input.values.currencyId ?? null,
-				memo: input.values.memo ?? null,
-				tags: input.values.tags,
-				chipPurchases: input.values.chipPurchases,
-				blindLevels: input.blindLevels,
-			}),
-		onSettled: (_data, _error, variables) => {
-			invalidateBoth();
-			queryClient.invalidateQueries({
-				queryKey: trpc.blindLevel.listByTournament.queryOptions({
-					tournamentId: variables.id,
-				}).queryKey,
-			});
-		},
-	});
-
+	// NOTE: the with-levels create/update path is driven directly from
+	// use-tournament-tab.ts via `trpcClient.tournament.*WithLevels` (it needs
+	// its own local loading state), and that path forwards per-level `games`.
+	// A duplicate wrapper here previously dropped `games` and, being unused,
+	// drifted out of sync — so it lives at the single call site, not here.
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.tournament.delete.mutate({ id }),
 		onMutate: async (id) => {
@@ -449,13 +414,17 @@ export function useTournaments({
 				queryClient,
 				archivedQueryOptions.queryKey
 			);
-			queryClient.setQueryData<Tournament[]>(
+			updateQueryItems<Tournament>(
+				queryClient,
 				activeQueryOptions.queryKey,
-				(old) => old?.filter((tournament) => tournament.id !== id) ?? []
+				(items) => items.filter((tournament) => tournament.id !== id),
+				[]
 			);
-			queryClient.setQueryData<Tournament[]>(
+			updateQueryItems<Tournament>(
+				queryClient,
 				archivedQueryOptions.queryKey,
-				(old) => old?.filter((tournament) => tournament.id !== id) ?? []
+				(items) => items.filter((tournament) => tournament.id !== id),
+				[]
 			);
 			return { previousActive, previousArchived };
 		},
@@ -474,10 +443,10 @@ export function useTournaments({
 		currencies,
 		activeLoading: activeQuery.isLoading,
 		archivedLoading: archivedQuery.isLoading,
+		isInitialLoadError: activeQuery.isError && activeQuery.data === undefined,
+		onRetry: activeQuery.refetch,
 		isCreatePending: createMutation.isPending,
 		isUpdatePending: updateMutation.isPending,
-		isCreateWithLevelsPending: createWithLevelsMutation.isPending,
-		isUpdateWithLevelsPending: updateWithLevelsMutation.isPending,
 		create: (values: TournamentFormValues) =>
 			createMutation.mutateAsync(values),
 		update: (
@@ -487,29 +456,6 @@ export function useTournaments({
 				id: string;
 			}
 		) => updateMutation.mutateAsync(values),
-		createWithLevels: (
-			values: TournamentFormValues,
-			blindLevels: Array<{
-				ante?: number | null;
-				blind1?: number | null;
-				blind2?: number | null;
-				blind3?: number | null;
-				isBreak: boolean;
-				minutes?: number | null;
-			}>
-		) => createWithLevelsMutation.mutateAsync({ values, blindLevels }),
-		updateWithLevels: (
-			id: string,
-			values: TournamentFormValues,
-			blindLevels: Array<{
-				ante?: number | null;
-				blind1?: number | null;
-				blind2?: number | null;
-				blind3?: number | null;
-				isBreak: boolean;
-				minutes?: number | null;
-			}>
-		) => updateWithLevelsMutation.mutateAsync({ id, values, blindLevels }),
 		archive: (id: string) => archiveMutation.mutate(id),
 		restore: (id: string) => restoreMutation.mutate(id),
 		delete: (id: string) => deleteMutation.mutate(id),

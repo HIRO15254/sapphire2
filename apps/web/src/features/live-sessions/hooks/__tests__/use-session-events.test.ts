@@ -30,11 +30,21 @@ vi.mock("@/utils/trpc", () => ({
 					queryKey: buildKey("liveCashGameSession", "getById", input),
 				}),
 			},
+			list: {
+				queryOptions: (input: unknown) => ({
+					queryKey: buildKey("liveCashGameSession", "list", input),
+				}),
+			},
 		},
 		liveTournamentSession: {
 			getById: {
 				queryOptions: (input: unknown) => ({
 					queryKey: buildKey("liveTournamentSession", "getById", input),
+				}),
+			},
+			list: {
+				queryOptions: (input: unknown) => ({
+					queryKey: buildKey("liveTournamentSession", "list", input),
 				}),
 			},
 		},
@@ -189,7 +199,7 @@ describe("useSessionEvents", () => {
 			resolve?.({ id: "e1" });
 		});
 
-		it("applies summary updates when payload shape is a known event (update_stack)", async () => {
+		it("keeps derived summary unchanged while an event edit is pending", async () => {
 			const qc = createClient();
 			qc.setQueryData<SessionEvent[]>(cashEventsKey("s1"), [
 				{
@@ -218,7 +228,7 @@ describe("useSessionEvents", () => {
 			const session = qc.getQueryData<{
 				summary: { currentStack: number };
 			}>(cashSessionKey("s1"));
-			expect(session?.summary.currentStack).toBe(2000);
+			expect(session?.summary.currentStack).toBe(100);
 		});
 
 		it("rolls back events and session on update error", async () => {
@@ -432,4 +442,84 @@ describe("useSessionEvents", () => {
 			});
 		});
 	});
+});
+
+describe("derived live-session list invalidation", () => {
+	it("invalidates cash-game lists after an event edit", async () => {
+		const qc = createClient();
+		qc.setQueryData(cashEventsKey("s1"), [
+			{ id: "e1", eventType: "session_pause", payload: {}, occurredAt: "t0" },
+		]);
+		qc.setQueryData(cashSessionKey("s1"), { status: "active", summary: {} });
+		trpcMocks.update.mockResolvedValue({ id: "e1" });
+		const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+		const { result } = renderHook(
+			() => useSessionEvents({ sessionId: "s1", sessionType: "cash_game" }),
+			{ wrapper: makeWrapper(qc) }
+		);
+		await act(async () => {
+			await result.current.update({ id: "e1", payload: {} });
+		});
+		expect(invalidateSpy).toHaveBeenCalledTimes(3);
+		expect(invalidateSpy).toHaveBeenCalledWith({
+			queryKey: ["liveCashGameSession", "list", {}],
+		});
+	});
+
+	it("invalidates tournament lists after an event deletion", async () => {
+		const qc = createClient();
+		qc.setQueryData(tourEventsKey("t1"), [
+			{ id: "e1", eventType: "session_pause", payload: {}, occurredAt: "t0" },
+		]);
+		qc.setQueryData(tourSessionKey("t1"), { status: "active", summary: {} });
+		trpcMocks.delete.mockResolvedValue({ id: "e1" });
+		const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+		const { result } = renderHook(
+			() => useSessionEvents({ sessionId: "t1", sessionType: "tournament" }),
+			{ wrapper: makeWrapper(qc) }
+		);
+		await act(async () => {
+			await result.current.delete("e1");
+		});
+		expect(invalidateSpy).toHaveBeenCalledTimes(3);
+		expect(invalidateSpy).toHaveBeenCalledWith({
+			queryKey: ["liveTournamentSession", "list", {}],
+		});
+	});
+});
+
+it("does not let polling overwrite an optimistic event edit while the mutation is pending", async () => {
+	vi.useFakeTimers();
+	const qc = createClient();
+	qc.setQueryData(cashEventsKey("s1"), [
+		{ id: "e1", eventType: "memo", payload: { text: "old" }, occurredAt: "t0" },
+	]);
+	qc.setQueryData(cashSessionKey("s1"), { status: "active", summary: {} });
+	let resolve: ((value: unknown) => void) | undefined;
+	trpcMocks.update.mockImplementation(
+		() =>
+			new Promise((r) => {
+				resolve = r;
+			})
+	);
+	const { result } = renderHook(
+		() =>
+			useSessionEvents({
+				sessionId: "s1",
+				sessionType: "cash_game",
+				refetchInterval: 10,
+			}),
+		{ wrapper: makeWrapper(qc) }
+	);
+	act(() => {
+		result.current.update({ id: "e1", payload: { text: "optimistic" } });
+	});
+	await act(async () => {
+		await vi.advanceTimersByTimeAsync(50);
+	});
+	expect(
+		qc.getQueryData<SessionEvent[]>(cashEventsKey("s1"))?.[0]?.payload
+	).toEqual({ text: "optimistic" });
+	resolve?.({ id: "e1" });
+	vi.useRealTimers();
 });

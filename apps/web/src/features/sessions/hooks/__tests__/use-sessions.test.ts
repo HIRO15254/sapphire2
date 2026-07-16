@@ -19,6 +19,7 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 }
 
 const trpcMocks = vi.hoisted(() => ({
+	sessionList: vi.fn(),
 	sessionCreate: vi.fn(),
 	sessionUpdate: vi.fn(),
 	sessionDelete: vi.fn(),
@@ -45,11 +46,7 @@ vi.mock("@/utils/trpc", () => ({
 					}
 				) => ({
 					queryKey: buildKey("session", "list", input),
-					queryFn: () =>
-						Promise.resolve({
-							items: [] as SessionItem[],
-							nextCursor: undefined,
-						}),
+					queryFn: (...args: unknown[]) => trpcMocks.sessionList(...args),
 					initialPageParam: undefined,
 					getNextPageParam: opts.getNextPageParam,
 				}),
@@ -515,6 +512,7 @@ describe("pure helpers", () => {
 					blind1: 100,
 					blind2: 200,
 					blind3: null,
+					games: null,
 					isBreak: false,
 					minutes: 15,
 				},
@@ -599,6 +597,46 @@ describe("pure helpers", () => {
 			const out = buildOptimisticItem(cashValues());
 			expect(out.blindLevels).toEqual([]);
 		});
+
+		it("copies the complete frozen cash rule snapshot for a manual mix", () => {
+			const mixGames = [
+				{
+					ante: 5,
+					anteType: "all" as const,
+					blind1: 10,
+					blind2: 20,
+					blind3: 40,
+					name: "Big Bet",
+					variants: ["NL Hold'em"],
+				},
+			];
+			const out = buildOptimisticItem(
+				cashValues({
+					ruleName: "Friday Rotation",
+					variant: "Double Board Rotation",
+					blind1: 10,
+					blind2: 20,
+					blind3: 40,
+					ante: 5,
+					anteType: "all",
+					minBuyIn: 200,
+					maxBuyIn: 1000,
+					tableSize: 8,
+					mixGames,
+				})
+			);
+			expect(out.ringGameName).toBe("Friday Rotation");
+			expect(out.cashVariant).toBe("Double Board Rotation");
+			expect(out.cashBlind1).toBe(10);
+			expect(out.ringGameBlind2).toBe(20);
+			expect(out.cashBlind3).toBe(40);
+			expect(out.cashAnte).toBe(5);
+			expect(out.cashAnteType).toBe("all");
+			expect(out.cashMinBuyIn).toBe(200);
+			expect(out.cashMaxBuyIn).toBe(1000);
+			expect(out.cashTableSize).toBe(8);
+			expect(out.cashMixGames).toEqual(mixGames);
+		});
 	});
 
 	describe("buildEditDefaults", () => {
@@ -679,6 +717,7 @@ describe("pure helpers", () => {
 							blind1: 100,
 							blind2: 200,
 							blind3: null,
+							games: null,
 							ante: 25,
 							minutes: 20,
 						},
@@ -687,6 +726,7 @@ describe("pure helpers", () => {
 							blind1: null,
 							blind2: null,
 							blind3: null,
+							games: null,
 							ante: null,
 							minutes: 10,
 						},
@@ -699,6 +739,7 @@ describe("pure helpers", () => {
 					blind1: 100,
 					blind2: 200,
 					blind3: null,
+					games: null,
 					ante: 25,
 					minutes: 20,
 				},
@@ -707,6 +748,7 @@ describe("pure helpers", () => {
 					blind1: null,
 					blind2: null,
 					blind3: null,
+					games: null,
 					ante: null,
 					minutes: 10,
 				},
@@ -761,6 +803,10 @@ describe("useSessions", () => {
 		for (const m of Object.values(trpcMocks)) {
 			m.mockReset();
 		}
+		trpcMocks.sessionList.mockResolvedValue({
+			items: [] as SessionItem[],
+			nextCursor: undefined,
+		});
 		routerMocks.navigate.mockReset();
 	});
 
@@ -793,6 +839,44 @@ describe("useSessions", () => {
 			});
 			expect(result.current.sessions).toEqual([]);
 			expect(result.current.availableTags).toEqual([]);
+		});
+
+		it("exposes a retryable initial-load error when the first sessions page fails", async () => {
+			const qc = createClient();
+			trpcMocks.sessionList.mockRejectedValue(new Error("Network unavailable"));
+			const { result } = renderHook(() => useSessions({}), {
+				wrapper: makeWrapper(qc),
+			});
+
+			await waitFor(() => expect(result.current.isInitialLoadError).toBe(true));
+			expect(result.current.sessions).toEqual([]);
+			expect(result.current.onRetry).toBeTypeOf("function");
+		});
+
+		it("clears the initial-load error by retrying the sessions query once", async () => {
+			const qc = createClient();
+			trpcMocks.sessionList
+				.mockRejectedValueOnce(new Error("Network unavailable"))
+				.mockResolvedValueOnce({
+					items: [baseSessionItem({ id: "retried" })],
+					nextCursor: undefined,
+				});
+			const { result } = renderHook(() => useSessions({}), {
+				wrapper: makeWrapper(qc),
+			});
+
+			await waitFor(() => expect(result.current.isInitialLoadError).toBe(true));
+			await act(async () => {
+				await result.current.onRetry();
+			});
+
+			expect(trpcMocks.sessionList).toHaveBeenCalledTimes(2);
+			await waitFor(() =>
+				expect(result.current.isInitialLoadError).toBe(false)
+			);
+			expect(result.current.sessions.map((session) => session.id)).toEqual([
+				"retried",
+			]);
 		});
 	});
 
@@ -878,7 +962,33 @@ describe("useSessions", () => {
 			await act(async () => {
 				await result.current.create(cashValues());
 			});
-			expect(trpcMocks.sessionCreate).toHaveBeenCalled();
+			expect(trpcMocks.sessionCreate).toHaveBeenCalledTimes(1);
+			expect(trpcMocks.sessionCreate).toHaveBeenCalledWith({
+				ante: undefined,
+				anteType: undefined,
+				blind1: undefined,
+				blind2: undefined,
+				blind3: undefined,
+				breakMinutes: undefined,
+				buyIn: 10_000,
+				cashOut: 15_000,
+				currencyId: undefined,
+				endedAt: undefined,
+				evCashOut: undefined,
+				maxBuyIn: undefined,
+				memo: undefined,
+				minBuyIn: undefined,
+				mixGames: undefined,
+				ringGameId: undefined,
+				roomId: undefined,
+				ruleName: undefined,
+				sessionDate: 1_775_001_600,
+				startedAt: undefined,
+				tableSize: undefined,
+				tagIds: undefined,
+				type: "cash_game",
+				variant: "NLH",
+			});
 		});
 	});
 

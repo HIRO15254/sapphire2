@@ -1,5 +1,7 @@
 import { relations } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { DEFAULT_VARIANT_LABEL } from "../constants/game-variants";
+import type { MixGameGroup } from "../schemas/game";
 import { ringGame } from "./ring-game";
 import { gameSession } from "./session";
 
@@ -18,7 +20,8 @@ export const sessionCashDetail = sqliteTable(
 		// Snapshot fields — copied from ring_game at session create time and
 		// frozen thereafter. Parent rename / blind change does not propagate.
 		ruleName: text("rule_name").notNull().default("Untitled"),
-		variant: text("variant").notNull().default("nlh"),
+		variant: text("variant").notNull().default(DEFAULT_VARIANT_LABEL),
+		mixGames: text("mix_games", { mode: "json" }).$type<MixGameGroup[]>(),
 		blind1: integer("blind1"),
 		blind2: integer("blind2"),
 		blind3: integer("blind3"),

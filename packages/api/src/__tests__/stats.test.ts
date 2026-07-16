@@ -5,6 +5,7 @@ import {
 	assertCurrencyScope,
 	breakdownKeyLabel,
 	breakdownStats,
+	fetchStatsRows,
 	normalizedSessionValue,
 	type StatsSessionRow,
 	sessionDisplayValue,
@@ -12,6 +13,7 @@ import {
 	summarizeStats,
 } from "../routers/stats";
 import {
+	createChainableMockDb,
 	expectAccepts,
 	expectProtected,
 	expectRejects,
@@ -46,6 +48,7 @@ function cashRow(overrides: Partial<StatsSessionRow> = {}): StatsSessionRow {
 		roomName: "Aria",
 		blind1: 1,
 		blind2: 2,
+		variant: "nlh",
 		...overrides,
 	};
 }
@@ -71,6 +74,7 @@ function tournamentRow(
 		roomName: "Bellagio",
 		blind1: null,
 		blind2: null,
+		variant: "nlh",
 		...overrides,
 	};
 }
@@ -144,6 +148,13 @@ describe("stats shared filter input validation", () => {
 				expectAccepts(proc, FULL_FILTER);
 			});
 
+			it.each([
+				"currencyId",
+				"roomId",
+			] as const)("rejects an empty %s", (field) => {
+				expectRejects(proc, { normalized: true, [field]: "" });
+			});
+
 			it("rejects an unknown type value", () => {
 				expectRejects(proc, { type: "spin_and_go" });
 			});
@@ -177,9 +188,14 @@ describe("stats.breakdown input validation", () => {
 			"length",
 			"month",
 			"year",
+			"variant",
 		]) {
 			expectAccepts(appRouter.stats.breakdown, { groupBy });
 		}
+	});
+
+	it("rejects a groupBy value that looks close to a valid one", () => {
+		expectRejects(appRouter.stats.breakdown, { groupBy: "variants" });
 	});
 
 	it("accepts groupBy together with the full filter set", () => {
@@ -191,6 +207,14 @@ describe("stats.breakdown input validation", () => {
 			dateTo: 2,
 			normalized: true,
 			groupBy: "room",
+		});
+	});
+
+	it.each(["currencyId", "roomId"] as const)("rejects an empty %s", (field) => {
+		expectRejects(appRouter.stats.breakdown, {
+			groupBy: "type",
+			normalized: true,
+			[field]: "",
 		});
 	});
 
@@ -425,6 +449,26 @@ describe("breakdownKeyLabel", () => {
 			breakdownKeyLabel(cashRow({ sessionDate: EPOCH_NOV_2023 }), "year")
 		).toEqual({ key: "2023", label: "2023" });
 	});
+
+	it("groups a cash row by its raw variant string", () => {
+		expect(breakdownKeyLabel(cashRow({ variant: "plo" }), "variant")).toEqual({
+			key: "plo",
+			label: "plo",
+		});
+	});
+
+	it("groups a mix tournament into a single bucket rather than decomposing sub-games", () => {
+		expect(
+			breakdownKeyLabel(tournamentRow({ variant: "mix" }), "variant")
+		).toEqual({ key: "mix", label: "mix" });
+	});
+
+	it("falls back to 'unknown' when variant is null", () => {
+		expect(breakdownKeyLabel(cashRow({ variant: null }), "variant")).toEqual({
+			key: "unknown",
+			label: "unknown",
+		});
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -560,6 +604,8 @@ describe("summarizeStats", () => {
 	it("returns a zeroed/null summary for no rows", () => {
 		const summary = summarizeStats([]);
 		expect(summary.totalSessions).toBe(0);
+		expect(summary.cashBbCount).toBe(0);
+		expect(summary.tournamentBiCount).toBe(0);
 		expect(summary.totalProfitLoss).toBe(0);
 		expect(summary.winRate).toBe(0);
 		expect(summary.totalPlayMinutes).toBe(0);
@@ -598,6 +644,8 @@ describe("summarizeStats", () => {
 		const summary = summarizeStats(rows);
 		expect(summary.cashNormalizedProfitLoss).toBe(60);
 		expect(summary.tournamentNormalizedProfitLoss).toBe(3);
+		expect(summary.cashBbCount).toBe(2);
+		expect(summary.tournamentBiCount).toBe(1);
 	});
 
 	it("returns null normalized figures when no row of that type is normalizable", () => {
@@ -606,6 +654,8 @@ describe("summarizeStats", () => {
 		]);
 		expect(summary.cashNormalizedProfitLoss).toBeNull();
 		expect(summary.tournamentNormalizedProfitLoss).toBeNull();
+		expect(summary.cashBbCount).toBe(0);
+		expect(summary.tournamentBiCount).toBe(0);
 	});
 
 	it("computes cash hourlyRate from cash play time", () => {
@@ -783,5 +833,166 @@ describe("summarizeStats", () => {
 		expect(summary.hourlyRate).toBe(100);
 		// Tournament-only roi: (500-100)/100*100 = 400.
 		expect(summary.roi).toBe(400);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// fetchStatsRows — variant mapping
+// ---------------------------------------------------------------------------
+
+describe("fetchStatsRows variant mapping", () => {
+	function rawRow(overrides: Record<string, unknown> = {}) {
+		return {
+			id: "s1",
+			type: "cash_game",
+			sessionDate: new Date("2023-11-14T00:00:00Z"),
+			startedAt: null,
+			endedAt: null,
+			breakMinutes: null,
+			buyIn: null,
+			cashOut: null,
+			evCashOut: null,
+			blind1: null,
+			blind2: null,
+			cashVariant: null,
+			tournamentVariant: null,
+			tournamentBuyIn: null,
+			entryFee: null,
+			placement: null,
+			totalEntries: null,
+			prizeMoney: null,
+			bountyPrizes: null,
+			roomId: "room-1",
+			roomName: "Aria",
+			...overrides,
+		};
+	}
+
+	it("takes the cash detail variant for a cash_game row", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [
+					rawRow({
+						id: "cash-1",
+						type: "cash_game",
+						buyIn: 100,
+						cashOut: 150,
+						blind1: 1,
+						blind2: 2,
+						cashVariant: "plo",
+						tournamentVariant: "mix",
+					}),
+				],
+			},
+		});
+
+		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
+		expect(rows).toHaveLength(1);
+		expect(rows[0]?.variant).toBe("plo");
+	});
+
+	it("takes the tournament detail variant for a tournament row", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [
+					rawRow({
+						id: "tourney-1",
+						type: "tournament",
+						tournamentBuyIn: 100,
+						entryFee: 0,
+						placement: 1,
+						totalEntries: 10,
+						prizeMoney: 200,
+						bountyPrizes: 0,
+						cashVariant: "plo",
+						tournamentVariant: "mix",
+					}),
+				],
+			},
+		});
+
+		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
+		expect(rows).toHaveLength(1);
+		expect(rows[0]?.variant).toBe("mix");
+	});
+
+	it("passes through a null variant when the detail row has none", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [
+					rawRow({
+						id: "cash-2",
+						type: "cash_game",
+						cashVariant: null,
+						tournamentVariant: null,
+					}),
+				],
+			},
+		});
+
+		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
+		expect(rows[0]?.variant).toBeNull();
+	});
+});
+
+describe("stats ownership scoping", () => {
+	function makeStatsCaller(select: Record<string, Record<string, unknown>[]>) {
+		const mock = createChainableMockDb({ select });
+		const caller = appRouter.createCaller({
+			session: { user: { id: "user-1" } },
+			db: mock.db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]).stats;
+		return { caller, ...mock };
+	}
+
+	it.each([
+		["missing", []],
+		["foreign", [{ id: "currency-1", userId: "user-2" }]],
+	])("returns FORBIDDEN for a %s currency filter in every procedure", async (_case, currencies) => {
+		const { caller } = makeStatsCaller({ currency: currencies });
+		const calls = [
+			caller.summary({ currencyId: "currency-1" }),
+			caller.breakdown({ currencyId: "currency-1", groupBy: "room" }),
+			caller.profitLossSeries({ currencyId: "currency-1" }),
+		];
+
+		for (const call of calls) {
+			await expect(call).rejects.toMatchObject({ code: "FORBIDDEN" });
+		}
+	});
+
+	it.each([
+		["missing", []],
+		["foreign", [{ id: "room-1", userId: "user-2" }]],
+	])("returns FORBIDDEN for a %s room filter", async (_case, rooms) => {
+		const { caller } = makeStatsCaller({ room: rooms });
+
+		await expect(
+			caller.summary({ normalized: true, roomId: "room-1" })
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+	});
+
+	it("accepts room and currency filters owned by the caller", async () => {
+		const { caller } = makeStatsCaller({
+			currency: [{ id: "currency-1", userId: "user-1" }],
+			room: [{ id: "room-1", userId: "user-1" }],
+			game_session: [],
+		});
+
+		await expect(
+			caller.summary({ currencyId: "currency-1", roomId: "room-1" })
+		).resolves.toMatchObject({ totalSessions: 0 });
+	});
+
+	it("owner-scopes the room join that surfaces its name", async () => {
+		const { db, selectJoinParams } = createChainableMockDb({
+			select: { game_session: [] },
+		});
+
+		await fetchStatsRows(db, "user-1", { normalized: true });
+
+		expect(
+			selectJoinParams.filter((params) => params.includes("user-1"))
+		).toHaveLength(1);
 	});
 });

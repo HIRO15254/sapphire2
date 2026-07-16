@@ -4,6 +4,7 @@ import {
 	IconCategory,
 	IconChartBar,
 	IconCoins,
+	IconPokerChip,
 	IconSettings,
 	IconUsers,
 } from "@tabler/icons-react";
@@ -31,6 +32,7 @@ export const RESOURCE_ITEMS: readonly NavigationItem[] = [
 	{ to: "/rooms", label: "Rooms", icon: IconBuildingStore },
 	{ to: "/players", label: "Players", icon: IconUsers },
 	{ to: "/currencies", label: "Currencies", icon: IconCoins },
+	{ to: "/games", label: "Games", icon: IconPokerChip },
 ] as const;
 
 export const SIDEBAR_ITEMS: readonly NavigationItem[] = [
@@ -39,6 +41,7 @@ export const SIDEBAR_ITEMS: readonly NavigationItem[] = [
 	{ to: "/rooms", label: "Rooms", icon: IconBuildingStore },
 	{ to: "/players", label: "Players", icon: IconUsers },
 	{ to: "/currencies", label: "Currencies", icon: IconCoins },
+	{ to: "/games", label: "Games", icon: IconPokerChip },
 	{ to: "/settings", label: "Settings", icon: IconSettings },
 ] as const;
 
@@ -51,7 +54,7 @@ const RESOURCES_NAV_ITEM: NavigationItem = {
 	to: "/resources",
 	label: "Resources",
 	icon: IconCategory,
-	matchPaths: ["/rooms", "/players", "/currencies"],
+	matchPaths: ["/rooms", "/players", "/currencies", "/games"],
 };
 
 const NORMAL_RIGHT_ITEMS: readonly NavigationItem[] = [
@@ -105,6 +108,7 @@ export function MobileNavItem({
 	return (
 		<li className="flex-1">
 			<Link
+				aria-current={active ? "page" : undefined}
 				className={cn(
 					"flex flex-col items-center gap-0.5 py-1.5 text-xs transition-colors",
 					active
@@ -130,6 +134,7 @@ export function SidebarNavItem({
 	return (
 		<li key={item.to}>
 			<Link
+				aria-current={active ? "page" : undefined}
 				className={cn(
 					"flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
 					active

@@ -23,6 +23,10 @@ export type OptimisticSnapshot<TData = unknown> =
 	| QueriesSnapshot<TData>
 	| QuerySnapshot<TData>;
 
+export function createOptimisticId(prefix: string): string {
+	return `${prefix}-${crypto.randomUUID()}`;
+}
+
 function getFilters(target: OptimisticTarget): Pick<QueryFilters, "queryKey"> {
 	return "queryKey" in target ? { queryKey: target.queryKey } : target.filters;
 }
@@ -119,20 +123,45 @@ export function updateQueryEntity<TEntity extends object>(
 }
 
 /**
+ * Optimistically replace a query cache entry whose shape is neither a plain
+ * array nor a shallow-patchable entity. The updater receives `undefined` for
+ * an unfetched entry, which lets the caller intentionally construct cache data.
+ */
+export function updateQueryData<TData>(
+	queryClient: QueryClient,
+	queryKey: QueryKey,
+	updateData: (old: TData | undefined) => TData | undefined
+): void {
+	queryClient.setQueryData<TData>(queryKey, updateData);
+}
+
+/**
+ * Optimistically replace every matching cache entry. Use this for fan-out
+ * updates across query keys after snapshotting with `snapshotQueries`.
+ */
+export function updateQueriesData<TData>(
+	queryClient: QueryClient,
+	filters: Pick<QueryFilters, "queryKey">,
+	updateData: (old: TData | undefined) => TData | undefined
+): void {
+	queryClient.setQueriesData<TData>(filters, updateData);
+}
+/**
  * Optimistically rewrite a plain-array query cache entry (`TItem[]`, not an
  * infinite query) by mapping the whole array through `updateItems`. Use `.map`
- * for edit and `.filter` for delete. No-ops when the cache is empty / unfetched
- * so it never fabricates a list out of nothing. The single-query analog of
- * `updateInfiniteQueryItems`; pair with `snapshotQuery` + `restoreSnapshots`
- * for rollback.
+ * for edit and `.filter` for delete. No-ops when the cache is empty / unfetched,
+ * unless `fallbackItems` deliberately supplies the optimistic list to create.
+ * The single-query analog of `updateInfiniteQueryItems`; pair with
+ * `snapshotQuery` + `restoreSnapshots` for rollback.
  */
 export function updateQueryItems<TItem>(
 	queryClient: QueryClient,
 	queryKey: QueryKey,
-	updateItems: (items: TItem[]) => TItem[]
+	updateItems: (items: TItem[]) => TItem[],
+	fallbackItems?: TItem[]
 ): void {
 	queryClient.setQueryData<TItem[]>(queryKey, (old) =>
-		old ? updateItems(old) : old
+		old ? updateItems(old) : fallbackItems
 	);
 }
 
@@ -156,6 +185,9 @@ export function prependInfiniteQueryItem<TItem>(
 			return old;
 		}
 		const [first, ...rest] = old.pages;
+		if (!first) {
+			return old;
+		}
 		return {
 			...old,
 			pages: [{ ...first, items: [item, ...first.items] }, ...rest],

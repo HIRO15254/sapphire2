@@ -3,7 +3,7 @@ declare module "virtual:update-notes" {
 		version: string;
 		releasedAt: string;
 		title: string;
-		changes: string[];
+		changes: import("./features/update-notes/utils/parse-release-body").UpdateNoteSection[];
 	}>;
 	export const LATEST_VERSION: string | null;
 }

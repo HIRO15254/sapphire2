@@ -97,6 +97,7 @@ export function LinkedAccounts() {
 	const {
 		fetchAccounts,
 		handleLink,
+		error,
 		handleUnlink,
 		hasCredential,
 		isSetPasswordOpen,
@@ -112,6 +113,13 @@ export function LinkedAccounts() {
 		);
 	}
 
+	if (error) {
+		return (
+			<div className="text-destructive text-sm" role="alert">
+				{error}
+			</div>
+		);
+	}
 	return (
 		<div className="space-y-3">
 			<ManagementList>

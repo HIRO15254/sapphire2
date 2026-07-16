@@ -40,6 +40,9 @@ function levelsToPayload(levels: BlindLevelRow[]) {
 		blind3: l.blind3,
 		ante: l.ante,
 		minutes: l.minutes,
+		// updateWithLevels re-creates every level (DELETE + INSERT); omitting
+		// games here silently wiped stored per-level game sets on room-page edits.
+		games: l.games ?? null,
 	}));
 }
 
@@ -65,6 +68,8 @@ export function useTournamentTab({ roomId }: UseTournamentTabOptions) {
 		currencies,
 		activeLoading,
 		archivedLoading,
+		isInitialLoadError,
+		onRetry,
 		archive,
 		restore,
 		delete: deleteTournament,
@@ -76,6 +81,9 @@ export function useTournamentTab({ roomId }: UseTournamentTabOptions) {
 		}),
 		enabled: editingTournament !== null,
 	});
+
+	const editBlindLevelsInitialLoadError =
+		editBlindLevelsQuery.isError && editBlindLevelsQuery.data === undefined;
 
 	const invalidateTournamentLists = () =>
 		invalidateTargets(queryClient, [
@@ -125,7 +133,7 @@ export function useTournamentTab({ roomId }: UseTournamentTabOptions) {
 		values: TournamentFormValues,
 		levels: BlindLevelRow[]
 	) => {
-		if (!editingTournament) {
+		if (!editingTournament || editBlindLevelsInitialLoadError) {
 			return;
 		}
 		setIsUpdateLoading(true);
@@ -216,12 +224,16 @@ export function useTournamentTab({ roomId }: UseTournamentTabOptions) {
 		currencies,
 		activeLoading,
 		archivedLoading,
+		isInitialLoadError,
+		onRetry,
 		showArchived,
 		toggleArchived,
 		isCreateOpen,
 		setIsCreateOpen,
 		editingTournament,
 		setEditingTournament,
+		editBlindLevelsError: editBlindLevelsInitialLoadError,
+		retryEditBlindLevels: editBlindLevelsQuery.refetch,
 		actionsTarget,
 		pendingDelete,
 		isCreateLoading,

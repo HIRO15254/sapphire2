@@ -5,6 +5,7 @@ import {
 	integer,
 	sqliteTable,
 	text,
+	uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 import { user } from "./auth";
 import { currency, currencyTransaction } from "./currency";
@@ -40,6 +41,9 @@ export const gameSession = sqliteTable(
 			.notNull(),
 	},
 	(t) => [
+		uniqueIndex("session_one_unfinished_live_per_user_idx")
+			.on(t.userId)
+			.where(sql`${t.source} = 'live' AND ${t.status} != 'completed'`),
 		index("session_user_kind_status_idx").on(t.userId, t.kind, t.status),
 		index("session_user_date_idx").on(t.userId, t.sessionDate),
 		index("session_room_idx").on(t.roomId),

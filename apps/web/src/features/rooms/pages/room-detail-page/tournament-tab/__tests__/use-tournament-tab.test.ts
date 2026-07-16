@@ -10,6 +10,7 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 }
 
 const hoisted = vi.hoisted(() => ({
+	blindLevelError: false,
 	useTournaments: vi.fn(),
 	archive: vi.fn(),
 	restore: vi.fn(),
@@ -36,7 +37,10 @@ vi.mock("@/utils/trpc", () => ({
 			listByTournament: {
 				queryOptions: (input: unknown) => ({
 					queryKey: buildKey("blindLevel", "listByTournament", input),
-					queryFn: () => Promise.resolve([]),
+					queryFn: () =>
+						hoisted.blindLevelError
+							? Promise.reject(new Error("blind levels unavailable"))
+							: Promise.resolve([]),
 				}),
 			},
 		},
@@ -49,6 +53,7 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
+import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import type { Tournament } from "@/features/rooms/hooks/use-tournaments";
 import { useTournamentTab } from "@/features/rooms/pages/room-detail-page/tournament-tab/use-tournament-tab";
 
@@ -112,6 +117,7 @@ describe("useTournamentTab", () => {
 			m.mockReset();
 		}
 		hoisted.useTournaments.mockReturnValue(baseUseTournamentsStub());
+		hoisted.blindLevelError = false;
 	});
 
 	it("starts closed with no editing tournament", () => {
@@ -194,6 +200,51 @@ describe("useTournamentTab", () => {
 		expect(hoisted.updateWithLevels).not.toHaveBeenCalled();
 	});
 
+	it("does not update when blind-level loading fails", async () => {
+		hoisted.blindLevelError = true;
+		const qc = createClient();
+		const { result } = renderHook(() => useTournamentTab({ roomId: "s1" }), {
+			wrapper: wrapper(qc),
+		});
+		act(() => {
+			result.current.setEditingTournament(TOURNAMENT);
+		});
+		await waitFor(() =>
+			expect(result.current.editBlindLevelsLoading).toBe(false)
+		);
+
+		await act(async () => {
+			await result.current.handleUpdate(
+				{ name: "Should not save", variant: "nlh", chipPurchases: [] },
+				[]
+			);
+		});
+
+		expect(hoisted.updateWithLevels).toHaveBeenCalledTimes(0);
+		expect(result.current.editingTournament).toBe(TOURNAMENT);
+	});
+
+	it("exposes initial blind-level load errors and retries them", async () => {
+		hoisted.blindLevelError = true;
+		const qc = createClient();
+		const { result } = renderHook(() => useTournamentTab({ roomId: "s1" }), {
+			wrapper: wrapper(qc),
+		});
+		act(() => {
+			result.current.setEditingTournament(TOURNAMENT);
+		});
+		await waitFor(() => expect(result.current.editBlindLevelsError).toBe(true));
+		expect(result.current.retryEditBlindLevels).toEqual(expect.any(Function));
+
+		hoisted.blindLevelError = false;
+		await act(async () => {
+			await result.current.retryEditBlindLevels();
+		});
+		await waitFor(() =>
+			expect(result.current.editBlindLevelsError).toBe(false)
+		);
+	});
+
 	it("handleUpdate calls updateWithLevels and clears editingTournament on success", async () => {
 		hoisted.updateWithLevels.mockResolvedValue(undefined);
 		const qc = createClient();
@@ -213,6 +264,93 @@ describe("useTournamentTab", () => {
 			expect.objectContaining({ id: "t1", name: "New" })
 		);
 		expect(result.current.editingTournament).toBeNull();
+	});
+
+	describe("blind-level payload (levelsToPayload)", () => {
+		const GAME_SET_LEVEL: BlindLevelRow = {
+			id: "lv1",
+			tournamentId: "t1",
+			level: 1,
+			isBreak: false,
+			blind1: null,
+			blind2: null,
+			blind3: null,
+			ante: null,
+			minutes: 20,
+			games: [
+				{
+					name: "Stud",
+					variants: ["Razz"],
+					blind1: 400,
+					blind2: 800,
+					blind3: null,
+					ante: null,
+				},
+			],
+		};
+		const FLAT_LEVEL: BlindLevelRow = {
+			id: "lv2",
+			tournamentId: "t1",
+			level: 2,
+			isBreak: false,
+			blind1: 100,
+			blind2: 200,
+			blind3: null,
+			ante: 25,
+			minutes: 20,
+			games: null,
+		};
+
+		it("handleCreate forwards per-level games for game-set levels and null for flat levels", async () => {
+			hoisted.createWithLevels.mockResolvedValue(undefined);
+			const qc = createClient();
+			const { result } = renderHook(() => useTournamentTab({ roomId: "s1" }), {
+				wrapper: wrapper(qc),
+			});
+			await act(async () => {
+				await result.current.handleCreate(
+					{ name: "Mix", variant: "8-Game", chipPurchases: [] },
+					[GAME_SET_LEVEL, FLAT_LEVEL]
+				);
+			});
+			expect(hoisted.createWithLevels).toHaveBeenCalledTimes(1);
+			expect(hoisted.createWithLevels).toHaveBeenNthCalledWith(
+				1,
+				expect.objectContaining({
+					blindLevels: [
+						expect.objectContaining({ games: GAME_SET_LEVEL.games }),
+						expect.objectContaining({ games: null }),
+					],
+				})
+			);
+		});
+
+		it("handleUpdate forwards per-level games so updateWithLevels does not wipe stored game sets", async () => {
+			hoisted.updateWithLevels.mockResolvedValue(undefined);
+			const qc = createClient();
+			const { result } = renderHook(() => useTournamentTab({ roomId: "s1" }), {
+				wrapper: wrapper(qc),
+			});
+			act(() => {
+				result.current.setEditingTournament(TOURNAMENT);
+			});
+			await act(async () => {
+				await result.current.handleUpdate(
+					{ name: "Mix", variant: "8-Game", chipPurchases: [] },
+					[GAME_SET_LEVEL, FLAT_LEVEL]
+				);
+			});
+			expect(hoisted.updateWithLevels).toHaveBeenCalledTimes(1);
+			expect(hoisted.updateWithLevels).toHaveBeenNthCalledWith(
+				1,
+				expect.objectContaining({
+					blindLevels: [
+						expect.objectContaining({ games: GAME_SET_LEVEL.games }),
+						expect.objectContaining({ games: null }),
+					],
+				})
+			);
+		});
 	});
 
 	it("toggleArchived flips showArchived back and forth", () => {

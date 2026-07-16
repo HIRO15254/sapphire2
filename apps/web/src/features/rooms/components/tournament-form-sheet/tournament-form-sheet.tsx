@@ -6,6 +6,7 @@ import {
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import type { TournamentFormValues } from "@/features/rooms/hooks/use-tournaments";
 import { FormSheet } from "@/shared/components/form-sheet";
+import { QueryError } from "@/shared/components/query-error";
 import {
 	Drawer,
 	DrawerContent,
@@ -19,6 +20,7 @@ import {
 
 interface TournamentFormSheetProps {
 	aiMode?: TournamentFormSheetMode;
+	editBlindLevelsError?: boolean;
 	/** Form id shared with the FormSheet Save button. Must be unique per sheet. */
 	formId: string;
 	initialBlindLevels: BlindLevelRow[];
@@ -26,6 +28,7 @@ interface TournamentFormSheetProps {
 	isInitializing?: boolean;
 	isLoading: boolean;
 	onOpenChange: (open: boolean) => void;
+	onRetryBlindLevels?: () => void;
 	onSave: (
 		values: TournamentFormValues,
 		levels: BlindLevelRow[]
@@ -49,6 +52,8 @@ export function TournamentFormSheet({
 	initialFormValues,
 	isInitializing = false,
 	isLoading,
+	editBlindLevelsError = false,
+	onRetryBlindLevels = () => undefined,
 	onOpenChange,
 	onSave,
 	open,
@@ -70,6 +75,35 @@ export function TournamentFormSheet({
 		open,
 		resetKey,
 	});
+
+	const formContent = (() => {
+		if (editBlindLevelsError) {
+			return (
+				<QueryError
+					message="Unable to load blind levels"
+					onRetry={onRetryBlindLevels}
+				/>
+			);
+		}
+		if (isInitializing && aiKey === 0) {
+			return (
+				<p className="py-8 text-center text-muted-foreground text-sm">
+					Loading...
+				</p>
+			);
+		}
+		return (
+			<TournamentModalContent
+				formId={formId}
+				initialBlindLevels={effectiveLevels}
+				initialFormValues={effectiveFormValues}
+				key={contentKey}
+				onOpenAi={aiMode ? () => setAiSheetOpen(true) : undefined}
+				onRegisterLiveValues={aiMode ? registerLiveValues : undefined}
+				onSave={onSave}
+			/>
+		);
+	})();
 
 	return (
 		<>
@@ -96,25 +130,12 @@ export function TournamentFormSheet({
 			<FormSheet
 				formId={formId}
 				isLoading={isLoading}
+				isSaveDisabled={editBlindLevelsError}
 				onOpenChange={onOpenChange}
 				open={open}
 				title={title}
 			>
-				{isInitializing && aiKey === 0 ? (
-					<p className="py-8 text-center text-muted-foreground text-sm">
-						Loading...
-					</p>
-				) : (
-					<TournamentModalContent
-						formId={formId}
-						initialBlindLevels={effectiveLevels}
-						initialFormValues={effectiveFormValues}
-						key={contentKey}
-						onOpenAi={aiMode ? () => setAiSheetOpen(true) : undefined}
-						onRegisterLiveValues={aiMode ? registerLiveValues : undefined}
-						onSave={onSave}
-					/>
-				)}
+				{formContent}
 			</FormSheet>
 		</>
 	);
