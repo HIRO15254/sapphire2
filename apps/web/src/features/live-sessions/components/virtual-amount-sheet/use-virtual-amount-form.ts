@@ -75,7 +75,9 @@ export function useVirtualAmountForm({
 				if (!item) {
 					return;
 				}
-				onSubmit(buildItemVirtualPayload(item, Math.round(Number(value.count))));
+				onSubmit(
+					buildItemVirtualPayload(item, Math.round(Number(value.count)))
+				);
 				return;
 			}
 			onSubmit(buildPureVirtualPayload(Math.round(Number(value.amount))));

@@ -260,7 +260,7 @@ describe("currencyTransaction router", () => {
 });
 
 describe("currency.delete guard — items valued in the currency", () => {
-	async function callDelete(rowsByTable: Map<unknown, Rows>) {
+	function callDelete(rowsByTable: Map<unknown, Rows>) {
 		const { db, deleted } = createGuardMockDb(rowsByTable);
 		const caller = appRouter.createCaller({
 			session: { user: { id: "user-1" } },
@@ -270,7 +270,7 @@ describe("currency.delete guard — items valued in the currency", () => {
 	}
 
 	it("rejects with CONFLICT while an item is valued in the currency", async () => {
-		const { promise, deleted } = await callDelete(
+		const { promise, deleted } = callDelete(
 			new Map<unknown, Rows>([
 				[currencyTable, [{ id: "c1", userId: "user-1" }]],
 				[currencyTransactionTable, []],
@@ -282,7 +282,7 @@ describe("currency.delete guard — items valued in the currency", () => {
 	});
 
 	it("deletes when no transactions and no items reference the currency", async () => {
-		const { promise, deleted } = await callDelete(
+		const { promise, deleted } = callDelete(
 			new Map<unknown, Rows>([
 				[currencyTable, [{ id: "c1", userId: "user-1" }]],
 				[currencyTransactionTable, []],

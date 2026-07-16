@@ -17,14 +17,15 @@ export function VirtualAmountEditor({
 	minTime,
 	onSubmit,
 }: Props) {
-	const { form, isItemBased, itemName, timeValidator } =
-		useVirtualAmountEditor({
+	const { form, isItemBased, itemName, timeValidator } = useVirtualAmountEditor(
+		{
 			event,
 			isLoading,
 			maxTime,
 			minTime,
 			onSubmit,
-		});
+		}
+	);
 
 	return (
 		<form

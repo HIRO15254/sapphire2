@@ -7,10 +7,10 @@ import { SessionEditForm } from "@/features/sessions/pages/session-detail-page/s
 import {
 	buildCashRuleRows,
 	buildCashStatRows,
-	buildVirtualStatRows,
 	buildSessionMetaRows,
 	buildTournamentRuleRows,
 	buildTournamentStatRows,
+	buildVirtualStatRows,
 	getSessionGameName,
 	isLiveSession,
 } from "@/features/sessions/utils/session-display";
@@ -38,6 +38,32 @@ function PageShell({ children }: { children: ReactNode }) {
 			<div className="p-4">{children}</div>
 		</div>
 	);
+}
+
+/** "Virtual" section rows: the type-specific pure-virtual detail columns
+ * plus item usages, folded with the real P/L. */
+function virtualRowsFor(session: {
+	cashVirtualBuyIn?: number | null;
+	cashVirtualCashOut?: number | null;
+	itemUsages?: Parameters<typeof buildVirtualStatRows>[0]["itemUsages"];
+	profitLoss: number | null;
+	tournamentVirtualBuyIn?: number | null;
+	tournamentVirtualCashOut?: number | null;
+	type: string;
+}) {
+	const isTournament = session.type === "tournament";
+	return buildVirtualStatRows({
+		virtualBuyIn:
+			(isTournament
+				? session.tournamentVirtualBuyIn
+				: session.cashVirtualBuyIn) ?? null,
+		virtualCashOut:
+			(isTournament
+				? session.tournamentVirtualCashOut
+				: session.cashVirtualCashOut) ?? null,
+		itemUsages: session.itemUsages ?? [],
+		profitLoss: session.profitLoss,
+	});
 }
 
 export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
@@ -107,18 +133,7 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 	const resultRows = isTournament
 		? buildTournamentStatRows(session)
 		: buildCashStatRows(session);
-	const virtualRows = buildVirtualStatRows({
-		virtualBuyIn:
-			(isTournament
-				? session.tournamentVirtualBuyIn
-				: session.cashVirtualBuyIn) ?? null,
-		virtualCashOut:
-			(isTournament
-				? session.tournamentVirtualCashOut
-				: session.cashVirtualCashOut) ?? null,
-		itemUsages: session.itemUsages ?? [],
-		profitLoss: session.profitLoss,
-	});
+	const virtualRows = virtualRowsFor(session);
 	const metaRows = buildSessionMetaRows(session);
 
 	return (

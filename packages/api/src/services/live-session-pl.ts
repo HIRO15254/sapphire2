@@ -372,7 +372,9 @@ export async function syncSessionItemData(
 	sessionDate: Date
 ): Promise<void> {
 	const statements: BatchStatement[] = [
-		db.delete(sessionItemUsage).where(eq(sessionItemUsage.sessionId, sessionId)),
+		db
+			.delete(sessionItemUsage)
+			.where(eq(sessionItemUsage.sessionId, sessionId)),
 		db.delete(itemTransaction).where(eq(itemTransaction.sessionId, sessionId)),
 	];
 
@@ -420,7 +422,9 @@ export async function deleteSessionItemData(
 	sessionId: string
 ): Promise<void> {
 	await runBatch(db, [
-		db.delete(sessionItemUsage).where(eq(sessionItemUsage.sessionId, sessionId)),
+		db
+			.delete(sessionItemUsage)
+			.where(eq(sessionItemUsage.sessionId, sessionId)),
 		db.delete(itemTransaction).where(eq(itemTransaction.sessionId, sessionId)),
 	]);
 }

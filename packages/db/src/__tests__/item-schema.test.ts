@@ -193,10 +193,9 @@ describe("ItemTransaction — indexes and table name", () => {
 
 		const [index] = uniqueIdxs;
 		expect(index?.config.name).toBe("itemTransaction_session_item_idx");
-		expect(index?.config.columns.map((c) => (c as { name: string }).name)).toEqual([
-			"session_id",
-			"item_id",
-		]);
+		expect(
+			index?.config.columns.map((c) => (c as { name: string }).name)
+		).toEqual(["session_id", "item_id"]);
 
 		const where = dialect.sqlToQuery(index?.config.where as never);
 		expect(where.sql).toContain('"item_transaction"."session_id" is not null');

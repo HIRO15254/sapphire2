@@ -84,6 +84,10 @@ vi.mock("@/features/live-sessions/components/session-events-scene", () => ({
 // ---------------------------------------------------------------------------
 const mockQuery = vi.fn();
 
+vi.mock("@/features/items/hooks/use-items", () => ({
+	useItems: () => ({ items: [] }),
+}));
+
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		liveCashGameSession: {

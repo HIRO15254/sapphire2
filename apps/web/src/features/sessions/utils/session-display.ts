@@ -322,9 +322,7 @@ export function buildVirtualStatRows(session: VirtualStatInput): StatRow[] {
 	if (session.profitLoss !== null) {
 		rows.push({
 			label: "Virtual P&L",
-			value: formatProfitLoss(
-				session.profitLoss + cashOutTotal - buyInTotal
-			),
+			value: formatProfitLoss(session.profitLoss + cashOutTotal - buyInTotal),
 		});
 	}
 	return rows;

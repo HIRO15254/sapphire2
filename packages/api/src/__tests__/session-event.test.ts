@@ -560,22 +560,19 @@ describe("sessionEvent virtual event scoping", () => {
 		it.each([
 			["missing", []],
 			["foreign", [{ ...canonicalItem, userId: "user-2" }]],
-		])(
-			`rejects ${eventType} create when the referenced item is %s`,
-			async (_case, items) => {
-				const { caller, inserted } = makeCaller({ items });
+		])(`rejects ${eventType} create when the referenced item is %s`, async (_case, items) => {
+			const { caller, inserted } = makeCaller({ items });
 
-				await expect(
-					caller.create({
-						liveCashGameSessionId: sessionId,
-						eventType,
-						occurredAt: occurredAt.getTime() / 1000,
-						payload: tamperedItemPayload,
-					})
-				).rejects.toMatchObject({ code: "FORBIDDEN" });
-				expect(inserted.session_event).toBeUndefined();
-			}
-		);
+			await expect(
+				caller.create({
+					liveCashGameSessionId: sessionId,
+					eventType,
+					occurredAt: occurredAt.getTime() / 1000,
+					payload: tamperedItemPayload,
+				})
+			).rejects.toMatchObject({ code: "FORBIDDEN" });
+			expect(inserted.session_event).toBeUndefined();
+		});
 
 		it(`writes the server-side item snapshot on ${eventType} create`, async () => {
 			const { caller, inserted } = makeCaller({ items: [canonicalItem] });

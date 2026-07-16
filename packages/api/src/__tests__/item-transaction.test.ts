@@ -303,7 +303,10 @@ describe("itemTransaction.update / delete immutability of session-generated rows
 	});
 
 	it("rejects deleting a session-generated row with FORBIDDEN", async () => {
-		const { caller, deleted } = makeCaller(OWNER, ledgerRow("session-1", OWNER));
+		const { caller, deleted } = makeCaller(
+			OWNER,
+			ledgerRow("session-1", OWNER)
+		);
 		await expectTrpcCode(caller.delete({ id: "itx1" }), "FORBIDDEN");
 		expect(deleted).toHaveLength(0);
 	});

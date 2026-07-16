@@ -23,8 +23,8 @@ import {
 	tournamentSessionEndPayload,
 	tournamentSessionStartPayload,
 	updateStackPayload,
-	validateEventPayload,
 	VIRTUAL_EVENT_TYPES,
+	validateEventPayload,
 	virtualAmountPayload,
 } from "../constants/session-event-types";
 
@@ -458,9 +458,9 @@ describe("isValidEventTypeForSessionType", () => {
 		expect(isValidEventTypeForSessionType("virtual_buy_in", "tournament")).toBe(
 			true
 		);
-		expect(isValidEventTypeForSessionType("virtual_cash_out", "cash_game")).toBe(
-			true
-		);
+		expect(
+			isValidEventTypeForSessionType("virtual_cash_out", "cash_game")
+		).toBe(true);
 		expect(
 			isValidEventTypeForSessionType("virtual_cash_out", "tournament")
 		).toBe(true);

@@ -108,7 +108,11 @@ describe("item router structure", () => {
 });
 
 describe("item.create input validation", () => {
-	const valid = { name: "Tournament ticket", currencyId: "c1", unitValue: 1000 };
+	const valid = {
+		name: "Tournament ticket",
+		currencyId: "c1",
+		unitValue: 1000,
+	};
 
 	it("accepts a minimal valid payload", () => {
 		expectAccepts(appRouter.item.create, valid);

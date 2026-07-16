@@ -28,10 +28,7 @@ function event(
 	return { id: "e1", eventType: "virtual_buy_in", payload, occurredAt };
 }
 
-function renderEditor(
-	payload: Record<string, unknown>,
-	onSubmit = vi.fn()
-) {
+function renderEditor(payload: Record<string, unknown>, onSubmit = vi.fn()) {
 	const view = renderHook(() =>
 		useVirtualAmountEditor({
 			event: event(payload),
@@ -103,15 +100,12 @@ describe("useVirtualAmountEditor", () => {
 		);
 	});
 
-	it.each([["0"], ["-1"], ["1.5"], [""]])(
-		"rejects value %s",
-		async (value) => {
-			const { result, onSubmit } = renderEditor(ITEM_PAYLOAD);
-			await act(async () => {
-				result.current.form.setFieldValue("value", value);
-				await result.current.form.handleSubmit();
-			});
-			expect(onSubmit).not.toHaveBeenCalled();
-		}
-	);
+	it.each([["0"], ["-1"], ["1.5"], [""]])("rejects value %s", async (value) => {
+		const { result, onSubmit } = renderEditor(ITEM_PAYLOAD);
+		await act(async () => {
+			result.current.form.setFieldValue("value", value);
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
 });

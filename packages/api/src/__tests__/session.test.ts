@@ -2398,9 +2398,7 @@ describe("session.create item usages (ownership, snapshots, ledger)", () => {
 			select: {
 				currency: [{ id: "c1", userId }],
 				item: itemRows,
-				transaction_type: [
-					{ id: "tt1", name: "Session Result", userId },
-				],
+				transaction_type: [{ id: "tt1", name: "Session Result", userId }],
 				game_session: [],
 			},
 		});
@@ -2478,7 +2476,11 @@ describe("session.create item usages (ownership, snapshots, ledger)", () => {
 				currencyId: "c1",
 			},
 		]);
-		await caller.create({ ...CASH_INPUT, virtualBuyIn: 400, virtualCashOut: 50 });
+		await caller.create({
+			...CASH_INPUT,
+			virtualBuyIn: 400,
+			virtualCashOut: 50,
+		});
 
 		const txRows = (inserted.currency_transaction ?? []).flat() as Record<
 			string,
@@ -2499,7 +2501,11 @@ describe("session.create item usages (ownership, snapshots, ledger)", () => {
 				currencyId: "c1",
 			},
 		]);
-		await caller.create({ ...CASH_INPUT, virtualBuyIn: 400, virtualCashOut: 0 });
+		await caller.create({
+			...CASH_INPUT,
+			virtualBuyIn: 400,
+			virtualCashOut: 0,
+		});
 
 		const detailRows = (inserted.session_cash_detail ?? []).flat() as Record<
 			string,

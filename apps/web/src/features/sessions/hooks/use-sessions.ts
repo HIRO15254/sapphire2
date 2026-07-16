@@ -52,6 +52,8 @@ export interface SessionItem {
 	cashOut: number | null;
 	cashTableSize: number | null;
 	cashVariant: string | null;
+	cashVirtualBuyIn?: number | null;
+	cashVirtualCashOut?: number | null;
 	/** Σ cost × count across this session's chip purchases. */
 	chipPurchaseCost: number;
 	/** Rule-defined chip purchases with their result counts. */
@@ -64,8 +66,6 @@ export interface SessionItem {
 		sortOrder: number;
 	}>;
 	createdAt: string;
-	cashVirtualBuyIn?: number | null;
-	cashVirtualCashOut?: number | null;
 	currencyId: string | null;
 	currencyName: string | null;
 	currencyUnit: string | null;
@@ -170,6 +170,9 @@ export function buildCreatePayload(values: SessionFormValues) {
 		tagIds: values.tagIds,
 		roomId: values.roomId,
 		currencyId: values.currencyId,
+		virtualBuyIn: values.virtualBuyIn,
+		virtualCashOut: values.virtualCashOut,
+		itemUsages: values.itemUsages,
 	};
 	if (values.type === "cash_game") {
 		return {
@@ -242,6 +245,11 @@ export function buildUpdatePayload(values: SessionFormValues & { id: string }) {
 		tagIds: values.tagIds,
 		roomId: values.roomId ?? null,
 		currencyId: values.currencyId ?? null,
+		// Cleared virtual amounts save as null (clear the stored value);
+		// itemUsages passes through as-is — [] clears, undefined leaves alone.
+		virtualBuyIn: values.virtualBuyIn ?? null,
+		virtualCashOut: values.virtualCashOut ?? null,
+		itemUsages: values.itemUsages,
 	};
 	if (values.type === "cash_game") {
 		return {
@@ -406,6 +414,34 @@ function tournamentSnapshotDefaults(session: SessionItem) {
 	};
 }
 
+/** Virtual amounts + item usages for the edit form. Usages whose item was
+ * deleted (itemId nulled) cannot round-trip through the create/update input
+ * and are dropped. */
+function virtualEditDefaults(session: SessionItem) {
+	const isTournament = session.type === "tournament";
+	return {
+		virtualBuyIn:
+			(isTournament
+				? session.tournamentVirtualBuyIn
+				: session.cashVirtualBuyIn) ?? undefined,
+		virtualCashOut:
+			(isTournament
+				? session.tournamentVirtualCashOut
+				: session.cashVirtualCashOut) ?? undefined,
+		itemUsages: (session.itemUsages ?? []).flatMap((usage) =>
+			usage.itemId === null
+				? []
+				: [
+						{
+							itemId: usage.itemId,
+							direction: usage.direction,
+							count: usage.count,
+						},
+					]
+		),
+	};
+}
+
 export function buildEditDefaults(session: SessionItem) {
 	return {
 		type: session.type as "cash_game" | "tournament",
@@ -447,6 +483,7 @@ export function buildEditDefaults(session: SessionItem) {
 		ringGameId: session.ringGameId ?? undefined,
 		tournamentId: session.tournamentId ?? undefined,
 		currencyId: session.currencyId ?? undefined,
+		...virtualEditDefaults(session),
 		// Snapshot scalars — pre-fill the Rules step from the frozen detail
 		// columns so editing keeps the same rule shape unless the user
 		// overrides it explicitly.

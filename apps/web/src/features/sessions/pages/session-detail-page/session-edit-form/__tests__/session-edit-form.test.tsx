@@ -7,6 +7,10 @@ import { renderWithQueryClient as render } from "@/__tests__/test-utils";
 // The Rules accordion also renders VariantSelect / useVariantLabels, which
 // use real react-query hooks against trpc.gameVariant.list once expanded —
 // provide a queryFn and rely on the renderWithQueryClient wrapper above.
+vi.mock("@/features/items/hooks/use-items", () => ({
+	useItems: () => ({ items: [] }),
+}));
+
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		gameGroup: {

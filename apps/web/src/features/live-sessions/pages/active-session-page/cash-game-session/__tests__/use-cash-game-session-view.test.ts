@@ -350,9 +350,7 @@ describe("virtual buy-in / cash-out", () => {
 	it("offers Virtual buy-in and Virtual cash-out in the event menu", () => {
 		mocks.session = makeSession();
 		const { result } = renderHook(() => useCashGameSessionView("cg-1"));
-		const labels = result.current.eventMenuExtraItems.map(
-			(item) => item.label
-		);
+		const labels = result.current.eventMenuExtraItems.map((item) => item.label);
 		expect(labels).toContain("Virtual buy-in");
 		expect(labels).toContain("Virtual cash-out");
 	});
@@ -371,10 +369,7 @@ describe("virtual buy-in / cash-out", () => {
 			result.current.handleVirtualBuyInSubmit(purePayload);
 		});
 		expect(mocks.stack.addVirtualBuyIn).toHaveBeenCalledTimes(1);
-		expect(mocks.stack.addVirtualBuyIn).toHaveBeenNthCalledWith(
-			1,
-			purePayload
-		);
+		expect(mocks.stack.addVirtualBuyIn).toHaveBeenNthCalledWith(1, purePayload);
 		expect(result.current.isVirtualBuyInOpen).toBe(false);
 	});
 

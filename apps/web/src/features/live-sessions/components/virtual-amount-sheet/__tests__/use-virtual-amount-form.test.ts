@@ -136,9 +136,9 @@ describe("useVirtualAmountForm", () => {
 		});
 	});
 
-	it("resets to defaults when reopened", async () => {
+	it("resets to defaults when reopened", () => {
 		const { result, rerender, onSubmit } = renderForm();
-		await act(async () => {
+		act(() => {
 			result.current.form.setFieldValue("mode", "amount");
 			result.current.form.setFieldValue("amount", "1500");
 		});

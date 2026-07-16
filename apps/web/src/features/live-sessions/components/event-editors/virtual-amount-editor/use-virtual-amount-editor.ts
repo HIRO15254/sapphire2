@@ -42,9 +42,12 @@ export function useVirtualAmountEditor({
 		typeof payload.currencyId === "string" ? payload.currencyId : null;
 	const isItemBased = itemId !== null;
 
-	const initialValue = isItemBased
-		? (typeof payload.count === "number" ? payload.count : 1)
-		: (typeof payload.amount === "number" ? payload.amount : 0);
+	let initialValue: number;
+	if (isItemBased) {
+		initialValue = typeof payload.count === "number" ? payload.count : 1;
+	} else {
+		initialValue = typeof payload.amount === "number" ? payload.amount : 0;
+	}
 
 	const form = useForm({
 		defaultValues: {

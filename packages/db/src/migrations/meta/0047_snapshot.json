@@ -103,9 +103,7 @@
       "indexes": {
         "account_userId_idx": {
           "name": "account_userId_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         }
       },
@@ -114,12 +112,8 @@
           "name": "account_user_id_user_id_fk",
           "tableFrom": "account",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -192,16 +186,12 @@
       "indexes": {
         "session_token_unique": {
           "name": "session_token_unique",
-          "columns": [
-            "token"
-          ],
+          "columns": ["token"],
           "isUnique": true
         },
         "session_userId_idx": {
           "name": "session_userId_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         }
       },
@@ -210,12 +200,8 @@
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -283,9 +269,7 @@
       "indexes": {
         "user_email_unique": {
           "name": "user_email_unique",
-          "columns": [
-            "email"
-          ],
+          "columns": ["email"],
           "isUnique": true
         }
       },
@@ -345,9 +329,7 @@
       "indexes": {
         "verification_identifier_idx": {
           "name": "verification_identifier_idx",
-          "columns": [
-            "identifier"
-          ],
+          "columns": ["identifier"],
           "isUnique": false
         }
       },
@@ -421,9 +403,7 @@
       "indexes": {
         "currency_userId_idx": {
           "name": "currency_userId_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         }
       },
@@ -432,12 +412,8 @@
           "name": "currency_user_id_user_id_fk",
           "tableFrom": "currency",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -510,23 +486,17 @@
       "indexes": {
         "currencyTransaction_currencyId_idx": {
           "name": "currencyTransaction_currencyId_idx",
-          "columns": [
-            "currency_id"
-          ],
+          "columns": ["currency_id"],
           "isUnique": false
         },
         "currencyTransaction_sessionId_idx": {
           "name": "currencyTransaction_sessionId_idx",
-          "columns": [
-            "session_id"
-          ],
+          "columns": ["session_id"],
           "isUnique": false
         },
         "currencyTransaction_transactionTypeId_idx": {
           "name": "currencyTransaction_transactionTypeId_idx",
-          "columns": [
-            "transaction_type_id"
-          ],
+          "columns": ["transaction_type_id"],
           "isUnique": false
         }
       },
@@ -535,12 +505,8 @@
           "name": "currency_transaction_currency_id_currency_id_fk",
           "tableFrom": "currency_transaction",
           "tableTo": "currency",
-          "columnsFrom": [
-            "currency_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["currency_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -548,12 +514,8 @@
           "name": "currency_transaction_transaction_type_id_transaction_type_id_fk",
           "tableFrom": "currency_transaction",
           "tableTo": "transaction_type",
-          "columnsFrom": [
-            "transaction_type_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["transaction_type_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -561,12 +523,8 @@
           "name": "currency_transaction_session_id_game_session_id_fk",
           "tableFrom": "currency_transaction",
           "tableTo": "game_session",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -618,16 +576,12 @@
       "indexes": {
         "transactionType_userId_idx": {
           "name": "transactionType_userId_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         },
         "transactionType_sessionResultPerUser_idx": {
           "name": "transactionType_sessionResultPerUser_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": true,
           "where": "\"transaction_type\".\"name\" = 'Session Result'"
         }
@@ -637,12 +591,8 @@
           "name": "transaction_type_user_id_user_id_fk",
           "tableFrom": "transaction_type",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -722,25 +672,17 @@
       "indexes": {
         "gameGroup_userId_idx": {
           "name": "gameGroup_userId_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         },
         "gameGroup_userId_builtinKey_idx": {
           "name": "gameGroup_userId_builtinKey_idx",
-          "columns": [
-            "user_id",
-            "builtin_key"
-          ],
+          "columns": ["user_id", "builtin_key"],
           "isUnique": true
         },
         "gameGroup_userId_label_idx": {
           "name": "gameGroup_userId_label_idx",
-          "columns": [
-            "user_id",
-            "label"
-          ],
+          "columns": ["user_id", "label"],
           "isUnique": true
         }
       },
@@ -749,12 +691,8 @@
           "name": "game_group_user_id_user_id_fk",
           "tableFrom": "game_group",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -820,25 +758,17 @@
       "indexes": {
         "gameMix_userId_idx": {
           "name": "gameMix_userId_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         },
         "gameMix_userId_builtinKey_idx": {
           "name": "gameMix_userId_builtinKey_idx",
-          "columns": [
-            "user_id",
-            "builtin_key"
-          ],
+          "columns": ["user_id", "builtin_key"],
           "isUnique": true
         },
         "gameMix_userId_label_idx": {
           "name": "gameMix_userId_label_idx",
-          "columns": [
-            "user_id",
-            "label"
-          ],
+          "columns": ["user_id", "label"],
           "isUnique": true
         }
       },
@@ -847,12 +777,8 @@
           "name": "game_mix_user_id_user_id_fk",
           "tableFrom": "game_mix",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -933,32 +859,22 @@
       "indexes": {
         "gameVariant_userId_idx": {
           "name": "gameVariant_userId_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         },
         "gameVariant_groupId_idx": {
           "name": "gameVariant_groupId_idx",
-          "columns": [
-            "group_id"
-          ],
+          "columns": ["group_id"],
           "isUnique": false
         },
         "gameVariant_userId_builtinKey_idx": {
           "name": "gameVariant_userId_builtinKey_idx",
-          "columns": [
-            "user_id",
-            "builtin_key"
-          ],
+          "columns": ["user_id", "builtin_key"],
           "isUnique": true
         },
         "gameVariant_userId_label_idx": {
           "name": "gameVariant_userId_label_idx",
-          "columns": [
-            "user_id",
-            "label"
-          ],
+          "columns": ["user_id", "label"],
           "isUnique": true
         }
       },
@@ -967,12 +883,8 @@
           "name": "game_variant_user_id_user_id_fk",
           "tableFrom": "game_variant",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -980,12 +892,8 @@
           "name": "game_variant_group_id_game_group_id_fk",
           "tableFrom": "game_variant",
           "tableTo": "game_group",
-          "columnsFrom": [
-            "group_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["group_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1058,16 +966,12 @@
       "indexes": {
         "item_userId_idx": {
           "name": "item_userId_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         },
         "item_currencyId_idx": {
           "name": "item_currencyId_idx",
-          "columns": [
-            "currency_id"
-          ],
+          "columns": ["currency_id"],
           "isUnique": false
         }
       },
@@ -1076,12 +980,8 @@
           "name": "item_user_id_user_id_fk",
           "tableFrom": "item",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1089,12 +989,8 @@
           "name": "item_currency_id_currency_id_fk",
           "tableFrom": "item",
           "tableTo": "currency",
-          "columnsFrom": [
-            "currency_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["currency_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1160,24 +1056,17 @@
       "indexes": {
         "itemTransaction_itemId_idx": {
           "name": "itemTransaction_itemId_idx",
-          "columns": [
-            "item_id"
-          ],
+          "columns": ["item_id"],
           "isUnique": false
         },
         "itemTransaction_sessionId_idx": {
           "name": "itemTransaction_sessionId_idx",
-          "columns": [
-            "session_id"
-          ],
+          "columns": ["session_id"],
           "isUnique": false
         },
         "itemTransaction_session_item_idx": {
           "name": "itemTransaction_session_item_idx",
-          "columns": [
-            "session_id",
-            "item_id"
-          ],
+          "columns": ["session_id", "item_id"],
           "isUnique": true,
           "where": "\"item_transaction\".\"session_id\" is not null"
         }
@@ -1187,12 +1076,8 @@
           "name": "item_transaction_item_id_item_id_fk",
           "tableFrom": "item_transaction",
           "tableTo": "item",
-          "columnsFrom": [
-            "item_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["item_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1200,12 +1085,8 @@
           "name": "item_transaction_session_id_game_session_id_fk",
           "tableFrom": "item_transaction",
           "tableTo": "game_session",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1272,9 +1153,7 @@
       "indexes": {
         "player_userId_idx": {
           "name": "player_userId_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         }
       },
@@ -1283,12 +1162,8 @@
           "name": "player_user_id_user_id_fk",
           "tableFrom": "player",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1348,9 +1223,7 @@
       "indexes": {
         "playerTag_userId_idx": {
           "name": "playerTag_userId_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         }
       },
@@ -1359,12 +1232,8 @@
           "name": "player_tag_user_id_user_id_fk",
           "tableFrom": "player_tag",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1402,9 +1271,7 @@
       "indexes": {
         "playerToPlayerTag_playerTagId_idx": {
           "name": "playerToPlayerTag_playerTagId_idx",
-          "columns": [
-            "player_tag_id"
-          ],
+          "columns": ["player_tag_id"],
           "isUnique": false
         }
       },
@@ -1413,12 +1280,8 @@
           "name": "player_to_player_tag_player_id_player_id_fk",
           "tableFrom": "player_to_player_tag",
           "tableTo": "player",
-          "columnsFrom": [
-            "player_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["player_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1426,22 +1289,15 @@
           "name": "player_to_player_tag_player_tag_id_player_tag_id_fk",
           "tableFrom": "player_to_player_tag",
           "tableTo": "player_tag",
-          "columnsFrom": [
-            "player_tag_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["player_tag_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "player_to_player_tag_player_id_player_tag_id_pk": {
-          "columns": [
-            "player_id",
-            "player_tag_id"
-          ],
+          "columns": ["player_id", "player_tag_id"],
           "name": "player_to_player_tag_player_id_player_tag_id_pk"
         }
       },
@@ -1590,23 +1446,17 @@
       "indexes": {
         "ringGame_roomId_idx": {
           "name": "ringGame_roomId_idx",
-          "columns": [
-            "room_id"
-          ],
+          "columns": ["room_id"],
           "isUnique": false
         },
         "ringGame_userId_idx": {
           "name": "ringGame_userId_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         },
         "ringGame_currencyId_idx": {
           "name": "ringGame_currencyId_idx",
-          "columns": [
-            "currency_id"
-          ],
+          "columns": ["currency_id"],
           "isUnique": false
         }
       },
@@ -1615,12 +1465,8 @@
           "name": "ring_game_room_id_room_id_fk",
           "tableFrom": "ring_game",
           "tableTo": "room",
-          "columnsFrom": [
-            "room_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["room_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1628,12 +1474,8 @@
           "name": "ring_game_user_id_user_id_fk",
           "tableFrom": "ring_game",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1641,12 +1483,8 @@
           "name": "ring_game_currency_id_currency_id_fk",
           "tableFrom": "ring_game",
           "tableTo": "currency",
-          "columnsFrom": [
-            "currency_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["currency_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1727,9 +1565,7 @@
       "indexes": {
         "room_userId_idx": {
           "name": "room_userId_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         }
       },
@@ -1738,12 +1574,8 @@
           "name": "room_user_id_user_id_fk",
           "tableFrom": "room",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1830,9 +1662,7 @@
       "indexes": {
         "session_blind_level_session_idx": {
           "name": "session_blind_level_session_idx",
-          "columns": [
-            "session_id"
-          ],
+          "columns": ["session_id"],
           "isUnique": false
         }
       },
@@ -1841,12 +1671,8 @@
           "name": "session_blind_level_session_id_game_session_id_fk",
           "tableFrom": "session_blind_level",
           "tableTo": "game_session",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1990,9 +1816,7 @@
       "indexes": {
         "session_cash_ring_idx": {
           "name": "session_cash_ring_idx",
-          "columns": [
-            "ring_game_id"
-          ],
+          "columns": ["ring_game_id"],
           "isUnique": false
         }
       },
@@ -2001,12 +1825,8 @@
           "name": "session_cash_detail_session_id_game_session_id_fk",
           "tableFrom": "session_cash_detail",
           "tableTo": "game_session",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2014,12 +1834,8 @@
           "name": "session_cash_detail_ring_game_id_ring_game_id_fk",
           "tableFrom": "session_cash_detail",
           "tableTo": "ring_game",
-          "columnsFrom": [
-            "ring_game_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["ring_game_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -2053,12 +1869,8 @@
           "name": "session_chip_purchase_result_session_chip_purchase_id_session_chip_purchase_id_fk",
           "tableFrom": "session_chip_purchase_result",
           "tableTo": "session_chip_purchase",
-          "columnsFrom": [
-            "session_chip_purchase_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_chip_purchase_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2117,9 +1929,7 @@
       "indexes": {
         "session_chip_purchase_session_idx": {
           "name": "session_chip_purchase_session_idx",
-          "columns": [
-            "session_id"
-          ],
+          "columns": ["session_id"],
           "isUnique": false
         }
       },
@@ -2128,12 +1938,8 @@
           "name": "session_chip_purchase_session_id_game_session_id_fk",
           "tableFrom": "session_chip_purchase",
           "tableTo": "game_session",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2206,17 +2012,12 @@
       "indexes": {
         "sessionEvent_sessionId_sortOrder_idx": {
           "name": "sessionEvent_sessionId_sortOrder_idx",
-          "columns": [
-            "session_id",
-            "sort_order"
-          ],
+          "columns": ["session_id", "sort_order"],
           "isUnique": true
         },
         "sessionEvent_eventType_idx": {
           "name": "sessionEvent_eventType_idx",
-          "columns": [
-            "event_type"
-          ],
+          "columns": ["event_type"],
           "isUnique": false
         }
       },
@@ -2225,12 +2026,8 @@
           "name": "session_event_session_id_game_session_id_fk",
           "tableFrom": "session_event",
           "tableTo": "game_session",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2302,16 +2099,12 @@
       "indexes": {
         "sessionItemUsage_sessionId_idx": {
           "name": "sessionItemUsage_sessionId_idx",
-          "columns": [
-            "session_id"
-          ],
+          "columns": ["session_id"],
           "isUnique": false
         },
         "sessionItemUsage_itemId_idx": {
           "name": "sessionItemUsage_itemId_idx",
-          "columns": [
-            "item_id"
-          ],
+          "columns": ["item_id"],
           "isUnique": false
         }
       },
@@ -2320,12 +2113,8 @@
           "name": "session_item_usage_session_id_game_session_id_fk",
           "tableFrom": "session_item_usage",
           "tableTo": "game_session",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2333,12 +2122,8 @@
           "name": "session_item_usage_item_id_item_id_fk",
           "tableFrom": "session_item_usage",
           "tableTo": "item",
-          "columnsFrom": [
-            "item_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["item_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -2383,9 +2168,7 @@
       "indexes": {
         "sessionTag_userId_idx": {
           "name": "sessionTag_userId_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         }
       },
@@ -2394,12 +2177,8 @@
           "name": "session_tag_user_id_user_id_fk",
           "tableFrom": "session_tag",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2429,9 +2208,7 @@
       "indexes": {
         "sessionToSessionTag_sessionTagId_idx": {
           "name": "sessionToSessionTag_sessionTagId_idx",
-          "columns": [
-            "session_tag_id"
-          ],
+          "columns": ["session_tag_id"],
           "isUnique": false
         }
       },
@@ -2440,12 +2217,8 @@
           "name": "session_to_session_tag_session_id_game_session_id_fk",
           "tableFrom": "session_to_session_tag",
           "tableTo": "game_session",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2453,22 +2226,15 @@
           "name": "session_to_session_tag_session_tag_id_session_tag_id_fk",
           "tableFrom": "session_to_session_tag",
           "tableTo": "session_tag",
-          "columnsFrom": [
-            "session_tag_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_tag_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "session_to_session_tag_session_id_session_tag_id_pk": {
-          "columns": [
-            "session_id",
-            "session_tag_id"
-          ],
+          "columns": ["session_id", "session_tag_id"],
           "name": "session_to_session_tag_session_id_session_tag_id_pk"
         }
       },
@@ -2603,9 +2369,7 @@
       "indexes": {
         "session_tournament_tournament_idx": {
           "name": "session_tournament_tournament_idx",
-          "columns": [
-            "tournament_id"
-          ],
+          "columns": ["tournament_id"],
           "isUnique": false
         }
       },
@@ -2614,12 +2378,8 @@
           "name": "session_tournament_detail_session_id_game_session_id_fk",
           "tableFrom": "session_tournament_detail",
           "tableTo": "game_session",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2627,12 +2387,8 @@
           "name": "session_tournament_detail_tournament_id_tournament_id_fk",
           "tableFrom": "session_tournament_detail",
           "tableTo": "tournament",
-          "columnsFrom": [
-            "tournament_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["tournament_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -2747,41 +2503,28 @@
       "indexes": {
         "session_one_unfinished_live_per_user_idx": {
           "name": "session_one_unfinished_live_per_user_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": true,
           "where": "\"game_session\".\"source\" = 'live' AND \"game_session\".\"status\" != 'completed'"
         },
         "session_user_kind_status_idx": {
           "name": "session_user_kind_status_idx",
-          "columns": [
-            "user_id",
-            "kind",
-            "status"
-          ],
+          "columns": ["user_id", "kind", "status"],
           "isUnique": false
         },
         "session_user_date_idx": {
           "name": "session_user_date_idx",
-          "columns": [
-            "user_id",
-            "session_date"
-          ],
+          "columns": ["user_id", "session_date"],
           "isUnique": false
         },
         "session_room_idx": {
           "name": "session_room_idx",
-          "columns": [
-            "room_id"
-          ],
+          "columns": ["room_id"],
           "isUnique": false
         },
         "session_currency_idx": {
           "name": "session_currency_idx",
-          "columns": [
-            "currency_id"
-          ],
+          "columns": ["currency_id"],
           "isUnique": false
         }
       },
@@ -2790,12 +2533,8 @@
           "name": "game_session_user_id_user_id_fk",
           "tableFrom": "game_session",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2803,12 +2542,8 @@
           "name": "game_session_room_id_room_id_fk",
           "tableFrom": "game_session",
           "tableTo": "room",
-          "columnsFrom": [
-            "room_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["room_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -2816,12 +2551,8 @@
           "name": "game_session_currency_id_currency_id_fk",
           "tableFrom": "game_session",
           "tableTo": "currency",
-          "columnsFrom": [
-            "currency_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["currency_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -2871,9 +2602,7 @@
       "indexes": {
         "tournamentTag_tournamentId_idx": {
           "name": "tournamentTag_tournamentId_idx",
-          "columns": [
-            "tournament_id"
-          ],
+          "columns": ["tournament_id"],
           "isUnique": false
         }
       },
@@ -2882,12 +2611,8 @@
           "name": "tournament_tag_tournament_id_tournament_id_fk",
           "tableFrom": "tournament_tag",
           "tableTo": "tournament",
-          "columnsFrom": [
-            "tournament_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["tournament_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2974,9 +2699,7 @@
       "indexes": {
         "blindLevel_tournamentId_idx": {
           "name": "blindLevel_tournamentId_idx",
-          "columns": [
-            "tournament_id"
-          ],
+          "columns": ["tournament_id"],
           "isUnique": false
         }
       },
@@ -2985,12 +2708,8 @@
           "name": "blind_level_tournament_id_tournament_id_fk",
           "tableFrom": "blind_level",
           "tableTo": "tournament",
-          "columnsFrom": [
-            "tournament_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["tournament_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3106,16 +2825,12 @@
       "indexes": {
         "tournament_roomId_idx": {
           "name": "tournament_roomId_idx",
-          "columns": [
-            "room_id"
-          ],
+          "columns": ["room_id"],
           "isUnique": false
         },
         "tournament_currencyId_idx": {
           "name": "tournament_currencyId_idx",
-          "columns": [
-            "currency_id"
-          ],
+          "columns": ["currency_id"],
           "isUnique": false
         }
       },
@@ -3124,12 +2839,8 @@
           "name": "tournament_room_id_room_id_fk",
           "tableFrom": "tournament",
           "tableTo": "room",
-          "columnsFrom": [
-            "room_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["room_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3137,12 +2848,8 @@
           "name": "tournament_currency_id_currency_id_fk",
           "tableFrom": "tournament",
           "tableTo": "currency",
-          "columnsFrom": [
-            "currency_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["currency_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -3201,9 +2908,7 @@
       "indexes": {
         "tournamentChipPurchase_tournamentId_idx": {
           "name": "tournamentChipPurchase_tournamentId_idx",
-          "columns": [
-            "tournament_id"
-          ],
+          "columns": ["tournament_id"],
           "isUnique": false
         }
       },
@@ -3212,12 +2917,8 @@
           "name": "tournament_chip_purchase_tournament_id_tournament_id_fk",
           "tableFrom": "tournament_chip_purchase",
           "tableTo": "tournament",
-          "columnsFrom": [
-            "tournament_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["tournament_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3262,17 +2963,12 @@
       "indexes": {
         "update_note_view_user_id_idx": {
           "name": "update_note_view_user_id_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         },
         "update_note_view_user_version_idx": {
           "name": "update_note_view_user_version_idx",
-          "columns": [
-            "user_id",
-            "version"
-          ],
+          "columns": ["user_id", "version"],
           "isUnique": true
         }
       },
@@ -3281,12 +2977,8 @@
           "name": "update_note_view_user_id_user_id_fk",
           "tableFrom": "update_note_view",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }

@@ -94,10 +94,7 @@ export const itemRouter = router({
 				description: input.description ?? null,
 				updatedAt: new Date(),
 			});
-			const [created] = await ctx.db
-				.select()
-				.from(item)
-				.where(eq(item.id, id));
+			const [created] = await ctx.db.select().from(item).where(eq(item.id, id));
 			return created;
 		}),
 

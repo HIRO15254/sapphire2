@@ -1486,6 +1486,44 @@ async function validateAndSnapshotItemUsages(
 }
 
 /**
+ * session.update's item-data step: when the usages were resubmitted, replace
+ * the usage rows and the session's item-ledger rows atomically (DELETE +
+ * re-INSERT in one batch, SA2-116); otherwise keep session-generated ledger
+ * rows dated to the session when only the date changes (mirrors
+ * syncCurrencyTransaction's transactedAt refresh).
+ */
+async function applyManualItemDataUpdate(
+	db: DbInstance,
+	sessionId: string,
+	snapshotItemUsages: SessionItemUsageInput[] | undefined,
+	inputSessionDate: number | undefined,
+	fallbackSessionDate: Date
+): Promise<void> {
+	if (snapshotItemUsages !== undefined) {
+		const effectiveSessionDate =
+			inputSessionDate === undefined
+				? fallbackSessionDate
+				: new Date(inputSessionDate * 1000);
+		await runBatch(
+			db,
+			buildSessionItemDataStatements(
+				db,
+				sessionId,
+				snapshotItemUsages,
+				effectiveSessionDate
+			)
+		);
+		return;
+	}
+	if (inputSessionDate !== undefined) {
+		await db
+			.update(itemTransaction)
+			.set({ transactedAt: new Date(inputSessionDate * 1000) })
+			.where(eq(itemTransaction.sessionId, sessionId));
+	}
+}
+
+/**
  * DELETE + chunked re-INSERT of a session's item-usage rows and its
  * session-generated item-ledger rows (one net-count row per item; net-zero
  * items get no row). Returned UN-executed so create/update commit them inside
@@ -3617,31 +3655,13 @@ export const sessionRouter = router({
 				await runBatch(ctx.db, tagStatements);
 			}
 
-			if (snapshotItemUsages !== undefined) {
-				// Replace the usage rows and the session's item-ledger rows
-				// atomically (DELETE + re-INSERT in one batch, SA2-116).
-				const effectiveSessionDate =
-					input.sessionDate === undefined
-						? session.sessionDate
-						: new Date(input.sessionDate * 1000);
-				await runBatch(
-					ctx.db,
-					buildSessionItemDataStatements(
-						ctx.db,
-						input.id,
-						snapshotItemUsages,
-						effectiveSessionDate
-					)
-				);
-			} else if (input.sessionDate !== undefined) {
-				// Keep session-generated ledger rows dated to the session even when
-				// only the date changes (mirrors syncCurrencyTransaction's
-				// transactedAt refresh below).
-				await ctx.db
-					.update(itemTransaction)
-					.set({ transactedAt: new Date(input.sessionDate * 1000) })
-					.where(eq(itemTransaction.sessionId, input.id));
-			}
+			await applyManualItemDataUpdate(
+				ctx.db,
+				input.id,
+				snapshotItemUsages,
+				input.sessionDate,
+				session.sessionDate
+			);
 
 			const [updated] = await ctx.db
 				.select()

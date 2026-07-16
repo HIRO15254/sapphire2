@@ -16,14 +16,14 @@ import {
 	transactionTypeRelations,
 } from "./schema/currency";
 import { gameGroup, gameGroupRelations } from "./schema/game-group";
+import { gameMix, gameMixRelations } from "./schema/game-mix";
+import { gameVariant, gameVariantRelations } from "./schema/game-variant";
 import {
 	item,
 	itemRelations,
 	itemTransaction,
 	itemTransactionRelations,
 } from "./schema/item";
-import { gameMix, gameMixRelations } from "./schema/game-mix";
-import { gameVariant, gameVariantRelations } from "./schema/game-variant";
 import {
 	player,
 	playerRelations,

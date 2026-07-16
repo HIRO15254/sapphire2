@@ -3,6 +3,7 @@ import type { UseSessionWizardReturn } from "../use-session-wizard";
 import { CashResultFields } from "./cash-result-fields";
 import { DateTimeFields } from "./date-time-fields";
 import { TagsAndMemo } from "./tags-and-memo";
+import { VirtualResultFields } from "./virtual-result-fields";
 
 export function ResultStepBody({
 	state,
@@ -29,6 +30,7 @@ export function ResultStepBody({
 					onChipPurchaseCountChange={state.updateChipPurchaseCount}
 				/>
 			)}
+			<VirtualResultFields isLiveLinked={isLiveLinked} state={state} />
 			<TagsAndMemo onCreateTag={onCreateTag} state={state} tags={tags} />
 		</>
 	);
