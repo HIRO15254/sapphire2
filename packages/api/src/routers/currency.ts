@@ -1,4 +1,5 @@
 import { currency, currencyTransaction } from "@sapphire2/db/schema/currency";
+import { item } from "@sapphire2/db/schema/item";
 import { TRPCError } from "@trpc/server";
 import { asc, desc, eq, sql } from "drizzle-orm";
 import z from "zod";
@@ -150,6 +151,19 @@ export const currencyRouter = router({
 				throw new TRPCError({
 					code: "CONFLICT",
 					message: "Currency cannot be deleted while it has transactions",
+				});
+			}
+			// item.currencyId has no cascade — deleting the currency out from
+			// under an item would orphan its valuation, so guard here too.
+			const [referencingItem] = await ctx.db
+				.select({ id: item.id })
+				.from(item)
+				.where(eq(item.currencyId, input.id))
+				.limit(1);
+			if (referencingItem) {
+				throw new TRPCError({
+					code: "CONFLICT",
+					message: "Currency cannot be deleted while items are valued in it",
 				});
 			}
 			await ctx.db.delete(currency).where(eq(currency.id, input.id));

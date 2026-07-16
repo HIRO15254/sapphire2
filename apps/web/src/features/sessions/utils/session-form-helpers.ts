@@ -26,6 +26,14 @@ export interface SessionChipPurchaseInput {
 	name: string;
 }
 
+/** One item-based virtual buy-in / cash-out row (server snapshots the item's
+ * name / unit value at write time — the form only names the item). */
+export interface SessionItemUsageFormInput {
+	count: number;
+	direction: "buy_in" | "cash_out";
+	itemId: string;
+}
+
 export interface CashGameFormValues {
 	ante?: number;
 	anteType?: string;
@@ -38,6 +46,7 @@ export interface CashGameFormValues {
 	currencyId?: string;
 	endTime?: string;
 	evCashOut?: number;
+	itemUsages?: SessionItemUsageFormInput[];
 	maxBuyIn?: number;
 	memo?: string;
 	minBuyIn?: number;
@@ -51,6 +60,8 @@ export interface CashGameFormValues {
 	tagIds?: string[];
 	type: "cash_game";
 	variant: string;
+	virtualBuyIn?: number;
+	virtualCashOut?: number;
 }
 
 export interface TournamentFormValues {
@@ -63,6 +74,7 @@ export interface TournamentFormValues {
 	currencyId?: string;
 	endTime?: string;
 	entryFee?: number;
+	itemUsages?: SessionItemUsageFormInput[];
 	memo?: string;
 	placement?: number;
 	prizeMoney?: number;
@@ -80,6 +92,8 @@ export interface TournamentFormValues {
 	tournamentId?: string;
 	type: "tournament";
 	variant?: string;
+	virtualBuyIn?: number;
+	virtualCashOut?: number;
 }
 
 export type SessionFormValues = CashGameFormValues | TournamentFormValues;
@@ -130,6 +144,7 @@ export interface SessionFormDefaults {
 	endTime?: string;
 	entryFee?: number;
 	evCashOut?: number;
+	itemUsages?: SessionItemUsageFormInput[];
 	maxBuyIn?: number;
 	memo?: string;
 	minBuyIn?: number;
@@ -151,6 +166,8 @@ export interface SessionFormDefaults {
 	tournamentId?: string;
 	type?: "cash_game" | "tournament";
 	variant?: string;
+	virtualBuyIn?: number;
+	virtualCashOut?: number;
 }
 
 export const NONE_VALUE = "__none__";
@@ -200,6 +217,8 @@ export const sessionFormSchema = z.object({
 	totalEntries: optionalNumericString({ integer: true, min: 1 }),
 	prizeMoney: optionalNumericString({ integer: true, min: 0 }),
 	bountyPrizes: optionalNumericString({ integer: true, min: 0 }),
+	virtualBuyIn: optionalNumericString({ integer: true, min: 0 }),
+	virtualCashOut: optionalNumericString({ integer: true, min: 0 }),
 });
 
 export const cashSessionFormSchema = sessionFormSchema.extend({
@@ -253,6 +272,8 @@ export function buildDefaults(defaults: SessionFormDefaults | undefined) {
 		totalEntries: numStrOrEmpty(defaults?.totalEntries),
 		prizeMoney: numStrOrEmpty(defaults?.prizeMoney),
 		bountyPrizes: numStrOrEmpty(defaults?.bountyPrizes),
+		virtualBuyIn: numStrOrEmpty(defaults?.virtualBuyIn),
+		virtualCashOut: numStrOrEmpty(defaults?.virtualCashOut),
 	};
 }
 

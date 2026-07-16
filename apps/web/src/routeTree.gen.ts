@@ -18,10 +18,12 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SessionsIndexRouteImport } from './routes/sessions/index'
 import { Route as RoomsIndexRouteImport } from './routes/rooms/index'
 import { Route as PlayersIndexRouteImport } from './routes/players/index'
+import { Route as ItemsIndexRouteImport } from './routes/items/index'
 import { Route as CurrenciesIndexRouteImport } from './routes/currencies/index'
 import { Route as SessionsSessionIdRouteImport } from './routes/sessions/$sessionId'
 import { Route as RoomsRoomIdRouteImport } from './routes/rooms/$roomId'
 import { Route as PlayersPlayerIdRouteImport } from './routes/players/$playerId'
+import { Route as ItemsItemIdRouteImport } from './routes/items/$itemId'
 import { Route as CurrenciesCurrencyIdRouteImport } from './routes/currencies/$currencyId'
 import { Route as LiveSessionsSessionTypeSessionIdEventsRouteImport } from './routes/live-sessions/$sessionType/$sessionId/events'
 
@@ -70,6 +72,11 @@ const PlayersIndexRoute = PlayersIndexRouteImport.update({
   path: '/players/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ItemsIndexRoute = ItemsIndexRouteImport.update({
+  id: '/items/',
+  path: '/items/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CurrenciesIndexRoute = CurrenciesIndexRouteImport.update({
   id: '/currencies/',
   path: '/currencies/',
@@ -88,6 +95,11 @@ const RoomsRoomIdRoute = RoomsRoomIdRouteImport.update({
 const PlayersPlayerIdRoute = PlayersPlayerIdRouteImport.update({
   id: '/players/$playerId',
   path: '/players/$playerId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ItemsItemIdRoute = ItemsItemIdRouteImport.update({
+  id: '/items/$itemId',
+  path: '/items/$itemId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CurrenciesCurrencyIdRoute = CurrenciesCurrencyIdRouteImport.update({
@@ -110,10 +122,12 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/statistics': typeof StatisticsRoute
   '/currencies/$currencyId': typeof CurrenciesCurrencyIdRoute
+  '/items/$itemId': typeof ItemsItemIdRoute
   '/players/$playerId': typeof PlayersPlayerIdRoute
   '/rooms/$roomId': typeof RoomsRoomIdRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/currencies/': typeof CurrenciesIndexRoute
+  '/items/': typeof ItemsIndexRoute
   '/players/': typeof PlayersIndexRoute
   '/rooms/': typeof RoomsIndexRoute
   '/sessions/': typeof SessionsIndexRoute
@@ -127,10 +141,12 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/statistics': typeof StatisticsRoute
   '/currencies/$currencyId': typeof CurrenciesCurrencyIdRoute
+  '/items/$itemId': typeof ItemsItemIdRoute
   '/players/$playerId': typeof PlayersPlayerIdRoute
   '/rooms/$roomId': typeof RoomsRoomIdRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/currencies': typeof CurrenciesIndexRoute
+  '/items': typeof ItemsIndexRoute
   '/players': typeof PlayersIndexRoute
   '/rooms': typeof RoomsIndexRoute
   '/sessions': typeof SessionsIndexRoute
@@ -145,10 +161,12 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/statistics': typeof StatisticsRoute
   '/currencies/$currencyId': typeof CurrenciesCurrencyIdRoute
+  '/items/$itemId': typeof ItemsItemIdRoute
   '/players/$playerId': typeof PlayersPlayerIdRoute
   '/rooms/$roomId': typeof RoomsRoomIdRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/currencies/': typeof CurrenciesIndexRoute
+  '/items/': typeof ItemsIndexRoute
   '/players/': typeof PlayersIndexRoute
   '/rooms/': typeof RoomsIndexRoute
   '/sessions/': typeof SessionsIndexRoute
@@ -164,10 +182,12 @@ export interface FileRouteTypes {
     | '/settings'
     | '/statistics'
     | '/currencies/$currencyId'
+    | '/items/$itemId'
     | '/players/$playerId'
     | '/rooms/$roomId'
     | '/sessions/$sessionId'
     | '/currencies/'
+    | '/items/'
     | '/players/'
     | '/rooms/'
     | '/sessions/'
@@ -181,10 +201,12 @@ export interface FileRouteTypes {
     | '/settings'
     | '/statistics'
     | '/currencies/$currencyId'
+    | '/items/$itemId'
     | '/players/$playerId'
     | '/rooms/$roomId'
     | '/sessions/$sessionId'
     | '/currencies'
+    | '/items'
     | '/players'
     | '/rooms'
     | '/sessions'
@@ -198,10 +220,12 @@ export interface FileRouteTypes {
     | '/settings'
     | '/statistics'
     | '/currencies/$currencyId'
+    | '/items/$itemId'
     | '/players/$playerId'
     | '/rooms/$roomId'
     | '/sessions/$sessionId'
     | '/currencies/'
+    | '/items/'
     | '/players/'
     | '/rooms/'
     | '/sessions/'
@@ -216,10 +240,12 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   StatisticsRoute: typeof StatisticsRoute
   CurrenciesCurrencyIdRoute: typeof CurrenciesCurrencyIdRoute
+  ItemsItemIdRoute: typeof ItemsItemIdRoute
   PlayersPlayerIdRoute: typeof PlayersPlayerIdRoute
   RoomsRoomIdRoute: typeof RoomsRoomIdRoute
   SessionsSessionIdRoute: typeof SessionsSessionIdRoute
   CurrenciesIndexRoute: typeof CurrenciesIndexRoute
+  ItemsIndexRoute: typeof ItemsIndexRoute
   PlayersIndexRoute: typeof PlayersIndexRoute
   RoomsIndexRoute: typeof RoomsIndexRoute
   SessionsIndexRoute: typeof SessionsIndexRoute
@@ -291,6 +317,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlayersIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/items/': {
+      id: '/items/'
+      path: '/items'
+      fullPath: '/items/'
+      preLoaderRoute: typeof ItemsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/currencies/': {
       id: '/currencies/'
       path: '/currencies'
@@ -319,6 +352,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlayersPlayerIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/items/$itemId': {
+      id: '/items/$itemId'
+      path: '/items/$itemId'
+      fullPath: '/items/$itemId'
+      preLoaderRoute: typeof ItemsItemIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/currencies/$currencyId': {
       id: '/currencies/$currencyId'
       path: '/currencies/$currencyId'
@@ -344,10 +384,12 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   StatisticsRoute: StatisticsRoute,
   CurrenciesCurrencyIdRoute: CurrenciesCurrencyIdRoute,
+  ItemsItemIdRoute: ItemsItemIdRoute,
   PlayersPlayerIdRoute: PlayersPlayerIdRoute,
   RoomsRoomIdRoute: RoomsRoomIdRoute,
   SessionsSessionIdRoute: SessionsSessionIdRoute,
   CurrenciesIndexRoute: CurrenciesIndexRoute,
+  ItemsIndexRoute: ItemsIndexRoute,
   PlayersIndexRoute: PlayersIndexRoute,
   RoomsIndexRoute: RoomsIndexRoute,
   SessionsIndexRoute: SessionsIndexRoute,

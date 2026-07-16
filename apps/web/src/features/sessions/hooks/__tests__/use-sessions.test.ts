@@ -1240,3 +1240,104 @@ describe("useSessions", () => {
 		});
 	});
 });
+
+describe("virtual fields in payload builders", () => {
+	const itemUsages = [
+		{ itemId: "i1", direction: "buy_in" as const, count: 2 },
+		{ itemId: "i2", direction: "cash_out" as const, count: 1 },
+	];
+
+	it("buildCreatePayload carries virtual amounts and item usages (cash)", () => {
+		const out = buildCreatePayload(
+			cashValues({ virtualBuyIn: 300, virtualCashOut: 0, itemUsages })
+		) as Record<string, unknown>;
+		expect(out.virtualBuyIn).toBe(300);
+		expect(out.virtualCashOut).toBe(0);
+		expect(out.itemUsages).toEqual(itemUsages);
+	});
+
+	it("buildCreatePayload carries virtual fields for tournaments", () => {
+		const out = buildCreatePayload(
+			tournamentValues({ virtualBuyIn: 500, itemUsages })
+		) as Record<string, unknown>;
+		expect(out.virtualBuyIn).toBe(500);
+		expect(out.itemUsages).toEqual(itemUsages);
+	});
+
+	it("buildCreatePayload leaves virtual fields undefined when absent", () => {
+		const out = buildCreatePayload(cashValues()) as Record<string, unknown>;
+		expect(out.virtualBuyIn).toBeUndefined();
+		expect(out.virtualCashOut).toBeUndefined();
+		expect(out.itemUsages).toBeUndefined();
+	});
+
+	it("buildUpdatePayload nulls cleared virtual amounts and always replaces usages", () => {
+		const out = buildUpdatePayload({
+			...cashValues(),
+			id: "s1",
+			itemUsages: [],
+		}) as Record<string, unknown>;
+		// cleared numeric fields save as null (not undefined) so the server
+		// clears the stored value instead of leaving it unchanged
+		expect(out.virtualBuyIn).toBeNull();
+		expect(out.virtualCashOut).toBeNull();
+		// [] = replace-all clear (undefined would mean "leave unchanged")
+		expect(out.itemUsages).toEqual([]);
+	});
+
+	it("buildUpdatePayload carries provided virtual values (tournament)", () => {
+		const out = buildUpdatePayload({
+			...tournamentValues({ virtualBuyIn: 700, itemUsages }),
+			id: "s1",
+		}) as Record<string, unknown>;
+		expect(out.virtualBuyIn).toBe(700);
+		expect(out.itemUsages).toEqual(itemUsages);
+	});
+
+	it("buildEditDefaults maps detail virtual columns and usages back to form inputs (cash)", () => {
+		const defaults = buildEditDefaults(
+			baseSessionItem({
+				cashVirtualBuyIn: 300,
+				cashVirtualCashOut: null,
+				itemUsages: [
+					{
+						id: "u1",
+						itemId: "i1",
+						itemName: "Ticket",
+						unitValue: 1000,
+						currencyId: "c1",
+						direction: "buy_in",
+						count: 2,
+					},
+					{
+						id: "u2",
+						itemId: null,
+						itemName: "Deleted item",
+						unitValue: 500,
+						currencyId: "c1",
+						direction: "cash_out",
+						count: 1,
+					},
+				],
+			})
+		);
+		expect(defaults.virtualBuyIn).toBe(300);
+		expect(defaults.virtualCashOut).toBeUndefined();
+		// usages with a deleted (null) itemId cannot round-trip and are dropped
+		expect(defaults.itemUsages).toEqual([
+			{ itemId: "i1", direction: "buy_in", count: 2 },
+		]);
+	});
+
+	it("buildEditDefaults maps tournament virtual columns", () => {
+		const defaults = buildEditDefaults(
+			baseSessionItem({
+				type: "tournament",
+				tournamentVirtualBuyIn: 800,
+				tournamentVirtualCashOut: 900,
+			})
+		);
+		expect(defaults.virtualBuyIn).toBe(800);
+		expect(defaults.virtualCashOut).toBe(900);
+	});
+});

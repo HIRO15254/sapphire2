@@ -19,6 +19,12 @@ import { gameGroup, gameGroupRelations } from "./schema/game-group";
 import { gameMix, gameMixRelations } from "./schema/game-mix";
 import { gameVariant, gameVariantRelations } from "./schema/game-variant";
 import {
+	item,
+	itemRelations,
+	itemTransaction,
+	itemTransactionRelations,
+} from "./schema/item";
+import {
 	player,
 	playerRelations,
 	playerTag,
@@ -46,6 +52,10 @@ import {
 	sessionChipPurchaseResultRelations,
 } from "./schema/session-chip-purchase-result";
 import { sessionEvent, sessionEventRelations } from "./schema/session-event";
+import {
+	sessionItemUsage,
+	sessionItemUsageRelations,
+} from "./schema/session-item-usage";
 import {
 	sessionTag,
 	sessionTagRelations,
@@ -114,6 +124,12 @@ export const schema = {
 	sessionChipPurchaseRelations,
 	sessionChipPurchaseResult,
 	sessionChipPurchaseResultRelations,
+	sessionItemUsage,
+	sessionItemUsageRelations,
+	item,
+	itemRelations,
+	itemTransaction,
+	itemTransactionRelations,
 	player,
 	playerRelations,
 	playerTag,

@@ -29,6 +29,7 @@ interface BreakdownRow {
 	profitLoss: number;
 	sessions: number;
 	tournamentNormalizedProfitLoss: number | null;
+	virtualWinRate?: number;
 }
 
 function breakdownRow(overrides: Partial<BreakdownRow> = {}): BreakdownRow {
@@ -40,6 +41,7 @@ function breakdownRow(overrides: Partial<BreakdownRow> = {}): BreakdownRow {
 		cashNormalizedProfitLoss: null,
 		tournamentNormalizedProfitLoss: null,
 		playMinutes: 600,
+		virtualWinRate: 40,
 		...overrides,
 	};
 }
@@ -407,5 +409,25 @@ describe("useBreakdownSection", () => {
 		act(() => view.result.current.retry());
 		await waitFor(() => expect(view.result.current.isError).toBe(false));
 		expect(trpcMocks.breakdownQueryFn).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe("useBreakdownSection — virtual win rate", () => {
+	it("formats the group's virtual win rate as a percentage", async () => {
+		trpcMocks.breakdownQueryFn.mockReset();
+		trpcMocks.breakdownQueryFn.mockResolvedValue({
+			groups: [breakdownRow({ virtualWinRate: 62.5 })],
+		});
+		const view = await renderLoadedBreakdown(ctx());
+		expect(view.result.current.rows[0]?.virtualWinRateText).toBe("62.5%");
+	});
+
+	it("dashes the virtual win rate when a stale cached group lacks the field", async () => {
+		trpcMocks.breakdownQueryFn.mockReset();
+		trpcMocks.breakdownQueryFn.mockResolvedValue({
+			groups: [breakdownRow({ virtualWinRate: undefined })],
+		});
+		const view = await renderLoadedBreakdown(ctx());
+		expect(view.result.current.rows[0]?.virtualWinRateText).toBe("—");
 	});
 });

@@ -11,6 +11,8 @@ import {
 	computeTournamentPL,
 	fetchProfitLossSeries,
 	getSessionChipPurchaseMap,
+	getSessionItemUsageMap,
+	type SessionItemUsageRow,
 	sumChipPurchaseCost,
 	validateEntityOwnership,
 } from "./session";
@@ -116,6 +118,10 @@ export interface StatsSessionRow {
 	totalEntries: number | null;
 	type: "cash_game" | "tournament";
 	variant: string | null; // frozen detail-row variant (cash or tournament)
+	/** profitLoss + virtual cash-outs − virtual buy-ins (pure-virtual detail
+	 * columns + matching-currency item usages). Equals profitLoss when the
+	 * session has no virtual data. Never feeds currency balances. */
+	virtualProfitLoss: number;
 }
 
 interface RawStatsRow {
@@ -126,6 +132,9 @@ interface RawStatsRow {
 	buyIn: number | null;
 	cashOut: number | null;
 	cashVariant: string | null;
+	cashVirtualBuyIn: number | null;
+	cashVirtualCashOut: number | null;
+	currencyId: string | null;
 	endedAt: Date | null;
 	entryFee: number | null;
 	evCashOut: number | null;
@@ -139,7 +148,47 @@ interface RawStatsRow {
 	totalEntries: number | null;
 	tournamentBuyIn: number | null;
 	tournamentVariant: string | null;
+	tournamentVirtualBuyIn: number | null;
+	tournamentVirtualCashOut: number | null;
 	type: string;
+}
+
+/**
+ * Virtual (buy-in, cash-out) totals for one session: the pure-virtual detail
+ * columns plus item usages whose snapshot currency MATCHES the session
+ * currency (fail closed on any mismatch or missing currency — folding a
+ * differently-denominated value into a currency-pinned aggregate would be
+ * meaningless, the assertCurrencyScope class of problem).
+ */
+function computeVirtualTotals(
+	r: RawStatsRow,
+	itemUsages: SessionItemUsageRow[]
+): { virtualBuyIn: number; virtualCashOut: number } {
+	let virtualBuyIn =
+		(r.type === "cash_game" ? r.cashVirtualBuyIn : r.tournamentVirtualBuyIn) ??
+		0;
+	let virtualCashOut =
+		(r.type === "cash_game"
+			? r.cashVirtualCashOut
+			: r.tournamentVirtualCashOut) ?? 0;
+
+	for (const usage of itemUsages) {
+		if (
+			r.currencyId === null ||
+			usage.currencyId === null ||
+			usage.currencyId !== r.currencyId
+		) {
+			continue;
+		}
+		const value = usage.count * usage.unitValue;
+		if (usage.direction === "buy_in") {
+			virtualBuyIn += value;
+		} else {
+			virtualCashOut += value;
+		}
+	}
+
+	return { virtualBuyIn, virtualCashOut };
 }
 
 /** Same play-minutes math as session.ts's computePlayMinutes. */
@@ -156,10 +205,12 @@ function computeRowPlayMinutes(r: RawStatsRow): number | null {
 
 function mapStatsRow(
 	r: RawStatsRow,
-	chipPurchaseCost: number
+	chipPurchaseCost: number,
+	itemUsages: SessionItemUsageRow[]
 ): StatsSessionRow {
 	const sessionDate = Math.floor(r.sessionDate.getTime() / 1000);
 	const playMinutes = computeRowPlayMinutes(r);
+	const { virtualBuyIn, virtualCashOut } = computeVirtualTotals(r, itemUsages);
 	const base = {
 		id: r.id,
 		sessionDate,
@@ -189,6 +240,7 @@ function mapStatsRow(
 			...base,
 			type: "cash_game",
 			profitLoss,
+			virtualProfitLoss: profitLoss + virtualCashOut - virtualBuyIn,
 			evProfitLoss,
 			evDiff,
 			bigBlind: r.blind2,
@@ -209,6 +261,7 @@ function mapStatsRow(
 		...base,
 		type: "tournament",
 		profitLoss,
+		virtualProfitLoss: profitLoss + virtualCashOut - virtualBuyIn,
 		evProfitLoss: null,
 		evDiff: null,
 		bigBlind: null,
@@ -265,6 +318,11 @@ export async function fetchStatsRows(
 			tournamentVariant: sessionTournamentDetail.variant,
 			roomId: gameSession.roomId,
 			roomName: room.name,
+			currencyId: gameSession.currencyId,
+			cashVirtualBuyIn: sessionCashDetail.virtualBuyIn,
+			cashVirtualCashOut: sessionCashDetail.virtualCashOut,
+			tournamentVirtualBuyIn: sessionTournamentDetail.virtualBuyIn,
+			tournamentVirtualCashOut: sessionTournamentDetail.virtualCashOut,
 		})
 		.from(gameSession)
 		.leftJoin(
@@ -281,13 +339,18 @@ export async function fetchStatsRows(
 		)
 		.where(and(...conditions));
 
-	const chipPurchaseMap = await getSessionChipPurchaseMap(
-		db,
-		rows.map((r) => r.id)
-	);
+	const sessionIds = rows.map((r) => r.id);
+	const [chipPurchaseMap, itemUsageMap] = await Promise.all([
+		getSessionChipPurchaseMap(db, sessionIds),
+		getSessionItemUsageMap(db, sessionIds),
+	]);
 
 	return rows.map((r) =>
-		mapStatsRow(r, sumChipPurchaseCost(chipPurchaseMap.get(r.id) ?? []))
+		mapStatsRow(
+			r,
+			sumChipPurchaseCost(chipPurchaseMap.get(r.id) ?? []),
+			itemUsageMap.get(r.id) ?? []
+		)
 	);
 }
 
@@ -353,6 +416,12 @@ export interface StatsSummary {
 	tournamentBiCount: number;
 	// Tournament sessions normalized to buy-ins (bi). Null when none.
 	tournamentNormalizedProfitLoss: number | null;
+	// Σ virtualProfitLoss — a raw currency amount, so the client renders it
+	// only under a pinned currency (— in normalized mode).
+	virtualNetProfitLoss: number;
+	// % of sessions whose virtualProfitLoss > 0. A ratio, so always computed
+	// (normalized mode included), like winRate.
+	virtualWinRate: number;
 	winRate: number;
 }
 
@@ -376,6 +445,8 @@ const EMPTY_SUMMARY: StatsSummary = {
 	itmRate: null,
 	avgPlacement: null,
 	totalPrizeMoney: null,
+	virtualNetProfitLoss: 0,
+	virtualWinRate: 0,
 };
 
 interface SummaryAccumulator {
@@ -401,6 +472,8 @@ interface SummaryAccumulator {
 	tournamentInvested: number;
 	tournamentPrize: number;
 	tournamentPrizeMoneyAndBounty: number;
+	virtualNetSum: number;
+	virtualWinCount: number;
 	winCount: number;
 }
 
@@ -496,6 +569,8 @@ function buildSummary(
 			acc.placementCount > 0 ? acc.placementSum / acc.placementCount : null,
 		totalPrizeMoney:
 			acc.tournamentCount > 0 ? acc.tournamentPrizeMoneyAndBounty : null,
+		virtualNetProfitLoss: acc.virtualNetSum,
+		virtualWinRate: (acc.virtualWinCount / totalSessions) * 100,
 	};
 }
 
@@ -528,12 +603,18 @@ export function summarizeStats(rows: StatsSessionRow[]): StatsSummary {
 		roiPctSum: 0,
 		roiPctCount: 0,
 		tournamentPrizeMoneyAndBounty: 0,
+		virtualNetSum: 0,
+		virtualWinCount: 0,
 	};
 
 	for (const row of rows) {
 		acc.totalProfitLoss += row.profitLoss;
 		if (row.profitLoss > 0) {
 			acc.winCount += 1;
+		}
+		acc.virtualNetSum += row.virtualProfitLoss;
+		if (row.virtualProfitLoss > 0) {
+			acc.virtualWinCount += 1;
 		}
 		acc.totalPlayMinutes += row.playMinutes ?? 0;
 		if (row.type === "cash_game") {
@@ -561,6 +642,8 @@ export interface BreakdownRow {
 	profitLoss: number;
 	sessions: number;
 	tournamentNormalizedProfitLoss: number | null;
+	/** % of sessions in this group whose virtualProfitLoss > 0. */
+	virtualWinRate: number;
 	winRate: number;
 }
 
@@ -634,6 +717,7 @@ interface BreakdownAccumulator {
 	sessions: number;
 	tournamentNormCount: number;
 	tournamentNormSum: number;
+	virtualWinCount: number;
 	winCount: number;
 }
 
@@ -692,6 +776,9 @@ function accumulateBreakdownRow(
 	if (row.profitLoss > 0) {
 		group.winCount += 1;
 	}
+	if (row.virtualProfitLoss > 0) {
+		group.virtualWinCount += 1;
+	}
 	group.playMinutes += row.playMinutes ?? 0;
 }
 
@@ -718,6 +805,7 @@ export function breakdownStats(
 				tournamentNormSum: 0,
 				tournamentNormCount: 0,
 				winCount: 0,
+				virtualWinCount: 0,
 				playMinutes: 0,
 			};
 			groups.set(keyLabel.key, group);
@@ -734,6 +822,7 @@ export function breakdownStats(
 		tournamentNormalizedProfitLoss:
 			g.tournamentNormCount > 0 ? g.tournamentNormSum : null,
 		winRate: (g.winCount / g.sessions) * 100,
+		virtualWinRate: (g.virtualWinCount / g.sessions) * 100,
 		playMinutes: g.playMinutes,
 	}));
 

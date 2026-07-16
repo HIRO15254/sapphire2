@@ -17,6 +17,11 @@ export const sessionCashDetail = sqliteTable(
 		buyIn: integer("buy_in"),
 		cashOut: integer("cash_out"),
 		evCashOut: integer("ev_cash_out"),
+		// Pure-virtual amounts (no item), in the session currency. Item-based
+		// virtual value lives in session_item_usage (count × unitValue) and is
+		// intentionally NOT double-booked here. Never feeds currency balances.
+		virtualBuyIn: integer("virtual_buy_in"),
+		virtualCashOut: integer("virtual_cash_out"),
 		// Snapshot fields — copied from ring_game at session create time and
 		// frozen thereafter. Parent rename / blind change does not propagate.
 		ruleName: text("rule_name").notNull().default("Untitled"),

@@ -3,6 +3,7 @@ import {
 	computeBreakMinutesFromEvents,
 	computeCashGamePLFromEvents,
 	computeHeroSeatPositionFromEvents,
+	computeNetItemCounts,
 	computeSeatedPlayersFromEvents,
 	computeSessionStateFromEvents,
 	computeTournamentPLFromEvents,
@@ -836,6 +837,8 @@ function makeChainableDb(selectSequence: SelectResult[]) {
 		values: vi.fn().mockResolvedValue(undefined),
 	};
 
+	const batch = vi.fn().mockResolvedValue(undefined);
+
 	const db = {
 		select: vi.fn().mockImplementation(() => {
 			const result = selectSequence[selectCallIndex] ?? [];
@@ -847,9 +850,11 @@ function makeChainableDb(selectSequence: SelectResult[]) {
 		update: vi.fn().mockReturnValue(updateChain),
 		delete: vi.fn().mockReturnValue(deleteChain),
 		insert: vi.fn().mockReturnValue(insertChain),
+		batch,
 		_updateChain: updateChain,
 		_deleteChain: deleteChain,
 		_insertChain: insertChain,
+		_batch: batch,
 	};
 
 	return db;
@@ -915,7 +920,8 @@ describe("recalculateCashGameSession — active session (no session_end)", () =>
 		expect(db._updateChain.set).toHaveBeenCalledWith(
 			expect.objectContaining({ status: "active" })
 		);
-		expect(db.delete).toHaveBeenCalledTimes(1);
+		// currency transaction + session_item_usage + item_transaction cleanup
+		expect(db.delete).toHaveBeenCalledTimes(3);
 		expect(db.insert).not.toHaveBeenCalled();
 	});
 
@@ -1092,7 +1098,8 @@ describe("recalculateCashGameSession — paused session", () => {
 		];
 		expect(setCall[0].status).toBe("paused");
 		expect(setCall[0].endedAt).toBeNull();
-		expect(db.delete).toHaveBeenCalledTimes(1);
+		// currency transaction + session_item_usage + item_transaction cleanup
+		expect(db.delete).toHaveBeenCalledTimes(3);
 	});
 });
 
@@ -1120,7 +1127,8 @@ describe("recalculateTournamentSession — active session", () => {
 			Record<string, unknown>,
 		];
 		expect(setCall[0].status).toBe("active");
-		expect(db.delete).toHaveBeenCalledTimes(1);
+		// currency transaction + session_item_usage + item_transaction cleanup
+		expect(db.delete).toHaveBeenCalledTimes(3);
 	});
 
 	it("returns early when session is not found", async () => {
@@ -1322,5 +1330,462 @@ describe("recalculateTournamentSession — completed with tournamentId and linke
 		expect(txUpdate).toBeDefined();
 		// profitLoss = 500 - (10000 + 1000) = -10500
 		expect(txUpdate?.[0].amount).toBe(-10_500);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Virtual buy-in / cash-out (items + pure-virtual amounts)
+// ---------------------------------------------------------------------------
+
+const pureVirtualPayload = (amount: number) => ({
+	amount,
+	itemId: null,
+	itemName: null,
+	count: null,
+	unitValue: null,
+	currencyId: null,
+});
+
+const itemVirtualPayload = (
+	overrides: Partial<{
+		amount: number;
+		itemId: string;
+		itemName: string;
+		count: number;
+		unitValue: number;
+		currencyId: string | null;
+	}> = {}
+) => ({
+	amount: 2000,
+	itemId: "item-1",
+	itemName: "Tournament ticket",
+	count: 2,
+	unitValue: 1000,
+	currencyId: "currency-1",
+	...overrides,
+});
+
+describe("computeCashGamePLFromEvents — virtual events", () => {
+	it("returns zero virtual totals and no usages when there are no virtual events", () => {
+		const events = [
+			makeSessionEvent("session_start", { buyInAmount: 500 }),
+			makeSessionEvent("session_end", { cashOutAmount: 700 }),
+		];
+		const result = computeCashGamePLFromEvents(events);
+		expect(result.virtualBuyIn).toBe(0);
+		expect(result.virtualCashOut).toBe(0);
+		expect(result.itemUsages).toEqual([]);
+	});
+
+	it("does NOT change profitLoss / totalBuyIn / cashOut when virtual events exist (core invariant)", () => {
+		const events = [
+			makeSessionEvent("session_start", { buyInAmount: 500 }),
+			makeSessionEvent("virtual_buy_in", pureVirtualPayload(300)),
+			makeSessionEvent("virtual_cash_out", pureVirtualPayload(200)),
+			makeSessionEvent("virtual_buy_in", itemVirtualPayload()),
+			makeSessionEvent("session_end", { cashOutAmount: 700 }),
+		];
+		const result = computeCashGamePLFromEvents(events);
+		expect(result.totalBuyIn).toBe(500);
+		expect(result.cashOut).toBe(700);
+		expect(result.profitLoss).toBe(200);
+	});
+
+	it("sums pure-virtual amounts into virtualBuyIn / virtualCashOut", () => {
+		const events = [
+			makeSessionEvent("session_start", { buyInAmount: 500 }),
+			makeSessionEvent("virtual_buy_in", pureVirtualPayload(300)),
+			makeSessionEvent("virtual_buy_in", pureVirtualPayload(100)),
+			makeSessionEvent("virtual_cash_out", pureVirtualPayload(250)),
+			makeSessionEvent("session_end", { cashOutAmount: 700 }),
+		];
+		const result = computeCashGamePLFromEvents(events);
+		expect(result.virtualBuyIn).toBe(400);
+		expect(result.virtualCashOut).toBe(250);
+	});
+
+	it("collects item-based events as itemUsages without touching pure-virtual totals", () => {
+		const events = [
+			makeSessionEvent("session_start", { buyInAmount: 500 }),
+			makeSessionEvent("virtual_buy_in", itemVirtualPayload()),
+			makeSessionEvent(
+				"virtual_cash_out",
+				itemVirtualPayload({ count: 1, amount: 1000 })
+			),
+			makeSessionEvent("session_end", { cashOutAmount: 700 }),
+		];
+		const result = computeCashGamePLFromEvents(events);
+		expect(result.virtualBuyIn).toBe(0);
+		expect(result.virtualCashOut).toBe(0);
+		expect(result.itemUsages).toEqual([
+			{
+				itemId: "item-1",
+				itemName: "Tournament ticket",
+				unitValue: 1000,
+				currencyId: "currency-1",
+				direction: "buy_in",
+				count: 2,
+			},
+			{
+				itemId: "item-1",
+				itemName: "Tournament ticket",
+				unitValue: 1000,
+				currencyId: "currency-1",
+				direction: "cash_out",
+				count: 1,
+			},
+		]);
+	});
+});
+
+describe("computeTournamentPLFromEvents — virtual events", () => {
+	const endPayload = {
+		beforeDeadline: false,
+		placement: 3,
+		totalEntries: 50,
+		prizeMoney: 5000,
+		bountyPrizes: 500,
+	};
+
+	it("returns zero virtual totals and no usages when there are no virtual events", () => {
+		const events = [
+			makeSessionEvent("session_start", { timerStartedAt: null }),
+			makeSessionEvent("session_end", endPayload),
+		];
+		const result = computeTournamentPLFromEvents(events, 10_000, 1000);
+		expect(result.virtualBuyIn).toBe(0);
+		expect(result.virtualCashOut).toBe(0);
+		expect(result.itemUsages).toEqual([]);
+	});
+
+	it("does NOT change profitLoss when virtual events exist (core invariant)", () => {
+		const events = [
+			makeSessionEvent("session_start", { timerStartedAt: null }),
+			makeSessionEvent("virtual_buy_in", pureVirtualPayload(3000)),
+			makeSessionEvent("virtual_cash_out", itemVirtualPayload()),
+			makeSessionEvent("session_end", endPayload),
+		];
+		const result = computeTournamentPLFromEvents(events, 10_000, 1000);
+		// profitLoss = (5000 + 500) - (10000 + 1000) = -5500, virtual excluded
+		expect(result.profitLoss).toBe(-5500);
+	});
+
+	it("sums pure-virtual amounts and collects item usages", () => {
+		const events = [
+			makeSessionEvent("session_start", { timerStartedAt: null }),
+			makeSessionEvent("virtual_buy_in", pureVirtualPayload(3000)),
+			makeSessionEvent(
+				"virtual_cash_out",
+				itemVirtualPayload({ count: 3, amount: 3000 })
+			),
+			makeSessionEvent("session_end", endPayload),
+		];
+		const result = computeTournamentPLFromEvents(events, 10_000, 1000);
+		expect(result.virtualBuyIn).toBe(3000);
+		expect(result.virtualCashOut).toBe(0);
+		expect(result.itemUsages).toEqual([
+			{
+				itemId: "item-1",
+				itemName: "Tournament ticket",
+				unitValue: 1000,
+				currencyId: "currency-1",
+				direction: "cash_out",
+				count: 3,
+			},
+		]);
+	});
+});
+
+describe("computeNetItemCounts", () => {
+	it("returns an empty map for no usages", () => {
+		expect(computeNetItemCounts([]).size).toBe(0);
+	});
+
+	it("nets buy-ins negative and cash-outs positive per item", () => {
+		const usages = [
+			{
+				itemId: "item-1",
+				itemName: "Ticket",
+				unitValue: 1000,
+				currencyId: "c-1",
+				direction: "buy_in" as const,
+				count: 2,
+			},
+			{
+				itemId: "item-1",
+				itemName: "Ticket",
+				unitValue: 1000,
+				currencyId: "c-1",
+				direction: "cash_out" as const,
+				count: 3,
+			},
+			{
+				itemId: "item-2",
+				itemName: "Voucher",
+				unitValue: 500,
+				currencyId: "c-1",
+				direction: "buy_in" as const,
+				count: 1,
+			},
+		];
+		const net = computeNetItemCounts(usages);
+		expect(net.get("item-1")).toBe(1);
+		expect(net.get("item-2")).toBe(-1);
+	});
+
+	it("omits items whose net count is zero", () => {
+		const usages = [
+			{
+				itemId: "item-1",
+				itemName: "Ticket",
+				unitValue: 1000,
+				currencyId: "c-1",
+				direction: "buy_in" as const,
+				count: 2,
+			},
+			{
+				itemId: "item-1",
+				itemName: "Ticket",
+				unitValue: 1000,
+				currencyId: "c-1",
+				direction: "cash_out" as const,
+				count: 2,
+			},
+		];
+		expect(computeNetItemCounts(usages).size).toBe(0);
+	});
+
+	it("skips usages whose itemId was nulled by item deletion", () => {
+		const usages = [
+			{
+				itemId: null,
+				itemName: "Ticket",
+				unitValue: 1000,
+				currencyId: "c-1",
+				direction: "buy_in" as const,
+				count: 2,
+			},
+		];
+		expect(computeNetItemCounts(usages).size).toBe(0);
+	});
+});
+
+describe("recalculateCashGameSession — virtual data on completion", () => {
+	const startedAt = new Date("2024-01-01T10:00:00Z");
+	const endedAt = new Date("2024-01-01T12:00:00Z");
+	const makeVirtualEvents = () => [
+		makeSessionEvent("session_start", { buyInAmount: 500 }, startedAt, 0),
+		makeSessionEvent("virtual_buy_in", pureVirtualPayload(300), startedAt, 1),
+		makeSessionEvent("virtual_buy_in", itemVirtualPayload(), startedAt, 2),
+		makeSessionEvent(
+			"virtual_cash_out",
+			itemVirtualPayload({ count: 1, amount: 1000 }),
+			endedAt,
+			3
+		),
+		makeSessionEvent("session_end", { cashOutAmount: 700 }, endedAt, 4),
+	];
+
+	it("writes pure-virtual totals onto the cash detail (null when zero)", async () => {
+		const session = makeGameSession({ currencyId: "currency-1" });
+		const existingDetail = [
+			{ sessionId: "session-1", buyIn: 500, cashOut: null, evCashOut: null },
+		];
+		const existingTx = [{ id: "tx-1", currencyId: "currency-1", amount: 0 }];
+		const db = makeChainableDb([
+			makeVirtualEvents(),
+			[session],
+			existingDetail,
+			existingTx,
+		]);
+
+		await recalculateCashGameSession(
+			db as unknown as Parameters<typeof recalculateCashGameSession>[0],
+			"session-1",
+			"user-1"
+		);
+
+		const updateSetCalls = db._updateChain.set.mock.calls as [
+			Record<string, unknown>,
+		][];
+		const detailUpdate = updateSetCalls.find(([arg]) => "virtualBuyIn" in arg);
+		expect(detailUpdate).toBeDefined();
+		expect(detailUpdate?.[0].virtualBuyIn).toBe(300);
+		expect(detailUpdate?.[0].virtualCashOut).toBeNull();
+	});
+
+	it("keeps the currency transaction amount equal to the REAL profit/loss (core invariant)", async () => {
+		const session = makeGameSession({ currencyId: "currency-1" });
+		const existingDetail = [
+			{ sessionId: "session-1", buyIn: 500, cashOut: null, evCashOut: null },
+		];
+		const existingTx = [{ id: "tx-1", currencyId: "currency-1", amount: 0 }];
+		const db = makeChainableDb([
+			makeVirtualEvents(),
+			[session],
+			existingDetail,
+			existingTx,
+		]);
+
+		await recalculateCashGameSession(
+			db as unknown as Parameters<typeof recalculateCashGameSession>[0],
+			"session-1",
+			"user-1"
+		);
+
+		const updateSetCalls = db._updateChain.set.mock.calls as [
+			Record<string, unknown>,
+		][];
+		const txUpdate = updateSetCalls.find(([arg]) => "amount" in arg);
+		expect(txUpdate).toBeDefined();
+		// real P/L = 700 - 500 = 200; virtual amounts excluded
+		expect(txUpdate?.[0].amount).toBe(200);
+	});
+
+	it("rewrites session_item_usage rows and item_transaction net rows in one atomic batch", async () => {
+		const session = makeGameSession({ currencyId: "currency-1" });
+		const existingDetail = [
+			{ sessionId: "session-1", buyIn: 500, cashOut: null, evCashOut: null },
+		];
+		const existingTx = [{ id: "tx-1", currencyId: "currency-1", amount: 0 }];
+		const db = makeChainableDb([
+			makeVirtualEvents(),
+			[session],
+			existingDetail,
+			existingTx,
+		]);
+
+		await recalculateCashGameSession(
+			db as unknown as Parameters<typeof recalculateCashGameSession>[0],
+			"session-1",
+			"user-1"
+		);
+
+		expect(db._batch).toHaveBeenCalledTimes(1);
+
+		const insertedValues = db._insertChain.values.mock.calls.flat() as (
+			| Record<string, unknown>
+			| Record<string, unknown>[]
+		)[];
+		const flatRows = insertedValues.flat() as Record<string, unknown>[];
+
+		const usageRows = flatRows.filter((r) => "direction" in r);
+		expect(usageRows).toHaveLength(2);
+		expect(usageRows[0]).toMatchObject({
+			sessionId: "session-1",
+			itemId: "item-1",
+			itemName: "Tournament ticket",
+			unitValue: 1000,
+			currencyId: "currency-1",
+			direction: "buy_in",
+			count: 2,
+		});
+		expect(usageRows[1]).toMatchObject({
+			direction: "cash_out",
+			count: 1,
+		});
+
+		const ledgerRows = flatRows.filter(
+			(r) => "count" in r && !("direction" in r)
+		);
+		expect(ledgerRows).toHaveLength(1);
+		// net = cash_out 1 - buy_in 2 = -1
+		expect(ledgerRows[0]).toMatchObject({
+			itemId: "item-1",
+			sessionId: "session-1",
+			count: -1,
+		});
+		expect(ledgerRows[0]?.transactedAt).toEqual(startedAt);
+	});
+
+	it("writes no usage or ledger rows when there are no item usages, but still batches the cleanup deletes", async () => {
+		const events = [
+			makeSessionEvent("session_start", { buyInAmount: 500 }, startedAt, 0),
+			makeSessionEvent("session_end", { cashOutAmount: 700 }, endedAt, 1),
+		];
+		const session = makeGameSession({ currencyId: "currency-1" });
+		const existingDetail = [
+			{ sessionId: "session-1", buyIn: 500, cashOut: null, evCashOut: null },
+		];
+		const existingTx = [{ id: "tx-1", currencyId: "currency-1", amount: 0 }];
+		const db = makeChainableDb([events, [session], existingDetail, existingTx]);
+
+		await recalculateCashGameSession(
+			db as unknown as Parameters<typeof recalculateCashGameSession>[0],
+			"session-1",
+			"user-1"
+		);
+
+		expect(db._batch).toHaveBeenCalledTimes(1);
+		const flatRows = db._insertChain.values.mock.calls.flat(2) as Record<
+			string,
+			unknown
+		>[];
+		expect(flatRows.filter((r) => "direction" in r)).toHaveLength(0);
+	});
+});
+
+describe("recalculateTournamentSession — virtual data on completion", () => {
+	const startedAt = new Date("2024-01-01T10:00:00Z");
+	const endedAt = new Date("2024-01-01T14:00:00Z");
+
+	it("writes pure-virtual totals onto the tournament detail and keeps the ledger amount real", async () => {
+		const events = [
+			makeSessionEvent("session_start", { timerStartedAt: null }, startedAt, 0),
+			makeSessionEvent("virtual_cash_out", pureVirtualPayload(800), endedAt, 1),
+			makeSessionEvent(
+				"session_end",
+				{
+					beforeDeadline: false,
+					placement: 1,
+					totalEntries: 10,
+					prizeMoney: 2000,
+					bountyPrizes: 0,
+				},
+				endedAt,
+				2
+			),
+		];
+		const session = makeGameSession({
+			kind: "tournament",
+			currencyId: "currency-1",
+		});
+		const existingDetail = [
+			{
+				sessionId: "session-1",
+				tournamentId: null,
+				tournamentBuyIn: 1000,
+				entryFee: null,
+			},
+		];
+		const existingTx = [{ id: "tx-1", currencyId: "currency-1", amount: 0 }];
+
+		const db = makeChainableDb([
+			events,
+			[session],
+			existingDetail,
+			[], // session_chip_purchase rows (syncChipPurchaseResults)
+			existingTx,
+		]);
+
+		await recalculateTournamentSession(
+			db as unknown as Parameters<typeof recalculateTournamentSession>[0],
+			"session-1",
+			"user-1"
+		);
+
+		const updateSetCalls = db._updateChain.set.mock.calls as [
+			Record<string, unknown>,
+		][];
+		const detailUpdate = updateSetCalls.find(
+			([arg]) => "virtualCashOut" in arg
+		);
+		expect(detailUpdate).toBeDefined();
+		expect(detailUpdate?.[0].virtualBuyIn).toBeNull();
+		expect(detailUpdate?.[0].virtualCashOut).toBe(800);
+
+		const txUpdate = updateSetCalls.find(([arg]) => "amount" in arg);
+		// real P/L = 2000 - 1000 = 1000; virtual 800 excluded
+		expect(txUpdate?.[0].amount).toBe(1000);
 	});
 });

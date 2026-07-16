@@ -30,9 +30,9 @@ const EPOCH_JAN_2024 = 1_704_067_200;
 // ---------------------------------------------------------------------------
 
 function cashRow(overrides: Partial<StatsSessionRow> = {}): StatsSessionRow {
-	return {
+	const row = {
 		id: "cash-1",
-		type: "cash_game",
+		type: "cash_game" as const,
 		sessionDate: EPOCH_NOV_2023,
 		profitLoss: 100,
 		evProfitLoss: null,
@@ -51,14 +51,16 @@ function cashRow(overrides: Partial<StatsSessionRow> = {}): StatsSessionRow {
 		variant: "nlh",
 		...overrides,
 	};
+	// A session with no virtual data has virtualProfitLoss === profitLoss.
+	return { virtualProfitLoss: row.profitLoss, ...row };
 }
 
 function tournamentRow(
 	overrides: Partial<StatsSessionRow> = {}
 ): StatsSessionRow {
-	return {
+	const row = {
 		id: "tourney-1",
-		type: "tournament",
+		type: "tournament" as const,
 		sessionDate: EPOCH_NOV_2023,
 		profitLoss: 500,
 		evProfitLoss: null,
@@ -77,6 +79,7 @@ function tournamentRow(
 		variant: "nlh",
 		...overrides,
 	};
+	return { virtualProfitLoss: row.profitLoss, ...row };
 }
 
 // ---------------------------------------------------------------------------
@@ -494,6 +497,7 @@ describe("breakdownStats", () => {
 			cashNormalizedProfitLoss: 30, // 50 + (-20)
 			tournamentNormalizedProfitLoss: null,
 			winRate: 50,
+			virtualWinRate: 50,
 			playMinutes: 90,
 		});
 	});
@@ -994,5 +998,241 @@ describe("stats ownership scoping", () => {
 		expect(
 			selectJoinParams.filter((params) => params.includes("user-1"))
 		).toHaveLength(1);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Virtual profit/loss (items + pure-virtual amounts)
+// ---------------------------------------------------------------------------
+
+describe("fetchStatsRows virtual profit/loss", () => {
+	function rawVirtualRow(overrides: Record<string, unknown> = {}) {
+		return {
+			id: "s1",
+			type: "cash_game",
+			sessionDate: new Date("2023-11-14T00:00:00Z"),
+			startedAt: null,
+			endedAt: null,
+			breakMinutes: null,
+			buyIn: 1000,
+			cashOut: 1500,
+			evCashOut: null,
+			blind1: 1,
+			blind2: 2,
+			cashVariant: "nlh",
+			tournamentVariant: null,
+			tournamentBuyIn: null,
+			entryFee: null,
+			placement: null,
+			totalEntries: null,
+			prizeMoney: null,
+			bountyPrizes: null,
+			roomId: "room-1",
+			roomName: "Aria",
+			currencyId: "c1",
+			cashVirtualBuyIn: null,
+			cashVirtualCashOut: null,
+			tournamentVirtualBuyIn: null,
+			tournamentVirtualCashOut: null,
+			...overrides,
+		};
+	}
+
+	function usageRow(overrides: Record<string, unknown> = {}) {
+		return {
+			sessionId: "s1",
+			id: "u1",
+			itemId: "i1",
+			direction: "buy_in",
+			count: 2,
+			itemName: "Ticket",
+			unitValue: 1000,
+			currencyId: "c1",
+			...overrides,
+		};
+	}
+
+	it("virtualProfitLoss equals profitLoss when the session has no virtual data", async () => {
+		const { db } = createChainableMockDb({
+			select: { game_session: [rawVirtualRow()] },
+		});
+		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
+		expect(rows[0]?.profitLoss).toBe(500);
+		expect(rows[0]?.virtualProfitLoss).toBe(500);
+	});
+
+	it("folds pure-virtual detail columns into virtualProfitLoss without touching profitLoss", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [
+					rawVirtualRow({ cashVirtualBuyIn: 300, cashVirtualCashOut: 100 }),
+				],
+			},
+		});
+		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
+		expect(rows[0]?.profitLoss).toBe(500);
+		// 500 + 100 - 300
+		expect(rows[0]?.virtualProfitLoss).toBe(300);
+	});
+
+	it("folds matching-currency item usages (count × unitValue) into virtualProfitLoss", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [rawVirtualRow()],
+				session_item_usage: [
+					usageRow({ direction: "buy_in", count: 2, unitValue: 1000 }),
+					usageRow({
+						id: "u2",
+						direction: "cash_out",
+						count: 1,
+						unitValue: 1000,
+					}),
+				],
+			},
+		});
+		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
+		// 500 + 1000 - 2000
+		expect(rows[0]?.virtualProfitLoss).toBe(-500);
+		expect(rows[0]?.profitLoss).toBe(500);
+	});
+
+	it("excludes usages whose snapshot currency differs from the session currency", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [rawVirtualRow()],
+				session_item_usage: [usageRow({ currencyId: "c2" })],
+			},
+		});
+		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
+		expect(rows[0]?.virtualProfitLoss).toBe(500);
+	});
+
+	it("fails closed when the session has no currency (usage excluded)", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [rawVirtualRow({ currencyId: null })],
+				session_item_usage: [usageRow()],
+			},
+		});
+		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
+		expect(rows[0]?.virtualProfitLoss).toBe(500);
+	});
+
+	it("fails closed when the usage snapshot has no currency", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [rawVirtualRow()],
+				session_item_usage: [usageRow({ currencyId: null })],
+			},
+		});
+		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
+		expect(rows[0]?.virtualProfitLoss).toBe(500);
+	});
+
+	it("folds tournament virtual columns and usages the same way", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [
+					rawVirtualRow({
+						id: "t1",
+						type: "tournament",
+						buyIn: null,
+						cashOut: null,
+						tournamentBuyIn: 1000,
+						entryFee: 100,
+						prizeMoney: 0,
+						bountyPrizes: 0,
+						tournamentVirtualCashOut: 5000,
+					}),
+				],
+				session_item_usage: [
+					usageRow({ sessionId: "t1", direction: "buy_in", count: 1 }),
+				],
+			},
+		});
+		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
+		// real P/L = 0 - 1100 = -1100; virtual = -1100 + 5000 - 1000 = 2900
+		expect(rows[0]?.profitLoss).toBe(-1100);
+		expect(rows[0]?.virtualProfitLoss).toBe(2900);
+	});
+});
+
+describe("summarizeStats — virtual win rate and net", () => {
+	it("empty rows return zeroed virtual metrics", () => {
+		const summary = summarizeStats([]);
+		expect(summary.virtualWinRate).toBe(0);
+		expect(summary.virtualNetProfitLoss).toBe(0);
+	});
+
+	it("counts a session as a virtual win only when virtualProfitLoss > 0", () => {
+		const summary = summarizeStats([
+			cashRow({ id: "a", profitLoss: -100, virtualProfitLoss: 900 }),
+			cashRow({ id: "b", profitLoss: 100, virtualProfitLoss: -400 }),
+			cashRow({ id: "c", profitLoss: 50, virtualProfitLoss: 0 }),
+		]);
+		// only "a" has virtualProfitLoss > 0 (exactly 0 is not a win)
+		expect(summary.virtualWinRate).toBeCloseTo((1 / 3) * 100);
+		// the REAL winRate is untouched by virtual amounts: b and c win
+		expect(summary.winRate).toBeCloseTo((2 / 3) * 100);
+	});
+
+	it("sums virtualProfitLoss into virtualNetProfitLoss while totalProfitLoss stays real", () => {
+		const summary = summarizeStats([
+			cashRow({ id: "a", profitLoss: -100, virtualProfitLoss: 900 }),
+			tournamentRow({ id: "b", profitLoss: 500, virtualProfitLoss: 100 }),
+		]);
+		expect(summary.virtualNetProfitLoss).toBe(1000);
+		expect(summary.totalProfitLoss).toBe(400);
+	});
+
+	it("virtual metrics equal real metrics when no session has virtual data", () => {
+		const summary = summarizeStats([
+			cashRow({ id: "a", profitLoss: 100 }),
+			cashRow({ id: "b", profitLoss: -50 }),
+		]);
+		expect(summary.virtualWinRate).toBe(summary.winRate);
+		expect(summary.virtualNetProfitLoss).toBe(summary.totalProfitLoss);
+	});
+});
+
+describe("breakdownStats — virtual win rate", () => {
+	it("computes virtualWinRate per group independently of winRate", () => {
+		const groups = breakdownStats(
+			[
+				cashRow({
+					id: "a",
+					roomId: "room-1",
+					roomName: "Aria",
+					profitLoss: -100,
+					virtualProfitLoss: 900,
+				}),
+				cashRow({
+					id: "b",
+					roomId: "room-1",
+					roomName: "Aria",
+					profitLoss: 100,
+					virtualProfitLoss: -100,
+				}),
+			],
+			"room"
+		);
+		expect(groups).toHaveLength(1);
+		expect(groups[0]?.winRate).toBe(50);
+		expect(groups[0]?.virtualWinRate).toBe(50);
+
+		const virtualOnlyWin = breakdownStats(
+			[
+				cashRow({
+					id: "a",
+					roomId: "room-1",
+					roomName: "Aria",
+					profitLoss: -100,
+					virtualProfitLoss: 900,
+				}),
+			],
+			"room"
+		);
+		expect(virtualOnlyWin[0]?.winRate).toBe(0);
+		expect(virtualOnlyWin[0]?.virtualWinRate).toBe(100);
 	});
 });

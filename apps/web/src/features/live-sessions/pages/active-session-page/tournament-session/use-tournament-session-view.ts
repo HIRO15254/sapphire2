@@ -1,10 +1,21 @@
-import { IconCoins, IconNote } from "@tabler/icons-react";
+import {
+	IconCoins,
+	IconNote,
+	IconTransferIn,
+	IconTransferOut,
+} from "@tabler/icons-react";
 import { useState } from "react";
+import { useItems } from "@/features/items/hooks/use-items";
 import type { ActionsDrawerItem } from "@/features/live-sessions/components/actions-drawer";
 import { useActiveSessionSceneState } from "@/features/live-sessions/components/active-session-scene";
 import { useTournamentSession } from "@/features/live-sessions/hooks/use-tournament-session";
 import { useTournamentStack } from "@/features/live-sessions/hooks/use-tournament-stack";
 import type { TournamentBlindLevel } from "@/features/live-sessions/utils/tournament-timer";
+import {
+	filterVirtualItemsForCurrency,
+	type VirtualAmountItemOption,
+	type VirtualAmountPayload,
+} from "@/features/live-sessions/utils/virtual-amount";
 
 export interface TournamentSummaryData {
 	averageStack: number | null;
@@ -52,10 +63,29 @@ export function useTournamentSessionView(sessionId: string) {
 	const stack = useTournamentStack({ sessionId });
 	const [isTimerDialogOpen, setIsTimerDialogOpen] = useState(false);
 	const [isBuyChipsOpen, setIsBuyChipsOpen] = useState(false);
+	const [isVirtualBuyInOpen, setIsVirtualBuyInOpen] = useState(false);
+	const [isVirtualCashOutOpen, setIsVirtualCashOutOpen] = useState(false);
 	const [isMemoOpen, setIsMemoOpen] = useState(false);
 	const [isCompleteOpen, setIsCompleteOpen] = useState(false);
 
 	const session = tournamentSession.session;
+
+	// Only items denominated in the session's currency can be recorded (the
+	// stats aggregation ignores mismatched-currency usages, fail closed).
+	const { items } = useItems();
+	const rawCurrencyId = (session as { currencyId?: string | null } | null)
+		?.currencyId;
+	const sessionCurrencyId =
+		typeof rawCurrencyId === "string" ? rawCurrencyId : null;
+	const virtualItems: VirtualAmountItemOption[] = filterVirtualItemsForCurrency(
+		items.map((item) => ({
+			id: item.id,
+			name: item.name,
+			unitValue: item.unitValue,
+			currencyId: item.currencyId,
+		})),
+		sessionCurrencyId
+	);
 	const rawHeroSeat = session?.heroSeatPosition;
 	const heroSeatPosition =
 		typeof rawHeroSeat === "number" && rawHeroSeat >= 0 ? rawHeroSeat : null;
@@ -101,6 +131,16 @@ export function useTournamentSessionView(sessionId: string) {
 			onSelect: () => setIsBuyChipsOpen(true),
 		},
 		{
+			icon: IconTransferIn,
+			label: "Virtual buy-in",
+			onSelect: () => setIsVirtualBuyInOpen(true),
+		},
+		{
+			icon: IconTransferOut,
+			label: "Virtual cash-out",
+			onSelect: () => setIsVirtualCashOutOpen(true),
+		},
+		{
 			icon: IconNote,
 			label: "Memo",
 			onSelect: () => setIsMemoOpen(true),
@@ -132,12 +172,22 @@ export function useTournamentSessionView(sessionId: string) {
 		},
 		handleOpenTimerDialog,
 		handleSubmitTimer,
+		handleVirtualBuyInSubmit: (payload: VirtualAmountPayload) => {
+			stack.addVirtualBuyIn(payload);
+			setIsVirtualBuyInOpen(false);
+		},
+		handleVirtualCashOutSubmit: (payload: VirtualAmountPayload) => {
+			stack.addVirtualCashOut(payload);
+			setIsVirtualCashOutOpen(false);
+		},
 		hasStructure,
 		isBuyChipsOpen,
 		isCompleteOpen,
 		isCompletePending: stack.isCompletePending,
 		isMemoOpen,
 		isTimerDialogOpen,
+		isVirtualBuyInOpen,
+		isVirtualCashOutOpen,
 		onEndSession: () => setIsCompleteOpen(true),
 		onPause: () => stack.pause(),
 		sceneState,
@@ -145,7 +195,10 @@ export function useTournamentSessionView(sessionId: string) {
 		setIsCompleteOpen,
 		setIsMemoOpen,
 		setIsTimerDialogOpen,
+		setIsVirtualBuyInOpen,
+		setIsVirtualCashOutOpen,
 		timerStartedAt,
 		tournamentSummary,
+		virtualItems,
 	};
 }

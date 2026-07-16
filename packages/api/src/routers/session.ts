@@ -8,6 +8,7 @@ import { currency, currencyTransaction } from "@sapphire2/db/schema/currency";
 import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { gameMix } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
+import { item, itemTransaction } from "@sapphire2/db/schema/item";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
@@ -16,6 +17,7 @@ import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
 import { sessionChipPurchaseResult } from "@sapphire2/db/schema/session-chip-purchase-result";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
+import { sessionItemUsage } from "@sapphire2/db/schema/session-item-usage";
 import {
 	sessionTag,
 	sessionToSessionTag,
@@ -49,6 +51,10 @@ import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { type BatchStatement, runBatch } from "../lib/batch";
 import { optionalUniqueTagIdsSchema } from "../lib/tag-ids";
+import {
+	computeNetItemCounts,
+	type SessionItemUsageInput,
+} from "../services/live-session-pl";
 import { ensureSessionResultTypeId } from "../services/session-result-type";
 import { sessionEventOrderBy } from "../utils/session-event-time";
 import { compareBuiltinFirst } from "./_game-masters";
@@ -674,6 +680,21 @@ async function validateGameMixOwnershipBranch(
 	return found;
 }
 
+async function validateItemOwnershipBranch(
+	db: DbInstance,
+	entityId: string,
+	userId: string
+): Promise<typeof item.$inferSelect> {
+	const [found] = await db.select().from(item).where(eq(item.id, entityId));
+	if (!found || found.userId !== userId) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this item",
+		});
+	}
+	return found;
+}
+
 /**
  * Uniform-FORBIDDEN ownership contract (SA2-183): fetch by id only, then
  * treat "missing" and "owned by someone else" identically. Shared by the
@@ -727,11 +748,18 @@ async function validateEntityOwnership(
 ): Promise<typeof tournament.$inferSelect>;
 async function validateEntityOwnership(
 	db: DbInstance,
+	entityType: "item",
+	entityId: string,
+	userId: string
+): Promise<typeof item.$inferSelect>;
+async function validateEntityOwnership(
+	db: DbInstance,
 	entityType:
 		| "currency"
 		| "gameGroup"
 		| "gameMix"
 		| "gameVariant"
+		| "item"
 		| "ringGame"
 		| "room"
 		| "tournament",
@@ -753,6 +781,8 @@ async function validateEntityOwnership(
 			return await validateGameVariantOwnershipBranch(db, entityId, userId);
 		case "gameMix":
 			return await validateGameMixOwnershipBranch(db, entityId, userId);
+		case "item":
+			return await validateItemOwnershipBranch(db, entityId, userId);
 		default:
 			return undefined;
 	}
@@ -888,6 +918,9 @@ const CASH_LIVE_LINKED_RESTRICTED_FIELDS = [
 	"minBuyIn",
 	"maxBuyIn",
 	"tableSize",
+	"virtualBuyIn",
+	"virtualCashOut",
+	"itemUsages",
 ] as const;
 
 const TOURNAMENT_LIVE_LINKED_RESTRICTED_FIELDS = [
@@ -910,6 +943,9 @@ const TOURNAMENT_LIVE_LINKED_RESTRICTED_FIELDS = [
 	"bountyAmount",
 	"tableSize",
 	"blindLevels",
+	"virtualBuyIn",
+	"virtualCashOut",
+	"itemUsages",
 ] as const;
 
 export function assertNoLiveLinkedRestrictedEdits(
@@ -952,6 +988,18 @@ const nonNegativeIntegerSchema = z.number().int().min(0);
 const nullableNonNegativeIntegerSchema = nonNegativeIntegerSchema.nullable();
 const tableSizeSchema = z.number().int().min(2).max(10);
 const nullableTableSizeSchema = tableSizeSchema.nullable();
+
+// One item-based virtual buy-in / cash-out row. The server snapshots
+// itemName / unitValue / currencyId from the authoritative item row at write
+// time — the client only names the item, its direction, and how many.
+// Shared by session.create and session.update (undefined = leave unchanged,
+// [] = clear, same replacement semantics as tagIds / chipPurchases).
+const itemUsageInputSchema = z.object({
+	itemId: z.string().min(1),
+	direction: z.enum(["buy_in", "cash_out"]),
+	count: z.number().int().min(1),
+});
+const optionalItemUsagesSchema = z.array(itemUsageInputSchema).optional();
 
 const sessionBlindLevelInputSchema = z.object({
 	isBreak: z.boolean(),
@@ -996,6 +1044,9 @@ const cashGameCreateSchema = z.object({
 	breakMinutes: nonNegativeIntegerSchema.optional(),
 	memo: z.string().optional(),
 	tagIds: optionalUniqueTagIdsSchema,
+	virtualBuyIn: nonNegativeIntegerSchema.optional(),
+	virtualCashOut: nonNegativeIntegerSchema.optional(),
+	itemUsages: optionalItemUsagesSchema,
 });
 
 // A rule-defined chip purchase plus how many times it was bought (`count`).
@@ -1036,6 +1087,9 @@ const tournamentCreateSchema = z
 		breakMinutes: nonNegativeIntegerSchema.optional(),
 		memo: z.string().optional(),
 		tagIds: optionalUniqueTagIdsSchema,
+		virtualBuyIn: nonNegativeIntegerSchema.optional(),
+		virtualCashOut: nonNegativeIntegerSchema.optional(),
+		itemUsages: optionalItemUsagesSchema,
 	})
 	.refine(
 		(data) => {
@@ -1377,6 +1431,200 @@ export async function validateTagsOwnership(
 			message: "You do not own one or more of these tags",
 		});
 	}
+}
+
+type ItemUsageInput = z.infer<typeof itemUsageInputSchema>;
+
+/**
+ * Ownership-check every itemId in the usage array (bulk-array rule: each id
+ * validated before ANY write, uniform FORBIDDEN) and snapshot the usages from
+ * the authoritative item rows — clients never dictate an item's value.
+ * Editing re-snapshots at the item's CURRENT value (the chipPurchases
+ * replacement behavior); untouched sessions keep their original snapshot.
+ */
+async function validateAndSnapshotItemUsages(
+	db: DbInstance,
+	usages: ItemUsageInput[] | undefined,
+	userId: string
+): Promise<SessionItemUsageInput[]> {
+	if (!usages || usages.length === 0) {
+		return [];
+	}
+	const uniqueIds = [...new Set(usages.map((u) => u.itemId))];
+	const owned = await selectInChunks(
+		uniqueIds,
+		(chunk) =>
+			db
+				.select({
+					id: item.id,
+					name: item.name,
+					unitValue: item.unitValue,
+					currencyId: item.currencyId,
+				})
+				.from(item)
+				.where(and(inArray(item.id, chunk), eq(item.userId, userId))),
+		1
+	);
+	if (owned.length !== uniqueIds.length) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this item",
+		});
+	}
+	const byId = new Map(owned.map((row) => [row.id, row]));
+	return usages.map((usage) => {
+		const ownedItem = byId.get(usage.itemId);
+		return {
+			itemId: usage.itemId,
+			itemName: ownedItem?.name ?? "",
+			unitValue: ownedItem?.unitValue ?? 0,
+			currencyId: ownedItem?.currencyId ?? null,
+			direction: usage.direction,
+			count: usage.count,
+		};
+	});
+}
+
+/**
+ * session.update's item-data step: when the usages were resubmitted, replace
+ * the usage rows and the session's item-ledger rows atomically (DELETE +
+ * re-INSERT in one batch, SA2-116); otherwise keep session-generated ledger
+ * rows dated to the session when only the date changes (mirrors
+ * syncCurrencyTransaction's transactedAt refresh).
+ */
+async function applyManualItemDataUpdate(
+	db: DbInstance,
+	sessionId: string,
+	snapshotItemUsages: SessionItemUsageInput[] | undefined,
+	inputSessionDate: number | undefined,
+	fallbackSessionDate: Date
+): Promise<void> {
+	if (snapshotItemUsages !== undefined) {
+		const effectiveSessionDate =
+			inputSessionDate === undefined
+				? fallbackSessionDate
+				: new Date(inputSessionDate * 1000);
+		await runBatch(
+			db,
+			buildSessionItemDataStatements(
+				db,
+				sessionId,
+				snapshotItemUsages,
+				effectiveSessionDate
+			)
+		);
+		return;
+	}
+	if (inputSessionDate !== undefined) {
+		await db
+			.update(itemTransaction)
+			.set({ transactedAt: new Date(inputSessionDate * 1000) })
+			.where(eq(itemTransaction.sessionId, sessionId));
+	}
+}
+
+/**
+ * DELETE + chunked re-INSERT of a session's item-usage rows and its
+ * session-generated item-ledger rows (one net-count row per item; net-zero
+ * items get no row). Returned UN-executed so create/update commit them inside
+ * one atomic batch (SA2-116).
+ */
+function buildSessionItemDataStatements(
+	db: DbInstance,
+	sessionId: string,
+	usages: SessionItemUsageInput[],
+	sessionDate: Date
+): BatchStatement[] {
+	const statements: BatchStatement[] = [
+		db
+			.delete(sessionItemUsage)
+			.where(eq(sessionItemUsage.sessionId, sessionId)),
+		db.delete(itemTransaction).where(eq(itemTransaction.sessionId, sessionId)),
+	];
+
+	const usageRows = usages.map((usage) => ({
+		id: crypto.randomUUID(),
+		sessionId,
+		itemId: usage.itemId,
+		direction: usage.direction,
+		count: usage.count,
+		itemName: usage.itemName,
+		unitValue: usage.unitValue,
+		currencyId: usage.currencyId,
+	}));
+	for (const chunk of chunkForInsert(usageRows, 8)) {
+		statements.push(db.insert(sessionItemUsage).values(chunk));
+	}
+
+	const ledgerRows = [...computeNetItemCounts(usages)].map(
+		([itemId, count]) => ({
+			id: crypto.randomUUID(),
+			itemId,
+			sessionId,
+			count,
+			transactedAt: sessionDate,
+		})
+	);
+	for (const chunk of chunkForInsert(ledgerRows, 5)) {
+		statements.push(db.insert(itemTransaction).values(chunk));
+	}
+
+	return statements;
+}
+
+/** Per-session item usages for getById / list enrichment and stats, keyed by
+ * session id. Mirrors {@link getSessionChipPurchaseMap}. */
+export async function getSessionItemUsageMap(
+	db: DbInstance,
+	sessionIds: string[]
+): Promise<Map<string, SessionItemUsageRow[]>> {
+	const map = new Map<string, SessionItemUsageRow[]>();
+	if (sessionIds.length === 0) {
+		return map;
+	}
+	const rows = await selectInChunks(sessionIds, (chunk) =>
+		db
+			.select({
+				sessionId: sessionItemUsage.sessionId,
+				id: sessionItemUsage.id,
+				itemId: sessionItemUsage.itemId,
+				direction: sessionItemUsage.direction,
+				count: sessionItemUsage.count,
+				itemName: sessionItemUsage.itemName,
+				unitValue: sessionItemUsage.unitValue,
+				currencyId: sessionItemUsage.currencyId,
+			})
+			.from(sessionItemUsage)
+			.where(inArray(sessionItemUsage.sessionId, chunk))
+	);
+	for (const r of rows) {
+		const entry: SessionItemUsageRow = {
+			id: r.id,
+			itemId: r.itemId,
+			direction: r.direction as "buy_in" | "cash_out",
+			count: r.count,
+			itemName: r.itemName,
+			unitValue: r.unitValue,
+			currencyId: r.currencyId,
+		};
+		const existing = map.get(r.sessionId);
+		if (existing) {
+			existing.push(entry);
+		} else {
+			map.set(r.sessionId, [entry]);
+		}
+	}
+	return map;
+}
+
+export interface SessionItemUsageRow {
+	count: number;
+	currencyId: string | null;
+	direction: "buy_in" | "cash_out";
+	id: string;
+	itemId: string | null;
+	itemName: string;
+	unitValue: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -1780,6 +2028,13 @@ function selectEnrichedSessionRows(db: DbInstance, userId: string) {
 			beforeDeadline: sessionTournamentDetail.beforeDeadline,
 			prizeMoney: sessionTournamentDetail.prizeMoney,
 			bountyPrizes: sessionTournamentDetail.bountyPrizes,
+			// Pure-virtual amounts per detail table (a session has exactly one
+			// detail row, so exactly one pair is non-null). Kept as plain columns
+			// — no COALESCE — so mocked projections stay row-preserving.
+			cashVirtualBuyIn: sessionCashDetail.virtualBuyIn,
+			cashVirtualCashOut: sessionCashDetail.virtualCashOut,
+			tournamentVirtualBuyIn: sessionTournamentDetail.virtualBuyIn,
+			tournamentVirtualCashOut: sessionTournamentDetail.virtualCashOut,
 			startedAt: gameSession.startedAt,
 			endedAt: gameSession.endedAt,
 			breakMinutes: gameSession.breakMinutes,
@@ -1840,9 +2095,10 @@ async function enrichSessionRows<
 	T extends Omit<ListItemRaw, "chipPurchaseCost"> & { id: string },
 >(db: DbInstance, rows: T[], userId: string) {
 	const detailSessionIds = rows.map((row) => row.id);
-	const [chipPurchaseMap, blindLevelMap] = await Promise.all([
+	const [chipPurchaseMap, blindLevelMap, itemUsageMap] = await Promise.all([
 		getSessionChipPurchaseMap(db, detailSessionIds),
 		getSessionBlindLevelMap(db, detailSessionIds),
+		getSessionItemUsageMap(db, detailSessionIds),
 	]);
 	const withChipPurchases = rows.map((item) => {
 		const chipPurchases = chipPurchaseMap.get(item.id) ?? [];
@@ -1851,6 +2107,7 @@ async function enrichSessionRows<
 			blindLevels: blindLevelMap.get(item.id) ?? [],
 			chipPurchases,
 			chipPurchaseCost: sumChipPurchaseCost(chipPurchases),
+			itemUsages: itemUsageMap.get(item.id) ?? [],
 		};
 	});
 
@@ -1945,6 +2202,8 @@ interface CashUpdateInput {
 	ruleName?: string;
 	tableSize?: number | null;
 	variant?: string;
+	virtualBuyIn?: number | null;
+	virtualCashOut?: number | null;
 }
 
 function applyCashRuleScalarUpdates(
@@ -2002,6 +2261,14 @@ async function applyCashDetailUpdate(
 	}
 	if (input.evCashOut !== undefined) {
 		cashUpdate.evCashOut = input.evCashOut;
+	}
+	if (input.virtualBuyIn !== undefined) {
+		cashUpdate.virtualBuyIn = input.virtualBuyIn ? input.virtualBuyIn : null;
+	}
+	if (input.virtualCashOut !== undefined) {
+		cashUpdate.virtualCashOut = input.virtualCashOut
+			? input.virtualCashOut
+			: null;
 	}
 
 	// Snapshot field overrides — written to detail, never propagated to parent.
@@ -2085,6 +2352,8 @@ interface TournamentUpdateInput {
 	tournamentBuyIn?: number;
 	tournamentId?: string | null;
 	variant?: string;
+	virtualBuyIn?: number | null;
+	virtualCashOut?: number | null;
 }
 
 async function assertTournamentPlacementIntegrity(
@@ -2208,6 +2477,14 @@ function applyTournamentScalarUpdates(
 			tournUpdate.placement = null;
 			tournUpdate.totalEntries = null;
 		}
+	}
+	if (input.virtualBuyIn !== undefined) {
+		tournUpdate.virtualBuyIn = input.virtualBuyIn ? input.virtualBuyIn : null;
+	}
+	if (input.virtualCashOut !== undefined) {
+		tournUpdate.virtualCashOut = input.virtualCashOut
+			? input.virtualCashOut
+			: null;
 	}
 }
 
@@ -2749,6 +3026,8 @@ async function buildCashGameSessionDetailStatements(
 			buyIn: input.buyIn,
 			cashOut: input.cashOut,
 			evCashOut: input.evCashOut ?? null,
+			virtualBuyIn: input.virtualBuyIn ? input.virtualBuyIn : null,
+			virtualCashOut: input.virtualCashOut ? input.virtualCashOut : null,
 			ruleName: snapshot.ruleName,
 			variant: snapshot.variant,
 			mixGames: snapshot.mixGames,
@@ -2852,6 +3131,8 @@ async function buildTournamentSessionDetailStatements(
 			totalEntries: beforeDeadline ? null : (input.totalEntries ?? null),
 			prizeMoney: input.prizeMoney ?? null,
 			bountyPrizes: input.bountyPrizes ?? null,
+			virtualBuyIn: input.virtualBuyIn ? input.virtualBuyIn : null,
+			virtualCashOut: input.virtualCashOut ? input.virtualCashOut : null,
 			ruleName: snapshot.ruleName,
 			variant: snapshot.variant,
 			startingStack: snapshot.startingStack,
@@ -3102,6 +3383,11 @@ export const sessionRouter = router({
 			// detail/tags.
 			await validateCreateLinks(ctx.db, input, userId);
 			await validateTagsOwnership(ctx.db, sessionTag, input.tagIds, userId);
+			const snapshotItemUsages = await validateAndSnapshotItemUsages(
+				ctx.db,
+				input.itemUsages,
+				userId
+			);
 
 			const statements: BatchStatement[] = [
 				ctx.db.insert(gameSession).values({
@@ -3138,6 +3424,16 @@ export const sessionRouter = router({
 			}
 
 			statements.push(...buildSessionTagStatements(ctx.db, id, input.tagIds));
+			if (snapshotItemUsages.length > 0) {
+				statements.push(
+					...buildSessionItemDataStatements(
+						ctx.db,
+						id,
+						snapshotItemUsages,
+						sessionDate
+					)
+				);
+			}
 			statements.push(
 				...(await buildCreateCurrencyTxStatements(
 					ctx.db,
@@ -3253,6 +3549,9 @@ export const sessionRouter = router({
 					minBuyIn: nullableNonNegativeIntegerSchema.optional(),
 					maxBuyIn: nullableNonNegativeIntegerSchema.optional(),
 					tagIds: optionalUniqueTagIdsSchema,
+					virtualBuyIn: nullableNonNegativeIntegerSchema.optional(),
+					virtualCashOut: nullableNonNegativeIntegerSchema.optional(),
+					itemUsages: optionalItemUsagesSchema,
 				})
 				.refine(
 					(data) =>
@@ -3311,6 +3610,15 @@ export const sessionRouter = router({
 				await validateTagsOwnership(ctx.db, sessionTag, input.tagIds, userId);
 			}
 
+			const snapshotItemUsages =
+				input.itemUsages === undefined
+					? undefined
+					: await validateAndSnapshotItemUsages(
+							ctx.db,
+							input.itemUsages,
+							userId
+						);
+
 			const sessionUpdateFields = buildSessionUpdateFields(input);
 			await ctx.db
 				.update(gameSession)
@@ -3346,6 +3654,14 @@ export const sessionRouter = router({
 				}
 				await runBatch(ctx.db, tagStatements);
 			}
+
+			await applyManualItemDataUpdate(
+				ctx.db,
+				input.id,
+				snapshotItemUsages,
+				input.sessionDate,
+				session.sessionDate
+			);
 
 			const [updated] = await ctx.db
 				.select()

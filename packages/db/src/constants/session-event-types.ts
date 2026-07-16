@@ -23,12 +23,21 @@ export const COMMON_EVENT_TYPES = [
 	"memo",
 ] as const;
 
+// Virtual (non-currency) buy-in / cash-out events. Valid for both session
+// kinds. Their amounts feed virtual P/L only and must never reach the
+// currency ledger.
+export const VIRTUAL_EVENT_TYPES = [
+	"virtual_buy_in",
+	"virtual_cash_out",
+] as const;
+
 export const ALL_EVENT_TYPES = [
 	...LIFECYCLE_EVENT_TYPES,
 	...PAUSE_RESUME_EVENT_TYPES,
 	...CASH_EVENT_TYPES,
 	...TOURNAMENT_EVENT_TYPES,
 	...COMMON_EVENT_TYPES,
+	...VIRTUAL_EVENT_TYPES,
 ] as const;
 
 export type SessionEventType = (typeof ALL_EVENT_TYPES)[number];
@@ -173,6 +182,55 @@ export const memoPayload = z.object({
 	text: z.string().min(1),
 });
 
+// Virtual event payloads
+//
+// A virtual buy-in / cash-out is either item-based (itemId set, with
+// itemName / unitValue / currencyId denormalized as a snapshot frozen at
+// usage time — the purchase_chips precedent) or pure-virtual (all item
+// fields null, free `amount`). `amount` is the total currency-equivalent
+// value: for item usages it must equal count × unitValue (a zero-value item
+// is allowed so holdings of worthless tickets stay trackable); pure-virtual
+// amounts must be ≥ 1 to avoid storing no-op events (the chips_add_remove
+// precedent).
+export const virtualAmountPayload = z
+	.object({
+		amount: z.number().int().min(0),
+		itemId: z.string().min(1).nullable(),
+		itemName: z.string().min(1).nullable(),
+		count: z.number().int().min(1).nullable(),
+		unitValue: z.number().int().min(0).nullable(),
+		currencyId: z.string().min(1).nullable(),
+	})
+	.refine(
+		(data) =>
+			data.itemId === null
+				? data.itemName === null &&
+					data.count === null &&
+					data.unitValue === null
+				: data.itemName !== null &&
+					data.count !== null &&
+					data.unitValue !== null,
+		{
+			message: "item fields must be all set or all null",
+			path: ["itemId"],
+		}
+	)
+	.refine(
+		(data) =>
+			data.itemId === null ||
+			data.count === null ||
+			data.unitValue === null ||
+			data.amount === data.count * data.unitValue,
+		{
+			message: "amount must equal count × unitValue for item usages",
+			path: ["amount"],
+		}
+	)
+	.refine((data) => data.itemId !== null || data.amount >= 1, {
+		message: "pure-virtual amount must be at least 1",
+		path: ["amount"],
+	});
+
 // --- Payload schema map ---
 
 // Session-type-aware payload schemas for session_start and session_end
@@ -200,6 +258,8 @@ export const EVENT_PAYLOAD_SCHEMAS: Record<
 	player_join: playerJoinPayload,
 	player_leave: playerLeavePayload,
 	memo: memoPayload,
+	virtual_buy_in: virtualAmountPayload,
+	virtual_cash_out: virtualAmountPayload,
 };
 
 // Helper to validate payload for a given event type
@@ -237,6 +297,11 @@ export function isValidEventTypeForSessionType(
 
 	const commonTypes: readonly string[] = COMMON_EVENT_TYPES;
 	if (commonTypes.includes(eventType)) {
+		return true;
+	}
+
+	const virtualTypes: readonly string[] = VIRTUAL_EVENT_TYPES;
+	if (virtualTypes.includes(eventType)) {
 		return true;
 	}
 
@@ -311,6 +376,7 @@ const EVENTS_ALLOWED_WHEN_ACTIVE: readonly string[] = [
 	...CASH_EVENT_TYPES,
 	...TOURNAMENT_EVENT_TYPES,
 	...COMMON_EVENT_TYPES,
+	...VIRTUAL_EVENT_TYPES,
 	"session_pause",
 	"session_end",
 ];

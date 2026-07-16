@@ -442,3 +442,94 @@ describe("useCashGameStack", () => {
 		});
 	});
 });
+
+describe("useCashGameStack — virtual buy-in / cash-out", () => {
+	const itemPayload = {
+		amount: 2000,
+		itemId: "i1",
+		itemName: "Tournament ticket",
+		count: 2,
+		unitValue: 1000,
+		currencyId: "c1",
+	};
+	const purePayload = {
+		amount: 500,
+		itemId: null,
+		itemName: null,
+		count: null,
+		unitValue: null,
+		currencyId: null,
+	};
+
+	beforeEach(() => {
+		for (const m of Object.values(trpcMocks)) {
+			m.mockReset();
+		}
+	});
+
+	it("addVirtualBuyIn posts a virtual_buy_in event with the full payload", async () => {
+		const qc = createClient();
+		qc.setQueryData(sessionKey, { status: "active", summary: {} });
+		qc.setQueryData(eventsKey, []);
+		trpcMocks.sessionEventCreate.mockResolvedValue({ id: "e1" });
+		const { result } = renderHook(() => useCashGameStack({ sessionId: "s1" }), {
+			wrapper: makeWrapper(qc),
+		});
+		await act(async () => {
+			result.current.addVirtualBuyIn(itemPayload);
+			await Promise.resolve();
+		});
+		await waitFor(() => {
+			expect(trpcMocks.sessionEventCreate).toHaveBeenCalledTimes(1);
+			expect(trpcMocks.sessionEventCreate).toHaveBeenCalledWith({
+				liveCashGameSessionId: "s1",
+				eventType: "virtual_buy_in",
+				payload: itemPayload,
+			});
+		});
+	});
+
+	it("addVirtualCashOut posts a virtual_cash_out event with a pure payload", async () => {
+		const qc = createClient();
+		qc.setQueryData(sessionKey, { status: "active", summary: {} });
+		qc.setQueryData(eventsKey, []);
+		trpcMocks.sessionEventCreate.mockResolvedValue({ id: "e1" });
+		const { result } = renderHook(() => useCashGameStack({ sessionId: "s1" }), {
+			wrapper: makeWrapper(qc),
+		});
+		await act(async () => {
+			result.current.addVirtualCashOut(purePayload);
+			await Promise.resolve();
+		});
+		await waitFor(() => {
+			expect(trpcMocks.sessionEventCreate).toHaveBeenCalledTimes(1);
+			expect(trpcMocks.sessionEventCreate).toHaveBeenCalledWith({
+				liveCashGameSessionId: "s1",
+				eventType: "virtual_cash_out",
+				payload: purePayload,
+			});
+		});
+	});
+
+	it("does not touch the optimistic summary money fields (server-authoritative, like chips_add_remove)", async () => {
+		const qc = createClient();
+		qc.setQueryData(sessionKey, {
+			status: "active",
+			summary: { totalBuyIn: 1000, currentStack: 900 },
+		});
+		qc.setQueryData(eventsKey, []);
+		trpcMocks.sessionEventCreate.mockResolvedValue({ id: "e1" });
+		const { result } = renderHook(() => useCashGameStack({ sessionId: "s1" }), {
+			wrapper: makeWrapper(qc),
+		});
+		await act(async () => {
+			result.current.addVirtualBuyIn(itemPayload);
+			await Promise.resolve();
+		});
+		const session = qc.getQueryData<{
+			summary: { totalBuyIn: number; currentStack: number };
+		}>(sessionKey);
+		expect(session?.summary.totalBuyIn).toBe(1000);
+		expect(session?.summary.currentStack).toBe(900);
+	});
+});

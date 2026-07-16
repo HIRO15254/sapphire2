@@ -475,3 +475,170 @@ describe("sessionEvent purchase_chips scoping", () => {
 		});
 	}
 });
+
+describe("sessionEvent virtual event scoping", () => {
+	const userId = "user-1";
+	const sessionId = "session-1";
+	const occurredAt = new Date("2026-05-01T12:00:00.000Z");
+	const canonicalItem = {
+		id: "item-1",
+		userId,
+		name: "Tournament ticket",
+		currencyId: "currency-1",
+		unitValue: 1000,
+	};
+	// A forged payload lying about the item's value (internally consistent so
+	// it passes the Zod refine) — the server must overwrite every snapshot
+	// field from the authoritative item row.
+	const tamperedItemPayload = {
+		amount: 2,
+		itemId: canonicalItem.id,
+		itemName: "Forged",
+		count: 2,
+		unitValue: 1,
+		currencyId: "currency-9",
+	};
+	const pureVirtualPayload = {
+		amount: 500,
+		itemId: null,
+		itemName: null,
+		count: null,
+		unitValue: null,
+		currencyId: null,
+	};
+
+	function makeCaller(options: {
+		eventType?: "virtual_buy_in" | "virtual_cash_out" | "memo";
+		eventPayload?: Record<string, unknown>;
+		items?: Record<string, unknown>[];
+	}) {
+		const eventType = options.eventType ?? "memo";
+		const eventPayload = options.eventPayload ?? {};
+		const { db, inserted, updated } = createChainableMockDb({
+			select: {
+				game_session: [
+					{
+						id: sessionId,
+						userId,
+						kind: "cash_game",
+						status: "active",
+						sessionDate: occurredAt,
+						startedAt: occurredAt,
+						currencyId: "currency-1",
+					},
+				],
+				session_event: [
+					{
+						id: "event-1",
+						sessionId,
+						eventType,
+						payload: JSON.stringify(eventPayload),
+						occurredAt,
+						sortOrder: 0,
+					},
+				],
+				item: options.items ?? [],
+			},
+		});
+		const caller = appRouter.createCaller({
+			session: { user: { id: userId } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]).sessionEvent;
+		return { caller, inserted, updated };
+	}
+
+	function parseFirstEventPayload(writes: unknown[] | undefined) {
+		const write = writes?.[0] as { payload?: unknown } | undefined;
+		if (!write || typeof write.payload !== "string") {
+			throw new Error("Expected a session event write with a JSON payload");
+		}
+		return JSON.parse(write.payload) as unknown;
+	}
+
+	const virtualEventTypes = ["virtual_buy_in", "virtual_cash_out"] as const;
+	for (const eventType of virtualEventTypes) {
+		it.each([
+			["missing", []],
+			["foreign", [{ ...canonicalItem, userId: "user-2" }]],
+		])(`rejects ${eventType} create when the referenced item is %s`, async (_case, items) => {
+			const { caller, inserted } = makeCaller({ items });
+
+			await expect(
+				caller.create({
+					liveCashGameSessionId: sessionId,
+					eventType,
+					occurredAt: occurredAt.getTime() / 1000,
+					payload: tamperedItemPayload,
+				})
+			).rejects.toMatchObject({ code: "FORBIDDEN" });
+			expect(inserted.session_event).toBeUndefined();
+		});
+
+		it(`writes the server-side item snapshot on ${eventType} create`, async () => {
+			const { caller, inserted } = makeCaller({ items: [canonicalItem] });
+
+			await caller.create({
+				liveCashGameSessionId: sessionId,
+				eventType,
+				occurredAt: occurredAt.getTime() / 1000,
+				payload: tamperedItemPayload,
+			});
+
+			expect(parseFirstEventPayload(inserted.session_event)).toEqual({
+				amount: 2000,
+				itemId: canonicalItem.id,
+				itemName: canonicalItem.name,
+				count: 2,
+				unitValue: canonicalItem.unitValue,
+				currencyId: canonicalItem.currencyId,
+			});
+		});
+
+		it(`passes a pure-virtual ${eventType} payload through unchanged`, async () => {
+			const { caller, inserted } = makeCaller({});
+
+			await caller.create({
+				liveCashGameSessionId: sessionId,
+				eventType,
+				occurredAt: occurredAt.getTime() / 1000,
+				payload: pureVirtualPayload,
+			});
+
+			expect(parseFirstEventPayload(inserted.session_event)).toEqual(
+				pureVirtualPayload
+			);
+		});
+	}
+
+	it("rejects update with a foreign itemId", async () => {
+		const { caller, updated } = makeCaller({
+			eventType: "virtual_buy_in",
+			eventPayload: pureVirtualPayload,
+			items: [{ ...canonicalItem, userId: "user-2" }],
+		});
+
+		await expect(
+			caller.update({ id: "event-1", payload: tamperedItemPayload })
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(updated.session_event).toBeUndefined();
+	});
+
+	it("re-snapshots from the authoritative item row on update", async () => {
+		const { caller, updated } = makeCaller({
+			eventType: "virtual_buy_in",
+			eventPayload: pureVirtualPayload,
+			items: [canonicalItem],
+		});
+
+		await caller.update({ id: "event-1", payload: tamperedItemPayload });
+
+		expect(parseFirstEventPayload(updated.session_event)).toEqual({
+			amount: 2000,
+			itemId: canonicalItem.id,
+			itemName: canonicalItem.name,
+			count: 2,
+			unitValue: canonicalItem.unitValue,
+			currencyId: canonicalItem.currencyId,
+		});
+	});
+});

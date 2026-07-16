@@ -1,3 +1,8 @@
+import {
+	currency as currencyTable,
+	currencyTransaction as currencyTransactionTable,
+} from "@sapphire2/db/schema/currency";
+import { item as itemTable } from "@sapphire2/db/schema/item";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import {
@@ -6,6 +11,37 @@ import {
 	expectRejects,
 	expectType,
 } from "./test-utils";
+
+type Rows = Record<string, unknown>[];
+
+/** Table-keyed chainable mock db for exercising the delete guards. */
+function createGuardMockDb(rowsByTable: Map<unknown, Rows>) {
+	const deleted: { table: unknown }[] = [];
+	const makeChain = (rows: Rows) => {
+		const chain = Promise.resolve(rows) as Promise<Rows> &
+			Record<string, (...args: unknown[]) => unknown>;
+		chain.from = (table: unknown) => makeChain(rowsByTable.get(table) ?? []);
+		chain.where = () => chain;
+		chain.orderBy = () => chain;
+		chain.limit = () => chain;
+		chain.groupBy = () => chain;
+		chain.innerJoin = () => chain;
+		chain.leftJoin = () => chain;
+		return chain;
+	};
+	const db = {
+		select: () => makeChain([]),
+		insert: () => ({ values: () => Promise.resolve(undefined) }),
+		update: () => ({
+			set: () => ({ where: () => Promise.resolve(undefined) }),
+		}),
+		delete: (table: unknown) => {
+			deleted.push({ table });
+			return { where: () => Promise.resolve(undefined) };
+		},
+	};
+	return { db, deleted };
+}
 
 describe("currency router", () => {
 	it("appRouter has currency namespace", () => {
@@ -220,5 +256,40 @@ describe("currencyTransaction router", () => {
 
 	it("has delete procedure", () => {
 		expect(appRouter.currencyTransaction.delete).toBeDefined();
+	});
+});
+
+describe("currency.delete guard — items valued in the currency", () => {
+	function callDelete(rowsByTable: Map<unknown, Rows>) {
+		const { db, deleted } = createGuardMockDb(rowsByTable);
+		const caller = appRouter.createCaller({
+			session: { user: { id: "user-1" } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]).currency;
+		return { promise: caller.delete({ id: "c1" }), deleted };
+	}
+
+	it("rejects with CONFLICT while an item is valued in the currency", async () => {
+		const { promise, deleted } = callDelete(
+			new Map<unknown, Rows>([
+				[currencyTable, [{ id: "c1", userId: "user-1" }]],
+				[currencyTransactionTable, []],
+				[itemTable, [{ id: "i1", currencyId: "c1" }]],
+			])
+		);
+		await expect(promise).rejects.toMatchObject({ code: "CONFLICT" });
+		expect(deleted).toHaveLength(0);
+	});
+
+	it("deletes when no transactions and no items reference the currency", async () => {
+		const { promise, deleted } = callDelete(
+			new Map<unknown, Rows>([
+				[currencyTable, [{ id: "c1", userId: "user-1" }]],
+				[currencyTransactionTable, []],
+				[itemTable, []],
+			])
+		);
+		await expect(promise).resolves.toEqual({ success: true });
+		expect(deleted).toHaveLength(1);
 	});
 });

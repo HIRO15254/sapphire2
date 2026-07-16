@@ -531,3 +531,79 @@ describe("useTournamentStack", () => {
 		});
 	});
 });
+
+describe("useTournamentStack — virtual buy-in / cash-out", () => {
+	const itemPayload = {
+		amount: 2000,
+		itemId: "i1",
+		itemName: "Tournament ticket",
+		count: 2,
+		unitValue: 1000,
+		currencyId: "c1",
+	};
+
+	beforeEach(() => {
+		for (const m of Object.values(trpcMocks)) {
+			m.mockReset();
+		}
+	});
+
+	it("addVirtualBuyIn posts a virtual_buy_in event", async () => {
+		const qc = createClient();
+		qc.setQueryData(sessionKey, { status: "active", summary: {} });
+		qc.setQueryData(eventsKey, []);
+		trpcMocks.sessionEventCreate.mockResolvedValue({ id: "e1" });
+		const { result } = renderHook(
+			() => useTournamentStack({ sessionId: "t1" }),
+			{ wrapper: makeWrapper(qc) }
+		);
+		await act(async () => {
+			result.current.addVirtualBuyIn(itemPayload);
+			await Promise.resolve();
+		});
+		await waitFor(() => {
+			expect(trpcMocks.sessionEventCreate).toHaveBeenCalledTimes(1);
+			expect(trpcMocks.sessionEventCreate).toHaveBeenCalledWith({
+				liveTournamentSessionId: "t1",
+				eventType: "virtual_buy_in",
+				payload: itemPayload,
+			});
+		});
+	});
+
+	it("addVirtualCashOut posts a virtual_cash_out event", async () => {
+		const qc = createClient();
+		qc.setQueryData(sessionKey, { status: "active", summary: {} });
+		qc.setQueryData(eventsKey, []);
+		trpcMocks.sessionEventCreate.mockResolvedValue({ id: "e1" });
+		const { result } = renderHook(
+			() => useTournamentStack({ sessionId: "t1" }),
+			{ wrapper: makeWrapper(qc) }
+		);
+		await act(async () => {
+			result.current.addVirtualCashOut({
+				amount: 500,
+				itemId: null,
+				itemName: null,
+				count: null,
+				unitValue: null,
+				currencyId: null,
+			});
+			await Promise.resolve();
+		});
+		await waitFor(() => {
+			expect(trpcMocks.sessionEventCreate).toHaveBeenCalledWith({
+				liveTournamentSessionId: "t1",
+				eventType: "virtual_cash_out",
+				payload: {
+					amount: 500,
+					itemId: null,
+					itemName: null,
+					count: null,
+					unitValue: null,
+					currencyId: null,
+				},
+			});
+		});
+	});
+});

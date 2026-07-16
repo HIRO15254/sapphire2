@@ -38,6 +38,8 @@ interface Summary {
 	totalProfitLoss: number;
 	totalSessions: number;
 	tournamentNormalizedProfitLoss: number | null;
+	virtualNetProfitLoss?: number;
+	virtualWinRate?: number;
 	winRate: number;
 }
 
@@ -60,6 +62,8 @@ function summary(overrides: Partial<Summary> = {}): Summary {
 		itmRate: null,
 		avgPlacement: null,
 		totalPrizeMoney: null,
+		virtualNetProfitLoss: 2000,
+		virtualWinRate: 70,
 		...overrides,
 	};
 }
@@ -154,8 +158,10 @@ describe("useCashGameStats", () => {
 		expect(result.current.rows.map((r) => r.key)).toEqual([
 			"sessions",
 			"net",
+			"virtualNet",
 			"avg",
 			"winRate",
+			"virtualWinRate",
 			"playTime",
 			"hourly",
 			"evDiff",
@@ -219,5 +225,53 @@ describe("useCashGameStats", () => {
 		view.result.current.retry();
 		await waitFor(() => expect(view.result.current.isError).toBe(false));
 		expect(trpcMocks.summaryQueryFn).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe("useCashGameStats — virtual metrics", () => {
+	it("lists Virtual win rate and Virtual net P&L with currency units when not normalized", async () => {
+		trpcMocks.summaryQueryFn.mockResolvedValue(summary());
+		const result = await renderLoadedCash(ctx());
+		const byKey = rowsByKey(result);
+		expect(byKey.virtualWinRate.label).toBe("Virtual win rate");
+		expect(byKey.virtualWinRate.value).toBe("70.0%");
+		expect(byKey.virtualNet.label).toBe("Virtual net P&L");
+		expect(byKey.virtualNet.value).toBe("+2,000 USD");
+		expect(byKey.virtualNet.valueColor).not.toBe("");
+	});
+
+	it("keeps Virtual win rate but dashes Virtual net P&L when normalized", async () => {
+		trpcMocks.summaryQueryFn.mockResolvedValue(summary());
+		const result = await renderLoadedCash(
+			ctx({
+				normalized: true,
+				statsInput: { normalized: true },
+				currencyUnit: null,
+			})
+		);
+		const byKey = rowsByKey(result);
+		expect(byKey.virtualWinRate.value).toBe("70.0%");
+		expect(byKey.virtualNet.value).toBe("—");
+		expect(byKey.virtualNet.valueColor).toBe("");
+	});
+
+	it("colors a negative virtual net with the destructive class", async () => {
+		trpcMocks.summaryQueryFn.mockResolvedValue(
+			summary({ virtualNetProfitLoss: -500 })
+		);
+		const result = await renderLoadedCash(ctx());
+		const byKey = rowsByKey(result);
+		expect(byKey.virtualNet.value).toBe("-500 USD");
+		expect(byKey.virtualNet.valueColor).toContain("red");
+	});
+
+	it("dashes virtual metrics when a stale cached summary lacks the fields", async () => {
+		trpcMocks.summaryQueryFn.mockResolvedValue(
+			summary({ virtualNetProfitLoss: undefined, virtualWinRate: undefined })
+		);
+		const result = await renderLoadedCash(ctx());
+		const byKey = rowsByKey(result);
+		expect(byKey.virtualWinRate.value).toBe("—");
+		expect(byKey.virtualNet.value).toBe("—");
 	});
 });

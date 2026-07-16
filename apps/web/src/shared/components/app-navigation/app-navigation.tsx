@@ -6,6 +6,7 @@ import {
 	IconCoins,
 	IconPokerChip,
 	IconSettings,
+	IconTicket,
 	IconUsers,
 } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
@@ -32,6 +33,7 @@ export const RESOURCE_ITEMS: readonly NavigationItem[] = [
 	{ to: "/rooms", label: "Rooms", icon: IconBuildingStore },
 	{ to: "/players", label: "Players", icon: IconUsers },
 	{ to: "/currencies", label: "Currencies", icon: IconCoins },
+	{ to: "/items", label: "Items", icon: IconTicket },
 	{ to: "/games", label: "Games", icon: IconPokerChip },
 ] as const;
 
@@ -41,6 +43,7 @@ export const SIDEBAR_ITEMS: readonly NavigationItem[] = [
 	{ to: "/rooms", label: "Rooms", icon: IconBuildingStore },
 	{ to: "/players", label: "Players", icon: IconUsers },
 	{ to: "/currencies", label: "Currencies", icon: IconCoins },
+	{ to: "/items", label: "Items", icon: IconTicket },
 	{ to: "/games", label: "Games", icon: IconPokerChip },
 	{ to: "/settings", label: "Settings", icon: IconSettings },
 ] as const;
@@ -54,7 +57,7 @@ const RESOURCES_NAV_ITEM: NavigationItem = {
 	to: "/resources",
 	label: "Resources",
 	icon: IconCategory,
-	matchPaths: ["/rooms", "/players", "/currencies", "/games"],
+	matchPaths: ["/rooms", "/players", "/currencies", "/items", "/games"],
 };
 
 const NORMAL_RIGHT_ITEMS: readonly NavigationItem[] = [

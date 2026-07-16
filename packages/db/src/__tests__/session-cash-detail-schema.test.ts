@@ -49,6 +49,13 @@ describe("SessionCashDetail schema — columns", () => {
 		expect(columns.evCashOut.dataType).toBe("number");
 	});
 
+	it("virtualBuyIn / virtualCashOut are nullable integers (pure-virtual amounts only)", () => {
+		expect(columns.virtualBuyIn.notNull).toBe(false);
+		expect(columns.virtualCashOut.notNull).toBe(false);
+		expect(columns.virtualBuyIn.dataType).toBe("number");
+		expect(columns.virtualCashOut.dataType).toBe("number");
+	});
+
 	it("ringGameId is string type", () => {
 		expect(columns.ringGameId.dataType).toBe("string");
 	});

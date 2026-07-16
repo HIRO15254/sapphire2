@@ -13,6 +13,8 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
 	session_end: "Session End",
 	player_join: "Player Join",
 	player_leave: "Player Leave",
+	virtual_buy_in: "Virtual Buy-in",
+	virtual_cash_out: "Virtual Cash-out",
 };
 
 export const LIFECYCLE_EVENTS = new Set(["session_start", "session_end"]);
@@ -92,6 +94,16 @@ function formatPurchaseChipsSummary(p: Record<string, unknown>) {
 		: null;
 }
 
+function formatVirtualAmountSummary(p: Record<string, unknown>) {
+	if (typeof p.amount !== "number") {
+		return null;
+	}
+	if (typeof p.itemName === "string" && typeof p.count === "number") {
+		return `${p.itemName} × ${p.count} (${formatNumber(p.amount)})`;
+	}
+	return `Amount: ${formatNumber(p.amount)}`;
+}
+
 function formatMemoSummary(p: Record<string, unknown>) {
 	if (typeof p.text !== "string") {
 		return null;
@@ -122,6 +134,8 @@ const PAYLOAD_SUMMARIZERS: Record<string, PayloadSummarizer> = {
 	session_end: formatSessionEndSummary,
 	player_join: formatPlayerJoinSummary,
 	player_leave: (p) => (p.isHero === true ? "Hero" : null),
+	virtual_buy_in: formatVirtualAmountSummary,
+	virtual_cash_out: formatVirtualAmountSummary,
 };
 
 export function formatPayloadSummary(eventType: string, payload: unknown) {

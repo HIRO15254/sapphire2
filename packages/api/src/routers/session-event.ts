@@ -8,7 +8,9 @@ import {
 	purchaseChipsPayload,
 	type SessionEventType,
 	validateEventPayload,
+	virtualAmountPayload,
 } from "@sapphire2/db/constants/session-event-types";
+import { item } from "@sapphire2/db/schema/item";
 import { player } from "@sapphire2/db/schema/player";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
@@ -116,6 +118,43 @@ async function resolveSessionScopedEventPayload(
 			name: purchase.name,
 			cost: purchase.cost,
 			chips: purchase.chips,
+		};
+	}
+
+	if (eventType === "virtual_buy_in" || eventType === "virtual_cash_out") {
+		const payload = virtualAmountPayload.parse(validatedPayload);
+		if (payload.itemId === null) {
+			return payload;
+		}
+
+		// Item-based usage: ownership-check the referenced item, then overwrite
+		// every snapshot field from the authoritative row (the purchase_chips
+		// precedent) so a client cannot forge an item's value.
+		const [ownedItem] = await db
+			.select({
+				id: item.id,
+				userId: item.userId,
+				name: item.name,
+				unitValue: item.unitValue,
+				currencyId: item.currencyId,
+			})
+			.from(item)
+			.where(eq(item.id, payload.itemId));
+		if (!ownedItem || ownedItem.userId !== userId) {
+			throw new TRPCError({
+				code: "FORBIDDEN",
+				message: "You do not own this item",
+			});
+		}
+
+		const count = payload.count ?? 1;
+		return {
+			amount: count * ownedItem.unitValue,
+			itemId: ownedItem.id,
+			itemName: ownedItem.name,
+			count,
+			unitValue: ownedItem.unitValue,
+			currencyId: ownedItem.currencyId,
 		};
 	}
 

@@ -21,12 +21,15 @@ const mocks = vi.hoisted(() => ({
 		purchaseChips: vi.fn(),
 		complete: vi.fn(),
 		addMemo: vi.fn(),
+		addVirtualBuyIn: vi.fn(),
+		addVirtualCashOut: vi.fn(),
 		pause: vi.fn(),
 		resume: vi.fn(),
 		isStackPending: false,
 		isCompletePending: false,
 	},
 	lastStackOptions: null as Record<string, unknown> | null,
+	items: [] as unknown[],
 }));
 
 vi.mock("@/features/live-sessions/hooks/use-tournament-session", () => ({
@@ -56,6 +59,10 @@ vi.mock("@/features/live-sessions/components/active-session-scene", () => ({
 	},
 }));
 
+vi.mock("@/features/items/hooks/use-items", () => ({
+	useItems: () => ({ items: mocks.items }),
+}));
+
 import { useTournamentSessionView } from "@/features/live-sessions/pages/active-session-page/tournament-session/use-tournament-session-view";
 
 describe("useTournamentSessionView", () => {
@@ -72,8 +79,11 @@ describe("useTournamentSessionView", () => {
 		mocks.stack.purchaseChips.mockReset();
 		mocks.stack.complete.mockReset();
 		mocks.stack.addMemo.mockReset();
+		mocks.stack.addVirtualBuyIn.mockReset();
+		mocks.stack.addVirtualCashOut.mockReset();
 		mocks.stack.pause.mockReset();
 		mocks.stack.isCompletePending = false;
+		mocks.items = [];
 	});
 
 	describe("initial state", () => {
@@ -283,10 +293,12 @@ describe("useTournamentSessionView", () => {
 	});
 
 	describe("event menu extra items", () => {
-		it("lists Buy chips / Memo in that order", () => {
+		it("lists Buy chips / Virtual buy-in / Virtual cash-out / Memo in that order", () => {
 			const { result } = renderHook(() => useTournamentSessionView("t-1"));
 			expect(result.current.eventMenuExtraItems.map((i) => i.label)).toEqual([
 				"Buy chips",
+				"Virtual buy-in",
+				"Virtual cash-out",
 				"Memo",
 			]);
 		});
@@ -300,7 +312,7 @@ describe("useTournamentSessionView", () => {
 
 		it("'Memo' opens the memo sheet", () => {
 			const { result } = renderHook(() => useTournamentSessionView("t-1"));
-			act(() => result.current.eventMenuExtraItems[1]?.onSelect());
+			act(() => result.current.eventMenuExtraItems[3]?.onSelect());
 			expect(result.current.isMemoOpen).toBe(true);
 		});
 	});
@@ -323,7 +335,7 @@ describe("useTournamentSessionView", () => {
 
 		it("handleMemoSubmit records the memo and closes the sheet", () => {
 			const { result } = renderHook(() => useTournamentSessionView("t-1"));
-			act(() => result.current.eventMenuExtraItems[1]?.onSelect());
+			act(() => result.current.eventMenuExtraItems[3]?.onSelect());
 			act(() => result.current.handleMemoSubmit("note"));
 			expect(mocks.stack.addMemo).toHaveBeenCalledTimes(1);
 			expect(mocks.stack.addMemo).toHaveBeenCalledWith("note");
@@ -383,5 +395,71 @@ describe("useTournamentSessionView", () => {
 			expect(result.current.isDiscardPending).toBe(true);
 			expect(result.current.discard).toBe(mocks.discard);
 		});
+	});
+});
+
+describe("virtual buy-in / cash-out", () => {
+	const purePayload = {
+		amount: 500,
+		itemId: null,
+		itemName: null,
+		count: null,
+		unitValue: null,
+		currencyId: null,
+	};
+
+	it("opens the buy-in sheet from the menu and submits through the stack", () => {
+		const { result } = renderHook(() => useTournamentSessionView("t-1"));
+		act(() => {
+			result.current.eventMenuExtraItems
+				.find((item) => item.label === "Virtual buy-in")
+				?.onSelect();
+		});
+		expect(result.current.isVirtualBuyInOpen).toBe(true);
+
+		act(() => {
+			result.current.handleVirtualBuyInSubmit(purePayload);
+		});
+		expect(mocks.stack.addVirtualBuyIn).toHaveBeenCalledTimes(1);
+		expect(mocks.stack.addVirtualBuyIn).toHaveBeenNthCalledWith(1, purePayload);
+		expect(result.current.isVirtualBuyInOpen).toBe(false);
+	});
+
+	it("opens the cash-out sheet from the menu and submits through the stack", () => {
+		const { result } = renderHook(() => useTournamentSessionView("t-1"));
+		act(() => {
+			result.current.eventMenuExtraItems
+				.find((item) => item.label === "Virtual cash-out")
+				?.onSelect();
+		});
+		expect(result.current.isVirtualCashOutOpen).toBe(true);
+
+		act(() => {
+			result.current.handleVirtualCashOutSubmit(purePayload);
+		});
+		expect(mocks.stack.addVirtualCashOut).toHaveBeenCalledTimes(1);
+		expect(mocks.stack.addVirtualCashOut).toHaveBeenNthCalledWith(
+			1,
+			purePayload
+		);
+		expect(result.current.isVirtualCashOutOpen).toBe(false);
+	});
+
+	it("filters item options to the session currency (fail closed without one)", () => {
+		mocks.items = [
+			{ id: "i1", name: "Ticket", unitValue: 1000, currencyId: "c1" },
+			{ id: "i2", name: "Voucher", unitValue: 500, currencyId: "c2" },
+		];
+		mocks.session = { id: "t1", memo: null, currencyId: "c1" };
+		const { result } = renderHook(() => useTournamentSessionView("t-1"));
+		expect(result.current.virtualItems).toEqual([
+			{ id: "i1", name: "Ticket", unitValue: 1000, currencyId: "c1" },
+		]);
+
+		mocks.session = { id: "t1", memo: null };
+		const { result: noCurrency } = renderHook(() =>
+			useTournamentSessionView("t-1")
+		);
+		expect(noCurrency.current.virtualItems).toEqual([]);
 	});
 });

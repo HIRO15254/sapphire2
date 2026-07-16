@@ -15,6 +15,7 @@ const ROWS: BreakdownViewRow[] = [
 		sessions: 1,
 		tournamentColor: "",
 		tournamentText: "—",
+		virtualWinRateText: "40.0%",
 	},
 	{
 		cashColor: "text-emerald-600",
@@ -27,6 +28,7 @@ const ROWS: BreakdownViewRow[] = [
 		sessions: 2,
 		tournamentColor: "",
 		tournamentText: "—",
+		virtualWinRateText: "75.0%",
 	},
 ];
 
@@ -44,7 +46,7 @@ describe("BreakdownTable", () => {
 
 		expect(
 			screen.getAllByRole("columnheader").map((header) => header.textContent)
-		).toEqual(["Group", "Sessions", "Net", "BB", "Play time"]);
+		).toEqual(["Group", "Sessions", "Net", "BB", "Virtual WR", "Play time"]);
 		const mixRow = screen.getByText("Mixed Game").closest("tr");
 		expect(mixRow).not.toBeNull();
 		expect(
@@ -66,8 +68,29 @@ describe("BreakdownTable", () => {
 
 		expect(
 			screen.getAllByRole("columnheader").map((header) => header.textContent)
-		).toEqual(["Group", "Sessions", "BB", "Play time"]);
+		).toEqual(["Group", "Sessions", "BB", "Virtual WR", "Play time"]);
 		expect(screen.queryByText("+300 USD")).not.toBeInTheDocument();
+	});
+
+	it("renders each row's virtual win rate in the Virtual WR column", () => {
+		render(
+			<BreakdownTable
+				normalized={false}
+				rows={ROWS}
+				showCashColumn={false}
+				showNetColumn={false}
+				showTournamentColumn={false}
+			/>
+		);
+
+		const mixRow = screen.getByText("Mixed Game").closest("tr");
+		expect(
+			within(mixRow as HTMLTableRowElement).getByText("40.0%")
+		).toBeVisible();
+		const holdemRow = screen.getByText("NL Hold'em").closest("tr");
+		expect(
+			within(holdemRow as HTMLTableRowElement).getByText("75.0%")
+		).toBeVisible();
 	});
 
 	it("spans every visible column in the empty state", () => {
@@ -81,6 +104,6 @@ describe("BreakdownTable", () => {
 			/>
 		);
 
-		expect(screen.getByText("No data")).toHaveAttribute("colspan", "4");
+		expect(screen.getByText("No data")).toHaveAttribute("colspan", "5");
 	});
 });

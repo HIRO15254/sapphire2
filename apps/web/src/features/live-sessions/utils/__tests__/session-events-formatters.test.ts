@@ -365,3 +365,40 @@ describe("groupEventsForDisplay", () => {
 		expect(groups.every((g) => g.type === "single")).toBe(true);
 	});
 });
+
+describe("virtual event formatting", () => {
+	it("labels virtual events", () => {
+		expect(formatEventLabel("virtual_buy_in")).toBe("Virtual Buy-in");
+		expect(formatEventLabel("virtual_cash_out")).toBe("Virtual Cash-out");
+	});
+
+	it("summarizes an item-based virtual payload as name × count", () => {
+		expect(
+			formatPayloadSummary("virtual_buy_in", {
+				amount: 2000,
+				itemId: "i1",
+				itemName: "Tournament ticket",
+				count: 2,
+				unitValue: 1000,
+				currencyId: "c1",
+			})
+		).toBe("Tournament ticket × 2 (2,000)");
+	});
+
+	it("summarizes a pure-virtual payload as the amount", () => {
+		expect(
+			formatPayloadSummary("virtual_cash_out", {
+				amount: 1500,
+				itemId: null,
+				itemName: null,
+				count: null,
+				unitValue: null,
+				currencyId: null,
+			})
+		).toBe("Amount: 1,500");
+	});
+
+	it("returns null for a malformed virtual payload", () => {
+		expect(formatPayloadSummary("virtual_buy_in", { amount: "x" })).toBeNull();
+	});
+});

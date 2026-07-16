@@ -39,6 +39,8 @@ interface Summary {
 	totalSessions: number;
 	tournamentBiCount: number;
 	tournamentNormalizedProfitLoss: number | null;
+	virtualNetProfitLoss?: number;
+	virtualWinRate?: number;
 	winRate: number;
 }
 
@@ -144,8 +146,10 @@ describe("useTournamentStats", () => {
 		expect(result.current.rows.map((r) => r.key)).toEqual([
 			"sessions",
 			"net",
+			"virtualNet",
 			"avg",
 			"winRate",
+			"virtualWinRate",
 			"playTime",
 			"avgRoi",
 			"roi",
@@ -230,5 +234,44 @@ describe("useTournamentStats", () => {
 		view.result.current.retry();
 		await waitFor(() => expect(view.result.current.isError).toBe(false));
 		expect(trpcMocks.summaryQueryFn).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe("useTournamentStats — virtual metrics", () => {
+	it("lists Virtual win rate and Virtual net P&L with currency units when not normalized", async () => {
+		trpcMocks.summaryQueryFn.mockResolvedValue(
+			summary({ virtualNetProfitLoss: 2000, virtualWinRate: 70 })
+		);
+		const result = await renderLoadedTournament(ctx());
+		const byKey = rowsByKey(result);
+		expect(byKey.virtualWinRate.label).toBe("Virtual win rate");
+		expect(byKey.virtualWinRate.value).toBe("70.0%");
+		expect(byKey.virtualNet.label).toBe("Virtual net P&L");
+		expect(byKey.virtualNet.value).toBe("+2,000 USD");
+	});
+
+	it("keeps Virtual win rate but dashes Virtual net P&L when normalized", async () => {
+		trpcMocks.summaryQueryFn.mockResolvedValue(
+			summary({ virtualNetProfitLoss: 2000, virtualWinRate: 70 })
+		);
+		const result = await renderLoadedTournament(
+			ctx({
+				normalized: true,
+				statsInput: { normalized: true },
+				currencyUnit: null,
+			})
+		);
+		const byKey = rowsByKey(result);
+		expect(byKey.virtualWinRate.value).toBe("70.0%");
+		expect(byKey.virtualNet.value).toBe("—");
+		expect(byKey.virtualNet.valueColor).toBe("");
+	});
+
+	it("dashes virtual metrics when a stale cached summary lacks the fields", async () => {
+		trpcMocks.summaryQueryFn.mockResolvedValue(summary());
+		const result = await renderLoadedTournament(ctx());
+		const byKey = rowsByKey(result);
+		expect(byKey.virtualWinRate.value).toBe("—");
+		expect(byKey.virtualNet.value).toBe("—");
 	});
 });

@@ -34,6 +34,11 @@ import {
 	toChipPurchaseRows,
 	toSessionChipPurchases,
 } from "./chip-purchase-rows";
+import {
+	type ItemUsageRow,
+	toItemUsageRows,
+	toSessionItemUsages,
+} from "./item-usage-rows";
 
 interface UseSessionFormStateArgs {
 	/**
@@ -149,6 +154,11 @@ export function useSessionFormState({
 	const [chipPurchaseCounts, setChipPurchaseCounts] = useState<
 		Record<string, number>
 	>(initialChipPurchases.counts);
+	// Virtual item usages (buy-ins / cash-outs paid with registered items).
+	// Live outside the flat form like blindLevels / chipPurchases.
+	const [itemUsages, setItemUsages] = useState<ItemUsageRow[]>(
+		toItemUsageRows(defaultValues?.itemUsages ?? [])
+	);
 
 	const isCashGame = sessionType === "cash_game";
 	const gameOptions = isCashGame ? ringGames : tournaments;
@@ -214,6 +224,11 @@ export function useSessionFormState({
 				roomId: selectedRoomId,
 				currencyId: selectedCurrencyId,
 				ruleName: emptyToUndefined(value.ruleName),
+				virtualBuyIn: parseOptInt(value.virtualBuyIn),
+				virtualCashOut: parseOptInt(value.virtualCashOut),
+				// Always sent as an array: the update path replaces all usages, so
+				// [] means "cleared" (undefined would leave stale rows behind).
+				itemUsages: toSessionItemUsages(itemUsages),
 			};
 
 			if (isCashGame) {
@@ -503,6 +518,8 @@ export function useSessionFormState({
 		chipPurchaseCounts,
 		setChipPurchaseCounts,
 		updateChipPurchaseCount,
+		itemUsages,
+		setItemUsages,
 		handleRoomChange,
 		handleGameChange,
 		gameOptions,

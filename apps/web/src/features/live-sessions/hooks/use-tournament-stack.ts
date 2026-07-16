@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { createSessionEventMutationOptions } from "@/features/live-sessions/utils/optimistic-session-event";
+import type { VirtualAmountPayload } from "@/features/live-sessions/utils/virtual-amount";
 import { invalidateTargets } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -112,6 +113,41 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 		}),
 	});
 
+	// Virtual amounts never touch the summary money fields optimistically —
+	// the server computes authoritative snapshots (the chips_add_remove
+	// precedent); only the event itself is appended to the timeline.
+	const virtualBuyInMutation = useMutation({
+		mutationFn: (payload: VirtualAmountPayload) =>
+			trpcClient.sessionEvent.create.mutate({
+				liveTournamentSessionId: sessionId,
+				eventType: "virtual_buy_in",
+				payload,
+			}),
+		...createSessionEventMutationOptions<VirtualAmountPayload>({
+			queryClient,
+			sessionId,
+			sessionType: "tournament",
+			eventType: "virtual_buy_in",
+			getPayload: (payload) => ({ ...payload }),
+		}),
+	});
+
+	const virtualCashOutMutation = useMutation({
+		mutationFn: (payload: VirtualAmountPayload) =>
+			trpcClient.sessionEvent.create.mutate({
+				liveTournamentSessionId: sessionId,
+				eventType: "virtual_cash_out",
+				payload,
+			}),
+		...createSessionEventMutationOptions<VirtualAmountPayload>({
+			queryClient,
+			sessionId,
+			sessionType: "tournament",
+			eventType: "virtual_cash_out",
+			getPayload: (payload) => ({ ...payload }),
+		}),
+	});
+
 	const pauseMutation = useMutation({
 		mutationFn: () =>
 			trpcClient.sessionEvent.create.mutate({
@@ -200,6 +236,10 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 				  }
 		) => completeMutation.mutate(values),
 		addMemo: (text: string) => memoMutation.mutate(text),
+		addVirtualBuyIn: (payload: VirtualAmountPayload) =>
+			virtualBuyInMutation.mutate(payload),
+		addVirtualCashOut: (payload: VirtualAmountPayload) =>
+			virtualCashOutMutation.mutate(payload),
 		pause: () => pauseMutation.mutate(),
 		resume: () => resumeMutation.mutate(),
 		isStackPending: stackMutation.isPending,

@@ -11,6 +11,10 @@ import { renderWithQueryClient as render } from "@/__tests__/test-utils";
 // tests below render with mode="nlh" default variant, a preset, so the
 // blind labels resolve synchronously regardless of when this query settles)
 // and rely on the renderWithQueryClient wrapper above for a QueryClient.
+vi.mock("@/features/items/hooks/use-items", () => ({
+	useItems: () => ({ items: [] }),
+}));
+
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		blindLevel: {
