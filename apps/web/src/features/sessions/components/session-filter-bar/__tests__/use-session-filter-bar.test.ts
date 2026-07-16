@@ -221,6 +221,43 @@ describe("useSessionFilterBar", () => {
 		});
 	});
 
+	describe("presets sheet", () => {
+		it("openSheet('presets') sets the active sheet to presets", () => {
+			const { result } = setup();
+			act(() => result.current.openSheet("presets"));
+			expect(result.current.activeSheet).toBe("presets");
+		});
+
+		it("opening presets does not disturb other filter values", () => {
+			const { result, onFiltersChange, onBbBiModeChange } = setup({
+				filters: { roomId: "r1", type: "cash_game" },
+				bbBiMode: true,
+			});
+			act(() => result.current.openSheet("presets"));
+			expect(result.current.filters).toEqual({
+				roomId: "r1",
+				type: "cash_game",
+			});
+			expect(result.current.bbBiMode).toBe(true);
+			expect(onFiltersChange).not.toHaveBeenCalled();
+			expect(onBbBiModeChange).not.toHaveBeenCalled();
+		});
+
+		it("switches away from presets when another sheet opens", () => {
+			const { result } = setup();
+			act(() => result.current.openSheet("presets"));
+			act(() => result.current.openSheet("type"));
+			expect(result.current.activeSheet).toBe("type");
+		});
+
+		it("closeSheet clears the presets sheet", () => {
+			const { result } = setup();
+			act(() => result.current.openSheet("presets"));
+			act(() => result.current.closeSheet());
+			expect(result.current.activeSheet).toBeNull();
+		});
+	});
+
 	describe("resolved display names", () => {
 		it("resolves the selected room name", () => {
 			const { result } = setup({ filters: { roomId: "r2" } });

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
 	ACTIVE_SESSION_CONFLICT_MESSAGE,
+	isFilterPresetNameConflictError,
 	isLabelConflictError,
 	isSessionEventOrderConflictError,
 	isUnfinishedLiveSessionConflictError,
@@ -128,6 +129,49 @@ describe("isUnfinishedLiveSessionConflictError", () => {
 				"UNIQUE constraint failed: game_session.user_id"
 			)
 		).toBe(false);
+	});
+});
+
+describe("isFilterPresetNameConflictError", () => {
+	it("returns true for the (user_id, screen_key, name) UNIQUE violation", () => {
+		expect(
+			isFilterPresetNameConflictError(
+				new Error(
+					"D1_ERROR: UNIQUE constraint failed: filter_preset.user_id, filter_preset.screen_key, filter_preset.name: SQLITE_CONSTRAINT"
+				)
+			)
+		).toBe(true);
+	});
+
+	it("is case-insensitive", () => {
+		expect(
+			isFilterPresetNameConflictError(
+				new Error(
+					"unique constraint failed: FILTER_PRESET.USER_ID, FILTER_PRESET.SCREEN_KEY, FILTER_PRESET.NAME"
+				)
+			)
+		).toBe(true);
+	});
+
+	it("returns false for an unrelated unique violation", () => {
+		expect(
+			isFilterPresetNameConflictError(
+				new Error(
+					"UNIQUE constraint failed: game_group.user_id, game_group.label"
+				)
+			)
+		).toBe(false);
+	});
+
+	it("returns false for an unrelated Error and non-Error values", () => {
+		expect(isFilterPresetNameConflictError(new Error("network timeout"))).toBe(
+			false
+		);
+		expect(isFilterPresetNameConflictError("UNIQUE constraint failed")).toBe(
+			false
+		);
+		expect(isFilterPresetNameConflictError(undefined)).toBe(false);
+		expect(isFilterPresetNameConflictError(null)).toBe(false);
 	});
 });
 

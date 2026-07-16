@@ -1,3 +1,4 @@
+import type { StatisticsFilterPresetPayload } from "@sapphire2/db/schemas/filter-preset";
 import { useState } from "react";
 import { useStatsFilters } from "@/features/statistics/hooks/use-stats-filters";
 import {
@@ -12,7 +13,13 @@ import type {
 } from "@/features/statistics/utils/stats-filters";
 import { dateInputToEpochSec, type Period } from "@/shared/lib/period-filter";
 
-export type StatsFilterSheet = "currency" | "norm" | "period" | "room" | "type";
+export type StatsFilterSheet =
+	| "currency"
+	| "norm"
+	| "period"
+	| "presets"
+	| "room"
+	| "type";
 
 export interface UseStatsFilterBarResult {
 	activeSheet: StatsFilterSheet | null;
@@ -31,6 +38,7 @@ export interface UseStatsFilterBarResult {
 	filters: StatsFilters;
 	isReferenceLoading: boolean;
 	isScopeValid: boolean;
+	onApplyPreset: (payload: StatisticsFilterPresetPayload) => void;
 	onCurrencyChange: (value: string | undefined) => void;
 	onFromChange: (value: string) => void;
 	onNormChange: (value: string) => void;
@@ -53,7 +61,8 @@ export interface UseStatsFilterBarResult {
  * normalization on when it was off so the combined scope stays valid.
  */
 export function useStatsFilterBar(): UseStatsFilterBarResult {
-	const { filters, setFilters, isScopeValid } = useStatsFilters();
+	const { filters, setFilters, replaceFilters, isScopeValid } =
+		useStatsFilters();
 	const { currencies, rooms, isLoading } = useStatsReferenceData();
 	const [activeSheet, setActiveSheet] = useState<StatsFilterSheet | null>(null);
 
@@ -132,5 +141,16 @@ export function useStatsFilterBar(): UseStatsFilterBarResult {
 		},
 		onFromChange: (value) => setFilters({ from: dateInputToEpochSec(value) }),
 		onToChange: (value) => setFilters({ to: dateInputToEpochSec(value, true) }),
+		onApplyPreset: (payload) => {
+			// `payload.period` is typed as a generic string in the shared db
+			// schema (packages/db can't import apps/web's fuller period
+			// vocabulary — see filter-preset.ts) rather than the `Period` literal
+			// union, so a straight structural assignment doesn't type-check. Safe
+			// to assert: presets saved from this screen only ever carry values
+			// drawn from `PERIODS` / `STATS_NORMALIZATIONS` / `STATS_TYPES` in the
+			// first place, and `replaceFilters` re-validates via
+			// `statsSearchSchema.parse` regardless of what TS narrows here.
+			replaceFilters(payload as Partial<StatsFilters>);
+		},
 	};
 }

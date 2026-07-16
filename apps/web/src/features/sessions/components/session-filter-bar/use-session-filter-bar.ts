@@ -9,6 +9,7 @@ export type SessionFilterSheet =
 	| "currency"
 	| "display"
 	| "period"
+	| "presets"
 	| "room"
 	| "type";
 
