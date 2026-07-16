@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
 		removeChip: vi.fn(),
 		addAllIn: vi.fn(),
 		addMemo: vi.fn(),
+		addVirtualBuyIn: vi.fn(),
+		addVirtualCashOut: vi.fn(),
 		pause: vi.fn(),
 		resume: vi.fn(),
 		complete: vi.fn(),
@@ -22,6 +24,7 @@ const mocks = vi.hoisted(() => ({
 		isCompletePending: false,
 	},
 	lastStackOptions: null as Record<string, unknown> | null,
+	items: [] as unknown[],
 }));
 
 vi.mock("@/features/live-sessions/hooks/use-cash-game-session", () => ({
@@ -48,6 +51,10 @@ vi.mock("@/features/live-sessions/components/active-session-scene", () => ({
 		mocks.lastSceneOptions = options;
 		return mocks.sceneState;
 	},
+}));
+
+vi.mock("@/features/items/hooks/use-items", () => ({
+	useItems: () => ({ items: mocks.items }),
 }));
 
 import { useCashGameSessionView } from "@/features/live-sessions/pages/active-session-page/cash-game-session/use-cash-game-session-view";
@@ -198,12 +205,14 @@ describe("useCashGameSessionView", () => {
 	});
 
 	describe("event menu extra items", () => {
-		it("lists All-in / Add chips / Remove chips / Memo in that order", () => {
+		it("lists All-in / Add chips / Remove chips / Virtual buy-in / Virtual cash-out / Memo in that order", () => {
 			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
 			expect(result.current.eventMenuExtraItems.map((i) => i.label)).toEqual([
 				"All-in",
 				"Add chips",
 				"Remove chips",
+				"Virtual buy-in",
+				"Virtual cash-out",
 				"Memo",
 			]);
 		});
@@ -229,7 +238,7 @@ describe("useCashGameSessionView", () => {
 
 		it("'Memo' opens the memo sheet", () => {
 			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
-			act(() => result.current.eventMenuExtraItems[3]?.onSelect());
+			act(() => result.current.eventMenuExtraItems[5]?.onSelect());
 			expect(result.current.isMemoOpen).toBe(true);
 		});
 	});
@@ -265,7 +274,7 @@ describe("useCashGameSessionView", () => {
 
 		it("handleMemoSubmit records the memo and closes the sheet", () => {
 			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
-			act(() => result.current.eventMenuExtraItems[3]?.onSelect());
+			act(() => result.current.eventMenuExtraItems[5]?.onSelect());
 			act(() => result.current.handleMemoSubmit("note"));
 			expect(mocks.stack.addMemo).toHaveBeenCalledTimes(1);
 			expect(mocks.stack.addMemo).toHaveBeenCalledWith("note");
@@ -325,5 +334,86 @@ describe("useCashGameSessionView", () => {
 			expect(result.current.discard).toBe(mocks.discard);
 			expect(result.current.isDiscardPending).toBe(true);
 		});
+	});
+});
+
+describe("virtual buy-in / cash-out", () => {
+	const purePayload = {
+		amount: 500,
+		itemId: null,
+		itemName: null,
+		count: null,
+		unitValue: null,
+		currencyId: null,
+	};
+
+	it("offers Virtual buy-in and Virtual cash-out in the event menu", () => {
+		mocks.session = makeSession();
+		const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+		const labels = result.current.eventMenuExtraItems.map(
+			(item) => item.label
+		);
+		expect(labels).toContain("Virtual buy-in");
+		expect(labels).toContain("Virtual cash-out");
+	});
+
+	it("opens the buy-in sheet from the menu and submits through the stack", () => {
+		mocks.session = makeSession();
+		const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+		act(() => {
+			result.current.eventMenuExtraItems
+				.find((item) => item.label === "Virtual buy-in")
+				?.onSelect();
+		});
+		expect(result.current.isVirtualBuyInOpen).toBe(true);
+
+		act(() => {
+			result.current.handleVirtualBuyInSubmit(purePayload);
+		});
+		expect(mocks.stack.addVirtualBuyIn).toHaveBeenCalledTimes(1);
+		expect(mocks.stack.addVirtualBuyIn).toHaveBeenNthCalledWith(
+			1,
+			purePayload
+		);
+		expect(result.current.isVirtualBuyInOpen).toBe(false);
+	});
+
+	it("opens the cash-out sheet from the menu and submits through the stack", () => {
+		mocks.session = makeSession();
+		const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+		act(() => {
+			result.current.eventMenuExtraItems
+				.find((item) => item.label === "Virtual cash-out")
+				?.onSelect();
+		});
+		expect(result.current.isVirtualCashOutOpen).toBe(true);
+
+		act(() => {
+			result.current.handleVirtualCashOutSubmit(purePayload);
+		});
+		expect(mocks.stack.addVirtualCashOut).toHaveBeenCalledTimes(1);
+		expect(mocks.stack.addVirtualCashOut).toHaveBeenNthCalledWith(
+			1,
+			purePayload
+		);
+		expect(result.current.isVirtualCashOutOpen).toBe(false);
+	});
+
+	it("filters item options to the session currency (fail closed without one)", () => {
+		mocks.items = [
+			{ id: "i1", name: "Ticket", unitValue: 1000, currencyId: "c1" },
+			{ id: "i2", name: "Voucher", unitValue: 500, currencyId: "c2" },
+		];
+		mocks.session = makeSession({ currencyId: "c1" });
+		const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+		expect(result.current.virtualItems).toEqual([
+			{ id: "i1", name: "Ticket", unitValue: 1000, currencyId: "c1" },
+		]);
+
+		mocks.session = makeSession({ currencyId: null });
+		const { result: noCurrency } = renderHook(() =>
+			useCashGameSessionView("cg-1")
+		);
+		expect(noCurrency.current.virtualItems).toEqual([]);
 	});
 });

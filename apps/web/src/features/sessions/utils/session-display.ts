@@ -261,6 +261,75 @@ export function buildTournamentStatRows(
 	return rows;
 }
 
+interface VirtualStatInput {
+	itemUsages: Array<{
+		count: number;
+		direction: "buy_in" | "cash_out";
+		id: string;
+		itemName: string;
+		unitValue: number;
+	}>;
+	profitLoss: number | null;
+	virtualBuyIn: number | null;
+	virtualCashOut: number | null;
+}
+
+/**
+ * Rows for the "Virtual" section of the detail page: per-item usage lines
+ * (snapshot name, count × frozen unit value), the combined virtual buy-in /
+ * cash-out totals (pure-virtual amounts + item values), and a signed
+ * "Virtual P&L" (real P/L + virtual cash-outs − virtual buy-ins). Returns no
+ * rows when the session has no virtual data, so the section stays hidden;
+ * the P&L line is dropped when the real P/L is unknown.
+ */
+export function buildVirtualStatRows(session: VirtualStatInput): StatRow[] {
+	const rows: StatRow[] = [];
+	let itemBuyIn = 0;
+	let itemCashOut = 0;
+	for (const usage of session.itemUsages) {
+		const value = usage.count * usage.unitValue;
+		if (usage.direction === "buy_in") {
+			itemBuyIn += value;
+		} else {
+			itemCashOut += value;
+		}
+		rows.push({
+			label: `${usage.itemName} (${usage.direction === "buy_in" ? "buy-in" : "cash-out"})`,
+			value: `${usage.count} × ${formatCompactNumber(usage.unitValue)}`,
+		});
+	}
+
+	const buyInTotal = (session.virtualBuyIn ?? 0) + itemBuyIn;
+	const cashOutTotal = (session.virtualCashOut ?? 0) + itemCashOut;
+	const hasBuyIn = session.virtualBuyIn !== null || itemBuyIn > 0;
+	const hasCashOut = session.virtualCashOut !== null || itemCashOut > 0;
+	if (!(hasBuyIn || hasCashOut)) {
+		return [];
+	}
+
+	if (hasBuyIn) {
+		rows.push({
+			label: "Virtual buy-in",
+			value: formatCompactNumber(buyInTotal),
+		});
+	}
+	if (hasCashOut) {
+		rows.push({
+			label: "Virtual cash-out",
+			value: formatCompactNumber(cashOutTotal),
+		});
+	}
+	if (session.profitLoss !== null) {
+		rows.push({
+			label: "Virtual P&L",
+			value: formatProfitLoss(
+				session.profitLoss + cashOutTotal - buyInTotal
+			),
+		});
+	}
+	return rows;
+}
+
 interface MetaInput {
 	breakMinutes: number | null;
 	currencyName: string | null;

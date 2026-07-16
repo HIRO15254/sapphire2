@@ -7,6 +7,7 @@ import { SessionStartEditor } from "../session-start-editor";
 import type { EditorBaseProps } from "../shared";
 import { TimeOnlyEditor } from "../time-only-editor";
 import { UpdateStackEditor } from "../update-stack-editor";
+import { VirtualAmountEditor } from "../virtual-amount-editor";
 
 export function EventEditor(props: EditorBaseProps) {
 	const { event } = props;
@@ -82,6 +83,17 @@ export function EventEditor(props: EditorBaseProps) {
 		case "purchase_chips":
 			return (
 				<PurchaseChipsEditor
+					event={event}
+					isLoading={props.isLoading}
+					maxTime={props.maxTime}
+					minTime={props.minTime}
+					onSubmit={props.onSubmit}
+				/>
+			);
+		case "virtual_buy_in":
+		case "virtual_cash_out":
+			return (
+				<VirtualAmountEditor
 					event={event}
 					isLoading={props.isLoading}
 					maxTime={props.maxTime}

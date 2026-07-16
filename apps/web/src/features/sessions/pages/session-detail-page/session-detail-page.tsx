@@ -7,6 +7,7 @@ import { SessionEditForm } from "@/features/sessions/pages/session-detail-page/s
 import {
 	buildCashRuleRows,
 	buildCashStatRows,
+	buildVirtualStatRows,
 	buildSessionMetaRows,
 	buildTournamentRuleRows,
 	buildTournamentStatRows,
@@ -106,6 +107,18 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 	const resultRows = isTournament
 		? buildTournamentStatRows(session)
 		: buildCashStatRows(session);
+	const virtualRows = buildVirtualStatRows({
+		virtualBuyIn:
+			(isTournament
+				? session.tournamentVirtualBuyIn
+				: session.cashVirtualBuyIn) ?? null,
+		virtualCashOut:
+			(isTournament
+				? session.tournamentVirtualCashOut
+				: session.cashVirtualCashOut) ?? null,
+		itemUsages: session.itemUsages ?? [],
+		profitLoss: session.profitLoss,
+	});
 	const metaRows = buildSessionMetaRows(session);
 
 	return (
@@ -152,6 +165,7 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 
 			<SessionStatList rows={ruleRows} title="Rule" />
 			<SessionStatList rows={resultRows} title="Result" />
+			<SessionStatList rows={virtualRows} title="Virtual" />
 			<SessionStatList rows={metaRows} title="Details" />
 
 			{live ? (

@@ -3,12 +3,20 @@ import {
 	IconCoin,
 	IconNote,
 	IconSquareRoundedMinus,
+	IconTransferIn,
+	IconTransferOut,
 } from "@tabler/icons-react";
 import { useState } from "react";
+import { useItems } from "@/features/items/hooks/use-items";
 import type { ActionsDrawerItem } from "@/features/live-sessions/components/actions-drawer";
 import { useActiveSessionSceneState } from "@/features/live-sessions/components/active-session-scene";
 import { useCashGameSession } from "@/features/live-sessions/hooks/use-cash-game-session";
 import { useCashGameStack } from "@/features/live-sessions/hooks/use-cash-game-stack";
+import {
+	filterVirtualItemsForCurrency,
+	type VirtualAmountItemOption,
+	type VirtualAmountPayload,
+} from "@/features/live-sessions/utils/virtual-amount";
 
 export interface CashGameCompactSummaryData {
 	chipRemoveTotal: number;
@@ -31,8 +39,25 @@ export function useCashGameSessionView(sessionId: string) {
 	const [isAllInOpen, setIsAllInOpen] = useState(false);
 	const [isAddChipsOpen, setIsAddChipsOpen] = useState(false);
 	const [isRemoveChipsOpen, setIsRemoveChipsOpen] = useState(false);
+	const [isVirtualBuyInOpen, setIsVirtualBuyInOpen] = useState(false);
+	const [isVirtualCashOutOpen, setIsVirtualCashOutOpen] = useState(false);
 	const [isMemoOpen, setIsMemoOpen] = useState(false);
 	const [isCompleteOpen, setIsCompleteOpen] = useState(false);
+
+	// Only items denominated in the session's currency can be recorded (the
+	// stats aggregation ignores mismatched-currency usages, fail closed).
+	const { items } = useItems();
+	const sessionCurrencyId =
+		typeof session?.currencyId === "string" ? session.currencyId : null;
+	const virtualItems: VirtualAmountItemOption[] = filterVirtualItemsForCurrency(
+		items.map((item) => ({
+			id: item.id,
+			name: item.name,
+			unitValue: item.unitValue,
+			currencyId: item.currencyId,
+		})),
+		sessionCurrencyId
+	);
 
 	const rawHeroSeat = session?.heroSeatPosition;
 	const heroSeatPosition =
@@ -77,6 +102,16 @@ export function useCashGameSessionView(sessionId: string) {
 			onSelect: () => setIsRemoveChipsOpen(true),
 		},
 		{
+			icon: IconTransferIn,
+			label: "Virtual buy-in",
+			onSelect: () => setIsVirtualBuyInOpen(true),
+		},
+		{
+			icon: IconTransferOut,
+			label: "Virtual cash-out",
+			onSelect: () => setIsVirtualCashOutOpen(true),
+		},
+		{
 			icon: IconNote,
 			label: "Memo",
 			onSelect: () => setIsMemoOpen(true),
@@ -112,6 +147,14 @@ export function useCashGameSessionView(sessionId: string) {
 			stack.removeChip(values.amount);
 			setIsRemoveChipsOpen(false);
 		},
+		handleVirtualBuyInSubmit: (payload: VirtualAmountPayload) => {
+			stack.addVirtualBuyIn(payload);
+			setIsVirtualBuyInOpen(false);
+		},
+		handleVirtualCashOutSubmit: (payload: VirtualAmountPayload) => {
+			stack.addVirtualCashOut(payload);
+			setIsVirtualCashOutOpen(false);
+		},
 		isAddChipsOpen,
 		isAllInOpen,
 		isCompleteOpen,
@@ -119,6 +162,8 @@ export function useCashGameSessionView(sessionId: string) {
 		isDiscardPending,
 		isMemoOpen,
 		isRemoveChipsOpen,
+		isVirtualBuyInOpen,
+		isVirtualCashOutOpen,
 		onEndSession: () => setIsCompleteOpen(true),
 		onPause: () => stack.pause(),
 		sceneState,
@@ -128,6 +173,9 @@ export function useCashGameSessionView(sessionId: string) {
 		setIsCompleteOpen,
 		setIsMemoOpen,
 		setIsRemoveChipsOpen,
+		setIsVirtualBuyInOpen,
+		setIsVirtualCashOutOpen,
 		summary,
+		virtualItems,
 	};
 }

@@ -27,9 +27,9 @@ const router = createRouter({
 					// Bump this string on any release whose server changes alter a
 					// procedure's output shape or value semantics — deployed clients
 					// otherwise rehydrate up to 24h of old-shaped cache into new code
-					// (SA2-154). This release: migration 0039 changed variant value
-					// semantics ('nlh' -> labels) and several outputs gained fields.
-					buster: "2026-07-mix-games",
+					// (SA2-154). This release: stats.summary / stats.breakdown /
+					// session.getById gained virtual buy-in / cash-out fields.
+					buster: "2026-07-virtual-items",
 					dehydrateOptions: {
 						shouldDehydrateQuery: shouldPersistQuery,
 					},

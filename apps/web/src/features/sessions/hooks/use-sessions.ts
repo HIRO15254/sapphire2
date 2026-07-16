@@ -64,6 +64,8 @@ export interface SessionItem {
 		sortOrder: number;
 	}>;
 	createdAt: string;
+	cashVirtualBuyIn?: number | null;
+	cashVirtualCashOut?: number | null;
 	currencyId: string | null;
 	currencyName: string | null;
 	currencyUnit: string | null;
@@ -73,6 +75,20 @@ export interface SessionItem {
 	evDiff: number | null;
 	evProfitLoss: number | null;
 	id: string;
+	/**
+	 * Item-based virtual buy-in / cash-out usages (frozen snapshots).
+	 * Optional: older cached shapes omit it; consumers must tolerate
+	 * `undefined`.
+	 */
+	itemUsages?: Array<{
+		count: number;
+		currencyId: string | null;
+		direction: "buy_in" | "cash_out";
+		id: string;
+		itemId: string | null;
+		itemName: string;
+		unitValue: number;
+	}>;
 	liveCashGameSessionId: string | null;
 	liveTournamentSessionId: string | null;
 	memo: string | null;
@@ -99,6 +115,8 @@ export interface SessionItem {
 	tournamentStartingStack: number | null;
 	tournamentTableSize: number | null;
 	tournamentVariant: string | null;
+	tournamentVirtualBuyIn?: number | null;
+	tournamentVirtualCashOut?: number | null;
 	type: string;
 }
 

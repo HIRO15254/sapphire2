@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { StatsSectionContext } from "@/features/statistics/types";
 import {
 	formatMinutes,
+	formatPercent,
 	formatStatAmount,
 } from "@/features/statistics/utils/format-stats";
 import {
@@ -43,6 +44,8 @@ export interface BreakdownViewRow {
 	sessions: number;
 	tournamentColor: string;
 	tournamentText: string;
+	/** % of the group's sessions whose virtual P/L is positive. */
+	virtualWinRateText: string;
 }
 
 export interface UseBreakdownSectionResult {
@@ -92,6 +95,9 @@ interface BreakdownGroup {
 	profitLoss: number;
 	sessions: number;
 	tournamentNormalizedProfitLoss: number | null;
+	// Optional so a stale persisted cache entry (pre-virtual shape) degrades to
+	// a dash instead of crashing.
+	virtualWinRate?: number;
 }
 
 /**
@@ -122,6 +128,7 @@ function toViewRow(
 		),
 		tournamentColor: profitLossColorClass(group.tournamentNormalizedProfitLoss),
 		playTimeText: formatMinutes(group.playMinutes),
+		virtualWinRateText: formatPercent(group.virtualWinRate),
 	};
 }
 

@@ -5,6 +5,7 @@ import {
 	buildSessionMetaRows,
 	buildTournamentRuleRows,
 	buildTournamentStatRows,
+	buildVirtualStatRows,
 	formatSessionDuration,
 	formatSessionEvDisplay,
 	formatSessionPlDisplay,
@@ -697,5 +698,104 @@ describe("buildCashRuleRows — mix games", () => {
 			label: "Blinds",
 			value: "1/2",
 		});
+	});
+});
+
+describe("buildVirtualStatRows", () => {
+	const usage = (
+		overrides: Partial<{
+			count: number;
+			direction: "buy_in" | "cash_out";
+			id: string;
+			itemName: string;
+			unitValue: number;
+		}> = {}
+	) => ({
+		id: "u1",
+		itemName: "Tournament ticket",
+		direction: "buy_in" as const,
+		count: 2,
+		unitValue: 1000,
+		...overrides,
+	});
+
+	it("returns no rows when the session has no virtual data (section hidden)", () => {
+		expect(
+			buildVirtualStatRows({
+				virtualBuyIn: null,
+				virtualCashOut: null,
+				itemUsages: [],
+				profitLoss: 500,
+			})
+		).toEqual([]);
+	});
+
+	it("lists per-item usage lines with direction, count × unit value", () => {
+		const rows = buildVirtualStatRows({
+			virtualBuyIn: null,
+			virtualCashOut: null,
+			itemUsages: [
+				usage(),
+				usage({ id: "u2", direction: "cash_out", count: 1 }),
+			],
+			profitLoss: 500,
+		});
+		expect(rows).toContainEqual({
+			label: "Tournament ticket (buy-in)",
+			value: "2 × 1,000",
+		});
+		expect(rows).toContainEqual({
+			label: "Tournament ticket (cash-out)",
+			value: "1 × 1,000",
+		});
+	});
+
+	it("totals pure-virtual amounts and item values into Virtual buy-in / cash-out rows", () => {
+		const rows = buildVirtualStatRows({
+			virtualBuyIn: 300,
+			virtualCashOut: null,
+			itemUsages: [
+				usage(),
+				usage({ id: "u2", direction: "cash_out", count: 1 }),
+			],
+			profitLoss: 500,
+		});
+		// buy-in total = 300 + 2×1000; cash-out total = 1×1000
+		expect(rows).toContainEqual({ label: "Virtual buy-in", value: "2,300" });
+		expect(rows).toContainEqual({ label: "Virtual cash-out", value: "1,000" });
+	});
+
+	it("appends a signed Virtual P&L row combining real P/L and virtual amounts", () => {
+		const rows = buildVirtualStatRows({
+			virtualBuyIn: 300,
+			virtualCashOut: 2000,
+			itemUsages: [],
+			profitLoss: 500,
+		});
+		// 500 + 2000 - 300 = +2,200
+		expect(rows.at(-1)).toEqual({ label: "Virtual P&L", value: "+2,200" });
+	});
+
+	it("omits the Virtual P&L row when the real P/L is unknown", () => {
+		const rows = buildVirtualStatRows({
+			virtualBuyIn: 300,
+			virtualCashOut: null,
+			itemUsages: [],
+			profitLoss: null,
+		});
+		expect(rows.some((r) => r.label === "Virtual P&L")).toBe(false);
+		expect(rows).toContainEqual({ label: "Virtual buy-in", value: "300" });
+	});
+
+	it("shows a zero-value virtual cash-out row only when a cash-out component exists", () => {
+		const rows = buildVirtualStatRows({
+			virtualBuyIn: 100,
+			virtualCashOut: null,
+			itemUsages: [],
+			profitLoss: 0,
+		});
+		expect(rows.some((r) => r.label === "Virtual cash-out")).toBe(false);
+		// virtual P&L = 0 + 0 - 100 = -100
+		expect(rows.at(-1)).toEqual({ label: "Virtual P&L", value: "-100" });
 	});
 });

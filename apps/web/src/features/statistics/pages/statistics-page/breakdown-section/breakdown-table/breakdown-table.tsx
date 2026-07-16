@@ -75,7 +75,8 @@ export function BreakdownTable({
 		showNetColumn,
 		showTournamentColumn,
 	});
-	const columnCount = valueColumns.length + 3;
+	// Group + Sessions + value columns + Virtual WR + Play time
+	const columnCount = valueColumns.length + 4;
 
 	return (
 		<div className="overflow-x-auto">
@@ -89,6 +90,7 @@ export function BreakdownTable({
 								{column.header}
 							</TableHead>
 						))}
+						<TableHead className="text-right">Virtual WR</TableHead>
 						<TableHead className="text-right">Play time</TableHead>
 					</TableRow>
 				</TableHeader>
@@ -120,6 +122,9 @@ export function BreakdownTable({
 										{column.text(row)}
 									</TableCell>
 								))}
+								<TableCell className="text-right tabular-nums">
+									{row.virtualWinRateText}
+								</TableCell>
 								<TableCell className="text-right tabular-nums">
 									{row.playTimeText}
 								</TableCell>

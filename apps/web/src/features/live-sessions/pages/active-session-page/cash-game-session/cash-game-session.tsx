@@ -2,6 +2,7 @@ import { ActiveSessionScene } from "@/features/live-sessions/components/active-s
 import { AddonBottomSheet } from "@/features/live-sessions/components/addon-bottom-sheet";
 import { AllInBottomSheet } from "@/features/live-sessions/components/all-in-bottom-sheet";
 import { CashGameCompleteForm } from "@/features/live-sessions/components/cash-game-complete-form";
+import { VirtualAmountSheet } from "@/features/live-sessions/components/virtual-amount-sheet";
 import { FormSheet } from "@/shared/components/form-sheet";
 import { CashGameCompactSummary } from "../cash-game-compact-summary";
 import { MemoFormSheet } from "../memo-form-sheet";
@@ -19,6 +20,8 @@ export function CashGameSession({ sessionId }: { sessionId: string }) {
 		handleCompleteSubmit,
 		handleMemoSubmit,
 		handleRemoveChipsSubmit,
+		handleVirtualBuyInSubmit,
+		handleVirtualCashOutSubmit,
 		isAddChipsOpen,
 		isAllInOpen,
 		isCompleteOpen,
@@ -26,6 +29,8 @@ export function CashGameSession({ sessionId }: { sessionId: string }) {
 		isDiscardPending,
 		isMemoOpen,
 		isRemoveChipsOpen,
+		isVirtualBuyInOpen,
+		isVirtualCashOutOpen,
 		onEndSession,
 		onPause,
 		sceneState,
@@ -35,7 +40,10 @@ export function CashGameSession({ sessionId }: { sessionId: string }) {
 		setIsCompleteOpen,
 		setIsMemoOpen,
 		setIsRemoveChipsOpen,
+		setIsVirtualBuyInOpen,
+		setIsVirtualCashOutOpen,
 		summary,
+		virtualItems,
 	} = useCashGameSessionView(sessionId);
 
 	if (!(session && summary)) {
@@ -72,6 +80,24 @@ export function CashGameSession({ sessionId }: { sessionId: string }) {
 				onOpenChange={setIsRemoveChipsOpen}
 				onSubmit={handleRemoveChipsSubmit}
 				open={isRemoveChipsOpen}
+			/>
+
+			<VirtualAmountSheet
+				formId="cash-virtual-buy-in-form"
+				items={virtualItems}
+				onOpenChange={setIsVirtualBuyInOpen}
+				onSubmit={handleVirtualBuyInSubmit}
+				open={isVirtualBuyInOpen}
+				title="Virtual buy-in"
+			/>
+
+			<VirtualAmountSheet
+				formId="cash-virtual-cash-out-form"
+				items={virtualItems}
+				onOpenChange={setIsVirtualCashOutOpen}
+				onSubmit={handleVirtualCashOutSubmit}
+				open={isVirtualCashOutOpen}
+				title="Virtual cash-out"
 			/>
 
 			<MemoFormSheet

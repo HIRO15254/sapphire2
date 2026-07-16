@@ -90,6 +90,20 @@ export function useTournamentStats(
 			value: scoped(net),
 			valueColor: profitLossColorClass(net),
 		},
+		// Virtual net is a raw currency sum (real + item/virtual amounts), so it
+		// only renders under a pinned currency — normalized mode shows a dash.
+		{
+			key: "virtualNet",
+			label: "Virtual net P&L",
+			value: normalized
+				? "—"
+				: formatProfitLoss(summary.virtualNetProfitLoss ?? null, {
+						currencyUnit: ctx.currencyUnit,
+					}),
+			valueColor: normalized
+				? ""
+				: profitLossColorClass(summary.virtualNetProfitLoss),
+		},
 		{
 			key: "avg",
 			label: "Avg P&L",
@@ -100,6 +114,12 @@ export function useTournamentStats(
 			key: "winRate",
 			label: "Win rate",
 			value: formatPercent(summary.winRate),
+			valueColor: "",
+		},
+		{
+			key: "virtualWinRate",
+			label: "Virtual win rate",
+			value: formatPercent(summary.virtualWinRate),
 			valueColor: "",
 		},
 		{

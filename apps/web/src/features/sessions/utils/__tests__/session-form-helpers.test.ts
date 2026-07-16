@@ -126,6 +126,8 @@ describe("sessionFormSchema", () => {
 			totalEntries: "",
 			prizeMoney: "",
 			bountyPrizes: "",
+			virtualBuyIn: "",
+			virtualCashOut: "",
 			...overrides,
 		};
 	}
@@ -242,6 +244,8 @@ describe("liveCashSessionFormSchema", () => {
 			totalEntries: "",
 			prizeMoney: "",
 			bountyPrizes: "",
+			virtualBuyIn: "",
+			virtualCashOut: "",
 			...overrides,
 		};
 	}
@@ -403,5 +407,86 @@ describe("tournamentOverriddenFields", () => {
 		expect(tournamentOverriddenFields(values, MASTER)).toEqual([
 			"Starting stack",
 		]);
+	});
+});
+
+describe("sessionFormSchema — virtual fields", () => {
+	function validPayload(overrides: Record<string, unknown> = {}) {
+		return {
+			sessionDate: "2026-04-01",
+			startTime: "",
+			endTime: "",
+			breakMinutes: "",
+			memo: "",
+			ruleName: "",
+			buyIn: "100",
+			cashOut: "100",
+			evCashOut: "",
+			variant: "nlh",
+			blind1: "",
+			blind2: "",
+			blind3: "",
+			ante: "",
+			anteType: "none",
+			tableSize: "",
+			minBuyIn: "",
+			maxBuyIn: "",
+			tournamentBuyIn: "100",
+			entryFee: "",
+			startingStack: "",
+			bountyAmount: "",
+			beforeDeadline: false,
+			timerStartedAt: "",
+			placement: "",
+			totalEntries: "",
+			prizeMoney: "",
+			bountyPrizes: "",
+			virtualBuyIn: "",
+			virtualCashOut: "",
+			...overrides,
+		};
+	}
+
+	it("accepts empty virtual amounts (optional)", () => {
+		expect(sessionFormSchema.safeParse(validPayload()).success).toBe(true);
+	});
+
+	it("accepts integer virtual amounts including 0", () => {
+		expect(
+			sessionFormSchema.safeParse(
+				validPayload({ virtualBuyIn: "0", virtualCashOut: "500" })
+			).success
+		).toBe(true);
+	});
+
+	it("rejects negative virtual amounts", () => {
+		expect(
+			sessionFormSchema.safeParse(validPayload({ virtualBuyIn: "-1" })).success
+		).toBe(false);
+		expect(
+			sessionFormSchema.safeParse(validPayload({ virtualCashOut: "-1" }))
+				.success
+		).toBe(false);
+	});
+
+	it("rejects non-integer virtual amounts", () => {
+		expect(
+			sessionFormSchema.safeParse(validPayload({ virtualBuyIn: "10.5" }))
+				.success
+		).toBe(false);
+	});
+});
+
+describe("buildDefaults — virtual fields", () => {
+	it("defaults virtual amounts to empty strings", () => {
+		const defaults = buildDefaults(undefined);
+		expect(defaults.virtualBuyIn).toBe("");
+		expect(defaults.virtualCashOut).toBe("");
+	});
+
+	it("round-trips numeric virtual defaults into strings", () => {
+		const defaults = buildDefaults({ virtualBuyIn: 300, virtualCashOut: 0 });
+		expect(defaults.virtualBuyIn).toBe("300");
+		expect(defaults.virtualCashOut).toBe("0");
 	});
 });
