@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
 		type: "all",
 	} as StatsFilters,
 	setFilters: vi.fn(),
+	replaceFilters: vi.fn(),
 	isScopeValid: true,
 	currencies: [
 		{ id: "c1", name: "USD", unit: "$" },
@@ -25,9 +26,11 @@ vi.mock("@/features/statistics/hooks/use-stats-filters", () => ({
 	useStatsFilters: () => ({
 		filters: mocks.filters,
 		setFilters: mocks.setFilters,
+		replaceFilters: mocks.replaceFilters,
 		isScopeValid: mocks.isScopeValid,
 		normalized: mocks.filters.norm !== "off",
 		statsInput: {},
+		isUrlEmpty: false,
 	}),
 }));
 
@@ -44,6 +47,7 @@ import { useStatsFilterBar } from "@/features/statistics/components/stats-filter
 describe("useStatsFilterBar", () => {
 	beforeEach(() => {
 		mocks.setFilters.mockReset();
+		mocks.replaceFilters.mockReset();
 		mocks.filters = { period: "all", norm: "off", type: "all" } as StatsFilters;
 		mocks.isScopeValid = true;
 		mocks.currencies = [
@@ -116,6 +120,25 @@ describe("useStatsFilterBar", () => {
 				result.current.openSheet("room");
 			});
 			expect(result.current.activeSheet).toBe("room");
+		});
+
+		it("openSheet sets the active sheet to presets, reusing the same state machine", () => {
+			const { result } = renderHook(() => useStatsFilterBar());
+			act(() => {
+				result.current.openSheet("presets");
+			});
+			expect(result.current.activeSheet).toBe("presets");
+		});
+
+		it("closeSheet clears the presets sheet just like any other sheet", () => {
+			const { result } = renderHook(() => useStatsFilterBar());
+			act(() => {
+				result.current.openSheet("presets");
+			});
+			act(() => {
+				result.current.closeSheet();
+			});
+			expect(result.current.activeSheet).toBeNull();
 		});
 
 		it("closeSheet clears the active sheet", () => {
@@ -442,6 +465,29 @@ describe("useStatsFilterBar", () => {
 		it("exposes the current filters", () => {
 			const { result } = renderHook(() => useStatsFilterBar());
 			expect(result.current.filters).toBe(mocks.filters);
+		});
+	});
+
+	describe("onApplyPreset", () => {
+		it("forwards the preset payload to replaceFilters (full replace, not setFilters' merge)", () => {
+			const { result } = renderHook(() => useStatsFilterBar());
+			act(() => {
+				result.current.onApplyPreset({ type: "tournament" });
+			});
+			expect(mocks.replaceFilters).toHaveBeenCalledTimes(1);
+			expect(mocks.replaceFilters).toHaveBeenCalledWith({
+				type: "tournament",
+			});
+			expect(mocks.setFilters).not.toHaveBeenCalled();
+		});
+
+		it("forwards an empty payload as-is (clears every filter back to defaults)", () => {
+			const { result } = renderHook(() => useStatsFilterBar());
+			act(() => {
+				result.current.onApplyPreset({});
+			});
+			expect(mocks.replaceFilters).toHaveBeenCalledTimes(1);
+			expect(mocks.replaceFilters).toHaveBeenCalledWith({});
 		});
 	});
 });

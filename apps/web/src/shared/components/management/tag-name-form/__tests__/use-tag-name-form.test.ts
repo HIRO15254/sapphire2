@@ -73,4 +73,18 @@ describe("useTagNameForm", () => {
 		});
 		expect(result.current.form.state.values.name).toBe("VIP");
 	});
+
+	it("defaults label to 'Tag name' when omitted", () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() => useTagNameForm({ onSubmit }));
+		expect(result.current.label).toBe("Tag name");
+	});
+
+	it("overrides label when provided", () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useTagNameForm({ onSubmit, label: "Preset name" })
+		);
+		expect(result.current.label).toBe("Preset name");
+	});
 });

@@ -1,3 +1,4 @@
+import type { StatisticsFilterPresetPayload } from "@sapphire2/db/schemas/filter-preset";
 import { IconAlertTriangle } from "@tabler/icons-react";
 import {
 	type StatsFilterSheet,
@@ -19,6 +20,10 @@ import {
 	FilterOptionList,
 	FilterSheet,
 } from "@/shared/components/filter-chip-bar";
+import {
+	FilterPresetsChip,
+	FilterPresetsSheet,
+} from "@/shared/components/filter-presets";
 import { Button } from "@/shared/components/ui/button";
 import { DrawerClose } from "@/shared/components/ui/drawer";
 import {
@@ -27,7 +32,9 @@ import {
 	PERIODS,
 } from "@/shared/lib/period-filter";
 
-const SHEET_TITLE: Record<StatsFilterSheet, string> = {
+// "presets" opens a `FilterPresetsSheet` (a different sheet primitive with its
+// own visible title), not one of the `FilterSheet` picker sheets below.
+const SHEET_TITLE: Record<Exclude<StatsFilterSheet, "presets">, string> = {
 	period: "Period",
 	norm: "Normalize",
 	type: "Type",
@@ -58,6 +65,7 @@ export function StatsFilterBar() {
 		isScopeValid,
 		currencyChipLabel,
 		currentRoomName,
+		onApplyPreset,
 		onPeriodChange,
 		onNormChange,
 		onTypeChange,
@@ -76,6 +84,7 @@ export function StatsFilterBar() {
 	return (
 		<>
 			<FilterChipBar banner={isScopeValid ? null : <ScopeWarning />}>
+				<FilterPresetsChip onClick={() => openSheet("presets")} />
 				<FilterChip
 					active={filters.period !== "all"}
 					label="Period"
@@ -205,6 +214,14 @@ export function StatsFilterBar() {
 					value={filters.room ?? ""}
 				/>
 			</FilterSheet>
+
+			<FilterPresetsSheet<StatisticsFilterPresetPayload>
+				currentPayload={filters}
+				onApply={onApplyPreset}
+				onOpenChange={handleOpenChange}
+				open={activeSheet === "presets"}
+				screenKey="statistics"
+			/>
 		</>
 	);
 }

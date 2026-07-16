@@ -13,6 +13,20 @@ const mocks = vi.hoisted(() => ({
 	isInitialLoadError: false,
 	isCreatePending: false,
 	onRetry: vi.fn(),
+	presetsCreate: vi.fn(),
+	presetsRemove: vi.fn(),
+	presetsSetDefault: vi.fn(),
+	presetsClearDefault: vi.fn(),
+	presets: [] as Array<{
+		id: string;
+		isDefault: boolean;
+		payload: Record<string, unknown>;
+	}>,
+	isPresetsLoading: false,
+	isPresetCreatePending: false,
+	isPresetDeletePending: false,
+	isPresetSetDefaultPending: false,
+	lastPresetsScreenKey: undefined as string | undefined,
 }));
 
 vi.mock("@/features/sessions/hooks/use-sessions", () => ({
@@ -48,6 +62,24 @@ vi.mock("@/features/rooms/hooks/use-room-games", () => ({
 	},
 }));
 
+vi.mock("@/shared/hooks/use-filter-presets", () => ({
+	useFilterPresets: (screenKey: string) => {
+		mocks.lastPresetsScreenKey = screenKey;
+		return {
+			presets: mocks.presets,
+			defaultPreset: mocks.presets.find((p) => p.isDefault) ?? null,
+			isLoading: mocks.isPresetsLoading,
+			isCreatePending: mocks.isPresetCreatePending,
+			isDeletePending: mocks.isPresetDeletePending,
+			isSetDefaultPending: mocks.isPresetSetDefaultPending,
+			create: mocks.presetsCreate,
+			remove: mocks.presetsRemove,
+			setDefault: mocks.presetsSetDefault,
+			clearDefault: mocks.presetsClearDefault,
+		};
+	},
+}));
+
 import { useSessionsPage } from "@/features/sessions/pages/sessions-page/use-sessions-page";
 
 const cashValues: SessionFormValues = {
@@ -67,6 +99,16 @@ describe("useSessionsPage", () => {
 		mocks.availableTags = [];
 		mocks.isLoading = false;
 		mocks.isCreatePending = false;
+		mocks.presetsCreate.mockReset();
+		mocks.presetsRemove.mockReset();
+		mocks.presetsSetDefault.mockReset();
+		mocks.presetsClearDefault.mockReset();
+		mocks.presets = [];
+		mocks.isPresetsLoading = false;
+		mocks.isPresetCreatePending = false;
+		mocks.isPresetDeletePending = false;
+		mocks.isPresetSetDefaultPending = false;
+		mocks.lastPresetsScreenKey = undefined;
 	});
 
 	describe("initial state", () => {
@@ -238,6 +280,126 @@ describe("useSessionsPage", () => {
 			});
 			expect(mocks.createTag).toHaveBeenCalledTimes(1);
 			expect(mocks.createTag).toHaveBeenCalledWith("Live");
+		});
+	});
+
+	describe("filter presets", () => {
+		it("forwards the presets list and screenKey from useFilterPresets", () => {
+			mocks.presets = [
+				{ id: "p1", isDefault: false, payload: { type: "cash_game" } },
+			];
+			const { result } = renderHook(() => useSessionsPage());
+			expect(result.current.presets).toEqual(mocks.presets);
+			expect(mocks.lastPresetsScreenKey).toBe("sessions");
+		});
+	});
+
+	describe("default preset auto-apply", () => {
+		it("does not call setFilters when there are no presets", async () => {
+			mocks.presets = [];
+			const { result } = renderHook(() => useSessionsPage());
+			await act(async () => {
+				await Promise.resolve();
+			});
+			expect(result.current.filters).toEqual({});
+			expect(mocks.lastFilters).toEqual({});
+		});
+
+		it("does not call setFilters when presets exist but none is default", async () => {
+			mocks.presets = [
+				{ id: "p1", isDefault: false, payload: { type: "cash_game" } },
+			];
+			const { result } = renderHook(() => useSessionsPage());
+			await act(async () => {
+				await Promise.resolve();
+			});
+			expect(result.current.filters).toEqual({});
+		});
+
+		it("applies the default preset's payload exactly once when filters are still empty", async () => {
+			mocks.presets = [
+				{ id: "p1", isDefault: true, payload: { type: "cash_game" } },
+			];
+			const { result } = renderHook(() => useSessionsPage());
+			await waitFor(() => {
+				expect(result.current.filters).toEqual({ type: "cash_game" });
+			});
+			expect(mocks.lastFilters).toEqual({ type: "cash_game" });
+		});
+
+		it("does not apply the default preset when the user already touched filters before presets finished loading", async () => {
+			mocks.isPresetsLoading = true;
+			mocks.presets = [];
+			const { result, rerender } = renderHook(() => useSessionsPage());
+			act(() => {
+				result.current.setFilters({ roomId: "r1" });
+			});
+
+			mocks.isPresetsLoading = false;
+			mocks.presets = [
+				{ id: "p1", isDefault: true, payload: { type: "cash_game" } },
+			];
+			rerender();
+
+			await act(async () => {
+				await Promise.resolve();
+			});
+			expect(result.current.filters).toEqual({ roomId: "r1" });
+		});
+
+		it("waits for the presets query to finish loading before applying the default", async () => {
+			mocks.isPresetsLoading = true;
+			mocks.presets = [
+				{ id: "p1", isDefault: true, payload: { type: "cash_game" } },
+			];
+			const { result, rerender } = renderHook(() => useSessionsPage());
+			await act(async () => {
+				await Promise.resolve();
+			});
+			expect(result.current.filters).toEqual({});
+
+			mocks.isPresetsLoading = false;
+			rerender();
+
+			await waitFor(() => {
+				expect(result.current.filters).toEqual({ type: "cash_game" });
+			});
+		});
+
+		it("does not crash and skips auto-apply when the presets query errors", async () => {
+			// A query error resolves through the same shape as "no data yet":
+			// isLoading flips to false with an empty presets array.
+			mocks.isPresetsLoading = false;
+			mocks.presets = [];
+			expect(() => renderHook(() => useSessionsPage())).not.toThrow();
+			const { result } = renderHook(() => useSessionsPage());
+			await act(async () => {
+				await Promise.resolve();
+			});
+			expect(result.current.filters).toEqual({});
+		});
+
+		it("does not re-apply after presets or filters change following the first resolution", async () => {
+			mocks.presets = [
+				{ id: "p1", isDefault: true, payload: { type: "cash_game" } },
+			];
+			const { result, rerender } = renderHook(() => useSessionsPage());
+			await waitFor(() => {
+				expect(result.current.filters).toEqual({ type: "cash_game" });
+			});
+
+			act(() => {
+				result.current.setFilters({});
+			});
+			mocks.presets = [
+				{ id: "p2", isDefault: true, payload: { type: "tournament" } },
+			];
+			rerender();
+
+			await act(async () => {
+				await Promise.resolve();
+			});
+			expect(result.current.filters).toEqual({});
 		});
 	});
 });

@@ -7,6 +7,7 @@ export function TagNameForm({
 	children,
 	defaultName,
 	formId,
+	label,
 	onSubmit,
 }: {
 	children?: React.ReactNode;
@@ -18,9 +19,15 @@ export function TagNameForm({
 	 * `.claude/rules/web-theme.md`.
 	 */
 	formId: string;
+	/** Field label override. Defaults to "Tag name" when omitted. */
+	label?: string;
 	onSubmit: (name: string) => void;
 }) {
-	const { form } = useTagNameForm({ defaultName, onSubmit });
+	const { form, label: resolvedLabel } = useTagNameForm({
+		defaultName,
+		label,
+		onSubmit,
+	});
 
 	return (
 		<form
@@ -37,7 +44,7 @@ export function TagNameForm({
 					<Field
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
-						label="Tag name"
+						label={resolvedLabel}
 						required
 					>
 						<Input
