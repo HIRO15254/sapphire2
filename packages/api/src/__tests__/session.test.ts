@@ -17,7 +17,11 @@ import {
 	validateEntityOwnership,
 	validateTagsOwnership,
 } from "../routers/session";
-import { createChainableMockDb } from "./test-utils";
+import {
+	createChainableMockDb,
+	expectAccepts,
+	expectRejects,
+} from "./test-utils";
 
 const DERIVED_FIELDS_RE = /Cannot edit fields derived from live session events/;
 const RING_CONFIG_RE = /variant|blind1|blind2/;
@@ -2227,5 +2231,282 @@ describe("session.profitLossSeries filter ownership", () => {
 
 		expect(selectedTables).toContain(table);
 		expect(selectedTables).toContain("game_session");
+	});
+});
+
+describe("session create/update virtual fields input validation", () => {
+	const CASH_BASE = {
+		type: "cash_game",
+		sessionDate: 1_700_000_000,
+		buyIn: 1000,
+		cashOut: 2000,
+	} as const;
+	const TOURNAMENT_BASE = {
+		type: "tournament",
+		sessionDate: 1_700_000_000,
+		tournamentBuyIn: 10_000,
+	} as const;
+
+	it("create accepts virtualBuyIn / virtualCashOut on both kinds", () => {
+		expectAccepts(appRouter.session.create, {
+			...CASH_BASE,
+			virtualBuyIn: 500,
+			virtualCashOut: 0,
+		});
+		expectAccepts(appRouter.session.create, {
+			...TOURNAMENT_BASE,
+			virtualBuyIn: 500,
+			virtualCashOut: 1200,
+		});
+	});
+
+	it("create rejects negative virtual amounts", () => {
+		expectRejects(appRouter.session.create, {
+			...CASH_BASE,
+			virtualBuyIn: -1,
+		});
+		expectRejects(appRouter.session.create, {
+			...TOURNAMENT_BASE,
+			virtualCashOut: -1,
+		});
+	});
+
+	it("create rejects non-integer virtual amounts", () => {
+		expectRejects(appRouter.session.create, {
+			...CASH_BASE,
+			virtualBuyIn: 10.5,
+		});
+	});
+
+	it("create accepts itemUsages rows on both kinds", () => {
+		const itemUsages = [
+			{ itemId: "i1", direction: "buy_in", count: 2 },
+			{ itemId: "i2", direction: "cash_out", count: 1 },
+		];
+		expectAccepts(appRouter.session.create, { ...CASH_BASE, itemUsages });
+		expectAccepts(appRouter.session.create, {
+			...TOURNAMENT_BASE,
+			itemUsages,
+		});
+	});
+
+	it("create rejects itemUsages with count 0", () => {
+		expectRejects(appRouter.session.create, {
+			...CASH_BASE,
+			itemUsages: [{ itemId: "i1", direction: "buy_in", count: 0 }],
+		});
+	});
+
+	it("create rejects itemUsages with an unknown direction", () => {
+		expectRejects(appRouter.session.create, {
+			...CASH_BASE,
+			itemUsages: [{ itemId: "i1", direction: "sideways", count: 1 }],
+		});
+	});
+
+	it("create rejects itemUsages with an empty itemId", () => {
+		expectRejects(appRouter.session.create, {
+			...CASH_BASE,
+			itemUsages: [{ itemId: "", direction: "buy_in", count: 1 }],
+		});
+	});
+
+	it("update accepts nullable virtual amounts and an empty itemUsages array (clear)", () => {
+		expectAccepts(appRouter.session.update, {
+			id: "s1",
+			virtualBuyIn: null,
+			virtualCashOut: 300,
+			itemUsages: [],
+		});
+	});
+
+	it("update rejects negative / non-integer virtual amounts", () => {
+		expectRejects(appRouter.session.update, { id: "s1", virtualBuyIn: -1 });
+		expectRejects(appRouter.session.update, {
+			id: "s1",
+			virtualCashOut: 1.5,
+		});
+	});
+
+	it("update rejects itemUsages with count 0", () => {
+		expectRejects(appRouter.session.update, {
+			id: "s1",
+			itemUsages: [{ itemId: "i1", direction: "buy_in", count: 0 }],
+		});
+	});
+});
+
+describe("assertNoLiveLinkedRestrictedEdits — virtual fields", () => {
+	const liveCashSession = { source: "live", kind: "cash_game" } as const;
+	const liveTournamentSession = { source: "live", kind: "tournament" } as const;
+	const manualCashSession = { source: "manual", kind: "cash_game" } as const;
+
+	it("blocks virtualBuyIn / virtualCashOut / itemUsages edits on live cash sessions", () => {
+		expect(() =>
+			assertNoLiveLinkedRestrictedEdits(liveCashSession, { virtualBuyIn: 100 })
+		).toThrow();
+		expect(() =>
+			assertNoLiveLinkedRestrictedEdits(liveCashSession, {
+				virtualCashOut: 100,
+			})
+		).toThrow();
+		expect(() =>
+			assertNoLiveLinkedRestrictedEdits(liveCashSession, { itemUsages: [] })
+		).toThrow();
+	});
+
+	it("blocks virtual field edits on live tournament sessions", () => {
+		expect(() =>
+			assertNoLiveLinkedRestrictedEdits(liveTournamentSession, {
+				virtualBuyIn: 100,
+			})
+		).toThrow();
+		expect(() =>
+			assertNoLiveLinkedRestrictedEdits(liveTournamentSession, {
+				itemUsages: [],
+			})
+		).toThrow();
+	});
+
+	it("allows virtual field edits on manual sessions", () => {
+		expect(() =>
+			assertNoLiveLinkedRestrictedEdits(manualCashSession, {
+				virtualBuyIn: 100,
+				virtualCashOut: 200,
+				itemUsages: [],
+			})
+		).not.toThrow();
+	});
+});
+
+describe("session.create item usages (ownership, snapshots, ledger)", () => {
+	const userId = "user-1";
+	const CASH_INPUT = {
+		type: "cash_game" as const,
+		sessionDate: 1_700_000_000,
+		buyIn: 1000,
+		cashOut: 2000,
+		currencyId: "c1",
+		itemUsages: [
+			{ itemId: "i1", direction: "buy_in" as const, count: 2 },
+			{ itemId: "i1", direction: "cash_out" as const, count: 3 },
+		],
+	};
+
+	function makeCreateCaller(itemRows: Record<string, unknown>[]) {
+		const { db, inserted, batch, selectWhereParams } = createChainableMockDb({
+			select: {
+				currency: [{ id: "c1", userId }],
+				item: itemRows,
+				transaction_type: [
+					{ id: "tt1", name: "Session Result", userId },
+				],
+				game_session: [],
+			},
+		});
+		const caller = appRouter.createCaller({
+			session: { user: { id: userId } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]).session;
+		return { caller, inserted, batch, selectWhereParams };
+	}
+
+	it("rejects a missing / foreign item with FORBIDDEN before any write, scoping the lookup to the caller", async () => {
+		// The ownership scope lives in the WHERE (`id IN (…) AND user_id = ?`),
+		// so a foreign item comes back as "not returned" — identical to missing.
+		const { caller, inserted, selectWhereParams } = makeCreateCaller([]);
+		await expect(caller.create(CASH_INPUT)).rejects.toMatchObject({
+			code: "FORBIDDEN",
+		});
+		expect(inserted.game_session).toBeUndefined();
+		expect(inserted.session_item_usage).toBeUndefined();
+
+		const itemLookup = selectWhereParams.find(
+			(params) => params.includes("i1") && params.includes(userId)
+		);
+		expect(itemLookup).toBeDefined();
+	});
+
+	it("writes usage rows with server-side snapshots and one net ledger row", async () => {
+		const { caller, inserted } = makeCreateCaller([
+			{
+				id: "i1",
+				userId,
+				name: "Tournament ticket",
+				unitValue: 1000,
+				currencyId: "c1",
+			},
+		]);
+		await caller.create(CASH_INPUT);
+
+		const usageRows = (inserted.session_item_usage ?? []).flat() as Record<
+			string,
+			unknown
+		>[];
+		expect(usageRows).toHaveLength(2);
+		expect(usageRows[0]).toMatchObject({
+			itemId: "i1",
+			direction: "buy_in",
+			count: 2,
+			itemName: "Tournament ticket",
+			unitValue: 1000,
+			currencyId: "c1",
+		});
+		expect(usageRows[1]).toMatchObject({
+			itemId: "i1",
+			direction: "cash_out",
+			count: 3,
+		});
+
+		const ledgerRows = (inserted.item_transaction ?? []).flat() as Record<
+			string,
+			unknown
+		>[];
+		expect(ledgerRows).toHaveLength(1);
+		// net = +3 - 2 = +1
+		expect(ledgerRows[0]).toMatchObject({ itemId: "i1", count: 1 });
+		expect(ledgerRows[0]?.sessionId).toBeDefined();
+	});
+
+	it("keeps the currency-ledger amount equal to the REAL profit/loss (virtual excluded)", async () => {
+		const { caller, inserted } = makeCreateCaller([
+			{
+				id: "i1",
+				userId,
+				name: "Tournament ticket",
+				unitValue: 1000,
+				currencyId: "c1",
+			},
+		]);
+		await caller.create({ ...CASH_INPUT, virtualBuyIn: 400, virtualCashOut: 50 });
+
+		const txRows = (inserted.currency_transaction ?? []).flat() as Record<
+			string,
+			unknown
+		>[];
+		expect(txRows).toHaveLength(1);
+		// real P/L = 2000 - 1000 = 1000
+		expect(txRows[0]?.amount).toBe(1000);
+	});
+
+	it("writes pure-virtual amounts onto the cash detail (0 stored as null)", async () => {
+		const { caller, inserted } = makeCreateCaller([
+			{
+				id: "i1",
+				userId,
+				name: "Tournament ticket",
+				unitValue: 1000,
+				currencyId: "c1",
+			},
+		]);
+		await caller.create({ ...CASH_INPUT, virtualBuyIn: 400, virtualCashOut: 0 });
+
+		const detailRows = (inserted.session_cash_detail ?? []).flat() as Record<
+			string,
+			unknown
+		>[];
+		expect(detailRows).toHaveLength(1);
+		expect(detailRows[0]?.virtualBuyIn).toBe(400);
+		expect(detailRows[0]?.virtualCashOut).toBeNull();
 	});
 });

@@ -6,6 +6,8 @@ import { currencyTransactionRouter } from "./currency-transaction";
 import { gameGroupRouter } from "./game-group";
 import { gameMixRouter } from "./game-mix";
 import { gameVariantRouter } from "./game-variant";
+import { itemRouter } from "./item";
+import { itemTransactionRouter } from "./item-transaction";
 import { liveCashGameSessionRouter } from "./live-cash-game-session";
 import { liveTournamentSessionRouter } from "./live-tournament-session";
 import { locationRouter } from "./location";
@@ -39,6 +41,8 @@ export const appRouter = router({
 	transactionType: transactionTypeRouter,
 	currency: currencyRouter,
 	currencyTransaction: currencyTransactionRouter,
+	item: itemRouter,
+	itemTransaction: itemTransactionRouter,
 	gameVariant: gameVariantRouter,
 	gameGroup: gameGroupRouter,
 	gameMix: gameMixRouter,
