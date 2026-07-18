@@ -14,10 +14,12 @@ SET `chip_remove_total` = (
 		AND CAST(json_extract(`session_event`.`payload`, '$.amount') AS INTEGER) < 0
 );
 --> statement-breakpoint
--- 上のバックフィルで chip_remove_total が確定した完了済みセッションのうち、
--- 完了後の編集 (session.update) でチップ除去抜きの値に上書きされてしまった
--- currency_transaction.amount を正しい P/L に再同期する。
--- (chip_remove_total = 0 の行はそもそも影響を受けていないため対象外)
+-- 上のバックフィルで chip_remove_total が確定した完了済みセッション全件に
+-- ついて、currency_transaction.amount を正しい P/L (cashOut + chipRemoveTotal
+-- - buyIn) に再同期する。完了後の編集 (session.update) でチップ除去抜きの
+-- 値に上書きされていた行はここで修正され、未編集の行は元々の正しい値を
+-- 再計算するだけなので無害 (= 冪等)。chip_remove_total = 0 の行はそもそも
+-- 影響を受けていないため対象外。
 UPDATE `currency_transaction`
 SET `amount` = (
 	SELECT `session_cash_detail`.`cash_out` + `session_cash_detail`.`chip_remove_total` - `session_cash_detail`.`buy_in`
