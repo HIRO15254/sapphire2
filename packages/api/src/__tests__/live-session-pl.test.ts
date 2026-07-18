@@ -981,6 +981,40 @@ describe("recalculateCashGameSession — completed session", () => {
 		expect(inserted.cashOut).toBe(700);
 	});
 
+	it("persists chipRemoveTotal on sessionCashDetail so completed-session P/L includes chip removes (insert path)", async () => {
+		const startedAt = new Date("2024-01-01T10:00:00Z");
+		const endedAt = new Date("2024-01-01T12:00:00Z");
+		const events = [
+			makeSessionEvent("session_start", { buyInAmount: 500 }, startedAt, 0),
+			makeSessionEvent(
+				"chips_add_remove",
+				{ amount: -100 },
+				new Date("2024-01-01T11:00:00Z"),
+				1
+			),
+			makeSessionEvent("session_end", { cashOutAmount: 600 }, endedAt, 2),
+		];
+		const session = makeGameSession({ currencyId: null });
+
+		const db = makeChainableDb([events, [session], [], []]);
+
+		await recalculateCashGameSession(
+			db as unknown as Parameters<typeof recalculateCashGameSession>[0],
+			"session-1",
+			"user-1"
+		);
+
+		const insertCalls = db._insertChain.values.mock.calls;
+		const cashDetailInsert = insertCalls.find((args: unknown[]) => {
+			const arg = args[0] as Record<string, unknown>;
+			return "buyIn" in arg || "cashOut" in arg;
+		});
+		const inserted = cashDetailInsert?.[0] as Record<string, unknown>;
+		expect(inserted.buyIn).toBe(500);
+		expect(inserted.cashOut).toBe(600);
+		expect(inserted.chipRemoveTotal).toBe(100);
+	});
+
 	it("updates existing sessionCashDetail when it already exists", async () => {
 		const startedAt = new Date("2024-01-01T10:00:00Z");
 		const endedAt = new Date("2024-01-01T12:00:00Z");
@@ -1002,6 +1036,43 @@ describe("recalculateCashGameSession — completed session", () => {
 		);
 
 		expect(db.update).toHaveBeenCalledTimes(3);
+	});
+
+	it("persists chipRemoveTotal on sessionCashDetail so completed-session P/L includes chip removes (update path)", async () => {
+		const startedAt = new Date("2024-01-01T10:00:00Z");
+		const endedAt = new Date("2024-01-01T12:00:00Z");
+		const events = [
+			makeSessionEvent("session_start", { buyInAmount: 200 }, startedAt, 0),
+			makeSessionEvent(
+				"chips_add_remove",
+				{ amount: -50 },
+				new Date("2024-01-01T11:00:00Z"),
+				1
+			),
+			makeSessionEvent("session_end", { cashOutAmount: 300 }, endedAt, 2),
+		];
+		const session = makeGameSession({ currencyId: null });
+		const existingDetail = [
+			{
+				sessionId: "session-1",
+				buyIn: 200,
+				cashOut: null,
+				evCashOut: null,
+				chipRemoveTotal: null,
+			},
+		];
+
+		const db = makeChainableDb([events, [session], existingDetail, []]);
+
+		await recalculateCashGameSession(
+			db as unknown as Parameters<typeof recalculateCashGameSession>[0],
+			"session-1",
+			"user-1"
+		);
+
+		expect(db._updateChain.set).toHaveBeenCalledWith(
+			expect.objectContaining({ buyIn: 200, cashOut: 300, chipRemoveTotal: 50 })
+		);
 	});
 
 	it("skips currencyTransaction sync when currencyId is null", async () => {
