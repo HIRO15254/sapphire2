@@ -15,6 +15,7 @@ describe("SessionCashDetail schema — columns", () => {
 				"buyIn",
 				"cashOut",
 				"evCashOut",
+				"chipRemoveTotal",
 				"ruleName",
 				"variant",
 				"blind1",
@@ -37,16 +38,18 @@ describe("SessionCashDetail schema — columns", () => {
 		expect(columns.ringGameId.notNull).toBe(false);
 	});
 
-	it("buyIn / cashOut / evCashOut are nullable", () => {
+	it("buyIn / cashOut / evCashOut / chipRemoveTotal are nullable", () => {
 		expect(columns.buyIn.notNull).toBe(false);
 		expect(columns.cashOut.notNull).toBe(false);
 		expect(columns.evCashOut.notNull).toBe(false);
+		expect(columns.chipRemoveTotal.notNull).toBe(false);
 	});
 
-	it("buyIn / cashOut / evCashOut are integer type", () => {
+	it("buyIn / cashOut / evCashOut / chipRemoveTotal are integer type", () => {
 		expect(columns.buyIn.dataType).toBe("number");
 		expect(columns.cashOut.dataType).toBe("number");
 		expect(columns.evCashOut.dataType).toBe("number");
+		expect(columns.chipRemoveTotal.dataType).toBe("number");
 	});
 
 	it("ringGameId is string type", () => {

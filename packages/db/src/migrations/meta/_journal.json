@@ -330,6 +330,13 @@
       "when": 1784120410467,
       "tag": "0046_session_event_sort_order_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "6",
+      "when": 1784384318449,
+      "tag": "0047_gigantic_energizer",
+      "breakpoints": true
     }
   ]
 }

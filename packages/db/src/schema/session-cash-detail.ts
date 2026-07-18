@@ -17,6 +17,11 @@ export const sessionCashDetail = sqliteTable(
 		buyIn: integer("buy_in"),
 		cashOut: integer("cash_out"),
 		evCashOut: integer("ev_cash_out"),
+		// Σ of chips racked off the table across every negative chips_add_remove
+		// event (early cash-out). Persisted separately from cashOut so completed-
+		// session P/L (list/detail/stats) can add it back in, matching the live
+		// session's own `cashOut + chipRemoveTotal - buyIn` formula.
+		chipRemoveTotal: integer("chip_remove_total"),
 		// Snapshot fields — copied from ring_game at session create time and
 		// frozen thereafter. Parent rename / blind change does not propagate.
 		ruleName: text("rule_name").notNull().default("Untitled"),
