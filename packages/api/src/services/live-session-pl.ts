@@ -329,6 +329,7 @@ export async function recalculateCashGameSession(
 				buyIn: pl.totalBuyIn,
 				cashOut: pl.cashOut,
 				evCashOut: pl.evCashOut,
+				chipRemoveTotal: pl.chipRemoveTotal,
 			})
 			.where(eq(sessionCashDetail.sessionId, sessionId));
 	} else {
@@ -337,6 +338,7 @@ export async function recalculateCashGameSession(
 			buyIn: pl.totalBuyIn,
 			cashOut: pl.cashOut,
 			evCashOut: pl.evCashOut,
+			chipRemoveTotal: pl.chipRemoveTotal,
 		});
 	}
 

@@ -95,8 +95,12 @@ async function validateSessionOwnership(
 	return found;
 }
 
-function computeCashGamePL(buyIn: number, cashOut: number): number {
-	return cashOut - buyIn;
+function computeCashGamePL(
+	buyIn: number,
+	cashOut: number,
+	chipRemoveTotal = 0
+): number {
+	return cashOut + chipRemoveTotal - buyIn;
 }
 
 function computeTournamentPL(
@@ -1074,6 +1078,7 @@ interface SummarySessionRow {
 	buyIn: number | null;
 	cashOut: number | null;
 	chipPurchaseCost: number;
+	chipRemoveTotal: number | null;
 	entryFee: number | null;
 	evCashOut: number | null;
 	placement: number | null;
@@ -1084,7 +1089,7 @@ interface SummarySessionRow {
 
 function computeSessionPLFromRow(s: SummarySessionRow): number {
 	if (s.type === "cash_game" && s.buyIn !== null && s.cashOut !== null) {
-		return computeCashGamePL(s.buyIn, s.cashOut);
+		return computeCashGamePL(s.buyIn, s.cashOut, s.chipRemoveTotal ?? 0);
 	}
 	return computeTournamentPL(
 		s.buyIn,
@@ -1112,7 +1117,7 @@ function accumulateEvMetrics(
 	if (s.type !== "cash_game" || s.evCashOut === null || s.buyIn === null) {
 		return;
 	}
-	const evPl = s.evCashOut - s.buyIn;
+	const evPl = s.evCashOut + (s.chipRemoveTotal ?? 0) - s.buyIn;
 	update({
 		totalEvProfitLoss: current.totalEvProfitLoss + evPl,
 		totalEvDiff: current.totalEvDiff + (evPl - pl),
@@ -1230,6 +1235,7 @@ async function computeSummary(
 			buyIn: sessionCashDetail.buyIn,
 			cashOut: sessionCashDetail.cashOut,
 			evCashOut: sessionCashDetail.evCashOut,
+			chipRemoveTotal: sessionCashDetail.chipRemoveTotal,
 			entryFee: sessionTournamentDetail.entryFee,
 			prizeMoney: sessionTournamentDetail.prizeMoney,
 			bountyPrizes: sessionTournamentDetail.bountyPrizes,
@@ -1522,6 +1528,7 @@ interface ListItemRaw {
 	buyIn: number | null;
 	cashOut: number | null;
 	chipPurchaseCost: number;
+	chipRemoveTotal: number | null;
 	entryFee: number | null;
 	evCashOut: number | null;
 	id: string;
@@ -1537,6 +1544,7 @@ export interface ProfitLossSeriesRow {
 	buyIn: number | null;
 	cashOut: number | null;
 	chipPurchaseCost: number;
+	chipRemoveTotal: number | null;
 	endedAt: Date | null;
 	entryFee: number | null;
 	evCashOut: number | null;
@@ -1559,10 +1567,13 @@ function computeCashStats(r: ProfitLossSeriesRow): CashGameStats {
 	if (r.buyIn === null || r.cashOut === null) {
 		return { profitLoss: 0, evProfitLoss: null, buyInTotal: null };
 	}
+	const chipRemoveTotal = r.chipRemoveTotal ?? 0;
 	return {
-		profitLoss: computeCashGamePL(r.buyIn, r.cashOut),
+		profitLoss: computeCashGamePL(r.buyIn, r.cashOut, chipRemoveTotal),
 		evProfitLoss:
-			r.evCashOut === null ? null : computeCashGamePL(r.buyIn, r.evCashOut),
+			r.evCashOut === null
+				? null
+				: computeCashGamePL(r.buyIn, r.evCashOut, chipRemoveTotal),
 		buyInTotal: r.buyIn,
 	};
 }
@@ -1651,6 +1662,7 @@ export async function fetchProfitLossSeries(
 			buyIn: sessionCashDetail.buyIn,
 			cashOut: sessionCashDetail.cashOut,
 			evCashOut: sessionCashDetail.evCashOut,
+			chipRemoveTotal: sessionCashDetail.chipRemoveTotal,
 			ringGameBlind2: sessionCashDetail.blind2,
 			tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
 			entryFee: sessionTournamentDetail.entryFee,
@@ -1726,9 +1738,10 @@ function enrichItemWithPL<T extends ListItemRaw>(item: T) {
 		item.buyIn !== null &&
 		item.cashOut !== null
 	) {
-		profitLoss = computeCashGamePL(item.buyIn, item.cashOut);
+		const chipRemoveTotal = item.chipRemoveTotal ?? 0;
+		profitLoss = computeCashGamePL(item.buyIn, item.cashOut, chipRemoveTotal);
 		if (item.evCashOut !== null) {
-			evProfitLoss = item.evCashOut - item.buyIn;
+			evProfitLoss = item.evCashOut + chipRemoveTotal - item.buyIn;
 			evDiff = evProfitLoss - profitLoss;
 		}
 	} else if (item.type === "tournament") {
@@ -1773,6 +1786,7 @@ function selectEnrichedSessionRows(db: DbInstance, userId: string) {
 			buyIn: sessionCashDetail.buyIn,
 			cashOut: sessionCashDetail.cashOut,
 			evCashOut: sessionCashDetail.evCashOut,
+			chipRemoveTotal: sessionCashDetail.chipRemoveTotal,
 			tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
 			entryFee: sessionTournamentDetail.entryFee,
 			placement: sessionTournamentDetail.placement,
@@ -3056,7 +3070,13 @@ async function buildCreateCurrencyTxStatements(
 
 function computeSessionPLFromDetails(
 	kind: string,
-	cashDetail: { buyIn: number | null; cashOut: number | null } | undefined,
+	cashDetail:
+		| {
+				buyIn: number | null;
+				cashOut: number | null;
+				chipRemoveTotal: number | null;
+		  }
+		| undefined,
 	tournamentDetail:
 		| {
 				tournamentBuyIn: number | null;
@@ -3072,7 +3092,11 @@ function computeSessionPLFromDetails(
 		cashDetail?.buyIn != null &&
 		cashDetail?.cashOut != null
 	) {
-		return computeCashGamePL(cashDetail.buyIn, cashDetail.cashOut);
+		return computeCashGamePL(
+			cashDetail.buyIn,
+			cashDetail.cashOut,
+			cashDetail.chipRemoveTotal ?? 0
+		);
 	}
 	if (kind === "tournament" && tournamentDetail) {
 		return computeTournamentPL(
