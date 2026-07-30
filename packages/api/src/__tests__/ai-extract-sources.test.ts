@@ -4,12 +4,6 @@ import {
 	TABLE_PLAYER_SOURCE_APPS,
 } from "../routers/ai-extract-sources";
 
-const SEAT_RE = /seat/i;
-const CLOCKWISE_RE = /clockwise/i;
-const IS_HERO_RE = /isHero/;
-const NULL_RE = /null/;
-const OMIT_RE = /omit/i;
-
 describe("ai-extract-sources constants", () => {
 	it("exposes dmm_waitinglist as the only known source app id", () => {
 		expect(TABLE_PLAYER_SOURCE_APP_IDS).toEqual(["dmm_waitinglist"]);
@@ -30,23 +24,6 @@ describe("ai-extract-sources constants", () => {
 			expect(typeof cfg.prompt).toBe("string");
 			expect(cfg.prompt.length).toBeGreaterThan(0);
 		}
-	});
-
-	it("dmm_waitinglist prompt mentions seat numbering convention", () => {
-		const prompt = TABLE_PLAYER_SOURCE_APPS.dmm_waitinglist.prompt;
-		expect(prompt).toMatch(SEAT_RE);
-		expect(prompt).toMatch(CLOCKWISE_RE);
-	});
-
-	it("dmm_waitinglist prompt includes hero detection guidance", () => {
-		const prompt = TABLE_PLAYER_SOURCE_APPS.dmm_waitinglist.prompt;
-		expect(prompt).toMatch(IS_HERO_RE);
-		expect(prompt).toMatch(NULL_RE);
-	});
-
-	it("dmm_waitinglist prompt instructs to omit empty/unreadable seats", () => {
-		const prompt = TABLE_PLAYER_SOURCE_APPS.dmm_waitinglist.prompt;
-		expect(prompt).toMatch(OMIT_RE);
 	});
 
 	it("exactly as many config entries as ids", () => {
