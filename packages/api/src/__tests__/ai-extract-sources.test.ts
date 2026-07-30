@@ -9,6 +9,7 @@ const CLOCKWISE_RE = /clockwise/i;
 const IS_HERO_RE = /isHero/;
 const NULL_RE = /null/;
 const OMIT_RE = /omit/i;
+const EMPTY_SEAT_NUMBER_ONLY_RE = /only its seat number/i;
 
 describe("ai-extract-sources constants", () => {
 	it("exposes dmm_waitinglist as the only known source app id", () => {
@@ -47,6 +48,11 @@ describe("ai-extract-sources constants", () => {
 	it("dmm_waitinglist prompt instructs to omit empty/unreadable seats", () => {
 		const prompt = TABLE_PLAYER_SOURCE_APPS.dmm_waitinglist.prompt;
 		expect(prompt).toMatch(OMIT_RE);
+	});
+
+	it("dmm_waitinglist prompt explains that an unoccupied seat shows only its seat number", () => {
+		const prompt = TABLE_PLAYER_SOURCE_APPS.dmm_waitinglist.prompt;
+		expect(prompt).toMatch(EMPTY_SEAT_NUMBER_ONLY_RE);
 	});
 
 	it("exactly as many config entries as ids", () => {

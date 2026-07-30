@@ -60,6 +60,9 @@ export type ExtractedTournamentData = z.infer<
 
 const MAX_SEAT_NUMBER = 9;
 
+/** シーティング（着席者読み取り）に使うモデル。 */
+export const TABLE_PLAYERS_MODEL = "claude-opus-5";
+
 const ExtractedTablePlayersSchema = z.object({
 	seats: z
 		.array(
@@ -277,7 +280,7 @@ export const aiExtractRouter = router({
 			];
 
 			const response = await client.messages.parse({
-				model: "claude-opus-4-8",
+				model: TABLE_PLAYERS_MODEL,
 				max_tokens: 1024,
 				output_config: {
 					format: zodOutputFormat(ExtractedTablePlayersSchema),

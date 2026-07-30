@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import {
 	ExtractedTournamentDataSchema,
+	TABLE_PLAYERS_MODEL,
 	TOOL_INPUT_SCHEMA,
 } from "../routers/ai-extract";
 import {
@@ -28,6 +29,10 @@ describe("aiExtract router", () => {
 		expect(Object.keys(appRouter.aiExtract).sort()).toEqual(
 			["extractTablePlayers", "extractTournamentData"].sort()
 		);
+	});
+
+	it("seats extraction runs on Opus 5", () => {
+		expect(TABLE_PLAYERS_MODEL).toBe("claude-opus-5");
 	});
 
 	it("both procedures are protected mutations", () => {
