@@ -3,11 +3,10 @@
  * `LATEST_MODEL` を書き換えるだけで全機能が追従する。
  * `scripts/check-rules.ts` がこのファイル以外での `claude-*` リテラルを禁止する。
  *
- * 実行時に Models API から「最新」を解決しない理由: モデル更新は破壊的な
- * API 変更を伴う（Opus 5 で thinking がデフォルト ON、Opus 4.7 で
- * `temperature` / `budget_tokens` 削除、Sonnet 5 でトークナイザ変更）。
- * 日付順の自動選択は単価やティアの違うモデル（preview 系、Haiku 系）にも
- * 黙って乗り換わるため、更新は人間のレビューを通す。
+ * 実行時に Models API から「最新」を解決しない。モデル更新は破壊的な API 変更を
+ * 伴い、日付順の自動選択は単価やティアの違うモデルにも黙って乗り換わるため、
+ * 更新は人間のレビューを通す。破壊的変更の実例とモデルを上げるときの手順は
+ * `.claude/rules/ai-models.md` に一本化してある（同じ列挙をここに複製しない）。
  */
 export const LATEST_MODEL = "claude-opus-5";
 
