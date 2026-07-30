@@ -1,3 +1,4 @@
+import type { StatisticsFilterPresetPayload } from "@sapphire2/db/schemas/filter-preset";
 import { useState } from "react";
 import { useStatsFilters } from "@/features/statistics/hooks/use-stats-filters";
 import {
@@ -12,7 +13,13 @@ import type {
 } from "@/features/statistics/utils/stats-filters";
 import { dateInputToEpochSec, type Period } from "@/shared/lib/period-filter";
 
-export type StatsFilterSheet = "currency" | "norm" | "period" | "room" | "type";
+export type StatsFilterSheet =
+	| "currency"
+	| "norm"
+	| "period"
+	| "presets"
+	| "room"
+	| "type";
 
 export interface UseStatsFilterBarResult {
 	activeSheet: StatsFilterSheet | null;
@@ -27,10 +34,20 @@ export interface UseStatsFilterBarResult {
 	 */
 	currencyChipLabel: string;
 	currentCurrencyName: string | null;
+	/**
+	 * The payload the presets sheet saves. NOT `filters` verbatim: the stored
+	 * schema declares `currency` / `room` as `.min(1).optional()`, while a
+	 * hand-edited `/statistics?room=` parses to an empty string — passing that
+	 * through made Save fail with a raw Zod error. Empty means "absent" here,
+	 * matching `filtersToStatsInput`. Mirrors the sessions bar's
+	 * `currentPresetPayload`.
+	 */
+	currentPresetPayload: StatisticsFilterPresetPayload;
 	currentRoomName: string | null;
 	filters: StatsFilters;
 	isReferenceLoading: boolean;
 	isScopeValid: boolean;
+	onApplyPreset: (payload: StatisticsFilterPresetPayload) => void;
 	onCurrencyChange: (value: string | undefined) => void;
 	onFromChange: (value: string) => void;
 	onNormChange: (value: string) => void;
@@ -53,7 +70,8 @@ export interface UseStatsFilterBarResult {
  * normalization on when it was off so the combined scope stays valid.
  */
 export function useStatsFilterBar(): UseStatsFilterBarResult {
-	const { filters, setFilters, isScopeValid } = useStatsFilters();
+	const { filters, setFilters, replaceFilters, isScopeValid } =
+		useStatsFilters();
 	const { currencies, rooms, isLoading } = useStatsReferenceData();
 	const [activeSheet, setActiveSheet] = useState<StatsFilterSheet | null>(null);
 
@@ -69,6 +87,12 @@ export function useStatsFilterBar(): UseStatsFilterBarResult {
 	const currencyChipLabel =
 		currentCurrencyName ?? (isScopeValid ? "All currencies" : "Select");
 
+	const currentPresetPayload: StatisticsFilterPresetPayload = {
+		...filters,
+		currency: filters.currency || undefined,
+		room: filters.room || undefined,
+	};
+
 	return {
 		activeSheet,
 		closeSheet,
@@ -80,6 +104,7 @@ export function useStatsFilterBar(): UseStatsFilterBarResult {
 		isScopeValid,
 		currencyChipLabel,
 		currentCurrencyName,
+		currentPresetPayload,
 		currentRoomName,
 		onPeriodChange: (value) => {
 			if (!value) {
@@ -132,5 +157,18 @@ export function useStatsFilterBar(): UseStatsFilterBarResult {
 		},
 		onFromChange: (value) => setFilters({ from: dateInputToEpochSec(value) }),
 		onToChange: (value) => setFilters({ to: dateInputToEpochSec(value, true) }),
+		onApplyPreset: (payload) => {
+			// `payload.period` is typed as a generic string in the shared db
+			// schema (packages/db can't import apps/web's fuller period
+			// vocabulary — see filter-preset.ts) rather than the `Period` literal
+			// union, so a straight structural assignment doesn't type-check. Safe
+			// to assert: presets saved from this screen only ever carry values
+			// drawn from `PERIODS` / `STATS_NORMALIZATIONS` / `STATS_TYPES` in the
+			// first place, and `replaceFilters` re-validates with
+			// `statsSearchSchema.safeParse` regardless of what TS narrows here —
+			// a payload this build no longer understands leaves the current
+			// filters untouched instead of throwing.
+			replaceFilters(payload as Partial<StatsFilters>);
+		},
 	};
 }

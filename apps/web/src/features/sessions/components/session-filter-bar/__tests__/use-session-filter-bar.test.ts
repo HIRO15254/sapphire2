@@ -221,6 +221,169 @@ describe("useSessionFilterBar", () => {
 		});
 	});
 
+	describe("currentPresetPayload", () => {
+		it("records the currency view when BB/BI is off", () => {
+			const { result } = setup();
+			expect(result.current.currentPresetPayload).toEqual({
+				display: "currency",
+			});
+		});
+
+		it("records the normalized view when BB/BI is on", () => {
+			const { result } = setup({ bbBiMode: true });
+			expect(result.current.currentPresetPayload).toEqual({
+				display: "normalized",
+			});
+		});
+
+		it("carries the active filters alongside the display mode", () => {
+			const { result } = setup({
+				bbBiMode: true,
+				filters: { type: "cash_game", roomId: "r1", period: "30d" },
+			});
+			expect(result.current.currentPresetPayload).toEqual({
+				type: "cash_game",
+				roomId: "r1",
+				period: "30d",
+				display: "normalized",
+			});
+		});
+
+		it("tracks a display-mode change from the props", () => {
+			const { result, rerender } = setup();
+			rerender({
+				bbBiMode: true,
+				currencies,
+				filters: {} as SessionFilterValues,
+				onBbBiModeChange: vi.fn(),
+				onFiltersChange: vi.fn(),
+				rooms,
+			});
+			expect(result.current.currentPresetPayload).toEqual({
+				display: "normalized",
+			});
+		});
+	});
+
+	describe("onApplyPreset", () => {
+		it("restores the filters and turns BB/BI on for a normalized preset", () => {
+			const { result, onFiltersChange, onBbBiModeChange } = setup();
+			act(() =>
+				result.current.onApplyPreset({
+					type: "tournament",
+					roomId: "r2",
+					display: "normalized",
+				})
+			);
+			expect(onFiltersChange).toHaveBeenCalledTimes(1);
+			expect(onFiltersChange).toHaveBeenCalledWith({
+				type: "tournament",
+				roomId: "r2",
+			});
+			expect(onBbBiModeChange).toHaveBeenCalledTimes(1);
+			expect(onBbBiModeChange).toHaveBeenCalledWith(true);
+		});
+
+		it("turns BB/BI off for a currency preset", () => {
+			const { result, onBbBiModeChange } = setup({ bbBiMode: true });
+			act(() => result.current.onApplyPreset({ display: "currency" }));
+			expect(onBbBiModeChange).toHaveBeenCalledTimes(1);
+			expect(onBbBiModeChange).toHaveBeenCalledWith(false);
+		});
+
+		it("leaves the display mode alone for a preset saved before the field existed", () => {
+			const { result, onFiltersChange, onBbBiModeChange } = setup({
+				bbBiMode: true,
+			});
+			act(() => result.current.onApplyPreset({ type: "cash_game" }));
+			expect(onFiltersChange).toHaveBeenCalledTimes(1);
+			expect(onFiltersChange).toHaveBeenCalledWith({ type: "cash_game" });
+			expect(onBbBiModeChange).not.toHaveBeenCalled();
+		});
+
+		it("never forwards the display key into the filter values", () => {
+			const { result, onFiltersChange } = setup();
+			act(() =>
+				result.current.onApplyPreset({ roomId: "r1", display: "normalized" })
+			);
+			expect(onFiltersChange).toHaveBeenCalledTimes(1);
+			const applied = onFiltersChange.mock.calls[0][0];
+			expect("display" in applied).toBe(false);
+		});
+
+		it("replaces the current filters instead of merging into them", () => {
+			const { result, onFiltersChange } = setup({
+				filters: { type: "cash_game", currencyId: "c1" },
+			});
+			act(() => result.current.onApplyPreset({ roomId: "r2" }));
+			expect(onFiltersChange).toHaveBeenCalledWith({ roomId: "r2" });
+		});
+
+		it("clears every filter for an empty preset payload", () => {
+			const { result, onFiltersChange, onBbBiModeChange } = setup({
+				filters: { roomId: "r1" },
+			});
+			act(() => result.current.onApplyPreset({}));
+			expect(onFiltersChange).toHaveBeenCalledTimes(1);
+			expect(onFiltersChange).toHaveBeenCalledWith({});
+			expect(onBbBiModeChange).not.toHaveBeenCalled();
+		});
+
+		it("carries a custom range's bounds through", () => {
+			const { result, onFiltersChange } = setup();
+			act(() =>
+				result.current.onApplyPreset({
+					period: "custom",
+					from: 1_700_000_000,
+					to: 1_700_086_399,
+					display: "currency",
+				})
+			);
+			expect(onFiltersChange).toHaveBeenCalledWith({
+				period: "custom",
+				from: 1_700_000_000,
+				to: 1_700_086_399,
+			});
+		});
+	});
+
+	describe("presets sheet", () => {
+		it("openSheet('presets') sets the active sheet to presets", () => {
+			const { result } = setup();
+			act(() => result.current.openSheet("presets"));
+			expect(result.current.activeSheet).toBe("presets");
+		});
+
+		it("opening presets does not disturb other filter values", () => {
+			const { result, onFiltersChange, onBbBiModeChange } = setup({
+				filters: { roomId: "r1", type: "cash_game" },
+				bbBiMode: true,
+			});
+			act(() => result.current.openSheet("presets"));
+			expect(result.current.filters).toEqual({
+				roomId: "r1",
+				type: "cash_game",
+			});
+			expect(result.current.bbBiMode).toBe(true);
+			expect(onFiltersChange).not.toHaveBeenCalled();
+			expect(onBbBiModeChange).not.toHaveBeenCalled();
+		});
+
+		it("switches away from presets when another sheet opens", () => {
+			const { result } = setup();
+			act(() => result.current.openSheet("presets"));
+			act(() => result.current.openSheet("type"));
+			expect(result.current.activeSheet).toBe("type");
+		});
+
+		it("closeSheet clears the presets sheet", () => {
+			const { result } = setup();
+			act(() => result.current.openSheet("presets"));
+			act(() => result.current.closeSheet());
+			expect(result.current.activeSheet).toBeNull();
+		});
+	});
+
 	describe("resolved display names", () => {
 		it("resolves the selected room name", () => {
 			const { result } = setup({ filters: { roomId: "r2" } });

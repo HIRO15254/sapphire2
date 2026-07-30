@@ -28,6 +28,21 @@ const UNFINISHED_LIVE_SESSION_CONFLICT_RE =
 const SESSION_EVENT_ORDER_CONFLICT_RE =
 	/UNIQUE constraint failed:\s*session_event\.session_id,\s*session_event\.sort_order/i;
 
+/**
+ * The `(user_id, screen_key, name)` UNIQUE index on `filter_preset` — the
+ * app-level pre-check in filter-preset.ts's `create`/`update` races a
+ * concurrent identical write (TOCTOU, same shape as the game_group label
+ * guard above); this is the backstop that converts the resulting D1 error
+ * into the same CONFLICT the pre-check throws.
+ *
+ * All three columns are named on purpose. `filter_preset` has two OTHER
+ * unique constraints — the partial `(user_id, screen_key) WHERE is_default = 1`
+ * default index and the `id` primary key — and matching the table name alone
+ * would report either of those to the user as a duplicate *name*.
+ */
+const FILTER_PRESET_NAME_CONFLICT_RE =
+	/UNIQUE constraint failed:\s*filter_preset\.user_id,\s*filter_preset\.screen_key,\s*filter_preset\.name/i;
+
 export function isSessionEventOrderConflictError(error: unknown): boolean {
 	return (
 		error instanceof Error &&
@@ -44,6 +59,12 @@ export function isUnfinishedLiveSessionConflictError(error: unknown): boolean {
 
 export function isLabelConflictError(error: unknown): boolean {
 	return error instanceof Error && LABEL_CONFLICT_RE.test(error.message);
+}
+
+export function isFilterPresetNameConflictError(error: unknown): boolean {
+	return (
+		error instanceof Error && FILTER_PRESET_NAME_CONFLICT_RE.test(error.message)
+	);
 }
 
 export const ACTIVE_SESSION_CONFLICT_MESSAGE =

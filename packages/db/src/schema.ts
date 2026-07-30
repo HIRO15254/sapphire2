@@ -15,6 +15,7 @@ import {
 	transactionType,
 	transactionTypeRelations,
 } from "./schema/currency";
+import { filterPreset, filterPresetRelations } from "./schema/filter-preset";
 import { gameGroup, gameGroupRelations } from "./schema/game-group";
 import { gameMix, gameMixRelations } from "./schema/game-mix";
 import { gameVariant, gameVariantRelations } from "./schema/game-variant";
@@ -128,4 +129,6 @@ export const schema = {
 	gameVariantRelations,
 	gameMix,
 	gameMixRelations,
+	filterPreset,
+	filterPresetRelations,
 };
