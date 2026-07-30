@@ -34,6 +34,15 @@ export interface UseStatsFilterBarResult {
 	 */
 	currencyChipLabel: string;
 	currentCurrencyName: string | null;
+	/**
+	 * The payload the presets sheet saves. NOT `filters` verbatim: the stored
+	 * schema declares `currency` / `room` as `.min(1).optional()`, while a
+	 * hand-edited `/statistics?room=` parses to an empty string — passing that
+	 * through made Save fail with a raw Zod error. Empty means "absent" here,
+	 * matching `filtersToStatsInput`. Mirrors the sessions bar's
+	 * `currentPresetPayload`.
+	 */
+	currentPresetPayload: StatisticsFilterPresetPayload;
 	currentRoomName: string | null;
 	filters: StatsFilters;
 	isReferenceLoading: boolean;
@@ -78,6 +87,12 @@ export function useStatsFilterBar(): UseStatsFilterBarResult {
 	const currencyChipLabel =
 		currentCurrencyName ?? (isScopeValid ? "All currencies" : "Select");
 
+	const currentPresetPayload: StatisticsFilterPresetPayload = {
+		...filters,
+		currency: filters.currency || undefined,
+		room: filters.room || undefined,
+	};
+
 	return {
 		activeSheet,
 		closeSheet,
@@ -89,6 +104,7 @@ export function useStatsFilterBar(): UseStatsFilterBarResult {
 		isScopeValid,
 		currencyChipLabel,
 		currentCurrencyName,
+		currentPresetPayload,
 		currentRoomName,
 		onPeriodChange: (value) => {
 			if (!value) {

@@ -1,3 +1,4 @@
+import { statisticsFilterPresetPayloadSchema } from "@sapphire2/db/schemas/filter-preset";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { StatsFilters } from "@/features/statistics/utils/stats-filters";
@@ -488,6 +489,73 @@ describe("useStatsFilterBar", () => {
 			});
 			expect(mocks.replaceFilters).toHaveBeenCalledTimes(1);
 			expect(mocks.replaceFilters).toHaveBeenCalledWith({});
+		});
+	});
+
+	// The payload handed to the presets sheet must always satisfy the STORED
+	// schema, which declares currency / room as `.min(1).optional()`. An empty
+	// string is reachable from a hand-edited `/statistics?room=` and every other
+	// consumer already reads it as "absent" (`filtersToStatsInput` does
+	// `filters.room || undefined`), so saving must not fail with a raw Zod error.
+	describe("currentPresetPayload", () => {
+		it("drops an empty-string currency and room instead of sending them", () => {
+			mocks.filters = {
+				period: "all",
+				norm: "normalized",
+				type: "all",
+				currency: "",
+				room: "",
+			};
+			const { result } = renderHook(() => useStatsFilterBar());
+
+			expect(result.current.currentPresetPayload).not.toHaveProperty(
+				"currency",
+				""
+			);
+			expect(result.current.currentPresetPayload).not.toHaveProperty(
+				"room",
+				""
+			);
+			expect(
+				statisticsFilterPresetPayloadSchema.safeParse(
+					result.current.currentPresetPayload
+				).success
+			).toBe(true);
+		});
+
+		it("keeps real currency and room ids", () => {
+			mocks.filters = {
+				period: "30d",
+				norm: "off",
+				type: "cash_game",
+				currency: "c1",
+				room: "r1",
+			};
+			const { result } = renderHook(() => useStatsFilterBar());
+
+			expect(result.current.currentPresetPayload).toMatchObject({
+				period: "30d",
+				norm: "off",
+				type: "cash_game",
+				currency: "c1",
+				room: "r1",
+			});
+			expect(
+				statisticsFilterPresetPayloadSchema.safeParse(
+					result.current.currentPresetPayload
+				).success
+			).toBe(true);
+		});
+
+		it("produces a payload the stored schema accepts for the plain default state", () => {
+			mocks.filters = { period: "all", norm: "normalized", type: "all" };
+			const { result } = renderHook(() => useStatsFilterBar());
+
+			expect(
+				statisticsFilterPresetPayloadSchema.safeParse(
+					result.current.currentPresetPayload
+				).success
+			).toBe(true);
 		});
 	});
 });

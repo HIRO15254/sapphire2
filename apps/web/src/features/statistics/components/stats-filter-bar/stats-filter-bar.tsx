@@ -64,6 +64,7 @@ export function StatsFilterBar() {
 		rooms,
 		isScopeValid,
 		currencyChipLabel,
+		currentPresetPayload,
 		currentRoomName,
 		onApplyPreset,
 		onPeriodChange,
@@ -216,7 +217,7 @@ export function StatsFilterBar() {
 			</FilterSheet>
 
 			<FilterPresetsSheet<StatisticsFilterPresetPayload>
-				currentPayload={filters}
+				currentPayload={currentPresetPayload}
 				onApply={onApplyPreset}
 				onOpenChange={handleOpenChange}
 				open={activeSheet === "presets"}
