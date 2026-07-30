@@ -508,14 +508,11 @@ describe("useStatsFilterBar", () => {
 			};
 			const { result } = renderHook(() => useStatsFilterBar());
 
-			expect(result.current.currentPresetPayload).not.toHaveProperty(
-				"currency",
-				""
-			);
-			expect(result.current.currentPresetPayload).not.toHaveProperty(
-				"room",
-				""
-			);
+			// Asserted as absent, not merely "not the empty string": a negative
+			// assertion would also pass for some other id, and `.min(1)` in the
+			// stored schema below would happily accept that too.
+			expect(result.current.currentPresetPayload.currency).toBeUndefined();
+			expect(result.current.currentPresetPayload.room).toBeUndefined();
 			expect(
 				statisticsFilterPresetPayloadSchema.safeParse(
 					result.current.currentPresetPayload
