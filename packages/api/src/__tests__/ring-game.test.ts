@@ -1,6 +1,6 @@
 import { currency } from "@sapphire2/db/schema/currency";
 import { gameGroup } from "@sapphire2/db/schema/game-group";
-import { gameMix } from "@sapphire2/db/schema/game-mix";
+import { gameMix, gameMixVariant } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
@@ -17,11 +17,31 @@ import {
 
 type Rows = Record<string, unknown>[];
 
+function withNormalizedMixMemberships(
+	rowsByTable: Map<unknown, Rows>
+): Map<unknown, Rows> {
+	if (rowsByTable.has(gameMixVariant)) {
+		return rowsByTable;
+	}
+	const memberships = (rowsByTable.get(gameMix) ?? []).flatMap((mix) => {
+		const games = Array.isArray(mix.games) ? mix.games : [];
+		return games.map((variantId, position) => ({
+			mixId: mix.id,
+			position,
+			userId: mix.userId,
+			variantId,
+		}));
+	});
+	return new Map([...rowsByTable, [gameMixVariant, memberships]]);
+}
+
 function createMockDb(rowsByTable: Map<unknown, Rows>) {
+	const normalizedRowsByTable = withNormalizedMixMemberships(rowsByTable);
 	const makeChain = (rows: Rows) => {
 		const chain = Promise.resolve(rows) as Promise<Rows> &
 			Record<string, (...args: unknown[]) => unknown>;
-		chain.from = (table: unknown) => makeChain(rowsByTable.get(table) ?? []);
+		chain.from = (table: unknown) =>
+			makeChain(normalizedRowsByTable.get(table) ?? []);
 		chain.where = () => chain;
 		chain.orderBy = () => chain;
 		chain.limit = () => chain;

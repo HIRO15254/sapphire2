@@ -31,19 +31,20 @@ const migrationsDirectory = fileURLToPath(
 	new URL("../migrations/", import.meta.url)
 );
 
-const REQUIRED_GAME_INTEGRITY_TRIGGERS = [
+const REQUIRED_FINAL_GAME_INTEGRITY_TRIGGERS = [
 	["game_group_label_unique_insert", "game_group"],
 	["game_group_label_unique_update", "game_group"],
 	["game_mix_games_reference_insert", "game_mix"],
 	["game_mix_games_reference_update", "game_mix"],
 	["game_mix_label_unique_insert", "game_mix"],
 	["game_mix_label_unique_update", "game_mix"],
+	["game_mix_variants_compat_insert", "game_mix"],
+	["game_mix_variants_compat_update", "game_mix"],
 	["game_variant_label_unique_insert", "game_variant"],
 	["game_variant_label_unique_update", "game_variant"],
 	["game_variant_mix_reference_delete", "game_variant"],
 	["game_variant_mix_reference_update", "game_variant"],
 ] as const;
-
 const schemaBefore0041 = `
 	CREATE TABLE user (id TEXT PRIMARY KEY NOT NULL);
 	CREATE TABLE room (id TEXT PRIMARY KEY NOT NULL);
@@ -562,7 +563,7 @@ skipIfNotBun("0041_amazing_amphibian migration", () => {
 });
 
 skipIfNotBun("complete migration history", () => {
-	it("keeps the 0041 game-integrity triggers after every migration", () => {
+	it("keeps rolling-deploy compatibility and integrity triggers after normalization", () => {
 		const db = new Database(":memory:");
 		db.exec("PRAGMA foreign_keys=ON");
 
@@ -575,22 +576,11 @@ skipIfNotBun("complete migration history", () => {
 						SELECT name, tbl_name
 						FROM sqlite_master
 						WHERE type = 'trigger'
-							AND name IN (
-								'game_group_label_unique_insert',
-								'game_group_label_unique_update',
-								'game_mix_games_reference_insert',
-								'game_mix_games_reference_update',
-								'game_mix_label_unique_insert',
-								'game_mix_label_unique_update',
-								'game_variant_label_unique_insert',
-								'game_variant_label_unique_update',
-								'game_variant_mix_reference_delete',
-								'game_variant_mix_reference_update'
-							)
+							AND tbl_name IN ('game_group', 'game_mix', 'game_variant')
 						ORDER BY name
 					`)
 					.values()
-			).toEqual(REQUIRED_GAME_INTEGRITY_TRIGGERS);
+			).toEqual(REQUIRED_FINAL_GAME_INTEGRITY_TRIGGERS);
 		} finally {
 			db.close();
 		}

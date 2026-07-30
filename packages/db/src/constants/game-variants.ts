@@ -148,11 +148,11 @@ export interface DefaultGameMix {
 	variantKeys: string[];
 }
 
-// Seed data for the per-user game_mix table (named mix masters). Unlike
-// DEFAULT_GAME_GROUPS/DEFAULT_GAME_VARIANTS, `variantKeys` here map to
-// DEFAULT_GAME_VARIANTS keys purely as SEED-TIME lookups (seedDefaultGameData
-// resolves each key to that user's seeded variant row id) — the stored
-// game_mix.games column always holds ids, never these keys.
+// Seed data for per-user named mix masters. `variantKeys` map to
+// DEFAULT_GAME_VARIANTS keys purely as SEED-TIME lookups: seedDefaultGameData
+// resolves each key to that user's variant id, then stores those ids in ordered
+// game_mix_variant rows. The keys themselves are never persisted as
+// memberships.
 export const DEFAULT_GAME_MIXES: DefaultGameMix[] = [
 	{
 		key: "horse",

@@ -49,6 +49,7 @@ import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { type BatchStatement, runBatch } from "../lib/batch";
 import { optionalUniqueTagIdsSchema } from "../lib/tag-ids";
+import { listOwnedGameMixes } from "../services/game-mix";
 import { ensureSessionResultTypeId } from "../services/session-result-type";
 import { sessionEventOrderBy } from "../utils/session-event-time";
 import { compareBuiltinFirst } from "./_game-masters";
@@ -2337,14 +2338,7 @@ async function findOwnedNamedMix(
 	userId: string,
 	label: string
 ): Promise<{ games: string[]; label: string; userId: string } | undefined> {
-	const rows = await db
-		.select({
-			games: gameMix.games,
-			label: gameMix.label,
-			userId: gameMix.userId,
-		})
-		.from(gameMix)
-		.where(eq(gameMix.userId, userId));
+	const rows = await listOwnedGameMixes(db, userId);
 	const normalized = normalizedGameLabel(label);
 	return rows.find(
 		(row) =>

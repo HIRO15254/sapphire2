@@ -49,8 +49,8 @@ that collided with an existing one. It was re-baselined by registering 0013–00
 `_journal.json` and adding a tip snapshot (`0034_snapshot.json`) that captured the true schema at
 that point, chained onto `0012`. There are intentionally no per-migration snapshots for
 0013–0033 — those migrations were authored in bulk, outside Drizzle, so faithful intermediate
-snapshots do not exist and were not fabricated. Generated migrations 0035–0046 each added their
-own snapshot; the current ledger tip is `0046_snapshot.json` (`0046_session_event_sort_order_unique`).
+snapshots do not exist and were not fabricated. Generated migrations 0035–0049 each added their
+own snapshot; the current ledger tip is `0049_snapshot.json` (`0049_normalize_game_mix_variants`).
 `db:generate` reads this newest snapshot, so future migrations continue from the current schema.
 
 > Caveat: `drizzle-kit check` (not currently in CI) validates that a snapshot exists for every
@@ -60,11 +60,18 @@ own snapshot; the current ledger tip is `0046_snapshot.json` (`0046_session_even
 
 ## Manual SQLite triggers are outside the Drizzle ledger
 
-Migration `0041_amazing_amphibian` installs ten manual integrity triggers on `game_group`,
-`game_variant`, and `game_mix` for normalized label uniqueness and JSON reference integrity.
-Drizzle snapshots do not model triggers, and SQLite drops a table's triggers when a table-rebuild
-migration drops that table. Therefore, any migration that recreates one of these three tables must
-recreate its `0041` triggers in the same migration.
+Migration `0041_amazing_amphibian` installed ten manual integrity triggers on `game_group`,
+`game_variant`, and `game_mix`. Migration `0049_normalize_game_mix_variants` is the expand phase of
+a rolling-safe normalization: it keeps those ten triggers and adds two `game_mix` →
+`game_mix_variant` synchronization triggers. The physical `games` JSON column remains only as a
+compatibility mirror because production migrations run before the new Worker is deployed; removing
+it in 0049 would break the old Worker during that window and prevent a safe rollback. A later
+contract migration may remove the mirror, its four JSON-reference triggers, and the two sync
+triggers only after all deployed Workers have stopped reading or writing `games`, leaving the six
+normalized-label triggers. Drizzle snapshots do not model triggers, and SQLite drops a table's
+triggers when a table-rebuild migration drops that table. Therefore, any migration that recreates
+one of these three tables must recreate every trigger that is still required in that deployment
+phase.
 
 [`migration-0041.test.ts`](../../packages/db/src/__tests__/migration-0041.test.ts) applies every
 numbered migration from an empty database and asserts the final trigger names and target tables.
