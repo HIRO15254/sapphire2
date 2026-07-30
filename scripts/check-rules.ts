@@ -87,6 +87,13 @@ const CHECKS: Check[] = [
 		excludePath: /__tests__|\.test\./,
 	},
 	{
+		name: "inline Claude model id — import it from packages/api/src/ai/models.ts",
+		rule: ".claude/rules/ai-models.md",
+		globs: ["apps/**/*.{ts,tsx}", "packages/**/*.{ts,tsx}"],
+		pattern: /claude-(fable|mythos|opus|sonnet|haiku)-/,
+		excludePath: /packages\/api\/src\/ai\/models\.ts$/,
+	},
+	{
 		name: "GitHub pull-request head ref assigned inside a run script — pass it through step env",
 		rule: "GitHub Actions shell-injection prevention",
 		cwd: ".github",

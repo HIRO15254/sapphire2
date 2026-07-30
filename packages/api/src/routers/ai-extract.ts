@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { TRPCError } from "@trpc/server";
 import z from "zod";
+import { AI_MODELS, EXTRACTION_MAX_TOKENS } from "../ai/models";
 import { protectedProcedure, router } from "../index";
 import {
 	TABLE_PLAYER_SOURCE_APP_IDS,
@@ -59,9 +60,6 @@ export type ExtractedTournamentData = z.infer<
 >;
 
 const MAX_SEAT_NUMBER = 9;
-
-/** シーティング（着席者読み取り）に使うモデル。 */
-export const TABLE_PLAYERS_MODEL = "claude-opus-5";
 
 const ExtractedTablePlayersSchema = z.object({
 	seats: z
@@ -205,8 +203,8 @@ export const aiExtractRouter = router({
 			});
 
 			const response = await client.messages.create({
-				model: "claude-opus-4-8",
-				max_tokens: 2048,
+				model: AI_MODELS.tournamentExtraction,
+				max_tokens: EXTRACTION_MAX_TOKENS,
 				tools: [
 					{
 						name: "extract_tournament_data",
@@ -280,8 +278,8 @@ export const aiExtractRouter = router({
 			];
 
 			const response = await client.messages.parse({
-				model: TABLE_PLAYERS_MODEL,
-				max_tokens: 1024,
+				model: AI_MODELS.seating,
+				max_tokens: EXTRACTION_MAX_TOKENS,
 				output_config: {
 					format: zodOutputFormat(ExtractedTablePlayersSchema),
 				},
