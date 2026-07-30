@@ -84,6 +84,25 @@ describe("extractTablePlayers truncation reporting", () => {
 		);
 	});
 
+	it("reports truncation even when the partial output satisfies the schema", async () => {
+		// seats は `.default([])` なので、打ち切りで潰れた出力でも
+		// 「空席だけのテーブル」として成功扱いになりうる。
+		mocks.parse.mockResolvedValue({
+			parsed_output: {
+				seats: [{ seatNumber: 1, name: "Alice", isHero: null }],
+			},
+			stop_reason: "max_tokens",
+		});
+
+		await expectMessage(
+			makeCaller().extractTablePlayers({
+				sourceApp: "dmm_waitinglist",
+				sources: [IMAGE_SOURCE],
+			}),
+			"AI response was truncated (max_tokens reached)"
+		);
+	});
+
 	it("returns deduped seats on success", async () => {
 		mocks.parse.mockResolvedValue({
 			parsed_output: {
@@ -170,6 +189,50 @@ describe("extractTournamentData truncation reporting", () => {
 		await expectMessage(
 			makeCaller().extractTournamentData({ sources: [IMAGE_SOURCE] }),
 			"Failed to parse AI response"
+		);
+	});
+
+	it("reports truncation when a partial blind structure still satisfies the schema", async () => {
+		// max_tokens を食い潰す唯一の可変長フィールドが blindLevels なので、
+		// 打ち切りは「途中までしか入っていない配列」という schema-valid な形で
+		// 現れるのが最頻ケース。全フィールドが .optional() のため safeParse は
+		// 通ってしまい、stop_reason を見ないとブラインド構成が黙って欠ける。
+		mocks.create.mockResolvedValue({
+			content: [
+				{
+					type: "tool_use",
+					name: "extract_tournament_data",
+					input: {
+						name: "Daily",
+						blindLevels: [
+							{ isBreak: false, blind1: 100, blind2: 200 },
+							{ isBreak: false, blind1: 200, blind2: 400 },
+						],
+					},
+				},
+			],
+			stop_reason: "max_tokens",
+		});
+
+		await expectMessage(
+			makeCaller().extractTournamentData({ sources: [IMAGE_SOURCE] }),
+			"AI response was truncated (max_tokens reached)"
+		);
+	});
+
+	it("reports truncation when the tool input collapsed to an empty object", async () => {
+		// 全フィールド optional なので {} でも safeParse は success になり、
+		// 「抽出できたが空」というエラーより悪い出方をしうる。
+		mocks.create.mockResolvedValue({
+			content: [
+				{ type: "tool_use", name: "extract_tournament_data", input: {} },
+			],
+			stop_reason: "max_tokens",
+		});
+
+		await expectMessage(
+			makeCaller().extractTournamentData({ sources: [IMAGE_SOURCE] }),
+			"AI response was truncated (max_tokens reached)"
 		);
 	});
 

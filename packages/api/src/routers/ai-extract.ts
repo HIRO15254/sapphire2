@@ -79,6 +79,13 @@ function structuredOutputError(
 	});
 }
 
+/** 打ち切られた応答は、スキーマを通っても不完全なので受け付けない。 */
+function assertNotTruncated(stopReason: string | null | undefined): void {
+	if (stopReason === "max_tokens") {
+		throw structuredOutputError(stopReason);
+	}
+}
+
 const ExtractedTablePlayersSchema = z.object({
 	seats: z
 		.array(
@@ -235,6 +242,14 @@ export const aiExtractRouter = router({
 				messages: [{ role: "user", content: contentBlocks }],
 			});
 
+			// 打ち切りは tool_use が返るかどうかにも parse の成否にもよらず起こる。
+			// ExtractedTournamentDataSchema は全フィールドが .optional() なので、
+			// 途中までの input（極端には {}）でも safeParse は通ってしまう。
+			// max_tokens を食い潰す可変長フィールドは blindLevels なので、打ち切りは
+			// 「途中までしか入っていない配列」として現れるのが最頻ケースであり、
+			// 先に stop_reason を見ないとブラインド構成が黙って欠けたまま保存される。
+			assertNotTruncated(response.stop_reason);
+
 			const toolUse = response.content.find((c) => c.type === "tool_use");
 			if (!toolUse || toolUse.type !== "tool_use") {
 				throw structuredOutputError(response.stop_reason);
@@ -242,11 +257,6 @@ export const aiExtractRouter = router({
 
 			const parsed = ExtractedTournamentDataSchema.safeParse(toolUse.input);
 			if (!parsed.success) {
-				// 打ち切られた場合は tool_use ブロックが返っても input が
-				// 途中で切れるため、スキーマ不一致と原因が異なる。
-				if (response.stop_reason === "max_tokens") {
-					throw structuredOutputError(response.stop_reason);
-				}
 				throw new TRPCError({
 					code: "INTERNAL_SERVER_ERROR",
 					message: "Failed to parse AI response",
@@ -305,6 +315,11 @@ export const aiExtractRouter = router({
 				},
 				messages: [{ role: "user", content: contentBlocks }],
 			});
+
+			// seats は .default([]) なので、打ち切りで潰れた出力でも
+			// 「空席だけのテーブル」として成功扱いになりうる。SDK の
+			// 不完全 JSON の扱いに依存しないよう、先に stop_reason を見る。
+			assertNotTruncated(response.stop_reason);
 
 			const parsedOutput = response.parsed_output;
 			if (!parsedOutput) {
