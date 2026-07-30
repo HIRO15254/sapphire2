@@ -21,7 +21,7 @@ Models API を引いて日付順で最新を選ぶ方式は採らない。モデ
 
 - Opus 5 で thinking がデフォルト ON（`thinking` 未指定でも thinking が走る）
 - Opus 4.7 で `temperature` / `top_p` / `top_k` / `budget_tokens` が削除（送ると 400）
-- Sonnet 5 でトークナイザが変わり、同じ入力が約 1.3 倍のトークンになった
+- Opus 4.7 でトークナイザが変わり、それ以前のモデルと比べて同じ入力が約 1.3 倍のトークンになった（Opus 4.8 / Opus 5 / Sonnet 5 / Fable 5 はこの新トークナイザ。世代を跨がない更新ではトークン数の見積りは変わらない）
 
 日付順の自動選択は、単価やティアの違うモデル（preview 系、Haiku 系、$10/$50 の Fable 系）にも黙って乗り換わる。
 

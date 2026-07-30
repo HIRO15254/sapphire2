@@ -61,6 +61,24 @@ export type ExtractedTournamentData = z.infer<
 
 const MAX_SEAT_NUMBER = 9;
 
+/**
+ * thinking は `max_tokens` を応答テキストと共有するため（Opus 5 以降は
+ * デフォルト ON）、枠を使い切ると構造化出力が途中で切れる。打ち切りと
+ * 「モデルが構造化出力を返さなかった」は原因も対処も違うので、
+ * `stop_reason` を見てメッセージを分ける。
+ */
+function structuredOutputError(
+	stopReason: string | null | undefined
+): TRPCError {
+	return new TRPCError({
+		code: "INTERNAL_SERVER_ERROR",
+		message:
+			stopReason === "max_tokens"
+				? "AI response was truncated (max_tokens reached)"
+				: "AI did not return structured data",
+	});
+}
+
 const ExtractedTablePlayersSchema = z.object({
 	seats: z
 		.array(
@@ -219,14 +237,16 @@ export const aiExtractRouter = router({
 
 			const toolUse = response.content.find((c) => c.type === "tool_use");
 			if (!toolUse || toolUse.type !== "tool_use") {
-				throw new TRPCError({
-					code: "INTERNAL_SERVER_ERROR",
-					message: "AI did not return structured data",
-				});
+				throw structuredOutputError(response.stop_reason);
 			}
 
 			const parsed = ExtractedTournamentDataSchema.safeParse(toolUse.input);
 			if (!parsed.success) {
+				// 打ち切られた場合は tool_use ブロックが返っても input が
+				// 途中で切れるため、スキーマ不一致と原因が異なる。
+				if (response.stop_reason === "max_tokens") {
+					throw structuredOutputError(response.stop_reason);
+				}
 				throw new TRPCError({
 					code: "INTERNAL_SERVER_ERROR",
 					message: "Failed to parse AI response",
@@ -288,10 +308,7 @@ export const aiExtractRouter = router({
 
 			const parsedOutput = response.parsed_output;
 			if (!parsedOutput) {
-				throw new TRPCError({
-					code: "INTERNAL_SERVER_ERROR",
-					message: "AI did not return structured data",
-				});
+				throw structuredOutputError(response.stop_reason);
 			}
 
 			const seenSeatNumbers = new Set<number>();
