@@ -21,7 +21,8 @@ export function useSessionsPage() {
 	const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
 	const [selectedRoomId, setSelectedRoomId] = useState<string | undefined>();
 	const [filters, setFilters] = useState<SessionFilterValues>({});
-	const [bbBiMode, setBbBiMode] = useState(false);
+	const [bbBiMode, setBbBiModeState] = useState(false);
+	const [isDisplayTouched, setIsDisplayTouched] = useState(false);
 
 	const {
 		sessions,
@@ -46,7 +47,15 @@ export function useSessionsPage() {
 	// Room / Currency → cleared), so those keys linger forever. Counting keys
 	// made a single cleared chip look like an active filter and silently
 	// suppressed the default preset (review finding 1).
-	const isUntouched = !Object.values(filters).some((v) => v !== undefined);
+	//
+	// The Display chip is part of the same verdict even though `bbBiMode` is not a
+	// `filters` key: a sessions preset payload carries `display`, so a user who
+	// picks BB/BI before the presets query resolves would otherwise still count as
+	// pristine and have their view silently overwritten. Statistics needs no
+	// equivalent flag because its `norm` lives in the URL.
+	const isUntouched = !(
+		isDisplayTouched || Object.values(filters).some((v) => v !== undefined)
+	);
 
 	useDefaultFilterPreset<SessionsFilterPresetPayload>(
 		"sessions",
@@ -58,10 +67,23 @@ export function useSessionsPage() {
 			// Absent `display` = a preset saved before the field existed; keep the
 			// current view instead of forcing it back to currency.
 			if (display !== undefined) {
-				setBbBiMode(display === "normalized");
+				// Raw setter on purpose: this write is the auto-apply's own, so it must
+				// not mark the Display control touched (the hook would be flagging
+				// itself).
+				setBbBiModeState(display === "normalized");
 			}
 		}
 	);
+
+	/**
+	 * User-facing Display setter (the filter bar's Display chip and its manual
+	 * "apply preset" action). Every external write is an explicit view choice, so
+	 * it records the touch — even when the value ends up unchanged.
+	 */
+	const setBbBiMode = (value: boolean) => {
+		setIsDisplayTouched(true);
+		setBbBiModeState(value);
+	};
 
 	const handleCreate = (values: SessionFormValues) => {
 		create(values).then(() => {

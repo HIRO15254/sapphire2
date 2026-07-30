@@ -73,6 +73,17 @@ export function useFilterPresetsSheet<TPayload extends FilterPresetPayload>({
 		}
 	}, [open]);
 
+	/**
+	 * The edit form is a drill-down out of a row inside the "Saved" tab, not a
+	 * peer of the tabs, so leaving that tab abandons it. Without this, switching
+	 * to "Save new" and back dropped the user into the rename form again with the
+	 * list hidden.
+	 */
+	const onChangeTab = (tab: FilterPresetsSheetTab) => {
+		setActiveTab(tab);
+		setPendingEdit(null);
+	};
+
 	const onApplyPreset = (preset: FilterPresetItem) => {
 		onApply(preset.payload as TPayload);
 		onOpenChange(false);
@@ -94,7 +105,11 @@ export function useFilterPresetsSheet<TPayload extends FilterPresetPayload>({
 			.catch(swallowHandledMutationError);
 	};
 
+	// Delete confirmation and the rename form are separate surfaces for the same
+	// row, so opening one closes the other — otherwise confirming a delete leaves
+	// the edit form mounted for a row that no longer exists.
 	const onRequestDelete = (preset: FilterPresetItem) => {
+		setPendingEdit(null);
 		setPendingDelete(preset);
 	};
 
@@ -116,12 +131,13 @@ export function useFilterPresetsSheet<TPayload extends FilterPresetPayload>({
 	const onSaveNew = (name: string) => {
 		return create({ name, payload: currentPayload })
 			.then(() => {
-				setActiveTab("saved");
+				onChangeTab("saved");
 			})
 			.catch(swallowHandledMutationError);
 	};
 
 	const onRequestEdit = (preset: FilterPresetItem) => {
+		setPendingDelete(null);
 		setPendingEdit(preset);
 	};
 
@@ -148,7 +164,7 @@ export function useFilterPresetsSheet<TPayload extends FilterPresetPayload>({
 
 	return {
 		activeTab,
-		setActiveTab,
+		setActiveTab: onChangeTab,
 		presets,
 		isLoading,
 		isCreatePending,

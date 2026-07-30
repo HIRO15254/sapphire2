@@ -13,9 +13,19 @@ import { useFilterPresets } from "@/shared/hooks/use-filter-presets";
  * so that decision stays with the caller as `isUntouched`.
  *
  * The `useRef` guard makes this a ONE-SHOT *attempt*: the flag is set as soon
- * as the presets query resolves, whether or not a preset was applied. A default
- * preset that appears later (a refetch, another tab, the user marking one while
- * on the page) must never re-fire and clobber filters the user has since set.
+ * as the presets query answers SUCCESSFULLY, whether or not a preset was
+ * applied. A default preset that appears later (a refetch, another tab, the
+ * user marking one while on the page) must never re-fire and clobber filters
+ * the user has since set.
+ *
+ * The latch is deliberately gated on `isSuccess`, not on `!isLoading`: a query
+ * whose retries are exhausted stops loading with no data, so latching there
+ * would burn the one shot on a failure and permanently suppress the default for
+ * the rest of the page's life. With offline mode and a persisted cache in play,
+ * opening a screen on a flaky connection hits exactly that — the first fetch
+ * fails, a focus / reconnect refetch succeeds, and the default must still
+ * apply. An empty successful answer, by contrast, is a real answer and does
+ * spend the shot.
  *
  * @param screenKey Which screen's presets to read.
  * @param isUntouched Caller's verdict on whether the filters are still
@@ -30,16 +40,18 @@ export function useDefaultFilterPreset<TPayload>(
 	isUntouched: boolean,
 	applyDefault: (payload: TPayload) => void
 ): void {
-	const { defaultPreset, isLoading } = useFilterPresets(screenKey);
+	const { defaultPreset, isSuccess } = useFilterPresets(screenKey);
 	const hasAttemptedRef = useRef(false);
 
 	useEffect(() => {
-		if (hasAttemptedRef.current || isLoading) {
+		// `isSuccess` implies the query is not loading, so it is the only gate
+		// needed here — see the note on the latch in the doc comment above.
+		if (hasAttemptedRef.current || !isSuccess) {
 			return;
 		}
 		hasAttemptedRef.current = true;
 		if (isUntouched && defaultPreset) {
 			applyDefault(defaultPreset.payload as TPayload);
 		}
-	}, [isLoading, isUntouched, defaultPreset, applyDefault]);
+	}, [isSuccess, isUntouched, defaultPreset, applyDefault]);
 }

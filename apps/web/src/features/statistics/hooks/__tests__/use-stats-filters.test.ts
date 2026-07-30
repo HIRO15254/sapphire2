@@ -8,15 +8,12 @@ const mocks = vi.hoisted(() => ({
 		norm: "normalized",
 		type: "all",
 	} as StatsFilters,
-	rawSearch: {} as Record<string, unknown>,
 	navigate: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
 	useSearch: () => mocks.filters,
 	useNavigate: () => mocks.navigate,
-	useRouterState: (options: { select: (state: unknown) => unknown }) =>
-		options.select({ location: { search: mocks.rawSearch } }),
 }));
 
 import { useStatsFilters } from "@/features/statistics/hooks/use-stats-filters";
@@ -24,7 +21,6 @@ import { useStatsFilters } from "@/features/statistics/hooks/use-stats-filters";
 describe("useStatsFilters", () => {
 	beforeEach(() => {
 		mocks.filters = { period: "all", norm: "normalized", type: "all" };
-		mocks.rawSearch = {};
 		mocks.navigate.mockReset();
 	});
 
@@ -71,27 +67,34 @@ describe("useStatsFilters", () => {
 		});
 	});
 
-	describe("isUrlEmpty", () => {
-		it("is true when the raw router search object has no keys", () => {
-			mocks.rawSearch = {};
+	// The verdict is derived from the FILTERS, not from the router's search
+	// object: `/statistics` has `validateSearch`, so TanStack Router writes the
+	// schema defaults into `location.search` and rewrites the URL — a bare load
+	// is indistinguishable from a deep link there. The real-router proof lives in
+	// apps/web/src/__tests__/statistics-raw-search.test.tsx; the branch logic
+	// itself is unit-tested as `isDefaultStatsFilterState`.
+	describe("isFilterStateDefault", () => {
+		it("is true when every filter is still at its schema default", () => {
+			mocks.filters = { period: "all", norm: "normalized", type: "all" };
 			const { result } = renderHook(() => useStatsFilters());
-			expect(result.current.isUrlEmpty).toBe(true);
+			expect(result.current.isFilterStateDefault).toBe(true);
 		});
 
-		it("is false when the raw search carries a key equal to its own schema default", () => {
-			// Proves this reads the RAW router state rather than comparing the
-			// already-Zod-defaulted `filters` object against its own defaults —
-			// {period:"all"} is indistinguishable from "absent" once defaults are
-			// baked in, so this must come from the un-defaulted router location.
-			mocks.rawSearch = { period: "all" };
+		it("is false when a filter differs from its default", () => {
+			mocks.filters = { period: "all", norm: "normalized", type: "tournament" };
 			const { result } = renderHook(() => useStatsFilters());
-			expect(result.current.isUrlEmpty).toBe(false);
+			expect(result.current.isFilterStateDefault).toBe(false);
 		});
 
-		it("is false when the raw search carries any explicit non-default key", () => {
-			mocks.rawSearch = { type: "tournament" };
+		it("is false when an optional filter is set", () => {
+			mocks.filters = {
+				period: "all",
+				norm: "normalized",
+				type: "all",
+				room: "room-1",
+			};
 			const { result } = renderHook(() => useStatsFilters());
-			expect(result.current.isUrlEmpty).toBe(false);
+			expect(result.current.isFilterStateDefault).toBe(false);
 		});
 	});
 

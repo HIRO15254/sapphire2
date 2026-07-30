@@ -6,13 +6,17 @@ import z from "zod";
 // name input, are `.trim().min(1).max(50)`). Without it a whitespace-only name
 // passed here and was rejected server-side, surfacing as a generic toast
 // instead of an inline field error.
-const tagNameFormSchema = z.object({
-	name: z
-		.string()
-		.trim()
-		.min(1, "Tag name is required")
-		.max(50, "Tag name must be 50 characters or less"),
-});
+// Built from the resolved label so the validation copy always names the field
+// the user is actually looking at — the presets sheet renders this form as
+// "Preset name", and a hardcoded "Tag name is required" under it read as a bug.
+const buildTagNameFormSchema = (label: string) =>
+	z.object({
+		name: z
+			.string()
+			.trim()
+			.min(1, `${label} is required`)
+			.max(50, `${label} must be 50 characters or less`),
+	});
 
 interface UseTagNameFormOptions {
 	defaultName?: string;
@@ -36,7 +40,7 @@ export function useTagNameForm({
 			onSubmit(value.name.trim());
 		},
 		validators: {
-			onSubmit: tagNameFormSchema,
+			onSubmit: buildTagNameFormSchema(label),
 		},
 	});
 

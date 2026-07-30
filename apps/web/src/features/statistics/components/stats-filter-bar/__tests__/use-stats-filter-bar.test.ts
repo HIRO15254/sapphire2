@@ -30,7 +30,7 @@ vi.mock("@/features/statistics/hooks/use-stats-filters", () => ({
 		isScopeValid: mocks.isScopeValid,
 		normalized: mocks.filters.norm !== "off",
 		statsInput: {},
-		isUrlEmpty: false,
+		isFilterStateDefault: false,
 	}),
 }));
 

@@ -28,7 +28,7 @@ export function useStatisticsPage(): UseStatisticsPageResult {
 		statsInput,
 		normalized,
 		isScopeValid,
-		isUrlEmpty,
+		isFilterStateDefault,
 		replaceFilters,
 	} = useStatsFilters();
 	const { currencies } = useStatsReferenceData();
@@ -36,11 +36,13 @@ export function useStatisticsPage(): UseStatisticsPageResult {
 	// Two statistics-specific choices the shared hook deliberately leaves to the
 	// caller:
 	//
-	// - The "untouched" signal is `isUrlEmpty` (the router's RAW, pre-
-	//   `validateSearch` search object), not an inspection of `filters`. Zod bakes
-	//   defaults into `filters`, so it cannot tell a bare `/statistics` load from
-	//   an explicit link whose params happen to match those defaults — using it
-	//   would let the default preset clobber a bookmarked / shared URL.
+	// - The "untouched" signal is `isFilterStateDefault`: no filter differs from
+	//   its schema default. It deliberately is NOT read off the router's search
+	//   object — `/statistics` has `validateSearch`, so TanStack Router bakes the
+	//   schema defaults into `location.search` and rewrites the URL to match,
+	//   making a bare load indistinguishable from a deep link there. Comparing
+	//   against the defaults keeps `?type=tournament` (a real, bookmarked choice)
+	//   safe from being clobbered.
 	// - Applying is `replaceFilters` (full URL replace), not the merging
 	//   `setFilters`: a preset that omits `room` must actually clear a
 	//   previously-set room instead of inheriting it. `replaceFilters` also
@@ -48,7 +50,7 @@ export function useStatisticsPage(): UseStatisticsPageResult {
 	//   to "keep the current filters" rather than throwing during mount.
 	useDefaultFilterPreset<Partial<StatsFilters>>(
 		"statistics",
-		isUrlEmpty,
+		isFilterStateDefault,
 		replaceFilters
 	);
 

@@ -10,7 +10,7 @@ interface PresetStub {
 
 const mocks = vi.hoisted(() => ({
 	filters: { period: "all", norm: "normalized", type: "all" } as StatsFilters,
-	isUrlEmpty: false,
+	isFilterStateDefault: false,
 	isScopeValid: true,
 	replaceFilters: vi.fn(),
 	setFilters: vi.fn(),
@@ -36,7 +36,7 @@ vi.mock("@/features/statistics/hooks/use-stats-filters", () => ({
 		statsInput: mocks.statsInput,
 		normalized: mocks.normalized,
 		isScopeValid: mocks.isScopeValid,
-		isUrlEmpty: mocks.isUrlEmpty,
+		isFilterStateDefault: mocks.isFilterStateDefault,
 	}),
 }));
 
@@ -48,9 +48,13 @@ vi.mock("@/features/statistics/hooks/use-stats-reference-data", () => ({
 	}),
 }));
 
-// Only the three fields the shared auto-apply hook actually reads are stubbed:
-// the page hook no longer touches the preset CRUD surface at all (the presets
-// sheet mounts its own `useFilterPresets`), which the removal test below locks in.
+// Only the fields the shared auto-apply hook actually reads are stubbed: the
+// page hook no longer touches the preset CRUD surface at all (the presets sheet
+// mounts its own `useFilterPresets`), which the removal test below locks in.
+// `isSuccess` is derived from the loading flag rather than set independently so
+// the stub cannot express the impossible "loading and already succeeded" state —
+// the auto-apply latch keys on isSuccess precisely so a FAILED query (stopped
+// loading, never answered) does not spend the one shot.
 vi.mock("@/shared/hooks/use-filter-presets", () => ({
 	useFilterPresets: (screenKey: string) => {
 		mocks.lastPresetsScreenKey = screenKey;
@@ -58,6 +62,7 @@ vi.mock("@/shared/hooks/use-filter-presets", () => ({
 			presets: mocks.presets,
 			defaultPreset: mocks.defaultPreset,
 			isLoading: mocks.isPresetsLoading,
+			isSuccess: !mocks.isPresetsLoading,
 		};
 	},
 }));
@@ -100,7 +105,7 @@ function lastDefaultPresetCall() {
 describe("useStatisticsPage", () => {
 	beforeEach(() => {
 		mocks.filters = { period: "all", norm: "normalized", type: "all" };
-		mocks.isUrlEmpty = false;
+		mocks.isFilterStateDefault = false;
 		mocks.isScopeValid = true;
 		mocks.replaceFilters.mockReset();
 		mocks.setFilters.mockReset();
@@ -230,31 +235,31 @@ describe("useStatisticsPage", () => {
 
 	describe("isUntouched verdict passed to useDefaultFilterPreset", () => {
 		it("is true when the raw URL search object is bare", () => {
-			mocks.isUrlEmpty = true;
+			mocks.isFilterStateDefault = true;
 			renderHook(() => useStatisticsPage());
 			expect(lastDefaultPresetCall().isUntouched).toBe(true);
 		});
 
 		it("is false when the URL carries explicit search params", () => {
-			mocks.isUrlEmpty = false;
+			mocks.isFilterStateDefault = false;
 			renderHook(() => useStatisticsPage());
 			expect(lastDefaultPresetCall().isUntouched).toBe(false);
 		});
 
-		// The verdict must come from `isUrlEmpty` (the RAW, pre-validateSearch
+		// The verdict must come from `isFilterStateDefault` (the RAW, pre-validateSearch
 		// search object), never from `filters`: Zod bakes defaults into `filters`,
 		// so a shared link like /statistics?type=all&norm=normalized is
 		// indistinguishable from a bare load there — and auto-applying a default
 		// preset over it would clobber the link the user actually opened.
 		it("is false for an explicit link whose params happen to equal the schema defaults", () => {
-			mocks.isUrlEmpty = false;
+			mocks.isFilterStateDefault = false;
 			mocks.filters = { period: "all", norm: "normalized", type: "all" };
 			renderHook(() => useStatisticsPage());
 			expect(lastDefaultPresetCall().isUntouched).toBe(false);
 		});
 
 		it("is true on a bare URL even when filters hold non-default values", () => {
-			mocks.isUrlEmpty = true;
+			mocks.isFilterStateDefault = true;
 			mocks.filters = {
 				period: "30d",
 				norm: "off",
@@ -266,12 +271,12 @@ describe("useStatisticsPage", () => {
 			expect(lastDefaultPresetCall().isUntouched).toBe(true);
 		});
 
-		it("tracks isUrlEmpty flipping between renders", () => {
-			mocks.isUrlEmpty = true;
+		it("tracks isFilterStateDefault flipping between renders", () => {
+			mocks.isFilterStateDefault = true;
 			const { rerender } = renderHook(() => useStatisticsPage());
 			expect(lastDefaultPresetCall().isUntouched).toBe(true);
 
-			mocks.isUrlEmpty = false;
+			mocks.isFilterStateDefault = false;
 			rerender();
 			expect(lastDefaultPresetCall().isUntouched).toBe(false);
 		});
@@ -316,7 +321,7 @@ describe("useStatisticsPage", () => {
 
 	describe("auto-apply default preset on first load", () => {
 		it("applies the default preset via a full replace when the URL is empty", async () => {
-			mocks.isUrlEmpty = true;
+			mocks.isFilterStateDefault = true;
 			mocks.defaultPreset = {
 				id: "p1",
 				isDefault: true,
@@ -333,7 +338,7 @@ describe("useStatisticsPage", () => {
 		});
 
 		it("does not apply when the URL already carries explicit search params", async () => {
-			mocks.isUrlEmpty = false;
+			mocks.isFilterStateDefault = false;
 			mocks.defaultPreset = {
 				id: "p1",
 				isDefault: true,
@@ -345,7 +350,7 @@ describe("useStatisticsPage", () => {
 		});
 
 		it("does not apply when there is no default preset", async () => {
-			mocks.isUrlEmpty = true;
+			mocks.isFilterStateDefault = true;
 			mocks.defaultPreset = null;
 			renderHook(() => useStatisticsPage());
 			await Promise.resolve();
@@ -353,7 +358,7 @@ describe("useStatisticsPage", () => {
 		});
 
 		it("defers while the presets query is loading, then fires exactly once after it resolves", async () => {
-			mocks.isUrlEmpty = true;
+			mocks.isFilterStateDefault = true;
 			mocks.isPresetsLoading = true;
 			mocks.defaultPreset = null;
 			const { rerender } = renderHook(() => useStatisticsPage());
@@ -378,7 +383,7 @@ describe("useStatisticsPage", () => {
 		});
 
 		it("fires at most once even if the default preset changes identity afterwards", async () => {
-			mocks.isUrlEmpty = true;
+			mocks.isFilterStateDefault = true;
 			mocks.defaultPreset = {
 				id: "p1",
 				isDefault: true,
@@ -400,7 +405,7 @@ describe("useStatisticsPage", () => {
 		});
 
 		it("never applies a default that only becomes non-empty after the one-shot attempt", async () => {
-			mocks.isUrlEmpty = true;
+			mocks.isFilterStateDefault = true;
 			mocks.isPresetsLoading = false;
 			mocks.defaultPreset = null;
 			const { rerender } = renderHook(() => useStatisticsPage());

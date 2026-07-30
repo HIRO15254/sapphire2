@@ -3,11 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // ---------------------------------------------------------------------------
 // Mock the data hook this one composes. `useFilterPresets` owns the tRPC query
-// (covered by its own test); here we only drive its two observable outputs
-// (`isLoading`, `defaultPreset`) so the one-shot auto-apply effect can be
-// tested in isolation. `defaultPreset` is derived from the configured rows the
-// same way the real hook derives it, so "no rows" and "rows but none default"
-// stay honest scenarios rather than hand-set nulls.
+// (covered by its own test); here we only drive its observable outputs
+// (`isLoading`, `isSuccess`, `defaultPreset`) so the one-shot auto-apply effect
+// can be tested in isolation. `defaultPreset` is derived from the configured
+// rows the same way the real hook derives it, so "no rows" and "rows but none
+// default" stay honest scenarios rather than hand-set nulls.
 // ---------------------------------------------------------------------------
 
 interface PresetRow {
@@ -27,12 +27,32 @@ vi.mock("@/shared/hooks/use-filter-presets", () => ({
 
 import { useDefaultFilterPreset } from "@/shared/hooks/use-default-filter-preset";
 
-function setPresets(rows: PresetRow[], isLoading = false) {
+/**
+ * Drives the mocked query state honestly, mirroring TanStack Query: a query
+ * that is still loading has not answered (`isSuccess` false), and one that has
+ * stopped loading answered successfully — unless the caller says otherwise via
+ * `setErrored()`, which is the "retries exhausted, no data" state.
+ */
+function setPresets(
+	rows: PresetRow[],
+	isLoading = false,
+	isSuccess = !isLoading
+) {
 	mocks.useFilterPresets.mockReturnValue({
 		presets: rows,
 		defaultPreset: rows.find((r) => r.isDefault) ?? null,
 		isLoading,
+		isSuccess,
 	});
+}
+
+/**
+ * The list query finished with an error: `isLoading` is false (the retries are
+ * spent, `isPending` flipped off) but no data ever arrived, so `isSuccess` is
+ * false and `defaultPreset` is null.
+ */
+function setErrored() {
+	setPresets([], false, false);
 }
 
 const DEFAULT_ROW: PresetRow = {
@@ -137,7 +157,75 @@ describe("useDefaultFilterPreset", () => {
 		});
 	});
 
+	describe("failed first fetch", () => {
+		it("does not call applyDefault when the first fetch errored out", () => {
+			const applyDefault = vi.fn();
+			setErrored();
+			renderHook(() => useDefaultFilterPreset("sessions", true, applyDefault));
+			expect(applyDefault).not.toHaveBeenCalled();
+		});
+
+		it("applies the default from a later successful refetch after the first fetch errored", () => {
+			// A failed fetch must not spend the one shot: on a flaky connection the
+			// first load errors, then a window-focus / reconnect refetch succeeds and
+			// the stored default still has to be applied.
+			const applyDefault = vi.fn();
+			setErrored();
+			const { rerender } = renderHook(() =>
+				useDefaultFilterPreset("sessions", true, applyDefault)
+			);
+			expect(applyDefault).not.toHaveBeenCalled();
+
+			setPresets([PLAIN_ROW, DEFAULT_ROW]);
+			rerender();
+
+			expect(applyDefault).toHaveBeenCalledTimes(1);
+			expect(applyDefault).toHaveBeenCalledWith(DEFAULT_ROW.payload);
+		});
+
+		it("applies exactly once across a loading → error → loading → success sequence", () => {
+			const applyDefault = vi.fn();
+			setPresets([], true);
+			const { rerender } = renderHook(() =>
+				useDefaultFilterPreset("sessions", true, applyDefault)
+			);
+
+			setErrored();
+			rerender();
+			expect(applyDefault).not.toHaveBeenCalled();
+
+			// Background refetch in flight: still no answer, still a no-op.
+			setPresets([], true);
+			rerender();
+			expect(applyDefault).not.toHaveBeenCalled();
+
+			setPresets([DEFAULT_ROW]);
+			rerender();
+			rerender();
+
+			expect(applyDefault).toHaveBeenCalledTimes(1);
+			expect(applyDefault).toHaveBeenCalledWith(DEFAULT_ROW.payload);
+		});
+	});
+
 	describe("one-shot attempt semantics", () => {
+		it("spends the attempt on a successful empty answer, so a later default never applies", () => {
+			// The contrast with the errored-first-fetch case above: an empty list is
+			// a real answer ("you have no default"), so the one shot is spent and a
+			// preset marked default later must not clobber the user's filters.
+			const applyDefault = vi.fn();
+			setPresets([]);
+			const { rerender } = renderHook(() =>
+				useDefaultFilterPreset("sessions", true, applyDefault)
+			);
+			expect(applyDefault).not.toHaveBeenCalled();
+
+			setPresets([DEFAULT_ROW]);
+			rerender();
+
+			expect(applyDefault).not.toHaveBeenCalled();
+		});
+
 		it("never applies a default preset that arrives after the attempt already ran", () => {
 			// The attempt is marked as spent regardless of outcome: a preset that
 			// becomes default later (another tab, a refetch) must not silently

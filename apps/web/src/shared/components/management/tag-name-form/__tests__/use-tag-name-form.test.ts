@@ -175,3 +175,43 @@ describe("useTagNameForm", () => {
 		expect(result.current.label).toBe("Preset name");
 	});
 });
+
+// The `label` option exists so the filter-presets sheet can render this form as
+// "Preset name"; the validation copy has to follow it, or the user reads
+// "Tag name is required" under a field labelled "Preset name".
+describe("validation copy follows the label", () => {
+	it("names the default label when none is given", async () => {
+		const { result } = renderHook(() => useTagNameForm({ onSubmit: vi.fn() }));
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(nameErrorMessages(result.current.form)).toContain(
+			"Tag name is required"
+		);
+	});
+
+	it("names an overridden label in the required message", async () => {
+		const { result } = renderHook(() =>
+			useTagNameForm({ label: "Preset name", onSubmit: vi.fn() })
+		);
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(nameErrorMessages(result.current.form)).toContain(
+			"Preset name is required"
+		);
+	});
+
+	it("names an overridden label in the max-length message", async () => {
+		const { result } = renderHook(() =>
+			useTagNameForm({ label: "Preset name", onSubmit: vi.fn() })
+		);
+		await act(async () => {
+			result.current.form.setFieldValue("name", "x".repeat(51));
+			await result.current.form.handleSubmit();
+		});
+		expect(nameErrorMessages(result.current.form)).toContain(
+			"Preset name must be 50 characters or less"
+		);
+	});
+});

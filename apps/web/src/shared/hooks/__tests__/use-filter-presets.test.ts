@@ -89,6 +89,29 @@ describe("useFilterPresets", () => {
 			await waitFor(() => expect(result.current.isLoading).toBe(false));
 		});
 
+		it("isSuccess is false before the list query resolves and true after", async () => {
+			const qc = createTestQueryClient();
+			const { result } = renderHook(() => useFilterPresets("sessions"), {
+				wrapper: withQueryClient(qc),
+			});
+			expect(result.current.isSuccess).toBe(false);
+			await waitFor(() => expect(result.current.isSuccess).toBe(true));
+		});
+
+		it("isSuccess stays false when the list query rejects, even though isLoading is false", async () => {
+			// The distinction consumers depend on: a failed query stops loading
+			// without ever answering, so `!isLoading` alone does not mean "resolved".
+			trpcMocks.listQueryFn.mockRejectedValue(new Error("offline"));
+			const qc = createTestQueryClient();
+			const { result } = renderHook(() => useFilterPresets("sessions"), {
+				wrapper: withQueryClient(qc),
+			});
+			await waitFor(() => expect(result.current.isLoading).toBe(false));
+			expect(result.current.isSuccess).toBe(false);
+			expect(result.current.presets).toEqual([]);
+			expect(result.current.defaultPreset).toBeNull();
+		});
+
 		it("all pending flags are false with no mutation in flight", () => {
 			const qc = createTestQueryClient();
 			const { result } = renderHook(() => useFilterPresets("sessions"), {

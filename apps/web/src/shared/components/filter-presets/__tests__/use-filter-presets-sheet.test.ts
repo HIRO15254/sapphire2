@@ -493,23 +493,43 @@ describe("useFilterPresetsSheet", () => {
 			expect(hoisted.update).not.toHaveBeenCalled();
 		});
 
-		it("keeps the tab and pending targets while the sheet stays open", () => {
+		// Asserted one surface at a time on purpose: a tab switch abandons a pending
+		// edit, and the delete confirmation and the rename form close each other
+		// (see "edit state consistency"), so requesting all three in sequence and
+		// expecting them to coexist would contradict that. What matters here is that
+		// re-rendering while the sheet stays OPEN preserves whatever is active.
+		it("keeps the active tab across re-renders while the sheet stays open", () => {
 			const { result, rerender } = renderSheet({ open: true });
-			const preset = makePreset({ id: "p14" });
 
 			act(() => {
 				result.current.setActiveTab("create");
 			});
+			rerender({ open: true });
+
+			expect(result.current.activeTab).toBe("create");
+		});
+
+		it("keeps a pending delete across re-renders while the sheet stays open", () => {
+			const { result, rerender } = renderSheet({ open: true });
+			const preset = makePreset({ id: "p14" });
+
 			act(() => {
 				result.current.onRequestDelete(preset);
 			});
+			rerender({ open: true });
+
+			expect(result.current.pendingDelete).toEqual(preset);
+		});
+
+		it("keeps a pending edit across re-renders while the sheet stays open", () => {
+			const { result, rerender } = renderSheet({ open: true });
+			const preset = makePreset({ id: "p14" });
+
 			act(() => {
 				result.current.onRequestEdit(preset);
 			});
 			rerender({ open: true });
 
-			expect(result.current.activeTab).toBe("create");
-			expect(result.current.pendingDelete).toEqual(preset);
 			expect(result.current.pendingEdit).toEqual(preset);
 		});
 
@@ -525,6 +545,84 @@ describe("useFilterPresetsSheet", () => {
 			expect(result.current.activeTab).toBe("saved");
 			expect(result.current.pendingDelete).toBeNull();
 			expect(result.current.pendingEdit).toBeNull();
+		});
+	});
+	// `pendingEdit` and the other two pieces of sheet state have to stay mutually
+	// consistent: the sheet only renders the edit form while `activeTab` is
+	// "saved", and the delete confirmation is a separate surface, so an edit left
+	// dangling behind either one reappears (or outlives its own row).
+	describe("edit state consistency", () => {
+		it("clears a pending edit when the user switches tabs", () => {
+			const preset = makePreset();
+			hoisted.useFilterPresets.mockReturnValue(
+				presetsStub({ presets: [preset] })
+			);
+			const { result } = renderSheet();
+
+			act(() => {
+				result.current.onRequestEdit(preset);
+			});
+			expect(result.current.pendingEdit).toEqual(preset);
+
+			act(() => {
+				result.current.setActiveTab("create");
+			});
+			expect(result.current.pendingEdit).toBeNull();
+		});
+
+		it("does not resurrect the edit form when switching back to the saved tab", () => {
+			const preset = makePreset();
+			hoisted.useFilterPresets.mockReturnValue(
+				presetsStub({ presets: [preset] })
+			);
+			const { result } = renderSheet();
+
+			act(() => {
+				result.current.onRequestEdit(preset);
+			});
+			act(() => {
+				result.current.setActiveTab("create");
+			});
+			act(() => {
+				result.current.setActiveTab("saved");
+			});
+			expect(result.current.pendingEdit).toBeNull();
+		});
+
+		it("clears a pending edit when a delete is requested", () => {
+			const preset = makePreset();
+			hoisted.useFilterPresets.mockReturnValue(
+				presetsStub({ presets: [preset] })
+			);
+			const { result } = renderSheet();
+
+			act(() => {
+				result.current.onRequestEdit(preset);
+			});
+			act(() => {
+				result.current.onRequestDelete(preset);
+			});
+
+			expect(result.current.pendingEdit).toBeNull();
+			expect(result.current.pendingDelete).toEqual(preset);
+		});
+
+		it("clears a pending delete when an edit is requested", () => {
+			const preset = makePreset();
+			hoisted.useFilterPresets.mockReturnValue(
+				presetsStub({ presets: [preset] })
+			);
+			const { result } = renderSheet();
+
+			act(() => {
+				result.current.onRequestDelete(preset);
+			});
+			act(() => {
+				result.current.onRequestEdit(preset);
+			});
+
+			expect(result.current.pendingDelete).toBeNull();
+			expect(result.current.pendingEdit).toEqual(preset);
 		});
 	});
 });

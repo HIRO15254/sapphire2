@@ -40,6 +40,40 @@ export function parseStatsSearch(
 	return statsSearchSchema.parse(search);
 }
 
+/** The filter state a bare `/statistics` resolves to. */
+const DEFAULT_STATS_FILTERS = statsSearchSchema.parse({});
+
+/**
+ * True when no filter differs from its schema default — the "the user has not
+ * stated a filter" test used to decide whether a default preset may take over.
+ *
+ * It deliberately does NOT look at the router's search object. `/statistics`
+ * declares `validateSearch: statsSearchSchema`, and TanStack Router writes that
+ * schema's defaults into `location.search` **and** into the URL itself, so a
+ * bare `/statistics` is indistinguishable from an explicit link there — the
+ * search object always carries `period` / `norm` / `type`. Comparing against
+ * the defaults instead means a genuine deep link (`?type=tournament`) is
+ * respected, while a bare load — or a link that merely spells the defaults out —
+ * is treated as pristine. Pinned against the real router by
+ * `apps/web/src/__tests__/statistics-raw-search.test.tsx`.
+ *
+ * An empty-string `currency` / `room` (reachable as `?room=`) counts as absent,
+ * matching how `filtersToStatsInput` already coerces it.
+ */
+export function isDefaultStatsFilterState(filters: StatsFilters): boolean {
+	const keys = new Set([
+		...Object.keys(DEFAULT_STATS_FILTERS),
+		...Object.keys(filters),
+	]) as Set<keyof StatsFilters>;
+	for (const key of keys) {
+		const actual = filters[key] === "" ? undefined : filters[key];
+		if (actual !== DEFAULT_STATS_FILTERS[key]) {
+			return false;
+		}
+	}
+	return true;
+}
+
 // ── Derived query input ──────────────────────────────────────────────────────
 
 export interface StatsQueryInput {

@@ -191,6 +191,11 @@ export function useFilterPresets(screenKey: FilterPresetScreenKey) {
 		presets,
 		defaultPreset,
 		isLoading: listQuery.isLoading,
+		// Exposed alongside `isLoading` because the two are not complements: a
+		// query that exhausted its retries is no longer loading yet never
+		// answered. Consumers that must act exactly once on the first real answer
+		// (`useDefaultFilterPreset`) have to gate on this, not on `!isLoading`.
+		isSuccess: listQuery.isSuccess,
 		isCreatePending: createMutation.isPending,
 		isUpdatePending: updateMutation.isPending,
 		isDeletePending: deleteMutation.isPending,

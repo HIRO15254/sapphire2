@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	filtersToStatsInput,
 	isCurrencyScopeValid,
+	isDefaultStatsFilterState,
 	normalizedUnitForType,
 	parseStatsSearch,
 	type StatsFilters,
@@ -158,5 +159,50 @@ describe("statsUnitFor", () => {
 	it("uses the type's normalized unit when normalized", () => {
 		expect(statsUnitFor("normalized", "cash_game", "USD")).toBe("bb");
 		expect(statsUnitFor("normalized", "tournament", "USD")).toBe("bi");
+	});
+});
+
+describe("isDefaultStatsFilterState", () => {
+	// Why this exists: `/statistics` declares `validateSearch: statsSearchSchema`,
+	// and TanStack Router writes the schema's defaults into `location.search` (and
+	// into the URL itself), so a bare `/statistics` is INDISTINGUISHABLE from an
+	// explicit link by inspecting the router's search object — it always has keys.
+	// The default-preset auto-apply therefore asks "is every filter still at its
+	// default?" instead. Pinned by the real-router integration test in
+	// apps/web/src/__tests__/statistics-raw-search.test.tsx.
+	it("is true for the schema's own defaults", () => {
+		expect(isDefaultStatsFilterState(parseStatsSearch({}))).toBe(true);
+	});
+
+	it("is true when a URL spells out values that merely equal the defaults", () => {
+		expect(
+			isDefaultStatsFilterState(
+				parseStatsSearch({ period: "all", norm: "normalized", type: "all" })
+			)
+		).toBe(true);
+	});
+
+	it.each([
+		["type", { type: "tournament" }],
+		["period", { period: "30d" }],
+		["norm", { norm: "off" }],
+		["currency", { currency: "cur-1" }],
+		["room", { room: "room-1" }],
+		["from", { from: 1_700_000_000 }],
+		["to", { to: 1_700_086_400 }],
+	])("is false when %s differs from its default", (_label, overrides) => {
+		expect(isDefaultStatsFilterState(parseStatsSearch(overrides))).toBe(false);
+	});
+
+	it("treats an explicitly empty currency / room as absent, not as a stated filter", () => {
+		// `?room=` parses to "" — every consumer already coerces that to "no room"
+		// (`filtersToStatsInput` does `filters.room || undefined`), so the pristine
+		// verdict must agree instead of reading it as an explicit choice.
+		expect(isDefaultStatsFilterState(parseStatsSearch({ room: "" }))).toBe(
+			true
+		);
+		expect(isDefaultStatsFilterState(parseStatsSearch({ currency: "" }))).toBe(
+			true
+		);
 	});
 });
