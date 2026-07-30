@@ -157,13 +157,65 @@ describe("useStatsFilters", () => {
 			});
 		});
 
-		it("throws when the payload contains a value outside the schema's domain", () => {
+		it("navigates with the fully-defaulted object for a valid stored payload", () => {
+			const { result } = renderHook(() => useStatsFilters());
+			act(() => {
+				result.current.replaceFilters({
+					period: "90d",
+					norm: "off",
+					currency: "c1",
+				});
+			});
+			expect(mocks.navigate).toHaveBeenCalledTimes(1);
+			const arg = mocks.navigate.mock.calls[0][0] as {
+				search: () => StatsFilters;
+			};
+			expect(arg.search()).toEqual({
+				period: "90d",
+				norm: "off",
+				type: "all",
+				currency: "c1",
+			});
+		});
+
+		// A stored preset payload is validated server-side only as a bounded
+		// string for `period` (packages/db can't import apps/web's PERIODS), so a
+		// preset saved with a period this build no longer knows is reachable —
+		// and `replaceFilters` runs during the default-preset auto-apply on mount.
+		// Throwing there would take the whole /statistics page down.
+		it("does not throw when the stored period is outside the current PERIODS vocabulary", () => {
 			const { result } = renderHook(() => useStatsFilters());
 			expect(() => {
+				act(() => {
+					result.current.replaceFilters({
+						period: "last_month",
+					} as unknown as Partial<StatsFilters>);
+				});
+			}).not.toThrow();
+		});
+
+		it("does not navigate when the stored period is outside the current PERIODS vocabulary", () => {
+			const { result } = renderHook(() => useStatsFilters());
+			act(() => {
 				result.current.replaceFilters({
-					type: "spin",
+					period: "last_month",
 				} as unknown as Partial<StatsFilters>);
-			}).toThrow();
+			});
+			// Keeping the current filters is the degradation: a stale preset must
+			// not brick the page, and must not half-apply either.
+			expect(mocks.navigate).not.toHaveBeenCalled();
+		});
+
+		it("does not throw or navigate when any other payload value is outside the schema's domain", () => {
+			const { result } = renderHook(() => useStatsFilters());
+			expect(() => {
+				act(() => {
+					result.current.replaceFilters({
+						type: "spin",
+					} as unknown as Partial<StatsFilters>);
+				});
+			}).not.toThrow();
+			expect(mocks.navigate).not.toHaveBeenCalled();
 		});
 	});
 });

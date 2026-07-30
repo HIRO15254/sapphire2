@@ -148,6 +148,26 @@ describe("sessionsFilterPresetPayloadSchema", () => {
 		).toBe(false);
 	});
 
+	it("accepts display: 'currency'", () => {
+		expect(
+			sessionsFilterPresetPayloadSchema.safeParse({ display: "currency" })
+				.success
+		).toBe(true);
+	});
+
+	it("accepts display: 'normalized'", () => {
+		expect(
+			sessionsFilterPresetPayloadSchema.safeParse({ display: "normalized" })
+				.success
+		).toBe(true);
+	});
+
+	it("rejects an invalid display value", () => {
+		expect(
+			sessionsFilterPresetPayloadSchema.safeParse({ display: "bogus" }).success
+		).toBe(false);
+	});
+
 	it("rejects an unknown key (proves .strict())", () => {
 		expect(
 			sessionsFilterPresetPayloadSchema.safeParse({ unknownField: "x" }).success
@@ -272,6 +292,16 @@ describe("statisticsFilterPresetPayloadSchema", () => {
 	it("rejects an unknown key (proves .strict())", () => {
 		expect(
 			statisticsFilterPresetPayloadSchema.safeParse({ unknownField: "x" })
+				.success
+		).toBe(false);
+	});
+
+	// "display" is the SESSIONS-only amount-display toggle (statistics carries
+	// the equivalent state as "norm"); it must stay an unknown key here so the
+	// two payload shapes never silently merge.
+	it("rejects 'display' (sessions-only field)", () => {
+		expect(
+			statisticsFilterPresetPayloadSchema.safeParse({ display: "currency" })
 				.success
 		).toBe(false);
 	});

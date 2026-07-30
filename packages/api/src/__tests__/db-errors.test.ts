@@ -163,6 +163,27 @@ describe("isFilterPresetNameConflictError", () => {
 		).toBe(false);
 	});
 
+	// filter_preset carries THREE unique constraints. Only the name index may
+	// be reported as "you already have a preset with this name" — matching the
+	// table name alone mislabels the other two.
+	it("returns false for the partial default-uniqueness index violation (user_id, screen_key)", () => {
+		expect(
+			isFilterPresetNameConflictError(
+				new Error(
+					"D1_ERROR: UNIQUE constraint failed: filter_preset.user_id, filter_preset.screen_key: SQLITE_CONSTRAINT"
+				)
+			)
+		).toBe(false);
+	});
+
+	it("returns false for the primary-key violation (filter_preset.id)", () => {
+		expect(
+			isFilterPresetNameConflictError(
+				new Error("UNIQUE constraint failed: filter_preset.id")
+			)
+		).toBe(false);
+	});
+
 	it("returns false for an unrelated Error and non-Error values", () => {
 		expect(isFilterPresetNameConflictError(new Error("network timeout"))).toBe(
 			false

@@ -1,5 +1,5 @@
 import type { FilterPresetPayload } from "@sapphire2/db/schemas/filter-preset";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type {
 	FilterPresetItem,
 	FilterPresetScreenKey,
@@ -12,29 +12,45 @@ interface UseFilterPresetsSheetOptions<TPayload extends FilterPresetPayload> {
 	currentPayload: TPayload;
 	onApply: (payload: TPayload) => void;
 	onOpenChange: (open: boolean) => void;
+	/** Drives the reset of the sheet's transient state on close. */
+	open: boolean;
 	screenKey: FilterPresetScreenKey;
 }
 
 /**
- * Owns the interactive state (active tab, pending delete confirmation) for
- * the Presets bottom sheet, on top of the screen-agnostic `useFilterPresets`
- * data hook. Generic over the caller's payload shape so `onApply` /
- * `currentPayload` stay typed to the caller's own screenKey.
+ * The mutation errors are already surfaced to the user by the global
+ * `MutationCache.onError` toast in `utils/trpc.ts`; these catches exist purely
+ * so the rejected promise is handled. A duplicate name is one tap away
+ * (CONFLICT), so the unhandled-rejection path was trivially reachable.
+ */
+const swallowHandledMutationError = () => {
+	// Intentionally empty — see the doc comment above.
+};
+
+/**
+ * Owns the interactive state (active tab, pending delete confirmation, pending
+ * rename/overwrite) for the Presets bottom sheet, on top of the
+ * screen-agnostic `useFilterPresets` data hook. Generic over the caller's
+ * payload shape so `onApply` / `currentPayload` stay typed to the caller's own
+ * screenKey.
  */
 export function useFilterPresetsSheet<TPayload extends FilterPresetPayload>({
 	currentPayload,
 	onApply,
 	onOpenChange,
+	open,
 	screenKey,
 }: UseFilterPresetsSheetOptions<TPayload>) {
 	const {
 		presets,
-		defaultPreset,
 		isLoading,
 		isCreatePending,
+		isUpdatePending,
 		isDeletePending,
 		isSetDefaultPending,
+		isClearDefaultPending,
 		create,
+		update,
 		remove,
 		setDefault,
 		clearDefault,
@@ -44,18 +60,38 @@ export function useFilterPresetsSheet<TPayload extends FilterPresetPayload>({
 	const [pendingDelete, setPendingDelete] = useState<FilterPresetItem | null>(
 		null
 	);
+	const [pendingEdit, setPendingEdit] = useState<FilterPresetItem | null>(null);
+
+	// The sheet stays mounted between openings, so without this reset a user who
+	// left off on "Save new" (or mid-confirmation) is dropped back there the next
+	// time they open it.
+	useEffect(() => {
+		if (!open) {
+			setActiveTab("saved");
+			setPendingDelete(null);
+			setPendingEdit(null);
+		}
+	}, [open]);
 
 	const onApplyPreset = (preset: FilterPresetItem) => {
 		onApply(preset.payload as TPayload);
 		onOpenChange(false);
 	};
 
+	/**
+	 * Returns the promise (rather than dropping it) for the same reason the other
+	 * handlers do: the star has no confirmation step, so a rejected
+	 * setDefault / clearDefault was the most reachable unhandled rejection on
+	 * this surface.
+	 */
 	const onToggleDefault = (preset: FilterPresetItem) => {
-		if (preset.isDefault) {
-			clearDefault(preset.id);
-		} else {
-			setDefault(preset.id);
-		}
+		const mutate = preset.isDefault ? clearDefault : setDefault;
+		return mutate(preset.id)
+			.then(() => {
+				// Nothing local to settle — the list cache is updated optimistically
+				// inside the mutation itself.
+			})
+			.catch(swallowHandledMutationError);
 	};
 
 	const onRequestDelete = (preset: FilterPresetItem) => {
@@ -68,34 +104,70 @@ export function useFilterPresetsSheet<TPayload extends FilterPresetPayload>({
 
 	const onConfirmDelete = () => {
 		if (!pendingDelete) {
-			return;
+			return Promise.resolve();
 		}
-		remove(pendingDelete.id).then(() => {
-			setPendingDelete(null);
-		});
+		return remove(pendingDelete.id)
+			.then(() => {
+				setPendingDelete(null);
+			})
+			.catch(swallowHandledMutationError);
 	};
 
 	const onSaveNew = (name: string) => {
-		create({ name, payload: currentPayload }).then(() => {
-			setActiveTab("saved");
-		});
+		return create({ name, payload: currentPayload })
+			.then(() => {
+				setActiveTab("saved");
+			})
+			.catch(swallowHandledMutationError);
+	};
+
+	const onRequestEdit = (preset: FilterPresetItem) => {
+		setPendingEdit(preset);
+	};
+
+	const onCancelEdit = () => {
+		setPendingEdit(null);
+	};
+
+	/**
+	 * One action, two effects by design: the preset is renamed *and* re-pointed
+	 * at the caller's current filters, so "I tweaked my filters and want this
+	 * preset to match" is a single interaction. On failure the form stays open
+	 * (with the rejected name still in it) so the user can pick another one.
+	 */
+	const onSubmitEdit = (name: string) => {
+		if (!pendingEdit) {
+			return Promise.resolve();
+		}
+		return update({ id: pendingEdit.id, name, payload: currentPayload })
+			.then(() => {
+				setPendingEdit(null);
+			})
+			.catch(swallowHandledMutationError);
 	};
 
 	return {
 		activeTab,
 		setActiveTab,
 		presets,
-		defaultPreset,
 		isLoading,
 		isCreatePending,
+		isUpdatePending,
 		isDeletePending,
-		isSetDefaultPending,
+		// The star is one toggle, so the button must be disabled while a default
+		// change is in flight in EITHER direction — exposing only the set-default
+		// flag left the clear path unguarded.
+		isDefaultTogglePending: isSetDefaultPending || isClearDefaultPending,
 		pendingDelete,
+		pendingEdit,
 		onApplyPreset,
 		onToggleDefault,
 		onRequestDelete,
 		onCancelDelete,
 		onConfirmDelete,
 		onSaveNew,
+		onRequestEdit,
+		onCancelEdit,
+		onSubmitEdit,
 	};
 }

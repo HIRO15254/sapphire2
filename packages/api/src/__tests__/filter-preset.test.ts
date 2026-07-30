@@ -18,8 +18,11 @@ const TABLE = getTableName(filterPreset);
 const OWNER = "user-1";
 const OTHER = "user-2";
 
+// evaluateWhere: the name-collision check pushes its whole predicate into the
+// SQL WHERE (no JS re-filtering), so the mock has to honour `where(...)` for
+// these behaviour tests to mean anything.
 function filterPresetCaller(userId: string, select: Record<string, Rows>) {
-	const mock = createChainableMockDb({ select });
+	const mock = createChainableMockDb({ evaluateWhere: true, select });
 	const caller = appRouter.createCaller({
 		session: { user: { id: userId } },
 		db: mock.db,
@@ -146,7 +149,34 @@ describe("filterPreset.create input validation", () => {
 				type: "cash_game",
 				roomId: "room-1",
 				currencyId: "cur-1",
+				display: "normalized",
 			},
+		});
+	});
+
+	it("accepts display: 'currency' on a sessions payload", () => {
+		expectAccepts(appRouter.filterPreset.create, {
+			screenKey: "sessions",
+			name: "My Preset",
+			payload: { display: "currency" },
+		});
+	});
+
+	it("rejects an invalid 'display' value on sessions payload", () => {
+		expectRejects(appRouter.filterPreset.create, {
+			screenKey: "sessions",
+			name: "My Preset",
+			payload: { display: "bb" },
+		});
+	});
+
+	// "display" is the sessions-only amount toggle; statistics carries the
+	// equivalent state as "norm".
+	it("rejects a sessions-only payload field ('display') under screenKey: statistics", () => {
+		expectRejects(appRouter.filterPreset.create, {
+			screenKey: "statistics",
+			name: "My Preset",
+			payload: { display: "currency" },
 		});
 	});
 
@@ -460,25 +490,33 @@ describe("filterPreset.create collision guard (CONFLICT)", () => {
 	});
 
 	it("does not conflict with a same-name preset on a different screenKey", async () => {
-		const { caller } = filterPresetCaller(OWNER, {
+		const { caller, inserted } = filterPresetCaller(OWNER, {
 			[TABLE]: [
 				{ id: "fp-1", userId: OWNER, screenKey: "statistics", name: "Dup" },
 			],
 		});
-		await expect(
-			caller.create({ screenKey: "sessions", name: "Dup", payload: {} })
-		).resolves.toBeDefined();
+		await caller.create({ screenKey: "sessions", name: "Dup", payload: {} });
+		expect(inserted[TABLE]).toHaveLength(1);
 	});
 
 	it("does not conflict with a same-name preset owned by another user", async () => {
-		const { caller } = filterPresetCaller(OWNER, {
+		const { caller, inserted } = filterPresetCaller(OWNER, {
 			[TABLE]: [
 				{ id: "fp-1", userId: OTHER, screenKey: "sessions", name: "Dup" },
 			],
 		});
-		await expect(
-			caller.create({ screenKey: "sessions", name: "Dup", payload: {} })
-		).resolves.toBeDefined();
+		await caller.create({ screenKey: "sessions", name: "Dup", payload: {} });
+		expect(inserted[TABLE]).toHaveLength(1);
+	});
+
+	it("binds userId, screenKey AND name into the collision query, fetching at most one row", async () => {
+		const { caller, selectWhereParams, selectLimits } = filterPresetCaller(
+			OWNER,
+			{ [TABLE]: [] }
+		);
+		await caller.create({ screenKey: "sessions", name: "Fresh", payload: {} });
+		expect(selectWhereParams).toContainEqual([OWNER, "sessions", "Fresh"]);
+		expect(selectLimits).toContain(1);
 	});
 });
 
@@ -553,6 +591,21 @@ describe("filterPreset.update behavior", () => {
 			caller.update({ id: "fp-1", name: "Other Preset" }),
 			"CONFLICT"
 		);
+	});
+
+	it("binds the new name and excludes the row's own id from the rename collision query", async () => {
+		const { caller, selectWhereParams, selectLimits } = filterPresetCaller(
+			OWNER,
+			{ [TABLE]: [SESSIONS_ROW] }
+		);
+		await caller.update({ id: "fp-1", name: "Renamed" });
+		expect(selectWhereParams).toContainEqual([
+			OWNER,
+			"sessions",
+			"Renamed",
+			"fp-1",
+		]);
+		expect(selectLimits).toContain(1);
 	});
 
 	it("allows resubmitting the row's own unchanged name (no self-collision)", async () => {

@@ -56,7 +56,6 @@ const SHEET_TITLE: Record<SessionFilterSheet, string> = {
  * statistics preset windows + custom range.
  */
 export function SessionFilterBar(props: SessionFilterBarProps) {
-	const { onFiltersChange } = props;
 	const {
 		activeSheet,
 		openSheet,
@@ -67,6 +66,7 @@ export function SessionFilterBar(props: SessionFilterBarProps) {
 		currencies,
 		currentRoomName,
 		currentCurrencyName,
+		currentPresetPayload,
 		onPeriodChange,
 		onFromChange,
 		onToChange,
@@ -74,6 +74,7 @@ export function SessionFilterBar(props: SessionFilterBarProps) {
 		onRoomChange,
 		onCurrencyChange,
 		onDisplayChange,
+		onApplyPreset,
 	} = useSessionFilterBar(props);
 
 	const handleOpenChange = (open: boolean) => {
@@ -221,8 +222,8 @@ export function SessionFilterBar(props: SessionFilterBarProps) {
 			</FilterSheet>
 
 			<FilterPresetsSheet
-				currentPayload={filters}
-				onApply={onFiltersChange}
+				currentPayload={currentPresetPayload}
+				onApply={onApplyPreset}
 				onOpenChange={handleOpenChange}
 				open={activeSheet === "presets"}
 				screenKey="sessions"

@@ -60,26 +60,23 @@ async function assertNameAvailable(
 	name: string,
 	excludeId?: string
 ): Promise<void> {
-	const existing = await db
-		.select()
+	// Every condition lives in the WHERE, so this reads at most one row instead
+	// of scanning the caller's whole preset set. `excludeId` is set by update()
+	// so a rename never collides with the row being renamed itself; `and()`
+	// drops the undefined operand on the create() path.
+	const conflicting = await db
+		.select({ id: filterPreset.id })
 		.from(filterPreset)
 		.where(
 			and(
 				eq(filterPreset.userId, userId),
-				eq(filterPreset.screenKey, screenKey)
+				eq(filterPreset.screenKey, screenKey),
+				eq(filterPreset.name, name),
+				excludeId === undefined ? undefined : ne(filterPreset.id, excludeId)
 			)
-		);
-	// Re-check userId/screenKey membership in JS too, not just via the SQL
-	// WHERE above — the collision check must never be trickable by a row
-	// outside this exact (userId, screenKey) scope leaking through.
-	const collides = existing.some(
-		(row) =>
-			row.userId === userId &&
-			row.screenKey === screenKey &&
-			row.id !== excludeId &&
-			row.name === name
-	);
-	if (collides) {
+		)
+		.limit(1);
+	if (conflicting.length > 0) {
 		throw new TRPCError({ code: "CONFLICT", message: NAME_CONFLICT_MESSAGE });
 	}
 }

@@ -29,6 +29,12 @@ export const sessionsFilterPresetPayloadSchema = z
 		type: z.enum(["cash_game", "tournament"]).optional(),
 		roomId: z.string().min(1).optional(),
 		currencyId: z.string().min(1).optional(),
+		// The sessions list's "Display" chip: raw currency amounts vs
+		// BB/BI-normalized ones. Saved in the preset so the sessions screen
+		// restores the same view statistics already does through its `norm`
+		// field below — the two screens must not diverge on what looks like the
+		// same control.
+		display: z.enum(["currency", "normalized"]).optional(),
 	})
 	.strict();
 

@@ -1,5 +1,10 @@
 import type { FilterPresetPayload } from "@sapphire2/db/schemas/filter-preset";
-import { IconStar, IconStarFilled, IconTrash } from "@tabler/icons-react";
+import {
+	IconEdit,
+	IconStar,
+	IconStarFilled,
+	IconTrash,
+} from "@tabler/icons-react";
 import {
 	ManagementList,
 	ManagementListItem,
@@ -21,6 +26,7 @@ import {
 	DrawerTitle,
 } from "@/shared/components/ui/drawer";
 import { EmptyState } from "@/shared/components/ui/empty-state";
+import { Skeleton } from "@/shared/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import type {
 	FilterPresetItem,
@@ -29,7 +35,13 @@ import type {
 import type { FilterPresetsSheetTab } from "./use-filter-presets-sheet";
 import { useFilterPresetsSheet } from "./use-filter-presets-sheet";
 
+// Distinct ids: the create form and the rename/overwrite form are never mounted
+// at the same time, but both are submitted from an external button via the HTML
+// `form=` attribute, so a shared id would make the wrong button win.
 const CREATE_PRESET_FORM_ID = "filter-presets-create-form";
+const EDIT_PRESET_FORM_ID = "filter-presets-edit-form";
+
+const SKELETON_ROW_COUNT = 3;
 
 interface FilterPresetsSheetProps<TPayload extends FilterPresetPayload> {
 	currentPayload: TPayload;
@@ -39,17 +51,52 @@ interface FilterPresetsSheetProps<TPayload extends FilterPresetPayload> {
 	screenKey: FilterPresetScreenKey;
 }
 
+/** Mirrors `ManagementListItem`'s row: title line plus the three row actions. */
+function SavedPresetsSkeleton() {
+	return (
+		<ManagementList aria-hidden data-testid="filter-presets-skeleton">
+			{Array.from({ length: SKELETON_ROW_COUNT }, (_, i) => i).map((i) => (
+				<ManagementListItem
+					actions={
+						<div className="flex gap-1">
+							<Skeleton className="size-8 rounded-md" />
+							<Skeleton className="size-8 rounded-md" />
+							<Skeleton className="size-8 rounded-md" />
+						</div>
+					}
+					key={i}
+					title={<Skeleton className="h-4 w-32" />}
+				/>
+			))}
+		</ManagementList>
+	);
+}
+
+/**
+ * Owns the loading / empty / data switch for the saved-presets surface: the
+ * skeleton comes first so a first open never claims "No saved presets yet"
+ * while the list query is still in flight.
+ */
 function SavedPresetsList({
+	isLoading,
+	isDefaultTogglePending,
 	onApplyPreset,
 	onRequestDelete,
+	onRequestEdit,
 	onToggleDefault,
 	presets,
 }: {
+	isLoading: boolean;
+	isDefaultTogglePending: boolean;
 	onApplyPreset: (preset: FilterPresetItem) => void;
 	onRequestDelete: (preset: FilterPresetItem) => void;
+	onRequestEdit: (preset: FilterPresetItem) => void;
 	onToggleDefault: (preset: FilterPresetItem) => void;
 	presets: FilterPresetItem[];
 }) {
+	if (isLoading) {
+		return <SavedPresetsSkeleton />;
+	}
 	if (presets.length === 0) {
 		return (
 			<EmptyState
@@ -71,6 +118,7 @@ function SavedPresetsList({
 										? `Unset ${preset.name} as default`
 										: `Set ${preset.name} as default`
 								}
+								disabled={isDefaultTogglePending}
 								onClick={(e) => {
 									e.stopPropagation();
 									onToggleDefault(preset);
@@ -83,6 +131,17 @@ function SavedPresetsList({
 								) : (
 									<IconStar size={16} />
 								)}
+							</Button>
+							<Button
+								aria-label={`Rename ${preset.name} or overwrite it with the current filters`}
+								onClick={(e) => {
+									e.stopPropagation();
+									onRequestEdit(preset);
+								}}
+								size="sm"
+								variant="ghost"
+							>
+								<IconEdit size={16} />
 							</Button>
 							<Button
 								aria-label={`Delete ${preset.name}`}
@@ -114,6 +173,58 @@ function SavedPresetsList({
 }
 
 /**
+ * Replaces the Saved tab's body while a preset is being edited (no third tab —
+ * this is a drill-down out of a row, not a peer of "Saved" / "Save new").
+ * Submitting renames the preset *and* overwrites its stored filters, so the
+ * body copy has to say so before the user taps Save.
+ */
+function EditPresetForm({
+	isPending,
+	onCancel,
+	onSubmit,
+	preset,
+}: {
+	isPending: boolean;
+	onCancel: () => void;
+	onSubmit: (name: string) => void;
+	preset: FilterPresetItem;
+}) {
+	return (
+		<div className="flex flex-col gap-4">
+			<p className="t-body-sm text-muted-foreground">
+				Saving renames this preset and replaces its saved filters with the
+				filters you have applied right now.
+			</p>
+			<TagNameForm
+				defaultName={preset.name}
+				formId={EDIT_PRESET_FORM_ID}
+				key={preset.id}
+				label="Preset name"
+				onSubmit={onSubmit}
+			/>
+			<div className="flex gap-2">
+				<Button
+					className="flex-1"
+					onClick={onCancel}
+					type="button"
+					variant="outline"
+				>
+					Cancel
+				</Button>
+				<Button
+					className="flex-1"
+					disabled={isPending}
+					form={EDIT_PRESET_FORM_ID}
+					type="submit"
+				>
+					{isPending ? "Saving..." : "Save"}
+				</Button>
+			</div>
+		</div>
+	);
+}
+
+/**
  * Hybrid tabbed picker sheet for filter presets — mirrors
  * `assign-ring-game-dialog.tsx`'s Drawer/Tabs structure
  * (`.claude/rules/web-theme.md` — "Hybrid / tabbed picker sheet"). Generic
@@ -131,19 +242,27 @@ export function FilterPresetsSheet<TPayload extends FilterPresetPayload>({
 		activeTab,
 		setActiveTab,
 		presets,
+		isLoading,
 		isCreatePending,
+		isUpdatePending,
 		isDeletePending,
+		isDefaultTogglePending,
 		pendingDelete,
+		pendingEdit,
 		onApplyPreset,
 		onToggleDefault,
 		onRequestDelete,
 		onCancelDelete,
 		onConfirmDelete,
 		onSaveNew,
+		onRequestEdit,
+		onCancelEdit,
+		onSubmitEdit,
 	} = useFilterPresetsSheet<TPayload>({
 		currentPayload,
 		onApply,
 		onOpenChange,
+		open,
 		screenKey,
 	});
 
@@ -174,14 +293,28 @@ export function FilterPresetsSheet<TPayload extends FilterPresetPayload>({
 							</TabsList>
 						</Tabs>
 
-						{activeTab === "saved" ? (
+						{activeTab === "saved" && pendingEdit === null ? (
 							<SavedPresetsList
+								isDefaultTogglePending={isDefaultTogglePending}
+								isLoading={isLoading}
 								onApplyPreset={onApplyPreset}
 								onRequestDelete={onRequestDelete}
+								onRequestEdit={onRequestEdit}
 								onToggleDefault={onToggleDefault}
 								presets={presets}
 							/>
-						) : (
+						) : null}
+
+						{activeTab === "saved" && pendingEdit !== null ? (
+							<EditPresetForm
+								isPending={isUpdatePending}
+								onCancel={onCancelEdit}
+								onSubmit={onSubmitEdit}
+								preset={pendingEdit}
+							/>
+						) : null}
+
+						{activeTab === "create" ? (
 							<div className="flex flex-col gap-4">
 								<TagNameForm
 									formId={CREATE_PRESET_FORM_ID}
@@ -196,7 +329,7 @@ export function FilterPresetsSheet<TPayload extends FilterPresetPayload>({
 									{isCreatePending ? "Saving..." : "Save"}
 								</Button>
 							</div>
-						)}
+						) : null}
 					</div>
 				</DrawerContent>
 			</Drawer>

@@ -11,6 +11,7 @@ import { createTestQueryClient, withQueryClient } from "@/__tests__/test-utils";
 
 const trpcMocks = vi.hoisted(() => ({
 	filterPresetCreate: vi.fn(),
+	filterPresetUpdate: vi.fn(),
 	filterPresetDelete: vi.fn(),
 	filterPresetSetDefault: vi.fn(),
 	filterPresetClearDefault: vi.fn(),
@@ -31,6 +32,7 @@ vi.mock("@/utils/trpc", () => ({
 	trpcClient: {
 		filterPreset: {
 			create: { mutate: trpcMocks.filterPresetCreate },
+			update: { mutate: trpcMocks.filterPresetUpdate },
 			delete: { mutate: trpcMocks.filterPresetDelete },
 			setDefault: { mutate: trpcMocks.filterPresetSetDefault },
 			clearDefault: { mutate: trpcMocks.filterPresetClearDefault },
@@ -93,6 +95,7 @@ describe("useFilterPresets", () => {
 				wrapper: withQueryClient(qc),
 			});
 			expect(result.current.isCreatePending).toBe(false);
+			expect(result.current.isUpdatePending).toBe(false);
 			expect(result.current.isDeletePending).toBe(false);
 			expect(result.current.isSetDefaultPending).toBe(false);
 		});
@@ -271,6 +274,234 @@ describe("useFilterPresets", () => {
 			await waitFor(() => expect(result.current.isCreatePending).toBe(true));
 			resolve?.({ id: "server-id" });
 			await waitFor(() => expect(result.current.isCreatePending).toBe(false));
+		});
+	});
+
+	describe("update (optimistic)", () => {
+		const twoRows: PresetRow[] = [
+			{
+				id: "p1",
+				name: "A",
+				payload: { type: "cash_game" },
+				isDefault: false,
+				screenKey: "sessions",
+			},
+			{
+				id: "p2",
+				name: "B",
+				payload: { type: "tournament" },
+				isDefault: true,
+				screenKey: "sessions",
+			},
+		];
+
+		it("optimistically renames only the target row and leaves the others untouched", async () => {
+			const qc = createTestQueryClient();
+			seedList(qc, "sessions", twoRows);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.filterPresetUpdate.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useFilterPresets("sessions"), {
+				wrapper: withQueryClient(qc),
+			});
+			act(() => {
+				result.current.update({ id: "p1", name: "Renamed" });
+			});
+			await waitFor(() => {
+				const list = qc.getQueryData<PresetRow[]>(listKey("sessions"));
+				expect(list?.find((p) => p.id === "p1")?.name).toBe("Renamed");
+			});
+			const list = qc.getQueryData<PresetRow[]>(listKey("sessions"));
+			expect(list?.find((p) => p.id === "p2")).toEqual(twoRows[1]);
+			resolve?.({ id: "p1", name: "Renamed" });
+		});
+
+		it("preserves the existing payload when only a name is passed", async () => {
+			const qc = createTestQueryClient();
+			seedList(qc, "sessions", twoRows);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.filterPresetUpdate.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useFilterPresets("sessions"), {
+				wrapper: withQueryClient(qc),
+			});
+			act(() => {
+				result.current.update({ id: "p1", name: "Renamed" });
+			});
+			await waitFor(() => {
+				const target = qc
+					.getQueryData<PresetRow[]>(listKey("sessions"))
+					?.find((p) => p.id === "p1");
+				expect(target?.name).toBe("Renamed");
+				expect(target?.payload).toEqual({ type: "cash_game" });
+			});
+			resolve?.({ id: "p1" });
+		});
+
+		it("preserves the existing name when only a payload is passed", async () => {
+			const qc = createTestQueryClient();
+			seedList(qc, "sessions", twoRows);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.filterPresetUpdate.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useFilterPresets("sessions"), {
+				wrapper: withQueryClient(qc),
+			});
+			act(() => {
+				result.current.update({
+					id: "p1",
+					payload: { period: "30d", display: "normalized" },
+				});
+			});
+			await waitFor(() => {
+				const target = qc
+					.getQueryData<PresetRow[]>(listKey("sessions"))
+					?.find((p) => p.id === "p1");
+				expect(target?.payload).toEqual({
+					period: "30d",
+					display: "normalized",
+				});
+				expect(target?.name).toBe("A");
+			});
+			resolve?.({ id: "p1" });
+		});
+
+		it("applies both fields when name and payload are passed together", async () => {
+			const qc = createTestQueryClient();
+			seedList(qc, "sessions", twoRows);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.filterPresetUpdate.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useFilterPresets("sessions"), {
+				wrapper: withQueryClient(qc),
+			});
+			act(() => {
+				result.current.update({
+					id: "p2",
+					name: "Both",
+					payload: { roomId: "r1" },
+				});
+			});
+			await waitFor(() => {
+				const target = qc
+					.getQueryData<PresetRow[]>(listKey("sessions"))
+					?.find((p) => p.id === "p2");
+				expect(target?.name).toBe("Both");
+				expect(target?.payload).toEqual({ roomId: "r1" });
+			});
+			// isDefault is not part of the update surface and must survive.
+			expect(
+				qc
+					.getQueryData<PresetRow[]>(listKey("sessions"))
+					?.find((p) => p.id === "p2")?.isDefault
+			).toBe(true);
+			resolve?.({ id: "p2" });
+		});
+
+		it("forwards id, name, and payload to trpcClient.filterPreset.update.mutate", async () => {
+			const qc = createTestQueryClient();
+			seedList(qc, "sessions", twoRows);
+			trpcMocks.filterPresetUpdate.mockResolvedValue({ id: "p1" });
+			const { result } = renderHook(() => useFilterPresets("sessions"), {
+				wrapper: withQueryClient(qc),
+			});
+			await act(async () => {
+				await result.current.update({
+					id: "p1",
+					name: "Renamed",
+					payload: { type: "tournament" },
+				});
+			});
+			expect(trpcMocks.filterPresetUpdate).toHaveBeenCalledTimes(1);
+			expect(trpcMocks.filterPresetUpdate).toHaveBeenCalledWith({
+				id: "p1",
+				name: "Renamed",
+				payload: { type: "tournament" },
+			});
+		});
+
+		it("rolls back to the pre-update list when the server rejects", async () => {
+			trpcMocks.listQueryFn.mockResolvedValue(twoRows);
+			const qc = createTestQueryClient();
+			seedList(qc, "sessions", twoRows);
+			trpcMocks.filterPresetUpdate.mockRejectedValue(new Error("server down"));
+			const { result } = renderHook(() => useFilterPresets("sessions"), {
+				wrapper: withQueryClient(qc),
+			});
+			await act(async () => {
+				await expect(
+					result.current.update({ id: "p1", name: "Renamed" })
+				).rejects.toThrow("server down");
+			});
+			expect(
+				result.current.presets.map((p) => ({ id: p.id, name: p.name }))
+			).toEqual([
+				{ id: "p1", name: "A" },
+				{ id: "p2", name: "B" },
+			]);
+		});
+
+		it("no-ops on an id that is not in the cached list", async () => {
+			const qc = createTestQueryClient();
+			seedList(qc, "sessions", twoRows);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.filterPresetUpdate.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useFilterPresets("sessions"), {
+				wrapper: withQueryClient(qc),
+			});
+			act(() => {
+				result.current.update({ id: "missing", name: "Renamed" });
+			});
+			await waitFor(() =>
+				expect(trpcMocks.filterPresetUpdate).toHaveBeenCalledTimes(1)
+			);
+			expect(qc.getQueryData<PresetRow[]>(listKey("sessions"))).toEqual(
+				twoRows
+			);
+			resolve?.({ id: "missing" });
+		});
+
+		it("isUpdatePending flips true then false across the mutation lifecycle", async () => {
+			const qc = createTestQueryClient();
+			seedList(qc, "sessions", twoRows);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.filterPresetUpdate.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useFilterPresets("sessions"), {
+				wrapper: withQueryClient(qc),
+			});
+			expect(result.current.isUpdatePending).toBe(false);
+			act(() => {
+				result.current.update({ id: "p1", name: "Renamed" });
+			});
+			await waitFor(() => expect(result.current.isUpdatePending).toBe(true));
+			resolve?.({ id: "p1", name: "Renamed" });
+			await waitFor(() => expect(result.current.isUpdatePending).toBe(false));
 		});
 	});
 
@@ -564,6 +795,39 @@ describe("useFilterPresets", () => {
 				);
 			});
 			expect(result.current.presets[0]?.isDefault).toBe(true);
+		});
+
+		it("isClearDefaultPending flips true then false across the mutation lifecycle", async () => {
+			const qc = createTestQueryClient();
+			seedList(qc, "sessions", [
+				{
+					id: "p1",
+					name: "A",
+					payload: {},
+					isDefault: true,
+					screenKey: "sessions",
+				},
+			]);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.filterPresetClearDefault.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useFilterPresets("sessions"), {
+				wrapper: withQueryClient(qc),
+			});
+			act(() => {
+				result.current.clearDefault("p1");
+			});
+			await waitFor(() =>
+				expect(result.current.isClearDefaultPending).toBe(true)
+			);
+			resolve?.({ id: "p1", isDefault: false });
+			await waitFor(() =>
+				expect(result.current.isClearDefaultPending).toBe(false)
+			);
 		});
 	});
 

@@ -32,6 +32,17 @@ export interface CreateFilterPresetValues {
 }
 
 /**
+ * Both fields are optional and independent: pass `name` alone to rename, or
+ * `payload` alone to overwrite a saved preset with the current filters. A field
+ * left out is not touched — neither here nor in the procedure's `.set()`.
+ */
+export interface UpdateFilterPresetValues {
+	id: string;
+	name?: string;
+	payload?: FilterPresetPayload;
+}
+
+/**
  * Screen-agnostic filter-preset hook wrapping the `filterPreset` tRPC
  * router. Call `useFilterPresets("sessions")` / `useFilterPresets("statistics")`
  * from any screen — the cache is scoped per screenKey via the query key, so
@@ -74,6 +85,40 @@ export function useFilterPresets(screenKey: FilterPresetScreenKey) {
 					updatedAt: new Date().toISOString(),
 				},
 			]);
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			restoreSnapshots(queryClient, [context?.previous]);
+		},
+		onSettled: () => {
+			invalidateTargets(queryClient, [{ queryKey: listKey }]);
+		},
+	});
+
+	const updateMutation = useMutation({
+		mutationFn: (values: UpdateFilterPresetValues) =>
+			trpcClient.filterPreset.update.mutate(values),
+		onMutate: async (values) => {
+			await cancelTargets(queryClient, [{ queryKey: listKey }]);
+			const previous = snapshotQuery(queryClient, listKey);
+			// Mirrors the procedure's `.set()`: only the fields actually passed are
+			// written, so a rename never clobbers the stored payload (and an
+			// overwrite never clobbers the name). `isDefault` is not part of this
+			// surface at all — setDefault / clearDefault own it.
+			updateQueryItems<FilterPresetItem>(queryClient, listKey, (old) =>
+				old.map((p) =>
+					p.id === values.id
+						? {
+								...p,
+								...(values.name === undefined ? {} : { name: values.name }),
+								...(values.payload === undefined
+									? {}
+									: { payload: values.payload }),
+								updatedAt: new Date().toISOString(),
+							}
+						: p
+				)
+			);
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
@@ -147,10 +192,14 @@ export function useFilterPresets(screenKey: FilterPresetScreenKey) {
 		defaultPreset,
 		isLoading: listQuery.isLoading,
 		isCreatePending: createMutation.isPending,
+		isUpdatePending: updateMutation.isPending,
 		isDeletePending: deleteMutation.isPending,
 		isSetDefaultPending: setDefaultMutation.isPending,
+		isClearDefaultPending: clearDefaultMutation.isPending,
 		create: (values: CreateFilterPresetValues) =>
 			createMutation.mutateAsync(values),
+		update: (values: UpdateFilterPresetValues) =>
+			updateMutation.mutateAsync(values),
 		remove: (id: string) => deleteMutation.mutateAsync(id),
 		setDefault: (id: string) => setDefaultMutation.mutateAsync(id),
 		clearDefault: (id: string) => clearDefaultMutation.mutateAsync(id),

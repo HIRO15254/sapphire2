@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const hoisted = vi.hoisted(() => ({
 	useFilterPresets: vi.fn(),
 	create: vi.fn(),
+	update: vi.fn(),
 	remove: vi.fn(),
 	setDefault: vi.fn(),
 	clearDefault: vi.fn(),
@@ -42,9 +43,12 @@ function baseStub() {
 		defaultPreset: null as FilterPresetItem | null,
 		isLoading: false,
 		isCreatePending: false,
+		isUpdatePending: false,
 		isDeletePending: false,
 		isSetDefaultPending: false,
+		isClearDefaultPending: false,
 		create: hoisted.create,
+		update: hoisted.update,
 		remove: hoisted.remove,
 		setDefault: hoisted.setDefault,
 		clearDefault: hoisted.clearDefault,
@@ -57,11 +61,15 @@ describe("useFilterPresetsSheet", () => {
 	beforeEach(() => {
 		for (const m of [
 			hoisted.create,
+			hoisted.update,
 			hoisted.remove,
 			hoisted.setDefault,
 			hoisted.clearDefault,
 		]) {
 			m.mockReset();
+			// Production always hands back a promise (mutateAsync); a bare
+			// `mockReset()` would return undefined and blow up the `.then` chains.
+			m.mockResolvedValue(undefined);
 		}
 		hoisted.useFilterPresets.mockReturnValue(presetsStub());
 	});
@@ -70,28 +78,33 @@ describe("useFilterPresetsSheet", () => {
 		overrides: Partial<{
 			onApply: (payload: unknown) => void;
 			onOpenChange: (open: boolean) => void;
+			open: boolean;
 		}> = {}
 	) {
 		const onApply = overrides.onApply ?? vi.fn();
 		const onOpenChange = overrides.onOpenChange ?? vi.fn();
-		const view = renderHook(() =>
-			useFilterPresetsSheet({
-				screenKey: "sessions",
-				currentPayload,
-				onApply,
-				onOpenChange,
-			})
+		const view = renderHook(
+			({ open }: { open: boolean }) =>
+				useFilterPresetsSheet({
+					screenKey: "sessions",
+					currentPayload,
+					onApply,
+					onOpenChange,
+					open,
+				}),
+			{ initialProps: { open: overrides.open ?? true } }
 		);
 		return { ...view, onApply, onOpenChange };
 	}
 
-	it("starts on the 'saved' tab with no pending delete", () => {
+	it("starts on the 'saved' tab with no pending delete or edit", () => {
 		const { result } = renderSheet();
 		expect(result.current.activeTab).toBe("saved");
 		expect(result.current.pendingDelete).toBeNull();
+		expect(result.current.pendingEdit).toBeNull();
 	});
 
-	it("forwards presets/defaultPreset/isLoading and pending flags from useFilterPresets", () => {
+	it("forwards presets/isLoading and pending flags from useFilterPresets", () => {
 		const preset = makePreset({ isDefault: true });
 		hoisted.useFilterPresets.mockReturnValue(
 			presetsStub({
@@ -99,17 +112,52 @@ describe("useFilterPresetsSheet", () => {
 				defaultPreset: preset,
 				isLoading: true,
 				isCreatePending: true,
+				isUpdatePending: true,
 				isDeletePending: true,
 				isSetDefaultPending: true,
 			})
 		);
 		const { result } = renderSheet();
 		expect(result.current.presets).toEqual([preset]);
-		expect(result.current.defaultPreset).toEqual(preset);
 		expect(result.current.isLoading).toBe(true);
 		expect(result.current.isCreatePending).toBe(true);
+		expect(result.current.isUpdatePending).toBe(true);
 		expect(result.current.isDeletePending).toBe(true);
-		expect(result.current.isSetDefaultPending).toBe(true);
+		expect(result.current.isDefaultTogglePending).toBe(true);
+	});
+
+	// The star is ONE toggle button, so it must be disabled while a default
+	// change is in flight in EITHER direction. Exposing only the set-default
+	// flag left the clear path unguarded (double-tapping an already-default
+	// preset fired two clearDefault calls).
+	it.each([
+		["setDefault", { isSetDefaultPending: true }],
+		["clearDefault", { isClearDefaultPending: true }],
+	])("reports isDefaultTogglePending while %s is in flight", (_label, pendingFlags) => {
+		hoisted.useFilterPresets.mockReturnValue(
+			presetsStub({ presets: [makePreset()], ...pendingFlags })
+		);
+		const { result } = renderSheet();
+		expect(result.current.isDefaultTogglePending).toBe(true);
+	});
+
+	it("reports isDefaultTogglePending false when neither direction is in flight", () => {
+		hoisted.useFilterPresets.mockReturnValue(
+			presetsStub({ presets: [makePreset()] })
+		);
+		const { result } = renderSheet();
+		expect(result.current.isDefaultTogglePending).toBe(false);
+	});
+
+	// `defaultPreset` was returned but never consumed: every row already carries
+	// its own `isDefault`, and the auto-apply-on-load path lives in
+	// `useDefaultFilterPreset`, not in this sheet.
+	it("does not expose defaultPreset", () => {
+		hoisted.useFilterPresets.mockReturnValue(
+			presetsStub({ defaultPreset: makePreset({ isDefault: true }) })
+		);
+		const { result } = renderSheet();
+		expect(result.current).not.toHaveProperty("defaultPreset");
 	});
 
 	it("calls useFilterPresets with the given screenKey", () => {
@@ -177,6 +225,38 @@ describe("useFilterPresetsSheet", () => {
 			expect(hoisted.clearDefault).toHaveBeenCalledTimes(1);
 			expect(hoisted.clearDefault).toHaveBeenNthCalledWith(1, "p3");
 			expect(hoisted.setDefault).not.toHaveBeenCalled();
+		});
+
+		// Tapping the star is the one preset action with no confirmation step, so
+		// a failing setDefault/clearDefault is the easiest unhandled rejection to
+		// hit. The toast comes from the global MutationCache.onError; the handler
+		// only has to settle.
+		it("resolves without rejecting when setDefault fails", async () => {
+			hoisted.setDefault.mockRejectedValue(new Error("Network error"));
+			const { result } = renderSheet();
+			const preset = makePreset({ id: "p15", isDefault: false });
+
+			await act(async () => {
+				await expect(
+					result.current.onToggleDefault(preset)
+				).resolves.toBeUndefined();
+			});
+
+			expect(hoisted.setDefault).toHaveBeenCalledTimes(1);
+		});
+
+		it("resolves without rejecting when clearDefault fails", async () => {
+			hoisted.clearDefault.mockRejectedValue(new Error("Network error"));
+			const { result } = renderSheet();
+			const preset = makePreset({ id: "p16", isDefault: true });
+
+			await act(async () => {
+				await expect(
+					result.current.onToggleDefault(preset)
+				).resolves.toBeUndefined();
+			});
+
+			expect(hoisted.clearDefault).toHaveBeenCalledTimes(1);
 		});
 	});
 
@@ -257,6 +337,194 @@ describe("useFilterPresetsSheet", () => {
 			});
 
 			await waitFor(() => expect(result.current.activeTab).toBe("saved"));
+		});
+	});
+
+	describe("rename / overwrite", () => {
+		it("onRequestEdit sets the pending-edit target", () => {
+			const { result } = renderSheet();
+			const preset = makePreset({ id: "p7" });
+
+			act(() => {
+				result.current.onRequestEdit(preset);
+			});
+
+			expect(result.current.pendingEdit).toEqual(preset);
+			expect(hoisted.update).not.toHaveBeenCalled();
+		});
+
+		it("onCancelEdit clears the pending-edit target without calling update", () => {
+			const { result } = renderSheet();
+			const preset = makePreset({ id: "p8" });
+
+			act(() => {
+				result.current.onRequestEdit(preset);
+			});
+			act(() => {
+				result.current.onCancelEdit();
+			});
+
+			expect(result.current.pendingEdit).toBeNull();
+			expect(hoisted.update).not.toHaveBeenCalled();
+		});
+
+		it("onSubmitEdit renames the pending preset and overwrites it with currentPayload, then clears it", async () => {
+			hoisted.update.mockResolvedValue({ id: "p9" });
+			const { result } = renderSheet();
+			const preset = makePreset({ id: "p9", name: "Old name" });
+
+			act(() => {
+				result.current.onRequestEdit(preset);
+			});
+			act(() => {
+				result.current.onSubmitEdit("New name");
+			});
+
+			expect(hoisted.update).toHaveBeenCalledTimes(1);
+			expect(hoisted.update).toHaveBeenNthCalledWith(1, {
+				id: "p9",
+				name: "New name",
+				payload: currentPayload,
+			});
+			await waitFor(() => expect(result.current.pendingEdit).toBeNull());
+		});
+
+		it("onSubmitEdit is a no-op when nothing is pending", () => {
+			const { result } = renderSheet();
+
+			act(() => {
+				result.current.onSubmitEdit("Whatever");
+			});
+
+			expect(hoisted.update).not.toHaveBeenCalled();
+			expect(result.current.pendingEdit).toBeNull();
+		});
+
+		it("keeps the edit form open and resolves when update rejects", async () => {
+			hoisted.update.mockRejectedValue(
+				new Error("You already have a filter preset with this name")
+			);
+			const { result } = renderSheet();
+			const preset = makePreset({ id: "p10", name: "Old name" });
+
+			act(() => {
+				result.current.onRequestEdit(preset);
+			});
+			await act(async () => {
+				await expect(
+					result.current.onSubmitEdit("Taken name")
+				).resolves.toBeUndefined();
+			});
+
+			expect(result.current.pendingEdit).toEqual(preset);
+		});
+	});
+
+	describe("rejected mutations are handled", () => {
+		it("onSaveNew resolves and stays on the 'create' tab when create rejects", async () => {
+			hoisted.create.mockRejectedValue(
+				new Error("You already have a filter preset with this name")
+			);
+			const { result } = renderSheet();
+
+			act(() => {
+				result.current.setActiveTab("create");
+			});
+			await act(async () => {
+				await expect(
+					result.current.onSaveNew("Duplicate")
+				).resolves.toBeUndefined();
+			});
+
+			expect(result.current.activeTab).toBe("create");
+		});
+
+		it("onConfirmDelete resolves and keeps the pending target when remove rejects", async () => {
+			hoisted.remove.mockRejectedValue(new Error("Network error"));
+			const { result } = renderSheet();
+			const preset = makePreset({ id: "p11" });
+
+			act(() => {
+				result.current.onRequestDelete(preset);
+			});
+			await act(async () => {
+				await expect(result.current.onConfirmDelete()).resolves.toBeUndefined();
+			});
+
+			expect(result.current.pendingDelete).toEqual(preset);
+		});
+	});
+
+	describe("state reset when the sheet closes", () => {
+		it("resets the active tab to 'saved'", () => {
+			const { result, rerender } = renderSheet({ open: true });
+
+			act(() => {
+				result.current.setActiveTab("create");
+			});
+			expect(result.current.activeTab).toBe("create");
+
+			rerender({ open: false });
+
+			expect(result.current.activeTab).toBe("saved");
+		});
+
+		it("clears a pending delete", () => {
+			const { result, rerender } = renderSheet({ open: true });
+
+			act(() => {
+				result.current.onRequestDelete(makePreset({ id: "p12" }));
+			});
+			rerender({ open: false });
+
+			expect(result.current.pendingDelete).toBeNull();
+			expect(hoisted.remove).not.toHaveBeenCalled();
+		});
+
+		it("clears a pending edit", () => {
+			const { result, rerender } = renderSheet({ open: true });
+
+			act(() => {
+				result.current.onRequestEdit(makePreset({ id: "p13" }));
+			});
+			rerender({ open: false });
+
+			expect(result.current.pendingEdit).toBeNull();
+			expect(hoisted.update).not.toHaveBeenCalled();
+		});
+
+		it("keeps the tab and pending targets while the sheet stays open", () => {
+			const { result, rerender } = renderSheet({ open: true });
+			const preset = makePreset({ id: "p14" });
+
+			act(() => {
+				result.current.setActiveTab("create");
+			});
+			act(() => {
+				result.current.onRequestDelete(preset);
+			});
+			act(() => {
+				result.current.onRequestEdit(preset);
+			});
+			rerender({ open: true });
+
+			expect(result.current.activeTab).toBe("create");
+			expect(result.current.pendingDelete).toEqual(preset);
+			expect(result.current.pendingEdit).toEqual(preset);
+		});
+
+		it("reopening after a close keeps the reset state", () => {
+			const { result, rerender } = renderSheet({ open: true });
+
+			act(() => {
+				result.current.setActiveTab("create");
+			});
+			rerender({ open: false });
+			rerender({ open: true });
+
+			expect(result.current.activeTab).toBe("saved");
+			expect(result.current.pendingDelete).toBeNull();
+			expect(result.current.pendingEdit).toBeNull();
 		});
 	});
 });

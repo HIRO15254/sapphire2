@@ -27,6 +27,10 @@ const mocks = vi.hoisted(() => ({
 	isPresetDeletePending: false,
 	isPresetSetDefaultPending: false,
 	lastPresetsScreenKey: undefined as string | undefined,
+	defaultPresetCalls: [] as Array<{ isUntouched: boolean; screenKey: string }>,
+	lastApplyDefault: undefined as
+		| ((payload: Record<string, unknown>) => void)
+		| undefined,
 }));
 
 vi.mock("@/features/sessions/hooks/use-sessions", () => ({
@@ -80,7 +84,41 @@ vi.mock("@/shared/hooks/use-filter-presets", () => ({
 	},
 }));
 
+// Spy wrapper, not a replacement: the real shared hook still runs (so the
+// loading gate / one-shot guard is exercised end-to-end through the page hook),
+// while every call records the `screenKey` + `isUntouched` verdict this hook
+// computed and hands back its `applyDefault` for direct invocation.
+vi.mock("@/shared/hooks/use-default-filter-preset", async (importOriginal) => {
+	const actual =
+		await importOriginal<
+			typeof import("@/shared/hooks/use-default-filter-preset")
+		>();
+	return {
+		useDefaultFilterPreset: (
+			screenKey: "sessions" | "statistics",
+			isUntouched: boolean,
+			applyDefault: (payload: Record<string, unknown>) => void
+		) => {
+			mocks.defaultPresetCalls.push({ isUntouched, screenKey });
+			mocks.lastApplyDefault = applyDefault;
+			return actual.useDefaultFilterPreset(
+				screenKey,
+				isUntouched,
+				applyDefault
+			);
+		},
+	};
+});
+
 import { useSessionsPage } from "@/features/sessions/pages/sessions-page/use-sessions-page";
+
+function lastDefaultPresetCall() {
+	const call = mocks.defaultPresetCalls.at(-1);
+	if (!call) {
+		throw new Error("useDefaultFilterPreset was never called");
+	}
+	return call;
+}
 
 const cashValues: SessionFormValues = {
 	type: "cash_game",
@@ -109,6 +147,8 @@ describe("useSessionsPage", () => {
 		mocks.isPresetDeletePending = false;
 		mocks.isPresetSetDefaultPending = false;
 		mocks.lastPresetsScreenKey = undefined;
+		mocks.defaultPresetCalls = [];
+		mocks.lastApplyDefault = undefined;
 	});
 
 	describe("initial state", () => {
@@ -284,13 +324,186 @@ describe("useSessionsPage", () => {
 	});
 
 	describe("filter presets", () => {
-		it("forwards the presets list and screenKey from useFilterPresets", () => {
+		it("subscribes to the sessions screen's presets through the shared hook", () => {
+			renderHook(() => useSessionsPage());
+			expect(lastDefaultPresetCall().screenKey).toBe("sessions");
+			expect(mocks.lastPresetsScreenKey).toBe("sessions");
+		});
+
+		// The preset CRUD surface is self-contained in FilterPresetsSheet ->
+		// useFilterPresetsSheet -> useFilterPresets; re-exporting it here left ten
+		// fields no consumer ever read (review finding 3).
+		it("does not re-export the preset list or CRUD surface", () => {
 			mocks.presets = [
 				{ id: "p1", isDefault: false, payload: { type: "cash_game" } },
 			];
 			const { result } = renderHook(() => useSessionsPage());
-			expect(result.current.presets).toEqual(mocks.presets);
-			expect(mocks.lastPresetsScreenKey).toBe("sessions");
+			const returned = result.current as Record<string, unknown>;
+			for (const key of [
+				"presets",
+				"defaultPreset",
+				"isPresetsLoading",
+				"isPresetCreatePending",
+				"isPresetDeletePending",
+				"isPresetSetDefaultPending",
+				"createPreset",
+				"removePreset",
+				"setDefaultPreset",
+				"clearDefaultPreset",
+			]) {
+				expect(returned[key]).toBeUndefined();
+			}
+		});
+	});
+
+	describe("isUntouched verdict passed to useDefaultFilterPreset", () => {
+		it("is true for the initial empty filter object", () => {
+			renderHook(() => useSessionsPage());
+			expect(lastDefaultPresetCall().isUntouched).toBe(true);
+		});
+
+		it("is true when every key present holds undefined", () => {
+			// Picking "All" in the Type sheet leaves `{ type: undefined }` behind
+			// because `patch` spreads `{ ...filters, ...next }`. Counting keys read
+			// that as "the user set a filter" and suppressed the default preset
+			// (review finding 1).
+			const { result } = renderHook(() => useSessionsPage());
+			act(() => {
+				result.current.setFilters({ type: undefined });
+			});
+			expect(result.current.filters).toEqual({ type: undefined });
+			expect(lastDefaultPresetCall().isUntouched).toBe(true);
+		});
+
+		it("is true when several cleared keys linger", () => {
+			const { result } = renderHook(() => useSessionsPage());
+			act(() => {
+				result.current.setFilters({
+					type: undefined,
+					roomId: undefined,
+					currencyId: undefined,
+				});
+			});
+			expect(lastDefaultPresetCall().isUntouched).toBe(true);
+		});
+
+		it("is false once a filter holds a real value", () => {
+			const { result } = renderHook(() => useSessionsPage());
+			act(() => {
+				result.current.setFilters({ roomId: "r1" });
+			});
+			expect(lastDefaultPresetCall().isUntouched).toBe(false);
+		});
+
+		it("is false for a falsy-but-real epoch bound of 0", () => {
+			const { result } = renderHook(() => useSessionsPage());
+			act(() => {
+				result.current.setFilters({ period: "custom", from: 0 });
+			});
+			expect(lastDefaultPresetCall().isUntouched).toBe(false);
+		});
+
+		it("is false when a real value sits next to a cleared key", () => {
+			const { result } = renderHook(() => useSessionsPage());
+			act(() => {
+				result.current.setFilters({ type: undefined, roomId: "r1" });
+			});
+			expect(lastDefaultPresetCall().isUntouched).toBe(false);
+		});
+	});
+
+	describe("default preset display mode", () => {
+		it("turns BB/BI on for a normalized default preset", async () => {
+			mocks.presets = [
+				{
+					id: "p1",
+					isDefault: true,
+					payload: { type: "cash_game", display: "normalized" },
+				},
+			];
+			const { result } = renderHook(() => useSessionsPage());
+			await waitFor(() => expect(result.current.bbBiMode).toBe(true));
+		});
+
+		it("does not leak the display key into the filter values", async () => {
+			mocks.presets = [
+				{
+					id: "p1",
+					isDefault: true,
+					payload: { type: "cash_game", display: "normalized" },
+				},
+			];
+			const { result } = renderHook(() => useSessionsPage());
+			await waitFor(() => {
+				expect(result.current.filters).toEqual({ type: "cash_game" });
+			});
+			expect(mocks.lastFilters).toEqual({ type: "cash_game" });
+			expect(
+				"display" in (result.current.filters as Record<string, unknown>)
+			).toBe(false);
+		});
+
+		it("turns BB/BI off for a currency default preset", async () => {
+			mocks.isPresetsLoading = true;
+			const { result, rerender } = renderHook(() => useSessionsPage());
+			act(() => {
+				result.current.setBbBiMode(true);
+			});
+
+			mocks.isPresetsLoading = false;
+			mocks.presets = [
+				{ id: "p1", isDefault: true, payload: { display: "currency" } },
+			];
+			rerender();
+
+			await waitFor(() => expect(result.current.bbBiMode).toBe(false));
+		});
+
+		it("leaves BB/BI on when the default preset predates the display field", async () => {
+			mocks.isPresetsLoading = true;
+			const { result, rerender } = renderHook(() => useSessionsPage());
+			act(() => {
+				result.current.setBbBiMode(true);
+			});
+
+			mocks.isPresetsLoading = false;
+			mocks.presets = [
+				{ id: "p1", isDefault: true, payload: { type: "tournament" } },
+			];
+			rerender();
+
+			await waitFor(() => {
+				expect(result.current.filters).toEqual({ type: "tournament" });
+			});
+			expect(result.current.bbBiMode).toBe(true);
+		});
+
+		it("leaves BB/BI off when the default preset predates the display field", async () => {
+			mocks.presets = [
+				{ id: "p1", isDefault: true, payload: { type: "tournament" } },
+			];
+			const { result } = renderHook(() => useSessionsPage());
+			await waitFor(() => {
+				expect(result.current.filters).toEqual({ type: "tournament" });
+			});
+			expect(result.current.bbBiMode).toBe(false);
+		});
+
+		it("applies both halves when applyDefault is invoked directly", async () => {
+			mocks.presets = [];
+			const { result } = renderHook(() => useSessionsPage());
+			await act(async () => {
+				await Promise.resolve();
+			});
+			act(() => {
+				mocks.lastApplyDefault?.({
+					period: "30d",
+					roomId: "r1",
+					display: "normalized",
+				});
+			});
+			expect(result.current.filters).toEqual({ period: "30d", roomId: "r1" });
+			expect(result.current.bbBiMode).toBe(true);
 		});
 	});
 
@@ -345,6 +558,26 @@ describe("useSessionsPage", () => {
 				await Promise.resolve();
 			});
 			expect(result.current.filters).toEqual({ roomId: "r1" });
+		});
+
+		it("still applies the default preset when the user only cleared a chip before presets loaded", async () => {
+			mocks.isPresetsLoading = true;
+			mocks.presets = [];
+			const { result, rerender } = renderHook(() => useSessionsPage());
+			// "All" in the Type sheet — no filter is actually active.
+			act(() => {
+				result.current.setFilters({ type: undefined });
+			});
+
+			mocks.isPresetsLoading = false;
+			mocks.presets = [
+				{ id: "p1", isDefault: true, payload: { roomId: "r1" } },
+			];
+			rerender();
+
+			await waitFor(() => {
+				expect(result.current.filters).toEqual({ roomId: "r1" });
+			});
 		});
 
 		it("waits for the presets query to finish loading before applying the default", async () => {

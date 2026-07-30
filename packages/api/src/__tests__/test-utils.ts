@@ -1,4 +1,4 @@
-import { Column, getTableName, is, SQL } from "drizzle-orm";
+import { Column, getTableName, is, Param, SQL, StringChunk } from "drizzle-orm";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { expect, vi } from "vitest";
 
@@ -87,6 +87,18 @@ export function expectType(
 type MockRow = Record<string, unknown>;
 
 interface ChainableMockDbConfig {
+	/**
+	 * Opt in to real WHERE semantics: `where(cond)` filters the configured rows
+	 * through `cond` and `limit(n)` truncates them, so a procedure that pushes
+	 * its whole predicate into SQL (rather than re-filtering rows in JS) can be
+	 * exercised — see filter-preset.ts's `assertNameAvailable`.
+	 *
+	 * Only `and` / `or` / `eq` / `ne` are understood; any other operator throws
+	 * rather than silently matching, so an enabled mock can never quietly
+	 * report a filter the query does not really apply. Off by default because
+	 * fixtures written before this option assume `where(...)` is a no-op.
+	 */
+	evaluateWhere?: boolean;
 	/** Rows returned by `select().from(table)…` keyed by the SQL table name. */
 	select?: Record<string, MockRow[]>;
 }
@@ -142,6 +154,75 @@ function applyProjection(
 	return [{ [outKey]: values.length > 0 ? Math.max(...values) : null }];
 }
 
+function sqlChunks(node: unknown): unknown[] {
+	return (node as { queryChunks?: unknown[] }).queryChunks ?? [];
+}
+
+/** The operator/keyword text of a condition's own (non-nested) string chunks. */
+function chunkText(chunks: unknown[]): string {
+	return chunks
+		.filter((chunk) => chunk instanceof StringChunk)
+		.map((chunk) => (chunk as unknown as { value: string[] }).value.join(""))
+		.join("")
+		.trim();
+}
+
+/** Evaluates `eq(col, value)` / `ne(col, value)` against one row. */
+function leafMatches(chunks: unknown[], row: MockRow): boolean {
+	const column = chunks.find((chunk) => is(chunk, Column)) as
+		| Column
+		| undefined;
+	const param = chunks.find((chunk) => is(chunk, Param)) as
+		| { value: unknown }
+		| undefined;
+	const operator = chunkText(chunks);
+	if (!(column && param)) {
+		throw new Error(
+			`evaluateWhere: unsupported condition "${operator}" (expected a column/value comparison)`
+		);
+	}
+	const key = columnJsKey(column);
+	if (!key) {
+		throw new Error(
+			`evaluateWhere: cannot resolve a JS key for ${column.name}`
+		);
+	}
+	if (operator === "=") {
+		return row[key] === param.value;
+	}
+	if (operator === "<>") {
+		return row[key] !== param.value;
+	}
+	throw new Error(`evaluateWhere: unsupported operator "${operator}"`);
+}
+
+/**
+ * Evaluates a drizzle condition against one row. `and(...)` / `or(...)` nest
+ * their operands as inner `SQL` chunks joined by an " and " / " or " string
+ * chunk, so a condition that contains nested SQL is a combination and any
+ * other condition is a leaf comparison.
+ */
+function conditionMatches(condition: unknown, row: MockRow): boolean {
+	if (!is(condition, SQL)) {
+		throw new Error("evaluateWhere: condition is not a drizzle SQL expression");
+	}
+	const chunks = sqlChunks(condition);
+	const operands = chunks.filter((chunk) => is(chunk, SQL));
+	if (operands.length === 0) {
+		return leafMatches(chunks, row);
+	}
+	const keyword = chunkText(chunks).replaceAll("(", "").replaceAll(")", "");
+	if (keyword.includes("or")) {
+		if (keyword.includes("and")) {
+			throw new Error("evaluateWhere: mixed and/or conditions are unsupported");
+		}
+		return operands.some((operand) => conditionMatches(operand, row));
+	}
+	// A single-operand wrapper (`and()` with one surviving operand, or the
+	// `sql.join` node inside a multi-operand `and`) has no keyword of its own.
+	return operands.every((operand) => conditionMatches(operand, row));
+}
+
 /**
  * A minimal chainable Drizzle-style mock `db` for exercising router
  * procedures / helpers end-to-end without a real database.
@@ -150,32 +231,45 @@ function applyProjection(
  * to the rows configured for the table passed to `.from(table)` (matched via
  * `getTableName`), narrowed/aggregated through `projection` when one is
  * given; `insert(table).values(rows)` records the inserted payload. It
- * tracks which tables were read (`selectedTables`) and the bound params of
+ * tracks which tables were read (`selectedTables`), every `limit(...)` argument
+ * (`selectLimits`), and the bound params of
  * every join and `where(...)` call on select/update/delete (`selectJoinParams`,
  * `selectWhereParams` / `updateWhereParams` / `deleteWhereParams`) so ownership scoping can be
  * asserted (SA2-176, SA2-183), and which tables were written (`inserted`).
  */
 export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 	const selectRows = config.select ?? {};
+	const evaluateWhere = config.evaluateWhere ?? false;
 	const inserted: Record<string, unknown[]> = {};
 	const updated: Record<string, unknown[]> = {};
 	const selectedTables: string[] = [];
 	const selectWhereParams: unknown[][] = [];
 	const selectJoinParams: unknown[][] = [];
+	const selectLimits: unknown[] = [];
 	const updateWhereParams: unknown[][] = [];
 	const deleteWhereParams: unknown[][] = [];
 
 	// The chain is a real Promise (so `await`-ing any step resolves the rows
 	// natively) with Drizzle's builder methods attached. Non-terminal steps
-	// (`where` / `limit` / `orderBy` / joins) return the same promise.
+	// (`where` / `limit` / `orderBy` / joins) return a chain again — a fresh one
+	// when `evaluateWhere` narrowed the rows, otherwise the same promise.
 	function makeSelectChain(rows: MockRow[]) {
 		const chain = Promise.resolve(rows) as Promise<MockRow[]> &
 			Record<string, (...args: unknown[]) => unknown>;
 		chain.where = (cond: unknown) => {
 			selectWhereParams.push(boundParams(cond));
-			return chain;
+			if (!evaluateWhere) {
+				return chain;
+			}
+			return makeSelectChain(rows.filter((row) => conditionMatches(cond, row)));
 		};
-		chain.limit = () => chain;
+		chain.limit = (value: unknown) => {
+			selectLimits.push(value);
+			if (!(evaluateWhere && typeof value === "number")) {
+				return chain;
+			}
+			return makeSelectChain(rows.slice(0, value));
+		};
 		chain.orderBy = () => chain;
 		chain.leftJoin = (_table: unknown, cond: unknown) => {
 			selectJoinParams.push(boundParams(cond));
@@ -241,6 +335,7 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 	return {
 		db: { select, insert, delete: del, update, batch } as never,
 		selectJoinParams,
+		selectLimits,
 		selectWhereParams,
 		updateWhereParams,
 		deleteWhereParams,

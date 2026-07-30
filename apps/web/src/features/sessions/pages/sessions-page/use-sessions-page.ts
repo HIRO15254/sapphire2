@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import type { SessionsFilterPresetPayload } from "@sapphire2/db/schemas/filter-preset";
+import { useState } from "react";
 import {
 	useEntityLists,
 	useRoomGames,
@@ -6,7 +7,8 @@ import {
 import type { SessionFormValues } from "@/features/sessions/hooks/use-sessions";
 import { useSessions } from "@/features/sessions/hooks/use-sessions";
 import type { SessionFilterValues } from "@/features/sessions/utils/session-filters-helpers";
-import { useFilterPresets } from "@/shared/hooks/use-filter-presets";
+import { splitSessionsPresetPayload } from "@/features/sessions/utils/session-filters-helpers";
+import { useDefaultFilterPreset } from "@/shared/hooks/use-default-filter-preset";
 
 /**
  * Page hook for the v2 sessions list. Owns the filter state, the create sheet
@@ -38,39 +40,28 @@ export function useSessionsPage() {
 	const { rooms, currencies } = useEntityLists();
 	const createGames = useRoomGames(selectedRoomId);
 
-	const {
-		presets,
-		defaultPreset,
-		isLoading: isPresetsLoading,
-		isCreatePending: isPresetCreatePending,
-		isDeletePending: isPresetDeletePending,
-		isSetDefaultPending: isPresetSetDefaultPending,
-		create: createPreset,
-		remove: removePreset,
-		setDefault: setDefaultPreset,
-		clearDefault: clearDefaultPreset,
-	} = useFilterPresets("sessions");
+	// "Untouched" has to mean "no field holds a real value", not "the object has
+	// no keys": the filter bar's `patch` helper spreads `{ ...filters, ...next }`
+	// and several of its handlers deliberately write `undefined` (Type → "All",
+	// Room / Currency → cleared), so those keys linger forever. Counting keys
+	// made a single cleared chip look like an active filter and silently
+	// suppressed the default preset (review finding 1).
+	const isUntouched = !Object.values(filters).some((v) => v !== undefined);
 
-	// Auto-apply the screen's default preset on first load, but only if the
-	// user hasn't already touched a filter (e.g. via a deep link or a fast
-	// click before the presets query resolves). The ref guard makes this a
-	// one-shot attempt: once it has run, later changes to `presets` or
-	// `filters` never trigger a second auto-apply.
-	const hasAttemptedDefaultPresetRef = useRef(false);
-
-	useEffect(() => {
-		if (hasAttemptedDefaultPresetRef.current || isPresetsLoading) {
-			return;
+	useDefaultFilterPreset<SessionsFilterPresetPayload>(
+		"sessions",
+		isUntouched,
+		(payload) => {
+			const { display, filters: presetFilters } =
+				splitSessionsPresetPayload(payload);
+			setFilters(presetFilters);
+			// Absent `display` = a preset saved before the field existed; keep the
+			// current view instead of forcing it back to currency.
+			if (display !== undefined) {
+				setBbBiMode(display === "normalized");
+			}
 		}
-		hasAttemptedDefaultPresetRef.current = true;
-		if (Object.keys(filters).length > 0) {
-			return;
-		}
-		const defaultPresetEntry = presets.find((p) => p.isDefault);
-		if (defaultPresetEntry) {
-			setFilters(defaultPresetEntry.payload as SessionFilterValues);
-		}
-	}, [isPresetsLoading, presets, filters, setFilters]);
+	);
 
 	const handleCreate = (values: SessionFormValues) => {
 		create(values).then(() => {
@@ -110,15 +101,5 @@ export function useSessionsPage() {
 		handleCreate,
 		handleCreateOpenChange,
 		createTag,
-		presets,
-		defaultPreset,
-		isPresetsLoading,
-		isPresetCreatePending,
-		isPresetDeletePending,
-		isPresetSetDefaultPending,
-		createPreset,
-		removePreset,
-		setDefaultPreset,
-		clearDefaultPreset,
 	};
 }

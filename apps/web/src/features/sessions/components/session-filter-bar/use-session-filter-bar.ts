@@ -1,7 +1,12 @@
+import type { SessionsFilterPresetPayload } from "@sapphire2/db/schemas/filter-preset";
 import { useState } from "react";
 import type {
 	SessionFilterValues,
 	SessionPeriod,
+} from "@/features/sessions/utils/session-filters-helpers";
+import {
+	buildSessionsPresetPayload,
+	splitSessionsPresetPayload,
 } from "@/features/sessions/utils/session-filters-helpers";
 import { dateInputToEpochSec } from "@/shared/lib/period-filter";
 
@@ -63,6 +68,9 @@ export function useSessionFilterBar({
 		currencies,
 		currentRoomName,
 		currentCurrencyName,
+		// What the presets sheet saves: the live filters plus the Display mode,
+		// which lives outside `SessionFilterValues`.
+		currentPresetPayload: buildSessionsPresetPayload(filters, bbBiMode),
 		onPeriodChange: (value: string) => {
 			if (!value) {
 				return;
@@ -95,6 +103,20 @@ export function useSessionFilterBar({
 		onDisplayChange: (value: string) => {
 			onBbBiModeChange(value === "normalized");
 			closeSheet();
+		},
+		/**
+		 * Applying a saved preset replaces the filters wholesale (no `patch`
+		 * merge — a preset describes a complete filter state) and restores the
+		 * Display mode it was saved with. A preset written before `display`
+		 * existed leaves the current view untouched.
+		 */
+		onApplyPreset: (payload: SessionsFilterPresetPayload) => {
+			const { display, filters: presetFilters } =
+				splitSessionsPresetPayload(payload);
+			onFiltersChange(presetFilters);
+			if (display !== undefined) {
+				onBbBiModeChange(display === "normalized");
+			}
 		},
 	};
 }

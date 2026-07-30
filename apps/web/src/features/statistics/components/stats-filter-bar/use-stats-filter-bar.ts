@@ -148,8 +148,10 @@ export function useStatsFilterBar(): UseStatsFilterBarResult {
 			// union, so a straight structural assignment doesn't type-check. Safe
 			// to assert: presets saved from this screen only ever carry values
 			// drawn from `PERIODS` / `STATS_NORMALIZATIONS` / `STATS_TYPES` in the
-			// first place, and `replaceFilters` re-validates via
-			// `statsSearchSchema.parse` regardless of what TS narrows here.
+			// first place, and `replaceFilters` re-validates with
+			// `statsSearchSchema.safeParse` regardless of what TS narrows here —
+			// a payload this build no longer understands leaves the current
+			// filters untouched instead of throwing.
 			replaceFilters(payload as Partial<StatsFilters>);
 		},
 	};

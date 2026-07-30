@@ -53,8 +53,19 @@ export function useStatsFilters(): UseStatsFiltersResult {
 	const replaceFilters = (payload: Partial<StatsFilters>) => {
 		// Re-parse through the schema so any field the caller's payload omits
 		// (rather than being copied from `prev`) resolves to its own default.
-		const nextFilters = statsSearchSchema.parse(payload);
-		navigate({ search: () => nextFilters });
+		//
+		// safeParse, not parse: the payload can come from a SAVED filter preset,
+		// whose stored vocabulary is looser than this schema's (packages/db
+		// validates `period` as a bounded string because it can't import apps/web's
+		// PERIODS — see schemas/filter-preset.ts). A preset holding a period this
+		// build no longer knows must degrade to "keep the current filters", not
+		// throw — replaceFilters runs inside the default-preset auto-apply effect
+		// during mount, where a throw would take the whole page down.
+		const parsed = statsSearchSchema.safeParse(payload);
+		if (!parsed.success) {
+			return;
+		}
+		navigate({ search: () => parsed.data });
 	};
 
 	return {
