@@ -28,6 +28,7 @@ Hero detection:
 
 Extraction rules:
 - Include only seats whose names are readable in the \`seats\` array.
+- A seat with nobody seated displays only its seat number and no player name. Treat those as empty seats.
 - Omit empty seats and seats whose names are unclear.
 - Return only the player name; strip surrounding symbols, decorations, and stack / chip count displays.
 - Player names may be in Japanese (hiragana, katakana, kanji), English, or a mix. Preserve the exact characters as shown, do not translate or romanize.`,
