@@ -31,7 +31,7 @@ Models API を引いて日付順で最新を選ぶ方式は採らない。モデ
 
 ## モデルを上げるときのチェックリスト
 
-1. `shared/model-migration.md` 相当の移行情報で、対象モデルの破壊的変更を確認する（`/claude-api migrate` が使える）。
+1. 対象モデルの破壊的変更を確認する。Claude Code なら `/claude-api migrate`、それ以外は公式の移行ガイド <https://platform.claude.com/docs/en/about-claude/models/migration-guide> を読む。
 2. `thinking` / `effort` / サンプリングパラメータの扱いが変わっていないか、既存の呼び出しを確認する。
 3. `max_tokens` に thinking の余地があるか確認する。
 4. プロンプトの挙動変化（冗長さ、ツール呼び出し頻度）を実機で確認する。プロンプト文言はテストで固定しない（実装詳細なので、調整のたびにテストを直す手間だけが残る）。

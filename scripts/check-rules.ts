@@ -87,10 +87,20 @@ const CHECKS: Check[] = [
 		excludePath: /__tests__|\.test\./,
 	},
 	{
+		// クォート付きの `claude-*` リテラルを丸ごと禁止する。世代名の列挙だと
+		// 旧形式（claude-3-5-sonnet-20241022 のように claude- の直後が数字）を
+		// 取りこぼす。クォート必須なので .claude/rules/... のようなパス文字列や
+		// 散文中の claude-* には当たらない。ワークフロー YAML は対象外 —
+		// pre-merge-review.yml の `--model opus` は可動エイリアスで、
+		// 常に最新 Opus を指すため固定 ID の管理対象ではない。
 		name: "inline Claude model id — import it from packages/api/src/ai/models.ts",
 		rule: ".claude/rules/ai-models.md",
-		globs: ["apps/**/*.{ts,tsx}", "packages/**/*.{ts,tsx}"],
-		pattern: /claude-(fable|mythos|opus|sonnet|haiku)-/,
+		globs: [
+			"apps/**/*.{ts,tsx}",
+			"packages/**/*.{ts,tsx}",
+			"scripts/**/*.{ts,tsx}",
+		],
+		pattern: /["'`]claude-[\dA-Za-z._-]+["'`]/,
 		excludePath: /packages\/api\/src\/ai\/models\.ts$/,
 	},
 	{
