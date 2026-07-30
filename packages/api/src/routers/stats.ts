@@ -126,6 +126,7 @@ interface RawStatsRow {
 	buyIn: number | null;
 	cashOut: number | null;
 	cashVariant: string | null;
+	chipRemoveTotal: number | null;
 	endedAt: Date | null;
 	entryFee: number | null;
 	evCashOut: number | null;
@@ -176,14 +177,15 @@ function mapStatsRow(
 	};
 
 	if (r.type === "cash_game") {
+		const chipRemoveTotal = r.chipRemoveTotal ?? 0;
 		const profitLoss =
 			r.buyIn === null || r.cashOut === null
 				? 0
-				: computeCashGamePL(r.buyIn, r.cashOut);
+				: computeCashGamePL(r.buyIn, r.cashOut, chipRemoveTotal);
 		const evProfitLoss =
 			r.evCashOut === null || r.buyIn === null
 				? null
-				: computeCashGamePL(r.buyIn, r.evCashOut);
+				: computeCashGamePL(r.buyIn, r.evCashOut, chipRemoveTotal);
 		const evDiff = evProfitLoss === null ? null : evProfitLoss - profitLoss;
 		return {
 			...base,
@@ -253,6 +255,7 @@ export async function fetchStatsRows(
 			buyIn: sessionCashDetail.buyIn,
 			cashOut: sessionCashDetail.cashOut,
 			evCashOut: sessionCashDetail.evCashOut,
+			chipRemoveTotal: sessionCashDetail.chipRemoveTotal,
 			blind1: sessionCashDetail.blind1,
 			blind2: sessionCashDetail.blind2,
 			cashVariant: sessionCashDetail.variant,

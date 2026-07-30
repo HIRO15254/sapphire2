@@ -6,6 +6,7 @@ import { appRouter } from "../routers";
 import {
 	assertNoLiveLinkedRestrictedEdits,
 	chunkForInsert,
+	computeCashGamePL,
 	computeTournamentPL,
 	encodeSessionCursor,
 	type ProfitLossSeriesRow,
@@ -25,6 +26,31 @@ const SESSION_DATE_RE = /sessionDate/;
 const PLACEMENT_RE = /placement/;
 const PRIZE_MONEY_RE = /prizeMoney/;
 const TOURNAMENT_ID_RE = /tournamentId/;
+
+describe("computeCashGamePL", () => {
+	it("returns cashOut - buyIn when no chips were removed early", () => {
+		expect(computeCashGamePL(500, 700)).toBe(200);
+	});
+
+	it("adds a positive chipRemoveTotal back into profit/loss (chip remove bug)", () => {
+		// Removing 100 in chips mid-session and cashing out 600 at the table
+		// nets the same 200 profit as never removing anything and cashing out
+		// 700 — the removed chips are already in the player's pocket.
+		expect(computeCashGamePL(500, 600, 100)).toBe(200);
+	});
+
+	it("defaults chipRemoveTotal to 0 when the third argument is omitted", () => {
+		expect(computeCashGamePL(500, 300)).toBe(computeCashGamePL(500, 300, 0));
+	});
+
+	it("handles a zero chipRemoveTotal explicitly the same as omitting it", () => {
+		expect(computeCashGamePL(500, 700, 0)).toBe(200);
+	});
+
+	it("computes a loss when cashOut + chipRemoveTotal is below buyIn", () => {
+		expect(computeCashGamePL(1000, 200, 50)).toBe(-750);
+	});
+});
 
 describe("chunkForInsert", () => {
 	it("keeps each chunk under D1's 100 bound-parameter cap for 9-column rows", () => {
@@ -578,6 +604,7 @@ describe("session router input validation", () => {
 				buyIn: null,
 				cashOut: null,
 				chipPurchaseCost: 0,
+				chipRemoveTotal: null,
 				endedAt: null,
 				entryFee: null,
 				evCashOut: null,
@@ -617,6 +644,58 @@ describe("session router input validation", () => {
 				})
 			);
 			expect(point.sessionDate).toBe(1_700_000_000);
+		});
+	});
+
+	describe("toProfitLossSeriesPoint cash game profitLoss includes chipRemoveTotal", () => {
+		function row(overrides: Partial<ProfitLossSeriesRow>): ProfitLossSeriesRow {
+			return {
+				bountyPrizes: null,
+				breakMinutes: null,
+				buyIn: null,
+				cashOut: null,
+				chipPurchaseCost: 0,
+				chipRemoveTotal: null,
+				endedAt: null,
+				entryFee: null,
+				evCashOut: null,
+				id: "s1",
+				prizeMoney: null,
+				ringGameBlind2: null,
+				sessionDate: new Date(1_700_000_000_000),
+				startedAt: null,
+				tournamentBuyIn: null,
+				type: "cash_game",
+				...overrides,
+			};
+		}
+
+		it("adds chipRemoveTotal on top of cashOut - buyIn", () => {
+			const point = toProfitLossSeriesPoint(
+				row({ buyIn: 500, cashOut: 700, chipRemoveTotal: 100 })
+			);
+			// 700 + 100 - 500, not the chip-remove-blind 700 - 500 = 200.
+			expect(point.profitLoss).toBe(300);
+		});
+
+		it("treats a null chipRemoveTotal (no chips_add_remove events, or a manual session) as 0", () => {
+			const point = toProfitLossSeriesPoint(
+				row({ buyIn: 500, cashOut: 700, chipRemoveTotal: null })
+			);
+			expect(point.profitLoss).toBe(200);
+		});
+
+		it("adds the same chipRemoveTotal into evProfitLoss so evDiff stays isolated to all-in equity", () => {
+			const point = toProfitLossSeriesPoint(
+				row({
+					buyIn: 500,
+					cashOut: 700,
+					evCashOut: 750,
+					chipRemoveTotal: 100,
+				})
+			);
+			expect(point.profitLoss).toBe(300);
+			expect(point.evProfitLoss).toBe(350);
 		});
 	});
 
@@ -1926,6 +2005,51 @@ describe("session.update cash variant / mixGames persistence invariant", () => {
 			{ sessionId: "session-1", sessionTagId: "tag-1" },
 			{ sessionId: "session-1", sessionTagId: "tag-2" },
 		]);
+	});
+
+	it("re-syncs currencyTransaction.amount with chipRemoveTotal included, not just cashOut - buyIn", async () => {
+		const { db, updated } = createChainableMockDb({
+			select: {
+				game_session: [
+					{
+						id: "session-1",
+						userId: "user-1",
+						kind: "cash_game",
+						source: "live",
+						currencyId: "currency-1",
+						sessionDate: new Date(1_700_000_000_000),
+					},
+				],
+				session_cash_detail: [
+					{
+						sessionId: "session-1",
+						variant: "NL Hold'em",
+						mixGames: null,
+						buyIn: 100,
+						cashOut: 200,
+						evCashOut: null,
+						// 50 in chips racked off the table mid-session — already in the
+						// player's pocket on top of the 200 they cashed out at the end.
+						chipRemoveTotal: 50,
+					},
+				],
+				session_tournament_detail: [],
+				session_chip_purchase: [],
+				game_mix: [],
+			},
+		});
+		const caller = appRouter.createCaller({
+			session: { user: { id: "user-1" } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
+
+		await caller.session.update({ id: "session-1", memo: "edited" });
+
+		// Editing a live-sourced session (e.g. its memo) must not regress the
+		// currency ledger back to the chip-remove-blind cashOut - buyIn (150,
+		// not 100): the true P/L is cashOut + chipRemoveTotal - buyIn = 150.
+		expect(updated.currency_transaction).toHaveLength(1);
+		expect(updated.currency_transaction?.[0]).toMatchObject({ amount: 150 });
 	});
 });
 

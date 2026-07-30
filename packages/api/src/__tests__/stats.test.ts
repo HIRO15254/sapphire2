@@ -933,6 +933,49 @@ describe("fetchStatsRows variant mapping", () => {
 		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
 		expect(rows[0]?.variant).toBeNull();
 	});
+
+	it("adds chipRemoveTotal into a cash_game row's profitLoss and evProfitLoss (chip remove bug)", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [
+					rawRow({
+						id: "cash-3",
+						type: "cash_game",
+						buyIn: 500,
+						cashOut: 600,
+						evCashOut: 650,
+						chipRemoveTotal: 100,
+					}),
+				],
+			},
+		});
+
+		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
+		expect(rows).toHaveLength(1);
+		// 600 + 100 - 500, not the chip-remove-blind 600 - 500 = 100.
+		expect(rows[0]?.profitLoss).toBe(200);
+		expect(rows[0]?.evProfitLoss).toBe(250);
+		expect(rows[0]?.evDiff).toBe(50);
+	});
+
+	it("treats a null chipRemoveTotal as 0 for a cash_game row's profitLoss", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [
+					rawRow({
+						id: "cash-4",
+						type: "cash_game",
+						buyIn: 500,
+						cashOut: 600,
+						chipRemoveTotal: null,
+					}),
+				],
+			},
+		});
+
+		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
+		expect(rows[0]?.profitLoss).toBe(100);
+	});
 });
 
 describe("stats ownership scoping", () => {

@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "ac7582a8-635b-47a2-848b-3ee9f41840e7",
-  "prevId": "cb76cb8a-3848-412d-a1f4-6d27223b9fa9",
+  "id": "9071bc4e-30f0-438b-bbec-62ec8c3aa402",
+  "prevId": "ac7582a8-635b-47a2-848b-3ee9f41840e7",
   "tables": {
     "account": {
       "name": "account",
@@ -590,6 +590,106 @@
         "transaction_type_user_id_user_id_fk": {
           "name": "transaction_type_user_id_user_id_fk",
           "tableFrom": "transaction_type",
+          "tableTo": "user",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "filter_preset": {
+      "name": "filter_preset",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "screen_key": {
+          "name": "screen_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "payload": {
+          "name": "payload",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "is_default": {
+          "name": "is_default",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "filterPreset_userId_idx": {
+          "name": "filterPreset_userId_idx",
+          "columns": ["user_id"],
+          "isUnique": false
+        },
+        "filterPreset_userId_screenKey_idx": {
+          "name": "filterPreset_userId_screenKey_idx",
+          "columns": ["user_id", "screen_key"],
+          "isUnique": false
+        },
+        "filterPreset_userId_screenKey_name_idx": {
+          "name": "filterPreset_userId_screenKey_name_idx",
+          "columns": ["user_id", "screen_key", "name"],
+          "isUnique": true
+        },
+        "filterPreset_userId_screenKey_defaultUnique_idx": {
+          "name": "filterPreset_userId_screenKey_defaultUnique_idx",
+          "columns": ["user_id", "screen_key"],
+          "isUnique": true,
+          "where": "\"filter_preset\".\"is_default\" = 1"
+        }
+      },
+      "foreignKeys": {
+        "filter_preset_user_id_user_id_fk": {
+          "name": "filter_preset_user_id_user_id_fk",
+          "tableFrom": "filter_preset",
           "tableTo": "user",
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
