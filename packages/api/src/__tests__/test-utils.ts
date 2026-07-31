@@ -224,6 +224,29 @@ function conditionMatches(condition: unknown, row: MockRow): boolean {
 }
 
 /**
+ * Converts legacy test fixtures that express a mix composition as `games`
+ * into the normalized junction rows read by the API. Explicit junction
+ * fixtures win so tests can cover malformed, empty, or specially ordered data.
+ */
+export function withGameMixVariantFixtures(
+	select: Record<string, MockRow[]>
+): Record<string, MockRow[]> {
+	if ("game_mix_variant" in select) {
+		return select;
+	}
+	const memberships = (select.game_mix ?? []).flatMap((mix) => {
+		const games = Array.isArray(mix.games) ? mix.games : [];
+		return games.map((variantId, position) => ({
+			mixId: mix.id,
+			position,
+			userId: mix.userId,
+			variantId,
+		}));
+	});
+	return { ...select, game_mix_variant: memberships };
+}
+
+/**
  * A minimal chainable Drizzle-style mock `db` for exercising router
  * procedures / helpers end-to-end without a real database.
  *

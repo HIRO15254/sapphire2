@@ -18,7 +18,10 @@ import {
 	validateEntityOwnership,
 	validateTagsOwnership,
 } from "../routers/session";
-import { createChainableMockDb } from "./test-utils";
+import {
+	createChainableMockDb,
+	withGameMixVariantFixtures,
+} from "./test-utils";
 
 const DERIVED_FIELDS_RE = /Cannot edit fields derived from live session events/;
 const RING_CONFIG_RE = /variant|blind1|blind2/;
@@ -1788,7 +1791,7 @@ describe("session.create cash variant / mixGames persistence invariant", () => {
 
 	it("accepts a manually defined owned named mix", async () => {
 		const { db, inserted } = createChainableMockDb({
-			select: {
+			select: withGameMixVariantFixtures({
 				game_mix: [
 					{
 						id: "mix-1",
@@ -1819,7 +1822,7 @@ describe("session.create cash variant / mixGames persistence invariant", () => {
 						label: "Big Bet",
 					},
 				],
-			},
+			}),
 		});
 		const caller = appRouter.createCaller({
 			session: { user: { id: CALLER } },

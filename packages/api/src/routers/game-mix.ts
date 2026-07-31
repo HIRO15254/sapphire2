@@ -1,12 +1,19 @@
 import { DEFAULT_GAME_MIXES } from "@sapphire2/db/constants/game-variants";
-import { gameMix } from "@sapphire2/db/schema/game-mix";
+import { gameMix, gameMixVariant } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { MAX_MIX_GROUPS } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+import type { BatchStatement } from "../lib/batch";
+import { runBatch } from "../lib/batch";
 import { isLabelConflictError } from "../lib/db-errors";
+import {
+	chunkMembershipRows,
+	hydrateOwnedGameMixes,
+	listOwnedGameMixes,
+} from "../services/game-mix";
 import { seedDefaultGameData } from "../services/seed-game-data";
 import {
 	assertLabelNamespaceAvailable,
@@ -68,6 +75,19 @@ function assertNoDuplicateGames(ids: string[]): void {
 	}
 }
 
+function mixMembershipRows(
+	mixId: string,
+	userId: string,
+	games: string[]
+): (typeof gameMixVariant.$inferInsert)[] {
+	return games.map((variantId, position) => ({
+		mixId,
+		position,
+		userId,
+		variantId,
+	}));
+}
+
 /**
  * A mix built from variants spanning more than `MAX_MIX_GROUPS` distinct game
  * groups can never be turned into a session's `mixGames` (that array is
@@ -89,10 +109,7 @@ function assertGroupSpanWithinLimit(rows: { groupId: string }[]): void {
 export const gameMixRouter = router({
 	list: protectedProcedure.query(async ({ ctx }) => {
 		const userId = ctx.session.user.id;
-		const rows = await ctx.db
-			.select()
-			.from(gameMix)
-			.where(eq(gameMix.userId, userId));
+		const rows = await listOwnedGameMixes(ctx.db, userId);
 		if (rows.length > 0) {
 			return [...rows].sort(compareMixes);
 		}
@@ -102,10 +119,7 @@ export const gameMixRouter = router({
 		// table is empty (c32); seedDefaultGameData still re-checks all three
 		// tables itself (c09).
 		await seedDefaultGameData(ctx.db, userId);
-		const reseeded = await ctx.db
-			.select()
-			.from(gameMix)
-			.where(eq(gameMix.userId, userId));
+		const reseeded = await listOwnedGameMixes(ctx.db, userId);
 		return [...reseeded].sort(compareMixes);
 	}),
 
@@ -131,14 +145,34 @@ export const gameMixRouter = router({
 
 			const id = crypto.randomUUID();
 			try {
-				await ctx.db.insert(gameMix).values({
-					id,
-					userId,
-					builtinKey: null,
-					label: input.label,
-					games: input.games,
-					updatedAt: new Date(),
-				});
+				const statements: BatchStatement[] = [
+					ctx.db.insert(gameMix).values({
+						id,
+						userId,
+						builtinKey: null,
+						label: input.label,
+						games: [],
+						updatedAt: new Date(),
+					}),
+				];
+				const rows = mixMembershipRows(id, userId, input.games);
+				for (const chunk of chunkMembershipRows(rows)) {
+					statements.push(ctx.db.insert(gameMixVariant).values(chunk));
+				}
+				// Keep the pre-0049 Worker contract valid until the later contract
+				// migration. This statement runs last so 0049's compatibility trigger
+				// rebuilds the same rows from the mirror it just wrote. While that
+				// trigger exists the JSON column is the effective derivation source;
+				// the explicit junction writes above are what keeps this procedure
+				// correct once the contract migration drops the trigger, and both
+				// paths produce identical rows.
+				statements.push(
+					ctx.db
+						.update(gameMix)
+						.set({ games: input.games })
+						.where(and(eq(gameMix.id, id), eq(gameMix.userId, userId)))
+				);
+				await runBatch(ctx.db, statements);
 			} catch (error) {
 				// Backstop against the app-level check above racing a concurrent
 				// identical-label insert (c14, TOCTOU). The DB guard that fires is
@@ -157,8 +191,8 @@ export const gameMixRouter = router({
 			const [created] = await ctx.db
 				.select()
 				.from(gameMix)
-				.where(eq(gameMix.id, id));
-			return created;
+				.where(and(eq(gameMix.id, id), eq(gameMix.userId, userId)));
+			return created ? { ...created, games: input.games } : created;
 		}),
 
 	update: protectedProcedure
@@ -171,12 +205,7 @@ export const gameMixRouter = router({
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const found = await validateEntityOwnership(
-				ctx.db,
-				"gameMix",
-				input.id,
-				userId
-			);
+			await validateEntityOwnership(ctx.db, "gameMix", input.id, userId);
 
 			if (input.games !== undefined) {
 				assertNoDuplicateGames(input.games);
@@ -194,21 +223,43 @@ export const gameMixRouter = router({
 				});
 			}
 
-			const updateData: Partial<typeof found> = { updatedAt: new Date() };
+			const updateData: Partial<typeof gameMix.$inferInsert> = {
+				updatedAt: new Date(),
+			};
 			if (input.label !== undefined) {
 				updateData.label = input.label;
 			}
-			if (input.games !== undefined) {
-				updateData.games = input.games;
-			}
 
 			try {
-				await ctx.db
-					.update(gameMix)
-					.set(updateData)
-					// Bind both id AND user_id so a foreign id can never be updated via
-					// this procedure (write-IDOR, SA2-176).
-					.where(and(eq(gameMix.id, input.id), eq(gameMix.userId, userId)));
+				const statements: BatchStatement[] = [];
+				if (input.games !== undefined) {
+					statements.push(
+						ctx.db
+							.delete(gameMixVariant)
+							.where(
+								and(
+									eq(gameMixVariant.mixId, input.id),
+									eq(gameMixVariant.userId, userId)
+								)
+							)
+					);
+					const rows = mixMembershipRows(input.id, userId, input.games);
+					for (const chunk of chunkMembershipRows(rows)) {
+						statements.push(ctx.db.insert(gameMixVariant).values(chunk));
+					}
+					updateData.games = input.games;
+				}
+				// Update the compatibility mirror last. 0049's trigger then replaces
+				// the normalized rows written above with byte-identical ones, while
+				// old Workers can still write the legacy column during a rolling
+				// deployment or rollback (same expand-phase note as create()).
+				statements.push(
+					ctx.db
+						.update(gameMix)
+						.set(updateData)
+						.where(and(eq(gameMix.id, input.id), eq(gameMix.userId, userId)))
+				);
+				await runBatch(ctx.db, statements);
 			} catch (error) {
 				// Same label-collision backstop as create() above (c14) — matches
 				// both the unique index and the 0041 trigger abort message.
@@ -224,8 +275,15 @@ export const gameMixRouter = router({
 			const [updated] = await ctx.db
 				.select()
 				.from(gameMix)
-				.where(eq(gameMix.id, input.id));
-			return updated;
+				.where(and(eq(gameMix.id, input.id), eq(gameMix.userId, userId)));
+			if (!updated) {
+				return updated;
+			}
+			if (input.games !== undefined) {
+				return { ...updated, games: input.games };
+			}
+			const [hydrated] = await hydrateOwnedGameMixes(ctx.db, userId, [updated]);
+			return hydrated;
 		}),
 
 	delete: protectedProcedure
