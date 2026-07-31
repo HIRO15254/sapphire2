@@ -148,6 +148,27 @@ describe("useLiveLinkedSessionEdit", () => {
 		});
 	});
 
+	describe("requiredResultFields", () => {
+		it("requires both times of a completed live cash session", () => {
+			const { result } = renderEditHook();
+			expect([...result.current.requiredResultFields].sort()).toEqual([
+				"endTime",
+				"startTime",
+			]);
+		});
+
+		it("drops the end time while the session has not ended", () => {
+			setEvents([SESSION_START]);
+			const { result } = renderEditHook();
+			expect([...result.current.requiredResultFields]).toEqual(["startTime"]);
+		});
+
+		it("requires nothing for a manual session", () => {
+			const { result } = renderEditHook(false);
+			expect(result.current.requiredResultFields.size).toBe(0);
+		});
+	});
+
 	describe("day hints", () => {
 		it("are null when both times sit on the displayed day", () => {
 			const { result } = renderEditHook();
@@ -179,6 +200,29 @@ describe("useLiveLinkedSessionEdit", () => {
 		it("are null for a manual session", () => {
 			const { result } = renderEditHook(false);
 			expect(result.current.endDateHint).toBeNull();
+			expect(result.current.startDateHint).toBeNull();
+		});
+
+		// The form's date input is frozen at mount, so a `sessionDate` that moves
+		// while the sheet is open (an Events-side start-time edit can change its
+		// UTC day) must not silently retune the hints.
+		it("keep comparing against the date the sheet opened with", () => {
+			const { rerender, result } = renderHook(
+				(props: { displayedDate: string; isEditOpen: boolean }) =>
+					useLiveLinkedSessionEdit({
+						displayedDate: props.displayedDate,
+						isEditOpen: props.isEditOpen,
+						isLiveLinked: true,
+						sessionId: "s1",
+						sessionType: "cash_game",
+					}),
+				{ initialProps: { displayedDate: "2026-04-09", isEditOpen: true } }
+			);
+			expect(result.current.startDateHint).toBe("2026/04/10");
+			rerender({ displayedDate: "2026-04-10", isEditOpen: true });
+			expect(result.current.startDateHint).toBe("2026/04/10");
+			rerender({ displayedDate: "2026-04-10", isEditOpen: false });
+			rerender({ displayedDate: "2026-04-10", isEditOpen: true });
 			expect(result.current.startDateHint).toBeNull();
 		});
 	});

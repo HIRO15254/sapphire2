@@ -58,6 +58,7 @@ const PLACEMENT_REQUIRED = "Placement is required";
 const TOTAL_ENTRIES_REQUIRED = "Total entries is required";
 const PLACEMENT_RANGE = "Placement must be less than or equal to total entries";
 const PRIZE_MONEY_REQUIRED = "Prize money is required";
+const BOUNTY_PRIZES_REQUIRED = "Bounty prizes is required";
 
 // Never editable from the form: values aggregated over the whole event stream,
 // plus `sessionDate` — see the module comment on why a day cannot be moved.
@@ -74,6 +75,16 @@ const TOURNAMENT_LOCKED_FIELDS = [
 ];
 const START_BACKED_FIELDS = ["startTime"];
 const CASH_END_BACKED_FIELDS = ["cashOut", "endTime"];
+// Fields the form must not leave blank once their backing event exists: the
+// payload requires a value, so a blank is either an outright rejection or —
+// worse — a silent 0 (SA2-113). The shared schema marks them optional for
+// manual sessions, hence the separate set.
+const TOURNAMENT_END_REQUIRED_FIELDS = [
+	"bountyPrizes",
+	"placement",
+	"prizeMoney",
+	"totalEntries",
+];
 const TOURNAMENT_END_BACKED_FIELDS = [
 	"beforeDeadline",
 	"bountyPrizes",
@@ -201,6 +212,38 @@ export function liveLinkedDisabledResultFields({
  * opened), not against `current`: the Events section inside the same sheet can
  * have moved the event since, and an untouched form field must not undo that.
  */
+/**
+ * Result-step fields the edit form must mark (and validate) as required for a
+ * live session — the counterpart of {@link liveLinkedDisabledResultFields}.
+ * A field is required exactly when its backing event exists, so the two sets
+ * never overlap: whatever is disabled has no event to write to.
+ *
+ * Cash `cashOut` is absent because the shared schema already requires it.
+ */
+export function liveLinkedRequiredResultFields({
+	hasSessionEnd,
+	hasSessionStart,
+	type,
+}: {
+	hasSessionEnd: boolean;
+	hasSessionStart: boolean;
+	type: "cash_game" | "tournament";
+}): ReadonlySet<string> {
+	const required = new Set<string>();
+	if (hasSessionStart) {
+		required.add("startTime");
+	}
+	if (hasSessionEnd) {
+		required.add("endTime");
+		if (type === "tournament") {
+			for (const field of TOURNAMENT_END_REQUIRED_FIELDS) {
+				required.add(field);
+			}
+		}
+	}
+	return required;
+}
+
 function resolveLifecycleOccurredAt({
 	current,
 	errors,
@@ -263,7 +306,7 @@ function keepUnlessEdited<T>(formValue: T, seedValue: T, currentValue: T): T {
 
 interface TournamentResult {
 	beforeDeadline: boolean;
-	bountyPrizes: number;
+	bountyPrizes: number | undefined;
 	placement: number | undefined;
 	prizeMoney: number | undefined;
 	totalEntries: number | undefined;
@@ -292,12 +335,14 @@ function mergeTournamentResult({
 			isBeforeDeadline(seedPayload),
 			isBeforeDeadline(currentPayload)
 		),
+		// Compared as 0-normalized so an untouched blank on a bounty-less session
+		// is a no-op, but a *cleared* non-zero value stays `undefined` and is
+		// rejected below instead of silently saving 0 (SA2-113).
 		bountyPrizes:
-			keepUnlessEdited(
-				values.bountyPrizes ?? 0,
-				numberAt(seedPayload, "bountyPrizes") ?? 0,
-				numberAt(currentPayload, "bountyPrizes") ?? 0
-			) ?? 0,
+			(values.bountyPrizes ?? 0) ===
+			(numberAt(seedPayload, "bountyPrizes") ?? 0)
+				? (numberAt(currentPayload, "bountyPrizes") ?? 0)
+				: values.bountyPrizes,
 		placement: numeric("placement", values.placement),
 		prizeMoney: numeric("prizeMoney", values.prizeMoney),
 		totalEntries: numeric("totalEntries", values.totalEntries),
@@ -311,6 +356,10 @@ function buildTournamentEndPayload(
 	if (values.prizeMoney === undefined) {
 		// A blank must not be saved as 0 — that silently corrupts P/L (SA2-113).
 		errors.push(PRIZE_MONEY_REQUIRED);
+		return null;
+	}
+	if (values.bountyPrizes === undefined) {
+		errors.push(BOUNTY_PRIZES_REQUIRED);
 		return null;
 	}
 	const common = {

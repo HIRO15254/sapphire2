@@ -48,6 +48,7 @@ export function useSessionDetailPage(sessionId: string) {
 		disabledResultFields,
 		endDateHint,
 		isEventUpdatePending,
+		requiredResultFields,
 		startDateHint,
 		submitLiveEventEdits,
 	} = useLiveLinkedSessionEdit({
@@ -122,6 +123,7 @@ export function useSessionDetailPage(sessionId: string) {
 		isLiveLinked,
 		disabledResultFields,
 		endDateHint,
+		requiredResultFields,
 		startDateHint,
 		canReopen,
 		rooms,

@@ -965,3 +965,128 @@ describe("useSessionFormState — tournament variant scope", () => {
 		);
 	});
 });
+
+// A live-recorded session writes some result fields back to a single event, so
+// blanks there are rejected — while the shared schema keeps them optional for
+// manual sessions. `requiredFields` closes that gap: the mark and the validator
+// agree, and the error lands on the field instead of a submit-time toast
+// (web-forms.md #6).
+describe("useSessionFormState — live-linked required fields", () => {
+	function renderTournamentForm(requiredFields?: ReadonlySet<string>) {
+		const onSubmit = vi.fn();
+		const view = renderHook(
+			() => useSessionFormState({ onSubmit, requiredFields }),
+			{ wrapper: withQueryClient() }
+		);
+		act(() => {
+			view.result.current.setSessionType("tournament");
+		});
+		act(() => {
+			view.result.current.form.setFieldValue("tournamentBuyIn", "10000");
+		});
+		return { onSubmit, ...view };
+	}
+
+	function fieldError(
+		form: {
+			getFieldMeta: (
+				name: never
+			) => { errors?: { message?: string }[] } | undefined;
+		},
+		name: string
+	) {
+		return form.getFieldMeta(name as never)?.errors?.[0]?.message;
+	}
+
+	it("blocks the submit and marks the field when a required field is blank", async () => {
+		const { onSubmit, result } = renderTournamentForm(new Set(["prizeMoney"]));
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+		expect(fieldError(result.current.form, "prizeMoney")).toBe("Required");
+	});
+
+	it("keeps the field optional when no required set is given", async () => {
+		const { onSubmit, result } = renderTournamentForm();
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps the field optional when the required set is empty", async () => {
+		const { onSubmit, result } = renderTournamentForm(new Set());
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+	});
+
+	it("marks a blank start time as required", async () => {
+		const { onSubmit, result } = renderTournamentForm(new Set(["startTime"]));
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+		expect(fieldError(result.current.form, "startTime")).toBe("Required");
+	});
+
+	it("accepts a filled required field", async () => {
+		const { onSubmit, result } = renderTournamentForm(new Set(["prizeMoney"]));
+		act(() => {
+			result.current.form.setFieldValue("prizeMoney", "0");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+	});
+
+	it("reports a placement above the total entries on the placement field", async () => {
+		const { onSubmit, result } = renderTournamentForm(
+			new Set(["placement", "prizeMoney", "totalEntries"])
+		);
+		act(() => {
+			result.current.form.setFieldValue("prizeMoney", "0");
+			result.current.form.setFieldValue("placement", "51");
+			result.current.form.setFieldValue("totalEntries", "50");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+		expect(fieldError(result.current.form, "placement")).toBe(
+			"Placement must be less than or equal to total entries"
+		);
+	});
+
+	it("accepts a placement equal to the total entries", async () => {
+		const { onSubmit, result } = renderTournamentForm(
+			new Set(["placement", "prizeMoney", "totalEntries"])
+		);
+		act(() => {
+			result.current.form.setFieldValue("prizeMoney", "0");
+			result.current.form.setFieldValue("placement", "50");
+			result.current.form.setFieldValue("totalEntries", "50");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+	});
+
+	it("ignores the placement range once the session ended before registration close", async () => {
+		const { onSubmit, result } = renderTournamentForm(
+			new Set(["placement", "prizeMoney", "totalEntries"])
+		);
+		act(() => {
+			result.current.form.setFieldValue("prizeMoney", "0");
+			result.current.form.setFieldValue("beforeDeadline", true);
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+	});
+});

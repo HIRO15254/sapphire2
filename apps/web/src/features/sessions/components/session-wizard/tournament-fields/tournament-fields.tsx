@@ -53,6 +53,12 @@ interface TournamentResultFieldsProps {
 	disabledFields: ReadonlySet<string>;
 	form: AnyForm;
 	onChipPurchaseCountChange: (uid: string, count: number) => void;
+	/**
+	 * Field names to mark as required. A live session writes these back into its
+	 * `session_end` payload, which has no room for a blank — the shared schema
+	 * keeps them optional for manual sessions.
+	 */
+	requiredFields?: ReadonlySet<string>;
 }
 
 /**
@@ -154,6 +160,7 @@ export function TournamentResultFields({
 	chipPurchases,
 	chipPurchaseCounts,
 	onChipPurchaseCountChange,
+	requiredFields,
 }: TournamentResultFieldsProps) {
 	return (
 		<>
@@ -187,6 +194,7 @@ export function TournamentResultFields({
 										error={field.state.meta.errors[0]?.message}
 										htmlFor={field.name}
 										label="Placement"
+										required={requiredFields?.has("placement")}
 									>
 										<Input
 											disabled={disabledFields.has("placement")}
@@ -205,6 +213,7 @@ export function TournamentResultFields({
 										error={field.state.meta.errors[0]?.message}
 										htmlFor={field.name}
 										label="Total entries"
+										required={requiredFields?.has("totalEntries")}
 									>
 										<Input
 											disabled={disabledFields.has("totalEntries")}
@@ -228,6 +237,7 @@ export function TournamentResultFields({
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
 						label="Prize money"
+						required={requiredFields?.has("prizeMoney")}
 					>
 						<Input
 							disabled={disabledFields.has("prizeMoney")}
@@ -247,6 +257,7 @@ export function TournamentResultFields({
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
 						label="Bounty prizes"
+						required={requiredFields?.has("bountyPrizes")}
 					>
 						<Input
 							disabled={disabledFields.has("bountyPrizes")}

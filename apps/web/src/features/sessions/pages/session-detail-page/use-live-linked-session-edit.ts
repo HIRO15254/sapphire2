@@ -8,10 +8,12 @@ import {
 	type LiveLinkedEventEdit,
 	lifecycleDayHints,
 	liveLinkedDisabledResultFields,
+	liveLinkedRequiredResultFields,
 } from "@/features/sessions/utils/live-linked-edit";
 import type { SessionFormValues } from "@/features/sessions/utils/session-form-helpers";
 
 const NO_DISABLED_FIELDS: ReadonlySet<string> = new Set();
+const NO_REQUIRED_FIELDS: ReadonlySet<string> = new Set();
 
 /**
  * Live-linked half of the session edit sheet.
@@ -39,6 +41,13 @@ export function useLiveLinkedSessionEdit({
 	sessionType: "cash_game" | "tournament";
 }) {
 	// An empty id keeps the underlying query disabled for manual sessions.
+	//
+	// For a live session this subscribes from the moment the detail page renders,
+	// not when the sheet opens. That costs nothing: the page's Timeline card
+	// already renders `SessionEventsScene` with the same query key, so react-query
+	// serves both from one request — and having the events in hand means the
+	// result fields are editable the instant the sheet opens instead of sitting
+	// disabled for a round trip.
 	const { events, isUpdatePending, update } = useSessionEvents({
 		sessionId: isLiveLinked ? sessionId : "",
 		sessionType,
@@ -51,15 +60,24 @@ export function useLiveLinkedSessionEdit({
 	// whatever the user just changed in the Events section. `FormSheet` unmounts
 	// its content on close, so the form re-seeds exactly when this is cleared.
 	const seedEventsRef = useRef<SessionEvent[] | null>(null);
+	// The date input is seeded from `session.sessionDate` at the same moment and
+	// never reset either, so the day hints have to compare against the frozen
+	// value — an Events-side start-time edit can change the session's UTC
+	// calendar day while the form keeps showing the old one.
+	const seedDisplayedDateRef = useRef<string | null>(null);
 	useEffect(() => {
 		if (!isEditOpen) {
 			seedEventsRef.current = null;
+			seedDisplayedDateRef.current = null;
 			return;
 		}
 		if (seedEventsRef.current === null && events.length > 0) {
 			seedEventsRef.current = events;
 		}
-	}, [events, isEditOpen]);
+		if (seedDisplayedDateRef.current === null && displayedDate !== "") {
+			seedDisplayedDateRef.current = displayedDate;
+		}
+	}, [displayedDate, events, isEditOpen]);
 
 	const { sessionEnd, sessionStart } = findLifecycleEvents(events);
 	const disabledResultFields = isLiveLinked
@@ -108,13 +126,23 @@ export function useLiveLinkedSessionEdit({
 	// Non-null only when a lifecycle event sits on another calendar day than the
 	// one the form shows, so each time field can say which day it writes to.
 	const dayHints = isLiveLinked
-		? lifecycleDayHints({ displayedDate, events })
+		? lifecycleDayHints({
+				displayedDate: seedDisplayedDateRef.current ?? displayedDate,
+				events,
+			})
 		: { end: null, start: null };
 
 	return {
 		disabledResultFields,
 		endDateHint: dayHints.end,
 		isEventUpdatePending: isUpdatePending,
+		requiredResultFields: isLiveLinked
+			? liveLinkedRequiredResultFields({
+					hasSessionEnd: sessionEnd !== null,
+					hasSessionStart: sessionStart !== null,
+					type: sessionType,
+				})
+			: NO_REQUIRED_FIELDS,
 		startDateHint: dayHints.start,
 		submitLiveEventEdits,
 	};

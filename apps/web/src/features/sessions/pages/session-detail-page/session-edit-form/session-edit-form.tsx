@@ -49,6 +49,12 @@ interface SessionEditFormProps {
 	onCreateTag?: (name: string) => Promise<{ id: string; name: string }>;
 	onRoomChange?: (roomId: string | undefined) => void;
 	onSubmit: (values: SessionFormValues) => void;
+	/**
+	 * Result fields to mark and validate as required. For a live session these
+	 * are the fields written back to an existing event, where a blank is
+	 * rejected — the shared schema keeps them optional for manual sessions.
+	 */
+	requiredFields?: ReadonlySet<string>;
 	ringGames?: RingGameOption[];
 	rooms?: Array<{ id: string; name: string }>;
 	/** Same as {@link endDateHint}, for the Start time field. */
@@ -76,6 +82,7 @@ export function SessionEditForm({
 	onCreateTag,
 	onRoomChange,
 	onSubmit,
+	requiredFields,
 	ringGames,
 	rooms,
 	startDateHint,
@@ -86,6 +93,7 @@ export function SessionEditForm({
 		defaultValues,
 		onRoomChange,
 		onSubmit,
+		requiredFields,
 		ringGames,
 		tournaments,
 	});
@@ -130,6 +138,7 @@ export function SessionEditForm({
 					disabledFields={disabledFields}
 					endDateHint={endDateHint}
 					onCreateTag={onCreateTag}
+					requiredFields={requiredFields}
 					startDateHint={startDateHint}
 					state={state}
 					tags={tags}

@@ -6,6 +6,7 @@ export function DateTimeFields({
 	state,
 	disabledFields,
 	endDateHint,
+	requiredFields,
 	startDateHint,
 }: {
 	/** Field names to render read-only (live sessions lock a subset). */
@@ -17,6 +18,8 @@ export function DateTimeFields({
 	 * day when it actually lands on the next one.
 	 */
 	endDateHint?: string | null;
+	/** Field names to mark as required (live sessions require both times). */
+	requiredFields?: ReadonlySet<string>;
 	/** Same, for the start time (a live session's displayed date can lag it). */
 	startDateHint?: string | null;
 	state: UseSessionWizardReturn;
@@ -45,8 +48,10 @@ export function DateTimeFields({
 							description={
 								startDateHint ? `Starts ${startDateHint}` : undefined
 							}
+							error={field.state.meta.errors[0]?.message}
 							htmlFor={field.name}
 							label="Start time"
+							required={requiredFields?.has("startTime")}
 						>
 							<Input
 								disabled={disabledFields.has("startTime")}
@@ -63,8 +68,10 @@ export function DateTimeFields({
 					{(field) => (
 						<Field
 							description={endDateHint ? `Ends ${endDateHint}` : undefined}
+							error={field.state.meta.errors[0]?.message}
 							htmlFor={field.name}
 							label="End time"
+							required={requiredFields?.has("endTime")}
 						>
 							<Input
 								disabled={disabledFields.has("endTime")}

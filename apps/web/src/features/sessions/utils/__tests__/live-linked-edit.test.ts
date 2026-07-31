@@ -5,6 +5,7 @@ import {
 	findLifecycleEvents,
 	lifecycleDayHints,
 	liveLinkedDisabledResultFields,
+	liveLinkedRequiredResultFields,
 } from "@/features/sessions/utils/live-linked-edit";
 import type { SessionFormValues } from "@/features/sessions/utils/session-form-helpers";
 
@@ -296,6 +297,69 @@ describe("liveLinkedDisabledResultFields", () => {
 			"evCashOut",
 		]) {
 			expect(disabled.has(field)).toBe(true);
+		}
+	});
+});
+
+// Counterpart of the disabled set: a field the live session writes back to an
+// event must be filled in, even though the shared schema marks it optional for
+// manual sessions. Without this the form looks optional and only errors as a
+// toast on submit (web-forms.md #6).
+describe("liveLinkedRequiredResultFields", () => {
+	it("requires both times and the tournament result of a completed session", () => {
+		const required = liveLinkedRequiredResultFields({
+			type: "tournament",
+			hasSessionStart: true,
+			hasSessionEnd: true,
+		});
+		expect([...required].sort()).toEqual([
+			"bountyPrizes",
+			"endTime",
+			"placement",
+			"prizeMoney",
+			"startTime",
+			"totalEntries",
+		]);
+	});
+
+	it("requires only the start time of a cash session that has not ended", () => {
+		const required = liveLinkedRequiredResultFields({
+			type: "cash_game",
+			hasSessionStart: true,
+			hasSessionEnd: false,
+		});
+		expect([...required]).toEqual(["startTime"]);
+	});
+
+	it("requires the end time but no result fields for a completed cash session", () => {
+		const required = liveLinkedRequiredResultFields({
+			type: "cash_game",
+			hasSessionStart: true,
+			hasSessionEnd: true,
+		});
+		expect([...required].sort()).toEqual(["endTime", "startTime"]);
+	});
+
+	it("requires nothing while no lifecycle event is loaded", () => {
+		const required = liveLinkedRequiredResultFields({
+			type: "tournament",
+			hasSessionStart: false,
+			hasSessionEnd: false,
+		});
+		expect(required.size).toBe(0);
+	});
+
+	it("never marks a disabled field as required", () => {
+		for (const type of ["cash_game", "tournament"] as const) {
+			for (const hasSessionStart of [true, false]) {
+				for (const hasSessionEnd of [true, false]) {
+					const args = { type, hasSessionStart, hasSessionEnd };
+					const disabled = liveLinkedDisabledResultFields(args);
+					for (const field of liveLinkedRequiredResultFields(args)) {
+						expect(disabled.has(field)).toBe(false);
+					}
+				}
+			}
 		}
 	});
 });
@@ -771,11 +835,86 @@ describe("buildLiveLinkedEventEdits — tournament", () => {
 		]);
 	});
 
-	it("treats a blank bounty prize as zero", () => {
+	it("leaves a blank bounty prize alone when the event has none either", () => {
 		const result = buildLiveLinkedEventEdits({
 			values: { ...TOURNAMENT_VALUES, bountyPrizes: undefined },
 			events: TOURNAMENT_EVENTS,
 		});
+		expect(result.errors).toEqual([]);
+		expect(result.edits).toEqual([]);
+	});
+
+	// SA2-113: a cleared money field must never be saved as 0 — the P/L would
+	// silently drop by the amount. `prizeMoney` already refuses; so does this.
+	it("rejects a cleared bounty prize instead of writing zero", () => {
+		const events = [
+			TOURNAMENT_START,
+			TOURNAMENT_STACK,
+			event("t-end", "session_end", localIso(2026, 4, 10, 23, 0), {
+				beforeDeadline: false,
+				placement: 3,
+				totalEntries: 50,
+				prizeMoney: 20_000,
+				bountyPrizes: 5000,
+			}),
+		];
+		const result = buildLiveLinkedEventEdits({
+			values: { ...TOURNAMENT_VALUES, bountyPrizes: undefined },
+			events,
+		});
+		expect(result.edits).toEqual([]);
+		expect(result.errors).toEqual(["Bounty prizes is required"]);
+	});
+
+	it("accepts an explicit zero bounty prize", () => {
+		const events = [
+			TOURNAMENT_START,
+			TOURNAMENT_STACK,
+			event("t-end", "session_end", localIso(2026, 4, 10, 23, 0), {
+				beforeDeadline: false,
+				placement: 3,
+				totalEntries: 50,
+				prizeMoney: 20_000,
+				bountyPrizes: 5000,
+			}),
+		];
+		const result = buildLiveLinkedEventEdits({
+			values: { ...TOURNAMENT_VALUES, bountyPrizes: 0 },
+			events,
+		});
+		expect(result.errors).toEqual([]);
+		expect(result.edits).toEqual([
+			{
+				id: "t-end",
+				payload: {
+					beforeDeadline: false,
+					placement: 3,
+					totalEntries: 50,
+					prizeMoney: 20_000,
+					bountyPrizes: 0,
+				},
+			},
+		]);
+	});
+
+	it("keeps an Events-side bounty change when the form left the field alone", () => {
+		const events = [
+			TOURNAMENT_START,
+			TOURNAMENT_STACK,
+			event("t-end", "session_end", localIso(2026, 4, 10, 23, 0), {
+				beforeDeadline: false,
+				placement: 3,
+				totalEntries: 50,
+				prizeMoney: 20_000,
+				bountyPrizes: 5000,
+			}),
+		];
+		const result = buildLiveLinkedEventEdits({
+			values: TOURNAMENT_VALUES,
+			events,
+			seedEvents: TOURNAMENT_EVENTS,
+		});
+		expect(result.errors).toEqual([]);
 		expect(result.edits).toEqual([]);
 	});
 

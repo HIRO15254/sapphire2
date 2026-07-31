@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
 	submitLiveEventEdits: vi.fn(),
 	disabledResultFields: new Set<string>(),
 	endDateHint: null as string | null,
+	requiredResultFields: new Set<string>(),
 	startDateHint: null as string | null,
 	isEventUpdatePending: false,
 	lastLiveEditArgs: null as {
@@ -63,6 +64,7 @@ vi.mock(
 			return {
 				disabledResultFields: mocks.disabledResultFields,
 				endDateHint: mocks.endDateHint,
+				requiredResultFields: mocks.requiredResultFields,
 				startDateHint: mocks.startDateHint,
 				isEventUpdatePending: mocks.isEventUpdatePending,
 				submitLiveEventEdits: mocks.submitLiveEventEdits,
@@ -129,6 +131,7 @@ describe("useSessionDetailPage", () => {
 		mocks.submitLiveEventEdits.mockReset().mockResolvedValue(true);
 		mocks.disabledResultFields = new Set<string>();
 		mocks.endDateHint = null;
+		mocks.requiredResultFields = new Set<string>();
 		mocks.startDateHint = null;
 		mocks.isEventUpdatePending = false;
 		mocks.lastLiveEditArgs = null;
@@ -356,6 +359,13 @@ describe("useSessionDetailPage", () => {
 			mocks.endDateHint = "2026/04/11";
 			const { result } = renderHook(() => useSessionDetailPage("s2"));
 			expect(result.current.endDateHint).toBe("2026/04/11");
+		});
+
+		it("exposes the required result fields from the event-sync hook", () => {
+			mocks.session = liveCash;
+			mocks.requiredResultFields = new Set(["startTime"]);
+			const { result } = renderHook(() => useSessionDetailPage("s2"));
+			expect(result.current.requiredResultFields.has("startTime")).toBe(true);
 		});
 
 		it("exposes the disabled result fields from the event-sync hook", () => {

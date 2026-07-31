@@ -50,6 +50,7 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 		isLiveLinked,
 		disabledResultFields,
 		endDateHint,
+		requiredResultFields,
 		startDateHint,
 		canReopen,
 		rooms,
@@ -216,6 +217,7 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 					onCreateTag={createTag}
 					onRoomChange={setEditRoomId}
 					onSubmit={handleEdit}
+					requiredFields={requiredResultFields}
 					ringGames={editGames.ringGames}
 					rooms={rooms}
 					startDateHint={startDateHint}

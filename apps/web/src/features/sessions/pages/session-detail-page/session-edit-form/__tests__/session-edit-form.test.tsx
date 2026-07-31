@@ -61,6 +61,8 @@ const CASH_OUT_LABEL = /^Cash-out/;
 const SESSION_DATE_LABEL = /^Session date/;
 const BANNER_SYNC_COPY = /sync back to the event history/;
 const END_DAY_HINT = /^Ends /;
+const START_TIME_LABEL = /^Start time/;
+const END_TIME_LABEL = /^End time/;
 
 const CASH_DEFAULTS: SessionFormDefaults = {
 	type: "cash_game",
@@ -200,6 +202,21 @@ describe("SessionEditForm", () => {
 		it("shows the end event's day when the session crossed midnight", () => {
 			renderForm({ isLiveLinked: true, endDateHint: "2026/04/11" });
 			expect(screen.getByText("Ends 2026/04/11")).toBeInTheDocument();
+		});
+
+		it("marks the live-required fields with an asterisk", () => {
+			renderForm({
+				isLiveLinked: true,
+				requiredFields: new Set(["startTime", "endTime"]),
+			});
+			expect(screen.getByText(START_TIME_LABEL).textContent).toContain("*");
+			expect(screen.getByText(END_TIME_LABEL).textContent).toContain("*");
+		});
+
+		it("leaves the time fields unmarked when nothing is required", () => {
+			renderForm({ isLiveLinked: true });
+			expect(screen.getByText(START_TIME_LABEL).textContent).not.toContain("*");
+			expect(screen.getByText(END_TIME_LABEL).textContent).not.toContain("*");
 		});
 
 		it("shows the start event's day when the displayed date lags the times", () => {
