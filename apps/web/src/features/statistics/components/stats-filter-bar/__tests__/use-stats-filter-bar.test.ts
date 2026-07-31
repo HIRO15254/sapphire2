@@ -1,3 +1,4 @@
+import { statisticsFilterPresetPayloadSchema } from "@sapphire2/db/schemas/filter-preset";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { StatsFilters } from "@/features/statistics/utils/stats-filters";
@@ -9,6 +10,7 @@ const mocks = vi.hoisted(() => ({
 		type: "all",
 	} as StatsFilters,
 	setFilters: vi.fn(),
+	replaceFilters: vi.fn(),
 	isScopeValid: true,
 	currencies: [
 		{ id: "c1", name: "USD", unit: "$" },
@@ -25,9 +27,11 @@ vi.mock("@/features/statistics/hooks/use-stats-filters", () => ({
 	useStatsFilters: () => ({
 		filters: mocks.filters,
 		setFilters: mocks.setFilters,
+		replaceFilters: mocks.replaceFilters,
 		isScopeValid: mocks.isScopeValid,
 		normalized: mocks.filters.norm !== "off",
 		statsInput: {},
+		isFilterStateDefault: false,
 	}),
 }));
 
@@ -44,6 +48,7 @@ import { useStatsFilterBar } from "@/features/statistics/components/stats-filter
 describe("useStatsFilterBar", () => {
 	beforeEach(() => {
 		mocks.setFilters.mockReset();
+		mocks.replaceFilters.mockReset();
 		mocks.filters = { period: "all", norm: "off", type: "all" } as StatsFilters;
 		mocks.isScopeValid = true;
 		mocks.currencies = [
@@ -116,6 +121,25 @@ describe("useStatsFilterBar", () => {
 				result.current.openSheet("room");
 			});
 			expect(result.current.activeSheet).toBe("room");
+		});
+
+		it("openSheet sets the active sheet to presets, reusing the same state machine", () => {
+			const { result } = renderHook(() => useStatsFilterBar());
+			act(() => {
+				result.current.openSheet("presets");
+			});
+			expect(result.current.activeSheet).toBe("presets");
+		});
+
+		it("closeSheet clears the presets sheet just like any other sheet", () => {
+			const { result } = renderHook(() => useStatsFilterBar());
+			act(() => {
+				result.current.openSheet("presets");
+			});
+			act(() => {
+				result.current.closeSheet();
+			});
+			expect(result.current.activeSheet).toBeNull();
 		});
 
 		it("closeSheet clears the active sheet", () => {
@@ -442,6 +466,93 @@ describe("useStatsFilterBar", () => {
 		it("exposes the current filters", () => {
 			const { result } = renderHook(() => useStatsFilterBar());
 			expect(result.current.filters).toBe(mocks.filters);
+		});
+	});
+
+	describe("onApplyPreset", () => {
+		it("forwards the preset payload to replaceFilters (full replace, not setFilters' merge)", () => {
+			const { result } = renderHook(() => useStatsFilterBar());
+			act(() => {
+				result.current.onApplyPreset({ type: "tournament" });
+			});
+			expect(mocks.replaceFilters).toHaveBeenCalledTimes(1);
+			expect(mocks.replaceFilters).toHaveBeenCalledWith({
+				type: "tournament",
+			});
+			expect(mocks.setFilters).not.toHaveBeenCalled();
+		});
+
+		it("forwards an empty payload as-is (clears every filter back to defaults)", () => {
+			const { result } = renderHook(() => useStatsFilterBar());
+			act(() => {
+				result.current.onApplyPreset({});
+			});
+			expect(mocks.replaceFilters).toHaveBeenCalledTimes(1);
+			expect(mocks.replaceFilters).toHaveBeenCalledWith({});
+		});
+	});
+
+	// The payload handed to the presets sheet must always satisfy the STORED
+	// schema, which declares currency / room as `.min(1).optional()`. An empty
+	// string is reachable from a hand-edited `/statistics?room=` and every other
+	// consumer already reads it as "absent" (`filtersToStatsInput` does
+	// `filters.room || undefined`), so saving must not fail with a raw Zod error.
+	describe("currentPresetPayload", () => {
+		it("drops an empty-string currency and room instead of sending them", () => {
+			mocks.filters = {
+				period: "all",
+				norm: "normalized",
+				type: "all",
+				currency: "",
+				room: "",
+			};
+			const { result } = renderHook(() => useStatsFilterBar());
+
+			// Asserted as absent, not merely "not the empty string": a negative
+			// assertion would also pass for some other id, and `.min(1)` in the
+			// stored schema below would happily accept that too.
+			expect(result.current.currentPresetPayload.currency).toBeUndefined();
+			expect(result.current.currentPresetPayload.room).toBeUndefined();
+			expect(
+				statisticsFilterPresetPayloadSchema.safeParse(
+					result.current.currentPresetPayload
+				).success
+			).toBe(true);
+		});
+
+		it("keeps real currency and room ids", () => {
+			mocks.filters = {
+				period: "30d",
+				norm: "off",
+				type: "cash_game",
+				currency: "c1",
+				room: "r1",
+			};
+			const { result } = renderHook(() => useStatsFilterBar());
+
+			expect(result.current.currentPresetPayload).toMatchObject({
+				period: "30d",
+				norm: "off",
+				type: "cash_game",
+				currency: "c1",
+				room: "r1",
+			});
+			expect(
+				statisticsFilterPresetPayloadSchema.safeParse(
+					result.current.currentPresetPayload
+				).success
+			).toBe(true);
+		});
+
+		it("produces a payload the stored schema accepts for the plain default state", () => {
+			mocks.filters = { period: "all", norm: "normalized", type: "all" };
+			const { result } = renderHook(() => useStatsFilterBar());
+
+			expect(
+				statisticsFilterPresetPayloadSchema.safeParse(
+					result.current.currentPresetPayload
+				).success
+			).toBe(true);
 		});
 	});
 });

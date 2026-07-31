@@ -12,6 +12,7 @@
 - **tRPC v11** - エンドツーエンド型安全 API
 - **Drizzle ORM** + **Cloudflare D1** - データベース（SQLite）
 - **Better Auth** - 認証（メール/パスワード、Google/Discord OAuth）
+- **MCP サーバー** - AI エージェント向けのリモート MCP エンドポイント `/mcp`（Streamable HTTP + OAuth）— [docs/mcp.ja.md](docs/mcp.ja.md) 参照
 - **Bun** - パッケージマネージャー兼ランタイム
 - **Biome** (Ultracite) - リンティングとフォーマット
 - **Husky** - Git フック

@@ -276,6 +276,9 @@ jobs:
           VITE_PREVIEW_AUTO_LOGIN: "true"
           VITE_PREVIEW_LOGIN_EMAIL: ${{ secrets.PREVIEW_LOGIN_EMAIL }}
           VITE_PREVIEW_LOGIN_PASSWORD: ${{ secrets.PREVIEW_LOGIN_PASSWORD }}
+          # vite-plugin-github-releases が Releases API を叩く。未認証だと
+          # 60 req/時/IP の制限に共有ランナーで引っかかり、403 でビルドが落ちる。
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Deploy to Cloudflare Pages
         run: |

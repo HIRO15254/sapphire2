@@ -5,7 +5,6 @@ import type {
 	SessionFormValues,
 	TournamentOption,
 } from "@/features/sessions/utils/session-form-helpers";
-import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { Button } from "@/shared/components/ui/button";
 import { MasterStepBody } from "./master-step-body";
 import { ResultStepBody } from "./result-step-body";
@@ -26,7 +25,6 @@ export type {
 interface SessionWizardProps {
 	currencies?: Array<{ id: string; name: string }>;
 	defaultValues?: SessionFormDefaults;
-	isLiveLinked?: boolean;
 	isLoading?: boolean;
 	/**
 	 * "manual" (default) renders all three steps and submits to
@@ -49,7 +47,6 @@ interface SessionWizardProps {
 export function SessionWizard({
 	currencies,
 	defaultValues,
-	isLiveLinked = false,
 	isLoading = false,
 	mode = "manual",
 	onCreateTag,
@@ -80,40 +77,21 @@ export function SessionWizard({
 				state.onSubmitHandler();
 			}}
 		>
-			{isLiveLinked && (
-				<Alert data-testid="live-linked-banner">
-					<AlertDescription>
-						This session is generated from a live session. Items calculated from
-						event history cannot be edited. To modify, edit the events in the
-						live session.
-					</AlertDescription>
-				</Alert>
-			)}
-
 			<StepperBar currentStep={state.currentStep} steps={state.steps} />
 
 			<div className="flex flex-col gap-3">
 				{state.currentStep === "master" && (
-					<MasterStepBody
-						isLiveLinked={isLiveLinked}
-						rooms={rooms}
-						state={state}
-					/>
+					<MasterStepBody isLiveLinked={false} rooms={rooms} state={state} />
 				)}
 				{state.currentStep === "rules" && (
 					<RulesStepBody
 						currencies={currencies}
-						isLiveLinked={isLiveLinked}
+						isLiveLinked={false}
 						state={state}
 					/>
 				)}
 				{state.currentStep === "result" && (
-					<ResultStepBody
-						isLiveLinked={isLiveLinked}
-						onCreateTag={onCreateTag}
-						state={state}
-						tags={tags}
-					/>
+					<ResultStepBody onCreateTag={onCreateTag} state={state} tags={tags} />
 				)}
 				{state.currentStep === "start" && <StartStepBody state={state} />}
 			</div>

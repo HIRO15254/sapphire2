@@ -3,6 +3,7 @@ import { aiExtractRouter } from "./ai-extract";
 import { blindLevelRouter } from "./blind-level";
 import { currencyRouter } from "./currency";
 import { currencyTransactionRouter } from "./currency-transaction";
+import { filterPresetRouter } from "./filter-preset";
 import { gameGroupRouter } from "./game-group";
 import { gameMixRouter } from "./game-mix";
 import { gameVariantRouter } from "./game-variant";
@@ -56,5 +57,6 @@ export const appRouter = router({
 	liveTournamentSession: liveTournamentSessionRouter,
 	sessionTablePlayer: sessionTablePlayerRouter,
 	updateNoteView: updateNoteViewRouter,
+	filterPreset: filterPresetRouter,
 });
 export type AppRouter = typeof appRouter;

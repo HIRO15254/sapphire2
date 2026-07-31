@@ -44,12 +44,21 @@ interface TournamentRuleFieldsProps extends TournamentFieldsProps {
 	selectedCurrencyId?: string;
 }
 
-interface TournamentResultFieldsProps extends TournamentFieldsProps {
+interface TournamentResultFieldsProps {
 	/** Purchase counts (the result) keyed by `ChipPurchaseRow.uid`. */
 	chipPurchaseCounts: Record<string, number>;
 	/** Rule-defined chip purchases from the wizard's Rules step. */
 	chipPurchases: ChipPurchaseRow[];
+	/** Field names to render read-only (live sessions lock a subset). */
+	disabledFields: ReadonlySet<string>;
+	form: AnyForm;
 	onChipPurchaseCountChange: (uid: string, count: number) => void;
+	/**
+	 * Field names to mark as required. A live session writes these back into its
+	 * `session_end` payload, which has no room for a blank — the shared schema
+	 * keeps them optional for manual sessions.
+	 */
+	requiredFields?: ReadonlySet<string>;
 }
 
 /**
@@ -147,10 +156,11 @@ export function TournamentRuleFields({
  */
 export function TournamentResultFields({
 	form,
-	isLiveLinked = false,
+	disabledFields,
 	chipPurchases,
 	chipPurchaseCounts,
 	onChipPurchaseCountChange,
+	requiredFields,
 }: TournamentResultFieldsProps) {
 	return (
 		<>
@@ -160,7 +170,7 @@ export function TournamentResultFields({
 						<>
 							<Checkbox
 								checked={field.state.value === true}
-								disabled={isLiveLinked}
+								disabled={disabledFields.has("beforeDeadline")}
 								id={field.name}
 								onCheckedChange={(checked) =>
 									field.handleChange(checked === true)
@@ -184,9 +194,10 @@ export function TournamentResultFields({
 										error={field.state.meta.errors[0]?.message}
 										htmlFor={field.name}
 										label="Placement"
+										required={requiredFields?.has("placement")}
 									>
 										<Input
-											disabled={isLiveLinked}
+											disabled={disabledFields.has("placement")}
 											id={field.name}
 											inputMode="numeric"
 											onBlur={field.handleBlur}
@@ -202,9 +213,10 @@ export function TournamentResultFields({
 										error={field.state.meta.errors[0]?.message}
 										htmlFor={field.name}
 										label="Total entries"
+										required={requiredFields?.has("totalEntries")}
 									>
 										<Input
-											disabled={isLiveLinked}
+											disabled={disabledFields.has("totalEntries")}
 											id={field.name}
 											inputMode="numeric"
 											onBlur={field.handleBlur}
@@ -225,9 +237,10 @@ export function TournamentResultFields({
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
 						label="Prize money"
+						required={requiredFields?.has("prizeMoney")}
 					>
 						<Input
-							disabled={isLiveLinked}
+							disabled={disabledFields.has("prizeMoney")}
 							id={field.name}
 							inputMode="numeric"
 							onBlur={field.handleBlur}
@@ -244,9 +257,10 @@ export function TournamentResultFields({
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
 						label="Bounty prizes"
+						required={requiredFields?.has("bountyPrizes")}
 					>
 						<Input
-							disabled={isLiveLinked}
+							disabled={disabledFields.has("bountyPrizes")}
 							id={field.name}
 							inputMode="numeric"
 							onBlur={field.handleBlur}
@@ -263,7 +277,7 @@ export function TournamentResultFields({
 						{chipPurchases.map((row) => (
 							<ChipPurchaseCountRow
 								count={chipPurchaseCounts[row.uid] ?? 0}
-								disabled={isLiveLinked}
+								disabled={disabledFields.has("chipPurchases")}
 								key={row.uid}
 								onCountChange={(count) =>
 									onChipPurchaseCountChange(row.uid, count)

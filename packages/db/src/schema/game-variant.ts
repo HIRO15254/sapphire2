@@ -43,6 +43,7 @@ export const gameVariant = sqliteTable(
 	(table) => [
 		index("gameVariant_userId_idx").on(table.userId),
 		index("gameVariant_groupId_idx").on(table.groupId),
+		uniqueIndex("game_variant_id_user_id_unique").on(table.id, table.userId),
 		// SQLite treats NULLs as distinct, so this never constrains
 		// user-created rows (builtinKey null) against each other — only guards
 		// the 21 seeded builtin rows per user against a concurrent double-seed

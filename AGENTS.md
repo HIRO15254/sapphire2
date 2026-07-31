@@ -50,33 +50,15 @@ apps/
 packages/
   api/     tRPC routers — source of truth for client types
   db/      Drizzle schema + migrations (Cloudflare D1)
-  auth/    Better Auth setup
+  auth/    Better Auth setup (incl. MCP OAuth provider)
+  mcp/     MCP server at /mcp — tools are a projection of the tRPC appRouter
   env/     Zod-typed env vars
   config/  Shared TS / Biome configs
 ```
 
-`apps/web/src/` layout:
+**Backend changes update the MCP surface in the same task**: any added/changed `packages/api` procedure must be registered in `packages/mcp`'s `TOOL_DEFINITIONS` or `DELIBERATELY_EXCLUDED` — the coupling test (`bunx vitest run --project mcp`) fails otherwise. See [`.claude/rules/mcp-tools.md`](.claude/rules/mcp-tools.md).
 
-```text
-features/<feature>/
-  components/<component>/  shared component judged likely to be reused across pages: <component>.tsx + use-<component>.ts + index.ts
-  pages/<page>/            page component + use-<page>-page.ts + index.ts + __tests__ (route file stays thin)
-    <subcomponent>/        single-use child of this page → its own folder + index.ts
-  hooks/                   cross-component data hooks (use-players.ts, use-currencies.ts, ...)
-  utils/                   feature-local pure helpers
-  __tests__/               feature-local tests
-routes/                    TanStack Router tree; route files delegate to features/<feature>/pages/<page>
-shared/
-  components/ui/           shadcn primitives (Button, Select, Avatar, Badge, Table, ...)
-  components/              cross-feature composites (PageHeader, AuthenticatedShell, FormSheet, ...)
-  hooks/                   cross-feature hooks (use-media-query, use-online-status, ...)
-  lib/                     cross-feature helpers (form-fields, ...)
-lib/                       compatibility helpers shared by app setup and generated integrations
-plugins/                   build-time Vite plugins (not browser runtime modules)
-utils/                     truly global helpers (optimistic-update, formatters, ...)
-```
-
-When adding a feature, create `apps/web/src/features/<name>/` and colocate everything. **Every page follows the `pages/<page>/` pattern**: the route file stays thin (TanStack Router configuration such as `createFileRoute`, loaders/search validation, and `Route` accessors) and delegates rendering and page logic to `features/<feature>/pages/<page>/`, colocated with its `use-<page>-page.ts` hook. Extract a subcomponent into a child folder once the parent component file exceeds 300 lines (or earlier when a part is single-use but self-contained); a list component owns its own loading / empty / data switch and binds its skeleton's shape to the card it mirrors; `FormSheet` is composed at the page level around a bare form component. **Placement follows consumers**: a component used by exactly one page lives in that page's child folders; a component used by exactly one parent component lives in a child folder of that parent (its hook colocates the same way); only components designed as generic building blocks stay in `components/` / `shared/` while they happen to have a single consumer. Promote a subcomponent from a page folder to `components/` when a second page imports it, or when reuse across multiple pages is clearly anticipated, and to `shared/` only when a second feature imports it. `features/currencies/`, `features/players/`, `features/sessions/`, and `features/live-sessions/pages/active-session-page/` are the reference implementations.
+`apps/web/src/` feature-folder layout, page/component placement rules, and reference implementations live in [`.claude/rules/web-architecture.md`](.claude/rules/web-architecture.md) — read it before adding or moving files under `apps/web/src/`.
 
 ## Release Flow
 
@@ -84,6 +66,7 @@ When adding a feature, create `apps/web/src/features/<name>/` and colocate every
 - **Cutting a release**: `git checkout -b release/vX.Y.Z dev && git push -u origin HEAD`, then `gh pr create --base main`. On merge, [`release.yml`](.github/workflows/release.yml) auto-generates notes via `/create-update-notes`, creates the tag and Release, then explicitly dispatches [`production-deploy.yml`](.github/workflows/production-deploy.yml) for that tag.
 - **Merge release PRs with a MERGE COMMIT, never squash.** Squashing collapses `dev`'s commit history into a single commit on `main`, so `main` and `dev` share no common ancestry. Each subsequent `release/vX.Y.Z → main` PR then re-diffs from before the previous release and every already-released file explodes into a phantom conflict (`mergeable_state: dirty`, thousands of files). A real merge commit keeps `dev`'s commits reachable from `main`, so the next release stays a clean fast-forward. If a release PR ever shows mass conflicts, the fix is `git merge -s ours origin/main` on the release branch (records `main` as a parent, keeps `dev`'s tree — verify `HEAD^{tree}` equals `origin/dev^{tree}` before pushing) — it reconciles history without changing content.
 - **Manual release notes**: invoke `/create-update-notes vX.Y.Z` locally; the skill stays draft-only when used outside CI.
+- **No self check-in after opening a PR**: don't schedule any reminder/trigger (`send_later`, `create_trigger`, cron, or similar) to re-check a newly opened PR later — react to PR webhook/activity events (or ask the user) instead; scheduled self-reminders are unnecessary noise on routine PRs in this repo.
 
 ## Web UI Essentials (cross-cutting)
 
@@ -153,6 +136,7 @@ If a target does not match any pattern above, extend the relevant `test-utils` f
 - API router tests → `bunx vitest run --project api [path]`
 - Server worker tests → `bunx vitest run --project server [path]`
 - DB schema tests → `bunx vitest run --project db [path]`
+- MCP tool tests → `bunx vitest run --project mcp [path]`
 - Env tests → `bunx vitest run --project env`
 - Related to current staged files → `bunx vitest related --run $(git diff --cached --name-only ...)` — already automated by pre-commit for human commits.
 
@@ -164,15 +148,18 @@ The following rule files live in `.claude/rules/` and are loaded automatically w
 
 | File | Paths | Summary |
 |---|---|---|
+| `web-architecture.md` | `apps/web/**` | `apps/web/src/` feature-folder layout, page/component placement rules, reference implementations. |
 | `web-hooks-separation.md` | `apps/web/**` | STRICT: components may only call custom `useXxx` hooks; verification script included. |
 | `web-forms.md` | `apps/web/**` | `@tanstack/react-form` in hooks, no `type="number"`, no placeholders, `SelectWithClear` for clearable selects. |
 | `web-ui.md` | `apps/web/**` | PageHeader, shadcn primitives (Table / Badge / Avatar / RadioGroup), mobile = Drawer, tabler-icons. |
 | `web-data-fetching.md` | `apps/web/**` | Optimistic updates must go through `utils/optimistic-update.ts` helpers. |
 | `web-theme.md` | `apps/web/**` | Sapphire 2 Design System (single theme): token format, semantic colors, typography roles, sheet patterns. |
+| `ai-models.md` | `packages/api/**`, `apps/web/**`, `apps/server/**` | Claude のモデル ID は `packages/api/src/ai/models.ts` にのみ書く（全 AI 機能が常に同じ最新モデルを使う）。`max_tokens` は thinking の分を含める。 |
 | `api-security.md` | `packages/api/**`, `apps/server/**` | Object-level authorization: every input FK id ownership-checked, scoped bulk WHEREs / joins / cursors, uniform FORBIDDEN, no server-side fetch of user URLs. |
 | `api-data-integrity.md` | `packages/api/**`, `packages/db/**` | Zod input conventions (`.int().min(0)`, create/update refine parity, shared write/read schemas) and D1 hazards (100-bind-param chunking, `db.batch()`, N+1, keyset pagination). |
 | `datetime-and-numbers.md` | `apps/web/**`, `packages/api/**` | Date-only values are UTC midnight (read with UTC getters), day-crossing handling + backfill, period boundaries, shared locale-fixed number formatters. |
 | `db-migrations.md` | `packages/db/**` | Applied by `wrangler`; `db:generate` is the default for schema-shape changes, hand-write data/rename/destructive ones; how the Drizzle `meta/` ledger works and how to keep it from drifting. |
+| `mcp-tools.md` | `packages/mcp/**`, `packages/api/**` | MCP tools are a projection of `appRouter`: backend procedure changes must update `TOOL_DEFINITIONS`/`DELIBERATELY_EXCLUDED` in the same task; tools go through `createCaller`, schemas are the router's Zod objects, errors through `mapToolError`. |
 
 ## Maintaining This File (Self-Evolution)
 

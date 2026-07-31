@@ -6,6 +6,8 @@ import {
 } from "@/features/rooms/hooks/use-room-games";
 import { useSessionDetail } from "@/features/sessions/hooks/use-session-detail";
 import type { SessionFormValues } from "@/features/sessions/hooks/use-sessions";
+import { formatDateForInput } from "@/features/sessions/utils/session-form-helpers";
+import { useLiveLinkedSessionEdit } from "./use-live-linked-session-edit";
 
 /**
  * Page hook for the session detail page. Owns the actions sheet / edit sheet /
@@ -42,6 +44,23 @@ export function useSessionDetailPage(sessionId: string) {
 			session.liveTournamentSessionId !== null);
 	const canReopen = session?.liveCashGameSessionId != null;
 
+	const {
+		disabledResultFields,
+		endDateHint,
+		isEventUpdatePending,
+		requiredResultFields,
+		startDateHint,
+		submitLiveEventEdits,
+	} = useLiveLinkedSessionEdit({
+		// Same value `buildEditDefaults` seeds the form's date input with, so the
+		// day hints are relative to the date the user actually sees.
+		displayedDate: session ? formatDateForInput(session.sessionDate) : "",
+		isEditOpen,
+		isLiveLinked,
+		sessionId,
+		sessionType: session?.type === "tournament" ? "tournament" : "cash_game",
+	});
+
 	const openEditFromActions = () => {
 		setIsActionsOpen(false);
 		setEditRoomId(session?.roomId ?? undefined);
@@ -53,13 +72,29 @@ export function useSessionDetailPage(sessionId: string) {
 		setConfirmingDelete(true);
 	};
 
-	const handleEdit = (values: SessionFormValues) => {
+	/**
+	 * Saves the sheet. For a live session the fields backed by a single event
+	 * value go back to those events first (`session.update` refuses them), and a
+	 * rejected edit keeps the sheet open so the user can correct it — the failed
+	 * step is the only one not applied, because the server recalculates the
+	 * session after every event write.
+	 */
+	const handleEdit = async (values: SessionFormValues) => {
 		if (!session) {
 			return;
 		}
-		update({ id: session.id, isLiveLinked, ...values }).then(() => {
-			setIsEditOpen(false);
-		});
+		const eventsSynced = await submitLiveEventEdits(values);
+		if (!eventsSynced) {
+			return;
+		}
+		try {
+			await update({ id: session.id, isLiveLinked, ...values });
+		} catch {
+			// The shared mutation cache toasts the server message; keep the sheet
+			// open so the entered values are not lost.
+			return;
+		}
+		setIsEditOpen(false);
 	};
 
 	const handleConfirmDelete = () => {
@@ -84,8 +119,12 @@ export function useSessionDetailPage(sessionId: string) {
 		isLoading,
 		isInitialLoadError,
 		onRetry,
-		isUpdatePending,
+		isUpdatePending: isUpdatePending || isEventUpdatePending,
 		isLiveLinked,
+		disabledResultFields,
+		endDateHint,
+		requiredResultFields,
+		startDateHint,
 		canReopen,
 		rooms,
 		currencies,

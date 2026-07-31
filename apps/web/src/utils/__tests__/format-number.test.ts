@@ -3,6 +3,7 @@ import { TZ_EAST, TZ_WEST, withTz } from "@/__tests__/tz";
 import {
 	createGroupFormatter,
 	formatCompactNumber,
+	formatLocalYmdSlash,
 	formatNumber,
 	formatYmdSlash,
 } from "@/utils/format-number";
@@ -241,5 +242,43 @@ describe("formatYmdSlash", () => {
 		expect(withTz(TZ_WEST, () => formatYmdSlash(iso))).toBe("2026/01/01");
 		expect(withTz(TZ_EAST, () => formatYmdSlash(iso))).toBe("2026/01/01");
 		expect(withTz("UTC", () => formatYmdSlash(iso))).toBe("2026/01/01");
+	});
+});
+
+// A live session's `sessionDate` / event timestamps are instants, not date-only
+// values, so their calendar day has to be read locally — the opposite of
+// `formatYmdSlash` (SA2-145). Both live side by side; picking the wrong one is
+// a one-day-off bug, so pin the difference.
+describe("formatLocalYmdSlash", () => {
+	it("formats a timestamp as its local calendar day", () => {
+		expect(formatLocalYmdSlash(new Date(2026, 3, 5, 12, 0))).toBe("2026/04/05");
+	});
+
+	it("zero-pads single-digit months and days", () => {
+		expect(formatLocalYmdSlash(new Date(2026, 0, 1, 12, 0))).toBe("2026/01/01");
+	});
+
+	it("accepts an ISO string", () => {
+		expect(
+			formatLocalYmdSlash(new Date(2026, 5, 15, 9, 30).toISOString())
+		).toBe("2026/06/15");
+	});
+
+	it("reads the local day west of UTC, where the UTC day is already tomorrow", () => {
+		expect(
+			withTz(TZ_WEST, () => formatLocalYmdSlash("2026-04-11T03:00:00Z"))
+		).toBe("2026/04/10");
+		expect(withTz(TZ_WEST, () => formatYmdSlash("2026-04-11T03:00:00Z"))).toBe(
+			"2026/04/11"
+		);
+	});
+
+	it("reads the local day east of UTC, where the UTC day is still yesterday", () => {
+		expect(
+			withTz(TZ_EAST, () => formatLocalYmdSlash("2026-04-09T22:00:00Z"))
+		).toBe("2026/04/10");
+		expect(withTz(TZ_EAST, () => formatYmdSlash("2026-04-09T22:00:00Z"))).toBe(
+			"2026/04/09"
+		);
 	});
 });

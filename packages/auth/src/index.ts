@@ -7,8 +7,17 @@ import {
 	userRelations,
 	verification,
 } from "@sapphire2/db/schema/auth";
-import { betterAuth } from "better-auth";
+import {
+	oauthAccessToken,
+	oauthAccessTokenRelations,
+	oauthApplication,
+	oauthApplicationRelations,
+	oauthConsent,
+	oauthConsentRelations,
+} from "@sapphire2/db/schema/oauth";
+import { type BetterAuthPlugin, betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { mcp } from "better-auth/plugins";
 
 function hexEncode(bytes: Uint8Array): string {
 	return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -92,6 +101,12 @@ const authSchema = {
 	user,
 	userRelations,
 	verification,
+	oauthApplication,
+	oauthApplicationRelations,
+	oauthAccessToken,
+	oauthAccessTokenRelations,
+	oauthConsent,
+	oauthConsentRelations,
 };
 
 interface AuthOptions {
@@ -101,6 +116,25 @@ interface AuthOptions {
 	discordClientSecret?: string;
 	googleClientId?: string;
 	googleClientSecret?: string;
+	/**
+	 * Enables the better-auth mcp() plugin (OAuth provider for the /mcp
+	 * endpoint): DCR at /api/auth/mcp/register, authorize/token endpoints and
+	 * the .well-known metadata. Optional so callers without an MCP surface
+	 * (tests) can omit it.
+	 */
+	mcp?: {
+		/**
+		 * Absolute URL of the consent page (served by the Worker). Required:
+		 * without it the mcp plugin's authorize redirects straight back to the
+		 * client with a code — even under prompt=consent — and no user consent
+		 * ever happens.
+		 */
+		consentPage: string;
+		/** Absolute URL of the web login page unauthenticated users are sent to. */
+		loginPage: string;
+		/** RFC 8707 resource identifier — the absolute /mcp endpoint URL. */
+		resource: string;
+	};
 	/**
 	 * Fired after better-auth persists a new user row. Used to seed the
 	 * per-user game-group / game-variant masters (mix-game rework) so every
@@ -141,6 +175,32 @@ export function createAuth(
 	dbInstance: Parameters<typeof drizzleAdapter>[0],
 	options: AuthOptions
 ) {
+	// Widened to the base plugin type: the mcp() plugin's inferred type
+	// references better-auth internals that cannot be named in our emitted
+	// declarations (TS4058). Its endpoints exist at runtime regardless;
+	// callers that need them (apps/server /mcp gate) cast at the call site.
+	const plugins: BetterAuthPlugin[] = options.mcp
+		? [
+				mcp({
+					loginPage: options.mcp.loginPage,
+					resource: options.mcp.resource,
+					oidcConfig: {
+						loginPage: options.mcp.loginPage,
+						consentPage: options.mcp.consentPage,
+						// OAuth 2.1 posture for public MCP clients.
+						requirePKCE: true,
+						allowDynamicClientRegistration: true,
+					},
+				}),
+			]
+		: [];
+	// The consent page lives on the SERVER origin (the Worker renders it), so
+	// its POST to /oauth2/consent carries that origin — it must be trusted or
+	// better-auth's CSRF check answers 403 MISSING_OR_NULL_ORIGIN.
+	const trustedOrigins = [options.corsOrigin];
+	if (options.mcp && options.baseURL) {
+		trustedOrigins.push(new URL(options.baseURL).origin);
+	}
 	return betterAuth({
 		secret: options.secret,
 		baseURL: options.baseURL,
@@ -148,7 +208,7 @@ export function createAuth(
 			provider: "sqlite",
 			schema: authSchema,
 		}),
-		trustedOrigins: [options.corsOrigin],
+		trustedOrigins,
 		emailAndPassword: {
 			enabled: true,
 			password: {
@@ -192,6 +252,6 @@ export function createAuth(
 				},
 			},
 		},
-		plugins: [],
+		plugins,
 	});
 }

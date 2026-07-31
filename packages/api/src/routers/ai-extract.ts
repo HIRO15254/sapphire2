@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { TRPCError } from "@trpc/server";
 import z from "zod";
+import { AI_MODELS, EXTRACTION_MAX_TOKENS } from "../ai/models";
 import { protectedProcedure, router } from "../index";
 import {
 	TABLE_PLAYER_SOURCE_APP_IDS,
@@ -59,6 +60,29 @@ export type ExtractedTournamentData = z.infer<
 >;
 
 const MAX_SEAT_NUMBER = 9;
+
+/**
+ * 打ち切られた応答は、スキーマを通っても不完全なので受け付けない。
+ * thinking は `max_tokens` を応答テキストと共有するため（Opus 5 以降は
+ * デフォルト ON）、枠を使い切ると構造化出力が途中で切れる。打ち切りと
+ * 「モデルが構造化出力を返さなかった」は原因も対処も違うので分けて報告する。
+ */
+function assertNotTruncated(stopReason: string | null | undefined): void {
+	if (stopReason === "max_tokens") {
+		throw new TRPCError({
+			code: "INTERNAL_SERVER_ERROR",
+			message: "AI response was truncated (max_tokens reached)",
+		});
+	}
+}
+
+/** 打ち切り以外の理由で構造化出力が返らなかった場合。 */
+function missingStructuredOutputError(): TRPCError {
+	return new TRPCError({
+		code: "INTERNAL_SERVER_ERROR",
+		message: "AI did not return structured data",
+	});
+}
 
 const ExtractedTablePlayersSchema = z.object({
 	seats: z
@@ -202,8 +226,8 @@ export const aiExtractRouter = router({
 			});
 
 			const response = await client.messages.create({
-				model: "claude-opus-4-8",
-				max_tokens: 2048,
+				model: AI_MODELS.tournamentExtraction,
+				max_tokens: EXTRACTION_MAX_TOKENS,
 				tools: [
 					{
 						name: "extract_tournament_data",
@@ -216,12 +240,17 @@ export const aiExtractRouter = router({
 				messages: [{ role: "user", content: contentBlocks }],
 			});
 
+			// 打ち切りは tool_use が返るかどうかにも parse の成否にもよらず起こる。
+			// ExtractedTournamentDataSchema は全フィールドが .optional() なので、
+			// 途中までの input（極端には {}）でも safeParse は通ってしまう。
+			// max_tokens を食い潰す可変長フィールドは blindLevels なので、打ち切りは
+			// 「途中までしか入っていない配列」として現れるのが最頻ケースであり、
+			// 先に stop_reason を見ないとブラインド構成が黙って欠けたまま保存される。
+			assertNotTruncated(response.stop_reason);
+
 			const toolUse = response.content.find((c) => c.type === "tool_use");
 			if (!toolUse || toolUse.type !== "tool_use") {
-				throw new TRPCError({
-					code: "INTERNAL_SERVER_ERROR",
-					message: "AI did not return structured data",
-				});
+				throw missingStructuredOutputError();
 			}
 
 			const parsed = ExtractedTournamentDataSchema.safeParse(toolUse.input);
@@ -277,20 +306,22 @@ export const aiExtractRouter = router({
 			];
 
 			const response = await client.messages.parse({
-				model: "claude-opus-4-8",
-				max_tokens: 1024,
+				model: AI_MODELS.seating,
+				max_tokens: EXTRACTION_MAX_TOKENS,
 				output_config: {
 					format: zodOutputFormat(ExtractedTablePlayersSchema),
 				},
 				messages: [{ role: "user", content: contentBlocks }],
 			});
 
+			// seats は .default([]) なので、打ち切りで潰れた出力でも
+			// 「空席だけのテーブル」として成功扱いになりうる。SDK の
+			// 不完全 JSON の扱いに依存しないよう、先に stop_reason を見る。
+			assertNotTruncated(response.stop_reason);
+
 			const parsedOutput = response.parsed_output;
 			if (!parsedOutput) {
-				throw new TRPCError({
-					code: "INTERNAL_SERVER_ERROR",
-					message: "AI did not return structured data",
-				});
+				throw missingStructuredOutputError();
 			}
 
 			const seenSeatNumbers = new Set<number>();

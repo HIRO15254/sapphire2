@@ -15,6 +15,10 @@ import {
 	FilterOptionList,
 	FilterSheet,
 } from "@/shared/components/filter-chip-bar";
+import {
+	FilterPresetsChip,
+	FilterPresetsSheet,
+} from "@/shared/components/filter-presets";
 import { Button } from "@/shared/components/ui/button";
 import { DrawerClose } from "@/shared/components/ui/drawer";
 import { epochSecToDateInput } from "@/shared/lib/period-filter";
@@ -38,6 +42,10 @@ const SHEET_TITLE: Record<SessionFilterSheet, string> = {
 	display: "Display",
 	room: "Room",
 	currency: "Currency",
+	// FilterPresetsSheet renders its own title internally (not via the shared
+	// FilterSheet wrapper), so this entry only exists to keep the Record
+	// exhaustive over SessionFilterSheet.
+	presets: "Presets",
 };
 
 /**
@@ -58,6 +66,7 @@ export function SessionFilterBar(props: SessionFilterBarProps) {
 		currencies,
 		currentRoomName,
 		currentCurrencyName,
+		currentPresetPayload,
 		onPeriodChange,
 		onFromChange,
 		onToChange,
@@ -65,6 +74,7 @@ export function SessionFilterBar(props: SessionFilterBarProps) {
 		onRoomChange,
 		onCurrencyChange,
 		onDisplayChange,
+		onApplyPreset,
 	} = useSessionFilterBar(props);
 
 	const handleOpenChange = (open: boolean) => {
@@ -78,6 +88,7 @@ export function SessionFilterBar(props: SessionFilterBarProps) {
 	return (
 		<>
 			<FilterChipBar>
+				<FilterPresetsChip onClick={() => openSheet("presets")} />
 				<FilterChip
 					active={period !== "all"}
 					label="Period"
@@ -209,6 +220,14 @@ export function SessionFilterBar(props: SessionFilterBarProps) {
 					value={filters.currencyId ?? ""}
 				/>
 			</FilterSheet>
+
+			<FilterPresetsSheet
+				currentPayload={currentPresetPayload}
+				onApply={onApplyPreset}
+				onOpenChange={handleOpenChange}
+				open={activeSheet === "presets"}
+				screenKey="sessions"
+			/>
 		</>
 	);
 }

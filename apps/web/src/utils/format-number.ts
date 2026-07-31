@@ -71,3 +71,18 @@ export function formatYmdSlash(input: string | Date): string {
 	const day = String(d.getUTCDate()).padStart(2, "0");
 	return `${y}/${m}/${day}`;
 }
+
+/**
+ * Local-time counterpart of {@link formatYmdSlash}, for values that are real
+ * instants rather than date-only columns — session event timestamps, where the
+ * calendar day has to match the clock time rendered next to it. Never use it
+ * for `sessionDate` and friends: those are UTC midnight and need the UTC
+ * getters above (SA2-145).
+ */
+export function formatLocalYmdSlash(input: string | Date): string {
+	const d = typeof input === "string" ? new Date(input) : input;
+	const y = d.getFullYear();
+	const m = String(d.getMonth() + 1).padStart(2, "0");
+	const day = String(d.getDate()).padStart(2, "0");
+	return `${y}/${m}/${day}`;
+}

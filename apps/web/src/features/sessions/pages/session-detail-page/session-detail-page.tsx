@@ -48,6 +48,10 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 		onRetry,
 		isUpdatePending,
 		isLiveLinked,
+		disabledResultFields,
+		endDateHint,
+		requiredResultFields,
+		startDateHint,
 		canReopen,
 		rooms,
 		currencies,
@@ -205,14 +209,18 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 				<SessionEditForm
 					currencies={currencies}
 					defaultValues={buildEditDefaults(session)}
+					disabledFields={disabledResultFields}
+					endDateHint={endDateHint}
 					formId={EDIT_FORM_ID}
 					isLiveLinked={isLiveLinked}
 					liveSessionId={isLiveLinked ? session.id : undefined}
 					onCreateTag={createTag}
 					onRoomChange={setEditRoomId}
 					onSubmit={handleEdit}
+					requiredFields={requiredResultFields}
 					ringGames={editGames.ringGames}
 					rooms={rooms}
+					startDateHint={startDateHint}
 					tags={availableTags}
 					tournaments={editGames.tournaments}
 				/>

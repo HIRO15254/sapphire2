@@ -101,6 +101,30 @@ describe("ownership failures hide resource existence", () => {
 			(caller: ReturnType<typeof makeCaller>["caller"]) =>
 				caller.player.delete({ id: "player-1" }),
 		],
+		[
+			"filterPreset.update",
+			"filter_preset",
+			(caller: ReturnType<typeof makeCaller>["caller"]) =>
+				caller.filterPreset.update({ id: "fp-1", name: "Renamed" }),
+		],
+		[
+			"filterPreset.delete",
+			"filter_preset",
+			(caller: ReturnType<typeof makeCaller>["caller"]) =>
+				caller.filterPreset.delete({ id: "fp-1" }),
+		],
+		[
+			"filterPreset.setDefault",
+			"filter_preset",
+			(caller: ReturnType<typeof makeCaller>["caller"]) =>
+				caller.filterPreset.setDefault({ id: "fp-1" }),
+		],
+		[
+			"filterPreset.clearDefault",
+			"filter_preset",
+			(caller: ReturnType<typeof makeCaller>["caller"]) =>
+				caller.filterPreset.clearDefault({ id: "fp-1" }),
+		],
 	] as const)("%s returns FORBIDDEN for missing and foreign rows", async (_name, table, call) => {
 		await expectForbidden(call(makeCaller({}).caller));
 		await expectForbidden(

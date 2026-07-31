@@ -48,6 +48,16 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
+		session: {
+			getById: {
+				queryOptions: (input: unknown) => ({
+					queryKey: buildKey("session", "getById", input),
+				}),
+			},
+			list: {
+				queryKey: () => ["session", "list"],
+			},
+		},
 	},
 	trpcClient: {
 		sessionEvent: {
@@ -460,9 +470,34 @@ describe("derived live-session list invalidation", () => {
 		await act(async () => {
 			await result.current.update({ id: "e1", payload: {} });
 		});
-		expect(invalidateSpy).toHaveBeenCalledTimes(3);
+		expect(invalidateSpy).toHaveBeenCalledTimes(5);
 		expect(invalidateSpy).toHaveBeenCalledWith({
 			queryKey: ["liveCashGameSession", "list", {}],
+		});
+	});
+
+	// SA2-167: the server recalculates the recorded session from its events, so
+	// the session detail page and list render derived state that an event edit
+	// changes — they have to be invalidated alongside the live-session queries.
+	it("invalidates the recorded session detail and list after an event edit", async () => {
+		const qc = createClient();
+		qc.setQueryData(cashEventsKey("s1"), [
+			{ id: "e1", eventType: "session_end", payload: {}, occurredAt: "t0" },
+		]);
+		trpcMocks.update.mockResolvedValue({ id: "e1" });
+		const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+		const { result } = renderHook(
+			() => useSessionEvents({ sessionId: "s1", sessionType: "cash_game" }),
+			{ wrapper: makeWrapper(qc) }
+		);
+		await act(async () => {
+			await result.current.update({ id: "e1", payload: {} });
+		});
+		expect(invalidateSpy).toHaveBeenCalledWith({
+			queryKey: ["session", "getById", { id: "s1" }],
+		});
+		expect(invalidateSpy).toHaveBeenCalledWith({
+			queryKey: ["session", "list"],
 		});
 	});
 
@@ -481,9 +516,12 @@ describe("derived live-session list invalidation", () => {
 		await act(async () => {
 			await result.current.delete("e1");
 		});
-		expect(invalidateSpy).toHaveBeenCalledTimes(3);
+		expect(invalidateSpy).toHaveBeenCalledTimes(5);
 		expect(invalidateSpy).toHaveBeenCalledWith({
 			queryKey: ["liveTournamentSession", "list", {}],
+		});
+		expect(invalidateSpy).toHaveBeenCalledWith({
+			queryKey: ["session", "getById", { id: "t1" }],
 		});
 	});
 });

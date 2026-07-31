@@ -1,6 +1,7 @@
 import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import { useForm } from "@tanstack/react-form";
 import { useEffect, useRef, useState } from "react";
+import type z from "zod";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import {
 	buildDefaults,
@@ -53,8 +54,79 @@ interface UseSessionFormStateArgs {
 	onRoomChange?: (roomId: string | undefined) => void;
 	onSubmit: (values: SessionFormValues) => void;
 	onSubmitInvalid?: (fieldNames: string[]) => void;
+	/**
+	 * Fields this particular form must not leave blank, on top of the shared
+	 * schema. A live-recorded session writes several result fields back to a
+	 * single event, so a blank is rejected there while the same field stays
+	 * optional for a manual session — the mark and the validator have to agree
+	 * (web-forms.md #6), and the error has to land on the field rather than in a
+	 * submit-time toast.
+	 */
+	requiredFields?: ReadonlySet<string>;
 	ringGames?: RingGameOption[];
 	tournaments?: TournamentOption[];
+}
+
+const PLACEMENT_RANGE_MESSAGE =
+	"Placement must be less than or equal to total entries";
+const PLACEMENT_PAIR: readonly string[] = ["placement", "totalEntries"];
+
+function checkPlacementRange(
+	values: SessionFormFieldValues,
+	ctx: z.core.$RefinementCtx<SessionFormFieldValues>
+): void {
+	if (values.beforeDeadline === true) {
+		return;
+	}
+	// A blank side has no bound to compare against, and `Number("")` is 0 — which
+	// would report every filled placement as out of range on top of the real
+	// `Required` issue, lighting up two fields for one mistake.
+	if (values.placement.trim() === "" || values.totalEntries.trim() === "") {
+		return;
+	}
+	const placement = Number(values.placement);
+	const totalEntries = Number(values.totalEntries);
+	if (
+		Number.isFinite(placement) &&
+		Number.isFinite(totalEntries) &&
+		placement > totalEntries
+	) {
+		ctx.addIssue({
+			code: "custom",
+			message: PLACEMENT_RANGE_MESSAGE,
+			path: ["placement"],
+		});
+	}
+}
+
+/**
+ * Wraps the step schema so the caller's extra required fields are reported as
+ * field-level issues. `placement <= totalEntries` rides along because it is the
+ * server's own refine (SA2-161) and only applies where placement is required.
+ */
+function withRequiredFields<TSchema extends z.ZodType<SessionFormFieldValues>>(
+	schema: TSchema,
+	requiredFields: ReadonlySet<string> | undefined
+) {
+	if (!requiredFields || requiredFields.size === 0) {
+		return schema;
+	}
+	return schema.superRefine((values, ctx) => {
+		for (const field of requiredFields) {
+			// The placement / total-entries pair is neither rendered nor written
+			// once the session ended before registration close.
+			if (values.beforeDeadline === true && PLACEMENT_PAIR.includes(field)) {
+				continue;
+			}
+			const value = values[field as keyof SessionFormFieldValues];
+			if (typeof value === "string" && value.trim() === "") {
+				ctx.addIssue({ code: "custom", message: "Required", path: [field] });
+			}
+		}
+		if (requiredFields.has("placement")) {
+			checkPlacementRange(values, ctx);
+		}
+	});
 }
 
 function emptyToUndefined(value: string): string | undefined {
@@ -80,6 +152,7 @@ export function useSessionFormState({
 	onRoomChange,
 	onSubmit,
 	onSubmitInvalid,
+	requiredFields,
 	ringGames,
 	tournaments,
 }: UseSessionFormStateArgs) {
@@ -261,7 +334,10 @@ export function useSessionFormState({
 			});
 		},
 		validators: {
-			onSubmit: isCashGame ? cashGameSchema : tournamentSessionFormSchema,
+			onSubmit: withRequiredFields(
+				isCashGame ? cashGameSchema : tournamentSessionFormSchema,
+				requiredFields
+			),
 		},
 	});
 

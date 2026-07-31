@@ -337,6 +337,27 @@
       "when": 1784384318449,
       "tag": "0047_gigantic_energizer",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "6",
+      "when": 1785383541570,
+      "tag": "0048_colorful_richard_fisk",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "6",
+      "when": 1785402067110,
+      "tag": "0049_normalize_game_mix_variants",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "6",
+      "when": 1785479587667,
+      "tag": "0050_magenta_professor_monster",
+      "breakpoints": true
     }
   ]
 }

@@ -12,7 +12,9 @@
     "@sapphire2/api": "workspace:*",
     "@sapphire2/auth": "workspace:*",
     "@sapphire2/db": "workspace:*",
+    "@sapphire2/mcp": "workspace:*",
     "@trpc/server": "catalog:",
+    "drizzle-orm": "catalog:",
     "better-auth": "catalog:",
     "hono": "catalog:",
     "zod": "catalog:"
