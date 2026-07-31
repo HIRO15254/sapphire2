@@ -21,8 +21,11 @@ const mocks = vi.hoisted(() => ({
 	submitLiveEventEdits: vi.fn(),
 	disabledResultFields: new Set<string>(),
 	endDateHint: null as string | null,
+	startDateHint: null as string | null,
 	isEventUpdatePending: false,
 	lastLiveEditArgs: null as {
+		displayedDate: string;
+		isEditOpen: boolean;
 		isLiveLinked: boolean;
 		sessionId: string;
 		sessionType: string;
@@ -50,6 +53,8 @@ vi.mock(
 	"@/features/sessions/pages/session-detail-page/use-live-linked-session-edit",
 	() => ({
 		useLiveLinkedSessionEdit: (args: {
+			displayedDate: string;
+			isEditOpen: boolean;
 			isLiveLinked: boolean;
 			sessionId: string;
 			sessionType: string;
@@ -58,6 +63,7 @@ vi.mock(
 			return {
 				disabledResultFields: mocks.disabledResultFields,
 				endDateHint: mocks.endDateHint,
+				startDateHint: mocks.startDateHint,
 				isEventUpdatePending: mocks.isEventUpdatePending,
 				submitLiveEventEdits: mocks.submitLiveEventEdits,
 			};
@@ -123,6 +129,7 @@ describe("useSessionDetailPage", () => {
 		mocks.submitLiveEventEdits.mockReset().mockResolvedValue(true);
 		mocks.disabledResultFields = new Set<string>();
 		mocks.endDateHint = null;
+		mocks.startDateHint = null;
 		mocks.isEventUpdatePending = false;
 		mocks.lastLiveEditArgs = null;
 	});
@@ -316,7 +323,7 @@ describe("useSessionDetailPage", () => {
 		it("passes the live-linked flag and session type to the event-sync hook", () => {
 			mocks.session = liveTournament;
 			renderHook(() => useSessionDetailPage("s3"));
-			expect(mocks.lastLiveEditArgs).toEqual({
+			expect(mocks.lastLiveEditArgs).toMatchObject({
 				isLiveLinked: true,
 				sessionId: "s3",
 				sessionType: "tournament",
@@ -326,11 +333,22 @@ describe("useSessionDetailPage", () => {
 		it("reports a manual session as not live-linked to the event-sync hook", () => {
 			mocks.session = manualCash;
 			renderHook(() => useSessionDetailPage("s1"));
-			expect(mocks.lastLiveEditArgs).toEqual({
+			expect(mocks.lastLiveEditArgs).toMatchObject({
 				isLiveLinked: false,
 				sessionId: "s1",
 				sessionType: "cash_game",
 			});
+		});
+
+		it("passes the displayed date and sheet state to the event-sync hook", () => {
+			mocks.session = { ...liveCash, sessionDate: "2026-04-11T03:00:00Z" };
+			const { result } = renderHook(() => useSessionDetailPage("s2"));
+			expect(mocks.lastLiveEditArgs?.displayedDate).toBe("2026-04-11");
+			expect(mocks.lastLiveEditArgs?.isEditOpen).toBe(false);
+			act(() => {
+				result.current.openEditFromActions();
+			});
+			expect(mocks.lastLiveEditArgs?.isEditOpen).toBe(true);
 		});
 
 		it("exposes the end-day hint from the event-sync hook", () => {

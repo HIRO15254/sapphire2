@@ -7,9 +7,10 @@ import {
 } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import type { SessionFilterValues } from "@/features/sessions/utils/session-filters-helpers";
-import type {
-	SessionBlindLevelInput,
-	SessionFormValues,
+import {
+	formatDateForInput,
+	type SessionBlindLevelInput,
+	type SessionFormValues,
 } from "@/features/sessions/utils/session-form-helpers";
 import { resolveDateRange } from "@/shared/lib/period-filter";
 import {
@@ -28,6 +29,7 @@ export type {
 	SessionFormValues,
 	TournamentFormValues,
 } from "@/features/sessions/utils/session-form-helpers";
+export { formatDateForInput } from "@/features/sessions/utils/session-form-helpers";
 
 export interface SessionItem {
 	beforeDeadline: boolean | null;
@@ -457,19 +459,6 @@ export function filtersToListInput(filters: SessionFilterValues) {
 		dateFrom: range.dateFrom,
 		dateTo: range.dateTo,
 	};
-}
-
-// sessionDate is stored/returned as UTC midnight and the create/update payloads
-// re-encode a date-only string as UTC midnight, so the edit form must read back
-// the UTC calendar day. Local getters shift the day back one for users west of
-// UTC, and saving that value drifts the stored date one day earlier on every
-// edit (SA2-145).
-export function formatDateForInput(date: string): string {
-	const d = new Date(date);
-	const year = d.getUTCFullYear();
-	const month = String(d.getUTCMonth() + 1).padStart(2, "0");
-	const day = String(d.getUTCDate()).padStart(2, "0");
-	return `${year}-${month}-${day}`;
 }
 
 export function formatTimeFromDate(date: string | null): string | undefined {

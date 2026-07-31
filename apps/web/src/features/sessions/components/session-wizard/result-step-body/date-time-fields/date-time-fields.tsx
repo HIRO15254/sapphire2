@@ -6,6 +6,7 @@ export function DateTimeFields({
 	state,
 	disabledFields,
 	endDateHint,
+	startDateHint,
 }: {
 	/** Field names to render read-only (live sessions lock a subset). */
 	disabledFields: ReadonlySet<string>;
@@ -16,6 +17,8 @@ export function DateTimeFields({
 	 * day when it actually lands on the next one.
 	 */
 	endDateHint?: string | null;
+	/** Same, for the start time (a live session's displayed date can lag it). */
+	startDateHint?: string | null;
 	state: UseSessionWizardReturn;
 }) {
 	const { form } = state;
@@ -38,7 +41,13 @@ export function DateTimeFields({
 			<div className="grid grid-cols-2 gap-3">
 				<form.Field name="startTime">
 					{(field) => (
-						<Field htmlFor={field.name} label="Start time">
+						<Field
+							description={
+								startDateHint ? `Starts ${startDateHint}` : undefined
+							}
+							htmlFor={field.name}
+							label="Start time"
+						>
 							<Input
 								disabled={disabledFields.has("startTime")}
 								id={field.name}

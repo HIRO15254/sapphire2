@@ -69,15 +69,24 @@ function setEvents(events: SessionEvent[]) {
 	}));
 }
 
-function renderEditHook(isLiveLinked = true) {
-	return renderHook(() =>
-		useLiveLinkedSessionEdit({
-			isLiveLinked,
-			sessionId: "s1",
-			sessionType: "cash_game",
-		})
+function renderEditHook(isLiveLinked = true, isEditOpen = true) {
+	return renderHook(
+		(props: { isEditOpen: boolean }) =>
+			useLiveLinkedSessionEdit({
+				displayedDate: "2026-04-10",
+				isEditOpen: props.isEditOpen,
+				isLiveLinked,
+				sessionId: "s1",
+				sessionType: "cash_game",
+			}),
+		{ initialProps: { isEditOpen } }
 	);
 }
+
+const MOVED_END: SessionEvent = {
+	...SESSION_END,
+	occurredAt: localIso(2026, 4, 11, 3, 0),
+};
 
 describe("useLiveLinkedSessionEdit", () => {
 	beforeEach(() => {
@@ -139,27 +148,68 @@ describe("useLiveLinkedSessionEdit", () => {
 		});
 	});
 
-	describe("endDateHint", () => {
-		it("is null when the session started and ended on the same day", () => {
+	describe("day hints", () => {
+		it("are null when both times sit on the displayed day", () => {
 			const { result } = renderEditHook();
 			expect(result.current.endDateHint).toBeNull();
+			expect(result.current.startDateHint).toBeNull();
 		});
 
 		it("labels the end day when the session crossed midnight", () => {
-			setEvents([
-				SESSION_START,
-				{
-					...SESSION_END,
-					occurredAt: localIso(2026, 4, 11, 1, 0),
-				},
-			]);
+			setEvents([SESSION_START, MOVED_END]);
 			const { result } = renderEditHook();
 			expect(result.current.endDateHint).toBe("2026/04/11");
+			expect(result.current.startDateHint).toBeNull();
 		});
 
-		it("is null for a manual session", () => {
+		it("labels the start day too when the displayed date is behind the times", () => {
+			const { result } = renderHook(() =>
+				useLiveLinkedSessionEdit({
+					displayedDate: "2026-04-09",
+					isEditOpen: true,
+					isLiveLinked: true,
+					sessionId: "s1",
+					sessionType: "cash_game",
+				})
+			);
+			expect(result.current.startDateHint).toBe("2026/04/10");
+			expect(result.current.endDateHint).toBe("2026/04/10");
+		});
+
+		it("are null for a manual session", () => {
 			const { result } = renderEditHook(false);
 			expect(result.current.endDateHint).toBeNull();
+			expect(result.current.startDateHint).toBeNull();
+		});
+	});
+
+	// The Events section lives inside the same sheet, so it can move the very
+	// events the form was seeded from. The form must diff against the seed, not
+	// against the refreshed events, or saving would undo the Events-side edit.
+	describe("concurrent Events-section edits", () => {
+		it("does not revert an event the Events section changed while the sheet was open", async () => {
+			const { rerender, result } = renderEditHook();
+			setEvents([SESSION_START, MOVED_END]);
+			rerender({ isEditOpen: true });
+			await act(async () => {
+				await result.current.submitLiveEventEdits(VALUES);
+			});
+			expect(mocks.update).not.toHaveBeenCalled();
+		});
+
+		it("re-seeds after the sheet is closed and reopened", async () => {
+			const { rerender, result } = renderEditHook();
+			setEvents([SESSION_START, MOVED_END]);
+			rerender({ isEditOpen: false });
+			rerender({ isEditOpen: true });
+			await act(async () => {
+				await result.current.submitLiveEventEdits(VALUES);
+			});
+			expect(mocks.update).toHaveBeenCalledTimes(1);
+			expect(mocks.update).toHaveBeenNthCalledWith(1, {
+				id: "e-end",
+				occurredAt: unix(2026, 4, 11, 23, 0),
+			});
 		});
 	});
 

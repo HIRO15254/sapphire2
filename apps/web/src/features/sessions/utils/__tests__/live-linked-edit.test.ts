@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { SessionEvent } from "@/features/live-sessions/hooks/use-session-events";
 import {
 	buildLiveLinkedEventEdits,
-	crossingEndDateLabel,
 	findLifecycleEvents,
+	lifecycleDayHints,
 	liveLinkedDisabledResultFields,
 } from "@/features/sessions/utils/live-linked-edit";
 import type { SessionFormValues } from "@/features/sessions/utils/session-form-helpers";
@@ -151,28 +151,55 @@ describe("findLifecycleEvents", () => {
 	});
 });
 
-// The form shows one date (the session's start day) but the end time is edited
-// against the end event's own day. When they differ the user has to be told,
-// otherwise "fix 02:00 to 23:00" silently produces a 25-hour session.
-describe("crossingEndDateLabel", () => {
+// The form shows one date and two clock times, and they can disagree in two
+// ways: the session crossed midnight (end on the next day), or — for a live
+// session, whose `sessionDate` is really the start timestamp read with UTC
+// getters while the times are read locally — the displayed date is a day behind
+// both times (every JST session starting 00:00–09:00 local). Both are silent
+// traps when editing a time, so each field gets told which day it writes to.
+describe("lifecycleDayHints", () => {
+	it("returns no hint when both times sit on the displayed day", () => {
+		expect(
+			lifecycleDayHints({
+				displayedDate: "2026-04-10",
+				events: TOURNAMENT_EVENTS,
+			})
+		).toEqual({ end: null, start: null });
+	});
+
 	it("labels the end day when the session crossed midnight", () => {
-		expect(crossingEndDateLabel(CASH_EVENTS)).toBe("2026/04/11");
+		expect(
+			lifecycleDayHints({ displayedDate: "2026-04-10", events: CASH_EVENTS })
+		).toEqual({ end: "2026/04/11", start: null });
 	});
 
-	it("returns null when start and end share a calendar day", () => {
-		expect(crossingEndDateLabel(TOURNAMENT_EVENTS)).toBeNull();
+	it("labels both days when the displayed date is behind the times", () => {
+		// The UTC-read `sessionDate` lands on 04-09 while the local times are on
+		// 04-10 — the JST early-morning case.
+		expect(
+			lifecycleDayHints({ displayedDate: "2026-04-09", events: CASH_EVENTS })
+		).toEqual({ end: "2026/04/11", start: "2026/04/10" });
 	});
 
-	it("returns null while the session has not ended", () => {
-		expect(crossingEndDateLabel([CASH_START, CASH_CHIPS])).toBeNull();
+	it("returns no end hint while the session has not ended", () => {
+		expect(
+			lifecycleDayHints({
+				displayedDate: "2026-04-10",
+				events: [CASH_START, CASH_CHIPS],
+			})
+		).toEqual({ end: null, start: null });
 	});
 
-	it("returns null when there is no session_start to compare against", () => {
-		expect(crossingEndDateLabel([CASH_END])).toBeNull();
+	it("returns no hints for an empty event list", () => {
+		expect(
+			lifecycleDayHints({ displayedDate: "2026-04-10", events: [] })
+		).toEqual({ end: null, start: null });
 	});
 
-	it("returns null for an empty event list", () => {
-		expect(crossingEndDateLabel([])).toBeNull();
+	it("returns no hints when the displayed date is missing", () => {
+		expect(
+			lifecycleDayHints({ displayedDate: "", events: CASH_EVENTS })
+		).toEqual({ end: null, start: null });
 	});
 });
 
@@ -473,6 +500,133 @@ describe("buildLiveLinkedEventEdits — cash game", () => {
 		});
 		expect(result.edits).toEqual([]);
 		expect(result.errors).toEqual(["End time is invalid"]);
+	});
+});
+
+// The edit sheet embeds the Events section, so the same session_end can be
+// changed there while the form still holds the values it was seeded with. The
+// builder therefore diffs the submitted values against the events as they were
+// when the sheet opened (`seedEvents`), never against the refreshed ones —
+// otherwise saving the sheet would silently revert the Events-side edit.
+describe("buildLiveLinkedEventEdits — concurrent Events-section edits", () => {
+	const movedEnd = event("e-end", "session_end", localIso(2026, 4, 11, 3, 0), {
+		cashOutAmount: 11_500,
+	});
+	const repricedEnd = event(
+		"e-end",
+		"session_end",
+		localIso(2026, 4, 11, 1, 0),
+		{
+			cashOutAmount: 20_000,
+		}
+	);
+
+	it("keeps an Events-side time change when the form value was not touched", () => {
+		const result = buildLiveLinkedEventEdits({
+			values: CASH_VALUES,
+			events: [CASH_START, CASH_CHIPS, movedEnd],
+			seedEvents: CASH_EVENTS,
+		});
+		expect(result.errors).toEqual([]);
+		expect(result.edits).toEqual([]);
+	});
+
+	it("keeps an Events-side payload change when the form value was not touched", () => {
+		const result = buildLiveLinkedEventEdits({
+			values: CASH_VALUES,
+			events: [CASH_START, CASH_CHIPS, repricedEnd],
+			seedEvents: CASH_EVENTS,
+		});
+		expect(result.edits).toEqual([]);
+	});
+
+	it("lets a form edit win over a concurrent Events-side change of the same field", () => {
+		const result = buildLiveLinkedEventEdits({
+			values: { ...CASH_VALUES, cashOut: 12_000 },
+			events: [CASH_START, CASH_CHIPS, repricedEnd],
+			seedEvents: CASH_EVENTS,
+		});
+		expect(result.edits).toEqual([
+			{ id: "e-end", payload: { cashOutAmount: 12_000 } },
+		]);
+	});
+
+	it("applies a form time edit to the event's current day", () => {
+		const result = buildLiveLinkedEventEdits({
+			values: { ...CASH_VALUES, endTime: "02:00" },
+			events: [CASH_START, CASH_CHIPS, movedEnd],
+			seedEvents: CASH_EVENTS,
+		});
+		expect(result.edits).toEqual([
+			{ id: "e-end", occurredAt: unix(2026, 4, 11, 2, 0) },
+		]);
+	});
+
+	it("emits nothing when the form and the Events section landed on the same time", () => {
+		const result = buildLiveLinkedEventEdits({
+			values: { ...CASH_VALUES, endTime: "03:00" },
+			events: [CASH_START, CASH_CHIPS, movedEnd],
+			seedEvents: CASH_EVENTS,
+		});
+		expect(result.edits).toEqual([]);
+	});
+
+	it("merges a form-side placement edit with an Events-side prize change", () => {
+		const repricedTournamentEnd = event(
+			"t-end",
+			"session_end",
+			localIso(2026, 4, 10, 23, 0),
+			{
+				beforeDeadline: false,
+				placement: 3,
+				totalEntries: 50,
+				prizeMoney: 35_000,
+				bountyPrizes: 0,
+			}
+		);
+		const result = buildLiveLinkedEventEdits({
+			values: { ...TOURNAMENT_VALUES, placement: 1 },
+			events: [TOURNAMENT_START, TOURNAMENT_STACK, repricedTournamentEnd],
+			seedEvents: TOURNAMENT_EVENTS,
+		});
+		expect(result.edits).toEqual([
+			{
+				id: "t-end",
+				payload: {
+					beforeDeadline: false,
+					placement: 1,
+					totalEntries: 50,
+					// The Events-section value survives — the form never touched it.
+					prizeMoney: 35_000,
+					bountyPrizes: 0,
+				},
+			},
+		]);
+	});
+
+	it("keeps an Events-side start-time change when the form value was not touched", () => {
+		const movedStart = event(
+			"e-start",
+			"session_start",
+			localIso(2026, 4, 10, 19, 0),
+			{ buyInAmount: 10_000 }
+		);
+		const result = buildLiveLinkedEventEdits({
+			values: CASH_VALUES,
+			events: [movedStart, CASH_CHIPS, CASH_END],
+			seedEvents: CASH_EVENTS,
+		});
+		expect(result.edits).toEqual([]);
+	});
+
+	it("falls back to the current events when no seed snapshot is given", () => {
+		const result = buildLiveLinkedEventEdits({
+			values: { ...CASH_VALUES, cashOut: 12_000 },
+			events: CASH_EVENTS,
+		});
+		expect(result.edits).toEqual([
+			{ id: "e-end", payload: { cashOutAmount: 12_000 } },
+		]);
 	});
 });
 

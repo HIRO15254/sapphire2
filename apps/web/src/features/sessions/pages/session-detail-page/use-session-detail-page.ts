@@ -6,6 +6,7 @@ import {
 } from "@/features/rooms/hooks/use-room-games";
 import { useSessionDetail } from "@/features/sessions/hooks/use-session-detail";
 import type { SessionFormValues } from "@/features/sessions/hooks/use-sessions";
+import { formatDateForInput } from "@/features/sessions/utils/session-form-helpers";
 import { useLiveLinkedSessionEdit } from "./use-live-linked-session-edit";
 
 /**
@@ -47,8 +48,13 @@ export function useSessionDetailPage(sessionId: string) {
 		disabledResultFields,
 		endDateHint,
 		isEventUpdatePending,
+		startDateHint,
 		submitLiveEventEdits,
 	} = useLiveLinkedSessionEdit({
+		// Same value `buildEditDefaults` seeds the form's date input with, so the
+		// day hints are relative to the date the user actually sees.
+		displayedDate: session ? formatDateForInput(session.sessionDate) : "",
+		isEditOpen,
 		isLiveLinked,
 		sessionId,
 		sessionType: session?.type === "tournament" ? "tournament" : "cash_game",
@@ -116,6 +122,7 @@ export function useSessionDetailPage(sessionId: string) {
 		isLiveLinked,
 		disabledResultFields,
 		endDateHint,
+		startDateHint,
 		canReopen,
 		rooms,
 		currencies,

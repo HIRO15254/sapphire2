@@ -29,8 +29,9 @@ interface SessionEditFormProps {
 	 */
 	disabledFields?: ReadonlySet<string>;
 	/**
-	 * Calendar day the end time belongs to, when the session crossed midnight —
-	 * the form shows only the start day, so the End time field spells this out.
+	 * Calendar day the end time writes to, when it is not the date shown in the
+	 * form — the session crossed midnight, or (for a live session) the displayed
+	 * date lags the times. Rendered under the End time field.
 	 */
 	endDateHint?: string | null;
 	/** Stable id linking the sheet's confirm button to this form. */
@@ -50,6 +51,8 @@ interface SessionEditFormProps {
 	onSubmit: (values: SessionFormValues) => void;
 	ringGames?: RingGameOption[];
 	rooms?: Array<{ id: string; name: string }>;
+	/** Same as {@link endDateHint}, for the Start time field. */
+	startDateHint?: string | null;
 	tags?: Array<{ id: string; name: string }>;
 	tournaments?: TournamentOption[];
 }
@@ -75,6 +78,7 @@ export function SessionEditForm({
 	onSubmit,
 	ringGames,
 	rooms,
+	startDateHint,
 	tags,
 	tournaments,
 }: SessionEditFormProps) {
@@ -126,6 +130,7 @@ export function SessionEditForm({
 					disabledFields={disabledFields}
 					endDateHint={endDateHint}
 					onCreateTag={onCreateTag}
+					startDateHint={startDateHint}
 					state={state}
 					tags={tags}
 				/>

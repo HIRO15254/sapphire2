@@ -1,10 +1,12 @@
+import { useEffect, useRef } from "react";
 import { toast } from "sonner";
+import type { SessionEvent } from "@/features/live-sessions/hooks/use-session-events";
 import { useSessionEvents } from "@/features/live-sessions/hooks/use-session-events";
 import {
 	buildLiveLinkedEventEdits,
-	crossingEndDateLabel,
 	findLifecycleEvents,
 	type LiveLinkedEventEdit,
+	lifecycleDayHints,
 	liveLinkedDisabledResultFields,
 } from "@/features/sessions/utils/live-linked-edit";
 import type { SessionFormValues } from "@/features/sessions/utils/session-form-helpers";
@@ -22,10 +24,16 @@ const NO_DISABLED_FIELDS: ReadonlySet<string> = new Set();
  * never offers an edit that would be rejected.
  */
 export function useLiveLinkedSessionEdit({
+	displayedDate,
+	isEditOpen,
 	isLiveLinked,
 	sessionId,
 	sessionType,
 }: {
+	/** The form's date input value (`yyyy-MM-dd`), for the day hints. */
+	displayedDate: string;
+	/** Whether the edit sheet is open — the form seeds when it opens. */
+	isEditOpen: boolean;
 	isLiveLinked: boolean;
 	sessionId: string;
 	sessionType: "cash_game" | "tournament";
@@ -35,6 +43,23 @@ export function useLiveLinkedSessionEdit({
 		sessionId: isLiveLinked ? sessionId : "",
 		sessionType,
 	});
+
+	// The events as they were when the sheet opened — the state the form was
+	// seeded from. The Events section rendered inside the same sheet edits these
+	// events live, so an untouched form field must be diffed against this
+	// snapshot; diffing against the refreshed events would make the save undo
+	// whatever the user just changed in the Events section. `FormSheet` unmounts
+	// its content on close, so the form re-seeds exactly when this is cleared.
+	const seedEventsRef = useRef<SessionEvent[] | null>(null);
+	useEffect(() => {
+		if (!isEditOpen) {
+			seedEventsRef.current = null;
+			return;
+		}
+		if (seedEventsRef.current === null && events.length > 0) {
+			seedEventsRef.current = events;
+		}
+	}, [events, isEditOpen]);
 
 	const { sessionEnd, sessionStart } = findLifecycleEvents(events);
 	const disabledResultFields = isLiveLinked
@@ -60,7 +85,11 @@ export function useLiveLinkedSessionEdit({
 		if (!isLiveLinked) {
 			return true;
 		}
-		const { edits, errors } = buildLiveLinkedEventEdits({ events, values });
+		const { edits, errors } = buildLiveLinkedEventEdits({
+			events,
+			seedEvents: seedEventsRef.current ?? events,
+			values,
+		});
 		const firstError = errors[0];
 		if (firstError !== undefined) {
 			toast.error(firstError);
@@ -76,12 +105,17 @@ export function useLiveLinkedSessionEdit({
 		return true;
 	};
 
+	// Non-null only when a lifecycle event sits on another calendar day than the
+	// one the form shows, so each time field can say which day it writes to.
+	const dayHints = isLiveLinked
+		? lifecycleDayHints({ displayedDate, events })
+		: { end: null, start: null };
+
 	return {
 		disabledResultFields,
-		// Non-null only when the end event sits on another calendar day than the
-		// one the form shows, so the End time field can say which day it edits.
-		endDateHint: isLiveLinked ? crossingEndDateLabel(events) : null,
+		endDateHint: dayHints.end,
 		isEventUpdatePending: isUpdatePending,
+		startDateHint: dayHints.start,
 		submitLiveEventEdits,
 	};
 }

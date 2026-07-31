@@ -121,24 +121,40 @@ export function findLifecycleEvents(events: SessionEvent[]): {
 }
 
 /**
- * Calendar day of the `session_end`, but only when the session crossed midnight
- * — otherwise `null`.
+ * Which calendar day each lifecycle time actually writes to, when it is not the
+ * day the form displays — `null` when they agree.
  *
- * The form shows a single date (the session's start day) while `endTime` is
- * edited against the end event's own day. For a 22:00 → 02:00 session those are
- * different days, and correcting "02:00" to "23:00" lands on the *end* day,
- * stretching the session to 25 hours with nothing in the UI hinting at it. The
- * End time field renders this label so the anchor day is visible.
+ * The Result step shows a single date plus two clock times, and they can
+ * disagree in two ways. The session crossed midnight, so the end sits on the
+ * next day; or the displayed date itself is off, because a live session's
+ * `sessionDate` is the start *timestamp* rendered with UTC getters (SA2-145's
+ * date-only rule) while the times are rendered locally — for JST that is every
+ * session starting between 00:00 and 09:00 local. Editing "02:00" without
+ * knowing which day it lands on silently stretches the session, so each field
+ * spells its day out.
+ *
+ * @param displayedDate the form's date input value (`yyyy-MM-dd`).
  */
-export function crossingEndDateLabel(events: SessionEvent[]): string | null {
-	const { sessionEnd, sessionStart } = findLifecycleEvents(events);
-	if (!(sessionEnd && sessionStart)) {
-		return null;
+export function lifecycleDayHints({
+	displayedDate,
+	events,
+}: {
+	displayedDate: string;
+	events: SessionEvent[];
+}): { end: string | null; start: string | null } {
+	if (!displayedDate) {
+		return { end: null, start: null };
 	}
-	const endLabel = formatLocalYmdSlash(sessionEnd.occurredAt);
-	return endLabel === formatLocalYmdSlash(sessionStart.occurredAt)
-		? null
-		: endLabel;
+	const shownDay = displayedDate.replaceAll("-", "/");
+	const { sessionEnd, sessionStart } = findLifecycleEvents(events);
+	const hintFor = (event: SessionEvent | null) => {
+		if (!event) {
+			return null;
+		}
+		const day = formatLocalYmdSlash(event.occurredAt);
+		return day === shownDay ? null : day;
+	};
+	return { end: hintFor(sessionEnd), start: hintFor(sessionStart) };
 }
 
 /**
@@ -176,42 +192,120 @@ export function liveLinkedDisabledResultFields({
 }
 
 /**
- * New `occurredAt` for a lifecycle event, or `null` when the clock time is
- * unchanged (or the event does not exist). The edit is time-only, anchored to
- * the event's own calendar day — the same semantics as the Events-section
- * editors, and the reason a session spanning more than a day survives an edit.
+ * New `occurredAt` for a lifecycle event, or `null` when the form did not touch
+ * it (or the event does not exist). The edit is time-only, anchored to the
+ * event's own calendar day — the same semantics as the Events-section editors,
+ * and the reason a session spanning more than a day survives an edit.
+ *
+ * "Touched" is decided against `seed` (the event as it was when the sheet
+ * opened), not against `current`: the Events section inside the same sheet can
+ * have moved the event since, and an untouched form field must not undo that.
  */
 function resolveLifecycleOccurredAt({
+	current,
 	errors,
-	event,
 	label,
+	seed,
 	time,
 }: {
+	current: SessionEvent | null;
 	errors: string[];
-	event: SessionEvent | null;
 	label: string;
+	seed: SessionEvent | null;
 	time: string | undefined;
 }): number | null {
-	if (!event) {
+	if (!current) {
 		return null;
 	}
 	if (!time) {
 		errors.push(`${label} is required for a live session`);
 		return null;
 	}
-	if (time === toTimeInputValue(event.occurredAt)) {
+	if (time === toTimeInputValue((seed ?? current).occurredAt)) {
 		return null;
 	}
-	const next = applyTimeToDate(event.occurredAt, time);
+	const next = applyTimeToDate(current.occurredAt, time);
 	if (Number.isNaN(next.getTime())) {
 		errors.push(`${label} is invalid`);
 		return null;
 	}
-	return Math.floor(next.getTime() / 1000);
+	const seconds = Math.floor(next.getTime() / 1000);
+	// Both editors landed on the same minute — nothing left to write.
+	return minuteEpoch(seconds) === minuteEpoch(secondsOf(current.occurredAt))
+		? null
+		: seconds;
+}
+
+function numberAt(payload: unknown, key: string): number | undefined {
+	if (!payload || typeof payload !== "object") {
+		return undefined;
+	}
+	const value = (payload as Record<string, unknown>)[key];
+	return typeof value === "number" ? value : undefined;
+}
+
+function isBeforeDeadline(payload: unknown): boolean {
+	return (
+		!!payload &&
+		typeof payload === "object" &&
+		(payload as Record<string, unknown>).beforeDeadline === true
+	);
+}
+
+/**
+ * Per-key last-write-wins between the form and the Events section: a key the
+ * form left at its seeded value keeps whatever the event holds now, so editing
+ * the prize in the Events section and the placement in the form keeps both.
+ */
+function keepUnlessEdited<T>(formValue: T, seedValue: T, currentValue: T): T {
+	return formValue === seedValue ? currentValue : formValue;
+}
+
+interface TournamentResult {
+	beforeDeadline: boolean;
+	bountyPrizes: number;
+	placement: number | undefined;
+	prizeMoney: number | undefined;
+	totalEntries: number | undefined;
+}
+
+function mergeTournamentResult({
+	current,
+	seed,
+	values,
+}: {
+	current: SessionEvent;
+	seed: SessionEvent | null;
+	values: TournamentFormValues;
+}): TournamentResult {
+	const seedPayload = (seed ?? current).payload;
+	const currentPayload = current.payload;
+	const numeric = (key: keyof TournamentResult & string, formValue?: number) =>
+		keepUnlessEdited(
+			formValue,
+			numberAt(seedPayload, key),
+			numberAt(currentPayload, key)
+		);
+	return {
+		beforeDeadline: keepUnlessEdited(
+			values.beforeDeadline === true,
+			isBeforeDeadline(seedPayload),
+			isBeforeDeadline(currentPayload)
+		),
+		bountyPrizes:
+			keepUnlessEdited(
+				values.bountyPrizes ?? 0,
+				numberAt(seedPayload, "bountyPrizes") ?? 0,
+				numberAt(currentPayload, "bountyPrizes") ?? 0
+			) ?? 0,
+		placement: numeric("placement", values.placement),
+		prizeMoney: numeric("prizeMoney", values.prizeMoney),
+		totalEntries: numeric("totalEntries", values.totalEntries),
+	};
 }
 
 function buildTournamentEndPayload(
-	values: TournamentFormValues,
+	values: TournamentResult,
 	errors: string[]
 ): Record<string, unknown> | null {
 	if (values.prizeMoney === undefined) {
@@ -221,9 +315,9 @@ function buildTournamentEndPayload(
 	}
 	const common = {
 		prizeMoney: values.prizeMoney,
-		bountyPrizes: values.bountyPrizes ?? 0,
+		bountyPrizes: values.bountyPrizes,
 	};
-	if (values.beforeDeadline === true) {
+	if (values.beforeDeadline) {
 		return { beforeDeadline: true, ...common };
 	}
 	if (values.placement === undefined) {
@@ -246,13 +340,29 @@ function buildTournamentEndPayload(
 	};
 }
 
-function buildSessionEndPayload(
-	values: SessionFormValues,
-	errors: string[]
-): Record<string, unknown> | null {
-	return values.type === "cash_game"
-		? { cashOutAmount: values.cashOut }
-		: buildTournamentEndPayload(values, errors);
+function buildSessionEndPayload({
+	current,
+	errors,
+	seed,
+	values,
+}: {
+	current: SessionEvent;
+	errors: string[];
+	seed: SessionEvent | null;
+	values: SessionFormValues;
+}): Record<string, unknown> | null {
+	if (values.type !== "cash_game") {
+		return buildTournamentEndPayload(
+			mergeTournamentResult({ current, seed, values }),
+			errors
+		);
+	}
+	const cashOutAmount = keepUnlessEdited(
+		values.cashOut,
+		numberAt((seed ?? current).payload, "cashOutAmount"),
+		numberAt(current.payload, "cashOutAmount")
+	);
+	return { cashOutAmount: cashOutAmount ?? values.cashOut };
 }
 
 // `sessionEvent.update` replaces the payload wholesale, so an unchanged payload
@@ -351,30 +461,48 @@ function buildEndEdit({
  * The edits are returned in the order they must be applied: when the end moves
  * later it goes first, so a start moving past the end's *old* time is never
  * rejected by the server's neighbour check (and vice versa).
+ *
+ * `seedEvents` are the events as they were when the form was seeded; every
+ * "did the user change this?" question is answered against them, while the
+ * edits themselves are written against `events` (which the Events section
+ * embedded in the same sheet may have moved on in the meantime). Defaults to
+ * `events` for callers that cannot race with a second editor.
  */
 export function buildLiveLinkedEventEdits({
 	events,
+	seedEvents,
 	values,
 }: {
 	events: SessionEvent[];
+	seedEvents?: SessionEvent[];
 	values: SessionFormValues;
 }): { edits: LiveLinkedEventEdit[]; errors: string[] } {
 	const errors: string[] = [];
 	const { sessionEnd, sessionStart } = findLifecycleEvents(events);
+	const seed = findLifecycleEvents(seedEvents ?? events);
 
 	const nextStartAt = resolveLifecycleOccurredAt({
+		current: sessionStart,
 		errors,
-		event: sessionStart,
 		label: START_TIME_LABEL,
+		seed: seed.sessionStart,
 		time: values.startTime,
 	});
 	const nextEndAt = resolveLifecycleOccurredAt({
+		current: sessionEnd,
 		errors,
-		event: sessionEnd,
 		label: END_TIME_LABEL,
+		seed: seed.sessionEnd,
 		time: values.endTime,
 	});
-	const payload = sessionEnd ? buildSessionEndPayload(values, errors) : null;
+	const payload = sessionEnd
+		? buildSessionEndPayload({
+				current: sessionEnd,
+				errors,
+				seed: seed.sessionEnd,
+				values,
+			})
+		: null;
 
 	const pending = new Map<string, number>();
 	if (sessionStart && nextStartAt !== null) {

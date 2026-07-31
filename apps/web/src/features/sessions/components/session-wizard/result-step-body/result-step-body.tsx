@@ -12,6 +12,7 @@ export function ResultStepBody({
 	onCreateTag,
 	disabledFields = NO_DISABLED_FIELDS,
 	endDateHint,
+	startDateHint,
 }: {
 	/**
 	 * Result fields to render read-only. A live-recorded session locks the
@@ -19,9 +20,11 @@ export function ResultStepBody({
 	 * single event editable; everything else passes an empty set.
 	 */
 	disabledFields?: ReadonlySet<string>;
-	/** Calendar day of the end time when the session crossed midnight. */
+	/** Calendar day the end time writes to, when it is not the displayed date. */
 	endDateHint?: string | null;
 	onCreateTag?: (name: string) => Promise<{ id: string; name: string }>;
+	/** Same, for the start time. */
+	startDateHint?: string | null;
 	state: UseSessionWizardReturn;
 	tags?: Array<{ id: string; name: string }>;
 }) {
@@ -30,6 +33,7 @@ export function ResultStepBody({
 			<DateTimeFields
 				disabledFields={disabledFields}
 				endDateHint={endDateHint}
+				startDateHint={startDateHint}
 				state={state}
 			/>
 			{state.isCashGame ? (

@@ -202,6 +202,11 @@ describe("SessionEditForm", () => {
 			expect(screen.getByText("Ends 2026/04/11")).toBeInTheDocument();
 		});
 
+		it("shows the start event's day when the displayed date lags the times", () => {
+			renderForm({ isLiveLinked: true, startDateHint: "2026/04/11" });
+			expect(screen.getByText("Starts 2026/04/11")).toBeInTheDocument();
+		});
+
 		it("shows no end-day hint for a same-day session", () => {
 			renderForm({ isLiveLinked: true });
 			expect(screen.queryByText(END_DAY_HINT)).not.toBeInTheDocument();
