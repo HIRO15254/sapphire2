@@ -967,7 +967,7 @@ const sessionBlindLevelInputSchema = z.object({
 	games: levelGamesSchema.nullish(),
 });
 
-const cashGameCreateSchema = z.object({
+export const cashGameCreateSchema = z.object({
 	type: z.literal("cash_game"),
 	sessionDate: z.number(),
 	buyIn: nonNegativeIntegerSchema,
@@ -1011,7 +1011,7 @@ const chipPurchaseInputSchema = z.object({
 	count: nonNegativeIntegerSchema.default(0),
 });
 
-const tournamentCreateSchema = z
+export const tournamentCreateSchema = z
 	.object({
 		type: z.literal("tournament"),
 		sessionDate: z.number(),
@@ -1060,6 +1060,72 @@ const createInputSchema = z.discriminatedUnion("type", [
 ]);
 
 type CreateInput = z.infer<typeof createInputSchema>;
+
+// Named exports for the MCP tool layer (packages/mcp) — the tools must expose
+// the exact same Zod objects the router validates with, so schema drift
+// between the API and the MCP surface is structurally impossible.
+export const sessionListInputSchema = z.object({
+	cursor: z.string().optional(),
+	type: z.enum(["cash_game", "tournament"]).optional(),
+	roomId: z.string().optional(),
+	currencyId: z.string().optional(),
+	dateFrom: z.number().optional(),
+	dateTo: z.number().optional(),
+});
+
+export const sessionGetByIdInputSchema = z.object({ id: z.string() });
+
+export const sessionUpdateInputSchema = z
+	.object({
+		id: z.string(),
+		sessionDate: z.number().optional(),
+		roomId: z.string().min(1).nullable().optional(),
+		ringGameId: z.string().min(1).nullable().optional(),
+		tournamentId: z.string().min(1).nullable().optional(),
+		currencyId: z.string().min(1).nullable().optional(),
+		buyIn: nonNegativeIntegerSchema.optional(),
+		cashOut: nonNegativeIntegerSchema.optional(),
+		evCashOut: nullableNonNegativeIntegerSchema.optional(),
+		tournamentBuyIn: nonNegativeIntegerSchema.optional(),
+		entryFee: nonNegativeIntegerSchema.optional(),
+		placement: z.number().int().min(1).nullable().optional(),
+		totalEntries: z.number().int().min(1).nullable().optional(),
+		beforeDeadline: z.boolean().nullable().optional(),
+		prizeMoney: nullableNonNegativeIntegerSchema.optional(),
+		bountyPrizes: nullableNonNegativeIntegerSchema.optional(),
+		startingStack: nullableNonNegativeIntegerSchema.optional(),
+		bountyAmount: nullableNonNegativeIntegerSchema.optional(),
+		blindLevels: z.array(sessionBlindLevelInputSchema).optional(),
+		chipPurchases: z.array(chipPurchaseInputSchema).optional(),
+		startedAt: z.number().nullable().optional(),
+		endedAt: z.number().nullable().optional(),
+		breakMinutes: nullableNonNegativeIntegerSchema.optional(),
+		memo: z.string().nullable().optional(),
+		ruleName: z.string().optional(),
+		variant: z.string().optional(),
+		mixGames: mixGamesSchema.nullish(),
+		blind1: nullableNonNegativeIntegerSchema.optional(),
+		blind2: nullableNonNegativeIntegerSchema.optional(),
+		blind3: nullableNonNegativeIntegerSchema.optional(),
+		ante: nullableNonNegativeIntegerSchema.optional(),
+		anteType: z.enum(["none", "all", "bb"]).nullable().optional(),
+		tableSize: nullableTableSizeSchema.optional(),
+		minBuyIn: nullableNonNegativeIntegerSchema.optional(),
+		maxBuyIn: nullableNonNegativeIntegerSchema.optional(),
+		tagIds: optionalUniqueTagIdsSchema,
+	})
+	.refine(
+		(data) =>
+			data.beforeDeadline === true ||
+			data.placement === undefined ||
+			data.placement === null ||
+			data.totalEntries === undefined ||
+			data.totalEntries === null ||
+			data.placement <= data.totalEntries,
+		{
+			message: "Placement must be less than or equal to total entries",
+		}
+	);
 
 interface SessionSummary {
 	avgPlacement: number | null;
@@ -3178,16 +3244,7 @@ export const sessionRouter = router({
 		}),
 
 	list: protectedProcedure
-		.input(
-			z.object({
-				cursor: z.string().optional(),
-				type: z.enum(["cash_game", "tournament"]).optional(),
-				roomId: z.string().optional(),
-				currencyId: z.string().optional(),
-				dateFrom: z.number().optional(),
-				dateTo: z.number().optional(),
-			})
-		)
+		.input(sessionListInputSchema)
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await validateSessionFilterOwnership(ctx.db, input, userId);
@@ -3215,7 +3272,7 @@ export const sessionRouter = router({
 		}),
 
 	getById: protectedProcedure
-		.input(z.object({ id: z.string() }))
+		.input(sessionGetByIdInputSchema)
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			// Ownership guard — throws FORBIDDEN when the session is missing or
@@ -3238,59 +3295,7 @@ export const sessionRouter = router({
 		}),
 
 	update: protectedProcedure
-		.input(
-			z
-				.object({
-					id: z.string(),
-					sessionDate: z.number().optional(),
-					roomId: z.string().min(1).nullable().optional(),
-					ringGameId: z.string().min(1).nullable().optional(),
-					tournamentId: z.string().min(1).nullable().optional(),
-					currencyId: z.string().min(1).nullable().optional(),
-					buyIn: nonNegativeIntegerSchema.optional(),
-					cashOut: nonNegativeIntegerSchema.optional(),
-					evCashOut: nullableNonNegativeIntegerSchema.optional(),
-					tournamentBuyIn: nonNegativeIntegerSchema.optional(),
-					entryFee: nonNegativeIntegerSchema.optional(),
-					placement: z.number().int().min(1).nullable().optional(),
-					totalEntries: z.number().int().min(1).nullable().optional(),
-					beforeDeadline: z.boolean().nullable().optional(),
-					prizeMoney: nullableNonNegativeIntegerSchema.optional(),
-					bountyPrizes: nullableNonNegativeIntegerSchema.optional(),
-					startingStack: nullableNonNegativeIntegerSchema.optional(),
-					bountyAmount: nullableNonNegativeIntegerSchema.optional(),
-					blindLevels: z.array(sessionBlindLevelInputSchema).optional(),
-					chipPurchases: z.array(chipPurchaseInputSchema).optional(),
-					startedAt: z.number().nullable().optional(),
-					endedAt: z.number().nullable().optional(),
-					breakMinutes: nullableNonNegativeIntegerSchema.optional(),
-					memo: z.string().nullable().optional(),
-					ruleName: z.string().optional(),
-					variant: z.string().optional(),
-					mixGames: mixGamesSchema.nullish(),
-					blind1: nullableNonNegativeIntegerSchema.optional(),
-					blind2: nullableNonNegativeIntegerSchema.optional(),
-					blind3: nullableNonNegativeIntegerSchema.optional(),
-					ante: nullableNonNegativeIntegerSchema.optional(),
-					anteType: z.enum(["none", "all", "bb"]).nullable().optional(),
-					tableSize: nullableTableSizeSchema.optional(),
-					minBuyIn: nullableNonNegativeIntegerSchema.optional(),
-					maxBuyIn: nullableNonNegativeIntegerSchema.optional(),
-					tagIds: optionalUniqueTagIdsSchema,
-				})
-				.refine(
-					(data) =>
-						data.beforeDeadline === true ||
-						data.placement === undefined ||
-						data.placement === null ||
-						data.totalEntries === undefined ||
-						data.totalEntries === null ||
-						data.placement <= data.totalEntries,
-					{
-						message: "Placement must be less than or equal to total entries",
-					}
-				)
-		)
+		.input(sessionUpdateInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const session = await validateSessionOwnership(ctx.db, input.id, userId);

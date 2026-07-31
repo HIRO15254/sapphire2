@@ -15,16 +15,17 @@ import {
 	validateTagsOwnership,
 } from "./session";
 
+// Named export for the MCP tool layer — see .claude/rules/mcp-tools.md.
+export const playerListInputSchema = z
+	.object({
+		search: z.string().optional(),
+		tagIds: z.array(z.string()).optional(),
+	})
+	.optional();
+
 export const playerRouter = router({
 	list: protectedProcedure
-		.input(
-			z
-				.object({
-					search: z.string().optional(),
-					tagIds: z.array(z.string()).optional(),
-				})
-				.optional()
-		)
+		.input(playerListInputSchema)
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 

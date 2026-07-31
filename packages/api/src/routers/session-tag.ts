@@ -8,6 +8,11 @@ import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { runBatch } from "../lib/batch";
 
+// Named export for the MCP tool layer — see .claude/rules/mcp-tools.md.
+export const sessionTagCreateInputSchema = z.object({
+	name: z.string().min(1),
+});
+
 export const sessionTagRouter = router({
 	list: protectedProcedure.query(async ({ ctx }) => {
 		const userId = ctx.session.user.id;
@@ -18,7 +23,7 @@ export const sessionTagRouter = router({
 	}),
 
 	create: protectedProcedure
-		.input(z.object({ name: z.string().min(1) }))
+		.input(sessionTagCreateInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const id = crypto.randomUUID();
