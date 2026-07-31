@@ -5,12 +5,13 @@ import {
 	DEFAULT_GAME_VARIANTS,
 } from "@sapphire2/db/constants/game-variants";
 import { gameGroup } from "@sapphire2/db/schema/game-group";
-import { gameMix } from "@sapphire2/db/schema/game-mix";
+import { gameMix, gameMixVariant } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { BatchStatement } from "../lib/batch";
 import { runBatch } from "../lib/batch";
 import { isLabelConflictError } from "../lib/db-errors";
+import { chunkMembershipRows } from "./game-mix";
 
 type DbInstance = Database;
 
@@ -27,10 +28,10 @@ function builtinSeedId(
  * three masters are per-user DB rows (mix-game rework): code constants
  * (`DEFAULT_GAME_GROUPS`, `DEFAULT_GAME_VARIANTS`, `DEFAULT_GAME_MIXES`) are
  * seed data only, never a runtime fallback, so every user needs their own
- * copy of these rows to pick from. Each seeded mix's `games` column is
- * resolved to THIS user's freshly seeded variant row ids (not the variant
- * keys) so it references game_variant by id like any other mix (see
- * `packages/db/src/schema/game-mix.ts`).
+ * copy of these rows to pick from. Each seeded mix's ordered
+ * `game_mix_variant` rows reference THIS user's freshly seeded variant ids
+ * (not the variant keys), just like memberships created through the mix
+ * router.
  *
  * Idempotent guard: if the user already has ANY gameGroup row OR ANY
  * gameVariant row OR ANY gameMix row, this is a no-op (c09). That respects an
@@ -138,6 +139,7 @@ export async function seedDefaultGameData(
 	}
 
 	for (const m of DEFAULT_GAME_MIXES) {
+		const mixId = builtinSeedId(userId, "mix", m.key);
 		const games = m.variantKeys
 			.map((key) => variantIdByKey.get(key))
 			.filter((id): id is string => id !== undefined);
@@ -145,20 +147,51 @@ export async function seedDefaultGameData(
 			db
 				.insert(gameMix)
 				.values({
-					id: builtinSeedId(userId, "mix", m.key),
+					id: mixId,
 					userId,
 					builtinKey: m.key,
 					label: m.label,
-					games,
+					games: [],
 					updatedAt: now,
 				})
 				.onConflictDoNothing()
 		);
+		const memberships = games.map((variantId, position) => ({
+			mixId,
+			position,
+			userId,
+			variantId,
+		}));
+		// Fail closed like the `groupId` guard above: if a future data-entry
+		// mistake leaves a mix with no resolvable variantKey, seed the master row
+		// with an empty composition rather than handing Drizzle `values([])`,
+		// which throws — and would turn gameGroup/gameVariant/gameMix `list` (all
+		// of which call this without a try/catch) into a 500 for that user. That
+		// guard is the loop itself: chunkForInsert yields NO chunks for an empty
+		// input, so an empty composition emits no statement at all.
+		// Chunked through the same helper as the mix router so a future builtin
+		// mix wide enough to overflow D1's bind-param cap is split, not rejected
+		// at runtime.
+		for (const chunk of chunkMembershipRows(memberships)) {
+			statements.push(
+				db.insert(gameMixVariant).values(chunk).onConflictDoNothing()
+			);
+		}
+		// Keep the physical games column synchronized for the pre-0049 Worker
+		// during migration-first deploys and rollback. The compatibility trigger
+		// applies the same ordered rows after this normalized insert.
+		statements.push(
+			db
+				.update(gameMix)
+				.set({ games, updatedAt: now })
+				.where(and(eq(gameMix.id, mixId), eq(gameMix.userId, userId)))
+		);
 	}
 
-	// All 27 inserts (3 groups + 21 variants + 3 mixes) commit as one atomic
-	// batch (SA2-116) — a mid-sequence failure can no longer leave a user with
-	// some builtin groups/variants/mixes but not others.
+	// Every statement (3 groups + 21 variants + 3 mix masters + up to 3 membership
+	// batches + 3 mirror updates — 33 with the current constants, fewer if a mix
+	// resolves to no variants) commits atomically (SA2-116), so a failure cannot
+	// leave a user with partial built-in game data.
 	try {
 		await runBatch(db, statements);
 	} catch (error) {

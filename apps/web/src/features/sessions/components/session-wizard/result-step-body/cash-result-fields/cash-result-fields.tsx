@@ -4,10 +4,11 @@ import type { UseSessionWizardReturn } from "../../use-session-wizard";
 
 export function CashResultFields({
 	state,
-	isLiveLinked,
+	disabledFields,
 }: {
+	/** Field names to render read-only (live sessions lock a subset). */
+	disabledFields: ReadonlySet<string>;
 	state: UseSessionWizardReturn;
-	isLiveLinked: boolean;
 }) {
 	const { form } = state;
 	return (
@@ -22,7 +23,7 @@ export function CashResultFields({
 							required
 						>
 							<Input
-								disabled={isLiveLinked}
+								disabled={disabledFields.has("buyIn")}
 								id={field.name}
 								inputMode="numeric"
 								onBlur={field.handleBlur}
@@ -41,7 +42,7 @@ export function CashResultFields({
 							required
 						>
 							<Input
-								disabled={isLiveLinked}
+								disabled={disabledFields.has("cashOut")}
 								id={field.name}
 								inputMode="numeric"
 								onBlur={field.handleBlur}
@@ -56,7 +57,7 @@ export function CashResultFields({
 				{(field) => (
 					<Field htmlFor={field.name} label="EV cash-out">
 						<Input
-							disabled={isLiveLinked}
+							disabled={disabledFields.has("evCashOut")}
 							id={field.name}
 							inputMode="numeric"
 							onBlur={field.handleBlur}

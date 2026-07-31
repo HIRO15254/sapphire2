@@ -17,7 +17,12 @@ import {
 } from "./schema/currency";
 import { filterPreset, filterPresetRelations } from "./schema/filter-preset";
 import { gameGroup, gameGroupRelations } from "./schema/game-group";
-import { gameMix, gameMixRelations } from "./schema/game-mix";
+import {
+	gameMix,
+	gameMixRelations,
+	gameMixVariant,
+	gameMixVariantRelations,
+} from "./schema/game-mix";
 import { gameVariant, gameVariantRelations } from "./schema/game-variant";
 import {
 	oauthAccessToken,
@@ -125,6 +130,8 @@ export const schema = {
 	sessionChipPurchaseResultRelations,
 	player,
 	playerRelations,
+	gameMixVariant,
+	gameMixVariantRelations,
 	playerTag,
 	playerTagRelations,
 	playerToPlayerTag,

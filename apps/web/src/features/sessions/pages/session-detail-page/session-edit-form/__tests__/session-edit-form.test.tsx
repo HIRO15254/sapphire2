@@ -59,6 +59,10 @@ const TAGS = [{ id: "t1", name: "Profit" }];
 const BUY_IN_LABEL = /^Buy-in/;
 const CASH_OUT_LABEL = /^Cash-out/;
 const SESSION_DATE_LABEL = /^Session date/;
+const BANNER_SYNC_COPY = /sync back to the event history/;
+const END_DAY_HINT = /^Ends /;
+const START_TIME_LABEL = /^Start time/;
+const END_TIME_LABEL = /^End time/;
 
 const CASH_DEFAULTS: SessionFormDefaults = {
 	type: "cash_game",
@@ -143,16 +147,86 @@ describe("SessionEditForm", () => {
 	});
 
 	describe("live-linked session", () => {
+		// The fields backed by a single event value stay editable and are synced
+		// back to that event on save; only the values aggregated over several
+		// events are locked. The page hook decides which is which.
+		const AGGREGATED_ONLY = new Set([
+			"breakMinutes",
+			"buyIn",
+			"evCashOut",
+			"sessionDate",
+		]);
+		const EVERY_RESULT_FIELD = new Set([
+			"breakMinutes",
+			"buyIn",
+			"cashOut",
+			"endTime",
+			"evCashOut",
+			"sessionDate",
+			"startTime",
+		]);
+
 		it("shows the live-linked explanation banner", () => {
 			renderForm({ isLiveLinked: true });
-			expect(screen.getByTestId("live-linked-banner")).toBeInTheDocument();
+			expect(screen.getByTestId("live-linked-banner")).toHaveTextContent(
+				BANNER_SYNC_COPY
+			);
 		});
 
-		it("disables the event-derived fields (buy-in, cash-out, session date)", () => {
-			renderForm({ isLiveLinked: true });
+		it("disables the aggregated fields while keeping the event-backed ones editable", () => {
+			renderForm({ isLiveLinked: true, disabledFields: AGGREGATED_ONLY });
+			expect(screen.getByLabelText(BUY_IN_LABEL)).toBeDisabled();
+			expect(screen.getByLabelText("EV cash-out")).toBeDisabled();
+			expect(screen.getByLabelText(CASH_OUT_LABEL)).not.toBeDisabled();
+			expect(screen.getByLabelText("Start time")).not.toBeDisabled();
+			expect(screen.getByLabelText("End time")).not.toBeDisabled();
+			// A day move cannot be written back to a single event.
+			expect(screen.getByLabelText(SESSION_DATE_LABEL)).toBeDisabled();
+		});
+
+		it("disables every result field the set names", () => {
+			renderForm({ isLiveLinked: true, disabledFields: EVERY_RESULT_FIELD });
 			expect(screen.getByLabelText(BUY_IN_LABEL)).toBeDisabled();
 			expect(screen.getByLabelText(CASH_OUT_LABEL)).toBeDisabled();
 			expect(screen.getByLabelText(SESSION_DATE_LABEL)).toBeDisabled();
+			expect(screen.getByLabelText("Start time")).toBeDisabled();
+			expect(screen.getByLabelText("End time")).toBeDisabled();
+		});
+
+		it("keeps the result fields editable when no disabled set is provided", () => {
+			renderForm({ isLiveLinked: true });
+			expect(screen.getByLabelText(BUY_IN_LABEL)).not.toBeDisabled();
+			expect(screen.getByLabelText(CASH_OUT_LABEL)).not.toBeDisabled();
+		});
+
+		it("shows the end event's day when the session crossed midnight", () => {
+			renderForm({ isLiveLinked: true, endDateHint: "2026/04/11" });
+			expect(screen.getByText("Ends 2026/04/11")).toBeInTheDocument();
+		});
+
+		it("marks the live-required fields with an asterisk", () => {
+			renderForm({
+				isLiveLinked: true,
+				requiredFields: new Set(["startTime", "endTime"]),
+			});
+			expect(screen.getByText(START_TIME_LABEL).textContent).toContain("*");
+			expect(screen.getByText(END_TIME_LABEL).textContent).toContain("*");
+		});
+
+		it("leaves the time fields unmarked when nothing is required", () => {
+			renderForm({ isLiveLinked: true });
+			expect(screen.getByText(START_TIME_LABEL).textContent).not.toContain("*");
+			expect(screen.getByText(END_TIME_LABEL).textContent).not.toContain("*");
+		});
+
+		it("shows the start event's day when the displayed date lags the times", () => {
+			renderForm({ isLiveLinked: true, startDateHint: "2026/04/11" });
+			expect(screen.getByText("Starts 2026/04/11")).toBeInTheDocument();
+		});
+
+		it("shows no end-day hint for a same-day session", () => {
+			renderForm({ isLiveLinked: true });
+			expect(screen.queryByText(END_DAY_HINT)).not.toBeInTheDocument();
 		});
 
 		it("keeps memo editable (a field session.update accepts for live sessions)", () => {

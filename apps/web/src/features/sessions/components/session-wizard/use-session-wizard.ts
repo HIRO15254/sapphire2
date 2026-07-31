@@ -67,6 +67,8 @@ interface UseSessionWizardArgs {
 	mode?: WizardMode;
 	onRoomChange?: (roomId: string | undefined) => void;
 	onSubmit: (values: SessionFormValues) => void;
+	/** Extra fields this form must not leave blank — see `useSessionFormState`. */
+	requiredFields?: ReadonlySet<string>;
 	ringGames?: RingGameOption[];
 	tournaments?: TournamentOption[];
 }

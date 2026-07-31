@@ -18,6 +18,19 @@ const mocks = vi.hoisted(() => ({
 	} | null,
 	isLoading: false,
 	isUpdatePending: false,
+	submitLiveEventEdits: vi.fn(),
+	disabledResultFields: new Set<string>(),
+	endDateHint: null as string | null,
+	requiredResultFields: new Set<string>(),
+	startDateHint: null as string | null,
+	isEventUpdatePending: false,
+	lastLiveEditArgs: null as {
+		displayedDate: string;
+		isEditOpen: boolean;
+		isLiveLinked: boolean;
+		sessionId: string;
+		sessionType: string;
+	} | null,
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -36,6 +49,29 @@ vi.mock("@/features/sessions/hooks/use-session-detail", () => ({
 		createTag: mocks.createTag,
 	}),
 }));
+
+vi.mock(
+	"@/features/sessions/pages/session-detail-page/use-live-linked-session-edit",
+	() => ({
+		useLiveLinkedSessionEdit: (args: {
+			displayedDate: string;
+			isEditOpen: boolean;
+			isLiveLinked: boolean;
+			sessionId: string;
+			sessionType: string;
+		}) => {
+			mocks.lastLiveEditArgs = args;
+			return {
+				disabledResultFields: mocks.disabledResultFields,
+				endDateHint: mocks.endDateHint,
+				requiredResultFields: mocks.requiredResultFields,
+				startDateHint: mocks.startDateHint,
+				isEventUpdatePending: mocks.isEventUpdatePending,
+				submitLiveEventEdits: mocks.submitLiveEventEdits,
+			};
+		},
+	})
+);
 
 vi.mock("@/features/rooms/hooks/use-room-games", () => ({
 	useEntityLists: () => ({
@@ -92,6 +128,13 @@ describe("useSessionDetailPage", () => {
 		mocks.session = manualCash;
 		mocks.isLoading = false;
 		mocks.isUpdatePending = false;
+		mocks.submitLiveEventEdits.mockReset().mockResolvedValue(true);
+		mocks.disabledResultFields = new Set<string>();
+		mocks.endDateHint = null;
+		mocks.requiredResultFields = new Set<string>();
+		mocks.startDateHint = null;
+		mocks.isEventUpdatePending = false;
+		mocks.lastLiveEditArgs = null;
 	});
 
 	describe("initial state", () => {
@@ -185,8 +228,7 @@ describe("useSessionDetailPage", () => {
 			mocks.session = manualCash;
 			const { result } = renderHook(() => useSessionDetailPage("s1"));
 			await act(async () => {
-				result.current.handleEdit(cashValues);
-				await Promise.resolve();
+				await result.current.handleEdit(cashValues);
 			});
 			expect(mocks.update).toHaveBeenCalledTimes(1);
 			expect(mocks.update).toHaveBeenCalledWith({
@@ -200,8 +242,7 @@ describe("useSessionDetailPage", () => {
 			mocks.session = liveCash;
 			const { result } = renderHook(() => useSessionDetailPage("s2"));
 			await act(async () => {
-				result.current.handleEdit(cashValues);
-				await Promise.resolve();
+				await result.current.handleEdit(cashValues);
 			});
 			expect(mocks.update).toHaveBeenCalledWith({
 				id: "s2",
@@ -216,19 +257,128 @@ describe("useSessionDetailPage", () => {
 				result.current.setIsEditOpen(true);
 			});
 			await act(async () => {
-				result.current.handleEdit(cashValues);
-				await Promise.resolve();
+				await result.current.handleEdit(cashValues);
 			});
 			await waitFor(() => expect(result.current.isEditOpen).toBe(false));
 		});
 
-		it("does nothing when the session is not loaded", () => {
+		it("does nothing when the session is not loaded", async () => {
 			mocks.session = null;
 			const { result } = renderHook(() => useSessionDetailPage("s1"));
-			act(() => {
-				result.current.handleEdit(cashValues);
+			await act(async () => {
+				await result.current.handleEdit(cashValues);
 			});
 			expect(mocks.update).not.toHaveBeenCalled();
+			expect(mocks.submitLiveEventEdits).not.toHaveBeenCalled();
+		});
+	});
+
+	// A live session's event-backed fields are written through
+	// `sessionEvent.update` (session.update refuses them), so the event sync
+	// runs first and a failure has to stop the save.
+	describe("handleEdit — live-linked event sync", () => {
+		it("syncs the events before updating the session metadata", async () => {
+			mocks.session = liveCash;
+			const order: string[] = [];
+			mocks.submitLiveEventEdits.mockImplementation(() => {
+				order.push("events");
+				return Promise.resolve(true);
+			});
+			mocks.update.mockImplementation(() => {
+				order.push("session");
+				return Promise.resolve(undefined);
+			});
+			const { result } = renderHook(() => useSessionDetailPage("s2"));
+			await act(async () => {
+				await result.current.handleEdit(cashValues);
+			});
+			expect(order).toEqual(["events", "session"]);
+			expect(mocks.submitLiveEventEdits).toHaveBeenCalledTimes(1);
+			expect(mocks.submitLiveEventEdits).toHaveBeenCalledWith(cashValues);
+		});
+
+		it("keeps the sheet open and skips the session update when the sync fails", async () => {
+			mocks.session = liveCash;
+			mocks.submitLiveEventEdits.mockResolvedValue(false);
+			const { result } = renderHook(() => useSessionDetailPage("s2"));
+			act(() => {
+				result.current.setIsEditOpen(true);
+			});
+			await act(async () => {
+				await result.current.handleEdit(cashValues);
+			});
+			expect(mocks.update).not.toHaveBeenCalled();
+			expect(result.current.isEditOpen).toBe(true);
+		});
+
+		it("keeps the sheet open when the session update itself rejects", async () => {
+			mocks.update.mockRejectedValue(new Error("nope"));
+			const { result } = renderHook(() => useSessionDetailPage("s1"));
+			act(() => {
+				result.current.setIsEditOpen(true);
+			});
+			await act(async () => {
+				await result.current.handleEdit(cashValues);
+			});
+			expect(result.current.isEditOpen).toBe(true);
+		});
+
+		it("passes the live-linked flag and session type to the event-sync hook", () => {
+			mocks.session = liveTournament;
+			renderHook(() => useSessionDetailPage("s3"));
+			expect(mocks.lastLiveEditArgs).toMatchObject({
+				isLiveLinked: true,
+				sessionId: "s3",
+				sessionType: "tournament",
+			});
+		});
+
+		it("reports a manual session as not live-linked to the event-sync hook", () => {
+			mocks.session = manualCash;
+			renderHook(() => useSessionDetailPage("s1"));
+			expect(mocks.lastLiveEditArgs).toMatchObject({
+				isLiveLinked: false,
+				sessionId: "s1",
+				sessionType: "cash_game",
+			});
+		});
+
+		it("passes the displayed date and sheet state to the event-sync hook", () => {
+			mocks.session = { ...liveCash, sessionDate: "2026-04-11T03:00:00Z" };
+			const { result } = renderHook(() => useSessionDetailPage("s2"));
+			expect(mocks.lastLiveEditArgs?.displayedDate).toBe("2026-04-11");
+			expect(mocks.lastLiveEditArgs?.isEditOpen).toBe(false);
+			act(() => {
+				result.current.openEditFromActions();
+			});
+			expect(mocks.lastLiveEditArgs?.isEditOpen).toBe(true);
+		});
+
+		it("exposes the end-day hint from the event-sync hook", () => {
+			mocks.session = liveCash;
+			mocks.endDateHint = "2026/04/11";
+			const { result } = renderHook(() => useSessionDetailPage("s2"));
+			expect(result.current.endDateHint).toBe("2026/04/11");
+		});
+
+		it("exposes the required result fields from the event-sync hook", () => {
+			mocks.session = liveCash;
+			mocks.requiredResultFields = new Set(["startTime"]);
+			const { result } = renderHook(() => useSessionDetailPage("s2"));
+			expect(result.current.requiredResultFields.has("startTime")).toBe(true);
+		});
+
+		it("exposes the disabled result fields from the event-sync hook", () => {
+			mocks.session = liveCash;
+			mocks.disabledResultFields = new Set(["buyIn"]);
+			const { result } = renderHook(() => useSessionDetailPage("s2"));
+			expect(result.current.disabledResultFields.has("buyIn")).toBe(true);
+		});
+
+		it("reports a pending event update as a pending save", () => {
+			mocks.isEventUpdatePending = true;
+			const { result } = renderHook(() => useSessionDetailPage("s1"));
+			expect(result.current.isUpdatePending).toBe(true);
 		});
 	});
 

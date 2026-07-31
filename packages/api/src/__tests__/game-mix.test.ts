@@ -12,6 +12,7 @@ import {
 	expectRejects,
 	expectType,
 	getInputSchema,
+	withGameMixVariantFixtures,
 } from "./test-utils";
 
 type Rows = Record<string, unknown>[];
@@ -19,9 +20,21 @@ type Rows = Record<string, unknown>[];
 const GROUP_TABLE = getTableName(gameGroup);
 const VARIANT_TABLE = getTableName(gameVariant);
 const MIX_TABLE = getTableName(gameMix);
+const MIX_VARIANT_TABLE = "game_mix_variant";
+const MAX_MIX_VARIANT_ROWS_PER_INSERT = 25;
+
+function flattenedWrites(
+	writes: unknown[] | undefined
+): Record<string, unknown>[] {
+	return (writes ?? []).flatMap((entry) =>
+		Array.isArray(entry) ? entry : [entry]
+	) as Record<string, unknown>[];
+}
 
 function gameMixCaller(userId: string, select: Record<string, Rows>) {
-	const mock = createChainableMockDb({ select });
+	const mock = createChainableMockDb({
+		select: withGameMixVariantFixtures(select),
+	});
 	const caller = appRouter.createCaller({
 		session: { user: { id: userId } },
 		db: mock.db,
@@ -277,19 +290,22 @@ describe("gameMix.create games ownership (SA2-183)", () => {
 		).resolves.toBeDefined();
 	});
 
-	it("stamps the created row with the caller's userId, null builtinKey, a generated id, and the ordered games array", async () => {
-		const { caller, inserted } = gameMixCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [OWNED_GROUP],
-			[VARIANT_TABLE]: [OWNED_VARIANT_1, OWNED_VARIANT_2],
-			[MIX_TABLE]: [
-				{
-					id: "placeholder",
-					userId: CUR_OWNER,
-					label: "Placeholder",
-					games: [],
-				},
-			],
-		});
+	it("stores mix metadata, normalized rows, and the rolling-deploy mirror atomically", async () => {
+		const { caller, inserted, updated, selectWhereParams } = gameMixCaller(
+			CUR_OWNER,
+			{
+				[GROUP_TABLE]: [OWNED_GROUP],
+				[VARIANT_TABLE]: [OWNED_VARIANT_1, OWNED_VARIANT_2],
+				[MIX_TABLE]: [
+					{
+						id: "placeholder",
+						userId: CUR_OWNER,
+						label: "Placeholder",
+						games: [],
+					},
+				],
+			}
+		);
 		await caller.create({
 			label: "Brand New",
 			games: [OWNED_VARIANT_1.id, OWNED_VARIANT_2.id],
@@ -299,11 +315,30 @@ describe("gameMix.create games ownership (SA2-183)", () => {
 			userId: CUR_OWNER,
 			label: "Brand New",
 			builtinKey: null,
-			games: [OWNED_VARIANT_1.id, OWNED_VARIANT_2.id],
 		});
+		expect(inserted[MIX_TABLE]?.[0]).toMatchObject({ games: [] });
 		expect(
 			typeof (inserted[MIX_TABLE]?.[0] as Record<string, unknown>)?.id
 		).toBe("string");
+		const createdId = (inserted[MIX_TABLE]?.[0] as Record<string, unknown>).id;
+		expect(selectWhereParams).toContainEqual([createdId, CUR_OWNER]);
+		expect(flattenedWrites(inserted[MIX_VARIANT_TABLE])).toEqual([
+			{
+				mixId: createdId,
+				position: 0,
+				userId: CUR_OWNER,
+				variantId: OWNED_VARIANT_1.id,
+			},
+			{
+				mixId: createdId,
+				position: 1,
+				userId: CUR_OWNER,
+				variantId: OWNED_VARIANT_2.id,
+			},
+		]);
+		expect(updated[MIX_TABLE]?.at(-1)).toMatchObject({
+			games: [OWNED_VARIANT_1.id, OWNED_VARIANT_2.id],
+		});
 	});
 });
 
@@ -788,5 +823,262 @@ describe("gameMix type guard sanity", () => {
 		expect(schema.safeParse({ label: "x", games: ["v1", "v2"] }).success).toBe(
 			true
 		);
+	});
+});
+
+describe("gameMix normalized membership persistence", () => {
+	it("hydrates every listed mix from one junction read and preserves position order", async () => {
+		const { caller, selectedTables, selectWhereParams } = gameMixCaller(
+			CUR_OWNER,
+			{
+				[GROUP_TABLE]: [OWNED_GROUP],
+				[VARIANT_TABLE]: [OWNED_VARIANT_1, OWNED_VARIANT_2],
+				[MIX_TABLE]: [
+					{
+						id: "mix-a",
+						userId: CUR_OWNER,
+						builtinKey: "horse",
+						label: "HORSE",
+					},
+					{
+						id: "mix-b",
+						userId: CUR_OWNER,
+						builtinKey: null,
+						label: "Custom",
+					},
+				],
+				[MIX_VARIANT_TABLE]: [
+					{
+						mixId: "mix-a",
+						variantId: OWNED_VARIANT_1.id,
+						userId: CUR_OWNER,
+						position: 1,
+					},
+					{
+						mixId: "mix-b",
+						variantId: OWNED_VARIANT_1.id,
+						userId: CUR_OWNER,
+						position: 0,
+					},
+					{
+						mixId: "mix-a",
+						variantId: OWNED_VARIANT_2.id,
+						userId: CUR_OWNER,
+						position: 0,
+					},
+				],
+			}
+		);
+
+		const result = (await caller.list()) as Array<{
+			games: string[];
+			id: string;
+		}>;
+		expect(result.find((mix) => mix.id === "mix-a")?.games).toEqual([
+			OWNED_VARIANT_2.id,
+			OWNED_VARIANT_1.id,
+		]);
+		expect(result.find((mix) => mix.id === "mix-b")?.games).toEqual([
+			OWNED_VARIANT_1.id,
+		]);
+		expect(selectedTables).toEqual([MIX_TABLE, MIX_VARIANT_TABLE]);
+		expect(selectWhereParams).toEqual([
+			[CUR_OWNER],
+			[CUR_OWNER, "mix-a", "mix-b"],
+		]);
+	});
+
+	it("narrows the junction read to the listed mixes instead of scanning the owner", async () => {
+		const { caller, selectWhereParams } = gameMixCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [OWNED_VARIANT_1],
+			[MIX_TABLE]: [
+				{ id: "mix-a", userId: CUR_OWNER, builtinKey: null, label: "A" },
+				{ id: "mix-b", userId: CUR_OWNER, builtinKey: null, label: "B" },
+			],
+			[MIX_VARIANT_TABLE]: [
+				{
+					mixId: "mix-a",
+					variantId: OWNED_VARIANT_1.id,
+					userId: CUR_OWNER,
+					position: 0,
+				},
+			],
+		});
+
+		await caller.list();
+
+		expect(selectWhereParams.at(-1)).toEqual([CUR_OWNER, "mix-a", "mix-b"]);
+	});
+
+	it("keeps the junction read owner-scoped only when the id list would overflow D1's bind cap", async () => {
+		const mixes = Array.from({ length: 100 }, (_, index) => ({
+			id: `mix-${index}`,
+			userId: CUR_OWNER,
+			builtinKey: null,
+			label: `Mix ${index}`,
+		}));
+		const { caller, selectWhereParams } = gameMixCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [OWNED_VARIANT_1],
+			[MIX_TABLE]: mixes,
+			[MIX_VARIANT_TABLE]: [],
+		});
+
+		await caller.list();
+
+		expect(selectWhereParams.at(-1)).toEqual([CUR_OWNER]);
+	});
+
+	it("hydrates a label-only update from a single-mix junction read", async () => {
+		const { caller, selectWhereParams } = gameMixCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [OWNED_VARIANT_1],
+			[MIX_TABLE]: [
+				{ id: "mix-1", userId: CUR_OWNER, builtinKey: null, label: "Renamed" },
+			],
+			[MIX_VARIANT_TABLE]: [
+				{
+					mixId: "mix-1",
+					variantId: OWNED_VARIANT_1.id,
+					userId: CUR_OWNER,
+					position: 0,
+				},
+			],
+		});
+
+		const updated = (await caller.update({
+			id: "mix-1",
+			label: "Renamed",
+		})) as { games: string[] };
+
+		expect(updated.games).toEqual([OWNED_VARIANT_1.id]);
+		expect(selectWhereParams.at(-1)).toEqual([CUR_OWNER, "mix-1"]);
+	});
+
+	it("creates a 30-game mix with normalized rows and a compatibility mirror in one batch", async () => {
+		const variants = Array.from({ length: 30 }, (_, index) => ({
+			id: `variant-${index}`,
+			userId: CUR_OWNER,
+			groupId: OWNED_GROUP.id,
+			label: `Variant ${index}`,
+		}));
+		const games = variants.map((variant) => variant.id);
+		const { caller, inserted, updated, batch } = gameMixCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: variants,
+			[MIX_TABLE]: [
+				{
+					id: "placeholder",
+					userId: CUR_OWNER,
+					label: "Placeholder",
+				},
+			],
+			[MIX_VARIANT_TABLE]: [],
+		});
+
+		const created = await caller.create({ label: "Thirty Game", games });
+
+		expect(inserted[MIX_TABLE]).toHaveLength(1);
+		expect(inserted[MIX_TABLE]?.[0]).toMatchObject({ games: [] });
+		expect(updated[MIX_TABLE]?.at(-1)).toMatchObject({ games });
+		expect(created?.games).toEqual(games);
+		const membershipWrites = inserted[MIX_VARIANT_TABLE] ?? [];
+		expect(membershipWrites).toHaveLength(2);
+		for (const chunk of membershipWrites) {
+			const rows = Array.isArray(chunk) ? chunk : [chunk];
+			expect(rows.length).toBeLessThanOrEqual(MAX_MIX_VARIANT_ROWS_PER_INSERT);
+			expect(rows.length * 4).toBeLessThanOrEqual(100);
+		}
+		const memberships = flattenedWrites(membershipWrites);
+		expect(memberships).toHaveLength(30);
+		expect(memberships.map((row) => row.variantId)).toEqual(games);
+		expect(memberships.map((row) => row.position)).toEqual(
+			Array.from({ length: 30 }, (_, index) => index)
+		);
+		expect(memberships.every((row) => row.userId === CUR_OWNER)).toBe(true);
+		expect(new Set(memberships.map((row) => row.mixId)).size).toBe(1);
+		expect(batch).toHaveBeenCalledTimes(1);
+		expect(batch.mock.calls[0]?.[0]).toHaveLength(4);
+	});
+
+	it("chunks membership inserts by the row's real column count, not a literal width", async () => {
+		const variants = Array.from({ length: 30 }, (_, index) => ({
+			id: `variant-${index}`,
+			userId: CUR_OWNER,
+			groupId: OWNED_GROUP.id,
+			label: `Variant ${index}`,
+		}));
+		const { caller, inserted } = gameMixCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: variants,
+			[MIX_TABLE]: [{ id: "placeholder", userId: CUR_OWNER, label: "P" }],
+			[MIX_VARIANT_TABLE]: [],
+		});
+
+		await caller.create({
+			label: "Thirty Game",
+			games: variants.map((variant) => variant.id),
+		});
+
+		const chunks = (inserted[MIX_VARIANT_TABLE] ?? []).map((entry) =>
+			Array.isArray(entry) ? entry : [entry]
+		) as Record<string, unknown>[][];
+		const columnsPerRow = Object.keys(chunks[0]?.[0] ?? {}).length;
+		expect(columnsPerRow).toBeGreaterThan(0);
+		expect(chunks.map((chunk) => chunk.length)).toEqual([
+			Math.floor(100 / columnsPerRow),
+			30 - Math.floor(100 / columnsPerRow),
+		]);
+		for (const chunk of chunks) {
+			expect(chunk.length * columnsPerRow).toBeLessThanOrEqual(100);
+		}
+	});
+
+	it("replaces a 30-game composition and compatibility mirror atomically", async () => {
+		const variants = Array.from({ length: 30 }, (_, index) => ({
+			id: `replacement-${index}`,
+			userId: CUR_OWNER,
+			groupId: OWNED_GROUP.id,
+			label: `Replacement ${index}`,
+		}));
+		const games = variants.map((variant) => variant.id);
+		const { caller, inserted, updated, batch, deleteWhereParams } =
+			gameMixCaller(CUR_OWNER, {
+				[GROUP_TABLE]: [OWNED_GROUP],
+				[VARIANT_TABLE]: variants,
+				[MIX_TABLE]: [
+					{
+						id: "mix-1",
+						userId: CUR_OWNER,
+						label: "My Mix",
+					},
+				],
+				[MIX_VARIANT_TABLE]: [
+					{
+						mixId: "mix-1",
+						variantId: "old-variant",
+						userId: CUR_OWNER,
+						position: 0,
+					},
+				],
+			});
+
+		const updatedMix = await caller.update({ id: "mix-1", games });
+
+		expect(updated[MIX_TABLE]).toHaveLength(1);
+		expect(updated[MIX_TABLE]?.[0]).toMatchObject({ games });
+		expect(updatedMix?.games).toEqual(games);
+		const membershipWrites = inserted[MIX_VARIANT_TABLE] ?? [];
+		expect(membershipWrites).toHaveLength(2);
+		const memberships = flattenedWrites(membershipWrites);
+		expect(memberships.map((row) => row.variantId)).toEqual(games);
+		expect(memberships.map((row) => row.position)).toEqual(
+			Array.from({ length: 30 }, (_, index) => index)
+		);
+		expect(memberships.every((row) => row.userId === CUR_OWNER)).toBe(true);
+		expect(deleteWhereParams).toContainEqual(["mix-1", CUR_OWNER]);
+		expect(batch).toHaveBeenCalledTimes(1);
+		expect(batch.mock.calls[0]?.[0]).toHaveLength(4);
 	});
 });

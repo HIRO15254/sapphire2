@@ -10,6 +10,8 @@ interface UseSessionEditFormArgs {
 	defaultValues?: SessionFormDefaults;
 	onRoomChange?: (roomId: string | undefined) => void;
 	onSubmit: (values: SessionFormValues) => void;
+	/** Fields the live-linked session must not leave blank. */
+	requiredFields?: ReadonlySet<string>;
 	ringGames?: RingGameOption[];
 	tournaments?: TournamentOption[];
 }
