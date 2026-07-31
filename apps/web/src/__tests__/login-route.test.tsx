@@ -10,6 +10,13 @@ const mocks = vi.hoisted(() => ({
 		(err as Error & { redirectTo?: unknown }).redirectTo = input;
 		return err;
 	}),
+	env: { VITE_SERVER_URL: "http://localhost:8787" },
+}));
+
+vi.mock("@sapphire2/env/web", () => ({
+	env: new Proxy(mocks.env, {
+		get: (target, prop) => target[prop as keyof typeof target],
+	}),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -93,21 +100,65 @@ describe("LoginRoute", () => {
 	});
 
 	describe("beforeLoad guard", () => {
+		interface BeforeLoadCtx {
+			location: { search: Record<string, unknown> };
+		}
+		const ctx = (search: Record<string, unknown> = {}): BeforeLoadCtx => ({
+			location: { search },
+		});
+
 		it("redirects to /statistics when a session already exists", async () => {
 			mocks.getSession.mockResolvedValue({ data: { user: { id: "u1" } } });
-			const beforeLoad = routeModule.Route.options
-				.beforeLoad as () => Promise<unknown>;
+			const beforeLoad = routeModule.Route.options.beforeLoad as (
+				context: BeforeLoadCtx
+			) => Promise<unknown>;
 
-			await expect(beforeLoad()).rejects.toThrow("redirect");
+			await expect(beforeLoad(ctx())).rejects.toThrow("redirect");
+			expect(mocks.redirect).toHaveBeenCalledWith({ to: "/statistics" });
+		});
+
+		it("resumes a pending MCP OAuth authorize flow instead of entering the app", async () => {
+			mocks.getSession.mockResolvedValue({ data: { user: { id: "u1" } } });
+			const beforeLoad = routeModule.Route.options.beforeLoad as (
+				context: BeforeLoadCtx
+			) => Promise<unknown>;
+
+			await expect(
+				beforeLoad(
+					ctx({
+						client_id: "c1",
+						response_type: "code",
+						state: "s1",
+					})
+				)
+			).rejects.toThrow("redirect");
+			expect(mocks.redirect).toHaveBeenCalledTimes(1);
+			const arg = mocks.redirect.mock.calls[0]?.[0] as { href: string };
+			expect(
+				arg.href.startsWith("http://localhost:8787/api/auth/mcp/authorize?")
+			).toBe(true);
+			expect(arg.href).toContain("client_id=c1");
+		});
+
+		it("ignores a non-OAuth query and enters the app normally", async () => {
+			mocks.getSession.mockResolvedValue({ data: { user: { id: "u1" } } });
+			const beforeLoad = routeModule.Route.options.beforeLoad as (
+				context: BeforeLoadCtx
+			) => Promise<unknown>;
+
+			await expect(beforeLoad(ctx({ foo: "bar" }))).rejects.toThrow("redirect");
 			expect(mocks.redirect).toHaveBeenCalledWith({ to: "/statistics" });
 		});
 
 		it("does not redirect when there is no session", async () => {
 			mocks.getSession.mockResolvedValue({ data: null });
-			const beforeLoad = routeModule.Route.options
-				.beforeLoad as () => Promise<unknown>;
+			const beforeLoad = routeModule.Route.options.beforeLoad as (
+				context: BeforeLoadCtx
+			) => Promise<unknown>;
 
-			await expect(beforeLoad()).resolves.toBeUndefined();
+			await expect(
+				beforeLoad(ctx({ client_id: "c1", response_type: "code" }))
+			).resolves.toBeUndefined();
 			expect(mocks.redirect).not.toHaveBeenCalled();
 		});
 	});
