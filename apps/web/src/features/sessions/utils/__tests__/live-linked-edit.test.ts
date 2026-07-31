@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { SessionEvent } from "@/features/live-sessions/hooks/use-session-events";
 import {
 	buildLiveLinkedEventEdits,
+	crossingEndDateLabel,
 	findLifecycleEvents,
 	liveLinkedDisabledResultFields,
 } from "@/features/sessions/utils/live-linked-edit";
@@ -150,6 +151,31 @@ describe("findLifecycleEvents", () => {
 	});
 });
 
+// The form shows one date (the session's start day) but the end time is edited
+// against the end event's own day. When they differ the user has to be told,
+// otherwise "fix 02:00 to 23:00" silently produces a 25-hour session.
+describe("crossingEndDateLabel", () => {
+	it("labels the end day when the session crossed midnight", () => {
+		expect(crossingEndDateLabel(CASH_EVENTS)).toBe("2026/04/11");
+	});
+
+	it("returns null when start and end share a calendar day", () => {
+		expect(crossingEndDateLabel(TOURNAMENT_EVENTS)).toBeNull();
+	});
+
+	it("returns null while the session has not ended", () => {
+		expect(crossingEndDateLabel([CASH_START, CASH_CHIPS])).toBeNull();
+	});
+
+	it("returns null when there is no session_start to compare against", () => {
+		expect(crossingEndDateLabel([CASH_END])).toBeNull();
+	});
+
+	it("returns null for an empty event list", () => {
+		expect(crossingEndDateLabel([])).toBeNull();
+	});
+});
+
 describe("liveLinkedDisabledResultFields", () => {
 	it("leaves the single-event-backed cash fields editable for a completed session", () => {
 		const disabled = liveLinkedDisabledResultFields({
@@ -161,7 +187,18 @@ describe("liveLinkedDisabledResultFields", () => {
 			"breakMinutes",
 			"buyIn",
 			"evCashOut",
+			"sessionDate",
 		]);
+	});
+
+	it("locks the session date even for a completed session", () => {
+		const disabled = liveLinkedDisabledResultFields({
+			type: "cash_game",
+			hasSessionStart: true,
+			hasSessionEnd: true,
+		});
+		expect(disabled.has("sessionDate")).toBe(true);
+		expect(disabled.has("startTime")).toBe(false);
 	});
 
 	it("disables the end-backed cash fields while the session has no session_end", () => {
@@ -173,16 +210,14 @@ describe("liveLinkedDisabledResultFields", () => {
 		expect(disabled.has("cashOut")).toBe(true);
 		expect(disabled.has("endTime")).toBe(true);
 		expect(disabled.has("startTime")).toBe(false);
-		expect(disabled.has("sessionDate")).toBe(false);
 	});
 
-	it("disables the start-backed fields when no session_start is loaded", () => {
+	it("disables the start time when no session_start is loaded", () => {
 		const disabled = liveLinkedDisabledResultFields({
 			type: "cash_game",
 			hasSessionStart: false,
 			hasSessionEnd: true,
 		});
-		expect(disabled.has("sessionDate")).toBe(true);
 		expect(disabled.has("startTime")).toBe(true);
 		expect(disabled.has("cashOut")).toBe(false);
 	});
@@ -193,7 +228,11 @@ describe("liveLinkedDisabledResultFields", () => {
 			hasSessionStart: true,
 			hasSessionEnd: true,
 		});
-		expect([...disabled].sort()).toEqual(["breakMinutes", "chipPurchases"]);
+		expect([...disabled].sort()).toEqual([
+			"breakMinutes",
+			"chipPurchases",
+			"sessionDate",
+		]);
 	});
 
 	it("disables every tournament result field while the session has no session_end", () => {
@@ -288,13 +327,26 @@ describe("buildLiveLinkedEventEdits — cash game", () => {
 		]);
 	});
 
-	it("syncs a session-date change to the session_start occurredAt", () => {
+	// Moving the calendar day cannot be expressed as a single-event edit: the
+	// other events stay where they are, so the session would silently stretch
+	// (start 04-10 20:00 / end 04-11 01:00 → 29 hours). The field is locked, and
+	// a stale submitted value must never move the event.
+	it("ignores a session-date change", () => {
 		const result = buildLiveLinkedEventEdits({
 			values: { ...CASH_VALUES, sessionDate: "2026-04-09" },
 			events: CASH_EVENTS,
 		});
+		expect(result.errors).toEqual([]);
+		expect(result.edits).toEqual([]);
+	});
+
+	it("keeps a start-time edit on the start event's own day when the date differs", () => {
+		const result = buildLiveLinkedEventEdits({
+			values: { ...CASH_VALUES, sessionDate: "2026-04-09", startTime: "19:00" },
+			events: CASH_EVENTS,
+		});
 		expect(result.edits).toEqual([
-			{ id: "e-start", occurredAt: unix(2026, 4, 9, 20, 0) },
+			{ id: "e-start", occurredAt: unix(2026, 4, 10, 19, 0) },
 		]);
 	});
 
@@ -405,13 +457,22 @@ describe("buildLiveLinkedEventEdits — cash game", () => {
 		expect(result.edits).toEqual([]);
 	});
 
-	it("rejects an unparseable session date", () => {
+	it("rejects an unparseable start time", () => {
 		const result = buildLiveLinkedEventEdits({
-			values: { ...CASH_VALUES, sessionDate: "not-a-date" },
+			values: { ...CASH_VALUES, startTime: "ab:cd" },
 			events: CASH_EVENTS,
 		});
 		expect(result.edits).toEqual([]);
-		expect(result.errors).toEqual(["Session date and start time are invalid"]);
+		expect(result.errors).toEqual(["Start time is invalid"]);
+	});
+
+	it("rejects an unparseable end time", () => {
+		const result = buildLiveLinkedEventEdits({
+			values: { ...CASH_VALUES, endTime: "ab:cd" },
+			events: CASH_EVENTS,
+		});
+		expect(result.edits).toEqual([]);
+		expect(result.errors).toEqual(["End time is invalid"]);
 	});
 });
 

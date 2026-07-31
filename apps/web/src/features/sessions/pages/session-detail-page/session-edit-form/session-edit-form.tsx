@@ -28,6 +28,11 @@ interface SessionEditFormProps {
 	 * back to that event on save. Empty for a manual session.
 	 */
 	disabledFields?: ReadonlySet<string>;
+	/**
+	 * Calendar day the end time belongs to, when the session crossed midnight —
+	 * the form shows only the start day, so the End time field spells this out.
+	 */
+	endDateHint?: string | null;
 	/** Stable id linking the sheet's confirm button to this form. */
 	formId: string;
 	/**
@@ -61,6 +66,7 @@ export function SessionEditForm({
 	currencies,
 	defaultValues,
 	disabledFields,
+	endDateHint,
 	formId,
 	isLiveLinked = false,
 	liveSessionId,
@@ -94,8 +100,8 @@ export function SessionEditForm({
 			{isLiveLinked && (
 				<Alert data-testid="live-linked-banner">
 					<AlertDescription>
-						This session is generated from a live session. Date, time and result
-						fields sync back to the event history when you save. Values
+						This session is generated from a live session. Time and result
+						fields sync back to the event history when you save; values
 						calculated from several events can only be changed in the Events
 						section below.
 					</AlertDescription>
@@ -118,6 +124,7 @@ export function SessionEditForm({
 			<InputGroup label="Result">
 				<ResultStepBody
 					disabledFields={disabledFields}
+					endDateHint={endDateHint}
 					onCreateTag={onCreateTag}
 					state={state}
 					tags={tags}

@@ -60,6 +60,7 @@ const BUY_IN_LABEL = /^Buy-in/;
 const CASH_OUT_LABEL = /^Cash-out/;
 const SESSION_DATE_LABEL = /^Session date/;
 const BANNER_SYNC_COPY = /sync back to the event history/;
+const END_DAY_HINT = /^Ends /;
 
 const CASH_DEFAULTS: SessionFormDefaults = {
 	type: "cash_game",
@@ -147,7 +148,12 @@ describe("SessionEditForm", () => {
 		// The fields backed by a single event value stay editable and are synced
 		// back to that event on save; only the values aggregated over several
 		// events are locked. The page hook decides which is which.
-		const AGGREGATED_ONLY = new Set(["breakMinutes", "buyIn", "evCashOut"]);
+		const AGGREGATED_ONLY = new Set([
+			"breakMinutes",
+			"buyIn",
+			"evCashOut",
+			"sessionDate",
+		]);
 		const EVERY_RESULT_FIELD = new Set([
 			"breakMinutes",
 			"buyIn",
@@ -170,9 +176,10 @@ describe("SessionEditForm", () => {
 			expect(screen.getByLabelText(BUY_IN_LABEL)).toBeDisabled();
 			expect(screen.getByLabelText("EV cash-out")).toBeDisabled();
 			expect(screen.getByLabelText(CASH_OUT_LABEL)).not.toBeDisabled();
-			expect(screen.getByLabelText(SESSION_DATE_LABEL)).not.toBeDisabled();
 			expect(screen.getByLabelText("Start time")).not.toBeDisabled();
 			expect(screen.getByLabelText("End time")).not.toBeDisabled();
+			// A day move cannot be written back to a single event.
+			expect(screen.getByLabelText(SESSION_DATE_LABEL)).toBeDisabled();
 		});
 
 		it("disables every result field the set names", () => {
@@ -188,6 +195,16 @@ describe("SessionEditForm", () => {
 			renderForm({ isLiveLinked: true });
 			expect(screen.getByLabelText(BUY_IN_LABEL)).not.toBeDisabled();
 			expect(screen.getByLabelText(CASH_OUT_LABEL)).not.toBeDisabled();
+		});
+
+		it("shows the end event's day when the session crossed midnight", () => {
+			renderForm({ isLiveLinked: true, endDateHint: "2026/04/11" });
+			expect(screen.getByText("Ends 2026/04/11")).toBeInTheDocument();
+		});
+
+		it("shows no end-day hint for a same-day session", () => {
+			renderForm({ isLiveLinked: true });
+			expect(screen.queryByText(END_DAY_HINT)).not.toBeInTheDocument();
 		});
 
 		it("keeps memo editable (a field session.update accepts for live sessions)", () => {

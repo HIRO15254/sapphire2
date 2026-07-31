@@ -43,12 +43,16 @@ export function useSessionDetailPage(sessionId: string) {
 			session.liveTournamentSessionId !== null);
 	const canReopen = session?.liveCashGameSessionId != null;
 
-	const { disabledResultFields, isEventUpdatePending, submitLiveEventEdits } =
-		useLiveLinkedSessionEdit({
-			isLiveLinked,
-			sessionId,
-			sessionType: session?.type === "tournament" ? "tournament" : "cash_game",
-		});
+	const {
+		disabledResultFields,
+		endDateHint,
+		isEventUpdatePending,
+		submitLiveEventEdits,
+	} = useLiveLinkedSessionEdit({
+		isLiveLinked,
+		sessionId,
+		sessionType: session?.type === "tournament" ? "tournament" : "cash_game",
+	});
 
 	const openEditFromActions = () => {
 		setIsActionsOpen(false);
@@ -111,6 +115,7 @@ export function useSessionDetailPage(sessionId: string) {
 		isUpdatePending: isUpdatePending || isEventUpdatePending,
 		isLiveLinked,
 		disabledResultFields,
+		endDateHint,
 		canReopen,
 		rooms,
 		currencies,

@@ -6,7 +6,6 @@ import {
 	useQueryClient,
 } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { formatLocalDateForInput } from "@/features/sessions/utils/live-linked-edit";
 import type { SessionFilterValues } from "@/features/sessions/utils/session-filters-helpers";
 import type {
 	SessionBlindLevelInput,
@@ -389,29 +388,15 @@ function tournamentSnapshotDefaults(session: SessionItem) {
 	};
 }
 
-/**
- * Date to pre-fill the edit form's date input with.
- *
- * A manual session's `sessionDate` is a date-only value stored at UTC midnight,
- * so it must be read with UTC getters (SA2-145). A live session's is the start
- * timestamp — the server recalculates it from the `session_start` event — and
- * the form renders its clock part with local getters, so its date part has to
- * be read locally too. Mixing the two moves the event a day on a no-op save for
- * every user off UTC.
- */
-function editDefaultSessionDate(session: SessionItem): string {
-	const isLiveLinked =
-		session.liveCashGameSessionId !== null ||
-		session.liveTournamentSessionId !== null;
-	return isLiveLinked
-		? formatLocalDateForInput(session.startedAt ?? session.sessionDate)
-		: formatDateForInput(session.sessionDate);
-}
-
 export function buildEditDefaults(session: SessionItem) {
 	return {
 		type: session.type as "cash_game" | "tournament",
-		sessionDate: editDefaultSessionDate(session),
+		// Read with UTC getters for every session, live or manual (SA2-145). A
+		// live session's sessionDate is really the start timestamp, so off-UTC
+		// users can see a day here that differs from the start time below — the
+		// session list and detail render the same UTC day, and the field is
+		// read-only for live sessions, so nothing is written back from it.
+		sessionDate: formatDateForInput(session.sessionDate),
 		buyIn: session.buyIn ?? 0,
 		cashOut: session.cashOut ?? 0,
 		evCashOut: session.evCashOut ?? undefined,

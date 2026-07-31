@@ -49,6 +49,7 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 		isUpdatePending,
 		isLiveLinked,
 		disabledResultFields,
+		endDateHint,
 		canReopen,
 		rooms,
 		currencies,
@@ -207,6 +208,7 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 					currencies={currencies}
 					defaultValues={buildEditDefaults(session)}
 					disabledFields={disabledResultFields}
+					endDateHint={endDateHint}
 					formId={EDIT_FORM_ID}
 					isLiveLinked={isLiveLinked}
 					liveSessionId={isLiveLinked ? session.id : undefined}

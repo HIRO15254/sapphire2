@@ -7,6 +7,7 @@ import type {
 	SessionFormValues,
 	TournamentFormValues,
 } from "@/features/sessions/utils/session-form-helpers";
+import { formatLocalYmdSlash } from "@/utils/format-number";
 
 /**
  * Sync layer between the session edit form and the live event history.
@@ -21,10 +22,19 @@ import type {
  *
  * | Form field                                   | Event         | Value                  |
  * |----------------------------------------------|---------------|------------------------|
- * | `sessionDate` / `startTime`                  | session_start | `occurredAt`           |
- * | `endTime`                                    | session_end   | `occurredAt`           |
+ * | `startTime`                                  | session_start | `occurredAt` (time)    |
+ * | `endTime`                                    | session_end   | `occurredAt` (time)    |
  * | `cashOut`                                    | session_end   | `payload.cashOutAmount`|
  * | `beforeDeadline` / `placement` / `totalEntries` / `prizeMoney` / `bountyPrizes` | session_end | `payload` |
+ *
+ * Both times are edited **within their own event's calendar day**, never
+ * recombined with the form's single `sessionDate` — which is why the date input
+ * itself is locked. Moving a lifecycle event to another day leaves every other
+ * event where it is, so the session silently stretches (a start dragged one day
+ * back turned a 5-hour session into a 29-hour one, with play time feeding the
+ * statistics). Expressing that would mean moving the whole event stream, which
+ * is not a single-event edit — and the Events-section editors cannot do it
+ * either.
  *
  * The edits are applied through `sessionEvent.update`, which revalidates the
  * payload, enforces the neighbour-ordering rule and recalculates the session —
@@ -42,19 +52,27 @@ interface OccurredAtBounds {
 	min: number | null;
 }
 
-const START_TIME_REQUIRED = "Start time is required for a live session";
-const END_TIME_REQUIRED = "End time is required for a live session";
-const INVALID_START = "Session date and start time are invalid";
-const INVALID_END = "End time is invalid";
+const START_TIME_LABEL = "Start time";
+const END_TIME_LABEL = "End time";
 const PLACEMENT_REQUIRED = "Placement is required";
 const TOTAL_ENTRIES_REQUIRED = "Total entries is required";
 const PLACEMENT_RANGE = "Placement must be less than or equal to total entries";
 const PRIZE_MONEY_REQUIRED = "Prize money is required";
 
-// Aggregated over the whole event stream — never editable from the form.
-const CASH_AGGREGATED_FIELDS = ["breakMinutes", "buyIn", "evCashOut"];
-const TOURNAMENT_AGGREGATED_FIELDS = ["breakMinutes", "chipPurchases"];
-const START_BACKED_FIELDS = ["sessionDate", "startTime"];
+// Never editable from the form: values aggregated over the whole event stream,
+// plus `sessionDate` — see the module comment on why a day cannot be moved.
+const CASH_LOCKED_FIELDS = [
+	"breakMinutes",
+	"buyIn",
+	"evCashOut",
+	"sessionDate",
+];
+const TOURNAMENT_LOCKED_FIELDS = [
+	"breakMinutes",
+	"chipPurchases",
+	"sessionDate",
+];
+const START_BACKED_FIELDS = ["startTime"];
 const CASH_END_BACKED_FIELDS = ["cashOut", "endTime"];
 const TOURNAMENT_END_BACKED_FIELDS = [
 	"beforeDeadline",
@@ -81,24 +99,6 @@ function timeLabel(seconds: number): string {
 }
 
 /**
- * Local-time `yyyy-MM-dd` for a `<input type="date">`.
- *
- * Date-only columns are UTC midnight and must be read with UTC getters
- * (SA2-145, {@link formatDateForInput}), but a live session's `sessionDate` is
- * the start *timestamp* (`recalculateCashGameSession` writes `startedAt` into
- * it), and its start time is rendered with local getters. Reading the date part
- * with UTC getters would put the two halves in different days for any user off
- * UTC, so recombining them would move `session_start` on a no-op save.
- */
-export function formatLocalDateForInput(value: string | Date): string {
-	const date = typeof value === "string" ? new Date(value) : value;
-	const year = date.getFullYear();
-	const month = String(date.getMonth() + 1).padStart(2, "0");
-	const day = String(date.getDate()).padStart(2, "0");
-	return `${year}-${month}-${day}`;
-}
-
-/**
  * The `session_start` / `session_end` the session's derived state comes from —
  * the first start and the last end, matching `computeSessionStateFromEvents`
  * on the server (a reopened cash session carries more than one of each).
@@ -121,6 +121,27 @@ export function findLifecycleEvents(events: SessionEvent[]): {
 }
 
 /**
+ * Calendar day of the `session_end`, but only when the session crossed midnight
+ * — otherwise `null`.
+ *
+ * The form shows a single date (the session's start day) while `endTime` is
+ * edited against the end event's own day. For a 22:00 → 02:00 session those are
+ * different days, and correcting "02:00" to "23:00" lands on the *end* day,
+ * stretching the session to 25 hours with nothing in the UI hinting at it. The
+ * End time field renders this label so the anchor day is visible.
+ */
+export function crossingEndDateLabel(events: SessionEvent[]): string | null {
+	const { sessionEnd, sessionStart } = findLifecycleEvents(events);
+	if (!(sessionEnd && sessionStart)) {
+		return null;
+	}
+	const endLabel = formatLocalYmdSlash(sessionEnd.occurredAt);
+	return endLabel === formatLocalYmdSlash(sessionStart.occurredAt)
+		? null
+		: endLabel;
+}
+
+/**
  * Result-step fields the edit form must keep disabled for a live session.
  * A field backed by an event that does not exist yet (no `session_end` while
  * the session is still running, or events not loaded) stays disabled too, so
@@ -137,7 +158,7 @@ export function liveLinkedDisabledResultFields({
 }): ReadonlySet<string> {
 	const isCashGame = type === "cash_game";
 	const disabled = new Set(
-		isCashGame ? CASH_AGGREGATED_FIELDS : TOURNAMENT_AGGREGATED_FIELDS
+		isCashGame ? CASH_LOCKED_FIELDS : TOURNAMENT_LOCKED_FIELDS
 	);
 	if (!hasSessionStart) {
 		for (const field of START_BACKED_FIELDS) {
@@ -154,53 +175,36 @@ export function liveLinkedDisabledResultFields({
 	return disabled;
 }
 
-function resolveStartOccurredAt(
-	sessionStart: SessionEvent | null,
-	values: SessionFormValues,
-	errors: string[]
-): number | null {
-	if (!sessionStart) {
+/**
+ * New `occurredAt` for a lifecycle event, or `null` when the clock time is
+ * unchanged (or the event does not exist). The edit is time-only, anchored to
+ * the event's own calendar day — the same semantics as the Events-section
+ * editors, and the reason a session spanning more than a day survives an edit.
+ */
+function resolveLifecycleOccurredAt({
+	errors,
+	event,
+	label,
+	time,
+}: {
+	errors: string[];
+	event: SessionEvent | null;
+	label: string;
+	time: string | undefined;
+}): number | null {
+	if (!event) {
 		return null;
 	}
-	if (!values.startTime) {
-		errors.push(START_TIME_REQUIRED);
+	if (!time) {
+		errors.push(`${label} is required for a live session`);
 		return null;
 	}
-	const isUnchanged =
-		values.sessionDate === formatLocalDateForInput(sessionStart.occurredAt) &&
-		values.startTime === toTimeInputValue(sessionStart.occurredAt);
-	if (isUnchanged) {
+	if (time === toTimeInputValue(event.occurredAt)) {
 		return null;
 	}
-	const next = new Date(`${values.sessionDate}T${values.startTime}`);
+	const next = applyTimeToDate(event.occurredAt, time);
 	if (Number.isNaN(next.getTime())) {
-		errors.push(INVALID_START);
-		return null;
-	}
-	return Math.floor(next.getTime() / 1000);
-}
-
-function resolveEndOccurredAt(
-	sessionEnd: SessionEvent | null,
-	values: SessionFormValues,
-	errors: string[]
-): number | null {
-	if (!sessionEnd) {
-		return null;
-	}
-	if (!values.endTime) {
-		errors.push(END_TIME_REQUIRED);
-		return null;
-	}
-	if (values.endTime === toTimeInputValue(sessionEnd.occurredAt)) {
-		return null;
-	}
-	// Time-only, anchored to the end event's own calendar day — the same
-	// semantics as the Events-section editor. Recombining it with the form's
-	// single `sessionDate` would corrupt sessions longer than a day.
-	const next = applyTimeToDate(sessionEnd.occurredAt, values.endTime);
-	if (Number.isNaN(next.getTime())) {
-		errors.push(INVALID_END);
+		errors.push(`${label} is invalid`);
 		return null;
 	}
 	return Math.floor(next.getTime() / 1000);
@@ -358,8 +362,18 @@ export function buildLiveLinkedEventEdits({
 	const errors: string[] = [];
 	const { sessionEnd, sessionStart } = findLifecycleEvents(events);
 
-	const nextStartAt = resolveStartOccurredAt(sessionStart, values, errors);
-	const nextEndAt = resolveEndOccurredAt(sessionEnd, values, errors);
+	const nextStartAt = resolveLifecycleOccurredAt({
+		errors,
+		event: sessionStart,
+		label: START_TIME_LABEL,
+		time: values.startTime,
+	});
+	const nextEndAt = resolveLifecycleOccurredAt({
+		errors,
+		event: sessionEnd,
+		label: END_TIME_LABEL,
+		time: values.endTime,
+	});
 	const payload = sessionEnd ? buildSessionEndPayload(values, errors) : null;
 
 	const pending = new Map<string, number>();
@@ -373,7 +387,7 @@ export function buildLiveLinkedEventEdits({
 		validateBounds({
 			bounds: neighborBounds(events, sessionStart.id, pending),
 			errors,
-			label: "Start time",
+			label: START_TIME_LABEL,
 			seconds: nextStartAt,
 		});
 	}
@@ -381,7 +395,7 @@ export function buildLiveLinkedEventEdits({
 		validateBounds({
 			bounds: neighborBounds(events, sessionEnd.id, pending),
 			errors,
-			label: "End time",
+			label: END_TIME_LABEL,
 			seconds: nextEndAt,
 		});
 	}

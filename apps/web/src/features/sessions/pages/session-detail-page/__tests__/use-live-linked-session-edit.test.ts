@@ -114,6 +114,11 @@ describe("useLiveLinkedSessionEdit", () => {
 			expect(result.current.disabledResultFields.has("startTime")).toBe(false);
 		});
 
+		it("keeps the session date locked (a day move is not a single-event edit)", () => {
+			const { result } = renderEditHook();
+			expect(result.current.disabledResultFields.has("sessionDate")).toBe(true);
+		});
+
 		it("disables the end-backed fields while the session has no session_end", () => {
 			setEvents([SESSION_START]);
 			const { result } = renderEditHook();
@@ -131,6 +136,30 @@ describe("useLiveLinkedSessionEdit", () => {
 		it("disables nothing for a manual session", () => {
 			const { result } = renderEditHook(false);
 			expect(result.current.disabledResultFields.size).toBe(0);
+		});
+	});
+
+	describe("endDateHint", () => {
+		it("is null when the session started and ended on the same day", () => {
+			const { result } = renderEditHook();
+			expect(result.current.endDateHint).toBeNull();
+		});
+
+		it("labels the end day when the session crossed midnight", () => {
+			setEvents([
+				SESSION_START,
+				{
+					...SESSION_END,
+					occurredAt: localIso(2026, 4, 11, 1, 0),
+				},
+			]);
+			const { result } = renderEditHook();
+			expect(result.current.endDateHint).toBe("2026/04/11");
+		});
+
+		it("is null for a manual session", () => {
+			const { result } = renderEditHook(false);
+			expect(result.current.endDateHint).toBeNull();
 		});
 	});
 

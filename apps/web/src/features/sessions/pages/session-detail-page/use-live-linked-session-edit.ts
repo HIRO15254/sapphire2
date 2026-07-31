@@ -2,6 +2,7 @@ import { toast } from "sonner";
 import { useSessionEvents } from "@/features/live-sessions/hooks/use-session-events";
 import {
 	buildLiveLinkedEventEdits,
+	crossingEndDateLabel,
 	findLifecycleEvents,
 	type LiveLinkedEventEdit,
 	liveLinkedDisabledResultFields,
@@ -77,6 +78,9 @@ export function useLiveLinkedSessionEdit({
 
 	return {
 		disabledResultFields,
+		// Non-null only when the end event sits on another calendar day than the
+		// one the form shows, so the End time field can say which day it edits.
+		endDateHint: isLiveLinked ? crossingEndDateLabel(events) : null,
 		isEventUpdatePending: isUpdatePending,
 		submitLiveEventEdits,
 	};

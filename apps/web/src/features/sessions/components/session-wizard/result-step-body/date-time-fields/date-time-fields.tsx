@@ -5,9 +5,17 @@ import type { UseSessionWizardReturn } from "../../use-session-wizard";
 export function DateTimeFields({
 	state,
 	disabledFields,
+	endDateHint,
 }: {
 	/** Field names to render read-only (live sessions lock a subset). */
 	disabledFields: ReadonlySet<string>;
+	/**
+	 * Calendar day the end time belongs to, when it differs from the session
+	 * date shown above it (a session that crossed midnight). Without it, editing
+	 * the end time of a 22:00 → 02:00 session looks like it lands on the start
+	 * day when it actually lands on the next one.
+	 */
+	endDateHint?: string | null;
 	state: UseSessionWizardReturn;
 }) {
 	const { form } = state;
@@ -44,7 +52,11 @@ export function DateTimeFields({
 				</form.Field>
 				<form.Field name="endTime">
 					{(field) => (
-						<Field htmlFor={field.name} label="End time">
+						<Field
+							description={endDateHint ? `Ends ${endDateHint}` : undefined}
+							htmlFor={field.name}
+							label="End time"
+						>
 							<Input
 								disabled={disabledFields.has("endTime")}
 								id={field.name}
