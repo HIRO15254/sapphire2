@@ -84,14 +84,15 @@ export function buildRingGameCreateStatement(
 	});
 }
 
+// Named export for the MCP tool layer — see .claude/rules/mcp-tools.md.
+export const ringGameListByRoomInputSchema = z.object({
+	roomId: z.string(),
+	includeArchived: z.boolean().optional(),
+});
+
 export const ringGameRouter = router({
 	listByRoom: protectedProcedure
-		.input(
-			z.object({
-				roomId: z.string(),
-				includeArchived: z.boolean().optional(),
-			})
-		)
+		.input(ringGameListByRoomInputSchema)
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await validateRoomOwnership(ctx.db, input.roomId, userId);

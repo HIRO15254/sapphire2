@@ -50,10 +50,13 @@ apps/
 packages/
   api/     tRPC routers — source of truth for client types
   db/      Drizzle schema + migrations (Cloudflare D1)
-  auth/    Better Auth setup
+  auth/    Better Auth setup (incl. MCP OAuth provider)
+  mcp/     MCP server at /mcp — tools are a projection of the tRPC appRouter
   env/     Zod-typed env vars
   config/  Shared TS / Biome configs
 ```
+
+**Backend changes update the MCP surface in the same task**: any added/changed `packages/api` procedure must be registered in `packages/mcp`'s `TOOL_DEFINITIONS` or `DELIBERATELY_EXCLUDED` — the coupling test (`bunx vitest run --project mcp`) fails otherwise. See [`.claude/rules/mcp-tools.md`](.claude/rules/mcp-tools.md).
 
 `apps/web/src/` feature-folder layout, page/component placement rules, and reference implementations live in [`.claude/rules/web-architecture.md`](.claude/rules/web-architecture.md) — read it before adding or moving files under `apps/web/src/`.
 
@@ -133,6 +136,7 @@ If a target does not match any pattern above, extend the relevant `test-utils` f
 - API router tests → `bunx vitest run --project api [path]`
 - Server worker tests → `bunx vitest run --project server [path]`
 - DB schema tests → `bunx vitest run --project db [path]`
+- MCP tool tests → `bunx vitest run --project mcp [path]`
 - Env tests → `bunx vitest run --project env`
 - Related to current staged files → `bunx vitest related --run $(git diff --cached --name-only ...)` — already automated by pre-commit for human commits.
 
@@ -155,6 +159,7 @@ The following rule files live in `.claude/rules/` and are loaded automatically w
 | `api-data-integrity.md` | `packages/api/**`, `packages/db/**` | Zod input conventions (`.int().min(0)`, create/update refine parity, shared write/read schemas) and D1 hazards (100-bind-param chunking, `db.batch()`, N+1, keyset pagination). |
 | `datetime-and-numbers.md` | `apps/web/**`, `packages/api/**` | Date-only values are UTC midnight (read with UTC getters), day-crossing handling + backfill, period boundaries, shared locale-fixed number formatters. |
 | `db-migrations.md` | `packages/db/**` | Applied by `wrangler`; `db:generate` is the default for schema-shape changes, hand-write data/rename/destructive ones; how the Drizzle `meta/` ledger works and how to keep it from drifting. |
+| `mcp-tools.md` | `packages/mcp/**`, `packages/api/**` | MCP tools are a projection of `appRouter`: backend procedure changes must update `TOOL_DEFINITIONS`/`DELIBERATELY_EXCLUDED` in the same task; tools go through `createCaller`, schemas are the router's Zod objects, errors through `mapToolError`. |
 
 ## Maintaining This File (Self-Evolution)
 

@@ -25,6 +25,14 @@ import {
 } from "./schema/game-mix";
 import { gameVariant, gameVariantRelations } from "./schema/game-variant";
 import {
+	oauthAccessToken,
+	oauthAccessTokenRelations,
+	oauthApplication,
+	oauthApplicationRelations,
+	oauthConsent,
+	oauthConsentRelations,
+} from "./schema/oauth";
+import {
 	player,
 	playerRelations,
 	playerTag,
@@ -138,4 +146,10 @@ export const schema = {
 	gameMixRelations,
 	filterPreset,
 	filterPresetRelations,
+	oauthApplication,
+	oauthApplicationRelations,
+	oauthAccessToken,
+	oauthAccessTokenRelations,
+	oauthConsent,
+	oauthConsentRelations,
 };

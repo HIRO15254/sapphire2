@@ -104,6 +104,15 @@ const CHECKS: Check[] = [
 		excludePath: /packages\/api\/src\/ai\/models\.ts$/,
 	},
 	{
+		name: "direct DB access in the MCP tool layer — go through appRouter.createCaller",
+		rule: ".claude/rules/mcp-tools.md",
+		globs: ["packages/mcp/src/**/*.ts"],
+		// `@sapphire2/db` の前方一致でバレル import（createDb / schema の再 export）
+		// まで塞ぐ。サブパスだけ見ると `from "@sapphire2/db"` が素通りする。
+		pattern: /from "drizzle-orm|from "@sapphire2\/db/,
+		excludePath: /__tests__|\.test\./,
+	},
+	{
 		name: "GitHub pull-request head ref assigned inside a run script — pass it through step env",
 		rule: "GitHub Actions shell-injection prevention",
 		cwd: ".github",

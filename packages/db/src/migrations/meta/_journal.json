@@ -351,6 +351,13 @@
       "when": 1785402067110,
       "tag": "0049_normalize_game_mix_variants",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "6",
+      "when": 1785479587667,
+      "tag": "0050_magenta_professor_monster",
+      "breakpoints": true
     }
   ]
 }
