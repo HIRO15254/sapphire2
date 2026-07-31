@@ -73,5 +73,5 @@ claude mcp add --transport http sapphire2 https://<APIホスト>/mcp
 
 - **同意は常に強制されます。** Worker はすべての authorize リクエストを better-auth に渡す前に `prompt=consent` へ書き換えます — これが無いと better-auth の mcp プラグインは動的登録された任意のクライアントに、ユーザーの操作ゼロで code を発行してしまいます。
 - `/mcp` に**新しい環境変数や Worker シークレットは不要**です — OAuth プロバイダの URL は `BETTER_AUTH_URL` と `CORS_ORIGIN` から導出されます。
-- OIDC テーブル（`oauth_application` / `oauth_access_token` / `oauth_consent`）はマイグレーション `0049` で追加されます。
+- OIDC テーブル（`oauth_application` / `oauth_access_token` / `oauth_consent`）はマイグレーション `0050` で追加されます。全 statement が `IF NOT EXISTS` なので途中失敗しても再適用できます（`.claude/rules/db-migrations.md` 参照）。
 - アクセストークンの有効期限は 1 時間、リフレッシュトークンは 7 日（better-auth の既定値）。クライアントは自動でリフレッシュします。

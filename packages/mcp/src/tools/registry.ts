@@ -75,7 +75,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "session_update",
 		procedurePath: "session.update",
-		description: `Update an existing session by id. Only the provided fields change; pass null to clear a nullable field, omit a field to leave it unchanged. Overwrites stored values with no undo — confirm with the user first. ${DATE_CONVENTIONS}`,
+		description: `Update an existing session by id. Only the provided fields change; pass null to clear a nullable field, omit a field to leave it unchanged. Sessions recorded live (source "live") reject edits to fields derived from their timeline events — buy-ins, cash-outs and times come from the events themselves. Overwrites stored values with no undo — confirm with the user first. ${DATE_CONVENTIONS}`,
 		inputSchema: sessionUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
