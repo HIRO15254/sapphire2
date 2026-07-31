@@ -162,12 +162,16 @@ export function toolPermissionSummary(): string[] {
 	const permissions = [
 		"Read your poker sessions, statistics and reference data (rooms, currencies, players, tags)",
 	];
-	const hasWriteTool = TOOL_DEFINITIONS.some(
-		(def) => !toolAnnotations(def).readOnlyHint
-	);
-	if (hasWriteTool) {
+	const annotations = TOOL_DEFINITIONS.map(toolAnnotations);
+	if (annotations.some((annotation) => !annotation.readOnlyHint)) {
+		permissions.push("Record new sessions and create session tags");
+	}
+	// Tracked separately from plain writes: a destructive tool overwrites or
+	// removes data the user already has, which is a materially bigger ask than
+	// appending to it — and the two sets drift apart as tools are added.
+	if (annotations.some((annotation) => annotation.destructiveHint)) {
 		permissions.push(
-			"Record new sessions, update existing ones, and create session tags"
+			"Change or remove data that is already in your account — these edits cannot be undone"
 		);
 	}
 	return permissions;

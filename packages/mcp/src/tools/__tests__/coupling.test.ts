@@ -8,6 +8,7 @@ import {
 	DELIBERATELY_EXCLUDED,
 	TOOL_DEFINITIONS,
 	toolAnnotations,
+	toolPermissionSummary,
 } from "../registry";
 import { getProcedure, listProcedurePaths } from "../resolve";
 
@@ -161,8 +162,24 @@ describe("tool/router coupling", () => {
 	});
 
 	it("enumerates the full router procedure list (guard for the exclusion sweep)", () => {
-		// If this count changes, a backend procedure was added or removed —
-		// the coverage test above will point at the exact path to decide on.
+		// A floor, not an exact count: additions are caught by the coverage
+		// test above (which names the unregistered path), while this catches a
+		// resolver returning an empty/partial list and making that test vacuous.
 		expect(allPaths.length).toBeGreaterThanOrEqual(124);
+	});
+
+	it("derives the consent-screen permissions from the catalogue's annotations", () => {
+		const annotations = TOOL_DEFINITIONS.map(toolAnnotations);
+		const summary = toolPermissionSummary().join(" ");
+		// Reading is unconditional; the other two lines must track the
+		// catalogue so a newly added write/destructive tool cannot leave the
+		// consent screen under-representing the grant (mcp-tools.md rule 7).
+		expect(summary).toContain("Read your poker sessions");
+		expect(summary.includes("Record new sessions")).toBe(
+			annotations.some((annotation) => !annotation.readOnlyHint)
+		);
+		expect(summary.includes("cannot be undone")).toBe(
+			annotations.some((annotation) => annotation.destructiveHint)
+		);
 	});
 });

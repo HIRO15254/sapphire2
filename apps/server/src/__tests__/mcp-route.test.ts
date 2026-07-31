@@ -137,6 +137,18 @@ describe("/oauth/consent page", () => {
 		expect(response.headers.get("cache-control")).toBe("no-store");
 	});
 
+	it("forbids framing so the Approve button cannot be clickjacked", async () => {
+		const response = await app.request(
+			"/oauth/consent?consent_code=abc&client_id=c1",
+			{ method: "GET" },
+			env
+		);
+		expect(response.headers.get("x-frame-options")).toBe("DENY");
+		expect(response.headers.get("content-security-policy")).toContain(
+			"frame-ancestors 'none'"
+		);
+	});
+
 	it("describes the real capability instead of the requested scopes", async () => {
 		const response = await app.request(
 			"/oauth/consent?consent_code=abc&client_id=c1&scope=openid%20profile",

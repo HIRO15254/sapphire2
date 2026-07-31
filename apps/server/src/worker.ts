@@ -120,7 +120,9 @@ app.post("/api/auth/set-password", async (c) => {
 // only `GET /api/auth/mcp/authorize` exists (POST and /api/auth/oauth2/authorize
 // both 404), but a better-auth upgrade must not be able to add a route that
 // bypasses the gate.
-app.on(["GET", "POST"], "/api/auth/*", (c, next) => {
+// `app.use` (not `app.on([...])`) so the gate is method-independent: adding a
+// method to the better-auth route below can never leave it behind.
+app.use("/api/auth/*", (c, next) => {
 	if (!isAuthorizePath(c.req.path)) {
 		return next();
 	}
@@ -164,6 +166,11 @@ app.get("/oauth/consent", async (c) => {
 	// The page embeds a consent_code that can be exchanged for an
 	// authorization code — keep it out of the browser's history/bfcache.
 	c.header("Cache-Control", "no-store");
+	// Approving issues that code, so no other origin may frame this page:
+	// with DCR open to anyone, a framed consent screen is a one-click
+	// account grant (the destination warning is unreadable through an iframe).
+	c.header("X-Frame-Options", "DENY");
+	c.header("Content-Security-Policy", "frame-ancestors 'none'");
 	return c.html(
 		renderConsentHtml({
 			clientId: query.clientId,

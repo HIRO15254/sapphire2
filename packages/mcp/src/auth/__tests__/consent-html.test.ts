@@ -31,6 +31,14 @@ describe("renderConsentHtml", () => {
 		expect(renderConsentHtml(BASE_PROPS)).toContain("Record new sessions");
 	});
 
+	it("discloses irreversible edits while the catalogue contains destructive tools", () => {
+		const hasDestructiveTool = TOOL_DEFINITIONS.some(
+			(def) => toolAnnotations(def).destructiveHint
+		);
+		expect(hasDestructiveTool).toBe(true);
+		expect(renderConsentHtml(BASE_PROPS)).toContain("cannot be undone");
+	});
+
 	it("shows the registered redirect host so a look-alike name is detectable", () => {
 		const html = renderConsentHtml(BASE_PROPS);
 		expect(html).toContain("claude.ai");

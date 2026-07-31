@@ -72,6 +72,16 @@ describe("redirectHostsFrom", () => {
 		).toEqual(["claude.ai"]);
 	});
 
+	it("drops opaque URIs that have no host so the unknown-destination warning still fires", () => {
+		// `new URL("urn:…").host` is "" — keeping it would render an empty
+		// destination instead of the warning.
+		expect(redirectHostsFrom("urn:ietf:wg:oauth:2.0:oob")).toEqual([]);
+		expect(redirectHostsFrom("mailto:someone@example.test")).toEqual([]);
+		expect(
+			redirectHostsFrom("urn:ietf:wg:oauth:2.0:oob,https://ok.test/cb")
+		).toEqual(["ok.test"]);
+	});
+
 	it("drops unparseable entries rather than rendering attacker text", () => {
 		expect(
 			redirectHostsFrom(
@@ -90,11 +100,9 @@ describe("parseConsentPageQuery", () => {
 		const query = parseConsentPageQuery(
 			"http://localhost:8787/oauth/consent?consent_code=abc&client_id=c1&scope=openid%20profile"
 		);
-		expect(query).toEqual({
-			clientId: "c1",
-			code: "abc",
-			scopes: ["openid", "profile"],
-		});
+		// `scope` is intentionally dropped — scopes do not gate authorization,
+		// so nothing downstream may be tempted to display them (rule 7).
+		expect(query).toEqual({ clientId: "c1", code: "abc" });
 	});
 
 	it("returns null without a consent code or client id", () => {
@@ -111,16 +119,13 @@ describe("parseConsentPageQuery", () => {
 		).toBeNull();
 	});
 
-	it("treats a missing or empty scope as no scopes", () => {
-		expect(
-			parseConsentPageQuery(
-				"http://localhost:8787/oauth/consent?consent_code=a&client_id=c&scope="
-			)?.scopes
-		).toEqual([]);
-		expect(
-			parseConsentPageQuery(
-				"http://localhost:8787/oauth/consent?consent_code=a&client_id=c"
-			)?.scopes
-		).toEqual([]);
+	it("parses the same result whether or not a scope is present", () => {
+		const withScope = parseConsentPageQuery(
+			"http://localhost:8787/oauth/consent?consent_code=a&client_id=c&scope=openid"
+		);
+		const withoutScope = parseConsentPageQuery(
+			"http://localhost:8787/oauth/consent?consent_code=a&client_id=c"
+		);
+		expect(withScope).toEqual(withoutScope);
 	});
 });

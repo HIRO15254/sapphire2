@@ -48,7 +48,13 @@ export function redirectHostsFrom(
 			continue;
 		}
 		try {
-			hosts.add(new URL(trimmed).host);
+			const { host } = new URL(trimmed);
+			// Opaque URIs (urn:, mailto:) parse but have no host — treat them as
+			// unknown so the consent page shows its "no recognizable
+			// destination" warning instead of an empty destination.
+			if (host) {
+				hosts.add(host);
+			}
 		} catch {
 			// Not a URL — show nothing for it.
 		}
@@ -59,13 +65,16 @@ export function redirectHostsFrom(
 export interface ConsentPageQuery {
 	clientId: string;
 	code: string;
-	scopes: string[];
 }
 
 /**
- * Parse the query better-auth appends when redirecting to the consent page
- * (consent_code, client_id, scope). Returns null when the request did not
- * come through the authorize flow.
+ * Parse the query better-auth appends when redirecting to the consent page.
+ * Returns null when the request did not come through the authorize flow.
+ *
+ * The `scope` parameter is deliberately not read: scopes are not used for
+ * authorization (see mcp-tools.md rule 7), so the consent page describes the
+ * real tool capability instead — surfacing scopes here would only invite
+ * showing them again.
  */
 export function parseConsentPageQuery(url: string): ConsentPageQuery | null {
 	const params = new URL(url).searchParams;
@@ -74,8 +83,5 @@ export function parseConsentPageQuery(url: string): ConsentPageQuery | null {
 	if (!(code && clientId)) {
 		return null;
 	}
-	const scopes = (params.get("scope") ?? "")
-		.split(" ")
-		.filter((scope) => scope.length > 0);
-	return { clientId, code, scopes };
+	return { clientId, code };
 }
