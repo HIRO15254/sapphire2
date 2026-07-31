@@ -1,8 +1,11 @@
 -- `wrangler d1 migrations apply` sends this file to D1 statement by statement;
 -- there is no file-wide transaction, so a mid-file failure would leave the new
 -- objects created while `d1_migrations` still points at 0048. Every statement is
--- therefore written to be safely re-runnable (`IF NOT EXISTS` / `OR IGNORE`) and
--- the backfill below is written so it cannot abort on legacy data.
+-- therefore written to be re-runnable (`IF NOT EXISTS` / `OR IGNORE`), the
+-- backfill below is written so it cannot abort on legacy data, and it rebuilds
+-- the junction from scratch so a retry after such a failure heals whatever the
+-- still-running old Worker wrote in the meantime rather than merely not
+-- breaking.
 CREATE UNIQUE INDEX IF NOT EXISTS `game_mix_id_user_id_unique` ON `game_mix` (`id`,`user_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS `game_variant_id_user_id_unique` ON `game_variant` (`id`,`user_id`);--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS `game_mix_variant` (
@@ -37,6 +40,17 @@ CREATE INDEX IF NOT EXISTS `game_mix_variant_variant_user_idx` ON `game_mix_vari
 -- triggers reject writes referencing it). Run the audit queries in
 -- `.claude/rules/db-migrations.md` before applying to see exactly which rows
 -- this affects.
+--
+-- The DELETE makes the retry self-healing, not just non-destructive. If a
+-- previous attempt died after this backfill but before the compat triggers
+-- below existed, `d1_migrations` stayed at 0048, so the old Worker kept serving
+-- and kept rewriting `games` with nothing syncing the junction — leaving rows
+-- that are simply stale. `INSERT OR IGNORE` alone would top up the missing rows
+-- while keeping the stale ones and silently dropping whatever collides on
+-- (mix_id, position). Until d1_migrations advances no Worker writes this table,
+-- so it is by definition derived from `games` here and rebuilding it wholesale
+-- is correct; it also has no dependents, so the DELETE cascades nowhere.
+DELETE FROM `game_mix_variant`;--> statement-breakpoint
 INSERT OR IGNORE INTO `game_mix_variant` (`mix_id`, `variant_id`, `user_id`, `position`)
 SELECT
 	`resolved`.`mix_id`,

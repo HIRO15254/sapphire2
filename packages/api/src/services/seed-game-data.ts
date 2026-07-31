@@ -11,6 +11,7 @@ import { and, eq } from "drizzle-orm";
 import type { BatchStatement } from "../lib/batch";
 import { runBatch } from "../lib/batch";
 import { isLabelConflictError } from "../lib/db-errors";
+import { chunkMembershipRows } from "./game-mix";
 
 type DbInstance = Database;
 
@@ -166,9 +167,12 @@ export async function seedDefaultGameData(
 		// with an empty composition rather than handing Drizzle `values([])`,
 		// which throws — and would turn gameGroup/gameVariant/gameMix `list` (all
 		// of which call this without a try/catch) into a 500 for that user.
-		if (memberships.length > 0) {
+		// Chunked through the same helper as the mix router so a future builtin
+		// mix wide enough to overflow D1's bind-param cap is split, not rejected
+		// at runtime.
+		for (const chunk of chunkMembershipRows(memberships)) {
 			statements.push(
-				db.insert(gameMixVariant).values(memberships).onConflictDoNothing()
+				db.insert(gameMixVariant).values(chunk).onConflictDoNothing()
 			);
 		}
 		// Keep the physical games column synchronized for the pre-0049 Worker

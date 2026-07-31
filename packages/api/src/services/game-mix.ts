@@ -1,7 +1,7 @@
 import type { Database } from "@sapphire2/db";
 import { gameMix, gameMixVariant } from "@sapphire2/db/schema/game-mix";
 import { and, eq, inArray } from "drizzle-orm";
-import { D1_MAX_BOUND_PARAMS } from "../lib/batch";
+import { chunkForInsert, D1_MAX_BOUND_PARAMS } from "../lib/batch";
 
 export type GameMixWithGames = typeof gameMix.$inferSelect & {
 	games: string[];
@@ -12,6 +12,19 @@ export type GameMixWithGames = typeof gameMix.$inferSelect & {
  * comparison binds the remaining parameter of D1's per-statement cap.
  */
 const MAX_MIX_IDS_PER_LOOKUP = D1_MAX_BOUND_PARAMS - 1;
+
+/**
+ * Split membership rows across INSERTs that stay under D1's bind-param cap.
+ * The width comes from the row shape rather than a literal, so adding a column
+ * to gameMixVariant cannot silently overflow the cap. Shared by the mix router
+ * and the default-data seed so both size their INSERTs the same way (a builtin
+ * mix wide enough to overflow is otherwise a silent runtime failure).
+ */
+export function chunkMembershipRows(
+	rows: (typeof gameMixVariant.$inferInsert)[]
+): (typeof gameMixVariant.$inferInsert)[][] {
+	return chunkForInsert(rows, Object.keys(rows[0] ?? {}).length || 1);
+}
 
 /**
  * Reconstructs the public `games: string[]` contract from normalized rows.

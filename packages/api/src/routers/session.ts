@@ -49,6 +49,7 @@ import z from "zod";
 import { protectedProcedure, router } from "../index";
 import {
 	type BatchStatement,
+	chunkForInsert,
 	D1_MAX_BOUND_PARAMS,
 	runBatch,
 } from "../lib/batch";
@@ -128,17 +129,10 @@ function computeTournamentPL(
  * stays under the cap. session_blind_level is at exactly 10 columns → 10 rows
  * per INSERT (10 × 10 = 100); adding an 11th column requires dropping the
  * chunk size to 9 or the re-INSERT overflows after the DELETE has committed.
- * The cap itself lives in lib/batch.ts so services can share it.
+ * The implementation and the cap live in lib/batch.ts so services can share
+ * them without importing from a router; this stays the router-side entry point.
  */
-
-export function chunkForInsert<T>(rows: T[], columnsPerRow: number): T[][] {
-	const perChunk = Math.max(1, Math.floor(D1_MAX_BOUND_PARAMS / columnsPerRow));
-	const chunks: T[][] = [];
-	for (let i = 0; i < rows.length; i += perChunk) {
-		chunks.push(rows.slice(i, i + perChunk));
-	}
-	return chunks;
-}
+export { chunkForInsert } from "../lib/batch";
 
 /**
  * Run a `WHERE ... IN (ids)` SELECT in chunks so no single statement exceeds

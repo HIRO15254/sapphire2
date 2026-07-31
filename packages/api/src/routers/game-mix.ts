@@ -10,6 +10,7 @@ import type { BatchStatement } from "../lib/batch";
 import { runBatch } from "../lib/batch";
 import { isLabelConflictError } from "../lib/db-errors";
 import {
+	chunkMembershipRows,
 	hydrateOwnedGameMixes,
 	listOwnedGameMixes,
 } from "../services/game-mix";
@@ -18,7 +19,7 @@ import {
 	assertLabelNamespaceAvailable,
 	compareBuiltinFirst,
 } from "./_game-masters";
-import { chunkForInsert, validateEntityOwnership } from "./session";
+import { validateEntityOwnership } from "./session";
 
 type Db = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
@@ -85,18 +86,6 @@ function mixMembershipRows(
 		userId,
 		variantId,
 	}));
-}
-
-/**
- * Split membership rows across INSERTs that stay under D1's 100-bind-param cap.
- * The width comes from the row shape rather than a literal, so adding a column
- * to gameMixVariant cannot silently overflow the cap (a 30-game mix is well
- * under it today, but the next column would put 25-row chunks at 125 params).
- */
-function chunkMembershipRows(
-	rows: (typeof gameMixVariant.$inferInsert)[]
-): (typeof gameMixVariant.$inferInsert)[][] {
-	return chunkForInsert(rows, Object.keys(rows[0] ?? {}).length || 1);
 }
 
 /**

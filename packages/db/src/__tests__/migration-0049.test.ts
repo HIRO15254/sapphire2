@@ -103,19 +103,39 @@ const schemaBefore0049 = `
 		BEFORE UPDATE ON game_variant BEGIN SELECT 1; END;
 `;
 
+const migrationStatements = migrationSql
+	.split("--> statement-breakpoint")
+	.map((part) => part.trim())
+	.filter(Boolean);
+
 function applyAtomically(db: any): void {
 	db.exec("BEGIN");
 	try {
-		for (const statement of migrationSql
-			.split("--> statement-breakpoint")
-			.map((part) => part.trim())
-			.filter(Boolean)) {
+		for (const statement of migrationStatements) {
 			db.exec(statement);
 		}
 		db.exec("COMMIT");
 	} catch (error) {
 		db.exec("ROLLBACK");
 		throw error;
+	}
+}
+
+/**
+ * Apply only the statements up to and including the first one matching
+ * `marker`, WITHOUT a transaction — this is what a production apply that dies
+ * mid-file leaves behind (`wrangler` streams statements to D1 and only records
+ * the migration once the last one succeeds).
+ */
+function applyThrough(db: any, marker: string): void {
+	const cut = migrationStatements.findIndex((statement) =>
+		statement.includes(marker)
+	);
+	if (cut < 0) {
+		throw new Error(`no migration statement matches ${marker}`);
+	}
+	for (const statement of migrationStatements.slice(0, cut + 1)) {
+		db.exec(statement);
 	}
 }
 
@@ -431,7 +451,7 @@ skipIfNotBun("migration 0049 — normalized game mix variants", () => {
 			).toEqual({ games: "not json at all" });
 		});
 
-		it("re-applies cleanly after a partial application (no file-wide transaction)", () => {
+		it("re-applies cleanly when the whole file is applied twice", () => {
 			seedLegacyRows(db);
 			applyAtomically(db);
 			const rowsAfterFirstApply = db
@@ -452,6 +472,53 @@ skipIfNotBun("migration 0049 — normalized game mix variants", () => {
 						WHERE type = 'trigger' ORDER BY name`)
 					.values()
 			).toEqual(FINAL_TRIGGERS);
+		});
+
+		it("resumes from a failure that landed between the backfill and the triggers", () => {
+			seedLegacyRows(db);
+			applyThrough(db, "INSERT OR IGNORE INTO `game_mix_variant`");
+
+			expect(() => applyAtomically(db)).not.toThrow();
+			expect(
+				db
+					.query(`SELECT mix_id, variant_id, position
+						FROM game_mix_variant ORDER BY mix_id, position`)
+					.values()
+			).toEqual([
+				["mix-ordered", "variant-2", 0],
+				["mix-ordered", "variant-1", 1],
+				["mix-user-2", "variant-3", 0],
+			]);
+			expect(
+				db
+					.query(`SELECT name, tbl_name FROM sqlite_master
+						WHERE type = 'trigger' ORDER BY name`)
+					.values()
+			).toEqual(FINAL_TRIGGERS);
+		});
+
+		// The interrupted apply leaves the junction populated but the compat
+		// triggers absent, and `d1_migrations` still at 0048 — so the old Worker
+		// keeps serving and keeps rewriting `games` with nothing syncing it. The
+		// retry must rebuild from `games`, not merely top up missing rows.
+		it("heals junction rows the old Worker desynced while the triggers were absent", () => {
+			seedLegacyRows(db);
+			applyThrough(db, "INSERT OR IGNORE INTO `game_mix_variant`");
+			db.exec(`UPDATE game_mix SET games = '["variant-free","variant-1"]'
+				WHERE id = 'mix-ordered'`);
+			db.exec(`UPDATE game_mix SET games = '[]' WHERE id = 'mix-user-2'`);
+
+			applyAtomically(db);
+
+			expect(
+				db
+					.query(`SELECT mix_id, variant_id, position
+						FROM game_mix_variant ORDER BY mix_id, position`)
+					.values()
+			).toEqual([
+				["mix-ordered", "variant-free", 0],
+				["mix-ordered", "variant-1", 1],
+			]);
 		});
 	});
 });
