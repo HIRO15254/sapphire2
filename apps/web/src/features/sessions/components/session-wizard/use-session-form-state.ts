@@ -78,6 +78,12 @@ function checkPlacementRange(
 	if (values.beforeDeadline === true) {
 		return;
 	}
+	// A blank side has no bound to compare against, and `Number("")` is 0 — which
+	// would report every filled placement as out of range on top of the real
+	// `Required` issue, lighting up two fields for one mistake.
+	if (values.placement.trim() === "" || values.totalEntries.trim() === "") {
+		return;
+	}
 	const placement = Number(values.placement);
 	const totalEntries = Number(values.totalEntries);
 	if (

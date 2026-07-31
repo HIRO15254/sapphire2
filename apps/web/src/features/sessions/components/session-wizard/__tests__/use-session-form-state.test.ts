@@ -1061,6 +1061,41 @@ describe("useSessionFormState — live-linked required fields", () => {
 		);
 	});
 
+	// `Number("")` is 0, so a blank total entries used to make every filled
+	// placement look out of range — two red fields for one mistake.
+	it("reports only the blank field when the total entries is cleared", async () => {
+		const { onSubmit, result } = renderTournamentForm(
+			new Set(["placement", "prizeMoney", "totalEntries"])
+		);
+		act(() => {
+			result.current.form.setFieldValue("prizeMoney", "0");
+			result.current.form.setFieldValue("placement", "3");
+			result.current.form.setFieldValue("totalEntries", "");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+		expect(fieldError(result.current.form, "totalEntries")).toBe("Required");
+		expect(fieldError(result.current.form, "placement")).toBeUndefined();
+	});
+
+	it("reports only the blank field when the placement is cleared", async () => {
+		const { onSubmit, result } = renderTournamentForm(
+			new Set(["placement", "prizeMoney", "totalEntries"])
+		);
+		act(() => {
+			result.current.form.setFieldValue("prizeMoney", "0");
+			result.current.form.setFieldValue("placement", "");
+			result.current.form.setFieldValue("totalEntries", "50");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+		expect(fieldError(result.current.form, "placement")).toBe("Required");
+	});
+
 	it("accepts a placement equal to the total entries", async () => {
 		const { onSubmit, result } = renderTournamentForm(
 			new Set(["placement", "prizeMoney", "totalEntries"])
