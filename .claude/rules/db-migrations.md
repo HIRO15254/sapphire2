@@ -35,6 +35,63 @@ When you hand-write a migration, still run `db:generate` afterward (see below) s
 in sync — let it write the fresh snapshot, then replace/delete its auto `.sql` so `wrangler` applies
 your intended SQL.
 
+## A migration file is NOT one transaction in production
+
+`wrangler d1 migrations apply` streams the statements of a file to D1; there is no file-wide
+transaction, and `d1_migrations` only advances after the last statement succeeds. A statement that
+fails halfway therefore leaves the earlier objects created **and** the migration unrecorded, so the
+retry dies on `table already exists`. `migration-00NN.test.ts` helpers that wrap the file in
+`BEGIN` / `ROLLBACK` model the local (`bun:sqlite`) behavior, not production — never cite them as
+evidence that a migration rolls back.
+
+Consequences for any migration that touches existing rows:
+
+- **Make every statement re-runnable**: `CREATE TABLE / INDEX / TRIGGER IF NOT EXISTS`,
+  `INSERT OR IGNORE` for backfills.
+- **Make the retry self-healing, not merely non-destructive.** `INSERT OR IGNORE` only tops up
+  missing rows. If the first attempt died after the backfill but before the compatibility triggers
+  existed, `d1_migrations` never advanced, so the old Worker kept writing the legacy column with
+  nothing syncing the new table: the rows left behind are stale, and the corrected ones collide on
+  the ordering unique index and are dropped silently. While `d1_migrations` has not advanced no new
+  code writes the new table — it is by definition derived from the legacy column — so a
+  `DELETE FROM <new_table>;` immediately before the backfill rebuilds it correctly
+  (`0049_normalize_game_mix_variants`). Check for dependents first; a table with children needs the
+  cascade thought through instead.
+- **Test a real mid-file failure, not a double apply.** Split the file on
+  `--> statement-breakpoint`, apply only the first N statements WITHOUT a transaction, mutate the
+  legacy column the way the still-running old Worker would, then apply the whole file and assert the
+  result matches the legacy column (`applyThrough` in
+  [`migration-0049.test.ts`](../../packages/db/src/__tests__/migration-0049.test.ts)). Applying the
+  whole file twice only proves the statements are re-runnable.
+- **Make backfills unable to abort.** Constraints introduced by the same migration are, by
+  definition, not enforced on the legacy rows being backfilled. Resolve references with an
+  `INNER JOIN` against the owning table, collapse duplicates with `GROUP BY`, renumber ordering
+  columns with `ROW_NUMBER() OVER (PARTITION BY …)`, and read possibly-malformed JSON through
+  `CASE WHEN json_valid(x) = 0 THEN '[]' WHEN json_type(x) <> 'array' THEN '[]' ELSE x END` —
+  `json_each()` raises on malformed input, and a `WHERE` clause cannot guard it because the
+  table-valued function is evaluated first.
+- **Audit production before merging** so the rows the backfill would drop are known, not
+  discovered later. `0049_normalize_game_mix_variants` normalized `game_mix.games` (a JSON id
+  array) into `game_mix_variant`; the shape below generalizes to any JSON-array → junction-table
+  normalization (run with `bunx wrangler d1 execute <db> --remote --command "…"`):
+
+  ```sql
+  -- 1. malformed or non-array payloads — run this FIRST: json_each() below
+  --    raises on malformed input, so a non-empty result invalidates 2 and 3.
+  SELECT id FROM game_mix WHERE json_valid(games) = 0 OR json_type(games) <> 'array';
+
+  -- 2. references that resolve to no variant owned by the same user
+  SELECT m.id, m.user_id, g.value
+  FROM game_mix AS m, json_each(m.games) AS g
+  LEFT JOIN game_variant AS v
+    ON v.id = CAST(g.value AS text) AND v.user_id = m.user_id
+  WHERE v.id IS NULL;
+
+  -- 3. the same id repeated inside one mix
+  SELECT m.id, g.value, COUNT(*) FROM game_mix AS m, json_each(m.games) AS g
+  GROUP BY m.id, g.value HAVING COUNT(*) > 1;
+  ```
+
 ## The Drizzle `meta/` ledger
 
 `bun run db:generate` (`drizzle-kit generate`) does **not** apply anything — it diffs the current
@@ -49,8 +106,8 @@ that collided with an existing one. It was re-baselined by registering 0013–00
 `_journal.json` and adding a tip snapshot (`0034_snapshot.json`) that captured the true schema at
 that point, chained onto `0012`. There are intentionally no per-migration snapshots for
 0013–0033 — those migrations were authored in bulk, outside Drizzle, so faithful intermediate
-snapshots do not exist and were not fabricated. Generated migrations 0035–0046 each added their
-own snapshot; the current ledger tip is `0046_snapshot.json` (`0046_session_event_sort_order_unique`).
+snapshots do not exist and were not fabricated. Generated migrations 0035–0049 each added their
+own snapshot; the current ledger tip is `0049_snapshot.json` (`0049_normalize_game_mix_variants`).
 `db:generate` reads this newest snapshot, so future migrations continue from the current schema.
 
 > Caveat: `drizzle-kit check` (not currently in CI) validates that a snapshot exists for every
@@ -60,11 +117,18 @@ own snapshot; the current ledger tip is `0046_snapshot.json` (`0046_session_even
 
 ## Manual SQLite triggers are outside the Drizzle ledger
 
-Migration `0041_amazing_amphibian` installs ten manual integrity triggers on `game_group`,
-`game_variant`, and `game_mix` for normalized label uniqueness and JSON reference integrity.
-Drizzle snapshots do not model triggers, and SQLite drops a table's triggers when a table-rebuild
-migration drops that table. Therefore, any migration that recreates one of these three tables must
-recreate its `0041` triggers in the same migration.
+Migration `0041_amazing_amphibian` installed ten manual integrity triggers on `game_group`,
+`game_variant`, and `game_mix`. Migration `0049_normalize_game_mix_variants` is the expand phase of
+a rolling-safe normalization: it keeps those ten triggers and adds two `game_mix` →
+`game_mix_variant` synchronization triggers. The physical `games` JSON column remains only as a
+compatibility mirror because production migrations run before the new Worker is deployed; removing
+it in 0049 would break the old Worker during that window and prevent a safe rollback. A later
+contract migration may remove the mirror, its four JSON-reference triggers, and the two sync
+triggers only after all deployed Workers have stopped reading or writing `games`, leaving the six
+normalized-label triggers. Drizzle snapshots do not model triggers, and SQLite drops a table's
+triggers when a table-rebuild migration drops that table. Therefore, any migration that recreates
+one of these three tables must recreate every trigger that is still required in that deployment
+phase.
 
 [`migration-0041.test.ts`](../../packages/db/src/__tests__/migration-0041.test.ts) applies every
 numbered migration from an empty database and asserts the final trigger names and target tables.

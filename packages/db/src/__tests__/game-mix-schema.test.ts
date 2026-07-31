@@ -13,7 +13,6 @@ describe("GameMix schema — columns", () => {
 				"userId",
 				"builtinKey",
 				"label",
-				"games",
 				"createdAt",
 				"updatedAt",
 			])
@@ -40,7 +39,7 @@ describe("GameMix schema — columns", () => {
 		expect(columns.label.notNull).toBe(true);
 	});
 
-	it("games is not null and stored as JSON", () => {
+	it("retains a non-null JSON compatibility mirror during the rolling migration", () => {
 		expect(columns.games.notNull).toBe(true);
 		expect(columns.games.dataType).toBe("json");
 	});
@@ -86,11 +85,11 @@ describe("GameMix — indexes", () => {
 		expect(idxNames).toContain("gameMix_userId_idx");
 	});
 
-	it("has exactly 2 unique indexes (builtinKey + label backstops, c08/c14)", () => {
+	it("has exactly 3 unique indexes including the composite owner reference target", () => {
 		const uniqueIdxs = config.indexes.filter(
 			(i) => (i.config as unknown as { unique: boolean }).unique === true
 		);
-		expect(uniqueIdxs).toHaveLength(2);
+		expect(uniqueIdxs).toHaveLength(3);
 	});
 
 	it("has a unique index on (userId, builtinKey) so a concurrent double-seed cannot duplicate a builtin row (c08)", () => {
@@ -114,6 +113,18 @@ describe("GameMix — indexes", () => {
 		expect(idx?.config.columns.map((c) => c.name)).toEqual([
 			"user_id",
 			"label",
+		]);
+	});
+
+	it("has a unique index on (id, userId) for owner-safe composite references", () => {
+		const idx = config.indexes.find(
+			(i) => i.config.name === "game_mix_id_user_id_unique"
+		);
+		expect(idx).toBeDefined();
+		expect((idx?.config as unknown as { unique: boolean }).unique).toBe(true);
+		expect(idx?.config.columns.map((column) => column.name)).toEqual([
+			"id",
+			"user_id",
 		]);
 	});
 

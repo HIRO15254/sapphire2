@@ -47,8 +47,14 @@ import {
 import type { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
-import { type BatchStatement, runBatch } from "../lib/batch";
+import {
+	type BatchStatement,
+	chunkForInsert,
+	D1_MAX_BOUND_PARAMS,
+	runBatch,
+} from "../lib/batch";
 import { optionalUniqueTagIdsSchema } from "../lib/tag-ids";
+import { listOwnedGameMixes } from "../services/game-mix";
 import { ensureSessionResultTypeId } from "../services/session-result-type";
 import { sessionEventOrderBy } from "../utils/session-event-time";
 import { compareBuiltinFirst } from "./_game-masters";
@@ -123,17 +129,10 @@ function computeTournamentPL(
  * stays under the cap. session_blind_level is at exactly 10 columns → 10 rows
  * per INSERT (10 × 10 = 100); adding an 11th column requires dropping the
  * chunk size to 9 or the re-INSERT overflows after the DELETE has committed.
+ * The implementation and the cap live in lib/batch.ts so services can share
+ * them without importing from a router; this stays the router-side entry point.
  */
-const D1_MAX_BOUND_PARAMS = 100;
-
-export function chunkForInsert<T>(rows: T[], columnsPerRow: number): T[][] {
-	const perChunk = Math.max(1, Math.floor(D1_MAX_BOUND_PARAMS / columnsPerRow));
-	const chunks: T[][] = [];
-	for (let i = 0; i < rows.length; i += perChunk) {
-		chunks.push(rows.slice(i, i + perChunk));
-	}
-	return chunks;
-}
+export { chunkForInsert } from "../lib/batch";
 
 /**
  * Run a `WHERE ... IN (ids)` SELECT in chunks so no single statement exceeds
@@ -2337,14 +2336,7 @@ async function findOwnedNamedMix(
 	userId: string,
 	label: string
 ): Promise<{ games: string[]; label: string; userId: string } | undefined> {
-	const rows = await db
-		.select({
-			games: gameMix.games,
-			label: gameMix.label,
-			userId: gameMix.userId,
-		})
-		.from(gameMix)
-		.where(eq(gameMix.userId, userId));
+	const rows = await listOwnedGameMixes(db, userId);
 	const normalized = normalizedGameLabel(label);
 	return rows.find(
 		(row) =>

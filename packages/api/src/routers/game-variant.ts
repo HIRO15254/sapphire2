@@ -1,4 +1,4 @@
-import { gameMix } from "@sapphire2/db/schema/game-mix";
+import { gameMixVariant } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, max } from "drizzle-orm";
@@ -187,20 +187,19 @@ export const gameVariantRouter = router({
 			const userId = ctx.session.user.id;
 			await validateEntityOwnership(ctx.db, "gameVariant", input.id, userId);
 
-			// A variant referenced by one of the caller's own mixes cannot be
-			// deleted out from under it — game_mix.games stores game_variant ids,
-			// but with no FK (it's a JSON array), so this app-level check is the
-			// only guard (c07). Contrast the free deletion below it protects: once
-			// a variant is unreferenced, `variant` columns elsewhere (ring_game
-			// .variant, session snapshots, etc.) store the display label verbatim
-			// rather than a foreign key into this table, so deleting the
-			// definition row never corrupts past sessions/games (self-freezing
-			// design).
-			const mixes = await ctx.db
-				.select({ games: gameMix.games })
-				.from(gameMix)
-				.where(eq(gameMix.userId, userId));
-			const inUse = mixes.some((m) => m.games.includes(input.id));
+			// Keep the existing friendly conflict instead of relying on the
+			// junction's NO ACTION foreign key to surface a database error. The
+			// reverse lookup is scoped to the caller as a defense-in-depth guard.
+			const [inUse] = await ctx.db
+				.select({ variantId: gameMixVariant.variantId })
+				.from(gameMixVariant)
+				.where(
+					and(
+						eq(gameMixVariant.variantId, input.id),
+						eq(gameMixVariant.userId, userId)
+					)
+				)
+				.limit(1);
 			if (inUse) {
 				throw new TRPCError({
 					code: "CONFLICT",

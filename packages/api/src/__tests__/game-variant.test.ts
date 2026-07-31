@@ -12,6 +12,7 @@ import {
 	expectRejects,
 	expectType,
 	getInputSchema,
+	withGameMixVariantFixtures,
 } from "./test-utils";
 
 type Rows = Record<string, unknown>[];
@@ -19,9 +20,12 @@ type Rows = Record<string, unknown>[];
 const GROUP_TABLE = getTableName(gameGroup);
 const VARIANT_TABLE = getTableName(gameVariant);
 const MIX_TABLE = getTableName(gameMix);
+const MIX_VARIANT_TABLE = "game_mix_variant";
 
 function gameVariantCaller(userId: string, select: Record<string, Rows>) {
-	const mock = createChainableMockDb({ select });
+	const mock = createChainableMockDb({
+		select: withGameMixVariantFixtures(select),
+	});
 	const caller = appRouter.createCaller({
 		session: { user: { id: userId } },
 		db: mock.db,
@@ -519,6 +523,7 @@ describe("gameVariant.delete in-use rejection (c07)", () => {
 			[MIX_TABLE]: [
 				{ id: "mix-1", userId: CUR_OWNER, label: "HORSE", games: ["gv-2"] },
 			],
+			[MIX_VARIANT_TABLE]: [],
 		});
 		await expect(caller.delete({ id: "gv-1" })).resolves.toEqual({
 			success: true,
@@ -637,5 +642,26 @@ describe("gameVariant type guard sanity", () => {
 	it("getInputSchema works for create", () => {
 		const schema = getInputSchema(appRouter.gameVariant.create);
 		expect(schema.safeParse({ label: "x", groupId: "g1" }).success).toBe(true);
+	});
+});
+
+describe("gameVariant.delete normalized mix membership guard", () => {
+	it("rejects with CONFLICT when an owned junction row references the variant", async () => {
+		const { caller, selectWhereParams } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [{ id: "gv-1", userId: CUR_OWNER, label: "My Variant" }],
+			[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OWNER, label: "HORSE" }],
+			[MIX_VARIANT_TABLE]: [
+				{
+					mixId: "mix-1",
+					variantId: "gv-1",
+					userId: CUR_OWNER,
+					position: 0,
+				},
+			],
+		});
+
+		await expectTrpcCode(caller.delete({ id: "gv-1" }), "CONFLICT");
+		expect(selectWhereParams).toContainEqual(["gv-1", CUR_OWNER]);
 	});
 });
