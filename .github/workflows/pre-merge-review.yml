@@ -26,6 +26,7 @@ jobs:
           fetch-depth: 0
 
       - name: Claude review
+        id: claude_review
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -47,7 +48,85 @@ jobs:
             The tracking comment on this PR is created and updated automatically from
             this session, so do NOT run `gh pr comment` to post the top-level summary
             yourself — just make the summary your final message.
+          # max-turns is a runaway guard, not a budget: a run that stops at the
+          # cap still costs ~$3.5 and produces nothing (SA2-216 / PR #576 hit it
+          # three times in a row), so it is cheaper to let a real review finish.
+          #
+          # allowedTools additions — every tool Claude reaches for that is not
+          # listed here is denied, and each denial burns a turn:
+          #   Skill        the prompt above is literally `/review`; without this
+          #                the skill can never load and Claude re-improvises the
+          #                whole review by hand.
+          #   Task / Agent subagent fan-out costs the main loop one turn per
+          #                delegated pass. The tool was renamed across CLI
+          #                versions, so allow both names.
+          #   TodoWrite    the review flow tracks its own progress with it.
+          #   git / rg     local history and search, instead of paying an API
+          #                round trip through `gh` for the same information.
+          # The action itself already grants Glob/Grep/LS/Read, the
+          # mcp__github_ci__* CI tools and its git commit/push wrappers.
+          # `gh api` is deliberately NOT allowed: the PR diff is untrusted input
+          # and the job's token can write to pull requests.
           claude_args: |
-            --max-turns 40
+            --max-turns 80
             --model opus
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*)"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Skill,Task,Agent,TodoWrite,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git merge-base:*),Bash(rg:*)"
+
+      # Hitting the turn cap leaves the tracking comment as an empty checklist
+      # with no verdict, which reads exactly like "the review found nothing".
+      # Say out loud that the run was cut short so the empty summary is not
+      # mistaken for a pass.
+      - name: Report truncated review
+        if: failure() && steps.claude_review.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXECUTION_FILE: ${{ steps.claude_review.outputs.execution_file }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          log_file="$EXECUTION_FILE"
+          if [ ! -f "$log_file" ]; then
+            log_file="${RUNNER_TEMP}/claude-execution-output.json"
+          fi
+
+          # The execution log is a stream of JSON messages; the final `result`
+          # entry carries the subtype (`success`, `error_max_turns`, ...).
+          # `-s` plus recursive descent reads it whether the file is one JSON
+          # array or newline-delimited objects, and always yields a single line.
+          subtype=""
+          if [ -f "$log_file" ]; then
+            subtype=$(jq -rs '[.. | objects | select(.type == "result")] | last | .subtype // empty' "$log_file" 2>/dev/null || true)
+          fi
+
+          if [ "$subtype" != "error_max_turns" ]; then
+            echo "review failed with subtype='${subtype:-unknown}' (not a turn-limit cutoff); nothing to report."
+            exit 0
+          fi
+
+          {
+            cat <<'EOF'
+          <!-- pre-merge-review:truncated -->
+          ### ⚠️ 自動レビューはターン上限で打ち切られました
+
+          `review` ジョブが Claude のターン上限に達したため、レビューを最後まで実行できませんでした。
+
+          - インラインコメントが付いていても **レビューは網羅的ではありません**
+          - 要約は投稿されていないため、上のチェックリストが空でも「指摘なし」ではありません
+          - マージ可否は `ci` の結果と人手のレビューで判断してください
+
+          再実行する場合はこのジョブを re-run してください。
+          EOF
+            printf '\n[View job run](%s)\n' "$RUN_URL"
+          } > "${RUNNER_TEMP}/review-truncated.md"
+
+          # Refresh the existing notice instead of stacking one per push.
+          existing=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
+            --jq '.[] | select(.body | startswith("<!-- pre-merge-review:truncated -->")) | .id' | tail -n 1 || true)
+
+          if [ -n "$existing" ]; then
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${existing}" \
+              -F "body=@${RUNNER_TEMP}/review-truncated.md"
+          else
+            gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+              -F "body=@${RUNNER_TEMP}/review-truncated.md"
+          fi
