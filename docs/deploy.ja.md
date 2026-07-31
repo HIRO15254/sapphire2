@@ -10,6 +10,8 @@
 - **フロントエンド**: Cloudflare Pages（Vite SPA）
 - **データベース**: Cloudflare D1（Drizzle ORM 経由の SQLite）
 
+Worker は MCP エンドポイント（`/mcp`）と OAuth ディスカバリルート（`/.well-known/oauth-authorization-server`、`/.well-known/oauth-protected-resource`）も配信します。これらに**追加の環境変数やシークレットは不要**です — OAuth プロバイダの URL は `BETTER_AUTH_URL` と `CORS_ORIGIN` から導出されます。[mcp.ja.md](mcp.ja.md) を参照してください。
+
 ### デプロイ構成
 
 | 環境 | トリガー | 内容 |

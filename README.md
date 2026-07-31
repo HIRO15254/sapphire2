@@ -12,6 +12,7 @@ This project was created with [Better-T-Stack](https://github.com/AmanVarshney01
 - **tRPC v11** - End-to-end type-safe APIs
 - **Drizzle ORM** + **Cloudflare D1** - Database (SQLite)
 - **Better Auth** - Authentication (email/password, Google, Discord OAuth)
+- **MCP Server** - Remote MCP endpoint at `/mcp` (Streamable HTTP + OAuth) for AI agents — see [docs/mcp.md](docs/mcp.md)
 - **Bun** - Package manager and runtime
 - **Biome** (Ultracite) - Linting and formatting
 - **Husky** - Git hooks

@@ -104,6 +104,13 @@ const CHECKS: Check[] = [
 		excludePath: /packages\/api\/src\/ai\/models\.ts$/,
 	},
 	{
+		name: "direct DB access in the MCP tool layer — go through appRouter.createCaller",
+		rule: ".claude/rules/mcp-tools.md",
+		globs: ["packages/mcp/src/**/*.ts"],
+		pattern: /from "drizzle-orm|from "@sapphire2\/db\/schema/,
+		excludePath: /__tests__|\.test\./,
+	},
+	{
 		name: "GitHub pull-request head ref assigned inside a run script — pass it through step env",
 		rule: "GitHub Actions shell-injection prevention",
 		cwd: ".github",

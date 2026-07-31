@@ -10,6 +10,8 @@ This repository is built on Cloudflare Workers + D1 architecture.
 - **Frontend**: Cloudflare Pages (Vite SPA)
 - **Database**: Cloudflare D1 (SQLite via Drizzle ORM)
 
+The Worker also serves the MCP endpoint (`/mcp`) and its OAuth discovery routes (`/.well-known/oauth-authorization-server`, `/.well-known/oauth-protected-resource`). These need **no additional env vars or secrets** — the OAuth provider derives its URLs from `BETTER_AUTH_URL` and `CORS_ORIGIN`. See [mcp.md](mcp.md).
+
 ### Deployment Environments
 
 | Environment | Trigger | Description |
