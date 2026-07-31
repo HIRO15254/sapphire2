@@ -1,5 +1,3 @@
-import { TRPCError } from "@trpc/server";
-
 export interface ToolErrorResult {
 	content: { type: "text"; text: string }[];
 	isError: true;
@@ -22,6 +20,32 @@ interface ZodLikeIssue {
 	path: PropertyKey[];
 }
 
+interface TrpcLikeError {
+	cause?: unknown;
+	code: string;
+	message: string;
+}
+
+/**
+ * Duck-typed for the same reason as zodIssues below: `instanceof TRPCError`
+ * silently returns false if `packages/mcp` and `packages/api` ever resolve
+ * separate `@trpc/server` instances, which would collapse every domain error
+ * (FORBIDDEN, BAD_REQUEST, …) into the generic internal text and hide Zod
+ * feedback from the model. Requiring `name === "TRPCError"` keeps unrelated
+ * errors that merely carry a `code` (D1, runtime) out of this branch.
+ */
+function asTrpcError(error: unknown): TrpcLikeError | undefined {
+	if (
+		typeof error === "object" &&
+		error !== null &&
+		(error as { name?: unknown }).name === "TRPCError" &&
+		typeof (error as { code?: unknown }).code === "string"
+	) {
+		return error as TrpcLikeError;
+	}
+	return undefined;
+}
+
 /**
  * Duck-typed ZodError detection — tRPC stores the Zod failure on `cause`,
  * and instanceof would break across duplicated zod module instances.
@@ -38,7 +62,7 @@ function zodIssues(cause: unknown): ZodLikeIssue[] | undefined {
 	return undefined;
 }
 
-function badRequestText(error: TRPCError): string {
+function badRequestText(error: TrpcLikeError): string {
 	const issues = zodIssues(error.cause);
 	if (issues && issues.length > 0) {
 		return issues
@@ -62,19 +86,20 @@ export function mapToolError(
 	error: unknown,
 	log: (error: unknown) => void
 ): ToolErrorResult {
-	if (error instanceof TRPCError) {
-		switch (error.code) {
+	const trpcError = asTrpcError(error);
+	if (trpcError) {
+		switch (trpcError.code) {
 			case "FORBIDDEN":
 				return toolError(FORBIDDEN_TEXT);
 			case "NOT_FOUND":
 				return toolError(NOT_FOUND_TEXT);
 			case "BAD_REQUEST":
-				return toolError(badRequestText(error));
+				return toolError(badRequestText(trpcError));
 			case "UNAUTHORIZED":
 				return toolError(UNAUTHORIZED_TEXT);
 			case "CONFLICT":
 			case "PRECONDITION_FAILED":
-				return toolError(error.message);
+				return toolError(trpcError.message);
 			default:
 				break;
 		}

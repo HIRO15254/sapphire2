@@ -162,15 +162,17 @@ describe("/oauth/consent page", () => {
 	});
 });
 
-describe("authorize consent gate", () => {
-	// The gate is default-deny by path suffix on every method, so a
-	// better-auth upgrade cannot add an authorize route that skips consent.
-	// These pin today's surface: only GET /api/auth/mcp/authorize exists.
+describe("better-auth authorize surface", () => {
+	// These pin what better-auth 1.6.0 actually serves — the assumption behind
+	// the consent gate having exactly one live path to protect. They say
+	// nothing about the gate itself (they stay green with it removed, because
+	// the fallthrough reaches the same handler): consent-gate.test.ts covers
+	// the wiring by asserting the URL handed to better-auth.
 	it.each([
 		["POST", "/api/auth/mcp/authorize"],
 		["GET", "/api/auth/oauth2/authorize"],
 		["POST", "/api/auth/oauth2/authorize"],
-	] as const)("answers %s %s with 404 rather than issuing a code", async (method, path) => {
+	] as const)("does not serve %s %s (no second authorize route to protect)", async (method, path) => {
 		const response = await app.request(
 			`${path}?client_id=c1&response_type=code`,
 			{ method },
@@ -178,16 +180,5 @@ describe("authorize consent gate", () => {
 		);
 		expect(response.status).toBe(404);
 		expect(response.headers.get("location")).toBeNull();
-	});
-
-	it("does not intercept non-authorize better-auth routes", async () => {
-		const response = await app.request(
-			"/api/auth/mcp/token",
-			{ method: "POST" },
-			env
-		);
-		// Reaches better-auth (which rejects the empty body) rather than being
-		// rewritten by the consent gate.
-		expect(response.status).not.toBe(404);
 	});
 });

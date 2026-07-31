@@ -169,6 +169,42 @@ describe("mapToolError", () => {
 		expect(log).toHaveBeenCalledTimes(1);
 	});
 
+	it("recognizes a TRPCError from a duplicated @trpc/server instance", () => {
+		// Shape-compatible but not our TRPCError class — `instanceof` would
+		// miss it and collapse every domain error into the generic text.
+		const foreign = Object.assign(new Error("Room not found"), {
+			name: "TRPCError",
+			code: "FORBIDDEN",
+		});
+		const log = vi.fn();
+		expect(textOf(mapToolError(foreign, log))).toBe(
+			"You do not have access to that resource."
+		);
+		expect(log).toHaveBeenCalledTimes(0);
+	});
+
+	it("surfaces Zod issues from a duplicated-instance BAD_REQUEST", () => {
+		const parsed = z.object({ buyIn: z.number() }).safeParse({ buyIn: "x" });
+		const foreign = Object.assign(new Error("raw"), {
+			name: "TRPCError",
+			code: "BAD_REQUEST",
+			cause: parsed.success ? undefined : parsed.error,
+		});
+		expect(textOf(mapToolError(foreign, vi.fn()))).toMatch(BUY_IN_LINE);
+	});
+
+	it("does not mistake an unrelated error carrying a code for a TRPCError", () => {
+		// D1 / runtime errors expose `code` too; treating them as domain errors
+		// would echo their message (BAD_REQUEST / CONFLICT branches).
+		const log = vi.fn();
+		const d1Error = Object.assign(
+			new Error("D1_ERROR: no such column: secret"),
+			{ code: "BAD_REQUEST" }
+		);
+		expect(textOf(mapToolError(d1Error, log))).toBe("Internal error.");
+		expect(log).toHaveBeenCalledTimes(1);
+	});
+
 	it("does not log expected domain errors", () => {
 		const log = vi.fn();
 		for (const code of [
