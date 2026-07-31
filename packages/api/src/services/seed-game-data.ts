@@ -166,7 +166,9 @@ export async function seedDefaultGameData(
 		// mistake leaves a mix with no resolvable variantKey, seed the master row
 		// with an empty composition rather than handing Drizzle `values([])`,
 		// which throws — and would turn gameGroup/gameVariant/gameMix `list` (all
-		// of which call this without a try/catch) into a 500 for that user.
+		// of which call this without a try/catch) into a 500 for that user. That
+		// guard is the loop itself: chunkForInsert yields NO chunks for an empty
+		// input, so an empty composition emits no statement at all.
 		// Chunked through the same helper as the mix router so a future builtin
 		// mix wide enough to overflow D1's bind-param cap is split, not rejected
 		// at runtime.

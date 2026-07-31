@@ -47,7 +47,22 @@ evidence that a migration rolls back.
 Consequences for any migration that touches existing rows:
 
 - **Make every statement re-runnable**: `CREATE TABLE / INDEX / TRIGGER IF NOT EXISTS`,
-  `INSERT OR IGNORE` for backfills. Cover it with a test that applies the file twice.
+  `INSERT OR IGNORE` for backfills.
+- **Make the retry self-healing, not merely non-destructive.** `INSERT OR IGNORE` only tops up
+  missing rows. If the first attempt died after the backfill but before the compatibility triggers
+  existed, `d1_migrations` never advanced, so the old Worker kept writing the legacy column with
+  nothing syncing the new table: the rows left behind are stale, and the corrected ones collide on
+  the ordering unique index and are dropped silently. While `d1_migrations` has not advanced no new
+  code writes the new table — it is by definition derived from the legacy column — so a
+  `DELETE FROM <new_table>;` immediately before the backfill rebuilds it correctly
+  (`0049_normalize_game_mix_variants`). Check for dependents first; a table with children needs the
+  cascade thought through instead.
+- **Test a real mid-file failure, not a double apply.** Split the file on
+  `--> statement-breakpoint`, apply only the first N statements WITHOUT a transaction, mutate the
+  legacy column the way the still-running old Worker would, then apply the whole file and assert the
+  result matches the legacy column (`applyThrough` in
+  [`migration-0049.test.ts`](../../packages/db/src/__tests__/migration-0049.test.ts)). Applying the
+  whole file twice only proves the statements are re-runnable.
 - **Make backfills unable to abort.** Constraints introduced by the same migration are, by
   definition, not enforced on the legacy rows being backfilled. Resolve references with an
   `INNER JOIN` against the owning table, collapse duplicates with `GROUP BY`, renumber ordering
