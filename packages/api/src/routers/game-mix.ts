@@ -88,6 +88,18 @@ function mixMembershipRows(
 }
 
 /**
+ * Split membership rows across INSERTs that stay under D1's 100-bind-param cap.
+ * The width comes from the row shape rather than a literal, so adding a column
+ * to gameMixVariant cannot silently overflow the cap (a 30-game mix is well
+ * under it today, but the next column would put 25-row chunks at 125 params).
+ */
+function chunkMembershipRows(
+	rows: (typeof gameMixVariant.$inferInsert)[]
+): (typeof gameMixVariant.$inferInsert)[][] {
+	return chunkForInsert(rows, Object.keys(rows[0] ?? {}).length || 1);
+}
+
+/**
  * A mix built from variants spanning more than `MAX_MIX_GROUPS` distinct game
  * groups can never be turned into a session's `mixGames` (that array is
  * itself capped at `MAX_MIX_GROUPS` groups via `mixGamesSchema` /
@@ -155,12 +167,16 @@ export const gameMixRouter = router({
 					}),
 				];
 				const rows = mixMembershipRows(id, userId, input.games);
-				for (const chunk of chunkForInsert(rows, 4)) {
+				for (const chunk of chunkMembershipRows(rows)) {
 					statements.push(ctx.db.insert(gameMixVariant).values(chunk));
 				}
 				// Keep the pre-0049 Worker contract valid until the later contract
-				// migration. This statement runs last so the compatibility trigger
-				// sees the complete normalized composition.
+				// migration. This statement runs last so 0049's compatibility trigger
+				// rebuilds the same rows from the mirror it just wrote. While that
+				// trigger exists the JSON column is the effective derivation source;
+				// the explicit junction writes above are what keeps this procedure
+				// correct once the contract migration drops the trigger, and both
+				// paths produce identical rows.
 				statements.push(
 					ctx.db
 						.update(gameMix)
@@ -239,14 +255,15 @@ export const gameMixRouter = router({
 							)
 					);
 					const rows = mixMembershipRows(input.id, userId, input.games);
-					for (const chunk of chunkForInsert(rows, 4)) {
+					for (const chunk of chunkMembershipRows(rows)) {
 						statements.push(ctx.db.insert(gameMixVariant).values(chunk));
 					}
 					updateData.games = input.games;
 				}
-				// Update the compatibility mirror last. 0049's trigger replaces the
-				// same normalized rows atomically, while old Workers can still write
-				// the legacy column during a rolling deployment or rollback.
+				// Update the compatibility mirror last. 0049's trigger then replaces
+				// the normalized rows written above with byte-identical ones, while
+				// old Workers can still write the legacy column during a rolling
+				// deployment or rollback (same expand-phase note as create()).
 				statements.push(
 					ctx.db
 						.update(gameMix)

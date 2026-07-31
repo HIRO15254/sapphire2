@@ -14,12 +14,17 @@ import { gameVariant } from "./game-variant";
 
 // Per-user named-mix masters. A mix is a reusable mixed-game definition —
 // label + ordered game composition — not a session/game record itself. The
-// canonical composition lives in gameMixVariant, where ownership and references
-// use native foreign keys. Legacy JSON triggers only protect and synchronize the
-// temporary rolling-deploy mirror described below.
+// composition is read exclusively from gameMixVariant, where ownership and
+// references use native foreign keys.
+//
 // `games` remains temporarily as a rolling-deploy compatibility mirror for the
-// pre-0049 Worker. The normalized rows are the read model; 0049 keeps both in
-// sync so migration-first deploys and rollback stay safe.
+// pre-0049 Worker. Direction of truth during this expand phase: 0049's
+// game_mix_variants_compat_* triggers rebuild the normalized rows from `games`
+// on every write that touches it, so while those triggers exist the JSON column
+// is the effective derivation source even though the API never reads it. The
+// normalized rows become the sole source of truth at the contract migration
+// that drops the mirror and those triggers; the API already writes them
+// explicitly so that migration needs no further router change.
 // Historical session/rule columns elsewhere intentionally keep frozen labels
 // and value-object JSON, so editing or deleting a master never rewrites past
 // play.

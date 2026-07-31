@@ -12,6 +12,14 @@ type DbInstance = Database;
 export type BatchStatement = Parameters<DbInstance["batch"]>[0][number];
 
 /**
+ * D1 rejects any single statement binding more than 100 parameters. Lives here
+ * rather than in session.ts so a service can size its own `IN (…)` list against
+ * the same number without importing from a router (which would close an import
+ * cycle: routers/session.ts already imports services/game-mix.ts).
+ */
+export const D1_MAX_BOUND_PARAMS = 100;
+
+/**
  * Commit a group of writes atomically. D1's `db.batch` requires a NON-EMPTY
  * tuple; an empty array is treated as a no-op (nothing to write). Every
  * caller builds its statements first, then hands the whole group to a single

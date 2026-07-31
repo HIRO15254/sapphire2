@@ -161,9 +161,16 @@ export async function seedDefaultGameData(
 			userId,
 			variantId,
 		}));
-		statements.push(
-			db.insert(gameMixVariant).values(memberships).onConflictDoNothing()
-		);
+		// Fail closed like the `groupId` guard above: if a future data-entry
+		// mistake leaves a mix with no resolvable variantKey, seed the master row
+		// with an empty composition rather than handing Drizzle `values([])`,
+		// which throws — and would turn gameGroup/gameVariant/gameMix `list` (all
+		// of which call this without a try/catch) into a 500 for that user.
+		if (memberships.length > 0) {
+			statements.push(
+				db.insert(gameMixVariant).values(memberships).onConflictDoNothing()
+			);
+		}
 		// Keep the physical games column synchronized for the pre-0049 Worker
 		// during migration-first deploys and rollback. The compatibility trigger
 		// applies the same ordered rows after this normalized insert.
@@ -175,8 +182,9 @@ export async function seedDefaultGameData(
 		);
 	}
 
-	// All 33 statements (3 groups + 21 variants + 3 mix masters + 3 membership
-	// batches + 3 mirror updates) commit atomically (SA2-116), so a failure cannot
+	// Every statement (3 groups + 21 variants + 3 mix masters + up to 3 membership
+	// batches + 3 mirror updates — 33 with the current constants, fewer if a mix
+	// resolves to no variants) commits atomically (SA2-116), so a failure cannot
 	// leave a user with partial built-in game data.
 	try {
 		await runBatch(db, statements);

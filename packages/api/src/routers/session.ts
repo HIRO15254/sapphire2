@@ -47,7 +47,11 @@ import {
 import type { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
-import { type BatchStatement, runBatch } from "../lib/batch";
+import {
+	type BatchStatement,
+	D1_MAX_BOUND_PARAMS,
+	runBatch,
+} from "../lib/batch";
 import { optionalUniqueTagIdsSchema } from "../lib/tag-ids";
 import { listOwnedGameMixes } from "../services/game-mix";
 import { ensureSessionResultTypeId } from "../services/session-result-type";
@@ -124,8 +128,8 @@ function computeTournamentPL(
  * stays under the cap. session_blind_level is at exactly 10 columns → 10 rows
  * per INSERT (10 × 10 = 100); adding an 11th column requires dropping the
  * chunk size to 9 or the re-INSERT overflows after the DELETE has committed.
+ * The cap itself lives in lib/batch.ts so services can share it.
  */
-const D1_MAX_BOUND_PARAMS = 100;
 
 export function chunkForInsert<T>(rows: T[], columnsPerRow: number): T[][] {
 	const perChunk = Math.max(1, Math.floor(D1_MAX_BOUND_PARAMS / columnsPerRow));

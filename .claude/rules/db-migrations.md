@@ -35,6 +35,48 @@ When you hand-write a migration, still run `db:generate` afterward (see below) s
 in sync — let it write the fresh snapshot, then replace/delete its auto `.sql` so `wrangler` applies
 your intended SQL.
 
+## A migration file is NOT one transaction in production
+
+`wrangler d1 migrations apply` streams the statements of a file to D1; there is no file-wide
+transaction, and `d1_migrations` only advances after the last statement succeeds. A statement that
+fails halfway therefore leaves the earlier objects created **and** the migration unrecorded, so the
+retry dies on `table already exists`. `migration-00NN.test.ts` helpers that wrap the file in
+`BEGIN` / `ROLLBACK` model the local (`bun:sqlite`) behavior, not production — never cite them as
+evidence that a migration rolls back.
+
+Consequences for any migration that touches existing rows:
+
+- **Make every statement re-runnable**: `CREATE TABLE / INDEX / TRIGGER IF NOT EXISTS`,
+  `INSERT OR IGNORE` for backfills. Cover it with a test that applies the file twice.
+- **Make backfills unable to abort.** Constraints introduced by the same migration are, by
+  definition, not enforced on the legacy rows being backfilled. Resolve references with an
+  `INNER JOIN` against the owning table, collapse duplicates with `GROUP BY`, renumber ordering
+  columns with `ROW_NUMBER() OVER (PARTITION BY …)`, and read possibly-malformed JSON through
+  `CASE WHEN json_valid(x) = 0 THEN '[]' WHEN json_type(x) <> 'array' THEN '[]' ELSE x END` —
+  `json_each()` raises on malformed input, and a `WHERE` clause cannot guard it because the
+  table-valued function is evaluated first.
+- **Audit production before merging** so the rows the backfill would drop are known, not
+  discovered later. `0049_normalize_game_mix_variants` normalized `game_mix.games` (a JSON id
+  array) into `game_mix_variant`; the shape below generalizes to any JSON-array → junction-table
+  normalization (run with `bunx wrangler d1 execute <db> --remote --command "…"`):
+
+  ```sql
+  -- 1. malformed or non-array payloads — run this FIRST: json_each() below
+  --    raises on malformed input, so a non-empty result invalidates 2 and 3.
+  SELECT id FROM game_mix WHERE json_valid(games) = 0 OR json_type(games) <> 'array';
+
+  -- 2. references that resolve to no variant owned by the same user
+  SELECT m.id, m.user_id, g.value
+  FROM game_mix AS m, json_each(m.games) AS g
+  LEFT JOIN game_variant AS v
+    ON v.id = CAST(g.value AS text) AND v.user_id = m.user_id
+  WHERE v.id IS NULL;
+
+  -- 3. the same id repeated inside one mix
+  SELECT m.id, g.value, COUNT(*) FROM game_mix AS m, json_each(m.games) AS g
+  GROUP BY m.id, g.value HAVING COUNT(*) > 1;
+  ```
+
 ## The Drizzle `meta/` ledger
 
 `bun run db:generate` (`drizzle-kit generate`) does **not** apply anything — it diffs the current

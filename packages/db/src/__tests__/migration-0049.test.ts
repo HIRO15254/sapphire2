@@ -350,20 +350,108 @@ skipIfNotBun("migration 0049 — normalized game mix variants", () => {
 		expect(db.query("PRAGMA foreign_key_check").values()).toEqual([]);
 	});
 
-	it("rolls back instead of discarding duplicate legacy data", () => {
-		seedLegacyRows(db);
-		db.exec(`UPDATE game_mix SET games = '["variant-1","variant-1"]'
-			WHERE id = 'mix-ordered'`);
+	// Pre-0041 writes had no DB-side protection on game_mix.games, so legacy
+	// rows can still violate this table's PK / owner FK. The migration is not
+	// applied atomically in production (wrangler streams statements to D1), so
+	// the backfill must never abort — it drops what the API already treats as
+	// unusable instead.
+	describe("defensive backfill of legacy game_mix.games rows", () => {
+		it("collapses a repeated id to its first occurrence instead of aborting", () => {
+			seedLegacyRows(db);
+			db.exec(`UPDATE game_mix
+				SET games = '["variant-1","variant-2","variant-1"]'
+				WHERE id = 'mix-ordered'`);
 
-		expect(() => applyAtomically(db)).toThrow(UNIQUE_CONSTRAINT_PATTERN);
-		expect(
-			db.query("SELECT games FROM game_mix WHERE id = 'mix-ordered'").get()
-		).toEqual({ games: '["variant-1","variant-1"]' });
-		expect(
-			db
-				.query(`SELECT name FROM sqlite_master
-				WHERE type = 'table' AND name = 'game_mix_variant'`)
-				.values()
-		).toEqual([]);
+			expect(() => applyAtomically(db)).not.toThrow();
+			expect(
+				db
+					.query(`SELECT variant_id, position FROM game_mix_variant
+						WHERE mix_id = 'mix-ordered' ORDER BY position`)
+					.values()
+			).toEqual([
+				["variant-1", 0],
+				["variant-2", 1],
+			]);
+			expect(
+				db.query("SELECT games FROM game_mix WHERE id = 'mix-ordered'").get()
+			).toEqual({ games: '["variant-1","variant-2","variant-1"]' });
+		});
+
+		it("drops ids that resolve to no variant and renumbers positions densely", () => {
+			seedLegacyRows(db);
+			db.exec(`UPDATE game_mix
+				SET games = '["deleted-variant","variant-1","variant-2"]'
+				WHERE id = 'mix-ordered'`);
+
+			expect(() => applyAtomically(db)).not.toThrow();
+			expect(
+				db
+					.query(`SELECT variant_id, position FROM game_mix_variant
+						WHERE mix_id = 'mix-ordered' ORDER BY position`)
+					.values()
+			).toEqual([
+				["variant-1", 0],
+				["variant-2", 1],
+			]);
+			expect(db.query("PRAGMA foreign_key_check").values()).toEqual([]);
+		});
+
+		it("drops ids owned by another user", () => {
+			seedLegacyRows(db);
+			db.exec(`UPDATE game_mix
+				SET games = '["variant-3","variant-1"]'
+				WHERE id = 'mix-ordered'`);
+
+			expect(() => applyAtomically(db)).not.toThrow();
+			expect(
+				db
+					.query(`SELECT variant_id, position FROM game_mix_variant
+						WHERE mix_id = 'mix-ordered' ORDER BY position`)
+					.values()
+			).toEqual([["variant-1", 0]]);
+		});
+
+		it("skips malformed JSON, non-array JSON, and non-string entries", () => {
+			seedLegacyRows(db);
+			db.exec(`
+				UPDATE game_mix SET games = 'not json at all' WHERE id = 'mix-ordered';
+				UPDATE game_mix SET games = '{"variant-1":true}' WHERE id = 'mix-empty';
+				UPDATE game_mix SET games = '[1,null,"variant-1"]' WHERE id = 'mix-user-2';
+			`);
+
+			expect(() => applyAtomically(db)).not.toThrow();
+			expect(
+				db
+					.query(`SELECT mix_id, variant_id, position FROM game_mix_variant
+						ORDER BY mix_id, position`)
+					.values()
+			).toEqual([]);
+			expect(
+				db.query("SELECT games FROM game_mix WHERE id = 'mix-ordered'").get()
+			).toEqual({ games: "not json at all" });
+		});
+
+		it("re-applies cleanly after a partial application (no file-wide transaction)", () => {
+			seedLegacyRows(db);
+			applyAtomically(db);
+			const rowsAfterFirstApply = db
+				.query(`SELECT mix_id, variant_id, user_id, position
+					FROM game_mix_variant ORDER BY mix_id, position`)
+				.values();
+
+			expect(() => applyAtomically(db)).not.toThrow();
+			expect(
+				db
+					.query(`SELECT mix_id, variant_id, user_id, position
+						FROM game_mix_variant ORDER BY mix_id, position`)
+					.values()
+			).toEqual(rowsAfterFirstApply);
+			expect(
+				db
+					.query(`SELECT name, tbl_name FROM sqlite_master
+						WHERE type = 'trigger' ORDER BY name`)
+					.values()
+			).toEqual(FINAL_TRIGGERS);
+		});
 	});
 });
