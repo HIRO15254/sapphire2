@@ -795,6 +795,70 @@ describe("pure helpers", () => {
 			expect(out.startingStack).toBeUndefined();
 			expect(out.bountyAmount).toBeUndefined();
 		});
+
+		// A live session's `sessionDate` is the start *timestamp* (the server
+		// recalculates it from the session_start event), not a UTC-midnight
+		// date-only value. Its date part must therefore be read with local
+		// getters — the same ones `startTime` uses — so that recombining the two
+		// halves reproduces the stored instant instead of moving the event a day.
+		describe("live-linked session date seeding", () => {
+			const liveCash = (overrides: Partial<SessionItem> = {}) =>
+				baseSessionItem({
+					source: "live",
+					liveCashGameSessionId: "s1",
+					sessionDate: "2026-04-11T03:00:00Z",
+					startedAt: "2026-04-11T03:00:00Z",
+					...overrides,
+				});
+
+			it("seeds the date from the local day of startedAt west of UTC", () => {
+				const out = withTz(TZ_WEST, () => buildEditDefaults(liveCash()));
+				expect(out.sessionDate).toBe("2026-04-10");
+				expect(out.startTime).toBe("20:00");
+			});
+
+			it("seeds the date from the local day of startedAt east of UTC", () => {
+				const out = withTz(TZ_EAST, () =>
+					buildEditDefaults(
+						liveCash({
+							sessionDate: "2026-04-09T22:00:00Z",
+							startedAt: "2026-04-09T22:00:00Z",
+						})
+					)
+				);
+				expect(out.sessionDate).toBe("2026-04-10");
+				expect(out.startTime).toBe("07:00");
+			});
+
+			it("applies the same seeding to a live tournament session", () => {
+				const out = withTz(TZ_WEST, () =>
+					buildEditDefaults(
+						liveCash({
+							type: "tournament",
+							liveCashGameSessionId: null,
+							liveTournamentSessionId: "s1",
+						})
+					)
+				);
+				expect(out.sessionDate).toBe("2026-04-10");
+			});
+
+			it("falls back to sessionDate when the live session has no startedAt", () => {
+				const out = withTz(TZ_WEST, () =>
+					buildEditDefaults(liveCash({ startedAt: null }))
+				);
+				expect(out.sessionDate).toBe("2026-04-10");
+			});
+
+			it("keeps reading a manual session's date with UTC getters", () => {
+				const out = withTz(TZ_WEST, () =>
+					buildEditDefaults(
+						baseSessionItem({ sessionDate: "2026-04-11T00:00:00Z" })
+					)
+				);
+				expect(out.sessionDate).toBe("2026-04-11");
+			});
+		});
 	});
 });
 

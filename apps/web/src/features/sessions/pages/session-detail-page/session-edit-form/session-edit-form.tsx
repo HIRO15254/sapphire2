@@ -21,14 +21,21 @@ import { useSessionEditForm } from "./use-session-edit-form";
 interface SessionEditFormProps {
 	currencies?: Array<{ id: string; name: string }>;
 	defaultValues?: SessionFormDefaults;
+	/**
+	 * Result fields to render read-only. For a live session this is the set of
+	 * values aggregated over several events (buy-in, EV cash-out, break time, …);
+	 * the fields backed by a single event value stay editable and are written
+	 * back to that event on save. Empty for a manual session.
+	 */
+	disabledFields?: ReadonlySet<string>;
 	/** Stable id linking the sheet's confirm button to this form. */
 	formId: string;
 	/**
 	 * `true` when the session was recorded live. Manual and live sessions share
-	 * the exact same form layout; for live sessions the fields derived from the
-	 * event history are disabled (only room, currency, tags and memo — the
-	 * metadata `session.update` accepts for a live session — stay editable), and
-	 * the live event history is exposed for editing in the Events section.
+	 * the exact same form layout; for live sessions the Master and Rules fields
+	 * (frozen rule snapshots with no backing event) are disabled, the Result
+	 * fields follow `disabledFields`, and the event history is exposed for
+	 * editing in the Events section.
 	 */
 	isLiveLinked?: boolean;
 	/** Live-session id backing this record — enables the Events section. */
@@ -47,12 +54,13 @@ interface SessionEditFormProps {
  * shared `FormSheet` (its `[✓]` button submits this form via `form={formId}`).
  * Manual and live-recorded sessions use one shared structure: Master and Result
  * stay open, Rules is a collapsible section, and — for live sessions only — an
- * Events section exposes the underlying event history for editing. For a live
- * session the event-derived fields render disabled rather than hidden.
+ * Events section exposes the underlying event history for editing. A live
+ * session renders its locked fields disabled rather than hidden.
  */
 export function SessionEditForm({
 	currencies,
 	defaultValues,
+	disabledFields,
 	formId,
 	isLiveLinked = false,
 	liveSessionId,
@@ -86,8 +94,9 @@ export function SessionEditForm({
 			{isLiveLinked && (
 				<Alert data-testid="live-linked-banner">
 					<AlertDescription>
-						This session is generated from a live session. Items calculated from
-						event history cannot be edited directly — edit them in the Events
+						This session is generated from a live session. Date, time and result
+						fields sync back to the event history when you save. Values
+						calculated from several events can only be changed in the Events
 						section below.
 					</AlertDescription>
 				</Alert>
@@ -108,7 +117,7 @@ export function SessionEditForm({
 
 			<InputGroup label="Result">
 				<ResultStepBody
-					isLiveLinked={isLiveLinked}
+					disabledFields={disabledFields}
 					onCreateTag={onCreateTag}
 					state={state}
 					tags={tags}

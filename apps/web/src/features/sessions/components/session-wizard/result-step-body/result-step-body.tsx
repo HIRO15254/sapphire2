@@ -4,28 +4,35 @@ import { CashResultFields } from "./cash-result-fields";
 import { DateTimeFields } from "./date-time-fields";
 import { TagsAndMemo } from "./tags-and-memo";
 
+const NO_DISABLED_FIELDS: ReadonlySet<string> = new Set();
+
 export function ResultStepBody({
 	state,
 	tags,
 	onCreateTag,
-	isLiveLinked,
+	disabledFields = NO_DISABLED_FIELDS,
 }: {
+	/**
+	 * Result fields to render read-only. A live-recorded session locks the
+	 * values aggregated over several events while keeping the ones backed by a
+	 * single event editable; everything else passes an empty set.
+	 */
+	disabledFields?: ReadonlySet<string>;
+	onCreateTag?: (name: string) => Promise<{ id: string; name: string }>;
 	state: UseSessionWizardReturn;
 	tags?: Array<{ id: string; name: string }>;
-	onCreateTag?: (name: string) => Promise<{ id: string; name: string }>;
-	isLiveLinked: boolean;
 }) {
 	return (
 		<>
-			<DateTimeFields isLiveLinked={isLiveLinked} state={state} />
+			<DateTimeFields disabledFields={disabledFields} state={state} />
 			{state.isCashGame ? (
-				<CashResultFields isLiveLinked={isLiveLinked} state={state} />
+				<CashResultFields disabledFields={disabledFields} state={state} />
 			) : (
 				<TournamentResultFields
 					chipPurchaseCounts={state.chipPurchaseCounts}
 					chipPurchases={state.chipPurchases}
+					disabledFields={disabledFields}
 					form={state.form}
-					isLiveLinked={isLiveLinked}
 					onChipPurchaseCountChange={state.updateChipPurchaseCount}
 				/>
 			)}

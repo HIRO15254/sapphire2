@@ -48,6 +48,7 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 		onRetry,
 		isUpdatePending,
 		isLiveLinked,
+		disabledResultFields,
 		canReopen,
 		rooms,
 		currencies,
@@ -205,6 +206,7 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 				<SessionEditForm
 					currencies={currencies}
 					defaultValues={buildEditDefaults(session)}
+					disabledFields={disabledResultFields}
 					formId={EDIT_FORM_ID}
 					isLiveLinked={isLiveLinked}
 					liveSessionId={isLiveLinked ? session.id : undefined}

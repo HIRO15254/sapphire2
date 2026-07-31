@@ -4,10 +4,11 @@ import type { UseSessionWizardReturn } from "../../use-session-wizard";
 
 export function DateTimeFields({
 	state,
-	isLiveLinked,
+	disabledFields,
 }: {
+	/** Field names to render read-only (live sessions lock a subset). */
+	disabledFields: ReadonlySet<string>;
 	state: UseSessionWizardReturn;
-	isLiveLinked: boolean;
 }) {
 	const { form } = state;
 	return (
@@ -16,7 +17,7 @@ export function DateTimeFields({
 				{(field) => (
 					<Field htmlFor={field.name} label="Session date" required>
 						<Input
-							disabled={isLiveLinked}
+							disabled={disabledFields.has("sessionDate")}
 							id={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
@@ -31,7 +32,7 @@ export function DateTimeFields({
 					{(field) => (
 						<Field htmlFor={field.name} label="Start time">
 							<Input
-								disabled={isLiveLinked}
+								disabled={disabledFields.has("startTime")}
 								id={field.name}
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
@@ -45,7 +46,7 @@ export function DateTimeFields({
 					{(field) => (
 						<Field htmlFor={field.name} label="End time">
 							<Input
-								disabled={isLiveLinked}
+								disabled={disabledFields.has("endTime")}
 								id={field.name}
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
@@ -64,7 +65,7 @@ export function DateTimeFields({
 						label="Break time (min)"
 					>
 						<Input
-							disabled={isLiveLinked}
+							disabled={disabledFields.has("breakMinutes")}
 							id={field.name}
 							inputMode="numeric"
 							onBlur={field.handleBlur}

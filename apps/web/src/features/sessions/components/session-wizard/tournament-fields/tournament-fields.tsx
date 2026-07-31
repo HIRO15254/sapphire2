@@ -44,11 +44,14 @@ interface TournamentRuleFieldsProps extends TournamentFieldsProps {
 	selectedCurrencyId?: string;
 }
 
-interface TournamentResultFieldsProps extends TournamentFieldsProps {
+interface TournamentResultFieldsProps {
 	/** Purchase counts (the result) keyed by `ChipPurchaseRow.uid`. */
 	chipPurchaseCounts: Record<string, number>;
 	/** Rule-defined chip purchases from the wizard's Rules step. */
 	chipPurchases: ChipPurchaseRow[];
+	/** Field names to render read-only (live sessions lock a subset). */
+	disabledFields: ReadonlySet<string>;
+	form: AnyForm;
 	onChipPurchaseCountChange: (uid: string, count: number) => void;
 }
 
@@ -147,7 +150,7 @@ export function TournamentRuleFields({
  */
 export function TournamentResultFields({
 	form,
-	isLiveLinked = false,
+	disabledFields,
 	chipPurchases,
 	chipPurchaseCounts,
 	onChipPurchaseCountChange,
@@ -160,7 +163,7 @@ export function TournamentResultFields({
 						<>
 							<Checkbox
 								checked={field.state.value === true}
-								disabled={isLiveLinked}
+								disabled={disabledFields.has("beforeDeadline")}
 								id={field.name}
 								onCheckedChange={(checked) =>
 									field.handleChange(checked === true)
@@ -186,7 +189,7 @@ export function TournamentResultFields({
 										label="Placement"
 									>
 										<Input
-											disabled={isLiveLinked}
+											disabled={disabledFields.has("placement")}
 											id={field.name}
 											inputMode="numeric"
 											onBlur={field.handleBlur}
@@ -204,7 +207,7 @@ export function TournamentResultFields({
 										label="Total entries"
 									>
 										<Input
-											disabled={isLiveLinked}
+											disabled={disabledFields.has("totalEntries")}
 											id={field.name}
 											inputMode="numeric"
 											onBlur={field.handleBlur}
@@ -227,7 +230,7 @@ export function TournamentResultFields({
 						label="Prize money"
 					>
 						<Input
-							disabled={isLiveLinked}
+							disabled={disabledFields.has("prizeMoney")}
 							id={field.name}
 							inputMode="numeric"
 							onBlur={field.handleBlur}
@@ -246,7 +249,7 @@ export function TournamentResultFields({
 						label="Bounty prizes"
 					>
 						<Input
-							disabled={isLiveLinked}
+							disabled={disabledFields.has("bountyPrizes")}
 							id={field.name}
 							inputMode="numeric"
 							onBlur={field.handleBlur}
@@ -263,7 +266,7 @@ export function TournamentResultFields({
 						{chipPurchases.map((row) => (
 							<ChipPurchaseCountRow
 								count={chipPurchaseCounts[row.uid] ?? 0}
-								disabled={isLiveLinked}
+								disabled={disabledFields.has("chipPurchases")}
 								key={row.uid}
 								onCountChange={(count) =>
 									onChipPurchaseCountChange(row.uid, count)
