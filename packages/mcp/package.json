@@ -14,12 +14,12 @@
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.0.0",
-    "@sapphire2/api": "workspace:*",
-    "@trpc/server": "catalog:"
+    "@sapphire2/api": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260405.1",
     "@sapphire2/config": "workspace:*",
+    "@trpc/server": "catalog:",
     "typescript": "catalog:",
     "vitest": "^4.1.2",
     "zod": "catalog:"
