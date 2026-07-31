@@ -1,20 +1,54 @@
 import { describe, expect, it } from "vitest";
+import { TOOL_DEFINITIONS, toolAnnotations } from "../../tools/registry";
 import { renderConsentHtml } from "../consent-html";
 
 const BASE_PROPS = {
 	clientId: "client-1",
 	clientName: "Claude",
-	clientMetadata: null,
 	code: "consent-code-123",
-	scopes: ["openid", "profile"],
+	redirectHosts: ["claude.ai"],
 };
 
 describe("renderConsentHtml", () => {
-	it("renders the client name and every requested scope", () => {
+	it("renders the client name", () => {
+		expect(renderConsentHtml(BASE_PROPS)).toContain("Claude");
+	});
+
+	it("describes the real capability of the token, not OAuth scopes", () => {
 		const html = renderConsentHtml(BASE_PROPS);
-		expect(html).toContain("Claude");
-		expect(html).toContain("openid");
-		expect(html).toContain("profile");
+		// Authorization ignores scopes (see buildMcpSession), so the screen must
+		// not imply the grant is limited to what the client requested.
+		expect(html).not.toContain("openid");
+		expect(html).not.toContain("offline_access");
+		expect(html).toContain("Read your poker sessions");
+	});
+
+	it("discloses write access while the catalogue contains mutation tools", () => {
+		const hasWriteTool = TOOL_DEFINITIONS.some(
+			(def) => !toolAnnotations(def).readOnlyHint
+		);
+		expect(hasWriteTool).toBe(true);
+		expect(renderConsentHtml(BASE_PROPS)).toContain("Record new sessions");
+	});
+
+	it("shows the registered redirect host so a look-alike name is detectable", () => {
+		const html = renderConsentHtml(BASE_PROPS);
+		expect(html).toContain("claude.ai");
+		expect(html).toContain("Anyone can register an application under any name");
+	});
+
+	it("lists every registered redirect host", () => {
+		const html = renderConsentHtml({
+			...BASE_PROPS,
+			redirectHosts: ["claude.ai", "localhost:9999"],
+		});
+		expect(html).toContain("claude.ai");
+		expect(html).toContain("localhost:9999");
+	});
+
+	it("warns instead of going quiet when no destination is known", () => {
+		const html = renderConsentHtml({ ...BASE_PROPS, redirectHosts: [] });
+		expect(html).toContain("did not register a recognizable destination");
 	});
 
 	it("escapes a script tag injected through the client name (DCR is open to anyone)", () => {
@@ -35,10 +69,10 @@ describe("renderConsentHtml", () => {
 		expect(html).toContain("&quot; onmouseover=&quot;steal()");
 	});
 
-	it("escapes malicious scope values", () => {
+	it("escapes a malicious redirect host", () => {
 		const html = renderConsentHtml({
 			...BASE_PROPS,
-			scopes: ["<img src=x onerror=alert(1)>"],
+			redirectHosts: ["<img src=x onerror=alert(1)>"],
 		});
 		expect(html).not.toContain("<img src=x");
 		expect(html).toContain("&lt;img src=x");
@@ -74,19 +108,9 @@ describe("renderConsentHtml", () => {
 		expect(html).toContain("redirectURI");
 	});
 
-	it("never renders untrusted client metadata or icon URLs", () => {
-		const html = renderConsentHtml({
-			...BASE_PROPS,
-			clientIcon: "https://evil.example/icon.png",
-			clientMetadata: { note: "<script>meta</script>" },
-		});
-		expect(html).not.toContain("evil.example");
-		expect(html).not.toContain("<script>meta</script>");
-	});
-
 	it("keeps the UI copy in English", () => {
 		const html = renderConsentHtml(BASE_PROPS);
-		expect(html).toContain("wants to access your sapphire2 data");
+		expect(html).toContain("Authorization request");
 		expect(html).toContain("Approve");
 		expect(html).toContain("Deny");
 	});

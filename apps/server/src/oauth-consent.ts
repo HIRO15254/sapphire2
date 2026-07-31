@@ -17,6 +17,45 @@ export function forceConsentPrompt(url: string): string {
 	return parsed.toString();
 }
 
+const TRAILING_SLASHES = /\/+$/;
+
+/**
+ * Whether a better-auth path is an authorization endpoint that must be forced
+ * through consent. Matched by suffix and applied to every method, so a
+ * better-auth upgrade that adds a second authorize route (or accepts POST on
+ * the existing one) cannot silently open a path around the consent gate.
+ */
+export function isAuthorizePath(path: string): boolean {
+	return path.replace(TRAILING_SLASHES, "").endsWith("/authorize");
+}
+
+/**
+ * Hosts an authorization code can be delivered to, from the DCR row's
+ * comma-joined `redirect_urls`. Unparseable entries are dropped rather than
+ * shown: the value is attacker-controlled and the consent page must not
+ * render free text supplied by a registered client.
+ */
+export function redirectHostsFrom(
+	redirectUrls: string | null | undefined
+): string[] {
+	if (!redirectUrls) {
+		return [];
+	}
+	const hosts = new Set<string>();
+	for (const candidate of redirectUrls.split(",")) {
+		const trimmed = candidate.trim();
+		if (!trimmed) {
+			continue;
+		}
+		try {
+			hosts.add(new URL(trimmed).host);
+		} catch {
+			// Not a URL — show nothing for it.
+		}
+	}
+	return [...hosts];
+}
+
 export interface ConsentPageQuery {
 	clientId: string;
 	code: string;

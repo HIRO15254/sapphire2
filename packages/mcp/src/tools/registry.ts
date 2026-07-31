@@ -148,6 +148,31 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	},
 ];
 
+/**
+ * Plain-language description of what an issued access token can actually do,
+ * derived from the tool catalogue.
+ *
+ * The consent screen must show THIS, not the OAuth scopes: authorization does
+ * not consult scopes at all (see buildMcpSession), so every token grants the
+ * full tool surface. Deriving the copy from TOOL_DEFINITIONS means adding a
+ * write tool cannot silently leave the consent screen under-representing the
+ * grant.
+ */
+export function toolPermissionSummary(): string[] {
+	const permissions = [
+		"Read your poker sessions, statistics and reference data (rooms, currencies, players, tags)",
+	];
+	const hasWriteTool = TOOL_DEFINITIONS.some(
+		(def) => !toolAnnotations(def).readOnlyHint
+	);
+	if (hasWriteTool) {
+		permissions.push(
+			"Record new sessions, update existing ones, and create session tags"
+		);
+	}
+	return permissions;
+}
+
 export function toolAnnotations(def: ToolDefinition): ToolAnnotations {
 	const readOnly = getProcedureType(def.procedurePath) === "query";
 	return {

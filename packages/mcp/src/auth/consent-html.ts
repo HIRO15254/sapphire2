@@ -1,20 +1,26 @@
+import { toolPermissionSummary } from "../tools/registry";
+
 /**
- * OAuth consent page served by the Worker (better-auth oidcConfig.getConsentHTML).
+ * OAuth consent page, served by the Worker's `GET /oauth/consent` route
+ * (better-auth's `oidcConfig.consentPage` redirects the browser there).
  *
  * Dynamic client registration is open to anyone (standard MCP posture), so
- * every client-supplied value is hostile input: names/scopes are HTML-escaped
- * and client icons/metadata are never rendered at all. The consent code is
- * embedded as JSON with `<` escaped so a crafted code can never terminate the
- * script element.
+ * every client-supplied value is hostile input: the name and redirect hosts
+ * are HTML-escaped, and nothing else the client registered (icon, metadata)
+ * is rendered at all. The consent code is embedded as JSON with `<` escaped
+ * so a crafted code can never terminate the script element.
+ *
+ * The page describes the REAL capability of the token being issued, derived
+ * from the tool catalogue — not the OAuth scopes, which are not used for
+ * authorization (see buildMcpSession) and would under-represent the grant.
  */
 
 export interface ConsentHtmlProps {
-	clientIcon?: string | undefined;
 	clientId: string;
-	clientMetadata: Record<string, unknown> | null;
 	clientName: string;
 	code: string;
-	scopes: string[];
+	/** Hosts the authorization code will be delivered to, from the DCR row. */
+	redirectHosts: string[];
 }
 
 function escapeHtml(value: string): string {
@@ -36,11 +42,13 @@ const STYLES = `
 	body { margin: 0; min-height: 100dvh; display: grid; place-items: center;
 		font-family: system-ui, sans-serif; background: #f4f4f5; color: #18181b; }
 	main { background: #fff; border: 1px solid #e4e4e7; border-radius: 12px;
-		padding: 2rem; max-width: 24rem; width: calc(100% - 2rem); box-sizing: border-box; }
+		padding: 2rem; max-width: 26rem; width: calc(100% - 2rem); box-sizing: border-box; }
 	h1 { font-size: 1.125rem; margin: 0 0 0.75rem; }
 	p { margin: 0 0 1rem; line-height: 1.5; }
-	ul { margin: 0 0 1.5rem; padding-left: 1.25rem; }
+	ul { margin: 0 0 1rem; padding-left: 1.25rem; }
 	li { line-height: 1.6; }
+	.destination { font-size: 0.875rem; color: #52525b; margin-bottom: 1.5rem; }
+	.destination code { font-family: ui-monospace, monospace; }
 	.actions { display: flex; gap: 0.75rem; justify-content: flex-end; }
 	button { font: inherit; border-radius: 8px; padding: 0.5rem 1.25rem; cursor: pointer; }
 	#approve { background: #2563eb; border: 1px solid #2563eb; color: #fff; }
@@ -49,6 +57,7 @@ const STYLES = `
 	@media (prefers-color-scheme: dark) {
 		body { background: #18181b; color: #fafafa; }
 		main { background: #27272a; border-color: #3f3f46; }
+		.destination { color: #a1a1aa; }
 		#deny { border-color: #52525b; }
 	}
 `;
@@ -78,12 +87,22 @@ const SCRIPT = `
 	document.getElementById("deny").addEventListener("click", () => decide(/* accept: false */ false));
 `;
 
+function renderDestination(redirectHosts: string[]): string {
+	if (redirectHosts.length === 0) {
+		return '<p class="destination">This application did not register a recognizable destination. Only approve it if you started this yourself.</p>';
+	}
+	const hosts = redirectHosts
+		.map((host) => `<code>${escapeHtml(host)}</code>`)
+		.join(", ");
+	return `<p class="destination">Your data will be sent to ${hosts}. Anyone can register an application under any name — check this destination before approving.</p>`;
+}
+
 export function renderConsentHtml(props: ConsentHtmlProps): string {
 	const clientName = escapeHtml(
 		props.clientName.trim() || "Unknown application"
 	);
-	const scopeItems = props.scopes
-		.map((scope) => `<li>${escapeHtml(scope)}</li>`)
+	const permissionItems = toolPermissionSummary()
+		.map((permission) => `<li>${escapeHtml(permission)}</li>`)
 		.join("");
 	return `<!DOCTYPE html>
 <html lang="en">
@@ -96,8 +115,9 @@ export function renderConsentHtml(props: ConsentHtmlProps): string {
 <body>
 <main>
 <h1>Authorization request</h1>
-<p><strong>${clientName}</strong> wants to access your sapphire2 data with the following scopes:</p>
-<ul>${scopeItems}</ul>
+<p><strong>${clientName}</strong> is asking for access to your sapphire2 account. If you approve, it will be able to:</p>
+<ul>${permissionItems}</ul>
+${renderDestination(props.redirectHosts)}
 <div class="actions">
 <button id="deny" type="button">Deny</button>
 <button id="approve" type="button">Approve</button>

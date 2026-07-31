@@ -7,7 +7,11 @@ export {
 } from "./auth/mcp-session";
 export { createSapphireMcpServer } from "./server";
 export type { RouterCaller } from "./tools/call";
-export { DELIBERATELY_EXCLUDED, TOOL_DEFINITIONS } from "./tools/registry";
+export {
+	DELIBERATELY_EXCLUDED,
+	TOOL_DEFINITIONS,
+	toolPermissionSummary,
+} from "./tools/registry";
 export {
 	createSapphireMcpHandler,
 	type SapphireMcpHandlerOptions,

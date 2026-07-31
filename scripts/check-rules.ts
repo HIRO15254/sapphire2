@@ -107,7 +107,9 @@ const CHECKS: Check[] = [
 		name: "direct DB access in the MCP tool layer — go through appRouter.createCaller",
 		rule: ".claude/rules/mcp-tools.md",
 		globs: ["packages/mcp/src/**/*.ts"],
-		pattern: /from "drizzle-orm|from "@sapphire2\/db\/schema/,
+		// `@sapphire2/db` の前方一致でバレル import（createDb / schema の再 export）
+		// まで塞ぐ。サブパスだけ見ると `from "@sapphire2/db"` が素通りする。
+		pattern: /from "drizzle-orm|from "@sapphire2\/db/,
 		excludePath: /__tests__|\.test\./,
 	},
 	{

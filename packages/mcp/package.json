@@ -15,15 +15,13 @@
   "dependencies": {
     "@modelcontextprotocol/server": "2.0.0",
     "@sapphire2/api": "workspace:*",
-    "@sapphire2/auth": "workspace:*",
-    "@sapphire2/db": "workspace:*",
-    "@trpc/server": "catalog:",
-    "zod": "catalog:"
+    "@trpc/server": "catalog:"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260405.1",
     "@sapphire2/config": "workspace:*",
     "typescript": "catalog:",
-    "vitest": "^4.1.2"
+    "vitest": "^4.1.2",
+    "zod": "catalog:"
   }
 }

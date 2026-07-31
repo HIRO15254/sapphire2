@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { forceConsentPrompt, parseConsentPageQuery } from "../oauth-consent";
+import {
+	forceConsentPrompt,
+	isAuthorizePath,
+	parseConsentPageQuery,
+	redirectHostsFrom,
+} from "../oauth-consent";
 
 const AUTHORIZE =
 	"http://localhost:8787/api/auth/mcp/authorize?client_id=c1&response_type=code&state=s1";
@@ -23,6 +28,60 @@ describe("forceConsentPrompt", () => {
 	it("keeps prompt=consent as-is", () => {
 		const url = new URL(forceConsentPrompt(`${AUTHORIZE}&prompt=consent`));
 		expect(url.searchParams.get("prompt")).toBe("consent");
+	});
+});
+
+describe("isAuthorizePath", () => {
+	it.each([
+		"/api/auth/mcp/authorize",
+		"/api/auth/oauth2/authorize",
+		"/api/auth/mcp/authorize/",
+		"/api/auth/some-future-plugin/authorize",
+	])("gates %s", (path) => {
+		expect(isAuthorizePath(path)).toBe(true);
+	});
+
+	it.each([
+		"/api/auth/mcp/token",
+		"/api/auth/oauth2/consent",
+		"/api/auth/sign-in/email",
+		"/api/auth/mcp/authorized",
+		"/api/auth/authorize-something",
+		"/api/auth",
+	])("lets %s through untouched", (path) => {
+		expect(isAuthorizePath(path)).toBe(false);
+	});
+});
+
+describe("redirectHostsFrom", () => {
+	it("extracts the host of a single registered redirect URL", () => {
+		expect(
+			redirectHostsFrom("https://claude.ai/api/mcp/auth_callback")
+		).toEqual(["claude.ai"]);
+	});
+
+	it("splits the comma-joined list better-auth stores", () => {
+		expect(
+			redirectHostsFrom("https://claude.ai/cb,http://localhost:9999/cb")
+		).toEqual(["claude.ai", "localhost:9999"]);
+	});
+
+	it("de-duplicates hosts that appear more than once", () => {
+		expect(
+			redirectHostsFrom("https://claude.ai/a,https://claude.ai/b")
+		).toEqual(["claude.ai"]);
+	});
+
+	it("drops unparseable entries rather than rendering attacker text", () => {
+		expect(
+			redirectHostsFrom(
+				"not a url,<script>alert(1)</script>,https://ok.test/cb"
+			)
+		).toEqual(["ok.test"]);
+	});
+
+	it.each([null, undefined, "", "   "])("returns [] for %s", (value) => {
+		expect(redirectHostsFrom(value)).toEqual([]);
 	});
 });
 

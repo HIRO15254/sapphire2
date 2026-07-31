@@ -10,11 +10,11 @@ Why this file exists: the MCP server at `/mcp` is deliberately a **projection of
 
 ## 1. Backend changes must update the MCP surface in the same task
 
-When a feature adds, changes, or removes an `appRouter` procedure (or its input schema), update `packages/mcp` in the same task: register every new procedure in either `EXPOSED` (as a tool) or `DELIBERATELY_EXCLUDED` (with a reason) in [`packages/mcp/src/tools/registry.ts`](../../packages/mcp/src/tools/registry.ts), and re-check the affected tool descriptions after schema changes. `coupling.test.ts` enforces this mechanically — a red `bunx vitest run --project mcp` after an API change means the MCP-side registration is missing. *Why: the MCP surface is a projection of the router; an unregistered procedure is an undocumented decision.*
+When a feature adds, changes, or removes an `appRouter` procedure (or its input schema), update `packages/mcp` in the same task: register every new procedure in either `TOOL_DEFINITIONS` (as a tool) or `DELIBERATELY_EXCLUDED` (with a reason) in [`packages/mcp/src/tools/registry.ts`](../../packages/mcp/src/tools/registry.ts), and re-check the affected tool descriptions after schema changes. `coupling.test.ts` enforces this mechanically — a red `bunx vitest run --project mcp` after an API change means the MCP-side registration is missing. *Why: the MCP surface is a projection of the router; an unregistered procedure is an undocumented decision.*
 
 ## 2. Tools call `appRouter.createCaller` only — never the DB
 
-Tool handlers go through the tRPC caller so `protectedProcedure` auth and every `validateEntityOwnership` / `validateSessionOwnership` check runs exactly as for HTTP. No `drizzle-orm` or `@sapphire2/db/schema` imports in `packages/mcp/src` (enforced by `scripts/check-rules.ts`); the one user-row lookup lives in `apps/server`, which passes the loaded row into `buildMcpSession`. *Why: a direct query would bypass the object-level authorization rules in [`api-security.md`](api-security.md).*
+Tool handlers go through the tRPC caller so `protectedProcedure` auth and every `validateEntityOwnership` / `validateSessionOwnership` check runs exactly as for HTTP. No `drizzle-orm` or `@sapphire2/db` imports in `packages/mcp/src` at all — the package does not even depend on `@sapphire2/db` (enforced by `scripts/check-rules.ts`, which matches the barrel import too); the one user-row lookup lives in `apps/server`, which passes the loaded row into `buildMcpSession`. *Why: a direct query would bypass the object-level authorization rules in [`api-security.md`](api-security.md).*
 
 ## 3. Input schemas are the router's Zod objects — never redefined
 
@@ -30,4 +30,8 @@ Tool results are `JSON.stringify(procedureResult)` — no column pruning, no ref
 
 ## 6. Adding a tool = registry entry + tests
 
-A new tool needs: an `EXPOSED` entry (description + mutation hints), the catalogue assertion update in `coupling.test.ts`, and handler coverage in `call.test.ts` if it deviates from plain pass-through. Tool names are derived `snake_case` of the procedure path (`session.list` → `session_list`).
+A new tool needs: a `TOOL_DEFINITIONS` entry (description + mutation hints), the catalogue assertion update in `coupling.test.ts`, and handler coverage in `call.test.ts` if it deviates from plain pass-through. Tool names are the `snake_case` of the procedure path (`session.list` → `session_list`). The one exception is a procedure whose input is a discriminated union: MCP requires `inputSchema.type === "object"`, so each branch becomes its own tool with a suffix naming the branch (`session.create` → `session_create_cash_game` / `session_create_tournament`), and every branch must be covered — `coupling.test.ts` asserts the union's member count matches the tools claiming that path.
+
+## 7. The consent screen describes real capability, not scopes
+
+`buildMcpSession` ignores the token's OAuth scopes, so every issued token grants the whole tool surface. The consent page therefore renders [`toolPermissionSummary()`](../../packages/mcp/src/tools/registry.ts) (derived from `TOOL_DEFINITIONS`) instead of listing scopes, and shows the client's registered redirect hosts. *Why: listing `openid profile` while handing over read+write of the user's data under-represents the grant, and a DCR-registered client can name itself anything — the redirect host is the only trustworthy signal on that screen.* If scopes are ever made load-bearing, enforce them in `callTool` against `toolAnnotations(...).readOnlyHint` and update this rule.

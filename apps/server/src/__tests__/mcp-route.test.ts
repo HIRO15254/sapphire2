@@ -111,9 +111,10 @@ describe("/oauth/consent page", () => {
 		expect(response.status).toBe(400);
 	});
 
-	it("renders the consent page with a placeholder name when the client lookup fails", async () => {
+	it("renders the consent page with placeholders when the client lookup fails", async () => {
 		// The fake env's DB stub cannot serve queries — the route must still
-		// render (the name is cosmetic; the signed consent_code authorizes).
+		// render (name and destination are cosmetic; the signed consent_code
+		// is what authorizes).
 		const response = await app.request(
 			"/oauth/consent?consent_code=abc&client_id=c1&scope=openid%20profile",
 			{ method: "GET" },
@@ -122,9 +123,59 @@ describe("/oauth/consent page", () => {
 		expect(response.status).toBe(200);
 		const html = await response.text();
 		expect(html).toContain("Unknown application");
-		expect(html).toContain("openid");
-		expect(html).toContain("profile");
+		expect(html).toContain("did not register a recognizable destination");
 		expect(html).toContain("/api/auth/oauth2/consent");
 		expect(html).toContain("Approve");
+	});
+
+	it("keeps the embedded consent code out of the browser cache", async () => {
+		const response = await app.request(
+			"/oauth/consent?consent_code=abc&client_id=c1",
+			{ method: "GET" },
+			env
+		);
+		expect(response.headers.get("cache-control")).toBe("no-store");
+	});
+
+	it("describes the real capability instead of the requested scopes", async () => {
+		const response = await app.request(
+			"/oauth/consent?consent_code=abc&client_id=c1&scope=openid%20profile",
+			{ method: "GET" },
+			env
+		);
+		const html = await response.text();
+		expect(html).not.toContain("openid");
+		expect(html).toContain("Read your poker sessions");
+		expect(html).toContain("Record new sessions");
+	});
+});
+
+describe("authorize consent gate", () => {
+	// The gate is default-deny by path suffix on every method, so a
+	// better-auth upgrade cannot add an authorize route that skips consent.
+	// These pin today's surface: only GET /api/auth/mcp/authorize exists.
+	it.each([
+		["POST", "/api/auth/mcp/authorize"],
+		["GET", "/api/auth/oauth2/authorize"],
+		["POST", "/api/auth/oauth2/authorize"],
+	] as const)("answers %s %s with 404 rather than issuing a code", async (method, path) => {
+		const response = await app.request(
+			`${path}?client_id=c1&response_type=code`,
+			{ method },
+			env
+		);
+		expect(response.status).toBe(404);
+		expect(response.headers.get("location")).toBeNull();
+	});
+
+	it("does not intercept non-authorize better-auth routes", async () => {
+		const response = await app.request(
+			"/api/auth/mcp/token",
+			{ method: "POST" },
+			env
+		);
+		// Reaches better-auth (which rejects the empty body) rather than being
+		// rewritten by the consent gate.
+		expect(response.status).not.toBe(404);
 	});
 });

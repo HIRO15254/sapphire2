@@ -16,7 +16,12 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { buildAuthOptions } from "./auth-options";
-import { forceConsentPrompt, parseConsentPageQuery } from "./oauth-consent";
+import {
+	forceConsentPrompt,
+	isAuthorizePath,
+	parseConsentPageQuery,
+	redirectHostsFrom,
+} from "./oauth-consent";
 
 interface Env {
 	ANTHROPIC_API_KEY?: string;
@@ -108,10 +113,17 @@ app.post("/api/auth/set-password", async (c) => {
 	return c.json(result);
 });
 
-// Consent gate: rewrite every authorize request to prompt=consent BEFORE
-// better-auth sees it — the mcp plugin issues a code without any consent
-// step otherwise, and DCR means arbitrary clients exist (see oauth-consent.ts).
-app.get("/api/auth/mcp/authorize", (c) => {
+// Consent gate: rewrite EVERY authorize request to prompt=consent before
+// better-auth sees it — the mcp plugin issues a code without any consent step
+// otherwise, and DCR means arbitrary clients exist (see oauth-consent.ts).
+// Matching by path suffix on all methods is deliberate default-deny: today
+// only `GET /api/auth/mcp/authorize` exists (POST and /api/auth/oauth2/authorize
+// both 404), but a better-auth upgrade must not be able to add a route that
+// bypasses the gate.
+app.on(["GET", "POST"], "/api/auth/*", (c, next) => {
+	if (!isAuthorizePath(c.req.path)) {
+		return next();
+	}
 	const db = createDb(c.env.DB);
 	const auth = createAuth(db, buildAuthOptions(c.env, db));
 	return auth.handler(new Request(forceConsentPrompt(c.req.url), c.req.raw));
@@ -123,33 +135,41 @@ app.on(["POST", "GET"], "/api/auth/*", (c) => {
 	return auth.handler(c.req.raw);
 });
 
-// The consent page better-auth redirects to mid-authorize. The client name
-// comes from the DCR row; a lookup failure falls back to a placeholder —
-// the name is cosmetic, while the signed consent_code is what authorizes.
+// The consent page better-auth redirects to mid-authorize. Name and redirect
+// hosts come from the DCR row; a lookup failure falls back to placeholders —
+// both are cosmetic, while the signed consent_code is what authorizes.
 app.get("/oauth/consent", async (c) => {
 	const query = parseConsentPageQuery(c.req.url);
 	if (!query) {
 		return c.text("Missing consent request parameters", 400);
 	}
 	let clientName = "";
+	let redirectHosts: string[] = [];
 	try {
 		const db = createDb(c.env.DB);
 		const rows = await db
-			.select({ name: oauthApplication.name })
+			.select({
+				name: oauthApplication.name,
+				redirectUrls: oauthApplication.redirectUrls,
+			})
 			.from(oauthApplication)
 			.where(eq(oauthApplication.clientId, query.clientId))
 			.limit(1);
 		clientName = rows[0]?.name ?? "";
+		redirectHosts = redirectHostsFrom(rows[0]?.redirectUrls);
 	} catch {
 		clientName = "";
+		redirectHosts = [];
 	}
+	// The page embeds a consent_code that can be exchanged for an
+	// authorization code — keep it out of the browser's history/bfcache.
+	c.header("Cache-Control", "no-store");
 	return c.html(
 		renderConsentHtml({
 			clientId: query.clientId,
 			clientName,
-			clientMetadata: null,
 			code: query.code,
-			scopes: query.scopes,
+			redirectHosts,
 		})
 	);
 });
@@ -186,32 +206,51 @@ function mcpUnauthorized(env: Env): Response {
 	);
 }
 
+/** JSON-RPC internal error, so /mcp never answers with a non-JSON-RPC body. */
+function mcpInternalError(): Response {
+	return Response.json(
+		{
+			jsonrpc: "2.0",
+			error: { code: -32_603, message: "Internal error" },
+			id: null,
+		},
+		{ status: 500 }
+	);
+}
+
 app.all("/mcp", async (c) => {
-	const db = createDb(c.env.DB);
-	const auth = createAuth(db, buildAuthOptions(c.env, db));
-	const token = await mcpApi(auth).getMcpSession({
-		headers: c.req.raw.headers,
-	});
-	if (!token) {
-		return mcpUnauthorized(c.env);
+	try {
+		const db = createDb(c.env.DB);
+		const auth = createAuth(db, buildAuthOptions(c.env, db));
+		const token = await mcpApi(auth).getMcpSession({
+			headers: c.req.raw.headers,
+		});
+		if (!token) {
+			return mcpUnauthorized(c.env);
+		}
+		const userRows = token.userId
+			? await db.select().from(user).where(eq(user.id, token.userId)).limit(1)
+			: [];
+		const session = buildMcpSession(token, userRows[0]);
+		if (!session) {
+			return mcpUnauthorized(c.env);
+		}
+		const caller = appRouter.createCaller({
+			session,
+			db,
+			anthropicApiKey: c.env.ANTHROPIC_API_KEY,
+			googleMapsApiKey: c.env.GOOGLE_MAPS_API_KEY,
+		});
+		const handler = createSapphireMcpHandler({
+			buildCaller: () => caller as never,
+		});
+		return await handler.fetch(c.req.raw);
+	} catch (error) {
+		// Token lookup / user load / a malformed token shape must still answer
+		// in the JSON-RPC envelope the client is parsing, not Hono's plain 500.
+		console.error("[mcp] request failed", error);
+		return mcpInternalError();
 	}
-	const userRows = token.userId
-		? await db.select().from(user).where(eq(user.id, token.userId)).limit(1)
-		: [];
-	const session = buildMcpSession(token, userRows[0]);
-	if (!session) {
-		return mcpUnauthorized(c.env);
-	}
-	const caller = appRouter.createCaller({
-		session,
-		db,
-		anthropicApiKey: c.env.ANTHROPIC_API_KEY,
-		googleMapsApiKey: c.env.GOOGLE_MAPS_API_KEY,
-	});
-	const handler = createSapphireMcpHandler({
-		buildCaller: () => caller as never,
-	});
-	return handler.fetch(c.req.raw);
 });
 
 // OAuth discovery must live at the ROOT .well-known paths (RFC 8414 /
