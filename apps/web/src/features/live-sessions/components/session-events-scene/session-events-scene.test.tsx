@@ -86,6 +86,16 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
+		session: {
+			getById: {
+				queryOptions: ({ id }: { id: string }) => ({
+					queryKey: ["session", id],
+				}),
+			},
+			list: {
+				queryKey: () => ["sessions"],
+			},
+		},
 	},
 	trpcClient: {
 		sessionEvent: {
