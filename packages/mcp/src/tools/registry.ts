@@ -526,7 +526,7 @@ export const DELIBERATELY_EXCLUDED: {
 	},
 	{
 		reason:
-			"Master-data CRUD not requested for the MCP surface yet; the web wizards carry required-field logic a model would have to guess",
+			"Outside the requested MCP scope (sessions, plus the rooms and game masters the user asked for). Their web forms carry setup decisions — a currency's unit and rate, a transaction type's sign — that a model would be guessing at, so exposing them needs a use case that fixes the shape first",
 		paths: [
 			"transactionType.list",
 			"transactionType.create",
@@ -535,8 +535,6 @@ export const DELIBERATELY_EXCLUDED: {
 			"currency.create",
 			"currency.update",
 			"currency.delete",
-			"sessionTag.update",
-			"player.getById",
 			"player.create",
 			"player.update",
 			"player.delete",
@@ -545,6 +543,16 @@ export const DELIBERATELY_EXCLUDED: {
 			"playerTag.update",
 			"playerTag.delete",
 		],
+	},
+	{
+		reason:
+			"Renaming a tag has no safe undo here: neither create nor update dedupes names, so a rename onto an existing one leaves two tags a model cannot tell apart, and delete is not exposed to clean up. sessionTag.create is exposed because recording a session may need a new tag — renaming is a different operation and needs the dedupe question answered first",
+		paths: ["sessionTag.update"],
+	},
+	{
+		reason:
+			"player.list already returns these rows, so a by-id tool would be a second way to read the same data",
+		paths: ["player.getById"],
 	},
 	{
 		reason:
