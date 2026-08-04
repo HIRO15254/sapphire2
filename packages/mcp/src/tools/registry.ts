@@ -256,7 +256,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "tournament_get_by_id",
 		procedurePath: "tournament.getById",
 		description:
-			"Get one tournament master by id with its blind levels, chip purchases and tags. Read this before tournament_update_with_levels — that tool replaces the whole blind structure.",
+			"Get one tournament master by id with its blind levels and tags. Read this before tournament_update_with_levels — that tool replaces the whole blind structure. It does NOT return chip purchases: those come from tournament_list_by_room, and tournament_update_with_levels replaces them wholesale too whenever chipPurchases is supplied, so an empty or partial list there deletes the rest. Its tags come back as { id, name } objects while the update tool takes plain name strings.",
 		inputSchema: tournamentIdInputSchema,
 	},
 	{
