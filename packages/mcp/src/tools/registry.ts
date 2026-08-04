@@ -1,5 +1,27 @@
+import {
+	gameGroupCreateInputSchema,
+	gameGroupUpdateInputSchema,
+} from "@sapphire2/api/routers/game-group";
+import {
+	gameMixCreateInputSchema,
+	gameMixUpdateInputSchema,
+} from "@sapphire2/api/routers/game-mix";
+import {
+	gameVariantCreateInputSchema,
+	gameVariantUpdateInputSchema,
+} from "@sapphire2/api/routers/game-variant";
 import { playerListInputSchema } from "@sapphire2/api/routers/player";
-import { ringGameListByRoomInputSchema } from "@sapphire2/api/routers/ring-game";
+import {
+	ringGameCreateInputSchema,
+	ringGameIdInputSchema,
+	ringGameListByRoomInputSchema,
+	ringGameUpdateInputSchema,
+} from "@sapphire2/api/routers/ring-game";
+import {
+	roomCreateInputSchema,
+	roomIdInputSchema,
+	roomUpdateInputSchema,
+} from "@sapphire2/api/routers/room";
 import {
 	cashGameCreateSchema,
 	sessionGetByIdInputSchema,
@@ -12,7 +34,12 @@ import {
 	breakdownFilterSchema,
 	statsFilterSchema,
 } from "@sapphire2/api/routers/stats";
-import { tournamentListByRoomInputSchema } from "@sapphire2/api/routers/tournament";
+import {
+	tournamentCreateWithLevelsInputSchema,
+	tournamentIdInputSchema,
+	tournamentListByRoomInputSchema,
+	tournamentUpdateWithLevelsInputSchema,
+} from "@sapphire2/api/routers/tournament";
 import { getProcedureType } from "./resolve";
 
 /**
@@ -41,6 +68,10 @@ export interface ToolAnnotations {
 
 const DATE_CONVENTIONS =
 	"Dates are unix SECONDS; date-only values (sessionDate, dateFrom, dateTo) are UTC-midnight timestamps. Amounts are plain integers in the currency's display unit.";
+
+/** Master-data tools carry no dates, only the amount half of the convention. */
+const AMOUNT_CONVENTIONS =
+	"Amounts (blinds, ante, buy-in, stack) are plain integers in the currency's display unit.";
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
@@ -146,6 +177,183 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 			"List the tournament masters of one room — buy-in, starting stack, blind structure. Use the returned ids as tournamentId in session_create_tournament. Set includeArchived to list archived ones instead.",
 		inputSchema: tournamentListByRoomInputSchema,
 	},
+
+	// --- Master data ---------------------------------------------------------
+	// Rooms and the game rules attached to them. Sessions reference these, so
+	// editing one changes how existing sessions read: every mutation below is
+	// annotated destructive except pure creation.
+	{
+		name: "room_get_by_id",
+		procedurePath: "room.getById",
+		description:
+			"Get one poker room by id, including its memo and coordinates. Use room_list to find the id.",
+		inputSchema: roomIdInputSchema,
+	},
+	{
+		name: "room_create",
+		procedurePath: "room.create",
+		description:
+			"Create a poker room (a venue or app the user plays at). Only name is required. latitude and longitude must be supplied together or not at all.",
+		inputSchema: roomCreateInputSchema,
+		destructiveHint: false,
+		idempotentHint: false,
+	},
+	{
+		name: "room_update",
+		procedurePath: "room.update",
+		description:
+			"Update a room by id. Only the supplied fields change; pass null to clear memo or the coordinates (latitude and longitude must be cleared together). Existing sessions display the new name.",
+		inputSchema: roomUpdateInputSchema,
+		destructiveHint: true,
+		idempotentHint: true,
+	},
+	{
+		name: "ring_game_create",
+		procedurePath: "ringGame.create",
+		description: `Create a ring-game (cash-game) rule master inside a room: blinds, ante, buy-in range, table size. Sessions linked to it inherit these values. Required: roomId, name. ${AMOUNT_CONVENTIONS}`,
+		inputSchema: ringGameCreateInputSchema,
+		destructiveHint: false,
+		idempotentHint: false,
+	},
+	{
+		name: "ring_game_update",
+		procedurePath: "ringGame.update",
+		description: `Update a ring-game rule master by id. Only the supplied fields change; pass null to clear a nullable one. ${AMOUNT_CONVENTIONS}`,
+		inputSchema: ringGameUpdateInputSchema,
+		destructiveHint: true,
+		idempotentHint: true,
+	},
+	{
+		name: "ring_game_archive",
+		procedurePath: "ringGame.archive",
+		description:
+			"Archive a ring-game rule master so it stops appearing in pickers. Reversible with ring_game_restore; existing sessions keep their link. List archived ones with ring_game_list_by_room and includeArchived.",
+		inputSchema: ringGameIdInputSchema,
+		destructiveHint: false,
+		idempotentHint: true,
+	},
+	{
+		name: "ring_game_restore",
+		procedurePath: "ringGame.restore",
+		description:
+			"Un-archive a ring-game rule master so it appears in pickers again.",
+		inputSchema: ringGameIdInputSchema,
+		destructiveHint: false,
+		idempotentHint: true,
+	},
+	{
+		name: "tournament_get_by_id",
+		procedurePath: "tournament.getById",
+		description:
+			"Get one tournament master by id with its blind levels, chip purchases and tags. Read this before tournament_update_with_levels — that tool replaces the whole blind structure.",
+		inputSchema: tournamentIdInputSchema,
+	},
+	{
+		name: "tournament_create_with_levels",
+		procedurePath: "tournament.createWithLevels",
+		description: `Create a tournament master inside a room, together with its blind levels, chip purchases and tags in one call. Required: roomId, name. blindLevels are ordered as given (level 1 first); set isBreak for break rows. ${AMOUNT_CONVENTIONS}`,
+		inputSchema: tournamentCreateWithLevelsInputSchema,
+		destructiveHint: false,
+		idempotentHint: false,
+	},
+	{
+		name: "tournament_update_with_levels",
+		procedurePath: "tournament.updateWithLevels",
+		description: `Update a tournament master by id. blindLevels is REQUIRED and REPLACES the entire structure — read tournament_get_by_id first and send back the full list, or the existing levels are lost. tags and chipPurchases replace their lists too when supplied. ${AMOUNT_CONVENTIONS}`,
+		inputSchema: tournamentUpdateWithLevelsInputSchema,
+		destructiveHint: true,
+		idempotentHint: true,
+	},
+	{
+		name: "tournament_archive",
+		procedurePath: "tournament.archive",
+		description:
+			"Archive a tournament master so it stops appearing in pickers. Reversible with tournament_restore; existing sessions keep their link.",
+		inputSchema: tournamentIdInputSchema,
+		destructiveHint: false,
+		idempotentHint: true,
+	},
+	{
+		name: "tournament_restore",
+		procedurePath: "tournament.restore",
+		description:
+			"Un-archive a tournament master so it appears in pickers again.",
+		inputSchema: tournamentIdInputSchema,
+		destructiveHint: false,
+		idempotentHint: true,
+	},
+	{
+		name: "game_group_list",
+		procedurePath: "gameGroup.list",
+		description:
+			"List the user's game groups (the families game variants belong to, e.g. Hold'em / Omaha), including the labels their three blind fields use.",
+	},
+	{
+		name: "game_group_create",
+		procedurePath: "gameGroup.create",
+		description:
+			"Create a game group. label must be unique across the user's groups. The blind label fields name that family's blind columns (e.g. SB / BB / straddle).",
+		inputSchema: gameGroupCreateInputSchema,
+		destructiveHint: false,
+		idempotentHint: false,
+	},
+	{
+		name: "game_group_update",
+		procedurePath: "gameGroup.update",
+		description:
+			"Update a game group by id. Renaming it re-labels every variant shown under it.",
+		inputSchema: gameGroupUpdateInputSchema,
+		destructiveHint: true,
+		idempotentHint: true,
+	},
+	{
+		name: "game_variant_list",
+		procedurePath: "gameVariant.list",
+		description:
+			"List the user's game variants (NLH, PLO, …) with their group and short labels. Use a variant's label as the variant field of a session or rule master.",
+	},
+	{
+		name: "game_variant_create",
+		procedurePath: "gameVariant.create",
+		description:
+			"Create a game variant inside a group. label must be unique across the user's variants and mixes; shortLabel is the compact form shown in mixes and blind levels.",
+		inputSchema: gameVariantCreateInputSchema,
+		destructiveHint: false,
+		idempotentHint: false,
+	},
+	{
+		name: "game_variant_update",
+		procedurePath: "gameVariant.update",
+		description:
+			"Update a game variant by id. Renaming changes the label sessions and rule masters display, and moving it to another group changes which blind labels apply.",
+		inputSchema: gameVariantUpdateInputSchema,
+		destructiveHint: true,
+		idempotentHint: true,
+	},
+	{
+		name: "game_mix_list",
+		procedurePath: "gameMix.list",
+		description:
+			"List the user's game mixes (named rotations such as HORSE) and the variants each one contains.",
+	},
+	{
+		name: "game_mix_create",
+		procedurePath: "gameMix.create",
+		description:
+			"Create a game mix from existing variants. label must be unique across the user's variants and mixes; games lists the variant ids in rotation order and may not repeat one.",
+		inputSchema: gameMixCreateInputSchema,
+		destructiveHint: false,
+		idempotentHint: false,
+	},
+	{
+		name: "game_mix_update",
+		procedurePath: "gameMix.update",
+		description:
+			"Update a game mix by id. Supplying games REPLACES the whole rotation — read game_mix_list first and send back the full list.",
+		inputSchema: gameMixUpdateInputSchema,
+		destructiveHint: true,
+		idempotentHint: true,
+	},
 ];
 
 /**
@@ -212,46 +420,31 @@ export const DELIBERATELY_EXCLUDED: {
 	},
 	{
 		reason:
-			"Master-data CRUD is wizard-driven in the web UI; exposing it would make the model guess required-field logic",
+			"Irreversible master deletion: sessions reference these rows, so removing one rewrites history the user cannot get back. Archive/restore is exposed instead",
 		paths: [
-			"room.getById",
-			"room.create",
-			"room.update",
 			"room.delete",
-			"room.toggleFavorite",
-			"transactionType.list",
-			"transactionType.create",
-			"transactionType.update",
-			"transactionType.delete",
-			"currency.create",
-			"currency.update",
-			"currency.delete",
-			"currency.toggleFavorite",
-			"gameVariant.list",
-			"gameVariant.create",
-			"gameVariant.update",
-			"gameVariant.delete",
-			"gameGroup.list",
-			"gameGroup.create",
-			"gameGroup.update",
-			"gameGroup.delete",
-			"gameMix.list",
-			"gameMix.create",
-			"gameMix.update",
-			"gameMix.delete",
-			"ringGame.create",
-			"ringGame.update",
-			"ringGame.archive",
-			"ringGame.restore",
 			"ringGame.delete",
-			"tournament.getById",
-			"tournament.create",
-			"tournament.update",
-			"tournament.archive",
-			"tournament.restore",
 			"tournament.delete",
-			"tournament.createWithLevels",
-			"tournament.updateWithLevels",
+			"gameGroup.delete",
+			"gameVariant.delete",
+			"gameMix.delete",
+			"sessionTag.delete",
+		],
+	},
+	{
+		reason:
+			"Toggle semantics are not idempotent — a retried call silently reverses the previous one, which a model cannot detect",
+		paths: ["room.toggleFavorite", "currency.toggleFavorite"],
+	},
+	{
+		reason:
+			"Superseded by the WithLevels variants, which are supersets: exposing both invites the model to pick the lesser one and then be unable to set blind levels",
+		paths: ["tournament.create", "tournament.update"],
+	},
+	{
+		reason:
+			"Tournament sub-resources are managed wholesale through tournament.createWithLevels / updateWithLevels (and read back via tournament.getById), so per-row CRUD would be a second, drift-prone way to do the same thing",
+		paths: [
 			"tournament.addTag",
 			"tournament.removeTag",
 			"blindLevel.listByTournament",
@@ -264,8 +457,20 @@ export const DELIBERATELY_EXCLUDED: {
 			"tournamentChipPurchase.update",
 			"tournamentChipPurchase.delete",
 			"tournamentChipPurchase.reorder",
+		],
+	},
+	{
+		reason:
+			"Master-data CRUD not requested for the MCP surface yet; the web wizards carry required-field logic a model would have to guess",
+		paths: [
+			"transactionType.list",
+			"transactionType.create",
+			"transactionType.update",
+			"transactionType.delete",
+			"currency.create",
+			"currency.update",
+			"currency.delete",
 			"sessionTag.update",
-			"sessionTag.delete",
 			"player.getById",
 			"player.create",
 			"player.update",

@@ -101,7 +101,7 @@ describe("parseConsentPageQuery", () => {
 			"http://localhost:8787/oauth/consent?consent_code=abc&client_id=c1&scope=openid%20profile"
 		);
 		// `scope` is intentionally dropped — scopes do not gate authorization,
-		// so nothing downstream may be tempted to display them (rule 7).
+		// so nothing downstream may be tempted to display them (rule 8).
 		expect(query).toEqual({ clientId: "c1", code: "abc" });
 	});
 

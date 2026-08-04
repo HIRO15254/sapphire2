@@ -50,6 +50,24 @@ async function assertGroupLabelAvailable(
 	}
 }
 
+// Named exports for the MCP tool layer — see .claude/rules/mcp-tools.md.
+export const gameGroupCreateInputSchema = z.object({
+	label: labelSchema,
+	blind1Label: blindLabelSchema,
+	blind2Label: blindLabelSchema,
+	blind3Label: blindLabelSchema,
+});
+
+export const gameGroupUpdateInputSchema = z.object({
+	id: z.string(),
+	label: labelSchema.optional(),
+	blind1Label: blindLabelSchema,
+	blind2Label: blindLabelSchema,
+	blind3Label: blindLabelSchema,
+});
+
+export const gameGroupIdInputSchema = z.object({ id: z.string() });
+
 export const gameGroupRouter = router({
 	list: protectedProcedure.query(async ({ ctx }) => {
 		const userId = ctx.session.user.id;
@@ -75,14 +93,7 @@ export const gameGroupRouter = router({
 	}),
 
 	create: protectedProcedure
-		.input(
-			z.object({
-				label: labelSchema,
-				blind1Label: blindLabelSchema,
-				blind2Label: blindLabelSchema,
-				blind3Label: blindLabelSchema,
-			})
-		)
+		.input(gameGroupCreateInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await assertGroupLabelAvailable(ctx.db, userId, input.label);
@@ -125,15 +136,7 @@ export const gameGroupRouter = router({
 		}),
 
 	update: protectedProcedure
-		.input(
-			z.object({
-				id: z.string(),
-				label: labelSchema.optional(),
-				blind1Label: blindLabelSchema,
-				blind2Label: blindLabelSchema,
-				blind3Label: blindLabelSchema,
-			})
-		)
+		.input(gameGroupUpdateInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const found = await validateEntityOwnership(
@@ -190,7 +193,7 @@ export const gameGroupRouter = router({
 		}),
 
 	delete: protectedProcedure
-		.input(z.object({ id: z.string() }))
+		.input(gameGroupIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await validateEntityOwnership(ctx.db, "gameGroup", input.id, userId);

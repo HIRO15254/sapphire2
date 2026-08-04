@@ -144,9 +144,25 @@ describe("tool/router coupling", () => {
 	it("exposes the agreed tool catalogue and nothing else", () => {
 		expect(TOOL_DEFINITIONS.map((d) => d.name).sort()).toEqual([
 			"currency_list",
+			"game_group_create",
+			"game_group_list",
+			"game_group_update",
+			"game_mix_create",
+			"game_mix_list",
+			"game_mix_update",
+			"game_variant_create",
+			"game_variant_list",
+			"game_variant_update",
 			"player_list",
+			"ring_game_archive",
+			"ring_game_create",
 			"ring_game_list_by_room",
+			"ring_game_restore",
+			"ring_game_update",
+			"room_create",
+			"room_get_by_id",
 			"room_list",
+			"room_update",
 			"session_create_cash_game",
 			"session_create_tournament",
 			"session_get_by_id",
@@ -157,7 +173,12 @@ describe("tool/router coupling", () => {
 			"stats_breakdown",
 			"stats_profit_loss_series",
 			"stats_summary",
+			"tournament_archive",
+			"tournament_create_with_levels",
+			"tournament_get_by_id",
 			"tournament_list_by_room",
+			"tournament_restore",
+			"tournament_update_with_levels",
 		]);
 	});
 
@@ -173,7 +194,7 @@ describe("tool/router coupling", () => {
 		const summary = toolPermissionSummary().join(" ");
 		// Reading is unconditional; the other two lines must track the
 		// catalogue so a newly added write/destructive tool cannot leave the
-		// consent screen under-representing the grant (mcp-tools.md rule 7).
+		// consent screen under-representing the grant (mcp-tools.md rule 8).
 		expect(summary).toContain("Read your poker sessions");
 		expect(summary.includes("Record new sessions")).toBe(
 			annotations.some((annotation) => !annotation.readOnlyHint)

@@ -64,8 +64,31 @@ claude mcp add --transport http sapphire2 https://<APIホスト>/mcp
 | `session_tag_create` | `sessionTag.create` | 記録 |
 | `ring_game_list_by_room` | `ringGame.listByRoom` | 参照 |
 | `tournament_list_by_room` | `tournament.listByRoom` | 参照 |
+| `room_get_by_id` | `room.getById` | 参照 |
+| `room_create` | `room.create` | 記録 |
+| `room_update` | `room.update` | 記録 |
+| `ring_game_create` | `ringGame.create` | 記録 |
+| `ring_game_update` | `ringGame.update` | 記録 |
+| `ring_game_archive` | `ringGame.archive` | 記録 |
+| `ring_game_restore` | `ringGame.restore` | 記録 |
+| `tournament_get_by_id` | `tournament.getById` | 参照 |
+| `tournament_create_with_levels` | `tournament.createWithLevels` | 記録 |
+| `tournament_update_with_levels` | `tournament.updateWithLevels` | 記録 |
+| `tournament_archive` | `tournament.archive` | 記録 |
+| `tournament_restore` | `tournament.restore` | 記録 |
+| `game_group_list` | `gameGroup.list` | 参照 |
+| `game_group_create` | `gameGroup.create` | 記録 |
+| `game_group_update` | `gameGroup.update` | 記録 |
+| `game_variant_list` | `gameVariant.list` | 参照 |
+| `game_variant_create` | `gameVariant.create` | 記録 |
+| `game_variant_update` | `gameVariant.update` | 記録 |
+| `game_mix_list` | `gameMix.list` | 参照 |
+| `game_mix_create` | `gameMix.create` | 記録 |
+| `game_mix_update` | `gameMix.update` | 記録 |
 
-ここに無い手続きは意図的な除外です（ライブセッションの状態機械、取り消し不能な削除、マスタ CRUD、AI 抽出など）— 理由は `packages/mcp/src/tools/registry.ts` に記載され、結合テストで強制されます。
+マスタ系のツールは既存セッションが参照している行を書き換えます。`*_update` 系は destructive として注釈され、削除は意図的に非公開です（アーカイブ/復元のみ公開）。`tournament_update_with_levels` と `game_mix_update` は子リストを**丸ごと置き換える**ので、先に現在の内容を読んでから全件を送ってください。
+
+ここに無い手続きは意図的な除外です（ライブセッションの状態機械、取り消し不能な削除、非冪等なお気に入りトグル、バンクロール台帳の書き込み、AI 抽出など）— 理由は `packages/mcp/src/tools/registry.ts` に記載され、結合テストで強制されます。
 
 認可は API 自身のものです: すべての呼び出しはユーザーセッション付きの `appRouter.createCaller` を通るため、`protectedProcedure` と所有権チェックが web アプリと完全に同じ形で適用されます。
 

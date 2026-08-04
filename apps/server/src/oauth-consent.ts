@@ -72,7 +72,7 @@ export interface ConsentPageQuery {
  * Returns null when the request did not come through the authorize flow.
  *
  * The `scope` parameter is deliberately not read: scopes are not used for
- * authorization (see mcp-tools.md rule 7), so the consent page describes the
+ * authorization (see mcp-tools.md rule 8), so the consent page describes the
  * real tool capability instead — surfacing scopes here would only invite
  * showing them again.
  */
