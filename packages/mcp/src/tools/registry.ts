@@ -74,13 +74,15 @@ const AMOUNT_CONVENTIONS =
 	"Amounts (blinds, ante, buy-in, stack) are plain integers in the currency's display unit.";
 
 /**
- * variant and mixGames are one setting, not two. The router rejects mixGames
- * unless variant names a mix, and freezes the flat blind fields whenever one
- * is set — neither is visible in the JSON Schema, so the description is the
- * only contract the model gets (mcp-tools.md rule 7).
+ * variant and mixGames are one setting, not two, and mixGames is not free-form:
+ * assertNamedMixComposition rejects anything but an exact reproduction of the
+ * named mix. None of that reaches the JSON Schema, and the router's rejection
+ * message ("references an unavailable game master") points at ownership rather
+ * than at shape — so the description is the only contract the model gets
+ * (mcp-tools.md rule 7).
  */
 const MIX_RULE =
-	'A mixed-game rule is variant + mixGames together: variant must be the label of a game mix from game_mix_list (or the legacy "mix" sentinel), and mixGames its rotation. Sending mixGames without such a variant is rejected. While a mix is set, blind1-3, ante and anteType are always stored as null, so values sent for those flat fields are dropped.';
+	'A mixed-game rule is variant + mixGames together: variant must be the label of a game mix from game_mix_list (or the legacy "mix" sentinel), and mixGames its rotation. Sending mixGames without such a variant is rejected. For a named mix, mixGames must reproduce that mix EXACTLY: one entry per game group its variants belong to, entries in the order game_group_list returns those groups, and each entry naming its variants by their game_variant_list label in the mix\'s own games order. Note game_mix_list returns variant IDS, not labels, so build the labels from game_variant_list. Any other grouping or order is rejected as "references an unavailable game master" — the message names ownership, but the cause is usually shape. The legacy "mix" sentinel is the loose form: any owned variant labels, grouped however you like. While a mix is set, blind1-3, ante and anteType are always stored as null, so values sent for those flat fields are dropped.';
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
@@ -227,7 +229,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "ring_game_update",
 		procedurePath: "ringGame.update",
-		description: `Update a ring-game rule master by id. Only the supplied fields change; pass null to clear a nullable one. ${MIX_RULE} To move a mixed rule back to flat blinds, set variant to a non-mixed label — that clears mixGames for you. Sending mixGames: null on its own is rejected, because the unchanged variant still names a mix. ${AMOUNT_CONVENTIONS}`,
+		description: `Update a ring-game rule master by id. Only the supplied fields change; pass null to clear a nullable one. ${MIX_RULE} To edit only the blinds of a mixed rule, echo back the mixGames that ring_game_list_by_room returned — it is already in the accepted shape. To move a mixed rule back to flat blinds, set variant to a non-mixed label — that clears mixGames for you. Sending mixGames: null on its own is rejected, because the unchanged variant still names a mix. ${AMOUNT_CONVENTIONS}`,
 		inputSchema: ringGameUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
