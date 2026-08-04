@@ -125,19 +125,19 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "stats_summary",
 		procedurePath: "stats.summary",
-		description: `Aggregate statistics (profit/loss, win rate, session counts, EV metrics) over the user's sessions. currencyId is required unless normalized is true (normalized converts all currencies via their rates). Optional filters: type, roomId, dateFrom/dateTo. ${DATE_CONVENTIONS}`,
+		description: `Aggregate statistics (profit/loss, win rate, session counts, EV metrics) over the user's sessions. currencyId is required unless normalized is true — normalized does NOT convert currencies: it restates each session in big blinds for cash games (profitLoss / bigBlind) and in buy-ins for tournaments (profitLoss / buyInTotal), and drops sessions with no big blind or buy-in, so the results are ratios on a different scale and over a smaller set than a currencyId-scoped query. Optional filters: type, roomId, dateFrom/dateTo. ${DATE_CONVENTIONS}`,
 		inputSchema: statsFilterSchema,
 	},
 	{
 		name: "stats_breakdown",
 		procedurePath: "stats.breakdown",
-		description: `Statistics grouped by one dimension: groupBy is "room" | "stakes" | "type" | "dayOfWeek" | "length" | "month" | "year" | "variant". Same filter rules as stats_summary (currencyId required unless normalized). ${DATE_CONVENTIONS}`,
+		description: `Statistics grouped by one dimension: groupBy is "room" | "stakes" | "type" | "dayOfWeek" | "length" | "month" | "year" | "variant". Same filter rules as stats_summary (currencyId required unless normalized, which restates in big blinds / buy-ins rather than converting currencies). ${DATE_CONVENTIONS}`,
 		inputSchema: breakdownFilterSchema,
 	},
 	{
 		name: "stats_profit_loss_series",
 		procedurePath: "stats.profitLossSeries",
-		description: `Cumulative profit/loss time series across sessions, for trend questions ("how did this month go?"). Same filter rules as stats_summary (currencyId required unless normalized). ${DATE_CONVENTIONS}`,
+		description: `Cumulative profit/loss time series across sessions, for trend questions ("how did this month go?"). Same filter rules as stats_summary (currencyId required unless normalized, which restates in big blinds / buy-ins rather than converting currencies). ${DATE_CONVENTIONS}`,
 		inputSchema: statsFilterSchema,
 	},
 	{
@@ -150,7 +150,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "currency_list",
 		procedurePath: "currency.list",
 		description:
-			"List the user's currencies with units and rates. Use the returned ids as currencyId in other tools.",
+			"List the user's currencies with their unit and current balance (the sum of their ledger transactions). Use the returned ids as currencyId in other tools.",
 	},
 	{
 		name: "player_list",
