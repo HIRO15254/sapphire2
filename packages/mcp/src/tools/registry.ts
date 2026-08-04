@@ -73,6 +73,15 @@ const DATE_CONVENTIONS =
 const AMOUNT_CONVENTIONS =
 	"Amounts (blinds, ante, buy-in, stack) are plain integers in the currency's display unit.";
 
+/**
+ * variant and mixGames are one setting, not two. The router rejects mixGames
+ * unless variant names a mix, and freezes the flat blind fields whenever one
+ * is set — neither is visible in the JSON Schema, so the description is the
+ * only contract the model gets (mcp-tools.md rule 7).
+ */
+const MIX_RULE =
+	'A mixed-game rule is variant + mixGames together: variant must be the label of a game mix from game_mix_list (or the legacy "mix" sentinel), and mixGames its rotation. Sending mixGames without such a variant is rejected. While a mix is set, blind1-3, ante and anteType are always stored as null, so values sent for those flat fields are dropped.';
+
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "session_list",
@@ -210,7 +219,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "ring_game_create",
 		procedurePath: "ringGame.create",
-		description: `Create a ring-game (cash-game) rule master inside a room: blinds, ante, buy-in range, table size. Sessions linked to it inherit these values. Required: roomId, name. A rule that uses mixGames (a mixed-game rotation) always stores blind1-3, ante and anteType as null — the flat blind fields are frozen for mixes, so values sent for them are dropped. Clear mixGames first if you need to write them. ${AMOUNT_CONVENTIONS}`,
+		description: `Create a ring-game (cash-game) rule master inside a room: blinds, ante, buy-in range, table size. Sessions linked to it inherit these values. Required: roomId, name. ${MIX_RULE} variant defaults to a non-mixed label, so a create that passes mixGames must set variant too. ${AMOUNT_CONVENTIONS}`,
 		inputSchema: ringGameCreateInputSchema,
 		destructiveHint: false,
 		idempotentHint: false,
@@ -218,7 +227,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "ring_game_update",
 		procedurePath: "ringGame.update",
-		description: `Update a ring-game rule master by id. Only the supplied fields change; pass null to clear a nullable one. A rule that uses mixGames (a mixed-game rotation) always stores blind1-3, ante and anteType as null — the flat blind fields are frozen for mixes, so values sent for them are dropped. Clear mixGames first if you need to write them. ${AMOUNT_CONVENTIONS}`,
+		description: `Update a ring-game rule master by id. Only the supplied fields change; pass null to clear a nullable one. ${MIX_RULE} To move a mixed rule back to flat blinds, set variant to a non-mixed label — that clears mixGames for you. Sending mixGames: null on its own is rejected, because the unchanged variant still names a mix. ${AMOUNT_CONVENTIONS}`,
 		inputSchema: ringGameUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
