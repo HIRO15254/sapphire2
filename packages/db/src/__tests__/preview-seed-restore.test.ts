@@ -18,8 +18,12 @@ if (isBun) {
 }
 
 /**
- * preview-deploy.yml seeds a brand-new preview D1 by applying every migration
- * and then replaying a `--no-schema` dump of the production database into it.
+ * preview-deploy.yml (new preview DB) and dev-deploy.yml (every deploy — the
+ * dev DB is dropped and recreated each time) both seed a brand-new D1 by
+ * applying every migration and then replaying a `--no-schema` dump of the
+ * production database into it. The steps are hand-copied siblings, so these
+ * tests pin the shared semantics for both; `bun run check:rules` separately
+ * asserts that every workflow performing the restore carries the stash.
  *
  * Triggers exist to keep derived tables in sync with *application* writes. A
  * bulk restore is not an application write: the dump already carries the
@@ -30,7 +34,7 @@ if (isBun) {
  * db-migrate job down the first time a preview DB was created after 0049
  * reached production.
  *
- * These tests pin both halves of the workflow's fix: the collision is real
+ * These tests pin both halves of the workflows' fix: the collision is real
  * (so nobody "simplifies" the trigger stash away), and stashing the triggers
  * around the restore makes the dump the single source of truth without
  * leaving the DB permanently trigger-less.
@@ -80,7 +84,7 @@ interface TriggerRow {
 	sql: string;
 }
 
-/** The exact query preview-deploy.yml runs to stash the triggers. */
+/** The exact query the seed steps run to stash the triggers. */
 const readTriggers = (db: Database): TriggerRow[] =>
 	db
 		.query(
@@ -95,7 +99,7 @@ const dropTriggers = (db: Database, triggers: TriggerRow[]) => {
 };
 
 /**
- * The workflow's re-arm file: `cat drop-triggers.sql restore-triggers.sql`.
+ * The workflows' re-arm file: `cat drop-triggers.sql restore-triggers.sql`.
  *
  * The drops are what make it idempotent. SQLite strips `IF NOT EXISTS` before
  * storing DDL in sqlite_master, so the read-back CREATEs alone abort on the
@@ -156,7 +160,7 @@ const replayProductionDump = (db: Database) => {
 	db.exec("PRAGMA foreign_keys = ON;");
 };
 
-skipIfNotBun("preview seed restore (preview-deploy.yml)", () => {
+skipIfNotBun("seed restore (preview-deploy.yml, dev-deploy.yml)", () => {
 	let db: Database;
 
 	beforeEach(() => {
