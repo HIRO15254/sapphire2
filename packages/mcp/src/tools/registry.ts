@@ -125,19 +125,19 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "stats_summary",
 		procedurePath: "stats.summary",
-		description: `Aggregate statistics (profit/loss, win rate, session counts, EV metrics) over the user's sessions. currencyId is required unless normalized is true — normalized does NOT convert currencies: it restates each session in big blinds for cash games (profitLoss / bigBlind) and in buy-ins for tournaments (profitLoss / buyInTotal), and drops sessions with no big blind or buy-in, so the results are ratios on a different scale and over a smaller set than a currencyId-scoped query. Optional filters: type, roomId, dateFrom/dateTo. ${DATE_CONVENTIONS}`,
+		description: `Aggregate statistics (profit/loss, win rate, session counts, EV metrics) over the user's sessions. currencyId is required unless normalized is true. normalized does NOT convert or restate anything — it only lifts that requirement, so the query then spans every currency. The response is the same either way and always carries both: the currency fields (totalProfitLoss, avgProfitLoss, hourlyRate, totalPrizeMoney) sum raw amounts and are meaningless once more than one currency is in scope, while the currency-safe figures are cashNormalizedProfitLoss (big blinds), tournamentNormalizedProfitLoss (buy-ins) and avgRoi — each over its own count (cashBbCount / tournamentBiCount), and bb and bi are different scales that must never be summed. Pass a currencyId whenever the user asked about money. Optional filters: type, roomId, dateFrom/dateTo. ${DATE_CONVENTIONS}`,
 		inputSchema: statsFilterSchema,
 	},
 	{
 		name: "stats_breakdown",
 		procedurePath: "stats.breakdown",
-		description: `Statistics grouped by one dimension: groupBy is "room" | "stakes" | "type" | "dayOfWeek" | "length" | "month" | "year" | "variant". Same filter rules as stats_summary (currencyId required unless normalized, which restates in big blinds / buy-ins rather than converting currencies). ${DATE_CONVENTIONS}`,
+		description: `Statistics grouped by one dimension: groupBy is "room" | "stakes" | "type" | "dayOfWeek" | "length" | "month" | "year" | "variant". Same filter rules as stats_summary (currencyId required unless normalized, which only lifts that requirement — it converts nothing, so currency amounts returned across a multi-currency scope are raw sums). ${DATE_CONVENTIONS}`,
 		inputSchema: breakdownFilterSchema,
 	},
 	{
 		name: "stats_profit_loss_series",
 		procedurePath: "stats.profitLossSeries",
-		description: `Cumulative profit/loss time series across sessions, for trend questions ("how did this month go?"). Same filter rules as stats_summary (currencyId required unless normalized, which restates in big blinds / buy-ins rather than converting currencies). ${DATE_CONVENTIONS}`,
+		description: `Cumulative profit/loss time series across sessions, for trend questions ("how did this month go?"). Same filter rules as stats_summary (currencyId required unless normalized, which only lifts that requirement — it converts nothing, so currency amounts returned across a multi-currency scope are raw sums). ${DATE_CONVENTIONS}`,
 		inputSchema: statsFilterSchema,
 	},
 	{
