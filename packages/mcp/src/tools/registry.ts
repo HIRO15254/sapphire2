@@ -101,7 +101,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "session_create_cash_game",
 		procedurePath: "session.create",
-		description: `Record a completed cash-game session (type must be "cash_game"). Required: sessionDate, buyIn, cashOut. Link roomId/ringGameId/currencyId from the list tools when known — a linked ring game fills rule fields (blinds, variant) automatically. ${MIX_RULE} This writes real data: confirm the values with the user before calling. ${DATE_CONVENTIONS}`,
+		description: `Record a completed cash-game session (type must be "cash_game"). Required: sessionDate, buyIn, cashOut. Link roomId/ringGameId/currencyId from the list tools when known — a linked ring game fills rule fields (blinds, variant) automatically. ${MIX_RULE} variant has no schema default here, but resolves to a non-mixed label whenever no mixed ring game is linked, so a create that passes mixGames must set variant too — unless the linked ring game is itself the mix, which supplies it. This writes real data: confirm the values with the user before calling. ${DATE_CONVENTIONS}`,
 		inputSchema: cashGameCreateSchema,
 		destructiveHint: false,
 		idempotentHint: false,
@@ -117,7 +117,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "session_update",
 		procedurePath: "session.update",
-		description: `Update an existing session by id. Only the provided fields change; pass null to clear a nullable field, omit a field to leave it unchanged. Sessions recorded live (source "live") reject edits to fields derived from their timeline events — buy-ins, cash-outs and times come from the events themselves, and for a cash session ringGameId and the rule fields (ruleName, variant, mixGames, blinds, ante, buy-in range, tableSize) are on that list too. ${MIX_RULE} Overwrites stored values with no undo — confirm with the user first. ${DATE_CONVENTIONS}`,
+		description: `Update an existing session by id. Only the provided fields change; pass null to clear a nullable field, omit a field to leave it unchanged. Sessions recorded live (source "live") reject edits to fields derived from their timeline events — amounts and times come from the events themselves, and the rule fields go with them: for a cash session ringGameId, ruleName, variant, mixGames, blinds, ante, buy-in range and tableSize; for a tournament tournamentId, ruleName, variant, startingStack, bountyAmount, blindLevels, chipPurchases, tableSize and the result fields (placement, totalEntries, beforeDeadline, prizeMoney, bountyPrizes). Those change only through the live session itself, which this surface does not expose, so there is no alternative call to fall back on. ${MIX_RULE} Overwrites stored values with no undo — confirm with the user first. ${DATE_CONVENTIONS}`,
 		inputSchema: sessionUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
