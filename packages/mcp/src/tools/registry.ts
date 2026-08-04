@@ -229,7 +229,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "ring_game_update",
 		procedurePath: "ringGame.update",
-		description: `Update a ring-game rule master by id. Only the supplied fields change; pass null to clear a nullable one. ${MIX_RULE} To edit only the blinds of a mixed rule, echo back the mixGames that ring_game_list_by_room returned — but only while the mix master is untouched, because the check rebuilds the expected shape from the CURRENT variant labels and groups and the mix's current games. After a game_mix_update that replaced games, or a game_variant_update that changed a label or group, rebuild mixGames from the current masters instead. Renaming the mix inverts that: variant is a copied label rather than a foreign key, so it stops resolving and the stored snapshot becomes the ONLY accepted mixGames — echo it verbatim, or set variant to the new mix label and send a rebuilt mixGames. To move a mixed rule back to flat blinds, set variant to a non-mixed label — that clears mixGames for you. Sending mixGames: null on its own is rejected, because the unchanged variant still names a mix. ${AMOUNT_CONVENTIONS}`,
+		description: `Update a ring-game rule master by id. Only the supplied fields change; pass null to clear a nullable one. ${MIX_RULE} To edit only the blinds of a mixed rule, echo back the mixGames that ring_game_list_by_room returned — but only while the mix master is untouched, because the check rebuilds the expected shape from the CURRENT variant labels and groups and the mix's current games. After a game_mix_update that replaced games, or a game_variant_update that changed a label or group, rebuild mixGames from the current masters instead. Renaming the mix inverts that: variant is a copied label rather than a foreign key, so it stops resolving and the stored mixGames becomes the reference instead of the masters — send its grouping and variant labels back unchanged (only the per-entry blinds may differ), or set variant to the new mix label and send a rebuilt mixGames. To move a mixed rule back to flat blinds, set variant to a non-mixed label — that clears mixGames for you. Sending mixGames: null on its own is rejected, because the unchanged variant still names a mix. ${AMOUNT_CONVENTIONS}`,
 		inputSchema: ringGameUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
@@ -360,7 +360,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "game_mix_update",
 		procedurePath: "gameMix.update",
 		description:
-			"Update a game mix by id. Supplying games REPLACES the whole rotation — read game_mix_list first and send back the full list. Replacing it also changes the mixGames shape ring-game rules using this mix must send when they next send one. Renaming it does the opposite: their variant keeps the old label, which no longer resolves, so from then on only their stored mixGames is accepted verbatim.",
+			"Update a game mix by id. Supplying games REPLACES the whole rotation — read game_mix_list first and send back the full list. Replacing it also changes the mixGames shape ring-game rules using this mix must send when they next send one. Renaming it does the opposite: their variant keeps the old label, which no longer resolves, so from then on their mixGames is checked against their own stored grouping and variant labels rather than against this mix.",
 		inputSchema: gameMixUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
