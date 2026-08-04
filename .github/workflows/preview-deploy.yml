@@ -228,6 +228,12 @@ jobs:
             > triggers.json
           jq -r '.[0].results[] | "DROP TRIGGER IF EXISTS `" + .name + "`;"' triggers.json > drop-triggers.sql
           jq -r '.[0].results[] | .sql + ";"' triggers.json > restore-triggers.sql
+          # SQLite strips `IF NOT EXISTS` before storing DDL in sqlite_master,
+          # so the read-back CREATEs are NOT idempotent — re-running them over
+          # a surviving trigger aborts the file and every CREATE behind it is
+          # skipped. Prefix the drops so the re-arm converges from ANY state,
+          # including a DROP batch that only partially applied.
+          cat drop-triggers.sql restore-triggers.sql > rearm-triggers.sql
           echo "Stashing $(wc -l < drop-triggers.sql) trigger(s) for the restore"
 
           # Re-arm on the way out however we leave, because there is no second
@@ -238,8 +244,8 @@ jobs:
           # game_mix_variant and no 0041 integrity checks. The trap keeps the
           # step's own exit status, so a failed seed still fails the job.
           restore_triggers() {
-            if [ -s restore-triggers.sql ]; then
-              bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=restore-triggers.sql
+            if [ -s rearm-triggers.sql ]; then
+              bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=rearm-triggers.sql
             fi
           }
           trap restore_triggers EXIT

@@ -153,8 +153,10 @@ that seeded preview data comes from the dump, not from the trigger.
 [`preview-seed-restore.test.ts`](../../packages/db/src/__tests__/preview-seed-restore.test.ts)
 pins both halves (the collision is real; stashing fixes it without leaving the DB trigger-less).
 It needs `bun:sqlite`, so like the `migration-*` specs it is listed explicitly in
-[`ci.yml`](../../.github/workflows/ci.yml) — a bun:sqlite spec that is not listed silently never
-runs.
+[`ci.yml`](../../.github/workflows/ci.yml) — a bun:sqlite spec that is not listed runs nowhere and
+reports green, because `skipIfNotBun` makes Vitest skip it rather than fail. `bun run check:rules`
+enforces the listing (every `packages/db/src/__tests__/*.test.ts` mentioning `bun:sqlite` must be
+named in that step), so this paragraph is documentation, not the guard.
 
 ## Keeping the ledger from drifting again
 

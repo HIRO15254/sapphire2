@@ -179,6 +179,62 @@ for (const check of CHECKS) {
 	}
 }
 
+/**
+ * bun:sqlite specs must be named in ci.yml's `bun test` step.
+ *
+ * Their bodies sit behind a `skipIfNotBun` guard, so Vitest's Node projects
+ * report them as skipped, not failed. A spec that is also missing from the
+ * dedicated `bun test` step therefore runs nowhere and reports green — a
+ * failure mode prose in .claude/rules/db-migrations.md cannot catch, which is
+ * exactly when AGENTS.md ("Procedure for adding a rule", step 5) calls for a
+ * check here. Expressed as a cross-file existence assertion rather than a
+ * banned pattern, so it does not fit the CHECKS table above.
+ */
+const BUN_SQLITE_STEP = "Test migrations with Bun SQLite";
+const BUN_SQLITE_SPEC_GLOB = "packages/db/src/__tests__/*.test.ts";
+const SPEC_TOKEN = /packages\/db\/src\/__tests__\/[^\s\\]+\.test\.ts/g;
+const REGEXP_SPECIALS = /[.+?^${}()|[\]]/g;
+
+const ciWorkflow = await readFile(".github/workflows/ci.yml", "utf8");
+const afterStepName = ciWorkflow.split(`- name: ${BUN_SQLITE_STEP}`)[1];
+const unlisted: string[] = [];
+
+if (afterStepName === undefined) {
+	unlisted.push(
+		`.github/workflows/ci.yml: step "${BUN_SQLITE_STEP}" not found — rename it here too`
+	);
+} else {
+	// Stop at the next step so a spec named in an unrelated step does not count.
+	const stepBody = afterStepName.split(/^\s*- name:/m)[0];
+	const listed = [...stepBody.matchAll(SPEC_TOKEN)].map(
+		(match) =>
+			new RegExp(
+				`^${match[0].replace(REGEXP_SPECIALS, "\\$&").replaceAll("*", "[^/]*")}$`
+			)
+	);
+	for await (const scannedPath of new Glob(BUN_SQLITE_SPEC_GLOB).scan(".")) {
+		const path = normalizeRulePath(scannedPath);
+		const text = await readFile(path, "utf8");
+		if (!text.includes("bun:sqlite")) {
+			continue;
+		}
+		if (!listed.some((pattern) => pattern.test(path))) {
+			unlisted.push(`${path}: not run by any project — add it to ci.yml`);
+		}
+	}
+}
+
+if (unlisted.length > 0) {
+	failed = true;
+	console.error(
+		`\ncheck-rules FAIL: bun:sqlite spec not listed in ci.yml's "${BUN_SQLITE_STEP}" step`
+	);
+	console.error("  rule: .claude/rules/db-migrations.md");
+	for (const hit of unlisted) {
+		console.error(`  ${hit}`);
+	}
+}
+
 if (failed) {
 	process.exit(1);
 }

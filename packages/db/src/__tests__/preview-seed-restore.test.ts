@@ -34,11 +34,20 @@ if (isBun) {
  * (so nobody "simplifies" the trigger stash away), and stashing the triggers
  * around the restore makes the dump the single source of truth without
  * leaving the DB permanently trigger-less.
+ *
+ * Only the first case names 0049's compat triggers. When the contract
+ * migration drops the legacy `games` mirror they stop firing and that case
+ * stops throwing — the fix is to re-point it at whatever derived-table
+ * trigger remains (or delete this file once none do), NOT to conclude the
+ * stash is unnecessary. The stash guards the restore against triggers in
+ * general; every other case reads whatever triggers exist out of
+ * sqlite_master and never names 0049.
  */
 
 const MIGRATION_FILE_PATTERN = /^\d{4}_.+\.sql$/;
 const POSITION_UNIQUE_VIOLATION =
 	/UNIQUE constraint failed: game_mix_variant\.mix_id, game_mix_variant\.position/;
+const TRIGGER_ALREADY_EXISTS = /already exists/;
 const migrationsDirectory = fileURLToPath(
 	new URL("../migrations/", import.meta.url)
 );
@@ -82,6 +91,21 @@ const readTriggers = (db: Database): TriggerRow[] =>
 const dropTriggers = (db: Database, triggers: TriggerRow[]) => {
 	for (const trigger of triggers) {
 		db.exec(`DROP TRIGGER IF EXISTS \`${trigger.name}\`;`);
+	}
+};
+
+/**
+ * The workflow's re-arm file: `cat drop-triggers.sql restore-triggers.sql`.
+ *
+ * The drops are what make it idempotent. SQLite strips `IF NOT EXISTS` before
+ * storing DDL in sqlite_master, so the read-back CREATEs alone abort on the
+ * first surviving trigger — and `wrangler d1 execute --file` stops there,
+ * skipping every CREATE behind it.
+ */
+const rearmTriggers = (db: Database, triggers: TriggerRow[]) => {
+	dropTriggers(db, triggers);
+	for (const trigger of triggers) {
+		db.exec(`${trigger.sql};`);
 	}
 };
 
@@ -181,6 +205,29 @@ skipIfNotBun("preview seed restore (preview-deploy.yml)", () => {
 
 		replayProductionDump(db);
 		recreateTriggers(db, stashed);
+		expect(readTriggers(db)).toEqual(stashed);
+	});
+
+	it("does not survive a partial drop when the re-arm skips the drops", () => {
+		const stashed = readTriggers(db);
+		// Simulate a DROP batch that died halfway: half the triggers survive.
+		dropTriggers(db, stashed.slice(0, 6));
+
+		expect(() => recreateTriggers(db, stashed)).toThrow(TRIGGER_ALREADY_EXISTS);
+	});
+
+	it("re-arms every trigger from a partially dropped state", () => {
+		const stashed = readTriggers(db);
+		dropTriggers(db, stashed.slice(0, 6));
+
+		rearmTriggers(db, stashed);
+		expect(readTriggers(db)).toEqual(stashed);
+	});
+
+	it("re-arms idempotently when no trigger was dropped at all", () => {
+		const stashed = readTriggers(db);
+
+		rearmTriggers(db, stashed);
 		expect(readTriggers(db)).toEqual(stashed);
 	});
 
