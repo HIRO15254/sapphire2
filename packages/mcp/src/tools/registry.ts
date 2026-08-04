@@ -312,7 +312,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "game_group_update",
 		procedurePath: "gameGroup.update",
 		description:
-			"Update a game group by id. Renaming it re-labels every variant shown under it, and for a user-created group it also moves the group's position in game_group_list — which is the entry order mixGames must use.",
+			"Update a game group by id. Only the supplied fields change; pass null to clear a blind label. Renaming it re-labels every variant shown under it, and for a user-created group it also moves the group's position in game_group_list — which is the entry order mixGames must use.",
 		inputSchema: gameGroupUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
@@ -336,7 +336,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "game_variant_update",
 		procedurePath: "gameVariant.update",
 		description:
-			"Update a game variant by id. Renaming changes the label sessions and rule masters display, and moving it to another group changes which blind labels apply. Either edit also changes the mixGames shape every mix containing this variant expects, so ring-game rules using such a mix need a rebuilt mixGames the next time they send one — updates touching neither variant nor mixGames stay unaffected.",
+			"Update a game variant by id. Only the supplied fields change; pass null to clear shortLabel. Renaming changes the label sessions and rule masters display, and moving it to another group changes which blind labels apply. Either edit also changes the mixGames shape every mix containing this variant expects, so ring-game rules using such a mix need a rebuilt mixGames the next time they send one — updates touching neither variant nor mixGames stay unaffected.",
 		inputSchema: gameVariantUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
@@ -360,7 +360,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "game_mix_update",
 		procedurePath: "gameMix.update",
 		description:
-			"Update a game mix by id. Supplying games REPLACES the whole rotation — read game_mix_list first and send back the full list. Replacing it also changes the mixGames shape ring-game rules using this mix must send when they next send one. Renaming it does the opposite: their variant keeps the old label, which no longer resolves, so from then on their mixGames is checked against their own stored grouping and variant labels rather than against this mix.",
+			"Update a game mix by id. Only the supplied fields change, with one exception: supplying games REPLACES the whole rotation — read game_mix_list first and send back the full list. Sending label alone leaves games untouched. Replacing it also changes the mixGames shape ring-game rules using this mix must send when they next send one. Renaming it does the opposite: their variant keeps the old label, which no longer resolves, so from then on their mixGames is checked against their own stored grouping and variant labels rather than against this mix.",
 		inputSchema: gameMixUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
