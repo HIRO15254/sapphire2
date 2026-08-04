@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
 	DELIBERATELY_EXCLUDED,
 	entityName,
+	MIX_RULE,
 	TOOL_DEFINITIONS,
 	toolAnnotations,
 	toolNamespace,
@@ -237,7 +238,7 @@ describe("tool/router coupling", () => {
 		});
 		expect(accepting.length).toBeGreaterThanOrEqual(4);
 		for (const def of accepting) {
-			expect(def.description).toContain("A mixed-game rule is variant");
+			expect(def.description).toContain(MIX_RULE);
 		}
 	});
 
