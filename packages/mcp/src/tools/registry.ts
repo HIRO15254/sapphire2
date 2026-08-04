@@ -213,7 +213,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "room_update",
 		procedurePath: "room.update",
 		description:
-			"Update a room by id. Only the supplied fields change; pass null to clear memo or the coordinates (latitude and longitude must be cleared together). Existing sessions display the new name.",
+			"Update a room by id. Only the supplied fields change; pass null to clear memo or the coordinates (latitude and longitude must be set or cleared together — sending only one is rejected even when the other is already stored). Existing sessions display the new name.",
 		inputSchema: roomUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
