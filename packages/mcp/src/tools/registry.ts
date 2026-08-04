@@ -185,7 +185,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "tournament_list_by_room",
 		procedurePath: "tournament.listByRoom",
 		description:
-			"List the tournament masters of one room — buy-in, starting stack, blind structure. Use the returned ids as tournamentId in session_create_tournament. Set includeArchived to list archived ones instead.",
+			"List the tournament masters of one room — buy-in, starting stack, chip purchases, and blindLevelCount (the number of blind levels, not the levels themselves; tournament_get_by_id returns those). Use the returned ids as tournamentId in session_create_tournament. Set includeArchived to list archived ones instead.",
 		inputSchema: tournamentListByRoomInputSchema,
 	},
 
@@ -256,7 +256,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "tournament_get_by_id",
 		procedurePath: "tournament.getById",
 		description:
-			"Get one tournament master by id with its blind levels and tags. Read this before tournament_update_with_levels — that tool replaces the whole blind structure. It does NOT return chip purchases: those come from tournament_list_by_room, and tournament_update_with_levels replaces them wholesale too whenever chipPurchases is supplied, so an empty or partial list there deletes the rest. Its tags come back as { id, name } objects while the update tool takes plain name strings.",
+			"Get one tournament master by id with its blind levels and tags. Read this before tournament_update_with_levels — that tool replaces the whole blind structure. It does NOT return chip purchases: those come from tournament_list_by_room, which by default lists only non-archived tournaments while includeArchived lists only archived ones — an archived tournament is still readable and updatable here, so pick the right one or its purchases look like none. tournament_update_with_levels replaces them wholesale too whenever chipPurchases is supplied, so an empty or partial list there deletes the rest. Its tags come back as { id, name } objects while the update tool takes plain name strings.",
 		inputSchema: tournamentIdInputSchema,
 	},
 	{
