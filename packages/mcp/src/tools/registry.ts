@@ -529,7 +529,7 @@ export const DELIBERATELY_EXCLUDED: {
 	},
 	{
 		reason:
-			"Outside the requested MCP scope (sessions, plus the rooms and game masters the user asked for). Currencies also carry the bankroll ledger: transaction types include the reserved 'Session Result' row that session recording writes to (a per-user partial unique index), and deleting a currency cascades to its transactions — exposing them needs a use case that settles those first",
+			"Outside the requested MCP scope (sessions, plus the rooms and game masters the user asked for). Currencies also carry the bankroll ledger: transaction types include the reserved 'Session Result' row session recording writes to, and while the name is guarded against being taken, nothing stops that row being renamed away from it — the next recorded session then creates a second one and the existing ledger rows keep pointing at the renamed type. Exposing these needs a use case that settles that first",
 		paths: [
 			"transactionType.list",
 			"transactionType.create",
