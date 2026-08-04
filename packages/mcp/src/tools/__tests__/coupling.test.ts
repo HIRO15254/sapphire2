@@ -198,7 +198,7 @@ describe("tool/router coupling", () => {
 		// catalogue so a newly added write/destructive tool cannot leave the
 		// consent screen under-representing the grant (mcp-tools.md rule 8).
 		expect(summary).toContain("Read your");
-		expect(summary.includes("Create and edit your")).toBe(
+		expect(summary.includes("Create or change your")).toBe(
 			annotations.some((annotation) => !annotation.readOnlyHint)
 		);
 		expect(summary.includes("cannot be undone")).toBe(

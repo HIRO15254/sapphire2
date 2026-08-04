@@ -434,7 +434,10 @@ export function toolPermissionSummary(): string[] {
 
 	const permissions = [`Read your ${humanList(readable)}`];
 	if (writable.length > 0) {
-		permissions.push(`Create and edit your ${humanList(writable)}`);
+		// "or", not "and": an entity reaches this line on any write tool, and
+		// some expose only one of the two (session tags can be created but not
+		// renamed). The destructive line below names which ones can be changed.
+		permissions.push(`Create or change your ${humanList(writable)}`);
 	}
 	// Tracked separately from plain writes: a destructive tool overwrites or
 	// removes data the user already has, which is a materially bigger ask than
@@ -526,7 +529,7 @@ export const DELIBERATELY_EXCLUDED: {
 	},
 	{
 		reason:
-			"Outside the requested MCP scope (sessions, plus the rooms and game masters the user asked for). Their web forms carry setup decisions — a currency's unit and rate, a transaction type's sign — that a model would be guessing at, so exposing them needs a use case that fixes the shape first",
+			"Outside the requested MCP scope (sessions, plus the rooms and game masters the user asked for). Currencies also carry the bankroll ledger: transaction types include the reserved 'Session Result' row that session recording writes to (a per-user partial unique index), and deleting a currency cascades to its transactions — exposing them needs a use case that settles those first",
 		paths: [
 			"transactionType.list",
 			"transactionType.create",

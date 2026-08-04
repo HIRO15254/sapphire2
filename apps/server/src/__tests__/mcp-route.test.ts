@@ -158,7 +158,7 @@ describe("/oauth/consent page", () => {
 		const html = await response.text();
 		expect(html).not.toContain("openid");
 		expect(html).toContain("Read your poker sessions");
-		expect(html).toContain("Create and edit your");
+		expect(html).toContain("Create or change your");
 	});
 });
 
