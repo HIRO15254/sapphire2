@@ -155,8 +155,9 @@ pins both halves (the collision is real; stashing fixes it without leaving the D
 It needs `bun:sqlite`, so like the `migration-*` specs it is listed explicitly in
 [`ci.yml`](../../.github/workflows/ci.yml) — a bun:sqlite spec that is not listed runs nowhere and
 reports green, because `skipIfNotBun` makes Vitest skip it rather than fail. `bun run check:rules`
-enforces the listing (every `packages/db/src/__tests__/*.test.ts` mentioning `bun:sqlite` must be
-named in that step), so this paragraph is documentation, not the guard.
+enforces the listing (every `packages/**/__tests__/*.test.ts` mentioning `bun:sqlite` must be
+named in that step, wherever in the workspace it lives), so this paragraph is documentation, not
+the guard.
 
 ## Keeping the ledger from drifting again
 
