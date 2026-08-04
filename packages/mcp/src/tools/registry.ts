@@ -82,7 +82,7 @@ const AMOUNT_CONVENTIONS =
  * (mcp-tools.md rule 7).
  */
 const MIX_RULE =
-	'A mixed-game rule is variant + mixGames together: variant must be the label of a game mix from game_mix_list (or the legacy "mix" sentinel), and mixGames its rotation. Sending mixGames without such a variant is rejected. For a named mix, mixGames must reproduce that mix EXACTLY: one entry per game group its variants belong to, entries in the order game_group_list returns those groups, and each entry naming its variants by their game_variant_list label in the mix\'s own games order. Note game_mix_list returns variant IDS, not labels, so build the labels from game_variant_list. Any other grouping or order is rejected as "references an unavailable game master" — the message names ownership, but the cause is usually shape. The legacy "mix" sentinel is the loose form: any owned variant labels, grouped however you like. While a mix is set, blind1-3, ante and anteType are always stored as null, so values sent for those flat fields are dropped.';
+	'A mixed-game rule is variant + mixGames together: variant must be the label of a game mix from game_mix_list (or the legacy "mix" sentinel), and mixGames its rotation. Sending mixGames without such a variant is rejected. For a named mix, mixGames must reproduce that mix EXACTLY: one entry per game group its variants belong to, entries in the order game_group_list returns those groups, and each entry naming its variants by their game_variant_list label in the mix\'s own games order. Note game_mix_list returns variant IDS, not labels, so build the labels from game_variant_list. Any other grouping or order is rejected as "references an unavailable game master" — the message names ownership, but the cause is usually shape. The legacy "mix" sentinel is the loose form: any owned variant labels, grouped however you like. While a mix is set, the top-level blind1-3, ante and anteType are always stored as null, so values sent for those flat fields are dropped — the blinds of a mix live on each mixGames entry instead (its own blind1-3 / ante / anteType, per group).';
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
@@ -229,7 +229,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "ring_game_update",
 		procedurePath: "ringGame.update",
-		description: `Update a ring-game rule master by id. Only the supplied fields change; pass null to clear a nullable one. ${MIX_RULE} To edit only the blinds of a mixed rule, echo back the mixGames that ring_game_list_by_room returned — it is already in the accepted shape. To move a mixed rule back to flat blinds, set variant to a non-mixed label — that clears mixGames for you. Sending mixGames: null on its own is rejected, because the unchanged variant still names a mix. ${AMOUNT_CONVENTIONS}`,
+		description: `Update a ring-game rule master by id. Only the supplied fields change; pass null to clear a nullable one. ${MIX_RULE} To edit only the blinds of a mixed rule, echo back the mixGames that ring_game_list_by_room returned — but only while the mix master is untouched, because the check rebuilds the expected shape from the CURRENT variant labels and groups and the mix's current games. After any game_mix_update or game_variant_update that moved them, rebuild mixGames from the current masters instead. To move a mixed rule back to flat blinds, set variant to a non-mixed label — that clears mixGames for you. Sending mixGames: null on its own is rejected, because the unchanged variant still names a mix. ${AMOUNT_CONVENTIONS}`,
 		inputSchema: ringGameUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
@@ -336,7 +336,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "game_variant_update",
 		procedurePath: "gameVariant.update",
 		description:
-			"Update a game variant by id. Renaming changes the label sessions and rule masters display, and moving it to another group changes which blind labels apply.",
+			"Update a game variant by id. Renaming changes the label sessions and rule masters display, and moving it to another group changes which blind labels apply. Either edit also changes the mixGames shape every mix containing this variant expects, so ring-game rules using such a mix must send a rebuilt mixGames on their next update.",
 		inputSchema: gameVariantUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
@@ -360,7 +360,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "game_mix_update",
 		procedurePath: "gameMix.update",
 		description:
-			"Update a game mix by id. Supplying games REPLACES the whole rotation — read game_mix_list first and send back the full list.",
+			"Update a game mix by id. Supplying games REPLACES the whole rotation — read game_mix_list first and send back the full list. Replacing it also changes the mixGames shape ring-game rules using this mix must send on their next update.",
 		inputSchema: gameMixUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
