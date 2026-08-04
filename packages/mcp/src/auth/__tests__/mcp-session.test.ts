@@ -14,7 +14,9 @@ const USER = {
 const TOKEN = {
 	userId: "user-1",
 	scopes: "openid profile",
-	accessTokenExpiresAt: new Date(Date.UTC(2026, 7, 1)),
+	// Relative, not a fixed date: buildMcpSession rejects expired tokens, so a
+	// hard-coded timestamp turns the whole suite red once the clock passes it.
+	accessTokenExpiresAt: new Date(Date.now() + 3_600_000),
 };
 
 describe("buildMcpSession", () => {
