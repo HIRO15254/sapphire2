@@ -230,6 +230,20 @@ jobs:
           jq -r '.[0].results[] | .sql + ";"' triggers.json > restore-triggers.sql
           echo "Stashing $(wc -l < drop-triggers.sql) trigger(s) for the restore"
 
+          # Re-arm on the way out however we leave, because there is no second
+          # chance: this whole step is gated on is_new_db, so once the database
+          # exists a later run resolves it as existing and skips straight past
+          # here. A seed that failed after the DROP would otherwise leave the
+          # preview permanently trigger-less — rows intact, but nothing syncing
+          # game_mix_variant and no 0041 integrity checks. The trap keeps the
+          # step's own exit status, so a failed seed still fails the job.
+          restore_triggers() {
+            if [ -s restore-triggers.sql ]; then
+              bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=restore-triggers.sql
+            fi
+          }
+          trap restore_triggers EXIT
+
           if [ -s drop-triggers.sql ]; then
             bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=drop-triggers.sql
           fi
@@ -239,10 +253,6 @@ jobs:
           # missed something — fail the job so we notice instead of shipping
           # a preview with incomplete data.
           bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=dump.sql
-
-          if [ -s restore-triggers.sql ]; then
-            bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=restore-triggers.sql
-          fi
 
       - name: Restore and apply stashed migrations (new DB only)
         if: needs.d1-setup.outputs.is_new_db == 'true'
