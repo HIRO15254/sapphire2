@@ -6,8 +6,11 @@ import {
 import { describe, expect, it } from "vitest";
 import {
 	DELIBERATELY_EXCLUDED,
+	entityName,
+	MIX_RULE,
 	TOOL_DEFINITIONS,
 	toolAnnotations,
+	toolNamespace,
 	toolPermissionSummary,
 } from "../registry";
 import { getProcedure, listProcedurePaths } from "../resolve";
@@ -144,9 +147,25 @@ describe("tool/router coupling", () => {
 	it("exposes the agreed tool catalogue and nothing else", () => {
 		expect(TOOL_DEFINITIONS.map((d) => d.name).sort()).toEqual([
 			"currency_list",
+			"game_group_create",
+			"game_group_list",
+			"game_group_update",
+			"game_mix_create",
+			"game_mix_list",
+			"game_mix_update",
+			"game_variant_create",
+			"game_variant_list",
+			"game_variant_update",
 			"player_list",
+			"ring_game_archive",
+			"ring_game_create",
 			"ring_game_list_by_room",
+			"ring_game_restore",
+			"ring_game_update",
+			"room_create",
+			"room_get_by_id",
 			"room_list",
+			"room_update",
 			"session_create_cash_game",
 			"session_create_tournament",
 			"session_get_by_id",
@@ -157,7 +176,12 @@ describe("tool/router coupling", () => {
 			"stats_breakdown",
 			"stats_profit_loss_series",
 			"stats_summary",
+			"tournament_archive",
+			"tournament_create_with_levels",
+			"tournament_get_by_id",
 			"tournament_list_by_room",
+			"tournament_restore",
+			"tournament_update_with_levels",
 		]);
 	});
 
@@ -173,13 +197,57 @@ describe("tool/router coupling", () => {
 		const summary = toolPermissionSummary().join(" ");
 		// Reading is unconditional; the other two lines must track the
 		// catalogue so a newly added write/destructive tool cannot leave the
-		// consent screen under-representing the grant (mcp-tools.md rule 7).
-		expect(summary).toContain("Read your poker sessions");
-		expect(summary.includes("Record new sessions")).toBe(
+		// consent screen under-representing the grant (mcp-tools.md rule 8).
+		expect(summary).toContain("Read your");
+		expect(summary.includes("Create or change your")).toBe(
 			annotations.some((annotation) => !annotation.readOnlyHint)
 		);
 		expect(summary.includes("cannot be undone")).toBe(
 			annotations.some((annotation) => annotation.destructiveHint)
 		);
+	});
+
+	it("names every exposed entity on the consent screen", () => {
+		// Line presence alone is too weak: the copy used to name only sessions
+		// and session tags while the catalogue had grown room/game-master
+		// creates, so the grant read smaller than it was. Assert per-entity.
+		const lines = toolPermissionSummary();
+		const [readLine, writeLine] = lines;
+		for (const def of TOOL_DEFINITIONS) {
+			const entity = entityName(toolNamespace(def));
+			const annotations = toolAnnotations(def);
+			expect(annotations.readOnlyHint ? readLine : writeLine).toContain(entity);
+			if (annotations.destructiveHint) {
+				expect(lines.at(-1)).toContain(entity);
+			}
+		}
+	});
+
+	it("explains the mixGames contract on every tool that accepts mixGames", () => {
+		// assertNamedMixComposition demands an exact reproduction of the named
+		// mix and silently drops the flat blinds, and none of that reaches the
+		// JSON Schema — so the set of tools carrying MIX_RULE has to track the
+		// set accepting the field. It drifted once: session_update and
+		// session_create_cash_game accepted mixGames with no explanation, which
+		// only surfaced when ring_game_update started naming session_update as
+		// the way to edit a mixed session's blinds (mcp-tools.md rule 7).
+		const accepting = TOOL_DEFINITIONS.filter((def) => {
+			const shape = (def.inputSchema as { shape?: Record<string, unknown> })
+				?.shape;
+			return shape !== undefined && "mixGames" in shape;
+		});
+		expect(accepting.length).toBeGreaterThanOrEqual(4);
+		for (const def of accepting) {
+			expect(def.description).toContain(MIX_RULE);
+		}
+	});
+
+	it("has a consent-screen name for every namespace the catalogue exposes", () => {
+		// An unnamed namespace would fall out of the copy silently, which is
+		// the under-representation rule 8 exists to prevent.
+		const unnamed = [...new Set(TOOL_DEFINITIONS.map(toolNamespace))].filter(
+			(namespace) => entityName(namespace) === undefined
+		);
+		expect(unnamed).toEqual([]);
 	});
 });

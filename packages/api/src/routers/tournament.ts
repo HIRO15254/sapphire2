@@ -242,6 +242,21 @@ export const tournamentListByRoomInputSchema = z.object({
 	includeArchived: z.boolean().optional(),
 });
 
+export const tournamentIdInputSchema = z.object({ id: z.string() });
+
+export const tournamentUpdateWithLevelsInputSchema = z.object({
+	id: z.string(),
+	name: z.string().min(1).optional(),
+	variant: z.string().optional(),
+	...tournamentUpdateNumericFields,
+
+	currencyId: z.string().min(1).nullable().optional(),
+	memo: z.string().nullable().optional(),
+	tags: z.array(z.string()).optional(),
+	chipPurchases: z.array(chipPurchaseInputSchema).optional(),
+	blindLevels: z.array(blindLevelInputSchema),
+});
+
 export const tournamentRouter = router({
 	listByRoom: protectedProcedure
 		.input(tournamentListByRoomInputSchema)
@@ -288,7 +303,7 @@ export const tournamentRouter = router({
 		}),
 
 	getById: protectedProcedure
-		.input(z.object({ id: z.string() }))
+		.input(tournamentIdInputSchema)
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const found = await validateTournamentOwnership(ctx.db, input.id, userId);
@@ -425,7 +440,7 @@ export const tournamentRouter = router({
 		}),
 
 	archive: protectedProcedure
-		.input(z.object({ id: z.string() }))
+		.input(tournamentIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await validateTournamentOwnership(ctx.db, input.id, userId);
@@ -443,7 +458,7 @@ export const tournamentRouter = router({
 		}),
 
 	restore: protectedProcedure
-		.input(z.object({ id: z.string() }))
+		.input(tournamentIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await validateTournamentOwnership(ctx.db, input.id, userId);
@@ -461,7 +476,7 @@ export const tournamentRouter = router({
 		}),
 
 	delete: protectedProcedure
-		.input(z.object({ id: z.string() }))
+		.input(tournamentIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await validateTournamentOwnership(ctx.db, input.id, userId);
@@ -504,20 +519,7 @@ export const tournamentRouter = router({
 		}),
 
 	updateWithLevels: protectedProcedure
-		.input(
-			z.object({
-				id: z.string(),
-				name: z.string().min(1).optional(),
-				variant: z.string().optional(),
-				...tournamentUpdateNumericFields,
-
-				currencyId: z.string().min(1).nullable().optional(),
-				memo: z.string().nullable().optional(),
-				tags: z.array(z.string()).optional(),
-				chipPurchases: z.array(chipPurchaseInputSchema).optional(),
-				blindLevels: z.array(blindLevelInputSchema),
-			})
-		)
+		.input(tournamentUpdateWithLevelsInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const found = await validateTournamentOwnership(ctx.db, input.id, userId);
@@ -653,6 +655,9 @@ export const tournamentRouter = router({
 		}),
 
 	removeTag: protectedProcedure
+		// NOT tournamentIdInputSchema: this id is a tournamentTag.id, and the
+		// handler derives the tournament from it. Same shape, different meaning —
+		// sharing the const would make any future .describe()/.uuid() on it lie.
 		.input(z.object({ id: z.string() }))
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;

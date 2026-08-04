@@ -90,6 +90,25 @@ export const ringGameListByRoomInputSchema = z.object({
 	includeArchived: z.boolean().optional(),
 });
 
+export const ringGameIdInputSchema = z.object({ id: z.string() });
+
+export const ringGameUpdateInputSchema = z.object({
+	id: z.string(),
+	name: z.string().min(1).optional(),
+	variant: z.string().optional(),
+	mixGames: mixGamesSchema.nullish(),
+	blind1: nonNegativeIntegerSchema.nullable().optional(),
+	blind2: nonNegativeIntegerSchema.nullable().optional(),
+	blind3: nonNegativeIntegerSchema.nullable().optional(),
+	ante: nonNegativeIntegerSchema.nullable().optional(),
+	anteType: z.enum(["none", "all", "bb"]).nullable().optional(),
+	minBuyIn: nonNegativeIntegerSchema.nullable().optional(),
+	maxBuyIn: nonNegativeIntegerSchema.nullable().optional(),
+	tableSize: tableSizeSchema.nullable().optional(),
+	currencyId: z.string().min(1).nullable().optional(),
+	memo: z.string().nullable().optional(),
+});
+
 export const ringGameRouter = router({
 	listByRoom: protectedProcedure
 		.input(ringGameListByRoomInputSchema)
@@ -145,24 +164,7 @@ export const ringGameRouter = router({
 		}),
 
 	update: protectedProcedure
-		.input(
-			z.object({
-				id: z.string(),
-				name: z.string().min(1).optional(),
-				variant: z.string().optional(),
-				mixGames: mixGamesSchema.nullish(),
-				blind1: nonNegativeIntegerSchema.nullable().optional(),
-				blind2: nonNegativeIntegerSchema.nullable().optional(),
-				blind3: nonNegativeIntegerSchema.nullable().optional(),
-				ante: nonNegativeIntegerSchema.nullable().optional(),
-				anteType: z.enum(["none", "all", "bb"]).nullable().optional(),
-				minBuyIn: nonNegativeIntegerSchema.nullable().optional(),
-				maxBuyIn: nonNegativeIntegerSchema.nullable().optional(),
-				tableSize: tableSizeSchema.nullable().optional(),
-				currencyId: z.string().min(1).nullable().optional(),
-				memo: z.string().nullable().optional(),
-			})
-		)
+		.input(ringGameUpdateInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const found = await validateRingGameOwnership(ctx.db, input.id, userId);
@@ -239,7 +241,7 @@ export const ringGameRouter = router({
 		}),
 
 	archive: protectedProcedure
-		.input(z.object({ id: z.string() }))
+		.input(ringGameIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await validateRingGameOwnership(ctx.db, input.id, userId);
@@ -257,7 +259,7 @@ export const ringGameRouter = router({
 		}),
 
 	restore: protectedProcedure
-		.input(z.object({ id: z.string() }))
+		.input(ringGameIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await validateRingGameOwnership(ctx.db, input.id, userId);
@@ -275,7 +277,7 @@ export const ringGameRouter = router({
 		}),
 
 	delete: protectedProcedure
-		.input(z.object({ id: z.string() }))
+		.input(ringGameIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await validateRingGameOwnership(ctx.db, input.id, userId);

@@ -106,6 +106,20 @@ function assertGroupSpanWithinLimit(rows: { groupId: string }[]): void {
 	}
 }
 
+// Named exports for the MCP tool layer — see .claude/rules/mcp-tools.md.
+export const gameMixIdInputSchema = z.object({ id: z.string() });
+
+export const gameMixCreateInputSchema = z.object({
+	label: labelSchema,
+	games: gamesSchema,
+});
+
+export const gameMixUpdateInputSchema = z.object({
+	id: z.string(),
+	label: labelSchema.optional(),
+	games: gamesSchema.optional(),
+});
+
 export const gameMixRouter = router({
 	list: protectedProcedure.query(async ({ ctx }) => {
 		const userId = ctx.session.user.id;
@@ -124,12 +138,7 @@ export const gameMixRouter = router({
 	}),
 
 	create: protectedProcedure
-		.input(
-			z.object({
-				label: labelSchema,
-				games: gamesSchema,
-			})
-		)
+		.input(gameMixCreateInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			assertNoDuplicateGames(input.games);
@@ -196,13 +205,7 @@ export const gameMixRouter = router({
 		}),
 
 	update: protectedProcedure
-		.input(
-			z.object({
-				id: z.string(),
-				label: labelSchema.optional(),
-				games: gamesSchema.optional(),
-			})
-		)
+		.input(gameMixUpdateInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await validateEntityOwnership(ctx.db, "gameMix", input.id, userId);
@@ -287,7 +290,7 @@ export const gameMixRouter = router({
 		}),
 
 	delete: protectedProcedure
-		.input(z.object({ id: z.string() }))
+		.input(gameMixIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await validateEntityOwnership(ctx.db, "gameMix", input.id, userId);
