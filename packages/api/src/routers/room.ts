@@ -22,6 +22,32 @@ const COORDINATES_PAIRED_ISSUE = {
 	path: ["longitude"],
 };
 
+// Named exports for the MCP tool layer — see .claude/rules/mcp-tools.md.
+export const roomIdInputSchema = z.object({ id: z.string() });
+
+export const roomCreateInputSchema = z
+	.object({
+		name: z.string().min(1),
+		memo: z.string().optional(),
+		latitude: z.number().min(-90).max(90).nullable().optional(),
+		longitude: z.number().min(-180).max(180).nullable().optional(),
+	})
+	.refine(coordinatesPaired, COORDINATES_PAIRED_ISSUE);
+
+export const roomUpdateInputSchema = z
+	.object({
+		id: z.string(),
+		name: z.string().min(1).optional(),
+		// Nullable so an explicit `null` clears the memo. `undefined`
+		// (key omitted) still means "leave unchanged".
+		memo: z.string().nullable().optional(),
+		// Geographic coordinates. Nullable so an explicit `null` clears the
+		// location; `undefined` leaves it unchanged (same pattern as memo).
+		latitude: z.number().min(-90).max(90).nullable().optional(),
+		longitude: z.number().min(-180).max(180).nullable().optional(),
+	})
+	.refine(coordinatesPaired, COORDINATES_PAIRED_ISSUE);
+
 export const roomRouter = router({
 	list: protectedProcedure.query(({ ctx }) => {
 		const userId = ctx.session.user.id;
@@ -51,7 +77,7 @@ export const roomRouter = router({
 	}),
 
 	getById: protectedProcedure
-		.input(z.object({ id: z.string() }))
+		.input(roomIdInputSchema)
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const [found] = await ctx.db
@@ -70,16 +96,7 @@ export const roomRouter = router({
 		}),
 
 	create: protectedProcedure
-		.input(
-			z
-				.object({
-					name: z.string().min(1),
-					memo: z.string().optional(),
-					latitude: z.number().min(-90).max(90).nullable().optional(),
-					longitude: z.number().min(-180).max(180).nullable().optional(),
-				})
-				.refine(coordinatesPaired, COORDINATES_PAIRED_ISSUE)
-		)
+		.input(roomCreateInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const id = crypto.randomUUID();
@@ -97,21 +114,7 @@ export const roomRouter = router({
 		}),
 
 	update: protectedProcedure
-		.input(
-			z
-				.object({
-					id: z.string(),
-					name: z.string().min(1).optional(),
-					// Nullable so an explicit `null` clears the memo. `undefined`
-					// (key omitted) still means "leave unchanged".
-					memo: z.string().nullable().optional(),
-					// Geographic coordinates. Nullable so an explicit `null` clears the
-					// location; `undefined` leaves it unchanged (same pattern as memo).
-					latitude: z.number().min(-90).max(90).nullable().optional(),
-					longitude: z.number().min(-180).max(180).nullable().optional(),
-				})
-				.refine(coordinatesPaired, COORDINATES_PAIRED_ISSUE)
-		)
+		.input(roomUpdateInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const [found] = await ctx.db
@@ -147,7 +150,7 @@ export const roomRouter = router({
 		}),
 
 	delete: protectedProcedure
-		.input(z.object({ id: z.string() }))
+		.input(roomIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const [found] = await ctx.db
@@ -167,7 +170,7 @@ export const roomRouter = router({
 		}),
 
 	toggleFavorite: protectedProcedure
-		.input(z.object({ id: z.string() }))
+		.input(roomIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const [found] = await ctx.db

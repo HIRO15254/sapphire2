@@ -135,7 +135,9 @@ jobs:
       #   2. Stash every migration file in the repo that is newer than that.
       #   3. Apply only the migrations master already has → preview DB
       #      schema matches master.
-      #   4. Seed from master (must succeed cleanly now).
+      #   4. Disarm every trigger, seed from master (must succeed cleanly
+      #      now), then re-arm them — a bulk restore is not an application
+      #      write, so triggers must not derive rows the dump already has.
       #   5. Restore the stashed migrations and apply them, running their
       #      own backfills against the seeded data.
       - name: Stash unreleased migrations (new DB only)
@@ -207,6 +209,63 @@ jobs:
 
           sed -i "s/database_id = \".*\"/database_id = \"${{ needs.d1-setup.outputs.d1_database_id }}\"/" wrangler.toml
           sed -i "s/database_name = \".*\"/database_name = \"${{ needs.setup.outputs.d1_db_name }}\"/" wrangler.toml
+
+          # Triggers keep derived tables in sync with *application* writes. A
+          # bulk restore is not an application write: the dump already carries
+          # the derived rows, so an armed trigger generates a second copy of
+          # them. 0049's game_mix compat triggers do exactly that — inserting a
+          # `game_mix` row rebuilds `game_mix_variant` from the legacy JSON
+          # mirror, and the dump's own `game_mix_variant` rows then collide on
+          # `game_mix_variant_mix_position_unique`. So disarm every trigger for
+          # the duration of the restore and re-arm it afterwards, leaving the
+          # dump as the single source of truth for seeded data.
+          #
+          # Read back from sqlite_master rather than re-running a migration:
+          # that captures exactly the triggers this DB has, so the step stays
+          # correct as migrations add or drop them.
+          bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --json \
+            --command="SELECT name, sql FROM sqlite_master WHERE type = 'trigger' AND sql IS NOT NULL ORDER BY name" \
+            > triggers.json
+          jq -r '.[0].results[] | "DROP TRIGGER IF EXISTS `" + .name + "`;"' triggers.json > drop-triggers.sql
+          jq -r '.[0].results[] | .sql + ";"' triggers.json > restore-triggers.sql
+          # SQLite strips `IF NOT EXISTS` before storing DDL in sqlite_master,
+          # so the read-back CREATEs are NOT idempotent — re-running them over
+          # a surviving trigger aborts the file and every CREATE behind it is
+          # skipped. Prefix the drops so the re-arm converges from ANY state,
+          # including a DROP batch that only partially applied.
+          cat drop-triggers.sql restore-triggers.sql > rearm-triggers.sql
+          echo "Stashing $(wc -l < drop-triggers.sql) trigger(s) for the restore"
+
+          # Re-arm on the way out however we leave, because there is no second
+          # chance: this whole step is gated on is_new_db, so once the database
+          # exists a later run resolves it as existing and skips straight past
+          # here. A seed that failed after the DROP would otherwise leave the
+          # preview permanently trigger-less — rows intact, but nothing syncing
+          # game_mix_variant and no 0041 integrity checks.
+          #
+          # Both exits are decided explicitly: a failed seed keeps its own
+          # status (a half-seeded preview must not go green), and a failed
+          # re-arm fails the step even when the seed succeeded — the outcome
+          # there is a trigger-less preview that no later run will repair, so
+          # it must not be silent. Under `bash -e` a failing command in the
+          # handler already propagates, but saying it outright survives a shell
+          # without -e and names the consequence in the log.
+          restore_triggers() {
+            seed_status=$?
+            if [ -s rearm-triggers.sql ]; then
+              if ! bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=rearm-triggers.sql; then
+                echo "::error::failed to re-arm the stashed triggers — ${{ needs.setup.outputs.d1_db_name }} is left trigger-less"
+                exit 1
+              fi
+            fi
+            exit "$seed_status"
+          }
+          trap restore_triggers EXIT
+
+          if [ -s drop-triggers.sql ]; then
+            bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=drop-triggers.sql
+          fi
+
           # Stash logic above ensures preview DB schema matches master, so the
           # seed must succeed cleanly. A failure here means the stash logic
           # missed something — fail the job so we notice instead of shipping

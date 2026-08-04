@@ -24,6 +24,23 @@ async function nextSortOrder(db: Db, userId: string): Promise<number> {
 	return row?.maxSort == null ? 0 : row.maxSort + 1;
 }
 
+// Named exports for the MCP tool layer — see .claude/rules/mcp-tools.md.
+export const gameVariantIdInputSchema = z.object({ id: z.string() });
+
+export const gameVariantCreateInputSchema = z.object({
+	label: labelSchema,
+	shortLabel: shortLabelSchema,
+	groupId: z.string(),
+});
+
+export const gameVariantUpdateInputSchema = z.object({
+	id: z.string(),
+	label: labelSchema.optional(),
+	shortLabel: shortLabelSchema,
+	groupId: z.string().optional(),
+	sortOrder: z.number().int().min(0).optional(),
+});
+
 export const gameVariantRouter = router({
 	list: protectedProcedure.query(async ({ ctx }) => {
 		const userId = ctx.session.user.id;
@@ -50,13 +67,7 @@ export const gameVariantRouter = router({
 	}),
 
 	create: protectedProcedure
-		.input(
-			z.object({
-				label: labelSchema,
-				shortLabel: shortLabelSchema,
-				groupId: z.string(),
-			})
-		)
+		.input(gameVariantCreateInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			// Independent guards (group ownership vs. label-namespace collision) —
@@ -104,15 +115,7 @@ export const gameVariantRouter = router({
 		}),
 
 	update: protectedProcedure
-		.input(
-			z.object({
-				id: z.string(),
-				label: labelSchema.optional(),
-				shortLabel: shortLabelSchema,
-				groupId: z.string().optional(),
-				sortOrder: z.number().int().min(0).optional(),
-			})
-		)
+		.input(gameVariantUpdateInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const found = await validateEntityOwnership(
@@ -182,7 +185,7 @@ export const gameVariantRouter = router({
 		}),
 
 	delete: protectedProcedure
-		.input(z.object({ id: z.string() }))
+		.input(gameVariantIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await validateEntityOwnership(ctx.db, "gameVariant", input.id, userId);

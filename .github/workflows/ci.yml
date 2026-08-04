@@ -32,5 +32,11 @@ jobs:
       - name: Test
         run: bun run test:ci
 
+      # These specs need bun:sqlite, so their bodies are skipped under Vitest's
+      # Node projects (see the `skipIfNotBun` guard in each file). Add any new
+      # bun:sqlite-backed spec here or it silently never runs.
       - name: Test migrations with Bun SQLite
-        run: bun test packages/db/src/__tests__/migration-*.test.ts
+        run: |
+          bun test \
+            packages/db/src/__tests__/migration-*.test.ts \
+            packages/db/src/__tests__/preview-seed-restore.test.ts

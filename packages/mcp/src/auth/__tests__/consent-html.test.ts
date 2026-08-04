@@ -28,7 +28,7 @@ describe("renderConsentHtml", () => {
 			(def) => !toolAnnotations(def).readOnlyHint
 		);
 		expect(hasWriteTool).toBe(true);
-		expect(renderConsentHtml(BASE_PROPS)).toContain("Record new sessions");
+		expect(renderConsentHtml(BASE_PROPS)).toContain("Create or change your");
 	});
 
 	it("discloses irreversible edits while the catalogue contains destructive tools", () => {

@@ -64,8 +64,33 @@ claude mcp add --transport http sapphire2 https://<APIホスト>/mcp
 | `session_tag_create` | `sessionTag.create` | 記録 |
 | `ring_game_list_by_room` | `ringGame.listByRoom` | 参照 |
 | `tournament_list_by_room` | `tournament.listByRoom` | 参照 |
+| `room_get_by_id` | `room.getById` | 参照 |
+| `room_create` | `room.create` | 記録 |
+| `room_update` | `room.update` | 記録 |
+| `ring_game_create` | `ringGame.create` | 記録 |
+| `ring_game_update` | `ringGame.update` | 記録 |
+| `ring_game_archive` | `ringGame.archive` | 記録 |
+| `ring_game_restore` | `ringGame.restore` | 記録 |
+| `tournament_get_by_id` | `tournament.getById` | 参照 |
+| `tournament_create_with_levels` | `tournament.createWithLevels` | 記録 |
+| `tournament_update_with_levels` | `tournament.updateWithLevels` | 記録 |
+| `tournament_archive` | `tournament.archive` | 記録 |
+| `tournament_restore` | `tournament.restore` | 記録 |
+| `game_group_list` | `gameGroup.list` | 参照 |
+| `game_group_create` | `gameGroup.create` | 記録 |
+| `game_group_update` | `gameGroup.update` | 記録 |
+| `game_variant_list` | `gameVariant.list` | 参照 |
+| `game_variant_create` | `gameVariant.create` | 記録 |
+| `game_variant_update` | `gameVariant.update` | 記録 |
+| `game_mix_list` | `gameMix.list` | 参照 |
+| `game_mix_create` | `gameMix.create` | 記録 |
+| `game_mix_update` | `gameMix.update` | 記録 |
 
-ここに無い手続きは意図的な除外です（ライブセッションの状態機械、取り消し不能な削除、マスタ CRUD、AI 抽出など）— 理由は `packages/mcp/src/tools/registry.ts` に記載され、結合テストで強制されます。
+マスタ系のツールは既存セッションが参照している行を書き換えるため、`*_update` 系は destructive として注釈されています。**削除はどれも公開していません。** リングゲームとトーナメントにはアーカイブ/復元があるのでそちらを公開していますが、ルームとゲームマスタには存在しないので、誤って `room_create` / `game_variant_create` を叩くと Web UI からしか消せない行が残ります — 作成前に対応する list ツールで確認してください。
+
+`session_update`（`tagIds` / `blindLevels` / `chipPurchases`。加えて `tournamentId` / `ringGameId` を送るとリストを送らなくても master の構造・ルールが再コピーされます）・`tournament_update_with_levels`・`game_mix_update` は子リストを**丸ごと置き換える**ので、先に現在の内容を読んでから全件を送ってください。`mixGames` はリングゲーム系だけでなく `session_create_cash_game` / `session_update` も同じ検証器を通して受け付けます — 名前付き mix は完全一致で再現する必要があり、mix が設定されている間は `blind1`〜`blind3` / `ante` / `anteType` が常に `null` になるため、これらのフラットなフィールドに送った値は破棄されます。
+
+ここに無い手続きは意図的な除外です（ライブセッションの状態機械、取り消し不能な削除、非冪等なお気に入りトグル、バンクロール台帳の書き込み、AI 抽出など）— 理由は `packages/mcp/src/tools/registry.ts` に記載され、結合テストで強制されます。
 
 認可は API 自身のものです: すべての呼び出しはユーザーセッション付きの `appRouter.createCaller` を通るため、`protectedProcedure` と所有権チェックが web アプリと完全に同じ形で適用されます。
 

@@ -105,8 +105,9 @@ jobs:
       - run: bun install --frozen-lockfile
 
       # Dev DB is recreated every deploy, so we always run the full
-      # stash → base-migrate → seed-from-master → restore → migrate-rest
-      # flow (mirrors preview-deploy.yml's `is_new_db == 'true'` path).
+      # stash → base-migrate → disarm-triggers → seed-from-master → re-arm →
+      # restore → migrate-rest flow (mirrors preview-deploy.yml's
+      # `is_new_db == 'true'` path).
       - name: Stash unreleased migrations
         working-directory: apps/server
         run: |
@@ -171,6 +172,62 @@ jobs:
 
           sed -i "s/database_id = \".*\"/database_id = \"${{ needs.d1-recreate.outputs.d1_database_id }}\"/" wrangler.toml
           sed -i "s/database_name = \".*\"/database_name = \"${D1_DB_NAME}\"/" wrangler.toml
+
+          # Triggers keep derived tables in sync with *application* writes. A
+          # bulk restore is not an application write: the dump already carries
+          # the derived rows, so an armed trigger generates a second copy of
+          # them. 0049's game_mix compat triggers do exactly that — inserting a
+          # `game_mix` row rebuilds `game_mix_variant` from the legacy JSON
+          # mirror, and the dump's own `game_mix_variant` rows then collide on
+          # `game_mix_variant_mix_position_unique`, which D1 surfaces as
+          # `{"D1_RESET_DO":true}`. So disarm every trigger for the duration of
+          # the restore and re-arm it afterwards, leaving the dump as the single
+          # source of truth for seeded data.
+          #
+          # Read back from sqlite_master rather than re-running a migration:
+          # that captures exactly the triggers this DB has, so the step stays
+          # correct as migrations add or drop them.
+          bunx wrangler d1 execute "${D1_DB_NAME}" --remote --json \
+            --command="SELECT name, sql FROM sqlite_master WHERE type = 'trigger' AND sql IS NOT NULL ORDER BY name" \
+            > triggers.json
+          jq -r '.[0].results[] | "DROP TRIGGER IF EXISTS `" + .name + "`;"' triggers.json > drop-triggers.sql
+          jq -r '.[0].results[] | .sql + ";"' triggers.json > restore-triggers.sql
+          # SQLite strips `IF NOT EXISTS` before storing DDL in sqlite_master,
+          # so the read-back CREATEs are NOT idempotent — re-running them over
+          # a surviving trigger aborts the file and every CREATE behind it is
+          # skipped. Prefix the drops so the re-arm converges from ANY state,
+          # including a DROP batch that only partially applied.
+          cat drop-triggers.sql restore-triggers.sql > rearm-triggers.sql
+          echo "Stashing $(wc -l < drop-triggers.sql) trigger(s) for the restore"
+
+          # Re-arm on the way out however we leave. Unlike preview, a later dev
+          # deploy does drop and recreate this database, so a trigger-less dev
+          # DB is not permanent — but it survives until the next push, and the
+          # very next step ("Restore and apply stashed migrations") runs its
+          # backfills against this data expecting the triggers to be armed.
+          #
+          # Both exits are decided explicitly: a failed seed keeps its own
+          # status (a half-seeded dev must not go green), and a failed re-arm
+          # fails the step even when the seed succeeded. Under `bash -e` a
+          # failing command in the handler already propagates, but saying it
+          # outright survives a shell without -e and names the consequence in
+          # the log.
+          restore_triggers() {
+            seed_status=$?
+            if [ -s rearm-triggers.sql ]; then
+              if ! bunx wrangler d1 execute "${D1_DB_NAME}" --remote --file=rearm-triggers.sql; then
+                echo "::error::failed to re-arm the stashed triggers — ${D1_DB_NAME} is left trigger-less"
+                exit 1
+              fi
+            fi
+            exit "$seed_status"
+          }
+          trap restore_triggers EXIT
+
+          if [ -s drop-triggers.sql ]; then
+            bunx wrangler d1 execute "${D1_DB_NAME}" --remote --file=drop-triggers.sql
+          fi
+
           bunx wrangler d1 execute "${D1_DB_NAME}" --remote --file=dump.sql
 
       - name: Restore and apply stashed migrations

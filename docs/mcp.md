@@ -64,8 +64,33 @@ The tool surface is a **projection of the tRPC `appRouter`**: each tool's input 
 | `session_tag_create` | `sessionTag.create` | write |
 | `ring_game_list_by_room` | `ringGame.listByRoom` | read |
 | `tournament_list_by_room` | `tournament.listByRoom` | read |
+| `room_get_by_id` | `room.getById` | read |
+| `room_create` | `room.create` | write |
+| `room_update` | `room.update` | write |
+| `ring_game_create` | `ringGame.create` | write |
+| `ring_game_update` | `ringGame.update` | write |
+| `ring_game_archive` | `ringGame.archive` | write |
+| `ring_game_restore` | `ringGame.restore` | write |
+| `tournament_get_by_id` | `tournament.getById` | read |
+| `tournament_create_with_levels` | `tournament.createWithLevels` | write |
+| `tournament_update_with_levels` | `tournament.updateWithLevels` | write |
+| `tournament_archive` | `tournament.archive` | write |
+| `tournament_restore` | `tournament.restore` | write |
+| `game_group_list` | `gameGroup.list` | read |
+| `game_group_create` | `gameGroup.create` | write |
+| `game_group_update` | `gameGroup.update` | write |
+| `game_variant_list` | `gameVariant.list` | read |
+| `game_variant_create` | `gameVariant.create` | write |
+| `game_variant_update` | `gameVariant.update` | write |
+| `game_mix_list` | `gameMix.list` | read |
+| `game_mix_create` | `gameMix.create` | write |
+| `game_mix_update` | `gameMix.update` | write |
 
-Procedures not listed are deliberately excluded (live-session state machinery, destructive deletes, master-data CRUD, AI extraction, …) — the reasons live in `packages/mcp/src/tools/registry.ts` and are enforced by the coupling test.
+Master-data tools mutate rows that existing sessions reference, so `*_update` and the game-master updates are annotated destructive. **Deletion is deliberately not exposed anywhere.** Ring games and tournaments have an archive/restore counterpart, which is exposed instead; rooms and the game masters have none, so a mistaken `room_create` or `game_variant_create` leaves a row only the web UI can clear — check the matching list tool before creating.
+
+`session_update`, `tournament_update_with_levels` and `game_mix_update` REPLACE their child lists (`session_update`: `tagIds`, `blindLevels`, `chipPurchases` — and sending `tournamentId` or `ringGameId` re-copies the master's structure/rule fields even when you send no list at all) — read the entity first and send the full list back. `mixGames` is accepted by the ring-game tools **and** by `session_create_cash_game` / `session_update`, all through the same validator: a named mix must be reproduced exactly, and while a mix is set `blind1`-`blind3`, `ante` and `anteType` are always stored as `null`, so values sent for those flat fields are dropped.
+
+Procedures not listed are deliberately excluded (live-session state machinery, irreversible deletes, non-idempotent favourite toggles, bankroll ledger writes, AI extraction, …) — the reasons live in `packages/mcp/src/tools/registry.ts` and are enforced by the coupling test.
 
 Authorization is the API's own: every call goes through `appRouter.createCaller` with your user session, so `protectedProcedure` and all ownership checks apply exactly as they do for the web app.
 
