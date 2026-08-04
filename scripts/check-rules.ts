@@ -248,6 +248,67 @@ if (unlisted.length > 0) {
 	}
 }
 
+/**
+ * Every workflow that seeds a D1 from a master-DB dump must stash the triggers
+ * around the restore.
+ *
+ * A trigger keeps a derived table in sync with *application* writes; a bulk
+ * restore is not one, so an armed trigger derives rows the dump already
+ * carries. 0049's game_mix compat triggers did exactly that and took
+ * db-migrate down with `{"D1_RESET_DO":true}`. preview-deploy.yml was fixed,
+ * dev-deploy.yml was not — its seed step is a hand-copied sibling ("mirrors
+ * preview-deploy.yml's `is_new_db == 'true'` path"), and a copy is precisely
+ * what prose cannot keep in sync. Matching on the restore itself rather than
+ * on a workflow allowlist means the next copy of this step is caught too.
+ *
+ * Each marker is a distinct half of the fix, so they are asserted separately:
+ * reading the live DDL back (not re-running a migration), dropping it, and
+ * re-arming from ANY state via a drops-then-creates file. A workflow that
+ * dropped without re-arming would leave the DB permanently trigger-less.
+ */
+const SEED_RESTORE_MARKER = "--file=dump.sql";
+const TRIGGER_STASH_MARKERS: { hint: string; marker: string }[] = [
+	{
+		marker: "FROM sqlite_master WHERE type = 'trigger'",
+		hint: "read the live trigger DDL back out of sqlite_master",
+	},
+	{ marker: "DROP TRIGGER IF EXISTS", hint: "drop them for the restore" },
+	{
+		marker: "rearm-triggers.sql",
+		hint: "re-arm from drops-then-creates so it converges from a partial drop",
+	},
+];
+
+const unstashed: string[] = [];
+// `dot: true` is load-bearing: Bun's Glob skips dot-directories by default, so
+// without it this scans .github/ into an empty set and reports green forever.
+for await (const scannedPath of new Glob("workflows/*.yml").scan({
+	cwd: ".github",
+	dot: true,
+})) {
+	const path = normalizeRulePath(`.github/${scannedPath}`);
+	const text = await readFile(path, "utf8");
+	if (!text.includes(SEED_RESTORE_MARKER)) {
+		continue;
+	}
+	for (const { marker, hint } of TRIGGER_STASH_MARKERS) {
+		if (!text.includes(marker)) {
+			unstashed.push(`${path}: missing \`${marker}\` — ${hint}`);
+		}
+	}
+}
+
+if (unstashed.length > 0) {
+	failed = true;
+	console.error(
+		`\ncheck-rules FAIL: D1 seed restore (\`${SEED_RESTORE_MARKER}\`) without the trigger stash`
+	);
+	console.error("  rule: .claude/rules/db-migrations.md");
+	for (const hit of unstashed) {
+		console.error(`  ${hit}`);
+	}
+}
+
 if (failed) {
 	process.exit(1);
 }
