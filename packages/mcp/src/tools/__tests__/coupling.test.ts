@@ -222,6 +222,25 @@ describe("tool/router coupling", () => {
 		}
 	});
 
+	it("explains the mixGames contract on every tool that accepts mixGames", () => {
+		// assertNamedMixComposition demands an exact reproduction of the named
+		// mix and silently drops the flat blinds, and none of that reaches the
+		// JSON Schema — so the set of tools carrying MIX_RULE has to track the
+		// set accepting the field. It drifted once: session_update and
+		// session_create_cash_game accepted mixGames with no explanation, which
+		// only surfaced when ring_game_update started naming session_update as
+		// the way to edit a mixed session's blinds (mcp-tools.md rule 7).
+		const accepting = TOOL_DEFINITIONS.filter((def) => {
+			const shape = (def.inputSchema as { shape?: Record<string, unknown> })
+				?.shape;
+			return shape !== undefined && "mixGames" in shape;
+		});
+		expect(accepting.length).toBeGreaterThanOrEqual(4);
+		for (const def of accepting) {
+			expect(def.description).toContain("A mixed-game rule is variant");
+		}
+	});
+
 	it("has a consent-screen name for every namespace the catalogue exposes", () => {
 		// An unnamed namespace would fall out of the copy silently, which is
 		// the under-representation rule 8 exists to prevent.
