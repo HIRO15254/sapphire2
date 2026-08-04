@@ -191,12 +191,16 @@ for (const check of CHECKS) {
  * banned pattern, so it does not fit the CHECKS table above.
  */
 const BUN_SQLITE_STEP = "Test migrations with Bun SQLite";
-// Every package, not just packages/db: AGENTS.md colocates tests next to the
-// code, so the next bun:sqlite spec plausibly lands in some other __tests__/.
-// `*` does not cross `/`, so a narrower glob would let such a spec escape both
-// this check and the `bun test` step — straight back to the silent-green hole.
-const BUN_SQLITE_SPEC_GLOB = "packages/**/__tests__/*.test.ts";
-const SPEC_TOKEN = /packages\/[^\s\\]+\.test\.ts/g;
+// Every workspace, not just packages/db: AGENTS.md colocates tests next to the
+// code, so the next bun:sqlite spec plausibly lands in some other __tests__/ —
+// apps/server's included. `*` does not cross `/`, so a narrower glob would let
+// such a spec escape both this check and the `bun test` step, which is the
+// silent-green hole this exists to close.
+const BUN_SQLITE_SPEC_GLOBS = [
+	"apps/**/__tests__/*.test.ts",
+	"packages/**/__tests__/*.test.ts",
+];
+const SPEC_TOKEN = /(?:apps|packages)\/[^\s\\]+\.test\.ts/g;
 const REGEXP_SPECIALS = /[.+?^${}()|[\]]/g;
 
 const ciWorkflow = await readFile(".github/workflows/ci.yml", "utf8");
@@ -216,17 +220,19 @@ if (afterStepName === undefined) {
 				`^${match[0].replace(REGEXP_SPECIALS, "\\$&").replaceAll("*", "[^/]*")}$`
 			)
 	);
-	for await (const scannedPath of new Glob(BUN_SQLITE_SPEC_GLOB).scan(".")) {
-		const path = normalizeRulePath(scannedPath);
-		if (IGNORED_DIRS.test(path)) {
-			continue;
-		}
-		const text = await readFile(path, "utf8");
-		if (!text.includes("bun:sqlite")) {
-			continue;
-		}
-		if (!listed.some((pattern) => pattern.test(path))) {
-			unlisted.push(`${path}: not run by any project — add it to ci.yml`);
+	for (const glob of BUN_SQLITE_SPEC_GLOBS) {
+		for await (const scannedPath of new Glob(glob).scan(".")) {
+			const path = normalizeRulePath(scannedPath);
+			if (IGNORED_DIRS.test(path)) {
+				continue;
+			}
+			const text = await readFile(path, "utf8");
+			if (!text.includes("bun:sqlite")) {
+				continue;
+			}
+			if (!listed.some((pattern) => pattern.test(path))) {
+				unlisted.push(`${path}: not run by any project — add it to ci.yml`);
+			}
 		}
 	}
 }
