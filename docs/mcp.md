@@ -86,7 +86,9 @@ The tool surface is a **projection of the tRPC `appRouter`**: each tool's input 
 | `game_mix_create` | `gameMix.create` | write |
 | `game_mix_update` | `gameMix.update` | write |
 
-Master-data tools mutate rows that existing sessions reference: `*_update` and the game-master updates are annotated destructive, and deletion is deliberately not exposed (archive/restore is). `tournament_update_with_levels` and `game_mix_update` REPLACE their child lists — read the entity first and send the full list back.
+Master-data tools mutate rows that existing sessions reference, so `*_update` and the game-master updates are annotated destructive. **Deletion is deliberately not exposed anywhere.** Ring games and tournaments have an archive/restore counterpart, which is exposed instead; rooms and the game masters have none, so a mistaken `room_create` or `game_variant_create` leaves a row only the web UI can clear — check the matching list tool before creating.
+
+`tournament_update_with_levels` and `game_mix_update` REPLACE their child lists — read the entity first and send the full list back. A ring game that uses `mixGames` always stores `blind1`-`blind3`, `ante` and `anteType` as `null`; values sent for those flat fields are dropped while the mix is set.
 
 Procedures not listed are deliberately excluded (live-session state machinery, irreversible deletes, non-idempotent favourite toggles, bankroll ledger writes, AI extraction, …) — the reasons live in `packages/mcp/src/tools/registry.ts` and are enforced by the coupling test.
 

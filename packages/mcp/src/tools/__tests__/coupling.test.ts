@@ -6,8 +6,10 @@ import {
 import { describe, expect, it } from "vitest";
 import {
 	DELIBERATELY_EXCLUDED,
+	entityName,
 	TOOL_DEFINITIONS,
 	toolAnnotations,
+	toolNamespace,
 	toolPermissionSummary,
 } from "../registry";
 import { getProcedure, listProcedurePaths } from "../resolve";
@@ -195,12 +197,37 @@ describe("tool/router coupling", () => {
 		// Reading is unconditional; the other two lines must track the
 		// catalogue so a newly added write/destructive tool cannot leave the
 		// consent screen under-representing the grant (mcp-tools.md rule 8).
-		expect(summary).toContain("Read your poker sessions");
-		expect(summary.includes("Record new sessions")).toBe(
+		expect(summary).toContain("Read your");
+		expect(summary.includes("Create and edit your")).toBe(
 			annotations.some((annotation) => !annotation.readOnlyHint)
 		);
 		expect(summary.includes("cannot be undone")).toBe(
 			annotations.some((annotation) => annotation.destructiveHint)
 		);
+	});
+
+	it("names every exposed entity on the consent screen", () => {
+		// Line presence alone is too weak: the copy used to name only sessions
+		// and session tags while the catalogue had grown room/game-master
+		// creates, so the grant read smaller than it was. Assert per-entity.
+		const lines = toolPermissionSummary();
+		const [readLine, writeLine] = lines;
+		for (const def of TOOL_DEFINITIONS) {
+			const entity = entityName(toolNamespace(def));
+			const annotations = toolAnnotations(def);
+			expect(annotations.readOnlyHint ? readLine : writeLine).toContain(entity);
+			if (annotations.destructiveHint) {
+				expect(lines.at(-1)).toContain(entity);
+			}
+		}
+	});
+
+	it("has a consent-screen name for every namespace the catalogue exposes", () => {
+		// An unnamed namespace would fall out of the copy silently, which is
+		// the under-representation rule 8 exists to prevent.
+		const unnamed = [...new Set(TOOL_DEFINITIONS.map(toolNamespace))].filter(
+			(namespace) => entityName(namespace) === undefined
+		);
+		expect(unnamed).toEqual([]);
 	});
 });

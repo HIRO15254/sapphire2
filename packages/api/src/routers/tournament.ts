@@ -655,7 +655,10 @@ export const tournamentRouter = router({
 		}),
 
 	removeTag: protectedProcedure
-		.input(tournamentIdInputSchema)
+		// NOT tournamentIdInputSchema: this id is a tournamentTag.id, and the
+		// handler derives the tournament from it. Same shape, different meaning —
+		// sharing the const would make any future .describe()/.uuid() on it lie.
+		.input(z.object({ id: z.string() }))
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 

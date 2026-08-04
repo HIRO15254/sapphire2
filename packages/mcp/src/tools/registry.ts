@@ -210,7 +210,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "ring_game_create",
 		procedurePath: "ringGame.create",
-		description: `Create a ring-game (cash-game) rule master inside a room: blinds, ante, buy-in range, table size. Sessions linked to it inherit these values. Required: roomId, name. ${AMOUNT_CONVENTIONS}`,
+		description: `Create a ring-game (cash-game) rule master inside a room: blinds, ante, buy-in range, table size. Sessions linked to it inherit these values. Required: roomId, name. A rule that uses mixGames (a mixed-game rotation) always stores blind1-3, ante and anteType as null — the flat blind fields are frozen for mixes, so values sent for them are dropped. Clear mixGames first if you need to write them. ${AMOUNT_CONVENTIONS}`,
 		inputSchema: ringGameCreateInputSchema,
 		destructiveHint: false,
 		idempotentHint: false,
@@ -218,7 +218,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "ring_game_update",
 		procedurePath: "ringGame.update",
-		description: `Update a ring-game rule master by id. Only the supplied fields change; pass null to clear a nullable one. ${AMOUNT_CONVENTIONS}`,
+		description: `Update a ring-game rule master by id. Only the supplied fields change; pass null to clear a nullable one. A rule that uses mixGames (a mixed-game rotation) always stores blind1-3, ante and anteType as null — the flat blind fields are frozen for mixes, so values sent for them are dropped. Clear mixGames first if you need to write them. ${AMOUNT_CONVENTIONS}`,
 		inputSchema: ringGameUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
@@ -251,7 +251,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "tournament_create_with_levels",
 		procedurePath: "tournament.createWithLevels",
-		description: `Create a tournament master inside a room, together with its blind levels, chip purchases and tags in one call. Required: roomId, name. blindLevels are ordered as given (level 1 first); set isBreak for break rows. ${AMOUNT_CONVENTIONS}`,
+		description: `Create a tournament master inside a room, together with its blind levels, chip purchases and tags in one call. Required: roomId, name. blindLevels are ordered as given (level 1 first); every row requires isBreak (true for a break, false for a playing level). ${AMOUNT_CONVENTIONS}`,
 		inputSchema: tournamentCreateWithLevelsInputSchema,
 		destructiveHint: false,
 		idempotentHint: false,
@@ -357,6 +357,54 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 ];
 
 /**
+ * Plain-language name for each router namespace the catalogue exposes, in the
+ * order the consent screen should read them.
+ *
+ * A namespace with no entry here is a bug, not a default: the screen would
+ * silently omit a newly exposed entity, which is the under-representation
+ * rule 8 exists to prevent. coupling.test.ts fails on an unnamed namespace
+ * rather than letting the copy quietly go stale.
+ */
+const ENTITY_NAMES: Record<string, string> = {
+	session: "poker sessions",
+	stats: "statistics",
+	sessionTag: "session tags",
+	room: "rooms",
+	currency: "currencies",
+	player: "players",
+	ringGame: "ring-game rules",
+	tournament: "tournament rules",
+	gameGroup: "game groups",
+	gameVariant: "game variants",
+	gameMix: "game mixes",
+};
+
+export function toolNamespace(def: ToolDefinition): string {
+	return def.procedurePath.split(".")[0] ?? def.procedurePath;
+}
+
+export function entityName(namespace: string): string | undefined {
+	return ENTITY_NAMES[namespace];
+}
+
+/** Distinct entity names behind the tools matching `predicate`, ENTITY_NAMES order. */
+function entityNames(predicate: (def: ToolDefinition) => boolean): string[] {
+	const namespaces = new Set(
+		TOOL_DEFINITIONS.filter(predicate).map(toolNamespace)
+	);
+	return Object.entries(ENTITY_NAMES)
+		.filter(([namespace]) => namespaces.has(namespace))
+		.map(([, name]) => name);
+}
+
+function humanList(names: string[]): string {
+	if (names.length <= 1) {
+		return names.join("");
+	}
+	return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+}
+
+/**
  * Plain-language description of what an issued access token can actually do,
  * derived from the tool catalogue.
  *
@@ -367,19 +415,22 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
  * grant.
  */
 export function toolPermissionSummary(): string[] {
-	const permissions = [
-		"Read your poker sessions, statistics and reference data (rooms, currencies, players, tags)",
-	];
-	const annotations = TOOL_DEFINITIONS.map(toolAnnotations);
-	if (annotations.some((annotation) => !annotation.readOnlyHint)) {
-		permissions.push("Record new sessions and create session tags");
+	const readable = entityNames((def) => toolAnnotations(def).readOnlyHint);
+	const writable = entityNames((def) => !toolAnnotations(def).readOnlyHint);
+	const overwritable = entityNames(
+		(def) => toolAnnotations(def).destructiveHint === true
+	);
+
+	const permissions = [`Read your ${humanList(readable)}`];
+	if (writable.length > 0) {
+		permissions.push(`Create and edit your ${humanList(writable)}`);
 	}
 	// Tracked separately from plain writes: a destructive tool overwrites or
 	// removes data the user already has, which is a materially bigger ask than
 	// appending to it — and the two sets drift apart as tools are added.
-	if (annotations.some((annotation) => annotation.destructiveHint)) {
+	if (overwritable.length > 0) {
 		permissions.push(
-			"Change or remove data that is already in your account — these edits cannot be undone"
+			`Overwrite ${humanList(overwritable)} that are already in your account — these edits cannot be undone`
 		);
 	}
 	return permissions;
@@ -420,11 +471,14 @@ export const DELIBERATELY_EXCLUDED: {
 	},
 	{
 		reason:
-			"Irreversible master deletion: sessions reference these rows, so removing one rewrites history the user cannot get back. Archive/restore is exposed instead",
+			"Irreversible master deletion: sessions reference these rows, so removing one rewrites history the user cannot get back. These two have an archive/restore counterpart on the router, which is exposed instead",
+		paths: ["ringGame.delete", "tournament.delete"],
+	},
+	{
+		reason:
+			"Irreversible deletion with NO archive counterpart on the router: creating these is exposed but removing them is not, so a mistaken create leaves a row only the web UI can clear. Exposing delete instead would put an unrecoverable operation on the tool surface, which is the worse trade",
 		paths: [
 			"room.delete",
-			"ringGame.delete",
-			"tournament.delete",
 			"gameGroup.delete",
 			"gameVariant.delete",
 			"gameMix.delete",
