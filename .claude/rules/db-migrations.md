@@ -135,6 +135,29 @@ numbered migration from an empty database and asserts the final trigger names an
 Keep this full-history guard intact and run it after touching these tables; `db:generate` reporting
 no schema changes does not verify manual triggers.
 
+## Triggers must not be armed while the preview DB is seeded
+
+A trigger keeps a derived table in sync with **application writes**. Restoring a dump is not an
+application write: `preview-deploy.yml` seeds a brand-new preview D1 by applying every migration
+and then replaying a `--no-schema` export of production, which already contains the derived rows.
+An armed trigger derives them a second time — 0049's compat triggers rebuilt `game_mix_variant`
+from the legacy `games` mirror on each `game_mix` insert, and the dump's own junction rows then hit
+`UNIQUE constraint failed: game_mix_variant.mix_id, game_mix_variant.position`, taking `db-migrate`
+down for every PR that created a preview DB after 0049 reached production.
+
+The seed step therefore reads the live trigger DDL out of `sqlite_master`, drops every trigger,
+replays the dump, and recreates them — reading from `sqlite_master` rather than re-running a
+migration so it stays correct as migrations add or drop triggers. **Adding a trigger needs no
+workflow change; do not special-case one there.** What a new trigger does need is the awareness
+that seeded preview data comes from the dump, not from the trigger.
+[`preview-seed-restore.test.ts`](../../packages/db/src/__tests__/preview-seed-restore.test.ts)
+pins both halves (the collision is real; stashing fixes it without leaving the DB trigger-less).
+It needs `bun:sqlite`, so like the `migration-*` specs it is listed explicitly in
+[`ci.yml`](../../.github/workflows/ci.yml) — a bun:sqlite spec that is not listed runs nowhere and
+reports green, because `skipIfNotBun` makes Vitest skip it rather than fail. `bun run check:rules`
+enforces the listing (every `{apps,packages}/**/__tests__/*.test.ts` mentioning `bun:sqlite` must
+be named in that step), so this paragraph is documentation, not the guard.
+
 ## Keeping the ledger from drifting again
 
 `bun run db:generate` must report **"No schema changes, nothing to migrate"** whenever
