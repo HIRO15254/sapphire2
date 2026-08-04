@@ -241,12 +241,24 @@ jobs:
           # exists a later run resolves it as existing and skips straight past
           # here. A seed that failed after the DROP would otherwise leave the
           # preview permanently trigger-less — rows intact, but nothing syncing
-          # game_mix_variant and no 0041 integrity checks. The trap keeps the
-          # step's own exit status, so a failed seed still fails the job.
+          # game_mix_variant and no 0041 integrity checks.
+          #
+          # Both exits are decided explicitly: a failed seed keeps its own
+          # status (a half-seeded preview must not go green), and a failed
+          # re-arm fails the step even when the seed succeeded — the outcome
+          # there is a trigger-less preview that no later run will repair, so
+          # it must not be silent. Under `bash -e` a failing command in the
+          # handler already propagates, but saying it outright survives a shell
+          # without -e and names the consequence in the log.
           restore_triggers() {
+            seed_status=$?
             if [ -s rearm-triggers.sql ]; then
-              bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=rearm-triggers.sql
+              if ! bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=rearm-triggers.sql; then
+                echo "::error::failed to re-arm the stashed triggers — ${{ needs.setup.outputs.d1_db_name }} is left trigger-less"
+                exit 1
+              fi
             fi
+            exit "$seed_status"
           }
           trap restore_triggers EXIT
 

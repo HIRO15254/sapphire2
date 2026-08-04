@@ -191,8 +191,12 @@ for (const check of CHECKS) {
  * banned pattern, so it does not fit the CHECKS table above.
  */
 const BUN_SQLITE_STEP = "Test migrations with Bun SQLite";
-const BUN_SQLITE_SPEC_GLOB = "packages/db/src/__tests__/*.test.ts";
-const SPEC_TOKEN = /packages\/db\/src\/__tests__\/[^\s\\]+\.test\.ts/g;
+// Every package, not just packages/db: AGENTS.md colocates tests next to the
+// code, so the next bun:sqlite spec plausibly lands in some other __tests__/.
+// `*` does not cross `/`, so a narrower glob would let such a spec escape both
+// this check and the `bun test` step — straight back to the silent-green hole.
+const BUN_SQLITE_SPEC_GLOB = "packages/**/__tests__/*.test.ts";
+const SPEC_TOKEN = /packages\/[^\s\\]+\.test\.ts/g;
 const REGEXP_SPECIALS = /[.+?^${}()|[\]]/g;
 
 const ciWorkflow = await readFile(".github/workflows/ci.yml", "utf8");
@@ -214,6 +218,9 @@ if (afterStepName === undefined) {
 	);
 	for await (const scannedPath of new Glob(BUN_SQLITE_SPEC_GLOB).scan(".")) {
 		const path = normalizeRulePath(scannedPath);
+		if (IGNORED_DIRS.test(path)) {
+			continue;
+		}
 		const text = await readFile(path, "utf8");
 		if (!text.includes("bun:sqlite")) {
 			continue;

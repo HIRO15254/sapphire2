@@ -109,6 +109,15 @@ const rearmTriggers = (db: Database, triggers: TriggerRow[]) => {
 	}
 };
 
+/**
+ * A DROP batch that died halfway. Derived from the live count, never a
+ * literal: the contract migration in db-migrations.md leaves exactly six
+ * triggers, so a hard-coded `slice(0, 6)` would quietly become a FULL drop
+ * and both partial-drop cases would stop testing what they name.
+ */
+const halfOf = (triggers: TriggerRow[]): TriggerRow[] =>
+	triggers.slice(0, Math.floor(triggers.length / 2));
+
 const recreateTriggers = (db: Database, triggers: TriggerRow[]) => {
 	for (const trigger of triggers) {
 		db.exec(`${trigger.sql};`);
@@ -210,15 +219,14 @@ skipIfNotBun("preview seed restore (preview-deploy.yml)", () => {
 
 	it("does not survive a partial drop when the re-arm skips the drops", () => {
 		const stashed = readTriggers(db);
-		// Simulate a DROP batch that died halfway: half the triggers survive.
-		dropTriggers(db, stashed.slice(0, 6));
+		dropTriggers(db, halfOf(stashed));
 
 		expect(() => recreateTriggers(db, stashed)).toThrow(TRIGGER_ALREADY_EXISTS);
 	});
 
 	it("re-arms every trigger from a partially dropped state", () => {
 		const stashed = readTriggers(db);
-		dropTriggers(db, stashed.slice(0, 6));
+		dropTriggers(db, halfOf(stashed));
 
 		rearmTriggers(db, stashed);
 		expect(readTriggers(db)).toEqual(stashed);
