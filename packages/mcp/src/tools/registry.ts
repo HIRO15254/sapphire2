@@ -336,7 +336,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "game_variant_update",
 		procedurePath: "gameVariant.update",
 		description:
-			"Update a game variant by id. Only the supplied fields change; pass null to clear shortLabel. Renaming changes the label sessions and rule masters display, and moving it to another group changes which blind labels apply. Either edit also changes the mixGames shape every mix containing this variant expects, so ring-game rules using such a mix need a rebuilt mixGames the next time they send one — updates touching neither variant nor mixGames stay unaffected.",
+			'Update a game variant by id. Only the supplied fields change; pass null to clear shortLabel. Renaming is NOT retroactive: sessions and rule masters store the variant\'s label verbatim at write time, so existing ones keep the old text and only later writes pick up the new one — a renamed variant splits into two buckets in stats_breakdown groupBy "variant", and renaming to tidy up past records changes none of them. Those rows are tied back to this variant by that stored label alone, so moving it to another group (which is what names the blind fields) applies to every row still naming it, while a rename leaves the old ones matching nothing. Either edit also changes the mixGames shape every mix containing this variant expects, so ring-game rules using such a mix need a rebuilt mixGames the next time they send one — updates touching neither variant nor mixGames stay unaffected.',
 		inputSchema: gameVariantUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
