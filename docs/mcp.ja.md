@@ -88,7 +88,7 @@ claude mcp add --transport http sapphire2 https://<APIホスト>/mcp
 
 マスタ系のツールは既存セッションが参照している行を書き換えるため、`*_update` 系は destructive として注釈されています。**削除はどれも公開していません。** リングゲームとトーナメントにはアーカイブ/復元があるのでそちらを公開していますが、ルームとゲームマスタには存在しないので、誤って `room_create` / `game_variant_create` を叩くと Web UI からしか消せない行が残ります — 作成前に対応する list ツールで確認してください。
 
-`tournament_update_with_levels` と `game_mix_update` は子リストを**丸ごと置き換える**ので、先に現在の内容を読んでから全件を送ってください。`mixGames` はリングゲーム系だけでなく `session_create_cash_game` / `session_update` も同じ検証器を通して受け付けます — 名前付き mix は完全一致で再現する必要があり、mix が設定されている間は `blind1`〜`blind3` / `ante` / `anteType` が常に `null` になるため、これらのフラットなフィールドに送った値は破棄されます。
+`session_update`（`tagIds` / `blindLevels` / `chipPurchases`）・`tournament_update_with_levels`・`game_mix_update` は子リストを**丸ごと置き換える**ので、先に現在の内容を読んでから全件を送ってください。`mixGames` はリングゲーム系だけでなく `session_create_cash_game` / `session_update` も同じ検証器を通して受け付けます — 名前付き mix は完全一致で再現する必要があり、mix が設定されている間は `blind1`〜`blind3` / `ante` / `anteType` が常に `null` になるため、これらのフラットなフィールドに送った値は破棄されます。
 
 ここに無い手続きは意図的な除外です（ライブセッションの状態機械、取り消し不能な削除、非冪等なお気に入りトグル、バンクロール台帳の書き込み、AI 抽出など）— 理由は `packages/mcp/src/tools/registry.ts` に記載され、結合テストで強制されます。
 
