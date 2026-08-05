@@ -17,7 +17,7 @@ import {
 } from "@/shared/components/ui/dialog";
 import { GameSettingsSheet } from "./game-settings-sheet";
 import { HistorySection } from "./history-section";
-import { SeatList } from "./seat-list";
+import { SeatTable, type TableGameInfo } from "./seat-table";
 import { useActiveSessionScene } from "./use-active-session-scene";
 import type { ActiveSessionSceneState } from "./use-active-session-scene-state";
 
@@ -25,6 +25,8 @@ interface ActiveSessionSceneProps {
 	discardDescription?: ReactNode;
 	/** Session-type-specific event actions shown in the header "…" menu. */
 	eventMenuExtraItems: ActionsDrawerItem[];
+	/** Linked-game info shown in the center of the poker table. */
+	gameInfo?: TableGameInfo;
 	isDiscardPending: boolean;
 	memo?: string | null;
 	onDiscard: () => void;
@@ -91,6 +93,7 @@ function DiscardDialog({
 export function ActiveSessionScene({
 	discardDescription = "This will permanently delete this session and all its events.",
 	eventMenuExtraItems,
+	gameInfo,
 	isDiscardPending,
 	memo,
 	onDiscard,
@@ -134,8 +137,9 @@ export function ActiveSessionScene({
 			) : null}
 
 			<div className="mt-4">
-				<SeatList
+				<SeatTable
 					excludePlayerIds={state.excludePlayerIds}
+					gameInfo={gameInfo}
 					heroAvailable={state.heroAvailable}
 					onRemovePlayer={state.onRemovePlayer}
 					onScanPlayers={() => scene.setIsScanSheetOpen(true)}

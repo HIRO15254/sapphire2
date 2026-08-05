@@ -43,7 +43,7 @@ vi.mock("@/shared/components/ui/popover", () => ({
 }));
 
 vi.mock(
-	"@/features/live-sessions/components/active-session-scene/seat-list/player-tag-badges",
+	"@/features/live-sessions/components/active-session-scene/seat-table/player-tag-badges",
 	() => ({
 		PlayerTagBadges: ({ tags }: { tags: { id: string; name: string }[] }) => (
 			<span>
@@ -74,7 +74,7 @@ vi.mock("@/shared/components/ui/command", () => ({
 	),
 }));
 
-import { EmptySeatEditor } from "@/features/live-sessions/components/active-session-scene/seat-list/empty-seat-editor";
+import { EmptySeatEditor } from "@/features/live-sessions/components/active-session-scene/seat-table/empty-seat-editor";
 
 const REGEX_CREATE = /^Create /;
 const REGEX_NINA = /Nina/;

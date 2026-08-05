@@ -58,9 +58,9 @@ vi.mock(
 );
 
 vi.mock(
-	"@/features/live-sessions/components/active-session-scene/seat-list",
+	"@/features/live-sessions/components/active-session-scene/seat-table",
 	() => ({
-		SeatList: () => <div data-testid="seat-list" />,
+		SeatTable: () => <div data-testid="seat-table" />,
 	})
 );
 
@@ -355,7 +355,7 @@ describe("ActiveSessionPage — active cash game session", () => {
 		const router = createTestRouter(ActiveSessionPage);
 		renderWithProviders(router);
 
-		await screen.findByTestId("seat-list");
+		await screen.findByTestId("seat-table");
 	});
 
 	it("renders the collapsed history section without mounting the timeline", async () => {
@@ -419,7 +419,7 @@ describe("ActiveSessionPage — active tournament session", () => {
 		const router = createTestRouter(ActiveSessionPage);
 		renderWithProviders(router);
 
-		await screen.findByTestId("seat-list");
+		await screen.findByTestId("seat-table");
 	});
 });
 

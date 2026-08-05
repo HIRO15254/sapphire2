@@ -13,7 +13,7 @@ vi.mock("./use-player-tag-badges", () => ({
 	}),
 }));
 
-import { PlayerTagBadges } from "@/features/live-sessions/components/active-session-scene/seat-list/player-tag-badges";
+import { PlayerTagBadges } from "@/features/live-sessions/components/active-session-scene/seat-table/player-tag-badges";
 
 const REGEX_PLUS = /^\+/;
 

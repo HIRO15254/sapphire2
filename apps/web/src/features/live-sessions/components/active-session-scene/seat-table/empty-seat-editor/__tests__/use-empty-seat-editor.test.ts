@@ -24,7 +24,7 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
-import { useEmptySeatEditor } from "@/features/live-sessions/components/active-session-scene/seat-list/empty-seat-editor/use-empty-seat-editor";
+import { useEmptySeatEditor } from "@/features/live-sessions/components/active-session-scene/seat-table/empty-seat-editor/use-empty-seat-editor";
 
 function makeOption(overrides: Partial<PlayerOption> = {}): PlayerOption {
 	return { id: "p-1", memo: null, name: "Alice", tags: [], ...overrides };

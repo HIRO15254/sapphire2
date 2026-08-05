@@ -59,7 +59,7 @@ vi.mock("@/shared/components/ui/rich-text-editor", () => ({
 	),
 }));
 
-import { OccupiedSeatEditor } from "@/features/live-sessions/components/active-session-scene/seat-list/occupied-seat-editor";
+import { OccupiedSeatEditor } from "@/features/live-sessions/components/active-session-scene/seat-table/occupied-seat-editor";
 
 describe("OccupiedSeatEditor", () => {
 	beforeEach(() => {

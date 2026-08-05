@@ -5,16 +5,19 @@ import type React from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { ActiveSessionSceneState } from "./use-active-session-scene-state";
 
-vi.mock("./seat-list", () => ({
-	SeatList: ({
+vi.mock("./seat-table", () => ({
+	SeatTable: ({
+		gameInfo,
 		onScanPlayers,
 		seats,
 	}: {
+		gameInfo?: { name?: string | null };
 		onScanPlayers: () => void;
 		seats: { seatPosition: number }[];
 	}) => (
-		<div data-testid="seat-list">
+		<div data-testid="seat-table">
 			<span>seats:{seats.length}</span>
+			<span>game:{gameInfo?.name ?? "none"}</span>
 			<button onClick={onScanPlayers} type="button">
 				scan
 			</button>
@@ -92,12 +95,12 @@ function setup(
 }
 
 describe("ActiveSessionScene", () => {
-	it("renders the title, summary, memo, seat list and history", () => {
+	it("renders the title, summary, memo, seat table and history", () => {
 		setup({ memo: "Session memo" });
 		expect(screen.getByText("Cash Game")).toBeInTheDocument();
 		expect(screen.getByTestId("summary")).toBeInTheDocument();
 		expect(screen.getByText("Session memo")).toBeInTheDocument();
-		expect(screen.getByTestId("seat-list")).toBeInTheDocument();
+		expect(screen.getByTestId("seat-table")).toBeInTheDocument();
 		expect(screen.getByTestId("history-section")).toHaveTextContent(
 			"cash_game:s-1"
 		);
@@ -172,7 +175,7 @@ describe("ActiveSessionScene", () => {
 		expect(allIn).toHaveBeenCalledTimes(1);
 	});
 
-	it("renders the seat list with the seats from state", () => {
+	it("renders the seat table with the seats from state", () => {
 		setup({
 			state: makeState({
 				seats: [
@@ -181,10 +184,20 @@ describe("ActiveSessionScene", () => {
 				],
 			}),
 		});
-		expect(screen.getByTestId("seat-list")).toHaveTextContent("seats:2");
+		expect(screen.getByTestId("seat-table")).toHaveTextContent("seats:2");
 	});
 
-	it("the seat list scan action opens the screenshot sheet", async () => {
+	it("forwards gameInfo to the seat table", () => {
+		setup({ gameInfo: { name: "NLH" } });
+		expect(screen.getByTestId("seat-table")).toHaveTextContent("game:NLH");
+	});
+
+	it("renders the seat table without game info when none is given", () => {
+		setup();
+		expect(screen.getByTestId("seat-table")).toHaveTextContent("game:none");
+	});
+
+	it("the seat table scan action opens the screenshot sheet", async () => {
 		const user = userEvent.setup();
 		setup();
 		expect(

@@ -23,7 +23,7 @@ vi.mock("@/features/players/hooks/use-player-detail", () => ({
 	},
 }));
 
-import { useOccupiedSeatEditor } from "@/features/live-sessions/components/active-session-scene/seat-list/occupied-seat-editor/use-occupied-seat-editor";
+import { useOccupiedSeatEditor } from "@/features/live-sessions/components/active-session-scene/seat-table/occupied-seat-editor/use-occupied-seat-editor";
 
 function makeDetailPlayer(
 	overrides: Partial<PlayerDetailData> = {}

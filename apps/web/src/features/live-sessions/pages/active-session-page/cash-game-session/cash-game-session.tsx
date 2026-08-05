@@ -14,6 +14,7 @@ export function CashGameSession({ sessionId }: { sessionId: string }) {
 		defaultFinalStack,
 		discard,
 		eventMenuExtraItems,
+		gameInfo,
 		handleAddChipsSubmit,
 		handleAllInSubmit,
 		handleCompleteSubmit,
@@ -46,6 +47,7 @@ export function CashGameSession({ sessionId }: { sessionId: string }) {
 		<>
 			<ActiveSessionScene
 				eventMenuExtraItems={eventMenuExtraItems}
+				gameInfo={gameInfo ?? undefined}
 				isDiscardPending={isDiscardPending}
 				memo={session.memo}
 				onDiscard={discard}

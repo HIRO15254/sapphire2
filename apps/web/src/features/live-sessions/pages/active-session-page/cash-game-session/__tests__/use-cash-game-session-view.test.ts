@@ -197,6 +197,53 @@ describe("useCashGameSessionView", () => {
 		});
 	});
 
+	describe("game info", () => {
+		it("is null without a session", () => {
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			expect(result.current.gameInfo).toBeNull();
+		});
+
+		it("builds name, blinds and buy-in range from the session snapshot", () => {
+			mocks.session = makeSession({
+				blind1: 100,
+				blind2: 200,
+				maxBuyIn: 100_000,
+				minBuyIn: 20_000,
+				ruleName: "NLH",
+			});
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			expect(result.current.gameInfo).toEqual({
+				blinds: "100-200",
+				buyInRange: "MIN 20k - MAX 100k",
+				name: "NLH",
+			});
+		});
+
+		it("omits blinds when blind2 is missing", () => {
+			mocks.session = makeSession({ blind1: 100, blind2: null });
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			expect(result.current.gameInfo?.blinds).toBeNull();
+		});
+
+		it("omits blinds when blind1 is 0", () => {
+			mocks.session = makeSession({ blind1: 0, blind2: 200 });
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			expect(result.current.gameInfo?.blinds).toBeNull();
+		});
+
+		it("omits the buy-in range when either bound is missing", () => {
+			mocks.session = makeSession({ maxBuyIn: null, minBuyIn: 20_000 });
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			expect(result.current.gameInfo?.buyInRange).toBeNull();
+		});
+
+		it("omits the name when ruleName is not a string", () => {
+			mocks.session = makeSession({ ruleName: null });
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			expect(result.current.gameInfo?.name).toBeNull();
+		});
+	});
+
 	describe("event menu extra items", () => {
 		it("lists All-in / Add chips / Remove chips / Memo in that order", () => {
 			const { result } = renderHook(() => useCashGameSessionView("cg-1"));

@@ -7,8 +7,10 @@ import {
 import { useState } from "react";
 import type { ActionsDrawerItem } from "@/features/live-sessions/components/actions-drawer";
 import { useActiveSessionSceneState } from "@/features/live-sessions/components/active-session-scene";
+import type { TableGameInfo } from "@/features/live-sessions/components/active-session-scene/seat-table";
 import { useCashGameSession } from "@/features/live-sessions/hooks/use-cash-game-session";
 import { useCashGameStack } from "@/features/live-sessions/hooks/use-cash-game-stack";
+import { formatCompactNumber } from "@/utils/format-number";
 
 export interface CashGameCompactSummaryData {
 	chipRemoveTotal: number;
@@ -16,6 +18,34 @@ export interface CashGameCompactSummaryData {
 	evDiff: number;
 	startedAt: Date | string | number;
 	totalBuyIn: number;
+}
+
+function isPositiveNumber(value: unknown): value is number {
+	return typeof value === "number" && value > 0;
+}
+
+/**
+ * Center-of-table display for the poker table view, derived from the session's
+ * cash snapshot fields (never the master ring game, per SA2 snapshot rules).
+ */
+function buildGameInfo(session: {
+	blind1?: number | null;
+	blind2?: number | null;
+	maxBuyIn?: number | null;
+	minBuyIn?: number | null;
+	ruleName?: string | null;
+}): TableGameInfo {
+	return {
+		blinds:
+			isPositiveNumber(session.blind1) && isPositiveNumber(session.blind2)
+				? `${formatCompactNumber(session.blind1)}-${formatCompactNumber(session.blind2)}`
+				: null,
+		buyInRange:
+			isPositiveNumber(session.minBuyIn) && isPositiveNumber(session.maxBuyIn)
+				? `MIN ${formatCompactNumber(session.minBuyIn)} - MAX ${formatCompactNumber(session.maxBuyIn)}`
+				: null,
+		name: typeof session.ruleName === "string" ? session.ruleName : null,
+	};
 }
 
 /**
@@ -87,6 +117,7 @@ export function useCashGameSessionView(sessionId: string) {
 		defaultFinalStack: summary?.currentStack ?? undefined,
 		discard,
 		eventMenuExtraItems,
+		gameInfo: session ? buildGameInfo(session) : null,
 		handleAddChipsSubmit: (values: { amount: number }) => {
 			stack.addChip(values.amount);
 			setIsAddChipsOpen(false);
