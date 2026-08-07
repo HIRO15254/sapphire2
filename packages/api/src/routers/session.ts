@@ -1829,6 +1829,12 @@ export function toProfitLossSeriesPoint(r: ProfitLossSeriesRow) {
 		sortKey: Math.floor((r.startedAt ?? r.sessionDate).getTime() / 1000),
 		profitLoss,
 		evProfitLoss: cashStats.evProfitLoss,
+		// Whether this session stores a real EV cash-out. `evProfitLoss` cannot
+		// answer that — it falls back to the actual result, so every finished
+		// cash session has one. The graph needs the distinction to decide
+		// whether an EV line would say anything the P/L line does not. Same
+		// definition as stats.ts's `StatsSessionRow.evRecorded`.
+		evRecorded: r.type === "cash_game" && r.evCashOut !== null,
 		playMinutes: computePlayMinutes(r),
 		bigBlind: r.ringGameBlind2 ?? null,
 		buyInTotal,
