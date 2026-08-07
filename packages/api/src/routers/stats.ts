@@ -401,7 +401,6 @@ const EMPTY_SUMMARY: StatsSummary = {
 interface SummaryAccumulator {
 	cashBbCount: number;
 	cashBbSum: number;
-	cashEvDiffBbCount: number;
 	cashEvDiffBbSum: number;
 	cashPL: number;
 	cashPlayMinutes: number;
@@ -440,7 +439,6 @@ function accumulateCash(row: StatsSessionRow, acc: SummaryAccumulator): void {
 		acc.evDiffSum += row.evDiff;
 		if (row.bigBlind && row.bigBlind > 0) {
 			acc.cashEvDiffBbSum += row.evDiff / row.bigBlind;
-			acc.cashEvDiffBbCount += 1;
 			if (row.evRecorded) {
 				acc.recordedEvBbCount += 1;
 			}
@@ -515,9 +513,9 @@ function buildSummary(
 		// result), so a recorded EV on a row outside that population — a mixed
 		// game, which stores blind1-3 as null — must not unlock a bb total built
 		// entirely out of fallback rows. That would print the same phantom 0
-		// this gate exists to remove, just in bb. It is counted inside the same
-		// branch as cashEvDiffBbCount, so it already implies that one is > 0 —
-		// there is no second condition to check here.
+		// this gate exists to remove, just in bb. It is counted in the very
+		// branch that builds cashEvDiffBbSum (evDiff settled AND a big blind),
+		// so it is a subset of that population and needs no second condition.
 		cashEvDiffNormalized:
 			acc.recordedEvBbCount > 0 ? acc.cashEvDiffBbSum : null,
 		tournamentNormalizedProfitLoss:
@@ -566,7 +564,6 @@ export function summarizeStats(rows: StatsSessionRow[]): StatsSummary {
 		cashBbSum: 0,
 		cashBbCount: 0,
 		cashEvDiffBbSum: 0,
-		cashEvDiffBbCount: 0,
 		tournamentBiSum: 0,
 		tournamentBiCount: 0,
 		tournamentCount: 0,
