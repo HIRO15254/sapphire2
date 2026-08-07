@@ -1158,6 +1158,10 @@ interface SessionSummary {
 	avgPlacement: number | null;
 	avgProfitLoss: number | null;
 	itmRate: number | null;
+	// Cash-only EV aggregates, gated the same way as stats.summary's: null
+	// unless a session in scope stored a real EV cash-out, and otherwise summed
+	// over every finished cash session (the ones without a stored EV cash-out
+	// count at their actual result). See accumulateEvMetrics.
 	totalEvDiff: number | null;
 	totalEvProfitLoss: number | null;
 	totalPrizeMoney: number | null;
@@ -1199,12 +1203,12 @@ function accumulateEvMetrics(
 	current: {
 		totalEvProfitLoss: number;
 		totalEvDiff: number;
-		evSessionCount: number;
+		recordedEvCount: number;
 	},
 	update: (ev: {
 		totalEvProfitLoss: number;
 		totalEvDiff: number;
-		evSessionCount: number;
+		recordedEvCount: number;
 	}) => void
 ) {
 	if (s.type !== "cash_game" || s.buyIn === null) {
@@ -1220,7 +1224,13 @@ function accumulateEvMetrics(
 	update({
 		totalEvProfitLoss: current.totalEvProfitLoss + evPl,
 		totalEvDiff: current.totalEvDiff + (evPl - pl),
-		evSessionCount: current.evSessionCount + 1,
+		// Count the sessions that actually stored an EV cash-out, not the ones
+		// that got a resolved value: `evCashOut` above falls back to the actual
+		// cash-out, so counting it would leave the gate below true for every
+		// finished cash session and report "EV diff: 0" to a user who never
+		// tracked EV. Same gate, same reason as stats.ts's buildSummary — the
+		// two summaries must not disagree over one scope.
+		recordedEvCount: current.recordedEvCount + (s.evCashOut === null ? 0 : 1),
 	});
 }
 
@@ -1234,7 +1244,7 @@ function aggregateSessions(allSessions: SummarySessionRow[]) {
 	let itmCount = 0;
 	let totalEvProfitLoss = 0;
 	let totalEvDiff = 0;
-	let evSessionCount = 0;
+	let recordedEvCount = 0;
 
 	for (const s of allSessions) {
 		const pl = computeSessionPLFromRow(s);
@@ -1246,11 +1256,11 @@ function aggregateSessions(allSessions: SummarySessionRow[]) {
 		accumulateEvMetrics(
 			s,
 			pl,
-			{ totalEvProfitLoss, totalEvDiff, evSessionCount },
+			{ totalEvProfitLoss, totalEvDiff, recordedEvCount },
 			(ev) => {
 				totalEvProfitLoss = ev.totalEvProfitLoss;
 				totalEvDiff = ev.totalEvDiff;
-				evSessionCount = ev.evSessionCount;
+				recordedEvCount = ev.recordedEvCount;
 			}
 		);
 
@@ -1278,7 +1288,7 @@ function aggregateSessions(allSessions: SummarySessionRow[]) {
 		itmCount,
 		totalEvProfitLoss,
 		totalEvDiff,
-		evSessionCount,
+		recordedEvCount,
 	};
 }
 
@@ -1383,8 +1393,8 @@ async function computeSummary(
 			isTournament && agg.tournamentCount > 0
 				? (agg.itmCount / agg.tournamentCount) * 100
 				: null,
-		totalEvProfitLoss: agg.evSessionCount > 0 ? agg.totalEvProfitLoss : null,
-		totalEvDiff: agg.evSessionCount > 0 ? agg.totalEvDiff : null,
+		totalEvProfitLoss: agg.recordedEvCount > 0 ? agg.totalEvProfitLoss : null,
+		totalEvDiff: agg.recordedEvCount > 0 ? agg.totalEvDiff : null,
 	};
 }
 

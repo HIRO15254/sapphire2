@@ -37,6 +37,7 @@ function cashRow(overrides: Partial<StatsSessionRow> = {}): StatsSessionRow {
 		profitLoss: 100,
 		evProfitLoss: null,
 		evDiff: null,
+		evRecorded: false,
 		playMinutes: 60,
 		bigBlind: 2,
 		buyInTotal: null,
@@ -63,6 +64,7 @@ function tournamentRow(
 		profitLoss: 500,
 		evProfitLoss: null,
 		evDiff: null,
+		evRecorded: false,
 		playMinutes: 120,
 		bigBlind: null,
 		buyInTotal: 100,
@@ -695,6 +697,7 @@ describe("summarizeStats", () => {
 				profitLoss: 100,
 				evProfitLoss: 120,
 				evDiff: 20,
+				evRecorded: true,
 				bigBlind: 2,
 			}),
 		];
@@ -713,12 +716,131 @@ describe("summarizeStats", () => {
 		expect(summary.cashEvDiffNormalized).toBeNull();
 	});
 
+	it("returns null ev metrics when every cash row only has the fallback ev", () => {
+		// A finished cash session always carries evProfitLoss/evDiff — they fall
+		// back to the actual result. Summing those would print "EV diff: 0" to a
+		// user who has never recorded a single EV cash-out.
+		const rows = [
+			cashRow({
+				id: "a",
+				profitLoss: 100,
+				evProfitLoss: 100,
+				evDiff: 0,
+				evRecorded: false,
+				bigBlind: 2,
+			}),
+			cashRow({
+				id: "b",
+				profitLoss: -40,
+				evProfitLoss: -40,
+				evDiff: 0,
+				evRecorded: false,
+				bigBlind: 2,
+			}),
+		];
+		const summary = summarizeStats(rows);
+		expect(summary.totalEvProfitLoss).toBeNull();
+		expect(summary.totalEvDiff).toBeNull();
+		expect(summary.cashEvDiffNormalized).toBeNull();
+	});
+
+	it("sums the fallback ev rows too once any cash row has a recorded ev", () => {
+		// The gate is all-or-nothing per query scope: one recorded EV makes the
+		// totals meaningful, and the fallback rows then contribute their actual
+		// result so the EV total stays comparable with totalProfitLoss.
+		const rows = [
+			cashRow({
+				id: "recorded",
+				profitLoss: 100,
+				evProfitLoss: 120,
+				evDiff: 20,
+				evRecorded: true,
+				bigBlind: 2,
+			}),
+			cashRow({
+				id: "fallback",
+				profitLoss: 50,
+				evProfitLoss: 50,
+				evDiff: 0,
+				evRecorded: false,
+				bigBlind: 2,
+			}),
+		];
+		const summary = summarizeStats(rows);
+		expect(summary.totalEvProfitLoss).toBe(170);
+		expect(summary.totalEvDiff).toBe(20);
+		// (20 / 2) + (0 / 2) = 10 bb.
+		expect(summary.cashEvDiffNormalized).toBe(10);
+	});
+
+	it("keeps ev metrics null when only a tournament row is present", () => {
+		const summary = summarizeStats([tournamentRow({ evRecorded: false })]);
+		expect(summary.totalEvProfitLoss).toBeNull();
+		expect(summary.totalEvDiff).toBeNull();
+		expect(summary.cashEvDiffNormalized).toBeNull();
+	});
+
+	it("returns null cashEvDiffNormalized when no normalizable cash row has a recorded ev", () => {
+		// The bb figure has its own population, so it needs its own gate: a
+		// recorded EV on a row that cannot be normalized must not unlock a bb
+		// total built entirely out of fallback rows.
+		const rows = [
+			// Mixed game: EV recorded, but every mix rule stores blind1-3 as null.
+			cashRow({
+				id: "mix-recorded",
+				profitLoss: 100,
+				evProfitLoss: 120,
+				evDiff: 20,
+				evRecorded: true,
+				bigBlind: null,
+			}),
+			// NLH: normalizable, but its EV is the fallback, so its diff is 0.
+			cashRow({
+				id: "nlh-fallback",
+				profitLoss: 50,
+				evProfitLoss: 50,
+				evDiff: 0,
+				evRecorded: false,
+				bigBlind: 2,
+			}),
+		];
+		const summary = summarizeStats(rows);
+		// The scope does have a recorded EV, so the raw totals stay meaningful.
+		expect(summary.totalEvDiff).toBe(20);
+		// …but no normalizable row does, so the bb figure would be a phantom 0.
+		expect(summary.cashEvDiffNormalized).toBeNull();
+	});
+
+	it("returns cashEvDiffNormalized once a normalizable cash row has a recorded ev", () => {
+		const rows = [
+			cashRow({
+				id: "nlh-recorded",
+				profitLoss: 100,
+				evProfitLoss: 120,
+				evDiff: 20,
+				evRecorded: true,
+				bigBlind: 2,
+			}),
+			cashRow({
+				id: "nlh-fallback",
+				profitLoss: 50,
+				evProfitLoss: 50,
+				evDiff: 0,
+				evRecorded: false,
+				bigBlind: 2,
+			}),
+		];
+		// (20 / 2) + (0 / 2) = 10 bb.
+		expect(summarizeStats(rows).cashEvDiffNormalized).toBe(10);
+	});
+
 	it("returns null cashEvDiffNormalized when ev rows have no big blind", () => {
 		const rows = [
 			cashRow({
 				profitLoss: 100,
 				evProfitLoss: 120,
 				evDiff: 20,
+				evRecorded: true,
 				bigBlind: null,
 			}),
 		];
@@ -1039,6 +1161,68 @@ describe("fetchStatsRows variant mapping", () => {
 		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
 		expect(rows[0]?.evProfitLoss).toBe(-500);
 		expect(rows[0]?.evDiff).toBe(-700);
+		expect(rows[0]?.evRecorded).toBe(true);
+	});
+
+	it("marks a cash_game row with a stored evCashOut as evRecorded", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [
+					rawRow({
+						id: "cash-recorded-ev",
+						type: "cash_game",
+						buyIn: 500,
+						cashOut: 600,
+						evCashOut: 650,
+					}),
+				],
+			},
+		});
+
+		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
+		expect(rows[0]?.evRecorded).toBe(true);
+	});
+
+	it("leaves evRecorded false when the ev figures came from the cashOut fallback", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [
+					rawRow({
+						id: "cash-fallback-ev",
+						type: "cash_game",
+						buyIn: 500,
+						cashOut: 700,
+						evCashOut: null,
+					}),
+				],
+			},
+		});
+
+		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
+		// The row still carries EV figures — they just are not evidence that the
+		// user tracked EV, so the summary gate must not count them.
+		expect(rows[0]?.evProfitLoss).toBe(200);
+		expect(rows[0]?.evRecorded).toBe(false);
+	});
+
+	it("leaves evRecorded false for a tournament row", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [
+					rawRow({
+						id: "tourney-ev",
+						type: "tournament",
+						tournamentBuyIn: 100,
+						entryFee: 0,
+						prizeMoney: 200,
+						bountyPrizes: 0,
+					}),
+				],
+			},
+		});
+
+		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
+		expect(rows[0]?.evRecorded).toBe(false);
 	});
 
 	it("treats a null chipRemoveTotal as 0 for a cash_game row's profitLoss", async () => {
