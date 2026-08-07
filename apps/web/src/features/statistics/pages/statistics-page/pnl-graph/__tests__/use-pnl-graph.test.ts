@@ -159,10 +159,32 @@ describe("usePnlGraph", () => {
 		expect(result.current.evToggleAvailable).toBe(false);
 	});
 
-	it("hides the EV toggle while the series is still empty", async () => {
+	it("hides the EV toggle once a loaded series turns out to be empty", async () => {
 		trpcMocks.seriesQueryFn.mockResolvedValue({ points: [] });
 		const result = await renderLoaded(ctx({ type: "cash_game" }));
 		expect(result.current.evToggleAvailable).toBe(false);
+	});
+
+	it("keeps the EV toggle mounted while the series is still loading", async () => {
+		// Changing a filter swaps the query key, so `data` is briefly undefined
+		// again. Reading that as "no recorded EV" would unmount the Switch and
+		// remount it on every period / room / currency change.
+		trpcMocks.seriesQueryFn.mockResolvedValue({
+			points: [
+				seriesPoint({
+					id: "a",
+					profitLoss: 100,
+					sessionDate: day1,
+					evProfitLoss: 120,
+					evRecorded: true,
+				}),
+			],
+		});
+		const { result } = renderGraph(ctx({ type: "cash_game" }));
+		expect(result.current.isPending).toBe(true);
+		expect(result.current.evToggleAvailable).toBe(true);
+		await waitFor(() => expect(result.current.isPending).toBe(false));
+		expect(result.current.evToggleAvailable).toBe(true);
 	});
 
 	it("forces the effective EV toggle off when no session recorded an EV cash-out", async () => {

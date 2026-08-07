@@ -801,7 +801,7 @@ describe("session router input validation", () => {
 			expect(point.evRecorded).toBe(true);
 		});
 
-		it("marks an evCashOut of 0 as recorded, not as missing", () => {
+		it("marks an evCashOut of 0 as evRecorded, not as missing", () => {
 			const point = toProfitLossSeriesPoint(
 				row({ buyIn: 500, cashOut: 700, evCashOut: 0 })
 			);

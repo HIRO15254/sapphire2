@@ -49,17 +49,24 @@ export function usePnlGraph(ctx: StatsSectionContext): UsePnlGraphResult {
 			enabled: ctx.enabled,
 		})
 	);
-	const rawPoints = query.data?.points ?? [];
+	const series = query.data?.points;
+	const rawPoints = series ?? [];
 
 	// The EV line is cash-only, and it only says something the P/L line does not
 	// when at least one session actually recorded an EV cash-out: a point with
 	// no recorded EV falls back to its actual result, so a series made entirely
 	// of those draws an EV line directly on top of the P/L line. Hiding the
 	// toggle is the graph's version of the `—` the KPI cards show for the same
-	// user. An empty (or not-yet-loaded) series has nothing to compare, so the
-	// toggle stays hidden until the data says otherwise.
+	// user.
+	//
+	// The verdict needs a loaded series, so it is `series === undefined` that is
+	// checked here rather than an empty `rawPoints`. Changing a filter swaps the
+	// query key and `data` goes back to undefined; reading that as "nothing
+	// recorded" would unmount the toggle and remount it on every period / room /
+	// currency change, while the toolbar around it stays put.
 	const evToggleAvailable =
-		ctx.type === "cash_game" && rawPoints.some((point) => point.evRecorded);
+		ctx.type === "cash_game" &&
+		(series === undefined || series.some((point) => point.evRecorded));
 	const effectiveShowEvCash = evToggleAvailable && showEvCash;
 
 	const { points } = aggregatePnlPoints({
