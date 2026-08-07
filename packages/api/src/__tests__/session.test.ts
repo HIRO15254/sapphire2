@@ -2292,21 +2292,19 @@ describe("session joined ownership scoping", () => {
 });
 
 describe("session.list EV falls back to the actual result without an EV cash-out", () => {
-	function listCaller(row: Record<string, unknown>) {
+	function listCallerRows(rows: Record<string, unknown>[]) {
 		const { db } = createChainableMockDb({
 			select: {
-				game_session: [
-					{
-						id: "session-1",
-						type: "cash_game",
-						source: "manual",
-						buyIn: null,
-						cashOut: null,
-						evCashOut: null,
-						chipRemoveTotal: null,
-						...row,
-					},
-				],
+				game_session: rows.map((row, index) => ({
+					id: `session-${index + 1}`,
+					type: "cash_game",
+					source: "manual",
+					buyIn: null,
+					cashOut: null,
+					evCashOut: null,
+					chipRemoveTotal: null,
+					...row,
+				})),
 				session_chip_purchase: [],
 				session_blind_level: [],
 				session_to_session_tag: [],
@@ -2316,6 +2314,10 @@ describe("session.list EV falls back to the actual result without an EV cash-out
 			session: { user: { id: "user-1" } },
 			db,
 		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
+	}
+
+	function listCaller(row: Record<string, unknown>) {
+		return listCallerRows([row]);
 	}
 
 	it("reports evProfitLoss = profitLoss and evDiff = 0 when evCashOut is null", async () => {
@@ -2371,13 +2373,48 @@ describe("session.list EV falls back to the actual result without an EV cash-out
 		});
 	});
 
-	it("counts a cash session without an EV cash-out in the summary EV totals", async () => {
+	it("leaves the summary EV totals null when no cash session recorded an EV cash-out", async () => {
 		const caller = listCaller({ buyIn: 500, cashOut: 700, evCashOut: null });
 
 		const { summary } = await caller.session.list({});
 
-		expect(summary.totalEvProfitLoss).toBe(200);
-		expect(summary.totalEvDiff).toBe(0);
+		// The row itself still carries the fallback EV — that is what makes the
+		// detail view consistent — but a summary built only out of fallbacks
+		// would report "EV diff: 0" to a user who never tracked EV.
+		expect(summary.totalEvProfitLoss).toBeNull();
+		expect(summary.totalEvDiff).toBeNull();
+	});
+
+	it("counts a cash session with a recorded EV cash-out in the summary EV totals", async () => {
+		const caller = listCaller({ buyIn: 500, cashOut: 700, evCashOut: 650 });
+
+		const { summary } = await caller.session.list({});
+
+		expect(summary.totalEvProfitLoss).toBe(150);
+		expect(summary.totalEvDiff).toBe(-50);
+	});
+
+	it("treats a recorded evCashOut of 0 as recorded, not as missing", async () => {
+		const caller = listCaller({ buyIn: 500, cashOut: 700, evCashOut: 0 });
+
+		const { summary } = await caller.session.list({});
+
+		expect(summary.totalEvProfitLoss).toBe(-500);
+		expect(summary.totalEvDiff).toBe(-700);
+	});
+
+	it("sums the fallback sessions too once another session recorded an EV cash-out", async () => {
+		const caller = listCallerRows([
+			{ buyIn: 500, cashOut: 700, evCashOut: 650 },
+			{ buyIn: 100, cashOut: 300, evCashOut: null },
+		]);
+
+		const { summary } = await caller.session.list({});
+
+		// 150 (recorded) + 200 (fallback = its actual result).
+		expect(summary.totalEvProfitLoss).toBe(350);
+		// -50 (recorded) + 0 (fallback contributes no diff).
+		expect(summary.totalEvDiff).toBe(-50);
 	});
 
 	it("leaves the summary EV totals null when no cash session has a result", async () => {

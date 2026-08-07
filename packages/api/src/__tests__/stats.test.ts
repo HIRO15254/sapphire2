@@ -780,6 +780,60 @@ describe("summarizeStats", () => {
 		expect(summary.cashEvDiffNormalized).toBeNull();
 	});
 
+	it("returns null cashEvDiffNormalized when no normalizable cash row has a recorded ev", () => {
+		// The bb figure has its own population, so it needs its own gate: a
+		// recorded EV on a row that cannot be normalized must not unlock a bb
+		// total built entirely out of fallback rows.
+		const rows = [
+			// Mixed game: EV recorded, but every mix rule stores blind1-3 as null.
+			cashRow({
+				id: "mix-recorded",
+				profitLoss: 100,
+				evProfitLoss: 120,
+				evDiff: 20,
+				evRecorded: true,
+				bigBlind: null,
+			}),
+			// NLH: normalizable, but its EV is the fallback, so its diff is 0.
+			cashRow({
+				id: "nlh-fallback",
+				profitLoss: 50,
+				evProfitLoss: 50,
+				evDiff: 0,
+				evRecorded: false,
+				bigBlind: 2,
+			}),
+		];
+		const summary = summarizeStats(rows);
+		// The scope does have a recorded EV, so the raw totals stay meaningful.
+		expect(summary.totalEvDiff).toBe(20);
+		// …but no normalizable row does, so the bb figure would be a phantom 0.
+		expect(summary.cashEvDiffNormalized).toBeNull();
+	});
+
+	it("returns cashEvDiffNormalized once a normalizable cash row has a recorded ev", () => {
+		const rows = [
+			cashRow({
+				id: "nlh-recorded",
+				profitLoss: 100,
+				evProfitLoss: 120,
+				evDiff: 20,
+				evRecorded: true,
+				bigBlind: 2,
+			}),
+			cashRow({
+				id: "nlh-fallback",
+				profitLoss: 50,
+				evProfitLoss: 50,
+				evDiff: 0,
+				evRecorded: false,
+				bigBlind: 2,
+			}),
+		];
+		// (20 / 2) + (0 / 2) = 10 bb.
+		expect(summarizeStats(rows).cashEvDiffNormalized).toBe(10);
+	});
+
 	it("returns null cashEvDiffNormalized when ev rows have no big blind", () => {
 		const rows = [
 			cashRow({

@@ -361,6 +361,8 @@ export interface StatsSummary {
 	// itself. Both span EVERY finished cash session — a session with no recorded
 	// EV cash-out contributes its actual result — but both are null unless at
 	// least one of them actually recorded an EV cash-out. See buildSummary.
+	// Cash only: totalProfitLoss also carries the tournaments, so the two are
+	// the same population only in a cash-scoped query.
 	totalEvDiff: number | null;
 	totalEvProfitLoss: number | null;
 	totalPlayMinutes: number;
@@ -407,6 +409,7 @@ interface SummaryAccumulator {
 	itmCount: number;
 	placementCount: number;
 	placementSum: number;
+	recordedEvBbCount: number;
 	recordedEvCount: number;
 	roiPctCount: number;
 	roiPctSum: number;
@@ -437,6 +440,9 @@ function accumulateCash(row: StatsSessionRow, acc: SummaryAccumulator): void {
 		if (row.bigBlind && row.bigBlind > 0) {
 			acc.cashEvDiffBbSum += row.evDiff / row.bigBlind;
 			acc.cashEvDiffBbCount += 1;
+			if (row.evRecorded) {
+				acc.recordedEvBbCount += 1;
+			}
 		}
 	}
 	const bb = normalizedSessionValue(row);
@@ -497,12 +503,20 @@ function buildSummary(
 		// The gate is all-or-nothing over the query's scope, which is where it
 		// deliberately differs from the per-row rule in the web layer's
 		// `displayableEvProfitLoss` (that one hides the EV line row by row).
-		// Once ANY session in scope has a tracked EV, the totals span every
+		// Once ANY session in scope has a tracked EV, the totals span every cash
 		// session — the fallback rows contribute their actual result — so the EV
-		// total stays directly comparable with totalProfitLoss instead of being
-		// summed over a different, unstated subset.
+		// total stays comparable with the cash part of totalProfitLoss (which
+		// also carries the tournaments) instead of being summed over a
+		// different, unstated subset.
+		//
+		// The bb figure counts its own gate separately: it is summed over a
+		// narrower population (cash sessions with a big blind AND a settled
+		// result), so a recorded EV on a row outside that population — a mixed
+		// game, which stores blind1-3 as null — must not unlock a bb total built
+		// entirely out of fallback rows. That would print the same phantom 0
+		// this gate exists to remove, just in bb.
 		cashEvDiffNormalized:
-			acc.recordedEvCount > 0 && acc.cashEvDiffBbCount > 0
+			acc.recordedEvBbCount > 0 && acc.cashEvDiffBbCount > 0
 				? acc.cashEvDiffBbSum
 				: null,
 		tournamentNormalizedProfitLoss:
@@ -545,6 +559,7 @@ export function summarizeStats(rows: StatsSessionRow[]): StatsSummary {
 		evSum: 0,
 		evDiffSum: 0,
 		recordedEvCount: 0,
+		recordedEvBbCount: 0,
 		cashPL: 0,
 		cashPlayMinutes: 0,
 		cashBbSum: 0,
