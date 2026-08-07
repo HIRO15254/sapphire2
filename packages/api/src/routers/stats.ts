@@ -347,8 +347,9 @@ export interface StatsSummary {
 	bbPerHour: number | null;
 	cashBbCount: number;
 	// EV diff (EV − actual) of cash sessions normalized to big blinds (bb).
-	// Null unless at least one session in scope has a recorded EV cash-out AND
-	// at least one normalizable cash session contributes a diff.
+	// Null unless at least one NORMALIZABLE cash session (big blind + settled
+	// result) has a recorded EV cash-out — a recorded EV on a row outside that
+	// population must not unlock a bb total made only of fallbacks.
 	cashEvDiffNormalized: number | null;
 	// Cash sessions normalized to big blinds (bb). Null when no normalizable
 	// cash sessions. Never combined with the tournament (bi) figure — the two
@@ -514,11 +515,11 @@ function buildSummary(
 		// result), so a recorded EV on a row outside that population — a mixed
 		// game, which stores blind1-3 as null — must not unlock a bb total built
 		// entirely out of fallback rows. That would print the same phantom 0
-		// this gate exists to remove, just in bb.
+		// this gate exists to remove, just in bb. It is counted inside the same
+		// branch as cashEvDiffBbCount, so it already implies that one is > 0 —
+		// there is no second condition to check here.
 		cashEvDiffNormalized:
-			acc.recordedEvBbCount > 0 && acc.cashEvDiffBbCount > 0
-				? acc.cashEvDiffBbSum
-				: null,
+			acc.recordedEvBbCount > 0 ? acc.cashEvDiffBbSum : null,
 		tournamentNormalizedProfitLoss:
 			acc.tournamentBiCount > 0 ? acc.tournamentBiSum : null,
 		totalEvProfitLoss: acc.recordedEvCount > 0 ? acc.evSum : null,
