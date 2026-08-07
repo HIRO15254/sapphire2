@@ -405,8 +405,14 @@ interface EvDisplayInput extends PlDisplayInput {
  * so its `evProfitLoss` equals the actual result (`resolveEvCashOut`). That
  * fallback is what puts those sessions into the EV statistics, but printing it
  * per row would just repeat the P&L as a second identical line — so a row shows
- * an EV figure only when the user actually recorded one. Live cash games always
- * carry an `evCashOut`, so their EV line is unaffected.
+ * an EV figure only when the user actually recorded one.
+ *
+ * The rule is deliberately "the user recorded no EV cash-out", not "the EV
+ * difference is 0". A manual entry whose EV happened to match its result still
+ * shows its EV line, and a live cash game with no all-in logged keeps showing
+ * one too (the server always writes it an `evCashOut`) — there the app tracked
+ * EV throughout, so "EV difference was 0" is a real observation rather than an
+ * absence of information.
  */
 export function displayableEvProfitLoss(session: {
 	evCashOut: number | null;
