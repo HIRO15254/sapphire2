@@ -106,6 +106,11 @@ export interface StatsSessionRow {
 	buyInTotal: number | null; // tournament total invested or null if 0
 	evDiff: number | null; // cash only: evProfitLoss - profitLoss
 	evProfitLoss: number | null; // cash only
+	// Whether the session stores a real EV cash-out. `evProfitLoss` alone cannot
+	// answer that: it falls back to the actual result, so every finished cash
+	// session has one. Only this flag distinguishes "tracked EV" from "assumed
+	// EV", and the summary gates its EV figures on it.
+	evRecorded: boolean;
 	id: string;
 	placement: number | null;
 	playMinutes: number | null;
@@ -195,6 +200,7 @@ function mapStatsRow(
 			profitLoss,
 			evProfitLoss,
 			evDiff,
+			evRecorded: r.evCashOut !== null,
 			bigBlind: r.blind2,
 			buyInTotal: null,
 		};
@@ -215,6 +221,7 @@ function mapStatsRow(
 		profitLoss,
 		evProfitLoss: null,
 		evDiff: null,
+		evRecorded: false,
 		bigBlind: null,
 		buyInTotal: invested === 0 ? null : invested,
 	};
@@ -339,8 +346,9 @@ export interface StatsSummary {
 	avgRoi: number | null;
 	bbPerHour: number | null;
 	cashBbCount: number;
-	// EV diff (actual − EV) of cash sessions normalized to big blinds (bb).
-	// Null when no normalizable cash session has EV data.
+	// EV diff (EV − actual) of cash sessions normalized to big blinds (bb).
+	// Null unless at least one session in scope has a recorded EV cash-out AND
+	// at least one normalizable cash session contributes a diff.
 	cashEvDiffNormalized: number | null;
 	// Cash sessions normalized to big blinds (bb). Null when no normalizable
 	// cash sessions. Never combined with the tournament (bi) figure — the two
@@ -349,6 +357,10 @@ export interface StatsSummary {
 	hourlyRate: number | null;
 	itmRate: number | null;
 	roi: number | null;
+	// Sum of (EV − actual) over the cash sessions in scope, and the EV P/L
+	// itself. Both span EVERY finished cash session — a session with no recorded
+	// EV cash-out contributes its actual result — but both are null unless at
+	// least one of them actually recorded an EV cash-out. See buildSummary.
 	totalEvDiff: number | null;
 	totalEvProfitLoss: number | null;
 	totalPlayMinutes: number;
@@ -390,12 +402,12 @@ interface SummaryAccumulator {
 	cashEvDiffBbSum: number;
 	cashPL: number;
 	cashPlayMinutes: number;
-	evCount: number;
 	evDiffSum: number;
 	evSum: number;
 	itmCount: number;
 	placementCount: number;
 	placementSum: number;
+	recordedEvCount: number;
 	roiPctCount: number;
 	roiPctSum: number;
 	totalPlayMinutes: number;
@@ -416,7 +428,9 @@ function accumulateCash(row: StatsSessionRow, acc: SummaryAccumulator): void {
 	}
 	if (row.evProfitLoss !== null) {
 		acc.evSum += row.evProfitLoss;
-		acc.evCount += 1;
+	}
+	if (row.evRecorded) {
+		acc.recordedEvCount += 1;
 	}
 	if (row.evDiff !== null) {
 		acc.evDiffSum += row.evDiff;
@@ -474,12 +488,27 @@ function buildSummary(
 		tournamentBiCount: acc.tournamentBiCount,
 		totalProfitLoss: acc.totalProfitLoss,
 		cashNormalizedProfitLoss: acc.cashBbCount > 0 ? acc.cashBbSum : null,
+		// Every EV figure is gated on `recordedEvCount`, not on how many rows
+		// carry an `evProfitLoss` — a finished cash session always carries one,
+		// because it falls back to the actual result. Gating on the fallback
+		// would hand a user who has never recorded an EV cash-out an "EV diff: 0"
+		// card and an EV total identical to totalProfitLoss, forever.
+		//
+		// The gate is all-or-nothing over the query's scope, which is where it
+		// deliberately differs from the per-row rule in the web layer's
+		// `displayableEvProfitLoss` (that one hides the EV line row by row).
+		// Once ANY session in scope has a tracked EV, the totals span every
+		// session — the fallback rows contribute their actual result — so the EV
+		// total stays directly comparable with totalProfitLoss instead of being
+		// summed over a different, unstated subset.
 		cashEvDiffNormalized:
-			acc.cashEvDiffBbCount > 0 ? acc.cashEvDiffBbSum : null,
+			acc.recordedEvCount > 0 && acc.cashEvDiffBbCount > 0
+				? acc.cashEvDiffBbSum
+				: null,
 		tournamentNormalizedProfitLoss:
 			acc.tournamentBiCount > 0 ? acc.tournamentBiSum : null,
-		totalEvProfitLoss: acc.evCount > 0 ? acc.evSum : null,
-		totalEvDiff: acc.evCount > 0 ? acc.evDiffSum : null,
+		totalEvProfitLoss: acc.recordedEvCount > 0 ? acc.evSum : null,
+		totalEvDiff: acc.recordedEvCount > 0 ? acc.evDiffSum : null,
 		winRate: (acc.winCount / totalSessions) * 100,
 		avgProfitLoss: acc.totalProfitLoss / totalSessions,
 		totalPlayMinutes: acc.totalPlayMinutes,
@@ -515,7 +544,7 @@ export function summarizeStats(rows: StatsSessionRow[]): StatsSummary {
 		totalPlayMinutes: 0,
 		evSum: 0,
 		evDiffSum: 0,
-		evCount: 0,
+		recordedEvCount: 0,
 		cashPL: 0,
 		cashPlayMinutes: 0,
 		cashBbSum: 0,
