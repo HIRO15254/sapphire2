@@ -958,6 +958,89 @@ describe("fetchStatsRows variant mapping", () => {
 		expect(rows[0]?.evDiff).toBe(50);
 	});
 
+	it("falls back to the actual result when a cash_game row has no evCashOut", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [
+					rawRow({
+						id: "cash-no-ev",
+						type: "cash_game",
+						buyIn: 500,
+						cashOut: 700,
+						evCashOut: null,
+					}),
+				],
+			},
+		});
+
+		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
+		expect(rows[0]?.profitLoss).toBe(200);
+		expect(rows[0]?.evProfitLoss).toBe(200);
+		expect(rows[0]?.evDiff).toBe(0);
+	});
+
+	it("keeps chipRemoveTotal inside the fallback EV so evDiff stays 0", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [
+					rawRow({
+						id: "cash-no-ev-chips",
+						type: "cash_game",
+						buyIn: 500,
+						cashOut: 600,
+						evCashOut: null,
+						chipRemoveTotal: 100,
+					}),
+				],
+			},
+		});
+
+		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
+		expect(rows[0]?.profitLoss).toBe(200);
+		expect(rows[0]?.evProfitLoss).toBe(200);
+		expect(rows[0]?.evDiff).toBe(0);
+	});
+
+	it("leaves evProfitLoss null when a cash_game row has no recorded result", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [
+					rawRow({
+						id: "cash-no-result",
+						type: "cash_game",
+						buyIn: null,
+						cashOut: null,
+						evCashOut: null,
+					}),
+				],
+			},
+		});
+
+		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
+		expect(rows[0]?.evProfitLoss).toBeNull();
+		expect(rows[0]?.evDiff).toBeNull();
+	});
+
+	it("treats an evCashOut of 0 as recorded, not as missing", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [
+					rawRow({
+						id: "cash-zero-ev",
+						type: "cash_game",
+						buyIn: 500,
+						cashOut: 700,
+						evCashOut: 0,
+					}),
+				],
+			},
+		});
+
+		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
+		expect(rows[0]?.evProfitLoss).toBe(-500);
+		expect(rows[0]?.evDiff).toBe(-700);
+	});
+
 	it("treats a null chipRemoveTotal as 0 for a cash_game row's profitLoss", async () => {
 		const { db } = createChainableMockDb({
 			select: {

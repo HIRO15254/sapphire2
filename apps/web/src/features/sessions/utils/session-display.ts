@@ -396,9 +396,10 @@ interface EvDisplayInput extends PlDisplayInput {
 
 /**
  * Secondary EV figure for a cash-game list row, honoring the BB/BI toggle.
- * Returns `null` for tournaments or when no EV cash-out was recorded, so the
- * result section omits the second line. Live cash games carry an EV P&L; manual
- * entries only have one when the user logged an EV cash-out.
+ * Returns `null` for tournaments or when the session has no result yet, so the
+ * result section omits the second line. Every finished cash game has an EV P&L:
+ * a manual entry without an EV cash-out falls back to its actual result server
+ * side (`resolveEvCashOut`), so the EV line reads the same as the P&L line.
  *
  * The realized P&L is always whole chips, but the EV can be fractional (live
  * all-in equity), so the value is rounded to the nearest integer before

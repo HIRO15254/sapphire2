@@ -346,10 +346,13 @@ export function buildOptimisticItem(
 		item.evCashOut = newSession.evCashOut ?? null;
 		applyCashSnapshot(item, newSession);
 		item.profitLoss = newSession.cashOut - newSession.buyIn;
-		if (newSession.evCashOut !== undefined) {
-			item.evProfitLoss = newSession.evCashOut - newSession.buyIn;
-			item.evDiff = item.evProfitLoss - item.profitLoss;
-		}
+		// Mirrors the server's `resolveEvCashOut`: an omitted EV cash-out means
+		// the session ran exactly as expected, so EV is the actual result and the
+		// EV difference is 0. Leaving it null here would blank the EV line until
+		// the mutation settles and the server filled it back in.
+		item.evProfitLoss =
+			(newSession.evCashOut ?? newSession.cashOut) - newSession.buyIn;
+		item.evDiff = item.evProfitLoss - item.profitLoss;
 	} else {
 		item.tournamentBuyIn = newSession.tournamentBuyIn;
 		item.entryFee = newSession.entryFee ?? null;
