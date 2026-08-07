@@ -109,6 +109,34 @@ function computeCashGamePL(
 	return cashOut + chipRemoveTotal - buyIn;
 }
 
+/**
+ * The EV cash-out the EV P/L is computed from. Recording one is optional, and
+ * a session without it is defined to have run exactly as expected: EV falls
+ * back to the actual cash-out, so its EV P/L equals its real result and its EV
+ * difference is 0. Without the fallback those sessions dropped out of every EV
+ * figure entirely, which made the EV totals a sum over an unstated subset of
+ * the filtered sessions rather than over all of them.
+ *
+ * Returns null only when there is no cash-out either (an unfinished session),
+ * where no EV can be stated at all — hence the overload: past a `cashOut !==
+ * null` guard the result is always a number, so callers inside such a guard do
+ * not carry a null branch that cannot run.
+ */
+export function resolveEvCashOut(
+	evCashOut: number | null,
+	cashOut: number
+): number;
+export function resolveEvCashOut(
+	evCashOut: number | null,
+	cashOut: number | null
+): number | null;
+export function resolveEvCashOut(
+	evCashOut: number | null,
+	cashOut: number | null
+): number | null {
+	return evCashOut ?? cashOut;
+}
+
 function computeTournamentPL(
 	tournamentBuyIn: number | null,
 	entryFee: number | null,
@@ -1179,10 +1207,16 @@ function accumulateEvMetrics(
 		evSessionCount: number;
 	}) => void
 ) {
-	if (s.type !== "cash_game" || s.evCashOut === null || s.buyIn === null) {
+	if (s.type !== "cash_game" || s.buyIn === null) {
 		return;
 	}
-	const evPl = s.evCashOut + (s.chipRemoveTotal ?? 0) - s.buyIn;
+	// Resolved only after the cash-game guard: the fallback is defined for a
+	// cash-game cash-out, and a tournament row's cashOut carries no EV meaning.
+	const evCashOut = resolveEvCashOut(s.evCashOut, s.cashOut);
+	if (evCashOut === null) {
+		return;
+	}
+	const evPl = evCashOut + (s.chipRemoveTotal ?? 0) - s.buyIn;
 	update({
 		totalEvProfitLoss: current.totalEvProfitLoss + evPl,
 		totalEvDiff: current.totalEvDiff + (evPl - pl),
@@ -1633,12 +1667,10 @@ function computeCashStats(r: ProfitLossSeriesRow): CashGameStats {
 		return { profitLoss: 0, evProfitLoss: null, buyInTotal: null };
 	}
 	const chipRemoveTotal = r.chipRemoveTotal ?? 0;
+	const evCashOut = resolveEvCashOut(r.evCashOut, r.cashOut);
 	return {
 		profitLoss: computeCashGamePL(r.buyIn, r.cashOut, chipRemoveTotal),
-		evProfitLoss:
-			r.evCashOut === null
-				? null
-				: computeCashGamePL(r.buyIn, r.evCashOut, chipRemoveTotal),
+		evProfitLoss: computeCashGamePL(r.buyIn, evCashOut, chipRemoveTotal),
 		buyInTotal: r.buyIn,
 	};
 }
@@ -1805,10 +1837,9 @@ function enrichItemWithPL<T extends ListItemRaw>(item: T) {
 	) {
 		const chipRemoveTotal = item.chipRemoveTotal ?? 0;
 		profitLoss = computeCashGamePL(item.buyIn, item.cashOut, chipRemoveTotal);
-		if (item.evCashOut !== null) {
-			evProfitLoss = item.evCashOut + chipRemoveTotal - item.buyIn;
-			evDiff = evProfitLoss - profitLoss;
-		}
+		const evCashOut = resolveEvCashOut(item.evCashOut, item.cashOut);
+		evProfitLoss = evCashOut + chipRemoveTotal - item.buyIn;
+		evDiff = evProfitLoss - profitLoss;
 	} else if (item.type === "tournament") {
 		profitLoss = computeTournamentPL(
 			item.tournamentBuyIn,

@@ -11,6 +11,7 @@ import {
 	computeTournamentPL,
 	fetchProfitLossSeries,
 	getSessionChipPurchaseMap,
+	resolveEvCashOut,
 	sumChipPurchaseCost,
 	validateEntityOwnership,
 } from "./session";
@@ -182,10 +183,11 @@ function mapStatsRow(
 			r.buyIn === null || r.cashOut === null
 				? 0
 				: computeCashGamePL(r.buyIn, r.cashOut, chipRemoveTotal);
+		const evCashOut = resolveEvCashOut(r.evCashOut, r.cashOut);
 		const evProfitLoss =
-			r.evCashOut === null || r.buyIn === null
+			evCashOut === null || r.buyIn === null
 				? null
-				: computeCashGamePL(r.buyIn, r.evCashOut, chipRemoveTotal);
+				: computeCashGamePL(r.buyIn, evCashOut, chipRemoveTotal);
 		const evDiff = evProfitLoss === null ? null : evProfitLoss - profitLoss;
 		return {
 			...base,

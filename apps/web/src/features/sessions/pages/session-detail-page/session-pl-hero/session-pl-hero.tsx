@@ -8,7 +8,10 @@ interface SessionPlHeroProps {
 	/** Optional result/stack chart rendered below the P&L, inside the same card. */
 	chart?: ReactNode;
 	currencyUnit: string | null;
-	/** EV-adjusted P&L (cash games with an EV cash-out); omitted otherwise. */
+	/**
+	 * EV-adjusted P&L, already gated by `displayableEvProfitLoss` — null for
+	 * tournaments and for cash games with no recorded EV cash-out.
+	 */
 	evProfitLoss?: number | null;
 	profitLoss: number | null;
 }

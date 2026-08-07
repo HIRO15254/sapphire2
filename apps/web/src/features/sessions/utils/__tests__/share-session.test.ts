@@ -26,6 +26,7 @@ function cashSession(
 		currencyUnit: "JPY",
 		endedAt: null,
 		entryFee: null,
+		evCashOut: null,
 		evProfitLoss: null,
 		placement: null,
 		prizeMoney: null,
@@ -98,8 +99,27 @@ describe("createSessionShareText", () => {
 		});
 
 		it("adds EV line when evProfitLoss is present", () => {
-			const text = createSessionShareText(cashSession({ evProfitLoss: 1200 }));
+			const text = createSessionShareText(
+				cashSession({ evCashOut: 16_200, evProfitLoss: 1200 })
+			);
 			expect(text).toContain("(EV: +1,200 JPY)");
+		});
+
+		it("omits the EV line when no EV cash-out was recorded", () => {
+			// The server falls back to the actual result, but the shared text must
+			// not repeat the same number as an EV addendum.
+			const text = createSessionShareText(
+				cashSession({ evCashOut: null, evProfitLoss: 5000 })
+			);
+			expect(text).not.toContain("EV:");
+		});
+
+		it("adds the EV line when an EV cash-out of 0 was recorded", () => {
+			const text = createSessionShareText(
+				cashSession({ evCashOut: 0, evProfitLoss: -10_000 })
+			);
+			// Compact formatting, same as every other amount in the shared text.
+			expect(text).toContain("(EV: -10k JPY)");
 		});
 
 		it("adds duration when both startedAt and endedAt are set", () => {

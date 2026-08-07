@@ -20,6 +20,7 @@ const baseSession: SessionListCardItem = {
 	currencyUnit: null,
 	endedAt: null,
 	entryFee: null,
+	evCashOut: null,
 	evProfitLoss: null,
 	id: "s1",
 	placement: null,
@@ -176,7 +177,12 @@ describe("SessionListCard", () => {
 	});
 
 	it("shows the EV figure for a cash game with an EV record", async () => {
-		renderCard({ ...baseSession, currencyUnit: "$", evProfitLoss: 800 });
+		renderCard({
+			...baseSession,
+			currencyUnit: "$",
+			evCashOut: 2000,
+			evProfitLoss: 800,
+		});
 		await screen.findByText("1/2 NLH");
 		expect(screen.getByTestId("ev-result")).toHaveTextContent("EV +800 $");
 	});
@@ -187,20 +193,38 @@ describe("SessionListCard", () => {
 		expect(screen.queryByTestId("ev-result")).not.toBeInTheDocument();
 	});
 
+	it("omits the EV row when no EV cash-out was recorded, even though the server filled EV P&L in", () => {
+		// The server falls back to the actual result so the session counts in the
+		// EV statistics; the card must not print the same number twice.
+		renderCard({ ...baseSession, evCashOut: null, evProfitLoss: 1200 });
+		expect(screen.queryByTestId("ev-result")).not.toBeInTheDocument();
+	});
+
+	it("shows the EV row when an EV cash-out of 0 was recorded", async () => {
+		renderCard({
+			...baseSession,
+			currencyUnit: "$",
+			evCashOut: 0,
+			evProfitLoss: -2000,
+		});
+		await screen.findByText("1/2 NLH");
+		expect(screen.getByTestId("ev-result")).toHaveTextContent("EV -2,000 $");
+	});
+
 	it("colors a winning EV figure green", async () => {
-		renderCard({ ...baseSession, evProfitLoss: 800 });
+		renderCard({ ...baseSession, evCashOut: 2000, evProfitLoss: 800 });
 		await screen.findByText("1/2 NLH");
 		expect(screen.getByTestId("ev-result")).toHaveClass("text-green-600");
 	});
 
 	it("colors a losing EV figure red", async () => {
-		renderCard({ ...baseSession, evProfitLoss: -800 });
+		renderCard({ ...baseSession, evCashOut: 400, evProfitLoss: -800 });
 		await screen.findByText("1/2 NLH");
 		expect(screen.getByTestId("ev-result")).toHaveClass("text-red-600");
 	});
 
 	it("does not show an EV row for a tournament", async () => {
-		renderCard({ ...baseTournament, evProfitLoss: 800 });
+		renderCard({ ...baseTournament, evCashOut: 2000, evProfitLoss: 800 });
 		await screen.findByText("Sunday Major");
 		expect(screen.queryByTestId("ev-result")).not.toBeInTheDocument();
 	});

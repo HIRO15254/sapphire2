@@ -565,8 +565,19 @@ describe("pure helpers", () => {
 			const out = buildOptimisticItem(cashValues({ buyIn: 100, cashOut: 150 }));
 			expect(out.type).toBe("cash_game");
 			expect(out.profitLoss).toBe(50);
-			expect(out.evProfitLoss).toBeNull();
-			expect(out.evDiff).toBeNull();
+		});
+
+		it("falls back to the actual result for EV when no evCashOut is entered", () => {
+			const out = buildOptimisticItem(cashValues({ buyIn: 100, cashOut: 150 }));
+			expect(out.evProfitLoss).toBe(50);
+			expect(out.evDiff).toBe(0);
+		});
+
+		it("falls back to the actual loss for EV when no evCashOut is entered", () => {
+			const out = buildOptimisticItem(cashValues({ buyIn: 100, cashOut: 0 }));
+			expect(out.profitLoss).toBe(-100);
+			expect(out.evProfitLoss).toBe(-100);
+			expect(out.evDiff).toBe(0);
 		});
 
 		it("computes evProfitLoss and evDiff when evCashOut provided", () => {
@@ -575,6 +586,14 @@ describe("pure helpers", () => {
 			);
 			expect(out.evProfitLoss).toBe(100);
 			expect(out.evDiff).toBe(50);
+		});
+
+		it("treats an evCashOut of 0 as entered, not as missing", () => {
+			const out = buildOptimisticItem(
+				cashValues({ buyIn: 100, cashOut: 150, evCashOut: 0 })
+			);
+			expect(out.evProfitLoss).toBe(-100);
+			expect(out.evDiff).toBe(-150);
 		});
 
 		it("tournament branch leaves cash-specific fields null", () => {

@@ -20,6 +20,7 @@ function makeSession(
 		currencyUnit: null,
 		endedAt: null,
 		entryFee: null,
+		evCashOut: null,
 		evProfitLoss: null,
 		placement: null,
 		profitLoss: 0,
