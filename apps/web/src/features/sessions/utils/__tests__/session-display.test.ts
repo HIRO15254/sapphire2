@@ -5,6 +5,7 @@ import {
 	buildSessionMetaRows,
 	buildTournamentRuleRows,
 	buildTournamentStatRows,
+	displayableEvProfitLoss,
 	formatSessionDuration,
 	formatSessionEvDisplay,
 	formatSessionPlDisplay,
@@ -564,11 +565,46 @@ describe("formatTournamentResult", () => {
 	});
 });
 
+describe("displayableEvProfitLoss", () => {
+	const cash = {
+		type: "cash_game",
+		evCashOut: 1800,
+		evProfitLoss: 800,
+	};
+
+	it("returns the EV P&L when an EV cash-out was recorded", () => {
+		expect(displayableEvProfitLoss(cash)).toBe(800);
+	});
+
+	it("returns null when no EV cash-out was recorded", () => {
+		expect(
+			displayableEvProfitLoss({ ...cash, evCashOut: null, evProfitLoss: 1200 })
+		).toBeNull();
+	});
+
+	it("returns null for a tournament even with an EV cash-out", () => {
+		expect(displayableEvProfitLoss({ ...cash, type: "tournament" })).toBeNull();
+	});
+
+	it("treats an EV cash-out of 0 as recorded", () => {
+		expect(
+			displayableEvProfitLoss({ ...cash, evCashOut: 0, evProfitLoss: -1000 })
+		).toBe(-1000);
+	});
+
+	it("passes a null EV P&L through for an unfinished cash game", () => {
+		expect(
+			displayableEvProfitLoss({ ...cash, evCashOut: null, evProfitLoss: null })
+		).toBeNull();
+	});
+});
+
 describe("formatSessionEvDisplay", () => {
 	const cash = {
 		type: "cash_game",
 		currencyUnit: "$",
 		profitLoss: 1200,
+		evCashOut: 1800,
 		evProfitLoss: 800,
 		ringGameBlind2: 200,
 		tournamentBuyIn: null,
@@ -586,6 +622,26 @@ describe("formatSessionEvDisplay", () => {
 		expect(
 			formatSessionEvDisplay({ ...cash, evProfitLoss: null }, false)
 		).toBeNull();
+	});
+
+	it("returns null when no EV cash-out was recorded, even though the server filled EV P&L in", () => {
+		// The server falls back to the actual result so the session counts in the
+		// EV statistics; the row must not repeat that number as a second line.
+		expect(
+			formatSessionEvDisplay(
+				{ ...cash, evCashOut: null, evProfitLoss: 1200 },
+				false
+			)
+		).toBeNull();
+	});
+
+	it("shows the EV line when an EV cash-out of 0 was recorded", () => {
+		expect(
+			formatSessionEvDisplay(
+				{ ...cash, evCashOut: 0, evProfitLoss: -1000 },
+				false
+			)
+		).toBe("-1,000 $");
 	});
 
 	it("shows the currency EV P&L when the toggle is off", () => {

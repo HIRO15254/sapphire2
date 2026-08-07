@@ -1,5 +1,8 @@
 import { formatCompactNumber } from "@/utils/format-number";
-import { formatSessionDuration } from "./session-display";
+import {
+	displayableEvProfitLoss,
+	formatSessionDuration,
+} from "./session-display";
 export interface ShareableSession {
 	beforeDeadline: boolean | null;
 	bountyPrizes: number | null;
@@ -8,6 +11,7 @@ export interface ShareableSession {
 	currencyUnit: string | null;
 	endedAt: string | null;
 	entryFee: number | null;
+	evCashOut: number | null;
 	evProfitLoss: number | null;
 	placement: number | null;
 	prizeMoney: number | null;
@@ -46,9 +50,10 @@ function buildProfitLossLine(
 		}
 	} else {
 		const duration = formatSessionDuration(session.startedAt, session.endedAt);
-		if (session.evProfitLoss !== null) {
-			const evSign = session.evProfitLoss >= 0 ? "+" : "";
-			const evAmount = formatCompactNumber(session.evProfitLoss);
+		const evProfitLoss = displayableEvProfitLoss(session);
+		if (evProfitLoss !== null) {
+			const evSign = evProfitLoss >= 0 ? "+" : "";
+			const evAmount = formatCompactNumber(evProfitLoss);
 			line += ` (EV: ${evSign}${evAmount} ${currencyUnit})`;
 		}
 		if (duration) {

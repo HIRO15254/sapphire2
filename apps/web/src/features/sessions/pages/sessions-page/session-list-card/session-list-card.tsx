@@ -29,6 +29,8 @@ export interface SessionListCardItem {
 	currencyUnit: string | null;
 	endedAt: string | null;
 	entryFee: number | null;
+	/** Raw EV cash-out — null means the user recorded none, so no EV row. */
+	evCashOut: number | null;
 	evProfitLoss: number | null;
 	id: string;
 	placement: number | null;

@@ -391,15 +391,38 @@ export function formatSessionPlDisplay(
 }
 
 interface EvDisplayInput extends PlDisplayInput {
+	evCashOut: number | null;
 	evProfitLoss: number | null;
 }
 
 /**
+ * The EV figure a single session should display, or `null` when it must show
+ * none. This is the one place that decides it — the list card, the detail hero
+ * and the share text all read through it, so they cannot disagree.
+ *
+ * The gate is the raw `evCashOut`, not `evProfitLoss`. The server defines a
+ * cash game without a recorded EV cash-out as having run exactly as expected,
+ * so its `evProfitLoss` equals the actual result (`resolveEvCashOut`). That
+ * fallback is what puts those sessions into the EV statistics, but printing it
+ * per row would just repeat the P&L as a second identical line — so a row shows
+ * an EV figure only when the user actually recorded one. Live cash games always
+ * carry an `evCashOut`, so their EV line is unaffected.
+ */
+export function displayableEvProfitLoss(session: {
+	evCashOut: number | null;
+	evProfitLoss: number | null;
+	type: string;
+}): number | null {
+	if (session.type !== "cash_game" || session.evCashOut === null) {
+		return null;
+	}
+	return session.evProfitLoss;
+}
+
+/**
  * Secondary EV figure for a cash-game list row, honoring the BB/BI toggle.
- * Returns `null` for tournaments or when the session has no result yet, so the
- * result section omits the second line. Every finished cash game has an EV P&L:
- * a manual entry without an EV cash-out falls back to its actual result server
- * side (`resolveEvCashOut`), so the EV line reads the same as the P&L line.
+ * Returns `null` whenever {@link displayableEvProfitLoss} does, so the result
+ * section omits the second line.
  *
  * The realized P&L is always whole chips, but the EV can be fractional (live
  * all-in equity), so the value is rounded to the nearest integer before
@@ -410,8 +433,9 @@ export function formatSessionEvDisplay(
 	session: EvDisplayInput,
 	bbBiMode: boolean
 ): string | null {
-	if (session.type !== "cash_game" || session.evProfitLoss === null) {
+	const evProfitLoss = displayableEvProfitLoss(session);
+	if (evProfitLoss === null) {
 		return null;
 	}
-	return formatPlValue(Math.round(session.evProfitLoss), session, bbBiMode);
+	return formatPlValue(Math.round(evProfitLoss), session, bbBiMode);
 }
