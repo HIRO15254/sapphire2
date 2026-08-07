@@ -493,11 +493,12 @@ function buildSummary(
 		tournamentBiCount: acc.tournamentBiCount,
 		totalProfitLoss: acc.totalProfitLoss,
 		cashNormalizedProfitLoss: acc.cashBbCount > 0 ? acc.cashBbSum : null,
-		// Every EV figure is gated on `recordedEvCount`, not on how many rows
-		// carry an `evProfitLoss` — a finished cash session always carries one,
-		// because it falls back to the actual result. Gating on the fallback
-		// would hand a user who has never recorded an EV cash-out an "EV diff: 0"
-		// card and an EV total identical to totalProfitLoss, forever.
+		// Every EV figure is gated on how many rows actually RECORDED an EV
+		// cash-out, not on how many carry an `evProfitLoss` — a finished cash
+		// session always carries one, because it falls back to the actual
+		// result. Gating on the fallback would hand a user who has never
+		// recorded an EV cash-out an "EV diff: 0" card and an EV total
+		// identical to totalProfitLoss, forever.
 		//
 		// The gate is all-or-nothing over the query's scope, which is where it
 		// deliberately differs from the per-row rule in the web layer's
