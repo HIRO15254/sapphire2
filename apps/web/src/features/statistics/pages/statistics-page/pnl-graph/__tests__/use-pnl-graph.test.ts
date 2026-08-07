@@ -165,10 +165,10 @@ describe("usePnlGraph", () => {
 		expect(result.current.evToggleAvailable).toBe(false);
 	});
 
-	it("keeps the EV toggle mounted while the series is still loading", async () => {
-		// Changing a filter swaps the query key, so `data` is briefly undefined
-		// again. Reading that as "no recorded EV" would unmount the Switch and
-		// remount it on every period / room / currency change.
+	it("keeps the EV toggle mounted while a changed filter's series reloads", async () => {
+		// Changing a filter swaps the query key, so `data` goes back to
+		// undefined. Reading that as "no recorded EV" would unmount the Switch
+		// and remount it on every period / room / currency change.
 		trpcMocks.seriesQueryFn.mockResolvedValue({
 			points: [
 				seriesPoint({
@@ -180,11 +180,46 @@ describe("usePnlGraph", () => {
 				}),
 			],
 		});
-		const { result } = renderGraph(ctx({ type: "cash_game" }));
-		expect(result.current.isPending).toBe(true);
-		expect(result.current.evToggleAvailable).toBe(true);
+		const { result, rerender } = renderHook(
+			(context: StatsSectionContext) => usePnlGraph(context),
+			{
+				initialProps: ctx({ type: "cash_game" }),
+				wrapper: withQueryClient(createTestQueryClient()),
+			}
+		);
 		await waitFor(() => expect(result.current.isPending).toBe(false));
 		expect(result.current.evToggleAvailable).toBe(true);
+
+		rerender(
+			ctx({
+				type: "cash_game",
+				statsInput: { normalized: false, currencyId: "c2" },
+			})
+		);
+		expect(result.current.isPending).toBe(true);
+		expect(result.current.evToggleAvailable).toBe(true);
+	});
+
+	it("never flashes the EV toggle for a user who recorded no EV", async () => {
+		// The mirror of the case above: treating "not loaded yet" as available
+		// would pop a Switch into the toolbar on every load for exactly the
+		// user this gate exists to spare — and it is clickable while it shows.
+		trpcMocks.seriesQueryFn.mockResolvedValue({
+			points: [
+				seriesPoint({
+					id: "a",
+					profitLoss: 100,
+					sessionDate: day1,
+					evProfitLoss: 100,
+					evRecorded: false,
+				}),
+			],
+		});
+		const { result } = renderGraph(ctx({ type: "cash_game" }));
+		expect(result.current.isPending).toBe(true);
+		expect(result.current.evToggleAvailable).toBe(false);
+		await waitFor(() => expect(result.current.isPending).toBe(false));
+		expect(result.current.evToggleAvailable).toBe(false);
 	});
 
 	it("forces the effective EV toggle off when no session recorded an EV cash-out", async () => {

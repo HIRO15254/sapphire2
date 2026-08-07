@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { StatsSectionContext } from "@/features/statistics/types";
 import {
 	type AggregatedPoint,
@@ -59,14 +59,20 @@ export function usePnlGraph(ctx: StatsSectionContext): UsePnlGraphResult {
 	// toggle is the graph's version of the `—` the KPI cards show for the same
 	// user.
 	//
-	// The verdict needs a loaded series, so it is `series === undefined` that is
-	// checked here rather than an empty `rawPoints`. Changing a filter swaps the
-	// query key and `data` goes back to undefined; reading that as "nothing
-	// recorded" would unmount the toggle and remount it on every period / room /
-	// currency change, while the toolbar around it stays put.
-	const evToggleAvailable =
-		ctx.type === "cash_game" &&
-		(series === undefined || series.some((point) => point.evRecorded));
+	// Only a loaded series can answer that, and changing a filter swaps the
+	// query key so `data` goes back to undefined mid-answer. Neither default
+	// works on its own: treating "not loaded" as unavailable unmounts the Switch
+	// on every period / room / currency change (the toolbar around it stays
+	// put), and treating it as available pops a Switch into that toolbar on
+	// every load for exactly the user this gate exists to spare. So carry the
+	// last resolved verdict across the gap — it starts hidden, and only a loaded
+	// series ever moves it. The write is idempotent, so a double render under
+	// StrictMode reaches the same value.
+	const evRecordedSeen = useRef(false);
+	if (series !== undefined) {
+		evRecordedSeen.current = series.some((point) => point.evRecorded);
+	}
+	const evToggleAvailable = ctx.type === "cash_game" && evRecordedSeen.current;
 	const effectiveShowEvCash = evToggleAvailable && showEvCash;
 
 	const { points } = aggregatePnlPoints({
