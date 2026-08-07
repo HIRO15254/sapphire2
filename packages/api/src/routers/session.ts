@@ -118,8 +118,18 @@ function computeCashGamePL(
  * the filtered sessions rather than over all of them.
  *
  * Returns null only when there is no cash-out either (an unfinished session),
- * where no EV can be stated at all.
+ * where no EV can be stated at all — hence the overload: past a `cashOut !==
+ * null` guard the result is always a number, so callers inside such a guard do
+ * not carry a null branch that cannot run.
  */
+export function resolveEvCashOut(
+	evCashOut: number | null,
+	cashOut: number
+): number;
+export function resolveEvCashOut(
+	evCashOut: number | null,
+	cashOut: number | null
+): number | null;
 export function resolveEvCashOut(
 	evCashOut: number | null,
 	cashOut: number | null
@@ -1197,8 +1207,13 @@ function accumulateEvMetrics(
 		evSessionCount: number;
 	}) => void
 ) {
+	if (s.type !== "cash_game" || s.buyIn === null) {
+		return;
+	}
+	// Resolved only after the cash-game guard: the fallback is defined for a
+	// cash-game cash-out, and a tournament row's cashOut carries no EV meaning.
 	const evCashOut = resolveEvCashOut(s.evCashOut, s.cashOut);
-	if (s.type !== "cash_game" || evCashOut === null || s.buyIn === null) {
+	if (evCashOut === null) {
 		return;
 	}
 	const evPl = evCashOut + (s.chipRemoveTotal ?? 0) - s.buyIn;
@@ -1655,10 +1670,7 @@ function computeCashStats(r: ProfitLossSeriesRow): CashGameStats {
 	const evCashOut = resolveEvCashOut(r.evCashOut, r.cashOut);
 	return {
 		profitLoss: computeCashGamePL(r.buyIn, r.cashOut, chipRemoveTotal),
-		evProfitLoss:
-			evCashOut === null
-				? null
-				: computeCashGamePL(r.buyIn, evCashOut, chipRemoveTotal),
+		evProfitLoss: computeCashGamePL(r.buyIn, evCashOut, chipRemoveTotal),
 		buyInTotal: r.buyIn,
 	};
 }
@@ -1826,10 +1838,8 @@ function enrichItemWithPL<T extends ListItemRaw>(item: T) {
 		const chipRemoveTotal = item.chipRemoveTotal ?? 0;
 		profitLoss = computeCashGamePL(item.buyIn, item.cashOut, chipRemoveTotal);
 		const evCashOut = resolveEvCashOut(item.evCashOut, item.cashOut);
-		if (evCashOut !== null) {
-			evProfitLoss = evCashOut + chipRemoveTotal - item.buyIn;
-			evDiff = evProfitLoss - profitLoss;
-		}
+		evProfitLoss = evCashOut + chipRemoveTotal - item.buyIn;
+		evDiff = evProfitLoss - profitLoss;
 	} else if (item.type === "tournament") {
 		profitLoss = computeTournamentPL(
 			item.tournamentBuyIn,

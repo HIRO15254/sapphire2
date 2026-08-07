@@ -12,6 +12,7 @@ import {
 	type ProfitLossSeriesRow,
 	parseSessionCursor,
 	resolveCashRuleSnapshot,
+	resolveEvCashOut,
 	selectInChunks,
 	sessionKeysetCondition,
 	toProfitLossSeriesPoint,
@@ -29,6 +30,28 @@ const SESSION_DATE_RE = /sessionDate/;
 const PLACEMENT_RE = /placement/;
 const PRIZE_MONEY_RE = /prizeMoney/;
 const TOURNAMENT_ID_RE = /tournamentId/;
+
+describe("resolveEvCashOut", () => {
+	it("returns the recorded EV cash-out when there is one", () => {
+		expect(resolveEvCashOut(650, 700)).toBe(650);
+	});
+
+	it("falls back to the actual cash-out when no EV cash-out was recorded", () => {
+		expect(resolveEvCashOut(null, 700)).toBe(700);
+	});
+
+	it("treats an EV cash-out of 0 as recorded, not as missing", () => {
+		expect(resolveEvCashOut(0, 700)).toBe(0);
+	});
+
+	it("returns null when there is no cash-out to fall back to", () => {
+		expect(resolveEvCashOut(null, null)).toBeNull();
+	});
+
+	it("still returns a recorded EV cash-out when the session has no cash-out", () => {
+		expect(resolveEvCashOut(650, null)).toBe(650);
+	});
+});
 
 describe("computeCashGamePL", () => {
 	it("returns cashOut - buyIn when no chips were removed early", () => {
