@@ -9,6 +9,13 @@ export interface PnlSeriesPoint {
 	bigBlind: number | null;
 	buyInTotal: number | null;
 	evProfitLoss: number | null;
+	/**
+	 * Whether the session stores a real EV cash-out. `evProfitLoss` falls back
+	 * to the actual result, so it is non-null for every finished cash session
+	 * and cannot answer this on its own — see `usePnlGraph`, which hides the EV
+	 * toggle unless some point in the series has this set.
+	 */
+	evRecorded: boolean;
 	id: string;
 	playMinutes: number | null;
 	profitLoss: number;

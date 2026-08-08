@@ -794,6 +794,37 @@ describe("session router input validation", () => {
 			expect(point.evProfitLoss).toBe(150);
 		});
 
+		it("marks the point evRecorded when an evCashOut is stored", () => {
+			const point = toProfitLossSeriesPoint(
+				row({ buyIn: 500, cashOut: 700, evCashOut: 650 })
+			);
+			expect(point.evRecorded).toBe(true);
+		});
+
+		it("marks an evCashOut of 0 as evRecorded, not as missing", () => {
+			const point = toProfitLossSeriesPoint(
+				row({ buyIn: 500, cashOut: 700, evCashOut: 0 })
+			);
+			expect(point.evRecorded).toBe(true);
+		});
+
+		it("leaves evRecorded false when the EV figures came from the fallback", () => {
+			const point = toProfitLossSeriesPoint(
+				row({ buyIn: 500, cashOut: 700, evCashOut: null })
+			);
+			// The point still carries an evProfitLoss — it just is not evidence
+			// the user tracked EV, so the graph must not offer the EV line for it.
+			expect(point.evProfitLoss).toBe(200);
+			expect(point.evRecorded).toBe(false);
+		});
+
+		it("leaves evRecorded false for a tournament", () => {
+			const point = toProfitLossSeriesPoint(
+				row({ type: "tournament", tournamentBuyIn: 100, prizeMoney: 500 })
+			);
+			expect(point.evRecorded).toBe(false);
+		});
+
 		it("treats an evCashOut of 0 as recorded, not as missing", () => {
 			const point = toProfitLossSeriesPoint(
 				row({ buyIn: 500, cashOut: 700, evCashOut: 0 })

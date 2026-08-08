@@ -15,6 +15,7 @@ function point(
 		bigBlind: null,
 		buyInTotal: null,
 		evProfitLoss: null,
+		evRecorded: false,
 		playMinutes: null,
 		type: "cash_game",
 		sortKey: overrides.sessionDate,
