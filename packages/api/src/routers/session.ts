@@ -109,6 +109,34 @@ function computeCashGamePL(
 	return cashOut + chipRemoveTotal - buyIn;
 }
 
+/**
+ * The EV cash-out the EV P/L is computed from. Recording one is optional, and
+ * a session without it is defined to have run exactly as expected: EV falls
+ * back to the actual cash-out, so its EV P/L equals its real result and its EV
+ * difference is 0. Without the fallback those sessions dropped out of every EV
+ * figure entirely, which made the EV totals a sum over an unstated subset of
+ * the filtered sessions rather than over all of them.
+ *
+ * Returns null only when there is no cash-out either (an unfinished session),
+ * where no EV can be stated at all — hence the overload: past a `cashOut !==
+ * null` guard the result is always a number, so callers inside such a guard do
+ * not carry a null branch that cannot run.
+ */
+export function resolveEvCashOut(
+	evCashOut: number | null,
+	cashOut: number
+): number;
+export function resolveEvCashOut(
+	evCashOut: number | null,
+	cashOut: number | null
+): number | null;
+export function resolveEvCashOut(
+	evCashOut: number | null,
+	cashOut: number | null
+): number | null {
+	return evCashOut ?? cashOut;
+}
+
 function computeTournamentPL(
 	tournamentBuyIn: number | null,
 	entryFee: number | null,
@@ -1130,6 +1158,10 @@ interface SessionSummary {
 	avgPlacement: number | null;
 	avgProfitLoss: number | null;
 	itmRate: number | null;
+	// Cash-only EV aggregates, gated the same way as stats.summary's: null
+	// unless a session in scope stored a real EV cash-out, and otherwise summed
+	// over every finished cash session (the ones without a stored EV cash-out
+	// count at their actual result). See accumulateEvMetrics.
 	totalEvDiff: number | null;
 	totalEvProfitLoss: number | null;
 	totalPrizeMoney: number | null;
@@ -1171,22 +1203,34 @@ function accumulateEvMetrics(
 	current: {
 		totalEvProfitLoss: number;
 		totalEvDiff: number;
-		evSessionCount: number;
+		recordedEvCount: number;
 	},
 	update: (ev: {
 		totalEvProfitLoss: number;
 		totalEvDiff: number;
-		evSessionCount: number;
+		recordedEvCount: number;
 	}) => void
 ) {
-	if (s.type !== "cash_game" || s.evCashOut === null || s.buyIn === null) {
+	if (s.type !== "cash_game" || s.buyIn === null) {
 		return;
 	}
-	const evPl = s.evCashOut + (s.chipRemoveTotal ?? 0) - s.buyIn;
+	// Resolved only after the cash-game guard: the fallback is defined for a
+	// cash-game cash-out, and a tournament row's cashOut carries no EV meaning.
+	const evCashOut = resolveEvCashOut(s.evCashOut, s.cashOut);
+	if (evCashOut === null) {
+		return;
+	}
+	const evPl = evCashOut + (s.chipRemoveTotal ?? 0) - s.buyIn;
 	update({
 		totalEvProfitLoss: current.totalEvProfitLoss + evPl,
 		totalEvDiff: current.totalEvDiff + (evPl - pl),
-		evSessionCount: current.evSessionCount + 1,
+		// Count the sessions that actually stored an EV cash-out, not the ones
+		// that got a resolved value: `evCashOut` above falls back to the actual
+		// cash-out, so counting it would leave the gate below true for every
+		// finished cash session and report "EV diff: 0" to a user who never
+		// tracked EV. Same gate, same reason as stats.ts's buildSummary — the
+		// two summaries must not disagree over one scope.
+		recordedEvCount: current.recordedEvCount + (s.evCashOut === null ? 0 : 1),
 	});
 }
 
@@ -1200,7 +1244,7 @@ function aggregateSessions(allSessions: SummarySessionRow[]) {
 	let itmCount = 0;
 	let totalEvProfitLoss = 0;
 	let totalEvDiff = 0;
-	let evSessionCount = 0;
+	let recordedEvCount = 0;
 
 	for (const s of allSessions) {
 		const pl = computeSessionPLFromRow(s);
@@ -1212,11 +1256,11 @@ function aggregateSessions(allSessions: SummarySessionRow[]) {
 		accumulateEvMetrics(
 			s,
 			pl,
-			{ totalEvProfitLoss, totalEvDiff, evSessionCount },
+			{ totalEvProfitLoss, totalEvDiff, recordedEvCount },
 			(ev) => {
 				totalEvProfitLoss = ev.totalEvProfitLoss;
 				totalEvDiff = ev.totalEvDiff;
-				evSessionCount = ev.evSessionCount;
+				recordedEvCount = ev.recordedEvCount;
 			}
 		);
 
@@ -1244,7 +1288,7 @@ function aggregateSessions(allSessions: SummarySessionRow[]) {
 		itmCount,
 		totalEvProfitLoss,
 		totalEvDiff,
-		evSessionCount,
+		recordedEvCount,
 	};
 }
 
@@ -1349,8 +1393,8 @@ async function computeSummary(
 			isTournament && agg.tournamentCount > 0
 				? (agg.itmCount / agg.tournamentCount) * 100
 				: null,
-		totalEvProfitLoss: agg.evSessionCount > 0 ? agg.totalEvProfitLoss : null,
-		totalEvDiff: agg.evSessionCount > 0 ? agg.totalEvDiff : null,
+		totalEvProfitLoss: agg.recordedEvCount > 0 ? agg.totalEvProfitLoss : null,
+		totalEvDiff: agg.recordedEvCount > 0 ? agg.totalEvDiff : null,
 	};
 }
 
@@ -1633,12 +1677,10 @@ function computeCashStats(r: ProfitLossSeriesRow): CashGameStats {
 		return { profitLoss: 0, evProfitLoss: null, buyInTotal: null };
 	}
 	const chipRemoveTotal = r.chipRemoveTotal ?? 0;
+	const evCashOut = resolveEvCashOut(r.evCashOut, r.cashOut);
 	return {
 		profitLoss: computeCashGamePL(r.buyIn, r.cashOut, chipRemoveTotal),
-		evProfitLoss:
-			r.evCashOut === null
-				? null
-				: computeCashGamePL(r.buyIn, r.evCashOut, chipRemoveTotal),
+		evProfitLoss: computeCashGamePL(r.buyIn, evCashOut, chipRemoveTotal),
 		buyInTotal: r.buyIn,
 	};
 }
@@ -1787,6 +1829,12 @@ export function toProfitLossSeriesPoint(r: ProfitLossSeriesRow) {
 		sortKey: Math.floor((r.startedAt ?? r.sessionDate).getTime() / 1000),
 		profitLoss,
 		evProfitLoss: cashStats.evProfitLoss,
+		// Whether this session stores a real EV cash-out. `evProfitLoss` cannot
+		// answer that — it falls back to the actual result, so every finished
+		// cash session has one. The graph needs the distinction to decide
+		// whether an EV line would say anything the P/L line does not. Same
+		// definition as stats.ts's `StatsSessionRow.evRecorded`.
+		evRecorded: r.type === "cash_game" && r.evCashOut !== null,
 		playMinutes: computePlayMinutes(r),
 		bigBlind: r.ringGameBlind2 ?? null,
 		buyInTotal,
@@ -1805,10 +1853,9 @@ function enrichItemWithPL<T extends ListItemRaw>(item: T) {
 	) {
 		const chipRemoveTotal = item.chipRemoveTotal ?? 0;
 		profitLoss = computeCashGamePL(item.buyIn, item.cashOut, chipRemoveTotal);
-		if (item.evCashOut !== null) {
-			evProfitLoss = item.evCashOut + chipRemoveTotal - item.buyIn;
-			evDiff = evProfitLoss - profitLoss;
-		}
+		const evCashOut = resolveEvCashOut(item.evCashOut, item.cashOut);
+		evProfitLoss = evCashOut + chipRemoveTotal - item.buyIn;
+		evDiff = evProfitLoss - profitLoss;
 	} else if (item.type === "tournament") {
 		profitLoss = computeTournamentPL(
 			item.tournamentBuyIn,

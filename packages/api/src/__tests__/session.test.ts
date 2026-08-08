@@ -12,6 +12,7 @@ import {
 	type ProfitLossSeriesRow,
 	parseSessionCursor,
 	resolveCashRuleSnapshot,
+	resolveEvCashOut,
 	selectInChunks,
 	sessionKeysetCondition,
 	toProfitLossSeriesPoint,
@@ -29,6 +30,28 @@ const SESSION_DATE_RE = /sessionDate/;
 const PLACEMENT_RE = /placement/;
 const PRIZE_MONEY_RE = /prizeMoney/;
 const TOURNAMENT_ID_RE = /tournamentId/;
+
+describe("resolveEvCashOut", () => {
+	it("returns the recorded EV cash-out when there is one", () => {
+		expect(resolveEvCashOut(650, 700)).toBe(650);
+	});
+
+	it("falls back to the actual cash-out when no EV cash-out was recorded", () => {
+		expect(resolveEvCashOut(null, 700)).toBe(700);
+	});
+
+	it("treats an EV cash-out of 0 as recorded, not as missing", () => {
+		expect(resolveEvCashOut(0, 700)).toBe(0);
+	});
+
+	it("returns null when there is no cash-out to fall back to", () => {
+		expect(resolveEvCashOut(null, null)).toBeNull();
+	});
+
+	it("still returns a recorded EV cash-out when the session has no cash-out", () => {
+		expect(resolveEvCashOut(650, null)).toBe(650);
+	});
+});
 
 describe("computeCashGamePL", () => {
 	it("returns cashOut - buyIn when no chips were removed early", () => {
@@ -699,6 +722,114 @@ describe("session router input validation", () => {
 			);
 			expect(point.profitLoss).toBe(300);
 			expect(point.evProfitLoss).toBe(350);
+		});
+	});
+
+	describe("toProfitLossSeriesPoint falls back to the actual result when no EV cash-out is recorded", () => {
+		function row(overrides: Partial<ProfitLossSeriesRow>): ProfitLossSeriesRow {
+			return {
+				bountyPrizes: null,
+				breakMinutes: null,
+				buyIn: null,
+				cashOut: null,
+				chipPurchaseCost: 0,
+				chipRemoveTotal: null,
+				endedAt: null,
+				entryFee: null,
+				evCashOut: null,
+				id: "s1",
+				prizeMoney: null,
+				ringGameBlind2: null,
+				sessionDate: new Date(1_700_000_000_000),
+				startedAt: null,
+				tournamentBuyIn: null,
+				type: "cash_game",
+				...overrides,
+			};
+		}
+
+		it("reports evProfitLoss equal to profitLoss when evCashOut is null", () => {
+			const point = toProfitLossSeriesPoint(
+				row({ buyIn: 500, cashOut: 700, evCashOut: null })
+			);
+			expect(point.profitLoss).toBe(200);
+			expect(point.evProfitLoss).toBe(200);
+		});
+
+		it("keeps chipRemoveTotal in the fallback EV so it matches profitLoss exactly", () => {
+			const point = toProfitLossSeriesPoint(
+				row({ buyIn: 500, cashOut: 700, evCashOut: null, chipRemoveTotal: 100 })
+			);
+			expect(point.profitLoss).toBe(300);
+			expect(point.evProfitLoss).toBe(300);
+		});
+
+		it("reports a losing session's EV as the same loss", () => {
+			const point = toProfitLossSeriesPoint(
+				row({ buyIn: 500, cashOut: 0, evCashOut: null })
+			);
+			expect(point.profitLoss).toBe(-500);
+			expect(point.evProfitLoss).toBe(-500);
+		});
+
+		it("keeps evProfitLoss null when the cash session has no recorded result", () => {
+			const point = toProfitLossSeriesPoint(
+				row({ buyIn: null, cashOut: null, evCashOut: null })
+			);
+			expect(point.evProfitLoss).toBeNull();
+		});
+
+		it("keeps evProfitLoss null for a tournament", () => {
+			const point = toProfitLossSeriesPoint(
+				row({ type: "tournament", tournamentBuyIn: 100, prizeMoney: 500 })
+			);
+			expect(point.evProfitLoss).toBeNull();
+		});
+
+		it("still prefers a recorded evCashOut over the actual cash-out", () => {
+			const point = toProfitLossSeriesPoint(
+				row({ buyIn: 500, cashOut: 700, evCashOut: 650 })
+			);
+			expect(point.profitLoss).toBe(200);
+			expect(point.evProfitLoss).toBe(150);
+		});
+
+		it("marks the point evRecorded when an evCashOut is stored", () => {
+			const point = toProfitLossSeriesPoint(
+				row({ buyIn: 500, cashOut: 700, evCashOut: 650 })
+			);
+			expect(point.evRecorded).toBe(true);
+		});
+
+		it("marks an evCashOut of 0 as evRecorded, not as missing", () => {
+			const point = toProfitLossSeriesPoint(
+				row({ buyIn: 500, cashOut: 700, evCashOut: 0 })
+			);
+			expect(point.evRecorded).toBe(true);
+		});
+
+		it("leaves evRecorded false when the EV figures came from the fallback", () => {
+			const point = toProfitLossSeriesPoint(
+				row({ buyIn: 500, cashOut: 700, evCashOut: null })
+			);
+			// The point still carries an evProfitLoss — it just is not evidence
+			// the user tracked EV, so the graph must not offer the EV line for it.
+			expect(point.evProfitLoss).toBe(200);
+			expect(point.evRecorded).toBe(false);
+		});
+
+		it("leaves evRecorded false for a tournament", () => {
+			const point = toProfitLossSeriesPoint(
+				row({ type: "tournament", tournamentBuyIn: 100, prizeMoney: 500 })
+			);
+			expect(point.evRecorded).toBe(false);
+		});
+
+		it("treats an evCashOut of 0 as recorded, not as missing", () => {
+			const point = toProfitLossSeriesPoint(
+				row({ buyIn: 500, cashOut: 700, evCashOut: 0 })
+			);
+			expect(point.evProfitLoss).toBe(-500);
 		});
 	});
 
@@ -2188,6 +2319,147 @@ describe("session joined ownership scoping", () => {
 			params.includes("user-1")
 		);
 		expect(ownerScopedJoins).toHaveLength(3);
+	});
+});
+
+describe("session.list EV falls back to the actual result without an EV cash-out", () => {
+	function listCallerRows(rows: Record<string, unknown>[]) {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: rows.map((row, index) => ({
+					id: `session-${index + 1}`,
+					type: "cash_game",
+					source: "manual",
+					buyIn: null,
+					cashOut: null,
+					evCashOut: null,
+					chipRemoveTotal: null,
+					...row,
+				})),
+				session_chip_purchase: [],
+				session_blind_level: [],
+				session_to_session_tag: [],
+			},
+		});
+		return appRouter.createCaller({
+			session: { user: { id: "user-1" } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
+	}
+
+	function listCaller(row: Record<string, unknown>) {
+		return listCallerRows([row]);
+	}
+
+	it("reports evProfitLoss = profitLoss and evDiff = 0 when evCashOut is null", async () => {
+		const caller = listCaller({ buyIn: 500, cashOut: 700, evCashOut: null });
+
+		const { items } = await caller.session.list({});
+
+		expect(items[0]).toMatchObject({
+			profitLoss: 200,
+			evProfitLoss: 200,
+			evDiff: 0,
+		});
+	});
+
+	it("adds chipRemoveTotal to the fallback EV so evDiff stays 0", async () => {
+		const caller = listCaller({
+			buyIn: 500,
+			cashOut: 700,
+			evCashOut: null,
+			chipRemoveTotal: 100,
+		});
+
+		const { items } = await caller.session.list({});
+
+		expect(items[0]).toMatchObject({
+			profitLoss: 300,
+			evProfitLoss: 300,
+			evDiff: 0,
+		});
+	});
+
+	it("still prefers a recorded evCashOut", async () => {
+		const caller = listCaller({ buyIn: 500, cashOut: 700, evCashOut: 650 });
+
+		const { items } = await caller.session.list({});
+
+		expect(items[0]).toMatchObject({
+			profitLoss: 200,
+			evProfitLoss: 150,
+			evDiff: -50,
+		});
+	});
+
+	it("leaves evProfitLoss null when the cash session has no recorded result", async () => {
+		const caller = listCaller({ buyIn: null, cashOut: null, evCashOut: null });
+
+		const { items } = await caller.session.list({});
+
+		expect(items[0]).toMatchObject({
+			profitLoss: null,
+			evProfitLoss: null,
+			evDiff: null,
+		});
+	});
+
+	it("leaves the summary EV totals null when no cash session recorded an EV cash-out", async () => {
+		const caller = listCaller({ buyIn: 500, cashOut: 700, evCashOut: null });
+
+		const { summary } = await caller.session.list({});
+
+		// The row itself still carries the fallback EV — that is what makes the
+		// detail view consistent — but a summary built only out of fallbacks
+		// would report "EV diff: 0" to a user who never tracked EV.
+		expect(summary.totalEvProfitLoss).toBeNull();
+		expect(summary.totalEvDiff).toBeNull();
+	});
+
+	it("counts a cash session with a recorded EV cash-out in the summary EV totals", async () => {
+		const caller = listCaller({ buyIn: 500, cashOut: 700, evCashOut: 650 });
+
+		const { summary } = await caller.session.list({});
+
+		expect(summary.totalEvProfitLoss).toBe(150);
+		expect(summary.totalEvDiff).toBe(-50);
+	});
+
+	it("treats a recorded evCashOut of 0 as recorded, not as missing", async () => {
+		const caller = listCaller({ buyIn: 500, cashOut: 700, evCashOut: 0 });
+
+		const { summary } = await caller.session.list({});
+
+		expect(summary.totalEvProfitLoss).toBe(-500);
+		expect(summary.totalEvDiff).toBe(-700);
+	});
+
+	it("sums the fallback sessions too once another session recorded an EV cash-out", async () => {
+		const caller = listCallerRows([
+			{ buyIn: 500, cashOut: 700, evCashOut: 650 },
+			{ buyIn: 100, cashOut: 300, evCashOut: null },
+		]);
+
+		const { summary } = await caller.session.list({});
+
+		// 150 (recorded) + 200 (fallback = its actual result).
+		expect(summary.totalEvProfitLoss).toBe(350);
+		// -50 (recorded) + 0 (fallback contributes no diff).
+		expect(summary.totalEvDiff).toBe(-50);
+	});
+
+	it("leaves the summary EV totals null when no cash session has a result", async () => {
+		const caller = listCaller({
+			type: "tournament",
+			buyIn: null,
+			cashOut: null,
+			evCashOut: null,
+		});
+
+		const { summary } = await caller.session.list({});
+
+		expect(summary.totalEvProfitLoss).toBeNull();
+		expect(summary.totalEvDiff).toBeNull();
 	});
 });
 

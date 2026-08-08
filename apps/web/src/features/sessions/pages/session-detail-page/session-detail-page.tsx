@@ -10,6 +10,7 @@ import {
 	buildSessionMetaRows,
 	buildTournamentRuleRows,
 	buildTournamentStatRows,
+	displayableEvProfitLoss,
 	getSessionGameName,
 	isLiveSession,
 } from "@/features/sessions/utils/session-display";
@@ -150,7 +151,7 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 					) : undefined
 				}
 				currencyUnit={session.currencyUnit}
-				evProfitLoss={session.evProfitLoss}
+				evProfitLoss={displayableEvProfitLoss(session)}
 				profitLoss={session.profitLoss}
 			/>
 
