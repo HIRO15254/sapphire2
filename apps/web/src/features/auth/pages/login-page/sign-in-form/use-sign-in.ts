@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import z from "zod";
 import { resolveMcpAuthorizeRedirect } from "@/features/auth/utils/oauth-redirect";
 import { authClient } from "@/lib/auth-client";
+import { isPasskeySupported } from "@/shared/lib/webauthn";
 
 export function useSignIn() {
 	const navigate = useNavigate({ from: "/" });
@@ -59,6 +60,26 @@ export function useSignIn() {
 		},
 	});
 
+	/**
+	 * Passkey sign-in is usernameless: better-auth asks the browser for any
+	 * discoverable credential registered for this site, so there is nothing to
+	 * type.
+	 */
+	const onSignInWithPasskey = async () => {
+		const result = await authClient.signIn.passkey();
+		if (!result?.data || result.error) {
+			toast.error(result?.error?.message || "Passkey sign in failed");
+			return;
+		}
+		const authorizeUrl = pendingAuthorizeUrl();
+		if (authorizeUrl) {
+			window.location.assign(authorizeUrl);
+			return;
+		}
+		navigate({ to: "/statistics" });
+		toast.success("Sign in successful");
+	};
+
 	const onSignInWithGoogle = async () => {
 		const result = await authClient.signIn.social({
 			provider: "google",
@@ -79,5 +100,12 @@ export function useSignIn() {
 		}
 	};
 
-	return { form, isPending, onSignInWithDiscord, onSignInWithGoogle };
+	return {
+		form,
+		isPasskeySupported: isPasskeySupported(),
+		isPending,
+		onSignInWithDiscord,
+		onSignInWithGoogle,
+		onSignInWithPasskey,
+	};
 }

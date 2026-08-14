@@ -1,3 +1,4 @@
+import { passkey as passkeyPlugin } from "@better-auth/passkey";
 import {
 	account,
 	accountRelations,
@@ -15,6 +16,7 @@ import {
 	oauthConsent,
 	oauthConsentRelations,
 } from "@sapphire2/db/schema/oauth";
+import { passkey, passkeyRelations } from "@sapphire2/db/schema/passkey";
 import { type BetterAuthPlugin, betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { mcp } from "better-auth/plugins";
@@ -107,6 +109,8 @@ const authSchema = {
 	oauthAccessTokenRelations,
 	oauthConsent,
 	oauthConsentRelations,
+	passkey,
+	passkeyRelations,
 };
 
 interface AuthOptions {
@@ -143,7 +147,40 @@ interface AuthOptions {
 	 * need it (e.g. tests) can omit it.
 	 */
 	onUserCreated?: (userId: string) => Promise<void>;
+	/**
+	 * Enables the passkey() plugin (WebAuthn registration / sign-in endpoints
+	 * under /api/auth/passkey/*). The relying party is the WEB app, not the
+	 * Worker: the browser runs the ceremony on the web origin, so `rpID` must
+	 * be the web hostname and `origin` the web origin. The plugin's own default
+	 * (`new URL(baseURL).hostname`) would resolve to the Worker's hostname and
+	 * every ceremony would fail on a mismatched RP ID. Optional so callers
+	 * without a browser front end (tests) can omit it — derive it with
+	 * `resolvePasskeyRp`.
+	 */
+	passkey?: {
+		/** Absolute origin of the web app, no trailing slash. */
+		origin: string;
+		/** Registrable domain of the web app. */
+		rpID: string;
+		/** Human-readable name shown in the platform's passkey prompt. */
+		rpName: string;
+	};
 	secret: string;
+}
+
+/**
+ * Derive the WebAuthn relying-party settings from the web app's origin.
+ *
+ * Pinning `origin` (rather than letting the plugin fall back to the request's
+ * `Origin` header) is deliberate: the header is supplied by the caller, so a
+ * fallback would let any origin that can reach the Worker complete a ceremony.
+ */
+export function resolvePasskeyRp(
+	corsOrigin: string,
+	rpName: string
+): NonNullable<AuthOptions["passkey"]> {
+	const url = new URL(corsOrigin);
+	return { origin: url.origin, rpID: url.hostname, rpName };
 }
 
 /**
@@ -179,21 +216,39 @@ export function createAuth(
 	// references better-auth internals that cannot be named in our emitted
 	// declarations (TS4058). Its endpoints exist at runtime regardless;
 	// callers that need them (apps/server /mcp gate) cast at the call site.
-	const plugins: BetterAuthPlugin[] = options.mcp
-		? [
-				mcp({
+	const plugins: BetterAuthPlugin[] = [];
+	if (options.mcp) {
+		plugins.push(
+			mcp({
+				loginPage: options.mcp.loginPage,
+				resource: options.mcp.resource,
+				oidcConfig: {
 					loginPage: options.mcp.loginPage,
-					resource: options.mcp.resource,
-					oidcConfig: {
-						loginPage: options.mcp.loginPage,
-						consentPage: options.mcp.consentPage,
-						// OAuth 2.1 posture for public MCP clients.
-						requirePKCE: true,
-						allowDynamicClientRegistration: true,
-					},
-				}),
-			]
-		: [];
+					consentPage: options.mcp.consentPage,
+					// OAuth 2.1 posture for public MCP clients.
+					requirePKCE: true,
+					allowDynamicClientRegistration: true,
+				},
+			})
+		);
+	}
+	if (options.passkey) {
+		plugins.push(
+			passkeyPlugin({
+				rpID: options.passkey.rpID,
+				rpName: options.passkey.rpName,
+				origin: options.passkey.origin,
+				authenticatorSelection: {
+					// Sign-in is usernameless (no email field on the passkey
+					// button), which only works with a discoverable credential —
+					// the plugin's "preferred" default would let an authenticator
+					// store a credential the login page could never offer.
+					residentKey: "required",
+					userVerification: "preferred",
+				},
+			}) as BetterAuthPlugin
+		);
+	}
 	// The consent page lives on the SERVER origin (the Worker renders it), so
 	// its POST to /oauth2/consent carries that origin — it must be trusted or
 	// better-auth's CSRF check answers 403 MISSING_OR_NULL_ORIGIN.

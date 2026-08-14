@@ -1,15 +1,23 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { stubWebAuthnSupport } from "@/__tests__/test-utils";
 import SignInForm from "./sign-in-form";
 
 const SIGN_IN_BUTTON_NAME = "Sign In";
+
+const PASSKEY_BUTTON_NAME = "Sign in with a passkey";
 
 const mocks = vi.hoisted(() => ({
 	navigate: vi.fn(),
 	onSwitchToSignUp: vi.fn(),
 	signInEmail: vi.fn(),
 	signInSocial: vi.fn(),
+	signInPasskey: vi.fn(),
+}));
+
+vi.mock("@sapphire2/env/web", () => ({
+	env: { VITE_SERVER_URL: "http://localhost:8787" },
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -28,6 +36,7 @@ vi.mock("@/lib/auth-client", () => ({
 		signIn: {
 			email: mocks.signInEmail,
 			social: mocks.signInSocial,
+			passkey: mocks.signInPasskey,
 		},
 		useSession: () => ({
 			isPending: false,
@@ -74,5 +83,28 @@ describe("SignInForm", () => {
 			screen.getByRole("button", { name: "Need an account? Sign Up" })
 		);
 		expect(mocks.onSwitchToSignUp).toHaveBeenCalledTimes(1);
+	});
+
+	it("hides the passkey button where the browser has no WebAuthn", () => {
+		const restore = stubWebAuthnSupport(false);
+		render(<SignInForm onSwitchToSignUp={mocks.onSwitchToSignUp} />);
+		expect(
+			screen.queryByRole("button", { name: PASSKEY_BUTTON_NAME })
+		).not.toBeInTheDocument();
+		restore();
+	});
+
+	it("starts the passkey ceremony when the button is clicked", async () => {
+		const restore = stubWebAuthnSupport(true);
+		const user = userEvent.setup();
+		mocks.signInPasskey.mockResolvedValue({ data: { session: {} } });
+
+		render(<SignInForm onSwitchToSignUp={mocks.onSwitchToSignUp} />);
+		await user.click(screen.getByRole("button", { name: PASSKEY_BUTTON_NAME }));
+
+		await waitFor(() => {
+			expect(mocks.signInPasskey).toHaveBeenCalledTimes(1);
+		});
+		restore();
 	});
 });

@@ -18,7 +18,8 @@ const { handlerUrls, setPassword } = vi.hoisted(() => ({
 	setPassword: vi.fn(),
 }));
 
-vi.mock("@sapphire2/auth", () => ({
+vi.mock("@sapphire2/auth", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@sapphire2/auth")>()),
 	createAuth: () => ({
 		api: { setPassword },
 		handler: (request: Request) => {

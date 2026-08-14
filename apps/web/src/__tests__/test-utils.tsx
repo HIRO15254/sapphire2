@@ -180,6 +180,31 @@ export function createAuthClientMock(
 	};
 }
 
+/**
+ * Add or remove the `PublicKeyCredential` marker that `isPasskeySupported`
+ * feature-detects on, and return a restore function. jsdom never defines it,
+ * so passkey affordances are hidden unless a test opts in.
+ */
+export function stubWebAuthnSupport(supported: boolean): () => void {
+	const had = "PublicKeyCredential" in window;
+	const previous = (window as { PublicKeyCredential?: unknown })
+		.PublicKeyCredential;
+	if (supported) {
+		// Only presence is checked, so any marker value will do.
+		(window as { PublicKeyCredential?: unknown }).PublicKeyCredential = {};
+	} else {
+		Reflect.deleteProperty(window, "PublicKeyCredential");
+	}
+	return () => {
+		if (had) {
+			(window as { PublicKeyCredential?: unknown }).PublicKeyCredential =
+				previous;
+		} else {
+			Reflect.deleteProperty(window, "PublicKeyCredential");
+		}
+	};
+}
+
 // ─── Reuse across hook/component/route tests ────────────────────────────────
 
 /** Vitest MutationResult stand-in when we only need `isPending` + `mutate`. */
