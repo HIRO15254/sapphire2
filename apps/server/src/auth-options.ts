@@ -1,8 +1,11 @@
 import { seedDefaultGameData } from "@sapphire2/api/services/seed-game-data";
-import type { createAuth } from "@sapphire2/auth";
+import { type createAuth, resolvePasskeyRp } from "@sapphire2/auth";
 import type { Database } from "@sapphire2/db";
 
 type AuthOptions = Parameters<typeof createAuth>[1];
+
+/** Name shown in the platform passkey prompt ("Save a passkey for …"). */
+const PASSKEY_RP_NAME = "sapphire2";
 
 interface AuthEnv {
 	BETTER_AUTH_SECRET: string;
@@ -39,6 +42,9 @@ export function buildAuthOptions(
 		discordClientId: env.DISCORD_CLIENT_ID,
 		discordClientSecret: env.DISCORD_CLIENT_SECRET,
 		onUserCreated: (userId) => seedGameData(db, userId),
+		// The WebAuthn relying party is the web app (CORS_ORIGIN), not the
+		// Worker — the ceremony runs in the browser on that origin.
+		passkey: resolvePasskeyRp(env.CORS_ORIGIN, PASSKEY_RP_NAME),
 		mcp: {
 			consentPage: `${env.BETTER_AUTH_URL}/oauth/consent`,
 			loginPage: `${env.CORS_ORIGIN}/login`,

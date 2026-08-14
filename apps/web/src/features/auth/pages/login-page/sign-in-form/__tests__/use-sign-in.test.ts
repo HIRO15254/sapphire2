@@ -1,11 +1,13 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { stubWebAuthnSupport } from "@/__tests__/test-utils";
 
 const mocks = vi.hoisted(() => ({
 	navigate: vi.fn(),
 	useSession: vi.fn(() => ({ isPending: false })),
 	signInEmail: vi.fn(),
 	signInSocial: vi.fn(),
+	signInPasskey: vi.fn(),
 	toastSuccess: vi.fn(),
 	toastError: vi.fn(),
 	env: { VITE_SERVER_URL: "http://localhost:8787" },
@@ -52,6 +54,7 @@ vi.mock("@/lib/auth-client", () => ({
 		signIn: {
 			email: mocks.signInEmail,
 			social: mocks.signInSocial,
+			passkey: mocks.signInPasskey,
 		},
 	},
 }));
@@ -64,6 +67,7 @@ describe("useSignIn", () => {
 		mocks.useSession.mockReturnValue({ isPending: false });
 		mocks.signInEmail.mockReset();
 		mocks.signInSocial.mockReset();
+		mocks.signInPasskey.mockReset();
 		mocks.toastSuccess.mockReset();
 		mocks.toastError.mockReset();
 	});
@@ -273,5 +277,93 @@ describe("useSignIn", () => {
 		expect(mocks.toastError).toHaveBeenCalledWith(
 			"Discord sign in unavailable"
 		);
+	});
+
+	it("reports passkeys unsupported when the browser has no WebAuthn", () => {
+		const restore = stubWebAuthnSupport(false);
+		const { result } = renderHook(() => useSignIn());
+		expect(result.current.isPasskeySupported).toBe(false);
+		restore();
+	});
+
+	it("reports passkeys supported once PublicKeyCredential exists", () => {
+		const restore = stubWebAuthnSupport(true);
+		const { result } = renderHook(() => useSignIn());
+		expect(result.current.isPasskeySupported).toBe(true);
+		restore();
+	});
+
+	it("onSignInWithPasskey: signs in and enters the app", async () => {
+		mocks.signInPasskey.mockResolvedValue({ data: { session: {} } });
+		const { result } = renderHook(() => useSignIn());
+		await act(async () => {
+			await result.current.onSignInWithPasskey();
+		});
+		expect(mocks.signInPasskey).toHaveBeenCalledTimes(1);
+		expect(mocks.navigate).toHaveBeenCalledTimes(1);
+		expect(mocks.navigate).toHaveBeenNthCalledWith(1, { to: "/statistics" });
+		expect(mocks.toastSuccess).toHaveBeenCalledTimes(1);
+		expect(mocks.toastSuccess).toHaveBeenNthCalledWith(1, "Sign in successful");
+	});
+
+	it("onSignInWithPasskey mid-OAuth: resumes the authorize flow instead of entering the app", async () => {
+		const restore = stubLocation({ search: OAUTH_SEARCH });
+		mocks.signInPasskey.mockResolvedValue({ data: { session: {} } });
+		const { result } = renderHook(() => useSignIn());
+		await act(async () => {
+			await result.current.onSignInWithPasskey();
+		});
+		expect(window.location.assign).toHaveBeenCalledTimes(1);
+		const target = (window.location.assign as ReturnType<typeof vi.fn>).mock
+			.calls[0]?.[0] as string;
+		expect(
+			target.startsWith("http://localhost:8787/api/auth/mcp/authorize?")
+		).toBe(true);
+		expect(mocks.navigate).not.toHaveBeenCalled();
+		expect(mocks.toastSuccess).not.toHaveBeenCalled();
+		restore();
+	});
+
+	it("onSignInWithPasskey: surfaces the error message and stays on the page", async () => {
+		mocks.signInPasskey.mockResolvedValue({
+			data: null,
+			error: { message: "No passkey available" },
+		});
+		const { result } = renderHook(() => useSignIn());
+		await act(async () => {
+			await result.current.onSignInWithPasskey();
+		});
+		expect(mocks.toastError).toHaveBeenCalledTimes(1);
+		expect(mocks.toastError).toHaveBeenNthCalledWith(1, "No passkey available");
+		expect(mocks.navigate).not.toHaveBeenCalled();
+		expect(mocks.toastSuccess).not.toHaveBeenCalled();
+	});
+
+	it("onSignInWithPasskey: falls back to a fixed message when the error has none", async () => {
+		mocks.signInPasskey.mockResolvedValue({
+			data: null,
+			error: { message: "" },
+		});
+		const { result } = renderHook(() => useSignIn());
+		await act(async () => {
+			await result.current.onSignInWithPasskey();
+		});
+		expect(mocks.toastError).toHaveBeenNthCalledWith(
+			1,
+			"Passkey sign in failed"
+		);
+	});
+
+	it("onSignInWithPasskey: treats a missing result as a failure", async () => {
+		mocks.signInPasskey.mockResolvedValue(undefined);
+		const { result } = renderHook(() => useSignIn());
+		await act(async () => {
+			await result.current.onSignInWithPasskey();
+		});
+		expect(mocks.toastError).toHaveBeenNthCalledWith(
+			1,
+			"Passkey sign in failed"
+		);
+		expect(mocks.navigate).not.toHaveBeenCalled();
 	});
 });

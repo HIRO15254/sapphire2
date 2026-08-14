@@ -1,6 +1,7 @@
 import { IconLogout } from "@tabler/icons-react";
 import { AboutSection } from "@/features/settings/pages/settings-page/about-section";
 import { LinkedAccounts } from "@/features/settings/pages/settings-page/linked-accounts";
+import { Passkeys } from "@/features/settings/pages/settings-page/passkeys";
 import { ThemeSetting } from "@/features/settings/pages/settings-page/theme-setting";
 import { PageHeader } from "@/shared/components/page-header";
 import { PageSection } from "@/shared/components/page-section";
@@ -30,6 +31,10 @@ export function SettingsPage() {
 
 					<PageSection heading="Linked accounts">
 						<LinkedAccounts />
+					</PageSection>
+
+					<PageSection heading="Passkeys">
+						<Passkeys />
 					</PageSection>
 
 					<PageSection heading="About">

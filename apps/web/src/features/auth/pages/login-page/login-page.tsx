@@ -18,7 +18,8 @@ export function LoginPage() {
 					<ul className="space-y-2 text-muted-foreground text-sm">
 						<li>Resume your statistics and current live-session flow.</li>
 						<li>
-							Use email/password or connected Google and Discord accounts.
+							Use a passkey, email/password, or connected Google and Discord
+							accounts.
 						</li>
 						<li>Keep players, sessions, rooms, and settings in one place.</li>
 					</ul>
