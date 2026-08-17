@@ -42,19 +42,9 @@ const SHEET_TITLE: Record<SessionFilterSheet, string> = {
 	display: "Display",
 	room: "Room",
 	currency: "Currency",
-	// FilterPresetsSheet renders its own title internally (not via the shared
-	// FilterSheet wrapper), so this entry only exists to keep the Record
-	// exhaustive over SessionFilterSheet.
 	presets: "Presets",
 };
 
-/**
- * The sessions list filter header — the Notion-style chip bar shared with the
- * statistics page (`web-theme.md` hybrid picker pattern). Replaces the old
- * "Filter" drawer button + standalone BB/BI switch: each dimension is a chip
- * that opens a bottom sheet, applied immediately. The Period chip reuses the
- * statistics preset windows + custom range.
- */
 export function SessionFilterBar(props: SessionFilterBarProps) {
 	const {
 		activeSheet,

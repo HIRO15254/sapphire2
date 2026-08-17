@@ -11,12 +11,6 @@ interface GameSettingsSheetProps {
 	open: boolean;
 }
 
-/**
- * Full-height sheet wrapping the game scene (assign / view / edit the linked
- * ring game or tournament) — replaces the retired /active-session/game route.
- * The scene renders its own heading + edit action, so the drawer title stays
- * sr-only.
- */
 export function GameSettingsSheet({
 	onOpenChange,
 	open,

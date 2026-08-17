@@ -13,7 +13,6 @@ import { formatCompactNumber } from "@/utils/format-number";
 
 const COLOR_CASH = "var(--chart-1)";
 const COLOR_TOURNAMENT = "var(--chart-5)";
-// EV P&L is drawn in amber to distinguish it from the realized P&L line.
 const COLOR_EV = "var(--chart-5)";
 
 interface SeriesMeta {

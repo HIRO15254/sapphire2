@@ -10,10 +10,6 @@ interface MemoFormSheetProps {
 	open: boolean;
 }
 
-/**
- * Standalone memo entry sheet for the "+" event menu — records a session
- * `memo` event without going through the stack form.
- */
 export function MemoFormSheet({
 	onOpenChange,
 	onSubmit,

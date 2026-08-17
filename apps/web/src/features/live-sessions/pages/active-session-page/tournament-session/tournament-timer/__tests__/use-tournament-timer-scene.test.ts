@@ -61,8 +61,6 @@ describe("useNowTick", () => {
 		});
 		const afterFirst = result.current;
 		rerender({ ms: 500 });
-		// After rerender, the new setInterval fires at +500ms → Date.now() was
-		// incremented by 500ms since afterFirst.
 		act(() => {
 			vi.advanceTimersByTime(500);
 		});

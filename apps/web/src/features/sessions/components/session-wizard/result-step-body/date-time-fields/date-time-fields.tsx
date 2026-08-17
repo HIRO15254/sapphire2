@@ -9,18 +9,9 @@ export function DateTimeFields({
 	requiredFields,
 	startDateHint,
 }: {
-	/** Field names to render read-only (live sessions lock a subset). */
 	disabledFields: ReadonlySet<string>;
-	/**
-	 * Calendar day the end time belongs to, when it differs from the session
-	 * date shown above it (a session that crossed midnight). Without it, editing
-	 * the end time of a 22:00 → 02:00 session looks like it lands on the start
-	 * day when it actually lands on the next one.
-	 */
 	endDateHint?: string | null;
-	/** Field names to mark as required (live sessions require both times). */
 	requiredFields?: ReadonlySet<string>;
-	/** Same, for the start time (a live session's displayed date can lag it). */
 	startDateHint?: string | null;
 	state: UseSessionWizardReturn;
 }) {

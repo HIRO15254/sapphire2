@@ -23,8 +23,6 @@ const mocks = vi.hoisted(() => ({
 		payload: Record<string, unknown>;
 	}>,
 	isPresetsLoading: false,
-	// Overrides the "resolved successfully" default derived from
-	// `isPresetsLoading`; only the errored-query case needs the two to disagree.
 	isPresetsSuccess: undefined as boolean | undefined,
 	isPresetCreatePending: false,
 	isPresetDeletePending: false,
@@ -76,8 +74,6 @@ vi.mock("@/shared/hooks/use-filter-presets", () => ({
 			presets: mocks.presets,
 			defaultPreset: mocks.presets.find((p) => p.isDefault) ?? null,
 			isLoading: mocks.isPresetsLoading,
-			// `useDefaultFilterPreset` latches on the first SUCCESSFUL answer, not on
-			// `!isLoading` — the two only differ for a query that errored out.
 			isSuccess: mocks.isPresetsSuccess ?? !mocks.isPresetsLoading,
 			isCreatePending: mocks.isPresetCreatePending,
 			isDeletePending: mocks.isPresetDeletePending,
@@ -90,10 +86,6 @@ vi.mock("@/shared/hooks/use-filter-presets", () => ({
 	},
 }));
 
-// Spy wrapper, not a replacement: the real shared hook still runs (so the
-// loading gate / one-shot guard is exercised end-to-end through the page hook),
-// while every call records the `screenKey` + `isUntouched` verdict this hook
-// computed and hands back its `applyDefault` for direct invocation.
 vi.mock("@/shared/hooks/use-default-filter-preset", async (importOriginal) => {
 	const actual =
 		await importOriginal<
@@ -337,9 +329,6 @@ describe("useSessionsPage", () => {
 			expect(mocks.lastPresetsScreenKey).toBe("sessions");
 		});
 
-		// The preset CRUD surface is self-contained in FilterPresetsSheet ->
-		// useFilterPresetsSheet -> useFilterPresets; re-exporting it here left ten
-		// fields no consumer ever read (review finding 3).
 		it("does not re-export the preset list or CRUD surface", () => {
 			mocks.presets = [
 				{ id: "p1", isDefault: false, payload: { type: "cash_game" } },
@@ -370,10 +359,6 @@ describe("useSessionsPage", () => {
 		});
 
 		it("is true when every key present holds undefined", () => {
-			// Picking "All" in the Type sheet leaves `{ type: undefined }` behind
-			// because `patch` spreads `{ ...filters, ...next }`. Counting keys read
-			// that as "the user set a filter" and suppressed the default preset
-			// (review finding 1).
 			const { result } = renderHook(() => useSessionsPage());
 			act(() => {
 				result.current.setFilters({ type: undefined });
@@ -418,10 +403,6 @@ describe("useSessionsPage", () => {
 			expect(lastDefaultPresetCall().isUntouched).toBe(false);
 		});
 
-		// The Display chip drives `bbBiMode`, which is page state outside
-		// `filters` — so the verdict has to fold in a separate "did the user pick a
-		// view" flag, or a default preset carrying `display` silently overwrites an
-		// explicit view choice made before the presets query resolved.
 		it("is true when filters are empty and Display was never touched", () => {
 			const { result } = renderHook(() => useSessionsPage());
 			expect(result.current.bbBiMode).toBe(false);
@@ -437,8 +418,6 @@ describe("useSessionsPage", () => {
 		});
 
 		it("stays false after the user toggles Display back to its original value", () => {
-			// Touched is an explicit choice, not a diff: re-picking "Currency" is
-			// still the user deciding, so the default preset must not take over.
 			const { result } = renderHook(() => useSessionsPage());
 			act(() => {
 				result.current.setBbBiMode(true);
@@ -460,9 +439,6 @@ describe("useSessionsPage", () => {
 		});
 
 		it("is not flipped by the auto-apply writing the preset's own display mode", async () => {
-			// A display-only default preset leaves `filters` empty, so this isolates
-			// the internal `setBbBiMode` write: it must not mark the hook touched
-			// (otherwise the hook would be marking itself touched).
 			mocks.presets = [
 				{ id: "p1", isDefault: true, payload: { display: "normalized" } },
 			];
@@ -504,11 +480,6 @@ describe("useSessionsPage", () => {
 			).toBe(false);
 		});
 
-		// The "BB/BI is currently on" starting point can only be reached through the
-		// user-facing setter, which now suppresses the auto-apply entirely — so
-		// these two exercise the apply closure directly (as the case below already
-		// does) instead of racing a real toggle against the presets query. The
-		// suppression itself is covered in "default preset auto-apply".
 		it("turns BB/BI off for a currency default preset", async () => {
 			mocks.presets = [];
 			const { result } = renderHook(() => useSessionsPage());
@@ -642,8 +613,6 @@ describe("useSessionsPage", () => {
 			mocks.isPresetsLoading = true;
 			mocks.presets = [];
 			const { result, rerender } = renderHook(() => useSessionsPage());
-			// Display → BB/BI is an explicit view choice; the stored preset's
-			// `display: "currency"` must not silently undo it.
 			act(() => {
 				result.current.setBbBiMode(true);
 			});
@@ -669,7 +638,6 @@ describe("useSessionsPage", () => {
 			mocks.isPresetsLoading = true;
 			mocks.presets = [];
 			const { result, rerender } = renderHook(() => useSessionsPage());
-			// "All" in the Type sheet — no filter is actually active.
 			act(() => {
 				result.current.setFilters({ type: undefined });
 			});
@@ -705,8 +673,6 @@ describe("useSessionsPage", () => {
 		});
 
 		it("does not crash and skips auto-apply when the presets query errors", async () => {
-			// An exhausted query stops loading without ever answering, so it is
-			// neither loading nor successful and must not spend the one-shot attempt.
 			mocks.isPresetsLoading = false;
 			mocks.isPresetsSuccess = false;
 			mocks.presets = [];

@@ -62,8 +62,6 @@ describe("formatBlindParts", () => {
 	});
 
 	it("formats blind1 only with trailing '—' placeholder (parts.length > 0 branch)", () => {
-		// Code appends '—' for a missing blind2 whenever blind1 was pushed,
-		// regardless of whether blind3 follows.
 		expect(formatBlindParts(ringGame({ blind1: 100 }))).toBe("100/—");
 	});
 
@@ -74,7 +72,6 @@ describe("formatBlindParts", () => {
 	});
 
 	it("inserts '—' when blind2 is missing but blind1 is present", () => {
-		// With blind1 only and blind3 set, blind2 should be '—'.
 		expect(formatBlindParts(ringGame({ blind1: 100, blind3: 300 }))).toBe(
 			"100/—/300"
 		);
@@ -87,7 +84,6 @@ describe("formatBlindParts", () => {
 	});
 
 	it("treats 0 as a valid blind value", () => {
-		// blind2 = 0 is !== null, so it should be included.
 		expect(formatBlindParts(ringGame({ blind1: 100, blind2: 0 }))).toBe(
 			"100/0"
 		);
@@ -238,8 +234,6 @@ describe("formatGroupStakes", () => {
 	});
 
 	it("shows the ante when anteType is null (treated like undefined, not 'none')", () => {
-		// A null anteType means "unspecified" and must default to showing the
-		// stored ante — matching snapshot-diff's null≈undefined normalization.
 		expect(
 			formatGroupStakes(
 				group({

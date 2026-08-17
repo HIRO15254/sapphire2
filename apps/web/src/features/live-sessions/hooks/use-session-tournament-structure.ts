@@ -7,7 +7,6 @@ export interface SessionBlindLevelRow {
 	blind1: number | null;
 	blind2: number | null;
 	blind3: number | null;
-	/** Per-level game groups for mix tournaments; null = single structure. */
 	games: LevelGameGroup[] | null;
 	id: string;
 	isBreak: boolean;
@@ -33,13 +32,6 @@ export interface SessionTournamentDisplay {
 	variant: string;
 }
 
-/**
- * Read tournament rule data frozen onto the session. This replaces
- * `useTournamentDetail` for live-session display contexts: the values come
- * from the snapshot tables (`session_blind_level`, `session_chip_purchase`)
- * and snapshot columns on `session_tournament_detail`. They are stable even
- * if the parent tournament is renamed or its blind structure is edited.
- */
 export function useSessionTournamentStructure(sessionId: string) {
 	const sessionQuery = useQuery({
 		...trpc.liveTournamentSession.getById.queryOptions({ id: sessionId }),

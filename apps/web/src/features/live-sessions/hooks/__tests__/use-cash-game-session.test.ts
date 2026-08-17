@@ -180,7 +180,6 @@ describe("useCashGameSession", () => {
 		await waitFor(() => {
 			expect(trpcMocks.discard).toHaveBeenCalled();
 		});
-		// Give a microtask flush so navigateMock would fire if it were going to.
 		await Promise.resolve();
 		expect(navigateMock).not.toHaveBeenCalled();
 	});

@@ -73,8 +73,6 @@ export function createSessionShareText(session: ShareableSession): string {
 	const plIcon = profitLoss >= 0 ? "📈" : "📉";
 	const plSign = profitLoss >= 0 ? "+" : "";
 	const currencyUnit = session.currencyUnit ?? "";
-	// sessionDate is UTC midnight; force UTC so the shared date is the calendar
-	// day the user saved rather than its local rendering (SA2-145).
 	const date = new Date(session.sessionDate).toLocaleDateString("ja-JP", {
 		timeZone: "UTC",
 	});

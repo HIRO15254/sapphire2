@@ -23,13 +23,11 @@ import { profitLossColorClass } from "@/utils/format-profit-loss";
 
 export interface SessionListCardItem {
 	breakMinutes: number | null;
-	/** Display label ("NL Hold'em") or the "mix" key, set only on cash sessions. */
 	cashVariant: string | null;
 	chipPurchaseCost: number;
 	currencyUnit: string | null;
 	endedAt: string | null;
 	entryFee: number | null;
-	/** Raw EV cash-out — null means the user recorded none, so no EV row. */
 	evCashOut: number | null;
 	evProfitLoss: number | null;
 	id: string;
@@ -45,29 +43,17 @@ export interface SessionListCardItem {
 	totalEntries: number | null;
 	tournamentBuyIn: number | null;
 	tournamentName: string | null;
-	/** Display label ("NL Hold'em") or the "mix" key, set only on tournament sessions. */
 	tournamentVariant: string | null;
 	type: string;
 }
 
 interface SessionListCardProps {
-	/** When on, P&L renders in big blinds (cash) / buy-ins (tournament). */
 	bbBiMode: boolean;
 	session: SessionListCardItem;
 }
 
-/** Tags shown inline before collapsing the remainder into a `+N` badge. */
 const MAX_VISIBLE_TAGS = 2;
 
-/**
- * v2 list row for a past session. The whole card is a link to the detail page;
- * a live-recorded session carries a small green bolt over its type icon. The
- * type icon keeps its pre-v2 accent (trophy = yellow, chip = blue). The subtext
- * stacks two rows — date + played duration, then the room — each icon-led. The
- * result column is right-pinned: the P&L (colored by sign, BB/BI-aware) on top,
- * and a secondary line below — placement / field for tournaments, EV for cash
- * games that logged one.
- */
 export function SessionListCard({ bbBiMode, session }: SessionListCardProps) {
 	const isTournament = session.type === "tournament";
 	const live = isLiveSession(session);

@@ -17,13 +17,6 @@ interface UseEmptySeatEditorOptions {
 	onSeatHero: () => void;
 }
 
-/**
- * Drives the always-on empty-seat combobox: fetches the full player catalog
- * (shared cache key — no extra request) and filters it client-side by player
- * name OR tag name so a single text field searches both. Hero and temporary
- * seating are quick-action icons beside the field; the dropdown handles
- * existing-player selection and create-by-name.
- */
 export function useEmptySeatEditor({
 	excludePlayerIds,
 	onAddExisting,

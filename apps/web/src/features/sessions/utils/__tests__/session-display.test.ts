@@ -488,7 +488,6 @@ describe("formatSessionPlDisplay", () => {
 	});
 
 	it("converts cash-game P&L to big blinds when the toggle is on", () => {
-		// 1200 / 200 = 6.0 BB
 		expect(formatSessionPlDisplay(cash, true)).toBe("+6.0 BB");
 	});
 
@@ -511,12 +510,10 @@ describe("formatSessionPlDisplay", () => {
 	});
 
 	it("converts tournament P&L to buy-ins with two decimals when the toggle is on", () => {
-		// 10000 / 5000 = 2.00 BI
 		expect(formatSessionPlDisplay(tournament, true)).toBe("+2.00 BI");
 	});
 
 	it("includes entry fee and chip purchases in the tournament BI base", () => {
-		// 10000 / (5000 + 1000 + 4000) = 1.00 BI
 		expect(
 			formatSessionPlDisplay(
 				{ ...tournament, entryFee: 1000, chipPurchaseCost: 4000 },
@@ -625,8 +622,6 @@ describe("formatSessionEvDisplay", () => {
 	});
 
 	it("returns null when no EV cash-out was recorded, even though the server filled EV P&L in", () => {
-		// The server falls back to the actual result so the session counts in the
-		// EV statistics; the row must not repeat that number as a second line.
 		expect(
 			formatSessionEvDisplay(
 				{ ...cash, evCashOut: null, evProfitLoss: 1200 },
@@ -649,7 +644,6 @@ describe("formatSessionEvDisplay", () => {
 	});
 
 	it("converts EV P&L to big blinds when the toggle is on", () => {
-		// 800 / 200 = 4.0 BB
 		expect(formatSessionEvDisplay(cash, true)).toBe("+4.0 BB");
 	});
 
@@ -678,14 +672,12 @@ describe("formatSessionEvDisplay", () => {
 	});
 
 	it("rounds the EV before the big-blind conversion", () => {
-		// round(812.7) = 813 → 813 / 200 = 4.065 → "4.1 BB"
 		expect(formatSessionEvDisplay({ ...cash, evProfitLoss: 812.7 }, true)).toBe(
 			"+4.1 BB"
 		);
 	});
 
 	it("keeps EV aligned with the P&L in the compact-thousands tier", () => {
-		// round(13,480.6) = 13,481 → 13.481k → "13.5k"
 		expect(
 			formatSessionEvDisplay({ ...cash, evProfitLoss: 13_480.6 }, false)
 		).toBe("+13.5k $");

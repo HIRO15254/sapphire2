@@ -12,7 +12,6 @@ const DESTRUCTIVE_ITEM =
 	"flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-destructive text-sm outline-none hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-ring/40";
 
 interface SessionActionsDrawerProps {
-	/** Live-recorded cash games can be reopened back into the active tracker. */
 	canReopen: boolean;
 	onDelete: () => void;
 	onEdit: () => void;
@@ -21,11 +20,6 @@ interface SessionActionsDrawerProps {
 	open: boolean;
 }
 
-/**
- * v2 action sheet for the session detail header overflow: Edit / (Reopen) /
- * Delete, mirroring `PlayerActionsDrawer`. Reopen only appears for a live cash
- * game so a manual session never shows an action it can't perform.
- */
 export function SessionActionsDrawer({
 	canReopen,
 	onDelete,

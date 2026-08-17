@@ -76,9 +76,6 @@ vi.mock("sonner", () => ({
 	toast: { success: mocks.toastSuccess, error: mocks.toastError },
 }));
 
-// FileReader is needed; jsdom provides it but fileToBase64 uses readAsDataURL
-// which works in jsdom. We'll mostly test paths that don't hit real image work.
-
 import { useSeatFromScreenshot } from "@/features/live-sessions/components/seat-from-screenshot-sheet/use-seat-from-screenshot";
 
 function createClient(): QueryClient {

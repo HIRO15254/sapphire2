@@ -9,8 +9,6 @@ import {
 } from "@/features/sessions/utils/live-linked-edit";
 import type { SessionFormValues } from "@/features/sessions/utils/session-form-helpers";
 
-// Events are built from local-time components so the local-time round trip the
-// form performs (date input + time input → timestamp) holds in any TZ.
 function localIso(
 	year: number,
 	month: number,
@@ -152,12 +150,6 @@ describe("findLifecycleEvents", () => {
 	});
 });
 
-// The form shows one date and two clock times, and they can disagree in two
-// ways: the session crossed midnight (end on the next day), or — for a live
-// session, whose `sessionDate` is really the start timestamp read with UTC
-// getters while the times are read locally — the displayed date is a day behind
-// both times (every JST session starting 00:00–09:00 local). Both are silent
-// traps when editing a time, so each field gets told which day it writes to.
 describe("lifecycleDayHints", () => {
 	it("returns no hint when both times sit on the displayed day", () => {
 		expect(
@@ -175,8 +167,6 @@ describe("lifecycleDayHints", () => {
 	});
 
 	it("labels both days when the displayed date is behind the times", () => {
-		// The UTC-read `sessionDate` lands on 04-09 while the local times are on
-		// 04-10 — the JST early-morning case.
 		expect(
 			lifecycleDayHints({ displayedDate: "2026-04-09", events: CASH_EVENTS })
 		).toEqual({ end: "2026/04/11", start: "2026/04/10" });
@@ -301,10 +291,6 @@ describe("liveLinkedDisabledResultFields", () => {
 	});
 });
 
-// Counterpart of the disabled set: a field the live session writes back to an
-// event must be filled in, even though the shared schema marks it optional for
-// manual sessions. Without this the form looks optional and only errors as a
-// toast on submit (web-forms.md #6).
 describe("liveLinkedRequiredResultFields", () => {
 	it("requires both times and the tournament result of a completed session", () => {
 		const required = liveLinkedRequiredResultFields({
@@ -418,10 +404,6 @@ describe("buildLiveLinkedEventEdits — cash game", () => {
 		]);
 	});
 
-	// Moving the calendar day cannot be expressed as a single-event edit: the
-	// other events stay where they are, so the session would silently stretch
-	// (start 04-10 20:00 / end 04-11 01:00 → 29 hours). The field is locked, and
-	// a stale submitted value must never move the event.
 	it("ignores a session-date change", () => {
 		const result = buildLiveLinkedEventEdits({
 			values: { ...CASH_VALUES, sessionDate: "2026-04-09" },
@@ -488,8 +470,6 @@ describe("buildLiveLinkedEventEdits — cash game", () => {
 	});
 
 	it("rejects an end time that would precede the previous event", () => {
-		// Same-day session: the end event shares its calendar day with the
-		// chips event, so a time-only edit can land before it.
 		const sameDayEnd = event(
 			"e-end",
 			"session_end",
@@ -567,11 +547,6 @@ describe("buildLiveLinkedEventEdits — cash game", () => {
 	});
 });
 
-// The edit sheet embeds the Events section, so the same session_end can be
-// changed there while the form still holds the values it was seeded with. The
-// builder therefore diffs the submitted values against the events as they were
-// when the sheet opened (`seedEvents`), never against the refreshed ones —
-// otherwise saving the sheet would silently revert the Events-side edit.
 describe("buildLiveLinkedEventEdits — concurrent Events-section edits", () => {
 	const movedEnd = event("e-end", "session_end", localIso(2026, 4, 11, 3, 0), {
 		cashOutAmount: 11_500,
@@ -660,7 +635,6 @@ describe("buildLiveLinkedEventEdits — concurrent Events-section edits", () => 
 					beforeDeadline: false,
 					placement: 1,
 					totalEntries: 50,
-					// The Events-section value survives — the form never touched it.
 					prizeMoney: 35_000,
 					bountyPrizes: 0,
 				},
@@ -844,8 +818,6 @@ describe("buildLiveLinkedEventEdits — tournament", () => {
 		expect(result.edits).toEqual([]);
 	});
 
-	// SA2-113: a cleared money field must never be saved as 0 — the P/L would
-	// silently drop by the amount. `prizeMoney` already refuses; so does this.
 	it("rejects a cleared bounty prize instead of writing zero", () => {
 		const events = [
 			TOURNAMENT_START,

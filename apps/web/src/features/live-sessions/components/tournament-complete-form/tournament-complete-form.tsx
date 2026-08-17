@@ -5,11 +5,6 @@ import { Label } from "@/shared/components/ui/label";
 import { useTournamentCompleteForm } from "./use-tournament-complete-form";
 
 interface TournamentCompleteFormProps {
-	/**
-	 * Stable id assigned to the `<form>` element so the surrounding FormSheet
-	 * toolbar can submit it via the HTML `form` attribute. The form renders no
-	 * submit button of its own.
-	 */
 	formId: string;
 	onSubmit: (
 		values:

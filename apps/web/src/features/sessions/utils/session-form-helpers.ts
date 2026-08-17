@@ -12,7 +12,6 @@ export interface SessionBlindLevelInput {
 	blind1: number | null;
 	blind2: number | null;
 	blind3: number | null;
-	/** Per-level game groups for mix tournaments; null = single structure. */
 	games?: LevelGameGroup[] | null;
 	isBreak: boolean;
 	minutes: number | null;
@@ -21,7 +20,6 @@ export interface SessionBlindLevelInput {
 export interface SessionChipPurchaseInput {
 	chips: number;
 	cost: number;
-	/** How many times this chip purchase was bought (the session result). */
 	count: number;
 	name: string;
 }
@@ -73,7 +71,6 @@ export interface TournamentFormValues {
 	startTime?: string;
 	tableSize?: number;
 	tagIds?: string[];
-	/** Unix seconds — when the blind timer started. */
 	timerStartedAt?: number;
 	totalEntries?: number;
 	tournamentBuyIn: number;
@@ -144,7 +141,6 @@ export interface SessionFormDefaults {
 	startTime?: string;
 	tableSize?: number;
 	tagIds?: string[];
-	/** `datetime-local` string — when the blind timer started. */
 	timerStartedAt?: string;
 	totalEntries?: number;
 	tournamentBuyIn?: number;
@@ -155,11 +151,6 @@ export interface SessionFormDefaults {
 
 export const NONE_VALUE = "__none__";
 
-// sessionDate is stored/returned as UTC midnight and the create/update payloads
-// re-encode a date-only string as UTC midnight, so the edit form must read back
-// the UTC calendar day. Local getters shift the day back one for users west of
-// UTC, and saving that value drifts the stored date one day earlier on every
-// edit (SA2-145).
 export function formatDateForInput(date: string): string {
 	const d = new Date(date);
 	const year = d.getUTCFullYear();
@@ -219,14 +210,6 @@ export const cashSessionFormSchema = sessionFormSchema.extend({
 	tournamentBuyIn: optionalNumericString({ integer: true, min: 0 }),
 });
 
-/**
- * Cash schema for the live "Start Live Session" flow. A live session is
- * created before it ends, so the result-only cash-out is unknown and the live
- * form never renders it — keeping the shared `cashOut` requirement made the
- * ✓ Confirm silently fail (the empty field always failed validation and the
- * error routed to a "result" step that the single-screen live form doesn't
- * render). The initial buy-in stays required.
- */
 export const liveCashSessionFormSchema = cashSessionFormSchema.extend({
 	cashOut: optionalNumericString({ integer: true, min: 0 }),
 });
@@ -271,11 +254,6 @@ export function buildDefaults(defaults: SessionFormDefaults | undefined) {
 
 export type SessionFormFieldValues = ReturnType<typeof buildDefaults>;
 
-/**
- * Cash-rule field labels whose current form value diverges from the
- * picked master ring game. Empty when no master is selected or every
- * rule field still matches the master.
- */
 export function cashOverriddenFields(
 	values: Pick<
 		SessionFormFieldValues,
@@ -318,10 +296,6 @@ export function cashOverriddenFields(
 	return checks.filter(([, a, b]) => a !== b).map(([label]) => label);
 }
 
-/**
- * Tournament-rule field labels whose current form value diverges from
- * the picked master tournament.
- */
 export function tournamentOverriddenFields(
 	values: Pick<
 		SessionFormFieldValues,

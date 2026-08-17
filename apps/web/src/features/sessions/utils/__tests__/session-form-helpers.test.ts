@@ -219,8 +219,6 @@ describe("liveCashSessionFormSchema", () => {
 			memo: "",
 			ruleName: "",
 			buyIn: "100",
-			// The live "Start Live Session" form never renders a cash-out field —
-			// the session hasn't ended yet — so it always submits empty here.
 			cashOut: "",
 			evCashOut: "",
 			variant: "nlh",

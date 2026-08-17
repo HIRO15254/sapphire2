@@ -24,11 +24,6 @@ type SessionType = "cash_game" | "tournament";
 interface SessionEventsSceneProps {
 	embedded?: boolean;
 	emptySessionMessage?: string;
-	/**
-	 * Render the timeline as a display-only card — no per-event edit / delete
-	 * affordances and no edit sheet. The recorded-session detail page uses this
-	 * so events are edited from the session edit sheet, not the timeline card.
-	 */
 	readOnly?: boolean;
 	refetchInterval?: number;
 	sessionId: string;
