@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { paginate } from "../routers/_pagination";
 
-// Row stub — we only care about `id` and array shape.
 interface Row {
 	id: string;
 }
@@ -28,15 +27,10 @@ describe("paginate", () => {
 		const result = paginate(rows, 10);
 		expect(result.items).toHaveLength(10);
 		expect(result.items).toEqual(rows.slice(0, 10));
-		// Cursor must be the LAST returned item's id (not the sentinel
-		// row's id) so the next page starts strictly after it.
 		expect(result.nextCursor).toBe("tx-10");
 	});
 
 	it("clamps and uses the last returned id when the caller over-fetches beyond pageSize + 1", () => {
-		// Defensive: even if a caller accidentally fetches more than
-		// pageSize+1, the helper should still cap items at pageSize and
-		// point the cursor at the last returned row.
 		const rows = makeRows(25);
 		const result = paginate(rows, 10);
 		expect(result.items).toHaveLength(10);

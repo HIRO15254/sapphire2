@@ -220,7 +220,6 @@ describe("isGoogleMapsUrl", () => {
 	it("rejects lookalike hosts", () => {
 		expect(isGoogleMapsUrl("https://google.com.evil.com/maps")).toBe(false);
 		expect(isGoogleMapsUrl("https://evil-google.com/maps")).toBe(false);
-		// `google` as a subdomain of another registrable domain.
 		expect(isGoogleMapsUrl("https://google.evil.com/maps")).toBe(false);
 		expect(isGoogleMapsUrl("https://google.evil.co/maps")).toBe(false);
 	});

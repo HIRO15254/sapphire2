@@ -644,7 +644,6 @@ describe("sessionTablePlayer.addNew tag ownership (SA2-178)", () => {
 			caller.addNew({ sessionId: "s1", playerName: "Alice" })
 		).resolves.toBeDefined();
 		expect(inserted.some((i) => i.table === playerToPlayerTag)).toBe(false);
-		// The player itself is still created.
 		expect(inserted.some((i) => i.table === player)).toBe(true);
 	});
 

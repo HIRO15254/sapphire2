@@ -23,30 +23,6 @@ function builtinSeedId(
 	return `${userId}:builtin-${kind}:${key}`;
 }
 
-/**
- * Seed the built-in game groups + game variants + named mixes for a user. All
- * three masters are per-user DB rows (mix-game rework): code constants
- * (`DEFAULT_GAME_GROUPS`, `DEFAULT_GAME_VARIANTS`, `DEFAULT_GAME_MIXES`) are
- * seed data only, never a runtime fallback, so every user needs their own
- * copy of these rows to pick from. Each seeded mix's ordered
- * `game_mix_variant` rows reference THIS user's freshly seeded variant ids
- * (not the variant keys), just like memberships created through the mix
- * router.
- *
- * Idempotent guard: if the user already has ANY gameGroup row OR ANY
- * gameVariant row OR ANY gameMix row, this is a no-op (c09). That respects an
- * intentional deletion — a user who cleared out their variant list (or just
- * their mixes) should stay empty rather than being re-seeded on the next read
- * — so only a fully-empty account (none of the three tables has a row) gets
- * seeded. Checking all three (not just group/variant) closes a gap where a
- * user who deleted every group/variant but kept a custom mix would have had
- * the builtins re-inserted underneath their remaining mix.
- *
- * Called once from the `better-auth` `user.create` hook (packages/auth) so
- * every new account starts with the full builtin list, and defensively from
- * `gameVariant.list` / `gameGroup.list` / `gameMix.list` in case a legacy
- * account predates the hook.
- */
 export async function seedDefaultGameData(
 	db: DbInstance,
 	userId: string
@@ -86,12 +62,6 @@ export async function seedDefaultGameData(
 		])
 	);
 
-	// Stable per-user ids keep both racing batches pointing at the same
-	// group/variant ids, so a losing group insert cannot leave its variant
-	// statements referencing group ids that never committed. `.onConflictDoNothing()`
-	// alone is NOT enough under the migration-0041 label triggers, though: a
-	// BEFORE trigger's RAISE(ABORT) fires before ON CONFLICT resolution and
-	// rejects the whole losing batch — so the race is caught below, not here.
 	const statements: BatchStatement[] = DEFAULT_GAME_GROUPS.map((g) =>
 		db
 			.insert(gameGroup)
@@ -113,10 +83,6 @@ export async function seedDefaultGameData(
 	for (const [index, v] of DEFAULT_GAME_VARIANTS.entries()) {
 		const groupId = groupIdByKey.get(v.groupKey);
 		if (!groupId) {
-			// Unreachable given DEFAULT_GAME_VARIANTS/DEFAULT_GAME_GROUPS are kept
-			// in sync (every groupKey has a matching seeded group) — guarded so a
-			// future data-entry mistake fails closed instead of inserting a
-			// dangling groupId.
 			continue;
 		}
 		const variantId = builtinSeedId(userId, "variant", v.key);
@@ -162,24 +128,11 @@ export async function seedDefaultGameData(
 			userId,
 			variantId,
 		}));
-		// Fail closed like the `groupId` guard above: if a future data-entry
-		// mistake leaves a mix with no resolvable variantKey, seed the master row
-		// with an empty composition rather than handing Drizzle `values([])`,
-		// which throws — and would turn gameGroup/gameVariant/gameMix `list` (all
-		// of which call this without a try/catch) into a 500 for that user. That
-		// guard is the loop itself: chunkForInsert yields NO chunks for an empty
-		// input, so an empty composition emits no statement at all.
-		// Chunked through the same helper as the mix router so a future builtin
-		// mix wide enough to overflow D1's bind-param cap is split, not rejected
-		// at runtime.
 		for (const chunk of chunkMembershipRows(memberships)) {
 			statements.push(
 				db.insert(gameMixVariant).values(chunk).onConflictDoNothing()
 			);
 		}
-		// Keep the physical games column synchronized for the pre-0049 Worker
-		// during migration-first deploys and rollback. The compatibility trigger
-		// applies the same ordered rows after this normalized insert.
 		statements.push(
 			db
 				.update(gameMix)
@@ -188,25 +141,9 @@ export async function seedDefaultGameData(
 		);
 	}
 
-	// Every statement (3 groups + 21 variants + 3 mix masters + up to 3 membership
-	// batches + 3 mirror updates — 33 with the current constants, fewer if a mix
-	// resolves to no variants) commits atomically (SA2-116), so a failure cannot
-	// leave a user with partial built-in game data.
 	try {
 		await runBatch(db, statements);
 	} catch (error) {
-		// A concurrent seed (another `list` self-seed, or the auth-hook seed)
-		// committed the same builtin rows first; the migration-0041 label
-		// triggers then RAISE(ABORT) on this losing batch. That is a benign
-		// "someone else already seeded" outcome, not a failure — the three
-		// `list` procedures call this WITHOUT a try/catch, so surfacing it would
-		// turn a routine first-load race into a 500 (c09). Any OTHER error is a
-		// real failure and must propagate.
-		//
-		// This swallow is only sound while the builtin labels are mutually
-		// unique under those triggers (two builtins sharing a normalized label
-		// would abort every seed and be silently hidden here) — that invariant
-		// is pinned by seed-game-data.test.ts.
 		if (isLabelConflictError(error)) {
 			return;
 		}

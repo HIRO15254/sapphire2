@@ -17,8 +17,6 @@ describe("isLabelConflictError", () => {
 	});
 
 	it("returns true for the 0041 variant/mix label trigger abort message", () => {
-		// game_variant_label_unique_insert / game_mix_label_unique_insert raise
-		// this before the unique index is ever evaluated.
 		expect(
 			isLabelConflictError(new Error("game master label already exists"))
 		).toBe(true);
@@ -43,8 +41,6 @@ describe("isLabelConflictError", () => {
 
 	it("returns false for an unrelated Error (a real failure must surface)", () => {
 		expect(isLabelConflictError(new Error("network timeout"))).toBe(false);
-		// The mix-reference trigger is NOT a label collision — must not be
-		// swallowed as one.
 		expect(
 			isLabelConflictError(
 				new Error("game_mix contains an unavailable variant")
@@ -163,9 +159,6 @@ describe("isFilterPresetNameConflictError", () => {
 		).toBe(false);
 	});
 
-	// filter_preset carries THREE unique constraints. Only the name index may
-	// be reported as "you already have a preset with this name" — matching the
-	// table name alone mislabels the other two.
 	it("returns false for the partial default-uniqueness index violation (user_id, screen_key)", () => {
 		expect(
 			isFilterPresetNameConflictError(
