@@ -10,7 +10,7 @@ Why this file exists: the Fable review found a cluster of data-corruption bugs f
 
 ## Zod input conventions
 
-- **Money, chip, and count fields default to `z.number().int().min(0)`.** A bare `z.number()` let negative chip costs inflate P/L (SA2-136) and non-integer `wins` corrupt EV stats (SA2-156). Deviate only with a comment saying why.
+- **Money, chip, and count fields default to `z.number().int().min(0)`.** A bare `z.number()` let negative chip costs inflate P/L (SA2-136) and non-integer `wins` corrupt EV stats (SA2-156). Deviate only with a `// NOTE(rule): api-data-integrity.md — <why>` comment ([comments.md](comments.md)).
 - **Cross-field constraints go on `create` AND `update`.** `placement <= totalEntries` existed only on create, so update could persist "50th of 10" (SA2-161). When adding a `.refine`, grep for the sibling procedure and apply it there too.
 - **Write-side and read-side schemas must be the same object.** `initialBuyIn` was accepted as a decimal on create but re-read through a payload schema requiring `.int()`, making the session permanently unreadable (SA2-148). If a stored payload is later re-`parse`d, validate the write with that exact schema — never a looser inline copy.
 

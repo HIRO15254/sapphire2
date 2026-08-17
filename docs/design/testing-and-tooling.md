@@ -164,7 +164,7 @@ The OAuth/MCP flows themselves are owned by [`mcp-and-oauth.md`](mcp-and-oauth.m
 
 [`scripts/check-rules.ts`](../../scripts/check-rules.ts) holds the deterministic conformance checks for the rules in AGENTS.md and `.claude/rules/*.md`. It runs in three places: CI ([`ci.yml`](../../.github/workflows/ci.yml)), the Claude Code Stop hook (see `.claude/settings.json`), and manually via `bun run check:rules`.
 
-**Standing invariant: only currently-green checks may live in the file.** A red check would block every turn (the Stop hook runs it after each Claude Code turn). Checks for known-but-unfixed issues wait in the header's queue until their Linear issues are fixed — currently the ColorBadge / PlayerAvatar wrapper bans (SA2-112, SA2-119).
+**Standing invariant: only currently-green checks may live in the file.** A red check would block every turn (the Stop hook runs it after each Claude Code turn). Checks for known-but-unfixed issues wait here until their Linear issues are fixed — currently the ColorBadge / PlayerAvatar wrapper bans (SA2-112, SA2-119).
 
 ### Matching soundness (excludeLine × multiline)
 
