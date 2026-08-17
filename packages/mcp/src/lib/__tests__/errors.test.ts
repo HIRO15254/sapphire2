@@ -170,8 +170,6 @@ describe("mapToolError", () => {
 	});
 
 	it("recognizes a TRPCError from a duplicated @trpc/server instance", () => {
-		// Shape-compatible but not our TRPCError class — `instanceof` would
-		// miss it and collapse every domain error into the generic text.
 		const foreign = Object.assign(new Error("Room not found"), {
 			name: "TRPCError",
 			code: "FORBIDDEN",
@@ -194,8 +192,6 @@ describe("mapToolError", () => {
 	});
 
 	it("does not mistake an unrelated error carrying a code for a TRPCError", () => {
-		// D1 / runtime errors expose `code` too; treating them as domain errors
-		// would echo their message (BAD_REQUEST / CONFLICT branches).
 		const log = vi.fn();
 		const d1Error = Object.assign(
 			new Error("D1_ERROR: no such column: secret"),

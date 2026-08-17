@@ -36,11 +36,6 @@ interface Env {
 	GOOGLE_MAPS_API_KEY?: string;
 }
 
-/**
- * The better-auth mcp() plugin endpoints exist at runtime but their types
- * are erased in createAuth's signature (see the plugins note there) — this
- * is the single cast point for them.
- */
 interface McpPluginApi {
 	getMCPProtectedResource: () => Promise<Record<string, unknown>>;
 	getMcpOAuthConfig: () => Promise<Record<string, unknown>>;
@@ -60,11 +55,6 @@ app.use("*", async (c, next) => {
 	await next();
 });
 
-/**
- * Paths served to arbitrary MCP clients (any origin, bearer auth, no
- * cookies) — as opposed to the credentialed, CORS_ORIGIN-pinned web app
- * surface.
- */
 function isMcpClientPath(path: string): boolean {
 	return (
 		path === "/mcp" ||
@@ -113,15 +103,6 @@ app.post("/api/auth/set-password", async (c) => {
 	return c.json(result);
 });
 
-// Consent gate: rewrite EVERY authorize request to prompt=consent before
-// better-auth sees it — the mcp plugin issues a code without any consent step
-// otherwise, and DCR means arbitrary clients exist (see oauth-consent.ts).
-// Matching by path suffix on all methods is deliberate default-deny: today
-// only `GET /api/auth/mcp/authorize` exists (POST and /api/auth/oauth2/authorize
-// both 404), but a better-auth upgrade must not be able to add a route that
-// bypasses the gate.
-// `app.use` (not `app.on([...])`) so the gate is method-independent: adding a
-// method to the better-auth route below can never leave it behind.
 app.use("/api/auth/*", (c, next) => {
 	if (!isAuthorizePath(c.req.path)) {
 		return next();
@@ -137,9 +118,6 @@ app.on(["POST", "GET"], "/api/auth/*", (c) => {
 	return auth.handler(c.req.raw);
 });
 
-// The consent page better-auth redirects to mid-authorize. Name and redirect
-// hosts come from the DCR row; a lookup failure falls back to placeholders —
-// both are cosmetic, while the signed consent_code is what authorizes.
 app.get("/oauth/consent", async (c) => {
 	const query = parseConsentPageQuery(c.req.url);
 	if (!query) {
@@ -163,12 +141,7 @@ app.get("/oauth/consent", async (c) => {
 		clientName = "";
 		redirectHosts = [];
 	}
-	// The page embeds a consent_code that can be exchanged for an
-	// authorization code — keep it out of the browser's history/bfcache.
 	c.header("Cache-Control", "no-store");
-	// Approving issues that code, so no other origin may frame this page:
-	// with DCR open to anyone, a framed consent screen is a one-click
-	// account grant (the destination warning is unreadable through an iframe).
 	c.header("X-Frame-Options", "DENY");
 	c.header("Content-Security-Policy", "frame-ancestors 'none'");
 	return c.html(
@@ -197,7 +170,6 @@ app.use("/trpc/*", (c, next) => {
 	return middleware(c, next);
 });
 
-/** RFC 9728 challenge for missing/invalid bearer tokens on /mcp. */
 function mcpUnauthorized(env: Env): Response {
 	const wwwAuthenticate = `Bearer resource_metadata="${env.BETTER_AUTH_URL}/.well-known/oauth-protected-resource"`;
 	return Response.json(
@@ -213,7 +185,6 @@ function mcpUnauthorized(env: Env): Response {
 	);
 }
 
-/** JSON-RPC internal error, so /mcp never answers with a non-JSON-RPC body. */
 function mcpInternalError(): Response {
 	return Response.json(
 		{
@@ -253,17 +224,11 @@ app.all("/mcp", async (c) => {
 		});
 		return await handler.fetch(c.req.raw);
 	} catch (error) {
-		// Token lookup / user load / a malformed token shape must still answer
-		// in the JSON-RPC envelope the client is parsing, not Hono's plain 500.
 		console.error("[mcp] request failed", error);
 		return mcpInternalError();
 	}
 });
 
-// OAuth discovery must live at the ROOT .well-known paths (RFC 8414 /
-// RFC 9728) — the better-auth copies under /api/auth/.well-known/* are not
-// where clients look. The path-suffixed protected-resource variant covers
-// clients that append the resource path per RFC 9728 §3.1.
 app.get("/.well-known/oauth-authorization-server", async (c) => {
 	const db = createDb(c.env.DB);
 	const auth = createAuth(db, buildAuthOptions(c.env, db));
