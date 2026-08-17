@@ -8,7 +8,6 @@ const skipIfNotBun = isBun ? describe : describe.skip;
 
 let Database: any = null;
 if (isBun) {
-	// eslint-disable-next-line import/no-unresolved
 	const bunSqlite = require("bun:sqlite");
 	Database = bunSqlite.Database;
 }

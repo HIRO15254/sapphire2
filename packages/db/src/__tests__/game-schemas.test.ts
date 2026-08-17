@@ -182,7 +182,6 @@ describe("mixGamesSchema", () => {
 describe("levelGameGroupSchema", () => {
 	it("rejects anteType (level groups have no ante-type dimension)", () => {
 		const parsed = levelGameGroupSchema.safeParse(group({ anteType: "bb" }));
-		// .omit + default strip: anteType is simply dropped, never rejected.
 		expect(parsed.success).toBe(true);
 		expect(
 			parsed.success && "anteType" in (parsed.data as Record<string, unknown>)

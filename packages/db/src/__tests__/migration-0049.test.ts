@@ -3,8 +3,6 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-// bun:sqlite is only available in Bun. CI has a dedicated `bun test` step for
-// migration files, while Vitest's Node projects intentionally skip the body.
 // biome-ignore lint/correctness/noUndeclaredVariables: Bun is a runtime global
 const isBun = typeof Bun !== "undefined";
 const skipIfNotBun = isBun ? describe : describe.skip;
@@ -12,7 +10,6 @@ const skipIfNotBun = isBun ? describe : describe.skip;
 let Database: any = null;
 if (isBun) {
 	// @ts-expect-error -- bun:sqlite only exists in the Bun runtime.
-	// eslint-disable-next-line import/no-unresolved
 	const bunSqlite = require("bun:sqlite");
 	Database = bunSqlite.Database;
 }
@@ -121,12 +118,6 @@ function applyAtomically(db: any): void {
 	}
 }
 
-/**
- * Apply only the statements up to and including the first one matching
- * `marker`, WITHOUT a transaction — this is what a production apply that dies
- * mid-file leaves behind (`wrangler` streams statements to D1 and only records
- * the migration once the last one succeeds).
- */
 function applyThrough(db: any, marker: string): void {
 	const cut = migrationStatements.findIndex((statement) =>
 		statement.includes(marker)
@@ -370,11 +361,6 @@ skipIfNotBun("migration 0049 — normalized game mix variants", () => {
 		expect(db.query("PRAGMA foreign_key_check").values()).toEqual([]);
 	});
 
-	// Pre-0041 writes had no DB-side protection on game_mix.games, so legacy
-	// rows can still violate this table's PK / owner FK. The migration is not
-	// applied atomically in production (wrangler streams statements to D1), so
-	// the backfill must never abort — it drops what the API already treats as
-	// unusable instead.
 	describe("defensive backfill of legacy game_mix.games rows", () => {
 		it("collapses a repeated id to its first occurrence instead of aborting", () => {
 			seedLegacyRows(db);
@@ -497,10 +483,6 @@ skipIfNotBun("migration 0049 — normalized game mix variants", () => {
 			).toEqual(FINAL_TRIGGERS);
 		});
 
-		// The interrupted apply leaves the junction populated but the compat
-		// triggers absent, and `d1_migrations` still at 0048 — so the old Worker
-		// keeps serving and keeps rewriting `games` with nothing syncing it. The
-		// retry must rebuild from `games`, not merely top up missing rows.
 		it("heals junction rows the old Worker desynced while the triggers were absent", () => {
 			seedLegacyRows(db);
 			applyThrough(db, "INSERT OR IGNORE INTO `game_mix_variant`");

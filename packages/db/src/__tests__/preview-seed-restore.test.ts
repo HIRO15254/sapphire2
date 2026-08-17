@@ -3,8 +3,6 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-// bun:sqlite is only available in Bun. CI has a dedicated `bun test` step for
-// migration files, while Vitest's Node projects intentionally skip the body.
 // biome-ignore lint/correctness/noUndeclaredVariables: Bun is a runtime global
 const isBun = typeof Bun !== "undefined";
 const skipIfNotBun = isBun ? describe : describe.skip;
@@ -12,41 +10,9 @@ const skipIfNotBun = isBun ? describe : describe.skip;
 let Database: any = null;
 if (isBun) {
 	// @ts-expect-error -- bun:sqlite only exists in the Bun runtime.
-	// eslint-disable-next-line import/no-unresolved
 	const bunSqlite = require("bun:sqlite");
 	Database = bunSqlite.Database;
 }
-
-/**
- * preview-deploy.yml (new preview DB) and dev-deploy.yml (every deploy — the
- * dev DB is dropped and recreated each time) both seed a brand-new D1 by
- * applying every migration and then replaying a `--no-schema` dump of the
- * production database into it. The steps are hand-copied siblings, so these
- * tests pin the shared semantics for both; `bun run check:rules` separately
- * asserts that every workflow performing the restore carries the stash.
- *
- * Triggers exist to keep derived tables in sync with *application* writes. A
- * bulk restore is not an application write: the dump already carries the
- * derived rows, so an armed trigger produces a second copy of them. That is
- * not hypothetical — 0049's game_mix compat triggers rebuild
- * `game_mix_variant` from the legacy JSON mirror on every `game_mix` insert,
- * which collides with the dump's own junction rows and took the whole
- * db-migrate job down the first time a preview DB was created after 0049
- * reached production.
- *
- * These tests pin both halves of the workflows' fix: the collision is real
- * (so nobody "simplifies" the trigger stash away), and stashing the triggers
- * around the restore makes the dump the single source of truth without
- * leaving the DB permanently trigger-less.
- *
- * Only the first case names 0049's compat triggers. When the contract
- * migration drops the legacy `games` mirror they stop firing and that case
- * stops throwing — the fix is to re-point it at whatever derived-table
- * trigger remains (or delete this file once none do), NOT to conclude the
- * stash is unnecessary. The stash guards the restore against triggers in
- * general; every other case reads whatever triggers exist out of
- * sqlite_master and never names 0049.
- */
 
 const MIGRATION_FILE_PATTERN = /^\d{4}_.+\.sql$/;
 const POSITION_UNIQUE_VIOLATION =
@@ -84,7 +50,6 @@ interface TriggerRow {
 	sql: string;
 }
 
-/** The exact query the seed steps run to stash the triggers. */
 const readTriggers = (db: Database): TriggerRow[] =>
 	db
 		.query(
@@ -98,14 +63,6 @@ const dropTriggers = (db: Database, triggers: TriggerRow[]) => {
 	}
 };
 
-/**
- * The workflows' re-arm file: `cat drop-triggers.sql restore-triggers.sql`.
- *
- * The drops are what make it idempotent. SQLite strips `IF NOT EXISTS` before
- * storing DDL in sqlite_master, so the read-back CREATEs alone abort on the
- * first surviving trigger — and `wrangler d1 execute --file` stops there,
- * skipping every CREATE behind it.
- */
 const rearmTriggers = (db: Database, triggers: TriggerRow[]) => {
 	dropTriggers(db, triggers);
 	for (const trigger of triggers) {
@@ -113,12 +70,6 @@ const rearmTriggers = (db: Database, triggers: TriggerRow[]) => {
 	}
 };
 
-/**
- * A DROP batch that died halfway. Derived from the live count, never a
- * literal: the contract migration in db-migrations.md leaves exactly six
- * triggers, so a hard-coded `slice(0, 6)` would quietly become a FULL drop
- * and both partial-drop cases would stop testing what they name.
- */
 const halfOf = (triggers: TriggerRow[]): TriggerRow[] =>
 	triggers.slice(0, Math.floor(triggers.length / 2));
 
@@ -128,11 +79,6 @@ const recreateTriggers = (db: Database, triggers: TriggerRow[]) => {
 	}
 };
 
-/**
- * A production `--no-schema` dump, in the order `wrangler d1 export` writes it:
- * `game_mix` (carrying the legacy JSON mirror) before `game_mix_variant`
- * (carrying the authoritative junction rows production already normalized).
- */
 const replayProductionDump = (db: Database) => {
 	db.exec("PRAGMA foreign_keys = OFF;");
 	db.exec(
@@ -249,8 +195,6 @@ skipIfNotBun("seed restore (preview-deploy.yml, dev-deploy.yml)", () => {
 		replayProductionDump(db);
 		recreateTriggers(db, stashed);
 
-		// A post-seed write is an application write again: the compat trigger
-		// must still mirror `games` into the junction.
 		db.exec(
 			`INSERT INTO game_mix (id, user_id, label, games, created_at, updated_at)
 				VALUES ('mix-2', 'user-1', 'Mix2', '["variant-2"]', 0, 0);`
