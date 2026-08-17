@@ -12,21 +12,10 @@ export type Db = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
 >[0]["ctx"]["db"];
 
-// The mix pseudo-variant is a MODE, not a per-user row — its key and display
-// label are reserved so a real game-variant/game-mix row can never collide
-// with it. Single copy shared by the game-group/game-variant/game-mix
-// routers (previously duplicated verbatim in each, c42).
 export const RESERVED_LABELS = new Set(
 	[MIX_VARIANT, MIX_VARIANT_LABEL].map((s) => s.toLowerCase())
 );
 
-/**
- * Builtin-first comparator factory: rows whose `builtinKey` is in
- * `builtinOrder` sort ahead of any user-created row (by that order), and
- * user-created rows then sort alphabetically by label. Shared by
- * game-group.ts's `compareGroups` and game-mix.ts's `compareMixes`, which
- * were byte-identical aside from the captured order map (c42).
- */
 export function compareBuiltinFirst(
 	builtinOrder: Map<string, number>
 ): (
@@ -49,17 +38,6 @@ export function compareBuiltinFirst(
 	};
 }
 
-/**
- * A mix's label is chosen from the same client-side select as a plain game
- * variant (both freeze into the same `variant` string once picked), so its
- * namespace spans BOTH the caller's game variants and the caller's mixes,
- * plus the reserved mix-mode strings. Shared by game-variant.ts (`self:
- * "variant"`) and game-mix.ts (`self: "mix"`), which previously duplicated
- * this check as `assertLabelAvailable` / `assertMixLabelAvailable` — mirror
- * images of each other differing only in which table is "self" (excludes the
- * row being updated) vs "other" (c42). Error messages/order are byte-
- * identical to the originals.
- */
 export async function assertLabelNamespaceAvailable(
 	db: Db,
 	userId: string,

@@ -19,12 +19,6 @@ type Db = Parameters<
 const NAME_CONFLICT_MESSAGE = "You already have a filter preset with this name";
 const FORBIDDEN_MESSAGE = "You do not own this filter preset";
 
-// The discriminated union routes payload validation per-screen (not a
-// merged/loose shape): screenKey: "sessions" requires a payload matching
-// sessionsFilterPresetPayloadSchema, screenKey: "statistics" requires
-// statisticsFilterPresetPayloadSchema. Built from payloadSchemaForScreenKey
-// so create() always validates against the exact same schema objects the db
-// package (and any later read-side re-parse) uses (api-data-integrity.md).
 const createInputSchema = z.discriminatedUnion("screenKey", [
 	z.object({
 		screenKey: z.literal("sessions"),
@@ -38,10 +32,6 @@ const createInputSchema = z.discriminatedUnion("screenKey", [
 	}),
 ]);
 
-// update() cannot know which payload shape applies until the stored row's
-// screenKey is loaded, so the input schema only accepts "a valid payload for
-// either screen" — the handler re-validates against the STORED screenKey via
-// payloadSchemaForScreenKey below, never the caller's assumption.
 const updatePayloadSchema = z.union([
 	payloadSchemaForScreenKey("sessions"),
 	payloadSchemaForScreenKey("statistics"),
@@ -60,10 +50,6 @@ async function assertNameAvailable(
 	name: string,
 	excludeId?: string
 ): Promise<void> {
-	// Every condition lives in the WHERE, so this reads at most one row instead
-	// of scanning the caller's whole preset set. `excludeId` is set by update()
-	// so a rename never collides with the row being renamed itself; `and()`
-	// drops the undefined operand on the create() path.
 	const conflicting = await db
 		.select({ id: filterPreset.id })
 		.from(filterPreset)
@@ -117,9 +103,6 @@ export const filterPresetRouter = router({
 					updatedAt: new Date(),
 				});
 			} catch (error) {
-				// Backstop against the app-level check above racing a concurrent
-				// identical (userId, screenKey, name) insert (TOCTOU), mirroring
-				// game-group.ts's create().
 				if (isFilterPresetNameConflictError(error)) {
 					throw new TRPCError({
 						code: "CONFLICT",
@@ -154,10 +137,6 @@ export const filterPresetRouter = router({
 				throw new TRPCError({ code: "FORBIDDEN", message: FORBIDDEN_MESSAGE });
 			}
 
-			// A payload provided on update must be re-validated against the
-			// schema matching the STORED row's screenKey, never any assumption
-			// the caller's input shape implies — the input schema above only
-			// proves the payload is valid for *some* screen.
 			let payload: FilterPresetPayload | undefined;
 			if (input.payload !== undefined) {
 				const schema = payloadSchemaForStoredScreenKey(found.screenKey);
@@ -191,7 +170,6 @@ export const filterPresetRouter = router({
 					})
 					.where(eq(filterPreset.id, input.id));
 			} catch (error) {
-				// Same TOCTOU backstop as create() above, for a concurrent rename.
 				if (isFilterPresetNameConflictError(error)) {
 					throw new TRPCError({
 						code: "CONFLICT",
@@ -240,9 +218,6 @@ export const filterPresetRouter = router({
 			}
 
 			await runBatch(ctx.db, [
-				// Clear every OTHER row for this exact (userId, screenKey) — scoped
-				// by BOTH so this can never clear another user's or another
-				// screen's default.
 				ctx.db
 					.update(filterPreset)
 					.set({ isDefault: false, updatedAt: new Date() })

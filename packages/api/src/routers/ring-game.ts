@@ -84,7 +84,6 @@ export function buildRingGameCreateStatement(
 	});
 }
 
-// Named export for the MCP tool layer — see .claude/rules/mcp-tools.md.
 export const ringGameListByRoomInputSchema = z.object({
 	roomId: z.string(),
 	includeArchived: z.boolean().optional(),

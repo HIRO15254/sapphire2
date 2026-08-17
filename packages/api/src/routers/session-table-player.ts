@@ -178,11 +178,6 @@ async function fetchSessionContext(
 	return { roomName, gameName };
 }
 
-/**
- * Fetch the session's events ordered for event-sourced state derivation.
- * Seated-player state is no longer persisted in a table — every read folds
- * the player_join / player_leave event stream instead.
- */
 function fetchSeatEvents(db: DbInstance, sessionId: string) {
 	return db
 		.select({
@@ -421,7 +416,6 @@ export const sessionTablePlayerRouter = router({
 				sessionType,
 				seatPosition
 			);
-			// Reject foreign player tags before creating the player (IDOR).
 			await validateTagsOwnership(
 				ctx.db,
 				playerTag,
@@ -504,8 +498,6 @@ export const sessionTablePlayerRouter = router({
 				});
 			}
 
-			// The seat lives on the player's most recent player_join event.
-			// Patching that event keeps the seat fully event-sourced.
 			let joinEventId: string | undefined;
 			for (const event of events) {
 				if (event.eventType !== "player_join") {

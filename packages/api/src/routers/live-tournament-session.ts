@@ -510,9 +510,6 @@ export const liveTournamentSessionRouter = router({
 			if (input.status) {
 				conditions.push(eq(gameSession.status, input.status));
 			}
-			// Composite (startedAt, id) keyset — a malformed / deleted-row cursor
-			// degrades to "no cursor" instead of silently emptying the page
-			// (SA2-150). Shared with session.list so both stay in lockstep.
 			const keyset = sessionKeysetCondition(input.cursor);
 			if (keyset) {
 				conditions.push(keyset);
@@ -564,10 +561,6 @@ export const liveTournamentSessionRouter = router({
 			const nextCursor =
 				hasMore && last ? encodeSessionCursor(last) : undefined;
 
-			// SA2-151: fetch every page item's events in one batched inArray
-			// query, then bucket by session id, instead of a per-item query
-			// (an N+1 whose per-query latency dominated under D1). getSessionEventMap
-			// preserves the (occurredAt, sortOrder, id) ordering computeStackStats needs.
 			const eventMap = await getSessionEventMap(
 				ctx.db,
 				items.map((item) => item.id)
@@ -669,9 +662,6 @@ export const liveTournamentSessionRouter = router({
 				chipPurchases,
 				summary,
 				tableSize: masterData.tableSize,
-				// Snapshot fields from session_tournament_detail. These stay
-				// stable even if the parent tournament is renamed or its
-				// blind/chip structure is edited after session creation.
 				ruleName: detail?.ruleName ?? null,
 				variant: detail?.variant ?? null,
 				startingStack: detail?.startingStack ?? null,
@@ -695,9 +685,6 @@ export const liveTournamentSessionRouter = router({
 			const userId = ctx.session.user.id;
 
 			await validateLiveLinkOwnership(ctx.db, input, userId);
-			// Validate tournament ownership before reading its structure so a
-			// caller cannot snapshot another user's blind levels / chip purchases
-			// via snapshotTournamentStructure (IDOR).
 			if (input.tournamentId) {
 				await validateEntityOwnership(
 					ctx.db,
@@ -815,9 +802,6 @@ export const liveTournamentSessionRouter = router({
 				bountyAmount: input.bountyAmount ?? null,
 				tableSize: input.tableSize ?? null,
 			};
-			// The FK-checked upsert is intentionally in the same batch as the master
-			// insert. A concurrent session deletion therefore makes the whole batch
-			// fail instead of committing an orphan tournament.
 			const detailStatement = ctx.db
 				.insert(sessionTournamentDetail)
 				.values({
@@ -937,8 +921,6 @@ export const liveTournamentSessionRouter = router({
 				detailUpdate
 			);
 
-			// Re-snapshot blind levels / chip purchases when the parent link
-			// changes to a new tournament. `null` keeps the existing snapshot.
 			if (input.tournamentId) {
 				await resnapshotTournamentStructure(
 					ctx.db,
@@ -975,11 +957,6 @@ export const liveTournamentSessionRouter = router({
 			};
 		}),
 
-	// Edit the session's frozen rule snapshot — scalar fields on
-	// session_tournament_detail, plus optional full-list replacements of
-	// session_blind_level and session_chip_purchase. The master tournament
-	// is NEVER touched by this mutation. Use it from the live-session edit
-	// dialog to override snapshot data for this session only.
 	updateSnapshot: protectedProcedure
 		.input(
 			z.object({
@@ -1050,20 +1027,10 @@ export const liveTournamentSessionRouter = router({
 			}
 
 			if (input.blindLevels !== undefined) {
-				// Reuse the shared helper so the DELETE + re-INSERT is chunked
-				// under D1's 100 bound-parameter cap (10 columns/row => 10 rows
-				// max per INSERT since the `games` column). A single unchunked
-				// INSERT of >=11 levels overflows and throws AFTER the DELETE
-				// commits, permanently wiping the session's blind structure
-				// (SA2-115).
 				await persistSessionBlindLevels(ctx.db, input.id, input.blindLevels);
 			}
 
 			if (input.chipPurchases !== undefined) {
-				// Editing the live session's rule snapshot. Counts are derived
-				// from purchase_chips events, so each chip purchase is (re)seeded
-				// with a result row at count 0; recalculateTournamentSession
-				// overwrites the counts on completion.
 				await persistSessionChipPurchases(
 					ctx.db,
 					input.id,
