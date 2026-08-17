@@ -9,11 +9,6 @@ import {
 } from "@/shared/components/ui/dialog";
 import type { FilterPresetItem } from "@/shared/hooks/use-filter-presets";
 
-/**
- * Destructive confirmation for deleting a saved preset. A centered `Dialog`
- * rather than a sheet, per `.claude/rules/web-theme.md` — bottom sheets are for
- * entry / picking, one-tap-to-confirm prompts stay modal.
- */
 export function DeletePresetDialog({
 	isPending,
 	onCancel,

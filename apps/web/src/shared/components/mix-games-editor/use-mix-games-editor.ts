@@ -10,17 +10,10 @@ import {
 
 interface UseMixGamesEditorArgs {
 	onChange: (rows: MixGameGroupRow[]) => void;
-	/** variant label → its owning group (master mapping). */
 	resolveGroup: ResolveGroup;
 	value: MixGameGroupRow[];
 }
 
-/**
- * Handler layer of the mix-games editor: buckets are derived from the
- * master variant→group mapping (injected as resolvers so this stays
- * decoupled from trpc); every mutation goes through the pure helpers and
- * is emitted via onChange (controlled-component contract).
- */
 export function useMixGamesEditor({
 	onChange,
 	resolveGroup,
@@ -37,8 +30,6 @@ export function useMixGamesEditor({
 			uid: string,
 			patch: Partial<Omit<MixGameGroupRow, "uid" | "groupId">>
 		) => onChange(updateGroup(value, uid, patch)),
-		// Switching to "none" also clears the ante cell so the disabled input
-		// never shows a stale amount (c57).
 		onUpdateAnteType: (uid: string, anteType: MixGameGroupRow["anteType"]) =>
 			onChange(
 				updateGroup(

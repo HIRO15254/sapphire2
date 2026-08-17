@@ -4,11 +4,6 @@ import { useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { useCallback, useState } from "react";
 
-/**
- * Toolbar formatting keys. These double as the `value`s of the toolbar
- * `ToggleGroupItem`s, so the group's controlled `value` can be derived
- * straight from the editor's active marks/nodes.
- */
 export type RichTextFormat =
 	| "bold"
 	| "italic"
@@ -124,10 +119,6 @@ export function useRichTextEditor({
 		},
 	});
 
-	// `ToggleGroup` is controlled off the editor's live state. The group reports
-	// the *desired* next selection; we diff it against the current state and run
-	// the single command for whichever item the user toggled (headings convert
-	// rather than stack, so the symmetric difference is always one key).
 	const onFormatsChange = useCallback(
 		(next: string[]) => {
 			if (!editor) {

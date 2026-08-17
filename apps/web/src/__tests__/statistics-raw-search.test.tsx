@@ -14,28 +14,6 @@ import {
 	statsSearchSchema,
 } from "@/features/statistics/utils/stats-filters";
 
-/**
- * Pins the router behaviour the statistics default-preset feature depends on,
- * against a REAL router — every other test in this area mocks
- * `@tanstack/react-router` wholesale, which is exactly how the original
- * implementation shipped broken.
- *
- * The rule this proves: on a route with `validateSearch`, TanStack Router bakes
- * the schema's defaults into `location.search` **and rewrites the URL to match**.
- * So "is this a bare `/statistics` load?" cannot be answered by inspecting the
- * router's search object — it always carries `period` / `norm` / `type`. The
- * first implementation of this gate did exactly that
- * (`Object.keys(location.search).length === 0`) and was therefore permanently
- * false, silently disabling the statistics default preset with every unit test
- * still green.
- *
- * `useStatsFilters` now derives the verdict from the FILTER VALUES instead
- * (`isDefaultStatsFilterState`), so this file asserts both halves: the router
- * behaviour that rules the old approach out, and that the new predicate answers
- * correctly for each of these real navigations.
- */
-
-/** Renders both views of the search params so each test can compare them. */
 function StatisticsProbe() {
 	const validated = useSearch({ from: "/statistics" });
 	const raw = useRouterState({ select: (s) => s.location.search });
@@ -83,7 +61,6 @@ describe("statistics route: validateSearch bakes defaults into location.search",
 		renderStatisticsRoute("/statistics");
 		const { raw, href } = await readProbe();
 
-		// This is why a "raw search is empty" check cannot work on this route.
 		expect(Object.keys(raw as object).length).toBeGreaterThan(0);
 		expect(raw).toMatchObject({
 			period: "all",

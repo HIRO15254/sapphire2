@@ -24,7 +24,6 @@ interface InfiniteCache {
 	pages: { items: InfiniteItem[]; nextCursor?: string }[];
 }
 
-/** Pull the updater callback handed to `setQueryData` out of the spy. */
 function lastSetQueryDataUpdater(
 	queryClient: QueryClient
 ): (old: InfiniteCache | undefined) => InfiniteCache | undefined {
@@ -432,7 +431,6 @@ describe("optimistic-update helpers", () => {
 			name: string;
 		}
 
-		/** Pull the updater handed to `setQueryData`, typed for a single entity. */
 		function entityUpdater(
 			queryClient: QueryClient
 		): (old: Entity | null | undefined) => Entity | null | undefined {
@@ -549,7 +547,6 @@ describe("optimistic-update helpers", () => {
 			id: string;
 		}
 
-		/** Pull the updater handed to `setQueryData`, typed for a plain array. */
 		function itemsUpdater(
 			queryClient: QueryClient
 		): (old: Item[] | undefined) => Item[] | undefined {

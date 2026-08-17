@@ -1,7 +1,3 @@
-// Period preset windows + custom date-range conversion — the date/period filter
-// domain shared by the statistics and sessions filter bars (SA2-74). Kept
-// feature-neutral here so neither feature imports the other for it.
-
 export const PERIODS = ["7d", "30d", "90d", "ytd", "all", "custom"] as const;
 export type Period = (typeof PERIODS)[number];
 
@@ -16,7 +12,6 @@ export const PERIOD_LABEL: Record<Period, string> = {
 
 const DAY_SECONDS = 86_400;
 
-/** The minimal filter shape {@link resolveDateRange} needs. */
 export interface DateRangeFilters {
 	from?: number;
 	period: Period;
@@ -35,13 +30,6 @@ function startOfUtcYearSec(nowSec: number): number {
 	return Math.floor(Date.UTC(d.getUTCFullYear(), 0, 1) / 1000);
 }
 
-/**
- * Translate the selected period into a concrete `{ dateFrom?, dateTo? }` window
- * in Unix seconds. Relative windows snap their bounds to UTC day boundaries so
- * the value (and therefore any query key built from it) only changes once a day,
- * not on every render. The upper bound is the end of today so future-dated rows
- * are excluded from "last N days" / YTD windows.
- */
 export function resolveDateRange(
 	filters: DateRangeFilters,
 	nowSec: number = Math.floor(Date.now() / 1000)
@@ -74,11 +62,6 @@ export function resolveDateRange(
 
 const DATE_INPUT_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-/**
- * Convert a `yyyy-mm-dd` value from a date input into Unix seconds (UTC).
- * `endOfDay` snaps to 23:59:59 so an upper bound is inclusive of the whole day.
- * Returns undefined for an empty / malformed value so the bound is cleared.
- */
 export function dateInputToEpochSec(
 	value: string,
 	endOfDay = false
@@ -93,7 +76,6 @@ export function dateInputToEpochSec(
 	return Math.floor(ms / 1000);
 }
 
-/** Convert Unix seconds back to a `yyyy-mm-dd` value for a date input (UTC). */
 export function epochSecToDateInput(sec: number | undefined): string {
 	if (sec === undefined) {
 		return "";

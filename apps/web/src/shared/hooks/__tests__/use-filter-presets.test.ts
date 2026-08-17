@@ -2,13 +2,6 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestQueryClient, withQueryClient } from "@/__tests__/test-utils";
 
-// ---------------------------------------------------------------------------
-// Mock @/utils/trpc. list.queryOptions(input) builds an input-scoped queryKey
-// + a queryFn forwarding { screenKey } to listQueryFn, so the real
-// QueryClient can drive useQuery, seed cache entries, and refetch
-// predictably per screenKey (needed for the independence assertions).
-// ---------------------------------------------------------------------------
-
 const trpcMocks = vi.hoisted(() => ({
 	filterPresetCreate: vi.fn(),
 	filterPresetUpdate: vi.fn(),
@@ -99,8 +92,6 @@ describe("useFilterPresets", () => {
 		});
 
 		it("isSuccess stays false when the list query rejects, even though isLoading is false", async () => {
-			// The distinction consumers depend on: a failed query stops loading
-			// without ever answering, so `!isLoading` alone does not mean "resolved".
 			trpcMocks.listQueryFn.mockRejectedValue(new Error("offline"));
 			const qc = createTestQueryClient();
 			const { result } = renderHook(() => useFilterPresets("sessions"), {
@@ -261,8 +252,6 @@ describe("useFilterPresets", () => {
 					screenKey: "sessions",
 				},
 			];
-			// The onSettled invalidate refetches; mirror the rollback state so the
-			// refetch reseeds with what onError restores.
 			trpcMocks.listQueryFn.mockResolvedValue(original);
 			const qc = createTestQueryClient();
 			seedList(qc, "sessions", original);
@@ -428,7 +417,6 @@ describe("useFilterPresets", () => {
 				expect(target?.name).toBe("Both");
 				expect(target?.payload).toEqual({ roomId: "r1" });
 			});
-			// isDefault is not part of the update surface and must survive.
 			expect(
 				qc
 					.getQueryData<PresetRow[]>(listKey("sessions"))
@@ -892,8 +880,6 @@ describe("useFilterPresets", () => {
 				])
 			);
 
-			// Block resolution so the optimistic (pre-invalidate) cache state is
-			// observable on both instances before the mutation settles.
 			let resolve: ((v: unknown) => void) | undefined;
 			trpcMocks.filterPresetCreate.mockImplementation(
 				() =>
@@ -908,7 +894,6 @@ describe("useFilterPresets", () => {
 				});
 			});
 
-			// The sessions cache entry grew, the statistics one is unaffected.
 			await waitFor(() =>
 				expect(qc.getQueryData<PresetRow[]>(listKey("sessions"))).toHaveLength(
 					2

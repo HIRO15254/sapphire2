@@ -24,11 +24,8 @@ const router = createRouter({
 				persistOptions={{
 					persister,
 					maxAge: 1000 * 60 * 60 * 24,
-					// Bump this string on any release whose server changes alter a
-					// procedure's output shape or value semantics — deployed clients
-					// otherwise rehydrate up to 24h of old-shaped cache into new code
-					// (SA2-154). This release: migration 0039 changed variant value
-					// semantics ('nlh' -> labels) and several outputs gained fields.
+					// NOTE(ops): When a release changes any tRPC procedure's output shape or
+					// value semantics, bump this buster string in the same change (SA2-154).
 					buster: "2026-07-mix-games",
 					dehydrateOptions: {
 						shouldDehydrateQuery: shouldPersistQuery,

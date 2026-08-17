@@ -10,7 +10,6 @@ import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock window.matchMedia for components that use useMediaQuery
 Object.defineProperty(window, "matchMedia", {
 	writable: true,
 	value: vi.fn().mockImplementation((query: string) => ({
@@ -25,13 +24,11 @@ Object.defineProperty(window, "matchMedia", {
 	})),
 });
 
-// Control the active-session hook return value from each test
 const mockUseActiveSession = vi.fn();
 vi.mock("@/features/live-sessions/hooks/use-active-session", () => ({
 	useActiveSession: () => mockUseActiveSession(),
 }));
 
-// Stub the heavy live form child inside CreateSessionDialog.
 vi.mock(
 	"@/features/live-sessions/components/create-session-dialog/live-session-form",
 	() => ({
@@ -41,7 +38,6 @@ vi.mock(
 	})
 );
 
-// vi.hoisted ensures these are available when the vi.mock factory runs
 const { mockQuery } = vi.hoisted(() => ({
 	mockQuery: vi.fn(),
 }));
@@ -118,7 +114,6 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
-// Import component under test after mocks
 import { CreateSessionDialog } from "@/features/live-sessions/components/create-session-dialog";
 
 const testQueryClient = new QueryClient({
@@ -132,12 +127,6 @@ function TestQueryProvider({ children }: { children: ReactNode }) {
 		</QueryClientProvider>
 	);
 }
-
-// ---------------------------------------------------------------------------
-// Small helper: render a page that shows the active-session state and a
-// button to open CreateSessionDialog. This mirrors real app usage — the guard
-// is expressed through what the UI shows, not a separate component.
-// ---------------------------------------------------------------------------
 
 function ActiveSessionStatusPage() {
 	const { activeSession, hasActive, isLoading } = mockUseActiveSession();
@@ -180,10 +169,6 @@ function createTestRouter(component: any, path = "/") {
 		history: createMemoryHistory({ initialEntries: [path] }),
 	});
 }
-
-// ---------------------------------------------------------------------------
-// Tests: guard logic via useActiveSession state
-// ---------------------------------------------------------------------------
 
 describe("Single-session guard — no active session", () => {
 	beforeEach(() => {
@@ -293,9 +278,6 @@ describe("Single-session guard — cross-type guard", () => {
 	});
 
 	it("useActiveSession returns hasActive=false when both cash and tournament queries yield nothing", () => {
-		// This validates the hook logic contract: if no items exist in either query
-		// the hook should return hasActive=false. We test the mock that represents
-		// the real hook's behavior.
 		mockUseActiveSession.mockReturnValue({
 			activeSession: null,
 			hasActive: false,
@@ -308,8 +290,6 @@ describe("Single-session guard — cross-type guard", () => {
 	});
 
 	it("useActiveSession prefers cash game over tournament when both exist", () => {
-		// The real hook returns cash game first (activeCash takes priority).
-		// Validate the mock reflects this contract.
 		mockUseActiveSession.mockReturnValue({
 			activeSession: { id: "cash-priority", type: "cash_game" },
 			hasActive: true,

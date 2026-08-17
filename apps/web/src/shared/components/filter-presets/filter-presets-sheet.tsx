@@ -15,9 +15,6 @@ import { SavedPresetsList } from "./saved-presets-list";
 import type { FilterPresetsSheetTab } from "./use-filter-presets-sheet";
 import { useFilterPresetsSheet } from "./use-filter-presets-sheet";
 
-// The create form and the rename/overwrite form are never mounted at the same
-// time, but both are submitted from an external button via the HTML `form=`
-// attribute, so they must not share an id (the edit form owns its own).
 const CREATE_PRESET_FORM_ID = "filter-presets-create-form";
 
 interface FilterPresetsSheetProps<TPayload extends FilterPresetPayload> {
@@ -28,17 +25,6 @@ interface FilterPresetsSheetProps<TPayload extends FilterPresetPayload> {
 	screenKey: FilterPresetScreenKey;
 }
 
-/**
- * Hybrid tabbed picker sheet for filter presets — mirrors
- * `assign-ring-game-dialog.tsx`'s Drawer/Tabs structure
- * (`.claude/rules/web-theme.md` — "Hybrid / tabbed picker sheet"). Generic over
- * the caller's payload shape so `currentPayload` / `onApply` stay typed to the
- * calling screen's own filter shape.
- *
- * Composition only: the three surfaces it switches between live in their own
- * child folders (`saved-presets-list/`, `edit-preset-form/`,
- * `delete-preset-dialog/`) per the placement rule in AGENTS.md.
- */
 export function FilterPresetsSheet<TPayload extends FilterPresetPayload>({
 	currentPayload,
 	onApply,

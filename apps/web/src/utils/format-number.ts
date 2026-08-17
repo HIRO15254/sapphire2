@@ -4,10 +4,6 @@ const NUMBER_FORMATTER = new Intl.NumberFormat("en-US");
 
 export const formatNumber = (value: number) => NUMBER_FORMATTER.format(value);
 
-/**
- * Format a single number with compact notation (k, M, B).
- * Threshold: 10,000+
- */
 export function formatCompactNumber(value: number): string {
 	if (Math.abs(value) >= 10_000_000_000) {
 		return `${(value / 1_000_000_000).toFixed(1).replace(TRAILING_ZERO, "")}B`;
@@ -40,18 +36,6 @@ function formatWithTier(value: number, tier: UnitTier | undefined): string {
 	return `${(value / tier.divisor).toFixed(1).replace(TRAILING_ZERO, "")}${tier.suffix}`;
 }
 
-/**
- * Create a formatter that applies a consistent unit tier across a group of numbers.
- * The tier is determined by the maximum absolute value in the group.
- *
- * Usage:
- *   const fmt = createGroupFormatter([100, 200, 10000]);
- *   fmt(100)   // "0.01k"  — because max is 10000 (k tier)
- *   fmt(200)   // "0.02k"
- *   fmt(10000) // "10k"
- *
- * If max < 10,000, all values are shown as plain numbers.
- */
 export function createGroupFormatter(
 	values: (number | null | undefined)[]
 ): (value: number) => string {
@@ -61,9 +45,6 @@ export function createGroupFormatter(
 	return (value: number) => formatWithTier(value, tier);
 }
 
-// sessionDate is stored/returned as UTC midnight, so read UTC calendar fields
-// to render the day the user actually saved. Using local getters shifts the
-// day back one for users west of UTC (SA2-145).
 export function formatYmdSlash(input: string | Date): string {
 	const d = typeof input === "string" ? new Date(input) : input;
 	const y = d.getUTCFullYear();
@@ -72,13 +53,6 @@ export function formatYmdSlash(input: string | Date): string {
 	return `${y}/${m}/${day}`;
 }
 
-/**
- * Local-time counterpart of {@link formatYmdSlash}, for values that are real
- * instants rather than date-only columns — session event timestamps, where the
- * calendar day has to match the clock time rendered next to it. Never use it
- * for `sessionDate` and friends: those are UTC midnight and need the UTC
- * getters above (SA2-145).
- */
 export function formatLocalYmdSlash(input: string | Date): string {
 	const d = typeof input === "string" ? new Date(input) : input;
 	const y = d.getFullYear();
