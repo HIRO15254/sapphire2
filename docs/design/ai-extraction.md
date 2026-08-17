@@ -6,13 +6,6 @@ This document covers the AI extraction subsystem: the two `aiExtractRouter` proc
 
 The imperatives around model IDs — single home in `models.ts`, no runtime "latest" resolution, `max_tokens` must include the thinking budget, upgrade checklist — live in [`.claude/rules/ai-models.md`](../../.claude/rules/ai-models.md). This section records only the registry contents and how the rule is enforced.
 
-Key → feature map:
-
-| `AI_MODELS` key | Feature |
-|---|---|
-| `seating` | Reading seated players from a screenshot (`extractTablePlayers`). |
-| `tournamentExtraction` | Extraction of tournament information (`extractTournamentData`). |
-
 Enforcement is deliberately split across three mechanisms, which is why [`models.test.ts`](../../packages/api/src/ai/__tests__/models.test.ts) asserts only `EXTRACTION_MAX_TOKENS`:
 
 - That every `AI_MODELS` entry is `LATEST_MODEL` is guaranteed **at the type level** by `satisfies Record<string, typeof LATEST_MODEL>` in `models.ts`.
@@ -28,7 +21,7 @@ Both extraction tools make every output field optional by design:
 - The tournament tool's JSON Schema (`TOOL_INPUT_SCHEMA`) declares `required: []` — all fields omittable, so the model includes only what is explicitly stated in the source. The per-field description strings in the tool definition (runtime prompt data sent to the model) reinforce this: omit unknown fields; empty strings and `null` are forbidden. The point is that the model omits unknowns instead of hallucinating or padding with empty values.
 - The Zod read side mirrors it: every field of `ExtractedTournamentDataSchema` is `.optional()`, and `ExtractedTablePlayersSchema.seats` carries `.default([])`.
 
-The two procedures use different transport mechanics — `extractTournamentData` sends a hand-written JSON Schema tool with a forced `tool_choice` and validates `toolUse.input` itself; `extractTablePlayers` uses the SDK's structured-output helper (`messages.parse` + `zodOutputFormat`) and reads `parsed_output` — but the all-optional shape, and therefore the failure model below, is shared.
+The two procedures use different transport mechanics (hand-written JSON Schema tool vs. the SDK's structured-output helper), but the all-optional shape — and therefore the failure model below — is shared.
 
 Consequence: an all-optional schema cannot distinguish "nothing found" from "output cut off". That is exactly what the `stop_reason` gate exists for.
 
@@ -66,4 +59,4 @@ Collapsing them into one error would hide which knob to turn.
 
 ### The merge base is the current form values, not `initialFormValues`
 
-So that a blank AI result never overwrites what the user has typed *during* the session, the merge base is the form's **live** values at extraction time (SA2-77). [`use-tournament-form-sheet.ts`](../../apps/web/src/features/rooms/components/tournament-form-sheet/use-tournament-form-sheet.ts) holds a getter ref (`registerLiveValues`); [`tournament-modal-content.tsx`](../../apps/web/src/features/rooms/components/tournament-modal-content/tournament-modal-content.tsx) and [`tournament-form.tsx`](../../apps/web/src/features/rooms/components/tournament-modal-content/tournament-form/tournament-form.tsx) thread it down to the form, and [`use-tournament-form.ts`](../../apps/web/src/features/rooms/components/tournament-modal-content/tournament-form/use-tournament-form.ts) converts the form's internal values (all strings) into the partial values used as the merge base. Merging over `initialFormValues` instead would silently wipe anything entered after the sheet opened whenever the AI returned blanks.
+So that a blank AI result never overwrites what the user has typed *during* the session, the merge base is the form's **live** values at extraction time, read through a getter ref ([`use-tournament-form-sheet.ts`](../../apps/web/src/features/rooms/components/tournament-form-sheet/use-tournament-form-sheet.ts)'s `registerLiveValues`), not `initialFormValues` (SA2-77). Merging over `initialFormValues` instead would silently wipe anything entered after the sheet opened whenever the AI returned blanks.
