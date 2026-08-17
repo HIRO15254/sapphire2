@@ -12,8 +12,6 @@ function mountInputs(
 	const blind3 = document.createElement("input");
 	const ante = document.createElement("input");
 	const minutes = document.createElement("input");
-	// Assign the refs imperatively because useRef().current is read-only
-	// normally, but DOM RefObjects allow direct assignment in tests.
 	(result.blind1Ref as { current: HTMLInputElement | null }).current = blind1;
 	(result.blind2Ref as { current: HTMLInputElement | null }).current = blind2;
 	if (withBlind3) {
@@ -44,8 +42,6 @@ describe("useEmptyRow", () => {
 
 			result.current.handleBlind1Blur(buildFocusEvent(inputs.blind1, null));
 
-			// tryCreate auto-fills blind2 to 200, ante to 200, then invokes create
-			// and immediately resets all cells.
 			expect(onCreateLevel).toHaveBeenCalledWith({
 				blind1: 100,
 				blind2: 200,
@@ -81,8 +77,6 @@ describe("useEmptyRow", () => {
 
 			result.current.handleBlind1Blur(buildFocusEvent(inputs.blind1, null));
 
-			// After reset the values are cleared, so assert the onCreateLevel payload
-			// which captures the intermediate state.
 			expect(onCreateLevel).toHaveBeenCalledWith({
 				blind1: 100,
 				blind2: 300,
@@ -101,7 +95,6 @@ describe("useEmptyRow", () => {
 
 			expect(inputs.blind2.value).toBe("");
 			expect(inputs.ante.value).toBe("");
-			// blind1Val is null => tryCreate returns early without calling create.
 			expect(onCreateLevel).not.toHaveBeenCalled();
 		});
 
@@ -115,7 +108,6 @@ describe("useEmptyRow", () => {
 				buildFocusEvent(inputs.blind1, inputs.blind2)
 			);
 			expect(onCreateLevel).not.toHaveBeenCalled();
-			// But the auto-fill side-effects still happened.
 			expect(inputs.blind2.value).toBe("200");
 			expect(inputs.ante.value).toBe("200");
 		});
@@ -269,7 +261,6 @@ describe("useEmptyRow", () => {
 			inputs.ante.value = "200";
 			inputs.minutes.value = "20";
 
-			// relatedTarget === blind1 (one of the cells) → tryCreate early-returns
 			result.current.handleMinutesBlur(
 				buildFocusEvent(inputs.minutes, inputs.blind1)
 			);

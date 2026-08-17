@@ -18,10 +18,6 @@ export interface GroupFormSheetProps {
 	open: boolean;
 }
 
-/**
- * Create AND edit share this sheet — see `use-group-form-sheet.ts` for the
- * mode derivation and the parent's key-per-target remount contract.
- */
 export function GroupFormSheet({
 	editingGroup,
 	onOpenChange,
@@ -68,8 +64,6 @@ export function GroupFormSheet({
 						</Field>
 					)}
 				</form.Field>
-				{/* 3-up leaves ~100px per text input on a phone-width sheet —
-				    stack there, resume the row from sm up. */}
 				<div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
 					{BLIND_LABEL_FIELDS.map(({ name, label }) => (
 						<form.Field key={name} name={name}>

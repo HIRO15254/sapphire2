@@ -32,8 +32,6 @@ import {
 	PERIODS,
 } from "@/shared/lib/period-filter";
 
-// "presets" opens a `FilterPresetsSheet` (a different sheet primitive with its
-// own visible title), not one of the `FilterSheet` picker sheets below.
 const SHEET_TITLE: Record<Exclude<StatsFilterSheet, "presets">, string> = {
 	period: "Period",
 	norm: "Normalize",

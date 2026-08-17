@@ -6,7 +6,6 @@ import {
 	TableRow,
 } from "@/shared/components/ui/table";
 
-/** A single key/value statistic row in a game-type stat table. */
 export interface StatRow {
 	key: string;
 	label: string;
@@ -14,10 +13,6 @@ export interface StatRow {
 	valueColor: string;
 }
 
-/**
- * A compact two-column (metric / value) table used by the cash-game and
- * tournament blocks to list many statistics at a glance.
- */
 export function StatTable({ rows }: { rows: StatRow[] }) {
 	return (
 		<div className="overflow-hidden rounded-xl ring-1 ring-foreground/10">

@@ -21,7 +21,6 @@ vi.mock("@tanstack/react-router", () => ({
 	useNavigate: () => mocks.navigate,
 }));
 
-/** Swap window.location for one carrying the given search/origin. */
 function stubLocation(overrides: Partial<Location>): () => void {
 	const originalLocation = window.location;
 	Object.defineProperty(window, "location", {

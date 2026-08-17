@@ -10,11 +10,6 @@ interface EmptyGamesRowProps {
 	onCreateLevel: (values: NewLevelValues) => void;
 }
 
-/**
- * New-level row for per-level ('mix') mode: no flat blind inputs (their
- * amounts would be invisible on a "Games" summary row) — just a Min cell and
- * an add button. The created level's games are assigned via the sheet.
- */
 export function EmptyGamesRow({ onCreateLevel }: EmptyGamesRowProps) {
 	const { minutesRef, handleAddLevel } = useEmptyGamesRow({ onCreateLevel });
 

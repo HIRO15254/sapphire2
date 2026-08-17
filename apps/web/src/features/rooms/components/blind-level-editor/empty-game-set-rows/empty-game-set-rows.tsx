@@ -11,16 +11,9 @@ interface EmptyGameSetRowsProps {
 	hasBlind3Column: boolean;
 	onCreateLevel: (values: NewLevelValues) => void;
 	resolveGroup?: ResolveGroup;
-	/** Mix composition shaping the new level's sets (one row per game). */
 	seeds: LevelGameGroup[];
 }
 
-/**
- * Mix-master new-level block: like EmptyRow, but one inline row per game
- * of the composition — typing amounts creates a level with per-game blind
- * sets. Level-scoped cells (the "+" marker, minutes, delete-column
- * placeholder) span the block via rowSpan, mirroring SortableGameSetRows.
- */
 export function EmptyGameSetRows({
 	seeds,
 	onCreateLevel,
@@ -36,10 +29,6 @@ export function EmptyGameSetRows({
 		<TableBody>
 			{seeds.map((seed, index) => {
 				const group = resolveGroup?.(seed.variants[0] ?? "");
-				// Match the per-group header and the stored game-set rows: label
-				// by the owning group's name, not the composition (see
-				// sortable-game-set-rows.tsx). Fall back to the composition when
-				// the group is unresolved (pending/orphaned).
 				const gameLabel =
 					group && group.id !== PENDING_GROUP_ID
 						? group.label

@@ -10,15 +10,9 @@ export function useSignIn() {
 	const navigate = useNavigate({ from: "/" });
 	const { isPending } = authClient.useSession();
 
-	/** Where an in-flight MCP OAuth authorize flow should resume, if any. */
 	const pendingAuthorizeUrl = () =>
 		resolveMcpAuthorizeRedirect(env.VITE_SERVER_URL, window.location.search);
 
-	/**
-	 * Social sign-in returns to /login (query preserved) mid-OAuth so the
-	 * route's beforeLoad can resume the authorize flow; otherwise straight to
-	 * the app.
-	 */
 	const socialCallbackUrl = () =>
 		pendingAuthorizeUrl()
 			? `${window.location.origin}/login${window.location.search}`

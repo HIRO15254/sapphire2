@@ -17,8 +17,6 @@ const trpcMocks = vi.hoisted(() => ({
 	update: vi.fn(),
 	delete: vi.fn(),
 	reorder: vi.fn(),
-	// Served by the mocked queryFn so post-invalidate refetches return
-	// deterministic data instead of wiping the seeded cache.
 	listData: [] as unknown[],
 	listError: null as Error | null,
 }));
@@ -213,8 +211,6 @@ describe("useBlindLevels", () => {
 		});
 
 		it("appends after the HIGHEST level number, not length, after a mid-list delete", async () => {
-			// Delete does not renumber, so a gappy [1,2,4,5] must yield 6 — using
-			// length + 1 would produce 5 and collide with the existing level 5.
 			const qc = createClient();
 			qc.setQueryData(LEVELS_KEY, [
 				level({ id: "l1", level: 1, minutes: null }),
@@ -644,8 +640,6 @@ describe("useBlindLevels", () => {
 				{ wrapper: makeWrapper(qc) }
 			);
 			await waitFor(() => expect(result.current.levels).toHaveLength(1));
-			// A refetch / concurrent optimistic write lands after render: set A's
-			// blind1 changed from 400 to 999.
 			act(() => {
 				qc.setQueryData(LEVELS_KEY, [
 					level({ id: "l1", games: [{ ...setA, blind1: 999 }, setB] }),
@@ -908,7 +902,6 @@ describe("useBlindLevels", () => {
 				{ wrapper: makeWrapper(qc) }
 			);
 			await waitFor(() => expect(result.current.levels).toHaveLength(3));
-			// Move l1 after l3 → new order l2, l3, l1
 			act(() => {
 				result.current.handleDragEnd({
 					active: { id: "l1" },

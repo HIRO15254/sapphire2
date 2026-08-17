@@ -38,8 +38,6 @@ function setup(seeds: LevelGameGroup[] = SEEDS) {
 	const { result } = renderHook(() =>
 		useEmptyGameSetRowsView({ seeds, onCreateLevel })
 	);
-	// Register one input per amount cell (incl. the third slot) plus minutes,
-	// like the component does for groups that expose a blind3 slot.
 	const cells = seeds.map((_, index) => {
 		const blind1 = document.createElement("input");
 		const blind2 = document.createElement("input");
@@ -123,7 +121,6 @@ describe("useEmptyGameSetRowsView", () => {
 			"blind3"
 		)(buildFocusEvent(cells[0].blind3, null));
 
-		// blind3 is not part of the SB/BB auto-fill chain.
 		expect(cells[0].blind2.value).toBe("");
 		const games = onCreateLevel.mock.calls[0][0].games;
 		expect(games[0].blind2).toBeNull();
@@ -143,7 +140,6 @@ describe("useEmptyGameSetRowsView", () => {
 		expect(games[0]).toEqual(
 			expect.objectContaining({ blind1: 100, blind2: 200, ante: 200 })
 		);
-		// The other set stays untouched by the auto-fill.
 		expect(games[1]).toEqual(
 			expect.objectContaining({ blind1: null, blind2: null, ante: null })
 		);
@@ -203,7 +199,6 @@ describe("useEmptyGameSetRowsView", () => {
 		)(buildFocusEvent(cells[0].blind1, cells[1].blind1));
 
 		expect(onCreateLevel).not.toHaveBeenCalled();
-		// Auto-fill still happened while focus stays inside.
 		expect(cells[0].blind2.value).toBe("200");
 	});
 
@@ -239,7 +234,6 @@ describe("useEmptyGameSetRowsView", () => {
 		result.current.registerCell(1, "blind1")(null);
 		cells[0].blind1.value = "100";
 
-		// The unregistered input no longer blocks creation as a relatedTarget.
 		result.current.handleCellBlur(
 			0,
 			"blind1"

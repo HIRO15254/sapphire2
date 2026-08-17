@@ -12,9 +12,7 @@ const GENERIC_BLIND_LABELS: BlindSlotLabels = {
 
 interface EmptyRowProps {
 	blindLabels?: BlindSlotLabels;
-	/** Leading empty Game cell so the row aligns with a hybrid table. */
 	gameColumn?: boolean;
-	/** Empty third blind cell when a hybrid game-set table exposes that slot. */
 	hasBlind3Column?: boolean;
 	onCreateLevel: (values: NewLevelValues) => void;
 }

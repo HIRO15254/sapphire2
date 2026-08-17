@@ -14,13 +14,9 @@ interface RoomListItem {
 }
 
 interface RoomListProps {
-	/** Rooms fetch failed. */
 	isError?: boolean;
-	/** Initial rooms fetch is in flight (no rows yet). */
 	isLoading: boolean;
-	/** Open the create sheet — wired to the empty-state CTA. */
 	onCreate: () => void;
-	/** Retry the rooms query. */
 	onRetry?: () => void;
 	onToggleFavorite: (id: string) => void;
 	rooms: RoomListItem[];
@@ -28,12 +24,6 @@ interface RoomListProps {
 
 const SKELETON_COUNT = 5;
 
-/**
- * Owns the list surface's loading / empty / data switch, mirroring
- * `CurrencyList`: the consumer passes `isLoading` + `rooms` and the component
- * decides what to render. The loading branch stacks the card-bound
- * `RoomListCardSkeleton`.
- */
 export function RoomList({
 	rooms,
 	isLoading,

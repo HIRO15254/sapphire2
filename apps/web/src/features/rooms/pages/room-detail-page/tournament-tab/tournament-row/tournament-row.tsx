@@ -48,8 +48,6 @@ export function TournamentRow({
 					<span className="truncate font-medium text-sm">
 						{tournament.name}
 					</span>
-					{/* Variants freeze full display labels ("8-Game", "NL Hold'em") —
-					    render as-is; uppercasing would mangle them. */}
 					<Badge variant="secondary">
 						{variantDisplayLabel(tournament.variant)}
 					</Badge>

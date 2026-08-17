@@ -121,7 +121,6 @@ describe("usePlayersPage", () => {
 				player("p3", "Bob", []),
 			];
 			const { result } = renderHook(() => usePlayersPage());
-			// "vi" matches the VIP tag on p1 and the name "Vivian" on p2.
 			act(() => result.current.setSearch("vi"));
 			expect(result.current.players.map((p) => p.id)).toEqual(["p1", "p2"]);
 		});

@@ -1,6 +1,3 @@
-// Ported from the retired dashboard pnl-graph-widget (PR #341 removed the
-// dashboard feature). The aggregation math is unchanged — only the file
-// location moved into `features/statistics/`. UI was rebuilt from scratch.
 export type PnlGraphXAxis = "date" | "sessionCount" | "playTime";
 export type PnlGraphUnit = "currency" | "normalized";
 export type PnlGraphSessionType = "all" | "cash_game" | "tournament";
@@ -9,24 +6,11 @@ export interface PnlSeriesPoint {
 	bigBlind: number | null;
 	buyInTotal: number | null;
 	evProfitLoss: number | null;
-	/**
-	 * Whether the session stores a real EV cash-out. `evProfitLoss` falls back
-	 * to the actual result, so it is non-null for every finished cash session
-	 * and cannot answer this on its own — see `usePnlGraph`, which hides the EV
-	 * toggle unless some point in the series has this set.
-	 */
 	evRecorded: boolean;
 	id: string;
 	playMinutes: number | null;
 	profitLoss: number;
 	sessionDate: number;
-	/**
-	 * Chronological order key (unix seconds) — the session's actual start time
-	 * when known, falling back to the date-only `sessionDate`. `sessionDate`
-	 * itself has no time component, so same-day sessions all share the same
-	 * value; sorting by it alone left same-day ordering to fall back to `id`
-	 * (effectively random) instead of actual play order (SA2-98).
-	 */
 	sortKey: number;
 	type: "cash_game" | "tournament";
 }

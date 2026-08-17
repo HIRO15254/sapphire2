@@ -66,7 +66,6 @@ function summary(overrides: Partial<Summary> = {}): Summary {
 	};
 }
 
-/** Default context: a single currency is selected (currency mode). */
 function ctx(
 	overrides: Partial<StatsSectionContext> = {}
 ): StatsSectionContext {
@@ -80,7 +79,6 @@ function ctx(
 	};
 }
 
-/** Context with no currency selected (the normalized, cross-currency scope). */
 function noCurrencyCtx(): StatsSectionContext {
 	return {
 		statsInput: { normalized: true },
@@ -176,7 +174,6 @@ describe("useTournamentStats", () => {
 		expect(keys).not.toContain("prize");
 		const byKey = rowsByKey(result);
 		expect(byKey.avgRoi.value).toBe("30.0%");
-		// Net stays normalized to bi in this scope.
 		expect(byKey.net.value).toBe("+4 bi");
 		expect(byKey.avg.value).toBe("+2 bi");
 	});

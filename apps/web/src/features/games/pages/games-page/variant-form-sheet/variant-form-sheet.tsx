@@ -21,10 +21,6 @@ export interface VariantFormSheetProps {
 	open: boolean;
 }
 
-/**
- * Create AND edit share this sheet — see `use-variant-form-sheet.ts` for
- * the mode derivation and the create-mode groupId preselection contract.
- */
 export function VariantFormSheet({
 	createGroupId,
 	editingVariant,

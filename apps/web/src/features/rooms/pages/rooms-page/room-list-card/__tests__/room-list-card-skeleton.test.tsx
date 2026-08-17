@@ -7,7 +7,6 @@ describe("RoomListCardSkeleton", () => {
 		const { container } = render(<RoomListCardSkeleton />);
 		const row = container.firstElementChild;
 		expect(row).not.toBeNull();
-		// Mirrors the real RoomListCard row surface.
 		expect(row?.className).toContain("border-border");
 		expect(row?.className).toContain("bg-card");
 	});
@@ -23,11 +22,9 @@ describe("RoomListCardSkeleton", () => {
 		const skeletons = Array.from(
 			container.querySelectorAll('[data-slot="skeleton"]')
 		);
-		// Two count cells: fixed width, do not shrink.
 		expect(skeletons[2]?.className).toContain("w-8");
 		expect(skeletons[2]?.className).toContain("shrink-0");
 		expect(skeletons[3]?.className).toContain("w-8");
-		// Chevron: small square.
 		expect(skeletons[4]?.className).toContain("size-3.5");
 	});
 });

@@ -67,12 +67,6 @@ describe("useStatsFilters", () => {
 		});
 	});
 
-	// The verdict is derived from the FILTERS, not from the router's search
-	// object: `/statistics` has `validateSearch`, so TanStack Router writes the
-	// schema defaults into `location.search` and rewrites the URL — a bare load
-	// is indistinguishable from a deep link there. The real-router proof lives in
-	// apps/web/src/__tests__/statistics-raw-search.test.tsx; the branch logic
-	// itself is unit-tested as `isDefaultStatsFilterState`.
 	describe("isFilterStateDefault", () => {
 		it("is true when every filter is still at its schema default", () => {
 			mocks.filters = { period: "all", norm: "normalized", type: "all" };
@@ -135,8 +129,6 @@ describe("useStatsFilters", () => {
 				room: "r1",
 				currency: "c1",
 			};
-			// Stale prior fields (room, currency, non-default period/norm) must not
-			// survive — a preset meant to clear a filter must actually clear it.
 			expect(arg.search(prev)).toEqual({
 				period: "all",
 				norm: "normalized",
@@ -181,11 +173,6 @@ describe("useStatsFilters", () => {
 			});
 		});
 
-		// A stored preset payload is validated server-side only as a bounded
-		// string for `period` (packages/db can't import apps/web's PERIODS), so a
-		// preset saved with a period this build no longer knows is reachable —
-		// and `replaceFilters` runs during the default-preset auto-apply on mount.
-		// Throwing there would take the whole /statistics page down.
 		it("does not throw when the stored period is outside the current PERIODS vocabulary", () => {
 			const { result } = renderHook(() => useStatsFilters());
 			expect(() => {
@@ -204,8 +191,6 @@ describe("useStatsFilters", () => {
 					period: "last_month",
 				} as unknown as Partial<StatsFilters>);
 			});
-			// Keeping the current filters is the degradation: a stale preset must
-			// not brick the page, and must not half-apply either.
 			expect(mocks.navigate).not.toHaveBeenCalled();
 		});
 

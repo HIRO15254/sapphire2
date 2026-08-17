@@ -74,8 +74,6 @@ describe("LocationPicker", () => {
 	it("renders the Location label with the shared field-label style", () => {
 		renderPicker();
 		const label = screen.getByText("Location");
-		// Aligns with the other room-form inputs, whose labels render through the
-		// shared Field/Label component as a <label> with `font-medium text-sm`.
 		expect(label.tagName).toBe("LABEL");
 		expect(label).toHaveClass("font-medium", "text-sm");
 		expect(label).not.toHaveClass("text-muted-foreground");

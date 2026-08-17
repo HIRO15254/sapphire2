@@ -169,8 +169,6 @@ describe("useRoomsPage", () => {
 		});
 
 		it("keeps the sheet open when create rejects", async () => {
-			// The hook chains .then() without .catch(), so a rejected create leaves
-			// the rejection unhandled. Intercept unhandledRejection for this test.
 			const unhandled = vi.fn();
 			process.on("unhandledRejection", unhandled);
 			mocks.create.mockRejectedValue(new Error("boom"));

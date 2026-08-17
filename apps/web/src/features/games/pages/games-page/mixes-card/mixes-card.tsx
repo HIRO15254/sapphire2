@@ -3,7 +3,6 @@ import { Button } from "@/shared/components/ui/button";
 import type { GameMixRow } from "../use-games-page";
 
 export interface MixesCardProps {
-	/** id -> variant label, derived once in use-games-page.ts. */
 	labelById: Map<string, string>;
 	mixes: GameMixRow[];
 	onDeleteMix: (mix: GameMixRow) => void;
@@ -23,14 +22,6 @@ function mixGamesSummary(
 		: `${mix.games.length} games`;
 }
 
-/**
- * Card listing the user's mix masters (label + ordered game composition,
- * spanning groups) — rendered after the group cards since a mix is a
- * cross-group composition, not a group member. Same header-band treatment
- * as `group-card/` for visual consistency. Pure presentational: state and
- * mutations live in the parent's use-games-page.ts hook and the
- * shared mix-form-sheet hook.
- */
 export function MixesCard({
 	labelById,
 	mixes,

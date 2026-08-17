@@ -17,21 +17,13 @@ export function useTournamentModalContent({
 	const { isMixValue } = useGameGroups();
 	const [localBlindLevels, setLocalBlindLevels] =
 		useState<BlindLevelRow[]>(initialBlindLevels);
-	// Controlled so an invalid submit from the Structure tab can pull the user
-	// back to Details, where the validation errors are shown (SA2-97 follow-up).
 	const [activeTab, setActiveTab] = useState<TournamentModalTab>("details");
-	// Mirrors the Details tab's variant picker so the Structure tab's blind
-	// labels follow it live (the two tabs are separate component trees).
 	const [structureVariant, setStructureVariant] = useState(
 		initialVariant ?? DEFAULT_VARIANT_LABEL
 	);
 
 	const handleStructureVariantChange = (variant: string) => {
 		setStructureVariant(variant);
-		// Switching to a plain variant strips per-level game sets — otherwise
-		// they linger invisibly on local levels and get saved as ghost games.
-		// Mix→mix keeps stored games (the header re-derives from the new
-		// composition; mismatches fall back to the generic header).
 		if (!isMixValue(variant)) {
 			setLocalBlindLevels((levels) =>
 				levels.some((l) => l.games != null)

@@ -5,22 +5,18 @@ const ROW_COUNT = 3;
 export function RoomDetailSkeleton() {
 	return (
 		<div aria-hidden data-testid="room-detail-skeleton">
-			{/* Top bar: back button + actions */}
 			<div className="mb-2 flex items-center justify-between">
 				<Skeleton className="h-8 w-16" />
 				<Skeleton className="size-10 rounded-md" />
 			</div>
 
-			{/* Page title + memo */}
 			<div className="mb-6 space-y-2">
 				<Skeleton className="h-7 w-40" />
 				<Skeleton className="h-4 w-56" />
 			</div>
 
-			{/* Tab strip */}
 			<Skeleton className="mb-3 h-9 w-full" />
 
-			{/* Game rows */}
 			<div className="flex flex-col gap-2">
 				{Array.from({ length: ROW_COUNT }, (_, i) => i).map((i) => (
 					<div

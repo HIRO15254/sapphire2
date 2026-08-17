@@ -12,7 +12,6 @@ import {
 } from "@/utils/format-profit-loss";
 import { trpc } from "@/utils/trpc";
 
-/** Server-side grouping dimensions surfaced as tabs in the breakdown UI. */
 export type BreakdownGroupBy =
 	| "room"
 	| "stakes"
@@ -26,12 +25,6 @@ export interface BreakdownTab {
 	value: BreakdownGroupBy;
 }
 
-/**
- * A single breakdown table row, fully formatted for rendering. `netText` is the
- * currency value (shown when normalization is off); `cashText` (bb) and
- * `tournamentText` (bi) are the normalized values, kept apart because bb and bi
- * are on different scales and must never be combined.
- */
 export interface BreakdownViewRow {
 	cashColor: string;
 	cashText: string;
@@ -68,14 +61,6 @@ const TAB_LABELS: Record<BreakdownGroupBy, string> = {
 	month: "Month",
 };
 
-/**
- * The grouping tabs available for the current game-type filter. `stakes` is
- * meaningful for cash games only (tournaments / "all" have no big-blind stake),
- * so it is added between `room` and the time-based dimensions when, and only
- * when, the type filter is pinned to cash game. `variant` is meaningful for
- * every type filter, positioned after room/stakes and before the time-based
- * dimensions.
- */
 function availableTabs(ctx: StatsSectionContext): BreakdownTab[] {
 	const values: BreakdownGroupBy[] =
 		ctx.type === "cash_game"
@@ -94,14 +79,6 @@ interface BreakdownGroup {
 	tournamentNormalizedProfitLoss: number | null;
 }
 
-/**
- * The server returns the raw variant string as both key and label (a mix
- * session groups as a single "mix" bucket). Only the "variant" tab maps that
- * raw string through `variantDisplayLabel` for display — "mix" resolves to
- * "Mixed Game", every other stored variant is already a display label (or a
- * legacy cached preset key) and passes through verbatim. Every other tab
- * keeps the server's label as-is.
- */
 function toViewRow(
 	group: BreakdownGroup,
 	currencyUnit: string | null,
@@ -125,13 +102,6 @@ function toViewRow(
 	};
 }
 
-/**
- * Drives the breakdown analysis section: owns the active grouping tab, runs the
- * `stats.breakdown` query for that grouping, and turns each server row into a
- * fully formatted view model. The active tab is always coerced to a currently
- * available dimension, so switching the type filter away from cash game while
- * `stakes` is selected never sends an invalid grouping to the server.
- */
 export function useBreakdownSection(
 	ctx: StatsSectionContext
 ): UseBreakdownSectionResult {
@@ -154,16 +124,11 @@ export function useBreakdownSection(
 		toViewRow(group, ctx.currencyUnit, activeTab)
 	);
 
-	// In normalized mode bb / bi are separate columns; hide a column when no
-	// group has a value for it (e.g. a cash-only scope has no bi figures).
 	const showCashColumn =
 		ctx.normalized && groups.some((g) => g.cashNormalizedProfitLoss !== null);
 	const showTournamentColumn =
 		ctx.normalized &&
 		groups.some((g) => g.tournamentNormalizedProfitLoss !== null);
-	// A mixed cash structure has no single flat big blind, so it cannot produce
-	// a bb value. Keep its raw P&L visible instead of reducing the normalized
-	// table to Group / Sessions / Play time (or an unexplained dash).
 	const showNetColumn =
 		ctx.normalized &&
 		groups.some(

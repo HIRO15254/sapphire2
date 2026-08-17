@@ -41,8 +41,6 @@ const VARIANT_GROUPS: Record<string, MixGroupInfo> = {
 const resolveGroup: ResolveGroup = (variant) =>
 	VARIANT_GROUPS[variant] ?? GROUPS.bigbet;
 
-// Mirrors the wrapper's mapping: a mix master label expands to its
-// composition, anything else is a single-game assignment.
 const compositionFor = (label: string): string[] =>
 	label === "8-Game" ? ["NL Hold'em", "Razz"] : [label];
 
@@ -168,7 +166,6 @@ describe("useLevelPatternsSheet — assign mode (per-level variants)", () => {
 	});
 });
 
-// Regression: the buffer must not reset from parent re-renders while open.
 describe("useLevelPatternsSheet — buffer stability", () => {
 	it("keeps edits across re-renders while the sheet stays open", () => {
 		const { result, rerender } = setup({ games: null });

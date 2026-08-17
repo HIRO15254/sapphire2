@@ -1,6 +1,3 @@
-// Ported from the retired dashboard pnl-graph-widget. Computes y-axis domains
-// for the dual-axis normalized "all" view so the zero line of the BB (cash) and
-// BI (tournament) series sit at the same vertical position.
 export interface ChartPoint {
 	cashCumulative?: number;
 	cumulative?: number;
