@@ -84,9 +84,6 @@ describe("MixesCard", () => {
 	});
 
 	it("falls back to a bare game count (no trailing colon) when no id resolves", () => {
-		// Every stored id is unresolvable → the `: labels` suffix is dropped
-		// entirely. getByText does an exact normalized match, so a dangling
-		// "2 games: " regression would fail to match "2 games" and trip here.
 		renderCard({
 			mixes: [mixRow({ games: ["v-gone", "v-also-gone"] })],
 		});

@@ -23,9 +23,6 @@ vi.mock("@/shared/components/ui/rich-text-editor", () => ({
 	),
 }));
 
-// The form renders no submit button of its own — the surrounding FormSheet
-// owns Save and submits via the `form` attribute. Mirror that with an external
-// button so the test exercises the `id={formId}` wiring.
 function renderForm(props: Partial<React.ComponentProps<typeof PlayerForm>>) {
 	const onSubmit = props.onSubmit ?? vi.fn();
 	render(
@@ -52,7 +49,6 @@ describe("PlayerForm", () => {
 		expect(
 			screen.queryByRole("button", { name: SAVE_RE })
 		).not.toBeInTheDocument();
-		// Only the external test button exists.
 		expect(
 			screen.getByRole("button", { name: "submit-trigger" })
 		).toBeInTheDocument();

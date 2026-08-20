@@ -23,11 +23,6 @@ function makeSelectChain(rows: Rows) {
 	return chain;
 }
 
-/**
- * Mock db that resolves `select().from(table)` from a table-keyed map and
- * records the SQL params bound to each `update().set().where(cond)` so tests
- * can assert the WHERE predicate is scoped to the owned tournament (SA2-176).
- */
 function createReorderMockDb(rowsByTable: Map<unknown, Rows>) {
 	const updateWhereParams: unknown[][] = [];
 	const batchCalls: Promise<unknown>[][] = [];
@@ -271,8 +266,6 @@ describe("blindLevel.reorder tournament scoping (SA2-176)", () => {
 		await caller.reorder({ tournamentId: "tn1", levelIds: ["bl1", "bl2"] });
 		expect(batchCalls).toHaveLength(1);
 		expect(updateWhereParams).toHaveLength(2);
-		// Every UPDATE must constrain the row to the caller's tournament so a
-		// foreign levelId matches nothing.
 		expect(updateWhereParams[0]).toContain("bl1");
 		expect(updateWhereParams[0]).toContain("tn1");
 		expect(updateWhereParams[1]).toContain("bl2");

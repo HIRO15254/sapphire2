@@ -896,7 +896,6 @@ describe("payload schema edge cases", () => {
 	describe("memoPayload", () => {
 		it("rejects whitespace-only text (if trimmed) or accepts (if raw)", () => {
 			const result = memoPayload.safeParse({ text: "   " });
-			// Whatever the behavior is, it must be deterministic
 			expect(typeof result.success).toBe("boolean");
 		});
 
@@ -926,7 +925,6 @@ describe("validateEventPayload — extra dispatch paths", () => {
 	});
 
 	it("tournament session_start ignores unknown keys (schema strips extras)", () => {
-		// tournamentSessionStartPayload only defines timerStartedAt; extras are dropped.
 		const result = validateEventPayload(
 			"session_start",
 			{ buyInAmount: 100 },

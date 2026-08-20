@@ -9,7 +9,6 @@ import {
 } from "@/shared/components/ui/dialog";
 
 interface DeleteGameDialogProps {
-	/** Lowercase entity label, e.g. "cash game" / "tournament". */
 	label: string;
 	name: string;
 	onConfirm: () => void;
@@ -17,11 +16,6 @@ interface DeleteGameDialogProps {
 	open: boolean;
 }
 
-/**
- * Centered destructive confirmation for deleting a game / tournament,
- * mirroring `DeleteCurrencyDialog`. Bottom sheets are reserved for entry; a
- * one-tap-to-confirm prompt stays a modal so the affordance is unambiguous.
- */
 export function DeleteGameDialog({
 	label,
 	name,

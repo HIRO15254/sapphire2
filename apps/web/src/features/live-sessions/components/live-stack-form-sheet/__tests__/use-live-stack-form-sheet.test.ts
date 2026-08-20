@@ -51,10 +51,7 @@ describe("useCashGameStackSheet", () => {
 	});
 
 	it("throws outside of StackSheetProvider", () => {
-		// Suppress the expected error being logged.
-		const spy = vi.spyOn(console, "error").mockImplementation(() => {
-			/* noop */
-		});
+		const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
 		expect(() => renderHook(() => useCashGameStackSheet())).toThrow(
 			STACK_SHEET_PROVIDER_RE
 		);

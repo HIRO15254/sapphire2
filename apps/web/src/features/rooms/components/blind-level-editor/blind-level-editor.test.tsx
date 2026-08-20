@@ -100,8 +100,6 @@ vi.mock("@tanstack/react-query", () => ({
 	useMutation: (options: { mutationFn: (arg: unknown) => unknown }) => ({
 		isPending: false,
 		mutate: (arg: unknown) => {
-			// Mirror the update mutation's onMutate resolution so the synchronous
-			// transport mock receives the same resolved games payload as production.
 			if (
 				typeof arg === "object" &&
 				arg !== null &&
@@ -133,9 +131,6 @@ vi.mock("@tanstack/react-query", () => ({
 			options.mutationFn(arg);
 		},
 	}),
-	// useGameGroups also calls useQuery (for trpc.gameVariant.list,
-	// trpc.gameGroup.list, and trpc.gameMix.list) — branch on the queryKey so
-	// it doesn't collide with the blind-levels query below.
 	useQuery: (options: { queryKey?: readonly unknown[] }) => {
 		if (options?.queryKey?.[0] === "gameMix") {
 			return { data: mocks.gameMixes, isLoading: mocks.mastersLoading };
@@ -155,8 +150,6 @@ vi.mock("@tanstack/react-query", () => ({
 	},
 	useQueryClient: () => ({
 		cancelQueries: vi.fn(),
-		// handleUpdateGameSet derives the games payload from the freshest
-		// cache value; serve the same levels the query mock renders from.
 		getQueryData: () => mocks.blindLevels,
 		invalidateQueries: mocks.invalidateQueries,
 		setQueryData: mocks.setQueryData,
@@ -215,7 +208,6 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
-// 8-Game mix master resolving to NL Hold'em (Big Bet) + Razz (Stud).
 function seedMixMasterData() {
 	mocks.gameGroups = [
 		{
@@ -300,10 +292,6 @@ describe("BlindStructureContent", () => {
 		mocks.deleteMutate.mockReset();
 		mocks.reorderMutate.mockReset();
 		mocks.updateMutate.mockReset();
-		// The production update mutation chains `.then` on the transport result.
-		// Keep this mock promise-shaped so the mutation's rejected/settled paths
-		// remain realistic without creating unhandled rejections in the component
-		// tests that exercise blur-driven updates.
 		mocks.updateMutate.mockResolvedValue(null);
 		mocks.invalidateQueries.mockReset();
 		mocks.setQueryData.mockReset();
@@ -388,8 +376,6 @@ describe("BlindStructureContent", () => {
 
 		render(<BlindStructureContent tournamentId="tour-1" variant="nlh" />);
 
-		// Loading text is absent because isLoading=false; the helper text and the
-		// empty new-row table are present.
 		expect(screen.getByText(BLIND_HELPER_PATTERN)).toBeInTheDocument();
 		expect(screen.queryByText("Loading levels...")).not.toBeInTheDocument();
 	});
@@ -468,7 +454,6 @@ describe("BlindStructureContent", () => {
 
 		render(<BlindStructureContent tournamentId="tour-1" variant="nlh" />);
 
-		// First textbox is the break row's minutes cell (empty new-level row follows).
 		const minutesInput = screen.getAllByRole("textbox")[0];
 		fireEvent.change(minutesInput, { target: { value: "15" } });
 		fireEvent.blur(minutesInput);
@@ -724,8 +709,6 @@ describe("BlindStructureContent", () => {
 						blind1: 400,
 						blind2: 800,
 						blind3: null,
-						// A stored custom name (as a single-variant level would carry)
-						// must NOT surface in the editor — the group name wins.
 						name: "Razz rotation",
 						variants: ["Razz"],
 					},
@@ -747,8 +730,6 @@ describe("BlindStructureContent", () => {
 		];
 		render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
 		expect(screen.getByText("Game")).toBeInTheDocument();
-		// Group names, not the composition ("Razz"/"NL Hold'em") or custom name.
-		// "Big Bet" and "Stud" appear in both header and row cells.
 		expect(screen.getAllByText("Big Bet").length).toBeGreaterThanOrEqual(2);
 		expect(screen.getAllByText("Stud").length).toBeGreaterThanOrEqual(2);
 		expect(screen.queryByText("Razz rotation")).not.toBeInTheDocument();
@@ -1103,8 +1084,6 @@ describe("BlindStructureContent", () => {
 		seedMixMasterData();
 		render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
 
-		// Empty-block DOM order: set0 b1/b2/b3/ante, minutes (row-spanned into
-		// the first row), then set1 b1/b2/b3/ante.
 		const [set0Blind1, set0Blind2, set0Blind3] = screen.getAllByRole("textbox");
 		fireEvent.change(set0Blind1, { target: { value: "100" } });
 		fireEvent.blur(set0Blind1, { relatedTarget: set0Blind2 });
@@ -1116,8 +1095,6 @@ describe("BlindStructureContent", () => {
 			tournamentId: "tour-1",
 			level: 1,
 			isBreak: false,
-			// Seeded buckets store no display name (null); labels derive from
-			// the group at render time (mix-games c18 contract).
 			games: [
 				{
 					name: null,
@@ -1206,7 +1183,6 @@ describe("BlindStructureContent", () => {
 			mocks.gameMixes = [];
 			mocks.blindLevels = [GAME_SET_LEVEL];
 			render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
-			// The level keeps its per-set rendering with the generic hybrid header.
 			expect(screen.getByText("Game")).toBeInTheDocument();
 			expect(screen.getByText("Limit games")).toBeInTheDocument();
 			expect(screen.getByDisplayValue("400")).toBeInTheDocument();

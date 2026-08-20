@@ -13,9 +13,7 @@ import { BLIND_DATA_COLUMNS } from "../blind-table-columns";
 import { DragHandle } from "../drag-handle";
 
 interface SortableBreakRowProps {
-	/** Widen the break label to span the hybrid table's Game column. */
 	gameColumn?: boolean;
-	/** Hybrid tables add this slot when any game group has a third blind. */
 	hasBlind3Column?: boolean;
 	onDelete: (id: string) => void;
 	onUpdate: (id: string, updates: BlindLevelPatch) => void;

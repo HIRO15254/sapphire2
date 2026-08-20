@@ -10,7 +10,6 @@ import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock window.matchMedia for components that use useMediaQuery
 Object.defineProperty(window, "matchMedia", {
 	writable: true,
 	value: vi.fn().mockImplementation((query: string) => ({
@@ -25,17 +24,11 @@ Object.defineProperty(window, "matchMedia", {
 	})),
 });
 
-// ---------------------------------------------------------------------------
-// Mock: useActiveSession
-// ---------------------------------------------------------------------------
 const mockUseActiveSession = vi.fn();
 vi.mock("@/features/live-sessions/hooks/use-active-session", () => ({
 	useActiveSession: () => mockUseActiveSession(),
 }));
 
-// ---------------------------------------------------------------------------
-// Mock: useTablePlayers – avoids the full tRPC session machinery
-// ---------------------------------------------------------------------------
 vi.mock("@/features/players/hooks/use-table-players", () => ({
 	useTablePlayers: () => ({
 		players: [],
@@ -47,9 +40,6 @@ vi.mock("@/features/players/hooks/use-table-players", () => ({
 	}),
 }));
 
-// ---------------------------------------------------------------------------
-// Mock: heavy UI sub-components that would require additional providers
-// ---------------------------------------------------------------------------
 vi.mock(
 	"@/features/live-sessions/components/seat-from-screenshot-sheet",
 	() => ({
@@ -75,13 +65,6 @@ vi.mock("@/features/live-sessions/components/session-events-scene", () => ({
 	SessionEventsScene: () => <div data-testid="events-scene" />,
 }));
 
-// ---------------------------------------------------------------------------
-// Mock: tRPC client and proxy
-//
-// IMPORTANT: vi.mock() factories are hoisted before variable declarations, so
-// closures over module-scope `const` variables cause a TDZ ReferenceError.
-// All vi.fn() instances must be created inline inside the factory.
-// ---------------------------------------------------------------------------
 const mockQuery = vi.fn();
 
 vi.mock("@/utils/trpc", () => ({
@@ -188,24 +171,18 @@ vi.mock("@/utils/trpc", () => ({
 
 import { TournamentCompleteForm } from "@/features/live-sessions/components/tournament-complete-form";
 import { StackSheetProvider } from "@/features/live-sessions/hooks/use-stack-sheet";
-// Pull in the route component after all mocks are declared.
 // biome-ignore lint/performance/noNamespaceImport: required to access named export from route module
 import * as ActiveSessionModule from "@/routes/active-session";
 
 const ActiveSessionPage = ActiveSessionModule.Route.options
 	.component as () => ReactNode;
 
-// Top-level regex literals (required by lint/performance/useTopLevelRegex)
 const REGEX_PLACEMENT_LABEL = /placement/i;
 const REGEX_TOTAL_ENTRIES_LABEL = /total entries/i;
 const REGEX_PRIZE_MONEY_LABEL = /prize money/i;
 const REGEX_BOUNTY_PRIZES_LABEL = /bounty prizes/i;
 const REGEX_COMPLETE_TOURNAMENT = /complete tournament/i;
 const REGEX_HISTORY = /History/;
-
-// ---------------------------------------------------------------------------
-// Browser API polyfills required by Radix UI (dialogs, sheets, popovers)
-// ---------------------------------------------------------------------------
 
 if (!window.ResizeObserver) {
 	window.ResizeObserver = class ResizeObserver {
@@ -214,10 +191,6 @@ if (!window.ResizeObserver) {
 		disconnect = vi.fn();
 	};
 }
-
-// ---------------------------------------------------------------------------
-// QueryClient wrapper
-// ---------------------------------------------------------------------------
 
 let testQueryClient = new QueryClient({
 	defaultOptions: { queries: { retry: false } },
@@ -247,10 +220,6 @@ function renderWithProviders(router: unknown) {
 	);
 }
 
-// ---------------------------------------------------------------------------
-// Router factory helpers
-// ---------------------------------------------------------------------------
-
 function createTestRouter(
 	Component: () => ReactNode,
 	path = "/active-session"
@@ -267,10 +236,6 @@ function createTestRouter(
 		history: createMemoryHistory({ initialEntries: [path] }),
 	});
 }
-
-// ---------------------------------------------------------------------------
-// Tests: Active session page — session state
-// ---------------------------------------------------------------------------
 
 describe("ActiveSessionPage — no active session", () => {
 	beforeEach(() => {
@@ -301,10 +266,6 @@ describe("ActiveSessionPage — no active session", () => {
 		await screen.findByText("Loading...");
 	});
 });
-
-// ---------------------------------------------------------------------------
-// Tests: Active session page — cash game session renders correctly
-// ---------------------------------------------------------------------------
 
 describe("ActiveSessionPage — active cash game session", () => {
 	beforeEach(() => {
@@ -367,10 +328,6 @@ describe("ActiveSessionPage — active cash game session", () => {
 	});
 });
 
-// ---------------------------------------------------------------------------
-// Tests: Active session page — tournament session renders correctly
-// ---------------------------------------------------------------------------
-
 describe("ActiveSessionPage — active tournament session", () => {
 	beforeEach(() => {
 		mockUseActiveSession.mockReturnValue({
@@ -422,10 +379,6 @@ describe("ActiveSessionPage — active tournament session", () => {
 		await screen.findByTestId("seat-list");
 	});
 });
-
-// ---------------------------------------------------------------------------
-// Tests: Tournament compact summary labels
-// ---------------------------------------------------------------------------
 
 describe("ActiveSessionPage — tournament summary labels", () => {
 	beforeEach(() => {
@@ -522,10 +475,6 @@ describe("ActiveSessionPage — tournament summary labels", () => {
 	});
 });
 
-// ---------------------------------------------------------------------------
-// Tests: TournamentCompleteForm — complete dialog fields
-// ---------------------------------------------------------------------------
-
 describe("TournamentCompleteForm — complete dialog fields", () => {
 	it("renders placement, totalEntries, prizeMoney, and bountyPrizes inputs", () => {
 		render(
@@ -586,15 +535,8 @@ describe("TournamentCompleteForm — complete dialog fields", () => {
 	});
 });
 
-// ---------------------------------------------------------------------------
-// Tests: Reopen flow concept
-// ---------------------------------------------------------------------------
-
 describe("ActiveSessionPage — reopen flow concept", () => {
 	it("shows 'No active session' after tournament completion (session no longer active)", async () => {
-		// Once completed, useActiveSession queries for status=active and returns
-		// nothing. The page shows the no-session state, from which the user
-		// navigates to Sessions to find and reopen the completed session.
 		mockUseActiveSession.mockReturnValue({
 			activeSession: null,
 			hasActive: false,

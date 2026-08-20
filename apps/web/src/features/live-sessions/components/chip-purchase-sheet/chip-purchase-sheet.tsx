@@ -10,7 +10,6 @@ import { formatCompactNumber } from "@/utils/format-number";
 export interface ChipPurchaseOption {
 	chips: number;
 	cost: number;
-	/** The session_chip_purchase id this purchase links to. */
 	id: string;
 	name: string;
 }
@@ -24,17 +23,9 @@ interface ChipPurchaseSheetProps {
 		sessionChipPurchaseId: string;
 	}) => void;
 	open: boolean;
-	/** Rule-defined chip purchases for this session to pick from. */
 	options: ChipPurchaseOption[];
 }
 
-/**
- * V2 action sheet for recording a chip purchase during a live tournament.
- * The user picks one of the session's rule-defined chip purchases; name /
- * cost / chips come from the rule and the event links to it via its id.
- * There is no free-form entry — chip purchases are defined in the session
- * rules.
- */
 export function ChipPurchaseSheet({
 	open,
 	onOpenChange,

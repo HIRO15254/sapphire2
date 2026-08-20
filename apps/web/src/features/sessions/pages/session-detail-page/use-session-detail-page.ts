@@ -9,12 +9,6 @@ import type { SessionFormValues } from "@/features/sessions/hooks/use-sessions";
 import { formatDateForInput } from "@/features/sessions/utils/session-form-helpers";
 import { useLiveLinkedSessionEdit } from "./use-live-linked-session-edit";
 
-/**
- * Page hook for the session detail page. Owns the actions sheet / edit sheet /
- * delete dialog state and the edit-form room→games lookup, delegating data to
- * {@link useSessionDetail}. Edit, delete and reopen all live here (they moved
- * off the list page in the v2 rework).
- */
 export function useSessionDetailPage(sessionId: string) {
 	const [isActionsOpen, setIsActionsOpen] = useState(false);
 	const [isEditOpen, setIsEditOpen] = useState(false);
@@ -52,8 +46,6 @@ export function useSessionDetailPage(sessionId: string) {
 		startDateHint,
 		submitLiveEventEdits,
 	} = useLiveLinkedSessionEdit({
-		// Same value `buildEditDefaults` seeds the form's date input with, so the
-		// day hints are relative to the date the user actually sees.
 		displayedDate: session ? formatDateForInput(session.sessionDate) : "",
 		isEditOpen,
 		isLiveLinked,
@@ -72,13 +64,6 @@ export function useSessionDetailPage(sessionId: string) {
 		setConfirmingDelete(true);
 	};
 
-	/**
-	 * Saves the sheet. For a live session the fields backed by a single event
-	 * value go back to those events first (`session.update` refuses them), and a
-	 * rejected edit keeps the sheet open so the user can correct it — the failed
-	 * step is the only one not applied, because the server recalculates the
-	 * session after every event write.
-	 */
 	const handleEdit = async (values: SessionFormValues) => {
 		if (!session) {
 			return;
@@ -90,8 +75,6 @@ export function useSessionDetailPage(sessionId: string) {
 		try {
 			await update({ id: session.id, isLiveLinked, ...values });
 		} catch {
-			// The shared mutation cache toasts the server message; keep the sheet
-			// open so the entered values are not lost.
 			return;
 		}
 		setIsEditOpen(false);

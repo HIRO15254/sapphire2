@@ -48,9 +48,6 @@ interface SortableTableProps {
 	sensors: SensorDescriptor<SensorOptions>[];
 }
 
-// dnd-kit injects live-region and focus-restoration div elements next to its
-// children. Keep both providers outside table so those accessibility nodes
-// never become invalid table descendants. The sortable unit remains a level.
 function SortableTable({
 	children,
 	levels,

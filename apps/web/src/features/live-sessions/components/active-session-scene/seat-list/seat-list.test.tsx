@@ -124,7 +124,6 @@ describe("SeatList", () => {
 			]),
 		});
 		expect(screen.getByText("Alice")).toBeInTheDocument();
-		// The empty seat renders its always-on seater inline (no "Empty"/expand).
 		expect(screen.getByTestId("empty-editor")).toBeInTheDocument();
 	});
 
@@ -172,7 +171,6 @@ describe("SeatList", () => {
 			]),
 		});
 		expect(screen.getByText("Hero")).toBeInTheDocument();
-		// Only the occupied seat is an expandable button; the hero row is static.
 		const rows = screen.getAllByRole("button", { name: REGEX_SEAT_N });
 		expect(rows).toHaveLength(1);
 		expect(
@@ -192,7 +190,6 @@ describe("SeatList", () => {
 	it("seats an existing player at the empty seat with no expand step", async () => {
 		const user = userEvent.setup();
 		const props = setup({ seats: makeSeats([{ seatPosition: 2 }]) });
-		// The inline seater is present immediately — no expansion needed.
 		expect(screen.getByTestId("empty-editor")).toBeInTheDocument();
 		await user.click(screen.getByRole("button", { name: "seat-existing" }));
 		expect(props.onSeatExisting).toHaveBeenCalledWith(2, "p-9", "Nina");

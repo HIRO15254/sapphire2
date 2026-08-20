@@ -33,7 +33,6 @@ describe("useTournamentTimerDialog", () => {
 				onSubmit: vi.fn(),
 			})
 		);
-		// The value must at least match the 16-char local format (YYYY-MM-DDTHH:mm)
 		expect(result.current.form.state.values.timerStartedAt).toMatch(
 			DATETIME_LOCAL_RE
 		);

@@ -15,10 +15,8 @@ import { useLevelPatternsSheet } from "./use-level-patterns-sheet";
 export type LevelGamesValue = LevelGameGroup[] | null;
 
 interface LevelPatternsSheetProps {
-	/** Variant label → the games it stands for (mix composition or itself). */
 	compositionFor: (variantLabel: string) => string[];
 	games: LevelGamesValue;
-	/** 1-based level number, for the sheet title. */
 	level: number;
 	onOpenChange: (open: boolean) => void;
 	onSave: (games: LevelGamesValue) => void;
@@ -26,13 +24,6 @@ interface LevelPatternsSheetProps {
 	resolveGroup: ResolveGroup;
 }
 
-/**
- * Bottom sheet assigning one blind level's variant and game sets
- * (per-level-variant tournaments). Hybrid sheet per web-theme.md: drag
- * handle + visible title, the apply button lives in the body. The level
- * gets its own variant, picked here — a mix master gives it several blind
- * sets. Done applies the buffered groups via onSave and closes.
- */
 export function LevelPatternsSheet({
 	compositionFor,
 	games,

@@ -2,14 +2,12 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-// bun:sqlite is only available in Bun runtime, skip this test in Node.js
 // biome-ignore lint/correctness/noUndeclaredVariables: Bun global is only present in Bun runtime
 const isBun = typeof Bun !== "undefined";
 const skipIfNotBun = isBun ? describe : describe.skip;
 
 let Database: any = null;
 if (isBun) {
-	// eslint-disable-next-line import/no-unresolved
 	const bunSqlite = require("bun:sqlite");
 	Database = bunSqlite.Database;
 }

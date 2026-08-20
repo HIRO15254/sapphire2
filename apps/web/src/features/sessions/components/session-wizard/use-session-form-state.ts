@@ -37,31 +37,12 @@ import {
 } from "./chip-purchase-rows";
 
 interface UseSessionFormStateArgs {
-	/**
-	 * Room to pre-select as the default (e.g. the geolocation-nearest room).
-	 * Applied only while the user hasn't picked a room — never overrides a
-	 * manual choice. Resolves asynchronously, so it seeds via an effect rather
-	 * than `defaultValues`.
-	 */
 	defaultRoomId?: string;
 	defaultValues?: SessionFormDefaults;
-	/**
-	 * "live" starts a session before it ends (result fields unknown); "manual"
-	 * records a completed session. Selects the cash validation schema so the
-	 * live form isn't gated on a cash-out it never renders.
-	 */
 	mode?: "manual" | "live";
 	onRoomChange?: (roomId: string | undefined) => void;
 	onSubmit: (values: SessionFormValues) => void;
 	onSubmitInvalid?: (fieldNames: string[]) => void;
-	/**
-	 * Fields this particular form must not leave blank, on top of the shared
-	 * schema. A live-recorded session writes several result fields back to a
-	 * single event, so a blank is rejected there while the same field stays
-	 * optional for a manual session — the mark and the validator have to agree
-	 * (web-forms.md #6), and the error has to land on the field rather than in a
-	 * submit-time toast.
-	 */
 	requiredFields?: ReadonlySet<string>;
 	ringGames?: RingGameOption[];
 	tournaments?: TournamentOption[];
@@ -78,9 +59,6 @@ function checkPlacementRange(
 	if (values.beforeDeadline === true) {
 		return;
 	}
-	// A blank side has no bound to compare against, and `Number("")` is 0 — which
-	// would report every filled placement as out of range on top of the real
-	// `Required` issue, lighting up two fields for one mistake.
 	if (values.placement.trim() === "" || values.totalEntries.trim() === "") {
 		return;
 	}
@@ -99,11 +77,6 @@ function checkPlacementRange(
 	}
 }
 
-/**
- * Wraps the step schema so the caller's extra required fields are reported as
- * field-level issues. `placement <= totalEntries` rides along because it is the
- * server's own refine (SA2-161) and only applies where placement is required.
- */
 function withRequiredFields<TSchema extends z.ZodType<SessionFormFieldValues>>(
 	schema: TSchema,
 	requiredFields: ReadonlySet<string> | undefined
@@ -113,8 +86,6 @@ function withRequiredFields<TSchema extends z.ZodType<SessionFormFieldValues>>(
 	}
 	return schema.superRefine((values, ctx) => {
 		for (const field of requiredFields) {
-			// The placement / total-entries pair is neither rendered nor written
-			// once the session ended before registration close.
 			if (values.beforeDeadline === true && PLACEMENT_PAIR.includes(field)) {
 				continue;
 			}
@@ -183,16 +154,9 @@ export function useSessionFormState({
 	const [blindLevels, setBlindLevels] = useState<BlindLevelRow[]>(
 		toBlindLevelRows(defaultValues?.blindLevels ?? [])
 	);
-	// Mix-game group rows (cash). Array/table state lives outside the flat
-	// tanstack form, same as blindLevels/chipPurchases.
 	const [mixGames, setMixGamesState] = useState<MixGameGroupRow[]>(() =>
 		fromMixGames(defaultValues?.mixGames ?? null, groupFor)
 	);
-	// The initializer above seeds exactly once; when it ran before the master
-	// lists loaded it resolved against the pending fallback (no real group
-	// identity). Re-derive from the stored snapshot once loading settles —
-	// but only while the user hasn't touched the mix editor, so the one-shot
-	// upgrade can never clobber their edits (c05).
 	const mixTouchedRef = useRef(false);
 	const initialMixGamesRef = useRef(defaultValues?.mixGames ?? null);
 	const awaitingMasterLoadRef = useRef(isMasterLoading);
@@ -206,8 +170,6 @@ export function useSessionFormState({
 		}
 	}, [isMasterLoading, groupFor]);
 
-	// Every interactive write to the rows goes through here: it marks the
-	// editor as touched so the post-load reseed stands down.
 	const setMixGames = (rows: MixGameGroupRow[]) => {
 		mixTouchedRef.current = true;
 		setMixGamesState(rows);
@@ -218,7 +180,6 @@ export function useSessionFormState({
 	const [chipPurchases, setChipPurchases] = useState<ChipPurchaseRow[]>(
 		initialChipPurchases.rows
 	);
-	// Purchase counts (the session result), keyed by `ChipPurchaseRow.uid`.
 	const [chipPurchaseCounts, setChipPurchaseCounts] = useState<
 		Record<string, number>
 	>(initialChipPurchases.counts);
@@ -226,21 +187,12 @@ export function useSessionFormState({
 	const isCashGame = sessionType === "cash_game";
 	const gameOptions = isCashGame ? ringGames : tournaments;
 	const gameLabel = isCashGame ? "Cash game" : "Tournament";
-	// Live cash sessions start before they end, so the cash-out is unknown and
-	// the live form never renders it — validate against the schema that keeps it
-	// optional, otherwise ✓ Confirm silently fails.
 	const cashGameSchema =
 		mode === "live" ? liveCashSessionFormSchema : cashSessionFormSchema;
 
-	// Extracted from onSubmit to keep its cognitive complexity in budget.
 	const buildCashSubmitValues = (value: SessionFormFieldValues) => {
-		// Gate on the editor state, never a live master lookup: a deleted or
-		// renamed mix master must not wipe the frozen snapshot on an
-		// unrelated edit (c02/c02b).
 		const submitMixGames = mixGames.length > 0 ? toMixGames(mixGames) : null;
 		const hasMixGames = submitMixGames !== null;
-		// Belt-and-braces against a stale third blind the current variant's
-		// group cannot hold (c03) — onVariantChange also clears the field.
 		const hasThirdSlot = labelsFor(value.variant).blind3 !== null;
 		return {
 			type: "cash_game" as const,
@@ -249,8 +201,6 @@ export function useSessionFormState({
 			evCashOut: parseOptInt(value.evCashOut),
 			variant: value.variant || DEFAULT_VARIANT_LABEL,
 			mixGames: submitMixGames,
-			// A mix submit carries its amounts inside mixGames; the flat fields
-			// must go out empty, not with stale pre-switch values (c04).
 			blind1: hasMixGames ? undefined : parseOptInt(value.blind1),
 			blind2: hasMixGames ? undefined : parseOptInt(value.blind2),
 			blind3:
@@ -290,9 +240,6 @@ export function useSessionFormState({
 			};
 
 			if (isCashGame) {
-				// The mix cells live outside the flat form schema; block the
-				// submit here so invalid text is never coerced to null by the
-				// serializer — the editor cells already display the error (c31).
 				if (hasMixCellErrors(mixGames)) {
 					return;
 				}
@@ -376,13 +323,6 @@ export function useSessionFormState({
 	};
 
 	const applyTournamentStructure = async (tournamentId: string) => {
-		// blindLevels / chipPurchases live in their own tables on the master.
-		// Fetch them so the Rules step inline editors start with the parent's
-		// shape. Errors are swallowed silently — the wizard still works with
-		// the scalar defaults already applied.
-		// Lazy-loaded so unit tests of pure-state behavior don't drag
-		// @/utils/trpc (and its env-validating import chain) into module
-		// initialization.
 		const { trpcClient } = await import("@/utils/trpc");
 		const [levels, purchases] = await Promise.all([
 			trpcClient.blindLevel.listByTournament
@@ -433,17 +373,13 @@ export function useSessionFormState({
 			tableSize: game.tableSize?.toString() ?? undefined,
 			variant: game.variant ?? undefined,
 		});
-		// Fire-and-forget; React state updates land asynchronously.
 		applyTournamentStructure(gameId).catch(() => undefined);
 	};
 
-	// Result step — set the purchase count for one chip purchase row.
 	const updateChipPurchaseCount = (uid: string, count: number) => {
 		setChipPurchaseCounts((prev) => ({ ...prev, [uid]: count }));
 	};
 
-	// Tracks whether the user has actively chosen a room. Once true, the
-	// geolocation default must not override their choice.
 	const userPickedRoomRef = useRef(false);
 
 	const handleRoomChange = (value: string | undefined) => {
@@ -453,10 +389,6 @@ export function useSessionFormState({
 		onRoomChange?.(value);
 	};
 
-	// Seed the geolocation-suggested room as the default. Fires only while the
-	// user hasn't picked a room and none is selected yet, so a manual choice (or
-	// an explicit clear) always wins, and a later suggestion never yanks the
-	// current selection.
 	useEffect(() => {
 		if (!defaultRoomId || userPickedRoomRef.current || selectedRoomId) {
 			return;
@@ -478,16 +410,6 @@ export function useSessionFormState({
 		}
 	};
 
-	// The tournament scope and variant controls share this path: entering
-	// per-level mode keeps its game assignments, while every all-levels value
-	// clears them so hidden per-level games cannot leak into the snapshot.
-	// Picking a mix master reseeds the cash mix editor from its saved
-	// composition (overwriting whatever was there — switching mixes starts
-	// fresh); the legacy "mix" mode key has no composition, so existing rows
-	// are kept. Entering a mix clears the flat blind/ante fields so a later
-	// switch-back starts clean (c04); leaving mixes clears the editor rows
-	// so they stay the single submit-time authority (c02); and a variant
-	// whose group has no third slot drops the stale blind3 (c03).
 	const onVariantChange = (next: string) => {
 		form.setFieldValue("variant", next);
 		if (!isCashGame) {
@@ -536,9 +458,6 @@ export function useSessionFormState({
 		variants,
 	});
 
-	// The master option (ring game / tournament) the user picked on the
-	// Master step, or undefined when defining the rule from scratch. The
-	// Rules step compares against it to surface override badges.
 	const selectedRingGame = isCashGame
 		? ringGames?.find((g) => g.id === selectedGameId)
 		: undefined;

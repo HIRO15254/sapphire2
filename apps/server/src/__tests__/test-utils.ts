@@ -1,5 +1,3 @@
-/** Shared fakes for worker route tests (no real D1 behind them). */
-
 export interface FakeEnv {
 	ANTHROPIC_API_KEY?: string;
 	BETTER_AUTH_SECRET: string;
@@ -13,10 +11,6 @@ export interface FakeEnv {
 	GOOGLE_MAPS_API_KEY?: string;
 }
 
-/**
- * Minimal env satisfying serverEnvSchema. DB is a stub — tests using it may
- * only exercise paths that never reach a real query.
- */
 export function createFakeEnv(overrides: Partial<FakeEnv> = {}): FakeEnv {
 	return {
 		BETTER_AUTH_SECRET: "test-secret-that-is-at-least-32-chars-long",

@@ -492,11 +492,6 @@ describe("useStatsFilterBar", () => {
 		});
 	});
 
-	// The payload handed to the presets sheet must always satisfy the STORED
-	// schema, which declares currency / room as `.min(1).optional()`. An empty
-	// string is reachable from a hand-edited `/statistics?room=` and every other
-	// consumer already reads it as "absent" (`filtersToStatsInput` does
-	// `filters.room || undefined`), so saving must not fail with a raw Zod error.
 	describe("currentPresetPayload", () => {
 		it("drops an empty-string currency and room instead of sending them", () => {
 			mocks.filters = {
@@ -508,9 +503,6 @@ describe("useStatsFilterBar", () => {
 			};
 			const { result } = renderHook(() => useStatsFilterBar());
 
-			// Asserted as absent, not merely "not the empty string": a negative
-			// assertion would also pass for some other id, and `.min(1)` in the
-			// stored schema below would happily accept that too.
 			expect(result.current.currentPresetPayload.currency).toBeUndefined();
 			expect(result.current.currentPresetPayload.room).toBeUndefined();
 			expect(

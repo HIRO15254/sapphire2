@@ -12,11 +12,6 @@ import { useCashGameStackForm } from "./use-cash-game-stack-form";
 const MEMO_FORM_ID = "cash-game-memo-form";
 
 interface CashGameStackFormProps {
-	/**
-	 * Stable id assigned to the stack `<form>` element so the surrounding
-	 * FormSheet toolbar can submit it via the HTML `form` attribute. The form
-	 * renders no submit button of its own.
-	 */
 	formId: string;
 	onAllIn: (values: {
 		potSize: number;

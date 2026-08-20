@@ -73,8 +73,6 @@ describe("redirectHostsFrom", () => {
 	});
 
 	it("drops opaque URIs that have no host so the unknown-destination warning still fires", () => {
-		// `new URL("urn:…").host` is "" — keeping it would render an empty
-		// destination instead of the warning.
 		expect(redirectHostsFrom("urn:ietf:wg:oauth:2.0:oob")).toEqual([]);
 		expect(redirectHostsFrom("mailto:someone@example.test")).toEqual([]);
 		expect(
@@ -100,8 +98,6 @@ describe("parseConsentPageQuery", () => {
 		const query = parseConsentPageQuery(
 			"http://localhost:8787/oauth/consent?consent_code=abc&client_id=c1&scope=openid%20profile"
 		);
-		// `scope` is intentionally dropped — scopes do not gate authorization,
-		// so nothing downstream may be tempted to display them (rule 8).
 		expect(query).toEqual({ clientId: "c1", code: "abc" });
 	});
 

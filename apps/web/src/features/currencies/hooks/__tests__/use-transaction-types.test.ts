@@ -3,12 +3,6 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// ---------------------------------------------------------------------------
-// Mocks for trpc — queryOptions returns stable queryKey so the real
-// QueryClient can resolve predictable keys. trpcClient.transactionType.create
-// is a spy we can configure per-test.
-// ---------------------------------------------------------------------------
-
 function buildKey(namespace: string, procedure: string, input: unknown) {
 	return input === undefined
 		? [namespace, procedure]
@@ -154,11 +148,8 @@ describe("useTransactionTypes", () => {
 			const initial = [{ id: "t1", name: "Deposit" }];
 			qc.setQueryData(TYPE_LIST_KEY, initial);
 
-			// Observe the cache state at the moment onError is invoked:
-			// intercept setQueryData after mutationFn rejects.
 			let snapshotAtRollback: Array<{ id: string; name: string }> | undefined;
 			trpcMocks.createMutate.mockImplementation(() => {
-				// Before rejecting, verify the optimistic append happened.
 				const optimistic =
 					qc.getQueryData<Array<{ id: string; name: string }>>(TYPE_LIST_KEY);
 				expect(optimistic).toHaveLength(2);
@@ -175,7 +166,6 @@ describe("useTransactionTypes", () => {
 					) as T;
 					const post =
 						qc.getQueryData<Array<{ id: string; name: string }>>(TYPE_LIST_KEY);
-					// First rollback write restores `initial`.
 					if (!snapshotAtRollback && post && post.length === 1) {
 						snapshotAtRollback = post;
 					}

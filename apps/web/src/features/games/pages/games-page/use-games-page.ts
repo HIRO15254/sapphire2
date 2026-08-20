@@ -55,13 +55,6 @@ function compareVariants(a: GameVariantRow, b: GameVariantRow): number {
 	return a.label.localeCompare(b.label);
 }
 
-/**
- * Shared confirm/cancel pair for the three delete-confirmation dialogs
- * (group, variant, mix). Each entity's "request" handler stays bespoke
- * (different client-side guards), but confirm/cancel are mechanically
- * identical — mutate by id, surface errors via the mutation's own `onError`
- * toast, and clear the pending-delete state in `finally`/on cancel.
- */
 function createDeleteHandlers<TItem extends { id: string }>(
 	deletingItem: TItem | null,
 	setDeletingItem: (item: TItem | null) => void,
@@ -72,9 +65,7 @@ function createDeleteHandlers<TItem extends { id: string }>(
 			return;
 		}
 		try {
-			await mutateAsync(deletingItem.id);
-		} catch {
-			// Surfaced via the mutation's onError toast.
+			await mutateAsync(deletingItem.id).catch(() => undefined);
 		} finally {
 			setDeletingItem(null);
 		}
@@ -83,17 +74,6 @@ function createDeleteHandlers<TItem extends { id: string }>(
 	return { onCancel, onConfirm };
 }
 
-/**
- * Top-level Games page management of the user's game library — groups and
- * variants merged into one hierarchy (mix-game rework) so "every variant
- * belongs to exactly one group" is visible: one card per group, its
- * variants listed inside, plus a separate card for the user's mix masters
- * (named, reusable game compositions spanning groups). Owns all three list
- * queries, the hierarchy shaping, sheet open/close state, and the delete
- * mutations + the "group in use" guard. The create/edit forms and their own
- * mutations live in the colocated group-form-sheet / variant-form-sheet
- * hooks and the shared mix-form-sheet hook.
- */
 export function useGamesPage() {
 	const groupListQuery = useQuery(trpc.gameGroup.list.queryOptions());
 	const variantListQuery = useQuery(trpc.gameVariant.list.queryOptions());
@@ -125,9 +105,6 @@ export function useGamesPage() {
 	const variantRows: GameVariantRow[] = variantListQuery.data ?? [];
 	const mixRows: GameMixRow[] = mixListQuery.data ?? [];
 
-	// Memoized so consumers (list rendering, memoized children) get a stable
-	// reference across renders that don't change the underlying query data —
-	// these were previously rebuilt from scratch on every render.
 	const variantsByGroupId = useMemo(() => {
 		const map = new Map<string, GameVariantRow[]>();
 		for (const variant of variantRows) {
@@ -144,8 +121,6 @@ export function useGamesPage() {
 		return map;
 	}, [variantRows]);
 
-	// id -> label lookup for rendering a mix's composition; derived in the hook
-	// (not in MixesCard) so the card stays a pure props display layer.
 	const variantLabelById = useMemo(
 		() => new Map(variantRows.map((variant) => [variant.id, variant.label])),
 		[variantRows]
@@ -169,19 +144,11 @@ export function useGamesPage() {
 		[groupRows]
 	);
 
-	// Uniform triple-list invalidation: every mutation in this section
-	// (groups, variants, AND mixes) invalidates all three lists, since mix
-	// composition summaries and the mix-form-sheet's label<->id mapping both
-	// read gameVariant.list, and variant/group edits don't change gameMix
-	// rows but keep the three lists refetched together for consistency.
 	const invalidateAll = useInvalidateGameMasters();
 
 	const deleteGroupMutation = useMutation<unknown, unknown, string>({
 		mutationFn: (id: string) => trpcClient.gameGroup.delete.mutate({ id }),
 		onError: (error) => {
-			// The server rejects with CONFLICT while a variant still
-			// references the group (FK `onDelete: "restrict"`) — a race
-			// against the client-side guard below, kept as a fallback.
 			const message =
 				isTRPCClientError(error) && error.data?.code === "CONFLICT"
 					? "Remove or reassign its variants first"
@@ -194,9 +161,6 @@ export function useGamesPage() {
 	const deleteVariantMutation = useMutation<unknown, unknown, string>({
 		mutationFn: (id: string) => trpcClient.gameVariant.delete.mutate({ id }),
 		onError: (error) => {
-			// The server rejects with CONFLICT while a mix still references the
-			// variant (app-level check, no FK) — a race against the client-side
-			// guard below, kept as a fallback.
 			const message =
 				isTRPCClientError(error) && error.data?.code === "CONFLICT"
 					? "This variant is used by a game mix. Remove it from the mix first."
@@ -258,10 +222,6 @@ export function useGamesPage() {
 			deleteGroupMutation.mutateAsync
 		);
 
-	// A variant referenced by one of the user's mixes cannot be deleted out
-	// from under it (mirrors the group-delete guard above); the server's
-	// CONFLICT (game-variant.ts) is the fallback for the race where a mix
-	// picks up the variant between this check and the request landing.
 	const onDeleteVariantRequest = (variant: GameVariantRow) => {
 		const usedInMix = mixRows.some((mix) => mix.games.includes(variant.id));
 		if (usedInMix) {

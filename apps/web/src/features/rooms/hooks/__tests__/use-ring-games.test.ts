@@ -152,8 +152,6 @@ describe("useRingGames", () => {
 				{ wrapper: makeWrapper(qc) }
 			);
 			expect(hidden.result.current.archivedGames).toHaveLength(1);
-			// The data is read via setQueryData regardless of `enabled`. The
-			// important branch: `archivedLoading` must be false when disabled.
 			expect(hidden.result.current.archivedLoading).toBe(false);
 
 			const visible = renderHook(

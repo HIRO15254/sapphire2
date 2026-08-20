@@ -3,21 +3,10 @@ import { Badge } from "@/shared/components/ui/badge";
 
 interface OverrideLabelProps {
 	label: string;
-	/** The set of field labels that diverge from the picked master. */
 	overridden?: ReadonlySet<string>;
-	/**
-	 * Stable membership key when the displayed label is dynamic (e.g.
-	 * variant-aware blind labels). Defaults to `label`.
-	 */
 	overrideKey?: string;
 }
 
-/**
- * Renders a field label, appending a small "Modified" badge when the
- * label is in the override set. Used by the session wizard's Rules step
- * to flag, inline at each label, the fields whose value no longer
- * matches the master ring game / tournament.
- */
 export function OverrideLabel({
 	label,
 	overridden,

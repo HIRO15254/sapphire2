@@ -38,7 +38,6 @@ describe("useElapsedTime", () => {
 		act(() => {
 			vi.advanceTimersByTime(60_000);
 		});
-		// 31 minutes elapsed now (30m + 60s)
 		expect(result.current).toBe("31m");
 	});
 

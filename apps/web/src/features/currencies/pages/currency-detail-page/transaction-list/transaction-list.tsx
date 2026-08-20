@@ -17,23 +17,12 @@ import { type Transaction, TransactionRow } from "./transaction-row";
 
 interface TransactionListV2Props {
 	hasMore?: boolean;
-	/** Initial transactions fetch failed before any rows were loaded. */
 	isError?: boolean;
-	/** Initial transactions fetch is in flight (no rows yet). */
 	isLoading?: boolean;
 	isLoadingMore?: boolean;
 	onLoadMore?: () => void;
-	/** Called when a session-generated row is clicked. Navigates to the session detail page. */
 	onNavigateToSession?: (sessionId: string) => void;
-	/**
-	 * Called when the trailing 3-dots overflow button is tapped on a
-	 * non-session row. The page opens an action sheet (Edit / Delete)
-	 * scoped to the supplied transaction. Session-generated rows are
-	 * read-only — the actions cell is still reserved on those rows so
-	 * the amount column stays aligned.
-	 */
 	onOpenActions?: (transaction: Transaction) => void;
-	/** Retry the failed initial transactions query. */
 	onRetry?: () => void;
 	transactions: Transaction[];
 }

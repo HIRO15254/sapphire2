@@ -39,7 +39,6 @@ vi.mock("@/utils/trpc", () => ({
 
 import { useGameGroups, useInvalidateGameMasters } from "../use-game-groups";
 
-// Rows in server order: builtin canonical (limit, stud, bigbet) then customs.
 const GROUP_ROWS = [
 	{
 		id: "g-limit",
@@ -102,8 +101,6 @@ const VARIANT_ROWS = [
 	},
 ];
 
-// 8-Game builtin mix, referencing two of the seeded VARIANT_ROWS plus one id
-// whose variant row no longer exists (deleted since the mix was saved).
 const MIX_ROWS = [
 	{
 		id: "m-8game",
@@ -188,7 +185,6 @@ describe("useGameGroups", () => {
 		const firstResolved = firstGroupFor("Razz");
 		rerender();
 		expect(result.current.groupFor).toBe(firstGroupFor);
-		// The resolved group object is stable too (memoized infoById).
 		expect(result.current.groupFor("Razz")).toBe(firstResolved);
 	});
 });
@@ -262,7 +258,6 @@ describe("useGameGroups — mixCompositionLabels", () => {
 	it("resolves a mix's ordered game ids to variant labels, skipping deleted variants", async () => {
 		const { result } = setup();
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
-		// v-nlh -> "NL Hold'em", v-deleted -> skipped, v-razz -> "Razz".
 		expect(result.current.mixCompositionLabels("8-Game")).toEqual([
 			"NL Hold'em",
 			"Razz",

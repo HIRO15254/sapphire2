@@ -16,9 +16,7 @@ import { useLiveSessionForm } from "./use-live-session-form";
 
 interface LiveSessionFormProps {
 	currencies?: Array<{ id: string; name: string }>;
-	/** Geolocation-nearest room to pre-select as the default. */
 	defaultRoomId?: string;
-	/** Stable id the FormSheet toolbar's submit button targets via `form`. */
 	formId: string;
 	onRoomChange?: (roomId: string | undefined) => void;
 	onSubmit: (values: SessionFormValues) => void;
@@ -27,12 +25,6 @@ interface LiveSessionFormProps {
 	tournaments?: TournamentOption[];
 }
 
-/**
- * Single-screen "Start Live Session" form. The master (type / room / game)
- * and the start-critical field (initial buy-in or blind timer) sit up top;
- * rule overrides are tucked into a collapsible "Customize rules" section so a
- * session that keeps the master's rules starts without extra navigation.
- */
 export function LiveSessionForm({
 	currencies,
 	defaultRoomId,

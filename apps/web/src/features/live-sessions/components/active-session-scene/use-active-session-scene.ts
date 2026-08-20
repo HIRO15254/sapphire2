@@ -9,23 +9,12 @@ import type { ActionsDrawerItem } from "@/features/live-sessions/components/acti
 import type { ActiveSessionSceneState } from "./use-active-session-scene-state";
 
 interface UseActiveSessionSceneOptions {
-	/**
-	 * Session-type-specific event actions (all-in / chips / memo …) shown at the
-	 * top of the header "…" menu, above the lifecycle actions. Stack recording is
-	 * reached from the bottom-nav center button; seating and player notes happen
-	 * inline in the seat list, so they are not part of this menu.
-	 */
 	eventMenuExtraItems: ActionsDrawerItem[];
 	onEndSession: () => void;
 	onPause: () => void;
 	state: ActiveSessionSceneState;
 }
 
-/**
- * UI layer for the active-session scene: builds the header "…" menu (the
- * type-specific event actions followed by pause / end / game settings /
- * discard) and owns the open state of the scene-level dialogs.
- */
 export function useActiveSessionScene({
 	eventMenuExtraItems,
 	onEndSession,

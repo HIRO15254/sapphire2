@@ -93,13 +93,11 @@ export function LiveSessionCard({ session, onClick }: LiveSessionCardProps) {
 		>
 			<Card className="transition-colors hover:bg-muted/50">
 				<CardContent className="flex flex-col gap-2">
-					{/* Badges row */}
 					<div className="flex flex-wrap items-center gap-1.5">
 						<TypeBadge type={session.type} />
 						<StatusBadge status={session.status} />
 					</div>
 
-					{/* Main info */}
 					<div className="flex flex-col gap-0.5">
 						{session.gameName && (
 							<span className="font-medium text-sm leading-snug">
@@ -113,7 +111,6 @@ export function LiveSessionCard({ session, onClick }: LiveSessionCardProps) {
 						)}
 					</div>
 
-					{/* Meta row */}
 					<div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-xs">
 						<span>{formatStartTime(session.startedAt)}</span>
 						<span>
@@ -123,7 +120,6 @@ export function LiveSessionCard({ session, onClick }: LiveSessionCardProps) {
 						{session.currencyName && <span>{session.currencyName}</span>}
 					</div>
 
-					{/* Memo excerpt */}
 					{session.memo && (
 						<p className="text-muted-foreground text-xs leading-relaxed">
 							{truncateMemo(session.memo)}

@@ -9,13 +9,6 @@ interface UseTournamentSceneActionsArgs {
 	sessionId: string;
 }
 
-/**
- * Edit a live tournament session's frozen rule snapshot. Writes go to
- * `session_tournament_detail`, `session_blind_level`, and
- * `session_chip_purchase` — the master `tournament` row is never touched.
- * Use this for the live-session edit dialog so per-session overrides do
- * not leak back into the master template.
- */
 export function useTournamentSceneActions({
 	sessionId,
 }: UseTournamentSceneActionsArgs) {

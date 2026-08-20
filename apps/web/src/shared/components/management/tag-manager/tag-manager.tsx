@@ -27,14 +27,8 @@ interface TagManagerProps<TTag extends { id: string; name: string }> {
 	isEditPending?: boolean;
 	noun?: string;
 	onDelete: (id: string) => Promise<unknown>;
-	/**
-	 * Renders the create form body. The form must set `id={formId}` on its
-	 * `<form>` element and render no submit button — the surrounding
-	 * `FormSheet` toolbar submits it via the HTML `form` attribute.
-	 */
 	renderCreateForm: (formId: string, onClose: () => void) => React.ReactNode;
 	renderDeleteDescription: (tag: TTag) => React.ReactNode;
-	/** Same `formId` contract as `renderCreateForm`. */
 	renderEditForm: (
 		tag: TTag,
 		formId: string,
@@ -180,9 +174,7 @@ export function TagManager<TTag extends { id: string; name: string }>({
 								deletingTag &&
 								onDelete(deletingTag.id)
 									.then(() => onCloseDelete())
-									.catch(() => {
-										// Error handled by caller via deleteError prop
-									})
+									.catch(() => undefined)
 							}
 							type="button"
 							variant="destructive"

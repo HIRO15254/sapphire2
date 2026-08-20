@@ -91,7 +91,6 @@ describe("SettingsComponent", () => {
 
 	it("does not navigate when signOut does not call onSuccess", async () => {
 		const user = userEvent.setup();
-		// Override: signOut is called but the onSuccess callback is never invoked
 		mocks.signOut.mockImplementation(() => undefined);
 		const Component = routeModule.Route.options.component as ComponentType;
 

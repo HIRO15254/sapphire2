@@ -12,7 +12,6 @@ const MEMO_FORM_ID = "tournament-memo-form";
 interface ChipPurchaseType {
 	chips: number;
 	cost: number;
-	/** The session_chip_purchase id — links a purchase_chips event to the rule. */
 	id: string;
 	name: string;
 }
@@ -31,11 +30,6 @@ interface TournamentStackFormSubmitValues {
 
 interface TournamentStackFormProps {
 	chipPurchaseTypes?: ChipPurchaseType[];
-	/**
-	 * Stable id assigned to the stack `<form>` element so the surrounding
-	 * FormSheet toolbar can submit it via the HTML `form` attribute. The form
-	 * renders no submit button of its own.
-	 */
 	formId: string;
 	onComplete: () => void;
 	onMemo: (text: string) => void;

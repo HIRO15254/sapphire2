@@ -92,7 +92,6 @@ describe("TournamentTimer", () => {
 	});
 
 	it("renders 'Structure complete' / 'DONE' when all levels elapsed", () => {
-		// Start 1 hour ago — total structure = 40 minutes (two 20-minute levels).
 		const start = new Date("2026-01-01T11:00:00Z");
 		render(
 			<TournamentTimer
@@ -106,7 +105,6 @@ describe("TournamentTimer", () => {
 	});
 
 	it("omits the 'Next:' label on the final level", () => {
-		// Start 25 minutes ago — currently on level 2 (no next level).
 		const start = new Date("2026-01-01T11:35:00Z");
 		render(
 			<TournamentTimer
@@ -140,7 +138,6 @@ describe("TournamentTimer", () => {
 				timerStartedAt={start}
 			/>
 		);
-		// Break levels render with an amber progress bar; the `role="progressbar"` confirms it's active.
 		expect(screen.getByRole("progressbar")).toBeInTheDocument();
 	});
 });

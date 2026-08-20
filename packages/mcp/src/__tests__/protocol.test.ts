@@ -11,7 +11,6 @@ interface JsonRpcResponse {
 	result?: Record<string, unknown>;
 }
 
-/** Parse a JSON or SSE-framed MCP response body into its JSON-RPC messages. */
 async function readMessages(response: Response): Promise<JsonRpcResponse[]> {
 	const contentType = response.headers.get("content-type") ?? "";
 	const text = await response.text();
@@ -220,8 +219,6 @@ describe("MCP protocol layer", () => {
 			})
 		);
 		const [message] = await readMessages(response);
-		// Pinned to actual SDK behavior: schema violations surface as a
-		// JSON-RPC invalid-params error (or an isError result) — never a call.
 		const failed =
 			message?.error !== undefined ||
 			(message?.result as { isError?: boolean } | undefined)?.isError === true;

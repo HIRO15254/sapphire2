@@ -54,6 +54,8 @@ packages/
   mcp/     MCP server at /mcp — tools are a projection of the tRPC appRouter
   env/     Zod-typed env vars
   config/  Shared TS / Biome configs
+docs/
+  design/  Design decisions & domain invariants (code comments stay near-zero)
 ```
 
 **Backend changes update the MCP surface in the same task**: any added/changed `packages/api` procedure must be registered in `packages/mcp`'s `TOOL_DEFINITIONS` or `DELIBERATELY_EXCLUDED` — the coupling test (`bunx vitest run --project mcp`) fails otherwise. See [`.claude/rules/mcp-tools.md`](.claude/rules/mcp-tools.md).
@@ -72,7 +74,7 @@ packages/
 
 Detailed rules live in [`.claude/rules/`](.claude/rules/); the points below apply everywhere in `apps/web/` and are worth keeping top of mind:
 
-- **UI copy is English-only.** No Japanese in user-facing strings (labels, empty states, toasts, errors). Japanese is fine in comments, commit messages, and PR descriptions.
+- **UI copy is English-only.** No Japanese in user-facing strings (labels, empty states, toasts, errors). Japanese is fine in commit messages and PR descriptions; code comments are near-zero — see [`.claude/rules/comments.md`](.claude/rules/comments.md).
 - **Mobile forms are bottom sheets** (shadcn `Drawer`, not `Dialog`) and **pages start with [`PageHeader`](apps/web/src/shared/components/page-header/page-header.tsx)** — details in [`.claude/rules/web-ui.md`](.claude/rules/web-ui.md).
 - **Logic lives in `useXxx` hooks, not in components.** Components render JSX from destructured hook returns. Verification & full forbidden list: [`.claude/rules/web-hooks-separation.md`](.claude/rules/web-hooks-separation.md).
 - **Single theme: Sapphire 2 Design System.** Tokens live in `apps/web/src/index.css` (`:root` / `.dark`) and apply app-wide — there is no legacy theme and no `theme-v2` scope class. Color tokens include the `hsl()` wrapper: reference them as `var(--token)`, never `hsl(var(--token))`. Design rules: [`.claude/rules/web-theme.md`](.claude/rules/web-theme.md).
@@ -160,6 +162,7 @@ The following rule files live in `.claude/rules/` and are loaded automatically w
 | `datetime-and-numbers.md` | `apps/web/**`, `packages/api/**` | Date-only values are UTC midnight (read with UTC getters), day-crossing handling + backfill, period boundaries, shared locale-fixed number formatters. |
 | `db-migrations.md` | `packages/db/**` | Applied by `wrangler`; `db:generate` is the default for schema-shape changes, hand-write data/rename/destructive ones; how the Drizzle `meta/` ledger works and how to keep it from drifting. |
 | `mcp-tools.md` | `packages/mcp/**`, `packages/api/**` | MCP tools are a projection of `appRouter`: backend procedure changes must update `TOOL_DEFINITIONS`/`DELIBERATELY_EXCLUDED` in the same task; tools go through `createCaller`, schemas are the router's Zod objects, errors through `mapToolError`. |
+| `comments.md` | `apps/**`, `packages/**`, `scripts/**` | Near-zero comments: only lint/type directives + `NOTE(ops)`/`NOTE(rule)` markers; rationale goes to `docs/design/`. |
 
 ## Maintaining This File (Self-Evolution)
 

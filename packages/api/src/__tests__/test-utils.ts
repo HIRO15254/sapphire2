@@ -4,7 +4,6 @@ import { expect, vi } from "vitest";
 
 const dialect = new SQLiteSyncDialect();
 
-/** Bound params of a drizzle `where(...)` condition, for asserting ownership scoping (SA2-176, SA2-183). */
 export function boundParams(cond: unknown): unknown[] {
 	return dialect.sqlToQuery(cond as never).params;
 }
@@ -18,15 +17,6 @@ interface ProcedureDef {
 	middlewares: unknown[];
 	type: "mutation" | "query" | "subscription";
 }
-
-/**
- * Shape of a tRPC v11 procedure (as observed at runtime):
- *   procedure._def.inputs:      Zod schema array (first element is the top-level schema)
- *   procedure._def.middlewares: Middleware chain (protected procedures have 2+ entries)
- *   procedure._def.type:        "mutation" | "query" | "subscription"
- *
- * These helpers keep every router test file concise and consistent.
- */
 
 export function getProcedureDef(procedure: unknown): ProcedureDef {
 	const def = (procedure as { _def?: ProcedureDef })?._def;
@@ -72,8 +62,6 @@ export function expectRejects(procedure: unknown, input: unknown): void {
 
 export function expectProtected(procedure: unknown): void {
 	const def = getProcedureDef(procedure);
-	// A protected procedure has the base resolver + the protection middleware
-	// (plus an input/query/mutation middleware). Public procedures have exactly 1.
 	expect(def.middlewares.length).toBeGreaterThanOrEqual(2);
 }
 
@@ -87,30 +75,16 @@ export function expectType(
 type MockRow = Record<string, unknown>;
 
 interface ChainableMockDbConfig {
-	/**
-	 * Opt in to real WHERE semantics: `where(cond)` filters the configured rows
-	 * through `cond` and `limit(n)` truncates them, so a procedure that pushes
-	 * its whole predicate into SQL (rather than re-filtering rows in JS) can be
-	 * exercised — see filter-preset.ts's `assertNameAvailable`.
-	 *
-	 * Only `and` / `or` / `eq` / `ne` are understood; any other operator throws
-	 * rather than silently matching, so an enabled mock can never quietly
-	 * report a filter the query does not really apply. Off by default because
-	 * fixtures written before this option assume `where(...)` is a no-op.
-	 */
 	evaluateWhere?: boolean;
-	/** Rows returned by `select().from(table)…` keyed by the SQL table name. */
 	select?: Record<string, MockRow[]>;
 }
 
-/** The JS field key a column is assigned to on its own table object. */
 function columnJsKey(column: Column): string | null {
 	const table = column.table as unknown as Record<string, unknown>;
 	const entry = Object.entries(table).find(([, v]) => v === column);
 	return entry?.[0] ?? null;
 }
 
-/** The single Column wrapped by an aggregate SQL expression (e.g. `max(col)`). */
 function aggregatedColumnKey(expr: SQL): string | null {
 	const chunks = (expr as unknown as { queryChunks?: unknown[] }).queryChunks;
 	for (const chunk of chunks ?? []) {
@@ -121,18 +95,6 @@ function aggregatedColumnKey(expr: SQL): string | null {
 	return null;
 }
 
-/**
- * Applies a `select({ ... })` projection to raw table rows so a single-key
- * aggregate (`{ maxSort: max(table.sortOrder) }`) collapses to one computed
- * row like a real DB would (c35) — every OTHER select shape (bare
- * `select()`, or a narrow/renamed column list) returns the configured rows
- * unchanged, since every existing fixture in this codebase is already
- * written keyed by the query's OUTPUT field names (including cross-table
- * join projections that alias a joined table's column, e.g. stats.ts's
- * `cashVariant: sessionCashDetail.variant`) — re-deriving those keys from the
- * Column reference would only break that established convention. Only MAX
- * is needed by any current caller.
- */
 function applyProjection(
 	projection: Record<string, unknown> | undefined,
 	rows: MockRow[]
@@ -158,7 +120,6 @@ function sqlChunks(node: unknown): unknown[] {
 	return (node as { queryChunks?: unknown[] }).queryChunks ?? [];
 }
 
-/** The operator/keyword text of a condition's own (non-nested) string chunks. */
 function chunkText(chunks: unknown[]): string {
 	return chunks
 		.filter((chunk) => chunk instanceof StringChunk)
@@ -167,7 +128,6 @@ function chunkText(chunks: unknown[]): string {
 		.trim();
 }
 
-/** Evaluates `eq(col, value)` / `ne(col, value)` against one row. */
 function leafMatches(chunks: unknown[], row: MockRow): boolean {
 	const column = chunks.find((chunk) => is(chunk, Column)) as
 		| Column
@@ -196,12 +156,6 @@ function leafMatches(chunks: unknown[], row: MockRow): boolean {
 	throw new Error(`evaluateWhere: unsupported operator "${operator}"`);
 }
 
-/**
- * Evaluates a drizzle condition against one row. `and(...)` / `or(...)` nest
- * their operands as inner `SQL` chunks joined by an " and " / " or " string
- * chunk, so a condition that contains nested SQL is a combination and any
- * other condition is a leaf comparison.
- */
 function conditionMatches(condition: unknown, row: MockRow): boolean {
 	if (!is(condition, SQL)) {
 		throw new Error("evaluateWhere: condition is not a drizzle SQL expression");
@@ -218,16 +172,9 @@ function conditionMatches(condition: unknown, row: MockRow): boolean {
 		}
 		return operands.some((operand) => conditionMatches(operand, row));
 	}
-	// A single-operand wrapper (`and()` with one surviving operand, or the
-	// `sql.join` node inside a multi-operand `and`) has no keyword of its own.
 	return operands.every((operand) => conditionMatches(operand, row));
 }
 
-/**
- * Converts legacy test fixtures that express a mix composition as `games`
- * into the normalized junction rows read by the API. Explicit junction
- * fixtures win so tests can cover malformed, empty, or specially ordered data.
- */
 export function withGameMixVariantFixtures(
 	select: Record<string, MockRow[]>
 ): Record<string, MockRow[]> {
@@ -246,20 +193,6 @@ export function withGameMixVariantFixtures(
 	return { ...select, game_mix_variant: memberships };
 }
 
-/**
- * A minimal chainable Drizzle-style mock `db` for exercising router
- * procedures / helpers end-to-end without a real database.
- *
- * `select(projection?)` chains (`.from().where().limit().orderBy()`) resolve
- * to the rows configured for the table passed to `.from(table)` (matched via
- * `getTableName`), narrowed/aggregated through `projection` when one is
- * given; `insert(table).values(rows)` records the inserted payload. It
- * tracks which tables were read (`selectedTables`), every `limit(...)` argument
- * (`selectLimits`), and the bound params of
- * every join and `where(...)` call on select/update/delete (`selectJoinParams`,
- * `selectWhereParams` / `updateWhereParams` / `deleteWhereParams`) so ownership scoping can be
- * asserted (SA2-176, SA2-183), and which tables were written (`inserted`).
- */
 export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 	const selectRows = config.select ?? {};
 	const evaluateWhere = config.evaluateWhere ?? false;
@@ -272,10 +205,6 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 	const updateWhereParams: unknown[][] = [];
 	const deleteWhereParams: unknown[][] = [];
 
-	// The chain is a real Promise (so `await`-ing any step resolves the rows
-	// natively) with Drizzle's builder methods attached. Non-terminal steps
-	// (`where` / `limit` / `orderBy` / joins) return a chain again — a fresh one
-	// when `evaluateWhere` narrowed the rows, otherwise the same promise.
 	function makeSelectChain(rows: MockRow[]) {
 		const chain = Promise.resolve(rows) as Promise<MockRow[]> &
 			Record<string, (...args: unknown[]) => unknown>;
@@ -317,10 +246,6 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 			const bucket = inserted[name] ?? [];
 			bucket.push(values);
 			inserted[name] = bucket;
-			// The insert has already been "recorded" above (this mock executes
-			// eagerly, unlike a real DB); `.onConflictDoNothing()` /
-			// `.onConflictDoUpdate()` are chainable no-ops so callers that guard
-			// concurrent-seed races (c08) don't need a different mock shape.
 			const chain = Promise.resolve(undefined) as Promise<undefined> &
 				Record<string, (...args: unknown[]) => unknown>;
 			chain.onConflictDoNothing = () => chain;
@@ -348,9 +273,6 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 			};
 		}),
 	}));
-	// D1's `db.batch([...])`. Each statement here is a resolved promise (this
-	// mock executes `insert().values()` / `delete().where()` eagerly and records
-	// the payload), so the batch just awaits them together (SA2-116).
 	const batch = vi.fn((statements: unknown[]) =>
 		Promise.all(statements as Promise<unknown>[])
 	);

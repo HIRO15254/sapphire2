@@ -4,10 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 
 const NEW_CURRENCY_RE = /New currency/i;
 
-// CurrencyListCard renders a TanStack Router <Link> (needs router context), so
-// stub the card module. CurrencyListCardSkeleton comes from the same module and
-// is used by the loading branch, so stub it too. Its real shape is covered by
-// currency-list-card-skeleton.test.tsx.
 vi.mock(
 	"@/features/currencies/pages/currencies-page/currency-list-card",
 	() => ({

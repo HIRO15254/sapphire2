@@ -9,32 +9,19 @@ import {
 } from "../session-list-card";
 
 interface SessionListProps {
-	/** When on, each card's P&L renders in big blinds / buy-ins. */
 	bbBiMode: boolean;
-	/** Another page of sessions is available to fetch. */
 	hasNextPage: boolean;
-	/** A `Load more` fetch is in flight. */
 	isFetchingNextPage: boolean;
-	/** The first sessions page failed before any data was loaded. */
 	isInitialLoadError: boolean;
-	/** Initial sessions fetch is in flight (no rows yet). */
 	isLoading: boolean;
-	/** Open the create sheet — wired to the empty-state CTA. */
 	onCreate: () => void;
-	/** Fetch the next page of sessions. */
 	onLoadMore: () => void;
-	/** Retry the failed initial sessions query. */
 	onRetry: () => void;
 	sessions: SessionListCardItem[];
 }
 
 const SKELETON_COUNT = 6;
 
-/**
- * Owns the list surface's loading / empty / data switch, mirroring
- * `CurrencyList`: the page passes `isLoading` + `sessions` and this component
- * decides what to render. The loading branch stacks the card-bound skeleton.
- */
 export function SessionList({
 	bbBiMode,
 	hasNextPage,

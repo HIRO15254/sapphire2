@@ -4,12 +4,6 @@ import type { FilterPresetItem } from "@/shared/hooks/use-filter-presets";
 
 const EDIT_PRESET_FORM_ID = "filter-presets-edit-form";
 
-/**
- * Replaces the Saved tab's body while a preset is being edited (no third tab —
- * this is a drill-down out of a row, not a peer of "Saved" / "Save new").
- * Submitting renames the preset *and* overwrites its stored filters, so the
- * body copy has to say so before the user taps Save.
- */
 export function EditPresetForm({
 	isPending,
 	onCancel,

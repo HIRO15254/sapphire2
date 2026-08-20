@@ -50,7 +50,6 @@ describe("createWebEnv", () => {
 		});
 
 		it("throws when VITE_SERVER_URL is an empty string (emptyStringAsUndefined)", () => {
-			// Empty string is treated as undefined; then required URL is missing.
 			expect(() => createWebEnv({ VITE_SERVER_URL: "" })).toThrow();
 		});
 
@@ -85,7 +84,6 @@ describe("createWebEnv", () => {
 
 	describe("clientPrefix enforcement", () => {
 		it("ignores variables that lack the VITE_ prefix in runtimeEnv", () => {
-			// env-core only exposes declared keys, regardless of extra runtime entries.
 			const env = createWebEnv({
 				...minimalValid,
 				SERVER_SECRET: "should-not-leak",

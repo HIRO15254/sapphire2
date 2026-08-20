@@ -20,8 +20,6 @@ vi.mock("@/features/players/hooks/use-player-detail", () => ({
 	usePlayerDetail: () => mocks.detail,
 }));
 
-// The shared tag picker is exercised elsewhere; here assert the seat editor
-// wires it to the player's tags and handlers.
 vi.mock("@/features/players/components/player-tag-input", () => ({
 	PlayerTagInput: ({
 		onAdd,

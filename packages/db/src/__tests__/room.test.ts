@@ -112,7 +112,6 @@ describe("Room schema — location", () => {
 
 	it("latitude and longitude are stored as real (number) columns", () => {
 		const columns = getTableColumns(room);
-		// drizzle `real()` reports its dataType as "number", not "real".
 		expect(columns.latitude.dataType).toBe("number");
 		expect(columns.longitude.dataType).toBe("number");
 	});

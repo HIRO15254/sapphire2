@@ -37,8 +37,6 @@ export function useCreateSessionDialog({
 				roomId: values.roomId,
 				ringGameId: values.ringGameId,
 				currencyId: values.currencyId,
-				// The Rules step's buyIn doubles as the live session's initial
-				// buy-in. cashOut is irrelevant at session start.
 				initialBuyIn: values.buyIn,
 				memo: values.memo,
 			});
@@ -50,8 +48,6 @@ export function useCreateSessionDialog({
 			currencyId: values.currencyId,
 			buyIn: values.tournamentBuyIn,
 			entryFee: values.entryFee,
-			// startingStack is required by the live mutation; the wizard
-			// Rules step exposes it via the tournament snapshot scalar.
 			startingStack: values.startingStack ?? 0,
 			memo: values.memo,
 			timerStartedAt: values.timerStartedAt,

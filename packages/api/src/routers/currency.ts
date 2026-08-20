@@ -67,8 +67,6 @@ export const currencyRouter = router({
 			z.object({
 				id: z.string(),
 				name: z.string().min(1).optional(),
-				// Nullable so an explicit `null` clears the unit. `undefined`
-				// (key omitted) still means "leave unchanged".
 				unit: z
 					.string()
 					.max(4)

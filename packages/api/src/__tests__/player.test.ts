@@ -18,12 +18,6 @@ import {
 type Rows = Record<string, unknown>[];
 const dialect = new SQLiteSyncDialect();
 
-/**
- * Mock db keyed by schema-table reference: `select().from(t)...` resolves to
- * the rows registered for `t`; `insert(t).values()` records the payload so a
- * rejected tag-ownership guard can be shown to skip the `player_to_player_tag`
- * write (SA2-178).
- */
 function createMockDb(rowsByTable: Map<unknown, Rows>) {
 	const batchCalls: unknown[][] = [];
 	const inserted: { table: unknown; values: unknown }[] = [];
@@ -365,7 +359,6 @@ describe("player.create tag ownership (SA2-178)", () => {
 
 	it("rejects a tag owned by another user and skips the join insert", async () => {
 		const rows = new Map<unknown, Rows>([
-			// Only one of the two requested tags is owned by the caller.
 			[playerTag, [{ id: "t1" }]],
 			[player, [{ id: "p-new", userId: OWNER }]],
 		]);

@@ -32,8 +32,6 @@ export function usePlayerDetailPage(playerId: string) {
 	};
 
 	const handleEdit = (values: PlayerFormValues) => {
-		// updatePlayer is optimistic (mutate), so the sheet can close immediately —
-		// the cache already reflects the edit and rolls back on error.
 		updatePlayer({ id: playerId, ...values });
 		setIsEditOpen(false);
 	};

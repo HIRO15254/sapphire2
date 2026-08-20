@@ -12,12 +12,6 @@ interface PlayerTagBadgesProps {
 	tags: PlayerTag[];
 }
 
-/**
- * Inline tag cluster matching the Players list badge style,
- * shown on the same line as the player name. As many tags as fit are rendered;
- * the rest collapse into a `+N` badge only once they no longer fit the line
- * (width is measured, not a fixed count).
- */
 export function PlayerTagBadges({ tags }: PlayerTagBadgesProps) {
 	const { containerRef, ghostRef, visibleCount } = usePlayerTagBadges(tags);
 
@@ -34,8 +28,6 @@ export function PlayerTagBadges({ tags }: PlayerTagBadgesProps) {
 			data-testid="tag-cluster"
 			ref={containerRef}
 		>
-			{/* Measurement layer: every tag + a sample +N badge, kept out of the
-			    layout and a11y tree. Drives how many tags actually fit. */}
 			<span
 				aria-hidden
 				className="pointer-events-none invisible absolute flex items-center gap-1"

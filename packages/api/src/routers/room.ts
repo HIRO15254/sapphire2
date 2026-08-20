@@ -4,9 +4,6 @@ import { asc, desc, eq, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 
-// Coordinates move as a pair: latitude and longitude must both be omitted
-// (leave unchanged), both `null` (cleared) or both numbers (set). Mirrors the
-// web form's `.refine`, so a direct tRPC call can't persist a half-set location.
 function coordinatesPaired(value: {
 	latitude?: number | null;
 	longitude?: number | null;
@@ -22,7 +19,6 @@ const COORDINATES_PAIRED_ISSUE = {
 	path: ["longitude"],
 };
 
-// Named exports for the MCP tool layer — see .claude/rules/mcp-tools.md.
 export const roomIdInputSchema = z.object({ id: z.string() });
 
 export const roomCreateInputSchema = z
@@ -38,11 +34,7 @@ export const roomUpdateInputSchema = z
 	.object({
 		id: z.string(),
 		name: z.string().min(1).optional(),
-		// Nullable so an explicit `null` clears the memo. `undefined`
-		// (key omitted) still means "leave unchanged".
 		memo: z.string().nullable().optional(),
-		// Geographic coordinates. Nullable so an explicit `null` clears the
-		// location; `undefined` leaves it unchanged (same pattern as memo).
 		latitude: z.number().min(-90).max(90).nullable().optional(),
 		longitude: z.number().min(-180).max(180).nullable().optional(),
 	})
@@ -51,12 +43,6 @@ export const roomUpdateInputSchema = z
 export const roomRouter = router({
 	list: protectedProcedure.query(({ ctx }) => {
 		const userId = ctx.session.user.id;
-		// Active (non-archived) game counts via correlated subqueries so the list
-		// card can show them without an N+1 query per room. The column refs are
-		// written as literal qualified names — interpolating Drizzle column
-		// objects into a raw `sql` subquery renders them *unqualified*
-		// (`room_id`/`id`), which inside the child-table FROM resolves to that
-		// table's own columns and silently yields 0.
 		return ctx.db
 			.select({
 				id: room.id,

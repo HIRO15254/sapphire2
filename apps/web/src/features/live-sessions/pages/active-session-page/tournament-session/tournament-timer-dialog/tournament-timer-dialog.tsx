@@ -15,12 +15,6 @@ interface TournamentTimerDialogProps {
 	timerStartedAt: Date | string | number | null;
 }
 
-/**
- * V2 form sheet for setting when the tournament blind timer began. The
- * FormSheet toolbar submits the form via `formId`; the optional Clear action
- * stays in the body. Leave the time in the past to reflect a late-start
- * entry.
- */
 export function TournamentTimerDialog({
 	isLoading = false,
 	onClear,

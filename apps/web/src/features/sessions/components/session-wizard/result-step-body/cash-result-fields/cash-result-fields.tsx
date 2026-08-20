@@ -6,7 +6,6 @@ export function CashResultFields({
 	state,
 	disabledFields,
 }: {
-	/** Field names to render read-only (live sessions lock a subset). */
 	disabledFields: ReadonlySet<string>;
 	state: UseSessionWizardReturn;
 }) {

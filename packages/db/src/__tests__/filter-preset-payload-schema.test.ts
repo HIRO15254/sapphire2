@@ -296,9 +296,6 @@ describe("statisticsFilterPresetPayloadSchema", () => {
 		).toBe(false);
 	});
 
-	// "display" is the SESSIONS-only amount-display toggle (statistics carries
-	// the equivalent state as "norm"); it must stay an unknown key here so the
-	// two payload shapes never silently merge.
 	it("rejects 'display' (sessions-only field)", () => {
 		expect(
 			statisticsFilterPresetPayloadSchema.safeParse({ display: "currency" })

@@ -194,7 +194,6 @@ describe("CurrencyListCard", () => {
 			const link = screen.getByRole("link");
 			const href = link.getAttribute("href");
 			btn.click();
-			// The link's href must not change — we navigated nowhere.
 			expect(link).toHaveAttribute("href", href);
 		});
 	});

@@ -182,9 +182,6 @@ function TournamentSettingsTab({
 							overriddenLabels={overriddenLabels}
 							state={state}
 						/>
-						{/* The catalog is derived from event history for live sessions
-						    and rejected by session.update; a disabled fieldset natively
-						    disables every control inside (no-op when not live-linked). */}
 						<fieldset
 							className="m-0 min-w-0 border-0 p-0"
 							disabled={isLiveLinked}
@@ -230,8 +227,6 @@ export function TournamentRulesStepBody({
 							/>
 						</TabsContent>
 						<TabsContent value="blinds">
-							{/* Blind structure is event-derived for live sessions and
-							    rejected by session.update; disable it there. */}
 							<fieldset
 								className="m-0 min-w-0 border-0 p-0"
 								disabled={isLiveLinked}

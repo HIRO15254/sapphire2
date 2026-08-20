@@ -65,7 +65,6 @@ describe("PlayerListCard", () => {
 			],
 		});
 		await screen.findByText("Alice");
-		// First two tags stay visible, the remaining two collapse to "+2".
 		expect(screen.getByText("VIP")).toBeInTheDocument();
 		expect(screen.getByText("Regular")).toBeInTheDocument();
 		expect(screen.getByText("+2")).toBeInTheDocument();
@@ -106,7 +105,6 @@ describe("PlayerListCard", () => {
 			tags: [tag("vip", "VIP"), tag("reg", "Regular"), tag("fish", "Fish")],
 		});
 		const links = await screen.findAllByRole("link");
-		// Every card row carries the same fixed-height class, with or without tags.
 		for (const link of links) {
 			expect(link).toHaveClass("h-12");
 		}

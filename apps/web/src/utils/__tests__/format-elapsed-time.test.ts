@@ -66,7 +66,6 @@ describe("formatElapsedTime", () => {
 	});
 
 	it("handles elapsed time larger than a day", () => {
-		// 25 hours ago → 25h 0m
 		const past = new Date(NOW.getTime() - 25 * 60 * 60_000);
 		expect(formatElapsedTime(past)).toBe("25h 0m");
 	});

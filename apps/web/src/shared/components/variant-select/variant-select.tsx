@@ -18,10 +18,8 @@ import { useVariantSelect } from "./use-variant-select";
 
 interface VariantSelectProps {
 	disabled?: boolean;
-	/** Variant labels hidden from the options. */
 	excludeVariants?: string[];
 	id?: string;
-	/** Show the special "Mixed Game" mode entry (value: "mix"). */
 	includeMix?: boolean;
 	onChange: (variant: string) => void;
 	value: string;
@@ -57,15 +55,6 @@ function VariantOption({
 	);
 }
 
-/**
- * Required variant picker shared by every game/rule form — a type-to-filter
- * combobox (Input + Popover + active-descendant ARIA listbox).
- * Options are the user's own variant rows (seeded at signup, fully editable
- * on the Games page), plus the user's named mix masters (HORSE / 8-Game /
- * custom, shown under a "Mixes" heading) where a mix editor exists, plus a
- * trailing "Add custom variant" action that creates a row (name + short
- * label + owning group, pre-seeded from the typed draft) and selects it.
- */
 export function VariantSelect({
 	disabled = false,
 	excludeVariants,

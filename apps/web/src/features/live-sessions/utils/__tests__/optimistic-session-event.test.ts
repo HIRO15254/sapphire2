@@ -12,12 +12,6 @@ import type { SessionEvent } from "@/features/live-sessions/hooks/use-session-ev
 
 const OPTIMISTIC_ID_PATTERN = /^optimistic-/;
 
-// ---------------------------------------------------------------------------
-// Mock @/utils/trpc — queryOptions must return a stable queryKey shape
-// [namespace, procedure, input] so getSessionQueryKeys can resolve predictable
-// keys. We keep mutate/query stubs absent because these tests never call them.
-// ---------------------------------------------------------------------------
-
 function buildKey(namespace: string, procedure: string, input: unknown) {
 	return input === undefined
 		? [namespace, procedure]
@@ -61,7 +55,6 @@ vi.mock("@/utils/trpc", () => ({
 	trpcClient: {},
 }));
 
-// NOTE: import after vi.mock so the module picks up the mocked trpc.
 const {
 	buildOptimisticEvent,
 	buildOptimisticSessionSummary,
@@ -69,10 +62,6 @@ const {
 	deriveOptimisticStatus,
 	getSessionQueryKeys,
 } = await import("../optimistic-session-event");
-
-// ---------------------------------------------------------------------------
-// buildOptimisticSessionSummary
-// ---------------------------------------------------------------------------
 
 describe("buildOptimisticSessionSummary", () => {
 	it("returns a new object (does not mutate input summary)", () => {
@@ -290,9 +279,6 @@ describe("buildOptimisticSessionSummary", () => {
 		});
 
 		it("cashOutAmount present with beforeDeadline=false applies BOTH cash and tournament mutations", () => {
-			// session_end applies cashOut branch (if cashOutAmount present) AND
-			// tournament branch (if beforeDeadline===false). Both if/blocks run
-			// independently — a hybrid payload therefore overwrites profitLoss twice.
 			const result = buildOptimisticSessionSummary(
 				{ totalBuyIn: 1000 },
 				"session_end",
@@ -303,7 +289,6 @@ describe("buildOptimisticSessionSummary", () => {
 				}
 			);
 			expect(result.cashOut).toBe(3000);
-			// cash branch: 3000 - 1000 = 2000, then tournament branch overwrites to 9000.
 			expect(result.profitLoss).toBe(9000);
 		});
 	});
@@ -410,7 +395,6 @@ describe("buildOptimisticSessionSummary", () => {
 				"update_stack",
 				{ remainingPlayers: 20 }
 			);
-			// (10_000 * 100 + 0) / 20 = 50_000
 			expect(result.averageStack).toBe(50_000);
 		});
 
@@ -425,7 +409,6 @@ describe("buildOptimisticSessionSummary", () => {
 					],
 				}
 			);
-			// (10_000 * 100 + 10*1000 + 5*2000) / 20 = (1_000_000 + 10_000 + 10_000) / 20 = 51_000
 			expect(result.averageStack).toBe(51_000);
 		});
 
@@ -435,8 +418,6 @@ describe("buildOptimisticSessionSummary", () => {
 				"update_stack",
 				{ totalEntries: 20 }
 			);
-			// Uses payload totalEntries (20), keeps summary remainingPlayers (5).
-			// (1000 * 20 + 0) / 5 = 4000
 			expect(result.averageStack).toBe(4000);
 			expect(result.totalEntries).toBe(20);
 		});
@@ -447,7 +428,6 @@ describe("buildOptimisticSessionSummary", () => {
 				"update_stack",
 				{ remainingPlayers: 2 }
 			);
-			// (1000 * 10) / 2 = 5000
 			expect(result.averageStack).toBe(5000);
 		});
 
@@ -457,7 +437,6 @@ describe("buildOptimisticSessionSummary", () => {
 				"update_stack",
 				{}
 			);
-			// (1000 * 3) / 2 = 1500 → already integer, round no-op.
 			expect(result.averageStack).toBe(1500);
 
 			const fractional = buildOptimisticSessionSummary(
@@ -465,7 +444,6 @@ describe("buildOptimisticSessionSummary", () => {
 				"update_stack",
 				{}
 			);
-			// 100 / 3 = 33.333… → Math.round → 33
 			expect(fractional.averageStack).toBe(33);
 		});
 
@@ -502,12 +480,7 @@ describe("buildOptimisticSessionSummary", () => {
 				"update_stack",
 				{ remainingPlayers: 0 }
 			);
-			// payload overrides summary remainingPlayers, but payload value 0 fails the `>0` guard.
-			// However, because the branch `typeof typedPayload.remainingPlayers === "number"`
-			// only controls the payload-vs-summary precedence inside the calc, and the outer
-			// guard requires `remainingPlayers > 0`, zero is correctly skipped.
 			expect(result.averageStack).toBeUndefined();
-			// Top-level summary.remainingPlayers is still set from payload.
 			expect(result.remainingPlayers).toBe(0);
 		});
 
@@ -547,7 +520,6 @@ describe("buildOptimisticSessionSummary", () => {
 				trials: 100,
 				wins: 50,
 			});
-			// 0 + 1000 * 0.6 - (1000 / 100) * 50 = 600 - 500 = 100
 			expect(result.evDiff).toBe(100);
 		});
 
@@ -558,7 +530,6 @@ describe("buildOptimisticSessionSummary", () => {
 				trials: 50,
 				wins: 25,
 			});
-			// 200 + 500 * 0.5 - (500 / 50) * 25 = 200 + 250 - 250 = 200
 			expect(result.evDiff).toBe(200);
 		});
 
@@ -568,7 +539,6 @@ describe("buildOptimisticSessionSummary", () => {
 				"all_in",
 				{ potSize: 1000, equity: 50, trials: 100, wins: 50 }
 			);
-			// 0 + 500 - 500 = 0
 			expect(result.evDiff).toBe(0);
 		});
 
@@ -625,7 +595,6 @@ describe("buildOptimisticSessionSummary", () => {
 				trials: 1,
 				wins: 1,
 			});
-			// 0 + 1000 * 0.3 - 1000 * 1 = 300 - 1000 = -700
 			expect(result.evDiff).toBe(-700);
 		});
 	});
@@ -655,15 +624,10 @@ describe("buildOptimisticSessionSummary", () => {
 				{ stackAmount: 1000 },
 				0
 			);
-			// 0 is falsy, so the if branch is skipped and old value is preserved from spread.
 			expect(result.lastUpdatedAt).toBe(999);
 		});
 	});
 });
-
-// ---------------------------------------------------------------------------
-// deriveOptimisticStatus
-// ---------------------------------------------------------------------------
 
 describe("deriveOptimisticStatus", () => {
 	it("returns 'paused' for session_pause event", () => {
@@ -689,10 +653,6 @@ describe("deriveOptimisticStatus", () => {
 		expect(deriveOptimisticStatus("active", "anything_else")).toBe("active");
 	});
 });
-
-// ---------------------------------------------------------------------------
-// buildOptimisticEvent
-// ---------------------------------------------------------------------------
 
 describe("buildOptimisticEvent", () => {
 	const FIXED_TIME = new Date("2026-04-24T12:00:00.000Z").getTime();
@@ -746,10 +706,6 @@ describe("buildOptimisticEvent", () => {
 		});
 	});
 });
-
-// ---------------------------------------------------------------------------
-// getSessionQueryKeys
-// ---------------------------------------------------------------------------
 
 describe("getSessionQueryKeys", () => {
 	it("produces cash-game-scoped keys when sessionType is cash_game", () => {
@@ -810,10 +766,6 @@ describe("getSessionQueryKeys", () => {
 		expect(cash.allListsKey).not.toEqual(tour.allListsKey);
 	});
 });
-
-// ---------------------------------------------------------------------------
-// createSessionEventMutationOptions
-// ---------------------------------------------------------------------------
 
 interface TestSession {
 	status: "active" | "paused" | "completed";
@@ -907,7 +859,6 @@ describe("createSessionEventMutationOptions", () => {
 		it("initializes events list from [] when cache is empty", async () => {
 			const queryClient = makeQueryClient();
 			const keys = getSessionQueryKeys("sess-1", "cash_game");
-			// Seed session but leave eventsKey undefined.
 			queryClient.setQueryData<TestSession>(keys.sessionKey, {
 				status: "active",
 				summary: {},
@@ -950,7 +901,6 @@ describe("createSessionEventMutationOptions", () => {
 
 			const session = queryClient.getQueryData<TestSession>(keys.sessionKey);
 			expect(session?.summary.currentStack).toBe(9999);
-			// Without changesStatus, status is preserved as-is.
 			expect(session?.status).toBe("active");
 		});
 
@@ -958,7 +908,6 @@ describe("createSessionEventMutationOptions", () => {
 			const queryClient = makeQueryClient();
 			const keys = getSessionQueryKeys("sess-1", "cash_game");
 			queryClient.setQueryData<SessionEvent[]>(keys.eventsKey, []);
-			// No sessionKey seed — updater returns old (undefined) unchanged.
 
 			const options = createSessionEventMutationOptions({
 				queryClient,
@@ -1075,7 +1024,6 @@ describe("createSessionEventMutationOptions", () => {
 		it("transitions session status to active and moves session between lists", async () => {
 			const queryClient = makeQueryClient();
 			const keys = getSessionQueryKeys("sess-1", "cash_game");
-			// Swap the default: active empty, paused has the item.
 			queryClient.setQueryData<TestSession>(keys.sessionKey, {
 				status: "paused",
 				summary: {},
@@ -1138,7 +1086,6 @@ describe("createSessionEventMutationOptions", () => {
 				sessionType: "cash_game",
 				eventType: "update_stack",
 				getPayload: () => ({ stackAmount: 999 }),
-				// changesStatus intentionally omitted
 			});
 
 			await options.onMutate(undefined);
@@ -1161,7 +1108,6 @@ describe("createSessionEventMutationOptions", () => {
 				summary: {},
 			});
 			queryClient.setQueryData<SessionEvent[]>(keys.eventsKey, []);
-			// Active list has a different session; sess-1 is absent.
 			queryClient.setQueryData<TestListData>(keys.activeListKey, {
 				items: [{ id: "other", name: "Other", status: "active" }],
 			});
@@ -1181,9 +1127,7 @@ describe("createSessionEventMutationOptions", () => {
 			const pausedList = queryClient.getQueryData<TestListData>(
 				keys.pausedListKey
 			);
-			// Destination list is never populated because sessionItem is undefined.
 			expect(pausedList?.items).toEqual([]);
-			// Active list is filtered (no-op since sess-1 wasn't there).
 			const activeList = queryClient.getQueryData<TestListData>(
 				keys.activeListKey
 			);
@@ -1200,7 +1144,6 @@ describe("createSessionEventMutationOptions", () => {
 				summary: {},
 			});
 			queryClient.setQueryData<SessionEvent[]>(keys.eventsKey, []);
-			// activeListKey is intentionally NOT seeded.
 			queryClient.setQueryData<TestListData>(keys.pausedListKey, { items: [] });
 
 			const options = createSessionEventMutationOptions({
@@ -1278,7 +1221,6 @@ describe("createSessionEventMutationOptions", () => {
 			});
 
 			const context = await options.onMutate(undefined);
-			// Confirm optimistic write occurred.
 			expect(
 				queryClient.getQueryData<TestSession>(keys.sessionKey)?.summary
 					.currentStack
@@ -1286,7 +1228,6 @@ describe("createSessionEventMutationOptions", () => {
 
 			options.onError(new Error("boom"), undefined, context);
 
-			// After rollback, cache is back to the initial state.
 			expect(queryClient.getQueryData(keys.sessionKey)).toEqual(initialSession);
 			expect(queryClient.getQueryData(keys.eventsKey)).toEqual(initialEvents);
 		});
@@ -1316,7 +1257,6 @@ describe("createSessionEventMutationOptions", () => {
 			});
 
 			const context = await options.onMutate(undefined);
-			// List move happened.
 			expect(
 				queryClient.getQueryData<TestListData>(keys.activeListKey)?.items
 			).toEqual([]);
@@ -1468,7 +1408,6 @@ describe("createSessionEventMutationOptions", () => {
 			expect(getPayload).toHaveBeenCalledWith({ buyIn: 4200 });
 			const events = queryClient.getQueryData<SessionEvent[]>(keys.eventsKey);
 			expect(events?.[0]?.payload).toEqual({ buyInAmount: 4200 });
-			// Summary also advanced because session_start is a known event type.
 			const session = queryClient.getQueryData<TestSession>(keys.sessionKey);
 			expect(session?.summary.totalBuyIn).toBe(4200);
 		});
@@ -1478,7 +1417,6 @@ describe("createSessionEventMutationOptions", () => {
 		it("keeps status as-is when old.status is falsy (no status derivation)", async () => {
 			const queryClient = makeQueryClient();
 			const keys = getSessionQueryKeys("sess-1", "cash_game");
-			// Session without a `status` property.
 			queryClient.setQueryData<{ summary: Record<string, unknown> }>(
 				keys.sessionKey,
 				{ summary: {} }
@@ -1502,7 +1440,6 @@ describe("createSessionEventMutationOptions", () => {
 				status?: string;
 				summary: Record<string, unknown>;
 			}>(keys.sessionKey);
-			// old.status was undefined, so nextStatus falls through to old.status (undefined).
 			expect(session?.status).toBeUndefined();
 		});
 	});

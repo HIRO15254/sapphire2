@@ -58,7 +58,6 @@ export function wizardStepsForMode(
 	return mode === "live" ? WIZARD_STEPS_LIVE : WIZARD_STEPS_MANUAL;
 }
 
-// Retained for backwards compatibility with existing callers / tests.
 export const WIZARD_STEPS = WIZARD_STEPS_MANUAL;
 
 interface UseSessionWizardArgs {
@@ -67,7 +66,6 @@ interface UseSessionWizardArgs {
 	mode?: WizardMode;
 	onRoomChange?: (roomId: string | undefined) => void;
 	onSubmit: (values: SessionFormValues) => void;
-	/** Extra fields this form must not leave blank — see `useSessionFormState`. */
 	requiredFields?: ReadonlySet<string>;
 	ringGames?: RingGameOption[];
 	tournaments?: TournamentOption[];

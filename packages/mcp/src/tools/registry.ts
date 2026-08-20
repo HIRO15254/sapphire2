@@ -42,18 +42,10 @@ import {
 } from "@sapphire2/api/routers/tournament";
 import { getProcedureType } from "./resolve";
 
-/**
- * One MCP tool = one appRouter procedure (session.create maps to two tools,
- * one per discriminated-union branch). `inputSchema` is the router's own Zod
- * object — never a redefinition — so the MCP contract IS the API contract.
- * See .claude/rules/mcp-tools.md and coupling.test.ts.
- */
 export interface ToolDefinition {
 	description: string;
-	/** Mutations only — queries derive their annotations from the router type. */
 	destructiveHint?: boolean;
 	idempotentHint?: boolean;
-	/** The router's exact input Zod schema; undefined for no-input procedures. */
 	inputSchema?: unknown;
 	name: string;
 	procedurePath: string;
@@ -69,18 +61,9 @@ export interface ToolAnnotations {
 const DATE_CONVENTIONS =
 	"Dates are unix SECONDS; date-only values (sessionDate, dateFrom, dateTo) are UTC-midnight timestamps. Amounts are plain integers in the currency's display unit.";
 
-/** Master-data tools carry no dates, only the amount half of the convention. */
 const AMOUNT_CONVENTIONS =
 	"Amounts (blinds, ante, buy-in, stack) are plain integers in the currency's display unit.";
 
-/**
- * variant and mixGames are one setting, not two, and mixGames is not free-form:
- * assertNamedMixComposition rejects anything but an exact reproduction of the
- * named mix. None of that reaches the JSON Schema, and the router's rejection
- * message ("references an unavailable game master") points at ownership rather
- * than at shape — so the description is the only contract the model gets
- * (mcp-tools.md rule 7).
- */
 export const MIX_RULE =
 	'A mixed-game rule is variant + mixGames together: variant must be the label of a game mix from game_mix_list (or the legacy "mix" sentinel), and mixGames its rotation. Sending mixGames without such a variant is rejected. For a named mix, mixGames must reproduce that mix EXACTLY: one entry per game group its variants belong to, entries in the order game_group_list returns those groups, and each entry naming its variants by their game_variant_list label in the mix\'s own games order. Note game_mix_list returns variant IDS, not labels, so build the labels from game_variant_list. Any other grouping or order is rejected as "references an unavailable game master" — the message names ownership, but the cause is usually shape. The legacy "mix" sentinel is the loose form: any owned variant labels, grouped however you like. While a mix is set, the top-level blind1-3, ante and anteType are always stored as null, so values sent for those flat fields are dropped — the blinds of a mix live on each mixGames entry instead (its own blind1-3 / ante / anteType, per group).';
 
@@ -189,10 +172,6 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		inputSchema: tournamentListByRoomInputSchema,
 	},
 
-	// --- Master data ---------------------------------------------------------
-	// Rooms and the game rules attached to them. Sessions reference these, so
-	// editing one changes how existing sessions read: every mutation below is
-	// annotated destructive except pure creation.
 	{
 		name: "room_get_by_id",
 		procedurePath: "room.getById",
@@ -367,15 +346,6 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	},
 ];
 
-/**
- * Plain-language name for each router namespace the catalogue exposes, in the
- * order the consent screen should read them.
- *
- * A namespace with no entry here is a bug, not a default: the screen would
- * silently omit a newly exposed entity, which is the under-representation
- * rule 8 exists to prevent. coupling.test.ts fails on an unnamed namespace
- * rather than letting the copy quietly go stale.
- */
 const ENTITY_NAMES: Record<string, string> = {
 	session: "poker sessions",
 	stats: "statistics",
@@ -398,7 +368,6 @@ export function entityName(namespace: string): string | undefined {
 	return ENTITY_NAMES[namespace];
 }
 
-/** Distinct entity names behind the tools matching `predicate`, ENTITY_NAMES order. */
 function entityNames(predicate: (def: ToolDefinition) => boolean): string[] {
 	const namespaces = new Set(
 		TOOL_DEFINITIONS.filter(predicate).map(toolNamespace)
@@ -415,16 +384,6 @@ function humanList(names: string[]): string {
 	return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 }
 
-/**
- * Plain-language description of what an issued access token can actually do,
- * derived from the tool catalogue.
- *
- * The consent screen must show THIS, not the OAuth scopes: authorization does
- * not consult scopes at all (see buildMcpSession), so every token grants the
- * full tool surface. Deriving the copy from TOOL_DEFINITIONS means adding a
- * write tool cannot silently leave the consent screen under-representing the
- * grant.
- */
 export function toolPermissionSummary(): string[] {
 	const readable = entityNames((def) => toolAnnotations(def).readOnlyHint);
 	const writable = entityNames((def) => !toolAnnotations(def).readOnlyHint);
@@ -434,14 +393,8 @@ export function toolPermissionSummary(): string[] {
 
 	const permissions = [`Read your ${humanList(readable)}`];
 	if (writable.length > 0) {
-		// "or", not "and": an entity reaches this line on any write tool, and
-		// some expose only one of the two (session tags can be created but not
-		// renamed). The destructive line below names which ones can be changed.
 		permissions.push(`Create or change your ${humanList(writable)}`);
 	}
-	// Tracked separately from plain writes: a destructive tool overwrites or
-	// removes data the user already has, which is a materially bigger ask than
-	// appending to it — and the two sets drift apart as tools are added.
 	if (overwritable.length > 0) {
 		permissions.push(
 			`Overwrite ${humanList(overwritable)} that are already in your account — these edits cannot be undone`
@@ -460,11 +413,6 @@ export function toolAnnotations(def: ToolDefinition): ToolAnnotations {
 	};
 }
 
-/**
- * Every appRouter procedure NOT exposed as a tool must appear here with the
- * reason. coupling.test.ts fails when a backend procedure is neither exposed
- * nor listed — adding an API procedure forces an explicit MCP decision.
- */
 export const DELIBERATELY_EXCLUDED: {
 	reason: string;
 	paths: string[];

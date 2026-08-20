@@ -224,7 +224,6 @@ describe("SessionDetailPage", () => {
 		};
 		renderPage();
 		expect(screen.getByText("Live")).toBeInTheDocument();
-		// The Live badge is colored with the green success token.
 		expect(screen.getByText("Live")).toHaveClass("bg-success");
 		expect(screen.getByTestId("live-result-chart")).toBeInTheDocument();
 		expect(screen.getByTestId("session-timeline")).toBeInTheDocument();
@@ -240,8 +239,6 @@ describe("SessionDetailPage", () => {
 		renderPage();
 		const chart = screen.getByTestId("live-result-chart");
 		const ruleHeading = screen.getByRole("heading", { name: "Rule" });
-		// The chart sits inside the P&L card, which precedes the Rule section.
-		// Neither node contains the other, so the position is exactly FOLLOWING.
 		expect(chart.compareDocumentPosition(ruleHeading)).toBe(
 			Node.DOCUMENT_POSITION_FOLLOWING
 		);
@@ -257,7 +254,6 @@ describe("SessionDetailPage", () => {
 		renderPage();
 		const details = screen.getByRole("heading", { name: "Details" });
 		const timeline = screen.getByTestId("session-timeline");
-		// The timeline is a sibling section after the Details card.
 		expect(details.compareDocumentPosition(timeline)).toBe(
 			Node.DOCUMENT_POSITION_FOLLOWING
 		);

@@ -18,11 +18,6 @@ export interface DeleteConfirmDialogProps {
 	title: string;
 }
 
-/**
- * Shared destructive-confirmation dialog for the Games page's three delete
- * flows (group / variant / mix) — same title/description/Cancel/Delete shape
- * for all three, previously copy-pasted verbatim in games-page.tsx.
- */
 export function DeleteConfirmDialog({
 	description,
 	isPending,

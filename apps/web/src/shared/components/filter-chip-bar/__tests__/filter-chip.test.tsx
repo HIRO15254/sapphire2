@@ -5,9 +5,6 @@ import { FilterChip } from "@/shared/components/filter-chip-bar/filter-chip";
 
 const WHITESPACE = /\s+/;
 
-/** The class tokens the chip itself toggles, as discrete tokens (not substrings
- * — the base Button variant carries `aria-invalid:border-destructive`, which a
- * naive `toContain` would false-match). */
 function classTokens(): string[] {
 	return screen.getByRole("button").className.split(WHITESPACE);
 }

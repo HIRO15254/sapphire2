@@ -19,9 +19,6 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
-// Avoid actually loading recharts in tests; the wrapper's lazy boundary still
-// resolves, but the impl module is replaced with a tiny stub so jsdom doesn't
-// have to render SVG.
 vi.mock(
 	"@/features/live-sessions/components/session-result-chart/session-result-chart-impl",
 	() => ({

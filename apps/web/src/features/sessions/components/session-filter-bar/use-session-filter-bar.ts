@@ -27,14 +27,6 @@ export interface UseSessionFilterBarProps {
 	rooms: Array<{ id: string; name: string }>;
 }
 
-/**
- * Drives the sessions chip filter bar, mirroring `useStatsFilterBar`: owns which
- * bottom sheet is open and exposes change handlers that apply each pick
- * immediately (no draft / Apply step — the list refetches off the live filter
- * state). The type / room / currency handlers close the sheet on pick; the
- * period handler keeps the sheet open on `custom` so both date bounds can be set
- * before dismissing.
- */
 export function useSessionFilterBar({
 	bbBiMode,
 	currencies,
@@ -68,15 +60,12 @@ export function useSessionFilterBar({
 		currencies,
 		currentRoomName,
 		currentCurrencyName,
-		// What the presets sheet saves: the live filters plus the Display mode,
-		// which lives outside `SessionFilterValues`.
 		currentPresetPayload: buildSessionsPresetPayload(filters, bbBiMode),
 		onPeriodChange: (value: string) => {
 			if (!value) {
 				return;
 			}
 			patch({ period: value as SessionPeriod });
-			// Keep the sheet open on "custom" so the date inputs can be used.
 			if (value !== "custom") {
 				closeSheet();
 			}
@@ -104,12 +93,6 @@ export function useSessionFilterBar({
 			onBbBiModeChange(value === "normalized");
 			closeSheet();
 		},
-		/**
-		 * Applying a saved preset replaces the filters wholesale (no `patch`
-		 * merge — a preset describes a complete filter state) and restores the
-		 * Display mode it was saved with. A preset written before `display`
-		 * existed leaves the current view untouched.
-		 */
 		onApplyPreset: (payload: SessionsFilterPresetPayload) => {
 			const { display, filters: presetFilters } =
 				splitSessionsPresetPayload(payload);

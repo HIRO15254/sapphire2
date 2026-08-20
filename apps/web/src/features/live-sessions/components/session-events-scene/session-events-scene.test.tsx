@@ -41,8 +41,6 @@ vi.mock("@tanstack/react-query", () => ({
 	}),
 }));
 
-// Stand-in for the v2 full-height sheet hosting the event editors (each
-// editor drives its own Save button).
 vi.mock("@/features/sessions/components/session-form-sheet", () => ({
 	SessionFormSheet: ({
 		children,
@@ -222,7 +220,6 @@ describe("SessionEventsScene", () => {
 		expect(
 			screen.queryByLabelText("Delete Chips Add/Remove")
 		).not.toBeInTheDocument();
-		// The event itself still renders — only editing is removed.
 		expect(screen.getByText("Chips Add/Remove")).toBeInTheDocument();
 	});
 

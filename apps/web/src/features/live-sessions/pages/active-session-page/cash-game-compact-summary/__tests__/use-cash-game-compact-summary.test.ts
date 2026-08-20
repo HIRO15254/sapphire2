@@ -103,12 +103,6 @@ describe("useCashGameCompactSummary", () => {
 	});
 
 	it("hides evPL when evPL equals displayPL", () => {
-		// evPL = currentStack + evDiff - totalBuyIn; displayPL = currentStack - totalBuyIn.
-		// Setting evDiff != 0 but ensuring showEvPL depends on evPL !== displayPL.
-		// With evDiff != 0, evPL always differs from displayPL unless evDiff == 0,
-		// but coverage for the showEvPL=false side with non-null evPL requires
-		// evDiff !== 0 AND evPL === displayPL — impossible arithmetically.
-		// So when evDiff != 0 and evPL is not null, showEvPL must be true.
 		const { result } = renderHook(() =>
 			useCashGameCompactSummary({
 				chipRemoveTotal: 0,
@@ -122,9 +116,6 @@ describe("useCashGameCompactSummary", () => {
 	});
 
 	it("adds chipRemoveTotal to displayPL (issue scenario: 400 + 300 - 500 = 200)", () => {
-		// SA2-124: header P/L must match the server / chart formula
-		// stack + chipRemoveTotal - totalBuyIn. Without chipRemoveTotal the
-		// header would show 400 - 500 = -100, contradicting the chart's +200.
 		const { result } = renderHook(() =>
 			useCashGameCompactSummary({
 				...BASE_INPUT,

@@ -4,10 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 
 const NEW_STORE_RE = /New room/i;
 
-// RoomListCard renders a TanStack Router <Link> (needs router context), so stub
-// the card module. RoomListCardSkeleton comes from the same module and is used
-// by the loading branch, so stub it too. Its real shape is covered by
-// room-list-card-skeleton.test.tsx.
 vi.mock("@/features/rooms/pages/rooms-page/room-list-card", () => ({
 	RoomListCard: ({
 		room,

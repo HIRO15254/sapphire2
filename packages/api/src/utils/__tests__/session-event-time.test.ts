@@ -45,7 +45,6 @@ describe("floorToMinute", () => {
 describe("resolveOccurredAt", () => {
 	it("returns floored client-supplied seconds when occurredAt is provided", () => {
 		const now = new Date("2026-04-24T12:00:00.000Z");
-		// 2026-04-24T10:30:42Z in unix seconds
 		const supplied = Math.floor(
 			new Date("2026-04-24T10:30:42.123Z").getTime() / 1000
 		);
@@ -60,9 +59,6 @@ describe("resolveOccurredAt", () => {
 	});
 
 	it("uses distinct now values for sequential events in different minutes", () => {
-		// Regression: the previous implementation defaulted to sessionDate, so
-		// every event created without an explicit occurredAt collapsed onto the
-		// same timestamp. Each call must use the now passed in.
 		const first = resolveOccurredAt(
 			undefined,
 			new Date("2026-04-24T18:00:10.000Z")
@@ -87,9 +83,6 @@ describe("resolveOccurredAt", () => {
 	});
 
 	it("does not collapse onto sessionDate when no occurredAt is supplied", () => {
-		// The original bug: any default that ignored `now` made every event share
-		// one timestamp. Guard against a regression by passing a sessionDate-like
-		// value as `now` only when the caller actually wants it.
 		const now = new Date("2026-04-24T22:15:00.000Z");
 		const result = resolveOccurredAt(undefined, now);
 		expect(result.getTime()).toBe(now.getTime());

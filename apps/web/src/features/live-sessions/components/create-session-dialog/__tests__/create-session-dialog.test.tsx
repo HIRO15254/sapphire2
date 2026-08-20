@@ -13,8 +13,6 @@ vi.mock(
 	})
 );
 
-// The live form pulls in the session form fields (and trpc) — stub it; this
-// test only asserts the sheet chrome (title) the dialog wraps it in.
 vi.mock(
 	"@/features/live-sessions/components/create-session-dialog/live-session-form",
 	() => ({
@@ -48,7 +46,6 @@ describe("CreateSessionDialog", () => {
 	it("titles the sheet 'Start Live Session' and renders the live form when open", () => {
 		setup();
 		render(<CreateSessionDialog onOpenChange={vi.fn()} open={true} />);
-		// Title renders as both the visible DrawerTitle and an sr-only description.
 		expect(screen.getAllByText("Start Live Session").length).toBeGreaterThan(0);
 		expect(screen.getByTestId("live-session-form")).toBeInTheDocument();
 	});

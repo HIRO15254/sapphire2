@@ -17,8 +17,6 @@ interface UseTagManagerResult<TTag> {
 export function useTagManager<
 	TTag extends { id: string; name: string },
 >(): UseTagManagerResult<TTag> {
-	// Instance-unique form ids: two TagManager instances on one page must not
-	// collide via the HTML `form=` attribute.
 	const id = useId();
 	const createFormId = `${id}-tag-create`;
 	const editFormId = `${id}-tag-edit`;

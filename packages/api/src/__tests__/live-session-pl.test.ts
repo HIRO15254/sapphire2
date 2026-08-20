@@ -442,9 +442,6 @@ describe("computeCashGamePLFromEvents", () => {
 	});
 
 	it("exposes chipRemoveTotal from negative chips_add_remove events (SA2-124)", () => {
-		// buyIn 500, chip removal 300, cashOut 400 =>
-		// profitLoss = 400 + 300 - 500 = 200, and chipRemoveTotal is surfaced
-		// so the live header can mirror the chart's stack + chipRemoveTotal - buyIn.
 		const events = [
 			{
 				eventType: "session_start",
@@ -508,13 +505,10 @@ describe("computeCashGamePLFromEvents", () => {
 		expect(result.chipRemoveTotal).toBe(300);
 		expect(result.addonTotal).toBe(300);
 		expect(result.totalBuyIn).toBe(1300);
-		// profitLoss = 900 + 300 - 1300 = -100
 		expect(result.profitLoss).toBe(-100);
 	});
 
 	it("computes evCashOut correctly using all_in events", () => {
-		// EV diff = potSize * (equity / 100) - (potSize / trials) * wins
-		// potSize=400, equity=75, trials=1, wins=0 => 400 * 0.75 - (400 / 1) * 0 = 300
 		const events = [
 			{
 				eventType: "session_start",
@@ -537,14 +531,10 @@ describe("computeCashGamePLFromEvents", () => {
 		const result = computeCashGamePLFromEvents(events);
 		expect(result.cashOut).toBe(0);
 		expect(result.profitLoss).toBe(-200);
-		// evCashOut = 0 + 300 = 300
 		expect(result.evCashOut).toBe(300);
 	});
 
 	it("computes evCashOut correctly with multiple trials", () => {
-		// EV diff = potSize * (equity / 100) - (potSize / trials) * wins
-		// potSize=600, equity=50, trials=3, wins=2
-		// => 600 * 0.50 - (600 / 3) * 2 = 300 - 400 = -100
 		const events = [
 			{
 				eventType: "session_start",
@@ -567,7 +557,6 @@ describe("computeCashGamePLFromEvents", () => {
 		const result = computeCashGamePLFromEvents(events);
 		expect(result.cashOut).toBe(400);
 		expect(result.profitLoss).toBe(-100);
-		// evCashOut = 400 + (-100) = 300
 		expect(result.evCashOut).toBe(300);
 	});
 
@@ -678,7 +667,6 @@ describe("computeTournamentPLFromEvents", () => {
 		expect(result.totalEntries).toBeNull();
 		expect(result.prizeMoney).toBe(0);
 		expect(result.bountyPrizes).toBe(0);
-		// profitLoss = (0 + 0) - (200 + 20) = -220
 		expect(result.profitLoss).toBe(-220);
 	});
 
@@ -713,7 +701,6 @@ describe("computeTournamentPLFromEvents", () => {
 				}),
 			},
 		];
-		// profitLoss = (1000 + 200) - (200 + 20 + 100 + 50) = 1200 - 370 = 830
 		const result = computeTournamentPLFromEvents(events, 200, 20);
 		expect(result.profitLoss).toBe(830);
 	});
@@ -745,7 +732,6 @@ describe("computeBreakMinutesFromEvents", () => {
 				occurredAt: new Date("2024-01-01T11:30:00Z"),
 			},
 		];
-		// break = 30 minutes
 		expect(computeBreakMinutesFromEvents(events)).toBe(30);
 	});
 
@@ -772,7 +758,6 @@ describe("computeBreakMinutesFromEvents", () => {
 				occurredAt: new Date("2024-01-01T12:45:00Z"),
 			},
 		];
-		// first break = 15 min, second break = 45 min, total = 60
 		expect(computeBreakMinutesFromEvents(events)).toBe(60);
 	});
 
@@ -790,10 +775,6 @@ describe("computeBreakMinutesFromEvents", () => {
 		expect(computeBreakMinutesFromEvents(events)).toBe(0);
 	});
 });
-
-// ---------------------------------------------------------------------------
-// DB mock helpers
-// ---------------------------------------------------------------------------
 
 type SelectResult = Record<string, unknown>[];
 
@@ -893,10 +874,6 @@ function makeSessionEvent(
 		updatedAt: new Date("2024-01-01T10:00:00Z"),
 	};
 }
-
-// ---------------------------------------------------------------------------
-// recalculateCashGameSession tests
-// ---------------------------------------------------------------------------
 
 describe("recalculateCashGameSession — active session (no session_end)", () => {
 	it("updates gameSession status to active and clears any currency transaction", async () => {
@@ -1167,10 +1144,6 @@ describe("recalculateCashGameSession — paused session", () => {
 	});
 });
 
-// ---------------------------------------------------------------------------
-// recalculateTournamentSession tests
-// ---------------------------------------------------------------------------
-
 describe("recalculateTournamentSession — active session", () => {
 	it("updates gameSession status to active and clears any currency transaction", async () => {
 		const events = [
@@ -1248,8 +1221,8 @@ describe("recalculateTournamentSession — completed session, no tournamentId", 
 			events,
 			[session],
 			existingDetail,
-			[], // session_chip_purchase rows (syncChipPurchaseResults)
-			[], // existing currencyTransaction
+			[],
+			[],
 			existingTransactionType,
 		]);
 
@@ -1306,12 +1279,7 @@ describe("recalculateTournamentSession — completed session, no tournamentId", 
 			},
 		];
 
-		const db = makeChainableDb([
-			events,
-			[session],
-			existingDetail,
-			[], // session_chip_purchase rows (syncChipPurchaseResults)
-		]);
+		const db = makeChainableDb([events, [session], existingDetail, []]);
 
 		await recalculateTournamentSession(
 			db as unknown as Parameters<typeof recalculateTournamentSession>[0],
@@ -1376,7 +1344,7 @@ describe("recalculateTournamentSession — completed with tournamentId and linke
 			[session],
 			existingDetail,
 			tournamentMaster,
-			[], // session_chip_purchase rows (syncChipPurchaseResults)
+			[],
 			existingTx,
 		]);
 
@@ -1391,7 +1359,6 @@ describe("recalculateTournamentSession — completed with tournamentId and linke
 		][];
 		const txUpdate = updateSetCalls.find(([arg]) => "amount" in arg);
 		expect(txUpdate).toBeDefined();
-		// profitLoss = 500 - (10000 + 1000) = -10500
 		expect(txUpdate?.[0].amount).toBe(-10_500);
 	});
 });

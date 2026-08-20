@@ -5,10 +5,6 @@ interface RoomLocationLinkProps {
 	longitude: number | null | undefined;
 }
 
-/**
- * "View on Google Maps" link shown on the room detail page when the room has
- * coordinates. Uses the key-free Maps search URL so no API key is needed.
- */
 export function RoomLocationLink({
 	latitude,
 	longitude,

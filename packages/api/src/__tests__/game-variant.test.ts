@@ -52,7 +52,6 @@ const CUR_OTHER = "user-2";
 const OWNED_GROUP = { id: "grp-1", userId: CUR_OWNER, label: "Big Bet" };
 const OTHER_GROUP = { id: "grp-2", userId: CUR_OTHER, label: "Their Group" };
 
-/** Non-empty group/variant rows so list()'s self-seed guard is skipped. */
 function seededRows(extra: { variant?: Rows; group?: Rows } = {}) {
 	return {
 		[GROUP_TABLE]: extra.group ?? [OWNED_GROUP],
@@ -275,9 +274,6 @@ describe("gameVariant.create groupId ownership (SA2-183)", () => {
 	it("accepts a groupId owned by the caller", async () => {
 		const { caller } = gameVariantCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
-			// A dummy pre-existing row so the mock's post-insert lookup (which
-			// does not actually filter by the fresh id — see test-utils.ts's
-			// createChainableMockDb doc comment) resolves to something truthy.
 			[VARIANT_TABLE]: [{ id: "placeholder", userId: CUR_OWNER, label: "X" }],
 		});
 		await expect(
@@ -368,9 +364,6 @@ describe("gameVariant.create collision guard (CONFLICT)", () => {
 	it("accepts a label with no collision in either the variant or mix namespace", async () => {
 		const { caller } = gameVariantCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
-			// A dummy pre-existing row so the mock's post-insert lookup (which
-			// does not actually filter by the fresh id) resolves to something
-			// truthy.
 			[VARIANT_TABLE]: [
 				{ id: "placeholder", userId: CUR_OWNER, label: "X", sortOrder: 0 },
 			],
@@ -619,8 +612,6 @@ describe("gameVariant.list scoping", () => {
 			[VARIANT_TABLE]: [],
 		});
 		await caller.list();
-		// Seeding inserts 3 builtin groups + 21 builtin variants + 3 builtin
-		// mixes (game-mix rework) in one batch.
 		expect(inserted[GROUP_TABLE]).toHaveLength(3);
 		expect(inserted[VARIANT_TABLE]).toHaveLength(21);
 		expect(inserted[MIX_TABLE]).toHaveLength(3);

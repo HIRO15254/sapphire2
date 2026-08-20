@@ -168,7 +168,6 @@ describe("RingGameTab", () => {
 	it("renders the add control without a redundant section heading", () => {
 		setState();
 		render(<RingGameTab roomId="room-1" />);
-		// The enclosing tab already names the section, so no in-panel heading.
 		expect(
 			screen.queryByRole("heading", { name: "Cash games" })
 		).not.toBeInTheDocument();

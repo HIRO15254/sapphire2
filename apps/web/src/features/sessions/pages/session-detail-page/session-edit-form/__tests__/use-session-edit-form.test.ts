@@ -2,10 +2,6 @@ import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { withQueryClient } from "@/__tests__/test-utils";
 
-// useSessionEditForm -> useSessionWizard -> useSessionFormState now calls
-// useGameGroups (trpc.gameGroup.list / trpc.gameVariant.list) for the
-// mix-games master mapping — mock the procedures to the fallback (empty)
-// path, none of the assertions below exercise mix-game rows.
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		gameGroup: {

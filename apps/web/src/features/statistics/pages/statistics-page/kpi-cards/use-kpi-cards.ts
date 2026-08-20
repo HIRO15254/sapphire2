@@ -47,11 +47,6 @@ function netCard(
 	};
 }
 
-/**
- * Net P&L cards. BB (cash) and BI (tournament) live on different scales and can
- * never be summed, so normalized mode shows a single typed card for a single
- * game type and TWO separate cards (BB + BI) when the type filter is "all".
- */
 function buildNetCards(
 	ctx: StatsSectionContext,
 	summary: NetSummary
@@ -108,11 +103,6 @@ interface TournamentSummary {
 	roi: number | null;
 }
 
-/**
- * Tournament cards. Avg ROI (mean of per-session ROI %) is currency-agnostic
- * and always shown; the aggregate ROI sums raw currency amounts, so it only
- * appears when a single currency is pinned. ITM / placement are count-based.
- */
 function buildTournamentCards(
 	ctx: StatsSectionContext,
 	summary: TournamentSummary
@@ -150,12 +140,6 @@ function buildTournamentCards(
 	return cards;
 }
 
-/**
- * Builds the headline KPI card set from `stats.summary`. The card set depends
- * on the game-type filter: "all" shows only the metrics shared by cash and
- * tournaments; cash adds EV diff + hourly; tournaments add ROI / ITM / placing.
- * Normalized mode shows bb (cash) and bi (tournament) figures separately.
- */
 export function useKpiCards(ctx: StatsSectionContext): UseKpiCardsResult {
 	const query = useQuery(
 		trpc.stats.summary.queryOptions(ctx.statsInput, { enabled: ctx.enabled })

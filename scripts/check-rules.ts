@@ -1,13 +1,3 @@
-/**
- * Deterministic conformance checks for the rules in AGENTS.md and
- * .claude/rules/*.md. Run in CI (.github/workflows/ci.yml), by the Claude
- * Code Stop hook (see .claude/settings.json), and manually via
- * `bun run check:rules`.
- *
- * Only checks that are currently green may live here — a red check would
- * block every turn. Once their Linear issues are fixed, add:
- *   - ColorBadge / PlayerAvatar wrapper bans (SA2-112, SA2-119)
- */
 import { readFile } from "node:fs/promises";
 import { Glob } from "bun";
 
@@ -87,12 +77,6 @@ const CHECKS: Check[] = [
 		excludePath: /__tests__|\.test\./,
 	},
 	{
-		// クォート付きの `claude-*` リテラルを丸ごと禁止する。世代名の列挙だと
-		// 旧形式（claude-3-5-sonnet-20241022 のように claude- の直後が数字）を
-		// 取りこぼす。クォート必須なので .claude/rules/... のようなパス文字列や
-		// 散文中の claude-* には当たらない。ワークフロー YAML は対象外 —
-		// pre-merge-review.yml の `--model opus` は可動エイリアスで、
-		// 常に最新 Opus を指すため固定 ID の管理対象ではない。
 		name: "inline Claude model id — import it from packages/api/src/ai/models.ts",
 		rule: ".claude/rules/ai-models.md",
 		globs: [
@@ -107,10 +91,19 @@ const CHECKS: Check[] = [
 		name: "direct DB access in the MCP tool layer — go through appRouter.createCaller",
 		rule: ".claude/rules/mcp-tools.md",
 		globs: ["packages/mcp/src/**/*.ts"],
-		// `@sapphire2/db` の前方一致でバレル import（createDb / schema の再 export）
-		// まで塞ぐ。サブパスだけ見ると `from "@sapphire2/db"` が素通りする。
 		pattern: /from "drizzle-orm|from "@sapphire2\/db/,
 		excludePath: /__tests__|\.test\./,
+	},
+	{
+		name: "comment divider / banner line — comments are near-zero, delete it",
+		rule: ".claude/rules/comments.md",
+		globs: [
+			"apps/**/*.{ts,tsx}",
+			"packages/**/*.{ts,tsx}",
+			"scripts/**/*.{ts,tsx}",
+		],
+		pattern: /^\s*(?:\{?\/\*+|\/{2,}|\*)\s*\S*[-=*#_~─═]{4,}/m,
+		excludePath: /routeTree\.gen\.ts$/,
 	},
 	{
 		name: "GitHub pull-request head ref assigned inside a run script — pass it through step env",
@@ -142,8 +135,6 @@ for (const check of CHECKS) {
 			}
 			seen.add(path);
 			const text = await readFile(path, "utf8");
-			// Multiline patterns (e.g. an <input> whose attributes span lines)
-			// match against the whole file; single-line hits are reported per line.
 			if (!check.pattern.test(text)) {
 				continue;
 			}
@@ -159,11 +150,6 @@ for (const check of CHECKS) {
 					hits.push(`${path}:${i + 1}: ${line.trim()}`);
 				}
 			}
-			// The file matched as a whole but no single line did → a genuine
-			// multiline violation. Guarding on `!anyLineMatched` (not
-			// `!check.excludeLine`) keeps this sound once a check combines an
-			// excludeLine with a multiline pattern: an all-excluded file is not
-			// reported, but a real cross-line hit still is.
 			if (hits.length === hitsBefore && !anyLineMatched) {
 				hits.push(`${path}: (multiline match)`);
 			}
@@ -179,23 +165,7 @@ for (const check of CHECKS) {
 	}
 }
 
-/**
- * bun:sqlite specs must be named in ci.yml's `bun test` step.
- *
- * Their bodies sit behind a `skipIfNotBun` guard, so Vitest's Node projects
- * report them as skipped, not failed. A spec that is also missing from the
- * dedicated `bun test` step therefore runs nowhere and reports green — a
- * failure mode prose in .claude/rules/db-migrations.md cannot catch, which is
- * exactly when AGENTS.md ("Procedure for adding a rule", step 5) calls for a
- * check here. Expressed as a cross-file existence assertion rather than a
- * banned pattern, so it does not fit the CHECKS table above.
- */
 const BUN_SQLITE_STEP = "Test migrations with Bun SQLite";
-// Every workspace, not just packages/db: AGENTS.md colocates tests next to the
-// code, so the next bun:sqlite spec plausibly lands in some other __tests__/ —
-// apps/server's included. `*` does not cross `/`, so a narrower glob would let
-// such a spec escape both this check and the `bun test` step, which is the
-// silent-green hole this exists to close.
 const BUN_SQLITE_SPEC_GLOBS = [
 	"apps/**/__tests__/*.test.ts",
 	"packages/**/__tests__/*.test.ts",
@@ -212,7 +182,6 @@ if (afterStepName === undefined) {
 		`.github/workflows/ci.yml: step "${BUN_SQLITE_STEP}" not found — rename it here too`
 	);
 } else {
-	// Stop at the next step so a spec named in an unrelated step does not count.
 	const stepBody = afterStepName.split(/^\s*- name:/m)[0];
 	const listed = [...stepBody.matchAll(SPEC_TOKEN)].map(
 		(match) =>
@@ -248,24 +217,6 @@ if (unlisted.length > 0) {
 	}
 }
 
-/**
- * Every workflow that seeds a D1 from a master-DB dump must stash the triggers
- * around the restore.
- *
- * A trigger keeps a derived table in sync with *application* writes; a bulk
- * restore is not one, so an armed trigger derives rows the dump already
- * carries. 0049's game_mix compat triggers did exactly that and took
- * db-migrate down with `{"D1_RESET_DO":true}`. preview-deploy.yml was fixed,
- * dev-deploy.yml was not — its seed step is a hand-copied sibling ("mirrors
- * preview-deploy.yml's `is_new_db == 'true'` path"), and a copy is precisely
- * what prose cannot keep in sync. Matching on the restore itself rather than
- * on a workflow allowlist means the next copy of this step is caught too.
- *
- * Each marker is a distinct half of the fix, so they are asserted separately:
- * reading the live DDL back (not re-running a migration), dropping it, and
- * re-arming from ANY state via a drops-then-creates file. A workflow that
- * dropped without re-arming would leave the DB permanently trigger-less.
- */
 const SEED_RESTORE_MARKER = "--file=dump.sql";
 const TRIGGER_STASH_MARKERS: { hint: string; marker: string }[] = [
 	{
@@ -280,8 +231,6 @@ const TRIGGER_STASH_MARKERS: { hint: string; marker: string }[] = [
 ];
 
 const unstashed: string[] = [];
-// `dot: true` is load-bearing: Bun's Glob skips dot-directories by default, so
-// without it this scans .github/ into an empty set and reports green forever.
 for await (const scannedPath of new Glob("workflows/*.yml").scan({
 	cwd: ".github",
 	dot: true,
@@ -305,6 +254,61 @@ if (unstashed.length > 0) {
 	);
 	console.error("  rule: .claude/rules/db-migrations.md");
 	for (const hit of unstashed) {
+		console.error(`  ${hit}`);
+	}
+}
+
+const COMMENT_POLICY_RULE = ".claude/rules/comments.md";
+const COMMENT_GLOBS = [
+	"apps/**/*.{ts,tsx}",
+	"packages/**/*.{ts,tsx}",
+	"scripts/**/*.{ts,tsx}",
+];
+const COMMENT_EXCLUDE_PATH = /routeTree\.gen\.ts$/;
+const COMMENT_LINE = /^\s*(?:\/\/|\/\*|\*\/|\*(?![\w([])|\{\/\*)/;
+const DIRECTIVE_LINE =
+	/biome-ignore|@ts-expect-error|@ts-nocheck|@__PURE__|^\s*\/\/\/\s*<reference\b/;
+const NOTE_MARKER_START = /^\s*\/\/\s*NOTE\((ops|rule)\):\s*\S/;
+const LINE_COMMENT_START = /^\s*\/\//;
+
+const commentHits: string[] = [];
+const commentSeen = new Set<string>();
+for (const glob of COMMENT_GLOBS) {
+	for await (const scannedPath of new Glob(glob).scan(".")) {
+		const path = normalizeRulePath(scannedPath);
+		if (
+			commentSeen.has(path) ||
+			IGNORED_DIRS.test(path) ||
+			COMMENT_EXCLUDE_PATH.test(path)
+		) {
+			continue;
+		}
+		commentSeen.add(path);
+		const text = await readFile(path, "utf8");
+		let inNoteRun = false;
+		for (const [i, line] of text.split("\n").entries()) {
+			if (NOTE_MARKER_START.test(line)) {
+				inNoteRun = true;
+				continue;
+			}
+			if (inNoteRun && LINE_COMMENT_START.test(line)) {
+				continue;
+			}
+			inNoteRun = false;
+			if (COMMENT_LINE.test(line) && !DIRECTIVE_LINE.test(line)) {
+				commentHits.push(`${path}:${i + 1}: ${line.trim()}`);
+			}
+		}
+	}
+}
+
+if (commentHits.length > 0) {
+	failed = true;
+	console.error(
+		"\ncheck-rules FAIL: non-whitelisted comment — knowledge belongs in docs/design/ or .claude/rules/"
+	);
+	console.error(`  rule: ${COMMENT_POLICY_RULE}`);
+	for (const hit of commentHits) {
 		console.error(`  ${hit}`);
 	}
 }

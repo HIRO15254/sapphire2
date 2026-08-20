@@ -105,7 +105,6 @@ describe("useLocalBlindStructure", () => {
 		});
 		const updated = onChange.mock.calls[0][0] as BlindLevelRow[];
 		expect(updated[0].minutes).toBe(25);
-		// Next addLevel should reuse the remembered minutes
 		rerender({ value: updated });
 		act(() => {
 			result.current.handleAddLevel();

@@ -10,7 +10,6 @@ describe("SessionFormSheet", () => {
 				<p>wizard body</p>
 			</SessionFormSheet>
 		);
-		// Title appears as both the visible DrawerTitle and an sr-only description.
 		expect(screen.getAllByText("New session").length).toBeGreaterThan(0);
 		expect(screen.getByText("wizard body")).toBeInTheDocument();
 	});

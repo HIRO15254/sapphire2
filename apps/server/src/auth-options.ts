@@ -18,12 +18,6 @@ interface BuildAuthOptionsDeps {
 	seedGameData?: (db: Database, userId: string) => Promise<void>;
 }
 
-/**
- * The single source of the createAuth options object — every route that
- * instantiates better-auth must use this instead of repeating the literal.
- * The MCP OAuth provider (login page, RFC 8707 resource, consent page) is
- * derived from existing env vars, so /mcp needs no new secrets.
- */
 export function buildAuthOptions(
 	env: AuthEnv,
 	db: Database,

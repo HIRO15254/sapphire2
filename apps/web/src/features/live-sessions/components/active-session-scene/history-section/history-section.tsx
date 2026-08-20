@@ -8,12 +8,6 @@ interface HistorySectionProps {
 	sessionType: "cash_game" | "tournament";
 }
 
-/**
- * Collapsed-by-default event history at the bottom of the active-session
- * page — replaces the dedicated timeline route. The events scene (with its
- * edit / delete flows) only mounts while expanded so the page doesn't pay
- * for 3s polling that nobody is looking at.
- */
 export function HistorySection({
 	sessionId,
 	sessionType,

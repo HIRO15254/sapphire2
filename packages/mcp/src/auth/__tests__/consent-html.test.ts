@@ -16,8 +16,6 @@ describe("renderConsentHtml", () => {
 
 	it("describes the real capability of the token, not OAuth scopes", () => {
 		const html = renderConsentHtml(BASE_PROPS);
-		// Authorization ignores scopes (see buildMcpSession), so the screen must
-		// not imply the grant is limited to what the client requested.
 		expect(html).not.toContain("openid");
 		expect(html).not.toContain("offline_access");
 		expect(html).toContain("Read your poker sessions");
