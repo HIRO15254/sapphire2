@@ -5,6 +5,7 @@ import { stubWebAuthnSupport } from "@/__tests__/test-utils";
 const mocks = vi.hoisted(() => ({
 	listUserPasskeys: vi.fn(),
 	deletePasskey: vi.fn(),
+	updatePasskey: vi.fn(),
 	toastSuccess: vi.fn(),
 	toastError: vi.fn(),
 }));
@@ -18,6 +19,7 @@ vi.mock("@/lib/auth-client", () => ({
 		passkey: {
 			listUserPasskeys: mocks.listUserPasskeys,
 			deletePasskey: mocks.deletePasskey,
+			updatePasskey: mocks.updatePasskey,
 		},
 	},
 }));
@@ -41,6 +43,7 @@ describe("usePasskeys", () => {
 	beforeEach(() => {
 		mocks.listUserPasskeys.mockReset();
 		mocks.deletePasskey.mockReset();
+		mocks.updatePasskey.mockReset();
 		mocks.toastSuccess.mockReset();
 		mocks.toastError.mockReset();
 	});
@@ -182,6 +185,104 @@ describe("usePasskeys", () => {
 
 		expect(mocks.listUserPasskeys).toHaveBeenCalledTimes(2);
 		expect(result.current.passkeys).toEqual([PASSKEY_A]);
+	});
+
+	it("keeps the rename sheet closed until a passkey is targeted", async () => {
+		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY_A] });
+		const { result } = renderHook(() => usePasskeys());
+		await waitFor(() => expect(result.current.loading).toBe(false));
+
+		expect(result.current.renameTarget).toBeNull();
+		act(() => {
+			result.current.onRenameTargetChange(PASSKEY_A);
+		});
+		expect(result.current.renameTarget).toEqual(PASSKEY_A);
+		act(() => {
+			result.current.onRenameTargetChange(null);
+		});
+		expect(result.current.renameTarget).toBeNull();
+	});
+
+	it("onRenamePasskey renames the targeted passkey, closes, and refetches", async () => {
+		const renamed = { ...PASSKEY_A, name: "Work laptop" };
+		mocks.listUserPasskeys
+			.mockResolvedValueOnce({ data: [PASSKEY_A] })
+			.mockResolvedValueOnce({ data: [renamed] });
+		mocks.updatePasskey.mockResolvedValue({ data: { passkey: renamed } });
+
+		const { result } = renderHook(() => usePasskeys());
+		await waitFor(() => expect(result.current.loading).toBe(false));
+		act(() => {
+			result.current.onRenameTargetChange(PASSKEY_A);
+		});
+		await act(async () => {
+			await result.current.onRenamePasskey("Work laptop");
+		});
+
+		expect(mocks.updatePasskey).toHaveBeenCalledTimes(1);
+		expect(mocks.updatePasskey).toHaveBeenNthCalledWith(1, {
+			id: "pk1",
+			name: "Work laptop",
+		});
+		expect(mocks.toastSuccess).toHaveBeenCalledTimes(1);
+		expect(mocks.toastSuccess).toHaveBeenNthCalledWith(1, "Passkey renamed");
+		expect(result.current.renameTarget).toBeNull();
+		expect(mocks.listUserPasskeys).toHaveBeenCalledTimes(2);
+		await waitFor(() => expect(result.current.passkeys).toEqual([renamed]));
+	});
+
+	it("onRenamePasskey does nothing when no passkey is targeted", async () => {
+		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY_A] });
+		const { result } = renderHook(() => usePasskeys());
+		await waitFor(() => expect(result.current.loading).toBe(false));
+
+		await act(async () => {
+			await result.current.onRenamePasskey("Work laptop");
+		});
+
+		expect(mocks.updatePasskey).not.toHaveBeenCalled();
+		expect(mocks.toastSuccess).not.toHaveBeenCalled();
+		expect(mocks.toastError).not.toHaveBeenCalled();
+	});
+
+	it("onRenamePasskey surfaces the error and keeps the sheet open", async () => {
+		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY_A] });
+		mocks.updatePasskey.mockResolvedValue({
+			error: { message: "Passkey not found" },
+		});
+
+		const { result } = renderHook(() => usePasskeys());
+		await waitFor(() => expect(result.current.loading).toBe(false));
+		act(() => {
+			result.current.onRenameTargetChange(PASSKEY_A);
+		});
+		await act(async () => {
+			await result.current.onRenamePasskey("Work laptop");
+		});
+
+		expect(mocks.toastError).toHaveBeenCalledTimes(1);
+		expect(mocks.toastError).toHaveBeenNthCalledWith(1, "Passkey not found");
+		expect(result.current.renameTarget).toEqual(PASSKEY_A);
+		expect(mocks.listUserPasskeys).toHaveBeenCalledTimes(1);
+	});
+
+	it("onRenamePasskey falls back to a fixed message when the error has none", async () => {
+		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY_A] });
+		mocks.updatePasskey.mockResolvedValue({ error: {} });
+
+		const { result } = renderHook(() => usePasskeys());
+		await waitFor(() => expect(result.current.loading).toBe(false));
+		act(() => {
+			result.current.onRenameTargetChange(PASSKEY_A);
+		});
+		await act(async () => {
+			await result.current.onRenamePasskey("Work laptop");
+		});
+
+		expect(mocks.toastError).toHaveBeenNthCalledWith(
+			1,
+			"Failed to rename passkey"
+		);
 	});
 
 	it("clears a previous error once a refetch succeeds", async () => {

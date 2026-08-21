@@ -17,8 +17,12 @@ interface UsePasskeysResult {
 	loading: boolean;
 	onAddOpenChange: (open: boolean) => void;
 	onDeletePasskey: (id: string) => Promise<void>;
+	onRenamePasskey: (name: string) => Promise<void>;
+	onRenameTargetChange: (entry: PasskeyEntry | null) => void;
 	passkeys: PasskeyEntry[];
 	refreshPasskeys: () => Promise<void>;
+	/** The passkey the rename sheet is editing, or null when it is closed. */
+	renameTarget: PasskeyEntry | null;
 	totalPasskeys: number;
 }
 
@@ -27,6 +31,7 @@ export function usePasskeys(): UsePasskeysResult {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [isAddOpen, setIsAddOpen] = useState(false);
+	const [renameTarget, setRenameTarget] = useState<PasskeyEntry | null>(null);
 
 	const refreshPasskeys = useCallback(async () => {
 		try {
@@ -56,6 +61,25 @@ export function usePasskeys(): UsePasskeysResult {
 		await refreshPasskeys();
 	};
 
+	const onRenamePasskey = async (name: string) => {
+		if (!renameTarget) {
+			return;
+		}
+
+		const result = await authClient.passkey.updatePasskey({
+			id: renameTarget.id,
+			name,
+		});
+		if (result.error) {
+			toast.error(result.error.message ?? "Failed to rename passkey");
+			return;
+		}
+
+		toast.success("Passkey renamed");
+		setRenameTarget(null);
+		await refreshPasskeys();
+	};
+
 	return {
 		error,
 		isAddOpen,
@@ -63,8 +87,11 @@ export function usePasskeys(): UsePasskeysResult {
 		loading,
 		onAddOpenChange: setIsAddOpen,
 		onDeletePasskey,
+		onRenamePasskey,
+		onRenameTargetChange: setRenameTarget,
 		passkeys,
 		refreshPasskeys,
+		renameTarget,
 		totalPasskeys: passkeys.length,
 	};
 }

@@ -1,6 +1,8 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const DEVICE_NAME = "Chrome on macOS";
+
 const mocks = vi.hoisted(() => ({
 	addPasskey: vi.fn(),
 	toastSuccess: vi.fn(),
@@ -13,6 +15,10 @@ vi.mock("sonner", () => ({
 
 vi.mock("@/lib/auth-client", () => ({
 	authClient: { passkey: { addPasskey: mocks.addPasskey } },
+}));
+
+vi.mock("@/shared/lib/device-name", () => ({
+	describeCurrentDevice: () => "Chrome on macOS",
 }));
 
 import { useAddPasskeyForm } from "@/features/settings/pages/settings-page/passkeys/use-add-passkey-form";
@@ -45,9 +51,11 @@ describe("useAddPasskeyForm", () => {
 		mocks.toastError.mockReset();
 	});
 
-	it("starts with an empty name", () => {
+	it("starts prefilled with the current device name", () => {
 		const { result } = renderForm();
-		expect(result.current.form.state.values).toEqual({ name: "" });
+		expect(result.current.form.state.values).toEqual({
+			name: DEVICE_NAME,
+		});
 	});
 
 	it("rejects an empty name without touching the authenticator", async () => {
@@ -63,16 +71,16 @@ describe("useAddPasskeyForm", () => {
 		expect(mocks.addPasskey).not.toHaveBeenCalled();
 	});
 
-	it("rejects a name longer than 64 characters", async () => {
+	it("rejects a name longer than 50 characters", async () => {
 		const { result } = renderForm();
-		await submitWithName(result, "a".repeat(65));
+		await submitWithName(result, "a".repeat(51));
 		expect(mocks.addPasskey).not.toHaveBeenCalled();
 	});
 
-	it("accepts a 64-character name", async () => {
+	it("accepts a 50-character name", async () => {
 		mocks.addPasskey.mockResolvedValue({ data: {} });
 		const { result } = renderForm();
-		await submitWithName(result, "a".repeat(64));
+		await submitWithName(result, "a".repeat(50));
 		expect(mocks.addPasskey).toHaveBeenCalledTimes(1);
 	});
 
@@ -90,11 +98,11 @@ describe("useAddPasskeyForm", () => {
 		expect(onOpenChange).toHaveBeenNthCalledWith(1, false);
 	});
 
-	it("clears the field after a successful registration", async () => {
+	it("resets to the device name after a successful registration", async () => {
 		mocks.addPasskey.mockResolvedValue({ data: {} });
 		const { result } = renderForm();
 		await submitWithName(result, "Pixel 9");
-		expect(result.current.form.state.values).toEqual({ name: "" });
+		expect(result.current.form.state.values).toEqual({ name: DEVICE_NAME });
 	});
 
 	it("surfaces a cancelled ceremony and keeps the sheet open", async () => {

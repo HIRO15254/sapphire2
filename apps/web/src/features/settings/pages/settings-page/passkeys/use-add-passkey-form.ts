@@ -2,18 +2,21 @@ import { useForm } from "@tanstack/react-form";
 import { toast } from "sonner";
 import z from "zod";
 import { authClient } from "@/lib/auth-client";
+import { describeCurrentDevice } from "@/shared/lib/device-name";
 
 interface UseAddPasskeyFormOptions {
 	onOpenChange: (open: boolean) => void;
 	onSuccess: () => void;
 }
 
+// Same bounds as the shared TagNameForm the rename sheet reuses, so the two
+// passkey name fields cannot disagree about what is accepted.
 const addPasskeySchema = z.object({
 	name: z
 		.string()
 		.trim()
-		.min(1, "Required")
-		.max(64, "Name must be 64 characters or fewer"),
+		.min(1, "Passkey name is required")
+		.max(50, "Passkey name must be 50 characters or less"),
 });
 
 export function useAddPasskeyForm({
@@ -22,7 +25,9 @@ export function useAddPasskeyForm({
 }: UseAddPasskeyFormOptions) {
 	const form = useForm({
 		defaultValues: {
-			name: "",
+			// Prefilled, not a placeholder: the user can accept or overwrite it,
+			// and either way the passkey ends up with a real name.
+			name: describeCurrentDevice(),
 		},
 		onSubmit: async ({ value }) => {
 			// The browser prompt opens inside this call; a user who dismisses it

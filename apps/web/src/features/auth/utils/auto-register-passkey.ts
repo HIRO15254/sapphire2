@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
+import { describeCurrentDevice } from "@/shared/lib/device-name";
 import { supportsAutomaticPasskeyRegistration } from "@/shared/lib/webauthn";
 
 /**
@@ -17,6 +18,9 @@ import { supportsAutomaticPasskeyRegistration } from "@/shared/lib/webauthn";
  * (no password manager entry, credential already present, user policy) must
  * not turn a successful login into an error message.
  *
+ * The passkey is named after the device it was created on, since nobody is
+ * present to name it; settings offers a rename when the guess reads wrong.
+ *
  * @returns whether a passkey was actually stored.
  */
 export async function autoRegisterPasskey(): Promise<boolean> {
@@ -27,6 +31,7 @@ export async function autoRegisterPasskey(): Promise<boolean> {
 			return false;
 		}
 		const result = await authClient.passkey.addPasskey({
+			name: describeCurrentDevice(),
 			useAutoRegister: true,
 		});
 		return Boolean(result?.data) && !result?.error;

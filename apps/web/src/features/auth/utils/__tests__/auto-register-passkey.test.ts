@@ -14,6 +14,10 @@ vi.mock("@/lib/auth-client", () => ({
 	authClient: { passkey: { addPasskey: mocks.addPasskey } },
 }));
 
+vi.mock("@/shared/lib/device-name", () => ({
+	describeCurrentDevice: () => "Chrome on macOS",
+}));
+
 vi.mock("@/shared/lib/webauthn", () => ({
 	supportsAutomaticPasskeyRegistration:
 		mocks.supportsAutomaticPasskeyRegistration,
@@ -44,6 +48,7 @@ describe("autoRegisterPasskey", () => {
 		expect(await autoRegisterPasskey()).toBe(true);
 		expect(mocks.addPasskey).toHaveBeenCalledTimes(1);
 		expect(mocks.addPasskey).toHaveBeenNthCalledWith(1, {
+			name: "Chrome on macOS",
 			useAutoRegister: true,
 		});
 	});

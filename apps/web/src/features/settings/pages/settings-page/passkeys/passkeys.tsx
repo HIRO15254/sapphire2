@@ -1,9 +1,10 @@
-import { IconKey, IconTrash } from "@tabler/icons-react";
+import { IconKey, IconPencil, IconTrash } from "@tabler/icons-react";
 import { FormSheet } from "@/shared/components/form-sheet";
 import {
 	ManagementList,
 	ManagementListItem,
 } from "@/shared/components/management/management-list";
+import { TagNameForm } from "@/shared/components/management/tag-name-form";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
@@ -13,6 +14,7 @@ import { useAddPasskeyForm } from "./use-add-passkey-form";
 import { usePasskeys } from "./use-passkeys";
 
 const ADD_PASSKEY_FORM_ID = "add-passkey-form";
+const RENAME_PASSKEY_FORM_ID = "rename-passkey-form";
 
 function AddPasskeyForm({
 	formId,
@@ -71,8 +73,11 @@ export function Passkeys() {
 		loading,
 		onAddOpenChange,
 		onDeletePasskey,
+		onRenamePasskey,
+		onRenameTargetChange,
 		passkeys,
 		refreshPasskeys,
+		renameTarget,
 		totalPasskeys,
 	} = usePasskeys();
 
@@ -101,15 +106,26 @@ export function Passkeys() {
 					{passkeys.map((entry) => (
 						<ManagementListItem
 							actions={
-								<Button
-									aria-label={`Remove ${entry.name || "passkey"}`}
-									onClick={() => onDeletePasskey(entry.id)}
-									size="sm"
-									variant="outline"
-								>
-									<IconTrash />
-									Remove
-								</Button>
+								<div className="flex items-center gap-2">
+									<Button
+										aria-label={`Rename ${entry.name || "passkey"}`}
+										onClick={() => onRenameTargetChange(entry)}
+										size="sm"
+										variant="outline"
+									>
+										<IconPencil />
+										Rename
+									</Button>
+									<Button
+										aria-label={`Remove ${entry.name || "passkey"}`}
+										onClick={() => onDeletePasskey(entry.id)}
+										size="sm"
+										variant="outline"
+									>
+										<IconTrash />
+										Remove
+									</Button>
+								</div>
 							}
 							className="min-h-14"
 							description={`Added ${formatLocalYmdSlash(entry.createdAt)}`}
@@ -149,6 +165,30 @@ export function Passkeys() {
 					formId={ADD_PASSKEY_FORM_ID}
 					onOpenChange={onAddOpenChange}
 					onSuccess={refreshPasskeys}
+				/>
+			</FormSheet>
+
+			<FormSheet
+				formId={RENAME_PASSKEY_FORM_ID}
+				onOpenChange={(open) => {
+					if (!open) {
+						onRenameTargetChange(null);
+					}
+				}}
+				open={renameTarget !== null}
+				title="Rename passkey"
+			>
+				{/*
+				 * Keyed on the passkey id so opening the sheet for a different
+				 * entry remounts the form: `defaultName` only seeds the initial
+				 * render, so a reused instance would keep the previous name.
+				 */}
+				<TagNameForm
+					defaultName={renameTarget?.name ?? ""}
+					formId={RENAME_PASSKEY_FORM_ID}
+					key={renameTarget?.id}
+					label="Passkey name"
+					onSubmit={onRenamePasskey}
 				/>
 			</FormSheet>
 		</div>
