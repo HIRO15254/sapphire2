@@ -48,3 +48,37 @@ export function parseConsentPageQuery(url: string): ConsentPageQuery | null {
 	}
 	return { clientId, code };
 }
+
+const LOGIN_PROMPT_COOKIE = "oidc_login_prompt";
+
+export function stripLoginPromptCookie(
+	cookieHeader: string | null | undefined
+): string | null {
+	const header = cookieHeader?.trim();
+	if (!header) {
+		return null;
+	}
+	const pairs = header.split(";").map((pair) => pair.trim());
+	const kept = pairs.filter(
+		(pair) => pair.split("=")[0]?.trim() !== LOGIN_PROMPT_COOKIE
+	);
+	if (kept.length === pairs.length) {
+		return header;
+	}
+	return kept.length > 0 ? kept.join("; ") : null;
+}
+
+export function withoutLoginPromptCookie(request: Request): Request {
+	const cookieHeader = request.headers.get("cookie");
+	const stripped = stripLoginPromptCookie(cookieHeader);
+	if (stripped === cookieHeader || !(cookieHeader || stripped)) {
+		return request;
+	}
+	const headers = new Headers(request.headers);
+	if (stripped) {
+		headers.set("cookie", stripped);
+	} else {
+		headers.delete("cookie");
+	}
+	return new Request(request, { headers });
+}
