@@ -10,7 +10,12 @@ const mocks = vi.hoisted(() => ({
 	signInPasskey: vi.fn(),
 	toastSuccess: vi.fn(),
 	toastError: vi.fn(),
+	offerAutomaticPasskey: vi.fn(),
 	env: { VITE_SERVER_URL: "http://localhost:8787" },
+}));
+
+vi.mock("@/features/auth/utils/auto-register-passkey", () => ({
+	offerAutomaticPasskey: mocks.offerAutomaticPasskey,
 }));
 
 vi.mock("@sapphire2/env/web", () => ({
@@ -70,7 +75,26 @@ describe("useSignIn", () => {
 		mocks.signInPasskey.mockReset();
 		mocks.toastSuccess.mockReset();
 		mocks.toastError.mockReset();
+		mocks.offerAutomaticPasskey.mockReset();
 	});
+
+	/** Drive a valid email/password submit whose onSuccess callback fires. */
+	async function submitValidCredentials(
+		result: { current: ReturnType<typeof useSignIn> },
+		mockSignIn = mocks.signInEmail
+	) {
+		mockSignIn.mockImplementation((_credentials, callbacks) => {
+			callbacks?.onSuccess?.();
+			return Promise.resolve();
+		});
+		act(() => {
+			result.current.form.setFieldValue("email", "user@example.com");
+			result.current.form.setFieldValue("password", "password123");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+	}
 
 	it("exposes isPending from the session hook", () => {
 		mocks.useSession.mockReturnValue({ isPending: true });
@@ -352,6 +376,47 @@ describe("useSignIn", () => {
 			1,
 			"Passkey sign in failed"
 		);
+	});
+
+	it("offers the silent passkey upgrade after a password sign-in", async () => {
+		const { result } = renderHook(() => useSignIn());
+		await submitValidCredentials(result);
+		expect(mocks.offerAutomaticPasskey).toHaveBeenCalledTimes(1);
+	});
+
+	it("skips the upgrade mid-OAuth, where the page is about to be torn down", async () => {
+		const restore = stubLocation({ search: OAUTH_SEARCH });
+		const { result } = renderHook(() => useSignIn());
+		await submitValidCredentials(result);
+		expect(mocks.offerAutomaticPasskey).not.toHaveBeenCalled();
+		restore();
+	});
+
+	it("does not offer the upgrade after a failed sign-in", async () => {
+		mocks.signInEmail.mockImplementation((_credentials, callbacks) => {
+			callbacks?.onError?.({
+				error: { message: "Invalid credentials", statusText: "Unauthorized" },
+			});
+			return Promise.resolve();
+		});
+		const { result } = renderHook(() => useSignIn());
+		act(() => {
+			result.current.form.setFieldValue("email", "user@example.com");
+			result.current.form.setFieldValue("password", "password123");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(mocks.offerAutomaticPasskey).not.toHaveBeenCalled();
+	});
+
+	it("does not offer the upgrade after a passkey sign-in", async () => {
+		mocks.signInPasskey.mockResolvedValue({ data: { session: {} } });
+		const { result } = renderHook(() => useSignIn());
+		await act(async () => {
+			await result.current.onSignInWithPasskey();
+		});
+		expect(mocks.offerAutomaticPasskey).not.toHaveBeenCalled();
 	});
 
 	it("onSignInWithPasskey: treats a missing result as a failure", async () => {

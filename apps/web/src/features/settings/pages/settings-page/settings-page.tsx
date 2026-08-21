@@ -33,7 +33,10 @@ export function SettingsPage() {
 						<LinkedAccounts />
 					</PageSection>
 
-					<PageSection heading="Passkeys">
+					<PageSection
+						description="Sign in without a password. On devices that support it, a passkey is saved automatically the first time you sign in."
+						heading="Passkeys"
+					>
 						<Passkeys />
 					</PageSection>
 
