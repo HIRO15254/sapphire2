@@ -99,3 +99,13 @@ Because DCR is open, every client-supplied value is hostile input: the name and 
 ## Web login continuation
 
 When the authorize endpoint sees an unauthenticated user, better-auth redirects to the web app's `/login` carrying the original authorize query; after sign-in the client sends the browser back to the **server's** authorize endpoint. The client-side helper that does this (`apps/web/src/features/auth/utils/oauth-redirect.ts`) keeps open-redirect vectors closed by fixing the destination and forwarding only allowlisted OAuth parameters — that invariant is documented in [`web-platform.md`](web-platform.md).
+
+### The web app is the ONLY continuation mechanism
+
+> **Do not stop stripping `oidc_login_prompt`.** `withoutLoginPromptCookie` in [`apps/server/src/oauth-consent.ts`](../../apps/server/src/oauth-consent.ts) removes that cookie from **every** request the Worker forwards to `auth.handler`, which disables better-auth's own login continuation. Both the `mcp()` and `oidc-provider` plugins register an after-hook matching *every* route: when the authorize endpoint redirects an unauthenticated user it first stores the whole authorize query in a signed `oidc_login_prompt` cookie, and the hook then re-runs `authorizeMCPOAuth` on the next response that sets a session token — replacing that response with a **302 to the consent page**.
+
+That hook is written for form-post logins. The web app signs in over **XHR** (`authClient.signIn.email`), and a 302-to-HTML is not something the better-auth client can parse: the call lands in `onError`, the user sees a generic sign-in failure, `pendingAuthorizeUrl()` never runs, and the consent code is burned. The user *is* signed in, so a second attempt succeeds — the symptom is "MCP authorization fails the first time, works if you retry".
+
+Whether it fires at all depends on the deployment's domain layout, which is why it is invisible in some environments and fatal in others: the cookie is `SameSite=Lax`, so it is withheld from a **cross-site** sign-in XHR (`*.pages.dev` → `*.workers.dev`) but sent from a **same-site** one (`app.example.com` → `api.example.com`, and `localhost:3001` → `localhost:8787` in local dev, where the flow was reproducibly broken). Stripping the cookie makes the flow identical everywhere and leaves exactly one continuation path — the allowlisted client-side redirect above.
+
+The OAuth provider callbacks (`/api/auth/callback/*`) are top-level navigations where the hook's 302 would have worked, but they are stripped too: `socialCallbackUrl()` already returns the browser to `/login` with the authorize query, so the client-side helper carries them just like an email sign-in.
