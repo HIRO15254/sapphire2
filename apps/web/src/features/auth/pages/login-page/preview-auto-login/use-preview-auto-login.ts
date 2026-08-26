@@ -1,6 +1,7 @@
 import { env } from "@sapphire2/env/web";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
+import { pendingAuthorizeUrl } from "@/features/auth/utils/login-continuation";
 import { authClient } from "@/lib/auth-client";
 
 export function usePreviewAutoLogin(): void {
@@ -26,9 +27,15 @@ export function usePreviewAutoLogin(): void {
 		authClient.signIn
 			.email({ email, password })
 			.then((result) => {
-				if (result.data) {
-					navigate({ to: "/statistics" });
+				if (!result.data) {
+					return;
 				}
+				const authorizeUrl = pendingAuthorizeUrl();
+				if (authorizeUrl) {
+					window.location.assign(authorizeUrl);
+					return;
+				}
+				navigate({ to: "/statistics" });
 			})
 			.catch((error) => {
 				console.error("Preview auto-login failed", error);

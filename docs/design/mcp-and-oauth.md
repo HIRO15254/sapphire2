@@ -100,7 +100,13 @@ Because DCR is open, every client-supplied value is hostile input: the name and 
 
 When the authorize endpoint sees an unauthenticated user, better-auth redirects to the web app's `/login` carrying the original authorize query; after sign-in the client sends the browser back to the **server's** authorize endpoint. The client-side helper that does this (`apps/web/src/features/auth/utils/oauth-redirect.ts`) keeps open-redirect vectors closed by fixing the destination and forwarding only allowlisted OAuth parameters — that invariant is documented in [`web-platform.md`](web-platform.md).
 
-`pendingAuthorizeUrl()` / `socialCallbackUrl()` in [`apps/web/src/features/auth/utils/login-continuation.ts`](../../apps/web/src/features/auth/utils/login-continuation.ts) wrap that helper and are the **only** place the app decides where a successful authentication lands. Every entry point that can create a session must use them — email sign-in, email sign-up, and the social buttons on **both** forms — because a MCP client's first connection often reaches an unregistered user, who signs up rather than signs in. A form that navigates straight to `/statistics` silently discards the authorize flow with no error shown.
+`pendingAuthorizeUrl()` / `socialCallbackUrl()` in [`apps/web/src/features/auth/utils/login-continuation.ts`](../../apps/web/src/features/auth/utils/login-continuation.ts) wrap that helper for everything that reads the **browser's** location. Every client-side entry point that can establish a session must go through them, because whatever lands on `/login` with an authorize query can be any of them and a plain `navigate({ to: "/statistics" })` discards that query silently, with no error shown — the exact failure this section exists to prevent. Today that is:
+
+- `useSignIn` — email sign-in, plus the Google/Discord buttons via `socialCallbackUrl()`.
+- `useSignUp` — the same two paths. A MCP client's first connection often reaches an **unregistered** user, who signs up rather than signs in.
+- `usePreviewAutoLogin` — only active under `VITE_PREVIEW_AUTO_LOGIN=true`, but that is exactly the preview environment used to verify this flow by hand.
+
+The `/login` route's `beforeLoad` ([`apps/web/src/routes/login.tsx`](../../apps/web/src/routes/login.tsx)) is the one deliberate caller of `resolveMcpAuthorizeRedirect` outside those helpers: it covers the already-signed-in visitor and receives the router's parsed `location.search` record rather than reading `window`, so it cannot share the same signature. Adding a fourth client-side entry point means adding it to the list above, not to that route.
 
 ### The web app is the ONLY continuation mechanism
 
