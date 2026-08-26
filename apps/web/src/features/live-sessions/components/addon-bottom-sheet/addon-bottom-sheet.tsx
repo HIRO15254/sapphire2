@@ -11,6 +11,7 @@ interface AddonBottomSheetProps {
 	onOpenChange: (open: boolean) => void;
 	onSubmit: (addon: { amount: number }) => void;
 	open: boolean;
+	sheetClassName?: string;
 }
 
 export function AddonBottomSheet({
@@ -19,6 +20,7 @@ export function AddonBottomSheet({
 	initialAmount,
 	onSubmit,
 	onDelete,
+	sheetClassName,
 }: AddonBottomSheetProps) {
 	const { form } = useAddonForm({ initialAmount, open, onSubmit });
 
@@ -26,6 +28,7 @@ export function AddonBottomSheet({
 
 	return (
 		<FormSheet
+			contentClassName={sheetClassName}
 			formId={ADDON_FORM_ID}
 			onOpenChange={onOpenChange}
 			open={open}

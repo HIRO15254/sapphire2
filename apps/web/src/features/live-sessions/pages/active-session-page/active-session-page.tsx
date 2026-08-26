@@ -1,15 +1,25 @@
+import { cn } from "@/lib/utils";
 import { QueryError } from "@/shared/components/query-error";
 import { EmptyState } from "@/shared/components/ui/empty-state";
+import { CRYST_SCOPE } from "@/shared/lib/theme";
 import { CashGameSession } from "./cash-game-session";
 import { TournamentSession } from "./tournament-session";
 import { useActiveSessionPage } from "./use-active-session-page";
+
+const FRAME_CLASS = "flex h-[calc(100dvh-4rem)] flex-col overflow-hidden";
 
 export function ActiveSessionPage() {
 	const { activeSession, isError, isLoading, onRetry } = useActiveSessionPage();
 
 	if (isLoading) {
 		return (
-			<div className="flex h-[100dvh] items-center justify-center pb-16">
+			<div
+				className={cn(
+					CRYST_SCOPE,
+					FRAME_CLASS,
+					"items-center justify-center bg-background text-foreground"
+				)}
+			>
 				<EmptyState
 					className="border-none bg-transparent py-0"
 					description="Fetching the current active session."
@@ -21,7 +31,13 @@ export function ActiveSessionPage() {
 
 	if (isError) {
 		return (
-			<div className="flex h-[100dvh] items-center justify-center p-4 pb-16">
+			<div
+				className={cn(
+					CRYST_SCOPE,
+					FRAME_CLASS,
+					"items-center justify-center bg-background p-4 text-foreground"
+				)}
+			>
 				<QueryError
 					message="Unable to load the active session"
 					onRetry={onRetry}
@@ -32,7 +48,13 @@ export function ActiveSessionPage() {
 
 	if (!activeSession) {
 		return (
-			<div className="flex h-[100dvh] items-center justify-center pb-16">
+			<div
+				className={cn(
+					CRYST_SCOPE,
+					FRAME_CLASS,
+					"items-center justify-center bg-background text-foreground"
+				)}
+			>
 				<EmptyState
 					className="border-none bg-transparent py-0"
 					description="Start a live session from the sessions screen."
@@ -43,7 +65,13 @@ export function ActiveSessionPage() {
 	}
 
 	return (
-		<div className="p-4 md:p-6">
+		<div
+			className={cn(
+				CRYST_SCOPE,
+				FRAME_CLASS,
+				"relative bg-background text-foreground"
+			)}
+		>
 			{activeSession.type === "cash_game" ? (
 				<CashGameSession sessionId={activeSession.id} />
 			) : (

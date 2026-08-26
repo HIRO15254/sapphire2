@@ -1,5 +1,6 @@
 import { IconX } from "@tabler/icons-react";
 import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/shared/components/ui/button";
 import {
 	Drawer,
@@ -10,6 +11,7 @@ import {
 
 interface SessionFormSheetProps {
 	children: ReactNode;
+	contentClassName?: string;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 	title: string;
@@ -17,13 +19,19 @@ interface SessionFormSheetProps {
 
 export function SessionFormSheet({
 	children,
+	contentClassName,
 	onOpenChange,
 	open,
 	title,
 }: SessionFormSheetProps) {
 	return (
 		<Drawer dismissible={false} onOpenChange={onOpenChange} open={open}>
-			<DrawerContent className="flex h-[calc(100svh-2rem)] flex-col rounded-t-xl">
+			<DrawerContent
+				className={cn(
+					"flex h-[calc(100svh-2rem)] flex-col rounded-t-xl",
+					contentClassName
+				)}
+			>
 				<div className="grid shrink-0 grid-cols-[auto_1fr_auto] items-center gap-2 border-b px-2 py-1.5">
 					<Button
 						aria-label="Close"

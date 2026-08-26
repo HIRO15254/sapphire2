@@ -1,4 +1,4 @@
-import { FormSheet } from "@/shared/components/form-sheet";
+import { BottomSheet } from "@/shared/components/bottom-sheet";
 import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
@@ -26,9 +26,11 @@ export function TournamentTimerDialog({
 	const { form } = useTournamentTimerDialog({ open, timerStartedAt, onSubmit });
 
 	return (
-		<FormSheet
+		<BottomSheet
+			cancelLabel="Cancel"
+			confirmLabel="Save"
 			formId={TIMER_FORM_ID}
-			isLoading={isLoading}
+			isConfirmPending={isLoading}
 			onOpenChange={onOpenChange}
 			open={open}
 			title={timerStartedAt ? "Edit Timer Start" : "Start Tournament Timer"}
@@ -74,6 +76,6 @@ export function TournamentTimerDialog({
 					</Button>
 				) : null}
 			</form>
-		</FormSheet>
+		</BottomSheet>
 	);
 }

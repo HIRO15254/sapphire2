@@ -65,7 +65,7 @@ The four formula sites that must never drift:
 1. Server: [`live-session-pl.ts`](../../packages/api/src/services/live-session-pl.ts) (also surfaces `chipRemoveTotal` for the live header).
 2. Chart: [`session-timeline.ts`](../../apps/web/src/features/live-sessions/utils/session-timeline.ts).
 3. Optimistic layer: [`optimistic-session-event.ts`](../../apps/web/src/features/live-sessions/utils/optimistic-session-event.ts) (`session_end`: `cashOutAmount` drives `profitLoss` via the same formula).
-4. Live header: [`use-cash-game-compact-summary.ts`](../../apps/web/src/features/live-sessions/pages/active-session-page/cash-game-compact-summary/use-cash-game-compact-summary.ts) (`stack + chipRemoveTotal − totalBuyIn`).
+4. Live header: [`use-cash-game-session-view.ts`](../../apps/web/src/features/live-sessions/pages/active-session-page/cash-game-session/use-cash-game-session-view.ts) (`stack + chipRemoveTotal − totalBuyIn`).
 
 Recalculation runs on **every** event write, so editing an unrelated field (e.g. memo) must not regress the currency ledger to the chip-remove-blind value. The same figure feeds the fallback EV so `evDiff` stays isolated to all-in equity (EV semantics: [`statistics.md`](statistics.md)).
 

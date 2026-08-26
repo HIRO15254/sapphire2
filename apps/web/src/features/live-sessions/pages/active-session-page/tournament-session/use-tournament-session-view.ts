@@ -1,16 +1,18 @@
-import { IconCoins, IconNote } from "@tabler/icons-react";
-import { useState } from "react";
+import { IconCards, IconClock, IconTrash } from "@tabler/icons-react";
+import { useEffect, useState } from "react";
 import type { ActionsDrawerItem } from "@/features/live-sessions/components/actions-drawer";
-import { useActiveSessionSceneState } from "@/features/live-sessions/components/active-session-scene";
+import { useActiveSessionSceneState } from "@/features/live-sessions/hooks/use-active-session-scene-state";
+import { useSessionEvents } from "@/features/live-sessions/hooks/use-session-events";
 import { useTournamentSession } from "@/features/live-sessions/hooks/use-tournament-session";
 import { useTournamentStack } from "@/features/live-sessions/hooks/use-tournament-stack";
 import type { TournamentBlindLevel } from "@/features/live-sessions/utils/tournament-timer";
+import { formatClockElapsed } from "@/utils/format-elapsed-time";
+import { formatCompactNumber, formatNumber } from "@/utils/format-number";
+import { findLastStackUpdateAt } from "../cash-game-session/use-cash-game-session-view";
+import type { PlayerPanelSelection } from "../player-panel";
+import type { TableViewPlayerSeat } from "../table-view";
 
-export interface TournamentSummaryData {
-	averageStack: number | null;
-	remainingPlayers: number | null;
-	totalEntries: number | null;
-}
+const EVENTS_REFETCH_MS = 30_000;
 
 type TournamentCompleteValues =
 	| {
@@ -26,30 +28,46 @@ type TournamentCompleteValues =
 			prizeMoney: number;
 	  };
 
-function buildTournamentSummary(
-	summary: Record<string, unknown>
-): TournamentSummaryData {
-	return {
-		averageStack:
-			typeof summary.averageStack === "number" ? summary.averageStack : null,
-		remainingPlayers:
-			typeof summary.remainingPlayers === "number"
-				? summary.remainingPlayers
-				: null,
-		totalEntries:
-			typeof summary.totalEntries === "number" ? summary.totalEntries : null,
-	};
-}
-
 export function useTournamentSessionView(sessionId: string) {
 	const tournamentSession = useTournamentSession(sessionId);
 	const stack = useTournamentStack({ sessionId });
-	const [isTimerDialogOpen, setIsTimerDialogOpen] = useState(false);
+	const { events } = useSessionEvents({
+		sessionId,
+		sessionType: "tournament",
+		refetchInterval: EVENTS_REFETCH_MS,
+	});
+
+	const [selection, setSelection] = useState<PlayerPanelSelection | null>(null);
+	const [joinSeatPosition, setJoinSeatPosition] = useState<number | null>(null);
 	const [isBuyChipsOpen, setIsBuyChipsOpen] = useState(false);
 	const [isMemoOpen, setIsMemoOpen] = useState(false);
 	const [isCompleteOpen, setIsCompleteOpen] = useState(false);
+	const [isTimerDialogOpen, setIsTimerDialogOpen] = useState(false);
+	const [isTimelineOpen, setIsTimelineOpen] = useState(false);
+	const [isRuleOpen, setIsRuleOpen] = useState(false);
+	const [isScanOpen, setIsScanOpen] = useState(false);
+	const [isDiscardOpen, setIsDiscardOpen] = useState(false);
 
 	const session = tournamentSession.session;
+	const isPaused =
+		(session as { status?: string } | undefined)?.status === "paused";
+	const startedAt =
+		(session as { startedAt?: Date | string | number | null } | undefined)
+			?.startedAt ?? null;
+
+	const [pausedElapsedText, setPausedElapsedText] = useState("—");
+	useEffect(() => {
+		if (!isPaused) {
+			return;
+		}
+		setPausedElapsedText(formatClockElapsed(startedAt));
+		const id = setInterval(
+			() => setPausedElapsedText(formatClockElapsed(startedAt)),
+			1000
+		);
+		return () => clearInterval(id);
+	}, [isPaused, startedAt]);
+
 	const rawHeroSeat = session?.heroSeatPosition;
 	const heroSeatPosition =
 		typeof rawHeroSeat === "number" && rawHeroSeat >= 0 ? rawHeroSeat : null;
@@ -60,12 +78,18 @@ export function useTournamentSessionView(sessionId: string) {
 		tableSize: (session as { tableSize?: number | null })?.tableSize ?? null,
 	});
 
-	const tournamentSummary: TournamentSummaryData | null = session
-		? buildTournamentSummary(
-				((session as { summary?: Record<string, unknown> }).summary ??
-					{}) as Record<string, unknown>
-			)
-		: null;
+	const summary = ((session as { summary?: Record<string, unknown> })
+		?.summary ?? {}) as Record<string, unknown>;
+	const currentStack =
+		typeof summary.currentStack === "number" ? summary.currentStack : null;
+	const averageStack =
+		typeof summary.averageStack === "number" ? summary.averageStack : null;
+	const remainingPlayers =
+		typeof summary.remainingPlayers === "number"
+			? summary.remainingPlayers
+			: null;
+	const totalEntries =
+		typeof summary.totalEntries === "number" ? summary.totalEntries : null;
 
 	const blindLevels = ((session as { blindLevels?: TournamentBlindLevel[] })
 		?.blindLevels ?? []) as TournamentBlindLevel[];
@@ -74,38 +98,57 @@ export function useTournamentSessionView(sessionId: string) {
 			?.timerStartedAt ?? null;
 	const hasStructure = blindLevels.length > 0;
 
-	const handleOpenTimerDialog = () => {
-		setIsTimerDialogOpen(true);
-	};
+	const seatedPlayers: TableViewPlayerSeat[] = sceneState.seats.flatMap((s) =>
+		s.player
+			? [
+					{
+						playerId: s.player.playerId,
+						playerName: s.player.name,
+						seatPosition: s.seatPosition,
+					},
+				]
+			: []
+	);
 
-	const handleClearTimer = () => {
-		tournamentSession.updateTimerStartedAt(null);
-		setIsTimerDialogOpen(false);
-	};
+	const activeSelection =
+		selection &&
+		seatedPlayers.some(
+			(p) =>
+				p.playerId === selection.playerId &&
+				p.seatPosition === selection.seatPosition
+		)
+			? selection
+			: null;
 
-	const handleSubmitTimer = (value: Date) => {
-		tournamentSession.updateTimerStartedAt(value);
-		setIsTimerDialogOpen(false);
-	};
-
-	const eventMenuExtraItems: ActionsDrawerItem[] = [
+	const menuItems: ActionsDrawerItem[] = [
 		{
-			icon: IconCoins,
-			label: "Buy chips",
-			onSelect: () => setIsBuyChipsOpen(true),
+			icon: IconCards,
+			label: "Game settings",
+			onSelect: () => setIsRuleOpen(true),
 		},
+		...(hasStructure
+			? [
+					{
+						icon: IconClock,
+						label: "Timer settings",
+						onSelect: () => setIsTimerDialogOpen(true),
+					},
+				]
+			: []),
 		{
-			icon: IconNote,
-			label: "Memo",
-			onSelect: () => setIsMemoOpen(true),
+			icon: IconTrash,
+			label: "Discard session",
+			onSelect: () => setIsDiscardOpen(true),
+			tone: "destructive" as const,
 		},
 	];
 
 	return {
-		...tournamentSession,
 		blindLevels,
 		chipPurchaseTypes: stack.chipPurchaseTypes,
-		eventMenuExtraItems,
+		defaultRemainingPlayers: remainingPlayers,
+		defaultTotalEntries: totalEntries,
+		discard: tournamentSession.discard,
 		handleBuyChipsSubmit: (values: {
 			chips: number;
 			cost: number;
@@ -115,7 +158,10 @@ export function useTournamentSessionView(sessionId: string) {
 			stack.purchaseChips(values);
 			setIsBuyChipsOpen(false);
 		},
-		handleClearTimer,
+		handleClearTimer: () => {
+			tournamentSession.updateTimerStartedAt(null);
+			setIsTimerDialogOpen(false);
+		},
 		handleCompleteSubmit: (values: TournamentCompleteValues) => {
 			stack.complete(values);
 			setIsCompleteOpen(false);
@@ -124,22 +170,99 @@ export function useTournamentSessionView(sessionId: string) {
 			stack.addMemo(text);
 			setIsMemoOpen(false);
 		},
-		handleOpenTimerDialog,
-		handleSubmitTimer,
+		handleRecordStack: (values: {
+			remainingPlayers?: number;
+			stackAmount: number;
+			totalEntries?: number;
+		}) => {
+			stack.recordStack(values);
+		},
+		handleSubmitTimer: (value: Date) => {
+			tournamentSession.updateTimerStartedAt(value);
+			setIsTimerDialogOpen(false);
+		},
 		hasStructure,
 		isBuyChipsOpen,
 		isCompleteOpen,
 		isCompletePending: stack.isCompletePending,
+		isDiscardOpen,
+		isDiscardPending: tournamentSession.isDiscardPending,
 		isMemoOpen,
+		isPaused,
+		isRuleOpen,
+		isScanOpen,
+		isStackPending: stack.isStackPending,
+		isTimelineOpen,
 		isTimerDialogOpen,
+		isUpdatingTimer: tournamentSession.isUpdatingTimer,
+		joinSeatPosition,
+		lastStackUpdatedAt: findLastStackUpdateAt(events),
+		menuItems,
+		onCloseDiscard: () => setIsDiscardOpen(false),
+		onCloseJoin: () => setJoinSeatPosition(null),
+		onEmptySeatTap: (seatPosition: number) => {
+			if (!isPaused) {
+				setJoinSeatPosition(seatPosition);
+			}
+		},
 		onEndSession: () => setIsCompleteOpen(true),
-		onPause: () => stack.pause(),
+		onLeavePlayer: (sel: PlayerPanelSelection) => {
+			sceneState.onRemovePlayer(sel.playerId);
+			setSelection(null);
+		},
+		onOpenBuyChips: () => {
+			if (!isPaused) {
+				setIsBuyChipsOpen(true);
+			}
+		},
+		onOpenMemo: () => setIsMemoOpen(true),
+		onOpenRule: () => setIsRuleOpen(true),
+		onOpenTimeline: () => setIsTimelineOpen(true),
+		onOpenTimerDialog: () => setIsTimerDialogOpen(true),
+		onPlayerSeatTap: (seat: TableViewPlayerSeat) => {
+			if (!isPaused) {
+				setSelection(seat);
+			}
+		},
+		onResume: () => stack.resume(),
+		onScanFromJoin: () => {
+			setJoinSeatPosition(null);
+			setIsScanOpen(true);
+		},
+		onScanFromTable: () => {
+			if (!isPaused) {
+				setIsScanOpen(true);
+			}
+		},
+		onTogglePause: () => {
+			if (isPaused) {
+				stack.resume();
+			} else {
+				stack.pause();
+			}
+		},
+		pausedElapsedText,
 		sceneState,
+		seatedPlayers,
+		selection: activeSelection,
+		session: session ?? null,
 		setIsBuyChipsOpen,
 		setIsCompleteOpen,
 		setIsMemoOpen,
+		setIsRuleOpen,
+		setIsScanOpen,
+		setIsTimelineOpen,
 		setIsTimerDialogOpen,
+		startedAt,
+		tableCenter: {
+			averageStackText:
+				averageStack === null ? "—" : formatCompactNumber(averageStack),
+			remainText:
+				remainingPlayers === null && totalEntries === null
+					? "—"
+					: `${remainingPlayers ?? "—"}/${totalEntries ?? "—"}`,
+			stackText: currentStack === null ? "—" : formatNumber(currentStack),
+		},
 		timerStartedAt,
-		tournamentSummary,
 	};
 }

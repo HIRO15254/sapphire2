@@ -1,5 +1,6 @@
 import { IconCheck, IconX } from "@tabler/icons-react";
 import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/shared/components/ui/button";
 import {
 	Drawer,
@@ -10,6 +11,7 @@ import {
 
 interface FormSheetProps {
 	children: ReactNode;
+	contentClassName?: string;
 	formId: string;
 	isLoading?: boolean;
 	isSaveDisabled?: boolean;
@@ -20,6 +22,7 @@ interface FormSheetProps {
 
 export function FormSheet({
 	children,
+	contentClassName,
 	formId,
 	isLoading = false,
 	isSaveDisabled = false,
@@ -29,7 +32,9 @@ export function FormSheet({
 }: FormSheetProps) {
 	return (
 		<Drawer dismissible={false} onOpenChange={onOpenChange} open={open}>
-			<DrawerContent className="h-[calc(100svh-2rem)] rounded-t-xl">
+			<DrawerContent
+				className={cn("h-[calc(100svh-2rem)] rounded-t-xl", contentClassName)}
+			>
 				<div className="grid shrink-0 grid-cols-[auto_1fr_auto] items-center gap-2 border-b px-2 py-1.5">
 					<Button
 						aria-label="Cancel"

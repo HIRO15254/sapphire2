@@ -16,10 +16,12 @@ interface SeatFromScreenshotSheetProps {
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 	sessionParam: SessionParam;
+	sheetClassName?: string;
 	tableSize: number;
 }
 
 export function SeatFromScreenshotSheet({
+	sheetClassName,
 	heroSeatPosition,
 	occupiedSeatPositions,
 	onOpenChange,
@@ -216,6 +218,7 @@ export function SeatFromScreenshotSheet({
 
 	return (
 		<SessionFormSheet
+			contentClassName={sheetClassName}
 			onOpenChange={onOpenChange}
 			open={open}
 			title="Seat from screenshot"
