@@ -124,11 +124,13 @@ describe("usePreviewAutoLogin", () => {
 		await waitFor(() =>
 			expect(window.location.assign).toHaveBeenCalledTimes(1)
 		);
-		const target = locationAssignCalls()[0]?.[0] as string;
-		expect(
-			target.startsWith("http://localhost:8787/api/auth/mcp/authorize?")
-		).toBe(true);
-		expect(target).toContain("client_id=c1");
+		const url = new URL(locationAssignCalls()[0]?.[0] as string);
+		expect(url.origin).toBe("http://localhost:8787");
+		expect(url.pathname).toBe("/api/auth/mcp/authorize");
+		expect(url.searchParams.get("client_id")).toBe("c1");
+		expect(url.searchParams.get("response_type")).toBe("code");
+		expect(url.searchParams.get("redirect_uri")).toBe("https://claude.ai/cb");
+		expect(url.searchParams.get("state")).toBe("s1");
 		expect(mocks.navigate).not.toHaveBeenCalled();
 	});
 

@@ -106,6 +106,8 @@ When the authorize endpoint sees an unauthenticated user, better-auth redirects 
 - `useSignUp` — the same two paths. A MCP client's first connection often reaches an **unregistered** user, who signs up rather than signs in.
 - `usePreviewAutoLogin` — only active under `VITE_PREVIEW_AUTO_LOGIN=true`, but that is exactly the preview environment used to verify this flow by hand.
 
+That list is not a promise anyone has to remember: [`scripts/check-rules.ts`](../../scripts/check-rules.ts) fails when a non-test file under `apps/web/src/features/auth/**` calls `authClient.signIn` / `authClient.signUp` without importing `login-continuation`. The invariant was written as prose first and broken twice before the check existed, which is exactly the case `AGENTS.md` reserves a `check-rules` entry for.
+
 The `/login` route's `beforeLoad` ([`apps/web/src/routes/login.tsx`](../../apps/web/src/routes/login.tsx)) is the one deliberate caller of `resolveMcpAuthorizeRedirect` outside those helpers: it covers the already-signed-in visitor and receives the router's parsed `location.search` record rather than reading `window`, so it cannot share the same signature. Adding a fourth client-side entry point means adding it to the list above, not to that route.
 
 ### The web app is the ONLY continuation mechanism
