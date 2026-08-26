@@ -170,9 +170,12 @@ vi.mock(
 	})
 );
 
-vi.mock("@/features/live-sessions/pages/active-session-page/rule-sheet", () => ({
-	RuleSheet: () => null,
-}));
+vi.mock(
+	"@/features/live-sessions/pages/active-session-page/rule-sheet",
+	() => ({
+		RuleSheet: () => null,
+	})
+);
 
 vi.mock(
 	"@/features/live-sessions/pages/active-session-page/cash-game-session",
