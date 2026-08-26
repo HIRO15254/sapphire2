@@ -4,6 +4,7 @@ import {
 	IconUser,
 	IconUserOff,
 	IconUserPlus,
+	IconUserQuestion,
 	IconUserStar,
 	IconX,
 } from "@tabler/icons-react";
@@ -39,6 +40,7 @@ export function JoinSeatSheet({
 	onScan,
 	onSeatExisting,
 	onSeatHero,
+	onSeatNew,
 	onSeatTemporary,
 	open,
 	seatPosition,
@@ -50,6 +52,7 @@ export function JoinSeatSheet({
 		onCreate,
 		onScanClick,
 		onSelectExisting,
+		onTemporary,
 		onToggleHero,
 		query,
 		setQuery,
@@ -62,6 +65,7 @@ export function JoinSeatSheet({
 		onScan,
 		onSeatExisting,
 		onSeatHero,
+		onSeatNew,
 		onSeatTemporary,
 		seatPosition,
 	});
@@ -111,7 +115,7 @@ export function JoinSeatSheet({
 									{trimmedQuery}
 								</span>
 								<span className="text-[var(--m-text-caption)] text-muted-foreground">
-									New temporary player
+									New player
 								</span>
 							</span>
 						</button>
@@ -165,6 +169,15 @@ export function JoinSeatSheet({
 						/>
 					</div>
 				) : null}
+
+				<button
+					className="flex h-[var(--m-control)] w-full items-center gap-2.5 rounded-md border border-border px-3 text-left text-[var(--m-text-footnote)]"
+					onClick={onTemporary}
+					type="button"
+				>
+					<IconUserQuestion className="text-muted-foreground" size={17} />
+					<span className="flex-1">Seat a temporary player</span>
+				</button>
 
 				<button
 					className="flex h-[var(--m-control)] w-full items-center gap-2.5 rounded-md border border-border px-3 text-left font-semibold text-[var(--m-text-footnote)]"

@@ -96,6 +96,7 @@ export function CashGameSession({ sessionId }: { sessionId: string }) {
 			) : null}
 
 			<ActionsDrawer
+				contentClassName={CRYST_SCOPE}
 				description="Add or withdraw chips."
 				items={vm.chipMenuItems}
 				onOpenChange={vm.setIsChipMenuOpen}

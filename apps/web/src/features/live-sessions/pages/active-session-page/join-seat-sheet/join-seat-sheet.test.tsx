@@ -93,7 +93,7 @@ describe("JoinSeatSheet", () => {
 		expect(props.onOpenChange).toHaveBeenNthCalledWith(1, false);
 	});
 
-	it("seats a temporary player once and closes the sheet when the create row is tapped", async () => {
+	it("seats a new named player once and closes the sheet when the create row is tapped", async () => {
 		const user = userEvent.setup();
 		const { props } = renderSheet({ seatPosition: 1 });
 		await user.type(
@@ -101,8 +101,20 @@ describe("JoinSeatSheet", () => {
 			"Sunglasses"
 		);
 		await user.click(screen.getByText("Sunglasses"));
+		expect(props.onSeatNew).toHaveBeenCalledTimes(1);
+		expect(props.onSeatNew).toHaveBeenNthCalledWith(1, 1, {
+			name: "Sunglasses",
+		});
+		expect(props.onOpenChange).toHaveBeenCalledTimes(1);
+		expect(props.onOpenChange).toHaveBeenNthCalledWith(1, false);
+	});
+
+	it("seats an anonymous temporary player from the temporary row", async () => {
+		const user = userEvent.setup();
+		const { props } = renderSheet({ seatPosition: 2 });
+		await user.click(screen.getByText("Seat a temporary player"));
 		expect(props.onSeatTemporary).toHaveBeenCalledTimes(1);
-		expect(props.onSeatTemporary).toHaveBeenNthCalledWith(1, 1);
+		expect(props.onSeatTemporary).toHaveBeenNthCalledWith(1, 2);
 		expect(props.onOpenChange).toHaveBeenCalledTimes(1);
 		expect(props.onOpenChange).toHaveBeenNthCalledWith(1, false);
 	});

@@ -11,6 +11,7 @@ import {
 	type ActionsDrawerItem,
 } from "@/features/live-sessions/components/actions-drawer";
 import { Button } from "@/shared/components/ui/button";
+import { CRYST_SCOPE } from "@/shared/lib/theme";
 import { useSessionHeader } from "./use-session-header";
 
 interface SessionHeaderProps {
@@ -104,6 +105,7 @@ export function SessionHeader({
 						<IconDotsVertical className="size-5" />
 					</Button>
 					<ActionsDrawer
+						contentClassName={CRYST_SCOPE}
 						description="More session actions."
 						items={menuItems.map((item) => ({
 							...item,

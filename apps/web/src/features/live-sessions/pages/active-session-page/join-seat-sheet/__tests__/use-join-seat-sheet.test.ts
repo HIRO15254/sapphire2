@@ -183,21 +183,33 @@ describe("useJoinSeatSheet", () => {
 	});
 
 	describe("onCreate", () => {
-		it("seats a temporary player at the seat and closes the sheet", () => {
+		it("seats a new named player at the seat and closes the sheet", () => {
 			const { options, result } = render({ seatPosition: 1 });
 			act(() => result.current.setQuery("Sunglasses"));
 			act(() => result.current.onCreate());
-			expect(options.onSeatTemporary).toHaveBeenCalledTimes(1);
-			expect(options.onSeatTemporary).toHaveBeenNthCalledWith(1, 1);
+			expect(options.onSeatNew).toHaveBeenCalledTimes(1);
+			expect(options.onSeatNew).toHaveBeenNthCalledWith(1, 1, {
+				name: "Sunglasses",
+			});
+			expect(options.onSeatTemporary).not.toHaveBeenCalled();
 			expect(options.onOpenChange).toHaveBeenCalledTimes(1);
 			expect(options.onOpenChange).toHaveBeenNthCalledWith(1, false);
+		});
+
+		it("trims the typed name before seating", () => {
+			const { options, result } = render({ seatPosition: 2 });
+			act(() => result.current.setQuery("  Red cap  "));
+			act(() => result.current.onCreate());
+			expect(options.onSeatNew).toHaveBeenNthCalledWith(1, 2, {
+				name: "Red cap",
+			});
 		});
 
 		it("is a no-op when the query is blank", () => {
 			const { options, result } = render({ seatPosition: 1 });
 			act(() => result.current.setQuery("   "));
 			act(() => result.current.onCreate());
-			expect(options.onSeatTemporary).not.toHaveBeenCalled();
+			expect(options.onSeatNew).not.toHaveBeenCalled();
 			expect(options.onOpenChange).not.toHaveBeenCalled();
 		});
 
@@ -205,6 +217,24 @@ describe("useJoinSeatSheet", () => {
 			const { options, result } = render({ seatPosition: null });
 			act(() => result.current.setQuery("Sunglasses"));
 			act(() => result.current.onCreate());
+			expect(options.onSeatNew).not.toHaveBeenCalled();
+			expect(options.onOpenChange).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("onTemporary", () => {
+		it("seats an anonymous temporary player and closes the sheet", () => {
+			const { options, result } = render({ seatPosition: 4 });
+			act(() => result.current.onTemporary());
+			expect(options.onSeatTemporary).toHaveBeenCalledTimes(1);
+			expect(options.onSeatTemporary).toHaveBeenNthCalledWith(1, 4);
+			expect(options.onOpenChange).toHaveBeenCalledTimes(1);
+			expect(options.onOpenChange).toHaveBeenNthCalledWith(1, false);
+		});
+
+		it("is a no-op when there is no seat position", () => {
+			const { options, result } = render({ seatPosition: null });
+			act(() => result.current.onTemporary());
 			expect(options.onSeatTemporary).not.toHaveBeenCalled();
 			expect(options.onOpenChange).not.toHaveBeenCalled();
 		});

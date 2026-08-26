@@ -19,6 +19,10 @@ interface UseJoinSeatSheetOptions {
 		playerName: string
 	) => void;
 	onSeatHero: (seatPosition: number) => void;
+	onSeatNew: (
+		seatPosition: number,
+		values: { memo?: string | null; name: string; tagIds?: string[] }
+	) => void;
 	onSeatTemporary: (seatPosition: number) => void;
 	seatPosition: number | null;
 }
@@ -29,6 +33,7 @@ export function useJoinSeatSheet({
 	onScan,
 	onSeatExisting,
 	onSeatHero,
+	onSeatNew,
 	onSeatTemporary,
 	seatPosition,
 }: UseJoinSeatSheetOptions) {
@@ -60,6 +65,13 @@ export function useJoinSeatSheet({
 		matches,
 		onCreate: () => {
 			if (!(trimmedQuery && seatPosition !== null)) {
+				return;
+			}
+			onSeatNew(seatPosition, { name: trimmedQuery });
+			closeSheet();
+		},
+		onTemporary: () => {
+			if (seatPosition === null) {
 				return;
 			}
 			onSeatTemporary(seatPosition);

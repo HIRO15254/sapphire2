@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import { cn } from "@/lib/utils";
 import {
 	Drawer,
 	DrawerContent,
@@ -20,6 +21,7 @@ export interface ActionsDrawerItem {
 }
 
 interface ActionsDrawerProps {
+	contentClassName?: string;
 	description: string;
 	emptyMessage?: string;
 	items: ActionsDrawerItem[];
@@ -29,6 +31,7 @@ interface ActionsDrawerProps {
 }
 
 export function ActionsDrawer({
+	contentClassName,
 	description,
 	emptyMessage,
 	items,
@@ -38,7 +41,7 @@ export function ActionsDrawer({
 }: ActionsDrawerProps) {
 	return (
 		<Drawer onOpenChange={onOpenChange} open={open}>
-			<DrawerContent className="rounded-t-xl">
+			<DrawerContent className={cn("rounded-t-xl", contentClassName)}>
 				<div
 					aria-hidden
 					className="mx-auto mt-2 mb-1 h-1 w-9 shrink-0 rounded-full bg-muted-foreground/35"

@@ -147,12 +147,18 @@ export function useCashGameSessionView(sessionId: string) {
 		{
 			icon: IconCirclePlus,
 			label: "Add chips",
-			onSelect: () => setIsAddChipsOpen(true),
+			onSelect: () => {
+				setIsChipMenuOpen(false);
+				setIsAddChipsOpen(true);
+			},
 		},
 		{
 			icon: IconSquareRoundedMinus,
 			label: "Remove chips",
-			onSelect: () => setIsRemoveChipsOpen(true),
+			onSelect: () => {
+				setIsChipMenuOpen(false);
+				setIsRemoveChipsOpen(true);
+			},
 		},
 	];
 
