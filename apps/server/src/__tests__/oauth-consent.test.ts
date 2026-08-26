@@ -190,6 +190,23 @@ describe("withoutLoginPromptCookie", () => {
 		expect(withoutLoginPromptCookie(request)).toBe(request);
 	});
 
+	it("returns the same request when the cookie header is empty", () => {
+		const request = new Request(target, {
+			method: "POST",
+			headers: { cookie: "" },
+		});
+		expect(withoutLoginPromptCookie(request)).toBe(request);
+	});
+
+	it("returns the same request for a whitespace-only cookie header, which Headers normalizes to empty", () => {
+		const request = new Request(target, {
+			method: "POST",
+			headers: { cookie: "   " },
+		});
+		expect(request.headers.get("cookie")).toBe("");
+		expect(withoutLoginPromptCookie(request)).toBe(request);
+	});
+
 	it("removes the login prompt cookie while keeping the session cookie", () => {
 		const request = new Request(target, {
 			method: "POST",

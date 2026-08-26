@@ -8,11 +8,35 @@ const mocks = vi.hoisted(() => ({
 	signInSocial: vi.fn(),
 	toastSuccess: vi.fn(),
 	toastError: vi.fn(),
+	env: { VITE_SERVER_URL: "http://localhost:8787" },
+}));
+
+vi.mock("@sapphire2/env/web", () => ({
+	env: new Proxy(mocks.env, {
+		get: (target, prop) => target[prop as keyof typeof target],
+	}),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
 	useNavigate: () => mocks.navigate,
 }));
+
+function stubLocation(overrides: Partial<Location>): () => void {
+	const originalLocation = window.location;
+	Object.defineProperty(window, "location", {
+		configurable: true,
+		value: { ...originalLocation, assign: vi.fn(), ...overrides },
+	});
+	return () => {
+		Object.defineProperty(window, "location", {
+			configurable: true,
+			value: originalLocation,
+		});
+	};
+}
+
+const OAUTH_SEARCH =
+	"?client_id=c1&response_type=code&redirect_uri=https%3A%2F%2Fclaude.ai%2Fcb&state=s1";
 
 vi.mock("sonner", () => ({
 	toast: {
@@ -136,6 +160,33 @@ describe("useSignUp", () => {
 		expect(mocks.toastSuccess).toHaveBeenCalledWith("Sign up successful");
 	});
 
+	it("on success mid-OAuth: resumes the authorize flow instead of entering the app", async () => {
+		const restore = stubLocation({ search: OAUTH_SEARCH });
+		mocks.signUpEmail.mockImplementation((_credentials, callbacks) => {
+			callbacks?.onSuccess?.();
+			return Promise.resolve();
+		});
+		const { result } = renderHook(() => useSignUp());
+		act(() => {
+			result.current.form.setFieldValue("name", "Alice");
+			result.current.form.setFieldValue("email", "alice@example.com");
+			result.current.form.setFieldValue("password", "password123");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(window.location.assign).toHaveBeenCalledTimes(1);
+		const target = (window.location.assign as ReturnType<typeof vi.fn>).mock
+			.calls[0]?.[0] as string;
+		expect(
+			target.startsWith("http://localhost:8787/api/auth/mcp/authorize?")
+		).toBe(true);
+		expect(target).toContain("client_id=c1");
+		expect(mocks.navigate).not.toHaveBeenCalled();
+		expect(mocks.toastSuccess).not.toHaveBeenCalled();
+		restore();
+	});
+
 	it("on error: toasts provided message", async () => {
 		mocks.signUpEmail.mockImplementation((_credentials, callbacks) => {
 			callbacks?.onError?.({
@@ -174,15 +225,52 @@ describe("useSignUp", () => {
 		expect(mocks.toastError).toHaveBeenCalledWith("Conflict");
 	});
 
-	it("onSignInWithGoogle: calls social signin with google", async () => {
+	it("onSignInWithGoogle: calls social signin with google and statistics callback", async () => {
+		const restore = stubLocation({ origin: "https://app.test", search: "" });
 		mocks.signInSocial.mockResolvedValue({ error: null });
 		const { result } = renderHook(() => useSignUp());
 		await act(async () => {
 			await result.current.onSignInWithGoogle();
 		});
-		expect(mocks.signInSocial).toHaveBeenCalledWith(
-			expect.objectContaining({ provider: "google" })
-		);
+		expect(mocks.signInSocial).toHaveBeenCalledWith({
+			provider: "google",
+			callbackURL: "https://app.test/statistics",
+		});
+		restore();
+	});
+
+	it("onSignInWithGoogle mid-OAuth: returns to /login with the authorize query preserved", async () => {
+		const restore = stubLocation({
+			origin: "https://app.test",
+			search: OAUTH_SEARCH,
+		});
+		mocks.signInSocial.mockResolvedValue({ error: null });
+		const { result } = renderHook(() => useSignUp());
+		await act(async () => {
+			await result.current.onSignInWithGoogle();
+		});
+		expect(mocks.signInSocial).toHaveBeenCalledWith({
+			provider: "google",
+			callbackURL: `https://app.test/login${OAUTH_SEARCH}`,
+		});
+		restore();
+	});
+
+	it("onSignInWithDiscord mid-OAuth: returns to /login with the authorize query preserved", async () => {
+		const restore = stubLocation({
+			origin: "https://app.test",
+			search: OAUTH_SEARCH,
+		});
+		mocks.signInSocial.mockResolvedValue({ error: null });
+		const { result } = renderHook(() => useSignUp());
+		await act(async () => {
+			await result.current.onSignInWithDiscord();
+		});
+		expect(mocks.signInSocial).toHaveBeenCalledWith({
+			provider: "discord",
+			callbackURL: `https://app.test/login${OAUTH_SEARCH}`,
+		});
+		restore();
 	});
 
 	it("onSignInWithGoogle: toasts fallback 'Google sign up unavailable'", async () => {

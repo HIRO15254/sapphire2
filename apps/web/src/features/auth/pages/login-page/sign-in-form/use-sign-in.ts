@@ -1,22 +1,16 @@
-import { env } from "@sapphire2/env/web";
 import { useForm } from "@tanstack/react-form";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import z from "zod";
-import { resolveMcpAuthorizeRedirect } from "@/features/auth/utils/oauth-redirect";
+import {
+	pendingAuthorizeUrl,
+	socialCallbackUrl,
+} from "@/features/auth/utils/login-continuation";
 import { authClient } from "@/lib/auth-client";
 
 export function useSignIn() {
 	const navigate = useNavigate({ from: "/" });
 	const { isPending } = authClient.useSession();
-
-	const pendingAuthorizeUrl = () =>
-		resolveMcpAuthorizeRedirect(env.VITE_SERVER_URL, window.location.search);
-
-	const socialCallbackUrl = () =>
-		pendingAuthorizeUrl()
-			? `${window.location.origin}/login${window.location.search}`
-			: `${window.location.origin}/statistics`;
 
 	const form = useForm({
 		defaultValues: {

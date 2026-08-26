@@ -71,7 +71,7 @@ export function stripLoginPromptCookie(
 export function withoutLoginPromptCookie(request: Request): Request {
 	const cookieHeader = request.headers.get("cookie");
 	const stripped = stripLoginPromptCookie(cookieHeader);
-	if (stripped === cookieHeader || !(cookieHeader || stripped)) {
+	if (!cookieHeader || stripped === cookieHeader) {
 		return request;
 	}
 	const headers = new Headers(request.headers);

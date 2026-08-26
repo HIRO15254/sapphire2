@@ -94,6 +94,28 @@ describe("oidc_login_prompt stripping", () => {
 		expect(lastRequest().headers.get("cookie")).toBeNull();
 	});
 
+	it("leaves the cookie in place on /api/auth/set-password, which bypasses auth.handler", async () => {
+		const response = await app.request(
+			"/api/auth/set-password",
+			{
+				method: "POST",
+				headers: {
+					cookie: `${SESSION_COOKIE}; ${LOGIN_PROMPT_COOKIE}`,
+					"content-type": "application/json",
+				},
+				body: JSON.stringify({ newPassword: "password1234" }),
+			},
+			env
+		);
+		expect(response.status).toBe(200);
+		expect(handlerRequests).toHaveLength(0);
+		expect(setPassword).toHaveBeenCalledTimes(1);
+		const headers = setPassword.mock.calls[0]?.[0]?.headers as Headers;
+		expect(headers.get("cookie")).toBe(
+			`${SESSION_COOKIE}; ${LOGIN_PROMPT_COOKIE}`
+		);
+	});
+
 	it("forwards the sign-in body and content type unchanged", async () => {
 		const body = JSON.stringify({
 			email: "tester@example.test",
