@@ -9,10 +9,11 @@ import type { ActionsDrawerItem } from "@/features/live-sessions/components/acti
 import { useActiveSessionSceneState } from "@/features/live-sessions/hooks/use-active-session-scene-state";
 import { useCashGameSession } from "@/features/live-sessions/hooks/use-cash-game-session";
 import { useCashGameStack } from "@/features/live-sessions/hooks/use-cash-game-stack";
+import { useSessionEvents } from "@/features/live-sessions/hooks/use-session-events";
 import {
-	type SessionEvent,
-	useSessionEvents,
-} from "@/features/live-sessions/hooks/use-session-events";
+	deltaToneOf,
+	findLastStackUpdateAt,
+} from "@/features/live-sessions/utils/live-session-view";
 import { formatClockElapsed } from "@/utils/format-elapsed-time";
 import { formatNumber } from "@/utils/format-number";
 import { formatProfitLoss } from "@/utils/format-profit-loss";
@@ -20,27 +21,6 @@ import type { PlayerPanelSelection } from "../player-panel";
 import type { TableViewPlayerSeat } from "../table-view";
 
 const EVENTS_REFETCH_MS = 30_000;
-
-export function findLastStackUpdateAt(
-	events: SessionEvent[]
-): SessionEvent["occurredAt"] | null {
-	for (let i = events.length - 1; i >= 0; i--) {
-		const event = events[i];
-		if (event?.eventType === "update_stack") {
-			return event.occurredAt;
-		}
-	}
-	return null;
-}
-
-export function deltaToneOf(
-	value: number | null
-): "positive" | "negative" | "neutral" {
-	if (value === null || value === 0) {
-		return "neutral";
-	}
-	return value > 0 ? "positive" : "negative";
-}
 
 function computeCashCenterModel(
 	summary:

@@ -5,10 +5,10 @@ import { useActiveSessionSceneState } from "@/features/live-sessions/hooks/use-a
 import { useSessionEvents } from "@/features/live-sessions/hooks/use-session-events";
 import { useTournamentSession } from "@/features/live-sessions/hooks/use-tournament-session";
 import { useTournamentStack } from "@/features/live-sessions/hooks/use-tournament-stack";
+import { findLastStackUpdateAt } from "@/features/live-sessions/utils/live-session-view";
 import type { TournamentBlindLevel } from "@/features/live-sessions/utils/tournament-timer";
 import { formatClockElapsed } from "@/utils/format-elapsed-time";
 import { formatCompactNumber, formatNumber } from "@/utils/format-number";
-import { findLastStackUpdateAt } from "../cash-game-session/use-cash-game-session-view";
 import type { PlayerPanelSelection } from "../player-panel";
 import type { TableViewPlayerSeat } from "../table-view";
 

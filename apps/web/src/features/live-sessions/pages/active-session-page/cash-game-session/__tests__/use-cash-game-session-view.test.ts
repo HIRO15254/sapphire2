@@ -77,11 +77,11 @@ vi.mock(
 	})
 );
 
+import { useCashGameSessionView } from "@/features/live-sessions/pages/active-session-page/cash-game-session/use-cash-game-session-view";
 import {
 	deltaToneOf,
 	findLastStackUpdateAt,
-	useCashGameSessionView,
-} from "@/features/live-sessions/pages/active-session-page/cash-game-session/use-cash-game-session-view";
+} from "@/features/live-sessions/utils/live-session-view";
 
 function makeSession(
 	overrides: Record<string, unknown> = {}
