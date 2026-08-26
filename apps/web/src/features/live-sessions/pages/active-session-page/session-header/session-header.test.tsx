@@ -5,6 +5,8 @@ import type React from "react";
 import { describe, expect, it, vi } from "vitest";
 import { SessionHeader } from "@/features/live-sessions/pages/active-session-page/session-header";
 
+const TITLE_PATTERN = /Cash Game/;
+
 function setup(
 	overrides: Partial<React.ComponentProps<typeof SessionHeader>> = {}
 ) {
@@ -64,7 +66,7 @@ describe("SessionHeader", () => {
 	it("renders the title as plain text without onTitleTap", () => {
 		setup();
 		expect(
-			screen.queryByRole("button", { name: /Cash Game/ })
+			screen.queryByRole("button", { name: TITLE_PATTERN })
 		).not.toBeInTheDocument();
 	});
 
@@ -72,7 +74,7 @@ describe("SessionHeader", () => {
 		const user = userEvent.setup();
 		const onTitleTap = vi.fn();
 		setup({ onTitleTap });
-		await user.click(screen.getByRole("button", { name: /Cash Game/ }));
+		await user.click(screen.getByRole("button", { name: TITLE_PATTERN }));
 		expect(onTitleTap).toHaveBeenCalledTimes(1);
 	});
 

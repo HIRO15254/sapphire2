@@ -42,6 +42,44 @@ export function deltaToneOf(
 	return value > 0 ? "positive" : "negative";
 }
 
+function computeCashCenterModel(
+	summary:
+		| {
+				chipRemoveTotal?: unknown;
+				currentStack: number | null;
+				evDiff?: unknown;
+				totalBuyIn: number;
+		  }
+		| undefined
+) {
+	const chipRemoveTotal =
+		typeof summary?.chipRemoveTotal === "number" ? summary.chipRemoveTotal : 0;
+	const evDiff = typeof summary?.evDiff === "number" ? summary.evDiff : 0;
+	const totalBuyIn = summary?.totalBuyIn ?? 0;
+	const currentStack = summary?.currentStack ?? null;
+	const displayPL =
+		currentStack === null ? null : currentStack + chipRemoveTotal - totalBuyIn;
+	const evPL =
+		currentStack !== null && evDiff !== 0
+			? currentStack + chipRemoveTotal + evDiff - totalBuyIn
+			: null;
+	const showEvPL = evPL !== null && evPL !== displayPL;
+	return {
+		completePreviewInput: {
+			chipRemoveTotal,
+			evDiff: evDiff === 0 ? null : evDiff,
+			totalBuyIn,
+		},
+		defaultFinalStack: currentStack ?? undefined,
+		tableCenter: {
+			deltaText: displayPL === null ? undefined : formatProfitLoss(displayPL),
+			deltaTone: deltaToneOf(displayPL),
+			evText: showEvPL && evPL !== null ? formatProfitLoss(evPL) : undefined,
+			stackText: currentStack === null ? "—" : formatNumber(currentStack),
+		},
+	};
+}
+
 export function useCashGameSessionView(sessionId: string) {
 	const { session, isDiscardPending, discard } = useCashGameSession(sessionId);
 	const stack = useCashGameStack({ sessionId });
@@ -90,22 +128,7 @@ export function useCashGameSessionView(sessionId: string) {
 		tableSize: session?.tableSize ?? null,
 	});
 
-	const chipRemoveTotal =
-		typeof session?.summary.chipRemoveTotal === "number"
-			? session.summary.chipRemoveTotal
-			: 0;
-	const evDiff =
-		typeof session?.summary.evDiff === "number" ? session.summary.evDiff : 0;
-	const totalBuyIn = session?.summary.totalBuyIn ?? 0;
-	const currentStack = session?.summary.currentStack ?? null;
-
-	const displayPL =
-		currentStack === null ? null : currentStack + chipRemoveTotal - totalBuyIn;
-	const evPL =
-		currentStack !== null && evDiff !== 0
-			? currentStack + chipRemoveTotal + evDiff - totalBuyIn
-			: null;
-	const showEvPL = evPL !== null && evPL !== displayPL;
+	const centerModel = computeCashCenterModel(session?.summary);
 
 	const seatedPlayers: TableViewPlayerSeat[] = sceneState.seats.flatMap((s) =>
 		s.player
@@ -193,12 +216,8 @@ export function useCashGameSessionView(sessionId: string) {
 			stack.removeChip(values.amount);
 			setIsRemoveChipsOpen(false);
 		},
-		completePreviewInput: {
-			chipRemoveTotal,
-			evDiff: evDiff === 0 ? null : evDiff,
-			totalBuyIn,
-		},
-		defaultFinalStack: currentStack ?? undefined,
+		completePreviewInput: centerModel.completePreviewInput,
+		defaultFinalStack: centerModel.defaultFinalStack,
 		isAddChipsOpen,
 		isAllInOpen,
 		isChipMenuOpen,
@@ -278,11 +297,6 @@ export function useCashGameSessionView(sessionId: string) {
 		setIsScanOpen,
 		setIsTimelineOpen,
 		startedAt,
-		tableCenter: {
-			deltaText: displayPL === null ? undefined : formatProfitLoss(displayPL),
-			deltaTone: deltaToneOf(displayPL),
-			evText: showEvPL && evPL !== null ? formatProfitLoss(evPL) : undefined,
-			stackText: currentStack === null ? "—" : formatNumber(currentStack),
-		},
+		tableCenter: centerModel.tableCenter,
 	};
 }

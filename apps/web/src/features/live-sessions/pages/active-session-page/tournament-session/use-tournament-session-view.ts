@@ -28,6 +28,32 @@ type TournamentCompleteValues =
 			prizeMoney: number;
 	  };
 
+function computeTournamentCenterModel(summary: Record<string, unknown>) {
+	const currentStack =
+		typeof summary.currentStack === "number" ? summary.currentStack : null;
+	const averageStack =
+		typeof summary.averageStack === "number" ? summary.averageStack : null;
+	const remainingPlayers =
+		typeof summary.remainingPlayers === "number"
+			? summary.remainingPlayers
+			: null;
+	const totalEntries =
+		typeof summary.totalEntries === "number" ? summary.totalEntries : null;
+	return {
+		defaultRemainingPlayers: remainingPlayers,
+		defaultTotalEntries: totalEntries,
+		tableCenter: {
+			averageStackText:
+				averageStack === null ? "—" : formatCompactNumber(averageStack),
+			remainText:
+				remainingPlayers === null && totalEntries === null
+					? "—"
+					: `${remainingPlayers ?? "—"}/${totalEntries ?? "—"}`,
+			stackText: currentStack === null ? "—" : formatNumber(currentStack),
+		},
+	};
+}
+
 export function useTournamentSessionView(sessionId: string) {
 	const tournamentSession = useTournamentSession(sessionId);
 	const stack = useTournamentStack({ sessionId });
@@ -78,18 +104,10 @@ export function useTournamentSessionView(sessionId: string) {
 		tableSize: (session as { tableSize?: number | null })?.tableSize ?? null,
 	});
 
-	const summary = ((session as { summary?: Record<string, unknown> })
-		?.summary ?? {}) as Record<string, unknown>;
-	const currentStack =
-		typeof summary.currentStack === "number" ? summary.currentStack : null;
-	const averageStack =
-		typeof summary.averageStack === "number" ? summary.averageStack : null;
-	const remainingPlayers =
-		typeof summary.remainingPlayers === "number"
-			? summary.remainingPlayers
-			: null;
-	const totalEntries =
-		typeof summary.totalEntries === "number" ? summary.totalEntries : null;
+	const centerModel = computeTournamentCenterModel(
+		((session as { summary?: Record<string, unknown> })?.summary ??
+			{}) as Record<string, unknown>
+	);
 
 	const blindLevels = ((session as { blindLevels?: TournamentBlindLevel[] })
 		?.blindLevels ?? []) as TournamentBlindLevel[];
@@ -146,8 +164,8 @@ export function useTournamentSessionView(sessionId: string) {
 	return {
 		blindLevels,
 		chipPurchaseTypes: stack.chipPurchaseTypes,
-		defaultRemainingPlayers: remainingPlayers,
-		defaultTotalEntries: totalEntries,
+		defaultRemainingPlayers: centerModel.defaultRemainingPlayers,
+		defaultTotalEntries: centerModel.defaultTotalEntries,
 		discard: tournamentSession.discard,
 		handleBuyChipsSubmit: (values: {
 			chips: number;
@@ -254,15 +272,7 @@ export function useTournamentSessionView(sessionId: string) {
 		setIsTimelineOpen,
 		setIsTimerDialogOpen,
 		startedAt,
-		tableCenter: {
-			averageStackText:
-				averageStack === null ? "—" : formatCompactNumber(averageStack),
-			remainText:
-				remainingPlayers === null && totalEntries === null
-					? "—"
-					: `${remainingPlayers ?? "—"}/${totalEntries ?? "—"}`,
-			stackText: currentStack === null ? "—" : formatNumber(currentStack),
-		},
+		tableCenter: centerModel.tableCenter,
 		timerStartedAt,
 	};
 }
