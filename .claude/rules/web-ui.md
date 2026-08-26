@@ -9,6 +9,8 @@ paths:
 
 Every top-level page composes its header with [`PageHeader`](../../apps/web/src/shared/components/page-header/page-header.tsx). It supports an inline actions slot and an optional badge slot. Do not hand-roll page titles or action rows.
 
+Exception: immersive full-height screens migrated to the Cryst theme may replace `PageHeader` with a screen-specific header component — currently only `/active-session`'s `SessionHeader` (`features/live-sessions/pages/active-session-page/session-header/`).
+
 ## Use shadcn primitives
 
 Reach for existing shadcn components before building a custom wrapper:

@@ -3,11 +3,23 @@ paths:
   - "apps/web/**"
 ---
 
-# Theme (Sapphire 2 Design System)
+# Theme (Sapphire 2 → Cryst migration)
 
-The web app ships a **single theme**: the Sapphire 2 Design System. Its tokens live in `apps/web/src/index.css` under `:root` (light) and `.dark` (dark) — **that file is the source of truth** for the exact variable names and values. There is no scope class and no legacy theme; every `bg-background` / `bg-primary` / `border-border` utility resolves to Sapphire 2 tokens everywhere, including Radix portals (Dialog / Popover / Select / Drawer / Sonner render to `document.body`, which inherits `:root` tokens like everything else).
+## Migration state
 
-Dark mode is toggled by `next-themes` adding `.dark` on `<html>`.
+The app is migrating from the **Sapphire 2 Design System** (default) to the **Cryst Design System** (Linear-inspired, dark-first, same shadcn token names). During the migration two themes coexist, replaying the proven `.theme-v2` playbook (add scope `f90b960b` → per-page migration → flip `d7ed81bd`):
+
+- **Sapphire 2 is the default**: `:root` (light) / `.dark` (dark) in `apps/web/src/index.css`. Un-migrated screens must stay pixel-identical.
+- **Cryst applies only inside the `.theme-cryst` scope class** — always referenced via `CRYST_SCOPE` from [`apps/web/src/shared/lib/theme.ts`](../../apps/web/src/shared/lib/theme.ts), never as a raw string literal (enforced by `scripts/check-rules.ts`). Apply it at the **page root**, never on the shell/nav.
+- **Token placement rule**: a token name that already exists in `:root` (colors, `--text-*`, `--font-sans`, `--ease-*`) gets its Cryst value inside the `.theme-cryst` block; a brand-new non-colliding name (`--m-*`, `--tracking-*`, `--control-*`, `--tap-target`, `--duration-*`, `--shadow-soft-*`, `--shadow-popover`, `--border-hairline`) lives in `:root` and is inert for old screens. Cryst's `--shadow-sm/md/lg` are renamed `--shadow-soft-sm/md/lg` here because Tailwind's `shadow-*` utilities inline their own values — reference them as `shadow-(--shadow-soft-md)` arbitrary values or `var(--shadow-soft-md)`.
+- **Portals**: Drawer/Dialog/Popover content renders into `document.body`, outside any page-level scope. Migrated screens' sheets must go through the shared [`BottomSheet`](../../apps/web/src/shared/components/bottom-sheet/bottom-sheet.tsx) (which bakes `CRYST_SCOPE` into its `DrawerContent`), and any `DialogContent`/`PopoverContent` opened from a migrated screen must receive `className={CRYST_SCOPE}` at the call site. When reviewing a migrated screen, open every sheet/dialog and check it is Cryst-styled.
+- **Cryst sheet pattern**: `BottomSheet` = drag handle, centered title, cancel text button top-left / confirm text button top-right (44px tap targets), 12px top corners (`--m-sheet-radius`), confirm submits via `form={formId}` or `onConfirm`. Legacy `FormSheet` stays for un-migrated screens; do not use it on Cryst screens.
+- **Accepted drift until the flip**: the global Sonner toaster and `pwa-manifest.ts` `theme_color` stay Sapphire-styled. Do not scope them mid-migration.
+- The final flip (backlog): collapse `.theme-cryst` into `:root`/`.dark`, delete `CRYST_SCOPE`, restyle shell/nav/sonner, update `theme_color` to `#08090a`, restore the single-theme wording here.
+
+Dark mode is toggled by `next-themes` adding `.dark` on `<html>`; the Cryst dark values live under `.dark .theme-cryst, .theme-cryst.dark`.
+
+The Cryst source of truth is the Claude Design project "cryst-design-system" (tokens: `colors/typography/spacing/mobile/effects/motion`); its values are mirrored into `index.css`.
 
 ## Token format
 
@@ -45,4 +57,4 @@ The token contract in `apps/web/src/index.css` (`:root` / `.dark`) is the source
 ## Don'ts
 
 - **Don't fork `shared/components/ui/`** for theming. Components stay single-source; tuning happens via tokens. If a surface needs different markup, raise it for discussion before duplicating.
-- **Don't introduce a second theme** or a `theme-*` scope class. If a route needs a one-off accent, scope it to that route with CSS variables.
+- **Don't introduce a third theme** or any scope class beyond `.theme-cryst`. The Cryst scope is temporary migration scaffolding tracked for the final flip; a route needing a one-off accent scopes CSS variables to that route instead.
