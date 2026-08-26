@@ -89,6 +89,67 @@ describe("useTournamentCompleteForm", () => {
 		});
 	});
 
+	it("rejects submission when placement exceeds totalEntries", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useTournamentCompleteForm({ onSubmit })
+		);
+		act(() => {
+			result.current.form.setFieldValue("placement", "51");
+			result.current.form.setFieldValue("totalEntries", "50");
+			result.current.form.setFieldValue("prizeMoney", "0");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("accepts placement equal to totalEntries (boundary)", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useTournamentCompleteForm({ onSubmit })
+		);
+		act(() => {
+			result.current.form.setFieldValue("placement", "50");
+			result.current.form.setFieldValue("totalEntries", "50");
+			result.current.form.setFieldValue("prizeMoney", "0");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenNthCalledWith(1, {
+			beforeDeadline: false,
+			placement: 50,
+			totalEntries: 50,
+			prizeMoney: 0,
+			bountyPrizes: 0,
+		});
+	});
+
+	it("skips the placement/totalEntries comparison when beforeDeadline is true", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useTournamentCompleteForm({ onSubmit })
+		);
+		act(() => {
+			result.current.form.setFieldValue("beforeDeadline", true);
+			result.current.form.setFieldValue("placement", "999");
+			result.current.form.setFieldValue("totalEntries", "1");
+			result.current.form.setFieldValue("prizeMoney", "0");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenNthCalledWith(1, {
+			beforeDeadline: true,
+			prizeMoney: 0,
+			bountyPrizes: 0,
+		});
+	});
+
 	it("treats empty bountyPrizes as 0 in either branch", async () => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() =>

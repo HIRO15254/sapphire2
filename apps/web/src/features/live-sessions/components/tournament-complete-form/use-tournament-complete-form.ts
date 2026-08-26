@@ -47,6 +47,17 @@ const tournamentCompleteSchema = z
 					ctx.addIssue({ ...issue, path: ["totalEntries"] });
 				}
 			}
+			if (
+				placementResult.success &&
+				totalEntriesResult.success &&
+				Number(placementResult.data) > Number(totalEntriesResult.data)
+			) {
+				ctx.addIssue({
+					code: "custom",
+					message: "Placement must not exceed total entries",
+					path: ["placement"],
+				});
+			}
 		}
 	});
 

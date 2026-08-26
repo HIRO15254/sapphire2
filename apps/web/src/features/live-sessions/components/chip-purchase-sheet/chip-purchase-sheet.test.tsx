@@ -4,11 +4,11 @@ import { describe, expect, it, vi } from "vitest";
 import { ChipPurchaseSheet } from "./chip-purchase-sheet";
 
 const OPTIONS = [
-	{ id: "cp1", name: "Rebuy", cost: 2000, chips: 15_000 },
-	{ id: "cp2", name: "Add-on", cost: 1000, chips: 8000 },
+	{ id: "cp1", name: "Re-entry", cost: 10_000, chips: 30_000 },
+	{ id: "cp2", name: "Add-on", cost: 5000, chips: 20_000 },
 ];
 
-const REBUY_RE = /Rebuy/;
+const REENTRY_RE = /Re-entry/;
 const ADDON_RE = /Add-on/;
 const EMPTY_STATE_RE = /No chip purchases are defined/i;
 
@@ -23,11 +23,11 @@ describe("ChipPurchaseSheet (picker)", () => {
 			/>
 		);
 		expect(
-			screen.queryByRole("heading", { name: "Add Chip Purchase" })
+			screen.queryByRole("heading", { name: "Chip purchase" })
 		).not.toBeInTheDocument();
 	});
 
-	it("renders one button per rule-defined chip purchase", () => {
+	it("renders the visible Chip purchase title and one row per rule-defined option", () => {
 		render(
 			<ChipPurchaseSheet
 				onOpenChange={vi.fn()}
@@ -37,10 +37,26 @@ describe("ChipPurchaseSheet (picker)", () => {
 			/>
 		);
 		expect(
-			screen.getByRole("heading", { name: "Add Chip Purchase" })
+			screen.getByRole("heading", { name: "Chip purchase" })
 		).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: REBUY_RE })).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: REENTRY_RE })
+		).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: ADDON_RE })).toBeInTheDocument();
+	});
+
+	it("shows the chip count meta and the cost in mono for each row", () => {
+		render(
+			<ChipPurchaseSheet
+				onOpenChange={vi.fn()}
+				onSubmit={vi.fn()}
+				open
+				options={OPTIONS}
+			/>
+		);
+		expect(screen.getByText("+30,000chips")).toBeInTheDocument();
+		const costValue = screen.getByText("10,000");
+		expect(costValue.className).toContain("font-mono");
 	});
 
 	it("submits the picked option with its sessionChipPurchaseId", async () => {
@@ -54,13 +70,13 @@ describe("ChipPurchaseSheet (picker)", () => {
 				options={OPTIONS}
 			/>
 		);
-		await user.click(screen.getByRole("button", { name: REBUY_RE }));
+		await user.click(screen.getByRole("button", { name: REENTRY_RE }));
 		expect(onSubmit).toHaveBeenCalledTimes(1);
-		expect(onSubmit).toHaveBeenCalledWith({
+		expect(onSubmit).toHaveBeenNthCalledWith(1, {
 			sessionChipPurchaseId: "cp1",
-			name: "Rebuy",
-			cost: 2000,
-			chips: 15_000,
+			name: "Re-entry",
+			cost: 10_000,
+			chips: 30_000,
 		});
 	});
 

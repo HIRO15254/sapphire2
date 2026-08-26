@@ -1,6 +1,10 @@
-import { useForm } from "@tanstack/react-form";
+import { useForm, useStore } from "@tanstack/react-form";
 import { useEffect } from "react";
 import z from "zod";
+import {
+	type AllInPreview,
+	computeAllInPreview,
+} from "@/features/live-sessions/utils/all-in-preview";
 import { refineWinsNotExceedingTrials } from "@/features/live-sessions/utils/all-in-validation";
 import { requiredNumericString } from "@/shared/lib/form-fields";
 
@@ -26,6 +30,10 @@ const allInSchema = z
 		wins: requiredNumericString({ min: 0 }),
 	})
 	.superRefine(refineWinsNotExceedingTrials);
+
+function parseNumericField(value: string): number {
+	return value.trim() === "" ? Number.NaN : Number(value);
+}
 
 function toFormDefaults(initial: AllIn | undefined) {
 	if (!initial) {
@@ -71,5 +79,14 @@ export function useAllInForm({
 		}
 	}, [open, initialValues, form]);
 
-	return { form };
+	const preview: AllInPreview | null = useStore(form.store, (state) =>
+		computeAllInPreview({
+			potSize: parseNumericField(state.values.potSize),
+			trials: parseNumericField(state.values.trials),
+			equity: parseNumericField(state.values.equity),
+			wins: parseNumericField(state.values.wins),
+		})
+	);
+
+	return { form, preview };
 }

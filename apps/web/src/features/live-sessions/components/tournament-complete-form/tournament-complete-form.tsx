@@ -60,90 +60,101 @@ export function TournamentCompleteForm({
 
 			<form.Subscribe selector={(state) => state.values.beforeDeadline}>
 				{(beforeDeadline) =>
-					!beforeDeadline && (
-						<div className="grid grid-cols-2 gap-2">
-							<form.Field name="placement">
-								{(field) => (
-									<Field
-										error={field.state.meta.errors[0]?.message}
-										htmlFor={field.name}
-										label="Placement"
-										required
-									>
-										<Input
-											id={field.name}
-											inputMode="numeric"
-											name={field.name}
-											onBlur={field.handleBlur}
-											onChange={(e) => field.handleChange(e.target.value)}
-											value={field.state.value}
-										/>
-									</Field>
-								)}
-							</form.Field>
+					beforeDeadline ? (
+						<p className="text-muted-foreground text-xs">
+							Early exit does not record place or total entries.
+						</p>
+					) : (
+						<>
+							<div className="grid grid-cols-2 gap-2">
+								<form.Field name="placement">
+									{(field) => (
+										<Field
+											error={field.state.meta.errors[0]?.message}
+											htmlFor={field.name}
+											label="Placement"
+											required
+										>
+											<Input
+												id={field.name}
+												inputMode="numeric"
+												name={field.name}
+												onBlur={field.handleBlur}
+												onChange={(e) => field.handleChange(e.target.value)}
+												value={field.state.value}
+											/>
+										</Field>
+									)}
+								</form.Field>
 
-							<form.Field name="totalEntries">
-								{(field) => (
-									<Field
-										error={field.state.meta.errors[0]?.message}
-										htmlFor={field.name}
-										label="Total Entries"
-										required
-									>
-										<Input
-											id={field.name}
-											inputMode="numeric"
-											name={field.name}
-											onBlur={field.handleBlur}
-											onChange={(e) => field.handleChange(e.target.value)}
-											value={field.state.value}
-										/>
-									</Field>
-								)}
-							</form.Field>
-						</div>
+								<form.Field name="totalEntries">
+									{(field) => (
+										<Field
+											error={field.state.meta.errors[0]?.message}
+											htmlFor={field.name}
+											label="Total Entries"
+											required
+										>
+											<Input
+												id={field.name}
+												inputMode="numeric"
+												name={field.name}
+												onBlur={field.handleBlur}
+												onChange={(e) => field.handleChange(e.target.value)}
+												value={field.state.value}
+											/>
+										</Field>
+									)}
+								</form.Field>
+							</div>
+							<p className="text-muted-foreground text-xs">
+								Place must not exceed total entries.
+							</p>
+						</>
 					)
 				}
 			</form.Subscribe>
 
-			<form.Field name="prizeMoney">
-				{(field) => (
-					<Field
-						error={field.state.meta.errors[0]?.message}
-						htmlFor={field.name}
-						label="Prize Money"
-						required
-					>
-						<Input
-							id={field.name}
-							inputMode="numeric"
-							name={field.name}
-							onBlur={field.handleBlur}
-							onChange={(e) => field.handleChange(e.target.value)}
-							value={field.state.value}
-						/>
-					</Field>
-				)}
-			</form.Field>
+			<div className="grid grid-cols-2 gap-2">
+				<form.Field name="prizeMoney">
+					{(field) => (
+						<Field
+							error={field.state.meta.errors[0]?.message}
+							htmlFor={field.name}
+							label="Prize Money"
+							required
+						>
+							<Input
+								id={field.name}
+								inputMode="numeric"
+								name={field.name}
+								onBlur={field.handleBlur}
+								onChange={(e) => field.handleChange(e.target.value)}
+								value={field.state.value}
+							/>
+						</Field>
+					)}
+				</form.Field>
 
-			<form.Field name="bountyPrizes">
-				{(field) => (
-					<Field
-						error={field.state.meta.errors[0]?.message}
-						htmlFor={field.name}
-						label="Bounty Prizes"
-					>
-						<Input
-							id={field.name}
-							inputMode="numeric"
-							name={field.name}
-							onBlur={field.handleBlur}
-							onChange={(e) => field.handleChange(e.target.value)}
-							value={field.state.value}
-						/>
-					</Field>
-				)}
-			</form.Field>
+				<form.Field name="bountyPrizes">
+					{(field) => (
+						<Field
+							error={field.state.meta.errors[0]?.message}
+							htmlFor={field.name}
+							label="Bounty Prizes"
+						>
+							<Input
+								id={field.name}
+								inputMode="numeric"
+								name={field.name}
+								onBlur={field.handleBlur}
+								onChange={(e) => field.handleChange(e.target.value)}
+								value={field.state.value}
+							/>
+						</Field>
+					)}
+				</form.Field>
+			</div>
 		</form>
 	);
 }

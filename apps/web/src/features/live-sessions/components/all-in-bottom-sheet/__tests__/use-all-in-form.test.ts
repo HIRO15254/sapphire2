@@ -177,6 +177,69 @@ describe("useAllInForm", () => {
 		expect(result.current.form.state.values.potSize).toBe("0");
 	});
 
+	it("computes a preview from the default field values", () => {
+		const { result } = renderHook(() =>
+			useAllInForm({ open: false, onSubmit: vi.fn() })
+		);
+		expect(result.current.preview).toEqual({
+			expectedValue: 0,
+			realizedValue: 0,
+			evDelta: 0,
+		});
+	});
+
+	it("computes a preview matching the demo case from seeded initialValues", () => {
+		const { result } = renderHook(() =>
+			useAllInForm({
+				open: false,
+				onSubmit: vi.fn(),
+				initialValues: { potSize: 12_400, trials: 1, equity: 78, wins: 1 },
+			})
+		);
+		expect(result.current.preview).toEqual({
+			expectedValue: 9672,
+			realizedValue: 12_400,
+			evDelta: -2728,
+		});
+	});
+
+	it("recomputes the preview reactively as a field changes", () => {
+		const { result } = renderHook(() =>
+			useAllInForm({ open: false, onSubmit: vi.fn() })
+		);
+		act(() => {
+			result.current.form.setFieldValue("potSize", "1000");
+			result.current.form.setFieldValue("trials", "2");
+			result.current.form.setFieldValue("equity", "50");
+			result.current.form.setFieldValue("wins", "1");
+		});
+		expect(result.current.preview).toEqual({
+			expectedValue: 500,
+			realizedValue: 500,
+			evDelta: 0,
+		});
+	});
+
+	it("returns a null preview when equity exceeds the valid 0..100 range", () => {
+		const { result } = renderHook(() =>
+			useAllInForm({ open: false, onSubmit: vi.fn() })
+		);
+		act(() => {
+			result.current.form.setFieldValue("equity", "150");
+		});
+		expect(result.current.preview).toBeNull();
+	});
+
+	it("returns a null preview while a numeric field is empty", () => {
+		const { result } = renderHook(() =>
+			useAllInForm({ open: false, onSubmit: vi.fn() })
+		);
+		act(() => {
+			result.current.form.setFieldValue("potSize", "");
+		});
+		expect(result.current.preview).toBeNull();
+	});
+
 	it("resets to initialValues when open changes and initialValues provided", () => {
 		const onSubmit = vi.fn();
 		interface Props {
