@@ -12,23 +12,6 @@ const mocks = vi.hoisted(() => ({
 	navigate: vi.fn(),
 }));
 
-function stubLocation(overrides: Partial<Location>): () => void {
-	const originalLocation = window.location;
-	Object.defineProperty(window, "location", {
-		configurable: true,
-		value: { ...originalLocation, assign: vi.fn(), ...overrides },
-	});
-	return () => {
-		Object.defineProperty(window, "location", {
-			configurable: true,
-			value: originalLocation,
-		});
-	};
-}
-
-const OAUTH_SEARCH =
-	"?client_id=c1&response_type=code&redirect_uri=https%3A%2F%2Fclaude.ai%2Fcb&state=s1";
-
 vi.mock("@sapphire2/env/web", () => ({
 	env: new Proxy(mocks.env, {
 		get: (target, prop) => target[prop as keyof typeof target],
@@ -43,6 +26,11 @@ vi.mock("@/lib/auth-client", () => ({
 	authClient: { signIn: { email: mocks.signInEmail } },
 }));
 
+import {
+	locationAssignCalls,
+	OAUTH_AUTHORIZE_SEARCH,
+	stubLocation,
+} from "@/__tests__/test-utils";
 import { usePreviewAutoLogin } from "@/features/auth/pages/login-page/preview-auto-login/use-preview-auto-login";
 
 describe("usePreviewAutoLogin", () => {
@@ -127,7 +115,7 @@ describe("usePreviewAutoLogin", () => {
 	});
 
 	it("mid-OAuth: resumes the authorize flow instead of entering the app", async () => {
-		const restore = stubLocation({ search: OAUTH_SEARCH });
+		stubLocation({ search: OAUTH_AUTHORIZE_SEARCH });
 		mocks.env.VITE_PREVIEW_AUTO_LOGIN = "true";
 		mocks.env.VITE_PREVIEW_LOGIN_EMAIL = "preview@example.com";
 		mocks.env.VITE_PREVIEW_LOGIN_PASSWORD = "preview-pass";
@@ -136,18 +124,16 @@ describe("usePreviewAutoLogin", () => {
 		await waitFor(() =>
 			expect(window.location.assign).toHaveBeenCalledTimes(1)
 		);
-		const target = (window.location.assign as ReturnType<typeof vi.fn>).mock
-			.calls[0]?.[0] as string;
+		const target = locationAssignCalls()[0]?.[0] as string;
 		expect(
 			target.startsWith("http://localhost:8787/api/auth/mcp/authorize?")
 		).toBe(true);
 		expect(target).toContain("client_id=c1");
 		expect(mocks.navigate).not.toHaveBeenCalled();
-		restore();
 	});
 
 	it("mid-OAuth: does not resume the authorize flow when auto-login fails", async () => {
-		const restore = stubLocation({ search: OAUTH_SEARCH });
+		stubLocation({ search: OAUTH_AUTHORIZE_SEARCH });
 		mocks.env.VITE_PREVIEW_AUTO_LOGIN = "true";
 		mocks.env.VITE_PREVIEW_LOGIN_EMAIL = "preview@example.com";
 		mocks.env.VITE_PREVIEW_LOGIN_PASSWORD = "preview-pass";
@@ -156,7 +142,6 @@ describe("usePreviewAutoLogin", () => {
 		await waitFor(() => expect(mocks.signInEmail).toHaveBeenCalled());
 		expect(window.location.assign).not.toHaveBeenCalled();
 		expect(mocks.navigate).not.toHaveBeenCalled();
-		restore();
 	});
 
 	it("does NOT navigate when signIn returns no data (failed auto-login)", async () => {
