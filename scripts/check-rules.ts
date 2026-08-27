@@ -217,7 +217,7 @@ if (unlisted.length > 0) {
 	}
 }
 
-const SESSION_ENTRY_GLOB = "apps/web/src/features/auth/**/*.{ts,tsx}";
+const SESSION_ENTRY_GLOB = "apps/web/src/**/*.{ts,tsx}";
 const SESSION_ENTRY_CALL = /authClient\s*\.\s*(signIn|signUp)\b/;
 const LOGIN_CONTINUATION_IMPORT = /features\/auth\/utils\/login-continuation/;
 const LOGIN_CONTINUATION_SELF = /login-continuation\.ts$/;
