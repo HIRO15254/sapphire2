@@ -168,8 +168,8 @@ describe("useCashGameStack", () => {
 		});
 	});
 
-	describe("chip add/remove (chips_add_remove)", () => {
-		it("addChip: posts a positive { amount }", async () => {
+	describe("adjustChips (chips_add_remove)", () => {
+		it("posts a positive amount verbatim as { amount }", async () => {
 			const qc = createClient();
 			qc.setQueryData(sessionKey, { status: "active", summary: {} });
 			qc.setQueryData(eventsKey, []);
@@ -179,19 +179,20 @@ describe("useCashGameStack", () => {
 				{ wrapper: makeWrapper(qc) }
 			);
 			await act(async () => {
-				result.current.addChip(500);
+				result.current.adjustChips(500);
 				await Promise.resolve();
 			});
 			await waitFor(() => {
-				expect(trpcMocks.sessionEventCreate).toHaveBeenCalledWith({
-					liveCashGameSessionId: "s1",
-					eventType: "chips_add_remove",
-					payload: { amount: 500 },
-				});
+				expect(trpcMocks.sessionEventCreate).toHaveBeenCalledTimes(1);
+			});
+			expect(trpcMocks.sessionEventCreate).toHaveBeenCalledWith({
+				liveCashGameSessionId: "s1",
+				eventType: "chips_add_remove",
+				payload: { amount: 500 },
 			});
 		});
 
-		it("removeChip: posts a negative { amount }", async () => {
+		it("posts a negative amount verbatim as { amount } (no sign-flipping)", async () => {
 			const qc = createClient();
 			qc.setQueryData(sessionKey, { status: "active", summary: {} });
 			qc.setQueryData(eventsKey, []);
@@ -201,15 +202,16 @@ describe("useCashGameStack", () => {
 				{ wrapper: makeWrapper(qc) }
 			);
 			await act(async () => {
-				result.current.removeChip(200);
+				result.current.adjustChips(-200);
 				await Promise.resolve();
 			});
 			await waitFor(() => {
-				expect(trpcMocks.sessionEventCreate).toHaveBeenCalledWith({
-					liveCashGameSessionId: "s1",
-					eventType: "chips_add_remove",
-					payload: { amount: -200 },
-				});
+				expect(trpcMocks.sessionEventCreate).toHaveBeenCalledTimes(1);
+			});
+			expect(trpcMocks.sessionEventCreate).toHaveBeenCalledWith({
+				liveCashGameSessionId: "s1",
+				eventType: "chips_add_remove",
+				payload: { amount: -200 },
 			});
 		});
 	});

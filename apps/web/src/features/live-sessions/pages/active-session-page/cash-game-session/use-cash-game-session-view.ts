@@ -1,9 +1,4 @@
-import {
-	IconCards,
-	IconCirclePlus,
-	IconSquareRoundedMinus,
-	IconTrash,
-} from "@tabler/icons-react";
+import { IconCards, IconTrash } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import type { ActionsDrawerItem } from "@/features/live-sessions/components/actions-drawer";
 import { useActiveSessionSceneState } from "@/features/live-sessions/hooks/use-active-session-scene-state";
@@ -84,9 +79,7 @@ export function useCashGameSessionView(sessionId: string) {
 	const [selection, setSelection] = useState<PlayerPanelSelection | null>(null);
 	const [joinSeatPosition, setJoinSeatPosition] = useState<number | null>(null);
 	const [isAllInOpen, setIsAllInOpen] = useState(false);
-	const [isAddChipsOpen, setIsAddChipsOpen] = useState(false);
-	const [isRemoveChipsOpen, setIsRemoveChipsOpen] = useState(false);
-	const [isChipMenuOpen, setIsChipMenuOpen] = useState(false);
+	const [isChipsOpen, setIsChipsOpen] = useState(false);
 	const [isMemoOpen, setIsMemoOpen] = useState(false);
 	const [isCompleteOpen, setIsCompleteOpen] = useState(false);
 	const [isTimelineOpen, setIsTimelineOpen] = useState(false);
@@ -162,31 +155,11 @@ export function useCashGameSessionView(sessionId: string) {
 		},
 	];
 
-	const chipMenuItems: ActionsDrawerItem[] = [
-		{
-			icon: IconCirclePlus,
-			label: "Add chips",
-			onSelect: () => {
-				setIsChipMenuOpen(false);
-				setIsAddChipsOpen(true);
-			},
-		},
-		{
-			icon: IconSquareRoundedMinus,
-			label: "Remove chips",
-			onSelect: () => {
-				setIsChipMenuOpen(false);
-				setIsRemoveChipsOpen(true);
-			},
-		},
-	];
-
 	return {
-		chipMenuItems,
 		discard,
-		handleAddChipsSubmit: (values: { amount: number }) => {
-			stack.addChip(values.amount);
-			setIsAddChipsOpen(false);
+		handleChipsSubmit: (values: { amount: number }) => {
+			stack.adjustChips(values.amount);
+			setIsChipsOpen(false);
 		},
 		handleAllInSubmit: (values: {
 			equity: number;
@@ -208,22 +181,16 @@ export function useCashGameSessionView(sessionId: string) {
 		handleRecordStack: (values: { stackAmount: number }) => {
 			stack.recordStack(values);
 		},
-		handleRemoveChipsSubmit: (values: { amount: number }) => {
-			stack.removeChip(values.amount);
-			setIsRemoveChipsOpen(false);
-		},
 		completePreviewInput: centerModel.completePreviewInput,
 		defaultFinalStack: centerModel.defaultFinalStack,
-		isAddChipsOpen,
+		isChipsOpen,
 		isAllInOpen,
-		isChipMenuOpen,
 		isCompleteOpen,
 		isCompletePending: stack.isCompletePending,
 		isDiscardOpen,
 		isDiscardPending,
 		isMemoOpen,
 		isPaused,
-		isRemoveChipsOpen,
 		isRuleOpen,
 		isScanOpen,
 		isStackPending: stack.isStackPending,
@@ -248,9 +215,9 @@ export function useCashGameSessionView(sessionId: string) {
 				setIsAllInOpen(true);
 			}
 		},
-		onOpenChipMenu: () => {
+		onOpenChips: () => {
 			if (!isPaused) {
-				setIsChipMenuOpen(true);
+				setIsChipsOpen(true);
 			}
 		},
 		onOpenMemo: () => setIsMemoOpen(true),
@@ -284,12 +251,10 @@ export function useCashGameSessionView(sessionId: string) {
 		selection: activeSelection,
 		session: session ?? null,
 		title: session?.ruleName ?? "Cash Game",
-		setIsAddChipsOpen,
+		setIsChipsOpen,
 		setIsAllInOpen,
-		setIsChipMenuOpen,
 		setIsCompleteOpen,
 		setIsMemoOpen,
-		setIsRemoveChipsOpen,
 		setIsRuleOpen,
 		setIsScanOpen,
 		setIsTimelineOpen,

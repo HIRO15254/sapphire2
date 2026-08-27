@@ -32,14 +32,13 @@ const mocks = vi.hoisted(() => {
 		} as MockSceneState,
 		stack: {
 			addAllIn: vi.fn(),
-			addChip: vi.fn(),
+			adjustChips: vi.fn(),
 			addMemo: vi.fn(),
 			complete: vi.fn(),
 			isCompletePending: false,
 			isStackPending: false,
 			pause: vi.fn(),
 			recordStack: vi.fn(),
-			removeChip: vi.fn(),
 			resume: vi.fn(),
 		},
 		useActiveSessionSceneState: vi.fn(),
@@ -405,18 +404,18 @@ describe("useCashGameSessionView", () => {
 			expect(result.current.isAllInOpen).toBe(true);
 		});
 
-		it("blocks onOpenChipMenu while paused", () => {
+		it("blocks onOpenChips while paused", () => {
 			mocks.session = makeSession({ status: "paused" });
 			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
-			act(() => result.current.onOpenChipMenu());
-			expect(result.current.isChipMenuOpen).toBe(false);
+			act(() => result.current.onOpenChips());
+			expect(result.current.isChipsOpen).toBe(false);
 		});
 
-		it("allows onOpenChipMenu while active", () => {
+		it("allows onOpenChips while active", () => {
 			mocks.session = makeSession({ status: "active" });
 			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
-			act(() => result.current.onOpenChipMenu());
-			expect(result.current.isChipMenuOpen).toBe(true);
+			act(() => result.current.onOpenChips());
+			expect(result.current.isChipsOpen).toBe(true);
 		});
 
 		it("blocks onScanFromTable while paused", () => {
@@ -533,6 +532,16 @@ describe("useCashGameSessionView", () => {
 		});
 	});
 
+	describe("chips sheet state (single sheet, no chip menu)", () => {
+		it("starts closed and setIsChipsOpen toggles it directly", () => {
+			mocks.session = makeSession({ status: "active" });
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			expect(result.current.isChipsOpen).toBe(false);
+			act(() => result.current.setIsChipsOpen(true));
+			expect(result.current.isChipsOpen).toBe(true);
+		});
+	});
+
 	describe("event submissions", () => {
 		it("handleAllInSubmit records the all-in and closes the sheet", () => {
 			mocks.session = makeSession({ status: "active" });
@@ -545,25 +554,24 @@ describe("useCashGameSessionView", () => {
 			expect(result.current.isAllInOpen).toBe(false);
 		});
 
-		it("handleAddChipsSubmit records the amount and closes the sheet", () => {
+		it("handleChipsSubmit forwards a positive (add) amount and closes the sheet", () => {
 			mocks.session = makeSession({ status: "active" });
 			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
-			act(() => result.current.onOpenChipMenu());
-			act(() => result.current.setIsAddChipsOpen(true));
-			act(() => result.current.handleAddChipsSubmit({ amount: 300 }));
-			expect(mocks.stack.addChip).toHaveBeenCalledTimes(1);
-			expect(mocks.stack.addChip).toHaveBeenCalledWith(300);
-			expect(result.current.isAddChipsOpen).toBe(false);
+			act(() => result.current.onOpenChips());
+			act(() => result.current.handleChipsSubmit({ amount: 300 }));
+			expect(mocks.stack.adjustChips).toHaveBeenCalledTimes(1);
+			expect(mocks.stack.adjustChips).toHaveBeenCalledWith(300);
+			expect(result.current.isChipsOpen).toBe(false);
 		});
 
-		it("handleRemoveChipsSubmit records the amount and closes the sheet", () => {
+		it("handleChipsSubmit forwards a negative (withdraw) amount and closes the sheet", () => {
 			mocks.session = makeSession({ status: "active" });
 			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
-			act(() => result.current.setIsRemoveChipsOpen(true));
-			act(() => result.current.handleRemoveChipsSubmit({ amount: 200 }));
-			expect(mocks.stack.removeChip).toHaveBeenCalledTimes(1);
-			expect(mocks.stack.removeChip).toHaveBeenCalledWith(200);
-			expect(result.current.isRemoveChipsOpen).toBe(false);
+			act(() => result.current.onOpenChips());
+			act(() => result.current.handleChipsSubmit({ amount: -200 }));
+			expect(mocks.stack.adjustChips).toHaveBeenCalledTimes(1);
+			expect(mocks.stack.adjustChips).toHaveBeenCalledWith(-200);
+			expect(result.current.isChipsOpen).toBe(false);
 		});
 
 		it("handleMemoSubmit records the memo and closes the sheet", () => {
@@ -662,28 +670,6 @@ describe("useCashGameSessionView", () => {
 			act(() => result.current.menuItems[1]?.onSelect());
 			act(() => result.current.onCloseDiscard());
 			expect(result.current.isDiscardOpen).toBe(false);
-		});
-	});
-
-	describe("chipMenuItems", () => {
-		it("lists Add chips and Remove chips in order", () => {
-			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
-			expect(result.current.chipMenuItems.map((item) => item.label)).toEqual([
-				"Add chips",
-				"Remove chips",
-			]);
-		});
-
-		it("Add chips opens the add-chips sheet", () => {
-			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
-			act(() => result.current.chipMenuItems[0]?.onSelect());
-			expect(result.current.isAddChipsOpen).toBe(true);
-		});
-
-		it("Remove chips opens the remove-chips sheet", () => {
-			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
-			act(() => result.current.chipMenuItems[1]?.onSelect());
-			expect(result.current.isRemoveChipsOpen).toBe(true);
 		});
 	});
 

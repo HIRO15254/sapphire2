@@ -1,4 +1,3 @@
-import { ActionsDrawer } from "@/features/live-sessions/components/actions-drawer";
 import { AddonBottomSheet } from "@/features/live-sessions/components/addon-bottom-sheet";
 import { AllInBottomSheet } from "@/features/live-sessions/components/all-in-bottom-sheet";
 import { CashGameCompleteForm } from "@/features/live-sessions/components/cash-game-complete-form";
@@ -80,7 +79,7 @@ export function CashGameSession({ sessionId }: { sessionId: string }) {
 					dimmed={vm.isPaused}
 					kind="cash_game"
 					onAllIn={vm.onOpenAllIn}
-					onChips={vm.onOpenChipMenu}
+					onChips={vm.onOpenChips}
 					onNote={vm.onOpenMemo}
 					onPurchase={noop}
 					onTimeline={vm.onOpenTimeline}
@@ -95,15 +94,6 @@ export function CashGameSession({ sessionId }: { sessionId: string }) {
 				/>
 			) : null}
 
-			<ActionsDrawer
-				contentClassName={CRYST_SCOPE}
-				description="Add or withdraw chips."
-				items={vm.chipMenuItems}
-				onOpenChange={vm.setIsChipMenuOpen}
-				open={vm.isChipMenuOpen}
-				title="Chip adjust"
-			/>
-
 			<AllInBottomSheet
 				onOpenChange={vm.setIsAllInOpen}
 				onSubmit={vm.handleAllInSubmit}
@@ -112,16 +102,9 @@ export function CashGameSession({ sessionId }: { sessionId: string }) {
 			/>
 
 			<AddonBottomSheet
-				onOpenChange={vm.setIsAddChipsOpen}
-				onSubmit={vm.handleAddChipsSubmit}
-				open={vm.isAddChipsOpen}
-				sheetClassName={CRYST_SCOPE}
-			/>
-
-			<AddonBottomSheet
-				onOpenChange={vm.setIsRemoveChipsOpen}
-				onSubmit={vm.handleRemoveChipsSubmit}
-				open={vm.isRemoveChipsOpen}
+				onOpenChange={vm.setIsChipsOpen}
+				onSubmit={vm.handleChipsSubmit}
+				open={vm.isChipsOpen}
 				sheetClassName={CRYST_SCOPE}
 			/>
 
