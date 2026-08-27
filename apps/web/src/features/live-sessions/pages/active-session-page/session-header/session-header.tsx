@@ -46,26 +46,32 @@ export function SessionHeader({
 		<header className="flex shrink-0 items-center gap-2 px-4 py-2.5">
 			{isPaused ? (
 				<span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 font-semibold text-[11px] text-warning">
-					<IconPlayerPause className="size-3" />
+					<IconPlayerPause size={11} />
 					Paused
 				</span>
 			) : (
 				<IconPlayerRecordFilled
-					className="size-3 shrink-0 text-destructive"
+					className="shrink-0 text-destructive"
 					data-testid="recording-dot"
+					size={11}
 				/>
 			)}
 			{onTitleTap ? (
 				<button
-					className="flex min-h-8 min-w-0 items-center gap-1 text-foreground hover:text-primary"
+					className="flex min-h-8 max-w-[190px] shrink-0 items-center gap-1 text-foreground hover:text-primary"
 					onClick={onTitleTap}
 					type="button"
 				>
 					{titleContent}
-					<IconChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+					<IconChevronDown
+						className="shrink-0 text-muted-foreground"
+						size={13}
+					/>
 				</button>
 			) : (
-				titleContent
+				<span className="flex max-w-[190px] shrink-0 items-center">
+					{titleContent}
+				</span>
 			)}
 			<span className="flex-1" />
 			<span className="font-mono text-muted-foreground text-xs tabular-nums">
@@ -79,9 +85,9 @@ export function SessionHeader({
 				variant="ghost"
 			>
 				{isPaused ? (
-					<IconPlayerPlay className="size-5" />
+					<IconPlayerPlay size={16} />
 				) : (
-					<IconPlayerPause className="size-5" />
+					<IconPlayerPause size={16} />
 				)}
 			</Button>
 			<Button
@@ -91,7 +97,7 @@ export function SessionHeader({
 				type="button"
 				variant="ghost"
 			>
-				<IconSquare className="size-4.5" />
+				<IconSquare size={16} />
 			</Button>
 			{menuItems.length > 0 ? (
 				<>
@@ -102,7 +108,7 @@ export function SessionHeader({
 						type="button"
 						variant="ghost"
 					>
-						<IconDotsVertical className="size-5" />
+						<IconDotsVertical size={16} />
 					</Button>
 					<ActionsDrawer
 						contentClassName={CRYST_SCOPE}

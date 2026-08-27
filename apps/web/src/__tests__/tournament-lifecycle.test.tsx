@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestQueryClient } from "./test-utils";
 
-const REGEX_BEFORE_DEADLINE_LABEL = /Completed before registration deadline/i;
+const REGEX_BEFORE_DEADLINE_LABEL = /Early exit \(left before the result\)/i;
 
 interface MockTournamentSession {
 	blindLevels: Array<{

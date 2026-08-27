@@ -75,7 +75,7 @@ describe("JoinSeatSheet", () => {
 		const user = userEvent.setup();
 		renderSheet();
 		await user.type(
-			screen.getByRole("searchbox", { name: SEARCH_PLAYERS_NAME }),
+			screen.getByRole("textbox", { name: SEARCH_PLAYERS_NAME }),
 			"ali"
 		);
 		expect(screen.getByText("Alice")).toBeInTheDocument();
@@ -97,7 +97,7 @@ describe("JoinSeatSheet", () => {
 		const user = userEvent.setup();
 		const { props } = renderSheet({ seatPosition: 1 });
 		await user.type(
-			screen.getByRole("searchbox", { name: SEARCH_PLAYERS_NAME }),
+			screen.getByRole("textbox", { name: SEARCH_PLAYERS_NAME }),
 			"Sunglasses"
 		);
 		await user.click(screen.getByText("Sunglasses"));
@@ -151,11 +151,45 @@ describe("JoinSeatSheet", () => {
 	it("clears the search text when the clear button is tapped", async () => {
 		const user = userEvent.setup();
 		renderSheet();
-		const searchInput = screen.getByRole("searchbox", {
+		const searchInput = screen.getByRole("textbox", {
 			name: SEARCH_PLAYERS_NAME,
 		});
 		await user.type(searchInput, "ali");
 		await user.click(screen.getByRole("button", { name: CLEAR_SEARCH_NAME }));
 		expect(searchInput).toHaveValue("");
+	});
+
+	it("places the scan row before the search field, matching the demo order", () => {
+		renderSheet();
+		const scanButton = screen.getByRole("button", { name: SCAN_BUTTON_NAME });
+		const searchInput = screen.getByRole("textbox", {
+			name: SEARCH_PLAYERS_NAME,
+		});
+		const interactiveElements = Array.from(
+			document.body.querySelectorAll("button, input")
+		);
+		expect(interactiveElements.indexOf(scanButton)).toBeLessThan(
+			interactiveElements.indexOf(searchInput)
+		);
+	});
+
+	it("shows the trailing hint line", () => {
+		renderSheet();
+		expect(
+			screen.getByText(
+				"Pick a known player, or type a name to register a temporary player (can be merged later)."
+			)
+		).toBeInTheDocument();
+	});
+
+	it("does not put a bottom border on the last result row", async () => {
+		const user = userEvent.setup();
+		renderSheet();
+		await user.type(
+			screen.getByRole("textbox", { name: SEARCH_PLAYERS_NAME }),
+			"Nobody"
+		);
+		const createRow = screen.getByText("Nobody").closest("button");
+		expect(createRow).not.toHaveClass("border-b");
 	});
 });

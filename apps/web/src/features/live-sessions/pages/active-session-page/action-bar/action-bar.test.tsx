@@ -116,6 +116,13 @@ describe("ActionBar — dimmed state", () => {
 		}
 	});
 
+	it("gives every button the transparent-background hover treatment", () => {
+		setup({ kind: "cash_game" });
+		for (const button of screen.getAllByRole("button")) {
+			expect(button).toHaveClass("bg-transparent", "hover:bg-muted");
+		}
+	});
+
 	it("does not call onChips when Chip adjust is disabled and clicked", async () => {
 		const user = userEvent.setup();
 		const props = setup({ kind: "cash_game", dimmed: true });

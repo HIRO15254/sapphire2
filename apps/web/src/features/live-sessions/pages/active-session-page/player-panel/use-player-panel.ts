@@ -1,5 +1,6 @@
 import type { FocusEvent } from "react";
 import { useRef } from "react";
+import { seatDotColor } from "@/features/live-sessions/utils/seat-dot-color";
 import type { PlayerTagWithColor } from "@/features/players/hooks/use-player-detail";
 import { usePlayerDetail } from "@/features/players/hooks/use-player-detail";
 
@@ -80,6 +81,7 @@ export function usePlayerPanel({ onLeave, selection }: UsePlayerPanelOptions) {
 	return {
 		availableTags,
 		createTag,
+		dotColor: seatDotColor(player?.tags),
 		isSaving,
 		onAddTag,
 		onLeaveClick,

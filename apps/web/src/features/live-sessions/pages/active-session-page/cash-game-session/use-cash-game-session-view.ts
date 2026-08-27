@@ -14,6 +14,7 @@ import {
 	deltaToneOf,
 	findLastStackUpdateAt,
 } from "@/features/live-sessions/utils/live-session-view";
+import { seatDotColor } from "@/features/live-sessions/utils/seat-dot-color";
 import { formatClockElapsed } from "@/utils/format-elapsed-time";
 import { formatNumber } from "@/utils/format-number";
 import { formatProfitLoss } from "@/utils/format-profit-loss";
@@ -30,7 +31,8 @@ function computeCashCenterModel(
 				evDiff?: unknown;
 				totalBuyIn: number;
 		  }
-		| undefined
+		| undefined,
+	bigBlind: number | null
 ) {
 	const chipRemoveTotal =
 		typeof summary?.chipRemoveTotal === "number" ? summary.chipRemoveTotal : 0;
@@ -52,9 +54,19 @@ function computeCashCenterModel(
 		},
 		defaultFinalStack: currentStack ?? undefined,
 		tableCenter: {
-			deltaText: displayPL === null ? undefined : formatProfitLoss(displayPL),
+			bbText:
+				currentStack === null || !bigBlind
+					? undefined
+					: `${formatNumber(Math.round(currentStack / bigBlind))} BB`,
+			deltaText:
+				displayPL === null
+					? undefined
+					: formatProfitLoss(displayPL, { compact: false }),
 			deltaTone: deltaToneOf(displayPL),
-			evText: showEvPL && evPL !== null ? formatProfitLoss(evPL) : undefined,
+			evText:
+				showEvPL && evPL !== null
+					? formatProfitLoss(evPL, { compact: false })
+					: undefined,
 			stackText: currentStack === null ? "—" : formatNumber(currentStack),
 		},
 	};
@@ -108,12 +120,16 @@ export function useCashGameSessionView(sessionId: string) {
 		tableSize: session?.tableSize ?? null,
 	});
 
-	const centerModel = computeCashCenterModel(session?.summary);
+	const centerModel = computeCashCenterModel(
+		session?.summary,
+		session?.blind2 ?? null
+	);
 
 	const seatedPlayers: TableViewPlayerSeat[] = sceneState.seats.flatMap((s) =>
 		s.player
 			? [
 					{
+						dotColor: seatDotColor(s.player.tags),
 						playerId: s.player.playerId,
 						playerName: s.player.name,
 						seatPosition: s.seatPosition,
@@ -267,6 +283,7 @@ export function useCashGameSessionView(sessionId: string) {
 		seatedPlayers,
 		selection: activeSelection,
 		session: session ?? null,
+		title: session?.ruleName ?? "Cash Game",
 		setIsAddChipsOpen,
 		setIsAllInOpen,
 		setIsChipMenuOpen,

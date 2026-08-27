@@ -37,7 +37,7 @@ export function TournamentSession({ sessionId }: { sessionId: string }) {
 				onTitleTap={vm.onOpenRule}
 				onTogglePause={vm.onTogglePause}
 				startedAt={vm.startedAt}
-				title="Tournament"
+				title={vm.title}
 			/>
 
 			{vm.hasStructure ? (
@@ -54,6 +54,7 @@ export function TournamentSession({ sessionId }: { sessionId: string }) {
 			<div className="shrink-0 px-3">
 				<TableView
 					averageStackText={vm.tableCenter.averageStackText}
+					bbText={vm.tableCenter.bbText}
 					dimmed={vm.isPaused}
 					heroSeatPosition={vm.sceneState.heroSeatPosition}
 					kind="tournament"

@@ -132,7 +132,7 @@ describe("useBlindLevelBar", () => {
 		expect(result.current).toMatchObject({ anteText: null, phase: "active" });
 	});
 
-	it("shows 'Break' as the blinds text and 'Break ends in' as the state label on a break level", () => {
+	it("shows 'Break' as the level label, 'On break' as the blinds text and 'Break ends in' as the state label on a break level", () => {
 		const { result } = renderHook(() =>
 			useBlindLevelBar({
 				blindLevels: BREAK_LEVELS,
@@ -142,8 +142,9 @@ describe("useBlindLevelBar", () => {
 		);
 		expect(result.current).toMatchObject({
 			anteText: null,
-			blindsText: "Break",
+			blindsText: "On break",
 			isCountdownWarning: true,
+			levelLabel: "Break",
 			phase: "active",
 			stateLabel: "Break ends in",
 		});
@@ -251,5 +252,97 @@ describe("useBlindLevelBar", () => {
 			vi.advanceTimersByTime(1000);
 		});
 		expect(result.current).toMatchObject({ countdownText: "14:59" });
+	});
+
+	it("starts with the level timer running and a 'Pause timer' title", () => {
+		const { result } = renderHook(() =>
+			useBlindLevelBar({
+				blindLevels: LEVELS,
+				isPaused: false,
+				timerStartedAt: new Date("2026-01-01T11:55:00Z"),
+			})
+		);
+		expect(result.current).toMatchObject({
+			isTimerRunning: true,
+			runTitle: "Pause timer",
+		});
+	});
+
+	it("stops propagation and flips to 'Resume timer' when the run button is toggled", () => {
+		const { result } = renderHook(() =>
+			useBlindLevelBar({
+				blindLevels: LEVELS,
+				isPaused: false,
+				timerStartedAt: new Date("2026-01-01T11:55:00Z"),
+			})
+		);
+		const stopPropagation = vi.fn();
+		act(() => {
+			if (result.current.phase === "active") {
+				result.current.onToggleTimerRunning({
+					stopPropagation,
+				} as unknown as React.MouseEvent);
+			}
+		});
+		expect(stopPropagation).toHaveBeenCalledTimes(1);
+		expect(result.current).toMatchObject({
+			isTimerRunning: false,
+			runTitle: "Resume timer",
+		});
+	});
+
+	it("freezes the countdown while the level timer is locally paused, independent of session isPaused", () => {
+		const { result } = renderHook(() =>
+			useBlindLevelBar({
+				blindLevels: LEVELS,
+				isPaused: false,
+				timerStartedAt: new Date("2026-01-01T11:55:00Z"),
+			})
+		);
+		act(() => {
+			if (result.current.phase === "active") {
+				result.current.onToggleTimerRunning({
+					stopPropagation: vi.fn(),
+				} as unknown as React.MouseEvent);
+			}
+		});
+		act(() => {
+			vi.advanceTimersByTime(5000);
+		});
+		expect(result.current).toMatchObject({
+			countdownText: "15:00",
+			stateLabel: "Next level in",
+		});
+	});
+
+	it("resumes the countdown from the frozen point after toggling the run button back on", () => {
+		const { result } = renderHook(() =>
+			useBlindLevelBar({
+				blindLevels: LEVELS,
+				isPaused: false,
+				timerStartedAt: new Date("2026-01-01T11:55:00Z"),
+			})
+		);
+		act(() => {
+			if (result.current.phase === "active") {
+				result.current.onToggleTimerRunning({
+					stopPropagation: vi.fn(),
+				} as unknown as React.MouseEvent);
+			}
+		});
+		act(() => {
+			vi.advanceTimersByTime(5000);
+		});
+		act(() => {
+			if (result.current.phase === "active") {
+				result.current.onToggleTimerRunning({
+					stopPropagation: vi.fn(),
+				} as unknown as React.MouseEvent);
+			}
+		});
+		act(() => {
+			vi.advanceTimersByTime(3000);
+		});
+		expect(result.current).toMatchObject({ countdownText: "14:57" });
 	});
 });

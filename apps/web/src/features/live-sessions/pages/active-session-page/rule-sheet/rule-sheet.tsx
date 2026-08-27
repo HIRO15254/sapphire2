@@ -14,7 +14,15 @@ export function RuleSheet({ onOpenChange, open }: RuleSheetProps) {
 			open={open}
 			title="Session"
 		>
-			{open ? <ActiveSessionGameScene /> : null}
+			{open ? (
+				<div className="flex flex-col gap-3">
+					<ActiveSessionGameScene />
+					<p className="text-pretty text-muted-foreground text-xs">
+						Rules are a snapshot taken when the session was created. Edits apply
+						to this session only.
+					</p>
+				</div>
+			) : null}
 		</BottomSheet>
 	);
 }

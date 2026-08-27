@@ -48,6 +48,14 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
+		sessionTablePlayer: {
+			list: {
+				queryOptions: (input: unknown) => ({
+					queryKey: buildKey("sessionTablePlayer", "list", input),
+					queryFn: () => Promise.resolve({ items: [] }),
+				}),
+			},
+		},
 		session: {
 			getById: {
 				queryOptions: (input: unknown) => ({
@@ -67,6 +75,7 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
+import { TZ_EAST, withTz } from "@/__tests__/tz";
 import {
 	type SessionEvent,
 	useSessionEvents,
@@ -99,6 +108,24 @@ const tournamentKey = (id: string) => [
 	"list",
 	{ liveTournamentSessionId: id },
 ];
+
+const tablePlayersCashKey = (id: string) => [
+	"sessionTablePlayer",
+	"list",
+	{ liveCashGameSessionId: id },
+];
+
+function buildTablePlayerItem(playerId: string, name: string, seat: number) {
+	return {
+		id: playerId,
+		isActive: true,
+		joinedAt: "2026-04-10T08:00:00",
+		leftAt: null,
+		player: { id: playerId, isTemporary: false, memo: null, name },
+		seatPosition: seat,
+		stints: [],
+	};
+}
 
 describe("useTimelineSheet", () => {
 	beforeEach(() => {
@@ -250,40 +277,137 @@ describe("useTimelineSheet", () => {
 			expect(result.current.items[0]?.time).toBe("09:05");
 		});
 
-		it("maps update_stack to a success dot with the reused payload summary as sub and no amount", () => {
+		it("maps update_stack to a success dot with the resulting stack as amount and no sub when there is no entries data", () => {
+			const { result } = renderWithEvent({
+				id: "e1",
+				eventType: "update_stack",
+				payload: { stackAmount: 51_800 },
+				occurredAt: "2026-04-10T09:05:00",
+			});
+			const item = result.current.items[0];
+			expect(item?.title).toBe("Stack update");
+			expect(item?.dotClass).toBe("bg-success");
+			expect(item?.sub).toBeNull();
+			expect(item?.amountText).toBe("51,800");
+		});
+
+		it("builds the tournament entries-and-purchases sub for update_stack", () => {
 			const { result } = renderWithEvent({
 				id: "e1",
 				eventType: "update_stack",
 				payload: {
-					stackAmount: 91_429,
-					remainingPlayers: 40,
-					totalEntries: 42,
+					stackAmount: 48_300,
+					remainingPlayers: 42,
+					totalEntries: 128,
+					chipPurchaseCounts: [
+						{ name: "Re-entry", count: 1, chipsPerUnit: 30_000 },
+					],
 				},
 				occurredAt: "2026-04-10T09:05:00",
 			});
 			const item = result.current.items[0];
-			expect(item?.title).toBe("Stack Update");
-			expect(item?.dotClass).toBe("bg-success");
-			expect(item?.sub).toBe("Stack: 91,429 · 40/42");
-			expect(item?.amountText).toBeNull();
-			expect(item?.amountClass).toBeNull();
+			expect(item?.sub).toBe("42 / 128 left · purchases: Re-entry ×1");
+			expect(item?.amountText).toBe("48,300");
 		});
 
-		it("maps all_in to a warning dot with the reused payload summary as sub and no amount", () => {
+		it("omits the purchases clause when every chip purchase count is zero", () => {
+			const { result } = renderWithEvent({
+				id: "e1",
+				eventType: "update_stack",
+				payload: {
+					stackAmount: 12_400,
+					remainingPlayers: 96,
+					totalEntries: 120,
+					chipPurchaseCounts: [
+						{ name: "Re-entry", count: 0, chipsPerUnit: 30_000 },
+					],
+				},
+				occurredAt: "2026-04-10T09:05:00",
+			});
+			expect(result.current.items[0]?.sub).toBe("96 / 120 left");
+		});
+
+		it("shows entries-left alone when only remainingPlayers is present", () => {
+			const { result } = renderWithEvent({
+				id: "e1",
+				eventType: "update_stack",
+				payload: { stackAmount: 100, remainingPlayers: 5 },
+				occurredAt: "2026-04-10T09:05:00",
+			});
+			expect(result.current.items[0]?.sub).toBe("5 left");
+		});
+
+		it("shows entries alone when only totalEntries is present", () => {
+			const { result } = renderWithEvent({
+				id: "e1",
+				eventType: "update_stack",
+				payload: { stackAmount: 100, totalEntries: 10 },
+				occurredAt: "2026-04-10T09:05:00",
+			});
+			expect(result.current.items[0]?.sub).toBe("10 entries");
+		});
+
+		it("shows no amount for update_stack when stackAmount is missing", () => {
+			const { result } = renderWithEvent({
+				id: "e1",
+				eventType: "update_stack",
+				payload: {},
+				occurredAt: "2026-04-10T09:05:00",
+			});
+			const item = result.current.items[0];
+			expect(item?.amountText).toBeNull();
+			expect(item?.sub).toBeNull();
+		});
+
+		it("builds the pot/equity/wins/EV-delta sub for all_in with a negative EV delta", () => {
 			const { result } = renderWithEvent({
 				id: "e1",
 				eventType: "all_in",
-				payload: { potSize: 20_000, trials: 100, equity: 55, wins: 55 },
+				payload: { potSize: 12_400, equity: 78, trials: 1, wins: 1 },
 				occurredAt: "2026-04-10T09:05:00",
 			});
 			const item = result.current.items[0];
 			expect(item?.title).toBe("All-in");
 			expect(item?.dotClass).toBe("bg-warning");
-			expect(item?.sub).toBe("Pot: 20,000 · Equity: 55%");
+			expect(item?.sub).toBe(
+				"Pot 12,400 · Eq 78% · 1 of 1 won · EV delta -2,728"
+			);
 			expect(item?.amountText).toBeNull();
 		});
 
-		it("maps a positive chips_add_remove amount to a primary dot and a plus-signed amount", () => {
+		it("plus-signs a positive EV delta for all_in", () => {
+			const { result } = renderWithEvent({
+				id: "e1",
+				eventType: "all_in",
+				payload: { potSize: 12_400, equity: 78, trials: 1, wins: 0 },
+				occurredAt: "2026-04-10T09:05:00",
+			});
+			expect(result.current.items[0]?.sub).toBe(
+				"Pot 12,400 · Eq 78% · 0 of 1 won · EV delta +9,672"
+			);
+		});
+
+		it("omits the won/EV-delta clauses for all_in when trials or wins is missing", () => {
+			const { result } = renderWithEvent({
+				id: "e1",
+				eventType: "all_in",
+				payload: { potSize: 5000, equity: 50 },
+				occurredAt: "2026-04-10T09:05:00",
+			});
+			expect(result.current.items[0]?.sub).toBe("Pot 5,000 · Eq 50%");
+		});
+
+		it("shows no sub for all_in when the payload is empty", () => {
+			const { result } = renderWithEvent({
+				id: "e1",
+				eventType: "all_in",
+				payload: {},
+				occurredAt: "2026-04-10T09:05:00",
+			});
+			expect(result.current.items[0]?.sub).toBeNull();
+		});
+
+		it("maps a positive chips_add_remove amount to a primary dot, a chip-add title and a plus-signed amount", () => {
 			const { result } = renderWithEvent({
 				id: "e1",
 				eventType: "chips_add_remove",
@@ -291,13 +415,13 @@ describe("useTimelineSheet", () => {
 				occurredAt: "2026-04-10T09:05:00",
 			});
 			const item = result.current.items[0];
-			expect(item?.title).toBe("Chips Add/Remove");
+			expect(item?.title).toBe("Chip add");
 			expect(item?.dotClass).toBe("bg-primary");
 			expect(item?.amountText).toBe("+5,000");
-			expect(item?.amountClass).toBe("text-primary");
+			expect(item?.sub).toBeNull();
 		});
 
-		it("maps a negative chips_add_remove amount to a destructive dot and a minus-signed amount", () => {
+		it("maps a negative chips_add_remove amount to a destructive dot, a withdrawal title and a minus-signed amount", () => {
 			const { result } = renderWithEvent({
 				id: "e1",
 				eventType: "chips_add_remove",
@@ -305,9 +429,9 @@ describe("useTimelineSheet", () => {
 				occurredAt: "2026-04-10T09:05:00",
 			});
 			const item = result.current.items[0];
+			expect(item?.title).toBe("Chip withdrawal");
 			expect(item?.dotClass).toBe("bg-destructive");
 			expect(item?.amountText).toBe("-3,000");
-			expect(item?.amountClass).toBe("text-destructive");
 		});
 
 		it("treats a zero chips_add_remove amount as non-negative", () => {
@@ -318,9 +442,9 @@ describe("useTimelineSheet", () => {
 				occurredAt: "2026-04-10T09:05:00",
 			});
 			const item = result.current.items[0];
+			expect(item?.title).toBe("Chip add");
 			expect(item?.dotClass).toBe("bg-primary");
 			expect(item?.amountText).toBe("+0");
-			expect(item?.amountClass).toBe("text-primary");
 		});
 
 		it("falls back to no amount for chips_add_remove when amount is missing", () => {
@@ -331,12 +455,11 @@ describe("useTimelineSheet", () => {
 				occurredAt: "2026-04-10T09:05:00",
 			});
 			const item = result.current.items[0];
-			expect(item?.dotClass).toBe("bg-primary");
+			expect(item?.title).toBe("Chip add");
 			expect(item?.amountText).toBeNull();
-			expect(item?.amountClass).toBeNull();
 		});
 
-		it("maps memo to an info dot with the note text as sub", () => {
+		it("maps memo to an info dot with the note text folded into the title and no sub", () => {
 			const { result } = renderWithEvent({
 				id: "e1",
 				eventType: "memo",
@@ -344,64 +467,123 @@ describe("useTimelineSheet", () => {
 				occurredAt: "2026-04-10T09:05:00",
 			});
 			const item = result.current.items[0];
-			expect(item?.title).toBe("Memo");
+			expect(item?.title).toBe("Note — Great table read");
 			expect(item?.dotClass).toBe("bg-info");
-			expect(item?.sub).toBe("Great table read");
+			expect(item?.sub).toBeNull();
 			expect(item?.amountText).toBeNull();
 		});
 
-		it("maps purchase_chips to a primary dot, the chip name as sub, and a minus-signed cost", () => {
+		it("falls back to a bare Note title when memo text is missing", () => {
+			const { result } = renderWithEvent({
+				id: "e1",
+				eventType: "memo",
+				payload: {},
+				occurredAt: "2026-04-10T09:05:00",
+			});
+			expect(result.current.items[0]?.title).toBe("Note");
+		});
+
+		it("maps purchase_chips to a primary dot, a name-suffixed title, a cost/chips sub and no amount", () => {
 			const { result } = renderWithEvent({
 				id: "e1",
 				eventType: "purchase_chips",
-				payload: { name: "Add-on", cost: 20_000, chips: 20_000 },
+				payload: { name: "Re-entry", cost: 10_000, chips: 30_000 },
 				occurredAt: "2026-04-10T09:05:00",
 			});
 			const item = result.current.items[0];
-			expect(item?.title).toBe("Purchase Chips");
+			expect(item?.title).toBe("Chip purchase — Re-entry");
 			expect(item?.dotClass).toBe("bg-primary");
-			expect(item?.sub).toBe("Add-on");
-			expect(item?.amountText).toBe("-20,000");
-			expect(item?.amountClass).toBe("text-primary");
+			expect(item?.sub).toBe("Cost 10,000 · +30,000 chips");
+			expect(item?.amountText).toBeNull();
 		});
 
-		it("falls back to no sub for purchase_chips when the name is missing", () => {
+		it("falls back to a bare title for purchase_chips when the name is missing", () => {
 			const { result } = renderWithEvent({
 				id: "e1",
 				eventType: "purchase_chips",
-				payload: { cost: 20_000 },
+				payload: { cost: 20_000, chips: 20_000 },
+				occurredAt: "2026-04-10T09:05:00",
+			});
+			expect(result.current.items[0]?.title).toBe("Chip purchase");
+		});
+
+		it("falls back to no sub for purchase_chips when chips is missing", () => {
+			const { result } = renderWithEvent({
+				id: "e1",
+				eventType: "purchase_chips",
+				payload: { name: "Add-on", cost: 20_000 },
 				occurredAt: "2026-04-10T09:05:00",
 			});
 			expect(result.current.items[0]?.sub).toBeNull();
 		});
 
-		it("maps player_join to a muted dot with the hero seat summary as sub", () => {
+		it("resolves the seated player's name and seat for player_join", () => {
+			const qc = createClient();
+			qc.setQueryData(tablePlayersCashKey("s1"), {
+				items: [buildTablePlayerItem("p1", "Young guy", 7)],
+			});
+			const { result } = renderWithEvent(
+				{
+					id: "e1",
+					eventType: "player_join",
+					payload: { playerId: "p1", seatPosition: 7 },
+					occurredAt: "2026-04-10T09:05:00",
+				},
+				qc
+			);
+			const item = result.current.items[0];
+			expect(item?.title).toBe("Young guy seated at S8");
+			expect(item?.dotClass).toBe("bg-muted-foreground");
+			expect(item?.sub).toBeNull();
+		});
+
+		it("falls back to a generic Player label when the join event's player isn't in the table player list", () => {
 			const { result } = renderWithEvent({
 				id: "e1",
 				eventType: "player_join",
-				payload: { isHero: true, seatPosition: 2 },
+				payload: { playerId: "unknown", seatPosition: 0 },
 				occurredAt: "2026-04-10T09:05:00",
 			});
-			const item = result.current.items[0];
-			expect(item?.title).toBe("Player Join");
-			expect(item?.dotClass).toBe("bg-muted-foreground");
-			expect(item?.sub).toBe("Hero · Seat 3");
+			expect(result.current.items[0]?.title).toBe("Player seated at S1");
 		});
 
-		it("maps player_leave to a muted dot", () => {
-			const { result } = renderWithEvent({
-				id: "e1",
-				eventType: "player_leave",
-				payload: { isHero: true },
-				occurredAt: "2026-04-10T09:05:00",
+		it("omits the seat clause for player_join when seatPosition is missing", () => {
+			const qc = createClient();
+			qc.setQueryData(tablePlayersCashKey("s1"), {
+				items: [buildTablePlayerItem("p1", "Young guy", 7)],
 			});
-			const item = result.current.items[0];
-			expect(item?.title).toBe("Player Leave");
-			expect(item?.dotClass).toBe("bg-muted-foreground");
-			expect(item?.sub).toBe("Hero");
+			const { result } = renderWithEvent(
+				{
+					id: "e1",
+					eventType: "player_join",
+					payload: { playerId: "p1" },
+					occurredAt: "2026-04-10T09:05:00",
+				},
+				qc
+			);
+			expect(result.current.items[0]?.title).toBe("Young guy seated");
 		});
 
-		it("maps session_pause to a warning dot with no sub", () => {
+		it("resolves the seated player's name for player_leave", () => {
+			const qc = createClient();
+			qc.setQueryData(tablePlayersCashKey("s1"), {
+				items: [buildTablePlayerItem("p2", "Sunglasses", 3)],
+			});
+			const { result } = renderWithEvent(
+				{
+					id: "e1",
+					eventType: "player_leave",
+					payload: { playerId: "p2" },
+					occurredAt: "2026-04-10T09:05:00",
+				},
+				qc
+			);
+			const item = result.current.items[0];
+			expect(item?.title).toBe("Sunglasses left the table");
+			expect(item?.dotClass).toBe("bg-muted-foreground");
+		});
+
+		it("maps session_pause to a warning dot titled Pause with no sub", () => {
 			const { result } = renderWithEvent({
 				id: "e1",
 				eventType: "session_pause",
@@ -409,12 +591,12 @@ describe("useTimelineSheet", () => {
 				occurredAt: "2026-04-10T09:05:00",
 			});
 			const item = result.current.items[0];
-			expect(item?.title).toBe("Session Pause");
+			expect(item?.title).toBe("Pause");
 			expect(item?.dotClass).toBe("bg-warning");
 			expect(item?.sub).toBeNull();
 		});
 
-		it("maps session_resume to a warning dot with no sub", () => {
+		it("maps session_resume to a warning dot titled Resume with no sub", () => {
 			const { result } = renderWithEvent({
 				id: "e1",
 				eventType: "session_resume",
@@ -422,12 +604,12 @@ describe("useTimelineSheet", () => {
 				occurredAt: "2026-04-10T09:05:00",
 			});
 			const item = result.current.items[0];
-			expect(item?.title).toBe("Session Resume");
+			expect(item?.title).toBe("Resume");
 			expect(item?.dotClass).toBe("bg-warning");
 			expect(item?.sub).toBeNull();
 		});
 
-		it("maps session_start to a muted dot with the buy-in summary as sub", () => {
+		it("maps session_start to a muted dot with the buy-in sub", () => {
 			const { result } = renderWithEvent({
 				id: "e1",
 				eventType: "session_start",
@@ -435,12 +617,35 @@ describe("useTimelineSheet", () => {
 				occurredAt: "2026-04-10T09:05:00",
 			});
 			const item = result.current.items[0];
-			expect(item?.title).toBe("Session Start");
+			expect(item?.title).toBe("Session start");
 			expect(item?.dotClass).toBe("bg-muted-foreground");
-			expect(item?.sub).toBe("Buy-in: 10,000");
+			expect(item?.sub).toBe("Buy-in 10,000");
 		});
 
-		it("maps session_end to a muted dot with the cash-out summary as sub", () => {
+		it("shows the local timer-start time for session_start when there is no buy-in", () => {
+			withTz(TZ_EAST, () => {
+				const timerStartedAt = Date.UTC(2024, 0, 1, 11, 0, 0) / 1000;
+				const { result } = renderWithEvent({
+					id: "e1",
+					eventType: "session_start",
+					payload: { timerStartedAt },
+					occurredAt: "2026-04-10T09:05:00",
+				});
+				expect(result.current.items[0]?.sub).toBe("Timer start 20:00");
+			});
+		});
+
+		it("shows no sub for session_start when neither buy-in nor timer is present", () => {
+			const { result } = renderWithEvent({
+				id: "e1",
+				eventType: "session_start",
+				payload: {},
+				occurredAt: "2026-04-10T09:05:00",
+			});
+			expect(result.current.items[0]?.sub).toBeNull();
+		});
+
+		it("maps session_end to a muted dot with the cash-out sub", () => {
 			const { result } = renderWithEvent({
 				id: "e1",
 				eventType: "session_end",
@@ -448,19 +653,61 @@ describe("useTimelineSheet", () => {
 				occurredAt: "2026-04-10T09:05:00",
 			});
 			const item = result.current.items[0];
-			expect(item?.title).toBe("Session End");
+			expect(item?.title).toBe("Session end");
 			expect(item?.dotClass).toBe("bg-muted-foreground");
-			expect(item?.sub).toBe("Cash-out: 15,000");
+			expect(item?.sub).toBe("Cash-out 15,000");
 		});
 
-		it("falls back to a muted dot for an unrecognized event type", () => {
+		it("shows a placeholder sub for session_end before the tournament deadline", () => {
+			const { result } = renderWithEvent({
+				id: "e1",
+				eventType: "session_end",
+				payload: { beforeDeadline: true },
+				occurredAt: "2026-04-10T09:05:00",
+			});
+			expect(result.current.items[0]?.sub).toBe("- / - entries");
+		});
+
+		it("shows a placement-over-entries sub for session_end when both are present", () => {
+			const { result } = renderWithEvent({
+				id: "e1",
+				eventType: "session_end",
+				payload: { placement: 5, totalEntries: 42 },
+				occurredAt: "2026-04-10T09:05:00",
+			});
+			expect(result.current.items[0]?.sub).toBe("#5 / 42");
+		});
+
+		it("shows a placement-only sub for session_end when totalEntries is missing", () => {
+			const { result } = renderWithEvent({
+				id: "e1",
+				eventType: "session_end",
+				payload: { placement: 5 },
+				occurredAt: "2026-04-10T09:05:00",
+			});
+			expect(result.current.items[0]?.sub).toBe("#5");
+		});
+
+		it("shows no sub for session_end when no known field is present", () => {
+			const { result } = renderWithEvent({
+				id: "e1",
+				eventType: "session_end",
+				payload: {},
+				occurredAt: "2026-04-10T09:05:00",
+			});
+			expect(result.current.items[0]?.sub).toBeNull();
+		});
+
+		it("falls back to a muted dot and the raw event type as title for an unrecognized event type", () => {
 			const { result } = renderWithEvent({
 				id: "e1",
 				eventType: "some_future_event",
 				payload: {},
 				occurredAt: "2026-04-10T09:05:00",
 			});
-			expect(result.current.items[0]?.dotClass).toBe("bg-muted-foreground");
+			const item = result.current.items[0];
+			expect(item?.dotClass).toBe("bg-muted-foreground");
+			expect(item?.title).toBe("some_future_event");
 		});
 
 		it("preserves the original event order in items", () => {

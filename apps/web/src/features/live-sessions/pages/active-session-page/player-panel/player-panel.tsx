@@ -1,7 +1,7 @@
-import { IconLoader2, IconLogout, IconUserSearch } from "@tabler/icons-react";
-import { PlayerTagInput } from "@/features/players/components/player-tag-input";
+import { IconLogout, IconUserSearch } from "@tabler/icons-react";
 import { Input } from "@/shared/components/ui/input";
 import { RichTextEditor } from "@/shared/components/ui/rich-text-editor";
+import { TagField } from "./tag-field";
 import type { PlayerPanelSelection } from "./use-player-panel";
 import { usePlayerPanel } from "./use-player-panel";
 
@@ -26,6 +26,7 @@ export function PlayerPanel({
 	const {
 		availableTags,
 		createTag,
+		dotColor,
 		isSaving,
 		onAddTag,
 		onLeaveClick,
@@ -39,10 +40,11 @@ export function PlayerPanel({
 	} = usePlayerPanel({ onLeave, selection });
 
 	return (
-		<div className="flex h-full min-h-16 flex-col overflow-hidden rounded-lg border border-border bg-card">
+		<div className="flex h-full min-h-16 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
 			{renderPlayerPanelBody({
 				availableTags,
 				createTag,
+				dotColor,
 				isPaused,
 				isSaving,
 				onAddTag,
@@ -63,8 +65,8 @@ export function PlayerPanel({
 function renderPlayerPanelBody({
 	availableTags,
 	createTag,
+	dotColor,
 	isPaused,
-	isSaving,
 	onAddTag,
 	onLeaveClick,
 	onMemoChange,
@@ -93,28 +95,30 @@ function renderPlayerPanelBody({
 	}
 
 	return (
-		<div className="flex h-full min-h-0 flex-col gap-2 p-3" key={player.id}>
+		<div
+			className="flex min-h-0 flex-1 flex-col gap-2 px-3 pt-2.5 pb-3"
+			key={player.id}
+		>
 			<div className="flex shrink-0 items-center gap-2">
+				<span
+					className="size-2 shrink-0 rounded-full"
+					style={{ backgroundColor: dotColor }}
+				/>
 				<span className="shrink-0 font-mono text-muted-foreground text-xs">
 					{seatLabel}
 				</span>
 				<Input
 					aria-label="Player name"
-					className="h-7 min-w-0 flex-1 border-transparent bg-transparent px-1.5 font-semibold hover:bg-muted focus-visible:border-input focus-visible:bg-card focus-visible:ring-0"
+					className="-mx-1.5 h-7 min-w-0 flex-1 rounded-md border-transparent bg-transparent px-1.5 font-semibold text-[var(--m-text-body)] hover:bg-muted focus-visible:border-input focus-visible:bg-card focus-visible:ring-0"
 					defaultValue={player.name}
 					onBlur={(e) => onNameBlur(e.target.value)}
+					placeholder="Player name"
 				/>
-				{isSaving ? (
-					<IconLoader2
-						aria-label="Saving"
-						className="shrink-0 animate-spin text-muted-foreground"
-						size={16}
-					/>
-				) : null}
 				<button
-					className="flex h-7 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-destructive text-xs hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50"
+					className="flex h-7 shrink-0 items-center gap-1 rounded-md border border-border bg-transparent px-2 text-destructive text-xs hover:bg-destructive/12 disabled:cursor-not-allowed disabled:opacity-50"
 					disabled={isPaused}
 					onClick={onLeaveClick}
+					title="Log leaving and clear the seat"
 					type="button"
 				>
 					<IconLogout size={13} />
@@ -122,7 +126,7 @@ function renderPlayerPanelBody({
 				</button>
 			</div>
 
-			<PlayerTagInput
+			<TagField
 				availableTags={availableTags}
 				onAdd={onAddTag}
 				onCreateTag={createTag}

@@ -21,8 +21,8 @@ function setup(
 		onRecordStack: vi.fn(),
 		...overrides,
 	};
-	render(<StackQuickInput {...props} />);
-	return props;
+	const result = render(<StackQuickInput {...props} />);
+	return { ...result, props };
 }
 
 describe("StackQuickInput — layout by kind", () => {
@@ -49,6 +49,18 @@ describe("StackQuickInput — layout by kind", () => {
 		expect(
 			screen.getByRole("button", { name: "Save stack" })
 		).toBeInTheDocument();
+	});
+});
+
+describe("StackQuickInput — paused dimming", () => {
+	it("dims the container when disabled", () => {
+		const { container } = setup({ disabled: true });
+		expect(container.firstElementChild).toHaveClass("opacity-50");
+	});
+
+	it("does not dim the container when enabled", () => {
+		const { container } = setup({ disabled: false });
+		expect(container.firstElementChild).not.toHaveClass("opacity-50");
 	});
 });
 

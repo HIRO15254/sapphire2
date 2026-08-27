@@ -49,6 +49,14 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
+		sessionTablePlayer: {
+			list: {
+				queryOptions: (input: unknown) => ({
+					queryKey: buildKey("sessionTablePlayer", "list", input),
+					queryFn: () => Promise.resolve({ items: [] }),
+				}),
+			},
+		},
 		session: {
 			getById: {
 				queryOptions: (input: unknown) => ({

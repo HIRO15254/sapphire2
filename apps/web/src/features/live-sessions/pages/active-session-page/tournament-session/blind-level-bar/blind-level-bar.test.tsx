@@ -1,7 +1,9 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TournamentBlindLevel } from "@/features/live-sessions/utils/tournament-timer";
 import { BlindLevelBar } from "./blind-level-bar";
+
+const LEVEL_1_NAME_PATTERN = /Level 1/;
 
 const LEVELS: TournamentBlindLevel[] = [
 	{
@@ -102,7 +104,7 @@ describe("BlindLevelBar", () => {
 		expect(screen.getByText("Next level in")).toBeInTheDocument();
 	});
 
-	it("calls onEdit exactly once when the running bar is tapped", () => {
+	it("calls onEdit exactly once when the level/blinds block is tapped", () => {
 		const onEdit = vi.fn();
 		render(
 			<BlindLevelBar
@@ -112,8 +114,85 @@ describe("BlindLevelBar", () => {
 				timerStartedAt={new Date("2026-01-01T11:55:00Z")}
 			/>
 		);
-		fireEvent.click(screen.getByRole("button"));
+		fireEvent.click(screen.getByRole("button", { name: LEVEL_1_NAME_PATTERN }));
 		expect(onEdit).toHaveBeenCalledTimes(1);
+	});
+
+	it("shows the run/pause button as running (pause icon) by default", () => {
+		render(
+			<BlindLevelBar
+				blindLevels={LEVELS}
+				isPaused={false}
+				onEdit={vi.fn()}
+				timerStartedAt={new Date("2026-01-01T11:55:00Z")}
+			/>
+		);
+		expect(screen.getByTitle("Pause timer")).toBeInTheDocument();
+	});
+
+	it("does not call onEdit when the run/pause button is tapped", () => {
+		const onEdit = vi.fn();
+		render(
+			<BlindLevelBar
+				blindLevels={LEVELS}
+				isPaused={false}
+				onEdit={onEdit}
+				timerStartedAt={new Date("2026-01-01T11:55:00Z")}
+			/>
+		);
+		fireEvent.click(screen.getByTitle("Pause timer"));
+		expect(onEdit).not.toHaveBeenCalled();
+	});
+
+	it("switches the run/pause button to 'Resume timer' after one tap", () => {
+		render(
+			<BlindLevelBar
+				blindLevels={LEVELS}
+				isPaused={false}
+				onEdit={vi.fn()}
+				timerStartedAt={new Date("2026-01-01T11:55:00Z")}
+			/>
+		);
+		fireEvent.click(screen.getByTitle("Pause timer"));
+		expect(screen.getByTitle("Resume timer")).toBeInTheDocument();
+		expect(screen.queryByTitle("Pause timer")).not.toBeInTheDocument();
+	});
+
+	it("freezes the countdown while the level timer is locally paused", () => {
+		render(
+			<BlindLevelBar
+				blindLevels={LEVELS}
+				isPaused={false}
+				onEdit={vi.fn()}
+				timerStartedAt={new Date("2026-01-01T11:55:00Z")}
+			/>
+		);
+		expect(screen.getByText("15:00")).toBeInTheDocument();
+		fireEvent.click(screen.getByTitle("Pause timer"));
+		act(() => {
+			vi.advanceTimersByTime(5000);
+		});
+		expect(screen.getByText("15:00")).toBeInTheDocument();
+	});
+
+	it("resumes counting down from where it froze after tapping resume", () => {
+		render(
+			<BlindLevelBar
+				blindLevels={LEVELS}
+				isPaused={false}
+				onEdit={vi.fn()}
+				timerStartedAt={new Date("2026-01-01T11:55:00Z")}
+			/>
+		);
+		fireEvent.click(screen.getByTitle("Pause timer"));
+		act(() => {
+			vi.advanceTimersByTime(5000);
+		});
+		fireEvent.click(screen.getByTitle("Resume timer"));
+		act(() => {
+			vi.advanceTimersByTime(3000);
+		});
+		expect(screen.getByText("14:57")).toBeInTheDocument();
 	});
 
 	it("shows 'Paused' as the state label when isPaused is true", () => {
@@ -138,6 +217,8 @@ describe("BlindLevelBar", () => {
 				timerStartedAt={new Date("2026-01-01T11:55:00Z")}
 			/>
 		);
+		expect(screen.getByText("Break")).toBeInTheDocument();
+		expect(screen.getByText("On break")).toBeInTheDocument();
 		expect(screen.getByText("Break ends in")).toBeInTheDocument();
 		expect(screen.getByText("05:00")).toHaveClass("text-warning");
 		expect(screen.getByRole("progressbar")).toHaveClass("bg-muted");

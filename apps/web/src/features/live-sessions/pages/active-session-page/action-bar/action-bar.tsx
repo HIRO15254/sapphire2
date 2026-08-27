@@ -71,21 +71,21 @@ export function ActionBar(props: ActionBarProps) {
 	const items = buildItems(props);
 	return (
 		<div
-			className="grid gap-1.5 bg-card px-[var(--m-inset)] pt-2 pb-[calc(8px+env(safe-area-inset-bottom))]"
+			className="grid gap-2 bg-card px-[var(--m-inset)] pt-2 pb-[calc(8px+env(safe-area-inset-bottom))]"
 			style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
 		>
 			{items.map(({ Icon, dimmable, label, onSelect }) => {
 				const disabled = dimmable && props.dimmed;
 				return (
 					<button
-						className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-lg border border-border disabled:opacity-50"
+						className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-lg border border-border bg-transparent font-medium text-[11px] text-foreground hover:bg-muted disabled:opacity-50"
 						disabled={disabled}
 						key={label}
 						onClick={onSelect}
 						type="button"
 					>
 						<Icon className="size-4.5" />
-						<span className="font-medium text-[11px]">{label}</span>
+						{label}
 					</button>
 				);
 			})}

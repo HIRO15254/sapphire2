@@ -8,6 +8,7 @@ import {
 	IconUsers,
 } from "@tabler/icons-react";
 import type { StackStaleness } from "@/features/live-sessions/utils/stack-staleness";
+import { cn } from "@/lib/utils";
 import { useStackQuickInput } from "./use-stack-quick-input";
 
 export interface StackQuickInputProps {
@@ -59,7 +60,7 @@ export function StackQuickInput({
 	const ToneIcon = STALENESS_ICON[staleness.tone];
 
 	return (
-		<div className="flex flex-col gap-1.5 border-border border-t bg-card px-[var(--m-inset)] pt-2">
+		<div className={cn("flex flex-col gap-1.5", disabled && "opacity-50")}>
 			<form
 				onSubmit={(event) => {
 					event.preventDefault();
@@ -75,8 +76,8 @@ export function StackQuickInput({
 				>
 					<form.Field name="stackAmount">
 						{(field) => (
-							<label className="flex h-[var(--m-control)] min-w-0 items-center gap-1.5 rounded-md border border-input bg-background px-2.5">
-								<IconStack2 className="size-3.5 shrink-0 text-muted-foreground" />
+							<label className="flex h-[var(--m-control)] min-w-0 cursor-text items-center gap-1.5 rounded-md border border-input bg-background px-2.5 focus-within:border-primary">
+								<IconStack2 className="size-[15px] shrink-0 text-muted-foreground" />
 								<input
 									aria-label="Stack amount"
 									className="min-w-0 flex-1 border-none bg-transparent font-mono text-[length:var(--m-text-secondary)] text-foreground outline-none"
@@ -91,12 +92,12 @@ export function StackQuickInput({
 					</form.Field>
 					{isTournament ? (
 						<div className="flex h-[var(--m-control)] items-center gap-0.5 rounded-md border border-input bg-background px-2">
-							<IconUsers className="mr-1 size-3.5 shrink-0 text-muted-foreground" />
+							<IconUsers className="mr-1 size-[15px] shrink-0 text-muted-foreground" />
 							<form.Field name="remainingPlayers">
 								{(field) => (
 									<input
 										aria-label="Remaining players"
-										className="w-9 border-none bg-transparent text-right font-mono text-[length:var(--m-text-secondary)] text-foreground outline-none"
+										className="w-[34px] border-none bg-transparent text-right font-mono text-[length:var(--m-text-secondary)] text-foreground outline-none"
 										disabled={fieldsDisabled}
 										inputMode="numeric"
 										onChange={(event) => field.handleChange(event.target.value)}
@@ -112,7 +113,7 @@ export function StackQuickInput({
 								{(field) => (
 									<input
 										aria-label="Total entries"
-										className="w-10 border-none bg-transparent font-mono text-[length:var(--m-text-secondary)] text-muted-foreground outline-none"
+										className="w-[38px] border-none bg-transparent font-mono text-[length:var(--m-text-secondary)] text-muted-foreground outline-none"
 										disabled={fieldsDisabled}
 										inputMode="numeric"
 										onChange={(event) => field.handleChange(event.target.value)}
@@ -125,7 +126,7 @@ export function StackQuickInput({
 					) : null}
 					<button
 						aria-label="Save stack"
-						className="flex size-[var(--m-control)] shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground hover:brightness-108 active:brightness-94 disabled:opacity-50"
+						className="flex size-[var(--m-control)] shrink-0 items-center justify-center rounded-md border border-transparent bg-primary text-primary-foreground hover:brightness-108 active:brightness-94 disabled:opacity-50"
 						disabled={fieldsDisabled}
 						title="Save stack"
 						type="submit"
@@ -136,7 +137,7 @@ export function StackQuickInput({
 			</form>
 			{showStaleness ? (
 				<div
-					className={`flex items-center gap-1.5 pb-2 text-[11px] ${STALENESS_TEXT_CLASS[staleness.tone]}`}
+					className={`flex items-center gap-[5px] text-[11px] ${STALENESS_TEXT_CLASS[staleness.tone]}`}
 				>
 					<ToneIcon className="size-3" />
 					<span>

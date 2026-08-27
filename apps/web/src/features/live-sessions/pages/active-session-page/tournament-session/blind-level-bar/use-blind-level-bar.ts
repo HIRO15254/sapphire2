@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNowTick } from "@/features/live-sessions/hooks/use-now-tick";
 import { formatBlindParts } from "@/features/live-sessions/utils/game-scene-formatters";
 import {
@@ -19,9 +20,12 @@ export type BlindLevelBarView =
 			countdownText: string;
 			isCountdownWarning: boolean;
 			isStateLabelWarning: boolean;
+			isTimerRunning: boolean;
 			levelLabel: string;
+			onToggleTimerRunning: (event: React.MouseEvent) => void;
 			phase: "active";
 			progress: number | null;
+			runTitle: string;
 			stateLabel: string;
 	  };
 
@@ -37,6 +41,23 @@ export function useBlindLevelBar({
 	timerStartedAt,
 }: UseBlindLevelBarOptions): BlindLevelBarView {
 	const now = useNowTick(1000);
+	const [isTimerRunning, setIsTimerRunning] = useState(true);
+	const [pauseAnchorMs, setPauseAnchorMs] = useState<number | null>(null);
+	const [pausedTotalMs, setPausedTotalMs] = useState(0);
+
+	const onToggleTimerRunning = (event: React.MouseEvent) => {
+		event.stopPropagation();
+		if (isTimerRunning) {
+			setPauseAnchorMs(Date.now());
+			setIsTimerRunning(false);
+			return;
+		}
+		if (pauseAnchorMs !== null) {
+			setPausedTotalMs((total) => total + (Date.now() - pauseAnchorMs));
+		}
+		setPauseAnchorMs(null);
+		setIsTimerRunning(true);
+	};
 
 	if (blindLevels.length === 0) {
 		return { phase: "empty" };
@@ -46,7 +67,15 @@ export function useBlindLevelBar({
 		return { phase: "not-started" };
 	}
 
-	const state = computeTournamentTimerState(blindLevels, timerStartedAt, now);
+	const effectiveNow = isTimerRunning
+		? now - pausedTotalMs
+		: (pauseAnchorMs ?? now) - pausedTotalMs;
+
+	const state = computeTournamentTimerState(
+		blindLevels,
+		timerStartedAt,
+		effectiveNow
+	);
 	const remaining = state.remainingSecondsInLevel;
 	const isFinished =
 		state.nextLevel === null && remaining !== null && remaining <= 0;
@@ -68,18 +97,31 @@ export function useBlindLevelBar({
 			remaining === null ? "—" : formatTimerDuration(Math.max(0, remaining)),
 		isCountdownWarning: isBreak || isWarning,
 		isStateLabelWarning: isWarning,
-		levelLabel: level ? `Level ${level.level}` : "—",
+		isTimerRunning,
+		levelLabel: levelLabelFor(level, isBreak),
+		onToggleTimerRunning,
 		phase: "active",
 		progress: state.levelProgressFraction,
+		runTitle: isTimerRunning ? "Pause timer" : "Resume timer",
 		stateLabel: stateLabelFor(isPaused, isBreak),
 	};
 }
 
 function blindsTextFor(level: TournamentBlindLevel, isBreak: boolean): string {
 	if (isBreak) {
-		return "Break";
+		return "On break";
 	}
 	return formatBlindParts(level) || "—";
+}
+
+function levelLabelFor(
+	level: TournamentBlindLevel | undefined,
+	isBreak: boolean
+): string {
+	if (!level) {
+		return "—";
+	}
+	return isBreak ? "Break" : `Level ${level.level}`;
 }
 
 function anteSuffixFor(ante: number): string {

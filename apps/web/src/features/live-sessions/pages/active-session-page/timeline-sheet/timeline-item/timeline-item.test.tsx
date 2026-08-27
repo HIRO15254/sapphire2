@@ -14,10 +14,9 @@ function buildItem(
 		id: "e1",
 		time: "09:05",
 		dotClass: "bg-primary",
-		title: "Stack Update",
+		title: "Stack update",
 		sub: null,
 		amountText: null,
-		amountClass: null,
 		onEdit: vi.fn(),
 		...overrides,
 	};
@@ -27,7 +26,7 @@ describe("TimelineItem", () => {
 	it("renders the time and title", () => {
 		render(<TimelineItem item={buildItem()} />);
 		expect(screen.getByText("09:05")).toBeInTheDocument();
-		expect(screen.getByText("Stack Update")).toBeInTheDocument();
+		expect(screen.getByText("Stack update")).toBeInTheDocument();
 	});
 
 	it("renders the sub line when present", () => {
@@ -41,11 +40,7 @@ describe("TimelineItem", () => {
 	});
 
 	it("renders the amount when present", () => {
-		render(
-			<TimelineItem
-				item={buildItem({ amountText: "+5,000", amountClass: "text-primary" })}
-			/>
-		);
+		render(<TimelineItem item={buildItem({ amountText: "+5,000" })} />);
 		expect(screen.getByText("+5,000")).toBeInTheDocument();
 	});
 
@@ -59,8 +54,20 @@ describe("TimelineItem", () => {
 		const onEdit = vi.fn();
 		render(<TimelineItem item={buildItem({ onEdit })} />);
 		await user.click(
-			screen.getByText("Stack Update").closest("button") as HTMLButtonElement
+			screen.getByText("Stack update").closest("button") as HTMLButtonElement
 		);
 		expect(onEdit).toHaveBeenCalledTimes(1);
+	});
+
+	it("draws a continuous rail line and a ringed dot colored by dotClass", () => {
+		const { container } = render(
+			<TimelineItem item={buildItem({ dotClass: "bg-warning" })} />
+		);
+		const line = container.querySelector(".bg-border");
+		expect(line).not.toBeNull();
+		const dot = container.querySelector(".border-background");
+		expect(dot).not.toBeNull();
+		expect(dot?.className).toContain("bg-warning");
+		expect(dot?.className).toContain("rounded-full");
 	});
 });

@@ -41,4 +41,22 @@ describe("RuleSheet", () => {
 		expect(onOpenChange).toHaveBeenCalledTimes(1);
 		expect(onOpenChange).toHaveBeenNthCalledWith(1, false);
 	});
+
+	it("shows the snapshot hint line below the game scene when open", () => {
+		render(<RuleSheet onOpenChange={vi.fn()} open />);
+		expect(
+			screen.getByText(
+				"Rules are a snapshot taken when the session was created. Edits apply to this session only."
+			)
+		).toBeInTheDocument();
+	});
+
+	it("does not show the snapshot hint line while closed", () => {
+		render(<RuleSheet onOpenChange={vi.fn()} open={false} />);
+		expect(
+			screen.queryByText(
+				"Rules are a snapshot taken when the session was created. Edits apply to this session only."
+			)
+		).not.toBeInTheDocument();
+	});
 });

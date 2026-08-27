@@ -80,6 +80,25 @@ describe("ChipPurchaseSheet (picker)", () => {
 		});
 	});
 
+	it("picks the icon by option name rather than list position", () => {
+		const reorderedOptions = [
+			{ id: "cp2", name: "Add-on", cost: 5000, chips: 20_000 },
+			{ id: "cp1", name: "Re-entry", cost: 10_000, chips: 30_000 },
+		];
+		render(
+			<ChipPurchaseSheet
+				onOpenChange={vi.fn()}
+				onSubmit={vi.fn()}
+				open
+				options={reorderedOptions}
+			/>
+		);
+		const addonRow = screen.getByRole("button", { name: ADDON_RE });
+		const reentryRow = screen.getByRole("button", { name: REENTRY_RE });
+		expect(addonRow.querySelector("svg.tabler-icon-stack-push")).not.toBeNull();
+		expect(reentryRow.querySelector("svg.tabler-icon-refresh")).not.toBeNull();
+	});
+
 	it("shows an empty-state message when no chip purchases are defined", () => {
 		render(
 			<ChipPurchaseSheet

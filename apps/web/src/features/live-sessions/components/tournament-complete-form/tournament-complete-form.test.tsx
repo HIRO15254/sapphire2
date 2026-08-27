@@ -27,12 +27,12 @@ describe("TournamentCompleteForm", () => {
 		const user = userEvent.setup();
 		render(<TournamentCompleteForm formId="f" onSubmit={vi.fn()} />);
 		await user.click(
-			screen.getByLabelText("Completed before registration deadline")
+			screen.getByLabelText("Early exit (left before the result)")
 		);
 		expect(
 			screen.getByText("Early exit does not record place or total entries.")
 		).toBeInTheDocument();
-		expect(screen.queryByLabelText("Placement *")).not.toBeInTheDocument();
+		expect(screen.queryByLabelText("Place *")).not.toBeInTheDocument();
 		expect(
 			screen.queryByText("Place must not exceed total entries.")
 		).not.toBeInTheDocument();
@@ -42,9 +42,9 @@ describe("TournamentCompleteForm", () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 		renderWithSubmitButton(onSubmit);
-		await user.type(screen.getByLabelText("Placement *"), "51");
-		await user.type(screen.getByLabelText("Total Entries *"), "50");
-		await user.type(screen.getByLabelText("Prize Money *"), "0");
+		await user.type(screen.getByLabelText("Place *"), "51");
+		await user.type(screen.getByLabelText("Total entries *"), "50");
+		await user.type(screen.getByLabelText("Prize *"), "0");
 		await user.click(screen.getByRole("button", { name: "Submit" }));
 		expect(onSubmit).not.toHaveBeenCalled();
 		expect(
@@ -56,10 +56,10 @@ describe("TournamentCompleteForm", () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 		renderWithSubmitButton(onSubmit);
-		await user.type(screen.getByLabelText("Placement *"), "3");
-		await user.type(screen.getByLabelText("Total Entries *"), "50");
-		await user.type(screen.getByLabelText("Prize Money *"), "500");
-		await user.type(screen.getByLabelText("Bounty Prizes"), "25");
+		await user.type(screen.getByLabelText("Place *"), "3");
+		await user.type(screen.getByLabelText("Total entries *"), "50");
+		await user.type(screen.getByLabelText("Prize *"), "500");
+		await user.type(screen.getByLabelText("Bounty won"), "25");
 		await user.click(screen.getByRole("button", { name: "Submit" }));
 		expect(onSubmit).toHaveBeenCalledTimes(1);
 		expect(onSubmit).toHaveBeenNthCalledWith(1, {
@@ -69,5 +69,22 @@ describe("TournamentCompleteForm", () => {
 			prizeMoney: 500,
 			bountyPrizes: 25,
 		});
+	});
+
+	it("renders the early-exit row with a warning-colored clock-off icon", () => {
+		render(<TournamentCompleteForm formId="f" onSubmit={vi.fn()} />);
+		const label = screen.getByText("Early exit (left before the result)");
+		const icon = label.querySelector("svg");
+		expect(icon).not.toBeNull();
+		expect(icon?.getAttribute("class")).toContain("text-warning");
+	});
+
+	it("shows the trailing closing-record note", () => {
+		render(<TournamentCompleteForm formId="f" onSubmit={vi.fn()} />);
+		expect(
+			screen.getByText(
+				"You can edit this from history later. This closes the record."
+			)
+		).toBeInTheDocument();
 	});
 });

@@ -1,6 +1,6 @@
+import { IconTrash } from "@tabler/icons-react";
 import { AddonFields } from "@/features/live-sessions/components/event-fields/addon-fields";
 import { FormSheet } from "@/shared/components/form-sheet";
-import { Button } from "@/shared/components/ui/button";
 import { useAddonForm } from "./use-addon-form";
 
 const ADDON_FORM_ID = "addon-form";
@@ -35,7 +35,7 @@ export function AddonBottomSheet({
 			title={isEditMode ? "Edit Addon" : "Add Addon"}
 		>
 			<form
-				className="flex flex-col gap-4"
+				className="flex flex-col gap-3"
 				id={ADDON_FORM_ID}
 				onSubmit={(e) => {
 					e.preventDefault();
@@ -53,9 +53,16 @@ export function AddonBottomSheet({
 					)}
 				</form.Field>
 				{onDelete ? (
-					<Button onClick={onDelete} type="button" variant="destructive">
-						Delete
-					</Button>
+					<div className="mt-1 border-border border-t pt-3">
+						<button
+							className="inline-flex min-h-[var(--m-control)] w-full items-center justify-center gap-1.5 rounded-md border border-destructive bg-transparent font-medium text-destructive text-sm hover:bg-destructive/12"
+							onClick={onDelete}
+							type="button"
+						>
+							<IconTrash size={15} />
+							Delete this event
+						</button>
+					</div>
 				) : null}
 			</form>
 		</FormSheet>

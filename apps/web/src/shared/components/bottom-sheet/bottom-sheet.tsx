@@ -55,6 +55,7 @@ export function BottomSheet({
 					"max-h-[calc(100svh-2rem)] rounded-t-[var(--m-sheet-radius)] border-border bg-background text-foreground",
 					contentClassName
 				)}
+				overlayClassName="bg-black/50 backdrop-blur-[4px]"
 			>
 				<div className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-muted-foreground/35" />
 				<div className="grid shrink-0 grid-cols-[minmax(64px,auto)_1fr_minmax(64px,auto)] items-center gap-1 px-2 py-1">

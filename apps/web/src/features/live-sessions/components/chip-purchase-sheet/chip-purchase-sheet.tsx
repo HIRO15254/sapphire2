@@ -29,16 +29,18 @@ interface ChipPurchaseSheetProps {
 	options: ChipPurchaseOption[];
 }
 
+const ADDON_NAME_PATTERN = /add-?on/i;
+
 function ChipPurchaseOptionRow({
-	index,
 	onPick,
 	option,
 }: {
-	index: number;
 	onPick: () => void;
 	option: ChipPurchaseOption;
 }) {
-	const Icon = index === 0 ? IconRefresh : IconStackPush;
+	const Icon = ADDON_NAME_PATTERN.test(option.name)
+		? IconStackPush
+		: IconRefresh;
 	return (
 		<Button
 			className="h-auto w-full items-center justify-start gap-2.5 rounded-lg border-border px-3 py-2.5 text-left"
@@ -88,9 +90,8 @@ export function ChipPurchaseSheet({
 						</p>
 					) : (
 						<div className="flex flex-col gap-2">
-							{options.map((option, index) => (
+							{options.map((option) => (
 								<ChipPurchaseOptionRow
-									index={index}
 									key={option.id}
 									onPick={() =>
 										onSubmit({

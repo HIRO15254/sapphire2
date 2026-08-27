@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { TableView } from "@/features/live-sessions/pages/active-session-page/table-view";
 
 const SEAT_LABEL_PATTERN = /^Seat \d+ —/;
+const EV_RESULT_PATTERN = /EV result/;
 
 function setup(
 	overrides: Partial<React.ComponentProps<typeof TableView>> = {}
@@ -38,8 +39,9 @@ describe("TableView", () => {
 		expect(screen.getByText("12,400")).toBeInTheDocument();
 		expect(screen.getByText("+1,200")).toBeInTheDocument();
 		expect(screen.getByText("24.8bb")).toBeInTheDocument();
-		expect(screen.getByText("EV result")).toBeInTheDocument();
-		expect(screen.getByText("+320")).toBeInTheDocument();
+		expect(screen.getByText("+320").parentElement).toHaveTextContent(
+			"EV result +320"
+		);
 	});
 
 	it("renders remain and average stack for a tournament, with no delta or ev", () => {
@@ -50,11 +52,11 @@ describe("TableView", () => {
 			stackText: "30,000",
 		});
 		expect(screen.getByText("30,000")).toBeInTheDocument();
-		expect(screen.getByText("Left")).toBeInTheDocument();
-		expect(screen.getByText("42/128")).toBeInTheDocument();
-		expect(screen.getByText("Avg")).toBeInTheDocument();
+		expect(screen.getByText("42/128").parentElement).toHaveTextContent(
+			"Left 42/128 · Avg 91,429"
+		);
 		expect(screen.getByText("91,429")).toBeInTheDocument();
-		expect(screen.queryByText("EV result")).not.toBeInTheDocument();
+		expect(screen.queryByText(EV_RESULT_PATTERN)).not.toBeInTheDocument();
 	});
 
 	it("does not render a delta or ev row for a tournament even when deltaText is supplied", () => {
@@ -74,6 +76,67 @@ describe("TableView", () => {
 	it("hides bb text row content when bbText is undefined", () => {
 		setup({ bbText: undefined, kind: "cash_game" });
 		expect(screen.queryByText("24.8bb")).not.toBeInTheDocument();
+	});
+
+	it("renders bb text for a tournament alongside the left/avg line", () => {
+		setup({
+			averageStackText: "91,429",
+			bbText: "48bb",
+			kind: "tournament",
+			remainText: "42/128",
+		});
+		expect(screen.getByText("48bb")).toBeInTheDocument();
+		expect(screen.getByText("42/128").parentElement).toHaveTextContent(
+			"Left 42/128 · Avg 91,429"
+		);
+	});
+
+	it("colors a positive delta as success when deltaTone is omitted", () => {
+		setup({ deltaText: "+1,200", kind: "cash_game" });
+		expect(screen.getByText("+1,200")).toHaveClass("text-success");
+	});
+
+	it("colors a negative delta as destructive when deltaTone is negative", () => {
+		setup({ deltaText: "-800", deltaTone: "negative", kind: "cash_game" });
+		expect(screen.getByText("-800")).toHaveClass("text-destructive");
+	});
+
+	it("does not render the seated player's name as visible text", () => {
+		setup({
+			seatCount: 4,
+			seatedPlayers: [{ playerId: "p1", playerName: "Alice", seatPosition: 0 }],
+		});
+		expect(screen.getByLabelText("Seat 1 — Alice")).toBeInTheDocument();
+		expect(screen.queryByText("Alice")).not.toBeInTheDocument();
+	});
+
+	it("forwards a seated player's dotColor to the seat marker's tint variable", () => {
+		setup({
+			seatCount: 4,
+			seatedPlayers: [
+				{
+					dotColor: "var(--warning)",
+					playerId: "p1",
+					playerName: "Alice",
+					seatPosition: 0,
+				},
+			],
+		});
+		const seat = screen.getByLabelText("Seat 1 — Alice");
+		expect(seat.style.getPropertyValue("--seat-dot-color")).toBe(
+			"var(--warning)"
+		);
+	});
+
+	it("falls back to the muted-foreground token when a seated player has no dotColor", () => {
+		setup({
+			seatCount: 4,
+			seatedPlayers: [{ playerId: "p1", playerName: "Alice", seatPosition: 0 }],
+		});
+		const seat = screen.getByLabelText("Seat 1 — Alice");
+		expect(seat.style.getPropertyValue("--seat-dot-color")).toBe(
+			"var(--muted-foreground)"
+		);
 	});
 
 	it("renders seatCount markers split into empty, player and hero variants", () => {
@@ -130,7 +193,9 @@ describe("TableView", () => {
 	it("calls onScan exactly once when the scan button is tapped", async () => {
 		const user = userEvent.setup();
 		const props = setup({ dimmed: false });
-		await user.click(screen.getByRole("button", { name: "Scan seats" }));
+		await user.click(
+			screen.getByRole("button", { name: "Register seats from a photo" })
+		);
 		expect(props.onScan).toHaveBeenCalledTimes(1);
 	});
 

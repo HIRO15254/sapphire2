@@ -13,7 +13,7 @@ export function AddonFields({
 	value,
 }: AddonFieldsProps) {
 	return (
-		<Field error={error} htmlFor="addon-amount" label="Addon Amount" required>
+		<Field error={error} htmlFor="addon-amount" label="Amount" required>
 			<Input
 				id="addon-amount"
 				inputMode="numeric"

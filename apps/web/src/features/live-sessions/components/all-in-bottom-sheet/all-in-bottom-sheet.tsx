@@ -1,8 +1,6 @@
+import { IconTrash } from "@tabler/icons-react";
 import { AllInFields } from "@/features/live-sessions/components/event-fields/all-in-fields";
-import { cn } from "@/lib/utils";
 import { FormSheet } from "@/shared/components/form-sheet";
-import { Button } from "@/shared/components/ui/button";
-import { formatNumber } from "@/utils/format-number";
 import { useAllInForm } from "./use-all-in-form";
 
 const ALL_IN_FORM_ID = "all-in-form";
@@ -31,7 +29,7 @@ export function AllInBottomSheet({
 	onDelete,
 	sheetClassName,
 }: AllInBottomSheetProps) {
-	const { form, preview } = useAllInForm({ initialValues, open, onSubmit });
+	const { form } = useAllInForm({ initialValues, open, onSubmit });
 
 	const isEditMode = initialValues !== undefined;
 
@@ -44,7 +42,7 @@ export function AllInBottomSheet({
 			title={isEditMode ? "Edit All-in" : "Add All-in"}
 		>
 			<form
-				className="flex flex-col gap-4"
+				className="flex flex-col gap-3"
 				id={ALL_IN_FORM_ID}
 				onSubmit={(e) => {
 					e.preventDefault();
@@ -83,44 +81,6 @@ export function AllInBottomSheet({
 														wins={winsField.state.value}
 														winsError={winsField.state.meta.errors[0]?.message}
 													/>
-													{preview ? (
-														<div className="flex flex-col gap-1 rounded-md bg-muted px-3 py-2.5 text-xs">
-															<div className="flex items-center justify-between">
-																<span className="text-muted-foreground">
-																	Expected (
-																	{formatNumber(
-																		Number(potSizeField.state.value)
-																	)}{" "}
-																	× {equityField.state.value}%)
-																</span>
-																<span className="font-mono">
-																	+{formatNumber(preview.expectedValue)}
-																</span>
-															</div>
-															<div className="flex items-center justify-between">
-																<span className="text-muted-foreground">
-																	Realized
-																</span>
-																<span className="font-mono">
-																	-{formatNumber(preview.realizedValue)}
-																</span>
-															</div>
-															<div className="mt-1 flex items-center justify-between border-border border-t pt-1">
-																<span className="font-semibold">EV delta</span>
-																<span
-																	className={cn(
-																		"font-mono",
-																		preview.evDelta >= 0
-																			? "text-success"
-																			: "text-destructive"
-																	)}
-																>
-																	{preview.evDelta >= 0 ? "+" : ""}
-																	{formatNumber(preview.evDelta)}
-																</span>
-															</div>
-														</div>
-													) : null}
 												</>
 											)}
 										</form.Field>
@@ -131,9 +91,16 @@ export function AllInBottomSheet({
 					)}
 				</form.Field>
 				{onDelete ? (
-					<Button onClick={onDelete} type="button" variant="destructive">
-						Delete
-					</Button>
+					<div className="mt-1 border-border border-t pt-3">
+						<button
+							className="inline-flex min-h-[var(--m-control)] w-full items-center justify-center gap-1.5 rounded-md border border-destructive bg-transparent font-medium text-destructive text-sm hover:bg-destructive/12"
+							onClick={onDelete}
+							type="button"
+						>
+							<IconTrash size={15} />
+							Delete this event
+						</button>
+					</div>
 				) : null}
 			</form>
 		</FormSheet>

@@ -266,4 +266,32 @@ describe("usePlayerPanel", () => {
 		expect(result.current.availableTags).toBe(mocks.detail.availableTags);
 		expect(result.current.isSaving).toBe(true);
 	});
+
+	describe("dotColor", () => {
+		it("derives the dot color from the selected player's first tag", () => {
+			mocks.detail.player = makeDetailPlayer({
+				tags: [{ color: "red", id: "t2", name: "Reg" }],
+			});
+			const { result } = renderHook(() =>
+				usePlayerPanel({ onLeave: vi.fn(), selection: makeSelection() })
+			);
+			expect(result.current.dotColor).toBe("var(--destructive)");
+		});
+
+		it("falls back to the default dot color when the player has no tags", () => {
+			mocks.detail.player = makeDetailPlayer({ tags: [] });
+			const { result } = renderHook(() =>
+				usePlayerPanel({ onLeave: vi.fn(), selection: makeSelection() })
+			);
+			expect(result.current.dotColor).toBe("var(--muted-foreground)");
+		});
+
+		it("falls back to the default dot color while the player detail is loading", () => {
+			mocks.detail.player = null;
+			const { result } = renderHook(() =>
+				usePlayerPanel({ onLeave: vi.fn(), selection: makeSelection() })
+			);
+			expect(result.current.dotColor).toBe("var(--muted-foreground)");
+		});
+	});
 });

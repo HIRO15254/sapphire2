@@ -4,12 +4,13 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { AllInBottomSheet } from "./all-in-bottom-sheet";
 
-const POT_SIZE_LABEL_PATTERN = /pot size/i;
-const TRIALS_LABEL_PATTERN = /trials/i;
+const POT_SIZE_LABEL_PATTERN = /^pot\b/i;
+const TRIALS_LABEL_PATTERN = /^runs\b/i;
 const EQUITY_LABEL_PATTERN = /equity %/i;
 const WINS_LABEL_PATTERN = /wins/i;
 const SIGNED_VALUE_PATTERN = /^[+-]/;
 const EXPECTED_ROW_LABEL_PATTERN = /^Expected \(/;
+const REALIZED_ROW_LABEL_PATTERN = /^Realized \(/;
 
 function getPreviewRowValueElement(labelText: string): HTMLElement {
 	const label = screen.getByText(labelText);
@@ -91,14 +92,14 @@ describe("AllInBottomSheet", () => {
 		expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
 		expect(screen.getByDisplayValue("900")).toBeInTheDocument();
 
-		await user.click(screen.getByRole("button", { name: "Delete" }));
+		await user.click(screen.getByRole("button", { name: "Delete this event" }));
 		expect(onDelete).toHaveBeenCalledTimes(1);
 	});
 
 	it("renders no delete action when onDelete is not provided", () => {
 		render(<AllInBottomSheet onOpenChange={vi.fn()} onSubmit={vi.fn()} open />);
 		expect(
-			screen.queryByRole("button", { name: "Delete" })
+			screen.queryByRole("button", { name: "Delete this event" })
 		).not.toBeInTheDocument();
 	});
 
@@ -117,20 +118,6 @@ describe("AllInBottomSheet", () => {
 		expect(screen.getByLabelText(WINS_LABEL_PATTERN)).toHaveValue("1");
 	});
 
-	it("displays computed EV values", () => {
-		render(
-			<AllInBottomSheet
-				initialValues={{ equity: 50, potSize: 1000, trials: 2, wins: 1 }}
-				onOpenChange={vi.fn()}
-				onSubmit={vi.fn()}
-				open
-			/>
-		);
-		expect(screen.getByText("EV Amount: 500.00")).toBeInTheDocument();
-		expect(screen.getByText("Actual: 500.00")).toBeInTheDocument();
-		expect(screen.getByText("EV Diff: 0.00")).toBeInTheDocument();
-	});
-
 	it("shows the live preview box with expected, realized and EV delta rows", () => {
 		render(
 			<AllInBottomSheet
@@ -142,10 +129,47 @@ describe("AllInBottomSheet", () => {
 		);
 		expect(screen.getByText("Expected (1,000 × 50%)")).toBeInTheDocument();
 		expect(screen.getByText("+500")).toBeInTheDocument();
-		expect(screen.getByText("Realized")).toBeInTheDocument();
+		expect(
+			screen.getByText("Realized (1,000 ÷ 2 × 1 win)")
+		).toBeInTheDocument();
 		expect(screen.getByText("-500")).toBeInTheDocument();
 		expect(screen.getByText("EV delta")).toBeInTheDocument();
 		expect(screen.getByText("+0")).toBeInTheDocument();
+	});
+
+	it("pluralizes 'win' in the realized row label when wins is not 1", () => {
+		render(
+			<AllInBottomSheet
+				initialValues={{ equity: 50, potSize: 1000, trials: 4, wins: 2 }}
+				onOpenChange={vi.fn()}
+				onSubmit={vi.fn()}
+				open
+			/>
+		);
+		const realizedLabel = screen.getByText(REALIZED_ROW_LABEL_PATTERN);
+		expect(realizedLabel).toHaveTextContent("Realized (1,000 ÷ 4 × 2 wins)");
+	});
+
+	it("renders the delete action as an outlined destructive button with a trash icon", async () => {
+		const user = userEvent.setup();
+		const onDelete = vi.fn();
+		render(
+			<AllInBottomSheet
+				initialValues={{ equity: 40, potSize: 900, trials: 3, wins: 1 }}
+				onDelete={onDelete}
+				onOpenChange={vi.fn()}
+				onSubmit={vi.fn()}
+				open
+			/>
+		);
+		const deleteButton = screen.getByRole("button", {
+			name: "Delete this event",
+		});
+		expect(deleteButton.className).toContain("border-destructive");
+		expect(deleteButton.className).toContain("text-destructive");
+		expect(deleteButton.querySelector("svg")).not.toBeNull();
+		await user.click(deleteButton);
+		expect(onDelete).toHaveBeenCalledTimes(1);
 	});
 
 	it("updates the preview box as the pot size field changes", async () => {

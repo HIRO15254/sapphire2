@@ -103,7 +103,7 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
-const ADDON_AMOUNT_LABEL = /Addon Amount/;
+const ADDON_AMOUNT_LABEL = /^Amount\b/;
 const COST_LABEL = /^Cost/;
 
 describe("SessionEventsScene", () => {

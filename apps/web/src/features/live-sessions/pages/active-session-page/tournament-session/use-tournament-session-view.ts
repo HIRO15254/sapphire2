@@ -2,17 +2,23 @@ import { IconCards, IconClock, IconTrash } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import type { ActionsDrawerItem } from "@/features/live-sessions/components/actions-drawer";
 import { useActiveSessionSceneState } from "@/features/live-sessions/hooks/use-active-session-scene-state";
+import { useNowTick } from "@/features/live-sessions/hooks/use-now-tick";
 import { useSessionEvents } from "@/features/live-sessions/hooks/use-session-events";
 import { useTournamentSession } from "@/features/live-sessions/hooks/use-tournament-session";
 import { useTournamentStack } from "@/features/live-sessions/hooks/use-tournament-stack";
 import { findLastStackUpdateAt } from "@/features/live-sessions/utils/live-session-view";
-import type { TournamentBlindLevel } from "@/features/live-sessions/utils/tournament-timer";
+import { seatDotColor } from "@/features/live-sessions/utils/seat-dot-color";
+import {
+	computeTournamentTimerState,
+	type TournamentBlindLevel,
+} from "@/features/live-sessions/utils/tournament-timer";
 import { formatClockElapsed } from "@/utils/format-elapsed-time";
-import { formatCompactNumber, formatNumber } from "@/utils/format-number";
+import { formatNumber } from "@/utils/format-number";
 import type { PlayerPanelSelection } from "../player-panel";
 import type { TableViewPlayerSeat } from "../table-view";
 
 const EVENTS_REFETCH_MS = 30_000;
+const LEVEL_TICK_MS = 15_000;
 
 type TournamentCompleteValues =
 	| {
@@ -28,7 +34,22 @@ type TournamentCompleteValues =
 			prizeMoney: number;
 	  };
 
-function computeTournamentCenterModel(summary: Record<string, unknown>) {
+function resolveCurrentBigBlind(
+	blindLevels: TournamentBlindLevel[],
+	timerStartedAt: Date | string | number | null,
+	now: number
+): number | null {
+	if (blindLevels.length === 0 || timerStartedAt === null) {
+		return null;
+	}
+	const state = computeTournamentTimerState(blindLevels, timerStartedAt, now);
+	return state.currentLevel?.blind2 ?? null;
+}
+
+function computeTournamentCenterModel(
+	summary: Record<string, unknown>,
+	bigBlind: number | null
+) {
 	const currentStack =
 		typeof summary.currentStack === "number" ? summary.currentStack : null;
 	const averageStack =
@@ -44,7 +65,11 @@ function computeTournamentCenterModel(summary: Record<string, unknown>) {
 		defaultTotalEntries: totalEntries,
 		tableCenter: {
 			averageStackText:
-				averageStack === null ? "—" : formatCompactNumber(averageStack),
+				averageStack === null ? "—" : formatNumber(averageStack),
+			bbText:
+				currentStack === null || !bigBlind
+					? undefined
+					: `${formatNumber(Math.round(currentStack / bigBlind))} BB`,
 			remainText:
 				remainingPlayers === null && totalEntries === null
 					? "—"
@@ -55,6 +80,7 @@ function computeTournamentCenterModel(summary: Record<string, unknown>) {
 }
 
 export function useTournamentSessionView(sessionId: string) {
+	const levelTickNow = useNowTick(LEVEL_TICK_MS);
 	const tournamentSession = useTournamentSession(sessionId);
 	const stack = useTournamentStack({ sessionId });
 	const { events } = useSessionEvents({
@@ -104,9 +130,17 @@ export function useTournamentSessionView(sessionId: string) {
 		tableSize: (session as { tableSize?: number | null })?.tableSize ?? null,
 	});
 
+	const currentBigBlind = resolveCurrentBigBlind(
+		((session as { blindLevels?: TournamentBlindLevel[] })?.blindLevels ??
+			[]) as TournamentBlindLevel[],
+		(session as { timerStartedAt?: Date | string | number | null })
+			?.timerStartedAt ?? null,
+		levelTickNow
+	);
 	const centerModel = computeTournamentCenterModel(
 		((session as { summary?: Record<string, unknown> })?.summary ??
-			{}) as Record<string, unknown>
+			{}) as Record<string, unknown>,
+		currentBigBlind
 	);
 
 	const blindLevels = ((session as { blindLevels?: TournamentBlindLevel[] })
@@ -120,6 +154,7 @@ export function useTournamentSessionView(sessionId: string) {
 		s.player
 			? [
 					{
+						dotColor: seatDotColor(s.player.tags),
 						playerId: s.player.playerId,
 						playerName: s.player.name,
 						seatPosition: s.seatPosition,
@@ -264,6 +299,7 @@ export function useTournamentSessionView(sessionId: string) {
 		seatedPlayers,
 		selection: activeSelection,
 		session: session ?? null,
+		title: (session as { ruleName?: string | null })?.ruleName ?? "Tournament",
 		setIsBuyChipsOpen,
 		setIsCompleteOpen,
 		setIsMemoOpen,

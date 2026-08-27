@@ -37,12 +37,12 @@ export function CashGameSession({ sessionId }: { sessionId: string }) {
 				onTitleTap={vm.onOpenRule}
 				onTogglePause={vm.onTogglePause}
 				startedAt={vm.startedAt}
-				title="Cash Game"
+				title={vm.title}
 			/>
 
 			<div className="shrink-0 px-3">
 				<TableView
-					bbText={undefined}
+					bbText={vm.tableCenter.bbText}
 					deltaText={vm.tableCenter.deltaText}
 					deltaTone={vm.tableCenter.deltaTone}
 					dimmed={vm.isPaused}

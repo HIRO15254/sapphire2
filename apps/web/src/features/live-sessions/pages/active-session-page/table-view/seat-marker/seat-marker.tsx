@@ -1,4 +1,5 @@
 import { IconUser, IconUserPlus, IconUserStar } from "@tabler/icons-react";
+import type { CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 
 export type SeatMarkerVariant = "empty" | "hero" | "player";
@@ -6,68 +7,84 @@ export type SeatMarkerVariant = "empty" | "hero" | "player";
 export interface SeatMarkerProps {
 	ariaLabel: string;
 	disabled: boolean;
+	dotColor?: string;
 	leftPct: number;
 	onTap?: () => void;
 	topPct: number;
 	variant: SeatMarkerVariant;
 }
 
-const VARIANT_CLASSES: Record<SeatMarkerVariant, string> = {
-	empty: "size-7 rounded-full border border-border border-dashed bg-background",
-	hero: "size-10 rounded-full border border-primary bg-primary/15",
-	player:
-		"size-10 rounded-full border border-border bg-card shadow-(--shadow-soft-sm)",
-};
+const DEFAULT_DOT_COLOR = "var(--muted-foreground)";
+const EMPTY_ICON_SIZE = 13;
+const HERO_ICON_SIZE = 18;
+const PLAYER_ICON_SIZE = 17;
 
-function SeatMarkerIcon({ variant }: { variant: SeatMarkerVariant }) {
-	if (variant === "empty") {
-		return <IconUserPlus className="size-[13px] text-muted-foreground" />;
-	}
-	if (variant === "hero") {
-		return <IconUserStar className="size-[17px] text-primary" />;
-	}
-	return <IconUser className="size-[17px] text-foreground" />;
-}
+const POSITION_CLASSES =
+	"absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full";
 
 export function SeatMarker({
 	ariaLabel,
 	disabled,
+	dotColor,
 	leftPct,
 	onTap,
 	topPct,
 	variant,
 }: SeatMarkerProps) {
-	const position = { left: `${leftPct}%`, top: `${topPct}%` };
+	const position: CSSProperties = { left: `${leftPct}%`, top: `${topPct}%` };
 
 	if (variant === "hero") {
 		return (
 			<div
 				aria-label={ariaLabel}
 				className={cn(
-					"absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center",
-					VARIANT_CLASSES.hero
+					POSITION_CLASSES,
+					"size-10 border border-primary bg-primary/15 text-primary"
 				)}
 				role="img"
 				style={position}
 			>
-				<SeatMarkerIcon variant={variant} />
+				<IconUserStar size={HERO_ICON_SIZE} />
 			</div>
 		);
 	}
+
+	if (variant === "empty") {
+		return (
+			<button
+				aria-label={ariaLabel}
+				className={cn(
+					POSITION_CLASSES,
+					"size-7 border border-border border-dashed bg-background text-muted-foreground hover:bg-muted"
+				)}
+				disabled={disabled}
+				onClick={onTap}
+				style={position}
+				type="button"
+			>
+				<IconUserPlus size={EMPTY_ICON_SIZE} />
+			</button>
+		);
+	}
+
+	const dotStyle: CSSProperties & Record<"--seat-dot-color", string> = {
+		...position,
+		"--seat-dot-color": dotColor ?? DEFAULT_DOT_COLOR,
+	};
 
 	return (
 		<button
 			aria-label={ariaLabel}
 			className={cn(
-				"absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center",
-				VARIANT_CLASSES[variant]
+				POSITION_CLASSES,
+				"size-10 border border-[var(--seat-dot-color)] bg-[color-mix(in_oklab,var(--seat-dot-color)_14%,var(--background))] text-foreground shadow-(--shadow-soft-sm) hover:bg-muted"
 			)}
 			disabled={disabled}
 			onClick={onTap}
-			style={position}
+			style={dotStyle}
 			type="button"
 		>
-			<SeatMarkerIcon variant={variant} />
+			<IconUser size={PLAYER_ICON_SIZE} />
 		</button>
 	);
 }

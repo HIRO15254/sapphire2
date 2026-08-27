@@ -1,7 +1,6 @@
 import { cn } from "@/lib/utils";
 
 export interface TimelineItemViewModel {
-	amountClass: string | null;
 	amountText: string | null;
 	dotClass: string;
 	id: string;
@@ -18,41 +17,40 @@ interface TimelineItemProps {
 export function TimelineItem({ item }: TimelineItemProps) {
 	return (
 		<button
-			className="group flex w-full items-start gap-3 rounded-[var(--radius-md)] py-2 text-left hover:bg-muted/50"
+			className="flex w-full gap-2.5 rounded-[var(--radius-md)] text-left font-sans text-foreground tracking-[var(--tracking-body)] hover:bg-muted"
 			data-testid={`timeline-item-${item.id}`}
 			onClick={item.onEdit}
 			type="button"
 		>
-			<span className="w-10 shrink-0 pt-0.5 text-right font-mono text-muted-foreground text-xs">
+			<span className="w-10 shrink-0 pt-[11px] text-right font-mono text-[var(--m-text-caption)] text-muted-foreground leading-[var(--m-leading-body)]">
 				{item.time}
 			</span>
-			<span className="relative flex w-3 shrink-0 justify-center self-stretch">
-				<span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border" />
+			<span className="relative w-3.5 shrink-0 self-stretch">
+				<span className="absolute inset-y-0 left-1/2 w-px bg-border" />
 				<span
 					className={cn(
-						"relative z-10 mt-1 size-[7px] shrink-0 rounded-full border-2 border-background",
+						"absolute top-[15px] left-1/2 size-[7px] -translate-x-1/2 rounded-full border-2 border-background",
 						item.dotClass
 					)}
 				/>
 			</span>
-			<span className="min-w-0 flex-1 py-0.5">
-				<span className="block text-sm">{item.title}</span>
-				{item.sub ? (
-					<span className="mt-0.5 block text-muted-foreground text-xs">
-						{item.sub}
+			<span className="flex min-w-0 flex-1 items-start gap-2 pt-[9px] pr-1 pb-[11px]">
+				<span className="min-w-0 flex-1">
+					<span className="block font-normal text-[var(--m-text-secondary)] leading-[var(--m-leading-body)]">
+						{item.title}
+					</span>
+					{item.sub ? (
+						<span className="mt-0.5 block text-[var(--m-text-caption)] text-muted-foreground leading-[var(--m-leading-body)]">
+							{item.sub}
+						</span>
+					) : null}
+				</span>
+				{item.amountText ? (
+					<span className="shrink-0 font-medium font-mono text-[var(--m-text-secondary)] text-foreground leading-[var(--m-leading-body)]">
+						{item.amountText}
 					</span>
 				) : null}
 			</span>
-			{item.amountText ? (
-				<span
-					className={cn(
-						"shrink-0 self-center pl-2 text-right font-mono text-sm",
-						item.amountClass
-					)}
-				>
-					{item.amountText}
-				</span>
-			) : null}
 		</button>
 	);
 }

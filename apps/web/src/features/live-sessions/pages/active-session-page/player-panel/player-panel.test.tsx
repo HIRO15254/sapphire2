@@ -20,8 +20,8 @@ vi.mock("@/features/players/hooks/use-player-detail", () => ({
 	usePlayerDetail: () => mocks.detail,
 }));
 
-vi.mock("@/features/players/components/player-tag-input", () => ({
-	PlayerTagInput: ({
+vi.mock("./tag-field", () => ({
+	TagField: ({
 		onAdd,
 		onRemove,
 		selectedTags,
@@ -30,7 +30,7 @@ vi.mock("@/features/players/components/player-tag-input", () => ({
 		onRemove: (tag: { color: string; id: string; name: string }) => void;
 		selectedTags: { color: string; id: string; name: string }[];
 	}) => (
-		<div data-testid="tag-input">
+		<div data-testid="tag-field">
 			<span>selected:{selectedTags.map((t) => t.name).join(",")}</span>
 			<button
 				onClick={() => onAdd({ color: "red", id: "t2", name: "Reg" })}
@@ -121,7 +121,7 @@ describe("PlayerPanel", () => {
 		expect(screen.getByDisplayValue("Alice")).toBeInTheDocument();
 	});
 
-	it("passes the player's tags to the shared tag picker", () => {
+	it("passes the player's tags to the tag field", () => {
 		render(
 			<PlayerPanel
 				isPaused={false}
@@ -129,7 +129,25 @@ describe("PlayerPanel", () => {
 				selection={makeSelection()}
 			/>
 		);
-		expect(screen.getByTestId("tag-input")).toHaveTextContent("selected:Fish");
+		expect(screen.getByTestId("tag-field")).toHaveTextContent("selected:Fish");
+	});
+
+	it("renders the seat dot colored from the selected player's first tag", () => {
+		mocks.detail.player = {
+			id: "p-1",
+			memo: "<p>old</p>",
+			name: "Alice",
+			tags: [{ color: "red", id: "t1", name: "Reg" }],
+		};
+		const { container } = render(
+			<PlayerPanel
+				isPaused={false}
+				onLeave={vi.fn()}
+				selection={makeSelection()}
+			/>
+		);
+		const dot = container.querySelector(".size-2.rounded-full");
+		expect(dot).toHaveStyle({ backgroundColor: "var(--destructive)" });
 	});
 
 	it("saves an edited name when the input loses focus", async () => {

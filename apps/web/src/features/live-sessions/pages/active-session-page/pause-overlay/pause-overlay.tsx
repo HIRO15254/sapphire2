@@ -12,30 +12,32 @@ export function PauseOverlay({
 	onResume,
 }: PauseOverlayProps) {
 	return (
-		<div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-background/75 backdrop-blur-[2px]">
-			<IconPlayerPause className="size-6.5 text-warning" />
-			<span className="font-semibold text-sm">Session paused</span>
-			<span className="font-mono font-semibold text-[22px] tabular-nums tracking-tight">
+		<div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-background/72 backdrop-blur-[2px]">
+			<IconPlayerPause className="text-warning" size={26} />
+			<span className="font-semibold text-[var(--m-text-secondary)]">
+				Session paused
+			</span>
+			<span className="font-mono font-semibold text-[22px] tabular-nums tracking-[-0.02em]">
 				{elapsedText}
 			</span>
-			<span className="max-w-[230px] text-center text-muted-foreground text-xs">
+			<span className="max-w-[230px] text-pretty text-center text-[var(--m-text-caption)] text-muted-foreground">
 				Only notes can be logged while paused.
 			</span>
 			<div className="mt-1 flex gap-2">
 				<button
-					className="inline-flex min-h-[var(--m-control)] items-center gap-1.5 rounded-full bg-primary px-4 font-semibold text-primary-foreground text-sm hover:brightness-108"
+					className="inline-flex min-h-[var(--m-control)] items-center gap-[7px] rounded-full border border-transparent bg-primary px-4 font-semibold text-[var(--m-text-secondary)] text-primary-foreground hover:brightness-108"
 					onClick={onResume}
 					type="button"
 				>
-					<IconPlayerPlay className="size-4" />
+					<IconPlayerPlay size={17} />
 					Resume
 				</button>
 				<button
-					className="inline-flex min-h-[var(--m-control)] items-center gap-1.5 rounded-full border border-border bg-card px-3.5 font-medium text-foreground text-sm hover:bg-muted"
+					className="inline-flex min-h-[var(--m-control)] items-center gap-[7px] rounded-full border border-border bg-card px-3.5 font-medium text-[var(--m-text-secondary)] text-foreground hover:bg-muted"
 					onClick={onNote}
 					type="button"
 				>
-					<IconNote className="size-4" />
+					<IconNote size={17} />
 					Note
 				</button>
 			</div>

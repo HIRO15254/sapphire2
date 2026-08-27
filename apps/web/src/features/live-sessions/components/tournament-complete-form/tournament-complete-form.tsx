@@ -1,7 +1,8 @@
-import { Checkbox } from "@/shared/components/ui/checkbox";
+import { IconClockOff } from "@tabler/icons-react";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+import { Switch } from "@/shared/components/ui/switch";
 import { useTournamentCompleteForm } from "./use-tournament-complete-form";
 
 interface TournamentCompleteFormProps {
@@ -39,20 +40,24 @@ export function TournamentCompleteForm({
 				form.handleSubmit();
 			}}
 		>
-			<div className="flex items-center gap-2">
+			<div className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2.5">
 				<form.Field name="beforeDeadline">
 					{(field) => (
 						<>
-							<Checkbox
+							<Label
+								className="inline-flex items-center gap-1.5 text-sm"
+								htmlFor={field.name}
+							>
+								<IconClockOff className="size-4 text-warning" />
+								Early exit (left before the result)
+							</Label>
+							<Switch
 								checked={field.state.value}
 								id={field.name}
 								onCheckedChange={(checked) =>
 									field.handleChange(checked === true)
 								}
 							/>
-							<Label htmlFor={field.name}>
-								Completed before registration deadline
-							</Label>
 						</>
 					)}
 				</form.Field>
@@ -72,7 +77,7 @@ export function TournamentCompleteForm({
 										<Field
 											error={field.state.meta.errors[0]?.message}
 											htmlFor={field.name}
-											label="Placement"
+											label="Place"
 											required
 										>
 											<Input
@@ -92,7 +97,7 @@ export function TournamentCompleteForm({
 										<Field
 											error={field.state.meta.errors[0]?.message}
 											htmlFor={field.name}
-											label="Total Entries"
+											label="Total entries"
 											required
 										>
 											<Input
@@ -121,7 +126,7 @@ export function TournamentCompleteForm({
 						<Field
 							error={field.state.meta.errors[0]?.message}
 							htmlFor={field.name}
-							label="Prize Money"
+							label="Prize"
 							required
 						>
 							<Input
@@ -141,7 +146,7 @@ export function TournamentCompleteForm({
 						<Field
 							error={field.state.meta.errors[0]?.message}
 							htmlFor={field.name}
-							label="Bounty Prizes"
+							label="Bounty won"
 						>
 							<Input
 								id={field.name}
@@ -155,6 +160,10 @@ export function TournamentCompleteForm({
 					)}
 				</form.Field>
 			</div>
+
+			<p className="text-muted-foreground text-xs">
+				You can edit this from history later. This closes the record.
+			</p>
 		</form>
 	);
 }
