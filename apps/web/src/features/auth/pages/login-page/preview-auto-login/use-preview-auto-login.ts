@@ -4,6 +4,20 @@ import { useEffect, useRef } from "react";
 import { pendingAuthorizeUrl } from "@/features/auth/utils/login-continuation";
 import { authClient } from "@/lib/auth-client";
 
+const RESUMED_AUTHORIZE_KEY = "preview-auto-login-resumed";
+
+function claimAuthorizeResume(authorizeUrl: string): boolean {
+	try {
+		if (sessionStorage.getItem(RESUMED_AUTHORIZE_KEY) === authorizeUrl) {
+			return false;
+		}
+		sessionStorage.setItem(RESUMED_AUTHORIZE_KEY, authorizeUrl);
+	} catch {
+		return true;
+	}
+	return true;
+}
+
 export function usePreviewAutoLogin(): void {
 	const attempted = useRef(false);
 	const navigate = useNavigate();
@@ -31,7 +45,7 @@ export function usePreviewAutoLogin(): void {
 					return;
 				}
 				const authorizeUrl = pendingAuthorizeUrl();
-				if (authorizeUrl) {
+				if (authorizeUrl && claimAuthorizeResume(authorizeUrl)) {
 					window.location.assign(authorizeUrl);
 					return;
 				}

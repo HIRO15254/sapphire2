@@ -41,6 +41,7 @@ describe("usePreviewAutoLogin", () => {
 		mocks.env.VITE_PREVIEW_AUTO_LOGIN = undefined;
 		mocks.env.VITE_PREVIEW_LOGIN_EMAIL = undefined;
 		mocks.env.VITE_PREVIEW_LOGIN_PASSWORD = undefined;
+		sessionStorage.clear();
 	});
 
 	it("reports a rejected sign-in promise without leaking an unhandled rejection", async () => {
@@ -131,6 +132,48 @@ describe("usePreviewAutoLogin", () => {
 		expect(url.searchParams.get("response_type")).toBe("code");
 		expect(url.searchParams.get("redirect_uri")).toBe("https://claude.ai/cb");
 		expect(url.searchParams.get("state")).toBe("s1");
+		expect(mocks.navigate).not.toHaveBeenCalled();
+	});
+
+	it("mid-OAuth: resumes only once per authorize request, so a bouncing authorize cannot loop", async () => {
+		stubLocation({ search: OAUTH_AUTHORIZE_SEARCH });
+		mocks.env.VITE_PREVIEW_AUTO_LOGIN = "true";
+		mocks.env.VITE_PREVIEW_LOGIN_EMAIL = "preview@example.com";
+		mocks.env.VITE_PREVIEW_LOGIN_PASSWORD = "preview-pass";
+		mocks.signInEmail.mockResolvedValue({ data: { user: { id: "u1" } } });
+
+		const first = renderHook(() => usePreviewAutoLogin());
+		await waitFor(() => expect(locationAssignCalls()).toHaveLength(1));
+		first.unmount();
+
+		renderHook(() => usePreviewAutoLogin());
+		await waitFor(() =>
+			expect(mocks.navigate).toHaveBeenCalledWith({ to: "/statistics" })
+		);
+		expect(locationAssignCalls()).toHaveLength(1);
+	});
+
+	it("mid-OAuth: resumes again when the authorize request is a different one", async () => {
+		stubLocation({ search: OAUTH_AUTHORIZE_SEARCH });
+		mocks.env.VITE_PREVIEW_AUTO_LOGIN = "true";
+		mocks.env.VITE_PREVIEW_LOGIN_EMAIL = "preview@example.com";
+		mocks.env.VITE_PREVIEW_LOGIN_PASSWORD = "preview-pass";
+		mocks.signInEmail.mockResolvedValue({ data: { user: { id: "u1" } } });
+
+		const first = renderHook(() => usePreviewAutoLogin());
+		await waitFor(() => expect(locationAssignCalls()).toHaveLength(1));
+		first.unmount();
+
+		stubLocation({
+			search: OAUTH_AUTHORIZE_SEARCH.replace("client_id=c1", "client_id=c2"),
+		});
+		renderHook(() => usePreviewAutoLogin());
+		await waitFor(() => expect(locationAssignCalls()).toHaveLength(1));
+		expect(
+			new URL(locationAssignCalls()[0]?.[0] as string).searchParams.get(
+				"client_id"
+			)
+		).toBe("c2");
 		expect(mocks.navigate).not.toHaveBeenCalled();
 	});
 

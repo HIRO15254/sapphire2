@@ -69,4 +69,10 @@ describe("socialCallbackUrl", () => {
 			`https://app.test/login${OAUTH_AUTHORIZE_SEARCH}`
 		);
 	});
+
+	it("keeps the real origin when stubLocation overrides only the search", () => {
+		stubLocation({ search: "" });
+		expect(window.location.origin).toBe("http://localhost:3000");
+		expect(socialCallbackUrl()).toBe("http://localhost:3000/statistics");
+	});
 });

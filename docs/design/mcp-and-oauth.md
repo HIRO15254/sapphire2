@@ -104,7 +104,7 @@ When the authorize endpoint sees an unauthenticated user, better-auth redirects 
 
 - `useSignIn` — email sign-in, plus the Google/Discord buttons via `socialCallbackUrl()`.
 - `useSignUp` — the same two paths. A MCP client's first connection often reaches an **unregistered** user, who signs up rather than signs in.
-- `usePreviewAutoLogin` — only active under `VITE_PREVIEW_AUTO_LOGIN=true`, but that is exactly the preview environment used to verify this flow by hand.
+- `usePreviewAutoLogin` — only active under `VITE_PREVIEW_AUTO_LOGIN=true`, but that is exactly the preview environment used to verify this flow by hand. Alone among the three it signs in with **no user action**, so its resume is claimed once per authorize URL in `sessionStorage`: the in-component `attempted` ref only spans one page load, and `window.location.assign` starts a new one. Without that claim, an authorize endpoint that bounces back to `/login` — which a browser blocking the cross-site `SameSite=None` session cookie will cause on the preview deployment — would auto-sign-in and re-assign forever.
 
 That list is not a promise anyone has to remember: [`scripts/check-rules.ts`](../../scripts/check-rules.ts) fails when a non-test file under `apps/web/src/features/auth/**` calls `authClient.signIn` / `authClient.signUp` without importing `login-continuation`. The invariant was written as prose first and broken twice before the check existed, which is exactly the case `AGENTS.md` reserves a `check-rules` entry for.
 
