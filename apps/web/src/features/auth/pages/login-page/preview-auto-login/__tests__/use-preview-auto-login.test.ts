@@ -35,6 +35,7 @@ import { usePreviewAutoLogin } from "@/features/auth/pages/login-page/preview-au
 
 describe("usePreviewAutoLogin", () => {
 	beforeEach(() => {
+		vi.restoreAllMocks();
 		mocks.signInEmail.mockReset();
 		mocks.navigate.mockReset();
 		vi.spyOn(console, "error").mockReset();
@@ -174,6 +175,26 @@ describe("usePreviewAutoLogin", () => {
 				"client_id"
 			)
 		).toBe("c2");
+		expect(mocks.navigate).not.toHaveBeenCalled();
+	});
+
+	it("mid-OAuth: resumes anyway when sessionStorage is unavailable", async () => {
+		stubLocation({ search: OAUTH_AUTHORIZE_SEARCH });
+		vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+			throw new Error("sessionStorage is disabled");
+		});
+		mocks.env.VITE_PREVIEW_AUTO_LOGIN = "true";
+		mocks.env.VITE_PREVIEW_LOGIN_EMAIL = "preview@example.com";
+		mocks.env.VITE_PREVIEW_LOGIN_PASSWORD = "preview-pass";
+		mocks.signInEmail.mockResolvedValue({ data: { user: { id: "u1" } } });
+
+		renderHook(() => usePreviewAutoLogin());
+		await waitFor(() => expect(locationAssignCalls()).toHaveLength(1));
+		expect(
+			new URL(locationAssignCalls()[0]?.[0] as string).searchParams.get(
+				"client_id"
+			)
+		).toBe("c1");
 		expect(mocks.navigate).not.toHaveBeenCalled();
 	});
 
