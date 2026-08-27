@@ -135,7 +135,7 @@ describe("usePreviewAutoLogin", () => {
 		expect(mocks.navigate).not.toHaveBeenCalled();
 	});
 
-	it("mid-OAuth: resumes only once per authorize request, so a bouncing authorize cannot loop", async () => {
+	it("mid-OAuth: resumes only once per authorize request, so a bouncing authorize cannot be re-assigned forever", async () => {
 		stubLocation({ search: OAUTH_AUTHORIZE_SEARCH });
 		mocks.env.VITE_PREVIEW_AUTO_LOGIN = "true";
 		mocks.env.VITE_PREVIEW_LOGIN_EMAIL = "preview@example.com";
