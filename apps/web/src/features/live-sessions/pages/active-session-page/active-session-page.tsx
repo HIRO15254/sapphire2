@@ -6,7 +6,7 @@ import { CashGameSession } from "./cash-game-session";
 import { TournamentSession } from "./tournament-session";
 import { useActiveSessionPage } from "./use-active-session-page";
 
-const FRAME_CLASS = "flex h-[calc(100dvh-4rem)] flex-col overflow-hidden";
+const FRAME_CLASS = "flex h-dvh flex-col overflow-hidden";
 
 export function ActiveSessionPage() {
 	const { activeSession, isError, isLoading, onRetry } = useActiveSessionPage();

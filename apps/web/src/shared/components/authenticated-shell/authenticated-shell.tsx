@@ -1,12 +1,11 @@
 import { IconDeviceMobile } from "@tabler/icons-react";
 import type { ReactNode } from "react";
-import { LiveStackFormSheet } from "@/features/live-sessions/components/live-stack-form-sheet";
 import { SessionFormProvider } from "@/features/live-sessions/hooks/use-session-form";
-import { StackSheetProvider } from "@/features/live-sessions/hooks/use-stack-sheet";
 import {
 	UpdateNotesProvider,
 	UpdateNotesSheet,
 } from "@/features/update-notes/components/update-notes-sheet";
+import { cn } from "@/lib/utils";
 import { MobileNav } from "@/shared/components/authenticated-shell/mobile-nav";
 import { OnlineStatusBar } from "@/shared/components/authenticated-shell/online-status-bar";
 import { SidebarNav } from "@/shared/components/authenticated-shell/sidebar-nav";
@@ -14,7 +13,7 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { useAuthenticatedShell } from "./use-authenticated-shell";
 
 export function AuthenticatedShell({ children }: { children: ReactNode }) {
-	const { isDesktop, activeSessionId } = useAuthenticatedShell();
+	const { isDesktop, activeSessionId, isImmersive } = useAuthenticatedShell();
 
 	if (isDesktop) {
 		return (
@@ -31,22 +30,24 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
 
 	return (
 		<SessionFormProvider sessionId={activeSessionId}>
-			<StackSheetProvider>
-				<UpdateNotesProvider>
-					<div className="min-h-svh bg-background">
-						<SidebarNav />
-						<div className="flex h-svh flex-col md:ml-56">
-							<OnlineStatusBar />
-							<div className="flex-1 overflow-auto pb-16 md:pb-0">
-								{children}
-							</div>
+			<UpdateNotesProvider>
+				<div className="min-h-svh bg-background">
+					<SidebarNav />
+					<div className="flex h-svh flex-col md:ml-56">
+						<OnlineStatusBar />
+						<div
+							className={cn(
+								"flex-1 overflow-auto md:pb-0",
+								isImmersive ? "pb-0" : "pb-16"
+							)}
+						>
+							{children}
 						</div>
-						<MobileNav />
-						<LiveStackFormSheet />
-						<UpdateNotesSheet />
 					</div>
-				</UpdateNotesProvider>
-			</StackSheetProvider>
+					{isImmersive ? null : <MobileNav />}
+					<UpdateNotesSheet />
+				</div>
+			</UpdateNotesProvider>
 		</SessionFormProvider>
 	);
 }

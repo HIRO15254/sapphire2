@@ -1,6 +1,6 @@
 import { IconTrash } from "@tabler/icons-react";
 import { AddonFields } from "@/features/live-sessions/components/event-fields/addon-fields";
-import { FormSheet } from "@/shared/components/form-sheet";
+import { BottomSheet } from "@/shared/components/bottom-sheet";
 import { useAddonForm } from "./use-addon-form";
 
 const ADDON_FORM_ID = "addon-form";
@@ -27,7 +27,9 @@ export function AddonBottomSheet({
 	const isEditMode = initialAmount !== undefined;
 
 	return (
-		<FormSheet
+		<BottomSheet
+			cancelLabel="Cancel"
+			confirmLabel={isEditMode ? "Save" : "Log"}
 			contentClassName={sheetClassName}
 			formId={ADDON_FORM_ID}
 			onOpenChange={onOpenChange}
@@ -65,6 +67,6 @@ export function AddonBottomSheet({
 					</div>
 				) : null}
 			</form>
-		</FormSheet>
+		</BottomSheet>
 	);
 }

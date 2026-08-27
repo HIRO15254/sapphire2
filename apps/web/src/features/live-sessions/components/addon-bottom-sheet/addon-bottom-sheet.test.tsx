@@ -6,15 +6,17 @@ import { AddonBottomSheet } from "./addon-bottom-sheet";
 
 const AMOUNT_LABEL_PATTERN = /^amount\b/i;
 
-vi.mock("@/shared/components/form-sheet", () => ({
-	FormSheet: ({
+vi.mock("@/shared/components/bottom-sheet", () => ({
+	BottomSheet: ({
 		children,
+		confirmLabel,
 		formId,
 		open,
 		title,
 	}: {
 		children: ReactNode;
-		formId: string;
+		confirmLabel?: string;
+		formId?: string;
 		open: boolean;
 		title: string;
 	}) =>
@@ -23,7 +25,7 @@ vi.mock("@/shared/components/form-sheet", () => ({
 				<h2>{title}</h2>
 				{children}
 				<button aria-label="Save" form={formId} type="submit">
-					Save
+					{confirmLabel}
 				</button>
 			</div>
 		) : null,

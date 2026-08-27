@@ -1,6 +1,6 @@
 import { IconTrash } from "@tabler/icons-react";
 import { AllInFields } from "@/features/live-sessions/components/event-fields/all-in-fields";
-import { FormSheet } from "@/shared/components/form-sheet";
+import { BottomSheet } from "@/shared/components/bottom-sheet";
 import { useAllInForm } from "./use-all-in-form";
 
 const ALL_IN_FORM_ID = "all-in-form";
@@ -34,7 +34,9 @@ export function AllInBottomSheet({
 	const isEditMode = initialValues !== undefined;
 
 	return (
-		<FormSheet
+		<BottomSheet
+			cancelLabel="Cancel"
+			confirmLabel={isEditMode ? "Save" : "Log"}
 			contentClassName={sheetClassName}
 			formId={ALL_IN_FORM_ID}
 			onOpenChange={onOpenChange}
@@ -103,6 +105,6 @@ export function AllInBottomSheet({
 					</div>
 				) : null}
 			</form>
-		</FormSheet>
+		</BottomSheet>
 	);
 }
