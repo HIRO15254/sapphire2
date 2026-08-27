@@ -4,7 +4,7 @@ import {
 	type SessionParam,
 	SOURCE_APP_ENTRIES,
 } from "@/features/live-sessions/utils/seat-screenshot";
-import { SessionFormSheet } from "@/features/sessions/components/session-form-sheet";
+import { BottomSheet } from "@/shared/components/bottom-sheet";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { ReviewRowItem } from "./review-row-item";
@@ -16,12 +16,15 @@ interface SeatFromScreenshotSheetProps {
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 	sessionParam: SessionParam;
-	sheetClassName?: string;
 	tableSize: number;
 }
 
+const HINT_TEXT_CLASS =
+	"text-pretty text-[var(--m-text-footnote)] text-muted-foreground";
+const PRIMARY_ACTION_BUTTON_CLASS =
+	"inline-flex min-h-[var(--m-control)] items-center justify-center gap-1.5 rounded-md bg-primary font-semibold text-primary-foreground hover:brightness-[1.08] disabled:pointer-events-none disabled:opacity-50";
+
 export function SeatFromScreenshotSheet({
-	sheetClassName,
 	heroSeatPosition,
 	occupiedSeatPositions,
 	onOpenChange,
@@ -58,7 +61,7 @@ export function SeatFromScreenshotSheet({
 		if (step === "select-app") {
 			return (
 				<div className="flex flex-col gap-3">
-					<p className="text-muted-foreground text-sm">
+					<p className={HINT_TEXT_CLASS}>
 						Choose the app the screenshot came from.
 					</p>
 					<div className="flex flex-col gap-2">
@@ -89,14 +92,19 @@ export function SeatFromScreenshotSheet({
 		if (step === "upload") {
 			return (
 				<div className="flex flex-col gap-3">
-					<p className="text-muted-foreground text-sm">
+					<p className={HINT_TEXT_CLASS}>
 						Upload a screenshot from{" "}
 						<span className="font-medium text-foreground">
 							{TABLE_PLAYER_SOURCE_APPS[sourceApp].label}
 						</span>
 						.
 					</p>
-					<Button disabled={isExtracting} onClick={onPickFile} type="button">
+					<button
+						className={PRIMARY_ACTION_BUTTON_CLASS}
+						disabled={isExtracting}
+						onClick={onPickFile}
+						type="button"
+					>
 						{isExtracting ? (
 							<>
 								<IconLoader2 className="animate-spin" size={16} />
@@ -108,7 +116,7 @@ export function SeatFromScreenshotSheet({
 								Choose screenshot
 							</>
 						)}
-					</Button>
+					</button>
 					<input
 						accept="image/jpeg,image/png,image/gif,image/webp"
 						className="hidden"
@@ -133,7 +141,7 @@ export function SeatFromScreenshotSheet({
 		if (rows.length === 0) {
 			return (
 				<div className="flex flex-col gap-3">
-					<p className="text-muted-foreground text-sm">
+					<p className={HINT_TEXT_CLASS}>
 						No players detected in the screenshot.
 					</p>
 					<DialogActionRow>
@@ -160,7 +168,7 @@ export function SeatFromScreenshotSheet({
 
 		return (
 			<div className="flex flex-col gap-3">
-				<p className="text-muted-foreground text-sm">
+				<p className={HINT_TEXT_CLASS}>
 					Detected {rows.length} {rows.length === 1 ? "seat" : "seats"}. Review
 					each row, then press Apply.
 				</p>
@@ -194,7 +202,8 @@ export function SeatFromScreenshotSheet({
 					>
 						Try another image
 					</Button>
-					<Button
+					<button
+						className={PRIMARY_ACTION_BUTTON_CLASS}
 						disabled={isApplying || seatablesCount === 0}
 						onClick={onApply}
 						type="button"
@@ -210,20 +219,21 @@ export function SeatFromScreenshotSheet({
 								Apply ({seatablesCount})
 							</>
 						)}
-					</Button>
+					</button>
 				</DialogActionRow>
 			</div>
 		);
 	};
 
 	return (
-		<SessionFormSheet
-			contentClassName={sheetClassName}
+		<BottomSheet
+			cancelLabel="Cancel"
+			contentClassName="h-[calc(100svh-2rem)]"
 			onOpenChange={onOpenChange}
 			open={open}
 			title="Seat from screenshot"
 		>
 			{renderStep()}
-		</SessionFormSheet>
+		</BottomSheet>
 	);
 }

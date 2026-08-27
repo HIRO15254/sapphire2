@@ -49,7 +49,7 @@ export function ReviewRowItem({
 	const disabled = row.warning !== null;
 
 	return (
-		<div className="flex flex-col gap-1 rounded-md border border-border p-2">
+		<div className="flex flex-col gap-1 rounded-[var(--radius-md)] border border-border p-2">
 			<div className="flex items-center gap-2">
 				<Badge className="w-10 shrink-0 justify-center" variant="secondary">
 					{row.seatNumber}

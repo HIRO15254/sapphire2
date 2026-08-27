@@ -5,6 +5,9 @@ import type React from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ActionsDrawer } from "@/features/live-sessions/components/actions-drawer";
 
+const CANCEL_NAME_RE = /cancel/i;
+const DONE_NAME_RE = /done/i;
+
 function setup(
 	overrides: Partial<React.ComponentProps<typeof ActionsDrawer>> = {}
 ) {
@@ -119,5 +122,14 @@ describe("ActionsDrawer", () => {
 		expect(
 			screen.queryByText("No players seated yet.")
 		).not.toBeInTheDocument();
+	});
+
+	it("renders the drag handle but no visible header chrome (menu variant)", () => {
+		setup({
+			items: [{ icon: IconBolt, label: "Only action", onSelect: vi.fn() }],
+		});
+		expect(screen.getAllByRole("button")).toHaveLength(1);
+		expect(screen.queryByRole("button", { name: CANCEL_NAME_RE })).toBeNull();
+		expect(screen.queryByRole("button", { name: DONE_NAME_RE })).toBeNull();
 	});
 });

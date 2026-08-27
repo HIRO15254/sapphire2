@@ -23,6 +23,7 @@ interface BottomSheetProps {
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 	title: string;
+	variant?: "form" | "menu";
 }
 
 const HEADER_BUTTON_CLASS =
@@ -43,10 +44,12 @@ export function BottomSheet({
 	onOpenChange,
 	open,
 	title,
+	variant = "form",
 }: BottomSheetProps) {
 	const showConfirm =
 		confirmLabel !== undefined &&
 		(onConfirm !== undefined || formId !== undefined);
+	const isMenu = variant === "menu";
 	return (
 		<Drawer dismissible={dismissible} onOpenChange={onOpenChange} open={open}>
 			<DrawerContent
@@ -58,45 +61,56 @@ export function BottomSheet({
 				overlayClassName="bg-black/50 backdrop-blur-[4px]"
 			>
 				<div className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-muted-foreground/35" />
-				<div className="grid shrink-0 grid-cols-[minmax(64px,auto)_1fr_minmax(64px,auto)] items-center gap-1 px-2 py-1">
-					{cancelLabel === undefined ? (
-						<span />
-					) : (
-						<button
-							className={cn(
-								HEADER_BUTTON_CLASS,
-								"justify-self-start text-foreground hover:bg-muted"
-							)}
-							onClick={onCancel ?? (() => onOpenChange(false))}
-							type="button"
-						>
-							{cancelLabel}
-						</button>
-					)}
-					<DrawerTitle className="min-w-0 truncate text-center font-semibold text-base tracking-[var(--tracking-heading)]">
-						{title}
-					</DrawerTitle>
-					{showConfirm ? (
-						<button
-							className={cn(
-								HEADER_BUTTON_CLASS,
-								"justify-self-end font-semibold text-primary hover:bg-muted disabled:opacity-50"
-							)}
-							disabled={isConfirmDisabled || isConfirmPending}
-							form={formId}
-							onClick={formId === undefined ? onConfirm : undefined}
-							type={formId === undefined ? "button" : "submit"}
-						>
-							{confirmLabel}
-						</button>
-					) : (
-						<span />
-					)}
-				</div>
+				{isMenu ? (
+					<DrawerTitle className="sr-only">{title}</DrawerTitle>
+				) : (
+					<div className="grid shrink-0 grid-cols-[minmax(64px,auto)_1fr_minmax(64px,auto)] items-center gap-1 px-2 py-1">
+						{cancelLabel === undefined ? (
+							<span />
+						) : (
+							<button
+								className={cn(
+									HEADER_BUTTON_CLASS,
+									"justify-self-start text-foreground hover:bg-muted"
+								)}
+								onClick={onCancel ?? (() => onOpenChange(false))}
+								type="button"
+							>
+								{cancelLabel}
+							</button>
+						)}
+						<DrawerTitle className="min-w-0 truncate text-center font-semibold text-base tracking-[var(--tracking-heading)]">
+							{title}
+						</DrawerTitle>
+						{showConfirm ? (
+							<button
+								className={cn(
+									HEADER_BUTTON_CLASS,
+									"justify-self-end font-semibold text-primary hover:bg-muted disabled:opacity-50"
+								)}
+								disabled={isConfirmDisabled || isConfirmPending}
+								form={formId}
+								onClick={formId === undefined ? onConfirm : undefined}
+								type={formId === undefined ? "button" : "submit"}
+							>
+								{confirmLabel}
+							</button>
+						) : (
+							<span />
+						)}
+					</div>
+				)}
 				<DrawerDescription className="sr-only">
 					{description ?? title}
 				</DrawerDescription>
-				<div className="flex-1 overflow-y-auto px-[var(--m-inset)] pt-2 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+				<div
+					className={cn(
+						"flex-1 overflow-y-auto px-[var(--m-inset)]",
+						isMenu
+							? "pt-1 pb-[calc(0.5rem+env(safe-area-inset-bottom))]"
+							: "pt-2 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+					)}
+				>
 					{children}
 				</div>
 			</DrawerContent>

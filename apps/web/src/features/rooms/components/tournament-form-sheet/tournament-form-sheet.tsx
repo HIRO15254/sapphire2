@@ -5,6 +5,7 @@ import {
 } from "@/features/rooms/components/tournament-modal-content";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import type { TournamentFormValues } from "@/features/rooms/hooks/use-tournaments";
+import { BottomSheet } from "@/shared/components/bottom-sheet";
 import { FormSheet } from "@/shared/components/form-sheet";
 import { QueryError } from "@/shared/components/query-error";
 import {
@@ -34,11 +35,13 @@ interface TournamentFormSheetProps {
 	) => void | Promise<void>;
 	open: boolean;
 	resetKey?: string;
+	sheetVariant?: "cryst" | "legacy";
 	title: string;
 }
 
 export function TournamentFormSheet({
 	aiMode,
+	sheetVariant = "legacy",
 	formId,
 	initialBlindLevels,
 	initialFormValues,
@@ -119,16 +122,32 @@ export function TournamentFormSheet({
 				</Drawer>
 			) : null}
 
-			<FormSheet
-				formId={formId}
-				isLoading={isLoading}
-				isSaveDisabled={editBlindLevelsError}
-				onOpenChange={onOpenChange}
-				open={open}
-				title={title}
-			>
-				{formContent}
-			</FormSheet>
+			{sheetVariant === "cryst" ? (
+				<BottomSheet
+					cancelLabel="Cancel"
+					confirmLabel="Save"
+					contentClassName="h-[calc(100svh-2rem)]"
+					formId={formId}
+					isConfirmDisabled={editBlindLevelsError}
+					isConfirmPending={isLoading}
+					onOpenChange={onOpenChange}
+					open={open}
+					title={title}
+				>
+					{formContent}
+				</BottomSheet>
+			) : (
+				<FormSheet
+					formId={formId}
+					isLoading={isLoading}
+					isSaveDisabled={editBlindLevelsError}
+					onOpenChange={onOpenChange}
+					open={open}
+					title={title}
+				>
+					{formContent}
+				</FormSheet>
+			)}
 		</>
 	);
 }

@@ -35,7 +35,8 @@ import {
 import { RingGameForm } from "@/features/rooms/components/ring-game-form";
 import { TournamentFormSheet } from "@/features/rooms/components/tournament-form-sheet";
 import type { RingGame } from "@/features/rooms/hooks/use-ring-games";
-import { FormSheet } from "@/shared/components/form-sheet";
+import { cn } from "@/lib/utils";
+import { BottomSheet } from "@/shared/components/bottom-sheet";
 import { PageHeader } from "@/shared/components/page-header";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -81,18 +82,35 @@ function DetailRow({
 	label,
 	value,
 	badge,
+	isLast = false,
+	mono = false,
 }: {
 	label: string;
 	value: React.ReactNode;
 	badge?: React.ReactNode;
+	isLast?: boolean;
+	mono?: boolean;
 }) {
 	return (
-		<div className="flex items-baseline justify-between gap-4 py-1">
-			<span className="text-muted-foreground text-xs">{label}</span>
-			<span className="flex items-baseline gap-1.5 text-right font-medium text-sm">
+		<div
+			className={cn(
+				"flex items-center gap-2 py-2.5 text-sm",
+				isLast ? undefined : "border-border border-b"
+			)}
+		>
+			<span className="flex-1 text-muted-foreground">{label}</span>
+			<span className="flex items-center gap-1.5 text-right">
 				{badge}
-				{value}
+				<span className={cn(mono && "font-mono")}>{value}</span>
 			</span>
+		</div>
+	);
+}
+
+function DetailList({ children }: { children: React.ReactNode }) {
+	return (
+		<div className="flex flex-col rounded-[var(--radius-lg)] border border-border px-2.5">
+			{children}
 		</div>
 	);
 }
@@ -175,6 +193,7 @@ function CashBlindRows({
 						}
 						key={group.variants.join("+")}
 						label={groupDisplayLabel(group)}
+						mono
 						value={formatGroupStakes(group)}
 					/>
 				))}
@@ -191,6 +210,7 @@ function CashBlindRows({
 				) : null
 			}
 			label="Blinds"
+			mono
 			value={
 				blindsStr
 					? `${blindsStr}${anteStr ? ` ${anteStr}` : ""}${currencyUnit ? ` ${currencyUnit}` : ""}`
@@ -235,32 +255,38 @@ function RingGameDetailsCard({
 			<CardHeader>
 				<RingGameCardTitle diff={diff} master={master} snapshot={snapshot} />
 			</CardHeader>
-			<CardContent className="divide-y">
-				<CashBlindRows
-					blindsModified={blindsModified}
-					currencyUnit={currencyUnit}
-					master={master}
-					mixGamesModified={mixGamesModified}
-					snapshot={snapshot}
-				/>
-				<DetailRow
-					badge={
-						buyInModified ? (
-							<ModifiedBadge
-								masterValue={`${master.minBuyIn ?? "—"} - ${master.maxBuyIn ?? "—"}`}
-							/>
-						) : null
-					}
-					label="Buy-in"
-					value={buyInStr}
-				/>
-				<DetailRow
-					label="Table"
-					value={snapshot.tableSize == null ? "—" : `${snapshot.tableSize}-max`}
-				/>
-				<DetailRow label="Currency" value={currencyName ?? "—"} />
+			<CardContent className="flex flex-col gap-3">
+				<DetailList>
+					<CashBlindRows
+						blindsModified={blindsModified}
+						currencyUnit={currencyUnit}
+						master={master}
+						mixGamesModified={mixGamesModified}
+						snapshot={snapshot}
+					/>
+					<DetailRow
+						badge={
+							buyInModified ? (
+								<ModifiedBadge
+									masterValue={`${master.minBuyIn ?? "—"} - ${master.maxBuyIn ?? "—"}`}
+								/>
+							) : null
+						}
+						label="Buy-in"
+						mono
+						value={buyInStr}
+					/>
+					<DetailRow
+						label="Table"
+						mono
+						value={
+							snapshot.tableSize == null ? "—" : `${snapshot.tableSize}-max`
+						}
+					/>
+					<DetailRow isLast label="Currency" value={currencyName ?? "—"} />
+				</DetailList>
 				{master.memo ? (
-					<div className="py-2">
+					<div>
 						<p className="text-muted-foreground text-xs">Memo</p>
 						<p className="whitespace-pre-wrap text-sm">{master.memo}</p>
 					</div>
@@ -384,9 +410,12 @@ function CashGameDetails({ sessionId }: { sessionId: string }) {
 				snapshot={snapshot}
 			/>
 
-			<FormSheet
+			<BottomSheet
+				cancelLabel="Cancel"
+				confirmLabel="Save"
+				contentClassName="h-[calc(100svh-2rem)]"
 				formId={EDIT_RING_GAME_FORM_ID}
-				isLoading={isUpdatePending}
+				isConfirmPending={isUpdatePending}
 				onOpenChange={setIsEditOpen}
 				open={isEditOpen}
 				title="Edit Cash Game"
@@ -414,7 +443,7 @@ function CashGameDetails({ sessionId }: { sessionId: string }) {
 					formId={EDIT_RING_GAME_FORM_ID}
 					onSubmit={handleUpdate}
 				/>
-			</FormSheet>
+			</BottomSheet>
 		</GameSceneShell>
 	);
 }
@@ -596,48 +625,58 @@ function TournamentInfoCard({
 					))}
 				</CardTitle>
 			</CardHeader>
-			<CardContent className="divide-y">
-				<DetailRow
-					badge={
-						diff.buyIn ? (
-							<ModifiedBadge masterValue={fmtForBadge(master.buyIn)} />
-						) : null
-					}
-					label="Buy-in"
-					value={display.buyIn == null ? "—" : fmt(display.buyIn)}
-				/>
-				<DetailRow
-					badge={
-						diff.entryFee ? (
-							<ModifiedBadge masterValue={fmtForBadge(master.entryFee)} />
-						) : null
-					}
-					label="Entry Fee"
-					value={display.entryFee == null ? "—" : fmt(display.entryFee)}
-				/>
-				<DetailRow
-					badge={
-						diff.startingStack ? (
-							<ModifiedBadge masterValue={fmtForBadge(master.startingStack)} />
-						) : null
-					}
-					label="Starting Stack"
-					value={
-						display.startingStack == null ? "—" : fmt(display.startingStack)
-					}
-				/>
-				<DetailRow
-					badge={
-						diff.bountyAmount ? (
-							<ModifiedBadge masterValue={fmtForBadge(master.bountyAmount)} />
-						) : null
-					}
-					label="Bounty"
-					value={display.bountyAmount == null ? "—" : fmt(display.bountyAmount)}
-				/>
-				<DetailRow label="Currency" value={currencyName ?? "—"} />
+			<CardContent className="flex flex-col gap-3">
+				<DetailList>
+					<DetailRow
+						badge={
+							diff.buyIn ? (
+								<ModifiedBadge masterValue={fmtForBadge(master.buyIn)} />
+							) : null
+						}
+						label="Buy-in"
+						mono
+						value={display.buyIn == null ? "—" : fmt(display.buyIn)}
+					/>
+					<DetailRow
+						badge={
+							diff.entryFee ? (
+								<ModifiedBadge masterValue={fmtForBadge(master.entryFee)} />
+							) : null
+						}
+						label="Entry Fee"
+						mono
+						value={display.entryFee == null ? "—" : fmt(display.entryFee)}
+					/>
+					<DetailRow
+						badge={
+							diff.startingStack ? (
+								<ModifiedBadge
+									masterValue={fmtForBadge(master.startingStack)}
+								/>
+							) : null
+						}
+						label="Starting Stack"
+						mono
+						value={
+							display.startingStack == null ? "—" : fmt(display.startingStack)
+						}
+					/>
+					<DetailRow
+						badge={
+							diff.bountyAmount ? (
+								<ModifiedBadge masterValue={fmtForBadge(master.bountyAmount)} />
+							) : null
+						}
+						label="Bounty"
+						mono
+						value={
+							display.bountyAmount == null ? "—" : fmt(display.bountyAmount)
+						}
+					/>
+					<DetailRow isLast label="Currency" value={currencyName ?? "—"} />
+				</DetailList>
 				{master.memo ? (
-					<div className="py-2">
+					<div>
 						<p className="text-muted-foreground text-xs">Memo</p>
 						<p className="whitespace-pre-wrap text-sm">{master.memo}</p>
 					</div>
@@ -670,14 +709,18 @@ function ChipPurchasesCard({
 					) : null}
 				</CardTitle>
 			</CardHeader>
-			<CardContent className="divide-y">
-				{chipPurchases.map((cp) => (
-					<DetailRow
-						key={cp.id}
-						label={cp.name}
-						value={`${fmt(cp.cost)} → ${fmt(cp.chips)} chips`}
-					/>
-				))}
+			<CardContent>
+				<DetailList>
+					{chipPurchases.map((cp, index) => (
+						<DetailRow
+							isLast={index === chipPurchases.length - 1}
+							key={cp.id}
+							label={cp.name}
+							mono
+							value={`${fmt(cp.cost)} → ${fmt(cp.chips)} chips`}
+						/>
+					))}
+				</DetailList>
 			</CardContent>
 		</Card>
 	);
@@ -830,6 +873,7 @@ function TournamentDetailsBody({
 				onSave={handleSave}
 				open={isEditOpen}
 				resetKey={master.id}
+				sheetVariant="cryst"
 				title="Edit Tournament"
 			/>
 		</GameSceneShell>

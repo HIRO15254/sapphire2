@@ -2,7 +2,6 @@ import { ChipPurchaseSheet } from "@/features/live-sessions/components/chip-purc
 import { SeatFromScreenshotSheet } from "@/features/live-sessions/components/seat-from-screenshot-sheet";
 import { TournamentCompleteForm } from "@/features/live-sessions/components/tournament-complete-form";
 import { BottomSheet } from "@/shared/components/bottom-sheet";
-import { CRYST_SCOPE } from "@/shared/lib/theme";
 import { ActionBar } from "../action-bar";
 import { DiscardDialog } from "../discard-dialog";
 import { JoinSeatSheet } from "../join-seat-sheet";
@@ -119,7 +118,6 @@ export function TournamentSession({ sessionId }: { sessionId: string }) {
 			) : null}
 
 			<ChipPurchaseSheet
-				contentClassName={CRYST_SCOPE}
 				onOpenChange={vm.setIsBuyChipsOpen}
 				onSubmit={vm.handleBuyChipsSubmit}
 				open={vm.isBuyChipsOpen}
@@ -164,7 +162,6 @@ export function TournamentSession({ sessionId }: { sessionId: string }) {
 				onOpenChange={vm.setIsScanOpen}
 				open={vm.isScanOpen}
 				sessionParam={vm.sceneState.sessionParam}
-				sheetClassName={CRYST_SCOPE}
 				tableSize={vm.sceneState.tableSize}
 			/>
 

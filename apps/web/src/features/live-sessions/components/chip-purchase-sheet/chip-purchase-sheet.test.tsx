@@ -11,6 +11,7 @@ const OPTIONS = [
 const REENTRY_RE = /Re-entry/;
 const ADDON_RE = /Add-on/;
 const EMPTY_STATE_RE = /No chip purchases are defined/i;
+const CONFIRM_NAME_RE = /confirm|save|log|done/i;
 
 describe("ChipPurchaseSheet (picker)", () => {
 	it("renders nothing when closed", () => {
@@ -109,5 +110,33 @@ describe("ChipPurchaseSheet (picker)", () => {
 			/>
 		);
 		expect(screen.getByText(EMPTY_STATE_RE)).toBeInTheDocument();
+	});
+
+	it("renders a Cancel button that closes the sheet", async () => {
+		const user = userEvent.setup();
+		const onOpenChange = vi.fn();
+		render(
+			<ChipPurchaseSheet
+				onOpenChange={onOpenChange}
+				onSubmit={vi.fn()}
+				open
+				options={OPTIONS}
+			/>
+		);
+		await user.click(screen.getByRole("button", { name: "Cancel" }));
+		expect(onOpenChange).toHaveBeenCalledTimes(1);
+		expect(onOpenChange).toHaveBeenNthCalledWith(1, false);
+	});
+
+	it("renders no confirm button since picking a row is the submit action", () => {
+		render(
+			<ChipPurchaseSheet
+				onOpenChange={vi.fn()}
+				onSubmit={vi.fn()}
+				open
+				options={OPTIONS}
+			/>
+		);
+		expect(screen.queryByRole("button", { name: CONFIRM_NAME_RE })).toBeNull();
 	});
 });

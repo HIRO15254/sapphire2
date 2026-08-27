@@ -1,7 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ActiveSessionGameScene } from "@/features/live-sessions/components/active-session-game-scene";
+
+const EDIT_RING_GAME_FORM_ID = "edit-ring-game-form";
 
 const mocks = vi.hoisted(() => ({
 	activeSession: null as null | {
@@ -45,7 +48,10 @@ const mocks = vi.hoisted(() => ({
 	currencies: [] as unknown[],
 	ringGameFormProps: null as null | {
 		defaultValues?: { mixGames?: unknown };
+		formId?: string;
 	},
+	isUpdatePending: false,
+	ringGameSubmitValues: { name: "Updated Rules" } as Record<string, unknown>,
 }));
 
 vi.mock("@/features/live-sessions/hooks/use-active-session", () => ({
@@ -88,9 +94,22 @@ vi.mock("@/features/rooms/hooks/use-tournaments", () => ({
 }));
 
 vi.mock("@/features/rooms/components/ring-game-form", () => ({
-	RingGameForm: (props: { defaultValues?: { mixGames?: unknown } }) => {
+	RingGameForm: (props: {
+		defaultValues?: { mixGames?: unknown };
+		formId?: string;
+		onSubmit?: (values: Record<string, unknown>) => void;
+	}) => {
 		mocks.ringGameFormProps = props;
-		return <div data-testid="ring-game-form" />;
+		return (
+			<form
+				data-testid="ring-game-form"
+				id={props.formId}
+				onSubmit={(e) => {
+					e.preventDefault();
+					props.onSubmit?.(mocks.ringGameSubmitValues);
+				}}
+			/>
+		);
 	},
 }));
 
@@ -98,9 +117,51 @@ vi.mock("@/features/rooms/components/tournament-form-sheet", () => ({
 	TournamentFormSheet: () => <div data-testid="tournament-form-sheet" />,
 }));
 
-vi.mock("@/shared/components/form-sheet", () => ({
-	FormSheet: ({ children, open }: { children: ReactNode; open: boolean }) =>
-		open ? <div>{children}</div> : null,
+vi.mock("@/shared/components/bottom-sheet", () => ({
+	BottomSheet: ({
+		cancelLabel,
+		children,
+		confirmLabel,
+		formId,
+		isConfirmPending,
+		onCancel,
+		onOpenChange,
+		open,
+		title,
+	}: {
+		cancelLabel?: string;
+		children: ReactNode;
+		confirmLabel?: string;
+		formId?: string;
+		isConfirmPending?: boolean;
+		onCancel?: () => void;
+		onOpenChange: (open: boolean) => void;
+		open: boolean;
+		title: string;
+	}) => {
+		if (!open) {
+			return null;
+		}
+		return (
+			<div>
+				<h2>{title}</h2>
+				{cancelLabel ? (
+					<button
+						onClick={onCancel ?? (() => onOpenChange(false))}
+						type="button"
+					>
+						{cancelLabel}
+					</button>
+				) : null}
+				{children}
+				{confirmLabel ? (
+					<button disabled={isConfirmPending} form={formId} type="submit">
+						{confirmLabel}
+					</button>
+				) : null}
+			</div>
+		);
+	},
 }));
 
 vi.mock("@tanstack/react-query", () => ({
@@ -149,7 +210,7 @@ vi.mock("@tanstack/react-query", () => ({
 	useMutation: () => ({
 		mutate: vi.fn(),
 		mutateAsync: vi.fn(async () => undefined),
-		isPending: false,
+		isPending: mocks.isUpdatePending,
 	}),
 }));
 
@@ -219,14 +280,11 @@ describe("ActiveSessionGameScene", () => {
 		mocks.chipPurchases = [];
 		mocks.currencies = [{ id: "currency-1", name: "USD", unit: "$" }];
 		mocks.ringGameFormProps = null;
+		mocks.isUpdatePending = false;
+		mocks.ringGameSubmitValues = { name: "Updated Rules" };
 	});
 
-	it("shows the no-active-session empty state when there is no session", () => {
-		render(<ActiveSessionGameScene />);
-		expect(screen.getByText("No active session")).toBeInTheDocument();
-	});
-
-	it("renders ring game details for a cash game session", () => {
+	function setUpCashSession() {
 		mocks.activeSession = {
 			id: "session-1",
 			type: "cash_game",
@@ -268,6 +326,15 @@ describe("ActiveSessionGameScene", () => {
 				variant: "nlh",
 			},
 		];
+	}
+
+	it("shows the no-active-session empty state when there is no session", () => {
+		render(<ActiveSessionGameScene />);
+		expect(screen.getByText("No active session")).toBeInTheDocument();
+	});
+
+	it("renders ring game details for a cash game session", () => {
+		setUpCashSession();
 
 		render(<ActiveSessionGameScene />);
 		expect(screen.getByText("1/2 NLH")).toBeInTheDocument();
@@ -327,6 +394,65 @@ describe("ActiveSessionGameScene", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Edit" }));
 
 		expect(mocks.ringGameFormProps?.defaultValues?.mixGames).toEqual(mixGames);
+	});
+
+	it("opens the cash edit sheet with the Edit Cash Game title and Cancel/Save chrome wired to the shared form", async () => {
+		const user = userEvent.setup();
+		setUpCashSession();
+
+		render(<ActiveSessionGameScene />);
+		await user.click(screen.getByRole("button", { name: "Edit" }));
+
+		expect(
+			screen.getByRole("heading", { name: "Edit Cash Game" })
+		).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+		const saveButton = screen.getByRole("button", { name: "Save" });
+		expect(saveButton).toHaveAttribute("form", EDIT_RING_GAME_FORM_ID);
+		expect(mocks.ringGameFormProps?.formId).toBe(EDIT_RING_GAME_FORM_ID);
+	});
+
+	it("closes the cash edit sheet via Cancel without submitting the form", async () => {
+		const user = userEvent.setup();
+		setUpCashSession();
+
+		render(<ActiveSessionGameScene />);
+		await user.click(screen.getByRole("button", { name: "Edit" }));
+		expect(
+			screen.getByRole("heading", { name: "Edit Cash Game" })
+		).toBeInTheDocument();
+
+		await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+		expect(
+			screen.queryByRole("heading", { name: "Edit Cash Game" })
+		).not.toBeInTheDocument();
+	});
+
+	it("submits the shared ring game form via the Save confirm button and closes the sheet", async () => {
+		const user = userEvent.setup();
+		setUpCashSession();
+
+		render(<ActiveSessionGameScene />);
+		await user.click(screen.getByRole("button", { name: "Edit" }));
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(
+				screen.queryByRole("heading", { name: "Edit Cash Game" })
+			).not.toBeInTheDocument();
+		});
+	});
+
+	it("disables the cash edit sheet Save button while the update mutation is pending", async () => {
+		const user = userEvent.setup();
+		mocks.isUpdatePending = true;
+		setUpCashSession();
+
+		render(<ActiveSessionGameScene />);
+		await user.click(screen.getByRole("button", { name: "Edit" }));
+
+		expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
 	});
 
 	it("shows a fallback when the cash session has no ring game linked", () => {

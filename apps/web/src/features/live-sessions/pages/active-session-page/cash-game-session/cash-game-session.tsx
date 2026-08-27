@@ -3,7 +3,6 @@ import { AllInBottomSheet } from "@/features/live-sessions/components/all-in-bot
 import { CashGameCompleteForm } from "@/features/live-sessions/components/cash-game-complete-form";
 import { SeatFromScreenshotSheet } from "@/features/live-sessions/components/seat-from-screenshot-sheet";
 import { BottomSheet } from "@/shared/components/bottom-sheet";
-import { CRYST_SCOPE } from "@/shared/lib/theme";
 import { ActionBar } from "../action-bar";
 import { DiscardDialog } from "../discard-dialog";
 import { JoinSeatSheet } from "../join-seat-sheet";
@@ -98,14 +97,12 @@ export function CashGameSession({ sessionId }: { sessionId: string }) {
 				onOpenChange={vm.setIsAllInOpen}
 				onSubmit={vm.handleAllInSubmit}
 				open={vm.isAllInOpen}
-				sheetClassName={CRYST_SCOPE}
 			/>
 
 			<AddonBottomSheet
 				onOpenChange={vm.setIsChipsOpen}
 				onSubmit={vm.handleChipsSubmit}
 				open={vm.isChipsOpen}
-				sheetClassName={CRYST_SCOPE}
 			/>
 
 			<MemoFormSheet
@@ -146,7 +143,6 @@ export function CashGameSession({ sessionId }: { sessionId: string }) {
 				onOpenChange={vm.setIsScanOpen}
 				open={vm.isScanOpen}
 				sessionParam={vm.sceneState.sessionParam}
-				sheetClassName={CRYST_SCOPE}
 				tableSize={vm.sceneState.tableSize}
 			/>
 
