@@ -21,6 +21,7 @@ import {
 	isAuthorizePath,
 	parseConsentPageQuery,
 	redirectHostsFrom,
+	withoutLoginPromptCookie,
 } from "./oauth-consent";
 
 interface Env {
@@ -109,13 +110,17 @@ app.use("/api/auth/*", (c, next) => {
 	}
 	const db = createDb(c.env.DB);
 	const auth = createAuth(db, buildAuthOptions(c.env, db));
-	return auth.handler(new Request(forceConsentPrompt(c.req.url), c.req.raw));
+	return auth.handler(
+		withoutLoginPromptCookie(
+			new Request(forceConsentPrompt(c.req.url), c.req.raw)
+		)
+	);
 });
 
 app.on(["POST", "GET"], "/api/auth/*", (c) => {
 	const db = createDb(c.env.DB);
 	const auth = createAuth(db, buildAuthOptions(c.env, db));
-	return auth.handler(c.req.raw);
+	return auth.handler(withoutLoginPromptCookie(c.req.raw));
 });
 
 app.get("/oauth/consent", async (c) => {

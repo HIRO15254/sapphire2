@@ -18,6 +18,7 @@ export default defineConfig({
 		exclude: [
 			"**/node_modules/**",
 			"**/.git/**",
+			"src/features/auth/utils/__tests__/login-continuation.test.ts",
 			"src/features/sessions/utils/__tests__/share-session.test.ts",
 		],
 		globals: true,

@@ -18,6 +18,7 @@ export default defineConfig({
 			"src/features/**/components/**/__tests__/*.test.ts",
 			"src/features/**/pages/**/__tests__/*.test.ts",
 			"src/features/**/hooks/__tests__/*.test.ts",
+			"src/features/auth/utils/__tests__/login-continuation.test.ts",
 			"src/features/sessions/utils/__tests__/share-session.test.ts",
 			"src/routes/**/__tests__/*.test.ts",
 		],

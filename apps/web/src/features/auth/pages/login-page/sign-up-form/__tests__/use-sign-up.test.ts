@@ -8,6 +8,13 @@ const mocks = vi.hoisted(() => ({
 	signInSocial: vi.fn(),
 	toastSuccess: vi.fn(),
 	toastError: vi.fn(),
+	env: { VITE_SERVER_URL: "http://localhost:8787" },
+}));
+
+vi.mock("@sapphire2/env/web", () => ({
+	env: new Proxy(mocks.env, {
+		get: (target, prop) => target[prop as keyof typeof target],
+	}),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -29,6 +36,11 @@ vi.mock("@/lib/auth-client", () => ({
 	},
 }));
 
+import {
+	locationAssignCalls,
+	OAUTH_AUTHORIZE_SEARCH,
+	stubLocation,
+} from "@/__tests__/test-utils";
 import { useSignUp } from "@/features/auth/pages/login-page/sign-up-form/use-sign-up";
 
 describe("useSignUp", () => {
@@ -136,6 +148,33 @@ describe("useSignUp", () => {
 		expect(mocks.toastSuccess).toHaveBeenCalledWith("Sign up successful");
 	});
 
+	it("on success mid-OAuth: resumes the authorize flow instead of entering the app", async () => {
+		stubLocation({ search: OAUTH_AUTHORIZE_SEARCH });
+		mocks.signUpEmail.mockImplementation((_credentials, callbacks) => {
+			callbacks?.onSuccess?.();
+			return Promise.resolve();
+		});
+		const { result } = renderHook(() => useSignUp());
+		act(() => {
+			result.current.form.setFieldValue("name", "Alice");
+			result.current.form.setFieldValue("email", "alice@example.com");
+			result.current.form.setFieldValue("password", "password123");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(window.location.assign).toHaveBeenCalledTimes(1);
+		const url = new URL(locationAssignCalls()[0]?.[0] as string);
+		expect(url.origin).toBe("http://localhost:8787");
+		expect(url.pathname).toBe("/api/auth/mcp/authorize");
+		expect(url.searchParams.get("client_id")).toBe("c1");
+		expect(url.searchParams.get("response_type")).toBe("code");
+		expect(url.searchParams.get("redirect_uri")).toBe("https://claude.ai/cb");
+		expect(url.searchParams.get("state")).toBe("s1");
+		expect(mocks.navigate).not.toHaveBeenCalled();
+		expect(mocks.toastSuccess).not.toHaveBeenCalled();
+	});
+
 	it("on error: toasts provided message", async () => {
 		mocks.signUpEmail.mockImplementation((_credentials, callbacks) => {
 			callbacks?.onError?.({
@@ -174,15 +213,49 @@ describe("useSignUp", () => {
 		expect(mocks.toastError).toHaveBeenCalledWith("Conflict");
 	});
 
-	it("onSignInWithGoogle: calls social signin with google", async () => {
+	it("onSignInWithGoogle: calls social signin with google and statistics callback", async () => {
+		stubLocation({ origin: "https://app.test", search: "" });
 		mocks.signInSocial.mockResolvedValue({ error: null });
 		const { result } = renderHook(() => useSignUp());
 		await act(async () => {
 			await result.current.onSignInWithGoogle();
 		});
-		expect(mocks.signInSocial).toHaveBeenCalledWith(
-			expect.objectContaining({ provider: "google" })
-		);
+		expect(mocks.signInSocial).toHaveBeenCalledWith({
+			provider: "google",
+			callbackURL: "https://app.test/statistics",
+		});
+	});
+
+	it("onSignInWithGoogle mid-OAuth: returns to /login with the authorize query preserved", async () => {
+		stubLocation({
+			origin: "https://app.test",
+			search: OAUTH_AUTHORIZE_SEARCH,
+		});
+		mocks.signInSocial.mockResolvedValue({ error: null });
+		const { result } = renderHook(() => useSignUp());
+		await act(async () => {
+			await result.current.onSignInWithGoogle();
+		});
+		expect(mocks.signInSocial).toHaveBeenCalledWith({
+			provider: "google",
+			callbackURL: `https://app.test/login${OAUTH_AUTHORIZE_SEARCH}`,
+		});
+	});
+
+	it("onSignInWithDiscord mid-OAuth: returns to /login with the authorize query preserved", async () => {
+		stubLocation({
+			origin: "https://app.test",
+			search: OAUTH_AUTHORIZE_SEARCH,
+		});
+		mocks.signInSocial.mockResolvedValue({ error: null });
+		const { result } = renderHook(() => useSignUp());
+		await act(async () => {
+			await result.current.onSignInWithDiscord();
+		});
+		expect(mocks.signInSocial).toHaveBeenCalledWith({
+			provider: "discord",
+			callbackURL: `https://app.test/login${OAUTH_AUTHORIZE_SEARCH}`,
+		});
 	});
 
 	it("onSignInWithGoogle: toasts fallback 'Google sign up unavailable'", async () => {
