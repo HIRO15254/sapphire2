@@ -1,4 +1,3 @@
-import { IconCards } from "@tabler/icons-react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type React from "react";
@@ -12,7 +11,6 @@ function setup(
 ) {
 	const props: React.ComponentProps<typeof SessionHeader> = {
 		isPaused: false,
-		menuItems: [],
 		onEnd: vi.fn(),
 		onTogglePause: vi.fn(),
 		startedAt: null,
@@ -78,21 +76,10 @@ describe("SessionHeader", () => {
 		expect(onTitleTap).toHaveBeenCalledTimes(1);
 	});
 
-	it("renders no overflow button when there are no menu items", () => {
-		setup({ menuItems: [] });
+	it("renders no session actions button", () => {
+		setup();
 		expect(
 			screen.queryByRole("button", { name: "Session actions" })
 		).not.toBeInTheDocument();
-	});
-
-	it("opens the overflow menu and fires the tapped item once", async () => {
-		const user = userEvent.setup();
-		const onSelect = vi.fn();
-		setup({
-			menuItems: [{ icon: IconCards, label: "Game settings", onSelect }],
-		});
-		await user.click(screen.getByRole("button", { name: "Session actions" }));
-		await user.click(screen.getByRole("button", { name: "Game settings" }));
-		expect(onSelect).toHaveBeenCalledTimes(1);
 	});
 });

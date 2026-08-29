@@ -649,27 +649,12 @@ describe("useCashGameSessionView", () => {
 		});
 	});
 
-	describe("menuItems", () => {
-		it("lists Game settings and destructive Discard session in order", () => {
+	describe("onOpenRule", () => {
+		it("opens the rule sheet", () => {
 			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
-			expect(result.current.menuItems.map((item) => item.label)).toEqual([
-				"Game settings",
-				"Discard session",
-			]);
-			expect(result.current.menuItems[1]?.tone).toBe("destructive");
-		});
-
-		it("selecting Discard session opens the discard state", () => {
-			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
-			act(() => result.current.menuItems[1]?.onSelect());
-			expect(result.current.isDiscardOpen).toBe(true);
-		});
-
-		it("onCloseDiscard closes the discard state", () => {
-			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
-			act(() => result.current.menuItems[1]?.onSelect());
-			act(() => result.current.onCloseDiscard());
-			expect(result.current.isDiscardOpen).toBe(false);
+			expect(result.current.isRuleOpen).toBe(false);
+			act(() => result.current.onOpenRule());
+			expect(result.current.isRuleOpen).toBe(true);
 		});
 	});
 
@@ -697,16 +682,6 @@ describe("useCashGameSessionView", () => {
 			act(() => result.current.handleRecordStack(values));
 			expect(mocks.stack.recordStack).toHaveBeenCalledTimes(1);
 			expect(mocks.stack.recordStack).toHaveBeenCalledWith(values);
-		});
-	});
-
-	describe("discard passthrough", () => {
-		it("exposes discard and isDiscardPending unchanged", () => {
-			mocks.session = makeSession();
-			mocks.isDiscardPending = true;
-			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
-			expect(result.current.discard).toBe(mocks.discard);
-			expect(result.current.isDiscardPending).toBe(true);
 		});
 	});
 });

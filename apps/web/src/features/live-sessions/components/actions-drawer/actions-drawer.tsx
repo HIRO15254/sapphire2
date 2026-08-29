@@ -1,5 +1,11 @@
 import type { ComponentType } from "react";
-import { BottomSheet } from "@/shared/components/bottom-sheet";
+import { cn } from "@/lib/utils";
+import {
+	Drawer,
+	DrawerContent,
+	DrawerDescription,
+	DrawerTitle,
+} from "@/shared/components/ui/drawer";
 
 const NEUTRAL_ITEM =
 	"flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-foreground text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40";
@@ -15,6 +21,7 @@ export interface ActionsDrawerItem {
 }
 
 interface ActionsDrawerProps {
+	contentClassName?: string;
 	description: string;
 	emptyMessage?: string;
 	items: ActionsDrawerItem[];
@@ -24,6 +31,7 @@ interface ActionsDrawerProps {
 }
 
 export function ActionsDrawer({
+	contentClassName,
 	description,
 	emptyMessage,
 	items,
@@ -32,35 +40,39 @@ export function ActionsDrawer({
 	title,
 }: ActionsDrawerProps) {
 	return (
-		<BottomSheet
-			description={description}
-			onOpenChange={onOpenChange}
-			open={open}
-			title={title}
-			variant="menu"
-		>
-			{items.length === 0 && emptyMessage ? (
-				<p className="py-6 text-center text-muted-foreground text-sm">
-					{emptyMessage}
-				</p>
-			) : (
-				<ul className="flex flex-col gap-1">
-					{items.map((item) => (
-						<li key={item.key ?? item.label}>
-							<button
-								className={
-									item.tone === "destructive" ? DESTRUCTIVE_ITEM : NEUTRAL_ITEM
-								}
-								onClick={item.onSelect}
-								type="button"
-							>
-								<item.icon size={18} />
-								{item.label}
-							</button>
-						</li>
-					))}
-				</ul>
-			)}
-		</BottomSheet>
+		<Drawer onOpenChange={onOpenChange} open={open}>
+			<DrawerContent className={cn("rounded-t-xl", contentClassName)}>
+				<div
+					aria-hidden
+					className="mx-auto mt-2 mb-1 h-1 w-9 shrink-0 rounded-full bg-muted-foreground/35"
+				/>
+				<DrawerTitle className="sr-only">{title}</DrawerTitle>
+				<DrawerDescription className="sr-only">{description}</DrawerDescription>
+				{items.length === 0 && emptyMessage ? (
+					<p className="px-5 py-6 text-center text-muted-foreground text-sm">
+						{emptyMessage}
+					</p>
+				) : (
+					<ul className="flex flex-col gap-1 p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+						{items.map((item) => (
+							<li key={item.key ?? item.label}>
+								<button
+									className={
+										item.tone === "destructive"
+											? DESTRUCTIVE_ITEM
+											: NEUTRAL_ITEM
+									}
+									onClick={item.onSelect}
+									type="button"
+								>
+									<item.icon size={18} />
+									{item.label}
+								</button>
+							</li>
+						))}
+					</ul>
+				)}
+			</DrawerContent>
+		</Drawer>
 	);
 }

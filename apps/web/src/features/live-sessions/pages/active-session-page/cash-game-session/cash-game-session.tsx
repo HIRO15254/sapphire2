@@ -4,7 +4,6 @@ import { CashGameCompleteForm } from "@/features/live-sessions/components/cash-g
 import { SeatFromScreenshotSheet } from "@/features/live-sessions/components/seat-from-screenshot-sheet";
 import { BottomSheet } from "@/shared/components/bottom-sheet";
 import { ActionBar } from "../action-bar";
-import { DiscardDialog } from "../discard-dialog";
 import { JoinSeatSheet } from "../join-seat-sheet";
 import { MemoFormSheet } from "../memo-form-sheet";
 import { PauseOverlay } from "../pause-overlay";
@@ -30,7 +29,6 @@ export function CashGameSession({ sessionId }: { sessionId: string }) {
 		<>
 			<SessionHeader
 				isPaused={vm.isPaused}
-				menuItems={vm.menuItems}
 				onEnd={vm.onEndSession}
 				onTitleTap={vm.onOpenRule}
 				onTogglePause={vm.onTogglePause}
@@ -162,13 +160,6 @@ export function CashGameSession({ sessionId }: { sessionId: string }) {
 					previewInput={vm.completePreviewInput}
 				/>
 			</BottomSheet>
-
-			<DiscardDialog
-				isOpen={vm.isDiscardOpen}
-				isPending={vm.isDiscardPending}
-				onClose={vm.onCloseDiscard}
-				onConfirm={vm.discard}
-			/>
 		</>
 	);
 }

@@ -1,6 +1,4 @@
-import { IconCards, IconTrash } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
-import type { ActionsDrawerItem } from "@/features/live-sessions/components/actions-drawer";
 import { useActiveSessionSceneState } from "@/features/live-sessions/hooks/use-active-session-scene-state";
 import { useCashGameSession } from "@/features/live-sessions/hooks/use-cash-game-session";
 import { useCashGameStack } from "@/features/live-sessions/hooks/use-cash-game-stack";
@@ -68,7 +66,7 @@ function computeCashCenterModel(
 }
 
 export function useCashGameSessionView(sessionId: string) {
-	const { session, isDiscardPending, discard } = useCashGameSession(sessionId);
+	const { session } = useCashGameSession(sessionId);
 	const stack = useCashGameStack({ sessionId });
 	const { events } = useSessionEvents({
 		sessionId,
@@ -85,7 +83,6 @@ export function useCashGameSessionView(sessionId: string) {
 	const [isTimelineOpen, setIsTimelineOpen] = useState(false);
 	const [isRuleOpen, setIsRuleOpen] = useState(false);
 	const [isScanOpen, setIsScanOpen] = useState(false);
-	const [isDiscardOpen, setIsDiscardOpen] = useState(false);
 
 	const isPaused = session?.status === "paused";
 	const startedAt = session?.startedAt ?? null;
@@ -141,22 +138,7 @@ export function useCashGameSessionView(sessionId: string) {
 			? selection
 			: null;
 
-	const menuItems: ActionsDrawerItem[] = [
-		{
-			icon: IconCards,
-			label: "Game settings",
-			onSelect: () => setIsRuleOpen(true),
-		},
-		{
-			icon: IconTrash,
-			label: "Discard session",
-			onSelect: () => setIsDiscardOpen(true),
-			tone: "destructive" as const,
-		},
-	];
-
 	return {
-		discard,
 		handleChipsSubmit: (values: { amount: number }) => {
 			stack.adjustChips(values.amount);
 			setIsChipsOpen(false);
@@ -187,8 +169,6 @@ export function useCashGameSessionView(sessionId: string) {
 		isAllInOpen,
 		isCompleteOpen,
 		isCompletePending: stack.isCompletePending,
-		isDiscardOpen,
-		isDiscardPending,
 		isMemoOpen,
 		isPaused,
 		isRuleOpen,
@@ -197,8 +177,6 @@ export function useCashGameSessionView(sessionId: string) {
 		isTimelineOpen,
 		joinSeatPosition,
 		lastStackUpdatedAt: findLastStackUpdateAt(events),
-		menuItems,
-		onCloseDiscard: () => setIsDiscardOpen(false),
 		onCloseJoin: () => setJoinSeatPosition(null),
 		onEmptySeatTap: (seatPosition: number) => {
 			if (!isPaused) {

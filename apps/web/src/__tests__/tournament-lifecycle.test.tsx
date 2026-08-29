@@ -195,12 +195,6 @@ function renderPage() {
 	);
 }
 
-async function openSessionActionsMenu(
-	user: ReturnType<typeof userEvent.setup>
-) {
-	await user.click(screen.getByRole("button", { name: "Session actions" }));
-}
-
 describe("Tournament session lifecycle", () => {
 	beforeEach(() => {
 		mocks.activeSession = { id: "tourn-1", type: "tournament" };
@@ -262,12 +256,11 @@ describe("Tournament session lifecycle", () => {
 		expect(mocks.stack.pause).not.toHaveBeenCalled();
 	});
 
-	it("opens the timer dialog from the session actions menu and saves the default start time", async () => {
+	it("opens the timer dialog from the blind level bar and saves the default start time", async () => {
 		const user = userEvent.setup();
 		renderPage();
 
-		await openSessionActionsMenu(user);
-		await user.click(screen.getByRole("button", { name: "Timer settings" }));
+		await user.click(screen.getByRole("button", { name: "Start timer" }));
 
 		expect(
 			screen.getByRole("heading", { name: "Start Tournament Timer" })
@@ -277,19 +270,6 @@ describe("Tournament session lifecycle", () => {
 
 		expect(mocks.updateTimerStartedAt).toHaveBeenCalledTimes(1);
 		expect(mocks.updateTimerStartedAt.mock.calls[0][0]).toBeInstanceOf(Date);
-	});
-
-	it("discards the session from the session actions menu", async () => {
-		const user = userEvent.setup();
-		renderPage();
-
-		await openSessionActionsMenu(user);
-		await user.click(screen.getByRole("button", { name: "Discard session" }));
-
-		const dialog = screen.getByRole("dialog", { name: "Discard session" });
-		await user.click(within(dialog).getByRole("button", { name: "Discard" }));
-
-		expect(mocks.discard).toHaveBeenCalledTimes(1);
 	});
 
 	it("completes the tournament through the early-exit path", async () => {

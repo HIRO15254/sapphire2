@@ -120,22 +120,6 @@ function makeEvent(
 	} as { eventType: string; id: string; occurredAt: string; payload: unknown };
 }
 
-function makeBlindLevel(
-	overrides: Record<string, unknown> = {}
-): Record<string, unknown> {
-	return {
-		ante: null,
-		blind1: 100,
-		blind2: 200,
-		blind3: null,
-		id: "l1",
-		isBreak: false,
-		level: 1,
-		minutes: 20,
-		...overrides,
-	};
-}
-
 describe("useTournamentSessionView", () => {
 	beforeEach(() => {
 		mocks.discard.mockReset();
@@ -581,47 +565,12 @@ describe("useTournamentSessionView", () => {
 		});
 	});
 
-	describe("menuItems", () => {
-		it("omits Timer settings without a blind structure", () => {
-			mocks.session = makeSession({ blindLevels: [] });
+	describe("onOpenRule", () => {
+		it("opens the rule sheet", () => {
 			const { result } = renderHook(() => useTournamentSessionView("t-1"));
-			expect(result.current.menuItems.map((item) => item.label)).toEqual([
-				"Game settings",
-				"Discard session",
-			]);
-		});
-
-		it("inserts Timer settings in the middle when a blind structure exists", () => {
-			mocks.session = makeSession({ blindLevels: [makeBlindLevel()] });
-			const { result } = renderHook(() => useTournamentSessionView("t-1"));
-			expect(result.current.menuItems.map((item) => item.label)).toEqual([
-				"Game settings",
-				"Timer settings",
-				"Discard session",
-			]);
-			expect(result.current.menuItems[2]?.tone).toBe("destructive");
-		});
-
-		it("selecting Timer settings opens the timer dialog", () => {
-			mocks.session = makeSession({ blindLevels: [makeBlindLevel()] });
-			const { result } = renderHook(() => useTournamentSessionView("t-1"));
-			act(() => result.current.menuItems[1]?.onSelect());
-			expect(result.current.isTimerDialogOpen).toBe(true);
-		});
-
-		it("selecting Discard session opens the discard state", () => {
-			mocks.session = makeSession({ blindLevels: [] });
-			const { result } = renderHook(() => useTournamentSessionView("t-1"));
-			act(() => result.current.menuItems[1]?.onSelect());
-			expect(result.current.isDiscardOpen).toBe(true);
-		});
-
-		it("onCloseDiscard closes the discard state", () => {
-			mocks.session = makeSession({ blindLevels: [] });
-			const { result } = renderHook(() => useTournamentSessionView("t-1"));
-			act(() => result.current.menuItems[1]?.onSelect());
-			act(() => result.current.onCloseDiscard());
-			expect(result.current.isDiscardOpen).toBe(false);
+			expect(result.current.isRuleOpen).toBe(false);
+			act(() => result.current.onOpenRule());
+			expect(result.current.isRuleOpen).toBe(true);
 		});
 	});
 
@@ -653,15 +602,6 @@ describe("useTournamentSessionView", () => {
 			act(() => result.current.handleRecordStack(values));
 			expect(mocks.stack.recordStack).toHaveBeenCalledTimes(1);
 			expect(mocks.stack.recordStack).toHaveBeenCalledWith(values);
-		});
-	});
-
-	describe("discard passthrough", () => {
-		it("exposes discard and reflects isDiscardPending", () => {
-			mocks.isDiscardPending = true;
-			const { result } = renderHook(() => useTournamentSessionView("t-1"));
-			expect(result.current.isDiscardPending).toBe(true);
-			expect(result.current.discard).toBe(mocks.discard);
 		});
 	});
 });

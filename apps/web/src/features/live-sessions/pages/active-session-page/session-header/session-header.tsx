@@ -1,21 +1,15 @@
 import {
 	IconChevronDown,
-	IconDotsVertical,
 	IconPlayerPause,
 	IconPlayerPlay,
 	IconPlayerRecordFilled,
 	IconSquare,
 } from "@tabler/icons-react";
-import {
-	ActionsDrawer,
-	type ActionsDrawerItem,
-} from "@/features/live-sessions/components/actions-drawer";
 import { Button } from "@/shared/components/ui/button";
 import { useSessionHeader } from "./use-session-header";
 
 interface SessionHeaderProps {
 	isPaused: boolean;
-	menuItems: ActionsDrawerItem[];
 	onEnd: () => void;
 	onTitleTap?: () => void;
 	onTogglePause: () => void;
@@ -25,15 +19,13 @@ interface SessionHeaderProps {
 
 export function SessionHeader({
 	isPaused,
-	menuItems,
 	onEnd,
 	onTitleTap,
 	onTogglePause,
 	startedAt,
 	title,
 }: SessionHeaderProps) {
-	const { elapsedText, isMenuOpen, onOpenMenu, setIsMenuOpen } =
-		useSessionHeader({ startedAt });
+	const { elapsedText } = useSessionHeader({ startedAt });
 
 	const titleContent = (
 		<span className="min-w-0 truncate font-semibold text-sm tracking-[var(--tracking-heading)]">
@@ -98,32 +90,6 @@ export function SessionHeader({
 			>
 				<IconSquare size={16} />
 			</Button>
-			{menuItems.length > 0 ? (
-				<>
-					<Button
-						aria-label="Session actions"
-						onClick={onOpenMenu}
-						size="icon"
-						type="button"
-						variant="ghost"
-					>
-						<IconDotsVertical size={16} />
-					</Button>
-					<ActionsDrawer
-						description="More session actions."
-						items={menuItems.map((item) => ({
-							...item,
-							onSelect: () => {
-								setIsMenuOpen(false);
-								item.onSelect();
-							},
-						}))}
-						onOpenChange={setIsMenuOpen}
-						open={isMenuOpen}
-						title="Session actions"
-					/>
-				</>
-			) : null}
 		</header>
 	);
 }

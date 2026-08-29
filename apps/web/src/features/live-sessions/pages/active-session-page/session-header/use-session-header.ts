@@ -9,7 +9,6 @@ export function useSessionHeader({
 	const [elapsedText, setElapsedText] = useState(() =>
 		formatClockElapsed(startedAt)
 	);
-	const [isMenuOpen, setIsMenuOpen] = useState(false);
 
 	useEffect(() => {
 		setElapsedText(formatClockElapsed(startedAt));
@@ -20,10 +19,5 @@ export function useSessionHeader({
 		return () => clearInterval(id);
 	}, [startedAt]);
 
-	return {
-		elapsedText,
-		isMenuOpen,
-		onOpenMenu: () => setIsMenuOpen(true),
-		setIsMenuOpen,
-	};
+	return { elapsedText };
 }

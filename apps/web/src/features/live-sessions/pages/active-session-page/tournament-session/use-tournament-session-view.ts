@@ -1,6 +1,4 @@
-import { IconCards, IconClock, IconTrash } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
-import type { ActionsDrawerItem } from "@/features/live-sessions/components/actions-drawer";
 import { useActiveSessionSceneState } from "@/features/live-sessions/hooks/use-active-session-scene-state";
 import { useNowTick } from "@/features/live-sessions/hooks/use-now-tick";
 import { useSessionEvents } from "@/features/live-sessions/hooks/use-session-events";
@@ -98,7 +96,6 @@ export function useTournamentSessionView(sessionId: string) {
 	const [isTimelineOpen, setIsTimelineOpen] = useState(false);
 	const [isRuleOpen, setIsRuleOpen] = useState(false);
 	const [isScanOpen, setIsScanOpen] = useState(false);
-	const [isDiscardOpen, setIsDiscardOpen] = useState(false);
 
 	const session = tournamentSession.session;
 	const isPaused =
@@ -173,35 +170,11 @@ export function useTournamentSessionView(sessionId: string) {
 			? selection
 			: null;
 
-	const menuItems: ActionsDrawerItem[] = [
-		{
-			icon: IconCards,
-			label: "Game settings",
-			onSelect: () => setIsRuleOpen(true),
-		},
-		...(hasStructure
-			? [
-					{
-						icon: IconClock,
-						label: "Timer settings",
-						onSelect: () => setIsTimerDialogOpen(true),
-					},
-				]
-			: []),
-		{
-			icon: IconTrash,
-			label: "Discard session",
-			onSelect: () => setIsDiscardOpen(true),
-			tone: "destructive" as const,
-		},
-	];
-
 	return {
 		blindLevels,
 		chipPurchaseTypes: stack.chipPurchaseTypes,
 		defaultRemainingPlayers: centerModel.defaultRemainingPlayers,
 		defaultTotalEntries: centerModel.defaultTotalEntries,
-		discard: tournamentSession.discard,
 		handleBuyChipsSubmit: (values: {
 			chips: number;
 			cost: number;
@@ -238,8 +211,6 @@ export function useTournamentSessionView(sessionId: string) {
 		isBuyChipsOpen,
 		isCompleteOpen,
 		isCompletePending: stack.isCompletePending,
-		isDiscardOpen,
-		isDiscardPending: tournamentSession.isDiscardPending,
 		isMemoOpen,
 		isPaused,
 		isRuleOpen,
@@ -250,8 +221,6 @@ export function useTournamentSessionView(sessionId: string) {
 		isUpdatingTimer: tournamentSession.isUpdatingTimer,
 		joinSeatPosition,
 		lastStackUpdatedAt: findLastStackUpdateAt(events),
-		menuItems,
-		onCloseDiscard: () => setIsDiscardOpen(false),
 		onCloseJoin: () => setJoinSeatPosition(null),
 		onEmptySeatTap: (seatPosition: number) => {
 			if (!isPaused) {

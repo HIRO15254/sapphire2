@@ -51,24 +51,4 @@ describe("useSessionHeader", () => {
 		expect(spy.mock.calls.length).toBeGreaterThan(callsBefore);
 		spy.mockRestore();
 	});
-
-	it("starts with the menu closed and opens it via onOpenMenu", () => {
-		const { result } = renderHook(() => useSessionHeader({ startedAt: NOW }));
-		expect(result.current.isMenuOpen).toBe(false);
-		act(() => {
-			result.current.onOpenMenu();
-		});
-		expect(result.current.isMenuOpen).toBe(true);
-	});
-
-	it("closes the menu via setIsMenuOpen(false)", () => {
-		const { result } = renderHook(() => useSessionHeader({ startedAt: NOW }));
-		act(() => {
-			result.current.onOpenMenu();
-		});
-		act(() => {
-			result.current.setIsMenuOpen(false);
-		});
-		expect(result.current.isMenuOpen).toBe(false);
-	});
 });
