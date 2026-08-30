@@ -48,22 +48,24 @@ export function TournamentSession({ sessionId }: { sessionId: string }) {
 				</div>
 			) : null}
 
-			<div className="shrink-0 px-3">
-				<TableView
-					averageStackText={vm.tableCenter.averageStackText}
-					bbText={vm.tableCenter.bbText}
-					dimmed={vm.isPaused}
-					heroSeatPosition={vm.sceneState.heroSeatPosition}
-					kind="tournament"
-					onEmptySeatTap={vm.onEmptySeatTap}
-					onPlayerSeatTap={vm.onPlayerSeatTap}
-					onScan={vm.onScanFromTable}
-					remainText={vm.tableCenter.remainText}
-					seatCount={vm.sceneState.tableSize}
-					seatedPlayers={vm.seatedPlayers}
-					stackText={vm.tableCenter.stackText}
-				/>
-			</div>
+			{vm.isKeyboardOpen ? null : (
+				<div className="shrink-0 px-3">
+					<TableView
+						averageStackText={vm.tableCenter.averageStackText}
+						bbText={vm.tableCenter.bbText}
+						dimmed={vm.isPaused}
+						heroSeatPosition={vm.sceneState.heroSeatPosition}
+						kind="tournament"
+						onEmptySeatTap={vm.onEmptySeatTap}
+						onPlayerSeatTap={vm.onPlayerSeatTap}
+						onScan={vm.onScanFromTable}
+						remainText={vm.tableCenter.remainText}
+						seatCount={vm.sceneState.tableSize}
+						seatedPlayers={vm.seatedPlayers}
+						stackText={vm.tableCenter.stackText}
+					/>
+				</div>
+			)}
 
 			<div className="min-h-16 flex-1 overflow-hidden px-[var(--m-inset)] py-2.5">
 				<PlayerPanel

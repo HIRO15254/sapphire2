@@ -36,23 +36,25 @@ export function CashGameSession({ sessionId }: { sessionId: string }) {
 				title={vm.title}
 			/>
 
-			<div className="shrink-0 px-3">
-				<TableView
-					bbText={vm.tableCenter.bbText}
-					deltaText={vm.tableCenter.deltaText}
-					deltaTone={vm.tableCenter.deltaTone}
-					dimmed={vm.isPaused}
-					evText={vm.tableCenter.evText}
-					heroSeatPosition={vm.sceneState.heroSeatPosition}
-					kind="cash_game"
-					onEmptySeatTap={vm.onEmptySeatTap}
-					onPlayerSeatTap={vm.onPlayerSeatTap}
-					onScan={vm.onScanFromTable}
-					seatCount={vm.sceneState.tableSize}
-					seatedPlayers={vm.seatedPlayers}
-					stackText={vm.tableCenter.stackText}
-				/>
-			</div>
+			{vm.isKeyboardOpen ? null : (
+				<div className="shrink-0 px-3">
+					<TableView
+						bbText={vm.tableCenter.bbText}
+						deltaText={vm.tableCenter.deltaText}
+						deltaTone={vm.tableCenter.deltaTone}
+						dimmed={vm.isPaused}
+						evText={vm.tableCenter.evText}
+						heroSeatPosition={vm.sceneState.heroSeatPosition}
+						kind="cash_game"
+						onEmptySeatTap={vm.onEmptySeatTap}
+						onPlayerSeatTap={vm.onPlayerSeatTap}
+						onScan={vm.onScanFromTable}
+						seatCount={vm.sceneState.tableSize}
+						seatedPlayers={vm.seatedPlayers}
+						stackText={vm.tableCenter.stackText}
+					/>
+				</div>
+			)}
 
 			<div className="min-h-16 flex-1 overflow-hidden px-[var(--m-inset)] py-2.5">
 				<PlayerPanel

@@ -8,6 +8,7 @@ import {
 	findLastStackUpdateAt,
 } from "@/features/live-sessions/utils/live-session-view";
 import { seatDotColor } from "@/features/live-sessions/utils/seat-dot-color";
+import { useKeyboardOpen } from "@/shared/hooks/use-keyboard-open";
 import { formatClockElapsed } from "@/utils/format-elapsed-time";
 import { formatNumber } from "@/utils/format-number";
 import { formatProfitLoss } from "@/utils/format-profit-loss";
@@ -66,6 +67,7 @@ function computeCashCenterModel(
 }
 
 export function useCashGameSessionView(sessionId: string) {
+	const isKeyboardOpen = useKeyboardOpen();
 	const { session } = useCashGameSession(sessionId);
 	const stack = useCashGameStack({ sessionId });
 	const { events } = useSessionEvents({
@@ -170,6 +172,7 @@ export function useCashGameSessionView(sessionId: string) {
 		isCompleteOpen,
 		isCompletePending: stack.isCompletePending,
 		isMemoOpen,
+		isKeyboardOpen,
 		isPaused,
 		isRuleOpen,
 		isScanOpen,

@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => {
 	const state = {
 		session: null as Record<string, unknown> | null,
 		isDiscardPending: false,
+		isKeyboardOpen: false,
 		discard: vi.fn(),
 		events: [] as Array<{
 			eventType: string;
@@ -44,6 +45,7 @@ const mocks = vi.hoisted(() => {
 		useActiveSessionSceneState: vi.fn(),
 		useCashGameSession: vi.fn(),
 		useCashGameStack: vi.fn(),
+		useKeyboardOpen: vi.fn(),
 		useSessionEvents: vi.fn(),
 	};
 	state.useCashGameSession.mockImplementation(() => ({
@@ -54,6 +56,7 @@ const mocks = vi.hoisted(() => {
 	state.useCashGameStack.mockImplementation(() => state.stack);
 	state.useSessionEvents.mockImplementation(() => ({ events: state.events }));
 	state.useActiveSessionSceneState.mockImplementation(() => state.sceneState);
+	state.useKeyboardOpen.mockImplementation(() => state.isKeyboardOpen);
 	return state;
 });
 
@@ -75,6 +78,10 @@ vi.mock(
 		useActiveSessionSceneState: mocks.useActiveSessionSceneState,
 	})
 );
+
+vi.mock("@/shared/hooks/use-keyboard-open", () => ({
+	useKeyboardOpen: mocks.useKeyboardOpen,
+}));
 
 import { useCashGameSessionView } from "@/features/live-sessions/pages/active-session-page/cash-game-session/use-cash-game-session-view";
 import {
@@ -119,6 +126,7 @@ describe("useCashGameSessionView", () => {
 	beforeEach(() => {
 		mocks.session = null;
 		mocks.isDiscardPending = false;
+		mocks.isKeyboardOpen = false;
 		mocks.discard.mockReset();
 		mocks.events = [];
 		mocks.sceneState = { onRemovePlayer: vi.fn(), seats: [] };
@@ -133,6 +141,7 @@ describe("useCashGameSessionView", () => {
 		mocks.useCashGameStack.mockClear();
 		mocks.useSessionEvents.mockClear();
 		mocks.useActiveSessionSceneState.mockClear();
+		mocks.useKeyboardOpen.mockClear();
 	});
 
 	describe("wiring to data hooks", () => {
@@ -212,6 +221,20 @@ describe("useCashGameSessionView", () => {
 			mocks.session = null;
 			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
 			expect(result.current.isPaused).toBe(false);
+		});
+	});
+
+	describe("isKeyboardOpen", () => {
+		it("is false when useKeyboardOpen reports no text field focused", () => {
+			mocks.isKeyboardOpen = false;
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			expect(result.current.isKeyboardOpen).toBe(false);
+		});
+
+		it("mirrors useKeyboardOpen when a text field is focused", () => {
+			mocks.isKeyboardOpen = true;
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			expect(result.current.isKeyboardOpen).toBe(true);
 		});
 	});
 

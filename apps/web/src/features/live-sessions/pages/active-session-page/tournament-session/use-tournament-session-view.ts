@@ -10,6 +10,7 @@ import {
 	computeTournamentTimerState,
 	type TournamentBlindLevel,
 } from "@/features/live-sessions/utils/tournament-timer";
+import { useKeyboardOpen } from "@/shared/hooks/use-keyboard-open";
 import { formatClockElapsed } from "@/utils/format-elapsed-time";
 import { formatNumber } from "@/utils/format-number";
 import type { PlayerPanelSelection } from "../player-panel";
@@ -78,6 +79,7 @@ function computeTournamentCenterModel(
 }
 
 export function useTournamentSessionView(sessionId: string) {
+	const isKeyboardOpen = useKeyboardOpen();
 	const levelTickNow = useNowTick(LEVEL_TICK_MS);
 	const tournamentSession = useTournamentSession(sessionId);
 	const stack = useTournamentStack({ sessionId });
@@ -212,6 +214,7 @@ export function useTournamentSessionView(sessionId: string) {
 		isCompleteOpen,
 		isCompletePending: stack.isCompletePending,
 		isMemoOpen,
+		isKeyboardOpen,
 		isPaused,
 		isRuleOpen,
 		isScanOpen,

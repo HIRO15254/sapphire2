@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => {
 			payload: unknown;
 		}>,
 		isDiscardPending: false,
+		isKeyboardOpen: false,
 		isUpdatingTimer: false,
 		sceneState: {
 			onRemovePlayer: vi.fn(),
@@ -48,6 +49,7 @@ const mocks = vi.hoisted(() => {
 		},
 		updateTimerStartedAt: vi.fn(),
 		useActiveSessionSceneState: vi.fn(),
+		useKeyboardOpen: vi.fn(),
 		useSessionEvents: vi.fn(),
 		useTournamentSession: vi.fn(),
 		useTournamentStack: vi.fn(),
@@ -62,6 +64,7 @@ const mocks = vi.hoisted(() => {
 	state.useTournamentStack.mockImplementation(() => state.stack);
 	state.useSessionEvents.mockImplementation(() => ({ events: state.events }));
 	state.useActiveSessionSceneState.mockImplementation(() => state.sceneState);
+	state.useKeyboardOpen.mockImplementation(() => state.isKeyboardOpen);
 	return state;
 });
 
@@ -83,6 +86,10 @@ vi.mock(
 		useActiveSessionSceneState: mocks.useActiveSessionSceneState,
 	})
 );
+
+vi.mock("@/shared/hooks/use-keyboard-open", () => ({
+	useKeyboardOpen: mocks.useKeyboardOpen,
+}));
 
 import { useTournamentSessionView } from "@/features/live-sessions/pages/active-session-page/tournament-session/use-tournament-session-view";
 
@@ -125,6 +132,7 @@ describe("useTournamentSessionView", () => {
 		mocks.discard.mockReset();
 		mocks.events = [];
 		mocks.isDiscardPending = false;
+		mocks.isKeyboardOpen = false;
 		mocks.isUpdatingTimer = false;
 		mocks.sceneState = { onRemovePlayer: vi.fn(), seats: [] };
 		mocks.session = null;
@@ -138,6 +146,7 @@ describe("useTournamentSessionView", () => {
 		mocks.stack.isCompletePending = false;
 		mocks.updateTimerStartedAt.mockReset();
 		mocks.useActiveSessionSceneState.mockClear();
+		mocks.useKeyboardOpen.mockClear();
 		mocks.useSessionEvents.mockClear();
 		mocks.useTournamentSession.mockClear();
 		mocks.useTournamentStack.mockClear();
@@ -220,6 +229,20 @@ describe("useTournamentSessionView", () => {
 			mocks.session = null;
 			const { result } = renderHook(() => useTournamentSessionView("t-1"));
 			expect(result.current.isPaused).toBe(false);
+		});
+	});
+
+	describe("isKeyboardOpen", () => {
+		it("is false when useKeyboardOpen reports no text field focused", () => {
+			mocks.isKeyboardOpen = false;
+			const { result } = renderHook(() => useTournamentSessionView("t-1"));
+			expect(result.current.isKeyboardOpen).toBe(false);
+		});
+
+		it("mirrors useKeyboardOpen when a text field is focused", () => {
+			mocks.isKeyboardOpen = true;
+			const { result } = renderHook(() => useTournamentSessionView("t-1"));
+			expect(result.current.isKeyboardOpen).toBe(true);
 		});
 	});
 
