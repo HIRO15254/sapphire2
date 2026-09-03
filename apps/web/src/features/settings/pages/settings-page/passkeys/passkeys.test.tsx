@@ -193,6 +193,30 @@ describe("Passkeys", () => {
 		);
 	});
 
+	it("resets the add form when the sheet is cancelled and reopened", async () => {
+		const user = userEvent.setup();
+		mocks.listUserPasskeys.mockResolvedValue({ data: [] });
+		render(<Passkeys />);
+
+		await waitFor(() =>
+			expect(
+				screen.getByRole("button", { name: "Add passkey" })
+			).toBeInTheDocument()
+		);
+		await user.click(screen.getByRole("button", { name: "Add passkey" }));
+
+		const nameField = await screen.findByLabelText(PASSKEY_NAME_LABEL);
+		const prefilled = (nameField as HTMLInputElement).value;
+		await user.clear(nameField);
+		await user.type(nameField, "Work laptop");
+		await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+		await user.click(screen.getByRole("button", { name: "Add passkey" }));
+		expect(await screen.findByLabelText(PASSKEY_NAME_LABEL)).toHaveValue(
+			prefilled
+		);
+	});
+
 	it("reports the fetch failure instead of an empty list", async () => {
 		mocks.listUserPasskeys.mockRejectedValue(new Error("offline"));
 		render(<Passkeys />);

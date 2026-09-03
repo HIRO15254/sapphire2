@@ -32,6 +32,11 @@ const CANCELLED_CEREMONY_CODES = new Set([
 ]);
 
 export function isCancelledCeremony(error?: unknown): boolean {
-	const code = (error as { code?: unknown } | null | undefined)?.code;
-	return typeof code === "string" && CANCELLED_CEREMONY_CODES.has(code);
+	const candidate = error as
+		| { code?: unknown; name?: unknown }
+		| null
+		| undefined;
+	return [candidate?.code, candidate?.name].some(
+		(value) => typeof value === "string" && CANCELLED_CEREMONY_CODES.has(value)
+	);
 }

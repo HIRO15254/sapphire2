@@ -136,6 +136,21 @@ describe("isCancelledCeremony", () => {
 		expect(isCancelledCeremony({ code: 400 })).toBe(false);
 	});
 
+	it("recognizes a real DOMException by name, whose code is a legacy number", () => {
+		const aborted = new DOMException("aborted", "AbortError");
+		expect(aborted.code).not.toBe("AbortError");
+		expect(isCancelledCeremony(aborted)).toBe(true);
+		expect(
+			isCancelledCeremony(new DOMException("denied", "NotAllowedError"))
+		).toBe(true);
+	});
+
+	it("is false for a DOMException that is not a cancellation", () => {
+		expect(
+			isCancelledCeremony(new DOMException("bad", "InvalidStateError"))
+		).toBe(false);
+	});
+
 	it("is false for null and undefined", () => {
 		expect(isCancelledCeremony(null)).toBe(false);
 		expect(isCancelledCeremony(undefined)).toBe(false);

@@ -184,7 +184,12 @@ export function Passkeys() {
 				formId={ADD_PASSKEY_FORM_ID}
 				isLoading={isAddSubmitting}
 				isSaveDisabled={isAddSubmitting}
-				onOpenChange={onAddOpenChange}
+				onOpenChange={(open) => {
+					if (!open) {
+						addForm.reset();
+					}
+					onAddOpenChange(open);
+				}}
 				open={isAddOpen}
 				title="Add passkey"
 			>

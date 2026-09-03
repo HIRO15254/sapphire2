@@ -92,14 +92,28 @@ an opt-out flag to `localStorage`
 `autoRegisterPasskey` checks first. Adding a passkey manually from settings clears it: that
 is the user opting back in.
 
-The flag is per-browser, deliberately — it mirrors "this is the device I did not want a
-passkey on". Every access is wrapped in try/catch: `localStorage` throws outright in some
-privacy modes, and the fallback is simply that the upgrade stays enabled.
+The flag is scoped to the browser that performed the delete, and to nothing finer. It is
+deliberately blunt, and the two consequences are known:
+
+- Deleting **another** device's entry from this browser also opts this browser out. The
+  list shows every device, so the deleted credential need not be the local one — but
+  nothing client-side can tell which row corresponds to the credential in this browser's
+  password manager (names are user-editable, and the server never reveals the mapping).
+  Erring toward "do not silently re-create" is the safer side for a credential; the user
+  can opt back in from the same screen.
+- The flag is per-browser, not per-account, so on a shared browser profile one user's
+  delete also stops the other's silent upgrade. Manual add still works for both.
+
+Every access is wrapped in try/catch: `localStorage` throws outright in some privacy modes,
+and the fallback is simply that the upgrade stays enabled.
 
 A dismissed browser prompt is not an error either. better-auth returns cancellation as
 `{ error: { code } }` rather than throwing — `AUTH_CANCELLED` for sign-in,
 `ERROR_CEREMONY_ABORTED` for registration — so without `isCancelledCeremony` the user gets
 an error toast for simply pressing Escape, which is not how the social providers behave.
+That helper matches on `name` as well as `code`, because a raw `DOMException`
+(`NotAllowedError`, `AbortError`) carries its identity in `name`; `DOMException.code` is a
+legacy *number* and never matches a string.
 
 Ceremonies are also guarded against a second press: WebAuthn aborts an in-flight request
 when a new one starts, so a double-click would cancel the user's own prompt and surface a
