@@ -37,6 +37,8 @@
     "lint": "ultracite check",
     "check": "ultracite check",
     "check:rules": "bun scripts/check-rules.ts",
+    "mutate": "bun scripts/mutate.ts",
+    "test:metrics": "bun scripts/test-metrics.ts",
     "fix": "ultracite fix",
     "prepare": "husky"
   },
