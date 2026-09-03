@@ -114,7 +114,23 @@ The shared `applyThrough(marker)` helper applies only the statements up to and i
 
 **CI.** [`mutation-report.yml`](../../.github/workflows/mutation-report.yml) runs on PRs to `dev`: a `plan` job asks the script which projects the diff affects, a matrix job runs `--changed` per project (restoring the newest nightly incremental file from the Actions cache so unchanged mutants are not re-run), and a `comment` job renders `bun scripts/mutate.ts summary` into one `## Mutation Report` comment (same find/update pattern as the preview-deploy comment). Every step that can fail is `continue-on-error`; fork PRs get artifacts but no comment. [`mutation-nightly.yml`](../../.github/workflows/mutation-nightly.yml) runs `--all --force` for the three projects at 18:00 UTC (03:00 JST) on `dev`, saves the incremental file to the cache and the reports as artifacts; a red nightly means the tooling broke, and blocks nothing. Both pin Node 22 via `actions/setup-node` because `engines.node` stays at `>=20.3.0` for wrangler. `web-node` runs with `isolate: false`; the runner forces a single-worker thread pool, so cross-file leakage shows up as `Timeout` / `RuntimeError` noise rather than wrong kills — re-run one file with `--no-incremental` before trusting an implausible survivor there.
 
-**Baseline.** BASELINE_PLACEHOLDER
+**Baseline.** Measured 2026-09-03 on commit `73c83d1` (Stryker 10.0.0, `bun scripts/mutate.ts --project <p> --all --force --concurrency 3`, 4-core container, `ignoreStatic` on, isolated worktree; the `web-node` row was measured on the identical web sources at `7a5022a`).
+
+| Project | Subjects | Valid mutants | Killed | Timeout | Survived | No coverage | Ignored (static) | Score | Covered score | Run time | Collected tests | Suite time |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| api | 40 | 5,791 | 3,067 | 7 | 1,520 | 1,197 | 555 | 53.08 % | 66.91 % | 28.8 min | 1,696 | 22 s |
+| db | 5 | 341 | 130 | 0 | 177 | 34 | 120 | 38.12 % | 42.35 % | 1.3 min | 647 | 8.5 s |
+| web-node | 44 | 3,947 | 3,299 | 14 | 443 | 191 | 226 | 83.94 % | 88.21 % | 5.9 min | 1,179 | 2.3 s |
+
+Lowest-scoring files (detected / valid):
+
+- api: `context.ts` 0 % (0/4), `routers/currency.ts` 0 % (0/76 — its spec exercises only Zod schemas and never calls a procedure), `routers/index.ts` 0 % (0/5), `routers/blind-level.ts` 19.7 % (12/61), `routers/live-tournament-session.ts` 24.5 % (118/482), `routers/live-cash-game-session.ts` 26.5 % (131/495).
+- db: `constants/player-tag-colors.ts` 0 % (0/25, a data table with no test), `constants/game-variants.ts` 3.0 % (5/168, data-table literals), `constants/session-event-types.ts` 83.1 % (103/124), `schemas/game.ts` 88.9 % (16/18), `schemas/filter-preset.ts` 100 % (6/6).
+- web-node: `features/players/utils/tag-badge-class-name.ts` 0 % (0/2), `features/statistics/utils/labels.ts` 0 % (0/7), `features/live-sessions/utils/snapshot-diff.ts` 51.0 % (102/200), `features/live-sessions/utils/tournament-timer.ts` 60.7 % (119/196), `features/live-sessions/utils/seat-screenshot.ts` 68.6 % (109/159).
+
+Dominant surviving mutator classes: api `ConditionalExpression` 842 / `BlockStatement` 386 / `ObjectLiteral` 349 / `StringLiteral` 301 / `EqualityOperator` 288 — branches inside procedures that the router specs never call; db `StringLiteral` 152 / `ObjectLiteral` 36 — data tables; web-node `ConditionalExpression` 246 / `StringLiteral` 83 / `EqualityOperator` 82.
+
+Pilot values from before the tooling landed, for continuity: `routers/session.ts` 55.78 % total / 62.31 % covered (1,660 mutants, 10 min 15 s at concurrency 4), `constants/session-event-types.ts` 80.73 %, the four `features/sessions/utils/*.ts` 83.39 %.
 
 ## scripts/check-rules.ts
 
