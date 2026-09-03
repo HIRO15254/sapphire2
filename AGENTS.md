@@ -65,10 +65,18 @@ docs/
 ## Release Flow
 
 - **Branches**: `feature → dev → release/vX.Y.Z → main`. `dev` is the default base for PRs; `main` only accepts PRs whose head branch matches `release/v[0-9]+\.[0-9]+\.[0-9]+` (enforced by [`pr-target-guard.yml`](.github/workflows/pr-target-guard.yml) + GitHub Ruleset [`main-release-only.json`](.github/rulesets/main-release-only.json)).
-- **Cutting a release**: `git checkout -b release/vX.Y.Z dev && git push -u origin HEAD`, then `gh pr create --base main`. On merge, [`release.yml`](.github/workflows/release.yml) auto-generates notes via `/create-update-notes`, creates the tag and Release, then explicitly dispatches [`production-deploy.yml`](.github/workflows/production-deploy.yml) for that tag.
+- **Cutting a release**: `git checkout -b release/vX.Y.Z dev && git push -u origin HEAD`, then `gh pr create --base main`. On merge, [`release.yml`](.github/workflows/release.yml) auto-generates notes via `/create-update-notes`, creates the tag and Release, then explicitly dispatches [`production-deploy.yml`](.github/workflows/production-deploy.yml) for that tag. Manual notes: `/create-update-notes vX.Y.Z` locally (draft-only outside CI).
 - **Merge release PRs with a MERGE COMMIT, never squash.** Squashing collapses `dev`'s commit history into a single commit on `main`, so `main` and `dev` share no common ancestry. Each subsequent `release/vX.Y.Z → main` PR then re-diffs from before the previous release and every already-released file explodes into a phantom conflict (`mergeable_state: dirty`, thousands of files). A real merge commit keeps `dev`'s commits reachable from `main`, so the next release stays a clean fast-forward. If a release PR ever shows mass conflicts, the fix is `git merge -s ours origin/main` on the release branch (records `main` as a parent, keeps `dev`'s tree — verify `HEAD^{tree}` equals `origin/dev^{tree}` before pushing) — it reconciles history without changing content.
-- **Manual release notes**: invoke `/create-update-notes vX.Y.Z` locally; the skill stays draft-only when used outside CI.
 - **No self check-in after opening a PR**: don't schedule any reminder/trigger (`send_later`, `create_trigger`, cron, or similar) to re-check a newly opened PR later — react to PR webhook/activity events (or ask the user) instead; scheduled self-reminders are unnecessary noise on routine PRs in this repo.
+
+## PR Review Loop
+
+The automated reviewer ([`pre-merge-review.yml`](.github/workflows/pre-merge-review.yml)) runs **at most two automatic rounds** per PR — a full review once the PR is ready and CI is green, then one incremental round after the next code push — and only on request after that (add the `re-review` label). Docs-only pushes, red CI, and `release/*` PRs identical to `dev` never start a round. Data and mechanics: [`docs/design/pr-review.md`](docs/design/pr-review.md).
+
+- **Batch fixes into one push.** Address every finding of a round together; one commit per finding turned single PRs into 36-round loops (each round ≈ $2 and 4 minutes).
+- **Severity decides the response.** `[critical]` / `[high]` / `[medium]` must be fixed or refuted in the thread with evidence. `[low]` / `[nit]` may be declined with a one-line `Won't fix` reply. `[unverified]` is a question: answer it, do not "fix" it.
+- **Do not narrate.** No PR comment restating the commit; commit messages and thread replies are the record.
+- **A `Verdict: approve` is not a merge** and a request for more rounds is not a block — the merge decision stays with the human.
 
 ## Web UI Essentials (cross-cutting)
 
@@ -140,6 +148,7 @@ If a target does not match any pattern above, extend the relevant `test-utils` f
 - DB schema tests → `bunx vitest run --project db [path]`
 - MCP tool tests → `bunx vitest run --project mcp [path]`
 - Env tests → `bunx vitest run --project env`
+- Repo scripts (`scripts/*.ts`, tests in `scripts/__tests__/`) → `bunx vitest run --project scripts`
 - Related to current staged files → `bunx vitest related --run $(git diff --cached --name-only ...)` — already automated by pre-commit for human commits.
 
 The full suite is enforced in **CI** — [`ci.yml`](.github/workflows/ci.yml) runs `check-types`, `ultracite check`, the full `vitest` suite, and `check:rules` on every PR. This is the tool-independent gate that catches Codex, Claude, and human PRs alike, so it never runs on every intermediate step. Claude Code additionally runs the same checks locally at the end of each turn via a **Stop hook** (`bun x ultracite fix && bun x vitest run --changed HEAD && bun x ultracite check && bun scripts/check-rules.ts` — see [`.claude/settings.json`](.claude/settings.json)). `scripts/check-rules.ts` (`bun run check:rules`) mechanically enforces greppable rules from this file and `.claude/rules/`. Pre-commit is skipped when `CLAUDECODE=1` for the same reason.

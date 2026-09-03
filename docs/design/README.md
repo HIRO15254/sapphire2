@@ -17,3 +17,4 @@ Issue references (`SA2-NNN`) point at the Linear issues that motivated a decisio
 | [`ai-extraction.md`](ai-extraction.md) | AI extraction truncation failure model, schema design, model pinning, form-merge semantics |
 | [`web-platform.md`](web-platform.md) | Persisted-cache busting, open-redirect guard, shared UI component traps, filter presets, geolocation and maps, number formatting |
 | [`testing-and-tooling.md`](testing-and-tooling.md) | Mock-db contract, test-infra gotchas, migration tests on `bun:sqlite`, preview seed/restore pipeline, `check-rules.ts` mechanics |
+| [`pr-review.md`](pr-review.md) | Automated PR review loop: the round-by-round audit data, the two-round cap and `re-review` label, CI-green gating, the state comment, the reviewer prompt's severity rubric |
