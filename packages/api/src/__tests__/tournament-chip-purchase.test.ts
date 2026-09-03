@@ -4,49 +4,17 @@ import {
 	tournamentChipPurchase,
 } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
-import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
+
+type Rows = Record<string, unknown>[];
+
 import {
+	createReorderMockDb,
 	expectAccepts,
 	expectProcedureSurface,
 	expectRejects,
 } from "./test-utils";
-
-type Rows = Record<string, unknown>[];
-const dialect = new SQLiteSyncDialect();
-
-function makeSelectChain(rows: Rows) {
-	const chain = Promise.resolve(rows) as Promise<Rows> &
-		Record<string, () => unknown>;
-	chain.where = () => chain;
-	chain.orderBy = () => chain;
-	chain.limit = () => chain;
-	return chain;
-}
-
-function createReorderMockDb(rowsByTable: Map<unknown, Rows>) {
-	const updateWhereParams: unknown[][] = [];
-	const batchCalls: Promise<unknown>[][] = [];
-	const db = {
-		select: () => ({
-			from: (table: unknown) => makeSelectChain(rowsByTable.get(table) ?? []),
-		}),
-		update: () => ({
-			set: () => ({
-				where: (cond: unknown) => {
-					updateWhereParams.push(dialect.sqlToQuery(cond as never).params);
-					return Promise.resolve(undefined);
-				},
-			}),
-		}),
-		batch: (statements: Promise<unknown>[]) => {
-			batchCalls.push(statements);
-			return Promise.all(statements);
-		},
-	};
-	return { db, updateWhereParams, batchCalls };
-}
 
 async function expectTrpcCode(
 	promise: Promise<unknown>,

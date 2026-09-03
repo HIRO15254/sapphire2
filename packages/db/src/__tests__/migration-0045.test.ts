@@ -1,10 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
-// biome-ignore lint/correctness/noUndeclaredVariables: Bun global is only present in Bun runtime
-const isBun = typeof Bun !== "undefined";
-const skipIfNotBun = isBun ? describe : describe.skip;
+import { afterEach, beforeEach, expect, it } from "vitest";
+import { isBun, skipIfNotBun } from "./migration-test-utils";
 
 let Database: any = null;
 if (isBun) {

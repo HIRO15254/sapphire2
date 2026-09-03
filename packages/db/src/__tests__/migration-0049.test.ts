@@ -2,10 +2,13 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
-// biome-ignore lint/correctness/noUndeclaredVariables: Bun is a runtime global
-const isBun = typeof Bun !== "undefined";
-const skipIfNotBun = isBun ? describe : describe.skip;
+import {
+	applyStatements,
+	applyThrough,
+	isBun,
+	skipIfNotBun,
+	splitStatements,
+} from "./migration-test-utils";
 
 let Database: any = null;
 if (isBun) {
@@ -100,17 +103,12 @@ const schemaBefore0049 = `
 		BEFORE UPDATE ON game_variant BEGIN SELECT 1; END;
 `;
 
-const migrationStatements = migrationSql
-	.split("--> statement-breakpoint")
-	.map((part) => part.trim())
-	.filter(Boolean);
+const migrationStatements = splitStatements(migrationSql);
 
 function applyAtomically(db: any): void {
 	db.exec("BEGIN");
 	try {
-		for (const statement of migrationStatements) {
-			db.exec(statement);
-		}
+		applyStatements(db, migrationStatements);
 		db.exec("COMMIT");
 	} catch (error) {
 		db.exec("ROLLBACK");
@@ -118,16 +116,8 @@ function applyAtomically(db: any): void {
 	}
 }
 
-function applyThrough(db: any, marker: string): void {
-	const cut = migrationStatements.findIndex((statement) =>
-		statement.includes(marker)
-	);
-	if (cut < 0) {
-		throw new Error(`no migration statement matches ${marker}`);
-	}
-	for (const statement of migrationStatements.slice(0, cut + 1)) {
-		db.exec(statement);
-	}
+function applyMigrationThrough(db: any, marker: string): void {
+	applyThrough(db, migrationStatements, marker);
 }
 
 function seedLegacyRows(db: any): void {
@@ -462,7 +452,7 @@ skipIfNotBun("migration 0049 — normalized game mix variants", () => {
 
 		it("resumes from a failure that landed between the backfill and the triggers", () => {
 			seedLegacyRows(db);
-			applyThrough(db, "INSERT OR IGNORE INTO `game_mix_variant`");
+			applyMigrationThrough(db, "INSERT OR IGNORE INTO `game_mix_variant`");
 
 			expect(() => applyAtomically(db)).not.toThrow();
 			expect(
@@ -485,7 +475,7 @@ skipIfNotBun("migration 0049 — normalized game mix variants", () => {
 
 		it("heals junction rows the old Worker desynced while the triggers were absent", () => {
 			seedLegacyRows(db);
-			applyThrough(db, "INSERT OR IGNORE INTO `game_mix_variant`");
+			applyMigrationThrough(db, "INSERT OR IGNORE INTO `game_mix_variant`");
 			db.exec(`UPDATE game_mix SET games = '["variant-free","variant-1"]'
 				WHERE id = 'mix-ordered'`);
 			db.exec(`UPDATE game_mix SET games = '[]' WHERE id = 'mix-user-2'`);

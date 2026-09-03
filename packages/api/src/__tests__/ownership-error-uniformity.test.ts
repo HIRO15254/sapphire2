@@ -1,7 +1,6 @@
 import type { TRPCError } from "@trpc/server";
 import { describe, expect, it } from "vitest";
-import { appRouter } from "../routers";
-import { createChainableMockDb } from "./test-utils";
+import { createCaller } from "./caller";
 
 const OWNER = "user-1";
 const OTHER = "user-2";
@@ -13,12 +12,7 @@ async function expectForbidden(promise: Promise<unknown>): Promise<void> {
 }
 
 function makeCaller(select: Record<string, Record<string, unknown>[]>) {
-	const mock = createChainableMockDb({ select });
-	const caller = appRouter.createCaller({
-		session: { user: { id: OWNER } },
-		db: mock.db,
-	} as unknown as Parameters<typeof appRouter.createCaller>[0]);
-	return { caller, ...mock };
+	return createCaller({ select, userId: OWNER });
 }
 
 describe("ownership failures hide resource existence", () => {

@@ -3,6 +3,7 @@ import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { expect, vi } from "vitest";
 
 const dialect = new SQLiteSyncDialect();
+export const DEFAULT_CALLER_USER_ID = "user-1";
 
 export function boundParams(cond: unknown): unknown[] {
 	return dialect.sqlToQuery(cond as never).params;
@@ -86,7 +87,7 @@ export function expectProcedureSurface(
 
 type MockRow = Record<string, unknown>;
 
-interface ChainableMockDbConfig {
+export interface ChainableMockDbConfig {
 	evaluateWhere?: boolean;
 	select?: Record<string, MockRow[]>;
 }
@@ -302,5 +303,86 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 		selectedTables,
 		batch,
 		updated,
+	};
+}
+
+function makeTableSelectChain(rows: MockRow[]) {
+	const chain = Promise.resolve(rows) as Promise<MockRow[]> &
+		Record<string, () => unknown>;
+	chain.where = () => chain;
+	chain.orderBy = () => chain;
+	chain.limit = () => chain;
+	return chain;
+}
+
+export function createReorderMockDb(rowsByTable: Map<unknown, MockRow[]>) {
+	const updateWhereParams: unknown[][] = [];
+	const batchCalls: Promise<unknown>[][] = [];
+	const db = {
+		select: () => ({
+			from: (table: unknown) =>
+				makeTableSelectChain(rowsByTable.get(table) ?? []),
+		}),
+		update: () => ({
+			set: () => ({
+				where: (cond: unknown) => {
+					updateWhereParams.push(boundParams(cond));
+					return Promise.resolve(undefined);
+				},
+			}),
+		}),
+		batch: (statements: Promise<unknown>[]) => {
+			batchCalls.push(statements);
+			return Promise.all(statements);
+		},
+	};
+	return { db, updateWhereParams, batchCalls };
+}
+
+function makeSequencedSelectNode(value: MockRow[]): Promise<MockRow[]> & {
+	orderBy: ReturnType<typeof vi.fn>;
+	limit: ReturnType<typeof vi.fn>;
+	where: ReturnType<typeof vi.fn>;
+} {
+	const resolved = Promise.resolve(value);
+	const chainMethods = {
+		orderBy: vi.fn().mockImplementation(() => makeSequencedSelectNode(value)),
+		limit: vi.fn().mockImplementation(() => makeSequencedSelectNode(value)),
+		where: vi.fn().mockImplementation(() => makeSequencedSelectNode(value)),
+	};
+	return new Proxy(resolved, {
+		get(target, prop, receiver) {
+			if (prop in chainMethods) {
+				return chainMethods[prop as keyof typeof chainMethods];
+			}
+			const val = Reflect.get(target, prop, receiver);
+			return typeof val === "function" ? val.bind(target) : val;
+		},
+	}) as Promise<MockRow[]> & typeof chainMethods;
+}
+
+export function createSequencedMockDb(selectSequence: MockRow[][]) {
+	let selectCallIndex = 0;
+	const updateChain = {
+		set: vi.fn(),
+		where: vi.fn().mockResolvedValue(undefined),
+	};
+	updateChain.set.mockReturnValue(updateChain);
+	const deleteChain = { where: vi.fn().mockResolvedValue(undefined) };
+	const insertChain = { values: vi.fn().mockResolvedValue(undefined) };
+	return {
+		select: vi.fn().mockImplementation(() => {
+			const result = selectSequence[selectCallIndex] ?? [];
+			selectCallIndex++;
+			return {
+				from: vi.fn().mockReturnValue(makeSequencedSelectNode(result)),
+			};
+		}),
+		update: vi.fn().mockReturnValue(updateChain),
+		delete: vi.fn().mockReturnValue(deleteChain),
+		insert: vi.fn().mockReturnValue(insertChain),
+		_updateChain: updateChain,
+		_deleteChain: deleteChain,
+		_insertChain: insertChain,
 	};
 }

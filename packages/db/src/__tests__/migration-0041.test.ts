@@ -1,11 +1,12 @@
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
-// biome-ignore lint/correctness/noUndeclaredVariables: Bun global is only present in Bun runtime
-const isBun = typeof Bun !== "undefined";
-const skipIfNotBun = isBun ? describe : describe.skip;
+import { afterEach, beforeEach, expect, it } from "vitest";
+import {
+	applyAsD1Migration,
+	applyCompleteMigrationHistory,
+	isBun,
+	skipIfNotBun,
+} from "./migration-test-utils";
 
 let Database: any = null;
 if (isBun) {
@@ -23,7 +24,6 @@ const legacyMigrationPath = fileURLToPath(
 
 const migrationSql = readFileSync(migrationPath, "utf8");
 const legacyMigrationSql = readFileSync(legacyMigrationPath, "utf8");
-const MIGRATION_FILE_PATTERN = /^\d{4}_.+\.sql$/;
 const migrationsDirectory = fileURLToPath(
 	new URL("../migrations/", import.meta.url)
 );
@@ -203,32 +203,6 @@ const schemaBefore0041 = `
 		FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
 	);
 `;
-
-const applyAsD1Migration = (db: Database, sql: string) => {
-	const statements = sql
-		.split("--> statement-breakpoint")
-		.map((statement) => statement.trim())
-		.filter(Boolean)
-		.filter((statement) => !statement.startsWith("PRAGMA foreign_keys="));
-
-	db.transaction(() => {
-		for (const statement of statements) {
-			db.exec(statement);
-		}
-	})();
-};
-
-const applyCompleteMigrationHistory = (db: Database) => {
-	const filenames = readdirSync(migrationsDirectory)
-		.filter((filename) => MIGRATION_FILE_PATTERN.test(filename))
-		.toSorted();
-	for (const filename of filenames) {
-		applyAsD1Migration(
-			db,
-			readFileSync(join(migrationsDirectory, filename), "utf8")
-		);
-	}
-};
 
 const insertBaseParents = (db: Database) => {
 	db.exec(`
@@ -565,7 +539,7 @@ skipIfNotBun("complete migration history", () => {
 		db.exec("PRAGMA foreign_keys=ON");
 
 		try {
-			applyCompleteMigrationHistory(db);
+			applyCompleteMigrationHistory(db, migrationsDirectory);
 
 			expect(
 				db

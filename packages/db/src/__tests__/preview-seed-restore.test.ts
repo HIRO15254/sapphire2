@@ -1,11 +1,10 @@
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
-// biome-ignore lint/correctness/noUndeclaredVariables: Bun is a runtime global
-const isBun = typeof Bun !== "undefined";
-const skipIfNotBun = isBun ? describe : describe.skip;
+import { afterEach, beforeEach, expect, it } from "vitest";
+import {
+	applyCompleteMigrationHistory,
+	isBun,
+	skipIfNotBun,
+} from "./migration-test-utils";
 
 let Database: any = null;
 if (isBun) {
@@ -14,36 +13,12 @@ if (isBun) {
 	Database = bunSqlite.Database;
 }
 
-const MIGRATION_FILE_PATTERN = /^\d{4}_.+\.sql$/;
 const POSITION_UNIQUE_VIOLATION =
 	/UNIQUE constraint failed: game_mix_variant\.mix_id, game_mix_variant\.position/;
 const TRIGGER_ALREADY_EXISTS = /already exists/;
 const migrationsDirectory = fileURLToPath(
 	new URL("../migrations/", import.meta.url)
 );
-
-const applyAsD1Migration = (db: Database, sql: string) => {
-	const statements = sql
-		.split("--> statement-breakpoint")
-		.map((statement) => statement.trim())
-		.filter(Boolean)
-		.filter((statement) => !statement.startsWith("PRAGMA foreign_keys="));
-	for (const statement of statements) {
-		db.exec(statement);
-	}
-};
-
-const applyCompleteMigrationHistory = (db: Database) => {
-	const filenames = readdirSync(migrationsDirectory)
-		.filter((filename) => MIGRATION_FILE_PATTERN.test(filename))
-		.toSorted();
-	for (const filename of filenames) {
-		applyAsD1Migration(
-			db,
-			readFileSync(join(migrationsDirectory, filename), "utf8")
-		);
-	}
-};
 
 interface TriggerRow {
 	name: string;
@@ -111,7 +86,7 @@ skipIfNotBun("seed restore (preview-deploy.yml, dev-deploy.yml)", () => {
 
 	beforeEach(() => {
 		db = new Database(":memory:");
-		applyCompleteMigrationHistory(db);
+		applyCompleteMigrationHistory(db, migrationsDirectory);
 	});
 
 	afterEach(() => {

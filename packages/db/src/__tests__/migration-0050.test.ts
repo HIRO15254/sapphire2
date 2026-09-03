@@ -1,10 +1,13 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
-// biome-ignore lint/correctness/noUndeclaredVariables: Bun global is only present in Bun runtime
-const isBun = typeof Bun !== "undefined";
-const skipIfNotBun = isBun ? describe : describe.skip;
+import { afterEach, beforeEach, expect, it } from "vitest";
+import {
+	applyStatements,
+	applyThrough,
+	isBun,
+	skipIfNotBun,
+	splitStatements,
+} from "./migration-test-utils";
 
 let Database: any = null;
 if (isBun) {
@@ -17,29 +20,16 @@ const migrationPath = fileURLToPath(
 );
 const migrationSql = readFileSync(migrationPath, "utf8");
 
-const migrationStatements = migrationSql
-	.split("--> statement-breakpoint")
-	.map((part) => part.trim())
-	.filter(Boolean);
+const migrationStatements = splitStatements(migrationSql);
 
 const baseSchema = "CREATE TABLE user (id TEXT PRIMARY KEY NOT NULL);";
 
 function applyAll(db: any): void {
-	for (const statement of migrationStatements) {
-		db.exec(statement);
-	}
+	applyStatements(db, migrationStatements);
 }
 
-function applyThrough(db: any, marker: string): void {
-	const cut = migrationStatements.findIndex((statement) =>
-		statement.includes(marker)
-	);
-	if (cut < 0) {
-		throw new Error(`no migration statement matches ${marker}`);
-	}
-	for (const statement of migrationStatements.slice(0, cut + 1)) {
-		db.exec(statement);
-	}
+function applyMigrationThrough(db: any, marker: string): void {
+	applyThrough(db, migrationStatements, marker);
 }
 
 function tableNames(db: any): string[] {
@@ -144,7 +134,10 @@ skipIfNotBun("migration 0050 — OIDC provider tables for MCP OAuth", () => {
 	});
 
 	it("recovers from a mid-file failure: a partial apply can be replayed in full", () => {
-		applyThrough(db, "CREATE TABLE IF NOT EXISTS `oauth_access_token`");
+		applyMigrationThrough(
+			db,
+			"CREATE TABLE IF NOT EXISTS `oauth_access_token`"
+		);
 		expect(tableNames(db)).toContain("oauth_access_token");
 
 		expect(() => applyAll(db)).not.toThrow();
@@ -157,7 +150,7 @@ skipIfNotBun("migration 0050 — OIDC provider tables for MCP OAuth", () => {
 	});
 
 	it("recovers when the failure happened after an index was created", () => {
-		applyThrough(db, "`oauthAccessToken_userId_idx`");
+		applyMigrationThrough(db, "`oauthAccessToken_userId_idx`");
 		expect(indexNames(db)).toContain("oauthAccessToken_userId_idx");
 
 		expect(() => applyAll(db)).not.toThrow();

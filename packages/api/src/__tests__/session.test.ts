@@ -19,6 +19,7 @@ import {
 	validateEntityOwnership,
 	validateTagsOwnership,
 } from "../routers/session";
+import { createCaller } from "./caller";
 import {
 	createChainableMockDb,
 	expectAccepts,
@@ -39,14 +40,7 @@ const CALLER = "user-1";
 const OTHER = "user-2";
 
 function makeCaller(select: Record<string, Record<string, unknown>[]> = {}) {
-	const mock = createChainableMockDb({ select });
-	return {
-		...mock,
-		caller: appRouter.createCaller({
-			session: { user: { id: CALLER } },
-			db: mock.db,
-		} as unknown as Parameters<typeof appRouter.createCaller>[0]),
-	};
+	return createCaller({ select, userId: CALLER });
 }
 
 function listCallerRows(rows: Record<string, unknown>[]) {

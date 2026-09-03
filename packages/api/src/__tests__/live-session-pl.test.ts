@@ -10,6 +10,7 @@ import {
 	recalculateTournamentSession,
 	syncChipPurchaseResults,
 } from "../services/live-session-pl";
+import { createSequencedMockDb } from "./test-utils";
 
 describe("syncChipPurchaseResults", () => {
 	it("upserts all purchases in one atomic batch with D1-safe chunks", async () => {
@@ -778,62 +779,8 @@ describe("computeBreakMinutesFromEvents", () => {
 
 type SelectResult = Record<string, unknown>[];
 
-function makeSelectResultNode(value: SelectResult): Promise<SelectResult> & {
-	orderBy: ReturnType<typeof vi.fn>;
-	limit: ReturnType<typeof vi.fn>;
-	where: ReturnType<typeof vi.fn>;
-} {
-	const resolved = Promise.resolve(value);
-	const chainMethods = {
-		orderBy: vi.fn().mockImplementation(() => makeSelectResultNode(value)),
-		limit: vi.fn().mockImplementation(() => makeSelectResultNode(value)),
-		where: vi.fn().mockImplementation(() => makeSelectResultNode(value)),
-	};
-	return new Proxy(resolved, {
-		get(target, prop, receiver) {
-			if (prop in chainMethods) {
-				return chainMethods[prop as keyof typeof chainMethods];
-			}
-			const val = Reflect.get(target, prop, receiver);
-			return typeof val === "function" ? val.bind(target) : val;
-		},
-	}) as Promise<SelectResult> & typeof chainMethods;
-}
-
 function makeChainableDb(selectSequence: SelectResult[]) {
-	let selectCallIndex = 0;
-
-	const updateChain = {
-		set: vi.fn(),
-		where: vi.fn().mockResolvedValue(undefined),
-	};
-	updateChain.set.mockReturnValue(updateChain);
-
-	const deleteChain = {
-		where: vi.fn().mockResolvedValue(undefined),
-	};
-
-	const insertChain = {
-		values: vi.fn().mockResolvedValue(undefined),
-	};
-
-	const db = {
-		select: vi.fn().mockImplementation(() => {
-			const result = selectSequence[selectCallIndex] ?? [];
-			selectCallIndex++;
-			return {
-				from: vi.fn().mockReturnValue(makeSelectResultNode(result)),
-			};
-		}),
-		update: vi.fn().mockReturnValue(updateChain),
-		delete: vi.fn().mockReturnValue(deleteChain),
-		insert: vi.fn().mockReturnValue(insertChain),
-		_updateChain: updateChain,
-		_deleteChain: deleteChain,
-		_insertChain: insertChain,
-	};
-
-	return db;
+	return createSequencedMockDb(selectSequence);
 }
 
 function makeGameSession(overrides: Record<string, unknown> = {}) {
