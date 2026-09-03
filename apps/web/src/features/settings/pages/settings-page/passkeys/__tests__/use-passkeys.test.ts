@@ -503,6 +503,7 @@ describe("usePasskeys", () => {
 
 		await act(async () => {
 			releaseFirst?.({ data: null, error: { message: "stale failure" } });
+			await Promise.resolve();
 		});
 
 		expect(result.current.passkeys).toEqual([PASSKEY_A]);
@@ -522,6 +523,7 @@ describe("usePasskeys", () => {
 
 		await act(async () => {
 			release?.({ data: [] });
+			await Promise.resolve();
 		});
 		expect(result.current.isRefreshPending).toBe(false);
 	});
