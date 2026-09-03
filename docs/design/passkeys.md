@@ -117,15 +117,22 @@ legacy *number* and never matches a string.
 
 The registration path needs one more code. A dismissed prompt raises `NotAllowedError`,
 which `@simplewebauthn/browser` deliberately passes through as
-`ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY` (the spec keeps that error opaque to prevent
-fingerprinting, so the library refuses to reinterpret it), and better-auth forwards that
-code verbatim. `ERROR_CEREMONY_ABORTED` is reserved for an `AbortSignal` abort and does
+`ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY` — its stated reason is that platforms overload this
+error well beyond what the spec defines, so it keeps the original message rather than
+overwriting something potentially useful. (That matters for the limitation below: the
+detail is *there*, in `cause`, and would be usable if better-auth stopped discarding it.)
+better-auth forwards that code verbatim. `ERROR_CEREMONY_ABORTED` is reserved for an `AbortSignal` abort and does
 *not* cover the user closing the sheet. Following `error.cause` down to the original
 `DOMException` does not help: better-auth rebuilds the error as a plain
 `{ code, message, status, statusText }` object and drops `cause` entirely.
 
-Sign-in needs no such care — better-auth funnels every `startAuthentication` throw into
-`AUTH_CANCELLED`.
+Sign-in needs no such care, for a blunter reason: better-auth funnels **every**
+`startAuthentication` throw into `AUTH_CANCELLED`. The flip side is that the sign-in button
+is silent on real breakage too — a wrong `rpID`, a non-secure context, a timeout. That is
+precisely the failure this document opens by warning about, and it presents to the user as
+a button that does nothing at all. The one breadcrumb is that better-auth `console.error`s
+the underlying error ("[Better Auth] Error verifying passkey") before collapsing it, so the
+real cause is visible in devtools even though the UI stays quiet.
 
 That code is broader than "the user closed the prompt", and the cost is accepted rather
 than solved: SimpleWebAuthn stamps it on **every** `NotAllowedError`, so a timeout (easy to
