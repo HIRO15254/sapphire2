@@ -63,6 +63,7 @@ const WEB_NODE_SOURCE =
 	/^apps\/web\/src\/(?:utils\/[^/]+\.ts|shared\/lib\/.+\.ts|features\/.+\/utils\/.+\.ts)$/;
 const WEB_NODE_TEST =
 	/^apps\/web\/src\/(?:utils\/__tests__\/|shared\/lib\/.*__tests__\/|features\/.+\/utils\/__tests__\/)/;
+const DB_EXCLUDED = new Set(["packages/db/src/constants/player-tag-colors.ts"]);
 const WEB_NODE_EXCLUDED = new Set([
 	"apps/web/src/utils/trpc.ts",
 	"apps/web/src/features/auth/utils/login-continuation.ts",
@@ -88,7 +89,10 @@ export const PROJECTS: Record<ProjectName, MutationProject> = {
 		configFile: "packages/db/vitest.config.ts",
 		root: "packages/db",
 		timeoutMS: 20_000,
-		isSubject: (path) => DB_SOURCE.test(path) && !TEST_PATH.test(path),
+		isSubject: (path) =>
+			DB_SOURCE.test(path) &&
+			!TEST_PATH.test(path) &&
+			!DB_EXCLUDED.has(normalizeRulePath(path)),
 		isTestSide: (path) => path.startsWith("packages/db/src/__tests__/"),
 	},
 	"web-node": {

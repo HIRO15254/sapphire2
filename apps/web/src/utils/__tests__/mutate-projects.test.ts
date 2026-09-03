@@ -70,6 +70,14 @@ describe("classifyChangedFiles", () => {
 		expect(affectedProjects(plans)).toEqual([]);
 	});
 
+	it("ignores the db data table excluded from mutation subjects", () => {
+		const plans = classifyChangedFiles(
+			["packages/db/src/constants/player-tag-colors.ts"],
+			exists
+		);
+		expect(affectedProjects(plans)).toEqual([]);
+	});
+
 	it("ignores paths outside every mutation project", () => {
 		const plans = classifyChangedFiles(
 			[

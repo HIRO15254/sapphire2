@@ -5,9 +5,10 @@ import {
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MobileNav } from "@/shared/components/authenticated-shell/mobile-nav";
+import { renderWithQueryClient } from "./test-utils";
 
 const mockUseActiveSession = vi.fn();
 vi.mock("@/features/live-sessions/hooks/use-active-session", () => ({
@@ -43,16 +44,6 @@ vi.mock("@/utils/trpc", () => {
 		trpc,
 	};
 });
-
-vi.mock("@tanstack/react-query", () => ({
-	useMutation: () => ({
-		mutate: vi.fn(),
-		isPending: false,
-	}),
-	useQueryClient: () => ({
-		invalidateQueries: vi.fn(),
-	}),
-}));
 
 function createTestRouter(initialPath: string) {
 	const rootRoute = createRootRoute({
@@ -98,7 +89,7 @@ describe("MobileNav - Normal Mode (no active session)", () => {
 
 	it("renders 3 nav links, 1 resources popover button, and 1 center button", async () => {
 		const router = createTestRouter("/sessions");
-		render(<RouterProvider router={router} />);
+		renderWithQueryClient(<RouterProvider router={router} />);
 
 		const links = await screen.findAllByRole("link");
 		expect(links).toHaveLength(3);
@@ -109,7 +100,7 @@ describe("MobileNav - Normal Mode (no active session)", () => {
 
 	it("displays normal mode labels", async () => {
 		const router = createTestRouter("/sessions");
-		render(<RouterProvider router={router} />);
+		renderWithQueryClient(<RouterProvider router={router} />);
 
 		await screen.findByText("Sessions");
 		expect(screen.getByText("Statistics")).toBeInTheDocument();
@@ -120,7 +111,7 @@ describe("MobileNav - Normal Mode (no active session)", () => {
 
 	it("highlights the active navigation item", async () => {
 		const router = createTestRouter("/sessions");
-		render(<RouterProvider router={router} />);
+		renderWithQueryClient(<RouterProvider router={router} />);
 
 		const sessionsLink = await screen.findByText("Sessions");
 		const anchor = sessionsLink.closest("a");
@@ -129,7 +120,7 @@ describe("MobileNav - Normal Mode (no active session)", () => {
 
 	it("does not highlight inactive navigation items", async () => {
 		const router = createTestRouter("/sessions");
-		render(<RouterProvider router={router} />);
+		renderWithQueryClient(<RouterProvider router={router} />);
 
 		await screen.findByText("Sessions");
 		const resourcesButton = screen.getByText("Resources");
@@ -153,7 +144,7 @@ describe("MobileNav - Paused Session Mode", () => {
 
 	it("displays Resume as center button label", async () => {
 		const router = createTestRouter("/sessions");
-		render(<RouterProvider router={router} />);
+		renderWithQueryClient(<RouterProvider router={router} />);
 
 		await screen.findByText("Resume");
 		expect(screen.getByText("Resume")).toBeInTheDocument();
@@ -176,7 +167,7 @@ describe("MobileNav - Active Session Mode", () => {
 
 	it("does not display the retired live session nav items (Timeline, Game, Overview)", async () => {
 		const router = createTestRouter("/sessions");
-		render(<RouterProvider router={router} />);
+		renderWithQueryClient(<RouterProvider router={router} />);
 
 		await screen.findByText("Statistics");
 		expect(screen.queryByText("Timeline")).not.toBeInTheDocument();
@@ -186,7 +177,7 @@ describe("MobileNav - Active Session Mode", () => {
 
 	it("shows 'Live' on the center button when off the active-session page", async () => {
 		const router = createTestRouter("/sessions");
-		render(<RouterProvider router={router} />);
+		renderWithQueryClient(<RouterProvider router={router} />);
 
 		await screen.findByText("Live");
 		expect(screen.queryByText("Stack")).not.toBeInTheDocument();
@@ -194,7 +185,7 @@ describe("MobileNav - Active Session Mode", () => {
 
 	it("shows 'Stack' on the center button on the active-session page", async () => {
 		const router = createTestRouter("/active-session");
-		render(<RouterProvider router={router} />);
+		renderWithQueryClient(<RouterProvider router={router} />);
 
 		await screen.findByText("Stack");
 		expect(screen.queryByText("Live")).not.toBeInTheDocument();
@@ -202,7 +193,7 @@ describe("MobileNav - Active Session Mode", () => {
 
 	it("center button has green styling in live mode", async () => {
 		const router = createTestRouter("/sessions");
-		render(<RouterProvider router={router} />);
+		renderWithQueryClient(<RouterProvider router={router} />);
 
 		await screen.findByText("Live");
 		const centerButton = screen

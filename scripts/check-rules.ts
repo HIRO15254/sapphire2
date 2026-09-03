@@ -155,6 +155,16 @@ const CHECKS: Check[] = [
 		pattern:
 			/^\s*\/\/\s*Stryker disable(?!\s+next-line\s+[A-Z]\w*(?:,\s*[A-Z]\w*)*:\s*\S)/m,
 	},
+	{
+		name: "component / page spec mocks @tanstack/react-query wholesale — mock the component's own use-* hook; hook specs use a real QueryClient (createTestQueryClient)",
+		rule: ".claude/rules/testing.md",
+		globs: [
+			"apps/web/src/**/components/**/*.test.tsx",
+			"apps/web/src/**/pages/**/*.test.tsx",
+			"apps/web/src/__tests__/*.test.tsx",
+		],
+		pattern: /vi\.mock\(\s*["']@tanstack\/react-query["']/,
+	},
 ];
 
 let failed = false;

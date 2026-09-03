@@ -104,7 +104,7 @@ Migration specs (`packages/db/src/__tests__/migration-*.test.ts`, `preview-seed-
 **Scope per project** (the `isSubject` predicates in [`scripts/mutate-projects.ts`](../../scripts/mutate-projects.ts) are the single source of truth):
 
 - `api`: every non-test `.ts` under `packages/api/src`.
-- `db`: `src/constants.ts`, `src/constants/*.ts`, `src/schemas/*.ts` — Zod and pure logic. `src/schema/**`, `schema.ts`, `index.ts` are declarative Drizzle tables whose only "detector" would be schema-shape tests, which the rules forbid; `migrations/**` is SQL.
+- `db`: `src/constants.ts`, `src/constants/*.ts`, `src/schemas/*.ts` — Zod and pure logic. `src/schema/**`, `schema.ts`, `index.ts` are declarative Drizzle tables whose only "detector" would be schema-shape tests, which the rules forbid; `migrations/**` is SQL. `constants/player-tag-colors.ts` is excluded as well (`DB_EXCLUDED`): it is a name list plus a Tailwind class map with no function or invariant, so its 25 mutants were permanently `NoCoverage` and could only be "killed" by a test that restates the class strings — the P2 sweep's reviewers refused that test, and the denominator was cleaned instead.
 - `web-node`: the subjects of the `web-node` include globs (`src/utils`, `src/shared/lib`, `src/features/**/utils`) minus `utils/trpc.ts` (client wiring, mocked by every test) and the two files whose specs are pinned to `web-dom` (`login-continuation.ts`, `share-session.ts`) — in `web-node` they would be 100 % NoCoverage noise.
 - `web-dom`, `server`, `mcp`, `env` have no Stryker run (jsdom start-up cost and low mutation density); the detection review there is the manual three-flip in `/detection-review`.
 
