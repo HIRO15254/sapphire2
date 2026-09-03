@@ -32,6 +32,7 @@ import {
 	oauthConsent,
 	oauthConsentRelations,
 } from "./schema/oauth";
+import { passkey, passkeyRelations } from "./schema/passkey";
 import {
 	player,
 	playerRelations,
@@ -152,4 +153,6 @@ export const schema = {
 	oauthAccessTokenRelations,
 	oauthConsent,
 	oauthConsentRelations,
+	passkey,
+	passkeyRelations,
 };

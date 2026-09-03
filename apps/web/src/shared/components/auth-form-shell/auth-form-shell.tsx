@@ -3,6 +3,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Separator } from "@/shared/components/ui/separator";
 
 interface AuthProviderAction {
+	disabled?: boolean;
 	icon: ReactNode;
 	label: string;
 	onClick: () => Promise<void>;
@@ -49,6 +50,7 @@ export function AuthFormShell({
 				{providerActions.map((action) => (
 					<Button
 						className="w-full"
+						disabled={action.disabled}
 						key={action.label}
 						onClick={action.onClick}
 						type="button"

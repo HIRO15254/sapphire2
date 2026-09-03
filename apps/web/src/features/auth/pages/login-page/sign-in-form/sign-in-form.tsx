@@ -1,3 +1,4 @@
+import { IconKey } from "@tabler/icons-react";
 import {
 	AuthFormShell,
 	authSubmitLabels,
@@ -15,14 +16,31 @@ export default function SignInForm({
 }: {
 	onSwitchToSignUp: () => void;
 }) {
-	const { form, isPending, onSignInWithDiscord, onSignInWithGoogle } =
-		useSignIn();
+	const {
+		form,
+		isPasskeyPending,
+		isPasskeySupported,
+		isPending,
+		onSignInWithDiscord,
+		onSignInWithGoogle,
+		onSignInWithPasskey,
+	} = useSignIn();
 
 	if (isPending) {
 		return <Loader />;
 	}
 
 	const providerActions = [
+		...(isPasskeySupported
+			? [
+					{
+						disabled: isPasskeyPending,
+						label: "Sign in with a passkey",
+						icon: <IconKey className="mr-2 h-4 w-4" />,
+						onClick: onSignInWithPasskey,
+					},
+				]
+			: []),
 		{
 			label: "Sign in with Google",
 			icon: <GoogleIcon className="mr-2 h-4 w-4" />,

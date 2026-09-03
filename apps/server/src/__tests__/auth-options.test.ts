@@ -37,6 +37,44 @@ describe("buildAuthOptions", () => {
 		);
 	});
 
+	it("points the passkey relying party at the web app, not the Worker", () => {
+		const options = buildAuthOptions(createFakeEnv(), FAKE_DB);
+		expect(options.passkey).toEqual({
+			origin: "http://localhost:3001",
+			rpID: "localhost",
+			rpName: "sapphire2",
+		});
+	});
+
+	it("derives the passkey relying party from a deployed CORS origin", () => {
+		const options = buildAuthOptions(
+			createFakeEnv({ CORS_ORIGIN: "https://sapphire2.example.com" }),
+			FAKE_DB
+		);
+		expect(options.passkey).toEqual({
+			origin: "https://sapphire2.example.com",
+			rpID: "sapphire2.example.com",
+			rpName: "sapphire2",
+		});
+	});
+
+	it("keeps the port in the passkey origin but out of the rpID", () => {
+		const options = buildAuthOptions(
+			createFakeEnv({ CORS_ORIGIN: "https://preview.example.com:8443" }),
+			FAKE_DB
+		);
+		expect(options.passkey?.origin).toBe("https://preview.example.com:8443");
+		expect(options.passkey?.rpID).toBe("preview.example.com");
+	});
+
+	it("strips a trailing slash from the passkey origin", () => {
+		const options = buildAuthOptions(
+			createFakeEnv({ CORS_ORIGIN: "https://sapphire2.example.com/" }),
+			FAKE_DB
+		);
+		expect(options.passkey?.origin).toBe("https://sapphire2.example.com");
+	});
+
 	it("wires onUserCreated to the game-data seeder", async () => {
 		const seed = vi.fn().mockResolvedValue(undefined);
 		const options = buildAuthOptions(createFakeEnv(), FAKE_DB, {

@@ -13,6 +13,7 @@ Issue references (`SA2-NNN`) point at the Linear issues that motivated a decisio
 | [`game-masters.md`](game-masters.md) | Game group / variant / mix master data: self-freezing labels, the migration-0049 compat mirror, seeding idempotency, derived mix buckets |
 | [`statistics.md`](statistics.md) | EV recording gate and population semantics, summary agreement, breakdown bucketing, URL-based stats filters, period boundaries |
 | [`mcp-and-oauth.md`](mcp-and-oauth.md) | MCP OAuth consent gate threat model, discovery endpoints, token expiry, tool projection, Workers runtime constraints |
+| [`passkeys.md`](passkeys.md) | WebAuthn relying-party pinning across the split origin, the `passkey` table contract, silent conditional-create upgrades, device naming, plugin version coupling |
 | [`ai-extraction.md`](ai-extraction.md) | AI extraction truncation failure model, schema design, model pinning, form-merge semantics |
 | [`web-platform.md`](web-platform.md) | Persisted-cache busting, open-redirect guard, shared UI component traps, filter presets, geolocation and maps, number formatting |
 | [`testing-and-tooling.md`](testing-and-tooling.md) | Mock-db contract, test-infra gotchas, migration tests on `bun:sqlite`, preview seed/restore pipeline, `check-rules.ts` mechanics |

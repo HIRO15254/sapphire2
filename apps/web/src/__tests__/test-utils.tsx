@@ -171,6 +171,25 @@ export function createAuthClientMock(
 	};
 }
 
+export function stubWebAuthnSupport(supported: boolean): () => void {
+	const had = "PublicKeyCredential" in window;
+	const previous = (window as { PublicKeyCredential?: unknown })
+		.PublicKeyCredential;
+	if (supported) {
+		(window as { PublicKeyCredential?: unknown }).PublicKeyCredential = {};
+	} else {
+		Reflect.deleteProperty(window, "PublicKeyCredential");
+	}
+	return () => {
+		if (had) {
+			(window as { PublicKeyCredential?: unknown }).PublicKeyCredential =
+				previous;
+		} else {
+			Reflect.deleteProperty(window, "PublicKeyCredential");
+		}
+	};
+}
+
 export function createMutationStub<TInput = unknown, TOutput = unknown>(
 	fn?: (input: TInput) => Promise<TOutput>
 ): UseMutationResult<TOutput, Error, TInput> {

@@ -8,7 +8,12 @@ const mocks = vi.hoisted(() => ({
 	signInSocial: vi.fn(),
 	toastSuccess: vi.fn(),
 	toastError: vi.fn(),
+	offerAutomaticPasskey: vi.fn(),
 	env: { VITE_SERVER_URL: "http://localhost:8787" },
+}));
+
+vi.mock("@/features/auth/utils/auto-register-passkey", () => ({
+	offerAutomaticPasskey: mocks.offerAutomaticPasskey,
 }));
 
 vi.mock("@sapphire2/env/web", () => ({
@@ -51,6 +56,49 @@ describe("useSignUp", () => {
 		mocks.signInSocial.mockReset();
 		mocks.toastSuccess.mockReset();
 		mocks.toastError.mockReset();
+		mocks.offerAutomaticPasskey.mockReset();
+	});
+
+	async function submitValidSignUp(result: {
+		current: ReturnType<typeof useSignUp>;
+	}) {
+		mocks.signUpEmail.mockImplementation((_credentials, callbacks) => {
+			callbacks?.onSuccess?.();
+			return Promise.resolve();
+		});
+		act(() => {
+			result.current.form.setFieldValue("name", "Hero");
+			result.current.form.setFieldValue("email", "user@example.com");
+			result.current.form.setFieldValue("password", "password123");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+	}
+
+	it("offers the silent passkey upgrade after sign-up", async () => {
+		const { result } = renderHook(() => useSignUp());
+		await submitValidSignUp(result);
+		expect(mocks.offerAutomaticPasskey).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not offer the upgrade after a failed sign-up", async () => {
+		mocks.signUpEmail.mockImplementation((_credentials, callbacks) => {
+			callbacks?.onError?.({
+				error: { message: "Email already taken", statusText: "Conflict" },
+			});
+			return Promise.resolve();
+		});
+		const { result } = renderHook(() => useSignUp());
+		act(() => {
+			result.current.form.setFieldValue("name", "Hero");
+			result.current.form.setFieldValue("email", "user@example.com");
+			result.current.form.setFieldValue("password", "password123");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(mocks.offerAutomaticPasskey).not.toHaveBeenCalled();
 	});
 
 	it("exposes isPending from session", () => {

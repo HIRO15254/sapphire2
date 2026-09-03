@@ -2,6 +2,7 @@ import { useForm } from "@tanstack/react-form";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import z from "zod";
+import { offerAutomaticPasskey } from "@/features/auth/utils/auto-register-passkey";
 import {
 	pendingAuthorizeUrl,
 	socialCallbackUrl,
@@ -34,6 +35,7 @@ export function useSignUp() {
 						}
 						navigate({ to: "/statistics" });
 						toast.success("Sign up successful");
+						offerAutomaticPasskey();
 					},
 					onError: (error) => {
 						toast.error(error.error.message || error.error.statusText);
