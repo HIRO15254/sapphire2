@@ -1509,3 +1509,304 @@ describe("liveTournamentSession.list status filter", () => {
 		expect(base?.params).toContain(status);
 	});
 });
+
+describe("liveTournamentSession.reopen", () => {
+	it("rejects with the fixed message because tournament sessions cannot be reopened", async () => {
+		const { db } = createChainableMockDb({});
+
+		await expect(
+			callerFor(db, OWNER).liveTournamentSession.reopen({ id: "s1" })
+		).rejects.toMatchObject({
+			code: "FORBIDDEN",
+			message: "Tournament sessions cannot be reopened after completion",
+		});
+	});
+});
+
+describe("liveTournamentSession.complete on an already-completed session", () => {
+	it("rejects with BAD_REQUEST instead of inserting a second session_end event", async () => {
+		const { db, inserted } = createChainableMockDb({
+			select: {
+				game_session: [{ ...ownedSession, status: "completed" }],
+			},
+		});
+
+		await expect(
+			callerFor(db, OWNER).liveTournamentSession.complete({
+				id: "s1",
+				beforeDeadline: true,
+				prizeMoney: 0,
+				bountyPrizes: 0,
+			})
+		).rejects.toMatchObject({
+			code: "BAD_REQUEST",
+			message: "Session is already completed",
+		});
+		expect(inserted.session_event).toBeUndefined();
+	});
+});
+
+describe("liveTournamentSession.discard on an already-completed session", () => {
+	it("rejects with BAD_REQUEST and issues no delete", async () => {
+		const { db, deleteWhereParams } = createChainableMockDb({
+			select: {
+				game_session: [{ ...ownedSession, status: "completed" }],
+			},
+		});
+
+		await expect(
+			callerFor(db, OWNER).liveTournamentSession.discard({ id: "s1" })
+		).rejects.toMatchObject({
+			code: "BAD_REQUEST",
+			message: "Only active sessions can be discarded",
+		});
+		expect(deleteWhereParams).toHaveLength(0);
+	});
+});
+
+describe("liveTournamentSession.discard on an active owned session", () => {
+	it("resolves with the session id and deletes the game_session row by that id", async () => {
+		const { db, deleteWhereParams } = createChainableMockDb({
+			select: { game_session: [ownedSession] },
+		});
+
+		await expect(
+			callerFor(db, OWNER).liveTournamentSession.discard({ id: "s1" })
+		).resolves.toEqual({ id: "s1" });
+		expect(deleteWhereParams).toEqual([["s1"]]);
+	});
+});
+
+describe("liveTournamentSession.updateHeroSeat when a hero is already seated", () => {
+	it("rejects with BAD_REQUEST instead of inserting a second hero seat", async () => {
+		const { db, inserted } = createChainableMockDb({
+			select: {
+				game_session: [ownedSession],
+				session_event: [
+					{
+						eventType: "player_join",
+						payload: JSON.stringify({ isHero: true, seatPosition: 3 }),
+					},
+				],
+			},
+		});
+
+		await expect(
+			callerFor(db, OWNER).liveTournamentSession.updateHeroSeat({
+				id: "s1",
+				heroSeatPosition: 5,
+			})
+		).rejects.toMatchObject({
+			code: "BAD_REQUEST",
+			message:
+				"Hero is already seated. Leave the seat before assigning a new one.",
+		});
+		expect(inserted.session_event).toBeUndefined();
+	});
+});
+
+describe("liveTournamentSession.updateHeroSeat without an existing hero seat", () => {
+	it("inserts a player_join event carrying the hero flag and the requested seat", async () => {
+		const { db, inserted } = createChainableMockDb({
+			select: {
+				game_session: [ownedSession],
+				session_event: [],
+			},
+		});
+
+		await expect(
+			callerFor(db, OWNER).liveTournamentSession.updateHeroSeat({
+				id: "s1",
+				heroSeatPosition: 4,
+			})
+		).resolves.toEqual({ id: "s1" });
+
+		const rows = inserted.session_event as {
+			eventType: string;
+			payload: string;
+		}[];
+		const joinRow = rows.find((row) => row.eventType === "player_join");
+		expect(JSON.parse(joinRow?.payload ?? "{}")).toEqual({
+			isHero: true,
+			seatPosition: 4,
+		});
+	});
+});
+
+describe("liveTournamentSession.update clearing the tournament link", () => {
+	it("sets tournamentId to null on the existing session_tournament_detail row", async () => {
+		const { db, updated } = createChainableMockDb({
+			select: {
+				game_session: [ownedSession],
+				session_tournament_detail: [{ sessionId: "s1", tournamentId: "tn-1" }],
+			},
+		});
+
+		await callerFor(db, OWNER).liveTournamentSession.update({
+			id: "s1",
+			tournamentId: null,
+		});
+
+		expect(updated.session_tournament_detail?.[0]).toMatchObject({
+			tournamentId: null,
+		});
+	});
+});
+
+describe("liveTournamentSession.update reassigning the tournament", () => {
+	it("rejects with BAD_REQUEST when the tournament belongs to a different room than the session", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [{ ...ownedSession, roomId: "room-a" }],
+				tournament: [{ id: "tn-1", roomId: "room-b", currencyId: null }],
+				room: [{ id: "room-b", userId: OWNER }],
+			},
+		});
+
+		await expect(
+			callerFor(db, OWNER).liveTournamentSession.update({
+				id: "s1",
+				tournamentId: "tn-1",
+			})
+		).rejects.toMatchObject({
+			code: "BAD_REQUEST",
+			message: "Tournament belongs to a different room than the session",
+		});
+	});
+
+	it("rejects with FORBIDDEN when no owned tournament row matches the id", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [ownedSession],
+				tournament: [],
+			},
+		});
+
+		await expect(
+			callerFor(db, OWNER).liveTournamentSession.update({
+				id: "s1",
+				tournamentId: "tn-missing",
+			})
+		).rejects.toMatchObject({
+			code: "FORBIDDEN",
+			message: "You do not own this tournament",
+		});
+	});
+});
+
+describe("liveTournamentSession.create tournament rule snapshot", () => {
+	const TOURNAMENT_ID = "tn-1";
+	const ROOM_ID = "room-1";
+
+	it("copies the tournament's name and converts timerStartedAt to a Date", async () => {
+		const { db, inserted } = createChainableMockDb({
+			select: {
+				game_session: [],
+				tournament: [
+					{
+						id: TOURNAMENT_ID,
+						roomId: ROOM_ID,
+						name: "Main Event",
+						variant: "NL Hold'em",
+						buyIn: 10_000,
+						entryFee: 1000,
+						startingStack: 20_000,
+						bountyAmount: null,
+						tableSize: 9,
+						currencyId: null,
+					},
+				],
+				room: [{ id: ROOM_ID, userId: OWNER }],
+			},
+		});
+
+		await callerFor(db, OWNER).liveTournamentSession.create({
+			tournamentId: TOURNAMENT_ID,
+			timerStartedAt: 1_700_000_000,
+		});
+
+		const detail = inserted.session_tournament_detail?.[0] as {
+			ruleName: string;
+			timerStartedAt: Date | null;
+		};
+		expect(detail.timerStartedAt).toEqual(new Date(1_700_000_000 * 1000));
+		expect(detail.ruleName).toBe("Main Event");
+	});
+
+	it("falls back to a generic name and a null timer when no tournament is linked", async () => {
+		const { db, inserted } = createChainableMockDb({
+			select: { game_session: [] },
+		});
+
+		await callerFor(db, OWNER).liveTournamentSession.create({});
+
+		const detail = inserted.session_tournament_detail?.[0] as {
+			ruleName: string;
+			timerStartedAt: Date | null;
+		};
+		expect(detail.ruleName).toBe("Tournament");
+		expect(detail.timerStartedAt).toBeNull();
+	});
+});
+
+describe("liveTournamentSession.createAndAssignTournament blind levels", () => {
+	it("inserts each level with ascending level numbers and nulls for omitted fields", async () => {
+		const { db, inserted } = createChainableMockDb({
+			select: {
+				game_session: [{ ...ownedSession, roomId: null }],
+				room: [{ id: "room-1", userId: OWNER }],
+			},
+		});
+
+		await callerFor(db, OWNER).liveTournamentSession.createAndAssignTournament({
+			sessionId: "s1",
+			roomId: "room-1",
+			name: "Main",
+			blindLevels: [
+				{ isBreak: false, blind1: 100, blind2: 200, minutes: 15 },
+				{ isBreak: false, blind1: 200, blind2: 400, ante: 50, minutes: 15 },
+			],
+		});
+
+		const rows = inserted.session_blind_level as {
+			ante: number | null;
+			level: number;
+		}[];
+		expect(rows.map((row) => row.level)).toEqual([1, 2]);
+		expect(rows[0]?.ante).toBeNull();
+		expect(rows[1]?.ante).toBe(50);
+	});
+});
+
+describe("liveTournamentSession.getById stack range summary", () => {
+	it("tracks the running max and min stack across multiple update_stack events", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [ownedSession],
+				session_tournament_detail: [],
+				session_event: [
+					{
+						eventType: "update_stack",
+						payload: JSON.stringify({ stackAmount: 500 }),
+					},
+					{
+						eventType: "update_stack",
+						payload: JSON.stringify({ stackAmount: 300 }),
+					},
+					{
+						eventType: "update_stack",
+						payload: JSON.stringify({ stackAmount: 900 }),
+					},
+				],
+				session_blind_level: [],
+				session_chip_purchase: [],
+			},
+		});
+
+		const result = await callerFor(db, OWNER).liveTournamentSession.getById({
+			id: "s1",
+		});
+
+		expect(result.summary).toMatchObject({ maxStack: 900, minStack: 300 });
+	});
+});
