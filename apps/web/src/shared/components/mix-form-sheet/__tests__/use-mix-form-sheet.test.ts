@@ -200,12 +200,6 @@ describe("useMixFormSheet", () => {
 		});
 
 		it("resolves a just-created variant from the query cache before the prop updates (c19)", () => {
-			// VariantSelect seeds the new row into gameVariant.list and calls
-			// onChange synchronously; the `variants` prop is still the pre-creation
-			// list, so the label must be resolved from the live cache instead.
-			// gcTime must be non-zero: in the app gameVariant.list is observed by
-			// useGameGroups, so a manually-seeded, observer-less query would only
-			// be collected under the default test client's gcTime: 0.
 			const client = new QueryClient({
 				defaultOptions: {
 					queries: { gcTime: Number.POSITIVE_INFINITY, retry: false },
@@ -231,7 +225,7 @@ describe("useMixFormSheet", () => {
 					useMixFormSheet({
 						editingMix: null,
 						onOpenChange,
-						variants: VARIANTS, // stale: does not contain "Big O"
+						variants: VARIANTS,
 					}),
 				{ wrapper: withQueryClient(client) }
 			);

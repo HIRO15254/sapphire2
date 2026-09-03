@@ -25,16 +25,10 @@ export type TournamentPartialFormValues = Omit<
 };
 
 interface TournamentModalContentProps {
-	/** Form id shared with the surrounding FormSheet's Save button. */
 	formId: string;
 	initialBlindLevels: BlindLevelRow[];
 	initialFormValues?: TournamentPartialFormValues;
-	/** Opens the AI auto-fill sheet (body button). Omitted disables it. */
 	onOpenAi?: () => void;
-	/**
-	 * Registers a getter that returns the form's current values so AI auto-fill
-	 * merges over what the user has already entered instead of overwriting it.
-	 */
 	onRegisterLiveValues?: (getter: () => TournamentPartialFormValues) => void;
 	onSave: (
 		values: TournamentFormValues,
@@ -87,14 +81,6 @@ export function TournamentModalContent({
 					<TabsTrigger value="details">Details</TabsTrigger>
 					<TabsTrigger value="structure">Structure</TabsTrigger>
 				</TabsList>
-				{/*
-				 * forceMount keeps the `<form id={formId}>` in the DOM while the
-				 * Structure tab is active. Otherwise Radix unmounts this panel and
-				 * the FormSheet Save button (which submits via `form={formId}`)
-				 * resolves nothing, so saving silently fails from the Structure tab
-				 * (SA2-97). `data-[state=inactive]:hidden` hides it while inactive
-				 * since forceMount renders inactive content without the `hidden` attr.
-				 */}
 				<TabsContent
 					className="data-[state=inactive]:hidden"
 					forceMount

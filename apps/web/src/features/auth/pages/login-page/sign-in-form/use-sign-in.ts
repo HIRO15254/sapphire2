@@ -1,30 +1,18 @@
-import { env } from "@sapphire2/env/web";
 import { useForm } from "@tanstack/react-form";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import z from "zod";
 import { offerAutomaticPasskey } from "@/features/auth/utils/auto-register-passkey";
-import { resolveMcpAuthorizeRedirect } from "@/features/auth/utils/oauth-redirect";
+import {
+	pendingAuthorizeUrl,
+	socialCallbackUrl,
+} from "@/features/auth/utils/login-continuation";
 import { authClient } from "@/lib/auth-client";
 import { isPasskeySupported } from "@/shared/lib/webauthn";
 
 export function useSignIn() {
 	const navigate = useNavigate({ from: "/" });
 	const { isPending } = authClient.useSession();
-
-	/** Where an in-flight MCP OAuth authorize flow should resume, if any. */
-	const pendingAuthorizeUrl = () =>
-		resolveMcpAuthorizeRedirect(env.VITE_SERVER_URL, window.location.search);
-
-	/**
-	 * Social sign-in returns to /login (query preserved) mid-OAuth so the
-	 * route's beforeLoad can resume the authorize flow; otherwise straight to
-	 * the app.
-	 */
-	const socialCallbackUrl = () =>
-		pendingAuthorizeUrl()
-			? `${window.location.origin}/login${window.location.search}`
-			: `${window.location.origin}/statistics`;
 
 	const form = useForm({
 		defaultValues: {
@@ -62,11 +50,6 @@ export function useSignIn() {
 		},
 	});
 
-	/**
-	 * Passkey sign-in is usernameless: better-auth asks the browser for any
-	 * discoverable credential registered for this site, so there is nothing to
-	 * type.
-	 */
 	const onSignInWithPasskey = async () => {
 		const result = await authClient.signIn.passkey();
 		if (!result?.data || result.error) {

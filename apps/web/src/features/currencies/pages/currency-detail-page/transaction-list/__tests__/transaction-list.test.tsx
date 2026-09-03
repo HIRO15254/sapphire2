@@ -3,9 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { TransactionListV2 } from "@/features/currencies/pages/currency-detail-page/transaction-list";
 
-// Class-presence matcher for `size-8` (whole-word, single tailwind class).
 const SIZE_8_CLASS = /(^| )size-8( |$)/;
-// Accessible-name matcher for the row-level "View session" navigation button.
 const VIEW_SESSION_NAME = /view session/i;
 
 const regularTransaction = {
@@ -177,10 +175,6 @@ describe("TransactionListV2", () => {
 	});
 
 	it("reserves the same width on session rows as the action button takes on editable rows so the amount column stays aligned (no onNavigateToSession)", () => {
-		// The 3-dots IconButton uses size="icon-sm" which renders at
-		// --h-control-sm = 2rem = 32px = size-8. The placeholder span on
-		// session rows without a navigation handler must match so the right-edge
-		// of the amount column is identical across both row types.
 		const { container } = render(
 			<TransactionListV2
 				onOpenActions={vi.fn()}
@@ -208,7 +202,6 @@ describe("TransactionListV2", () => {
 				transactions={[{ ...sessionTransaction, sessionName: null }]}
 			/>
 		);
-		// Session row should not show the regular memo or any session name
 		expect(screen.queryByText("Regular transaction")).not.toBeInTheDocument();
 	});
 
@@ -219,7 +212,6 @@ describe("TransactionListV2", () => {
 				transactions={[sessionTransaction]}
 			/>
 		);
-		// The chevron span preserves size-8 alignment like the action button
 		const chevronSpan = container.querySelector("span[aria-hidden]");
 		expect(chevronSpan).not.toBeNull();
 		expect(chevronSpan?.className).toMatch(SIZE_8_CLASS);
@@ -232,7 +224,6 @@ describe("TransactionListV2", () => {
 				transactions={[sessionTransaction]}
 			/>
 		);
-		// Only one aria-hidden span (the chevron) should exist, not the plain placeholder
 		const spans = container.querySelectorAll("span[aria-hidden]");
 		expect(spans).toHaveLength(1);
 	});
@@ -246,7 +237,6 @@ describe("TransactionListV2", () => {
 				transactions={[sessionTransaction]}
 			/>
 		);
-		// Click on the session name text (inside the row)
 		await user.click(screen.getByText("NLH 1/2"));
 		expect(onNavigateToSession).toHaveBeenCalledTimes(1);
 		expect(onNavigateToSession).toHaveBeenCalledWith("session-1");

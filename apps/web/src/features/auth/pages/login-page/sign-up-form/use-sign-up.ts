@@ -3,6 +3,10 @@ import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import z from "zod";
 import { offerAutomaticPasskey } from "@/features/auth/utils/auto-register-passkey";
+import {
+	pendingAuthorizeUrl,
+	socialCallbackUrl,
+} from "@/features/auth/utils/login-continuation";
 import { authClient } from "@/lib/auth-client";
 
 export function useSignUp() {
@@ -24,6 +28,11 @@ export function useSignUp() {
 				},
 				{
 					onSuccess: () => {
+						const authorizeUrl = pendingAuthorizeUrl();
+						if (authorizeUrl) {
+							window.location.assign(authorizeUrl);
+							return;
+						}
 						navigate({ to: "/statistics" });
 						toast.success("Sign up successful");
 						offerAutomaticPasskey();
@@ -46,7 +55,7 @@ export function useSignUp() {
 	const onSignInWithGoogle = async () => {
 		const result = await authClient.signIn.social({
 			provider: "google",
-			callbackURL: `${window.location.origin}/statistics`,
+			callbackURL: socialCallbackUrl(),
 		});
 		if (result.error) {
 			toast.error(result.error.message || "Google sign up unavailable");
@@ -56,7 +65,7 @@ export function useSignUp() {
 	const onSignInWithDiscord = async () => {
 		const result = await authClient.signIn.social({
 			provider: "discord",
-			callbackURL: `${window.location.origin}/statistics`,
+			callbackURL: socialCallbackUrl(),
 		});
 		if (result.error) {
 			toast.error(result.error.message || "Discord sign up unavailable");

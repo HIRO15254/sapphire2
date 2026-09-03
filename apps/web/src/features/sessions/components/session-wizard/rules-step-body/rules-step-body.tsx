@@ -11,11 +11,6 @@ export function RulesStepBody({
 	state: UseSessionWizardReturn;
 	currencies?: Array<{ id: string; name: string }>;
 	isLiveLinked: boolean;
-	/**
-	 * Whether to flag fields that diverge from the picked master with a
-	 * "Modified" badge. The wizard uses it to surface overrides; the live
-	 * start form turns it off so the rule fields read like every other form.
-	 */
 	showOverrides?: boolean;
 }) {
 	if (state.isCashGame) {

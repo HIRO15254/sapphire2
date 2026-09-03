@@ -32,7 +32,6 @@ export interface BlindLevelRow {
 	blind1: number | null;
 	blind2: number | null;
 	blind3: number | null;
-	/** Per-level game groups for mix tournaments; null = single structure. */
 	games: LevelGameGroup[] | null;
 	id: string;
 	isBreak: boolean;
@@ -48,7 +47,6 @@ interface UseBlindLevelsOptions {
 interface BlindLevelUpdateVariables {
 	cell?: GameSetCellPatch;
 	id: string;
-	/** Filled in by onMutate after it derives a cell edit from fresh cache. */
 	resolvedUpdates?: BlindLevelPatch | null;
 	updates?: BlindLevelPatch;
 }
@@ -110,8 +108,6 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 			]);
 			const previous = snapshotQuery(queryClient, levelsQueryOptions.queryKey);
 			const tempRow: BlindLevelRow = {
-				// crypto-random: `temp-${Date.now()}` collides within one
-				// millisecond and corrupts keyed rendering (SA2-143).
 				id: `temp-${crypto.randomUUID()}`,
 				tournamentId,
 				level: newLevel.level,
@@ -171,9 +167,6 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 	const updateMutationKey = ["blindLevel", "update", tournamentId] as const;
 	const updateMutation = useMutation({
 		mutationKey: updateMutationKey,
-		// Blur-driven edits to one structure are ordered. This keeps a failed
-		// rollback from reverting a later successful cell and lets each game-set
-		// edit derive from the previous optimistic result.
 		scope: { id: `blind-level-update-${tournamentId}` },
 		mutationFn: (
 			variables: BlindLevelUpdateVariables
@@ -226,9 +219,6 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 			toast.error("Failed to update blind level");
 		},
 		onSettled: () => {
-			// A scoped mutation currently settling is still counted. Invalidate
-			// only for the final queued edit so an intermediate refetch cannot wipe
-			// the optimistic base used by the next cell.
 			if (queryClient.isMutating({ mutationKey: updateMutationKey }) === 1) {
 				invalidateTargets(queryClient, [
 					{ queryKey: levelsQueryOptions.queryKey },
@@ -280,12 +270,6 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 		reorderMutation.mutate(reordered.map((l) => l.id));
 	};
 
-	// New levels append after the HIGHEST existing level number, not
-	// `levels.length + 1`: delete does not renumber, so after removing a
-	// mid-list level `length + 1` collided with a still-present higher level,
-	// leaving two rows with the same `level` in undefined order under the
-	// server's `ORDER BY level ASC`. Shared with the local editor helpers via
-	// `nextLevelNumber` so both number new levels identically.
 	const handleAddLevel = (defaultGames?: LevelGameGroup[] | null) => {
 		const nextLevel = nextLevelNumber(levels);
 		addLevelMutation.mutate({
@@ -314,16 +298,12 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 	};
 
 	const handleUpdate = (id: string, updates: BlindLevelPatch) => {
-		// The server accepts a partial update object, so keep related auto-fill
-		// fields atomic instead of splitting them into competing mutations.
 		updateMutation.mutate({ id, updates });
 		if (updates.minutes != null) {
 			setLastMinutes(updates.minutes);
 		}
 	};
 
-	// A cheap preflight skips impossible edits. The actual games array is
-	// derived again inside the serialized onMutate from the freshest cache.
 	const handleUpdateGameSet = (id: string, cell: GameSetCellPatch) => {
 		const current = queryClient.getQueryData<BlindLevelRow[]>(
 			levelsQueryOptions.queryKey

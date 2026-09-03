@@ -33,21 +33,16 @@ describe("computeAlignedDomain", () => {
 	});
 
 	it("keeps the supplied min and extends the max when candidateMin is already below min", () => {
-		// candidateMin = -(100 * 0.5) / 0.5 = -100, which is <= min (-20),
-		// so the domain anchors on candidateMin and the provided max.
 		expect(computeAlignedDomain(-20, 100, 0.5)).toEqual([-100, 100]);
 	});
 
 	it("computes candidateMin from negFrac and uses it when it sits at or below min", () => {
-		// candidateMin ≈ -(50 * 0.8) / 0.2 = -200 (≈ min) -> [candidateMin, max].
 		const [lo, hi] = computeAlignedDomain(-200, 50, 0.8);
 		expect(lo).toBeCloseTo(-200, 5);
 		expect(hi).toBe(50);
 	});
 
 	it("keeps the supplied min and shrinks toward a derived max when candidateMin exceeds min", () => {
-		// candidateMin = -(100 * 0.2) / 0.8 = -25 > min (-50),
-		// so newMax = -(-50 * 0.8) / 0.2 = 200 -> [min, newMax].
 		expect(computeAlignedDomain(-50, 100, 0.2)).toEqual([-50, 200]);
 	});
 });
@@ -70,7 +65,6 @@ describe("alignedDualDomains", () => {
 			chartPoint({ x: 2, cashCumulative: 40 }),
 		];
 		const { bb } = alignedDualDomains(points);
-		// All-positive cash -> negFrac 0 across both axes -> [0, max].
 		expect(bb).toEqual([0, 120]);
 	});
 
@@ -80,7 +74,6 @@ describe("alignedDualDomains", () => {
 			chartPoint({ x: 1, cashCumulative: 50, evCashCumulative: -30 }),
 		];
 		const { bb } = alignedDualDomains(points);
-		// bbMin = -30, bbMax = 50; bi has no data so negFrac comes from bb.
 		expect(bb[0]).toBeLessThan(0);
 		expect(bb[1]).toBe(50);
 	});
@@ -98,13 +91,10 @@ describe("alignedDualDomains", () => {
 
 	it("shares the larger negative fraction across both axes so zero lines align", () => {
 		const points = [
-			// cash: min -10, max 90 -> negFrac 0.1
 			chartPoint({ x: 0, cashCumulative: -10, tournamentCumulative: -50 }),
-			// tournament: min -50, max 50 -> negFrac 0.5 (the larger one)
 			chartPoint({ x: 1, cashCumulative: 90, tournamentCumulative: 50 }),
 		];
 		const { bb, bi } = alignedDualDomains(points);
-		// Shared negFrac 0.5: the zero line sits at the same relative height.
 		const bbZeroFrac = -bb[0] / (bb[1] - bb[0]);
 		const biZeroFrac = -bi[0] / (bi[1] - bi[0]);
 		expect(bbZeroFrac).toBeCloseTo(biZeroFrac, 5);
@@ -112,8 +102,6 @@ describe("alignedDualDomains", () => {
 	});
 
 	it("treats a flat all-zero series as the symmetric unit fallback", () => {
-		// bbMin/bbMax and biMin/biMax all collapse to 0, so each axis hits the
-		// both-zero branch and falls back to [-1, 1] rather than dividing by zero.
 		const points = [
 			chartPoint({ x: 0, cashCumulative: 0 }),
 			chartPoint({ x: 1, cashCumulative: 0 }),

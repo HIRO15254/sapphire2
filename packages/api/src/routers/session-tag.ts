@@ -8,7 +8,6 @@ import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { runBatch } from "../lib/batch";
 
-// Named export for the MCP tool layer — see .claude/rules/mcp-tools.md.
 export const sessionTagCreateInputSchema = z.object({
 	name: z.string().min(1),
 });

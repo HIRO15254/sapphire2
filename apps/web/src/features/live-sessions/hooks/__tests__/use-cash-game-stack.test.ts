@@ -247,7 +247,6 @@ describe("useCashGameStack", () => {
 				const session = qc.getQueryData<{
 					summary: { evDiff: number };
 				}>(sessionKey);
-				// 0 + 1000 * 0.6 - (1000/100) * 50 = 600 - 500 = 100
 				expect(session?.summary.evDiff).toBe(100);
 			});
 		});

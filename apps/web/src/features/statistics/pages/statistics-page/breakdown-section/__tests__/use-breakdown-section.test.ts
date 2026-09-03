@@ -73,7 +73,6 @@ async function renderLoadedBreakdown(context: StatsSectionContext) {
 	return view;
 }
 
-/** Pull the `groupBy` from the single captured query input arg. */
 function lastGroupBy(): unknown {
 	const calls = trpcMocks.breakdownQueryFn.mock.calls;
 	const lastInput = calls.at(-1)?.[0] as { groupBy?: unknown } | undefined;
@@ -378,7 +377,6 @@ describe("useBreakdownSection", () => {
 			groups: [breakdownRow({ key: "mix", label: "mix" })],
 		});
 		const { result } = await renderLoadedBreakdown(ctx({ type: "all" }));
-		// Default tab is "room"; a raw "mix" label must not be mapped there.
 		expect(result.current.rows[0]?.label).toBe("mix");
 	});
 

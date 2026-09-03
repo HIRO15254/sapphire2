@@ -1,6 +1,5 @@
 import { Skeleton } from "@/shared/components/ui/skeleton";
 
-/** Loading placeholder approximating the session detail layout. */
 export function SessionDetailSkeleton() {
 	return (
 		<div data-testid="session-detail-skeleton">

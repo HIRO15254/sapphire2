@@ -8,21 +8,10 @@ import { VariantFields } from "./variant-fields";
 
 interface RingGameFormProps {
 	defaultValues?: RingGameFormValues;
-	/**
-	 * Stable id assigned to the `<form>` element so an external Save button
-	 * (e.g. the surrounding FormSheet toolbar) can submit it via the HTML
-	 * `form` attribute. The form renders no submit button of its own.
-	 */
 	formId: string;
 	onSubmit: (values: RingGameFormValues) => void;
 }
 
-/**
- * Mount gate (c05): the inner form seeds its mix-game rows once from the
- * master variant→group mapping, so it must not mount until the master lists
- * are loaded — seeding against the pending fallback would freeze rows
- * without a real group identity.
- */
 export function RingGameForm(props: RingGameFormProps) {
 	const { isLoading } = useGameGroups();
 	if (isLoading) {

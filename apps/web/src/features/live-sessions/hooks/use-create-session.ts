@@ -79,8 +79,6 @@ export function useCreateSession({
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 
-	// Request the device location when the dialog opens so we can default the
-	// room to whichever one the user is physically nearest.
 	const { coords } = useGeolocation({ enabled: open });
 
 	const roomsQuery = useQuery(trpc.room.list.queryOptions());
@@ -91,9 +89,6 @@ export function useCreateSession({
 
 	const roomListKey = trpc.room.list.queryOptions().queryKey;
 
-	// When the chosen room has no saved coordinates, we offer to stamp the
-	// device's current location onto it (SA2-100). Hold the pending session
-	// starter and the target room while the confirmation prompt is open.
 	const [pendingStart, setPendingStart] = useState<(() => void) | null>(null);
 	const [promptRoom, setPromptRoom] = useState<{
 		id: string;
@@ -107,15 +102,11 @@ export function useCreateSession({
 			await invalidateTargets(queryClient, [{ queryKey: roomListKey }]);
 			toast.success("Room location saved");
 		},
-		// The save is fire-and-forget so the session start stays snappy; surface a
-		// toast on failure so a persistently failing save isn't silently swallowed.
 		onError: () => {
 			toast.error("Couldn't save room location");
 		},
 	});
 
-	// Runs the session starter now, or — when the target room lacks coordinates
-	// and we have a device fix — defers it behind the "save location?" prompt.
 	const startOrPrompt = (roomId: string | undefined, run: () => void) => {
 		const targetRoom = (roomsQuery.data ?? []).find((r) => r.id === roomId);
 		if (
@@ -136,15 +127,12 @@ export function useCreateSession({
 		setPendingStart(null);
 	};
 
-	// Dismiss / "Not now": start the session without touching the room.
 	const handleLocationSkip = () => {
 		const run = pendingStart;
 		closePrompt();
 		run?.();
 	};
 
-	// "Save location": fire-and-forget the room update so session start stays
-	// snappy, then start the session immediately.
 	const handleLocationSave = () => {
 		const run = pendingStart;
 		const target = promptRoom;
@@ -159,9 +147,6 @@ export function useCreateSession({
 		run?.();
 	};
 
-	// The geolocation-nearest room (within the default radius), used as the
-	// form's default room selection. `undefined` when location is unavailable or
-	// no room with coordinates is in range.
 	const nearestRoomId = useMemo(() => {
 		if (!coords) {
 			return;
@@ -210,7 +195,6 @@ export function useCreateSession({
 			const { startingStack, ...createValues } = values;
 			const result =
 				await trpcClient.liveTournamentSession.create.mutate(createValues);
-			// Create initial update_stack with starting stack
 			await trpcClient.sessionEvent.create.mutate({
 				liveTournamentSessionId: result.id,
 				eventType: "update_stack",

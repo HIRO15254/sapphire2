@@ -3,17 +3,6 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// ---------------------------------------------------------------------------
-// The detail page component owns a lot of conditional rendering (loading /
-// not-found / loaded), three FormSheets, two action drawers, and two delete
-// dialogs. We drive all of that through the page hook, which is mocked here so
-// the component's own wiring (which handler each control fires, what mounts
-// when) is the thing under test — the hook's logic is covered separately in
-// use-currency-detail-page.test.ts. The component takes `currencyId` as a prop
-// (the route file reads the param and passes it down), so no router param mock
-// is needed; only `Link` (used by TopBar) is stubbed.
-// ---------------------------------------------------------------------------
-
 const BACK_RE = /back/i;
 const ADD_TRANSACTION_RE = /add transaction/i;
 const DELETE_GOLD_HINT_RE = /Gold and all of its transactions will be removed/i;
@@ -37,9 +26,6 @@ vi.mock(
 	})
 );
 
-// Heavy children are stubbed so this test exercises the page component's own
-// markup/wiring, not theirs (each has its own colocated test). Stubs expose the
-// callbacks they receive as buttons so the prop wiring is observable.
 vi.mock(
 	"@/features/currencies/pages/currency-detail-page/currency-balance-hero",
 	() => ({
@@ -463,9 +449,6 @@ describe("CurrencyDetailPage", () => {
 				isActionsOpen: true,
 			});
 			render(<Component />);
-			// The header star exposes the label via aria-label (no text node); the
-			// drawer action renders it as visible text, so getByText targets the
-			// drawer action specifically.
 			expect(screen.getByText(REMOVE_FAV_RE)).toBeInTheDocument();
 		});
 

@@ -53,8 +53,6 @@ vi.mock("@/features/live-sessions/hooks/use-stack-sheet", () => ({
 	useStackSheet: () => mocks.stackSheet,
 }));
 
-// Stand-in for the v2 FormSheet: renders the title, the body, and the
-// toolbar Save button that submits the inner form via the `form` attribute.
 vi.mock("@/shared/components/form-sheet", () => ({
 	FormSheet: ({
 		children,

@@ -25,10 +25,6 @@ interface RoomActionsDrawerProps {
 	open: boolean;
 }
 
-/**
- * V2 action sheet for the room detail page header overflow, mirroring
- * `CurrencyActionsDrawer`: Favorite / Edit / Delete the room itself.
- */
 export function RoomActionsDrawer({
 	isFavorite,
 	onDelete,

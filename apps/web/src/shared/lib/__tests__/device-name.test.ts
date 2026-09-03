@@ -5,8 +5,6 @@ import {
 	UNKNOWN_DEVICE_NAME,
 } from "@/shared/lib/device-name";
 
-// Real user-agent strings — the point of the table is that it survives the
-// ones browsers actually send, which all impersonate each other.
 const USER_AGENTS = {
 	chromeMac:
 		"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",

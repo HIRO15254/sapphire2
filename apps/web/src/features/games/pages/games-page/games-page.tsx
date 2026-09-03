@@ -9,12 +9,6 @@ import { MixesCard } from "./mixes-card";
 import { useGamesPage } from "./use-games-page";
 import { VariantFormSheet } from "./variant-form-sheet";
 
-/**
- * Top-level Games page: one card per game group with its variants listed
- * inside (mix-game rework) — makes "every variant belongs to exactly one
- * group" visible and adds in-place variant creation via each card's "Add
- * variant" footer button.
- */
 export function GamesPage() {
 	const {
 		groups,

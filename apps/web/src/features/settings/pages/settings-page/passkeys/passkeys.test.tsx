@@ -16,11 +16,6 @@ vi.mock("sonner", () => ({
 	toast: { success: vi.fn(), error: vi.fn() },
 }));
 
-// vaul's Drawer needs a real pointer environment; the sheet bodies are what is
-// under test, so render them inline (same approach as
-// `shared/components/filter-presets/__tests__/filter-presets-sheet.test.tsx`).
-// `open` is honored so the add and rename sheets cannot both mount and make
-// their identical "Passkey name" fields ambiguous.
 vi.mock("@/shared/components/ui/drawer", () => ({
 	Drawer: ({ children, open }: { children: ReactNode; open?: boolean }) =>
 		open ? <div data-testid="drawer">{children}</div> : null,
@@ -45,8 +40,6 @@ vi.mock("@/lib/auth-client", () => ({
 }));
 
 const ADDED_ON_PATTERN = /^Added /;
-// The Field wrapper appends a red "*" to required labels, so the accessible
-// name is "Passkey name *".
 const PASSKEY_NAME_LABEL = /^Passkey name/;
 
 const PASSKEY = {
@@ -155,8 +148,6 @@ describe("Passkeys", () => {
 			"MacBook"
 		);
 
-		// Close, then open the other one — a reused form instance would still
-		// be showing "MacBook".
 		await user.click(screen.getByRole("button", { name: "Cancel" }));
 		await user.click(screen.getByRole("button", { name: "Rename Pixel 9" }));
 		expect(await screen.findByLabelText(PASSKEY_NAME_LABEL)).toHaveValue(

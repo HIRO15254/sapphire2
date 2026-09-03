@@ -43,9 +43,6 @@ export function useTournamentFormSheet({
 	const [aiBlindLevels, setAiBlindLevels] = useState<BlindLevelRow[]>([]);
 	const [aiKey, setAiKey] = useState(0);
 
-	// 現在フォームに入力されている値を AI 抽出時に取得するための getter。
-	// AI が空白を返しても既にユーザーが入力済みの情報を上書きしないよう、
-	// initialFormValues ではなく「現在のフォーム値」を merge のベースに使う（SA2-77）。
 	const liveValuesGetterRef = useRef<
 		(() => TournamentPartialFormValues) | null
 	>(null);

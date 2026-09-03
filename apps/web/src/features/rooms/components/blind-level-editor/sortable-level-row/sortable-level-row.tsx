@@ -13,9 +13,7 @@ import { DragHandle } from "../drag-handle";
 
 interface SortableLevelRowProps {
 	blindLabels: BlindSlotLabels;
-	/** Leading empty Game cell so the row aligns with a hybrid table. */
 	gameColumn?: boolean;
-	/** Empty third blind cell when a hybrid game-set table exposes that slot. */
 	hasBlind3Column?: boolean;
 	onDelete: (id: string) => void;
 	onUpdate: (id: string, updates: BlindLevelPatch) => void;

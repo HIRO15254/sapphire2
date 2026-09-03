@@ -6,10 +6,6 @@ import { describe, expect, it, vi } from "vitest";
 import { seedDefaultGameData } from "../services/seed-game-data";
 import { createChainableMockDb } from "./test-utils";
 
-// A dedicated file because it replaces the seed constants module-wide: the
-// point is the failure mode where a mix's variantKeys do NOT all resolve to a
-// seeded variant, which cannot be expressed with the real (self-consistent)
-// DEFAULT_GAME_* data.
 vi.mock("@sapphire2/db/constants/game-variants", () => ({
 	DEFAULT_GAME_GROUPS: [
 		{
@@ -29,11 +25,8 @@ vi.mock("@sapphire2/db/constants/game-variants", () => ({
 		},
 	],
 	DEFAULT_GAME_MIXES: [
-		// Every key resolves — the healthy control.
 		{ key: "solo", label: "Solo", variantKeys: ["lhe"] },
-		// No key resolves — `memberships` is empty for this mix.
 		{ key: "ghost", label: "Ghost", variantKeys: ["not-seeded"] },
-		// Partially resolvable — the known keys must still be seeded.
 		{ key: "partial", label: "Partial", variantKeys: ["not-seeded", "lhe"] },
 	],
 }));
@@ -107,8 +100,6 @@ describe("seedDefaultGameData with an unresolvable mix variantKey", () => {
 
 		await expect(seedDefaultGameData(db, USER_ID)).resolves.toBeUndefined();
 		expect(batch).toHaveBeenCalledTimes(1);
-		// 1 group + 1 variant + 3 mix masters + 3 mirror updates + 2 membership
-		// inserts (the empty "ghost" one is skipped).
 		expect(batch.mock.calls[0]?.[0]).toHaveLength(10);
 	});
 

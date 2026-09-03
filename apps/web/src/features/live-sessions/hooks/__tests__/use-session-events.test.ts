@@ -203,7 +203,6 @@ describe("useSessionEvents", () => {
 				expect(events?.[0]?.occurredAt).toBe(
 					new Date(1_700_000_000 * 1000).toISOString()
 				);
-				// Other event untouched.
 				expect(events?.[1]?.payload).toEqual({ text: "keep" });
 			});
 			resolve?.({ id: "e1" });
@@ -287,8 +286,6 @@ describe("useSessionEvents", () => {
 					occurredAt: "t0",
 				},
 			]);
-			// Keep the mutation pending so the optimistic cache is observable
-			// before invalidation resets it on success.
 			trpcMocks.update.mockImplementation(() => new Promise(() => undefined));
 			const { result } = renderHook(
 				() => useSessionEvents({ sessionId: "s1", sessionType: "cash_game" }),
@@ -342,8 +339,6 @@ describe("useSessionEvents", () => {
 				{ id: "e1", eventType: "memo", payload: {}, occurredAt: "t0" },
 				{ id: "e2", eventType: "memo", payload: {}, occurredAt: "t1" },
 			]);
-			// Keep mutation pending so the optimistic cache is observable before
-			// onSuccess invalidates.
 			trpcMocks.delete.mockImplementation(() => new Promise(() => undefined));
 			const { result } = renderHook(
 				() => useSessionEvents({ sessionId: "s1", sessionType: "cash_game" }),
@@ -431,8 +426,6 @@ describe("useSessionEvents", () => {
 				status: "active",
 				summary: {},
 			});
-			// Keep mutation pending so the optimistic cache is observable before
-			// onSuccess invalidation refetches.
 			trpcMocks.update.mockImplementation(() => new Promise(() => undefined));
 			const { result } = renderHook(
 				() => useSessionEvents({ sessionId: "t1", sessionType: "tournament" }),
@@ -476,9 +469,6 @@ describe("derived live-session list invalidation", () => {
 		});
 	});
 
-	// SA2-167: the server recalculates the recorded session from its events, so
-	// the session detail page and list render derived state that an event edit
-	// changes — they have to be invalidated alongside the live-session queries.
 	it("invalidates the recorded session detail and list after an event edit", async () => {
 		const qc = createClient();
 		qc.setQueryData(cashEventsKey("s1"), [

@@ -7,10 +7,6 @@ import type {
 } from "@/features/sessions/utils/session-form-helpers";
 import { updateGroup } from "@/shared/lib/mix-games";
 
-// useSessionFormState now calls useGameGroups (trpc.gameGroup.list /
-// trpc.gameVariant.list) for the mix-games master mapping — mock the
-// procedures to the fallback (empty) path by default; the post-load reseed
-// tests swap in deferred promises to hold the master queries pending.
 const masterQueries = vi.hoisted(() => ({
 	groups: () => Promise.resolve([] as unknown[]),
 	variants: () => Promise.resolve([] as unknown[]),
@@ -353,9 +349,6 @@ describe("useSessionFormState", () => {
 	});
 });
 
-// Master fixture for mix-selection tests: two Big Bet variants plus a
-// 2-slot Limit group variant, and two named mixes referencing the Big Bet
-// pair in different combinations.
 const GAME_GROUPS = [
 	{
 		id: "g-bigbet",
@@ -614,9 +607,6 @@ describe("useSessionFormState — mix master edit sheet", () => {
 	});
 });
 
-// A session saved against a mix master keeps its frozen snapshot even after
-// the master is deleted/renamed: the submit gates on the editor rows, never
-// on a live master lookup (c02/c02b).
 const FROZEN_MIX_GAMES = [
 	{
 		name: null,
@@ -690,7 +680,6 @@ describe("useSessionFormState — stale flat fields on variant switches (c03/c04
 	it("submits blind3 as undefined for a 2-slot variant even when the field holds a stale value", async () => {
 		const { result, onSubmit } = setupWithMasterData();
 		act(() => {
-			// Bypasses onVariantChange, so only the submit-time guard applies.
 			result.current.form.setFieldValue("variant", "Limit Hold'em");
 			result.current.form.setFieldValue("blind3", "5");
 		});
@@ -845,7 +834,6 @@ describe("useSessionFormState — post-load mix rows reseed (c05)", () => {
 
 	it("re-derives the seeded rows from the loaded masters once loading settles", async () => {
 		const { result, resolveAll } = setupWithPendingMasters();
-		// Seeded against the pending fallback: no real group identity yet.
 		expect(result.current.mixGames[0].groupId).toContain("__pending__");
 		await resolveAll();
 		await waitFor(() => {
@@ -966,11 +954,6 @@ describe("useSessionFormState — tournament variant scope", () => {
 	});
 });
 
-// A live-recorded session writes some result fields back to a single event, so
-// blanks there are rejected — while the shared schema keeps them optional for
-// manual sessions. `requiredFields` closes that gap: the mark and the validator
-// agree, and the error lands on the field instead of a submit-time toast
-// (web-forms.md #6).
 describe("useSessionFormState — live-linked required fields", () => {
 	function renderTournamentForm(requiredFields?: ReadonlySet<string>) {
 		const onSubmit = vi.fn();
@@ -1061,8 +1044,6 @@ describe("useSessionFormState — live-linked required fields", () => {
 		);
 	});
 
-	// `Number("")` is 0, so a blank total entries used to make every filled
-	// placement look out of range — two red fields for one mistake.
 	it("reports only the blank field when the total entries is cleared", async () => {
 		const { onSubmit, result } = renderTournamentForm(
 			new Set(["placement", "prizeMoney", "totalEntries"])

@@ -185,7 +185,6 @@ describe("TournamentTab", () => {
 	it("renders the add control without a redundant section heading", () => {
 		setState();
 		render(<TournamentTab roomId="room-1" />);
-		// The enclosing tab already names the section, so no in-panel heading.
 		expect(
 			screen.queryByRole("heading", { name: "Tournaments" })
 		).not.toBeInTheDocument();
@@ -262,7 +261,6 @@ describe("TournamentTab", () => {
 	it("opens the create tournament sheet when isCreateOpen is true", () => {
 		setState({ isCreateOpen: true });
 		render(<TournamentTab roomId="room-1" />);
-		// The add button also reads "Add tournament", so assert on the sheet itself.
 		expect(screen.getByTestId("tournament-sheet")).toHaveTextContent(
 			"Add tournament"
 		);

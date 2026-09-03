@@ -504,10 +504,6 @@ describe("useGamesPage", () => {
 
 	describe("variant delete", () => {
 		beforeEach(() => {
-			// The suite-wide default mix (m-1) references v-1 (the default
-			// variant), which would trip the mix-membership guard below for
-			// every test in this block. Tests exercising that guard override
-			// this back to a mix that references the variant.
 			trpcMocks.gameMixListQueryFn.mockResolvedValue([]);
 		});
 
@@ -652,7 +648,6 @@ describe("useGamesPage", () => {
 		});
 
 		it("opens the confirm dialog for a variant not referenced by any mix", async () => {
-			// Suite-level beforeEach for this block already sets no mixes.
 			const { result } = renderHook(() => useGamesPage(), {
 				wrapper: withQueryClient(),
 			});

@@ -11,10 +11,6 @@ import {
 } from "@/utils/optimistic-update";
 import { trpc } from "@/utils/trpc";
 
-// ---------------------------------------------------------------------------
-// Summary helpers (extracted from use-session-events.ts)
-// ---------------------------------------------------------------------------
-
 function applyUpdateStackSummary(
 	summary: Record<string, unknown>,
 	payload: Record<string, unknown>
@@ -85,9 +81,6 @@ function applyCashSessionEndSummary(
 	summary: Record<string, unknown>,
 	payload: Record<string, unknown>
 ) {
-	// Cash game end: cashOutAmount drives profitLoss. SA2-124: mirror the
-	// server / chart formula cashOut + chipRemoveTotal - totalBuyIn so racked-off
-	// chips are counted, not treated as a loss.
 	if (typeof payload.cashOutAmount !== "number") {
 		return;
 	}
@@ -105,7 +98,6 @@ function applySessionEndSummary(
 ) {
 	applyCashSessionEndSummary(summary, payload);
 
-	// Tournament end (not before deadline): placement + prizes
 	if (payload.beforeDeadline === false) {
 		const typedPayload = payload as {
 			placement?: number;
@@ -131,7 +123,6 @@ function applySessionEndSummary(
 		}
 	}
 
-	// Tournament end before deadline: only prizes
 	if (payload.beforeDeadline === true) {
 		const typedPayload = payload as {
 			prizeMoney?: number;
@@ -189,9 +180,6 @@ export function buildOptimisticSessionSummary(
 			}
 			break;
 		}
-		// chips_add_remove affects totalBuyIn server-side; skip optimistic stack update
-		// memo, session_pause, session_resume, purchase_chips, player_join,
-		// player_leave: no summary fields to update optimistically
 		default:
 			break;
 	}
@@ -202,10 +190,6 @@ export function buildOptimisticSessionSummary(
 
 	return nextSummary;
 }
-
-// ---------------------------------------------------------------------------
-// Status derivation
-// ---------------------------------------------------------------------------
 
 type SessionStatus = "active" | "completed" | "paused";
 
@@ -225,10 +209,6 @@ export function deriveOptimisticStatus(
 	return currentStatus;
 }
 
-// ---------------------------------------------------------------------------
-// Optimistic event builder
-// ---------------------------------------------------------------------------
-
 export function buildOptimisticEvent(
 	eventType: string,
 	payload: unknown
@@ -240,10 +220,6 @@ export function buildOptimisticEvent(
 		occurredAt: new Date().toISOString(),
 	};
 }
-
-// ---------------------------------------------------------------------------
-// Query key helpers
-// ---------------------------------------------------------------------------
 
 type SessionType = "cash_game" | "tournament";
 
@@ -290,10 +266,6 @@ export function getSessionQueryKeys(
 	};
 }
 
-// ---------------------------------------------------------------------------
-// createSessionEventMutationOptions
-// ---------------------------------------------------------------------------
-
 interface SessionSummaryData {
 	status?: SessionStatus;
 	summary?: Record<string, unknown>;
@@ -335,7 +307,6 @@ export function createSessionEventMutationOptions<TVariables = void>({
 		onMutate: async (variables: TVariables): Promise<SnapshotContext> => {
 			const payload = getPayload(variables);
 
-			// 1. Cancel in-flight queries
 			await cancelTargets(queryClient, [
 				{ queryKey: sessionKey },
 				{ queryKey: eventsKey },
@@ -343,20 +314,17 @@ export function createSessionEventMutationOptions<TVariables = void>({
 				{ queryKey: pausedListKey },
 			]);
 
-			// 2. Snapshot
 			const previousSession = snapshotQuery(queryClient, sessionKey);
 			const previousEvents = snapshotQuery(queryClient, eventsKey);
 			const previousLists = snapshotQueries(queryClient, {
 				queryKey: allListsKey,
 			});
 
-			// 3. Optimistic: append event to events list
 			updateQueryData<SessionEvent[]>(queryClient, eventsKey, (old) => [
 				...(old ?? []),
 				buildOptimisticEvent(eventType, payload),
 			]);
 
-			// 4. Optimistic: update session summary + status
 			updateQueryData<SessionSummaryData>(queryClient, sessionKey, (old) => {
 				if (!old) {
 					return old;
@@ -374,7 +342,6 @@ export function createSessionEventMutationOptions<TVariables = void>({
 				return { ...old, summary: nextSummary, status: nextStatus };
 			});
 
-			// 5. Optimistic: move session between active/paused lists
 			if (changesStatus) {
 				optimisticListStatusUpdate(
 					queryClient,
@@ -412,10 +379,6 @@ export function createSessionEventMutationOptions<TVariables = void>({
 	};
 }
 
-// ---------------------------------------------------------------------------
-// List status update helper
-// ---------------------------------------------------------------------------
-
 function optimisticListStatusUpdate(
 	queryClient: QueryClient,
 	sessionId: string,
@@ -429,11 +392,9 @@ function optimisticListStatusUpdate(
 			? [activeListKey, pausedListKey]
 			: [pausedListKey, activeListKey];
 
-	// Find the session item from the source list
 	const fromData = queryClient.getQueryData<ListData>(fromKey);
 	const sessionItem = fromData?.items?.find((item) => item.id === sessionId);
 
-	// Remove from source list
 	updateQueryData<ListData>(queryClient, fromKey, (old) => {
 		if (!old?.items) {
 			return old;
@@ -444,7 +405,6 @@ function optimisticListStatusUpdate(
 		};
 	});
 
-	// Add to target list
 	if (sessionItem) {
 		updateQueryData<ListData>(queryClient, toKey, (old) => ({
 			...(old ?? { nextCursor: undefined }),

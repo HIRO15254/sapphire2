@@ -6,11 +6,6 @@ interface PlayerSearchProps {
 	value: string;
 }
 
-/**
- * Search box for the players list — matches against player name or tag name
- * (the filtering itself lives in `use-players-page`). Purely presentational:
- * the page hook owns the `value`/`onChange` state.
- */
 export function PlayerSearch({ onChange, value }: PlayerSearchProps) {
 	return (
 		<div className="relative mb-4">

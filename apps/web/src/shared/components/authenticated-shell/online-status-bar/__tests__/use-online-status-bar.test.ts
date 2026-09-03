@@ -71,7 +71,6 @@ describe("useOnlineStatusBar", () => {
 		rerender();
 		expect(result.current.displayState).toBe("back-online");
 
-		// Go offline again before fade completes
 		mocks.onlineStatus = false;
 		rerender();
 		expect(result.current.displayState).toBe("offline");
@@ -79,7 +78,6 @@ describe("useOnlineStatusBar", () => {
 		act(() => {
 			vi.advanceTimersByTime(2000);
 		});
-		// Remains offline; fade must not kick in
 		expect(result.current.displayState).toBe("offline");
 	});
 

@@ -4,8 +4,6 @@ import type { FormEvent } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { BlindStructureTable } from "./blind-structure-table";
 
-// This test only covers the table's add buttons. Isolate the optional sheet so
-// its VariantSelect -> tRPC import does not require runtime web env in CI.
 vi.mock("../level-patterns-sheet", () => ({
 	LevelPatternsSheet: () => null,
 }));

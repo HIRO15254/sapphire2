@@ -41,12 +41,6 @@ function buildTournamentSummary(
 	};
 }
 
-/**
- * View model for the tournament branch of the active-session page: timer
- * dialog state over useTournamentSession, summary / blind-structure
- * derivations, and the type-specific event sheets (chip purchase / memo /
- * complete) reachable from the "+" event menu and the header session menu.
- */
 export function useTournamentSessionView(sessionId: string) {
 	const tournamentSession = useTournamentSession(sessionId);
 	const stack = useTournamentStack({ sessionId });

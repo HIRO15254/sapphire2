@@ -12,22 +12,6 @@ import {
 import { user } from "./auth";
 import { gameVariant } from "./game-variant";
 
-// Per-user named-mix masters. A mix is a reusable mixed-game definition —
-// label + ordered game composition — not a session/game record itself. The
-// composition is read exclusively from gameMixVariant, where ownership and
-// references use native foreign keys.
-//
-// `games` remains temporarily as a rolling-deploy compatibility mirror for the
-// pre-0049 Worker. Direction of truth during this expand phase: 0049's
-// game_mix_variants_compat_* triggers rebuild the normalized rows from `games`
-// on every write that touches it, so while those triggers exist the JSON column
-// is the effective derivation source even though the API never reads it. The
-// normalized rows become the sole source of truth at the contract migration
-// that drops the mirror and those triggers; the API already writes them
-// explicitly so that migration needs no further router change.
-// Historical session/rule columns elsewhere intentionally keep frozen labels
-// and value-object JSON, so editing or deleting a master never rewrites past
-// play.
 export const gameMix = sqliteTable(
 	"game_mix",
 	{
@@ -35,10 +19,8 @@ export const gameMix = sqliteTable(
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
-		// 'horse' | '8game' | '10game' for seeded rows, null for user-created ones.
 		builtinKey: text("builtin_key"),
 		label: text("label").notNull(),
-		// Deprecated compatibility mirror; do not use it to hydrate API responses.
 		games: text("games", { mode: "json" }).$type<string[]>().notNull(),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
@@ -50,12 +32,10 @@ export const gameMix = sqliteTable(
 	(table) => [
 		index("gameMix_userId_idx").on(table.userId),
 		uniqueIndex("game_mix_id_user_id_unique").on(table.id, table.userId),
-		// SQLite treats NULLs as distinct, so this only guards seeded rows.
 		uniqueIndex("gameMix_userId_builtinKey_idx").on(
 			table.userId,
 			table.builtinKey
 		),
-		// Exact-case backstop for the app-level case-insensitive label check.
 		uniqueIndex("gameMix_userId_label_idx").on(table.userId, table.label),
 	]
 );

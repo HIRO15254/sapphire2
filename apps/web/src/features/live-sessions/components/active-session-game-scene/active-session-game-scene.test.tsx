@@ -98,7 +98,6 @@ vi.mock("@/features/rooms/components/tournament-form-sheet", () => ({
 	TournamentFormSheet: () => <div data-testid="tournament-form-sheet" />,
 }));
 
-// Stand-in for the v2 FormSheet hosting the ring game edit form.
 vi.mock("@/shared/components/form-sheet", () => ({
 	FormSheet: ({ children, open }: { children: ReactNode; open: boolean }) =>
 		open ? <div>{children}</div> : null,
@@ -117,9 +116,6 @@ vi.mock("@tanstack/react-query", () => ({
 			return { data: mocks.chipPurchases, isLoading: false };
 		}
 		if (scope === "liveTournamentSession") {
-			// Mirrors the new snapshot fields returned by
-			// `liveTournamentSession.getById`. The active scene reads the
-			// session-level snapshot for display (name, blinds, chip purchases).
 			const t = mocks.tournament;
 			if (!t) {
 				return { data: undefined, isLoading: false };

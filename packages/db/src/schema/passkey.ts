@@ -8,16 +8,6 @@ import {
 } from "drizzle-orm/sqlite-core";
 import { user } from "./auth";
 
-// WebAuthn credentials consumed by better-auth's passkey() plugin. Field set
-// mirrors the plugin's schema definition exactly — better-auth reads/writes
-// these through its drizzle adapter, so the JS property names (not the column
-// names) are the contract.
-//
-// `credentialID` is unique on top of the plugin's plain index: authentication
-// resolves a credential with a single `findOne({ credentialID })`, so a
-// duplicate would make which account you land in non-deterministic. Two
-// accounts can never legitimately share one credential — an authenticator
-// mints a new credential per (relying party, user handle) pair.
 export const passkey = sqliteTable(
 	"passkey",
 	{

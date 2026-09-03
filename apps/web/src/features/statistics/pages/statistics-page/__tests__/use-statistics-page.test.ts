@@ -48,13 +48,6 @@ vi.mock("@/features/statistics/hooks/use-stats-reference-data", () => ({
 	}),
 }));
 
-// Only the fields the shared auto-apply hook actually reads are stubbed: the
-// page hook no longer touches the preset CRUD surface at all (the presets sheet
-// mounts its own `useFilterPresets`), which the removal test below locks in.
-// `isSuccess` is derived from the loading flag rather than set independently so
-// the stub cannot express the impossible "loading and already succeeded" state —
-// the auto-apply latch keys on isSuccess precisely so a FAILED query (stopped
-// loading, never answered) does not spend the one shot.
 vi.mock("@/shared/hooks/use-filter-presets", () => ({
 	useFilterPresets: (screenKey: string) => {
 		mocks.lastPresetsScreenKey = screenKey;
@@ -67,10 +60,6 @@ vi.mock("@/shared/hooks/use-filter-presets", () => ({
 	},
 }));
 
-// Spy wrapper, not a replacement: the real shared hook still runs (so the
-// loading gate / one-shot guard is exercised end-to-end through the page hook),
-// while every call records the `screenKey` + `isUntouched` verdict this hook
-// computed and the `applyDefault` it handed over, for direct invocation.
 vi.mock("@/shared/hooks/use-default-filter-preset", async (importOriginal) => {
 	const actual =
 		await importOriginal<
@@ -197,10 +186,6 @@ describe("useStatisticsPage", () => {
 			expect(mocks.lastPresetsScreenKey).toBe("statistics");
 		});
 
-		// The preset CRUD surface is self-contained in FilterPresetsSheet ->
-		// useFilterPresetsSheet -> useFilterPresets; re-exporting it here left ten
-		// fields no consumer ever read (review finding 3). statistics-page.tsx only
-		// destructures { ctx, isScopeValid, showCashBlock, showTournamentBlock }.
 		it("does not re-export the preset list or CRUD surface", () => {
 			mocks.presets = [{ id: "p1", isDefault: true, payload: {} }];
 			mocks.defaultPreset = mocks.presets[0];
@@ -246,11 +231,6 @@ describe("useStatisticsPage", () => {
 			expect(lastDefaultPresetCall().isUntouched).toBe(false);
 		});
 
-		// The verdict must come from `isFilterStateDefault` (the RAW, pre-validateSearch
-		// search object), never from `filters`: Zod bakes defaults into `filters`,
-		// so a shared link like /statistics?type=all&norm=normalized is
-		// indistinguishable from a bare load there — and auto-applying a default
-		// preset over it would clobber the link the user actually opened.
 		it("is false for an explicit link whose params happen to equal the schema defaults", () => {
 			mocks.isFilterStateDefault = false;
 			mocks.filters = { period: "all", norm: "normalized", type: "all" };
@@ -304,9 +284,6 @@ describe("useStatisticsPage", () => {
 			expect(mocks.setFilters).not.toHaveBeenCalled();
 		});
 
-		// A preset saved by an older/newer build can hold a value this build's
-		// search schema rejects. The page hook must hand it over untouched;
-		// degrading safely is `replaceFilters`' job (it safeParses and no-ops).
 		it("hands over payload values this build may not understand without filtering them", () => {
 			renderHook(() => useStatisticsPage());
 			act(() => {

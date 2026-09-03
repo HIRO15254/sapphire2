@@ -77,8 +77,6 @@ describe("autoRegisterPasskey", () => {
 	});
 
 	it("never rejects, even when the capability probe throws", async () => {
-		// Callers invoke this fire-and-forget, so a rejection would land as an
-		// unhandled one on an otherwise successful sign-in.
 		mocks.supportsAutomaticPasskeyRegistration.mockRejectedValue(
 			new Error("probe exploded")
 		);

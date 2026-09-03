@@ -18,7 +18,6 @@ function filters(overrides: Partial<StatsFilters> = {}): StatsFilters {
 	};
 }
 
-// 2026-06-12T08:30:00Z
 const NOW_SEC = Math.floor(Date.UTC(2026, 5, 12, 8, 30, 0) / 1000);
 const START_OF_DAY = Math.floor(Date.UTC(2026, 5, 12) / 1000);
 const DAY = 86_400;
@@ -163,13 +162,6 @@ describe("statsUnitFor", () => {
 });
 
 describe("isDefaultStatsFilterState", () => {
-	// Why this exists: `/statistics` declares `validateSearch: statsSearchSchema`,
-	// and TanStack Router writes the schema's defaults into `location.search` (and
-	// into the URL itself), so a bare `/statistics` is INDISTINGUISHABLE from an
-	// explicit link by inspecting the router's search object — it always has keys.
-	// The default-preset auto-apply therefore asks "is every filter still at its
-	// default?" instead. Pinned by the real-router integration test in
-	// apps/web/src/__tests__/statistics-raw-search.test.tsx.
 	it("is true for the schema's own defaults", () => {
 		expect(isDefaultStatsFilterState(parseStatsSearch({}))).toBe(true);
 	});
@@ -195,9 +187,6 @@ describe("isDefaultStatsFilterState", () => {
 	});
 
 	it("treats an explicitly empty currency / room as absent, not as a stated filter", () => {
-		// `?room=` parses to "" — every consumer already coerces that to "no room"
-		// (`filtersToStatsInput` does `filters.room || undefined`), so the pristine
-		// verdict must agree instead of reading it as an explicit choice.
 		expect(isDefaultStatsFilterState(parseStatsSearch({ room: "" }))).toBe(
 			true
 		);

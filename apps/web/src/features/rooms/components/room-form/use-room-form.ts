@@ -65,8 +65,6 @@ export function useRoomForm({ onSubmit, defaultValues }: UseRoomFormOptions) {
 		},
 	});
 
-	// Coordinates are set as a pair from the LocationPicker (search / link / GPS),
-	// never typed by hand. `null` clears both.
 	const setCoords = (
 		coords: { latitude: number; longitude: number } | null
 	) => {

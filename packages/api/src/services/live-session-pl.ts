@@ -30,8 +30,6 @@ type DbInstance = Parameters<
 interface CashGamePLResult {
 	addonTotal: number;
 	cashOut: number | null;
-	/** Σ of chips racked off the table (positive amount of every negative
-	 * chips_add_remove). Added back into P/L as already-pocketed chips. */
 	chipRemoveTotal: number;
 	evCashOut: number | null;
 	evDiff: number;
@@ -42,9 +40,7 @@ interface CashGamePLResult {
 interface TournamentPLResult {
 	beforeDeadline: boolean;
 	bountyPrizes: number | null;
-	/** Σ cost across all purchase_chips events. */
 	chipPurchaseCost: number;
-	/** Purchase count keyed by sessionChipPurchaseId. */
 	chipPurchaseCounts: Map<string, number>;
 	placement: number | null;
 	prizeMoney: number | null;
@@ -382,11 +378,6 @@ async function resolveTournamentBuyInFees(
 	return { tournamentBuyIn, entryFee };
 }
 
-/**
- * Write the event-derived purchase counts onto session_chip_purchase_result.
- * Every session_chip_purchase gets a row (count 0 when never bought). Uses an
- * upsert so it is safe even if a result row was never seeded.
- */
 export async function syncChipPurchaseResults(
 	db: DbInstance,
 	sessionId: string,
@@ -400,9 +391,6 @@ export async function syncChipPurchaseResults(
 		return;
 	}
 
-	// D1 allows at most 100 bound parameters per statement; each result row
-	// binds two values. Keep all chunks in one batch so a failed upsert cannot
-	// leave a partially refreshed result set.
 	const statements: BatchStatement[] = [];
 	for (let i = 0; i < purchases.length; i += 50) {
 		const rows = purchases.slice(i, i + 50).map((purchase) => ({
@@ -509,7 +497,6 @@ export async function recalculateTournamentSession(
 		});
 	}
 
-	// Sync chip purchase result counts from the purchase_chips events.
 	await syncChipPurchaseResults(db, sessionId, pl.chipPurchaseCounts);
 
 	await syncCurrencyTransaction(
@@ -522,7 +509,6 @@ export async function recalculateTournamentSession(
 	);
 }
 
-/** One uninterrupted period a player sat at the table (join → leave). */
 export interface SeatStint {
 	joinedAt: Date;
 	leftAt: Date | null;
@@ -535,14 +521,9 @@ export interface SeatedPlayerState {
 	leftAt: Date | null;
 	playerId: string;
 	seatPosition: number | null;
-	/** Every join → leave cycle for this player, oldest first. */
 	stints: SeatStint[];
 }
 
-/**
- * Close the most recent still-open stint for a player.
- * A `player_leave` with no open stint (no join, or already left) is a no-op.
- */
 function closeLatestOpenStint(stints: SeatStint[], leftAt: Date): void {
 	for (let i = stints.length - 1; i >= 0; i--) {
 		const stint = stints[i];
@@ -553,7 +534,6 @@ function closeLatestOpenStint(stints: SeatStint[], leftAt: Date): void {
 	}
 }
 
-/** Apply one player_join / player_leave event to the per-player stint map. */
 function applySeatEvent(
 	event: { eventType: string; payload: string; occurredAt: Date },
 	stintsByPlayerId: Map<string, SeatStint[]>
@@ -585,23 +565,6 @@ function applySeatEvent(
 	}
 }
 
-/**
- * Fold player_join / player_leave events into the seating roster.
- *
- * Seated players are no longer stored in a table — they are reconstructed
- * here from the event log. Only events that carry a `playerId` are folded
- * (the hero's own seat has no `playerId` and is derived separately by
- * `computeHeroSeatPositionFromEvents`).
- *
- * The same player may join and leave repeatedly within one session. Each
- * `player_join` opens a new stint; each `player_leave` closes the latest
- * open one. Every player appears exactly once in the result, but the full
- * in/out history is preserved on `stints` (oldest first). The top-level
- * `isActive` / `seatPosition` / `joinedAt` / `leftAt` reflect the most
- * recent (last) stint — i.e. the player's current state.
- *
- * `events` must already be ordered by (occurredAt, sortOrder, id).
- */
 export function computeSeatedPlayersFromEvents(
 	events: { eventType: string; payload: string; occurredAt: Date }[]
 ): SeatedPlayerState[] {

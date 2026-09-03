@@ -7,15 +7,6 @@ function parseNonNegativeIntOrZero(value: string): number {
 	return parsed !== undefined && parsed >= 0 ? parsed : 0;
 }
 
-/**
- * Adapt a chip-purchase snapshot to the `ChipPurchaseRow` shape the shared
- * `ChipPurchasesEditor` expects, plus a `counts` map (`uid` → purchase
- * count) carrying the per-purchase result. The editor keys rows by a
- * stable `uid`, so each row gets a fresh uuid; numeric cells become
- * strings to satisfy the `inputMode="numeric"` text inputs. `count` is
- * kept out of `ChipPurchaseRow` because that type is shared with the
- * Rooms tournament form, where a result count is meaningless.
- */
 export function toChipPurchaseRows(
 	purchases: Array<{
 		chips: number;
@@ -39,11 +30,6 @@ export function toChipPurchaseRows(
 	return { rows, counts };
 }
 
-/**
- * Strip the editor-only `uid` and parse cells back to the payload shape.
- * `counts` maps a row `uid` to its purchase count (the session result);
- * rows absent from the map default to a count of 0.
- */
 export function toSessionChipPurchases(
 	rows: ChipPurchaseRow[],
 	counts: Record<string, number> = {}

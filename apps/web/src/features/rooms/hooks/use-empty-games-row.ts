@@ -8,12 +8,6 @@ interface UseEmptyGamesRowOptions {
 	onCreateLevel: (values: NewLevelValues) => void;
 }
 
-/**
- * Per-level ('mix') mode new-level affordance. Flat blind cells make no
- * sense here — their amounts would be invisible once the level renders as a
- * "Games" summary row — so the empty row is just a Min cell plus an explicit
- * add button; the level's games are assigned afterwards via the sheet.
- */
 export function useEmptyGamesRow({ onCreateLevel }: UseEmptyGamesRowOptions) {
 	const minutesRef = useRef<HTMLInputElement>(null);
 

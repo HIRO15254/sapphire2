@@ -273,9 +273,6 @@ describe("useSessionDetailPage", () => {
 		});
 	});
 
-	// A live session's event-backed fields are written through
-	// `sessionEvent.update` (session.update refuses them), so the event sync
-	// runs first and a failure has to stop the save.
 	describe("handleEdit — live-linked event sync", () => {
 		it("syncs the events before updating the session metadata", async () => {
 			mocks.session = liveCash;

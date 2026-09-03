@@ -20,16 +20,8 @@ import { useMixGamesEditor } from "./use-mix-games-editor";
 interface MixGamesEditorProps {
 	disabled?: boolean;
 	onChange: (rows: MixGameGroupRow[]) => void;
-	/**
-	 * Renders an "Edit mix" affordance opening the mix-master sheet. Only
-	 * meaningful while the composition is read-only (the default): the
-	 * composition follows the mix master, so changing it means editing the
-	 * master itself.
-	 */
 	onEditMix?: () => void;
-	/** variant label → owning group; from useGameGroups at the mount site. */
 	resolveGroup: ResolveGroup;
-	/** Hide the per-group ante-type select (tournament level groups). */
 	showAnteType?: boolean;
 	value: MixGameGroupRow[];
 }
@@ -48,9 +40,6 @@ interface GroupFieldsProps {
 	showAnteType: boolean;
 }
 
-// One compact tier per group: a heading line (per-mix display name + its
-// games) over the same flat blind/ante fields a non-mix variant renders —
-// no card chrome, mirroring the plain blind-input section of the form.
 function CompactGroupFields({
 	disabled,
 	group,
@@ -60,9 +49,6 @@ function CompactGroupFields({
 }: GroupFieldsProps) {
 	const blind3Label = group.blind3Label;
 
-	// Live per-cell validation (c31): the server requires whole numbers ≥ 0,
-	// and the serializer would otherwise silently null invalid text. The
-	// consuming forms block submit on the same check.
 	const blindInput = (slot: "blind1" | "blind2" | "blind3", label: string) => (
 		<Field
 			error={mixCellError(group[slot])}
@@ -82,8 +68,6 @@ function CompactGroupFields({
 	return (
 		<div className="flex flex-col gap-2">
 			<div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-				{/* Display fallback only — a null name stays null in state so it
-				    is never persisted as a frozen label (c18). */}
 				<span className="font-medium text-sm">
 					{group.name ?? group.groupLabel}
 				</span>
@@ -196,10 +180,6 @@ export function MixGamesEditor({
 		value,
 	});
 
-	// Compact tiers, no card chrome: one heading + flat blind fields per
-	// group, exactly like the non-mix blind section but repeated. The
-	// composition itself is read-only — it follows the mix master (or the
-	// level's assigned variant), never inline edits.
 	return (
 		<div className="flex flex-col gap-3">
 			<div className="flex items-center justify-between gap-2">

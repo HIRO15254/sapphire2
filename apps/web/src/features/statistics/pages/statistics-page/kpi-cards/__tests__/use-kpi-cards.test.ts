@@ -176,7 +176,6 @@ describe("useKpiCards", () => {
 		expect(byKey.bbPerHour).toBeDefined();
 		expect(byKey.bbPerHour.value).toBe("+3 bb/h");
 		expect(byKey.hourly).toBeUndefined();
-		// EV diff carries the bb unit when normalized.
 		expect(byKey.evDiff.value).toBe("+6 bb");
 	});
 

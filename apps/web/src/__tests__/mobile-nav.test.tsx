@@ -9,18 +9,15 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MobileNav } from "@/shared/components/authenticated-shell/mobile-nav";
 
-// Mock useActiveSession to control nav mode
 const mockUseActiveSession = vi.fn();
 vi.mock("@/features/live-sessions/hooks/use-active-session", () => ({
 	useActiveSession: () => mockUseActiveSession(),
 }));
 
-// Mock CreateSessionDialog to avoid trpc/env imports
 vi.mock("@/features/live-sessions/components/create-session-dialog", () => ({
 	CreateSessionDialog: () => null,
 }));
 
-// Mock useStackSheet to avoid provider requirement
 const mockStackOpen = vi.fn();
 vi.mock("@/features/live-sessions/hooks/use-stack-sheet", () => ({
 	useStackSheet: () => ({
@@ -31,7 +28,6 @@ vi.mock("@/features/live-sessions/hooks/use-stack-sheet", () => ({
 	}),
 }));
 
-// Mock trpc to avoid env validation
 vi.mock("@/utils/trpc", () => {
 	const qo = () => ({ queryKey: [] });
 	const proc = { queryOptions: qo };
@@ -48,7 +44,6 @@ vi.mock("@/utils/trpc", () => {
 	};
 });
 
-// Mock react-query hooks used directly in MobileNav
 vi.mock("@tanstack/react-query", () => ({
 	useMutation: () => ({
 		mutate: vi.fn(),

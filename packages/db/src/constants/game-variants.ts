@@ -1,10 +1,3 @@
-// Seed data ONLY for the per-user game_group / game_variant tables. Mix-game
-// rework: variant->group membership is now a per-user DB row (seeded at user
-// creation by seedDefaultGameData), never a runtime fallback read straight
-// from this file. `variant` columns elsewhere in the schema store the
-// variant's display LABEL verbatim at write time (self-freezing) — the only
-// exception is the mix pseudo-variant, stored as the fixed key "mix".
-
 export type BuiltinGroupKey = "bigbet" | "limit" | "stud";
 
 export interface DefaultGameGroup {
@@ -15,7 +8,6 @@ export interface DefaultGameGroup {
 	label: string;
 }
 
-// Canonical bucket order: limit → stud → bigbet (structure-sheet convention).
 export const DEFAULT_GAME_GROUPS: DefaultGameGroup[] = [
 	{
 		key: "limit",
@@ -47,7 +39,6 @@ export interface DefaultGameVariant {
 	shortLabel: string;
 }
 
-// sortOrder = array index.
 export const DEFAULT_GAME_VARIANTS: DefaultGameVariant[] = [
 	{ key: "nlh", label: "NL Hold'em", shortLabel: "NLH", groupKey: "bigbet" },
 	{
@@ -148,11 +139,6 @@ export interface DefaultGameMix {
 	variantKeys: string[];
 }
 
-// Seed data for per-user named mix masters. `variantKeys` map to
-// DEFAULT_GAME_VARIANTS keys purely as SEED-TIME lookups: seedDefaultGameData
-// resolves each key to that user's variant id, then stores those ids in ordered
-// game_mix_variant rows. The keys themselves are never persisted as
-// memberships.
 export const DEFAULT_GAME_MIXES: DefaultGameMix[] = [
 	{
 		key: "horse",
@@ -182,9 +168,6 @@ export const DEFAULT_GAME_MIXES: DefaultGameMix[] = [
 	},
 ];
 
-// Mix pseudo-variant constants (mix is a MODE, not a row).
-// The form-default variant: the label of the seeded NLH row. Forms freeze
-// display labels, so the default must be a label, not a legacy key.
 export const DEFAULT_VARIANT_LABEL = "NL Hold'em";
 
 export const MIX_VARIANT = "mix";
@@ -194,7 +177,6 @@ export function isMixVariant(variant: string): boolean {
 	return variant === MIX_VARIANT;
 }
 
-// Stored variant values are display labels already; only "mix" needs mapping.
 export function variantDisplayLabel(variant: string): string {
 	return isMixVariant(variant) ? MIX_VARIANT_LABEL : variant;
 }

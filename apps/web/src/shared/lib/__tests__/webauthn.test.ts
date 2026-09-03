@@ -4,8 +4,6 @@ import {
 	supportsAutomaticPasskeyRegistration,
 } from "@/shared/lib/webauthn";
 
-// Runs in the node project (see vitest.node.config.ts), so `window` does not
-// exist unless a test defines it — which is exactly the third branch below.
 const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
 
 function setWindow(value: unknown): void {
@@ -26,7 +24,6 @@ describe("isPasskeySupported", () => {
 	});
 
 	it("is true when the browser exposes PublicKeyCredential", () => {
-		// Only presence is checked, so any marker value will do.
 		setWindow({ PublicKeyCredential: {} });
 		expect(isPasskeySupported()).toBe(true);
 	});
@@ -57,8 +54,6 @@ describe("supportsAutomaticPasskeyRegistration", () => {
 	});
 
 	it("is false on a WebAuthn browser that predates getClientCapabilities", async () => {
-		// The dangerous case: these browsers ignore `mediation: "conditional"`
-		// and would show a modal create prompt instead of upgrading silently.
 		setWindow({ PublicKeyCredential: {} });
 		expect(await supportsAutomaticPasskeyRegistration()).toBe(false);
 	});

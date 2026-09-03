@@ -77,9 +77,6 @@ describe("buildSessionsPresetPayload", () => {
 	});
 
 	it("keeps a cleared key that the filter bar left behind as undefined", () => {
-		// `patch` in use-session-filter-bar.ts writes `{ type: undefined }` when
-		// the user picks "All", so the key survives in the filter object. It must
-		// round-trip as an absent value, not become a bogus filter.
 		const payload = buildSessionsPresetPayload({ type: undefined }, false);
 		expect(payload.type).toBeUndefined();
 		expect(payload.display).toBe("currency");

@@ -170,9 +170,7 @@ describe("useGameSetRows", () => {
 			act(() => {
 				result.current.handleSetFieldFocus(0, "blind1")();
 			});
-			// Focusing alone must not remount the input.
 			expect(result.current.setFieldKey(0, "blind1")).toBe(before);
-			// An external cache change (refetch) lands mid-typing.
 			const games = row.games ?? [];
 			rerender({
 				row: { ...row, games: [{ ...games[0], blind1: 999 }, games[1]] },

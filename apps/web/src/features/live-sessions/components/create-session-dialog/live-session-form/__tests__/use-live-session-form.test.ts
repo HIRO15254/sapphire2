@@ -3,11 +3,6 @@ import type { FormEvent } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { withQueryClient } from "@/__tests__/test-utils";
 
-// RulesStepBody (tournament) transitively imports @/utils/trpc; stub it so the
-// env-validating import chain never loads under jsdom. useSessionFormState now
-// calls useGameGroups (trpc.gameGroup.list / trpc.gameVariant.list) for the
-// mix-games master mapping — mock the procedures to the fallback (empty) path,
-// none of the assertions below exercise mix-game rows.
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		gameGroup: {
@@ -127,7 +122,6 @@ describe("useLiveSessionForm — geolocation default room", () => {
 		act(() => result.current.state.handleRoomChange("room-manual"));
 		expect(result.current.state.selectedRoomId).toBe("room-manual");
 
-		// A geolocation suggestion that arrives afterwards must not clobber it.
 		await waitFor(() =>
 			expect(result.current.state.selectedRoomId).toBe("room-manual")
 		);
@@ -149,7 +143,6 @@ describe("useLiveSessionForm — geolocation default room", () => {
 
 		act(() => result.current.state.handleRoomChange(undefined));
 		expect(result.current.state.selectedRoomId).toBeUndefined();
-		// Clearing is a deliberate user action — the default must stay cleared.
 		await waitFor(() =>
 			expect(result.current.state.selectedRoomId).toBeUndefined()
 		);
@@ -188,8 +181,6 @@ describe("useLiveSessionForm — submit", () => {
 		const onSubmit = vi.fn();
 		const { result } = renderForm(onSubmit);
 
-		// Mirror the real UI: the user fills the initial buy-in and taps ✓.
-		// There is no cash-out input on the live form, so it stays empty.
 		act(() => {
 			result.current.state.form.setFieldValue("buyIn", "100");
 		});
@@ -210,9 +201,6 @@ describe("useLiveSessionForm — submit", () => {
 		const onSubmit = vi.fn();
 		const { result } = renderForm(onSubmit);
 
-		// A tournament needs a buy-in, which lives behind the collapsed
-		// "Customize rules" section. Submitting it empty must surface the section
-		// instead of silently doing nothing.
 		act(() => {
 			result.current.state.setSessionType("tournament");
 		});

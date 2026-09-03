@@ -23,23 +23,15 @@ interface UseLocationPickerArgs {
 	onCoordsChange: (coords: Coords | null) => void;
 }
 
-/**
- * Drives the room location picker: place-name search, Google Maps URL paste
- * and device GPS, all funnelling into a single `onCoordsChange`. The canonical
- * coordinates live in the parent form; this hook only sets them.
- */
 export function useLocationPicker({
 	initialQuery,
 	latitude,
 	longitude,
 	onCoordsChange,
 }: UseLocationPickerArgs) {
-	// Seed the search box with the room name so the user can search in one tap.
 	const [query, setQuery] = useState(initialQuery ?? "");
 	const [link, setLink] = useState("");
 
-	// Keep the latest callback in a ref so the GPS effect fires only on a new
-	// fix, not whenever the parent re-creates onCoordsChange.
 	const onCoordsChangeRef = useRef(onCoordsChange);
 	onCoordsChangeRef.current = onCoordsChange;
 
@@ -83,7 +75,6 @@ export function useLocationPicker({
 
 	const linkTrimmed = link.trim();
 	const isLinkValid = linkTrimmed !== "" && isGoogleMapsUrl(linkTrimmed);
-	// Client-side validation first (invalid URL), then any server rejection.
 	const linkError =
 		linkTrimmed !== "" && !isGoogleMapsUrl(linkTrimmed)
 			? "Enter a valid Google Maps URL"

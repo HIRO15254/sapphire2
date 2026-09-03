@@ -15,15 +15,6 @@ interface SessionFormSheetProps {
 	title: string;
 }
 
-/**
- * Full-height bottom sheet for the session wizard and tag manager.
- *
- * Unlike the shared {@link FormSheet}, this sheet has no `[✓]` submit button:
- * the {@link SessionWizard} drives its own multi-step navigation and final
- * submit, and the tag manager mutates inline. It still opens full height and
- * stays non-dismissible (so a stray swipe never discards in-progress wizard
- * input).
- */
 export function SessionFormSheet({
 	children,
 	onOpenChange,

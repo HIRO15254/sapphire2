@@ -13,11 +13,6 @@ interface FilterSheetProps {
 	title: string;
 }
 
-/**
- * The bottom sheet a filter chip opens to pick its value. A drag-handled
- * `Drawer` with a visible `t-h4` title (hybrid picker pattern from
- * `web-theme.md`), holding the option list / date inputs passed as children.
- */
 export function FilterSheet({
 	children,
 	onOpenChange,

@@ -178,11 +178,6 @@ export function Passkeys() {
 				open={renameTarget !== null}
 				title="Rename passkey"
 			>
-				{/*
-				 * Keyed on the passkey id so opening the sheet for a different
-				 * entry remounts the form: `defaultName` only seeds the initial
-				 * render, so a reused instance would keep the previous name.
-				 */}
 				<TagNameForm
 					defaultName={renameTarget?.name ?? ""}
 					formId={RENAME_PASSKEY_FORM_ID}

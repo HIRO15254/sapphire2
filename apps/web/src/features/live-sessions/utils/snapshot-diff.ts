@@ -1,16 +1,5 @@
-/**
- * Compute which snapshot fields on a live session diverge from the parent
- * master rule. Used by the active-session scene to surface a "Modified"
- * badge next to per-session overrides.
- */
-
 export type DiffMap<K extends string> = Partial<Record<K, boolean>>;
 
-/**
- * Structural shape of one mix/level game group (matches mixGameGroupSchema /
- * levelGameGroupSchema). Mix groups carry their own anteType; level groups do
- * not, so absent and null normalize to the same value in the comparator.
- */
 interface GameGroupShape {
 	ante?: number | null;
 	anteType?: string | null;
@@ -34,7 +23,6 @@ function sameGameGroup(a: GameGroupShape, b: GameGroupShape): boolean {
 	);
 }
 
-/** Order-sensitive structural compare of two game-group lists. */
 function diffGameGroups(
 	snap: readonly GameGroupShape[] | null | undefined,
 	master: readonly GameGroupShape[] | null | undefined

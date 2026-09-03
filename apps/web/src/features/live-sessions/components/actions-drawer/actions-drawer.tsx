@@ -13,11 +13,6 @@ const DESTRUCTIVE_ITEM =
 
 export interface ActionsDrawerItem {
 	icon: ComponentType<{ size?: number }>;
-	/**
-	 * Stable React key. Required when labels can repeat (e.g. a player picker
-	 * with two seatless same-named players); falls back to `label` for menus
-	 * whose labels are unique by construction.
-	 */
 	key?: string;
 	label: string;
 	onSelect: () => void;
@@ -26,7 +21,6 @@ export interface ActionsDrawerItem {
 
 interface ActionsDrawerProps {
 	description: string;
-	/** Rendered instead of the list when `items` is empty. */
 	emptyMessage?: string;
 	items: ActionsDrawerItem[];
 	onOpenChange: (open: boolean) => void;
@@ -34,12 +28,6 @@ interface ActionsDrawerProps {
 	title: string;
 }
 
-/**
- * v2 action sheet with a configurable item list. The live-session screens
- * compose several of these (event "+" menu, session overflow menu, player
- * picker), so the drawer chrome and item styling live here once instead of
- * one bespoke drawer per menu.
- */
 export function ActionsDrawer({
 	description,
 	emptyMessage,

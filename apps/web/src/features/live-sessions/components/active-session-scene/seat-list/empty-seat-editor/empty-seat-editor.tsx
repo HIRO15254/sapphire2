@@ -17,7 +17,6 @@ import { useEmptySeatEditor } from "./use-empty-seat-editor";
 
 interface EmptySeatEditorProps {
 	excludePlayerIds: string[];
-	/** Show the hero quick-action — only when no hero seat is set yet. */
 	heroAvailable: boolean;
 	onAddExisting: (playerId: string, playerName: string) => void;
 	onAddNew: (values: { name: string }) => void;
@@ -25,12 +24,6 @@ interface EmptySeatEditorProps {
 	onSeatHero: () => void;
 }
 
-/**
- * Always-on combobox for seating an empty seat: the search field is shown
- * inline on the row, with hero / temporary seating as quick-action icons
- * beside it. Typing filters players by name or tag; the dropdown seats an
- * existing player or creates one by name — each in a single tap.
- */
 export function EmptySeatEditor({
 	excludePlayerIds,
 	heroAvailable,

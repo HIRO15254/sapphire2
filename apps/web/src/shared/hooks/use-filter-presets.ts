@@ -31,23 +31,12 @@ export interface CreateFilterPresetValues {
 	payload: FilterPresetPayload;
 }
 
-/**
- * Both fields are optional and independent: pass `name` alone to rename, or
- * `payload` alone to overwrite a saved preset with the current filters. A field
- * left out is not touched — neither here nor in the procedure's `.set()`.
- */
 export interface UpdateFilterPresetValues {
 	id: string;
 	name?: string;
 	payload?: FilterPresetPayload;
 }
 
-/**
- * Screen-agnostic filter-preset hook wrapping the `filterPreset` tRPC
- * router. Call `useFilterPresets("sessions")` / `useFilterPresets("statistics")`
- * from any screen — the cache is scoped per screenKey via the query key, so
- * two instances with different screenKey arguments never share state.
- */
 export function useFilterPresets(screenKey: FilterPresetScreenKey) {
 	const queryClient = useQueryClient();
 	const listKey = trpc.filterPreset.list.queryOptions({ screenKey }).queryKey;
@@ -60,15 +49,10 @@ export function useFilterPresets(screenKey: FilterPresetScreenKey) {
 
 	const createMutation = useMutation({
 		mutationFn: (values: CreateFilterPresetValues) =>
-			trpcClient.filterPreset.create.mutate(
-				// screenKey is only known at hook-instantiation time (not a compile-
-				// time literal here), so it can't narrow the discriminated union the
-				// procedure expects; the server re-validates the payload against
-				// this exact screenKey regardless.
-				{ screenKey, ...values } as Parameters<
-					typeof trpcClient.filterPreset.create.mutate
-				>[0]
-			),
+			trpcClient.filterPreset.create.mutate({
+				screenKey,
+				...values,
+			} as Parameters<typeof trpcClient.filterPreset.create.mutate>[0]),
 		onMutate: async (values) => {
 			await cancelTargets(queryClient, [{ queryKey: listKey }]);
 			const previous = snapshotQuery(queryClient, listKey);
@@ -101,10 +85,6 @@ export function useFilterPresets(screenKey: FilterPresetScreenKey) {
 		onMutate: async (values) => {
 			await cancelTargets(queryClient, [{ queryKey: listKey }]);
 			const previous = snapshotQuery(queryClient, listKey);
-			// Mirrors the procedure's `.set()`: only the fields actually passed are
-			// written, so a rename never clobbers the stored payload (and an
-			// overwrite never clobbers the name). `isDefault` is not part of this
-			// surface at all — setDefault / clearDefault own it.
 			updateQueryItems<FilterPresetItem>(queryClient, listKey, (old) =>
 				old.map((p) =>
 					p.id === values.id
@@ -153,8 +133,6 @@ export function useFilterPresets(screenKey: FilterPresetScreenKey) {
 		onMutate: async (id) => {
 			await cancelTargets(queryClient, [{ queryKey: listKey }]);
 			const previous = snapshotQuery(queryClient, listKey);
-			// Mirrors the server: the target flips to true, every other row in
-			// this SAME (screenKey-scoped) cache entry flips to false.
 			updateQueryItems<FilterPresetItem>(queryClient, listKey, (old) =>
 				old.map((p) => ({ ...p, isDefault: p.id === id }))
 			);
@@ -191,10 +169,6 @@ export function useFilterPresets(screenKey: FilterPresetScreenKey) {
 		presets,
 		defaultPreset,
 		isLoading: listQuery.isLoading,
-		// Exposed alongside `isLoading` because the two are not complements: a
-		// query that exhausted its retries is no longer loading yet never
-		// answered. Consumers that must act exactly once on the first real answer
-		// (`useDefaultFilterPreset`) have to gate on this, not on `!isLoading`.
 		isSuccess: listQuery.isSuccess,
 		isCreatePending: createMutation.isPending,
 		isUpdatePending: updateMutation.isPending,

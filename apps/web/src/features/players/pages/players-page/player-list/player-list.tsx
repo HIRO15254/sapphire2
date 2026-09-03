@@ -12,27 +12,16 @@ interface PlayerListItem {
 }
 
 interface PlayerListProps {
-	/** The initial players fetch failed before any rows were cached. */
 	isInitialLoadError?: boolean;
-	/** Initial players fetch is in flight (no rows yet). */
 	isLoading: boolean;
-	/** A search term is active — changes the empty-state copy and hides the CTA. */
 	isSearching: boolean;
-	/** Open the create sheet — wired to the empty-state CTA. */
 	onCreate: () => void;
-	/** Retry the players query. */
 	onRetry?: () => void;
 	players: PlayerListItem[];
 }
 
 const SKELETON_COUNT = 5;
 
-/**
- * Owns the list surface's loading / empty / data switch, mirroring
- * `RoomList` / `CurrencyList`: the consumer passes `isLoading` + `players` and
- * the component decides what to render. The empty branch splits on `isSearching`
- * so a search that matches nothing reads differently from an empty account.
- */
 export function PlayerList({
 	isInitialLoadError = false,
 	isLoading,

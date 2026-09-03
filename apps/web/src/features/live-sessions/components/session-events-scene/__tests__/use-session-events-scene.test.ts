@@ -210,7 +210,6 @@ describe("useSessionEventsScene", () => {
 		expect(typeof result.current.deleteEvent).toBe("function");
 	});
 
-	// Import reference so the module load order is not stripped by linters.
 	it("uses the same useSessionEvents primitive", () => {
 		expect(useSessionEvents).toBeDefined();
 	});

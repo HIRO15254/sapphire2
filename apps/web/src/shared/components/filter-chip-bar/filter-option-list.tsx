@@ -9,11 +9,6 @@ interface FilterOptionListProps {
 	value: string;
 }
 
-/**
- * The single-select option list rendered inside a {@link FilterSheet}: a
- * `RadioGroup` of full-width rows, the selected row tinted primary with a
- * trailing check. Shared by the stats and sessions filter bars.
- */
 export function FilterOptionList({
 	idPrefix = "filter-option",
 	onChange,

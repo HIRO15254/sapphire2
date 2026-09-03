@@ -21,7 +21,7 @@ Reach for existing shadcn components before building a custom wrapper:
 
 ## Language
 
-UI copy is **English-only**. Do not put Japanese into user-facing strings (labels, empty states, toasts, errors). Japanese is fine in code comments, commit messages, and PR descriptions.
+UI copy is **English-only**. Do not put Japanese into user-facing strings (labels, empty states, toasts, errors). Japanese is fine in commit messages and PR descriptions; code comments are near-zero and English-only — see [`comments.md`](comments.md).
 
 ## Platform
 

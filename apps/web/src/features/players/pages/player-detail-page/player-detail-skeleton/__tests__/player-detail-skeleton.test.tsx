@@ -11,7 +11,6 @@ describe("PlayerDetailSkeleton", () => {
 	it("renders animated placeholder bars", () => {
 		const { container } = render(<PlayerDetailSkeleton />);
 		const placeholders = container.querySelectorAll('[data-slot="skeleton"]');
-		// top bar (2) + title (1) + tag row (2) + memo block (3)
 		expect(placeholders).toHaveLength(8);
 	});
 });

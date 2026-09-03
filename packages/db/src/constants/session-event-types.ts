@@ -1,10 +1,8 @@
 import z from "zod";
 
-// Session statuses
 export const SESSION_STATUSES = ["active", "paused", "completed"] as const;
 export type SessionStatus = (typeof SESSION_STATUSES)[number];
 
-// Event type categories
 export const LIFECYCLE_EVENT_TYPES = ["session_start", "session_end"] as const;
 
 export const PAUSE_RESUME_EVENT_TYPES = [
@@ -33,25 +31,13 @@ export const ALL_EVENT_TYPES = [
 
 export type SessionEventType = (typeof ALL_EVENT_TYPES)[number];
 
-// Event types that cannot be manually created (auto-created by session lifecycle only)
 export const MANUAL_CREATE_BLOCKED_EVENT_TYPES: readonly string[] = [
 	"session_start",
 	"session_end",
 ] as const;
 
-// --- Seat bounds ---
-//
-// Seats are 0-indexed. A 10-max table (the largest `tableSize` selectable in
-// the ring-game / tournament / cash-game forms) therefore uses seat positions
-// 0–9, so the last valid seat is 9. Every server-side `seatPosition` /
-// `heroSeatPosition` bound derives from this single constant so the client's
-// `MAX_SEAT_COUNT` (10) and the server's validation can never drift apart
-// again (SA2-131).
 export const MAX_SEAT_POSITION = 9;
 
-// --- Payload Zod schemas ---
-
-// Lifecycle payloads
 export const cashSessionStartPayload = z.object({
 	buyInAmount: z.number().int().min(0),
 });
@@ -88,35 +74,23 @@ export const tournamentSessionEndPayload = z
 		}
 	);
 
-// Pause/Resume payloads
 export const sessionPausePayload = z.object({});
 export const sessionResumePayload = z.object({});
 
-// Cash event payloads
-//
-// `chips_add_remove` uses a signed integer for `amount`: positive values
-// represent adding chips (add-on / top-up), negative values represent
-// removing chips (early cash-out). Zero is rejected to avoid storing
-// no-op events.
 export const chipsAddRemovePayload = z.object({
+	// NOTE(rule): api-data-integrity.md — amount deviates from .int().min(0) by design: positive = chips added (add-on / top-up), negative = chips removed (early cash-out); zero rejected so no-op events are never stored.
 	amount: z
 		.number()
 		.int()
 		.refine((n) => n !== 0, { message: "amount must be non-zero" }),
 });
 
-// `wins` is the number of favorable all-in run-outs across `trials`, counted as
-// a fraction when the pot is chopped (a split counts as a partial win). It is
-// therefore a non-negative number — NOT necessarily an integer — that never
-// exceeds `trials`. The object-level `wins <= trials` refine blocks the real bug:
-// a payload like `{ potSize: 1000, trials: 1, wins: 5 }` used to validate and let
-// the EV math compute a wins-share larger than the pot, corrupting
-// `evCashOut` / `evDiff` (SA2-156).
 export const allInPayload = z
 	.object({
 		potSize: z.number().int().min(0),
 		trials: z.number().int().min(1),
 		equity: z.number().min(0).max(100),
+		// NOTE(rule): api-data-integrity.md — wins deviates from .int(): chopped pots count as fractional wins; non-negative, and the object-level refine (wins <= trials) blocks the EV-corruption bug (SA2-156).
 		wins: z.number().min(0),
 	})
 	.refine((data) => data.wins <= data.trials, {
@@ -124,11 +98,6 @@ export const allInPayload = z
 		path: ["wins"],
 	});
 
-// Tournament event payloads
-//
-// `sessionChipPurchaseId` links the event to the rule-defined chip purchase
-// (a `session_chip_purchase` row). name / cost / chips are kept as a
-// denormalized snapshot for display and PL math even if the rule changes.
 export const purchaseChipsPayload = z.object({
 	sessionChipPurchaseId: z.string().min(1),
 	name: z.string().min(1),
@@ -142,15 +111,6 @@ export const chipPurchaseCountSchema = z.object({
 	chipsPerUnit: z.number().int().min(0),
 });
 
-// Common event payloads
-//
-// `update_stack` is shared between cash and tournament sessions. For
-// tournaments, the payload may optionally carry remaining players, total
-// entries, and chip purchase counts so that a single event captures both
-// the stack snapshot and tournament-progress metadata. (`averageStack`
-// is intentionally derived on read from startingStack, totalEntries,
-// remainingPlayers, and chipPurchaseCounts and is therefore not stored
-// on the payload.)
 export const updateStackPayload = z.object({
 	stackAmount: z.number().int().min(0),
 	remainingPlayers: z.number().int().min(1).nullable().optional(),
@@ -173,9 +133,6 @@ export const memoPayload = z.object({
 	text: z.string().min(1),
 });
 
-// --- Payload schema map ---
-
-// Session-type-aware payload schemas for session_start and session_end
 export const SESSION_START_PAYLOAD_SCHEMAS = {
 	cash_game: cashSessionStartPayload,
 	tournament: tournamentSessionStartPayload,
@@ -186,7 +143,6 @@ export const SESSION_END_PAYLOAD_SCHEMAS = {
 	tournament: tournamentSessionEndPayload,
 } as const;
 
-// General payload schema map (for non-session-type-dependent events)
 export const EVENT_PAYLOAD_SCHEMAS: Record<
 	Exclude<SessionEventType, "session_start" | "session_end">,
 	z.ZodTypeAny
@@ -202,7 +158,6 @@ export const EVENT_PAYLOAD_SCHEMAS: Record<
 	memo: memoPayload,
 };
 
-// Helper to validate payload for a given event type
 export function validateEventPayload(
 	eventType: SessionEventType,
 	payload: unknown,
@@ -220,7 +175,6 @@ export function validateEventPayload(
 	return schema.parse(payload);
 }
 
-// Event type validation by session type
 export function isValidEventTypeForSessionType(
 	eventType: SessionEventType,
 	sessionType: "cash_game" | "tournament"
@@ -253,8 +207,6 @@ export function isValidEventTypeForSessionType(
 	return false;
 }
 
-// --- Session state helpers ---
-
 interface EventForState {
 	eventType: string;
 	id?: string;
@@ -262,12 +214,6 @@ interface EventForState {
 	sortOrder: number;
 }
 
-/**
- * Derive the current session state from the event stream.
- * - completed: session_end exists
- * - paused: latest lifecycle/pause/resume event is session_pause
- * - active: otherwise (session_start or session_resume is latest)
- */
 export function getSessionCurrentState(events: EventForState[]): SessionStatus {
 	const hasSessionEnd = events.some((e) => e.eventType === "session_end");
 	if (hasSessionEnd) {
@@ -285,7 +231,6 @@ export function getSessionCurrentState(events: EventForState[]): SessionStatus {
 		return "active";
 	}
 
-	// Sort by occurredAt desc, then sortOrder desc to find latest
 	const sorted = [...stateEvents].sort((a, b) => {
 		const timeA = new Date(a.occurredAt).getTime();
 		const timeB = new Date(b.occurredAt).getTime();
@@ -306,7 +251,6 @@ export function getSessionCurrentState(events: EventForState[]): SessionStatus {
 	return "active";
 }
 
-// Events allowed per session state
 const EVENTS_ALLOWED_WHEN_ACTIVE: readonly string[] = [
 	...CASH_EVENT_TYPES,
 	...TOURNAMENT_EVENT_TYPES,
@@ -321,10 +265,6 @@ const EVENTS_ALLOWED_WHEN_PAUSED: readonly string[] = [
 	"session_end",
 ];
 
-/**
- * Check if an event type is allowed given the current session state.
- * Lifecycle events (session_start) are never manually created, so not checked here.
- */
 export function isEventAllowedInState(
 	eventType: SessionEventType,
 	state: SessionStatus
@@ -337,6 +277,5 @@ export function isEventAllowedInState(
 		return EVENTS_ALLOWED_WHEN_PAUSED.includes(eventType);
 	}
 
-	// active
 	return EVENTS_ALLOWED_WHEN_ACTIVE.includes(eventType);
 }

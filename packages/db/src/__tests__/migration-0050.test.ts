@@ -8,7 +8,6 @@ const skipIfNotBun = isBun ? describe : describe.skip;
 
 let Database: any = null;
 if (isBun) {
-	// eslint-disable-next-line import/no-unresolved
 	const bunSqlite = require("bun:sqlite");
 	Database = bunSqlite.Database;
 }
@@ -23,7 +22,6 @@ const migrationStatements = migrationSql
 	.map((part) => part.trim())
 	.filter(Boolean);
 
-/** `user` is the only pre-existing table the OIDC tables reference. */
 const baseSchema = "CREATE TABLE user (id TEXT PRIMARY KEY NOT NULL);";
 
 function applyAll(db: any): void {
@@ -32,12 +30,6 @@ function applyAll(db: any): void {
 	}
 }
 
-/**
- * Apply only the statements up to and including the first one matching
- * `marker`, WITHOUT a transaction — what a production apply that dies mid-file
- * leaves behind (`wrangler` streams statements to D1 and only records the
- * migration once the last one succeeds).
- */
 function applyThrough(db: any, marker: string): void {
 	const cut = migrationStatements.findIndex((statement) =>
 		statement.includes(marker)
@@ -152,9 +144,6 @@ skipIfNotBun("migration 0050 — OIDC provider tables for MCP OAuth", () => {
 	});
 
 	it("recovers from a mid-file failure: a partial apply can be replayed in full", () => {
-		// A production apply that died after the first CREATE TABLE leaves the
-		// table behind and `d1_migrations` unrecorded, so wrangler replays the
-		// whole file on the next deploy.
 		applyThrough(db, "CREATE TABLE IF NOT EXISTS `oauth_access_token`");
 		expect(tableNames(db)).toContain("oauth_access_token");
 

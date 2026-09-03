@@ -26,9 +26,6 @@ interface RichTextEditorProps {
 	onChange: (html: string) => void;
 }
 
-// A plain, conventional editor toolbar: borderless ghost icon buttons packed
-// together (not individually boxed), with a high-contrast active state that
-// stays legible in dark mode — active = blue tint + blue icon via `--primary`.
 const TOGGLE_ITEM_CLASS = cn(
 	"size-[var(--h-control-sm)] border-transparent bg-transparent px-0 text-muted-foreground shadow-none",
 	"hover:bg-muted hover:text-foreground dark:border-transparent dark:bg-transparent dark:hover:bg-muted",

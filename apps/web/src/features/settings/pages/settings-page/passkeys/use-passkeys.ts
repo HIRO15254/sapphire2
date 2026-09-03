@@ -21,7 +21,6 @@ interface UsePasskeysResult {
 	onRenameTargetChange: (entry: PasskeyEntry | null) => void;
 	passkeys: PasskeyEntry[];
 	refreshPasskeys: () => Promise<void>;
-	/** The passkey the rename sheet is editing, or null when it is closed. */
 	renameTarget: PasskeyEntry | null;
 	totalPasskeys: number;
 }

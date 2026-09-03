@@ -14,8 +14,6 @@ const trpcMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/utils/trpc", () => {
-	// Build a mutation-options object that mimics what TanStack Query expects.
-	// useMutation calls mutationFn with the input; we shunt to the spy.
 	const markViewedOptions = (opts: Record<string, unknown>) => ({
 		mutationKey: ["updateNoteView", "markViewed"],
 		mutationFn: (input: unknown) => trpcMocks.markViewed(input),

@@ -59,9 +59,6 @@ describe("formatProfitLoss", () => {
 	});
 
 	it("prints the odd '+-0' when value is -0 (sign + underlying locale string)", () => {
-		// -0 >= 0 is true, so sign is '+'.
-		// (-0).toLocaleString() === '-0' → concatenation yields '+-0'.
-		// This test pins the current behavior; callers that dislike it must pre-normalize.
 		expect(formatProfitLoss(-0)).toBe("+-0");
 	});
 

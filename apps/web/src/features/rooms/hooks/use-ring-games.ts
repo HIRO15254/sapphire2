@@ -71,8 +71,6 @@ function buildOptimisticRingGame(
 		tableSize: values.tableSize ?? null,
 		createdAt: new Date().toISOString(),
 		updatedAt: new Date().toISOString(),
-		// Optimistic placeholder; replaced by the server row (which carries the
-		// real userId) on settle.
 		userId: null,
 		variant: values.variant,
 	};
@@ -153,9 +151,6 @@ export function useRingGames({ roomId, showArchived }: UseRingGamesOptions) {
 	});
 
 	const updateMutation = useMutation({
-		// Map cleared (undefined) fields to explicit `null` so the server clears
-		// them. The update procedure leaves `undefined` keys untouched, so a
-		// JSON-dropped undefined would otherwise make "clear a field" a no-op.
 		mutationFn: (values: RingGameFormValues & { id: string }) =>
 			trpcClient.ringGame.update.mutate({
 				id: values.id,

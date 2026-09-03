@@ -18,12 +18,6 @@ export interface UseStatsReferenceDataResult {
 	rooms: StatsRoomOption[];
 }
 
-/**
- * The currency + room lists the filter bar offers, and that the page uses to
- * resolve the selected currency's unit. Both lists are shared cache entries
- * (`trpc.currency.list` / `trpc.room.list`), so consuming this hook in several
- * places does not refetch.
- */
 export function useStatsReferenceData(): UseStatsReferenceDataResult {
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
 	const roomsQuery = useQuery(trpc.room.list.queryOptions());

@@ -2,11 +2,6 @@ import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithQueryClient as render } from "@/__tests__/test-utils";
 
-// The manual branch renders the tournament rule bodies, which transitively
-// import @/utils/trpc (env-validating). Stub it so the module tree loads.
-// The Rules accordion also renders VariantSelect / useVariantLabels, which
-// use real react-query hooks against trpc.gameVariant.list once expanded —
-// provide a queryFn and rely on the renderWithQueryClient wrapper above.
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		gameGroup: {
@@ -54,8 +49,6 @@ const ROOMS = [{ id: "r1", name: "Aria" }];
 const CURRENCIES = [{ id: "c1", name: "USD" }];
 const TAGS = [{ id: "t1", name: "Profit" }];
 
-// Anchored so "Buy-in" does not also match "Min buy-in" / "Max buy-in", and to
-// tolerate the trailing " *" that required-field labels append.
 const BUY_IN_LABEL = /^Buy-in/;
 const CASH_OUT_LABEL = /^Cash-out/;
 const SESSION_DATE_LABEL = /^Session date/;
@@ -116,7 +109,6 @@ describe("SessionEditForm", () => {
 
 		it("keeps the Rules section collapsed until expanded", () => {
 			renderForm({ isLiveLinked: false });
-			// Rule fields (and the currency selector) live in the collapsed section.
 			expect(screen.queryByText("Variant")).not.toBeInTheDocument();
 			expect(screen.queryByText("Currency")).not.toBeInTheDocument();
 			fireEvent.click(screen.getByRole("button", { name: "Rules" }));
@@ -147,9 +139,6 @@ describe("SessionEditForm", () => {
 	});
 
 	describe("live-linked session", () => {
-		// The fields backed by a single event value stay editable and are synced
-		// back to that event on save; only the values aggregated over several
-		// events are locked. The page hook decides which is which.
 		const AGGREGATED_ONLY = new Set([
 			"breakMinutes",
 			"buyIn",
@@ -180,7 +169,6 @@ describe("SessionEditForm", () => {
 			expect(screen.getByLabelText(CASH_OUT_LABEL)).not.toBeDisabled();
 			expect(screen.getByLabelText("Start time")).not.toBeDisabled();
 			expect(screen.getByLabelText("End time")).not.toBeDisabled();
-			// A day move cannot be written back to a single event.
 			expect(screen.getByLabelText(SESSION_DATE_LABEL)).toBeDisabled();
 		});
 

@@ -150,12 +150,6 @@ function RingGameCardTitle({
 	);
 }
 
-/**
- * Blind-structure rows of the details card: one row per game group for a
- * mix snapshot, or the single flat Blinds row otherwise. Group keys use the
- * variants signature — the shared schema forbids a game appearing in two
- * groups, so it is unique and stable.
- */
 function CashBlindRows({
 	snapshot,
 	master,
@@ -490,7 +484,6 @@ function TournamentStructureTable({ levels }: { levels: StructureLevel[] }) {
 							</TableRow>
 						);
 					}
-					// Mix levels stack their game groups across the blind columns.
 					if (row.games && row.games.length > 0) {
 						return (
 							<TableRow key={row.id}>
@@ -727,9 +720,6 @@ function toInitialFormValues(
 	displayChipPurchases: SessionChipPurchaseRow[],
 	master: TournamentDetail
 ) {
-	// Form is populated from the SESSION snapshot so the user edits per-
-	// session overrides. tags / memo / currencyId fall back to master since
-	// they are not part of the rule snapshot.
 	return {
 		name: display.ruleName,
 		variant: display.variant,

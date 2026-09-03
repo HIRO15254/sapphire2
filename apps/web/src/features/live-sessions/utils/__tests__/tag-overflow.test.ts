@@ -25,7 +25,6 @@ describe("computeVisibleTagCount", () => {
 	});
 
 	it("counts the gaps when deciding the full-fit case", () => {
-		// 30 + 4 + 30 + 4 + 30 = 98 <= 100 → all fit
 		expect(
 			computeVisibleTagCount({
 				availableWidth: 98,
@@ -34,7 +33,6 @@ describe("computeVisibleTagCount", () => {
 				tagWidths: [30, 30, 30],
 			})
 		).toBe(3);
-		// One px tighter and the +N path engages.
 		expect(
 			computeVisibleTagCount({
 				availableWidth: 97,
@@ -46,10 +44,6 @@ describe("computeVisibleTagCount", () => {
 	});
 
 	it("reserves room for the +N badge when overflowing", () => {
-		// available 100, plus 20, gap 4.
-		// tag0: 30 ; 30 + 4 + 20 = 54 <= 100 → fits
-		// tag1: 30+4+30=64 ; 64 + 4 + 20 = 88 <= 100 → fits
-		// tag2: 64+4+30=98 ; 98 + 4 + 20 = 122 > 100 → stop
 		expect(
 			computeVisibleTagCount({
 				availableWidth: 100,

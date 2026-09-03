@@ -66,10 +66,6 @@ describe("DeletePresetDialog", () => {
 		expect(props.onConfirm).not.toHaveBeenCalled();
 	});
 
-	// The dialog's own `onOpenChange` -> `onCancel` bridge: dismissing with Esc
-	// (or the overlay) is the only path that goes through it, and nothing else in
-	// the suite covers it — `useFilterPresetsSheet` tests `onCancelDelete` but not
-	// who calls it.
 	it("calls onCancel when dismissed with Escape", async () => {
 		const user = userEvent.setup();
 		const props = setup();
@@ -81,7 +77,6 @@ describe("DeletePresetDialog", () => {
 		setup({ isPending: true });
 		const deleteButton = screen.getByRole("button", { name: "Deleting..." });
 		expect(deleteButton).toBeDisabled();
-		// Cancel stays live so a stuck request is escapable.
 		expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
 	});
 });
