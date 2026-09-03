@@ -174,6 +174,13 @@ the error replaces the *list* only, keeping "Add passkey" available and offering
 (`refreshPasskeys`). Replacing the whole section instead would strand a user on an expired
 session with no way out short of reloading the page.
 
+`refreshPasskeys` is sequence-guarded rather than re-entry-guarded. Two refreshes can
+legitimately overlap (a `Retry` press while the refresh that follows a delete is still in
+flight), and only the newest **issued** one may write state — otherwise a slow failure
+landing after a fast success repaints the error over a good list. A plain "ignore while
+busy" guard would instead drop the refresh that `onDeletePasskey` / `onRenamePasskey`
+await, leaving the list stale after a successful write.
+
 ## Version coupling
 
 `@better-auth/passkey` is pinned to the exact `better-auth` version in the workspace

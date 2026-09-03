@@ -76,6 +76,7 @@ export function Passkeys() {
 		isAddOpen,
 		isDeletePending,
 		isPasskeySupported,
+		isRefreshPending,
 		loading,
 		onAddOpenChange,
 		onDeletePasskey,
@@ -106,8 +107,13 @@ export function Passkeys() {
 					<p className="text-destructive text-sm" role="alert">
 						{error}
 					</p>
-					<Button onClick={refreshPasskeys} size="sm" variant="outline">
-						Retry
+					<Button
+						disabled={isRefreshPending}
+						onClick={refreshPasskeys}
+						size="sm"
+						variant="outline"
+					>
+						{isRefreshPending ? "Retrying..." : "Retry"}
 					</Button>
 				</div>
 			);

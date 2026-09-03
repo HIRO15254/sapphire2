@@ -485,6 +485,47 @@ describe("usePasskeys", () => {
 		});
 	});
 
+	it("applies the newest refresh, not the last one to resolve", async () => {
+		let releaseFirst: ((value: unknown) => void) | undefined;
+		mocks.listUserPasskeys
+			.mockReturnValueOnce(
+				new Promise((resolve) => {
+					releaseFirst = resolve;
+				})
+			)
+			.mockResolvedValueOnce({ data: [PASSKEY_A] });
+
+		const { result } = renderHook(() => usePasskeys());
+		await act(async () => {
+			await result.current.refreshPasskeys();
+		});
+		await waitFor(() => expect(result.current.passkeys).toEqual([PASSKEY_A]));
+
+		await act(async () => {
+			releaseFirst?.({ data: null, error: { message: "stale failure" } });
+		});
+
+		expect(result.current.passkeys).toEqual([PASSKEY_A]);
+		expect(result.current.error).toBeNull();
+	});
+
+	it("marks a refresh pending while it is in flight", async () => {
+		let release: ((value: unknown) => void) | undefined;
+		mocks.listUserPasskeys.mockReturnValue(
+			new Promise((resolve) => {
+				release = resolve;
+			})
+		);
+
+		const { result } = renderHook(() => usePasskeys());
+		await waitFor(() => expect(result.current.isRefreshPending).toBe(true));
+
+		await act(async () => {
+			release?.({ data: [] });
+		});
+		expect(result.current.isRefreshPending).toBe(false);
+	});
+
 	it("clears a previous error once a refetch succeeds", async () => {
 		mocks.listUserPasskeys
 			.mockRejectedValueOnce(new Error("offline"))

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
 import { setAutomaticPasskeyOptOut } from "@/shared/lib/passkey-opt-out";
@@ -17,6 +17,7 @@ interface UsePasskeysResult {
 	isAddOpen: boolean;
 	isDeletePending: boolean;
 	isPasskeySupported: boolean;
+	isRefreshPending: boolean;
 	isRenamePending: boolean;
 	loading: boolean;
 	onAddOpenChange: (open: boolean) => void;
@@ -39,10 +40,19 @@ export function usePasskeys(): UsePasskeysResult {
 	const [deleteTarget, setDeleteTarget] = useState<PasskeyEntry | null>(null);
 	const [isDeletePending, setIsDeletePending] = useState(false);
 	const [isRenamePending, setIsRenamePending] = useState(false);
+	const [isRefreshPending, setIsRefreshPending] = useState(false);
+	const latestRefresh = useRef(0);
 
 	const refreshPasskeys = useCallback(async () => {
+		latestRefresh.current += 1;
+		const sequence = latestRefresh.current;
+		const isStale = () => sequence !== latestRefresh.current;
+		setIsRefreshPending(true);
 		try {
 			const result = await authClient.passkey.listUserPasskeys();
+			if (isStale()) {
+				return;
+			}
 			if (result.error) {
 				setError("Unable to load passkeys");
 				setPasskeys([]);
@@ -51,10 +61,16 @@ export function usePasskeys(): UsePasskeysResult {
 			setPasskeys((result.data as PasskeyEntry[] | null) ?? []);
 			setError(null);
 		} catch {
+			if (isStale()) {
+				return;
+			}
 			setError("Unable to load passkeys");
 			setPasskeys([]);
 		} finally {
-			setLoading(false);
+			if (!isStale()) {
+				setLoading(false);
+				setIsRefreshPending(false);
+			}
 		}
 	}, []);
 
@@ -116,6 +132,7 @@ export function usePasskeys(): UsePasskeysResult {
 		isAddOpen,
 		isDeletePending,
 		isPasskeySupported: isPasskeySupported(),
+		isRefreshPending,
 		isRenamePending,
 		loading,
 		onAddOpenChange: setIsAddOpen,
