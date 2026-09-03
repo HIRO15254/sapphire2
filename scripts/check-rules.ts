@@ -141,6 +141,13 @@ const CHECKS: Check[] = [
 			/-tz\.test\.ts$|login-continuation\.test\.ts$|share-session\.test\.ts$/,
 	},
 	{
+		name: "Stryker instrumentation left in a source file (stryNS_ / __stryker__ / a bare `// @ts-nocheck` stamp) — an in-place mutation run was still active; stop it with SIGINT and restore the file from git",
+		rule: ".claude/rules/testing.md",
+		globs: ["apps/**/*.{ts,tsx}", "packages/**/*.{ts,tsx}"],
+		pattern: /^\/\/ @ts-nocheck$|\bstryNS_\w+|__stryker__|__STRYKER_ACTIVE_MUTANT__/m,
+		excludePath: /routeTree\.gen\.ts$/,
+	},
+	{
 		name: "Stryker disable that is not `next-line <Mutator>[,<Mutator>]: <why>` — no ranged disables, no `all`, reason required",
 		rule: ".claude/rules/testing.md",
 		globs: ["apps/**/*.{ts,tsx}", "packages/**/*.{ts,tsx}"],
