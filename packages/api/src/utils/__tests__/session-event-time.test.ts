@@ -2,6 +2,7 @@ import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { describe, expect, it, vi } from "vitest";
 import {
 	assertAppendOccurredAtOrdering,
+	assertOccurredAtOrdering,
 	floorToMinute,
 	latestSessionEventOrderBy,
 	nextAppendSortOrderSql,
@@ -179,6 +180,99 @@ describe("assertAppendOccurredAtOrdering", () => {
 		});
 	});
 });
+function makeOrderingDb(responses: { occurredAt: Date }[][]) {
+	const limit = vi.fn();
+	for (const rows of responses) {
+		limit.mockResolvedValueOnce(rows);
+	}
+	const orderBy = vi.fn().mockReturnValue({ limit });
+	const where = vi.fn().mockReturnValue({ orderBy });
+	const from = vi.fn().mockReturnValue({ where });
+	const select = vi.fn().mockReturnValue({ from });
+	return { db: { select } };
+}
+
+describe("assertOccurredAtOrdering", () => {
+	it("rejects when the new time precedes the previous event's minute", async () => {
+		const { db } = makeOrderingDb([
+			[{ occurredAt: new Date("2026-01-01T10:31:00.000Z") }],
+		]);
+		await expect(
+			assertOccurredAtOrdering(
+				db as unknown as Parameters<typeof assertOccurredAtOrdering>[0],
+				"session-1",
+				5,
+				new Date("2026-01-01T10:30:00.000Z")
+			)
+		).rejects.toMatchObject({
+			code: "BAD_REQUEST",
+			message:
+				"occurredAt would precede the previous event by minute; reorder via sortOrder instead",
+		});
+	});
+
+	it("rejects when the new time follows the next event's minute", async () => {
+		const { db } = makeOrderingDb([
+			[],
+			[{ occurredAt: new Date("2026-01-01T10:29:00.000Z") }],
+		]);
+		await expect(
+			assertOccurredAtOrdering(
+				db as unknown as Parameters<typeof assertOccurredAtOrdering>[0],
+				"session-1",
+				5,
+				new Date("2026-01-01T10:30:00.000Z")
+			)
+		).rejects.toMatchObject({
+			code: "BAD_REQUEST",
+			message:
+				"occurredAt would follow the next event by minute; reorder via sortOrder instead",
+		});
+	});
+
+	it("allows the new time strictly between the previous and next events", async () => {
+		const { db } = makeOrderingDb([
+			[{ occurredAt: new Date("2026-01-01T10:29:00.000Z") }],
+			[{ occurredAt: new Date("2026-01-01T10:31:00.000Z") }],
+		]);
+		await expect(
+			assertOccurredAtOrdering(
+				db as unknown as Parameters<typeof assertOccurredAtOrdering>[0],
+				"session-1",
+				5,
+				new Date("2026-01-01T10:30:00.000Z")
+			)
+		).resolves.toBeUndefined();
+	});
+
+	it("allows the new time equal to the previous and next event minutes", async () => {
+		const { db } = makeOrderingDb([
+			[{ occurredAt: new Date("2026-01-01T10:30:00.000Z") }],
+			[{ occurredAt: new Date("2026-01-01T10:30:00.000Z") }],
+		]);
+		await expect(
+			assertOccurredAtOrdering(
+				db as unknown as Parameters<typeof assertOccurredAtOrdering>[0],
+				"session-1",
+				5,
+				new Date("2026-01-01T10:30:00.000Z")
+			)
+		).resolves.toBeUndefined();
+	});
+
+	it("allows the new time when there is no previous or next event", async () => {
+		const { db } = makeOrderingDb([[], []]);
+		await expect(
+			assertOccurredAtOrdering(
+				db as unknown as Parameters<typeof assertOccurredAtOrdering>[0],
+				"session-1",
+				5,
+				new Date("2026-01-01T10:30:00.000Z")
+			)
+		).resolves.toBeUndefined();
+	});
+});
+
 describe("nextAppendSortOrderSql", () => {
 	const dialect = new SQLiteSyncDialect();
 

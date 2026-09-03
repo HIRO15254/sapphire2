@@ -28,4 +28,19 @@ describe("assertSeatPositionFitsTableSize", () => {
 			OUTSIDE_TABLE_RE
 		);
 	});
+
+	it.each([
+		[0, 1, true],
+		[1, 1, false],
+		[0, 2, true],
+		[1, 2, true],
+		[2, 2, false],
+	])("validates seat %i fits tableSize %i", (seat, tableSize, shouldPass) => {
+		const fn = () => assertSeatPositionFitsTableSize(seat, tableSize);
+		if (shouldPass) {
+			expect(fn).not.toThrow();
+		} else {
+			expect(fn).toThrow(TRPCError);
+		}
+	});
 });
