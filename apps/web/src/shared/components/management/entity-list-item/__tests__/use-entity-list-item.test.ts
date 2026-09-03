@@ -68,7 +68,6 @@ describe("useEntityListItem", () => {
 			const { result } = renderHook(() =>
 				useEntityListItem({ isControlled: true, onExpandedValueChange })
 			);
-			// In controlled mode, handleExpandedValueChange should not update internal.
 			act(() => result.current.handleExpandedValueChange("item-1"));
 			expect(result.current.internalExpandedValue).toBeNull();
 

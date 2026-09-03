@@ -312,7 +312,6 @@ describe("useTypeCombobox", () => {
 			);
 			act(() => result.current.handleInputChange("deposit"));
 			act(() => result.current.handleKeyDown("Tab"));
-			// onTypeChange("") was called by handleInputChange; no further calls.
 			expect(onTypeChange).toHaveBeenCalledTimes(1);
 		});
 	});

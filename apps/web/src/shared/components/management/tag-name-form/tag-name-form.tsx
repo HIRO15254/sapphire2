@@ -12,14 +12,7 @@ export function TagNameForm({
 }: {
 	children?: React.ReactNode;
 	defaultName?: string;
-	/**
-	 * Stable id assigned to the `<form>` element so the surrounding
-	 * `FormSheet` toolbar's Save button can submit it via the HTML `form`
-	 * attribute. The form renders no submit button of its own — see
-	 * `.claude/rules/web-theme.md`.
-	 */
 	formId: string;
-	/** Field label override. Defaults to "Tag name" when omitted. */
 	label?: string;
 	onSubmit: (name: string) => void;
 }) {

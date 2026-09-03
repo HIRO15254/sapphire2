@@ -60,8 +60,6 @@ vi.mock("@/features/live-sessions/components/chip-purchase-sheet", () => ({
 		) : null,
 }));
 
-// Stand-in for the v2 FormSheet that hosts the memo form: renders the title,
-// the body, and the toolbar Save button submitting via the `form` attribute.
 vi.mock("@/shared/components/form-sheet", () => ({
 	FormSheet: ({
 		children,
@@ -99,8 +97,6 @@ const defaultProps = {
 	onSubmit: vi.fn(),
 };
 
-// The stack form is submitted by the surrounding FormSheet toolbar via the
-// `form` attribute — mirror that with an external trigger button.
 function renderForm(
 	props: Partial<React.ComponentProps<typeof TournamentStackForm>> = {}
 ) {

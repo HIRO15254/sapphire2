@@ -46,20 +46,14 @@ function numericStringSchema({
 	});
 }
 
-/**
- * Zod schema for a required numeric string field. Keeps the raw string in form
- * state; callers convert to `Number(value)` on submit.
- */
 export function requiredNumericString(rules: NumericRules = {}) {
 	return numericStringSchema({ required: true, ...rules });
 }
 
-/** Zod schema for an optional numeric string field ("" is allowed). */
 export function optionalNumericString(rules: NumericRules = {}) {
 	return numericStringSchema({ required: false, ...rules });
 }
 
-/** Parse a numeric string; returns `undefined` for empty input. */
 export function parseOptionalInt(value: string): number | undefined {
 	const trimmed = value.trim();
 	if (trimmed === "") {

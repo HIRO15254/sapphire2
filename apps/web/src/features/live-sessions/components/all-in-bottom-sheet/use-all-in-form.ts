@@ -18,10 +18,6 @@ const DEFAULT_VALUES = {
 	wins: "0",
 };
 
-// `wins <= trials` is enforced through the shared refineWinsNotExceedingTrials so
-// the create sheet and the timeline editor can't drift, mirroring the
-// server-side allInPayload refine (SA2-156). `wins` may be fractional (a chopped
-// pot counts as a partial win), so only the upper bound is checked.
 const allInSchema = z
 	.object({
 		potSize: requiredNumericString({ integer: true, min: 0 }),

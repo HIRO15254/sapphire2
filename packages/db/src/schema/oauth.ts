@@ -2,11 +2,6 @@ import { relations, sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { user } from "./auth";
 
-// OIDC provider tables consumed by better-auth's mcp() plugin (OAuth for the
-// /mcp endpoint): dynamically registered clients, issued tokens and recorded
-// consents. Field set mirrors the plugin's schema definition exactly —
-// better-auth reads/writes these through its drizzle adapter.
-
 export const oauthApplication = sqliteTable(
 	"oauth_application",
 	{

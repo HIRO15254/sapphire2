@@ -24,7 +24,6 @@ async function nextSortOrder(db: Db, userId: string): Promise<number> {
 	return row?.maxSort == null ? 0 : row.maxSort + 1;
 }
 
-// Named exports for the MCP tool layer — see .claude/rules/mcp-tools.md.
 export const gameVariantIdInputSchema = z.object({ id: z.string() });
 
 export const gameVariantCreateInputSchema = z.object({
@@ -52,12 +51,6 @@ export const gameVariantRouter = router({
 		if (rows.length > 0) {
 			return rows;
 		}
-		// Both masters are per-user rows now (mix-game rework); a fully-empty
-		// account (no groups, no variants, no mixes) is seeded on first read so
-		// legacy accounts that predate the auth-hook seed still get the builtin
-		// list. Only reached when THIS table is empty (c32) — seedDefaultGameData
-		// still re-checks all three tables itself (c09) so a caller who deleted
-		// only their variants (but kept a group/mix) is correctly left empty.
 		await seedDefaultGameData(ctx.db, userId);
 		return ctx.db
 			.select()
@@ -70,8 +63,6 @@ export const gameVariantRouter = router({
 		.input(gameVariantCreateInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			// Independent guards (group ownership vs. label-namespace collision) —
-			// run concurrently (c35).
 			await Promise.all([
 				validateEntityOwnership(ctx.db, "gameGroup", input.groupId, userId),
 				assertLabelNamespaceAvailable(ctx.db, userId, input.label, {
@@ -93,11 +84,6 @@ export const gameVariantRouter = router({
 					updatedAt: new Date(),
 				});
 			} catch (error) {
-				// Backstop against the app-level check above racing a concurrent
-				// identical-label insert (c14, TOCTOU). The DB guard that fires is
-				// the migration-0041 BEFORE trigger (SQLite runs it before the
-				// unique index), so isLabelConflictError matches its abort message
-				// too — converted to the same CONFLICT the app-level check throws.
 				if (isLabelConflictError(error)) {
 					throw new TRPCError({
 						code: "CONFLICT",
@@ -125,7 +111,6 @@ export const gameVariantRouter = router({
 				userId
 			);
 
-			// Independent guards — run concurrently when both are present (c35).
 			const guards: Promise<unknown>[] = [];
 			if (input.groupId !== undefined) {
 				guards.push(
@@ -160,14 +145,10 @@ export const gameVariantRouter = router({
 				await ctx.db
 					.update(gameVariant)
 					.set(updateData)
-					// Bind both id AND user_id so a foreign id can never be updated via
-					// this procedure (write-IDOR, SA2-176).
 					.where(
 						and(eq(gameVariant.id, input.id), eq(gameVariant.userId, userId))
 					);
 			} catch (error) {
-				// Same label-collision backstop as create() above (c14) — matches
-				// both the unique index and the 0041 trigger abort message.
 				if (isLabelConflictError(error)) {
 					throw new TRPCError({
 						code: "CONFLICT",
@@ -190,9 +171,6 @@ export const gameVariantRouter = router({
 			const userId = ctx.session.user.id;
 			await validateEntityOwnership(ctx.db, "gameVariant", input.id, userId);
 
-			// Keep the existing friendly conflict instead of relying on the
-			// junction's NO ACTION foreign key to surface a database error. The
-			// reverse lookup is scoped to the caller as a defense-in-depth guard.
 			const [inUse] = await ctx.db
 				.select({ variantId: gameMixVariant.variantId })
 				.from(gameMixVariant)

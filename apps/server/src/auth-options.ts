@@ -4,6 +4,15 @@ import type { Database } from "@sapphire2/db";
 
 type AuthOptions = Parameters<typeof createAuth>[1];
 
+const PASSKEY_RP_NAME = "sapphire2";
+
+function resolvePasskeyRp(
+	corsOrigin: string
+): NonNullable<AuthOptions["passkey"]> {
+	const url = new URL(corsOrigin);
+	return { origin: url.origin, rpID: url.hostname, rpName: PASSKEY_RP_NAME };
+}
+
 interface AuthEnv {
 	BETTER_AUTH_SECRET: string;
 	BETTER_AUTH_URL: string;
@@ -18,12 +27,6 @@ interface BuildAuthOptionsDeps {
 	seedGameData?: (db: Database, userId: string) => Promise<void>;
 }
 
-/**
- * The single source of the createAuth options object — every route that
- * instantiates better-auth must use this instead of repeating the literal.
- * The MCP OAuth provider (login page, RFC 8707 resource, consent page) is
- * derived from existing env vars, so /mcp needs no new secrets.
- */
 export function buildAuthOptions(
 	env: AuthEnv,
 	db: Database,
@@ -39,6 +42,7 @@ export function buildAuthOptions(
 		discordClientId: env.DISCORD_CLIENT_ID,
 		discordClientSecret: env.DISCORD_CLIENT_SECRET,
 		onUserCreated: (userId) => seedGameData(db, userId),
+		passkey: resolvePasskeyRp(env.CORS_ORIGIN),
 		mcp: {
 			consentPage: `${env.BETTER_AUTH_URL}/oauth/consent`,
 			loginPage: `${env.CORS_ORIGIN}/login`,

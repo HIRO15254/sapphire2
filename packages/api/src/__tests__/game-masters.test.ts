@@ -10,7 +10,6 @@ import {
 
 type Rows = Record<string, unknown>[];
 
-/** Minimal table-keyed `select({...}).from(table).where(...)` stub. */
 function makeDb(rowsByTable: Map<unknown, Rows>) {
 	return {
 		select: () => ({
@@ -118,7 +117,6 @@ describe("assertLabelNamespaceAvailable", () => {
 			assertLabelNamespaceAvailable(db, "u1", "my mix", { self: "variant" }),
 			"You already have a game variant with this label"
 		);
-		// Excluding the row's own id lets an unchanged-label update through.
 		await expect(
 			assertLabelNamespaceAvailable(db, "u1", "my mix", {
 				self: "variant",

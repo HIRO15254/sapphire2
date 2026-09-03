@@ -19,12 +19,6 @@ type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
 >[0]["ctx"]["db"];
 
-/**
- * Verifies the referenced transaction type belongs to the caller before it is
- * linked to a transaction. Without this a caller could attach another user's
- * transaction type id to their own transaction (read-IDOR, SA2-179). Mirrors
- * the currency-ownership check already used in create / update below.
- */
 async function validateTransactionTypeOwnership(
 	db: DbInstance,
 	transactionTypeId: string,
@@ -135,6 +129,7 @@ export const currencyTransactionRouter = router({
 			z.object({
 				currencyId: z.string(),
 				transactionTypeId: z.string(),
+				// NOTE(rule): api-data-integrity.md — ledger amounts are signed; withdrawals and negative session P/L are legitimate, so no .min(0).
 				amount: z.number().int(),
 				transactedAt: dateOnlySchema,
 				memo: z.string().optional(),
@@ -182,6 +177,7 @@ export const currencyTransactionRouter = router({
 			z.object({
 				id: z.string(),
 				transactionTypeId: z.string().optional(),
+				// NOTE(rule): api-data-integrity.md — ledger amounts are signed; withdrawals and negative session P/L are legitimate, so no .min(0).
 				amount: z.number().int().optional(),
 				transactedAt: dateOnlySchema.optional(),
 				memo: z.string().nullable().optional(),

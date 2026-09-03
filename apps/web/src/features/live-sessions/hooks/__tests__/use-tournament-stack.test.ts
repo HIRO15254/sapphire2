@@ -110,10 +110,6 @@ const pausedListKey = [
 	"list",
 	{ status: "paused", limit: 1 },
 ];
-// chipPurchases now live on the session snapshot (see
-// `liveTournamentSession.getById.chipPurchases`), so we seed them directly
-// onto the session cache entry rather than fetching from
-// `tournamentChipPurchase.listByTournament`.
 
 describe("useTournamentStack", () => {
 	beforeEach(() => {
@@ -294,7 +290,6 @@ describe("useTournamentStack", () => {
 				}>(sessionKey);
 				expect(session?.summary.remainingPlayers).toBe(20);
 				expect(session?.summary.totalEntries).toBe(100);
-				// (10_000 * 100) / 20 = 50_000
 				expect(session?.summary.averageStack).toBe(50_000);
 			});
 		});

@@ -344,7 +344,6 @@ describe("useTournaments", () => {
 				name: "Patched",
 				variant: "holdem",
 			});
-			// Tag diffs: add "Added", remove "RemoveMe" (Keep stays).
 			expect(trpcMocks.tournamentAddTag).toHaveBeenCalledWith({
 				tournamentId: "t1",
 				name: "Added",

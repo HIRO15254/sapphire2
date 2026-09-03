@@ -13,11 +13,6 @@ interface AddonBottomSheetProps {
 	open: boolean;
 }
 
-/**
- * V2 form sheet for adding / editing an addon amount. The FormSheet toolbar
- * submits the inner form via `formId`; the optional destructive Delete action
- * stays in the body below the fields.
- */
 export function AddonBottomSheet({
 	open,
 	onOpenChange,

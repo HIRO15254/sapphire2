@@ -116,7 +116,6 @@ describe("useTournamentFormSheet", () => {
 			startingStack: 5000,
 			buyIn: 10,
 		});
-		// blindLevels extracted is empty -> falls back to initial
 		expect(result.current.effectiveLevels[0].id).toBe("l1");
 	});
 
@@ -128,7 +127,6 @@ describe("useTournamentFormSheet", () => {
 				open: true,
 			})
 		);
-		// Simulate the form reporting the values the user has typed in-session.
 		act(() => {
 			result.current.registerLiveValues(() => ({
 				name: "User Typed",
@@ -146,7 +144,6 @@ describe("useTournamentFormSheet", () => {
 		act(() => {
 			result.current.handleAiExtracted(extracted);
 		});
-		// Blank AI name/buyIn must not wipe the user's in-session input.
 		expect(result.current.effectiveFormValues).toMatchObject({
 			name: "User Typed",
 			variant: "plo",

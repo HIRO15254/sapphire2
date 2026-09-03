@@ -30,7 +30,6 @@ vi.mock("@/lib/auth-client", () => ({
 vi.mock("@/shared/hooks/use-pwa-update", () => ({
 	usePwaUpdate: vi.fn(),
 }));
-// __root.tsx value imports — stubbed so the test does not load the full shell.
 vi.mock("@/shared/components/authenticated-shell", () => ({
 	AuthenticatedShell: () => null,
 }));
@@ -56,18 +55,11 @@ type IndexBeforeLoad = (ctx: {
 let rootBeforeLoad: RootBeforeLoad;
 let indexBeforeLoad: IndexBeforeLoad;
 
-/**
- * Simulates a single "/" navigation the way TanStack Router runs it: the root
- * guard's beforeLoad first (its return value merges into router context), then
- * the index route's beforeLoad with that merged context. Returns the thrown
- * redirect error.
- */
 async function navigateToHome(): Promise<Error & { redirectTo?: unknown }> {
 	let contextPatch: { session: SessionResult | null } | undefined;
 	try {
 		contextPatch = await rootBeforeLoad({ location: { pathname: "/" } });
 	} catch (err) {
-		// Root guard redirected (signed-out) — the index route never runs.
 		return err as Error & { redirectTo?: unknown };
 	}
 	try {

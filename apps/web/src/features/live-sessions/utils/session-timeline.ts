@@ -97,8 +97,6 @@ export function deriveCashGameTimeline(
 				acc.chipRemoveTotal += -data.amount;
 				acc.stack -= -data.amount;
 			}
-			// Not a stack record: only update the running basis. The change is
-			// reflected at the next update_stack / session_end point.
 			continue;
 		}
 		if (e.eventType === "all_in") {
@@ -106,8 +104,6 @@ export function deriveCashGameTimeline(
 			acc.evDiff +=
 				data.potSize * (data.equity / 100) -
 				(data.potSize / data.trials) * data.wins;
-			// Not a stack record: only accumulate evDiff. Reflected at the next
-			// update_stack / session_end point.
 			continue;
 		}
 		if (e.eventType === "session_end") {
@@ -195,12 +191,6 @@ function applyTournamentSessionEnd(acc: TournamentAcc, payload: unknown): void {
 	}
 }
 
-/**
- * The tournament's starting stack, taken from the first recorded stack. The
- * create flow logs the starting stack as the first `update_stack`, so the start
- * point can plot at the starting stack rather than at zero. `null` when no stack
- * was ever recorded.
- */
 function findTournamentStartingStack(
 	events: TimelineEvent[],
 	startIndex: number
@@ -221,8 +211,6 @@ function applyTournamentEvent(
 	startingStack: number | null
 ): boolean {
 	if (eventType === "session_start") {
-		// Tournament start counts as recording a stack equal to the starting
-		// stack, so the curve begins at the starting stack rather than zero.
 		acc.startingStack = startingStack;
 		acc.stack = startingStack ?? 0;
 		return true;
@@ -232,8 +220,6 @@ function applyTournamentEvent(
 		return true;
 	}
 	if (eventType === "purchase_chips") {
-		// Not a stack record: fold the chips into the running stack so they are
-		// reflected at the next update_stack point, but don't plot the purchase.
 		acc.stack += purchaseChipsPayload.parse(payload).chips;
 		return false;
 	}

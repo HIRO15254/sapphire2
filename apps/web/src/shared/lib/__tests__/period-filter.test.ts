@@ -7,7 +7,6 @@ import {
 	resolveDateRange,
 } from "@/shared/lib/period-filter";
 
-// 2026-06-12T08:30:00Z
 const NOW_SEC = Math.floor(Date.UTC(2026, 5, 12, 8, 30, 0) / 1000);
 const START_OF_DAY = Math.floor(Date.UTC(2026, 5, 12) / 1000);
 const DAY = 86_400;

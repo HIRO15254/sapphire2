@@ -17,13 +17,6 @@ import {
 type Rows = Record<string, unknown>[];
 const dialect = new SQLiteSyncDialect();
 
-/**
- * Mock db keyed by schema-table reference: `select().from(t)...` resolves to
- * the rows registered for `t`; every `.where(cond)` records its bound SQL
- * params (so cursor scoping can be asserted) and `insert(t).values()` records
- * the inserted payload (so a rejected ownership guard can be shown to skip the
- * write).
- */
 function createMockDb(rowsByTable: Map<unknown, Rows>) {
 	const selectWhereParams: unknown[][] = [];
 	const selectJoinParams: unknown[][] = [];
@@ -376,7 +369,6 @@ describe("currencyTransaction.update transactionType ownership (SA2-179)", () =>
 		await expect(
 			caller.update({ id: "tx1", amount: 50 })
 		).resolves.toBeDefined();
-		// transaction_type is never seeded → no extra ownership read fired.
 		expect(rows.has(transactionType)).toBe(false);
 		expect(selectWhereParams.length).toBeGreaterThan(0);
 	});

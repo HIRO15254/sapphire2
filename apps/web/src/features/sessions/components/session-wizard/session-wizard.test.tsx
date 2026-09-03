@@ -3,14 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithQueryClient as render } from "@/__tests__/test-utils";
 
-// LocalBlindStructureContent (reused by the tournament Rules step) pulls in
-// the rooms blind-level editor, which transitively imports @/utils/trpc.
-// Stub it so the env-validating import chain is not loaded under jsdom. The
-// rule bodies also render VariantSelect / useVariantLabels, which use real
-// react-query hooks against trpc.gameVariant.list — provide a queryFn (the
-// tests below render with mode="nlh" default variant, a preset, so the
-// blind labels resolve synchronously regardless of when this query settles)
-// and rely on the renderWithQueryClient wrapper above for a QueryClient.
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		blindLevel: {
@@ -87,17 +79,14 @@ describe("SessionWizard — step gating", () => {
 		const user = userEvent.setup();
 		render(<SessionWizard onSubmit={vi.fn()} rooms={[STORE]} />);
 
-		// Master shows the session-type tabs
 		expect(screen.getByText("Cash game")).toBeInTheDocument();
 
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
-		// Rules step: cash variant field shows up
 		expect(screen.getByText("Variant")).toBeInTheDocument();
 		expect(screen.getByText("SB")).toBeInTheDocument();
 		expect(screen.getByText("BB")).toBeInTheDocument();
 
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
-		// Result step: date + buy-in/cash-out + Save button
 		expect(screen.getByLabelText(SESSION_DATE_RE)).toBeInTheDocument();
 		expect(document.getElementById("buyIn")).toBeInTheDocument();
 		expect(document.getElementById("cashOut")).toBeInTheDocument();
@@ -157,7 +146,6 @@ describe("SessionWizard — tournament mode", () => {
 		expect(
 			screen.getByRole("tab", { name: "Blind levels" })
 		).toBeInTheDocument();
-		// Settings tab is active by default — chip purchases live there.
 		expect(screen.getByText("Chip Purchases")).toBeInTheDocument();
 	});
 
@@ -204,10 +192,6 @@ describe("SessionWizard — master-step pre-fill", () => {
 			/>
 		);
 
-		// Wizard owns room selection; the form options surface once a room
-		// is picked. Hop to the rules step and inspect that the cash-rule
-		// fields render — the deeper pre-fill behavior is covered by the
-		// shared hook tests.
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		expect(screen.getByText("Variant")).toBeInTheDocument();
 	});
@@ -235,7 +219,6 @@ describe("SessionWizard — live mode", () => {
 				submitLabel="Start session"
 			/>
 		);
-		// Advance Master -> Rules -> Start (the last step in live mode).
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		expect(screen.getByRole("button", { name: START_RE })).toBeInTheDocument();
@@ -278,7 +261,6 @@ describe("SessionWizard — live mode", () => {
 		render(<SessionWizard onSubmit={vi.fn()} rooms={[STORE]} />);
 		await user.click(screen.getByText("Tournament"));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
-		// Rules step: rule fields present, result fields absent.
 		expect(document.getElementById("tournamentBuyIn")).toBeInTheDocument();
 		expect(document.getElementById("entryFee")).toBeInTheDocument();
 		expect(document.getElementById("prizeMoney")).not.toBeInTheDocument();
@@ -292,10 +274,6 @@ describe("SessionWizard — live mode", () => {
 		await user.click(screen.getByText("Tournament"));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
-		// Result step: prizeMoney / placement / totalEntries (after toggling
-		// off the registration-close flag, which is unchecked by default) /
-		// bounty. Chip-purchase counts render only when the Rules step
-		// defined chip purchases.
 		expect(document.getElementById("prizeMoney")).toBeInTheDocument();
 		expect(document.getElementById("placement")).toBeInTheDocument();
 		expect(document.getElementById("totalEntries")).toBeInTheDocument();

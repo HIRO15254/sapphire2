@@ -30,9 +30,6 @@ export function useCashGameCompactSummary(
 ): CashGameCompactSummaryViewModel {
 	const duration = useElapsedTime(summary.startedAt);
 
-	// SA2-124: P/L must match the server (`live-session-pl.ts`) and the session
-	// chart (`session-timeline.ts`): stack + chipRemoveTotal - totalBuyIn.
-	// Chips racked off the table are already-pocketed value, not a loss.
 	const displayPL =
 		summary.currentStack === null
 			? null

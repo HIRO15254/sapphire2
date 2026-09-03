@@ -7,17 +7,11 @@ interface UseOccupiedSeatEditorOptions {
 	playerId: string;
 }
 
-/**
- * Speed-first inline editing of a seated player: tags use the shared tag picker
- * (add / remove / create) and persist optimistically; name and memo auto-save
- * on blur — no Save button, every write goes through `usePlayerDetail`.
- */
 export function useOccupiedSeatEditor({
 	playerId,
 }: UseOccupiedSeatEditorOptions) {
 	const { availableTags, createTag, isSaving, player, updatePlayer } =
 		usePlayerDetail(playerId);
-	// Latest memo html from the editor; null = untouched this session.
 	const memoDraft = useRef<string | null>(null);
 
 	const currentTagIds = () => player?.tags.map((tag) => tag.id) ?? [];
@@ -59,7 +53,6 @@ export function useOccupiedSeatEditor({
 		updatePlayer({ id: playerId, memo: draft === "" ? null : draft });
 	};
 
-	/** Saves only when focus actually leaves the memo editor (not toolbar taps). */
 	const onMemoContainerBlur = (event: FocusEvent<HTMLDivElement>) => {
 		if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
 			return;

@@ -55,8 +55,6 @@ export function RingGameRow({
 			<div className="min-w-0 flex-1">
 				<div className="flex flex-wrap items-center gap-1.5">
 					<span className="truncate font-medium text-sm">{game.name}</span>
-					{/* Variants freeze full display labels ("8-Game", "NL Hold'em") —
-					    render as-is; uppercasing would mangle them. */}
 					<Badge variant="secondary">{variantDisplayLabel(game.variant)}</Badge>
 					{game.tableSize == null ? null : (
 						<Badge className={getTableSizeClassName(game.tableSize)}>

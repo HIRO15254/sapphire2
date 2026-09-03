@@ -18,8 +18,6 @@ interface GroupInput {
 	label: string;
 }
 
-// Mirrors gameGroup.create/update's server constraints so users get
-// field-level errors instead of a server reject.
 const groupFormSchema = z.object({
 	label: z.string().trim().min(1, "Required").max(30),
 	blind1Label: z.string().trim().max(20),
@@ -27,20 +25,10 @@ const groupFormSchema = z.object({
 	blind3Label: z.string().trim().max(20),
 });
 
-/**
- * Create AND edit share one sheet — mode is derived from `editingGroup`
- * presence. The parent (`use-games-page.ts`) keys this sheet by
- * create/edit-target identity so a fresh hook instance mounts per target,
- * seeding `defaultValues` once; `onOpenChange` also resets the form on
- * close so a repeated "Add group" against the same persisted create-mode
- * instance never resurfaces a cancelled draft.
- */
 export function useGroupFormSheet({
 	editingGroup,
 	onOpenChange,
 }: UseGroupFormSheetProps) {
-	// Uniform triple-list invalidation, matching every other mutation in this
-	// section (see use-games-page.ts's invalidateAll).
 	const invalidateAll = useInvalidateGameMasters();
 
 	const createMutation = useMutation({

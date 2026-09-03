@@ -81,7 +81,6 @@ describe("useTournamentDetail", () => {
 		const { result } = renderHook(() => useTournamentDetail(""), {
 			wrapper: makeWrapper(qc),
 		});
-		// enabled=false because id is empty.
 		expect(result.current.tournament).toBeUndefined();
 		expect(result.current.chipPurchases).toEqual([]);
 		expect(result.current.levels).toEqual([]);

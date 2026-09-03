@@ -34,6 +34,7 @@ sapphire2/
 ├── AGENTS.md           # Agent guide (source of truth); CLAUDE.md imports it via @AGENTS.md
 ├── .claude/            # Claude Code config (rules, skills, settings)
 ├── docs/
+│   ├── design/         # Design decisions and domain invariants
 │   ├── deploy.md       # Deployment guide (EN)
 │   └── deploy.ja.md    # Deployment guide (JA)
 └── .github/workflows/
@@ -132,3 +133,7 @@ The project deploys to **Cloudflare Workers** (API) + **Cloudflare Pages** (Web)
 - **Production**: Deployed automatically when a GitHub Release is published
 
 See [docs/deploy.md](docs/deploy.md) for detailed setup instructions.
+
+## Design Documentation
+
+Domain design decisions and invariants (data integrity, sessions, statistics, MCP/OAuth, and more) are documented in [docs/design/](docs/design/README.md).

@@ -1,25 +1,9 @@
 import { toolPermissionSummary } from "../tools/registry";
 
-/**
- * OAuth consent page, served by the Worker's `GET /oauth/consent` route
- * (better-auth's `oidcConfig.consentPage` redirects the browser there).
- *
- * Dynamic client registration is open to anyone (standard MCP posture), so
- * every client-supplied value is hostile input: the name and redirect hosts
- * are HTML-escaped, and nothing else the client registered (icon, metadata)
- * is rendered at all. The consent code is embedded as JSON with `<` escaped
- * so a crafted code can never terminate the script element.
- *
- * The page describes the REAL capability of the token being issued, derived
- * from the tool catalogue — not the OAuth scopes, which are not used for
- * authorization (see buildMcpSession) and would under-represent the grant.
- */
-
 export interface ConsentHtmlProps {
 	clientId: string;
 	clientName: string;
 	code: string;
-	/** Hosts the authorization code will be delivered to, from the DCR row. */
 	redirectHosts: string[];
 }
 
@@ -32,7 +16,6 @@ function escapeHtml(value: string): string {
 		.replaceAll("'", "&#39;");
 }
 
-/** JSON string safe to place inside a <script> element. */
 function scriptSafeJson(value: unknown): string {
 	return JSON.stringify(value).replaceAll("<", "\\u003c");
 }

@@ -22,14 +22,6 @@ function setGroupId(resolveGroup: ResolveGroup, set: LevelGameGroup): string {
 	return resolveGroup(set.variants[0] ?? "").id;
 }
 
-/**
- * The grouped header labels amounts by position, so it is only safe when
- * every non-break level with game sets follows the composition's group
- * sequence (same length, same group per position). A stored level from an
- * older/edited composition falls back to the generic single header row
- * (null) instead of letting amounts be edited under wrong labels; per-row
- * game labels stay correct either way.
- */
 function levelsMatchComposition(
 	levels: BlindLevelRow[],
 	composition: LevelGameGroup[],
@@ -52,14 +44,6 @@ function levelsMatchComposition(
 	});
 }
 
-/**
- * Sheet-state for the mix-mode table (which level's game groups are being
- * edited — resolving the row from `levels` keeps the sheet in sync with
- * optimistic updates while open) plus the hybrid table's per-group header
- * rows: one per game of the mix composition, labeled with that group's
- * blind slots (WSOP structure-sheet style). Header rows are null when any
- * stored level mismatches the composition (see levelsMatchComposition).
- */
 export function useBlindStructureTable(
 	levels: BlindLevelRow[],
 	{

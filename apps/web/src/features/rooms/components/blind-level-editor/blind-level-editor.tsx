@@ -10,15 +10,6 @@ import { rowsFromVariantLabels, toLevelGames } from "@/shared/lib/mix-games";
 import { BlindStructureTable } from "./blind-structure-table";
 import { useLocalBlindStructure } from "./use-blind-level-editor";
 
-// Levels carry per-level games in per-level mode (the "mix" sentinel):
-// there each level picks its own variant in the sheet and renders as a
-// "Games" summary row. A mix-master variant renders WSOP-structure-sheet
-// style (hybridGames): levels with game sets are always one inline row per
-// set (no flat toggle); breaks and legacy flat levels stay single-row.
-// Hybrid rendering also derives from the levels themselves so game-set
-// levels survive a deleted/renamed mix master, and the table is deferred
-// while the masters load so blur edits cannot write conflicting flat
-// values. compositionFor maps the sheet's pick to the games it stands for.
 function useLevelSheetWiring(variant: string, levels: BlindLevelRow[]) {
 	const { groupFor, isLoading, labelsFor, isMixValue, mixCompositionLabels } =
 		useGameGroups();
@@ -29,9 +20,6 @@ function useLevelSheetWiring(variant: string, levels: BlindLevelRow[]) {
 		isMixValue(label) && label.trim().toLowerCase() !== MIX_VARIANT
 			? mixCompositionLabels(label)
 			: [label];
-	// Mix-master tournaments default new levels to per-game blind sets seeded
-	// from the composition (amounts blank); typing into the empty row still
-	// creates an explicit flat level.
 	const defaultLevelGames = isMixMaster
 		? toLevelGames(
 				rowsFromVariantLabels(mixCompositionLabels(variant), groupFor)
@@ -55,8 +43,6 @@ function LoadingLevels() {
 		</p>
 	);
 }
-
-// ---- Main content (API-backed) ----
 
 interface BlindStructureContentProps {
 	tournamentId: string;
@@ -123,8 +109,6 @@ export function BlindStructureContent({
 		/>
 	);
 }
-
-// ---- Local-state content (for create modal) ----
 
 interface LocalBlindStructureContentProps {
 	onChange: (levels: BlindLevelRow[]) => void;

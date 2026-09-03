@@ -68,9 +68,7 @@ describe("useSignOut", () => {
 	});
 
 	it("does not navigate until the persisted cache clear resolves", async () => {
-		let resolveClear: () => void = () => {
-			// overwritten synchronously below
-		};
+		let resolveClear: () => void = () => undefined;
 		mocks.clearPersistedQueryCache.mockReturnValue(
 			new Promise<void>((resolve) => {
 				resolveClear = resolve;

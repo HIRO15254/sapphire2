@@ -11,16 +11,6 @@ export interface SapphireMcpServerOptions {
 	log: (error: unknown) => void;
 }
 
-/**
- * Build a per-request McpServer over an authenticated tRPC caller. Every
- * tool is a projection of an appRouter procedure (registry.ts); the caller
- * carries the user's session so protectedProcedure auth and ownership
- * checks run exactly as they do for the HTTP API.
- *
- * The JSON Schema validator is passed explicitly: the runtime-selected
- * default would pull in Ajv (new Function codegen — illegal on Workers)
- * whenever the bundler resolves the Node shim.
- */
 export function createSapphireMcpServer({
 	caller,
 	log,
@@ -43,8 +33,6 @@ export function createSapphireMcpServer({
 				def.name,
 				{
 					...config,
-					// The registry stores the router's Zod schema as unknown to
-					// stay decoupled from SDK types; it is a Zod object at runtime.
 					inputSchema: def.inputSchema as StandardSchemaWithJSON,
 				},
 				(args: unknown) => callTool(def, caller, args, log)

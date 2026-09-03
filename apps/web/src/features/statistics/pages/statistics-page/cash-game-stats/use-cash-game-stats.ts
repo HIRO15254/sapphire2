@@ -28,11 +28,6 @@ function ratio(value: number | null, count: number): number | null {
 	return value === null || count === 0 ? null : value / count;
 }
 
-/**
- * Cash-game-specific stat table. The block always queries with the type forced
- * to `cash_game` so it stays game-specific even when the global type filter is
- * "all". bb/100 is intentionally omitted — hands are not tracked.
- */
 export function useCashGameStats(
 	ctx: StatsSectionContext
 ): UseCashGameStatsResult {

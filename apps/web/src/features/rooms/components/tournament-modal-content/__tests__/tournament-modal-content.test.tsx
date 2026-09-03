@@ -3,9 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { TournamentModalContent } from "../tournament-modal-content";
 
-// The real useTournamentModalContent hook is used so the controlled-tab
-// behavior (activeTab / setActiveTab) is exercised end to end; only its
-// master-data dependency is stubbed (no QueryClient in these tests).
 vi.mock("@/shared/hooks/use-game-groups", () => ({
 	useGameGroups: () => ({ isMixValue: () => false }),
 }));
@@ -88,16 +85,9 @@ describe("TournamentModalContent", () => {
 			/>
 		);
 		await user.click(screen.getByRole("tab", { name: "Structure" }));
-		// The Structure tab content is now shown...
 		expect(screen.getByTestId("blind-structure")).toBeInTheDocument();
-		// ...but the Details form must remain in the DOM: the FormSheet Save
-		// button submits it via `form={formId}`, which resolves nothing if the
-		// form has been unmounted (SA2-97).
 		const form = screen.getByTestId("tournament-form");
 		expect(form).toBeInTheDocument();
-		// forceMount renders inactive content without the `hidden` attr, so it is
-		// hidden via `data-[state=inactive]:hidden` — assert the panel carries the
-		// inactive state that drives that class (regression guard for the fix).
 		expect(form.closest("[data-slot='tabs-content']")).toHaveAttribute(
 			"data-state",
 			"inactive"
@@ -118,9 +108,6 @@ describe("TournamentModalContent", () => {
 			"data-state",
 			"active"
 		);
-		// The form reports an invalid submit (e.g. empty required name) while the
-		// Structure tab is open; the sheet must reveal the erroring Details tab
-		// instead of silently swallowing the click (SA2-97 follow-up).
 		await user.click(screen.getByRole("button", { name: "trigger-invalid" }));
 		expect(screen.getByRole("tab", { name: "Details" })).toHaveAttribute(
 			"data-state",

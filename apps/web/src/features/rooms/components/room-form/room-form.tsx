@@ -12,11 +12,6 @@ interface RoomFormProps {
 		memo?: string;
 		name: string;
 	};
-	/**
-	 * Stable id assigned to the `<form>` element so an external Save button
-	 * (rendered by the surrounding FormSheet toolbar) can submit it via the
-	 * HTML `form` attribute.
-	 */
 	formId: string;
 	onSubmit: (values: RoomFormValues) => void;
 }

@@ -12,8 +12,6 @@ vi.mock("@/features/rooms/pages/rooms-page/use-rooms-page", () => ({
 	useRoomsPage: hoisted.useRoomsPage,
 }));
 
-// RoomList owns the loading / empty / data switch (covered by its own test).
-// Stub it so the page test focuses on wiring.
 vi.mock("@/features/rooms/pages/rooms-page/room-list", () => ({
 	RoomList: ({
 		rooms,

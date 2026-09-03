@@ -13,7 +13,6 @@ const MIX_FORM_ID = "game-mix-form";
 export interface MixFormSheetProps {
 	editingMix: MixFormMixRow | null;
 	onOpenChange: (open: boolean) => void;
-	/** See {@link UseMixFormSheetProps.onSaved} for the gameLabels contract. */
 	onSaved?: (
 		mix: { id: string; label: string; games: string[] },
 		gameLabels: string[]
@@ -22,13 +21,6 @@ export interface MixFormSheetProps {
 	variants: MixFormVariantRow[];
 }
 
-/**
- * Create AND edit share this sheet — see `use-mix-form-sheet.ts` for the
- * mode derivation and the label<->id mapping contract. The UI works in
- * variant LABELS (Badge chips + `VariantSelect`, which is itself
- * label-based); the hook converts to/from ordered variant IDs for the
- * gameMix.create/update payload.
- */
 export function MixFormSheet({
 	editingMix,
 	onOpenChange,

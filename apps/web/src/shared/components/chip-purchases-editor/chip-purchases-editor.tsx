@@ -15,12 +15,6 @@ interface ChipPurchasesEditorProps {
 	value: ChipPurchaseRow[];
 }
 
-/**
- * Controlled rebuy / add-on editor shared by the Rooms tournament form
- * and the session wizard's Rules step. Each row carries a stable `uid`
- * so React keys survive edits; numeric cells stay strings (parsed by the
- * consuming form/schema) per the `inputMode="numeric"` convention.
- */
 export function ChipPurchasesEditor({
 	value,
 	onChange,

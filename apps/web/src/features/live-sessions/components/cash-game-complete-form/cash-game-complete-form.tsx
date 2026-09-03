@@ -4,11 +4,6 @@ import { useCashGameCompleteForm } from "./use-cash-game-complete-form";
 
 interface CashGameCompleteFormProps {
 	defaultFinalStack?: number;
-	/**
-	 * Stable id assigned to the `<form>` element so the surrounding FormSheet
-	 * toolbar can submit it via the HTML `form` attribute. The form renders no
-	 * submit button of its own.
-	 */
 	formId: string;
 	onSubmit: (values: { finalStack: number }) => void;
 }

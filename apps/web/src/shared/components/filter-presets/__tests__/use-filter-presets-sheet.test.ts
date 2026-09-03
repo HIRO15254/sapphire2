@@ -67,8 +67,6 @@ describe("useFilterPresetsSheet", () => {
 			hoisted.clearDefault,
 		]) {
 			m.mockReset();
-			// Production always hands back a promise (mutateAsync); a bare
-			// `mockReset()` would return undefined and blow up the `.then` chains.
 			m.mockResolvedValue(undefined);
 		}
 		hoisted.useFilterPresets.mockReturnValue(presetsStub());
@@ -126,10 +124,6 @@ describe("useFilterPresetsSheet", () => {
 		expect(result.current.isDefaultTogglePending).toBe(true);
 	});
 
-	// The star is ONE toggle button, so it must be disabled while a default
-	// change is in flight in EITHER direction. Exposing only the set-default
-	// flag left the clear path unguarded (double-tapping an already-default
-	// preset fired two clearDefault calls).
 	it.each([
 		["setDefault", { isSetDefaultPending: true }],
 		["clearDefault", { isClearDefaultPending: true }],
@@ -149,9 +143,6 @@ describe("useFilterPresetsSheet", () => {
 		expect(result.current.isDefaultTogglePending).toBe(false);
 	});
 
-	// `defaultPreset` was returned but never consumed: every row already carries
-	// its own `isDefault`, and the auto-apply-on-load path lives in
-	// `useDefaultFilterPreset`, not in this sheet.
 	it("does not expose defaultPreset", () => {
 		hoisted.useFilterPresets.mockReturnValue(
 			presetsStub({ defaultPreset: makePreset({ isDefault: true }) })
@@ -227,10 +218,6 @@ describe("useFilterPresetsSheet", () => {
 			expect(hoisted.setDefault).not.toHaveBeenCalled();
 		});
 
-		// Tapping the star is the one preset action with no confirmation step, so
-		// a failing setDefault/clearDefault is the easiest unhandled rejection to
-		// hit. The toast comes from the global MutationCache.onError; the handler
-		// only has to settle.
 		it("resolves without rejecting when setDefault fails", async () => {
 			hoisted.setDefault.mockRejectedValue(new Error("Network error"));
 			const { result } = renderSheet();
@@ -493,11 +480,6 @@ describe("useFilterPresetsSheet", () => {
 			expect(hoisted.update).not.toHaveBeenCalled();
 		});
 
-		// Asserted one surface at a time on purpose: a tab switch abandons a pending
-		// edit, and the delete confirmation and the rename form close each other
-		// (see "edit state consistency"), so requesting all three in sequence and
-		// expecting them to coexist would contradict that. What matters here is that
-		// re-rendering while the sheet stays OPEN preserves whatever is active.
 		it("keeps the active tab across re-renders while the sheet stays open", () => {
 			const { result, rerender } = renderSheet({ open: true });
 
@@ -547,10 +529,6 @@ describe("useFilterPresetsSheet", () => {
 			expect(result.current.pendingEdit).toBeNull();
 		});
 	});
-	// `pendingEdit` and the other two pieces of sheet state have to stay mutually
-	// consistent: the sheet only renders the edit form while `activeTab` is
-	// "saved", and the delete confirmation is a separate surface, so an edit left
-	// dangling behind either one reappears (or outlives its own row).
 	describe("edit state consistency", () => {
 		it("clears a pending edit when the user switches tabs", () => {
 			const preset = makePreset();

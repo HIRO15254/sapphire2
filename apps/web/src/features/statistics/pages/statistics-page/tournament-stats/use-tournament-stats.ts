@@ -28,12 +28,6 @@ function ratio(value: number | null, count: number): number | null {
 	return value === null || count === 0 ? null : value / count;
 }
 
-/**
- * Tournament-specific stat table. Always queries with the type forced to
- * `tournament` so it stays game-specific even when the global type filter is
- * "all". Prize money is always a currency amount, so it stays in currency units
- * even when normalized.
- */
 export function useTournamentStats(
 	ctx: StatsSectionContext
 ): UseTournamentStatsResult {
@@ -71,10 +65,6 @@ export function useTournamentStats(
 	);
 	const scoped = (value: number | null): string =>
 		formatScopedProfitLoss(value, { normalized, unit });
-	// Aggregate ROI and Total prize sum raw currency amounts, so they are only
-	// meaningful when a single currency is pinned. Without one (e.g. the default
-	// normalized scope) they would blend currencies, so they are hidden and only
-	// the currency-agnostic Avg ROI (mean of per-session ROI %) is shown.
 	const currencySelected = Boolean(ctx.statsInput.currencyId);
 
 	const rows: StatRow[] = [

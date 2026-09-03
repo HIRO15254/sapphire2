@@ -18,9 +18,7 @@ interface CurrencyListItem {
 interface CurrencyListProps {
 	currencies: CurrencyListItem[];
 	isError: boolean;
-	/** Initial currencies fetch is in flight (no rows yet). */
 	isLoading: boolean;
-	/** Open the create sheet — wired to the empty-state CTA. */
 	onCreate: () => void;
 	onRetry: () => void;
 	onToggleFavorite: (id: string) => void;
@@ -28,12 +26,6 @@ interface CurrencyListProps {
 
 const SKELETON_COUNT = 5;
 
-/**
- * Owns the list surface's loading / empty / data switch, mirroring
- * `TransactionListV2`: the consumer passes `isLoading` + `currencies` and the
- * component decides what to render, instead of the page branching externally.
- * The loading branch stacks the card-bound `CurrencyListCardSkeleton`.
- */
 export function CurrencyList({
 	currencies,
 	isError,

@@ -20,11 +20,6 @@ interface AllInBottomSheetProps {
 	open: boolean;
 }
 
-/**
- * V2 form sheet for capturing an all-in spot. The FormSheet toolbar submits
- * the inner form via `formId`; the optional destructive Delete action stays
- * in the body below the fields.
- */
 export function AllInBottomSheet({
 	open,
 	onOpenChange,

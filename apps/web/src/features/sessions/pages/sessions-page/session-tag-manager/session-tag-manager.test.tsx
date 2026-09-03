@@ -85,7 +85,6 @@ describe("SessionTagManager", () => {
 		await user.click(screen.getByRole("button", { name: "New tag" }));
 
 		await user.type(screen.getByRole("textbox"), "Online");
-		// The FormSheet toolbar Save button submits the form via `form={formId}`.
 		await user.click(screen.getByLabelText("Save"));
 
 		await waitFor(() => {

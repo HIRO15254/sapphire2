@@ -1,10 +1,5 @@
 import { Skeleton } from "@/shared/components/ui/skeleton";
 
-/**
- * Loading placeholder bound to {@link SessionListCard}'s shape: leading icon,
- * a name line over two subtext rows (date + duration, room), and a trailing
- * two-line result column (P&L over its secondary figure).
- */
 export function SessionListCardSkeleton() {
 	return (
 		<div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">

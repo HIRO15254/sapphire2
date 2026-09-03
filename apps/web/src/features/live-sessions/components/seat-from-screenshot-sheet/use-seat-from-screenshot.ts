@@ -148,7 +148,7 @@ export function useSeatFromScreenshot({
 			setRows(built);
 			setStep("review");
 		} catch {
-			// toast already handled by MutationCache.onError
+			return;
 		}
 	};
 

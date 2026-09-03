@@ -251,7 +251,6 @@ describe("CurrencyTransaction schema — FKs and indexes", () => {
 			fk.reference().columns.some((c) => c.name === "transaction_type_id")
 		);
 		expect(ttFk).toBeDefined();
-		// No explicit onDelete means undefined (default RESTRICT at DB level)
 		expect(ttFk?.onDelete).toBeUndefined();
 	});
 

@@ -40,8 +40,6 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 		if (!session.data) {
 			throw redirect({ to: "/login" });
 		}
-		// Merge the fetched session into router context so child routes
-		// (e.g. the "/" dispatch) can read it without a second round-trip.
 		return { session, sessionUnavailable: false };
 	},
 	component: RootComponent,

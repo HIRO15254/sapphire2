@@ -5,11 +5,6 @@ interface FilterPresetsChipProps {
 	onClick: () => void;
 }
 
-/**
- * Trigger chip that opens the Presets bottom sheet. Styled to match
- * `FilterChip`'s look-and-feel (outlined, `size="sm"`) without depending on
- * it — this chip has no `active`/`invalid` state of its own.
- */
 export function FilterPresetsChip({ onClick }: FilterPresetsChipProps) {
 	return (
 		<Button

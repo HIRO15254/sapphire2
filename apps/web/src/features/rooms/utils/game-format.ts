@@ -13,12 +13,6 @@ interface RingGameBlindFields {
 	mixGames?: GameGroupLike[] | null;
 }
 
-/**
- * Compact one-line summary of a cash game's blind structure plus ante, with an
- * optional trailing currency unit. Extracted from the legacy ring-game tab so
- * both the V2 row and any future surface share one implementation. Mix games
- * render their grouped summary ("Mix · Limit 400/800 · …") instead.
- */
 export function formatRingGameBlinds(
 	game: RingGameBlindFields,
 	currencyUnit?: string | null
@@ -68,11 +62,6 @@ interface TournamentBuyInFields {
 	entryFee: number | null;
 }
 
-/**
- * Compact `buyIn(+entryFee)` summary with an optional trailing currency unit.
- * Returns an empty string when no buy-in is set. Extracted from the legacy
- * tournament tab.
- */
 export function formatTournamentBuyIn(
 	tournament: TournamentBuyInFields,
 	currencyUnit?: string | null

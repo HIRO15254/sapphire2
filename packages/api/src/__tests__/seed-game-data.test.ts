@@ -240,11 +240,6 @@ describe("seedDefaultGameData", () => {
 	});
 
 	it("swallows a losing concurrent seed (0041 label trigger abort → no-op, c09)", async () => {
-		// Another seed committed the same builtin rows first; the migration-0041
-		// BEFORE trigger RAISE(ABORT)s this batch. onConflictDoNothing does NOT
-		// suppress a trigger abort, so runBatch rejects — but the `list`
-		// procedures call this without a try/catch, so a benign race must resolve
-		// rather than surface as a 500.
 		const { db } = emptyAccountDb();
 		(db as { batch: unknown }).batch = vi.fn(() =>
 			Promise.reject(new Error("game_group label already exists"))
@@ -262,12 +257,6 @@ describe("seedDefaultGameData", () => {
 		);
 	});
 
-	// The seed batch swallows a label-conflict abort as a benign "lost the
-	// concurrent-seed race" outcome. That is only safe while the builtin labels
-	// are mutually compatible with the migration-0041 uniqueness triggers — if
-	// two builtins ever shared a normalized label, the seed batch would abort
-	// deterministically and the swallow would silently no-op for EVERY new
-	// account. These invariants fail loudly if a future edit breaks that.
 	describe("builtin labels are compatible with the 0041 uniqueness triggers", () => {
 		it("variant + mix labels share one namespace with no duplicates", () => {
 			const labels = [

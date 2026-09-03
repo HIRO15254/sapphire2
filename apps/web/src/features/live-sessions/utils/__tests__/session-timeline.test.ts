@@ -22,7 +22,6 @@ function event(
 	} as TimelineEvent;
 }
 
-// Reuse the API's serialized-payload signature so we can cross-check final values.
 function toServerEvent(e: TimelineEvent): {
 	eventType: string;
 	payload: string;
@@ -100,10 +99,8 @@ describe("deriveCashGameTimeline", () => {
 			}),
 		];
 		const points = deriveCashGameTimeline(events);
-		// start + two stack records only — the rebuy is not its own point.
 		expect(points).toHaveLength(3);
 		expect(points.map((p) => p.t)).toEqual([0, 30 * 60_000, 32 * 60_000]);
-		// At @32: stack=17000, totalBuyIn=15000 → pl = 2000 (rebuy folded into basis)
 		expect(points[2]).toEqual({ t: 32 * 60_000, pl: 2000, evPl: 2000 });
 	});
 
@@ -132,7 +129,6 @@ describe("deriveCashGameTimeline", () => {
 		];
 		const points = deriveCashGameTimeline(events);
 		expect(points).toHaveLength(3);
-		// @32: stack=9000, chipRemoveTotal=3000, totalBuyIn=10000 → pl = 9000 + 3000 - 10000 = 2000
 		expect(points[2]).toEqual({ t: 32 * 60_000, pl: 2000, evPl: 2000 });
 	});
 
@@ -143,7 +139,6 @@ describe("deriveCashGameTimeline", () => {
 				payload: { buyInAmount: 10_000 },
 				offsetMin: 0,
 			}),
-			// pot=1000, trials=1, equity=60% (=600 EV), wins=0 (=0 actual) → evDiff=+600
 			event({
 				eventType: "all_in",
 				payload: { potSize: 1000, trials: 1, equity: 60, wins: 0 },
@@ -156,9 +151,7 @@ describe("deriveCashGameTimeline", () => {
 			}),
 		];
 		const points = deriveCashGameTimeline(events);
-		// start + the stack record only — the all-in is not its own point.
 		expect(points).toHaveLength(2);
-		// @10: stack=10000, totalBuyIn=10000 → pl=0, evPl = 0 + 600 = 600
 		expect(points[1]).toEqual({ t: 10 * 60_000, pl: 0, evPl: 600 });
 	});
 
@@ -186,7 +179,6 @@ describe("deriveCashGameTimeline", () => {
 			}),
 		];
 		const points = deriveCashGameTimeline(events);
-		// 1st: +600. 2nd: 500*0.5 - 500*1 = -250 → cumulative evDiff = 350
 		expect(points).toHaveLength(2);
 		expect(points[1]?.evPl).toBe(350);
 	});
@@ -217,7 +209,6 @@ describe("deriveCashGameTimeline", () => {
 		const points = deriveCashGameTimeline(events);
 		const finalServer = computeCashGamePLFromEvents(events.map(toServerEvent));
 		const last = points.at(-1);
-		// Plotted at the recorded session_end time, not the last stack record.
 		expect(last?.t).toBe(60 * 60_000);
 		expect(last?.pl).toBe(finalServer.profitLoss);
 		expect(last?.evPl).toBe((finalServer.profitLoss ?? 0) + finalServer.evDiff);
@@ -299,7 +290,6 @@ describe("deriveTournamentTimeline", () => {
 		];
 		const points = deriveTournamentTimeline(events);
 		expect(points).toHaveLength(2);
-		// Start point sits at t=0 with the starting stack (not zero).
 		expect(points[0]).toEqual({ t: 0, stack: 10_000, averageStack: null });
 		expect(points[1]).toEqual({
 			t: 5 * 60_000,
@@ -343,8 +333,6 @@ describe("deriveTournamentTimeline", () => {
 			}),
 		];
 		const points = deriveTournamentTimeline(events);
-		// startingStack=10000 (from first update_stack)
-		// averageStack = 10000 * 50 / 20 = 25000
 		expect(points[2]).toEqual({
 			t: 30 * 60_000,
 			stack: 15_000,
@@ -373,7 +361,6 @@ describe("deriveTournamentTimeline", () => {
 				},
 				offsetMin: 30,
 			}),
-			// no remaining/total here — should reuse previous values
 			event({
 				eventType: "update_stack",
 				payload: { stackAmount: 18_000 },
@@ -417,7 +404,6 @@ describe("deriveTournamentTimeline", () => {
 			}),
 		];
 		const points = deriveTournamentTimeline(events);
-		// start + two stack records; the purchase itself is not a point.
 		expect(points).toHaveLength(3);
 		expect(points.map((p) => p.t)).toEqual([0, 5 * 60_000, 15 * 60_000]);
 		expect(points.at(-1)?.stack).toBe(16_000);
@@ -498,7 +484,7 @@ describe("deriveTournamentTimeline", () => {
 		expect(points.at(-1)).toEqual({
 			t: 60 * 60_000,
 			stack: 0,
-			averageStack: 25_000 / 1.5, // (10000 * 50) / 30 — preserved from last update_stack
+			averageStack: 25_000 / 1.5,
 		});
 	});
 
@@ -564,7 +550,6 @@ describe("deriveTournamentTimeline", () => {
 			}),
 		];
 		const points = deriveTournamentTimeline(events);
-		// 10000 * 50 + 20 * 10000 = 500000 + 200000 = 700000
 		expect(points.at(-1)?.stack).toBe(700_000);
 	});
 

@@ -17,7 +17,6 @@ describe("haversineMeters", () => {
 		const a: Coords = { latitude: 35, longitude: 139 };
 		const b: Coords = { latitude: 36, longitude: 139 };
 		const d = haversineMeters(a, b);
-		// One degree of latitude ≈ 111.19 km; allow 1 km tolerance.
 		expect(d).toBeGreaterThan(110_000);
 		expect(d).toBeLessThan(112_000);
 	});
@@ -37,15 +36,14 @@ describe("haversineMeters", () => {
 			{ latitude: 60, longitude: 0 },
 			{ latitude: 60, longitude: 1 }
 		);
-		// At 60°N a degree of longitude is roughly half the equatorial distance.
 		expect(northern).toBeLessThan(equatorial);
 		expect(northern).toBeCloseTo(equatorial / 2, -3);
 	});
 });
 
 describe("findNearestRoom", () => {
-	const near: Coords = { latitude: 35.6815, longitude: 139.7675 }; // ~50 m from TOKYO
-	const far: Coords = { latitude: 34.6937, longitude: 135.5023 }; // Osaka, ~400 km
+	const near: Coords = { latitude: 35.6815, longitude: 139.7675 };
+	const far: Coords = { latitude: 34.6937, longitude: 135.5023 };
 
 	it("picks the closest room of several within radius", () => {
 		const rooms = [
@@ -53,7 +51,6 @@ describe("findNearestRoom", () => {
 			{ id: "near", latitude: near.latitude, longitude: near.longitude },
 			{ id: "tokyo", latitude: TOKYO.latitude, longitude: TOKYO.longitude },
 		];
-		// Searching from TOKYO: the exact-match "tokyo" room is closest.
 		expect(findNearestRoom(TOKYO, rooms)?.id).toBe("tokyo");
 	});
 
@@ -96,7 +93,6 @@ describe("findNearestRoom", () => {
 		const rooms = [
 			{ id: "near", latitude: near.latitude, longitude: near.longitude },
 		];
-		// ~50 m away: excluded by a 10 m radius, included by a 100 m radius.
 		expect(findNearestRoom(TOKYO, rooms, 10)).toBeUndefined();
 		expect(findNearestRoom(TOKYO, rooms, 100)?.id).toBe("near");
 	});

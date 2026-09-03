@@ -39,10 +39,6 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 		...trpc.liveTournamentSession.getById.queryOptions({ id: sessionId }),
 		enabled: !!sessionId,
 	});
-	// Chip purchase types come from the session-level snapshot so the live
-	// session keeps the addon menu it was created with, even if the parent
-	// tournament's chip purchase rows are edited later. `id` is the
-	// session_chip_purchase id — every purchase_chips event links to it.
 	const chipPurchaseTypes = (sessionQuery.data?.chipPurchases ?? []).map(
 		(t) => ({
 			id: t.id,

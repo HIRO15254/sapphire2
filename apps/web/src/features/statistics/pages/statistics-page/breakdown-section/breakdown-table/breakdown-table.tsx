@@ -23,11 +23,6 @@ interface BreakdownTableProps {
 	showTournamentColumn: boolean;
 }
 
-/**
- * The value columns shown for the current scope: a single currency "Net" column
- * when normalization is off, otherwise separate "BB" (cash) and "BI"
- * (tournament) columns — never a combined figure.
- */
 function valueColumnsFor({
 	normalized,
 	showCashColumn,

@@ -7,12 +7,6 @@ interface FilterAllOptionProps {
 	onClick: () => void;
 }
 
-/**
- * The "clear this filter" row rendered above a {@link FilterOptionList} for
- * optional dimensions (e.g. `All rooms` / `All currencies`). A `RadioGroup`
- * can't carry an empty-string item cleanly, so the cleared state lives in this
- * sibling button instead. Tinted primary with a trailing check when `active`.
- */
 export function FilterAllOption({
 	active,
 	label,

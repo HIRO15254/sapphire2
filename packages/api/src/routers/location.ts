@@ -2,15 +2,8 @@ import { TRPCError } from "@trpc/server";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 
-// Short-link hosts are the only URLs we ever fetch server-side (to follow the
-// redirect), so they are an exact allowlist — this bounds the SSRF surface.
 const SHORT_MAPS_HOSTS = new Set(["maps.app.goo.gl", "goo.gl"]);
 
-// `google.<tld>` or `*.google.<tld>`, where `google` is the registrable label
-// immediately followed by the TLD: a gTLD (`com`), a 2-letter ccTLD (`google.de`)
-// or a `co`/`com` second-level ccTLD (`google.co.jp`, `google.com.au`). This
-// rejects lookalikes such as `evil-google.com`, `google.com.evil.com` AND
-// `google.evil.com` (where `google` would be a subdomain of `evil.com`).
 const GOOGLE_HOST_RE =
 	/^([a-z0-9-]+\.)*google\.(com|[a-z]{2}|(?:co|com)\.[a-z]{2})$/;
 
@@ -105,8 +98,6 @@ async function resolveShortMapsUrl(initialUrl: string): Promise<string> {
 	throw unresolvedShortLink();
 }
 
-// Ordered by specificity: `!3d!4d` is the place's actual location, `@lat,lng`
-// is the map viewport center, and `q=`/`ll=`/etc. cover share/query links.
 const COORD_PATTERNS = [
 	/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/,
 	/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/,
@@ -145,8 +136,6 @@ interface PlacesTextSearchResponse {
 }
 
 export const locationRouter = router({
-	// Place name search via Google Places API (New) Text Search. Triggered by an
-	// explicit search action (not per keystroke) to bound API cost.
 	search: protectedProcedure
 		.input(z.object({ query: z.string().min(1).max(200) }))
 		.mutation(async ({ ctx, input }) => {
@@ -199,9 +188,6 @@ export const locationRouter = router({
 				}));
 		}),
 
-	// Extract coordinates from a pasted Google Maps link. Full URLs are parsed
-	// directly; short links are resolved by following the redirect server-side
-	// (the only outbound fetch, restricted to the short-link host allowlist).
 	resolveLink: protectedProcedure
 		.input(z.object({ url: z.string().url() }))
 		.mutation(async ({ input }) => {

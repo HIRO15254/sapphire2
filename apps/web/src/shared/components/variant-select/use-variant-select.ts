@@ -8,8 +8,6 @@ import { GAME_MASTERS_STALE_TIME_MS } from "@/shared/hooks/use-game-groups";
 import { invalidateTargets, updateQueryItems } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
-// Mirrors gameVariant.create's server constraints so users get field-level
-// errors instead of a server reject.
 const customVariantFormSchema = z.object({
 	label: z.string().trim().min(1, "Required").max(30),
 	shortLabel: z.string().trim().max(15),
@@ -17,14 +15,7 @@ const customVariantFormSchema = z.object({
 });
 
 interface UseVariantSelectArgs {
-	/**
-	 * Variant labels to hide from the options — used by the mix-games editor
-	 * to keep one game in one group. Mix master options are never hidden by
-	 * this filter (a mix is not a member of any group). The currently
-	 * selected value is always kept so the control can render it.
-	 */
 	excludeVariants?: string[];
-	/** Show the user's named mix masters (HORSE / 8-Game / 10-Game / custom). */
 	includeMix?: boolean;
 	onChange: (variant: string) => void;
 	value: string;
@@ -40,12 +31,6 @@ function normalized(variant: string): string {
 	return variant.trim().toLowerCase();
 }
 
-/**
- * Type-to-filter combobox state (Input + Popover + ARIA listbox). The input's
- * text is a local draft: the field value only changes on an explicit
- * selection, and an unresolved draft reverts to the current value on
- * blur/escape.
- */
 export function useVariantSelect({
 	excludeVariants,
 	includeMix = false,
@@ -65,9 +50,6 @@ export function useVariantSelect({
 	const [contentWidth, setContentWidth] = useState<number>();
 	const anchorRef = useRef<HTMLDivElement>(null);
 
-	// The value prop is the display label (self-freezing select) — keep the
-	// draft text in sync whenever the committed value changes (selection,
-	// mix-master reseed, external form reset).
 	useEffect(() => {
 		setInputValue(value);
 		setIsFiltering(false);
@@ -96,21 +78,14 @@ export function useVariantSelect({
 		normalized(candidate) === normalized(value) ||
 		!excluded.has(normalized(candidate));
 
-	// The user's variant rows are the whole option list (value = label).
 	const variantOptions = allVariants
 		.filter((row) => keep(row.label))
 		.map((row) => ({ id: row.id, label: row.label }));
 
-	// The user's named mix masters (value = label, self-freezing like plain
-	// variants). Never filtered by excludeVariants — a mix is not a member of
-	// any single group, so the "one game, one group" exclusion doesn't apply.
 	const mixOptions = includeMix
 		? allMixes.map((row) => ({ id: row.id, label: row.label }))
 		: [];
 
-	// Typed filter only narrows while the user is actively typing a draft; a
-	// freshly opened popover lists everything even though the input shows the
-	// current value.
 	const query = isFiltering ? normalized(inputValue) : "";
 	const matches = (label: string) =>
 		query === "" || normalized(label).includes(query);
@@ -147,11 +122,6 @@ export function useVariantSelect({
 		? getOptionId(activeOption.kind, activeOption.id)
 		: undefined;
 
-	// A frozen value whose definition no longer exists (deleted variant) is
-	// still rendered by the input (its text is the raw value), but callers can
-	// use this to hint that the label no longer matches a master row. Mix
-	// labels and the legacy mix mode key (MIX_VARIANT, frozen into old rows
-	// before named mix masters existed) are always known.
 	const isKnownValue =
 		value === "" ||
 		normalized(value) === MIX_VARIANT ||
@@ -174,11 +144,6 @@ export function useVariantSelect({
 			shortLabel: string | null;
 		}) => trpcClient.gameVariant.create.mutate(input),
 		onSuccess: (created) => {
-			// Seed the list cache synchronously so a consumer's label→id lookup
-			// inside onChange already sees the new row — the settled
-			// invalidation below refetches too late for that (c19). The server
-			// appends with the max sortOrder, so appending here matches the
-			// list order.
 			updateQueryItems(queryClient, variantListOptions.queryKey, (old) => [
 				...old,
 				created,
@@ -227,14 +192,9 @@ export function useVariantSelect({
 		setIsFiltering(false);
 		setActiveOptionValue(null);
 		if (normalized(label) === normalized(value)) {
-			// Re-selecting the current value: the value prop won't change, so
-			// the sync effect never fires — restore the draft text directly
-			// instead of leaving the input blank (c17).
 			setInputValue(value);
 			return;
 		}
-		// Cleared first so pick-and-reset mounts (value stays "") end up empty;
-		// controlled mounts re-sync to the new value via the effect above.
 		setInputValue("");
 		onChange(label);
 	};
@@ -318,8 +278,6 @@ export function useVariantSelect({
 		return false;
 	};
 
-	// "Add custom variant" action item: an unresolved draft that matches no
-	// option is almost always the name the user wanted to create — seed it.
 	const handleOpenAdd = () => {
 		const draft = inputValue.trim();
 		const isExisting = [...variantOptions, ...mixOptions].some(

@@ -6,13 +6,6 @@ interface InputGroupProps extends ComponentProps<"section"> {
 	label: ReactNode;
 }
 
-/**
- * A labeled section that groups related form controls under a heading.
- * Unlike {@link Field} (one label per single input), `InputGroup` frames a
- * cluster of fields — used to break a long single-screen form into scannable
- * sections without a stepper or tabs, so every control stays mounted for a
- * single submit.
- */
 export function InputGroup({
 	children,
 	className,

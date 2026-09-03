@@ -17,7 +17,6 @@ describe("CurrencyBalanceHero", () => {
 
 	it("omits the exact value line for a non-abbreviated value", () => {
 		render(<CurrencyBalanceHero balance={500} />);
-		// "500" is the compact value; there must be no second grouped line.
 		expect(screen.getAllByText("500")).toHaveLength(1);
 	});
 

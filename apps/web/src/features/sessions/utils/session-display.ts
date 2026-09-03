@@ -9,12 +9,6 @@ import {
 import { formatCompactNumber, formatYmdSlash } from "@/utils/format-number";
 import { formatProfitLoss } from "@/utils/format-profit-loss";
 
-/**
- * Pure presentational helpers shared by the v2 sessions list card and the
- * session detail page. Kept framework-free so they live in the `web-node`
- * test project.
- */
-
 export interface StatRow {
 	label: string;
 	value: string;
@@ -26,11 +20,6 @@ interface GameNameInput {
 	type: string;
 }
 
-/**
- * Resolves the display name for a session, preferring the frozen rule name and
- * falling back to a generic label per game type. Sentence case per the v2
- * design contract.
- */
 export function getSessionGameName(session: GameNameInput): string {
 	if (session.type === "tournament" && session.tournamentName) {
 		return session.tournamentName;
@@ -41,15 +30,10 @@ export function getSessionGameName(session: GameNameInput): string {
 	return session.type === "tournament" ? "Tournament" : "Cash game";
 }
 
-/** True when the session was recorded through the live tracker. */
 export function isLiveSession(session: { source: string }): boolean {
 	return session.source === "live";
 }
 
-/**
- * Net played duration as a `Nh` string (break minutes subtracted). Returns
- * `null` when either bound is missing so callers can omit the row entirely.
- */
 export function formatSessionDuration(
 	startedAt: string | null,
 	endedAt: string | null,
@@ -87,18 +71,11 @@ interface CashRuleInput {
 	ringGameBlind2: number | null;
 }
 
-/**
- * Game-rule rows for a cash-game session detail (the "Rule" section): variant,
- * blinds (+ ante), and table size. Each row is omitted when its source value is
- * absent, so the section never shows an empty row (and is dropped entirely when
- * no rule data was recorded).
- */
 export function buildCashRuleRows(session: CashRuleInput): StatRow[] {
 	const rows: StatRow[] = [];
 	if (session.cashVariant) {
 		rows.push({ label: "Variant", value: variantLabel(session.cashVariant) });
 	}
-	// Mix sessions show one row per game group instead of a flat blinds row.
 	if (session.cashMixGames && session.cashMixGames.length > 0) {
 		for (const group of session.cashMixGames) {
 			rows.push({
@@ -139,11 +116,6 @@ interface CashStatInput {
 	cashOut: number | null;
 }
 
-/**
- * Result rows for a cash-game session detail (the "Result" section): the
- * recorded buy-in and cash-out. EV figures live in the P&L hero card, not here.
- * Each amount is omitted when its source value is `null`.
- */
 export function buildCashStatRows(session: CashStatInput): StatRow[] {
 	const rows: StatRow[] = [];
 	if (session.buyIn !== null) {
@@ -166,11 +138,6 @@ interface TournamentRuleInput {
 	tournamentVariant: string | null;
 }
 
-/**
- * Game-rule rows for a tournament session detail (the "Rule" section): variant,
- * buy-in / entry fee, starting stack, and table size. Zero-valued entry fee is
- * dropped; other rows are omitted when absent.
- */
 export function buildTournamentRuleRows(
 	session: TournamentRuleInput
 ): StatRow[] {
@@ -218,13 +185,6 @@ interface TournamentStatInput {
 	totalEntries: number | null;
 }
 
-/**
- * Result rows for a tournament session detail (the "Result" section): prize,
- * bounty, chip purchases (re-entries / add-ons), and the final placement.
- * Buy-in / entry fee are game-rule data and live in {@link buildTournamentRuleRows}.
- * Zero-valued prizes are dropped; chip purchases only appear when at least one
- * was bought.
- */
 export function buildTournamentStatRows(
 	session: TournamentStatInput
 ): StatRow[] {
@@ -270,10 +230,6 @@ interface MetaInput {
 	startedAt: string | null;
 }
 
-/**
- * Meta rows (when, where, currency, played duration) shared by both the manual
- * and live detail views. The date is always present; the rest are conditional.
- */
 export function buildSessionMetaRows(session: MetaInput): StatRow[] {
 	const rows: StatRow[] = [
 		{ label: "Date", value: formatYmdSlash(session.sessionDate) },
@@ -301,12 +257,6 @@ interface TournamentResultInput {
 	type: string;
 }
 
-/**
- * Secondary result line for a tournament list row: placement over total
- * entries (e.g. "3 / 120"), or a bare placement when the field size is
- * unknown. Returns `null` for cash games or unrecorded placements so the card
- * omits the second result line entirely.
- */
 export function formatTournamentResult(
 	session: TournamentResultInput
 ): string | null {
@@ -335,7 +285,6 @@ function toBB(value: number, blind2: number | null): number | null {
 	return value / blind2;
 }
 
-/** Total tournament cost (buy-in + entry fee + chip purchases) used as the BI base. */
 function computeTotalCost(session: PlDisplayInput): number {
 	return (
 		(session.tournamentBuyIn ?? 0) +
@@ -356,13 +305,6 @@ function formatBBBI(value: number, unit: "BB" | "BI"): string {
 	return `${value >= 0 ? "+" : ""}${value.toFixed(decimals)} ${unit}`;
 }
 
-/**
- * Core value formatter honoring the BB/BI toggle, shared by the realized P&L
- * and the EV figure. When off, the raw currency amount is shown. When on, cash
- * games render in big blinds (value ÷ BB) and tournaments in buy-ins (value ÷
- * total cost); either falls back to the currency figure when the divisor is
- * unavailable.
- */
 function formatPlValue(
 	value: number,
 	session: PlDisplayInput,
@@ -382,7 +324,6 @@ function formatPlValue(
 	return bb === null ? currency : formatBBBI(bb, "BB");
 }
 
-/** Realized P&L display string honoring the BB/BI toggle. */
 export function formatSessionPlDisplay(
 	session: PlDisplayInput,
 	bbBiMode: boolean
@@ -395,25 +336,6 @@ interface EvDisplayInput extends PlDisplayInput {
 	evProfitLoss: number | null;
 }
 
-/**
- * The EV figure a single session should display, or `null` when it must show
- * none. This is the one place that decides it — the list card, the detail hero
- * and the share text all read through it, so they cannot disagree.
- *
- * The gate is the raw `evCashOut`, not `evProfitLoss`. The server defines a
- * cash game without a recorded EV cash-out as having run exactly as expected,
- * so its `evProfitLoss` equals the actual result (`resolveEvCashOut`). That
- * fallback is what puts those sessions into the EV statistics, but printing it
- * per row would just repeat the P&L as a second identical line — so a row shows
- * an EV figure only when the user actually recorded one.
- *
- * The rule is deliberately "the user recorded no EV cash-out", not "the EV
- * difference is 0". A manual entry whose EV happened to match its result still
- * shows its EV line, and a live cash game with no all-in logged keeps showing
- * one too (the server always writes it an `evCashOut`) — there the app tracked
- * EV throughout, so "EV difference was 0" is a real observation rather than an
- * absence of information.
- */
 export function displayableEvProfitLoss(session: {
 	evCashOut: number | null;
 	evProfitLoss: number | null;
@@ -425,16 +347,6 @@ export function displayableEvProfitLoss(session: {
 	return session.evProfitLoss;
 }
 
-/**
- * Secondary EV figure for a cash-game list row, honoring the BB/BI toggle.
- * Returns `null` whenever {@link displayableEvProfitLoss} does, so the result
- * section omits the second line.
- *
- * The realized P&L is always whole chips, but the EV can be fractional (live
- * all-in equity), so the value is rounded to the nearest integer before
- * formatting — that keeps the EV's displayed precision aligned with the P&L's
- * in the card. In BB/BI mode both figures already share a fixed decimal count.
- */
 export function formatSessionEvDisplay(
 	session: EvDisplayInput,
 	bbBiMode: boolean

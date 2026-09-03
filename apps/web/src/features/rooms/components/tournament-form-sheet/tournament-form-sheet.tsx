@@ -21,7 +21,6 @@ import {
 interface TournamentFormSheetProps {
 	aiMode?: TournamentFormSheetMode;
 	editBlindLevelsError?: boolean;
-	/** Form id shared with the FormSheet Save button. Must be unique per sheet. */
 	formId: string;
 	initialBlindLevels: BlindLevelRow[];
 	initialFormValues?: TournamentPartialFormValues;
@@ -38,13 +37,6 @@ interface TournamentFormSheetProps {
 	title: string;
 }
 
-/**
- * V2 create/edit sheet for a tournament. Wraps {@link TournamentModalContent}
- * (Details / Structure tabs) in a {@link FormSheet} whose Save button submits
- * the inner form via `formId`. The AI auto-fill lives in a sibling action
- * Drawer since FormSheet has no header-action slot. The AI/reset state lives
- * in {@link useTournamentFormSheet}.
- */
 export function TournamentFormSheet({
 	aiMode,
 	formId,

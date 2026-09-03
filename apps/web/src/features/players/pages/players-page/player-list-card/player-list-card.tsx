@@ -11,15 +11,8 @@ interface PlayerListCardProps {
 	};
 }
 
-/** Tags shown inline before collapsing the remainder into a `+N` badge. */
 const MAX_VISIBLE_TAGS = 2;
 
-/**
- * Fixed-height list row so every card is the same size. The name and tags share
- * a single line: the name truncates to yield space, tags sit inline next to it,
- * and any beyond {@link MAX_VISIBLE_TAGS} collapse into a `+N` badge so the tag
- * cluster never grows the row. The chevron is pinned right.
- */
 export function PlayerListCard({ player }: PlayerListCardProps) {
 	const visibleTags = player.tags.slice(0, MAX_VISIBLE_TAGS);
 	const overflowCount = player.tags.length - visibleTags.length;

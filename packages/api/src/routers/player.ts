@@ -15,7 +15,6 @@ import {
 	validateTagsOwnership,
 } from "./session";
 
-// Named export for the MCP tool layer — see .claude/rules/mcp-tools.md.
 export const playerListInputSchema = z
 	.object({
 		search: z.string().optional(),

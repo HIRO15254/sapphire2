@@ -193,7 +193,6 @@ describe("usePlayerDetail", () => {
 			const { result } = renderHook(() => usePlayerDetail("p1"), {
 				wrapper: makeWrapper(qc),
 			});
-			// Ensure the query is mounted before mutating so setQueriesData can find it.
 			await waitFor(() => expect(result.current.player?.name).toBe("Alice"));
 			act(() => {
 				result.current.updatePlayer({

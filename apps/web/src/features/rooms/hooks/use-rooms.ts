@@ -75,8 +75,6 @@ export function useRooms() {
 	});
 
 	const updateMutation = useMutation({
-		// Send an explicit `null` for cleared fields so the server overwrites them
-		// rather than treating the omitted (undefined) key as "leave unchanged".
 		mutationFn: (values: RoomValues & { id: string }) =>
 			trpcClient.room.update.mutate({
 				id: values.id,
@@ -131,7 +129,6 @@ export function useRooms() {
 				const toggled = old.map((r) =>
 					r.id === id ? { ...r, isFavorite: !r.isFavorite } : r
 				);
-				// Exact replica of server ORDER BY is_favorite DESC, created_at ASC.
 				return [...toggled].sort((a, b) => {
 					if (a.isFavorite !== b.isFavorite) {
 						return a.isFavorite ? -1 : 1;

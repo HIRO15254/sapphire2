@@ -25,7 +25,6 @@ function createCallerMock(result: unknown = null, error?: unknown) {
 	return { caller: caller as never, procedure };
 }
 
-/** A caller whose namespaces/procedures are recorded, to assert routing. */
 function createRoutedCallerMock(result: unknown = null) {
 	const calls: { path: string; input: unknown }[] = [];
 	const caller = new Proxy(

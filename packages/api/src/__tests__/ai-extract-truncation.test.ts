@@ -53,8 +53,6 @@ beforeEach(() => {
 
 describe("extractTablePlayers truncation reporting", () => {
 	it("reports truncation when the response hit max_tokens", async () => {
-		// Opus 5 以降 thinking はデフォルト ON で max_tokens を共有するため、
-		// 打ち切りは現実に起こりうる失敗経路。
 		mocks.parse.mockResolvedValue({
 			parsed_output: null,
 			stop_reason: "max_tokens",
@@ -85,8 +83,6 @@ describe("extractTablePlayers truncation reporting", () => {
 	});
 
 	it("reports truncation even when the partial output satisfies the schema", async () => {
-		// seats は `.default([])` なので、打ち切りで潰れた出力でも
-		// 「空席だけのテーブル」として成功扱いになりうる。
 		mocks.parse.mockResolvedValue({
 			parsed_output: {
 				seats: [{ seatNumber: 1, name: "Alice", isHero: null }],
@@ -155,8 +151,6 @@ describe("extractTournamentData truncation reporting", () => {
 	});
 
 	it("reports truncation when a tool_use block was cut off mid-input", async () => {
-		// 打ち切りでは tool_use ブロック自体は返るが input が途中で切れるため、
-		// スキーマ不一致と区別できる必要がある。
 		mocks.create.mockResolvedValue({
 			content: [
 				{
@@ -193,10 +187,6 @@ describe("extractTournamentData truncation reporting", () => {
 	});
 
 	it("reports truncation when a partial blind structure still satisfies the schema", async () => {
-		// max_tokens を食い潰す唯一の可変長フィールドが blindLevels なので、
-		// 打ち切りは「途中までしか入っていない配列」という schema-valid な形で
-		// 現れるのが最頻ケース。全フィールドが .optional() のため safeParse は
-		// 通ってしまい、stop_reason を見ないとブラインド構成が黙って欠ける。
 		mocks.create.mockResolvedValue({
 			content: [
 				{
@@ -221,8 +211,6 @@ describe("extractTournamentData truncation reporting", () => {
 	});
 
 	it("reports truncation when the tool input collapsed to an empty object", async () => {
-		// 全フィールド optional なので {} でも safeParse は success になり、
-		// 「抽出できたが空」というエラーより悪い出方をしうる。
 		mocks.create.mockResolvedValue({
 			content: [
 				{ type: "tool_use", name: "extract_tournament_data", input: {} },

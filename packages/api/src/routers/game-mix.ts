@@ -28,25 +28,12 @@ type Db = Parameters<
 const labelSchema = z.string().trim().min(1).max(30);
 const gamesSchema = z.array(z.string()).min(2).max(30);
 
-// Canonical builtin display order (HORSE -> 8-Game -> 10-Game) — builtin
-// mixes sort ahead of any user-created mix, which then sorts alphabetically
-// by label (mirrors game-group.ts's compareGroups).
 const BUILTIN_ORDER: Map<string, number> = new Map(
 	DEFAULT_GAME_MIXES.map((m, index) => [m.key, index])
 );
 
 const compareMixes = compareBuiltinFirst(BUILTIN_ORDER);
 
-/**
- * Ownership guard for the `games` array (ordered game_variant ids). Selects
- * the caller-owned subset (id + groupId) in a single `WHERE id IN (…) AND
- * userId = caller` query; if the owned count differs from the requested
- * count, at least one id is missing or belongs to another user → uniform
- * FORBIDDEN (SA2-177, SA2-183). Callers must reject duplicate ids before
- * calling this (see `assertNoDuplicateGames`) so the count comparison is
- * meaningful. `groupId` is returned so the caller can also bound the mix's
- * group span (see `assertGroupSpanWithinLimit`, c58).
- */
 async function validateGamesOwnership(
 	db: Db,
 	ids: string[],
@@ -88,14 +75,6 @@ function mixMembershipRows(
 	}));
 }
 
-/**
- * A mix built from variants spanning more than `MAX_MIX_GROUPS` distinct game
- * groups can never be turned into a session's `mixGames` (that array is
- * itself capped at `MAX_MIX_GROUPS` groups via `mixGamesSchema` /
- * `levelGamesSchema`) — reject at the master-mix level instead of producing a
- * mix that silently truncates or fails later (c58). Shares the same limit
- * constant as those consumer schemas so the two cannot drift.
- */
 function assertGroupSpanWithinLimit(rows: { groupId: string }[]): void {
 	const distinctGroupCount = new Set(rows.map((r) => r.groupId)).size;
 	if (distinctGroupCount > MAX_MIX_GROUPS) {
@@ -106,7 +85,6 @@ function assertGroupSpanWithinLimit(rows: { groupId: string }[]): void {
 	}
 }
 
-// Named exports for the MCP tool layer — see .claude/rules/mcp-tools.md.
 export const gameMixIdInputSchema = z.object({ id: z.string() });
 
 export const gameMixCreateInputSchema = z.object({
@@ -127,11 +105,6 @@ export const gameMixRouter = router({
 		if (rows.length > 0) {
 			return [...rows].sort(compareMixes);
 		}
-		// Zero-rows-account self-seed, same guard as gameGroup.list /
-		// gameVariant.list — a legacy account that predates the auth-hook seed
-		// still gets the builtin mixes on first read. Only reached when THIS
-		// table is empty (c32); seedDefaultGameData still re-checks all three
-		// tables itself (c09).
 		await seedDefaultGameData(ctx.db, userId);
 		const reseeded = await listOwnedGameMixes(ctx.db, userId);
 		return [...reseeded].sort(compareMixes);
@@ -168,13 +141,6 @@ export const gameMixRouter = router({
 				for (const chunk of chunkMembershipRows(rows)) {
 					statements.push(ctx.db.insert(gameMixVariant).values(chunk));
 				}
-				// Keep the pre-0049 Worker contract valid until the later contract
-				// migration. This statement runs last so 0049's compatibility trigger
-				// rebuilds the same rows from the mirror it just wrote. While that
-				// trigger exists the JSON column is the effective derivation source;
-				// the explicit junction writes above are what keeps this procedure
-				// correct once the contract migration drops the trigger, and both
-				// paths produce identical rows.
 				statements.push(
 					ctx.db
 						.update(gameMix)
@@ -183,11 +149,6 @@ export const gameMixRouter = router({
 				);
 				await runBatch(ctx.db, statements);
 			} catch (error) {
-				// Backstop against the app-level check above racing a concurrent
-				// identical-label insert (c14, TOCTOU). The DB guard that fires is
-				// the migration-0041 BEFORE trigger (SQLite runs it before the
-				// unique index), so isLabelConflictError matches its abort message
-				// too — converted to the same CONFLICT the app-level check throws.
 				if (isLabelConflictError(error)) {
 					throw new TRPCError({
 						code: "CONFLICT",
@@ -252,10 +213,6 @@ export const gameMixRouter = router({
 					}
 					updateData.games = input.games;
 				}
-				// Update the compatibility mirror last. 0049's trigger then replaces
-				// the normalized rows written above with byte-identical ones, while
-				// old Workers can still write the legacy column during a rolling
-				// deployment or rollback (same expand-phase note as create()).
 				statements.push(
 					ctx.db
 						.update(gameMix)
@@ -264,8 +221,6 @@ export const gameMixRouter = router({
 				);
 				await runBatch(ctx.db, statements);
 			} catch (error) {
-				// Same label-collision backstop as create() above (c14) — matches
-				// both the unique index and the 0041 trigger abort message.
 				if (isLabelConflictError(error)) {
 					throw new TRPCError({
 						code: "CONFLICT",
@@ -295,11 +250,6 @@ export const gameMixRouter = router({
 			const userId = ctx.session.user.id;
 			await validateEntityOwnership(ctx.db, "gameMix", input.id, userId);
 
-			// `variant` columns elsewhere (ring_game.variant, session snapshots,
-			// etc.) store the display label verbatim rather than a foreign key
-			// into this table, so deleting a mix definition row here never
-			// corrupts past sessions/games (self-freezing design, same as
-			// gameVariant.delete) — a free deletion, no in-use guard needed.
 			await ctx.db
 				.delete(gameMix)
 				.where(and(eq(gameMix.id, input.id), eq(gameMix.userId, userId)));

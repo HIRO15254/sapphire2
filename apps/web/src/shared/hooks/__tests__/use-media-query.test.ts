@@ -60,11 +60,9 @@ describe("useMediaQuery", () => {
 	});
 
 	it("returns false initially (before effect runs)", () => {
-		// The hook seeds state to false; effect will update to actual match immediately.
 		const media = makeFakeMediaQueryList(true);
 		mediaRegistry.set("(min-width: 768px)", media);
 		const { result } = renderHook(() => useMediaQuery("(min-width: 768px)"));
-		// Effect has run synchronously in renderHook → matches.
 		expect(result.current).toBe(true);
 	});
 

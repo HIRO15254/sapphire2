@@ -8,10 +8,6 @@ import type {
 	SessionItem,
 } from "@/features/sessions/hooks/use-sessions";
 
-// ---------------------------------------------------------------------------
-// Mocks for trpc + @tanstack/react-router's useNavigate.
-// ---------------------------------------------------------------------------
-
 function buildKey(namespace: string, procedure: string, input: unknown) {
 	return input === undefined
 		? [namespace, procedure]
@@ -100,10 +96,6 @@ const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_HH_MM_PATTERN = /^\d{2}:\d{2}$/;
 const TEMP_ID_PATTERN = /^temp-/;
 
-// SA2-145: sessionDate must round-trip as a UTC calendar date regardless of the
-// machine's local time zone. `withTz` (shared helper) drives a west-of-UTC and
-// an east-of-UTC zone deterministically and restores the host zone afterwards.
-
 function createClient(): QueryClient {
 	return new QueryClient({
 		defaultOptions: {
@@ -123,12 +115,10 @@ function listKeyForFilters(filters: ReturnType<typeof filtersToListInput>) {
 	return buildKey("session", "list", filters);
 }
 
-/** Wrap rows in the single-page `useInfiniteQuery` cache envelope. */
 function infiniteCache(items: SessionItem[], nextCursor?: string) {
 	return { pageParams: [undefined], pages: [{ items, nextCursor }] };
 }
 
-/** Read the flattened first-page items out of an infinite-query cache entry. */
 function firstPageItems(qc: QueryClient, key: ReturnType<typeof buildKey>) {
 	return qc.getQueryData<{ pages: { items: SessionItem[] }[] }>(key)?.pages[0]
 		?.items;
@@ -136,7 +126,6 @@ function firstPageItems(qc: QueryClient, key: ReturnType<typeof buildKey>) {
 
 const TAG_LIST_KEY = buildKey("sessionTag", "list", undefined);
 
-// Example SessionFormValues
 function cashValues(
 	overrides: Partial<SessionFormValues> = {}
 ): SessionFormValues {
@@ -175,7 +164,6 @@ function baseSessionItem(overrides: Partial<SessionItem> = {}): SessionItem {
 		chipPurchases: [],
 		chipPurchaseCost: 0,
 		createdAt: "2026-04-01T00:00:00Z",
-		// CTI discriminators — added in Phase 1 DB migration
 		source: "manual",
 		status: "completed",
 		currencyId: null,
@@ -234,10 +222,6 @@ describe("pure helpers", () => {
 			expect(day).toHaveLength(2);
 		});
 
-		// SA2-145: the API returns sessionDate as a UTC-midnight ISO string.
-		// The edit form must echo back the SAME calendar day the user saved,
-		// otherwise opening + saving an edit shifts the stored date one day
-		// earlier for every user west of UTC.
 		it("keeps the UTC calendar day at the exact UTC-midnight boundary west of UTC", () => {
 			expect(
 				withTz(TZ_WEST, () => formatDateForInput("2026-07-04T00:00:00Z"))
@@ -267,10 +251,6 @@ describe("pure helpers", () => {
 		});
 	});
 
-	// SA2-145: round-trip stability. Rendering a saved session into the edit
-	// form and saving it unchanged must reproduce the original UTC-midnight
-	// epoch. Before the fix, a west-of-UTC formatter shifted the day back one,
-	// so each edit-save drifted the stored date earlier (cumulative).
 	describe("sessionDate round-trip stability (UTC calendar date)", () => {
 		it("buildCreatePayload stores UTC-midnight epoch seconds regardless of local zone", () => {
 			const expected = Math.floor(Date.UTC(2026, 3, 1) / 1000);
@@ -295,7 +275,6 @@ describe("pure helpers", () => {
 				const apiIso = "2026-07-04T00:00:00Z";
 				const originalEpoch = Math.floor(Date.UTC(2026, 6, 4) / 1000);
 
-				// First edit cycle: hydrate the form from the API row, save unchanged.
 				const formValue = formatDateForInput(apiIso);
 				expect(formValue).toBe("2026-07-04");
 				const firstSave = buildUpdatePayload({
@@ -304,7 +283,6 @@ describe("pure helpers", () => {
 				}).sessionDate;
 				expect(firstSave).toBe(originalEpoch);
 
-				// Second edit cycle: re-render the just-saved epoch and save again.
 				const roundTripIso = new Date(firstSave * 1000).toISOString();
 				const secondForm = formatDateForInput(roundTripIso);
 				const secondSave = buildUpdatePayload({
@@ -356,7 +334,6 @@ describe("pure helpers", () => {
 			const out = filtersToListInput({ period: "30d" });
 			expect(typeof out.dateFrom).toBe("number");
 			expect(typeof out.dateTo).toBe("number");
-			// End of today is strictly after the start of the 30-day window.
 			expect((out.dateTo as number) > (out.dateFrom as number)).toBe(true);
 		});
 	});
@@ -414,8 +391,6 @@ describe("pure helpers", () => {
 		});
 
 		it("rolls the end time forward a day when it lands before the start (day-crossing, SA2-157)", () => {
-			// 22:00 → 02:00 crossed midnight; endedAt must land 4h after startedAt,
-			// not ~20h before it (which zeroed the session out of every stat).
 			const out = buildCreatePayload(
 				cashValues({ startTime: "22:00", endTime: "02:00" })
 			);
@@ -782,9 +757,6 @@ describe("pure helpers", () => {
 		});
 
 		it("tolerates a session whose blindLevels field is absent (stale response)", () => {
-			// A getById response served by an older API build (or a cached
-			// pre-migration entry) can omit blindLevels entirely; buildEditDefaults
-			// must not throw when the field is undefined.
 			const session = baseSessionItem({ type: "tournament" });
 			session.blindLevels = undefined;
 			expect(() => buildEditDefaults(session)).not.toThrow();
@@ -973,7 +945,6 @@ describe("useSessions", () => {
 
 		it("no-ops cache mutation when list is undefined", async () => {
 			const qc = createClient();
-			// No seed → old === undefined in onMutate returns old unchanged.
 			trpcMocks.sessionCreate.mockResolvedValue({ id: "real" });
 			const { result } = renderHook(() => useSessions({}), {
 				wrapper: makeWrapper(qc),
@@ -1055,7 +1026,6 @@ describe("useSessions", () => {
 				unknown
 			>;
 			expect(arg.memo).toBe("live memo");
-			// buildLiveLinkedUpdatePayload omits buy-in/cash-out fields.
 			expect("buyIn" in arg).toBe(false);
 			expect("cashOut" in arg).toBe(false);
 		});
@@ -1095,7 +1065,6 @@ describe("useSessions", () => {
 				const items = firstPageItems(qc, listKey);
 				expect(items?.[0]?.sessionDate).toBe("2026-05-05");
 				expect(items?.[0]?.memo).toBe("new");
-				// Untouched sibling preserved.
 				expect(items?.[1]?.memo).toBeNull();
 			});
 			resolve?.({ id: "s1" });
@@ -1172,7 +1141,6 @@ describe("useSessions", () => {
 				result.current.reopen("live-1");
 				await Promise.resolve();
 			});
-			// Wait a tick for mutation to settle.
 			await waitFor(() =>
 				expect(trpcMocks.liveCashReopen).toHaveBeenCalledTimes(1)
 			);
@@ -1210,7 +1178,6 @@ describe("useSessions", () => {
 			});
 			await waitFor(() => expect(result.current.sessions).toHaveLength(1));
 			expect(result.current.hasNextPage).toBe(false);
-			// Guard branch: calling fetchNextPage with no next page is a safe no-op.
 			act(() => {
 				result.current.fetchNextPage();
 			});

@@ -8,12 +8,6 @@ interface OccupiedSeatEditorProps {
 	playerId: string;
 }
 
-/**
- * Speed-first inline editor for an occupied seat: tags use the shared tag
- * picker (matching the Players form), name and memo auto-save when focus leaves
- * the field. There is no Save button — every change is written optimistically
- * as it happens.
- */
 export function OccupiedSeatEditor({ playerId }: OccupiedSeatEditorProps) {
 	const {
 		availableTags,
@@ -59,8 +53,6 @@ export function OccupiedSeatEditor({ playerId }: OccupiedSeatEditorProps) {
 				selectedTags={player.tags}
 			/>
 
-			{/* Blur capture (focusout) for auto-save, not a pointer/keyboard interaction —
-			    the editable surface inside RichTextEditor stays fully interactive. */}
 			{/* biome-ignore lint/a11y/noNoninteractiveElementInteractions: blur-based auto-save wrapper */}
 			{/* biome-ignore lint/a11y/noStaticElementInteractions: blur-based auto-save wrapper */}
 			<div onBlur={onMemoContainerBlur}>

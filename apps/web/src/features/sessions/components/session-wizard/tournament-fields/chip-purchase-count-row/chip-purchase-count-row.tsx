@@ -8,11 +8,6 @@ function parseCountInput(value: string): number {
 	return parsed !== undefined && parsed > 0 ? parsed : 0;
 }
 
-/**
- * One row of the chip-purchase result list: the rule's name + cost on the
- * left, a numeric purchase-count input, and the derived line cost
- * (count × cost). Presentational — all state lives in the wizard hook.
- */
 export function ChipPurchaseCountRow({
 	row,
 	count,

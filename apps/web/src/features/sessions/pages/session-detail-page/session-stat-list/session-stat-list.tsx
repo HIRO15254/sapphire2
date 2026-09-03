@@ -5,11 +5,6 @@ interface SessionStatListProps {
 	title: string;
 }
 
-/**
- * Titled label/value table used for both the financial breakdown and the meta
- * (when / where / currency / duration) sections of the detail page. Renders
- * nothing when there are no rows so the page never shows an empty card.
- */
 export function SessionStatList({ rows, title }: SessionStatListProps) {
 	if (rows.length === 0) {
 		return null;

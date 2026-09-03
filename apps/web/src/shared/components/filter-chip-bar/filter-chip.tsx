@@ -10,11 +10,6 @@ interface FilterChipProps {
 	value: string;
 }
 
-/**
- * A single Notion-style filter chip: `Label: Value ⌄`. Outlined by default,
- * tinted primary when `active`, tinted destructive when `invalid`. Clicking it
- * opens the owning filter's option sheet.
- */
 export function FilterChip({
 	active,
 	invalid,

@@ -8,7 +8,6 @@ export interface TournamentBlindLevel {
 	blind1: number | null;
 	blind2: number | null;
 	blind3: number | null;
-	/** Per-level game groups for mix tournaments; null = single structure. */
 	games?: GameGroupLike[] | null;
 	id: string;
 	isBreak: boolean;
@@ -83,9 +82,6 @@ export function computeTournamentTimerState(
 				totalDurationSeconds,
 			};
 		}
-		// Zero-minute rows are accepted by the persisted structure schema. They
-		// represent a skipped placeholder rather than an indeterminate timer
-		// duration, so advance over them instead of pinning the timer here.
 		if (minutes === 0) {
 			continue;
 		}
@@ -145,7 +141,6 @@ export function formatBlindLevelLabel(level: TournamentBlindLevel): string {
 	if (level.isBreak) {
 		return `Break (L${level.level})`;
 	}
-	// Mix levels: one segment per game group, truncated for the compact timer.
 	if (level.games && level.games.length > 0) {
 		const shown = level.games
 			.slice(0, MAX_LABEL_GROUPS)

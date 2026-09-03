@@ -22,8 +22,6 @@ function tag(id: string, name: string) {
 }
 
 function visible() {
-	// The measurement ghost duplicates tag text in the DOM; assert against the
-	// visible (non-aria-hidden) cluster only.
 	const root = screen.getByTestId("tag-cluster");
 	const ghost = within(root).getByTestId("tag-ghost");
 	ghost.remove();

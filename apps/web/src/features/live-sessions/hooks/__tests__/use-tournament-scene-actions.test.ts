@@ -211,7 +211,6 @@ describe("useTournamentSceneActions", () => {
 		const { result } = renderHook(() => useTournamentSceneActions(ARGS), {
 			wrapper: makeWrapper(qc),
 		});
-		// Kick off handleSave without awaiting so we can observe the in-flight state.
 		let savePromise: Promise<unknown> | undefined;
 		act(() => {
 			savePromise = result.current.handleSave(FORM_VALUES, LEVELS);

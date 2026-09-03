@@ -172,7 +172,6 @@ describe("useCurrencyForm", () => {
 		const { result } = renderHook(() => useCurrencyForm({ onSubmit }));
 		act(() => {
 			result.current.form.setFieldValue("name", "X");
-			// pre-trim length 6, post-trim length 2 → must pass max(4)
 			result.current.form.setFieldValue("unit", "  AB  ");
 		});
 		await act(async () => {

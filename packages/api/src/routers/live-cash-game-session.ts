@@ -71,13 +71,6 @@ type DbInstance = Parameters<
 
 type BatchStatement = Parameters<DbInstance["batch"]>[0][number];
 
-/**
- * Atomically re-open a completed live cash session: delete its `session_end`
- * event and re-stamp the closing stack as an `update_stack` + a `pause`/`resume`
- * pair. Event replacement, reopening the session row, and removing the completed
- * session's currency ledger entry share one `db.batch`, so a conflict or write
- * failure rolls back the entire reopen (SA2-116, SA2-211).
- */
 export async function persistCashSessionReopenEvents(
 	db: DbInstance,
 	params: {
@@ -112,9 +105,6 @@ export async function persistCashSessionReopenEvents(
 			payload: JSON.stringify({}),
 			updatedAt: params.now,
 		}),
-		// session_resume must sort strictly after session_pause so
-		// computeSessionStateFromEvents sees the pair in the right order and
-		// break-minute calculation can close the pause.
 		db.insert(sessionEvent).values({
 			id: crypto.randomUUID(),
 			sessionId: params.sessionId,
@@ -250,10 +240,6 @@ async function resolveRingGameAssignment(
 		});
 	}
 
-	// Ownership is anchored on ring_game.userId (SA2-181), not derived from the
-	// room, so null-roomId auto-generated snapshot rows are covered too. This
-	// mirrors the caller's pre-check (validateEntityOwnership("ringGame", …)) as
-	// defense-in-depth and keeps the ownership model unified.
 	if (foundRingGame.userId !== userId) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
@@ -304,9 +290,6 @@ export const liveCashGameSessionRouter = router({
 			if (input.status) {
 				conditions.push(eq(gameSession.status, input.status));
 			}
-			// Composite (startedAt, id) keyset — a malformed / deleted-row cursor
-			// degrades to "no cursor" instead of silently emptying the page
-			// (SA2-150). Shared with session.list so both stay in lockstep.
 			const keyset = sessionKeysetCondition(input.cursor);
 			if (keyset) {
 				conditions.push(keyset);
@@ -357,10 +340,6 @@ export const liveCashGameSessionRouter = router({
 			const nextCursor =
 				hasMore && last ? encodeSessionCursor(last) : undefined;
 
-			// SA2-151: fetch every page item's events in one batched inArray
-			// query, then bucket by session id, instead of a per-item query
-			// (an N+1 whose per-query latency dominated under D1). getSessionEventMap
-			// preserves the (occurredAt, sortOrder, id) ordering the reverse scan needs.
 			const eventMap = await getSessionEventMap(
 				ctx.db,
 				items.map((item) => item.id)
@@ -434,9 +413,6 @@ export const liveCashGameSessionRouter = router({
 				heroSeatPosition,
 				events,
 				summary,
-				// Snapshot fields from session_cash_detail. Display in the
-				// live scene must read from here so renames / blind edits on
-				// the master ring_game never propagate.
 				ruleName: cashDetail?.ruleName ?? null,
 				variant: cashDetail?.variant ?? null,
 				mixGames: cashDetail?.mixGames ?? null,
@@ -458,10 +434,6 @@ export const liveCashGameSessionRouter = router({
 				ringGameId: z.string().min(1).optional(),
 				currencyId: z.string().min(1).optional(),
 				memo: z.string().optional(),
-				// Must be an integer: it is re-read through cashSessionStartPayload's
-				// z.number().int().min(0), so a decimal here would parse on create but
-				// throw ZodError on every subsequent getById, making the session
-				// permanently unreadable (SA2-148 write==read).
 				initialBuyIn: z.number().int().min(0),
 			})
 		)
@@ -499,8 +471,6 @@ export const liveCashGameSessionRouter = router({
 			}
 
 			if (input.ringGameId) {
-				// Verify ring-game ownership BEFORE any ring_game read so a caller
-				// cannot probe another user's config via the buy-in bounds (SA2-174).
 				const [foundRingGame] = await ctx.db
 					.select({
 						minBuyIn: ringGame.minBuyIn,
@@ -635,10 +605,6 @@ export const liveCashGameSessionRouter = router({
 				tableSize: input.tableSize ?? null,
 				...frozenFlatFields,
 			};
-			// Upsert (rather than select-then-update/insert) keeps an FK-checked
-			// session-detail write inside the batch. If the live session disappears
-			// after the authorization read, the FK violation rolls the master insert
-			// back instead of leaving an orphan ring game.
 			const detailStatement = ctx.db
 				.insert(sessionCashDetail)
 				.values({
@@ -717,7 +683,6 @@ export const liveCashGameSessionRouter = router({
 			if (input.ringGameId === null) {
 				cashDetailUpdate.ringGameId = null;
 			} else if (input.ringGameId !== undefined) {
-				// Verify ring-game ownership BEFORE the snapshot read (SA2-174).
 				await validateEntityOwnership(
 					ctx.db,
 					"ringGame",
@@ -775,10 +740,6 @@ export const liveCashGameSessionRouter = router({
 				} else {
 					await ctx.db.insert(sessionCashDetail).values({
 						sessionId: input.id,
-						// Explicit fallback so this insert never relies on the column
-						// default (F5/c12) — overridden below by
-						// cashDetailUpdate.variant when a ring game snapshot already
-						// supplied one.
 						variant: DEFAULT_VARIANT_LABEL,
 						...cashDetailUpdate,
 					});
@@ -805,10 +766,6 @@ export const liveCashGameSessionRouter = router({
 			return { ...updated, ringGameId: updatedDetail?.ringGameId ?? null };
 		}),
 
-	// Edit the session's frozen rule snapshot on session_cash_detail. The
-	// master ring_game is NEVER touched by this mutation. Use it from the
-	// live-session edit dialog to override snapshot data for this session
-	// only.
 	updateSnapshot: protectedProcedure
 		.input(
 			z.object({

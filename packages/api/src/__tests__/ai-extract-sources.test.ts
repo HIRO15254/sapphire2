@@ -10,8 +10,6 @@ describe("ai-extract-sources constants", () => {
 	});
 
 	it("TABLE_PLAYER_SOURCE_APP_IDS is a readonly tuple", () => {
-		// `as const` produces a frozen-like readonly tuple at the type level.
-		// Runtime: ensure the array does not accidentally contain stray ids.
 		expect(TABLE_PLAYER_SOURCE_APP_IDS).toHaveLength(1);
 	});
 
