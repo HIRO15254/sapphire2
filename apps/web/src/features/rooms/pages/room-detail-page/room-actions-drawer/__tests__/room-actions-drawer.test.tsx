@@ -31,14 +31,12 @@ describe("RoomActionsDrawer", () => {
 		expect(screen.getByText("Delete room")).toBeInTheDocument();
 	});
 
-	it("renders 'Add to favorites' when isFavorite is false", () => {
-		setup({ isFavorite: false });
-		expect(screen.getByText("Add to favorites")).toBeInTheDocument();
-	});
-
-	it("renders 'Remove from favorites' when isFavorite is true", () => {
-		setup({ isFavorite: true });
-		expect(screen.getByText("Remove from favorites")).toBeInTheDocument();
+	it.each([
+		[false, "Add to favorites"],
+		[true, "Remove from favorites"],
+	])("renders the correct favorite label when isFavorite is %s", (isFavorite, label) => {
+		setup({ isFavorite });
+		expect(screen.getByText(label)).toBeInTheDocument();
 	});
 
 	it("calls onToggleFavorite when the favorite item is clicked", async () => {

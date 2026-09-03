@@ -45,23 +45,17 @@ describe("ChipPurchasesEditor", () => {
 		expect(screen.getByRole("textbox", { name: "Chips*" })).toBeInTheDocument();
 	});
 
-	it("patches the name cell on edit", () => {
+	it.each([
+		{ field: "name" as const, label: "Name*", newValue: "Add-on" },
+		{ field: "cost" as const, label: "Cost*", newValue: "75" },
+	])("patches the $field cell on edit", ({ field, label, newValue }) => {
 		const onChange = vi.fn();
 		render(<ChipPurchasesEditor onChange={onChange} value={[row()]} />);
-		fireEvent.change(screen.getByRole("textbox", { name: "Name*" }), {
-			target: { value: "Add-on" },
+		fireEvent.change(screen.getByRole("textbox", { name: label }), {
+			target: { value: newValue },
 		});
 		expect(onChange).toHaveBeenCalledTimes(1);
-		expect(onChange).toHaveBeenCalledWith([row({ name: "Add-on" })]);
-	});
-
-	it("patches the cost cell on edit", () => {
-		const onChange = vi.fn();
-		render(<ChipPurchasesEditor onChange={onChange} value={[row()]} />);
-		fireEvent.change(screen.getByRole("textbox", { name: "Cost*" }), {
-			target: { value: "75" },
-		});
-		expect(onChange).toHaveBeenCalledWith([row({ cost: "75" })]);
+		expect(onChange).toHaveBeenCalledWith([row({ [field]: newValue })]);
 	});
 
 	it("patches only the targeted row in a multi-row editor", () => {

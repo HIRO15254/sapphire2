@@ -156,6 +156,73 @@ describe("useAllInForm", () => {
 		});
 	});
 
+	it("rejects negative equity on submit", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useAllInForm({ open: false, onSubmit })
+		);
+		act(() => {
+			result.current.form.setFieldValue("equity", "-5");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("rejects fractional trials on submit", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useAllInForm({ open: false, onSubmit })
+		);
+		act(() => {
+			result.current.form.setFieldValue("trials", "2.5");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("rejects negative wins on submit", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useAllInForm({ open: false, onSubmit })
+		);
+		act(() => {
+			result.current.form.setFieldValue("potSize", "1000");
+			result.current.form.setFieldValue("trials", "3");
+			result.current.form.setFieldValue("equity", "50");
+			result.current.form.setFieldValue("wins", "-1");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("accepts potSize = 0 on submit (lower boundary)", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useAllInForm({ open: false, onSubmit })
+		);
+		act(() => {
+			result.current.form.setFieldValue("potSize", "0");
+			result.current.form.setFieldValue("trials", "1");
+			result.current.form.setFieldValue("equity", "50");
+			result.current.form.setFieldValue("wins", "0");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledWith({
+			potSize: 0,
+			trials: 1,
+			equity: 50,
+			wins: 0,
+		});
+	});
+
 	it("resets to defaults whenever open transitions with no initialValues", () => {
 		const onSubmit = vi.fn();
 		const { result, rerender } = renderHook(

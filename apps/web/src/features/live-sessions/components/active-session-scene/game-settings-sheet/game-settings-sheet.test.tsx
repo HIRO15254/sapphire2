@@ -15,13 +15,13 @@ vi.mock(
 import { GameSettingsSheet } from "@/features/live-sessions/components/active-session-scene/game-settings-sheet";
 
 describe("GameSettingsSheet", () => {
-	it("does not mount the game scene while closed", () => {
-		render(<GameSettingsSheet onOpenChange={vi.fn()} open={false} />);
+	it("mounts the game scene only while open", () => {
+		const { rerender } = render(
+			<GameSettingsSheet onOpenChange={vi.fn()} open={false} />
+		);
 		expect(screen.queryByTestId("game-scene")).not.toBeInTheDocument();
-	});
 
-	it("mounts the game scene when open", () => {
-		render(<GameSettingsSheet onOpenChange={vi.fn()} open />);
+		rerender(<GameSettingsSheet onOpenChange={vi.fn()} open />);
 		expect(screen.getByTestId("game-scene")).toBeInTheDocument();
 	});
 

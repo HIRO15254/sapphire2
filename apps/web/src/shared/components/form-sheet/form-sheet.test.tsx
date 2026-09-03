@@ -49,11 +49,20 @@ describe("FormSheet", () => {
 		expect(save).toHaveAttribute("type", "submit");
 	});
 
-	it("disables Save when an explicit save guard is active", () => {
+	it.each([
+		{ isSaveDisabled: true, isLoading: false, shouldBeDisabled: true },
+		{ isSaveDisabled: false, isLoading: false, shouldBeDisabled: false },
+		{ isSaveDisabled: false, isLoading: true, shouldBeDisabled: true },
+	])("disables Save when isSaveDisabled=$isSaveDisabled or isLoading=$isLoading", ({
+		isSaveDisabled,
+		isLoading,
+		shouldBeDisabled,
+	}) => {
 		render(
 			<FormSheet
 				formId="x"
-				isSaveDisabled
+				isLoading={isLoading}
+				isSaveDisabled={isSaveDisabled}
 				onOpenChange={vi.fn()}
 				open
 				title="t"
@@ -61,25 +70,10 @@ describe("FormSheet", () => {
 				<div>body</div>
 			</FormSheet>
 		);
-		expect(screen.getByLabelText("Save")).toBeDisabled();
-	});
-
-	it("keeps Save enabled when loading and save guard are both false", () => {
-		render(
-			<FormSheet formId="x" onOpenChange={vi.fn()} open title="t">
-				<div>body</div>
-			</FormSheet>
+		expect(screen.getByLabelText("Save")).toHaveProperty(
+			"disabled",
+			shouldBeDisabled
 		);
-		expect(screen.getByLabelText("Save")).toBeEnabled();
-	});
-
-	it("disables the Save button while isLoading is true", () => {
-		render(
-			<FormSheet formId="x" isLoading onOpenChange={vi.fn()} open title="t">
-				<div>body</div>
-			</FormSheet>
-		);
-		expect(screen.getByLabelText("Save")).toBeDisabled();
 	});
 
 	it("calls onOpenChange(false) when Cancel is clicked", async () => {

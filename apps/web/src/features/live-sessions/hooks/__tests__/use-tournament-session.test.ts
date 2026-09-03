@@ -125,39 +125,26 @@ describe("useTournamentSession", () => {
 		});
 	});
 
-	it("updateTimerStartedAt(null) passes null through", async () => {
+	it.each([
+		[null, null],
+		[
+			new Date("2026-04-01T12:34:56.789Z"),
+			Math.floor(new Date("2026-04-01T12:34:56.789Z").getTime() / 1000),
+		],
+	])("updateTimerStartedAt converts %p to %p", async (input, expected) => {
 		const qc = createClient();
 		trpcMocks.update.mockResolvedValue({ id: "t1" });
 		const { result } = renderHook(() => useTournamentSession("t1"), {
 			wrapper: makeWrapper(qc),
 		});
 		await act(async () => {
-			result.current.updateTimerStartedAt(null);
+			result.current.updateTimerStartedAt(input);
 			await Promise.resolve();
 		});
 		await waitFor(() => {
 			expect(trpcMocks.update).toHaveBeenCalledWith({
 				id: "t1",
-				timerStartedAt: null,
-			});
-		});
-	});
-
-	it("updateTimerStartedAt(Date) converts ms to unix seconds (floored)", async () => {
-		const qc = createClient();
-		trpcMocks.update.mockResolvedValue({ id: "t1" });
-		const { result } = renderHook(() => useTournamentSession("t1"), {
-			wrapper: makeWrapper(qc),
-		});
-		const date = new Date("2026-04-01T12:34:56.789Z");
-		await act(async () => {
-			result.current.updateTimerStartedAt(date);
-			await Promise.resolve();
-		});
-		await waitFor(() => {
-			expect(trpcMocks.update).toHaveBeenCalledWith({
-				id: "t1",
-				timerStartedAt: Math.floor(date.getTime() / 1000),
+				timerStartedAt: expected,
 			});
 		});
 	});

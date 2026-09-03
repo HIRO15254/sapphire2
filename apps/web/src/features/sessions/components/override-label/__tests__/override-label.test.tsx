@@ -3,14 +3,15 @@ import { describe, expect, it } from "vitest";
 import { OverrideLabel } from "../override-label";
 
 describe("OverrideLabel", () => {
-	it("renders the bare label when no override set is given", () => {
-		render(<OverrideLabel label="SB" />);
-		expect(screen.getByText("SB")).toBeInTheDocument();
-		expect(screen.queryByText("Modified")).not.toBeInTheDocument();
-	});
-
-	it("renders the bare label when the label is absent from the set", () => {
-		render(<OverrideLabel label="SB" overridden={new Set(["BB"])} />);
+	it.each([
+		{ overridden: undefined, scenario: "no override set is given" },
+		{
+			overridden: new Set(["BB"]),
+			scenario: "the label is absent from the set",
+		},
+		{ overridden: new Set(), scenario: "the set is empty" },
+	])("renders the bare label when $scenario", ({ overridden }) => {
+		render(<OverrideLabel label="SB" overridden={overridden} />);
 		expect(screen.getByText("SB")).toBeInTheDocument();
 		expect(screen.queryByText("Modified")).not.toBeInTheDocument();
 	});
@@ -19,11 +20,5 @@ describe("OverrideLabel", () => {
 		render(<OverrideLabel label="SB" overridden={new Set(["SB", "BB"])} />);
 		expect(screen.getByText("SB")).toBeInTheDocument();
 		expect(screen.getByText("Modified")).toBeInTheDocument();
-	});
-
-	it("renders the bare label when the set is empty", () => {
-		render(<OverrideLabel label="SB" overridden={new Set()} />);
-		expect(screen.getByText("SB")).toBeInTheDocument();
-		expect(screen.queryByText("Modified")).not.toBeInTheDocument();
 	});
 });

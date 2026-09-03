@@ -38,26 +38,14 @@ describe("useTagNameForm", () => {
 		);
 	});
 
-	it("rejects a whitespace-only name with the required message", async () => {
+	it.each([
+		["   "],
+		["\t\n "],
+	])("rejects a whitespace-only name %j with the required message", async (whitespace) => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() => useTagNameForm({ onSubmit }));
 		act(() => {
-			result.current.form.setFieldValue("name", "   ");
-		});
-		await act(async () => {
-			await result.current.form.handleSubmit();
-		});
-		expect(onSubmit).not.toHaveBeenCalled();
-		expect(nameErrorMessages(result.current.form)).toContain(
-			"Tag name is required"
-		);
-	});
-
-	it("rejects a name of only tabs and newlines", async () => {
-		const onSubmit = vi.fn();
-		const { result } = renderHook(() => useTagNameForm({ onSubmit }));
-		act(() => {
-			result.current.form.setFieldValue("name", "\t\n ");
+			result.current.form.setFieldValue("name", whitespace);
 		});
 		await act(async () => {
 			await result.current.form.handleSubmit();
@@ -94,11 +82,14 @@ describe("useTagNameForm", () => {
 		expect(onSubmit).toHaveBeenCalledWith("x".repeat(50));
 	});
 
-	it("rejects 51 characters wrapped in whitespace", async () => {
+	it.each([
+		[`  ${"x".repeat(51)}  `],
+		["x".repeat(51)],
+	])("rejects 51+ characters %j", async (name) => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() => useTagNameForm({ onSubmit }));
 		act(() => {
-			result.current.form.setFieldValue("name", `  ${"x".repeat(51)}  `);
+			result.current.form.setFieldValue("name", name);
 		});
 		await act(async () => {
 			await result.current.form.handleSubmit();
@@ -107,18 +98,6 @@ describe("useTagNameForm", () => {
 		expect(nameErrorMessages(result.current.form)).toContain(
 			"Tag name must be 50 characters or less"
 		);
-	});
-
-	it("rejects name longer than 50 characters", async () => {
-		const onSubmit = vi.fn();
-		const { result } = renderHook(() => useTagNameForm({ onSubmit }));
-		act(() => {
-			result.current.form.setFieldValue("name", "x".repeat(51));
-		});
-		await act(async () => {
-			await result.current.form.handleSubmit();
-		});
-		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
 	it("accepts name at exactly 50 characters", async () => {

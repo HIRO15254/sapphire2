@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { stubWebAuthnSupport } from "@/__tests__/test-utils";
 import SignInForm from "./sign-in-form";
+import { useSignIn } from "./use-sign-in";
 
 const SIGN_IN_BUTTON_NAME = "Sign In";
 
@@ -43,6 +44,11 @@ vi.mock("@/lib/auth-client", () => ({
 		}),
 	},
 }));
+
+vi.mock("./use-sign-in", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("./use-sign-in")>();
+	return { ...actual, useSignIn: vi.fn(actual.useSignIn) };
+});
 
 describe("SignInForm", () => {
 	it("renders auth fields and provider buttons", () => {
@@ -106,5 +112,24 @@ describe("SignInForm", () => {
 			expect(mocks.signInPasskey).toHaveBeenCalledTimes(1);
 		});
 		restore();
+	});
+
+	it("renders Loader when isPending (loading state → skeleton subtree)", () => {
+		vi.mocked(useSignIn).mockReturnValueOnce({
+			form: {} as ReturnType<typeof useSignIn>["form"],
+			isPasskeyPending: false,
+			isPasskeySupported: false,
+			isPending: true,
+			onSignInWithDiscord: vi.fn(),
+			onSignInWithGoogle: vi.fn(),
+			onSignInWithPasskey: vi.fn(),
+		} satisfies ReturnType<typeof useSignIn>);
+
+		const { container } = render(
+			<SignInForm onSwitchToSignUp={mocks.onSwitchToSignUp} />
+		);
+
+		expect(container.querySelector("svg.animate-spin")).toBeInTheDocument();
+		expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
 	});
 });

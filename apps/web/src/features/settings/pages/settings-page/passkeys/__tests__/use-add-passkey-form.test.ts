@@ -64,30 +64,23 @@ describe("useAddPasskeyForm", () => {
 		});
 	});
 
-	it("rejects an empty name without touching the authenticator", async () => {
-		const { result } = renderForm();
-		await submitWithName(result, "");
-		expect(mocks.addPasskey).not.toHaveBeenCalled();
-		expect(result.current.form.state.isSubmitSuccessful).toBe(false);
-	});
-
-	it("rejects a whitespace-only name", async () => {
-		const { result } = renderForm();
-		await submitWithName(result, "   ");
-		expect(mocks.addPasskey).not.toHaveBeenCalled();
-	});
-
-	it("rejects a name longer than 50 characters", async () => {
-		const { result } = renderForm();
-		await submitWithName(result, "a".repeat(51));
-		expect(mocks.addPasskey).not.toHaveBeenCalled();
-	});
-
-	it("accepts a 50-character name", async () => {
+	it.each([
+		{ name: "", shouldReject: true },
+		{ name: "   ", shouldReject: true },
+		{ name: "a".repeat(51), shouldReject: true },
+		{ name: "a".repeat(50), shouldReject: false },
+	])("$shouldReject rejection of a name with length $name.length", async ({
+		name,
+		shouldReject,
+	}) => {
 		mocks.addPasskey.mockResolvedValue({ data: {} });
 		const { result } = renderForm();
-		await submitWithName(result, "a".repeat(50));
-		expect(mocks.addPasskey).toHaveBeenCalledTimes(1);
+		await submitWithName(result, name);
+		if (shouldReject) {
+			expect(mocks.addPasskey).not.toHaveBeenCalled();
+		} else {
+			expect(mocks.addPasskey).toHaveBeenCalledTimes(1);
+		}
 	});
 
 	it("registers the passkey under the trimmed name", async () => {

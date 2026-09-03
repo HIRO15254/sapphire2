@@ -19,18 +19,16 @@ function setup() {
 }
 
 describe("HistorySection", () => {
-	it("starts collapsed without mounting the events scene", () => {
+	it("mounts the embedded events scene only while expanded", async () => {
+		const user = userEvent.setup();
 		setup();
 		expect(
 			screen.getByRole("button", { name: REGEX_HISTORY })
 		).toBeInTheDocument();
 		expect(screen.queryByTestId("events-scene")).not.toBeInTheDocument();
-	});
 
-	it("expanding mounts the embedded events scene with live polling", async () => {
-		const user = userEvent.setup();
-		setup();
-		await user.click(screen.getByRole("button", { name: REGEX_HISTORY }));
+		const toggle = screen.getByRole("button", { name: REGEX_HISTORY });
+		await user.click(toggle);
 		expect(screen.getByTestId("events-scene")).toBeInTheDocument();
 		expect(sceneSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -40,13 +38,7 @@ describe("HistorySection", () => {
 				sessionType: "cash_game",
 			})
 		);
-	});
 
-	it("collapsing again unmounts the events scene", async () => {
-		const user = userEvent.setup();
-		setup();
-		const toggle = screen.getByRole("button", { name: REGEX_HISTORY });
-		await user.click(toggle);
 		await user.click(toggle);
 		expect(screen.queryByTestId("events-scene")).not.toBeInTheDocument();
 	});

@@ -81,27 +81,21 @@ describe("useTagPickerBase", () => {
 	});
 
 	describe("canCreate", () => {
-		it("is true when input has no matching tag and onCreateTag is provided", () => {
-			const { hook } = setup();
-			act(() => hook.result.current.onInputChange("NewTag"));
-			expect(hook.result.current.canCreate).toBe(true);
-		});
-
-		it("is false when input exactly matches an existing tag (case-insensitive)", () => {
-			const { hook } = setup();
-			act(() => hook.result.current.onInputChange("vip"));
-			expect(hook.result.current.canCreate).toBe(false);
-		});
-
-		it("is false when onCreateTag is not provided", () => {
-			const { hook } = setup({ onCreateTag: undefined });
-			act(() => hook.result.current.onInputChange("NewTag"));
-			expect(hook.result.current.canCreate).toBe(false);
-		});
-
-		it("is false when input is empty", () => {
-			const { hook } = setup();
-			expect(hook.result.current.canCreate).toBe(false);
+		it.each([
+			{ input: "NewTag", hasOnCreateTag: true, expected: true },
+			{ input: "vip", hasOnCreateTag: true, expected: false },
+			{ input: "NewTag", hasOnCreateTag: false, expected: false },
+			{ input: "", hasOnCreateTag: true, expected: false },
+		])("is $expected for input=$input, onCreateTag provided=$hasOnCreateTag", ({
+			input,
+			hasOnCreateTag,
+			expected,
+		}) => {
+			const { hook } = setup({
+				onCreateTag: hasOnCreateTag ? vi.fn() : undefined,
+			});
+			act(() => hook.result.current.onInputChange(input));
+			expect(hook.result.current.canCreate).toBe(expected);
 		});
 	});
 
@@ -169,28 +163,23 @@ describe("useTagPickerBase", () => {
 	});
 
 	describe("shouldRenderPopover", () => {
-		it("is false when closed even with available tags", () => {
-			const { hook } = setup();
-			expect(hook.result.current.shouldRenderPopover).toBe(false);
-		});
-
-		it("is true when open and there are available tags", () => {
-			const { hook } = setup();
-			act(() => hook.result.current.onOpenChange(true));
-			expect(hook.result.current.shouldRenderPopover).toBe(true);
-		});
-
-		it("is true when open and input is non-empty even with no tags", () => {
-			const { hook } = setup({ availableTags: [] });
-			act(() => hook.result.current.onOpenChange(true));
-			act(() => hook.result.current.onInputChange("anything"));
-			expect(hook.result.current.shouldRenderPopover).toBe(true);
-		});
-
-		it("is false when open, no tags, and empty input", () => {
-			const { hook } = setup({ availableTags: [] });
-			act(() => hook.result.current.onOpenChange(true));
-			expect(hook.result.current.shouldRenderPopover).toBe(false);
+		it.each([
+			{ isOpen: false, hasTags: true, input: "", expected: false },
+			{ isOpen: true, hasTags: true, input: "", expected: true },
+			{ isOpen: true, hasTags: false, input: "anything", expected: true },
+			{ isOpen: true, hasTags: false, input: "", expected: false },
+		])("is $expected for isOpen=$isOpen, hasTags=$hasTags, input=$input", ({
+			isOpen,
+			hasTags,
+			input,
+			expected,
+		}) => {
+			const { hook } = setup({ availableTags: hasTags ? ALL_TAGS : [] });
+			act(() => hook.result.current.onOpenChange(isOpen));
+			if (input) {
+				act(() => hook.result.current.onInputChange(input));
+			}
+			expect(hook.result.current.shouldRenderPopover).toBe(expected);
 		});
 	});
 

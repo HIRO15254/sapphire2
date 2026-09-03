@@ -22,25 +22,13 @@ function renderTabs(values: string[]) {
 }
 
 describe("Tabs", () => {
-	it("sets --tabs-count from the number of triggers (2)", () => {
-		renderTabs(["a", "b"]);
+	it.each([2, 3, 4])("sets --tabs-count=%i", (count) => {
+		renderTabs(
+			Array.from({ length: count }, (_, i) => String.fromCharCode(97 + i))
+		);
 		expect(
 			screen.getByRole("tablist").style.getPropertyValue("--tabs-count")
-		).toBe("2");
-	});
-
-	it("sets --tabs-count for three tabs", () => {
-		renderTabs(["a", "b", "c"]);
-		expect(
-			screen.getByRole("tablist").style.getPropertyValue("--tabs-count")
-		).toBe("3");
-	});
-
-	it("sets --tabs-count for four tabs", () => {
-		renderTabs(["a", "b", "c", "d"]);
-		expect(
-			screen.getByRole("tablist").style.getPropertyValue("--tabs-count")
-		).toBe("4");
+		).toBe(String(count));
 	});
 
 	it("renders every trigger for a three-tab list", () => {

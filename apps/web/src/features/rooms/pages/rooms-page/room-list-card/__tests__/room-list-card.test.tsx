@@ -89,16 +89,13 @@ describe("RoomListCard", () => {
 		expect(link.querySelector("button")).toBeNull();
 	});
 
-	it("renders the 'Add to favorites' button when isFavorite is false", async () => {
-		renderCard({ ...baseRoom, isFavorite: false });
+	it.each([
+		[false, "Add to favorites"],
+		[true, "Remove from favorites"],
+	])("renders the correct favorite button when isFavorite is %s", async (isFavorite, label) => {
+		renderCard({ ...baseRoom, isFavorite });
 		await screen.findByText("Akiba Casino");
-		expect(screen.getByLabelText("Add to favorites")).toBeInTheDocument();
-	});
-
-	it("renders the 'Remove from favorites' button when isFavorite is true", async () => {
-		renderCard({ ...baseRoom, isFavorite: true });
-		await screen.findByText("Akiba Casino");
-		expect(screen.getByLabelText("Remove from favorites")).toBeInTheDocument();
+		expect(screen.getByLabelText(label)).toBeInTheDocument();
 	});
 
 	it("calls onToggleFavorite when the star button is clicked", async () => {

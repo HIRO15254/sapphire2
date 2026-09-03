@@ -131,17 +131,6 @@ describe("useStatsFilterBar", () => {
 			expect(result.current.activeSheet).toBe("presets");
 		});
 
-		it("closeSheet clears the presets sheet just like any other sheet", () => {
-			const { result } = renderHook(() => useStatsFilterBar());
-			act(() => {
-				result.current.openSheet("presets");
-			});
-			act(() => {
-				result.current.closeSheet();
-			});
-			expect(result.current.activeSheet).toBeNull();
-		});
-
 		it("closeSheet clears the active sheet", () => {
 			const { result } = renderHook(() => useStatsFilterBar());
 			act(() => {

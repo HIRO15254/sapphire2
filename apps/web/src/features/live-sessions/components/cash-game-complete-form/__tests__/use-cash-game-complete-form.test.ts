@@ -49,4 +49,28 @@ describe("useCashGameCompleteForm", () => {
 		});
 		expect(onSubmit).toHaveBeenCalledWith({ finalStack: 1250 });
 	});
+
+	it("accepts finalStack=0 when valid", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() => useCashGameCompleteForm({ onSubmit }));
+		act(() => {
+			result.current.form.setFieldValue("finalStack", "0");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledWith({ finalStack: 0 });
+	});
+
+	it("rejects fractional finalStack on submit", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() => useCashGameCompleteForm({ onSubmit }));
+		act(() => {
+			result.current.form.setFieldValue("finalStack", "100.5");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
 });

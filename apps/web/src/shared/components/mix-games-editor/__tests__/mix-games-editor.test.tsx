@@ -48,9 +48,21 @@ describe("MixGamesEditor — group heading", () => {
 });
 
 describe("MixGamesEditor — per-cell validation display (c31)", () => {
-	it("marks an invalid blind cell with aria-invalid and the whole-number message", () => {
+	it.each([
+		{
+			label: "SB",
+			patch: { blind1: "1.5" },
+		},
+		{
+			label: "Ante",
+			patch: { anteType: "bb" as const, ante: "-3" },
+		},
+	])("marks an invalid $label cell with aria-invalid and the whole-number message", ({
+		label,
+		patch,
+	}) => {
 		let value = addVariant([], "NL Hold'em", resolveGroup);
-		value = updateGroup(value, value[0].uid, { blind1: "1.5" });
+		value = updateGroup(value, value[0].uid, patch);
 		render(
 			<MixGamesEditor
 				onChange={vi.fn()}
@@ -59,21 +71,7 @@ describe("MixGamesEditor — per-cell validation display (c31)", () => {
 			/>
 		);
 		expect(screen.getByText(MIX_CELL_ERROR)).toBeInTheDocument();
-		expect(screen.getByLabelText("SB")).toHaveAttribute("aria-invalid", "true");
-	});
-
-	it("marks an invalid ante cell with aria-invalid and the whole-number message", () => {
-		let value = addVariant([], "NL Hold'em", resolveGroup);
-		value = updateGroup(value, value[0].uid, { anteType: "bb", ante: "-3" });
-		render(
-			<MixGamesEditor
-				onChange={vi.fn()}
-				resolveGroup={resolveGroup}
-				value={value}
-			/>
-		);
-		expect(screen.getByText(MIX_CELL_ERROR)).toBeInTheDocument();
-		expect(screen.getByLabelText("Ante")).toHaveAttribute(
+		expect(screen.getByLabelText(label)).toHaveAttribute(
 			"aria-invalid",
 			"true"
 		);

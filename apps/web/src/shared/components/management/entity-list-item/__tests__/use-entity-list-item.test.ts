@@ -106,22 +106,16 @@ describe("useEntityListItem", () => {
 			expect(result.current.confirmingDelete).toBe(false);
 		});
 
-		it("forwards the new value to onExpandedValueChange", () => {
+		it.each([
+			["item-3"],
+			[null],
+		] as const)("forwards %s to onExpandedValueChange", (value) => {
 			const onExpandedValueChange = vi.fn();
 			const { result } = renderHook(() =>
 				useEntityListItem({ isControlled: false, onExpandedValueChange })
 			);
-			act(() => result.current.handleExpandedValueChange("item-3"));
-			expect(onExpandedValueChange).toHaveBeenCalledWith("item-3");
-		});
-
-		it("forwards null when expansion is cleared", () => {
-			const onExpandedValueChange = vi.fn();
-			const { result } = renderHook(() =>
-				useEntityListItem({ isControlled: false, onExpandedValueChange })
-			);
-			act(() => result.current.handleExpandedValueChange(null));
-			expect(onExpandedValueChange).toHaveBeenCalledWith(null);
+			act(() => result.current.handleExpandedValueChange(value));
+			expect(onExpandedValueChange).toHaveBeenCalledWith(value);
 		});
 
 		it("still updates the uncontrolled expanded value when onExpandedValueChange is not provided", () => {

@@ -83,16 +83,13 @@ describe("useRoomsPage", () => {
 			expect(result.current.isCreatePending).toBe(true);
 		});
 
-		it("forwards isLoading=true from the data hook", () => {
-			mocks.isLoading = true;
+		it.each([
+			[true],
+			[false],
+		])("forwards isLoading=%s from the data hook", (isLoading) => {
+			mocks.isLoading = isLoading;
 			const { result } = renderHook(() => useRoomsPage());
-			expect(result.current.isLoading).toBe(true);
-		});
-
-		it("forwards isLoading=false from the data hook", () => {
-			mocks.isLoading = false;
-			const { result } = renderHook(() => useRoomsPage());
-			expect(result.current.isLoading).toBe(false);
+			expect(result.current.isLoading).toBe(isLoading);
 		});
 
 		it("forwards an initial query error and retry callback", () => {
@@ -120,19 +117,12 @@ describe("useRoomsPage", () => {
 		expect(result.current.rooms).toHaveLength(1);
 	});
 	describe("setIsCreateOpen", () => {
-		it("opens the create sheet when called with true", () => {
+		it("toggles the create sheet open and closed", () => {
 			const { result } = renderHook(() => useRoomsPage());
 			act(() => {
 				result.current.setIsCreateOpen(true);
 			});
 			expect(result.current.isCreateOpen).toBe(true);
-		});
-
-		it("closes the create sheet when called with false", () => {
-			const { result } = renderHook(() => useRoomsPage());
-			act(() => {
-				result.current.setIsCreateOpen(true);
-			});
 			act(() => {
 				result.current.setIsCreateOpen(false);
 			});
@@ -187,21 +177,15 @@ describe("useRoomsPage", () => {
 	});
 
 	describe("handleToggleFavorite", () => {
-		it("calls toggleFavorite with the given room id", () => {
+		it.each([
+			["s1"],
+			["abc-123"],
+		])("calls toggleFavorite with the given room id (%s)", (id) => {
 			const { result } = renderHook(() => useRoomsPage());
 			act(() => {
-				result.current.handleToggleFavorite("s1");
+				result.current.handleToggleFavorite(id);
 			});
-			expect(mocks.toggleFavorite).toHaveBeenCalledTimes(1);
-			expect(mocks.toggleFavorite).toHaveBeenCalledWith("s1");
-		});
-
-		it("passes different ids through unchanged", () => {
-			const { result } = renderHook(() => useRoomsPage());
-			act(() => {
-				result.current.handleToggleFavorite("abc-123");
-			});
-			expect(mocks.toggleFavorite).toHaveBeenCalledWith("abc-123");
+			expect(mocks.toggleFavorite).toHaveBeenCalledWith(id);
 		});
 	});
 });

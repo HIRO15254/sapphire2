@@ -218,10 +218,13 @@ describe("useFilterPresetsSheet", () => {
 			expect(hoisted.setDefault).not.toHaveBeenCalled();
 		});
 
-		it("resolves without rejecting when setDefault fails", async () => {
-			hoisted.setDefault.mockRejectedValue(new Error("Network error"));
+		it.each([
+			["setDefault", "p15", false],
+			["clearDefault", "p16", true],
+		] as const)("resolves without rejecting when %s fails", async (fnName, presetId, isDefault) => {
+			hoisted[fnName].mockRejectedValue(new Error("Network error"));
 			const { result } = renderSheet();
-			const preset = makePreset({ id: "p15", isDefault: false });
+			const preset = makePreset({ id: presetId, isDefault });
 
 			await act(async () => {
 				await expect(
@@ -229,21 +232,7 @@ describe("useFilterPresetsSheet", () => {
 				).resolves.toBeUndefined();
 			});
 
-			expect(hoisted.setDefault).toHaveBeenCalledTimes(1);
-		});
-
-		it("resolves without rejecting when clearDefault fails", async () => {
-			hoisted.clearDefault.mockRejectedValue(new Error("Network error"));
-			const { result } = renderSheet();
-			const preset = makePreset({ id: "p16", isDefault: true });
-
-			await act(async () => {
-				await expect(
-					result.current.onToggleDefault(preset)
-				).resolves.toBeUndefined();
-			});
-
-			expect(hoisted.clearDefault).toHaveBeenCalledTimes(1);
+			expect(hoisted[fnName]).toHaveBeenCalledTimes(1);
 		});
 	});
 

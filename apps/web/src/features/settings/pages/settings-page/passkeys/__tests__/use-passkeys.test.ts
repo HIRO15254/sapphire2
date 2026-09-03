@@ -104,20 +104,17 @@ describe("usePasskeys", () => {
 		expect(result.current.totalPasskeys).toBe(0);
 	});
 
-	it("reports passkey support from the browser capability", async () => {
-		stubWebAuthnSupport(true);
+	it.each([
+		{ supported: true },
+		{ supported: false },
+	])("reports passkey support=$supported from the browser capability", async ({
+		supported,
+	}) => {
+		stubWebAuthnSupport(supported);
 		mocks.listUserPasskeys.mockResolvedValue({ data: [] });
 		const { result } = renderHook(() => usePasskeys());
 		await waitFor(() => expect(result.current.loading).toBe(false));
-		expect(result.current.isPasskeySupported).toBe(true);
-	});
-
-	it("reports no passkey support without WebAuthn", async () => {
-		stubWebAuthnSupport(false);
-		mocks.listUserPasskeys.mockResolvedValue({ data: [] });
-		const { result } = renderHook(() => usePasskeys());
-		await waitFor(() => expect(result.current.loading).toBe(false));
-		expect(result.current.isPasskeySupported).toBe(false);
+		expect(result.current.isPasskeySupported).toBe(supported);
 	});
 
 	it("keeps the add sheet closed until it is opened", async () => {

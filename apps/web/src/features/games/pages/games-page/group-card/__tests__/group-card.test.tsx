@@ -52,14 +52,12 @@ describe("GroupCard", () => {
 		expect(screen.getByText("Default labels")).toBeInTheDocument();
 	});
 
-	it("never renders a Default badge, even for a builtin group", () => {
-		renderCard();
-		expect(screen.queryByText("Default")).not.toBeInTheDocument();
-	});
-
-	it("omits any badge for a user-created group", () => {
+	it.each([
+		{ builtinKey: "nlh", label: "builtin" },
+		{ builtinKey: null, label: "user-created" },
+	])("never renders a Default badge for a $label group", ({ builtinKey }) => {
 		renderCard({
-			entry: { group: groupRow({ builtinKey: null }), variants: [] },
+			entry: { group: groupRow({ builtinKey }), variants: [] },
 		});
 		expect(screen.queryByText("Default")).not.toBeInTheDocument();
 	});
@@ -82,11 +80,20 @@ describe("GroupCard", () => {
 		expect(screen.getByText("Default labels")).toBeInTheDocument();
 	});
 
-	it("shows the empty-group message when there are no variants", () => {
-		renderCard();
-		expect(
-			screen.getByText("No variants in this group yet.")
-		).toBeInTheDocument();
+	it.each([
+		{ variants: [], shouldShow: true },
+		{ variants: [variantRow()], shouldShow: false },
+	])("shows the empty-group message=$shouldShow when variants.length=$variants.length", ({
+		variants,
+		shouldShow,
+	}) => {
+		renderCard({ entry: { group: groupRow(), variants } });
+		const message = screen.queryByText("No variants in this group yet.");
+		if (shouldShow) {
+			expect(message).toBeInTheDocument();
+		} else {
+			expect(message).not.toBeInTheDocument();
+		}
 	});
 
 	it("renders each variant's label and short label without a Default badge, even for a builtin variant", () => {
@@ -99,13 +106,6 @@ describe("GroupCard", () => {
 		expect(screen.getByText("Big Duck")).toBeInTheDocument();
 		expect(screen.getByText("BD")).toBeInTheDocument();
 		expect(screen.queryByText("Default")).not.toBeInTheDocument();
-	});
-
-	it("does not render an empty-group message when variants are present", () => {
-		renderCard({ entry: { group: groupRow(), variants: [variantRow()] } });
-		expect(
-			screen.queryByText("No variants in this group yet.")
-		).not.toBeInTheDocument();
 	});
 
 	it("calls onEditGroup with the group when the group edit button is clicked", async () => {

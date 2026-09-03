@@ -66,38 +66,36 @@ describe("useSessionResultChart", () => {
 		expect(result.current.isLoading).toBe(false);
 	});
 
-	it("fetches with liveCashGameSessionId for cash sessions when enabled", async () => {
+	it.each([
+		{
+			sessionType: "cash_game" as const,
+			liveSessionId: "cash-1",
+			expectedInput: { liveCashGameSessionId: "cash-1" },
+		},
+		{
+			sessionType: "tournament" as const,
+			liveSessionId: "trn-1",
+			expectedInput: { liveTournamentSessionId: "trn-1" },
+		},
+	])("fetches with $expectedInput for $sessionType sessions when enabled", async ({
+		sessionType,
+		liveSessionId,
+		expectedInput,
+	}) => {
 		queryFn.mockClear();
 		captured.lastInput = null;
 		queryFn.mockResolvedValueOnce([]);
 		renderHook(
 			() =>
 				useSessionResultChart({
-					liveSessionId: "cash-1",
-					sessionType: "cash_game",
+					liveSessionId,
+					sessionType,
 					enabled: true,
 				}),
 			{ wrapper: wrapper(createClient()) }
 		);
 		await waitFor(() => expect(queryFn).toHaveBeenCalledTimes(1));
-		expect(captured.lastInput).toEqual({ liveCashGameSessionId: "cash-1" });
-	});
-
-	it("fetches with liveTournamentSessionId for tournaments when enabled", async () => {
-		queryFn.mockClear();
-		captured.lastInput = null;
-		queryFn.mockResolvedValueOnce([]);
-		renderHook(
-			() =>
-				useSessionResultChart({
-					liveSessionId: "trn-1",
-					sessionType: "tournament",
-					enabled: true,
-				}),
-			{ wrapper: wrapper(createClient()) }
-		);
-		await waitFor(() => expect(queryFn).toHaveBeenCalledTimes(1));
-		expect(captured.lastInput).toEqual({ liveTournamentSessionId: "trn-1" });
+		expect(captured.lastInput).toEqual(expectedInput);
 	});
 
 	it("derives a cash timeline (pl + evPl) from fetched events", async () => {

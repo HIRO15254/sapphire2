@@ -20,60 +20,22 @@ beforeAll(() => {
 });
 
 const mocks = vi.hoisted(() => ({
-	createMutate: vi.fn(async () => undefined),
-	deleteMutate: vi.fn(async () => undefined),
-	invalidateQueries: vi.fn(),
+	create: vi.fn(async (_name: string) => undefined),
+	delete: vi.fn(async (_id: string) => undefined),
 	tags: [{ id: "tag-1", name: "Series" }],
-	updateMutate: vi.fn(async () => undefined),
+	update: vi.fn(async (_params: { id: string; name: string }) => undefined),
 }));
 
-vi.mock("@tanstack/react-query", () => ({
-	useMutation: (options: {
-		mutationFn: (arg: unknown) => Promise<unknown> | unknown;
-		onSettled?: () => void;
-		onSuccess?: () => void;
-	}) => {
-		const mutate = async (arg: unknown) => {
-			const result = await options.mutationFn(arg);
-			await options.onSuccess?.();
-			await options.onSettled?.();
-			return result;
-		};
-		return {
-			isPending: false,
-			mutate,
-			mutateAsync: mutate,
-		};
-	},
-	useQuery: () => ({ data: mocks.tags }),
-	useQueryClient: () => ({
-		cancelQueries: vi.fn(),
-		getQueryData: vi.fn(),
-		invalidateQueries: mocks.invalidateQueries,
-		setQueryData: vi.fn(),
+vi.mock("./use-session-tags", () => ({
+	useSessionTags: () => ({
+		create: mocks.create,
+		delete: mocks.delete,
+		isCreatePending: false,
+		isDeletePending: false,
+		isUpdatePending: false,
+		tags: mocks.tags,
+		update: mocks.update,
 	}),
-}));
-
-vi.mock("@/utils/trpc", () => ({
-	trpc: {
-		session: {
-			list: {
-				queryOptions: () => ({ queryKey: ["sessions"] }),
-			},
-		},
-		sessionTag: {
-			list: {
-				queryOptions: () => ({ queryKey: ["session-tags"] }),
-			},
-		},
-	},
-	trpcClient: {
-		sessionTag: {
-			create: { mutate: mocks.createMutate },
-			delete: { mutate: mocks.deleteMutate },
-			update: { mutate: mocks.updateMutate },
-		},
-	},
 }));
 
 describe("SessionTagManager", () => {
@@ -88,9 +50,9 @@ describe("SessionTagManager", () => {
 		await user.click(screen.getByLabelText("Save"));
 
 		await waitFor(() => {
-			expect(mocks.createMutate).toHaveBeenCalledTimes(1);
+			expect(mocks.create).toHaveBeenCalledTimes(1);
 		});
-		expect(mocks.createMutate).toHaveBeenCalledWith({ name: "Online" });
+		expect(mocks.create).toHaveBeenCalledWith("Online");
 	});
 
 	it("edits and saves a session tag", async () => {
@@ -106,7 +68,7 @@ describe("SessionTagManager", () => {
 		await user.click(screen.getByLabelText("Save"));
 
 		await waitFor(() => {
-			expect(mocks.updateMutate).toHaveBeenCalledWith({
+			expect(mocks.update).toHaveBeenCalledWith({
 				id: "tag-1",
 				name: "Weekly",
 			});
@@ -127,13 +89,13 @@ describe("SessionTagManager", () => {
 		await user.click(screen.getByRole("button", { name: "Delete" }));
 
 		await waitFor(() => {
-			expect(mocks.deleteMutate).toHaveBeenCalledWith({ id: "tag-1" });
+			expect(mocks.delete).toHaveBeenCalledWith("tag-1");
 		});
 	});
 
 	it("closes the delete dialog without deleting when Cancel is clicked", async () => {
 		const user = userEvent.setup();
-		mocks.deleteMutate.mockClear();
+		mocks.delete.mockClear();
 
 		render(<SessionTagManager />);
 
@@ -145,7 +107,7 @@ describe("SessionTagManager", () => {
 				screen.queryByRole("heading", { name: "Delete tag?" })
 			).not.toBeInTheDocument();
 		});
-		expect(mocks.deleteMutate).not.toHaveBeenCalled();
+		expect(mocks.delete).not.toHaveBeenCalled();
 	});
 
 	it("renders empty state when no tags exist", () => {

@@ -196,62 +196,57 @@ describe("Single-session guard — no active session", () => {
 	});
 });
 
-describe("Single-session guard — active cash game blocks new session", () => {
-	beforeEach(() => {
+describe("Single-session guard — active session blocks new session", () => {
+	it.each([
+		{ id: "cash-123", label: "Cash Game", type: "cash_game" as const },
+		{ id: "tourn-456", label: "Tournament", type: "tournament" as const },
+	])("shows the active $label session instead of 'No active session'", async ({
+		id,
+		type,
+		label,
+	}) => {
 		mockUseActiveSession.mockReturnValue({
-			activeSession: { id: "cash-123", type: "cash_game" },
+			activeSession: { id, type },
 			hasActive: true,
 			isLoading: false,
 		});
-	});
 
-	it("shows the active cash game session instead of 'No active session'", async () => {
 		const router = createTestRouter(ActiveSessionStatusPage);
 		render(<RouterProvider router={router} />);
 
-		await screen.findByText("Active Cash Game session");
+		await screen.findByText(`Active ${label} session`);
 		expect(screen.queryByText("No active session")).not.toBeInTheDocument();
 	});
 
-	it("displays the active session id", async () => {
+	it.each([
+		{ id: "cash-123", type: "cash_game" as const },
+		{ id: "tourn-456", type: "tournament" as const },
+	])("displays the active session id ($type)", async ({ id, type }) => {
+		mockUseActiveSession.mockReturnValue({
+			activeSession: { id, type },
+			hasActive: true,
+			isLoading: false,
+		});
+
 		const router = createTestRouter(ActiveSessionStatusPage);
 		render(<RouterProvider router={router} />);
 
 		await screen.findByTestId("session-id");
-		expect(screen.getByTestId("session-id")).toHaveTextContent("cash-123");
-	});
-});
-
-describe("Single-session guard — active tournament blocks new session", () => {
-	beforeEach(() => {
-		mockUseActiveSession.mockReturnValue({
-			activeSession: { id: "tourn-456", type: "tournament" },
-			hasActive: true,
-			isLoading: false,
-		});
-	});
-
-	it("shows the active tournament session instead of 'No active session'", async () => {
-		const router = createTestRouter(ActiveSessionStatusPage);
-		render(<RouterProvider router={router} />);
-
-		await screen.findByText("Active Tournament session");
-		expect(screen.queryByText("No active session")).not.toBeInTheDocument();
-	});
-
-	it("exposes the active tournament session id", async () => {
-		const router = createTestRouter(ActiveSessionStatusPage);
-		render(<RouterProvider router={router} />);
-
-		await screen.findByTestId("session-id");
-		expect(screen.getByTestId("session-id")).toHaveTextContent("tourn-456");
+		expect(screen.getByTestId("session-id")).toHaveTextContent(id);
 	});
 });
 
 describe("Single-session guard — cross-type guard", () => {
-	it("active cash game session prevents showing 'No active session' for any type", async () => {
+	it.each([
+		{ id: "cash-789", label: "Cash Game", type: "cash_game" as const },
+		{ id: "tourn-789", label: "Tournament", type: "tournament" as const },
+	])("active $label session prevents showing 'No active session' for any type", async ({
+		id,
+		type,
+		label,
+	}) => {
 		mockUseActiveSession.mockReturnValue({
-			activeSession: { id: "cash-789", type: "cash_game" },
+			activeSession: { id, type },
 			hasActive: true,
 			isLoading: false,
 		});
@@ -259,21 +254,7 @@ describe("Single-session guard — cross-type guard", () => {
 		const router = createTestRouter(ActiveSessionStatusPage);
 		render(<RouterProvider router={router} />);
 
-		await screen.findByText("Active Cash Game session");
-		expect(screen.queryByText("No active session")).not.toBeInTheDocument();
-	});
-
-	it("active tournament session prevents showing 'No active session' for any type", async () => {
-		mockUseActiveSession.mockReturnValue({
-			activeSession: { id: "tourn-789", type: "tournament" },
-			hasActive: true,
-			isLoading: false,
-		});
-
-		const router = createTestRouter(ActiveSessionStatusPage);
-		render(<RouterProvider router={router} />);
-
-		await screen.findByText("Active Tournament session");
+		await screen.findByText(`Active ${label} session`);
 		expect(screen.queryByText("No active session")).not.toBeInTheDocument();
 	});
 

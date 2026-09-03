@@ -60,14 +60,18 @@ describe("DeleteConfirmDialog", () => {
 		expect(onConfirm).not.toHaveBeenCalled();
 	});
 
-	it("disables the Delete button while isPending is true", () => {
-		renderDialog({ isPending: true });
-		expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
-	});
-
-	it("keeps the Delete button enabled while isPending is false", () => {
-		renderDialog({ isPending: false });
-		expect(screen.getByRole("button", { name: "Delete" })).toBeEnabled();
+	it.each([
+		{ isPending: true, expected: true },
+		{ isPending: false, expected: false },
+	])("sets the Delete button disabled=$expected when isPending=$isPending", ({
+		isPending,
+		expected,
+	}) => {
+		renderDialog({ isPending });
+		expect(screen.getByRole("button", { name: "Delete" })).toHaveProperty(
+			"disabled",
+			expected
+		);
 	});
 
 	it("renders a ReactNode description", () => {

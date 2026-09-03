@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import SignUpForm from "./sign-up-form";
+import { useSignUp } from "./use-sign-up";
 
 const SIGN_UP_BUTTON_NAME = "Sign Up";
 
@@ -36,6 +37,11 @@ vi.mock("@/lib/auth-client", () => ({
 		}),
 	},
 }));
+
+vi.mock("./use-sign-up", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("./use-sign-up")>();
+	return { ...actual, useSignUp: vi.fn(actual.useSignUp) };
+});
 
 describe("SignUpForm", () => {
 	it("renders auth fields and provider buttons", () => {
@@ -78,5 +84,21 @@ describe("SignUpForm", () => {
 			screen.getByRole("button", { name: "Already have an account? Sign In" })
 		);
 		expect(mocks.onSwitchToSignIn).toHaveBeenCalledTimes(1);
+	});
+
+	it("renders Loader when isPending", () => {
+		vi.mocked(useSignUp).mockReturnValueOnce({
+			form: {} as ReturnType<typeof useSignUp>["form"],
+			isPending: true,
+			onSignInWithDiscord: vi.fn(),
+			onSignInWithGoogle: vi.fn(),
+		} satisfies ReturnType<typeof useSignUp>);
+
+		const { container } = render(
+			<SignUpForm onSwitchToSignIn={mocks.onSwitchToSignIn} />
+		);
+
+		expect(container.querySelector("svg.animate-spin")).toBeInTheDocument();
+		expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
 	});
 });

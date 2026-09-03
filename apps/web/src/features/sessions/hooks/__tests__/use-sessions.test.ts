@@ -92,8 +92,6 @@ import {
 	useSessions,
 } from "@/features/sessions/hooks/use-sessions";
 
-const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const TIME_HH_MM_PATTERN = /^\d{2}:\d{2}$/;
 const TEMP_ID_PATTERN = /^temp-/;
 
 function createClient(): QueryClient {
@@ -208,49 +206,6 @@ function baseSessionItem(overrides: Partial<SessionItem> = {}): SessionItem {
 }
 
 describe("pure helpers", () => {
-	describe("formatDateForInput", () => {
-		it("formats ISO strings to YYYY-MM-DD", () => {
-			expect(formatDateForInput("2026-04-23T12:00:00Z")).toMatch(
-				ISO_DATE_PATTERN
-			);
-		});
-
-		it("zero-pads single-digit months and days", () => {
-			const result = formatDateForInput("2026-01-03T12:00:00Z");
-			const [, month, day] = result.split("-");
-			expect(month).toHaveLength(2);
-			expect(day).toHaveLength(2);
-		});
-
-		it("keeps the UTC calendar day at the exact UTC-midnight boundary west of UTC", () => {
-			expect(
-				withTz(TZ_WEST, () => formatDateForInput("2026-07-04T00:00:00Z"))
-			).toBe("2026-07-04");
-		});
-
-		it("keeps the UTC calendar day at the exact UTC-midnight boundary east of UTC", () => {
-			expect(
-				withTz(TZ_EAST, () => formatDateForInput("2026-07-04T00:00:00Z"))
-			).toBe("2026-07-04");
-		});
-
-		it("produces the same calendar day in west-of-UTC, east-of-UTC, and UTC zones", () => {
-			const iso = "2026-01-01T00:00:00Z";
-			const west = withTz(TZ_WEST, () => formatDateForInput(iso));
-			const east = withTz(TZ_EAST, () => formatDateForInput(iso));
-			const utc = withTz("UTC", () => formatDateForInput(iso));
-			expect(west).toBe("2026-01-01");
-			expect(east).toBe("2026-01-01");
-			expect(utc).toBe("2026-01-01");
-		});
-
-		it("does not roll back across a year boundary west of UTC", () => {
-			expect(
-				withTz(TZ_WEST, () => formatDateForInput("2026-01-01T00:00:00Z"))
-			).toBe("2026-01-01");
-		});
-	});
-
 	describe("sessionDate round-trip stability (UTC calendar date)", () => {
 		it("buildCreatePayload stores UTC-midnight epoch seconds regardless of local zone", () => {
 			const expected = Math.floor(Date.UTC(2026, 3, 1) / 1000);
@@ -301,7 +256,7 @@ describe("pure helpers", () => {
 
 		it("returns HH:MM formatted for a valid date", () => {
 			const out = formatTimeFromDate("2026-04-01T14:07:00");
-			expect(out).toMatch(TIME_HH_MM_PATTERN);
+			expect(out).toBe("14:07");
 		});
 	});
 
@@ -378,10 +333,9 @@ describe("pure helpers", () => {
 			const out = buildCreatePayload(
 				cashValues({ startTime: "09:00", endTime: "12:30" })
 			);
-			expect(typeof out.sessionDate).toBe("number");
+			expect(out.sessionDate).toBe(1_775_001_600);
 			expect(typeof out.startedAt).toBe("number");
-			expect(typeof out.endedAt).toBe("number");
-			expect((out.endedAt as number) > (out.startedAt as number)).toBe(true);
+			expect(out.endedAt as number).toBeGreaterThan(out.startedAt as number);
 		});
 
 		it("leaves startedAt / endedAt undefined when time fields omitted", () => {

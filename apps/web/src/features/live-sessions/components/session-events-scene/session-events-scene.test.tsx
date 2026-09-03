@@ -1,7 +1,11 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
+import {
+	getTimeBounds,
+	groupEventsForDisplay,
+} from "@/features/live-sessions/utils/session-events-formatters";
 import { SessionEventsScene } from "./session-events-scene";
 
 const mocks = vi.hoisted(() => ({
@@ -12,33 +16,35 @@ const mocks = vi.hoisted(() => ({
 		occurredAt: string;
 		payload: Record<string, unknown>;
 	}>,
-	invalidateQueries: vi.fn(),
 	updateMutate: vi.fn(async () => undefined),
 }));
 
-vi.mock("@tanstack/react-query", () => ({
-	useMutation: (options: {
-		mutationFn: (arg: unknown) => Promise<unknown> | unknown;
-		onSuccess?: () => void;
-	}) => {
-		const mutate = async (arg: unknown) => {
-			const result = await options.mutationFn(arg);
-			await options.onSuccess?.();
-			return result;
-		};
+vi.mock("./use-session-events-scene", () => ({
+	useSessionEventsScene: () => {
+		const [editEvent, setEditEvent] = useState<
+			(typeof mocks.events)[number] | null
+		>(null);
+		const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
+			null
+		);
+		const events = mocks.events;
+		const groups = groupEventsForDisplay(events);
+		const timeBounds = editEvent
+			? getTimeBounds(events, editEvent.id)
+			: { minTime: null, maxTime: null };
 		return {
-			isPending: false,
-			mutate,
-			mutateAsync: mutate,
+			editEvent,
+			setEditEvent,
+			confirmingDeleteId,
+			setConfirmingDeleteId,
+			events,
+			update: (args: unknown) => mocks.updateMutate(args),
+			deleteEvent: (id: string) => mocks.deleteMutate({ id }),
+			isUpdatePending: false,
+			groups,
+			timeBounds,
 		};
 	},
-	useQuery: () => ({ data: mocks.events }),
-	useQueryClient: () => ({
-		cancelQueries: vi.fn(),
-		getQueryData: vi.fn(),
-		invalidateQueries: mocks.invalidateQueries,
-		setQueryData: vi.fn(),
-	}),
 }));
 
 vi.mock("@/features/sessions/components/session-form-sheet", () => ({
@@ -49,58 +55,6 @@ vi.mock("@/features/sessions/components/session-form-sheet", () => ({
 		children: ReactNode;
 		open: boolean;
 	}) => (open ? <div>{children}</div> : null),
-}));
-
-vi.mock("@/utils/trpc", () => ({
-	trpc: {
-		liveCashGameSession: {
-			getById: {
-				queryOptions: ({ id }: { id: string }) => ({
-					queryKey: ["cash-session", id],
-				}),
-			},
-			list: {
-				queryOptions: (input: unknown) => ({
-					queryKey: ["cash-sessions", input],
-				}),
-			},
-		},
-		liveTournamentSession: {
-			getById: {
-				queryOptions: ({ id }: { id: string }) => ({
-					queryKey: ["tournament-session", id],
-				}),
-			},
-			list: {
-				queryOptions: (input: unknown) => ({
-					queryKey: ["tournament-sessions", input],
-				}),
-			},
-		},
-		sessionEvent: {
-			list: {
-				queryOptions: (input: unknown) => ({
-					queryKey: ["events", input],
-				}),
-			},
-		},
-		session: {
-			getById: {
-				queryOptions: ({ id }: { id: string }) => ({
-					queryKey: ["session", id],
-				}),
-			},
-			list: {
-				queryKey: () => ["sessions"],
-			},
-		},
-	},
-	trpcClient: {
-		sessionEvent: {
-			delete: { mutate: mocks.deleteMutate },
-			update: { mutate: mocks.updateMutate },
-		},
-	},
 }));
 
 const ADDON_AMOUNT_LABEL = /Addon Amount/;
@@ -255,6 +209,72 @@ describe("SessionEventsScene", () => {
 						cost: 200,
 					}),
 				})
+			);
+		});
+	});
+
+	it("shows delete confirmation when the trash button is clicked", async () => {
+		const user = userEvent.setup();
+		mocks.events = [
+			{
+				eventType: "chips_add_remove",
+				id: "event-4",
+				occurredAt: "2026-04-03T10:00:00.000Z",
+				payload: { amount: 5000, type: "add" },
+			},
+		];
+
+		render(
+			<SessionEventsScene sessionId="session-6" sessionType="cash_game" />
+		);
+
+		await user.click(screen.getByLabelText("Delete Chips Add/Remove"));
+
+		expect(screen.getByText("Delete?")).toBeInTheDocument();
+	});
+
+	it("hides delete confirmation when the cancel button is clicked", async () => {
+		const user = userEvent.setup();
+		mocks.events = [
+			{
+				eventType: "chips_add_remove",
+				id: "event-5",
+				occurredAt: "2026-04-03T10:00:00.000Z",
+				payload: { amount: 5000, type: "add" },
+			},
+		];
+
+		render(
+			<SessionEventsScene sessionId="session-7" sessionType="cash_game" />
+		);
+
+		await user.click(screen.getByLabelText("Delete Chips Add/Remove"));
+		await user.click(screen.getByLabelText("Cancel delete"));
+
+		expect(screen.queryByText("Delete?")).not.toBeInTheDocument();
+	});
+
+	it("calls deleteEvent when the delete is confirmed", async () => {
+		const user = userEvent.setup();
+		mocks.events = [
+			{
+				eventType: "chips_add_remove",
+				id: "event-6",
+				occurredAt: "2026-04-03T10:00:00.000Z",
+				payload: { amount: 5000, type: "add" },
+			},
+		];
+
+		render(
+			<SessionEventsScene sessionId="session-8" sessionType="cash_game" />
+		);
+
+		await user.click(screen.getByLabelText("Delete Chips Add/Remove"));
+		await user.click(screen.getByLabelText("Confirm delete"));
+
+		await waitFor(() => {
+			expect(mocks.deleteMutate).toHaveBeenCalledWith(
+				expect.objectContaining({ id: "event-6" })
 			);
 		});
 	});

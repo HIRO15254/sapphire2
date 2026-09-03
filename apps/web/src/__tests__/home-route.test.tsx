@@ -111,16 +111,13 @@ describe("HomeRoute dispatch", () => {
 		expect(mocks.redirect).toHaveBeenNthCalledWith(1, { to: "/login" });
 	});
 
-	it("fetches the session exactly once per / navigation when signed in", async () => {
-		mocks.getSession.mockResolvedValue({ data: { user: { id: "u1" } } });
-
-		await navigateToHome();
-
-		expect(mocks.getSession).toHaveBeenCalledTimes(1);
-	});
-
-	it("fetches the session exactly once per / navigation when signed out", async () => {
-		mocks.getSession.mockResolvedValue({ data: null });
+	it.each([
+		{ label: "signed in", session: { data: { user: { id: "u1" } } } },
+		{ label: "signed out", session: { data: null } },
+	])("fetches the session exactly once per / navigation when $label", async ({
+		session,
+	}) => {
+		mocks.getSession.mockResolvedValue(session);
 
 		await navigateToHome();
 

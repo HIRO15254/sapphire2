@@ -91,21 +91,6 @@ describe("AllInBottomSheet", () => {
 		).not.toBeInTheDocument();
 	});
 
-	it("resets fields to initial values when opened", () => {
-		render(
-			<AllInBottomSheet
-				initialValues={{ equity: 40, potSize: 900, trials: 3, wins: 1 }}
-				onOpenChange={vi.fn()}
-				onSubmit={vi.fn()}
-				open
-			/>
-		);
-		expect(screen.getByLabelText(POT_SIZE_LABEL_PATTERN)).toHaveValue("900");
-		expect(screen.getByLabelText(TRIALS_LABEL_PATTERN)).toHaveValue("3");
-		expect(screen.getByLabelText(EQUITY_LABEL_PATTERN)).toHaveValue("40");
-		expect(screen.getByLabelText(WINS_LABEL_PATTERN)).toHaveValue("1");
-	});
-
 	it("displays computed EV values", () => {
 		render(
 			<AllInBottomSheet

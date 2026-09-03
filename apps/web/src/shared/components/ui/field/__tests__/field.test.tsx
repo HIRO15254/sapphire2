@@ -16,23 +16,23 @@ describe("Field", () => {
 		expect(screen.getByLabelText("Name")).toBe(screen.getByRole("textbox"));
 	});
 
-	it("appends a red asterisk when required is true", () => {
+	it.each([
+		{ required: true, shouldExist: true },
+		{ required: false, shouldExist: false },
+	])("renders asterisk when required=$required", ({
+		required,
+		shouldExist,
+	}) => {
 		render(
-			<Field htmlFor="x" label="X" required>
+			<Field htmlFor="x" label="X" required={required}>
 				<Input id="x" />
 			</Field>
 		);
-		const asterisk = screen.getByText("*");
-		expect(asterisk).toHaveClass("text-destructive");
-	});
-
-	it("omits the asterisk when required is omitted / false", () => {
-		render(
-			<Field htmlFor="x" label="X">
-				<Input id="x" />
-			</Field>
-		);
-		expect(screen.queryByText("*")).not.toBeInTheDocument();
+		if (shouldExist) {
+			expect(screen.getByText("*")).toHaveClass("text-destructive");
+		} else {
+			expect(screen.queryByText("*")).not.toBeInTheDocument();
+		}
 	});
 
 	it("renders nothing for the label when label is omitted", () => {
@@ -44,22 +44,23 @@ describe("Field", () => {
 		expect(container.querySelector("label")).toBeNull();
 	});
 
-	it("renders the description when provided", () => {
-		render(
-			<Field description="Up to 4 characters." label="Unit">
-				<Input />
-			</Field>
-		);
-		expect(screen.getByText("Up to 4 characters.")).toBeInTheDocument();
-	});
-
-	it("omits the description block when description is omitted", () => {
+	it.each([
+		{ description: "Up to 4 characters.", shouldExist: true },
+		{ description: undefined, shouldExist: false },
+	])("renders description when provided=$description", ({
+		description,
+		shouldExist,
+	}) => {
 		const { container } = render(
-			<Field label="Unit">
+			<Field description={description} label="Unit">
 				<Input />
 			</Field>
 		);
-		expect(container.querySelectorAll("p").length).toBe(0);
+		if (shouldExist) {
+			expect(screen.getByText("Up to 4 characters.")).toBeInTheDocument();
+		} else {
+			expect(container.querySelectorAll("p").length).toBe(0);
+		}
 	});
 
 	it("renders the error message when error is set", () => {
@@ -73,25 +74,24 @@ describe("Field", () => {
 		expect(error).toHaveAttribute("role", "alert");
 	});
 
-	it("injects aria-invalid=true onto a single React-element child when error is truthy", () => {
+	it.each([
+		{ error: "Required", shouldHaveInvalid: true },
+		{ error: undefined, shouldHaveInvalid: false },
+	])("injects aria-invalid when error=$error", ({
+		error,
+		shouldHaveInvalid,
+	}) => {
 		render(
-			<Field error="Required" label="Name">
-				<Input data-testid="invalid-input" />
+			<Field error={error} label="Name">
+				<Input data-testid="test-input" />
 			</Field>
 		);
-		expect(screen.getByTestId("invalid-input")).toHaveAttribute(
-			"aria-invalid",
-			"true"
-		);
-	});
-
-	it("does not inject aria-invalid when error is falsy", () => {
-		render(
-			<Field label="Name">
-				<Input data-testid="ok-input" />
-			</Field>
-		);
-		expect(screen.getByTestId("ok-input")).not.toHaveAttribute("aria-invalid");
+		const input = screen.getByTestId("test-input");
+		if (shouldHaveInvalid) {
+			expect(input).toHaveAttribute("aria-invalid", "true");
+		} else {
+			expect(input).not.toHaveAttribute("aria-invalid");
+		}
 	});
 
 	it("does not inject aria-invalid on plain-string children (withInvalid no-ops)", () => {

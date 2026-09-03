@@ -112,66 +112,61 @@ describe("SessionResultChart", () => {
 		expect(await screen.findByText("Not enough data yet")).toBeTruthy();
 	});
 
-	it("renders the chart impl when there are >=2 derived cash points", async () => {
+	it.each([
+		{
+			sessionType: "cash_game" as const,
+			liveSessionId: "cash-1",
+			events: [
+				{
+					id: "e1",
+					eventType: "session_start",
+					occurredAt: "2026-04-01T10:00:00Z",
+					payload: { buyInAmount: 10_000 },
+				},
+				{
+					id: "e2",
+					eventType: "update_stack",
+					occurredAt: "2026-04-01T10:30:00Z",
+					payload: { stackAmount: 12_000 },
+				},
+			],
+		},
+		{
+			sessionType: "tournament" as const,
+			liveSessionId: "trn-1",
+			events: [
+				{
+					id: "e1",
+					eventType: "session_start",
+					occurredAt: "2026-04-01T10:00:00Z",
+					payload: {},
+				},
+				{
+					id: "e2",
+					eventType: "update_stack",
+					occurredAt: "2026-04-01T10:05:00Z",
+					payload: { stackAmount: 10_000 },
+				},
+			],
+		},
+	])("renders the chart impl with $sessionType points passed through", async ({
+		sessionType,
+		liveSessionId,
+		events,
+	}) => {
 		queryFn.mockClear();
-		queryFn.mockResolvedValueOnce([
-			{
-				id: "e1",
-				eventType: "session_start",
-				occurredAt: "2026-04-01T10:00:00Z",
-				payload: { buyInAmount: 10_000 },
-			},
-			{
-				id: "e2",
-				eventType: "update_stack",
-				occurredAt: "2026-04-01T10:30:00Z",
-				payload: { stackAmount: 12_000 },
-			},
-		]);
+		queryFn.mockResolvedValueOnce(events);
 		render(
 			wrap(
 				createElement(SessionResultChart, {
 					enabled: true,
-					liveSessionId: "cash-1",
-					sessionType: "cash_game",
+					liveSessionId,
+					sessionType,
 				})
 			)
 		);
 		const impl = await screen.findByTestId("chart-impl");
-		expect(impl.getAttribute("data-session-type")).toBe("cash_game");
-		expect(impl.getAttribute("data-point-count")).toBe("2");
-	});
-
-	it("passes tournament points through to the impl", async () => {
-		queryFn.mockClear();
-		queryFn.mockResolvedValueOnce([
-			{
-				id: "e1",
-				eventType: "session_start",
-				occurredAt: "2026-04-01T10:00:00Z",
-				payload: {},
-			},
-			{
-				id: "e2",
-				eventType: "update_stack",
-				occurredAt: "2026-04-01T10:05:00Z",
-				payload: { stackAmount: 10_000 },
-			},
-		]);
-		render(
-			wrap(
-				createElement(SessionResultChart, {
-					enabled: true,
-					liveSessionId: "trn-1",
-					sessionType: "tournament",
-				})
-			)
-		);
-		await waitFor(() =>
-			expect(screen.queryByTestId("chart-impl")).not.toBeNull()
-		);
-		const impl = screen.getByTestId("chart-impl");
-		expect(impl.getAttribute("data-session-type")).toBe("tournament");
+		expect(impl.getAttribute("data-session-type")).toBe(sessionType);
 		expect(impl.getAttribute("data-point-count")).toBe("2");
 	});
 });

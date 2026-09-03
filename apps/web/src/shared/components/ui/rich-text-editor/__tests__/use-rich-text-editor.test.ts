@@ -113,20 +113,15 @@ describe("useRichTextEditor", () => {
 		expect(result.current.editor).not.toBeNull();
 	});
 
-	it("onChange receives '' when editor html is the empty <p></p>", () => {
+	it.each([
+		{ html: "<p></p>", expected: "" },
+		{ html: "<p>Hello</p>", expected: "<p>Hello</p>" },
+	])("onChange receives normalized html for $html", ({ html, expected }) => {
 		const onChange = vi.fn();
 		renderHook(() => useRichTextEditor({ onChange }));
-		editorState.lastHtml = "<p></p>";
-		editorState.onUpdate?.({ editor: { getHTML: () => "<p></p>" } });
-		expect(onChange).toHaveBeenCalledWith("");
-	});
-
-	it("onChange receives the actual html when non-empty", () => {
-		const onChange = vi.fn();
-		renderHook(() => useRichTextEditor({ onChange }));
-		editorState.lastHtml = "<p>Hello</p>";
-		editorState.onUpdate?.({ editor: { getHTML: () => "<p>Hello</p>" } });
-		expect(onChange).toHaveBeenCalledWith("<p>Hello</p>");
+		editorState.lastHtml = html;
+		editorState.onUpdate?.({ editor: { getHTML: () => html } });
+		expect(onChange).toHaveBeenCalledWith(expected);
 	});
 
 	describe("activeFormats", () => {
@@ -146,20 +141,12 @@ describe("useRichTextEditor", () => {
 			expect(result.current.activeFormats).toEqual(["bold", "italic"]);
 		});
 
-		it("maps heading level 2 to 'h2'", () => {
-			editorState.activeMarks = new Set(["h2"]);
+		it.each(["h2", "h3"])("maps heading level to '%s'", (heading) => {
+			editorState.activeMarks = new Set([heading]);
 			const { result } = renderHook(() =>
 				useRichTextEditor({ onChange: vi.fn() })
 			);
-			expect(result.current.activeFormats).toEqual(["h2"]);
-		});
-
-		it("maps heading level 3 to 'h3'", () => {
-			editorState.activeMarks = new Set(["h3"]);
-			const { result } = renderHook(() =>
-				useRichTextEditor({ onChange: vi.fn() })
-			);
-			expect(result.current.activeFormats).toEqual(["h3"]);
+			expect(result.current.activeFormats).toEqual([heading]);
 		});
 
 		it("reflects bullet and ordered lists", () => {
@@ -176,21 +163,15 @@ describe("useRichTextEditor", () => {
 	});
 
 	describe("onFormatsChange", () => {
-		it("runs toggleBold when bold is newly selected", () => {
-			editorState.activeMarks = new Set();
+		it.each([
+			{ initial: new Set<string>(), input: ["bold"] },
+			{ initial: new Set(["bold"]), input: [] },
+		])("runs toggleBold when bold selection changes", ({ initial, input }) => {
+			editorState.activeMarks = initial;
 			const { result } = renderHook(() =>
 				useRichTextEditor({ onChange: vi.fn() })
 			);
-			act(() => result.current.onFormatsChange(["bold"]));
-			expect(editorState.chainCalls.at(-1)).toContain("toggleBold");
-		});
-
-		it("runs toggleBold when bold is deselected", () => {
-			editorState.activeMarks = new Set(["bold"]);
-			const { result } = renderHook(() =>
-				useRichTextEditor({ onChange: vi.fn() })
-			);
-			act(() => result.current.onFormatsChange([]));
+			act(() => result.current.onFormatsChange(input));
 			expect(editorState.chainCalls.at(-1)).toContain("toggleBold");
 		});
 
@@ -203,22 +184,16 @@ describe("useRichTextEditor", () => {
 			expect(editorState.chainCalls.at(-1)).toContain("toggleItalic");
 		});
 
-		it("runs toggleHeading level 2 for 'h2'", () => {
+		it.each([
+			{ format: "h2", level: 2 },
+			{ format: "h3", level: 3 },
+		])("runs toggleHeading for $format", ({ format, level }) => {
 			editorState.activeMarks = new Set();
 			const { result } = renderHook(() =>
 				useRichTextEditor({ onChange: vi.fn() })
 			);
-			act(() => result.current.onFormatsChange(["h2"]));
-			expect(editorState.chainCalls.at(-1)).toContain("toggleHeading:2");
-		});
-
-		it("runs toggleHeading level 3 for 'h3'", () => {
-			editorState.activeMarks = new Set();
-			const { result } = renderHook(() =>
-				useRichTextEditor({ onChange: vi.fn() })
-			);
-			act(() => result.current.onFormatsChange(["h3"]));
-			expect(editorState.chainCalls.at(-1)).toContain("toggleHeading:3");
+			act(() => result.current.onFormatsChange([format]));
+			expect(editorState.chainCalls.at(-1)).toContain(`toggleHeading:${level}`);
 		});
 
 		it("converts h3 to h2 by running toggleHeading:2 (symmetric diff is one key)", () => {
@@ -260,23 +235,16 @@ describe("useRichTextEditor", () => {
 	});
 
 	describe("openLinkInput", () => {
-		it("seeds linkUrl from the current link mark href", () => {
-			editorState.linkAttrs = { href: "https://existing.test" };
+		it.each([
+			{ href: "https://existing.test", expected: "https://existing.test" },
+			{ href: undefined, expected: "https://" },
+		])("seeds linkUrl when href=$href", ({ href, expected }) => {
+			editorState.linkAttrs = href ? { href } : {};
 			const { result } = renderHook(() =>
 				useRichTextEditor({ onChange: vi.fn() })
 			);
 			act(() => result.current.openLinkInput());
-			expect(result.current.linkUrl).toBe("https://existing.test");
-			expect(result.current.showLinkInput).toBe(true);
-		});
-
-		it("falls back to 'https://' when no existing link", () => {
-			editorState.linkAttrs = {};
-			const { result } = renderHook(() =>
-				useRichTextEditor({ onChange: vi.fn() })
-			);
-			act(() => result.current.openLinkInput());
-			expect(result.current.linkUrl).toBe("https://");
+			expect(result.current.linkUrl).toBe(expected);
 			expect(result.current.showLinkInput).toBe(true);
 		});
 	});

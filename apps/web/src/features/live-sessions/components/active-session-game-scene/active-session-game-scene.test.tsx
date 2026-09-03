@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ActiveSessionGameScene } from "@/features/live-sessions/components/active-session-game-scene";
 
@@ -73,18 +73,82 @@ vi.mock("@/features/live-sessions/hooks/use-tournament-session", () => ({
 	}),
 }));
 
-vi.mock("@/features/rooms/hooks/use-ring-games", () => ({
-	useRingGames: () => ({
-		update: vi.fn(async () => undefined),
-		isUpdatePending: false,
+vi.mock(
+	"@/features/live-sessions/hooks/use-session-tournament-structure",
+	() => ({
+		useSessionTournamentStructure: () => {
+			const t = mocks.tournament;
+			const display = t
+				? {
+						ruleName: t.name,
+						variant: t.variant,
+						buyIn: t.buyIn,
+						entryFee: t.entryFee,
+						startingStack: t.startingStack,
+						bountyAmount: t.bountyAmount,
+						tableSize: t.tableSize,
+					}
+				: null;
+			return {
+				isLoading: false,
+				display,
+				blindLevels: mocks.levels,
+				chipPurchases: mocks.chipPurchases,
+			};
+		},
+	})
+);
+
+vi.mock("@/features/live-sessions/hooks/use-tournament-detail", () => ({
+	useTournamentDetail: () => ({
+		tournament: mocks.tournament ?? undefined,
+		isTournamentLoading: false,
+		chipPurchases: mocks.chipPurchases,
+		levels: mocks.levels,
+		isLevelsLoading: false,
 		currencies: mocks.currencies,
 	}),
 }));
 
-vi.mock("@/features/rooms/hooks/use-tournaments", () => ({
-	useTournaments: () => ({
-		isUpdateWithLevelsPending: false,
-	}),
+vi.mock("@/features/live-sessions/hooks/use-ring-game-scene-actions", () => ({
+	useRingGameSceneActions: () => {
+		const [isEditOpen, setIsEditOpen] = useState(false);
+		return {
+			isEditOpen,
+			setIsEditOpen,
+			handleUpdate: vi.fn(async () => undefined),
+			isUpdatePending: false,
+			currencies: mocks.currencies,
+		};
+	},
+}));
+
+vi.mock("@/features/live-sessions/hooks/use-tournament-scene-actions", () => ({
+	useTournamentSceneActions: () => {
+		const [isEditOpen, setIsEditOpen] = useState(false);
+		return {
+			isEditOpen,
+			setIsEditOpen,
+			handleSave: vi.fn(async () => undefined),
+			isSaving: false,
+			isUpdateWithLevelsPending: false,
+		};
+	},
+}));
+
+vi.mock("@/features/live-sessions/hooks/use-assign-dialog-state", () => ({
+	useAssignDialogState: () => {
+		const [isAssignOpen, setIsAssignOpen] = useState(false);
+		return { isAssignOpen, setIsAssignOpen };
+	},
+}));
+
+vi.mock("@/features/live-sessions/components/assign-ring-game-dialog", () => ({
+	AssignRingGameDialog: () => null,
+}));
+
+vi.mock("@/features/live-sessions/components/assign-tournament-dialog", () => ({
+	AssignTournamentDialog: () => null,
 }));
 
 vi.mock("@/features/rooms/components/ring-game-form", () => ({
@@ -102,111 +166,6 @@ vi.mock("@/shared/components/form-sheet", () => ({
 	FormSheet: ({ children, open }: { children: ReactNode; open: boolean }) =>
 		open ? <div>{children}</div> : null,
 }));
-
-vi.mock("@tanstack/react-query", () => ({
-	useQuery: (options: { queryKey: unknown[] }) => {
-		const [scope] = options.queryKey as [string];
-		if (scope === "tournament") {
-			return { data: mocks.tournament, isLoading: false };
-		}
-		if (scope === "blindLevel") {
-			return { data: mocks.levels, isLoading: false };
-		}
-		if (scope === "tournamentChipPurchase") {
-			return { data: mocks.chipPurchases, isLoading: false };
-		}
-		if (scope === "liveTournamentSession") {
-			const t = mocks.tournament;
-			if (!t) {
-				return { data: undefined, isLoading: false };
-			}
-			return {
-				data: {
-					ruleName: t.name,
-					variant: t.variant,
-					buyIn: t.buyIn,
-					entryFee: t.entryFee,
-					startingStack: t.startingStack,
-					bountyAmount: t.bountyAmount,
-					tableSize: t.tableSize,
-					blindLevels: mocks.levels,
-					chipPurchases: mocks.chipPurchases,
-				},
-				isLoading: false,
-			};
-		}
-		if (scope === "currency") {
-			return { data: mocks.currencies, isLoading: false };
-		}
-		if (scope === "liveCashGameSession") {
-			return { data: undefined, isLoading: false };
-		}
-		return { data: undefined, isLoading: false };
-	},
-	useQueryClient: () => ({
-		invalidateQueries: vi.fn(async () => undefined),
-	}),
-	useMutation: () => ({
-		mutate: vi.fn(),
-		mutateAsync: vi.fn(async () => undefined),
-		isPending: false,
-	}),
-}));
-
-vi.mock("@/utils/trpc", () => {
-	const makeProc = (name: string) => ({
-		queryOptions: () => ({ queryKey: [name] }),
-	});
-	return {
-		trpc: {
-			tournament: {
-				getById: makeProc("tournament"),
-				listByRoom: makeProc("tournament"),
-			},
-			tournamentChipPurchase: {
-				listByTournament: makeProc("tournamentChipPurchase"),
-			},
-			blindLevel: {
-				listByTournament: makeProc("blindLevel"),
-			},
-			liveCashGameSession: {
-				getById: makeProc("liveCashGameSession"),
-				list: makeProc("liveCashGameSession"),
-			},
-			liveTournamentSession: {
-				getById: makeProc("liveTournamentSession"),
-				list: makeProc("liveTournamentSession"),
-			},
-			currency: {
-				list: makeProc("currency"),
-			},
-			room: {
-				list: makeProc("room"),
-			},
-			ringGame: {
-				listByRoom: makeProc("ringGame"),
-			},
-			session: {
-				list: makeProc("session"),
-			},
-		},
-		trpcClient: {
-			tournament: {
-				updateWithLevels: { mutate: vi.fn() },
-				createWithLevels: { mutate: vi.fn() },
-			},
-			ringGame: {
-				create: { mutate: vi.fn() },
-			},
-			liveCashGameSession: {
-				update: { mutate: vi.fn() },
-			},
-			liveTournamentSession: {
-				update: { mutate: vi.fn() },
-			},
-		},
-	};
-});
 
 describe("ActiveSessionGameScene", () => {
 	beforeEach(() => {

@@ -42,18 +42,14 @@ const GAME_SET_ROW: BlindLevelRow = {
 };
 
 describe("useTournamentModalContent", () => {
-	it("initializes localBlindLevels from the provided initialBlindLevels", () => {
+	it.each([
+		[[ROW]],
+		[[]],
+	])("initializes localBlindLevels from provided levels %#", (levels) => {
 		const { result } = renderHook(() =>
-			useTournamentModalContent({ initialBlindLevels: [ROW] })
+			useTournamentModalContent({ initialBlindLevels: levels })
 		);
-		expect(result.current.localBlindLevels).toEqual([ROW]);
-	});
-
-	it("starts with empty array when initialBlindLevels is empty", () => {
-		const { result } = renderHook(() =>
-			useTournamentModalContent({ initialBlindLevels: [] })
-		);
-		expect(result.current.localBlindLevels).toEqual([]);
+		expect(result.current.localBlindLevels).toEqual(levels);
 	});
 
 	it("setLocalBlindLevels replaces the current list", () => {

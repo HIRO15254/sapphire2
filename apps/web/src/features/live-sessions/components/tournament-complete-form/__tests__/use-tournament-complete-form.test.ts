@@ -16,12 +16,18 @@ describe("useTournamentCompleteForm", () => {
 		});
 	});
 
-	it("rejects submission when beforeDeadline=false and placement is empty", async () => {
+	it.each([
+		{ placement: "", desc: "is empty" },
+		{ placement: "0", desc: "is less than 1" },
+	])("rejects submission when beforeDeadline=false and placement $desc", async ({
+		placement,
+	}) => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() =>
 			useTournamentCompleteForm({ onSubmit })
 		);
 		act(() => {
+			result.current.form.setFieldValue("placement", placement);
 			result.current.form.setFieldValue("totalEntries", "50");
 			result.current.form.setFieldValue("prizeMoney", "1000");
 		});
@@ -31,14 +37,19 @@ describe("useTournamentCompleteForm", () => {
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
-	it("rejects submission when beforeDeadline=false and placement<1", async () => {
+	it.each([
+		{ totalEntries: "", desc: "is empty" },
+		{ totalEntries: "0", desc: "is less than 1" },
+	])("rejects submission when beforeDeadline=false and totalEntries $desc", async ({
+		totalEntries,
+	}) => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() =>
 			useTournamentCompleteForm({ onSubmit })
 		);
 		act(() => {
-			result.current.form.setFieldValue("placement", "0");
-			result.current.form.setFieldValue("totalEntries", "50");
+			result.current.form.setFieldValue("placement", "1");
+			result.current.form.setFieldValue("totalEntries", totalEntries);
 			result.current.form.setFieldValue("prizeMoney", "1000");
 		});
 		await act(async () => {

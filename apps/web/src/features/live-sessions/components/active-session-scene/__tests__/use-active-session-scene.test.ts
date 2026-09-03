@@ -41,20 +41,27 @@ function renderScene(
 
 describe("useActiveSessionScene", () => {
 	describe("session identity", () => {
-		it("derives sessionId/sessionType from a cash session param", () => {
-			const { result } = renderScene();
-			expect(result.current.sessionId).toBe("s-1");
-			expect(result.current.sessionType).toBe("cash_game");
-		});
-
-		it("derives sessionId/sessionType from a tournament session param", () => {
+		it.each([
+			{
+				expectedSessionId: "s-1",
+				expectedSessionType: "cash_game",
+				sessionParam: { liveCashGameSessionId: "s-1" },
+			},
+			{
+				expectedSessionId: "t-1",
+				expectedSessionType: "tournament",
+				sessionParam: { liveTournamentSessionId: "t-1" },
+			},
+		])("derives sessionId/sessionType from a $expectedSessionType session param", ({
+			expectedSessionId,
+			expectedSessionType,
+			sessionParam,
+		}) => {
 			const { result } = renderScene({
-				state: makeState({
-					sessionParam: { liveTournamentSessionId: "t-1" },
-				}),
+				state: makeState({ sessionParam }),
 			});
-			expect(result.current.sessionId).toBe("t-1");
-			expect(result.current.sessionType).toBe("tournament");
+			expect(result.current.sessionId).toBe(expectedSessionId);
+			expect(result.current.sessionType).toBe(expectedSessionType);
 		});
 	});
 

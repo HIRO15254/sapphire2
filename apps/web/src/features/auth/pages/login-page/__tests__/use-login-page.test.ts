@@ -8,12 +8,6 @@ describe("useLoginPage", () => {
 		expect(result.current.showSignIn).toBe(false);
 	});
 
-	it("exposes onSwitchToSignIn and onSwitchToSignUp handlers", () => {
-		const { result } = renderHook(() => useLoginPage());
-		expect(typeof result.current.onSwitchToSignIn).toBe("function");
-		expect(typeof result.current.onSwitchToSignUp).toBe("function");
-	});
-
 	it("onSwitchToSignIn flips showSignIn to true", () => {
 		const { result } = renderHook(() => useLoginPage());
 		act(() => {

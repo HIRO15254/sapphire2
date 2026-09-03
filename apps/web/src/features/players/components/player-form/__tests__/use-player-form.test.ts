@@ -51,6 +51,18 @@ describe("usePlayerForm", () => {
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
+	it("accepts submit with name exactly 100 characters", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() => usePlayerForm({ onSubmit }));
+		act(() => {
+			result.current.form.setFieldValue("name", "x".repeat(100));
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+	});
+
 	it("submits with tagIds undefined when no tags selected", async () => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() => usePlayerForm({ onSubmit }));

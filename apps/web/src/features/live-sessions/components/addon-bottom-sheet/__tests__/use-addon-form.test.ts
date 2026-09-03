@@ -59,19 +59,13 @@ describe("useAddonForm", () => {
 		expect(onSubmit).toHaveBeenCalledWith({ amount: 100 });
 	});
 
-	it("resets form values whenever `open` transitions with a new initialAmount", () => {
-		const onSubmit = vi.fn();
-		const { result, rerender } = renderHook(
-			(p: { open: boolean; initialAmount?: number }) =>
-				useAddonForm({ ...p, onSubmit }),
-			{ initialProps: { open: false, initialAmount: 10 } }
-		);
-		expect(result.current.form.state.values.amount).toBe("10");
-		rerender({ open: true, initialAmount: 250 });
-		expect(result.current.form.state.values.amount).toBe("250");
-	});
-
-	it("reset also fires with '0' when initialAmount is undefined on open", () => {
+	it.each([
+		{ initialAmount: 250, expected: "250" },
+		{ initialAmount: undefined, expected: "0" },
+	])("resets form to '$expected' when open transitions with initialAmount=$initialAmount", ({
+		initialAmount,
+		expected,
+	}) => {
 		const onSubmit = vi.fn();
 		interface Props {
 			initialAmount?: number;
@@ -79,9 +73,24 @@ describe("useAddonForm", () => {
 		}
 		const { result, rerender } = renderHook(
 			(p: Props) => useAddonForm({ ...p, onSubmit }),
-			{ initialProps: { open: false, initialAmount: 42 } as Props }
+			{ initialProps: { open: false, initialAmount: 10 } as Props }
 		);
-		rerender({ open: true });
-		expect(result.current.form.state.values.amount).toBe("0");
+		expect(result.current.form.state.values.amount).toBe("10");
+		rerender({ open: true, initialAmount });
+		expect(result.current.form.state.values.amount).toBe(expected);
+	});
+
+	it("rejects fractional amount on submit", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useAddonForm({ open: false, onSubmit })
+		);
+		act(() => {
+			result.current.form.setFieldValue("amount", "1.5");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
 	});
 });

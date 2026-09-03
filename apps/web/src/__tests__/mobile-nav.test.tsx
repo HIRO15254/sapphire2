@@ -151,27 +151,6 @@ describe("MobileNav - Paused Session Mode", () => {
 		});
 	});
 
-	it("renders 3 nav links, 1 resources popover button, and 1 center button (same as normal mode)", async () => {
-		const router = createTestRouter("/sessions");
-		render(<RouterProvider router={router} />);
-
-		const links = await screen.findAllByRole("link");
-		expect(links).toHaveLength(3);
-
-		const buttons = screen.getAllByRole("button");
-		expect(buttons).toHaveLength(2);
-	});
-
-	it("displays normal mode nav items (Sessions, Statistics, Resources, Settings)", async () => {
-		const router = createTestRouter("/sessions");
-		render(<RouterProvider router={router} />);
-
-		await screen.findByText("Sessions");
-		expect(screen.getByText("Statistics")).toBeInTheDocument();
-		expect(screen.getByText("Resources")).toBeInTheDocument();
-		expect(screen.getByText("Settings")).toBeInTheDocument();
-	});
-
 	it("displays Resume as center button label", async () => {
 		const router = createTestRouter("/sessions");
 		render(<RouterProvider router={router} />);
@@ -193,16 +172,6 @@ describe("MobileNav - Active Session Mode", () => {
 			isLoading: false,
 		});
 		mockStackOpen.mockReset();
-	});
-
-	it("keeps the normal nav items while a session is live", async () => {
-		const router = createTestRouter("/sessions");
-		render(<RouterProvider router={router} />);
-
-		await screen.findByText("Sessions");
-		expect(screen.getByText("Statistics")).toBeInTheDocument();
-		expect(screen.getByText("Resources")).toBeInTheDocument();
-		expect(screen.getByText("Settings")).toBeInTheDocument();
 	});
 
 	it("does not display the retired live session nav items (Timeline, Game, Overview)", async () => {

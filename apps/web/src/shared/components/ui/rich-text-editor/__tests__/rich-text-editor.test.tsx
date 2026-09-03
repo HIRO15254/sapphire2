@@ -178,18 +178,21 @@ describe("RichTextEditor", () => {
 		expect(editorState.chainCalls).toHaveLength(0);
 	});
 
-	it("shows the Remove link action only when a link is active", async () => {
+	it.each([
+		{ linkHref: "https://current.test", shouldShow: true },
+		{ linkHref: undefined, shouldShow: false },
+	])("shows remove link when link=$linkHref", async ({
+		linkHref,
+		shouldShow,
+	}) => {
 		const user = userEvent.setup();
-		editorState.linkHref = "https://current.test";
+		editorState.linkHref = linkHref;
 		render(<RichTextEditor onChange={vi.fn()} />);
 		await user.click(screen.getByLabelText("Link"));
-		expect(screen.getByLabelText("Remove link")).toBeInTheDocument();
-	});
-
-	it("hides the Remove link action when no link is active", async () => {
-		const user = userEvent.setup();
-		render(<RichTextEditor onChange={vi.fn()} />);
-		await user.click(screen.getByLabelText("Link"));
-		expect(screen.queryByLabelText("Remove link")).not.toBeInTheDocument();
+		if (shouldShow) {
+			expect(screen.getByLabelText("Remove link")).toBeInTheDocument();
+		} else {
+			expect(screen.queryByLabelText("Remove link")).not.toBeInTheDocument();
+		}
 	});
 });

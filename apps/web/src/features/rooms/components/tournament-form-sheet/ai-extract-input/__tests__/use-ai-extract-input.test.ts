@@ -179,6 +179,61 @@ describe("useAiExtractInput", () => {
 		expect(createObjectURL).toHaveBeenCalledTimes(5);
 	});
 
+	it("skips adding image if list reaches capacity between FileReader start and completion", async () => {
+		const pendingLoads: Array<() => void> = [];
+		class ControlledFileReader {
+			onerror: ((event: ProgressEvent<FileReader>) => void) | null = null;
+			onload: ((event: ProgressEvent<FileReader>) => void) | null = null;
+			result: string | ArrayBuffer | null = null;
+			readAsDataURL(file: File) {
+				pendingLoads.push(() => {
+					this.result = `data:${file.type};base64,c3RydWN0dXJl`;
+					this.onload?.(new ProgressEvent("load") as ProgressEvent<FileReader>);
+				});
+			}
+		}
+		vi.stubGlobal("FileReader", ControlledFileReader);
+		const { result } = renderHook(
+			() => useAiExtractInput({ onExtracted: vi.fn() }),
+			{ wrapper: wrapper(createClient()) }
+		);
+
+		for (let index = 0; index < 4; index += 1) {
+			const { event } = fileInputEvent(imageFile(`structure-${index}.png`));
+			await act(async () => {
+				const pending = result.current.handleImageSelect(event);
+				pendingLoads.shift()?.();
+				await pending;
+			});
+		}
+		expect(result.current.items).toHaveLength(4);
+
+		const fifth = fileInputEvent(imageFile("structure-4.png"));
+		const sixth = fileInputEvent(imageFile("structure-5.png"));
+		let racingSelects: Promise<void>[] = [];
+		act(() => {
+			racingSelects = [
+				result.current.handleImageSelect(fifth.event),
+				result.current.handleImageSelect(sixth.event),
+			];
+		});
+
+		await act(async () => {
+			pendingLoads.shift()?.();
+			await racingSelects[0];
+		});
+		expect(result.current.items).toHaveLength(5);
+
+		await act(async () => {
+			pendingLoads.shift()?.();
+			await racingSelects[1];
+		});
+		expect(result.current.items).toHaveLength(5);
+		expect(
+			result.current.items.some((item) => item.name === "structure-5.png")
+		).toBe(false);
+	});
+
 	it("does not analyze when there are no images", () => {
 		const { result } = renderHook(
 			() => useAiExtractInput({ onExtracted: vi.fn() }),

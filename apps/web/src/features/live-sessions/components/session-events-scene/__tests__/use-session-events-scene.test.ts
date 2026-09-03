@@ -131,7 +131,9 @@ describe("useSessionEventsScene", () => {
 			{ wrapper: makeWrapper(qc) }
 		);
 		expect(result.current.events).toHaveLength(1);
-		expect(Array.isArray(result.current.groups)).toBe(true);
+		expect(result.current.groups).toEqual([
+			{ type: "single", event: events[0] },
+		]);
 	});
 
 	it("timeBounds is { minTime: null, maxTime: null } when no event is selected", () => {
@@ -178,8 +180,12 @@ describe("useSessionEventsScene", () => {
 		act(() => {
 			result.current.setEditEvent(events[1]);
 		});
-		expect(result.current.timeBounds.minTime).toBeInstanceOf(Date);
-		expect(result.current.timeBounds.maxTime).toBeInstanceOf(Date);
+		expect(result.current.timeBounds.minTime).toEqual(
+			new Date(events[0].occurredAt)
+		);
+		expect(result.current.timeBounds.maxTime).toEqual(
+			new Date(events[2].occurredAt)
+		);
 	});
 
 	it("setEditEvent / setConfirmingDeleteId are independently settable", () => {
@@ -194,16 +200,5 @@ describe("useSessionEventsScene", () => {
 		});
 		expect(result.current.confirmingDeleteId).toBe("e1");
 		expect(result.current.editEvent).toBeNull();
-	});
-
-	it("re-exports update / deleteEvent from useSessionEvents", () => {
-		const qc = createClient();
-		const { result } = renderHook(
-			() =>
-				useSessionEventsScene({ sessionId: "s1", sessionType: "cash_game" }),
-			{ wrapper: makeWrapper(qc) }
-		);
-		expect(typeof result.current.update).toBe("function");
-		expect(typeof result.current.deleteEvent).toBe("function");
 	});
 });

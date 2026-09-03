@@ -1,6 +1,8 @@
 import { MAX_SEAT_POSITION } from "@sapphire2/db/constants/session-event-types";
-import { renderHook } from "@testing-library/react";
+import { QueryClient } from "@tanstack/react-query";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createTestQueryClient, withQueryClient } from "@/__tests__/test-utils";
 
 interface MockTablePlayer {
 	id: string;
@@ -33,10 +35,6 @@ const mocks = vi.hoisted(() => ({
 		updatePlayer: vi.fn(),
 	},
 	usePlayerDetailSpy: vi.fn(),
-	playerList: [] as Array<{
-		id: string;
-		tags: { color: string; id: string; name: string }[];
-	}>,
 	updateHeroSeat: vi.fn(),
 }));
 
@@ -54,36 +52,20 @@ vi.mock("@/features/players/hooks/use-player-detail", () => ({
 	},
 }));
 
-vi.mock("@tanstack/react-query", () => ({
-	useQuery: () => ({ data: mocks.playerList }),
-	useQueryClient: () => ({
-		cancelQueries: vi.fn(),
-		getQueryData: vi.fn(),
-		setQueryData: vi.fn(),
-		invalidateQueries: vi.fn(),
-	}),
-	useMutation: (options: { mutationFn: (input: unknown) => unknown }) => ({
-		mutate: (input: unknown) => options.mutationFn(input),
-		isPending: false,
-	}),
-}));
-
 vi.mock("@/features/live-sessions/utils/seat-screenshot", () => ({
 	updateHeroSeatViaClient: (sessionParam: unknown, seatPosition: unknown) =>
 		mocks.updateHeroSeat(sessionParam, seatPosition),
 }));
 
-vi.mock("@/utils/optimistic-update", () => ({
-	cancelTargets: vi.fn(),
-	invalidateTargets: vi.fn(),
-	restoreSnapshots: vi.fn(),
-	snapshotQuery: vi.fn(),
-}));
-
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		player: {
-			list: { queryOptions: () => ({ queryKey: ["player", "list"] }) },
+			list: {
+				queryOptions: () => ({
+					queryKey: ["player", "list"],
+					queryFn: () => Promise.resolve([]),
+				}),
+			},
 		},
 		liveCashGameSession: {
 			getById: {
@@ -103,6 +85,7 @@ vi.mock("@/utils/trpc", () => ({
 }));
 
 import { useActiveSessionSceneState } from "@/features/live-sessions/components/active-session-scene/use-active-session-scene-state";
+import { trpc } from "@/utils/trpc";
 
 function renderState(
 	overrides: Partial<{
@@ -110,17 +93,23 @@ function renderState(
 		sessionId: string;
 		sessionType: "cash_game" | "tournament";
 		tableSize: number | null;
-	}> = {}
+	}> = {},
+	queryClient: QueryClient = createTestQueryClient()
 ) {
-	return renderHook(() =>
-		useActiveSessionSceneState({
-			heroSeatPosition: null,
-			sessionId: "s-1",
-			sessionType: "cash_game",
-			tableSize: 6,
-			...overrides,
-		})
-	);
+	return {
+		queryClient,
+		...renderHook(
+			() =>
+				useActiveSessionSceneState({
+					heroSeatPosition: null,
+					sessionId: "s-1",
+					sessionType: "cash_game",
+					tableSize: 6,
+					...overrides,
+				}),
+			{ wrapper: withQueryClient(queryClient) }
+		),
+	};
 }
 
 function makePlayer(overrides: Partial<MockTablePlayer> = {}): MockTablePlayer {
@@ -144,7 +133,6 @@ describe("useActiveSessionSceneState", () => {
 		mocks.tablePlayers.handleRemovePlayer.mockReset();
 		mocks.useTablePlayersSpy.mockReset();
 		mocks.usePlayerDetailSpy.mockReset();
-		mocks.playerList = [];
 		mocks.updateHeroSeat.mockReset();
 	});
 
@@ -227,10 +215,12 @@ describe("useActiveSessionSceneState", () => {
 
 		it("joins tag badges from the player list by playerId", () => {
 			mocks.tablePlayers.players = [makePlayer({ seatPosition: 0 })];
-			mocks.playerList = [
-				{ id: "p-1", tags: [{ color: "#f00", id: "t9", name: "Whale" }] },
-			];
-			const { result } = renderState({ tableSize: 6 });
+			const queryClient = createTestQueryClient();
+			queryClient.setQueryData(
+				["player", "list"],
+				[{ id: "p-1", tags: [{ color: "#f00", id: "t9", name: "Whale" }] }]
+			);
+			const { result } = renderState({ tableSize: 6 }, queryClient);
 			expect(result.current.seats[0]?.player?.tags).toEqual([
 				{ color: "#f00", id: "t9", name: "Whale" },
 			]);
@@ -345,23 +335,76 @@ describe("useActiveSessionSceneState", () => {
 			expect(mocks.tablePlayers.handleRemovePlayer).toHaveBeenCalledWith("p-1");
 		});
 
-		it("onSeatHero updates the hero seat via the session client", () => {
+		it("onSeatHero updates the hero seat via the session client", async () => {
+			mocks.updateHeroSeat.mockResolvedValue(undefined);
 			const { result } = renderState({ sessionType: "cash_game" });
-			result.current.onSeatHero(4);
-			expect(mocks.updateHeroSeat).toHaveBeenCalledTimes(1);
+			act(() => {
+				result.current.onSeatHero(4);
+			});
+			await waitFor(() =>
+				expect(mocks.updateHeroSeat).toHaveBeenCalledTimes(1)
+			);
 			expect(mocks.updateHeroSeat).toHaveBeenCalledWith(
 				{ liveCashGameSessionId: "s-1" },
 				4
 			);
 		});
 
-		it("onUnseatHero clears the hero seat via the session client", () => {
+		it("onUnseatHero clears the hero seat via the session client", async () => {
+			mocks.updateHeroSeat.mockResolvedValue(undefined);
 			const { result } = renderState({ sessionType: "cash_game" });
-			result.current.onUnseatHero();
-			expect(mocks.updateHeroSeat).toHaveBeenCalledTimes(1);
+			act(() => {
+				result.current.onUnseatHero();
+			});
+			await waitFor(() =>
+				expect(mocks.updateHeroSeat).toHaveBeenCalledTimes(1)
+			);
 			expect(mocks.updateHeroSeat).toHaveBeenCalledWith(
 				{ liveCashGameSessionId: "s-1" },
 				null
+			);
+		});
+	});
+
+	describe("hero seat optimistic mutation", () => {
+		it("optimistic hero seat update restores on error", async () => {
+			let rejectUpdate: ((error: Error) => void) | undefined;
+			mocks.updateHeroSeat.mockImplementation(
+				() =>
+					new Promise((_resolve, reject) => {
+						rejectUpdate = reject;
+					})
+			);
+			const queryClient = new QueryClient({
+				defaultOptions: {
+					queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+					mutations: { retry: false },
+				},
+			});
+			const sessionKey = trpc.liveCashGameSession.getById.queryOptions({
+				id: "s-1",
+			}).queryKey;
+			queryClient.setQueryData(sessionKey, { heroSeatPosition: null });
+
+			const { result } = renderState({ sessionType: "cash_game" }, queryClient);
+
+			act(() => {
+				result.current.onSeatHero(4);
+			});
+			await waitFor(() =>
+				expect(queryClient.getQueryData(sessionKey)).toMatchObject({
+					heroSeatPosition: 4,
+				})
+			);
+
+			await act(async () => {
+				rejectUpdate?.(new Error("network error"));
+				await Promise.resolve();
+			});
+			await waitFor(() =>
+				expect(queryClient.getQueryData(sessionKey)).toMatchObject({
+					heroSeatPosition: null,
+				})
 			);
 		});
 	});

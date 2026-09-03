@@ -106,18 +106,26 @@ describe("ActionsDrawer", () => {
 		).not.toContain("text-destructive");
 	});
 
-	it("shows the empty message when there are no items and one is provided", () => {
-		setup({ emptyMessage: "No players seated yet." });
-		expect(screen.getByText("No players seated yet.")).toBeInTheDocument();
-	});
-
-	it("renders no empty message when items exist", () => {
-		setup({
-			emptyMessage: "No players seated yet.",
+	it.each([
+		{
+			items: [],
+			shouldShow: true,
+		},
+		{
 			items: [{ icon: IconBolt, label: "First", onSelect: vi.fn() }],
-		});
-		expect(
-			screen.queryByText("No players seated yet.")
-		).not.toBeInTheDocument();
+			shouldShow: false,
+		},
+	])("shows the empty message only when there are no items ($shouldShow)", ({
+		items,
+		shouldShow,
+	}) => {
+		setup({ emptyMessage: "No players seated yet.", items });
+		if (shouldShow) {
+			expect(screen.getByText("No players seated yet.")).toBeInTheDocument();
+		} else {
+			expect(
+				screen.queryByText("No players seated yet.")
+			).not.toBeInTheDocument();
+		}
 	});
 });

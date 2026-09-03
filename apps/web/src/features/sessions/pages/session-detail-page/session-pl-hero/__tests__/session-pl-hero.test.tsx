@@ -32,35 +32,30 @@ describe("SessionPlHero", () => {
 		expect(screen.getByText("+800")).toBeInTheDocument();
 	});
 
-	it("omits the EV figure when null", () => {
+	it.each([
+		{ ev: null, name: "null" },
+		{ ev: undefined, name: "undefined" },
+	])("omits the EV figure when $name", ({ ev }) => {
 		render(
-			<SessionPlHero
-				currencyUnit={null}
-				evProfitLoss={null}
-				profitLoss={1500}
-			/>
+			<SessionPlHero currencyUnit={null} evProfitLoss={ev} profitLoss={1500} />
 		);
 		expect(screen.queryByText(EV_PREFIX)).not.toBeInTheDocument();
 	});
 
-	it("omits the EV figure when undefined", () => {
-		render(<SessionPlHero currencyUnit={null} profitLoss={1500} />);
-		expect(screen.queryByText(EV_PREFIX)).not.toBeInTheDocument();
-	});
-
-	it("renders the chart slot inside the card when provided", () => {
+	it.each([
+		{ chart: <div data-testid="chart-slot" />, shouldExist: true },
+		{ chart: undefined, shouldExist: false },
+	])("renders or omits the chart slot based on prop ($shouldExist)", ({
+		chart,
+		shouldExist,
+	}) => {
 		render(
-			<SessionPlHero
-				chart={<div data-testid="chart-slot" />}
-				currencyUnit={null}
-				profitLoss={1500}
-			/>
+			<SessionPlHero chart={chart} currencyUnit={null} profitLoss={1500} />
 		);
-		expect(screen.getByTestId("chart-slot")).toBeInTheDocument();
-	});
-
-	it("omits the chart region when no chart is provided", () => {
-		render(<SessionPlHero currencyUnit={null} profitLoss={1500} />);
-		expect(screen.queryByTestId("chart-slot")).not.toBeInTheDocument();
+		if (shouldExist) {
+			expect(screen.getByTestId("chart-slot")).toBeInTheDocument();
+		} else {
+			expect(screen.queryByTestId("chart-slot")).not.toBeInTheDocument();
+		}
 	});
 });

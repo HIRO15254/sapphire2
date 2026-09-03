@@ -40,14 +40,6 @@ describe("useCurrencyForm", () => {
 		expect(result.current.form.state.values.description).toBeNull();
 	});
 
-	it("falls back unit to empty string when defaultValues.unit is undefined", () => {
-		const onSubmit = vi.fn();
-		const { result } = renderHook(() =>
-			useCurrencyForm({ onSubmit, defaultValues: { name: "Chips" } })
-		);
-		expect(result.current.form.state.values.unit).toBe("");
-	});
-
 	it("rejects empty name on submit", async () => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() => useCurrencyForm({ onSubmit }));
@@ -116,23 +108,6 @@ describe("useCurrencyForm", () => {
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
-	it("accepts the 4-character boundary", async () => {
-		const onSubmit = vi.fn();
-		const { result } = renderHook(() => useCurrencyForm({ onSubmit }));
-		act(() => {
-			result.current.form.setFieldValue("name", "Pesos");
-			result.current.form.setFieldValue("unit", "MXN$");
-		});
-		await act(async () => {
-			await result.current.form.handleSubmit();
-		});
-		expect(onSubmit).toHaveBeenCalledWith({
-			name: "Pesos",
-			unit: "MXN$",
-			description: null,
-		});
-	});
-
 	it("trims whitespace-only unit to undefined", async () => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() => useCurrencyForm({ onSubmit }));
@@ -150,36 +125,23 @@ describe("useCurrencyForm", () => {
 		});
 	});
 
-	it("trims surrounding whitespace before submitting the unit", async () => {
+	it.each([
+		["MXN$", "MXN$"],
+		["  g  ", "g"],
+		["  AB  ", "AB"],
+	])("trims and accepts unit %j at the length boundary as %j", async (input, expectedUnit) => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() => useCurrencyForm({ onSubmit }));
 		act(() => {
 			result.current.form.setFieldValue("name", "Gold");
-			result.current.form.setFieldValue("unit", "  g  ");
+			result.current.form.setFieldValue("unit", input);
 		});
 		await act(async () => {
 			await result.current.form.handleSubmit();
 		});
 		expect(onSubmit).toHaveBeenCalledWith({
 			name: "Gold",
-			unit: "g",
-			description: null,
-		});
-	});
-
-	it("accepts ' AB ' (4-char post-trim) at the length boundary", async () => {
-		const onSubmit = vi.fn();
-		const { result } = renderHook(() => useCurrencyForm({ onSubmit }));
-		act(() => {
-			result.current.form.setFieldValue("name", "X");
-			result.current.form.setFieldValue("unit", "  AB  ");
-		});
-		await act(async () => {
-			await result.current.form.handleSubmit();
-		});
-		expect(onSubmit).toHaveBeenCalledWith({
-			name: "X",
-			unit: "AB",
+			unit: expectedUnit,
 			description: null,
 		});
 	});

@@ -307,7 +307,7 @@ describe("useMixFormSheet", () => {
 		expect(result.current.form.state.values.label).toBe("");
 	});
 
-	it("blocks a submit with fewer than 2 games", async () => {
+	it.each([0, 1])("blocks a submit with %i games", async (gameCount) => {
 		const onOpenChange = vi.fn();
 		const { result } = renderHook(
 			() =>
@@ -321,29 +321,11 @@ describe("useMixFormSheet", () => {
 		act(() => {
 			result.current.form.setFieldValue("label", "My Mix");
 		});
-		act(() => {
-			result.current.onAddGame("Razz");
-		});
-		await act(async () => {
-			await result.current.form.handleSubmit();
-		});
-		expect(trpcMocks.gameMixCreate).not.toHaveBeenCalled();
-	});
-
-	it("blocks a submit with zero games", async () => {
-		const onOpenChange = vi.fn();
-		const { result } = renderHook(
-			() =>
-				useMixFormSheet({
-					editingMix: null,
-					onOpenChange,
-					variants: VARIANTS,
-				}),
-			{ wrapper: withQueryClient() }
-		);
-		act(() => {
-			result.current.form.setFieldValue("label", "My Mix");
-		});
+		for (let i = 0; i < gameCount; i++) {
+			act(() => {
+				result.current.onAddGame("Razz");
+			});
+		}
 		await act(async () => {
 			await result.current.form.handleSubmit();
 		});
