@@ -108,9 +108,10 @@ Every access is wrapped in try/catch: `localStorage` throws outright in some pri
 and the fallback is simply that the upgrade stays enabled.
 
 A dismissed browser prompt is not an error either. better-auth returns cancellation as
-`{ error: { code } }` rather than throwing — `AUTH_CANCELLED` for sign-in,
-`ERROR_CEREMONY_ABORTED` for registration — so without `isCancelledCeremony` the user gets
-an error toast for simply pressing Escape, which is not how the social providers behave.
+`{ error: { code } }` rather than throwing — `AUTH_CANCELLED` for sign-in, and one of
+several codes for registration, which the next paragraph works through — so without
+`isCancelledCeremony` the user gets an error toast for simply pressing Escape, which is not
+how the social providers behave.
 That helper matches on `name` as well as `code`, because a raw `DOMException`
 (`NotAllowedError`, `AbortError`) carries its identity in `name`; `DOMException.code` is a
 legacy *number* and never matches a string.
