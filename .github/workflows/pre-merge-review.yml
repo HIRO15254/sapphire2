@@ -183,87 +183,21 @@ jobs:
           # The repo Stop hook (ultracite fix + vitest --changed + check-rules)
           # is for authoring sessions; in a review it only burns runner time.
           settings: '{"disableAllHooks": true}'
+          # The review itself lives in .claude/skills/pr-review/SKILL.md so it
+          # can be run locally (`/pr-review full`) and evaluated offline; the
+          # workflow only passes the mode, the diff range and the round.
           prompt: |
-            You are the automated pre-merge reviewer for this repository.
-            MODE=${{ needs.gate.outputs.mode }} ROUND=${{ needs.gate.outputs.round }} MAX_AUTO_ROUNDS=${{ env.MAX_AUTO_ROUNDS }} SINCE_SHA=${{ needs.gate.outputs.since_sha }}
+            /pr-review ${{ needs.gate.outputs.mode }} --range origin/${{ github.event.pull_request.base.ref }}...HEAD --since ${{ needs.gate.outputs.since_sha }} --round ${{ needs.gate.outputs.round }} --max ${{ env.MAX_AUTO_ROUNDS }} --pr ${{ github.event.pull_request.number }} --post
 
-            ## Environment
-            - Dependencies are installed. Verify claims by running the scoped checks, never by
-              assumption: `bunx vitest run --project <web-node|web-dom|api|server|db|mcp|env|scripts> <path>`,
-              `bun run check-types`, `bun run check:rules`. Run only the projects the diff touches.
-            - Never write that tests "could not be run" or that the environment is limited. If a
-              command fails, quote its error once and move on.
-            - Ignore the runner's working-tree state; review only committed history
-              (`git diff <base>...<head>`), never `git status` output.
-            - Library behaviour must be read from `node_modules` source or exercised in a test
-              before it appears in a finding.
-
-            ## Severity (mandatory tag as the first token of every inline comment: `**[critical]**` … `**[nit]**`)
-            - critical / high: security gap, data loss or corruption, a migration that can stop production.
-            - medium: wrong behaviour a user or an MCP client will hit (including a tool description
-              that makes a model issue a failing or data-losing call), or a missing test for a fixed bug.
-            - low: real but cosmetic or edge-case behaviour; a missing guard with no observed failure.
-            - nit: style, naming, wording, defensive-coding preference. Post nits in the summary list
-              only, never as inline comments.
-            - `**[unverified]**`: a suspicion you could not confirm by reading source or running a
-              test. It carries no severity, never blocks, and must include the exact command or
-              test the author can run to settle it. Prefer settling it yourself.
-
-            ## Scope rules
-            - Do not comment on prose (docs/design, AGENTS.md, rule files, code comments, commit
-              messages) unless it is factually wrong against the code. Wording is never a finding.
-            - Do not propose refactors or alternative designs unless the current one is defective.
-            - If MODE=full: run the `/code-review medium` skill on this PR and keep its whole
-              pipeline (parallel finders, one independent verifier per candidate that returns
-              CONFIRMED / PLAUSIBLE / REFUTED, a final sweep for gaps). Drop REFUTED candidates.
-              Then apply the severity, scope and output rules of this prompt to what survives:
-              map the skill's severities onto the rubric above before posting. Also read the
-              `.claude/rules/*.md` files that match the touched paths and AGENTS.md, and check the
-              MCP coupling rule when `packages/api` changed; rule violations go through the same
-              verifier before they are posted.
-            - If MODE=incremental: the PR was reviewed at SINCE_SHA. Review only
-              `git diff ${{ needs.gate.outputs.since_sha }}...HEAD` plus the direct callers of functions that diff changed
-              (find them with `rg`). Do not re-review unchanged code. Start by settling every
-              existing inline thread from the previous round: fixed / not addressed / declined.
-              Before posting any new finding, hand it to one verifier subagent (Task) with the
-              diff, the relevant files and the candidate; it returns CONFIRMED / PLAUSIBLE /
-              REFUTED. Drop REFUTED. A PLAUSIBLE finding you cannot settle by running a test is
-              posted as `[unverified]`. New inline comments are allowed only for (a) a regression
-              introduced by the fix, or (b) medium or higher in the new diff. Low and nit
-              findings on new code go into the summary list only.
-
-            ## Output
-            Post inline comments with `mcp__github_inline_comment__create_inline_comment` for
-            findings of severity low or higher (full mode) / per the incremental rules above.
-            Do NOT run `gh pr comment`; the tracking comment is created from your final message.
-            Your final message is the summary and must follow this template exactly, in Japanese,
-            with nothing before or after it:
-
-            ### Verdict: approve | changes-requested
-            One sentence on why. `changes-requested` only when a medium or higher finding is open.
-
-            ### Findings
-            A table `| # | severity | location | one-line summary |` — inline-commented findings
-            first, then nits. Omit the table when there are none.
-
-            ### Previous round (incremental mode only)
-            A table `| finding | status |` with status fixed / not addressed / declined. Nothing else.
-
-            ### Checked (full mode only)
-            One line, at most 120 characters, naming the areas you verified (e.g. auth, migration
-            0051, MCP registry). No per-item prose.
-
-            Hard limits: no "verified and fine" lists, no "not executed" section, no restating the
-            PR description, no compliments, no closing remarks. Keep the whole message under
-            40 lines. When ROUND >= MAX_AUTO_ROUNDS and something remains open, add exactly one
-            line: 次の自動レビューはありません。必要なら `${{ env.RE_REVIEW_LABEL }}` ラベルで要求してください。
+            The tracking comment on this PR is created from your final message; do not post the
+            summary yourself. Every inline comment goes through the inline-comment tool.
           # max-turns is a runaway guard, not a budget (a truncated run still
           # costs the tokens and produces nothing). allowedTools: everything
           # else is denied and each denial burns a turn. Skill loads
-          # /code-review (alias /review); Task/Agent are its finder and
-          # verifier subagents; ReportFindings is the tool it submits to.
+          # /pr-review; Task/Agent are its finder and validator subagents.
           # `gh api` stays out because the diff is untrusted input and the
-          # token can write to PRs.
+          # token can write to PRs; thread resolution happens in the shell
+          # step below, from the machine-readable trailer of the summary.
           claude_args: |
             --max-turns 80
             --model opus
@@ -288,6 +222,48 @@ jobs:
             gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
               -F "body=@${RUNNER_TEMP}/review-state.md" >/dev/null
           fi
+
+      # The summary ends with `<!-- pr-review: {...,"resolved":["path:line"]} -->`.
+      # Threads the reviewer judged fixed are resolved here, by path and
+      # original line, so the reviewer itself never needs `gh api`.
+      - name: Resolve threads the review marked as fixed
+        if: steps.claude_review.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXECUTION_FILE: ${{ steps.claude_review.outputs.execution_file }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          log_file="$EXECUTION_FILE"
+          [ -f "$log_file" ] || log_file="${RUNNER_TEMP}/claude-execution-output.json"
+          [ -f "$log_file" ] || { echo "no execution log; nothing to resolve"; exit 0; }
+          trailer=$(jq -rs '[.. | objects | select(.type == "result")] | last | .result // ""' "$log_file" \
+            | grep -o '<!-- pr-review: {.*} -->' | tail -n 1 | sed -e 's/^<!-- pr-review: //' -e 's/ -->$//' || true)
+          if [ -z "$trailer" ]; then echo "no pr-review trailer in the summary"; exit 0; fi
+          echo "trailer: $trailer"
+          resolved=$(printf '%s' "$trailer" | jq -r '.resolved // [] | .[]')
+          [ -n "$resolved" ] || { echo "nothing marked fixed"; exit 0; }
+          owner=${GITHUB_REPOSITORY%/*}; repo=${GITHUB_REPOSITORY#*/}
+          threads=$(gh api graphql -f query='
+            query($owner: String!, $repo: String!, $pr: Int!) {
+              repository(owner: $owner, name: $repo) { pullRequest(number: $pr) {
+                reviewThreads(first: 100) { nodes {
+                  id isResolved path line originalLine
+                  comments(first: 1) { nodes { author { login } } }
+                } } } } }' -F owner="$owner" -F repo="$repo" -F pr="$PR_NUMBER" \
+            --jq '.data.repository.pullRequest.reviewThreads.nodes[]
+              | select(.isResolved == false)
+              | select(.comments.nodes[0].author.login | test("claude"))
+              | "\(.id) \(.path):\(.originalLine // .line)"')
+          while read -r key; do
+            [ -n "$key" ] || continue
+            printf '%s\n' "$threads" | while read -r id loc; do
+              if [ "$loc" = "$key" ]; then
+                gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: {threadId: $id}) { thread { id } } }' -F id="$id" >/dev/null \
+                  && echo "resolved $loc"
+              fi
+            done
+          done <<< "$resolved"
 
       # Hitting the turn cap leaves the tracking comment as an empty checklist
       # with no verdict, which reads exactly like "the review found nothing".

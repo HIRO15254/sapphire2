@@ -74,7 +74,7 @@ docs/
 The automated reviewer ([`pre-merge-review.yml`](.github/workflows/pre-merge-review.yml)) runs **at most two automatic rounds** per PR — a full review once the PR is ready and CI is green, then one incremental round after the next code push — and only on request after that (add the `re-review` label). Docs-only pushes, red CI, and `release/*` PRs identical to `dev` never start a round. Data and mechanics: [`docs/design/pr-review.md`](docs/design/pr-review.md).
 
 - **Batch fixes into one push.** Address every finding of a round together; one commit per finding turned single PRs into 36-round loops (each round ≈ $2 and 4 minutes).
-- **Severity decides the response.** `[critical]` / `[high]` / `[medium]` must be fixed or refuted in the thread with evidence. `[low]` / `[nit]` may be declined with a one-line `Won't fix` reply. `[unverified]` is a question: answer it, do not "fix" it.
+- **Severity decides the response.** `[important]` must be fixed or refuted in the thread with evidence. `[nit]` and `[pre-existing]` may be declined with a one-line `Won't fix` reply. `[unverified]` is a question with a command to run: answer it, do not "fix" it. The reviewer itself is [`.claude/skills/pr-review/SKILL.md`](.claude/skills/pr-review/SKILL.md); run `/pr-review full` locally to get the same review before pushing.
 - **Do not narrate.** No PR comment restating the commit; commit messages and thread replies are the record.
 - **A `Verdict: approve` is not a merge** and a request for more rounds is not a block — the merge decision stays with the human.
 
