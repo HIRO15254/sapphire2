@@ -138,6 +138,8 @@ Lowest-scoring files (detected / valid):
 
 Dominant surviving mutator classes: api `ConditionalExpression` 842 / `BlockStatement` 386 / `ObjectLiteral` 349 / `StringLiteral` 301 / `EqualityOperator` 288 — branches inside procedures that the router specs never call; db `StringLiteral` 152 / `ObjectLiteral` 36 — data tables; web-node `ConditionalExpression` 246 / `StringLiteral` 83 / `EqualityOperator` 82.
 
+**After the P2 sweep** (commit `1bbd515`, same procedure, `--concurrency 3`): api 62.49 % (covered 71.13 %; 3,619 detected, 1,469 survived, 703 no-coverage of 5,791 — `routers/currency.ts` 0 → 82.9 %, `ring-game.ts` 34.4 → 84.4 %, `tournament-chip-purchase.ts` 37.5 → 87.5 %, `room.ts` 59.6 → 81.9 %, `live-cash-game-session.ts` 26.9 → 43.6 %, `session-table-player.ts` 33.3 → 46.3 %), db 95.42 % (4 subjects after `player-tag-colors.ts` left the denominator; `session-event-types.ts` 83.1 → 96.0 %, `game-variants.ts` literals now `Ignored`), web-node 88.55 % (334 survived, 117 no-coverage; `tournament-timer.ts` 60.7 → 65.8 %, `aggregate-pnl-points.ts` 81.9 → 85.9 %). Collected tests api 1,489 / db 316 / web-node 1,272 / web-dom 3,161; no file's score fell with more survived or no-coverage mutants. A subject removed from `isSubject` keeps its stale rows in `stryker-incremental.json` until one `--no-incremental` run, so re-measure with that flag after changing the exclusions.
+
 Pilot values from before the tooling landed, for continuity: `routers/session.ts` 55.78 % total / 62.31 % covered (1,660 mutants, 10 min 15 s at concurrency 4), `constants/session-event-types.ts` 80.73 %, the four `features/sessions/utils/*.ts` 83.39 %.
 
 ## Test-reach metrics (why not line coverage)
