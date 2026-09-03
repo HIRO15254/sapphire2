@@ -26,15 +26,19 @@ import {
 
 describe("payload schemas", () => {
 	describe("cashSessionStartPayload", () => {
-		it("accepts valid buyInAmount", () => {
-			const result = cashSessionStartPayload.parse({ buyInAmount: 100 });
-			expect(result.buyInAmount).toBe(100);
-		});
-
-		it("rejects negative buyInAmount", () => {
-			expect(() =>
-				cashSessionStartPayload.parse({ buyInAmount: -1 })
-			).toThrow();
+		it.each([
+			[100, true],
+			[0, true],
+			[-1, false],
+			[1.5, false],
+		])("buyInAmount=%p is valid=%p", (buyInAmount, valid) => {
+			if (valid) {
+				expect(cashSessionStartPayload.parse({ buyInAmount }).buyInAmount).toBe(
+					buyInAmount
+				);
+			} else {
+				expect(() => cashSessionStartPayload.parse({ buyInAmount })).toThrow();
+			}
 		});
 	});
 
@@ -66,13 +70,31 @@ describe("payload schemas", () => {
 	});
 
 	describe("cashSessionEndPayload", () => {
-		it("accepts valid cashOutAmount", () => {
-			const result = cashSessionEndPayload.parse({ cashOutAmount: 500 });
-			expect(result.cashOutAmount).toBe(500);
+		it.each([
+			[500, true],
+			[0, true],
+			[-5, false],
+			[10.1, false],
+		])("cashOutAmount=%p is valid=%p", (cashOutAmount, valid) => {
+			if (valid) {
+				expect(
+					cashSessionEndPayload.parse({ cashOutAmount }).cashOutAmount
+				).toBe(cashOutAmount);
+			} else {
+				expect(() => cashSessionEndPayload.parse({ cashOutAmount })).toThrow();
+			}
 		});
 	});
 
 	describe("tournamentSessionEndPayload", () => {
+		const finishedBranch = {
+			beforeDeadline: false,
+			placement: 3,
+			totalEntries: 10,
+			prizeMoney: 0,
+		} as const;
+		const earlyBranch = { beforeDeadline: true, prizeMoney: 0 } as const;
+
 		it("accepts beforeDeadline: false with full placement data", () => {
 			const result = tournamentSessionEndPayload.parse({
 				beforeDeadline: false,
@@ -92,14 +114,6 @@ describe("payload schemas", () => {
 			});
 			expect(result.beforeDeadline).toBe(true);
 		});
-
-		const finishedBranch = {
-			beforeDeadline: false,
-			placement: 3,
-			totalEntries: 10,
-			prizeMoney: 0,
-		} as const;
-		const earlyBranch = { beforeDeadline: true, prizeMoney: 0 } as const;
 
 		it.each([
 			["false", finishedBranch],
@@ -122,6 +136,14 @@ describe("payload schemas", () => {
 			expect(result.error?.issues[0]?.path).toEqual(["bountyPrizes"]);
 		});
 
+		it.each([
+			["placement", { ...finishedBranch, placement: 0, bountyPrizes: 0 }],
+			["totalEntries", { ...finishedBranch, totalEntries: 0, bountyPrizes: 0 }],
+			["prizeMoney", { ...earlyBranch, prizeMoney: -1, bountyPrizes: 0 }],
+		])("rejects an invalid %s", (_, payload) => {
+			expect(() => tournamentSessionEndPayload.parse(payload)).toThrow();
+		});
+
 		it("reports placement > totalEntries on the placement path with its message", () => {
 			const result = tournamentSessionEndPayload.safeParse({
 				...finishedBranch,
@@ -137,18 +159,17 @@ describe("payload schemas", () => {
 	});
 
 	describe("chipsAddRemovePayload", () => {
-		it("accepts a positive amount as an add", () => {
-			const result = chipsAddRemovePayload.parse({ amount: 100 });
-			expect(result.amount).toBe(100);
-		});
-
-		it("accepts a negative amount as a remove", () => {
-			const result = chipsAddRemovePayload.parse({ amount: -50 });
-			expect(result.amount).toBe(-50);
-		});
-
-		it("rejects an amount of zero", () => {
-			expect(() => chipsAddRemovePayload.parse({ amount: 0 })).toThrow();
+		it.each([
+			[100, true],
+			[-50, true],
+			[0, false],
+			[1.5, false],
+		])("amount=%p is valid=%p", (amount, valid) => {
+			if (valid) {
+				expect(chipsAddRemovePayload.parse({ amount }).amount).toBe(amount);
+			} else {
+				expect(() => chipsAddRemovePayload.parse({ amount })).toThrow();
+			}
 		});
 
 		it("reports a zero amount with the non-zero message", () => {
@@ -157,8 +178,10 @@ describe("payload schemas", () => {
 			expect(result.error?.issues[0]?.message).toBe("amount must be non-zero");
 		});
 
-		it("rejects a non-integer amount", () => {
-			expect(() => chipsAddRemovePayload.parse({ amount: 1.5 })).toThrow();
+		it("ignores legacy type field if present", () => {
+			const result = chipsAddRemovePayload.parse({ amount: 10, type: "add" });
+			expect(result.amount).toBe(10);
+			expect((result as Record<string, unknown>).type).toBeUndefined();
 		});
 	});
 
@@ -175,23 +198,62 @@ describe("payload schemas", () => {
 		});
 
 		it.each([
-			0, 1, 1000,
-		])("accepts a non-negative integer potSize (%s)", (potSize) => {
-			expect(
-				allInPayload.parse({ potSize, trials: 1, equity: 50, wins: 0 }).potSize
-			).toBe(potSize);
+			[0, true],
+			[1, true],
+			[1000, true],
+			[-1, false],
+			[0.5, false],
+			[Number.NaN, false],
+			[Number.POSITIVE_INFINITY, false],
+			[Number.NEGATIVE_INFINITY, false],
+		])("potSize=%p is valid=%p", (potSize, valid) => {
+			if (valid) {
+				expect(
+					allInPayload.parse({ potSize, trials: 1, equity: 50, wins: 0 })
+						.potSize
+				).toBe(potSize);
+			} else {
+				expect(() =>
+					allInPayload.parse({ potSize, trials: 1, equity: 50, wins: 0 })
+				).toThrow();
+			}
 		});
 
 		it.each([
-			-1,
-			0.5,
-			Number.NaN,
-			Number.POSITIVE_INFINITY,
-			Number.NEGATIVE_INFINITY,
-		])("rejects an invalid potSize (%s)", (potSize) => {
-			expect(() =>
-				allInPayload.parse({ potSize, trials: 1, equity: 50, wins: 0 })
-			).toThrow();
+			[0, true],
+			[100, true],
+			[-1, false],
+			[101, false],
+		])("equity=%p is valid=%p", (equity, valid) => {
+			if (valid) {
+				expect(
+					allInPayload.parse({ potSize: 1, trials: 1, equity, wins: 0 }).equity
+				).toBe(equity);
+			} else {
+				expect(() =>
+					allInPayload.parse({ potSize: 1, trials: 1, equity, wins: 0 })
+				).toThrow();
+			}
+		});
+
+		it.each([
+			[0, 1, true],
+			[1, 1, true],
+			[1, 3, true],
+			[3, 3, true],
+			[1.5, 3, true],
+			[2, 1, false],
+			[4, 3, false],
+			[1.5, 1, false],
+			[-1, 3, false],
+		])("wins=%p with trials=%p is valid=%p", (wins, trials, valid) => {
+			const result = allInPayload.safeParse({
+				potSize: 1000,
+				trials,
+				equity: 50,
+				wins,
+			});
+			expect(result.success).toBe(valid);
 		});
 
 		it("reports wins > trials on the wins path with its message", () => {
@@ -221,12 +283,57 @@ describe("payload schemas", () => {
 			expect(result.name).toBe("Rebuy");
 			expect(result.chips).toBe(5000);
 		});
+
+		it.each([
+			["cost", { cost: -1, chips: 100 }],
+			["chips", { cost: 1, chips: -1 }],
+		])("rejects a negative %s", (_, overrides) => {
+			expect(() =>
+				purchaseChipsPayload.parse({
+					sessionChipPurchaseId: "scp-1",
+					name: "Rebuy",
+					...overrides,
+				})
+			).toThrow();
+		});
+
+		it("rejects empty sessionChipPurchaseId", () => {
+			expect(() =>
+				purchaseChipsPayload.parse({
+					sessionChipPurchaseId: "",
+					name: "Rebuy",
+					cost: 1,
+					chips: 1,
+				})
+			).toThrow();
+		});
+
+		it("rejects empty name", () => {
+			expect(() =>
+				purchaseChipsPayload.parse({
+					sessionChipPurchaseId: "scp-1",
+					name: "",
+					cost: 1,
+					chips: 1,
+				})
+			).toThrow();
+		});
 	});
 
 	describe("updateStackPayload", () => {
-		it("accepts valid stackAmount alone", () => {
-			const result = updateStackPayload.parse({ stackAmount: 5000 });
-			expect(result.stackAmount).toBe(5000);
+		it.each([
+			[5000, true],
+			[0, true],
+			[-1, false],
+			[3.14, false],
+		])("stackAmount=%p is valid=%p", (stackAmount, valid) => {
+			if (valid) {
+				expect(updateStackPayload.parse({ stackAmount }).stackAmount).toBe(
+					stackAmount
+				);
+			} else {
+				expect(() => updateStackPayload.parse({ stackAmount })).toThrow();
+			}
 		});
 
 		it("accepts optional tournament-info fields", () => {
@@ -287,6 +394,10 @@ describe("payload schemas", () => {
 
 		it("rejects empty text", () => {
 			expect(() => memoPayload.parse({ text: "" })).toThrow();
+		});
+
+		it("accepts whitespace-only text (memo is not trimmed)", () => {
+			expect(memoPayload.parse({ text: "   " })).toEqual({ text: "   " });
 		});
 	});
 
@@ -504,6 +615,25 @@ describe("validateEventPayload", () => {
 			})
 		).toEqual({ beforeDeadline: true, prizeMoney: 0, bountyPrizes: 0 });
 	});
+
+	it("tournament session_start ignores unknown keys (schema strips extras)", () => {
+		const result = validateEventPayload(
+			"session_start",
+			{ buyInAmount: 100 },
+			"tournament"
+		) as { buyInAmount?: number };
+		expect(result.buyInAmount).toBeUndefined();
+	});
+
+	it("throws when cash session_start receives wrong-shaped payload", () => {
+		expect(() =>
+			validateEventPayload("session_start", { cashOutAmount: 100 }, "cash_game")
+		).toThrow();
+	});
+
+	it("throws on malformed memo payload (empty string)", () => {
+		expect(() => validateEventPayload("memo", { text: "" })).toThrow();
+	});
 });
 
 describe("getSessionCurrentState", () => {
@@ -714,304 +844,5 @@ describe("event-type array disjointness and totals", () => {
 			TOURNAMENT_EVENT_TYPES.length +
 			COMMON_EVENT_TYPES.length;
 		expect(ALL_EVENT_TYPES).toHaveLength(unionSize);
-	});
-});
-
-describe("payload schema edge cases", () => {
-	describe("cashSessionStartPayload", () => {
-		it("accepts buyInAmount = 0 (free roll)", () => {
-			expect(
-				cashSessionStartPayload.parse({ buyInAmount: 0 }).buyInAmount
-			).toBe(0);
-		});
-
-		it("rejects non-integer buyInAmount", () => {
-			expect(() =>
-				cashSessionStartPayload.parse({ buyInAmount: 1.5 })
-			).toThrow();
-		});
-	});
-
-	describe("cashSessionEndPayload", () => {
-		it("accepts cashOutAmount = 0", () => {
-			expect(
-				cashSessionEndPayload.parse({ cashOutAmount: 0 }).cashOutAmount
-			).toBe(0);
-		});
-
-		it("rejects negative cashOutAmount", () => {
-			expect(() =>
-				cashSessionEndPayload.parse({ cashOutAmount: -5 })
-			).toThrow();
-		});
-
-		it("rejects non-integer cashOutAmount", () => {
-			expect(() =>
-				cashSessionEndPayload.parse({ cashOutAmount: 10.1 })
-			).toThrow();
-		});
-	});
-
-	describe("tournamentSessionEndPayload boundaries", () => {
-		it("rejects placement = 0 (placement is 1-based)", () => {
-			expect(() =>
-				tournamentSessionEndPayload.parse({
-					beforeDeadline: false,
-					placement: 0,
-					totalEntries: 10,
-					prizeMoney: 0,
-					bountyPrizes: 0,
-				})
-			).toThrow();
-		});
-
-		it("rejects totalEntries = 0", () => {
-			expect(() =>
-				tournamentSessionEndPayload.parse({
-					beforeDeadline: false,
-					placement: 1,
-					totalEntries: 0,
-					prizeMoney: 0,
-					bountyPrizes: 0,
-				})
-			).toThrow();
-		});
-
-		it("rejects negative prizeMoney", () => {
-			expect(() =>
-				tournamentSessionEndPayload.parse({
-					beforeDeadline: true,
-					prizeMoney: -1,
-					bountyPrizes: 0,
-				})
-			).toThrow();
-		});
-	});
-
-	describe("chipsAddRemovePayload", () => {
-		it("ignores legacy type field if present", () => {
-			const result = chipsAddRemovePayload.parse({ amount: 10, type: "add" });
-			expect(result.amount).toBe(10);
-			expect((result as Record<string, unknown>).type).toBeUndefined();
-		});
-	});
-
-	describe("allInPayload", () => {
-		it("rejects equity > 100", () => {
-			expect(() =>
-				allInPayload.parse({
-					potSize: 1000,
-					trials: 1,
-					equity: 101,
-					wins: 1,
-				})
-			).toThrow();
-		});
-
-		it("rejects equity < 0", () => {
-			expect(() =>
-				allInPayload.parse({
-					potSize: 1000,
-					trials: 1,
-					equity: -1,
-					wins: 0,
-				})
-			).toThrow();
-		});
-
-		it("rejects wins > trials (single trial)", () => {
-			const result = allInPayload.safeParse({
-				potSize: 1000,
-				trials: 1,
-				equity: 50,
-				wins: 2,
-			});
-			expect(result.success).toBe(false);
-		});
-
-		it("rejects wins greater than trials by exactly one (off-by-one boundary)", () => {
-			const result = allInPayload.safeParse({
-				potSize: 1000,
-				trials: 3,
-				equity: 50,
-				wins: 4,
-			});
-			expect(result.success).toBe(false);
-		});
-
-		it("accepts a fractional wins (a chopped pot counts as a partial win)", () => {
-			const result = allInPayload.parse({
-				potSize: 1000,
-				trials: 3,
-				equity: 50,
-				wins: 1.5,
-			});
-			expect(result.wins).toBe(1.5);
-		});
-
-		it("rejects a fractional wins that still exceeds trials", () => {
-			const result = allInPayload.safeParse({
-				potSize: 1000,
-				trials: 1,
-				equity: 50,
-				wins: 1.5,
-			});
-			expect(result.success).toBe(false);
-		});
-
-		it("rejects a negative wins", () => {
-			const result = allInPayload.safeParse({
-				potSize: 1000,
-				trials: 3,
-				equity: 50,
-				wins: -1,
-			});
-			expect(result.success).toBe(false);
-		});
-
-		it("accepts wins equal to trials (upper boundary)", () => {
-			const result = allInPayload.parse({
-				potSize: 1000,
-				trials: 3,
-				equity: 50,
-				wins: 3,
-			});
-			expect(result.wins).toBe(3);
-		});
-
-		it("accepts wins less than trials", () => {
-			const result = allInPayload.parse({
-				potSize: 1000,
-				trials: 3,
-				equity: 50,
-				wins: 1,
-			});
-			expect(result.wins).toBe(1);
-		});
-
-		it("accepts wins = 0 with trials = 1 (lower boundary)", () => {
-			const result = allInPayload.parse({
-				potSize: 1000,
-				trials: 1,
-				equity: 50,
-				wins: 0,
-			});
-			expect(result.wins).toBe(0);
-		});
-
-		it("accepts equity exactly at 0 and 100", () => {
-			expect(
-				allInPayload.parse({ potSize: 1, trials: 1, equity: 0, wins: 0 }).equity
-			).toBe(0);
-			expect(
-				allInPayload.parse({ potSize: 1, trials: 1, equity: 100, wins: 1 })
-					.equity
-			).toBe(100);
-		});
-	});
-
-	describe("purchaseChipsPayload", () => {
-		it("rejects empty sessionChipPurchaseId", () => {
-			expect(() =>
-				purchaseChipsPayload.parse({
-					sessionChipPurchaseId: "",
-					name: "Rebuy",
-					cost: 1,
-					chips: 1,
-				})
-			).toThrow();
-		});
-
-		it("rejects empty name", () => {
-			expect(() =>
-				purchaseChipsPayload.parse({
-					sessionChipPurchaseId: "scp-1",
-					name: "",
-					cost: 1,
-					chips: 1,
-				})
-			).toThrow();
-		});
-
-		it("rejects negative cost", () => {
-			expect(() =>
-				purchaseChipsPayload.parse({
-					sessionChipPurchaseId: "scp-1",
-					name: "Rebuy",
-					cost: -1,
-					chips: 100,
-				})
-			).toThrow();
-		});
-
-		it("rejects negative chips", () => {
-			expect(() =>
-				purchaseChipsPayload.parse({
-					sessionChipPurchaseId: "scp-1",
-					name: "Rebuy",
-					cost: 1,
-					chips: -1,
-				})
-			).toThrow();
-		});
-	});
-
-	describe("updateStackPayload", () => {
-		it("rejects negative stackAmount", () => {
-			expect(() => updateStackPayload.parse({ stackAmount: -1 })).toThrow();
-		});
-
-		it("accepts stackAmount = 0 (bust)", () => {
-			expect(updateStackPayload.parse({ stackAmount: 0 }).stackAmount).toBe(0);
-		});
-
-		it("rejects non-integer stackAmount", () => {
-			expect(() => updateStackPayload.parse({ stackAmount: 3.14 })).toThrow();
-		});
-	});
-
-	describe("memoPayload", () => {
-		it("accepts whitespace-only text (memo is not trimmed)", () => {
-			expect(memoPayload.parse({ text: "   " })).toEqual({ text: "   " });
-		});
-	});
-});
-
-describe("validateEventPayload — extra dispatch paths", () => {
-	it("validates chips_add_remove via general map", () => {
-		const result = validateEventPayload("chips_add_remove", {
-			amount: 100,
-			type: "add",
-		}) as { amount: number };
-		expect(result.amount).toBe(100);
-	});
-
-	it("validates purchase_chips via general map", () => {
-		const result = validateEventPayload("purchase_chips", {
-			sessionChipPurchaseId: "scp-1",
-			name: "Addon",
-			cost: 50,
-			chips: 5000,
-		}) as { name: string };
-		expect(result.name).toBe("Addon");
-	});
-
-	it("tournament session_start ignores unknown keys (schema strips extras)", () => {
-		const result = validateEventPayload(
-			"session_start",
-			{ buyInAmount: 100 },
-			"tournament"
-		) as { buyInAmount?: number };
-		expect(result.buyInAmount).toBeUndefined();
-	});
-
-	it("throws when cash session_start receives wrong-shaped payload", () => {
-		expect(() =>
-			validateEventPayload("session_start", { cashOutAmount: 100 }, "cash_game")
-		).toThrow();
-	});
-
-	it("throws on malformed memo payload (empty string)", () => {
-		expect(() => validateEventPayload("memo", { text: "" })).toThrow();
 	});
 });

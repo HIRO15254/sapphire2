@@ -1,6 +1,7 @@
 import { TAG_COLOR_NAMES } from "@sapphire2/db/constants/player-tag-colors";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
+import { createCaller } from "./caller";
 import {
 	expectAccepts,
 	expectProcedureSurface,
@@ -27,6 +28,84 @@ describe("playerTag router structure", () => {
 			list: "query",
 			update: "mutation",
 		});
+	});
+});
+
+describe("playerTag procedure behavior", () => {
+	it("playerTag.list returns all tags filtered by userId", async () => {
+		const rows = [
+			{ color: "blue", id: "pt-1", name: "friends", userId: "user-1" },
+			{ color: "red", id: "pt-2", name: "rivals", userId: "user-1" },
+		];
+		const { caller, selectWhereParams } = createCaller({
+			select: { player_tag: rows },
+		});
+
+		const result = await caller.playerTag.list();
+
+		expect(result).toEqual(rows);
+		expect(selectWhereParams).toContainEqual(["user-1"]);
+	});
+
+	it("playerTag.create returns tag with all fields set", async () => {
+		const created = {
+			color: "blue",
+			id: "pt-new",
+			name: "friends",
+			updatedAt: new Date("2026-01-01T00:00:00Z"),
+			userId: "user-1",
+		};
+		const { caller, inserted } = createCaller({
+			select: { player_tag: [created] },
+		});
+
+		const result = await caller.playerTag.create({
+			color: "blue",
+			name: "friends",
+		});
+
+		expect(result).toEqual(created);
+		expect(Object.keys(inserted.player_tag[0] as object).sort()).toEqual(
+			["color", "id", "name", "updatedAt", "userId"].sort()
+		);
+		expect(inserted.player_tag[0]).toMatchObject({
+			color: "blue",
+			name: "friends",
+			userId: "user-1",
+		});
+		expect(
+			(inserted.player_tag[0] as { updatedAt: unknown }).updatedAt
+		).toBeInstanceOf(Date);
+	});
+
+	it("playerTag.update returns updated tag and validates ownership", async () => {
+		const owned = createCaller({
+			select: {
+				player_tag: [
+					{ color: "blue", id: "pt-1", name: "old", userId: "user-1" },
+				],
+			},
+		});
+
+		const result = await owned.caller.playerTag.update({
+			id: "pt-1",
+			name: "new-name",
+		});
+
+		expect(result).toMatchObject({ id: "pt-1", userId: "user-1" });
+		expect(owned.updated.player_tag[0]).toEqual({ name: "new-name" });
+
+		const unowned = createCaller({
+			select: {
+				player_tag: [
+					{ color: "blue", id: "pt-1", name: "old", userId: "other-user" },
+				],
+			},
+		});
+
+		await expect(
+			unowned.caller.playerTag.update({ color: "red", id: "pt-1" })
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
 	});
 });
 

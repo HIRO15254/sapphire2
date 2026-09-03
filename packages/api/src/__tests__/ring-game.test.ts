@@ -5,6 +5,7 @@ import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
 import { TRPCError } from "@trpc/server";
+import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import {
@@ -82,6 +83,39 @@ async function expectTrpcCode(
 const CUR_OWNER = "user-1";
 const CUR_OTHER = "user-2";
 
+const dialect = new SQLiteSyncDialect();
+
+function createListByRoomFilterDb(
+	ownedRoom: Record<string, unknown>,
+	games: Rows
+) {
+	return {
+		select: () => ({
+			from: (table: unknown) => {
+				if (table === room) {
+					return { where: () => Promise.resolve([ownedRoom]) };
+				}
+				return {
+					where: (cond: unknown) => {
+						const { sql } = dialect.sqlToQuery(cond as never);
+						const archivedOnly = sql.includes("is not null");
+						return Promise.resolve(
+							games.filter((g) =>
+								archivedOnly ? g.archivedAt !== null : g.archivedAt === null
+							)
+						);
+					},
+				};
+			},
+		}),
+		insert: () => ({ values: () => Promise.resolve(undefined) }),
+		update: () => ({
+			set: () => ({ where: () => Promise.resolve(undefined) }),
+		}),
+		delete: () => ({ where: () => Promise.resolve(undefined) }),
+	};
+}
+
 describe("ringGame router", () => {
 	it("exposes exactly the expected procedure set", () => {
 		expect(Object.keys(appRouter.ringGame).sort()).toEqual(
@@ -112,14 +146,16 @@ describe("ringGame.create input validation", () => {
 		expect(parsed.data.variant).toBe("NL Hold'em");
 	});
 
-	it("accepts all anteType values", () => {
-		for (const anteType of ["none", "all", "bb"] as const) {
-			expectAccepts(appRouter.ringGame.create, {
-				roomId: "s1",
-				name: "game",
-				anteType,
-			});
-		}
+	it.each([
+		"none",
+		"all",
+		"bb",
+	] as const)("create accepts anteType %s", (anteType) => {
+		expectAccepts(appRouter.ringGame.create, {
+			roomId: "s1",
+			name: "game",
+			anteType,
+		});
 	});
 
 	it("rejects unknown anteType", () => {
@@ -1370,5 +1406,239 @@ describe("ringGame variant / mixGames persistence invariant", () => {
 				mixGames: [...validMix, { name: "Stud", variants: ["Razz"] }],
 			})
 		).resolves.toEqual(legacy);
+	});
+});
+
+describe("ringGame.listByRoom", () => {
+	it("returns ring games for a room", async () => {
+		const games = [
+			{ id: "rg-1", roomId: "room-1", userId: CUR_OWNER, archivedAt: null },
+			{ id: "rg-2", roomId: "room-1", userId: CUR_OWNER, archivedAt: null },
+		];
+		const caller = ringGameCaller(
+			CUR_OWNER,
+			new Map<unknown, Rows>([
+				[room, [{ id: "room-1", userId: CUR_OWNER }]],
+				[ringGame, games],
+			])
+		);
+
+		await expect(caller.listByRoom({ roomId: "room-1" })).resolves.toEqual(
+			games
+		);
+	});
+
+	it("returns an empty array when the room has no ring games", async () => {
+		const caller = ringGameCaller(
+			CUR_OWNER,
+			new Map<unknown, Rows>([
+				[room, [{ id: "room-1", userId: CUR_OWNER }]],
+				[ringGame, []],
+			])
+		);
+
+		await expect(caller.listByRoom({ roomId: "room-1" })).resolves.toEqual([]);
+	});
+
+	it("respects includeArchived flag to filter archived games", async () => {
+		const games = [
+			{ id: "rg-1", roomId: "room-1", userId: CUR_OWNER, archivedAt: null },
+			{
+				id: "rg-2",
+				roomId: "room-1",
+				userId: CUR_OWNER,
+				archivedAt: new Date("2026-01-01T00:00:00Z"),
+			},
+		];
+		const db = createListByRoomFilterDb(
+			{ id: "room-1", userId: CUR_OWNER },
+			games
+		);
+		const caller = appRouter.createCaller({
+			session: { user: { id: CUR_OWNER } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]).ringGame;
+
+		await expect(caller.listByRoom({ roomId: "room-1" })).resolves.toEqual([
+			games[0],
+		]);
+		await expect(
+			caller.listByRoom({ roomId: "room-1", includeArchived: true })
+		).resolves.toEqual([games[1]]);
+	});
+});
+
+describe("ringGame.create persists optional fields via ?? null", () => {
+	function createCaptureDb(rowsByTable: Map<unknown, Rows>) {
+		const inserted: Record<string, unknown>[] = [];
+		const baseDb = createMockDb(rowsByTable);
+		const db = {
+			...baseDb,
+			insert: () => ({
+				values: (v: Record<string, unknown>) => {
+					inserted.push(v);
+					return Promise.resolve(undefined);
+				},
+			}),
+		};
+		return { db, inserted };
+	}
+
+	it.each([
+		"blind1",
+		"blind2",
+		"blind3",
+		"ante",
+		"minBuyIn",
+		"maxBuyIn",
+	] as const)("persists %s as the provided value or null when omitted", async (field) => {
+		const rowsByTable = new Map<unknown, Rows>([
+			[room, [{ id: "room-1", userId: CUR_OWNER }]],
+			[ringGame, []],
+			[currency, []],
+		]);
+		const { db, inserted } = createCaptureDb(rowsByTable);
+		const caller = appRouter.createCaller({
+			session: { user: { id: CUR_OWNER } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]).ringGame;
+
+		await caller.create({ roomId: "room-1", name: "RG", [field]: 0 });
+		await caller.create({ roomId: "room-1", name: "RG" });
+
+		expect(inserted[0]).toMatchObject({ [field]: 0 });
+		expect(inserted[1]).toMatchObject({ [field]: null });
+	});
+
+	it("persists memo as the provided value or null when omitted", async () => {
+		const rowsByTable = new Map<unknown, Rows>([
+			[room, [{ id: "room-1", userId: CUR_OWNER }]],
+			[ringGame, []],
+			[currency, []],
+		]);
+		const { db, inserted } = createCaptureDb(rowsByTable);
+		const caller = appRouter.createCaller({
+			session: { user: { id: CUR_OWNER } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]).ringGame;
+
+		await caller.create({ roomId: "room-1", name: "RG", memo: "note" });
+		await caller.create({ roomId: "room-1", name: "RG" });
+
+		expect(inserted[0]).toMatchObject({ memo: "note" });
+		expect(inserted[1]).toMatchObject({ memo: null });
+	});
+});
+
+describe("ringGame.update writes only the provided field", () => {
+	const fieldValues = {
+		name: "Renamed",
+		blind1: 50,
+		blind2: 100,
+		blind3: 200,
+		ante: 10,
+		anteType: "bb",
+		minBuyIn: 100,
+		maxBuyIn: 500,
+		tableSize: 6,
+		currencyId: "cur-1",
+		memo: "note",
+	} as const;
+
+	it.each(
+		Object.keys(fieldValues) as (keyof typeof fieldValues)[]
+	)("update with only %s set writes just that field", async (field) => {
+		const updates: Record<string, unknown>[] = [];
+		const rowsByTable = new Map<unknown, Rows>([
+			[
+				ringGame,
+				[
+					{
+						id: "rg-1",
+						userId: CUR_OWNER,
+						variant: "NL Hold'em",
+						mixGames: null,
+					},
+				],
+			],
+			[currency, [{ id: "cur-1", userId: CUR_OWNER }]],
+		]);
+		const baseDb = createMockDb(rowsByTable);
+		const caller = appRouter.createCaller({
+			session: { user: { id: CUR_OWNER } },
+			db: {
+				...baseDb,
+				update: () => ({
+					set: (value: Record<string, unknown>) => {
+						updates.push(value);
+						return { where: () => Promise.resolve(undefined) };
+					},
+				}),
+			},
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]).ringGame;
+
+		await caller.update({ id: "rg-1", [field]: fieldValues[field] });
+
+		expect(updates[0]).toEqual({
+			updatedAt: expect.any(Date),
+			[field]: fieldValues[field],
+		});
+	});
+});
+
+describe("ringGame.archive and restore set explicit fields", () => {
+	function createUpdateCaptureDb(rowsByTable: Map<unknown, Rows>) {
+		const updates: Record<string, unknown>[] = [];
+		const baseDb = createMockDb(rowsByTable);
+		const db = {
+			...baseDb,
+			update: () => ({
+				set: (value: Record<string, unknown>) => {
+					updates.push(value);
+					return { where: () => Promise.resolve(undefined) };
+				},
+			}),
+		};
+		return { db, updates };
+	}
+
+	it("archive sets archivedAt to current date and does not unset it on re-archive", async () => {
+		const rowsByTable = new Map<unknown, Rows>([
+			[ringGame, [{ id: "rg-1", roomId: null, userId: CUR_OWNER }]],
+		]);
+		const { db, updates } = createUpdateCaptureDb(rowsByTable);
+		const caller = appRouter.createCaller({
+			session: { user: { id: CUR_OWNER } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]).ringGame;
+
+		await caller.archive({ id: "rg-1" });
+		await caller.archive({ id: "rg-1" });
+
+		expect(updates).toHaveLength(2);
+		for (const update of updates) {
+			expect(update).toEqual({
+				archivedAt: expect.any(Date),
+				updatedAt: expect.any(Date),
+			});
+		}
+	});
+
+	it("restore clears archivedAt to null and updates updatedAt", async () => {
+		const rowsByTable = new Map<unknown, Rows>([
+			[ringGame, [{ id: "rg-1", roomId: null, userId: CUR_OWNER }]],
+		]);
+		const { db, updates } = createUpdateCaptureDb(rowsByTable);
+		const caller = appRouter.createCaller({
+			session: { user: { id: CUR_OWNER } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]).ringGame;
+
+		await caller.restore({ id: "rg-1" });
+
+		expect(updates[0]).toEqual({
+			archivedAt: null,
+			updatedAt: expect.any(Date),
+		});
 	});
 });

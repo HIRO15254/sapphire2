@@ -367,7 +367,10 @@ describe("gameMix group-span guard (c58, max 12 groups)", () => {
 });
 
 describe("gameMix.create collision guard (CONFLICT)", () => {
-	it("rejects the reserved key 'mix' (case-insensitive)", async () => {
+	it.each([
+		"mix",
+		"MIX",
+	])("rejects the reserved key %s (case-insensitive)", async (label) => {
 		const { caller } = gameMixCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: [OWNED_VARIANT_1, OWNED_VARIANT_2],
@@ -375,14 +378,7 @@ describe("gameMix.create collision guard (CONFLICT)", () => {
 		});
 		await expectTrpcCode(
 			caller.create({
-				label: "mix",
-				games: [OWNED_VARIANT_1.id, OWNED_VARIANT_2.id],
-			}),
-			"CONFLICT"
-		);
-		await expectTrpcCode(
-			caller.create({
-				label: "MIX",
+				label,
 				games: [OWNED_VARIANT_1.id, OWNED_VARIANT_2.id],
 			}),
 			"CONFLICT"
@@ -697,6 +693,22 @@ describe("gameMix.list ordering + self-seed", () => {
 		const { caller, selectWhereParams } = gameMixCaller(CUR_OWNER, rows);
 		await caller.list();
 		expect(selectWhereParams).toContainEqual([CUR_OWNER]);
+	});
+});
+
+describe("gameMix.list ownership filtering", () => {
+	it("filters out mixes not owned by the caller before hydrating games", async () => {
+		const { caller } = gameMixCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [OWNED_VARIANT_1],
+			[MIX_TABLE]: [
+				{ id: "owned", userId: CUR_OWNER, label: "Mine", games: [] },
+				{ id: "other", userId: CUR_OTHER, label: "Theirs", games: [] },
+			],
+			[MIX_VARIANT_TABLE]: [],
+		});
+		const result = (await caller.list()) as { id: string }[];
+		expect(result.map((mix) => mix.id)).toEqual(["owned"]);
 	});
 });
 

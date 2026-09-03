@@ -528,6 +528,18 @@ describe("sessionTablePlayer.addNew tag ownership (SA2-178)", () => {
 		);
 		expect(batch).toHaveBeenCalledTimes(1);
 	});
+
+	it("includes the seat position in the temporary player memo when provided", async () => {
+		const rows = ownedSessionRows(new Map());
+		const { caller, inserted } = makeCaller(rows);
+
+		await caller.addTemporary({ sessionId: "s1", seatPosition: 5 });
+
+		const playerInsert = inserted.find((entry) => entry.table === player);
+		expect((playerInsert?.values as { memo: string }).memo).toContain(
+			"Seat: 6"
+		);
+	});
 });
 
 describe("sessionTablePlayer.list D1-safe ownership hydration", () => {
@@ -833,5 +845,74 @@ describe("sessionTablePlayer temporary-player context ownership", () => {
 				(join) => join.table === room && join.params.includes(AUTH_OWNER)
 			)
 		).toBe(true);
+	});
+});
+
+describe("sessionTablePlayer domain rejection paths", () => {
+	it("rejects add when neither sessionId nor a live variant is provided", async () => {
+		const { db } = createAuthorizationDb(new Map());
+
+		await expect(
+			authorizationCaller(db).add({ playerId: "p1" })
+		).rejects.toMatchObject({
+			code: "BAD_REQUEST",
+			message:
+				"Exactly one of liveCashGameSessionId or liveTournamentSessionId must be specified",
+		});
+	});
+
+	it("rejects adding a player who is already active in the session", async () => {
+		const rows = playerAuthorizationRows([
+			{ id: "p1", userId: AUTH_OWNER, name: "Alice" },
+		]);
+		rows.set(sessionEvent, [
+			{
+				id: "event-1",
+				eventType: "player_join",
+				payload: JSON.stringify({ playerId: "p1" }),
+				occurredAt: new Date("2026-01-01T00:00:00.000Z"),
+				sortOrder: 1,
+			},
+		]);
+		const { db } = createAuthorizationDb(rows);
+
+		await expect(
+			authorizationCaller(db).add({ sessionId: "s1", playerId: "p1" })
+		).rejects.toMatchObject({
+			code: "BAD_REQUEST",
+			message: "Player is already active in this session",
+		});
+	});
+
+	it("rejects updating seat for a player not active in the session", async () => {
+		const rows = playerAuthorizationRows([
+			{ id: "p1", userId: AUTH_OWNER, name: "Alice" },
+		]);
+		const { db } = createAuthorizationDb(rows);
+
+		await expect(
+			authorizationCaller(db).updateSeat({
+				sessionId: "s1",
+				playerId: "p1",
+				seatPosition: null,
+			})
+		).rejects.toMatchObject({
+			code: "NOT_FOUND",
+			message: "Player not found in session",
+		});
+	});
+
+	it("rejects removing a player who is not active in the session", async () => {
+		const rows = playerAuthorizationRows([
+			{ id: "p1", userId: AUTH_OWNER, name: "Alice" },
+		]);
+		const { db } = createAuthorizationDb(rows);
+
+		await expect(
+			authorizationCaller(db).remove({ sessionId: "s1", playerId: "p1" })
+		).rejects.toMatchObject({
+			code: "BAD_REQUEST",
+			message: "Player is not active in this session",
+		});
 	});
 });

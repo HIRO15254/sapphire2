@@ -31,6 +31,13 @@ function makeCaller() {
 	} as unknown as Parameters<typeof appRouter.createCaller>[0]).aiExtract;
 }
 
+function makeCallerWithKey(anthropicApiKey: string | null | undefined) {
+	return appRouter.createCaller({
+		session: { user: { id: "user-1" } },
+		anthropicApiKey,
+	} as unknown as Parameters<typeof appRouter.createCaller>[0]).aiExtract;
+}
+
 async function expectMessage(
 	promise: Promise<unknown>,
 	message: string
@@ -49,6 +56,25 @@ async function expectMessage(
 beforeEach(() => {
 	mocks.create.mockReset();
 	mocks.parse.mockReset();
+});
+
+describe("anthropicApiKey guard", () => {
+	it("rejects calls when anthropicApiKey is missing or falsy", async () => {
+		for (const key of [undefined, null, ""] as const) {
+			const caller = makeCallerWithKey(key);
+			await expectMessage(
+				caller.extractTablePlayers({
+					sourceApp: "dmm_waitinglist",
+					sources: [IMAGE_SOURCE],
+				}),
+				"AI extraction is not configured (missing ANTHROPIC_API_KEY)"
+			);
+			await expectMessage(
+				caller.extractTournamentData({ sources: [IMAGE_SOURCE] }),
+				"AI extraction is not configured (missing ANTHROPIC_API_KEY)"
+			);
+		}
+	});
 });
 
 describe("extractTablePlayers truncation reporting", () => {

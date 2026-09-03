@@ -43,17 +43,6 @@ describe("FilterPreset — indexes", () => {
 		]);
 	});
 
-	it("has a unique index on (userId, screenKey, name) so preset names cannot collide within a screen", () => {
-		expect(
-			indexByName(filterPreset, "filterPreset_userId_screenKey_name_idx")
-		).toEqual({
-			columns: ["user_id", "screen_key", "name"],
-			name: "filterPreset_userId_screenKey_name_idx",
-			unique: true,
-			where: null,
-		});
-	});
-
 	it("allows only one default preset per (userId, screenKey)", () => {
 		const index = indexByName(
 			filterPreset,

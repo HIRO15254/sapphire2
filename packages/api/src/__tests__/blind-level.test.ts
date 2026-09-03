@@ -37,6 +37,29 @@ function makeCaller(userId: string, rowsByTable: Map<unknown, Rows>) {
 	return { caller, updateWhereParams, batchCalls };
 }
 
+function makeCallerWithSetCapture(
+	userId: string,
+	rowsByTable: Map<unknown, Rows>
+) {
+	const { db, updateWhereParams, batchCalls } =
+		createReorderMockDb(rowsByTable);
+	const updateSetValues: unknown[] = [];
+	const trackedDb = {
+		...db,
+		update: (_table: unknown) => ({
+			set: (values: unknown) => {
+				updateSetValues.push(values);
+				return db.update().set();
+			},
+		}),
+	};
+	const caller = appRouter.createCaller({
+		session: { user: { id: userId } },
+		db: trackedDb,
+	} as unknown as Parameters<typeof appRouter.createCaller>[0]).blindLevel;
+	return { caller, updateWhereParams, batchCalls, updateSetValues };
+}
+
 const CALLER = "user-1";
 const OTHER = "user-2";
 
@@ -94,6 +117,18 @@ describe("blindLevel.reorder tournament scoping (SA2-176)", () => {
 		expect(updateWhereParams[1]).toContain("tn1");
 	});
 
+	it("reorder sets level field to index + 1 for each reordered entry", async () => {
+		const { caller, updateSetValues } = makeCallerWithSetCapture(
+			CALLER,
+			ownedRows()
+		);
+		await caller.reorder({
+			tournamentId: "tn1",
+			levelIds: ["bl2", "bl1", "bl3"],
+		});
+		expect(updateSetValues).toEqual([{ level: 1 }, { level: 2 }, { level: 3 }]);
+	});
+
 	it("runs no UPDATE when levelIds is empty", async () => {
 		const { caller, updateWhereParams } = makeCaller(CALLER, ownedRows());
 		await caller.reorder({ tournamentId: "tn1", levelIds: [] });
@@ -112,6 +147,21 @@ describe("blindLevel.reorder tournament scoping (SA2-176)", () => {
 			"FORBIDDEN"
 		);
 		expect(updateWhereParams).toHaveLength(0);
+	});
+});
+
+describe("blindLevel.update ownership success", () => {
+	it("successfully updates a blind level owned by the user", async () => {
+		const { caller } = makeCaller(
+			CALLER,
+			new Map<unknown, Rows>([
+				[tournament, [{ id: "tn1", roomId: "room1" }]],
+				[room, [{ id: "room1", userId: CALLER }]],
+				[blindLevel, [{ id: "bl1", tournamentId: "tn1", level: 1 }]],
+			])
+		);
+		const result = await caller.update({ id: "bl1", level: 2 });
+		expect(result).toMatchObject({ id: "bl1", tournamentId: "tn1" });
 	});
 });
 

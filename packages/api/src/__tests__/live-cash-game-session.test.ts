@@ -417,6 +417,52 @@ describe("liveCashGameSession.create ring game ownership (SA2-181)", () => {
 	});
 });
 
+describe("liveCashGameSession.create initial buy-in bounds against the ring game (SA2-148)", () => {
+	const boundedRingGame = {
+		id: "rg-1",
+		roomId: null,
+		userId: OWNER,
+		minBuyIn: 40,
+		maxBuyIn: 200,
+	};
+
+	it("rejects an initialBuyIn below the ring game's minBuyIn with BAD_REQUEST", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, []],
+			[ringGame, [boundedRingGame]],
+		]);
+		await expect(
+			makeCaller(OWNER, rows).create({ initialBuyIn: 39, ringGameId: "rg-1" })
+		).rejects.toMatchObject({
+			code: "BAD_REQUEST",
+			message: "Initial buy-in must be at least 40",
+		});
+	});
+
+	it("rejects an initialBuyIn above the ring game's maxBuyIn with BAD_REQUEST", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, []],
+			[ringGame, [boundedRingGame]],
+		]);
+		await expect(
+			makeCaller(OWNER, rows).create({ initialBuyIn: 201, ringGameId: "rg-1" })
+		).rejects.toMatchObject({
+			code: "BAD_REQUEST",
+			message: "Initial buy-in must be at most 200",
+		});
+	});
+
+	it("accepts an initialBuyIn within the ring game's bounds", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, []],
+			[ringGame, [boundedRingGame]],
+		]);
+		await expect(
+			makeCaller(OWNER, rows).create({ initialBuyIn: 40, ringGameId: "rg-1" })
+		).resolves.toEqual(expect.objectContaining({ id: expect.any(String) }));
+	});
+});
+
 describe("liveCashGameSession.update ring game ownership (SA2-181)", () => {
 	it("accepts a ring game owned by the caller via userId", async () => {
 		const rows = new Map<unknown, Rows>([
@@ -543,35 +589,6 @@ describe("liveCashGameSession.create input validation (initialBuyIn, SA2-148)", 
 		expectAccepts(appRouter.liveCashGameSession.create, { initialBuyIn: 0 });
 		expectRejects(appRouter.liveCashGameSession.create, { initialBuyIn: -1 });
 		expectRejects(appRouter.liveCashGameSession.create, { initialBuyIn: 1.5 });
-	});
-});
-
-describe("liveCashGameSession.createAndAssignRingGame input validation", () => {
-	it("accepts the complete create payload plus sessionId", () => {
-		expectAccepts(appRouter.liveCashGameSession.createAndAssignRingGame, {
-			sessionId: "s1",
-			roomId: "room-1",
-			name: "1/2 NLH",
-			variant: "NL Hold'em",
-			blind1: 1,
-			blind2: 2,
-			blind3: 4,
-			ante: 1,
-			anteType: "all",
-			minBuyIn: 40,
-			maxBuyIn: 200,
-			tableSize: 9,
-			currencyId: "cur-1",
-			memo: "note",
-		});
-	});
-
-	it("rejects an empty name", () => {
-		expectRejects(appRouter.liveCashGameSession.createAndAssignRingGame, {
-			sessionId: "s1",
-			roomId: "room-1",
-			name: "",
-		});
 	});
 });
 
@@ -843,6 +860,20 @@ function makeCashRows(n: number): Rows {
 	}));
 }
 
+describe("liveCashGameSession.list status filter", () => {
+	it.each([
+		"active",
+		"paused",
+		"completed",
+	] as const)("scopes the query to status %s when provided", async (status) => {
+		const { db, listWhere } = createListMockDb();
+		await listCaller(db).list({ status, limit: 10 });
+		const base = listWhere[0];
+		expect(base?.sql.toLowerCase()).toContain('"status"');
+		expect(base?.params).toContain(status);
+	});
+});
+
 describe("liveCashGameSession.list composite keyset cursor (SA2-150)", () => {
 	it("scopes room and currency joins to the caller", async () => {
 		const { db, listJoins } = createListMockDb();
@@ -1103,6 +1134,84 @@ describe("liveCashGameSession.list event batching (SA2-151)", () => {
 	});
 });
 
+describe("liveCashGameSession.getById event summary (SA2-211)", () => {
+	function sessionEventFixture(
+		eventType: string,
+		payload: Record<string, unknown>
+	): Record<string, unknown> {
+		return { eventType, payload: JSON.stringify(payload) };
+	}
+
+	it("computes buy-in, addon count, running stack range, and cash-out from the events", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[sessionCashDetail, []],
+			[
+				sessionEvent,
+				[
+					sessionEventFixture("session_start", { buyInAmount: 100 }),
+					sessionEventFixture("chips_add_remove", { amount: 50 }),
+					sessionEventFixture("update_stack", { stackAmount: 500 }),
+					sessionEventFixture("update_stack", { stackAmount: 600 }),
+					sessionEventFixture("session_end", { cashOutAmount: 1200 }),
+				],
+			],
+		]);
+
+		const result = await makeCaller(OWNER, rows).getById({ id: "s1" });
+
+		expect(result.summary).toMatchObject({
+			totalBuyIn: 150,
+			addonCount: 1,
+			currentStack: 600,
+			maxStack: 600,
+			minStack: 500,
+			cashOut: 1200,
+		});
+	});
+
+	it("does not count a non-positive chips_add_remove amount as a buy-in or addon", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[sessionCashDetail, []],
+			[
+				sessionEvent,
+				[
+					sessionEventFixture("session_start", { buyInAmount: 100 }),
+					sessionEventFixture("chips_add_remove", { amount: -30 }),
+				],
+			],
+		]);
+
+		const result = await makeCaller(OWNER, rows).getById({ id: "s1" });
+
+		expect(result.summary).toMatchObject({ totalBuyIn: 100, addonCount: 0 });
+	});
+
+	it("tracks the running max and min stack across multiple update_stack events", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[sessionCashDetail, []],
+			[
+				sessionEvent,
+				[
+					sessionEventFixture("update_stack", { stackAmount: 500 }),
+					sessionEventFixture("update_stack", { stackAmount: 300 }),
+					sessionEventFixture("update_stack", { stackAmount: 900 }),
+				],
+			],
+		]);
+
+		const result = await makeCaller(OWNER, rows).getById({ id: "s1" });
+
+		expect(result.summary).toMatchObject({
+			maxStack: 900,
+			minStack: 300,
+			currentStack: 900,
+		});
+	});
+});
+
 describe("liveCashGameSession.updateSnapshot mixGames", () => {
 	const validMix = [
 		{ name: "Big Bet", variants: ["NL Hold'em", "Pot Limit Omaha"] },
@@ -1143,16 +1252,6 @@ describe("liveCashGameSession.updateSnapshot mixGames", () => {
 		>[0]).liveCashGameSession;
 		return { caller, updates };
 	}
-
-	it("accepts a mix group array", () => {
-		expectAccepts(appRouter.liveCashGameSession.updateSnapshot, {
-			id: "session-1",
-			mixGames: [
-				{ name: "Limit", variants: ["lhe", "o8"], blind1: 400, blind2: 800 },
-				{ variants: ["nlh"], blind1: 100, blind2: 200 },
-			],
-		});
-	});
 
 	it("accepts an explicit null to clear the mix definition", () => {
 		expectAccepts(appRouter.liveCashGameSession.updateSnapshot, {

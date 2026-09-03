@@ -88,16 +88,17 @@ describe("mixGameGroupSchema", () => {
 		);
 	});
 
-	it("rejects negative blind amounts", () => {
-		expect(mixGameGroupSchema.safeParse(group({ blind1: -1 })).success).toBe(
-			false
-		);
-	});
-
-	it("rejects non-integer blind amounts", () => {
-		expect(mixGameGroupSchema.safeParse(group({ blind2: 1.5 })).success).toBe(
-			false
-		);
+	it.each([
+		{ field: "blind1", value: -1 },
+		{ field: "blind1", value: 1.5 },
+		{ field: "blind2", value: -100 },
+		{ field: "blind2", value: 0.1 },
+		{ field: "blind3", value: -50 },
+		{ field: "ante", value: 2.7 },
+	])("rejects a negative or fractional $field ($value)", ({ field, value }) => {
+		expect(
+			mixGameGroupSchema.safeParse(group({ [field]: value })).success
+		).toBe(false);
 	});
 
 	it("accepts zero amounts", () => {

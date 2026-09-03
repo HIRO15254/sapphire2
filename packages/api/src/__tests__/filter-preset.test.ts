@@ -275,6 +275,21 @@ describe("filterPreset.create collision guard (CONFLICT)", () => {
 		);
 	});
 
+	it("propagates a non-conflict database error from the insert as INTERNAL_SERVER_ERROR, not CONFLICT", async () => {
+		const { caller, db } = filterPresetCaller(OWNER, {
+			[TABLE]: [],
+		});
+		db.insert = () => ({
+			values: () => {
+				throw new Error("NOT NULL constraint failed: filter_preset.name");
+			},
+		});
+		await expectTrpcCode(
+			caller.create({ screenKey: "sessions", name: "Fresh", payload: {} }),
+			"INTERNAL_SERVER_ERROR"
+		);
+	});
+
 	it("does not conflict with a same-name preset on a different screenKey", async () => {
 		const { caller, inserted } = filterPresetCaller(OWNER, {
 			[TABLE]: [

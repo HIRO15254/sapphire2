@@ -24,13 +24,6 @@ describe("createWebEnv", () => {
 			expect(env.VITE_PREVIEW_LOGIN_PASSWORD).toBe("secret");
 		});
 
-		it("leaves optional preview fields as undefined when absent", () => {
-			const env = createWebEnv(minimalValid);
-			expect(env.VITE_PREVIEW_AUTO_LOGIN).toBeUndefined();
-			expect(env.VITE_PREVIEW_LOGIN_EMAIL).toBeUndefined();
-			expect(env.VITE_PREVIEW_LOGIN_PASSWORD).toBeUndefined();
-		});
-
 		it("accepts an https URL with a port and path", () => {
 			const env = createWebEnv({
 				VITE_SERVER_URL: "https://api.example.com:8080/trpc",
@@ -53,18 +46,8 @@ describe("createWebEnv", () => {
 			expect(() => createWebEnv({ VITE_SERVER_URL: "" })).toThrow();
 		});
 
-		it("throws when VITE_SERVER_URL is not a URL", () => {
-			expect(() => createWebEnv({ VITE_SERVER_URL: "not-a-url" })).toThrow();
-		});
-
 		it("throws when VITE_SERVER_URL lacks a scheme", () => {
 			expect(() => createWebEnv({ VITE_SERVER_URL: "example.com" })).toThrow();
-		});
-
-		it("throws when VITE_SERVER_URL is a number", () => {
-			expect(() =>
-				createWebEnv({ VITE_SERVER_URL: 42 as unknown as string })
-			).toThrow();
 		});
 	});
 

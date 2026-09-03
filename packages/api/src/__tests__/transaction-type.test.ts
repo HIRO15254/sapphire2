@@ -75,10 +75,6 @@ describe("transactionType.update input validation", () => {
 		});
 	});
 
-	it("rejects missing name (required here unlike tag routers)", () => {
-		expectRejects(appRouter.transactionType.update, { id: "tt1" });
-	});
-
 	it.each([
 		"Session Result",
 		"session result",

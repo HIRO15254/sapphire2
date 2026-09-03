@@ -11,6 +11,7 @@ import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import {
+	createChainableMockDb,
 	expectAccepts,
 	expectProcedureSurface,
 	expectRejects,
@@ -377,6 +378,30 @@ describe("tournament createWithLevels per-level games", () => {
 				},
 			],
 		});
+	});
+
+	it("creates blind levels with correct sequential numbering starting from 1", async () => {
+		const { db, inserted } = createChainableMockDb({
+			select: { room: [{ id: "room-1", userId: CUR_OWNER }] },
+		});
+		const caller = appRouter.createCaller({
+			session: { user: { id: CUR_OWNER } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]).tournament;
+
+		await caller.createWithLevels({
+			roomId: "room-1",
+			name: "Series",
+			blindLevels: [
+				{ isBreak: false, blind1: 100, blind2: 200, minutes: 20 },
+				{ isBreak: false, blind1: 200, blind2: 400, minutes: 20 },
+				{ isBreak: true, minutes: 10 },
+			],
+		});
+
+		expect(
+			(inserted.blind_level as { level: number }[]).map((row) => row.level)
+		).toEqual([1, 2, 3]);
 	});
 });
 

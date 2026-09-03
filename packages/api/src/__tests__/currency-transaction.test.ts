@@ -429,3 +429,76 @@ describe("currencyTransaction.listByCurrency joined ownership", () => {
 		expect(ownerScopedJoins).toHaveLength(2);
 	});
 });
+
+describe("currencyTransaction session-generated transactions are immutable", () => {
+	function sessionGeneratedRows() {
+		return new Map<unknown, Rows>([
+			[
+				currencyTransaction,
+				[
+					{
+						currencyTransaction: {
+							id: "tx1",
+							currencyId: "c1",
+							sessionId: "session-1",
+						},
+						currency: { id: "c1", userId: OWNER },
+					},
+				],
+			],
+		]);
+	}
+
+	it("rejects update and delete when transaction is session-generated", async () => {
+		const { caller: updateCaller, updated } = makeCaller(
+			OWNER,
+			sessionGeneratedRows()
+		);
+		await expectTrpcCode(
+			updateCaller.update({ id: "tx1", amount: 10 }),
+			"FORBIDDEN"
+		);
+		expect(updated).toHaveLength(0);
+
+		const { caller: deleteCaller } = makeCaller(OWNER, sessionGeneratedRows());
+		await expectTrpcCode(deleteCaller.delete({ id: "tx1" }), "FORBIDDEN");
+	});
+});
+
+describe("currencyTransaction memo persistence", () => {
+	it("preserves explicit memo value on create and update", async () => {
+		const createRows = new Map<unknown, Rows>([
+			[currency, [{ id: "c1", userId: OWNER }]],
+			[transactionType, [{ id: "tt1", userId: OWNER }]],
+			[currencyTransaction, [{ id: "tx-new" }]],
+		]);
+		const { caller: createCaller, inserted } = makeCaller(OWNER, createRows);
+		await createCaller.create({
+			currencyId: "c1",
+			transactionTypeId: "tt1",
+			amount: 1000,
+			transactedAt: "2024-01-01",
+			memo: "test memo",
+		});
+		expect(inserted[0]?.values).toMatchObject({ memo: "test memo" });
+
+		const updateRows = new Map<unknown, Rows>([
+			[
+				currencyTransaction,
+				[
+					{
+						currencyTransaction: {
+							id: "tx1",
+							currencyId: "c1",
+							sessionId: null,
+						},
+						currency: { id: "c1", userId: OWNER },
+					},
+				],
+			],
+		]);
+		const { caller: updateCaller, updated } = makeCaller(OWNER, updateRows);
+		await updateCaller.update({ id: "tx1", memo: "updated memo" });
+		expect(updated).toEqual([{ memo: "updated memo" }]);
+	});
+});

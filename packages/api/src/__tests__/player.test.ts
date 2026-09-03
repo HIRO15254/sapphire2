@@ -218,6 +218,20 @@ describe("player.list ownership and D1 bounds", () => {
 		);
 	});
 });
+describe("player.list excludes temporary players", () => {
+	it("list excludes players with isTemporary: true", async () => {
+		const rows = new Map<unknown, Rows>([
+			[player, []],
+			[playerToPlayerTag, []],
+		]);
+		const { caller, selectWhereParams } = makeCaller(OWNER, rows);
+
+		await caller.list({});
+
+		expect(selectWhereParams[0]).toEqual([OWNER, 0]);
+	});
+});
+
 describe("tag-filter D1 bounds", () => {
 	it("chunks the player-id filter when a tag matches more than 100 players", async () => {
 		const tags = [{ id: "t0", userId: OWNER }];

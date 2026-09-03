@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { appRouter } from "../routers";
+import { createChainableMockDb } from "./test-utils";
 
 function callerFor(db: unknown) {
 	return appRouter.createCaller({
@@ -99,5 +100,99 @@ describe("transactionType default seeding", () => {
 		);
 		expect(db.select).toHaveBeenCalledTimes(1);
 		expect(db.insert).toHaveBeenCalledTimes(0);
+	});
+});
+
+describe("transactionType caller behavior", () => {
+	it("create returns the created transaction type with correct shape", async () => {
+		const mock = createChainableMockDb({
+			select: {
+				transaction_type: [
+					{
+						id: "tt-created",
+						userId: "user-1",
+						name: "Test",
+						updatedAt: new Date(1),
+					},
+				],
+			},
+		});
+
+		const created = await callerFor(mock.db).transactionType.create({
+			name: "Test",
+		});
+
+		expect(created).toEqual({
+			id: "tt-created",
+			userId: "user-1",
+			name: "Test",
+			updatedAt: new Date(1),
+		});
+		expect(mock.inserted.transaction_type).toEqual([
+			{
+				id: expect.any(String),
+				userId: "user-1",
+				name: "Test",
+				updatedAt: expect.any(Date),
+			},
+		]);
+	});
+
+	it("update returns the updated transaction type with correct shape", async () => {
+		const mock = createChainableMockDb({
+			select: {
+				transaction_type: [
+					{
+						id: "tt-1",
+						userId: "user-1",
+						name: "New",
+						updatedAt: new Date(2),
+					},
+				],
+			},
+		});
+
+		const updated = await callerFor(mock.db).transactionType.update({
+			id: "tt-1",
+			name: "New",
+		});
+
+		expect(updated).toEqual({
+			id: "tt-1",
+			userId: "user-1",
+			name: "New",
+			updatedAt: new Date(2),
+		});
+		expect(mock.updated.transaction_type).toEqual([
+			{ name: "New", updatedAt: expect.any(Date) },
+		]);
+	});
+
+	it("delete rejects PRECONDITION_FAILED when transaction type is in use", async () => {
+		const mock = createChainableMockDb({
+			select: {
+				transaction_type: [{ id: "tt-1", userId: "user-1" }],
+				currency_transaction: [{ transactionTypeId: "tt-1" }],
+			},
+		});
+
+		await expect(
+			callerFor(mock.db).transactionType.delete({ id: "tt-1" })
+		).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+	});
+
+	it("delete succeeds and returns success true when transaction type is not in use", async () => {
+		const mock = createChainableMockDb({
+			select: {
+				transaction_type: [{ id: "tt-1", userId: "user-1" }],
+				currency_transaction: [],
+			},
+		});
+
+		const result = await callerFor(mock.db).transactionType.delete({
+			id: "tt-1",
+		});
+
+		expect(result).toEqual({ success: true });
 	});
 });

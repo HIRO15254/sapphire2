@@ -10,11 +10,21 @@ import { appRouter } from "../routers";
 type Rows = Record<string, unknown>[];
 
 import {
+	createChainableMockDb,
 	createReorderMockDb,
+	createSequencedMockDb,
 	expectAccepts,
 	expectProcedureSurface,
 	expectRejects,
 } from "./test-utils";
+
+function callerFor(db: unknown) {
+	return appRouter.createCaller({
+		session: { user: { id: CALLER } },
+		db,
+	} as unknown as Parameters<typeof appRouter.createCaller>[0])
+		.tournamentChipPurchase;
+}
 
 async function expectTrpcCode(
 	promise: Promise<unknown>,
@@ -206,5 +216,130 @@ describe("tournamentChipPurchase numeric boundaries", () => {
 			id: "cp1",
 			[field]: 0,
 		});
+	});
+});
+
+describe("tournamentChipPurchase.create mutation", () => {
+	it("create returns the created chip purchase with all provided fields", async () => {
+		const created = {
+			id: "cp-new",
+			tournamentId: "tn1",
+			name: "Rebuy",
+			cost: 100,
+			chips: 10_000,
+			sortOrder: 0,
+		};
+		const db = createSequencedMockDb([
+			[{ id: "tn1", roomId: "room1" }],
+			[{ id: "room1", userId: CALLER }],
+			[],
+			[created],
+		]);
+
+		const result = await callerFor(db).create({
+			tournamentId: "tn1",
+			name: "Rebuy",
+			cost: 100,
+			chips: 10_000,
+		});
+
+		expect(result).toEqual(created);
+		expect(db._insertChain.values).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tournamentId: "tn1",
+				name: "Rebuy",
+				cost: 100,
+				chips: 10_000,
+				sortOrder: 0,
+			})
+		);
+	});
+});
+
+describe("tournamentChipPurchase.update partial field application", () => {
+	function ownedChipPurchaseRows(currentRow: Rows[number]) {
+		return {
+			tournament_chip_purchase: [currentRow],
+			tournament: [{ id: "tn1", roomId: "room1" }],
+			room: [{ id: "room1", userId: CALLER }],
+		};
+	}
+
+	it.each([
+		{
+			label: "name only",
+			update: { name: "Super Rebuy" },
+			expectedSet: { name: "Super Rebuy" },
+		},
+		{
+			label: "cost only",
+			update: { cost: 200 },
+			expectedSet: { cost: 200 },
+		},
+		{
+			label: "chips only",
+			update: { chips: 20_000 },
+			expectedSet: { chips: 20_000 },
+		},
+		{
+			label: "name and cost",
+			update: { name: "Super Rebuy", cost: 150 },
+			expectedSet: { name: "Super Rebuy", cost: 150 },
+		},
+	])("sets only the provided fields ($label) and returns the record", async ({
+		update,
+		expectedSet,
+	}) => {
+		const currentRow = {
+			id: "cp1",
+			tournamentId: "tn1",
+			name: "Rebuy",
+			cost: 100,
+			chips: 10_000,
+		};
+		const mock = createChainableMockDb({
+			select: ownedChipPurchaseRows(currentRow),
+		});
+
+		const result = await callerFor(mock.db).update({ id: "cp1", ...update });
+
+		expect(mock.updated.tournament_chip_purchase).toEqual([expectedSet]);
+		expect(result).toEqual(currentRow);
+	});
+});
+
+describe("tournamentChipPurchase.delete mutation", () => {
+	it("delete removes the chip purchase and returns success", async () => {
+		const db = createSequencedMockDb([
+			[{ id: "cp1", tournamentId: "tn1" }],
+			[{ id: "tn1", roomId: "room1" }],
+			[{ id: "room1", userId: CALLER }],
+		]);
+
+		const result = await callerFor(db).delete({ id: "cp1" });
+
+		expect(result).toEqual({ success: true });
+		expect(db._deleteChain.where).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("tournamentChipPurchase.reorder sortOrder assignment", () => {
+	it("reorder sets the correct sortOrder for each chip purchase", async () => {
+		const mock = createChainableMockDb({
+			select: {
+				tournament: [{ id: "tn1", roomId: "room1" }],
+				room: [{ id: "room1", userId: CALLER }],
+			},
+		});
+
+		await callerFor(mock.db).reorder({
+			tournamentId: "tn1",
+			ids: ["cp1", "cp2"],
+		});
+
+		expect(mock.updated.tournament_chip_purchase).toEqual([
+			{ sortOrder: 0 },
+			{ sortOrder: 1 },
+		]);
 	});
 });

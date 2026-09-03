@@ -244,6 +244,14 @@ describe("gameGroup ownership (uniform FORBIDDEN, SA2-183)", () => {
 		expect(updated[GROUP_TABLE]).toHaveLength(1);
 		expect(updated[GROUP_TABLE]?.[0]).toMatchObject({ label: "Renamed Group" });
 	});
+
+	it("update sets blind1Label for a row owned by the caller", async () => {
+		const { caller, updated } = gameGroupCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [{ id: "grp-1", userId: CUR_OWNER, label: "My Group" }],
+		});
+		await caller.update({ id: "grp-1", blind1Label: "SB" });
+		expect(updated[GROUP_TABLE]?.[0]).toMatchObject({ blind1Label: "SB" });
+	});
 });
 
 describe("gameGroup.update excludes self from collision", () => {

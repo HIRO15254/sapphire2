@@ -1,10 +1,28 @@
+import { room } from "@sapphire2/db/schema/room";
+import { getTableName } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import {
+	createChainableMockDb,
+	DEFAULT_CALLER_USER_ID,
 	expectAccepts,
 	expectProcedureSurface,
 	expectRejects,
 } from "./test-utils";
+
+type Rows = Record<string, unknown>[];
+
+const ROOM_TABLE = getTableName(room);
+const CALLER = DEFAULT_CALLER_USER_ID;
+
+function roomCaller(userId: string, select: Record<string, Rows>) {
+	const mock = createChainableMockDb({ select });
+	const caller = appRouter.createCaller({
+		session: { user: { id: userId } },
+		db: mock.db,
+	} as unknown as Parameters<typeof appRouter.createCaller>[0]).room;
+	return { caller, ...mock };
+}
 
 describe("room router", () => {
 	it("exposes exactly the expected procedure set", () => {
@@ -107,5 +125,104 @@ describe("room.update input validation", () => {
 			latitude: 35.6,
 			longitude: null,
 		});
+	});
+});
+
+describe("room.list", () => {
+	it("returns rooms owned by the caller", async () => {
+		const rows = [
+			{ id: "r1", userId: CALLER, name: "Room1", isFavorite: false },
+			{ id: "r2", userId: CALLER, name: "Room2", isFavorite: true },
+		];
+		const { caller, db } = roomCaller(CALLER, {});
+		db.select = () => ({
+			from: () => ({
+				where: () => ({ orderBy: () => Promise.resolve(rows) }),
+			}),
+		});
+		const result = (await caller.list()) as { id: string }[];
+		expect(result.map((r) => r.id).sort()).toEqual(["r1", "r2"]);
+	});
+});
+
+describe("room.getById", () => {
+	it("returns the owned room", async () => {
+		const { caller } = roomCaller(CALLER, {
+			[ROOM_TABLE]: [
+				{
+					id: "r1",
+					userId: CALLER,
+					name: "Test",
+					memo: null,
+					isFavorite: false,
+					latitude: null,
+					longitude: null,
+				},
+			],
+		});
+		await expect(caller.getById({ id: "r1" })).resolves.toMatchObject({
+			id: "r1",
+			userId: CALLER,
+			name: "Test",
+		});
+	});
+});
+
+describe("room.create", () => {
+	it("inserts a new room and returns it", async () => {
+		const { caller, inserted } = roomCaller(CALLER, { [ROOM_TABLE]: [] });
+		await caller.create({
+			name: "New Room",
+			latitude: 35.6,
+			longitude: 139.7,
+		});
+		expect(inserted[ROOM_TABLE]).toHaveLength(1);
+		expect(inserted[ROOM_TABLE]?.[0]).toMatchObject({
+			userId: CALLER,
+			name: "New Room",
+			memo: null,
+			latitude: 35.6,
+			longitude: 139.7,
+		});
+	});
+});
+
+describe("room.update success", () => {
+	it("applies changes to the owned room", async () => {
+		const { caller, updated, updateWhereParams } = roomCaller(CALLER, {
+			[ROOM_TABLE]: [{ id: "r1", userId: CALLER, name: "Old", memo: null }],
+		});
+		await caller.update({ id: "r1", name: "New", memo: "Updated" });
+		expect(updateWhereParams).toHaveLength(1);
+		expect(updateWhereParams[0]).toContain("r1");
+		expect(updated[ROOM_TABLE]?.[0]).toMatchObject({
+			name: "New",
+			memo: "Updated",
+		});
+	});
+});
+
+describe("room.delete success", () => {
+	it("removes the owned room", async () => {
+		const { caller, deleteWhereParams } = roomCaller(CALLER, {
+			[ROOM_TABLE]: [{ id: "r1", userId: CALLER }],
+		});
+		await expect(caller.delete({ id: "r1" })).resolves.toEqual({
+			success: true,
+		});
+		expect(deleteWhereParams).toHaveLength(1);
+		expect(deleteWhereParams[0]).toContain("r1");
+	});
+});
+
+describe("room.toggleFavorite success", () => {
+	it("inverts the favorite flag on the owned room", async () => {
+		const { caller, updated, updateWhereParams } = roomCaller(CALLER, {
+			[ROOM_TABLE]: [{ id: "r1", userId: CALLER, isFavorite: false }],
+		});
+		await caller.toggleFavorite({ id: "r1" });
+		expect(updateWhereParams).toHaveLength(1);
+		expect(updateWhereParams[0]).toContain("r1");
+		expect(updated[ROOM_TABLE]?.[0]).toMatchObject({ isFavorite: true });
 	});
 });

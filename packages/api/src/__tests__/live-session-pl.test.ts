@@ -336,6 +336,30 @@ describe("computeSeatedPlayersFromEvents", () => {
 		]);
 		expect(result).toEqual([]);
 	});
+
+	it("rejects player events with parseError OR missing playerId", () => {
+		const result = computeSeatedPlayersFromEvents([
+			joinEvent("2026-01-01T10:00:00Z", { playerId: "p1", seatPosition: 1 }),
+			leaveEvent("2026-01-01T11:00:00Z", { playerId: 123 }),
+			leaveEvent("2026-01-01T11:05:00Z", { isHero: true }),
+		]);
+		expect(result).toEqual([
+			{
+				playerId: "p1",
+				seatPosition: 1,
+				isActive: true,
+				joinedAt: at("2026-01-01T10:00:00Z"),
+				leftAt: null,
+				stints: [
+					{
+						joinedAt: at("2026-01-01T10:00:00Z"),
+						leftAt: null,
+						seatPosition: 1,
+					},
+				],
+			},
+		]);
+	});
 });
 
 describe("computeHeroSeatPositionFromEvents", () => {

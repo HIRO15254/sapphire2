@@ -203,17 +203,16 @@ describe("gameVariant.update groupId ownership (SA2-183)", () => {
 });
 
 describe("gameVariant.create collision guard (CONFLICT)", () => {
-	it("rejects the reserved key 'mix' (case-insensitive)", async () => {
+	it.each([
+		"mix",
+		"MIX",
+	])("rejects the reserved key %s (case-insensitive)", async (label) => {
 		const { caller } = gameVariantCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: [],
 		});
 		await expectTrpcCode(
-			caller.create({ label: "mix", groupId: OWNED_GROUP.id }),
-			"CONFLICT"
-		);
-		await expectTrpcCode(
-			caller.create({ label: "MIX", groupId: OWNED_GROUP.id }),
+			caller.create({ label, groupId: OWNED_GROUP.id }),
 			"CONFLICT"
 		);
 	});

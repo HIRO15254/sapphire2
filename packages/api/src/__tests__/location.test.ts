@@ -273,4 +273,72 @@ describe("extractCoordsFromMapsUrl", () => {
 			extractCoordsFromMapsUrl("https://www.google.com/maps/@95.0,200.0,17z")
 		).toBeNull();
 	});
+
+	it.each([
+		[-90, 0],
+		[90, 0],
+		[0, -180],
+		[0, 180],
+	])("accepts coordinates exactly at the %s,%s range boundary", (lat, lng) => {
+		expect(
+			extractCoordsFromMapsUrl(`https://www.google.com/maps/@${lat},${lng},17z`)
+		).toEqual({ latitude: lat, longitude: lng });
+	});
+
+	it.each([
+		[-90.1, 0],
+		[90.1, 0],
+		[0, -180.1],
+		[0, 180.1],
+	])("rejects coordinates just outside the %s,%s range boundary", (lat, lng) => {
+		expect(
+			extractCoordsFromMapsUrl(`https://www.google.com/maps/@${lat},${lng},17z`)
+		).toBeNull();
+	});
+});
+
+describe("location.search behavior", () => {
+	function locationCallerWithApiKey(googleMapsApiKey?: string) {
+		return appRouter.createCaller({
+			session: { user: { id: "user-1" } },
+			googleMapsApiKey,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]).location;
+	}
+
+	it("rejects with INTERNAL_SERVER_ERROR when GOOGLE_MAPS_API_KEY is not configured", async () => {
+		await expect(
+			locationCallerWithApiKey(undefined).search({ query: "Tokyo" })
+		).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+	});
+
+	it("returns up to 5 places with their coordinates from the Places API response", async () => {
+		const fetchMock = vi.fn().mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					places: [
+						{
+							displayName: { text: "Place 1" },
+							formattedAddress: "Tokyo, Japan",
+							location: { latitude: 35.6, longitude: 139.7 },
+						},
+					],
+				}),
+				{ status: 200 }
+			)
+		);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const result = await locationCallerWithApiKey("test-key").search({
+			query: "Tokyo",
+		});
+
+		expect(result).toEqual([
+			{
+				name: "Place 1",
+				address: "Tokyo, Japan",
+				latitude: 35.6,
+				longitude: 139.7,
+			},
+		]);
+	});
 });

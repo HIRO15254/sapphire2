@@ -1281,3 +1281,231 @@ describe("liveTournamentSession.updateSnapshot per-level games", () => {
 		});
 	});
 });
+
+describe("liveTournamentSession.getById", () => {
+	it("fetches session detail and returns complete structure", async () => {
+		const detailRow = {
+			sessionId: "s1",
+			tournamentId: "tn-1",
+			tournamentBuyIn: 100,
+			entryFee: 10,
+			startingStack: 20_000,
+			bountyAmount: 25,
+			tableSize: 9,
+			ruleName: "Main Event",
+			variant: "NL Hold'em",
+			timerStartedAt: null,
+		};
+		const { db: dbWithDetail } = createChainableMockDb({
+			select: {
+				game_session: [ownedSession],
+				session_tournament_detail: [detailRow],
+				session_event: [],
+				session_blind_level: [],
+				session_chip_purchase: [],
+			},
+		});
+
+		const withDetail = await callerFor(
+			dbWithDetail,
+			OWNER
+		).liveTournamentSession.getById({ id: "s1" });
+
+		expect(withDetail).toMatchObject({
+			tournamentId: "tn-1",
+			buyIn: 100,
+			entryFee: 10,
+			timerStartedAt: null,
+			tableSize: 9,
+			ruleName: "Main Event",
+			variant: "NL Hold'em",
+			startingStack: 20_000,
+			bountyAmount: 25,
+		});
+		expect(withDetail.summary).toMatchObject({
+			buyIn: 100,
+			entryFee: 10,
+			startingStack: 20_000,
+		});
+
+		const { db: dbWithoutDetail } = createChainableMockDb({
+			select: {
+				game_session: [ownedSession],
+				session_tournament_detail: [],
+				session_event: [],
+				session_blind_level: [],
+				session_chip_purchase: [],
+			},
+		});
+
+		const withoutDetail = await callerFor(
+			dbWithoutDetail,
+			OWNER
+		).liveTournamentSession.getById({ id: "s1" });
+
+		expect(withoutDetail).toMatchObject({
+			tournamentId: null,
+			buyIn: null,
+			entryFee: null,
+			tableSize: null,
+			ruleName: null,
+			variant: null,
+			startingStack: null,
+			bountyAmount: null,
+		});
+		expect(withoutDetail.summary).toMatchObject({
+			buyIn: null,
+			entryFee: null,
+			startingStack: null,
+		});
+	});
+});
+
+describe("liveTournamentSession.complete", () => {
+	it("rejects non-owned session with FORBIDDEN", async () => {
+		const { db } = createChainableMockDb({
+			select: { game_session: [{ ...ownedSession, userId: OTHER }] },
+		});
+
+		await expect(
+			callerFor(db, OWNER).liveTournamentSession.complete({
+				id: "s1",
+				beforeDeadline: true,
+				prizeMoney: 100,
+				bountyPrizes: 0,
+			})
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+	});
+
+	it("with beforeDeadline=false builds end payload with placement fields", async () => {
+		const cases: {
+			expectedPayload: Record<string, unknown>;
+			input:
+				| {
+						beforeDeadline: false;
+						bountyPrizes: number;
+						id: string;
+						placement: number;
+						prizeMoney: number;
+						totalEntries: number;
+				  }
+				| {
+						beforeDeadline: true;
+						bountyPrizes: number;
+						id: string;
+						prizeMoney: number;
+				  };
+		}[] = [
+			{
+				input: {
+					id: "s1",
+					beforeDeadline: false,
+					placement: 3,
+					totalEntries: 50,
+					prizeMoney: 1000,
+					bountyPrizes: 200,
+				},
+				expectedPayload: {
+					beforeDeadline: false,
+					placement: 3,
+					totalEntries: 50,
+					prizeMoney: 1000,
+					bountyPrizes: 200,
+				},
+			},
+			{
+				input: {
+					id: "s1",
+					beforeDeadline: true,
+					prizeMoney: 500,
+					bountyPrizes: 0,
+				},
+				expectedPayload: {
+					beforeDeadline: true,
+					prizeMoney: 500,
+					bountyPrizes: 0,
+				},
+			},
+		];
+
+		for (const { input, expectedPayload } of cases) {
+			const { db, inserted } = createChainableMockDb({
+				select: { game_session: [ownedSession], session_event: [] },
+			});
+
+			await callerFor(db, OWNER).liveTournamentSession.complete(input);
+
+			const eventRows = (inserted.session_event ?? []) as {
+				payload: string;
+			}[];
+			const insertedEvent = eventRows.at(-1);
+			expect(insertedEvent).toBeDefined();
+			expect(JSON.parse(insertedEvent?.payload ?? "{}")).toEqual(
+				expectedPayload
+			);
+		}
+	});
+});
+
+describe("liveTournamentSession.discard", () => {
+	it("rejects non-owned session with FORBIDDEN", async () => {
+		const { db } = createChainableMockDb({
+			select: { game_session: [{ ...ownedSession, userId: OTHER }] },
+		});
+
+		await expect(
+			callerFor(db, OWNER).liveTournamentSession.discard({ id: "s1" })
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+	});
+});
+
+describe("liveTournamentSession.updateHeroSeat", () => {
+	it("rejects non-owned session with FORBIDDEN", async () => {
+		for (const invalidSession of [
+			{ ...ownedSession, userId: OTHER },
+			{ ...ownedSession, kind: "cash_game" },
+		]) {
+			const { db } = createChainableMockDb({
+				select: { game_session: [invalidSession] },
+			});
+
+			await expect(
+				callerFor(db, OWNER).liveTournamentSession.updateHeroSeat({
+					id: "s1",
+					heroSeatPosition: 5,
+				})
+			).rejects.toMatchObject({ code: "FORBIDDEN" });
+		}
+	});
+});
+
+describe("liveTournamentSession.updateSnapshot", () => {
+	it("rejects non-owned session with FORBIDDEN", async () => {
+		const { db } = createChainableMockDb({
+			select: { game_session: [{ ...ownedSession, userId: OTHER }] },
+		});
+
+		await expect(
+			callerFor(db, OWNER).liveTournamentSession.updateSnapshot({
+				id: "s1",
+				ruleName: "New Rule",
+			})
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+	});
+});
+
+describe("liveTournamentSession.list status filter", () => {
+	it.each([
+		"active",
+		"paused",
+		"completed",
+	] as const)("filters by status=%s when supplied", async (status) => {
+		const { db, listWhere } = createListMockDb();
+
+		await listCaller(db).list({ status, limit: 10 });
+
+		const base = listWhere[0];
+		expect(base?.sql.toLowerCase()).toContain('"game_session"."status" = ?');
+		expect(base?.params).toContain(status);
+	});
+});
