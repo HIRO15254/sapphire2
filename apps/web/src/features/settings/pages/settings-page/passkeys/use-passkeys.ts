@@ -1,22 +1,27 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
+import { setAutomaticPasskeyOptOut } from "@/shared/lib/passkey-opt-out";
 import { isPasskeySupported } from "@/shared/lib/webauthn";
 
 export interface PasskeyEntry {
 	backedUp?: boolean;
-	createdAt: string;
+	createdAt: Date | string;
 	id: string;
 	name?: string | null;
 }
 
 interface UsePasskeysResult {
+	deleteTarget: PasskeyEntry | null;
 	error: string | null;
 	isAddOpen: boolean;
+	isDeletePending: boolean;
 	isPasskeySupported: boolean;
+	isRenamePending: boolean;
 	loading: boolean;
 	onAddOpenChange: (open: boolean) => void;
-	onDeletePasskey: (id: string) => Promise<void>;
+	onDeletePasskey: () => Promise<void>;
+	onDeleteTargetChange: (entry: PasskeyEntry | null) => void;
 	onRenamePasskey: (name: string) => Promise<void>;
 	onRenameTargetChange: (entry: PasskeyEntry | null) => void;
 	passkeys: PasskeyEntry[];
@@ -31,10 +36,18 @@ export function usePasskeys(): UsePasskeysResult {
 	const [error, setError] = useState<string | null>(null);
 	const [isAddOpen, setIsAddOpen] = useState(false);
 	const [renameTarget, setRenameTarget] = useState<PasskeyEntry | null>(null);
+	const [deleteTarget, setDeleteTarget] = useState<PasskeyEntry | null>(null);
+	const [isDeletePending, setIsDeletePending] = useState(false);
+	const [isRenamePending, setIsRenamePending] = useState(false);
 
 	const refreshPasskeys = useCallback(async () => {
 		try {
 			const result = await authClient.passkey.listUserPasskeys();
+			if (result.error) {
+				setError("Unable to load passkeys");
+				setPasskeys([]);
+				return;
+			}
 			setPasskeys((result.data as PasskeyEntry[] | null) ?? []);
 			setError(null);
 		} catch {
@@ -49,43 +62,65 @@ export function usePasskeys(): UsePasskeysResult {
 		refreshPasskeys();
 	}, [refreshPasskeys]);
 
-	const onDeletePasskey = async (id: string) => {
-		const result = await authClient.passkey.deletePasskey({ id });
-		if (result.error) {
-			toast.error(result.error.message ?? "Failed to remove passkey");
+	const onDeletePasskey = async () => {
+		if (!deleteTarget || isDeletePending) {
 			return;
 		}
 
-		toast.success("Passkey removed");
-		await refreshPasskeys();
+		setIsDeletePending(true);
+		try {
+			const result = await authClient.passkey.deletePasskey({
+				id: deleteTarget.id,
+			});
+			if (result.error) {
+				toast.error(result.error.message ?? "Failed to remove passkey");
+				return;
+			}
+
+			toast.success("Passkey removed");
+			setAutomaticPasskeyOptOut(true);
+			setDeleteTarget(null);
+			await refreshPasskeys();
+		} finally {
+			setIsDeletePending(false);
+		}
 	};
 
 	const onRenamePasskey = async (name: string) => {
-		if (!renameTarget) {
+		if (!renameTarget || isRenamePending) {
 			return;
 		}
 
-		const result = await authClient.passkey.updatePasskey({
-			id: renameTarget.id,
-			name,
-		});
-		if (result.error) {
-			toast.error(result.error.message ?? "Failed to rename passkey");
-			return;
-		}
+		setIsRenamePending(true);
+		try {
+			const result = await authClient.passkey.updatePasskey({
+				id: renameTarget.id,
+				name,
+			});
+			if (result.error) {
+				toast.error(result.error.message ?? "Failed to rename passkey");
+				return;
+			}
 
-		toast.success("Passkey renamed");
-		setRenameTarget(null);
-		await refreshPasskeys();
+			toast.success("Passkey renamed");
+			setRenameTarget(null);
+			await refreshPasskeys();
+		} finally {
+			setIsRenamePending(false);
+		}
 	};
 
 	return {
+		deleteTarget,
 		error,
 		isAddOpen,
+		isDeletePending,
 		isPasskeySupported: isPasskeySupported(),
+		isRenamePending,
 		loading,
 		onAddOpenChange: setIsAddOpen,
 		onDeletePasskey,
+		onDeleteTargetChange: setDeleteTarget,
 		onRenamePasskey,
 		onRenameTargetChange: setRenameTarget,
 		passkeys,

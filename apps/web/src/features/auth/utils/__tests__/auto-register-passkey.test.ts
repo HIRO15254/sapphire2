@@ -3,7 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
 	addPasskey: vi.fn(),
 	supportsAutomaticPasskeyRegistration: vi.fn(),
+	isAutomaticPasskeyOptedOut: vi.fn(),
 	toastSuccess: vi.fn(),
+}));
+
+vi.mock("@/shared/lib/passkey-opt-out", () => ({
+	isAutomaticPasskeyOptedOut: mocks.isAutomaticPasskeyOptedOut,
 }));
 
 vi.mock("sonner", () => ({
@@ -33,7 +38,16 @@ describe("autoRegisterPasskey", () => {
 		mocks.addPasskey.mockReset();
 		mocks.supportsAutomaticPasskeyRegistration.mockReset();
 		mocks.supportsAutomaticPasskeyRegistration.mockResolvedValue(true);
+		mocks.isAutomaticPasskeyOptedOut.mockReset();
+		mocks.isAutomaticPasskeyOptedOut.mockReturnValue(false);
 		mocks.toastSuccess.mockReset();
+	});
+
+	it("does not re-create a passkey the user removed on this device", async () => {
+		mocks.isAutomaticPasskeyOptedOut.mockReturnValue(true);
+		expect(await autoRegisterPasskey()).toBe(false);
+		expect(mocks.supportsAutomaticPasskeyRegistration).not.toHaveBeenCalled();
+		expect(mocks.addPasskey).not.toHaveBeenCalled();
 	});
 
 	it("never touches the authenticator when the browser cannot upgrade silently", async () => {
@@ -90,6 +104,8 @@ describe("offerAutomaticPasskey", () => {
 		mocks.addPasskey.mockReset();
 		mocks.supportsAutomaticPasskeyRegistration.mockReset();
 		mocks.supportsAutomaticPasskeyRegistration.mockResolvedValue(true);
+		mocks.isAutomaticPasskeyOptedOut.mockReset();
+		mocks.isAutomaticPasskeyOptedOut.mockReturnValue(false);
 		mocks.toastSuccess.mockReset();
 	});
 

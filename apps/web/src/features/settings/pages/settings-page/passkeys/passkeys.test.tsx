@@ -92,7 +92,23 @@ describe("Passkeys", () => {
 		expect(screen.getByText(ADDED_ON_PATTERN)).toBeInTheDocument();
 	});
 
-	it("removes a passkey through its Remove button", async () => {
+	it("asks for confirmation before removing a passkey", async () => {
+		const user = userEvent.setup();
+		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY] });
+		render(<Passkeys />);
+
+		await waitFor(() =>
+			expect(screen.getByText("MacBook")).toBeInTheDocument()
+		);
+		await user.click(screen.getByRole("button", { name: "Remove MacBook" }));
+
+		expect(
+			await screen.findByRole("heading", { name: "Remove passkey?" })
+		).toBeInTheDocument();
+		expect(mocks.deletePasskey).not.toHaveBeenCalled();
+	});
+
+	it("removes the passkey once the confirmation is accepted", async () => {
 		const user = userEvent.setup();
 		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY] });
 		mocks.deletePasskey.mockResolvedValue({ data: { status: true } });
@@ -102,10 +118,32 @@ describe("Passkeys", () => {
 			expect(screen.getByText("MacBook")).toBeInTheDocument()
 		);
 		await user.click(screen.getByRole("button", { name: "Remove MacBook" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Remove", exact: true })
+		);
 
 		await waitFor(() =>
 			expect(mocks.deletePasskey).toHaveBeenCalledWith({ id: "pk1" })
 		);
+	});
+
+	it("leaves the passkey alone when the confirmation is cancelled", async () => {
+		const user = userEvent.setup();
+		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY] });
+		render(<Passkeys />);
+
+		await waitFor(() =>
+			expect(screen.getByText("MacBook")).toBeInTheDocument()
+		);
+		await user.click(screen.getByRole("button", { name: "Remove MacBook" }));
+		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("heading", { name: "Remove passkey?" })
+			).not.toBeInTheDocument()
+		);
+		expect(mocks.deletePasskey).not.toHaveBeenCalled();
 	});
 
 	it("renames a passkey through a sheet prefilled with its current name", async () => {

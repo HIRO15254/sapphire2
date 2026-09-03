@@ -7,6 +7,11 @@ const mocks = vi.hoisted(() => ({
 	addPasskey: vi.fn(),
 	toastSuccess: vi.fn(),
 	toastError: vi.fn(),
+	setAutomaticPasskeyOptOut: vi.fn(),
+}));
+
+vi.mock("@/shared/lib/passkey-opt-out", () => ({
+	setAutomaticPasskeyOptOut: mocks.setAutomaticPasskeyOptOut,
 }));
 
 vi.mock("sonner", () => ({
@@ -49,6 +54,7 @@ describe("useAddPasskeyForm", () => {
 		mocks.addPasskey.mockReset();
 		mocks.toastSuccess.mockReset();
 		mocks.toastError.mockReset();
+		mocks.setAutomaticPasskeyOptOut.mockReset();
 	});
 
 	it("starts prefilled with the current device name", () => {
@@ -105,22 +111,55 @@ describe("useAddPasskeyForm", () => {
 		expect(result.current.form.state.values).toEqual({ name: DEVICE_NAME });
 	});
 
-	it("surfaces a cancelled ceremony and keeps the sheet open", async () => {
+	it("stays silent when the user dismisses the browser prompt", async () => {
 		mocks.addPasskey.mockResolvedValue({
 			data: null,
-			error: { message: "Registration was cancelled" },
+			error: {
+				code: "ERROR_CEREMONY_ABORTED",
+				message: "Registration was cancelled",
+			},
 		});
 		const { onOpenChange, onSuccess, result } = renderForm();
 		await submitWithName(result, "Pixel 9");
 
-		expect(mocks.toastError).toHaveBeenCalledTimes(1);
-		expect(mocks.toastError).toHaveBeenNthCalledWith(
-			1,
-			"Registration was cancelled"
-		);
+		expect(mocks.toastError).not.toHaveBeenCalled();
 		expect(mocks.toastSuccess).not.toHaveBeenCalled();
 		expect(onSuccess).not.toHaveBeenCalled();
 		expect(onOpenChange).not.toHaveBeenCalled();
+	});
+
+	it("still reports a genuine registration failure", async () => {
+		mocks.addPasskey.mockResolvedValue({
+			data: null,
+			error: {
+				code: "FAILED_TO_VERIFY_REGISTRATION",
+				message: "Failed to verify registration",
+			},
+		});
+		const { result } = renderForm();
+		await submitWithName(result, "Pixel 9");
+
+		expect(mocks.toastError).toHaveBeenNthCalledWith(
+			1,
+			"Failed to verify registration"
+		);
+	});
+
+	it("opts back into the silent upgrade after a manual add", async () => {
+		mocks.addPasskey.mockResolvedValue({ data: {} });
+		const { result } = renderForm();
+		await submitWithName(result, "Pixel 9");
+
+		expect(mocks.setAutomaticPasskeyOptOut).toHaveBeenCalledTimes(1);
+		expect(mocks.setAutomaticPasskeyOptOut).toHaveBeenNthCalledWith(1, false);
+	});
+
+	it("does not opt back in when the add failed", async () => {
+		mocks.addPasskey.mockResolvedValue({ data: null, error: { message: "x" } });
+		const { result } = renderForm();
+		await submitWithName(result, "Pixel 9");
+
+		expect(mocks.setAutomaticPasskeyOptOut).not.toHaveBeenCalled();
 	});
 
 	it("falls back to a fixed message when the error carries none", async () => {

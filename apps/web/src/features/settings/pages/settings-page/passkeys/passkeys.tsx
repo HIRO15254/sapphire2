@@ -7,6 +7,14 @@ import {
 import { TagNameForm } from "@/shared/components/management/tag-name-form";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/shared/components/ui/dialog";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { formatLocalYmdSlash } from "@/utils/format-number";
@@ -17,16 +25,12 @@ const ADD_PASSKEY_FORM_ID = "add-passkey-form";
 const RENAME_PASSKEY_FORM_ID = "rename-passkey-form";
 
 function AddPasskeyForm({
+	form,
 	formId,
-	onOpenChange,
-	onSuccess,
 }: {
+	form: ReturnType<typeof useAddPasskeyForm>["form"];
 	formId: string;
-	onOpenChange: (open: boolean) => void;
-	onSuccess: () => void;
 }) {
-	const { form } = useAddPasskeyForm({ onOpenChange, onSuccess });
-
 	return (
 		<form
 			className="flex flex-col gap-4"
@@ -67,19 +71,27 @@ function AddPasskeyForm({
 
 export function Passkeys() {
 	const {
+		deleteTarget,
 		error,
 		isAddOpen,
+		isDeletePending,
 		isPasskeySupported,
 		loading,
 		onAddOpenChange,
 		onDeletePasskey,
+		onDeleteTargetChange,
 		onRenamePasskey,
 		onRenameTargetChange,
 		passkeys,
 		refreshPasskeys,
+		isRenamePending,
 		renameTarget,
 		totalPasskeys,
 	} = usePasskeys();
+	const { form: addForm, isSubmitting: isAddSubmitting } = useAddPasskeyForm({
+		onOpenChange: onAddOpenChange,
+		onSuccess: refreshPasskeys,
+	});
 
 	if (loading) {
 		return (
@@ -118,7 +130,7 @@ export function Passkeys() {
 									</Button>
 									<Button
 										aria-label={`Remove ${entry.name || "passkey"}`}
-										onClick={() => onDeletePasskey(entry.id)}
+										onClick={() => onDeleteTargetChange(entry)}
 										size="sm"
 										variant="outline"
 									>
@@ -157,19 +169,19 @@ export function Passkeys() {
 
 			<FormSheet
 				formId={ADD_PASSKEY_FORM_ID}
+				isLoading={isAddSubmitting}
+				isSaveDisabled={isAddSubmitting}
 				onOpenChange={onAddOpenChange}
 				open={isAddOpen}
 				title="Add passkey"
 			>
-				<AddPasskeyForm
-					formId={ADD_PASSKEY_FORM_ID}
-					onOpenChange={onAddOpenChange}
-					onSuccess={refreshPasskeys}
-				/>
+				<AddPasskeyForm form={addForm} formId={ADD_PASSKEY_FORM_ID} />
 			</FormSheet>
 
 			<FormSheet
 				formId={RENAME_PASSKEY_FORM_ID}
+				isLoading={isRenamePending}
+				isSaveDisabled={isRenamePending}
 				onOpenChange={(open) => {
 					if (!open) {
 						onRenameTargetChange(null);
@@ -186,6 +198,43 @@ export function Passkeys() {
 					onSubmit={onRenamePasskey}
 				/>
 			</FormSheet>
+
+			<Dialog
+				onOpenChange={(open) => {
+					if (!open) {
+						onDeleteTargetChange(null);
+					}
+				}}
+				open={deleteTarget !== null}
+			>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Remove passkey?</DialogTitle>
+						<DialogDescription>
+							{deleteTarget?.name || "This passkey"} will no longer sign you in.
+							You cannot undo this, and the credential stays on the device until
+							you clear it there.
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter className="flex-row justify-end gap-2">
+						<Button
+							onClick={() => onDeleteTargetChange(null)}
+							type="button"
+							variant="outline"
+						>
+							Cancel
+						</Button>
+						<Button
+							disabled={isDeletePending}
+							onClick={onDeletePasskey}
+							type="button"
+							variant="destructive"
+						>
+							{isDeletePending ? "Removing..." : "Remove"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 }

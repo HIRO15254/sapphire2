@@ -20,6 +20,7 @@ const PLATFORM_PATTERNS: { label: string; pattern: RegExp }[] = [
 export const UNKNOWN_DEVICE_NAME = "This device";
 
 interface DeviceHints {
+	maxTouchPoints?: number;
 	platformHint?: string;
 	userAgent: string;
 }
@@ -32,12 +33,15 @@ function matchFirst(
 }
 
 export function describeDevice({
+	maxTouchPoints,
 	platformHint,
 	userAgent,
 }: DeviceHints): string {
 	const browser = matchFirst(userAgent, BROWSER_PATTERNS);
-	const platform =
+	const matched =
 		matchFirst(userAgent, PLATFORM_PATTERNS) || platformHint?.trim() || "";
+	const platform =
+		matched === "macOS" && (maxTouchPoints ?? 0) > 1 ? "iPad" : matched;
 
 	if (browser && platform) {
 		return `${browser} on ${platform}`;
@@ -57,6 +61,7 @@ export function describeCurrentDevice(): string {
 		navigator as Navigator & Partial<{ userAgentData: UserAgentData }>
 	).userAgentData;
 	return describeDevice({
+		maxTouchPoints: navigator.maxTouchPoints,
 		platformHint: userAgentData?.platform,
 		userAgent: navigator.userAgent ?? "",
 	});

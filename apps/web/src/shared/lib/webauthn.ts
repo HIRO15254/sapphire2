@@ -23,3 +23,15 @@ export async function supportsAutomaticPasskeyRegistration(): Promise<boolean> {
 		return false;
 	}
 }
+
+const CANCELLED_CEREMONY_CODES = new Set([
+	"AUTH_CANCELLED",
+	"ERROR_CEREMONY_ABORTED",
+	"NotAllowedError",
+	"AbortError",
+]);
+
+export function isCancelledCeremony(error?: unknown): boolean {
+	const code = (error as { code?: unknown } | null | undefined)?.code;
+	return typeof code === "string" && CANCELLED_CEREMONY_CODES.has(code);
+}

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+	isCancelledCeremony,
 	isPasskeySupported,
 	supportsAutomaticPasskeyRegistration,
 } from "@/shared/lib/webauthn";
@@ -106,5 +107,37 @@ describe("supportsAutomaticPasskeyRegistration", () => {
 		setWindow({ PublicKeyCredential: { getClientCapabilities } });
 		expect(await supportsAutomaticPasskeyRegistration()).toBe(true);
 		expect(getClientCapabilities).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("isCancelledCeremony", () => {
+	it.each([
+		"AUTH_CANCELLED",
+		"ERROR_CEREMONY_ABORTED",
+		"NotAllowedError",
+		"AbortError",
+	])("treats %s as the user dismissing the prompt", (code) => {
+		expect(isCancelledCeremony({ code })).toBe(true);
+	});
+
+	it.each([
+		"PASSKEY_NOT_FOUND",
+		"FAILED_TO_VERIFY_REGISTRATION",
+		"UNKNOWN_ERROR",
+	])("treats %s as a real failure", (code) => {
+		expect(isCancelledCeremony({ code })).toBe(false);
+	});
+
+	it("is false for an error with no code", () => {
+		expect(isCancelledCeremony({ message: "boom" })).toBe(false);
+	});
+
+	it("is false for a non-string code", () => {
+		expect(isCancelledCeremony({ code: 400 })).toBe(false);
+	});
+
+	it("is false for null and undefined", () => {
+		expect(isCancelledCeremony(null)).toBe(false);
+		expect(isCancelledCeremony(undefined)).toBe(false);
 	});
 });

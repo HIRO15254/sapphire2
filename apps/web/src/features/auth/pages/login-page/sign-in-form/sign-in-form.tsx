@@ -18,6 +18,7 @@ export default function SignInForm({
 }) {
 	const {
 		form,
+		isPasskeyPending,
 		isPasskeySupported,
 		isPending,
 		onSignInWithDiscord,
@@ -33,6 +34,7 @@ export default function SignInForm({
 		...(isPasskeySupported
 			? [
 					{
+						disabled: isPasskeyPending,
 						label: "Sign in with a passkey",
 						icon: <IconKey className="mr-2 h-4 w-4" />,
 						onClick: onSignInWithPasskey,

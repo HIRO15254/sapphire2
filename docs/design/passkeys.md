@@ -80,6 +80,32 @@ failure has no honest error to report. Only a stored passkey is announced. The c
 fire-and-forget (both call sites navigate client-side, so the promise outlives the login
 page) which is why `autoRegisterPasskey` guards its whole body and can never reject.
 
+### Removing a passkey opts this browser out
+
+`excludeCredentials` is what keeps the upgrade per-device, but it also means that the
+moment a user deletes a passkey, the row is gone and the exclusion goes with it — the very
+next password sign-in would silently recreate it, and the only trace would be a
+"Passkey saved for this device" toast. Deleting a credential and having it come back
+unexplained is not an acceptable outcome for a login method, so a successful delete writes
+an opt-out flag to `localStorage`
+([`shared/lib/passkey-opt-out.ts`](../../apps/web/src/shared/lib/passkey-opt-out.ts)) which
+`autoRegisterPasskey` checks first. Adding a passkey manually from settings clears it: that
+is the user opting back in.
+
+The flag is per-browser, deliberately — it mirrors "this is the device I did not want a
+passkey on". Every access is wrapped in try/catch: `localStorage` throws outright in some
+privacy modes, and the fallback is simply that the upgrade stays enabled.
+
+A dismissed browser prompt is not an error either. better-auth returns cancellation as
+`{ error: { code } }` rather than throwing — `AUTH_CANCELLED` for sign-in,
+`ERROR_CEREMONY_ABORTED` for registration — so without `isCancelledCeremony` the user gets
+an error toast for simply pressing Escape, which is not how the social providers behave.
+
+Ceremonies are also guarded against a second press: WebAuthn aborts an in-flight request
+when a new one starts, so a double-click would cancel the user's own prompt and surface a
+`NotAllowedError`. The sign-in button, the add form and the rename/delete handlers each
+refuse re-entry while one is in flight.
+
 The upgrade is **skipped on the MCP OAuth branch**, where `location.assign` tears the
 document down and would abort the ceremony mid-flight. See
 [`mcp-and-oauth.md`](mcp-and-oauth.md#web-login-continuation).
@@ -95,7 +121,10 @@ the passkey ends up with a real name either way (placeholders are banned by
 
 The detection tables are ordered most-specific-first because browsers impersonate each
 other: Edge, Opera and Samsung Internet all carry `Chrome/`, Chrome carries `Safari/`,
-Android carries `Linux`, and ChromeOS carries `X11`. `navigator.userAgentData.platform` is
+Android carries `Linux`, and ChromeOS carries `X11`. iPadOS 13+ Safari requests desktop
+sites by default and reports itself as `Macintosh`, so a `macOS` match with
+`navigator.maxTouchPoints > 1` is resolved to `iPad` — otherwise every iPad, a primary
+passkey device, would be labelled "Safari on macOS". `navigator.userAgentData.platform` is
 consulted only when the user-agent string yields no platform — it is absent outside
 Chromium and coarser where it exists (`iOS` rather than `iPhone`). User-agent sniffing has
 no correct answer, so an unrecognized agent falls back to the vague-but-true
@@ -112,8 +141,19 @@ disagreed about what is accepted would be a bug waiting to happen. The sheet is 
 the passkey id so opening it for a different entry remounts the form: `defaultName` seeds
 only the initial render, so a reused instance would keep showing the previous name.
 
+Removal goes through a confirmation `Dialog` (`[Cancel] [Remove]`), per the
+destructive-confirmation rule in [`web-theme.md`](../../.claude/rules/web-theme.md). It is
+not merely convention here: deleting a passkey cannot be undone, and the credential is left
+behind on the authenticator, where the user has to clear it themselves.
+
 Affordances are hidden, not shown-and-broken, where `PublicKeyCredential` is absent
 (`isPasskeySupported`).
+
+The list is populated from `listUserPasskeys`, whose failures do **not** throw: better-auth
+resolves with `{ data: null, error }` unless `throw: true` is passed. Reading only `data`
+would render a 401 or a 500 as "No passkeys yet", telling a user who has passkeys that they
+have none — so the error branch is keyed off `result.error`, not off a thrown exception
+(the `catch` only ever sees a network-level rejection).
 
 ## Version coupling
 

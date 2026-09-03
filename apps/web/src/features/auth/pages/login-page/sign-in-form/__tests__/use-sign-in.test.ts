@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { stubWebAuthnSupport } from "@/__tests__/test-utils";
 
@@ -326,6 +326,45 @@ describe("useSignIn", () => {
 		);
 		expect(mocks.navigate).not.toHaveBeenCalled();
 		expect(mocks.toastSuccess).not.toHaveBeenCalled();
+	});
+
+	it("onSignInWithPasskey: stays silent when the user dismisses the prompt", async () => {
+		mocks.signInPasskey.mockResolvedValue({
+			data: null,
+			error: { code: "AUTH_CANCELLED", message: "Auth cancelled" },
+		});
+		const { result } = renderHook(() => useSignIn());
+		await act(async () => {
+			await result.current.onSignInWithPasskey();
+		});
+		expect(mocks.toastError).not.toHaveBeenCalled();
+		expect(mocks.navigate).not.toHaveBeenCalled();
+	});
+
+	it("onSignInWithPasskey: ignores a second press while a ceremony is in flight", async () => {
+		let release: ((value: unknown) => void) | undefined;
+		mocks.signInPasskey.mockReturnValue(
+			new Promise((resolve) => {
+				release = resolve;
+			})
+		);
+		const { result } = renderHook(() => useSignIn());
+
+		let first: Promise<void> | undefined;
+		act(() => {
+			first = result.current.onSignInWithPasskey();
+		});
+		await waitFor(() => expect(result.current.isPasskeyPending).toBe(true));
+		await act(async () => {
+			await result.current.onSignInWithPasskey();
+		});
+		expect(mocks.signInPasskey).toHaveBeenCalledTimes(1);
+
+		await act(async () => {
+			release?.({ data: { session: {} } });
+			await first;
+		});
+		expect(result.current.isPasskeyPending).toBe(false);
 	});
 
 	it("onSignInWithPasskey: surfaces the error message and stays on the page", async () => {

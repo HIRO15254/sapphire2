@@ -123,6 +123,33 @@ describe("describeDevice", () => {
 	it("falls back on an empty agent", () => {
 		expect(describeDevice({ userAgent: "" })).toBe(UNKNOWN_DEVICE_NAME);
 	});
+
+	it("reads a touch-capable Macintosh as an iPad (iPadOS desktop agent)", () => {
+		expect(
+			describeDevice({ maxTouchPoints: 5, userAgent: USER_AGENTS.safariMac })
+		).toBe("Safari on iPad");
+	});
+
+	it("leaves a real Mac alone", () => {
+		expect(
+			describeDevice({ maxTouchPoints: 0, userAgent: USER_AGENTS.safariMac })
+		).toBe("Safari on macOS");
+	});
+
+	it("leaves a Mac alone when touch points are unknown", () => {
+		expect(describeDevice({ userAgent: USER_AGENTS.safariMac })).toBe(
+			"Safari on macOS"
+		);
+	});
+
+	it("does not turn a touch-capable Windows device into an iPad", () => {
+		expect(
+			describeDevice({
+				maxTouchPoints: 10,
+				userAgent: USER_AGENTS.firefoxWindows,
+			})
+		).toBe("Firefox on Windows");
+	});
 });
 
 describe("describeCurrentDevice", () => {
@@ -150,6 +177,11 @@ describe("describeCurrentDevice", () => {
 	it("reads the live user agent", () => {
 		setNavigator({ userAgent: USER_AGENTS.chromeMac });
 		expect(describeCurrentDevice()).toBe("Chrome on macOS");
+	});
+
+	it("passes maxTouchPoints through, so an iPadOS desktop agent resolves", () => {
+		setNavigator({ maxTouchPoints: 5, userAgent: USER_AGENTS.safariMac });
+		expect(describeCurrentDevice()).toBe("Safari on iPad");
 	});
 
 	it("passes userAgentData.platform through as the hint", () => {

@@ -1,10 +1,14 @@
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
 import { describeCurrentDevice } from "@/shared/lib/device-name";
+import { isAutomaticPasskeyOptedOut } from "@/shared/lib/passkey-opt-out";
 import { supportsAutomaticPasskeyRegistration } from "@/shared/lib/webauthn";
 
 export async function autoRegisterPasskey(): Promise<boolean> {
 	try {
+		if (isAutomaticPasskeyOptedOut()) {
+			return false;
+		}
 		if (!(await supportsAutomaticPasskeyRegistration())) {
 			return false;
 		}

@@ -8,6 +8,11 @@ const mocks = vi.hoisted(() => ({
 	updatePasskey: vi.fn(),
 	toastSuccess: vi.fn(),
 	toastError: vi.fn(),
+	setAutomaticPasskeyOptOut: vi.fn(),
+}));
+
+vi.mock("@/shared/lib/passkey-opt-out", () => ({
+	setAutomaticPasskeyOptOut: mocks.setAutomaticPasskeyOptOut,
 }));
 
 vi.mock("sonner", () => ({
@@ -46,6 +51,7 @@ describe("usePasskeys", () => {
 		mocks.updatePasskey.mockReset();
 		mocks.toastSuccess.mockReset();
 		mocks.toastError.mockReset();
+		mocks.setAutomaticPasskeyOptOut.mockReset();
 	});
 
 	afterEach(() => {
@@ -86,6 +92,18 @@ describe("usePasskeys", () => {
 		expect(result.current.passkeys).toEqual([]);
 	});
 
+	it("surfaces an HTTP failure rather than showing it as zero passkeys", async () => {
+		mocks.listUserPasskeys.mockResolvedValue({
+			data: null,
+			error: { message: "Unauthorized", status: 401 },
+		});
+		const { result } = renderHook(() => usePasskeys());
+		await waitFor(() => expect(result.current.loading).toBe(false));
+		expect(result.current.error).toBe("Unable to load passkeys");
+		expect(result.current.passkeys).toEqual([]);
+		expect(result.current.totalPasskeys).toBe(0);
+	});
+
 	it("reports passkey support from the browser capability", async () => {
 		stubWebAuthnSupport(true);
 		mocks.listUserPasskeys.mockResolvedValue({ data: [] });
@@ -117,7 +135,37 @@ describe("usePasskeys", () => {
 		expect(result.current.isAddOpen).toBe(false);
 	});
 
-	it("onDeletePasskey removes the passkey, toasts, and refetches", async () => {
+	it("keeps the delete confirmation closed until a passkey is targeted", async () => {
+		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY_A] });
+		const { result } = renderHook(() => usePasskeys());
+		await waitFor(() => expect(result.current.loading).toBe(false));
+
+		expect(result.current.deleteTarget).toBeNull();
+		act(() => {
+			result.current.onDeleteTargetChange(PASSKEY_A);
+		});
+		expect(result.current.deleteTarget).toEqual(PASSKEY_A);
+		act(() => {
+			result.current.onDeleteTargetChange(null);
+		});
+		expect(result.current.deleteTarget).toBeNull();
+	});
+
+	it("onDeletePasskey does nothing when no passkey is targeted", async () => {
+		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY_A] });
+		const { result } = renderHook(() => usePasskeys());
+		await waitFor(() => expect(result.current.loading).toBe(false));
+
+		await act(async () => {
+			await result.current.onDeletePasskey();
+		});
+
+		expect(mocks.deletePasskey).not.toHaveBeenCalled();
+		expect(mocks.toastSuccess).not.toHaveBeenCalled();
+		expect(mocks.toastError).not.toHaveBeenCalled();
+	});
+
+	it("onDeletePasskey removes the targeted passkey, closes, and refetches", async () => {
 		mocks.listUserPasskeys
 			.mockResolvedValueOnce({ data: [PASSKEY_A, PASSKEY_B] })
 			.mockResolvedValueOnce({ data: [PASSKEY_B] });
@@ -125,19 +173,56 @@ describe("usePasskeys", () => {
 
 		const { result } = renderHook(() => usePasskeys());
 		await waitFor(() => expect(result.current.loading).toBe(false));
+		act(() => {
+			result.current.onDeleteTargetChange(PASSKEY_A);
+		});
 		await act(async () => {
-			await result.current.onDeletePasskey("pk1");
+			await result.current.onDeletePasskey();
 		});
 
 		expect(mocks.deletePasskey).toHaveBeenCalledTimes(1);
 		expect(mocks.deletePasskey).toHaveBeenNthCalledWith(1, { id: "pk1" });
 		expect(mocks.toastSuccess).toHaveBeenCalledTimes(1);
 		expect(mocks.toastSuccess).toHaveBeenNthCalledWith(1, "Passkey removed");
+		expect(result.current.deleteTarget).toBeNull();
 		expect(mocks.listUserPasskeys).toHaveBeenCalledTimes(2);
 		await waitFor(() => expect(result.current.passkeys).toEqual([PASSKEY_B]));
 	});
 
-	it("onDeletePasskey surfaces the error and keeps the list untouched", async () => {
+	it("stops the silent upgrade from re-creating a passkey the user removed", async () => {
+		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY_A] });
+		mocks.deletePasskey.mockResolvedValue({ data: { status: true } });
+
+		const { result } = renderHook(() => usePasskeys());
+		await waitFor(() => expect(result.current.loading).toBe(false));
+		act(() => {
+			result.current.onDeleteTargetChange(PASSKEY_A);
+		});
+		await act(async () => {
+			await result.current.onDeletePasskey();
+		});
+
+		expect(mocks.setAutomaticPasskeyOptOut).toHaveBeenCalledTimes(1);
+		expect(mocks.setAutomaticPasskeyOptOut).toHaveBeenNthCalledWith(1, true);
+	});
+
+	it("does not opt out when the delete failed", async () => {
+		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY_A] });
+		mocks.deletePasskey.mockResolvedValue({ error: { message: "nope" } });
+
+		const { result } = renderHook(() => usePasskeys());
+		await waitFor(() => expect(result.current.loading).toBe(false));
+		act(() => {
+			result.current.onDeleteTargetChange(PASSKEY_A);
+		});
+		await act(async () => {
+			await result.current.onDeletePasskey();
+		});
+
+		expect(mocks.setAutomaticPasskeyOptOut).not.toHaveBeenCalled();
+	});
+
+	it("onDeletePasskey surfaces the error and keeps the confirmation open", async () => {
 		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY_A] });
 		mocks.deletePasskey.mockResolvedValue({
 			error: { message: "Passkey not found" },
@@ -145,13 +230,17 @@ describe("usePasskeys", () => {
 
 		const { result } = renderHook(() => usePasskeys());
 		await waitFor(() => expect(result.current.loading).toBe(false));
+		act(() => {
+			result.current.onDeleteTargetChange(PASSKEY_A);
+		});
 		await act(async () => {
-			await result.current.onDeletePasskey("pk1");
+			await result.current.onDeletePasskey();
 		});
 
 		expect(mocks.toastError).toHaveBeenCalledTimes(1);
 		expect(mocks.toastError).toHaveBeenNthCalledWith(1, "Passkey not found");
 		expect(mocks.toastSuccess).not.toHaveBeenCalled();
+		expect(result.current.deleteTarget).toEqual(PASSKEY_A);
 		expect(mocks.listUserPasskeys).toHaveBeenCalledTimes(1);
 		expect(result.current.passkeys).toEqual([PASSKEY_A]);
 	});
@@ -162,14 +251,62 @@ describe("usePasskeys", () => {
 
 		const { result } = renderHook(() => usePasskeys());
 		await waitFor(() => expect(result.current.loading).toBe(false));
+		act(() => {
+			result.current.onDeleteTargetChange(PASSKEY_A);
+		});
 		await act(async () => {
-			await result.current.onDeletePasskey("pk1");
+			await result.current.onDeletePasskey();
 		});
 
 		expect(mocks.toastError).toHaveBeenNthCalledWith(
 			1,
 			"Failed to remove passkey"
 		);
+	});
+
+	it("marks the delete pending while it is in flight, and clears it after", async () => {
+		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY_A] });
+		let release: ((value: unknown) => void) | undefined;
+		mocks.deletePasskey.mockReturnValue(
+			new Promise((resolve) => {
+				release = resolve;
+			})
+		);
+
+		const { result } = renderHook(() => usePasskeys());
+		await waitFor(() => expect(result.current.loading).toBe(false));
+		act(() => {
+			result.current.onDeleteTargetChange(PASSKEY_A);
+		});
+		expect(result.current.isDeletePending).toBe(false);
+
+		let pending: Promise<void> | undefined;
+		act(() => {
+			pending = result.current.onDeletePasskey();
+		});
+		await waitFor(() => expect(result.current.isDeletePending).toBe(true));
+
+		await act(async () => {
+			release?.({ data: { status: true } });
+			await pending;
+		});
+		expect(result.current.isDeletePending).toBe(false);
+	});
+
+	it("clears the pending flag even when the delete rejects", async () => {
+		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY_A] });
+		mocks.deletePasskey.mockRejectedValue(new Error("offline"));
+
+		const { result } = renderHook(() => usePasskeys());
+		await waitFor(() => expect(result.current.loading).toBe(false));
+		act(() => {
+			result.current.onDeleteTargetChange(PASSKEY_A);
+		});
+		await act(async () => {
+			await expect(result.current.onDeletePasskey()).rejects.toThrow("offline");
+		});
+
+		expect(result.current.isDeletePending).toBe(false);
 	});
 
 	it("refreshPasskeys re-reads the list on demand", async () => {
@@ -283,6 +420,69 @@ describe("usePasskeys", () => {
 			1,
 			"Failed to rename passkey"
 		);
+	});
+
+	it("ignores a second rename while one is in flight", async () => {
+		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY_A] });
+		let release: ((value: unknown) => void) | undefined;
+		mocks.updatePasskey.mockReturnValue(
+			new Promise((resolve) => {
+				release = resolve;
+			})
+		);
+
+		const { result } = renderHook(() => usePasskeys());
+		await waitFor(() => expect(result.current.loading).toBe(false));
+		act(() => {
+			result.current.onRenameTargetChange(PASSKEY_A);
+		});
+
+		let first: Promise<void> | undefined;
+		act(() => {
+			first = result.current.onRenamePasskey("Work laptop");
+		});
+		await waitFor(() => expect(result.current.isRenamePending).toBe(true));
+		await act(async () => {
+			await result.current.onRenamePasskey("Work laptop");
+		});
+		expect(mocks.updatePasskey).toHaveBeenCalledTimes(1);
+
+		await act(async () => {
+			release?.({ data: { passkey: PASSKEY_A } });
+			await first;
+		});
+		expect(result.current.isRenamePending).toBe(false);
+	});
+
+	it("ignores a second delete while one is in flight", async () => {
+		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY_A] });
+		let release: ((value: unknown) => void) | undefined;
+		mocks.deletePasskey.mockReturnValue(
+			new Promise((resolve) => {
+				release = resolve;
+			})
+		);
+
+		const { result } = renderHook(() => usePasskeys());
+		await waitFor(() => expect(result.current.loading).toBe(false));
+		act(() => {
+			result.current.onDeleteTargetChange(PASSKEY_A);
+		});
+
+		let first: Promise<void> | undefined;
+		act(() => {
+			first = result.current.onDeletePasskey();
+		});
+		await waitFor(() => expect(result.current.isDeletePending).toBe(true));
+		await act(async () => {
+			await result.current.onDeletePasskey();
+		});
+		expect(mocks.deletePasskey).toHaveBeenCalledTimes(1);
+
+		await act(async () => {
+			release?.({ data: { status: true } });
+			await first;
+		});
 	});
 
 	it("clears a previous error once a refetch succeeds", async () => {
