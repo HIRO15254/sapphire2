@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -215,6 +215,27 @@ describe("Passkeys", () => {
 		expect(await screen.findByLabelText(PASSKEY_NAME_LABEL)).toHaveValue(
 			prefilled
 		);
+	});
+
+	it("disables Retry and shows progress while the retry is in flight", async () => {
+		const user = userEvent.setup();
+		let release: ((value: unknown) => void) | undefined;
+		mocks.listUserPasskeys
+			.mockRejectedValueOnce(new Error("offline"))
+			.mockReturnValueOnce(
+				new Promise((resolve) => {
+					release = resolve;
+				})
+			);
+		render(<Passkeys />);
+
+		await user.click(await screen.findByRole("button", { name: "Retry" }));
+		expect(screen.getByRole("button", { name: "Retrying..." })).toBeDisabled();
+
+		await act(async () => {
+			release?.({ data: [] });
+			await Promise.resolve();
+		});
 	});
 
 	it("reports the fetch failure instead of an empty list", async () => {

@@ -115,6 +115,24 @@ That helper matches on `name` as well as `code`, because a raw `DOMException`
 (`NotAllowedError`, `AbortError`) carries its identity in `name`; `DOMException.code` is a
 legacy *number* and never matches a string.
 
+The registration path needs one more code. A dismissed prompt raises `NotAllowedError`,
+which `@simplewebauthn/browser` deliberately passes through as
+`ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY` (the spec keeps that error opaque to prevent
+fingerprinting, so the library refuses to reinterpret it), and better-auth forwards that
+code verbatim. `ERROR_CEREMONY_ABORTED` is reserved for an `AbortSignal` abort and does
+*not* cover the user closing the sheet. Following `error.cause` down to the original
+`DOMException` does not help: better-auth rebuilds the error as a plain
+`{ code, message, status, statusText }` object and drops `cause` entirely.
+
+Sign-in needs no such care — better-auth funnels every `startAuthentication` throw into
+`AUTH_CANCELLED`.
+
+`ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED` is the one failure worth rewording rather than
+silencing: on a device that already holds a passkey, `excludeCredentials` makes "Add
+passkey" fail by design, and the plugin's own "Previously registered" says nothing about
+what to do. The screen is still the way to register a *different* device over
+cross-device QR, so the button stays.
+
 Ceremonies are also guarded against a second press: WebAuthn aborts an in-flight request
 when a new one starts, so a double-click would cancel the user's own prompt and surface a
 `NotAllowedError`. The sign-in button, the add form and the rename/delete handlers each

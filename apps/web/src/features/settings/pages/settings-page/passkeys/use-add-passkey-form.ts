@@ -12,6 +12,15 @@ interface UseAddPasskeyFormOptions {
 	onSuccess: () => void;
 }
 
+const PREVIOUSLY_REGISTERED_CODE = "ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED";
+
+function isPreviouslyRegistered(error?: unknown): boolean {
+	return (
+		(error as { code?: unknown } | null | undefined)?.code ===
+		PREVIOUSLY_REGISTERED_CODE
+	);
+}
+
 const addPasskeySchema = z.object({
 	name: z
 		.string()
@@ -42,9 +51,14 @@ export function useAddPasskeyForm({
 				});
 
 				if (!result?.data || result.error) {
-					if (!isCancelledCeremony(result?.error)) {
-						toast.error(result?.error?.message || "Failed to add passkey");
+					if (isCancelledCeremony(result?.error)) {
+						return;
 					}
+					toast.error(
+						isPreviouslyRegistered(result?.error)
+							? "This device already has a passkey"
+							: result?.error?.message || "Failed to add passkey"
+					);
 					return;
 				}
 

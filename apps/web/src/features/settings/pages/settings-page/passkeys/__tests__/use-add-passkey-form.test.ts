@@ -128,6 +128,35 @@ describe("useAddPasskeyForm", () => {
 		expect(onOpenChange).not.toHaveBeenCalled();
 	});
 
+	it("stays silent when the platform passes a dismissal through", async () => {
+		mocks.addPasskey.mockResolvedValue({
+			data: null,
+			error: {
+				code: "ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY",
+				message: "The operation either timed out or was not allowed.",
+			},
+		});
+		const { result } = renderForm();
+		await submitWithName(result, "Pixel 9");
+		expect(mocks.toastError).not.toHaveBeenCalled();
+	});
+
+	it("explains an already-registered device instead of echoing the plugin", async () => {
+		mocks.addPasskey.mockResolvedValue({
+			data: null,
+			error: {
+				code: "ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED",
+				message: "Previously registered",
+			},
+		});
+		const { result } = renderForm();
+		await submitWithName(result, "Pixel 9");
+		expect(mocks.toastError).toHaveBeenNthCalledWith(
+			1,
+			"This device already has a passkey"
+		);
+	});
+
 	it("still reports a genuine registration failure", async () => {
 		mocks.addPasskey.mockResolvedValue({
 			data: null,

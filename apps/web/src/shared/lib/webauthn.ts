@@ -27,6 +27,7 @@ export async function supportsAutomaticPasskeyRegistration(): Promise<boolean> {
 const CANCELLED_CEREMONY_CODES = new Set([
 	"AUTH_CANCELLED",
 	"ERROR_CEREMONY_ABORTED",
+	"ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY",
 	"NotAllowedError",
 	"AbortError",
 ]);

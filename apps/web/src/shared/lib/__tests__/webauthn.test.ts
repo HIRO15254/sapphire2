@@ -116,6 +116,7 @@ describe("isCancelledCeremony", () => {
 		"ERROR_CEREMONY_ABORTED",
 		"NotAllowedError",
 		"AbortError",
+		"ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY",
 	])("treats %s as the user dismissing the prompt", (code) => {
 		expect(isCancelledCeremony({ code })).toBe(true);
 	});
