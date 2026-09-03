@@ -110,6 +110,17 @@ describe("computeTournamentTimerState", () => {
 		expect(state.elapsedSeconds).toBe(0);
 		expect(state.currentLevel?.level).toBe(1);
 	});
+
+	it("computes level progress fraction as elapsed over level duration", () => {
+		const atStart = computeTournamentTimerState(LEVELS, T0, T0 - 1000);
+		expect(atStart.levelProgressFraction).toBe(0);
+		const halfway = computeTournamentTimerState(
+			LEVELS,
+			T0,
+			T0 + 30 * 60 * 1000
+		);
+		expect(halfway.levelProgressFraction).toBe(0.5);
+	});
 });
 
 describe("formatTimerDuration", () => {

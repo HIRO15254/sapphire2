@@ -487,4 +487,85 @@ describe("aggregatePnlPoints", () => {
 			expect(result.points[1]?.evCashCumulative).toBe(0);
 		});
 	});
+
+	describe("type guards on normalized value derivation", () => {
+		it("skips a tournament-type point in the bb series even when bigBlind is populated", () => {
+			const result = aggregatePnlPoints({
+				...baseOptions,
+				xAxis: "sessionCount",
+				unit: "normalized",
+				sessionType: "cash_game",
+				rawPoints: [
+					point({
+						id: "a",
+						profitLoss: 200,
+						sessionDate: 1,
+						type: "tournament",
+						bigBlind: 50,
+					}),
+					point({ id: "b", profitLoss: 100, sessionDate: 2, bigBlind: 25 }),
+				],
+			});
+			expect(result.points).toEqual([
+				{ x: 0, cumulative: 0 },
+				{ x: 1, cumulative: 4 },
+			]);
+			expect(result.skippedCount).toBe(1);
+		});
+
+		it("skips a cash_game-type point in the bi series even when buyInTotal is populated", () => {
+			const result = aggregatePnlPoints({
+				...baseOptions,
+				xAxis: "sessionCount",
+				unit: "normalized",
+				sessionType: "tournament",
+				rawPoints: [
+					point({ id: "a", profitLoss: 300, sessionDate: 1, buyInTotal: 100 }),
+					point({
+						id: "b",
+						profitLoss: 90,
+						sessionDate: 2,
+						type: "tournament",
+						buyInTotal: 30,
+					}),
+				],
+			});
+			expect(result.points).toEqual([
+				{ x: 0, cumulative: 0 },
+				{ x: 1, cumulative: 3 },
+			]);
+			expect(result.skippedCount).toBe(1);
+		});
+
+		it("drops the EV contribution when bigBlind is non-positive under the normalized unit", () => {
+			const result = aggregatePnlPoints({
+				...baseOptions,
+				xAxis: "sessionCount",
+				unit: "normalized",
+				sessionType: "cash_game",
+				showEvCash: true,
+				rawPoints: [
+					point({
+						id: "a",
+						profitLoss: 100,
+						evProfitLoss: 80,
+						sessionDate: 1,
+						bigBlind: 0,
+					}),
+					point({
+						id: "b",
+						profitLoss: 200,
+						evProfitLoss: 100,
+						sessionDate: 2,
+						bigBlind: 50,
+					}),
+				],
+			});
+			expect(result.points).toEqual([
+				{ x: 0, cumulative: 0, evCashCumulative: 0 },
+				{ x: 1, cumulative: 4, evCashCumulative: 2 },
+			]);
+			expect(result.skippedCount).toBe(1);
+		});
+	});
 });

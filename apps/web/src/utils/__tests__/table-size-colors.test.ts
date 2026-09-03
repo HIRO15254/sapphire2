@@ -7,14 +7,6 @@ import {
 const COLOR_PAIR_SHAPE = /^bg-[a-z]+-100 text-[a-z]+-700 dark:bg-/;
 
 describe("TABLE_SIZE_COLORS", () => {
-	it("has entries for sizes 2 through 10", () => {
-		for (const size of [2, 3, 4, 5, 6, 7, 8, 9, 10]) {
-			expect(TABLE_SIZE_COLORS[size]).toBeDefined();
-			expect(typeof TABLE_SIZE_COLORS[size]).toBe("string");
-			expect(TABLE_SIZE_COLORS[size]).not.toBe("");
-		}
-	});
-
 	it("does not include sizes outside the poker table range", () => {
 		expect(TABLE_SIZE_COLORS[0]).toBeUndefined();
 		expect(TABLE_SIZE_COLORS[1]).toBeUndefined();

@@ -376,3 +376,13 @@ describe("diffBlindLevels — games", () => {
 		);
 	});
 });
+
+describe("diffBlindLevels — scalar fields", () => {
+	it("detects all snap/master field differences", () => {
+		expect(diffBlindLevels([level({ isBreak: true })], [level()])).toBe(true);
+		expect(diffBlindLevels([level({ blind2: 999 })], [level()])).toBe(true);
+		expect(diffBlindLevels([level({ blind3: 999 })], [level()])).toBe(true);
+		expect(diffBlindLevels([level({ ante: 999 })], [level()])).toBe(true);
+		expect(diffBlindLevels([level({ minutes: 999 })], [level()])).toBe(true);
+	});
+});

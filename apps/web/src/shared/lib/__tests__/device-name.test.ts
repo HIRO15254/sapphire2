@@ -142,6 +142,12 @@ describe("describeDevice", () => {
 		);
 	});
 
+	it("treats maxTouchPoints = 1 as a Mac, not iPad", () => {
+		expect(
+			describeDevice({ maxTouchPoints: 1, userAgent: USER_AGENTS.safariMac })
+		).toBe("Safari on macOS");
+	});
+
 	it("does not turn a touch-capable Windows device into an iPad", () => {
 		expect(
 			describeDevice({
