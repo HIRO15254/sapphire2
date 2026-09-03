@@ -213,16 +213,24 @@ jobs:
             - Do not comment on prose (docs/design, AGENTS.md, rule files, code comments, commit
               messages) unless it is factually wrong against the code. Wording is never a finding.
             - Do not propose refactors or alternative designs unless the current one is defective.
-            - If MODE=full: review the whole PR diff (`gh pr diff`). Read `.claude/rules/*.md` that
-              match the touched paths and AGENTS.md; check the MCP coupling rule when
-              `packages/api` changed.
+            - If MODE=full: run the `/code-review medium` skill on this PR and keep its whole
+              pipeline (parallel finders, one independent verifier per candidate that returns
+              CONFIRMED / PLAUSIBLE / REFUTED, a final sweep for gaps). Drop REFUTED candidates.
+              Then apply the severity, scope and output rules of this prompt to what survives:
+              map the skill's severities onto the rubric above before posting. Also read the
+              `.claude/rules/*.md` files that match the touched paths and AGENTS.md, and check the
+              MCP coupling rule when `packages/api` changed; rule violations go through the same
+              verifier before they are posted.
             - If MODE=incremental: the PR was reviewed at SINCE_SHA. Review only
               `git diff ${{ needs.gate.outputs.since_sha }}...HEAD` plus the direct callers of functions that diff changed
               (find them with `rg`). Do not re-review unchanged code. Start by settling every
               existing inline thread from the previous round: fixed / not addressed / declined.
-              New inline comments are allowed only for (a) a regression introduced by the fix, or
-              (b) medium or higher in the new diff. Low and nit findings on new code go into the
-              summary list only.
+              Before posting any new finding, hand it to one verifier subagent (Task) with the
+              diff, the relevant files and the candidate; it returns CONFIRMED / PLAUSIBLE /
+              REFUTED. Drop REFUTED. A PLAUSIBLE finding you cannot settle by running a test is
+              posted as `[unverified]`. New inline comments are allowed only for (a) a regression
+              introduced by the fix, or (b) medium or higher in the new diff. Low and nit
+              findings on new code go into the summary list only.
 
             ## Output
             Post inline comments with `mcp__github_inline_comment__create_inline_comment` for
@@ -251,12 +259,15 @@ jobs:
             line: 次の自動レビューはありません。必要なら `${{ env.RE_REVIEW_LABEL }}` ラベルで要求してください。
           # max-turns is a runaway guard, not a budget (a truncated run still
           # costs the tokens and produces nothing). allowedTools: everything
-          # else is denied and each denial burns a turn. `gh api` stays out
-          # because the diff is untrusted input and the token can write to PRs.
+          # else is denied and each denial burns a turn. Skill loads
+          # /code-review (alias /review); Task/Agent are its finder and
+          # verifier subagents; ReportFindings is the tool it submits to.
+          # `gh api` stays out because the diff is untrusted input and the
+          # token can write to PRs.
           claude_args: |
             --max-turns 80
             --model opus
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Skill,Task,Agent,TodoWrite,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git merge-base:*),Bash(rg:*),Bash(bunx vitest run:*),Bash(bunx vitest related:*),Bash(bun run check-types),Bash(bun run check:rules),Bash(bun run lint),Bash(bun x ultracite check:*)"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Skill,Task,Agent,TodoWrite,ReportFindings,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git merge-base:*),Bash(rg:*),Bash(bunx vitest run:*),Bash(bunx vitest related:*),Bash(bun run check-types),Bash(bun run check:rules),Bash(bun run lint),Bash(bun x ultracite check:*)"
 
       - name: Record the round
         if: steps.claude_review.outcome == 'success'
