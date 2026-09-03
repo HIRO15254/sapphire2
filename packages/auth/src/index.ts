@@ -44,7 +44,7 @@ export function constantTimeEqual(
 	return difference === 0;
 }
 
-async function hashPassword(password: string): Promise<string> {
+export async function hashPassword(password: string): Promise<string> {
 	const salt = crypto.getRandomValues(new Uint8Array(16));
 	const keyMaterial = await crypto.subtle.importKey(
 		"raw",
@@ -66,7 +66,7 @@ async function hashPassword(password: string): Promise<string> {
 	return `${hexEncode(salt)}:${hexEncode(new Uint8Array(derivedBits))}`;
 }
 
-async function verifyPassword(data: {
+export async function verifyPassword(data: {
 	hash: string;
 	password: string;
 }): Promise<boolean> {
@@ -112,7 +112,7 @@ const authSchema = {
 	passkeyRelations,
 };
 
-interface AuthOptions {
+export interface AuthOptions {
 	baseURL?: string;
 	corsOrigin: string;
 	discordClientId?: string;
@@ -147,41 +147,90 @@ export async function runUserCreatedHook(
 	}
 }
 
+export function buildMcpPluginConfig(
+	config: AuthOptions["mcp"]
+): Parameters<typeof mcp>[0] | null {
+	if (!config) {
+		return null;
+	}
+	return {
+		loginPage: config.loginPage,
+		resource: config.resource,
+		oidcConfig: {
+			loginPage: config.loginPage,
+			consentPage: config.consentPage,
+			requirePKCE: true,
+			allowDynamicClientRegistration: true,
+		},
+	};
+}
+
+export function buildPasskeyPluginConfig(
+	config: AuthOptions["passkey"]
+): Parameters<typeof passkeyPlugin>[0] | null {
+	if (!config) {
+		return null;
+	}
+	return {
+		rpID: config.rpID,
+		rpName: config.rpName,
+		origin: config.origin,
+		authenticatorSelection: {
+			residentKey: "required",
+			userVerification: "preferred",
+		},
+	};
+}
+
+export function buildTrustedOrigins(
+	options: Pick<AuthOptions, "baseURL" | "corsOrigin" | "mcp">
+): string[] {
+	const trustedOrigins = [options.corsOrigin];
+	if (options.mcp && options.baseURL) {
+		trustedOrigins.push(new URL(options.baseURL).origin);
+	}
+	return trustedOrigins;
+}
+
+export function buildSocialProviders(
+	options: Pick<
+		AuthOptions,
+		| "discordClientId"
+		| "discordClientSecret"
+		| "googleClientId"
+		| "googleClientSecret"
+	>
+): NonNullable<Parameters<typeof betterAuth>[0]["socialProviders"]> {
+	return {
+		...(options.googleClientId &&
+			options.googleClientSecret && {
+				google: {
+					clientId: options.googleClientId,
+					clientSecret: options.googleClientSecret,
+				},
+			}),
+		...(options.discordClientId &&
+			options.discordClientSecret && {
+				discord: {
+					clientId: options.discordClientId,
+					clientSecret: options.discordClientSecret,
+				},
+			}),
+	};
+}
+
 export function createAuth(
 	dbInstance: Parameters<typeof drizzleAdapter>[0],
 	options: AuthOptions
 ) {
 	const plugins: BetterAuthPlugin[] = [];
-	if (options.mcp) {
-		plugins.push(
-			mcp({
-				loginPage: options.mcp.loginPage,
-				resource: options.mcp.resource,
-				oidcConfig: {
-					loginPage: options.mcp.loginPage,
-					consentPage: options.mcp.consentPage,
-					requirePKCE: true,
-					allowDynamicClientRegistration: true,
-				},
-			})
-		);
+	const mcpConfig = buildMcpPluginConfig(options.mcp);
+	if (mcpConfig) {
+		plugins.push(mcp(mcpConfig));
 	}
-	if (options.passkey) {
-		plugins.push(
-			passkeyPlugin({
-				rpID: options.passkey.rpID,
-				rpName: options.passkey.rpName,
-				origin: options.passkey.origin,
-				authenticatorSelection: {
-					residentKey: "required",
-					userVerification: "preferred",
-				},
-			}) as BetterAuthPlugin
-		);
-	}
-	const trustedOrigins = [options.corsOrigin];
-	if (options.mcp && options.baseURL) {
-		trustedOrigins.push(new URL(options.baseURL).origin);
+	const passkeyConfig = buildPasskeyPluginConfig(options.passkey);
+	if (passkeyConfig) {
+		plugins.push(passkeyPlugin(passkeyConfig) as BetterAuthPlugin);
 	}
 	return betterAuth({
 		secret: options.secret,
@@ -190,7 +239,7 @@ export function createAuth(
 			provider: "sqlite",
 			schema: authSchema,
 		}),
-		trustedOrigins,
+		trustedOrigins: buildTrustedOrigins(options),
 		emailAndPassword: {
 			enabled: true,
 			password: {
@@ -205,22 +254,7 @@ export function createAuth(
 				httpOnly: true,
 			},
 		},
-		socialProviders: {
-			...(options.googleClientId &&
-				options.googleClientSecret && {
-					google: {
-						clientId: options.googleClientId,
-						clientSecret: options.googleClientSecret,
-					},
-				}),
-			...(options.discordClientId &&
-				options.discordClientSecret && {
-					discord: {
-						clientId: options.discordClientId,
-						clientSecret: options.discordClientSecret,
-					},
-				}),
-		},
+		socialProviders: buildSocialProviders(options),
 		account: {
 			accountLinking: {
 				enabled: true,

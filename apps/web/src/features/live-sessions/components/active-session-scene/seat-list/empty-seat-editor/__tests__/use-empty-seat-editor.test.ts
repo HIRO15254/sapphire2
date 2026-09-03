@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createTestQueryClient, withQueryClient } from "@/__tests__/test-utils";
 
 interface PlayerOption {
 	id: string;
@@ -12,14 +13,15 @@ const mocks = vi.hoisted(() => ({
 	players: [] as PlayerOption[],
 }));
 
-vi.mock("@tanstack/react-query", () => ({
-	useQuery: () => ({ data: mocks.players }),
-}));
-
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		player: {
-			list: { queryOptions: () => ({ queryKey: ["player", "list"] }) },
+			list: {
+				queryOptions: () => ({
+					queryKey: ["player", "list"],
+					queryFn: () => Promise.resolve(mocks.players),
+				}),
+			},
 		},
 	},
 }));
@@ -41,7 +43,14 @@ function render(
 		onSeatHero: vi.fn(),
 		...overrides,
 	};
-	return { options, ...renderHook(() => useEmptySeatEditor(options)) };
+	const queryClient = createTestQueryClient();
+	queryClient.setQueryData(["player", "list"], mocks.players);
+	return {
+		options,
+		...renderHook(() => useEmptySeatEditor(options), {
+			wrapper: withQueryClient(queryClient),
+		}),
+	};
 }
 
 describe("useEmptySeatEditor", () => {

@@ -55,6 +55,21 @@ export function withQueryClient(
 	return Wrapper;
 }
 
+export function startPendingMutation(queryClient: QueryClient): {
+	done: Promise<void>;
+	settle: () => void;
+} {
+	let resolve: () => void = () => undefined;
+	const gate = new Promise<void>((finish) => {
+		resolve = finish;
+	});
+	const mutation = queryClient.getMutationCache().build(queryClient, {
+		mutationFn: () => gate,
+	});
+	const done = mutation.execute(undefined);
+	return { done, settle: () => resolve() };
+}
+
 export function renderWithQueryClient(
 	ui: ReactElement,
 	options: Omit<RenderOptions, "wrapper"> & { queryClient?: QueryClient } = {}

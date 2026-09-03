@@ -78,6 +78,14 @@ describe("classifyChangedFiles", () => {
 		expect(affectedProjects(plans)).toEqual([]);
 	});
 
+	it("ignores the api wiring files excluded from mutation subjects", () => {
+		const plans = classifyChangedFiles(
+			["packages/api/src/context.ts", "packages/api/src/routers/index.ts"],
+			exists
+		);
+		expect(affectedProjects(plans)).toEqual([]);
+	});
+
 	it("ignores paths outside every mutation project", () => {
 		const plans = classifyChangedFiles(
 			[

@@ -63,6 +63,10 @@ const WEB_NODE_SOURCE =
 	/^apps\/web\/src\/(?:utils\/[^/]+\.ts|shared\/lib\/.+\.ts|features\/.+\/utils\/.+\.ts)$/;
 const WEB_NODE_TEST =
 	/^apps\/web\/src\/(?:utils\/__tests__\/|shared\/lib\/.*__tests__\/|features\/.+\/utils\/__tests__\/)/;
+const API_EXCLUDED = new Set([
+	"packages/api/src/context.ts",
+	"packages/api/src/routers/index.ts",
+]);
 const DB_EXCLUDED = new Set(["packages/db/src/constants/player-tag-colors.ts"]);
 const WEB_NODE_EXCLUDED = new Set([
 	"apps/web/src/utils/trpc.ts",
@@ -81,7 +85,10 @@ export const PROJECTS: Record<ProjectName, MutationProject> = {
 		root: "packages/api",
 		timeoutMS: 30_000,
 		isSubject: (path) =>
-			API_SOURCE.test(path) && !TEST_PATH.test(path) && !DECLARATION.test(path),
+			API_SOURCE.test(path) &&
+			!TEST_PATH.test(path) &&
+			!DECLARATION.test(path) &&
+			!API_EXCLUDED.has(normalizeRulePath(path)),
 		isTestSide: (path) =>
 			path.startsWith("packages/api/src/") && TEST_PATH.test(path),
 	},

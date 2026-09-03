@@ -10,6 +10,7 @@ export default defineConfig({
 			"packages/db/vitest.config.ts",
 			"packages/mcp/vitest.config.ts",
 			"packages/env/vitest.config.ts",
+			"packages/auth/vitest.config.ts",
 		],
 	},
 });

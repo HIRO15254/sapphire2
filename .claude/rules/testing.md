@@ -18,6 +18,7 @@ Why this file exists: the coverage sweep (PR #226) grew the suite to ~6,900 `it(
 | DB | `db` | FK `onDelete`, unique / partial indexes, CHECK constraints, migration behavior on `bun:sqlite` (mid-file failure, retry) | column lists, `notNull` / `hasDefault`, Zod key sets |
 | Web hooks | `web-dom` | state transitions, handler outcomes, optimistic cache contents, side effects that are the contract | JSX binding |
 | Web components | `web-dom` | what the user sees for a given hook state (text, disabled, roles) and that an interaction reaches the hook handler | hook logic through the DOM |
+| Auth config builders | `auth` | the plugin configs, trusted origins and social providers `createAuth` assembles, password hash round-trip | Better Auth runtime (sessions, OAuth, WebAuthn, adapter SQL) |
 | Server worker (Hono) | `server` | route behavior through `app.request()` (status, headers, consent / register gates) and the pure helpers those routes call | Better Auth internals, tRPC procedure logic (owned by `api`) |
 
 A behavior belongs to exactly one row. A Zod rule proven in `packages/api` is not re-proven from the web form; a hook rule proven with `renderHook` is not re-proven by clicking through the component.

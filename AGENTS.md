@@ -121,6 +121,7 @@ Tests are behavioral contracts: each `it()` pins one observable outcome the spec
 - DB schema tests → `bunx vitest run --project db [path]`
 - MCP tool tests → `bunx vitest run --project mcp [path]`
 - Env tests → `bunx vitest run --project env`
+- Auth config tests → `bunx vitest run --project auth`
 - Related to current staged files → `bunx vitest related --run $(git diff --cached --name-only ...)` — already automated by pre-commit for human commits.
 - Mutation on changed files → `bun run mutate` (minutes, report-only; once before the PR, never per step)
 

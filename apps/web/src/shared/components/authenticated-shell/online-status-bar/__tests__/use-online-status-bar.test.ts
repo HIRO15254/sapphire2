@@ -1,26 +1,63 @@
+import type { QueryClient } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	createTestQueryClient,
+	startPendingMutation,
+	withQueryClient,
+} from "@/__tests__/test-utils";
 
 const mocks = vi.hoisted(() => ({
 	onlineStatus: true,
-	mutatingCount: 0,
 }));
 
 vi.mock("@/shared/hooks/use-online-status", () => ({
 	useOnlineStatus: () => mocks.onlineStatus,
 }));
 
-vi.mock("@tanstack/react-query", () => ({
-	useIsMutating: () => mocks.mutatingCount,
-}));
-
 import { useOnlineStatusBar } from "@/shared/components/authenticated-shell/online-status-bar/use-online-status-bar";
+
+let queryClient: QueryClient;
+
+function renderBar() {
+	return renderHook(() => useOnlineStatusBar(), {
+		wrapper: withQueryClient(queryClient),
+	});
+}
+
+function startMutations(count: number) {
+	const pending: ReturnType<typeof startPendingMutation>[] = [];
+	act(() => {
+		for (let index = 0; index < count; index += 1) {
+			pending.push(startPendingMutation(queryClient));
+		}
+		vi.runOnlyPendingTimers();
+	});
+	return pending;
+}
+
+async function settleMutations(
+	pending: ReturnType<typeof startPendingMutation>[]
+) {
+	await act(async () => {
+		for (const mutation of pending) {
+			mutation.settle();
+		}
+		for (let round = 0; round < 10; round += 1) {
+			await Promise.resolve();
+			vi.advanceTimersByTime(0);
+		}
+		await Promise.all(pending.map((mutation) => mutation.done));
+		vi.advanceTimersByTime(0);
+	});
+	expect(queryClient.isMutating()).toBe(0);
+}
 
 describe("useOnlineStatusBar", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
 		mocks.onlineStatus = true;
-		mocks.mutatingCount = 0;
+		queryClient = createTestQueryClient();
 	});
 
 	afterEach(() => {
@@ -28,30 +65,30 @@ describe("useOnlineStatusBar", () => {
 	});
 
 	it("starts hidden when initially online and never went offline", () => {
-		const { result } = renderHook(() => useOnlineStatusBar());
+		const { result } = renderBar();
 		expect(result.current.displayState).toBe("hidden");
 	});
 
 	it("transitions to 'offline' when offline", () => {
 		mocks.onlineStatus = false;
-		const { result } = renderHook(() => useOnlineStatusBar());
+		const { result } = renderBar();
 		expect(result.current.displayState).toBe("offline");
 	});
 
 	it("shows 'syncing' when coming back online with active mutations", () => {
 		mocks.onlineStatus = false;
-		const { result, rerender } = renderHook(() => useOnlineStatusBar());
+		const { result, rerender } = renderBar();
 		expect(result.current.displayState).toBe("offline");
 
 		mocks.onlineStatus = true;
-		mocks.mutatingCount = 2;
+		startMutations(2);
 		rerender();
 		expect(result.current.displayState).toBe("syncing");
 	});
 
 	it("shows 'back-online' when coming back online with no mutations, then fades to hidden after 2s", () => {
 		mocks.onlineStatus = false;
-		const { result, rerender } = renderHook(() => useOnlineStatusBar());
+		const { result, rerender } = renderBar();
 		expect(result.current.displayState).toBe("offline");
 
 		mocks.onlineStatus = true;
@@ -66,7 +103,7 @@ describe("useOnlineStatusBar", () => {
 
 	it("goes offline again, clears any pending fade", () => {
 		mocks.onlineStatus = false;
-		const { result, rerender } = renderHook(() => useOnlineStatusBar());
+		const { result, rerender } = renderBar();
 		mocks.onlineStatus = true;
 		rerender();
 		expect(result.current.displayState).toBe("back-online");
@@ -82,20 +119,20 @@ describe("useOnlineStatusBar", () => {
 	});
 
 	it("stays 'hidden' when online and never went offline, even if a mutation is pending", () => {
-		mocks.mutatingCount = 3;
-		const { result } = renderHook(() => useOnlineStatusBar());
+		startMutations(3);
+		const { result } = renderBar();
 		expect(result.current.displayState).toBe("hidden");
 	});
 
-	it("mutation count dropping to 0 while syncing transitions to back-online and then hidden", () => {
+	it("mutation count dropping to 0 while syncing transitions to back-online and then hidden", async () => {
 		mocks.onlineStatus = false;
-		const { result, rerender } = renderHook(() => useOnlineStatusBar());
+		const { result, rerender } = renderBar();
 		mocks.onlineStatus = true;
-		mocks.mutatingCount = 1;
+		const pending = startMutations(1);
 		rerender();
 		expect(result.current.displayState).toBe("syncing");
 
-		mocks.mutatingCount = 0;
+		await settleMutations(pending);
 		rerender();
 		expect(result.current.displayState).toBe("back-online");
 

@@ -30,6 +30,7 @@ const VITEST_PROJECTS = [
 	"db",
 	"mcp",
 	"env",
+	"auth",
 ] as const;
 const WORKSPACES = [
 	"apps/web",
@@ -38,6 +39,7 @@ const WORKSPACES = [
 	"packages/db",
 	"packages/mcp",
 	"packages/env",
+	"packages/auth",
 ] as const;
 const SPEC_GLOB = "**/*.test.{ts,tsx}";
 const SOURCE_GLOBS = [
