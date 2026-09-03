@@ -23,6 +23,7 @@ import {
 	redirectHostsFrom,
 	withoutLoginPromptCookie,
 } from "./oauth-consent";
+import { withClientName } from "./oauth-register";
 
 interface Env {
 	ANTHROPIC_API_KEY?: string;
@@ -117,10 +118,11 @@ app.use("/api/auth/*", (c, next) => {
 	);
 });
 
-app.on(["POST", "GET"], "/api/auth/*", (c) => {
+app.on(["POST", "GET"], "/api/auth/*", async (c) => {
 	const db = createDb(c.env.DB);
 	const auth = createAuth(db, buildAuthOptions(c.env, db));
-	return auth.handler(withoutLoginPromptCookie(c.req.raw));
+	const request = await withClientName(c.req.raw);
+	return auth.handler(withoutLoginPromptCookie(request));
 });
 
 app.get("/oauth/consent", async (c) => {

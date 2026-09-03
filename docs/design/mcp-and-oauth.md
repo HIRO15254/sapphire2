@@ -21,6 +21,18 @@ The matching is deliberately **default-deny**:
 
 The regression tests for this wiring assert the URL actually handed to better-auth (not status codes) and pin the better-auth 1.6.0 authorize route surface — see [`testing-and-tooling.md`](testing-and-tooling.md).
 
+## Dynamic client registration
+
+better-auth's `/mcp/register` (and the oidc-provider's `/oauth2/register`) writes `name: body.client_name` straight into `oauth_application.name`, which is `NOT NULL`. `client_name` is **optional** in RFC 7591 and Claude's connector registers without it, so the D1 insert fails with `NOT NULL constraint failed: oauth_application.name`, better-auth answers `500`, and the client reports "Couldn't register with the sign-in service. You can retry or add an OAuth client ID in the connector settings." That message names nothing on the server side, and the failure lands before any browser window opens — the only trace is the `500` on `POST /api/auth/mcp/register` in the Worker log.
+
+[`withClientName`](../../apps/server/src/oauth-register.ts) rewrites a registration body carrying no usable `client_name` (absent, or `null`) to the empty string before better-auth sees it. Empty rather than a synthesized label: the consent page already renders a blank name as "Unknown application", and any name the Worker invented would be a claim about a client nobody vouched for — the redirect hosts stay the only trustworthy signal.
+
+- **Suffix match (`…/register`), POST only** — like the authorize gate, so `/api/auth/oauth2/register` carries the same NOT NULL hazard and is covered by the same rewrite.
+- **Only a missing value is filled in.** A `client_name` of the wrong type is forwarded untouched so better-auth's own validation still answers `400`, and a body that is not a JSON object is forwarded unchanged.
+- **The rewritten request drops `content-length`** — the new body is longer than the one the client sent, and a stale length truncates it.
+
+The column stays `NOT NULL`: the OIDC tables mirror the plugin's schema definition (see [Provisioning](#provisioning-and-persistence)), so the fix belongs in the Worker, not in a migration that diverges from the plugin's contract.
+
 ## The consent page
 
 better-auth redirects mid-authorize to `GET /oauth/consent`, rendered by the Worker via [`packages/mcp/src/auth/consent-html.ts`](../../packages/mcp/src/auth/consent-html.ts).
