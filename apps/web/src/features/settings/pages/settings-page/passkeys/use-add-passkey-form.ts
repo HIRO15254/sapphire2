@@ -15,9 +15,13 @@ interface UseAddPasskeyFormOptions {
 const PREVIOUSLY_REGISTERED_CODE = "ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED";
 
 function isPreviouslyRegistered(error?: unknown): boolean {
-	return (
-		(error as { code?: unknown } | null | undefined)?.code ===
-		PREVIOUSLY_REGISTERED_CODE
+	const candidate = error as
+		| { code?: unknown; name?: unknown }
+		| null
+		| undefined;
+	return [candidate?.code, candidate?.name].some(
+		(value) =>
+			value === PREVIOUSLY_REGISTERED_CODE || value === "InvalidStateError"
 	);
 }
 

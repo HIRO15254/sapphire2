@@ -157,6 +157,19 @@ describe("useAddPasskeyForm", () => {
 		);
 	});
 
+	it("recognizes a raw InvalidStateError as an already-registered device", async () => {
+		mocks.addPasskey.mockResolvedValue({
+			data: null,
+			error: new DOMException("already registered", "InvalidStateError"),
+		});
+		const { result } = renderForm();
+		await submitWithName(result, "Pixel 9");
+		expect(mocks.toastError).toHaveBeenNthCalledWith(
+			1,
+			"This device already has a passkey"
+		);
+	});
+
 	it("still reports a genuine registration failure", async () => {
 		mocks.addPasskey.mockResolvedValue({
 			data: null,
