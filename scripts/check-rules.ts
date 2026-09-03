@@ -113,6 +113,20 @@ const CHECKS: Check[] = [
 		pattern:
 			/^\s*[A-Za-z_][A-Za-z0-9_]*\s*=\s*["']?\$\{\{\s*github\.event\.pull_request\.head\.ref\s*\}\}["']?\s*$/m,
 	},
+	{
+		name: "focused / skipped test (it.only, it.skip, xit, …) — restore it; a red test is fixed, never hidden",
+		rule: ".claude/rules/testing.md",
+		globs: ["apps/**/*.test.{ts,tsx}", "packages/**/*.test.{ts,tsx}"],
+		pattern:
+			/\b(?:it|test|describe)\.(?:skip|only|todo)\s*\(|\b(?:xit|xdescribe|fit|fdescribe)\s*\(/,
+	},
+	{
+		name: "Stryker disable that is not `next-line <Mutator>[,<Mutator>]: <why>` — no ranged disables, no `all`, reason required",
+		rule: ".claude/rules/testing.md",
+		globs: ["apps/**/*.{ts,tsx}", "packages/**/*.{ts,tsx}"],
+		pattern:
+			/^\s*\/\/\s*Stryker disable(?!\s+next-line\s+[A-Z]\w*(?:,\s*[A-Z]\w*)*:\s*\S)/m,
+	},
 ];
 
 let failed = false;
@@ -306,7 +320,7 @@ const COMMENT_GLOBS = [
 const COMMENT_EXCLUDE_PATH = /routeTree\.gen\.ts$/;
 const COMMENT_LINE = /^\s*(?:\/\/|\/\*|\*\/|\*(?![\w([])|\{\/\*)/;
 const DIRECTIVE_LINE =
-	/biome-ignore|@ts-expect-error|@ts-nocheck|@__PURE__|^\s*\/\/\/\s*<reference\b/;
+	/biome-ignore|@ts-expect-error|@ts-nocheck|@__PURE__|^\s*\/\/\/\s*<reference\b|^\s*\/\/\s*Stryker (?:disable|restore)\b/;
 const NOTE_MARKER_START = /^\s*\/\/\s*NOTE\((ops|rule)\):\s*\S/;
 const LINE_COMMENT_START = /^\s*\/\//;
 

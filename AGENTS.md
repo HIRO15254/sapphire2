@@ -30,6 +30,7 @@ bun run dev:web          # web only
 bun run dev:server       # server only
 bun run test             # vitest run (all workspaces)
 bun run test:watch       # vitest watch
+bun run mutate           # stryker on changed files (report-only) — see .claude/rules/testing.md
 bun run lint             # ultracite check
 bun run fix              # ultracite fix (auto-format & auto-fix)
 bun run check-types      # tsc --noEmit (workspaces defining check-types: web/server)
@@ -88,46 +89,25 @@ Detailed rules live in [`.claude/rules/`](.claude/rules/); the points below appl
 
 ### Test-Driven Development (MANDATORY)
 
-Every code change must be test-driven. The quality bar is set by the comprehensive coverage sweep (PR #226 / branch `test/comprehensive-coverage`) — new tests must match that level of rigor and reuse its patterns.
+Tests are behavioral contracts: each `it()` pins one observable outcome the spec promises, and its worth is what it detects (mutation score), never coverage %. Layer table, reference patterns, mocking conventions, and detection-gate mechanics: [`.claude/rules/testing.md`](.claude/rules/testing.md).
 
 **Workflow**:
 
-1. **Write tests first.** Before editing any implementation file, author (or extend) the corresponding `__tests__/*.test.ts(x)`. Verify the new tests fail against the existing code (red).
-2. **Implement until green.** Iterate on the minimum code needed to pass.
-3. **Run only the scoped project**, not the full suite. See "Do NOT run the full test suite during a task" below.
-4. **CI is the final green signal** (and, for Claude Code, the Stop hook below); no hand-waving.
+1. **Red first, from the spec.** Write the failing `it()` from the requirement (issue, rule file, design doc), not from the code you are about to write. Run the scoped project and confirm it fails for the intended reason.
+2. **Green with the minimum.** Implement only what the red test demands; run only the scoped project (see below).
+3. **Detection review before the PR.** `/detection-review` (Claude Code), or by hand: `bun run mutate` for `api` / `db` / `web-node` code; for `web-dom` code flip three conditions one at a time, confirm a test goes red each time, restore with `git checkout -- <file>`. A survivor in domain logic is a missing test — add it. A survivor in a label, message, or other decorative literal gets a `// Stryker disable next-line <Mutator>: <why>` directive.
+4. **CI is the final green signal** (and, for Claude Code, the Stop hook below). The mutation score is reported on the PR and never fails it; coverage % is never a gate.
 
 **Quality bar (non-negotiable)**:
 
-- **Full branch coverage** per function / hook / procedure — every `if` / `else` / `switch` / early return / guard clause gets a dedicated `it()`.
-- **Boundary values**: `null` / `undefined` / `0` / `""` / empty array / negative / NaN / Infinity / min / max / 1-off-min / 1-off-max — enumerate, do not skip.
-- **Error paths** are required, not optional (mutation failures → rollback, Zod rejects, network errors, auth absent, loader fails).
-- **Side-effect assertions** (toast called, navigate called, query invalidated, localStorage written, `setInterval` cleared) use `toHaveBeenCalledTimes` + `toHaveBeenNthCalledWith` / `toHaveBeenCalledWith`, not bare `toHaveBeenCalled()`.
-- **No smoke tests.** `expect(x).toBeDefined()` alone is never acceptable — exercise the behavior.
-- **Test names describe scenarios**, not mechanics (`"rejects empty name with 'Required'"`, not `"test 1"`).
-
-**Patterns established by the sweep — copy them, do not invent new ones**:
-
-| Target | Project | Reference implementation |
-|---|---|---|
-| Pure util / Zod schema / formatter | `web-node` | [`apps/web/src/features/rooms/utils/__tests__/blind-level-helpers.test.ts`](apps/web/src/features/rooms/utils/__tests__/blind-level-helpers.test.ts), [`apps/web/src/utils/__tests__/format-number.test.ts`](apps/web/src/utils/__tests__/format-number.test.ts) |
-| Simple hook (no tRPC) | `web-dom` | [`apps/web/src/shared/hooks/__tests__/use-elapsed-time.test.ts`](apps/web/src/shared/hooks/__tests__/use-elapsed-time.test.ts) |
-| Form hook (`@tanstack/react-form`) | `web-dom` | [`apps/web/src/features/auth/pages/login-page/sign-in-form/__tests__/use-sign-in.test.ts`](apps/web/src/features/auth/pages/login-page/sign-in-form/__tests__/use-sign-in.test.ts) |
-| tRPC query + mutation hook, simple | `web-dom` | [`apps/web/src/features/currencies/hooks/__tests__/use-currencies.test.ts`](apps/web/src/features/currencies/hooks/__tests__/use-currencies.test.ts) |
-| Optimistic flow with real QueryClient | `web-dom` / `web-node` | [`apps/web/src/features/live-sessions/utils/__tests__/optimistic-session-event.test.ts`](apps/web/src/features/live-sessions/utils/__tests__/optimistic-session-event.test.ts) |
-| Page hook / page subcomponent view hook | `web-dom` | [`apps/web/src/features/sessions/pages/sessions-page/__tests__/use-sessions-page.test.ts`](apps/web/src/features/sessions/pages/sessions-page/__tests__/use-sessions-page.test.ts), [`apps/web/src/features/live-sessions/pages/active-session-page/tournament-session/__tests__/use-tournament-session-view.test.ts`](apps/web/src/features/live-sessions/pages/active-session-page/tournament-session/__tests__/use-tournament-session-view.test.ts) |
-| API router (Zod + procedure enumeration) | `api` | [`packages/api/src/__tests__/player.test.ts`](packages/api/src/__tests__/player.test.ts) (uses [`packages/api/src/__tests__/test-utils.ts`](packages/api/src/__tests__/test-utils.ts) helpers: `getInputSchema`, `expectAccepts`, `expectRejects`, `expectProtected`, `expectType`) |
-| DB schema constraint | `db` | [`packages/db/src/__tests__/session-schema.test.ts`](packages/db/src/__tests__/session-schema.test.ts) (uses `getTableConfig` for FKs, indexes, `onDelete` policies) |
-| Shared test helpers (web) | — | [`apps/web/src/__tests__/test-utils.tsx`](apps/web/src/__tests__/test-utils.tsx) (`createTestQueryClient`, `withQueryClient`, `renderWithQueryClient`, `createTrpcMock`, `createToastMock`, `createAuthClientMock`) |
-
-**Mocking conventions**:
-
-- `vi.hoisted(() => ({ … }))` for mutable mock state shared across `vi.mock` factories.
-- `vi.mock("@/utils/trpc", () => ({ trpc, trpcClient }))` to replace the tRPC proxy at module scope.
-- `@tanstack/react-form`: use the real `useForm`, drive via `result.current.form.setFieldValue(...)` + `await result.current.form.handleSubmit()` inside `act()`.
-- Never mock the module under test; only mock its dependencies.
-
-If a target does not match any pattern above, extend the relevant `test-utils` file with a new helper rather than hand-rolling a new pattern per test file.
+- **One `it()` per behavior**, named as the scenario (`"rejects empty name with 'Required'"`). Enumerated inputs share one `it.each`.
+- **Boundaries only where the spec names them** (`min(2)` → 1 and 2; day crossing → 23:59 and 00:00). Do not enumerate `null` / `NaN` / `Infinity` / negatives on your own.
+- **Assert outcomes, not calls**: the returned value, the persisted row, the rendered text, the thrown `TRPCError` code. Spy assertions (`toHaveBeenCalledWith`) only for side effects that are the contract (navigate, toast, invalidate).
+- **Every `it()` asserts a value.** `toBeDefined()` / `toBeTruthy()` / `not.toThrow()` alone are smoke, not tests.
+- **Never test schema shape**: no column lists, `notNull` / `hasDefault` probes, procedure-existence probes, or Zod key enumeration. Test constraints (FK `onDelete`, unique indexes, migrations) and rules (ownership, atomicity, error kinds).
+- **No cross-layer duplication**: a rule tested in the hook is not re-tested through the component; a Zod rule tested in `packages/api` is not re-tested from the web form.
+- **Never skip, delete, or loosen a failing test** to get green (`it.skip` / `it.only` are banned by `check:rules`). Fix the code, or — if the spec changed — rewrite the test against the new spec in the same PR and say so.
+- **Bug fixes ship with a reproducing test**: red on the parent commit, green after; paste the red run into the PR body.
 
 ### Do NOT run the full test suite during a task
 
@@ -141,6 +121,7 @@ If a target does not match any pattern above, extend the relevant `test-utils` f
 - MCP tool tests → `bunx vitest run --project mcp [path]`
 - Env tests → `bunx vitest run --project env`
 - Related to current staged files → `bunx vitest related --run $(git diff --cached --name-only ...)` — already automated by pre-commit for human commits.
+- Mutation on changed files → `bun run mutate` (minutes, report-only; once before the PR, never per step)
 
 The full suite is enforced in **CI** — [`ci.yml`](.github/workflows/ci.yml) runs `check-types`, `ultracite check`, the full `vitest` suite, and `check:rules` on every PR. This is the tool-independent gate that catches Codex, Claude, and human PRs alike, so it never runs on every intermediate step. Claude Code additionally runs the same checks locally at the end of each turn via a **Stop hook** (`bun x ultracite fix && bun x vitest run --changed HEAD && bun x ultracite check && bun scripts/check-rules.ts` — see [`.claude/settings.json`](.claude/settings.json)). `scripts/check-rules.ts` (`bun run check:rules`) mechanically enforces greppable rules from this file and `.claude/rules/`. Pre-commit is skipped when `CLAUDECODE=1` for the same reason.
 
@@ -163,6 +144,7 @@ The following rule files live in `.claude/rules/` and are loaded automatically w
 | `db-migrations.md` | `packages/db/**` | Applied by `wrangler`; `db:generate` is the default for schema-shape changes, hand-write data/rename/destructive ones; how the Drizzle `meta/` ledger works and how to keep it from drifting. |
 | `mcp-tools.md` | `packages/mcp/**`, `packages/api/**` | MCP tools are a projection of `appRouter`: backend procedure changes must update `TOOL_DEFINITIONS`/`DELIBERATELY_EXCLUDED` in the same task; tools go through `createCaller`, schemas are the router's Zod objects, errors through `mapToolError`. |
 | `comments.md` | `apps/**`, `packages/**`, `scripts/**` | Near-zero comments: only lint/type directives + `NOTE(ops)`/`NOTE(rule)` markers; rationale goes to `docs/design/`. |
+| `testing.md` | `**/__tests__/**`, `**/*.test.ts`, `**/*.test.tsx` | Tests as behavioral contracts: what each layer fixes, reference patterns, mocking conventions, the Stryker detection gate (`bun run mutate`, reading survivors, `Stryker disable next-line` directives). |
 
 ## Maintaining This File (Self-Evolution)
 

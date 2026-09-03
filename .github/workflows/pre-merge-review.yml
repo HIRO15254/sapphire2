@@ -45,6 +45,15 @@ jobs:
             if there were none, a short confirmation that the review passed with no
             problems (e.g. "LGTM" with a brief summary).
 
+            Also review detection, not only correctness: for each changed
+            implementation file, name the test that would fail if its main
+            condition were flipped. Report as findings, not style notes: an
+            it() that asserts only existence (toBeDefined / toBeTruthy /
+            not.toThrow) or only spy calls; a schema-shape test; a test that
+            was skipped, deleted, or loosened without a spec change in the
+            same PR; a bug-fix PR whose body lacks the red run
+            (.claude/rules/testing.md).
+
             The tracking comment on this PR is created and updated automatically from
             this session, so do NOT run `gh pr comment` to post the top-level summary
             yourself — just make the summary your final message.

@@ -11,7 +11,7 @@ Why this file exists: the repo-wide cleanup (PR #591) removed ~5,000 comment lin
 
 ## The only comments allowed in `.ts` / `.tsx` / `.css`
 
-1. **Machine directives** — `biome-ignore …` (the reason string is part of the directive), `@ts-expect-error`, `@ts-nocheck`, `/// <reference …>`, and inline annotations such as `/* @__PURE__ */`. Never delete one; never add one without its reason.
+1. **Machine directives** — `biome-ignore …` (the reason string is part of the directive), `@ts-expect-error`, `@ts-nocheck`, `/// <reference …>`, and inline annotations such as `/* @__PURE__ */`. Also `// Stryker disable next-line <Mutator>: <why>` / `// Stryker restore` ([`testing.md`](testing.md); the reason is mandatory and `check:rules` enforces the shape). Never delete one; never add one without its reason.
 2. **`// NOTE(rule): <rule-file> — <why>`** — a justification another rule file explicitly mandates. Currently only [`api-data-integrity.md`](api-data-integrity.md)'s Zod-deviation comment.
 3. **`// NOTE(ops): <instruction>`** — an operational instruction that must be **executed at that code site** when editing it (e.g. the cache-buster bump in [`apps/web/src/main.tsx`](../../apps/web/src/main.tsx), SA2-154). An explanation is not an instruction — explanations go to `docs/design/`.
 

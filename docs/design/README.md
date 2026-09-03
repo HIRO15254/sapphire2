@@ -16,4 +16,4 @@ Issue references (`SA2-NNN`) point at the Linear issues that motivated a decisio
 | [`passkeys.md`](passkeys.md) | WebAuthn relying-party pinning across the split origin, the `passkey` table contract, silent conditional-create upgrades, device naming, plugin version coupling |
 | [`ai-extraction.md`](ai-extraction.md) | AI extraction truncation failure model, schema design, model pinning, form-merge semantics |
 | [`web-platform.md`](web-platform.md) | Persisted-cache busting, open-redirect guard, shared UI component traps, filter presets, geolocation and maps, number formatting |
-| [`testing-and-tooling.md`](testing-and-tooling.md) | Mock-db contract, test-infra gotchas, migration tests on `bun:sqlite`, preview seed/restore pipeline, `check-rules.ts` mechanics |
+| [`testing-and-tooling.md`](testing-and-tooling.md) | Test-layer contract, mock-db contract, test-infra gotchas, migration tests on `bun:sqlite`, preview seed/restore pipeline, mutation testing (Stryker) and the detection gate, `check-rules.ts` mechanics |
