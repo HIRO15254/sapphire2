@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RootComponent } from "../routes/__root";
 import { AuthenticatedShell } from "../shared/components/authenticated-shell";
@@ -18,6 +18,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@tanstack/react-router", () => ({
 	HeadContent: () => <div>Head Content</div>,
+	Link: ({ children, to }: { children: ReactNode; to: string }) => (
+		<a href={to}>{children}</a>
+	),
 	Outlet: () => <div>Outlet Content</div>,
 	createRootRouteWithContext: () => (options: unknown) => options,
 	redirect: mocks.redirect,
@@ -234,10 +237,29 @@ describe("Root route beforeLoad guard", () => {
 		expect(mocks.redirect).not.toHaveBeenCalled();
 	});
 
-	it("provides an explicit route error component for transient auth failures", async () => {
+	it("renders the route error fallback with its recovery copy and a link back to Statistics", async () => {
 		const { Route } = await import("../routes/__root");
+		const ErrorComponent = (
+			Route as unknown as {
+				errorComponent: ComponentType<{ error: Error; reset: () => void }>;
+			}
+		).errorComponent;
+
+		render(
+			<ErrorComponent
+				error={new Error("session lookup failed")}
+				reset={vi.fn()}
+			/>
+		);
+
 		expect(
-			(Route as unknown as { errorComponent?: unknown }).errorComponent
-		).toBeDefined();
+			screen.getByRole("heading", { name: "Something went wrong" })
+		).toBeInTheDocument();
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"Please try again or return to Statistics."
+		);
+		expect(
+			screen.getByRole("link", { name: "Go to Statistics" })
+		).toHaveAttribute("href", "/statistics");
 	});
 });

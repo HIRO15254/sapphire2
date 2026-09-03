@@ -38,33 +38,29 @@ describe("PlayerTagBadges", () => {
 		expect(container).toBeEmptyDOMElement();
 	});
 
-	it("renders every tag and no +N when they all fit", () => {
-		render(<PlayerTagBadges tags={[tag("t1", "Fish"), tag("t2", "Reg")]} />);
-		const v = visible();
-		expect(v.getByText("Fish")).toBeInTheDocument();
-		expect(v.getByText("Reg")).toBeInTheDocument();
-		expect(v.queryByText(REGEX_PLUS)).not.toBeInTheDocument();
-	});
-
-	it("collapses the tags that do not fit into a +N badge", () => {
-		mocks.visibleCount = 1;
+	it.each([
+		{ visibleCount: 99, shown: ["Fish", "Reg", "Whale"], overflow: null },
+		{ visibleCount: 1, shown: ["Fish"], overflow: "+2" },
+		{ visibleCount: 0, shown: [], overflow: "+3" },
+	])("shows the first $visibleCount tags and collapses the rest into $overflow", ({
+		visibleCount,
+		shown,
+		overflow,
+	}) => {
+		mocks.visibleCount = visibleCount;
 		render(
 			<PlayerTagBadges
 				tags={[tag("t1", "Fish"), tag("t2", "Reg"), tag("t3", "Whale")]}
 			/>
 		);
 		const v = visible();
-		expect(v.getByText("Fish")).toBeInTheDocument();
-		expect(v.queryByText("Reg")).not.toBeInTheDocument();
-		expect(v.queryByText("Whale")).not.toBeInTheDocument();
-		expect(v.getByText("+2")).toBeInTheDocument();
-	});
-
-	it("shows only the +N badge when nothing fits", () => {
-		mocks.visibleCount = 0;
-		render(<PlayerTagBadges tags={[tag("t1", "Fish"), tag("t2", "Reg")]} />);
-		const v = visible();
-		expect(v.queryByText("Fish")).not.toBeInTheDocument();
-		expect(v.getByText("+2")).toBeInTheDocument();
+		expect(
+			["Fish", "Reg", "Whale"].filter((name) => v.queryByText(name))
+		).toEqual(shown);
+		if (overflow === null) {
+			expect(v.queryByText(REGEX_PLUS)).not.toBeInTheDocument();
+		} else {
+			expect(v.getByText(overflow)).toBeInTheDocument();
+		}
 	});
 });

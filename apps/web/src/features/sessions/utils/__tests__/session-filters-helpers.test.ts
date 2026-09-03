@@ -27,10 +27,15 @@ describe("session Period domain", () => {
 		expect(SESSION_PERIOD_LABEL).toBe(PERIOD_LABEL);
 	});
 
-	it("exposes a label for every preset", () => {
-		for (const period of SESSION_PERIODS) {
-			expect(SESSION_PERIOD_LABEL[period]).toBeTruthy();
-		}
+	it("labels every preset with the shared chip wording", () => {
+		expect(SESSION_PERIOD_LABEL).toEqual({
+			"7d": "7 days",
+			"30d": "30 days",
+			"90d": "90 days",
+			ytd: "YTD",
+			all: "All time",
+			custom: "Custom",
+		});
 	});
 });
 

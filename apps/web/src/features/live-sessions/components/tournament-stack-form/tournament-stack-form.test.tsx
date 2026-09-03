@@ -111,73 +111,41 @@ function renderForm(
 }
 
 describe("TournamentStackForm", () => {
-	it("renders stack input and action buttons without its own submit button", () => {
+	it("renders one chip purchase count field per type and none without types", () => {
 		mocks.state.stackAmount = "";
-
-		renderForm({ chipPurchaseTypes: CHIP_PURCHASE_TYPES });
-
-		expect(screen.getByLabelText("Current Stack *")).toBeInTheDocument();
-		expect(screen.queryByText("Update")).not.toBeInTheDocument();
-		expect(screen.getByText("Complete")).toBeInTheDocument();
-		expect(screen.getByText("Memo")).toBeInTheDocument();
-		expect(screen.getByText("Pause")).toBeInTheDocument();
-	});
-
-	it("assigns the formId to the stack form element", () => {
-		mocks.state.stackAmount = "";
-		renderForm();
-		const form = document.getElementById(FORM_ID);
-		expect(form).not.toBeNull();
-		expect(form?.tagName).toBe("FORM");
-	});
-
-	it("renders chip purchase count fields when types provided", () => {
-		mocks.state.stackAmount = "";
-
-		renderForm({ chipPurchaseTypes: CHIP_PURCHASE_TYPES });
-
+		const { rerender } = renderForm({ chipPurchaseTypes: CHIP_PURCHASE_TYPES });
 		expect(screen.getByLabelText("Rebuy count")).toBeInTheDocument();
 		expect(screen.getByLabelText("Addon count")).toBeInTheDocument();
-	});
 
-	it("shows no chip purchase count fields when no types provided", () => {
-		mocks.state.stackAmount = "";
-
-		renderForm();
-
+		rerender(<TournamentStackForm {...defaultProps} />);
 		expect(screen.queryByLabelText("Rebuy count")).not.toBeInTheDocument();
 		expect(screen.queryByLabelText("Addon count")).not.toBeInTheDocument();
 	});
 
-	it("renders remaining players and total entries fields by default", () => {
+	it("shows the tournament info fields while Record tournament info is checked", async () => {
+		const user = userEvent.setup();
 		mocks.state.stackAmount = "";
-
 		renderForm({ chipPurchaseTypes: CHIP_PURCHASE_TYPES });
-
 		expect(screen.getByLabelText("Remaining Players")).toBeInTheDocument();
 		expect(screen.getByLabelText("Total Entries")).toBeInTheDocument();
+
+		await user.click(screen.getByLabelText("Record tournament info"));
+		expect(
+			screen.queryByLabelText("Remaining Players")
+		).not.toBeInTheDocument();
+		expect(screen.queryByLabelText("Total Entries")).not.toBeInTheDocument();
 	});
 
-	it("calls onComplete when Complete is clicked", async () => {
+	it.each([
+		["Complete", "onComplete"],
+		["Pause", "onPause"],
+	] as const)("clicking %s calls %s", async (label, prop) => {
 		const user = userEvent.setup();
-		const onComplete = vi.fn();
+		const handler = vi.fn();
 		mocks.state.stackAmount = "";
-
-		renderForm({ onComplete });
-
-		await user.click(screen.getByText("Complete"));
-		expect(onComplete).toHaveBeenCalledTimes(1);
-	});
-
-	it("calls onPause when Pause is clicked", async () => {
-		const user = userEvent.setup();
-		const onPause = vi.fn();
-		mocks.state.stackAmount = "";
-
-		renderForm({ onPause });
-
-		await user.click(screen.getByText("Pause"));
-		expect(onPause).toHaveBeenCalledTimes(1);
+		renderForm({ [prop]: handler });
+		await user.click(screen.getByRole("button", { name: label }));
+		expect(handler).toHaveBeenCalledTimes(1);
 	});
 
 	it("calls onPurchaseChips via chip purchase sheet", async () => {

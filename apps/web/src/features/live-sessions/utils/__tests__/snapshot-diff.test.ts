@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
 	diffBlindLevels,
 	diffCashSnapshot,
+	diffChipPurchases,
+	diffTournamentSnapshot,
 } from "@/features/live-sessions/utils/snapshot-diff";
 
 function cashSnapshot(overrides: Record<string, unknown> = {}) {
@@ -167,6 +169,154 @@ describe("diffCashSnapshot — mixGames", () => {
 	});
 });
 
+describe("diffCashSnapshot — scalar fields", () => {
+	it("reports every field unchanged for an identical snapshot", () => {
+		expect(cashSnapshotDiff()).toEqual({
+			ruleName: false,
+			variant: false,
+			blind1: false,
+			blind2: false,
+			blind3: false,
+			ante: false,
+			anteType: false,
+			minBuyIn: false,
+			maxBuyIn: false,
+			mixGames: false,
+			tableSize: false,
+		});
+	});
+
+	it("flags every scalar field that diverges from the master", () => {
+		expect(
+			cashSnapshotDiff({
+				ruleName: "2/5 NLH",
+				variant: "PLO",
+				blind1: 2,
+				blind2: 5,
+				blind3: 10,
+				ante: 1,
+				anteType: "bb",
+				minBuyIn: 200,
+				maxBuyIn: 1000,
+				tableSize: 6,
+			})
+		).toEqual({
+			ruleName: true,
+			variant: true,
+			blind1: true,
+			blind2: true,
+			blind3: true,
+			ante: true,
+			anteType: true,
+			minBuyIn: true,
+			maxBuyIn: true,
+			mixGames: false,
+			tableSize: true,
+		});
+	});
+});
+
+function tournamentSnapshot(overrides: Record<string, unknown> = {}) {
+	return {
+		ruleName: "Main Event",
+		variant: "NL Hold'em",
+		buyIn: 10_000,
+		entryFee: 1000,
+		startingStack: 20_000,
+		bountyAmount: null,
+		tableSize: 9,
+		...overrides,
+	};
+}
+
+const TOURNAMENT_MASTER = {
+	name: "Main Event",
+	variant: "NL Hold'em",
+	buyIn: 10_000,
+	entryFee: 1000,
+	startingStack: 20_000,
+	bountyAmount: null,
+	tableSize: 9,
+};
+
+describe("diffTournamentSnapshot", () => {
+	it("reports every field unchanged for an identical snapshot", () => {
+		expect(
+			diffTournamentSnapshot(tournamentSnapshot(), TOURNAMENT_MASTER)
+		).toEqual({
+			ruleName: false,
+			variant: false,
+			buyIn: false,
+			entryFee: false,
+			startingStack: false,
+			bountyAmount: false,
+			tableSize: false,
+		});
+	});
+
+	it("flags every field that diverges from the master", () => {
+		expect(
+			diffTournamentSnapshot(
+				tournamentSnapshot({
+					ruleName: "Side Event",
+					variant: "PLO",
+					buyIn: 5000,
+					entryFee: 500,
+					startingStack: 30_000,
+					bountyAmount: 1000,
+					tableSize: 8,
+				}),
+				TOURNAMENT_MASTER
+			)
+		).toEqual({
+			ruleName: true,
+			variant: true,
+			buyIn: true,
+			entryFee: true,
+			startingStack: true,
+			bountyAmount: true,
+			tableSize: true,
+		});
+	});
+
+	it("returns an empty diff when the master is missing", () => {
+		expect(diffTournamentSnapshot(tournamentSnapshot(), null)).toEqual({});
+	});
+});
+
+function chipPurchase(overrides: Record<string, unknown> = {}) {
+	return { name: "Rebuy", cost: 50, chips: 10_000, ...overrides };
+}
+
+describe("diffChipPurchases", () => {
+	it("reports no diff for identical purchase lists", () => {
+		expect(
+			diffChipPurchases(
+				[chipPurchase(), chipPurchase({ name: "Add-on" })],
+				[chipPurchase(), chipPurchase({ name: "Add-on" })]
+			)
+		).toBe(false);
+	});
+
+	it("detects a length divergence", () => {
+		expect(diffChipPurchases([chipPurchase()], [])).toBe(true);
+	});
+
+	it.each([
+		["name", { name: "Add-on" }],
+		["cost", { cost: 60 }],
+		["chips", { chips: 12_000 }],
+	])("detects a %s divergence", (_field, override) => {
+		expect(diffChipPurchases([chipPurchase(override)], [chipPurchase()])).toBe(
+			true
+		);
+	});
+
+	it("returns false when the master list is missing", () => {
+		expect(diffChipPurchases([chipPurchase()], null)).toBe(false);
+	});
+});
+
 function level(overrides: Record<string, unknown> = {}) {
 	return {
 		isBreak: false,
@@ -214,6 +364,10 @@ describe("diffBlindLevels — games", () => {
 
 	it("still detects flat blind divergences", () => {
 		expect(diffBlindLevels([level({ blind1: 150 })], [level()])).toBe(true);
+	});
+
+	it("detects a length divergence", () => {
+		expect(diffBlindLevels([level(), level()], [level()])).toBe(true);
 	});
 
 	it("returns false when the master list is missing", () => {

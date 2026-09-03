@@ -84,7 +84,7 @@ describe("SessionResultChart", () => {
 				})
 			)
 		);
-		expect(await screen.findByText("Not enough data yet")).toBeTruthy();
+		expect(await screen.findByText("Not enough data yet")).toBeInTheDocument();
 	});
 
 	it("shows a retryable error instead of the empty state when the query fails", async () => {

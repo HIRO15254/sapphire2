@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -8,6 +8,13 @@ const TYPES = [
 ];
 
 const REQUIRED_ASTERISK_SUFFIX = /\s*\*$/;
+
+const SEEDED = {
+	amount: 1500,
+	transactionTypeId: "t1",
+	transactedAt: "2026-04-01T00:00:00Z",
+	memo: "seed memo",
+};
 
 const hoisted = vi.hoisted(() => ({
 	useTransactionTypes: vi.fn(),
@@ -19,6 +26,21 @@ vi.mock("@/features/currencies/hooks/use-transaction-types", () => ({
 
 import { TransactionFormV2 } from "@/features/currencies/pages/currency-detail-page/transaction-form";
 
+function renderForm(
+	props: Partial<React.ComponentProps<typeof TransactionFormV2>> = {}
+) {
+	const onSubmit = props.onSubmit ?? vi.fn();
+	const view = render(
+		<>
+			<TransactionFormV2 formId="tx-form" onSubmit={onSubmit} {...props} />
+			<button form="tx-form" type="submit">
+				submit-trigger
+			</button>
+		</>
+	);
+	return { ...view, onSubmit };
+}
+
 describe("TransactionFormV2", () => {
 	beforeEach(() => {
 		hoisted.useTransactionTypes.mockReturnValue({
@@ -28,102 +50,64 @@ describe("TransactionFormV2", () => {
 		});
 	});
 
-	it("renders all four fields with their labels", () => {
-		render(<TransactionFormV2 formId="x" onSubmit={vi.fn()} />);
-		expect(screen.getByText("Type")).toBeInTheDocument();
-		expect(screen.getByText("Amount")).toBeInTheDocument();
-		expect(screen.getByText("Date")).toBeInTheDocument();
-		expect(screen.getByText("Memo")).toBeInTheDocument();
-	});
-
-	it("renders the fields in the order Date, Type, Memo, Amount", () => {
-		const { container } = render(
-			<TransactionFormV2 formId="x" onSubmit={vi.fn()} />
-		);
+	it("renders the Date, Type, Memo, Amount fields in that order", () => {
+		const { container } = renderForm();
 		const labels = [...container.querySelectorAll("label")].map((label) =>
 			label.textContent?.replace(REQUIRED_ASTERISK_SUFFIX, "")
 		);
 		expect(labels).toEqual(["Date", "Type", "Memo", "Amount"]);
 	});
 
-	it("renders Memo as a single-line text input, not a textarea", () => {
-		const { container } = render(
-			<TransactionFormV2 formId="x" onSubmit={vi.fn()} />
-		);
-		const memo = screen.getByLabelText("Memo");
-		expect(memo.tagName).toBe("INPUT");
-		expect(container.querySelector("textarea")).toBeNull();
+	it.each<[string, Record<string, string>]>([
+		["Date *", { type: "date" }],
+		["Amount *", { inputmode: "numeric" }],
+		["Memo", {}],
+	])("renders %s as a native single-line input", (label, attributes) => {
+		renderForm();
+		const input = screen.getByLabelText(label);
+		expect(input.tagName).toBe("INPUT");
+		expect(input).not.toHaveAttribute("type", "number");
+		for (const [name, value] of Object.entries(attributes)) {
+			expect(input).toHaveAttribute(name, value);
+		}
 	});
 
-	it("assigns the supplied formId to the <form> element so an external Save button can submit it", () => {
-		const { container } = render(
-			<TransactionFormV2 formId="add-tx-form" onSubmit={vi.fn()} />
-		);
-		const form = container.querySelector("form");
-		expect(form).not.toBeNull();
-		expect(form).toHaveAttribute("id", "add-tx-form");
+	it("assigns the supplied formId to the form element", () => {
+		renderForm();
+		expect(document.getElementById("tx-form")?.tagName).toBe("FORM");
 	});
 
-	it("renders the Amount input with inputMode=numeric (never type=number)", () => {
-		render(<TransactionFormV2 formId="x" onSubmit={vi.fn()} />);
-		const amount = screen.getByLabelText("Amount *");
-		expect(amount).toHaveAttribute("inputmode", "numeric");
-		expect(amount).not.toHaveAttribute("type", "number");
+	it("marks Date, Type, and Amount as required and Memo as optional", () => {
+		renderForm();
+		expect(screen.getAllByText("*")).toHaveLength(3);
+		expect(screen.getByText("Memo").parentElement?.textContent).toBe("Memo");
 	});
 
-	it("renders the Date field as a native date picker (HTML type='date')", () => {
-		const { container } = render(
-			<TransactionFormV2 formId="x" onSubmit={vi.fn()} />
-		);
-		const date = container.querySelector('input[type="date"]');
-		expect(date).not.toBeNull();
-	});
-
-	it("marks Type / Amount / Date as required (red asterisk) and Memo as optional", () => {
-		render(<TransactionFormV2 formId="x" onSubmit={vi.fn()} />);
-		const asterisks = screen.getAllByText("*");
-		expect(asterisks).toHaveLength(3);
-		const memoLabel = screen.getByText("Memo");
-		expect(memoLabel.parentElement?.textContent).toBe("Memo");
-	});
-
-	it("renders the negative-amount hint as the Amount description (not a placeholder)", () => {
-		render(<TransactionFormV2 formId="x" onSubmit={vi.fn()} />);
-		expect(
-			screen.getByText("Use a negative value for a withdrawal.")
-		).toBeInTheDocument();
-	});
-
-	it("seeds the form from defaultValues when provided", () => {
-		render(
-			<TransactionFormV2
-				defaultValues={{
-					amount: 1500,
-					transactionTypeId: "t1",
-					transactedAt: "2026-04-01T00:00:00Z",
-					memo: "seed memo",
-				}}
-				formId="x"
-				onSubmit={vi.fn()}
-			/>
-		);
+	it("seeds the inputs from defaultValues", () => {
+		renderForm({ defaultValues: SEEDED });
 		expect(screen.getByLabelText("Amount *")).toHaveValue("1500");
+		expect(screen.getByLabelText("Date *")).toHaveValue("2026-04-01");
 		expect(screen.getByRole("combobox")).toHaveValue("Deposit");
 		expect(screen.getByLabelText("Memo")).toHaveValue("seed memo");
 	});
 
-	it("blocks submission and does not call onSubmit when required fields are empty", async () => {
+	it("shows the field errors after a blocked empty submit", async () => {
 		const user = userEvent.setup();
-		const onSubmit = vi.fn();
-		const { container } = render(
-			<TransactionFormV2 formId="x" onSubmit={onSubmit} />
+		const { onSubmit } = renderForm();
+		await user.click(screen.getByRole("button", { name: "submit-trigger" }));
+		expect(await screen.findByText("Type is required")).toBeInTheDocument();
+		expect(screen.getByText("Required")).toBeInTheDocument();
+		expect(screen.getByLabelText("Amount *")).toHaveAttribute(
+			"aria-invalid",
+			"true"
 		);
-		const form = container.querySelector("form");
-		expect(form).not.toBeNull();
-		if (form) {
-			await user.click(form);
-			form.dispatchEvent(new Event("submit", { cancelable: true }));
-		}
 		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("submits the seeded values to onSubmit once through the form element", async () => {
+		const user = userEvent.setup();
+		const { onSubmit } = renderForm({ defaultValues: SEEDED });
+		await user.click(screen.getByRole("button", { name: "submit-trigger" }));
+		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
 	});
 });

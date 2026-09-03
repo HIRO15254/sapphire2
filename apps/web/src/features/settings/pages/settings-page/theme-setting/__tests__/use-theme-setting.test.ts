@@ -24,12 +24,6 @@ describe("THEME_OPTIONS", () => {
 		expect(THEME_OPTIONS[2].value).toBe("system");
 		expect(THEME_OPTIONS[2].label).toBe("System");
 	});
-
-	it("each option has an icon", () => {
-		for (const option of THEME_OPTIONS) {
-			expect(option.icon).toBeDefined();
-		}
-	});
 });
 
 describe("useThemeSetting", () => {

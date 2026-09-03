@@ -37,24 +37,34 @@ function renderForm(props: Partial<React.ComponentProps<typeof PlayerForm>>) {
 }
 
 describe("PlayerForm", () => {
-	it("assigns the formId to the rendered form element", () => {
+	it("exposes the form by formId without a submit button of its own", () => {
 		renderForm({});
-		const form = document.getElementById(FORM_ID);
-		expect(form).not.toBeNull();
-		expect(form?.tagName).toBe("FORM");
-	});
-
-	it("renders no submit button of its own", () => {
-		renderForm({});
+		expect(document.getElementById(FORM_ID)?.tagName).toBe("FORM");
 		expect(
 			screen.queryByRole("button", { name: SAVE_RE })
 		).not.toBeInTheDocument();
-		expect(
-			screen.getByRole("button", { name: "submit-trigger" })
-		).toBeInTheDocument();
 	});
 
-	it("submits name, memo, and selected tag ids via the external Save button", async () => {
+	it("marks Player name as the only required field", () => {
+		renderForm({ availableTags: [VIP_TAG] });
+		expect(screen.getAllByText("*")).toHaveLength(1);
+		expect(screen.getByLabelText("Player name *")).toBeInTheDocument();
+	});
+
+	it("shows the required error under the name field after an empty submit", async () => {
+		const user = userEvent.setup();
+		renderForm({});
+		await user.click(screen.getByRole("button", { name: "submit-trigger" }));
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			"Name is required"
+		);
+		expect(screen.getByLabelText("Player name *")).toHaveAttribute(
+			"aria-invalid",
+			"true"
+		);
+	});
+
+	it("submits the typed name, memo, and selected tag through the external Save button once", async () => {
 		const user = userEvent.setup();
 		const { onSubmit } = renderForm({ availableTags: [VIP_TAG] });
 
@@ -69,29 +79,6 @@ describe("PlayerForm", () => {
 			memo: "Tough regular",
 			name: "Alice",
 			tagIds: ["vip"],
-		});
-	});
-
-	it("does not call onSubmit when the name is empty (Zod onSubmit validation)", async () => {
-		const user = userEvent.setup();
-		const { onSubmit } = renderForm({ availableTags: [VIP_TAG] });
-
-		await user.click(screen.getByRole("button", { name: "submit-trigger" }));
-
-		expect(onSubmit).not.toHaveBeenCalled();
-	});
-
-	it("submits tagIds undefined and memo null when only the name is typed", async () => {
-		const user = userEvent.setup();
-		const { onSubmit } = renderForm({});
-
-		await user.type(screen.getByLabelText("Player name *"), "Solo");
-		await user.click(screen.getByRole("button", { name: "submit-trigger" }));
-
-		expect(onSubmit).toHaveBeenCalledWith({
-			memo: null,
-			name: "Solo",
-			tagIds: undefined,
 		});
 	});
 

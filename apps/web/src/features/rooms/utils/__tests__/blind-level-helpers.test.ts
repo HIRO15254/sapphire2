@@ -325,40 +325,24 @@ describe("createLevel", () => {
 });
 
 describe("parseIntOrNull", () => {
-	it("returns null for the empty string", () => {
-		expect(parseIntOrNull("")).toBeNull();
-	});
-
-	it("returns null for non-numeric text", () => {
-		expect(parseIntOrNull("abc")).toBeNull();
-	});
-
 	it("parses plain digits", () => {
 		expect(parseIntOrNull("200")).toBe(200);
-	});
-
-	it("rejects a negative integer", () => {
-		expect(parseIntOrNull("-5")).toBeNull();
 	});
 
 	it("parses 0", () => {
 		expect(parseIntOrNull("0")).toBe(0);
 	});
 
-	it("rejects decimal text instead of truncating it", () => {
-		expect(parseIntOrNull("12.9")).toBeNull();
-	});
-
-	it("rejects a leading-digits string with trailing text", () => {
-		expect(parseIntOrNull("42abc")).toBeNull();
-	});
-
-	it("returns null for a whitespace-only string", () => {
-		expect(parseIntOrNull("  ")).toBeNull();
-	});
-
-	it("returns null for 'Infinity' (parseInt yields NaN)", () => {
-		expect(parseIntOrNull("Infinity")).toBeNull();
+	it.each([
+		"",
+		"abc",
+		"-5",
+		"  ",
+		"Infinity",
+		"12.9",
+		"42abc",
+	])("returns null instead of a non-negative integer for %j", (value) => {
+		expect(parseIntOrNull(value)).toBeNull();
 	});
 });
 

@@ -15,30 +15,16 @@ vi.mock("@/features/rooms/pages/rooms-page/use-rooms-page", () => ({
 vi.mock("@/features/rooms/pages/rooms-page/room-list", () => ({
 	RoomList: ({
 		rooms,
-		isLoading,
-		isError,
 		onCreate,
-		onRetry,
 		onToggleFavorite,
 	}: {
 		rooms: { id: string }[];
-		isLoading: boolean;
-		isError: boolean;
 		onCreate: () => void;
-		onRetry: () => void;
 		onToggleFavorite: (id: string) => void;
 	}) => (
-		<div
-			data-count={rooms.length}
-			data-error={String(isError)}
-			data-loading={String(isLoading)}
-			data-testid="room-list-stub"
-		>
+		<div data-count={rooms.length} data-testid="room-list-stub">
 			<button onClick={onCreate} type="button">
 				stub-create
-			</button>
-			<button onClick={onRetry} type="button">
-				stub-retry
 			</button>
 			<button onClick={() => onToggleFavorite("s1")} type="button">
 				stub-toggle-fav
@@ -48,7 +34,15 @@ vi.mock("@/features/rooms/pages/rooms-page/room-list", () => ({
 }));
 
 vi.mock("@/features/rooms/components/room-form", () => ({
-	RoomForm: () => <div data-testid="room-form-stub" />,
+	RoomForm: ({ onSubmit }: { onSubmit: (values: unknown) => void }) => (
+		<button
+			data-testid="room-form-stub"
+			onClick={() => onSubmit({ name: "Akiba" })}
+			type="button"
+		>
+			stub-submit
+		</button>
+	),
 }));
 
 import { RoomsPage } from "@/features/rooms/pages/rooms-page/rooms-page";
@@ -92,38 +86,7 @@ describe("RoomsPage", () => {
 		hoisted.useRoomsPage.mockReset();
 	});
 
-	it("renders the PageHeader with the Rooms title", () => {
-		setMockState();
-		render(<RoomsPage />);
-		expect(screen.getByRole("heading", { name: "Rooms" })).toBeInTheDocument();
-	});
-
-	it("forwards isLoading to RoomList", () => {
-		setMockState({ isLoading: true });
-		render(<RoomsPage />);
-		expect(screen.getByTestId("room-list-stub")).toHaveAttribute(
-			"data-loading",
-			"true"
-		);
-	});
-
-	it("forwards isError to RoomList", () => {
-		setMockState({ isError: true });
-		render(<RoomsPage />);
-		expect(screen.getByTestId("room-list-stub")).toHaveAttribute(
-			"data-error",
-			"true"
-		);
-	});
-
-	it("forwards the retry callback to RoomList", async () => {
-		const user = userEvent.setup();
-		const state = setMockState();
-		render(<RoomsPage />);
-		await user.click(screen.getByRole("button", { name: "stub-retry" }));
-		expect(state.onRetry).toHaveBeenCalledTimes(1);
-	});
-	it("forwards the rooms array to RoomList", () => {
+	it("renders the Rooms heading and hands the hook's rooms to RoomList", () => {
 		setMockState({
 			rooms: [
 				{ id: "s1", name: "Akiba", ringGameCount: 0, tournamentCount: 0 },
@@ -131,49 +94,51 @@ describe("RoomsPage", () => {
 			],
 		});
 		render(<RoomsPage />);
+		expect(screen.getByRole("heading", { name: "Rooms" })).toBeInTheDocument();
 		expect(screen.getByTestId("room-list-stub")).toHaveAttribute(
 			"data-count",
 			"2"
 		);
 	});
 
-	it("opens the create sheet when the header 'New room' button is clicked", async () => {
+	it.each([
+		["the header 'New room' button", NEW_STORE_RE],
+		["the empty-state CTA", "stub-create"],
+	])("opens the create sheet from %s", async (_entry, name) => {
 		const user = userEvent.setup();
 		const state = setMockState();
 		render(<RoomsPage />);
-		await user.click(screen.getByRole("button", { name: NEW_STORE_RE }));
+		await user.click(screen.getByRole("button", { name }));
 		expect(state.setIsCreateOpen).toHaveBeenCalledTimes(1);
 		expect(state.setIsCreateOpen).toHaveBeenCalledWith(true);
 	});
 
-	it("opens the create sheet when RoomList's onCreate fires (empty-state CTA)", async () => {
-		const user = userEvent.setup();
-		const state = setMockState();
-		render(<RoomsPage />);
-		await user.click(screen.getByRole("button", { name: "stub-create" }));
-		expect(state.setIsCreateOpen).toHaveBeenCalledTimes(1);
-		expect(state.setIsCreateOpen).toHaveBeenCalledWith(true);
-	});
-
-	it("does not mount the create form body when isCreateOpen is false", () => {
+	it("mounts the create form only while the sheet is open", () => {
 		setMockState({ isCreateOpen: false });
-		render(<RoomsPage />);
+		const { rerender } = render(<RoomsPage />);
 		expect(screen.queryByTestId("room-form-stub")).not.toBeInTheDocument();
-	});
 
-	it("mounts the create form body inside the FormSheet when isCreateOpen is true", () => {
 		setMockState({ isCreateOpen: true });
-		render(<RoomsPage />);
+		rerender(<RoomsPage />);
 		expect(screen.getByTestId("room-form-stub")).toBeInTheDocument();
 	});
 
-	it("disables the FormSheet Save button while isCreatePending is true", () => {
+	it("submits the create form through handleCreate", async () => {
+		const user = userEvent.setup();
+		const state = setMockState({ isCreateOpen: true });
+		render(<RoomsPage />);
+		await user.click(screen.getByRole("button", { name: "stub-submit" }));
+		expect(state.handleCreate).toHaveBeenCalledTimes(1);
+		expect(state.handleCreate).toHaveBeenCalledWith({ name: "Akiba" });
+	});
+
+	it("disables the Save button while the create mutation is pending", () => {
 		setMockState({ isCreateOpen: true, isCreatePending: true });
 		render(<RoomsPage />);
 		expect(screen.getByLabelText("Save")).toBeDisabled();
 	});
 
-	it("calls handleToggleFavorite when RoomList's onToggleFavorite fires", async () => {
+	it("routes RoomList's favorite toggle to handleToggleFavorite with the room id", async () => {
 		const user = userEvent.setup();
 		const state = setMockState();
 		render(<RoomsPage />);

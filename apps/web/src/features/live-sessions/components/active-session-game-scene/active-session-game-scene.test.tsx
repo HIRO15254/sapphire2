@@ -329,40 +329,40 @@ describe("ActiveSessionGameScene", () => {
 		expect(mocks.ringGameFormProps?.defaultValues?.mixGames).toEqual(mixGames);
 	});
 
-	it("shows a fallback when the cash session has no ring game linked", () => {
-		mocks.activeSession = {
-			id: "session-1",
-			type: "cash_game",
-			status: "active",
-		};
-		mocks.cashSession = {
-			id: "session-1",
-			roomId: "room-1",
-			ringGameId: null,
-		};
+	it.each([
+		{
+			type: "cash_game" as const,
+			action: "Select or create a game",
+			link: () => {
+				mocks.cashSession = {
+					id: "session-1",
+					roomId: "room-1",
+					ringGameId: null,
+				};
+			},
+		},
+		{
+			type: "tournament" as const,
+			action: "Select or create a tournament",
+			link: () => {
+				mocks.tournamentSession = {
+					id: "session-2",
+					roomId: "room-1",
+					tournamentId: null,
+				};
+			},
+		},
+	])("shows the not-linked fallback with '$action' for an unlinked $type session", ({
+		type,
+		action,
+		link,
+	}) => {
+		mocks.activeSession = { id: "session-1", type, status: "active" };
+		link();
 
 		render(<ActiveSessionGameScene />);
 		expect(screen.getByText("Game not linked")).toBeInTheDocument();
-		expect(screen.getByText("Select or create a game")).toBeInTheDocument();
-	});
-
-	it("shows a fallback with an assign action when the tournament session has no tournament linked", () => {
-		mocks.activeSession = {
-			id: "session-2",
-			type: "tournament",
-			status: "active",
-		};
-		mocks.tournamentSession = {
-			id: "session-2",
-			roomId: "room-1",
-			tournamentId: null,
-		};
-
-		render(<ActiveSessionGameScene />);
-		expect(screen.getByText("Game not linked")).toBeInTheDocument();
-		expect(
-			screen.getByText("Select or create a tournament")
-		).toBeInTheDocument();
+		expect(screen.getByText(action)).toBeInTheDocument();
 	});
 
 	it("renders tournament details", () => {

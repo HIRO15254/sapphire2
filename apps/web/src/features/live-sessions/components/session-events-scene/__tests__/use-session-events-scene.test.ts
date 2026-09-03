@@ -68,10 +68,7 @@ vi.mock("@/utils/trpc", () => ({
 }));
 
 import { useSessionEventsScene } from "@/features/live-sessions/components/session-events-scene/use-session-events-scene";
-import {
-	type SessionEvent,
-	useSessionEvents,
-} from "@/features/live-sessions/hooks/use-session-events";
+import type { SessionEvent } from "@/features/live-sessions/hooks/use-session-events";
 
 function createClient(): QueryClient {
 	return new QueryClient({
@@ -208,9 +205,5 @@ describe("useSessionEventsScene", () => {
 		);
 		expect(typeof result.current.update).toBe("function");
 		expect(typeof result.current.deleteEvent).toBe("function");
-	});
-
-	it("uses the same useSessionEvents primitive", () => {
-		expect(useSessionEvents).toBeDefined();
 	});
 });

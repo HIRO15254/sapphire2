@@ -129,7 +129,7 @@ describe("requiredNumericString", () => {
 	});
 
 	it("rejects non-string input at the string schema layer", () => {
-		const result = requiredNumericString().safeParse(42 as unknown as string);
+		const result = requiredNumericString().safeParse(42);
 		expect(result.success).toBe(false);
 	});
 });

@@ -16,10 +16,15 @@ describe("PERIODS / PERIOD_LABEL", () => {
 		expect(PERIODS).toEqual(["7d", "30d", "90d", "ytd", "all", "custom"]);
 	});
 
-	it("exposes a non-empty label for every period", () => {
-		for (const period of PERIODS) {
-			expect(PERIOD_LABEL[period]).toBeTruthy();
-		}
+	it("labels every period with its chip wording", () => {
+		expect(PERIOD_LABEL).toEqual({
+			"7d": "7 days",
+			"30d": "30 days",
+			"90d": "90 days",
+			ytd: "YTD",
+			all: "All time",
+			custom: "Custom",
+		});
 	});
 });
 

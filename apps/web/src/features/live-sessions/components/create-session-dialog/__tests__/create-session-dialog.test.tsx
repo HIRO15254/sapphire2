@@ -43,15 +43,15 @@ function setup() {
 }
 
 describe("CreateSessionDialog", () => {
-	it("titles the sheet 'Start Live Session' and renders the live form when open", () => {
+	it("mounts the titled sheet with the live form only while open", () => {
 		setup();
-		render(<CreateSessionDialog onOpenChange={vi.fn()} open={true} />);
+		const { unmount } = render(
+			<CreateSessionDialog onOpenChange={vi.fn()} open={true} />
+		);
 		expect(screen.getAllByText("Start Live Session").length).toBeGreaterThan(0);
 		expect(screen.getByTestId("live-session-form")).toBeInTheDocument();
-	});
 
-	it("renders nothing while closed", () => {
-		setup();
+		unmount();
 		render(<CreateSessionDialog onOpenChange={vi.fn()} open={false} />);
 		expect(screen.queryByTestId("live-session-form")).not.toBeInTheDocument();
 	});

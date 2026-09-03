@@ -79,14 +79,16 @@ describe("passkey auto-register opt-out", () => {
 		expect(isAutomaticPasskeyOptedOut()).toBe(false);
 	});
 
-	it("does not throw when storage rejects a write", () => {
+	it("stays opted in when storage rejects the opt-out write", () => {
 		setStorage({
+			getItem: () => null,
 			removeItem: () => undefined,
 			setItem: () => {
 				throw new Error("QuotaExceededError");
 			},
 		});
-		expect(() => setAutomaticPasskeyOptOut(true)).not.toThrow();
+		setAutomaticPasskeyOptOut(true);
+		expect(isAutomaticPasskeyOptedOut()).toBe(false);
 	});
 
 	it("reads false with no window at all", () => {

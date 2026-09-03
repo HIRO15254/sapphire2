@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UpdateNotesSheet } from "./update-notes-sheet";
 
 const mocks = vi.hoisted(() => ({
@@ -71,93 +71,61 @@ vi.mock("@/shared/components/ui/badge", () => ({
 }));
 
 describe("UpdateNotesSheet", () => {
-	it("renders the drawer with the Update notes title when open", () => {
+	beforeEach(() => {
 		mocks.sheetState.isOpen = true;
-		render(<UpdateNotesSheet />);
+		mocks.sheetState.viewedVersions = new Set();
+		mocks.sheetState.setIsOpen.mockClear();
+	});
+
+	it("mounts the drawer content only while open", () => {
+		mocks.sheetState.isOpen = false;
+		const { rerender } = render(<UpdateNotesSheet />);
+		expect(screen.queryByText("Update notes")).not.toBeInTheDocument();
+		mocks.sheetState.isOpen = true;
+		rerender(<UpdateNotesSheet />);
 		expect(screen.getByText("Update notes")).toBeInTheDocument();
 	});
 
-	it("does not render when closed", () => {
-		mocks.sheetState.isOpen = false;
+	it("renders one accordion item per update note with its version and release date", () => {
 		render(<UpdateNotesSheet />);
-		expect(screen.queryByText("Update notes")).not.toBeInTheDocument();
-	});
-
-	it("renders accordion items for update notes", () => {
-		mocks.sheetState.isOpen = true;
-		mocks.sheetState.viewedVersions = new Set();
-		render(<UpdateNotesSheet />);
+		expect(screen.getAllByTestId("accordion-item")).toHaveLength(1);
 		expect(screen.getByText("1.0.0")).toBeInTheDocument();
 		expect(screen.getByText("2026-04-11")).toBeInTheDocument();
 	});
 
-	it("shows NEW badge for unviewed versions", () => {
-		mocks.sheetState.isOpen = true;
-		mocks.sheetState.viewedVersions = new Set();
-		render(<UpdateNotesSheet />);
+	it("shows the NEW badge only for unviewed versions", () => {
+		const { rerender } = render(<UpdateNotesSheet />);
 		expect(screen.getByTestId("badge")).toHaveTextContent("NEW");
-	});
-
-	it("does not show NEW badge for viewed versions", () => {
-		mocks.sheetState.isOpen = true;
 		mocks.sheetState.viewedVersions = new Set(["1.0.0"]);
-		render(<UpdateNotesSheet />);
+		rerender(<UpdateNotesSheet />);
 		expect(screen.queryByTestId("badge")).not.toBeInTheDocument();
 	});
 
-	it("renders change items in accordion content", () => {
-		mocks.sheetState.isOpen = true;
+	it("renders one bullet per change item", () => {
 		render(<UpdateNotesSheet />);
 		expect(
-			screen.getByText(
-				"Added update notes modal to view past release information"
-			)
-		).toBeInTheDocument();
+			screen.getAllByRole("listitem").map((item) => item.textContent)
+		).toEqual([
+			"Added update notes modal to view past release information",
+			"Unviewed updates are highlighted with a NEW badge",
+			"Update notes sheet automatically opens after a new release",
+			"orphan bullet",
+		]);
 	});
 
-	it("renders all three change bullets from the fixture", () => {
-		mocks.sheetState.isOpen = true;
-		render(<UpdateNotesSheet />);
-		expect(
-			screen.getByText("Unviewed updates are highlighted with a NEW badge")
-		).toBeInTheDocument();
-		expect(
-			screen.getByText(
-				"Update notes sheet automatically opens after a new release"
-			)
-		).toBeInTheDocument();
-	});
-
-	it("renders each change section's heading", () => {
-		mocks.sheetState.isOpen = true;
+	it("renders a heading only for labeled sections", () => {
 		render(<UpdateNotesSheet />);
 		expect(screen.getByText("New Features")).toBeInTheDocument();
 		expect(screen.getByText("UI Improvements")).toBeInTheDocument();
-	});
-
-	it("does not render a heading for an unlabeled section", () => {
-		mocks.sheetState.isOpen = true;
-		render(<UpdateNotesSheet />);
-		const orphanItem = screen.getByText("orphan bullet");
-		const group = orphanItem.closest("div");
-		expect(group?.querySelector("p")).toBeNull();
-	});
-
-	it("does not render drawer content when isOpen=false even if a version is viewed", () => {
-		mocks.sheetState.isOpen = false;
-		mocks.sheetState.viewedVersions = new Set(["1.0.0"]);
-		render(<UpdateNotesSheet />);
-		expect(screen.queryByText("Update notes")).not.toBeInTheDocument();
+		expect(
+			screen.getByText("orphan bullet").closest("div")?.querySelector("p")
+		).toBeNull();
 	});
 
 	it("requests close via setIsOpen(false) when Escape is pressed", async () => {
 		const user = userEvent.setup();
-		mocks.sheetState.isOpen = true;
-		mocks.sheetState.setIsOpen.mockClear();
 		render(<UpdateNotesSheet />);
-
 		await user.keyboard("{Escape}");
-
 		expect(mocks.sheetState.setIsOpen).toHaveBeenCalledTimes(1);
 		expect(mocks.sheetState.setIsOpen).toHaveBeenCalledWith(false);
 	});

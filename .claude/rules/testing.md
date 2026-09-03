@@ -37,6 +37,18 @@ A behavior belongs to exactly one row. A Zod rule proven in `packages/api` is no
 
 If a target matches no row, extend the relevant `test-utils` file with a helper rather than hand-rolling a new pattern per file.
 
+## Component tests that mock their own hook (`web-dom`)
+
+The hook return value is the input and the DOM is the output; the test may hold at most one `it()` per binding class and nothing that re-proves a value the hook test already proved:
+
+- **B1 state → subtree**: one `it()` per distinct rendered state (loading skeleton, error + retry, not found, empty).
+- **B2 collection → rows**: one `it()` ("renders one row per item").
+- **B3 handler wiring**: one `it()` per hook handler asserting `toHaveBeenCalledWith(args)`; several entry points for the same handler become one `it.each`.
+- **B4 flag → attribute**: one `it()` per flag (pending disables Save; a toggling label asserted with both values in one `it()`).
+- **B5 conditional mount**: one `it()` per sheet / drawer, both branches in one `it()`.
+
+Delete "forwards X to Child" tests when the page-hook test asserts the pass-through and the child's own test asserts the rendering (keep one prop-reaches-child `it()` per child), per-sheet "Cancel closes" repeats, label-only variants, and any assertion on hook-internal branches. A component test mocks the component's own `use-*` hook — never `@tanstack/react-query`; a `useMutation` stub that derives the patch itself asserts against the mock, not the component.
+
 ## Zod input tests (`packages/api`)
 
 - Keep an `it()` only for a boundary the spec names: 1-based placement and `placement <= totalEntries` (create and update alike), `tableSize` 2..10, seat 0..9, `limit` / cursor rules, name-length caps, every enum rejection, discriminated-union branch requirements, strict payloads, the D1 100-parameter chunking, money / chip / count fields non-negative and integer.
@@ -79,5 +91,5 @@ A test is deleted only when the PR shows, for its project, the before/after `it(
 
 - Focused / skipped tests (`it.only`, `it.skip`, `test.todo`, `describe.only`, `xit`, `fit`, …) are banned in every `*.test.ts(x)`. Biome's `noFocusedTests` only warns; this check fails.
 - `Stryker disable` must be `next-line`, name its mutators, and carry a reason.
-- Smoke-only `it()` blocks (every `expect` ends in `toBeDefined` / `toBeTruthy`; `not.toThrow` stays prose-only because `bun:sqlite` migration specs prove constraint acceptance by not throwing) are banned by [`scripts/check-rules-tests.ts`](../../scripts/check-rules-tests.ts), wired per package as the P2 cleanup PRs land (`packages/db` first).
+- Smoke-only `it()` blocks (every `expect` ends in `toBeDefined` / `toBeTruthy`; `not.toThrow` stays prose-only because `bun:sqlite` migration specs prove constraint acceptance by not throwing) are banned by [`scripts/check-rules-tests.ts`](../../scripts/check-rules-tests.ts) across `packages/**/*.test.ts` and `apps/**/*.test.{ts,tsx}`.
 - Schema-shape assertions in `packages/db` tests (`.notNull`, `.hasDefault`, `.dataType`, `.columnType`, `.primary`, `.onUpdateFn`, `getTableName(`, `.primaryKeys`) are banned; `.default` pins tied to a constant or incident and the better-auth column-presence tests in `oauth-schema` / `passkey-schema` are the deliberate exceptions.
