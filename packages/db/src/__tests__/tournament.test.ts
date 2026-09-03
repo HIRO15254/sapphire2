@@ -1,5 +1,4 @@
 import { getTableColumns } from "drizzle-orm";
-import { getTableConfig } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_VARIANT_LABEL } from "../constants/game-variants";
 import {
@@ -8,355 +7,113 @@ import {
 	tournamentChipPurchase,
 } from "../schema/tournament";
 import { tournamentTag } from "../schema/tournament-tag";
-
-describe("Tournament schema", () => {
-	it("has required columns", () => {
-		const columns = getTableColumns(tournament);
-		expect(columns.id).toBeDefined();
-		expect(columns.roomId).toBeDefined();
-		expect(columns.name).toBeDefined();
-		expect(columns.variant).toBeDefined();
-		expect(columns.buyIn).toBeDefined();
-		expect(columns.entryFee).toBeDefined();
-		expect(columns.startingStack).toBeDefined();
-		expect(columns.bountyAmount).toBeDefined();
-		expect(columns.tableSize).toBeDefined();
-		expect(columns.currencyId).toBeDefined();
-		expect(columns.memo).toBeDefined();
-		expect(columns.archivedAt).toBeDefined();
-		expect(columns.createdAt).toBeDefined();
-		expect(columns.updatedAt).toBeDefined();
-	});
-
-	it("no longer has rebuy/addon columns", () => {
-		const columns = getTableColumns(tournament) as Record<string, unknown>;
-		expect(columns.rebuyAllowed).toBeUndefined();
-		expect(columns.rebuyCost).toBeUndefined();
-		expect(columns.rebuyChips).toBeUndefined();
-		expect(columns.addonAllowed).toBeUndefined();
-		expect(columns.addonCost).toBeUndefined();
-		expect(columns.addonChips).toBeUndefined();
-	});
-
-	it("id is primary key", () => {
-		const columns = getTableColumns(tournament);
-		expect(columns.id.primary).toBe(true);
-	});
-
-	it("roomId is not null", () => {
-		const columns = getTableColumns(tournament);
-		expect(columns.roomId.notNull).toBe(true);
-	});
-
-	it("name is not null", () => {
-		const columns = getTableColumns(tournament);
-		expect(columns.name.notNull).toBe(true);
-	});
-
-	it("variant is not null", () => {
-		const columns = getTableColumns(tournament);
-		expect(columns.variant.notNull).toBe(true);
-	});
-
-	it("buyIn is nullable", () => {
-		const columns = getTableColumns(tournament);
-		expect(columns.buyIn.notNull).toBe(false);
-	});
-
-	it("currencyId is nullable", () => {
-		const columns = getTableColumns(tournament);
-		expect(columns.currencyId.notNull).toBe(false);
-	});
-
-	it("archivedAt is nullable", () => {
-		const columns = getTableColumns(tournament);
-		expect(columns.archivedAt.notNull).toBe(false);
-	});
-
-	it("memo is nullable", () => {
-		const columns = getTableColumns(tournament);
-		expect(columns.memo.notNull).toBe(false);
-	});
-
-	it("does not have a tags column", () => {
-		const columns = getTableColumns(tournament);
-		expect((columns as Record<string, unknown>).tags).toBeUndefined();
-	});
-});
-
-describe("TournamentTag schema", () => {
-	it("has required columns", () => {
-		const columns = getTableColumns(tournamentTag);
-		expect(columns.id).toBeDefined();
-		expect(columns.tournamentId).toBeDefined();
-		expect(columns.name).toBeDefined();
-		expect(columns.createdAt).toBeDefined();
-	});
-
-	it("id is primary key", () => {
-		const columns = getTableColumns(tournamentTag);
-		expect(columns.id.primary).toBe(true);
-	});
-
-	it("tournamentId is not null", () => {
-		const columns = getTableColumns(tournamentTag);
-		expect(columns.tournamentId.notNull).toBe(true);
-	});
-
-	it("name is not null", () => {
-		const columns = getTableColumns(tournamentTag);
-		expect(columns.name.notNull).toBe(true);
-	});
-
-	it("createdAt is not null", () => {
-		const columns = getTableColumns(tournamentTag);
-		expect(columns.createdAt.notNull).toBe(true);
-	});
-});
-
-describe("BlindLevel schema", () => {
-	it("has required columns", () => {
-		const columns = getTableColumns(blindLevel);
-		expect(columns.id).toBeDefined();
-		expect(columns.tournamentId).toBeDefined();
-		expect(columns.level).toBeDefined();
-		expect(columns.isBreak).toBeDefined();
-		expect(columns.blind1).toBeDefined();
-		expect(columns.blind2).toBeDefined();
-		expect(columns.blind3).toBeDefined();
-		expect(columns.ante).toBeDefined();
-		expect(columns.minutes).toBeDefined();
-	});
-
-	it("id is primary key", () => {
-		const columns = getTableColumns(blindLevel);
-		expect(columns.id.primary).toBe(true);
-	});
-
-	it("tournamentId is not null", () => {
-		const columns = getTableColumns(blindLevel);
-		expect(columns.tournamentId.notNull).toBe(true);
-	});
-
-	it("level is not null", () => {
-		const columns = getTableColumns(blindLevel);
-		expect(columns.level.notNull).toBe(true);
-	});
-
-	it("isBreak is not null", () => {
-		const columns = getTableColumns(blindLevel);
-		expect(columns.isBreak.notNull).toBe(true);
-	});
-
-	it("blind1 is nullable", () => {
-		const columns = getTableColumns(blindLevel);
-		expect(columns.blind1.notNull).toBe(false);
-	});
-
-	it("blind2 is nullable", () => {
-		const columns = getTableColumns(blindLevel);
-		expect(columns.blind2.notNull).toBe(false);
-	});
-
-	it("minutes is nullable", () => {
-		const columns = getTableColumns(blindLevel);
-		expect(columns.minutes.notNull).toBe(false);
-	});
-});
-
-describe("TournamentChipPurchase schema", () => {
-	it("has required columns", () => {
-		const columns = getTableColumns(tournamentChipPurchase);
-		expect(columns.id).toBeDefined();
-		expect(columns.tournamentId).toBeDefined();
-		expect(columns.name).toBeDefined();
-		expect(columns.cost).toBeDefined();
-		expect(columns.chips).toBeDefined();
-		expect(columns.sortOrder).toBeDefined();
-	});
-
-	it("id is primary key", () => {
-		const columns = getTableColumns(tournamentChipPurchase);
-		expect(columns.id.primary).toBe(true);
-	});
-
-	it("tournamentId is not null", () => {
-		const columns = getTableColumns(tournamentChipPurchase);
-		expect(columns.tournamentId.notNull).toBe(true);
-	});
-
-	it("name, cost, chips are not null", () => {
-		const columns = getTableColumns(tournamentChipPurchase);
-		expect(columns.name.notNull).toBe(true);
-		expect(columns.cost.notNull).toBe(true);
-		expect(columns.chips.notNull).toBe(true);
-	});
-});
+import { fkByColumn, indexesOf } from "./test-utils";
 
 describe("Tournament — FKs, indexes, and defaults", () => {
-	const config = getTableConfig(tournament);
-	const columns = getTableColumns(tournament);
-	const fkByColumn = (columnName: string) =>
-		config.foreignKeys.find((fk) =>
-			fk.reference().columns.some((c) => c.name === columnName)
-		);
-
-	it("roomId FK cascades on room deletion", () => {
-		expect(fkByColumn("room_id")?.onDelete).toBe("cascade");
+	it("roomId FK cascades so tournaments die with their room", () => {
+		expect(fkByColumn(tournament, "room_id")).toEqual({
+			columns: ["room_id"],
+			foreignColumns: ["id"],
+			foreignTable: "room",
+			onDelete: "cascade",
+		});
 	});
 
-	it("currencyId FK uses set null", () => {
-		expect(fkByColumn("currency_id")?.onDelete).toBe("set null");
+	it("currencyId FK sets null so tournaments survive currency deletion", () => {
+		expect(fkByColumn(tournament, "currency_id")).toEqual({
+			columns: ["currency_id"],
+			foreignColumns: ["id"],
+			foreignTable: "currency",
+			onDelete: "set null",
+		});
 	});
 
-	it("has exactly 2 foreign keys", () => {
-		expect(config.foreignKeys).toHaveLength(2);
-	});
-
-	it("has roomId index", () => {
-		const idxNames = config.indexes.map((i) => i.config.name);
-		expect(idxNames).toContain("tournament_roomId_idx");
-	});
-
-	it("has tournament_currencyId_idx for reverse currency lookups", () => {
-		const idx = config.indexes.find(
-			(i) => i.config.name === "tournament_currencyId_idx"
-		);
-		expect(idx?.config.columns.map((column) => column.name)).toEqual([
-			"currency_id",
+	it("indexes roomId and currencyId for room listing and reverse currency lookups", () => {
+		expect(indexesOf(tournament)).toEqual([
+			{
+				columns: ["room_id"],
+				name: "tournament_roomId_idx",
+				unique: false,
+				where: null,
+			},
+			{
+				columns: ["currency_id"],
+				name: "tournament_currencyId_idx",
+				unique: false,
+				where: null,
+			},
 		]);
 	});
 
 	it("variant defaults to DEFAULT_VARIANT_LABEL (c12: not the stale 'nlh' key)", () => {
-		expect(columns.variant.hasDefault).toBe(true);
-		expect(columns.variant.default).toBe(DEFAULT_VARIANT_LABEL);
-	});
-
-	it("createdAt has a default, updatedAt uses $onUpdate", () => {
-		expect(columns.createdAt.hasDefault).toBe(true);
-		expect(columns.updatedAt.onUpdateFn).toBeInstanceOf(Function);
-	});
-
-	it("archivedAt is nullable timestamp", () => {
-		expect(columns.archivedAt.dataType).toBe("date");
-		expect(columns.archivedAt.notNull).toBe(false);
-	});
-
-	it("buyIn/entryFee/startingStack/bountyAmount/tableSize are nullable integers", () => {
-		expect(columns.buyIn.dataType).toBe("number");
-		expect(columns.entryFee.dataType).toBe("number");
-		expect(columns.startingStack.dataType).toBe("number");
-		expect(columns.bountyAmount.dataType).toBe("number");
-		expect(columns.tableSize.dataType).toBe("number");
-		expect(columns.buyIn.notNull).toBe(false);
-		expect(columns.entryFee.notNull).toBe(false);
-		expect(columns.startingStack.notNull).toBe(false);
-		expect(columns.bountyAmount.notNull).toBe(false);
-		expect(columns.tableSize.notNull).toBe(false);
+		expect(getTableColumns(tournament).variant.default).toBe(
+			DEFAULT_VARIANT_LABEL
+		);
 	});
 });
 
-describe("TournamentTag — FKs, indexes, and defaults", () => {
-	const config = getTableConfig(tournamentTag);
-	const columns = getTableColumns(tournamentTag);
-
+describe("TournamentTag — FKs and indexes", () => {
 	it("tournamentId FK cascades (tags die with their tournament)", () => {
-		const fk = config.foreignKeys.find((f) =>
-			f.reference().columns.some((c) => c.name === "tournament_id")
-		);
-		expect(fk?.onDelete).toBe("cascade");
+		expect(fkByColumn(tournamentTag, "tournament_id")).toEqual({
+			columns: ["tournament_id"],
+			foreignColumns: ["id"],
+			foreignTable: "tournament",
+			onDelete: "cascade",
+		});
 	});
 
-	it("has tournamentId index", () => {
-		const idxNames = config.indexes.map((i) => i.config.name);
-		expect(idxNames).toContain("tournamentTag_tournamentId_idx");
-	});
-
-	it("createdAt has a default and is not null", () => {
-		expect(columns.createdAt.hasDefault).toBe(true);
-		expect(columns.createdAt.notNull).toBe(true);
+	it("indexes tournamentId for per-tournament tag lookups", () => {
+		expect(indexesOf(tournamentTag)).toEqual([
+			{
+				columns: ["tournament_id"],
+				name: "tournamentTag_tournamentId_idx",
+				unique: false,
+				where: null,
+			},
+		]);
 	});
 });
 
-describe("BlindLevel — FKs, indexes, and defaults", () => {
-	const config = getTableConfig(blindLevel);
-	const columns = getTableColumns(blindLevel);
-
+describe("BlindLevel — FKs and indexes", () => {
 	it("tournamentId FK cascades (levels die with their tournament)", () => {
-		const fk = config.foreignKeys.find((f) =>
-			f.reference().columns.some((c) => c.name === "tournament_id")
-		);
-		expect(fk?.onDelete).toBe("cascade");
+		expect(fkByColumn(blindLevel, "tournament_id")).toEqual({
+			columns: ["tournament_id"],
+			foreignColumns: ["id"],
+			foreignTable: "tournament",
+			onDelete: "cascade",
+		});
 	});
 
-	it("has exactly 1 foreign key", () => {
-		expect(config.foreignKeys).toHaveLength(1);
-	});
-
-	it("has tournamentId index", () => {
-		const idxNames = config.indexes.map((i) => i.config.name);
-		expect(idxNames).toContain("blindLevel_tournamentId_idx");
-	});
-
-	it("isBreak defaults to false", () => {
-		expect(columns.isBreak.hasDefault).toBe(true);
-		expect(columns.isBreak.default).toBe(false);
-	});
-
-	it("isBreak is stored as boolean mode", () => {
-		expect(columns.isBreak.dataType).toBe("boolean");
-	});
-
-	it("level is an integer and not null", () => {
-		expect(columns.level.dataType).toBe("number");
-		expect(columns.level.notNull).toBe(true);
-	});
-
-	it("ante and minutes are nullable integers", () => {
-		expect(columns.ante.notNull).toBe(false);
-		expect(columns.minutes.notNull).toBe(false);
+	it("indexes tournamentId for per-tournament level lookups", () => {
+		expect(indexesOf(blindLevel)).toEqual([
+			{
+				columns: ["tournament_id"],
+				name: "blindLevel_tournamentId_idx",
+				unique: false,
+				where: null,
+			},
+		]);
 	});
 });
 
-describe("TournamentChipPurchase — FKs, indexes, and defaults", () => {
-	const config = getTableConfig(tournamentChipPurchase);
-	const columns = getTableColumns(tournamentChipPurchase);
-
-	it("tournamentId FK cascades", () => {
-		const fk = config.foreignKeys.find((f) =>
-			f.reference().columns.some((c) => c.name === "tournament_id")
-		);
-		expect(fk?.onDelete).toBe("cascade");
+describe("TournamentChipPurchase — FKs and indexes", () => {
+	it("tournamentId FK cascades so chip purchases die with their tournament", () => {
+		expect(fkByColumn(tournamentChipPurchase, "tournament_id")).toEqual({
+			columns: ["tournament_id"],
+			foreignColumns: ["id"],
+			foreignTable: "tournament",
+			onDelete: "cascade",
+		});
 	});
 
-	it("has tournamentId index", () => {
-		const idxNames = config.indexes.map((i) => i.config.name);
-		expect(idxNames).toContain("tournamentChipPurchase_tournamentId_idx");
-	});
-
-	it("sortOrder defaults to 0", () => {
-		expect(columns.sortOrder.hasDefault).toBe(true);
-		expect(columns.sortOrder.default).toBe(0);
-	});
-
-	it("sortOrder is a not-null integer (preserves display order)", () => {
-		expect(columns.sortOrder.dataType).toBe("number");
-		expect(columns.sortOrder.notNull).toBe(true);
-	});
-
-	it("cost and chips are integer and not null", () => {
-		expect(columns.cost.dataType).toBe("number");
-		expect(columns.chips.dataType).toBe("number");
-		expect(columns.cost.notNull).toBe(true);
-		expect(columns.chips.notNull).toBe(true);
-	});
-});
-
-describe("blindLevel.games column", () => {
-	it("games is a nullable JSON column (per-level game groups)", () => {
-		const columns = getTableColumns(blindLevel);
-		expect(columns.games).toBeDefined();
-		expect(columns.games.notNull).toBe(false);
-		expect(columns.games.columnType).toBe("SQLiteTextJson");
+	it("indexes tournamentId for per-tournament purchase lookups", () => {
+		expect(indexesOf(tournamentChipPurchase)).toEqual([
+			{
+				columns: ["tournament_id"],
+				name: "tournamentChipPurchase_tournamentId_idx",
+				unique: false,
+				where: null,
+			},
+		]);
 	});
 });

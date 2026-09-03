@@ -9,10 +9,8 @@ import {
 } from "../schemas/filter-preset";
 
 describe("filterPresetScreenKeySchema", () => {
-	it("accepts every key in FILTER_PRESET_SCREEN_KEYS", () => {
-		for (const key of FILTER_PRESET_SCREEN_KEYS) {
-			expect(filterPresetScreenKeySchema.safeParse(key).success).toBe(true);
-		}
+	it.each(FILTER_PRESET_SCREEN_KEYS)("accepts the %s screen key", (key) => {
+		expect(filterPresetScreenKeySchema.parse(key)).toBe(key);
 	});
 
 	it("rejects an unknown screen key", () => {
@@ -23,26 +21,22 @@ describe("filterPresetScreenKeySchema", () => {
 });
 
 describe("presetNameSchema", () => {
-	it("rejects an empty string", () => {
-		expect(presetNameSchema.safeParse("").success).toBe(false);
+	it.each([
+		["empty", ""],
+		["51-character", "a".repeat(51)],
+	])("rejects an %s name", (_, name) => {
+		expect(presetNameSchema.safeParse(name).success).toBe(false);
 	});
 
-	it("rejects a 51-character string", () => {
-		expect(presetNameSchema.safeParse("a".repeat(51)).success).toBe(false);
-	});
-
-	it("accepts a 1-character string", () => {
-		expect(presetNameSchema.safeParse("a").success).toBe(true);
-	});
-
-	it("accepts a 50-character string", () => {
-		expect(presetNameSchema.safeParse("a".repeat(50)).success).toBe(true);
+	it.each([
+		["1-character", "a"],
+		["50-character", "a".repeat(50)],
+	])("accepts a %s name", (_, name) => {
+		expect(presetNameSchema.parse(name)).toBe(name);
 	});
 
 	it("trims surrounding whitespace", () => {
-		const parsed = presetNameSchema.safeParse(" Foo ");
-		expect(parsed.success).toBe(true);
-		expect(parsed.success && parsed.data).toBe("Foo");
+		expect(presetNameSchema.parse(" Foo ")).toBe("Foo");
 	});
 
 	it("rejects a whitespace-only string (trims to empty)", () => {
@@ -51,121 +45,67 @@ describe("presetNameSchema", () => {
 });
 
 describe("sessionsFilterPresetPayloadSchema", () => {
+	const fullPayload = {
+		period: "this_month",
+		from: 1_700_000_000,
+		to: 1_700_086_400,
+		type: "cash_game",
+		roomId: "room-1",
+		currencyId: "cur-1",
+		display: "normalized",
+	} as const;
+
 	it("accepts an empty object (all fields optional)", () => {
-		expect(sessionsFilterPresetPayloadSchema.safeParse({}).success).toBe(true);
+		expect(sessionsFilterPresetPayloadSchema.parse({})).toEqual({});
 	});
 
-	it("accepts a valid period alone", () => {
-		expect(
-			sessionsFilterPresetPayloadSchema.safeParse({ period: "this_month" })
-				.success
-		).toBe(true);
-	});
-
-	it("rejects an empty-string period", () => {
-		expect(
-			sessionsFilterPresetPayloadSchema.safeParse({ period: "" }).success
-		).toBe(false);
-	});
-
-	it("rejects a period longer than 30 characters", () => {
-		expect(
-			sessionsFilterPresetPayloadSchema.safeParse({ period: "a".repeat(31) })
-				.success
-		).toBe(false);
+	it("accepts the full payload and returns it unchanged", () => {
+		expect(sessionsFilterPresetPayloadSchema.parse(fullPayload)).toEqual(
+			fullPayload
+		);
 	});
 
 	it("accepts a period at the 30-character boundary", () => {
 		expect(
-			sessionsFilterPresetPayloadSchema.safeParse({ period: "a".repeat(30) })
-				.success
-		).toBe(true);
+			sessionsFilterPresetPayloadSchema.parse({ period: "a".repeat(30) })
+		).toEqual({ period: "a".repeat(30) });
 	});
 
-	it("accepts a valid from alone", () => {
-		expect(
-			sessionsFilterPresetPayloadSchema.safeParse({ from: 1_700_000_000 })
-				.success
-		).toBe(true);
+	it.each([
+		["empty", ""],
+		["31-character", "a".repeat(31)],
+	])("rejects an %s period", (_, period) => {
+		const result = sessionsFilterPresetPayloadSchema.safeParse({ period });
+		expect(result.success).toBe(false);
+		expect(result.error?.issues[0]?.path).toEqual(["period"]);
 	});
 
-	it("rejects a non-integer from", () => {
-		expect(
-			sessionsFilterPresetPayloadSchema.safeParse({ from: 1.5 }).success
-		).toBe(false);
+	it.each(["from", "to"])("rejects a non-integer %s", (field) => {
+		const result = sessionsFilterPresetPayloadSchema.safeParse({
+			[field]: 1.5,
+		});
+		expect(result.success).toBe(false);
+		expect(result.error?.issues[0]?.path).toEqual([field]);
 	});
 
-	it("accepts a valid to alone", () => {
-		expect(
-			sessionsFilterPresetPayloadSchema.safeParse({ to: 1_700_000_000 }).success
-		).toBe(true);
+	it.each(["all", "cash", ""])("rejects the type value %j", (type) => {
+		const result = sessionsFilterPresetPayloadSchema.safeParse({ type });
+		expect(result.success).toBe(false);
+		expect(result.error?.issues[0]?.path).toEqual(["type"]);
 	});
 
-	it("rejects a non-integer to", () => {
-		expect(
-			sessionsFilterPresetPayloadSchema.safeParse({ to: 2.2 }).success
-		).toBe(false);
+	it.each(["bogus", "off", ""])("rejects the display value %j", (display) => {
+		const result = sessionsFilterPresetPayloadSchema.safeParse({ display });
+		expect(result.success).toBe(false);
+		expect(result.error?.issues[0]?.path).toEqual(["display"]);
 	});
 
-	it("accepts a valid type alone", () => {
-		expect(
-			sessionsFilterPresetPayloadSchema.safeParse({ type: "cash_game" }).success
-		).toBe(true);
-		expect(
-			sessionsFilterPresetPayloadSchema.safeParse({ type: "tournament" })
-				.success
-		).toBe(true);
-	});
-
-	it("rejects an invalid type value", () => {
-		expect(
-			sessionsFilterPresetPayloadSchema.safeParse({ type: "all" }).success
-		).toBe(false);
-	});
-
-	it("accepts a valid roomId alone", () => {
-		expect(
-			sessionsFilterPresetPayloadSchema.safeParse({ roomId: "room-1" }).success
-		).toBe(true);
-	});
-
-	it("rejects an empty-string roomId", () => {
-		expect(
-			sessionsFilterPresetPayloadSchema.safeParse({ roomId: "" }).success
-		).toBe(false);
-	});
-
-	it("accepts a valid currencyId alone", () => {
-		expect(
-			sessionsFilterPresetPayloadSchema.safeParse({ currencyId: "cur-1" })
-				.success
-		).toBe(true);
-	});
-
-	it("rejects an empty-string currencyId", () => {
-		expect(
-			sessionsFilterPresetPayloadSchema.safeParse({ currencyId: "" }).success
-		).toBe(false);
-	});
-
-	it("accepts display: 'currency'", () => {
-		expect(
-			sessionsFilterPresetPayloadSchema.safeParse({ display: "currency" })
-				.success
-		).toBe(true);
-	});
-
-	it("accepts display: 'normalized'", () => {
-		expect(
-			sessionsFilterPresetPayloadSchema.safeParse({ display: "normalized" })
-				.success
-		).toBe(true);
-	});
-
-	it("rejects an invalid display value", () => {
-		expect(
-			sessionsFilterPresetPayloadSchema.safeParse({ display: "bogus" }).success
-		).toBe(false);
+	it.each(["roomId", "currencyId"])("rejects an empty-string %s", (field) => {
+		const result = sessionsFilterPresetPayloadSchema.safeParse({
+			[field]: "",
+		});
+		expect(result.success).toBe(false);
+		expect(result.error?.issues[0]?.path).toEqual([field]);
 	});
 
 	it("rejects an unknown key (proves .strict())", () => {
@@ -176,129 +116,75 @@ describe("sessionsFilterPresetPayloadSchema", () => {
 });
 
 describe("statisticsFilterPresetPayloadSchema", () => {
+	const fullPayload = {
+		period: "this_year",
+		from: 1_700_000_000,
+		to: 1_700_086_400,
+		currency: "cur-1",
+		norm: "normalized",
+		type: "all",
+		room: "room-1",
+	} as const;
+
 	it("accepts an empty object (all fields optional)", () => {
-		expect(statisticsFilterPresetPayloadSchema.safeParse({}).success).toBe(
-			true
+		expect(statisticsFilterPresetPayloadSchema.parse({})).toEqual({});
+	});
+
+	it("accepts the full payload and returns it unchanged", () => {
+		expect(statisticsFilterPresetPayloadSchema.parse(fullPayload)).toEqual(
+			fullPayload
 		);
 	});
 
-	it("accepts a valid period alone", () => {
+	it("accepts a period at the 30-character boundary", () => {
 		expect(
-			statisticsFilterPresetPayloadSchema.safeParse({ period: "this_year" })
-				.success
-		).toBe(true);
+			statisticsFilterPresetPayloadSchema.parse({ period: "a".repeat(30) })
+		).toEqual({ period: "a".repeat(30) });
 	});
 
-	it("rejects an empty-string period", () => {
-		expect(
-			statisticsFilterPresetPayloadSchema.safeParse({ period: "" }).success
-		).toBe(false);
+	it.each([
+		["empty", ""],
+		["31-character", "a".repeat(31)],
+	])("rejects an %s period", (_, period) => {
+		const result = statisticsFilterPresetPayloadSchema.safeParse({ period });
+		expect(result.success).toBe(false);
+		expect(result.error?.issues[0]?.path).toEqual(["period"]);
 	});
 
-	it("rejects a period longer than 30 characters", () => {
-		expect(
-			statisticsFilterPresetPayloadSchema.safeParse({ period: "a".repeat(31) })
-				.success
-		).toBe(false);
+	it.each(["from", "to"])("rejects a non-integer %s", (field) => {
+		const result = statisticsFilterPresetPayloadSchema.safeParse({
+			[field]: 2.2,
+		});
+		expect(result.success).toBe(false);
+		expect(result.error?.issues[0]?.path).toEqual([field]);
 	});
 
-	it("accepts a valid from alone", () => {
-		expect(
-			statisticsFilterPresetPayloadSchema.safeParse({ from: 1_700_000_000 })
-				.success
-		).toBe(true);
+	it.each(["unknown", "cash", ""])("rejects the type value %j", (type) => {
+		const result = statisticsFilterPresetPayloadSchema.safeParse({ type });
+		expect(result.success).toBe(false);
+		expect(result.error?.issues[0]?.path).toEqual(["type"]);
 	});
 
-	it("rejects a non-integer from", () => {
-		expect(
-			statisticsFilterPresetPayloadSchema.safeParse({ from: 1.5 }).success
-		).toBe(false);
+	it.each(["raw", "currency", ""])("rejects the norm value %j", (norm) => {
+		const result = statisticsFilterPresetPayloadSchema.safeParse({ norm });
+		expect(result.success).toBe(false);
+		expect(result.error?.issues[0]?.path).toEqual(["norm"]);
 	});
 
-	it("accepts a valid to alone", () => {
-		expect(
-			statisticsFilterPresetPayloadSchema.safeParse({ to: 1_700_000_000 })
-				.success
-		).toBe(true);
+	it.each(["currency", "room"])("rejects an empty-string %s", (field) => {
+		const result = statisticsFilterPresetPayloadSchema.safeParse({
+			[field]: "",
+		});
+		expect(result.success).toBe(false);
+		expect(result.error?.issues[0]?.path).toEqual([field]);
 	});
 
-	it("rejects a non-integer to", () => {
+	it.each([
+		"unknownField",
+		"display",
+	])("rejects the unknown key %s (proves .strict())", (key) => {
 		expect(
-			statisticsFilterPresetPayloadSchema.safeParse({ to: 2.2 }).success
-		).toBe(false);
-	});
-
-	it("accepts a valid currency alone", () => {
-		expect(
-			statisticsFilterPresetPayloadSchema.safeParse({ currency: "cur-1" })
-				.success
-		).toBe(true);
-	});
-
-	it("rejects an empty-string currency", () => {
-		expect(
-			statisticsFilterPresetPayloadSchema.safeParse({ currency: "" }).success
-		).toBe(false);
-	});
-
-	it("accepts a valid norm alone", () => {
-		expect(
-			statisticsFilterPresetPayloadSchema.safeParse({ norm: "off" }).success
-		).toBe(true);
-		expect(
-			statisticsFilterPresetPayloadSchema.safeParse({ norm: "normalized" })
-				.success
-		).toBe(true);
-	});
-
-	it("rejects an invalid norm value", () => {
-		expect(
-			statisticsFilterPresetPayloadSchema.safeParse({ norm: "raw" }).success
-		).toBe(false);
-	});
-
-	it("accepts a valid type alone", () => {
-		expect(
-			statisticsFilterPresetPayloadSchema.safeParse({ type: "all" }).success
-		).toBe(true);
-		expect(
-			statisticsFilterPresetPayloadSchema.safeParse({ type: "cash_game" })
-				.success
-		).toBe(true);
-		expect(
-			statisticsFilterPresetPayloadSchema.safeParse({ type: "tournament" })
-				.success
-		).toBe(true);
-	});
-
-	it("rejects an invalid type value", () => {
-		expect(
-			statisticsFilterPresetPayloadSchema.safeParse({ type: "unknown" }).success
-		).toBe(false);
-	});
-
-	it("accepts a valid room alone", () => {
-		expect(
-			statisticsFilterPresetPayloadSchema.safeParse({ room: "room-1" }).success
-		).toBe(true);
-	});
-
-	it("rejects an empty-string room", () => {
-		expect(
-			statisticsFilterPresetPayloadSchema.safeParse({ room: "" }).success
-		).toBe(false);
-	});
-
-	it("rejects an unknown key (proves .strict())", () => {
-		expect(
-			statisticsFilterPresetPayloadSchema.safeParse({ unknownField: "x" })
-				.success
-		).toBe(false);
-	});
-
-	it("rejects 'display' (sessions-only field)", () => {
-		expect(
-			statisticsFilterPresetPayloadSchema.safeParse({ display: "currency" })
+			statisticsFilterPresetPayloadSchema.safeParse({ [key]: "currency" })
 				.success
 		).toBe(false);
 	});

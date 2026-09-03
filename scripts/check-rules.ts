@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { Glob } from "bun";
 
 import { normalizeRulePath } from "./check-rules-path";
+import { findSmokeOnlyTests } from "./check-rules-tests";
 
 interface Check {
 	cwd?: string;
@@ -119,6 +120,13 @@ const CHECKS: Check[] = [
 		globs: ["apps/**/*.test.{ts,tsx}", "packages/**/*.test.{ts,tsx}"],
 		pattern:
 			/\b(?:it|test|describe)\.(?:skip|only|todo)\s*\(|\b(?:xit|xdescribe|fit|fdescribe)\s*\(/,
+	},
+	{
+		name: "Drizzle column-shape assertion in a db test — shape is owned by db:generate; test FK / index / unique / check contracts only",
+		rule: ".claude/rules/testing.md",
+		globs: ["packages/db/src/__tests__/*.test.ts"],
+		pattern:
+			/\.(?:notNull|hasDefault|dataType|columnType|primary|onUpdateFn)\b|getTableName\(|\.primaryKeys\b/,
 	},
 	{
 		name: "withTz in a web-node spec that is not *-tz.test.ts — Stryker's worker-thread pool ignores process.env.TZ",
@@ -319,6 +327,35 @@ if (unstashed.length > 0) {
 	);
 	console.error("  rule: .claude/rules/db-migrations.md");
 	for (const hit of unstashed) {
+		console.error(`  ${hit}`);
+	}
+}
+
+const SMOKE_RULE = ".claude/rules/testing.md";
+const SMOKE_GLOBS = ["packages/db/**/*.test.ts"];
+const smokeHits: string[] = [];
+const smokeSeen = new Set<string>();
+for (const glob of SMOKE_GLOBS) {
+	for await (const scannedPath of new Glob(glob).scan(".")) {
+		const path = normalizeRulePath(scannedPath);
+		if (smokeSeen.has(path) || IGNORED_DIRS.test(path)) {
+			continue;
+		}
+		smokeSeen.add(path);
+		const text = await readFile(path, "utf8");
+		for (const hit of findSmokeOnlyTests(text)) {
+			smokeHits.push(`${path}:${hit.line}: it("${hit.name}")`);
+		}
+	}
+}
+
+if (smokeHits.length > 0) {
+	failed = true;
+	console.error(
+		"\ncheck-rules FAIL: smoke-only it() — every expect() ends in toBeDefined / toBeTruthy; assert the outcome"
+	);
+	console.error(`  rule: ${SMOKE_RULE}`);
+	for (const hit of smokeHits) {
 		console.error(`  ${hit}`);
 	}
 }
