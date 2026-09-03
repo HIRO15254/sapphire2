@@ -22,6 +22,8 @@ Why this skill exists, and the data behind every rule below: [`docs/design/pr-re
 
 **Agent assumptions (repeat verbatim to every subagent):** all tools work; do not test tools or make exploratory calls; call a tool only when the task needs it; never write to the working tree except temporary files under `$TMPDIR`; ignore the working-tree state and review committed history only.
 
+**Subagent mechanics:** launch every finder and validator with `run_in_background: false` so its result comes back in the tool result. If a launch still returns an asynchronous notice, do not poll (`ReadNotifications`, `sleep`, `Monitor` loops); stop and wait for the completion notifications, then continue. If no subagent tool is available at all, run each finder pass and each validation yourself, in this context, one after another, with the same instructions and the same output schemas.
+
 ## Step 0 — Scope
 
 1. Resolve the range. Run `git diff --name-only <range>` and `git diff --stat <range>`. In `incremental` mode the range for finding is `<since>...HEAD`; the full range is still available to validators for context.
