@@ -121,10 +121,21 @@ which `@simplewebauthn/browser` deliberately passes through as
 error well beyond what the spec defines, so it keeps the original message rather than
 overwriting something potentially useful. (That matters for the limitation below: the
 detail is *there*, in `cause`, and would be usable if better-auth stopped discarding it.)
-better-auth forwards that code verbatim. `ERROR_CEREMONY_ABORTED` is reserved for an `AbortSignal` abort and does
-*not* cover the user closing the sheet. Following `error.cause` down to the original
-`DOMException` does not help: better-auth rebuilds the error as a plain
-`{ code, message, status, statusText }` object and drops `cause` entirely.
+better-auth forwards that code verbatim. `ERROR_CEREMONY_ABORTED` is reserved for an
+`AbortSignal` abort and does *not* cover the user closing the sheet. Following
+`error.cause` down to the original `DOMException` does not help: better-auth rebuilds the
+error as a plain `{ code, message, status, statusText }` object and drops `cause` entirely.
+
+`ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY` is broader than "the user closed the prompt", and
+the cost is accepted rather than solved: SimpleWebAuthn stamps it on **every**
+`NotAllowedError`, so a timeout (easy to hit on mobile), a
+`publickey-credentials-create` permissions-policy denial, and the
+already-registered case on authenticators that report `NotAllowedError` instead of
+`InvalidStateError` all land here and are swallowed silently — leaving the add sheet open
+with no feedback. The alternative is a toast every time someone presses Escape, which is
+worse and is what the social providers already avoid. Consequently the
+"This device already has a passkey" message below only appears on platforms that raise
+`InvalidStateError` (Chrome's platform authenticator does; a security key may not).
 
 Sign-in needs no such care, for a blunter reason: better-auth funnels **every**
 `startAuthentication` throw into `AUTH_CANCELLED`. The flip side is that the sign-in button
@@ -133,16 +144,6 @@ precisely the failure this document opens by warning about, and it presents to t
 a button that does nothing at all. The one breadcrumb is that better-auth `console.error`s
 the underlying error ("[Better Auth] Error verifying passkey") before collapsing it, so the
 real cause is visible in devtools even though the UI stays quiet.
-
-That code is broader than "the user closed the prompt", and the cost is accepted rather
-than solved: SimpleWebAuthn stamps it on **every** `NotAllowedError`, so a timeout (easy to
-hit on mobile), a `publickey-credentials-create` permissions-policy denial, and the
-already-registered case on authenticators that report `NotAllowedError` instead of
-`InvalidStateError` all land here and are swallowed silently — leaving the add sheet open
-with no feedback. The alternative is a toast every time someone presses Escape, which is
-worse and is what the social providers already avoid. Consequently the
-"This device already has a passkey" message below only appears on platforms that raise
-`InvalidStateError` (Chrome's platform authenticator does; a security key may not).
 
 `ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED` is the one failure worth rewording rather than
 silencing: on a device that already holds a passkey, `excludeCredentials` makes "Add
