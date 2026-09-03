@@ -1,3 +1,4 @@
+import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import { currency } from "@sapphire2/db/schema/currency";
 import { gameMix } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
@@ -9,9 +10,12 @@ import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { TRPCError } from "@trpc/server";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
+import { ACTIVE_SESSION_CONFLICT_MESSAGE } from "../lib/db-errors";
 import { appRouter } from "../routers";
 import { encodeSessionCursor } from "../routers/session";
+import { createCaller } from "./caller";
 import {
+	createSequencedMockDb,
 	expectAccepts,
 	expectProcedureSurface,
 	expectRejects,
@@ -1142,10 +1146,26 @@ describe("liveCashGameSession.getById event summary (SA2-211)", () => {
 		return { eventType, payload: JSON.stringify(payload) };
 	}
 
+	const cashDetailRow = {
+		sessionId: "s1",
+		ringGameId: null,
+		ruleName: "1/2 NLH",
+		variant: "NL Hold'em",
+		mixGames: null,
+		blind1: 1,
+		blind2: 2,
+		blind3: null,
+		ante: 0,
+		anteType: "none",
+		minBuyIn: 100,
+		maxBuyIn: 1000,
+		tableSize: 9,
+	};
+
 	it("computes buy-in, addon count, running stack range, and cash-out from the events", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, [ownedSession]],
-			[sessionCashDetail, []],
+			[sessionCashDetail, [cashDetailRow]],
 			[
 				sessionEvent,
 				[
@@ -1167,6 +1187,43 @@ describe("liveCashGameSession.getById event summary (SA2-211)", () => {
 			maxStack: 600,
 			minStack: 500,
 			cashOut: 1200,
+		});
+		expect(result).toMatchObject({
+			ruleName: cashDetailRow.ruleName,
+			variant: cashDetailRow.variant,
+			mixGames: cashDetailRow.mixGames,
+			blind1: cashDetailRow.blind1,
+			blind2: cashDetailRow.blind2,
+			blind3: cashDetailRow.blind3,
+			ante: cashDetailRow.ante,
+			anteType: cashDetailRow.anteType,
+			minBuyIn: cashDetailRow.minBuyIn,
+			maxBuyIn: cashDetailRow.maxBuyIn,
+			tableSize: cashDetailRow.tableSize,
+		});
+	});
+
+	it("returns null for every rule-snapshot field when no session_cash_detail row exists", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[sessionCashDetail, []],
+			[sessionEvent, []],
+		]);
+
+		const result = await makeCaller(OWNER, rows).getById({ id: "s1" });
+
+		expect(result).toMatchObject({
+			ruleName: null,
+			variant: null,
+			mixGames: null,
+			blind1: null,
+			blind2: null,
+			blind3: null,
+			ante: null,
+			anteType: null,
+			minBuyIn: null,
+			maxBuyIn: null,
+			tableSize: null,
 		});
 	});
 
@@ -1320,6 +1377,258 @@ describe("liveCashGameSession.updateSnapshot mixGames", () => {
 			blind3: null,
 			ante: null,
 			anteType: null,
+		});
+	});
+});
+
+const completedOwnedSession = { ...ownedSession, status: "completed" };
+
+describe("liveCashGameSession.complete already-completed guard", () => {
+	it("rejects completing a session that is already completed with BAD_REQUEST", async () => {
+		const { caller } = createCaller({
+			userId: OWNER,
+			select: { game_session: [completedOwnedSession] },
+		});
+		await expect(
+			caller.liveCashGameSession.complete({ id: "s1", finalStack: 0 })
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+	});
+});
+
+describe("liveCashGameSession.reopen status and conflict guards", () => {
+	it("rejects reopening a session that is not completed with BAD_REQUEST", async () => {
+		const { caller } = createCaller({
+			userId: OWNER,
+			select: { game_session: [ownedSession] },
+		});
+		await expect(
+			caller.liveCashGameSession.reopen({ id: "s1" })
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+	});
+
+	it("returns CONFLICT with the active-session-conflict message when another live session is active", async () => {
+		const db = createSequencedMockDb([
+			[completedOwnedSession],
+			[{ id: "other-active" }],
+		]);
+		await expect(listCaller(db).reopen({ id: "s1" })).rejects.toMatchObject({
+			code: "CONFLICT",
+			message: ACTIVE_SESSION_CONFLICT_MESSAGE,
+		});
+	});
+
+	it("throws INTERNAL_SERVER_ERROR when a completed session has no session_end event", async () => {
+		const db = createSequencedMockDb([[completedOwnedSession], [], []]);
+		await expect(listCaller(db).reopen({ id: "s1" })).rejects.toMatchObject({
+			code: "INTERNAL_SERVER_ERROR",
+		});
+	});
+});
+
+describe("liveCashGameSession.discard", () => {
+	it("rejects discarding a completed session with BAD_REQUEST", async () => {
+		const { caller } = createCaller({
+			userId: OWNER,
+			select: { game_session: [completedOwnedSession] },
+		});
+		await expect(
+			caller.liveCashGameSession.discard({ id: "s1" })
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+	});
+
+	it("deletes an active owned session and resolves its id", async () => {
+		const { caller, deleteWhereParams } = createCaller({
+			userId: OWNER,
+			select: { game_session: [ownedSession] },
+		});
+		await expect(
+			caller.liveCashGameSession.discard({ id: "s1" })
+		).resolves.toEqual({ id: "s1" });
+		expect(deleteWhereParams.at(-1)).toEqual(["s1"]);
+	});
+});
+
+describe("liveCashGameSession.updateHeroSeat hero-seat conflict", () => {
+	it("rejects reseating hero when hero is already seated", async () => {
+		const { caller } = createCaller({
+			userId: OWNER,
+			select: {
+				game_session: [ownedSession],
+				session_event: [
+					{
+						eventType: "player_join",
+						payload: JSON.stringify({ isHero: true, seatPosition: 2 }),
+					},
+				],
+			},
+		});
+		await expect(
+			caller.liveCashGameSession.updateHeroSeat({
+				id: "s1",
+				heroSeatPosition: 5,
+			})
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+	});
+
+	it("seats hero at the given position when no hero seat event exists", async () => {
+		const { caller, inserted } = createCaller({
+			userId: OWNER,
+			select: { game_session: [ownedSession], session_event: [] },
+		});
+		await expect(
+			caller.liveCashGameSession.updateHeroSeat({
+				id: "s1",
+				heroSeatPosition: 5,
+			})
+		).resolves.toEqual({ id: "s1" });
+		const joinEvent = inserted.session_event?.[0] as {
+			eventType: string;
+			payload: string;
+		};
+		expect(joinEvent.eventType).toBe("player_join");
+		expect(JSON.parse(joinEvent.payload)).toMatchObject({
+			isHero: true,
+			seatPosition: 5,
+		});
+	});
+});
+
+describe("liveCashGameSession.update ring game room mismatch", () => {
+	it("rejects assigning a ring game from a different room than the session with BAD_REQUEST", async () => {
+		const { caller } = createCaller({
+			userId: OWNER,
+			select: {
+				game_session: [{ ...ownedSession, roomId: "room-a" }],
+				session_cash_detail: [],
+				ring_game: [
+					{ id: "rg-1", userId: OWNER, roomId: "room-b", currencyId: null },
+				],
+			},
+		});
+		await expect(
+			caller.liveCashGameSession.update({ id: "s1", ringGameId: "rg-1" })
+		).rejects.toMatchObject({
+			code: "BAD_REQUEST",
+			message: "Ring game belongs to a different room than the session",
+		});
+	});
+});
+
+describe("liveCashGameSession.update clearing ringGameId writes the cash detail", () => {
+	it("updates the existing session_cash_detail row's ringGameId to null", async () => {
+		const { caller, updated } = createCaller({
+			userId: OWNER,
+			select: {
+				game_session: [ownedSession],
+				session_cash_detail: [
+					{ sessionId: "s1", ringGameId: "rg-old", variant: "NL Hold'em" },
+				],
+			},
+		});
+		await caller.liveCashGameSession.update({ id: "s1", ringGameId: null });
+		expect(updated.session_cash_detail?.[0]).toMatchObject({
+			ringGameId: null,
+		});
+	});
+
+	it("inserts a session_cash_detail row with the default variant when none exists", async () => {
+		const { caller, inserted } = createCaller({
+			userId: OWNER,
+			select: {
+				game_session: [ownedSession],
+				session_cash_detail: [],
+			},
+		});
+		await caller.liveCashGameSession.update({ id: "s1", ringGameId: null });
+		expect(inserted.session_cash_detail?.[0]).toMatchObject({
+			ringGameId: null,
+			variant: DEFAULT_VARIANT_LABEL,
+		});
+	});
+});
+
+describe("liveCashGameSession.create session_cash_detail ruleName", () => {
+	it('defaults ruleName to "Cash Game" when no ring game is linked', async () => {
+		const { caller, inserted } = createCaller({
+			userId: OWNER,
+			select: { game_session: [] },
+		});
+		await caller.liveCashGameSession.create({ initialBuyIn: 0 });
+		expect(inserted.session_cash_detail?.[0]).toMatchObject({
+			ruleName: "Cash Game",
+		});
+	});
+
+	it("adopts the owned ring game's name as ruleName", async () => {
+		const { caller, inserted } = createCaller({
+			userId: OWNER,
+			select: {
+				game_session: [],
+				ring_game: [
+					{
+						id: "rg-1",
+						roomId: null,
+						userId: OWNER,
+						name: "1/2 NLH",
+						variant: "NL Hold'em",
+						mixGames: null,
+						minBuyIn: null,
+						maxBuyIn: null,
+						blind1: 1,
+						blind2: 2,
+						blind3: null,
+						ante: null,
+						anteType: null,
+						tableSize: 9,
+					},
+				],
+			},
+		});
+		await caller.liveCashGameSession.create({
+			initialBuyIn: 100,
+			ringGameId: "rg-1",
+		});
+		expect(inserted.session_cash_detail?.[0]).toMatchObject({
+			ruleName: "1/2 NLH",
+		});
+	});
+});
+
+describe("liveCashGameSession.createAndAssignRingGame session_cash_detail snapshot", () => {
+	it("writes the session_cash_detail snapshot from the explicit blind/ante/buy-in/table-size input", async () => {
+		const { caller, inserted } = createCaller({
+			userId: OWNER,
+			select: {
+				game_session: [ownedSession],
+				room: [{ id: "room-1", userId: OWNER }],
+			},
+		});
+		await caller.liveCashGameSession.createAndAssignRingGame({
+			sessionId: "s1",
+			roomId: "room-1",
+			name: "1/2 NLH",
+			blind1: 1,
+			blind2: 2,
+			blind3: 4,
+			ante: 1,
+			anteType: "bb",
+			minBuyIn: 100,
+			maxBuyIn: 500,
+			tableSize: 9,
+		});
+		expect(inserted.session_cash_detail?.[0]).toMatchObject({
+			sessionId: "s1",
+			ruleName: "1/2 NLH",
+			variant: DEFAULT_VARIANT_LABEL,
+			mixGames: null,
+			blind1: 1,
+			blind2: 2,
+			blind3: 4,
+			ante: 1,
+			anteType: "bb",
+			minBuyIn: 100,
+			maxBuyIn: 500,
+			tableSize: 9,
 		});
 	});
 });
