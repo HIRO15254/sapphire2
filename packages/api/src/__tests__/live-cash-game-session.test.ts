@@ -13,9 +13,8 @@ import { appRouter } from "../routers";
 import { encodeSessionCursor } from "../routers/session";
 import {
 	expectAccepts,
-	expectProtected,
+	expectProcedureSurface,
 	expectRejects,
-	expectType,
 	getInputSchema,
 } from "./test-utils";
 
@@ -102,6 +101,8 @@ const ownedSession = {
 	roomId: null,
 	currencyId: null,
 };
+
+const updatedOwnedSession = { ...ownedSession, ringGameId: null };
 
 describe("liveCashGameSession.create ownership validation (SA2-102)", () => {
 	it("accepts a room and currency owned by the caller", async () => {
@@ -240,7 +241,7 @@ describe("liveCashGameSession.update ownership validation (SA2-102)", () => {
 				roomId: "room-1",
 				currencyId: "cur-1",
 			})
-		).resolves.toBeDefined();
+		).resolves.toEqual(updatedOwnedSession);
 	});
 
 	it("rejects a room owned by another user with FORBIDDEN", async () => {
@@ -299,7 +300,7 @@ describe("liveCashGameSession.update ownership validation (SA2-102)", () => {
 				roomId: null,
 				currencyId: null,
 			})
-		).resolves.toBeDefined();
+		).resolves.toEqual(updatedOwnedSession);
 	});
 
 	it("does not validate ownership when room/currency are omitted", async () => {
@@ -310,7 +311,7 @@ describe("liveCashGameSession.update ownership validation (SA2-102)", () => {
 		]);
 		await expect(
 			makeCaller(OWNER, rows).update({ id: "s1", memo: "note" })
-		).resolves.toBeDefined();
+		).resolves.toEqual(updatedOwnedSession);
 	});
 });
 
@@ -429,7 +430,7 @@ describe("liveCashGameSession.update ring game ownership (SA2-181)", () => {
 		]);
 		await expect(
 			makeCaller(OWNER, rows).update({ id: "s1", ringGameId: "rg-1" })
-		).resolves.toBeDefined();
+		).resolves.toEqual(updatedOwnedSession);
 	});
 
 	it("accepts a null-roomId auto-generated ring game owned via userId", async () => {
@@ -443,7 +444,7 @@ describe("liveCashGameSession.update ring game ownership (SA2-181)", () => {
 		]);
 		await expect(
 			makeCaller(OWNER, rows).update({ id: "s1", ringGameId: "rg-1" })
-		).resolves.toBeDefined();
+		).resolves.toEqual(updatedOwnedSession);
 	});
 
 	it("rejects a ring game owned by another user with FORBIDDEN", async () => {
@@ -499,54 +500,11 @@ describe("liveCashGameSession.update ring game ownership (SA2-181)", () => {
 		]);
 		await expect(
 			makeCaller(OWNER, rows).update({ id: "s1", ringGameId: null })
-		).resolves.toBeDefined();
+		).resolves.toEqual(updatedOwnedSession);
 	});
 });
 
 describe("liveCashGameSession router", () => {
-	it("appRouter has liveCashGameSession namespace", () => {
-		expect(appRouter.liveCashGameSession).toBeDefined();
-	});
-
-	it("has list procedure", () => {
-		expect(appRouter.liveCashGameSession.list).toBeDefined();
-	});
-
-	it("has getById procedure", () => {
-		expect(appRouter.liveCashGameSession.getById).toBeDefined();
-	});
-
-	it("has create procedure", () => {
-		expect(appRouter.liveCashGameSession.create).toBeDefined();
-	});
-
-	it("has update procedure", () => {
-		expect(appRouter.liveCashGameSession.update).toBeDefined();
-	});
-
-	it("has atomic createAndAssignRingGame procedure", () => {
-		expect(appRouter.liveCashGameSession.createAndAssignRingGame).toBeDefined();
-	});
-
-	it("has discard procedure", () => {
-		expect(appRouter.liveCashGameSession.discard).toBeDefined();
-	});
-
-	it("update accepts ringGameId input", () => {
-		const inputSchema =
-			appRouter.liveCashGameSession.update._def.inputs[0] ??
-			appRouter.liveCashGameSession.update._def.inputs;
-		const shape =
-			(inputSchema as { shape?: Record<string, unknown> })?.shape ??
-			(
-				inputSchema as {
-					_def?: { shape?: () => Record<string, unknown> };
-				}
-			)?._def?.shape?.();
-		expect(shape).toBeDefined();
-		expect(shape?.ringGameId).toBeDefined();
-	});
-
 	it("exposes exactly the expected procedure set", () => {
 		expect(Object.keys(appRouter.liveCashGameSession).sort()).toEqual(
 			[
@@ -564,43 +522,27 @@ describe("liveCashGameSession router", () => {
 		);
 	});
 
-	it("list / getById are protected queries", () => {
-		expectProtected(appRouter.liveCashGameSession.list);
-		expectType(appRouter.liveCashGameSession.list, "query");
-		expectProtected(appRouter.liveCashGameSession.getById);
-		expectType(appRouter.liveCashGameSession.getById, "query");
-	});
-
-	it("all mutations are protected mutations", () => {
-		for (const name of [
-			"create",
-			"createAndAssignRingGame",
-			"update",
-			"complete",
-			"reopen",
-			"discard",
-			"updateHeroSeat",
-			"updateSnapshot",
-		] as const) {
-			const proc = appRouter.liveCashGameSession[name];
-			expectProtected(proc);
-			expectType(proc, "mutation");
-		}
+	it("every procedure is a protected query or mutation", () => {
+		expectProcedureSurface(appRouter.liveCashGameSession, {
+			complete: "mutation",
+			create: "mutation",
+			createAndAssignRingGame: "mutation",
+			discard: "mutation",
+			getById: "query",
+			list: "query",
+			reopen: "mutation",
+			update: "mutation",
+			updateHeroSeat: "mutation",
+			updateSnapshot: "mutation",
+		});
 	});
 });
 
 describe("liveCashGameSession.create input validation (initialBuyIn, SA2-148)", () => {
-	it("accepts a non-negative integer initialBuyIn", () => {
+	it("initialBuyIn accepts zero and rejects negative or fractional values", () => {
 		expectAccepts(appRouter.liveCashGameSession.create, { initialBuyIn: 0 });
-		expectAccepts(appRouter.liveCashGameSession.create, { initialBuyIn: 1000 });
-	});
-
-	it("rejects a decimal initialBuyIn (would make the session unreadable on re-parse)", () => {
-		expectRejects(appRouter.liveCashGameSession.create, { initialBuyIn: 1.5 });
-	});
-
-	it("rejects a negative initialBuyIn", () => {
 		expectRejects(appRouter.liveCashGameSession.create, { initialBuyIn: -1 });
+		expectRejects(appRouter.liveCashGameSession.create, { initialBuyIn: 1.5 });
 	});
 });
 
@@ -624,15 +566,7 @@ describe("liveCashGameSession.createAndAssignRingGame input validation", () => {
 		});
 	});
 
-	it("rejects missing sessionId, roomId, or an empty name", () => {
-		expectRejects(appRouter.liveCashGameSession.createAndAssignRingGame, {
-			roomId: "room-1",
-			name: "1/2",
-		});
-		expectRejects(appRouter.liveCashGameSession.createAndAssignRingGame, {
-			sessionId: "s1",
-			name: "1/2",
-		});
+	it("rejects an empty name", () => {
 		expectRejects(appRouter.liveCashGameSession.createAndAssignRingGame, {
 			sessionId: "s1",
 			roomId: "room-1",
@@ -742,190 +676,50 @@ describe("liveCashGameSession.list input validation", () => {
 		expectRejects(appRouter.liveCashGameSession.list, { status: "ended" });
 	});
 
-	it("accepts limit at boundaries (1 and 100)", () => {
+	it("limit accepts 1..100 and rejects 0, 101, and fractional values", () => {
 		expectAccepts(appRouter.liveCashGameSession.list, { limit: 1 });
 		expectAccepts(appRouter.liveCashGameSession.list, { limit: 100 });
-	});
-
-	it("rejects limit above 100", () => {
-		expectRejects(appRouter.liveCashGameSession.list, { limit: 101 });
-	});
-
-	it("rejects limit below 1", () => {
 		expectRejects(appRouter.liveCashGameSession.list, { limit: 0 });
-	});
-
-	it("rejects non-integer limit", () => {
+		expectRejects(appRouter.liveCashGameSession.list, { limit: 101 });
 		expectRejects(appRouter.liveCashGameSession.list, { limit: 10.5 });
 	});
 });
 
-describe("liveCashGameSession.create input validation", () => {
-	it("accepts minimal payload (initialBuyIn only)", () => {
-		expectAccepts(appRouter.liveCashGameSession.create, {
-			initialBuyIn: 0,
-		});
-	});
-
-	it("accepts all optional link fields", () => {
-		expectAccepts(appRouter.liveCashGameSession.create, {
-			roomId: "s1",
-			ringGameId: "rg1",
-			currencyId: "c1",
-			memo: "session memo",
-			initialBuyIn: 1000,
-		});
-	});
-
-	it("rejects negative initialBuyIn", () => {
-		expectRejects(appRouter.liveCashGameSession.create, {
-			initialBuyIn: -1,
-		});
-	});
-
-	it("rejects missing initialBuyIn", () => {
-		expectRejects(appRouter.liveCashGameSession.create, { memo: "x" });
-	});
-});
-
-describe("liveCashGameSession.update input validation", () => {
-	it("accepts id-only payload", () => {
-		expectAccepts(appRouter.liveCashGameSession.update, { id: "s1" });
-	});
-
-	it("accepts explicit null clears for link fields", () => {
-		expectAccepts(appRouter.liveCashGameSession.update, {
-			id: "s1",
-			roomId: null,
-			currencyId: null,
-			ringGameId: null,
-			memo: null,
-		});
-	});
-
-	it("rejects missing id", () => {
-		expectRejects(appRouter.liveCashGameSession.update, { memo: "x" });
-	});
-});
-
 describe("liveCashGameSession.complete input validation", () => {
-	it("accepts a valid finalStack of 0 (all-in loss)", () => {
+	it("finalStack accepts zero and rejects negative or fractional values", () => {
 		expectAccepts(appRouter.liveCashGameSession.complete, {
 			id: "s1",
 			finalStack: 0,
 		});
-	});
-
-	it("rejects negative finalStack", () => {
 		expectRejects(appRouter.liveCashGameSession.complete, {
 			id: "s1",
 			finalStack: -1,
 		});
-	});
-
-	it("rejects non-integer finalStack", () => {
 		expectRejects(appRouter.liveCashGameSession.complete, {
 			id: "s1",
 			finalStack: 1.5,
 		});
 	});
-
-	it("rejects missing finalStack", () => {
-		expectRejects(appRouter.liveCashGameSession.complete, { id: "s1" });
-	});
 });
 
 describe("liveCashGameSession.updateHeroSeat input validation", () => {
-	it("accepts seat position at boundary 0 and 8", () => {
-		expectAccepts(appRouter.liveCashGameSession.updateHeroSeat, {
-			id: "s1",
-			heroSeatPosition: 0,
-		});
-		expectAccepts(appRouter.liveCashGameSession.updateHeroSeat, {
-			id: "s1",
-			heroSeatPosition: 8,
-		});
-	});
-
-	it("accepts heroSeatPosition 9 (last seat of a 10-max table)", () => {
-		expectAccepts(appRouter.liveCashGameSession.updateHeroSeat, {
-			id: "s1",
-			heroSeatPosition: 9,
-		});
-	});
-
-	it("accepts heroSeatPosition: null (hero stands up)", () => {
-		expectAccepts(appRouter.liveCashGameSession.updateHeroSeat, {
-			id: "s1",
-			heroSeatPosition: null,
-		});
-	});
-
-	it("rejects seat position outside [0, 9]", () => {
-		expectRejects(appRouter.liveCashGameSession.updateHeroSeat, {
-			id: "s1",
-			heroSeatPosition: 10,
-		});
-		expectRejects(appRouter.liveCashGameSession.updateHeroSeat, {
-			id: "s1",
-			heroSeatPosition: -1,
-		});
-	});
-});
-
-describe("liveCashGameSession.{reopen,discard,getById} input validation", () => {
-	it("reopen accepts {id}", () => {
-		expectAccepts(appRouter.liveCashGameSession.reopen, { id: "s1" });
-	});
-
-	it("reopen rejects missing id", () => {
-		expectRejects(appRouter.liveCashGameSession.reopen, {});
-	});
-
-	it("discard accepts {id}", () => {
-		expectAccepts(appRouter.liveCashGameSession.discard, { id: "s1" });
-	});
-
-	it("discard rejects missing id", () => {
-		expectRejects(appRouter.liveCashGameSession.discard, {});
-	});
-
-	it("getById accepts {id}", () => {
-		expectAccepts(appRouter.liveCashGameSession.getById, { id: "s1" });
-	});
-
-	it("getById rejects missing id", () => {
-		expectRejects(appRouter.liveCashGameSession.getById, {});
+	it("heroSeatPosition accepts 0..9 and null and rejects -1 and 10", () => {
+		for (const heroSeatPosition of [0, 8, 9, null]) {
+			expectAccepts(appRouter.liveCashGameSession.updateHeroSeat, {
+				id: "s1",
+				heroSeatPosition,
+			});
+		}
+		for (const heroSeatPosition of [-1, 10]) {
+			expectRejects(appRouter.liveCashGameSession.updateHeroSeat, {
+				id: "s1",
+				heroSeatPosition,
+			});
+		}
 	});
 });
 
 describe("liveCashGameSession.updateSnapshot input validation", () => {
-	it("accepts the minimum payload (id only — no-op call)", () => {
-		expectAccepts(appRouter.liveCashGameSession.updateSnapshot, { id: "s1" });
-	});
-
-	it("accepts a full snapshot override payload", () => {
-		expectAccepts(appRouter.liveCashGameSession.updateSnapshot, {
-			id: "s1",
-			ruleName: "1/2 NLH (this session)",
-			variant: "nlh",
-			blind1: 1,
-			blind2: 2,
-			blind3: null,
-			ante: 5,
-			anteType: "all",
-			minBuyIn: 100,
-			maxBuyIn: 400,
-			tableSize: 9,
-		});
-	});
-
-	it("rejects missing id", () => {
-		expectRejects(appRouter.liveCashGameSession.updateSnapshot, {
-			ruleName: "x",
-		});
-	});
-
 	it("rejects an empty ruleName", () => {
 		expectRejects(appRouter.liveCashGameSession.updateSnapshot, {
 			id: "s1",
@@ -940,59 +734,35 @@ describe("liveCashGameSession.updateSnapshot input validation", () => {
 		});
 	});
 
-	it("rejects a non-integer blind1", () => {
-		expectRejects(appRouter.liveCashGameSession.updateSnapshot, {
-			id: "s1",
-			blind1: 1.5,
-		});
-	});
-
-	it("accepts zero, the safe maximum, and null for every nullable chip field", () => {
-		for (const field of [
-			"blind1",
-			"blind2",
-			"blind3",
-			"ante",
-			"minBuyIn",
-			"maxBuyIn",
-		] as const) {
-			for (const value of [0, Number.MAX_SAFE_INTEGER, null]) {
-				expectAccepts(appRouter.liveCashGameSession.updateSnapshot, {
-					id: "s1",
-					[field]: value,
-				});
-			}
+	it.each([
+		"blind1",
+		"blind2",
+		"blind3",
+		"ante",
+		"minBuyIn",
+		"maxBuyIn",
+	] as const)("%s accepts zero, the safe maximum, and null and rejects negative, fractional, and unsafe values", (field) => {
+		for (const value of [0, Number.MAX_SAFE_INTEGER, null]) {
+			expectAccepts(appRouter.liveCashGameSession.updateSnapshot, {
+				id: "s1",
+				[field]: value,
+			});
+		}
+		for (const value of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]) {
+			expectRejects(appRouter.liveCashGameSession.updateSnapshot, {
+				id: "s1",
+				[field]: value,
+			});
 		}
 	});
 
-	it("rejects negative, fractional, and unsafe integers for every chip field", () => {
-		for (const field of [
-			"blind1",
-			"blind2",
-			"blind3",
-			"ante",
-			"minBuyIn",
-			"maxBuyIn",
-		] as const) {
-			for (const value of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]) {
-				expectRejects(appRouter.liveCashGameSession.updateSnapshot, {
-					id: "s1",
-					[field]: value,
-				});
-			}
-		}
-	});
-
-	it("accepts tableSize 2, 10, and null", () => {
+	it("restricts tableSize to 2..10 while accepting null", () => {
 		for (const tableSize of [2, 10, null]) {
 			expectAccepts(appRouter.liveCashGameSession.updateSnapshot, {
 				id: "s1",
 				tableSize,
 			});
 		}
-	});
-
-	it("rejects tableSize 1, 11, and fractional values", () => {
 		for (const tableSize of [1, 11, 2.5]) {
 			expectRejects(appRouter.liveCashGameSession.updateSnapshot, {
 				id: "s1",

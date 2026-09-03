@@ -37,6 +37,13 @@ A behavior belongs to exactly one row. A Zod rule proven in `packages/api` is no
 
 If a target matches no row, extend the relevant `test-utils` file with a helper rather than hand-rolling a new pattern per file.
 
+## Zod input tests (`packages/api`)
+
+- Keep an `it()` only for a boundary the spec names: 1-based placement and `placement <= totalEntries` (create and update alike), `tableSize` 2..10, seat 0..9, `limit` / cursor rules, name-length caps, every enum rejection, discriminated-union branch requirements, strict payloads, the D1 100-parameter chunking, money / chip / count fields non-negative and integer.
+- Money, chip, and count fields share ONE `it.each` per schema ("rejects a negative or fractional %s"), never one `it()` per field.
+- Do not write type enumerations: "rejects a non-string X", "rejects missing <required field>", "accepts {id}" triplets, boolean-flag enumerations, or a second happy path — TypeScript and Zod already guarantee them and they only pad the count.
+- Procedure surface: one "exposes exactly the expected procedure set" `it()` plus one `expectProcedureSurface(appRouter.<ns>, { name: "query" | "mutation" })` call per router file; never a per-procedure existence or `expectProtected` `it()`.
+
 ## Mocking conventions
 
 - `vi.hoisted(() => ({ … }))` for mutable mock state shared across `vi.mock` factories.

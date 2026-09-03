@@ -10,9 +10,8 @@ import { appRouter } from "../routers";
 import {
 	createChainableMockDb,
 	expectAccepts,
-	expectProtected,
+	expectProcedureSurface,
 	expectRejects,
-	expectType,
 } from "./test-utils";
 
 type Rows = Record<string, unknown>[];
@@ -96,33 +95,26 @@ function makeJoinCaller(select: Record<string, Rows>) {
 	return { caller, ...mock };
 }
 
-describe("player router structure", () => {
-	it("appRouter has player namespace", () => {
-		expect(appRouter.player).toBeDefined();
-	});
+const writers = [
+	["create", appRouter.player.create, {}],
+	["update", appRouter.player.update, { id: "p1" }],
+] as const;
 
+describe("player router structure", () => {
 	it("exposes exactly the expected procedure set", () => {
 		expect(Object.keys(appRouter.player).sort()).toEqual(
 			["create", "delete", "getById", "list", "update"].sort()
 		);
 	});
 
-	it("list / getById are protected queries", () => {
-		expectProtected(appRouter.player.list);
-		expectType(appRouter.player.list, "query");
-		expectProtected(appRouter.player.getById);
-		expectType(appRouter.player.getById, "query");
-	});
-
-	it("create / update / delete are protected mutations", () => {
-		for (const proc of [
-			appRouter.player.create,
-			appRouter.player.update,
-			appRouter.player.delete,
-		]) {
-			expectProtected(proc);
-			expectType(proc, "mutation");
-		}
+	it("every procedure is a protected query or mutation", () => {
+		expectProcedureSurface(appRouter.player, {
+			create: "mutation",
+			delete: "mutation",
+			getById: "query",
+			list: "query",
+			update: "mutation",
+		});
 	});
 });
 
@@ -130,32 +122,59 @@ describe("player.list input validation", () => {
 	it("accepts an undefined payload (no filters)", () => {
 		expectAccepts(appRouter.player.list, undefined);
 	});
+});
 
-	it("accepts an empty object", () => {
-		expectAccepts(appRouter.player.list, {});
+describe("player name validation", () => {
+	it.each(writers)("%s rejects an empty name", (_name, procedure, base) => {
+		expectRejects(procedure, { ...base, name: "" });
 	});
 
-	it("accepts search string", () => {
-		expectAccepts(appRouter.player.list, { search: "alice" });
+	it.each(
+		writers
+	)("%s accepts a name at exactly 100 characters", (_name, procedure, base) => {
+		expectAccepts(procedure, { ...base, name: "a".repeat(100) });
 	});
 
-	it("accepts tagIds array", () => {
-		expectAccepts(appRouter.player.list, { tagIds: ["t1", "t2"] });
+	it.each(
+		writers
+	)("%s rejects a name exceeding 100 characters", (_name, procedure, base) => {
+		expectRejects(procedure, { ...base, name: "a".repeat(101) });
 	});
+});
 
-	it("accepts both search and tagIds together", () => {
-		expectAccepts(appRouter.player.list, {
-			search: "bob",
-			tagIds: ["t1"],
+describe("player memo validation", () => {
+	it.each(
+		writers
+	)("%s accepts a memo at exactly 50,000 characters", (_name, procedure, base) => {
+		expectAccepts(procedure, {
+			...base,
+			name: "Alice",
+			memo: "a".repeat(50_000),
 		});
 	});
 
-	it("rejects non-string search", () => {
-		expectRejects(appRouter.player.list, { search: 42 });
+	it.each(
+		writers
+	)("%s rejects a memo exceeding 50,000 characters", (_name, procedure, base) => {
+		expectRejects(procedure, {
+			...base,
+			name: "Alice",
+			memo: "a".repeat(50_001),
+		});
+	});
+});
+
+describe("player.update input validation", () => {
+	it("accepts explicit memo: null", () => {
+		expectAccepts(appRouter.player.update, { id: "p1", memo: null });
 	});
 
-	it("rejects non-array tagIds", () => {
-		expectRejects(appRouter.player.list, { tagIds: "t1" });
+	it("accepts tagIds replacement including empty array", () => {
+		expectAccepts(appRouter.player.update, { id: "p1", tagIds: [] });
+		expectAccepts(appRouter.player.update, {
+			id: "p1",
+			tagIds: ["t1", "t2"],
+		});
 	});
 });
 
@@ -233,111 +252,6 @@ describe("tag-filter D1 bounds", () => {
 			)
 			.filter((size) => size > 0);
 		expect(Math.max(...playerFilterSizes)).toBeLessThanOrEqual(100);
-	});
-});
-
-describe("player.getById input validation", () => {
-	it("accepts a valid id", () => {
-		expectAccepts(appRouter.player.getById, { id: "p1" });
-	});
-
-	it("rejects missing id", () => {
-		expectRejects(appRouter.player.getById, {});
-	});
-
-	it("rejects non-string id", () => {
-		expectRejects(appRouter.player.getById, { id: 1 });
-	});
-});
-
-describe("player.create input validation", () => {
-	it("accepts minimal valid payload (name only)", () => {
-		expectAccepts(appRouter.player.create, { name: "Alice" });
-	});
-
-	it("accepts full payload with memo and tagIds", () => {
-		expectAccepts(appRouter.player.create, {
-			name: "Alice",
-			memo: "notes",
-			tagIds: ["t1", "t2"],
-		});
-	});
-
-	it("rejects empty name", () => {
-		expectRejects(appRouter.player.create, { name: "" });
-	});
-
-	it("rejects name exceeding max length (100)", () => {
-		expectRejects(appRouter.player.create, { name: "a".repeat(101) });
-	});
-
-	it("accepts name at exactly 100 characters (boundary)", () => {
-		expectAccepts(appRouter.player.create, { name: "a".repeat(100) });
-	});
-
-	it("rejects memo exceeding 50_000 characters", () => {
-		expectRejects(appRouter.player.create, {
-			name: "Alice",
-			memo: "a".repeat(50_001),
-		});
-	});
-
-	it("accepts memo at exactly 50_000 characters (boundary)", () => {
-		expectAccepts(appRouter.player.create, {
-			name: "Alice",
-			memo: "a".repeat(50_000),
-		});
-	});
-
-	it("rejects missing name", () => {
-		expectRejects(appRouter.player.create, { memo: "x" });
-	});
-});
-
-describe("player.update input validation", () => {
-	it("accepts id-only payload (no-op)", () => {
-		expectAccepts(appRouter.player.update, { id: "p1" });
-	});
-
-	it("accepts name update", () => {
-		expectAccepts(appRouter.player.update, { id: "p1", name: "Bob" });
-	});
-
-	it("accepts explicit memo: null", () => {
-		expectAccepts(appRouter.player.update, { id: "p1", memo: null });
-	});
-
-	it("accepts tagIds replacement including empty array", () => {
-		expectAccepts(appRouter.player.update, { id: "p1", tagIds: [] });
-		expectAccepts(appRouter.player.update, {
-			id: "p1",
-			tagIds: ["t1", "t2"],
-		});
-	});
-
-	it("rejects empty name", () => {
-		expectRejects(appRouter.player.update, { id: "p1", name: "" });
-	});
-
-	it("rejects name exceeding max length (100)", () => {
-		expectRejects(appRouter.player.update, {
-			id: "p1",
-			name: "a".repeat(101),
-		});
-	});
-
-	it("rejects missing id", () => {
-		expectRejects(appRouter.player.update, { name: "Bob" });
-	});
-});
-
-describe("player.delete input validation", () => {
-	it("accepts a valid id", () => {
-		expectAccepts(appRouter.player.delete, { id: "p1" });
-	});
-
-	it("rejects missing id", () => {
-		expectRejects(appRouter.player.delete, {});
 	});
 });
 

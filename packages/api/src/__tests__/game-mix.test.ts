@@ -8,10 +8,8 @@ import { appRouter } from "../routers";
 import {
 	createChainableMockDb,
 	expectAccepts,
-	expectProtected,
+	expectProcedureSurface,
 	expectRejects,
-	expectType,
-	getInputSchema,
 	withGameMixVariantFixtures,
 } from "./test-utils";
 
@@ -77,157 +75,75 @@ function seededRows(extra: { variant?: Rows; group?: Rows; mix?: Rows } = {}) {
 	};
 }
 
-describe("gameMix router", () => {
-	it("appRouter has gameMix namespace", () => {
-		expect(appRouter.gameMix).toBeDefined();
-	});
+const writers = [
+	["create", appRouter.gameMix.create, { games: ["v1", "v2"] }],
+	["update", appRouter.gameMix.update, { id: "mix-1" }],
+] as const;
 
+describe("gameMix router", () => {
 	it("exposes exactly the expected procedure set", () => {
 		expect(Object.keys(appRouter.gameMix).sort()).toEqual(
 			["create", "delete", "list", "update"].sort()
 		);
 	});
 
-	it("list is a protected query", () => {
-		expectProtected(appRouter.gameMix.list);
-		expectType(appRouter.gameMix.list, "query");
+	it("every procedure is a protected query or mutation", () => {
+		expectProcedureSurface(appRouter.gameMix, {
+			create: "mutation",
+			delete: "mutation",
+			list: "query",
+			update: "mutation",
+		});
+	});
+});
+
+describe("gameMix label validation", () => {
+	it.each(writers)("%s rejects an empty label", (_name, procedure, base) => {
+		expectRejects(procedure, { ...base, label: "" });
 	});
 
-	it("create / update / delete are protected mutations", () => {
-		for (const proc of [
-			appRouter.gameMix.create,
-			appRouter.gameMix.update,
-			appRouter.gameMix.delete,
-		]) {
-			expectProtected(proc);
-			expectType(proc, "mutation");
+	it.each(
+		writers
+	)("%s rejects a whitespace-only label (trimmed to empty)", (_name, procedure, base) => {
+		expectRejects(procedure, { ...base, label: "   " });
+	});
+
+	it.each(
+		writers
+	)("%s accepts a label at the 30-character boundary", (_name, procedure, base) => {
+		expectAccepts(procedure, { ...base, label: "a".repeat(30) });
+	});
+
+	it.each(
+		writers
+	)("%s rejects a label longer than 30 characters", (_name, procedure, base) => {
+		expectRejects(procedure, { ...base, label: "a".repeat(31) });
+	});
+});
+
+describe("gameMix games validation", () => {
+	it.each(
+		writers
+	)("%s accepts a games array at the 2- and 30-entry boundaries", (_name, procedure, base) => {
+		for (const length of [2, 30]) {
+			expectAccepts(procedure, {
+				...base,
+				label: "My Mix",
+				games: Array.from({ length }, (_, i) => `v${i}`),
+			});
 		}
 	});
-});
 
-describe("gameMix.create input validation", () => {
-	it("accepts a minimal valid payload", () => {
-		expectAccepts(appRouter.gameMix.create, {
-			label: "My Mix",
-			games: ["v1", "v2"],
-		});
-	});
-
-	it("rejects missing label", () => {
-		expectRejects(appRouter.gameMix.create, { games: ["v1", "v2"] });
-	});
-
-	it("rejects an empty label", () => {
-		expectRejects(appRouter.gameMix.create, { label: "", games: ["v1", "v2"] });
-	});
-
-	it("rejects a whitespace-only label (trimmed to empty)", () => {
-		expectRejects(appRouter.gameMix.create, {
-			label: "   ",
-			games: ["v1", "v2"],
-		});
-	});
-
-	it("accepts a label at the 30-character boundary", () => {
-		expectAccepts(appRouter.gameMix.create, {
-			label: "a".repeat(30),
-			games: ["v1", "v2"],
-		});
-	});
-
-	it("rejects a label longer than 30 characters", () => {
-		expectRejects(appRouter.gameMix.create, {
-			label: "a".repeat(31),
-			games: ["v1", "v2"],
-		});
-	});
-
-	it("rejects missing games", () => {
-		expectRejects(appRouter.gameMix.create, { label: "My Mix" });
-	});
-
-	it("rejects an empty games array", () => {
-		expectRejects(appRouter.gameMix.create, { label: "My Mix", games: [] });
-	});
-
-	it("rejects a games array with a single entry (a mix needs at least two games)", () => {
-		expectRejects(appRouter.gameMix.create, { label: "My Mix", games: ["v1"] });
-	});
-
-	it("accepts a games array at the 2-entry boundary", () => {
-		expectAccepts(appRouter.gameMix.create, {
-			label: "My Mix",
-			games: ["v1", "v2"],
-		});
-	});
-
-	it("accepts a games array at the 30-entry boundary", () => {
-		const games = Array.from({ length: 30 }, (_, i) => `v${i}`);
-		expectAccepts(appRouter.gameMix.create, { label: "My Mix", games });
-	});
-
-	it("rejects a games array with 31 entries", () => {
-		const games = Array.from({ length: 31 }, (_, i) => `v${i}`);
-		expectRejects(appRouter.gameMix.create, { label: "My Mix", games });
-	});
-});
-
-describe("gameMix.update input validation", () => {
-	it("accepts id-only payload (no-op)", () => {
-		expectAccepts(appRouter.gameMix.update, { id: "mix-1" });
-	});
-
-	it("accepts id + label", () => {
-		expectAccepts(appRouter.gameMix.update, {
-			id: "mix-1",
-			label: "New Label",
-		});
-	});
-
-	it("rejects empty label when provided", () => {
-		expectRejects(appRouter.gameMix.update, { id: "mix-1", label: "" });
-	});
-
-	it("rejects a label longer than 30 characters", () => {
-		expectRejects(appRouter.gameMix.update, {
-			id: "mix-1",
-			label: "a".repeat(31),
-		});
-	});
-
-	it("rejects missing id", () => {
-		expectRejects(appRouter.gameMix.update, { label: "x" });
-	});
-
-	it("accepts a games array when provided", () => {
-		expectAccepts(appRouter.gameMix.update, {
-			id: "mix-1",
-			games: ["v1", "v2"],
-		});
-	});
-
-	it("rejects a provided games array with a single entry", () => {
-		expectRejects(appRouter.gameMix.update, { id: "mix-1", games: ["v1"] });
-	});
-
-	it("rejects a provided games array with 31 entries", () => {
-		const games = Array.from({ length: 31 }, (_, i) => `v${i}`);
-		expectRejects(appRouter.gameMix.update, { id: "mix-1", games });
-	});
-
-	it("accepts a games array at the 30-entry boundary", () => {
-		const games = Array.from({ length: 30 }, (_, i) => `v${i}`);
-		expectAccepts(appRouter.gameMix.update, { id: "mix-1", games });
-	});
-});
-
-describe("gameMix.delete input validation", () => {
-	it("accepts a valid id", () => {
-		expectAccepts(appRouter.gameMix.delete, { id: "mix-1" });
-	});
-
-	it("rejects missing id", () => {
-		expectRejects(appRouter.gameMix.delete, {});
+	it.each(
+		writers
+	)("%s rejects a games array with 0, 1 or 31 entries", (_name, procedure, base) => {
+		for (const length of [0, 1, 31]) {
+			expectRejects(procedure, {
+				...base,
+				label: "My Mix",
+				games: Array.from({ length }, (_, i) => `v${i}`),
+			});
+		}
 	});
 });
 
@@ -260,27 +176,6 @@ describe("gameMix.create games ownership (SA2-183)", () => {
 			}),
 			"FORBIDDEN"
 		);
-	});
-
-	it("accepts a games array fully owned by the caller", async () => {
-		const { caller } = gameMixCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [OWNED_GROUP],
-			[VARIANT_TABLE]: [OWNED_VARIANT_1, OWNED_VARIANT_2],
-			[MIX_TABLE]: [
-				{
-					id: "placeholder",
-					userId: CUR_OWNER,
-					label: "Placeholder",
-					games: [],
-				},
-			],
-		});
-		await expect(
-			caller.create({
-				label: "Brand New",
-				games: [OWNED_VARIANT_1.id, OWNED_VARIANT_2.id],
-			})
-		).resolves.toBeDefined();
 	});
 
 	it("stores mix metadata, normalized rows, and the rolling-deploy mirror atomically", async () => {
@@ -418,7 +313,7 @@ describe("gameMix group-span guard (c58, max 12 groups)", () => {
 
 	it("create accepts when the owned variants span exactly 12 distinct game groups (boundary)", async () => {
 		const variants = variantsAcrossGroups(12);
-		const { caller } = gameMixCaller(CUR_OWNER, {
+		const { caller, inserted } = gameMixCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: variants,
 			[MIX_TABLE]: [
@@ -430,12 +325,12 @@ describe("gameMix group-span guard (c58, max 12 groups)", () => {
 				},
 			],
 		});
-		await expect(
-			caller.create({
-				label: "Exactly 12",
-				games: variants.map((v) => v.id as string),
-			})
-		).resolves.toBeDefined();
+		await caller.create({
+			label: "Exactly 12",
+			games: variants.map((v) => v.id as string),
+		});
+		expect(inserted[MIX_TABLE]).toHaveLength(1);
+		expect(flattenedWrites(inserted[MIX_VARIANT_TABLE])).toHaveLength(12);
 	});
 
 	it("update rejects when the owned variants span 13 distinct game groups", async () => {
@@ -458,19 +353,16 @@ describe("gameMix group-span guard (c58, max 12 groups)", () => {
 
 	it("update accepts when the owned variants span exactly 12 distinct game groups (boundary)", async () => {
 		const variants = variantsAcrossGroups(12);
-		const { caller } = gameMixCaller(CUR_OWNER, {
+		const { caller, updated } = gameMixCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: variants,
 			[MIX_TABLE]: [
 				{ id: "mix-1", userId: CUR_OWNER, label: "My Mix", games: [] },
 			],
 		});
-		await expect(
-			caller.update({
-				id: "mix-1",
-				games: variants.map((v) => v.id as string),
-			})
-		).resolves.toBeDefined();
+		const games = variants.map((v) => v.id as string);
+		await caller.update({ id: "mix-1", games });
+		expect(updated[MIX_TABLE]?.at(-1)).toMatchObject({ games });
 	});
 });
 
@@ -544,8 +436,8 @@ describe("gameMix.create collision guard (CONFLICT)", () => {
 		);
 	});
 
-	it("accepts a genuinely new label with no collision", async () => {
-		const { caller } = gameMixCaller(CUR_OWNER, {
+	it("inserts a genuinely new label with no collision", async () => {
+		const { caller, inserted } = gameMixCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: [OWNED_VARIANT_1, OWNED_VARIANT_2],
 			[MIX_TABLE]: [
@@ -557,12 +449,12 @@ describe("gameMix.create collision guard (CONFLICT)", () => {
 				},
 			],
 		});
-		await expect(
-			caller.create({
-				label: "Brand New Mix",
-				games: [OWNED_VARIANT_1.id, OWNED_VARIANT_2.id],
-			})
-		).resolves.toBeDefined();
+		await caller.create({
+			label: "Brand New Mix",
+			games: [OWNED_VARIANT_1.id, OWNED_VARIANT_2.id],
+		});
+		expect(inserted[MIX_TABLE]).toHaveLength(1);
+		expect(inserted[MIX_TABLE]?.[0]).toMatchObject({ label: "Brand New Mix" });
 	});
 
 	it("converts a (user_id, label) unique-constraint violation from the insert into the same CONFLICT (c14 backstop)", async () => {
@@ -631,17 +523,17 @@ describe("gameMix ownership (uniform FORBIDDEN, SA2-183)", () => {
 		});
 	}
 
-	it("update resolves for a row owned by the caller", async () => {
-		const { caller } = gameMixCaller(CUR_OWNER, {
+	it("update writes the new label for a row owned by the caller", async () => {
+		const { caller, updated } = gameMixCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: [OWNED_VARIANT_1],
 			[MIX_TABLE]: [
 				{ id: "mix-1", userId: CUR_OWNER, label: "My Mix", games: [] },
 			],
 		});
-		await expect(
-			caller.update({ id: "mix-1", label: "Renamed Mix" })
-		).resolves.toBeDefined();
+		await caller.update({ id: "mix-1", label: "Renamed Mix" });
+		expect(updated[MIX_TABLE]).toHaveLength(1);
+		expect(updated[MIX_TABLE]?.[0]).toMatchObject({ label: "Renamed Mix" });
 	});
 
 	it("delete resolves for a row owned by the caller", async () => {
@@ -659,17 +551,16 @@ describe("gameMix ownership (uniform FORBIDDEN, SA2-183)", () => {
 });
 
 describe("gameMix.update excludes self from collision", () => {
-	it("succeeds when keeping the row's own (unchanged) label", async () => {
-		const { caller } = gameMixCaller(CUR_OWNER, {
+	it("writes the row's own (unchanged) label without a self-collision", async () => {
+		const { caller, updated } = gameMixCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: [OWNED_VARIANT_1],
 			[MIX_TABLE]: [
 				{ id: "mix-1", userId: CUR_OWNER, label: "My Mix", games: [] },
 			],
 		});
-		await expect(
-			caller.update({ id: "mix-1", label: "My Mix" })
-		).resolves.toBeDefined();
+		await caller.update({ id: "mix-1", label: "My Mix" });
+		expect(updated[MIX_TABLE]?.[0]).toMatchObject({ label: "My Mix" });
 	});
 
 	it("still rejects renaming to a different existing mix label (CONFLICT)", async () => {
@@ -806,15 +697,6 @@ describe("gameMix.list ordering + self-seed", () => {
 		const { caller, selectWhereParams } = gameMixCaller(CUR_OWNER, rows);
 		await caller.list();
 		expect(selectWhereParams).toContainEqual([CUR_OWNER]);
-	});
-});
-
-describe("gameMix type guard sanity", () => {
-	it("getInputSchema works for create", () => {
-		const schema = getInputSchema(appRouter.gameMix.create);
-		expect(schema.safeParse({ label: "x", games: ["v1", "v2"] }).success).toBe(
-			true
-		);
 	});
 });
 

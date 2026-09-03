@@ -9,9 +9,8 @@ import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import {
 	expectAccepts,
-	expectProtected,
+	expectProcedureSurface,
 	expectRejects,
-	expectType,
 	getInputSchema,
 } from "./test-utils";
 
@@ -84,84 +83,20 @@ const CUR_OWNER = "user-1";
 const CUR_OTHER = "user-2";
 
 describe("ringGame router", () => {
-	it("appRouter has ringGame namespace", () => {
-		expect(appRouter.ringGame).toBeDefined();
-	});
-
-	it("has listByRoom procedure", () => {
-		expect(appRouter.ringGame.listByRoom).toBeDefined();
-	});
-
-	it("has create procedure", () => {
-		expect(appRouter.ringGame.create).toBeDefined();
-	});
-
-	it("has update procedure", () => {
-		expect(appRouter.ringGame.update).toBeDefined();
-	});
-
-	it("has archive procedure", () => {
-		expect(appRouter.ringGame.archive).toBeDefined();
-	});
-
-	it("has restore procedure", () => {
-		expect(appRouter.ringGame.restore).toBeDefined();
-	});
-
-	it("has delete procedure", () => {
-		expect(appRouter.ringGame.delete).toBeDefined();
-	});
-
 	it("exposes exactly the expected procedure set", () => {
 		expect(Object.keys(appRouter.ringGame).sort()).toEqual(
 			["archive", "create", "delete", "listByRoom", "restore", "update"].sort()
 		);
 	});
 
-	it("listByRoom is a protected query", () => {
-		expectProtected(appRouter.ringGame.listByRoom);
-		expectType(appRouter.ringGame.listByRoom, "query");
-	});
-
-	it("all mutations are protected mutations", () => {
-		for (const name of [
-			"create",
-			"update",
-			"archive",
-			"restore",
-			"delete",
-		] as const) {
-			const proc = appRouter.ringGame[name];
-			expectProtected(proc);
-			expectType(proc, "mutation");
-		}
-	});
-});
-
-describe("ringGame.listByRoom input validation", () => {
-	it("accepts roomId only", () => {
-		expectAccepts(appRouter.ringGame.listByRoom, { roomId: "s1" });
-	});
-
-	it("accepts includeArchived: true/false", () => {
-		expectAccepts(appRouter.ringGame.listByRoom, {
-			roomId: "s1",
-			includeArchived: true,
-		});
-		expectAccepts(appRouter.ringGame.listByRoom, {
-			roomId: "s1",
-			includeArchived: false,
-		});
-	});
-
-	it("rejects missing roomId", () => {
-		expectRejects(appRouter.ringGame.listByRoom, {});
-	});
-
-	it("rejects non-boolean includeArchived", () => {
-		expectRejects(appRouter.ringGame.listByRoom, {
-			roomId: "s1",
-			includeArchived: "yes",
+	it("every procedure is a protected query or mutation", () => {
+		expectProcedureSurface(appRouter.ringGame, {
+			archive: "mutation",
+			create: "mutation",
+			delete: "mutation",
+			listByRoom: "query",
+			restore: "mutation",
+			update: "mutation",
 		});
 	});
 });
@@ -199,14 +134,6 @@ describe("ringGame.create input validation", () => {
 		expectRejects(appRouter.ringGame.create, { roomId: "s1", name: "" });
 	});
 
-	it("rejects non-integer blind1", () => {
-		expectRejects(appRouter.ringGame.create, {
-			roomId: "s1",
-			name: "g",
-			blind1: 1.5,
-		});
-	});
-
 	it.each([
 		"blind1",
 		"blind2",
@@ -214,11 +141,16 @@ describe("ringGame.create input validation", () => {
 		"ante",
 		"minBuyIn",
 		"maxBuyIn",
-	] as const)("rejects negative %s and accepts zero", (field) => {
+	] as const)("rejects negative and fractional %s and accepts zero", (field) => {
 		expectRejects(appRouter.ringGame.create, {
 			roomId: "s1",
 			name: "g",
 			[field]: -1,
+		});
+		expectRejects(appRouter.ringGame.create, {
+			roomId: "s1",
+			name: "g",
+			[field]: 1.5,
 		});
 		expectAccepts(appRouter.ringGame.create, {
 			roomId: "s1",
@@ -252,10 +184,6 @@ describe("ringGame.create input validation", () => {
 });
 
 describe("ringGame.update input validation", () => {
-	it("accepts id-only payload", () => {
-		expectAccepts(appRouter.ringGame.update, { id: "rg1" });
-	});
-
 	it("accepts nullable fields set to null", () => {
 		expectAccepts(appRouter.ringGame.update, {
 			id: "rg1",
@@ -283,10 +211,6 @@ describe("ringGame.update input validation", () => {
 		});
 	});
 
-	it("rejects missing id", () => {
-		expectRejects(appRouter.ringGame.update, { name: "x" });
-	});
-
 	it.each([
 		"blind1",
 		"blind2",
@@ -294,10 +218,14 @@ describe("ringGame.update input validation", () => {
 		"ante",
 		"minBuyIn",
 		"maxBuyIn",
-	] as const)("rejects negative %s and accepts zero", (field) => {
+	] as const)("rejects negative and fractional %s and accepts zero", (field) => {
 		expectRejects(appRouter.ringGame.update, {
 			id: "rg1",
 			[field]: -1,
+		});
+		expectRejects(appRouter.ringGame.update, {
+			id: "rg1",
+			[field]: 1.5,
 		});
 		expectAccepts(appRouter.ringGame.update, {
 			id: "rg1",
@@ -320,26 +248,6 @@ describe("ringGame.update input validation", () => {
 			id: "rg1",
 			tableSize: null,
 		});
-	});
-});
-
-describe("ringGame.{archive,restore,delete} input validation", () => {
-	it("archive accepts {id}", () => {
-		expectAccepts(appRouter.ringGame.archive, { id: "rg1" });
-	});
-
-	it("restore accepts {id}", () => {
-		expectAccepts(appRouter.ringGame.restore, { id: "rg1" });
-	});
-
-	it("delete accepts {id}", () => {
-		expectAccepts(appRouter.ringGame.delete, { id: "rg1" });
-	});
-
-	it("archive / restore / delete reject missing id", () => {
-		expectRejects(appRouter.ringGame.archive, {});
-		expectRejects(appRouter.ringGame.restore, {});
-		expectRejects(appRouter.ringGame.delete, {});
 	});
 });
 
@@ -389,7 +297,7 @@ describe("ringGame currency ownership (SA2-180)", () => {
 		);
 		await expect(
 			caller.create({ roomId: "room-1", name: "RG", currencyId: "cur-1" })
-		).resolves.toBeDefined();
+		).resolves.toEqual(ownedRingGame);
 	});
 
 	it("create rejects a currency owned by another user with FORBIDDEN", async () => {
@@ -410,7 +318,7 @@ describe("ringGame currency ownership (SA2-180)", () => {
 		);
 		await expect(
 			caller.create({ roomId: "room-1", name: "RG" })
-		).resolves.toBeDefined();
+		).resolves.toEqual(ownedRingGame);
 	});
 
 	it("update rejects a foreign currency with FORBIDDEN", async () => {
@@ -431,7 +339,7 @@ describe("ringGame currency ownership (SA2-180)", () => {
 		);
 		await expect(
 			caller.update({ id: "rg-1", currencyId: "cur-1" })
-		).resolves.toBeDefined();
+		).resolves.toEqual(ownedRingGame);
 	});
 
 	it("update allows clearing the currency with null", async () => {
@@ -441,7 +349,7 @@ describe("ringGame currency ownership (SA2-180)", () => {
 		);
 		await expect(
 			caller.update({ id: "rg-1", currencyId: null })
-		).resolves.toBeDefined();
+		).resolves.toEqual(ownedRingGame);
 	});
 });
 
@@ -486,11 +394,11 @@ describe("validateRingGameOwnership via mutations (SA2-181)", () => {
 
 	for (const op of ["update", "archive", "restore", "delete"] as const) {
 		it(`${op} resolves for a ring game owned by the caller (userId match)`, async () => {
-			const caller = ringGameCaller(
-				CUR_OWNER,
-				ringGameRows([{ id: "rg-1", roomId: null, userId: CUR_OWNER }])
+			const owned = { id: "rg-1", roomId: null, userId: CUR_OWNER };
+			const caller = ringGameCaller(CUR_OWNER, ringGameRows([owned]));
+			await expect(caller[op]({ id: "rg-1" })).resolves.toEqual(
+				op === "delete" ? { success: true } : owned
 			);
-			await expect(caller[op]({ id: "rg-1" })).resolves.toBeDefined();
 		});
 
 		it(`${op} throws FORBIDDEN for a ring game owned by another user`, async () => {
@@ -562,10 +470,6 @@ describe("ringGame mixGames input", () => {
 
 	it("update accepts an explicit null to clear the mix definition", () => {
 		expectAccepts(appRouter.ringGame.update, { id: "rg-1", mixGames: null });
-	});
-
-	it("update accepts omitted mixGames (leave unchanged)", () => {
-		expectAccepts(appRouter.ringGame.update, { id: "rg-1", name: "Renamed" });
 	});
 });
 
@@ -1288,20 +1192,16 @@ describe("ringGame variant / mixGames persistence invariant", () => {
 	});
 
 	it("update preserves a frozen named mix after its master is deleted", async () => {
+		const frozen = {
+			id: "rg-1",
+			userId: CUR_OWNER,
+			variant: "Deleted Mix",
+			mixGames: validMix,
+		};
 		const caller = ringGameCaller(
 			CUR_OWNER,
 			new Map<unknown, Rows>([
-				[
-					ringGame,
-					[
-						{
-							id: "rg-1",
-							userId: CUR_OWNER,
-							variant: "Deleted Mix",
-							mixGames: validMix,
-						},
-					],
-				],
+				[ringGame, [frozen]],
 				[gameMix, []],
 			])
 		);
@@ -1313,33 +1213,21 @@ describe("ringGame variant / mixGames persistence invariant", () => {
 				variant: "Deleted Mix",
 				mixGames: validMix,
 			})
-		).resolves.toBeDefined();
+		).resolves.toEqual(frozen);
 	});
 
 	it("update lets a renamed-master snapshot change bucket amounts without changing its frozen structure", async () => {
+		const frozen = {
+			id: "rg-1",
+			userId: CUR_OWNER,
+			variant: "Old Mix Label",
+			mixGames: canonicalGroupedMix,
+		};
 		const caller = ringGameCaller(
 			CUR_OWNER,
 			new Map<unknown, Rows>([
-				[
-					ringGame,
-					[
-						{
-							id: "rg-1",
-							userId: CUR_OWNER,
-							variant: "Old Mix Label",
-							mixGames: canonicalGroupedMix,
-						},
-					],
-				],
-				[
-					gameMix,
-					[
-						{
-							...groupedMixMaster,
-							label: "New Mix Label",
-						},
-					],
-				],
+				[ringGame, [frozen]],
+				[gameMix, [{ ...groupedMixMaster, label: "New Mix Label" }]],
 			])
 		);
 
@@ -1352,7 +1240,7 @@ describe("ringGame variant / mixGames persistence invariant", () => {
 					blind2: 200 * (index + 1),
 				})),
 			})
-		).resolves.toBeDefined();
+		).resolves.toEqual(frozen);
 	});
 
 	it("update rejects regrouping an orphaned frozen named mix after its master is deleted", async () => {
@@ -1462,20 +1350,16 @@ describe("ringGame variant / mixGames persistence invariant", () => {
 	});
 
 	it("update lets a legacy mix retain deleted games while adding an owned variant", async () => {
+		const legacy = {
+			id: "rg-1",
+			userId: CUR_OWNER,
+			variant: "mix",
+			mixGames: validMix,
+		};
 		const caller = ringGameCaller(
 			CUR_OWNER,
 			new Map<unknown, Rows>([
-				[
-					ringGame,
-					[
-						{
-							id: "rg-1",
-							userId: CUR_OWNER,
-							variant: "mix",
-							mixGames: validMix,
-						},
-					],
-				],
+				[ringGame, [legacy]],
 				[gameVariant, [{ id: "variant-3", userId: CUR_OWNER, label: "Razz" }]],
 			])
 		);
@@ -1485,6 +1369,6 @@ describe("ringGame variant / mixGames persistence invariant", () => {
 				id: "rg-1",
 				mixGames: [...validMix, { name: "Stud", variants: ["Razz"] }],
 			})
-		).resolves.toBeDefined();
+		).resolves.toEqual(legacy);
 	});
 });

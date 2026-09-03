@@ -29,6 +29,8 @@ Zero-`expect` blocks are legitimate when a helper asserts (`expectRejects`, `fin
 
 **The projection contract (c35).** A `select({ ... })` projection with a single-key aggregate (`{ maxSort: max(table.sortOrder) }`) collapses to one computed row like a real DB would. Every **other** select shape returns the configured rows unchanged — every existing fixture is written keyed by the query's **output** field names (including join projections that alias a joined table's column), so re-deriving keys from the Column reference would break that established convention.
 
+**`expectProcedureSurface` is the only procedure-metadata assertion.** Router specs used to open with ten `expect(appRouter.x.y).toBeDefined()` probes plus one `expectType` / `expectProtected` pair per procedure — 120-odd `it()`s that could not fail unless a procedure was renamed, which the exact-key-set assertion already catches. `expectProcedureSurface(router, { name: type })` pins the key set, the protection, and the type in one place; the smoke-only check (below) rejects the probes.
+
 **The mock-placeholder gotcha.** The mock's post-insert lookup does **not** filter by the freshly inserted id, so a create-path test whose procedure re-reads the row after inserting must seed a dummy pre-existing row for that table — otherwise the lookup resolves to nothing and the procedure's post-insert branch is silently never exercised.
 
 ## Seed tests: module replacement

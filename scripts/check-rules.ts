@@ -332,7 +332,7 @@ if (unstashed.length > 0) {
 }
 
 const SMOKE_RULE = ".claude/rules/testing.md";
-const SMOKE_GLOBS = ["packages/db/**/*.test.ts"];
+const SMOKE_GLOBS = ["packages/**/*.test.ts"];
 const smokeHits: string[] = [];
 const smokeSeen = new Set<string>();
 for (const glob of SMOKE_GLOBS) {
