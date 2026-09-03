@@ -92,7 +92,7 @@ export const PROJECTS: Record<ProjectName, MutationProject> = {
 		isTestSide: (path) => path.startsWith("packages/db/src/__tests__/"),
 	},
 	"web-node": {
-		configFile: "apps/web/vitest.node.config.ts",
+		configFile: "apps/web/vitest.node.stryker.config.ts",
 		root: "apps/web",
 		timeoutMS: 20_000,
 		isSubject: (path) =>

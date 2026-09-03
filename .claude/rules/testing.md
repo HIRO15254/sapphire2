@@ -61,6 +61,7 @@ If a target matches no row, extend the relevant `test-utils` file with a helper 
 - Decorative survivors (`StringLiteral` in UI copy / toast / log / error `message` when the `code` is asserted, `ObjectLiteral` of icons or labels, `className` strings) are silenced at the line: `// Stryker disable next-line <Mutator>[,<Mutator>]: <why>`. This is a whitelisted machine directive ([`comments.md`](comments.md)); `check:rules` rejects ranged disables, `all`, and a missing reason.
 - Equivalent mutants (cannot change observable behavior) get the same directive with a reason starting `equivalent:`.
 - Thresholds: `break` is 0 (report-only); `high` 80 / `low` 60 color the report only. Coverage % is never collected and never a gate.
+- Stryker runs Vitest in a worker-thread pool where `process.env.TZ` is ignored, so `withTz` tests in a `web-node` spec fail its initial run. Put them in a sibling `*-tz.test.ts` (Vitest still runs it; the Stryker config `apps/web/vitest.node.stryker.config.ts` excludes it, so time-zone branches show as `NoCoverage` in the report rather than breaking the run). `check:rules` enforces the file name.
 - Bun's isolated linker hides the vitest runner from Stryker's default plugin discovery; `scripts/mutate.ts` resolves the runner by file path. Never symlink into `node_modules/.bun` and never add a `bunfig.toml` for this.
 
 ## Deleting or rewriting tests

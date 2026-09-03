@@ -121,6 +121,18 @@ const CHECKS: Check[] = [
 			/\b(?:it|test|describe)\.(?:skip|only|todo)\s*\(|\b(?:xit|xdescribe|fit|fdescribe)\s*\(/,
 	},
 	{
+		name: "withTz in a web-node spec that is not *-tz.test.ts — Stryker's worker-thread pool ignores process.env.TZ",
+		rule: ".claude/rules/testing.md",
+		globs: [
+			"apps/web/src/utils/__tests__/*.test.ts",
+			"apps/web/src/shared/lib/**/__tests__/*.test.ts",
+			"apps/web/src/features/**/utils/__tests__/*.test.ts",
+		],
+		pattern: /\bwithTz\s*\(/,
+		excludePath:
+			/-tz\.test\.ts$|login-continuation\.test\.ts$|share-session\.test\.ts$/,
+	},
+	{
 		name: "Stryker disable that is not `next-line <Mutator>[,<Mutator>]: <why>` — no ranged disables, no `all`, reason required",
 		rule: ".claude/rules/testing.md",
 		globs: ["apps/**/*.{ts,tsx}", "packages/**/*.{ts,tsx}"],
