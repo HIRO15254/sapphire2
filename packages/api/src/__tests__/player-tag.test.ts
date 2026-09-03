@@ -3,42 +3,35 @@ import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import {
 	expectAccepts,
-	expectProtected,
+	expectProcedureSurface,
 	expectRejects,
-	expectType,
 	getInputSchema,
 } from "./test-utils";
 
-describe("playerTag router structure", () => {
-	it("appRouter has playerTag namespace", () => {
-		expect(appRouter.playerTag).toBeDefined();
-	});
+const writers = [
+	["create", appRouter.playerTag.create, {}],
+	["update", appRouter.playerTag.update, { id: "pt1" }],
+] as const;
 
+describe("playerTag router structure", () => {
 	it("exposes exactly the expected procedure set", () => {
 		expect(Object.keys(appRouter.playerTag).sort()).toEqual(
 			["create", "delete", "list", "update"].sort()
 		);
 	});
 
-	it("list is a protected query", () => {
-		expectProtected(appRouter.playerTag.list);
-		expectType(appRouter.playerTag.list, "query");
-	});
-
-	it("create / update / delete are protected mutations", () => {
-		for (const proc of [
-			appRouter.playerTag.create,
-			appRouter.playerTag.update,
-			appRouter.playerTag.delete,
-		]) {
-			expectProtected(proc);
-			expectType(proc, "mutation");
-		}
+	it("every procedure is a protected query or mutation", () => {
+		expectProcedureSurface(appRouter.playerTag, {
+			create: "mutation",
+			delete: "mutation",
+			list: "query",
+			update: "mutation",
+		});
 	});
 });
 
 describe("playerTag.create input validation", () => {
-	it("accepts name only (color defaults to gray)", () => {
+	it("defaults color to gray when only a name is given", () => {
 		const schema = getInputSchema(appRouter.playerTag.create);
 		const parsed = schema.safeParse({ name: "friends" }) as unknown as {
 			success: true;
@@ -53,76 +46,26 @@ describe("playerTag.create input validation", () => {
 			expectAccepts(appRouter.playerTag.create, { name: "tag", color });
 		}
 	});
-
-	it("rejects unknown color", () => {
-		expectRejects(appRouter.playerTag.create, {
-			name: "tag",
-			color: "neon_pink",
-		});
-	});
-
-	it("rejects empty name", () => {
-		expectRejects(appRouter.playerTag.create, { name: "" });
-	});
-
-	it("rejects name exceeding 50 characters", () => {
-		expectRejects(appRouter.playerTag.create, { name: "a".repeat(51) });
-	});
-
-	it("accepts name at exactly 50 characters (boundary)", () => {
-		expectAccepts(appRouter.playerTag.create, { name: "a".repeat(50) });
-	});
-
-	it("rejects missing name", () => {
-		expectRejects(appRouter.playerTag.create, { color: "gray" });
-	});
 });
 
-describe("playerTag.update input validation", () => {
-	it("accepts id-only payload (no changes)", () => {
-		expectAccepts(appRouter.playerTag.update, { id: "pt1" });
+describe("playerTag name and color validation", () => {
+	it.each(writers)("%s rejects an unknown color", (_name, procedure, base) => {
+		expectRejects(procedure, { ...base, name: "tag", color: "neon_pink" });
 	});
 
-	it("accepts name change", () => {
-		expectAccepts(appRouter.playerTag.update, { id: "pt1", name: "regulars" });
+	it.each(writers)("%s rejects an empty name", (_name, procedure, base) => {
+		expectRejects(procedure, { ...base, name: "" });
 	});
 
-	it("accepts color change", () => {
-		expectAccepts(appRouter.playerTag.update, {
-			id: "pt1",
-			color: TAG_COLOR_NAMES[0],
-		});
+	it.each(
+		writers
+	)("%s accepts a name at exactly 50 characters", (_name, procedure, base) => {
+		expectAccepts(procedure, { ...base, name: "a".repeat(50) });
 	});
 
-	it("rejects empty name", () => {
-		expectRejects(appRouter.playerTag.update, { id: "pt1", name: "" });
-	});
-
-	it("rejects name exceeding 50 characters", () => {
-		expectRejects(appRouter.playerTag.update, {
-			id: "pt1",
-			name: "a".repeat(51),
-		});
-	});
-
-	it("rejects unknown color", () => {
-		expectRejects(appRouter.playerTag.update, {
-			id: "pt1",
-			color: "chartreuse",
-		});
-	});
-
-	it("rejects missing id", () => {
-		expectRejects(appRouter.playerTag.update, { name: "x" });
-	});
-});
-
-describe("playerTag.delete input validation", () => {
-	it("accepts a valid id", () => {
-		expectAccepts(appRouter.playerTag.delete, { id: "pt1" });
-	});
-
-	it("rejects missing id", () => {
-		expectRejects(appRouter.playerTag.delete, {});
+	it.each(
+		writers
+	)("%s rejects a name exceeding 50 characters", (_name, procedure, base) => {
+		expectRejects(procedure, { ...base, name: "a".repeat(51) });
 	});
 });

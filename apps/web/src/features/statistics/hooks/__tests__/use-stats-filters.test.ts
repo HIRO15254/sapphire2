@@ -173,15 +173,18 @@ describe("useStatsFilters", () => {
 			});
 		});
 
-		it("does not throw when the stored period is outside the current PERIODS vocabulary", () => {
+		it("keeps the current filters when the stored period is outside the current PERIODS vocabulary", () => {
 			const { result } = renderHook(() => useStatsFilters());
-			expect(() => {
-				act(() => {
-					result.current.replaceFilters({
-						period: "last_month",
-					} as unknown as Partial<StatsFilters>);
-				});
-			}).not.toThrow();
+			act(() => {
+				result.current.replaceFilters({
+					period: "last_month",
+				} as unknown as Partial<StatsFilters>);
+			});
+			expect(result.current.filters).toEqual({
+				period: "all",
+				norm: "normalized",
+				type: "all",
+			});
 		});
 
 		it("does not navigate when the stored period is outside the current PERIODS vocabulary", () => {
@@ -194,15 +197,18 @@ describe("useStatsFilters", () => {
 			expect(mocks.navigate).not.toHaveBeenCalled();
 		});
 
-		it("does not throw or navigate when any other payload value is outside the schema's domain", () => {
+		it("keeps the current filters without navigating when any other payload value is outside the schema's domain", () => {
 			const { result } = renderHook(() => useStatsFilters());
-			expect(() => {
-				act(() => {
-					result.current.replaceFilters({
-						type: "spin",
-					} as unknown as Partial<StatsFilters>);
-				});
-			}).not.toThrow();
+			act(() => {
+				result.current.replaceFilters({
+					type: "spin",
+				} as unknown as Partial<StatsFilters>);
+			});
+			expect(result.current.filters).toEqual({
+				period: "all",
+				norm: "normalized",
+				type: "all",
+			});
 			expect(mocks.navigate).not.toHaveBeenCalled();
 		});
 	});

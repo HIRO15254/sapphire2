@@ -11,107 +11,18 @@ import {
 	isEventAllowedInState,
 	isValidEventTypeForSessionType,
 	LIFECYCLE_EVENT_TYPES,
-	MANUAL_CREATE_BLOCKED_EVENT_TYPES,
 	MAX_SEAT_POSITION,
 	memoPayload,
 	PAUSE_RESUME_EVENT_TYPES,
 	playerJoinPayload,
 	playerLeavePayload,
 	purchaseChipsPayload,
-	SESSION_STATUSES,
 	TOURNAMENT_EVENT_TYPES,
 	tournamentSessionEndPayload,
 	tournamentSessionStartPayload,
 	updateStackPayload,
 	validateEventPayload,
 } from "../constants/session-event-types";
-
-describe("SESSION_STATUSES", () => {
-	it('includes "active"', () => {
-		expect(SESSION_STATUSES).toContain("active");
-	});
-
-	it('includes "paused"', () => {
-		expect(SESSION_STATUSES).toContain("paused");
-	});
-
-	it('includes "completed"', () => {
-		expect(SESSION_STATUSES).toContain("completed");
-	});
-});
-
-describe("event type arrays", () => {
-	it("LIFECYCLE_EVENT_TYPES contains session_start and session_end", () => {
-		expect(LIFECYCLE_EVENT_TYPES).toContain("session_start");
-		expect(LIFECYCLE_EVENT_TYPES).toContain("session_end");
-	});
-
-	it("PAUSE_RESUME_EVENT_TYPES contains session_pause and session_resume", () => {
-		expect(PAUSE_RESUME_EVENT_TYPES).toContain("session_pause");
-		expect(PAUSE_RESUME_EVENT_TYPES).toContain("session_resume");
-	});
-
-	it("CASH_EVENT_TYPES contains chips_add_remove and all_in", () => {
-		expect(CASH_EVENT_TYPES).toContain("chips_add_remove");
-		expect(CASH_EVENT_TYPES).toContain("all_in");
-	});
-
-	it("TOURNAMENT_EVENT_TYPES contains purchase_chips", () => {
-		expect(TOURNAMENT_EVENT_TYPES).toContain("purchase_chips");
-		expect(TOURNAMENT_EVENT_TYPES).not.toContain("update_tournament_info");
-	});
-
-	it("COMMON_EVENT_TYPES contains update_stack, player_join, player_leave, memo", () => {
-		expect(COMMON_EVENT_TYPES).toContain("update_stack");
-		expect(COMMON_EVENT_TYPES).toContain("player_join");
-		expect(COMMON_EVENT_TYPES).toContain("player_leave");
-		expect(COMMON_EVENT_TYPES).toContain("memo");
-	});
-});
-
-describe("ALL_EVENT_TYPES", () => {
-	it("includes all 11 event types", () => {
-		expect(ALL_EVENT_TYPES).toHaveLength(11);
-	});
-
-	it("includes all lifecycle event types", () => {
-		for (const t of LIFECYCLE_EVENT_TYPES) {
-			expect(ALL_EVENT_TYPES).toContain(t);
-		}
-	});
-
-	it("includes all pause/resume event types", () => {
-		for (const t of PAUSE_RESUME_EVENT_TYPES) {
-			expect(ALL_EVENT_TYPES).toContain(t);
-		}
-	});
-
-	it("includes all cash event types", () => {
-		for (const t of CASH_EVENT_TYPES) {
-			expect(ALL_EVENT_TYPES).toContain(t);
-		}
-	});
-
-	it("includes all tournament event types", () => {
-		for (const t of TOURNAMENT_EVENT_TYPES) {
-			expect(ALL_EVENT_TYPES).toContain(t);
-		}
-	});
-
-	it("includes all common event types", () => {
-		for (const t of COMMON_EVENT_TYPES) {
-			expect(ALL_EVENT_TYPES).toContain(t);
-		}
-	});
-});
-
-describe("MANUAL_CREATE_BLOCKED_EVENT_TYPES", () => {
-	it("contains only session_start and session_end", () => {
-		expect(MANUAL_CREATE_BLOCKED_EVENT_TYPES).toContain("session_start");
-		expect(MANUAL_CREATE_BLOCKED_EVENT_TYPES).toContain("session_end");
-		expect(MANUAL_CREATE_BLOCKED_EVENT_TYPES).toHaveLength(2);
-	});
-});
 
 describe("payload schemas", () => {
 	describe("cashSessionStartPayload", () => {
@@ -181,6 +92,48 @@ describe("payload schemas", () => {
 			});
 			expect(result.beforeDeadline).toBe(true);
 		});
+
+		const finishedBranch = {
+			beforeDeadline: false,
+			placement: 3,
+			totalEntries: 10,
+			prizeMoney: 0,
+		} as const;
+		const earlyBranch = { beforeDeadline: true, prizeMoney: 0 } as const;
+
+		it.each([
+			["false", finishedBranch],
+			["true", earlyBranch],
+		])("accepts positive bountyPrizes on the beforeDeadline=%s branch", (_, branch) => {
+			expect(
+				tournamentSessionEndPayload.parse({ ...branch, bountyPrizes: 250 })
+			).toEqual({ ...branch, bountyPrizes: 250 });
+		});
+
+		it.each([
+			["false", finishedBranch],
+			["true", earlyBranch],
+		])("rejects negative bountyPrizes on the beforeDeadline=%s branch", (_, branch) => {
+			const result = tournamentSessionEndPayload.safeParse({
+				...branch,
+				bountyPrizes: -1,
+			});
+			expect(result.success).toBe(false);
+			expect(result.error?.issues[0]?.path).toEqual(["bountyPrizes"]);
+		});
+
+		it("reports placement > totalEntries on the placement path with its message", () => {
+			const result = tournamentSessionEndPayload.safeParse({
+				...finishedBranch,
+				placement: 11,
+				bountyPrizes: 0,
+			});
+			expect(result.success).toBe(false);
+			expect(result.error?.issues[0]?.path).toEqual(["placement"]);
+			expect(result.error?.issues[0]?.message).toBe(
+				"Placement must be less than or equal to total entries"
+			);
+		});
 	});
 
 	describe("chipsAddRemovePayload", () => {
@@ -196,6 +149,12 @@ describe("payload schemas", () => {
 
 		it("rejects an amount of zero", () => {
 			expect(() => chipsAddRemovePayload.parse({ amount: 0 })).toThrow();
+		});
+
+		it("reports a zero amount with the non-zero message", () => {
+			const result = chipsAddRemovePayload.safeParse({ amount: 0 });
+			expect(result.success).toBe(false);
+			expect(result.error?.issues[0]?.message).toBe("amount must be non-zero");
 		});
 
 		it("rejects a non-integer amount", () => {
@@ -233,6 +192,20 @@ describe("payload schemas", () => {
 			expect(() =>
 				allInPayload.parse({ potSize, trials: 1, equity: 50, wins: 0 })
 			).toThrow();
+		});
+
+		it("reports wins > trials on the wins path with its message", () => {
+			const result = allInPayload.safeParse({
+				potSize: 1000,
+				trials: 2,
+				equity: 50,
+				wins: 3,
+			});
+			expect(result.success).toBe(false);
+			expect(result.error?.issues[0]?.path).toEqual(["wins"]);
+			expect(result.error?.issues[0]?.message).toBe(
+				"wins must not exceed trials"
+			);
 		});
 	});
 
@@ -277,6 +250,33 @@ describe("payload schemas", () => {
 			expect(result.remainingPlayers).toBeNull();
 			expect(result.totalEntries).toBeNull();
 		});
+
+		it.each([
+			["missing name", { count: 1, chipsPerUnit: 1 }, "name"],
+			["missing count", { name: "Rebuy", chipsPerUnit: 1 }, "count"],
+			["empty name", { name: "", count: 1, chipsPerUnit: 1 }, "name"],
+			[
+				"negative count",
+				{ name: "Rebuy", count: -1, chipsPerUnit: 1 },
+				"count",
+			],
+			[
+				"negative chipsPerUnit",
+				{ name: "Rebuy", count: 1, chipsPerUnit: -1 },
+				"chipsPerUnit",
+			],
+		])("rejects a chipPurchaseCounts entry with %s", (_, entry, offendingField) => {
+			const result = updateStackPayload.safeParse({
+				stackAmount: 5000,
+				chipPurchaseCounts: [entry],
+			});
+			expect(result.success).toBe(false);
+			expect(result.error?.issues[0]?.path).toEqual([
+				"chipPurchaseCounts",
+				0,
+				offendingField,
+			]);
+		});
 	});
 
 	describe("memoPayload", () => {
@@ -294,6 +294,13 @@ describe("payload schemas", () => {
 		it("accepts valid playerId", () => {
 			const result = playerJoinPayload.parse({ playerId: "player-1" });
 			expect(result.playerId).toBe("player-1");
+		});
+
+		it("defaults isHero to false when omitted", () => {
+			expect(playerJoinPayload.parse({ playerId: "player-1" })).toEqual({
+				playerId: "player-1",
+				isHero: false,
+			});
 		});
 
 		it("rejects empty playerId", () => {
@@ -344,10 +351,6 @@ describe("payload schemas", () => {
 	});
 
 	describe("MAX_SEAT_POSITION", () => {
-		it("is 9 (10-max table, 0-indexed last seat)", () => {
-			expect(MAX_SEAT_POSITION).toBe(9);
-		});
-
 		it("bounds playerJoinPayload's seatPosition upper limit", () => {
 			expect(() =>
 				playerJoinPayload.parse({
@@ -367,6 +370,13 @@ describe("payload schemas", () => {
 		it("accepts valid playerId", () => {
 			const result = playerLeavePayload.parse({ playerId: "player-1" });
 			expect(result.playerId).toBe("player-1");
+		});
+
+		it("defaults isHero to false when omitted", () => {
+			expect(playerLeavePayload.parse({ playerId: "player-1" })).toEqual({
+				playerId: "player-1",
+				isHero: false,
+			});
 		});
 
 		it("rejects empty playerId", () => {
@@ -440,49 +450,59 @@ describe("isValidEventTypeForSessionType", () => {
 
 describe("validateEventPayload", () => {
 	it("dispatches session_start to cash schema for cash_game", () => {
-		const result = validateEventPayload(
-			"session_start",
-			{ buyInAmount: 500 },
-			"cash_game"
-		);
-		expect(result).toBeDefined();
+		expect(
+			validateEventPayload("session_start", { buyInAmount: 500 }, "cash_game")
+		).toEqual({ buyInAmount: 500 });
 	});
 
 	it("dispatches session_start to tournament schema carrying timerStartedAt", () => {
-		const result = validateEventPayload(
-			"session_start",
-			{ timerStartedAt: 1_700_000_000 },
-			"tournament"
-		) as { timerStartedAt?: number | null };
-		expect(result.timerStartedAt).toBe(1_700_000_000);
+		expect(
+			validateEventPayload(
+				"session_start",
+				{ timerStartedAt: 1_700_000_000 },
+				"tournament"
+			)
+		).toEqual({ timerStartedAt: 1_700_000_000 });
 	});
 
 	it("dispatches session_start for tournament with missing timerStartedAt", () => {
-		const result = validateEventPayload("session_start", {}, "tournament");
-		expect(result).toBeDefined();
+		expect(validateEventPayload("session_start", {}, "tournament")).toEqual({});
 	});
 
 	it("dispatches session_end to cash schema for cash_game", () => {
-		const result = validateEventPayload(
-			"session_end",
-			{ cashOutAmount: 1000 },
-			"cash_game"
-		);
-		expect(result).toBeDefined();
+		expect(
+			validateEventPayload("session_end", { cashOutAmount: 1000 }, "cash_game")
+		).toEqual({ cashOutAmount: 1000 });
 	});
 
 	it("dispatches session_end to tournament schema for tournament", () => {
-		const result = validateEventPayload(
-			"session_end",
-			{ beforeDeadline: true, prizeMoney: 0, bountyPrizes: 0 },
-			"tournament"
-		);
-		expect(result).toBeDefined();
+		expect(
+			validateEventPayload(
+				"session_end",
+				{ beforeDeadline: true, prizeMoney: 0, bountyPrizes: 0 },
+				"tournament"
+			)
+		).toEqual({ beforeDeadline: true, prizeMoney: 0, bountyPrizes: 0 });
 	});
 
 	it("dispatches non-lifecycle events using general schema map", () => {
-		const result = validateEventPayload("memo", { text: "nice bluff" });
-		expect(result).toBeDefined();
+		expect(validateEventPayload("memo", { text: "nice bluff" })).toEqual({
+			text: "nice bluff",
+		});
+	});
+
+	it("defaults session_start to the tournament schema when sessionType is omitted", () => {
+		expect(validateEventPayload("session_start", {})).toEqual({});
+	});
+
+	it("defaults session_end to the tournament schema when sessionType is omitted", () => {
+		expect(
+			validateEventPayload("session_end", {
+				beforeDeadline: true,
+				prizeMoney: 0,
+				bountyPrizes: 0,
+			})
+		).toEqual({ beforeDeadline: true, prizeMoney: 0, bountyPrizes: 0 });
 	});
 });
 
@@ -491,6 +511,16 @@ describe("getSessionCurrentState", () => {
 		eventType,
 		occurredAt: new Date(1_000_000 + offsetMs),
 		sortOrder: offsetMs,
+	});
+
+	it('returns "active" for an empty event list', () => {
+		expect(getSessionCurrentState([])).toBe("active");
+	});
+
+	it('returns "active" when only non-lifecycle events exist', () => {
+		expect(getSessionCurrentState([makeEvent("update_stack", 0)])).toBe(
+			"active"
+		);
 	});
 
 	it('returns "active" after session_start', () => {
@@ -515,11 +545,85 @@ describe("getSessionCurrentState", () => {
 		expect(getSessionCurrentState(events)).toBe("active");
 	});
 
+	it("ignores a later non-lifecycle event when picking the latest state", () => {
+		const events = [makeEvent("session_pause", 1000), makeEvent("memo", 2000)];
+		expect(getSessionCurrentState(events)).toBe("paused");
+	});
+
+	it("treats a later session_start as a state event that clears a pause", () => {
+		const events = [
+			makeEvent("session_pause", 1000),
+			makeEvent("session_start", 2000),
+		];
+		expect(getSessionCurrentState(events)).toBe("active");
+	});
+
+	it("prefers the later occurredAt over a higher sortOrder", () => {
+		const events = [
+			{
+				eventType: "session_pause",
+				occurredAt: new Date(2000),
+				sortOrder: 0,
+			},
+			{
+				eventType: "session_resume",
+				occurredAt: new Date(1000),
+				sortOrder: 5,
+			},
+		];
+		expect(getSessionCurrentState(events)).toBe("paused");
+	});
+
+	it("prefers the higher sortOrder at equal occurredAt (pause later)", () => {
+		const occurredAt = new Date(1_000_000);
+		const events = [
+			{ eventType: "session_resume", occurredAt, sortOrder: 1 },
+			{ eventType: "session_pause", occurredAt, sortOrder: 2 },
+		];
+		expect(getSessionCurrentState(events)).toBe("paused");
+	});
+
+	it("prefers the higher sortOrder at equal occurredAt (resume later)", () => {
+		const occurredAt = new Date(1_000_000);
+		const events = [
+			{ eventType: "session_pause", occurredAt, sortOrder: 1 },
+			{ eventType: "session_resume", occurredAt, sortOrder: 2 },
+		];
+		expect(getSessionCurrentState(events)).toBe("active");
+	});
+
 	it("uses id as the deterministic final tie-breaker", () => {
 		const occurredAt = new Date(1_000_000);
 		const events = [
 			{ id: "a-resume", eventType: "session_resume", occurredAt, sortOrder: 1 },
 			{ id: "z-pause", eventType: "session_pause", occurredAt, sortOrder: 1 },
+		];
+		expect(getSessionCurrentState(events)).toBe("paused");
+	});
+
+	it("uses id as the final tie-breaker in the other direction", () => {
+		const occurredAt = new Date(1_000_000);
+		const events = [
+			{ id: "a-pause", eventType: "session_pause", occurredAt, sortOrder: 1 },
+			{ id: "z-resume", eventType: "session_resume", occurredAt, sortOrder: 1 },
+		];
+		expect(getSessionCurrentState(events)).toBe("active");
+	});
+
+	it("sorts an event without id below any event with an id (resume with id wins)", () => {
+		const occurredAt = new Date(1_000_000);
+		const events = [
+			{ eventType: "session_pause", occurredAt, sortOrder: 1 },
+			{ id: "a-resume", eventType: "session_resume", occurredAt, sortOrder: 1 },
+		];
+		expect(getSessionCurrentState(events)).toBe("active");
+	});
+
+	it("sorts an event without id below any event with an id (pause with id wins)", () => {
+		const occurredAt = new Date(1_000_000);
+		const events = [
+			{ id: "a-pause", eventType: "session_pause", occurredAt, sortOrder: 1 },
+			{ eventType: "session_resume", occurredAt, sortOrder: 1 },
 		];
 		expect(getSessionCurrentState(events)).toBe("paused");
 	});
@@ -548,6 +652,13 @@ describe("isEventAllowedInState", () => {
 		expect(isEventAllowedInState("memo", "active")).toBe(true);
 		expect(isEventAllowedInState("player_join", "active")).toBe(true);
 		expect(isEventAllowedInState("player_leave", "active")).toBe(true);
+	});
+
+	it.each([
+		"session_pause",
+		"session_end",
+	] as const)("active state allows %s", (eventType) => {
+		expect(isEventAllowedInState(eventType, "active")).toBe(true);
 	});
 
 	it("active state blocks session_start", () => {
@@ -604,10 +715,6 @@ describe("event-type array disjointness and totals", () => {
 			COMMON_EVENT_TYPES.length;
 		expect(ALL_EVENT_TYPES).toHaveLength(unionSize);
 	});
-
-	it("SESSION_STATUSES contains exactly 3 statuses", () => {
-		expect(SESSION_STATUSES).toHaveLength(3);
-	});
 });
 
 describe("payload schema edge cases", () => {
@@ -618,21 +725,9 @@ describe("payload schema edge cases", () => {
 			).toBe(0);
 		});
 
-		it("rejects missing buyInAmount", () => {
-			expect(() =>
-				cashSessionStartPayload.parse({} as Record<string, unknown>)
-			).toThrow();
-		});
-
 		it("rejects non-integer buyInAmount", () => {
 			expect(() =>
 				cashSessionStartPayload.parse({ buyInAmount: 1.5 })
-			).toThrow();
-		});
-
-		it("rejects string buyInAmount", () => {
-			expect(() =>
-				cashSessionStartPayload.parse({ buyInAmount: "100" })
 			).toThrow();
 		});
 	});
@@ -694,18 +789,6 @@ describe("payload schema edge cases", () => {
 	});
 
 	describe("chipsAddRemovePayload", () => {
-		it("accepts a positive amount as an add", () => {
-			expect(chipsAddRemovePayload.parse({ amount: 10 }).amount).toBe(10);
-		});
-
-		it("accepts a negative amount as a remove", () => {
-			expect(chipsAddRemovePayload.parse({ amount: -10 }).amount).toBe(-10);
-		});
-
-		it("rejects amount = 0 (no-op event)", () => {
-			expect(() => chipsAddRemovePayload.parse({ amount: 0 })).toThrow();
-		});
-
 		it("ignores legacy type field if present", () => {
 			const result = chipsAddRemovePayload.parse({ amount: 10, type: "add" });
 			expect(result.amount).toBe(10);
@@ -828,12 +911,6 @@ describe("payload schema edge cases", () => {
 	});
 
 	describe("purchaseChipsPayload", () => {
-		it("rejects missing sessionChipPurchaseId", () => {
-			expect(() =>
-				purchaseChipsPayload.parse({ name: "Rebuy", cost: 1, chips: 1 })
-			).toThrow();
-		});
-
 		it("rejects empty sessionChipPurchaseId", () => {
 			expect(() =>
 				purchaseChipsPayload.parse({
@@ -894,13 +971,8 @@ describe("payload schema edge cases", () => {
 	});
 
 	describe("memoPayload", () => {
-		it("rejects whitespace-only text (if trimmed) or accepts (if raw)", () => {
-			const result = memoPayload.safeParse({ text: "   " });
-			expect(typeof result.success).toBe("boolean");
-		});
-
-		it("rejects missing text", () => {
-			expect(() => memoPayload.parse({} as Record<string, unknown>)).toThrow();
+		it("accepts whitespace-only text (memo is not trimmed)", () => {
+			expect(memoPayload.parse({ text: "   " })).toEqual({ text: "   " });
 		});
 	});
 });
@@ -941,9 +1013,5 @@ describe("validateEventPayload — extra dispatch paths", () => {
 
 	it("throws on malformed memo payload (empty string)", () => {
 		expect(() => validateEventPayload("memo", { text: "" })).toThrow();
-	});
-
-	it("throws when payload is missing required field", () => {
-		expect(() => validateEventPayload("update_stack", {})).toThrow();
 	});
 });

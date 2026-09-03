@@ -110,11 +110,7 @@ describe("formatAnteSuffix", () => {
 	});
 
 	it("returns empty when anteType is null", () => {
-		expect(
-			formatAnteSuffix(
-				ringGame({ ante: 100, anteType: null as unknown as string })
-			)
-		).toBe("");
+		expect(formatAnteSuffix(ringGame({ ante: 100, anteType: null }))).toBe("");
 	});
 
 	it("returns (BBA:x) for bb ante", () => {

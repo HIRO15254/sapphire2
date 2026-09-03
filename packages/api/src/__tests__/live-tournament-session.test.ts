@@ -14,9 +14,8 @@ import {
 import {
 	createChainableMockDb,
 	expectAccepts,
-	expectProtected,
+	expectProcedureSurface,
 	expectRejects,
-	expectType,
 } from "./test-utils";
 
 const BLIND_LEVEL_COLUMNS = 10;
@@ -163,6 +162,14 @@ const ownedSession = {
 	currencyId: null,
 };
 
+const updatedOwnedSession = {
+	...ownedSession,
+	tournamentId: null,
+	buyIn: null,
+	entryFee: null,
+	timerStartedAt: null,
+};
+
 describe("liveTournamentSession.create ownership validation (SA2-102)", () => {
 	it("accepts a room and currency owned by the caller", async () => {
 		const rows = new Map<unknown, Rows>([
@@ -294,7 +301,7 @@ describe("liveTournamentSession.update ownership validation (SA2-102)", () => {
 				roomId: "room-1",
 				currencyId: "cur-1",
 			})
-		).resolves.toBeDefined();
+		).resolves.toEqual(updatedOwnedSession);
 	});
 
 	it("rejects a room owned by another user with FORBIDDEN", async () => {
@@ -353,7 +360,7 @@ describe("liveTournamentSession.update ownership validation (SA2-102)", () => {
 				roomId: null,
 				currencyId: null,
 			})
-		).resolves.toBeDefined();
+		).resolves.toEqual(updatedOwnedSession);
 	});
 
 	it("does not validate ownership when room/currency are omitted", async () => {
@@ -364,56 +371,11 @@ describe("liveTournamentSession.update ownership validation (SA2-102)", () => {
 		]);
 		await expect(
 			makeCaller(OWNER, rows).update({ id: "s1", memo: "note" })
-		).resolves.toBeDefined();
+		).resolves.toEqual(updatedOwnedSession);
 	});
 });
 
 describe("liveTournamentSession router", () => {
-	it("appRouter has liveTournamentSession namespace", () => {
-		expect(appRouter.liveTournamentSession).toBeDefined();
-	});
-
-	it("has list procedure", () => {
-		expect(appRouter.liveTournamentSession.list).toBeDefined();
-	});
-
-	it("has getById procedure", () => {
-		expect(appRouter.liveTournamentSession.getById).toBeDefined();
-	});
-
-	it("has create procedure", () => {
-		expect(appRouter.liveTournamentSession.create).toBeDefined();
-	});
-
-	it("has update procedure", () => {
-		expect(appRouter.liveTournamentSession.update).toBeDefined();
-	});
-
-	it("has atomic createAndAssignTournament procedure", () => {
-		expect(
-			appRouter.liveTournamentSession.createAndAssignTournament
-		).toBeDefined();
-	});
-
-	it("has discard procedure", () => {
-		expect(appRouter.liveTournamentSession.discard).toBeDefined();
-	});
-
-	it("update accepts tournamentId input", () => {
-		const inputSchema =
-			appRouter.liveTournamentSession.update._def.inputs[0] ??
-			appRouter.liveTournamentSession.update._def.inputs;
-		const shape =
-			(inputSchema as { shape?: Record<string, unknown> })?.shape ??
-			(
-				inputSchema as {
-					_def?: { shape?: () => Record<string, unknown> };
-				}
-			)?._def?.shape?.();
-		expect(shape).toBeDefined();
-		expect(shape?.tournamentId).toBeDefined();
-	});
-
 	it("exposes exactly the expected procedure set", () => {
 		expect(Object.keys(appRouter.liveTournamentSession).sort()).toEqual(
 			[
@@ -431,28 +393,19 @@ describe("liveTournamentSession router", () => {
 		);
 	});
 
-	it("list / getById are protected queries", () => {
-		expectProtected(appRouter.liveTournamentSession.list);
-		expectType(appRouter.liveTournamentSession.list, "query");
-		expectProtected(appRouter.liveTournamentSession.getById);
-		expectType(appRouter.liveTournamentSession.getById, "query");
-	});
-
-	it("all mutations are protected mutations", () => {
-		for (const name of [
-			"create",
-			"createAndAssignTournament",
-			"update",
-			"complete",
-			"reopen",
-			"discard",
-			"updateHeroSeat",
-			"updateSnapshot",
-		] as const) {
-			const proc = appRouter.liveTournamentSession[name];
-			expectProtected(proc);
-			expectType(proc, "mutation");
-		}
+	it("every procedure is a protected query or mutation", () => {
+		expectProcedureSurface(appRouter.liveTournamentSession, {
+			complete: "mutation",
+			create: "mutation",
+			createAndAssignTournament: "mutation",
+			discard: "mutation",
+			getById: "query",
+			list: "query",
+			reopen: "mutation",
+			update: "mutation",
+			updateHeroSeat: "mutation",
+			updateSnapshot: "mutation",
+		});
 	});
 });
 
@@ -476,15 +429,7 @@ describe("liveTournamentSession.createAndAssignTournament input validation", () 
 		});
 	});
 
-	it("rejects missing sessionId, roomId, or an empty name", () => {
-		expectRejects(appRouter.liveTournamentSession.createAndAssignTournament, {
-			roomId: "room-1",
-			name: "Main",
-		});
-		expectRejects(appRouter.liveTournamentSession.createAndAssignTournament, {
-			sessionId: "s1",
-			name: "Main",
-		});
+	it("rejects an empty name", () => {
 		expectRejects(appRouter.liveTournamentSession.createAndAssignTournament, {
 			sessionId: "s1",
 			roomId: "room-1",
@@ -586,44 +531,23 @@ describe("liveTournamentSession.list input validation", () => {
 		});
 	});
 
-	it("rejects limit > 100", () => {
-		expectRejects(appRouter.liveTournamentSession.list, { limit: 101 });
-	});
-
-	it("rejects limit < 1", () => {
+	it("limit accepts 1..100 and rejects 0, 101, and fractional values", () => {
+		expectAccepts(appRouter.liveTournamentSession.list, { limit: 1 });
+		expectAccepts(appRouter.liveTournamentSession.list, { limit: 100 });
 		expectRejects(appRouter.liveTournamentSession.list, { limit: 0 });
+		expectRejects(appRouter.liveTournamentSession.list, { limit: 101 });
+		expectRejects(appRouter.liveTournamentSession.list, { limit: 10.5 });
 	});
 });
 
 describe("liveTournamentSession.create input validation", () => {
-	it("accepts empty object (all fields optional)", () => {
-		expectAccepts(appRouter.liveTournamentSession.create, {});
-	});
-
-	it("accepts full payload", () => {
-		expectAccepts(appRouter.liveTournamentSession.create, {
-			roomId: "s1",
-			tournamentId: "tn1",
-			currencyId: "c1",
-			buyIn: 10_000,
-			entryFee: 1000,
-			memo: "WSOP",
-			timerStartedAt: 1_700_000_000,
-		});
-	});
-
-	it("rejects negative buyIn", () => {
-		expectRejects(appRouter.liveTournamentSession.create, { buyIn: -1 });
-	});
-
-	it("rejects non-integer entryFee", () => {
-		expectRejects(appRouter.liveTournamentSession.create, { entryFee: 10.5 });
-	});
-
-	it("rejects non-integer timerStartedAt", () => {
-		expectRejects(appRouter.liveTournamentSession.create, {
-			timerStartedAt: 1.5,
-		});
+	it.each([
+		"buyIn",
+		"entryFee",
+	] as const)("%s rejects negative and fractional values and accepts zero", (field) => {
+		expectRejects(appRouter.liveTournamentSession.create, { [field]: -1 });
+		expectRejects(appRouter.liveTournamentSession.create, { [field]: 10.5 });
+		expectAccepts(appRouter.liveTournamentSession.create, { [field]: 0 });
 	});
 });
 
@@ -680,115 +604,40 @@ describe("liveTournamentSession.complete input validation (discriminated union)"
 		});
 	});
 
-	it("rejects negative prizeMoney", () => {
-		expectRejects(appRouter.liveTournamentSession.complete, {
-			id: "s1",
-			beforeDeadline: true,
-			prizeMoney: -1,
-			bountyPrizes: 0,
-		});
-	});
-
-	it("rejects missing id", () => {
-		expectRejects(appRouter.liveTournamentSession.complete, {
-			beforeDeadline: true,
-			prizeMoney: 0,
-			bountyPrizes: 0,
-		});
+	it.each([
+		"prizeMoney",
+		"bountyPrizes",
+	] as const)("%s rejects negative and fractional values", (field) => {
+		for (const value of [-1, 0.5]) {
+			expectRejects(appRouter.liveTournamentSession.complete, {
+				id: "s1",
+				beforeDeadline: true,
+				prizeMoney: 0,
+				bountyPrizes: 0,
+				[field]: value,
+			});
+		}
 	});
 });
 
 describe("liveTournamentSession.updateHeroSeat input validation", () => {
-	it("accepts seat at boundaries 0 and 8", () => {
-		expectAccepts(appRouter.liveTournamentSession.updateHeroSeat, {
-			id: "s1",
-			heroSeatPosition: 0,
-		});
-		expectAccepts(appRouter.liveTournamentSession.updateHeroSeat, {
-			id: "s1",
-			heroSeatPosition: 8,
-		});
-	});
-
-	it("accepts heroSeatPosition 9 (last seat of a 10-max table)", () => {
-		expectAccepts(appRouter.liveTournamentSession.updateHeroSeat, {
-			id: "s1",
-			heroSeatPosition: 9,
-		});
-	});
-
-	it("accepts heroSeatPosition: null", () => {
-		expectAccepts(appRouter.liveTournamentSession.updateHeroSeat, {
-			id: "s1",
-			heroSeatPosition: null,
-		});
-	});
-
-	it("rejects seat > 9", () => {
-		expectRejects(appRouter.liveTournamentSession.updateHeroSeat, {
-			id: "s1",
-			heroSeatPosition: 10,
-		});
-	});
-});
-
-describe("liveTournamentSession.{reopen,discard,getById} input validation", () => {
-	it("reopen accepts {id}", () => {
-		expectAccepts(appRouter.liveTournamentSession.reopen, { id: "s1" });
-	});
-
-	it("discard accepts {id}", () => {
-		expectAccepts(appRouter.liveTournamentSession.discard, { id: "s1" });
-	});
-
-	it("getById accepts {id}", () => {
-		expectAccepts(appRouter.liveTournamentSession.getById, { id: "s1" });
-	});
-
-	it("reopen / discard / getById reject missing id", () => {
-		expectRejects(appRouter.liveTournamentSession.reopen, {});
-		expectRejects(appRouter.liveTournamentSession.discard, {});
-		expectRejects(appRouter.liveTournamentSession.getById, {});
+	it("heroSeatPosition accepts 0..9 and null and rejects -1 and 10", () => {
+		for (const heroSeatPosition of [0, 8, 9, null]) {
+			expectAccepts(appRouter.liveTournamentSession.updateHeroSeat, {
+				id: "s1",
+				heroSeatPosition,
+			});
+		}
+		for (const heroSeatPosition of [-1, 10]) {
+			expectRejects(appRouter.liveTournamentSession.updateHeroSeat, {
+				id: "s1",
+				heroSeatPosition,
+			});
+		}
 	});
 });
 
 describe("liveTournamentSession.updateSnapshot input validation", () => {
-	it("accepts the minimum payload (id only — no-op call)", () => {
-		expectAccepts(appRouter.liveTournamentSession.updateSnapshot, {
-			id: "s1",
-		});
-	});
-
-	it("accepts a full snapshot override payload", () => {
-		expectAccepts(appRouter.liveTournamentSession.updateSnapshot, {
-			id: "s1",
-			ruleName: "Main Event (this session)",
-			variant: "nlh",
-			tournamentBuyIn: 10_000,
-			entryFee: 1000,
-			startingStack: 20_000,
-			bountyAmount: null,
-			tableSize: 9,
-			blindLevels: [
-				{
-					isBreak: false,
-					blind1: 100,
-					blind2: 200,
-					blind3: null,
-					ante: null,
-					minutes: 15,
-				},
-			],
-			chipPurchases: [{ name: "Rebuy", cost: 100, chips: 10_000 }],
-		});
-	});
-
-	it("rejects missing id", () => {
-		expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
-			ruleName: "x",
-		});
-	});
-
 	it("rejects an empty ruleName", () => {
 		expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
 			id: "s1",
@@ -796,105 +645,62 @@ describe("liveTournamentSession.updateSnapshot input validation", () => {
 		});
 	});
 
-	it("rejects a non-integer chip purchase cost", () => {
-		expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
-			id: "s1",
-			chipPurchases: [{ name: "Rebuy", cost: 1.5, chips: 10_000 }],
-		});
-	});
-
-	it("rejects a blind level missing isBreak", () => {
-		expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
-			id: "s1",
-			blindLevels: [{ blind1: 100 }],
-		});
-	});
-
-	it("accepts zero, the safe maximum, and null for nullable tournament integers", () => {
-		for (const field of [
-			"tournamentBuyIn",
-			"entryFee",
-			"startingStack",
-			"bountyAmount",
-		] as const) {
-			for (const value of [0, Number.MAX_SAFE_INTEGER, null]) {
-				expectAccepts(appRouter.liveTournamentSession.updateSnapshot, {
-					id: "s1",
-					[field]: value,
-				});
-			}
+	it.each([
+		"tournamentBuyIn",
+		"entryFee",
+		"startingStack",
+		"bountyAmount",
+	] as const)("%s accepts zero, the safe maximum, and null and rejects negative, fractional, and unsafe values", (field) => {
+		for (const value of [0, Number.MAX_SAFE_INTEGER, null]) {
+			expectAccepts(appRouter.liveTournamentSession.updateSnapshot, {
+				id: "s1",
+				[field]: value,
+			});
+		}
+		for (const value of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]) {
+			expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
+				id: "s1",
+				[field]: value,
+			});
 		}
 	});
 
-	it("rejects negative, fractional, and unsafe tournament snapshot integers", () => {
-		for (const field of [
-			"tournamentBuyIn",
-			"entryFee",
-			"startingStack",
-			"bountyAmount",
-		] as const) {
-			for (const value of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]) {
-				expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
-					id: "s1",
-					[field]: value,
-				});
-			}
+	it.each([
+		"blind1",
+		"blind2",
+		"blind3",
+		"ante",
+		"minutes",
+	] as const)("blind-level %s accepts zero, the safe maximum, and null and rejects negative, fractional, and unsafe values", (field) => {
+		for (const value of [0, Number.MAX_SAFE_INTEGER, null]) {
+			expectAccepts(appRouter.liveTournamentSession.updateSnapshot, {
+				id: "s1",
+				blindLevels: [{ isBreak: false, [field]: value }],
+			});
+		}
+		for (const value of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]) {
+			expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
+				id: "s1",
+				blindLevels: [{ isBreak: false, [field]: value }],
+			});
 		}
 	});
 
-	it("accepts zero, the safe maximum, and null for blind-level integers", () => {
-		for (const field of [
-			"blind1",
-			"blind2",
-			"blind3",
-			"ante",
-			"minutes",
-		] as const) {
-			for (const value of [0, Number.MAX_SAFE_INTEGER, null]) {
-				expectAccepts(appRouter.liveTournamentSession.updateSnapshot, {
-					id: "s1",
-					blindLevels: [{ isBreak: false, [field]: value }],
-				});
-			}
+	it.each([
+		"cost",
+		"chips",
+	] as const)("chip-purchase %s accepts zero and the safe maximum and rejects negative, fractional, and unsafe values", (field) => {
+		for (const value of [0, Number.MAX_SAFE_INTEGER]) {
+			expectAccepts(appRouter.liveTournamentSession.updateSnapshot, {
+				id: "s1",
+				chipPurchases: [{ name: "Rebuy", cost: 1, chips: 1, [field]: value }],
+			});
 		}
-	});
-
-	it("rejects negative, fractional, and unsafe blind-level integers", () => {
-		for (const field of [
-			"blind1",
-			"blind2",
-			"blind3",
-			"ante",
-			"minutes",
-		] as const) {
-			for (const value of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]) {
-				expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
-					id: "s1",
-					blindLevels: [{ isBreak: false, [field]: value }],
-				});
-			}
-		}
-	});
-
-	it("accepts zero and the safe maximum for chip-purchase integers", () => {
-		for (const field of ["cost", "chips"] as const) {
-			for (const value of [0, Number.MAX_SAFE_INTEGER]) {
-				expectAccepts(appRouter.liveTournamentSession.updateSnapshot, {
-					id: "s1",
-					chipPurchases: [{ name: "Rebuy", cost: 1, chips: 1, [field]: value }],
-				});
-			}
-		}
-	});
-
-	it("rejects negative, fractional, and unsafe chip-purchase integers", () => {
-		for (const field of ["cost", "chips"] as const) {
-			for (const value of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]) {
-				expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
-					id: "s1",
-					chipPurchases: [{ name: "Rebuy", cost: 1, chips: 1, [field]: value }],
-				});
-			}
+		for (const value of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]) {
+			expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
+				id: "s1",
+				chipPurchases: [{ name: "Rebuy", cost: 1, chips: 1, [field]: value }],
+			});
 		}
 	});
 
@@ -905,16 +711,13 @@ describe("liveTournamentSession.updateSnapshot input validation", () => {
 		});
 	});
 
-	it("accepts tableSize 2, 10, and null", () => {
+	it("restricts tableSize to 2..10 while accepting null", () => {
 		for (const tableSize of [2, 10, null]) {
 			expectAccepts(appRouter.liveTournamentSession.updateSnapshot, {
 				id: "s1",
 				tableSize,
 			});
 		}
-	});
-
-	it("rejects tableSize 1, 11, and fractional values", () => {
 		for (const tableSize of [1, 11, 2.5]) {
 			expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
 				id: "s1",

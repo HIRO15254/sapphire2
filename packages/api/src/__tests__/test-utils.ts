@@ -72,6 +72,18 @@ export function expectType(
 	expect(getProcedureDef(procedure).type).toBe(type);
 }
 
+export function expectProcedureSurface(
+	router: object,
+	expected: Record<string, "mutation" | "query">
+): void {
+	const procedures = router as Record<string, unknown>;
+	expect(Object.keys(procedures).sort()).toEqual(Object.keys(expected).sort());
+	for (const [name, type] of Object.entries(expected)) {
+		expectProtected(procedures[name]);
+		expectType(procedures[name], type);
+	}
+}
+
 type MockRow = Record<string, unknown>;
 
 interface ChainableMockDbConfig {

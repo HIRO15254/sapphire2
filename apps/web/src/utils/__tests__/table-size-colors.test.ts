@@ -44,29 +44,14 @@ describe("getTableSizeClassName", () => {
 		expect(getTableSizeClassName(size)).toBe(TABLE_SIZE_COLORS[size]);
 	});
 
-	it("falls back to muted styles when size is 0", () => {
-		expect(getTableSizeClassName(0)).toBe("bg-muted text-muted-foreground");
-	});
-
-	it("falls back to muted styles when size is 1", () => {
-		expect(getTableSizeClassName(1)).toBe("bg-muted text-muted-foreground");
-	});
-
-	it("falls back to muted styles when size is 11 (out of range)", () => {
-		expect(getTableSizeClassName(11)).toBe("bg-muted text-muted-foreground");
-	});
-
-	it("falls back to muted styles for negative values", () => {
-		expect(getTableSizeClassName(-1)).toBe("bg-muted text-muted-foreground");
-	});
-
-	it("falls back to muted styles for non-integer values", () => {
-		expect(getTableSizeClassName(3.5)).toBe("bg-muted text-muted-foreground");
-	});
-
-	it("falls back to muted styles for NaN", () => {
-		expect(getTableSizeClassName(Number.NaN)).toBe(
-			"bg-muted text-muted-foreground"
-		);
+	it.each([
+		0,
+		1,
+		11,
+		-1,
+		3.5,
+		Number.NaN,
+	])("falls back to muted styles for the unregistered size %s", (size) => {
+		expect(getTableSizeClassName(size)).toBe("bg-muted text-muted-foreground");
 	});
 });

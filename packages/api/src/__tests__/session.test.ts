@@ -21,6 +21,10 @@ import {
 } from "../routers/session";
 import {
 	createChainableMockDb,
+	expectAccepts,
+	expectProcedureSurface,
+	expectRejects,
+	getInputSchema,
 	withGameMixVariantFixtures,
 } from "./test-utils";
 
@@ -30,6 +34,42 @@ const SESSION_DATE_RE = /sessionDate/;
 const PLACEMENT_RE = /placement/;
 const PRIZE_MONEY_RE = /prizeMoney/;
 const TOURNAMENT_ID_RE = /tournamentId/;
+
+const CALLER = "user-1";
+const OTHER = "user-2";
+
+function makeCaller(select: Record<string, Record<string, unknown>[]> = {}) {
+	const mock = createChainableMockDb({ select });
+	return {
+		...mock,
+		caller: appRouter.createCaller({
+			session: { user: { id: CALLER } },
+			db: mock.db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]),
+	};
+}
+
+function listCallerRows(rows: Record<string, unknown>[]) {
+	return makeCaller({
+		game_session: rows.map((row, index) => ({
+			id: `session-${index + 1}`,
+			type: "cash_game",
+			source: "manual",
+			buyIn: null,
+			cashOut: null,
+			evCashOut: null,
+			chipRemoveTotal: null,
+			...row,
+		})),
+		session_chip_purchase: [],
+		session_blind_level: [],
+		session_to_session_tag: [],
+	}).caller;
+}
+
+function listCaller(row: Record<string, unknown>) {
+	return listCallerRows([row]);
+}
 
 describe("resolveEvCashOut", () => {
 	it("returns the recorded EV cash-out when there is one", () => {
@@ -199,10 +239,6 @@ describe("selectInChunks", () => {
 });
 
 describe("session router", () => {
-	it("appRouter has session namespace", () => {
-		expect(appRouter.session).toBeDefined();
-	});
-
 	it("exposes exactly the expected procedure set", () => {
 		expect(Object.keys(appRouter.session).sort()).toEqual(
 			[
@@ -215,40 +251,16 @@ describe("session router", () => {
 			].sort()
 		);
 	});
-});
 
-describe("session.profitLossSeries input validation", () => {
-	function getSchema() {
-		return (
-			appRouter.session.profitLossSeries as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-	}
-
-	it("accepts an empty object (all filters optional)", () => {
-		expect(getSchema().safeParse({}).success).toBe(true);
-	});
-
-	it("accepts the full filter combination", () => {
-		expect(
-			getSchema().safeParse({
-				type: "cash_game",
-				roomId: "s1",
-				ringGameId: "rg1",
-				currencyId: "c1",
-				dateFrom: 1_700_000_000,
-				dateTo: 1_800_000_000,
-			}).success
-		).toBe(true);
-	});
-
-	it("rejects an unknown type value", () => {
-		expect(getSchema().safeParse({ type: "spin_and_go" }).success).toBe(false);
-	});
-
-	it("rejects non-numeric dateFrom", () => {
-		expect(getSchema().safeParse({ dateFrom: "today" }).success).toBe(false);
+	it("every procedure is a protected query or mutation", () => {
+		expectProcedureSurface(appRouter.session, {
+			create: "mutation",
+			delete: "mutation",
+			getById: "query",
+			list: "query",
+			profitLossSeries: "query",
+			update: "mutation",
+		});
 	});
 });
 
@@ -266,7 +278,55 @@ describe("session router input validation", () => {
 		tournamentBuyIn: 10_000,
 	} as const;
 
-	const CASH_RULE_AMOUNT_FIELDS = [
+	const UPDATE_BASE = { id: "s1" } as const;
+
+	const CHIP_PURCHASE_BASE = {
+		name: "Rebuy",
+		cost: 100,
+		chips: 10_000,
+	} as const;
+
+	function parseCreate(input: unknown) {
+		return getInputSchema(appRouter.session.create).safeParse(input) as {
+			data?: Record<string, unknown>;
+			success: boolean;
+		};
+	}
+
+	const CASH_CREATE_MONEY_FIELDS = [
+		"buyIn",
+		"cashOut",
+		"evCashOut",
+		"blind1",
+		"blind2",
+		"blind3",
+		"ante",
+		"minBuyIn",
+		"maxBuyIn",
+		"breakMinutes",
+	] as const;
+	const TOURNAMENT_CREATE_MONEY_FIELDS = [
+		"tournamentBuyIn",
+		"entryFee",
+		"prizeMoney",
+		"bountyPrizes",
+		"startingStack",
+		"bountyAmount",
+		"breakMinutes",
+	] as const;
+	const UPDATE_MONEY_FIELDS = [
+		"buyIn",
+		"cashOut",
+		"tournamentBuyIn",
+		"entryFee",
+	] as const;
+	const UPDATE_NULLABLE_MONEY_FIELDS = [
+		"evCashOut",
+		"prizeMoney",
+		"bountyPrizes",
+		"startingStack",
+		"bountyAmount",
+		"breakMinutes",
 		"blind1",
 		"blind2",
 		"blind3",
@@ -274,229 +334,302 @@ describe("session router input validation", () => {
 		"minBuyIn",
 		"maxBuyIn",
 	] as const;
-	const TOURNAMENT_BLIND_LEVEL_AMOUNT_FIELDS = [
+	const BLIND_LEVEL_MONEY_FIELDS = [
 		"blind1",
 		"blind2",
 		"blind3",
 		"ante",
 		"minutes",
 	] as const;
+	const CHIP_PURCHASE_MONEY_FIELDS = ["cost", "chips", "count"] as const;
 
-	it("create accepts a valid cash_game session", () => {
-		const schema = (
-			appRouter.session.create as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		expect(schema.safeParse(CASH_BASE).success).toBe(true);
-	});
+	const TABLE_SIZE_SCHEMAS = [
+		{
+			label: "create (cash_game)",
+			procedure: appRouter.session.create,
+			base: CASH_BASE,
+			nullable: false,
+		},
+		{
+			label: "create (tournament)",
+			procedure: appRouter.session.create,
+			base: TOURNAMENT_BASE,
+			nullable: false,
+		},
+		{
+			label: "update",
+			procedure: appRouter.session.update,
+			base: UPDATE_BASE,
+			nullable: true,
+		},
+	];
+	const PLACEMENT_SCHEMAS = [
+		{
+			label: "create",
+			procedure: appRouter.session.create,
+			base: TOURNAMENT_BASE,
+		},
+		{ label: "update", procedure: appRouter.session.update, base: UPDATE_BASE },
+	];
+	const ANTE_TYPE_SCHEMAS = [
+		{
+			label: "create (cash_game)",
+			procedure: appRouter.session.create,
+			base: CASH_BASE,
+		},
+		{ label: "update", procedure: appRouter.session.update, base: UPDATE_BASE },
+	];
+	const RULE_NAME_SCHEMAS = [
+		{ label: "cash_game", base: CASH_BASE },
+		{ label: "tournament", base: TOURNAMENT_BASE },
+	];
+	const TYPE_FILTER_PROCEDURES = [
+		{ label: "list", procedure: appRouter.session.list },
+		{
+			label: "profitLossSeries",
+			procedure: appRouter.session.profitLossSeries,
+		},
+	];
 
 	it("create leaves cash_game variant undefined when omitted (c10: no schema default that would defeat ring-game inheritance)", () => {
-		const schema = (
-			appRouter.session.create as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as {
-			safeParse: (v: unknown) => {
-				success: true;
-				data: { variant?: string };
-			};
-		};
-		const parsed = schema.safeParse(CASH_BASE) as unknown as {
-			success: true;
-			data: { variant?: string };
-		};
+		const parsed = parseCreate(CASH_BASE);
 		expect(parsed.success).toBe(true);
-		expect(parsed.data.variant).toBeUndefined();
+		expect(parsed.data?.variant).toBeUndefined();
 	});
 
-	it("create accepts a valid tournament session (entryFee defaults to 0)", () => {
-		const schema = (
-			appRouter.session.create as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as {
-			safeParse: (v: unknown) => {
-				success: true;
-				data: { entryFee: number };
-			};
-		};
-		const parsed = schema.safeParse(TOURNAMENT_BASE) as unknown as {
-			success: true;
-			data: { entryFee: number };
-		};
+	it("create defaults a tournament entryFee to 0", () => {
+		const parsed = parseCreate(TOURNAMENT_BASE);
 		expect(parsed.success).toBe(true);
-		expect(parsed.data.entryFee).toBe(0);
+		expect(parsed.data?.entryFee).toBe(0);
 	});
 
-	it("create rejects tournament session where placement > totalEntries", () => {
-		const schema = (
-			appRouter.session.create as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		expect(
-			schema.safeParse({
+	it("create defaults a chip purchase count to 0 when omitted", () => {
+		const parsed = parseCreate({
+			...TOURNAMENT_BASE,
+			chipPurchases: [CHIP_PURCHASE_BASE],
+		});
+		expect(parsed.success).toBe(true);
+		expect(parsed.data?.chipPurchases).toEqual([
+			{ ...CHIP_PURCHASE_BASE, count: 0 },
+		]);
+	});
+
+	it("create strips the legacy rebuyCount field instead of persisting it", () => {
+		const parsed = parseCreate({ ...TOURNAMENT_BASE, rebuyCount: 5 });
+		expect(parsed.success).toBe(true);
+		expect(parsed.data?.rebuyCount).toBeUndefined();
+	});
+
+	it("create rejects an unknown discriminator type", () => {
+		expectRejects(appRouter.session.create, {
+			type: "other",
+			sessionDate: 1,
+			buyIn: 0,
+			cashOut: 0,
+		});
+	});
+
+	it.each(TYPE_FILTER_PROCEDURES)("$label rejects an unknown type filter", ({
+		procedure,
+	}) => {
+		expectRejects(procedure, { type: "spin_and_go" });
+	});
+
+	it.each(ANTE_TYPE_SCHEMAS)("$label rejects an unknown anteType", ({
+		procedure,
+		base,
+	}) => {
+		expectRejects(procedure, { ...base, anteType: "sb" });
+	});
+
+	it.each(
+		RULE_NAME_SCHEMAS
+	)("create rejects an empty ruleName on a $label session", ({ base }) => {
+		expectRejects(appRouter.session.create, { ...base, ruleName: "" });
+	});
+
+	it("create rejects a chip purchase with an empty name", () => {
+		expectRejects(appRouter.session.create, {
+			...TOURNAMENT_BASE,
+			chipPurchases: [{ ...CHIP_PURCHASE_BASE, name: "" }],
+		});
+	});
+
+	it.each(
+		CASH_CREATE_MONEY_FIELDS
+	)("create (cash_game) accepts 0 and rejects a negative or fractional %s", (field) => {
+		expectAccepts(appRouter.session.create, { ...CASH_BASE, [field]: 0 });
+		expectRejects(appRouter.session.create, { ...CASH_BASE, [field]: -1 });
+		expectRejects(appRouter.session.create, { ...CASH_BASE, [field]: 0.5 });
+	});
+
+	it.each(
+		TOURNAMENT_CREATE_MONEY_FIELDS
+	)("create (tournament) accepts 0 and rejects a negative or fractional %s", (field) => {
+		expectAccepts(appRouter.session.create, {
+			...TOURNAMENT_BASE,
+			[field]: 0,
+		});
+		expectRejects(appRouter.session.create, {
+			...TOURNAMENT_BASE,
+			[field]: -1,
+		});
+		expectRejects(appRouter.session.create, {
+			...TOURNAMENT_BASE,
+			[field]: 0.5,
+		});
+	});
+
+	it.each(
+		UPDATE_MONEY_FIELDS
+	)("update accepts 0 and rejects a negative, fractional, or null %s", (field) => {
+		expectAccepts(appRouter.session.update, { ...UPDATE_BASE, [field]: 0 });
+		expectRejects(appRouter.session.update, { ...UPDATE_BASE, [field]: -1 });
+		expectRejects(appRouter.session.update, {
+			...UPDATE_BASE,
+			[field]: 0.5,
+		});
+		expectRejects(appRouter.session.update, {
+			...UPDATE_BASE,
+			[field]: null,
+		});
+	});
+
+	it.each(
+		UPDATE_NULLABLE_MONEY_FIELDS
+	)("update accepts 0 or null and rejects a negative or fractional %s", (field) => {
+		expectAccepts(appRouter.session.update, { ...UPDATE_BASE, [field]: 0 });
+		expectAccepts(appRouter.session.update, {
+			...UPDATE_BASE,
+			[field]: null,
+		});
+		expectRejects(appRouter.session.update, { ...UPDATE_BASE, [field]: -1 });
+		expectRejects(appRouter.session.update, {
+			...UPDATE_BASE,
+			[field]: 0.5,
+		});
+	});
+
+	it.each(
+		BLIND_LEVEL_MONEY_FIELDS
+	)("blind level %s accepts 0 or null and rejects a negative value on create and update", (field) => {
+		for (const value of [0, null]) {
+			expectAccepts(appRouter.session.create, {
 				...TOURNAMENT_BASE,
-				placement: 10,
-				totalEntries: 5,
-			}).success
-		).toBe(false);
-	});
-
-	it("create accepts tournament session where placement == totalEntries (boundary)", () => {
-		const schema = (
-			appRouter.session.create as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		expect(
-			schema.safeParse({
-				...TOURNAMENT_BASE,
-				placement: 5,
-				totalEntries: 5,
-			}).success
-		).toBe(true);
-	});
-
-	it("create rejects unknown discriminator type", () => {
-		const schema = (
-			appRouter.session.create as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		expect(
-			schema.safeParse({
-				type: "other",
-				sessionDate: 1,
-				buyIn: 0,
-				cashOut: 0,
-			}).success
-		).toBe(false);
-	});
-
-	it("create rejects negative buyIn", () => {
-		const schema = (
-			appRouter.session.create as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		expect(schema.safeParse({ ...CASH_BASE, buyIn: -1 }).success).toBe(false);
-	});
-
-	it("create accepts zero cash rule amounts and rejects every negative cash rule amount", () => {
-		const schema = (
-			appRouter.session.create as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		const zeroAmounts = Object.fromEntries(
-			CASH_RULE_AMOUNT_FIELDS.map((field) => [field, 0])
-		);
-		expect(schema.safeParse({ ...CASH_BASE, ...zeroAmounts }).success).toBe(
-			true
-		);
-		for (const field of CASH_RULE_AMOUNT_FIELDS) {
-			expect(schema.safeParse({ ...CASH_BASE, [field]: -1 }).success).toBe(
-				false
-			);
+				blindLevels: [{ isBreak: false, [field]: value }],
+			});
+			expectAccepts(appRouter.session.update, {
+				...UPDATE_BASE,
+				blindLevels: [{ isBreak: false, [field]: value }],
+			});
 		}
-		for (const [tableSize, expected] of [
-			[1, false],
-			[2, true],
-			[10, true],
-			[11, false],
-		] as const) {
-			expect(schema.safeParse({ ...CASH_BASE, tableSize }).success).toBe(
-				expected
-			);
+		expectRejects(appRouter.session.create, {
+			...TOURNAMENT_BASE,
+			blindLevels: [{ isBreak: false, [field]: -1 }],
+		});
+		expectRejects(appRouter.session.update, {
+			...UPDATE_BASE,
+			blindLevels: [{ isBreak: false, [field]: -1 }],
+		});
+	});
+
+	it.each(
+		CHIP_PURCHASE_MONEY_FIELDS
+	)("chip purchase %s accepts 0 and rejects a negative value", (field) => {
+		expectAccepts(appRouter.session.create, {
+			...TOURNAMENT_BASE,
+			chipPurchases: [{ ...CHIP_PURCHASE_BASE, [field]: 0 }],
+		});
+		expectRejects(appRouter.session.create, {
+			...TOURNAMENT_BASE,
+			chipPurchases: [{ ...CHIP_PURCHASE_BASE, [field]: -1 }],
+		});
+	});
+
+	it.each(TABLE_SIZE_SCHEMAS)("$label bounds tableSize to 2..10", ({
+		procedure,
+		base,
+		nullable,
+	}) => {
+		expectRejects(procedure, { ...base, tableSize: 1 });
+		expectAccepts(procedure, { ...base, tableSize: 2 });
+		expectAccepts(procedure, { ...base, tableSize: 10 });
+		expectRejects(procedure, { ...base, tableSize: 11 });
+		if (nullable) {
+			expectAccepts(procedure, { ...base, tableSize: null });
+		} else {
+			expectRejects(procedure, { ...base, tableSize: null });
 		}
 	});
 
-	it("create accepts zero tournament rule amounts and rejects invalid structure values", () => {
-		const schema = (
-			appRouter.session.create as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		const zeroBlindLevel = Object.fromEntries(
-			TOURNAMENT_BLIND_LEVEL_AMOUNT_FIELDS.map((field) => [field, 0])
-		);
-		expect(
-			schema.safeParse({
-				...TOURNAMENT_BASE,
-				startingStack: 0,
-				bountyAmount: 0,
-				blindLevels: [{ isBreak: false, ...zeroBlindLevel }],
-			}).success
-		).toBe(true);
-		for (const field of ["startingStack", "bountyAmount"] as const) {
-			expect(
-				schema.safeParse({ ...TOURNAMENT_BASE, [field]: -1 }).success
-			).toBe(false);
-		}
-		for (const field of TOURNAMENT_BLIND_LEVEL_AMOUNT_FIELDS) {
-			expect(
-				schema.safeParse({
-					...TOURNAMENT_BASE,
-					blindLevels: [{ isBreak: false, [field]: -1 }],
-				}).success
-			).toBe(false);
-		}
-		for (const [tableSize, expected] of [
-			[1, false],
-			[2, true],
-			[10, true],
-			[11, false],
-		] as const) {
-			expect(schema.safeParse({ ...TOURNAMENT_BASE, tableSize }).success).toBe(
-				expected
-			);
-		}
-		expect(
-			schema.safeParse({
-				...TOURNAMENT_BASE,
-				chipPurchases: [{ name: "", cost: 0, chips: 0 }],
-			}).success
-		).toBe(false);
+	it.each(
+		PLACEMENT_SCHEMAS
+	)("$label rejects placement 0 (placement is 1-based)", ({
+		procedure,
+		base,
+	}) => {
+		expectRejects(procedure, { ...base, placement: 0 });
 	});
 
-	it("list accepts empty object (all filters optional)", () => {
-		const schema = (
-			appRouter.session.list as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		expect(schema.safeParse({}).success).toBe(true);
+	it.each(PLACEMENT_SCHEMAS)("$label accepts placement 1 as the minimum", ({
+		procedure,
+		base,
+	}) => {
+		expectAccepts(procedure, { ...base, placement: 1 });
 	});
 
-	it("list accepts all filter combinations", () => {
-		const schema = (
-			appRouter.session.list as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		expect(
-			schema.safeParse({
-				cursor: "s1",
-				type: "cash_game",
-				roomId: "st1",
-				currencyId: "c1",
-				dateFrom: 1,
-				dateTo: 2,
-			}).success
-		).toBe(true);
+	it.each(PLACEMENT_SCHEMAS)("$label rejects placement above totalEntries", ({
+		procedure,
+		base,
+	}) => {
+		expectRejects(procedure, { ...base, placement: 11, totalEntries: 10 });
 	});
 
-	it("list rejects unknown type", () => {
-		const schema = (
-			appRouter.session.list as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		expect(schema.safeParse({ type: "hybrid" }).success).toBe(false);
+	it.each(
+		PLACEMENT_SCHEMAS
+	)("$label accepts placement equal to totalEntries", ({ procedure, base }) => {
+		expectAccepts(procedure, { ...base, placement: 5, totalEntries: 5 });
 	});
 
+	it.each(
+		PLACEMENT_SCHEMAS
+	)("$label skips the placement cap when beforeDeadline is true", ({
+		procedure,
+		base,
+	}) => {
+		expectAccepts(procedure, {
+			...base,
+			beforeDeadline: true,
+			placement: 10,
+			totalEntries: 5,
+		});
+	});
+
+	it("update skips the placement cap when either side is cleared to null", () => {
+		expectAccepts(appRouter.session.update, {
+			...UPDATE_BASE,
+			placement: null,
+			totalEntries: 3,
+		});
+		expectAccepts(appRouter.session.update, {
+			...UPDATE_BASE,
+			placement: 3,
+			totalEntries: null,
+		});
+	});
+
+	it("update accepts explicit null clears for nullable link fields", () => {
+		expectAccepts(appRouter.session.update, {
+			...UPDATE_BASE,
+			roomId: null,
+			ringGameId: null,
+			tournamentId: null,
+			currencyId: null,
+		});
+	});
+});
+
+describe("session list cursor and profit/loss series helpers", () => {
 	describe("session list cursor (composite keyset)", () => {
 		it("encodes a row as <epochMs>_<id>, using startedAt when present", () => {
 			expect(
@@ -811,363 +944,6 @@ describe("session router input validation", () => {
 			expect(point.evProfitLoss).toBe(-500);
 		});
 	});
-
-	it("getById accepts {id}", () => {
-		const schema = (
-			appRouter.session.getById as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		expect(schema.safeParse({ id: "s1" }).success).toBe(true);
-		expect(schema.safeParse({}).success).toBe(false);
-	});
-
-	it("update accepts id-only payload", () => {
-		const schema = (
-			appRouter.session.update as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		expect(schema.safeParse({ id: "s1" }).success).toBe(true);
-	});
-
-	it("update rejects negative buyIn", () => {
-		const schema = (
-			appRouter.session.update as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		expect(schema.safeParse({ id: "s1", buyIn: -1 }).success).toBe(false);
-	});
-
-	it("update accepts zero and null cash rule values and rejects invalid values", () => {
-		const schema = (
-			appRouter.session.update as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		for (const value of [0, null]) {
-			for (const field of CASH_RULE_AMOUNT_FIELDS) {
-				expect(schema.safeParse({ id: "s1", [field]: value }).success).toBe(
-					true
-				);
-			}
-		}
-		for (const field of CASH_RULE_AMOUNT_FIELDS) {
-			expect(schema.safeParse({ id: "s1", [field]: -1 }).success).toBe(false);
-		}
-		for (const [tableSize, expected] of [
-			[1, false],
-			[2, true],
-			[10, true],
-			[11, false],
-			[null, true],
-		] as const) {
-			expect(schema.safeParse({ id: "s1", tableSize }).success).toBe(expected);
-		}
-	});
-
-	it("update accepts zero and null tournament rule values and rejects invalid values", () => {
-		const schema = (
-			appRouter.session.update as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		const zeroBlindLevel = Object.fromEntries(
-			TOURNAMENT_BLIND_LEVEL_AMOUNT_FIELDS.map((field) => [field, 0])
-		);
-		expect(
-			schema.safeParse({
-				id: "s1",
-				startingStack: 0,
-				bountyAmount: 0,
-				blindLevels: [{ isBreak: false, ...zeroBlindLevel }],
-			}).success
-		).toBe(true);
-		expect(
-			schema.safeParse({
-				id: "s1",
-				startingStack: null,
-				bountyAmount: null,
-				blindLevels: [
-					{
-						isBreak: false,
-						blind1: null,
-						blind2: null,
-						blind3: null,
-						ante: null,
-						minutes: null,
-					},
-				],
-			}).success
-		).toBe(true);
-		for (const field of ["startingStack", "bountyAmount"] as const) {
-			expect(schema.safeParse({ id: "s1", [field]: -1 }).success).toBe(false);
-		}
-		for (const field of TOURNAMENT_BLIND_LEVEL_AMOUNT_FIELDS) {
-			expect(
-				schema.safeParse({
-					id: "s1",
-					blindLevels: [{ isBreak: false, [field]: -1 }],
-				}).success
-			).toBe(false);
-		}
-		for (const [tableSize, expected] of [
-			[1, false],
-			[2, true],
-			[10, true],
-			[11, false],
-			[null, true],
-		] as const) {
-			expect(schema.safeParse({ id: "s1", tableSize }).success).toBe(expected);
-		}
-		expect(
-			schema.safeParse({
-				id: "s1",
-				chipPurchases: [{ name: "", cost: 0, chips: 0 }],
-			}).success
-		).toBe(false);
-	});
-
-	it("update rejects placement < 1", () => {
-		const schema = (
-			appRouter.session.update as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		expect(schema.safeParse({ id: "s1", placement: 0 }).success).toBe(false);
-	});
-
-	it("update rejects placement greater than totalEntries", () => {
-		const schema = (
-			appRouter.session.update as unknown as { _def: { inputs: unknown[] } }
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		expect(
-			schema.safeParse({ id: "s1", placement: 11, totalEntries: 10 }).success
-		).toBe(false);
-	});
-	it("update accepts and retains an edited rule name", () => {
-		const schema = (
-			appRouter.session.update as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as {
-			safeParse: (v: unknown) => {
-				data?: { ruleName?: string };
-				success: boolean;
-			};
-		};
-		const parsed = schema.safeParse({ id: "s1", ruleName: "My 1/2 NLH" });
-		expect(parsed.success).toBe(true);
-		expect(parsed.data?.ruleName).toBe("My 1/2 NLH");
-	});
-
-	it("update accepts and retains cash min/max buy-in", () => {
-		const schema = (
-			appRouter.session.update as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as {
-			safeParse: (v: unknown) => {
-				data?: { maxBuyIn?: number; minBuyIn?: number };
-				success: boolean;
-			};
-		};
-		const parsed = schema.safeParse({ id: "s1", minBuyIn: 100, maxBuyIn: 500 });
-		expect(parsed.success).toBe(true);
-		expect(parsed.data?.minBuyIn).toBe(100);
-		expect(parsed.data?.maxBuyIn).toBe(500);
-	});
-
-	it("create accepts cash session with snapshot override fields", () => {
-		const schema = (
-			appRouter.session.create as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		expect(
-			schema.safeParse({
-				...CASH_BASE,
-				ruleName: "1/2 NLH (this session)",
-				minBuyIn: 100,
-				maxBuyIn: 400,
-				tableSize: 9,
-			}).success
-		).toBe(true);
-	});
-
-	it("create rejects empty ruleName on cash session", () => {
-		const schema = (
-			appRouter.session.create as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		expect(schema.safeParse({ ...CASH_BASE, ruleName: "" }).success).toBe(
-			false
-		);
-	});
-
-	it("create accepts tournament session with snapshot override fields and structure arrays", () => {
-		const schema = (
-			appRouter.session.create as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		expect(
-			schema.safeParse({
-				...TOURNAMENT_BASE,
-				ruleName: "Main Event (session-only)",
-				variant: "nlh",
-				startingStack: 20_000,
-				bountyAmount: 500,
-				tableSize: 9,
-				blindLevels: [
-					{
-						isBreak: false,
-						blind1: 100,
-						blind2: 200,
-						blind3: null,
-						ante: null,
-						minutes: 15,
-					},
-				],
-				chipPurchases: [{ name: "Rebuy", cost: 100, chips: 10_000 }],
-			}).success
-		).toBe(true);
-	});
-
-	it("create accepts chipPurchases carrying an explicit count", () => {
-		const schema = (
-			appRouter.session.create as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		expect(
-			schema.safeParse({
-				...TOURNAMENT_BASE,
-				chipPurchases: [{ name: "Rebuy", cost: 100, chips: 10_000, count: 3 }],
-			}).success
-		).toBe(true);
-	});
-
-	it("create rejects a negative chip purchase count", () => {
-		const schema = (
-			appRouter.session.create as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		expect(
-			schema.safeParse({
-				...TOURNAMENT_BASE,
-				chipPurchases: [{ name: "Rebuy", cost: 100, chips: 10_000, count: -1 }],
-			}).success
-		).toBe(false);
-	});
-
-	it("create no longer accepts the legacy rebuyCount field as a real column", () => {
-		const schema = (
-			appRouter.session.create as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as {
-			safeParse: (v: unknown) => {
-				data?: Record<string, unknown>;
-				success: boolean;
-			};
-		};
-		const parsed = schema.safeParse({ ...TOURNAMENT_BASE, rebuyCount: 5 });
-		expect(parsed.success).toBe(true);
-		expect(parsed.data?.rebuyCount).toBeUndefined();
-	});
-
-	it("create rejects a blind level missing isBreak on tournament session", () => {
-		const schema = (
-			appRouter.session.create as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		expect(
-			schema.safeParse({
-				...TOURNAMENT_BASE,
-				blindLevels: [{ blind1: 100 }],
-			}).success
-		).toBe(false);
-	});
-
-	it("update accepts explicit null clears for nullable link fields", () => {
-		const schema = (
-			appRouter.session.update as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		expect(
-			schema.safeParse({
-				id: "s1",
-				roomId: null,
-				ringGameId: null,
-				tournamentId: null,
-				currencyId: null,
-			}).success
-		).toBe(true);
-	});
-
-	it("update accepts and retains tournament snapshot override fields and blind level structure", () => {
-		const schema = (
-			appRouter.session.update as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as {
-			safeParse: (v: unknown) => {
-				data?: Record<string, unknown>;
-				success: boolean;
-			};
-		};
-		const input = {
-			id: "s1",
-			variant: "nlh",
-			startingStack: 20_000,
-			bountyAmount: 500,
-			tableSize: 9,
-			blindLevels: [
-				{
-					isBreak: false,
-					blind1: 100,
-					blind2: 200,
-					blind3: null,
-					ante: null,
-					minutes: 15,
-				},
-			],
-		};
-		const parsed = schema.safeParse(input);
-		expect(parsed.success).toBe(true);
-		expect(parsed.data?.startingStack).toBe(20_000);
-		expect(parsed.data?.bountyAmount).toBe(500);
-		expect(parsed.data?.blindLevels).toEqual(input.blindLevels);
-	});
-
-	it("update rejects a blind level missing isBreak", () => {
-		const schema = (
-			appRouter.session.update as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		expect(
-			schema.safeParse({
-				id: "s1",
-				blindLevels: [{ blind1: 100 }],
-			}).success
-		).toBe(false);
-	});
-
-	it("delete rejects missing id", () => {
-		const schema = (
-			appRouter.session.delete as unknown as {
-				_def: { inputs: unknown[] };
-			}
-		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
-		expect(schema.safeParse({}).success).toBe(false);
-	});
 });
 
 describe("assertNoLiveLinkedRestrictedEdits", () => {
@@ -1380,8 +1156,6 @@ describe("computeTournamentPL", () => {
 });
 
 describe("validateEntityOwnership (tournament branch)", () => {
-	const CALLER = "user-1";
-	const OTHER = "user-2";
 	const TOURNAMENT_ID = "tn-1";
 	const ROOM_ID = "room-1";
 
@@ -1444,8 +1218,6 @@ describe("validateEntityOwnership (tournament branch)", () => {
 });
 
 describe("validateEntityOwnership (ringGame branch) (SA2-181)", () => {
-	const CALLER = "user-1";
-	const OTHER = "user-2";
 	const RING_GAME_ID = "rg-1";
 	const ROOM_ID = "room-1";
 
@@ -1527,8 +1299,6 @@ describe("validateEntityOwnership (ringGame branch) (SA2-181)", () => {
 });
 
 describe("session.create auto-generated ring game ownership (SA2-181)", () => {
-	const CALLER = "user-1";
-
 	it("stamps the creating user's id on the auto-generated ring_game", async () => {
 		const { db, inserted } = createChainableMockDb({ select: {} });
 		const caller = appRouter.createCaller({
@@ -1553,19 +1323,8 @@ describe("session.create auto-generated ring game ownership (SA2-181)", () => {
 });
 
 describe("session.create auto-generated ring game derived name (c11)", () => {
-	const CALLER = "user-1";
-
-	function callerFor(select: Record<string, Record<string, unknown>[]> = {}) {
-		const { db, inserted } = createChainableMockDb({ select });
-		const caller = appRouter.createCaller({
-			session: { user: { id: CALLER } },
-			db,
-		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
-		return { caller, inserted };
-	}
-
 	it("derives 'Variant blind1/blind2' when blinds are provided (non-mix)", async () => {
-		const { caller, inserted } = callerFor();
+		const { caller, inserted } = makeCaller();
 		await caller.session.create({
 			type: "cash_game",
 			sessionDate: 1_700_000_000,
@@ -1579,7 +1338,7 @@ describe("session.create auto-generated ring game derived name (c11)", () => {
 	});
 
 	it("derives the display label alone (no '0/0' suffix) for a mix rule with no direct blinds", async () => {
-		const { caller, inserted } = callerFor({
+		const { caller, inserted } = makeCaller({
 			game_variant: [
 				{ id: "variant-1", userId: CALLER, label: "NL Hold'em" },
 				{
@@ -1631,7 +1390,7 @@ describe("session.create auto-generated ring game derived name (c11)", () => {
 	});
 
 	it("derives the display label alone (no '0/0' suffix) for a non-mix rule with no blinds at all", async () => {
-		const { caller, inserted } = callerFor();
+		const { caller, inserted } = makeCaller();
 		await caller.session.create({
 			type: "cash_game",
 			sessionDate: 1_700_000_000,
@@ -1645,8 +1404,6 @@ describe("session.create auto-generated ring game derived name (c11)", () => {
 });
 
 describe("validateTagsOwnership (SA2-177)", () => {
-	const CALLER = "user-1";
-
 	it("resolves without reading when ids is undefined", async () => {
 		const { db, selectedTables } = createChainableMockDb();
 		await expect(
@@ -1821,7 +1578,6 @@ describe("cash rule snapshot: variant inheritance (c10)", () => {
 });
 
 describe("session.create cash variant / mixGames persistence invariant", () => {
-	const CALLER = "user-1";
 	const parentMix = [
 		{
 			name: "Big Bet",
@@ -2157,7 +1913,7 @@ describe("session.update tournament placement integrity (SA2-161)", () => {
 		sessionDate: new Date(1_700_000_000_000),
 	};
 
-	function makeCaller(detail: {
+	function makePlacementCaller(detail: {
 		beforeDeadline: boolean | null;
 		placement: number | null;
 		totalEntries: number | null;
@@ -2178,7 +1934,7 @@ describe("session.update tournament placement integrity (SA2-161)", () => {
 	}
 
 	it("rejects a placement-only patch above the existing total entries", async () => {
-		const { caller, updateWhereParams } = makeCaller({
+		const { caller, updateWhereParams } = makePlacementCaller({
 			beforeDeadline: false,
 			placement: 3,
 			totalEntries: 10,
@@ -2191,7 +1947,7 @@ describe("session.update tournament placement integrity (SA2-161)", () => {
 	});
 
 	it("rejects a totalEntries-only patch below the existing placement", async () => {
-		const { caller, updateWhereParams } = makeCaller({
+		const { caller, updateWhereParams } = makePlacementCaller({
 			beforeDeadline: false,
 			placement: 7,
 			totalEntries: 10,
@@ -2283,34 +2039,6 @@ describe("session joined ownership scoping", () => {
 });
 
 describe("session.list EV falls back to the actual result without an EV cash-out", () => {
-	function listCallerRows(rows: Record<string, unknown>[]) {
-		const { db } = createChainableMockDb({
-			select: {
-				game_session: rows.map((row, index) => ({
-					id: `session-${index + 1}`,
-					type: "cash_game",
-					source: "manual",
-					buyIn: null,
-					cashOut: null,
-					evCashOut: null,
-					chipRemoveTotal: null,
-					...row,
-				})),
-				session_chip_purchase: [],
-				session_blind_level: [],
-				session_to_session_tag: [],
-			},
-		});
-		return appRouter.createCaller({
-			session: { user: { id: "user-1" } },
-			db,
-		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
-	}
-
-	function listCaller(row: Record<string, unknown>) {
-		return listCallerRows([row]);
-	}
-
 	it("reports evProfitLoss = profitLoss and evDiff = 0 when evCashOut is null", async () => {
 		const caller = listCaller({ buyIn: 500, cashOut: 700, evCashOut: null });
 
@@ -2419,23 +2147,10 @@ describe("session.list EV falls back to the actual result without an EV cash-out
 });
 
 describe("session.list filter ownership", () => {
-	const CALLER = "user-1";
-	const OTHER = "user-2";
 	const FILTER_CASES = [
 		{ input: { roomId: "room-1" }, table: "room" },
 		{ input: { currencyId: "currency-1" }, table: "currency" },
 	] as const;
-
-	function makeCaller(select: Record<string, Record<string, unknown>[]>) {
-		const mock = createChainableMockDb({ select });
-		return {
-			...mock,
-			caller: appRouter.createCaller({
-				session: { user: { id: CALLER } },
-				db: mock.db,
-			} as unknown as Parameters<typeof appRouter.createCaller>[0]),
-		};
-	}
 
 	it("continues to the session query when no ownership-scoped filter is supplied", async () => {
 		const { caller, selectedTables } = makeCaller({ game_session: [] });
@@ -2500,24 +2215,11 @@ describe("session.list filter ownership", () => {
 });
 
 describe("session.profitLossSeries filter ownership", () => {
-	const CALLER = "user-1";
-	const OTHER = "user-2";
 	const FILTER_CASES = [
 		{ input: { roomId: "room-1" }, table: "room" },
 		{ input: { currencyId: "currency-1" }, table: "currency" },
 		{ input: { ringGameId: "ring-game-1" }, table: "ring_game" },
 	] as const;
-
-	function makeCaller(select: Record<string, Record<string, unknown>[]>) {
-		const mock = createChainableMockDb({ select });
-		return {
-			...mock,
-			caller: appRouter.createCaller({
-				session: { user: { id: CALLER } },
-				db: mock.db,
-			} as unknown as Parameters<typeof appRouter.createCaller>[0]),
-		};
-	}
 
 	it("continues to the session query when no ownership-scoped filter is supplied", async () => {
 		const { caller, selectedTables } = makeCaller({ game_session: [] });
@@ -2581,5 +2283,236 @@ describe("session.profitLossSeries filter ownership", () => {
 
 		expect(selectedTables).toContain(table);
 		expect(selectedTables).toContain("game_session");
+	});
+});
+
+describe("session ownership (getById / update / delete)", () => {
+	const OWNED_SESSION = {
+		id: "s1",
+		userId: CALLER,
+		kind: "cash_game",
+		source: "manual",
+		currencyId: null,
+		sessionDate: new Date(1_700_000_000_000),
+	};
+
+	it("getById rejects a missing session with FORBIDDEN before enriching", async () => {
+		const { caller, selectedTables } = makeCaller({ game_session: [] });
+
+		await expect(caller.session.getById({ id: "s1" })).rejects.toMatchObject({
+			code: "FORBIDDEN",
+		});
+		expect(selectedTables).toEqual(["game_session"]);
+	});
+
+	it("getById rejects another user's session with FORBIDDEN", async () => {
+		const { caller, selectedTables } = makeCaller({
+			game_session: [{ ...OWNED_SESSION, userId: OTHER }],
+		});
+
+		await expect(caller.session.getById({ id: "s1" })).rejects.toMatchObject({
+			code: "FORBIDDEN",
+		});
+		expect(selectedTables).toEqual(["game_session"]);
+	});
+
+	it("delete refuses a missing session", async () => {
+		const { caller, deleteWhereParams } = makeCaller({ game_session: [] });
+
+		await expect(caller.session.delete({ id: "s1" })).rejects.toMatchObject({
+			code: "FORBIDDEN",
+		});
+		expect(deleteWhereParams).toEqual([]);
+	});
+
+	it("delete refuses another user's session", async () => {
+		const { caller, deleteWhereParams } = makeCaller({
+			game_session: [{ ...OWNED_SESSION, userId: OTHER }],
+		});
+
+		await expect(caller.session.delete({ id: "s1" })).rejects.toMatchObject({
+			code: "FORBIDDEN",
+		});
+		expect(deleteWhereParams).toEqual([]);
+	});
+
+	it("delete removes only the owned session", async () => {
+		const { caller, deleteWhereParams } = makeCaller({
+			game_session: [OWNED_SESSION],
+		});
+
+		await expect(caller.session.delete({ id: "s1" })).resolves.toEqual({
+			success: true,
+		});
+		expect(deleteWhereParams).toEqual([["s1"]]);
+	});
+
+	it("update rejects another user's session before writing", async () => {
+		const { caller, inserted, updated, updateWhereParams } = makeCaller({
+			game_session: [{ ...OWNED_SESSION, userId: OTHER }],
+		});
+
+		await expect(
+			caller.session.update({ id: "s1", memo: "edited" })
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(updated).toEqual({});
+		expect(inserted).toEqual({});
+		expect(updateWhereParams).toEqual([]);
+	});
+});
+
+describe("session.list filter predicates", () => {
+	it.each([
+		{
+			label: "type",
+			input: { type: "tournament" as const },
+			param: "tournament",
+		},
+		{
+			label: "dateFrom",
+			input: { dateFrom: 1_700_000_000 },
+			param: 1_700_000_000,
+		},
+		{ label: "dateTo", input: { dateTo: 1_800_000_000 }, param: 1_800_000_000 },
+	])("binds the $label filter into both the page and the summary WHERE", async ({
+		input,
+		param,
+	}) => {
+		const { caller, selectWhereParams } = makeCaller({ game_session: [] });
+
+		await caller.session.list(input);
+
+		expect(selectWhereParams).toEqual([
+			[CALLER, param],
+			[CALLER, param],
+		]);
+	});
+
+	it("binds only the owner when no filter is supplied", async () => {
+		const { caller, selectWhereParams } = makeCaller({ game_session: [] });
+
+		await caller.session.list({});
+
+		expect(selectWhereParams).toEqual([[CALLER], [CALLER]]);
+	});
+});
+
+describe("session.list tournament summary aggregates", () => {
+	const TOURNAMENT_ROW = {
+		type: "tournament",
+		tournamentBuyIn: 100,
+		entryFee: 0,
+		prizeMoney: null,
+		bountyPrizes: null,
+		placement: null,
+		totalEntries: null,
+	};
+
+	it("counts a tournament as in the money when its prize money is positive", async () => {
+		const caller = listCallerRows([{ ...TOURNAMENT_ROW, prizeMoney: 100 }]);
+
+		const { summary } = await caller.session.list({ type: "tournament" });
+
+		expect(summary.itmRate).toBe(100);
+	});
+
+	it("counts bounty-only winnings as in the money and zero winnings as not", async () => {
+		const caller = listCallerRows([
+			{ ...TOURNAMENT_ROW, bountyPrizes: 20 },
+			{ ...TOURNAMENT_ROW, prizeMoney: 0, bountyPrizes: 0 },
+		]);
+
+		const { summary } = await caller.session.list({ type: "tournament" });
+
+		expect(summary.itmRate).toBe(50);
+		expect(summary.totalPrizeMoney).toBe(20);
+	});
+
+	it("averages placement only over tournaments that recorded one", async () => {
+		const caller = listCallerRows([
+			{ ...TOURNAMENT_ROW, placement: 1 },
+			{ ...TOURNAMENT_ROW, placement: null },
+			{ ...TOURNAMENT_ROW, placement: 3 },
+		]);
+
+		const { summary } = await caller.session.list({ type: "tournament" });
+
+		expect(summary.avgPlacement).toBe(2);
+	});
+
+	it("leaves the tournament aggregates null unless the list is filtered to tournaments", async () => {
+		const caller = listCallerRows([
+			{ ...TOURNAMENT_ROW, prizeMoney: 100, placement: 1 },
+		]);
+
+		const { summary } = await caller.session.list({});
+
+		expect(summary).toMatchObject({
+			itmRate: null,
+			avgPlacement: null,
+			totalPrizeMoney: null,
+		});
+	});
+});
+
+describe("session.create currency transaction amount", () => {
+	const LINKED = {
+		currency: [{ id: "c1", userId: CALLER }],
+		transaction_type: [{ id: "tt1" }],
+	};
+
+	it("records cashOut - buyIn for a cash game", async () => {
+		const { caller, inserted } = makeCaller(LINKED);
+
+		await caller.session.create({
+			type: "cash_game",
+			sessionDate: 1_700_000_000,
+			buyIn: 1000,
+			cashOut: 2000,
+			currencyId: "c1",
+		});
+
+		expect(inserted.currency_transaction).toEqual([
+			expect.objectContaining({
+				currencyId: "c1",
+				transactionTypeId: "tt1",
+				amount: 1000,
+			}),
+		]);
+	});
+
+	it("subtracts buy-in, entry fee, and cost x count of chip purchases from prize and bounty income", async () => {
+		const { caller, inserted } = makeCaller(LINKED);
+
+		await caller.session.create({
+			type: "tournament",
+			sessionDate: 1_700_000_000,
+			tournamentBuyIn: 100,
+			entryFee: 10,
+			chipPurchases: [{ name: "Rebuy", cost: 50, chips: 1000, count: 2 }],
+			prizeMoney: 500,
+			bountyPrizes: 20,
+			currencyId: "c1",
+		});
+
+		expect(inserted.currency_transaction).toEqual([
+			expect.objectContaining({ currencyId: "c1", amount: 310 }),
+		]);
+	});
+
+	it("treats a missing prize and bounty as zero", async () => {
+		const { caller, inserted } = makeCaller(LINKED);
+
+		await caller.session.create({
+			type: "tournament",
+			sessionDate: 1_700_000_000,
+			tournamentBuyIn: 100,
+			entryFee: 10,
+			currencyId: "c1",
+		});
+
+		expect(inserted.currency_transaction).toEqual([
+			expect.objectContaining({ currencyId: "c1", amount: -110 }),
+		]);
 	});
 });

@@ -6,9 +6,8 @@ import { appRouter } from "../routers";
 import {
 	createChainableMockDb,
 	expectAccepts,
-	expectProtected,
+	expectProcedureSurface,
 	expectRejects,
-	expectType,
 } from "./test-utils";
 
 type Rows = Record<string, unknown>[];
@@ -43,35 +42,16 @@ const SESSIONS_ROW = {
 	isDefault: false,
 };
 
+const writers = [
+	[
+		"create",
+		appRouter.filterPreset.create,
+		{ screenKey: "sessions", payload: {} },
+	],
+	["update", appRouter.filterPreset.update, { id: "fp-1" }],
+] as const;
+
 describe("filterPreset router", () => {
-	it("appRouter has filterPreset namespace", () => {
-		expect(appRouter.filterPreset).toBeDefined();
-	});
-
-	it("has list procedure", () => {
-		expect(appRouter.filterPreset.list).toBeDefined();
-	});
-
-	it("has create procedure", () => {
-		expect(appRouter.filterPreset.create).toBeDefined();
-	});
-
-	it("has update procedure", () => {
-		expect(appRouter.filterPreset.update).toBeDefined();
-	});
-
-	it("has delete procedure", () => {
-		expect(appRouter.filterPreset.delete).toBeDefined();
-	});
-
-	it("has setDefault procedure", () => {
-		expect(appRouter.filterPreset.setDefault).toBeDefined();
-	});
-
-	it("has clearDefault procedure", () => {
-		expect(appRouter.filterPreset.clearDefault).toBeDefined();
-	});
-
 	it("exposes exactly the expected procedure set", () => {
 		expect(Object.keys(appRouter.filterPreset).sort()).toEqual(
 			[
@@ -85,56 +65,49 @@ describe("filterPreset router", () => {
 		);
 	});
 
-	it("list is a protected query", () => {
-		expectProtected(appRouter.filterPreset.list);
-		expectType(appRouter.filterPreset.list, "query");
-	});
-
-	it("create / update / delete / setDefault / clearDefault are protected mutations", () => {
-		for (const proc of [
-			appRouter.filterPreset.create,
-			appRouter.filterPreset.update,
-			appRouter.filterPreset.delete,
-			appRouter.filterPreset.setDefault,
-			appRouter.filterPreset.clearDefault,
-		]) {
-			expectProtected(proc);
-			expectType(proc, "mutation");
-		}
+	it("every procedure is a protected query or mutation", () => {
+		expectProcedureSurface(appRouter.filterPreset, {
+			clearDefault: "mutation",
+			create: "mutation",
+			delete: "mutation",
+			list: "query",
+			setDefault: "mutation",
+			update: "mutation",
+		});
 	});
 });
 
 describe("filterPreset.list input validation", () => {
-	it("accepts screenKey: sessions", () => {
-		expectAccepts(appRouter.filterPreset.list, { screenKey: "sessions" });
-	});
-
-	it("accepts screenKey: statistics", () => {
-		expectAccepts(appRouter.filterPreset.list, { screenKey: "statistics" });
-	});
-
-	it("rejects missing screenKey", () => {
-		expectRejects(appRouter.filterPreset.list, {});
-	});
-
 	it("rejects an unknown screenKey", () => {
 		expectRejects(appRouter.filterPreset.list, { screenKey: "dashboard" });
 	});
+});
 
-	it("rejects a non-string screenKey", () => {
-		expectRejects(appRouter.filterPreset.list, { screenKey: 1 });
+describe("filterPreset name validation", () => {
+	it.each(writers)("%s rejects an empty name", (_name, procedure, base) => {
+		expectRejects(procedure, { ...base, name: "" });
+	});
+
+	it.each(
+		writers
+	)("%s rejects a whitespace-only name (trimmed to empty)", (_name, procedure, base) => {
+		expectRejects(procedure, { ...base, name: "   " });
+	});
+
+	it.each(
+		writers
+	)("%s accepts a name at the 50-character boundary", (_name, procedure, base) => {
+		expectAccepts(procedure, { ...base, name: "a".repeat(50) });
+	});
+
+	it.each(
+		writers
+	)("%s rejects a name longer than 50 characters", (_name, procedure, base) => {
+		expectRejects(procedure, { ...base, name: "a".repeat(51) });
 	});
 });
 
 describe("filterPreset.create input validation", () => {
-	it("accepts a minimal sessions payload", () => {
-		expectAccepts(appRouter.filterPreset.create, {
-			screenKey: "sessions",
-			name: "My Preset",
-			payload: {},
-		});
-	});
-
 	it("accepts a full sessions payload", () => {
 		expectAccepts(appRouter.filterPreset.create, {
 			screenKey: "sessions",
@@ -148,38 +121,6 @@ describe("filterPreset.create input validation", () => {
 				currencyId: "cur-1",
 				display: "normalized",
 			},
-		});
-	});
-
-	it("accepts display: 'currency' on a sessions payload", () => {
-		expectAccepts(appRouter.filterPreset.create, {
-			screenKey: "sessions",
-			name: "My Preset",
-			payload: { display: "currency" },
-		});
-	});
-
-	it("rejects an invalid 'display' value on sessions payload", () => {
-		expectRejects(appRouter.filterPreset.create, {
-			screenKey: "sessions",
-			name: "My Preset",
-			payload: { display: "bb" },
-		});
-	});
-
-	it("rejects a sessions-only payload field ('display') under screenKey: statistics", () => {
-		expectRejects(appRouter.filterPreset.create, {
-			screenKey: "statistics",
-			name: "My Preset",
-			payload: { display: "currency" },
-		});
-	});
-
-	it("accepts a minimal statistics payload", () => {
-		expectAccepts(appRouter.filterPreset.create, {
-			screenKey: "statistics",
-			name: "My Preset",
-			payload: {},
 		});
 	});
 
@@ -199,13 +140,6 @@ describe("filterPreset.create input validation", () => {
 		});
 	});
 
-	it("rejects missing screenKey", () => {
-		expectRejects(appRouter.filterPreset.create, {
-			name: "My Preset",
-			payload: {},
-		});
-	});
-
 	it("rejects an unknown screenKey", () => {
 		expectRejects(appRouter.filterPreset.create, {
 			screenKey: "dashboard",
@@ -214,81 +148,11 @@ describe("filterPreset.create input validation", () => {
 		});
 	});
 
-	it("rejects missing name", () => {
-		expectRejects(appRouter.filterPreset.create, {
-			screenKey: "sessions",
-			payload: {},
-		});
-	});
-
-	it("rejects an empty name", () => {
-		expectRejects(appRouter.filterPreset.create, {
-			screenKey: "sessions",
-			name: "",
-			payload: {},
-		});
-	});
-
-	it("rejects a whitespace-only name (trimmed to empty)", () => {
-		expectRejects(appRouter.filterPreset.create, {
-			screenKey: "sessions",
-			name: "   ",
-			payload: {},
-		});
-	});
-
-	it("accepts a name at the 50-character boundary", () => {
-		expectAccepts(appRouter.filterPreset.create, {
-			screenKey: "sessions",
-			name: "a".repeat(50),
-			payload: {},
-		});
-	});
-
-	it("rejects a name longer than 50 characters (51 chars)", () => {
-		expectRejects(appRouter.filterPreset.create, {
-			screenKey: "sessions",
-			name: "a".repeat(51),
-			payload: {},
-		});
-	});
-
-	it("rejects missing payload", () => {
+	it("rejects an invalid 'display' value on sessions payload", () => {
 		expectRejects(appRouter.filterPreset.create, {
 			screenKey: "sessions",
 			name: "My Preset",
-		});
-	});
-
-	it("rejects a statistics-only payload field ('norm') under screenKey: sessions", () => {
-		expectRejects(appRouter.filterPreset.create, {
-			screenKey: "sessions",
-			name: "My Preset",
-			payload: { norm: "off" },
-		});
-	});
-
-	it("rejects a sessions-only payload field ('roomId') under screenKey: statistics", () => {
-		expectRejects(appRouter.filterPreset.create, {
-			screenKey: "statistics",
-			name: "My Preset",
-			payload: { roomId: "room-1" },
-		});
-	});
-
-	it("rejects a non-integer 'from' on sessions payload", () => {
-		expectRejects(appRouter.filterPreset.create, {
-			screenKey: "sessions",
-			name: "My Preset",
-			payload: { from: 1.5 },
-		});
-	});
-
-	it("rejects a non-integer 'to' on statistics payload", () => {
-		expectRejects(appRouter.filterPreset.create, {
-			screenKey: "statistics",
-			name: "My Preset",
-			payload: { to: 2.5 },
+			payload: { display: "bb" },
 		});
 	});
 
@@ -308,49 +172,31 @@ describe("filterPreset.create input validation", () => {
 		});
 	});
 
-	it("rejects a non-string roomId on sessions payload", () => {
+	it.each([
+		["display", "statistics", { display: "currency" }],
+		["roomId", "statistics", { roomId: "room-1" }],
+		["norm", "sessions", { norm: "off" }],
+	])("rejects the screen-scoped field '%s' under screenKey: %s", (_field, screenKey, payload) => {
 		expectRejects(appRouter.filterPreset.create, {
-			screenKey: "sessions",
+			screenKey,
 			name: "My Preset",
-			payload: { roomId: 123 },
+			payload,
+		});
+	});
+
+	it.each([
+		["from", "sessions", { from: 1.5 }],
+		["to", "statistics", { to: 2.5 }],
+	])("rejects a non-integer '%s' on the %s payload", (_field, screenKey, payload) => {
+		expectRejects(appRouter.filterPreset.create, {
+			screenKey,
+			name: "My Preset",
+			payload,
 		});
 	});
 });
 
 describe("filterPreset.update input validation", () => {
-	it("accepts id-only payload (no-op)", () => {
-		expectAccepts(appRouter.filterPreset.update, { id: "fp-1" });
-	});
-
-	it("accepts id + name", () => {
-		expectAccepts(appRouter.filterPreset.update, {
-			id: "fp-1",
-			name: "Renamed",
-		});
-	});
-
-	it("rejects missing id", () => {
-		expectRejects(appRouter.filterPreset.update, { name: "Renamed" });
-	});
-
-	it("rejects an empty name when provided", () => {
-		expectRejects(appRouter.filterPreset.update, { id: "fp-1", name: "" });
-	});
-
-	it("accepts a name at the 50-character boundary", () => {
-		expectAccepts(appRouter.filterPreset.update, {
-			id: "fp-1",
-			name: "a".repeat(50),
-		});
-	});
-
-	it("rejects a name longer than 50 characters (51 chars)", () => {
-		expectRejects(appRouter.filterPreset.update, {
-			id: "fp-1",
-			name: "a".repeat(51),
-		});
-	});
-
 	it("accepts a payload shaped like a sessions payload", () => {
 		expectAccepts(appRouter.filterPreset.update, {
 			id: "fp-1",
@@ -377,55 +223,6 @@ describe("filterPreset.update input validation", () => {
 			id: "fp-1",
 			payload: { from: 1.5 },
 		});
-	});
-
-	it("rejects a non-object payload", () => {
-		expectRejects(appRouter.filterPreset.update, {
-			id: "fp-1",
-			payload: "not-an-object",
-		});
-	});
-});
-
-describe("filterPreset.delete input validation", () => {
-	it("accepts a valid id", () => {
-		expectAccepts(appRouter.filterPreset.delete, { id: "fp-1" });
-	});
-
-	it("rejects missing id", () => {
-		expectRejects(appRouter.filterPreset.delete, {});
-	});
-
-	it("rejects a non-string id", () => {
-		expectRejects(appRouter.filterPreset.delete, { id: 1 });
-	});
-});
-
-describe("filterPreset.setDefault input validation", () => {
-	it("accepts a valid id", () => {
-		expectAccepts(appRouter.filterPreset.setDefault, { id: "fp-1" });
-	});
-
-	it("rejects missing id", () => {
-		expectRejects(appRouter.filterPreset.setDefault, {});
-	});
-
-	it("rejects a non-string id", () => {
-		expectRejects(appRouter.filterPreset.setDefault, { id: 1 });
-	});
-});
-
-describe("filterPreset.clearDefault input validation", () => {
-	it("accepts a valid id", () => {
-		expectAccepts(appRouter.filterPreset.clearDefault, { id: "fp-1" });
-	});
-
-	it("rejects missing id", () => {
-		expectRejects(appRouter.filterPreset.clearDefault, {});
-	});
-
-	it("rejects a non-string id", () => {
-		expectRejects(appRouter.filterPreset.clearDefault, { id: 1 });
 	});
 });
 
@@ -594,13 +391,18 @@ describe("filterPreset.update behavior", () => {
 		expect(selectLimits).toContain(1);
 	});
 
-	it("allows resubmitting the row's own unchanged name (no self-collision)", async () => {
-		const { caller } = filterPresetCaller(OWNER, {
+	it("allows resubmitting the row's own unchanged name without a collision query", async () => {
+		const { caller, selectWhereParams, updated } = filterPresetCaller(OWNER, {
 			[TABLE]: [SESSIONS_ROW],
 		});
-		await expect(
-			caller.update({ id: "fp-1", name: "My Preset" })
-		).resolves.toBeDefined();
+		await caller.update({ id: "fp-1", name: "My Preset" });
+		expect(updated[TABLE]?.[0]).toMatchObject({ name: "My Preset" });
+		expect(selectWhereParams).not.toContainEqual([
+			OWNER,
+			"sessions",
+			"My Preset",
+			"fp-1",
+		]);
 	});
 
 	it("converts a UNIQUE constraint violation from the update into CONFLICT (TOCTOU backstop)", async () => {

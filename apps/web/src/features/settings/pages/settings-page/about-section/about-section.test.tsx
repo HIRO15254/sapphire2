@@ -16,28 +16,15 @@ vi.mock("./use-about-section", () => ({
 }));
 
 describe("AboutSection", () => {
-	it("renders the Version label and the current version", () => {
+	it("renders the current version and falls back to Unknown without one", () => {
 		mocks.version = "v3.2.2";
-		render(<AboutSection />);
-
+		const { rerender } = render(<AboutSection />);
 		expect(screen.getByText("Version")).toBeInTheDocument();
 		expect(screen.getByText("v3.2.2")).toBeInTheDocument();
-	});
-
-	it("falls back to 'Unknown' when no version is available", () => {
 		mocks.version = null;
-		render(<AboutSection />);
-
+		rerender(<AboutSection />);
 		expect(screen.getByText("Unknown")).toBeInTheDocument();
-	});
-
-	it("renders a 'View update notes' button", () => {
-		mocks.version = "v3.2.2";
-		render(<AboutSection />);
-
-		expect(
-			screen.getByRole("button", { name: "View update notes" })
-		).toBeInTheDocument();
+		expect(screen.queryByText("v3.2.2")).not.toBeInTheDocument();
 	});
 
 	it("calls onViewUpdateNotes once when the button is clicked", async () => {
@@ -45,9 +32,7 @@ describe("AboutSection", () => {
 		mocks.onViewUpdateNotes.mockClear();
 		const user = userEvent.setup();
 		render(<AboutSection />);
-
 		await user.click(screen.getByRole("button", { name: "View update notes" }));
-
 		expect(mocks.onViewUpdateNotes).toHaveBeenCalledTimes(1);
 	});
 });

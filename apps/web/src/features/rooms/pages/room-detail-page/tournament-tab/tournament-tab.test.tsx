@@ -14,12 +14,18 @@ vi.mock("./use-tournament-tab", () => ({
 vi.mock("@/features/rooms/components/tournament-form-sheet", () => ({
 	TournamentFormSheet: ({
 		editBlindLevelsError,
+		formId,
+		onOpenChange,
 		onRetryBlindLevels,
+		onSave,
 		open,
 		title,
 	}: {
 		editBlindLevelsError?: boolean;
+		formId: string;
+		onOpenChange: (open: boolean) => void;
 		onRetryBlindLevels?: () => void;
+		onSave: (values: unknown, levels: unknown[]) => void;
 		open: boolean;
 		title: string;
 	}) =>
@@ -29,11 +35,15 @@ vi.mock("@/features/rooms/components/tournament-form-sheet", () => ({
 				data-testid="tournament-sheet"
 			>
 				{title}
-				{editBlindLevelsError ? (
-					<button onClick={onRetryBlindLevels} type="button">
-						Retry blind levels
-					</button>
-				) : null}
+				<button onClick={onRetryBlindLevels} type="button">
+					Retry blind levels
+				</button>
+				<button onClick={() => onSave({ name: "Saved" }, [])} type="button">
+					{`save-${formId}`}
+				</button>
+				<button onClick={() => onOpenChange(false)} type="button">
+					{`cancel-${formId}`}
+				</button>
 			</div>
 		) : null,
 }));
@@ -45,18 +55,20 @@ vi.mock("@/features/rooms/components/game-actions-drawer", () => ({
 		onArchive,
 		onDelete,
 		onEdit,
+		onOpenChange,
 		onRestore,
 	}: {
 		isArchived: boolean;
 		onArchive: () => void;
 		onDelete: () => void;
 		onEdit: () => void;
+		onOpenChange: (open: boolean) => void;
 		onRestore: () => void;
 		open: boolean;
 	}) =>
 		open ? (
 			<div data-archived={String(isArchived)} data-testid="game-actions">
-				<button onClick={onEdit} type="button">
+				<button onClick={() => onEdit()} type="button">
 					drawer-edit
 				</button>
 				<button onClick={onArchive} type="button">
@@ -65,16 +77,39 @@ vi.mock("@/features/rooms/components/game-actions-drawer", () => ({
 				<button onClick={onRestore} type="button">
 					drawer-restore
 				</button>
-				<button onClick={onDelete} type="button">
+				<button onClick={() => onDelete()} type="button">
 					drawer-delete
+				</button>
+				<button onClick={() => onOpenChange(false)} type="button">
+					drawer-dismiss
 				</button>
 			</div>
 		) : null,
 }));
 
 vi.mock("@/features/rooms/components/delete-game-dialog", () => ({
-	DeleteGameDialog: ({ open, name }: { name: string; open: boolean }) =>
-		open ? <div data-testid="delete-dialog">{name}</div> : null,
+	DeleteGameDialog: ({
+		name,
+		onConfirm,
+		onOpenChange,
+		open,
+	}: {
+		name: string;
+		onConfirm: () => void;
+		onOpenChange: (open: boolean) => void;
+		open: boolean;
+	}) =>
+		open ? (
+			<div data-testid="delete-dialog">
+				{name}
+				<button onClick={() => onConfirm()} type="button">
+					dialog-confirm
+				</button>
+				<button onClick={() => onOpenChange(false)} type="button">
+					dialog-dismiss
+				</button>
+			</div>
+		) : null,
 }));
 
 import { TournamentTab } from "./tournament-tab";
@@ -161,6 +196,7 @@ function setState(overrides: Partial<TabState> = {}): TabState {
 		editBlindLevelsLoading: false,
 		editInitialFormValues: undefined,
 		editInitialLevels: [],
+		retryEditBlindLevels: vi.fn(),
 		handleCreate: vi.fn(),
 		handleUpdate: vi.fn(),
 		openActions: vi.fn(),
@@ -182,24 +218,26 @@ describe("TournamentTab", () => {
 		hoisted.useTournamentTab.mockReset();
 	});
 
-	it("renders the add control without a redundant section heading", () => {
-		setState();
-		render(<TournamentTab roomId="room-1" />);
+	it("renders skeleton cards instead of the empty state while loading", () => {
+		setState({ activeLoading: true });
+		const { container } = render(<TournamentTab roomId="room-1" />);
 		expect(
-			screen.queryByRole("heading", { name: "Tournaments" })
-		).not.toBeInTheDocument();
-		expect(
-			screen.getByRole("button", { name: "Add tournament" })
-		).toBeInTheDocument();
+			container.querySelectorAll("[data-slot='skeleton']").length
+		).toBeGreaterThan(0);
+		expect(screen.queryByText("No tournaments yet.")).not.toBeInTheDocument();
 	});
 
-	it("renders a row per active tournament with its level count", () => {
-		setState({
-			activeTournaments: [baseTournament({ blindLevelCount: 12 })],
-		});
+	it("shows the tournament load error and retries the active list", async () => {
+		const user = userEvent.setup();
+		const state = setState({ isInitialLoadError: true });
 		render(<TournamentTab roomId="room-1" />);
-		expect(screen.getByText("Sunday Major")).toBeInTheDocument();
-		expect(screen.getByText(LEVELS_RE)).toBeInTheDocument();
+
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"Unable to load tournaments"
+		);
+		expect(screen.queryByText("No tournaments yet.")).not.toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: "Retry" }));
+		expect(state.onRetry).toHaveBeenCalledTimes(1);
 	});
 
 	it("shows the empty state when there are no active tournaments", () => {
@@ -208,20 +246,42 @@ describe("TournamentTab", () => {
 		expect(screen.getByText("No tournaments yet.")).toBeInTheDocument();
 	});
 
+	it("renders a row per active tournament with its level count", () => {
+		setState({
+			activeTournaments: [
+				baseTournament({ blindLevelCount: 12 }),
+				baseTournament({ id: "t2", name: "Monday Turbo" }),
+			],
+		});
+		render(<TournamentTab roomId="room-1" />);
+		expect(screen.getByText("Sunday Major")).toBeInTheDocument();
+		expect(screen.getByText(LEVELS_RE)).toBeInTheDocument();
+		expect(screen.getByText("Monday Turbo")).toBeInTheDocument();
+		expect(screen.queryByText("No tournaments yet.")).not.toBeInTheDocument();
+	});
+
 	it("opens the create sheet when the add button is clicked", async () => {
 		const user = userEvent.setup();
 		const state = setState();
 		render(<TournamentTab roomId="room-1" />);
 		await user.click(screen.getByRole("button", { name: "Add tournament" }));
+		expect(state.setIsCreateOpen).toHaveBeenCalledTimes(1);
 		expect(state.setIsCreateOpen).toHaveBeenCalledWith(true);
 	});
 
-	it("toggles the archived view from the disclosure control", async () => {
+	it("labels the archived toggle by showArchived and routes clicks to toggleArchived", async () => {
 		const user = userEvent.setup();
-		const state = setState();
-		render(<TournamentTab roomId="room-1" />);
+		const state = setState({ showArchived: false });
+		const { rerender } = render(<TournamentTab roomId="room-1" />);
 		await user.click(screen.getByRole("button", { name: "Show archived" }));
 		expect(state.toggleArchived).toHaveBeenCalledTimes(1);
+
+		setState({ showArchived: true });
+		rerender(<TournamentTab roomId="room-1" />);
+		expect(
+			screen.getByRole("button", { name: "Hide archived" })
+		).toBeInTheDocument();
+		expect(screen.getByText("Archived")).toBeInTheDocument();
 	});
 
 	it("opens the actions drawer for a row via its overflow button", async () => {
@@ -232,52 +292,69 @@ describe("TournamentTab", () => {
 		await user.click(
 			screen.getByRole("button", { name: "Actions for Sunday Major" })
 		);
+		expect(state.openActions).toHaveBeenCalledTimes(1);
 		expect(state.openActions).toHaveBeenCalledWith(t);
 	});
 
-	it("wires the actions drawer to the hook handlers when a target is set", async () => {
+	it.each([
+		["drawer-edit", "openEditFromActions"],
+		["drawer-archive", "handleArchiveFromActions"],
+		["drawer-restore", "handleRestoreFromActions"],
+		["drawer-delete", "openDeleteFromActions"],
+	] as const)("routes %s to %s", async (name, handler) => {
 		const user = userEvent.setup();
 		const state = setState({ actionsTarget: baseTournament() });
 		render(<TournamentTab roomId="room-1" />);
-		await user.click(screen.getByRole("button", { name: "drawer-edit" }));
-		expect(state.openEditFromActions).toHaveBeenCalledTimes(1);
-		await user.click(screen.getByRole("button", { name: "drawer-delete" }));
-		expect(state.openDeleteFromActions).toHaveBeenCalledTimes(1);
+		await user.click(screen.getByRole("button", { name }));
+		expect(state[handler]).toHaveBeenCalledTimes(1);
 	});
 
-	it("shows the tournament load error and retries the active list", async () => {
-		const user = userEvent.setup();
-		const onRetry = vi.fn();
-		setState({ isInitialLoadError: true, onRetry });
-		render(<TournamentTab roomId="room-1" />);
-
-		expect(screen.getByRole("alert")).toHaveTextContent(
-			"Unable to load tournaments"
+	it("marks the actions drawer as archived only when the target is archived", () => {
+		setState({ actionsTarget: baseTournament() });
+		const { rerender } = render(<TournamentTab roomId="room-1" />);
+		expect(screen.getByTestId("game-actions")).toHaveAttribute(
+			"data-archived",
+			"false"
 		);
-		await user.click(screen.getByRole("button", { name: "Retry" }));
-		expect(onRetry).toHaveBeenCalledTimes(1);
+
+		setState({
+			actionsTarget: baseTournament({ archivedAt: "2026-01-01" }),
+		});
+		rerender(<TournamentTab roomId="room-1" />);
+		expect(screen.getByTestId("game-actions")).toHaveAttribute(
+			"data-archived",
+			"true"
+		);
 	});
 
-	it("opens the create tournament sheet when isCreateOpen is true", () => {
+	it("opens the create sheet only while isCreateOpen is true", () => {
+		setState({ isCreateOpen: false });
+		const { rerender } = render(<TournamentTab roomId="room-1" />);
+		expect(screen.queryByTestId("tournament-sheet")).not.toBeInTheDocument();
+
 		setState({ isCreateOpen: true });
-		render(<TournamentTab roomId="room-1" />);
+		rerender(<TournamentTab roomId="room-1" />);
 		expect(screen.getByTestId("tournament-sheet")).toHaveTextContent(
 			"Add tournament"
 		);
 	});
 
-	it("opens the edit tournament sheet when a tournament is being edited", () => {
+	it("opens the edit sheet only while a tournament is being edited", () => {
+		setState({ editingTournament: null });
+		const { rerender } = render(<TournamentTab roomId="room-1" />);
+		expect(screen.queryByText("Edit tournament")).not.toBeInTheDocument();
+
 		setState({ editingTournament: baseTournament() });
-		render(<TournamentTab roomId="room-1" />);
-		expect(screen.getByText("Edit tournament")).toBeInTheDocument();
+		rerender(<TournamentTab roomId="room-1" />);
+		expect(screen.getByTestId("tournament-sheet")).toHaveTextContent(
+			"Edit tournament"
+		);
 	});
 
 	it("passes blind-level load errors and retry to the edit sheet", async () => {
 		const user = userEvent.setup();
-		const retryEditBlindLevels = vi.fn();
-		setState({
+		const state = setState({
 			editBlindLevelsError: true,
-			retryEditBlindLevels,
 			editingTournament: baseTournament(),
 		});
 		render(<TournamentTab roomId="room-1" />);
@@ -289,14 +366,64 @@ describe("TournamentTab", () => {
 		await user.click(
 			screen.getByRole("button", { name: "Retry blind levels" })
 		);
-		expect(retryEditBlindLevels).toHaveBeenCalledTimes(1);
+		expect(state.retryEditBlindLevels).toHaveBeenCalledTimes(1);
 	});
 
-	it("shows the delete dialog with the pending tournament name", () => {
-		setState({ pendingDelete: baseTournament({ name: "Doomed Series" }) });
+	it.each([
+		["tournament-create-form", "handleCreate", { isCreateOpen: true }],
+		[
+			"tournament-edit-form",
+			"handleUpdate",
+			{ editingTournament: baseTournament() },
+		],
+	] as const)("saves %s through %s", async (formId, handler, overrides: Partial<TabState>) => {
+		const user = userEvent.setup();
+		const state = setState(overrides);
 		render(<TournamentTab roomId="room-1" />);
+		await user.click(screen.getByRole("button", { name: `save-${formId}` }));
+		expect(state[handler]).toHaveBeenCalledTimes(1);
+		expect(state[handler]).toHaveBeenCalledWith({ name: "Saved" }, []);
+	});
+
+	it("shows the delete dialog with the pending tournament name only while a delete is pending", () => {
+		setState({ pendingDelete: null });
+		const { rerender } = render(<TournamentTab roomId="room-1" />);
+		expect(screen.queryByTestId("delete-dialog")).not.toBeInTheDocument();
+
+		setState({ pendingDelete: baseTournament({ name: "Doomed Series" }) });
+		rerender(<TournamentTab roomId="room-1" />);
 		expect(screen.getByTestId("delete-dialog")).toHaveTextContent(
 			"Doomed Series"
 		);
+	});
+
+	it.each([
+		[
+			"dialog-confirm",
+			"handleConfirmDelete",
+			{ pendingDelete: baseTournament() },
+			[],
+		],
+		["dialog-dismiss", "cancelDelete", { pendingDelete: baseTournament() }, []],
+		["drawer-dismiss", "closeActions", { actionsTarget: baseTournament() }, []],
+		[
+			"cancel-tournament-edit-form",
+			"setEditingTournament",
+			{ editingTournament: baseTournament() },
+			[null],
+		],
+		[
+			"cancel-tournament-create-form",
+			"setIsCreateOpen",
+			{ isCreateOpen: true },
+			[false],
+		],
+	] as const)("routes %s to %s", async (name, handler, overrides: Partial<TabState>, args) => {
+		const user = userEvent.setup();
+		const state = setState(overrides);
+		render(<TournamentTab roomId="room-1" />);
+		await user.click(screen.getByRole("button", { name }));
+		expect(state[handler]).toHaveBeenCalledTimes(1);
+		expect(state[handler]).toHaveBeenCalledWith(...args);
 	});
 });

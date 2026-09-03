@@ -966,3 +966,218 @@ describe("buildLiveLinkedEventEdits — tournament", () => {
 		]);
 	});
 });
+
+describe("buildLiveLinkedEventEdits — payload shapes", () => {
+	it("restores the cash-out into a session_end whose current payload is null", () => {
+		const blankEnd = event(
+			"e-end",
+			"session_end",
+			localIso(2026, 4, 11, 1, 0),
+			null
+		);
+		const result = buildLiveLinkedEventEdits({
+			values: CASH_VALUES,
+			events: [CASH_START, CASH_CHIPS, blankEnd],
+			seedEvents: CASH_EVENTS,
+		});
+		expect(result.errors).toEqual([]);
+		expect(result.edits).toEqual([
+			{ id: "e-end", payload: { cashOutAmount: 11_500 } },
+		]);
+	});
+
+	it("emits an end edit that drops a stale extra key from the current payload", () => {
+		const staleEnd = event(
+			"e-end",
+			"session_end",
+			localIso(2026, 4, 11, 1, 0),
+			{ cashOutAmount: 11_500, note: "stale" }
+		);
+		const result = buildLiveLinkedEventEdits({
+			values: CASH_VALUES,
+			events: [CASH_START, CASH_CHIPS, staleEnd],
+			seedEvents: CASH_EVENTS,
+		});
+		expect(result.edits).toEqual([
+			{ id: "e-end", payload: { cashOutAmount: 11_500 } },
+		]);
+	});
+
+	const DEADLINE_END = event(
+		"t-end",
+		"session_end",
+		localIso(2026, 4, 10, 23, 0),
+		{ beforeDeadline: true, prizeMoney: 20_000, bountyPrizes: 0 }
+	);
+	const DEADLINE_VALUES: SessionFormValues = {
+		...TOURNAMENT_VALUES,
+		beforeDeadline: true,
+		placement: 4,
+		totalEntries: 60,
+		prizeMoney: 25_000,
+	};
+	const FULL_RESULT = {
+		beforeDeadline: false,
+		placement: 4,
+		totalEntries: 60,
+		prizeMoney: 25_000,
+		bountyPrizes: 0,
+	};
+
+	it.each([
+		[null, FULL_RESULT],
+		["corrupt", FULL_RESULT],
+		[{ beforeDeadline: false }, FULL_RESULT],
+		[
+			{ beforeDeadline: true },
+			{ beforeDeadline: true, prizeMoney: 25_000, bountyPrizes: 0 },
+		],
+	])("reads beforeDeadline from an Events-side payload of %j when the form left it alone", (currentPayload, expectedPayload) => {
+		const currentEnd = event(
+			"t-end",
+			"session_end",
+			localIso(2026, 4, 10, 23, 0),
+			currentPayload
+		);
+		const result = buildLiveLinkedEventEdits({
+			values: DEADLINE_VALUES,
+			events: [TOURNAMENT_START, TOURNAMENT_STACK, currentEnd],
+			seedEvents: [TOURNAMENT_START, TOURNAMENT_STACK, DEADLINE_END],
+		});
+		expect(result.errors).toEqual([]);
+		expect(result.edits).toEqual([{ id: "t-end", payload: expectedPayload }]);
+	});
+
+	it("reports a missing placement when the Events-side placement is not a number", () => {
+		const textPlacementEnd = event(
+			"t-end",
+			"session_end",
+			localIso(2026, 4, 10, 23, 0),
+			{
+				beforeDeadline: false,
+				placement: "7",
+				totalEntries: 50,
+				prizeMoney: 20_000,
+				bountyPrizes: 0,
+			}
+		);
+		const result = buildLiveLinkedEventEdits({
+			values: TOURNAMENT_VALUES,
+			events: [TOURNAMENT_START, TOURNAMENT_STACK, textPlacementEnd],
+			seedEvents: TOURNAMENT_EVENTS,
+		});
+		expect(result.edits).toEqual([]);
+		expect(result.errors).toEqual(["Placement is required"]);
+	});
+
+	it("merges a form-side prize edit with Events-side placement and total-entries changes", () => {
+		const replacedEnd = event(
+			"t-end",
+			"session_end",
+			localIso(2026, 4, 10, 23, 0),
+			{
+				beforeDeadline: false,
+				placement: 5,
+				totalEntries: 80,
+				prizeMoney: 20_000,
+				bountyPrizes: 0,
+			}
+		);
+		const result = buildLiveLinkedEventEdits({
+			values: { ...TOURNAMENT_VALUES, prizeMoney: 30_000 },
+			events: [TOURNAMENT_START, TOURNAMENT_STACK, replacedEnd],
+			seedEvents: TOURNAMENT_EVENTS,
+		});
+		expect(result.edits).toEqual([
+			{
+				id: "t-end",
+				payload: {
+					beforeDeadline: false,
+					placement: 5,
+					totalEntries: 80,
+					prizeMoney: 30_000,
+					bountyPrizes: 0,
+				},
+			},
+		]);
+	});
+});
+
+describe("buildLiveLinkedEventEdits — neighbors and lifecycle gaps", () => {
+	const SAME_DAY_END = event(
+		"e-end",
+		"session_end",
+		localIso(2026, 4, 10, 23, 0),
+		{ cashOutAmount: 11_500 }
+	);
+
+	it("accepts an end time exactly on the previous event's minute", () => {
+		const result = buildLiveLinkedEventEdits({
+			values: { ...CASH_VALUES, endTime: "21:00" },
+			events: [CASH_START, CASH_CHIPS, SAME_DAY_END],
+		});
+		expect(result.errors).toEqual([]);
+		expect(result.edits).toEqual([
+			{ id: "e-end", occurredAt: unix(2026, 4, 10, 21, 0) },
+		]);
+	});
+
+	it("compares against the previous event by minute, ignoring its seconds", () => {
+		const chipsWithSeconds = event(
+			"e-chips",
+			"chips_add_remove",
+			localIso(2026, 4, 10, 21, 0, 30),
+			{ amount: 5000 }
+		);
+		const result = buildLiveLinkedEventEdits({
+			values: { ...CASH_VALUES, endTime: "21:00" },
+			events: [CASH_START, chipsWithSeconds, SAME_DAY_END],
+		});
+		expect(result.errors).toEqual([]);
+		expect(result.edits).toEqual([
+			{ id: "e-end", occurredAt: unix(2026, 4, 10, 21, 0) },
+		]);
+	});
+
+	it("ignores the start time when the session has no session_start", () => {
+		const result = buildLiveLinkedEventEdits({
+			values: { ...CASH_VALUES, startTime: "19:00" },
+			events: [CASH_CHIPS, CASH_END],
+		});
+		expect(result.errors).toEqual([]);
+		expect(result.edits).toEqual([]);
+	});
+
+	it("keeps the start edit first when the end time is unchanged", () => {
+		const result = buildLiveLinkedEventEdits({
+			values: { ...CASH_VALUES, startTime: "19:00", cashOut: 12_000 },
+			events: CASH_EVENTS,
+		});
+		expect(result.errors).toEqual([]);
+		expect(result.edits).toEqual([
+			{ id: "e-start", occurredAt: unix(2026, 4, 10, 19, 0) },
+			{ id: "e-end", payload: { cashOutAmount: 12_000 } },
+		]);
+	});
+
+	it("moves the first session_start of a reopened session", () => {
+		const reopened = [
+			CASH_START,
+			event("e-end-1", "session_end", localIso(2026, 4, 10, 23, 0), {
+				cashOutAmount: 9000,
+			}),
+			event("e-start-2", "session_start", localIso(2026, 4, 11, 0, 0), {
+				buyInAmount: 5000,
+			}),
+			CASH_END,
+		];
+		const result = buildLiveLinkedEventEdits({
+			values: { ...CASH_VALUES, startTime: "19:00" },
+			events: reopened,
+		});
+		expect(result.errors).toEqual([]);
+		expect(result.edits).toEqual([
+			{ id: "e-start", occurredAt: unix(2026, 4, 10, 19, 0) },
+		]);
+	});
+});

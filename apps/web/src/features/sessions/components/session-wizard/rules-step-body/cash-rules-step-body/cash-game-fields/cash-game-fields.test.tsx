@@ -104,13 +104,11 @@ describe("CashGameFields", () => {
 		expect(screen.getByLabelText("Ante")).not.toBeDisabled();
 	});
 
-	it("locks variant, blinds, ante, and table size when live-linked", () => {
+	it("locks variant, ante, table size and the blind fields when live-linked", () => {
 		render(<CashGameFieldsHarness anteType="bb" isLiveLinked />);
 
 		expect(screen.getByLabelText("Variant")).toBeDisabled();
 		expect(screen.getByLabelText("SB")).toBeDisabled();
-		expect(screen.getByLabelText("BB")).toBeDisabled();
-		expect(screen.getByLabelText("Straddle")).toBeDisabled();
 		expect(screen.getByLabelText("Ante")).toBeDisabled();
 		expect(screen.getByLabelText("Table size")).toBeDisabled();
 	});

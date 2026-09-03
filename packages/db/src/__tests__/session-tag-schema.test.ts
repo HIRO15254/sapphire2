@@ -1,16 +1,18 @@
-import { getTableConfig } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
 import { sessionToSessionTag } from "../schema/session-tag";
+import { indexesOf } from "./test-utils";
 
 describe("SessionToSessionTag — indexes", () => {
-	const config = getTableConfig(sessionToSessionTag);
-
 	it("has sessionToSessionTag_sessionTagId_idx for reverse tag lookups", () => {
-		const idx = config.indexes.find(
-			(i) => i.config.name === "sessionToSessionTag_sessionTagId_idx"
+		expect(indexesOf(sessionToSessionTag)).toEqual(
+			expect.arrayContaining([
+				{
+					columns: ["session_tag_id"],
+					name: "sessionToSessionTag_sessionTagId_idx",
+					unique: false,
+					where: null,
+				},
+			])
 		);
-		expect(idx?.config.columns.map((column) => column.name)).toEqual([
-			"session_tag_id",
-		]);
 	});
 });

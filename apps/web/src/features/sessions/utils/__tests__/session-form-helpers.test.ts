@@ -10,7 +10,31 @@ import {
 	parseOptInt,
 	sessionFormSchema,
 	tournamentOverriddenFields,
+	tournamentSessionFormSchema,
 } from "@/features/sessions/utils/session-form-helpers";
+
+const NUMERIC_FIELDS = [
+	"breakMinutes",
+	"buyIn",
+	"cashOut",
+	"evCashOut",
+	"blind1",
+	"blind2",
+	"blind3",
+	"ante",
+	"tableSize",
+	"minBuyIn",
+	"maxBuyIn",
+	"tournamentBuyIn",
+	"entryFee",
+	"startingStack",
+	"bountyAmount",
+	"placement",
+	"totalEntries",
+	"prizeMoney",
+	"bountyPrizes",
+] as const;
+const INVALID_NUMERIC_VALUES = ["-1", "1.5"] as const;
 
 describe("NONE_VALUE", () => {
 	it("is the sentinel string used by clearable selects", () => {
@@ -140,24 +164,36 @@ describe("sessionFormSchema", () => {
 		).toBe(false);
 	});
 
-	it("rejects negative optional numeric values", () => {
+	it.each(
+		NUMERIC_FIELDS.flatMap((field) =>
+			INVALID_NUMERIC_VALUES.map((value) => [field, value] as const)
+		)
+	)("rejects a negative or fractional %s (%s)", (field, value) => {
 		expect(
-			sessionFormSchema.safeParse(validPayload({ buyIn: "-1" })).success
+			sessionFormSchema.safeParse(validPayload({ [field]: value })).success
 		).toBe(false);
+	});
+
+	it.each([
+		["tournamentBuyIn", cashSessionFormSchema],
+		["cashOut", liveCashSessionFormSchema],
+		["buyIn", tournamentSessionFormSchema],
+		["cashOut", tournamentSessionFormSchema],
+	])("still rejects a negative or fractional %s once the override makes it optional", (field, schema) => {
+		for (const value of INVALID_NUMERIC_VALUES) {
+			expect(schema.safeParse(validPayload({ [field]: value })).success).toBe(
+				false
+			);
+		}
 	});
 
 	it.each([
 		"buyIn",
 		"cashOut",
-	])("rejects an empty required cash result field: %s", (field) => {
+		"tournamentBuyIn",
+	])("rejects an empty required %s", (field) => {
 		expect(
 			sessionFormSchema.safeParse(validPayload({ [field]: "" })).success
-		).toBe(false);
-	});
-
-	it("rejects an empty required tournament buy-in", () => {
-		expect(
-			sessionFormSchema.safeParse(validPayload({ tournamentBuyIn: "" })).success
 		).toBe(false);
 	});
 
@@ -192,20 +228,16 @@ describe("sessionFormSchema", () => {
 		).toBe(true);
 	});
 
-	it("accepts an optional table size only from 2 through 10", () => {
-		for (const value of ["2", "10"]) {
-			expect(
-				sessionFormSchema.safeParse(validPayload({ tableSize: value })).success
-			).toBe(true);
-		}
+	it.each([
+		["", true],
+		["2", true],
+		["10", true],
+		["1", false],
+		["11", false],
+	])("treats a table size of %j as valid: %s", (value, accepted) => {
 		expect(
-			sessionFormSchema.safeParse(validPayload({ tableSize: "" })).success
-		).toBe(true);
-		for (const value of ["1", "11", "3.5", "12abc", "Infinity"]) {
-			expect(
-				sessionFormSchema.safeParse(validPayload({ tableSize: value })).success
-			).toBe(false);
-		}
+			sessionFormSchema.safeParse(validPayload({ tableSize: value })).success
+		).toBe(accepted);
 	});
 });
 
@@ -263,13 +295,6 @@ describe("liveCashSessionFormSchema", () => {
 		).toBe(false);
 	});
 
-	it("still rejects a negative cash-out when one is supplied", () => {
-		expect(
-			liveCashSessionFormSchema.safeParse(livePayload({ cashOut: "-1" }))
-				.success
-		).toBe(false);
-	});
-
 	it("diverges from cashSessionFormSchema, which requires the cash-out", () => {
 		const payload = livePayload();
 		expect(cashSessionFormSchema.safeParse(payload).success).toBe(false);
@@ -287,15 +312,51 @@ describe("buildDefaults", () => {
 		vi.useRealTimers();
 	});
 
-	it("seeds today's date and sensible defaults when no override is provided", () => {
-		const defaults = buildDefaults(undefined);
-		expect(defaults.sessionDate).toBe("2026-04-05");
-		expect(defaults.startTime).toBe("");
-		expect(defaults.endTime).toBe("");
-		expect(defaults.variant).toBe("NL Hold'em");
-		expect(defaults.anteType).toBe("none");
-		expect(defaults.tableSize).toBe("");
-		expect(defaults.beforeDeadline).toBe(false);
+	it("seeds today's date and the empty form when no override is provided", () => {
+		expect(buildDefaults(undefined)).toEqual({
+			sessionDate: "2026-04-05",
+			startTime: "",
+			endTime: "",
+			breakMinutes: "",
+			memo: "",
+			ruleName: "",
+			buyIn: "",
+			cashOut: "",
+			evCashOut: "",
+			variant: "NL Hold'em",
+			blind1: "",
+			blind2: "",
+			blind3: "",
+			ante: "",
+			anteType: "none",
+			tableSize: "",
+			minBuyIn: "",
+			maxBuyIn: "",
+			tournamentBuyIn: "",
+			entryFee: "",
+			startingStack: "",
+			bountyAmount: "",
+			beforeDeadline: false,
+			timerStartedAt: "",
+			placement: "",
+			totalEntries: "",
+			prizeMoney: "",
+			bountyPrizes: "",
+		});
+	});
+
+	it("propagates the free-text defaults memo, ruleName and timerStartedAt", () => {
+		expect(
+			buildDefaults({
+				memo: "Deep stack night",
+				ruleName: "1/2 NLH",
+				timerStartedAt: "2026-04-05T10:00:00.000Z",
+			})
+		).toMatchObject({
+			memo: "Deep stack night",
+			ruleName: "1/2 NLH",
+			timerStartedAt: "2026-04-05T10:00:00.000Z",
+		});
 	});
 
 	it("converts numeric defaults through numStrOrEmpty", () => {
@@ -369,6 +430,57 @@ describe("cashOverriddenFields", () => {
 		});
 		expect(cashOverriddenFields(values, MASTER)).toEqual(["Rule name", "BB"]);
 	});
+
+	it("lists every label in form order when every field diverges", () => {
+		const values = buildDefaults({
+			ruleName: "Deep 1/2",
+			variant: "plo",
+			blind1: 2,
+			blind2: 5,
+			blind3: 10,
+			ante: 1,
+			anteType: "bb",
+			minBuyIn: 200,
+			maxBuyIn: 1000,
+			tableSize: 6,
+		});
+		expect(cashOverriddenFields(values, MASTER)).toEqual([
+			"Rule name",
+			"Variant",
+			"SB",
+			"BB",
+			"Straddle",
+			"Ante",
+			"Ante type",
+			"Min buy-in",
+			"Max buy-in",
+			"Table size",
+		]);
+	});
+
+	it("matches a master with null optional fields against the blank form values", () => {
+		const values = buildDefaults({
+			ruleName: "Open 1/2",
+			variant: "nlh",
+			blind1: 1,
+			blind2: 2,
+		});
+		expect(
+			cashOverriddenFields(values, {
+				id: "rg2",
+				name: "Open 1/2",
+				variant: "nlh",
+				blind1: 1,
+				blind2: 2,
+				blind3: null,
+				ante: null,
+				anteType: null,
+				minBuyIn: null,
+				maxBuyIn: null,
+				tableSize: null,
+			})
+		).toEqual([]);
+	});
 });
 
 describe("tournamentOverriddenFields", () => {
@@ -401,5 +513,54 @@ describe("tournamentOverriddenFields", () => {
 		expect(tournamentOverriddenFields(values, MASTER)).toEqual([
 			"Starting stack",
 		]);
+	});
+
+	it("returns [] when every rule field matches the master", () => {
+		const values = buildDefaults({
+			ruleName: "Main Event",
+			variant: "nlh",
+			tournamentBuyIn: 10_000,
+			entryFee: 1000,
+			startingStack: 20_000,
+			tableSize: 9,
+		});
+		expect(tournamentOverriddenFields(values, MASTER)).toEqual([]);
+	});
+
+	it("lists every label in form order when every field diverges", () => {
+		const values = buildDefaults({
+			ruleName: "Side Event",
+			variant: "plo",
+			tournamentBuyIn: 5000,
+			entryFee: 500,
+			startingStack: 30_000,
+			bountyAmount: 1000,
+			tableSize: 8,
+		});
+		expect(tournamentOverriddenFields(values, MASTER)).toEqual([
+			"Rule name",
+			"Variant",
+			"Buy-in",
+			"Entry fee",
+			"Starting stack",
+			"Bounty amount",
+			"Table size",
+		]);
+	});
+
+	it("matches a master with null optional fields against the blank form values", () => {
+		const values = buildDefaults({ ruleName: "Freeroll", variant: "nlh" });
+		expect(
+			tournamentOverriddenFields(values, {
+				id: "t2",
+				name: "Freeroll",
+				variant: "nlh",
+				buyIn: null,
+				entryFee: null,
+				startingStack: null,
+				bountyAmount: null,
+				tableSize: null,
+			})
+		).toEqual([]);
 	});
 });

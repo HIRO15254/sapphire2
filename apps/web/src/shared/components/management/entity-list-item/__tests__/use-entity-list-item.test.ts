@@ -124,13 +124,12 @@ describe("useEntityListItem", () => {
 			expect(onExpandedValueChange).toHaveBeenCalledWith(null);
 		});
 
-		it("does not throw if onExpandedValueChange is not provided", () => {
+		it("still updates the uncontrolled expanded value when onExpandedValueChange is not provided", () => {
 			const { result } = renderHook(() =>
 				useEntityListItem({ isControlled: false })
 			);
-			expect(() =>
-				act(() => result.current.handleExpandedValueChange("item-x"))
-			).not.toThrow();
+			act(() => result.current.handleExpandedValueChange("item-x"));
+			expect(result.current.internalExpandedValue).toBe("item-x");
 		});
 	});
 });

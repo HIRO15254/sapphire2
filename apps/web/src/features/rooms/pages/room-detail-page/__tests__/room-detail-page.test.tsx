@@ -23,7 +23,15 @@ vi.mock("@/features/rooms/pages/room-detail-page/tournament-tab", () => ({
 }));
 
 vi.mock("@/features/rooms/components/room-form", () => ({
-	RoomForm: () => <div data-testid="room-form" />,
+	RoomForm: ({ onSubmit }: { onSubmit: (values: unknown) => void }) => (
+		<button
+			data-testid="room-form"
+			onClick={() => onSubmit({ name: "Akiba 2" })}
+			type="button"
+		>
+			room-form-submit
+		</button>
+	),
 }));
 
 vi.mock("@/features/rooms/pages/room-detail-page/room-actions-drawer", () => ({
@@ -43,10 +51,10 @@ vi.mock("@/features/rooms/pages/room-detail-page/room-actions-drawer", () => ({
 				<button onClick={onToggleFavorite} type="button">
 					drawer-toggle-fav
 				</button>
-				<button onClick={onEdit} type="button">
+				<button onClick={() => onEdit()} type="button">
 					drawer-edit
 				</button>
-				<button onClick={onDelete} type="button">
+				<button onClick={() => onDelete()} type="button">
 					drawer-delete
 				</button>
 			</div>
@@ -55,12 +63,22 @@ vi.mock("@/features/rooms/pages/room-detail-page/room-actions-drawer", () => ({
 
 vi.mock("@/features/rooms/pages/room-detail-page/delete-room-dialog", () => ({
 	DeleteRoomDialog: ({
+		onConfirm,
 		open,
 		roomName,
 	}: {
+		onConfirm: () => void;
 		open: boolean;
 		roomName: string;
-	}) => (open ? <div data-testid="delete-room-dialog">{roomName}</div> : null),
+	}) =>
+		open ? (
+			<div data-testid="delete-room-dialog">
+				{roomName}
+				<button onClick={() => onConfirm()} type="button">
+					dialog-confirm
+				</button>
+			</div>
+		) : null,
 }));
 
 vi.mock("@/features/rooms/pages/room-detail-page/top-bar", () => ({
@@ -147,95 +165,97 @@ describe("RoomDetailPage", () => {
 		expect(state.onRetry).toHaveBeenCalledTimes(1);
 	});
 
-	it("keeps a cached room visible after a refetch failure", () => {
-		setState({ isInitialLoadError: false });
-		render(<RoomDetailPage roomId="s1" />);
-
-		expect(screen.getByRole("heading", { name: "Akiba" })).toBeInTheDocument();
-		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-	});
-
 	it("renders a not-found message when the room is missing", () => {
 		setState({ room: null, isLoading: false });
 		render(<RoomDetailPage roomId="s1" />);
 		expect(
 			screen.getByRole("heading", { name: "Room not found" })
 		).toBeInTheDocument();
+		expect(
+			screen.getByText("This room may have been deleted.")
+		).toBeInTheDocument();
 	});
 
-	it("keeps the room heading accessible name separate from the favorite action", () => {
+	it("renders the loaded room's heading, memo, and tabs fed with the room id", () => {
 		setState();
-		render(<RoomDetailPage roomId="s1" />);
+		render(<RoomDetailPage roomId="room-42" />);
 		expect(screen.getByRole("heading", { name: "Akiba" })).toBeInTheDocument();
+		expect(screen.getByText("late nights")).toBeInTheDocument();
+		expect(screen.getByTestId("ring-game-tab")).toHaveTextContent("room-42");
+		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+	});
+
+	it("labels the header star by the room's favorite state", () => {
+		setState({ room: { name: "Akiba", memo: null, isFavorite: false } });
+		const { rerender } = render(<RoomDetailPage roomId="s1" />);
 		expect(
 			screen.getByRole("button", { name: "Add to favorites" })
 		).toBeVisible();
-		expect(screen.getByText("late nights")).toBeInTheDocument();
-	});
 
-	it("renders the 'Add to favorites' star button in the header when isFavorite is false", () => {
-		setState({ room: { name: "Akiba", memo: null, isFavorite: false } });
-		render(<RoomDetailPage roomId="s1" />);
-		expect(screen.getByLabelText("Add to favorites")).toBeInTheDocument();
-	});
-
-	it("renders the 'Remove from favorites' star button in the header when isFavorite is true", () => {
 		setState({ room: { name: "Akiba", memo: null, isFavorite: true } });
-		render(<RoomDetailPage roomId="s1" />);
-		expect(screen.getByLabelText("Remove from favorites")).toBeInTheDocument();
+		rerender(<RoomDetailPage roomId="s1" />);
+		expect(
+			screen.getByRole("button", { name: "Remove from favorites" })
+		).toBeVisible();
+		expect(
+			screen.queryByRole("button", { name: "Add to favorites" })
+		).not.toBeInTheDocument();
 	});
 
-	it("calls handleToggleFavorite when the header star button is clicked", async () => {
+	it.each([
+		["the header star", "Add to favorites", {}],
+		["the actions drawer", "drawer-toggle-fav", { isActionsOpen: true }],
+	])("routes %s to handleToggleFavorite", async (_entry, name, overrides: Partial<State>) => {
 		const user = userEvent.setup();
-		const state = setState({
-			room: { name: "Akiba", memo: null, isFavorite: false },
-		});
+		const state = setState(overrides);
 		render(<RoomDetailPage roomId="s1" />);
-		await user.click(screen.getByLabelText("Add to favorites"));
+		await user.click(screen.getByRole("button", { name }));
 		expect(state.handleToggleFavorite).toHaveBeenCalledTimes(1);
 	});
 
-	it("renders the cash-games tab content with the room id", () => {
-		setState();
-		render(<RoomDetailPage roomId="room-42" />);
-		expect(screen.getByTestId("ring-game-tab")).toHaveTextContent("room-42");
-	});
-
-	it("opens the actions drawer from the top bar", async () => {
+	it.each([
+		["top-bar-actions", "setIsActionsOpen", {}, [true]],
+		["drawer-edit", "openEditFromActions", { isActionsOpen: true }, []],
+		["drawer-delete", "openDeleteFromActions", { isActionsOpen: true }, []],
+		[
+			"room-form-submit",
+			"handleEdit",
+			{ isEditOpen: true },
+			[{ name: "Akiba 2" }],
+		],
+		["dialog-confirm", "handleConfirmDelete", { confirmingDelete: true }, []],
+	] as const)("routes %s to %s", async (name, handler, overrides: Partial<State>, args) => {
 		const user = userEvent.setup();
-		const state = setState();
+		const state = setState(overrides);
 		render(<RoomDetailPage roomId="s1" />);
-		await user.click(screen.getByRole("button", { name: "top-bar-actions" }));
-		expect(state.setIsActionsOpen).toHaveBeenCalledWith(true);
+		await user.click(screen.getByRole("button", { name }));
+		expect(state[handler]).toHaveBeenCalledTimes(1);
+		expect(state[handler]).toHaveBeenCalledWith(...args);
 	});
 
-	it("wires the actions drawer to edit and delete handlers", async () => {
-		const user = userEvent.setup();
-		const state = setState({ isActionsOpen: true });
-		render(<RoomDetailPage roomId="s1" />);
-		await user.click(screen.getByRole("button", { name: "drawer-edit" }));
-		expect(state.openEditFromActions).toHaveBeenCalledTimes(1);
-		await user.click(screen.getByRole("button", { name: "drawer-delete" }));
-		expect(state.openDeleteFromActions).toHaveBeenCalledTimes(1);
-	});
+	it("mounts the edit form only while the edit sheet is open", () => {
+		setState({ isEditOpen: false });
+		const { rerender } = render(<RoomDetailPage roomId="s1" />);
+		expect(screen.queryByTestId("room-form")).not.toBeInTheDocument();
 
-	it("wires the actions drawer toggle-favorite button to handleToggleFavorite", async () => {
-		const user = userEvent.setup();
-		const state = setState({ isActionsOpen: true });
-		render(<RoomDetailPage roomId="s1" />);
-		await user.click(screen.getByRole("button", { name: "drawer-toggle-fav" }));
-		expect(state.handleToggleFavorite).toHaveBeenCalledTimes(1);
-	});
-
-	it("mounts the edit form when the edit sheet is open", () => {
 		setState({ isEditOpen: true });
-		render(<RoomDetailPage roomId="s1" />);
+		rerender(<RoomDetailPage roomId="s1" />);
 		expect(screen.getByTestId("room-form")).toBeInTheDocument();
 	});
 
-	it("shows the delete dialog with the room name when confirming", () => {
-		setState({ confirmingDelete: true });
+	it("disables the edit sheet's Save button while the update is pending", () => {
+		setState({ isEditOpen: true, isUpdatePending: true });
 		render(<RoomDetailPage roomId="s1" />);
+		expect(screen.getByLabelText("Save")).toBeDisabled();
+	});
+
+	it("shows the delete dialog with the room name only while confirming", () => {
+		setState({ confirmingDelete: false });
+		const { rerender } = render(<RoomDetailPage roomId="s1" />);
+		expect(screen.queryByTestId("delete-room-dialog")).not.toBeInTheDocument();
+
+		setState({ confirmingDelete: true });
+		rerender(<RoomDetailPage roomId="s1" />);
 		expect(screen.getByTestId("delete-room-dialog")).toHaveTextContent("Akiba");
 	});
 });

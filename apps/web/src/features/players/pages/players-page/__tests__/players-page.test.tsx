@@ -15,21 +15,17 @@ vi.mock("@/features/players/pages/players-page/use-players-page", () => ({
 vi.mock("@/features/players/pages/players-page/player-list", () => ({
 	PlayerList: ({
 		players,
-		isLoading,
-		isSearching,
 		onCreate,
 	}: {
-		players: { id: string }[];
-		isLoading: boolean;
-		isSearching: boolean;
+		players: { id: string; name: string }[];
 		onCreate: () => void;
 	}) => (
-		<div
-			data-count={players.length}
-			data-loading={String(isLoading)}
-			data-searching={String(isSearching)}
-			data-testid="player-list-stub"
-		>
+		<div>
+			<ul>
+				{players.map((player) => (
+					<li key={player.id}>{player.name}</li>
+				))}
+			</ul>
 			<button onClick={onCreate} type="button">
 				stub-create
 			</button>
@@ -97,7 +93,7 @@ describe("PlayersPage", () => {
 		hoisted.usePlayersPage.mockReset();
 	});
 
-	it("renders the PageHeader with the Players title", () => {
+	it("renders the Players heading", () => {
 		setMockState();
 		render(<PlayersPage />);
 		expect(
@@ -105,16 +101,7 @@ describe("PlayersPage", () => {
 		).toBeInTheDocument();
 	});
 
-	it("forwards isLoading to PlayerList", () => {
-		setMockState({ isLoading: true });
-		render(<PlayersPage />);
-		expect(screen.getByTestId("player-list-stub")).toHaveAttribute(
-			"data-loading",
-			"true"
-		);
-	});
-
-	it("forwards the players array to PlayerList", () => {
+	it("renders one PlayerList row per player", () => {
 		setMockState({
 			players: [
 				{ id: "p1", name: "Alice" },
@@ -122,28 +109,16 @@ describe("PlayersPage", () => {
 			],
 		});
 		render(<PlayersPage />);
-		expect(screen.getByTestId("player-list-stub")).toHaveAttribute(
-			"data-count",
-			"2"
-		);
+		expect(screen.getAllByRole("listitem")).toHaveLength(2);
 	});
 
-	it("forwards isSearching to PlayerList", () => {
-		setMockState({ isSearching: true });
-		render(<PlayersPage />);
-		expect(screen.getByTestId("player-list-stub")).toHaveAttribute(
-			"data-searching",
-			"true"
-		);
-	});
-
-	it("renders the search box bound to the current search value", () => {
+	it("binds the search box to the current search value", () => {
 		setMockState({ search: "vip" });
 		render(<PlayersPage />);
 		expect(screen.getByLabelText("player-search-stub")).toHaveValue("vip");
 	});
 
-	it("calls setSearch when the search box changes", async () => {
+	it("routes search box input to setSearch", async () => {
 		const user = userEvent.setup();
 		const state = setMockState();
 		render(<PlayersPage />);
@@ -152,37 +127,28 @@ describe("PlayersPage", () => {
 		expect(state.setSearch).toHaveBeenCalledWith("a");
 	});
 
-	it("opens the create sheet when the header 'New player' button is clicked", async () => {
+	it.each([
+		["the header New player button", NEW_PLAYER_RE],
+		["PlayerList's empty-state CTA", "stub-create"],
+	])("opens the create sheet from %s", async (_, buttonName) => {
 		const user = userEvent.setup();
 		const state = setMockState();
 		render(<PlayersPage />);
-		await user.click(screen.getByRole("button", { name: NEW_PLAYER_RE }));
+		await user.click(screen.getByRole("button", { name: buttonName }));
 		expect(state.setIsCreateOpen).toHaveBeenCalledTimes(1);
 		expect(state.setIsCreateOpen).toHaveBeenCalledWith(true);
 	});
 
-	it("opens the create sheet when PlayerList's onCreate fires (empty-state CTA)", async () => {
-		const user = userEvent.setup();
-		const state = setMockState();
-		render(<PlayersPage />);
-		await user.click(screen.getByRole("button", { name: "stub-create" }));
-		expect(state.setIsCreateOpen).toHaveBeenCalledTimes(1);
-		expect(state.setIsCreateOpen).toHaveBeenCalledWith(true);
-	});
-
-	it("does not mount the create form body when isCreateOpen is false", () => {
+	it("mounts the create form only while the sheet is open", () => {
 		setMockState({ isCreateOpen: false });
-		render(<PlayersPage />);
+		const { rerender } = render(<PlayersPage />);
 		expect(screen.queryByTestId("player-form-stub")).not.toBeInTheDocument();
-	});
-
-	it("mounts the create form body inside the FormSheet when isCreateOpen is true", () => {
 		setMockState({ isCreateOpen: true });
-		render(<PlayersPage />);
+		rerender(<PlayersPage />);
 		expect(screen.getByTestId("player-form-stub")).toBeInTheDocument();
 	});
 
-	it("disables the FormSheet Save button while isCreatePending is true", () => {
+	it("disables Save while the create mutation is pending", () => {
 		setMockState({ isCreateOpen: true, isCreatePending: true });
 		render(<PlayersPage />);
 		expect(screen.getByLabelText("Save")).toBeDisabled();

@@ -35,28 +35,27 @@ function BlindFieldsHarness({
 }
 
 describe("CashBlindFields", () => {
-	it("renders the third blind when the variant supplies its label", () => {
-		render(<BlindFieldsHarness />);
+	it("renders the third blind only when the variant supplies its label", () => {
+		const { rerender } = render(<BlindFieldsHarness />);
 
 		expect(screen.getByLabelText("Small bet")).toHaveValue("1");
 		expect(screen.getByLabelText("Big bet")).toHaveValue("2");
 		expect(screen.getByLabelText("Bring-in")).toHaveValue("3");
-		expect(labelsFor).toHaveBeenCalledWith("Seven Card Stud");
-	});
 
-	it("omits the third blind when the variant has no third blind label", () => {
-		render(<BlindFieldsHarness variant="Limit Hold'em" />);
-
+		rerender(<BlindFieldsHarness variant="Limit Hold'em" />);
 		expect(screen.queryByLabelText("Bring-in")).not.toBeInTheDocument();
 	});
 
-	it("falls back to the default variant labels for an empty variant", () => {
+	it.each([
+		["Seven Card Stud", "Seven Card Stud"],
+		["", DEFAULT_VARIANT_LABEL],
+	])("looks up the labels for variant %j as %j", (variant, lookedUp) => {
 		labelsFor.mockClear();
 
-		render(<BlindFieldsHarness variant="" />);
+		render(<BlindFieldsHarness variant={variant} />);
 
 		expect(labelsFor).toHaveBeenCalledTimes(1);
-		expect(labelsFor).toHaveBeenCalledWith(DEFAULT_VARIANT_LABEL);
+		expect(labelsFor).toHaveBeenCalledWith(lookedUp);
 	});
 
 	it("disables every blind input for a live-linked session", () => {

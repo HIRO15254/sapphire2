@@ -11,13 +11,44 @@ vi.mock("./use-tournament-form-sheet", () => ({
 }));
 
 vi.mock("@/features/rooms/components/tournament-modal-content", () => ({
-	TournamentModalContent: () => <div data-testid="modal-content" />,
+	TournamentModalContent: ({
+		onOpenAi,
+		onRegisterLiveValues,
+	}: {
+		onOpenAi?: () => void;
+		onRegisterLiveValues?: (getter: () => unknown) => void;
+	}) => (
+		<div
+			data-live-values={String(onRegisterLiveValues !== undefined)}
+			data-testid="modal-content"
+		>
+			<button
+				disabled={onOpenAi === undefined}
+				onClick={onOpenAi}
+				type="button"
+			>
+				content-open-ai
+			</button>
+		</div>
+	),
 }));
 
 vi.mock(
 	"@/features/rooms/components/tournament-form-sheet/ai-extract-input",
 	() => ({
-		AiExtractInput: () => <div data-testid="ai-extract" />,
+		AiExtractInput: ({
+			onExtracted,
+		}: {
+			onExtracted: (data: unknown) => void;
+		}) => (
+			<button
+				data-testid="ai-extract"
+				onClick={() => onExtracted({ name: "Extracted" })}
+				type="button"
+			>
+				ai-extracted
+			</button>
+		),
 	})
 );
 
@@ -59,7 +90,7 @@ vi.mock("@/shared/components/ui/drawer", () => ({
 }));
 
 function setHook(overrides: Record<string, unknown> = {}) {
-	hoisted.useTournamentFormSheet.mockReturnValue({
+	const hook = {
 		aiSheetOpen: false,
 		setAiSheetOpen: vi.fn(),
 		aiKey: 0,
@@ -69,7 +100,9 @@ function setHook(overrides: Record<string, unknown> = {}) {
 		handleAiExtracted: vi.fn(),
 		registerLiveValues: vi.fn(),
 		...overrides,
-	});
+	};
+	hoisted.useTournamentFormSheet.mockReturnValue(hook);
+	return hook;
 }
 
 function renderSheet(props: Record<string, unknown> = {}) {
@@ -93,15 +126,39 @@ describe("TournamentFormSheet", () => {
 		setHook();
 	});
 
-	it("does not render the AI drawer when aiMode is undefined", () => {
-		renderSheet({ aiMode: undefined });
+	it("mounts the AI drawer and the content's AI hooks only when aiMode is set", () => {
+		const { unmount } = renderSheet({ aiMode: undefined });
 		expect(screen.queryByTestId("ai-drawer")).not.toBeInTheDocument();
-	});
+		expect(
+			screen.getByRole("button", { name: "content-open-ai" })
+		).toBeDisabled();
+		expect(screen.getByTestId("modal-content")).toHaveAttribute(
+			"data-live-values",
+			"false"
+		);
+		unmount();
 
-	it("renders the AI drawer when aiMode is set", () => {
 		renderSheet({ aiMode: "create" });
 		expect(screen.getByTestId("ai-drawer")).toBeInTheDocument();
 		expect(screen.getByTestId("ai-extract")).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "content-open-ai" })
+		).toBeEnabled();
+		expect(screen.getByTestId("modal-content")).toHaveAttribute(
+			"data-live-values",
+			"true"
+		);
+	});
+
+	it.each([
+		["content-open-ai", "setAiSheetOpen", [true]],
+		["ai-extracted", "handleAiExtracted", [{ name: "Extracted" }]],
+	] as const)("routes %s to %s", (name, handler, args) => {
+		const hook = setHook();
+		renderSheet({ aiMode: "create" });
+		fireEvent.click(screen.getByRole("button", { name }));
+		expect(hook[handler]).toHaveBeenCalledTimes(1);
+		expect(hook[handler]).toHaveBeenCalledWith(...args);
 	});
 
 	it("shows blind-level load errors without rendering the form and disables Save", () => {
@@ -121,23 +178,15 @@ describe("TournamentFormSheet", () => {
 		expect(onRetry).toHaveBeenCalledTimes(1);
 	});
 
-	it("shows the loading placeholder while initializing before any AI fill", () => {
-		setHook({ aiKey: 0 });
-		renderSheet({ isInitializing: true });
-		expect(screen.getByText("Loading...")).toBeInTheDocument();
-		expect(screen.queryByTestId("modal-content")).not.toBeInTheDocument();
-	});
-
-	it("renders the modal content once initialization completes", () => {
-		renderSheet({ isInitializing: false });
-		expect(screen.getByTestId("modal-content")).toBeInTheDocument();
-		expect(screen.queryByText("Loading...")).not.toBeInTheDocument();
-	});
-
-	it("renders the modal content while initializing once an AI fill has applied (aiKey > 0)", () => {
-		setHook({ aiKey: 1 });
-		renderSheet({ isInitializing: true });
-		expect(screen.getByTestId("modal-content")).toBeInTheDocument();
-		expect(screen.queryByText("Loading...")).not.toBeInTheDocument();
+	it.each([
+		[true, 0, "the loading placeholder"],
+		[false, 0, "the modal content"],
+		[true, 1, "the modal content"],
+	])("with isInitializing=%s and aiKey=%s shows %s", (isInitializing, aiKey, expected) => {
+		setHook({ aiKey });
+		renderSheet({ isInitializing });
+		const loading = expected === "the loading placeholder";
+		expect(screen.queryByText("Loading...") !== null).toBe(loading);
+		expect(screen.queryByTestId("modal-content") !== null).toBe(!loading);
 	});
 });

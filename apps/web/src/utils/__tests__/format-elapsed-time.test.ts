@@ -13,17 +13,17 @@ describe("formatElapsedTime", () => {
 		vi.useRealTimers();
 	});
 
-	it("returns em dash for null", () => {
-		expect(formatElapsedTime(null)).toBe("—");
+	it.each([null, undefined])("returns em dash for %s", (value) => {
+		expect(formatElapsedTime(value)).toBe("—");
 	});
 
-	it("returns em dash for undefined", () => {
-		expect(formatElapsedTime(undefined)).toBe("—");
-	});
-
-	it("returns em dash for future dates", () => {
-		const future = new Date(NOW.getTime() + 60_000);
-		expect(formatElapsedTime(future)).toBe("—");
+	it.each([
+		["an unparseable string", "not-a-date"],
+		["NaN", Number.NaN],
+		["a future date", new Date(NOW.getTime() + 60_000)],
+		["a future epoch number", NOW.getTime() + 60_000],
+	])("returns em dash for %s", (_label, value) => {
+		expect(formatElapsedTime(value)).toBe("—");
 	});
 
 	it("formats sub-hour elapsed as minutes only", () => {
@@ -68,17 +68,5 @@ describe("formatElapsedTime", () => {
 	it("handles elapsed time larger than a day", () => {
 		const past = new Date(NOW.getTime() - 25 * 60 * 60_000);
 		expect(formatElapsedTime(past)).toBe("25h 0m");
-	});
-
-	it("returns em dash for unparseable string input (NaN diff)", () => {
-		expect(formatElapsedTime("not-a-date")).toBe("—");
-	});
-
-	it("returns em dash for NaN numeric input", () => {
-		expect(formatElapsedTime(Number.NaN)).toBe("—");
-	});
-
-	it("returns em dash for future epoch number input", () => {
-		expect(formatElapsedTime(NOW.getTime() + 60_000)).toBe("—");
 	});
 });

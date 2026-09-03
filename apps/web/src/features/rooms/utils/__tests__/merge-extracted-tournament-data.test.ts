@@ -100,44 +100,18 @@ describe("mergeExtractedTournamentData", () => {
 			expect(result.buyIn).toBeUndefined();
 		});
 
-		it("ignores explicit zero for startingStack (never a valid freeroll field)", () => {
+		it.each([
+			["startingStack", 0, 20_000],
+			["tableSize", 0, 9],
+			["startingStack", -5, 20_000],
+			["entryFee", Number.NaN, 5],
+			["tableSize", Number.POSITIVE_INFINITY, 9],
+		] as const)("keeps the base %s when the extracted value is %s", (field, extracted, existing) => {
 			const result = mergeExtractedTournamentData(
-				{ startingStack: 0 },
-				base({ startingStack: 20_000 })
+				{ [field]: extracted },
+				base({ [field]: existing })
 			);
-			expect(result.startingStack).toBe(20_000);
-		});
-
-		it("ignores explicit zero for tableSize (never a valid freeroll field)", () => {
-			const result = mergeExtractedTournamentData(
-				{ tableSize: 0 },
-				base({ tableSize: 9 })
-			);
-			expect(result.tableSize).toBe(9);
-		});
-
-		it("keeps the base value when extracted number is negative", () => {
-			const result = mergeExtractedTournamentData(
-				{ startingStack: -5 },
-				base({ startingStack: 20_000 })
-			);
-			expect(result.startingStack).toBe(20_000);
-		});
-
-		it("keeps the base value when extracted number is NaN", () => {
-			const result = mergeExtractedTournamentData(
-				{ entryFee: Number.NaN },
-				base({ entryFee: 5 })
-			);
-			expect(result.entryFee).toBe(5);
-		});
-
-		it("keeps the base value when extracted number is Infinity", () => {
-			const result = mergeExtractedTournamentData(
-				{ tableSize: Number.POSITIVE_INFINITY },
-				base({ tableSize: 9 })
-			);
-			expect(result.tableSize).toBe(9);
+			expect(result[field]).toBe(existing);
 		});
 
 		it("applies all four numeric fields independently", () => {

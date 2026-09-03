@@ -1,199 +1,86 @@
-import { getTableColumns } from "drizzle-orm";
-import { getTableConfig, SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
 import { gameSession } from "../schema/session";
-
-describe("GameSession schema — columns", () => {
-	const columns = getTableColumns(gameSession);
-
-	it("has all required columns", () => {
-		expect(Object.keys(columns)).toEqual(
-			expect.arrayContaining([
-				"id",
-				"userId",
-				"kind",
-				"status",
-				"source",
-				"sessionDate",
-				"startedAt",
-				"endedAt",
-				"breakMinutes",
-				"memo",
-				"roomId",
-				"currencyId",
-				"createdAt",
-				"updatedAt",
-			])
-		);
-	});
-
-	it("does not include heroSeatPosition (derived from events)", () => {
-		expect(
-			(columns as Record<string, unknown>).heroSeatPosition
-		).toBeUndefined();
-	});
-
-	it("id is primary key", () => {
-		expect(columns.id.primary).toBe(true);
-	});
-
-	it("userId is not null", () => {
-		expect(columns.userId.notNull).toBe(true);
-	});
-
-	it("kind is not null", () => {
-		expect(columns.kind.notNull).toBe(true);
-	});
-
-	it("status is not null", () => {
-		expect(columns.status.notNull).toBe(true);
-	});
-
-	it("source is not null", () => {
-		expect(columns.source.notNull).toBe(true);
-	});
-
-	it("sessionDate is not null", () => {
-		expect(columns.sessionDate.notNull).toBe(true);
-	});
-
-	it("nullable optional columns", () => {
-		expect(columns.startedAt.notNull).toBe(false);
-		expect(columns.endedAt.notNull).toBe(false);
-		expect(columns.breakMinutes.notNull).toBe(false);
-		expect(columns.memo.notNull).toBe(false);
-		expect(columns.roomId.notNull).toBe(false);
-		expect(columns.currencyId.notNull).toBe(false);
-	});
-
-	it("createdAt and updatedAt are not null", () => {
-		expect(columns.createdAt.notNull).toBe(true);
-		expect(columns.updatedAt.notNull).toBe(true);
-	});
-
-	it("createdAt has a default (unixepoch)", () => {
-		expect(columns.createdAt.hasDefault).toBe(true);
-	});
-
-	it("updatedAt uses $onUpdate", () => {
-		expect(columns.updatedAt.onUpdateFn).toBeInstanceOf(Function);
-	});
-
-	it("sessionDate uses timestamp mode", () => {
-		expect(columns.sessionDate.dataType).toBe("date");
-	});
-
-	it("startedAt / endedAt use timestamp mode", () => {
-		expect(columns.startedAt.dataType).toBe("date");
-		expect(columns.endedAt.dataType).toBe("date");
-	});
-
-	it("kind / status / source are stored as string", () => {
-		expect(columns.kind.dataType).toBe("string");
-		expect(columns.status.dataType).toBe("string");
-		expect(columns.source.dataType).toBe("string");
-	});
-
-	it("does not have old pokerSession columns (type, ringGameId, tournamentId, liveCashGameSessionId, liveTournamentSessionId)", () => {
-		expect((columns as Record<string, unknown>).type).toBeUndefined();
-		expect((columns as Record<string, unknown>).ringGameId).toBeUndefined();
-		expect((columns as Record<string, unknown>).tournamentId).toBeUndefined();
-		expect(
-			(columns as Record<string, unknown>).liveCashGameSessionId
-		).toBeUndefined();
-		expect(
-			(columns as Record<string, unknown>).liveTournamentSessionId
-		).toBeUndefined();
-	});
-});
+import { checksOf, fkByColumn, indexByName, indexesOf } from "./test-utils";
 
 describe("GameSession — FK cascade policies", () => {
-	const config = getTableConfig(gameSession);
-	const fkByColumn = (columnName: string) =>
-		config.foreignKeys.find((fk) =>
-			fk.reference().columns.some((c) => c.name === columnName)
-		);
-
-	it("userId FK cascades (sessions die with their owner)", () => {
-		expect(fkByColumn("user_id")?.onDelete).toBe("cascade");
+	it("userId FK cascades so sessions die with their owner", () => {
+		expect(fkByColumn(gameSession, "user_id")).toEqual({
+			columns: ["user_id"],
+			foreignColumns: ["id"],
+			foreignTable: "user",
+			onDelete: "cascade",
+		});
 	});
 
-	it("roomId FK uses set null (history preserved when room removed)", () => {
-		expect(fkByColumn("room_id")?.onDelete).toBe("set null");
+	it("roomId FK uses set null so history survives room removal", () => {
+		expect(fkByColumn(gameSession, "room_id")).toEqual({
+			columns: ["room_id"],
+			foreignColumns: ["id"],
+			foreignTable: "room",
+			onDelete: "set null",
+		});
 	});
 
-	it("currencyId FK uses set null", () => {
-		expect(fkByColumn("currency_id")?.onDelete).toBe("set null");
-	});
-
-	it("has exactly 3 foreign keys", () => {
-		expect(config.foreignKeys).toHaveLength(3);
-	});
-
-	it("all FK reference id columns", () => {
-		for (const fk of config.foreignKeys) {
-			expect(fk.reference().foreignColumns.map((c) => c.name)).toEqual(["id"]);
-		}
+	it("currencyId FK uses set null so history survives currency removal", () => {
+		expect(fkByColumn(gameSession, "currency_id")).toEqual({
+			columns: ["currency_id"],
+			foreignColumns: ["id"],
+			foreignTable: "currency",
+			onDelete: "set null",
+		});
 	});
 });
 
 describe("GameSession — indexes", () => {
-	const config = getTableConfig(gameSession);
-	const idxNames = config.indexes.map((i) => i.config.name);
-	const dialect = new SQLiteSyncDialect();
-
-	it("has session_user_kind_status_idx", () => {
-		expect(idxNames).toContain("session_user_kind_status_idx");
-	});
-
-	it("has session_user_date_idx", () => {
-		expect(idxNames).toContain("session_user_date_idx");
-	});
-
-	it("has session_room_idx", () => {
-		expect(idxNames).toContain("session_room_idx");
-	});
-
-	it("has session_currency_idx", () => {
-		expect(idxNames).toContain("session_currency_idx");
+	it("indexes the user/kind/status, user/date, room and currency lookups", () => {
+		expect(indexesOf(gameSession).filter((index) => !index.unique)).toEqual([
+			{
+				columns: ["user_id", "kind", "status"],
+				name: "session_user_kind_status_idx",
+				unique: false,
+				where: null,
+			},
+			{
+				columns: ["user_id", "session_date"],
+				name: "session_user_date_idx",
+				unique: false,
+				where: null,
+			},
+			{
+				columns: ["room_id"],
+				name: "session_room_idx",
+				unique: false,
+				where: null,
+			},
+			{
+				columns: ["currency_id"],
+				name: "session_currency_idx",
+				unique: false,
+				where: null,
+			},
+		]);
 	});
 
 	it("allows only one unfinished live session per user", () => {
-		const uniqueIdxs = config.indexes.filter(
-			(i) => (i.config as unknown as { unique: boolean }).unique === true
+		const index = indexByName(
+			gameSession,
+			"session_one_unfinished_live_per_user_idx"
 		);
-		expect(uniqueIdxs).toHaveLength(1);
+		expect(index).toMatchObject({ columns: ["user_id"], unique: true });
+		expect(index?.where).toContain('"game_session"."source" = \'live\'');
+		expect(index?.where).toContain('"game_session"."status" != \'completed\'');
+	});
+});
 
-		const [index] = uniqueIdxs;
-		expect(index?.config.name).toBe("session_one_unfinished_live_per_user_idx");
-		expect(index?.config.columns).toEqual([
-			getTableColumns(gameSession).userId,
+describe("GameSession — CHECK constraints", () => {
+	it("session_manual_completed_check forces manual-source sessions to be completed", () => {
+		const checks = checksOf(gameSession);
+		expect(checks).toEqual([
+			{
+				name: "session_manual_completed_check",
+				sql: expect.stringContaining("source != 'manual'"),
+			},
 		]);
-
-		const where = dialect.sqlToQuery(index?.config.where as never);
-		expect(where.sql).toContain('"game_session"."source" = \'live\'');
-		expect(where.sql).toContain('"game_session"."status" != \'completed\'');
-	});
-});
-
-describe("GameSession — table name", () => {
-	it("table is named game_session", () => {
-		const config = getTableConfig(gameSession);
-		expect(config.name).toBe("game_session");
-	});
-});
-
-describe("GameSession — CHECK constraint: manual source implies completed status", () => {
-	it("has a check constraint", () => {
-		const config = getTableConfig(gameSession);
-		expect(config.checks.length).toBeGreaterThanOrEqual(1);
-	});
-
-	it("check constraint name is session_manual_completed_check", () => {
-		const config = getTableConfig(gameSession);
-		const ck = config.checks.find(
-			(c) => c.name === "session_manual_completed_check"
-		);
-		expect(ck).toBeDefined();
+		expect(checks[0]?.sql).toContain("status = 'completed'");
 	});
 });

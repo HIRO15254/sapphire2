@@ -8,9 +8,8 @@ import { appRouter } from "../routers";
 import {
 	createChainableMockDb,
 	expectAccepts,
-	expectProtected,
+	expectProcedureSurface,
 	expectRejects,
-	expectType,
 	getInputSchema,
 } from "./test-utils";
 
@@ -53,65 +52,58 @@ function seededRows(extra: { variant?: Rows; group?: Rows } = {}) {
 	};
 }
 
-describe("gameGroup router", () => {
-	it("appRouter has gameGroup namespace", () => {
-		expect(appRouter.gameGroup).toBeDefined();
-	});
+const writers = [
+	["create", appRouter.gameGroup.create, {}],
+	["update", appRouter.gameGroup.update, { id: "grp-1" }],
+] as const;
 
+describe("gameGroup router", () => {
 	it("exposes exactly the expected procedure set", () => {
 		expect(Object.keys(appRouter.gameGroup).sort()).toEqual(
 			["create", "delete", "list", "update"].sort()
 		);
 	});
 
-	it("list is a protected query", () => {
-		expectProtected(appRouter.gameGroup.list);
-		expectType(appRouter.gameGroup.list, "query");
-	});
-
-	it("create / update / delete are protected mutations", () => {
-		for (const proc of [
-			appRouter.gameGroup.create,
-			appRouter.gameGroup.update,
-			appRouter.gameGroup.delete,
-		]) {
-			expectProtected(proc);
-			expectType(proc, "mutation");
-		}
+	it("every procedure is a protected query or mutation", () => {
+		expectProcedureSurface(appRouter.gameGroup, {
+			create: "mutation",
+			delete: "mutation",
+			list: "query",
+			update: "mutation",
+		});
 	});
 });
 
-describe("gameGroup.create input validation", () => {
-	it("accepts a minimal valid label", () => {
-		expectAccepts(appRouter.gameGroup.create, { label: "My Group" });
+describe("gameGroup label validation", () => {
+	it.each(writers)("%s rejects an empty label", (_name, procedure, base) => {
+		expectRejects(procedure, { ...base, label: "" });
 	});
 
-	it("rejects an empty label", () => {
-		expectRejects(appRouter.gameGroup.create, { label: "" });
+	it.each(
+		writers
+	)("%s rejects a whitespace-only label (trimmed to empty)", (_name, procedure, base) => {
+		expectRejects(procedure, { ...base, label: "   " });
 	});
 
-	it("rejects a whitespace-only label (trimmed to empty)", () => {
-		expectRejects(appRouter.gameGroup.create, { label: "   " });
+	it.each(
+		writers
+	)("%s accepts a label at the 30-character boundary", (_name, procedure, base) => {
+		expectAccepts(procedure, { ...base, label: "a".repeat(30) });
 	});
 
-	it("accepts a label at the 30-character boundary", () => {
-		expectAccepts(appRouter.gameGroup.create, { label: "a".repeat(30) });
+	it.each(
+		writers
+	)("%s rejects a label longer than 30 characters", (_name, procedure, base) => {
+		expectRejects(procedure, { ...base, label: "a".repeat(31) });
 	});
+});
 
-	it("rejects a label longer than 30 characters", () => {
-		expectRejects(appRouter.gameGroup.create, { label: "a".repeat(31) });
-	});
-
-	it("rejects missing label", () => {
-		expectRejects(appRouter.gameGroup.create, {});
-	});
-
-	it("accepts blind labels omitted (nullish)", () => {
-		expectAccepts(appRouter.gameGroup.create, { label: "My Group" });
-	});
-
-	it("accepts blind labels explicitly null", () => {
-		expectAccepts(appRouter.gameGroup.create, {
+describe("gameGroup blind label validation", () => {
+	it.each(
+		writers
+	)("%s accepts blind labels explicitly null", (_name, procedure, base) => {
+		expectAccepts(procedure, {
+			...base,
 			label: "My Group",
 			blind1Label: null,
 			blind2Label: null,
@@ -119,8 +111,11 @@ describe("gameGroup.create input validation", () => {
 		});
 	});
 
-	it("accepts blind labels at the 20-character boundary", () => {
-		expectAccepts(appRouter.gameGroup.create, {
+	it.each(
+		writers
+	)("%s accepts blind labels at the 20-character boundary", (_name, procedure, base) => {
+		expectAccepts(procedure, {
+			...base,
 			label: "My Group",
 			blind1Label: "a".repeat(20),
 			blind2Label: "a".repeat(20),
@@ -128,85 +123,35 @@ describe("gameGroup.create input validation", () => {
 		});
 	});
 
-	it("rejects a blind label longer than 20 characters", () => {
-		expectRejects(appRouter.gameGroup.create, {
+	it.each(
+		writers
+	)("%s rejects a blind label longer than 20 characters", (_name, procedure, base) => {
+		expectRejects(procedure, {
+			...base,
 			label: "My Group",
 			blind1Label: "a".repeat(21),
 		});
 	});
 
-	it("rejects an empty blind label", () => {
-		expectRejects(appRouter.gameGroup.create, {
-			label: "My Group",
-			blind1Label: "",
-		});
+	it.each(
+		writers
+	)("%s rejects an empty blind label", (_name, procedure, base) => {
+		expectRejects(procedure, { ...base, label: "My Group", blind1Label: "" });
 	});
+});
 
-	it("rejects a builtinKey supplied in the input (immutable, not settable)", () => {
-		const schema = getInputSchema(appRouter.gameGroup.create);
+describe("gameGroup builtinKey immutability", () => {
+	it.each(
+		writers
+	)("%s strips a builtinKey supplied in the input", (_name, procedure, base) => {
+		const schema = getInputSchema(procedure);
 		const parsed = schema.safeParse({
+			...base,
 			label: "My Group",
 			builtinKey: "limit",
 		}) as unknown as { data?: Record<string, unknown>; success: boolean };
 		expect(parsed.success).toBe(true);
 		expect(parsed.data?.builtinKey).toBeUndefined();
-	});
-});
-
-describe("gameGroup.update input validation", () => {
-	it("accepts id-only payload (no-op)", () => {
-		expectAccepts(appRouter.gameGroup.update, { id: "grp-1" });
-	});
-
-	it("accepts id + label", () => {
-		expectAccepts(appRouter.gameGroup.update, {
-			id: "grp-1",
-			label: "New Label",
-		});
-	});
-
-	it("rejects empty label when provided", () => {
-		expectRejects(appRouter.gameGroup.update, { id: "grp-1", label: "" });
-	});
-
-	it("rejects missing id", () => {
-		expectRejects(appRouter.gameGroup.update, { label: "x" });
-	});
-
-	it("accepts blind labels cleared to null", () => {
-		expectAccepts(appRouter.gameGroup.update, {
-			id: "grp-1",
-			blind1Label: null,
-			blind2Label: null,
-			blind3Label: null,
-		});
-	});
-
-	it("rejects a blind label longer than 20 characters", () => {
-		expectRejects(appRouter.gameGroup.update, {
-			id: "grp-1",
-			blind1Label: "a".repeat(21),
-		});
-	});
-
-	it("strips a builtinKey supplied in the input (immutable)", () => {
-		const schema = getInputSchema(appRouter.gameGroup.update);
-		const parsed = schema.safeParse({
-			id: "grp-1",
-			builtinKey: "stud",
-		}) as unknown as { data?: Record<string, unknown>; success: boolean };
-		expect(parsed.success).toBe(true);
-		expect(parsed.data?.builtinKey).toBeUndefined();
-	});
-});
-
-describe("gameGroup.delete input validation", () => {
-	it("accepts a valid id", () => {
-		expectAccepts(appRouter.gameGroup.delete, { id: "grp-1" });
-	});
-
-	it("rejects missing id", () => {
-		expectRejects(appRouter.gameGroup.delete, {});
 	});
 });
 
@@ -218,11 +163,13 @@ describe("gameGroup.create collision guard (CONFLICT)", () => {
 		await expectTrpcCode(caller.create({ label: "my group" }), "CONFLICT");
 	});
 
-	it("accepts a genuinely new label with no collision", async () => {
-		const { caller } = gameGroupCaller(CUR_OWNER, {
+	it("inserts a genuinely new label with no collision", async () => {
+		const { caller, inserted } = gameGroupCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [{ id: "grp-1", userId: CUR_OWNER, label: "Other Group" }],
 		});
-		await expect(caller.create({ label: "Brand New" })).resolves.toBeDefined();
+		await caller.create({ label: "Brand New" });
+		expect(inserted[GROUP_TABLE]).toHaveLength(1);
+		expect(inserted[GROUP_TABLE]?.[0]).toMatchObject({ label: "Brand New" });
 	});
 
 	it("stamps the created row with the caller's userId, null builtinKey, and a generated id", async () => {
@@ -289,24 +236,23 @@ describe("gameGroup ownership (uniform FORBIDDEN, SA2-183)", () => {
 		});
 	}
 
-	it("update resolves for a row owned by the caller", async () => {
-		const { caller } = gameGroupCaller(CUR_OWNER, {
+	it("update writes the new label for a row owned by the caller", async () => {
+		const { caller, updated } = gameGroupCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [{ id: "grp-1", userId: CUR_OWNER, label: "My Group" }],
 		});
-		await expect(
-			caller.update({ id: "grp-1", label: "Renamed Group" })
-		).resolves.toBeDefined();
+		await caller.update({ id: "grp-1", label: "Renamed Group" });
+		expect(updated[GROUP_TABLE]).toHaveLength(1);
+		expect(updated[GROUP_TABLE]?.[0]).toMatchObject({ label: "Renamed Group" });
 	});
 });
 
 describe("gameGroup.update excludes self from collision", () => {
-	it("succeeds when keeping the row's own (unchanged) label", async () => {
-		const { caller } = gameGroupCaller(CUR_OWNER, {
+	it("writes the row's own (unchanged) label without a self-collision", async () => {
+		const { caller, updated } = gameGroupCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [{ id: "grp-1", userId: CUR_OWNER, label: "My Group" }],
 		});
-		await expect(
-			caller.update({ id: "grp-1", label: "My Group" })
-		).resolves.toBeDefined();
+		await caller.update({ id: "grp-1", label: "My Group" });
+		expect(updated[GROUP_TABLE]?.[0]).toMatchObject({ label: "My Group" });
 	});
 
 	it("still rejects renaming to a different existing group label (CONFLICT)", async () => {

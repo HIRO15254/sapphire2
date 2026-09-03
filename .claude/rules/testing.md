@@ -32,10 +32,29 @@ A behavior belongs to exactly one row. A Zod rule proven in `packages/api` is no
 | Optimistic flow with real QueryClient | `web-dom` / `web-node` | [`apps/web/src/features/live-sessions/utils/__tests__/optimistic-session-event.test.ts`](../../apps/web/src/features/live-sessions/utils/__tests__/optimistic-session-event.test.ts) |
 | Page hook / view hook | `web-dom` | [`apps/web/src/features/sessions/pages/sessions-page/__tests__/use-sessions-page.test.ts`](../../apps/web/src/features/sessions/pages/sessions-page/__tests__/use-sessions-page.test.ts) |
 | API procedure — ownership / atomicity / error kinds | `api` | [`packages/api/src/__tests__/ownership-error-uniformity.test.ts`](../../packages/api/src/__tests__/ownership-error-uniformity.test.ts), [`packages/api/src/__tests__/db-batch-atomicity.test.ts`](../../packages/api/src/__tests__/db-batch-atomicity.test.ts), the `callerFor()` factory in [`packages/api/src/__tests__/session.test.ts`](../../packages/api/src/__tests__/session.test.ts) with `createChainableMockDb` from [`test-utils.ts`](../../packages/api/src/__tests__/test-utils.ts). No per-procedure existence tests; `expectAccepts` / `expectRejects` only for boundaries the spec names. |
-| DB constraint / migration | `db` | [`packages/db/src/__tests__/session-schema.test.ts`](../../packages/db/src/__tests__/session-schema.test.ts) (FK `onDelete`, partial unique index via `getTableConfig`), [`packages/db/src/__tests__/migration-0049.test.ts`](../../packages/db/src/__tests__/migration-0049.test.ts) (`applyThrough` mid-file failure). FK / index / migration only — never `getTableColumns` column lists. |
+| DB constraint / migration | `db` | [`packages/db/src/__tests__/session-schema.test.ts`](../../packages/db/src/__tests__/session-schema.test.ts) (FK `onDelete`, partial unique index via `getTableConfig`), [`packages/db/src/__tests__/migration-0049.test.ts`](../../packages/db/src/__tests__/migration-0049.test.ts) (`applyThrough` mid-file failure). FK / index / migration only — never `getTableColumns` column lists. `packages/db/src/__tests__/test-utils.ts` (`fkByColumn`, `indexesOf`, `indexByName`, `checksOf`) is the only way to read Drizzle metadata in a db spec; `check:rules` bans the shape accessors. |
 | Shared helpers (web) | — | [`apps/web/src/__tests__/test-utils.tsx`](../../apps/web/src/__tests__/test-utils.tsx) (`createTestQueryClient`, `renderWithQueryClient`, `createTrpcMock`, `createToastMock`, `createAuthClientMock`) |
 
 If a target matches no row, extend the relevant `test-utils` file with a helper rather than hand-rolling a new pattern per file.
+
+## Component tests that mock their own hook (`web-dom`)
+
+The hook return value is the input and the DOM is the output; the test may hold at most one `it()` per binding class and nothing that re-proves a value the hook test already proved:
+
+- **B1 state → subtree**: one `it()` per distinct rendered state (loading skeleton, error + retry, not found, empty).
+- **B2 collection → rows**: one `it()` ("renders one row per item").
+- **B3 handler wiring**: one `it()` per hook handler asserting `toHaveBeenCalledWith(args)`; several entry points for the same handler become one `it.each`.
+- **B4 flag → attribute**: one `it()` per flag (pending disables Save; a toggling label asserted with both values in one `it()`).
+- **B5 conditional mount**: one `it()` per sheet / drawer, both branches in one `it()`.
+
+Delete "forwards X to Child" tests when the page-hook test asserts the pass-through and the child's own test asserts the rendering (keep one prop-reaches-child `it()` per child), per-sheet "Cancel closes" repeats, label-only variants, and any assertion on hook-internal branches. A component test mocks the component's own `use-*` hook — never `@tanstack/react-query`; a `useMutation` stub that derives the patch itself asserts against the mock, not the component.
+
+## Zod input tests (`packages/api`)
+
+- Keep an `it()` only for a boundary the spec names: 1-based placement and `placement <= totalEntries` (create and update alike), `tableSize` 2..10, seat 0..9, `limit` / cursor rules, name-length caps, every enum rejection, discriminated-union branch requirements, strict payloads, the D1 100-parameter chunking, money / chip / count fields non-negative and integer.
+- Money, chip, and count fields share ONE `it.each` per schema ("rejects a negative or fractional %s"), never one `it()` per field.
+- Do not write type enumerations: "rejects a non-string X", "rejects missing <required field>", "accepts {id}" triplets, boolean-flag enumerations, or a second happy path — TypeScript and Zod already guarantee them and they only pad the count.
+- Procedure surface: one "exposes exactly the expected procedure set" `it()` plus one `expectProcedureSurface(appRouter.<ns>, { name: "query" | "mutation" })` call per router file; never a per-procedure existence or `expectProtected` `it()`.
 
 ## Mocking conventions
 
@@ -72,4 +91,6 @@ A test is deleted only when the PR shows, for its project, the before/after `it(
 
 - Focused / skipped tests (`it.only`, `it.skip`, `test.todo`, `describe.only`, `xit`, `fit`, …) are banned in every `*.test.ts(x)`. Biome's `noFocusedTests` only warns; this check fails.
 - `Stryker disable` must be `next-line`, name its mutators, and carry a reason.
-- Arriving with the P2 cleanup PRs: smoke-only `it()` blocks (every `expect` ends in `toBeDefined` / `toBeTruthy`; `not.toThrow` stays prose-only because `bun:sqlite` migration specs prove constraint acceptance by not throwing) and schema-shape assertions in `packages/db` tests. The detector already lives in [`scripts/check-rules-tests.ts`](../../scripts/check-rules-tests.ts).
+- Stryker instrumentation in a source file (`stryNS_*`, `__stryker__`, or the bare `// @ts-nocheck` stamp it puts on every file under the mutated project's `src/`) fails `check:rules`: it means an in-place run was still active when the tree was staged (P2-web committed 87 instrumented `packages/api` files that way). Stop the run with SIGINT, `git checkout -- <files>`, and never run `bun run mutate` in a tree that another agent or editor is committing from.
+- Smoke-only `it()` blocks (every `expect` ends in `toBeDefined` / `toBeTruthy`; `not.toThrow` stays prose-only because `bun:sqlite` migration specs prove constraint acceptance by not throwing) are banned by [`scripts/check-rules-tests.ts`](../../scripts/check-rules-tests.ts) across `packages/**/*.test.ts` and `apps/**/*.test.{ts,tsx}`.
+- Schema-shape assertions in `packages/db` tests (`.notNull`, `.hasDefault`, `.dataType`, `.columnType`, `.primary`, `.onUpdateFn`, `getTableName(`, `.primaryKeys`) are banned; `.default` pins tied to a constant or incident and the better-auth column-presence tests in `oauth-schema` / `passkey-schema` are the deliberate exceptions.

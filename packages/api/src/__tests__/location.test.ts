@@ -7,36 +7,27 @@ import {
 } from "../routers/location";
 import {
 	expectAccepts,
-	expectProtected,
+	expectProcedureSurface,
 	expectRejects,
-	expectType,
 } from "./test-utils";
 
 describe("location router", () => {
-	it("appRouter has location namespace", () => {
-		expect(appRouter.location).toBeDefined();
-	});
-
-	it("exposes exactly search and resolveLink", () => {
+	it("exposes exactly the expected procedure set", () => {
 		expect(Object.keys(appRouter.location).sort()).toEqual([
 			"resolveLink",
 			"search",
 		]);
 	});
 
-	it("search and resolveLink are protected mutations", () => {
-		expectProtected(appRouter.location.search);
-		expectType(appRouter.location.search, "mutation");
-		expectProtected(appRouter.location.resolveLink);
-		expectType(appRouter.location.resolveLink, "mutation");
+	it("every procedure is a protected query or mutation", () => {
+		expectProcedureSurface(appRouter.location, {
+			resolveLink: "mutation",
+			search: "mutation",
+		});
 	});
 });
 
 describe("location.search input validation", () => {
-	it("accepts a non-empty query", () => {
-		expectAccepts(appRouter.location.search, { query: "casino tokyo" });
-	});
-
 	it("rejects an empty query", () => {
 		expectRejects(appRouter.location.search, { query: "" });
 	});
@@ -47,10 +38,6 @@ describe("location.search input validation", () => {
 
 	it("rejects a query over 200 chars", () => {
 		expectRejects(appRouter.location.search, { query: "x".repeat(201) });
-	});
-
-	it("rejects a missing query", () => {
-		expectRejects(appRouter.location.search, {});
 	});
 });
 
@@ -63,10 +50,6 @@ describe("location.resolveLink input validation", () => {
 
 	it("rejects a malformed url", () => {
 		expectRejects(appRouter.location.resolveLink, { url: "not a url" });
-	});
-
-	it("rejects a missing url", () => {
-		expectRejects(appRouter.location.resolveLink, {});
 	});
 });
 

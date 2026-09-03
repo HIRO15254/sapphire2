@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const hoisted = vi.hoisted(() => ({
@@ -14,10 +15,9 @@ vi.mock(
 
 vi.mock("@/features/players/pages/player-detail-page/top-bar", () => ({
 	TopBar: ({ onOpenActions }: { onOpenActions?: () => void }) => (
-		<div
-			data-has-actions={String(Boolean(onOpenActions))}
-			data-testid="top-bar"
-		/>
+		<button onClick={onOpenActions} type="button">
+			stub-open-actions
+		</button>
 	),
 }));
 
@@ -81,6 +81,8 @@ interface MockState {
 	setIsEditOpen: ReturnType<typeof vi.fn>;
 }
 
+type MountFlag = "confirmingDelete" | "isActionsOpen" | "isEditOpen";
+
 function setMockState(overrides: Partial<MockState> = {}): MockState {
 	const state: MockState = {
 		player: {
@@ -116,130 +118,119 @@ describe("PlayerDetailPage", () => {
 		hoisted.usePlayerDetailPage.mockReset();
 	});
 
-	describe("loading branch", () => {
-		it("renders the skeleton and no header while loading", () => {
-			setMockState({ isLoading: true, player: null });
-			render(<PlayerDetailPage playerId="p1" />);
-			expect(screen.getByTestId("player-detail-skeleton")).toBeInTheDocument();
-			expect(screen.queryByTestId("top-bar")).not.toBeInTheDocument();
-		});
+	it("renders the skeleton and no top bar while loading", () => {
+		setMockState({ isLoading: true, player: null });
+		render(<PlayerDetailPage playerId="p1" />);
+		expect(screen.getByTestId("player-detail-skeleton")).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: "stub-open-actions" })
+		).not.toBeInTheDocument();
 	});
 
-	describe("query error branch", () => {
-		it("shows a retryable error instead of not-found when the initial query fails", () => {
-			const onRetry = vi.fn();
-			setMockState({ player: null, isInitialLoadError: true, onRetry });
-			render(<PlayerDetailPage playerId="p1" />);
-			expect(screen.getByRole("alert")).toHaveTextContent(
-				"Unable to load player. Please try again."
-			);
-			expect(
-				screen.queryByRole("heading", { name: "Player not found" })
-			).not.toBeInTheDocument();
-			fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-			expect(onRetry).toHaveBeenCalledTimes(1);
-		});
+	it("shows a retryable error instead of not-found when the initial query fails", () => {
+		const onRetry = vi.fn();
+		setMockState({ player: null, isInitialLoadError: true, onRetry });
+		render(<PlayerDetailPage playerId="p1" />);
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"Unable to load player. Please try again."
+		);
+		expect(
+			screen.queryByRole("heading", { name: "Player not found" })
+		).not.toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+		expect(onRetry).toHaveBeenCalledTimes(1);
 	});
 
-	describe("not-found branch", () => {
-		it("renders the not-found message when player is null and not loading", () => {
-			setMockState({ isLoading: false, player: null });
-			render(<PlayerDetailPage playerId="p1" />);
-			expect(
-				screen.getByRole("heading", { name: "Player not found" })
-			).toBeInTheDocument();
-			expect(
-				screen.getByText("This player may have been deleted.")
-			).toBeInTheDocument();
-		});
+	it("renders the not-found message when the player is null and not loading", () => {
+		setMockState({ isLoading: false, player: null });
+		render(<PlayerDetailPage playerId="p1" />);
+		expect(
+			screen.getByRole("heading", { name: "Player not found" })
+		).toBeInTheDocument();
+		expect(
+			screen.getByText("This player may have been deleted.")
+		).toBeInTheDocument();
 	});
 
-	describe("content branch", () => {
-		it("renders the player name in the header", () => {
-			setMockState({
-				player: { id: "p1", name: "Carol", memo: null, tags: [] },
-			});
-			render(<PlayerDetailPage playerId="p1" />);
-			expect(
-				screen.getByRole("heading", { name: "Carol" })
-			).toBeInTheDocument();
+	it("renders the player name as the heading once loaded", () => {
+		setMockState({
+			player: { id: "p1", name: "Carol", memo: null, tags: [] },
 		});
+		render(<PlayerDetailPage playerId="p1" />);
+		expect(screen.getByRole("heading", { name: "Carol" })).toBeInTheDocument();
+	});
 
-		it("renders each tag", () => {
-			setMockState({
-				player: {
-					id: "p1",
-					name: "Carol",
-					memo: null,
-					tags: [
-						{ id: "vip", name: "VIP", color: "blue" },
-						{ id: "reg", name: "Regular", color: "red" },
-					],
-				},
-			});
-			render(<PlayerDetailPage playerId="p1" />);
-			expect(screen.getByText("VIP")).toBeInTheDocument();
-			expect(screen.getByText("Regular")).toBeInTheDocument();
-		});
+	it("opens the actions drawer from the TopBar", async () => {
+		const user = userEvent.setup();
+		const state = setMockState();
+		render(<PlayerDetailPage playerId="p1" />);
+		await user.click(screen.getByRole("button", { name: "stub-open-actions" }));
+		expect(state.setIsActionsOpen).toHaveBeenCalledTimes(1);
+		expect(state.setIsActionsOpen).toHaveBeenCalledWith(true);
+	});
 
-		it("renders the memo content when a memo is present", () => {
-			setMockState({
-				player: {
-					id: "p1",
-					name: "Carol",
-					memo: "<p>Tough regular</p>",
-					tags: [],
-				},
-			});
-			render(<PlayerDetailPage playerId="p1" />);
-			expect(screen.getByTestId("memo-html")).toHaveTextContent(
-				"Tough regular"
-			);
+	it("renders one badge per tag", () => {
+		setMockState({
+			player: {
+				id: "p1",
+				name: "Carol",
+				memo: null,
+				tags: [
+					{ id: "vip", name: "VIP", color: "blue" },
+					{ id: "reg", name: "Regular", color: "red" },
+				],
+			},
 		});
+		render(<PlayerDetailPage playerId="p1" />);
+		expect(screen.getByText("VIP")).toBeInTheDocument();
+		expect(screen.getByText("Regular")).toBeInTheDocument();
+	});
 
-		it("renders the empty-memo placeholder when memo is null", () => {
-			setMockState({
-				player: { id: "p1", name: "Carol", memo: null, tags: [] },
-			});
-			render(<PlayerDetailPage playerId="p1" />);
-			expect(screen.getByText("No memo yet.")).toBeInTheDocument();
-			expect(screen.queryByTestId("memo-html")).not.toBeInTheDocument();
+	it("renders the memo html when present and the placeholder when null", () => {
+		setMockState({
+			player: {
+				id: "p1",
+				name: "Carol",
+				memo: "<p>Tough regular</p>",
+				tags: [],
+			},
 		});
+		const { rerender } = render(<PlayerDetailPage playerId="p1" />);
+		expect(screen.getByTestId("memo-html")).toHaveTextContent("Tough regular");
+		expect(screen.queryByText("No memo yet.")).not.toBeInTheDocument();
+		setMockState({
+			player: { id: "p1", name: "Carol", memo: null, tags: [] },
+		});
+		rerender(<PlayerDetailPage playerId="p1" />);
+		expect(screen.getByText("No memo yet.")).toBeInTheDocument();
+		expect(screen.queryByTestId("memo-html")).not.toBeInTheDocument();
+	});
 
-		it("passes onOpenActions to the TopBar in the content branch", () => {
-			setMockState();
-			render(<PlayerDetailPage playerId="p1" />);
-			expect(screen.getByTestId("top-bar")).toHaveAttribute(
-				"data-has-actions",
-				"true"
-			);
-		});
+	it.each<[string, MountFlag, string]>([
+		["edit form", "isEditOpen", "player-form-stub"],
+		["actions drawer", "isActionsOpen", "actions-drawer"],
+		["delete dialog", "confirmingDelete", "delete-dialog"],
+	])("mounts the %s only while %s is true", (_, flag, testId) => {
+		setMockState({ [flag]: false });
+		const { rerender } = render(<PlayerDetailPage playerId="p1" />);
+		expect(screen.queryByTestId(testId)).not.toBeInTheDocument();
+		setMockState({ [flag]: true });
+		rerender(<PlayerDetailPage playerId="p1" />);
+		expect(screen.getByTestId(testId)).toBeInTheDocument();
+	});
 
-		it("mounts the edit form only when isEditOpen is true", () => {
-			setMockState({ isEditOpen: true });
-			render(<PlayerDetailPage playerId="p1" />);
-			expect(screen.getByTestId("player-form-stub")).toBeInTheDocument();
-		});
+	it("disables the edit sheet Save button while isSaving is true", () => {
+		setMockState({ isEditOpen: true, isSaving: true });
+		render(<PlayerDetailPage playerId="p1" />);
+		expect(screen.getByLabelText("Save")).toBeDisabled();
+	});
 
-		it("does not mount the edit form when isEditOpen is false", () => {
-			setMockState({ isEditOpen: false });
-			render(<PlayerDetailPage playerId="p1" />);
-			expect(screen.queryByTestId("player-form-stub")).not.toBeInTheDocument();
+	it("passes the player name to the delete dialog", () => {
+		setMockState({
+			confirmingDelete: true,
+			player: { id: "p1", name: "Dave", memo: null, tags: [] },
 		});
-
-		it("disables the edit FormSheet Save button while isSaving is true", () => {
-			setMockState({ isEditOpen: true, isSaving: true });
-			render(<PlayerDetailPage playerId="p1" />);
-			expect(screen.getByLabelText("Save")).toBeDisabled();
-		});
-
-		it("shows the delete dialog with the player name when confirming", () => {
-			setMockState({
-				confirmingDelete: true,
-				player: { id: "p1", name: "Dave", memo: null, tags: [] },
-			});
-			render(<PlayerDetailPage playerId="p1" />);
-			expect(screen.getByTestId("delete-dialog")).toHaveTextContent("Dave");
-		});
+		render(<PlayerDetailPage playerId="p1" />);
+		expect(screen.getByTestId("delete-dialog")).toHaveTextContent("Dave");
 	});
 });

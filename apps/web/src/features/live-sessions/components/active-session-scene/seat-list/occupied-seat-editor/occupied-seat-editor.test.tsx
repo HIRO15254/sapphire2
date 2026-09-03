@@ -77,15 +77,10 @@ describe("OccupiedSeatEditor", () => {
 		expect(screen.getByText("Loading...")).toBeInTheDocument();
 	});
 
-	it("pre-fills the name input", () => {
-		render(<OccupiedSeatEditor playerId="p-1" />);
-		expect(screen.getByDisplayValue("Alice")).toBeInTheDocument();
-	});
-
-	it("saves an edited name when the input loses focus", async () => {
+	it("pre-fills the name and saves the edited name when the input loses focus", async () => {
 		const user = userEvent.setup();
 		render(<OccupiedSeatEditor playerId="p-1" />);
-		const input = screen.getByLabelText("Player name");
+		const input = screen.getByDisplayValue("Alice");
 		await user.clear(input);
 		await user.type(input, "Alice 2");
 		await user.tab();
@@ -96,14 +91,10 @@ describe("OccupiedSeatEditor", () => {
 		});
 	});
 
-	it("passes the player's tags to the shared tag picker", () => {
-		render(<OccupiedSeatEditor playerId="p-1" />);
-		expect(screen.getByTestId("tag-input")).toHaveTextContent("selected:Fish");
-	});
-
-	it("adding a tag from the picker saves the player with it", async () => {
+	it("hands the player's tags to the picker and saves a tag added from it", async () => {
 		const user = userEvent.setup();
 		render(<OccupiedSeatEditor playerId="p-1" />);
+		expect(screen.getByTestId("tag-input")).toHaveTextContent("selected:Fish");
 		await user.click(screen.getByRole("button", { name: "add-tag" }));
 		expect(mocks.detail.updatePlayer).toHaveBeenCalledWith({
 			id: "p-1",

@@ -89,8 +89,7 @@ function setup(
 		onSeatHero: vi.fn(),
 		...overrides,
 	};
-	render(<EmptySeatEditor {...props} />);
-	return props;
+	return render(<EmptySeatEditor {...props} />);
 }
 
 describe("EmptySeatEditor", () => {
@@ -106,11 +105,6 @@ describe("EmptySeatEditor", () => {
 		mocks.state.onTemporary.mockReset();
 		mocks.state.setOpen.mockReset();
 		mocks.state.setQuery.mockReset();
-	});
-
-	it("shows the search field inline without any expansion", () => {
-		setup();
-		expect(screen.getByRole("combobox")).toBeInTheDocument();
 	});
 
 	it("typing forwards to setQuery and opens the dropdown", async () => {
@@ -130,38 +124,45 @@ describe("EmptySeatEditor", () => {
 		expect(mocks.state.onTemporary).toHaveBeenCalledTimes(1);
 	});
 
-	it("seats the hero from the Hero icon when hero seating is available", async () => {
+	it("offers the Hero icon wired to onHero only while a hero seat is available", async () => {
 		const user = userEvent.setup();
-		setup({ heroAvailable: true });
+		const props = {
+			excludePlayerIds: [],
+			onAddExisting: vi.fn(),
+			onAddNew: vi.fn(),
+			onAddTemporary: vi.fn(),
+			onSeatHero: vi.fn(),
+		};
+		const { rerender } = render(<EmptySeatEditor {...props} heroAvailable />);
 		await user.click(screen.getByRole("button", { name: "Seat hero here" }));
 		expect(mocks.state.onHero).toHaveBeenCalledTimes(1);
-	});
 
-	it("hides the Hero icon when a hero seat already exists", () => {
-		setup({ heroAvailable: false });
+		rerender(<EmptySeatEditor {...props} heroAvailable={false} />);
 		expect(
 			screen.queryByRole("button", { name: "Seat hero here" })
 		).not.toBeInTheDocument();
 	});
 
-	it("does not offer temporary seating inside the dropdown anymore", () => {
-		setup();
-		expect(screen.queryByText("Add temporary player")).not.toBeInTheDocument();
-	});
-
-	it("hides the create option when there is nothing to create", () => {
-		mocks.state.canCreate = false;
-		setup();
-		expect(screen.queryByText(REGEX_CREATE)).not.toBeInTheDocument();
-	});
-
-	it("offers a create option built from the trimmed query", async () => {
+	it("offers a create option built from the trimmed query only when canCreate", async () => {
 		const user = userEvent.setup();
 		mocks.state.canCreate = true;
 		mocks.state.trimmed = "Nina";
-		setup();
+		const { rerender } = setup();
 		await user.click(screen.getByRole("button", { name: 'Create "Nina"' }));
 		expect(mocks.state.onCreate).toHaveBeenCalledTimes(1);
+
+		mocks.state.canCreate = false;
+		rerender(
+			<EmptySeatEditor
+				excludePlayerIds={[]}
+				heroAvailable
+				onAddExisting={vi.fn()}
+				onAddNew={vi.fn()}
+				onAddTemporary={vi.fn()}
+				onSeatHero={vi.fn()}
+			/>
+		);
+		expect(screen.queryByText(REGEX_CREATE)).not.toBeInTheDocument();
 	});
 
 	it("lists matching players with their tags and seats one on select", async () => {
@@ -190,8 +191,5 @@ describe("EmptySeatEditor", () => {
 		mocks.state.matches = [];
 		setup();
 		expect(screen.queryByText("No matching players")).not.toBeInTheDocument();
-		expect(
-			screen.getByRole("button", { name: "Seat temporary player" })
-		).toBeInTheDocument();
 	});
 });

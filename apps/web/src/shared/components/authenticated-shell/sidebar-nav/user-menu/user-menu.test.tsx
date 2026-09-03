@@ -35,7 +35,10 @@ describe("UserMenu", () => {
 
 		const { container } = render(<UserMenu />);
 
-		expect(container.querySelector('[data-slot="skeleton"]')).toBeTruthy();
+		expect(
+			container.querySelector('[data-slot="skeleton"]')
+		).toBeInTheDocument();
+		expect(screen.queryByRole("link", { name: "Sign In" })).toBeNull();
 	});
 
 	it("renders sign in when there is no session", () => {

@@ -5,9 +5,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const BACK_RE = /back/i;
 const ADD_TRANSACTION_RE = /add transaction/i;
-const DELETE_GOLD_HINT_RE = /Gold and all of its transactions will be removed/i;
-const ADD_FAV_RE = "Add to favorites";
-const REMOVE_FAV_RE = "Remove from favorites";
+const DELETE_CHIPS_HINT_RE =
+	/Chips and all of its transactions will be removed/i;
+const DELETE_TX_HINT_RE = /This transaction will be removed permanently/i;
+const ADD_FAV = "Add to favorites";
+const REMOVE_FAV = "Remove from favorites";
 
 vi.mock("@tanstack/react-router", () => ({
 	Link: ({ children, to }: { children: ReactNode; to: string }) => (
@@ -184,11 +186,11 @@ const editingTx: Transaction = {
 	transactionTypeName: "Deposit",
 };
 
-type State = ReturnType<typeof buildState>;
-
-function buildState(overrides: Partial<ReturnType<typeof baseState>> = {}) {
-	return { ...baseState(), ...overrides };
-}
+const TX_PAYLOAD = {
+	amount: 5,
+	transactedAt: "2026-01-01",
+	transactionTypeId: "t1",
+};
 
 function baseState() {
 	return {
@@ -233,13 +235,107 @@ function baseState() {
 	};
 }
 
-function setState(
-	overrides: Partial<ReturnType<typeof baseState>> = {}
-): State {
-	const state = buildState(overrides);
+type State = ReturnType<typeof baseState>;
+type Overrides = Partial<State>;
+type Handler = {
+	[K in keyof State]: State[K] extends ReturnType<typeof vi.fn> ? K : never;
+}[keyof State];
+
+function setState(overrides: Overrides = {}): State {
+	const state = { ...baseState(), ...overrides };
 	hoisted.useCurrencyDetailPage.mockReturnValue(state);
 	return state;
 }
+
+interface SheetRow {
+	closeArgs: unknown[];
+	closer: Handler;
+	formStub: string;
+	handler: Handler;
+	label: string;
+	open: Overrides;
+	payload: unknown;
+	pending:
+		| "isAddTransactionPending"
+		| "isEditTransactionPending"
+		| "isUpdatePending";
+	seedAttribute: string;
+	seedValue: string;
+	submit: string;
+}
+
+const SHEETS: SheetRow[] = [
+	{
+		label: "edit currency",
+		open: { isEditOpen: true },
+		formStub: "currency-form-stub",
+		seedAttribute: "data-default-name",
+		seedValue: "Chips",
+		submit: "stub-submit-currency",
+		handler: "handleEdit",
+		payload: { name: "Submitted" },
+		closer: "setIsEditOpen",
+		closeArgs: [false],
+		pending: "isUpdatePending",
+	},
+	{
+		label: "add transaction",
+		open: { isAddTransactionOpen: true },
+		formStub: "transaction-form-stub",
+		seedAttribute: "data-default-amount",
+		seedValue: "",
+		submit: "stub-submit-transaction",
+		handler: "handleAddTransaction",
+		payload: TX_PAYLOAD,
+		closer: "setIsAddTransactionOpen",
+		closeArgs: [false],
+		pending: "isAddTransactionPending",
+	},
+	{
+		label: "edit transaction",
+		open: { editingTransaction: editingTx },
+		formStub: "transaction-form-stub",
+		seedAttribute: "data-default-amount",
+		seedValue: "250",
+		submit: "stub-submit-transaction",
+		handler: "handleEditTransaction",
+		payload: TX_PAYLOAD,
+		closer: "setEditingTransaction",
+		closeArgs: [null],
+		pending: "isEditTransactionPending",
+	},
+];
+
+interface DialogRow {
+	cancel: Handler;
+	cancelArgs: unknown[];
+	confirm: Handler;
+	hint: RegExp;
+	label: string;
+	open: Overrides;
+	title: string;
+}
+
+const DIALOGS: DialogRow[] = [
+	{
+		label: "delete currency",
+		open: { confirmingDeleteCurrency: true },
+		title: "Delete this currency?",
+		hint: DELETE_CHIPS_HINT_RE,
+		confirm: "handleConfirmDelete",
+		cancel: "setConfirmingDeleteCurrency",
+		cancelArgs: [false],
+	},
+	{
+		label: "delete transaction",
+		open: { pendingDeleteTransaction: editingTx },
+		title: "Delete this transaction?",
+		hint: DELETE_TX_HINT_RE,
+		confirm: "handleConfirmDeleteTransaction",
+		cancel: "cancelDeleteTransaction",
+		cancelArgs: [expect.anything()],
+	},
+];
 
 describe("CurrencyDetailPage", () => {
 	beforeEach(() => {
@@ -279,7 +375,7 @@ describe("CurrencyDetailPage", () => {
 	});
 
 	describe("not-found state", () => {
-		it("shows the not-found heading and deletion hint with a Back link and no actions button", () => {
+		it("shows the not-found heading with a Back link and none of the page body", () => {
 			setState({ currency: null });
 			render(<Component />);
 			expect(
@@ -295,11 +391,6 @@ describe("CurrencyDetailPage", () => {
 			expect(
 				screen.queryByRole("button", { name: "More actions" })
 			).not.toBeInTheDocument();
-		});
-
-		it("does not render the balance hero or transactions when the currency is missing", () => {
-			setState({ currency: null });
-			render(<Component />);
 			expect(screen.queryByTestId("balance-hero-stub")).not.toBeInTheDocument();
 			expect(
 				screen.queryByTestId("transaction-list-stub")
@@ -308,7 +399,7 @@ describe("CurrencyDetailPage", () => {
 	});
 
 	describe("loaded currency", () => {
-		it("renders the name, balance hero (with unit), Back link, and transactions list", () => {
+		it("renders the name, balance hero with unit, Back link, and transactions list", () => {
 			setState();
 			render(<Component />);
 			expect(screen.getByText("Chips")).toBeInTheDocument();
@@ -325,100 +416,89 @@ describe("CurrencyDetailPage", () => {
 			).toBeInTheDocument();
 		});
 
-		it("renders the description block only when the currency has a description", () => {
+		it("renders the description block only when the currency has one", () => {
 			setState({ currency: { ...currencyC1, description: "<p>memo</p>" } });
-			render(<Component />);
-			const desc = screen.getByTestId("description-stub");
-			expect(desc).toHaveAttribute("data-html", "<p>memo</p>");
-		});
-
-		it("omits the description block when description is null", () => {
+			const { rerender } = render(<Component />);
+			expect(screen.getByTestId("description-stub")).toHaveAttribute(
+				"data-html",
+				"<p>memo</p>"
+			);
 			setState({ currency: { ...currencyC1, description: null } });
-			render(<Component />);
+			rerender(<Component />);
 			expect(screen.queryByTestId("description-stub")).not.toBeInTheDocument();
 		});
 
-		it("shows the 'Add to favorites' header star for a non-favorited currency", () => {
+		it("labels the header star by the favorite state", () => {
 			setState({ currency: { ...currencyC1, isFavorite: false } });
-			render(<Component />);
+			const { rerender } = render(<Component />);
+			expect(screen.getByRole("button", { name: ADD_FAV })).toBeInTheDocument();
 			expect(
-				screen.getByRole("button", { name: ADD_FAV_RE })
+				screen.queryByRole("button", { name: REMOVE_FAV })
+			).not.toBeInTheDocument();
+			setState({ currency: { ...currencyC1, isFavorite: true } });
+			rerender(<Component />);
+			expect(
+				screen.getByRole("button", { name: REMOVE_FAV })
 			).toBeInTheDocument();
 			expect(
-				screen.queryByRole("button", { name: REMOVE_FAV_RE })
+				screen.queryByRole("button", { name: ADD_FAV })
 			).not.toBeInTheDocument();
 		});
 
-		it("shows the 'Remove from favorites' header star for a favorited currency", () => {
-			setState({ currency: { ...currencyC1, isFavorite: true } });
-			render(<Component />);
-			expect(
-				screen.getByRole("button", { name: REMOVE_FAV_RE })
-			).toBeInTheDocument();
-		});
-
-		it("fires handleToggleFavorite when the header star is clicked", async () => {
+		it.each<[string, Overrides, () => HTMLElement]>([
+			[
+				"the header star",
+				{},
+				() => screen.getByRole("button", { name: ADD_FAV }),
+			],
+			[
+				"the actions drawer favorite action",
+				{ isActionsOpen: true },
+				() => screen.getByText(ADD_FAV),
+			],
+		])("fires handleToggleFavorite from %s", async (_, overrides, target) => {
 			const user = userEvent.setup();
-			const state = setState();
+			const state = setState(overrides);
 			render(<Component />);
-			await user.click(screen.getByRole("button", { name: ADD_FAV_RE }));
+			await user.click(target());
 			expect(state.handleToggleFavorite).toHaveBeenCalledTimes(1);
 		});
 
-		it("opens the actions sheet when the More actions button is clicked", async () => {
+		it.each<[string, string | RegExp, Handler]>([
+			["actions drawer", "More actions", "setIsActionsOpen"],
+			["add-transaction sheet", ADD_TRANSACTION_RE, "setIsAddTransactionOpen"],
+		])("opens the %s from its button", async (_, buttonName, setter) => {
 			const user = userEvent.setup();
 			const state = setState();
 			render(<Component />);
-			await user.click(screen.getByRole("button", { name: "More actions" }));
-			expect(state.setIsActionsOpen).toHaveBeenCalledWith(true);
+			await user.click(screen.getByRole("button", { name: buttonName }));
+			expect(state[setter]).toHaveBeenCalledTimes(1);
+			expect(state[setter]).toHaveBeenCalledWith(true);
 		});
 
-		it("opens the add-transaction sheet when the Add transaction button is clicked", async () => {
+		it.each<[string, Handler, unknown[]]>([
+			["stub-open-tx-actions", "openTransactionActions", [{ id: "tx-row" }]],
+			["stub-load-more", "fetchNextPage", []],
+			["stub-navigate-to-session", "handleNavigateToSession", ["session-xyz"]],
+		])("routes the transaction list's %s to %s", async (button, handler, args) => {
 			const user = userEvent.setup();
 			const state = setState();
 			render(<Component />);
-			await user.click(
-				screen.getByRole("button", { name: ADD_TRANSACTION_RE })
-			);
-			expect(state.setIsAddTransactionOpen).toHaveBeenCalledWith(true);
-		});
-
-		it("wires the transaction list onOpenActions to openTransactionActions", async () => {
-			const user = userEvent.setup();
-			const state = setState();
-			render(<Component />);
-			await user.click(
-				screen.getByRole("button", { name: "stub-open-tx-actions" })
-			);
-			expect(state.openTransactionActions).toHaveBeenCalledWith({
-				id: "tx-row",
-			});
-		});
-
-		it("wires the transaction list onLoadMore to fetchNextPage", async () => {
-			const user = userEvent.setup();
-			const state = setState();
-			render(<Component />);
-			await user.click(screen.getByRole("button", { name: "stub-load-more" }));
-			expect(state.fetchNextPage).toHaveBeenCalledTimes(1);
-		});
-
-		it("wires the transaction list onNavigateToSession to handleNavigateToSession", async () => {
-			const user = userEvent.setup();
-			const state = setState();
-			render(<Component />);
-			await user.click(
-				screen.getByRole("button", { name: "stub-navigate-to-session" })
-			);
-			expect(state.handleNavigateToSession).toHaveBeenCalledTimes(1);
-			expect(state.handleNavigateToSession).toHaveBeenCalledWith("session-xyz");
+			await user.click(screen.getByRole("button", { name: button }));
+			expect(state[handler]).toHaveBeenCalledTimes(1);
+			expect(state[handler]).toHaveBeenCalledWith(...args);
 		});
 	});
 
 	describe("currency actions drawer", () => {
-		it("renders favorite / edit / delete actions when open", () => {
+		it("mounts its actions only while open", () => {
+			setState({ isActionsOpen: false });
+			const { rerender } = render(<Component />);
+			expect(
+				screen.queryByRole("button", { name: "Edit currency" })
+			).not.toBeInTheDocument();
 			setState({ isActionsOpen: true });
-			render(<Component />);
+			rerender(<Component />);
 			expect(
 				screen.getByRole("button", { name: "Edit currency" })
 			).toBeInTheDocument();
@@ -427,284 +507,161 @@ describe("CurrencyDetailPage", () => {
 			).toBeInTheDocument();
 		});
 
-		it("fires openEditFromActions from the Edit currency action", async () => {
+		it.each<[string, Handler]>([
+			["Edit currency", "openEditFromActions"],
+			["Delete currency", "openDeleteFromActions"],
+		])("fires %s to %s", async (button, handler) => {
 			const user = userEvent.setup();
 			const state = setState({ isActionsOpen: true });
 			render(<Component />);
-			await user.click(screen.getByRole("button", { name: "Edit currency" }));
-			expect(state.openEditFromActions).toHaveBeenCalledTimes(1);
+			await user.click(screen.getByRole("button", { name: button }));
+			expect(state[handler]).toHaveBeenCalledTimes(1);
 		});
 
-		it("fires openDeleteFromActions from the Delete currency action", async () => {
-			const user = userEvent.setup();
-			const state = setState({ isActionsOpen: true });
-			render(<Component />);
-			await user.click(screen.getByRole("button", { name: "Delete currency" }));
-			expect(state.openDeleteFromActions).toHaveBeenCalledTimes(1);
-		});
-
-		it("labels the drawer favorite action 'Remove from favorites' for a favorited currency", () => {
-			setState({
-				currency: { ...currencyC1, isFavorite: true },
-				isActionsOpen: true,
-			});
-			render(<Component />);
-			expect(screen.getByText(REMOVE_FAV_RE)).toBeInTheDocument();
-		});
-
-		it("labels the drawer favorite action 'Add to favorites' for a non-favorited currency", () => {
+		it("labels the favorite action by the favorite state", () => {
 			setState({
 				currency: { ...currencyC1, isFavorite: false },
 				isActionsOpen: true,
 			});
-			render(<Component />);
-			expect(screen.getByText(ADD_FAV_RE)).toBeInTheDocument();
-		});
-
-		it("fires handleToggleFavorite from the drawer favorite action", async () => {
-			const user = userEvent.setup();
-			const state = setState({ isActionsOpen: true });
-			render(<Component />);
-			await user.click(screen.getByText(ADD_FAV_RE));
-			expect(state.handleToggleFavorite).toHaveBeenCalledTimes(1);
+			const { rerender } = render(<Component />);
+			expect(screen.getByText(ADD_FAV)).toBeInTheDocument();
+			setState({
+				currency: { ...currencyC1, isFavorite: true },
+				isActionsOpen: true,
+			});
+			rerender(<Component />);
+			expect(screen.getByText(REMOVE_FAV)).toBeInTheDocument();
+			expect(screen.queryByText(ADD_FAV)).not.toBeInTheDocument();
 		});
 	});
 
 	describe("transaction actions drawer", () => {
-		it("renders Edit / Delete transaction actions when a target is set", () => {
-			setState({ transactionActionsTarget: editingTx });
-			render(<Component />);
-			expect(
-				screen.getByRole("button", { name: "Edit transaction" })
-			).toBeInTheDocument();
-			expect(
-				screen.getByRole("button", { name: "Delete transaction" })
-			).toBeInTheDocument();
-		});
-
-		it("does not render the transaction actions drawer when no target is set", () => {
+		it("mounts its actions only while a target is set", () => {
 			setState({ transactionActionsTarget: null });
-			render(<Component />);
+			const { rerender } = render(<Component />);
 			expect(
 				screen.queryByRole("button", { name: "Edit transaction" })
 			).not.toBeInTheDocument();
-		});
-
-		it("fires openEditFromTransactionActions from the Edit transaction action", async () => {
-			const user = userEvent.setup();
-			const state = setState({ transactionActionsTarget: editingTx });
-			render(<Component />);
-			await user.click(
+			setState({ transactionActionsTarget: editingTx });
+			rerender(<Component />);
+			expect(
 				screen.getByRole("button", { name: "Edit transaction" })
-			);
-			expect(state.openEditFromTransactionActions).toHaveBeenCalledTimes(1);
+			).toBeInTheDocument();
+			expect(
+				screen.getByRole("button", { name: "Delete transaction" })
+			).toBeInTheDocument();
 		});
 
-		it("fires openDeleteFromTransactionActions from the Delete transaction action", async () => {
+		it.each<[string, Handler]>([
+			["Edit transaction", "openEditFromTransactionActions"],
+			["Delete transaction", "openDeleteFromTransactionActions"],
+		])("fires %s to %s", async (button, handler) => {
 			const user = userEvent.setup();
 			const state = setState({ transactionActionsTarget: editingTx });
 			render(<Component />);
-			await user.click(
-				screen.getByRole("button", { name: "Delete transaction" })
-			);
-			expect(state.openDeleteFromTransactionActions).toHaveBeenCalledTimes(1);
+			await user.click(screen.getByRole("button", { name: button }));
+			expect(state[handler]).toHaveBeenCalledTimes(1);
 		});
 	});
 
-	describe("edit currency sheet", () => {
-		it("does not mount the form when isEditOpen is false", () => {
-			setState({ isEditOpen: false });
-			render(<Component />);
-			expect(
-				screen.queryByTestId("currency-form-stub")
-			).not.toBeInTheDocument();
-		});
-
-		it("mounts the form seeded with the currency name when open", () => {
-			setState({
-				currency: { ...currencyC1, name: "Gold" },
-				isEditOpen: true,
-			});
-			render(<Component />);
-			expect(screen.getByTestId("currency-form-stub")).toHaveAttribute(
-				"data-default-name",
-				"Gold"
+	describe("form sheets", () => {
+		it.each(
+			SHEETS
+		)("mounts the $label form only while open, seeded from the page state", ({
+			open,
+			formStub,
+			seedAttribute,
+			seedValue,
+		}) => {
+			setState();
+			const { rerender } = render(<Component />);
+			expect(screen.queryByTestId(formStub)).not.toBeInTheDocument();
+			setState(open);
+			rerender(<Component />);
+			expect(screen.getByTestId(formStub)).toHaveAttribute(
+				seedAttribute,
+				seedValue
 			);
 		});
 
-		it("disables the Save button while isUpdatePending", () => {
-			setState({ isEditOpen: true, isUpdatePending: true });
+		it.each(SHEETS)("forwards the $label form submission to $handler", async ({
+			open,
+			submit,
+			handler,
+			payload,
+		}) => {
+			const user = userEvent.setup();
+			const state = setState(open);
+			render(<Component />);
+			await user.click(screen.getByRole("button", { name: submit }));
+			expect(state[handler]).toHaveBeenCalledTimes(1);
+			expect(state[handler]).toHaveBeenCalledWith(payload);
+		});
+
+		it.each(SHEETS)("closes the $label sheet from Cancel via $closer", async ({
+			open,
+			closer,
+			closeArgs,
+		}) => {
+			const user = userEvent.setup();
+			const state = setState(open);
+			render(<Component />);
+			await user.click(screen.getByLabelText("Cancel"));
+			expect(state[closer]).toHaveBeenCalledTimes(1);
+			expect(state[closer]).toHaveBeenCalledWith(...closeArgs);
+		});
+
+		it.each(SHEETS)("disables Save on the $label sheet while $pending", ({
+			open,
+			pending,
+		}) => {
+			setState({ ...open, [pending]: true });
 			render(<Component />);
 			expect(screen.getByLabelText("Save")).toBeDisabled();
 		});
-
-		it("forwards the form submission to handleEdit", async () => {
-			const user = userEvent.setup();
-			const state = setState({ isEditOpen: true });
-			render(<Component />);
-			await user.click(
-				screen.getByRole("button", { name: "stub-submit-currency" })
-			);
-			expect(state.handleEdit).toHaveBeenCalledWith({ name: "Submitted" });
-		});
-
-		it("closes via the Cancel button (onOpenChange → setIsEditOpen false)", async () => {
-			const user = userEvent.setup();
-			const state = setState({ isEditOpen: true });
-			render(<Component />);
-			await user.click(screen.getByLabelText("Cancel"));
-			expect(state.setIsEditOpen).toHaveBeenCalledWith(false);
-		});
 	});
 
-	describe("add transaction sheet", () => {
-		it("does not mount the form when closed", () => {
-			setState({ isAddTransactionOpen: false });
-			render(<Component />);
-			expect(
-				screen.queryByTestId("transaction-form-stub")
-			).not.toBeInTheDocument();
+	describe("delete dialogs", () => {
+		it.each(DIALOGS)("mounts the $label confirmation only while open", ({
+			open,
+			title,
+			hint,
+		}) => {
+			setState();
+			const { rerender } = render(<Component />);
+			expect(screen.queryByText(title)).not.toBeInTheDocument();
+			setState(open);
+			rerender(<Component />);
+			expect(screen.getByText(title)).toBeInTheDocument();
+			expect(screen.getByText(hint)).toBeInTheDocument();
 		});
 
-		it("mounts the transaction form when open", () => {
-			setState({ isAddTransactionOpen: true });
-			render(<Component />);
-			expect(screen.getByTestId("transaction-form-stub")).toBeInTheDocument();
-		});
-
-		it("forwards the form submission to handleAddTransaction", async () => {
+		it.each(DIALOGS)("fires $confirm from the $label Delete button", async ({
+			open,
+			confirm,
+		}) => {
 			const user = userEvent.setup();
-			const state = setState({ isAddTransactionOpen: true });
-			render(<Component />);
-			await user.click(
-				screen.getByRole("button", { name: "stub-submit-transaction" })
-			);
-			expect(state.handleAddTransaction).toHaveBeenCalledWith({
-				amount: 5,
-				transactedAt: "2026-01-01",
-				transactionTypeId: "t1",
-			});
-		});
-
-		it("closes via the Cancel button (onOpenChange → setIsAddTransactionOpen false)", async () => {
-			const user = userEvent.setup();
-			const state = setState({ isAddTransactionOpen: true });
-			render(<Component />);
-			await user.click(screen.getByLabelText("Cancel"));
-			expect(state.setIsAddTransactionOpen).toHaveBeenCalledWith(false);
-		});
-	});
-
-	describe("edit transaction sheet", () => {
-		it("does not mount the form when there is no editing target", () => {
-			setState({ editingTransaction: null });
-			render(<Component />);
-			expect(
-				screen.queryByTestId("transaction-form-stub")
-			).not.toBeInTheDocument();
-		});
-
-		it("mounts the form seeded with the editing transaction amount", () => {
-			setState({ editingTransaction: editingTx });
-			render(<Component />);
-			expect(screen.getByTestId("transaction-form-stub")).toHaveAttribute(
-				"data-default-amount",
-				"250"
-			);
-		});
-
-		it("forwards the form submission to handleEditTransaction", async () => {
-			const user = userEvent.setup();
-			const state = setState({ editingTransaction: editingTx });
-			render(<Component />);
-			await user.click(
-				screen.getByRole("button", { name: "stub-submit-transaction" })
-			);
-			expect(state.handleEditTransaction).toHaveBeenCalledWith({
-				amount: 5,
-				transactedAt: "2026-01-01",
-				transactionTypeId: "t1",
-			});
-		});
-
-		it("clears the editing target when cancelled (onOpenChange false → setEditingTransaction null)", async () => {
-			const user = userEvent.setup();
-			const state = setState({ editingTransaction: editingTx });
-			render(<Component />);
-			await user.click(screen.getByLabelText("Cancel"));
-			expect(state.setEditingTransaction).toHaveBeenCalledWith(null);
-		});
-	});
-
-	describe("delete currency dialog", () => {
-		it("is closed by default", () => {
-			setState({ confirmingDeleteCurrency: false });
-			render(<Component />);
-			expect(
-				screen.queryByText("Delete this currency?")
-			).not.toBeInTheDocument();
-		});
-
-		it("shows the confirmation with the currency name when open", () => {
-			setState({
-				confirmingDeleteCurrency: true,
-				currency: { ...currencyC1, name: "Gold" },
-			});
-			render(<Component />);
-			expect(screen.getByText("Delete this currency?")).toBeInTheDocument();
-			expect(screen.getByText(DELETE_GOLD_HINT_RE)).toBeInTheDocument();
-		});
-
-		it("fires handleConfirmDelete from the Delete button", async () => {
-			const user = userEvent.setup();
-			const state = setState({ confirmingDeleteCurrency: true });
+			const state = setState(open);
 			render(<Component />);
 			const dialog = within(screen.getByRole("dialog"));
 			await user.click(dialog.getByRole("button", { name: "Delete" }));
-			expect(state.handleConfirmDelete).toHaveBeenCalledTimes(1);
+			expect(state[confirm]).toHaveBeenCalledTimes(1);
 		});
 
-		it("closes via Cancel (setConfirmingDeleteCurrency false)", async () => {
+		it.each(
+			DIALOGS
+		)("closes the $label dialog from Cancel via $cancel", async ({
+			open,
+			cancel,
+			cancelArgs,
+		}) => {
 			const user = userEvent.setup();
-			const state = setState({ confirmingDeleteCurrency: true });
+			const state = setState(open);
 			render(<Component />);
 			const dialog = within(screen.getByRole("dialog"));
 			await user.click(dialog.getByRole("button", { name: "Cancel" }));
-			expect(state.setConfirmingDeleteCurrency).toHaveBeenCalledWith(false);
-		});
-	});
-
-	describe("delete transaction dialog", () => {
-		it("is closed when there is no pending delete target", () => {
-			setState({ pendingDeleteTransaction: null });
-			render(<Component />);
-			expect(
-				screen.queryByText("Delete this transaction?")
-			).not.toBeInTheDocument();
-		});
-
-		it("shows the confirmation when a transaction is pending deletion", () => {
-			setState({ pendingDeleteTransaction: editingTx });
-			render(<Component />);
-			expect(screen.getByText("Delete this transaction?")).toBeInTheDocument();
-		});
-
-		it("fires handleConfirmDeleteTransaction from the Delete button", async () => {
-			const user = userEvent.setup();
-			const state = setState({ pendingDeleteTransaction: editingTx });
-			render(<Component />);
-			const dialog = within(screen.getByRole("dialog"));
-			await user.click(dialog.getByRole("button", { name: "Delete" }));
-			expect(state.handleConfirmDeleteTransaction).toHaveBeenCalledTimes(1);
-		});
-
-		it("closes via Cancel (cancelDeleteTransaction)", async () => {
-			const user = userEvent.setup();
-			const state = setState({ pendingDeleteTransaction: editingTx });
-			render(<Component />);
-			const dialog = within(screen.getByRole("dialog"));
-			await user.click(dialog.getByRole("button", { name: "Cancel" }));
-			expect(state.cancelDeleteTransaction).toHaveBeenCalledTimes(1);
+			expect(state[cancel]).toHaveBeenCalledTimes(1);
+			expect(state[cancel]).toHaveBeenCalledWith(...cancelArgs);
 		});
 	});
 });

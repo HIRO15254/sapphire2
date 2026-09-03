@@ -6,26 +6,12 @@ import {
 	oauthApplication,
 	oauthConsent,
 } from "../schema/oauth";
-
-function foreignKeysOf(table: Parameters<typeof getTableConfig>[0]) {
-	return getTableConfig(table).foreignKeys.map((fk) => ({
-		onDelete: fk.onDelete,
-		columns: fk.reference().columns.map((c) => c.name),
-		foreignTable: getTableConfig(fk.reference().foreignTable).name,
-		foreignColumns: fk.reference().foreignColumns.map((c) => c.name),
-	}));
-}
-
-function indexNamesOf(table: Parameters<typeof getTableConfig>[0]) {
-	return getTableConfig(table).indexes.map((i) => i.config.name);
-}
+import { fkByColumn, indexesOf } from "./test-utils";
 
 describe("oauthApplication schema (better-auth mcp plugin)", () => {
-	const columns = getTableColumns(oauthApplication);
-
 	it("has every field the better-auth mcp plugin reads and writes", () => {
-		expect(Object.keys(columns).sort()).toEqual(
-			[
+		expect(Object.keys(getTableColumns(oauthApplication))).toEqual(
+			expect.arrayContaining([
 				"clientId",
 				"clientSecret",
 				"createdAt",
@@ -38,60 +24,43 @@ describe("oauthApplication schema (better-auth mcp plugin)", () => {
 				"type",
 				"updatedAt",
 				"userId",
-			].sort()
+			])
 		);
 	});
 
-	it("id is the primary key", () => {
-		expect(columns.id.primary).toBe(true);
+	it("keeps clientId unique so a client resolves to one application", () => {
+		expect(
+			getTableConfig(oauthApplication)
+				.columns.filter((column) => column.isUnique)
+				.map((column) => column.uniqueName)
+		).toEqual(["oauth_application_client_id_unique"]);
 	});
 
-	it("clientId is unique and not null", () => {
-		expect(columns.clientId.notNull).toBe(true);
-		expect(columns.clientId.isUnique).toBe(true);
-	});
-
-	it("name, redirectUrls and type are required", () => {
-		expect(columns.name.notNull).toBe(true);
-		expect(columns.redirectUrls.notNull).toBe(true);
-		expect(columns.type.notNull).toBe(true);
-	});
-
-	it("icon, metadata, clientSecret and userId are optional", () => {
-		expect(columns.icon.notNull).toBe(false);
-		expect(columns.metadata.notNull).toBe(false);
-		expect(columns.clientSecret.notNull).toBe(false);
-		expect(columns.userId.notNull).toBe(false);
-	});
-
-	it("disabled defaults to false", () => {
-		expect(columns.disabled.notNull).toBe(true);
-		expect(columns.disabled.hasDefault).toBe(true);
-		expect(columns.disabled.dataType).toBe("boolean");
-	});
-
-	it("userId FK cascades on user deletion", () => {
-		expect(foreignKeysOf(oauthApplication)).toContainEqual({
-			onDelete: "cascade",
+	it("userId FK cascades so applications die with their owner", () => {
+		expect(fkByColumn(oauthApplication, "user_id")).toEqual({
 			columns: ["user_id"],
-			foreignTable: "user",
 			foreignColumns: ["id"],
+			foreignTable: "user",
+			onDelete: "cascade",
 		});
 	});
 
-	it("indexes userId", () => {
-		expect(indexNamesOf(oauthApplication)).toContain(
-			"oauthApplication_userId_idx"
-		);
+	it("indexes userId for listing a user's applications", () => {
+		expect(indexesOf(oauthApplication)).toEqual([
+			{
+				columns: ["user_id"],
+				name: "oauthApplication_userId_idx",
+				unique: false,
+				where: null,
+			},
+		]);
 	});
 });
 
 describe("oauthAccessToken schema (better-auth mcp plugin)", () => {
-	const columns = getTableColumns(oauthAccessToken);
-
 	it("has every field the better-auth mcp plugin reads and writes", () => {
-		expect(Object.keys(columns).sort()).toEqual(
-			[
+		expect(Object.keys(getTableColumns(oauthAccessToken))).toEqual(
+			expect.arrayContaining([
 				"accessToken",
 				"accessTokenExpiresAt",
 				"clientId",
@@ -102,56 +71,61 @@ describe("oauthAccessToken schema (better-auth mcp plugin)", () => {
 				"scopes",
 				"updatedAt",
 				"userId",
-			].sort()
+			])
 		);
 	});
 
-	it("accessToken and refreshToken are unique and required", () => {
-		expect(columns.accessToken.notNull).toBe(true);
-		expect(columns.accessToken.isUnique).toBe(true);
-		expect(columns.refreshToken.notNull).toBe(true);
-		expect(columns.refreshToken.isUnique).toBe(true);
+	it("keeps accessToken and refreshToken unique so a token resolves to one grant", () => {
+		expect(
+			getTableConfig(oauthAccessToken)
+				.columns.filter((column) => column.isUnique)
+				.map((column) => column.uniqueName)
+		).toEqual([
+			"oauth_access_token_access_token_unique",
+			"oauth_access_token_refresh_token_unique",
+		]);
 	});
 
-	it("expiry timestamps are required date columns", () => {
-		expect(columns.accessTokenExpiresAt.notNull).toBe(true);
-		expect(columns.accessTokenExpiresAt.dataType).toBe("date");
-		expect(columns.refreshTokenExpiresAt.notNull).toBe(true);
-		expect(columns.refreshTokenExpiresAt.dataType).toBe("date");
-	});
-
-	it("clientId FK targets oauthApplication.clientId (not id) and cascades", () => {
-		expect(foreignKeysOf(oauthAccessToken)).toContainEqual({
-			onDelete: "cascade",
+	it("clientId FK targets oauth_application.client_id (not id) and cascades", () => {
+		expect(fkByColumn(oauthAccessToken, "client_id")).toEqual({
 			columns: ["client_id"],
-			foreignTable: "oauth_application",
 			foreignColumns: ["client_id"],
-		});
-	});
-
-	it("userId is optional and its FK cascades on user deletion", () => {
-		expect(columns.userId.notNull).toBe(false);
-		expect(foreignKeysOf(oauthAccessToken)).toContainEqual({
+			foreignTable: "oauth_application",
 			onDelete: "cascade",
-			columns: ["user_id"],
-			foreignTable: "user",
-			foreignColumns: ["id"],
 		});
 	});
 
-	it("indexes clientId and userId", () => {
-		const names = indexNamesOf(oauthAccessToken);
-		expect(names).toContain("oauthAccessToken_clientId_idx");
-		expect(names).toContain("oauthAccessToken_userId_idx");
+	it("userId FK cascades so tokens die with their user", () => {
+		expect(fkByColumn(oauthAccessToken, "user_id")).toEqual({
+			columns: ["user_id"],
+			foreignColumns: ["id"],
+			foreignTable: "user",
+			onDelete: "cascade",
+		});
+	});
+
+	it("indexes clientId and userId for token lookups", () => {
+		expect(indexesOf(oauthAccessToken)).toEqual([
+			{
+				columns: ["client_id"],
+				name: "oauthAccessToken_clientId_idx",
+				unique: false,
+				where: null,
+			},
+			{
+				columns: ["user_id"],
+				name: "oauthAccessToken_userId_idx",
+				unique: false,
+				where: null,
+			},
+		]);
 	});
 });
 
 describe("oauthConsent schema (better-auth mcp plugin)", () => {
-	const columns = getTableColumns(oauthConsent);
-
 	it("has every field the better-auth mcp plugin reads and writes", () => {
-		expect(Object.keys(columns).sort()).toEqual(
-			[
+		expect(Object.keys(getTableColumns(oauthConsent))).toEqual(
+			expect.arrayContaining([
 				"clientId",
 				"consentGiven",
 				"createdAt",
@@ -159,38 +133,42 @@ describe("oauthConsent schema (better-auth mcp plugin)", () => {
 				"scopes",
 				"updatedAt",
 				"userId",
-			].sort()
+			])
 		);
 	});
 
-	it("clientId and userId are required, consentGiven is a required boolean", () => {
-		expect(columns.clientId.notNull).toBe(true);
-		expect(columns.userId.notNull).toBe(true);
-		expect(columns.consentGiven.notNull).toBe(true);
-		expect(columns.consentGiven.dataType).toBe("boolean");
-	});
-
-	it("clientId FK targets oauthApplication.clientId and cascades", () => {
-		expect(foreignKeysOf(oauthConsent)).toContainEqual({
-			onDelete: "cascade",
+	it("clientId FK targets oauth_application.client_id (not id) and cascades", () => {
+		expect(fkByColumn(oauthConsent, "client_id")).toEqual({
 			columns: ["client_id"],
-			foreignTable: "oauth_application",
 			foreignColumns: ["client_id"],
-		});
-	});
-
-	it("userId FK cascades on user deletion", () => {
-		expect(foreignKeysOf(oauthConsent)).toContainEqual({
+			foreignTable: "oauth_application",
 			onDelete: "cascade",
-			columns: ["user_id"],
-			foreignTable: "user",
-			foreignColumns: ["id"],
 		});
 	});
 
-	it("indexes clientId and userId", () => {
-		const names = indexNamesOf(oauthConsent);
-		expect(names).toContain("oauthConsent_clientId_idx");
-		expect(names).toContain("oauthConsent_userId_idx");
+	it("userId FK cascades so consents die with their user", () => {
+		expect(fkByColumn(oauthConsent, "user_id")).toEqual({
+			columns: ["user_id"],
+			foreignColumns: ["id"],
+			foreignTable: "user",
+			onDelete: "cascade",
+		});
+	});
+
+	it("indexes clientId and userId for consent lookups", () => {
+		expect(indexesOf(oauthConsent)).toEqual([
+			{
+				columns: ["client_id"],
+				name: "oauthConsent_clientId_idx",
+				unique: false,
+				where: null,
+			},
+			{
+				columns: ["user_id"],
+				name: "oauthConsent_userId_idx",
+				unique: false,
+				where: null,
+			},
+		]);
 	});
 });

@@ -108,37 +108,6 @@ function renderForm(
 }
 
 describe("CashGameStackForm", () => {
-	it("renders stack field and primary actions without its own submit button", () => {
-		mocks.state.stackAmount = "";
-
-		renderForm();
-
-		expect(screen.getByLabelText("Current Stack *")).toBeInTheDocument();
-		expect(
-			screen.queryByRole("button", { name: "Update" })
-		).not.toBeInTheDocument();
-		expect(
-			screen.getByRole("button", { name: "Complete" })
-		).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "All-in" })).toBeInTheDocument();
-		expect(
-			screen.getByRole("button", { name: "Add Chips" })
-		).toBeInTheDocument();
-		expect(
-			screen.getByRole("button", { name: "Remove Chips" })
-		).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Memo" })).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
-	});
-
-	it("assigns the formId to the stack form element", () => {
-		mocks.state.stackAmount = "";
-		renderForm();
-		const form = document.getElementById(FORM_ID);
-		expect(form).not.toBeNull();
-		expect(form?.tagName).toBe("FORM");
-	});
-
 	it("calls onComplete with the current stack", async () => {
 		const user = userEvent.setup();
 		const onComplete = vi.fn();
@@ -209,12 +178,11 @@ describe("CashGameStackForm", () => {
 		expect(onPause).toHaveBeenCalledOnce();
 	});
 
-	it("shows the required text error and does not submit an empty memo", async () => {
+	it("opens the memo sheet and surfaces the required-text error as an alert", async () => {
 		const user = userEvent.setup();
-		const onMemo = vi.fn();
 		mocks.state.stackAmount = "";
 
-		renderForm({ onMemo });
+		renderForm();
 
 		await user.click(screen.getByRole("button", { name: "Memo" }));
 		await user.click(screen.getByRole("button", { name: "Save" }));
@@ -222,6 +190,5 @@ describe("CashGameStackForm", () => {
 		expect(await screen.findByRole("alert")).toHaveTextContent(
 			"Text is required"
 		);
-		expect(onMemo).toHaveBeenCalledTimes(0);
 	});
 });

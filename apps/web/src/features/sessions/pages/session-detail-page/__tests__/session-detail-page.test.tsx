@@ -161,14 +161,6 @@ describe("SessionDetailPage", () => {
 		expect(onRetry).toHaveBeenCalledTimes(1);
 	});
 
-	it("keeps a cached session visible after a refetch failure", () => {
-		mocks.state = { ...mocks.state, isInitialLoadError: false };
-		renderPage();
-
-		expect(screen.getByText("1/2 NLH")).toBeInTheDocument();
-		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-	});
-
 	it("renders a not-found message when the session is missing", () => {
 		mocks.state = { ...mocks.state, session: null, isLoading: false };
 		renderPage();
@@ -181,55 +173,63 @@ describe("SessionDetailPage", () => {
 		renderPage();
 		expect(screen.getByText("1/2 NLH")).toBeInTheDocument();
 		expect(screen.getByText("+1,500 $")).toBeInTheDocument();
+		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 	});
 
-	it("labels a manual session with the Manual badge and hides the chart + timeline", () => {
+	it("renders the Rule, Result and Details stat lists from the session", () => {
 		renderPage();
+		expect(screen.getByRole("heading", { name: "Rule" })).toBeInTheDocument();
+		expect(screen.getByText("NL Hold'em")).toBeInTheDocument();
+		expect(screen.getByRole("heading", { name: "Result" })).toBeInTheDocument();
+		expect(screen.getByText("Cash-out")).toBeInTheDocument();
+		expect(
+			screen.getByRole("heading", { name: "Details" })
+		).toBeInTheDocument();
+	});
+
+	it("labels the badge Manual or Live and mounts the chart + timeline only for a live session", () => {
+		const { rerender } = renderPage();
 		expect(screen.getByText("Manual")).toBeInTheDocument();
 		expect(screen.queryByTestId("live-result-chart")).not.toBeInTheDocument();
 		expect(screen.queryByTestId("session-timeline")).not.toBeInTheDocument();
-	});
 
-	it("renders the Result section with buy-in and cash-out for a manual cash session", () => {
-		renderPage();
-		expect(screen.getByRole("heading", { name: "Result" })).toBeInTheDocument();
-		expect(screen.getByText("Buy-in")).toBeInTheDocument();
-		expect(screen.getByText("Cash-out")).toBeInTheDocument();
-	});
-
-	it("renders the Rule section with the cash game's variant and blinds", () => {
-		renderPage();
-		expect(screen.getByRole("heading", { name: "Rule" })).toBeInTheDocument();
-		expect(screen.getByText("Variant")).toBeInTheDocument();
-		expect(screen.getByText("Blinds")).toBeInTheDocument();
-		expect(screen.getByText("NL Hold'em")).toBeInTheDocument();
-	});
-
-	it("renders the memo when present", () => {
-		renderPage();
-		expect(screen.getByText("good session")).toBeInTheDocument();
-	});
-
-	it("renders the tags when present", () => {
-		renderPage();
-		expect(screen.getByText("Profit")).toBeInTheDocument();
-	});
-
-	it("labels a live session with the Live badge and shows the chart + timeline", () => {
 		mocks.state = {
 			...mocks.state,
 			session: liveCashSession,
 			isLiveLinked: true,
 			canReopen: true,
 		};
-		renderPage();
+		rerender(<SessionDetailPage sessionId="s2" />);
 		expect(screen.getByText("Live")).toBeInTheDocument();
-		expect(screen.getByText("Live")).toHaveClass("bg-success");
 		expect(screen.getByTestId("live-result-chart")).toBeInTheDocument();
 		expect(screen.getByTestId("session-timeline")).toBeInTheDocument();
 	});
 
-	it("composites the chart into the P&L card, above the game info", () => {
+	it("renders the memo section only when the session has a memo", () => {
+		const { rerender } = renderPage();
+		expect(screen.getByText("good session")).toBeInTheDocument();
+
+		mocks.state = {
+			...mocks.state,
+			session: { ...manualCashSession, memo: null },
+		};
+		rerender(<SessionDetailPage sessionId="s1" />);
+		expect(screen.queryByText("good session")).not.toBeInTheDocument();
+	});
+
+	it("renders one tag badge per tag and none for an untagged session", () => {
+		const { rerender } = renderPage();
+		expect(screen.getByText("Profit")).toBeInTheDocument();
+
+		mocks.state = {
+			...mocks.state,
+			session: { ...manualCashSession, tags: [] },
+		};
+		rerender(<SessionDetailPage sessionId="s1" />);
+		expect(screen.queryByText("Profit")).not.toBeInTheDocument();
+	});
+
+	it("lays a live session out as chart, then info sections, then timeline", () => {
 		mocks.state = {
 			...mocks.state,
 			session: liveCashSession,
@@ -239,21 +239,11 @@ describe("SessionDetailPage", () => {
 		renderPage();
 		const chart = screen.getByTestId("live-result-chart");
 		const ruleHeading = screen.getByRole("heading", { name: "Rule" });
+		const details = screen.getByRole("heading", { name: "Details" });
+		const timeline = screen.getByTestId("session-timeline");
 		expect(chart.compareDocumentPosition(ruleHeading)).toBe(
 			Node.DOCUMENT_POSITION_FOLLOWING
 		);
-	});
-
-	it("places the game and session info above the timeline for a live session", () => {
-		mocks.state = {
-			...mocks.state,
-			session: liveCashSession,
-			isLiveLinked: true,
-			canReopen: true,
-		};
-		renderPage();
-		const details = screen.getByRole("heading", { name: "Details" });
-		const timeline = screen.getByTestId("session-timeline");
 		expect(details.compareDocumentPosition(timeline)).toBe(
 			Node.DOCUMENT_POSITION_FOLLOWING
 		);

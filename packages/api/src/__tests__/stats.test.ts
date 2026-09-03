@@ -15,9 +15,8 @@ import {
 import {
 	createChainableMockDb,
 	expectAccepts,
-	expectProtected,
+	expectProcedureSurface,
 	expectRejects,
-	expectType,
 } from "./test-utils";
 
 const EPOCH_NOV_2023 = 1_700_000_000;
@@ -76,10 +75,6 @@ function tournamentRow(
 }
 
 describe("stats router structure", () => {
-	it("appRouter has stats namespace", () => {
-		expect(appRouter.stats).toBeDefined();
-	});
-
 	it("exposes exactly the expected procedure set", () => {
 		expect(Object.keys(appRouter.stats).sort()).toEqual([
 			"breakdown",
@@ -88,28 +83,16 @@ describe("stats router structure", () => {
 		]);
 	});
 
-	it("every procedure is a protected query", () => {
-		for (const proc of [
-			appRouter.stats.summary,
-			appRouter.stats.breakdown,
-			appRouter.stats.profitLossSeries,
-		]) {
-			expectProtected(proc);
-			expectType(proc, "query");
-		}
+	it("every procedure is a protected query or mutation", () => {
+		expectProcedureSurface(appRouter.stats, {
+			breakdown: "query",
+			profitLossSeries: "query",
+			summary: "query",
+		});
 	});
 });
 
 describe("stats shared filter input validation", () => {
-	const FULL_FILTER = {
-		currencyId: "c1",
-		type: "cash_game",
-		roomId: "r1",
-		dateFrom: EPOCH_NOV_2023,
-		dateTo: EPOCH_JAN_2024,
-		normalized: true,
-	} as const;
-
 	for (const [name, proc] of [
 		["summary", appRouter.stats.summary],
 		["profitLossSeries", appRouter.stats.profitLossSeries],
@@ -132,10 +115,6 @@ describe("stats shared filter input validation", () => {
 				expect(parsed.data.normalized).toBe(false);
 			});
 
-			it("accepts the full filter combination", () => {
-				expectAccepts(proc, FULL_FILTER);
-			});
-
 			it.each([
 				"currencyId",
 				"roomId",
@@ -146,25 +125,16 @@ describe("stats shared filter input validation", () => {
 			it("rejects an unknown type value", () => {
 				expectRejects(proc, { type: "spin_and_go" });
 			});
-
-			it("rejects a non-numeric dateFrom", () => {
-				expectRejects(proc, { dateFrom: "today" });
-			});
-
-			it("rejects a non-boolean normalized", () => {
-				expectRejects(proc, { normalized: "yes" });
-			});
 		});
 	}
 });
 
 describe("stats.breakdown input validation", () => {
-	it("rejects a payload missing groupBy", () => {
-		expectRejects(appRouter.stats.breakdown, { currencyId: "c1" });
-	});
-
-	it("rejects an unknown groupBy value", () => {
-		expectRejects(appRouter.stats.breakdown, { groupBy: "decade" });
+	it.each([
+		"decade",
+		"variants",
+	])("rejects the unknown groupBy %s", (groupBy) => {
+		expectRejects(appRouter.stats.breakdown, { groupBy });
 	});
 
 	it("accepts each valid groupBy value", () => {
@@ -182,34 +152,11 @@ describe("stats.breakdown input validation", () => {
 		}
 	});
 
-	it("rejects a groupBy value that looks close to a valid one", () => {
-		expectRejects(appRouter.stats.breakdown, { groupBy: "variants" });
-	});
-
-	it("accepts groupBy together with the full filter set", () => {
-		expectAccepts(appRouter.stats.breakdown, {
-			currencyId: "c1",
-			type: "tournament",
-			roomId: "r1",
-			dateFrom: 1,
-			dateTo: 2,
-			normalized: true,
-			groupBy: "room",
-		});
-	});
-
 	it.each(["currencyId", "roomId"] as const)("rejects an empty %s", (field) => {
 		expectRejects(appRouter.stats.breakdown, {
 			groupBy: "type",
 			normalized: true,
 			[field]: "",
-		});
-	});
-
-	it("rejects a non-boolean normalized", () => {
-		expectRejects(appRouter.stats.breakdown, {
-			groupBy: "type",
-			normalized: 1,
 		});
 	});
 });
