@@ -43,6 +43,14 @@ bun run mutate -- --changed --base "$BASE"
 
 (Or per file: `bun run mutate -- --mutate packages/api/src/routers/room.ts`.) Read `reports/mutation/<project>/report.json`: for each file in `files`, list mutants with `status` in {Survived, NoCoverage} as `path:line:column mutatorName → replacement`. Record the per-file score printed by the clear-text reporter. A Stryker run is minutes long (api: ~10 min for a 3,200-line router); run it once, never per iteration. If the runner is not found, do not symlink anything into `node_modules/.bun` — `bun install --frozen-lockfile` and the resolution in `scripts/mutate.ts` are the only supported paths (see `docs/design/testing-and-tooling.md`, "Mutation testing").
 
+### 2b. Reach snapshot
+
+```bash
+bun run test:metrics -- --skip-list
+```
+
+Read `reports/test-metrics.md`: any changed implementation file listed under "Untested source files", and any NoCoverage row for it in the mutation excerpt, is a missing test before any survivor analysis starts.
+
 ### 3. Manual three-flip for web-dom / server / mcp / env files
 
 For each file in scope:

@@ -31,6 +31,7 @@ bun run dev:server       # server only
 bun run test             # vitest run (all workspaces)
 bun run test:watch       # vitest watch
 bun run mutate           # stryker on changed files (report-only) — see .claude/rules/testing.md
+bun run test:metrics     # it() / collected / mutation / untested-file snapshot (reports/test-metrics.md) — see .claude/rules/testing.md
 bun run lint             # ultracite check
 bun run fix              # ultracite fix (auto-format & auto-fix)
 bun run check-types      # tsc --noEmit (workspaces defining check-types: web/server)
@@ -95,7 +96,7 @@ Tests are behavioral contracts: each `it()` pins one observable outcome the spec
 
 1. **Red first, from the spec.** Write the failing `it()` from the requirement (issue, rule file, design doc), not from the code you are about to write. Run the scoped project and confirm it fails for the intended reason.
 2. **Green with the minimum.** Implement only what the red test demands; run only the scoped project (see below).
-3. **Detection review before the PR.** `/detection-review` (Claude Code), or by hand: `bun run mutate` for `api` / `db` / `web-node` code; for `web-dom` code flip three conditions one at a time, confirm a test goes red each time, restore with `git checkout -- <file>`. A survivor in domain logic is a missing test — add it. A survivor in a label, message, or other decorative literal gets a `// Stryker disable next-line <Mutator>: <why>` directive.
+3. **Detection review before the PR.** `/detection-review` (Claude Code), or by hand: `bun run mutate` for `api` / `db` / `web-node` code; for `web-dom` code flip three conditions one at a time, confirm a test goes red each time, restore with `git checkout -- <file>`. Read the NoCoverage count and the untested-file list from `bun run test:metrics` the same way. A survivor in domain logic is a missing test — add it. A survivor in a label, message, or other decorative literal gets a `// Stryker disable next-line <Mutator>: <why>` directive.
 4. **CI is the final green signal** (and, for Claude Code, the Stop hook below). The mutation score is reported on the PR and never fails it; coverage % is never a gate.
 
 **Quality bar (non-negotiable)**:

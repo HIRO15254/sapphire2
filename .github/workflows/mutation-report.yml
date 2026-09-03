@@ -71,6 +71,10 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: bun scripts/mutate.ts --project "$PROJECT" --changed --base "origin/$BASE_REF"
 
+      - name: Test-reach metrics
+        continue-on-error: true
+        run: bun scripts/test-metrics.ts --out reports/mutation
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -104,6 +108,14 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           PLANNED: ${{ needs.plan.outputs.projects }}
         run: bun scripts/mutate.ts summary --run-url "$RUN_URL" --planned "${PLANNED:-[]}"
+
+      - name: Append test-reach metrics
+        continue-on-error: true
+        run: |
+          if [ -f reports/mutation/test-metrics.md ]; then
+            printf '\n' >> reports/mutation/summary.md
+            cat reports/mutation/test-metrics.md >> reports/mutation/summary.md
+          fi
 
       - name: Find existing comment
         uses: peter-evans/find-comment@v3
