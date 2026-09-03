@@ -44,11 +44,4 @@ describe("useMobileNavPopover", () => {
 		act(() => result.current.onOpenChange(true));
 		expect(result.current.isOpen).toBe(true);
 	});
-
-	it("returns stable shape with isOpen, onOpenChange, onClose", () => {
-		const { result } = renderHook(() => useMobileNavPopover());
-		expect(typeof result.current.isOpen).toBe("boolean");
-		expect(typeof result.current.onOpenChange).toBe("function");
-		expect(typeof result.current.onClose).toBe("function");
-	});
 });

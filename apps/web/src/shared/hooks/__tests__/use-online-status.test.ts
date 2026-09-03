@@ -27,18 +27,16 @@ describe("useOnlineStatus", () => {
 		}
 	});
 
-	it("returns true when navigator.onLine is true", () => {
-		const { result } = renderHook(() => useOnlineStatus());
-		expect(result.current).toBe(true);
-	});
-
-	it("returns false when navigator.onLine is false", () => {
+	it.each([
+		[true],
+		[false],
+	])("returns %s when navigator.onLine is %s", (onLine) => {
 		Object.defineProperty(navigator, "onLine", {
 			configurable: true,
-			get: () => false,
+			get: () => onLine,
 		});
 		const { result } = renderHook(() => useOnlineStatus());
-		expect(result.current).toBe(false);
+		expect(result.current).toBe(onLine);
 	});
 
 	it("subscribes to both online and offline events", () => {
@@ -60,35 +58,24 @@ describe("useOnlineStatus", () => {
 		expect(removed).toContain("offline");
 	});
 
-	it("re-renders with the updated value when an offline event fires", () => {
-		const { result } = renderHook(() => useOnlineStatus());
-		expect(result.current).toBe(true);
-
+	it.each([
+		["offline", true, false],
+		["online", false, true],
+	])("re-renders with the updated value when a %s event fires", (eventName, initialValue, expectedValue) => {
 		Object.defineProperty(navigator, "onLine", {
 			configurable: true,
-			get: () => false,
-		});
-		act(() => {
-			window.dispatchEvent(new Event("offline"));
-		});
-		expect(result.current).toBe(false);
-	});
-
-	it("re-renders with the updated value when an online event fires", () => {
-		Object.defineProperty(navigator, "onLine", {
-			configurable: true,
-			get: () => false,
+			get: () => initialValue,
 		});
 		const { result } = renderHook(() => useOnlineStatus());
-		expect(result.current).toBe(false);
+		expect(result.current).toBe(initialValue);
 
 		Object.defineProperty(navigator, "onLine", {
 			configurable: true,
-			get: () => true,
+			get: () => expectedValue,
 		});
 		act(() => {
-			window.dispatchEvent(new Event("online"));
+			window.dispatchEvent(new Event(eventName));
 		});
-		expect(result.current).toBe(true);
+		expect(result.current).toBe(expectedValue);
 	});
 });

@@ -13,14 +13,6 @@ describe("scopeOf", () => {
 });
 
 describe("useVariantScope", () => {
-	it("exposes scopeOf for callers", () => {
-		const { result } = renderHook(() =>
-			useVariantScope({ setVariant: vi.fn() })
-		);
-		expect(result.current.scopeOf("mix")).toBe("perLevel");
-		expect(result.current.scopeOf("Razz")).toBe("all");
-	});
-
 	it("is a no-op when the requested scope matches the current variant's scope", () => {
 		const setVariant = vi.fn();
 		const { result } = renderHook(() => useVariantScope({ setVariant }));

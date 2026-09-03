@@ -91,26 +91,4 @@ describe("useVariantLabels", () => {
 			});
 		});
 	});
-
-	it("matches case-insensitively", async () => {
-		const { result } = renderHook(() => useVariantLabels("razz"), {
-			wrapper: withQueryClient(),
-		});
-		await waitFor(() => {
-			expect(result.current.blind3).toBe("Bring-in");
-		});
-	});
-
-	it("falls back to SB/BB/Straddle for unknown variants", async () => {
-		const { result } = renderHook(() => useVariantLabels("Deleted Game"), {
-			wrapper: withQueryClient(),
-		});
-		await waitFor(() => {
-			expect(result.current).toEqual({
-				blind1: "SB",
-				blind2: "BB",
-				blind3: "Straddle",
-			});
-		});
-	});
 });

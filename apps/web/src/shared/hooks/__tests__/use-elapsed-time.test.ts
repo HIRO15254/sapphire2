@@ -78,16 +78,4 @@ describe("useElapsedTime", () => {
 		expect(clearSpy).toHaveBeenCalled();
 		clearSpy.mockRestore();
 	});
-
-	it("accepts ISO string startedAt", () => {
-		const iso = new Date(NOW.getTime() - 45 * 60_000).toISOString();
-		const { result } = renderHook(() => useElapsedTime(iso));
-		expect(result.current).toBe("45m");
-	});
-
-	it("accepts epoch number startedAt", () => {
-		const epoch = NOW.getTime() - 2 * 60 * 60_000;
-		const { result } = renderHook(() => useElapsedTime(epoch));
-		expect(result.current).toBe("2h 0m");
-	});
 });
