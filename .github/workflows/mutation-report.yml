@@ -1,0 +1,125 @@
+name: Mutation Report
+
+on:
+  pull_request:
+    branches: [dev]
+
+concurrency:
+  group: mutation-report-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      projects: ${{ steps.plan.outputs.projects }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Resolve affected projects
+        id: plan
+        continue-on-error: true
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: echo "projects=$(bun scripts/mutate.ts plan --changed --base "origin/$BASE_REF")" >> "$GITHUB_OUTPUT"
+
+  mutate:
+    needs: plan
+    if: needs.plan.outputs.projects != '' && needs.plan.outputs.projects != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        project: ${{ fromJSON(needs.plan.outputs.projects) }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Restore nightly incremental report
+        uses: actions/cache/restore@v4
+        with:
+          path: reports/mutation/${{ matrix.project }}/stryker-incremental.json
+          key: mutation-incremental-${{ matrix.project }}-pr-${{ github.run_id }}
+          restore-keys: mutation-incremental-${{ matrix.project }}-
+
+      - name: Mutation test (changed files)
+        continue-on-error: true
+        env:
+          PROJECT: ${{ matrix.project }}
+          BASE_REF: ${{ github.base_ref }}
+        run: bun scripts/mutate.ts --project "$PROJECT" --changed --base "origin/$BASE_REF"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutation-report-${{ matrix.project }}
+          path: reports/mutation
+          if-no-files-found: ignore
+          retention-days: 14
+
+  comment:
+    needs: [plan, mutate]
+    if: always() && needs.plan.outputs.projects != '' && needs.plan.outputs.projects != '[]' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: mutation-report-*
+          path: reports/mutation
+          merge-multiple: true
+
+      - name: Build summary
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          PLANNED: ${{ needs.plan.outputs.projects }}
+        run: bun scripts/mutate.ts summary --run-url "$RUN_URL" --planned "${PLANNED:-[]}"
+
+      - name: Find existing comment
+        uses: peter-evans/find-comment@v3
+        id: find
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: github-actions[bot]
+          body-includes: "## Mutation Report"
+
+      - name: Create or update comment
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          comment-id: ${{ steps.find.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          edit-mode: replace
+          body-path: reports/mutation/summary.md
+
+      - name: Job summary
+        run: cat reports/mutation/summary.md >> "$GITHUB_STEP_SUMMARY"

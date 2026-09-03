@@ -1,0 +1,59 @@
+name: Mutation Nightly
+
+on:
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: mutation-nightly
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  mutate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [api, db, web-node]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Cache incremental report
+        uses: actions/cache@v4
+        with:
+          path: reports/mutation/${{ matrix.project }}/stryker-incremental.json
+          key: mutation-incremental-${{ matrix.project }}-${{ github.run_id }}
+          restore-keys: mutation-incremental-${{ matrix.project }}-
+
+      - name: Mutation test (full)
+        env:
+          PROJECT: ${{ matrix.project }}
+        run: bun scripts/mutate.ts --project "$PROJECT" --all --force
+
+      - name: Job summary
+        if: always()
+        run: bun scripts/mutate.ts summary >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutation-report-${{ matrix.project }}
+          path: reports/mutation
+          if-no-files-found: ignore
+          retention-days: 30
