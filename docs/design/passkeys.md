@@ -127,6 +127,16 @@ code verbatim. `ERROR_CEREMONY_ABORTED` is reserved for an `AbortSignal` abort a
 Sign-in needs no such care — better-auth funnels every `startAuthentication` throw into
 `AUTH_CANCELLED`.
 
+That code is broader than "the user closed the prompt", and the cost is accepted rather
+than solved: SimpleWebAuthn stamps it on **every** `NotAllowedError`, so a timeout (easy to
+hit on mobile), a `publickey-credentials-create` permissions-policy denial, and the
+already-registered case on authenticators that report `NotAllowedError` instead of
+`InvalidStateError` all land here and are swallowed silently — leaving the add sheet open
+with no feedback. The alternative is a toast every time someone presses Escape, which is
+worse and is what the social providers already avoid. Consequently the
+"This device already has a passkey" message below only appears on platforms that raise
+`InvalidStateError` (Chrome's platform authenticator does; a security key may not).
+
 `ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED` is the one failure worth rewording rather than
 silencing: on a device that already holds a passkey, `excludeCredentials` makes "Add
 passkey" fail by design, and the plugin's own "Previously registered" says nothing about
