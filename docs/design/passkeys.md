@@ -148,8 +148,12 @@ real cause is visible in devtools even though the UI stays quiet.
 `ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED` is the one failure worth rewording rather than
 silencing: on a device that already holds a passkey, `excludeCredentials` makes "Add
 passkey" fail by design, and the plugin's own "Previously registered" says nothing about
-what to do. The screen is still the way to register a *different* device over
-cross-device QR, so the button stays.
+what to do. Code and message come from different layers on purpose — better-auth keeps
+SimpleWebAuthn's `ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED` as the code but swaps in its
+own `PASSKEY_ERROR_CODES.PREVIOUSLY_REGISTERED.message`, so that pair is what actually
+reaches the client and there is no second, server-side `PREVIOUSLY_REGISTERED` code to
+match on. The screen is still the way to register a *different* device over cross-device
+QR, so the button stays.
 
 Ceremonies are also guarded against a second press: WebAuthn aborts an in-flight request
 when a new one starts, so a double-click would cancel the user's own prompt and surface a
