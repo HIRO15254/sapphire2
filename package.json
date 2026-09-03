@@ -48,6 +48,8 @@
   "devDependencies": {
     "@biomejs/biome": "2.4.10",
     "@sapphire2/config": "workspace:*",
+    "@stryker-mutator/core": "10.0.0",
+    "@stryker-mutator/vitest-runner": "10.0.0",
     "@types/bun": "catalog:",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",

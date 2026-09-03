@@ -48,3 +48,8 @@ coverage
 .cache
 tmp
 temp
+
+# Mutation testing (Stryker)
+/reports/
+/.stryker-tmp/
+/stryker-setup-*.js
