@@ -1,8 +1,7 @@
 const TRAILING_SLASHES = /\/+$/;
 
 export function isOAuthRegisterPath(path: string): boolean {
-	const trimmed = path.replace(TRAILING_SLASHES, "");
-	return trimmed.length > 0 && trimmed.endsWith("/register");
+	return path.replace(TRAILING_SLASHES, "").endsWith("/register");
 }
 
 function isJsonObject(value: unknown): value is Record<string, unknown> {
