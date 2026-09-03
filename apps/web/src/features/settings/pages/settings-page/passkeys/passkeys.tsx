@@ -99,62 +99,75 @@ export function Passkeys() {
 		);
 	}
 
-	if (error) {
+	function renderList() {
+		if (error) {
+			return (
+				<div className="flex flex-wrap items-center gap-2">
+					<p className="text-destructive text-sm" role="alert">
+						{error}
+					</p>
+					<Button onClick={refreshPasskeys} size="sm" variant="outline">
+						Retry
+					</Button>
+				</div>
+			);
+		}
+
+		if (totalPasskeys === 0) {
+			return (
+				<p className="text-muted-foreground text-sm">
+					No passkeys yet. Add one to sign in without a password.
+				</p>
+			);
+		}
+
 		return (
-			<div className="text-destructive text-sm" role="alert">
-				{error}
-			</div>
+			<ManagementList>
+				{passkeys.map((entry) => (
+					<ManagementListItem
+						actions={
+							<div className="flex items-center gap-2">
+								<Button
+									aria-label={`Rename ${entry.name || "passkey"}`}
+									onClick={() => onRenameTargetChange(entry)}
+									size="sm"
+									variant="outline"
+								>
+									<IconPencil />
+									Rename
+								</Button>
+								<Button
+									aria-label={`Remove ${entry.name || "passkey"}`}
+									onClick={() => onDeleteTargetChange(entry)}
+									size="sm"
+									variant="outline"
+								>
+									<IconTrash />
+									Remove
+								</Button>
+							</div>
+						}
+						className="min-h-14"
+						description={`Added ${formatLocalYmdSlash(entry.createdAt)}`}
+						key={entry.id}
+						leading={<IconKey className="h-4 w-4" />}
+						title={
+							<span className="flex items-center gap-2">
+								{entry.name || "Passkey"}
+								{entry.backedUp ? (
+									<Badge variant="outline">Synced</Badge>
+								) : null}
+							</span>
+						}
+					/>
+				))}
+			</ManagementList>
 		);
 	}
 
 	return (
 		<div className="space-y-3">
-			{totalPasskeys === 0 ? (
-				<p className="text-muted-foreground text-sm">
-					No passkeys yet. Add one to sign in without a password.
-				</p>
-			) : (
-				<ManagementList>
-					{passkeys.map((entry) => (
-						<ManagementListItem
-							actions={
-								<div className="flex items-center gap-2">
-									<Button
-										aria-label={`Rename ${entry.name || "passkey"}`}
-										onClick={() => onRenameTargetChange(entry)}
-										size="sm"
-										variant="outline"
-									>
-										<IconPencil />
-										Rename
-									</Button>
-									<Button
-										aria-label={`Remove ${entry.name || "passkey"}`}
-										onClick={() => onDeleteTargetChange(entry)}
-										size="sm"
-										variant="outline"
-									>
-										<IconTrash />
-										Remove
-									</Button>
-								</div>
-							}
-							className="min-h-14"
-							description={`Added ${formatLocalYmdSlash(entry.createdAt)}`}
-							key={entry.id}
-							leading={<IconKey className="h-4 w-4" />}
-							title={
-								<span className="flex items-center gap-2">
-									{entry.name || "Passkey"}
-									{entry.backedUp ? (
-										<Badge variant="outline">Synced</Badge>
-									) : null}
-								</span>
-							}
-						/>
-					))}
-				</ManagementList>
-			)}
+			{renderList()}
 
 			{isPasskeySupported ? (
 				<Button onClick={() => onAddOpenChange(true)} variant="outline">

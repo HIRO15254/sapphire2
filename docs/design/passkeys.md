@@ -155,6 +155,11 @@ would render a 401 or a 500 as "No passkeys yet", telling a user who has passkey
 have none — so the error branch is keyed off `result.error`, not off a thrown exception
 (the `catch` only ever sees a network-level rejection).
 
+Because that branch is now genuinely reachable, the failure state has to be recoverable:
+the error replaces the *list* only, keeping "Add passkey" available and offering `Retry`
+(`refreshPasskeys`). Replacing the whole section instead would strand a user on an expired
+session with no way out short of reloading the page.
+
 ## Version coupling
 
 `@better-auth/passkey` is pinned to the exact `better-auth` version in the workspace

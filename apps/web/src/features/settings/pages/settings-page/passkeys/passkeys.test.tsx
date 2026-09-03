@@ -202,6 +202,38 @@ describe("Passkeys", () => {
 				"Unable to load passkeys"
 			)
 		);
+		expect(
+			screen.queryByText(
+				"No passkeys yet. Add one to sign in without a password."
+			)
+		).not.toBeInTheDocument();
+	});
+
+	it("keeps the page usable when the fetch fails", async () => {
+		mocks.listUserPasskeys.mockRejectedValue(new Error("offline"));
+		render(<Passkeys />);
+
+		await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+		expect(
+			screen.getByRole("button", { name: "Add passkey" })
+		).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+	});
+
+	it("recovers through Retry without a page reload", async () => {
+		const user = userEvent.setup();
+		mocks.listUserPasskeys
+			.mockRejectedValueOnce(new Error("offline"))
+			.mockResolvedValueOnce({ data: [PASSKEY] });
+		render(<Passkeys />);
+
+		await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+		await user.click(screen.getByRole("button", { name: "Retry" }));
+
+		await waitFor(() =>
+			expect(screen.getByText("MacBook")).toBeInTheDocument()
+		);
+		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 	});
 
 	it("replaces the add button with a notice where WebAuthn is missing", async () => {
