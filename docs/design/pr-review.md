@@ -114,6 +114,27 @@ Two conclusions from this run. First, **run-to-run variance is real on large dif
 
 Comparison with the reviewer this replaces: the 12 known defects are, by construction, what the old reviewer found in round 1 on these PRs, so 58% recall against that set is a regression in raw round-1 recall and a large gain in precision and volume. The remaining gap is finder coverage (three #568 defects and one #590 rule violation) plus one contested migration refutation. The claimed advantage — a finding is posted only with evidence the author can check — held on every finding examined, including the refutations.
 
+## Run 5: sharded finders, cheaper models, wider PR set (2026-09-04)
+
+Changes measured in this run: F1 became a per-shard **Sonnet hunk walk** (at most 8 files or 800 changed lines per shard, a fixed checklist of line shapes to stop at), F2 gained the flow-interaction and fix-coverage angles and is split by area above 20 source files, rule-citation candidates are validated by Sonnet, and the validator count was capped at 14. The set grew by five merged PRs whose ground truth was built by Sonnet subagents from the audit data: a thread counts as a known defect only when a later commit in the PR changed the code the thread pointed at, and only when the defect exists at the first-review head.
+
+| Case | Files | Known real | Found | Important | Nits | Cost | Minutes |
+|---|---|---|---|---|---|---|---|
+| #590 passkeys | 38 | 3 | 2 | 3 | 6 | $19.80 | 17 |
+| #574 mix normalization | 24 | 1 | 1 | 1 | 2 | $13.20 | 18 |
+| #568 filter presets | 36 | 4 | 3 | 4 | 5 | $26.54 | 26 |
+| #594 DCR client_name (clean) | 7 | 0 | – | 0 | 1 | $5.44 | 11 |
+| #589 EV toggle | 7 | 1 | 1 | 1 | 1 | $7.88 | 10 |
+| #586 EV fallback | 7 | 1 | 1 | 1 | 1 | $7.49 | 13 |
+| #592 OAuth login continuation | 5 | 2 | 1 | 1 | 0 | $7.38 | 13 |
+| #582 trigger stash | 4 | 1 | 0 | 1 | 0 | $8.61 | 14 |
+
+- **Recall on the three re-run bug PRs rose from 3 of 8 to 6 of 8.** The two misses that motivated the change are now found: the `Object.keys` undefined-key count surfaced from the hunk walk, and the destructive-confirmation rule violation was CONFIRMED by the Sonnet rule validator (the Opus validators had reinterpreted the rule in every earlier run). The #574 migration was confirmed with a streaming reproduction harness that shows the re-run failing at statement 1 after a mid-file death — the earlier "one transaction" refutation did not recur. Across all 13 known defects in the run, 9 were found (69%).
+- **The remaining misses have identifiable causes.** The #568 UNIQUE-regex breadth was found by the hunk walk at confidence 45 and then cut by the 14-validator cap; the fix is to group validators per file so every candidate is validated. The #590 silent re-registration was not surfaced because the orchestrator narrowed the flow-interaction angle to the paths it had noticed; the finder now has to write the entity × create/delete/read table itself. The #592 preview auto-login hole is an alternate entry point into the same journey, which is what the new F7 journey finder enumerates. The #582 item (a missing mechanical guard for a CI spec list) is a process finding, not a code defect, and is unlikely to be found by any finder here.
+- **New important findings, none known to be wrong.** #582: a failure between `drop-triggers.sql` and the dump leaves the preview DB without triggers with no recovery path — the author closed exactly this window with an EXIT trap two commits later, so this one is confirmed by history. #589: in normalized mode a user whose only EV rows are mixed games gets an EV line that coincides with the P/L line, verified by running `aggregatePnlPoints`; the server closes the same hole in `stats.ts`. #586: the `stats_summary` MCP description's population claim became false. #590: the device name is sent as the WebAuthn `userName`. #568: the auto-applied preset pushes a history entry, and the `IF NOT EXISTS` idempotency edit has no test. The last two are tier judgement calls; the rest are behaviour a user or a model hits.
+- **Cost moved with diff size, not down.** Mean $12.04 per PR, but $20–27 on the two 36–38 file PRs because 16–25 subagents ran. Sonnet finders cost a third of the Opus ones; the Opus validators are now the dominant term. Grouping validators per file (3 candidates each, Sonnet for nit-tier guesses) is the next change and is measured in run 6.
+- **Format drift.** Three summaries listed refuted candidates and one explained each finding in a paragraph; the hard limits now forbid the refuted list and, with `--post`, anything beyond the table.
+
 ## Measuring a change to this loop
 
 Re-run the thread classification (round × outcome × real-defect) on the next ~10 PRs and compare with the table above. The signals that the cap is too tight are a drop in real defects caught per PR or authors reaching for the label on most PRs; the signal that the prompt is too loose is retractions or prose threads coming back. The full review is always one label away, so tightening was chosen over the reverse.
