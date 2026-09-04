@@ -210,6 +210,22 @@ Changes measured: F1 ran as two independent Sonnet agents per shard (union befor
 - **The #590 re-registration miss was a confidence cut, not a finder miss.** Three F2 finders wrote the entity table and emitted the delete → next-password-login pair; the Opus validator returned CONFIRMED, important, confidence 72 — "the fix is a product decision, not a code-logic defect, that is why my confidence sits at 72" — and the ≥ 80 gate dropped it (run 9's validator gave 84). The validator's confidence is now defined as certainty that the input produces the behaviour and nothing else: a remedy that is a design choice, a document that calls the behaviour intended, a debatable tier, or a low finder rating do not lower it (measured in run 11 on #590 and #592).
 - **Findings that recur across runs and are not in the ground truth** (the PRs never fixed them; a human should decide): #590 "Add passkey" 403 after 24 hours (runs 9 and 10); #590 device name used as the WebAuthn `userName` (runs 5 and 10); #568 payload FK ownership unchecked (runs 6–10); #568 the auto-applied preset pushes a history entry (runs 6–7); #576 running session's `sessionDate` left stale (runs 7, 9, 10).
 
+## Run 11 and the state of the loop (2026-09-04)
+
+Run 11 measured the validator confidence definition (single F1 restored) on #590 and #592: #590 is 3 of 3 again — the delete → auto-re-registration pair is in the table as important, and the "Add passkey" 403 after 24 hours recurred for a third run — at $22.96; #592 is 1 of 2 at $9.69, the preview auto-login row that run 10 had produced did not recur.
+
+**Where the twelve PRs stand** (latest run of each; "union" counts a known defect found in any run of the current skill family, runs 6–11):
+
+| Set | Known | Latest run | Union |
+|---|---|---|---|
+| All 12 PRs | 42 | 20 (48%) | 27 (64%) |
+| Excluding the two MCP-description PRs (#581, #575) | 22 | 14 (64%) | 19 (86%) |
+
+- **Precision is the settled part.** Across runs 6–11 no important-tier finding was shown to be wrong on inspection; the ones outside the ground truth are either fixed by later commits in the repository (#582 trigger window, #575 `normalized` claim and `rate` field, #575 sign-up continuation) or recur run after run and await a human (#590 freshness 403, #568 payload ownership, #576 stale `sessionDate`). The three evaluation artefacts (a token expiry fixture that aged out, a `docs/` claim, a cross-site tier call) are the only disputed rows.
+- **Coverage has a systematic floor and a sampling ceiling.** Every miss that had a mechanism was closed by a mechanical rule and stayed closed: the finder self-drop (run 8), the optional entity table (run 9), the cross-file dedupe (run 10), the confidence discount (run 11). What remains alternates between runs with no mechanism to fix — the same Sonnet hunk walk finds `Object.keys` in one run and the default-preset gate in the next — and a second sample of the same prompt (run 10) did not raise it. The MCP-description PRs stay at 5 of 12 and 1–3 of 8 because their defects are dozens of independent sentence-versus-handler contradictions under a per-finder candidate cap; F8 finds a different handful each time.
+- **Cost is $5–10 on PRs under 10 files, $17–33 on 20–57 files**, 11–36 minutes; the Opus validators and the orchestrator's turns on large diffs are the terms that scale. The previous reviewer spent up to 36 rounds on one PR at about $2 and 4 minutes per round.
+- **Judgement: sufficient to run live, with two rounds per PR.** One round finds about two thirds of what an author later fixes outside the MCP class, with no known false importants, and the incremental round exists for the rest. Two structural levers remain and are budget decisions rather than prompt changes: running the full review twice and posting the union (recall would approach the union column at roughly twice the cost), and a dedicated per-tool pass for MCP registry PRs (one F8 per tool instead of one per diff). Neither is taken here.
+
 ## Measuring a change to this loop
 
 Re-run the thread classification (round × outcome × real-defect) on the next ~10 PRs and compare with the table above. The signals that the cap is too tight are a drop in real defects caught per PR or authors reaching for the label on most PRs; the signal that the prompt is too loose is retractions or prose threads coming back. The full review is always one label away, so tightening was chosen over the reverse.
