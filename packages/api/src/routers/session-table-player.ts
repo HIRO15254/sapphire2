@@ -510,7 +510,7 @@ export const sessionTablePlayerRouter = router({
 			}
 			// Stryker disable next-line ConditionalExpression,BlockStatement: equivalent: computeSeatedPlayersFromEvents guarantees a matching player_join exists whenever isActive is true
 			if (!joinEventId) {
-				// Stryker disable next-line ObjectLiteral: equivalent: computeSeatedPlayersFromEvents guarantees a matching player_join exists whenever isActive is true
+				// Stryker disable next-line ObjectLiteral,CallExpression: equivalent: computeSeatedPlayersFromEvents guarantees a matching player_join exists whenever isActive is true
 				throw new TRPCError({
 					// Stryker disable next-line StringLiteral: equivalent: computeSeatedPlayersFromEvents guarantees a matching player_join exists whenever isActive is true
 					code: "NOT_FOUND",
