@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	computeTournamentTimerState,
 	formatBlindLevelLabel,
+	formatBlindsValue,
 	formatTimerDuration,
 	type TournamentBlindLevel,
 } from "../tournament-timer";
@@ -121,6 +122,12 @@ describe("computeTournamentTimerState", () => {
 		);
 		expect(halfway.levelProgressFraction).toBe(0.5);
 	});
+
+	it("returns index -1 and a null current level for an empty level list", () => {
+		const state = computeTournamentTimerState([], T0, T0);
+		expect(state.currentLevelIndex).toBe(-1);
+		expect(state.currentLevel).toBeNull();
+	});
 });
 
 describe("formatTimerDuration", () => {
@@ -157,6 +164,27 @@ describe("formatBlindLevelLabel", () => {
 	it("falls back when blinds missing", () => {
 		const label = formatBlindLevelLabel(makeLevel({ level: 1 }));
 		expect(label).toBe("L1 —");
+	});
+
+	it("renders all three blinds in the flat fallback label", () => {
+		const label = formatBlindLevelLabel(
+			makeLevel({ level: 1, blind1: 100, blind2: 200, blind3: 400 })
+		);
+		expect(label).toBe("L1 100/200/400");
+	});
+});
+
+describe("formatBlindsValue", () => {
+	it.each([
+		["all blinds null", makeLevel({ level: 1 }), "—"],
+		["only blind1 set", makeLevel({ level: 1, blind1: 100 }), "100"],
+		[
+			"all three blinds set",
+			makeLevel({ level: 1, blind1: 100, blind2: 200, blind3: 400 }),
+			"100 / 200 / 400",
+		],
+	])("formats %s", (_label, level, expected) => {
+		expect(formatBlindsValue(level)).toBe(expected);
 	});
 });
 

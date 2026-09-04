@@ -32,6 +32,7 @@ function computeLevelProgressFraction(
 	minutes: number | null,
 	remainingSeconds: number | null
 ): number | null {
+	// Stryker disable next-line ConditionalExpression,BlockStatement: equivalent: only called from computeTournamentTimerState after minutes > 0 and remainingSecondsInLevel are established
 	if (minutes === null || minutes <= 0 || remainingSeconds === null) {
 		return null;
 	}
@@ -66,6 +67,7 @@ export function computeTournamentTimerState(
 	let cumulativeSeconds = 0;
 	for (let i = 0; i < sortedLevels.length; i++) {
 		const level = sortedLevels[i];
+		// Stryker disable next-line ConditionalExpression,BlockStatement: equivalent: sortedLevels is a dense array built by spread and sort
 		if (!level) {
 			continue;
 		}
