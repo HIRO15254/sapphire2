@@ -56,7 +56,9 @@ export function deriveCashGameTimeline(
 		return [];
 	}
 	const startEvent = events[startIndex];
+	// Stryker disable next-line BlockStatement,ConditionalExpression: equivalent: startIndex comes from findIndex !== -1 and events is dense, so the element is always defined
 	if (!startEvent) {
+		// Stryker disable next-line ArrayDeclaration: equivalent: startIndex comes from findIndex !== -1 and events is dense, so the element is always defined
 		return [];
 	}
 	const anchor = toMs(startEvent.occurredAt);
@@ -70,6 +72,7 @@ export function deriveCashGameTimeline(
 
 	for (let i = startIndex; i < events.length; i++) {
 		const e = events[i];
+		// Stryker disable next-line BlockStatement,ConditionalExpression: equivalent: i is bounded by events.length and events is dense, so the element is always defined
 		if (!e) {
 			continue;
 		}
@@ -238,7 +241,9 @@ export function deriveTournamentTimeline(
 		return [];
 	}
 	const startEvent = events[startIndex];
+	// Stryker disable next-line BlockStatement,ConditionalExpression: equivalent: startIndex comes from findIndex !== -1 and events is dense, so the element is always defined
 	if (!startEvent) {
+		// Stryker disable next-line ArrayDeclaration: equivalent: startIndex comes from findIndex !== -1 and events is dense, so the element is always defined
 		return [];
 	}
 	const anchor = toMs(startEvent.occurredAt);
@@ -254,6 +259,7 @@ export function deriveTournamentTimeline(
 
 	for (let i = startIndex; i < events.length; i++) {
 		const e = events[i];
+		// Stryker disable next-line BlockStatement,ConditionalExpression: equivalent: i is bounded by events.length and events is dense, so the element is always defined
 		if (!e) {
 			continue;
 		}

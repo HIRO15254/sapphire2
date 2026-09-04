@@ -553,6 +553,36 @@ describe("deriveTournamentTimeline", () => {
 		expect(points.at(-1)?.stack).toBe(700_000);
 	});
 
+	it("seeds startingStack from the first update_stack, not a later one with different totals", () => {
+		const events = [
+			event({
+				eventType: "session_start",
+				payload: {},
+				offsetMin: 0,
+			}),
+			event({
+				eventType: "update_stack",
+				payload: { stackAmount: 8000 },
+				offsetMin: 5,
+			}),
+			event({
+				eventType: "update_stack",
+				payload: {
+					stackAmount: 12_000,
+					totalEntries: 40,
+					remainingPlayers: 20,
+				},
+				offsetMin: 30,
+			}),
+		];
+		const points = deriveTournamentTimeline(events);
+		expect(points[2]).toEqual({
+			t: 30 * 60_000,
+			stack: 12_000,
+			averageStack: 16_000,
+		});
+	});
+
 	it("session_end with beforeDeadline=true does not alter the running stack", () => {
 		const events = [
 			event({

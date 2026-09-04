@@ -4,12 +4,15 @@ import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import {
 	addLevel,
 	applyGameSetCell,
+	BLIND_LEVEL_INPUT_ERROR,
 	createLevel,
 	deleteLevel,
 	deriveAutoAnte,
 	deriveAutoBlind2,
 	getEffectiveLastMinutes,
+	isValidBlindLevelInput,
 	nextLevelNumber,
+	parseBlindLevelInput,
 	parseIntOrNull,
 	reorderLevels,
 	updateLevel,
@@ -506,5 +509,42 @@ describe("per-level game groups (mix tournaments)", () => {
 		expect(withGames[0].games).toEqual(games);
 		const cleared = updateLevel(withGames, base[0].id, { games: null });
 		expect(cleared[0].games).toBeNull();
+	});
+});
+
+describe("isValidBlindLevelInput", () => {
+	it("treats a blank string as valid", () => {
+		expect(isValidBlindLevelInput("")).toBe(true);
+	});
+});
+
+describe("parseBlindLevelInput", () => {
+	function fakeInput(value: string): HTMLInputElement {
+		return {
+			value,
+			setCustomValidity: vi.fn(),
+			setAttribute: vi.fn(),
+			removeAttribute: vi.fn(),
+			reportValidity: vi.fn(),
+		} as unknown as HTMLInputElement;
+	}
+
+	it("flags an invalid value as a custom validity error and returns undefined", () => {
+		const input = fakeInput("abc");
+		const result = parseBlindLevelInput(input);
+		expect(result).toBeUndefined();
+		expect(input.setCustomValidity).toHaveBeenCalledWith(
+			BLIND_LEVEL_INPUT_ERROR
+		);
+		expect(input.setAttribute).toHaveBeenCalledWith("aria-invalid", "true");
+		expect(input.reportValidity).toHaveBeenCalled();
+	});
+
+	it("clears custom validity and returns the parsed number for a valid value", () => {
+		const input = fakeInput("200");
+		const result = parseBlindLevelInput(input);
+		expect(result).toBe(200);
+		expect(input.setCustomValidity).toHaveBeenCalledWith("");
+		expect(input.removeAttribute).toHaveBeenCalledWith("aria-invalid");
 	});
 });

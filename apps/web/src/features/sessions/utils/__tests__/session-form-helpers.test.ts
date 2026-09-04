@@ -3,6 +3,7 @@ import {
 	buildDefaults,
 	cashOverriddenFields,
 	cashSessionFormSchema,
+	formatDateForInput,
 	getTodayDateString,
 	liveCashSessionFormSchema,
 	NONE_VALUE,
@@ -562,5 +563,14 @@ describe("tournamentOverriddenFields", () => {
 				tableSize: null,
 			})
 		).toEqual([]);
+	});
+});
+
+describe("formatDateForInput", () => {
+	it.each([
+		["2026-04-11T00:00:00.000Z", "2026-04-11"],
+		["2026-01-05T12:00:00.000Z", "2026-01-05"],
+	])("formats %s as %s using UTC getters", (input, expected) => {
+		expect(formatDateForInput(input)).toBe(expected);
 	});
 });
