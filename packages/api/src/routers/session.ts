@@ -685,6 +685,7 @@ async function validateEntityOwnership(
 			return await validateGameVariantOwnershipBranch(db, entityId, userId);
 		case "gameMix":
 			return await validateGameMixOwnershipBranch(db, entityId, userId);
+		// Stryker disable next-line ConditionalExpression: equivalent: entityType is exhaustively typed at every call site
 		default:
 			return undefined;
 	}
@@ -2343,6 +2344,7 @@ async function assertNamedMixComposition(
 		{ group: OwnedGameGroupRow; labels: string[] }
 	>();
 	for (const variant of orderedVariants) {
+		// Stryker disable next-line BlockStatement,ConditionalExpression: equivalent: orderedVariants.some(v => v === undefined) above already threw
 		if (!variant) {
 			throwInvalidMixReference();
 		}
