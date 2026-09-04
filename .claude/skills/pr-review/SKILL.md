@@ -68,7 +68,7 @@ confidence (0–100: how sure you are this is real and in scope)
 
 ## Step 2 — Validators (parallel subagents, grouped by file)
 
-Dedupe first: candidates on the same line or the same mechanism become one candidate carrying both descriptions. Then assign a model per candidate: **opus** when the finder's tier guess is `important`; **sonnet** when it is `nit` or `pre-existing`, or when the only claim is a rule citation (the check is that the rule's `paths:` cover the file, the quoted sentence applies, and the code does what the sentence forbids). Group the candidates of the same file and the same model into one validator, at most 3 candidates per validator, and launch at most 12 validators. Assign every candidate before launching: with 3 per validator the cap holds 36 candidates, so a candidate is dropped only when more than 36 survive dedupe, lowest finder confidence first, and the dropped ones are counted in the summary. Write the assignment (candidate → validator) in your working notes and check that no candidate is unassigned; a validator returns one verdict block per candidate. Low finder confidence is not a reason to skip validation, it is the reason validation exists.
+Dedupe first: candidates on the same file and the same line range (or the same function) become one candidate carrying both descriptions. Candidates in different files that share a root cause are not duplicates — each path a user reaches is its own candidate and its own validator question (the sign-up form, the preview auto-login, and a background job that all lose the same redirect are three candidates). Then assign a model per candidate: **opus** when the finder's tier guess is `important`; **sonnet** when it is `nit` or `pre-existing`, or when the only claim is a rule citation (the check is that the rule's `paths:` cover the file, the quoted sentence applies, and the code does what the sentence forbids). Group the candidates of the same file and the same model into one validator, at most 3 candidates per validator, and launch at most 12 validators. Assign every candidate before launching: with 3 per validator the cap holds 36 candidates, so a candidate is dropped only when more than 36 survive dedupe, lowest finder confidence first, and the dropped ones are counted in the summary. Write the assignment (candidate → validator) in your working notes and check that no candidate is unassigned; a validator returns one verdict block per candidate. Low finder confidence is not a reason to skip validation, it is the reason validation exists.
 
 Each validator gets the candidate, the diff, the PR intent and the agent assumptions, and returns:
 
@@ -89,10 +89,11 @@ Validation is evidence-based, never a re-reading of the finder's argument:
 ## Step 3 — Filter and rank
 
 1. Drop REFUTED. Drop anything with confidence below **80**. Drop anything on the What NOT to flag list.
-2. Dedupe candidates that point at the same line or the same mechanism; keep the better-evidenced one.
-3. Cap inline **nit** comments at **5**; the rest are counted in the summary. In `incremental` mode nits are never inline.
-4. PLAUSIBLE survivors are posted as `[unverified]`: no tier, never blocking, must carry `settle_command`.
-5. `incremental` mode: one **sonnet** subagent settles every previous-round thread as fixed / not addressed / declined (declined = the author replied `Won't fix` or refuted it), by reading the diff since `--since` and the author's replies. Fixed threads go into the trailer's `resolved` list as `path:line` of the original comment.
+2. Dedupe candidates that point at the same file and line range; keep the better-evidenced one. A shared root cause across files stays one row per file:line, or one row whose location column lists every file:line.
+3. Coverage check before the summary: list every CONFIRMED verdict with confidence ≥ 80 and check that each one is a table row or a listed location. A confirmed location that is absent from the table is a defect of the summary, whatever its tier.
+4. Cap inline **nit** comments at **5**; the rest are counted in the summary. In `incremental` mode nits are never inline.
+5. PLAUSIBLE survivors are posted as `[unverified]`: no tier, never blocking, must carry `settle_command`.
+6. `incremental` mode: one **sonnet** subagent settles every previous-round thread as fixed / not addressed / declined (declined = the author replied `Won't fix` or refuted it), by reading the diff since `--since` and the author's replies. Fixed threads go into the trailer's `resolved` list as `path:line` of the original comment.
 
 ## Step 4 — Post (only with `--post`)
 
