@@ -194,6 +194,22 @@ Run 8 (#568 only) measured one change: a finder never drops a candidate on its o
 - **#576 and #588 are stable across runs 7 and 9** (3 of 6 and 1 of 2) with the same misses: the local-getter date seed, `bountyPrizes ?? 0`, and the required-only-for-live fields in #576; in #588 the two runs found a different one of the two known items each time. #588 was `approve` in run 9 because the phantom-zero gate was tiered `pre-existing` — the corner case exists in the untouched branch, and the PR's own change is the one that fixed the other half; a human would call it in scope. The `?? 0` miss and the alternating finds are finder variance again, which is what the doubled F1 in run 10 targets.
 - **New important findings to check by hand**: #590 `packages/auth/src/index.ts:169` — "Add passkey" fails with 403 once the session is older than 24 hours (freshness check on the passkey registration endpoint); #568 `use-sessions-page.ts:62` — when the presets query fails the default preset is never applied for the rest of the visit; #576 `live-linked-edit.ts:157` — moving the session date forward always aborts the save.
 
+## Run 10: doubled F1, same-location dedupe, coverage check (2026-09-04)
+
+Changes measured: F1 ran as two independent Sonnet agents per shard (union before dedupe), dedupe was limited to the same file and line range (a shared root cause across files stays one row per path), and a coverage check before the summary lists every CONFIRMED verdict ≥ 80 against the table.
+
+| Case | Known real | Found | Important | Nits | Cost | Minutes | Run 9 |
+|---|---|---|---|---|---|---|---|
+| #568 filter presets | 4 | 2 | 4 | 7 | $32.42 | 31 | 2, $27.21 |
+| #590 passkeys | 3 | 2 | 6 | 5 | $28.25 | 23 | 3, $22.15 |
+| #576 live-session field editing | 6 | 2 | 2 | 2 | $26.16 | 21 | 3, $20.57 |
+| #592 OAuth login continuation | 2 | 2 | 1 | 1 | $10.46 | 16 | 1, $10.25 |
+
+- **The dedupe and coverage changes did what they were for**: #592 is 2 of 2 — the preview auto-login path that run 9 had folded into the sign-up row is its own row (tiered `pre-existing` with a cross-site argument the author would dispute, but present).
+- **Doubling F1 is reverted.** It raised cost 15–30% on every case (6 hunk walks instead of 3 on the 36–38 file PRs) and raised recall on none: #568 still yields 2 of 4 (the default-preset miss and the `.parse` crash this time; the `Object.keys` count and the regex did not recur even with two walks per shard), #576 lost the overnight end-time item. The alternating F1 finds are not fixed by a second sample of the same prompt.
+- **The #590 re-registration miss was a confidence cut, not a finder miss.** Three F2 finders wrote the entity table and emitted the delete → next-password-login pair; the Opus validator returned CONFIRMED, important, confidence 72 — "the fix is a product decision, not a code-logic defect, that is why my confidence sits at 72" — and the ≥ 80 gate dropped it (run 9's validator gave 84). The validator's confidence is now defined as certainty that the input produces the behaviour and nothing else: a remedy that is a design choice, a document that calls the behaviour intended, a debatable tier, or a low finder rating do not lower it (measured in run 11 on #590 and #592).
+- **Findings that recur across runs and are not in the ground truth** (the PRs never fixed them; a human should decide): #590 "Add passkey" 403 after 24 hours (runs 9 and 10); #590 device name used as the WebAuthn `userName` (runs 5 and 10); #568 payload FK ownership unchecked (runs 6–10); #568 the auto-applied preset pushes a history entry (runs 6–7); #576 running session's `sessionDate` left stale (runs 7, 9, 10).
+
 ## Measuring a change to this loop
 
 Re-run the thread classification (round × outcome × real-defect) on the next ~10 PRs and compare with the table above. The signals that the cap is too tight are a drop in real defects caught per PR or authors reaching for the label on most PRs; the signal that the prompt is too loose is retractions or prose threads coming back. The full review is always one label away, so tightening was chosen over the reverse.
