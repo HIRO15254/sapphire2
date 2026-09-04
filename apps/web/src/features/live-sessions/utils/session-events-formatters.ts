@@ -176,6 +176,7 @@ export function groupEventsForDisplay(events: SessionEvent[]): EventGroup[] {
 	let index = 0;
 	while (index < events.length) {
 		const event = events[index];
+		// Stryker disable next-line BlockStatement: equivalent: index < events.length guarantees events[index] is defined
 		if (!event) {
 			break;
 		}

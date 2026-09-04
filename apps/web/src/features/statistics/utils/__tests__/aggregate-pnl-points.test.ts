@@ -426,6 +426,41 @@ describe("aggregatePnlPoints", () => {
 				},
 			]);
 		});
+
+		it("orders dual-series date buckets ascending even when session order and calendar-day order diverge", () => {
+			const earlyDay = Math.floor(
+				new Date("2026-04-01T10:00:00Z").getTime() / 1000
+			);
+			const lateDay = Math.floor(
+				new Date("2026-04-05T10:00:00Z").getTime() / 1000
+			);
+			const result = aggregatePnlPoints({
+				...baseOptions,
+				unit: "normalized",
+				sessionType: "all",
+				rawPoints: [
+					point({
+						id: "late",
+						profitLoss: 200,
+						sessionDate: lateDay,
+						sortKey: 1,
+						bigBlind: 50,
+					}),
+					point({
+						id: "early",
+						profitLoss: 300,
+						sessionDate: earlyDay,
+						sortKey: 2,
+						type: "tournament",
+						buyInTotal: 100,
+					}),
+				],
+			});
+			expect(result.points).toHaveLength(3);
+			const [, first, second] = result.points;
+			expect(first?.x).toBe(new Date("2026-04-01T00:00:00Z").getTime());
+			expect(second?.x).toBe(new Date("2026-04-05T00:00:00Z").getTime());
+		});
 	});
 
 	describe("unit = 'currency', showEvCash = true", () => {

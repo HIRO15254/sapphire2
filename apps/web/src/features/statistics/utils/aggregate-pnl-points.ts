@@ -97,6 +97,7 @@ function originX(
 	firstSessionDateSec: number | null
 ): number {
 	if (xAxis === "date") {
+		// Stryker disable next-line BlockStatement: equivalent: originX is only called when result.length > 0, which guarantees firstIncludedDate is non-null
 		if (firstSessionDateSec === null) {
 			return 0;
 		}

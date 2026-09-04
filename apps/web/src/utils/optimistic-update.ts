@@ -143,6 +143,7 @@ export function prependInfiniteQueryItem<TItem>(
 			return old;
 		}
 		const [first, ...rest] = old.pages;
+		// Stryker disable next-line BlockStatement: equivalent: old.pages.length === 0 is checked first, so the first page is always defined
 		if (!first) {
 			return old;
 		}

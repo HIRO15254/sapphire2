@@ -557,6 +557,15 @@ describe("isValidEventTypeForSessionType", () => {
 			true
 		);
 	});
+
+	it("returns false for a cash/tournament-only event type paired with an unknown session type", () => {
+		expect(
+			isValidEventTypeForSessionType(
+				"chips_add_remove",
+				"unknown" as unknown as "cash_game" | "tournament"
+			)
+		).toBe(false);
+	});
 });
 
 describe("validateEventPayload", () => {

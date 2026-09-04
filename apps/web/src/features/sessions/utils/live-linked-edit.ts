@@ -341,6 +341,7 @@ function neighborBounds(
 	pending: Map<string, number>
 ): OccurredAtBounds {
 	const index = events.findIndex((event) => event.id === targetId);
+	// Stryker disable next-line BlockStatement: equivalent: neighborBounds is only called with an id already found in the same events array
 	if (index < 0) {
 		return { max: null, min: null };
 	}

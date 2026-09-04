@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
 	addVariant,
 	fromLevelGames,
@@ -300,6 +300,14 @@ describe("toMixGames / fromMixGames", () => {
 		expect(fromMixGames(null, resolveGroup)).toEqual([]);
 		expect(fromMixGames(undefined, resolveGroup)).toEqual([]);
 	});
+
+	it("resolves a group with no variants via resolveGroup('')", () => {
+		const spy = vi.fn(resolveGroup);
+		const rows = fromMixGames([{ name: null, variants: [] }], spy);
+		expect(spy).toHaveBeenCalledWith("");
+		expect(rows[0].variants).toEqual([]);
+		expect(rows[0].groupId).toBe("g-bigbet");
+	});
 });
 
 describe("fromMixGames — unresolved stored groups keep distinct buckets", () => {
@@ -394,6 +402,13 @@ describe("toLevelGames / fromLevelGames", () => {
 		const back = fromLevelGames(games, resolveGroup);
 		expect(back[0].groupId).toBe("g-bigbet");
 		expect(back[0].anteType).toBe("none");
+	});
+
+	it.each([
+		null,
+		undefined,
+	])("returns an empty array for %s stored level games", (games) => {
+		expect(fromLevelGames(games, resolveGroup)).toEqual([]);
 	});
 
 	it("keeps the ante for level payloads despite the row's 'none' anteType default", () => {

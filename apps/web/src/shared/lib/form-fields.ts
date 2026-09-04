@@ -8,6 +8,7 @@ interface NumericRules {
 
 function parseNumeric(value: string) {
 	const trimmed = value.trim();
+	// Stryker disable next-line BlockStatement: equivalent: numericStringSchema returns before calling parseNumeric when trimmed === ""
 	if (trimmed === "") {
 		return Number.NaN;
 	}

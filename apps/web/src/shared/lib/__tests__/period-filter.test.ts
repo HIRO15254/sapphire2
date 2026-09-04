@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	dateInputToEpochSec,
 	epochSecToDateInput,
@@ -78,6 +78,23 @@ describe("resolveDateRange", () => {
 
 	it("returns an empty window for a custom period with no bounds", () => {
 		expect(resolveDateRange({ period: "custom" }, NOW_SEC)).toEqual({});
+	});
+});
+
+describe("resolveDateRange — default nowSec", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.setSystemTime(NOW_SEC * 1000);
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("uses the current wall-clock time in seconds when nowSec is omitted", () => {
+		expect(resolveDateRange({ period: "7d" })).toEqual(
+			resolveDateRange({ period: "7d" }, NOW_SEC)
+		);
 	});
 });
 

@@ -1164,6 +1164,37 @@ describe("createSessionEventMutationOptions", () => {
 		});
 	});
 
+	describe("onMutate — destination list has no cached data", () => {
+		it("seeds nextCursor: undefined when the destination list cache is empty", async () => {
+			const queryClient = makeQueryClient();
+			const keys = getSessionQueryKeys("sess-1", "cash_game");
+			queryClient.setQueryData<TestSession>(keys.sessionKey, {
+				status: "active",
+				summary: {},
+			});
+			queryClient.setQueryData<SessionEvent[]>(keys.eventsKey, []);
+			queryClient.setQueryData<TestListData>(keys.activeListKey, {
+				items: [{ id: "sess-1", name: "My Cash Session", status: "active" }],
+			});
+
+			const options = createSessionEventMutationOptions({
+				queryClient,
+				sessionId: "sess-1",
+				sessionType: "cash_game",
+				eventType: "session_pause",
+				getPayload: () => ({}),
+				changesStatus: true,
+			});
+
+			await options.onMutate(undefined);
+
+			expect(queryClient.getQueryData(keys.pausedListKey)).toEqual({
+				nextCursor: undefined,
+				items: [{ id: "sess-1", name: "My Cash Session", status: "paused" }],
+			});
+		});
+	});
+
 	describe("onMutate — cancelQueries called for session, events, and both lists", () => {
 		it("invokes cancelQueries for each target queryKey", async () => {
 			const queryClient = makeQueryClient();
