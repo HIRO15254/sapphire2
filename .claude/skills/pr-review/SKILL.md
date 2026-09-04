@@ -116,7 +116,7 @@ One sentence. `changes-requested` only while an important-tier finding is open.
 
 The last line is machine-readable and mandatory: the workflow parses it to record the round and to resolve fixed threads. When `--round` ≥ `--max` and something is still open, add one line before the trailer: 次の自動レビューはありません。必要なら `re-review` ラベルで要求してください。
 
-Hard limits: no "verified and fine" lists, no list of refuted or dropped candidates, no "could not run tests" section, no restating the PR description, no compliments, no closing remarks. With `--post`, the table row is the whole entry (the inline comment carries the evidence); without `--post`, one evidence line per finding may follow the table.
+Hard limits: every finding is a table row — a finding mentioned only in prose ("other nits: …") does not exist; no "verified and fine" lists or paragraphs, no refuted, dropped, or below-threshold candidates in any form, no "could not run tests" section, no restating the PR description, no compliments, no closing remarks. The message contains nothing except the four headed blocks above, the trailer, and, without `--post`, one evidence line per table row after the table. With `--post`, the table row is the whole entry (the inline comment carries the evidence).
 
 ## What NOT to flag
 
