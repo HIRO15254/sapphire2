@@ -42,9 +42,14 @@ Why this skill exists, and the data behind every rule below: [`docs/design/pr-re
 
 Do not run an eligibility check: the workflow's gate job already decided this run should happen, and a local invocation is an explicit request.
 
-## Step 1 — Finders (parallel Task subagents, at most 8 candidates each)
+## Step 1 — Finders (parallel Task subagents)
 
-Launch all applicable finders in parallel. Give each: the diff for its scope, the PR title/body, the agent assumptions, the candidate schema below, and the **What NOT to flag** list at the end of this file. Every candidate must name a concrete failure scenario; a candidate without one is discarded before validation.
+Build the finder scope first:
+
+1. Run `git diff --name-only <range>` and `git diff --numstat <range>`. Source files are everything except `**/__tests__/**`, `*.test.*`, `*.md`, `packages/db/src/migrations/meta/**`, and lockfiles. Test and doc files stay available to F2 and to validators.
+2. Group the source files into shards by directory, keeping the files of one feature together: at most 8 files and at most 800 changed lines per shard. A diff with 8 or fewer source files is a single shard.
+
+Launch all applicable finders in parallel. Give each: the range and its file list, the PR title/body, the agent assumptions, the candidate schema below, and the **What NOT to flag** list at the end of this file. Every candidate must name a concrete failure scenario; a candidate without one is discarded before validation. A real bug a finder notices outside its remit is still returned as a candidate with `rule_citation: none`, never as a side remark: validators decide, finders do not self-censor.
 
 Candidate schema (one object per candidate):
 
@@ -54,12 +59,14 @@ failure_scenario (input or state → wrong result), rule_citation (rule file + q
 confidence (0–100: how sure you are this is real and in scope)
 ```
 
-- **F1 · diff-only bugs (opus)** — the official plugin's agent 3: scan the hunks themselves for bugs that are visible without extra context: wrong or inverted conditions, off-by-one, null/undefined dereference, missing `await`, dropped error handling, removed guards, broken callers of a changed signature. Flag only significant bugs.
-- **F2 · logic and security with context (opus)** — the official plugin's agent 4, plus this repository's recurring hazards: unscoped D1 queries (ownership), more than 100 bound parameters, multi-statement writes outside `db.batch()`, date-only values read with local getters, a migration that can die mid-file, an MCP description that would make a model issue a failing or data-losing call. Open the enclosing function and the direct callers.
+- **F1 · hunk walk (sonnet, one per shard, at most 10 candidates)** — runs `git diff <range> -- <shard files>` and reads nothing else except the enclosing function of a hunk that is ambiguous on its own. It walks every added or modified line and stops at each: a comparison or boolean condition; `.length`, an index, a slice, `Object.keys` / `entries` / `values`; a regex literal (what else does it match?); a default or fallback (`??`, `||`, default parameter); an early return or guard; string matching or parsing; a unit, currency, or timezone conversion; an async call without `await` or a rejection handler; a changed signature and its callers inside the shard. For each stop it writes the one input or state that makes the line wrong, checks that input against the surrounding hunk, and emits the candidate only when the check holds. Cheap and high-recall by design: precision comes from the validators.
+- **F2 · logic and security with context (opus; one finder for up to 20 source files, otherwise one per area: web, api + server, db + mcp; at most 8 candidates each)** — the official plugin's agent 4, plus this repository's recurring hazards: unscoped D1 queries (ownership), more than 100 bound parameters, multi-statement writes outside `db.batch()`, date-only values read with local getters, a migration that can die mid-file, an MCP description that would make a model issue a failing or data-losing call. Opens the enclosing function and the direct callers. Two further angles it must cover: **flow interactions** — for every entity this diff creates, deletes, or updates, list the other code paths that create, read, or delete the same entity, including untouched ones, and check that a user who goes through them in sequence (act here, then trigger the other path) gets a consistent result; and **fix coverage** — a bug this PR claims to fix must have a test that fails without the fix.
 - **F3…F6 · rule reviewers (sonnet), one per touched area** — web, api/server, db, mcp. Each gets the rule files for its area and only the diff for its paths. Flag only a violation you can quote; the quote goes in `rule_citation`. Skip anything `scripts/check-rules.ts` or Ultracite already enforces.
 - **Incremental mode only** — every finder also receives the list of previous-round threads and is told: candidates are limited to (a) a regression introduced by a fix, or (b) an important-tier issue in the new diff.
 
-## Step 2 — Validators (one opus subagent per candidate, in parallel)
+## Step 2 — Validators (one subagent per candidate, in parallel)
+
+Dedupe first: candidates on the same line or the same mechanism share one validator that carries both descriptions. Then validate at most 14 candidates, ranked by finder confidence; count the rest in the summary as unvalidated only if any had a finder confidence of 70 or more. Model: **sonnet** when the candidate's only claim is a rule citation (the check is that the rule's `paths:` cover the file, the quoted sentence applies, and the code does what the sentence forbids); **opus** for everything else.
 
 Each validator gets the candidate, the diff, the PR intent and the agent assumptions, and returns:
 
@@ -83,7 +90,7 @@ Validation is evidence-based, never a re-reading of the finder's argument:
 2. Dedupe candidates that point at the same line or the same mechanism; keep the better-evidenced one.
 3. Cap inline **nit** comments at **5**; the rest are counted in the summary. In `incremental` mode nits are never inline.
 4. PLAUSIBLE survivors are posted as `[unverified]`: no tier, never blocking, must carry `settle_command`.
-5. `incremental` mode: settle every previous-round thread as fixed / not addressed / declined (declined = the author replied `Won't fix` or refuted it), by reading the diff since `--since` and the author's replies. Fixed threads go into the trailer's `resolved` list as `path:line` of the original comment.
+5. `incremental` mode: one **sonnet** subagent settles every previous-round thread as fixed / not addressed / declined (declined = the author replied `Won't fix` or refuted it), by reading the diff since `--since` and the author's replies. Fixed threads go into the trailer's `resolved` list as `path:line` of the original comment.
 
 ## Step 4 — Post (only with `--post`)
 
