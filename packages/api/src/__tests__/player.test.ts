@@ -448,3 +448,76 @@ describe("player tag hydration ownership joins", () => {
 		expect(selectJoinParams[0]).toContain(OWNER);
 	});
 });
+
+describe("player.list tag filter and search", () => {
+	it("returns an empty array when an owned tag filter matches no player links", async () => {
+		const rows = new Map<unknown, Rows>([
+			[playerTag, [{ id: "t1", userId: OWNER }]],
+			[playerToPlayerTag, []],
+		]);
+		const { caller } = makeCaller(OWNER, rows);
+
+		const result = await caller.list({ tagIds: ["t1"] });
+
+		expect(result).toEqual([]);
+	});
+
+	it("scopes a name search with a wildcard-wrapped LIKE parameter", async () => {
+		const rows = new Map<unknown, Rows>([
+			[player, []],
+			[playerToPlayerTag, []],
+		]);
+		const { caller, selectWhereParams } = makeCaller(OWNER, rows);
+
+		await caller.list({ search: "Ali" });
+
+		expect(selectWhereParams[0]).toContain("%Ali%");
+	});
+});
+
+describe("player tag hydration result shape", () => {
+	const select = {
+		player: [{ id: "p1", userId: OWNER, name: "Alice" }],
+		player_tag: [{ id: "t1", userId: OWNER, name: "Tag", color: "blue" }],
+		player_to_player_tag: [
+			{ playerId: "p1", tagId: "t1", tagName: "Tag", tagColor: "blue" },
+		],
+	};
+
+	it("getById returns the player's tags", async () => {
+		const { caller } = makeJoinCaller(select);
+
+		const result = await caller.getById({ id: "p1" });
+
+		expect(result.tags).toEqual([{ id: "t1", name: "Tag", color: "blue" }]);
+	});
+
+	it("create returns the newly linked player's tags", async () => {
+		const { caller } = makeJoinCaller(select);
+
+		const result = await caller.create({ name: "Alice" });
+
+		expect(result.tags).toEqual([{ id: "t1", name: "Tag", color: "blue" }]);
+	});
+
+	it("update returns the player's tags", async () => {
+		const { caller } = makeJoinCaller(select);
+
+		const result = await caller.update({ id: "p1", name: "Alice" });
+
+		expect(result.tags).toEqual([{ id: "t1", name: "Tag", color: "blue" }]);
+	});
+});
+
+describe("player.delete", () => {
+	it("removes an owned player", async () => {
+		const rows = new Map<unknown, Rows>([
+			[player, [{ id: "p1", userId: OWNER }]],
+		]);
+		const { caller } = makeCaller(OWNER, rows);
+
+		const result = await caller.delete({ id: "p1" });
+
+		expect(result).toEqual({ success: true });
+	});
+});

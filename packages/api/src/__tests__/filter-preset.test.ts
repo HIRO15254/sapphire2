@@ -42,6 +42,15 @@ const SESSIONS_ROW = {
 	isDefault: false,
 };
 
+const STATISTICS_ROW = {
+	id: "fp-2",
+	userId: OWNER,
+	screenKey: "statistics",
+	name: "Stats Preset",
+	payload: { period: "last_30_days" },
+	isDefault: false,
+};
+
 const writers = [
 	[
 		"create",
@@ -436,6 +445,36 @@ describe("filterPreset.update behavior", () => {
 		await expectTrpcCode(
 			caller.update({ id: "fp-1", name: "New Name" }),
 			"CONFLICT"
+		);
+	});
+});
+
+describe("filterPreset.update payload validation against a stored statistics row", () => {
+	it("accepts and stores a payload matching the stored row's statistics screenKey", async () => {
+		const { caller, updated } = filterPresetCaller(OWNER, {
+			[TABLE]: [STATISTICS_ROW],
+		});
+		const payload = {
+			period: "last_30_days",
+			currency: "usd",
+			norm: "normalized",
+			type: "cash_game",
+			room: "room-1",
+		};
+		await caller.update({ id: "fp-2", payload });
+		expect(updated[TABLE]?.[0]).toMatchObject({ payload });
+	});
+
+	it("rejects a sessions-shaped payload against the stored statistics row", async () => {
+		const { caller } = filterPresetCaller(OWNER, {
+			[TABLE]: [STATISTICS_ROW],
+		});
+		await expectTrpcCode(
+			caller.update({
+				id: "fp-2",
+				payload: { roomId: "room-1", display: "currency" },
+			}),
+			"BAD_REQUEST"
 		);
 	});
 });

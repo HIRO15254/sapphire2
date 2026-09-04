@@ -277,6 +277,40 @@ describe("gameGroup.update excludes self from collision", () => {
 	});
 });
 
+describe("gameGroup.update blind label pass-through", () => {
+	it("writes blind2Label and blind3Label for a row owned by the caller", async () => {
+		const { caller, updated } = gameGroupCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [{ id: "grp-1", userId: CUR_OWNER, label: "My Group" }],
+		});
+		await caller.update({ id: "grp-1", blind2Label: "BB", blind3Label: "Str" });
+		expect(updated[GROUP_TABLE]?.[0]).toMatchObject({
+			blind2Label: "BB",
+			blind3Label: "Str",
+		});
+	});
+});
+
+describe("gameGroup.update collision guard (CONFLICT via UNIQUE constraint)", () => {
+	it("converts a UNIQUE constraint violation from the update into CONFLICT", async () => {
+		const { caller, db } = gameGroupCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [{ id: "grp-1", userId: CUR_OWNER, label: "My Group" }],
+		});
+		db.update = () => ({
+			set: () => ({
+				where: () => {
+					throw new Error(
+						"UNIQUE constraint failed: game_group.user_id, game_group.label"
+					);
+				},
+			}),
+		});
+		await expectTrpcCode(
+			caller.update({ id: "grp-1", label: "X" }),
+			"CONFLICT"
+		);
+	});
+});
+
 describe("gameGroup write-IDOR guard (SA2-176)", () => {
 	it("update WHERE binds both the id and the caller's userId", async () => {
 		const { caller, updateWhereParams } = gameGroupCaller(CUR_OWNER, {
