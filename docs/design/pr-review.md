@@ -138,6 +138,28 @@ Changes measured in this run: F1 became a per-shard **Sonnet hunk walk** (at mos
 - **Cost moved with diff size, not down.** Mean $12.04 per PR, but $20–27 on the two 36–38 file PRs because 16–25 subagents ran. Sonnet finders cost a third of the Opus ones; the Opus validators are now the dominant term. Grouping validators per file (3 candidates each, Sonnet for nit-tier guesses) is the next change and is measured in run 6.
 - **Format drift.** Three summaries listed refuted candidates and one explained each finding in a paragraph; the hard limits now forbid the refuted list and, with `--post`, anything beyond the table.
 
+## Run 6: entity-table flow check, journey and description-claim finders, grouped validators (2026-09-04)
+
+Changes measured in this run: F2 writes the entity × create/delete/read table itself before listing flow-interaction candidates, a Sonnet **user-journey finder** (F7) runs when `apps/web/**` or `packages/mcp/**` is touched, a Sonnet **description-claims finder** (F8) checks every MCP tool description against the router handler and schemas, and validators are grouped per file and model (3 candidates each, at most 12 validators, Sonnet for nit-tier guesses). Same ten PRs as run 5, same ground truth.
+
+| Case | Files | Known real | Found | Important | Nits | Cost | Minutes |
+|---|---|---|---|---|---|---|---|
+| #590 passkeys | 38 | 3 | 3 | 4 | 4 | $17.47 | 26 |
+| #574 mix normalization | 24 | 1 | 1 | 1 | 2 | $12.41 | 18 |
+| #568 filter presets | 36 | 4 | 2 | 4 | 8 | $26.23 | 19 |
+| #594 DCR client_name (clean) | 7 | 0 | – | 0 | 1 | $6.42 | 13 |
+| #589 EV toggle | 7 | 1 | 1 | 1 | 2 | $10.41 | 11 |
+| #586 EV fallback | 7 | 1 | 1 | 1 | 2 | $10.08 | 14 |
+| #592 OAuth login continuation | 5 | 2 | 1 | 1 | 1 | $4.76 | 11 |
+| #582 trigger stash | 4 | 1 | 1 | 2 | 1 | $7.29 | 16 |
+| #581 MCP master tools | 14 | 12 | 5 | 5 | 5 | $13.09 | 15 |
+| #575 remote MCP server | 57 | 8 | 1 | 11 | 5 | $33.18 | 36 |
+
+- **Recall is flat overall and moved per case.** 16 of 33 known defects were found (run 5: 17), 10 of 13 outside the two MCP PRs (run 5: 9). #582's process finding (the hand-listed `bun:sqlite` spec list has no mechanical guard) was found as a nit, and the trigger-loss window recurred for the third run, now joined by a second important finding: the new spec re-implements the workflow's jq pipeline instead of reading the YAML, so reverting the fix leaves the test green. #590 went to 3 of 3: the silent passkey re-registration was found once the finder had to write the entity table itself, and the destructive-confirmation and error-swallowing items recurred. #568 fell from 3 to 2: the `Object.keys` count and the `.parse` crash recurred, but the default-preset miss found in runs 4–5 was not surfaced this time, and the UNIQUE-regex candidate was again cut before validation — 18 candidates were spread over 12 validators instead of 6, so the cap bit anyway; the assignment step now requires every candidate to be placed before any validator launches. #575 fell from 3 to 1 on its known list while producing 11 important findings, which is the variance a 57-file diff has under an 8-candidate cap per finder: the run found different real problems each time (run 5: clickjacking headers, scope display; run 6: the consent form posting `consent_code` in the body so the signed cookie is not consulted, the unvalidated redirect scheme, `get-session` returning the whole token row). These security findings are new and unverified by history and need a human to confirm before they are trusted.
+- **F8 works on the MCP class and F7 has not paid for itself yet.** #581 stayed at 5 of 12 with a different mix (two known items dropped, two picked up) and added two new contract errors: `tournament_get_by_id` returns `tags` as `{id,name}[]` while `update_with_levels` takes `string[]`, and the three `*_list` tools marked `readOnlyHint` insert default rows. #589 and #586 each produced an MCP description contradiction (the tournament points in a mixed `stats_profit_loss_series`, the `stats_summary` population) that the earlier runs did not. The journey finder produced the #592 sign-up finding (social `callbackURL` fixed to `/statistics` in the default tab) but not the preview auto-login hole, which is a removed hook no journey starts from; the F2 removed-behaviour angle added after this run targets it.
+- **Cost did not move with grouped validators.** $134 for the nine cases that had run 5 costs against $132 then; c568 and c575 launched 22 and 27 subagents. The Opus validator count fell but the finders grew (F7, F8, per-area F2), and the orchestrator turns on the large diffs (46 on #575) are now a visible term.
+- **Format drift persists at a lower rate.** #568 listed three nits in prose under the table and #594 wrote a paragraph of refuted candidates; the hard limits now state that a finding exists only as a table row and that refuted or below-threshold candidates do not appear in any form.
+
 ## Measuring a change to this loop
 
 Re-run the thread classification (round × outcome × real-defect) on the next ~10 PRs and compare with the table above. The signals that the cap is too tight are a drop in real defects caught per PR or authors reaching for the label on most PRs; the signal that the prompt is too loose is retractions or prose threads coming back. The full review is always one label away, so tightening was chosen over the reverse.
