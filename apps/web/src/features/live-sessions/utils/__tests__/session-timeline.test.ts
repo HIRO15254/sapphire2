@@ -257,6 +257,31 @@ describe("deriveCashGameTimeline", () => {
 		];
 		expect(() => deriveCashGameTimeline(events)).toThrow();
 	});
+
+	it.each([
+		["Date instances", (ms: number) => new Date(ms)],
+		["epoch-millisecond numbers", (ms: number) => ms],
+	])("derives the same timeline from %s as from equivalent ISO strings", (_label, toTimestamp) => {
+		const isoEvents = [
+			event({
+				eventType: "session_start",
+				payload: { buyInAmount: 10_000 },
+				offsetMin: 0,
+			}),
+			event({
+				eventType: "update_stack",
+				payload: { stackAmount: 12_000 },
+				offsetMin: 30,
+			}),
+		];
+		const timestampedEvents: TimelineEvent[] = isoEvents.map((e) => ({
+			...e,
+			occurredAt: toTimestamp(new Date(e.occurredAt as string).getTime()),
+		}));
+		expect(deriveCashGameTimeline(timestampedEvents)).toEqual(
+			deriveCashGameTimeline(isoEvents)
+		);
+	});
 });
 
 describe("deriveTournamentTimeline", () => {

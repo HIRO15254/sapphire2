@@ -90,6 +90,15 @@ describe("session.list groups chip purchases and blind levels per session (SA2-1
 					count: 3,
 				},
 				{
+					sessionId: "session-1",
+					id: "cp-1b",
+					name: "Addon",
+					cost: 30,
+					chips: 500,
+					sortOrder: 1,
+					count: 1,
+				},
+				{
 					sessionId: "session-2",
 					id: "cp-2",
 					name: "Addon",
@@ -107,6 +116,16 @@ describe("session.list groups chip purchases and blind levels per session (SA2-1
 					blind3: null,
 					ante: null,
 					minutes: 20,
+					games: null,
+				},
+				{
+					sessionId: "session-1",
+					isBreak: true,
+					blind1: null,
+					blind2: null,
+					blind3: null,
+					ante: null,
+					minutes: 5,
 					games: null,
 				},
 				{
@@ -137,6 +156,14 @@ describe("session.list groups chip purchases and blind levels per session (SA2-1
 				sortOrder: 0,
 				count: 3,
 			},
+			{
+				id: "cp-1b",
+				name: "Addon",
+				cost: 30,
+				chips: 500,
+				sortOrder: 1,
+				count: 1,
+			},
 		]);
 		expect(s2?.chipPurchases).toEqual([
 			{
@@ -156,6 +183,15 @@ describe("session.list groups chip purchases and blind levels per session (SA2-1
 				blind3: null,
 				ante: null,
 				minutes: 20,
+				games: null,
+			},
+			{
+				isBreak: true,
+				blind1: null,
+				blind2: null,
+				blind3: null,
+				ante: null,
+				minutes: 5,
 				games: null,
 			},
 		]);
@@ -282,6 +318,63 @@ describe("session.profitLossSeries includes chip purchase cost in each point", (
 		const { points } = await caller.session.profitLossSeries({});
 
 		expect(points[0]).toMatchObject({ id: "session-1", profitLoss: 290 });
+	});
+
+	it("leaves a session with no chip purchase rows unaffected by chip cost", async () => {
+		const { caller } = makeCaller({
+			game_session: [
+				{
+					id: "session-1",
+					type: "tournament",
+					sessionDate: new Date(1_700_000_000_000),
+					startedAt: null,
+					endedAt: null,
+					breakMinutes: null,
+					buyIn: null,
+					cashOut: null,
+					evCashOut: null,
+					chipRemoveTotal: null,
+					ringGameBlind2: null,
+					tournamentBuyIn: 100,
+					entryFee: 10,
+					prizeMoney: 500,
+					bountyPrizes: 0,
+				},
+				{
+					id: "session-2",
+					type: "tournament",
+					sessionDate: new Date(1_700_000_000_000),
+					startedAt: null,
+					endedAt: null,
+					breakMinutes: null,
+					buyIn: null,
+					cashOut: null,
+					evCashOut: null,
+					chipRemoveTotal: null,
+					ringGameBlind2: null,
+					tournamentBuyIn: 100,
+					entryFee: 10,
+					prizeMoney: 500,
+					bountyPrizes: 0,
+				},
+			],
+			session_chip_purchase: [
+				{
+					sessionId: "session-1",
+					id: "cp-1",
+					name: "Rebuy",
+					cost: 50,
+					chips: 1000,
+					sortOrder: 0,
+					count: 2,
+				},
+			],
+		});
+
+		const { points } = await caller.session.profitLossSeries({});
+
+		const s2Point = points.find((p) => p.id === "session-2");
+		expect(s2Point).toMatchObject({ profitLoss: 390 });
 	});
 });
 
