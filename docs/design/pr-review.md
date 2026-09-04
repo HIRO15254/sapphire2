@@ -102,6 +102,16 @@ Arrows show the first run → the re-run of the two cases after the validator ru
 - **Noise is low.** 15 nits across 8 PRs, all with a quoted line or a reproduction (a test comment with inverted numbers, a `.yaml` glob gap in a new `check:rules` guard, a doc sentence naming an endpoint the app does not register). The old reviewer posted 22 threads on #590 alone across nine rounds.
 - **Cost and time are the trade-off.** $8–20 per full round (mean $12.60), 11–19 minutes, 4–13 subagents; the old single-agent round cost about $2 in 2–6 minutes. Two capped rounds land at $20–40 per PR, comparable to Anthropic's managed reviewer ($15–25 per review) and below what #590 spent across 14 runs. The runs were made in a sandbox where subagents launch asynchronously; the first attempt polled for results and cost $12.31 for a 7-file PR before the skill was told never to poll.
 
+**Verification run of the final prompt** (rule violations ≥ 90 confidence, migration semantics authoritative, no polling) on #590, #568 and the clean #594:
+
+| Case | Known real | Found | Important | Nits | Cost | Minutes | Change vs. earlier runs |
+|---|---|---|---|---|---|---|---|
+| #590 | 3 | 1 | 2 | 3 | $17.34 | 14 | the silent re-registration found in the previous run was not found this time; the fetch-error bug is found in every run |
+| #568 | 4 | 2 | 2 | 4 | $17.05 | 15 | newly found: the default preset never applies, with the mechanism (`buildAndCommitLocation` adds validated search defaults so `isUrlEmpty` is always false); the Display-mode drop the author fixed after the original review is also reported |
+| #594 | 0 | – | 0 | 0 | $6.87 | 12 | approve with nothing posted |
+
+Two conclusions from this run. First, **run-to-run variance is real on large diffs**: the same 38-file PR yields 1 or 2 of 3 known defects depending on which candidates the finders happen to surface within their 8-candidate cap; a candidate cap that scales with diff size is the obvious next experiment. Second, **the destructive-confirmation "miss" is a rule-file ambiguity, not a reviewer failure**: `web-theme.md` says a destructive confirmation *is* a `<Dialog>` with `[Cancel] [Delete]`, which specifies the form of a confirmation without requiring one, and the untouched sibling `linked-accounts.tsx` unlinks without confirming. The validator refuted on exactly those grounds in all three runs. If the team wants confirmation to be mandatory, the sentence has to say so (and `linked-accounts` becomes a pre-existing violation); the reviewer will then flag it. The ground truth for that item was itself the old reviewer's interpretation.
+
 Comparison with the reviewer this replaces: the 12 known defects are, by construction, what the old reviewer found in round 1 on these PRs, so 58% recall against that set is a regression in raw round-1 recall and a large gain in precision and volume. The remaining gap is finder coverage (three #568 defects and one #590 rule violation) plus one contested migration refutation. The claimed advantage — a finding is posted only with evidence the author can check — held on every finding examined, including the refutations.
 
 ## Measuring a change to this loop
