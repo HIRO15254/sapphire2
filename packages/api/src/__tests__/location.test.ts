@@ -297,6 +297,28 @@ describe("extractCoordsFromMapsUrl", () => {
 	});
 });
 
+describe("extractCoordsFromMapsUrl safeDecode fallback", () => {
+	it("returns null when both the raw and decoded candidates fail to yield in-range coordinates", () => {
+		const url = "https://www.google.com/maps/@35.6812%2C139.7671,17z%E0";
+
+		expect(() => decodeURIComponent(url)).toThrow();
+		expect(extractCoordsFromMapsUrl(url)).toBeNull();
+	});
+});
+
+describe("location.resolveLink short-link malformed redirect target", () => {
+	it("rejects a redirect Location header that cannot be parsed as a URL", async () => {
+		const fetchMock = vi.fn().mockResolvedValue(redirect("http://[invalid"));
+		vi.stubGlobal("fetch", fetchMock);
+
+		await expectBadRequest(
+			locationCaller().resolveLink({ url: "https://maps.app.goo.gl/abc" })
+		);
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+});
+
 describe("location.search behavior", () => {
 	function locationCallerWithApiKey(googleMapsApiKey?: string) {
 		return appRouter.createCaller({
@@ -340,5 +362,53 @@ describe("location.search behavior", () => {
 				longitude: 139.7,
 			},
 		]);
+	});
+
+	it("rejects with INTERNAL_SERVER_ERROR when the Places API response is not ok", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(new Response(null, { status: 500 }));
+		vi.stubGlobal("fetch", fetchMock);
+
+		await expect(
+			locationCallerWithApiKey("test-key").search({ query: "Tokyo" })
+		).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+	});
+
+	it("drops places whose location has a non-numeric latitude", async () => {
+		const fetchMock = vi.fn().mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					places: [
+						{ location: { latitude: 1, longitude: 2 } },
+						{ location: { latitude: "1", longitude: 2 } },
+					],
+				}),
+				{ status: 200 }
+			)
+		);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const result = await locationCallerWithApiKey("test-key").search({
+			query: "Tokyo",
+		});
+
+		expect(result).toEqual([
+			{ name: "", address: "", latitude: 1, longitude: 2 },
+		]);
+	});
+});
+
+describe("location.resolveLink non-Google and coordinate-less links", () => {
+	it("rejects a non-Google host with BAD_REQUEST", async () => {
+		await expectBadRequest(
+			locationCaller().resolveLink({ url: "https://example.com" })
+		);
+	});
+
+	it("rejects a valid Google Maps URL with no extractable coordinates", async () => {
+		await expectBadRequest(
+			locationCaller().resolveLink({ url: "https://www.google.com/maps" })
+		);
 	});
 });
