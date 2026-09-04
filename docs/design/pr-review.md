@@ -79,6 +79,29 @@ Rejected on this evidence: eight-way majority voting, unlimited push-triggered r
 
 **Hooks** — the review session runs with `disableAllHooks` so the repo's Stop hook (`ultracite fix && vitest --changed && check-rules`) does not fire at the end of a review; it exists for authoring sessions.
 
+## Measured accuracy (2026-09-04, skill as of this commit)
+
+Method: the skill was run non-interactively (`claude -p "/pr-review full --range <base>...<head>"`, orchestrator on Opus, dependencies installed, no `--post`) against the exact commit each PR had when its first review ran, in a detached worktree. Ground truth = the threads from the original reviews that the author fixed with a behaviour-changing commit and that the thread classification above rated a real defect. Three PRs whose reviews found no real defect serve as clean controls.
+
+| Case | PR state | Files | Known real | Found | Important posted | Nits | Cost | Minutes |
+|---|---|---|---|---|---|---|---|---|
+| #590 passkeys | first review head | 38 | 3 | 1 | 2 | 2 | $18.50 | 15 |
+| #574 mix normalization | first commit | 24 | 1 | 0 | 0 | 1 | $15.51 | 17 |
+| #572 model ids | before the round-4 fix | 11 | 1 | 1 | 1 | 1 | $9.72 | 11 |
+| #588 EV null gate | first commit | 3 | 3 | 3 | 3 (+1 pre-existing) | 0 | $11.21 | 19 |
+| #568 filter presets | first review head | 36 | 4 | 1 | 1 | 6 | $19.92 | 17 |
+| #594 DCR client_name (clean) | first commit | 7 | 0 | – | 0 | 1 | $7.96 | 11 |
+| #570 chip remove (clean) | first commit | 11 | 0 | – | 0 | 1 | $9.09 | 11 |
+| #584 trigger stash (clean) | only commit | 4 | 0 | – | 0 | 3 | $8.77 | 15 |
+
+- **Recall on known real defects: 6 of 12 (50%).** Found: the `{data:null,error}` fetch-error bug (#590), the truncation detection gap (#572), all three EV-gate contract defects (#588), the stored-payload `parse` throw (#568). Missed: the missing destructive-confirmation dialog and the silent passkey re-registration (#590), the migration that stops on legacy rows (#574), the `Object.keys` undefined-key count, the over-broad UNIQUE regex, and the never-applied default preset (#568).
+- **Two misses were false refutations, not blind spots.** Both bugs reached the validator and were dropped: the confirmation dialog because the validator reinterpreted `web-theme.md` as describing a dialog's shape rather than requiring one, the migration because the validator asserted that `wrangler` applies a file in one transaction, which `db-migrations.md` says is false. The validator rules now state that rule files and the migration semantics are authoritative; re-measure after that change.
+- **No important-tier finding was wrong on the three clean PRs, and none of the seven important findings on the bug PRs is known to be wrong.** Four of the seven are the known defects; the other three are new, each with `node_modules` line citations or a measured reproduction (a 24-hour `freshSessionMiddleware` window that makes "Add passkey" fail with 403 after a day, an in-progress live cash session counted by one EV figure and not the other, a default-preset auto-apply that pushes history instead of replacing it). They need the author's confirmation before being counted as catches.
+- **Noise is low.** 15 nits across 8 PRs, all with a quoted line or a reproduction (a test comment with inverted numbers, a `.yaml` glob gap in a new `check:rules` guard, a doc sentence naming an endpoint the app does not register). The old reviewer posted 22 threads on #590 alone across nine rounds.
+- **Cost and time are the trade-off.** $8–20 per full round (mean $12.60), 11–19 minutes, 4–13 subagents; the old single-agent round cost about $2 in 2–6 minutes. Two capped rounds land at $20–40 per PR, comparable to Anthropic's managed reviewer ($15–25 per review) and below what #590 spent across 14 runs. The runs were made in a sandbox where subagents launch asynchronously; the first attempt polled for results and cost $12.31 for a 7-file PR before the skill was told never to poll.
+
+Comparison with the reviewer this replaces: the 12 known defects are, by construction, what the old reviewer found in round 1 on these PRs, so 50% recall against that set is a regression in raw recall on round 1 and a large gain in precision and volume; the two false refutations account for a third of the gap. The claimed advantage — a finding is posted only with evidence the author can check — held on every finding examined.
+
 ## Measuring a change to this loop
 
 Re-run the thread classification (round × outcome × real-defect) on the next ~10 PRs and compare with the table above. The signals that the cap is too tight are a drop in real defects caught per PR or authors reaching for the label on most PRs; the signal that the prompt is too loose is retractions or prose threads coming back. The full review is always one label away, so tightening was chosen over the reverse.
