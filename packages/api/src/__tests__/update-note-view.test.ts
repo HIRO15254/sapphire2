@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
+import { createCaller } from "./caller";
 import {
 	expectAccepts,
 	expectProcedureSurface,
@@ -51,6 +52,23 @@ describe("updateNoteView.markViewed concurrency", () => {
 		expect(second).toEqual(first);
 		expect(rows).toHaveLength(1);
 		expect(conflictCalls).toBe(2);
+	});
+});
+
+describe("updateNoteView.list", () => {
+	it("returns the caller's rows scoped to their own userId", async () => {
+		const rows = [
+			{ id: "unv-1", userId: "user-1", version: "1.0.0", viewedAt: 1 },
+		];
+		const { caller, selectWhereParams } = createCaller({
+			select: { update_note_view: rows },
+			userId: "user-1",
+		});
+
+		const result = await caller.updateNoteView.list();
+
+		expect(result).toEqual(rows);
+		expect(selectWhereParams).toContainEqual(["user-1"]);
 	});
 });
 

@@ -577,6 +577,7 @@ export function computeSeatedPlayersFromEvents(
 	const result: SeatedPlayerState[] = [];
 	for (const [playerId, stints] of stintsByPlayerId) {
 		const current = stints.at(-1);
+		// Stryker disable next-line BlockStatement,ConditionalExpression: equivalent: stintsByPlayerId only gains an entry via the player_join branch, which pushes a stint before Map.set
 		if (!current) {
 			continue;
 		}

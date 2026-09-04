@@ -153,6 +153,14 @@ describe("currency.update behavior", () => {
 		expect(updated.currency?.[0]).toMatchObject({ name: "EUR" });
 		expect(updated.currency?.[0]).not.toHaveProperty("unit");
 		expect(updated.currency?.[0]).not.toHaveProperty("description");
+
+		await caller.currency.update({ id: "c1", unit: "$", description: "note" });
+
+		expect(updated.currency?.[1]).toMatchObject({
+			unit: "$",
+			description: "note",
+		});
+		expect(updated.currency?.[1]).not.toHaveProperty("name");
 	});
 
 	it("update rejects with FORBIDDEN when user does not own the currency", async () => {

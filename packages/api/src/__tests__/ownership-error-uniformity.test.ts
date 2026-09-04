@@ -1,6 +1,8 @@
 import type { TRPCError } from "@trpc/server";
 import { describe, expect, it } from "vitest";
+import { appRouter } from "../routers";
 import { createCaller } from "./caller";
+import { createChainableMockDb } from "./test-utils";
 
 const OWNER = "user-1";
 const OTHER = "user-2";
@@ -126,6 +128,18 @@ describe("ownership failures hide resource existence", () => {
 				makeCaller({ [table]: [{ id: "resource-1", userId: OTHER }] }).caller
 			)
 		);
+	});
+});
+
+describe("protectedProcedure requires a session", () => {
+	it("rejects a caller with no session with UNAUTHORIZED before any procedure runs", async () => {
+		const caller = appRouter.createCaller({
+			session: null,
+			db: createChainableMockDb().db,
+		} as never);
+		await expect(caller.currency.list()).rejects.toMatchObject({
+			code: "UNAUTHORIZED" satisfies TRPCError["code"],
+		});
 	});
 });
 

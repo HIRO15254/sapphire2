@@ -202,6 +202,21 @@ describe("room.update success", () => {
 	});
 });
 
+describe("room.update coordinates", () => {
+	it("applies latitude/longitude changes to the owned room", async () => {
+		const { caller, updated } = roomCaller(CALLER, {
+			[ROOM_TABLE]: [
+				{ id: "r1", userId: CALLER, latitude: null, longitude: null },
+			],
+		});
+		await caller.update({ id: "r1", latitude: 35.6, longitude: 139.7 });
+		expect(updated[ROOM_TABLE]?.[0]).toMatchObject({
+			latitude: 35.6,
+			longitude: 139.7,
+		});
+	});
+});
+
 describe("room.delete success", () => {
 	it("removes the owned room", async () => {
 		const { caller, deleteWhereParams } = roomCaller(CALLER, {

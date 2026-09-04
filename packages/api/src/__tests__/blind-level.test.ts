@@ -6,6 +6,7 @@ import { appRouter } from "../routers";
 
 type Rows = Record<string, unknown>[];
 
+import { createCaller } from "./caller";
 import {
 	createReorderMockDb,
 	expectAccepts,
@@ -233,6 +234,110 @@ describe("blindLevel games input", () => {
 
 	it("update accepts an explicit null to clear the groups", () => {
 		expectAccepts(appRouter.blindLevel.update, { id: "bl-1", games: null });
+	});
+});
+
+function ownedTournamentSelect(blindLevelRows: Rows = []) {
+	return {
+		tournament: [{ id: "tn1", roomId: "room1" }],
+		room: [{ id: "room1", userId: CALLER }],
+		blind_level: blindLevelRows,
+	};
+}
+
+describe("blindLevel.create field defaults and pass-through", () => {
+	it("writes null defaults for optional fields when only tournamentId and level are given", async () => {
+		const { caller, inserted } = createCaller({
+			select: ownedTournamentSelect(),
+		});
+
+		await caller.blindLevel.create({ tournamentId: "tn1", level: 1 });
+
+		expect(inserted.blind_level[0]).toMatchObject({
+			tournamentId: "tn1",
+			level: 1,
+			isBreak: false,
+			blind1: null,
+			blind2: null,
+			blind3: null,
+			ante: null,
+			minutes: null,
+			games: null,
+		});
+	});
+
+	it("writes every provided field", async () => {
+		const { caller, inserted } = createCaller({
+			select: ownedTournamentSelect(),
+		});
+
+		await caller.blindLevel.create({
+			tournamentId: "tn1",
+			level: 2,
+			isBreak: true,
+			blind1: 100,
+			blind2: 200,
+			blind3: 400,
+			ante: 25,
+			minutes: 20,
+			games: [{ name: "Limit", variants: ["lhe"], blind1: 400, blind2: 800 }],
+		});
+
+		expect(inserted.blind_level[0]).toMatchObject({
+			tournamentId: "tn1",
+			level: 2,
+			isBreak: true,
+			blind1: 100,
+			blind2: 200,
+			blind3: 400,
+			ante: 25,
+			minutes: 20,
+			games: [{ name: "Limit", variants: ["lhe"], blind1: 400, blind2: 800 }],
+		});
+	});
+});
+
+describe("blindLevel.update field pass-through", () => {
+	it("writes every provided field on the owned blind level", async () => {
+		const { caller, updated } = createCaller({
+			select: ownedTournamentSelect([
+				{ id: "bl1", tournamentId: "tn1", level: 1 },
+			]),
+		});
+
+		await caller.blindLevel.update({
+			id: "bl1",
+			isBreak: true,
+			blind1: 100,
+			blind2: 200,
+			blind3: 0,
+			ante: 5,
+			minutes: 20,
+			games: [{ name: "Limit", variants: ["lhe"], blind1: 400, blind2: 800 }],
+		});
+
+		expect(updated.blind_level[0]).toMatchObject({
+			isBreak: true,
+			blind1: 100,
+			blind2: 200,
+			blind3: 0,
+			ante: 5,
+			minutes: 20,
+			games: [{ name: "Limit", variants: ["lhe"], blind1: 400, blind2: 800 }],
+		});
+	});
+});
+
+describe("blindLevel.delete success", () => {
+	it("deletes the owned blind level", async () => {
+		const { caller, deleteWhereParams } = createCaller({
+			select: ownedTournamentSelect([{ id: "bl1", tournamentId: "tn1" }]),
+		});
+
+		await expect(caller.blindLevel.delete({ id: "bl1" })).resolves.toEqual({
+			success: true,
+		});
+		expect(deleteWhereParams[0]).toContain("bl1");
 	});
 });
 

@@ -1,8 +1,10 @@
 import { ALL_EVENT_TYPES } from "@sapphire2/db/constants/session-event-types";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
+import { createCaller } from "./caller";
 import {
 	createChainableMockDb,
+	DEFAULT_CALLER_USER_ID,
 	expectAccepts,
 	expectProcedureSurface,
 	expectRejects,
@@ -362,4 +364,301 @@ describe("sessionEvent purchase_chips scoping", () => {
 			expect(updated.session_event).toBeUndefined();
 		});
 	}
+});
+
+describe("sessionEvent session locator requirement", () => {
+	it.each([
+		["list", () => createCaller().caller.sessionEvent.list({})],
+		[
+			"create",
+			() =>
+				createCaller().caller.sessionEvent.create({
+					eventType: "memo",
+					payload: { text: "no session locator" },
+				}),
+		],
+	])("rejects %s with none of the three session locator keys", async (_procedure, run) => {
+		await expect(run()).rejects.toMatchObject({ code: "BAD_REQUEST" });
+	});
+});
+
+describe("sessionEvent.list", () => {
+	it("parses each event's payload from its stored JSON string", async () => {
+		const sessionId = "session-1";
+		const { caller } = createCaller({
+			select: {
+				game_session: [
+					{
+						id: sessionId,
+						userId: DEFAULT_CALLER_USER_ID,
+						kind: "cash_game",
+						status: "active",
+					},
+				],
+				session_event: [
+					{
+						id: "event-1",
+						sessionId,
+						eventType: "memo",
+						payload: JSON.stringify({ text: "first" }),
+						occurredAt: new Date("2026-05-01T10:00:00.000Z"),
+						sortOrder: 0,
+					},
+					{
+						id: "event-2",
+						sessionId,
+						eventType: "memo",
+						payload: JSON.stringify({ text: "second" }),
+						occurredAt: new Date("2026-05-01T10:05:00.000Z"),
+						sortOrder: 1,
+					},
+				],
+			},
+		});
+
+		const events = await caller.sessionEvent.list({ sessionId });
+
+		expect(events.map((event) => event.payload)).toEqual([
+			{ text: "first" },
+			{ text: "second" },
+		]);
+	});
+});
+
+describe("sessionEvent.create state and type guards", () => {
+	it("rejects manually creating a lifecycle event type", async () => {
+		const sessionId = "session-1";
+		const { caller } = createCaller({
+			select: {
+				game_session: [
+					{
+						id: sessionId,
+						userId: DEFAULT_CALLER_USER_ID,
+						kind: "cash_game",
+						status: "active",
+					},
+				],
+			},
+		});
+
+		await expect(
+			caller.sessionEvent.create({
+				sessionId,
+				eventType: "session_start",
+				payload: {},
+			})
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+	});
+
+	it("rejects a tournament-only event type on a cash game session", async () => {
+		const sessionId = "session-1";
+		const { caller } = createCaller({
+			select: {
+				game_session: [
+					{
+						id: sessionId,
+						userId: DEFAULT_CALLER_USER_ID,
+						kind: "cash_game",
+						status: "active",
+					},
+				],
+			},
+		});
+
+		await expect(
+			caller.sessionEvent.create({
+				sessionId,
+				eventType: "purchase_chips",
+				payload: {},
+			})
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+	});
+
+	it("rejects creating a new event once the session has already completed", async () => {
+		const sessionId = "session-1";
+		const { caller } = createCaller({
+			select: {
+				game_session: [
+					{
+						id: sessionId,
+						userId: DEFAULT_CALLER_USER_ID,
+						kind: "cash_game",
+						status: "completed",
+					},
+				],
+				session_event: [
+					{
+						id: "event-end",
+						sessionId,
+						eventType: "session_end",
+						payload: JSON.stringify({ cashOutAmount: 100 }),
+						occurredAt: new Date("2026-05-01T12:00:00.000Z"),
+						sortOrder: 0,
+					},
+				],
+			},
+		});
+
+		await expect(
+			caller.sessionEvent.create({
+				sessionId,
+				eventType: "memo",
+				payload: { text: "late note" },
+			})
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+	});
+});
+
+describe("sessionEvent recalculates the session after a mutation", () => {
+	it("recalculates a cash game session's status after a successful create", async () => {
+		const sessionId = "session-1";
+		const { caller, updated } = createCaller({
+			select: {
+				game_session: [
+					{
+						id: sessionId,
+						userId: DEFAULT_CALLER_USER_ID,
+						kind: "cash_game",
+						status: "active",
+					},
+				],
+				session_event: [
+					{
+						id: "event-existing",
+						sessionId,
+						eventType: "memo",
+						payload: JSON.stringify({ text: "prior" }),
+						occurredAt: new Date("2026-05-01T10:00:00.000Z"),
+						sortOrder: 0,
+					},
+				],
+			},
+		});
+
+		await caller.sessionEvent.create({
+			sessionId,
+			eventType: "memo",
+			occurredAt: Math.floor(
+				new Date("2026-05-01T11:00:00.000Z").getTime() / 1000
+			),
+			payload: { text: "new note" },
+		});
+
+		expect(updated.game_session[0]).toMatchObject({ status: "active" });
+	});
+});
+
+describe("sessionEvent.update", () => {
+	it("floors a non-minute-aligned occurredAt to the minute", async () => {
+		const eventId = "event-1";
+		const sessionId = "session-1";
+		const flooredTarget = new Date("2026-05-01T12:03:00.000Z");
+		const { caller, updated } = createCaller({
+			select: {
+				game_session: [
+					{
+						id: sessionId,
+						userId: DEFAULT_CALLER_USER_ID,
+						kind: "cash_game",
+						status: "active",
+					},
+				],
+				session_event: [
+					{
+						id: eventId,
+						sessionId,
+						eventType: "memo",
+						payload: JSON.stringify({ text: "x" }),
+						occurredAt: flooredTarget,
+						sortOrder: 0,
+					},
+				],
+			},
+		});
+
+		const notOnMinuteBoundary = Math.floor(
+			new Date("2026-05-01T12:03:45.000Z").getTime() / 1000
+		);
+		await caller.sessionEvent.update({
+			id: eventId,
+			occurredAt: notOnMinuteBoundary,
+		});
+
+		expect(updated.session_event[0]).toMatchObject({
+			occurredAt: flooredTarget,
+		});
+	});
+
+	it("writes and clears the tournament timer through a session_start update", async () => {
+		const eventId = "event-1";
+		const sessionId = "session-1";
+		const { caller, updated } = createCaller({
+			select: {
+				game_session: [
+					{
+						id: sessionId,
+						userId: DEFAULT_CALLER_USER_ID,
+						kind: "tournament",
+						status: "active",
+					},
+				],
+				session_event: [
+					{
+						id: eventId,
+						sessionId,
+						eventType: "session_start",
+						payload: JSON.stringify({ timerStartedAt: null }),
+						occurredAt: new Date("2026-05-01T09:00:00.000Z"),
+						sortOrder: 0,
+					},
+				],
+			},
+		});
+
+		await caller.sessionEvent.update({
+			id: eventId,
+			payload: { timerStartedAt: 123 },
+		});
+		await caller.sessionEvent.update({
+			id: eventId,
+			payload: { timerStartedAt: null },
+		});
+
+		expect(updated.session_tournament_detail[0]).toMatchObject({
+			timerStartedAt: new Date(123 * 1000),
+		});
+		expect(updated.session_tournament_detail[1]).toMatchObject({
+			timerStartedAt: null,
+		});
+	});
+});
+
+describe("sessionEvent.delete", () => {
+	it("rejects deleting an owned lifecycle event", async () => {
+		const sessionId = "session-1";
+		const { caller } = createCaller({
+			select: {
+				game_session: [
+					{
+						id: sessionId,
+						userId: DEFAULT_CALLER_USER_ID,
+						kind: "cash_game",
+						status: "active",
+					},
+				],
+				session_event: [
+					{
+						id: "event-1",
+						sessionId,
+						eventType: "session_start",
+						payload: "{}",
+					},
+				],
+			},
+		});
+
+		await expect(
+			caller.sessionEvent.delete({ id: "event-1" })
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+	});
 });

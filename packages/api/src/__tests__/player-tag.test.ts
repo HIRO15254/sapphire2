@@ -109,6 +109,22 @@ describe("playerTag procedure behavior", () => {
 	});
 });
 
+describe("playerTag.update color pass-through", () => {
+	it("writes the color field on the owned tag", async () => {
+		const { caller, updated } = createCaller({
+			select: {
+				player_tag: [
+					{ color: "blue", id: "pt-1", name: "old", userId: "user-1" },
+				],
+			},
+		});
+
+		await caller.playerTag.update({ id: "pt-1", color: "red" });
+
+		expect(updated.player_tag[0]).toMatchObject({ color: "red" });
+	});
+});
+
 describe("playerTag.create input validation", () => {
 	it("defaults color to gray when only a name is given", () => {
 		const schema = getInputSchema(appRouter.playerTag.create);

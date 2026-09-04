@@ -465,6 +465,42 @@ describe("currencyTransaction session-generated transactions are immutable", () 
 	});
 });
 
+function ownedNonSessionTransactionRows(): Map<unknown, Rows> {
+	return new Map<unknown, Rows>([
+		[
+			currencyTransaction,
+			[
+				{
+					currencyTransaction: { id: "tx1", currencyId: "c1", sessionId: null },
+					currency: { id: "c1", userId: OWNER },
+				},
+			],
+		],
+	]);
+}
+
+describe("currencyTransaction.update transactedAt persistence", () => {
+	it("stores transactedAt as a Date on the owned non-session-generated transaction", async () => {
+		const rows = ownedNonSessionTransactionRows();
+		const { caller, updated } = makeCaller(OWNER, rows);
+
+		await caller.update({ id: "tx1", transactedAt: "2024-02-01" });
+
+		expect(updated).toEqual([{ transactedAt: new Date("2024-02-01") }]);
+	});
+});
+
+describe("currencyTransaction.delete success", () => {
+	it("deletes the owned non-session-generated transaction", async () => {
+		const rows = ownedNonSessionTransactionRows();
+		const { caller } = makeCaller(OWNER, rows);
+
+		await expect(caller.delete({ id: "tx1" })).resolves.toEqual({
+			success: true,
+		});
+	});
+});
+
 describe("currencyTransaction memo persistence", () => {
 	it("preserves explicit memo value on create and update", async () => {
 		const createRows = new Map<unknown, Rows>([
