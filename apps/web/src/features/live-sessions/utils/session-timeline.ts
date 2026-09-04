@@ -171,6 +171,7 @@ function applyTournamentUpdateStack(
 ): void {
 	const data = updateStackPayload.parse(payload);
 	acc.stack = data.stackAmount;
+	// Stryker disable next-line BlockStatement: equivalent: findTournamentStartingStack pre-scans for the first update_stack and deriveTournamentTimeline seeds acc.startingStack from it when session_start is processed, which always precedes the first update_stack in the loop
 	if (acc.startingStack === null) {
 		acc.startingStack = data.stackAmount;
 	}

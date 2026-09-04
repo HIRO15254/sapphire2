@@ -172,6 +172,7 @@ export function diffBlindLevels(
 		const m = master[i];
 		// Stryker disable next-line BlockStatement: equivalent: snap.length === master.length is checked first, so master[i] is defined for every i
 		if (!m) {
+			// Stryker disable next-line BooleanLiteral: equivalent: snap.length === master.length is checked first, so master[i] is defined for every i
 			return true;
 		}
 		if (

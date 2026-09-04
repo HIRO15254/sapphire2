@@ -343,6 +343,7 @@ function neighborBounds(
 	const index = events.findIndex((event) => event.id === targetId);
 	// Stryker disable next-line BlockStatement: equivalent: neighborBounds is only called with an id already found in the same events array
 	if (index < 0) {
+		// Stryker disable next-line ObjectLiteral: equivalent: neighborBounds is only called with an id already found in the same events array
 		return { max: null, min: null };
 	}
 	const previous = index > 0 ? events[index - 1] : undefined;
