@@ -65,9 +65,9 @@ confidence (0–100: how sure you are this is real and in scope)
 - **F3…F6 · rule reviewers (sonnet), one per touched area** — web, api/server, db, mcp. Each gets the rule files for its area and only the diff for its paths. Flag only a violation you can quote; the quote goes in `rule_citation`. Skip anything `scripts/check-rules.ts` or Ultracite already enforces.
 - **Incremental mode only** — every finder also receives the list of previous-round threads and is told: candidates are limited to (a) a regression introduced by a fix, or (b) an important-tier issue in the new diff.
 
-## Step 2 — Validators (one subagent per candidate, in parallel)
+## Step 2 — Validators (parallel subagents, grouped by file)
 
-Dedupe first: candidates on the same line or the same mechanism share one validator that carries both descriptions. Then validate at most 14 candidates, ranked by finder confidence; count the rest in the summary as unvalidated only if any had a finder confidence of 70 or more. Model: **sonnet** when the candidate's only claim is a rule citation (the check is that the rule's `paths:` cover the file, the quoted sentence applies, and the code does what the sentence forbids); **opus** for everything else.
+Dedupe first: candidates on the same line or the same mechanism become one candidate carrying both descriptions. Then assign a model per candidate: **opus** when the finder's tier guess is `important`; **sonnet** when it is `nit` or `pre-existing`, or when the only claim is a rule citation (the check is that the rule's `paths:` cover the file, the quoted sentence applies, and the code does what the sentence forbids). Group the candidates of the same file and the same model into one validator, at most 3 candidates per validator, and launch at most 12 validators; every candidate a finder returned is validated unless that cap is hit, in which case drop the lowest finder confidence first and count the dropped ones in the summary. A validator returns one verdict block per candidate; low finder confidence is not a reason to skip validation, it is the reason validation exists.
 
 Each validator gets the candidate, the diff, the PR intent and the agent assumptions, and returns:
 
