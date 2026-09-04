@@ -661,4 +661,39 @@ describe("sessionEvent.delete", () => {
 			caller.sessionEvent.delete({ id: "event-1" })
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 	});
+
+	it("deletes an owned non-lifecycle event on a cash session", async () => {
+		const sessionId = "session-1";
+		const { caller, deleteWhereParams } = createCaller({
+			select: {
+				game_session: [
+					{
+						id: sessionId,
+						userId: DEFAULT_CALLER_USER_ID,
+						kind: "cash_game",
+						status: "active",
+					},
+				],
+				session_event: [
+					{
+						id: "event-1",
+						sessionId,
+						eventType: "memo",
+						payload: "{}",
+					},
+					{
+						id: "start-event",
+						sessionId,
+						eventType: "session_start",
+						payload: "{}",
+					},
+				],
+			},
+		});
+
+		const result = await caller.sessionEvent.delete({ id: "event-1" });
+
+		expect(result).toEqual({ success: true });
+		expect(deleteWhereParams).toContainEqual(["event-1"]);
+	});
 });

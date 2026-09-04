@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createCaller } from "./caller";
 
 const OWNER = "owner-1";
+const GAME_MEMO_LINE_PATTERN = /Game: ([^<]*)/;
 
 describe("sessionTablePlayer.add seat validation against tournament table size", () => {
 	const select = {
@@ -53,6 +54,29 @@ describe("sessionTablePlayer.addTemporary memo built from the linked ring game",
 
 		const inserted_player = inserted.player as { memo: string }[];
 		expect(inserted_player[0]?.memo).toContain("1/2");
+	});
+
+	it("omits the blinds suffix from the memo when the ring game has no blinds", async () => {
+		const { caller, inserted } = createCaller({
+			select: {
+				game_session: [
+					{ id: "s1", kind: "cash_game", roomId: null, userId: OWNER },
+				],
+				ring_game: [
+					{ blind1: null, blind2: null, id: "rg1", name: "NLH", userId: OWNER },
+				],
+				session_cash_detail: [{ ringGameId: "rg1" }],
+			},
+			userId: OWNER,
+		});
+
+		await caller.sessionTablePlayer.addTemporary({ sessionId: "s1" });
+
+		const inserted_player = inserted.player as { memo: string }[];
+		const gameLine = inserted_player[0]?.memo.match(
+			GAME_MEMO_LINE_PATTERN
+		)?.[1];
+		expect(gameLine).toBe("NLH");
 	});
 });
 
@@ -155,6 +179,13 @@ describe("sessionTablePlayer.updateSeat success", () => {
 			game_session: [{ id: "s1", kind: "cash_game", userId: OWNER }],
 			player: [{ id: "p1" }],
 			session_event: [
+				{
+					eventType: "session_start",
+					id: "e0",
+					occurredAt: new Date("2025-12-31T23:59:00Z"),
+					payload: "{}",
+					sortOrder: 0,
+				},
 				{
 					eventType: "player_join",
 					id: "e1",

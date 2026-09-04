@@ -397,6 +397,19 @@ describe("location.search behavior", () => {
 			{ name: "", address: "", latitude: 1, longitude: 2 },
 		]);
 	});
+
+	it("resolves an empty array when the Places API response has no places key", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const result = await locationCallerWithApiKey("test-key").search({
+			query: "Tokyo",
+		});
+
+		expect(result).toEqual([]);
+	});
 });
 
 describe("location.resolveLink non-Google and coordinate-less links", () => {

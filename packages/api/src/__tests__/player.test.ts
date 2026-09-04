@@ -507,6 +507,14 @@ describe("player tag hydration result shape", () => {
 
 		expect(result.tags).toEqual([{ id: "t1", name: "Tag", color: "blue" }]);
 	});
+
+	it("writes both name and memo on update", async () => {
+		const { caller, updated } = makeJoinCaller(select);
+
+		await caller.update({ id: "p1", name: "Alice", memo: "note" });
+
+		expect(updated.player[0]).toMatchObject({ name: "Alice", memo: "note" });
+	});
 });
 
 describe("player.delete", () => {

@@ -2346,6 +2346,7 @@ async function assertNamedMixComposition(
 	for (const variant of orderedVariants) {
 		// Stryker disable next-line BlockStatement,ConditionalExpression: equivalent: orderedVariants.some(v => v === undefined) above already threw
 		if (!variant) {
+			// Stryker disable next-line CallExpression: equivalent: orderedVariants.some(v => v === undefined) above already threw
 			throwInvalidMixReference();
 		}
 		const group = groupById.get(variant.groupId);
