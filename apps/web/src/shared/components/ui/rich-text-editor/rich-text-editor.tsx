@@ -22,6 +22,7 @@ import {
 import { useRichTextEditor } from "./use-rich-text-editor";
 
 interface RichTextEditorProps {
+	ariaLabel?: string;
 	initialContent?: string | null;
 	onChange: (html: string) => void;
 }
@@ -34,6 +35,7 @@ const TOGGLE_ITEM_CLASS = cn(
 );
 
 export function RichTextEditor({
+	ariaLabel = "Rich text",
 	initialContent,
 	onChange,
 }: RichTextEditorProps) {
@@ -48,7 +50,7 @@ export function RichTextEditor({
 		openLinkInput,
 		removeLink,
 		showLinkInput,
-	} = useRichTextEditor({ initialContent, onChange });
+	} = useRichTextEditor({ ariaLabel, initialContent, onChange });
 
 	if (!editor) {
 		return null;

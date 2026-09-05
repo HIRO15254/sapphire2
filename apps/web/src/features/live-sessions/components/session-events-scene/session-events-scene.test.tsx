@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { trpcKeys } from "@/__tests__/trpc-keys";
 import { SessionEventsScene } from "./session-events-scene";
 
 const mocks = vi.hoisted(() => ({
@@ -16,7 +17,8 @@ const mocks = vi.hoisted(() => ({
 	updateMutate: vi.fn(async () => undefined),
 }));
 
-vi.mock("@tanstack/react-query", () => ({
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@tanstack/react-query")>()),
 	useMutation: (options: {
 		mutationFn: (arg: unknown) => Promise<unknown> | unknown;
 		onSuccess?: () => void;
@@ -91,7 +93,7 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 			list: {
-				queryKey: () => ["sessions"],
+				pathKey: () => trpcKeys.session.list.pathKey(),
 			},
 		},
 	},

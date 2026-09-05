@@ -18,7 +18,7 @@ export function useSessionDetail(sessionId: string) {
 	const sessionKey = trpc.session.getById.queryOptions({
 		id: sessionId,
 	}).queryKey;
-	const sessionListKey = trpc.session.list.queryKey();
+	const sessionListKey = trpc.session.list.pathKey();
 	const tagsKey = trpc.sessionTag.list.queryOptions().queryKey;
 
 	const sessionQuery = useQuery({

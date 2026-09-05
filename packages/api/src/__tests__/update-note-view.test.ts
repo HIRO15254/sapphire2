@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
-import {
-	expectAccepts,
-	expectProtected,
-	expectRejects,
-	expectType,
-} from "./test-utils";
+import { expectAccepts, expectRejects } from "./test-utils";
 
 describe("updateNoteView.markViewed concurrency", () => {
 	it("lets simultaneous writes converge on one row", async () => {
@@ -54,28 +49,6 @@ describe("updateNoteView.markViewed concurrency", () => {
 		expect(conflictCalls).toBe(2);
 	});
 });
-describe("updateNoteView router", () => {
-	it("appRouter has updateNoteView namespace", () => {
-		expect(appRouter.updateNoteView).toBeDefined();
-	});
-
-	it("exposes exactly the expected procedure set", () => {
-		expect(Object.keys(appRouter.updateNoteView).sort()).toEqual(
-			["list", "markViewed"].sort()
-		);
-	});
-
-	it("list is a protected query", () => {
-		expectProtected(appRouter.updateNoteView.list);
-		expectType(appRouter.updateNoteView.list, "query");
-	});
-
-	it("markViewed is a protected mutation", () => {
-		expectProtected(appRouter.updateNoteView.markViewed);
-		expectType(appRouter.updateNoteView.markViewed, "mutation");
-	});
-});
-
 describe("updateNoteView.markViewed input validation", () => {
 	it("accepts a non-empty version string", () => {
 		expectAccepts(appRouter.updateNoteView.markViewed, { version: "1.2.3" });

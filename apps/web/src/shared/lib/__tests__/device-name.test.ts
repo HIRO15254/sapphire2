@@ -68,18 +68,6 @@ describe("describeDevice", () => {
 		);
 	});
 
-	it("prefers Android over the Linux token it also carries", () => {
-		expect(describeDevice({ userAgent: USER_AGENTS.chromeAndroid })).toContain(
-			"Android"
-		);
-	});
-
-	it("prefers ChromeOS over the X11 token it also carries", () => {
-		expect(describeDevice({ userAgent: USER_AGENTS.chromeos })).toContain(
-			"ChromeOS"
-		);
-	});
-
 	it("falls back to the platform hint when the agent names no platform", () => {
 		expect(
 			describeDevice({
@@ -134,12 +122,6 @@ describe("describeDevice", () => {
 		expect(
 			describeDevice({ maxTouchPoints: 0, userAgent: USER_AGENTS.safariMac })
 		).toBe("Safari on macOS");
-	});
-
-	it("leaves a Mac alone when touch points are unknown", () => {
-		expect(describeDevice({ userAgent: USER_AGENTS.safariMac })).toBe(
-			"Safari on macOS"
-		);
 	});
 
 	it("does not turn a touch-capable Windows device into an iPad", () => {

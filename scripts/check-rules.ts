@@ -17,6 +17,19 @@ const IGNORED_DIRS = /(^|\/)(node_modules|dist|\.wrangler|coverage|\.git)\//;
 
 const CHECKS: Check[] = [
 	{
+		name: "Japanese text in agent rule files — write rules in English",
+		rule: "AGENTS.md (Communication)",
+		globs: ["AGENTS.md", "CLAUDE.md"],
+		pattern: /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u,
+	},
+	{
+		name: "Japanese text in agent rule files — write rules in English",
+		rule: "AGENTS.md (Communication)",
+		cwd: ".claude/rules",
+		globs: ["**/*.md"],
+		pattern: /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u,
+	},
+	{
 		name: 'named zod import — use `import z from "zod"`',
 		rule: "AGENTS.md (Vite bundler breaks the namespace import)",
 		globs: ["apps/**/*.{ts,tsx}", "packages/**/*.{ts,tsx}"],
@@ -66,6 +79,14 @@ const CHECKS: Check[] = [
 		rule: ".claude/rules/web-data-fetching.md (SA2-162)",
 		globs: ["apps/web/src/features/**/*.{ts,tsx}"],
 		pattern: /queryClient\.(setQueryData|setQueriesData)\b/,
+		excludePath: /__tests__|\.test\./,
+	},
+	{
+		name: "ordinary query key for the infinite session list — use pathKey() for invalidation",
+		rule: ".claude/rules/web-data-fetching.md",
+		globs: ["apps/web/src/**/*.{ts,tsx}"],
+		pattern:
+			/\btrpc\s*\.\s*session\s*\.\s*list\s*\.\s*(queryKey|queryOptions)\s*\(/,
 		excludePath: /__tests__|\.test\./,
 	},
 	{

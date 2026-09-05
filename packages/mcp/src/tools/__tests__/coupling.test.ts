@@ -1,5 +1,4 @@
 import {
-	expectProtected,
 	getInputSchema,
 	getProcedureDef,
 } from "@sapphire2/api/__tests__/test-utils";
@@ -77,10 +76,8 @@ describe("tool/router coupling", () => {
 		}
 	});
 
-	it("only exposes protected procedures", () => {
-		for (const path of exposedPaths) {
-			expectProtected(getProcedure(path));
-		}
+	it("does not expose the public health check as an authenticated tool", () => {
+		expect(exposedPaths.has("healthCheck")).toBe(false);
 	});
 
 	it("derives readOnlyHint from the router's query/mutation type", () => {

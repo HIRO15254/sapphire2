@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { TournamentCompleteForm } from "./tournament-complete-form";
@@ -14,6 +14,10 @@ function renderWithSubmitButton(onSubmit: (values: unknown) => void = vi.fn()) {
 	);
 	return onSubmit;
 }
+
+const PLACE_LABEL = /^Place\b/;
+const ENTRIES_LABEL = /^Total entries/;
+const EARLY_EXIT_LABEL = "Early exit (left before the result)";
 
 describe("TournamentCompleteForm", () => {
 	it("shows the placement/total-entries hint when beforeDeadline is off", () => {
@@ -86,5 +90,41 @@ describe("TournamentCompleteForm", () => {
 				"You can edit this from history later. This closes the record."
 			)
 		).toBeInTheDocument();
+	});
+	it("blocks submission until the required result fields are filled", async () => {
+		const user = userEvent.setup();
+		const onSubmit = renderWithSubmitButton();
+		const place = screen.getByRole("textbox", { name: PLACE_LABEL });
+		const entries = screen.getByRole("textbox", { name: ENTRIES_LABEL });
+		expect(place).toHaveAttribute("inputmode", "numeric");
+		await user.click(screen.getByRole("button", { name: "Submit" }));
+		await waitFor(() => expect(place).toHaveAccessibleDescription("Required"));
+		expect(entries).toHaveAccessibleDescription("Required");
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("requires the result fields again after the early-exit switch is turned back off", async () => {
+		const user = userEvent.setup();
+		const onSubmit = renderWithSubmitButton();
+		const earlyExit = screen.getByRole("switch", { name: EARLY_EXIT_LABEL });
+		await user.click(earlyExit);
+		expect(
+			screen.queryByRole("textbox", { name: PLACE_LABEL })
+		).not.toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: "Submit" }));
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenCalledWith({
+			beforeDeadline: true,
+			bountyPrizes: 0,
+			prizeMoney: 0,
+		});
+		await user.click(earlyExit);
+		await user.click(screen.getByRole("button", { name: "Submit" }));
+		await waitFor(() =>
+			expect(
+				screen.getByRole("textbox", { name: PLACE_LABEL })
+			).toHaveAccessibleDescription("Required")
+		);
+		expect(onSubmit).toHaveBeenCalledTimes(1);
 	});
 });

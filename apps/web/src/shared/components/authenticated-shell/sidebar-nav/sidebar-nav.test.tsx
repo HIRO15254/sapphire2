@@ -65,11 +65,11 @@ describe("SidebarNav", () => {
 		expect(screen.getByText("Mode Toggle")).toBeInTheDocument();
 	});
 
-	it("highlights the active item", async () => {
+	it("announces the active item as the current page", async () => {
 		const router = createTestRouter("/rooms");
 		render(<RouterProvider router={router} />);
 
 		const roomsLink = await screen.findByText("Rooms");
-		expect(roomsLink.closest("a")?.className).toContain("text-sidebar-primary");
+		expect(roomsLink.closest("a")).toHaveAttribute("aria-current", "page");
 	});
 });

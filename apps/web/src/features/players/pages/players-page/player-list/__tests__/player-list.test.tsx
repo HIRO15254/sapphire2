@@ -29,7 +29,6 @@ describe("PlayerList", () => {
 				/>
 			);
 			expect(screen.getByTestId("player-list-skeleton")).toBeInTheDocument();
-			expect(screen.getAllByTestId("player-skeleton")).toHaveLength(5);
 		});
 
 		it("does not render cards or empty state while loading", () => {

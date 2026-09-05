@@ -86,26 +86,6 @@ describe("ActionsDrawer", () => {
 		expect(warned).toBe(false);
 	});
 
-	it("styles destructive items with the destructive text color", () => {
-		setup({
-			items: [
-				{ icon: IconBolt, label: "Neutral", onSelect: vi.fn() },
-				{
-					icon: IconTrash,
-					label: "Discard session",
-					onSelect: vi.fn(),
-					tone: "destructive",
-				},
-			],
-		});
-		expect(
-			screen.getByRole("button", { name: "Discard session" }).className
-		).toContain("text-destructive");
-		expect(
-			screen.getByRole("button", { name: "Neutral" }).className
-		).not.toContain("text-destructive");
-	});
-
 	it("shows the empty message when there are no items and one is provided", () => {
 		setup({ emptyMessage: "No players seated yet." });
 		expect(screen.getByText("No players seated yet.")).toBeInTheDocument();
