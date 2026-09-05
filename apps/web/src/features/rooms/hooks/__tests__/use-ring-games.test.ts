@@ -1,7 +1,9 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	createTestQueryClient as createClient,
+	withQueryClient as makeWrapper,
+} from "@/__tests__/test-utils";
 
 function buildKey(namespace: string, procedure: string, input: unknown) {
 	return input === undefined
@@ -87,21 +89,6 @@ function makeGame(overrides: Partial<RingGame> = {}): RingGame {
 		updatedAt: "2026-01-01",
 		userId: "user-1",
 		...overrides,
-	};
-}
-
-function createClient(): QueryClient {
-	return new QueryClient({
-		defaultOptions: {
-			queries: { retry: false, gcTime: 0, staleTime: Number.POSITIVE_INFINITY },
-			mutations: { retry: false },
-		},
-	});
-}
-
-function makeWrapper(client: QueryClient) {
-	return function Wrapper({ children }: { children: ReactNode }) {
-		return createElement(QueryClientProvider, { client }, children);
 	};
 }
 
@@ -480,44 +467,44 @@ describe("useRingGames", () => {
 	});
 
 	describe("onError rollback", () => {
-		it("rolls back both active and archived when create fails (observed via spy)", async () => {
+		it("restores both lists after archive rejection before either refetch responds", async () => {
 			const qc = createClient();
-			const prevActive = [makeGame({ id: "r1" })];
-			const prevArchived: RingGame[] = [];
-			qc.setQueryData(activeKey, prevActive);
-			qc.setQueryData(archivedKey, prevArchived);
-			trpcMocks.create.mockRejectedValue(new Error("boom"));
-
-			let activeAtRollback: RingGame[] | undefined;
-			const originalSetQueryData = qc.setQueryData.bind(qc);
-			vi.spyOn(qc, "setQueryData").mockImplementation(
-				<T>(key: unknown, updater: unknown) => {
-					const r = originalSetQueryData(
-						key as Parameters<typeof originalSetQueryData>[0],
-						updater as Parameters<typeof originalSetQueryData>[1]
-					) as T;
-					const active = qc.getQueryData<RingGame[]>(activeKey);
-					if (
-						!activeAtRollback &&
-						active?.length === 1 &&
-						active[0]?.id === "r1"
-					) {
-						activeAtRollback = active;
-					}
-					return r;
-				}
-			);
-
-			const { result } = renderHook(
+			const previousActive = [makeGame({ id: "r1" })];
+			const previousArchived = [
+				makeGame({ id: "r2", archivedAt: "2026-01-02" }),
+			];
+			qc.setQueryData(activeKey, previousActive);
+			qc.setQueryData(archivedKey, previousArchived);
+			const mutation = Promise.withResolvers<unknown>();
+			const refetch = Promise.withResolvers<RingGame[]>();
+			trpcMocks.archive.mockReturnValue(mutation.promise);
+			trpcMocks.listByRoom.mockReturnValue(refetch.promise);
+			const { result, unmount } = renderHook(
 				() => useRingGames({ roomId: STORE_ID, showArchived: true }),
 				{ wrapper: makeWrapper(qc) }
 			);
-			await act(async () => {
-				await expect(
-					result.current.create({ name: "X", variant: "holdem" })
-				).rejects.toThrow("boom");
+			act(() => {
+				result.current.archive("r1");
 			});
-			expect(activeAtRollback).toEqual(prevActive);
+			await waitFor(() => {
+				expect(result.current.activeGames).toEqual([]);
+				expect(result.current.archivedGames.map((game) => game.id)).toEqual([
+					"r2",
+					"r1",
+				]);
+			});
+			act(() => {
+				mutation.reject(new Error("denied"));
+			});
+			await waitFor(() => {
+				expect(result.current.activeGames).toEqual(previousActive);
+				expect(result.current.archivedGames).toEqual(previousArchived);
+			});
+			expect(qc.getQueryState(activeKey)?.fetchStatus).toBe("fetching");
+			expect(qc.getQueryState(archivedKey)?.fetchStatus).toBe("fetching");
+			unmount();
+			await qc.cancelQueries();
+			qc.clear();
 		});
 	});
 });

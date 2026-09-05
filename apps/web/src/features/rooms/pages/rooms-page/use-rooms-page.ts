@@ -16,13 +16,18 @@ export function useRoomsPage() {
 	} = useRooms();
 
 	const handleCreate = (values: RoomValues) => {
-		create(values).then(() => {
-			setIsCreateOpen(false);
-		});
+		create(values).then(
+			() => setIsCreateOpen(false),
+			() => {
+				// The mutation cache reports the error; retain the form for retry.
+			}
+		);
 	};
 
 	const handleToggleFavorite = (id: string) => {
-		toggleFavorite(id);
+		toggleFavorite(id).catch(() => {
+			// The mutation cache reports the error and the data hook rolls back.
+		});
 	};
 
 	return {

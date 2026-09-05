@@ -21,6 +21,7 @@ export default defineConfig({
 		environment: "node",
 		include: [
 			"src/utils/__tests__/*.test.ts",
+			"src/plugins/__tests__/*.test.ts",
 			"src/shared/lib/**/__tests__/*.test.ts",
 			// All feature-local pure-helper tests. Per-feature enumeration kept
 			// silently dropping new features (rooms utils were never running).

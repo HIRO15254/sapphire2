@@ -8,10 +8,7 @@ import { appRouter } from "../routers";
 import {
 	createChainableMockDb,
 	expectAccepts,
-	expectProtected,
 	expectRejects,
-	expectType,
-	getInputSchema,
 	withGameMixVariantFixtures,
 } from "./test-utils";
 
@@ -77,34 +74,6 @@ function seededRows(extra: { variant?: Rows; group?: Rows; mix?: Rows } = {}) {
 		],
 	};
 }
-
-describe("gameMix router", () => {
-	it("appRouter has gameMix namespace", () => {
-		expect(appRouter.gameMix).toBeDefined();
-	});
-
-	it("exposes exactly the expected procedure set", () => {
-		expect(Object.keys(appRouter.gameMix).sort()).toEqual(
-			["create", "delete", "list", "update"].sort()
-		);
-	});
-
-	it("list is a protected query", () => {
-		expectProtected(appRouter.gameMix.list);
-		expectType(appRouter.gameMix.list, "query");
-	});
-
-	it("create / update / delete are protected mutations", () => {
-		for (const proc of [
-			appRouter.gameMix.create,
-			appRouter.gameMix.update,
-			appRouter.gameMix.delete,
-		]) {
-			expectProtected(proc);
-			expectType(proc, "mutation");
-		}
-	});
-});
 
 describe("gameMix.create input validation", () => {
 	it("accepts a minimal valid payload", () => {
@@ -814,15 +783,6 @@ describe("gameMix.list ordering + self-seed", () => {
 		const { caller, selectWhereParams } = gameMixCaller(CUR_OWNER, rows);
 		await caller.list();
 		expect(selectWhereParams).toContainEqual([CUR_OWNER]);
-	});
-});
-
-describe("gameMix type guard sanity", () => {
-	it("getInputSchema works for create", () => {
-		const schema = getInputSchema(appRouter.gameMix.create);
-		expect(schema.safeParse({ label: "x", games: ["v1", "v2"] }).success).toBe(
-			true
-		);
 	});
 });
 

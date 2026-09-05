@@ -33,6 +33,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ci": "vitest run --reporter=verbose",
+    "test:unit": "vitest run --project web-node --project web-dom --project api --project db --project server --project mcp --project env",
+    "test:integration": "vitest run --project api-integration",
+    "test:e2e": "playwright test",
+    "test:coverage": "bun run test:unit --coverage",
+    "check:test-discovery": "bun testing/check-discovery.ts",
+    "check:testing-types": "tsc --noEmit -p testing/tsconfig.json && tsc --noEmit -p packages/api/tsconfig.integration.json",
     "lint": "ultracite check",
     "check": "ultracite check",
     "check:rules": "bun scripts/check-rules.ts",
@@ -45,11 +51,17 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@biomejs/biome": "2.4.10",
+    "@playwright/test": "1.63.0",
     "@sapphire2/config": "workspace:*",
     "@types/bun": "catalog:",
+    "@vitest/coverage-v8": "4.1.2",
+    "fast-check": "4.9.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
+    "miniflare": "4.20260401.0",
+    "msw": "2.15.0",
     "typescript": "catalog:",
     "ultracite": "7.4.3",
     "vitest": "^4.1.2",
@@ -64,5 +76,8 @@
       "bun x ultracite fix"
     ]
   },
-  "packageManager": "bun@1.3.10"
+  "packageManager": "bun@1.3.10",
+  "patchedDependencies": {
+    "better-auth@1.6.0": "patches/better-auth@1.6.0.patch"
+  }
 }

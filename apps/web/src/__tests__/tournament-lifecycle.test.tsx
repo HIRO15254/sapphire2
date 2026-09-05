@@ -1,3 +1,4 @@
+// View composition only. Persistent completion/reopen is covered by the D1 lifecycle suite.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
 	createMemoryHistory,
@@ -186,7 +187,6 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
-import { TournamentCompleteForm } from "@/features/live-sessions/components/tournament-complete-form";
 import { StackSheetProvider } from "@/features/live-sessions/hooks/use-stack-sheet";
 // Pull in the route component after all mocks are declared.
 // biome-ignore lint/performance/noNamespaceImport: required to access named export from route module
@@ -196,11 +196,6 @@ const ActiveSessionPage = ActiveSessionModule.Route.options
 	.component as () => ReactNode;
 
 // Top-level regex literals (required by lint/performance/useTopLevelRegex)
-const REGEX_PLACEMENT_LABEL = /placement/i;
-const REGEX_TOTAL_ENTRIES_LABEL = /total entries/i;
-const REGEX_PRIZE_MONEY_LABEL = /prize money/i;
-const REGEX_BOUNTY_PRIZES_LABEL = /bounty prizes/i;
-const REGEX_COMPLETE_TOURNAMENT = /complete tournament/i;
 const REGEX_HISTORY = /History/;
 
 // ---------------------------------------------------------------------------
@@ -336,25 +331,13 @@ describe("ActiveSessionPage — active cash game session", () => {
 		});
 	});
 
-	it("renders Cash Game heading", async () => {
+	it("composes the cash heading, session actions and seats", async () => {
 		const router = createTestRouter(ActiveSessionPage);
 		renderWithProviders(router);
 
 		await screen.findByText("Cash Game");
-	});
-
-	it("renders the session actions overflow button instead of an inline Discard", async () => {
-		const router = createTestRouter(ActiveSessionPage);
-		renderWithProviders(router);
-
 		await screen.findByRole("button", { name: "Session actions" });
 		expect(screen.queryByText("Discard")).not.toBeInTheDocument();
-	});
-
-	it("renders the seat list", async () => {
-		const router = createTestRouter(ActiveSessionPage);
-		renderWithProviders(router);
-
 		await screen.findByTestId("seat-list");
 	});
 
@@ -401,24 +384,12 @@ describe("ActiveSessionPage — active tournament session", () => {
 		});
 	});
 
-	it("renders Tournament heading", async () => {
+	it("composes the tournament heading, session actions and seats", async () => {
 		const router = createTestRouter(ActiveSessionPage);
 		renderWithProviders(router);
 
 		await screen.findByText("Tournament");
-	});
-
-	it("renders the session actions overflow button", async () => {
-		const router = createTestRouter(ActiveSessionPage);
-		renderWithProviders(router);
-
 		await screen.findByRole("button", { name: "Session actions" });
-	});
-
-	it("renders the seat list", async () => {
-		const router = createTestRouter(ActiveSessionPage);
-		renderWithProviders(router);
-
 		await screen.findByTestId("seat-list");
 	});
 });
@@ -463,6 +434,7 @@ describe("ActiveSessionPage — tournament summary labels", () => {
 
 		await screen.findByText("Field/Entry");
 		expect(screen.getByText("Avg Stack")).toBeInTheDocument();
+		expect(screen.getByText("30/100")).toBeInTheDocument();
 	});
 
 	it("shows dash for Field/Entry when remainingPlayers and totalEntries are null", async () => {
@@ -490,7 +462,8 @@ describe("ActiveSessionPage — tournament summary labels", () => {
 		const router = createTestRouter(ActiveSessionPage);
 		renderWithProviders(router);
 
-		await screen.findByText("Field/Entry");
+		const fieldEntry = await screen.findByText("Field/Entry");
+		expect(fieldEntry.parentElement).toHaveTextContent("Field/Entry-");
 	});
 
 	it("shows Field/Entry with remainingPlayers/totalEntries when provided", async () => {
@@ -519,126 +492,5 @@ describe("ActiveSessionPage — tournament summary labels", () => {
 		renderWithProviders(router);
 
 		await screen.findByText("15/80");
-	});
-});
-
-// ---------------------------------------------------------------------------
-// Tests: TournamentCompleteForm — complete dialog fields
-// ---------------------------------------------------------------------------
-
-describe("TournamentCompleteForm — complete dialog fields", () => {
-	it("renders placement, totalEntries, prizeMoney, and bountyPrizes inputs", () => {
-		render(
-			<TournamentCompleteForm
-				formId="tournament-complete-form-test"
-				onSubmit={vi.fn()}
-			/>
-		);
-
-		expect(screen.getByLabelText(REGEX_PLACEMENT_LABEL)).toBeInTheDocument();
-		expect(
-			screen.getByLabelText(REGEX_TOTAL_ENTRIES_LABEL)
-		).toBeInTheDocument();
-		expect(screen.getByLabelText(REGEX_PRIZE_MONEY_LABEL)).toBeInTheDocument();
-		expect(
-			screen.getByLabelText(REGEX_BOUNTY_PRIZES_LABEL)
-		).toBeInTheDocument();
-	});
-
-	it("renders no submit button of its own and tags the form with the formId", () => {
-		render(
-			<TournamentCompleteForm
-				formId="tournament-complete-form-test"
-				onSubmit={vi.fn()}
-			/>
-		);
-
-		expect(
-			screen.queryByRole("button", { name: REGEX_COMPLETE_TOURNAMENT })
-		).not.toBeInTheDocument();
-		const form = document.getElementById("tournament-complete-form-test");
-		expect(form).not.toBeNull();
-		expect(form?.tagName).toBe("FORM");
-	});
-
-	it("placement input accepts numeric input and is labeled required", () => {
-		render(
-			<TournamentCompleteForm
-				formId="tournament-complete-form-test"
-				onSubmit={vi.fn()}
-			/>
-		);
-
-		const input = screen.getByLabelText(REGEX_PLACEMENT_LABEL);
-		expect(input).toHaveAttribute("inputMode", "numeric");
-	});
-
-	it("prizeMoney input has default of 0", () => {
-		render(
-			<TournamentCompleteForm
-				formId="tournament-complete-form-test"
-				onSubmit={vi.fn()}
-			/>
-		);
-
-		const input = screen.getByLabelText(REGEX_PRIZE_MONEY_LABEL);
-		expect(input).toHaveValue("0");
-	});
-});
-
-// ---------------------------------------------------------------------------
-// Tests: Reopen flow concept
-// ---------------------------------------------------------------------------
-
-describe("ActiveSessionPage — reopen flow concept", () => {
-	it("shows 'No active session' after tournament completion (session no longer active)", async () => {
-		// Once completed, useActiveSession queries for status=active and returns
-		// nothing. The page shows the no-session state, from which the user
-		// navigates to Sessions to find and reopen the completed session.
-		mockUseActiveSession.mockReturnValue({
-			activeSession: null,
-			hasActive: false,
-			isLoading: false,
-		});
-
-		const router = createTestRouter(ActiveSessionPage);
-		renderWithProviders(router);
-
-		await screen.findByText("No active session");
-	});
-
-	it("shows the tournament session when still active (before completion)", async () => {
-		mockUseActiveSession.mockReturnValue({
-			activeSession: { id: "tourn-005", type: "tournament" },
-			hasActive: true,
-			isLoading: false,
-		});
-
-		mockQuery.mockImplementation((key: string) => {
-			if (key === "tournament-getById") {
-				return {
-					id: "tourn-005",
-					tournamentId: null,
-					heroSeatPosition: null,
-					memo: null,
-					summary: {
-						buyIn: 5000,
-						entryFee: 500,
-						currentStack: 10_000,
-						remainingPlayers: 10,
-						totalEntries: 60,
-						totalChipPurchases: 0,
-						profitLoss: null,
-					},
-				};
-			}
-			return null;
-		});
-
-		const router = createTestRouter(ActiveSessionPage);
-		renderWithProviders(router);
-
-		await screen.findByText("Tournament");
-		expect(screen.queryByText("No active session")).not.toBeInTheDocument();
 	});
 });

@@ -39,7 +39,7 @@ bun run db:migrate:local # apply migrations to local D1
 bun run db:studio        # drizzle-kit studio
 ```
 
-Pre-PR verification: `bun run lint && bun run check-types && bun run check:rules && bun run test`.
+Pre-PR verification: `bun run lint`, `bun run check-types`, `bun run check:rules` と変更範囲のテストを実行する。全テストはCIで確認する（詳細は [Testing](#testing)）。
 
 ## Repository Layout
 
@@ -79,68 +79,13 @@ Detailed rules live in [`.claude/rules/`](.claude/rules/); the points below appl
 
 ## Testing
 
-- `bun run test` (`vitest run`) is the source of truth.
-- Colocate tests as `__tests__/foo.test.ts(x)` next to the code under test, or as `<component>.test.tsx` inside the component's own folder.
-- When the logic is the point, prefer testing the hook (`renderHook` from Testing Library) over the component.
-- Black-box: assert on returned state and handler side effects, not internal implementation details.
-
-### Test-Driven Development (MANDATORY)
-
-Every code change must be test-driven. The quality bar is set by the comprehensive coverage sweep (PR #226 / branch `test/comprehensive-coverage`) — new tests must match that level of rigor and reuse its patterns.
-
-**Workflow**:
-
-1. **Write tests first.** Before editing any implementation file, author (or extend) the corresponding `__tests__/*.test.ts(x)`. Verify the new tests fail against the existing code (red).
-2. **Implement until green.** Iterate on the minimum code needed to pass.
-3. **Run only the scoped project**, not the full suite. See "Do NOT run the full test suite during a task" below.
-4. **CI is the final green signal** (and, for Claude Code, the Stop hook below); no hand-waving.
-
-**Quality bar (non-negotiable)**:
-
-- **Full branch coverage** per function / hook / procedure — every `if` / `else` / `switch` / early return / guard clause gets a dedicated `it()`.
-- **Boundary values**: `null` / `undefined` / `0` / `""` / empty array / negative / NaN / Infinity / min / max / 1-off-min / 1-off-max — enumerate, do not skip.
-- **Error paths** are required, not optional (mutation failures → rollback, Zod rejects, network errors, auth absent, loader fails).
-- **Side-effect assertions** (toast called, navigate called, query invalidated, localStorage written, `setInterval` cleared) use `toHaveBeenCalledTimes` + `toHaveBeenNthCalledWith` / `toHaveBeenCalledWith`, not bare `toHaveBeenCalled()`.
-- **No smoke tests.** `expect(x).toBeDefined()` alone is never acceptable — exercise the behavior.
-- **Test names describe scenarios**, not mechanics (`"rejects empty name with 'Required'"`, not `"test 1"`).
-
-**Patterns established by the sweep — copy them, do not invent new ones**:
-
-| Target | Project | Reference implementation |
-|---|---|---|
-| Pure util / Zod schema / formatter | `web-node` | [`apps/web/src/features/rooms/utils/__tests__/blind-level-helpers.test.ts`](apps/web/src/features/rooms/utils/__tests__/blind-level-helpers.test.ts), [`apps/web/src/utils/__tests__/format-number.test.ts`](apps/web/src/utils/__tests__/format-number.test.ts) |
-| Simple hook (no tRPC) | `web-dom` | [`apps/web/src/shared/hooks/__tests__/use-elapsed-time.test.ts`](apps/web/src/shared/hooks/__tests__/use-elapsed-time.test.ts) |
-| Form hook (`@tanstack/react-form`) | `web-dom` | [`apps/web/src/features/auth/pages/login-page/sign-in-form/__tests__/use-sign-in.test.ts`](apps/web/src/features/auth/pages/login-page/sign-in-form/__tests__/use-sign-in.test.ts) |
-| tRPC query + mutation hook, simple | `web-dom` | [`apps/web/src/features/currencies/hooks/__tests__/use-currencies.test.ts`](apps/web/src/features/currencies/hooks/__tests__/use-currencies.test.ts) |
-| Optimistic flow with real QueryClient | `web-dom` / `web-node` | [`apps/web/src/features/live-sessions/utils/__tests__/optimistic-session-event.test.ts`](apps/web/src/features/live-sessions/utils/__tests__/optimistic-session-event.test.ts) |
-| Page hook / page subcomponent view hook | `web-dom` | [`apps/web/src/features/sessions/pages/sessions-page/__tests__/use-sessions-page.test.ts`](apps/web/src/features/sessions/pages/sessions-page/__tests__/use-sessions-page.test.ts), [`apps/web/src/features/live-sessions/pages/active-session-page/tournament-session/__tests__/use-tournament-session-view.test.ts`](apps/web/src/features/live-sessions/pages/active-session-page/tournament-session/__tests__/use-tournament-session-view.test.ts) |
-| API router (Zod + procedure enumeration) | `api` | [`packages/api/src/__tests__/player.test.ts`](packages/api/src/__tests__/player.test.ts) (uses [`packages/api/src/__tests__/test-utils.ts`](packages/api/src/__tests__/test-utils.ts) helpers: `getInputSchema`, `expectAccepts`, `expectRejects`, `expectProtected`, `expectType`) |
-| DB schema constraint | `db` | [`packages/db/src/__tests__/session-schema.test.ts`](packages/db/src/__tests__/session-schema.test.ts) (uses `getTableConfig` for FKs, indexes, `onDelete` policies) |
-| Shared test helpers (web) | — | [`apps/web/src/__tests__/test-utils.tsx`](apps/web/src/__tests__/test-utils.tsx) (`createTestQueryClient`, `withQueryClient`, `renderWithQueryClient`, `createTrpcMock`, `createToastMock`, `createAuthClientMock`) |
-
-**Mocking conventions**:
-
-- `vi.hoisted(() => ({ … }))` for mutable mock state shared across `vi.mock` factories.
-- `vi.mock("@/utils/trpc", () => ({ trpc, trpcClient }))` to replace the tRPC proxy at module scope.
-- `@tanstack/react-form`: use the real `useForm`, drive via `result.current.form.setFieldValue(...)` + `await result.current.form.handleSubmit()` inside `act()`.
-- Never mock the module under test; only mock its dependencies.
-
-If a target does not match any pattern above, extend the relevant `test-utils` file with a new helper rather than hand-rolling a new pattern per test file.
-
-### Do NOT run the full test suite during a task
-
-`bun run test` boots jsdom/node for every workspace and takes several minutes on Windows. While iterating, run only what's relevant:
-
-- Pure-function / schema tests → `bunx vitest run --project web-node [path]`
-- Hook / component / route tests → `bunx vitest run --project web-dom [path]`
-- API router tests → `bunx vitest run --project api [path]`
-- Server worker tests → `bunx vitest run --project server [path]`
-- DB schema tests → `bunx vitest run --project db [path]`
-- MCP tool tests → `bunx vitest run --project mcp [path]`
-- Env tests → `bunx vitest run --project env`
-- Related to current staged files → `bunx vitest related --run $(git diff --cached --name-only ...)` — already automated by pre-commit for human commits.
-
-The full suite is enforced in **CI** — [`ci.yml`](.github/workflows/ci.yml) runs `check-types`, `ultracite check`, the full `vitest` suite, and `check:rules` on every PR. This is the tool-independent gate that catches Codex, Claude, and human PRs alike, so it never runs on every intermediate step. Claude Code additionally runs the same checks locally at the end of each turn via a **Stop hook** (`bun x ultracite fix && bun x vitest run --changed HEAD && bun x ultracite check && bun scripts/check-rules.ts` — see [`.claude/settings.json`](.claude/settings.json)). `scripts/check-rules.ts` (`bun run check:rules`) mechanically enforces greppable rules from this file and `.claude/rules/`. Pre-commit is skipped when `CLAUDECODE=1` for the same reason.
+- テストは変更される契約と障害リスクを保護する。設計・実装・テスト変更の前に [`.claude/rules/testing.md`](.claude/rules/testing.md) を読む。新しいファイルや分岐だけを理由にテストを増やさない。
+- 振る舞いの変更は期待結果を先に定義する。バグ修正は原則として再現テストの red → green を確認する。動作不変の変更は既存の検証を使い、不足する保護だけ補う。
+- 期待値は要求・契約・不変条件・既知障害から導く。実装の出力や実装の複製を正解にしない。現状記録の characterization test は目的を明記する。
+- 全分岐・全境界値・全呼出回数の一律網羅は要求しない。重要な認証・認可・金額・永続化・競合・UTC日付の正常／異常／境界を選ぶ。ロジックを hook に置く規約は、全 hook の単体テストを要求しない。
+- 同じ契約を主に一つの適切な層で保護する。UI連携は利用者操作、SQL・認可・原子性は実DB、Cookie・永続キャッシュは実HTTP／ブラウザー境界で確認する。
+- 実装を通すだけの期待値変更・skip・検出対象除外・assertion弱体化をしない。テストを統合・置換・削除する場合は、守る契約と代替検証、または不要になった理由を記録する。
+- 作業中は `bunx vitest run --project <対象> <path>` で関連範囲だけ実行する。型・lint・`check:rules`、CIの全Vitest・Bun migration・登録済み統合テストを最終確認する。未実行・環境による失敗は明記する。
 
 ## Path-scoped Rule Files
 
@@ -148,6 +93,7 @@ The following rule files live in `.claude/rules/` and are loaded automatically w
 
 | File | Paths | Summary |
 |---|---|---|
+| `testing.md` | `apps/**`, `packages/**`, `scripts/**`, `e2e/**`, `testing/**`, `patches/**`, test/CI configuration | 契約・リスクに基づくテスト設計、mock境界、削除判断、実行とCI。 |
 | `web-architecture.md` | `apps/web/**` | `apps/web/src/` feature-folder layout, page/component placement rules, reference implementations. |
 | `web-hooks-separation.md` | `apps/web/**` | STRICT: components may only call custom `useXxx` hooks; verification script included. |
 | `web-forms.md` | `apps/web/**` | `@tanstack/react-form` in hooks, no `type="number"`, no placeholders, `SelectWithClear` for clearable selects. |

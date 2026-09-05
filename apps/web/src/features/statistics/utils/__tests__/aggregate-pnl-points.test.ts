@@ -1,3 +1,4 @@
+import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import {
 	aggregatePnlPoints,
@@ -32,6 +33,56 @@ const baseOptions = {
 };
 
 describe("aggregatePnlPoints", () => {
+	it("keeps the same graph for reordered input without mutating source points", () => {
+		const generatedPoint = fc.record({
+			day: fc.integer({ min: 0, max: 365 }),
+			seconds: fc.integer({ min: 0, max: 86_399 }),
+			profitLoss: fc.integer({ min: -100_000, max: 100_000 }),
+			evProfitLoss: fc.option(fc.integer({ min: -100_000, max: 100_000 }), {
+				nil: null,
+			}),
+			bigBlind: fc.option(fc.integer({ min: 1, max: 1000 }), { nil: null }),
+			buyInTotal: fc.option(fc.integer({ min: 1, max: 10_000 }), { nil: null }),
+			playMinutes: fc.option(fc.integer({ min: 0, max: 1440 }), { nil: null }),
+			type: fc.constantFrom("cash_game" as const, "tournament" as const),
+		});
+		fc.assert(
+			fc.property(
+				fc.array(generatedPoint, { maxLength: 30 }),
+				fc.constantFrom(
+					"date" as const,
+					"sessionCount" as const,
+					"playTime" as const
+				),
+				fc.constantFrom("currency" as const, "normalized" as const),
+				fc.boolean(),
+				fc.nat(),
+				(rows, xAxis, unit, showEvCash, rotation) => {
+					const rawPoints = rows.map(({ day, seconds, ...row }, index) =>
+						point({
+							...row,
+							id: `session-${index}`,
+							sessionDate: 1_767_225_600 + day * 86_400,
+							sortKey: 1_767_225_600 + day * 86_400 + seconds,
+						})
+					);
+					const before = structuredClone(rawPoints);
+					const split = rotation % (rawPoints.length + 1);
+					const reordered = [
+						...rawPoints.slice(split),
+						...rawPoints.slice(0, split),
+					].reverse();
+					const options = { ...baseOptions, xAxis, unit, showEvCash };
+					expect(
+						aggregatePnlPoints({ ...options, rawPoints: reordered })
+					).toEqual(aggregatePnlPoints({ ...options, rawPoints }));
+					expect(rawPoints).toEqual(before);
+				}
+			),
+			{ seed: 20_260_905, numRuns: 150 }
+		);
+	});
+
 	describe("xAxis = 'date'", () => {
 		it("returns empty result when no points are provided", () => {
 			const result = aggregatePnlPoints({ ...baseOptions, rawPoints: [] });

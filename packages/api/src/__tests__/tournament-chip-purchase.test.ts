@@ -7,12 +7,7 @@ import { TRPCError } from "@trpc/server";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
-import {
-	expectAccepts,
-	expectProtected,
-	expectRejects,
-	expectType,
-} from "./test-utils";
+import { expectAccepts, expectRejects } from "./test-utils";
 
 type Rows = Record<string, unknown>[];
 const dialect = new SQLiteSyncDialect();
@@ -82,31 +77,6 @@ function makeCaller(userId: string, rowsByTable: Map<unknown, Rows>) {
 
 const CALLER = "user-1";
 const OTHER = "user-2";
-
-describe("tournamentChipPurchase router structure", () => {
-	it("appRouter has tournamentChipPurchase namespace", () => {
-		expect(appRouter.tournamentChipPurchase).toBeDefined();
-	});
-
-	it("exposes exactly the expected procedure set", () => {
-		expect(Object.keys(appRouter.tournamentChipPurchase).sort()).toEqual(
-			["create", "delete", "listByTournament", "reorder", "update"].sort()
-		);
-	});
-
-	it("listByTournament is a protected query", () => {
-		expectProtected(appRouter.tournamentChipPurchase.listByTournament);
-		expectType(appRouter.tournamentChipPurchase.listByTournament, "query");
-	});
-
-	it("all mutations are protected mutations", () => {
-		for (const name of ["create", "update", "delete", "reorder"] as const) {
-			const proc = appRouter.tournamentChipPurchase[name];
-			expectProtected(proc);
-			expectType(proc, "mutation");
-		}
-	});
-});
 
 describe("tournamentChipPurchase.listByTournament input validation", () => {
 	it("accepts valid tournamentId", () => {

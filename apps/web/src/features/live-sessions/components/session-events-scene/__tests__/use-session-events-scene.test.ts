@@ -68,10 +68,7 @@ vi.mock("@/utils/trpc", () => ({
 }));
 
 import { useSessionEventsScene } from "@/features/live-sessions/components/session-events-scene/use-session-events-scene";
-import {
-	type SessionEvent,
-	useSessionEvents,
-} from "@/features/live-sessions/hooks/use-session-events";
+import type { SessionEvent } from "@/features/live-sessions/hooks/use-session-events";
 
 function createClient(): QueryClient {
 	return new QueryClient({
@@ -181,8 +178,10 @@ describe("useSessionEventsScene", () => {
 		act(() => {
 			result.current.setEditEvent(events[1]);
 		});
-		expect(result.current.timeBounds.minTime).toBeInstanceOf(Date);
-		expect(result.current.timeBounds.maxTime).toBeInstanceOf(Date);
+		expect(result.current.timeBounds).toEqual({
+			minTime: new Date("2026-04-10T12:00:00"),
+			maxTime: new Date("2026-04-10T14:00:00"),
+		});
 	});
 
 	it("setEditEvent / setConfirmingDeleteId are independently settable", () => {
@@ -197,21 +196,5 @@ describe("useSessionEventsScene", () => {
 		});
 		expect(result.current.confirmingDeleteId).toBe("e1");
 		expect(result.current.editEvent).toBeNull();
-	});
-
-	it("re-exports update / deleteEvent from useSessionEvents", () => {
-		const qc = createClient();
-		const { result } = renderHook(
-			() =>
-				useSessionEventsScene({ sessionId: "s1", sessionType: "cash_game" }),
-			{ wrapper: makeWrapper(qc) }
-		);
-		expect(typeof result.current.update).toBe("function");
-		expect(typeof result.current.deleteEvent).toBe("function");
-	});
-
-	// Import reference so the module load order is not stripped by linters.
-	it("uses the same useSessionEvents primitive", () => {
-		expect(useSessionEvents).toBeDefined();
 	});
 });

@@ -76,8 +76,14 @@ export const currencyTransactionRouter = router({
 					);
 
 				if (cursor) {
+					// Raw sql parameters do not inherit the timestamp column's encoder.
+					// Encode the Date as stored Unix seconds before binding it to D1.
+					const cursorDate = sql.param(
+						cursor.transactedAt,
+						currencyTransaction.transactedAt
+					);
 					conditions.push(
-						sql`(${currencyTransaction.transactedAt}, ${currencyTransaction.id}) < (${cursor.transactedAt}, ${cursor.id})`
+						sql`(${currencyTransaction.transactedAt}, ${currencyTransaction.id}) < (${cursorDate}, ${cursor.id})`
 					);
 				}
 			}

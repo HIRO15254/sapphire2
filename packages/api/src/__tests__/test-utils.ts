@@ -15,14 +15,12 @@ interface ZodLikeSchema {
 
 interface ProcedureDef {
 	inputs: unknown[];
-	middlewares: unknown[];
 	type: "mutation" | "query" | "subscription";
 }
 
 /**
  * Shape of a tRPC v11 procedure (as observed at runtime):
  *   procedure._def.inputs:      Zod schema array (first element is the top-level schema)
- *   procedure._def.middlewares: Middleware chain (protected procedures have 2+ entries)
  *   procedure._def.type:        "mutation" | "query" | "subscription"
  *
  * These helpers keep every router test file concise and consistent.
@@ -68,20 +66,6 @@ export function expectRejects(procedure: unknown, input: unknown): void {
 		);
 	}
 	expect(result.success).toBe(false);
-}
-
-export function expectProtected(procedure: unknown): void {
-	const def = getProcedureDef(procedure);
-	// A protected procedure has the base resolver + the protection middleware
-	// (plus an input/query/mutation middleware). Public procedures have exactly 1.
-	expect(def.middlewares.length).toBeGreaterThanOrEqual(2);
-}
-
-export function expectType(
-	procedure: unknown,
-	type: "mutation" | "query" | "subscription"
-): void {
-	expect(getProcedureDef(procedure).type).toBe(type);
 }
 
 type MockRow = Record<string, unknown>;

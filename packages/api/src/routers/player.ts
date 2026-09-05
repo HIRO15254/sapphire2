@@ -259,15 +259,19 @@ export const playerRouter = router({
 				await validateTagsOwnership(ctx.db, playerTag, input.tagIds, userId);
 			}
 
-			const statements: BatchStatement[] = [
-				ctx.db
-					.update(player)
-					.set({
-						...(input.name === undefined ? {} : { name: input.name }),
-						...(input.memo === undefined ? {} : { memo: input.memo }),
-					})
-					.where(eq(player.id, input.id)),
-			];
+			const statements: BatchStatement[] = [];
+			// Tag-only and id-only inputs are valid; Drizzle rejects an empty SET.
+			if (input.name !== undefined || input.memo !== undefined) {
+				statements.push(
+					ctx.db
+						.update(player)
+						.set({
+							...(input.name === undefined ? {} : { name: input.name }),
+							...(input.memo === undefined ? {} : { memo: input.memo }),
+						})
+						.where(eq(player.id, input.id))
+				);
+			}
 
 			if (input.tagIds !== undefined) {
 				statements.push(

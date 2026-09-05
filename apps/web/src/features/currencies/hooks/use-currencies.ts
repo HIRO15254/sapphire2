@@ -9,6 +9,7 @@ export type { Transaction } from "@/features/currencies/utils/types";
 
 import type { Transaction } from "@/features/currencies/utils/types";
 import {
+	beginOptimisticQueryUpdate,
 	cancelTargets,
 	createOptimisticId,
 	invalidateTargets,
@@ -149,7 +150,17 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 	const addTransactionMutation = useMutation({
 		mutationFn: (values: TransactionValues & { currencyId: string }) =>
 			trpcClient.currencyTransaction.create.mutate(values),
-		onSettled: () => {
+		onMutate: async () => {
+			await cancelTargets(queryClient, [{ queryKey: transactionsKey }]);
+			return beginOptimisticQueryUpdate(queryClient, transactionsKey, () => {
+				// Create has no placeholder row, but must defer refetch while an
+				// overlapping edit or delete still owns an optimistic cache change.
+			});
+		},
+		onSettled: (_data, error, _vars, context) => {
+			if (context && !context.settle(error === null)) {
+				return;
+			}
 			invalidateTargets(queryClient, [
 				{ queryKey: currencyListKey },
 				{ queryKey: transactionsKey },
@@ -173,34 +184,33 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 				memo: values.memo,
 			}),
 		onMutate: async (values) => {
-			// Optimistic update against the infinite cache so the edit survives
-			// the trailing invalidation's refetch (and any focus / reconnect /
-			// staleTime refetch). The refetch is when the (possibly changed)
-			// transactionTypeName catches up; until then the stale name stays.
+			// Keep the edit in every loaded page and defer mutation-triggered
+			// refetch until all overlapping transaction requests settle. Refetch
+			// supplies the possibly changed transactionTypeName afterward.
 			await cancelTargets(queryClient, [{ queryKey: transactionsKey }]);
-			const previous = snapshotQuery(queryClient, transactionsKey);
-			updateInfiniteQueryItems<Transaction>(
-				queryClient,
-				transactionsKey,
-				(items) =>
-					items.map((t) =>
-						t.id === values.id
-							? {
-									...t,
-									amount: values.amount,
-									memo: values.memo,
-									transactedAt: values.transactedAt,
-									transactionTypeId: values.transactionTypeId,
-								}
-							: t
-					)
-			);
-			return { previous };
+			return beginOptimisticQueryUpdate(queryClient, transactionsKey, () => {
+				updateInfiniteQueryItems<Transaction>(
+					queryClient,
+					transactionsKey,
+					(items) =>
+						items.map((t) =>
+							t.id === values.id
+								? {
+										...t,
+										amount: values.amount,
+										memo: values.memo,
+										transactedAt: values.transactedAt,
+										transactionTypeId: values.transactionTypeId,
+									}
+								: t
+						)
+				);
+			});
 		},
-		onError: (_err, _vars, context) => {
-			restoreSnapshots(queryClient, [context?.previous]);
-		},
-		onSettled: () => {
+		onSettled: (_data, error, _vars, context) => {
+			if (context && !context.settle(error === null)) {
+				return;
+			}
 			invalidateTargets(queryClient, [
 				{ queryKey: currencyListKey },
 				{ queryKey: transactionsKey },
@@ -213,18 +223,18 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 			trpcClient.currencyTransaction.delete.mutate({ id }),
 		onMutate: async (id) => {
 			await cancelTargets(queryClient, [{ queryKey: transactionsKey }]);
-			const previous = snapshotQuery(queryClient, transactionsKey);
-			updateInfiniteQueryItems<Transaction>(
-				queryClient,
-				transactionsKey,
-				(items) => items.filter((t) => t.id !== id)
-			);
-			return { previous };
+			return beginOptimisticQueryUpdate(queryClient, transactionsKey, () => {
+				updateInfiniteQueryItems<Transaction>(
+					queryClient,
+					transactionsKey,
+					(items) => items.filter((t) => t.id !== id)
+				);
+			});
 		},
-		onError: (_err, _vars, context) => {
-			restoreSnapshots(queryClient, [context?.previous]);
-		},
-		onSettled: () => {
+		onSettled: (_data, error, _vars, context) => {
+			if (context && !context.settle(error === null)) {
+				return;
+			}
 			invalidateTargets(queryClient, [
 				{ queryKey: currencyListKey },
 				{ queryKey: transactionsKey },

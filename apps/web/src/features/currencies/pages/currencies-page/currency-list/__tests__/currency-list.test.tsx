@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -6,8 +6,7 @@ const NEW_CURRENCY_RE = /New currency/i;
 
 // CurrencyListCard renders a TanStack Router <Link> (needs router context), so
 // stub the card module. CurrencyListCardSkeleton comes from the same module and
-// is used by the loading branch, so stub it too. Its real shape is covered by
-// currency-list-card-skeleton.test.tsx.
+// is used by the loading branch, so stub it too.
 vi.mock(
 	"@/features/currencies/pages/currencies-page/currency-list-card",
 	() => ({
@@ -41,7 +40,7 @@ const currency = (id: string, name: string) => ({
 
 describe("CurrencyList", () => {
 	describe("loading", () => {
-		it("renders the skeleton (5 card skeletons) and neither cards nor empty state", () => {
+		it("shows loading without reporting an empty list", () => {
 			render(
 				<CurrencyList
 					currencies={[]}
@@ -50,10 +49,7 @@ describe("CurrencyList", () => {
 					onToggleFavorite={vi.fn()}
 				/>
 			);
-			const skeleton = screen.getByTestId("currency-list-skeleton");
-			expect(
-				within(skeleton).getAllByTestId("card-skeleton-stub")
-			).toHaveLength(5);
+			expect(screen.getByTestId("currency-list-skeleton")).toBeInTheDocument();
 			expect(screen.queryByText("No currencies yet")).not.toBeInTheDocument();
 		});
 

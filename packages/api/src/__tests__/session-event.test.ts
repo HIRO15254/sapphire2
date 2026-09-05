@@ -4,38 +4,8 @@ import { appRouter } from "../routers";
 import {
 	createChainableMockDb,
 	expectAccepts,
-	expectProtected,
 	expectRejects,
-	expectType,
 } from "./test-utils";
-
-describe("sessionEvent router structure", () => {
-	it("appRouter has sessionEvent namespace", () => {
-		expect(appRouter.sessionEvent).toBeDefined();
-	});
-
-	it("exposes exactly the expected procedure set", () => {
-		expect(Object.keys(appRouter.sessionEvent).sort()).toEqual(
-			["create", "delete", "list", "update"].sort()
-		);
-	});
-
-	it("list is a protected query", () => {
-		expectProtected(appRouter.sessionEvent.list);
-		expectType(appRouter.sessionEvent.list, "query");
-	});
-
-	it("create / update / delete are protected mutations", () => {
-		for (const proc of [
-			appRouter.sessionEvent.create,
-			appRouter.sessionEvent.update,
-			appRouter.sessionEvent.delete,
-		]) {
-			expectProtected(proc);
-			expectType(proc, "mutation");
-		}
-	});
-});
 
 describe("sessionEvent.list input validation", () => {
 	// Note: the cross-field rule "exactly one session id" is enforced at

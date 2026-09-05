@@ -212,25 +212,6 @@ describe("selectInChunks", () => {
 	});
 });
 
-describe("session router", () => {
-	it("appRouter has session namespace", () => {
-		expect(appRouter.session).toBeDefined();
-	});
-
-	it("exposes exactly the expected procedure set", () => {
-		expect(Object.keys(appRouter.session).sort()).toEqual(
-			[
-				"create",
-				"delete",
-				"getById",
-				"list",
-				"profitLossSeries",
-				"update",
-			].sort()
-		);
-	});
-});
-
 describe("session.profitLossSeries input validation", () => {
 	function getSchema() {
 		return (

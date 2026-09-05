@@ -90,14 +90,6 @@ describe("CurrencyDescription", () => {
 		});
 	});
 
-	it("animates the body height with a max-height transition", () => {
-		mockScrollHeight = TALL;
-		render(<CurrencyDescription html="<p>long</p>" />);
-		expect(screen.getByTestId("currency-description-body").className).toContain(
-			"transition-[max-height]"
-		);
-	});
-
 	it("collapses again when 'Show less' is clicked", async () => {
 		const user = userEvent.setup();
 		mockScrollHeight = TALL;

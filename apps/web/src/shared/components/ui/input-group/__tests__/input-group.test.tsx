@@ -20,14 +20,4 @@ describe("InputGroup", () => {
 		);
 		expect(screen.getByLabelText("buy-in")).toBeInTheDocument();
 	});
-
-	it("forwards a custom className onto the section", () => {
-		const { container } = render(
-			<InputGroup className="custom-section" label="Master">
-				<span>child</span>
-			</InputGroup>
-		);
-		const section = container.querySelector("section");
-		expect(section).toHaveClass("custom-section");
-	});
 });

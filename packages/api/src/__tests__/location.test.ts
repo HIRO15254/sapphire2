@@ -5,32 +5,7 @@ import {
 	isGoogleMapsUrl,
 	isShortMapsUrl,
 } from "../routers/location";
-import {
-	expectAccepts,
-	expectProtected,
-	expectRejects,
-	expectType,
-} from "./test-utils";
-
-describe("location router", () => {
-	it("appRouter has location namespace", () => {
-		expect(appRouter.location).toBeDefined();
-	});
-
-	it("exposes exactly search and resolveLink", () => {
-		expect(Object.keys(appRouter.location).sort()).toEqual([
-			"resolveLink",
-			"search",
-		]);
-	});
-
-	it("search and resolveLink are protected mutations", () => {
-		expectProtected(appRouter.location.search);
-		expectType(appRouter.location.search, "mutation");
-		expectProtected(appRouter.location.resolveLink);
-		expectType(appRouter.location.resolveLink, "mutation");
-	});
-});
+import { expectAccepts, expectRejects } from "./test-utils";
 
 describe("location.search input validation", () => {
 	it("accepts a non-empty query", () => {

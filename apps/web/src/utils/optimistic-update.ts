@@ -1,7 +1,8 @@
-import type {
-	QueryClient,
-	QueryFilters,
-	QueryKey,
+import {
+	hashKey,
+	type QueryClient,
+	type QueryFilters,
+	type QueryKey,
 } from "@tanstack/react-query";
 
 export type OptimisticTarget =
@@ -22,6 +23,70 @@ export interface QueriesSnapshot<TData = unknown> {
 export type OptimisticSnapshot<TData = unknown> =
 	| QueriesSnapshot<TData>
 	| QuerySnapshot<TData>;
+
+interface PendingQueryUpdate {
+	apply: () => void;
+	failed: boolean;
+	settled: boolean;
+}
+
+interface QueryUpdateGroup {
+	previous: QuerySnapshot;
+	updates: PendingQueryUpdate[];
+}
+
+const queryUpdateGroups = new WeakMap<
+	QueryClient,
+	Map<string, QueryUpdateGroup>
+>();
+
+/**
+ * Keep overlapping mutations in submission order when one request fails.
+ * `apply` must be replayable: only update this query with deterministic values.
+ * Cancel queries before starting; every overlapping writer must use this helper.
+ * Call `settle` once from onSettled and refetch only when it returns true.
+ */
+export function beginOptimisticQueryUpdate(
+	queryClient: QueryClient,
+	queryKey: QueryKey,
+	apply: () => void
+) {
+	let groups = queryUpdateGroups.get(queryClient);
+	if (!groups) {
+		groups = new Map();
+		queryUpdateGroups.set(queryClient, groups);
+	}
+	const key = hashKey(queryKey);
+	let group = groups.get(key);
+	if (!group) {
+		group = { previous: snapshotQuery(queryClient, queryKey), updates: [] };
+		groups.set(key, group);
+	}
+	const update = { apply, failed: false, settled: false };
+	group.updates.push(update);
+	apply();
+	const currentGroup = group;
+	const currentGroups = groups;
+	return {
+		settle(succeeded: boolean): boolean {
+			update.failed = !succeeded;
+			update.settled = true;
+			if (!succeeded) {
+				restoreSnapshots(queryClient, [currentGroup.previous]);
+				for (const remaining of currentGroup.updates) {
+					if (!remaining.failed) {
+						remaining.apply();
+					}
+				}
+			}
+			if (currentGroup.updates.some((entry) => !entry.settled)) {
+				return false;
+			}
+			currentGroups.delete(key);
+			return true;
+		},
+	};
+}
 
 export function createOptimisticId(prefix: string): string {
 	return `${prefix}-${crypto.randomUUID()}`;

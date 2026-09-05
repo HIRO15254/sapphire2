@@ -50,6 +50,7 @@ const ROOMS = [{ id: "room-1", name: "My Casino" }];
 const NEXT_RE = /Next/;
 const BACK_RE = /Back/;
 const CUSTOMIZE_RE = /Customize rules/;
+const BUY_IN_LABEL = /^Initial buy-in/;
 
 function renderForm() {
 	return render(
@@ -80,9 +81,23 @@ describe("LiveSessionForm", () => {
 		).not.toBeInTheDocument();
 	});
 
-	it("carries the provided form id so the FormSheet toolbar can submit it", () => {
-		const { container } = renderForm();
-		expect(container.querySelector("form#live-form")).not.toBeNull();
+	it("submits the entered buy-in from a toolbar button outside the form", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+		render(
+			<>
+				<LiveSessionForm formId="live-form" onSubmit={onSubmit} rooms={ROOMS} />
+				<button form="live-form" type="submit">
+					Start session
+				</button>
+			</>
+		);
+		await user.type(screen.getByRole("textbox", { name: BUY_IN_LABEL }), "500");
+		await user.click(screen.getByRole("button", { name: "Start session" }));
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({ type: "cash_game", buyIn: 500 })
+		);
 	});
 
 	it("keeps the rules section collapsed by default", () => {
@@ -99,16 +114,5 @@ describe("LiveSessionForm", () => {
 		await user.click(trigger);
 		expect(trigger).toHaveAttribute("aria-expanded", "true");
 		expect(await screen.findByLabelText("Rule name")).toBeInTheDocument();
-	});
-
-	it("spaces the expanded rule fields like the rest of the form (gap-4)", async () => {
-		const user = userEvent.setup();
-		const { container } = renderForm();
-		await user.click(screen.getByRole("button", { name: CUSTOMIZE_RE }));
-		await screen.findByLabelText("Rule name");
-		const content = container.querySelector(
-			'[data-slot="accordion-content"] > div'
-		);
-		expect(content?.className).toContain("gap-4");
 	});
 });

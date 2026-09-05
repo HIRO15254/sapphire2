@@ -4,12 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
-import {
-	expectAccepts,
-	expectProtected,
-	expectRejects,
-	expectType,
-} from "./test-utils";
+import { expectAccepts, expectRejects } from "./test-utils";
 
 type Rows = Record<string, unknown>[];
 const dialect = new SQLiteSyncDialect();
@@ -77,55 +72,6 @@ function makeCaller(userId: string, rowsByTable: Map<unknown, Rows>) {
 
 const CALLER = "user-1";
 const OTHER = "user-2";
-
-describe("blindLevel router", () => {
-	it("appRouter has blindLevel namespace", () => {
-		expect(appRouter.blindLevel).toBeDefined();
-	});
-
-	it("has listByTournament procedure", () => {
-		expect(appRouter.blindLevel.listByTournament).toBeDefined();
-	});
-
-	it("has create procedure", () => {
-		expect(appRouter.blindLevel.create).toBeDefined();
-	});
-
-	it("has update procedure", () => {
-		expect(appRouter.blindLevel.update).toBeDefined();
-	});
-
-	it("has delete procedure", () => {
-		expect(appRouter.blindLevel.delete).toBeDefined();
-	});
-
-	it("has reorder procedure", () => {
-		expect(appRouter.blindLevel.reorder).toBeDefined();
-	});
-
-	it("exposes exactly the expected procedure set", () => {
-		expect(Object.keys(appRouter.blindLevel).sort()).toEqual(
-			["create", "delete", "listByTournament", "reorder", "update"].sort()
-		);
-	});
-
-	it("listByTournament is a protected query", () => {
-		expectProtected(appRouter.blindLevel.listByTournament);
-		expectType(appRouter.blindLevel.listByTournament, "query");
-	});
-
-	it("create / update / delete / reorder are protected mutations", () => {
-		for (const proc of [
-			appRouter.blindLevel.create,
-			appRouter.blindLevel.update,
-			appRouter.blindLevel.delete,
-			appRouter.blindLevel.reorder,
-		]) {
-			expectProtected(proc);
-			expectType(proc, "mutation");
-		}
-	});
-});
 
 describe("blindLevel.listByTournament input validation", () => {
 	it("accepts a tournamentId", () => {

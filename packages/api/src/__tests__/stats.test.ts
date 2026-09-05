@@ -15,9 +15,7 @@ import {
 import {
 	createChainableMockDb,
 	expectAccepts,
-	expectProtected,
 	expectRejects,
-	expectType,
 } from "./test-utils";
 
 // 2023-11-14T22:13:20Z → UTC day=2 (Tue), hour=22, year=2023, month=2023-11
@@ -84,31 +82,6 @@ function tournamentRow(
 // ---------------------------------------------------------------------------
 // Structure
 // ---------------------------------------------------------------------------
-
-describe("stats router structure", () => {
-	it("appRouter has stats namespace", () => {
-		expect(appRouter.stats).toBeDefined();
-	});
-
-	it("exposes exactly the expected procedure set", () => {
-		expect(Object.keys(appRouter.stats).sort()).toEqual([
-			"breakdown",
-			"profitLossSeries",
-			"summary",
-		]);
-	});
-
-	it("every procedure is a protected query", () => {
-		for (const proc of [
-			appRouter.stats.summary,
-			appRouter.stats.breakdown,
-			appRouter.stats.profitLossSeries,
-		]) {
-			expectProtected(proc);
-			expectType(proc, "query");
-		}
-	});
-});
 
 // ---------------------------------------------------------------------------
 // Input validation

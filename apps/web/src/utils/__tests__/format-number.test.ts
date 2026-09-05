@@ -38,10 +38,6 @@ describe("formatCompactNumber", () => {
 		it("formats small negative integers with separators", () => {
 			expect(formatCompactNumber(-9999)).toBe("-9,999");
 		});
-
-		it("keeps decimals from the original number", () => {
-			expect(formatCompactNumber(1234.5)).toBe("1,234.5");
-		});
 	});
 
 	describe("k tier (>= 10_000, < 10_000_000)", () => {

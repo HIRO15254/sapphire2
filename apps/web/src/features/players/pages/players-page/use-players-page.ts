@@ -33,9 +33,12 @@ export function usePlayersPage() {
 		: players;
 
 	const handleCreate = (values: PlayerFormValues) => {
-		create(values).then(() => {
-			setIsCreateOpen(false);
-		});
+		create(values).then(
+			() => setIsCreateOpen(false),
+			() => {
+				// The mutation cache reports the error; keep the entered values for retry.
+			}
+		);
 	};
 
 	return {

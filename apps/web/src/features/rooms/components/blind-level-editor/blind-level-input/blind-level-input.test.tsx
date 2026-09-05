@@ -28,13 +28,6 @@ describe("BlindLevelInput", () => {
 		);
 	});
 
-	it("merges a caller-supplied className with the base classes", () => {
-		render(<BlindLevelInput aria-label="Test blind" className="text-left" />);
-
-		const input = screen.getByRole("textbox");
-		expect(input).toHaveClass("text-left", "h-8", "w-full", "focus:ring-inset");
-	});
-
 	it("forwards arbitrary input props such as defaultValue and onBlur", () => {
 		const onBlur = vi.fn();
 		render(

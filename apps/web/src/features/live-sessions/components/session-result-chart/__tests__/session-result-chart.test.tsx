@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createElement, type ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 const queryFn = vi.fn(async () => [] as unknown[]);
 
@@ -19,32 +19,10 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
-// Avoid actually loading recharts in tests; the wrapper's lazy boundary still
-// resolves, but the impl module is replaced with a tiny stub so jsdom doesn't
-// have to render SVG.
-vi.mock(
-	"@/features/live-sessions/components/session-result-chart/session-result-chart-impl",
-	() => ({
-		default: ({
-			points,
-			sessionType,
-		}: {
-			points: unknown[];
-			sessionType: string;
-		}) =>
-			createElement(
-				"div",
-				{
-					"data-testid": "chart-impl",
-					"data-session-type": sessionType,
-					"data-point-count": String(points.length),
-				},
-				"chart"
-			),
-	})
-);
-
 import { SessionResultChart } from "@/features/live-sessions/components/session-result-chart/session-result-chart";
+
+const CASH_CHART_SUMMARY = /Cash game result chart/;
+const TOURNAMENT_CHART_SUMMARY = /Tournament result chart/;
 
 function createClient(): QueryClient {
 	return new QueryClient({
@@ -60,6 +38,11 @@ function wrap(ui: ReactNode) {
 }
 
 describe("SessionResultChart", () => {
+	beforeAll(async () => {
+		// Transform the large chart dependency before Testing Library's UI wait begins.
+		// The real React.lazy boundary and chart implementation still run below.
+		await import("../session-result-chart-impl");
+	});
 	it("renders nothing when enabled=false", () => {
 		queryFn.mockClear();
 		const { container } = render(
@@ -115,7 +98,7 @@ describe("SessionResultChart", () => {
 		expect(await screen.findByText("Not enough data yet")).toBeTruthy();
 	});
 
-	it("renders the chart impl when there are >=2 derived cash points", async () => {
+	it("derives cash events into the real chart's accessible series summary", async () => {
 		queryFn.mockClear();
 		queryFn.mockResolvedValueOnce([
 			{
@@ -140,12 +123,18 @@ describe("SessionResultChart", () => {
 				})
 			)
 		);
-		const impl = await screen.findByTestId("chart-impl");
-		expect(impl.getAttribute("data-session-type")).toBe("cash_game");
-		expect(impl.getAttribute("data-point-count")).toBe("2");
+		expect(await screen.findByText(CASH_CHART_SUMMARY)).toHaveTextContent(
+			"P&L and EV P&L series with 2 data points"
+		);
 	});
 
-	it("passes tournament points through to the impl", async () => {
+	it.each([
+		{ info: {}, summary: "Stack series with 3 data points" },
+		{
+			info: { remainingPlayers: 20, totalEntries: 100 },
+			summary: "Stack and Avg stack series with 3 data points",
+		},
+	])("derives tournament events into $summary", async ({ info, summary }) => {
 		queryFn.mockClear();
 		queryFn.mockResolvedValueOnce([
 			{
@@ -160,6 +149,12 @@ describe("SessionResultChart", () => {
 				occurredAt: "2026-04-01T10:05:00Z",
 				payload: { stackAmount: 10_000 },
 			},
+			{
+				id: "e3",
+				eventType: "update_stack",
+				occurredAt: "2026-04-01T10:15:00Z",
+				payload: { stackAmount: 15_000, ...info },
+			},
 		]);
 		render(
 			wrap(
@@ -170,11 +165,8 @@ describe("SessionResultChart", () => {
 				})
 			)
 		);
-		await waitFor(() =>
-			expect(screen.queryByTestId("chart-impl")).not.toBeNull()
+		expect(await screen.findByText(TOURNAMENT_CHART_SUMMARY)).toHaveTextContent(
+			summary
 		);
-		const impl = screen.getByTestId("chart-impl");
-		expect(impl.getAttribute("data-session-type")).toBe("tournament");
-		expect(impl.getAttribute("data-point-count")).toBe("2");
 	});
 });

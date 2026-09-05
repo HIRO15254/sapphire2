@@ -119,7 +119,7 @@ describe("TournamentTimer", () => {
 		expect(screen.queryByText(NEXT_LABEL_PREFIX)).not.toBeInTheDocument();
 	});
 
-	it("applies break styling when the current level is a break", () => {
+	it("announces a break and its remaining time and progress", () => {
 		const breakLevels: TournamentBlindLevel[] = [
 			{
 				ante: null,
@@ -140,7 +140,10 @@ describe("TournamentTimer", () => {
 				timerStartedAt={start}
 			/>
 		);
-		// Break levels render with an amber progress bar; the `role="progressbar"` confirms it's active.
-		expect(screen.getByRole("progressbar")).toBeInTheDocument();
+		expect(screen.getByText("Break (L1)")).toBeInTheDocument();
+		expect(screen.getByText("05:00")).toBeInTheDocument();
+		expect(
+			screen.getByRole("progressbar", { name: "Level progress" })
+		).toHaveAttribute("aria-valuenow", "50");
 	});
 });
