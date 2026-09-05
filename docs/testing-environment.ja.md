@@ -4,7 +4,7 @@ Bun 1.3.10、Node 22.19.0を使用する。初回はリポジトリ直下で `bu
 
 | 目的 | コマンド | 検証範囲 |
 |---|---|---|
-| 通常の反復 | `bunx vitest run --project <project> <path>` | `web-node` / `web-dom` / `api` / `db` / `server` / `mcp` / `env` |
+| 通常の反復 | `bunx vitest run --project <project> <path>` | `web-node` / `web-dom` / `api` / `db` / `server` / `mcp` / `env` / `testing` |
 | D1の契約 | `bun run test:integration` | 実migration・実D1・Drizzle・caller。ケースごとにDBを作成・破棄 |
 | 実ブラウザー・HTTP | `bun run test:e2e` | build→HTTPS Worker/Web→全migration→Playwright→停止 |
 | モバイル保存・キャッシュ | `bun run test:e2e e2e/players.spec.ts e2e/persistence.spec.ts --project mobile` | 実フォーム、reload、a11y、同contextでlogout→reload→別account、SW/IndexedDB |
@@ -14,6 +14,8 @@ Bun 1.3.10、Node 22.19.0を使用する。初回はリポジトリ直下で `bu
 | カバレッジ | `bun run test:coverage` | Node/jsdom全対象。HTML/LCOV/JSONを `coverage/` に保存 |
 
 反復は対象を絞る。SQL・runner設定・動的参照の変更は `--changed` だけに頼らない。CIは全単体、D1、Bun SQLite migration、ブラウザー、静的検査を別jobで実行し、最後の `ci` jobで全成功を要求する。
+
+`test:unit` は `--project=!api-integration` で実D1専用projectだけを除外する。名前を列挙しないため、新しく登録したprojectも自動で実行される。`testing` projectはテスト基盤のhelperを検証し、`check:test-discovery` は `apps/`・`packages/`・`testing/` のspecを照合する。
 
 **追加する検証の置き場所**
 
@@ -29,6 +31,8 @@ Bun 1.3.10、Node 22.19.0を使用する。初回はリポジトリ直下で `bu
 **環境の境界**
 
 [serve-e2e.ts](../testing/serve-e2e.ts) は本番entrypointとcompatibility設定をdry-runでbundleし、Miniflareで動かす。APIは `https://localhost:18787`、Webは `https://localhost:13001`。本番のSecure/SameSite/CORS設定は変更しない。ローカル自己署名証明書はテストブラウザーだけで許容する。Service Workerにも必要なためChromium起動引数を指定している。
+
+実D1のfixtureとE2Eは [worker-compatibility.ts](../testing/worker-compatibility.ts) を使い、本番 `apps/server/wrangler.toml` のcompatibility dateとflagsを共通で読む。日付未指定は明示的に失敗させる。取得するのは互換設定だけで、本番DBやbindingの値は取り込まない。設定読取り時の警告経由でWranglerの外部更新確認が起動しないよう、警告出力を抑制する。
 
 ポート使用中なら失敗させ、既存の開発サーバーを再利用しない。Playwrightは1回の起動で2 workerを使う。別の `test:e2e` コマンドを同時に起動しない。各ケースは一意のユーザー、D1統合はケース専用DBで分離する。Windowsでも終了時にテスト用Worker/Webが停止する。
 

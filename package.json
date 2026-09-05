@@ -34,7 +34,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ci": "vitest run --reporter=verbose",
-    "test:unit": "vitest run --project web-node --project web-dom --project api --project db --project server --project mcp --project env",
+    "test:unit": "vitest run --project=!api-integration",
     "test:integration": "vitest run --project api-integration",
     "test:e2e": "playwright test",
     "test:coverage": "bun run test:unit --coverage",

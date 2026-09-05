@@ -3,8 +3,8 @@ import { appendFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Log, Miniflare } from "miniflare";
-import { unstable_readConfig } from "wrangler";
 import { applyMigrations } from "../packages/api/src/__integration__/test-database.ts";
+import { readWorkerCompatibility } from "./worker-compatibility.ts";
 
 const root = path.resolve(import.meta.dirname, "..");
 const runtime = path.join(root, ".test-runtime");
@@ -14,11 +14,7 @@ const resultsDirectory = path.join(root, "test-results");
 const workerLog = path.join(resultsDirectory, "worker.log");
 const webUrl = "https://localhost:13001";
 const apiUrl = "https://localhost:18787";
-const productionConfig = unstable_readConfig({
-	config: path.join(root, "apps/server/wrangler.toml"),
-});
-const compatibilityDate = String(productionConfig.compatibility_date);
-const compatibilityFlags = productionConfig.compatibility_flags as string[];
+const { compatibilityDate, compatibilityFlags } = readWorkerCompatibility();
 
 await mkdir(runtime, { recursive: true });
 await mkdir(resultsDirectory, { recursive: true });

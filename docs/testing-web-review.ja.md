@@ -257,7 +257,7 @@
 
 - 変更テストと削除元の代替テストを対象にしたscoped Vitestは31ファイル・371テスト成功（web-dom/web-node、14.38秒）。web型検査成功、担当30ファイルのUltracite検査成功。既存routeテストからjsdomのscrollTo未実装通知が出るが、Vitestの未処理エラーはない。全workspaceの最終signalはCIで確認する。
 - 維持したmock利用テストは、保存値の正規化・操作可否・タイマー等の独立契約を担う。mockの関数呼び出しが通ったことを、API認可・DB永続化・ブラウザーの実挙動の証明には数えない。
-- 並行mutationの新helperはcurrency取引のcreate/edit/deleteによるmutation起点のrefetchとrollbackを協調させる。他hook、外部のfocus/reconnect・手動retry・load moreによるquery更新へ保証を拡張しない。
+- 並行mutationのhelperはcurrency取引のcreate/edit/deleteを協調させる。PRレビューへの対応で、処理中のrefetch結果を復旧基準へ反映し、load moreで増えたページもrollback後に保持するよう補強した。groupへ参加しない別の楽観的writerの差分合成までは保証しない。
 - 対象ファイルを残す判断とテスト環境全体の完成は別である。PWA更新、IndexedDBのアカウント分離、認証、実DB、ライブセッションの競合は担当の統合/E2Eおよび別レビューと合わせて確認する。
 
 ## dev 更新の取り込み

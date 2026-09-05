@@ -3,9 +3,12 @@ import { user } from "@sapphire2/db/schema/auth";
 import { playerTag } from "@sapphire2/db/schema/player";
 import { Miniflare } from "miniflare";
 import { test as baseTest } from "vitest";
+import { readWorkerCompatibility } from "../../../../testing/worker-compatibility";
 import type { Context } from "../context";
 import { appRouter } from "../routers";
 import { applyMigrations } from "./test-database";
+
+const workerCompatibility = readWorkerCompatibility();
 
 export function requireCreatedRow<T extends { id?: string }>(
 	row: T | undefined
@@ -24,7 +27,7 @@ async function createApiFixture() {
 		modules: true,
 		script:
 			"export default { fetch() { return new Response('Test database'); } };",
-		compatibilityDate: "2025-01-01",
+		...workerCompatibility,
 		d1Databases: ["DB"],
 	});
 	try {

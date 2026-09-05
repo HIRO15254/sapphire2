@@ -1,5 +1,6 @@
 import {
 	hashKey,
+	type InfiniteData,
 	type QueryClient,
 	type QueryFilters,
 	type QueryKey,
@@ -27,18 +28,137 @@ export type OptimisticSnapshot<TData = unknown> =
 interface PendingQueryUpdate {
 	apply: () => void;
 	failed: boolean;
+	replayFailed: boolean;
 	settled: boolean;
 }
 
 interface QueryUpdateGroup {
+	dispose: () => void;
+	disposed: boolean;
 	previous: QuerySnapshot;
 	updates: PendingQueryUpdate[];
+	writing: boolean;
 }
 
 const queryUpdateGroups = new WeakMap<
 	QueryClient,
 	Map<string, QueryUpdateGroup>
 >();
+
+function isInfiniteData(data: unknown): data is InfiniteData<unknown> {
+	return (
+		typeof data === "object" &&
+		data !== null &&
+		"pages" in data &&
+		Array.isArray(data.pages) &&
+		"pageParams" in data &&
+		Array.isArray(data.pageParams)
+	);
+}
+
+function mergeFetchedPage(previous: unknown, fetched: unknown): unknown {
+	if (!(isInfiniteData(previous) && isInfiniteData(fetched))) {
+		return fetched;
+	}
+	const previousPages = new Map(
+		previous.pageParams.map((param, index) => [
+			hashKey([param]),
+			previous.pages[index],
+		])
+	);
+	return {
+		...fetched,
+		pages: fetched.pages.map((page, index) => {
+			const key = hashKey([fetched.pageParams[index]]);
+			return previousPages.has(key) ? previousPages.get(key) : page;
+		}),
+	};
+}
+
+function restoreQueryData(queryClient: QueryClient, snapshot: QuerySnapshot) {
+	if (snapshot.data === undefined) {
+		queryClient
+			.getQueryCache()
+			.find({ queryKey: snapshot.queryKey, exact: true })
+			?.setState({ data: undefined, dataUpdatedAt: 0, status: "pending" });
+		return;
+	}
+	queryClient.setQueryData(snapshot.queryKey, snapshot.data);
+}
+
+function replayQueryUpdates(queryClient: QueryClient, group: QueryUpdateGroup) {
+	group.writing = true;
+	try {
+		restoreQueryData(queryClient, group.previous);
+		for (const update of group.updates) {
+			if (update.failed || update.replayFailed) {
+				continue;
+			}
+			const previous = snapshotQuery(queryClient, group.previous.queryKey);
+			try {
+				update.apply();
+			} catch {
+				update.replayFailed = true;
+				restoreQueryData(queryClient, previous);
+			}
+		}
+	} finally {
+		group.writing = false;
+	}
+}
+
+function createQueryUpdateGroup(
+	queryClient: QueryClient,
+	queryKey: QueryKey,
+	groups: Map<string, QueryUpdateGroup>,
+	key: string
+): QueryUpdateGroup {
+	const group: QueryUpdateGroup = {
+		dispose: () => undefined,
+		disposed: false,
+		previous: snapshotQuery(queryClient, queryKey),
+		updates: [],
+		writing: false,
+	};
+	const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+		if (group.writing || hashKey(event.query.queryKey) !== key) {
+			return;
+		}
+		if (event.type === "removed") {
+			group.dispose();
+			return;
+		}
+		if (event.type !== "updated") {
+			return;
+		}
+		if (event.action.type === "success") {
+			const fetched = event.query.state.data;
+			group.previous = {
+				...group.previous,
+				data:
+					!event.action.manual && event.query.state.fetchMeta?.fetchMore
+						? mergeFetchedPage(group.previous.data, fetched)
+						: fetched,
+			};
+			replayQueryUpdates(queryClient, group);
+		}
+		if (
+			event.query.state.fetchStatus === "idle" &&
+			group.updates.every((update) => update.settled)
+		) {
+			group.dispose();
+		}
+	});
+	group.dispose = () => {
+		group.disposed = true;
+		unsubscribe();
+		if (groups.get(key) === group) {
+			groups.delete(key);
+		}
+	};
+	groups.set(key, group);
+	return group;
+}
 
 export function beginOptimisticQueryUpdate(
 	queryClient: QueryClient,
@@ -51,32 +171,41 @@ export function beginOptimisticQueryUpdate(
 		queryUpdateGroups.set(queryClient, groups);
 	}
 	const key = hashKey(queryKey);
-	let group = groups.get(key);
-	if (!group) {
-		group = { previous: snapshotQuery(queryClient, queryKey), updates: [] };
-		groups.set(key, group);
+	const group =
+		groups.get(key) ??
+		createQueryUpdateGroup(queryClient, queryKey, groups, key);
+	const previous = snapshotQuery(queryClient, queryKey);
+	group.writing = true;
+	try {
+		apply();
+	} catch (error) {
+		restoreQueryData(queryClient, previous);
+		if (group.updates.length === 0) {
+			group.dispose();
+		}
+		throw error;
+	} finally {
+		group.writing = false;
 	}
-	const update = { apply, failed: false, settled: false };
+	const update = { apply, failed: false, replayFailed: false, settled: false };
 	group.updates.push(update);
-	apply();
-	const currentGroup = group;
-	const currentGroups = groups;
 	return {
 		settle(succeeded: boolean): boolean {
+			if (update.settled || group.disposed) {
+				return false;
+			}
 			update.failed = !succeeded;
 			update.settled = true;
 			if (!succeeded) {
-				restoreSnapshots(queryClient, [currentGroup.previous]);
-				for (const remaining of currentGroup.updates) {
-					if (!remaining.failed) {
-						remaining.apply();
-					}
-				}
+				replayQueryUpdates(queryClient, group);
 			}
-			if (currentGroup.updates.some((entry) => !entry.settled)) {
+			if (group.updates.some((entry) => !entry.settled)) {
 				return false;
 			}
-			currentGroups.delete(key);
+			const fetchStatus = queryClient.getQueryState(queryKey)?.fetchStatus;
+			if (!fetchStatus || fetchStatus === "idle") {
+				group.dispose();
+			}
 			return true;
 		},
 	};

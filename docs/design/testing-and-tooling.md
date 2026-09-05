@@ -1,12 +1,12 @@
 # Testing and Tooling
 
-テスト基盤の判断根拠を記録する。契約・リスクに応じたテスト設計は [`.claude/rules/testing.md`](../../.claude/rules/testing.md)、実行コマンド・CI・fixtureの保証範囲は [`testing-environment.ja.md`](../testing-environment.ja.md)、migrationの作成規約は [`.claude/rules/db-migrations.md`](../../.claude/rules/db-migrations.md) を参照する。
+This document records decisions behind the test infrastructure. See [`.claude/rules/testing.md`](../../.claude/rules/testing.md) for contract- and risk-based test design, [`testing-environment.ja.md`](../testing-environment.ja.md) for execution commands and the scope of CI and fixtures, and [`.claude/rules/db-migrations.md`](../../.claude/rules/db-migrations.md) for migration conventions.
 
-pre-commitはstagedのコード変更をきっかけに `vitest run --changed HEAD` を実行する。大量変更の統合で `vitest related <全パス>` がWindowsの引数長上限を超えたため、Vitest自身にGitの変更一覧を取得させる。unstaged変更の関連テストも対象になり、staged専用の検証ではない。[Vitest CLI](https://vitest.dev/guide/cli.html#changed)
+Pre-commit runs `vitest run --changed HEAD` when code changes are staged. Passing every changed path to `vitest related` exceeded the Windows argument-length limit during a large merge, so Vitest now obtains the change list from Git. This also includes tests related to unstaged changes; it is not a staged-only check. [Vitest CLI](https://vitest.dev/guide/cli.html#changed)
 
 ## The packages/api mock-db contract
 
-[`packages/api/src/__tests__/test-utils.ts`](../../packages/api/src/__tests__/test-utils.ts) はschema検証と既存unit向けの共有helper。SQL・所有権・永続化・原子性の検証には [`test-fixture.ts`](../../packages/api/src/__integration__/test-fixture.ts) の実D1を使う。既存mockの機能をSQL interpreterとして拡張しない。
+[`packages/api/src/__tests__/test-utils.ts`](../../packages/api/src/__tests__/test-utils.ts) supplies shared helpers for schema checks and existing unit tests. SQL, ownership, persistence, and atomicity checks use real D1 through [`test-fixture.ts`](../../packages/api/src/__integration__/test-fixture.ts). Do not extend the existing mocks into a SQL interpreter.
 
 **`createChainableMockDb`** is a minimal chainable Drizzle-style mock `db` for exercising router procedures without a real database. Beyond resolving the rows configured per table, it records the bound params of every join and `where(...)` call on select/update/delete (`selectJoinParams`, `selectWhereParams` / `updateWhereParams` / `deleteWhereParams`) so **ownership scoping can be asserted** (SA2-176, SA2-183). Execution is **eager**, unlike a real DB: an insert is already recorded when `.values()` runs, and `db.batch([...])` just awaits already-resolved statements together (SA2-116).
 
@@ -31,9 +31,9 @@ A test that `vi.mock`s the seed-constants module gets its own file, because the 
 
 ### The trpc/env stub pattern
 
-`@/utils/trpc` のimportは環境変数の検証と実clientを読み込む。独立した状態を検証するunitでは必要な通信依存をmockできるが、画面連携では実client・QueryClient・フォームを通し、MSWでHTTP応答を制御する。環境設定だけをテストURLへ切り替え、clientそのものの置換を全jsdomテストに義務づけない。環境変数のlazy proxyは [`web-platform.md`](web-platform.md) を参照する。
+Importing `@/utils/trpc` loads environment validation and the real client. Unit tests of isolated state may mock the required network dependencies; UI integration exercises the real client, QueryClient, and forms with MSW controlling HTTP responses. Configure the environment with test URLs instead of requiring every jsdom test to replace the client. See [`web-platform.md`](web-platform.md) for the lazy environment proxy.
 
-[`integration.tsx`](../../apps/web/src/__tests__/integration.tsx) はtRPC標準fetch adapterでbatch/serializationを扱い、各画面に独立したmemory historyを作る。jsdomにはanimation timelineがないため、Radix Presenceが発生しないanimationendを待たないよう、このrender内だけanimation-nameをnoneにする。実アニメーションやレイアウトの保証には数えない。
+[`integration.tsx`](../../apps/web/src/__tests__/integration.tsx) uses the standard tRPC fetch adapter for batching and serialization, and creates independent memory history for each screen. Since jsdom has no animation timeline, this renderer sets animation-name to none so Radix Presence does not wait for an animationend event that cannot occur. These checks do not verify actual animations or layout.
 
 ### createTrpcMock and the queryKey shape
 
@@ -44,9 +44,15 @@ A test that `vi.mock`s the seed-constants module gets its own file, because the 
 
 ### Rollback and overlapping mutations
 
-`onSettled` の再取得が復旧後の値を返すと、rollback自体が欠けていても成功する。rollbackを検証するケースでは再取得を保留し、失敗直後の実QueryClientを確認してから応答を解放する。queryFnに復旧値を返させるだけでは、rollbackの検出証拠にしない。
+An `onSettled` refetch that returns the recovered value can conceal a missing rollback. Rollback tests hold that refetch pending, inspect the real QueryClient immediately after failure, then release the response. Returning the expected recovery value from queryFn alone is not evidence that rollback works.
 
-`beginOptimisticQueryUpdate` は同一queryへの更新を投入順に保持し、失敗した操作を除いて再適用する。createに楽観的な仮行がなくても、完了時の再取得はpendingのedit/deleteを消し得るため、同じ更新群に参加する。全writerが開始前にqueryをcancelし、再適用可能な確定値だけでcacheを更新し、各onSettledで一度だけsettleする。最後のsettleだけが再取得を開始する。詳しい使用規約は [web-data-fetching.md](../../.claude/rules/web-data-fetching.md) に置く。外部のfocus/reconnect/manual refetchまで直列化する機構ではない。
+`beginOptimisticQueryUpdate` keeps operations on one query in submission order and reapplies them without failed operations. Even a create without an optimistic row joins the group, because its completion refetch could otherwise erase a pending edit or deletion. Writers cancel existing queries before starting, use synchronous immutable cache updates with deterministic values, and settle from `onSettled`. Only the last settlement requests the final refetch.
+
+The rollback baseline follows successful query responses and authoritative cache replacements rather than remaining frozen at the first mutation. A query-cache subscription reapplies the active projections over that baseline, preserving server changes to other rows and fields during focus, reconnect, or manual refetches. The group suppresses its own cache events while restoring or replaying data. Other optimistic writers must join the group; an external cache replacement is treated as authoritative data, not another unregistered projection.
+
+Infinite queries need one additional distinction: `fetchNextPage` and `fetchPreviousPage` copy existing cache pages, which may already contain optimistic values. For a successful fetch marked by TanStack Query's `fetchMore` metadata, the helper retains the baseline of existing pages by `pageParams` and adds the newly fetched page. A normal refetch replaces the full baseline. This preserves loaded pages and their envelopes without absorbing optimistic values into rollback data or disabling pagination. The implementation covers ordinary query data and TanStack `InfiniteData`; it does not infer arbitrary JSON patches or merge concurrent server writes.
+
+An initial apply exception restores the immediately preceding cache and does not register the failed operation. If a projection becomes invalid while replaying newer server data, its partial writes are restored and only that projection is discarded; its actual mutation still participates in settlement and final invalidation. This keeps a successful fetch from becoming an error because an optimistic projection could not replay. Query removal releases the group immediately. After final settlement, an in-flight fetch retains the subscription until it succeeds, fails, or is cancelled: a late page response can still contain optimistic pages captured before rollback, especially after the screen becomes inactive. Without an in-flight fetch, final settlement releases the group immediately. Repeated settlement, including an old handle after the same query is recreated, has no effect and returns false. See [web-data-fetching.md](../../.claude/rules/web-data-fetching.md) for the caller contract.
 
 ## Deterministic time in tests
 

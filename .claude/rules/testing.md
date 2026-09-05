@@ -85,12 +85,13 @@ Reuse existing shared helpers, such as QueryClient creation in [`apps/web/src/__
 | DB | `bunx vitest run --project db <path>` |
 | MCP | `bunx vitest run --project mcp <path>` |
 | Env | `bunx vitest run --project env` |
+| Test infrastructure helpers | `bunx vitest run --project testing <path>` |
 | Bun SQLite migration | `bun test packages/db/src/__tests__/<target>.test.ts` |
 | Browser / real HTTP | `bunx playwright test <path> --project <desktop-or-mobile>` (all E2E tests: `bun run test:e2e`) |
 | Missing or duplicate runner registrations | `bun run check:test-discovery` |
 | Types for test infrastructure, E2E, and D1 fixtures | `bun run check:testing-types` |
 
-Run related scopes locally. Since `--changed` / `related` alone can miss SQL, configuration, and dynamic references, explicitly select targets for those changes. A new execution setup is complete only after it is registered in both package scripts and CI.
+Run related scopes locally. Since `--changed` / `related` alone can miss SQL, configuration, and dynamic references, explicitly select targets for those changes. `test:unit` runs every registered Vitest project except `api-integration`, which has its own CI job. Keep this exclusion instead of listing project names: an allowlist can silently omit a newly registered project. A new execution setup is complete only after it is registered in both package scripts and CI.
 
 Playwright starts test-only HTTPS Web/Worker servers and D1. Do not overlap runs that use the dedicated ports in the same working directory. Reuse the E2E fixtures for real account registration and login, and preserve process cleanup on exit and trace/log retention on failure. For local dependency patches, document the target version, rationale, regression tests, and removal conditions in `patches/README.md`, and verify reproducibility with `bun install --frozen-lockfile`.
 

@@ -24,7 +24,7 @@ for (const entry of discovered) {
 }
 const errors: string[] = [];
 for await (const file of new Glob(
-	"{apps,packages}/**/*.{test,spec}.{ts,tsx}"
+	"{apps,packages,testing}/**/*.{test,spec}.{ts,tsx}"
 ).scan(root)) {
 	const normalized = file.replaceAll("\\", "/");
 	if (normalized.split("/").includes("node_modules")) {
