@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
 	useMediaQuery: vi.fn(),
 	useActiveSession: vi.fn(),
+	pathname: "/",
 }));
 
 vi.mock("@/shared/hooks/use-media-query", () => ({
@@ -14,7 +15,37 @@ vi.mock("@/features/live-sessions/hooks/use-active-session", () => ({
 	useActiveSession: mocks.useActiveSession,
 }));
 
-import { useAuthenticatedShell } from "@/shared/components/authenticated-shell/use-authenticated-shell";
+vi.mock("@tanstack/react-router", () => ({
+	useRouterState: (options: { select: (s: unknown) => unknown }) =>
+		options.select({ location: { pathname: mocks.pathname } }),
+}));
+
+import {
+	isImmersivePath,
+	useAuthenticatedShell,
+} from "@/shared/components/authenticated-shell/use-authenticated-shell";
+
+describe("isImmersivePath", () => {
+	it("is true for the active-session root path", () => {
+		expect(isImmersivePath("/active-session")).toBe(true);
+	});
+
+	it("is true for active-session subpaths", () => {
+		expect(isImmersivePath("/active-session/anything")).toBe(true);
+	});
+
+	it("is false for the sessions list path", () => {
+		expect(isImmersivePath("/sessions")).toBe(false);
+	});
+
+	it("is false for the root path", () => {
+		expect(isImmersivePath("/")).toBe(false);
+	});
+
+	it("is false for a path that merely shares the active-session prefix", () => {
+		expect(isImmersivePath("/active-sessions")).toBe(false);
+	});
+});
 
 describe("useAuthenticatedShell", () => {
 	beforeEach(() => {
@@ -25,6 +56,7 @@ describe("useAuthenticatedShell", () => {
 			hasActive: false,
 			isLoading: false,
 		});
+		mocks.pathname = "/";
 	});
 
 	it("queries the 768px-min desktop breakpoint", () => {
@@ -66,5 +98,26 @@ describe("useAuthenticatedShell", () => {
 		});
 		const { result } = renderHook(() => useAuthenticatedShell());
 		expect(result.current.activeSessionId).toBeNull();
+	});
+
+	it("returns isImmersive=true when on the active-session route", () => {
+		mocks.useMediaQuery.mockReturnValue(false);
+		mocks.pathname = "/active-session";
+		const { result } = renderHook(() => useAuthenticatedShell());
+		expect(result.current.isImmersive).toBe(true);
+	});
+
+	it("returns isImmersive=true when on an active-session subpath", () => {
+		mocks.useMediaQuery.mockReturnValue(false);
+		mocks.pathname = "/active-session/tournament";
+		const { result } = renderHook(() => useAuthenticatedShell());
+		expect(result.current.isImmersive).toBe(true);
+	});
+
+	it("returns isImmersive=false when off the active-session route", () => {
+		mocks.useMediaQuery.mockReturnValue(false);
+		mocks.pathname = "/sessions";
+		const { result } = renderHook(() => useAuthenticatedShell());
+		expect(result.current.isImmersive).toBe(false);
 	});
 });

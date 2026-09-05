@@ -73,6 +73,32 @@ describe("formatProfitLoss", () => {
 			formatProfitLoss(undefined, { currencyUnit: "JPY", nullDisplay: "N/A" })
 		).toBe("N/A");
 	});
+
+	it("compacts large values by default", () => {
+		expect(formatProfitLoss(11_800)).toBe("+11.8k");
+	});
+
+	it("groups the full number when compact is false", () => {
+		expect(formatProfitLoss(11_800, { compact: false })).toBe("+11,800");
+	});
+
+	it("keeps the minus sign on negative full numbers", () => {
+		expect(formatProfitLoss(-2728, { compact: false })).toBe("-2,728");
+	});
+
+	it("renders zero as a signed full number when compact is false", () => {
+		expect(formatProfitLoss(0, { compact: false })).toBe("+0");
+	});
+
+	it("appends the currency unit to a full number", () => {
+		expect(
+			formatProfitLoss(51_800, { compact: false, currencyUnit: "JPY" })
+		).toBe("+51,800 JPY");
+	});
+
+	it("still returns nullDisplay when compact is false", () => {
+		expect(formatProfitLoss(null, { compact: false })).toBe("—");
+	});
 });
 
 describe("profitLossColorClass", () => {

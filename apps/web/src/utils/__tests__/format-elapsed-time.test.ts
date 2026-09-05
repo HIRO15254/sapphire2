@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { formatElapsedTime } from "../format-elapsed-time";
+import { formatClockElapsed, formatElapsedTime } from "../format-elapsed-time";
 
 const NOW = new Date("2026-04-22T12:00:00Z");
 
@@ -80,5 +80,72 @@ describe("formatElapsedTime", () => {
 
 	it("returns em dash for future epoch number input", () => {
 		expect(formatElapsedTime(NOW.getTime() + 60_000)).toBe("—");
+	});
+});
+
+describe("formatClockElapsed", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.setSystemTime(NOW);
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("returns em dash for null", () => {
+		expect(formatClockElapsed(null)).toBe("—");
+	});
+
+	it("returns em dash for undefined", () => {
+		expect(formatClockElapsed(undefined)).toBe("—");
+	});
+
+	it("returns em dash for NaN numeric input", () => {
+		expect(formatClockElapsed(Number.NaN)).toBe("—");
+	});
+
+	it("returns em dash for future dates", () => {
+		expect(formatClockElapsed(new Date(NOW.getTime() + 1000))).toBe("—");
+	});
+
+	it("formats zero elapsed as 00:00:00", () => {
+		expect(formatClockElapsed(NOW)).toBe("00:00:00");
+	});
+
+	it("formats 59 seconds with zero-padded fields", () => {
+		expect(formatClockElapsed(new Date(NOW.getTime() - 59_000))).toBe(
+			"00:00:59"
+		);
+	});
+
+	it("rolls seconds into minutes at 60s", () => {
+		expect(formatClockElapsed(new Date(NOW.getTime() - 60_000))).toBe(
+			"00:01:00"
+		);
+	});
+
+	it("rolls minutes into hours at 3600s", () => {
+		expect(formatClockElapsed(new Date(NOW.getTime() - 3_600_000))).toBe(
+			"01:00:00"
+		);
+	});
+
+	it("formats a mixed duration as HH:MM:SS", () => {
+		const past = new Date(NOW.getTime() - (3 * 3600 + 2 * 60 + 15) * 1000);
+		expect(formatClockElapsed(past)).toBe("03:02:15");
+	});
+
+	it("keeps counting past 24 hours without wrapping", () => {
+		const past = new Date(NOW.getTime() - 26 * 3_600_000);
+		expect(formatClockElapsed(past)).toBe("26:00:00");
+	});
+
+	it("accepts ISO string input", () => {
+		expect(formatClockElapsed("2026-04-22T11:59:00Z")).toBe("00:01:00");
+	});
+
+	it("accepts epoch number input", () => {
+		expect(formatClockElapsed(NOW.getTime() - 1000)).toBe("00:00:01");
 	});
 });

@@ -1,5 +1,5 @@
 import { MemoFields } from "@/features/live-sessions/components/event-fields/memo-fields";
-import { FormSheet } from "@/shared/components/form-sheet";
+import { BottomSheet } from "@/shared/components/bottom-sheet";
 import { useMemoFormSheet } from "./use-memo-form-sheet";
 
 const MEMO_FORM_ID = "active-session-memo-form";
@@ -18,11 +18,13 @@ export function MemoFormSheet({
 	const { form } = useMemoFormSheet({ onSubmit });
 
 	return (
-		<FormSheet
+		<BottomSheet
+			cancelLabel="Cancel"
+			confirmLabel="Log"
 			formId={MEMO_FORM_ID}
 			onOpenChange={onOpenChange}
 			open={open}
-			title="Add Memo"
+			title="Note"
 		>
 			<form
 				className="flex flex-col gap-4"
@@ -43,6 +45,6 @@ export function MemoFormSheet({
 					)}
 				</form.Field>
 			</form>
-		</FormSheet>
+		</BottomSheet>
 	);
 }

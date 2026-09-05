@@ -1,5 +1,11 @@
+import {
+	type AllInPreview,
+	computeAllInPreview,
+} from "@/features/live-sessions/utils/all-in-preview";
+import { cn } from "@/lib/utils";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
+import { formatNumber } from "@/utils/format-number";
 
 interface AllInFieldsProps {
 	equity: string;
@@ -16,6 +22,57 @@ interface AllInFieldsProps {
 	winsError?: string;
 }
 
+interface AllInPreviewBoxProps {
+	equity: string;
+	potSize: string;
+	preview: AllInPreview;
+	trials: string;
+	wins: string;
+}
+
+function AllInPreviewBox({
+	equity,
+	potSize,
+	preview,
+	trials,
+	wins,
+}: AllInPreviewBoxProps) {
+	const potSizeNum = Number(potSize);
+	const winsLabel = wins === "1" ? "win" : "wins";
+	return (
+		<div className="flex flex-col gap-1 rounded-md bg-muted px-3 py-2.5 text-xs">
+			<div className="flex items-center justify-between">
+				<span className="text-muted-foreground">
+					Expected ({formatNumber(potSizeNum)} × {equity}%)
+				</span>
+				<span className="font-mono">
+					+{formatNumber(preview.expectedValue)}
+				</span>
+			</div>
+			<div className="flex items-center justify-between">
+				<span className="text-muted-foreground">
+					Realized ({formatNumber(potSizeNum)} ÷ {trials} × {wins} {winsLabel})
+				</span>
+				<span className="font-mono">
+					-{formatNumber(preview.realizedValue)}
+				</span>
+			</div>
+			<div className="flex items-center justify-between border-border border-t pt-1">
+				<span className="font-semibold">EV delta</span>
+				<span
+					className={cn(
+						"font-mono",
+						preview.evDelta >= 0 ? "text-success" : "text-destructive"
+					)}
+				>
+					{preview.evDelta >= 0 ? "+" : ""}
+					{formatNumber(preview.evDelta)}
+				</span>
+			</div>
+		</div>
+	);
+}
+
 export function AllInFields({
 	equity,
 	equityError,
@@ -30,22 +87,16 @@ export function AllInFields({
 	wins,
 	winsError,
 }: AllInFieldsProps) {
-	const potSizeNum = Number(potSize) || 0;
-	const trialsNum = Number(trials) || 1;
-	const equityNum = Number(equity) || 0;
-	const winsNum = Number(wins) || 0;
-	const evAmount = potSizeNum * (equityNum / 100);
-	const actual = (potSizeNum / trialsNum) * winsNum;
-	const evDiff = evAmount - actual;
+	const preview = computeAllInPreview({
+		equity: Number(equity),
+		potSize: Number(potSize),
+		trials: Number(trials),
+		wins: Number(wins),
+	});
 
 	return (
 		<>
-			<Field
-				error={potSizeError}
-				htmlFor="allIn-potSize"
-				label="Pot Size"
-				required
-			>
+			<Field error={potSizeError} htmlFor="allIn-potSize" label="Pot" required>
 				<Input
 					id="allIn-potSize"
 					inputMode="decimal"
@@ -53,7 +104,7 @@ export function AllInFields({
 					value={potSize}
 				/>
 			</Field>
-			<Field error={trialsError} htmlFor="allIn-trials" label="Trials" required>
+			<Field error={trialsError} htmlFor="allIn-trials" label="Runs" required>
 				<Input
 					id="allIn-trials"
 					inputMode="numeric"
@@ -82,11 +133,15 @@ export function AllInFields({
 					value={wins}
 				/>
 			</Field>
-			<div className="rounded-lg bg-muted p-3 text-sm">
-				<p>EV Amount: {evAmount.toFixed(2)}</p>
-				<p>Actual: {actual.toFixed(2)}</p>
-				<p>EV Diff: {evDiff.toFixed(2)}</p>
-			</div>
+			{preview ? (
+				<AllInPreviewBox
+					equity={equity}
+					potSize={potSize}
+					preview={preview}
+					trials={trials}
+					wins={wins}
+				/>
+			) : null}
 		</>
 	);
 }

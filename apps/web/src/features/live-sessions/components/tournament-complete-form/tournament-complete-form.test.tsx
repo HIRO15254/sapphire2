@@ -3,55 +3,70 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { TournamentCompleteForm } from "./tournament-complete-form";
 
-const PLACEMENT_LABEL = /^Placement/;
-const ENTRIES_LABEL = /^Total Entries/;
-const PRIZE_LABEL = /^Prize Money/;
-
-function renderForm() {
-	const onSubmit = vi.fn();
+function renderWithSubmitButton(onSubmit: (values: unknown) => void = vi.fn()) {
 	render(
 		<>
-			<TournamentCompleteForm
-				formId="complete-tournament"
-				onSubmit={onSubmit}
-			/>
-			<button form="complete-tournament" type="submit">
-				Complete tournament
+			<TournamentCompleteForm formId="f" onSubmit={onSubmit} />
+			<button form="f" type="submit">
+				Submit
 			</button>
 		</>
 	);
-	return { onSubmit, user: userEvent.setup() };
+	return onSubmit;
 }
 
+const PLACE_LABEL = /^Place\b/;
+const ENTRIES_LABEL = /^Total entries/;
+const EARLY_EXIT_LABEL = "Early exit (left before the result)";
+
 describe("TournamentCompleteForm", () => {
-	it("validates required fields and submits the entered results from the external toolbar", async () => {
-		const { onSubmit, user } = renderForm();
-		const placement = screen.getByRole("textbox", { name: PLACEMENT_LABEL });
-		const entries = screen.getByRole("textbox", { name: ENTRIES_LABEL });
-		const prize = screen.getByRole("textbox", { name: PRIZE_LABEL });
-		expect(placement).toHaveAttribute("inputmode", "numeric");
-		expect(prize).toHaveValue("0");
+	it("shows the placement/total-entries hint when beforeDeadline is off", () => {
+		render(<TournamentCompleteForm formId="f" onSubmit={vi.fn()} />);
+		expect(
+			screen.getByText("Place must not exceed total entries.")
+		).toBeInTheDocument();
+	});
+
+	it("shows the early-exit hint and hides placement/total-entries fields when beforeDeadline is on", async () => {
+		const user = userEvent.setup();
+		render(<TournamentCompleteForm formId="f" onSubmit={vi.fn()} />);
 		await user.click(
-			screen.getByRole("button", { name: "Complete tournament" })
+			screen.getByLabelText("Early exit (left before the result)")
 		);
-		await waitFor(() =>
-			expect(placement).toHaveAccessibleDescription("Required")
-		);
-		expect(entries).toHaveAccessibleDescription("Required");
+		expect(
+			screen.getByText("Early exit does not record place or total entries.")
+		).toBeInTheDocument();
+		expect(screen.queryByLabelText("Place *")).not.toBeInTheDocument();
+		expect(
+			screen.queryByText("Place must not exceed total entries.")
+		).not.toBeInTheDocument();
+	});
+
+	it("rejects submission and shows an error when placement exceeds totalEntries", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+		renderWithSubmitButton(onSubmit);
+		await user.type(screen.getByLabelText("Place *"), "51");
+		await user.type(screen.getByLabelText("Total entries *"), "50");
+		await user.type(screen.getByLabelText("Prize *"), "0");
+		await user.click(screen.getByRole("button", { name: "Submit" }));
 		expect(onSubmit).not.toHaveBeenCalled();
-		await user.type(placement, "3");
-		await user.type(entries, "50");
-		await user.clear(prize);
-		await user.type(prize, "500");
-		await user.type(
-			screen.getByRole("textbox", { name: "Bounty Prizes" }),
-			"25"
-		);
-		await user.click(
-			screen.getByRole("button", { name: "Complete tournament" })
-		);
+		expect(
+			screen.getByText("Placement must not exceed total entries")
+		).toBeInTheDocument();
+	});
+
+	it("submits the full finished-tournament payload on valid input", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+		renderWithSubmitButton(onSubmit);
+		await user.type(screen.getByLabelText("Place *"), "3");
+		await user.type(screen.getByLabelText("Total entries *"), "50");
+		await user.type(screen.getByLabelText("Prize *"), "500");
+		await user.type(screen.getByLabelText("Bounty won"), "25");
+		await user.click(screen.getByRole("button", { name: "Submit" }));
 		expect(onSubmit).toHaveBeenCalledTimes(1);
-		expect(onSubmit).toHaveBeenCalledWith({
+		expect(onSubmit).toHaveBeenNthCalledWith(1, {
 			beforeDeadline: false,
 			placement: 3,
 			totalEntries: 50,
@@ -60,34 +75,54 @@ describe("TournamentCompleteForm", () => {
 		});
 	});
 
-	it("omits placement before the deadline and requires it again when the option is cleared", async () => {
-		const { onSubmit, user } = renderForm();
-		const deadline = screen.getByRole("checkbox", {
-			name: "Completed before registration deadline",
-		});
-		await user.click(deadline);
+	it("renders the early-exit row with a warning-colored clock-off icon", () => {
+		render(<TournamentCompleteForm formId="f" onSubmit={vi.fn()} />);
+		const label = screen.getByText("Early exit (left before the result)");
+		const icon = label.querySelector("svg");
+		expect(icon).not.toBeNull();
+		expect(icon?.getAttribute("class")).toContain("text-warning");
+	});
+
+	it("shows the trailing closing-record note", () => {
+		render(<TournamentCompleteForm formId="f" onSubmit={vi.fn()} />);
 		expect(
-			screen.queryByRole("textbox", { name: PLACEMENT_LABEL })
-		).not.toBeInTheDocument();
+			screen.getByText(
+				"You can edit this from history later. This closes the record."
+			)
+		).toBeInTheDocument();
+	});
+	it("blocks submission until the required result fields are filled", async () => {
+		const user = userEvent.setup();
+		const onSubmit = renderWithSubmitButton();
+		const place = screen.getByRole("textbox", { name: PLACE_LABEL });
+		const entries = screen.getByRole("textbox", { name: ENTRIES_LABEL });
+		expect(place).toHaveAttribute("inputmode", "numeric");
+		await user.click(screen.getByRole("button", { name: "Submit" }));
+		await waitFor(() => expect(place).toHaveAccessibleDescription("Required"));
+		expect(entries).toHaveAccessibleDescription("Required");
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("requires the result fields again after the early-exit switch is turned back off", async () => {
+		const user = userEvent.setup();
+		const onSubmit = renderWithSubmitButton();
+		const earlyExit = screen.getByRole("switch", { name: EARLY_EXIT_LABEL });
+		await user.click(earlyExit);
 		expect(
-			screen.queryByRole("textbox", { name: ENTRIES_LABEL })
+			screen.queryByRole("textbox", { name: PLACE_LABEL })
 		).not.toBeInTheDocument();
-		await user.click(
-			screen.getByRole("button", { name: "Complete tournament" })
-		);
+		await user.click(screen.getByRole("button", { name: "Submit" }));
 		expect(onSubmit).toHaveBeenCalledTimes(1);
 		expect(onSubmit).toHaveBeenCalledWith({
 			beforeDeadline: true,
-			prizeMoney: 0,
 			bountyPrizes: 0,
+			prizeMoney: 0,
 		});
-		await user.click(deadline);
-		await user.click(
-			screen.getByRole("button", { name: "Complete tournament" })
-		);
+		await user.click(earlyExit);
+		await user.click(screen.getByRole("button", { name: "Submit" }));
 		await waitFor(() =>
 			expect(
-				screen.getByRole("textbox", { name: PLACEMENT_LABEL })
+				screen.getByRole("textbox", { name: PLACE_LABEL })
 			).toHaveAccessibleDescription("Required")
 		);
 		expect(onSubmit).toHaveBeenCalledTimes(1);

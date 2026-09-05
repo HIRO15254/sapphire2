@@ -1,45 +1,167 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-	createMemoryHistory,
-	createRootRoute,
-	createRoute,
-	createRouter,
-	RouterProvider,
-} from "@tanstack/react-router";
-import { render, screen } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { trpcKeys } from "@/__tests__/trpc-keys";
+import { createTestQueryClient } from "./test-utils";
 
-Object.defineProperty(window, "matchMedia", {
-	writable: true,
-	value: vi.fn().mockImplementation((query: string) => ({
-		matches: false,
-		media: query,
-		onchange: null,
-		addListener: vi.fn(),
-		removeListener: vi.fn(),
-		addEventListener: vi.fn(),
-		removeEventListener: vi.fn(),
-		dispatchEvent: vi.fn(),
-	})),
-});
+const REGEX_BEFORE_DEADLINE_LABEL = /Early exit \(left before the result\)/i;
 
-const mockUseActiveSession = vi.fn();
-vi.mock("@/features/live-sessions/hooks/use-active-session", () => ({
-	useActiveSession: () => mockUseActiveSession(),
+interface MockTournamentSession {
+	blindLevels: Array<{
+		ante: number | null;
+		blind1: number | null;
+		blind2: number | null;
+		blind3: number | null;
+		id: string;
+		isBreak: boolean;
+		level: number;
+		minutes: number | null;
+	}>;
+	heroSeatPosition: number | null;
+	id: string;
+	startedAt: Date;
+	status: "active" | "paused";
+	summary: {
+		averageStack: number;
+		currentStack: number;
+		remainingPlayers: number;
+		totalEntries: number;
+	};
+	tableSize: number;
+	timerStartedAt: Date | null;
+}
+
+function buildSession(): MockTournamentSession {
+	return {
+		blindLevels: [
+			{
+				ante: null,
+				blind1: 100,
+				blind2: 200,
+				blind3: null,
+				id: "level-1",
+				isBreak: false,
+				level: 1,
+				minutes: 20,
+			},
+		],
+		heroSeatPosition: null,
+		id: "tourn-1",
+		startedAt: new Date("2026-08-20T10:00:00Z"),
+		status: "active",
+		summary: {
+			averageStack: 12_000,
+			currentStack: 15_000,
+			remainingPlayers: 20,
+			totalEntries: 40,
+		},
+		tableSize: 9,
+		timerStartedAt: null,
+	};
+}
+
+const mocks = vi.hoisted(() => ({
+	activeSession: {
+		id: "tourn-1",
+		type: "tournament",
+	} as { id: string; type: "cash_game" | "tournament" } | null,
+	discard: vi.fn(),
+	isDiscardPending: false,
+	isUpdatingTimer: false,
+	session: null as MockTournamentSession | null,
+	stack: {
+		addMemo: vi.fn(),
+		chipPurchaseTypes: [] as unknown[],
+		complete: vi.fn(),
+		isCompletePending: false,
+		isStackPending: false,
+		pause: vi.fn(),
+		purchaseChips: vi.fn(),
+		recordStack: vi.fn(),
+		resume: vi.fn(),
+	},
+	updateTimerStartedAt: vi.fn(),
 }));
 
-vi.mock("@/features/players/hooks/use-table-players", () => ({
-	useTablePlayers: () => ({
-		players: [],
-		excludePlayerIds: [],
-		handleAddExisting: vi.fn(),
-		handleAddNew: vi.fn(),
-		handleAddTemporary: vi.fn(),
-		handleRemovePlayer: vi.fn(),
+vi.mock("@/features/live-sessions/hooks/use-active-session", () => ({
+	useActiveSession: () => ({
+		activeSession: mocks.activeSession,
+		hasActive: mocks.activeSession !== null,
+		isError: false,
+		isLoading: false,
+		onRetry: vi.fn(),
 	}),
 }));
+
+vi.mock("@/features/live-sessions/hooks/use-tournament-session", () => ({
+	useTournamentSession: () => ({
+		discard: mocks.discard,
+		isDiscardPending: mocks.isDiscardPending,
+		isUpdatingTimer: mocks.isUpdatingTimer,
+		session: mocks.session,
+		updateTimerStartedAt: mocks.updateTimerStartedAt,
+	}),
+}));
+
+vi.mock("@/features/live-sessions/hooks/use-tournament-stack", () => ({
+	useTournamentStack: () => mocks.stack,
+}));
+
+vi.mock("@/features/live-sessions/hooks/use-session-events", () => ({
+	useSessionEvents: () => ({
+		delete: vi.fn(),
+		events: [],
+		isDeletePending: false,
+		isUpdatePending: false,
+		update: vi.fn(),
+	}),
+}));
+
+vi.mock(
+	"@/features/live-sessions/hooks/use-active-session-scene-state",
+	() => ({
+		useActiveSessionSceneState: () => ({
+			excludePlayerIds: [],
+			heroAvailable: true,
+			heroSeatPosition: null,
+			occupiedSeatPositions: new Set<number>(),
+			onRemovePlayer: vi.fn(),
+			onSeatExisting: vi.fn(),
+			onSeatHero: vi.fn(),
+			onSeatNew: vi.fn(),
+			onSeatTemporary: vi.fn(),
+			onUnseatHero: vi.fn(),
+			seats: [],
+			sessionParam: { liveTournamentSessionId: "tourn-1" },
+			tableSize: 9,
+			unseatedPlayers: [],
+		}),
+	})
+);
+
+vi.mock("@/features/players/hooks/use-player-detail", () => ({
+	usePlayerDetail: () => ({
+		availableTags: [],
+		createTag: vi.fn(),
+		isSaving: false,
+		player: null,
+		updatePlayer: vi.fn(),
+	}),
+}));
+
+vi.mock(
+	"@/features/live-sessions/pages/active-session-page/join-seat-sheet",
+	() => ({
+		JoinSeatSheet: () => null,
+	})
+);
+
+vi.mock(
+	"@/features/live-sessions/pages/active-session-page/timeline-sheet",
+	() => ({
+		TimelineSheet: () => null,
+	})
+);
 
 vi.mock(
 	"@/features/live-sessions/components/seat-from-screenshot-sheet",
@@ -49,404 +171,147 @@ vi.mock(
 );
 
 vi.mock(
-	"@/features/live-sessions/components/active-session-scene/seat-list",
+	"@/features/live-sessions/pages/active-session-page/rule-sheet",
 	() => ({
-		SeatList: () => <div data-testid="seat-list" />,
+		RuleSheet: () => null,
 	})
 );
 
 vi.mock(
-	"@/features/live-sessions/components/active-session-game-scene",
+	"@/features/live-sessions/pages/active-session-page/cash-game-session",
 	() => ({
-		ActiveSessionGameScene: () => null,
+		CashGameSession: () => null,
 	})
 );
 
-vi.mock("@/features/live-sessions/components/session-events-scene", () => ({
-	SessionEventsScene: () => <div data-testid="events-scene" />,
-}));
+import { ActiveSessionPage } from "@/features/live-sessions/pages/active-session-page";
 
-const mockQuery = vi.fn();
-
-vi.mock("@/utils/trpc", () => ({
-	trpc: {
-		liveCashGameSession: {
-			getById: {
-				queryOptions: (args: { id: string }) => ({
-					queryKey: ["cash-session", args.id],
-					queryFn: () => mockQuery("cash-getById", args),
-				}),
-			},
-			list: {
-				queryOptions: (args?: unknown) => ({
-					queryKey: ["cash-list", args],
-					queryFn: () => mockQuery("cash-list", args),
-				}),
-			},
-		},
-		liveTournamentSession: {
-			getById: {
-				queryOptions: (args: { id: string }) => ({
-					queryKey: ["tournament-session", args.id],
-					queryFn: () => mockQuery("tournament-getById", args),
-				}),
-			},
-			list: {
-				queryOptions: (args?: unknown) => ({
-					queryKey: ["tournament-list", args],
-					queryFn: () => mockQuery("tournament-list", args),
-				}),
-			},
-		},
-		session: {
-			list: {
-				pathKey: () => trpcKeys.session.list.pathKey(),
-				queryOptions: (
-					args: Parameters<typeof trpcKeys.session.list.queryOptions>[0]
-				) => ({
-					...trpcKeys.session.list.queryOptions(args),
-					queryFn: () => mockQuery("session-list", args),
-				}),
-			},
-		},
-		ringGame: {
-			listByRoom: {
-				queryOptions: (args: { roomId: string }) => ({
-					queryKey: ["ring-games", args.roomId],
-					queryFn: () => mockQuery("ring-games", args),
-				}),
-			},
-		},
-		player: {
-			list: {
-				queryOptions: (args?: unknown) => ({
-					queryKey: ["players", args],
-					queryFn: () => mockQuery("player-list", args),
-				}),
-			},
-			getById: {
-				queryOptions: (args: { id: string }) => ({
-					queryKey: ["player", args.id],
-					queryFn: () => mockQuery("player-getById", args),
-				}),
-			},
-		},
-		playerTag: {
-			list: {
-				queryOptions: () => ({
-					queryKey: ["player-tags"],
-					queryFn: () => mockQuery("player-tags"),
-				}),
-			},
-		},
-		sessionEvent: {
-			list: {
-				queryOptions: (args?: unknown) => ({
-					queryKey: ["events", args],
-					queryFn: () => mockQuery("events", args),
-				}),
-			},
-		},
-	},
-	trpcClient: {
-		liveCashGameSession: {
-			complete: { mutate: vi.fn() },
-			discard: { mutate: vi.fn() },
-			updateHeroSeat: { mutate: vi.fn() },
-		},
-		liveTournamentSession: {
-			complete: { mutate: vi.fn() },
-			discard: { mutate: vi.fn() },
-			updateHeroSeat: { mutate: vi.fn() },
-		},
-		player: {
-			update: { mutate: vi.fn() },
-		},
-		playerTag: {
-			create: { mutate: vi.fn() },
-		},
-		sessionEvent: {
-			create: { mutate: vi.fn() },
-			update: { mutate: vi.fn() },
-			delete: { mutate: vi.fn() },
-		},
-	},
-}));
-
-import { StackSheetProvider } from "@/features/live-sessions/hooks/use-stack-sheet";
-// biome-ignore lint/performance/noNamespaceImport: required to access named export from route module
-import * as ActiveSessionModule from "@/routes/active-session";
-
-const ActiveSessionPage = ActiveSessionModule.Route.options
-	.component as () => ReactNode;
-
-const REGEX_HISTORY = /History/;
-
-if (!window.ResizeObserver) {
-	window.ResizeObserver = class ResizeObserver {
-		observe = vi.fn();
-		unobserve = vi.fn();
-		disconnect = vi.fn();
-	};
-}
-
-let testQueryClient = new QueryClient({
-	defaultOptions: { queries: { retry: false } },
-});
-
-beforeEach(() => {
-	testQueryClient = new QueryClient({
-		defaultOptions: { queries: { retry: false } },
-	});
-});
-
-function TestProviders({ children }: { children: ReactNode }) {
-	return (
-		<QueryClientProvider client={testQueryClient}>
-			<StackSheetProvider>{children}</StackSheetProvider>
+function renderPage() {
+	const queryClient = createTestQueryClient();
+	return render(
+		<QueryClientProvider client={queryClient}>
+			<ActiveSessionPage />
 		</QueryClientProvider>
 	);
 }
 
-function renderWithProviders(router: unknown) {
-	return render(
-		<TestProviders>
-			<RouterProvider
-				router={router as Parameters<typeof RouterProvider>[0]["router"]}
-			/>
-		</TestProviders>
-	);
-}
-
-function createTestRouter(
-	Component: () => ReactNode,
-	path = "/active-session"
-) {
-	const rootRoute = createRootRoute({ component: Component });
-	const indexRoute = createRoute({
-		getParentRoute: () => rootRoute,
-		path: "/active-session",
-		component: Component,
-	});
-	const routeTree = rootRoute.addChildren([indexRoute]);
-	return createRouter({
-		routeTree,
-		history: createMemoryHistory({ initialEntries: [path] }),
-	});
-}
-
-describe("ActiveSessionPage — no active session", () => {
+describe("Tournament session lifecycle", () => {
 	beforeEach(() => {
-		mockUseActiveSession.mockReturnValue({
-			activeSession: null,
-			hasActive: false,
-			isLoading: false,
+		mocks.activeSession = { id: "tourn-1", type: "tournament" };
+		mocks.session = buildSession();
+		mocks.discard.mockReset();
+		mocks.isDiscardPending = false;
+		mocks.isUpdatingTimer = false;
+		mocks.updateTimerStartedAt.mockReset();
+		mocks.stack.addMemo.mockReset();
+		mocks.stack.chipPurchaseTypes = [];
+		mocks.stack.complete.mockReset();
+		mocks.stack.isCompletePending = false;
+		mocks.stack.isStackPending = false;
+		mocks.stack.pause.mockReset();
+		mocks.stack.purchaseChips.mockReset();
+		mocks.stack.recordStack.mockReset();
+		mocks.stack.resume.mockReset();
+	});
+
+	it("dispatches to the tournament session view for an active tournament", () => {
+		renderPage();
+
+		expect(screen.getByText("Tournament")).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Pause session" })
+		).toBeInTheDocument();
+	});
+
+	it("pauses the session and shows the pause overlay once the status flips", async () => {
+		const user = userEvent.setup();
+		const { rerender } = renderPage();
+
+		await user.click(screen.getByRole("button", { name: "Pause session" }));
+
+		expect(mocks.stack.pause).toHaveBeenCalledTimes(1);
+		expect(mocks.stack.resume).not.toHaveBeenCalled();
+
+		mocks.session = { ...buildSession(), status: "paused" };
+		rerender(
+			<QueryClientProvider client={createTestQueryClient()}>
+				<ActiveSessionPage />
+			</QueryClientProvider>
+		);
+
+		expect(screen.getByText("Session paused")).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Resume session" })
+		).toBeInTheDocument();
+	});
+
+	it("resumes the session from the pause overlay", async () => {
+		mocks.session = { ...buildSession(), status: "paused" };
+		const user = userEvent.setup();
+		renderPage();
+
+		await user.click(screen.getByRole("button", { name: "Resume" }));
+
+		expect(mocks.stack.resume).toHaveBeenCalledTimes(1);
+		expect(mocks.stack.pause).not.toHaveBeenCalled();
+	});
+
+	it("opens the timer dialog from the blind level bar and saves the default start time", async () => {
+		const user = userEvent.setup();
+		renderPage();
+
+		await user.click(screen.getByRole("button", { name: "Start timer" }));
+
+		expect(
+			screen.getByRole("heading", { name: "Start Tournament Timer" })
+		).toBeInTheDocument();
+
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		expect(mocks.updateTimerStartedAt).toHaveBeenCalledTimes(1);
+		expect(mocks.updateTimerStartedAt.mock.calls[0][0]).toBeInstanceOf(Date);
+	});
+
+	it("completes the tournament through the early-exit path", async () => {
+		const user = userEvent.setup();
+		renderPage();
+
+		await user.click(screen.getByRole("button", { name: "End session" }));
+
+		const sheet = screen.getByRole("dialog", { name: "Complete Tournament" });
+		await user.click(within(sheet).getByLabelText(REGEX_BEFORE_DEADLINE_LABEL));
+		await user.click(
+			within(sheet).getByRole("button", { name: "End and save" })
+		);
+
+		expect(mocks.stack.complete).toHaveBeenCalledTimes(1);
+		expect(mocks.stack.complete).toHaveBeenNthCalledWith(1, {
+			beforeDeadline: true,
+			bountyPrizes: 0,
+			prizeMoney: 0,
 		});
 	});
 
-	it("shows 'No active session' message", async () => {
-		const router = createTestRouter(ActiveSessionPage);
-		renderWithProviders(router);
+	it("returns to the no active session state once the tournament ends", () => {
+		const { rerender } = renderPage();
+		expect(screen.getByText("Tournament")).toBeInTheDocument();
 
-		await screen.findByText("No active session");
+		mocks.activeSession = null;
+		rerender(
+			<QueryClientProvider client={createTestQueryClient()}>
+				<ActiveSessionPage />
+			</QueryClientProvider>
+		);
+
+		expect(screen.getByText("No active session")).toBeInTheDocument();
+		expect(screen.queryByText("Tournament")).not.toBeInTheDocument();
 	});
 
-	it("shows loading indicator while session is loading", async () => {
-		mockUseActiveSession.mockReturnValue({
-			activeSession: null,
-			hasActive: false,
-			isLoading: true,
-		});
+	it("shows the no active session state before any tournament starts", () => {
+		mocks.activeSession = null;
+		mocks.session = null;
+		renderPage();
 
-		const router = createTestRouter(ActiveSessionPage);
-		renderWithProviders(router);
-
-		await screen.findByText("Loading...");
-	});
-});
-
-describe("ActiveSessionPage — active cash game session", () => {
-	beforeEach(() => {
-		mockUseActiveSession.mockReturnValue({
-			activeSession: { id: "cash-001", type: "cash_game" },
-			hasActive: true,
-			isLoading: false,
-		});
-
-		mockQuery.mockImplementation((key: string) => {
-			if (key === "cash-getById") {
-				return {
-					id: "cash-001",
-					roomId: "room-1",
-					ringGameId: null,
-					heroSeatPosition: null,
-					memo: null,
-					summary: {
-						totalBuyIn: 10_000,
-						cashOut: null,
-						profitLoss: null,
-						evCashOut: null,
-						currentStack: 12_000,
-						addonCount: 0,
-					},
-				};
-			}
-			return null;
-		});
-	});
-
-	it("composes the cash heading, session actions and seats", async () => {
-		const router = createTestRouter(ActiveSessionPage);
-		renderWithProviders(router);
-
-		await screen.findByText("Cash Game");
-		await screen.findByRole("button", { name: "Session actions" });
-		expect(screen.queryByText("Discard")).not.toBeInTheDocument();
-		await screen.findByTestId("seat-list");
-	});
-
-	it("renders the collapsed history section without mounting the timeline", async () => {
-		const router = createTestRouter(ActiveSessionPage);
-		renderWithProviders(router);
-
-		await screen.findByRole("button", { name: REGEX_HISTORY });
-		expect(screen.queryByTestId("events-scene")).not.toBeInTheDocument();
-	});
-});
-
-describe("ActiveSessionPage — active tournament session", () => {
-	beforeEach(() => {
-		mockUseActiveSession.mockReturnValue({
-			activeSession: { id: "tourn-001", type: "tournament" },
-			hasActive: true,
-			isLoading: false,
-		});
-
-		mockQuery.mockImplementation((key: string) => {
-			if (key === "tournament-getById") {
-				return {
-					id: "tourn-001",
-					tournamentId: null,
-					heroSeatPosition: null,
-					memo: null,
-					summary: {
-						buyIn: 10_000,
-						entryFee: 1000,
-						currentStack: 15_000,
-						remainingPlayers: 42,
-						totalEntries: 120,
-						totalChipPurchases: 0,
-						profitLoss: null,
-					},
-				};
-			}
-			return null;
-		});
-	});
-
-	it("composes the tournament heading, session actions and seats", async () => {
-		const router = createTestRouter(ActiveSessionPage);
-		renderWithProviders(router);
-
-		await screen.findByText("Tournament");
-		await screen.findByRole("button", { name: "Session actions" });
-		await screen.findByTestId("seat-list");
-	});
-});
-
-describe("ActiveSessionPage — tournament summary labels", () => {
-	beforeEach(() => {
-		mockUseActiveSession.mockReturnValue({
-			activeSession: { id: "tourn-002", type: "tournament" },
-			hasActive: true,
-			isLoading: false,
-		});
-	});
-
-	it("shows Field/Entry and Avg Stack labels from tournament summary", async () => {
-		mockQuery.mockImplementation((key: string) => {
-			if (key === "tournament-getById") {
-				return {
-					id: "tourn-002",
-					tournamentId: "t-1",
-					heroSeatPosition: null,
-					memo: null,
-					summary: {
-						buyIn: 5000,
-						entryFee: 500,
-						currentStack: 20_000,
-						remainingPlayers: 30,
-						totalEntries: 100,
-						totalChipPurchases: 0,
-						profitLoss: null,
-					},
-				};
-			}
-			return null;
-		});
-
-		const router = createTestRouter(ActiveSessionPage);
-		renderWithProviders(router);
-
-		await screen.findByText("Field/Entry");
-		expect(screen.getByText("Avg Stack")).toBeInTheDocument();
-		expect(screen.getByText("30/100")).toBeInTheDocument();
-	});
-
-	it("shows dash for Field/Entry when remainingPlayers and totalEntries are null", async () => {
-		mockQuery.mockImplementation((key: string) => {
-			if (key === "tournament-getById") {
-				return {
-					id: "tourn-002",
-					tournamentId: null,
-					heroSeatPosition: null,
-					memo: null,
-					summary: {
-						buyIn: 10_000,
-						entryFee: 1000,
-						currentStack: null,
-						remainingPlayers: null,
-						totalEntries: null,
-						totalChipPurchases: 0,
-						profitLoss: null,
-					},
-				};
-			}
-			return null;
-		});
-
-		const router = createTestRouter(ActiveSessionPage);
-		renderWithProviders(router);
-
-		const fieldEntry = await screen.findByText("Field/Entry");
-		expect(fieldEntry.parentElement).toHaveTextContent("Field/Entry-");
-	});
-
-	it("shows Field/Entry with remainingPlayers/totalEntries when provided", async () => {
-		mockQuery.mockImplementation((key: string) => {
-			if (key === "tournament-getById") {
-				return {
-					id: "tourn-002",
-					tournamentId: null,
-					heroSeatPosition: null,
-					memo: null,
-					summary: {
-						buyIn: 0,
-						entryFee: 0,
-						currentStack: 8000,
-						remainingPlayers: 15,
-						totalEntries: 80,
-						totalChipPurchases: 0,
-						profitLoss: null,
-					},
-				};
-			}
-			return null;
-		});
-
-		const router = createTestRouter(ActiveSessionPage);
-		renderWithProviders(router);
-
-		await screen.findByText("15/80");
+		expect(screen.getByText("No active session")).toBeInTheDocument();
 	});
 });

@@ -1,11 +1,7 @@
 import { TournamentFormSheet } from "@/features/rooms/components/tournament-form-sheet";
+import { cn } from "@/lib/utils";
+import { BottomSheet } from "@/shared/components/bottom-sheet";
 import { Button } from "@/shared/components/ui/button";
-import {
-	Drawer,
-	DrawerContent,
-	DrawerDescription,
-	DrawerTitle,
-} from "@/shared/components/ui/drawer";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { Field } from "@/shared/components/ui/field";
 import {
@@ -15,7 +11,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/shared/components/ui/select";
-import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import {
 	type AssignTournamentMode,
 	type TournamentListItem,
@@ -29,6 +24,45 @@ interface AssignTournamentDialogProps {
 	open: boolean;
 	sessionId: string;
 	sessionRoomId: string | null;
+}
+
+const TAB_BUTTON_CLASS = "h-[34px] flex-1 rounded-[var(--radius-md)] text-sm";
+const TAB_ACTIVE_CLASS = "bg-card font-semibold text-foreground";
+const TAB_INACTIVE_CLASS = "font-medium text-muted-foreground";
+
+function ModeTabs({
+	mode,
+	onChange,
+}: {
+	mode: AssignTournamentMode;
+	onChange: (mode: AssignTournamentMode) => void;
+}) {
+	return (
+		<div className="mb-4 flex gap-0.5 rounded-[var(--radius-lg)] bg-muted p-[3px]">
+			<button
+				aria-pressed={mode === "existing"}
+				className={cn(
+					TAB_BUTTON_CLASS,
+					mode === "existing" ? TAB_ACTIVE_CLASS : TAB_INACTIVE_CLASS
+				)}
+				onClick={() => onChange("existing")}
+				type="button"
+			>
+				Select existing
+			</button>
+			<button
+				aria-pressed={mode === "create"}
+				className={cn(
+					TAB_BUTTON_CLASS,
+					mode === "create" ? TAB_ACTIVE_CLASS : TAB_INACTIVE_CLASS
+				)}
+				onClick={() => onChange("create")}
+				type="button"
+			>
+				Create new
+			</button>
+		</div>
+	);
 }
 
 function RoomSelectField({
@@ -148,6 +182,12 @@ export function AssignTournamentDialog({
 		sessionRoomId,
 	});
 
+	const handleOpenChange = (nextOpen: boolean) => {
+		if (!isBusy) {
+			onOpenChange(nextOpen);
+		}
+	};
+
 	const renderExistingTab = () => (
 		<div className="flex flex-col gap-4">
 			<TournamentPickerField
@@ -189,49 +229,25 @@ export function AssignTournamentDialog({
 
 	return (
 		<>
-			<Drawer
-				onOpenChange={(o) => {
-					if (!isBusy) {
-						onOpenChange(o);
-					}
-				}}
+			<BottomSheet
+				cancelLabel="Cancel"
+				description="Select an existing tournament or create a new one for this session."
+				onOpenChange={handleOpenChange}
 				open={open}
+				title="Assign Tournament"
 			>
-				<DrawerContent className="rounded-t-xl">
-					<div
-						aria-hidden
-						className="mx-auto mt-2 mb-1 h-1 w-9 shrink-0 rounded-full bg-muted-foreground/35"
+				<ModeTabs mode={mode} onChange={setMode} />
+
+				{sessionRoomId ? null : (
+					<RoomSelectField
+						onChange={handleRoomChange}
+						rooms={rooms}
+						value={selectedRoomId}
 					/>
-					<DrawerTitle className="t-h4 px-4 pt-1">
-						Assign Tournament
-					</DrawerTitle>
-					<DrawerDescription className="sr-only">
-						Select an existing tournament or create a new one for this session.
-					</DrawerDescription>
-					<div className="overflow-y-auto px-4 py-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-						<Tabs
-							className="mb-4"
-							onValueChange={(value) => setMode(value as AssignTournamentMode)}
-							value={mode}
-						>
-							<TabsList className="grid w-full grid-cols-2">
-								<TabsTrigger value="existing">Select existing</TabsTrigger>
-								<TabsTrigger value="create">Create new</TabsTrigger>
-							</TabsList>
-						</Tabs>
+				)}
 
-						{sessionRoomId ? null : (
-							<RoomSelectField
-								onChange={handleRoomChange}
-								rooms={rooms}
-								value={selectedRoomId}
-							/>
-						)}
-
-						{mode === "existing" ? renderExistingTab() : renderCreateTab()}
-					</div>
-				</DrawerContent>
-			</Drawer>
+				{mode === "existing" ? renderExistingTab() : renderCreateTab()}
+			</BottomSheet>
 
 			<TournamentFormSheet
 				aiMode="create"
@@ -241,6 +257,7 @@ export function AssignTournamentDialog({
 				onOpenChange={setIsCreateDialogOpen}
 				onSave={handleCreate}
 				open={isCreateDialogOpen}
+				sheetVariant="cryst"
 				title="New Tournament"
 			/>
 		</>

@@ -26,7 +26,7 @@ export function useCashGameStack({ sessionId }: { sessionId: string }) {
 		}),
 	});
 
-	const chipAddMutation = useMutation({
+	const chipAdjustMutation = useMutation({
 		mutationFn: (amount: number) =>
 			trpcClient.sessionEvent.create.mutate({
 				liveCashGameSessionId: sessionId,
@@ -39,22 +39,6 @@ export function useCashGameStack({ sessionId }: { sessionId: string }) {
 			sessionType: "cash_game",
 			eventType: "chips_add_remove",
 			getPayload: (amount) => ({ amount }),
-		}),
-	});
-
-	const chipRemoveMutation = useMutation({
-		mutationFn: (amount: number) =>
-			trpcClient.sessionEvent.create.mutate({
-				liveCashGameSessionId: sessionId,
-				eventType: "chips_add_remove",
-				payload: { amount: -amount },
-			}),
-		...createSessionEventMutationOptions<number>({
-			queryClient,
-			sessionId,
-			sessionType: "cash_game",
-			eventType: "chips_add_remove",
-			getPayload: (amount) => ({ amount: -amount }),
 		}),
 	});
 
@@ -152,8 +136,7 @@ export function useCashGameStack({ sessionId }: { sessionId: string }) {
 	return {
 		recordStack: (values: { stackAmount: number }) =>
 			stackMutation.mutate(values),
-		addChip: (amount: number) => chipAddMutation.mutate(amount),
-		removeChip: (amount: number) => chipRemoveMutation.mutate(amount),
+		adjustChips: (amount: number) => chipAdjustMutation.mutate(amount),
 		addAllIn: (values: {
 			potSize: number;
 			trials: number;

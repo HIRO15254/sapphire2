@@ -1,11 +1,7 @@
 import { AddonFields } from "@/features/live-sessions/components/event-fields/addon-fields";
+import { ChipsDirectionField } from "@/features/live-sessions/components/event-fields/chips-direction-field";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
-import { Field } from "@/shared/components/ui/field";
-import {
-	ToggleGroup,
-	ToggleGroupItem,
-} from "@/shared/components/ui/toggle-group";
 import { type EditorBaseProps, TimeField } from "../shared";
 import { useChipsAddRemoveEditor } from "./use-chips-add-remove-editor";
 
@@ -63,20 +59,10 @@ export function ChipsAddRemoveEditor({
 			</form.Field>
 			<form.Field name="type">
 				{(field) => (
-					<Field htmlFor="edit-type" label="Type">
-						<ToggleGroup
-							onValueChange={(val) => {
-								if (val) {
-									field.handleChange(val as "add" | "remove");
-								}
-							}}
-							type="single"
-							value={field.state.value}
-						>
-							<ToggleGroupItem value="add">Add</ToggleGroupItem>
-							<ToggleGroupItem value="remove">Remove</ToggleGroupItem>
-						</ToggleGroup>
-					</Field>
+					<ChipsDirectionField
+						onChange={(direction) => field.handleChange(direction)}
+						value={field.state.value}
+					/>
 				)}
 			</form.Field>
 			<form.Subscribe

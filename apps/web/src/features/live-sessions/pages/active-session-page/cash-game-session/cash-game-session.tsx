@@ -1,98 +1,167 @@
-import { ActiveSessionScene } from "@/features/live-sessions/components/active-session-scene";
 import { AddonBottomSheet } from "@/features/live-sessions/components/addon-bottom-sheet";
 import { AllInBottomSheet } from "@/features/live-sessions/components/all-in-bottom-sheet";
 import { CashGameCompleteForm } from "@/features/live-sessions/components/cash-game-complete-form";
-import { FormSheet } from "@/shared/components/form-sheet";
-import { CashGameCompactSummary } from "../cash-game-compact-summary";
+import { SeatFromScreenshotSheet } from "@/features/live-sessions/components/seat-from-screenshot-sheet";
+import { BottomSheet } from "@/shared/components/bottom-sheet";
+import { ActionBar } from "../action-bar";
+import { JoinSeatSheet } from "../join-seat-sheet";
 import { MemoFormSheet } from "../memo-form-sheet";
+import { PauseOverlay } from "../pause-overlay";
+import { PlayerPanel } from "../player-panel";
+import { RuleSheet } from "../rule-sheet";
+import { SessionHeader } from "../session-header";
+import { StackQuickInput } from "../stack-quick-input";
+import { TableView } from "../table-view";
+import { TimelineSheet } from "../timeline-sheet";
 import { useCashGameSessionView } from "./use-cash-game-session-view";
 
 const COMPLETE_FORM_ID = "cash-game-end-session-form";
+const noop = () => undefined;
 
 export function CashGameSession({ sessionId }: { sessionId: string }) {
-	const {
-		defaultFinalStack,
-		discard,
-		eventMenuExtraItems,
-		handleAddChipsSubmit,
-		handleAllInSubmit,
-		handleCompleteSubmit,
-		handleMemoSubmit,
-		handleRemoveChipsSubmit,
-		isAddChipsOpen,
-		isAllInOpen,
-		isCompleteOpen,
-		isCompletePending,
-		isDiscardPending,
-		isMemoOpen,
-		isRemoveChipsOpen,
-		onEndSession,
-		onPause,
-		sceneState,
-		session,
-		setIsAddChipsOpen,
-		setIsAllInOpen,
-		setIsCompleteOpen,
-		setIsMemoOpen,
-		setIsRemoveChipsOpen,
-		summary,
-	} = useCashGameSessionView(sessionId);
+	const vm = useCashGameSessionView(sessionId);
 
-	if (!(session && summary)) {
+	if (!vm.session) {
 		return null;
 	}
 
 	return (
 		<>
-			<ActiveSessionScene
-				eventMenuExtraItems={eventMenuExtraItems}
-				isDiscardPending={isDiscardPending}
-				memo={session.memo}
-				onDiscard={discard}
-				onEndSession={onEndSession}
-				onPause={onPause}
-				state={sceneState}
-				summary={<CashGameCompactSummary summary={summary} />}
-				title="Cash Game"
+			<SessionHeader
+				isPaused={vm.isPaused}
+				onEnd={vm.onEndSession}
+				onTitleTap={vm.onOpenRule}
+				onTogglePause={vm.onTogglePause}
+				startedAt={vm.startedAt}
+				title={vm.title}
 			/>
+
+			{vm.isKeyboardOpen ? null : (
+				<div className="shrink-0 px-3">
+					<TableView
+						bbText={vm.tableCenter.bbText}
+						deltaText={vm.tableCenter.deltaText}
+						deltaTone={vm.tableCenter.deltaTone}
+						dimmed={vm.isPaused}
+						evText={vm.tableCenter.evText}
+						heroSeatPosition={vm.sceneState.heroSeatPosition}
+						kind="cash_game"
+						onEmptySeatTap={vm.onEmptySeatTap}
+						onPlayerSeatTap={vm.onPlayerSeatTap}
+						onScan={vm.onScanFromTable}
+						seatCount={vm.sceneState.tableSize}
+						seatedPlayers={vm.seatedPlayers}
+						stackText={vm.tableCenter.stackText}
+					/>
+				</div>
+			)}
+
+			<div className="min-h-16 flex-1 overflow-hidden px-[var(--m-inset)] py-2.5">
+				<PlayerPanel
+					isPaused={vm.isPaused}
+					onLeave={vm.onLeavePlayer}
+					selection={vm.selection}
+				/>
+			</div>
+
+			<div className="shrink-0 border-border border-t bg-card">
+				<div className="px-[var(--m-inset)] pt-2">
+					<StackQuickInput
+						disabled={vm.isPaused}
+						isPending={vm.isStackPending}
+						kind="cash_game"
+						lastStackUpdatedAt={vm.lastStackUpdatedAt}
+						onRecordStack={vm.handleRecordStack}
+					/>
+				</div>
+				<ActionBar
+					dimmed={vm.isPaused}
+					kind="cash_game"
+					onAllIn={vm.onOpenAllIn}
+					onChips={vm.onOpenChips}
+					onNote={vm.onOpenMemo}
+					onPurchase={noop}
+					onTimeline={vm.onOpenTimeline}
+				/>
+			</div>
+
+			{vm.isPaused ? (
+				<PauseOverlay
+					elapsedText={vm.pausedElapsedText}
+					onNote={vm.onOpenMemo}
+					onResume={vm.onResume}
+				/>
+			) : null}
 
 			<AllInBottomSheet
-				onOpenChange={setIsAllInOpen}
-				onSubmit={handleAllInSubmit}
-				open={isAllInOpen}
+				onOpenChange={vm.setIsAllInOpen}
+				onSubmit={vm.handleAllInSubmit}
+				open={vm.isAllInOpen}
 			/>
 
 			<AddonBottomSheet
-				onOpenChange={setIsAddChipsOpen}
-				onSubmit={handleAddChipsSubmit}
-				open={isAddChipsOpen}
-			/>
-
-			<AddonBottomSheet
-				onOpenChange={setIsRemoveChipsOpen}
-				onSubmit={handleRemoveChipsSubmit}
-				open={isRemoveChipsOpen}
+				onOpenChange={vm.setIsChipsOpen}
+				onSubmit={vm.handleChipsSubmit}
+				open={vm.isChipsOpen}
 			/>
 
 			<MemoFormSheet
-				onOpenChange={setIsMemoOpen}
-				onSubmit={handleMemoSubmit}
-				open={isMemoOpen}
+				onOpenChange={vm.setIsMemoOpen}
+				onSubmit={vm.handleMemoSubmit}
+				open={vm.isMemoOpen}
 			/>
 
-			<FormSheet
+			<JoinSeatSheet
+				excludePlayerIds={vm.sceneState.excludePlayerIds}
+				heroAvailable={vm.sceneState.heroAvailable}
+				onOpenChange={(open) => {
+					if (!open) {
+						vm.onCloseJoin();
+					}
+				}}
+				onScan={vm.onScanFromJoin}
+				onSeatExisting={vm.sceneState.onSeatExisting}
+				onSeatHero={vm.sceneState.onSeatHero}
+				onSeatNew={vm.sceneState.onSeatNew}
+				onSeatTemporary={vm.sceneState.onSeatTemporary}
+				open={vm.joinSeatPosition !== null}
+				seatPosition={vm.joinSeatPosition}
+			/>
+
+			<TimelineSheet
+				onOpenChange={vm.setIsTimelineOpen}
+				open={vm.isTimelineOpen}
+				sessionId={sessionId}
+				sessionType="cash_game"
+			/>
+
+			<RuleSheet onOpenChange={vm.setIsRuleOpen} open={vm.isRuleOpen} />
+
+			<SeatFromScreenshotSheet
+				heroSeatPosition={vm.sceneState.heroSeatPosition}
+				occupiedSeatPositions={vm.sceneState.occupiedSeatPositions}
+				onOpenChange={vm.setIsScanOpen}
+				open={vm.isScanOpen}
+				sessionParam={vm.sceneState.sessionParam}
+				tableSize={vm.sceneState.tableSize}
+			/>
+
+			<BottomSheet
+				cancelLabel="Cancel"
+				confirmLabel="End and save"
 				formId={COMPLETE_FORM_ID}
-				isLoading={isCompletePending}
-				onOpenChange={setIsCompleteOpen}
-				open={isCompleteOpen}
+				isConfirmPending={vm.isCompletePending}
+				onOpenChange={vm.setIsCompleteOpen}
+				open={vm.isCompleteOpen}
 				title="Complete Session"
 			>
 				<CashGameCompleteForm
-					defaultFinalStack={defaultFinalStack}
+					defaultFinalStack={vm.defaultFinalStack}
 					formId={COMPLETE_FORM_ID}
-					onSubmit={handleCompleteSubmit}
+					onSubmit={vm.handleCompleteSubmit}
+					previewInput={vm.completePreviewInput}
 				/>
-			</FormSheet>
+			</BottomSheet>
 		</>
 	);
 }

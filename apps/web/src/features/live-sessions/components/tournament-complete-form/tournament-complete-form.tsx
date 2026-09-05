@@ -1,7 +1,8 @@
-import { Checkbox } from "@/shared/components/ui/checkbox";
+import { IconClockOff } from "@tabler/icons-react";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+import { Switch } from "@/shared/components/ui/switch";
 import { useTournamentCompleteForm } from "./use-tournament-complete-form";
 
 interface TournamentCompleteFormProps {
@@ -39,20 +40,24 @@ export function TournamentCompleteForm({
 				form.handleSubmit();
 			}}
 		>
-			<div className="flex items-center gap-2">
+			<div className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2.5">
 				<form.Field name="beforeDeadline">
 					{(field) => (
 						<>
-							<Checkbox
+							<Label
+								className="inline-flex items-center gap-1.5 text-sm"
+								htmlFor={field.name}
+							>
+								<IconClockOff className="size-4 text-warning" />
+								Early exit (left before the result)
+							</Label>
+							<Switch
 								checked={field.state.value}
 								id={field.name}
 								onCheckedChange={(checked) =>
 									field.handleChange(checked === true)
 								}
 							/>
-							<Label htmlFor={field.name}>
-								Completed before registration deadline
-							</Label>
 						</>
 					)}
 				</form.Field>
@@ -60,90 +65,105 @@ export function TournamentCompleteForm({
 
 			<form.Subscribe selector={(state) => state.values.beforeDeadline}>
 				{(beforeDeadline) =>
-					!beforeDeadline && (
-						<div className="grid grid-cols-2 gap-2">
-							<form.Field name="placement">
-								{(field) => (
-									<Field
-										error={field.state.meta.errors[0]?.message}
-										htmlFor={field.name}
-										label="Placement"
-										required
-									>
-										<Input
-											id={field.name}
-											inputMode="numeric"
-											name={field.name}
-											onBlur={field.handleBlur}
-											onChange={(e) => field.handleChange(e.target.value)}
-											value={field.state.value}
-										/>
-									</Field>
-								)}
-							</form.Field>
+					beforeDeadline ? (
+						<p className="text-muted-foreground text-xs">
+							Early exit does not record place or total entries.
+						</p>
+					) : (
+						<>
+							<div className="grid grid-cols-2 gap-2">
+								<form.Field name="placement">
+									{(field) => (
+										<Field
+											error={field.state.meta.errors[0]?.message}
+											htmlFor={field.name}
+											label="Place"
+											required
+										>
+											<Input
+												id={field.name}
+												inputMode="numeric"
+												name={field.name}
+												onBlur={field.handleBlur}
+												onChange={(e) => field.handleChange(e.target.value)}
+												value={field.state.value}
+											/>
+										</Field>
+									)}
+								</form.Field>
 
-							<form.Field name="totalEntries">
-								{(field) => (
-									<Field
-										error={field.state.meta.errors[0]?.message}
-										htmlFor={field.name}
-										label="Total Entries"
-										required
-									>
-										<Input
-											id={field.name}
-											inputMode="numeric"
-											name={field.name}
-											onBlur={field.handleBlur}
-											onChange={(e) => field.handleChange(e.target.value)}
-											value={field.state.value}
-										/>
-									</Field>
-								)}
-							</form.Field>
-						</div>
+								<form.Field name="totalEntries">
+									{(field) => (
+										<Field
+											error={field.state.meta.errors[0]?.message}
+											htmlFor={field.name}
+											label="Total entries"
+											required
+										>
+											<Input
+												id={field.name}
+												inputMode="numeric"
+												name={field.name}
+												onBlur={field.handleBlur}
+												onChange={(e) => field.handleChange(e.target.value)}
+												value={field.state.value}
+											/>
+										</Field>
+									)}
+								</form.Field>
+							</div>
+							<p className="text-muted-foreground text-xs">
+								Place must not exceed total entries.
+							</p>
+						</>
 					)
 				}
 			</form.Subscribe>
 
-			<form.Field name="prizeMoney">
-				{(field) => (
-					<Field
-						error={field.state.meta.errors[0]?.message}
-						htmlFor={field.name}
-						label="Prize Money"
-						required
-					>
-						<Input
-							id={field.name}
-							inputMode="numeric"
-							name={field.name}
-							onBlur={field.handleBlur}
-							onChange={(e) => field.handleChange(e.target.value)}
-							value={field.state.value}
-						/>
-					</Field>
-				)}
-			</form.Field>
+			<div className="grid grid-cols-2 gap-2">
+				<form.Field name="prizeMoney">
+					{(field) => (
+						<Field
+							error={field.state.meta.errors[0]?.message}
+							htmlFor={field.name}
+							label="Prize"
+							required
+						>
+							<Input
+								id={field.name}
+								inputMode="numeric"
+								name={field.name}
+								onBlur={field.handleBlur}
+								onChange={(e) => field.handleChange(e.target.value)}
+								value={field.state.value}
+							/>
+						</Field>
+					)}
+				</form.Field>
 
-			<form.Field name="bountyPrizes">
-				{(field) => (
-					<Field
-						error={field.state.meta.errors[0]?.message}
-						htmlFor={field.name}
-						label="Bounty Prizes"
-					>
-						<Input
-							id={field.name}
-							inputMode="numeric"
-							name={field.name}
-							onBlur={field.handleBlur}
-							onChange={(e) => field.handleChange(e.target.value)}
-							value={field.state.value}
-						/>
-					</Field>
-				)}
-			</form.Field>
+				<form.Field name="bountyPrizes">
+					{(field) => (
+						<Field
+							error={field.state.meta.errors[0]?.message}
+							htmlFor={field.name}
+							label="Bounty won"
+						>
+							<Input
+								id={field.name}
+								inputMode="numeric"
+								name={field.name}
+								onBlur={field.handleBlur}
+								onChange={(e) => field.handleChange(e.target.value)}
+								value={field.state.value}
+							/>
+						</Field>
+					)}
+				</form.Field>
+			</div>
+
+			<p className="text-muted-foreground text-xs">
+				You can edit this from history later. This closes the record.
+			</p>
 		</form>
 	);
 }

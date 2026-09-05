@@ -116,6 +116,13 @@ const CHECKS: Check[] = [
 		excludePath: /__tests__|\.test\./,
 	},
 	{
+		name: 'raw "theme-cryst" literal — use CRYST_SCOPE from shared/lib/theme.ts',
+		rule: ".claude/rules/web-theme.md (Cryst migration)",
+		globs: ["apps/web/src/**/*.{ts,tsx}"],
+		pattern: /theme-cryst/,
+		excludePath: /shared\/lib\/theme\.ts$/,
+	},
+	{
 		name: "comment divider / banner line — comments are near-zero, delete it",
 		rule: ".claude/rules/comments.md",
 		globs: [

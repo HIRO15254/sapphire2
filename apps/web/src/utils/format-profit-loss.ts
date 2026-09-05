@@ -1,6 +1,7 @@
-import { formatCompactNumber } from "@/utils/format-number";
+import { formatCompactNumber, formatNumber } from "@/utils/format-number";
 
 interface FormatProfitLossOptions {
+	compact?: boolean;
 	currencyUnit?: string | null;
 	nullDisplay?: string;
 }
@@ -13,7 +14,10 @@ export function formatProfitLoss(
 		return options?.nullDisplay ?? "—";
 	}
 	const sign = value >= 0 ? "+" : "";
-	const body = formatCompactNumber(value);
+	const body =
+		options?.compact === false
+			? formatNumber(value)
+			: formatCompactNumber(value);
 	return options?.currencyUnit
 		? `${sign}${body} ${options.currencyUnit}`
 		: `${sign}${body}`;

@@ -39,10 +39,12 @@ DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName;
 
 const DrawerContent = forwardRef<
 	ElementRef<typeof DrawerPrimitive.Content>,
-	ComponentPropsWithoutRef<typeof DrawerPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+	ComponentPropsWithoutRef<typeof DrawerPrimitive.Content> & {
+		overlayClassName?: string;
+	}
+>(({ className, children, overlayClassName, ...props }, ref) => (
 	<DrawerPortal>
-		<DrawerOverlay />
+		<DrawerOverlay className={overlayClassName} />
 		<DrawerPrimitive.Content
 			className={cn(
 				"fixed inset-x-0 bottom-0 z-50 flex max-h-[calc(100svh-2rem)] flex-col rounded-t-[10px] border bg-background",

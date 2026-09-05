@@ -18,6 +18,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
     "@fontsource-variable/noto-sans": "^5.2.10",
+    "@fontsource-variable/noto-sans-jp": "^5.3.0",
     "@sapphire2/api": "workspace:*",
     "@sapphire2/db": "workspace:*",
     "@sapphire2/env": "workspace:*",
