@@ -21,7 +21,9 @@ import {
 	isAuthorizePath,
 	parseConsentPageQuery,
 	redirectHostsFrom,
+	withoutLoginPromptCookie,
 } from "./oauth-consent";
+import { withClientName } from "./oauth-register";
 
 interface Env {
 	ANTHROPIC_API_KEY?: string;
@@ -109,13 +111,18 @@ app.use("/api/auth/*", (c, next) => {
 	}
 	const db = createDb(c.env.DB);
 	const auth = createAuth(db, buildAuthOptions(c.env, db));
-	return auth.handler(new Request(forceConsentPrompt(c.req.url), c.req.raw));
+	return auth.handler(
+		withoutLoginPromptCookie(
+			new Request(forceConsentPrompt(c.req.url), c.req.raw)
+		)
+	);
 });
 
-app.on(["POST", "GET"], "/api/auth/*", (c) => {
+app.on(["POST", "GET"], "/api/auth/*", async (c) => {
 	const db = createDb(c.env.DB);
 	const auth = createAuth(db, buildAuthOptions(c.env, db));
-	return auth.handler(c.req.raw);
+	const request = await withClientName(c.req.raw);
+	return auth.handler(withoutLoginPromptCookie(request));
 });
 
 app.get("/oauth/consent", async (c) => {

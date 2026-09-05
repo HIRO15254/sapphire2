@@ -224,6 +224,45 @@ if (unlisted.length > 0) {
 	}
 }
 
+const SESSION_ENTRY_GLOB = "apps/web/src/**/*.{ts,tsx}";
+const SESSION_ENTRY_CALL = /authClient\s*\.\s*(signIn|signUp)\b/;
+const LOGIN_CONTINUATION_IMPORT = /features\/auth\/utils\/login-continuation/;
+const LOGIN_CONTINUATION_SELF = /login-continuation\.ts$/;
+const unguardedEntries: string[] = [];
+
+for await (const scannedPath of new Glob(SESSION_ENTRY_GLOB).scan(".")) {
+	const path = normalizeRulePath(scannedPath);
+	if (
+		IGNORED_DIRS.test(path) ||
+		LOGIN_CONTINUATION_SELF.test(path) ||
+		/__tests__|\.test\./.test(path)
+	) {
+		continue;
+	}
+	const text = await readFile(path, "utf8");
+	if (!SESSION_ENTRY_CALL.test(text)) {
+		continue;
+	}
+	if (!LOGIN_CONTINUATION_IMPORT.test(text)) {
+		unguardedEntries.push(
+			`${path}: calls authClient.signIn/signUp without importing login-continuation`
+		);
+	}
+}
+
+if (unguardedEntries.length > 0) {
+	failed = true;
+	console.error(
+		"\ncheck-rules FAIL: session entry point drops a pending MCP authorize query"
+	);
+	console.error(
+		"  rule: docs/design/mcp-and-oauth.md (Web login continuation)"
+	);
+	for (const hit of unguardedEntries) {
+		console.error(`  ${hit}`);
+	}
+}
+
 const SEED_RESTORE_MARKER = "--file=dump.sql";
 const TRIGGER_STASH_MARKERS: { hint: string; marker: string }[] = [
 	{

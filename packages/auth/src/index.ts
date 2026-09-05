@@ -1,3 +1,4 @@
+import { passkey as passkeyPlugin } from "@better-auth/passkey";
 import {
 	account,
 	accountRelations,
@@ -15,6 +16,7 @@ import {
 	oauthConsent,
 	oauthConsentRelations,
 } from "@sapphire2/db/schema/oauth";
+import { passkey, passkeyRelations } from "@sapphire2/db/schema/passkey";
 import { type BetterAuthPlugin, betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { mcp } from "better-auth/plugins";
@@ -106,6 +108,8 @@ const authSchema = {
 	oauthAccessTokenRelations,
 	oauthConsent,
 	oauthConsentRelations,
+	passkey,
+	passkeyRelations,
 };
 
 interface AuthOptions {
@@ -121,6 +125,11 @@ interface AuthOptions {
 		resource: string;
 	};
 	onUserCreated?: (userId: string) => Promise<void>;
+	passkey?: {
+		origin: string;
+		rpID: string;
+		rpName: string;
+	};
 	secret: string;
 }
 
@@ -142,20 +151,34 @@ export function createAuth(
 	dbInstance: Parameters<typeof drizzleAdapter>[0],
 	options: AuthOptions
 ) {
-	const plugins: BetterAuthPlugin[] = options.mcp
-		? [
-				mcp({
+	const plugins: BetterAuthPlugin[] = [];
+	if (options.mcp) {
+		plugins.push(
+			mcp({
+				loginPage: options.mcp.loginPage,
+				resource: options.mcp.resource,
+				oidcConfig: {
 					loginPage: options.mcp.loginPage,
-					resource: options.mcp.resource,
-					oidcConfig: {
-						loginPage: options.mcp.loginPage,
-						consentPage: options.mcp.consentPage,
-						requirePKCE: true,
-						allowDynamicClientRegistration: true,
-					},
-				}),
-			]
-		: [];
+					consentPage: options.mcp.consentPage,
+					requirePKCE: true,
+					allowDynamicClientRegistration: true,
+				},
+			})
+		);
+	}
+	if (options.passkey) {
+		plugins.push(
+			passkeyPlugin({
+				rpID: options.passkey.rpID,
+				rpName: options.passkey.rpName,
+				origin: options.passkey.origin,
+				authenticatorSelection: {
+					residentKey: "required",
+					userVerification: "preferred",
+				},
+			}) as BetterAuthPlugin
+		);
+	}
 	const trustedOrigins = [options.corsOrigin];
 	if (options.mcp && options.baseURL) {
 		trustedOrigins.push(new URL(options.baseURL).origin);

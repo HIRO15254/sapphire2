@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
 		VITE_PREVIEW_AUTO_LOGIN: undefined as string | undefined,
 		VITE_PREVIEW_LOGIN_EMAIL: undefined as string | undefined,
 		VITE_PREVIEW_LOGIN_PASSWORD: undefined as string | undefined,
+		VITE_SERVER_URL: "http://localhost:8787",
 	},
 	signInEmail: vi.fn(),
 	navigate: vi.fn(),
@@ -25,16 +26,23 @@ vi.mock("@/lib/auth-client", () => ({
 	authClient: { signIn: { email: mocks.signInEmail } },
 }));
 
+import {
+	locationAssignCalls,
+	OAUTH_AUTHORIZE_SEARCH,
+	stubLocation,
+} from "@/__tests__/test-utils";
 import { usePreviewAutoLogin } from "@/features/auth/pages/login-page/preview-auto-login/use-preview-auto-login";
 
 describe("usePreviewAutoLogin", () => {
 	beforeEach(() => {
+		vi.restoreAllMocks();
 		mocks.signInEmail.mockReset();
 		mocks.navigate.mockReset();
 		vi.spyOn(console, "error").mockReset();
 		mocks.env.VITE_PREVIEW_AUTO_LOGIN = undefined;
 		mocks.env.VITE_PREVIEW_LOGIN_EMAIL = undefined;
 		mocks.env.VITE_PREVIEW_LOGIN_PASSWORD = undefined;
+		sessionStorage.clear();
 	});
 
 	it("reports a rejected sign-in promise without leaking an unhandled rejection", async () => {
@@ -106,6 +114,100 @@ describe("usePreviewAutoLogin", () => {
 		await waitFor(() =>
 			expect(mocks.navigate).toHaveBeenCalledWith({ to: "/statistics" })
 		);
+	});
+
+	it("mid-OAuth: resumes the authorize flow instead of entering the app", async () => {
+		stubLocation({ search: OAUTH_AUTHORIZE_SEARCH });
+		mocks.env.VITE_PREVIEW_AUTO_LOGIN = "true";
+		mocks.env.VITE_PREVIEW_LOGIN_EMAIL = "preview@example.com";
+		mocks.env.VITE_PREVIEW_LOGIN_PASSWORD = "preview-pass";
+		mocks.signInEmail.mockResolvedValue({ data: { user: { id: "u1" } } });
+		renderHook(() => usePreviewAutoLogin());
+		await waitFor(() =>
+			expect(window.location.assign).toHaveBeenCalledTimes(1)
+		);
+		const url = new URL(locationAssignCalls()[0]?.[0] as string);
+		expect(url.origin).toBe("http://localhost:8787");
+		expect(url.pathname).toBe("/api/auth/mcp/authorize");
+		expect(url.searchParams.get("client_id")).toBe("c1");
+		expect(url.searchParams.get("response_type")).toBe("code");
+		expect(url.searchParams.get("redirect_uri")).toBe("https://claude.ai/cb");
+		expect(url.searchParams.get("state")).toBe("s1");
+		expect(mocks.navigate).not.toHaveBeenCalled();
+	});
+
+	it("mid-OAuth: resumes only once per authorize request, so a bouncing authorize cannot be re-assigned forever", async () => {
+		stubLocation({ search: OAUTH_AUTHORIZE_SEARCH });
+		mocks.env.VITE_PREVIEW_AUTO_LOGIN = "true";
+		mocks.env.VITE_PREVIEW_LOGIN_EMAIL = "preview@example.com";
+		mocks.env.VITE_PREVIEW_LOGIN_PASSWORD = "preview-pass";
+		mocks.signInEmail.mockResolvedValue({ data: { user: { id: "u1" } } });
+
+		const first = renderHook(() => usePreviewAutoLogin());
+		await waitFor(() => expect(locationAssignCalls()).toHaveLength(1));
+		first.unmount();
+
+		renderHook(() => usePreviewAutoLogin());
+		await waitFor(() =>
+			expect(mocks.navigate).toHaveBeenCalledWith({ to: "/statistics" })
+		);
+		expect(locationAssignCalls()).toHaveLength(1);
+	});
+
+	it("mid-OAuth: resumes again when the authorize request is a different one", async () => {
+		stubLocation({ search: OAUTH_AUTHORIZE_SEARCH });
+		mocks.env.VITE_PREVIEW_AUTO_LOGIN = "true";
+		mocks.env.VITE_PREVIEW_LOGIN_EMAIL = "preview@example.com";
+		mocks.env.VITE_PREVIEW_LOGIN_PASSWORD = "preview-pass";
+		mocks.signInEmail.mockResolvedValue({ data: { user: { id: "u1" } } });
+
+		const first = renderHook(() => usePreviewAutoLogin());
+		await waitFor(() => expect(locationAssignCalls()).toHaveLength(1));
+		first.unmount();
+
+		stubLocation({
+			search: OAUTH_AUTHORIZE_SEARCH.replace("client_id=c1", "client_id=c2"),
+		});
+		renderHook(() => usePreviewAutoLogin());
+		await waitFor(() => expect(locationAssignCalls()).toHaveLength(1));
+		expect(
+			new URL(locationAssignCalls()[0]?.[0] as string).searchParams.get(
+				"client_id"
+			)
+		).toBe("c2");
+		expect(mocks.navigate).not.toHaveBeenCalled();
+	});
+
+	it("mid-OAuth: resumes anyway when sessionStorage is unavailable", async () => {
+		stubLocation({ search: OAUTH_AUTHORIZE_SEARCH });
+		vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+			throw new Error("sessionStorage is disabled");
+		});
+		mocks.env.VITE_PREVIEW_AUTO_LOGIN = "true";
+		mocks.env.VITE_PREVIEW_LOGIN_EMAIL = "preview@example.com";
+		mocks.env.VITE_PREVIEW_LOGIN_PASSWORD = "preview-pass";
+		mocks.signInEmail.mockResolvedValue({ data: { user: { id: "u1" } } });
+
+		renderHook(() => usePreviewAutoLogin());
+		await waitFor(() => expect(locationAssignCalls()).toHaveLength(1));
+		expect(
+			new URL(locationAssignCalls()[0]?.[0] as string).searchParams.get(
+				"client_id"
+			)
+		).toBe("c1");
+		expect(mocks.navigate).not.toHaveBeenCalled();
+	});
+
+	it("mid-OAuth: does not resume the authorize flow when auto-login fails", async () => {
+		stubLocation({ search: OAUTH_AUTHORIZE_SEARCH });
+		mocks.env.VITE_PREVIEW_AUTO_LOGIN = "true";
+		mocks.env.VITE_PREVIEW_LOGIN_EMAIL = "preview@example.com";
+		mocks.env.VITE_PREVIEW_LOGIN_PASSWORD = "preview-pass";
+		mocks.signInEmail.mockResolvedValue({ data: null });
+		renderHook(() => usePreviewAutoLogin());
+		await waitFor(() => expect(mocks.signInEmail).toHaveBeenCalled());
+		expect(window.location.assign).not.toHaveBeenCalled();
+		expect(mocks.navigate).not.toHaveBeenCalled();
 	});
 
 	it("does NOT navigate when signIn returns no data (failed auto-login)", async () => {
