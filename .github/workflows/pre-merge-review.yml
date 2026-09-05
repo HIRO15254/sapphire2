@@ -1,23 +1,121 @@
 name: PR review
 
+# Policy, data and mechanics: docs/design/pr-review.md
+#   - at most MAX_AUTO_ROUNDS automatic rounds per PR (round 1 full, round 2
+#     incremental on the next code push); further rounds via RE_REVIEW_LABEL
+#   - a round starts only on the latest head and only after the `ci` check is
+#     green, so author pushes cancel a waiting run instead of a running one
+#   - release/* PRs whose tree equals dev are skipped (already reviewed on dev)
+#   - the runner installs dependencies so the reviewer verifies instead of
+#     guessing; the repo Stop hook is disabled for the review session
+
 on:
   pull_request:
     branches: [dev, main]
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
 
 permissions:
   contents: read
   pull-requests: write
+  checks: read
   id-token: write
+
+env:
+  MAX_AUTO_ROUNDS: "2"
+  RE_REVIEW_LABEL: re-review
+  CI_CHECK_NAME: ci
+  CI_WAIT_MINUTES: "30"
 
 concurrency:
   group: review-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
+  gate:
+    name: gate
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+      mode: ${{ steps.decide.outputs.mode }}
+      round: ${{ steps.decide.outputs.round }}
+      since_sha: ${{ steps.decide.outputs.since_sha }}
+      reason: ${{ steps.decide.outputs.reason }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Decide whether this event gets a review round
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_ACTION: ${{ github.event.action }}
+          LABEL_NAME: ${{ github.event.label.name }}
+          IS_DRAFT: ${{ github.event.pull_request.draft }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin dev
+          head_tree=$(git rev-parse "${HEAD_SHA}^{tree}")
+          dev_tree=$(git rev-parse "origin/dev^{tree}" 2>/dev/null || echo "")
+
+          state_comments=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
+            | jq -s -c '[.[][] | select(.body | startswith("<!-- pre-merge-review:state")) | .body]')
+
+          last_sha=$(STATE_COMMENTS="$state_comments" bun scripts/review-gate.ts last-sha)
+          changed=null
+          if [ -n "$last_sha" ] \
+            && git cat-file -e "${last_sha}^{commit}" 2>/dev/null \
+            && git merge-base --is-ancestor "$last_sha" "$HEAD_SHA"; then
+            changed=$(git diff --name-only "$last_sha" "$HEAD_SHA" \
+              | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          fi
+
+          GATE_INPUT=$(jq -n -c \
+            --arg event "$EVENT_ACTION" \
+            --arg label "$LABEL_NAME" \
+            --argjson draft "$IS_DRAFT" \
+            --arg headRef "$HEAD_REF" \
+            --arg headSha "$HEAD_SHA" \
+            --arg headTree "$head_tree" \
+            --arg devTree "$dev_tree" \
+            --argjson stateComments "$state_comments" \
+            --argjson changedSinceLast "$changed" \
+            --argjson maxAutoRounds "$MAX_AUTO_ROUNDS" \
+            --arg reReviewLabel "$RE_REVIEW_LABEL" \
+            '{
+              event: $event,
+              label: (if $label == "" then null else $label end),
+              draft: $draft,
+              headRef: $headRef,
+              headSha: $headSha,
+              headTree: $headTree,
+              devTree: (if $devTree == "" then null else $devTree end),
+              stateComments: $stateComments,
+              changedSinceLast: $changedSinceLast,
+              maxAutoRounds: $maxAutoRounds,
+              reReviewLabel: $reReviewLabel
+            }')
+          export GATE_INPUT
+          decision=$(bun scripts/review-gate.ts decide)
+          {
+            echo "### PR review gate"
+            echo
+            echo "- event: \`${EVENT_ACTION}\` head: \`${HEAD_SHA}\`"
+            echo "- decision: $(printf '%s' "$decision" | tr '\n' ' ')"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   review:
     name: review
-    if: github.event.pull_request.draft == false
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -25,57 +123,166 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Consume the re-review label
+        if: github.event.action == 'labeled'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh api -X DELETE "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels/${RE_REVIEW_LABEL}" \
+            >/dev/null 2>&1 || true
+
+      # Reviewing a red head wastes the run (the author is about to push a
+      # lint/type fix) and lets the reviewer comment on failures CI already
+      # reports. While this loop waits, a new push cancels the whole run
+      # cheaply through the concurrency group.
+      - name: Wait for the ci check on this head
+        id: ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          deadline=$(( $(date +%s) + CI_WAIT_MINUTES * 60 ))
+          state=timeout
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            line=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/check-runs?check_name=${CI_CHECK_NAME}&filter=latest" \
+              --jq '.check_runs[0] | "\(.status // "none") \(.conclusion // "none")"' 2>/dev/null || echo "none none")
+            status=${line% *}
+            conclusion=${line#* }
+            if [ "$status" = "completed" ]; then
+              if [ "$conclusion" = "success" ]; then state=success; else state=$conclusion; fi
+              break
+            fi
+            sleep 30
+          done
+          echo "state=${state}" >> "$GITHUB_OUTPUT"
+          echo "ci check '${CI_CHECK_NAME}' on ${HEAD_SHA}: ${state}"
+          if [ "$state" != "success" ]; then
+            echo "- review skipped: ci check is \`${state}\` on \`${HEAD_SHA}\`; the next code push re-evaluates" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: oven-sh/setup-bun@v2
+        if: steps.ci.outputs.state == 'success'
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        if: steps.ci.outputs.state == 'success'
+        run: bun install --frozen-lockfile
+
       - name: Claude review
         id: claude_review
+        if: steps.ci.outputs.state == 'success'
         uses: anthropics/claude-code-action@v1
+        env:
+          CLAUDE_CODE_DISABLE_FAST_MODE: "1"
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # track_progress lets the action itself create a single tracking comment
-          # on the PR and keep it updated with the review results. Posting is handled
-          # by the action (using GITHUB_TOKEN), not by Claude — so a summary comment
-          # is always posted. The previous approach made Claude write
-          # /tmp/review-summary.md and a later step posted it, which silently skipped
-          # the comment whenever Claude did not produce the file.
+          # The action creates and updates one tracking comment per run from
+          # Claude's final message; Claude must not post the summary itself.
           track_progress: true
+          # The repo Stop hook (ultracite fix + vitest --changed + check-rules)
+          # is for authoring sessions; in a review it only burns runner time.
+          settings: '{"disableAllHooks": true}'
+          # The review itself lives in .claude/skills/pr-review/SKILL.md so it
+          # can be run locally (`/pr-review full`) and evaluated offline; the
+          # workflow only passes the mode, the diff range and the round.
           prompt: |
-            /review
+            /pr-review ${{ needs.gate.outputs.mode }} --range origin/${{ github.event.pull_request.base.ref }}...HEAD --since ${{ needs.gate.outputs.since_sha }} --round ${{ needs.gate.outputs.round }} --max ${{ env.MAX_AUTO_ROUNDS }} --pr ${{ github.event.pull_request.number }} --post
 
-            Post specific issues as inline comments on the relevant lines. End the
-            session with a Markdown summary of your findings grouped by severity, or,
-            if there were none, a short confirmation that the review passed with no
-            problems (e.g. "LGTM" with a brief summary).
-
-            The tracking comment on this PR is created and updated automatically from
-            this session, so do NOT run `gh pr comment` to post the top-level summary
-            yourself — just make the summary your final message.
-          # max-turns is a runaway guard, not a budget: a run that stops at the
-          # cap still costs ~$3.5 and produces nothing (SA2-216 / PR #576 hit it
-          # three times in a row), so it is cheaper to let a real review finish.
-          #
-          # allowedTools additions — every tool Claude reaches for that is not
-          # listed here is denied, and each denial burns a turn:
-          #   Skill        the prompt above is literally `/review`; without this
-          #                the skill can never load and Claude re-improvises the
-          #                whole review by hand.
-          #   Task / Agent subagent fan-out costs the main loop one turn per
-          #                delegated pass. The tool was renamed across CLI
-          #                versions, so allow both names.
-          #   TodoWrite    the review flow tracks its own progress with it.
-          #   git / rg     local history and search, instead of paying an API
-          #                round trip through `gh` for the same information.
-          # The action itself already grants Glob/Grep/LS/Read, the
-          # mcp__github_ci__* CI tools and its git commit/push wrappers.
-          # `gh api` is deliberately NOT allowed: the PR diff is untrusted input
-          # and the job's token can write to pull requests.
+            The tracking comment on this PR is created from your final message; do not post the
+            summary yourself. Every inline comment goes through the inline-comment tool.
+          # max-turns is a runaway guard, not a budget (a truncated run still
+          # costs the tokens and produces nothing). allowedTools: everything
+          # else is denied and each denial burns a turn. Skill loads
+          # /pr-review; Task/Agent are disabled for the single-reviewer flow.
+          # `gh api` stays out because the diff is untrusted input and the
+          # token can write to PRs; thread resolution happens in the shell
+          # step below, from the machine-readable trailer of the summary.
           claude_args: |
             --max-turns 80
             --model opus
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Skill,Task,Agent,TodoWrite,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git merge-base:*),Bash(rg:*)"
+            --effort medium
+            --disallowedTools "Task,Agent"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Skill,TodoWrite,ReportFindings,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git merge-base:*),Bash(rg:*),Bash(bunx vitest run:*),Bash(bunx vitest related:*),Bash(bun run check-types),Bash(bun run check:rules),Bash(bun run lint),Bash(bun x ultracite check:*)"
+
+      # claude-code-action refuses to run (outcome still `success`, no
+      # execution log) on a PR whose copy of this file differs from the
+      # default branch's. A run that never reviewed must not spend a round.
+      - name: Record the round
+        if: steps.claude_review.outcome == 'success' && steps.claude_review.outputs.execution_file != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          ROUNDS: ${{ needs.gate.outputs.round }}
+          LAST_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          bun scripts/review-gate.ts render-state > "${RUNNER_TEMP}/review-state.md"
+          existing=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
+            --jq '.[] | select(.body | startswith("<!-- pre-merge-review:state")) | .id' | tail -n 1 || true)
+          if [ -n "$existing" ]; then
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${existing}" \
+              -F "body=@${RUNNER_TEMP}/review-state.md" >/dev/null
+          else
+            gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+              -F "body=@${RUNNER_TEMP}/review-state.md" >/dev/null
+          fi
+
+      # The summary ends with `<!-- pr-review: {...,"resolved":["path:line"]} -->`.
+      # Threads the reviewer judged fixed are resolved here, by path and
+      # original line, so the reviewer itself never needs `gh api`.
+      - name: Resolve threads the review marked as fixed
+        if: steps.claude_review.outcome == 'success' && steps.claude_review.outputs.execution_file != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXECUTION_FILE: ${{ steps.claude_review.outputs.execution_file }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          log_file="$EXECUTION_FILE"
+          [ -f "$log_file" ] || log_file="${RUNNER_TEMP}/claude-execution-output.json"
+          [ -f "$log_file" ] || { echo "no execution log; nothing to resolve"; exit 0; }
+          trailer=$(jq -rs '[.. | objects | select(.type == "result")] | last | .result // ""' "$log_file" \
+            | grep -o '<!-- pr-review: {.*} -->' | tail -n 1 | sed -e 's/^<!-- pr-review: //' -e 's/ -->$//' || true)
+          if [ -z "$trailer" ]; then echo "no pr-review trailer in the summary"; exit 0; fi
+          echo "trailer: $trailer"
+          resolved=$(printf '%s' "$trailer" | jq -r '.resolved // [] | .[]')
+          [ -n "$resolved" ] || { echo "nothing marked fixed"; exit 0; }
+          owner=${GITHUB_REPOSITORY%/*}; repo=${GITHUB_REPOSITORY#*/}
+          threads=$(gh api graphql -f query='
+            query($owner: String!, $repo: String!, $pr: Int!) {
+              repository(owner: $owner, name: $repo) { pullRequest(number: $pr) {
+                reviewThreads(first: 100) { nodes {
+                  id isResolved path line originalLine
+                  comments(first: 1) { nodes { author { login } } }
+                } } } } }' -F owner="$owner" -F repo="$repo" -F pr="$PR_NUMBER" \
+            --jq '.data.repository.pullRequest.reviewThreads.nodes[]
+              | select(.isResolved == false)
+              | select(.comments.nodes[0].author.login | test("claude"))
+              | "\(.id) \(.path):\(.originalLine // .line)"')
+          while read -r key; do
+            [ -n "$key" ] || continue
+            printf '%s\n' "$threads" | while read -r id loc; do
+              if [ "$loc" = "$key" ]; then
+                gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: {threadId: $id}) { thread { id } } }' -F id="$id" >/dev/null \
+                  && echo "resolved $loc"
+              fi
+            done
+          done <<< "$resolved"
+
+      - name: Report a review the action skipped
+        if: steps.claude_review.outcome == 'success' && steps.claude_review.outputs.execution_file == ''
+        run: |
+          {
+            echo "### 自動レビューは実行されませんでした"
+            echo
+            echo "claude-code-action がレビューを開始しませんでした（このワークフローファイルが既定ブランチと異なる PR では、action 側の検証で実行が省略されます）。ラウンドは消費していません。"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # Hitting the turn cap leaves the tracking comment as an empty checklist
       # with no verdict, which reads exactly like "the review found nothing".
-      # Say out loud that the run was cut short so the empty summary is not
-      # mistaken for a pass.
       - name: Report truncated review
         if: failure() && steps.claude_review.outcome == 'failure'
         env:
@@ -89,10 +296,6 @@ jobs:
             log_file="${RUNNER_TEMP}/claude-execution-output.json"
           fi
 
-          # The execution log is a stream of JSON messages; the final `result`
-          # entry carries the subtype (`success`, `error_max_turns`, ...).
-          # `-s` plus recursive descent reads it whether the file is one JSON
-          # array or newline-delimited objects, and always yields a single line.
           subtype=""
           if [ -f "$log_file" ]; then
             subtype=$(jq -rs '[.. | objects | select(.type == "result")] | last | .subtype // empty' "$log_file" 2>/dev/null || true)
@@ -119,7 +322,6 @@ jobs:
             printf '\n[View job run](%s)\n' "$RUN_URL"
           } > "${RUNNER_TEMP}/review-truncated.md"
 
-          # Refresh the existing notice instead of stacking one per push.
           existing=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
             --jq '.[] | select(.body | startswith("<!-- pre-merge-review:truncated -->")) | .id' | tail -n 1 || true)
 

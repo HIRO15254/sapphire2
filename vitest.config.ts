@@ -11,6 +11,7 @@ export default defineConfig({
 			"packages/db/vitest.config.ts",
 			"packages/mcp/vitest.config.ts",
 			"packages/env/vitest.config.ts",
+			"scripts/vitest.config.ts",
 			"testing/vitest.config.ts",
 		],
 		coverage: {
