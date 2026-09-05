@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { trpcKeys } from "@/__tests__/trpc-keys";
 
 function buildKey(namespace: string, procedure: string, input: unknown) {
 	return input === undefined
@@ -64,7 +65,8 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 			list: {
-				queryKey: () => ["session", "list"],
+				queryKey: () => trpcKeys.session.list.queryKey(),
+				pathKey: () => trpcKeys.session.list.pathKey(),
 			},
 		},
 	},

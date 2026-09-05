@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { trpcKeys } from "@/__tests__/trpc-keys";
 import { AssignRingGameDialog } from "@/features/live-sessions/components/assign-ring-game-dialog/assign-ring-game-dialog";
 
 const ASSIGN_BUTTON_RE = /^Assign$/;
@@ -58,6 +59,7 @@ vi.mock("@/utils/trpc", () => ({
 				queryOptions: (input: unknown) => ({
 					queryKey: buildKey("session", "list", input),
 				}),
+				pathKey: () => trpcKeys.session.list.pathKey(),
 			},
 		},
 	},
