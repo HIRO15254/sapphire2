@@ -207,8 +207,11 @@ jobs:
             --disallowedTools "Task,Agent"
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Skill,TodoWrite,ReportFindings,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git merge-base:*),Bash(rg:*),Bash(bunx vitest run:*),Bash(bunx vitest related:*),Bash(bun run check-types),Bash(bun run check:rules),Bash(bun run lint),Bash(bun x ultracite check:*)"
 
+      # claude-code-action refuses to run (outcome still `success`, no
+      # execution log) on a PR whose copy of this file differs from the
+      # default branch's. A run that never reviewed must not spend a round.
       - name: Record the round
-        if: steps.claude_review.outcome == 'success'
+        if: steps.claude_review.outcome == 'success' && steps.claude_review.outputs.execution_file != ''
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -231,7 +234,7 @@ jobs:
       # Threads the reviewer judged fixed are resolved here, by path and
       # original line, so the reviewer itself never needs `gh api`.
       - name: Resolve threads the review marked as fixed
-        if: steps.claude_review.outcome == 'success'
+        if: steps.claude_review.outcome == 'success' && steps.claude_review.outputs.execution_file != ''
         env:
           GH_TOKEN: ${{ github.token }}
           EXECUTION_FILE: ${{ steps.claude_review.outputs.execution_file }}
@@ -268,6 +271,15 @@ jobs:
               fi
             done
           done <<< "$resolved"
+
+      - name: Report a review the action skipped
+        if: steps.claude_review.outcome == 'success' && steps.claude_review.outputs.execution_file == ''
+        run: |
+          {
+            echo "### 自動レビューは実行されませんでした"
+            echo
+            echo "claude-code-action がレビューを開始しませんでした（このワークフローファイルが既定ブランチと異なる PR では、action 側の検証で実行が省略されます）。ラウンドは消費していません。"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # Hitting the turn cap leaves the tracking comment as an empty checklist
       # with no verdict, which reads exactly like "the review found nothing".
