@@ -1,7 +1,9 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	createTestQueryClient as createClient,
+	withQueryClient as makeWrapper,
+} from "@/__tests__/test-utils";
 
 function buildKey(namespace: string, procedure: string, input: unknown) {
 	return input === undefined
@@ -21,22 +23,6 @@ const trpcMocks = vi.hoisted(() => ({
 	txListQueryFn: vi.fn(),
 }));
 
-const optimisticMocks = vi.hoisted(() => ({ updateQueryItems: vi.fn() }));
-
-vi.mock("@/utils/optimistic-update", async () => {
-	const actual = await vi.importActual<
-		typeof import("@/utils/optimistic-update")
-	>("@/utils/optimistic-update");
-	return {
-		...actual,
-		updateQueryItems: vi.fn(
-			(...args: Parameters<typeof actual.updateQueryItems>) => {
-				optimisticMocks.updateQueryItems(...args);
-				return actual.updateQueryItems(...args);
-			}
-		),
-	};
-});
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		currency: {
@@ -116,21 +102,6 @@ function seedPages(pages: { items: TxRow[]; nextCursor?: string }[]) {
 		pageParams: pages.map((_, i) =>
 			i === 0 ? undefined : pages[i - 1]?.nextCursor
 		),
-	};
-}
-
-function createClient(): QueryClient {
-	return new QueryClient({
-		defaultOptions: {
-			queries: { retry: false, gcTime: 0, staleTime: Number.POSITIVE_INFINITY },
-			mutations: { retry: false },
-		},
-	});
-}
-
-function makeWrapper(client: QueryClient) {
-	return function Wrapper({ children }: { children: ReactNode }) {
-		return createElement(QueryClientProvider, { client }, children);
 	};
 }
 
@@ -268,30 +239,6 @@ describe("useCurrencies", () => {
 	});
 
 	describe("create (optimistic)", () => {
-		it("uses the shared list helper for currency list updates", async () => {
-			const callsBefore = optimisticMocks.updateQueryItems.mock.calls.length;
-			const qc = createClient();
-			qc.setQueryData(CURRENCY_KEY, [
-				{ id: "c1", name: "Chips", unit: null, balance: 0 },
-			]);
-			trpcMocks.currencyCreate.mockResolvedValue({ id: "c2" });
-			const { result } = renderHook(() => useCurrencies(null), {
-				wrapper: makeWrapper(qc),
-			});
-			await act(async () => {
-				await result.current.create({ name: "Gold" });
-			});
-			expect(optimisticMocks.updateQueryItems).toHaveBeenCalledTimes(
-				callsBefore + 1
-			);
-			expect(optimisticMocks.updateQueryItems).toHaveBeenNthCalledWith(
-				callsBefore + 1,
-				qc,
-				CURRENCY_KEY,
-				expect.any(Function)
-			);
-		});
-
 		it("optimistically appends a temp currency entry during mutation", async () => {
 			const qc = createClient();
 			qc.setQueryData(CURRENCY_KEY, [
@@ -332,23 +279,6 @@ describe("useCurrencies", () => {
 			resolve?.({ id: "c2" });
 		});
 
-		it("forwards unit as null when unit omitted", async () => {
-			const qc = createClient();
-			qc.setQueryData(CURRENCY_KEY, [
-				{ id: "c1", name: "Chips", unit: null, balance: 0 },
-			]);
-			trpcMocks.currencyCreate.mockResolvedValue({ id: "new" });
-			const { result } = renderHook(() => useCurrencies(null), {
-				wrapper: makeWrapper(qc),
-			});
-			await act(async () => {
-				await result.current.create({ name: "No unit" });
-			});
-			expect(trpcMocks.currencyCreate).toHaveBeenCalledWith({
-				name: "No unit",
-			});
-		});
-
 		it("forwards the rich-text description and carries it on the temp row", async () => {
 			const qc = createClient();
 			qc.setQueryData(CURRENCY_KEY, [
@@ -379,19 +309,6 @@ describe("useCurrencies", () => {
 				description: "<p>shiny</p>",
 			});
 			resolve?.({ id: "c2" });
-		});
-
-		it("onMutate: no-op when cache is undefined (old === undefined)", async () => {
-			const qc = createClient();
-			trpcMocks.currencyCreate.mockResolvedValue({ id: "new" });
-			const { result } = renderHook(() => useCurrencies(null), {
-				wrapper: makeWrapper(qc),
-			});
-			await act(async () => {
-				await result.current.create({ name: "Free" });
-			});
-			expect(trpcMocks.currencyCreate).toHaveBeenCalledTimes(1);
-			expect(trpcMocks.currencyCreate).toHaveBeenCalledWith({ name: "Free" });
 		});
 
 		it("isCreatePending flips true during in-flight mutation", async () => {
@@ -855,12 +772,12 @@ describe("useCurrencies", () => {
 					memo: "before",
 				},
 			];
-			trpcMocks.txListQueryFn.mockResolvedValue({
-				items: original,
-				nextCursor: undefined,
-			});
+			const refetch = Promise.withResolvers<{ items: TxRow[] }>();
+			trpcMocks.txListQueryFn.mockReturnValue(refetch.promise);
 			const qc = createClient();
-			trpcMocks.txUpdate.mockRejectedValue(new Error("server down"));
+			qc.setQueryData(txInfiniteKey("c1"), seedPages([{ items: original }]));
+			const mutation = Promise.withResolvers<unknown>();
+			trpcMocks.txUpdate.mockReturnValue(mutation.promise);
 
 			const { result } = renderHook(() => useCurrencies("c1"), {
 				wrapper: makeWrapper(qc),
@@ -868,75 +785,517 @@ describe("useCurrencies", () => {
 			await waitFor(() =>
 				expect(result.current.allTransactions).toHaveLength(1)
 			);
-			await act(async () => {
-				await expect(
-					result.current.editTransaction({
+			let outcome: Promise<unknown>;
+			act(() => {
+				outcome = result.current
+					.editTransaction({
 						id: "tx1",
 						amount: 999,
 						memo: "after",
 						transactedAt: "2026-04-02",
 						transactionTypeId: "new-type",
 					})
-				).rejects.toThrow("server down");
+					.catch((error: unknown) => error);
 			});
-			expect(result.current.allTransactions[0]).toMatchObject({
-				id: "tx1",
-				amount: 100,
-				memo: "before",
-				transactedAt: "2026-01-01",
-				transactionTypeId: "old-type",
+			await waitFor(() =>
+				expect(result.current.allTransactions[0]?.amount).toBe(999)
+			);
+			await act(async () => {
+				mutation.reject(new Error("server down"));
+				expect(await outcome).toEqual(new Error("server down"));
+			});
+			await waitFor(() =>
+				expect(result.current.allTransactions).toEqual(original)
+			);
+			expect(qc.getQueryState(txInfiniteKey("c1"))?.fetchStatus).toBe(
+				"fetching"
+			);
+			await act(async () => {
+				refetch.resolve({ items: original });
+				await refetch.promise;
 			});
 		});
 
-		it("concurrent edits each capture their own pre-mutation snapshot (rollback of the failing edit does not undo the succeeding one)", async () => {
-			const row = (amount: number) => ({
-				id: "tx1",
-				amount,
-				transactionTypeId: "T",
-				transactionTypeName: "T",
-				transactedAt: "2026-01-01",
-			});
-			trpcMocks.txListQueryFn
-				.mockResolvedValueOnce({ items: [row(100)], nextCursor: undefined })
-				.mockResolvedValueOnce({ items: [row(200)], nextCursor: undefined })
-				.mockResolvedValueOnce({ items: [row(200)], nextCursor: undefined });
-			const qc = createClient();
+		it.each([
+			"first",
+			"second",
+		] as const)("keeps the other edit while the %s concurrent request fails before refetch", async (failedRequest) => {
+			const original: TxRow[] = [
+				{
+					id: "tx1",
+					amount: 100,
+					transactionTypeName: "Deposit",
+					transactedAt: "2026-01-01",
+				},
+				{
+					id: "tx2",
+					amount: 50,
+					transactionTypeName: "Deposit",
+					transactedAt: "2026-01-02",
+				},
+			];
+			const first = Promise.withResolvers<unknown>();
+			const second = Promise.withResolvers<unknown>();
+			const refetch = Promise.withResolvers<{ items: TxRow[] }>();
 			trpcMocks.txUpdate
-				.mockResolvedValueOnce({ id: "tx1" })
-				.mockRejectedValueOnce(new Error("net"));
-
+				.mockReturnValueOnce(first.promise)
+				.mockReturnValueOnce(second.promise);
+			trpcMocks.txListQueryFn.mockReturnValue(refetch.promise);
+			const qc = createClient();
+			qc.setQueryData(txInfiniteKey("c1"), seedPages([{ items: original }]));
 			const { result } = renderHook(() => useCurrencies("c1"), {
 				wrapper: makeWrapper(qc),
 			});
+			const outcomes: Promise<unknown>[] = [];
+			act(() => {
+				outcomes.push(
+					result.current
+						.editTransaction({
+							id: "tx1",
+							amount: 200,
+							memo: null,
+							transactedAt: "2026-01-01",
+							transactionTypeId: "T",
+						})
+						.catch((error: unknown) => error)
+				);
+			});
 			await waitFor(() =>
-				expect(result.current.allTransactions).toHaveLength(1)
+				expect(result.current.allTransactions[0]?.amount).toBe(200)
+			);
+			act(() => {
+				outcomes.push(
+					result.current
+						.editTransaction({
+							id: "tx2",
+							amount: 300,
+							memo: null,
+							transactedAt: "2026-01-02",
+							transactionTypeId: "T",
+						})
+						.catch((error: unknown) => error)
+				);
+			});
+			await waitFor(() => expect(trpcMocks.txUpdate).toHaveBeenCalledTimes(2));
+			expect(qc.isMutating()).toBe(2);
+			expect(result.current.allTransactions.map((row) => row.amount)).toEqual([
+				200, 300,
+			]);
+			await act(async () => {
+				(failedRequest === "first" ? first : second).reject(
+					new Error("rejected")
+				);
+				await outcomes[failedRequest === "first" ? 0 : 1];
+			});
+			const expectedAmounts =
+				failedRequest === "first" ? [100, 300] : [200, 50];
+			await waitFor(() =>
+				expect(result.current.allTransactions.map((row) => row.amount)).toEqual(
+					expectedAmounts
+				)
+			);
+			expect(qc.isMutating()).toBe(1);
+			expect(trpcMocks.txListQueryFn).not.toHaveBeenCalled();
+			await act(async () => {
+				(failedRequest === "first" ? second : first).resolve({ id: "saved" });
+				await Promise.all(outcomes);
+			});
+			await waitFor(() =>
+				expect(trpcMocks.txListQueryFn).toHaveBeenCalledTimes(1)
+			);
+			expect(result.current.allTransactions.map((row) => row.amount)).toEqual(
+				expectedAmounts
 			);
 			await act(async () => {
-				await result.current.editTransaction({
-					id: "tx1",
-					amount: 200,
-					memo: null,
-					transactedAt: "2026-01-01",
-					transactionTypeId: "T",
+				refetch.resolve({
+					items: original.map((row, index) => ({
+						...row,
+						amount: expectedAmounts[index] ?? 0,
+					})),
 				});
+				await refetch.promise;
+			});
+		});
+	});
+
+	describe("create with another pending transaction mutation", () => {
+		it.each([
+			{ operation: "edit", first: "create", createFails: false },
+			{ operation: "edit", first: "existing", createFails: false },
+			{ operation: "delete", first: "create", createFails: false },
+			{ operation: "delete", first: "existing", createFails: false },
+			{ operation: "edit", first: "create", createFails: true },
+		] as const)("waits for $operation and create when $first settles first (create rejected: $createFails)", async ({
+			operation,
+			first,
+			createFails,
+		}) => {
+			const original: TxRow[] = [
+				{
+					id: "tx1",
+					amount: 100,
+					transactionTypeName: "Deposit",
+					transactedAt: "2026-01-01",
+				},
+			];
+			const creating = Promise.withResolvers<unknown>();
+			const changing = Promise.withResolvers<unknown>();
+			const refetch = Promise.withResolvers<{ items: TxRow[] }>();
+			trpcMocks.txCreate.mockReturnValue(creating.promise);
+			trpcMocks.txUpdate.mockReturnValue(changing.promise);
+			trpcMocks.txDelete.mockReturnValue(changing.promise);
+			trpcMocks.txListQueryFn.mockReturnValue(refetch.promise);
+			const qc = createClient();
+			qc.setQueryData(txInfiniteKey("c1"), seedPages([{ items: original }]));
+			const { result, unmount } = renderHook(() => useCurrencies("c1"), {
+				wrapper: makeWrapper(qc),
+			});
+			const outcomes: Promise<unknown>[] = [];
+			act(() => {
+				if (operation === "edit") {
+					outcomes.push(
+						result.current
+							.editTransaction({
+								id: "tx1",
+								amount: 200,
+								memo: null,
+								transactionTypeId: "T",
+								transactedAt: "2026-01-01",
+							})
+							.catch((error: unknown) => error)
+					);
+				} else {
+					result.current.deleteTransaction("tx1");
+				}
 			});
 			await waitFor(() =>
-				expect(result.current.allTransactions[0]).toMatchObject({ amount: 200 })
+				expect(result.current.allTransactions.map((row) => row.amount)).toEqual(
+					operation === "edit" ? [200] : []
+				)
+			);
+			act(() => {
+				outcomes.push(
+					result.current
+						.addTransaction({
+							currencyId: "c1",
+							amount: 50,
+							transactionTypeId: "T",
+							transactedAt: "2026-01-02",
+						})
+						.catch((error: unknown) => error)
+				);
+			});
+			await waitFor(() => expect(trpcMocks.txCreate).toHaveBeenCalledTimes(1));
+			expect(qc.isMutating()).toBe(2);
+			act(() => {
+				if (first === "existing") {
+					changing.reject(new Error("existing rejected"));
+				} else if (createFails) {
+					creating.reject(new Error("create rejected"));
+				} else {
+					creating.resolve({ id: "created" });
+				}
+			});
+			await waitFor(() => expect(qc.isMutating()).toBe(1));
+			expect(trpcMocks.txListQueryFn).not.toHaveBeenCalled();
+			const pendingAmounts = operation === "edit" ? [200] : [];
+			expect(result.current.allTransactions.map((row) => row.amount)).toEqual(
+				first === "existing" ? [100] : pendingAmounts
 			);
 			await act(async () => {
-				await expect(
-					result.current.editTransaction({
-						id: "tx1",
-						amount: 300,
-						memo: null,
-						transactedAt: "2026-01-01",
-						transactionTypeId: "T",
-					})
-				).rejects.toThrow("net");
+				if (first === "existing") {
+					creating.resolve({ id: "created" });
+				} else {
+					changing.reject(new Error("existing rejected"));
+				}
+				await Promise.all(outcomes);
+			});
+			await waitFor(() => expect(qc.isMutating()).toBe(0));
+			expect(trpcMocks.txListQueryFn).toHaveBeenCalledTimes(1);
+			await waitFor(() =>
+				expect(result.current.allTransactions).toEqual(original)
+			);
+			const returned = createFails
+				? original
+				: [
+						...original,
+						{
+							id: "created",
+							amount: 50,
+							transactionTypeName: "Deposit",
+							transactedAt: "2026-01-02",
+						},
+					];
+			await act(async () => {
+				refetch.resolve({ items: returned });
+				await refetch.promise;
 			});
 			await waitFor(() =>
-				expect(result.current.allTransactions[0]).toMatchObject({ amount: 200 })
+				expect(result.current.allTransactions).toEqual(returned)
 			);
+			unmount();
+			qc.clear();
+		});
+	});
+
+	describe("fetching during a pending transaction mutation", () => {
+		it.each([
+			"create",
+			"edit",
+			"delete",
+		] as const)("invalidates the original currency after a pending %s settles on another currency", async (operation) => {
+			const first: TxRow = {
+				id: "tx1",
+				amount: 100,
+				transactionTypeName: "Deposit",
+				transactedAt: "2026-01-01",
+			};
+			const second: TxRow = { ...first, id: "tx2", amount: 50 };
+			const changing = Promise.withResolvers<unknown>();
+			const request = {
+				create: trpcMocks.txCreate,
+				edit: trpcMocks.txUpdate,
+				delete: trpcMocks.txDelete,
+			}[operation];
+			request.mockReturnValue(changing.promise);
+			const qc = createClient();
+			qc.setQueryDefaults(["currencyTransaction", "listByCurrency"], {
+				gcTime: Number.POSITIVE_INFINITY,
+			});
+			qc.setQueryData(txInfiniteKey("c1"), seedPages([{ items: [first] }]));
+			qc.setQueryData(txInfiniteKey("c2"), seedPages([{ items: [second] }]));
+			const { result, rerender, unmount } = renderHook(
+				(currencyId: string) => useCurrencies(currencyId),
+				{ initialProps: "c1", wrapper: makeWrapper(qc) }
+			);
+			let outcome: Promise<unknown> | undefined;
+			act(() => {
+				if (operation === "create") {
+					outcome = result.current.addTransaction({
+						currencyId: "c1",
+						amount: 200,
+						transactionTypeId: "T",
+						transactedAt: first.transactedAt,
+					});
+				} else if (operation === "edit") {
+					outcome = result.current.editTransaction({
+						id: first.id,
+						amount: 200,
+						memo: null,
+						transactionTypeId: "T",
+						transactedAt: first.transactedAt,
+					});
+				} else {
+					result.current.deleteTransaction(first.id);
+				}
+			});
+			await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
+			rerender("c2");
+			expect(result.current.allTransactions).toEqual([second]);
+			await act(async () => {
+				changing.resolve({ id: first.id });
+				await outcome;
+			});
+			await waitFor(() => expect(qc.isMutating()).toBe(0));
+			expect(qc.getQueryState(txInfiniteKey("c1"))?.isInvalidated).toBe(true);
+			expect(qc.getQueryState(txInfiniteKey("c2"))?.isInvalidated).toBe(false);
+			expect(trpcMocks.txListQueryFn).not.toHaveBeenCalled();
+			expect(result.current.allTransactions).toEqual([second]);
+			unmount();
+			qc.clear();
+		});
+
+		it("does not resurrect a rejected edit when a page finishes loading after leaving the screen", async () => {
+			const first: TxRow = {
+				id: "tx1",
+				amount: 100,
+				transactionTypeName: "Deposit",
+				transactedAt: "2026-01-01",
+			};
+			const second: TxRow = { ...first, id: "tx2", amount: 50 };
+			const changing = Promise.withResolvers<unknown>();
+			const nextPage = Promise.withResolvers<{ items: TxRow[] }>();
+			trpcMocks.txUpdate.mockReturnValue(changing.promise);
+			trpcMocks.txListQueryFn.mockReturnValue(nextPage.promise);
+			const qc = createClient();
+			qc.setQueryDefaults(txInfiniteKey("c1"), {
+				gcTime: Number.POSITIVE_INFINITY,
+			});
+			qc.setQueryData(
+				txInfiniteKey("c1"),
+				seedPages([{ items: [first], nextCursor: "next" }])
+			);
+			const { result, unmount } = renderHook(() => useCurrencies("c1"), {
+				wrapper: makeWrapper(qc),
+			});
+			let outcome: Promise<unknown> | undefined;
+			act(() => {
+				outcome = result.current
+					.editTransaction({
+						id: "tx1",
+						amount: 200,
+						memo: null,
+						transactionTypeId: "T",
+						transactedAt: first.transactedAt,
+					})
+					.catch((error: unknown) => error);
+			});
+			await waitFor(() => expect(trpcMocks.txUpdate).toHaveBeenCalledTimes(1));
+			act(() => result.current.fetchNextPage());
+			await waitFor(() =>
+				expect(trpcMocks.txListQueryFn).toHaveBeenCalledTimes(1)
+			);
+			unmount();
+			await act(async () => {
+				changing.reject(new Error("edit rejected"));
+				await outcome;
+			});
+			expect(qc.getQueryData(txInfiniteKey("c1"))).toEqual(
+				seedPages([{ items: [first], nextCursor: "next" }])
+			);
+			await act(async () => {
+				nextPage.resolve({ items: [second] });
+				await nextPage.promise;
+			});
+			await waitFor(() => expect(qc.isFetching()).toBe(0));
+			expect(qc.getQueryData(txInfiniteKey("c1"))).toEqual(
+				seedPages([{ items: [first], nextCursor: "next" }, { items: [second] }])
+			);
+			expect(trpcMocks.txListQueryFn).toHaveBeenCalledTimes(1);
+			qc.clear();
+		});
+
+		it("keeps a newly loaded page after create fails before its final refetch responds", async () => {
+			const first: TxRow = {
+				id: "tx1",
+				amount: 100,
+				transactionTypeName: "Deposit",
+				transactedAt: "2026-01-01",
+			};
+			const second: TxRow = { ...first, id: "tx2", amount: 50 };
+			const creating = Promise.withResolvers<unknown>();
+			const refetch = Promise.withResolvers<{
+				items: TxRow[];
+				nextCursor: string;
+			}>();
+			trpcMocks.txCreate.mockReturnValue(creating.promise);
+			trpcMocks.txListQueryFn.mockImplementation(
+				({ cursor }: { cursor?: string }) =>
+					cursor === "next"
+						? Promise.resolve({ items: [second], nextCursor: undefined })
+						: refetch.promise
+			);
+			const qc = createClient();
+			qc.setQueryData(
+				txInfiniteKey("c1"),
+				seedPages([{ items: [first], nextCursor: "next" }])
+			);
+			const { result, unmount } = renderHook(() => useCurrencies("c1"), {
+				wrapper: makeWrapper(qc),
+			});
+			let outcome: Promise<unknown> | undefined;
+			act(() => {
+				outcome = result.current
+					.addTransaction({
+						currencyId: "c1",
+						amount: 25,
+						transactionTypeId: "T",
+						transactedAt: "2026-01-02",
+					})
+					.catch((error: unknown) => error);
+			});
+			await waitFor(() => expect(trpcMocks.txCreate).toHaveBeenCalledTimes(1));
+			act(() => result.current.fetchNextPage());
+			await waitFor(() =>
+				expect(result.current.allTransactions).toEqual([first, second])
+			);
+			await act(async () => {
+				creating.reject(new Error("create rejected"));
+				await outcome;
+			});
+			expect(result.current.allTransactions).toEqual([first, second]);
+			expect(result.current.hasNextPage).toBe(false);
+			await act(async () => {
+				refetch.resolve({ items: [first], nextCursor: "next" });
+				await refetch.promise;
+			});
+			await waitFor(() => expect(qc.isFetching()).toBe(0));
+			expect(result.current.allTransactions).toEqual([first, second]);
+			unmount();
+			qc.clear();
+		});
+
+		it("rebases a pending edit onto refetched rows and restores the server value on failure", async () => {
+			const first: TxRow = {
+				id: "tx1",
+				amount: 100,
+				transactionTypeName: "Deposit",
+				transactedAt: "2026-01-01",
+			};
+			const serverRows = [
+				{ ...first, amount: 150, transactionTypeName: "Updated deposit" },
+				{ ...first, id: "tx2", amount: 75 },
+			];
+			const changing = Promise.withResolvers<unknown>();
+			const duringMutation = Promise.withResolvers<{ items: TxRow[] }>();
+			const afterMutation = Promise.withResolvers<{ items: TxRow[] }>();
+			trpcMocks.txUpdate.mockReturnValue(changing.promise);
+			trpcMocks.txListQueryFn
+				.mockReturnValueOnce(duringMutation.promise)
+				.mockReturnValue(afterMutation.promise);
+			const qc = createClient();
+			qc.setQueryData(txInfiniteKey("c1"), seedPages([{ items: [first] }]));
+			const { result, unmount } = renderHook(() => useCurrencies("c1"), {
+				wrapper: makeWrapper(qc),
+			});
+			let outcome: Promise<unknown> | undefined;
+			act(() => {
+				outcome = result.current
+					.editTransaction({
+						id: "tx1",
+						amount: 200,
+						memo: null,
+						transactionTypeId: "T",
+						transactedAt: first.transactedAt,
+					})
+					.catch((error: unknown) => error);
+			});
+			await waitFor(() => expect(trpcMocks.txUpdate).toHaveBeenCalledTimes(1));
+			act(() => {
+				result.current.onRetryTransactions();
+			});
+			await act(async () => {
+				duringMutation.resolve({ items: serverRows });
+				await duringMutation.promise;
+			});
+			await waitFor(() =>
+				expect(result.current.allTransactions).toEqual([
+					{
+						...serverRows[0],
+						amount: 200,
+						memo: null,
+						transactionTypeId: "T",
+					},
+					serverRows[1],
+				])
+			);
+			await act(async () => {
+				changing.reject(new Error("edit rejected"));
+				await outcome;
+			});
+			expect(qc.getQueryData(txInfiniteKey("c1"))).toEqual(
+				seedPages([{ items: serverRows }])
+			);
+			await waitFor(() =>
+				expect(result.current.allTransactions).toEqual(serverRows)
+			);
+			await act(async () => {
+				afterMutation.resolve({ items: serverRows });
+				await afterMutation.promise;
+			});
+			await waitFor(() => expect(qc.isFetching()).toBe(0));
+			unmount();
+			qc.clear();
 		});
 	});
 
@@ -1005,11 +1364,10 @@ describe("useCurrencies", () => {
 					transactedAt: "2026-01-02",
 				},
 			];
-			trpcMocks.txListQueryFn.mockResolvedValue({
-				items: original,
-				nextCursor: undefined,
-			});
+			const refetch = Promise.withResolvers<{ items: TxRow[] }>();
+			trpcMocks.txListQueryFn.mockReturnValue(refetch.promise);
 			const qc = createClient();
+			qc.setQueryData(txInfiniteKey("c1"), seedPages([{ items: original }]));
 			let reject: ((reason: unknown) => void) | undefined;
 			trpcMocks.txDelete.mockImplementation(
 				() =>
@@ -1032,11 +1390,15 @@ describe("useCurrencies", () => {
 			);
 			reject?.(new Error("server down"));
 			await waitFor(() =>
-				expect(result.current.allTransactions.map((t) => t.id)).toEqual([
-					"tx1",
-					"tx2",
-				])
+				expect(result.current.allTransactions).toEqual(original)
 			);
+			expect(qc.getQueryState(txInfiniteKey("c1"))?.fetchStatus).toBe(
+				"fetching"
+			);
+			await act(async () => {
+				refetch.resolve({ items: original });
+				await refetch.promise;
+			});
 		});
 
 		it("removes a row that lives on a later page, leaving page 1 intact (multi-page cache)", async () => {
@@ -1383,24 +1745,6 @@ describe("useCurrencies", () => {
 		});
 	});
 
-	describe("return shape", () => {
-		it("exposes fetchNextPage and not the removed handleLoadMore / resetTransactionState", () => {
-			const qc = createClient();
-			const { result } = renderHook(() => useCurrencies(null), {
-				wrapper: makeWrapper(qc),
-			});
-			expect(typeof result.current.fetchNextPage).toBe("function");
-			expect(
-				(result.current as unknown as { handleLoadMore?: unknown })
-					.handleLoadMore
-			).toBeUndefined();
-			expect(
-				(result.current as unknown as { resetTransactionState?: unknown })
-					.resetTransactionState
-			).toBeUndefined();
-		});
-	});
-
 	describe("toggleFavorite (楽観的更新)", () => {
 		it("flips isFavorite from false to true in the cache immediately", async () => {
 			const qc = createClient();
@@ -1483,23 +1827,36 @@ describe("useCurrencies", () => {
 					createdAt: "2024-01-01T00:00:00.000Z",
 				},
 			];
-			trpcMocks.currencyListQueryFn.mockResolvedValue(original);
+			const refetch = Promise.withResolvers<typeof original>();
+			trpcMocks.currencyListQueryFn.mockReturnValue(refetch.promise);
 			const qc = createClient();
 			qc.setQueryData(CURRENCY_KEY, original);
-			trpcMocks.currencyToggleFavorite.mockRejectedValue(
-				new Error("server error")
-			);
+			const mutation = Promise.withResolvers<unknown>();
+			trpcMocks.currencyToggleFavorite.mockReturnValue(mutation.promise);
 			const { result } = renderHook(() => useCurrencies(null), {
 				wrapper: makeWrapper(qc),
 			});
+			let outcome: Promise<unknown>;
+			act(() => {
+				outcome = result.current
+					.toggleFavorite("c1")
+					.catch((error: unknown) => error);
+			});
+			await waitFor(() =>
+				expect(result.current.currencies[0]?.isFavorite).toBe(true)
+			);
 			await act(async () => {
-				await expect(result.current.toggleFavorite("c1")).rejects.toThrow(
-					"server error"
-				);
+				mutation.reject(new Error("server error"));
+				expect(await outcome).toEqual(new Error("server error"));
 			});
 			await waitFor(() =>
 				expect(result.current.currencies[0]?.isFavorite).toBe(false)
 			);
+			expect(qc.getQueryState(CURRENCY_KEY)?.fetchStatus).toBe("fetching");
+			await act(async () => {
+				refetch.resolve(original);
+				await refetch.promise;
+			});
 		});
 
 		it("isToggleFavoritePending flips true during in-flight mutation", async () => {

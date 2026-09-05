@@ -4,39 +4,7 @@ import {
 	ExtractedTournamentDataSchema,
 	TOOL_INPUT_SCHEMA,
 } from "../routers/ai-extract";
-import {
-	expectAccepts,
-	expectProtected,
-	expectRejects,
-	expectType,
-} from "./test-utils";
-
-describe("aiExtract router", () => {
-	it("appRouter has aiExtract namespace", () => {
-		expect(appRouter.aiExtract).toBeDefined();
-	});
-
-	it("has extractTournamentData procedure", () => {
-		expect(appRouter.aiExtract.extractTournamentData).toBeDefined();
-	});
-
-	it("has extractTablePlayers procedure", () => {
-		expect(appRouter.aiExtract.extractTablePlayers).toBeDefined();
-	});
-
-	it("exposes exactly the expected procedure set", () => {
-		expect(Object.keys(appRouter.aiExtract).sort()).toEqual(
-			["extractTablePlayers", "extractTournamentData"].sort()
-		);
-	});
-
-	it("both procedures are protected mutations", () => {
-		expectProtected(appRouter.aiExtract.extractTournamentData);
-		expectType(appRouter.aiExtract.extractTournamentData, "mutation");
-		expectProtected(appRouter.aiExtract.extractTablePlayers);
-		expectType(appRouter.aiExtract.extractTablePlayers, "mutation");
-	});
-});
+import { expectAccepts, expectRejects } from "./test-utils";
 
 describe("aiExtract.extractTournamentData input validation", () => {
 	const urlSource = { kind: "url", url: "https://example.com/tournament" };

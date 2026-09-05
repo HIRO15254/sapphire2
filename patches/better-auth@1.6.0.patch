@@ -1,0 +1,17 @@
+diff --git a/dist/plugins/oidc-provider/index.mjs b/dist/plugins/oidc-provider/index.mjs
+index 5a281f0ea728b62ac4cc2dfb51a94054f5fd9976..c9452ac58331c460c3125a56c0dd7a445fc5e3f7 100644
+--- a/dist/plugins/oidc-provider/index.mjs
++++ b/dist/plugins/oidc-provider/index.mjs
+@@ -328,7 +328,11 @@ const oidcProvider = (options) => {
+ 				});
+ 				if (!ctx.body.accept) {
+ 					await ctx.context.internalAdapter.deleteVerificationByIdentifier(consentCode);
+-					return ctx.json({ redirectURI: `${value.redirectURI}?error=access_denied&error_description=User denied access` });
++					const redirectURI = new URL(value.redirectURI);
++					redirectURI.searchParams.set("error", "access_denied");
++					redirectURI.searchParams.set("error_description", "User denied access");
++					if (value.state) redirectURI.searchParams.set("state", value.state);
++					return ctx.json({ redirectURI: redirectURI.toString() });
+ 				}
+ 				const code = generateRandomString(32, "a-z", "A-Z", "0-9");
+ 				const codeExpiresInMs = (opts?.codeExpiresIn ?? DEFAULT_CODE_EXPIRES_IN) * 1e3;

@@ -175,7 +175,7 @@ export function useCreateSession({
 		{}
 	).queryKey;
 
-	const sessionListKey = trpc.session.list.queryOptions({}).queryKey;
+	const sessionListKey = trpc.session.list.pathKey();
 
 	const createCashMutation = useMutation({
 		mutationFn: (values: CreateCashValues) =>

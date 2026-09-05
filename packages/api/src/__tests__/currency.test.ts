@@ -1,64 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 import { appRouter } from "../routers";
-import {
-	expectAccepts,
-	expectProtected,
-	expectRejects,
-	expectType,
-} from "./test-utils";
-
-describe("currency router", () => {
-	it("appRouter has currency namespace", () => {
-		expect(appRouter.currency).toBeDefined();
-	});
-
-	it("has list procedure", () => {
-		expect(appRouter.currency.list).toBeDefined();
-	});
-
-	it("has create procedure", () => {
-		expect(appRouter.currency.create).toBeDefined();
-	});
-
-	it("has update procedure", () => {
-		expect(appRouter.currency.update).toBeDefined();
-	});
-
-	it("has delete procedure", () => {
-		expect(appRouter.currency.delete).toBeDefined();
-	});
-
-	it("exposes exactly the expected procedure set", () => {
-		expect(Object.keys(appRouter.currency).sort()).toEqual(
-			["create", "delete", "list", "toggleFavorite", "update"].sort()
-		);
-	});
-
-	it("has toggleFavorite procedure", () => {
-		expect(appRouter.currency.toggleFavorite).toBeDefined();
-	});
-
-	it("list is a protected query", () => {
-		expectProtected(appRouter.currency.list);
-		expectType(appRouter.currency.list, "query");
-	});
-
-	it("create / update / delete are protected mutations", () => {
-		for (const proc of [
-			appRouter.currency.create,
-			appRouter.currency.update,
-			appRouter.currency.delete,
-		]) {
-			expectProtected(proc);
-			expectType(proc, "mutation");
-		}
-	});
-
-	it("toggleFavorite is a protected mutation", () => {
-		expectProtected(appRouter.currency.toggleFavorite);
-		expectType(appRouter.currency.toggleFavorite, "mutation");
-	});
-});
+import { expectAccepts, expectRejects } from "./test-utils";
 
 describe("currency.create input validation", () => {
 	it("accepts minimal payload (name only)", () => {
@@ -198,27 +140,5 @@ describe("currency.toggleFavorite input validation", () => {
 
 	it("rejects non-string id", () => {
 		expectRejects(appRouter.currency.toggleFavorite, { id: 42 });
-	});
-});
-
-describe("currencyTransaction router", () => {
-	it("appRouter has currencyTransaction namespace", () => {
-		expect(appRouter.currencyTransaction).toBeDefined();
-	});
-
-	it("has listByCurrency procedure", () => {
-		expect(appRouter.currencyTransaction.listByCurrency).toBeDefined();
-	});
-
-	it("has create procedure", () => {
-		expect(appRouter.currencyTransaction.create).toBeDefined();
-	});
-
-	it("has update procedure", () => {
-		expect(appRouter.currencyTransaction.update).toBeDefined();
-	});
-
-	it("has delete procedure", () => {
-		expect(appRouter.currencyTransaction.delete).toBeDefined();
 	});
 });

@@ -63,7 +63,7 @@ export function useSessionEvents({
 	const recordedSessionKey = trpc.session.getById.queryOptions({
 		id: sessionId,
 	}).queryKey;
-	const recordedSessionListKey = trpc.session.list.queryKey();
+	const recordedSessionListKey = trpc.session.list.pathKey();
 
 	const invalidateAll = async () => {
 		await invalidateTargets(queryClient, [

@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { trpcKeys } from "@/__tests__/trpc-keys";
 import type { SessionFormValues } from "@/features/sessions/hooks/use-sessions";
 
 const trpcMocks = vi.hoisted(() => ({
@@ -28,7 +29,8 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 			list: {
-				queryKey: () => ["session", "list"],
+				queryKey: () => trpcKeys.session.list.queryKey(),
+				pathKey: () => trpcKeys.session.list.pathKey(),
 			},
 		},
 		sessionTag: {
@@ -231,6 +233,12 @@ describe("useSessionDetail", () => {
 
 	it("invalidates the detail and list queries after an update", async () => {
 		const client = createClient();
+		const listKey = trpcKeys.session.list.infiniteQueryKey({ roomId: "r1" });
+		client.setQueryDefaults(listKey, { gcTime: Number.POSITIVE_INFINITY });
+		client.setQueryData(listKey, {
+			pages: [{ items: [] }],
+			pageParams: [undefined],
+		});
 		const spy = vi.spyOn(client, "invalidateQueries");
 		const { result } = renderHook(() => useSessionDetail("s1"), {
 			wrapper: makeWrapper(client),
@@ -242,9 +250,7 @@ describe("useSessionDetail", () => {
 				...cashValues,
 			});
 		});
-		await waitFor(() =>
-			expect(spy).toHaveBeenCalledWith({ queryKey: ["session", "list"] })
-		);
+		expect(client.getQueryState(listKey)?.isInvalidated).toBe(true);
 		expect(spy).toHaveBeenCalledWith({
 			queryKey: ["session", "getById", { id: "s1" }],
 		});
@@ -252,7 +258,14 @@ describe("useSessionDetail", () => {
 
 	it("deletes the session and invalidates the list", async () => {
 		const client = createClient();
-		const spy = vi.spyOn(client, "invalidateQueries");
+		const listKey = trpcKeys.session.list.infiniteQueryKey({
+			type: "cash_game",
+		});
+		client.setQueryDefaults(listKey, { gcTime: Number.POSITIVE_INFINITY });
+		client.setQueryData(listKey, {
+			pages: [{ items: [] }],
+			pageParams: [undefined],
+		});
 		const { result } = renderHook(() => useSessionDetail("s1"), {
 			wrapper: makeWrapper(client),
 		});
@@ -263,7 +276,7 @@ describe("useSessionDetail", () => {
 			expect(trpcMocks.sessionDelete).toHaveBeenCalledWith({ id: "s1" })
 		);
 		await waitFor(() =>
-			expect(spy).toHaveBeenCalledWith({ queryKey: ["session", "list"] })
+			expect(client.getQueryState(listKey)?.isInvalidated).toBe(true)
 		);
 	});
 

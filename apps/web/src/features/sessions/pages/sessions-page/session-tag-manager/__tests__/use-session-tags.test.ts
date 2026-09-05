@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { trpcKeys } from "@/__tests__/trpc-keys";
 
 function buildKey(namespace: string, procedure: string, input: unknown) {
 	return input === undefined
@@ -27,10 +28,8 @@ vi.mock("@/utils/trpc", () => ({
 		},
 		session: {
 			list: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("session", "list", input),
-					queryFn: () => Promise.resolve({ items: [] }),
-				}),
+				queryOptions: () => trpcKeys.session.list.queryOptions({}),
+				pathKey: () => trpcKeys.session.list.pathKey(),
 			},
 		},
 	},
@@ -104,6 +103,12 @@ describe("useSessionTags", () => {
 
 	it("update optimistically patches the name of the matching tag", async () => {
 		const qc = createClient();
+		const listKey = trpcKeys.session.list.infiniteQueryKey({ roomId: "r1" });
+		qc.setQueryDefaults(listKey, { gcTime: Number.POSITIVE_INFINITY });
+		qc.setQueryData(listKey, {
+			pages: [{ items: [] }],
+			pageParams: [undefined],
+		});
 		qc.setQueryData(TAG_LIST_KEY, [
 			{ id: "t1", name: "Old" },
 			{ id: "t2", name: "Other" },
@@ -127,10 +132,21 @@ describe("useSessionTags", () => {
 			expect(list?.find((t) => t.id === "t1")?.name).toBe("New");
 		});
 		resolveUpdate?.({ id: "t1", name: "New" });
+		await waitFor(() =>
+			expect(qc.getQueryState(listKey)?.isInvalidated).toBe(true)
+		);
 	});
 
 	it("delete optimistically removes the tag", async () => {
 		const qc = createClient();
+		const listKey = trpcKeys.session.list.infiniteQueryKey({
+			type: "cash_game",
+		});
+		qc.setQueryDefaults(listKey, { gcTime: Number.POSITIVE_INFINITY });
+		qc.setQueryData(listKey, {
+			pages: [{ items: [] }],
+			pageParams: [undefined],
+		});
 		qc.setQueryData(TAG_LIST_KEY, [
 			{ id: "t1", name: "A" },
 			{ id: "t2", name: "B" },
@@ -154,6 +170,9 @@ describe("useSessionTags", () => {
 			expect(list?.some((t) => t.id === "t2")).toBe(true);
 		});
 		resolveDelete?.({ id: "t1" });
+		await waitFor(() =>
+			expect(qc.getQueryState(listKey)?.isInvalidated).toBe(true)
+		);
 	});
 
 	it("isCreatePending / isUpdatePending / isDeletePending reflect mutation state", async () => {

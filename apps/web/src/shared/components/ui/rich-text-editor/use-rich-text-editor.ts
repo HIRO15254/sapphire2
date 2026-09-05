@@ -13,6 +13,7 @@ export type RichTextFormat =
 	| "orderedList";
 
 interface UseRichTextEditorOptions {
+	ariaLabel?: string;
 	initialContent?: string | null;
 	onChange: (html: string) => void;
 }
@@ -94,6 +95,7 @@ function isRichTextFormat(value: string): value is RichTextFormat {
 }
 
 export function useRichTextEditor({
+	ariaLabel = "Rich text",
 	initialContent,
 	onChange,
 }: UseRichTextEditorOptions): UseRichTextEditorResult {
@@ -111,6 +113,13 @@ export function useRichTextEditor({
 			}),
 		],
 		content: initialContent ?? "",
+		editorProps: {
+			attributes: {
+				role: "textbox",
+				"aria-label": ariaLabel,
+				"aria-multiline": "true",
+			},
+		},
 		shouldRerenderOnTransaction: true,
 		onUpdate: ({ editor: ed }) => {
 			const html = ed.getHTML();
