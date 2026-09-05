@@ -21,7 +21,7 @@ Bun 1.3.10、Node 22.19.0を使用する。初回はリポジトリ直下で `bu
 
 方針の正本は [testing.md](../.claude/rules/testing.md)。期待値は要求・不変条件・既知障害から決める。runnerの除外やskipで失敗を隠さない。
 
-- UI連携は実page/hook/QueryClient/フォームを使う。[integration.tsx](../apps/web/src/__tests__/integration.tsx) とplayers/currencies/roomsの `*.integration.test.tsx` を参照する。MSWは実tRPC clientの通信境界に置き、標準adapterでbatch形式を扱う。未定義通信は失敗させ、ケース間でhandlerと状態を戻す。
+- UI連携は実page/hook/QueryClient/フォームを使う。[integration.tsx](../apps/web/src/__tests__/integration.tsx)、players/currencies/roomsの `*.integration.test.tsx`、[Session作成の失敗・再試行](../apps/web/src/features/sessions/pages/sessions-page/__tests__/sessions-page.integration.test.tsx) を参照する。MSWは実tRPC clientの通信境界に置き、標準adapterでbatch形式を扱う。未定義通信は失敗させ、ケース間でhandlerと状態を戻す。
 - SQLは [test-fixture.ts](../packages/api/src/__integration__/test-fixture.ts) の `test` を使う。sessionオブジェクトを渡すcaller統合と、実Cookie/token取得を通すHTTPテストを区別する。
 - 認証・永続化は [fixtures.ts](../e2e/fixtures.ts) の実登録アカウントとログイン操作を使う。各ケースのユーザーを分ける。アカウント切替検証では同じcontextを維持し、本物のsign-outを実行する。
 - passkeyの実登録・認証は [passkeys.spec.ts](../e2e/passkeys.spec.ts) を参照する。[Playwright CDPSession](https://playwright.dev/docs/api/class-cdpsession) から [CDP WebAuthn](https://chromedevtools.github.io/devtools-protocol/tot/WebAuthn/) のCTAP2仮想認証器を作り、resident keyとuser verificationを有効にする。実Settingsで登録し、reload・logout・passkeyログインを通して同じaccountへの復帰と署名counterの増加を確認する。SDK・`navigator.credentials`・認証APIをmockせず、認証器はケース終了時に除去する。実機の生体認証やOSダイアログの見た目は対象に含めない。

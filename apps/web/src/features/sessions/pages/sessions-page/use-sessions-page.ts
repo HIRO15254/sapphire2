@@ -58,10 +58,13 @@ export function useSessionsPage() {
 	};
 
 	const handleCreate = (values: SessionFormValues) => {
-		create(values).then(() => {
-			setIsCreateOpen(false);
-			setSelectedRoomId(undefined);
-		});
+		create(values).then(
+			() => {
+				setIsCreateOpen(false);
+				setSelectedRoomId(undefined);
+			},
+			() => undefined
+		);
 	};
 
 	const handleCreateOpenChange = (open: boolean) => {

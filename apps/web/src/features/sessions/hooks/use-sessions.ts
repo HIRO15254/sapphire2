@@ -503,7 +503,6 @@ export function useSessions(filters: SessionFilterValues) {
 			);
 			return {
 				...change,
-				queryKey: sessionListKey,
 				confirm(id: string) {
 					const confirmed = { ...optimistic, id };
 					change.replaceApply(() => prepend(confirmed));
@@ -520,7 +519,7 @@ export function useSessions(filters: SessionFilterValues) {
 				return;
 			}
 			invalidateTargets(queryClient, [
-				{ queryKey: context?.queryKey ?? sessionListKey },
+				{ queryKey: trpc.session.list.queryKey() },
 			]);
 		},
 	});
@@ -556,14 +555,14 @@ export function useSessions(filters: SessionFilterValues) {
 					);
 				}
 			);
-			return { ...change, queryKey: sessionListKey };
+			return change;
 		},
 		onSettled: (_data, error, _vars, context) => {
 			if (context && !context.settle(error === null)) {
 				return;
 			}
 			invalidateTargets(queryClient, [
-				{ queryKey: context?.queryKey ?? sessionListKey },
+				{ queryKey: trpc.session.list.queryKey() },
 			]);
 		},
 	});
@@ -583,14 +582,14 @@ export function useSessions(filters: SessionFilterValues) {
 					);
 				}
 			);
-			return { ...change, queryKey: sessionListKey };
+			return change;
 		},
 		onSettled: (_data, error, _vars, context) => {
 			if (context && !context.settle(error === null)) {
 				return;
 			}
 			invalidateTargets(queryClient, [
-				{ queryKey: context?.queryKey ?? sessionListKey },
+				{ queryKey: trpc.session.list.queryKey() },
 			]);
 		},
 	});

@@ -35,6 +35,7 @@ vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		session: {
 			list: {
+				queryKey: () => buildKey("session", "list", undefined),
 				infiniteQueryOptions: (
 					input: unknown,
 					opts: {
@@ -1367,7 +1368,177 @@ describe("useSessions", () => {
 			qc.clear();
 		});
 
-		it("settles and invalidates the original list after the filter changes", async () => {
+		it.each([
+			"create",
+			"update",
+			"delete",
+		] as const)("refreshes an overlapping visible filter after %s succeeds in the previous filter", async (operation) => {
+			const qc = createClient();
+			const oldKey = listKeyForFilters(filtersToListInput({}));
+			const newKey = listKeyForFilters(filtersToListInput({ roomId: "room" }));
+			const original = baseSessionItem({ roomId: "room", memo: "original" });
+			const created = baseSessionItem({
+				id: "created",
+				roomId: "room",
+				memo: "saved",
+			});
+			const updated = { ...original, memo: "saved" };
+			const afterRows = {
+				create: [created, original],
+				update: [updated],
+				delete: [],
+			}[operation];
+			qc.setQueryDefaults(oldKey, { gcTime: Number.POSITIVE_INFINITY });
+			qc.setQueryData(oldKey, infiniteCache([original]));
+			const changing = Promise.withResolvers<unknown>();
+			const beforeWrite = Promise.withResolvers<{ items: SessionItem[] }>();
+			const afterWrite = Promise.withResolvers<{ items: SessionItem[] }>();
+			trpcMocks.sessionCreate.mockReturnValue(changing.promise);
+			trpcMocks.sessionUpdate.mockReturnValue(changing.promise);
+			trpcMocks.sessionDelete.mockReturnValue(changing.promise);
+			trpcMocks.sessionList
+				.mockReturnValueOnce(beforeWrite.promise)
+				.mockReturnValue(afterWrite.promise);
+			const { result, rerender, unmount } = renderHook(
+				({ roomId }) => useSessions({ roomId }),
+				{
+					initialProps: { roomId: undefined as string | undefined },
+					wrapper: makeWrapper(qc),
+				}
+			);
+			let outcome: Promise<unknown> | undefined;
+			act(() => {
+				const values = cashValues({ roomId: "room", memo: "saved" });
+				if (operation === "create") {
+					outcome = result.current.create(values);
+				} else if (operation === "update") {
+					outcome = result.current.update({ ...values, id: "s1" });
+				} else {
+					result.current.delete("s1");
+				}
+			});
+			const mutation = {
+				create: trpcMocks.sessionCreate,
+				update: trpcMocks.sessionUpdate,
+				delete: trpcMocks.sessionDelete,
+			}[operation];
+			await waitFor(() => expect(mutation).toHaveBeenCalledTimes(1));
+			rerender({ roomId: "room" });
+			await waitFor(() =>
+				expect(trpcMocks.sessionList).toHaveBeenCalledTimes(1)
+			);
+			await act(async () => {
+				beforeWrite.resolve({ items: [original] });
+				await beforeWrite.promise;
+			});
+			await waitFor(() => expect(result.current.sessions).toEqual([original]));
+			await act(async () => {
+				changing.resolve({ id: operation === "create" ? "created" : "s1" });
+				await outcome;
+			});
+			await waitFor(() => expect(qc.isMutating()).toBe(0));
+			await waitFor(() =>
+				expect(trpcMocks.sessionList).toHaveBeenCalledTimes(2)
+			);
+			expect(result.current.sessions).toEqual([original]);
+			expect(qc.getQueryState(oldKey)?.isInvalidated).toBe(true);
+			await act(async () => {
+				afterWrite.resolve({ items: afterRows });
+				await afterWrite.promise;
+			});
+			await waitFor(() => expect(result.current.sessions).toEqual(afterRows));
+			expect(qc.getQueryData(newKey)).toEqual(infiniteCache(afterRows));
+			unmount();
+			qc.clear();
+		});
+
+		it("keeps another filter's pending edit through prefix refetch and rolls it back to the newer server state", async () => {
+			const qc = createClient();
+			const oldKey = listKeyForFilters(filtersToListInput({}));
+			const newKey = listKeyForFilters(filtersToListInput({ roomId: "room" }));
+			const original = baseSessionItem({ roomId: "room", memo: "original" });
+			const committed = {
+				...original,
+				memo: "committed first",
+				roomName: "Updated room",
+			};
+			qc.setQueryDefaults(oldKey, { gcTime: Number.POSITIVE_INFINITY });
+			qc.setQueryData(oldKey, infiniteCache([original]));
+			const firstEditing = Promise.withResolvers<unknown>();
+			const secondEditing = Promise.withResolvers<unknown>();
+			const newerServerState = Promise.withResolvers<{
+				items: SessionItem[];
+			}>();
+			const finalRefetch = Promise.withResolvers<{ items: SessionItem[] }>();
+			trpcMocks.sessionUpdate
+				.mockReturnValueOnce(firstEditing.promise)
+				.mockReturnValue(secondEditing.promise);
+			trpcMocks.sessionList
+				.mockResolvedValueOnce({ items: [original] })
+				.mockReturnValueOnce(newerServerState.promise)
+				.mockReturnValue(finalRefetch.promise);
+			const { result, rerender, unmount } = renderHook(
+				({ roomId }) => useSessions({ roomId }),
+				{
+					initialProps: { roomId: undefined as string | undefined },
+					wrapper: makeWrapper(qc),
+				}
+			);
+			let firstOutcome: Promise<unknown> | undefined;
+			let secondOutcome: Promise<unknown> | undefined;
+			act(() => {
+				firstOutcome = result.current.update({
+					...cashValues({ roomId: "room", memo: "first pending" }),
+					id: "s1",
+				});
+			});
+			await waitFor(() =>
+				expect(trpcMocks.sessionUpdate).toHaveBeenCalledTimes(1)
+			);
+			rerender({ roomId: "room" });
+			await waitFor(() => expect(result.current.sessions).toEqual([original]));
+			act(() => {
+				secondOutcome = result.current
+					.update({
+						...cashValues({ roomId: "room", memo: "second pending" }),
+						id: "s1",
+					})
+					.catch((error: unknown) => error);
+			});
+			await waitFor(() =>
+				expect(trpcMocks.sessionUpdate).toHaveBeenCalledTimes(2)
+			);
+			await act(async () => {
+				firstEditing.resolve({ id: "s1" });
+				await firstOutcome;
+			});
+			await waitFor(() =>
+				expect(trpcMocks.sessionList).toHaveBeenCalledTimes(2)
+			);
+			await act(async () => {
+				newerServerState.resolve({ items: [committed] });
+				await newerServerState.promise;
+			});
+			await waitFor(() =>
+				expect(result.current.sessions).toEqual([
+					{ ...committed, sessionDate: "2026-04-01", memo: "second pending" },
+				])
+			);
+			await act(async () => {
+				secondEditing.reject(new Error("second edit rejected"));
+				await secondOutcome;
+			});
+			expect(firstPageItems(qc, newKey)).toEqual([committed]);
+			await act(async () => {
+				finalRefetch.resolve({ items: [committed] });
+				await finalRefetch.promise;
+			});
+			await waitFor(() => expect(qc.isFetching()).toBe(0));
+			unmount();
+			qc.clear();
+		});
+
+		it("rolls back only the original filter while refreshing the visible filter after failure", async () => {
 			const qc = createClient();
 			const oldKey = listKeyForFilters(filtersToListInput({ roomId: "old" }));
 			const newKey = listKeyForFilters(filtersToListInput({ roomId: "new" }));
@@ -1379,6 +1550,10 @@ describe("useSessions", () => {
 			qc.setQueryData(newKey, infiniteCache([other]));
 			const editing = Promise.withResolvers<unknown>();
 			trpcMocks.sessionUpdate.mockReturnValue(editing.promise);
+			trpcMocks.sessionList.mockResolvedValue({
+				items: [other],
+				nextCursor: undefined,
+			});
 			const { result, rerender, unmount } = renderHook(
 				({ roomId }) => useSessions({ roomId }),
 				{
@@ -1402,8 +1577,10 @@ describe("useSessions", () => {
 			});
 			expect(qc.getQueryData(oldKey)).toEqual(infiniteCache([original]));
 			expect(qc.getQueryState(oldKey)?.isInvalidated).toBe(true);
+			await waitFor(() =>
+				expect(trpcMocks.sessionList).toHaveBeenCalledTimes(1)
+			);
 			expect(qc.getQueryData(newKey)).toEqual(infiniteCache([other]));
-			expect(trpcMocks.sessionList).not.toHaveBeenCalled();
 			unmount();
 			qc.clear();
 		});
