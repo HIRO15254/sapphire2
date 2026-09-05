@@ -66,7 +66,8 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 export function RootComponent() {
 	usePwaUpdate();
 	const { pathname } = useLocation();
-	const isLoginPage = pathname === "/login";
+	const isFullBleedPage =
+		pathname === "/login" || pathname === "/active-session-next";
 
 	return (
 		<>
@@ -77,7 +78,7 @@ export function RootComponent() {
 				disableTransitionOnChange
 				storageKey="vite-ui-theme"
 			>
-				{isLoginPage ? (
+				{isFullBleedPage ? (
 					<Outlet />
 				) : (
 					<AuthenticatedShell>

@@ -13,6 +13,7 @@ import { Route as StatisticsRouteImport } from './routes/statistics'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as GamesRouteImport } from './routes/games'
+import { Route as ActiveSessionNextRouteImport } from './routes/active-session-next'
 import { Route as ActiveSessionRouteImport } from './routes/active-session'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SessionsIndexRouteImport } from './routes/sessions/index'
@@ -43,6 +44,11 @@ const LoginRoute = LoginRouteImport.update({
 const GamesRoute = GamesRouteImport.update({
   id: '/games',
   path: '/games',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ActiveSessionNextRoute = ActiveSessionNextRouteImport.update({
+  id: '/active-session-next',
+  path: '/active-session-next',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ActiveSessionRoute = ActiveSessionRouteImport.update({
@@ -105,6 +111,7 @@ const LiveSessionsSessionTypeSessionIdEventsRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/active-session': typeof ActiveSessionRoute
+  '/active-session-next': typeof ActiveSessionNextRoute
   '/games': typeof GamesRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
@@ -122,6 +129,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/active-session': typeof ActiveSessionRoute
+  '/active-session-next': typeof ActiveSessionNextRoute
   '/games': typeof GamesRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
@@ -140,6 +148,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/active-session': typeof ActiveSessionRoute
+  '/active-session-next': typeof ActiveSessionNextRoute
   '/games': typeof GamesRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
@@ -159,6 +168,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/active-session'
+    | '/active-session-next'
     | '/games'
     | '/login'
     | '/settings'
@@ -176,6 +186,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/active-session'
+    | '/active-session-next'
     | '/games'
     | '/login'
     | '/settings'
@@ -193,6 +204,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/active-session'
+    | '/active-session-next'
     | '/games'
     | '/login'
     | '/settings'
@@ -211,6 +223,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActiveSessionRoute: typeof ActiveSessionRoute
+  ActiveSessionNextRoute: typeof ActiveSessionNextRoute
   GamesRoute: typeof GamesRoute
   LoginRoute: typeof LoginRoute
   SettingsRoute: typeof SettingsRoute
@@ -254,6 +267,13 @@ declare module '@tanstack/react-router' {
       path: '/games'
       fullPath: '/games'
       preLoaderRoute: typeof GamesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/active-session-next': {
+      id: '/active-session-next'
+      path: '/active-session-next'
+      fullPath: '/active-session-next'
+      preLoaderRoute: typeof ActiveSessionNextRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/active-session': {
@@ -339,6 +359,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActiveSessionRoute: ActiveSessionRoute,
+  ActiveSessionNextRoute: ActiveSessionNextRoute,
   GamesRoute: GamesRoute,
   LoginRoute: LoginRoute,
   SettingsRoute: SettingsRoute,
