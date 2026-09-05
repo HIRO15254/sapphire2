@@ -17,6 +17,19 @@ const IGNORED_DIRS = /(^|\/)(node_modules|dist|\.wrangler|coverage|\.git)\//;
 
 const CHECKS: Check[] = [
 	{
+		name: "Japanese text in agent rule files — write rules in English",
+		rule: "AGENTS.md (Communication)",
+		globs: ["AGENTS.md", "CLAUDE.md"],
+		pattern: /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u,
+	},
+	{
+		name: "Japanese text in agent rule files — write rules in English",
+		rule: "AGENTS.md (Communication)",
+		cwd: ".claude/rules",
+		globs: ["**/*.md"],
+		pattern: /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u,
+	},
+	{
 		name: 'named zod import — use `import z from "zod"`',
 		rule: "AGENTS.md (Vite bundler breaks the namespace import)",
 		globs: ["apps/**/*.{ts,tsx}", "packages/**/*.{ts,tsx}"],

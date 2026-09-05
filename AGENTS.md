@@ -6,7 +6,8 @@ Companion memory: [`.claude/rules/`](.claude/rules/) contains path-scoped rules.
 
 ## Communication
 
-- **Think in English, reply in Japanese.** Internal reasoning is in English; every document presented to the user (chat replies, proposals, explanations) is written in Japanese.
+- **Think in English, reply in Japanese.** Internal reasoning is in English; chat replies, proposals, and explanations for the user are written in Japanese.
+- **Write agent rule files in English.** This includes `AGENTS.md`, `CLAUDE.md`, and `.claude/rules/**/*.md`. Keep shared instructions in English even when discussing them in Japanese; `bun run check:rules` detects Japanese text in these files to prevent the conversation language from carrying over into rules.
 - This is orthogonal to code conventions: UI copy stays English-only ([`.claude/rules/web-ui.md`](.claude/rules/web-ui.md)), and code identifiers / comments / commit messages / PR descriptions follow their existing rules.
 
 ## Stack
@@ -39,7 +40,7 @@ bun run db:migrate:local # apply migrations to local D1
 bun run db:studio        # drizzle-kit studio
 ```
 
-Pre-PR verification: `bun run lint`, `bun run check-types`, `bun run check:rules` と変更範囲のテストを実行する。全テストはCIで確認する（詳細は [Testing](#testing)）。
+Pre-PR verification: run `bun run lint`, `bun run check-types`, `bun run check:rules`, and tests for the changed scope. Verify the full suite in CI (see [Testing](#testing)).
 
 ## Repository Layout
 
@@ -81,13 +82,13 @@ Detailed rules live in [`.claude/rules/`](.claude/rules/); the points below appl
 
 ## Testing
 
-- テストは変更される契約と障害リスクを保護する。設計・実装・テスト変更の前に [`.claude/rules/testing.md`](.claude/rules/testing.md) を読む。新しいファイルや分岐だけを理由にテストを増やさない。
-- 振る舞いの変更は期待結果を先に定義する。バグ修正は原則として再現テストの red → green を確認する。動作不変の変更は既存の検証を使い、不足する保護だけ補う。
-- 期待値は要求・契約・不変条件・既知障害から導く。実装の出力や実装の複製を正解にしない。現状記録の characterization test は目的を明記する。
-- 全分岐・全境界値・全呼出回数の一律網羅は要求しない。重要な認証・認可・金額・永続化・競合・UTC日付の正常／異常／境界を選ぶ。ロジックを hook に置く規約は、全 hook の単体テストを要求しない。
-- 同じ契約を主に一つの適切な層で保護する。UI連携は利用者操作、SQL・認可・原子性は実DB、Cookie・永続キャッシュは実HTTP／ブラウザー境界で確認する。
-- 実装を通すだけの期待値変更・skip・検出対象除外・assertion弱体化をしない。テストを統合・置換・削除する場合は、守る契約と代替検証、または不要になった理由を記録する。
-- 作業中は `bunx vitest run --project <対象> <path>` で関連範囲だけ実行する。型・lint・`check:rules`、CIの全Vitest・Bun migration・登録済み統合テストを最終確認する。未実行・環境による失敗は明記する。
+- Tests protect the contracts being changed and address failure risks. Read [`.claude/rules/testing.md`](.claude/rules/testing.md) before changing designs, implementation, or tests. Do not add tests solely because a file or branch is new.
+- Define expected outcomes before changing behavior. For bug fixes, normally confirm red → green with a reproducing test. For changes that preserve behavior, use existing tests and add only missing protection.
+- Derive expected values from requirements, contracts, invariants, or known failures. Do not treat implementation output or a copy of the implementation as the oracle. State the purpose of characterization tests that record current behavior.
+- Do not require blanket coverage of every branch, boundary value, or call count. Select meaningful success, failure, and boundary scenarios for authentication, authorization, money, persistence, concurrency, and UTC dates. The rule to put logic in hooks does not require a unit test for every hook.
+- Protect each contract primarily at one suitable layer. Verify UI integration through user interactions; SQL, authorization, and atomicity against a real database; and cookies and persisted caches through real HTTP or browser boundaries.
+- Do not change expected values, skip tests, exclude tests from discovery, or weaken assertions merely to make the implementation pass. When consolidating, replacing, or deleting tests, record the protected contract and its replacement checks, or why protection is no longer needed.
+- During development, run only the relevant scope with `bunx vitest run --project <project> <path>`. Complete type, lint, and `check:rules` checks, and verify all Vitest, Bun migration, and registered integration tests in CI. Explicitly report tests not run and failures caused by the environment.
 
 ## Path-scoped Rule Files
 
@@ -95,14 +96,14 @@ The following rule files live in `.claude/rules/` and are loaded automatically w
 
 | File | Paths | Summary |
 |---|---|---|
-| `testing.md` | `apps/**`, `packages/**`, `scripts/**`, `e2e/**`, `testing/**`, `patches/**`, test/CI configuration | 契約・リスクに基づくテスト設計、mock境界、削除判断、実行とCI。 |
+| `testing.md` | `apps/**`, `packages/**`, `scripts/**`, `e2e/**`, `testing/**`, `patches/**`, test/CI configuration | Test design based on contracts and risks, mock boundaries, deletion decisions, execution, and CI. |
 | `web-architecture.md` | `apps/web/**` | `apps/web/src/` feature-folder layout, page/component placement rules, reference implementations. |
 | `web-hooks-separation.md` | `apps/web/**` | STRICT: components may only call custom `useXxx` hooks; verification script included. |
 | `web-forms.md` | `apps/web/**` | `@tanstack/react-form` in hooks, no `type="number"`, no placeholders, `SelectWithClear` for clearable selects. |
 | `web-ui.md` | `apps/web/**` | PageHeader, shadcn primitives (Table / Badge / Avatar / RadioGroup), mobile = Drawer, tabler-icons. |
 | `web-data-fetching.md` | `apps/web/**` | Optimistic updates must go through `utils/optimistic-update.ts` helpers. |
 | `web-theme.md` | `apps/web/**` | Sapphire 2 Design System (single theme): token format, semantic colors, typography roles, sheet patterns. |
-| `ai-models.md` | `packages/api/**`, `apps/web/**`, `apps/server/**` | Claude のモデル ID は `packages/api/src/ai/models.ts` にのみ書く（全 AI 機能が常に同じ最新モデルを使う）。`max_tokens` は thinking の分を含める。 |
+| `ai-models.md` | `packages/api/**`, `apps/web/**`, `apps/server/**` | Write Claude model IDs only in `packages/api/src/ai/models.ts` so all AI features use the same latest model. Include thinking in the `max_tokens` budget. |
 | `api-security.md` | `packages/api/**`, `apps/server/**` | Object-level authorization: every input FK id ownership-checked, scoped bulk WHEREs / joins / cursors, uniform FORBIDDEN, no server-side fetch of user URLs. |
 | `api-data-integrity.md` | `packages/api/**`, `packages/db/**` | Zod input conventions (`.int().min(0)`, create/update refine parity, shared write/read schemas) and D1 hazards (100-bind-param chunking, `db.batch()`, N+1, keyset pagination). |
 | `datetime-and-numbers.md` | `apps/web/**`, `packages/api/**` | Date-only values are UTC midnight (read with UTC getters), day-crossing handling + backfill, period boundaries, shared locale-fixed number formatters. |
