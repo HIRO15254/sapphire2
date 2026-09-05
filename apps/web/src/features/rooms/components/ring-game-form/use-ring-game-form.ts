@@ -22,12 +22,6 @@ import { trpc } from "@/utils/trpc";
 
 type RingGameAnteType = "all" | "bb" | "none";
 
-// mixGames rows are editor state only (uid, group metadata, string amount
-// cells); the shared schema validates the actual submit payload server-side
-// once toMixGames() strips the derived bucket metadata back down. The
-// per-cell superRefine mirrors the server's `.int().min(0)` so invalid text
-// blocks the submit with a field error instead of being coerced to null by
-// cellToInt (c31).
 const ringGameFormSchema = z.object({
 	name: z.string().min(1, "Game name is required"),
 	variant: z.string().min(1),
@@ -76,10 +70,6 @@ export function useRingGameForm({
 		mixes,
 		variants,
 	} = useGameGroups();
-	// Seeded once per mount (RingGameForm gates mounting on loaded masters,
-	// so the resolver is authoritative here). Recomputing per render would
-	// hand the form new row identities (uids) every render and reset the
-	// pristine editor state (c24).
 	const [initialMixGames] = useState(() =>
 		fromMixGames(defaultValues?.mixGames ?? null, groupFor)
 	);
@@ -101,22 +91,15 @@ export function useRingGameForm({
 			memo: defaultValues?.memo ?? "",
 		},
 		onSubmit: ({ value }) => {
-			// Gate on the editor state, never a live master lookup: a deleted or
-			// renamed mix master must not wipe the frozen snapshot on an
-			// unrelated edit (c02/c02b).
 			const mixGames =
 				value.mixGames.length > 0 ? toMixGames(value.mixGames) : null;
 			const hasMixGames = mixGames !== null;
 			const isAnteDisabled = value.anteType === "none";
-			// Belt-and-braces against a stale third blind the current variant's
-			// group cannot hold (c03) — onVariantChange also clears the field.
 			const hasThirdSlot = labelsFor(value.variant).blind3 !== null;
 			onSubmit({
 				name: value.name,
 				variant: value.variant || DEFAULT_VARIANT_LABEL,
 				mixGames,
-				// A mix submit carries its amounts inside mixGames; the flat
-				// fields must go out empty, not with stale pre-switch values (c04).
 				blind1: hasMixGames ? undefined : parseOptionalInt(value.blind1),
 				blind2: hasMixGames ? undefined : parseOptionalInt(value.blind2),
 				blind3:
@@ -140,13 +123,6 @@ export function useRingGameForm({
 		},
 	});
 
-	// Picking a mix master reseeds the editor from its saved composition
-	// (overwriting whatever was there — switching mixes starts fresh); the
-	// legacy "mix" mode key has no composition, so existing rows are kept.
-	// Entering a mix clears the flat blind/ante fields so a later
-	// switch-back starts clean (c04); leaving mixes clears the editor rows
-	// so they stay the single submit-time authority (c02); and a variant
-	// whose group has no third slot drops the stale blind3 (c03).
 	const onVariantChange = (next: string) => {
 		form.setFieldValue("variant", next);
 		if (isMixValue(next)) {

@@ -23,7 +23,6 @@ import type { ActiveSessionSceneState } from "./use-active-session-scene-state";
 
 interface ActiveSessionSceneProps {
 	discardDescription?: ReactNode;
-	/** Session-type-specific event actions shown in the header "…" menu. */
 	eventMenuExtraItems: ActionsDrawerItem[];
 	isDiscardPending: boolean;
 	memo?: string | null;
@@ -81,13 +80,6 @@ function DiscardDialog({
 	);
 }
 
-/**
- * Single-page active-session scene (SA2-59): a display-only status summary on
- * top, the lightweight seated-player list, and the collapsed event history.
- * All event recording is consolidated into the "+" menu opened from the
- * bottom-nav center button; session lifecycle actions live in the header
- * overflow menu.
- */
 export function ActiveSessionScene({
 	discardDescription = "This will permanently delete this session and all its events.",
 	eventMenuExtraItems,

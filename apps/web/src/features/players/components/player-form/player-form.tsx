@@ -16,12 +16,6 @@ interface PlayerFormProps {
 	defaultMemo?: string | null;
 	defaultTags?: TagWithColor[];
 	defaultValues?: { name: string };
-	/**
-	 * Stable id assigned to the `<form>` element so an external Save button
-	 * (rendered by the surrounding FormSheet toolbar) can submit it via the
-	 * HTML `form` attribute. The form therefore renders no submit button of
-	 * its own — see `.claude/rules/web-theme.md`.
-	 */
 	formId: string;
 	onCreateTag?: (name: string) => Promise<TagWithColor>;
 	onSubmit: (values: PlayerFormValues) => void;

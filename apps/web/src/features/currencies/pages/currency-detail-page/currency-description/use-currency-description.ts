@@ -1,12 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 
-/**
- * Collapsed height cap for a currency description. Long rich-text descriptions
- * otherwise sit between the balance hero and the Add-transaction button /
- * transaction list, pushing the primary actions far down the page. We clamp to
- * this height and reveal the rest behind a "Show more" toggle — but only when
- * the content actually overflows, so short descriptions are untouched.
- */
 export const DESCRIPTION_COLLAPSED_MAX_PX = 160;
 
 export function useCurrencyDescription() {
@@ -30,9 +23,6 @@ export function useCurrencyDescription() {
 		return () => observer.disconnect();
 	}, []);
 
-	// Expanding to the measured pixel height (instead of removing the cap) keeps
-	// `max-height` animatable in both directions; the collapsed state caps at the
-	// fixed clamp height.
 	const maxHeight = isExpanded ? contentHeight : DESCRIPTION_COLLAPSED_MAX_PX;
 
 	return {

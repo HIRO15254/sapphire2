@@ -3,8 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { TransactionListV2 } from "@/features/currencies/pages/currency-detail-page/transaction-list";
 
-// Class-presence matcher for `size-8` (whole-word, single tailwind class).
-// Accessible-name matcher for the row-level "View session" navigation button.
 const VIEW_SESSION_NAME = /view session/i;
 
 const regularTransaction = {
@@ -191,7 +189,6 @@ describe("TransactionListV2", () => {
 				transactions={[{ ...sessionTransaction, sessionName: null }]}
 			/>
 		);
-		// Session row should not show the regular memo or any session name
 		expect(screen.queryByText("Regular transaction")).not.toBeInTheDocument();
 	});
 
@@ -204,7 +201,6 @@ describe("TransactionListV2", () => {
 				transactions={[sessionTransaction]}
 			/>
 		);
-		// Click on the session name text (inside the row)
 		await user.click(screen.getByText("NLH 1/2"));
 		expect(onNavigateToSession).toHaveBeenCalledTimes(1);
 		expect(onNavigateToSession).toHaveBeenCalledWith("session-1");

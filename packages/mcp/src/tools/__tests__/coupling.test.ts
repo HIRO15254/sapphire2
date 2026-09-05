@@ -14,17 +14,6 @@ import {
 } from "../registry";
 import { getProcedure, listProcedurePaths } from "../resolve";
 
-/**
- * The MCP surface is a projection of appRouter — these tests are the
- * mechanism that makes drift between the two structurally impossible:
- *
- * - every tool's input schema must BE (same object) the schema the router
- *   validates with, so the MCP contract can never diverge from the API;
- * - every router procedure must be either exposed or deliberately excluded,
- *   so adding a backend procedure forces an explicit MCP decision
- *   (see .claude/rules/mcp-tools.md).
- */
-
 const SNAKE_CASE_TOOL_NAME = /^[a-z][a-z0-9_]*$/;
 
 const allPaths = listProcedurePaths();
@@ -38,8 +27,6 @@ describe("tool/router coupling", () => {
 		for (const def of TOOL_DEFINITIONS) {
 			const procedure = getProcedure(def.procedurePath);
 			if (def.procedurePath === "session.create") {
-				// session.create is a discriminated union; each branch is its own
-				// tool. The branch schema must be one of the union's own members.
 				const union = getInputSchema(procedure) as unknown as {
 					options: unknown[];
 				};
@@ -183,18 +170,12 @@ describe("tool/router coupling", () => {
 	});
 
 	it("enumerates the full router procedure list (guard for the exclusion sweep)", () => {
-		// A floor, not an exact count: additions are caught by the coverage
-		// test above (which names the unregistered path), while this catches a
-		// resolver returning an empty/partial list and making that test vacuous.
 		expect(allPaths.length).toBeGreaterThanOrEqual(124);
 	});
 
 	it("derives the consent-screen permissions from the catalogue's annotations", () => {
 		const annotations = TOOL_DEFINITIONS.map(toolAnnotations);
 		const summary = toolPermissionSummary().join(" ");
-		// Reading is unconditional; the other two lines must track the
-		// catalogue so a newly added write/destructive tool cannot leave the
-		// consent screen under-representing the grant (mcp-tools.md rule 8).
 		expect(summary).toContain("Read your");
 		expect(summary.includes("Create or change your")).toBe(
 			annotations.some((annotation) => !annotation.readOnlyHint)
@@ -205,9 +186,6 @@ describe("tool/router coupling", () => {
 	});
 
 	it("names every exposed entity on the consent screen", () => {
-		// Line presence alone is too weak: the copy used to name only sessions
-		// and session tags while the catalogue had grown room/game-master
-		// creates, so the grant read smaller than it was. Assert per-entity.
 		const lines = toolPermissionSummary();
 		const [readLine, writeLine] = lines;
 		for (const def of TOOL_DEFINITIONS) {
@@ -221,13 +199,6 @@ describe("tool/router coupling", () => {
 	});
 
 	it("explains the mixGames contract on every tool that accepts mixGames", () => {
-		// assertNamedMixComposition demands an exact reproduction of the named
-		// mix and silently drops the flat blinds, and none of that reaches the
-		// JSON Schema — so the set of tools carrying MIX_RULE has to track the
-		// set accepting the field. It drifted once: session_update and
-		// session_create_cash_game accepted mixGames with no explanation, which
-		// only surfaced when ring_game_update started naming session_update as
-		// the way to edit a mixed session's blinds (mcp-tools.md rule 7).
 		const accepting = TOOL_DEFINITIONS.filter((def) => {
 			const shape = (def.inputSchema as { shape?: Record<string, unknown> })
 				?.shape;
@@ -240,8 +211,6 @@ describe("tool/router coupling", () => {
 	});
 
 	it("has a consent-screen name for every namespace the catalogue exposes", () => {
-		// An unnamed namespace would fall out of the copy silently, which is
-		// the under-representation rule 8 exists to prevent.
 		const unnamed = [...new Set(TOOL_DEFINITIONS.map(toolNamespace))].filter(
 			(namespace) => entityName(namespace) === undefined
 		);

@@ -8,14 +8,30 @@ import {
 } from "@tanstack/react-query";
 import { type RenderOptions, render } from "@testing-library/react";
 import type { FC, ReactElement, ReactNode } from "react";
-import { vi } from "vitest";
+import { onTestFinished, vi } from "vitest";
 
-// ─── QueryClient ─────────────────────────────────────────────────────────────
+export const OAUTH_AUTHORIZE_SEARCH =
+	"?client_id=c1&response_type=code&redirect_uri=https%3A%2F%2Fclaude.ai%2Fcb&state=s1";
 
-/**
- * Minimal QueryClient for tests — no retry, no cache GC, infinite stale time.
- * Use in any test that renders a hook/component depending on react-query.
- */
+export function stubLocation(overrides: Partial<Location> = {}): void {
+	const original = window.location;
+	Object.defineProperty(window, "location", {
+		configurable: true,
+		value: { ...original, assign: vi.fn(), ...overrides },
+	});
+	onTestFinished(() => {
+		Object.defineProperty(window, "location", {
+			configurable: true,
+			value: original,
+		});
+	});
+}
+
+export function locationAssignCalls(): unknown[][] {
+	return (window.location.assign as unknown as ReturnType<typeof vi.fn>).mock
+		.calls;
+}
+
 export function createTestQueryClient(): QueryClient {
 	return new QueryClient({
 		defaultOptions: {
@@ -29,7 +45,6 @@ export function createTestQueryClient(): QueryClient {
 	});
 }
 
-/** Wrapper for `renderHook`/`render` that provides a QueryClient. */
 export function withQueryClient(
 	client?: QueryClient
 ): FC<{ children: ReactNode }> {
@@ -40,10 +55,6 @@ export function withQueryClient(
 	return Wrapper;
 }
 
-/**
- * `render` that supplies a QueryClient and returns it on the result.
- * Caller can reach into `queryClient` to seed or inspect cache.
- */
 export function renderWithQueryClient(
 	ui: ReactElement,
 	options: Omit<RenderOptions, "wrapper"> & { queryClient?: QueryClient } = {}
@@ -55,8 +66,6 @@ export function renderWithQueryClient(
 		queryClient: qc,
 	};
 }
-
-// ─── tRPC shape factory ──────────────────────────────────────────────────────
 
 type MutateFn = (input?: unknown) => Promise<unknown>;
 type QueryFn = (input?: unknown) => Promise<unknown>;
@@ -103,25 +112,11 @@ function createProcMock(namespace: string, procedure: string): TrpcProcMock {
 	};
 }
 
-/**
- * Build an auto-materializing mock of the tRPC client / proxy shape.
- *
- * Access any namespace/procedure path (`mock.currency.list.query`, `mock.player.create.mutate`)
- * and receive a typed `vi.fn()` you can seed with return values and assert on.
- *
- * Typical usage:
- * ```ts
- * const trpcClient = createTrpcMock();
- * const trpc = createTrpcMock();
- * vi.mock("@/utils/trpc", () => ({ trpc, trpcClient }));
- * ```
- */
 export function createTrpcMock(): TrpcRoot {
 	const root = {} as TrpcRoot;
 	return new Proxy(root, {
 		get(target, namespace: string) {
 			if (namespace === "then") {
-				// Avoid confusing `await` into thenable resolution.
 				return;
 			}
 			if (!(namespace in target)) {
@@ -143,9 +138,6 @@ export function createTrpcMock(): TrpcRoot {
 	});
 }
 
-// ─── Common external module mocks ────────────────────────────────────────────
-
-/** Minimal `sonner` toast surface; spies stay addressable across tests. */
 export function createToastMock() {
 	return {
 		success: vi.fn(),
@@ -158,7 +150,6 @@ export function createToastMock() {
 	};
 }
 
-/** Minimal Better Auth `authClient.useSession` and signIn/signUp surface. */
 export function createAuthClientMock(
 	session: {
 		data: { user: { email: string; name: string } } | null;
@@ -180,9 +171,25 @@ export function createAuthClientMock(
 	};
 }
 
-// ─── Reuse across hook/component/route tests ────────────────────────────────
+export function stubWebAuthnSupport(supported: boolean): () => void {
+	const had = "PublicKeyCredential" in window;
+	const previous = (window as { PublicKeyCredential?: unknown })
+		.PublicKeyCredential;
+	if (supported) {
+		(window as { PublicKeyCredential?: unknown }).PublicKeyCredential = {};
+	} else {
+		Reflect.deleteProperty(window, "PublicKeyCredential");
+	}
+	return () => {
+		if (had) {
+			(window as { PublicKeyCredential?: unknown }).PublicKeyCredential =
+				previous;
+		} else {
+			Reflect.deleteProperty(window, "PublicKeyCredential");
+		}
+	};
+}
 
-/** Vitest MutationResult stand-in when we only need `isPending` + `mutate`. */
 export function createMutationStub<TInput = unknown, TOutput = unknown>(
 	fn?: (input: TInput) => Promise<TOutput>
 ): UseMutationResult<TOutput, Error, TInput> {
@@ -209,7 +216,6 @@ export function createMutationStub<TInput = unknown, TOutput = unknown>(
 	return stub as unknown as UseMutationResult<TOutput, Error, TInput>;
 }
 
-/** Vitest QueryResult stand-in seeded with `data` and `isLoading`. */
 export function createQueryStub<TData = unknown>(
 	data: TData,
 	isLoading = false

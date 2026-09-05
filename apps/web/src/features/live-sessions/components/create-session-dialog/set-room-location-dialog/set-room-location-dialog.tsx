@@ -16,12 +16,6 @@ interface SetRoomLocationDialogProps {
 	roomName: string;
 }
 
-/**
- * Centered prompt shown when a live session starts in a room that has no saved
- * location (SA2-100). Offers to stamp the device's current location onto the
- * room so it can be auto-selected next time. Dismissing or "Not now" starts the
- * session without touching the room; "Save location" saves then starts.
- */
 export function SetRoomLocationDialog({
 	onOpenChange,
 	onSave,

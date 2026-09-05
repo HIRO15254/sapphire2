@@ -60,15 +60,9 @@ export function useSessionEvents({
 			? trpc.liveTournamentSession.list.queryOptions({}).queryKey
 			: trpc.liveCashGameSession.list.queryOptions({}).queryKey;
 
-	// The recorded session (`session.getById` / `session.list`) renders state the
-	// server recalculates from these events — start/end time, buy-in, cash-out,
-	// placement, P/L. Editing an event therefore has to invalidate it too, or the
-	// session detail page keeps showing pre-edit numbers (SA2-167). The live
-	// session id and the recorded session id are the same row.
 	const recordedSessionKey = trpc.session.getById.queryOptions({
 		id: sessionId,
 	}).queryKey;
-	// No-input list key — prefix-matches every filtered `session.list` variant.
 	const recordedSessionListKey = trpc.session.list.queryKey();
 
 	const invalidateAll = async () => {

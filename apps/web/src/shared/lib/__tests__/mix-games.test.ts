@@ -20,7 +20,6 @@ import {
 	usedVariants,
 } from "../mix-games";
 
-// Master fixture: three seeded groups + one user-defined "Draw" group.
 const GROUPS: Record<string, MixGroupInfo> = {
 	limit: {
 		id: "g-limit",
@@ -56,7 +55,6 @@ const GROUPS: Record<string, MixGroupInfo> = {
 	},
 };
 
-// variant label → owning group (unknown labels park in Big Bet).
 const VARIANT_GROUPS: Record<string, MixGroupInfo> = {
 	"NL Hold'em": GROUPS.bigbet,
 	"Pot Limit Omaha": GROUPS.bigbet,
@@ -74,8 +72,6 @@ const VARIANT_GROUPS: Record<string, MixGroupInfo> = {
 const resolveGroup: ResolveGroup = (variant) =>
 	VARIANT_GROUPS[variant] ?? GROUPS.bigbet;
 
-// Mirrors use-game-groups' masters-empty fallback: unresolved labels get the
-// pending sentinel group instead of a real group row.
 const PENDING_GROUP: MixGroupInfo = {
 	id: PENDING_GROUP_ID,
 	label: "Big Bet",
@@ -112,10 +108,10 @@ describe("addVariant", () => {
 	});
 
 	it("keeps buckets in canonical group order regardless of add order", () => {
-		let rows = addVariant([], "NL Hold'em", resolveGroup); // bigbet (2)
-		rows = addVariant(rows, "Razz", resolveGroup); // stud (1)
-		rows = addVariant(rows, "Limit Hold'em", resolveGroup); // limit (0)
-		rows = addVariant(rows, "Drawmaha", resolveGroup); // draw (3)
+		let rows = addVariant([], "NL Hold'em", resolveGroup);
+		rows = addVariant(rows, "Razz", resolveGroup);
+		rows = addVariant(rows, "Limit Hold'em", resolveGroup);
+		rows = addVariant(rows, "Drawmaha", resolveGroup);
 		expect(rows.map((r) => r.groupLabel)).toEqual([
 			"Limit",
 			"Stud",
@@ -326,7 +322,7 @@ describe("fromMixGames — unresolved stored groups keep distinct buckets", () =
 				{ name: null, variants: ["NL Hold'em"], blind1: 1, blind2: 2 },
 				{ name: null, variants: ["Ghost"], blind1: 400, blind2: 800 },
 			],
-			resolveGroup // parks unknowns in the real Big Bet group
+			resolveGroup
 		);
 		expect(rows[0].groupId).toBe("g-bigbet");
 		expect(rows[1].groupId).toBe(`${PENDING_GROUP_ID}:Ghost`);
@@ -407,8 +403,6 @@ describe("toLevelGames / fromLevelGames", () => {
 			blind2: "200",
 			ante: "75",
 		});
-		// Level mode never shows the anteType select, so rows keep the "none"
-		// default — the level payload must not drop the ante because of it.
 		expect(rows[0].anteType).toBe("none");
 		expect(toLevelGames(rows)?.[0].ante).toBe(75);
 	});

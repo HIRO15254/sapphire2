@@ -10,22 +10,8 @@ interface TournamentFormProps {
 		chipPurchases?: Array<{ name: string; cost: number; chips: number }>;
 		tags?: string[];
 	};
-	/**
-	 * Stable id assigned to the `<form>` element so an external Save button
-	 * (e.g. the surrounding FormSheet toolbar) can submit it via the HTML
-	 * `form` attribute. The form renders no submit button of its own.
-	 */
 	formId: string;
-	/**
-	 * Called when a submit attempt fails validation. Lets the surrounding modal
-	 * reveal this (Details) tab so the user sees the errors instead of a
-	 * seemingly dead Save button on another tab (SA2-97 follow-up).
-	 */
 	onInvalidSubmit?: () => void;
-	/**
-	 * Registers a getter for the form's current values so AI auto-fill can
-	 * merge over what the user has already entered.
-	 */
 	onRegisterLiveValues?: (
 		getter: () => Omit<TournamentFormValues, "tags" | "chipPurchases"> & {
 			chipPurchases?: Array<{ name: string; cost: number; chips: number }>;
@@ -33,7 +19,6 @@ interface TournamentFormProps {
 		}
 	) => void;
 	onSubmit: (values: TournamentFormValues) => void;
-	/** Live variant changes so the Structure tab's labels stay in sync. */
 	onVariantChange?: (variant: string) => void;
 }
 

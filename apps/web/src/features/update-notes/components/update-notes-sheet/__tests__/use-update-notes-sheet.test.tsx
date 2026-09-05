@@ -120,7 +120,6 @@ describe("UpdateNotesProvider auto-open", () => {
 		await user.click(screen.getByRole("button", { name: "close" }));
 
 		expect(screen.getByTestId("state")).toHaveTextContent("closed");
-		// markViewed fired once on the initial auto-open, not again.
 		expect(state.markViewed).toHaveBeenCalledTimes(1);
 	});
 

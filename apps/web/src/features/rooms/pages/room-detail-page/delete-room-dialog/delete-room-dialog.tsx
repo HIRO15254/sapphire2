@@ -15,11 +15,6 @@ interface DeleteRoomDialogProps {
 	roomName: string;
 }
 
-/**
- * Centered destructive confirmation for deleting a room, mirroring
- * `DeleteCurrencyDialog`. Deleting a room cascades to all of its cash games
- * and tournaments, so the copy spells that out.
- */
 export function DeleteRoomDialog({
 	onConfirm,
 	onOpenChange,

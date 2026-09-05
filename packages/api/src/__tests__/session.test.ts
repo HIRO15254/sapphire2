@@ -59,9 +59,6 @@ describe("computeCashGamePL", () => {
 	});
 
 	it("adds a positive chipRemoveTotal back into profit/loss (chip remove bug)", () => {
-		// Removing 100 in chips mid-session and cashing out 600 at the table
-		// nets the same 200 profit as never removing anything and cashing out
-		// 700 — the removed chips are already in the player's pocket.
 		expect(computeCashGamePL(500, 600, 100)).toBe(200);
 	});
 
@@ -80,8 +77,6 @@ describe("computeCashGamePL", () => {
 
 describe("chunkForInsert", () => {
 	it("keeps each chunk under D1's 100 bound-parameter cap for 9-column rows", () => {
-		// Generic illustration: 14 rows at 9 columns bind 126 params in one
-		// INSERT — over D1's cap of 100 — and must split into <=11-row chunks.
 		const rows = Array.from({ length: 14 }, (_, i) => i);
 		const chunks = chunkForInsert(rows, 9);
 		expect(chunks).toHaveLength(2);
@@ -94,9 +89,6 @@ describe("chunkForInsert", () => {
 	});
 
 	it("caps session_blind_level (10 columns) at 10 rows = exactly 100 params (SA2-115 boundary)", () => {
-		// session_blind_level gained the `games` column (9 -> 10). At 10 columns
-		// the safe max is floor(100 / 10) = 10 rows/INSERT (10 x 10 = 100). This
-		// guards the zero-headroom boundary: an 11th column silently overflows.
 		const rows = Array.from({ length: 21 }, (_, i) => i);
 		const chunks = chunkForInsert(rows, 10);
 		expect(chunks[0]).toHaveLength(10);
@@ -118,7 +110,6 @@ describe("chunkForInsert", () => {
 
 	it("chunks wide rows more aggressively than narrow rows", () => {
 		const rows = Array.from({ length: 60 }, (_, i) => i);
-		// 2 columns -> up to 50 rows/chunk; 6 columns -> up to 16 rows/chunk.
 		expect(chunkForInsert(rows, 2)[0]).toHaveLength(50);
 		expect(chunkForInsert(rows, 6)[0]).toHaveLength(16);
 	});
@@ -131,9 +122,6 @@ describe("chunkForInsert", () => {
 
 describe("selectInChunks", () => {
 	it("splits an id list over D1's cap so every WHERE IN stays <=100 params", async () => {
-		// 101 session ids in a single `inArray` binds 101 params — over D1's cap
-		// of 100 — and D1 rejects the statement at runtime (the SA2 chip-purchase
-		// batched lookup outage). The lookup must run in <=100-id chunks.
 		const ids = Array.from({ length: 101 }, (_, i) => `s${i}`);
 		const chunkSizes: number[] = [];
 		const rows = await selectInChunks(ids, (chunk) => {
@@ -144,7 +132,6 @@ describe("selectInChunks", () => {
 		for (const size of chunkSizes) {
 			expect(size).toBeLessThanOrEqual(100);
 		}
-		// Rows are concatenated across chunks, preserving order.
 		expect(rows).toHaveLength(101);
 		expect(rows[0]).toEqual({ id: "s0" });
 		expect(rows.at(-1)).toEqual({ id: "s100" });
@@ -204,7 +191,6 @@ describe("selectInChunks", () => {
 				])
 			)
 		);
-		// 2 rows per id, chunked as [100, 50], concatenated in order.
 		expect(rows).toHaveLength(300);
 		expect(rows[0]).toEqual({ id: 0, n: 0 });
 		expect(rows[1]).toEqual({ id: 0, n: 1 });
@@ -574,8 +560,6 @@ describe("session router input validation", () => {
 		});
 
 		it("returns undefined for a malformed cursor instead of filtering everything", () => {
-			// A garbage / deleted-row cursor must degrade to 'no cursor', never to
-			// a boundary that drops the whole page (the SA2-150 regression).
 			expect(sessionKeysetCondition("no-separator")).toBeUndefined();
 			expect(sessionKeysetCondition("abc_s1")).toBeUndefined();
 		});
@@ -594,9 +578,7 @@ describe("session router input validation", () => {
 			const condition = sessionKeysetCondition(cursor);
 			expect(condition).toBeDefined();
 			const query = keysetDialect.sqlToQuery(condition as never);
-			// The comparison embeds the value directly — no `SELECT ... WHERE id`.
 			expect(query.sql.toLowerCase()).not.toContain("select");
-			// 5_000_000 ms floored to 5000 s, bound in both the `<` and `=` arms.
 			expect(query.params.filter((p) => p === 5000)).toHaveLength(2);
 			expect(query.params).toContain("cur-id");
 			expect(query.params).not.toContain(cursor);
@@ -681,7 +663,6 @@ describe("session router input validation", () => {
 			const point = toProfitLossSeriesPoint(
 				row({ buyIn: 500, cashOut: 700, chipRemoveTotal: 100 })
 			);
-			// 700 + 100 - 500, not the chip-remove-blind 700 - 500 = 200.
 			expect(point.profitLoss).toBe(300);
 		});
 
@@ -793,8 +774,6 @@ describe("session router input validation", () => {
 			const point = toProfitLossSeriesPoint(
 				row({ buyIn: 500, cashOut: 700, evCashOut: null })
 			);
-			// The point still carries an evProfitLoss — it just is not evidence
-			// the user tracked EV, so the graph must not offer the EV line for it.
 			expect(point.evProfitLoss).toBe(200);
 			expect(point.evRecorded).toBe(false);
 		});
@@ -1079,7 +1058,6 @@ describe("session router input validation", () => {
 		};
 		const parsed = schema.safeParse({ ...TOURNAMENT_BASE, rebuyCount: 5 });
 		expect(parsed.success).toBe(true);
-		// Zod strips the unknown legacy key — it never reaches the DB layer.
 		expect(parsed.data?.rebuyCount).toBeUndefined();
 	});
 
@@ -1144,7 +1122,6 @@ describe("session router input validation", () => {
 		};
 		const parsed = schema.safeParse(input);
 		expect(parsed.success).toBe(true);
-		// Guards against Zod silently stripping these as unknown keys.
 		expect(parsed.data?.startingStack).toBe(20_000);
 		expect(parsed.data?.bountyAmount).toBe(500);
 		expect(parsed.data?.blindLevels).toEqual(input.blindLevels);
@@ -1367,7 +1344,6 @@ describe("assertNoLiveLinkedRestrictedEdits", () => {
 
 describe("computeTournamentPL", () => {
 	it("subtracts buy-in, entry fee, and chip purchase cost from prize income", () => {
-		// income (1000 + 200) - cost (500 + 50 + 300) = 1200 - 850 = 350
 		expect(computeTournamentPL(500, 50, 300, 1000, 200)).toBe(350);
 	});
 
@@ -1376,12 +1352,10 @@ describe("computeTournamentPL", () => {
 	});
 
 	it("returns a loss when chip purchases exceed income", () => {
-		// income 0 - cost (100 + 0 + 250) = -350
 		expect(computeTournamentPL(100, null, 250, null, null)).toBe(-350);
 	});
 
 	it("adds bounty prizes to income", () => {
-		// income (0 + 400) - cost (100 + 0 + 0) = 300
 		expect(computeTournamentPL(100, 0, 0, 0, 400)).toBe(300);
 	});
 });
@@ -1412,7 +1386,6 @@ describe("validateEntityOwnership (tournament branch)", () => {
 		await expect(
 			validateEntityOwnership(db, "tournament", TOURNAMENT_ID, CALLER)
 		).resolves.toMatchObject({ id: TOURNAMENT_ID, roomId: ROOM_ID });
-		// The room must be read to confirm ownership.
 		expect(selectedTables).toEqual(["tournament", "room"]);
 	});
 
@@ -1437,7 +1410,6 @@ describe("validateEntityOwnership (tournament branch)", () => {
 			code: "FORBIDDEN",
 			message: "You do not own this tournament",
 		});
-		// Must short-circuit before reading the room.
 		expect(selectedTables).toEqual(["tournament"]);
 	});
 
@@ -1481,7 +1453,6 @@ describe("validateEntityOwnership (ringGame branch) (SA2-181)", () => {
 			roomId: ROOM_ID,
 			userId: CALLER,
 		});
-		// Ownership is a direct userId check; the room is never read (SA2-181).
 		expect(selectedTables).toEqual(["ring_game"]);
 	});
 
@@ -1509,7 +1480,6 @@ describe("validateEntityOwnership (ringGame branch) (SA2-181)", () => {
 			code: "FORBIDDEN",
 			message: "You do not own this ring game",
 		});
-		// Must not fall through to reading a room.
 		expect(selectedTables).toEqual(["ring_game"]);
 	});
 
@@ -2107,11 +2077,6 @@ describe("session.update cash variant / mixGames persistence invariant", () => {
 			tagIds: ["tag-1", "tag-2"],
 		});
 
-		// The DELETE and the re-INSERT of the tag links commit together — a bare
-		// DELETE followed by a separate awaited INSERT could strand the session
-		// with no tags on a failed re-insert. Exactly one batch fires for the
-		// whole replace, and it bundles both statements (the scoped DELETE +
-		// the single re-INSERT chunk) so they roll back together (SA2-116).
 		expect(batch).toHaveBeenCalledTimes(1);
 		expect(batch.mock.calls[0]?.[0]).toHaveLength(2);
 		expect(deleteWhereParams).toContainEqual(["session-1"]);
@@ -2143,8 +2108,6 @@ describe("session.update cash variant / mixGames persistence invariant", () => {
 						buyIn: 100,
 						cashOut: 200,
 						evCashOut: null,
-						// 50 in chips racked off the table mid-session — already in the
-						// player's pocket on top of the 200 they cashed out at the end.
 						chipRemoveTotal: 50,
 					},
 				],
@@ -2160,9 +2123,6 @@ describe("session.update cash variant / mixGames persistence invariant", () => {
 
 		await caller.session.update({ id: "session-1", memo: "edited" });
 
-		// Editing a live-sourced session (e.g. its memo) must not regress the
-		// currency ledger back to the chip-remove-blind cashOut - buyIn (150,
-		// not 100): the true P/L is cashOut + chipRemoveTotal - buyIn = 150.
 		expect(updated.currency_transaction).toHaveLength(1);
 		expect(updated.currency_transaction?.[0]).toMatchObject({ amount: 150 });
 	});
@@ -2390,9 +2350,6 @@ describe("session.list EV falls back to the actual result without an EV cash-out
 
 		const { summary } = await caller.session.list({});
 
-		// The row itself still carries the fallback EV — that is what makes the
-		// detail view consistent — but a summary built only out of fallbacks
-		// would report "EV diff: 0" to a user who never tracked EV.
 		expect(summary.totalEvProfitLoss).toBeNull();
 		expect(summary.totalEvDiff).toBeNull();
 	});
@@ -2423,9 +2380,7 @@ describe("session.list EV falls back to the actual result without an EV cash-out
 
 		const { summary } = await caller.session.list({});
 
-		// 150 (recorded) + 200 (fallback = its actual result).
 		expect(summary.totalEvProfitLoss).toBe(350);
-		// -50 (recorded) + 0 (fallback contributes no diff).
 		expect(summary.totalEvDiff).toBe(-50);
 	});
 

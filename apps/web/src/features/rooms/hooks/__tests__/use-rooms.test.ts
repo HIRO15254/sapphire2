@@ -181,9 +181,6 @@ describe("useRooms", () => {
 					Array<{ id: string; name: string; memo: string | null }>
 				>(STORE_KEY);
 			const tempEntry = list?.find((s) => s.id.startsWith("temp-"));
-			// After invalidate the temp row may be refetched away in a real app,
-			// but with no queryFn here it sticks. Either way, if present it must
-			// have memo null.
 			if (tempEntry) {
 				expect(tempEntry.memo).toBeNull();
 			}
@@ -583,7 +580,6 @@ describe("useRooms", () => {
 			act(() => {
 				result.current.toggleFavorite("s3");
 			});
-			// Check the optimistic sort while the mutation is in-flight.
 			await waitFor(() => {
 				const list = qc.getQueryData<Array<{ id: string }>>(STORE_KEY);
 				expect(list?.map((r) => r.id)).toEqual(["s1", "s3", "s2"]);

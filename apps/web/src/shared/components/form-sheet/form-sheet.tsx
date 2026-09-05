@@ -10,11 +10,6 @@ import {
 
 interface FormSheetProps {
 	children: ReactNode;
-	/**
-	 * Stable id of the form that the confirm button submits via the HTML
-	 * `form` attribute. Lets Save live in the drawer chrome instead of
-	 * inside the `<form>` element.
-	 */
 	formId: string;
 	isLoading?: boolean;
 	isSaveDisabled?: boolean;
@@ -23,18 +18,6 @@ interface FormSheetProps {
 	title: string;
 }
 
-/**
- * V2 bottom sheet for data entry — per the design contract in
- * `.claude/rules/web-theme.md`:
- *
- * - Opens at full height so the keyboard doesn't compress the form.
- * - iOS-style toolbar header: `[X] Title [✓]`. Left X = cancel,
- *   right check = submit; both are icon-only buttons.
- * - Not dismissible by overlay tap or swipe-down — losing in-progress
- *   input on a stray tap is worse than the extra cancel tap.
- * - No drag handle (would mislead given the sheet isn't dismissible
- *   by swipe).
- */
 export function FormSheet({
 	children,
 	formId,

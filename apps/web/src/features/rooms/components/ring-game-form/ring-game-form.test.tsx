@@ -4,10 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 import { renderWithQueryClient } from "@/__tests__/test-utils";
 import { RingGameForm } from "./ring-game-form";
 
-// VariantSelect (rendered by the Variant field) and the blind labels both use
-// real react-query hooks against trpc.gameVariant.list, so this file keeps
-// the real @tanstack/react-query implementation and wraps renders in a
-// QueryClientProvider (see renderForm below) instead of mocking the module.
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		currency: {
@@ -57,11 +53,6 @@ vi.mock("@/utils/trpc", () => ({
 
 const FORM_ID = "ring-game-form-test";
 
-// The form renders no submit button of its own — the surrounding FormSheet
-// owns Save and submits via the `form` attribute. Mirror that with an
-// external button so the tests exercise the `id={formId}` wiring. The form
-// body mounts only after the game-master lists load (c05), so callers await
-// a stable field before interacting.
 async function renderForm(
 	props: Partial<React.ComponentProps<typeof RingGameForm>>
 ) {

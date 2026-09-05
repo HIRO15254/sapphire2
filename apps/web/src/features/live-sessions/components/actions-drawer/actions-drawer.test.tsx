@@ -67,12 +67,9 @@ describe("ActionsDrawer", () => {
 	});
 
 	it("emits no duplicate-key warning for same-label items with distinct keys", () => {
-		// Two seatless players named "Anonymous" share a label; the row key must
-		// come from the stable `key`, not the duplicated label, or React logs a
-		// "same key" error (and risks mis-reconciling on later list changes).
-		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {
-			// swallow
-		});
+		const errorSpy = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => undefined);
 		setup({
 			items: [
 				{ icon: IconBolt, key: "p-1", label: "Anonymous", onSelect: vi.fn() },

@@ -39,34 +39,19 @@ interface TournamentFieldsProps {
 interface TournamentRuleFieldsProps extends TournamentFieldsProps {
 	currencies?: Array<{ id: string; name: string }>;
 	onCurrencyChange?: (id: string | undefined) => void;
-	/** Field labels that diverge from the picked master tournament. */
 	overriddenLabels?: ReadonlySet<string>;
 	selectedCurrencyId?: string;
 }
 
 interface TournamentResultFieldsProps {
-	/** Purchase counts (the result) keyed by `ChipPurchaseRow.uid`. */
 	chipPurchaseCounts: Record<string, number>;
-	/** Rule-defined chip purchases from the wizard's Rules step. */
 	chipPurchases: ChipPurchaseRow[];
-	/** Field names to render read-only (live sessions lock a subset). */
 	disabledFields: ReadonlySet<string>;
 	form: AnyForm;
 	onChipPurchaseCountChange: (uid: string, count: number) => void;
-	/**
-	 * Field names to mark as required. A live session writes these back into its
-	 * `session_end` payload, which has no room for a blank — the shared schema
-	 * keeps them optional for manual sessions.
-	 */
 	requiredFields?: ReadonlySet<string>;
 }
 
-/**
- * Phase B (Rules) tournament fields. Cost-of-entry (buyIn / entryFee) and
- * the linked currency belong here because they describe the master rule —
- * how much the session costs to play. Result fields (prizeMoney /
- * placement / rebuy / addon / bounty) live in TournamentResultFields.
- */
 export function TournamentRuleFields({
 	currencies,
 	form,
@@ -146,14 +131,6 @@ export function TournamentRuleFields({
 	);
 }
 
-/**
- * Phase C (Result) tournament fields. Everything here is a session-level
- * outcome — prizeMoney / placement / total entries / chip-purchase counts /
- * bounty. The beforeDeadline checkbox discriminates the result kind
- * (categorical, not a rule). Chip purchase counts are recorded per
- * rule-defined chip purchase (defined in the Rules step); cost is derived
- * from the rule, never entered free-form here.
- */
 export function TournamentResultFields({
 	form,
 	disabledFields,

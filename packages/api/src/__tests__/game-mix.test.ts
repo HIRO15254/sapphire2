@@ -64,7 +64,6 @@ const OWNED_VARIANT_2 = {
 };
 const OTHER_VARIANT = { id: "gv-x", userId: CUR_OTHER, label: "Their Mix" };
 
-/** Non-empty group/variant/mix rows so list()'s self-seed guard is skipped. */
 function seededRows(extra: { variant?: Rows; group?: Rows; mix?: Rows } = {}) {
 	return {
 		[GROUP_TABLE]: extra.group ?? [OWNED_GROUP],
@@ -205,9 +204,6 @@ describe("gameMix.create games ownership (SA2-183)", () => {
 	it("rejects a games array containing a variant id owned by another user (FORBIDDEN)", async () => {
 		const { caller } = gameMixCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
-			// Simulates the filtered `WHERE id IN (…) AND userId = caller` query
-			// returning only the caller-owned row (see test-utils.ts's
-			// createChainableMockDb doc comment).
 			[VARIANT_TABLE]: [OWNED_VARIANT_1],
 			[MIX_TABLE]: [],
 		});
@@ -239,9 +235,6 @@ describe("gameMix.create games ownership (SA2-183)", () => {
 		const { caller } = gameMixCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: [OWNED_VARIANT_1, OWNED_VARIANT_2],
-			// A dummy pre-existing row so the mock's post-insert lookup (which
-			// does not actually filter by the fresh id) resolves to something
-			// truthy (mirrors game-variant.test.ts's "placeholder" convention).
 			[MIX_TABLE]: [
 				{
 					id: "placeholder",
@@ -366,7 +359,6 @@ describe("gameMix.update duplicate games guard (BAD_REQUEST)", () => {
 	});
 });
 
-/** N owned variants, each in its own distinct game group. */
 function variantsAcrossGroups(n: number): Rows {
 	return Array.from({ length: n }, (_, i) => ({
 		id: `gv-span-${i}`,

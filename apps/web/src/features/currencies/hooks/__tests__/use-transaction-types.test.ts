@@ -5,12 +5,6 @@ import {
 	withQueryClient as makeWrapper,
 } from "@/__tests__/test-utils";
 
-// ---------------------------------------------------------------------------
-// Mocks for trpc — queryOptions returns stable queryKey so the real
-// QueryClient can resolve predictable keys. trpcClient.transactionType.create
-// is a spy we can configure per-test.
-// ---------------------------------------------------------------------------
-
 function buildKey(namespace: string, procedure: string, input: unknown) {
 	return input === undefined
 		? [namespace, procedure]

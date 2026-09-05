@@ -18,16 +18,12 @@ export function useCurrenciesPage() {
 	const handleCreate = (values: CurrencyValues) => {
 		create(values).then(
 			() => setIsCreateOpen(false),
-			() => {
-				// The mutation cache reports the error; retain the form for retry.
-			}
+			() => undefined
 		);
 	};
 
 	const handleToggleFavorite = (id: string) => {
-		toggleFavorite(id).catch(() => {
-			// The mutation cache reports the error and the data hook rolls back.
-		});
+		toggleFavorite(id).catch(() => undefined);
 	};
 
 	return {

@@ -11,12 +11,6 @@ import { trpc, trpcClient } from "@/utils/trpc";
 
 type UpdateInput = SessionFormValues & { id: string; isLiveLinked?: boolean };
 
-/**
- * Detail-page data hook for a single session. Fetches the enriched session via
- * `session.getById` (same shape as a list item) and exposes update / delete /
- * reopen / tag-create mutations. Mutations invalidate both the detail query and
- * every `session.list` variant so the list reflects the change on return.
- */
 export function useSessionDetail(sessionId: string) {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
@@ -24,7 +18,6 @@ export function useSessionDetail(sessionId: string) {
 	const sessionKey = trpc.session.getById.queryOptions({
 		id: sessionId,
 	}).queryKey;
-	// No-input list key — prefix-matches every filtered `session.list` variant.
 	const sessionListKey = trpc.session.list.queryKey();
 	const tagsKey = trpc.sessionTag.list.queryOptions().queryKey;
 

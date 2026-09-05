@@ -77,7 +77,6 @@ describe("requiredNumericString", () => {
 	});
 
 	it("reports both min and max when both are violated in a single pass", () => {
-		// With only one bound breached, only that single issue is added.
 		const resultMin = requiredNumericString({
 			min: 0,
 			max: 10,
@@ -90,7 +89,6 @@ describe("requiredNumericString", () => {
 	});
 
 	it("integer: rule — rejects values whose parseInt yields NaN", () => {
-		// parseInt("abc") is NaN.
 		const result = requiredNumericString({ integer: true }).safeParse("abc");
 		expect(result.success).toBe(false);
 		if (!result.success) {
@@ -115,7 +113,6 @@ describe("requiredNumericString", () => {
 	});
 
 	it("rejects Infinity as not finite", () => {
-		// Number("Infinity") is Infinity → !isFinite → rejected.
 		const result = requiredNumericString().safeParse("Infinity");
 		expect(result.success).toBe(false);
 		if (!result.success) {
@@ -132,7 +129,6 @@ describe("requiredNumericString", () => {
 	});
 
 	it("rejects non-string input at the string schema layer", () => {
-		// z.string() rejects numbers outright.
 		const result = requiredNumericString().safeParse(42 as unknown as string);
 		expect(result.success).toBe(false);
 	});

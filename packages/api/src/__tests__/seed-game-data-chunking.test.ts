@@ -5,10 +5,6 @@ import { describe, expect, it, vi } from "vitest";
 import { seedDefaultGameData } from "../services/seed-game-data";
 import { createChainableMockDb } from "./test-utils";
 
-// A dedicated file because it replaces the seed constants module-wide: the
-// point is a builtin mix wide enough to overflow D1's 100-bind-param cap in a
-// single INSERT, which the real DEFAULT_GAME_MIXES (max 10 variants) cannot
-// express.
 vi.mock("@sapphire2/db/constants/game-variants", () => ({
 	DEFAULT_GAME_GROUPS: [
 		{

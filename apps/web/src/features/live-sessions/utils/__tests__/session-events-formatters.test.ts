@@ -302,9 +302,6 @@ describe("getTimeBounds", () => {
 	});
 
 	it("returns null min and the first event as max when target id is absent (quirk)", () => {
-		// When findIndex returns -1, `index < events.length - 1` is still true,
-		// so the function returns `events[0]` as maxTime. This pins the current
-		// behavior — callers should pre-check presence of the id.
 		const { minTime, maxTime } = getTimeBounds(events, "missing");
 		expect(minTime).toBeNull();
 		expect(maxTime?.toISOString()).toBe("2026-01-01T10:00:00.000Z");
@@ -347,7 +344,6 @@ describe("groupEventsForDisplay", () => {
 			event({ id: "4", eventType: "player_leave" }),
 		];
 		const groups = groupEventsForDisplay(events);
-		// Expected: [player_group, single(memo), single(player_leave)]
 		expect(groups.map((g) => g.type)).toEqual([
 			"player_group",
 			"single",

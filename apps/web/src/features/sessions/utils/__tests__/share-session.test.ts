@@ -11,10 +11,6 @@ const ANY_DURATION = /\d+\.\dh/;
 const NEGATIVE_DURATION = /-\d+\.\dh/;
 const COMPACT_500 = /📈 \+500 \n/;
 
-// SA2-145: the shared text's 📅 line must show the UTC calendar day the user
-// saved (sessionDate is a UTC-midnight ISO string). `withTz` (shared helper)
-// drives a deterministic zone per case and restores the host zone afterwards.
-
 function cashSession(
 	overrides: Partial<ShareableSession> = {}
 ): ShareableSession {
@@ -69,7 +65,6 @@ describe("createSessionShareText", () => {
 			expect(text).toContain("📈 +5,000 JPY");
 		});
 
-		// SA2-145: the 📅 date must not roll back a day west of UTC.
 		it("renders the UTC calendar day west of UTC (no off-by-one)", () => {
 			const text = withTz(TZ_WEST, () =>
 				createSessionShareText(
@@ -106,8 +101,6 @@ describe("createSessionShareText", () => {
 		});
 
 		it("omits the EV line when no EV cash-out was recorded", () => {
-			// The server falls back to the actual result, but the shared text must
-			// not repeat the same number as an EV addendum.
 			const text = createSessionShareText(
 				cashSession({ evCashOut: null, evProfitLoss: 5000 })
 			);
@@ -118,7 +111,6 @@ describe("createSessionShareText", () => {
 			const text = createSessionShareText(
 				cashSession({ evCashOut: 0, evProfitLoss: -10_000 })
 			);
-			// Compact formatting, same as every other amount in the shared text.
 			expect(text).toContain("(EV: -10k JPY)");
 		});
 
@@ -218,7 +210,7 @@ describe("createSessionShareText", () => {
 				tournamentSession({
 					profitLoss: 20_000,
 					prizeMoney: 30_000,
-					evProfitLoss: 12_345, // should be ignored in tournament branch
+					evProfitLoss: 12_345,
 				})
 			);
 			expect(text).toContain("(Prize: +30k JPY)");

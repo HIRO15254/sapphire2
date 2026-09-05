@@ -259,3 +259,17 @@
 - 維持したmock利用テストは、保存値の正規化・操作可否・タイマー等の独立契約を担う。mockの関数呼び出しが通ったことを、API認可・DB永続化・ブラウザーの実挙動の証明には数えない。
 - 並行mutationの新helperはcurrency取引のcreate/edit/deleteによるmutation起点のrefetchとrollbackを協調させる。他hook、外部のfocus/reconnect・手動retry・load moreによるquery更新へ保証を拡張しない。
 - 対象ファイルを残す判断とテスト環境全体の完成は別である。PWA更新、IndexedDBのアカウント分離、認証、実DB、ライブセッションの競合は担当の統合/E2Eおよび別レビューと合わせて確認する。
+
+## dev 更新の取り込み
+
+`37371fd8..8d3dbdc2` の Currencies・Players・Rooms 全差分を確認した。この範囲の上流変更は説明コメントの除去で、新しい動作・テスト契約の追加はない。競合17ファイルは、9ファイルで今回の再編・並行更新保護を維持し、8ファイルで上流の個別差分を照合したうえで承認済みの削除を維持した。最新のコメント規約に合わせて追加した説明コメントも整理し、更新理由はこの文書と設計文書に保持する。解消後は関係する8テストファイルとCatalog・PlayersのUI統合を合わせた10ファイル・135テストが成功し、3機能とCatalog統合の284ファイルのUltracite検査も成功した。
+
+以下のSettings Passkeys 3ファイルは上流で追加されたため、当初の222ファイルおよび全体407ファイルの判定数に含めない。テスト名・expect・実hook／componentを個別に確認した。
+
+| 上流追加ファイル | 判定・理由 |
+| --- | --- |
+| `apps/web/src/features/settings/pages/settings-page/passkeys/__tests__/use-add-passkey-form.test.ts` | 維持。実フォームのtrim・必須・50文字境界に加え、登録の成功、利用者の取り消し、登録済み端末、SDKの失敗応答・結果欠落を区別する。成功時だけ閉じる・再取得する・自動登録を再許可する契約があり、エラー分類関数の写しではない。 |
+| `apps/web/src/features/settings/pages/settings-page/passkeys/__tests__/use-passkeys.test.ts` | 維持。実hookで取得失敗と空一覧を区別し、削除／名前変更の対象・失敗時のフォーム保持・削除後の自動再登録停止を検証する。deferred応答によるpending中の二重要求防止と、古い取得応答が新しい成功を上書きしない保護もある。 |
+| `apps/web/src/features/settings/pages/settings-page/passkeys/passkeys.test.tsx` | 維持。実component・hook・フォームを操作し、削除確認／cancel、対象切り替え時の名前初期化、追加cancel後のリセット、取得失敗の表示とRetry中の操作制限・復旧、WebAuthn非対応の案内を検証する。hookの戻り値をmockしたprops確認ではない。 |
+
+Passkeysの3ファイル・58テストは解消後のscoped実行で成功した。認証SDKを境界でmockするため、実際の資格情報登録・ログイン、サーバー所有権、DB永続化を証明しない。UIテストはDrawerも置換しており、portal・focus・モバイルのシート挙動は保証範囲外である。認証utility・shared libraryの上流追加テストは別担当のレビュー記録を参照する。

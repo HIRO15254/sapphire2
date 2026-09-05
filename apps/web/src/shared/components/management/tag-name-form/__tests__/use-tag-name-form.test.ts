@@ -4,7 +4,6 @@ import { useTagNameForm } from "@/shared/components/management/tag-name-form/use
 
 type FormOf = ReturnType<typeof useTagNameForm>["form"];
 
-/** Validation messages currently attached to the `name` field. */
 function nameErrorMessages(form: FormOf): (string | undefined)[] {
 	const errors = (form.getFieldMeta("name")?.errors ?? []) as {
 		message?: string;
@@ -39,9 +38,6 @@ describe("useTagNameForm", () => {
 		);
 	});
 
-	// The server's presetNameSchema / tag name is `.trim().min(1).max(50)`, so a
-	// whitespace-only name that passes here would come back as an opaque toast
-	// instead of an inline field error.
 	it("rejects a whitespace-only name with the required message", async () => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() => useTagNameForm({ onSubmit }));
@@ -176,9 +172,6 @@ describe("useTagNameForm", () => {
 	});
 });
 
-// The `label` option exists so the filter-presets sheet can render this form as
-// "Preset name"; the validation copy has to follow it, or the user reads
-// "Tag name is required" under a field labelled "Preset name".
 describe("validation copy follows the label", () => {
 	it("names the default label when none is given", async () => {
 		const { result } = renderHook(() => useTagNameForm({ onSubmit: vi.fn() }));

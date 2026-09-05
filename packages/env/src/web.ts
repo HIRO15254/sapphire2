@@ -32,11 +32,6 @@ type WebEnv = ReturnType<typeof createWebEnv>;
 
 let cachedEnv: WebEnv | undefined;
 
-/**
- * Lazy `env` proxy: the actual `createEnv` validation happens on first access,
- * so modules that only need the factory (tests, static type tooling) can import
- * `web.ts` without crashing when `import.meta.env` is absent.
- */
 export const env = new Proxy({} as WebEnv, {
 	get(_target, prop) {
 		if (!cachedEnv) {

@@ -1,6 +1,13 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { APIRequestContext, Page } from "@playwright/test";
-import { API_URL, expect, signIn, test } from "./fixtures";
+import {
+	API_URL,
+	expect,
+	signIn,
+	submitSignIn,
+	type TestAccount,
+	test,
+} from "./fixtures";
 
 interface OAuthClient {
 	authorizeUrl: string;
@@ -56,7 +63,11 @@ async function registerClient(
 	};
 }
 
-async function requestConsent(page: Page, client: OAuthClient) {
+async function requestConsent(
+	page: Page,
+	client: OAuthClient,
+	account?: TestAccount
+) {
 	const verifier = randomBytes(32).toString("base64url");
 	const challenge = createHash("sha256").update(verifier).digest("base64url");
 	const state = crypto.randomUUID();
@@ -73,7 +84,24 @@ async function requestConsent(page: Page, client: OAuthClient) {
 		// Even a client asking to bypass interaction must see explicit consent.
 		prompt: "none",
 	}).toString();
-	const response = await page.goto(url.toString());
+	let response = await page.goto(url.toString());
+	if (account) {
+		await expect(page).toHaveURL(
+			(current) =>
+				current.origin === "https://localhost:13001" &&
+				current.pathname === "/login" &&
+				current.searchParams.get("client_id") === client.clientId &&
+				current.searchParams.get("state") === state
+		);
+		[response] = await Promise.all([
+			page.waitForResponse(
+				(candidate) =>
+					candidate.request().isNavigationRequest() &&
+					new URL(candidate.url()).pathname === "/oauth/consent"
+			),
+			submitSignIn(page, account),
+		]);
+	}
 	await expect(page).toHaveURL(
 		(current) => current.pathname === "/oauth/consent"
 	);
@@ -100,8 +128,12 @@ async function decideConsent(page: Page, state: string, accept: boolean) {
 	return callback;
 }
 
-async function authorize(page: Page, client: OAuthClient) {
-	const { state, verifier } = await requestConsent(page, client);
+async function authorize(
+	page: Page,
+	client: OAuthClient,
+	account?: TestAccount
+) {
+	const { state, verifier } = await requestConsent(page, client, account);
 	const callback = await decideConsent(page, state, true);
 	const code = callback.searchParams.get("code");
 	expect(code).toEqual(expect.any(String));
@@ -174,14 +206,13 @@ async function callTool<T>(
 	return JSON.parse(content.text) as T;
 }
 
-test("OAuth consent and PKCE connect MCP writes to cookie reads with account isolation", async ({
+test("OAuth login continuation and PKCE connect MCP writes to cookie reads with account isolation", async ({
 	page,
 	account,
 	browser,
 }) => {
-	await signIn(page, account);
 	const client = await registerClient(page.request);
-	const token = await authorize(page, client);
+	const token = await authorize(page, client, account);
 	const initialized = await rpc<{ serverInfo: { name: string } }>(
 		page.request,
 		token,

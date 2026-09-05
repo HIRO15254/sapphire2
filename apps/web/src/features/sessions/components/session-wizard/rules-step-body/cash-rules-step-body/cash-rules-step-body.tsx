@@ -100,8 +100,6 @@ export function CashRulesStepBody({
 						/>
 						{state.isMixValue(values.variant) && (
 							<>
-								{/* Amounts only — the composition follows the mix master,
-								    edited via the dedicated bottom sheet below. */}
 								<MixGamesEditor
 									disabled={isLiveLinked}
 									onChange={state.setMixGames}

@@ -14,8 +14,6 @@ const USER = {
 const TOKEN = {
 	userId: "user-1",
 	scopes: "openid profile",
-	// Relative, not a fixed date: buildMcpSession rejects expired tokens, so a
-	// hard-coded timestamp turns the whole suite red once the clock passes it.
 	accessTokenExpiresAt: new Date(Date.now() + 3_600_000),
 };
 
@@ -64,8 +62,6 @@ describe("buildMcpSession", () => {
 
 	it("never fabricates a browser session token", () => {
 		const session = buildMcpSession(TOKEN, USER);
-		// The synthetic record must not look like (or collide with) a real
-		// better-auth session token that could be replayed against /api/auth.
 		expect(session?.session.token).toBe("");
 	});
 });

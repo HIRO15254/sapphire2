@@ -48,7 +48,6 @@ describe("applyTimeToDate", () => {
 	});
 
 	it("produces an Invalid Date when time string is malformed (NaN parts)", () => {
-		// Number("abc") -> NaN; setHours(NaN, NaN, ...) invalidates the Date.
 		const next = applyTimeToDate(new Date(2026, 3, 1), "abc:def");
 		expect(Number.isNaN(next.getTime())).toBe(true);
 	});
@@ -82,7 +81,6 @@ describe("validateOccurredAtTime", () => {
 	});
 
 	it("equality at min is OK (min is truncated to seconds=0)", () => {
-		// min has seconds → truncated to HH:MM:00; candidate "10:00" == min.
 		const min = new Date(2026, 3, 1, 10, 0, 45);
 		expect(validateOccurredAtTime("10:00", BASE, min, null)).toBeNull();
 	});

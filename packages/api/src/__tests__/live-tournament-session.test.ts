@@ -18,7 +18,7 @@ import {
 } from "./test-utils";
 
 const BLIND_LEVEL_COLUMNS = 10;
-const MAX_ROWS_PER_INSERT = Math.floor(100 / BLIND_LEVEL_COLUMNS); // 10
+const MAX_ROWS_PER_INSERT = Math.floor(100 / BLIND_LEVEL_COLUMNS);
 
 interface BlindLevelInput {
 	ante?: number | null;
@@ -51,8 +51,6 @@ function createBlindLevelMockDb() {
 	const del = vi.fn(() => ({ where: deleteWhere }));
 	const values = vi.fn().mockResolvedValue(undefined);
 	const insert = vi.fn(() => ({ values }));
-	// persistSessionBlindLevels now commits the DELETE + chunked INSERTs through
-	// a single db.batch (SA2-116); each statement is a resolved promise here.
 	const batch = vi.fn((statements: unknown[]) =>
 		Promise.all(statements as Promise<unknown>[])
 	);
@@ -66,7 +64,6 @@ function createBlindLevelMockDb() {
 	};
 }
 
-/** The row array passed to each `.values()` call, in call order. */
 function insertedChunks(values: ReturnType<typeof vi.fn>): InsertedRow[][] {
 	return values.mock.calls.map((call) => call[0] as InsertedRow[]);
 }
@@ -82,12 +79,6 @@ function callerFor(db: unknown, userId: string) {
 
 type Rows = Record<string, unknown>[];
 
-/**
- * Minimal drizzle-shaped mock db: `select().from(t).where().limit()` chains
- * resolve to the rows registered for table `t`; `insert`/`update`/`delete`
- * resolve to no-ops. Keyed by the imported schema object reference so the
- * ownership `select().from(room|currency)` reads the seeded owner rows.
- */
 type ChainablePromise = Promise<Rows> & Record<string, () => ChainablePromise>;
 
 interface MockDbOptions {
@@ -843,22 +834,14 @@ describe("liveTournamentSession.updateSnapshot input validation", () => {
 	});
 });
 
-// Regression guard for SA2-115: updateSnapshot re-seeds blind levels via the
-// shared persistSessionBlindLevels helper, which DELETEs then re-INSERTs. D1
-// rejects any statement binding >100 params, so a 10-column blind row must be
-// chunked at 10 rows/INSERT. A single unchunked INSERT of >=11 levels (>=110
-// params) would throw at runtime AFTER the DELETE already committed, wiping the
-// session's blind structure permanently.
 describe("persistSessionBlindLevels chunking (SA2-115)", () => {
 	it("splits >10 blind levels into multiple INSERTs each within D1's 100-param cap", async () => {
 		const { db, del, deleteWhere, insert, values } = createBlindLevelMockDb();
 
 		await persistSessionBlindLevels(db, "sess-1", makeBlindLevels(12));
 
-		// DELETE runs exactly once before any INSERT.
 		expect(del).toHaveBeenCalledTimes(1);
 		expect(deleteWhere).toHaveBeenCalledTimes(1);
-		// 12 rows -> 10 + 2 => two INSERT statements.
 		expect(insert).toHaveBeenCalledTimes(2);
 		const deleteOrder = del.mock.invocationCallOrder[0];
 		const insertOrder = insert.mock.invocationCallOrder[0];
@@ -870,7 +853,6 @@ describe("persistSessionBlindLevels chunking (SA2-115)", () => {
 		const [firstChunk, secondChunk] = insertedChunks(values);
 		expect(firstChunk).toHaveLength(MAX_ROWS_PER_INSERT);
 		expect(secondChunk).toHaveLength(12 - MAX_ROWS_PER_INSERT);
-		// Every INSERT stays under the 100 bound-parameter cap.
 		for (const chunk of insertedChunks(values)) {
 			expect(chunk.length * BLIND_LEVEL_COLUMNS).toBeLessThanOrEqual(100);
 		}
@@ -963,7 +945,6 @@ describe("liveTournamentSession.create tournament ownership (IDOR guard)", () =>
 	}) {
 		return createChainableMockDb({
 			select: {
-				// no session is currently active
 				game_session: [],
 				tournament: opts.tournament ?? [],
 				room: opts.room ?? [],
@@ -1000,9 +981,7 @@ describe("liveTournamentSession.create tournament ownership (IDOR guard)", () =>
 		});
 
 		expect(typeof result.id).toBe("string");
-		// The room must be read to confirm tournament ownership.
 		expect(selectedTables).toContain("room");
-		// The session and its structure snapshot were persisted.
 		expect(inserted.game_session).toHaveLength(1);
 		expect(inserted.session_tournament_detail).toHaveLength(1);
 		expect(inserted.session_blind_level).toHaveLength(1);
@@ -1022,7 +1001,6 @@ describe("liveTournamentSession.create tournament ownership (IDOR guard)", () =>
 			code: "FORBIDDEN",
 			message: "You do not own this tournament",
 		});
-		// The guard runs before any write, so nothing is persisted.
 		expect(inserted.game_session).toBeUndefined();
 		expect(inserted.session_blind_level).toBeUndefined();
 	});
@@ -1046,7 +1024,6 @@ describe("liveTournamentSession.create tournament ownership (IDOR guard)", () =>
 		const result = await callerFor(db, CALLER).liveTournamentSession.create({});
 
 		expect(typeof result.id).toBe("string");
-		// No tournament / room lookups happen without a tournamentId.
 		expect(selectedTables).not.toContain("tournament");
 		expect(selectedTables).not.toContain("room");
 		expect(inserted.game_session).toHaveLength(1);
@@ -1059,15 +1036,6 @@ const listCursorDialect = new SQLiteSyncDialect();
 type ChainableAny = Promise<Rows> &
 	Record<string, (...args: unknown[]) => ChainableAny>;
 
-/**
- * Mock db that captures the list query's `.where(...)` (SQL + bound params) and
- * `.orderBy(...)` (SQL), and resolves the `game_session` select to `listRows`
- * while every other read (the per-item enrichment) resolves to `[]`. Lets the
- * composite-keyset cursor (SA2-150) be inspected end-to-end: the boundary must
- * embed the cursor's `(timestamp, id)` directly rather than run a subquery on
- * the raw id (which returned NULL — and dropped the whole page — once the cursor
- * row was discarded), and `nextCursor` must echo the last kept row's composite.
- */
 function createListMockDb(listRows: Rows = []) {
 	const listWhere: { params: unknown[]; sql: string }[] = [];
 	const listOrderBy: string[] = [];
@@ -1233,12 +1201,6 @@ describe("liveTournamentSession.list composite keyset cursor (SA2-150)", () => {
 	});
 });
 
-// SA2-151: the list endpoint fetched session_event with one query per page item
-// (an N+1 that D1's per-query latency made expensive at page size). It now
-// collects the page's session ids and fetches every event in ONE inArray batch,
-// then buckets rows by session id. These tests pin the single-query shape, the
-// per-session bucketing (eventCount + the computeStackStats-derived fields), and
-// the (occurredAt, sortOrder) ordering the current-stack derivation depends on.
 const listEventBatchDialect = new SQLiteSyncDialect();
 
 function sessionEventRow(
@@ -1257,13 +1219,6 @@ function sessionEventRow(
 	};
 }
 
-/**
- * Mock db for the list-enrichment path: `select().from(gameSession)` resolves
- * to the page rows, `select().from(sessionEvent)` resolves to every event row
- * (the mock ignores the `inArray` filter, so bucketing must be done in app
- * code). It records which table each `.from(...)` targeted and the conditions
- * bound to the sessionEvent `.where(...)` so a single batched IN can be proven.
- */
 function createEventBatchMockDb(sessions: Rows, events: Rows) {
 	const fromCalls: unknown[] = [];
 	const eventWhere: unknown[] = [];
@@ -1345,7 +1300,6 @@ describe("liveTournamentSession.list event batching (SA2-151)", () => {
 				3000,
 				2
 			),
-			// s2 has no events.
 		];
 		const { db } = createEventBatchMockDb(sessions, events);
 
@@ -1355,8 +1309,6 @@ describe("liveTournamentSession.list event batching (SA2-151)", () => {
 		expect(byId.s1?.eventCount).toBe(3);
 		expect(byId.s1?.latestStackAmount).toBe(30_000);
 		expect(byId.s1?.remainingPlayers).toBe(50);
-		// (startingStack * totalEntries + chipTotal) / remainingPlayers
-		// = (20000 * 100 + 0) / 50 = 40000.
 		expect(byId.s1?.averageStack).toBe(40_000);
 		expect(byId.s2?.eventCount).toBe(0);
 		expect(byId.s2?.latestStackAmount).toBeNull();

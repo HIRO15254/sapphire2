@@ -22,10 +22,6 @@ export function UpdateNotesProvider({
 }) {
 	const [isOpen, setIsOpen] = useState(false);
 	const [hasAutoOpened, setHasAutoOpened] = useState(false);
-	// Single source of truth for viewed state, shared with UpdateNotesSheet via
-	// context. Holding one instance here (rather than the provider and the sheet
-	// each calling useUpdateNotesViewed) keeps the auto-open optimistic mark in
-	// sync with the sheet's NEW badges — no cross-instance flicker (SA2-185).
 	const {
 		viewedVersions,
 		isViewedListLoaded,
@@ -34,7 +30,6 @@ export function UpdateNotesProvider({
 	} = useUpdateNotesViewed();
 
 	useEffect(() => {
-		// Wait until the viewed list has loaded before deciding once.
 		if (hasAutoOpened || !isViewedListLoaded) {
 			return;
 		}
@@ -46,9 +41,6 @@ export function UpdateNotesProvider({
 			})
 		) {
 			setIsOpen(true);
-			// Record the latest release as viewed on auto-open so the sheet
-			// surfaces once per release instead of every session until the user
-			// happens to expand its accordion (SA2-185 review follow-up).
 			if (LATEST_VERSION) {
 				markViewed(LATEST_VERSION);
 			}

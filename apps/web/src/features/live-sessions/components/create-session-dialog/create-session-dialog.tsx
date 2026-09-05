@@ -10,12 +10,6 @@ interface CreateSessionDialogProps {
 	open: boolean;
 }
 
-/**
- * Full-height bottom sheet for starting a live session. Single-screen form
- * (no wizard steps): the FormSheet toolbar's ✓ submits the live form via its
- * `form` id, and rule overrides live behind a collapsed "Customize rules"
- * section, so a session that keeps the master's rules starts in one tap.
- */
 export function CreateSessionDialog({
 	open,
 	onOpenChange,

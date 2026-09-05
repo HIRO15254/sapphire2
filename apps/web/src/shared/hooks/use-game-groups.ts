@@ -9,24 +9,18 @@ import {
 import { invalidateTargets } from "@/utils/optimistic-update";
 import { trpc } from "@/utils/trpc";
 
-/** Blind-slot labels of a group; blind3 null = no third slot. */
 export interface BlindSlotLabels {
 	blind1: string;
 	blind2: string;
 	blind3: string | null;
 }
 
-// Shown only while the master rows haven't loaded (or an account is mid-
-// self-seed); the DB rows are the runtime source of truth, never constants.
 const FALLBACK_LABELS: BlindSlotLabels = {
 	blind1: "SB",
 	blind2: "BB",
 	blind3: "Straddle",
 };
 
-// The master lists change only through explicit edits, which all invalidate
-// via useInvalidateGameMasters — a generous staleTime stops the three lists
-// refetching on every mount/focus (c36).
 export const GAME_MASTERS_STALE_TIME_MS = 5 * 60 * 1000;
 
 interface GameGroupRowLike {
@@ -54,8 +48,6 @@ interface GameMixRowLike {
 	label: string;
 }
 
-// Stable empty fallbacks so the memoized lookups don't rebuild every render
-// while a list is still loading.
 const NO_GROUPS: GameGroupRowLike[] = [];
 const NO_VARIANTS: GameVariantRowLike[] = [];
 const NO_MIXES: GameMixRowLike[] = [];
@@ -75,12 +67,6 @@ function toInfo(row: GameGroupRowLike, sortIndex: number): MixGroupInfo {
 	};
 }
 
-/**
- * Invalidate the three game-master lists together. Every mutation that
- * touches groups, variants, or mixes refetches all three as one unit (mix
- * composition summaries and label<->id mappings read across the lists), so
- * the uniform invalidation lives here instead of being re-declared per hook.
- */
 export function useInvalidateGameMasters() {
 	const queryClient = useQueryClient();
 	const groupsKey = trpc.gameGroup.list.queryOptions().queryKey;
@@ -94,14 +80,6 @@ export function useInvalidateGameMasters() {
 		]);
 }
 
-/**
- * The variant/group master data (per-user DB rows, seeded at signup).
- * Bundles both lists and exposes the resolution primitives every editor
- * and form uses: variant label → owning group, builtinKey → current
- * label, and group blind-slot labels for a variant. All derived lookups and
- * resolver callbacks are memoized on the three lists, so consumers can use
- * them as effect/memo dependencies without re-derivation loops (c37).
- */
 export function useGameGroups() {
 	const groupsQuery = useQuery({
 		...trpc.gameGroup.list.queryOptions(),
@@ -120,7 +98,6 @@ export function useGameGroups() {
 	const variants = (variantsQuery.data ?? NO_VARIANTS) as GameVariantRowLike[];
 	const mixes = (mixesQuery.data ?? NO_MIXES) as GameMixRowLike[];
 
-	// Server list order is canonical (builtin order, then customs by label).
 	const infoById = useMemo(
 		() =>
 			new Map<string, MixGroupInfo>(
@@ -129,8 +106,6 @@ export function useGameGroups() {
 		[groups]
 	);
 
-	// First row wins on (theoretical) duplicate labels, matching the previous
-	// Array.prototype.find semantics.
 	const variantByNormalizedLabel = useMemo(() => {
 		const map = new Map<string, GameVariantRowLike>();
 		for (const row of variants) {
@@ -189,8 +164,6 @@ export function useGameGroups() {
 		[variantByLabel, infoById]
 	);
 
-	// First mix wins on duplicate labels, matching the previous find/some
-	// semantics.
 	const mixByNormalizedLabel = useMemo(() => {
 		const map = new Map<string, GameMixRowLike>();
 		for (const mix of mixes) {
@@ -202,10 +175,6 @@ export function useGameGroups() {
 		return map;
 	}, [mixes]);
 
-	// True for the legacy mix-mode key ("mix") or any of the caller's mix
-	// master labels — both freeze into the same `variant` string once picked
-	// (self-freezing select), so this is the single place that recognizes
-	// either shape.
 	const isMixValue = useCallback(
 		(value: string): boolean => {
 			const normalized = normalizedLabel(value);
@@ -219,10 +188,6 @@ export function useGameGroups() {
 		[variants]
 	);
 
-	// A mix's ordered `games` (variant ids) resolved to their current display
-	// labels. Ids whose variant row no longer exists (deleted since the mix
-	// was saved) are silently skipped rather than surfacing a hole in the
-	// editor; an unknown mix label resolves to an empty composition.
 	const mixCompositionLabels = useCallback(
 		(mixLabel: string): string[] => {
 			const mix = mixByNormalizedLabel.get(normalizedLabel(mixLabel));

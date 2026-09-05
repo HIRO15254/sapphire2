@@ -19,28 +19,18 @@ interface VariantInput {
 	shortLabel: string | null;
 }
 
-// Mirrors gameVariant.create/update's server constraints so users get
-// field-level errors instead of a server reject.
 const variantFormSchema = z.object({
 	label: z.string().trim().min(1, "Required").max(30),
 	shortLabel: z.string().trim().max(15),
 	groupId: z.string().min(1, "Required"),
 });
 
-/**
- * Create AND edit share one sheet — mode is derived from `editingVariant`
- * presence. Create mode seeds `groupId` from the group whose "Add variant"
- * button was tapped (`createGroupId`), still changeable via the select.
- * Same key-per-target remount contract as `use-group-form-sheet.ts`.
- */
 export function useVariantFormSheet({
 	createGroupId,
 	editingVariant,
 	groups,
 	onOpenChange,
 }: UseVariantFormSheetProps) {
-	// Uniform triple-list invalidation, matching every other mutation in this
-	// section (see use-games-page.ts's invalidateAll).
 	const invalidateAll = useInvalidateGameMasters();
 
 	const createMutation = useMutation({

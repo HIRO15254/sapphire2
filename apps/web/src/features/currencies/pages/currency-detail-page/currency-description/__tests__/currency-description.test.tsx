@@ -4,8 +4,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { CurrencyDescription } from "@/features/currencies/pages/currency-detail-page/currency-description";
 import { DESCRIPTION_COLLAPSED_MAX_PX } from "@/features/currencies/pages/currency-detail-page/currency-description/use-currency-description";
 
-// jsdom reports scrollHeight as 0; override it so the overflow measurement in
-// the hook can be driven deterministically per test.
 let mockScrollHeight = 0;
 let originalDescriptor: PropertyDescriptor | undefined;
 
@@ -84,7 +82,6 @@ describe("CurrencyDescription", () => {
 		expect(
 			screen.getByRole("button", { name: SHOW_LESS_RE })
 		).toBeInTheDocument();
-		// Expanded clamps to the measured content height (animatable), not "none".
 		expect(screen.getByTestId("currency-description-body")).toHaveStyle({
 			maxHeight: `${TALL}px`,
 		});

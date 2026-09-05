@@ -256,12 +256,9 @@ describe("useSortableLevelRow", () => {
 			const { result } = renderHook(() =>
 				useSortableLevelRow({ row: makeRow(), onUpdate })
 			);
-			// This sets blind2Ref="300" AND anteRef="300" because ante was empty.
 			result.current.handleBlind2Blur(buildFocusEvent("300"));
 			onUpdate.mockClear();
 			result.current.handleBlind1Blur(buildFocusEvent("40"));
-			// blind2 is populated → skip *2 branch; ante is populated → skip ante
-			// auto-fill. Only blind1 is forwarded.
 			expect(onUpdate).toHaveBeenCalledWith("l1", { blind1: 40 });
 		});
 

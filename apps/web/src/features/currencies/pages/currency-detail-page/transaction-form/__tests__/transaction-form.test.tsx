@@ -66,7 +66,6 @@ describe("TransactionFormV2", () => {
 
 	it("renders the Amount input with inputMode=numeric (never type=number)", () => {
 		render(<TransactionFormV2 formId="x" onSubmit={vi.fn()} />);
-		// The amount label points at the same id as the amount input.
 		const amount = screen.getByLabelText("Amount *");
 		expect(amount).toHaveAttribute("inputmode", "numeric");
 		expect(amount).not.toHaveAttribute("type", "number");
@@ -83,9 +82,7 @@ describe("TransactionFormV2", () => {
 	it("marks Type / Amount / Date as required (red asterisk) and Memo as optional", () => {
 		render(<TransactionFormV2 formId="x" onSubmit={vi.fn()} />);
 		const asterisks = screen.getAllByText("*");
-		// Type, Amount, Date — three required fields.
 		expect(asterisks).toHaveLength(3);
-		// Memo label has no sibling asterisk.
 		const memoLabel = screen.getByText("Memo");
 		expect(memoLabel.parentElement?.textContent).toBe("Memo");
 	});
@@ -111,7 +108,6 @@ describe("TransactionFormV2", () => {
 			/>
 		);
 		expect(screen.getByLabelText("Amount *")).toHaveValue("1500");
-		// Type combobox shows the type name resolved from the id.
 		expect(screen.getByRole("combobox")).toHaveValue("Deposit");
 		expect(screen.getByLabelText("Memo")).toHaveValue("seed memo");
 	});
@@ -122,8 +118,6 @@ describe("TransactionFormV2", () => {
 		const { container } = render(
 			<TransactionFormV2 formId="x" onSubmit={onSubmit} />
 		);
-		// Trigger the form's submit event directly — no external Save
-		// button in this test.
 		const form = container.querySelector("form");
 		expect(form).not.toBeNull();
 		if (form) {

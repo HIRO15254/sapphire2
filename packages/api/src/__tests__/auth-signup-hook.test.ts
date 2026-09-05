@@ -1,16 +1,13 @@
 import { runUserCreatedHook } from "@sapphire2/auth";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// runUserCreatedHook lives in packages/auth (no vitest project of its own —
-// see AGENTS.md's vitest workspace list) but packages/api already depends on
-// @sapphire2/auth, so it's exercised from here (c13).
 describe("runUserCreatedHook (signup must survive a failing onUserCreated, c13)", () => {
 	let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
 	beforeEach(() => {
-		consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {
-			// swallow — asserted on below
-		});
+		consoleErrorSpy = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => undefined);
 	});
 
 	afterEach(() => {

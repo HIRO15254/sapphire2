@@ -1,8 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-// The hook only needs isMixValue; recognize the per-level sentinel and one
-// mix master label like the real master-data resolver does.
 vi.mock("@/shared/hooks/use-game-groups", () => ({
 	useGameGroups: () => ({
 		isMixValue: (value: string) =>

@@ -50,9 +50,6 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
 	const currencies = currenciesQuery.data ?? [];
 
-	// All loaded pages live in a single infinite-query cache entry. A refetch
-	// (focus / reconnect / staleTime / invalidate / remount) re-fetches every
-	// loaded page, so load-more results never roll back to page 1.
 	const transactionsInfiniteOptions =
 		trpc.currencyTransaction.listByCurrency.infiniteQueryOptions(
 			{ currencyId: expandedCurrencyId ?? "" },
@@ -104,8 +101,6 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 	});
 
 	const updateMutation = useMutation({
-		// Send an explicit `null` for a cleared unit so the server overwrites it
-		// rather than treating the omitted (undefined) key as "leave unchanged".
 		mutationFn: (values: CurrencyValues & { id: string }) =>
 			trpcClient.currency.update.mutate({
 				id: values.id,
@@ -152,10 +147,11 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 			trpcClient.currencyTransaction.create.mutate(values),
 		onMutate: async () => {
 			await cancelTargets(queryClient, [{ queryKey: transactionsKey }]);
-			return beginOptimisticQueryUpdate(queryClient, transactionsKey, () => {
-				// Create has no placeholder row, but must defer refetch while an
-				// overlapping edit or delete still owns an optimistic cache change.
-			});
+			return beginOptimisticQueryUpdate(
+				queryClient,
+				transactionsKey,
+				() => undefined
+			);
 		},
 		onSettled: (_data, error, _vars, context) => {
 			if (context && !context.settle(error === null)) {
@@ -184,9 +180,6 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 				memo: values.memo,
 			}),
 		onMutate: async (values) => {
-			// Keep the edit in every loaded page and defer mutation-triggered
-			// refetch until all overlapping transaction requests settle. Refetch
-			// supplies the possibly changed transactionTypeName afterward.
 			await cancelTargets(queryClient, [{ queryKey: transactionsKey }]);
 			return beginOptimisticQueryUpdate(queryClient, transactionsKey, () => {
 				updateInfiniteQueryItems<Transaction>(
@@ -252,7 +245,6 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 				const toggled = old.map((c) =>
 					c.id === id ? { ...c, isFavorite: !c.isFavorite } : c
 				);
-				// Exact replica of server ORDER BY is_favorite DESC, created_at ASC.
 				return [...toggled].sort((a, b) => {
 					if (a.isFavorite !== b.isFavorite) {
 						return a.isFavorite ? -1 : 1;
@@ -272,10 +264,6 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		},
 	});
 
-	// Load-more is now `fetchNextPage`. The zero-arg wrapper keeps the button's
-	// click event out of `FetchNextPageOptions`, and the guard makes it a no-op
-	// when there is no next page (otherwise React Query would re-fetch page 1)
-	// or while a page is already in flight.
 	const fetchNextPage = () => {
 		if (
 			transactionsQuery.hasNextPage &&

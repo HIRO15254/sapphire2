@@ -7,10 +7,6 @@ import {
 	useTournamentFormContext,
 } from "@/features/live-sessions/hooks/use-session-form";
 
-/**
- * Exercise both contexts through a single render so one `renderHook` covers the
- * whole provider surface (cash + tournament state) and the session-change reset.
- */
 function useBothContexts() {
 	return {
 		stack: useStackFormContext(),
@@ -18,11 +14,6 @@ function useBothContexts() {
 	};
 }
 
-/**
- * Renders the provider with a mutable `sessionId` closure. `setSessionId`
- * updates the closure and re-renders, so the wrapper feeds the new id into the
- * provider exactly like `AuthenticatedShell` does when the active session flips.
- */
 function renderWithSession(initialSessionId?: string | null) {
 	let sessionId = initialSessionId;
 	const wrapper = ({ children }: { children: ReactNode }) => (

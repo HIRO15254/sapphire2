@@ -34,6 +34,7 @@ sapphire2/
 ├── AGENTS.md           # エージェント向けガイド (正本); CLAUDE.md は @AGENTS.md でインポート
 ├── .claude/            # Claude Code 設定 (rules, skills, settings)
 ├── docs/
+│   ├── design/         # 設計判断とドメイン不変条件 (EN)
 │   ├── deploy.md       # デプロイガイド (EN)
 │   └── deploy.ja.md    # デプロイガイド (JA)
 └── .github/workflows/
@@ -132,3 +133,7 @@ bun run dev
 - **本番**: GitHub Release の公開で自動デプロイ
 
 詳細なセットアップ手順は [docs/deploy.ja.md](docs/deploy.ja.md) を参照してください。
+
+## 設計ドキュメント
+
+ドメインごとの設計判断と不変条件（データ整合性、セッション、統計、MCP/OAuth など）は [docs/design/](docs/design/README.md) に英語でまとめています。

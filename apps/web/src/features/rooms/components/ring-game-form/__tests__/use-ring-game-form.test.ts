@@ -238,9 +238,6 @@ describe("useRingGameForm", () => {
 	});
 });
 
-// Master fixture for mix-selection tests: two Big Bet variants plus a
-// 2-slot Limit group variant, and two named mixes referencing the Big Bet
-// pair in different combinations.
 const GROUPS = [
 	{
 		id: "g-bigbet",
@@ -480,9 +477,6 @@ describe("useRingGameForm — mix master edit sheet", () => {
 	});
 });
 
-// A ring game saved against a mix master keeps its frozen snapshot even
-// after the master is deleted/renamed: the submit gates on the editor rows,
-// never on a live master lookup (c02/c02b).
 const FROZEN_MIX_GAMES = [
 	{
 		name: null,
@@ -563,7 +557,6 @@ describe("useRingGameForm — stale flat fields on variant switches (c03/c04)", 
 		const { result, onSubmit } = setupWithMasterData();
 		act(() => {
 			result.current.form.setFieldValue("name", "1/2");
-			// Bypasses onVariantChange, so only the submit-time guard applies.
 			result.current.form.setFieldValue("variant", "Limit Hold'em");
 			result.current.form.setFieldValue("blind3", "5");
 		});

@@ -16,7 +16,6 @@ import { useSeatList } from "./use-seat-list";
 
 interface SeatListProps {
 	excludePlayerIds: string[];
-	/** True when a seat may still be claimed as the hero seat. */
 	heroAvailable: boolean;
 	onRemovePlayer: (playerId: string) => void;
 	onScanPlayers: () => void;
@@ -123,13 +122,6 @@ function PlayerSummary({ player }: { player: SeatPlayer }) {
 	);
 }
 
-/**
- * Speed-first all-seats list (SA2-59): every seat from the game definition is a
- * row. Notes and tags are readable with zero taps (memo excerpt on the row),
- * leaving is one tap (row-level unseat button), empty seats carry an always-on
- * search/seat combobox inline, and an occupied row expands in place to edit
- * notes / tags — never through a modal.
- */
 export function SeatList({
 	excludePlayerIds,
 	heroAvailable,
@@ -204,8 +196,6 @@ export function SeatList({
 						);
 					}
 					if (!seat.player) {
-						// Empty seats are always seatable inline — the search combobox is
-						// shown on the row itself, with no expand step.
 						return (
 							<li className="border-border border-b last:border-b-0" key={key}>
 								<div className="flex items-center gap-3 px-4 py-2">

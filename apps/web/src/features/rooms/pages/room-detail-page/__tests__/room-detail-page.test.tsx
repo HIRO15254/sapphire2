@@ -63,7 +63,6 @@ vi.mock("@/features/rooms/pages/room-detail-page/delete-room-dialog", () => ({
 	}) => (open ? <div data-testid="delete-room-dialog">{roomName}</div> : null),
 }));
 
-// Stub the back-link TopBar so the page test needs no router context.
 vi.mock("@/features/rooms/pages/room-detail-page/top-bar", () => ({
 	TopBar: ({ onOpenActions }: { onOpenActions?: () => void }) => (
 		<button onClick={onOpenActions} type="button">

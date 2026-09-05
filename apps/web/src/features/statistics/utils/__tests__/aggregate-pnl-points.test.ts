@@ -148,8 +148,6 @@ describe("aggregatePnlPoints", () => {
 		});
 
 		it("orders same-day sessions by sortKey (actual start time), not by id (SA2-98)", () => {
-			// sessionDate is date-only, so both sessions share the same calendar
-			// day; "z" sorts after "a" lexically but started first chronologically.
 			const day = Math.floor(new Date("2026-04-01T00:00:00Z").getTime() / 1000);
 			const morning = Math.floor(
 				new Date("2026-04-01T03:00:00Z").getTime() / 1000

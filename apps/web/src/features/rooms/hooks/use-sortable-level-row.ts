@@ -31,8 +31,6 @@ export function useSortableLevelRow({
 				currentBlind2Ref.current = autoBlind2;
 				updates.blind2 = parsed * 2;
 			}
-			// With blind2 already filled, the flat row copies blind1 into a
-			// blank ante (historical behavior); otherwise the derived blind2.
 			const autoAnte = deriveAutoAnte(
 				autoBlind2 ?? String(parsed),
 				currentAnteRef.current

@@ -115,7 +115,6 @@ describe("useActiveSession", () => {
 
 	it("flags isLoading=true while any of the four queries is loading", async () => {
 		const qc = createClient();
-		// Seed 3 to empty; leave cashPaused as loading (no seed → it fetches).
 		qc.setQueryData(cashActiveKey, { items: [] });
 		qc.setQueryData(tourActiveKey, { items: [] });
 		qc.setQueryData(tourPausedKey, { items: [] });

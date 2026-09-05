@@ -26,13 +26,6 @@ interface SessionWizardProps {
 	currencies?: Array<{ id: string; name: string }>;
 	defaultValues?: SessionFormDefaults;
 	isLoading?: boolean;
-	/**
-	 * "manual" (default) renders all three steps and submits to
-	 * session.create / session.update. "live" drops the Result step
-	 * (because live sessions populate results from events) and labels
-	 * the final action "Start session" — the caller still receives the
-	 * accumulated form values via `onSubmit`.
-	 */
 	mode?: WizardMode;
 	onCreateTag?: (name: string) => Promise<{ id: string; name: string }>;
 	onRoomChange?: (roomId: string | undefined) => void;

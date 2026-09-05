@@ -18,19 +18,6 @@ interface FieldProps extends ComponentProps<"div"> {
 	required?: boolean;
 }
 
-/**
- * When `error` is set, inject `aria-invalid` onto the single input-like
- * child. The shared Input / Textarea / Select trigger classes already
- * include `aria-invalid:border-destructive aria-invalid:ring-3 ...`, so
- * the red border / ring kicks in automatically. Falls back to the
- * untouched children when the child isn't a single React element
- * (multi-input fields handle their own invalid state).
- *
- * NB: we deliberately use `isValidElement` directly on `children` rather
- * than `Children.toArray` — the latter auto-assigns synthetic keys and
- * causes the wrapped input to unmount/remount whenever the error flips,
- * dropping focus and DOM state mid-typing.
- */
 function withInvalid(children: ReactNode, errorId?: string): ReactNode {
 	if (!(errorId && isValidElement(children))) {
 		return children;

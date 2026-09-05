@@ -10,7 +10,6 @@ import {
 	type ReviewRow,
 } from "@/features/live-sessions/utils/seat-screenshot";
 
-// Guard against accidental trpc imports pulling env.
 vi.mock("@/utils/trpc", () => ({
 	trpcClient: {
 		liveCashGameSession: { updateHeroSeat: { mutate: vi.fn() } },

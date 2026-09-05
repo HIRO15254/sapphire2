@@ -19,11 +19,6 @@ interface SortableGamesRowProps {
 	row: BlindLevelRow;
 }
 
-/**
- * Mix-mode level row: the flat blind cells are replaced by a "Games (n)"
- * summary button that opens the per-level group editor sheet; minutes and
- * delete stay inline.
- */
 export function SortableGamesRow({
 	row,
 	onDelete,

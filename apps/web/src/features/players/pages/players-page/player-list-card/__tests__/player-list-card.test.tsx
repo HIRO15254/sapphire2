@@ -65,7 +65,6 @@ describe("PlayerListCard", () => {
 			],
 		});
 		await screen.findByText("Alice");
-		// First two tags stay visible, the remaining two collapse to "+2".
 		expect(screen.getByText("VIP")).toBeInTheDocument();
 		expect(screen.getByText("Regular")).toBeInTheDocument();
 		expect(screen.getByText("+2")).toBeInTheDocument();

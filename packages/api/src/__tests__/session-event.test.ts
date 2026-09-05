@@ -8,10 +8,6 @@ import {
 } from "./test-utils";
 
 describe("sessionEvent.list input validation", () => {
-	// Note: the cross-field rule "exactly one session id" is enforced at
-	// runtime via `validateExactlyOneSessionId`, not by the Zod schema.
-	// The schema accepts any combination here.
-
 	it("accepts liveCashGameSessionId only", () => {
 		expectAccepts(appRouter.sessionEvent.list, {
 			liveCashGameSessionId: "lcg1",

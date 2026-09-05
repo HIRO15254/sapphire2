@@ -236,7 +236,6 @@ async function getTournamentChipPurchases(
 	return bucketTournamentRows(rows);
 }
 
-// Named export for the MCP tool layer — see .claude/rules/mcp-tools.md.
 export const tournamentListByRoomInputSchema = z.object({
 	roomId: z.string(),
 	includeArchived: z.boolean().optional(),
@@ -500,10 +499,6 @@ export const tournamentRouter = router({
 			}
 
 			const id = crypto.randomUUID();
-			// One atomic batch: the tournament row first (parent), then its tags /
-			// chip purchases / blind levels. `Promise.all` ran these as parallel
-			// auto-commits, so a partial failure could leave a tournament with only
-			// some of its children (SA2-116).
 			const statements = buildTournamentCreateStatements(ctx.db, {
 				id,
 				input,
@@ -561,12 +556,6 @@ export const tournamentRouter = router({
 				updateData.memo = input.memo;
 			}
 
-			// One atomic batch: the tournament UPDATE first, then each
-			// clear-and-reseed group. Previously a bare DELETE followed by a
-			// separate `Promise.all(insert...)` ran as independent auto-commits, so
-			// a failed re-INSERT could permanently wipe the tags / chip purchases /
-			// blind structure — the headline data-loss this issue targets (SA2-116).
-			// Mirrors createWithLevels above.
 			const statements: [BatchStatement, ...BatchStatement[]] = [
 				ctx.db
 					.update(tournament)
@@ -655,9 +644,6 @@ export const tournamentRouter = router({
 		}),
 
 	removeTag: protectedProcedure
-		// NOT tournamentIdInputSchema: this id is a tournamentTag.id, and the
-		// handler derives the tournament from it. Same shape, different meaning —
-		// sharing the const would make any future .describe()/.uuid() on it lie.
 		.input(z.object({ id: z.string() }))
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;

@@ -18,12 +18,6 @@ export interface CashGameCompactSummaryData {
 	totalBuyIn: number;
 }
 
-/**
- * View model for the cash-game branch of the active-session page: joins the
- * live session with the scene state, prepares the display-only summary, and
- * owns the type-specific event sheets (all-in / chips / memo / complete)
- * reachable from the "+" event menu and the header session menu.
- */
 export function useCashGameSessionView(sessionId: string) {
 	const { session, isDiscardPending, discard } = useCashGameSession(sessionId);
 	const stack = useCashGameStack({ sessionId });

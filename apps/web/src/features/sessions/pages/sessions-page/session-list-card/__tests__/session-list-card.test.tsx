@@ -108,7 +108,6 @@ describe("SessionListCard", () => {
 	});
 
 	it("renders cash-game P&L in big blinds when BB/BI mode is on", async () => {
-		// 1200 / 200 = 6.0 BB
 		renderCard(baseSession, true);
 		await screen.findByText("1/2 NLH");
 		expect(screen.getByText("+6.0 BB")).toBeInTheDocument();
@@ -128,7 +127,6 @@ describe("SessionListCard", () => {
 			true
 		);
 		await screen.findByText("Sunday Major");
-		// 10000 / 5000 = 2.00 BI
 		expect(screen.getByText("+2.00 BI")).toBeInTheDocument();
 	});
 
@@ -194,8 +192,6 @@ describe("SessionListCard", () => {
 	});
 
 	it("omits the EV row when no EV cash-out was recorded, even though the server filled EV P&L in", () => {
-		// The server falls back to the actual result so the session counts in the
-		// EV statistics; the card must not print the same number twice.
 		renderCard({ ...baseSession, evCashOut: null, evProfitLoss: 1200 });
 		expect(screen.queryByTestId("ev-result")).not.toBeInTheDocument();
 	});

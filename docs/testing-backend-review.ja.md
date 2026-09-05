@@ -6,7 +6,7 @@
 
 **新しい実 D1 の保護と参照先**
 
-以下はすべて `packages/api/src/__integration__/` にある。`test-database.ts` が本番 migration 全 51 ファイルを番号順に適用し、`test-fixture.ts` が各ケースで独立した非永続 Miniflare D1 を作成・破棄する。開発用 D1 は参照せず、`cf: false` により起動時の外部 metadata 取得も行わない。caller の session は型付きの fixture であり、Cookie / OAuth 自体の検証は別の実 HTTP / E2E が担当する。
+以下はすべて `packages/api/src/__integration__/` にある。`test-database.ts` が本番 migration 全ファイルを番号順に適用し（初回 51、最新 dev 統合後 52 ファイル）、`test-fixture.ts` が各ケースで独立した非永続 Miniflare D1 を作成・破棄する。開発用 D1 は参照せず、`cf: false` により起動時の外部 metadata 取得も行わない。caller の session は型付きの fixture であり、Cookie / OAuth 自体の検証は別の実 HTTP / E2E が担当する。
 
 | 略号・ファイル | 実行して守る契約 |
 |---|---|
@@ -145,6 +145,19 @@ MCP の catalogue 一覧・schema 同一性・readOnly / destructive hint は、
 
 P の rollback ケースでは、34 個目の tag INSERT を trigger で拒否し、元の親・memo・タグ順がすべて残ることを検証した。検出力確認として `runBatch` を一時的に逐次実行へ変更すると、INSERT の失敗だけでなく、親の更新が残る保存状態の不一致でテストが失敗した。故障は `finally` で戻し、製品の batch helper には変更を残していない。
 
-新統合テストは 8 ファイル / 35 実行ケース。A は 1 ケース内で全登録 procedure を検証するため、procedure 数を別テスト数として加算しない。既存 API / MCP の対象プロジェクト、DB の残存 Vitest 対象、Bun migration 7 ファイル / 55 ケースを実行した。Vitest の DB プロジェクトで表示される 55 skip は Bun 専用分であり、別 runner で全件成功したものと区別する。最終的な全領域の件数・型 / lint・CI の状態はルートの検証結果を参照する。
+初回の新統合テストは 8 ファイル / 35 実行ケースで、最新 dev 統合時に passkey の実保存を 1 ケース追加した。A は 1 ケース内で全登録 procedure を検証するため、procedure 数を別テスト数として加算しない。既存 API / MCP の対象プロジェクト、DB の残存 Vitest 対象、Bun migration 7 ファイル / 55 ケースを実行した。Vitest の DB プロジェクトで表示される 55 skip は Bun 専用分であり、別 runner で全件成功したものと区別する。最終的な全領域の件数・型 / lint・CI の状態はルートの検証結果を参照する。
 
 ローカル D1 は本番分散環境や全 API の全 SQL 経路を再現するものではない。残存の mock を使う回帰テストについても、上記の維持理由は構成・入力・局所分岐の保護であり、実 DB 動作を全面的に検証済みという意味ではない。今後変更する機能で JOIN・所有権・複数表書込が関係する場合は、この D1 fixture に該当シナリオを追加・移植する。全 API を同じ数の CRUD テストで機械的に埋める運用には戻さない。
+
+**最新 dev の追加テストと競合解消の追補**
+
+`origin/dev` の `8d3dbdc2` を統合した。基準 407 ファイルのうち backend 90 ファイルという上記一覧を履歴として維持し、後から追加された次の 4 ファイルを別枠で判断した。
+
+| dev で追加されたファイル | 処置 | 契約・代替先 |
+|---|---|---|
+| packages/db/src/__tests__/passkey-schema.test.ts | 実 D1 へ置換 | 12 件の宣言確認を S と V へ。0051 を含む実 migration、schema barrel の plugin 名からの実 INSERT / SELECT、camelCase→SQL の往復、0 / false / null・createdAt default、credential ID のアカウント横断 unique、本人削除 cascade と他人保全を確認。実 WebAuthn の署名検証を行ったとは扱わない |
+| apps/server/src/__tests__/login-continuation.test.ts | 維持 | sign-in / sign-up / callback / token / consent 経路で不要な continuation cookie だけを除去し、body・session cookie・set-password の例外を保つ。実 Hono→認証 adapter の入力境界を検証する |
+| apps/server/src/__tests__/oauth-register.test.ts | 維持 | DCR path と省略 / null client_name の補完、既存値・不正 JSON・他 endpoint の無変更、body 書換え時の Content-Length 除去。Request を実際に読戻す独立した変換契約 |
+| apps/server/src/__tests__/register-gate.test.ts | 維持 | DCR の補完が実 Hono routing に接続され、continuation cookie 除去と共存し、token body を変えず二重 dispatch もしない。全認証成功の証拠ではなく adapter 接続の回帰として維持 |
+
+API の競合 6 ファイルと、削除 / 変更競合となった DB currency・room は、基準 `37371fd8` と dev の実行 token 列が同一で、upstream 差分はコメントだけだった。比較後に当方のテスト集約と削除を維持し、最新の comments.md に合わせて説明コメントを除去した。machine directive は保持し、理由と検証の限界は本記録・テスト環境の文書に残した。新しい passkey schema・0051 migration・OAuth 実装は upstream の内容を保持している。

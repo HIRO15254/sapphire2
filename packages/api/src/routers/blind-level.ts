@@ -177,8 +177,6 @@ export const blindLevelRouter = router({
 					ctx.db
 						.update(blindLevel)
 						.set({ level: index + 1 })
-						// Scope to the owned tournament so a foreign levelId matches
-						// nothing (write-IDOR, SA2-176).
 						.where(
 							and(
 								eq(blindLevel.id, id),

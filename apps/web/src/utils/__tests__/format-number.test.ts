@@ -10,10 +10,6 @@ import {
 
 const B_SUFFIX = /B$/;
 
-// SA2-145: sessionDate is a UTC-midnight ISO string, so formatYmdSlash must
-// read UTC calendar fields. `withTz` (shared helper) drives a deterministic
-// zone per assertion and restores the host zone afterwards.
-
 describe("formatCompactNumber", () => {
 	describe("below the 10k threshold", () => {
 		it("formats 0 as locale string", () => {
@@ -54,14 +50,11 @@ describe("formatCompactNumber", () => {
 		});
 
 		it("rounds the last digit via toFixed(1)", () => {
-			// 12_345 / 1000 = 12.345 → toFixed(1) → "12.3" (nearest down).
 			expect(formatCompactNumber(12_345)).toBe("12.3k");
-			// 12_400 / 1000 = 12.4 → toFixed(1) → "12.4".
 			expect(formatCompactNumber(12_400)).toBe("12.4k");
 		});
 
 		it("rounds half-even via IEEE754 imprecision", () => {
-			// 12_350 / 1000 stored as 12.34999… → toFixed(1) → "12.3".
 			expect(formatCompactNumber(12_350)).toBe("12.3k");
 		});
 
@@ -113,8 +106,6 @@ describe("formatCompactNumber", () => {
 		});
 
 		it("preserves the sign of -0 via toLocaleString", () => {
-			// Note: (-0).toLocaleString() === "-0" in V8.
-			// Callers that do not want that should pre-normalize to 0.
 			expect(formatCompactNumber(-0)).toBe("-0");
 		});
 
@@ -219,8 +210,6 @@ describe("formatYmdSlash", () => {
 		expect(formatYmdSlash(new Date(Date.UTC(1969, 6, 20)))).toBe("1969/07/20");
 	});
 
-	// SA2-145: the session-list card and detail meta row must show the UTC
-	// calendar day the user saved, not the local rendering of UTC midnight.
 	it("keeps the UTC calendar day at the UTC-midnight boundary west of UTC", () => {
 		expect(withTz(TZ_WEST, () => formatYmdSlash("2026-04-22T00:00:00Z"))).toBe(
 			"2026/04/22"
@@ -241,10 +230,6 @@ describe("formatYmdSlash", () => {
 	});
 });
 
-// A live session's `sessionDate` / event timestamps are instants, not date-only
-// values, so their calendar day has to be read locally — the opposite of
-// `formatYmdSlash` (SA2-145). Both live side by side; picking the wrong one is
-// a one-day-off bug, so pin the difference.
 describe("formatLocalYmdSlash", () => {
 	it("formats a timestamp as its local calendar day", () => {
 		expect(formatLocalYmdSlash(new Date(2026, 3, 5, 12, 0))).toBe("2026/04/05");

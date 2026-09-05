@@ -17,9 +17,7 @@ const DESTRUCTIVE_ITEM =
 	"flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-destructive text-sm outline-none hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-ring/40";
 
 interface GameActionsDrawerProps {
-	/** Whether the target item is archived (controls Archive vs Restore). */
 	isArchived: boolean;
-	/** Lowercase entity label, e.g. "cash game" / "tournament". */
 	label: string;
 	onArchive: () => void;
 	onDelete: () => void;
@@ -29,11 +27,6 @@ interface GameActionsDrawerProps {
 	open: boolean;
 }
 
-/**
- * V2 action sheet for a single game / tournament row, mirroring
- * `CurrencyActionsDrawer`. Edit / Archive·Restore / Delete. Shared by both the
- * cash-game and tournament tabs via the `label` prop.
- */
 export function GameActionsDrawer({
 	isArchived,
 	label,

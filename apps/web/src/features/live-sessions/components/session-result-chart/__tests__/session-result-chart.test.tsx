@@ -39,8 +39,6 @@ function wrap(ui: ReactNode) {
 
 describe("SessionResultChart", () => {
 	beforeAll(async () => {
-		// Transform the large chart dependency before Testing Library's UI wait begins.
-		// The real React.lazy boundary and chart implementation still run below.
 		await import("../session-result-chart-impl");
 	});
 	it("renders nothing when enabled=false", () => {

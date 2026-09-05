@@ -105,7 +105,6 @@ describe("useRoomGames", () => {
 						maxBuyIn: 400,
 						tableSize: 9,
 						currencyId: "c1",
-						// extraneous properties that must NOT be forwarded
 						createdAt: "2026-01-01",
 						roomId: "room-1",
 						memo: null,
@@ -148,7 +147,6 @@ describe("useRoomGames", () => {
 						bountyAmount: 50,
 						tableSize: 9,
 						currencyId: "c1",
-						// extraneous master columns that should NOT leak through
 						roomId: "s-1",
 						archivedAt: null,
 					},

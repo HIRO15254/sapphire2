@@ -59,8 +59,6 @@ describe("Field", () => {
 				<Input />
 			</Field>
 		);
-		// The only <p> in the rendered subtree would be a description /
-		// error block; with neither, there must be none.
 		expect(container.querySelectorAll("p").length).toBe(0);
 	});
 
@@ -97,18 +95,12 @@ describe("Field", () => {
 	});
 
 	it("does not inject aria-invalid on plain-string children (withInvalid no-ops)", () => {
-		// String children aren't React elements; withInvalid should pass
-		// them through untouched rather than crash.
 		const { container } = render(<Field error="bad">plain text</Field>);
 		expect(container).toHaveTextContent("plain text");
 		expect(container).toHaveTextContent("bad");
 	});
 
 	it("does not inject aria-invalid when children is an array of elements (multi-input field handles its own invalid state)", () => {
-		// React passes adjacent children as an array, for which
-		// isValidElement returns false. The withInvalid helper has to
-		// no-op so the inner inputs render without an inherited
-		// aria-invalid that would visually invalidate both.
 		render(
 			<Field error="x">
 				{[<Input data-testid="a" key="a" />, <Input data-testid="b" key="b" />]}

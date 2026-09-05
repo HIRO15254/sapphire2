@@ -161,8 +161,6 @@ export const tournamentChipPurchaseRouter = router({
 					ctx.db
 						.update(tournamentChipPurchase)
 						.set({ sortOrder: index })
-						// Scope to the owned tournament so a foreign id matches nothing
-						// (write-IDOR, SA2-123).
 						.where(
 							and(
 								eq(tournamentChipPurchase.id, id),

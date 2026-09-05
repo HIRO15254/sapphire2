@@ -311,8 +311,6 @@ describe("useVariantSelect", () => {
 		});
 		await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1));
 		expect(onChange).toHaveBeenNthCalledWith(1, "Drawmaha");
-		// The label→id lookup a consumer performs inside onChange must already
-		// see the created row (invalidation alone refetches too late).
 		expect(cacheAtChange).toHaveLength(1);
 		expect(cacheAtChange[0]).toEqual([...VARIANTS, createdRow]);
 		expect(optimisticMocks.updateQueryItems).toHaveBeenCalledTimes(1);

@@ -33,30 +33,21 @@ export { formatDateForInput } from "@/features/sessions/utils/session-form-helpe
 
 export interface SessionItem {
 	beforeDeadline: boolean | null;
-	/**
-	 * Tournament blind structure (empty for cash / structureless sessions).
-	 * Optional because a response from an older API build — or a cached
-	 * pre-migration entry — can omit it; consumers must tolerate `undefined`.
-	 */
 	blindLevels?: SessionBlindLevelInput[];
 	bountyPrizes: number | null;
 	breakMinutes: number | null;
 	buyIn: number | null;
-	// Cash snapshot scalars (used by the wizard edit pre-fill).
 	cashAnte: number | null;
 	cashAnteType: string | null;
 	cashBlind1: number | null;
 	cashBlind3: number | null;
 	cashMaxBuyIn: number | null;
 	cashMinBuyIn: number | null;
-	/** Frozen mix-game groups (cash). Optional: older cached shapes omit it. */
 	cashMixGames?: MixGameGroup[] | null;
 	cashOut: number | null;
 	cashTableSize: number | null;
 	cashVariant: string | null;
-	/** Σ cost × count across this session's chip purchases. */
 	chipPurchaseCost: number;
-	/** Rule-defined chip purchases with their result counts. */
 	chipPurchases: Array<{
 		chips: number;
 		cost: number;
@@ -87,7 +78,6 @@ export interface SessionItem {
 	roomId: string | null;
 	roomName: string | null;
 	sessionDate: string;
-	// CTI fields — always present from session.list since Phase 1 DB migration
 	source: string;
 	startedAt: string | null;
 	status: string;
@@ -97,7 +87,6 @@ export interface SessionItem {
 	tournamentBuyIn: number | null;
 	tournamentId: string | null;
 	tournamentName: string | null;
-	// Tournament snapshot scalars (used by the wizard edit pre-fill).
 	tournamentStartingStack: number | null;
 	tournamentTableSize: number | null;
 	tournamentVariant: string | null;
@@ -116,15 +105,6 @@ function timeToUnix(
 
 const DAY_SECONDS = 24 * 60 * 60;
 
-/**
- * Converts the form's start/end clock times — both entered against a single
- * `sessionDate` with no separate end-date field — into Unix seconds, rolling the
- * end forward 24h when it lands strictly before the start (the session crossed
- * midnight, e.g. 22:00 → 02:00). Without this the end was stored ~20h before the
- * start, so the UI showed a negative duration and the server clamped play time to
- * 0, dropping the session out of every play-time statistic (SA2-157). Equal
- * start/end is treated as a 0-length span, never a 24h one.
- */
 function computeSessionTimes(
 	sessionDate: string,
 	startTime: string | undefined,
@@ -320,7 +300,6 @@ export function buildOptimisticItem(
 		currencyName: null,
 		currencyUnit: null,
 		createdAt: new Date().toISOString(),
-		// Manual entries are always source='manual' and status='completed'
 		source: "manual",
 		status: "completed",
 		liveCashGameSessionId: null,
@@ -346,11 +325,6 @@ export function buildOptimisticItem(
 		item.evCashOut = newSession.evCashOut ?? null;
 		applyCashSnapshot(item, newSession);
 		item.profitLoss = newSession.cashOut - newSession.buyIn;
-		// Mirrors the server's `resolveEvCashOut`: an omitted EV cash-out means
-		// the session ran exactly as expected, so EV is the actual result and the
-		// EV difference is 0. Whether a row shows an EV line is decided by the raw
-		// `evCashOut` above, not by these two — they are kept identical to what the
-		// server will return so nothing shifts when the mutation settles.
 		item.evProfitLoss =
 			(newSession.evCashOut ?? newSession.cashOut) - newSession.buyIn;
 		item.evDiff = item.evProfitLoss - item.profitLoss;
@@ -397,11 +371,6 @@ function tournamentSnapshotDefaults(session: SessionItem) {
 export function buildEditDefaults(session: SessionItem) {
 	return {
 		type: session.type as "cash_game" | "tournament",
-		// Read with UTC getters for every session, live or manual (SA2-145). A
-		// live session's sessionDate is really the start timestamp, so off-UTC
-		// users can see a day here that differs from the start time below — the
-		// session list and detail render the same UTC day, and the field is
-		// read-only for live sessions, so nothing is written back from it.
 		sessionDate: formatDateForInput(session.sessionDate),
 		buyIn: session.buyIn ?? 0,
 		cashOut: session.cashOut ?? 0,
@@ -419,9 +388,6 @@ export function buildEditDefaults(session: SessionItem) {
 			chips: cp.chips,
 			count: cp.count,
 		})),
-		// Tournament blind structure — hydrate the Rules-step editor from the
-		// session's own frozen levels so editing keeps (and can amend) the
-		// saved structure instead of starting blank.
 		blindLevels: (session.blindLevels ?? []).map((level) => ({
 			isBreak: level.isBreak,
 			blind1: level.blind1,
@@ -440,17 +406,12 @@ export function buildEditDefaults(session: SessionItem) {
 		ringGameId: session.ringGameId ?? undefined,
 		tournamentId: session.tournamentId ?? undefined,
 		currencyId: session.currencyId ?? undefined,
-		// Snapshot scalars — pre-fill the Rules step from the frozen detail
-		// columns so editing keeps the same rule shape unless the user
-		// overrides it explicitly.
 		...cashSnapshotDefaults(session),
 		...tournamentSnapshotDefaults(session),
 	};
 }
 
 export function filtersToListInput(filters: SessionFilterValues) {
-	// Reuse the statistics period resolver: preset windows snap to UTC day
-	// boundaries, `custom` passes the from/to bounds straight through (SA2-74).
 	const range = resolveDateRange({
 		period: filters.period ?? "all",
 		from: filters.from,

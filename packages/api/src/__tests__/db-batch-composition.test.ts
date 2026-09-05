@@ -34,14 +34,6 @@ import {
 	syncCurrencyTransaction,
 } from "../routers/session";
 
-/**
- * SA2-116 — these tests check which statements each helper / procedure sends
- * to a single db.batch call, including error propagation at that boundary.
- * The descriptor mock cannot execute SQL or prove rollback. Actual D1 rollback
- * is covered by ../__integration__/player.test.ts; persisted session / ledger
- * behavior is covered by ../__integration__/live-session.test.ts.
- */
-
 type Rows = Record<string, unknown>[];
 
 interface Stmt {
@@ -53,12 +45,6 @@ interface Stmt {
 type ChainablePromise = Promise<Rows> &
 	Record<string, (...args: unknown[]) => unknown>;
 
-/**
- * A drizzle-shaped mock whose `insert(t).values(v)` / `delete(t).where()` return
- * inert descriptor objects (never executed on their own) and whose `batch(stmts)`
- * records the exact array it received. `select().from(t)` resolves to the rows
- * registered for the schema-table reference `t`.
- */
 function createBatchTrackingDb(
 	rowsByTable: Map<unknown, Rows> = new Map(),
 	options: { batchError?: Error } = {}
@@ -143,7 +129,6 @@ function createBatchTrackingDb(
 const opsOn = (stmts: Stmt[], table: unknown, kind: Stmt["kind"]): Stmt[] =>
 	stmts.filter((s) => s.table === table && s.kind === kind);
 
-/** Assert exactly one batch was issued and return its statement array. */
 function sole(batchCalls: Stmt[][]): Stmt[] {
 	expect(batchCalls).toHaveLength(1);
 	return batchCalls[0] as Stmt[];
@@ -188,9 +173,7 @@ describe("persistSessionChipPurchases batch composition (SA2-116)", () => {
 
 		expect(batchCalls).toHaveLength(1);
 		const batch = sole(batchCalls);
-		// The purchase DELETE must be the first statement so it submits with the
-		// re-INSERTs rather than as a separate auto-commit that could strand the
-		// table empty on a later failure.
+
 		expect(batch[0]).toMatchObject({
 			kind: "delete",
 			table: sessionChipPurchase,
@@ -209,15 +192,13 @@ describe("persistSessionChipPurchases batch composition (SA2-116)", () => {
 		expect(sole(batchCalls)).toEqual([
 			{ kind: "delete", table: sessionChipPurchase },
 		]);
-		// No re-INSERT is attempted when there are no purchases to write.
+
 		expect(inserts).toHaveLength(0);
 	});
 
 	it("keeps every chunked purchase + result INSERT together with the DELETE in one batch", async () => {
 		const { db, batchCalls } = createBatchTrackingDb();
 
-		// 20 purchases: 6 cols -> chunks of 16 + 4 (two INSERTs); results 2 cols ->
-		// one INSERT of 20. All must live in the single batch alongside the DELETE.
 		await persistSessionChipPurchases(
 			db as never,
 			"sess-1",
@@ -274,7 +255,7 @@ describe("persistSessionBlindLevels batch composition (SA2-116)", () => {
 		expect(opsOn(batch, sessionBlindLevel, "delete")).toHaveLength(1);
 		const inserts = opsOn(batch, sessionBlindLevel, "insert");
 		expect(inserts).toHaveLength(2);
-		// 10 columns/row (games included) => 10 rows per INSERT (SA2-115).
+
 		expect((inserts[0].values as unknown[]).length).toBe(10);
 		expect((inserts[1].values as unknown[]).length).toBe(2);
 	});
@@ -303,7 +284,7 @@ describe("snapshotTournamentStructure batch composition (SA2-116)", () => {
 		expect(opsOn(batch, sessionBlindLevel, "insert")).toHaveLength(1);
 		expect(opsOn(batch, sessionChipPurchase, "insert")).toHaveLength(1);
 		expect(opsOn(batch, sessionChipPurchaseResult, "insert")).toHaveLength(1);
-		// A pure copy never deletes.
+
 		expect(batch.some((s) => s.kind === "delete")).toBe(false);
 	});
 
@@ -347,8 +328,7 @@ describe("resnapshotTournamentStructure batch composition (SA2-116)", () => {
 
 		expect(batchCalls).toHaveLength(1);
 		const batch = sole(batchCalls);
-		// Both DELETEs and every re-INSERT commit in the same batch — the SA2-116 fix for
-		// permanent structure loss on a failed re-snapshot.
+
 		expect(opsOn(batch, sessionBlindLevel, "delete")).toHaveLength(1);
 		expect(opsOn(batch, sessionChipPurchase, "delete")).toHaveLength(1);
 		expect(opsOn(batch, sessionBlindLevel, "insert")).toHaveLength(1);
@@ -392,8 +372,7 @@ describe("persistCashSessionReopenEvents batch composition (SA2-116)", () => {
 		expect(
 			eventInserts.map((s) => (s.values as { eventType: string }).eventType)
 		).toEqual(["update_stack", "session_pause", "session_resume"]);
-		// sortOrder must stay contiguous so the pause/resume pair sorts after the
-		// re-stamped end state.
+
 		expect(
 			eventInserts.map((s) => (s.values as { sortOrder: number }).sortOrder)
 		).toEqual([5, 6, 7]);
@@ -416,8 +395,7 @@ describe("session.create batch composition (SA2-116)", () => {
 		expect(opsOn(batch, gameSession, "insert")).toHaveLength(1);
 		expect(opsOn(batch, ringGame, "insert")).toHaveLength(1);
 		expect(opsOn(batch, sessionCashDetail, "insert")).toHaveLength(1);
-		// The session row must precede the child rows so FK checks pass inside the
-		// transaction.
+
 		expect(batch[0]).toMatchObject({ kind: "insert", table: gameSession });
 	});
 
@@ -456,7 +434,7 @@ describe("session.create batch composition (SA2-116)", () => {
 		const rows = new Map<unknown, Rows>([
 			[currency, [{ id: "cur-1", userId: "user-1" }]],
 			[sessionTag, [{ id: "tag-1" }]],
-			// No "Session Result" type yet -> the shared ensure creates it first.
+
 			[transactionType, []],
 		]);
 		const { db, batchCalls, inserts } = createBatchTrackingDb(rows);
@@ -927,8 +905,7 @@ describe("tournament.updateWithLevels batch composition (SA2-116)", () => {
 
 		expect(batchCalls).toHaveLength(1);
 		const batch = sole(batchCalls);
-		// Parent UPDATE leads; each table's DELETE + re-INSERTs ride in the same
-		// batch, so a failed re-INSERT can no longer wipe the group permanently.
+
 		expect(batch[0]).toMatchObject({ kind: "update", table: tournament });
 		expect(opsOn(batch, tournamentTag, "delete")).toHaveLength(1);
 		expect(opsOn(batch, tournamentTag, "insert")).toHaveLength(2);
@@ -955,7 +932,7 @@ describe("tournament.updateWithLevels batch composition (SA2-116)", () => {
 
 		const batch = sole(batchCalls);
 		expect(batch[0]).toMatchObject({ kind: "update", table: tournament });
-		// tags / chip purchases untouched -> no ops for them.
+
 		expect(opsOn(batch, tournamentTag, "delete")).toHaveLength(0);
 		expect(opsOn(batch, tournamentChipPurchase, "delete")).toHaveLength(0);
 		expect(opsOn(batch, blindLevel, "delete")).toHaveLength(1);
@@ -965,7 +942,6 @@ describe("tournament.updateWithLevels batch composition (SA2-116)", () => {
 
 describe("syncCurrencyTransaction currency-change batch composition (SA2-116)", () => {
 	it("batches the ledger DELETE and its re-INSERT together on a currency switch", async () => {
-		// "Session Result" type already exists -> only the DELETE + ledger INSERT.
 		const { db, batchCalls } = createBatchTrackingDb(
 			new Map<unknown, Rows>([[transactionType, [{ id: "type-1" }]]])
 		);
@@ -982,8 +958,7 @@ describe("syncCurrencyTransaction currency-change batch composition (SA2-116)", 
 
 		expect(batchCalls).toHaveLength(1);
 		const batch = sole(batchCalls);
-		// The stale-row DELETE leads so the switch submits (or rolls back) as one
-		// unit instead of losing the ledger row on a failed re-INSERT.
+
 		expect(batch[0]).toMatchObject({
 			kind: "delete",
 			table: currencyTransaction,
@@ -1015,7 +990,6 @@ describe("syncCurrencyTransaction currency-change batch composition (SA2-116)", 
 	});
 
 	it("leaves the single-statement branches (pure removal / same-currency update) unbatched", async () => {
-		// Clearing the currency -> a lone DELETE, no batch needed.
 		const removal = createBatchTrackingDb();
 		await syncCurrencyTransaction(
 			removal.db as never,
@@ -1029,7 +1003,6 @@ describe("syncCurrencyTransaction currency-change batch composition (SA2-116)", 
 		expect(removal.batchCalls).toHaveLength(0);
 		expect(removal.deletes).toHaveLength(1);
 
-		// Same currency, amount refresh -> a lone UPDATE, no batch needed.
 		const same = createBatchTrackingDb();
 		await syncCurrencyTransaction(
 			same.db as never,

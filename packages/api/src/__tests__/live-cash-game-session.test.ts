@@ -15,12 +15,6 @@ import { expectAccepts, expectRejects, getInputSchema } from "./test-utils";
 
 type Rows = Record<string, unknown>[];
 
-/**
- * Minimal drizzle-shaped mock db: `select().from(t).where().limit()` chains
- * resolve to the rows registered for table `t`; `insert`/`update`/`delete`
- * resolve to no-ops. Keyed by the imported schema object reference so the
- * ownership `select().from(room|currency)` reads the seeded owner rows.
- */
 type ChainablePromise = Promise<Rows> & Record<string, () => ChainablePromise>;
 
 interface MockDbOptions {
@@ -921,15 +915,6 @@ const dialect = new SQLiteSyncDialect();
 type ChainableAny = Promise<Rows> &
 	Record<string, (...args: unknown[]) => ChainableAny>;
 
-/**
- * Mock db that captures the list query's `.where(...)` (SQL + bound params) and
- * `.orderBy(...)` (SQL), and resolves the `game_session` select to `listRows`
- * while every other read (the per-item enrichment) resolves to `[]`. Lets the
- * composite-keyset cursor (SA2-150) be inspected end-to-end: the boundary must
- * embed the cursor's `(timestamp, id)` directly rather than run a subquery on
- * the raw id (which returned NULL — and dropped the whole page — once the cursor
- * row was discarded), and `nextCursor` must echo the last kept row's composite.
- */
 function createListMockDb(listRows: Rows = []) {
 	const listWhere: { params: unknown[]; sql: string }[] = [];
 	const listOrderBy: string[] = [];
@@ -1020,14 +1005,12 @@ describe("liveCashGameSession.list composite keyset cursor (SA2-150)", () => {
 		await listCaller(db).list({ limit: 10 });
 		const base = listWhere[0];
 		expect(base).toBeDefined();
-		// Only the base filter binds the user id (once); no keyset expression.
 		expect(base?.params.filter((p) => p === OWNER)).toHaveLength(1);
 		expect(base?.sql.toLowerCase()).not.toContain("coalesce");
 	});
 
 	it("treats a malformed cursor as no cursor (does not filter every row out)", async () => {
 		const { db, listWhere } = createListMockDb();
-		// "no-separator" has no `_`, so parseSessionCursor returns null.
 		await listCaller(db).list({ cursor: "no-separator", limit: 10 });
 		const base = listWhere[0];
 		expect(base?.params).not.toContain("no-separator");
@@ -1044,20 +1027,13 @@ describe("liveCashGameSession.list composite keyset cursor (SA2-150)", () => {
 		});
 		await listCaller(db).list({ cursor, limit: 10 });
 		const where = listWhere[0];
-		// No correlated subquery — the old `SELECT started_at FROM game_session
-		// WHERE id = cursor` is the exact statement that broke on a deleted row.
 		expect(where?.sql.toLowerCase()).not.toContain("select");
-		// 5_000_000 ms floored to 5000 s is bound twice (the `<` arm and the
-		// `=` tiebreak arm); the id is bound once.
 		expect(where?.params.filter((p) => p === 5000)).toHaveLength(2);
 		expect(where?.params).toContain("cur-id");
-		// The raw composite string is never bound as a parameter.
 		expect(where?.params).not.toContain(cursor);
 	});
 
 	it("keeps paginating from the same keyset even when the cursor row was deleted", async () => {
-		// The boundary is derived purely from the cursor value, so a since-deleted
-		// cursor row cannot collapse the page (the SA2-150 regression).
 		const { db, listWhere } = createListMockDb(makeCashRows(2));
 		const cursor = encodeSessionCursor({
 			id: "deleted-id",
@@ -1104,12 +1080,6 @@ describe("liveCashGameSession.list composite keyset cursor (SA2-150)", () => {
 	});
 });
 
-// SA2-151: the list endpoint fetched session_event with one query per page item
-// (an N+1 that D1's per-query latency made expensive at page size). It now
-// collects the page's session ids and fetches every event in ONE inArray batch,
-// then buckets rows by session id. These tests pin the single-query shape, the
-// per-session bucketing, and the (occurredAt, sortOrder) ordering the latest-
-// stack derivation depends on.
 function sessionEventRow(
 	sessionId: string,
 	eventType: string,
@@ -1126,13 +1096,6 @@ function sessionEventRow(
 	};
 }
 
-/**
- * Mock db for the list-enrichment path: `select().from(gameSession)` resolves
- * to the page rows, `select().from(sessionEvent)` resolves to every event row
- * (the mock ignores the `inArray` filter, so bucketing must be done in app
- * code). It records which table each `.from(...)` targeted and the conditions
- * bound to the sessionEvent `.where(...)` so a single batched IN can be proven.
- */
 function createEventBatchMockDb(sessions: Rows, events: Rows) {
 	const fromCalls: unknown[] = [];
 	const eventWhere: unknown[] = [];
@@ -1196,8 +1159,6 @@ describe("liveCashGameSession.list event batching (SA2-151)", () => {
 			sessionEventRow("s1", "update_stack", { stackAmount: 500 }, 2000, 1),
 			sessionEventRow("s1", "update_stack", { stackAmount: 800 }, 3000, 2),
 			sessionEventRow("s2", "session_start", { buyInAmount: 200 }, 1000, 0),
-			// s2's stack update occurs LATER than any s1 event — a naive scan over
-			// the un-bucketed page would leak 1200 into s1's latest stack.
 			sessionEventRow("s2", "update_stack", { stackAmount: 1200 }, 9000, 1),
 		];
 		const { db } = createEventBatchMockDb(sessions, events);

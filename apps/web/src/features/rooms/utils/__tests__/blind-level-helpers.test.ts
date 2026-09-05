@@ -162,9 +162,6 @@ describe("addLevel", () => {
 	});
 
 	it("numbers the appended level as max(level)+1 for gappy input (not length+1)", () => {
-		// Gappy server-seeded levels [1,2,4,5]: length+1 = 5 would collide with
-		// the still-present level 5 and render a duplicate number; max+1 = 6 is
-		// always strictly past every existing level.
 		const levels = [
 			level({ id: "a", level: 1 }),
 			level({ id: "b", level: 2 }),
@@ -276,7 +273,6 @@ describe("createLevel", () => {
 	});
 
 	it("numbers the new level as max(level)+1, collision-free on gappy input", () => {
-		// [1,2,4,5] → 6 (length+1 = 5 would duplicate the existing level 5).
 		const result = createLevel(
 			[
 				level({ id: "w", level: 1 }),

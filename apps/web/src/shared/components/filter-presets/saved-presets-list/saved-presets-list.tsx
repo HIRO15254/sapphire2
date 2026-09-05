@@ -15,7 +15,6 @@ import type { FilterPresetItem } from "@/shared/hooks/use-filter-presets";
 
 const SKELETON_ROW_COUNT = 3;
 
-/** Mirrors `ManagementListItem`'s row: title line plus the three row actions. */
 function SavedPresetsSkeleton() {
 	return (
 		<ManagementList aria-hidden data-testid="filter-presets-skeleton">
@@ -36,11 +35,6 @@ function SavedPresetsSkeleton() {
 	);
 }
 
-/**
- * Owns the loading / empty / data switch for the saved-presets surface: the
- * skeleton comes first so a first open never claims "No saved presets yet"
- * while the list query is still in flight.
- */
 export function SavedPresetsList({
 	isLoading,
 	isDefaultTogglePending,

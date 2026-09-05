@@ -265,7 +265,7 @@ describe("currency transaction SQL boundaries", () => {
 		await api.db
 			.delete(currencyTransaction)
 			.where(eq(currencyTransaction.id, "transaction-02"));
-		// Existing contract restarts from the current first page if its cursor disappeared.
+
 		expect(
 			await api.alice.currencyTransaction.listByCurrency({
 				currencyId: wallet.id,

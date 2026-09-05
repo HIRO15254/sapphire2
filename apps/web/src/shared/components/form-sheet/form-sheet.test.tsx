@@ -3,10 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { FormSheet } from "./form-sheet";
 
-// Capture the props the FormSheet passes to the underlying Drawer
-// component so we can assert on contract bits (`dismissible={false}`)
-// that aren't visible in the rendered DOM but matter to the v2 sheet
-// contract (`.claude/rules/web-theme.md`).
 const drawerSpy = vi.hoisted(() => vi.fn());
 vi.mock("@/shared/components/ui/drawer", async () => {
 	const actual = await vi.importActual<
@@ -28,8 +24,6 @@ describe("FormSheet", () => {
 				<div>body</div>
 			</FormSheet>
 		);
-		// The visible header label and the sr-only DrawerTitle both carry the
-		// title text — assert it appears at least once.
 		expect(screen.getAllByText("Edit currency").length).toBeGreaterThanOrEqual(
 			1
 		);
@@ -116,10 +110,6 @@ describe("FormSheet", () => {
 	});
 
 	it("does not render a drag handle (handle would mislead given dismissible=false)", () => {
-		// Vaul's drag-handle is rendered via a class containing
-		// `bg-muted-foreground/35` per the v2 action-sheet convention.
-		// The FormSheet contract is explicitly handle-less; assert the
-		// rendered tree has no such element.
 		const { container } = render(
 			<FormSheet formId="x" onOpenChange={vi.fn()} open title="t">
 				<div>body</div>

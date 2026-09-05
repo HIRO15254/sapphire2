@@ -2,8 +2,6 @@ import { useState } from "react";
 import type { PlayerFormValues } from "@/features/players/components/player-form";
 import { usePlayers } from "@/features/players/hooks/use-players";
 
-// The list is fully loaded client-side, so search filters the fetched players
-// rather than re-querying — no server `tagIds` filter is needed.
 const NO_TAG_FILTER: string[] = [];
 
 export function usePlayersPage() {
@@ -35,9 +33,7 @@ export function usePlayersPage() {
 	const handleCreate = (values: PlayerFormValues) => {
 		create(values).then(
 			() => setIsCreateOpen(false),
-			() => {
-				// The mutation cache reports the error; keep the entered values for retry.
-			}
+			() => undefined
 		);
 	};
 

@@ -13,9 +13,6 @@ export function floorToMinute(date: Date): Date {
 	return copy;
 }
 
-// Resolves the `occurredAt` for a session event. Falls back to `now` when the
-// caller omits a timestamp — never to a fixed value like `sessionDate`, which
-// would collapse every default-timestamped event onto a single instant.
 export function resolveOccurredAt(
 	occurredAtSeconds: number | undefined,
 	now: Date

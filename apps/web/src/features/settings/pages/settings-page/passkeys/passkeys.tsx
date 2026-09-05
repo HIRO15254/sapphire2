@@ -1,0 +1,264 @@
+import { IconKey, IconPencil, IconTrash } from "@tabler/icons-react";
+import { FormSheet } from "@/shared/components/form-sheet";
+import {
+	ManagementList,
+	ManagementListItem,
+} from "@/shared/components/management/management-list";
+import { TagNameForm } from "@/shared/components/management/tag-name-form";
+import { Badge } from "@/shared/components/ui/badge";
+import { Button } from "@/shared/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/shared/components/ui/dialog";
+import { Field } from "@/shared/components/ui/field";
+import { Input } from "@/shared/components/ui/input";
+import { formatLocalYmdSlash } from "@/utils/format-number";
+import { useAddPasskeyForm } from "./use-add-passkey-form";
+import { usePasskeys } from "./use-passkeys";
+
+const ADD_PASSKEY_FORM_ID = "add-passkey-form";
+const RENAME_PASSKEY_FORM_ID = "rename-passkey-form";
+
+function AddPasskeyForm({
+	form,
+	formId,
+}: {
+	form: ReturnType<typeof useAddPasskeyForm>["form"];
+	formId: string;
+}) {
+	return (
+		<form
+			className="flex flex-col gap-4"
+			id={formId}
+			onSubmit={(event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				form.handleSubmit();
+			}}
+		>
+			<p className="text-muted-foreground text-sm">
+				Your device will ask you to confirm with a fingerprint, face, screen
+				lock, or security key. Name it so you can tell your devices apart later.
+			</p>
+
+			<form.Field name="name">
+				{(field) => (
+					<Field
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={field.name}
+						label="Passkey name"
+						required
+					>
+						<Input
+							id={field.name}
+							name={field.name}
+							onBlur={field.handleBlur}
+							onChange={(event) => field.handleChange(event.target.value)}
+							type="text"
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
+		</form>
+	);
+}
+
+export function Passkeys() {
+	const {
+		deleteTarget,
+		error,
+		isAddOpen,
+		isDeletePending,
+		isPasskeySupported,
+		isRefreshPending,
+		loading,
+		onAddOpenChange,
+		onDeletePasskey,
+		onDeleteTargetChange,
+		onRenamePasskey,
+		onRenameTargetChange,
+		passkeys,
+		refreshPasskeys,
+		isRenamePending,
+		renameTarget,
+		totalPasskeys,
+	} = usePasskeys();
+	const { form: addForm, isSubmitting: isAddSubmitting } = useAddPasskeyForm({
+		onOpenChange: onAddOpenChange,
+		onSuccess: refreshPasskeys,
+	});
+
+	if (loading) {
+		return (
+			<div className="text-muted-foreground text-sm">Loading passkeys...</div>
+		);
+	}
+
+	function renderList() {
+		if (error) {
+			return (
+				<div className="flex flex-wrap items-center gap-2">
+					<p className="text-destructive text-sm" role="alert">
+						{error}
+					</p>
+					<Button
+						disabled={isRefreshPending}
+						onClick={refreshPasskeys}
+						size="sm"
+						variant="outline"
+					>
+						{isRefreshPending ? "Retrying..." : "Retry"}
+					</Button>
+				</div>
+			);
+		}
+
+		if (totalPasskeys === 0) {
+			return (
+				<p className="text-muted-foreground text-sm">
+					No passkeys yet. Add one to sign in without a password.
+				</p>
+			);
+		}
+
+		return (
+			<ManagementList>
+				{passkeys.map((entry) => (
+					<ManagementListItem
+						actions={
+							<div className="flex items-center gap-2">
+								<Button
+									aria-label={`Rename ${entry.name || "passkey"}`}
+									onClick={() => onRenameTargetChange(entry)}
+									size="sm"
+									variant="outline"
+								>
+									<IconPencil />
+									Rename
+								</Button>
+								<Button
+									aria-label={`Remove ${entry.name || "passkey"}`}
+									onClick={() => onDeleteTargetChange(entry)}
+									size="sm"
+									variant="outline"
+								>
+									<IconTrash />
+									Remove
+								</Button>
+							</div>
+						}
+						className="min-h-14"
+						description={`Added ${formatLocalYmdSlash(entry.createdAt)}`}
+						key={entry.id}
+						leading={<IconKey className="h-4 w-4" />}
+						title={
+							<span className="flex items-center gap-2">
+								{entry.name || "Passkey"}
+								{entry.backedUp ? (
+									<Badge variant="outline">Synced</Badge>
+								) : null}
+							</span>
+						}
+					/>
+				))}
+			</ManagementList>
+		);
+	}
+
+	return (
+		<div className="space-y-3">
+			{renderList()}
+
+			{isPasskeySupported ? (
+				<Button onClick={() => onAddOpenChange(true)} variant="outline">
+					<IconKey />
+					Add passkey
+				</Button>
+			) : (
+				<p className="text-muted-foreground text-xs">
+					This browser does not support passkeys.
+				</p>
+			)}
+
+			<FormSheet
+				formId={ADD_PASSKEY_FORM_ID}
+				isLoading={isAddSubmitting}
+				isSaveDisabled={isAddSubmitting}
+				onOpenChange={(open) => {
+					if (!open) {
+						addForm.reset();
+					}
+					onAddOpenChange(open);
+				}}
+				open={isAddOpen}
+				title="Add passkey"
+			>
+				<AddPasskeyForm form={addForm} formId={ADD_PASSKEY_FORM_ID} />
+			</FormSheet>
+
+			<FormSheet
+				formId={RENAME_PASSKEY_FORM_ID}
+				isLoading={isRenamePending}
+				isSaveDisabled={isRenamePending}
+				onOpenChange={(open) => {
+					if (!open) {
+						onRenameTargetChange(null);
+					}
+				}}
+				open={renameTarget !== null}
+				title="Rename passkey"
+			>
+				<TagNameForm
+					defaultName={renameTarget?.name ?? ""}
+					formId={RENAME_PASSKEY_FORM_ID}
+					key={renameTarget?.id}
+					label="Passkey name"
+					onSubmit={onRenamePasskey}
+				/>
+			</FormSheet>
+
+			<Dialog
+				onOpenChange={(open) => {
+					if (!open) {
+						onDeleteTargetChange(null);
+					}
+				}}
+				open={deleteTarget !== null}
+			>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Remove passkey?</DialogTitle>
+						<DialogDescription>
+							{deleteTarget?.name || "This passkey"} will no longer sign you in.
+							You cannot undo this, and the credential stays on the device until
+							you clear it there.
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter className="flex-row justify-end gap-2">
+						<Button
+							onClick={() => onDeleteTargetChange(null)}
+							type="button"
+							variant="outline"
+						>
+							Cancel
+						</Button>
+						<Button
+							disabled={isDeletePending}
+							onClick={onDeletePasskey}
+							type="button"
+							variant="destructive"
+						>
+							{isDeletePending ? "Removing..." : "Remove"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+		</div>
+	);
+}

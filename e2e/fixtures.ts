@@ -56,6 +56,11 @@ export { expect } from "@playwright/test";
 
 export async function signIn(page: Page, account: TestAccount) {
 	await page.goto("/login");
+	await submitSignIn(page, account);
+	await expect(page).toHaveURL((url) => url.pathname === "/statistics");
+}
+
+export async function submitSignIn(page: Page, account: TestAccount) {
 	await page
 		.getByRole("button", {
 			name: "Already have an account? Sign In",
@@ -65,5 +70,4 @@ export async function signIn(page: Page, account: TestAccount) {
 	await page.getByLabel("Email", { exact: true }).fill(account.email);
 	await page.getByLabel("Password", { exact: true }).fill(account.password);
 	await page.getByRole("button", { name: "Sign In", exact: true }).click();
-	await expect(page).toHaveURL((url) => url.pathname === "/statistics");
 }

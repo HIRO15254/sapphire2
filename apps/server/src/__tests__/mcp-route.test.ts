@@ -112,9 +112,6 @@ describe("/oauth/consent page", () => {
 	});
 
 	it("renders the consent page with placeholders when the client lookup fails", async () => {
-		// The fake env's DB stub cannot serve queries — the route must still
-		// render (name and destination are cosmetic; the signed consent_code
-		// is what authorizes).
 		const response = await app.request(
 			"/oauth/consent?consent_code=abc&client_id=c1&scope=openid%20profile",
 			{ method: "GET" },
@@ -163,11 +160,6 @@ describe("/oauth/consent page", () => {
 });
 
 describe("better-auth authorize surface", () => {
-	// These pin what better-auth 1.6.0 actually serves — the assumption behind
-	// the consent gate having exactly one live path to protect. They say
-	// nothing about the gate itself (they stay green with it removed, because
-	// the fallthrough reaches the same handler): consent-gate.test.ts covers
-	// the wiring by asserting the URL handed to better-auth.
 	it.each([
 		["POST", "/api/auth/mcp/authorize"],
 		["GET", "/api/auth/oauth2/authorize"],

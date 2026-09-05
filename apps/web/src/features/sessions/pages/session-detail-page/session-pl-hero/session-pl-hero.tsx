@@ -5,24 +5,12 @@ import {
 } from "@/utils/format-profit-loss";
 
 interface SessionPlHeroProps {
-	/** Optional result/stack chart rendered below the P&L, inside the same card. */
 	chart?: ReactNode;
 	currencyUnit: string | null;
-	/**
-	 * EV-adjusted P&L, already gated by `displayableEvProfitLoss` — null for
-	 * tournaments and for cash games with no recorded EV cash-out.
-	 */
 	evProfitLoss?: number | null;
 	profitLoss: number | null;
 }
 
-/**
- * Headline P&L for the session detail page — the single number a player scans
- * for first. Colored by sign; an EV-adjusted figure sits beneath when present.
- * For recorded sessions a result chart is passed via {@link SessionPlHeroProps.chart}
- * and rendered inside the same card, so the headline number and its curve read
- * as one composite unit.
- */
 export function SessionPlHero({
 	chart,
 	currencyUnit,

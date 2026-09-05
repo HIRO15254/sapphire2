@@ -13,7 +13,6 @@ export type GeolocationStatus =
 	| "unavailable";
 
 interface UseGeolocationOptions {
-	/** When it flips to true, a one-shot position request fires automatically. */
 	enabled: boolean;
 }
 
@@ -27,19 +26,11 @@ interface UseGeolocationResult {
 const POSITION_OPTIONS: PositionOptions = {
 	enableHighAccuracy: true,
 	timeout: 10_000,
-	// Reuse a recent fix (≤1 min) so reopening the dialog is instant.
 	maximumAge: 60_000,
 };
 
-// GeolocationPositionError.PERMISSION_DENIED === 1.
 const PERMISSION_DENIED = 1;
 
-/**
- * Wraps `navigator.geolocation.getCurrentPosition` as a one-shot request. Pass
- * `enabled` to auto-request when (for example) a dialog opens; call `request()`
- * to fetch on demand (e.g. a "use current location" button). Re-requests on a
- * fresh `enabled` false→true transition, but never twice for the same one.
- */
 export function useGeolocation({
 	enabled,
 }: UseGeolocationOptions): UseGeolocationResult {
@@ -77,7 +68,6 @@ export function useGeolocation({
 
 	useEffect(() => {
 		if (!enabled) {
-			// Reset so the next open re-requests a fresh fix.
 			autoRequestedRef.current = false;
 			return;
 		}

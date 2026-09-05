@@ -56,8 +56,6 @@ describe("LinkedAccounts", () => {
 
 		await user.click(screen.getByRole("button", { name: "Set password" }));
 
-		// FormSheet renders the title in the sheet toolbar plus an sr-only
-		// description, and the password fields inside the sheet body.
 		expect(screen.getAllByText("Set password").length).toBeGreaterThanOrEqual(
 			1
 		);
@@ -118,7 +116,6 @@ describe("LinkedAccounts", () => {
 		expect(mocks.toastSuccess).toHaveBeenCalledWith(
 			"Password set successfully"
 		);
-		// onSuccess refetches the account list (initial load + refresh).
 		await waitFor(() => {
 			expect(mocks.listAccounts).toHaveBeenCalledTimes(2);
 		});

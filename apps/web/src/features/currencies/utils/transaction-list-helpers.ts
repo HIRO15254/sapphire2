@@ -13,12 +13,6 @@ export function buildGroupFormatter(transactions: TransactionDisplayItem[]) {
 	return createGroupFormatter(transactions.map((tx) => tx.amount));
 }
 
-/**
- * Signed-amount color. A transaction amount is a P/L delta, so a credit
- * (`>= 0`) reads as `success` and a debit as `destructive` — the v2 semantic
- * tokens used across the currency surface. (Contrast with a *balance*, a
- * holding, where only deficits are flagged — see `getBalanceColorClass`.)
- */
 export function getAmountColorClass(amount: number): string {
 	return amount >= 0 ? "text-success" : "text-destructive";
 }
@@ -40,13 +34,6 @@ export interface TransactionDateGroup {
 	label: string;
 }
 
-/**
- * Collapse a date-sorted transaction list into per-day groups so the table can
- * show one date sub-header instead of repeating the date on every row. Input
- * order is preserved and only *consecutive* same-day rows are merged (the list
- * arrives sorted by `transactedAt` desc), so a date that re-appears later in
- * the list yields a separate group.
- */
 export function groupTransactionsByDate(
 	transactions: TransactionDisplayItem[]
 ): TransactionDateGroup[] {

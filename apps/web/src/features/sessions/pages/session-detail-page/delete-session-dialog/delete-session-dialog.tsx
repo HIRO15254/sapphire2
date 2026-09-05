@@ -14,11 +14,6 @@ interface DeleteSessionDialogProps {
 	open: boolean;
 }
 
-/**
- * Centered destructive confirmation for deleting a session, mirroring
- * `DeletePlayerDialog`. Deleting a session also unwinds its linked currency
- * transaction server-side, so the copy stays explicit about permanence.
- */
 export function DeleteSessionDialog({
 	onConfirm,
 	onOpenChange,

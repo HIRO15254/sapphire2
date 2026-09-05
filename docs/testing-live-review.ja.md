@@ -117,3 +117,21 @@
 - 本記録はWebの挙動検証の整理を扱う。実D1 lifecycleとOAuth/MCP/ブラウザー永続化の実行記録は全体の移行記録を参照する。
 - `bun run --filter web check-types` と `bun run check:testing-types` は成功。OAuth同意拒否の局所修正は `patches/better-auth@1.6.0.patch` のredirect構築のみであることを再確認し、`bun install --frozen-lockfile` は1,101 installs/1,300 packages、変更なしで成功した。
 - SVGの描画位置・色、画像抽出サービス自体の実応答、全端末での見た目は、このjsdom群の保証範囲に含めない。通信mockを残したテストの範囲は各行に記載した。
+
+## 最新dev取り込み時の追補（初期407件とは別集計）
+
+`origin/dev` の `8d3dbdc2` 取り込み時、担当のlive/rootテスト5競合はmerge baseからupstreamまでの差分を個別に確認した。変更はコメント削除のみで、追加された実行契約はなかった。`single-session-guard.test.tsx` の削除と、tournament-lifecycle/use-session-events-scene/session-result-chart/tournament-timerの再編を維持し、新しい `comments.md` に従って説明コメントを削除した。根拠と代替検証は本記録へ保持している。
+
+次の5ファイルはupstreamで新規追加されたものであり、上記90件・初期407件に含めない。テスト本体と対象実装を読み、ブラウザー能力・localStorage・認証clientを制御するunitの保証範囲を確認した。
+
+| ファイル | 処置 | 根拠・代替 |
+|---|---|---|
+| `apps/web/src/features/auth/utils/__tests__/auto-register-passkey.test.ts` | 維持 | ユーザーが拒否した端末への再作成禁止、conditionalCreate未対応時に認証器へ触れないこと、登録の成功・拒否・例外、非同期の通知とサインインを待たせない契約。WebAuthn認証器そのものはmock境界外。 |
+| `apps/web/src/features/auth/utils/__tests__/login-continuation.test.ts` | 整理 | URLの欠落/無関係なquery、OAuth allowlist、元state/redirectとsocial callback復帰を維持。stubLocation自身のorigin初期値を確認する1件を削除し、実ブラウザーの未認証authorize→ログイン→同意を既存OAuth成功E2Eへ追加。 |
+| `apps/web/src/shared/lib/__tests__/device-name.test.ts` | 整理 | OS/browserの優先照合、iPadOSのdesktop UA、platform hint、navigator不在を維持。同じUA入力のAndroid/ChromeOS/macOSを再確認する3件は既存パラメーター表の完全一致assertへ集約。 |
+| `apps/web/src/shared/lib/__tests__/passkey-opt-out.test.ts` | 整理 | opt-outの保存/解除、未知値、storage拒否とwindow不在を維持。removeItem/setItemの呼出し方を固定する1件を削除し、保存→解除後の読戻しで利用者設定の結果を確認。 |
+| `apps/web/src/shared/lib/__tests__/webauthn.test.ts` | 維持 | 通常WebAuthnとconditionalCreateの対応差、能力照会の拒否、取り消しcodeと実DOMExceptionのname、通常エラーとの区別は異なるブラウザー境界の契約。 |
+
+OAuth E2Eは実登録・認証・Cookie・D1・MCPを通す構成を保持し、通常ログインでは自動passkey登録を無効化していない。取り込み後の全9 E2Eは30.5秒、再試行0で成功した。ログには実 `/api/auth/passkey/generate-register-options` の成功があり、その後の画面操作・同contextのlogout/別account・offline復帰と未処理ブラウザーエラー監視も通った。これはpasskey作成・passkeyログインの実認証器まで完了させた証拠には数えない。
+
+取り込み後にlive領域・rootのtournament-lifecycle/session-events-routes・全auth・新shared/lib 3ファイルを対象指定で実行し、98ファイル・1,114ケースが成功した（32.74秒）。追加基盤の型検査と担当ファイルの整形・差分検査も成功し、E2E終了後に専用port 13001/18787のListenが残っていないことを確認した。

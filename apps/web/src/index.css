@@ -7,12 +7,6 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* =============================================================================
-   Sapphire 2 Design System — the single app theme.
-   Token values come from the design handoff bundle (colors_and_type.css).
-   See .claude/rules/web-theme.md for the design contract.
-   ============================================================================= */
-
 :root {
 	--background: hsl(0 0% 100%);
 	--foreground: hsl(224 71.4% 4.1%);
@@ -54,7 +48,6 @@
 	--sidebar-border: hsl(220 13% 91%);
 	--sidebar-ring: hsl(221.2 83.2% 53.3%);
 
-	/* Typography stack (Sapphire 2: Noto Sans for UI, JetBrains Mono for code). */
 	--font-sans:
 		"Noto Sans Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
 		Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -62,7 +55,6 @@
 		"JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Monaco,
 		Consolas, monospace;
 
-	/* Type scale — dense tool-UI scale, 14px default body. */
 	--text-2xs: 0.6875rem;
 	--text-xs: 0.75rem;
 	--text-sm: 0.8125rem;
@@ -76,7 +68,6 @@
 	--text-5xl: 2.25rem;
 	--text-6xl: 3rem;
 
-	/* Spacing scale (4px base grid; cap at 96px for tool surfaces). */
 	--space-px: 1px;
 	--space-0_5: 0.125rem;
 	--space-1: 0.25rem;
@@ -94,15 +85,12 @@
 	--space-20: 5rem;
 	--space-24: 6rem;
 
-	/* Control heights (shadcn / Sapphire 2 convention). md = 36px default.
-	   Single source of truth for Button / Input / Select-trigger sizing. */
 	--h-control-xs: 1.5rem;
 	--h-control-sm: 2rem;
 	--h-control-md: 2.25rem;
 	--h-control-lg: 2.5rem;
 	--h-control-xl: 3rem;
 
-	/* Motion — fast and quiet for tool surfaces. */
 	--dur-instant: 80ms;
 	--dur-fast: 150ms;
 	--dur-base: 200ms;
@@ -225,9 +213,6 @@
 	}
 }
 
-/* Typography roles from the design bundle (colors_and_type.css §5).
-   Tokens already include the hsl() wrapper, so reference them as
-   var(--token) directly — never hsl(var(--token)). */
 .t-display {
 	font-family: var(--font-sans);
 	font-size: var(--text-5xl);

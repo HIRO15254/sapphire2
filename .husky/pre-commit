@@ -15,9 +15,9 @@ fi
 
 bun x lint-staged
 
-# Run only the tests related to staged files (not the full suite).
-# CI runs the full Vitest suite and Bun SQLite migrations; the Stop hook uses --changed HEAD.
+# Let Vitest read changed paths from Git to avoid Windows argument-length limits.
+# This also includes unstaged changes; CI remains the full-suite gate.
 STAGED=$(git diff --cached --name-only --diff-filter=ACMR -- '*.ts' '*.tsx' '*.js' '*.jsx')
 if [ -n "$STAGED" ]; then
-  bun x vitest related --run $STAGED
+  bun x vitest run --changed HEAD
 fi

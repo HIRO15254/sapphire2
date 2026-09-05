@@ -56,9 +56,6 @@ const VARIANTS = [
 	{ id: "v-razz", label: "Razz" },
 ];
 
-// State harness standing in for either consumer: the ring-game form keeps
-// rows in its tanstack form store, the session wizard in useState — the
-// hook only sees getRows/setRows either way.
 function setup(initialLabels: string[] = ["NL Hold'em", "PL Omaha"]) {
 	const onVariantLabelChange = vi.fn();
 	const { result } = renderHook(() => {

@@ -35,7 +35,6 @@ interface TournamentFormStateValues {
 	variant: string;
 }
 
-// フォームの内部値（すべて文字列）を AI merge のベースとなる部分値へ変換する。
 function formValuesToPartial(
 	value: TournamentFormStateValues
 ): TournamentPartialFormValues {
@@ -91,7 +90,6 @@ interface UseTournamentFormOptions {
 	onInvalidSubmit?: () => void;
 	onRegisterLiveValues?: (getter: () => TournamentPartialFormValues) => void;
 	onSubmit: (values: TournamentFormValues) => void;
-	/** Live variant changes (Structure tab keeps its blind labels in sync). */
 	onVariantChange?: (variant: string) => void;
 }
 
@@ -160,7 +158,6 @@ export function useTournamentForm({
 		onVariantChange?.(variant);
 	};
 
-	// All-levels vs per-level scope toggle, shared with the session wizard.
 	const { onScopeChange, scopeOf } = useVariantScope({
 		initialVariant: defaultValues?.variant,
 		setVariant: onVariantFieldChange,

@@ -32,8 +32,6 @@ vi.mock("./use-empty-seat-editor", () => ({
 	useEmptySeatEditor: () => mocks.state,
 }));
 
-// Passthrough the popover/command chrome so the dropdown items are directly
-// assertable and clickable (the cmdk/Radix internals are not under test here).
 vi.mock("@/shared/components/ui/popover", () => ({
 	Popover: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 	PopoverAnchor: ({ children }: { children: ReactNode }) => <>{children}</>,
@@ -192,7 +190,6 @@ describe("EmptySeatEditor", () => {
 		mocks.state.matches = [];
 		setup();
 		expect(screen.queryByText("No matching players")).not.toBeInTheDocument();
-		// The quick-action icons stay available even with the dropdown closed.
 		expect(
 			screen.getByRole("button", { name: "Seat temporary player" })
 		).toBeInTheDocument();

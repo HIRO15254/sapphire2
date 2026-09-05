@@ -24,14 +24,6 @@ function slotLabelsSummary(group: GameGroupRow): string {
 	return labels.length > 0 ? labels.join(" / ") : "Default labels";
 }
 
-/**
- * One card per game group with its variants listed inside — makes "every
- * variant belongs to exactly one group" visible (mix-game rework). The
- * header band (bg-muted/50) plus the extra left indent on variant rows
- * below it visually separates the parent group from its child variants.
- * Pure presentational: all state and mutations live in the parent's
- * use-games-page.ts hook and the two form-sheet hooks.
- */
 export function GroupCard({
 	entry,
 	onAddVariant,

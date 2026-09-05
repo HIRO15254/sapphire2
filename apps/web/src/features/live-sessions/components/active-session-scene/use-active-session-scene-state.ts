@@ -22,12 +22,9 @@ export type SessionParam =
 	| { liveCashGameSessionId?: never; liveTournamentSessionId: string };
 
 export interface SeatPlayer {
-	/** session_table_player row id. */
 	id: string;
-	/** True while the row only exists as an optimistic cache entry. */
 	isLoading: boolean;
 	isTemporary: boolean;
-	/** Rich-text (HTML) memo; render via memoExcerpt for the row summary. */
 	memo: string | null;
 	name: string;
 	playerId: string;
@@ -36,10 +33,8 @@ export interface SeatPlayer {
 }
 
 export interface SeatEntry {
-	/** True when this seat is the hero's seat (the user, not an opponent). */
 	isHero: boolean;
 	player: SeatPlayer | null;
-	/** 0-based seat index. Display as `seatPosition + 1`. */
 	seatPosition: number;
 }
 
@@ -47,13 +42,11 @@ interface UseActiveSessionSceneStateOptions {
 	heroSeatPosition: number | null;
 	sessionId: string;
 	sessionType: "cash_game" | "tournament";
-	/** Seat count from the game definition; falls back to 9 when unknown. */
 	tableSize: number | null;
 }
 
 export interface ActiveSessionSceneState {
 	excludePlayerIds: string[];
-	/** True when no hero seat is set yet, so a seat may be claimed as the hero. */
 	heroAvailable: boolean;
 	heroSeatPosition: number | null;
 	occupiedSeatPositions: Set<number>;
@@ -92,14 +85,6 @@ export function resolveSeatCount(tableSize: number | null): number {
 	return DEFAULT_SEAT_COUNT;
 }
 
-/**
- * Data/state layer for the active-session seat list: resolves the seat count
- * from the game definition, places active table players into their seats
- * (joining tag badges from the player list), and exposes seat-targeted add /
- * leave handlers. Inline memo/tag editing of an occupied seat is owned by the
- * seat editor's own hook (`usePlayerDetail`), so this layer stays purely about
- * seating.
- */
 export function useActiveSessionSceneState({
 	heroSeatPosition,
 	sessionId,

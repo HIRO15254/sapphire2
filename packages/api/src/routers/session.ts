@@ -61,8 +61,6 @@ import { compareBuiltinFirst } from "./_game-masters";
 
 const PAGE_SIZE = 20;
 
-// Match gameGroup.list / useGameGroups: builtin buckets are
-// limit -> stud -> bigbet, followed by custom groups alphabetically.
 const CANONICAL_GAME_GROUP_ORDER = new Map<string, number>(
 	DEFAULT_GAME_GROUPS.map((group, index) => [group.key, index])
 );
@@ -109,19 +107,6 @@ function computeCashGamePL(
 	return cashOut + chipRemoveTotal - buyIn;
 }
 
-/**
- * The EV cash-out the EV P/L is computed from. Recording one is optional, and
- * a session without it is defined to have run exactly as expected: EV falls
- * back to the actual cash-out, so its EV P/L equals its real result and its EV
- * difference is 0. Without the fallback those sessions dropped out of every EV
- * figure entirely, which made the EV totals a sum over an unstated subset of
- * the filtered sessions rather than over all of them.
- *
- * Returns null only when there is no cash-out either (an unfinished session),
- * where no EV can be stated at all — hence the overload: past a `cashOut !==
- * null` guard the result is always a number, so callers inside such a guard do
- * not carry a null branch that cannot run.
- */
 export function resolveEvCashOut(
 	evCashOut: number | null,
 	cashOut: number
@@ -149,28 +134,8 @@ function computeTournamentPL(
 	return income - cost;
 }
 
-/**
- * Cloudflare D1 rejects any query with more than 100 bound parameters. A
- * multi-row `INSERT` binds `columnsPerRow × rowCount` parameters, so a large
- * batch (e.g. a 14-level blind structure at 10 columns = 140 params) overflows
- * a single statement and fails at runtime. Split the rows so every INSERT
- * stays under the cap. session_blind_level is at exactly 10 columns → 10 rows
- * per INSERT (10 × 10 = 100); adding an 11th column requires dropping the
- * chunk size to 9 or the re-INSERT overflows after the DELETE has committed.
- * The implementation and the cap live in lib/batch.ts so services can share
- * them without importing from a router; this stays the router-side entry point.
- */
 export { chunkForInsert } from "../lib/batch";
 
-/**
- * Run a `WHERE ... IN (ids)` SELECT in chunks so no single statement exceeds
- * D1's 100 bound-parameter cap. A one-column `IN` binds one param per id, so a
- * batched lookup across >100 sessions (e.g. the chip-purchase / blind-level
- * maps below) overflows exactly like a wide multi-row INSERT — hence the reuse
- * of {@link chunkForInsert} with a single "column". Rows from every chunk are
- * concatenated in chunk order; callers bucket by id afterward, and because each
- * id lands in exactly one chunk, per-id ordering (sortOrder / level) survives.
- */
 export async function selectInChunks<Id, Row>(
 	ids: Id[],
 	run: (chunk: Id[]) => Promise<Row[]>,
@@ -202,18 +167,12 @@ interface SessionChipPurchaseWithCount {
 	sortOrder: number;
 }
 
-/** Σ (cost × count) across a session's chip purchases. */
 function sumChipPurchaseCost(
 	purchases: { cost: number; count: number }[]
 ): number {
 	return purchases.reduce((acc, p) => acc + p.cost * p.count, 0);
 }
 
-/**
- * Batched lookup of chip purchases (with their result counts) for the given
- * sessions, keyed by session id and ordered by sortOrder. Sessions with no
- * chip purchases are simply absent from the map.
- */
 async function getSessionChipPurchaseMap(
 	db: DbInstance,
 	sessionIds: string[]
@@ -273,12 +232,6 @@ interface SessionBlindLevelRow {
 	minutes: number | null;
 }
 
-/**
- * Batched lookup of a session's own blind structure, keyed by session id and
- * ordered by level. Mirrors {@link getSessionChipPurchaseMap} so `getById` /
- * `list` can hydrate the post-edit sheet's blind-structure editor from the
- * frozen session levels. Sessions with no structure are absent from the map.
- */
 async function getSessionBlindLevelMap(
 	db: DbInstance,
 	sessionIds: string[]
@@ -328,17 +281,6 @@ interface SessionEventForList {
 	payload: string;
 }
 
-/**
- * Batched lookup of session events for the live-session `list` endpoints, keyed
- * by session id and ordered by (occurredAt asc, sortOrder asc, id asc) — the exact order
- * the per-session query used before SA2-151 collapsed the N+1 (one
- * `WHERE session_id = ?` query per page item, up to limit+1 ≈ 100 extra
- * round-trips that D1's per-query latency made expensive) into a single
- * `inArray` fetch via {@link selectInChunks}. Each bucket is re-sorted in
- * application code so per-session ordering holds even though selectInChunks
- * concatenates chunk results (and a mocked db may ignore ORDER BY). Sessions
- * with no events are absent from the map.
- */
 export async function getSessionEventMap(
 	db: DbInstance,
 	sessionIds: string[]
@@ -401,12 +343,6 @@ export async function getSessionEventMap(
 	return map;
 }
 
-/**
- * Delete + reinsert a session's chip purchases together with their result
- * counts. The session_chip_purchase delete cascades to old result rows, so
- * only the inserts are added here. Used by both create and update so counts
- * are always written against the freshly generated purchase ids.
- */
 function buildSessionChipPurchaseStatements(
 	db: DbInstance,
 	sessionId: string,
@@ -417,9 +353,6 @@ function buildSessionChipPurchaseStatements(
 		name: string;
 	}[]
 ): BatchStatement[] {
-	// The DELETE always leads the group so the "clear then re-seed" runs as one
-	// atomic unit — a failed re-INSERT can no longer permanently wipe the saved
-	// chip-purchase history (SA2-116).
 	const statements: BatchStatement[] = [
 		db
 			.delete(sessionChipPurchase)
@@ -465,11 +398,6 @@ async function persistSessionChipPurchases(
 	);
 }
 
-/**
- * Delete + reinsert a session's blind level structure. Used by both create
- * (explicit override of the master snapshot) and update (session-wizard edits
- * to a session's own blind structure) so the array is always written fresh.
- */
 function buildSessionBlindLevelStatements(
 	db: DbInstance,
 	sessionId: string,
@@ -483,9 +411,6 @@ function buildSessionBlindLevelStatements(
 		minutes?: number | null;
 	}[]
 ): BatchStatement[] {
-	// DELETE leads so the whole re-seed commits (or rolls back) as one unit —
-	// a failed re-INSERT can no longer strand the session with no blind
-	// structure (SA2-116).
 	const statements: BatchStatement[] = [
 		db
 			.delete(sessionBlindLevel)
@@ -506,8 +431,6 @@ function buildSessionBlindLevelStatements(
 		minutes: l.minutes ?? null,
 		games: l.games ?? null,
 	}));
-	// 10 columns/row since the games column => 10 rows per INSERT under D1's
-	// 100 bound-param cap (SA2-115).
 	for (const chunk of chunkForInsert(rows, 10)) {
 		statements.push(db.insert(sessionBlindLevel).values(chunk));
 	}
@@ -533,11 +456,6 @@ export async function persistSessionBlindLevels(
 	);
 }
 
-/**
- * Assert the room `roomId` exists and belongs to `userId`, else throw FORBIDDEN
- * with `forbiddenMessage`. Shared by the room-derived ownership branches
- * (ringGame / tournament) so their ownership rule stays in one place.
- */
 async function assertRoomOwnedBy(
 	db: DbInstance,
 	roomId: string,
@@ -565,11 +483,6 @@ async function validateRingGameOwnershipBranch(
 			message: "You do not own this ring game",
 		});
 	}
-	// A ring game now carries its own userId (SA2-181), so ownership is a direct
-	// comparison — no longer derived from the room. A null userId is a
-	// legacy/orphan row that cannot be proven owned → FORBIDDEN. This supersedes
-	// the previous room-join and keeps null-roomId auto-generated snapshot rows
-	// correctly owned after the backfill, closing the IDOR gap (SA2-174/SA2-181).
 	if (found.userId !== userId) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
@@ -615,9 +528,6 @@ async function validateTournamentOwnershipBranch(
 			message: "You do not own this tournament",
 		});
 	}
-	// A tournament has no userId of its own; ownership is derived from its
-	// room. Without this check a caller could pass another user's
-	// tournamentId to snapshot their blind structure / chip purchases (IDOR).
 	await assertRoomOwnedBy(
 		db,
 		found.roomId,
@@ -705,15 +615,6 @@ async function validateGameMixOwnershipBranch(
 	return found;
 }
 
-/**
- * Uniform-FORBIDDEN ownership contract (SA2-183): fetch by id only, then
- * treat "missing" and "owned by someone else" identically. Shared by the
- * game-group/game-variant/game-mix routers, which previously hand-rolled this
- * exact check three times (`validateGameGroupOwnership`,
- * `validateGameVariantOwnership`, `validateGameMixOwnership` — c39). Each
- * entity type's check is factored into its own `validate*OwnershipBranch`
- * helper above so this dispatcher stays simple.
- */
 async function validateEntityOwnership(
 	db: DbInstance,
 	entityType: "gameGroup",
@@ -808,12 +709,6 @@ async function createCurrencyTransactionForSession(
 	});
 }
 
-/**
- * Build the "Session Result" ledger INSERT for a parent batch. The shared
- * ensure commits the persistent transaction-type master first; the returned
- * array contains only ledger statements so parent/session/tag writes remain
- * atomic. An unused master may remain when the parent batch fails (SA2-116).
- */
 async function buildCurrencyTransactionStatements(
 	db: DbInstance,
 	sessionId: string,
@@ -865,10 +760,6 @@ export async function syncCurrencyTransaction(
 		effectiveNewCurrencyId &&
 		oldCurrencyId !== effectiveNewCurrencyId
 	) {
-		// Delete the stale ledger row and re-create it for the new currency in a
-		// SINGLE batch, so a failed re-INSERT can no longer permanently drop the
-		// session's currency transaction (SA2-116 — the same failure class this PR
-		// fixes on the create path).
 		await runBatch(db, [
 			db
 				.delete(currencyTransaction)
@@ -1003,15 +894,7 @@ export const cashGameCreateSchema = z.object({
 	roomId: z.string().min(1).optional(),
 	ringGameId: z.string().min(1).optional(),
 	currencyId: z.string().min(1).optional(),
-	// Snapshot fields — written through to session_cash_detail. When
-	// ringGameId is also provided, these override the parent values; when
-	// no master is referenced they define the rule wholesale.
 	ruleName: z.string().min(1).optional(),
-	// Plain optional (mirrors tournamentCreateSchema.variant) — a schema-level
-	// default here would coerce an omitted variant to a fixed string BEFORE it
-	// ever reaches mergeCashSnapshotWithParent, permanently defeating
-	// inheritance from the ring game (c10). The "NL Hold'em" fallback for the
-	// true no-parent case lives solely in defaultCashSnapshot.
 	variant: z.string().optional(),
 	mixGames: mixGamesSchema.nullish(),
 	blind1: nonNegativeIntegerSchema.optional(),
@@ -1029,8 +912,6 @@ export const cashGameCreateSchema = z.object({
 	tagIds: optionalUniqueTagIdsSchema,
 });
 
-// A rule-defined chip purchase plus how many times it was bought (`count`).
-// Shared by session.create and session.update.
 const chipPurchaseInputSchema = z.object({
 	name: z.string().min(1),
 	cost: nonNegativeIntegerSchema,
@@ -1052,9 +933,6 @@ export const tournamentCreateSchema = z
 		roomId: z.string().min(1).optional(),
 		tournamentId: z.string().min(1).optional(),
 		currencyId: z.string().min(1).optional(),
-		// Snapshot fields — same role as on the cash schema. Allows manual
-		// sessions (or wizard-driven creation) to declare the rule wholesale
-		// even when no master tournament is referenced.
 		ruleName: z.string().min(1).optional(),
 		variant: z.string().optional(),
 		startingStack: nonNegativeIntegerSchema.optional(),
@@ -1088,9 +966,6 @@ const createInputSchema = z.discriminatedUnion("type", [
 
 type CreateInput = z.infer<typeof createInputSchema>;
 
-// Named exports for the MCP tool layer (packages/mcp) — the tools must expose
-// the exact same Zod objects the router validates with, so schema drift
-// between the API and the MCP surface is structurally impossible.
 export const sessionListInputSchema = z.object({
 	cursor: z.string().optional(),
 	type: z.enum(["cash_game", "tournament"]).optional(),
@@ -1158,10 +1033,6 @@ interface SessionSummary {
 	avgPlacement: number | null;
 	avgProfitLoss: number | null;
 	itmRate: number | null;
-	// Cash-only EV aggregates, gated the same way as stats.summary's: null
-	// unless a session in scope stored a real EV cash-out, and otherwise summed
-	// over every finished cash session (the ones without a stored EV cash-out
-	// count at their actual result). See accumulateEvMetrics.
 	totalEvDiff: number | null;
 	totalEvProfitLoss: number | null;
 	totalPrizeMoney: number | null;
@@ -1214,8 +1085,6 @@ function accumulateEvMetrics(
 	if (s.type !== "cash_game" || s.buyIn === null) {
 		return;
 	}
-	// Resolved only after the cash-game guard: the fallback is defined for a
-	// cash-game cash-out, and a tournament row's cashOut carries no EV meaning.
 	const evCashOut = resolveEvCashOut(s.evCashOut, s.cashOut);
 	if (evCashOut === null) {
 		return;
@@ -1224,12 +1093,6 @@ function accumulateEvMetrics(
 	update({
 		totalEvProfitLoss: current.totalEvProfitLoss + evPl,
 		totalEvDiff: current.totalEvDiff + (evPl - pl),
-		// Count the sessions that actually stored an EV cash-out, not the ones
-		// that got a resolved value: `evCashOut` above falls back to the actual
-		// cash-out, so counting it would leave the gate below true for every
-		// finished cash session and report "EV diff: 0" to a user who never
-		// tracked EV. Same gate, same reason as stats.ts's buildSummary — the
-		// two summaries must not disagree over one scope.
 		recordedEvCount: current.recordedEvCount + (s.evCashOut === null ? 0 : 1),
 	});
 }
@@ -1417,13 +1280,6 @@ async function validateCreateLinks(
 	}
 }
 
-/**
- * Ownership guard for the room / currency links shared by the live cash-game
- * and live-tournament routers. A falsy value (undefined = omitted, null =
- * clear, "" = empty) skips validation; a provided id must exist AND belong to
- * the caller, else validateEntityOwnership throws FORBIDDEN.
- * Prevents IDOR on the money-ledger links (SA2-102).
- */
 export async function validateLiveLinkOwnership(
 	db: DbInstance,
 	input: { currencyId?: string | null; roomId?: string | null },
@@ -1436,11 +1292,6 @@ export async function validateLiveLinkOwnership(
 		await validateEntityOwnership(db, "currency", input.currencyId, userId);
 	}
 }
-/**
- * Validates every optional foreign-key filter at the resolver boundary. A
- * missing or foreign row must fail uniformly before an otherwise owner-scoped
- * query can turn it into an empty result (SA2-183).
- */
 async function validateSessionFilterOwnership(
 	db: DbInstance,
 	input: { currencyId?: string; ringGameId?: string; roomId?: string },
@@ -1457,16 +1308,6 @@ async function validateSessionFilterOwnership(
 	}
 }
 
-/**
- * Ownership guard for a set of tag ids linked to a session / player / etc.
- * Generic over any tag table exposing `id` + `userId` columns (session_tag,
- * player_tag, tournament_tag, …). Selects the caller-owned subset in a single
- * `WHERE id IN (…) AND userId = caller` query; if the distinct owned count
- * differs from the requested distinct count, at least one id is missing or
- * belongs to another user → FORBIDDEN. No-ops on empty / omitted ids so the
- * caller can pass `input.tagIds` directly. Prevents IDOR on tag links
- * (SA2-177).
- */
 export async function validateTagsOwnership(
 	db: DbInstance,
 	table: SQLiteTable & { id: SQLiteColumn; userId: SQLiteColumn },
@@ -1494,10 +1335,6 @@ export async function validateTagsOwnership(
 	}
 }
 
-// ---------------------------------------------------------------------------
-// create helpers
-// ---------------------------------------------------------------------------
-
 function _computeCreatePL(input: CreateInput): number {
 	if (input.type === "cash_game") {
 		return computeCashGamePL(input.buyIn, input.cashOut);
@@ -1511,10 +1348,6 @@ function _computeCreatePL(input: CreateInput): number {
 	);
 }
 
-// ---------------------------------------------------------------------------
-// list helpers
-// ---------------------------------------------------------------------------
-
 interface ListFilters {
 	currencyId?: string;
 	cursor?: string;
@@ -1524,25 +1357,10 @@ interface ListFilters {
 	type?: "cash_game" | "tournament";
 }
 
-/**
- * The list orders sessions by the moment they actually started, not by the
- * (date-only) `sessionDate` field: `sessionDate` has no time component, so
- * same-day sessions used to tie-break on `id` (a random UUID) and came out in
- * a seemingly arbitrary order. `startedAt` is optional (older / quick-add
- * sessions may not have one), so it falls back to `sessionDate`.
- */
 export function sessionOrderKeySql() {
 	return sql`coalesce(${gameSession.startedAt}, ${gameSession.sessionDate})`;
 }
 
-/**
- * Composite keyset cursor for the session list. The list orders by
- * `sessionOrderKey DESC, id DESC`, so paginating on `id` alone is wrong — id
- * order is unrelated to that order, which made the second page drop or
- * duplicate rows (and stop early, so "Load more" only worked once). The
- * cursor therefore encodes both the order key (epoch ms) and the id as
- * `"<ms>_<id>"`.
- */
 export function encodeSessionCursor(row: {
 	id: string;
 	sessionDate: Date;
@@ -1552,13 +1370,6 @@ export function encodeSessionCursor(row: {
 	return `${sortKey.getTime()}_${row.id}`;
 }
 
-/**
- * Parse an {@link encodeSessionCursor} value back into its order key + id.
- * Returns `null` for a malformed cursor (missing separator, empty /
- * non-integer / out-of-range timestamp, or empty id) so the caller treats it
- * as "no cursor" instead of crashing. Splits on the first separator only, so
- * ids containing `_` survive.
- */
 export function parseSessionCursor(
 	cursor: string
 ): { id: string; sortKey: Date } | null {
@@ -1579,16 +1390,6 @@ export function parseSessionCursor(
 	return { id, sortKey };
 }
 
-/**
- * Build the composite-keyset WHERE condition for a session-list cursor, matching
- * the `(sessionOrderKey DESC, id DESC)` ordering: rows strictly after the cursor
- * in that order. Returns `undefined` for a missing / malformed cursor so the
- * caller starts from the beginning instead of filtering every row out — the
- * SA2-150 regression, where the old keyset ran a subquery on the raw cursor id,
- * and a since-deleted cursor row made that subquery return NULL (so
- * `started_at < NULL` dropped the whole page). The order key is stored in
- * seconds (sqlite "timestamp" mode), so the cursor's ms value is floored.
- */
 export function sessionKeysetCondition(
 	cursor: string | undefined
 ): SQL | undefined {
@@ -1723,12 +1524,6 @@ interface ProfitLossSeriesFilters {
 	type?: "cash_game" | "tournament";
 }
 
-/**
- * Shared body of the `profitLossSeries` resolver. Extracted so both
- * `session.profitLossSeries` (which keeps its `ringGameId` filter) and the
- * stats router can reuse the exact same selection + point mapping, keeping the
- * point shape identical across both surfaces.
- */
 export async function fetchProfitLossSeries(
 	db: DbInstance,
 	userId: string,
@@ -1823,17 +1618,9 @@ export function toProfitLossSeriesPoint(r: ProfitLossSeriesRow) {
 		id: r.id,
 		type: r.type as "cash_game" | "tournament",
 		sessionDate: Math.floor(r.sessionDate.getTime() / 1000),
-		// Chronological order key: sessionDate has no time component, so same-day
-		// sessions need startedAt to sort by actual play order (SA2-98). Mirrors
-		// the DB query's own `sessionOrderKeySql()` ordering.
 		sortKey: Math.floor((r.startedAt ?? r.sessionDate).getTime() / 1000),
 		profitLoss,
 		evProfitLoss: cashStats.evProfitLoss,
-		// Whether this session stores a real EV cash-out. `evProfitLoss` cannot
-		// answer that — it falls back to the actual result, so every finished
-		// cash session has one. The graph needs the distinction to decide
-		// whether an EV line would say anything the P/L line does not. Same
-		// definition as stats.ts's `StatsSessionRow.evRecorded`.
 		evRecorded: r.type === "cash_game" && r.evCashOut !== null,
 		playMinutes: computePlayMinutes(r),
 		bigBlind: r.ringGameBlind2 ?? null,
@@ -1881,12 +1668,6 @@ function enrichItemWithPL<T extends ListItemRaw>(item: T) {
 	};
 }
 
-/**
- * Shared SELECT for an enriched session row (aliased fields + the cash /
- * tournament snapshot scalars). Used by both `list` (paginated) and `getById`
- * (single id) so the detail page receives exactly the same shape as a list
- * item — display logic and the edit-wizard pre-fill both rely on these aliases.
- */
 function selectEnrichedSessionRows(db: DbInstance, userId: string) {
 	return db
 		.select({
@@ -1921,8 +1702,6 @@ function selectEnrichedSessionRows(db: DbInstance, userId: string) {
 			currencyName: currency.name,
 			currencyUnit: currency.unit,
 			createdAt: gameSession.createdAt,
-			// Cash snapshot scalars used by the edit-mode wizard to
-			// pre-fill the Rules step with the frozen rule.
 			cashVariant: sessionCashDetail.variant,
 			cashMixGames: sessionCashDetail.mixGames,
 			cashBlind1: sessionCashDetail.blind1,
@@ -1932,7 +1711,6 @@ function selectEnrichedSessionRows(db: DbInstance, userId: string) {
 			cashMinBuyIn: sessionCashDetail.minBuyIn,
 			cashMaxBuyIn: sessionCashDetail.maxBuyIn,
 			cashTableSize: sessionCashDetail.tableSize,
-			// Tournament snapshot scalars (same role).
 			tournamentVariant: sessionTournamentDetail.variant,
 			tournamentStartingStack: sessionTournamentDetail.startingStack,
 			tournamentBountyAmount: sessionTournamentDetail.bountyAmount,
@@ -1957,11 +1735,6 @@ function selectEnrichedSessionRows(db: DbInstance, userId: string) {
 		);
 }
 
-/**
- * Attaches chip purchases (+ their summed cost), profit/loss, the live-session
- * id discriminators, and tag links to raw session rows from
- * {@link selectEnrichedSessionRows}.
- */
 async function enrichSessionRows<
 	T extends Omit<ListItemRaw, "chipPurchaseCost"> & { id: string },
 >(db: DbInstance, rows: T[], userId: string) {
@@ -2008,10 +1781,6 @@ async function enrichSessionRows<
 			.map((tl) => ({ id: tl.tagId, name: tl.tagName })),
 	}));
 }
-
-// ---------------------------------------------------------------------------
-// update helpers
-// ---------------------------------------------------------------------------
 
 interface UpdateInput {
 	breakMinutes?: number | null;
@@ -2130,15 +1899,12 @@ async function applyCashDetailUpdate(
 		cashUpdate.evCashOut = input.evCashOut;
 	}
 
-	// Snapshot field overrides — written to detail, never propagated to parent.
 	applyCashRuleScalarUpdates(cashUpdate, input);
 
 	if (input.ringGameId !== undefined) {
 		cashUpdate.ringGameId = input.ringGameId;
 	}
 	if (input.ringGameId) {
-		// Re-snapshot from the new parent, while letting explicit input fields
-		// override.
 		const snapshot = await resolveValidatedCashRuleSnapshot(db, input, userId);
 		cashUpdate.ruleName = snapshot.ruleName;
 		cashUpdate.variant = snapshot.variant;
@@ -2309,10 +2075,6 @@ function applyTournamentScalarUpdates(
 			tournUpdate[key] = input[key];
 		}
 	}
-	// Snapshot field overrides — written to detail, never propagated to
-	// parent. Assigned individually (rather than via `scalarKeys`) since
-	// `variant` is a string while the rest are nullable numbers, which the
-	// generic keyed loop above can't type-check across.
 	if (input.ruleName !== undefined) {
 		tournUpdate.ruleName = input.ruleName;
 	}
@@ -2363,15 +2125,10 @@ async function applyTournamentDetailUpdate(
 		}
 	}
 
-	// Re-snapshot blind levels / chip purchases when the parent link changes.
-	// `null` keeps the existing snapshot (frozen).
 	if (input.tournamentId) {
 		await resnapshotTournamentStructure(db, sessionId, input.tournamentId);
 	}
 
-	// Explicit blind levels / chip purchases (with result counts) override the
-	// snapshot. Runs after the re-snapshot so the explicit arrays win when both
-	// apply.
 	if (input.blindLevels !== undefined) {
 		await persistSessionBlindLevels(db, sessionId, input.blindLevels);
 	}
@@ -2670,13 +2427,6 @@ async function isValidMixedVariant(
 	return true;
 }
 
-/**
- * Keep the frozen cash-rule discriminator and its optional mixed-game payload
- * coherent at every write boundary. Named mixes are labels of the caller's
- * game_mix rows; the legacy `mix` sentinel remains valid without a master row.
- * Existing snapshots are deliberately self-freezing, so re-submitting an
- * unchanged named mix still works after that master is renamed or deleted.
- */
 export async function reconcileCashRuleSelection(
 	db: DbInstance,
 	userId: string,
@@ -2827,10 +2577,6 @@ async function buildCashGameSessionDetailStatements(
 
 	if (!ringGameId) {
 		ringGameId = crypto.randomUUID();
-		// A mix game (or any rule with no blinds at all) has no single
-		// blind1/blind2 pair to show, so `mix 0/0` is meaningless — fall back to
-		// the display label alone (c11). `variantDisplayLabel` also maps the
-		// "mix" pseudo-variant key to its "Mixed Game" display string.
 		const displayLabel = variantDisplayLabel(snapshot.variant);
 		const isBlindless =
 			snapshot.mixGames !== null ||
@@ -2842,8 +2588,6 @@ async function buildCashGameSessionDetailStatements(
 			db.insert(ringGame).values({
 				id: ringGameId,
 				roomId: null,
-				// Auto-generated snapshot row: anchor ownership on the creating user
-				// (SA2-181) since it has no room to derive ownership from.
 				userId,
 				name: derivedName,
 				variant: snapshot.variant,
@@ -2987,9 +2731,6 @@ async function buildTournamentSessionDetailStatements(
 			))
 		);
 	}
-	// Allow callers to override the snapshotted structure with explicit
-	// blind levels / chip purchases. This runs after the parent copy (still in
-	// the same batch) so the explicit arrays win when both are supplied.
 	if (input.blindLevels !== undefined) {
 		statements.push(
 			...buildSessionBlindLevelStatements(db, sessionId, input.blindLevels)
@@ -3003,12 +2744,6 @@ async function buildTournamentSessionDetailStatements(
 	return statements;
 }
 
-/**
- * Read the parent tournament's blind levels + chip purchases and build the
- * INSERT statements that copy them onto a session. Returns the (possibly empty)
- * statement list UN-executed so callers can commit them inside a single batch
- * alongside any preceding DELETEs (SA2-116).
- */
 async function buildTournamentStructureStatements(
 	db: DbInstance,
 	sessionId: string,
@@ -3034,8 +2769,6 @@ async function buildTournamentStructureStatements(
 			minutes: l.minutes,
 			games: l.games,
 		}));
-		// 10 columns/row since the games column => 10 rows per INSERT under
-		// D1's 100 bound-param cap (SA2-115).
 		for (const chunk of chunkForInsert(levelRows, 10)) {
 			statements.push(db.insert(sessionBlindLevel).values(chunk));
 		}
@@ -3058,8 +2791,6 @@ async function buildTournamentStructureStatements(
 		for (const chunk of chunkForInsert(purchaseRows, 6)) {
 			statements.push(db.insert(sessionChipPurchase).values(chunk));
 		}
-		// Every chip purchase starts with a result row (count 0) so the
-		// result table always has a row to update.
 		const resultRows = purchaseRows.map((r) => ({
 			sessionChipPurchaseId: r.id,
 			count: 0,
@@ -3088,9 +2819,6 @@ async function resnapshotTournamentStructure(
 	sessionId: string,
 	tournamentId: string
 ): Promise<void> {
-	// Both DELETEs and the re-copied structure commit as one batch, so a failed
-	// re-snapshot can no longer leave the session with its old structure wiped
-	// and nothing written back (SA2-116).
 	const statements: BatchStatement[] = [
 		db
 			.delete(sessionBlindLevel)
@@ -3224,11 +2952,6 @@ export const sessionRouter = router({
 			const now = new Date();
 			const sessionDate = new Date(input.sessionDate * 1000);
 
-			// Validate every link + tag ownership BEFORE any write so the whole
-			// create commits as a single atomic batch (SA2-116): the session row,
-			// its type detail, tag links and currency-ledger row land together —
-			// a mid-sequence failure can no longer leave an orphan session with no
-			// detail/tags.
 			await validateCreateLinks(ctx.db, input, userId);
 			await validateTagsOwnership(ctx.db, sessionTag, input.tagIds, userId);
 
@@ -3314,8 +3037,6 @@ export const sessionRouter = router({
 		.input(sessionGetByIdInputSchema)
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			// Ownership guard — throws FORBIDDEN when the session is missing or
-			// belongs to another user.
 			await validateSessionOwnership(ctx.db, input.id, userId);
 
 			const rows = await selectEnrichedSessionRows(ctx.db, userId).where(
@@ -3392,10 +3113,6 @@ export const sessionRouter = router({
 			}
 
 			if (input.tagIds !== undefined) {
-				// Replace the tag links atomically. A bare DELETE followed by
-				// separately-awaited INSERTs auto-commits the DELETE, so a failed
-				// re-insert would strand the session with no tags (SA2-116) — the
-				// exact DELETE-then-reINSERT shape the create path already batches.
 				const tagStatements: BatchStatement[] = [
 					ctx.db
 						.delete(sessionToSessionTag)
@@ -3460,7 +3177,6 @@ export const sessionRouter = router({
 			return updated;
 		}),
 
-	// profit/loss time series — shared by the statistics page and the stats router
 	profitLossSeries: protectedProcedure
 		.input(
 			z.object({

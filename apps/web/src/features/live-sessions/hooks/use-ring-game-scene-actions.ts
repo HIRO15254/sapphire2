@@ -8,11 +8,6 @@ interface UseRingGameSceneActionsArgs {
 	sessionId: string;
 }
 
-/**
- * Edit a live cash session's frozen ring-game snapshot. Writes go to
- * `session_cash_detail` only — the master `ring_game` row is never
- * touched. Use this for the live-session edit dialog.
- */
 export function useRingGameSceneActions({
 	sessionId,
 }: UseRingGameSceneActionsArgs) {

@@ -9,8 +9,6 @@ const TRIALS_LABEL_PATTERN = /trials/i;
 const EQUITY_LABEL_PATTERN = /equity %/i;
 const WINS_LABEL_PATTERN = /wins/i;
 
-// Stand-in for the v2 FormSheet: renders the title, the body, and the
-// toolbar Save button that submits the inner form via the `form` attribute.
 vi.mock("@/shared/components/form-sheet", () => ({
 	FormSheet: ({
 		children,

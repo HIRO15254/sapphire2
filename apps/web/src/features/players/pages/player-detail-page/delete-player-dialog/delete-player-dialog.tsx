@@ -15,11 +15,6 @@ interface DeletePlayerDialogProps {
 	playerName: string;
 }
 
-/**
- * Centered destructive confirmation for deleting a player, mirroring
- * `DeleteRoomDialog`. Deleting a player removes its tag links but leaves the
- * tags themselves, so the copy stays simple.
- */
 export function DeletePlayerDialog({
 	onConfirm,
 	onOpenChange,

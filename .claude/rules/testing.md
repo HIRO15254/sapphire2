@@ -96,4 +96,4 @@ Playwrightはテスト専用のHTTPS Web/WorkerとD1を起動する。同じ作�
 
 PRでは `bun run lint`、`bun run check-types`、`bun run check:rules` と対象テストを確認する。CIが全Vitest、Bun migration、登録済みの重要統合／E2Eを実行する。未実行、skip、失敗、再試行でのみ成功したケースを区別して報告する。件数はファイル数・宣言数・パラメーター展開後の実行数を混同しない。
 
-`.husky/pre-commit` はstaged関連のテスト、`.claude/settings.json` のStop hookは整形・`vitest run --changed HEAD`・lint・`check:rules` を実行する。どちらも全スイートの代替ではなく、全対象の最終検証はCIで行う。Bun SQLiteテストのCI登録漏れは既存 `scripts/check-rules.ts` で確認する。runner・型・lintにある検査を重複実装せず、「低価値テスト」を正規表現で自動削除しない。
+`.husky/pre-commit` はコードのstaged変更があると `vitest run --changed HEAD` を実行する。大量パスの列挙がWindowsの引数長上限に達するため、Gitから変更一覧を取得させる。unstaged変更の関連テストも対象になる。`.claude/settings.json` のStop hookは整形・同じchanged実行・lint・`check:rules` を実行する。どちらも全スイートの代替ではなく、全対象の最終検証はCIで行う。Bun SQLiteテストのCI登録漏れは既存 `scripts/check-rules.ts` で確認する。runner・型・lintにある検査を重複実装せず、「低価値テスト」を正規表現で自動削除しない。

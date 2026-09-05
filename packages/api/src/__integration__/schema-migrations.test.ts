@@ -128,8 +128,7 @@ describe("application schema agrees with the installed production migrations", (
 					`${index.name} column order`
 				).toEqual(declaredIndexColumns(index));
 			}
-			// Column-level UNIQUE may be installed as a named index or an SQLite
-			// autoindex. Compare keys by columns so neither representation is missed.
+
 			const uniqueKeys = [
 				...config.columns
 					.filter(({ isUnique }) => isUnique)

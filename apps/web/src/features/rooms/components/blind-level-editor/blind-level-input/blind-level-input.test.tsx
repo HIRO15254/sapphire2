@@ -13,10 +13,6 @@ describe("BlindLevelInput", () => {
 	});
 
 	it("paints the focus highlight as an inset ring so the bottom row is not clipped by the table's overflow wrapper (SA2-70)", () => {
-		// The shared Table wraps the <table> in an `overflow-x-auto` div, which
-		// the CSS spec coerces to `overflow-y: auto`. An outset focus ring on the
-		// bottom-most cell would overflow that wrapper and be clipped; an inset
-		// ring is painted inside the cell and survives the clip.
 		render(<BlindLevelInput aria-label="Test blind" />);
 
 		const input = screen.getByRole("textbox");

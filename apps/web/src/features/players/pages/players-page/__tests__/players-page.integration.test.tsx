@@ -58,8 +58,6 @@ const backend = {
 		vi.fn<(input: CreatePlayerInput) => PlayerItem | Promise<PlayerItem>>(),
 };
 
-// The fixture router controls HTTP responses only; it does not stand in for API
-// authorization or persistence tests. Input/output types follow the public API.
 const t = initTRPC.create({ isServer: true });
 const fixtureRouter = t.router({
 	player: t.router({
@@ -119,8 +117,6 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-	// The real tRPC options proxy and production MutationCache share this client.
-	// Clear all state per case while retaining actual error-to-toast behavior.
 	queryClient.clear();
 	queryClient.setDefaultOptions({
 		queries: { retry: false, gcTime: 0, staleTime: Number.POSITIVE_INFINITY },

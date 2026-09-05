@@ -2,10 +2,6 @@ import { act, fireEvent, renderHook, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithQueryClient, withQueryClient } from "@/__tests__/test-utils";
 
-// RulesStepBody (tournament path) transitively imports @/utils/trpc; stub it.
-// The cash/tournament rule bodies also render VariantSelect, which uses real
-// react-query hooks against trpc.gameVariant.list — provide a queryFn and
-// wrap renders below in a QueryClientProvider.
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		gameVariant: {
@@ -71,8 +67,6 @@ const RING_GAME: RingGameOption = {
 	currencyId: "c-1",
 };
 
-// Selects the master (applying its rule defaults) then diverges the small
-// blind from it, so exactly one rule field ("SB") counts as overridden.
 function setupOverriddenState() {
 	const { result } = renderHook(
 		() =>
@@ -132,9 +126,6 @@ describe("RulesStepBody — live-linked tournament editors", () => {
 		);
 	}
 
-	// The chip-purchase catalog and blind structure are event-derived for live
-	// sessions (session.update rejects them), so the unified edit form must
-	// disable them — done via a `disabled` fieldset wrapper.
 	it("disables the chip purchase catalog when live-linked", () => {
 		renderTournamentRules(true);
 		expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();

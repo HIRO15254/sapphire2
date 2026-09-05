@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithQueryClient as render } from "@/__tests__/test-utils";
 
-// RulesStepBody (tournament) transitively imports @/utils/trpc; stub it.
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		gameGroup: {

@@ -15,6 +15,61 @@ import { test } from "./test-fixture";
 const instant = new Date("2026-09-05T03:04:05.000Z");
 
 describe("stored defaults and value encoding", () => {
+	test("persists the passkey plugin fields and enforces credential uniqueness and owner deletion", async ({
+		api,
+	}) => {
+		const createdAfter = Math.floor(Date.now() / 1000) * 1000;
+		const credential = {
+			id: "alice-passkey",
+			userId: "alice",
+			publicKey: "public-key",
+			credentialID: "credential-alice",
+			counter: 0,
+			deviceType: "multiDevice",
+			backedUp: false,
+		};
+		await api.db.insert(schema.passkey).values(credential);
+		const [saved] = await api.db.select().from(schema.passkey);
+		expect(saved).toEqual({
+			...credential,
+			name: null,
+			transports: null,
+			aaguid: null,
+			createdAt: expect.any(Date),
+		});
+		expect(saved?.createdAt.getTime()).toBeGreaterThanOrEqual(createdAfter);
+		expect(saved?.createdAt.getTime()).toBeLessThanOrEqual(Date.now());
+		await expect(
+			api.d1
+				.prepare(
+					"INSERT INTO passkey (id, user_id, public_key, credential_id, counter, device_type, backed_up) VALUES ('duplicate', 'bob', 'another-key', 'credential-alice', 0, 'singleDevice', 0)"
+				)
+				.run()
+		).rejects.toThrow("UNIQUE constraint failed: passkey.credential_id");
+		await api.db.insert(schema.passkey).values({
+			...credential,
+			id: "bob-passkey",
+			userId: "bob",
+			credentialID: "credential-bob",
+			backedUp: true,
+			name: "Bob device",
+			transports: "internal",
+			aaguid: "test-aaguid",
+		});
+		await api.db.delete(user).where(eq(user.id, "alice"));
+		expect(await api.db.select().from(schema.passkey)).toEqual([
+			expect.objectContaining({
+				id: "bob-passkey",
+				userId: "bob",
+				credentialID: "credential-bob",
+				backedUp: true,
+				name: "Bob device",
+				transports: "internal",
+				aaguid: "test-aaguid",
+			}),
+		]);
+	});
+
 	test("concurrent Session Result initialization converges on one stored type while unrelated names and accounts remain independent", async ({
 		api,
 	}) => {
@@ -208,3 +263,6 @@ describe("stored defaults and value encoding", () => {
 		).toEqual(["initial", "non-default", "other-account", "other-screen"]);
 	});
 });
+
+import { schema } from "@sapphire2/db/schema";
+import { user } from "@sapphire2/db/schema/auth";

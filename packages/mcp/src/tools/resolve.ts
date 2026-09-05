@@ -9,11 +9,6 @@ export interface RouterProcedure {
 	_def: ProcedureDef;
 }
 
-/**
- * The single place the MCP layer reaches into tRPC internals. tRPC v11
- * routers expose a flat `_def.procedures` record keyed by dot-path
- * ("session.list"), which is also what the api test-utils rely on.
- */
 function procedureMap(): Record<string, RouterProcedure> {
 	return appRouter._def.procedures as unknown as Record<
 		string,
@@ -41,7 +36,6 @@ export function getProcedureType(path: string): "mutation" | "query" {
 	return type;
 }
 
-/** The router's own input Zod schema, or undefined for no-input procedures. */
 export function getRouterInputSchema(path: string): unknown {
 	return getProcedure(path)._def.inputs[0];
 }

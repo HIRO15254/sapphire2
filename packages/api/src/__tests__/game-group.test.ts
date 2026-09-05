@@ -226,8 +226,6 @@ describe("gameGroup.create collision guard (CONFLICT)", () => {
 	});
 
 	it("converts the migration-0041 label trigger abort into the same CONFLICT (the guard that actually fires)", async () => {
-		// SQLite runs the BEFORE trigger before the unique index, so a real race
-		// surfaces this custom message, NOT "UNIQUE constraint failed".
 		const { caller, db } = gameGroupCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [],
 		});
@@ -398,8 +396,6 @@ describe("gameGroup.list ordering + self-seed", () => {
 			[VARIANT_TABLE]: [],
 		});
 		await caller.list();
-		// Seeding inserts 3 builtin groups + 21 builtin variants + 3 builtin
-		// mixes (game-mix rework) in one batch.
 		expect(inserted[GROUP_TABLE]).toHaveLength(3);
 		expect(inserted[VARIANT_TABLE]).toHaveLength(21);
 		expect(inserted[MIX_TABLE]).toHaveLength(3);

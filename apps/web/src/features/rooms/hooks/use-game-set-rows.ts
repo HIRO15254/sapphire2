@@ -10,7 +10,6 @@ import {
 interface FocusedCell {
 	field: GameSetAmountField;
 	index: number;
-	/** Cell value frozen at focus time so the input key stays stable. */
 	value: number | null;
 }
 
@@ -20,18 +19,6 @@ interface UseGameSetRowsOptions {
 	row: BlindLevelRow;
 }
 
-/**
- * Blur handlers for a level rendered as one inline table row per game set
- * (mix-master tournaments). Amount blurs emit a set-cell patch ({index,
- * field, value}) via onUpdateGameSet — the games array itself is derived
- * from the freshest cache value by use-blind-levels, never from this
- * render's row prop; minutes stays level-scoped through onUpdate. Unchanged
- * blurs are skipped (dirty check) so tabbing through cells fires nothing.
- *
- * Input keys: unfocused cells are keyed by value so external cache changes
- * remount them in sync; the focused cell's key is frozen at focus time so a
- * refetch landing mid-typing cannot remount the input under the user.
- */
 export function useGameSetRows({
 	row,
 	onUpdate,

@@ -7,7 +7,6 @@ import type { Context } from "../context";
 import { appRouter } from "../routers";
 import { applyMigrations } from "./test-database";
 
-/** Fail fixture setup clearly if a create did not persist and return its row. */
 export function requireCreatedRow<T extends { id?: string }>(
 	row: T | undefined
 ): T & { id: string } {
@@ -90,7 +89,7 @@ async function createApiFixture() {
 					name: `Tag ${position}`,
 					updatedAt: now,
 				}));
-				// Seed independently of the chunking helper under test.
+
 				for (const row of rows) {
 					await db.insert(playerTag).values(row);
 				}
@@ -106,7 +105,6 @@ async function createApiFixture() {
 export const test = baseTest.extend<{
 	api: Awaited<ReturnType<typeof createApiFixture>>;
 }>({
-	// Each case owns a fresh non-persistent D1; no cleanup ordering or remote DB.
 	// biome-ignore lint/correctness/noEmptyPattern: Vitest requires destructured fixture dependencies, and this fixture has none.
 	api: async ({}, use) => {
 		const api = await createApiFixture();

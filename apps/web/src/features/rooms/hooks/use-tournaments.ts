@@ -394,11 +394,6 @@ export function useTournaments({
 		onSettled: invalidateBoth,
 	});
 
-	// NOTE: the with-levels create/update path is driven directly from
-	// use-tournament-tab.ts via `trpcClient.tournament.*WithLevels` (it needs
-	// its own local loading state), and that path forwards per-level `games`.
-	// A duplicate wrapper here previously dropped `games` and, being unused,
-	// drifted out of sync — so it lives at the single call site, not here.
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.tournament.delete.mutate({ id }),
 		onMutate: async (id) => {

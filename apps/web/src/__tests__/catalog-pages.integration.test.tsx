@@ -54,8 +54,6 @@ const backend = {
 	toggle: vi.fn<(input: { id: string }) => Item | Promise<Item>>(),
 };
 const t = initTRPC.create({ isServer: true });
-// This fixture controls only HTTP responses; server ownership and persistence
-// are verified by the API integration suite.
 const resource = t.router({
 	list: t.procedure.query(() => backend.list()),
 	create: t.procedure

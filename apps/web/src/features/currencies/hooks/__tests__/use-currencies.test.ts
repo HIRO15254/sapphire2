@@ -5,12 +5,6 @@ import {
 	withQueryClient as makeWrapper,
 } from "@/__tests__/test-utils";
 
-// ---------------------------------------------------------------------------
-// Mocks for trpc. infiniteQueryOptions builds a stable queryKey + a queryFn
-// that forwards { currencyId, cursor } to txListQueryFn, so the real
-// QueryClient can drive useInfiniteQuery, seed pages, and refetch predictably.
-// ---------------------------------------------------------------------------
-
 function buildKey(namespace: string, procedure: string, input: unknown) {
 	return input === undefined
 		? [namespace, procedure]
@@ -22,14 +16,10 @@ const trpcMocks = vi.hoisted(() => ({
 	currencyUpdate: vi.fn(),
 	currencyDelete: vi.fn(),
 	currencyToggleFavorite: vi.fn(),
-	// Per-test responses can hold refetch pending so rollback must stand alone.
 	currencyListQueryFn: vi.fn(),
 	txCreate: vi.fn(),
 	txUpdate: vi.fn(),
 	txDelete: vi.fn(),
-	// queryFn used by useInfiniteQuery(listByCurrency). Called with
-	// { currencyId, cursor } per page; per-test override controls each page /
-	// refetch payload.
 	txListQueryFn: vi.fn(),
 }));
 
@@ -106,7 +96,6 @@ interface TxRow {
 	transactionTypeName: string;
 }
 
-/** Build a seeded infinite-cache entry from one or more pages. */
 function seedPages(pages: { items: TxRow[]; nextCursor?: string }[]) {
 	return {
 		pages,
@@ -687,7 +676,6 @@ describe("useCurrencies", () => {
 					result.current.allTransactions.find((t) => t.id === "tx2")
 				).toMatchObject({ amount: 999, memo: "after" })
 			);
-			// The patch lands on page 2 of the cache; page 1 stays untouched.
 			const cached = qc.getQueryData<{
 				pages: { items: TxRow[] }[];
 			}>(txInfiniteKey("c1"));
@@ -726,8 +714,6 @@ describe("useCurrencies", () => {
 				nextCursor: undefined,
 			});
 			const qc = createClient();
-			// Block the server response so the assertion sees the optimistic
-			// state, not the post-settle state.
 			let resolve: ((v: unknown) => void) | undefined;
 			trpcMocks.txUpdate.mockImplementation(
 				() =>
@@ -763,14 +749,12 @@ describe("useCurrencies", () => {
 					transactionTypeId: "new-type",
 				});
 			});
-			// The optimistic write lives in the cache, not local state.
 			const cached = qc.getQueryData<{
 				pages: { items: TxRow[] }[];
 			}>(txInfiniteKey("c1"));
 			expect(cached?.pages[0]?.items.find((t) => t.id === "tx1")).toMatchObject(
 				{ amount: 999 }
 			);
-			// untouched sibling row preserved.
 			expect(
 				result.current.allTransactions.find((t) => t.id === "tx2")
 			).toMatchObject({ id: "tx2", amount: 50 });
@@ -823,7 +807,6 @@ describe("useCurrencies", () => {
 			await waitFor(() =>
 				expect(result.current.allTransactions).toEqual(original)
 			);
-			// The server has not returned the original row: only rollback can restore it.
 			expect(qc.getQueryState(txInfiniteKey("c1"))?.fetchStatus).toBe(
 				"fetching"
 			);
@@ -912,7 +895,6 @@ describe("useCurrencies", () => {
 				)
 			);
 			expect(qc.isMutating()).toBe(1);
-			// Refetching now could replace the other request's optimistic row with stale data.
 			expect(trpcMocks.txListQueryFn).not.toHaveBeenCalled();
 			await act(async () => {
 				(failedRequest === "first" ? second : first).resolve({ id: "saved" });
@@ -1098,7 +1080,6 @@ describe("useCurrencies", () => {
 			act(() => {
 				result.current.deleteTransaction("tx1");
 			});
-			// Optimistic cache filter happens in onMutate.
 			await waitFor(() => {
 				expect(result.current.allTransactions.map((t) => t.id)).toEqual([
 					"tx2",
@@ -1126,8 +1107,6 @@ describe("useCurrencies", () => {
 			trpcMocks.txListQueryFn.mockReturnValue(refetch.promise);
 			const qc = createClient();
 			qc.setQueryData(txInfiniteKey("c1"), seedPages([{ items: original }]));
-			// Block the delete so the optimistic-remove state is observable
-			// before the rejection rolls it back.
 			let reject: ((reason: unknown) => void) | undefined;
 			trpcMocks.txDelete.mockImplementation(
 				() =>
@@ -1145,12 +1124,9 @@ describe("useCurrencies", () => {
 			act(() => {
 				result.current.deleteTransaction("tx1");
 			});
-			// The optimistic remove kicks in while the delete is still in flight…
 			await waitFor(() =>
 				expect(result.current.allTransactions.map((t) => t.id)).toEqual(["tx2"])
 			);
-			// …and then onError rolls back to both rows once the rejection
-			// propagates.
 			reject?.(new Error("server down"));
 			await waitFor(() =>
 				expect(result.current.allTransactions).toEqual(original)
@@ -1213,7 +1189,6 @@ describe("useCurrencies", () => {
 			act(() => {
 				result.current.deleteTransaction("tx2");
 			});
-			// Only tx2 (page 2) is removed; the page envelope is preserved.
 			await waitFor(() =>
 				expect(result.current.allTransactions.map((t) => t.id)).toEqual(["tx1"])
 			);
@@ -1472,7 +1447,6 @@ describe("useCurrencies", () => {
 					transactedAt: "2026-01-02",
 				},
 			];
-			// cursor-aware queryFn so every page refetches correctly.
 			trpcMocks.txListQueryFn.mockImplementation(
 				({ cursor }: { cursor?: string }) =>
 					cursor === "cursor-A"
@@ -1497,12 +1471,10 @@ describe("useCurrencies", () => {
 				])
 			);
 
-			// Simulate a focus / reconnect / addTransaction-driven refetch.
 			await act(async () => {
 				await qc.invalidateQueries({ queryKey: txInfiniteKey("c1") });
 			});
 
-			// Both pages survive — the bug would have collapsed this to ["tx1"].
 			await waitFor(() =>
 				expect(result.current.allTransactions.map((t) => t.id)).toEqual([
 					"tx1",
@@ -1661,9 +1633,6 @@ describe("useCurrencies", () => {
 		});
 
 		it("places favorited currency at its createdAt position among existing favorites", async () => {
-			// c2 (T3) was non-fav, chronologically between c1(T1) and c3(T4).
-			// After favoriting, sort should interleave it: [c1, c2, c3].
-			// A naive "always move to front/end" or stable sort would give [c1, c3, c2].
 			const T1 = "2024-01-01T00:00:00.000Z";
 			const T3 = "2024-03-01T00:00:00.000Z";
 			const T4 = "2024-04-01T00:00:00.000Z";
@@ -1718,9 +1687,6 @@ describe("useCurrencies", () => {
 		});
 
 		it("places un-favorited currency at its createdAt position among non-favorites", async () => {
-			// c1 (T2) was fav, chronologically between c2(T1) and c3(T3).
-			// After un-favoriting, sort should interleave it: [c2, c1, c3].
-			// A stable sort would keep c1 before c2 since it was first in the array.
 			const T1 = "2024-01-01T00:00:00.000Z";
 			const T2 = "2024-02-01T00:00:00.000Z";
 			const T3 = "2024-03-01T00:00:00.000Z";

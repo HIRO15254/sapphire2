@@ -260,7 +260,7 @@ describe("player tags and atomic writes on D1", () => {
 				tagIds: [ownTag.id],
 			})
 		);
-		// Simulate legacy bad data: each FK is valid, but ownership crosses accounts.
+
 		await api.db
 			.insert(playerToPlayerTag)
 			.values({ playerId: saved.id, playerTagId: privateTag.id, position: 1 });
@@ -335,8 +335,7 @@ describe("player tags and atomic writes on D1", () => {
 			.from(player)
 			.where(eq(player.id, saved.id));
 		const beforeLinks = await api.db.select().from(playerToPlayerTag);
-		// A real SQLite failure after the parent UPDATE, DELETE and first INSERT
-		// proves D1 atomicity; mocking batch() cannot establish this contract.
+
 		await api.d1
 			.prepare(
 				`CREATE TRIGGER test_fail_later_tag BEFORE INSERT ON player_to_player_tag WHEN NEW.position >= ${Math.floor(D1_MAX_BOUND_PARAMS / 3)} BEGIN SELECT RAISE(ABORT, 'test forced later insert failure'); END;`

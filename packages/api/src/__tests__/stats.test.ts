@@ -18,14 +18,9 @@ import {
 	expectRejects,
 } from "./test-utils";
 
-// 2023-11-14T22:13:20Z → UTC day=2 (Tue), hour=22, year=2023, month=2023-11
 const EPOCH_NOV_2023 = 1_700_000_000;
-// 2024-01-01T00:00:00Z → UTC day=1 (Mon), hour=0, year=2024, month=2024-01
-const EPOCH_JAN_2024 = 1_704_067_200;
 
-// ---------------------------------------------------------------------------
-// Factories
-// ---------------------------------------------------------------------------
+const EPOCH_JAN_2024 = 1_704_067_200;
 
 function cashRow(overrides: Partial<StatsSessionRow> = {}): StatsSessionRow {
 	return {
@@ -78,14 +73,6 @@ function tournamentRow(
 		...overrides,
 	};
 }
-
-// ---------------------------------------------------------------------------
-// Structure
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Input validation
-// ---------------------------------------------------------------------------
 
 describe("stats shared filter input validation", () => {
 	const FULL_FILTER = {
@@ -201,10 +188,6 @@ describe("stats.breakdown input validation", () => {
 	});
 });
 
-// ---------------------------------------------------------------------------
-// assertCurrencyScope
-// ---------------------------------------------------------------------------
-
 describe("assertCurrencyScope", () => {
 	it("throws TRPCError BAD_REQUEST for an empty filter object", () => {
 		try {
@@ -243,10 +226,6 @@ describe("assertCurrencyScope", () => {
 		).not.toThrow();
 	});
 });
-
-// ---------------------------------------------------------------------------
-// normalizedSessionValue
-// ---------------------------------------------------------------------------
 
 describe("normalizedSessionValue", () => {
 	it("divides cash profitLoss by bigBlind when bigBlind > 0", () => {
@@ -292,10 +271,6 @@ describe("normalizedSessionValue", () => {
 	});
 });
 
-// ---------------------------------------------------------------------------
-// sessionDisplayValue
-// ---------------------------------------------------------------------------
-
 describe("sessionDisplayValue", () => {
 	it("returns raw profitLoss when normalized is false", () => {
 		expect(sessionDisplayValue(cashRow({ profitLoss: 100 }), false)).toBe(100);
@@ -314,10 +289,6 @@ describe("sessionDisplayValue", () => {
 	});
 });
 
-// ---------------------------------------------------------------------------
-// stakesLabel
-// ---------------------------------------------------------------------------
-
 describe("stakesLabel", () => {
 	it("formats blind1/blind2 when both present", () => {
 		expect(stakesLabel(cashRow({ blind1: 1, blind2: 2 }))).toBe("1/2");
@@ -331,10 +302,6 @@ describe("stakesLabel", () => {
 		expect(stakesLabel(cashRow({ blind1: null, blind2: 5 }))).toBe("0/5");
 	});
 });
-
-// ---------------------------------------------------------------------------
-// breakdownKeyLabel
-// ---------------------------------------------------------------------------
 
 describe("breakdownKeyLabel", () => {
 	it("groups by room id and name", () => {
@@ -374,14 +341,12 @@ describe("breakdownKeyLabel", () => {
 	});
 
 	it("buckets dayOfWeek by UTC day index and label", () => {
-		// 2023-11-14T22:13:20Z is a Tuesday (UTC day 2).
 		expect(
 			breakdownKeyLabel(cashRow({ sessionDate: EPOCH_NOV_2023 }), "dayOfWeek")
 		).toEqual({ key: "2", label: "Tue" });
 	});
 
 	it("buckets Sunday correctly as day 0", () => {
-		// 2024-01-07T00:00:00Z is a Sunday.
 		expect(
 			breakdownKeyLabel(cashRow({ sessionDate: 1_704_585_600 }), "dayOfWeek")
 		).toEqual({ key: "0", label: "Sun" });
@@ -446,10 +411,6 @@ describe("breakdownKeyLabel", () => {
 	});
 });
 
-// ---------------------------------------------------------------------------
-// breakdownStats
-// ---------------------------------------------------------------------------
-
 describe("breakdownStats", () => {
 	it("returns an empty array for no rows", () => {
 		expect(breakdownStats([], "type")).toEqual([]);
@@ -466,7 +427,7 @@ describe("breakdownStats", () => {
 			label: "Cash game",
 			sessions: 2,
 			profitLoss: 60,
-			cashNormalizedProfitLoss: 30, // 50 + (-20)
+			cashNormalizedProfitLoss: 30,
 			tournamentNormalizedProfitLoss: null,
 			winRate: 50,
 			playMinutes: 90,
@@ -492,18 +453,18 @@ describe("breakdownStats", () => {
 				roomName: "R",
 				profitLoss: 100,
 				bigBlind: 2,
-			}), // bb 50
+			}),
 			tournamentRow({
 				id: "t",
 				roomId: "R",
 				roomName: "R",
 				profitLoss: 300,
 				buyInTotal: 100,
-			}), // bi 3
+			}),
 		];
 		const [group] = breakdownStats(rows, "room");
 		expect(group?.sessions).toBe(2);
-		expect(group?.profitLoss).toBe(400); // currency 100 + 300
+		expect(group?.profitLoss).toBe(400);
 		expect(group?.cashNormalizedProfitLoss).toBe(50);
 		expect(group?.tournamentNormalizedProfitLoss).toBe(3);
 	});
@@ -527,9 +488,9 @@ describe("breakdownStats", () => {
 
 	it("sorts chronological dimensions ascending by numeric key", () => {
 		const rows = [
-			cashRow({ id: "a", sessionDate: 1_704_585_600 }), // Sunday -> 0
-			cashRow({ id: "b", sessionDate: EPOCH_NOV_2023 }), // Tuesday -> 2
-			cashRow({ id: "c", sessionDate: EPOCH_JAN_2024 }), // Monday -> 1
+			cashRow({ id: "a", sessionDate: 1_704_585_600 }),
+			cashRow({ id: "b", sessionDate: EPOCH_NOV_2023 }),
+			cashRow({ id: "c", sessionDate: EPOCH_JAN_2024 }),
 		];
 		const groups = breakdownStats(rows, "dayOfWeek");
 		expect(groups.map((g) => g.key)).toEqual(["0", "1", "2"]);
@@ -537,8 +498,8 @@ describe("breakdownStats", () => {
 
 	it("sorts month chronologically by lexical YYYY-MM key", () => {
 		const rows = [
-			cashRow({ id: "a", sessionDate: EPOCH_JAN_2024 }), // 2024-01
-			cashRow({ id: "b", sessionDate: EPOCH_NOV_2023 }), // 2023-11
+			cashRow({ id: "a", sessionDate: EPOCH_JAN_2024 }),
+			cashRow({ id: "b", sessionDate: EPOCH_NOV_2023 }),
 		];
 		const groups = breakdownStats(rows, "month");
 		expect(groups.map((g) => g.key)).toEqual(["2023-11", "2024-01"]);
@@ -546,17 +507,16 @@ describe("breakdownStats", () => {
 
 	it("sorts count-based dimensions by sessions desc, then profitLoss desc, then label asc", () => {
 		const rows = [
-			// Room A: 1 session, +10
 			cashRow({ id: "a", roomId: "A", roomName: "A", profitLoss: 10 }),
-			// Room B: 2 sessions, +5 total
+
 			cashRow({ id: "b1", roomId: "B", roomName: "B", profitLoss: 5 }),
 			cashRow({ id: "b2", roomId: "B", roomName: "B", profitLoss: 0 }),
-			// Room C: 2 sessions, +20 total (more sessions ties with B; higher PL wins)
+
 			cashRow({ id: "c1", roomId: "C", roomName: "C", profitLoss: 10 }),
 			cashRow({ id: "c2", roomId: "C", roomName: "C", profitLoss: 10 }),
 		];
 		const groups = breakdownStats(rows, "room");
-		// C and B both have 2 sessions; C has higher PL → first. A has 1 → last.
+
 		expect(groups.map((g) => g.key)).toEqual(["C", "B", "A"]);
 	});
 
@@ -566,14 +526,10 @@ describe("breakdownStats", () => {
 			cashRow({ id: "a", roomId: "A", roomName: "Alpha", profitLoss: 10 }),
 		];
 		const groups = breakdownStats(rows, "room");
-		// Same sessions (1) and same PL (10) → label ascending: Alpha before Zeta.
+
 		expect(groups.map((g) => g.label)).toEqual(["Alpha", "Zeta"]);
 	});
 });
-
-// ---------------------------------------------------------------------------
-// summarizeStats
-// ---------------------------------------------------------------------------
 
 describe("summarizeStats", () => {
 	it("returns a zeroed/null summary for no rows", () => {
@@ -612,9 +568,9 @@ describe("summarizeStats", () => {
 
 	it("sums cash bb into cashNormalizedProfitLoss and tournament bi into tournamentNormalizedProfitLoss separately", () => {
 		const rows = [
-			cashRow({ id: "a", profitLoss: 100, bigBlind: 2 }), // bb 50
-			cashRow({ id: "b", profitLoss: 50, bigBlind: 5 }), // bb 10
-			tournamentRow({ id: "t", profitLoss: 300, buyInTotal: 100 }), // bi 3
+			cashRow({ id: "a", profitLoss: 100, bigBlind: 2 }),
+			cashRow({ id: "b", profitLoss: 50, bigBlind: 5 }),
+			tournamentRow({ id: "t", profitLoss: 300, buyInTotal: 100 }),
 		];
 		const summary = summarizeStats(rows);
 		expect(summary.cashNormalizedProfitLoss).toBe(60);
@@ -637,7 +593,7 @@ describe("summarizeStats", () => {
 		const rows = [
 			cashRow({ id: "a", profitLoss: 120, playMinutes: 60, bigBlind: 2 }),
 		];
-		// 120 over 1 hour → 120/hr.
+
 		expect(summarizeStats(rows).hourlyRate).toBe(120);
 	});
 
@@ -645,7 +601,7 @@ describe("summarizeStats", () => {
 		const rows = [
 			cashRow({ id: "a", profitLoss: 100, playMinutes: 60, bigBlind: 2 }),
 		];
-		// 50 bb over 1 hour → 50 bb/hr.
+
 		expect(summarizeStats(rows).bbPerHour).toBe(50);
 	});
 
@@ -677,7 +633,7 @@ describe("summarizeStats", () => {
 		const summary = summarizeStats(rows);
 		expect(summary.totalEvProfitLoss).toBe(120);
 		expect(summary.totalEvDiff).toBe(20);
-		// 20 / bigBlind 2 = 10 bb.
+
 		expect(summary.cashEvDiffNormalized).toBe(10);
 	});
 
@@ -690,9 +646,6 @@ describe("summarizeStats", () => {
 	});
 
 	it("returns null ev metrics when every cash row only has the fallback ev", () => {
-		// A finished cash session always carries evProfitLoss/evDiff — they fall
-		// back to the actual result. Summing those would print "EV diff: 0" to a
-		// user who has never recorded a single EV cash-out.
 		const rows = [
 			cashRow({
 				id: "a",
@@ -718,9 +671,6 @@ describe("summarizeStats", () => {
 	});
 
 	it("sums the fallback ev rows too once any cash row has a recorded ev", () => {
-		// The gate is all-or-nothing per query scope: one recorded EV makes the
-		// totals meaningful, and the fallback rows then contribute their actual
-		// result so the EV total stays comparable with totalProfitLoss.
 		const rows = [
 			cashRow({
 				id: "recorded",
@@ -742,7 +692,7 @@ describe("summarizeStats", () => {
 		const summary = summarizeStats(rows);
 		expect(summary.totalEvProfitLoss).toBe(170);
 		expect(summary.totalEvDiff).toBe(20);
-		// (20 / 2) + (0 / 2) = 10 bb.
+
 		expect(summary.cashEvDiffNormalized).toBe(10);
 	});
 
@@ -754,11 +704,7 @@ describe("summarizeStats", () => {
 	});
 
 	it("returns null cashEvDiffNormalized when no normalizable cash row has a recorded ev", () => {
-		// The bb figure has its own population, so it needs its own gate: a
-		// recorded EV on a row that cannot be normalized must not unlock a bb
-		// total built entirely out of fallback rows.
 		const rows = [
-			// Mixed game: EV recorded, but every mix rule stores blind1-3 as null.
 			cashRow({
 				id: "mix-recorded",
 				profitLoss: 100,
@@ -767,7 +713,7 @@ describe("summarizeStats", () => {
 				evRecorded: true,
 				bigBlind: null,
 			}),
-			// NLH: normalizable, but its EV is the fallback, so its diff is 0.
+
 			cashRow({
 				id: "nlh-fallback",
 				profitLoss: 50,
@@ -778,9 +724,9 @@ describe("summarizeStats", () => {
 			}),
 		];
 		const summary = summarizeStats(rows);
-		// The scope does have a recorded EV, so the raw totals stay meaningful.
+
 		expect(summary.totalEvDiff).toBe(20);
-		// …but no normalizable row does, so the bb figure would be a phantom 0.
+
 		expect(summary.cashEvDiffNormalized).toBeNull();
 	});
 
@@ -803,7 +749,7 @@ describe("summarizeStats", () => {
 				bigBlind: 2,
 			}),
 		];
-		// (20 / 2) + (0 / 2) = 10 bb.
+
 		expect(summarizeStats(rows).cashEvDiffNormalized).toBe(10);
 	});
 
@@ -842,13 +788,13 @@ describe("summarizeStats", () => {
 			}),
 		];
 		const summary = summarizeStats(rows);
-		// invested 200, prize 500 → (500-200)/200*100 = 150
+
 		expect(summary.roi).toBe(150);
-		// 1 of 2 in the money
+
 		expect(summary.itmRate).toBe(50);
-		// (1 + 50) / 2 = 25.5
+
 		expect(summary.avgPlacement).toBe(25.5);
-		// prizeMoney + bounty = 500
+
 		expect(summary.totalPrizeMoney).toBe(500);
 	});
 
@@ -859,15 +805,14 @@ describe("summarizeStats", () => {
 
 	it("averages per-session ROI for avgRoi (distinct from aggregate roi)", () => {
 		const rows = [
-			// (300-100)/100*100 = 200
 			tournamentRow({ id: "a", buyInTotal: 100, prizeMoney: 300 }),
-			// (100-200)/200*100 = -50
+
 			tournamentRow({ id: "b", buyInTotal: 200, prizeMoney: 100 }),
 		];
 		const summary = summarizeStats(rows);
-		// mean(200, -50) = 75
+
 		expect(summary.avgRoi).toBe(75);
-		// aggregate: (400-300)/300*100 ≈ 33.33 — different from avgRoi
+
 		expect(summary.roi).toBeCloseTo(33.333_33, 4);
 	});
 
@@ -924,16 +869,12 @@ describe("summarizeStats", () => {
 		expect(summary.totalProfitLoss).toBe(500);
 		expect(summary.winRate).toBe(100);
 		expect(summary.totalPlayMinutes).toBe(180);
-		// Cash-only hourly: 100 over 1 hour.
+
 		expect(summary.hourlyRate).toBe(100);
-		// Tournament-only roi: (500-100)/100*100 = 400.
+
 		expect(summary.roi).toBe(400);
 	});
 });
-
-// ---------------------------------------------------------------------------
-// fetchStatsRows — variant mapping
-// ---------------------------------------------------------------------------
 
 describe("fetchStatsRows variant mapping", () => {
 	function rawRow(overrides: Record<string, unknown> = {}) {
@@ -1047,7 +988,7 @@ describe("fetchStatsRows variant mapping", () => {
 
 		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
 		expect(rows).toHaveLength(1);
-		// 600 + 100 - 500, not the chip-remove-blind 600 - 500 = 100.
+
 		expect(rows[0]?.profitLoss).toBe(200);
 		expect(rows[0]?.evProfitLoss).toBe(250);
 		expect(rows[0]?.evDiff).toBe(50);
@@ -1172,8 +1113,7 @@ describe("fetchStatsRows variant mapping", () => {
 		});
 
 		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
-		// The row still carries EV figures — they just are not evidence that the
-		// user tracked EV, so the summary gate must not count them.
+
 		expect(rows[0]?.evProfitLoss).toBe(200);
 		expect(rows[0]?.evRecorded).toBe(false);
 	});

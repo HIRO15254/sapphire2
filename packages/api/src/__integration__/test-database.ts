@@ -9,7 +9,6 @@ const migrationsDirectory = new URL(
 
 export type TestD1Database = Awaited<ReturnType<Miniflare["getD1Database"]>>;
 
-/** Apply production SQL, including manually maintained triggers, to an empty D1. */
 export async function applyMigrations(d1: TestD1Database): Promise<void> {
 	const names = (await readdir(migrationsDirectory))
 		.filter((name) => MIGRATION_FILE_PATTERN.test(name))
@@ -17,7 +16,6 @@ export async function applyMigrations(d1: TestD1Database): Promise<void> {
 	for (const name of names) {
 		const sql = await readFile(new URL(name, migrationsDirectory), "utf8");
 		try {
-			// exec() splits on newlines, breaking multiline DDL and trigger bodies.
 			await d1.prepare(sql).run();
 		} catch (error) {
 			throw new Error(`Test database migration failed: ${name}`, {

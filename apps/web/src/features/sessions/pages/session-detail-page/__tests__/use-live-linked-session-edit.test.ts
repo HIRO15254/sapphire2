@@ -203,9 +203,6 @@ describe("useLiveLinkedSessionEdit", () => {
 			expect(result.current.startDateHint).toBeNull();
 		});
 
-		// The form's date input is frozen at mount, so a `sessionDate` that moves
-		// while the sheet is open (an Events-side start-time edit can change its
-		// UTC day) must not silently retune the hints.
 		it("keep comparing against the date the sheet opened with", () => {
 			const { rerender, result } = renderHook(
 				(props: { displayedDate: string; isEditOpen: boolean }) =>
@@ -227,9 +224,6 @@ describe("useLiveLinkedSessionEdit", () => {
 		});
 	});
 
-	// The Events section lives inside the same sheet, so it can move the very
-	// events the form was seeded from. The form must diff against the seed, not
-	// against the refreshed events, or saving would undo the Events-side edit.
 	describe("concurrent Events-section edits", () => {
 		it("does not revert an event the Events section changed while the sheet was open", async () => {
 			const { rerender, result } = renderEditHook();

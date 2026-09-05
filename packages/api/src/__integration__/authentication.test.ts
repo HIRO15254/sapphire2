@@ -11,8 +11,7 @@ describe("API authentication contract", () => {
 			if (path === "healthCheck") {
 				continue;
 			}
-			// Auth precedes procedure input parsing. BAD_REQUEST, a DB error, or
-			// any other rejection must fail this assertion, not count as auth.
+
 			const invoke = Reflect.get(guest, path) as (
 				input?: unknown
 			) => Promise<unknown>;

@@ -11,9 +11,6 @@ vi.mock("../use-filter-presets-sheet", () => ({
 	useFilterPresetsSheet: hoisted.useFilterPresetsSheet,
 }));
 
-// vaul's Drawer needs a real pointer environment; the sheet's body is what is
-// under test, so render it inline (same approach as
-// `features/rooms/components/tournament-form-sheet/tournament-form-sheet.test.tsx`).
 vi.mock("@/shared/components/ui/drawer", () => ({
 	Drawer: ({ children }: { children: React.ReactNode }) => (
 		<div data-testid="drawer">{children}</div>

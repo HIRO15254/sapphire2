@@ -16,9 +16,6 @@ const TABLE = getTableName(filterPreset);
 const OWNER = "user-1";
 const OTHER = "user-2";
 
-// evaluateWhere: the name-collision check pushes its whole predicate into the
-// SQL WHERE (no JS re-filtering), so the mock has to honour `where(...)` for
-// these behaviour tests to mean anything.
 function filterPresetCaller(userId: string, select: Record<string, Rows>) {
 	const mock = createChainableMockDb({ evaluateWhere: true, select });
 	const caller = appRouter.createCaller({
@@ -107,8 +104,6 @@ describe("filterPreset.create input validation", () => {
 		});
 	});
 
-	// "display" is the sessions-only amount toggle; statistics carries the
-	// equivalent state as "norm".
 	it("rejects a sessions-only payload field ('display') under screenKey: statistics", () => {
 		expectRejects(appRouter.filterPreset.create, {
 			screenKey: "statistics",
@@ -202,10 +197,6 @@ describe("filterPreset.create input validation", () => {
 		});
 	});
 
-	// The discriminated union must route validation per-screen, not accept a
-	// merged/loose payload shape: "norm" only exists on the statistics
-	// payload schema, so it must be rejected under screenKey: "sessions"
-	// even though it is a perfectly valid statistics field.
 	it("rejects a statistics-only payload field ('norm') under screenKey: sessions", () => {
 		expectRejects(appRouter.filterPreset.create, {
 			screenKey: "sessions",
@@ -214,8 +205,6 @@ describe("filterPreset.create input validation", () => {
 		});
 	});
 
-	// Symmetric case: "roomId"/"currencyId" only exist on the sessions
-	// payload schema.
 	it("rejects a sessions-only payload field ('roomId') under screenKey: statistics", () => {
 		expectRejects(appRouter.filterPreset.create, {
 			screenKey: "statistics",
@@ -484,9 +473,6 @@ describe("filterPreset.update behavior", () => {
 		const { caller } = filterPresetCaller(OWNER, {
 			[TABLE]: [SESSIONS_ROW],
 		});
-		// "norm" is a statistics-only field; the stored row's screenKey is
-		// "sessions", so this must be rejected even though it independently
-		// parses as a valid statistics payload at the input-schema layer.
 		await expectTrpcCode(
 			caller.update({ id: "fp-1", payload: { norm: "off" } }),
 			"BAD_REQUEST"
@@ -612,10 +598,8 @@ describe("filterPreset.setDefault behavior", () => {
 		});
 		await caller.setDefault({ id: "fp-1" });
 		expect(updateWhereParams).toHaveLength(2);
-		// Statement 1: clear every OTHER row for this (userId, screenKey).
 		expect(updateWhereParams[0]).toContain(OWNER);
 		expect(updateWhereParams[0]).toContain("sessions");
-		// Statement 2: set isDefault: true on the target row itself.
 		expect(updateWhereParams[1]).toContain("fp-1");
 	});
 });

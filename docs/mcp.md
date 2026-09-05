@@ -98,5 +98,6 @@ Authorization is the API's own: every call goes through `appRouter.createCaller`
 
 - **Consent is always enforced.** The Worker rewrites every authorize request to `prompt=consent` before better-auth sees it — without this, better-auth's mcp plugin issues codes to any dynamically-registered client with zero user interaction.
 - `/mcp` requires **no new environment variables or Worker secrets** — the OAuth provider derives its URLs from `BETTER_AUTH_URL` and `CORS_ORIGIN`.
+- **Clients may register without a name.** `client_name` is optional in RFC 7591 and Claude's connector omits it; the Worker fills in an empty name before better-auth writes the row, so registration cannot fail on the `NOT NULL` column, and the consent page shows *Unknown application* alongside the redirect host.
 - The OIDC tables (`oauth_application`, `oauth_access_token`, `oauth_consent`) ship in migration `0050`, whose statements are all `IF NOT EXISTS` so a partial apply can be replayed (see `.claude/rules/db-migrations.md`).
 - Access tokens expire after 1 hour; refresh tokens after 7 days (better-auth defaults). Clients refresh automatically.

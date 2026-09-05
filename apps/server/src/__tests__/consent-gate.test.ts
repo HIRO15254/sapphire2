@@ -1,18 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createFakeEnv } from "./test-utils";
 
-/**
- * The consent gate is the security core of the MCP OAuth flow: better-auth's
- * mcp plugin issues an authorization code with no consent step unless the
- * request carries `prompt=consent`, and DCR lets anyone register a client.
- *
- * These tests capture the URL the Worker actually hands to better-auth, so
- * they fail if the gate is unwired — unlike status-code assertions, which
- * pass whether or not the middleware ran. The wiring has already changed
- * shape twice (`app.get` → `app.on([...])` → `app.use`) and depends on Hono
- * routing semantics, so it needs a test that watches the seam itself.
- */
-
 const { handlerUrls, setPassword } = vi.hoisted(() => ({
 	handlerUrls: [] as string[],
 	setPassword: vi.fn(),
@@ -98,8 +86,6 @@ describe("authorize consent gate wiring", () => {
 	});
 
 	it("gates an authorize path better-auth does not serve today", async () => {
-		// Suffix matching is the point: a future plugin route must arrive
-		// gated rather than needing someone to remember to add it here.
 		await app.request(
 			"/api/auth/oauth2/authorize?client_id=c1&response_type=code",
 			{ method: "GET" },
@@ -150,8 +136,6 @@ describe("authorize consent gate wiring", () => {
 		);
 		expect(response.status).toBe(200);
 		expect(setPassword).toHaveBeenCalledTimes(1);
-		// Its own handler answered — the request never fell through to the
-		// generic better-auth route.
 		expect(handlerUrls).toHaveLength(0);
 	});
 });
