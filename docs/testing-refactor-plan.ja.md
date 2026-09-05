@@ -1,6 +1,6 @@
 **sapphire2 テスト方針・既存テスト再編計画**
 
-2026-09-05 / 初期調査対象 HEAD: `37371fd8` / 承認後の実装を実施中。
+2026-09-05 / 初期調査対象 HEAD: `37371fd8` / 承認後の実装・全面レビュー・CI検証を完了。確定した処置と検証結果は [実施記録](testing-refactor-results.ja.md) を参照する。
 
 以下の現状・件数・問題例は開始時点の調査記録。現在のコマンドは [testing-environment.ja.md](testing-environment.ja.md)、各ファイルの移行判断はWeb・live・backendのレビュー記録を参照する。
 

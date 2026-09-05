@@ -273,3 +273,11 @@
 | `apps/web/src/features/settings/pages/settings-page/passkeys/passkeys.test.tsx` | 維持。実component・hook・フォームを操作し、削除確認／cancel、対象切り替え時の名前初期化、追加cancel後のリセット、取得失敗の表示とRetry中の操作制限・復旧、WebAuthn非対応の案内を検証する。hookの戻り値をmockしたprops確認ではない。 |
 
 Passkeysの3ファイル・58テストは解消後のscoped実行で成功した。認証SDKを境界でmockするため、実際の資格情報登録・ログイン、サーバー所有権、DB永続化を証明しない。UIテストはDrawerも置換しており、portal・focus・モバイルのシート挙動は保証範囲外である。認証utility・shared libraryの上流追加テストは別担当のレビュー記録を参照する。
+
+## CI coverage 監査による補完
+
+CI `33939497108` のcoverageで未実行sourceを確認し、`UpdateStackEditor` → `TournamentInfoFields` の人数編集が既存hookテストでも未保護と判定した。既存 `use-update-stack-editor.test.ts` はcash gameの5ケースで、トーナメントの `Remaining Players` / `Total Entries` を変更して保存する経路を通らない。新規スタック入力や平均スタック計算の別テストでは、この履歴編集の配線を代替できない。
+
+`apps/web/src/features/live-sessions/components/event-editors/event-editor/event-editor.test.tsx` に2ケースを追加した。実 `EventEditor` の種類判定から `UpdateStackEditor`、hook、TanStack Form、入力fieldまでをmockせず、人数の変更を数値で保存し、既存のstack・chip購入情報・発生時刻を保持することを検証する。もう1ケースは負のstackで保存しないことと人数の入力保持、0へ修正した後の再送を確認する。hook単体への重複追加や、現在の呼出元から表示されないchip購入count入力の全分岐追加は行わない。
+
+追加2ケースは既存実装で成功し、source修正は不要だった。web型検査、対象Ultracite、`check:rules`、全391テストファイルの検出・重複検査が成功し、別担当の読み取りレビューも指摘なしだった。保存callbackを境界にするUI連携テストであり、HTTP・DB永続化・sheetの開閉を保証するものではない。0%という数値ではなく、到達可能な履歴保存契約の欠落を補完した。

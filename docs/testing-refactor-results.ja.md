@@ -1,10 +1,12 @@
 **テスト再編の実施記録**
 
-2026-09-05 / 基準HEAD `37371fd84f2a6c5fd32e726d2793c3489f455ca3`。全407既存ファイルを対象に、維持・統合・置換・削除の判断と不足する検証を整理した。実行結果は最終CI確認後に確定する。
+2026-09-05 / 基準HEAD `37371fd84f2a6c5fd32e726d2793c3489f455ca3`。全407既存ファイルと最新devの追加12ファイルを対象に、維持・統合・置換・削除の判断と不足する検証を確定した。実装HEAD `5dac8492` の [全CI成功・初回計測](https://github.com/HIRO15254/sapphire2/actions/runs/33939630270) を以下に記録する。この計測から見つかった履歴編集の不足も2ケース補完した。最新のCI結果とレビュー先は [PR #603](https://github.com/HIRO15254/sapphire2/pull/603)。
 
 個別根拠は [Web 223ファイル](testing-web-review.ja.md)（主表222＋currency第一波1）、[live 90ファイル](testing-live-review.ja.md)、[backend 90ファイル](testing-backend-review.ja.md) と下表4ファイルを参照する。独立した機械照合で407件の欠落・重複・処置と実ファイルの不一致がないことを確認した。[初期分類](testing-migration-inventory.ja.md) のreview等は初期の候補ラベルであり、最終処置はこれらのレビュー記録に置く。
 
 最新dev `8d3dbdc2` の統合で加わったパスキー・OAuth継続関連12ファイルも別枠でレビューした。各領域の追補に処置を記録し、開始時点の407件には混ぜない。認証機能とコメント整理を維持し、古いmock・rollbackの推奨が残っていた `docs/design/testing-and-tooling.md` も新方針へ整合した。
+
+最新devとの比較では41ファイルを削除・統合、18ファイルを追加、2ファイルを移動し、63既存ファイルの検証を更新した。全419既存ファイルに対する処置が一意に存在し、未記録は0件。現在は391 Vitestファイルと5 E2Eファイルで、Bun専用migrationはVitest内でskipし専用runnerで実行する。
 
 | ファイル | 処置 | 根拠・代替 |
 |---|---|---|
@@ -40,15 +42,23 @@
 
 **確認結果と範囲**
 
-- 最新dev統合後の全9 Playwrightケース成功（30.5秒、再試行0）。未認証authorize→実ログイン→同意の継続と、実Cookie属性のassertを含む。
-- 追加した実WebAuthn 1ケースも成功（本体6.1秒）。全10ケース・5ファイルの検出を確認し、まとめての最終実行はCIで行う。
-- Bun SQLite migration/seed復元は7ファイル・55ケース成功（0.73秒）。
-- 全52migrationを適用する実D1統合は8ファイル・36ケース成功。最新devのpasskey保存・unique・cascadeを含む。
-- Web広域の変更・代替先31ファイル371ケース、live領域87ファイル964ケース、API/MCP51ファイル1592ケースの関連実行が成功。これらは実行範囲が重なるため単純合算しない。
-- 最新dev統合後はAPI/MCP/D1の59ファイル1,619ケース、live/auth/sharedの98ファイル1,114ケース、新Serverの3ファイル41ケース、新Settingsの3ファイル58ケースが成功。
-- 型・追加基盤の型・lint・check:rules・Vitest検出照合（390ファイル、欠落・重複なし）は成功。最終CIの各jobを追加で確認する。
-- Windowsで大量の変更パスが引数長上限に達したため、pre-commitをGitからのchanged検出へ変更。変更関連355ファイル・6,045ケース成功、Bun専用55ケースのskipは別runnerの成功と対にした。E2Eだけの追加時にVitestの関連対象が0となる場合も正常終了し、E2E自身は専用runnerで検証する。
+初回計測のLinux CIでは静的検査、以下4群、集約ciがすべて成功した。型・テスト基盤の型・lint・check:rules・当時390ファイルの検出照合も成功。意図しないskipと再試行はない。
 
-全体の速度改善率やcoverage向上率は、同条件の実行基準がないため主張しない。coverageはNode/jsdomのみで、workerdの別processを計測した数値ではない。実D1で全機能の全状態を網羅したとは扱わず、独立した純粋関数・状態・入力契約のunitも維持する。
+| 実行群 | 成功件数 | 実行時間 |
+|---|---:|---:|
+| Vitest unit / UI + coverage | 375ファイル・6,143ケース | 265.16秒 |
+| 実D1統合（全52migration） | 8ファイル・36ケース | 27.95秒 |
+| Bun SQLite migration / seed復元 | 7ファイル・55ケース | 専用実行step 1秒未満 |
+| Playwright（OAuth・WebAuthn・PWAを含む） | 5ファイル・10ケース | 31.2秒 |
+
+合計6,244ケース成功。Vitest内の7ファイル・55ケースのskipは、表のBun専用実行と一対一で対応する。ローカルWindowsでも関連355ファイル・6,045ケース、D1・Bun・ブラウザーの各対象を検証した。大量パスで起きたpre-commitの引数長エラーはGitからのchanged検出へ修正した。E2Eだけの追加でVitestの関連対象が0となる場合も正常終了することを確認し、E2E自身は専用runnerで実行する。
+
+CI全体は約5分。[直近の旧CI](https://github.com/HIRO15254/sapphire2/actions/runs/33857087757) は約4分27秒だったが、runtime・対象・coverageの有無が違うため速度改善率として比較しない。新しい構成の所要時間を次回以降の基準にする。Node/jsdom coverageは722実装ファイルを集計し、statement 85.40%、branch 81.75%、function 82.87%、line 85.20%。未importの実装も含めるが、workerdの別processを計測した数値ではない。実D1で全機能の全状態を網羅したとは扱わず、独立した純粋関数・状態・入力契約のunitも維持する。coverage・JUnit/JSON・ブラウザーレポートはCIのartifactに保存した。
+
+**未計測ファイルの判断と補完**
+
+初回のline coverageが0%だった15ファイルも実装と既存検証を照合した。トーナメントのスタック履歴でRemaining Players / Total Entriesを変更して保存する経路はcash用hookテストでは保護されていなかったため、実EventEditor→hook→フォーム→保存callbackの2ケースを追加した。人数の数値化・既存stack/rebuy記録の保持、負のstack拒否後の入力保持と修正保存を確認する。サーバーやDBの検証には数えない。
+
+ほかの履歴編集・完了フォームは実hookの金額・必須・送信payloadで保護され、API contextは実HTTP/E2Eで通る。archived一覧の復元処理と子UIは保護されるが、「Show archived→行選択→Restore」の画面接続自体は直接検証していない。固定fallback・loader・skeletonは低リスクの表示として追加不要と判断した。カバレッジ100%のために到達しない分岐や装飾のテストを増やさない。
 
 Stryker全体実行、全面的な画像snapshot、別site間の第三者Cookie制限、実外部IdP、PWAの実デプロイ更新、本番D1の分散障害は今回の必須gateに含めない。PWA更新通知の操作は既存hookテスト、SWとキャッシュは実ブラウザーで役割を分けている。実行方法と依存patchの扱いは [環境ガイド](testing-environment.ja.md) を参照する。
