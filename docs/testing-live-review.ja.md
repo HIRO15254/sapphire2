@@ -132,6 +132,8 @@
 | `apps/web/src/shared/lib/__tests__/passkey-opt-out.test.ts` | 整理 | opt-outの保存/解除、未知値、storage拒否とwindow不在を維持。removeItem/setItemの呼出し方を固定する1件を削除し、保存→解除後の読戻しで利用者設定の結果を確認。 |
 | `apps/web/src/shared/lib/__tests__/webauthn.test.ts` | 維持 | 通常WebAuthnとconditionalCreateの対応差、能力照会の拒否、取り消しcodeと実DOMExceptionのname、通常エラーとの区別は異なるブラウザー境界の契約。 |
 
-OAuth E2Eは実登録・認証・Cookie・D1・MCPを通す構成を保持し、通常ログインでは自動passkey登録を無効化していない。取り込み後の全9 E2Eは30.5秒、再試行0で成功した。ログには実 `/api/auth/passkey/generate-register-options` の成功があり、その後の画面操作・同contextのlogout/別account・offline復帰と未処理ブラウザーエラー監視も通った。これはpasskey作成・passkeyログインの実認証器まで完了させた証拠には数えない。
+OAuth E2Eは実登録・認証・Cookie・D1・MCPを通す構成を保持し、通常ログインでは自動passkey登録を無効化していない。取り込み後の9 E2Eは30.5秒、再試行0で成功した。ログには実 `/api/auth/passkey/generate-register-options` の成功があり、その後の画面操作・同contextのlogout/別account・offline復帰と未処理ブラウザーエラー監視も通った。
 
 取り込み後にlive領域・rootのtournament-lifecycle/session-events-routes・全auth・新shared/lib 3ファイルを対象指定で実行し、98ファイル・1,114ケースが成功した（32.74秒）。追加基盤の型検査と担当ファイルの整形・差分検査も成功し、E2E終了後に専用port 13001/18787のListenが残っていないことを確認した。
+
+実認証までの残る接続を保護するため、新規 [passkeys.spec.ts](../e2e/passkeys.spec.ts) を1件追加した。mobile Settingsで登録→reload後の保存確認→実logoutとsession消去→passkeyログイン→同じuser ID/emailへの復帰を実行する。CDP仮想認証器のresident credential・RP ID・署名counterの増加も確認し、SDKや `navigator.credentials`、Better Auth、D1をmockしない。認証器はケース終了時に除去する。個別実行は1件成功（本体6.1秒、起動込み1.0分）、型・整形・port解放確認も成功した。初回は成功toastがSign out操作を遮るテスト手順で失敗したため、登録後のreloadと保存確認を追加した。製品バグ修正のredには数えない。Playwrightの検出結果は既存9件と合わせて5ファイル・10件で、新規ケースはmobileだけに登録される。

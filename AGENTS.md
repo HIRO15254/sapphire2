@@ -16,7 +16,7 @@ Companion memory: [`.claude/rules/`](.claude/rules/) contains path-scoped rules.
 - **Server**: Hono on Cloudflare Workers, tRPC v11 server, Better Auth.
 - **DB**: Cloudflare D1 (SQLite) via Drizzle ORM. Migrations in `packages/db/src/migrations`.
 - **Validation**: Zod (workspace catalog). Import as `import z from "zod"` (default import) — a Vite bundler issue breaks the namespace import.
-- **Tests**: Vitest + Testing Library (jsdom).
+- **Tests**: Vitest + Testing Library / MSW (jsdom), Miniflare D1 integration, Bun SQLite migrations, Playwright (HTTPS browser / OAuth / WebAuthn).
 - **Lint / format**: Ultracite (Biome preset) — its defaults are the code standard; run via `bun run lint` / `bun run fix`.
 - **Icons**: `@tabler/icons-react` only. Do not add `lucide-react` imports in new code.
 

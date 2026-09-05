@@ -23,6 +23,7 @@
 | 画面 | Players/Currencies/Roomsを実UI・Router・QueryClient・フォーム・tRPC HTTP＋MSWで検証。pending、検索、検証エラー、保存、二重送信防止、失敗時保持/retry |
 | 更新競合 | currency取引create/edit/deleteが同時pendingになる応答順を制御し、他更新の消失と早すぎるrefetchを防止。Room等のrollbackもrefetch前の実状態へ変更 |
 | 実HTTP | Better Auth登録・ログイン、OAuth DCR/PKCE/同意/token、MCP toolとCookie tRPCの同じDBへの到達、別account隔離、誤token拒否 |
+| パスキー | 実Settingsで登録→reload→logoutでsession消失→WebAuthnログインで同一account復帰。Chromium仮想認証器で実challenge・署名・サーバー検証を通す |
 | ブラウザー | 保存後reload、同contextのlogout→reload→B、実IndexedDB・Service Workerのオフライン再読込/復帰、mobileフォームのaxe、desktop案内 |
 | 不変条件・静的検査 | 損益集計の入力順序/非破壊property、全spec検出照合、追加基盤の型、Node/jsdom coverage、固定runtimeとCI artifact |
 
@@ -40,11 +41,13 @@
 **確認結果と範囲**
 
 - 最新dev統合後の全9 Playwrightケース成功（30.5秒、再試行0）。未認証authorize→実ログイン→同意の継続と、実Cookie属性のassertを含む。
+- 追加した実WebAuthn 1ケースも成功（本体6.1秒）。全10ケース・5ファイルの検出を確認し、まとめての最終実行はCIで行う。
 - Bun SQLite migration/seed復元は7ファイル・55ケース成功（0.73秒）。
 - 全52migrationを適用する実D1統合は8ファイル・36ケース成功。最新devのpasskey保存・unique・cascadeを含む。
 - Web広域の変更・代替先31ファイル371ケース、live領域87ファイル964ケース、API/MCP51ファイル1592ケースの関連実行が成功。これらは実行範囲が重なるため単純合算しない。
 - 最新dev統合後はAPI/MCP/D1の59ファイル1,619ケース、live/auth/sharedの98ファイル1,114ケース、新Serverの3ファイル41ケース、新Settingsの3ファイル58ケースが成功。
 - 型・追加基盤の型・lint・check:rules・Vitest検出照合（390ファイル、欠落・重複なし）は成功。最終CIの各jobを追加で確認する。
+- Windowsで大量の変更パスが引数長上限に達したため、pre-commitをGitからのchanged検出へ変更。変更関連355ファイル・6,045ケース成功、Bun専用55ケースのskipは別runnerの成功と対にした。E2Eだけの追加時にVitestの関連対象が0となる場合も正常終了し、E2E自身は専用runnerで検証する。
 
 全体の速度改善率やcoverage向上率は、同条件の実行基準がないため主張しない。coverageはNode/jsdomのみで、workerdの別processを計測した数値ではない。実D1で全機能の全状態を網羅したとは扱わず、独立した純粋関数・状態・入力契約のunitも維持する。
 
