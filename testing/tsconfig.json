@@ -1,0 +1,15 @@
+{
+  "extends": "../packages/config/tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["bun"]
+  },
+  "include": [
+    "./*.ts",
+    "./__tests__/**/*.ts",
+    "../e2e/**/*.ts",
+    "../playwright.config.ts"
+  ]
+}

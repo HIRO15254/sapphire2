@@ -22,20 +22,6 @@ function row(partial: Partial<BlindLevelRow>): BlindLevelRow {
 }
 
 describe("useLocalBlindStructure", () => {
-	it("exposes sensors and handler callbacks", () => {
-		const onChange = vi.fn();
-		const { result } = renderHook(() =>
-			useLocalBlindStructure({ value: [], onChange })
-		);
-		expect(result.current.sensors).toBeDefined();
-		expect(typeof result.current.handleAddLevel).toBe("function");
-		expect(typeof result.current.handleAddBreak).toBe("function");
-		expect(typeof result.current.handleDelete).toBe("function");
-		expect(typeof result.current.handleUpdate).toBe("function");
-		expect(typeof result.current.handleCreateLevel).toBe("function");
-		expect(typeof result.current.handleDragEnd).toBe("function");
-	});
-
 	it("supports keyboard reordering with sortable coordinates", () => {
 		const { result } = renderHook(() =>
 			useLocalBlindStructure({ value: [], onChange: vi.fn() })

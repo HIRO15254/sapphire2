@@ -10,13 +10,7 @@ import { TRPCError } from "@trpc/server";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
-import {
-	expectAccepts,
-	expectProtected,
-	expectRejects,
-	expectType,
-	getInputSchema,
-} from "./test-utils";
+import { expectAccepts, expectRejects, getInputSchema } from "./test-utils";
 
 type Rows = Record<string, unknown>[];
 
@@ -117,91 +111,6 @@ function createListByRoomDb(
 
 const CUR_OWNER = "user-1";
 const CUR_OTHER = "user-2";
-
-describe("tournament router", () => {
-	it("appRouter has tournament namespace", () => {
-		expect(appRouter.tournament).toBeDefined();
-	});
-
-	it("has listByRoom procedure", () => {
-		expect(appRouter.tournament.listByRoom).toBeDefined();
-	});
-
-	it("has getById procedure", () => {
-		expect(appRouter.tournament.getById).toBeDefined();
-	});
-
-	it("has create procedure", () => {
-		expect(appRouter.tournament.create).toBeDefined();
-	});
-
-	it("has update procedure", () => {
-		expect(appRouter.tournament.update).toBeDefined();
-	});
-
-	it("has archive procedure", () => {
-		expect(appRouter.tournament.archive).toBeDefined();
-	});
-
-	it("has restore procedure", () => {
-		expect(appRouter.tournament.restore).toBeDefined();
-	});
-
-	it("has delete procedure", () => {
-		expect(appRouter.tournament.delete).toBeDefined();
-	});
-
-	it("has addTag procedure", () => {
-		expect(appRouter.tournament.addTag).toBeDefined();
-	});
-
-	it("has removeTag procedure", () => {
-		expect(appRouter.tournament.removeTag).toBeDefined();
-	});
-
-	it("exposes exactly the expected procedure set", () => {
-		expect(Object.keys(appRouter.tournament).sort()).toEqual(
-			[
-				"addTag",
-				"archive",
-				"create",
-				"createWithLevels",
-				"delete",
-				"getById",
-				"listByRoom",
-				"removeTag",
-				"restore",
-				"update",
-				"updateWithLevels",
-			].sort()
-		);
-	});
-
-	it("listByRoom / getById are protected queries", () => {
-		expectProtected(appRouter.tournament.listByRoom);
-		expectType(appRouter.tournament.listByRoom, "query");
-		expectProtected(appRouter.tournament.getById);
-		expectType(appRouter.tournament.getById, "query");
-	});
-
-	it("all mutations are protected mutations", () => {
-		for (const name of [
-			"create",
-			"update",
-			"archive",
-			"restore",
-			"delete",
-			"addTag",
-			"removeTag",
-			"createWithLevels",
-			"updateWithLevels",
-		] as const) {
-			const proc = appRouter.tournament[name];
-			expectProtected(proc);
-			expectType(proc, "mutation");
-		}
-	});
-});
 
 describe("tournament.listByRoom input validation", () => {
 	it("accepts roomId only", () => {

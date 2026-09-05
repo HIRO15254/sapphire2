@@ -75,7 +75,7 @@ export function useAssignTournament({
 			{
 				queryKey: trpc.liveTournamentSession.list.queryOptions({}).queryKey,
 			},
-			{ queryKey: trpc.session.list.queryOptions({}).queryKey },
+			{ queryKey: trpc.session.list.pathKey() },
 		]);
 	};
 

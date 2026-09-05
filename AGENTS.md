@@ -6,7 +6,8 @@ Companion memory: [`.claude/rules/`](.claude/rules/) contains path-scoped rules.
 
 ## Communication
 
-- **Think in English, reply in Japanese.** Internal reasoning is in English; every document presented to the user (chat replies, proposals, explanations) is written in Japanese.
+- **Think in English, reply in Japanese.** Internal reasoning is in English; chat replies, proposals, and explanations for the user are written in Japanese.
+- **Write agent rule files in English.** This includes `AGENTS.md`, `CLAUDE.md`, and `.claude/rules/**/*.md`. Keep shared instructions in English even when discussing them in Japanese; `bun run check:rules` detects Japanese text in these files to prevent the conversation language from carrying over into rules.
 - This is orthogonal to code conventions: UI copy stays English-only ([`.claude/rules/web-ui.md`](.claude/rules/web-ui.md)), and code identifiers / comments / commit messages / PR descriptions follow their existing rules.
 
 ## Stack
@@ -16,7 +17,7 @@ Companion memory: [`.claude/rules/`](.claude/rules/) contains path-scoped rules.
 - **Server**: Hono on Cloudflare Workers, tRPC v11 server, Better Auth.
 - **DB**: Cloudflare D1 (SQLite) via Drizzle ORM. Migrations in `packages/db/src/migrations`.
 - **Validation**: Zod (workspace catalog). Import as `import z from "zod"` (default import) — a Vite bundler issue breaks the namespace import.
-- **Tests**: Vitest + Testing Library (jsdom).
+- **Tests**: Vitest + Testing Library / MSW (jsdom), Miniflare D1 integration, Bun SQLite migrations, Playwright (HTTPS browser / OAuth / WebAuthn).
 - **Lint / format**: Ultracite (Biome preset) — its defaults are the code standard; run via `bun run lint` / `bun run fix`.
 - **Icons**: `@tabler/icons-react` only. Do not add `lucide-react` imports in new code.
 
@@ -39,7 +40,7 @@ bun run db:migrate:local # apply migrations to local D1
 bun run db:studio        # drizzle-kit studio
 ```
 
-Pre-PR verification: `bun run lint && bun run check-types && bun run check:rules && bun run test`.
+Pre-PR verification: run `bun run lint`, `bun run check-types`, `bun run check:rules`, and tests for the changed scope. Verify the full suite in CI (see [Testing](#testing)).
 
 ## Repository Layout
 
@@ -81,68 +82,13 @@ Detailed rules live in [`.claude/rules/`](.claude/rules/); the points below appl
 
 ## Testing
 
-- `bun run test` (`vitest run`) is the source of truth.
-- Colocate tests as `__tests__/foo.test.ts(x)` next to the code under test, or as `<component>.test.tsx` inside the component's own folder.
-- When the logic is the point, prefer testing the hook (`renderHook` from Testing Library) over the component.
-- Black-box: assert on returned state and handler side effects, not internal implementation details.
-
-### Test-Driven Development (MANDATORY)
-
-Every code change must be test-driven. The quality bar is set by the comprehensive coverage sweep (PR #226 / branch `test/comprehensive-coverage`) — new tests must match that level of rigor and reuse its patterns.
-
-**Workflow**:
-
-1. **Write tests first.** Before editing any implementation file, author (or extend) the corresponding `__tests__/*.test.ts(x)`. Verify the new tests fail against the existing code (red).
-2. **Implement until green.** Iterate on the minimum code needed to pass.
-3. **Run only the scoped project**, not the full suite. See "Do NOT run the full test suite during a task" below.
-4. **CI is the final green signal** (and, for Claude Code, the Stop hook below); no hand-waving.
-
-**Quality bar (non-negotiable)**:
-
-- **Full branch coverage** per function / hook / procedure — every `if` / `else` / `switch` / early return / guard clause gets a dedicated `it()`.
-- **Boundary values**: `null` / `undefined` / `0` / `""` / empty array / negative / NaN / Infinity / min / max / 1-off-min / 1-off-max — enumerate, do not skip.
-- **Error paths** are required, not optional (mutation failures → rollback, Zod rejects, network errors, auth absent, loader fails).
-- **Side-effect assertions** (toast called, navigate called, query invalidated, localStorage written, `setInterval` cleared) use `toHaveBeenCalledTimes` + `toHaveBeenNthCalledWith` / `toHaveBeenCalledWith`, not bare `toHaveBeenCalled()`.
-- **No smoke tests.** `expect(x).toBeDefined()` alone is never acceptable — exercise the behavior.
-- **Test names describe scenarios**, not mechanics (`"rejects empty name with 'Required'"`, not `"test 1"`).
-
-**Patterns established by the sweep — copy them, do not invent new ones**:
-
-| Target | Project | Reference implementation |
-|---|---|---|
-| Pure util / Zod schema / formatter | `web-node` | [`apps/web/src/features/rooms/utils/__tests__/blind-level-helpers.test.ts`](apps/web/src/features/rooms/utils/__tests__/blind-level-helpers.test.ts), [`apps/web/src/utils/__tests__/format-number.test.ts`](apps/web/src/utils/__tests__/format-number.test.ts) |
-| Simple hook (no tRPC) | `web-dom` | [`apps/web/src/shared/hooks/__tests__/use-elapsed-time.test.ts`](apps/web/src/shared/hooks/__tests__/use-elapsed-time.test.ts) |
-| Form hook (`@tanstack/react-form`) | `web-dom` | [`apps/web/src/features/auth/pages/login-page/sign-in-form/__tests__/use-sign-in.test.ts`](apps/web/src/features/auth/pages/login-page/sign-in-form/__tests__/use-sign-in.test.ts) |
-| tRPC query + mutation hook, simple | `web-dom` | [`apps/web/src/features/currencies/hooks/__tests__/use-currencies.test.ts`](apps/web/src/features/currencies/hooks/__tests__/use-currencies.test.ts) |
-| Optimistic flow with real QueryClient | `web-dom` / `web-node` | [`apps/web/src/features/live-sessions/utils/__tests__/optimistic-session-event.test.ts`](apps/web/src/features/live-sessions/utils/__tests__/optimistic-session-event.test.ts) |
-| Page hook / page subcomponent view hook | `web-dom` | [`apps/web/src/features/sessions/pages/sessions-page/__tests__/use-sessions-page.test.ts`](apps/web/src/features/sessions/pages/sessions-page/__tests__/use-sessions-page.test.ts), [`apps/web/src/features/live-sessions/pages/active-session-page/tournament-session/__tests__/use-tournament-session-view.test.ts`](apps/web/src/features/live-sessions/pages/active-session-page/tournament-session/__tests__/use-tournament-session-view.test.ts) |
-| API router (Zod + procedure enumeration) | `api` | [`packages/api/src/__tests__/player.test.ts`](packages/api/src/__tests__/player.test.ts) (uses [`packages/api/src/__tests__/test-utils.ts`](packages/api/src/__tests__/test-utils.ts) helpers: `getInputSchema`, `expectAccepts`, `expectRejects`, `expectProtected`, `expectType`) |
-| DB schema constraint | `db` | [`packages/db/src/__tests__/session-schema.test.ts`](packages/db/src/__tests__/session-schema.test.ts) (uses `getTableConfig` for FKs, indexes, `onDelete` policies) |
-| Shared test helpers (web) | — | [`apps/web/src/__tests__/test-utils.tsx`](apps/web/src/__tests__/test-utils.tsx) (`createTestQueryClient`, `withQueryClient`, `renderWithQueryClient`, `createTrpcMock`, `createToastMock`, `createAuthClientMock`) |
-
-**Mocking conventions**:
-
-- `vi.hoisted(() => ({ … }))` for mutable mock state shared across `vi.mock` factories.
-- `vi.mock("@/utils/trpc", () => ({ trpc, trpcClient }))` to replace the tRPC proxy at module scope.
-- `@tanstack/react-form`: use the real `useForm`, drive via `result.current.form.setFieldValue(...)` + `await result.current.form.handleSubmit()` inside `act()`.
-- Never mock the module under test; only mock its dependencies.
-
-If a target does not match any pattern above, extend the relevant `test-utils` file with a new helper rather than hand-rolling a new pattern per test file.
-
-### Do NOT run the full test suite during a task
-
-`bun run test` boots jsdom/node for every workspace and takes several minutes on Windows. While iterating, run only what's relevant:
-
-- Pure-function / schema tests → `bunx vitest run --project web-node [path]`
-- Hook / component / route tests → `bunx vitest run --project web-dom [path]`
-- API router tests → `bunx vitest run --project api [path]`
-- Server worker tests → `bunx vitest run --project server [path]`
-- DB schema tests → `bunx vitest run --project db [path]`
-- MCP tool tests → `bunx vitest run --project mcp [path]`
-- Env tests → `bunx vitest run --project env`
-- Related to current staged files → `bunx vitest related --run $(git diff --cached --name-only ...)` — already automated by pre-commit for human commits.
-
-The full suite is enforced in **CI** — [`ci.yml`](.github/workflows/ci.yml) runs `check-types`, `ultracite check`, the full `vitest` suite, and `check:rules` on every PR. This is the tool-independent gate that catches Codex, Claude, and human PRs alike, so it never runs on every intermediate step. Claude Code additionally runs the same checks locally at the end of each turn via a **Stop hook** (`bun x ultracite fix && bun x vitest run --changed HEAD && bun x ultracite check && bun scripts/check-rules.ts` — see [`.claude/settings.json`](.claude/settings.json)). `scripts/check-rules.ts` (`bun run check:rules`) mechanically enforces greppable rules from this file and `.claude/rules/`. Pre-commit is skipped when `CLAUDECODE=1` for the same reason.
+- Tests protect the contracts being changed and address failure risks. Read [`.claude/rules/testing.md`](.claude/rules/testing.md) before changing designs, implementation, or tests. Do not add tests solely because a file or branch is new.
+- Define expected outcomes before changing behavior. For bug fixes, normally confirm red → green with a reproducing test. For changes that preserve behavior, use existing tests and add only missing protection.
+- Derive expected values from requirements, contracts, invariants, or known failures. Do not treat implementation output or a copy of the implementation as the oracle. State the purpose of characterization tests that record current behavior.
+- Do not require blanket coverage of every branch, boundary value, or call count. Select meaningful success, failure, and boundary scenarios for authentication, authorization, money, persistence, concurrency, and UTC dates. The rule to put logic in hooks does not require a unit test for every hook.
+- Protect each contract primarily at one suitable layer. Verify UI integration through user interactions; SQL, authorization, and atomicity against a real database; and cookies and persisted caches through real HTTP or browser boundaries.
+- Do not change expected values, skip tests, exclude tests from discovery, or weaken assertions merely to make the implementation pass. When consolidating, replacing, or deleting tests, record the protected contract and its replacement checks, or why protection is no longer needed.
+- During development, run only the relevant scope with `bunx vitest run --project <project> <path>`. Complete type, lint, and `check:rules` checks, and verify all Vitest, Bun migration, and registered integration tests in CI. Explicitly report tests not run and failures caused by the environment.
 
 ## Path-scoped Rule Files
 
@@ -150,13 +96,14 @@ The following rule files live in `.claude/rules/` and are loaded automatically w
 
 | File | Paths | Summary |
 |---|---|---|
+| `testing.md` | `apps/**`, `packages/**`, `scripts/**`, `e2e/**`, `testing/**`, `patches/**`, test/CI configuration | Test design based on contracts and risks, mock boundaries, deletion decisions, execution, and CI. |
 | `web-architecture.md` | `apps/web/**` | `apps/web/src/` feature-folder layout, page/component placement rules, reference implementations. |
 | `web-hooks-separation.md` | `apps/web/**` | STRICT: components may only call custom `useXxx` hooks; verification script included. |
 | `web-forms.md` | `apps/web/**` | `@tanstack/react-form` in hooks, no `type="number"`, no placeholders, `SelectWithClear` for clearable selects. |
 | `web-ui.md` | `apps/web/**` | PageHeader, shadcn primitives (Table / Badge / Avatar / RadioGroup), mobile = Drawer, tabler-icons. |
 | `web-data-fetching.md` | `apps/web/**` | Optimistic updates must go through `utils/optimistic-update.ts` helpers. |
 | `web-theme.md` | `apps/web/**` | Sapphire 2 Design System (single theme): token format, semantic colors, typography roles, sheet patterns. |
-| `ai-models.md` | `packages/api/**`, `apps/web/**`, `apps/server/**` | Claude のモデル ID は `packages/api/src/ai/models.ts` にのみ書く（全 AI 機能が常に同じ最新モデルを使う）。`max_tokens` は thinking の分を含める。 |
+| `ai-models.md` | `packages/api/**`, `apps/web/**`, `apps/server/**` | Write Claude model IDs only in `packages/api/src/ai/models.ts` so all AI features use the same latest model. Include thinking in the `max_tokens` budget. |
 | `api-security.md` | `packages/api/**`, `apps/server/**` | Object-level authorization: every input FK id ownership-checked, scoped bulk WHEREs / joins / cursors, uniform FORBIDDEN, no server-side fetch of user URLs. |
 | `api-data-integrity.md` | `packages/api/**`, `packages/db/**` | Zod input conventions (`.int().min(0)`, create/update refine parity, shared write/read schemas) and D1 hazards (100-bind-param chunking, `db.batch()`, N+1, keyset pagination). |
 | `datetime-and-numbers.md` | `apps/web/**`, `packages/api/**` | Date-only values are UTC midnight (read with UTC getters), day-crossing handling + backfill, period boundaries, shared locale-fixed number formatters. |

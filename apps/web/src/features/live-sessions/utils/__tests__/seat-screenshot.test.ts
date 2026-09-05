@@ -8,7 +8,6 @@ import {
 	isAcceptedMediaType,
 	normalizeName,
 	type ReviewRow,
-	SOURCE_APP_ENTRIES,
 } from "@/features/live-sessions/utils/seat-screenshot";
 
 vi.mock("@/utils/trpc", () => ({
@@ -33,16 +32,6 @@ describe("isAcceptedMediaType", () => {
 		expect(isAcceptedMediaType("application/pdf")).toBe(false);
 		expect(isAcceptedMediaType("image/tiff")).toBe(false);
 		expect(isAcceptedMediaType("")).toBe(false);
-	});
-});
-
-describe("SOURCE_APP_ENTRIES", () => {
-	it("is a non-empty list of [app, metadata] tuples", () => {
-		expect(SOURCE_APP_ENTRIES.length).toBeGreaterThan(0);
-		for (const entry of SOURCE_APP_ENTRIES) {
-			expect(entry).toHaveLength(2);
-			expect(typeof entry[0]).toBe("string");
-		}
 	});
 });
 

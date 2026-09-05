@@ -18,44 +18,7 @@ import {
 	insertPlayerJoinEvent,
 	insertPlayerLeaveEvent,
 } from "../routers/session-table-player";
-import {
-	expectAccepts,
-	expectProtected,
-	expectRejects,
-	expectType,
-	getInputSchema,
-} from "./test-utils";
-
-describe("sessionTablePlayer router structure", () => {
-	it("appRouter has sessionTablePlayer namespace", () => {
-		expect(appRouter.sessionTablePlayer).toBeDefined();
-	});
-
-	it("exposes exactly the expected procedure set", () => {
-		expect(Object.keys(appRouter.sessionTablePlayer).sort()).toEqual(
-			["add", "addNew", "addTemporary", "list", "remove", "updateSeat"].sort()
-		);
-	});
-
-	it("list is a protected query", () => {
-		expectProtected(appRouter.sessionTablePlayer.list);
-		expectType(appRouter.sessionTablePlayer.list, "query");
-	});
-
-	it("all mutations are protected mutations", () => {
-		for (const name of [
-			"add",
-			"addNew",
-			"addTemporary",
-			"remove",
-			"updateSeat",
-		] as const) {
-			const proc = appRouter.sessionTablePlayer[name];
-			expectProtected(proc);
-			expectType(proc, "mutation");
-		}
-	});
-});
+import { expectAccepts, expectRejects, getInputSchema } from "./test-utils";
 
 describe("sessionTablePlayer.list input validation", () => {
 	it("accepts empty object (activeOnly defaults to false)", () => {

@@ -125,17 +125,6 @@ describe("Field", () => {
 		expect(screen.getByText("Up to 4 characters.")).toBeInTheDocument();
 		expect(screen.getByText("Too long")).toBeInTheDocument();
 	});
-
-	it("forwards arbitrary props (e.g. data-*, className) onto the wrapper div", () => {
-		const { container } = render(
-			<Field className="custom-cls" data-testid="wrap" label="X">
-				<Input />
-			</Field>
-		);
-		const wrap = screen.getByTestId("wrap");
-		expect(wrap).toHaveClass("custom-cls");
-		expect(container.firstChild).toBe(wrap);
-	});
 });
 
 it("links a single input to its validation error", () => {

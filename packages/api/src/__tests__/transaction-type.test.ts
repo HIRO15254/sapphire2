@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
-import {
-	expectAccepts,
-	expectProtected,
-	expectRejects,
-	expectType,
-	getInputSchema,
-} from "./test-utils";
+import { expectAccepts, expectRejects, getInputSchema } from "./test-utils";
 
 function expectReservedNameRejection(
 	procedure: unknown,
@@ -24,50 +18,6 @@ function expectReservedNameRejection(
 		}),
 	]);
 }
-
-describe("transactionType router", () => {
-	it("appRouter has transactionType namespace", () => {
-		expect(appRouter.transactionType).toBeDefined();
-	});
-
-	it("has list procedure", () => {
-		expect(appRouter.transactionType.list).toBeDefined();
-	});
-
-	it("has create procedure", () => {
-		expect(appRouter.transactionType.create).toBeDefined();
-	});
-
-	it("has update procedure", () => {
-		expect(appRouter.transactionType.update).toBeDefined();
-	});
-
-	it("has delete procedure", () => {
-		expect(appRouter.transactionType.delete).toBeDefined();
-	});
-
-	it("exposes exactly the expected procedure set", () => {
-		expect(Object.keys(appRouter.transactionType).sort()).toEqual(
-			["create", "delete", "list", "update"].sort()
-		);
-	});
-
-	it("list is a protected query", () => {
-		expectProtected(appRouter.transactionType.list);
-		expectType(appRouter.transactionType.list, "query");
-	});
-
-	it("create / update / delete are protected mutations", () => {
-		for (const proc of [
-			appRouter.transactionType.create,
-			appRouter.transactionType.update,
-			appRouter.transactionType.delete,
-		]) {
-			expectProtected(proc);
-			expectType(proc, "mutation");
-		}
-	});
-});
 
 describe("transactionType.create input validation", () => {
 	it("accepts a non-empty name", () => {

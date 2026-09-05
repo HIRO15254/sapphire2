@@ -57,7 +57,7 @@ export function useAssignRingGame({
 				}).queryKey,
 			},
 			{ queryKey: trpc.liveCashGameSession.list.queryOptions({}).queryKey },
-			{ queryKey: trpc.session.list.queryOptions({}).queryKey },
+			{ queryKey: trpc.session.list.pathKey() },
 		]);
 
 	const assignMutation = useMutation({

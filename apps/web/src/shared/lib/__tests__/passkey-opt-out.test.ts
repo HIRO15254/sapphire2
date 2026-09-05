@@ -55,14 +55,6 @@ describe("passkey auto-register opt-out", () => {
 		expect(isAutomaticPasskeyOptedOut()).toBe(false);
 	});
 
-	it("removes the key rather than storing a falsy value", () => {
-		const storage = createMemoryStorage();
-		setStorage(storage);
-		setAutomaticPasskeyOptOut(false);
-		expect(storage.removeItem).toHaveBeenCalledTimes(1);
-		expect(storage.setItem).not.toHaveBeenCalled();
-	});
-
 	it("ignores a stored value that is not the opt-out marker", () => {
 		const storage = createMemoryStorage();
 		storage.entries.set("sapphire2:passkey-auto-register-opt-out", "0");

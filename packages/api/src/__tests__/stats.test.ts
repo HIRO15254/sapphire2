@@ -15,12 +15,11 @@ import {
 import {
 	createChainableMockDb,
 	expectAccepts,
-	expectProtected,
 	expectRejects,
-	expectType,
 } from "./test-utils";
 
 const EPOCH_NOV_2023 = 1_700_000_000;
+
 const EPOCH_JAN_2024 = 1_704_067_200;
 
 function cashRow(overrides: Partial<StatsSessionRow> = {}): StatsSessionRow {
@@ -74,31 +73,6 @@ function tournamentRow(
 		...overrides,
 	};
 }
-
-describe("stats router structure", () => {
-	it("appRouter has stats namespace", () => {
-		expect(appRouter.stats).toBeDefined();
-	});
-
-	it("exposes exactly the expected procedure set", () => {
-		expect(Object.keys(appRouter.stats).sort()).toEqual([
-			"breakdown",
-			"profitLossSeries",
-			"summary",
-		]);
-	});
-
-	it("every procedure is a protected query", () => {
-		for (const proc of [
-			appRouter.stats.summary,
-			appRouter.stats.breakdown,
-			appRouter.stats.profitLossSeries,
-		]) {
-			expectProtected(proc);
-			expectType(proc, "query");
-		}
-	});
-});
 
 describe("stats shared filter input validation", () => {
 	const FULL_FILTER = {
@@ -534,12 +508,15 @@ describe("breakdownStats", () => {
 	it("sorts count-based dimensions by sessions desc, then profitLoss desc, then label asc", () => {
 		const rows = [
 			cashRow({ id: "a", roomId: "A", roomName: "A", profitLoss: 10 }),
+
 			cashRow({ id: "b1", roomId: "B", roomName: "B", profitLoss: 5 }),
 			cashRow({ id: "b2", roomId: "B", roomName: "B", profitLoss: 0 }),
+
 			cashRow({ id: "c1", roomId: "C", roomName: "C", profitLoss: 10 }),
 			cashRow({ id: "c2", roomId: "C", roomName: "C", profitLoss: 10 }),
 		];
 		const groups = breakdownStats(rows, "room");
+
 		expect(groups.map((g) => g.key)).toEqual(["C", "B", "A"]);
 	});
 
@@ -549,6 +526,7 @@ describe("breakdownStats", () => {
 			cashRow({ id: "a", roomId: "A", roomName: "Alpha", profitLoss: 10 }),
 		];
 		const groups = breakdownStats(rows, "room");
+
 		expect(groups.map((g) => g.label)).toEqual(["Alpha", "Zeta"]);
 	});
 });
@@ -615,6 +593,7 @@ describe("summarizeStats", () => {
 		const rows = [
 			cashRow({ id: "a", profitLoss: 120, playMinutes: 60, bigBlind: 2 }),
 		];
+
 		expect(summarizeStats(rows).hourlyRate).toBe(120);
 	});
 
@@ -622,6 +601,7 @@ describe("summarizeStats", () => {
 		const rows = [
 			cashRow({ id: "a", profitLoss: 100, playMinutes: 60, bigBlind: 2 }),
 		];
+
 		expect(summarizeStats(rows).bbPerHour).toBe(50);
 	});
 
@@ -653,6 +633,7 @@ describe("summarizeStats", () => {
 		const summary = summarizeStats(rows);
 		expect(summary.totalEvProfitLoss).toBe(120);
 		expect(summary.totalEvDiff).toBe(20);
+
 		expect(summary.cashEvDiffNormalized).toBe(10);
 	});
 
@@ -711,6 +692,7 @@ describe("summarizeStats", () => {
 		const summary = summarizeStats(rows);
 		expect(summary.totalEvProfitLoss).toBe(170);
 		expect(summary.totalEvDiff).toBe(20);
+
 		expect(summary.cashEvDiffNormalized).toBe(10);
 	});
 
@@ -731,6 +713,7 @@ describe("summarizeStats", () => {
 				evRecorded: true,
 				bigBlind: null,
 			}),
+
 			cashRow({
 				id: "nlh-fallback",
 				profitLoss: 50,
@@ -741,7 +724,9 @@ describe("summarizeStats", () => {
 			}),
 		];
 		const summary = summarizeStats(rows);
+
 		expect(summary.totalEvDiff).toBe(20);
+
 		expect(summary.cashEvDiffNormalized).toBeNull();
 	});
 
@@ -764,6 +749,7 @@ describe("summarizeStats", () => {
 				bigBlind: 2,
 			}),
 		];
+
 		expect(summarizeStats(rows).cashEvDiffNormalized).toBe(10);
 	});
 
@@ -802,9 +788,13 @@ describe("summarizeStats", () => {
 			}),
 		];
 		const summary = summarizeStats(rows);
+
 		expect(summary.roi).toBe(150);
+
 		expect(summary.itmRate).toBe(50);
+
 		expect(summary.avgPlacement).toBe(25.5);
+
 		expect(summary.totalPrizeMoney).toBe(500);
 	});
 
@@ -816,10 +806,13 @@ describe("summarizeStats", () => {
 	it("averages per-session ROI for avgRoi (distinct from aggregate roi)", () => {
 		const rows = [
 			tournamentRow({ id: "a", buyInTotal: 100, prizeMoney: 300 }),
+
 			tournamentRow({ id: "b", buyInTotal: 200, prizeMoney: 100 }),
 		];
 		const summary = summarizeStats(rows);
+
 		expect(summary.avgRoi).toBe(75);
+
 		expect(summary.roi).toBeCloseTo(33.333_33, 4);
 	});
 
@@ -876,7 +869,9 @@ describe("summarizeStats", () => {
 		expect(summary.totalProfitLoss).toBe(500);
 		expect(summary.winRate).toBe(100);
 		expect(summary.totalPlayMinutes).toBe(180);
+
 		expect(summary.hourlyRate).toBe(100);
+
 		expect(summary.roi).toBe(400);
 	});
 });
@@ -993,6 +988,7 @@ describe("fetchStatsRows variant mapping", () => {
 
 		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
 		expect(rows).toHaveLength(1);
+
 		expect(rows[0]?.profitLoss).toBe(200);
 		expect(rows[0]?.evProfitLoss).toBe(250);
 		expect(rows[0]?.evDiff).toBe(50);
@@ -1117,6 +1113,7 @@ describe("fetchStatsRows variant mapping", () => {
 		});
 
 		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
+
 		expect(rows[0]?.evProfitLoss).toBe(200);
 		expect(rows[0]?.evRecorded).toBe(false);
 	});

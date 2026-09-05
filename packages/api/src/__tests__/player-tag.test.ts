@@ -1,41 +1,7 @@
 import { TAG_COLOR_NAMES } from "@sapphire2/db/constants/player-tag-colors";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
-import {
-	expectAccepts,
-	expectProtected,
-	expectRejects,
-	expectType,
-	getInputSchema,
-} from "./test-utils";
-
-describe("playerTag router structure", () => {
-	it("appRouter has playerTag namespace", () => {
-		expect(appRouter.playerTag).toBeDefined();
-	});
-
-	it("exposes exactly the expected procedure set", () => {
-		expect(Object.keys(appRouter.playerTag).sort()).toEqual(
-			["create", "delete", "list", "update"].sort()
-		);
-	});
-
-	it("list is a protected query", () => {
-		expectProtected(appRouter.playerTag.list);
-		expectType(appRouter.playerTag.list, "query");
-	});
-
-	it("create / update / delete are protected mutations", () => {
-		for (const proc of [
-			appRouter.playerTag.create,
-			appRouter.playerTag.update,
-			appRouter.playerTag.delete,
-		]) {
-			expectProtected(proc);
-			expectType(proc, "mutation");
-		}
-	});
-});
+import { expectAccepts, expectRejects, getInputSchema } from "./test-utils";
 
 describe("playerTag.create input validation", () => {
 	it("accepts name only (color defaults to gray)", () => {

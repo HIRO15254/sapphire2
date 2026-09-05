@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { trpcKeys } from "@/__tests__/trpc-keys";
 
 function buildKey(namespace: string, procedure: string, input: unknown) {
 	return input === undefined
@@ -50,9 +51,8 @@ vi.mock("@/utils/trpc", () => ({
 		},
 		session: {
 			list: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("session", "list", input),
-				}),
+				queryOptions: () => trpcKeys.session.list.queryOptions({}),
+				pathKey: () => trpcKeys.session.list.pathKey(),
 			},
 		},
 	},
@@ -235,6 +235,14 @@ describe("useAssignRingGame", () => {
 
 	it("handleCreate calls the atomic create-and-assign RPC once, invalidates every affected query, toasts success, and closes", async () => {
 		const qc = createClient();
+		const listKey = trpcKeys.session.list.infiniteQueryKey({
+			roomId: "room-a",
+		});
+		qc.setQueryDefaults(listKey, { gcTime: Number.POSITIVE_INFINITY });
+		qc.setQueryData(listKey, {
+			pages: [{ items: [] }],
+			pageParams: [undefined],
+		});
 		const onClose = vi.fn();
 		const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
 		mocks.createAndAssignRingGame.mockResolvedValue({
@@ -287,9 +295,7 @@ describe("useAssignRingGame", () => {
 		expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
 			queryKey: ["liveCashGameSession", "list", {}],
 		});
-		expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
-			queryKey: ["session", "list", {}],
-		});
+		expect(qc.getQueryState(listKey)?.isInvalidated).toBe(true);
 		expect(invalidateSpy).toHaveBeenNthCalledWith(4, {
 			queryKey: ["ringGame", "listByRoom", { roomId: "room-a" }],
 		});
