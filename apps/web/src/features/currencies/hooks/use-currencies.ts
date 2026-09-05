@@ -147,11 +147,12 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 			trpcClient.currencyTransaction.create.mutate(values),
 		onMutate: async () => {
 			await cancelTargets(queryClient, [{ queryKey: transactionsKey }]);
-			return beginOptimisticQueryUpdate(
+			const change = beginOptimisticQueryUpdate(
 				queryClient,
 				transactionsKey,
 				() => undefined
 			);
+			return { ...change, queryKey: transactionsKey };
 		},
 		onSettled: (_data, error, _vars, context) => {
 			if (context && !context.settle(error === null)) {
@@ -159,7 +160,7 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 			}
 			invalidateTargets(queryClient, [
 				{ queryKey: currencyListKey },
-				{ queryKey: transactionsKey },
+				{ queryKey: context?.queryKey ?? transactionsKey },
 			]);
 		},
 	});
@@ -181,24 +182,29 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 			}),
 		onMutate: async (values) => {
 			await cancelTargets(queryClient, [{ queryKey: transactionsKey }]);
-			return beginOptimisticQueryUpdate(queryClient, transactionsKey, () => {
-				updateInfiniteQueryItems<Transaction>(
-					queryClient,
-					transactionsKey,
-					(items) =>
-						items.map((t) =>
-							t.id === values.id
-								? {
-										...t,
-										amount: values.amount,
-										memo: values.memo,
-										transactedAt: values.transactedAt,
-										transactionTypeId: values.transactionTypeId,
-									}
-								: t
-						)
-				);
-			});
+			const change = beginOptimisticQueryUpdate(
+				queryClient,
+				transactionsKey,
+				() => {
+					updateInfiniteQueryItems<Transaction>(
+						queryClient,
+						transactionsKey,
+						(items) =>
+							items.map((t) =>
+								t.id === values.id
+									? {
+											...t,
+											amount: values.amount,
+											memo: values.memo,
+											transactedAt: values.transactedAt,
+											transactionTypeId: values.transactionTypeId,
+										}
+									: t
+							)
+					);
+				}
+			);
+			return { ...change, queryKey: transactionsKey };
 		},
 		onSettled: (_data, error, _vars, context) => {
 			if (context && !context.settle(error === null)) {
@@ -206,7 +212,7 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 			}
 			invalidateTargets(queryClient, [
 				{ queryKey: currencyListKey },
-				{ queryKey: transactionsKey },
+				{ queryKey: context?.queryKey ?? transactionsKey },
 			]);
 		},
 	});
@@ -216,13 +222,18 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 			trpcClient.currencyTransaction.delete.mutate({ id }),
 		onMutate: async (id) => {
 			await cancelTargets(queryClient, [{ queryKey: transactionsKey }]);
-			return beginOptimisticQueryUpdate(queryClient, transactionsKey, () => {
-				updateInfiniteQueryItems<Transaction>(
-					queryClient,
-					transactionsKey,
-					(items) => items.filter((t) => t.id !== id)
-				);
-			});
+			const change = beginOptimisticQueryUpdate(
+				queryClient,
+				transactionsKey,
+				() => {
+					updateInfiniteQueryItems<Transaction>(
+						queryClient,
+						transactionsKey,
+						(items) => items.filter((t) => t.id !== id)
+					);
+				}
+			);
+			return { ...change, queryKey: transactionsKey };
 		},
 		onSettled: (_data, error, _vars, context) => {
 			if (context && !context.settle(error === null)) {
@@ -230,7 +241,7 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 			}
 			invalidateTargets(queryClient, [
 				{ queryKey: currencyListKey },
-				{ queryKey: transactionsKey },
+				{ queryKey: context?.queryKey ?? transactionsKey },
 			]);
 		},
 	});

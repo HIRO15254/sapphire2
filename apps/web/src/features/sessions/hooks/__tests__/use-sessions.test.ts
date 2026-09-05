@@ -1103,6 +1103,312 @@ describe("useSessions", () => {
 		});
 	});
 
+	describe("overlapping session writes and page loads", () => {
+		it.each([
+			"update",
+			"delete",
+		])("keeps a page fetched during a rejected %s before the final refetch responds", async (operation) => {
+			const qc = createClient();
+			const key = listKeyForFilters(filtersToListInput({}));
+			const first = baseSessionItem({ id: "s1", memo: "original" });
+			const second = baseSessionItem({ id: "s2" });
+			qc.setQueryData(key, infiniteCache([first], "next"));
+			const changing = Promise.withResolvers<unknown>();
+			const refetch = Promise.withResolvers<{
+				items: SessionItem[];
+				nextCursor?: string;
+			}>();
+			trpcMocks.sessionUpdate.mockReturnValue(changing.promise);
+			trpcMocks.sessionDelete.mockReturnValue(changing.promise);
+			trpcMocks.sessionList.mockImplementation(
+				({ pageParam }: { pageParam?: string }) =>
+					pageParam === "next"
+						? Promise.resolve({ items: [second] })
+						: refetch.promise
+			);
+			const { result, unmount } = renderHook(() => useSessions({}), {
+				wrapper: makeWrapper(qc),
+			});
+			let outcome: Promise<unknown> | undefined;
+			act(() => {
+				if (operation === "update") {
+					outcome = result.current
+						.update({ ...cashValues({ memo: "pending" }), id: "s1" })
+						.catch((error: unknown) => error);
+				} else {
+					result.current.delete("s1");
+				}
+			});
+			await waitFor(() =>
+				expect(
+					operation === "update"
+						? trpcMocks.sessionUpdate
+						: trpcMocks.sessionDelete
+				).toHaveBeenCalledTimes(1)
+			);
+			act(() => result.current.fetchNextPage());
+			await waitFor(() =>
+				expect(
+					result.current.sessions.some((session) => session.id === "s2")
+				).toBe(true)
+			);
+			await act(async () => {
+				changing.reject(new Error("write rejected"));
+				await outcome;
+			});
+			await waitFor(() => expect(qc.isMutating()).toBe(0));
+			expect(qc.getQueryData(key)).toEqual({
+				pages: [{ items: [first], nextCursor: "next" }, { items: [second] }],
+				pageParams: [undefined, "next"],
+			});
+			await act(async () => {
+				refetch.resolve({ items: [first], nextCursor: "next" });
+				await refetch.promise;
+			});
+			await waitFor(() => expect(qc.isFetching()).toBe(0));
+			unmount();
+			qc.clear();
+		});
+
+		it.each([
+			"before",
+			"after",
+		])("confirms a created session once when its response arrives %s a refetch during an edit", async (responseOrder) => {
+			const qc = createClient();
+			const key = listKeyForFilters(filtersToListInput({}));
+			const original = baseSessionItem({ memo: "original" });
+			const created = baseSessionItem({
+				id: "created",
+				memo: "server result",
+				roomName: "Confirmed room",
+			});
+			qc.setQueryData(key, infiniteCache([original]));
+			const creating = Promise.withResolvers<unknown>();
+			const editing = Promise.withResolvers<unknown>();
+			const duringMutation = Promise.withResolvers<{ items: SessionItem[] }>();
+			const afterMutation = Promise.withResolvers<{ items: SessionItem[] }>();
+			trpcMocks.sessionCreate.mockReturnValue(creating.promise);
+			trpcMocks.sessionUpdate.mockReturnValue(editing.promise);
+			trpcMocks.sessionList
+				.mockReturnValueOnce(duringMutation.promise)
+				.mockReturnValue(afterMutation.promise);
+			const { result, unmount } = renderHook(() => useSessions({}), {
+				wrapper: makeWrapper(qc),
+			});
+			let editOutcome: Promise<unknown> | undefined;
+			let createOutcome: Promise<unknown> | undefined;
+			act(() => {
+				editOutcome = result.current
+					.update({ ...cashValues({ memo: "pending edit" }), id: "s1" })
+					.catch((error: unknown) => error);
+			});
+			await waitFor(() =>
+				expect(trpcMocks.sessionUpdate).toHaveBeenCalledTimes(1)
+			);
+			act(() => {
+				createOutcome = result.current.create(
+					cashValues({ memo: "new session" })
+				);
+			});
+			await waitFor(() =>
+				expect(trpcMocks.sessionCreate).toHaveBeenCalledTimes(1)
+			);
+			if (responseOrder === "before") {
+				await act(async () => {
+					creating.resolve({ id: "created" });
+					await createOutcome;
+				});
+				expect(trpcMocks.sessionList).not.toHaveBeenCalled();
+			}
+			act(() => {
+				result.current.onRetry();
+			});
+			await act(async () => {
+				duringMutation.resolve({ items: [created, original] });
+				await duringMutation.promise;
+			});
+			await waitFor(() =>
+				expect(
+					result.current.sessions.find((session) => session.id === "s1")?.memo
+				).toBe("pending edit")
+			);
+			if (responseOrder === "after") {
+				await act(async () => {
+					creating.resolve({ id: "created" });
+					await createOutcome;
+				});
+			}
+			await waitFor(() =>
+				expect(result.current.sessions.map((session) => session.id)).toEqual([
+					"created",
+					"s1",
+				])
+			);
+			expect(firstPageItems(qc, key)?.[0]).toEqual(created);
+			expect(trpcMocks.sessionList).toHaveBeenCalledTimes(1);
+			await act(async () => {
+				editing.reject(new Error("edit rejected"));
+				await editOutcome;
+			});
+			expect(firstPageItems(qc, key)).toEqual([created, original]);
+			await act(async () => {
+				afterMutation.resolve({ items: [created, original] });
+				await afterMutation.promise;
+			});
+			await waitFor(() => expect(qc.isFetching()).toBe(0));
+			unmount();
+			qc.clear();
+		});
+
+		it("keeps the confirmed server row on a later page without prepending a duplicate", async () => {
+			const qc = createClient();
+			const key = listKeyForFilters(filtersToListInput({}));
+			const original = baseSessionItem({ memo: "original" });
+			const created = baseSessionItem({
+				id: "created",
+				roomName: "Confirmed room",
+			});
+			qc.setQueryData(key, {
+				pages: [{ items: [original], nextCursor: "next" }, { items: [] }],
+				pageParams: [undefined, "next"],
+			});
+			const editing = Promise.withResolvers<unknown>();
+			trpcMocks.sessionUpdate.mockReturnValue(editing.promise);
+			trpcMocks.sessionCreate.mockResolvedValue({ id: "created" });
+			trpcMocks.sessionList.mockImplementation(
+				({ pageParam }: { pageParam?: string }) =>
+					Promise.resolve(
+						pageParam === "next"
+							? { items: [created] }
+							: { items: [original], nextCursor: "next" }
+					)
+			);
+			const { result, unmount } = renderHook(() => useSessions({}), {
+				wrapper: makeWrapper(qc),
+			});
+			let outcome: Promise<unknown> | undefined;
+			act(() => {
+				outcome = result.current
+					.update({ ...cashValues({ memo: "pending" }), id: "s1" })
+					.catch((error: unknown) => error);
+			});
+			await waitFor(() =>
+				expect(trpcMocks.sessionUpdate).toHaveBeenCalledTimes(1)
+			);
+			await act(async () => {
+				await result.current.create(cashValues());
+			});
+			expect(trpcMocks.sessionList).not.toHaveBeenCalled();
+			await act(async () => {
+				await result.current.onRetry();
+			});
+			expect(
+				qc.getQueryData<{ pages: { items: SessionItem[] }[] }>(key)?.pages
+			).toEqual([
+				{
+					items: [{ ...original, sessionDate: "2026-04-01", memo: "pending" }],
+					nextCursor: "next",
+				},
+				{ items: [created] },
+			]);
+			await act(async () => {
+				editing.reject(new Error("edit rejected"));
+				await outcome;
+			});
+			await waitFor(() => expect(qc.isFetching()).toBe(0));
+			unmount();
+			qc.clear();
+		});
+
+		it("replays a pending create with the same identity after a sibling deletion fails", async () => {
+			const qc = createClient();
+			const key = listKeyForFilters(filtersToListInput({}));
+			const original = baseSessionItem();
+			qc.setQueryData(key, infiniteCache([original]));
+			const creating = Promise.withResolvers<unknown>();
+			const deleting = Promise.withResolvers<unknown>();
+			const refetch = Promise.withResolvers<{ items: SessionItem[] }>();
+			trpcMocks.sessionCreate.mockReturnValue(creating.promise);
+			trpcMocks.sessionDelete.mockReturnValue(deleting.promise);
+			trpcMocks.sessionList.mockReturnValue(refetch.promise);
+			const { result, unmount } = renderHook(() => useSessions({}), {
+				wrapper: makeWrapper(qc),
+			});
+			let outcome: Promise<unknown> | undefined;
+			act(() => {
+				outcome = result.current
+					.create(cashValues())
+					.catch((error: unknown) => error);
+			});
+			await waitFor(() =>
+				expect(trpcMocks.sessionCreate).toHaveBeenCalledTimes(1)
+			);
+			const temporary = firstPageItems(qc, key)?.[0];
+			expect(temporary?.id).toMatch(TEMP_ID_PATTERN);
+			act(() => result.current.delete("s1"));
+			await waitFor(() =>
+				expect(trpcMocks.sessionDelete).toHaveBeenCalledTimes(1)
+			);
+			act(() => deleting.reject(new Error("delete rejected")));
+			await waitFor(() => expect(qc.isMutating()).toBe(1));
+			expect(firstPageItems(qc, key)).toEqual([temporary, original]);
+			expect(trpcMocks.sessionList).not.toHaveBeenCalled();
+			await act(async () => {
+				creating.reject(new Error("create rejected"));
+				await outcome;
+			});
+			expect(firstPageItems(qc, key)).toEqual([original]);
+			await act(async () => {
+				refetch.resolve({ items: [original] });
+				await refetch.promise;
+			});
+			await waitFor(() => expect(qc.isFetching()).toBe(0));
+			unmount();
+			qc.clear();
+		});
+
+		it("settles and invalidates the original list after the filter changes", async () => {
+			const qc = createClient();
+			const oldKey = listKeyForFilters(filtersToListInput({ roomId: "old" }));
+			const newKey = listKeyForFilters(filtersToListInput({ roomId: "new" }));
+			const original = baseSessionItem({ roomId: "old" });
+			const other = baseSessionItem({ id: "other", roomId: "new" });
+			qc.setQueryDefaults(oldKey, { gcTime: Number.POSITIVE_INFINITY });
+			qc.setQueryDefaults(newKey, { gcTime: Number.POSITIVE_INFINITY });
+			qc.setQueryData(oldKey, infiniteCache([original]));
+			qc.setQueryData(newKey, infiniteCache([other]));
+			const editing = Promise.withResolvers<unknown>();
+			trpcMocks.sessionUpdate.mockReturnValue(editing.promise);
+			const { result, rerender, unmount } = renderHook(
+				({ roomId }) => useSessions({ roomId }),
+				{
+					initialProps: { roomId: "old" },
+					wrapper: makeWrapper(qc),
+				}
+			);
+			let outcome: Promise<unknown> | undefined;
+			act(() => {
+				outcome = result.current
+					.update({ ...cashValues({ memo: "pending" }), id: "s1" })
+					.catch((error: unknown) => error);
+			});
+			await waitFor(() =>
+				expect(trpcMocks.sessionUpdate).toHaveBeenCalledTimes(1)
+			);
+			rerender({ roomId: "new" });
+			await act(async () => {
+				editing.reject(new Error("edit rejected"));
+				await outcome;
+			});
+			expect(qc.getQueryData(oldKey)).toEqual(infiniteCache([original]));
+			expect(qc.getQueryState(oldKey)?.isInvalidated).toBe(true);
+			expect(qc.getQueryData(newKey)).toEqual(infiniteCache([other]));
+			expect(trpcMocks.sessionList).not.toHaveBeenCalled();
+			unmount();
+			qc.clear();
+		});
+	});
+
 	describe("reopen", () => {
 		it("forwards the live session id and navigates to /active-session on success", async () => {
 			const qc = createClient();

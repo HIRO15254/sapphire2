@@ -1039,6 +1039,72 @@ describe("useCurrencies", () => {
 	});
 
 	describe("fetching during a pending transaction mutation", () => {
+		it.each([
+			"create",
+			"edit",
+			"delete",
+		] as const)("invalidates the original currency after a pending %s settles on another currency", async (operation) => {
+			const first: TxRow = {
+				id: "tx1",
+				amount: 100,
+				transactionTypeName: "Deposit",
+				transactedAt: "2026-01-01",
+			};
+			const second: TxRow = { ...first, id: "tx2", amount: 50 };
+			const changing = Promise.withResolvers<unknown>();
+			const request = {
+				create: trpcMocks.txCreate,
+				edit: trpcMocks.txUpdate,
+				delete: trpcMocks.txDelete,
+			}[operation];
+			request.mockReturnValue(changing.promise);
+			const qc = createClient();
+			qc.setQueryDefaults(["currencyTransaction", "listByCurrency"], {
+				gcTime: Number.POSITIVE_INFINITY,
+			});
+			qc.setQueryData(txInfiniteKey("c1"), seedPages([{ items: [first] }]));
+			qc.setQueryData(txInfiniteKey("c2"), seedPages([{ items: [second] }]));
+			const { result, rerender, unmount } = renderHook(
+				(currencyId: string) => useCurrencies(currencyId),
+				{ initialProps: "c1", wrapper: makeWrapper(qc) }
+			);
+			let outcome: Promise<unknown> | undefined;
+			act(() => {
+				if (operation === "create") {
+					outcome = result.current.addTransaction({
+						currencyId: "c1",
+						amount: 200,
+						transactionTypeId: "T",
+						transactedAt: first.transactedAt,
+					});
+				} else if (operation === "edit") {
+					outcome = result.current.editTransaction({
+						id: first.id,
+						amount: 200,
+						memo: null,
+						transactionTypeId: "T",
+						transactedAt: first.transactedAt,
+					});
+				} else {
+					result.current.deleteTransaction(first.id);
+				}
+			});
+			await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
+			rerender("c2");
+			expect(result.current.allTransactions).toEqual([second]);
+			await act(async () => {
+				changing.resolve({ id: first.id });
+				await outcome;
+			});
+			await waitFor(() => expect(qc.isMutating()).toBe(0));
+			expect(qc.getQueryState(txInfiniteKey("c1"))?.isInvalidated).toBe(true);
+			expect(qc.getQueryState(txInfiniteKey("c2"))?.isInvalidated).toBe(false);
+			expect(trpcMocks.txListQueryFn).not.toHaveBeenCalled();
+			expect(result.current.allTransactions).toEqual([second]);
+			unmount();
+			qc.clear();
+		});
+
 		it("does not resurrect a rejected edit when a page finishes loading after leaving the screen", async () => {
 			const first: TxRow = {
 				id: "tx1",

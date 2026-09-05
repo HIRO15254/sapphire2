@@ -10,6 +10,97 @@ import {
 const KEY = ["transactions", { currencyId: "c1" }];
 
 describe("overlapping optimistic query updates", () => {
+	it("reconciles a confirmed create with server data without losing a pending edit", () => {
+		const client = createTestQueryClient();
+		interface Row {
+			amount: number;
+			id: string;
+		}
+		client.setQueryData(KEY, [{ id: "tx1", amount: 100 }]);
+		const create = beginOptimisticQueryUpdate(client, KEY, () =>
+			updateQueryItems<Row>(client, KEY, (rows) => [
+				{ id: "temp", amount: 50 },
+				...rows,
+			])
+		);
+		const edit = beginOptimisticQueryUpdate(client, KEY, () =>
+			updateQueryItems<Row>(client, KEY, (rows) =>
+				rows.map((row) => (row.id === "tx1" ? { ...row, amount: 200 } : row))
+			)
+		);
+		const serverRows = [
+			{ id: "created", amount: 50 },
+			{ id: "tx1", amount: 125 },
+		];
+		client.setQueryData(KEY, serverRows);
+		create.replaceApply(() =>
+			updateQueryItems<Row>(client, KEY, (rows) =>
+				rows.some((row) => row.id === "created")
+					? rows
+					: [{ id: "created", amount: 50 }, ...rows]
+			)
+		);
+		expect(client.getQueryData(KEY)).toEqual([
+			{ id: "created", amount: 50 },
+			{ id: "tx1", amount: 200 },
+		]);
+		expect(create.settle(true)).toBe(false);
+		expect(edit.settle(false)).toBe(true);
+		expect(client.getQueryData(KEY)).toEqual(serverRows);
+		client.clear();
+	});
+
+	it("discards a throwing replacement without retaining its partial write or losing a sibling", () => {
+		const client = createTestQueryClient();
+		client.setQueryData(KEY, [100]);
+		const create = beginOptimisticQueryUpdate(client, KEY, () =>
+			updateQueryItems<number>(client, KEY, (rows) => [50, ...rows])
+		);
+		const edit = beginOptimisticQueryUpdate(client, KEY, () =>
+			updateQueryItems<number>(client, KEY, (rows) =>
+				rows.map((amount) => (amount === 100 ? 200 : amount))
+			)
+		);
+		create.replaceApply(() => {
+			updateQueryItems<number>(client, KEY, () => [999]);
+			throw new Error("cannot reconcile create");
+		});
+		expect(client.getQueryData(KEY)).toEqual([200]);
+		create.replaceApply(() =>
+			updateQueryItems<number>(client, KEY, () => [888])
+		);
+		expect(client.getQueryData(KEY)).toEqual([200]);
+		expect(create.settle(true)).toBe(false);
+		expect(edit.settle(false)).toBe(true);
+		expect(client.getQueryData(KEY)).toEqual([100]);
+		client.clear();
+	});
+
+	it.each([
+		"settled",
+		"removed",
+	])("ignores a replacement from a %s handle while a newer group is active", (state) => {
+		const client = createTestQueryClient();
+		client.setQueryData(KEY, [100]);
+		const old = beginOptimisticQueryUpdate(client, KEY, () =>
+			updateQueryItems<number>(client, KEY, () => [200])
+		);
+		if (state === "settled") {
+			old.settle(true);
+		} else {
+			client.removeQueries({ queryKey: KEY });
+		}
+		client.setQueryData(KEY, [250]);
+		const current = beginOptimisticQueryUpdate(client, KEY, () =>
+			updateQueryItems<number>(client, KEY, () => [300])
+		);
+		old.replaceApply(() => updateQueryItems<number>(client, KEY, () => [999]));
+		expect(client.getQueryData(KEY)).toEqual([300]);
+		expect(current.settle(false)).toBe(true);
+		expect(client.getQueryData(KEY)).toEqual([250]);
+		client.clear();
+	});
+
 	it.each([
 		"edit",
 		"create",

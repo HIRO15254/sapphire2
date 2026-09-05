@@ -257,7 +257,7 @@
 
 - 変更テストと削除元の代替テストを対象にしたscoped Vitestは31ファイル・371テスト成功（web-dom/web-node、14.38秒）。web型検査成功、担当30ファイルのUltracite検査成功。既存routeテストからjsdomのscrollTo未実装通知が出るが、Vitestの未処理エラーはない。全workspaceの最終signalはCIで確認する。
 - 維持したmock利用テストは、保存値の正規化・操作可否・タイマー等の独立契約を担う。mockの関数呼び出しが通ったことを、API認可・DB永続化・ブラウザーの実挙動の証明には数えない。
-- 並行mutationのhelperはcurrency取引のcreate/edit/deleteを協調させる。PRレビューへの対応で、処理中のrefetch結果を復旧基準へ反映し、load moreで増えたページもrollback後に保持するよう補強した。groupへ参加しない別の楽観的writerの差分合成までは保証しない。
+- 並行mutationのhelperはcurrency取引とsession一覧のcreate/edit/deleteを協調させる。PRレビューへの対応で、処理中のrefetch結果を復旧基準へ反映し、load moreで増えたページもrollback後に保持するよう補強した。groupへ参加しない別の楽観的writerの差分合成までは保証しない。
 - 対象ファイルを残す判断とテスト環境全体の完成は別である。PWA更新、IndexedDBのアカウント分離、認証、実DB、ライブセッションの競合は担当の統合/E2Eおよび別レビューと合わせて確認する。
 
 ## dev 更新の取り込み
@@ -281,3 +281,11 @@ CI `33939497108` のcoverageで未実行sourceを確認し、`UpdateStackEditor`
 `apps/web/src/features/live-sessions/components/event-editors/event-editor/event-editor.test.tsx` に2ケースを追加した。実 `EventEditor` の種類判定から `UpdateStackEditor`、hook、TanStack Form、入力fieldまでをmockせず、人数の変更を数値で保存し、既存のstack・chip購入情報・発生時刻を保持することを検証する。もう1ケースは負のstackで保存しないことと人数の入力保持、0へ修正した後の再送を確認する。hook単体への重複追加や、現在の呼出元から表示されないchip購入count入力の全分岐追加は行わない。
 
 追加2ケースは既存実装で成功し、source修正は不要だった。web型検査、対象Ultracite、`check:rules`、全391テストファイルの検出・重複検査が成功し、別担当の読み取りレビューも指摘なしだった。保存callbackを境界にするUI連携テストであり、HTTP・DB永続化・sheetの開閉を保証するものではない。0%という数値ではなく、到達可能な履歴保存契約の欠落を補完した。
+
+## Session一覧のレビュー追補
+
+初回に維持とした `use-sessions.test.ts` には、処理中の追加ページ取得やcreateとeditの並行完了に不足があった。create/edit/deleteを共通更新groupへ移行し、実QueryClientと保留した応答を使って、ページ保持と他のpending操作の保持を検証する。仮行のID・生成日時は再適用で変えず、作成確定時にはサーバーIDへ置換する。確定行が別ページにあっても二重挿入せず、そのサーバー行の関連データを保持する。filter切替後の完了も開始時のqueryを無効化する。
+
+`session.list` の他の呼出箇所も調べ、キャッシュへ直接楽観値を書く追加writerはなかった。作成中の仮行が現在のfilter条件と一致しない場合も一時表示する既存挙動は維持する。作成応答より先に確定行を取得した場合、応答でIDが判明するまでは仮行と同一か判断できないため、重複解消の保証は作成確定時からとなる。
+
+通貨取引のcreate/edit/deleteにも、処理中の表示通貨切替で完了時の再取得先が変わる問題があった。実QueryClientで2通貨を用意し、保留した操作の開始後に表示を切り替える3ケースで再現してから、開始時のquery keyを保持するよう修正した。元の通貨をstaleにし、切替先の不要な再取得と表示変更を防ぐ。Session一覧72ケース、通貨取引52ケース、共通helper関連56ケースが成功した。

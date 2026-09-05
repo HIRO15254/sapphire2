@@ -1,5 +1,6 @@
 import type { MixGameGroup } from "@sapphire2/db/schemas/game";
 import {
+	type InfiniteData,
 	useInfiniteQuery,
 	useMutation,
 	useQuery,
@@ -14,12 +15,11 @@ import {
 } from "@/features/sessions/utils/session-form-helpers";
 import { resolveDateRange } from "@/shared/lib/period-filter";
 import {
+	beginOptimisticQueryUpdate,
 	cancelTargets,
 	createOptimisticId,
 	invalidateTargets,
 	prependInfiniteQueryItem,
-	restoreSnapshots,
-	snapshotQuery,
 	updateInfiniteQueryItems,
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
@@ -481,19 +481,47 @@ export function useSessions(filters: SessionFilterValues) {
 			trpcClient.session.create.mutate(buildCreatePayload(values)),
 		onMutate: async (newSession) => {
 			await cancelTargets(queryClient, [{ queryKey: sessionListKey }]);
-			const previous = snapshotQuery(queryClient, sessionListKey);
-			prependInfiniteQueryItem<SessionItem>(
+			const optimistic = buildOptimisticItem(newSession);
+			const prepend = (item: SessionItem) => {
+				const current =
+					queryClient.getQueryData<InfiniteData<{ items: SessionItem[] }>>(
+						sessionListKey
+					);
+				if (
+					current?.pages.some((page) =>
+						page.items.some((row) => row.id === item.id)
+					)
+				) {
+					return;
+				}
+				prependInfiniteQueryItem(queryClient, sessionListKey, item);
+			};
+			const change = beginOptimisticQueryUpdate(
 				queryClient,
 				sessionListKey,
-				buildOptimisticItem(newSession)
+				() => prepend(optimistic)
 			);
-			return { previous };
+			return {
+				...change,
+				queryKey: sessionListKey,
+				confirm(id: string) {
+					const confirmed = { ...optimistic, id };
+					change.replaceApply(() => prepend(confirmed));
+				},
+			};
 		},
-		onError: (_err, _vars, context) => {
-			restoreSnapshots(queryClient, [context?.previous]);
+		onSuccess: (created, _vars, context) => {
+			if (created) {
+				context?.confirm(created.id);
+			}
 		},
-		onSettled: () => {
-			invalidateTargets(queryClient, [{ queryKey: sessionListKey }]);
+		onSettled: (_data, error, _vars, context) => {
+			if (context && !context.settle(error === null)) {
+				return;
+			}
+			invalidateTargets(queryClient, [
+				{ queryKey: context?.queryKey ?? sessionListKey },
+			]);
 		},
 	});
 
@@ -508,28 +536,35 @@ export function useSessions(filters: SessionFilterValues) {
 			),
 		onMutate: async (updated) => {
 			await cancelTargets(queryClient, [{ queryKey: sessionListKey }]);
-			const previous = snapshotQuery(queryClient, sessionListKey);
-			updateInfiniteQueryItems<SessionItem>(
+			const change = beginOptimisticQueryUpdate(
 				queryClient,
 				sessionListKey,
-				(items) =>
-					items.map((s) =>
-						s.id === updated.id
-							? {
-									...s,
-									sessionDate: updated.sessionDate,
-									memo: updated.memo ?? null,
-								}
-							: s
-					)
+				() => {
+					updateInfiniteQueryItems<SessionItem>(
+						queryClient,
+						sessionListKey,
+						(items) =>
+							items.map((s) =>
+								s.id === updated.id
+									? {
+											...s,
+											sessionDate: updated.sessionDate,
+											memo: updated.memo ?? null,
+										}
+									: s
+							)
+					);
+				}
 			);
-			return { previous };
+			return { ...change, queryKey: sessionListKey };
 		},
-		onError: (_err, _vars, context) => {
-			restoreSnapshots(queryClient, [context?.previous]);
-		},
-		onSettled: () => {
-			invalidateTargets(queryClient, [{ queryKey: sessionListKey }]);
+		onSettled: (_data, error, _vars, context) => {
+			if (context && !context.settle(error === null)) {
+				return;
+			}
+			invalidateTargets(queryClient, [
+				{ queryKey: context?.queryKey ?? sessionListKey },
+			]);
 		},
 	});
 
@@ -537,19 +572,26 @@ export function useSessions(filters: SessionFilterValues) {
 		mutationFn: (id: string) => trpcClient.session.delete.mutate({ id }),
 		onMutate: async (id) => {
 			await cancelTargets(queryClient, [{ queryKey: sessionListKey }]);
-			const previous = snapshotQuery(queryClient, sessionListKey);
-			updateInfiniteQueryItems<SessionItem>(
+			const change = beginOptimisticQueryUpdate(
 				queryClient,
 				sessionListKey,
-				(items) => items.filter((s) => s.id !== id)
+				() => {
+					updateInfiniteQueryItems<SessionItem>(
+						queryClient,
+						sessionListKey,
+						(items) => items.filter((s) => s.id !== id)
+					);
+				}
 			);
-			return { previous };
+			return { ...change, queryKey: sessionListKey };
 		},
-		onError: (_err, _vars, context) => {
-			restoreSnapshots(queryClient, [context?.previous]);
-		},
-		onSettled: () => {
-			invalidateTargets(queryClient, [{ queryKey: sessionListKey }]);
+		onSettled: (_data, error, _vars, context) => {
+			if (context && !context.settle(error === null)) {
+				return;
+			}
+			invalidateTargets(queryClient, [
+				{ queryKey: context?.queryKey ?? sessionListKey },
+			]);
 		},
 	});
 

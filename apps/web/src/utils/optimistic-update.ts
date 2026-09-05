@@ -190,6 +190,13 @@ export function beginOptimisticQueryUpdate(
 	const update = { apply, failed: false, replayFailed: false, settled: false };
 	group.updates.push(update);
 	return {
+		replaceApply(replacement: () => void): void {
+			if (update.settled || update.replayFailed || group.disposed) {
+				return;
+			}
+			update.apply = replacement;
+			replayQueryUpdates(queryClient, group);
+		},
 		settle(succeeded: boolean): boolean {
 			if (update.settled || group.disposed) {
 				return false;
