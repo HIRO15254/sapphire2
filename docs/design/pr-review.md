@@ -1,5 +1,7 @@
 # Automated PR Review
 
+2026-09-05: 全PRのレビュー手順を単一コンテキストのleanへ統一する。Opus・medium・上限80ターン、サブエージェントとFast modeは無効。OAuth認証を継続し、追加使用はアカウント側でオフにして運用する。計測結果と条件は[Claudeレビューの軽量化評価](pr-review-lean-evaluation.md)を参照。以下の過去の運用データと、最大2巡・CI待機の根拠は維持する。
+
 Design rationale for [`pre-merge-review.yml`](../../.github/workflows/pre-merge-review.yml) and [`scripts/review-gate.ts`](../../scripts/review-gate.ts): why the reviewer runs at most two automatic rounds, why it waits for CI, why it installs dependencies, and what the author-side rules in [`AGENTS.md`](../../AGENTS.md) (PR Review Loop) are protecting. The imperatives live there; this doc holds the data that justified them so the next change to the loop can be judged against the same baseline.
 
 ## The problem the loop had
@@ -55,7 +57,9 @@ The four retracted findings were all built on an assumed library behaviour the r
 
 **CI wait** — the review job polls the `ci` check run on the head for up to 30 minutes and runs Claude only on `success`. A red head is skipped (step summary only, no PR comment: the author is about to push a fix and CI already reports the failure). Because the wait sits inside the concurrency group, a new push cancels a *waiting* run instead of a *running* one — the 37 cancelled runs above were all mid-review.
 
-**The reviewer is a repository skill** — [`.claude/skills/pr-review/SKILL.md`](../../.claude/skills/pr-review/SKILL.md). The workflow passes only `full` or `incremental`, the diff range, the round and `--post`; the same skill runs locally as `/pr-review full` (report-only) and is what the evaluation below executes. Its shape is a fork of Anthropic's open-source `code-review` plugin ([`plugins/code-review/commands/code-review.md`](https://github.com/anthropics/claude-code/blob/main/plugins/code-review/commands/code-review.md)): parallel finders → one validator per candidate → confidence gate → post. Three things are injected that the plugin does not have:
+**現在のレビュアー** — [`.claude/skills/pr-review/SKILL.md`](../../.claude/skills/pr-review/SKILL.md)が全PRをleanへ振り分け、同じコンテキストで探索・反証・検証する。workflowは`full`または`incremental`、差分範囲、巡数、`--post`を渡す。ローカルの`/pr-review full`は投稿なし。確定したimportantのみインラインに投稿し、nit・既存・未確認は要約に集約する。末尾のJSON trailerと修正済みスレッドのresolveは維持する。
+
+**以下は比較対象となった従来手順の記録** — AnthropicのOSS `code-review`を基にした複数エージェント構成で、現在の運用手順ではない。過去の測定結果を解釈するために保持する。
 
 1. **Rule files reach the finders.** The plugin's two CLAUDE.md-compliance reviewers become one reviewer per touched area (web / api-server / db / mcp), each given the matching `.claude/rules/*.md` and only the diff for its paths, so the rules land at finding time rather than as a post-filter. This is the same lever Anthropic's managed Code Review exposes as `REVIEW.md` ("given to the agents that find and verify findings").
 2. **Validators must execute.** A claim about a library is read from `node_modules` source or exercised; a claim about a test's detection power is checked by running it (`bunx vitest run --project …`). A validator that ran nothing can return PLAUSIBLE, never CONFIRMED. No commercial reviewer surveyed in September 2026 executes tests before posting (Cursor Bugbot lists it as future work), and all four retracted findings in the audit were library-behaviour guesses made without `node_modules`.

@@ -175,6 +175,8 @@ jobs:
         id: claude_review
         if: steps.ci.outputs.state == 'success'
         uses: anthropics/claude-code-action@v1
+        env:
+          CLAUDE_CODE_DISABLE_FAST_MODE: "1"
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # The action creates and updates one tracking comment per run from
@@ -194,14 +196,16 @@ jobs:
           # max-turns is a runaway guard, not a budget (a truncated run still
           # costs the tokens and produces nothing). allowedTools: everything
           # else is denied and each denial burns a turn. Skill loads
-          # /pr-review; Task/Agent are its finder and validator subagents.
+          # /pr-review; Task/Agent are disabled for the single-reviewer flow.
           # `gh api` stays out because the diff is untrusted input and the
           # token can write to PRs; thread resolution happens in the shell
           # step below, from the machine-readable trailer of the summary.
           claude_args: |
             --max-turns 80
             --model opus
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Skill,Task,Agent,TodoWrite,ReportFindings,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git merge-base:*),Bash(rg:*),Bash(bunx vitest run:*),Bash(bunx vitest related:*),Bash(bun run check-types),Bash(bun run check:rules),Bash(bun run lint),Bash(bun x ultracite check:*)"
+            --effort medium
+            --disallowedTools "Task,Agent"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Skill,TodoWrite,ReportFindings,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git merge-base:*),Bash(rg:*),Bash(bunx vitest run:*),Bash(bunx vitest related:*),Bash(bun run check-types),Bash(bun run check:rules),Bash(bun run lint),Bash(bun x ultracite check:*)"
 
       - name: Record the round
         if: steps.claude_review.outcome == 'success'
