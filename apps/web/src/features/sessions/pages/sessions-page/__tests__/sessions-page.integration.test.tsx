@@ -19,6 +19,7 @@ import {
 	renderIntegrationPage,
 	trpcHttpHandler,
 } from "@/__tests__/integration";
+import type { SessionListCardItem } from "@/features/sessions/pages/sessions-page/session-list-card";
 import { SessionsPage } from "@/features/sessions/pages/sessions-page/sessions-page";
 import { queryClient } from "@/utils/trpc";
 
@@ -29,12 +30,14 @@ vi.mock("@sapphire2/env/web", () => ({
 type CreateSessionInput = inferRouterInputs<AppRouter>["session"]["create"];
 const BUY_IN_LABEL = /^Buy-in/;
 const CASH_OUT_LABEL = /^Cash-out/;
+const SAVED_SESSION_LINK = /Aria/;
+let sessions: SessionListCardItem[] = [];
 const create = vi.fn<(input: CreateSessionInput) => Promise<{ id: string }>>();
 const t = initTRPC.create({ isServer: true });
 const emptyList = t.procedure.query(() => []);
 const fixtureRouter = t.router({
 	session: t.router({
-		list: t.procedure.query(() => ({ items: [], nextCursor: undefined })),
+		list: t.procedure.query(() => ({ items: sessions, nextCursor: undefined })),
 		create: t.procedure
 			.input(z.custom<CreateSessionInput>())
 			.mutation(({ input }) => create(input)),
@@ -79,7 +82,37 @@ beforeEach(() => {
 		queries: { retry: false, gcTime: 0, staleTime: Number.POSITIVE_INFINITY },
 		mutations: { retry: false },
 	});
-	create.mockReset().mockResolvedValue({ id: "saved-session" });
+	sessions = [];
+	create.mockReset().mockImplementation((input) => {
+		sessions = [
+			{
+				id: "saved-session",
+				type: "cash_game",
+				source: "manual",
+				sessionDate: new Date(input.sessionDate * 1000).toISOString(),
+				roomName: "Aria",
+				profitLoss: 150,
+				breakMinutes: null,
+				cashVariant: null,
+				chipPurchaseCost: 0,
+				currencyUnit: null,
+				endedAt: null,
+				entryFee: null,
+				evCashOut: null,
+				evProfitLoss: null,
+				placement: null,
+				ringGameBlind2: null,
+				ringGameName: null,
+				startedAt: null,
+				tags: [],
+				totalEntries: null,
+				tournamentBuyIn: null,
+				tournamentName: null,
+				tournamentVariant: null,
+			},
+		];
+		return Promise.resolve({ id: "saved-session" });
+	});
 });
 
 afterEach(async () => {
@@ -147,6 +180,11 @@ it("keeps failed session input and the sheet open, then closes after a successfu
 	await waitFor(() =>
 		expect(screen.queryByRole("dialog", { name: "New session" })).toBeNull()
 	);
+	const savedSession = await screen.findByRole("link", {
+		name: SAVED_SESSION_LINK,
+	});
+	expect(savedSession).toHaveAttribute("href", "/sessions/saved-session");
+	expect(savedSession).toHaveTextContent("+150");
 	expect(create).toHaveBeenCalledTimes(2);
 	expect(create).toHaveBeenNthCalledWith(
 		2,

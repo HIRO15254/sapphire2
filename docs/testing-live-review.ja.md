@@ -137,3 +137,9 @@ OAuth E2Eは実登録・認証・Cookie・D1・MCPを通す構成を保持し、
 取り込み後にlive領域・rootのtournament-lifecycle/session-events-routes・全auth・新shared/lib 3ファイルを対象指定で実行し、98ファイル・1,114ケースが成功した（32.74秒）。追加基盤の型検査と担当ファイルの整形・差分検査も成功し、E2E終了後に専用port 13001/18787のListenが残っていないことを確認した。
 
 実認証までの残る接続を保護するため、新規 [passkeys.spec.ts](../e2e/passkeys.spec.ts) を1件追加した。mobile Settingsで登録→reload後の保存確認→実logoutとsession消去→passkeyログイン→同じuser ID/emailへの復帰を実行する。CDP仮想認証器のresident credential・RP ID・署名counterの増加も確認し、SDKや `navigator.credentials`、Better Auth、D1をmockしない。認証器はケース終了時に除去する。個別実行は1件成功（本体6.1秒、起動込み1.0分）、型・整形・port解放確認も成功した。初回は成功toastがSign out操作を遮るテスト手順で失敗したため、登録後のreloadと保存確認を追加した。製品バグ修正のredには数えない。Playwrightの検出結果は既存9件と合わせて5ファイル・10件で、新規ケースはmobileだけに登録される。
+
+## 実tRPCキーによる一覧無効化の追補
+
+記録済みセッション一覧はinfinite queryだが、ライブ開始・完了・破棄・割当・event更新の8フックが通常query用キーで無効化していた。既存の配列mockはquery種別の違いを消していたため、この不一致を検出できていなかった。対象は `use-create-session`、cash/tournamentの `use-*-session` / `use-*-stack`、`use-session-events`、ring/tournamentの `use-assign-*`。これらのsession.list用キーだけを `pathKey()` へ変更し、別procedureは維持した。
+
+対応する既存テストで実options proxyから生成したinfinite cacheを用意し、各操作後にstaleになることを検証する。テストを増やさず、mockキーへのspy期待を実cacheへ置換・補強した。tournament-lifecycleのfixtureも実キーに合わせた。セッション詳細・タグの同種修正を含む全体では既存13ケースでredを確認し、11ファイル・122ケースが成功した。保存データの正しさ・認可はD1統合の責務であり、この検証は関連一覧の更新漏れを保護する。

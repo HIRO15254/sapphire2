@@ -9,6 +9,7 @@ import {
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { trpcKeys } from "@/__tests__/trpc-keys";
 
 Object.defineProperty(window, "matchMedia", {
 	writable: true,
@@ -99,8 +100,11 @@ vi.mock("@/utils/trpc", () => ({
 		},
 		session: {
 			list: {
-				queryOptions: (args?: unknown) => ({
-					queryKey: ["session-list", args],
+				pathKey: () => trpcKeys.session.list.pathKey(),
+				queryOptions: (
+					args: Parameters<typeof trpcKeys.session.list.queryOptions>[0]
+				) => ({
+					...trpcKeys.session.list.queryOptions(args),
 					queryFn: () => mockQuery("session-list", args),
 				}),
 			},

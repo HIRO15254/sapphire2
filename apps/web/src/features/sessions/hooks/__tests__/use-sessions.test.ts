@@ -1,4 +1,8 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+	QueryClient,
+	QueryClientProvider,
+	type QueryKey,
+} from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,12 +11,6 @@ import type {
 	SessionFormValues,
 	SessionItem,
 } from "@/features/sessions/hooks/use-sessions";
-
-function buildKey(namespace: string, procedure: string, input: unknown) {
-	return input === undefined
-		? [namespace, procedure]
-		: [namespace, procedure, input];
-}
 
 const trpcMocks = vi.hoisted(() => ({
 	sessionList: vi.fn(),
@@ -31,55 +29,58 @@ vi.mock("@tanstack/react-router", () => ({
 	useNavigate: () => routerMocks.navigate,
 }));
 
-vi.mock("@/utils/trpc", () => ({
-	trpc: {
-		session: {
-			list: {
-				queryKey: () => buildKey("session", "list", undefined),
-				infiniteQueryOptions: (
-					input: unknown,
-					opts: {
-						getNextPageParam: (lastPage: { nextCursor?: string }) => unknown;
-					}
-				) => ({
-					queryKey: buildKey("session", "list", input),
-					queryFn: (...args: unknown[]) => trpcMocks.sessionList(...args),
-					initialPageParam: undefined,
-					getNextPageParam: opts.getNextPageParam,
-				}),
+vi.mock("@/utils/trpc", async () => {
+	const { trpcKeys: proxy } = await import("@/__tests__/trpc-keys");
+	return {
+		trpc: {
+			session: {
+				list: {
+					pathKey: proxy.session.list.pathKey,
+					queryKey: proxy.session.list.queryKey,
+					infiniteQueryOptions: (
+						...args: Parameters<typeof proxy.session.list.infiniteQueryOptions>
+					) => ({
+						...proxy.session.list.infiniteQueryOptions(...args),
+						queryFn: (...args: unknown[]) => trpcMocks.sessionList(...args),
+					}),
+				},
+			},
+			sessionTag: {
+				list: {
+					queryOptions: () => ({
+						...proxy.sessionTag.list.queryOptions(),
+						queryFn: () => Promise.resolve([]),
+					}),
+				},
+			},
+			liveCashGameSession: {
+				list: {
+					queryOptions: (
+						...args: Parameters<
+							typeof proxy.liveCashGameSession.list.queryOptions
+						>
+					) => ({
+						...proxy.liveCashGameSession.list.queryOptions(...args),
+						queryFn: () => Promise.resolve({ items: [] }),
+					}),
+				},
 			},
 		},
-		sessionTag: {
-			list: {
-				queryOptions: () => ({
-					queryKey: buildKey("sessionTag", "list", undefined),
-					queryFn: () => Promise.resolve([]),
-				}),
+		trpcClient: {
+			session: {
+				create: { mutate: trpcMocks.sessionCreate },
+				update: { mutate: trpcMocks.sessionUpdate },
+				delete: { mutate: trpcMocks.sessionDelete },
+			},
+			sessionTag: {
+				create: { mutate: trpcMocks.sessionTagCreate },
+			},
+			liveCashGameSession: {
+				reopen: { mutate: trpcMocks.liveCashReopen },
 			},
 		},
-		liveCashGameSession: {
-			list: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveCashGameSession", "list", input),
-					queryFn: () => Promise.resolve({ items: [] }),
-				}),
-			},
-		},
-	},
-	trpcClient: {
-		session: {
-			create: { mutate: trpcMocks.sessionCreate },
-			update: { mutate: trpcMocks.sessionUpdate },
-			delete: { mutate: trpcMocks.sessionDelete },
-		},
-		sessionTag: {
-			create: { mutate: trpcMocks.sessionTagCreate },
-		},
-		liveCashGameSession: {
-			reopen: { mutate: trpcMocks.liveCashReopen },
-		},
-	},
-}));
+	};
+});
 
 import {
 	buildCreatePayload,
@@ -92,6 +93,7 @@ import {
 	formatTimeFromDate,
 	useSessions,
 } from "@/features/sessions/hooks/use-sessions";
+import { trpc } from "@/utils/trpc";
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_HH_MM_PATTERN = /^\d{2}:\d{2}$/;
@@ -112,20 +114,24 @@ function makeWrapper(client: QueryClient) {
 	};
 }
 
-function listKeyForFilters(filters: ReturnType<typeof filtersToListInput>) {
-	return buildKey("session", "list", filters);
+function listKeyForFilters(
+	filters: ReturnType<typeof filtersToListInput>
+): QueryKey {
+	return trpc.session.list.infiniteQueryOptions(filters, {
+		getNextPageParam: (page) => page.nextCursor,
+	}).queryKey;
 }
 
 function infiniteCache(items: SessionItem[], nextCursor?: string) {
 	return { pageParams: [undefined], pages: [{ items, nextCursor }] };
 }
 
-function firstPageItems(qc: QueryClient, key: ReturnType<typeof buildKey>) {
+function firstPageItems(qc: QueryClient, key: QueryKey) {
 	return qc.getQueryData<{ pages: { items: SessionItem[] }[] }>(key)?.pages[0]
 		?.items;
 }
 
-const TAG_LIST_KEY = buildKey("sessionTag", "list", undefined);
+const TAG_LIST_KEY: QueryKey = trpc.sessionTag.list.queryOptions().queryKey;
 
 function cashValues(
 	overrides: Partial<SessionFormValues> = {}

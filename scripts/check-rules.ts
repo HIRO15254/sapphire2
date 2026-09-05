@@ -82,6 +82,14 @@ const CHECKS: Check[] = [
 		excludePath: /__tests__|\.test\./,
 	},
 	{
+		name: "ordinary query key for the infinite session list — use pathKey() for invalidation",
+		rule: ".claude/rules/web-data-fetching.md",
+		globs: ["apps/web/src/**/*.{ts,tsx}"],
+		pattern:
+			/\btrpc\s*\.\s*session\s*\.\s*list\s*\.\s*(queryKey|queryOptions)\s*\(/,
+		excludePath: /__tests__|\.test\./,
+	},
+	{
 		name: "session-event append pre-read — allocate order inside the INSERT",
 		rule: ".claude/rules/api-data-integrity.md (SA2-196)",
 		globs: ["packages/api/src/**/*.ts"],

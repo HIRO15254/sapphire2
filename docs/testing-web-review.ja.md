@@ -293,3 +293,5 @@ CI `33939497108` のcoverageで未実行sourceを確認し、`UpdateStackEditor`
 Sessionで「切替先をrefetchしない」とした当初の追加テストは、同じレコードが両filterへ該当し得ることを除外していたため、期待値を訂正した。開始時filterで書込みを保留し、切替先の書込み前の取得応答を受けてから成功させる3ケースで、表示中の一覧へ作成・編集・削除が反映されることを確認する。失敗時は元のfilterだけをrollbackし、切替先へはサーバーからの再取得を行う。これはテスト整理に伴う検証の弱体化ではなく、影響範囲を誤って狭めていた期待値の修正である。
 
 `sessions-page.integration.test.tsx` を追加し、既存page hookのmockテストでは見落としていた作成拒否後の未処理Promiseを検出した。実page・Wizard・hook・QueryClientを使い、MSWで実tRPC HTTPへの応答だけを制御する。失敗時のtoast・金額・メモ・room保持、シートを閉じず再送できること、成功時の閉鎖を保護する。変更前はVitestが未処理のTRPCClientErrorを検出して失敗し、page hookの拒否handler追加後に成功した。既存page hookも合わせ49ケース、filter追補後のuseSessionsは76ケースが成功した。
+
+キーのprefix関係については、文字列配列を返すmockでは実tRPCのquery/infinite種別を検証できていなかった。共通の `trpc-keys.ts` から実options proxyのキーを取得し、実infinite cacheへの無効化で検証するよう変更した。`session.list.queryKey()` は通常queryだけに一致するため、一覧全体への無効化は `pathKey()` を使う。実画面の同じ作成シナリオも、再取得後に初めて得られるroom名と保存行リンク・損益の表示まで拡張し、古いキーでは失敗することを確認した。

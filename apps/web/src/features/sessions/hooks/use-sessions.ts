@@ -519,7 +519,7 @@ export function useSessions(filters: SessionFilterValues) {
 				return;
 			}
 			invalidateTargets(queryClient, [
-				{ queryKey: trpc.session.list.queryKey() },
+				{ queryKey: trpc.session.list.pathKey() },
 			]);
 		},
 	});
@@ -562,7 +562,7 @@ export function useSessions(filters: SessionFilterValues) {
 				return;
 			}
 			invalidateTargets(queryClient, [
-				{ queryKey: trpc.session.list.queryKey() },
+				{ queryKey: trpc.session.list.pathKey() },
 			]);
 		},
 	});
@@ -589,7 +589,7 @@ export function useSessions(filters: SessionFilterValues) {
 				return;
 			}
 			invalidateTargets(queryClient, [
-				{ queryKey: trpc.session.list.queryKey() },
+				{ queryKey: trpc.session.list.pathKey() },
 			]);
 		},
 	});

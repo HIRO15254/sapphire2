@@ -48,6 +48,8 @@ Do not repeat every case of the same contract across multiple layers. Separating
 
 Do not mock the subject under test. When mocking a dependency, be able to explain what is excluded from verification. Mocking DB calls can help exercise branches but does not guarantee SQL authorization, JOIN behavior, or atomicity. Middleware counts and the existence of procedures are not evidence of authentication rejection either. Exercise unauthenticated requests, another user's IDs, and successful requests by the owner; do not count cases that fail only input validation as authentication verification.
 
+When testing tRPC cache invalidation across query types, obtain keys from the real options proxy. Do not recreate the relationship between `queryKey`, `infiniteQueryKey`, and `pathKey` with handmade arrays: ordinary and infinite keys have different type discriminators, and fake prefixes can make a broken invalidation pass. Keep query responses controllable while observing invalidation or refetching of real QueryClient entries.
+
 For UI tests, prioritize roles, labels, visible outcomes, and user interactions. Do not merely lock down CSS classes, decorative element counts, internal state, or props passed to mocked children. Exceptions apply only when these details are themselves product contracts. Assert side-effect counts and ordering when they are part of the contract, such as preventing duplicate saves or clearing the cache on logout.
 
 ## Asynchronous Behavior, State, and External Dependencies

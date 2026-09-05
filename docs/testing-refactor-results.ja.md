@@ -79,3 +79,11 @@ Stryker全体実行、全面的な画像snapshot、別site間の第三者Cookie�
 続くレビューでは、sessionのfilter間で同じレコードが重複して該当することを踏まえ、完了時に一覧procedureのprefixを無効化するよう修正した。楽観表示とrollbackは開始時のqueryに限定するが、書込みの影響は表示中の別filterにも及び得る。追加済みの「切替先をrefetchしない」という期待値はsessionでは誤った契約だったため撤回し、表示中の一覧への作成・編集・削除の反映と、失敗時の開始側だけのrollbackへ置き換えた。3成功ケースと修正した失敗ケースは、変更前の期待値不一致を確認した。通貨取引の切替先は別通貨に所属するため、そちらの限定的な再取得は維持する。
 
 Session作成を呼ぶpage hookの拒否handlerも補い、実画面・Wizard・QueryClient・tRPC HTTPを通す1シナリオを追加した。変更前は入力保持などのassertionが通っても、実際の `Unhandled Rejection` 1件によりVitestが失敗した。変更後はエラー表示、金額・メモ・roomとシートの保持、再試行成功時の閉鎖が未処理エラーなしで成功した。API認可やDB保存の検証とは区別する。Session hook 76ケース、既存page hookと新UIの49ケースが成功し、型・lint・規約と393ファイルの検出照合も成功した。別filterのpending更新をprefix refetch中も保持し、失敗直後に新しいサーバー基準へ戻す保護も含む。
+
+その後、tRPCのキーを単純な配列で模倣するmockが、本番のquery種別の違いを消していたことが判明した。実options proxyとTanStackで確認すると、`session.list.queryKey()` は `type: "query"` を含み、`type: "infinite"` の一覧へ一致しなかった。`pathKey()` は入力条件の異なる3つの実cacheすべてに一致した。useSessionsのキー生成を実proxyへ置換したところ既存5ケースが失敗し、無効化を `pathKey()` に修正すると76ケースが成功した。
+
+実画面テストも、成功後のシート閉鎖だけでなく、再取得したサーバー由来のroom名・保存IDのリンク・損益が一覧へ表示されることまで補強した。旧キーでは一覧表示が現れず失敗し、修正後は成功した。楽観行のID置換だけでは通らない検証であり、mockの期待値と呼出しが一致するだけの確認から保護範囲を広げている。
+
+同じ不一致はセッション詳細・タグ・ライブ関連の既存10ファイルにもあったため、記録済みsession.listへの無効化キーだけを統一した。別procedureの通常queryは変更していない。既存13ケースを実infinite cacheの検証へ補強し、変更前の失敗を確認してから修正した。新しいテストケースを増やさず、関連11ファイル・122ケースが成功した。useSessions 76ケースと実UI 1ケースを合わせた今回の関連検証は199ケース成功。既存のassign-tournament失敗2ケースにあるact環境の警告は残るが、未処理エラーや新しい抑制設定はない。
+
+英語ルールに通常queryとinfiniteのキーの区別を記録し、`check:rules` はproductionの `session.list.queryKey()` / `queryOptions()` を拒否する。既知の誤コードを一時的に置いて検出を確認し、除去後に正常へ戻した。キーの共通fixtureは `apps/web/src/__tests__/trpc-keys.ts` に置き、実options proxyを再利用する。
