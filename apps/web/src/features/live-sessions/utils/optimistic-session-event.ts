@@ -218,13 +218,18 @@ export function isPersistedEventId(id: string): boolean {
 
 export function buildOptimisticEvent(
 	eventType: string,
-	payload: unknown
+	payload: unknown,
+	occurredAtSeconds?: number
 ): SessionEvent {
+	const occurredAt =
+		occurredAtSeconds === undefined
+			? new Date()
+			: new Date(occurredAtSeconds * 1000);
 	return {
 		id: createOptimisticId(OPTIMISTIC_EVENT_ID_PREFIX),
 		eventType,
 		payload,
-		occurredAt: new Date().toISOString(),
+		occurredAt: occurredAt.toISOString(),
 	};
 }
 
@@ -293,6 +298,7 @@ interface SnapshotContext {
 interface SessionEventMutationConfig<TVariables = void> {
 	changesStatus?: boolean;
 	eventType: string;
+	getOccurredAt?: (variables: TVariables) => number | undefined;
 	getPayload: (variables: TVariables) => Record<string, unknown>;
 	queryClient: QueryClient;
 	sessionId: string;
@@ -304,6 +310,7 @@ export function createSessionEventMutationOptions<TVariables = void>({
 	sessionId,
 	sessionType,
 	eventType,
+	getOccurredAt,
 	getPayload,
 	changesStatus,
 }: SessionEventMutationConfig<TVariables>) {
@@ -329,7 +336,7 @@ export function createSessionEventMutationOptions<TVariables = void>({
 
 			updateQueryData<SessionEvent[]>(queryClient, eventsKey, (old) => [
 				...(old ?? []),
-				buildOptimisticEvent(eventType, payload),
+				buildOptimisticEvent(eventType, payload, getOccurredAt?.(variables)),
 			]);
 
 			updateQueryData<SessionSummaryData>(queryClient, sessionKey, (old) => {

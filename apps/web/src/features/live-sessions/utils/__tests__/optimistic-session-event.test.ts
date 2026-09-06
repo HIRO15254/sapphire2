@@ -682,6 +682,16 @@ describe("buildOptimisticEvent", () => {
 		);
 	});
 
+	it("keeps a back-dated event at the time it was logged for", () => {
+		const occurredAt = "2026-04-24T11:30:00.000Z";
+		const event = buildOptimisticEvent(
+			"memo",
+			{ text: "note" },
+			Date.parse(occurredAt) / 1000
+		);
+		expect(event.occurredAt).toBe(occurredAt);
+	});
+
 	it("preserves eventType verbatim", () => {
 		const event = buildOptimisticEvent("update_stack", {});
 		expect(event.eventType).toBe("update_stack");

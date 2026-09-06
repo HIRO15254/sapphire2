@@ -191,15 +191,15 @@ describe("timeline rail during a pause", () => {
 		expect(
 			rows.map((row) => [row.title, row.hasLineAbove, row.hasLineBelow])
 		).toEqual([
-			["Stack update", true, true],
+			["Stack update", false, true],
 			["Resume", true, false],
 			["Note — break", false, false],
 			["Pause", false, true],
-			["Session start", true, true],
+			["Session start", true, false],
 		]);
 	});
 
-	it("leaves the rail open above the newest row while the session is paused", () => {
+	it("runs the rail between the outermost markers and no further", () => {
 		const rows = describeTimeline(
 			[
 				event("session_start", { buyInAmount: 30_000 }, 20, 0),
@@ -212,6 +212,11 @@ describe("timeline rail during a pause", () => {
 			hasLineAbove: false,
 			hasLineBelow: true,
 			title: "Pause",
+		});
+		expect(rows[1]).toMatchObject({
+			hasLineAbove: true,
+			hasLineBelow: false,
+			title: "Session start",
 		});
 	});
 });

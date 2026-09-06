@@ -103,6 +103,11 @@ export function StackFields({
 	);
 }
 
+function formatSubtrahend(value: number): string {
+	const rounded = Math.round(value);
+	return rounded === 0 ? formatNumber(0) : `−${formatNumber(rounded)}`;
+}
+
 function AllInSummary({ form }: { form: EditorForm }) {
 	return (
 		<form.Subscribe
@@ -148,9 +153,7 @@ function AllInSummary({ form }: { form: EditorForm }) {
 								{values.wins || "—"} won)
 							</dt>
 							<dd className="font-mono tabular-nums">
-								{ev === null
-									? "—"
-									: `−${formatNumber(Math.round(ev.realized))}`}
+								{ev === null ? "—" : formatSubtrahend(ev.realized)}
 							</dd>
 						</div>
 						<div className="flex justify-between gap-3 border-border border-t pt-1">

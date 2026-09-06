@@ -48,6 +48,7 @@ function useLogMutation({
 			}),
 		...createSessionEventMutationOptions<LogEventArgs>({
 			eventType,
+			getOccurredAt: (args) => args.occurredAt,
 			getPayload: (args) => args.payload,
 			queryClient,
 			sessionId,
