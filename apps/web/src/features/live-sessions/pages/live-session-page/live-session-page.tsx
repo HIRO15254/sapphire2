@@ -2,6 +2,7 @@ import { IconChevronLeft } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
 import { QueryError } from "@/shared/components/query-error";
 import { EmptyState } from "@/shared/components/ui/empty-state";
+import { CashCockpit } from "./cash-cockpit";
 import { CRYST_SCOPE_CLASS } from "./cryst-scope";
 import { useLiveSessionPage } from "./use-live-session-page";
 
@@ -70,11 +71,19 @@ export function LiveSessionPage() {
 		);
 	}
 
+	if (activeSession.type === "tournament") {
+		return (
+			<CrystScreen>
+				<div className="flex flex-1 items-center justify-center p-4 text-center text-muted-foreground text-sm">
+					Tournament sessions are not on this screen yet
+				</div>
+			</CrystScreen>
+		);
+	}
+
 	return (
 		<CrystScreen>
-			<div className="flex flex-1 items-center justify-center p-4 text-sm">
-				{activeSession.type === "cash_game" ? "Cash game" : "Tournament"}
-			</div>
+			<CashCockpit sessionId={activeSession.id} />
 		</CrystScreen>
 	);
 }

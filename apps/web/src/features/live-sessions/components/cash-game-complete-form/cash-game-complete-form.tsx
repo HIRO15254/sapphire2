@@ -1,17 +1,21 @@
+import type { ReactNode } from "react";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
+import { parseOptionalInt } from "@/shared/lib/form-fields";
 import { useCashGameCompleteForm } from "./use-cash-game-complete-form";
 
 interface CashGameCompleteFormProps {
 	defaultFinalStack?: number;
 	formId: string;
 	onSubmit: (values: { finalStack: number }) => void;
+	renderSummary?: (finalStack: number | undefined) => ReactNode;
 }
 
 export function CashGameCompleteForm({
 	defaultFinalStack,
 	formId,
 	onSubmit,
+	renderSummary,
 }: CashGameCompleteFormProps) {
 	const { form } = useCashGameCompleteForm({ defaultFinalStack, onSubmit });
 
@@ -44,6 +48,11 @@ export function CashGameCompleteForm({
 					</Field>
 				)}
 			</form.Field>
+			{renderSummary ? (
+				<form.Subscribe selector={(state) => state.values.finalStack}>
+					{(value) => renderSummary(parseOptionalInt(value))}
+				</form.Subscribe>
+			) : null}
 		</form>
 	);
 }
