@@ -33,8 +33,8 @@ The lean reference defines discovery and validation; these transport rules apply
 
 - Post only established important findings inline with `mcp__github_inline_comment__create_inline_comment` and `confirmed: true`. Include every affected location, a concrete scenario, the harmful result and actual evidence. Use `**[important]**` first; distinguish incomplete fixes from new regressions in the body.
 - Put nits, pre-existing issues and unverified questions in the summary only. Never pass an unverified claim to a tool as `confirmed: true`. Do not duplicate an existing thread.
-- Do not post a summary comment yourself. The workflow's tracking comment carries the final answer.
-- Return Japanese in at most 40 lines: verdict, one findings table, previous-round status when applicable, and one coverage line with executed tests. Empty findings is valid. Do not list harmless leftovers or refuted candidates.
+- Write the summary into this run's tracking comment with `mcp__github_comment__update_claude_comment`, and never open a separate PR comment. The action only adds its job link to that comment; it does not fill the body from your final message, so a summary left in the transcript alone reaches nobody and the workflow discards the round. Return the same summary as your final message as well — the workflow reads `resolved` from there.
+- Return Japanese in at most 40 lines, opening with the heading `### レビュー結果（round <n>/<max>）`: verdict, one findings table, previous-round status when applicable, and one coverage line with executed tests. Empty findings is valid. Do not list harmless leftovers or refuted candidates. The workflow checks the tracking comment for that heading before spending a round.
 - An interrupted or unfinished review must be visibly marked incomplete. Absence of a finding is not evidence of completion.
 
 End with the existing machine-readable trailer; keep `resolved` as original `path:line` strings for workflow compatibility:

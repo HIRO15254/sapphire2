@@ -51,6 +51,7 @@ const MARKER_PATTERN = /<!-- pre-merge-review:state (\{.*?\}) -->/;
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const DOC_FILE = /\.md$/;
 const TRAILER_PATTERN = /<!-- pr-review: (\{[^}]*\}) -->/g;
+const SUMMARY_HEADING_PATTERN = /^#{1,6}\s*レビュー結果/m;
 
 function nextRound(state: ReviewState | null, reason: string): GateDecision {
 	return {
@@ -208,6 +209,17 @@ export function extractReviewTrailer(finalMessage: string): string | null {
 	return payload;
 }
 
+export function hasPublishedSummary(trackingComment: string): boolean {
+	return (
+		SUMMARY_HEADING_PATTERN.test(trackingComment) ||
+		extractReviewTrailer(trackingComment) !== null
+	);
+}
+
+export function formatPublishedOutputs(trackingComment: string): string {
+	return `is_published=${hasPublishedSummary(trackingComment)}\n`;
+}
+
 export function parseReviewResult(log: string): ReviewResult {
 	const found: ResultEvent[] = [];
 	const whole = parseJson(log);
@@ -318,6 +330,13 @@ function summaryCommand(): void {
 	emitOutputs(formatSummaryOutputs(logPath !== undefined, result));
 }
 
+function publishedCommand(): void {
+	const path = process.env.TRACKING_COMMENT_FILE ?? "";
+	const body =
+		path !== "" && existsSync(path) ? readFileSync(path, "utf8") : "";
+	emitOutputs(formatPublishedOutputs(body));
+}
+
 if (import.meta.main) {
 	const command = process.argv[2] ?? "decide";
 	if (command === "decide") {
@@ -326,6 +345,8 @@ if (import.meta.main) {
 		renderStateCommand();
 	} else if (command === "summary") {
 		summaryCommand();
+	} else if (command === "published") {
+		publishedCommand();
 	} else if (command === "last-sha") {
 		const comments = JSON.parse(requireEnv("STATE_COMMENTS")) as string[];
 		console.log(parseReviewState(comments)?.lastSha ?? "");

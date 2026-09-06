@@ -191,8 +191,10 @@ jobs:
           prompt: |
             /pr-review ${{ needs.gate.outputs.mode }} --range origin/${{ github.event.pull_request.base.ref }}...HEAD --since ${{ needs.gate.outputs.since_sha }} --round ${{ needs.gate.outputs.round }} --max ${{ env.MAX_AUTO_ROUNDS }} --pr ${{ github.event.pull_request.number }} --post
 
-            The tracking comment on this PR is created from your final message; do not post the
-            summary yourself. Every inline comment goes through the inline-comment tool.
+            Put the summary in this run's tracking comment with mcp__github_comment__update_claude_comment
+            and never open a separate PR comment. The action only adds its job link to that comment; it does
+            not fill the body from your final message. Return the same summary as your final message too.
+            Every inline comment goes through the inline-comment tool.
           # max-turns is a runaway guard, not a budget (a truncated run still
           # costs the tokens and produces nothing). allowedTools: everything
           # else is denied and each denial burns a turn. Skill loads
@@ -205,16 +207,16 @@ jobs:
             --model opus
             --effort medium
             --disallowedTools "Task,Agent"
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Skill,TodoWrite,ReportFindings,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git merge-base:*),Bash(rg:*),Bash(bunx vitest run:*),Bash(bunx vitest related:*),Bash(bun run check-types),Bash(bun run check:rules),Bash(bun run lint),Bash(bun x ultracite check:*)"
+            --allowedTools "mcp__github_comment__update_claude_comment,mcp__github_inline_comment__create_inline_comment,Skill,TodoWrite,ReportFindings,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git merge-base:*),Bash(rg:*),Bash(bunx vitest run:*),Bash(bunx vitest related:*),Bash(bun run check-types),Bash(bun run check:rules),Bash(bun run lint),Bash(bun x ultracite check:*)"
 
       # A run can exit `success` and still never produce a summary (SA2-231,
       # PR #604 round 2): the tracking comment then stays an empty checklist,
-      # which reads exactly like "the review found nothing". The summary's
-      # machine-readable trailer is the only evidence that a review actually
-      # finished, so the steps below key off it instead of the step outcome.
-      # claude-code-action also refuses to run outright (outcome `success`, no
-      # execution log) on a PR whose copy of this file differs from the
-      # default branch's.
+      # which reads exactly like "the review found nothing". The step outcome
+      # says nothing, so a round needs two pieces of evidence — the summary's
+      # machine-readable trailer in the execution log (here) and the summary
+      # itself on the PR (the next step). claude-code-action also refuses to run
+      # outright (outcome `success`, no execution log) on a PR whose copy of
+      # this file differs from the default branch's.
       - name: Inspect the review result
         id: summary
         if: ${{ !cancelled() && steps.ci.outputs.state == 'success' }}
@@ -222,10 +224,32 @@ jobs:
           EXECUTION_FILE: ${{ steps.claude_review.outputs.execution_file }}
         run: bun scripts/review-gate.ts summary
 
-      # A run that never reviewed, or reviewed without reporting, must not
-      # spend one of the two automatic rounds.
+      # `has_summary` only proves the summary reached the execution log. The
+      # action fetches the tracking comment and adds its job link; it never
+      # fills the body from the final message, so a reviewer that skips
+      # update_claude_comment leaves the placeholder standing while the trailer
+      # says the round finished (#620 round 2, a recurrence of SA2-231 that the
+      # trailer check itself hid). This run's comments are the ones carrying its
+      # run id; the state comment and the incomplete-review notice carry it too
+      # on a re-run, so they are excluded by their marker.
+      - name: Confirm the summary reached the tracking comment
+        id: published
+        if: ${{ !cancelled() && steps.ci.outputs.state == 'success' && steps.summary.outputs.has_summary == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
+            --jq ".[] | select(.body | startswith(\"<!-- pre-merge-review:\") | not) | select(.body | contains(\"/actions/runs/${GITHUB_RUN_ID}\")) | .body" \
+            > "${RUNNER_TEMP}/tracking-comment.md" || true
+          TRACKING_COMMENT_FILE="${RUNNER_TEMP}/tracking-comment.md" bun scripts/review-gate.ts published
+
+      # A run that never reviewed, or reviewed without reporting, or reported
+      # only into its own transcript, must not spend one of the two automatic
+      # rounds.
       - name: Record the round
-        if: steps.claude_review.outcome == 'success' && steps.summary.outputs.has_summary == 'true'
+        if: steps.claude_review.outcome == 'success' && steps.summary.outputs.has_summary == 'true' && steps.published.outputs.is_published == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -258,7 +282,7 @@ jobs:
       # resolved here, by path and original line, so the reviewer itself never
       # needs `gh api`.
       - name: Resolve threads the review marked as fixed
-        if: steps.claude_review.outcome == 'success' && steps.summary.outputs.has_summary == 'true'
+        if: steps.claude_review.outcome == 'success' && steps.summary.outputs.has_summary == 'true' && steps.published.outputs.is_published == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -297,17 +321,19 @@ jobs:
             echo "claude-code-action がレビューを開始しませんでした（このワークフローファイルが既定ブランチと異なる PR では、action 側の検証で実行が省略されます）。ラウンドは消費していません。"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # A review that ends without a summary — turn cap, an internal error, or
-      # a `success` exit that simply never reported (SA2-231) — leaves the
-      # tracking comment as an empty checklist with no verdict, which reads
-      # exactly like "the review found nothing". Say so on the PR instead.
+      # A review whose summary never reaches the PR — turn cap, an internal
+      # error, a `success` exit that simply never reported (SA2-231), or a
+      # summary left in the transcript instead of the tracking comment (#620
+      # round 2) — leaves that comment an empty checklist with no verdict, which
+      # reads exactly like "the review found nothing". Say so on the PR instead.
       - name: Report an incomplete review
-        if: ${{ !cancelled() && steps.ci.outputs.state == 'success' && steps.summary.outputs.has_summary != 'true' && (steps.summary.outputs.has_log == 'true' || steps.claude_review.outcome == 'failure') }}
+        if: ${{ !cancelled() && steps.ci.outputs.state == 'success' && steps.published.outputs.is_published != 'true' && (steps.summary.outputs.has_log == 'true' || steps.claude_review.outcome == 'failure') }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           OUTCOME: ${{ steps.claude_review.outcome }}
           SUBTYPE: ${{ steps.summary.outputs.subtype }}
+          HAS_SUMMARY: ${{ steps.summary.outputs.has_summary }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -uo pipefail
@@ -315,24 +341,31 @@ jobs:
           # identifier before it lands in a PR comment.
           subtype="$SUBTYPE"
           printf '%s\n' "$subtype" | grep -qE '^[A-Za-z0-9_.-]*$' || subtype="invalid"
-          if [ "$subtype" = "error_max_turns" ]; then
-            detail="ターン上限に達しました (error_max_turns)"
-          elif [ -n "$subtype" ]; then
-            detail="subtype \`${subtype}\` / outcome \`${OUTCOME}\`"
+          if [ "$HAS_SUMMARY" = "true" ]; then
+            lead="\`review\` ジョブは要約を生成しましたが、トラッキングコメントに書き込まれなかったため PR 上では読めません。"
+            detail="要約がトラッキングコメントに届きませんでした (outcome \`${OUTCOME}\`)"
           else
-            detail="不明 (outcome \`${OUTCOME}\`)"
+            lead="\`review\` ジョブが要約（verdict と指摘テーブル）を投稿せずに終了しました。"
+            if [ "$subtype" = "error_max_turns" ]; then
+              detail="ターン上限に達しました (error_max_turns)"
+            elif [ -n "$subtype" ]; then
+              detail="subtype \`${subtype}\` / outcome \`${OUTCOME}\`"
+            else
+              detail="不明 (outcome \`${OUTCOME}\`)"
+            fi
           fi
-          echo "review produced no summary: outcome=${OUTCOME} subtype=${subtype:-<none>}"
+          echo "review summary did not reach the PR: outcome=${OUTCOME} has_summary=${HAS_SUMMARY} subtype=${subtype:-<none>}"
 
           {
             cat <<'EOF'
           <!-- pre-merge-review:truncated -->
           ### ⚠️ 自動レビューは完了しませんでした
-
-          `review` ジョブが要約（verdict と指摘テーブル）を投稿せずに終了しました。
+          EOF
+            printf '\n%s\n' "$lead"
+            cat <<'EOF'
 
           - インラインコメントが付いていても **レビューは網羅的ではありません**
-          - 要約が無いため、上のチェックリストが空でも「指摘なし」ではありません
+          - 要約が読めないため、上のチェックリストが空でも「指摘なし」ではありません
           - **ラウンドは消費していません**。次のコード変更を含む push（CI green 後）で同じラウンドをやり直します
           - マージ可否は `ci` の結果と人手のレビューで判断してください
 
