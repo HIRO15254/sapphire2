@@ -1,4 +1,4 @@
-import { cleanup, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { initTRPC } from "@trpc/server";
 import { setupServer } from "msw/node";
@@ -94,6 +94,35 @@ const server = setupServer(
 	trpcHttpHandler("http://cockpit.integration.test", fixtureRouter)
 );
 
+const originalViewport = Object.getOwnPropertyDescriptor(
+	window,
+	"visualViewport"
+);
+
+function stubVisualViewport(height: number) {
+	const listeners = new Set<() => void>();
+	const viewport = {
+		height,
+		addEventListener: (_type: string, fn: () => void) => listeners.add(fn),
+		removeEventListener: (_type: string, fn: () => void) =>
+			listeners.delete(fn),
+	};
+	Object.defineProperty(window, "visualViewport", {
+		configurable: true,
+		value: viewport,
+	});
+	return {
+		resizeTo(next: number) {
+			viewport.height = next;
+			act(() => {
+				for (const fn of listeners) {
+					fn();
+				}
+			});
+		},
+	};
+}
+
 function renderCockpit() {
 	return renderIntegrationPage(<CashCockpit sessionId={SESSION_ID} />, {
 		path: "/active-session-next",
@@ -119,6 +148,11 @@ beforeEach(() => {
 afterEach(() => {
 	cleanup();
 	server.resetHandlers();
+	if (originalViewport) {
+		Object.defineProperty(window, "visualViewport", originalViewport);
+	} else {
+		Reflect.deleteProperty(window, "visualViewport");
+	}
 });
 
 afterAll(() => {
@@ -165,7 +199,39 @@ describe("CashCockpit", () => {
 		await user.click(screen.getByRole("button", { name: "Save stack" }));
 
 		expect(await screen.findByRole("alert")).toBeInTheDocument();
+		expect(screen.getByLabelText(STACK_LABEL)).toHaveAttribute(
+			"aria-invalid",
+			"true"
+		);
 		expect(backend.createdEvents).toEqual([]);
+	});
+
+	it("follows a stack the server recorded elsewhere", async () => {
+		renderCockpit();
+		expect(await screen.findByLabelText(STACK_LABEL)).toHaveValue("12000");
+
+		backend.currentStack = 24_500;
+		await act(async () => {
+			await queryClient.invalidateQueries();
+		});
+
+		await waitFor(() => {
+			expect(screen.getByLabelText(STACK_LABEL)).toHaveValue("24500");
+		});
+	});
+
+	it("hides the table while the keyboard is open so the input stays visible", async () => {
+		const viewport = stubVisualViewport(800);
+		renderCockpit();
+		expect(await screen.findByText("30 BB")).toBeInTheDocument();
+
+		viewport.resizeTo(430);
+
+		expect(screen.queryByText("30 BB")).not.toBeInTheDocument();
+		expect(screen.getByLabelText(STACK_LABEL)).toBeInTheDocument();
+
+		viewport.resizeTo(800);
+		expect(screen.getByText("30 BB")).toBeInTheDocument();
 	});
 
 	it("blocks stack entry while the session is paused and offers Resume", async () => {
@@ -173,6 +239,7 @@ describe("CashCockpit", () => {
 		renderCockpit();
 
 		expect(await screen.findByText("Session paused")).toBeInTheDocument();
+		expect(screen.queryByText("Paused")).not.toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Resume" })).toBeInTheDocument();
 		expect(screen.getByLabelText(STACK_LABEL)).toBeDisabled();
 		expect(screen.getByRole("button", { name: "Save stack" })).toBeDisabled();

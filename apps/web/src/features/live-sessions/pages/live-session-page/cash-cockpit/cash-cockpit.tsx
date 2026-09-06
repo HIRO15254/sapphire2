@@ -31,14 +31,16 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 				ruleName={cockpit.ruleName}
 			/>
 			<div className="relative flex min-h-0 flex-1 flex-col">
-				<TableView
-					bbText={cockpit.bbText}
-					displayPL={cockpit.displayPL}
-					displayPLFormatted={cockpit.displayPLFormatted}
-					evPLFormatted={cockpit.evPLFormatted}
-					seats={cockpit.seats}
-					stackFormatted={cockpit.stackFormatted}
-				/>
+				{cockpit.isKeyboardOpen ? null : (
+					<TableView
+						bbText={cockpit.bbText}
+						displayPL={cockpit.displayPL}
+						displayPLFormatted={cockpit.displayPLFormatted}
+						evPLFormatted={cockpit.evPLFormatted}
+						seats={cockpit.seats}
+						stackFormatted={cockpit.stackFormatted}
+					/>
+				)}
 				<div className="mx-[var(--m-inset)] my-2.5 flex min-h-16 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
 					<div className="flex h-full min-h-16 flex-col items-center justify-center gap-1.5 p-4 text-muted-foreground">
 						<IconUserSearch size={20} />

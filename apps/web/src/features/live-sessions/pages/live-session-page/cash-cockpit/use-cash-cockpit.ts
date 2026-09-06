@@ -14,6 +14,7 @@ import {
 	findLastStackUpdateAt,
 } from "@/features/live-sessions/utils/session-staleness";
 import { formatTimerDuration } from "@/features/live-sessions/utils/tournament-timer";
+import { useKeyboardOpen } from "@/shared/hooks/use-keyboard-open";
 import { useNowTick } from "@/shared/hooks/use-now-tick";
 import { formatLocalHm, formatNumber } from "@/utils/format-number";
 import { formatProfitLoss } from "@/utils/format-profit-loss";
@@ -41,6 +42,7 @@ export function useCashCockpit(sessionId: string) {
 	const { session } = useCashGameSession(sessionId);
 	const stack = useCashGameStack({ sessionId });
 	const now = useNowTick(TICK_MS);
+	const isKeyboardOpen = useKeyboardOpen();
 	const [isEndSessionOpen, setIsEndSessionOpen] = useState(false);
 
 	const rawHeroSeat = session?.heroSeatPosition;
@@ -96,6 +98,7 @@ export function useCashCockpit(sessionId: string) {
 		evPLFormatted: showEvPL && evPL !== null ? formatProfitLoss(evPL) : null,
 		isCompletePending: stack.isCompletePending,
 		isEndSessionOpen,
+		isKeyboardOpen,
 		isLoading: false as const,
 		isMasterLinked: Boolean(session.ringGameId),
 		isPaused: status === "paused",

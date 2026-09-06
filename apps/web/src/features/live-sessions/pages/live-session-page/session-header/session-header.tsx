@@ -50,12 +50,7 @@ export function CrystHeaderShell({ children }: { children?: ReactNode }) {
 
 function StatusIndicator({ isPaused }: { isPaused: boolean }) {
 	if (isPaused) {
-		return (
-			<span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[color-mix(in_oklab,var(--warning)_15%,transparent)] px-2 py-0.5 font-semibold text-[11px] text-warning">
-				<IconPlayerPause size={11} />
-				Paused
-			</span>
-		);
+		return null;
 	}
 	return (
 		<IconPlayerRecordFilled

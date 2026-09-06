@@ -39,7 +39,7 @@ export function StackQuickInput({
 						<Field error={field.state.meta.errors[0]?.message}>
 							<input
 								aria-label="Current stack"
-								className="h-[var(--m-control)] w-full rounded-md border border-input bg-background pr-2.5 pl-[31px] font-mono text-[length:var(--m-text-secondary)] tabular-nums outline-none focus-visible:border-primary disabled:opacity-50"
+								className="h-[var(--m-control)] w-full rounded-md border border-input bg-background pr-2.5 pl-[31px] font-mono text-[length:var(--m-text-secondary)] tabular-nums outline-none focus-visible:border-primary disabled:opacity-50 aria-invalid:border-destructive aria-invalid:bg-[color-mix(in_oklab,var(--destructive)_8%,transparent)]"
 								disabled={isDisabled}
 								id={field.name}
 								inputMode="numeric"

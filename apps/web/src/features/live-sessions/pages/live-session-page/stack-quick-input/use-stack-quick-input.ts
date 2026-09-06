@@ -1,4 +1,5 @@
 import { useForm } from "@tanstack/react-form";
+import { useEffect } from "react";
 import z from "zod";
 import { requiredNumericString } from "@/shared/lib/form-fields";
 
@@ -11,14 +12,16 @@ interface UseStackQuickInputOptions {
 	onSubmit: (values: { stackAmount: number }) => void;
 }
 
+function toFieldValue(currentStack: number | null): string {
+	return currentStack === null ? "" : String(currentStack);
+}
+
 export function useStackQuickInput({
 	currentStack,
 	onSubmit,
 }: UseStackQuickInputOptions) {
 	const form = useForm({
-		defaultValues: {
-			stackAmount: currentStack === null ? "" : String(currentStack),
-		},
+		defaultValues: { stackAmount: toFieldValue(currentStack) },
 		onSubmit: ({ value }) => {
 			onSubmit({ stackAmount: Number(value.stackAmount) });
 		},
@@ -26,6 +29,10 @@ export function useStackQuickInput({
 			onSubmit: stackQuickInputSchema,
 		},
 	});
+
+	useEffect(() => {
+		form.reset({ stackAmount: toFieldValue(currentStack) });
+	}, [currentStack, form]);
 
 	return { form };
 }
