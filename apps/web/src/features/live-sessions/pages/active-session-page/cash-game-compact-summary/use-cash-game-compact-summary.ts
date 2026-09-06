@@ -1,3 +1,4 @@
+import { computeCashGamePL } from "@/features/live-sessions/utils/live-session-summary";
 import { useElapsedTime } from "@/shared/hooks/use-elapsed-time";
 import { formatCompactNumber } from "@/utils/format-number";
 import {
@@ -30,19 +31,7 @@ export function useCashGameCompactSummary(
 ): CashGameCompactSummaryViewModel {
 	const duration = useElapsedTime(summary.startedAt);
 
-	const displayPL =
-		summary.currentStack === null
-			? null
-			: summary.currentStack + summary.chipRemoveTotal - summary.totalBuyIn;
-
-	const evPL =
-		summary.currentStack !== null && summary.evDiff !== 0
-			? summary.currentStack +
-				summary.chipRemoveTotal +
-				summary.evDiff -
-				summary.totalBuyIn
-			: null;
-	const showEvPL = evPL !== null && evPL !== displayPL;
+	const { displayPL, evPL, showEvPL } = computeCashGamePL(summary);
 
 	return {
 		duration,
