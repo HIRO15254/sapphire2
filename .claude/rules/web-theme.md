@@ -45,4 +45,18 @@ The token contract in `apps/web/src/index.css` (`:root` / `.dark`) is the source
 ## Don'ts
 
 - **Don't fork `shared/components/ui/`** for theming. Components stay single-source; tuning happens via tokens. If a surface needs different markup, raise it for discussion before duplicating.
-- **Don't introduce a second theme** or a `theme-*` scope class. If a route needs a one-off accent, scope it to that route with CSS variables.
+- **Don't introduce a second theme** or a scope class beyond the `.cryst` migration scope below. If a route needs a one-off accent, scope it to that route with CSS variables.
+
+## Cryst migration scope (TEMPORARY)
+
+The app is migrating to the Cryst design system one screen at a time. During the migration a **single** extra scope is allowed:
+
+- The class is `cryst`, exported as `CRYST_SCOPE_CLASS` from [`live-session-page/cryst-scope.ts`](../../apps/web/src/features/live-sessions/pages/live-session-page/cryst-scope.ts). Its values live in [`apps/web/src/cryst-tokens.css`](../../apps/web/src/cryst-tokens.css) (`.cryst` = light, `.dark .cryst` = dark), imported from `index.css`.
+- **What the scope reaches.** `@theme inline` emits utilities with the declared value inlined, so `bg-background` compiles to `background-color: var(--background)` and resolves per element. Colors, `--radius`, and the `--text-*` scale are therefore scopable. Two families are **not**:
+  - **Fonts** — `--font-sans` / `--font-mono` are declared as literal stacks, so `font-sans` inlines the literal. Harmless only because Sapphire 2 and Cryst use the same faces.
+  - **Shadows** — `shadow-md` compiles to `--tw-shadow: 0 4px 6px -1px var(--tw-shadow-color,#0000001a), …`, a literal, because Tailwind rewrites the value to inject `--tw-shadow-color`. It never reads `var(--shadow-md)`. **In the Cryst tree write `shadow-[var(--shadow-md)]`, never the bare `shadow-*` utility** — the bare one silently renders Tailwind's default shadow, which is far too weak for Cryst's dark surfaces.
+- **Portals escape the scope.** `Drawer` / `Popover` / `Select` / `Dialog` render into `document.body`, outside the wrapper. Every such surface opened by a Cryst screen must carry `CRYST_SCOPE_CLASS` on its content element; `cn()` merges it, so never fork `shared/components/ui/`.
+- Cryst-only tokens (`--m-*`, `--selection`, `--shadow-popover`, `--tracking-*`) have no utilities — reference them as `var(--token)` in arbitrary values. `--shadow-popover` composes `var(--border)`, which *is* scoped, so it resolves correctly inside `.cryst`.
+- `profitLossColorClass` in `apps/web/src/utils/format-profit-loss.ts` returns literal palette classes that do not respond to this scope. Cryst screens use their own token-based mapping; this duplication is deliberate and ends with the scope.
+
+**Deletion condition.** When `routes/active-session.tsx` renders the Cryst page and `features/live-sessions/components/active-session-scene/` no longer exists, move the Cryst values into `:root` / `.dark`, delete `cryst-tokens.css` and `cryst-scope.ts`, and delete this section (AGENTS.md maintenance rule 5: delete a rule that is no longer true, do not comment it out).

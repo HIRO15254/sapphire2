@@ -37,7 +37,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
 						<SidebarNav />
 						<div className="flex h-svh flex-col md:ml-56">
 							<OnlineStatusBar />
-							<div className="flex-1 overflow-auto pb-16 md:pb-0">
+							<div className="flex-1 overflow-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
 								{children}
 							</div>
 						</div>

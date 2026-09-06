@@ -9,6 +9,8 @@ paths:
 
 Every top-level page composes its header with [`PageHeader`](../../apps/web/src/shared/components/page-header/page-header.tsx). It supports an inline actions slot and an optional badge slot. Do not hand-roll page titles or action rows.
 
+Exception: the live session screens are full-bleed session cockpits, not document pages — they render their own header and escape `AuthenticatedShell`. They are the only pages allowed to skip `PageHeader`.
+
 ## Use shadcn primitives
 
 Reach for existing shadcn components before building a custom wrapper:
