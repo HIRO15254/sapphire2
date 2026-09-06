@@ -1,8 +1,4 @@
-import {
-	IconCards,
-	IconPlayerPauseFilled,
-	IconPlayerPlayFilled,
-} from "@tabler/icons-react";
+import { IconCards, IconPlayerPlayFilled } from "@tabler/icons-react";
 import type { BlindLevelView } from "@/features/live-sessions/utils/blind-level-view";
 import { cn } from "@/lib/utils";
 
@@ -24,7 +20,7 @@ export function BlindLevelBar({
 			aria-label="Blind level"
 			className="mx-4 mb-1.5 flex shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card"
 		>
-			<div className="flex items-center gap-2.5 py-2 pr-2 pl-3">
+			<div className="flex items-center gap-2.5 px-3 py-2">
 				<div className="-m-1 min-w-0 flex-1 rounded-md p-1">
 					<div className="flex min-w-0 items-center gap-[5px]">
 						<span className="shrink-0 text-[11px] text-muted-foreground">
@@ -67,23 +63,18 @@ export function BlindLevelBar({
 						{level.clockText}
 					</div>
 				</div>
-				<button
-					aria-label={level.hasStarted ? "Pause timer" : "Start timer"}
-					className={cn(
-						"inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-transparent disabled:opacity-50",
-						level.hasStarted ? "text-muted-foreground" : "text-primary"
-					)}
-					disabled={level.hasStarted || isStartPending}
-					onClick={onStartTimer}
-					title={level.hasStarted ? "Pause timer" : "Start timer"}
-					type="button"
-				>
-					{level.hasStarted ? (
-						<IconPlayerPauseFilled size={16} />
-					) : (
+				{level.hasStarted ? null : (
+					<button
+						aria-label="Start timer"
+						className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-transparent text-primary disabled:opacity-50"
+						disabled={isStartPending}
+						onClick={onStartTimer}
+						title="Start timer"
+						type="button"
+					>
 						<IconPlayerPlayFilled size={16} />
-					)}
-				</button>
+					</button>
+				)}
 			</div>
 			<div className="h-0.5 shrink-0 bg-muted">
 				<div
