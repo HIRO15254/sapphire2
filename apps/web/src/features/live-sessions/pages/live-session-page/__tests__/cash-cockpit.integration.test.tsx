@@ -26,17 +26,56 @@ vi.mock("@sapphire2/env/web", () => ({
 
 const SESSION_ID = "cash-1";
 const STACK_LABEL = "Current stack";
+const NOTE_FIELD = /^Note/;
+const STACK_FIELD = /^Stack/;
+const STACK_ROW = /Stack update/;
+const START_ROW = /Session start/;
 
 interface CreatedEvent {
 	eventType: string;
+	occurredAt?: number;
 	payload: Record<string, unknown>;
+}
+
+interface UpdatedEvent {
+	id: string;
+	occurredAt?: number;
+	payload?: Record<string, unknown>;
 }
 
 const backend = {
 	createdEvents: [] as CreatedEvent[],
 	currentStack: 12_000 as number | null,
+	deletedEventIds: [] as string[],
 	status: "active",
+	updatedEvents: [] as UpdatedEvent[],
 };
+
+function events() {
+	const base = [
+		{
+			eventType: "session_start",
+			id: "evt-start",
+			occurredAt: new Date("2026-06-01T10:00:00Z"),
+			payload: { buyInAmount: 10_000 },
+		},
+		{
+			eventType: "update_stack",
+			id: "evt-stack",
+			occurredAt: new Date("2026-06-01T11:00:00Z"),
+			payload: { stackAmount: backend.currentStack ?? 0 },
+		},
+	];
+	if (backend.status === "paused") {
+		base.push({
+			eventType: "session_pause",
+			id: "evt-pause",
+			occurredAt: new Date("2026-06-01T12:00:00Z"),
+			payload: {},
+		});
+	}
+	return base;
+}
 
 function session() {
 	return {
@@ -51,24 +90,6 @@ function session() {
 		tableSize: 6,
 		heroSeatPosition: null,
 		memo: null,
-		events:
-			backend.status === "paused"
-				? [
-						{
-							eventType: "session_start",
-							occurredAt: new Date("2026-06-01T10:00:00Z"),
-						},
-						{
-							eventType: "session_pause",
-							occurredAt: new Date("2026-06-01T12:00:00Z"),
-						},
-					]
-				: [
-						{
-							eventType: "session_start",
-							occurredAt: new Date("2026-06-01T10:00:00Z"),
-						},
-					],
 		summary: {
 			chipRemoveTotal: 0,
 			currentStack: backend.currentStack,
@@ -98,6 +119,22 @@ const fixtureRouter = t.router({
 					backend.currentStack = Number(input.payload.stackAmount);
 				}
 				return { id: "evt-1" };
+			}),
+		delete: t.procedure
+			.input(z.custom<{ id: string }>())
+			.mutation(({ input }) => {
+				backend.deletedEventIds.push(input.id);
+				return { success: true };
+			}),
+		list: t.procedure.input(z.custom()).query(() => events()),
+		update: t.procedure
+			.input(z.custom<UpdatedEvent>())
+			.mutation(({ input }) => {
+				backend.updatedEvents.push(input);
+				if (input.payload && "stackAmount" in input.payload) {
+					backend.currentStack = Number(input.payload.stackAmount);
+				}
+				return { id: input.id };
 			}),
 	}),
 });
@@ -154,7 +191,9 @@ beforeEach(() => {
 	});
 	backend.createdEvents = [];
 	backend.currentStack = 12_000;
+	backend.deletedEventIds = [];
 	backend.status = "active";
+	backend.updatedEvents = [];
 });
 
 afterEach(() => {
@@ -262,5 +301,87 @@ describe("CashCockpit", () => {
 		renderCockpit();
 
 		expect(await screen.findByText("02:00:00")).toBeInTheDocument();
+	});
+
+	it("logs a note from the action bar", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(await screen.findByRole("button", { name: "Note" }));
+		await user.type(
+			await screen.findByRole("textbox", { name: NOTE_FIELD }),
+			"S2 started drinking"
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.createdEvents).toHaveLength(1);
+		});
+		expect(backend.createdEvents[0]).toMatchObject({
+			eventType: "memo",
+			payload: { text: "S2 started drinking" },
+		});
+		expect(backend.createdEvents[0]?.occurredAt).toEqual(expect.any(Number));
+	});
+
+	it("edits a recorded stack update from the timeline", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(await screen.findByRole("button", { name: "Timeline" }));
+		await user.click(await screen.findByRole("button", { name: STACK_ROW }));
+
+		expect(
+			await screen.findByRole("heading", { name: "Edit event" })
+		).toBeInTheDocument();
+		const stack = screen.getByRole("textbox", { name: STACK_FIELD });
+		expect(stack).toHaveValue("12000");
+		await user.clear(stack);
+		await user.type(stack, "26000");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.updatedEvents).toEqual([
+				{
+					id: "evt-stack",
+					occurredAt: expect.any(Number),
+					payload: { stackAmount: 26_000 },
+				},
+			]);
+		});
+	});
+
+	it("deletes an editable event but never the session start", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(await screen.findByRole("button", { name: "Timeline" }));
+		await user.click(await screen.findByRole("button", { name: START_ROW }));
+		expect(
+			screen.queryByRole("button", { name: "Delete this event" })
+		).not.toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+		await user.click(await screen.findByRole("button", { name: "Timeline" }));
+		await user.click(await screen.findByRole("button", { name: STACK_ROW }));
+		await user.click(
+			await screen.findByRole("button", { name: "Delete this event" })
+		);
+
+		await waitFor(() => {
+			expect(backend.deletedEventIds).toEqual(["evt-stack"]);
+		});
+	});
+
+	it("offers only notes and the timeline while the session is paused", async () => {
+		backend.status = "paused";
+		renderCockpit();
+
+		expect(
+			await screen.findByRole("button", { name: "Chip adjust" })
+		).toBeDisabled();
+		expect(screen.getByRole("button", { name: "All-in" })).toBeDisabled();
+		expect(screen.getByRole("button", { name: "Timeline" })).toBeEnabled();
+		expect(screen.getAllByRole("button", { name: "Note" })[0]).toBeEnabled();
 	});
 });

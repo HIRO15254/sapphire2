@@ -18,8 +18,11 @@ import { useNowTick } from "@/shared/hooks/use-now-tick";
 import { formatLocalHm, formatNumber } from "@/utils/format-number";
 import { formatProfitLoss } from "@/utils/format-profit-loss";
 import { resolveRuleName, toSessionStatus } from "../session-fields";
+import type { ChipPurchaseOption } from "../sheets";
+import { useSessionJournal } from "../use-session-journal";
 
 const TICK_MS = 1000;
+const NO_PURCHASE_OPTIONS: ChipPurchaseOption[] = [];
 
 export function useCashCockpit(sessionId: string) {
 	const { session } = useCashGameSession(sessionId);
@@ -31,18 +34,25 @@ export function useCashCockpit(sessionId: string) {
 	const rawHeroSeat = session?.heroSeatPosition;
 	const heroSeatPosition =
 		typeof rawHeroSeat === "number" && rawHeroSeat >= 0 ? rawHeroSeat : null;
-	const { seats } = useSessionSeats({
+	const { playerNames, seats } = useSessionSeats({
 		heroSeatPosition,
 		sessionId,
 		sessionType: "cash_game",
 		tableSize: session?.tableSize ?? null,
 	});
+	const status = toSessionStatus(session?.status ?? "");
+	const journal = useSessionJournal({
+		chipPurchaseOptions: NO_PURCHASE_OPTIONS,
+		playerNames,
+		sessionId,
+		sessionType: "cash_game",
+		status,
+	});
 
-	if (!session) {
+	if (!session || journal.isEventsLoading) {
 		return { isLoading: true as const };
 	}
 
-	const status = toSessionStatus(session.status);
 	const summary = session.summary;
 	const currentStack = summary.currentStack;
 	const chipRemoveTotal = summary.chipRemoveTotal ?? 0;
@@ -56,9 +66,9 @@ export function useCashCockpit(sessionId: string) {
 		totalBuyIn,
 	});
 
-	const clock = computeSessionClock(session.events, now);
+	const clock = computeSessionClock(journal.events, now);
 
-	const lastUpdateAt = findLastStackUpdateAt(session.events);
+	const lastUpdateAt = findLastStackUpdateAt(journal.events);
 	const bigBlinds = computeBigBlinds(currentStack, session.blind2);
 
 	return {
@@ -75,6 +85,7 @@ export function useCashCockpit(sessionId: string) {
 		isKeyboardOpen,
 		isLoading: false as const,
 		isMasterLinked: Boolean(session.ringGameId),
+		journal,
 		pausedElapsed: formatTimerDuration(clock.pausedSeconds, {
 			padHours: true,
 		}),

@@ -2,6 +2,7 @@ import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import type { SessionEvent } from "@/features/live-sessions/hooks/use-session-events";
 import {
 	cancelTargets,
+	createOptimisticId,
 	invalidateTargets,
 	type OptimisticSnapshot,
 	restoreSnapshots,
@@ -209,12 +210,18 @@ export function deriveOptimisticStatus(
 	return currentStatus;
 }
 
+export const OPTIMISTIC_EVENT_ID_PREFIX = "optimistic";
+
+export function isPersistedEventId(id: string): boolean {
+	return !id.startsWith(`${OPTIMISTIC_EVENT_ID_PREFIX}-`);
+}
+
 export function buildOptimisticEvent(
 	eventType: string,
 	payload: unknown
 ): SessionEvent {
 	return {
-		id: `optimistic-${crypto.randomUUID()}`,
+		id: createOptimisticId(OPTIMISTIC_EVENT_ID_PREFIX),
 		eventType,
 		payload,
 		occurredAt: new Date().toISOString(),

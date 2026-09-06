@@ -7,28 +7,40 @@ import {
 	IconShoppingCart,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
+import type { LoggableKind } from "../use-session-journal";
 
 interface ActionBarItem {
 	icon: Icon;
-	isDisabled: boolean;
+	kind: LoggableKind | null;
 	label: string;
-	onClick?: () => void;
 }
 
 const CASH_ITEMS: ActionBarItem[] = [
-	{ icon: IconListDetails, isDisabled: true, label: "Timeline" },
-	{ icon: IconCoin, isDisabled: true, label: "Chip adjust" },
-	{ icon: IconBolt, isDisabled: true, label: "All-in" },
-	{ icon: IconNote, isDisabled: true, label: "Note" },
+	{ icon: IconListDetails, kind: null, label: "Timeline" },
+	{ icon: IconCoin, kind: "chips", label: "Chip adjust" },
+	{ icon: IconBolt, kind: "allin", label: "All-in" },
+	{ icon: IconNote, kind: "memo", label: "Note" },
 ];
 
 const TOURNAMENT_ITEMS: ActionBarItem[] = [
-	{ icon: IconListDetails, isDisabled: true, label: "Timeline" },
-	{ icon: IconShoppingCart, isDisabled: true, label: "Chip purchase" },
-	{ icon: IconNote, isDisabled: true, label: "Note" },
+	{ icon: IconListDetails, kind: null, label: "Timeline" },
+	{ icon: IconShoppingCart, kind: "purchase", label: "Chip purchase" },
+	{ icon: IconNote, kind: "memo", label: "Note" },
 ];
 
-export function ActionBar({ variant }: { variant: "cash" | "tournament" }) {
+interface ActionBarProps {
+	canLog: Record<LoggableKind, boolean>;
+	onOpenNewEvent: (kind: LoggableKind) => void;
+	onOpenTimeline: () => void;
+	variant: "cash" | "tournament";
+}
+
+export function ActionBar({
+	canLog,
+	onOpenNewEvent,
+	onOpenTimeline,
+	variant,
+}: ActionBarProps) {
 	const items = variant === "cash" ? CASH_ITEMS : TOURNAMENT_ITEMS;
 
 	return (
@@ -38,12 +50,14 @@ export function ActionBar({ variant }: { variant: "cash" | "tournament" }) {
 				variant === "cash" ? "grid-cols-4" : "grid-cols-3"
 			)}
 		>
-			{items.map(({ icon: ItemIcon, isDisabled, label, onClick }) => (
+			{items.map(({ icon: ItemIcon, kind, label }) => (
 				<button
 					className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-lg border border-border font-medium text-[11px] disabled:opacity-40"
-					disabled={isDisabled}
+					disabled={kind !== null && !canLog[kind]}
 					key={label}
-					onClick={onClick}
+					onClick={() =>
+						kind === null ? onOpenTimeline() : onOpenNewEvent(kind)
+					}
 					type="button"
 				>
 					<ItemIcon size={18} />

@@ -37,3 +37,25 @@ export function computeBigBlinds(
 	}
 	return Math.round(stack / bigBlind);
 }
+
+export interface AllInInput {
+	equity: number;
+	potSize: number;
+	trials: number;
+	wins: number;
+}
+
+export interface AllInEv {
+	evDelta: number;
+	expected: number;
+	realized: number;
+}
+
+const PERCENT = 100;
+
+export function computeAllInEv(input: AllInInput): AllInEv {
+	const expected = (input.potSize * input.equity) / PERCENT;
+	const realized =
+		input.trials <= 0 ? 0 : (input.potSize / input.trials) * input.wins;
+	return { evDelta: expected - realized, expected, realized };
+}

@@ -1,11 +1,16 @@
 import { IconNote, IconPlayerPause, IconPlayerPlay } from "@tabler/icons-react";
 
 interface PausedOverlayProps {
+	onNote: () => void;
 	onResume: () => void;
 	pausedElapsed: string;
 }
 
-export function PausedOverlay({ onResume, pausedElapsed }: PausedOverlayProps) {
+export function PausedOverlay({
+	onNote,
+	onResume,
+	pausedElapsed,
+}: PausedOverlayProps) {
 	return (
 		<div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[color-mix(in_oklab,var(--background)_72%,transparent)] backdrop-blur-[2px]">
 			<IconPlayerPause className="text-warning" size={26} />
@@ -29,7 +34,7 @@ export function PausedOverlay({ onResume, pausedElapsed }: PausedOverlayProps) {
 				</button>
 				<button
 					className="inline-flex min-h-[var(--m-control)] items-center gap-[7px] rounded-full border border-border bg-card px-3.5 font-medium text-[length:var(--m-text-secondary)] text-foreground disabled:opacity-50"
-					disabled
+					onClick={onNote}
 					type="button"
 				>
 					<IconNote size={17} />

@@ -45,6 +45,10 @@ export function createGroupFormatter(
 	return (value: number) => formatWithTier(value, tier);
 }
 
+export function formatSignedNumber(value: number): string {
+	return `${value < 0 ? "−" : "+"}${formatNumber(Math.abs(value))}`;
+}
+
 export function formatYmdSlash(input: string | Date): string {
 	const d = typeof input === "string" ? new Date(input) : input;
 	const y = d.getUTCFullYear();

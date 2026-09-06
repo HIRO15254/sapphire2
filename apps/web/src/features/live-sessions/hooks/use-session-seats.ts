@@ -66,6 +66,7 @@ export interface SessionSeatsState {
 	) => void;
 	onSeatTemporary: (seatPosition: number) => void;
 	onUnseatHero: () => void;
+	playerNames: ReadonlyMap<string, string>;
 	seats: SeatEntry[];
 	sessionParam: SessionParam;
 	tableSize: number;
@@ -128,6 +129,13 @@ export function useSessionSeats({
 	});
 
 	const playerListQuery = useQuery(trpc.player.list.queryOptions());
+	const playerNames = useMemo(() => {
+		const map = new Map<string, string>();
+		for (const p of playerListQuery.data ?? []) {
+			map.set(p.id, p.name);
+		}
+		return map;
+	}, [playerListQuery.data]);
 	const tagsByPlayerId = useMemo(() => {
 		const map = new Map<string, PlayerTagWithColor[]>();
 		for (const p of playerListQuery.data ?? []) {
@@ -201,6 +209,7 @@ export function useSessionSeats({
 		onUnseatHero: () => {
 			heroSeatMutation.mutate(null);
 		},
+		playerNames,
 		seats,
 		sessionParam,
 		tableSize: seatCount,

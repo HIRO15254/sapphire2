@@ -57,6 +57,7 @@ vi.mock("@/utils/trpc", () => ({
 
 const {
 	buildOptimisticEvent,
+	isPersistedEventId,
 	buildOptimisticSessionSummary,
 	createSessionEventMutationOptions,
 	deriveOptimisticStatus,
@@ -671,6 +672,14 @@ describe("buildOptimisticEvent", () => {
 		const second = buildOptimisticEvent("session_start", { buyInAmount: 1000 });
 		expect(first.id).toMatch(OPTIMISTIC_ID_PATTERN);
 		expect(first.id).not.toBe(second.id);
+	});
+
+	it("marks its id as not yet persisted so the timeline refuses to edit it", () => {
+		const event = buildOptimisticEvent("memo", { text: "note" });
+		expect(isPersistedEventId(event.id)).toBe(false);
+		expect(isPersistedEventId("6f0a2f6e-0a1e-4c33-9f0f-2a2b6d0a1e33")).toBe(
+			true
+		);
 	});
 
 	it("preserves eventType verbatim", () => {
