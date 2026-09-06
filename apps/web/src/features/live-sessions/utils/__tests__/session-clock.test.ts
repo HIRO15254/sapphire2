@@ -87,6 +87,7 @@ describe("computeSessionClock", () => {
 		expect(computeSessionClock([], at(30))).toEqual({
 			activeSeconds: 0,
 			pausedSeconds: 0,
+			pausedSinceMs: null,
 		});
 	});
 
@@ -101,6 +102,26 @@ describe("computeSessionClock", () => {
 		);
 		expect(clock.activeSeconds).toBe(20 * 60);
 		expect(clock.pausedSeconds).toBe(40 * 60);
+	});
+
+	it("reports the instant the current pause began so a blind timer can be shifted by it", () => {
+		const clock = computeSessionClock(
+			[event("session_start", 0), event("session_pause", 30)],
+			at(90)
+		);
+		expect(clock.pausedSinceMs).toBe(at(30).getTime());
+	});
+
+	it("has no pause instant once the session resumes", () => {
+		const clock = computeSessionClock(
+			[
+				event("session_start", 0),
+				event("session_pause", 30),
+				event("session_resume", 50),
+			],
+			at(90)
+		);
+		expect(clock.pausedSinceMs).toBeNull();
 	});
 
 	it("clamps a clock skew into the future to zero", () => {

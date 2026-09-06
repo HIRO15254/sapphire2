@@ -6,6 +6,7 @@ export interface SessionClockEvent {
 export interface SessionClock {
 	activeSeconds: number;
 	pausedSeconds: number;
+	pausedSinceMs: number | null;
 }
 
 const MS_PER_SECOND = 1000;
@@ -80,5 +81,6 @@ export function computeSessionClock(
 	return {
 		activeSeconds: toSeconds(activeMs),
 		pausedSeconds: pausedSince === null ? 0 : toSeconds(nowMs - pausedSince),
+		pausedSinceMs: pausedSince,
 	};
 }

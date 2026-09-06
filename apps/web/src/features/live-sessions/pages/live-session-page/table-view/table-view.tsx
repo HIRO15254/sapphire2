@@ -1,48 +1,22 @@
 import { IconScan } from "@tabler/icons-react";
+import type { ReactNode } from "react";
 import type { SeatEntry } from "@/features/live-sessions/hooks/use-session-seats";
 import { seatLayout } from "@/features/live-sessions/utils/table-geometry";
-import { cn } from "@/lib/utils";
-import { plToneClass } from "../cryst-tone";
 import { SeatMarker } from "./seat-marker";
 
 interface TableViewProps {
-	bbText: string;
-	displayPL: number | null;
-	displayPLFormatted: string;
-	evPLFormatted: string | null;
+	center: ReactNode;
 	seats: SeatEntry[];
-	stackFormatted: string;
 }
 
-export function TableView({
-	bbText,
-	displayPL,
-	displayPLFormatted,
-	evPLFormatted,
-	seats,
-	stackFormatted,
-}: TableViewProps) {
+export function TableView({ center, seats }: TableViewProps) {
 	const points = seatLayout(seats.length);
 
 	return (
 		<div className="relative mx-3 h-60 shrink-0">
 			<div className="absolute inset-x-[46px] inset-y-[34px] rounded-[48px] border border-border bg-card">
 				<div className="absolute inset-0 flex flex-col items-center justify-center gap-px">
-					<span className="font-mono font-semibold text-[22px] tabular-nums tracking-[-0.02em]">
-						{stackFormatted}
-					</span>
-					<div className="flex gap-2 font-mono text-[length:var(--text-xs)] tabular-nums">
-						<span className={cn(plToneClass(displayPL))}>
-							{displayPLFormatted}
-						</span>
-						<span className="text-muted-foreground">{bbText}</span>
-					</div>
-					<span className="text-[11px] text-muted-foreground">
-						EV result{" "}
-						<span className="font-mono tabular-nums">
-							{evPLFormatted ?? "—"}
-						</span>
-					</span>
+					{center}
 				</div>
 			</div>
 			{seats.map((seat, index) => {

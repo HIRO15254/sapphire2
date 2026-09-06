@@ -3,6 +3,7 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { CashCockpit } from "./cash-cockpit";
 import { CRYST_SCOPE_CLASS } from "./cryst-scope";
 import { CrystHeaderShell } from "./session-header";
+import { TournamentCockpit } from "./tournament-cockpit";
 import { useLiveSessionPage } from "./use-live-session-page";
 
 function CrystScreen({ children }: { children: React.ReactNode }) {
@@ -64,19 +65,13 @@ export function LiveSessionPage() {
 		);
 	}
 
-	if (activeSession.type === "tournament") {
-		return (
-			<CrystMessageScreen>
-				<p className="text-center text-muted-foreground text-sm">
-					Tournament sessions are not on this screen yet
-				</p>
-			</CrystMessageScreen>
-		);
-	}
-
 	return (
 		<CrystScreen>
-			<CashCockpit sessionId={activeSession.id} />
+			{activeSession.type === "tournament" ? (
+				<TournamentCockpit sessionId={activeSession.id} />
+			) : (
+				<CashCockpit sessionId={activeSession.id} />
+			)}
 		</CrystScreen>
 	);
 }

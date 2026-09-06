@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { toast } from "sonner";
 import { invalidateTargets } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -38,6 +39,9 @@ export function useTournamentSession(sessionId: string) {
 						? null
 						: Math.floor(timerStartedAt.getTime() / 1000),
 			}),
+		onError: () => {
+			toast.error("Couldn't update the tournament timer");
+		},
 		onSuccess: () => {
 			invalidateTargets(queryClient, [
 				{ queryKey: sessionQueryOptions.queryKey },

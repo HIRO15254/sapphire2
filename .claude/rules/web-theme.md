@@ -49,7 +49,11 @@ The token contract in `apps/web/src/index.css` (`:root` / `.dark`) is the source
 
 ## Cryst migration scope (TEMPORARY)
 
-The app is migrating to the Cryst design system one screen at a time. During the migration a **single** extra scope is allowed:
+The app is migrating to the Cryst design system one screen at a time.
+
+**The Claude Design files are the specification — read the relevant one before writing any markup.** Each screen and component of the migration has a `.dc.html` file (`Live Session v3 Table.dc.html` plus per-component `SessionHeader` / `TableView` / `BlindLevelBar` / `ActionBar` / `SeatMarker` / …) carrying the exact structure, spacing, icon, token and state values, including how a component differs between cash game and tournament. Do not derive a screen's layout from the phase before it, from the old screen, or from what looks consistent — P1 and P1′ each had to be rebuilt after being written that way. If the files are not reachable from the working directory, ask for them instead of designing a substitute. Record every deliberate departure (a control the schema cannot yet persist, a state the design does not cover) in the PR description.
+
+During the migration a **single** extra scope is allowed:
 
 - The class is `cryst`, exported as `CRYST_SCOPE_CLASS` from [`live-session-page/cryst-scope.ts`](../../apps/web/src/features/live-sessions/pages/live-session-page/cryst-scope.ts). Its values live in [`apps/web/src/cryst-tokens.css`](../../apps/web/src/cryst-tokens.css) (`.cryst` = light, `.dark .cryst` = dark), imported from `index.css`.
 - **What the scope reaches.** `@theme inline` emits utilities with the declared value inlined, so `bg-background` compiles to `background-color: var(--background)` and resolves per element. Colors, `--radius`, and the `--text-*` scale are therefore scopable. Two families are **not**:

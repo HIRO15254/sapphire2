@@ -1,14 +1,12 @@
-import {
-	isEventAllowedInState,
-	SESSION_STATUSES,
-	type SessionStatus,
-} from "@sapphire2/db/constants/session-event-types";
+import { isEventAllowedInState } from "@sapphire2/db/constants/session-event-types";
 import { useState } from "react";
 import { useCashGameSession } from "@/features/live-sessions/hooks/use-cash-game-session";
 import { useCashGameStack } from "@/features/live-sessions/hooks/use-cash-game-stack";
 import { useSessionSeats } from "@/features/live-sessions/hooks/use-session-seats";
-import { variantLabel } from "@/features/live-sessions/utils/game-scene-formatters";
-import { computeCashGamePL } from "@/features/live-sessions/utils/live-session-summary";
+import {
+	computeBigBlinds,
+	computeCashGamePL,
+} from "@/features/live-sessions/utils/live-session-summary";
 import { computeSessionClock } from "@/features/live-sessions/utils/session-clock";
 import {
 	describeStaleness,
@@ -19,24 +17,9 @@ import { useKeyboardOpen } from "@/shared/hooks/use-keyboard-open";
 import { useNowTick } from "@/shared/hooks/use-now-tick";
 import { formatLocalHm, formatNumber } from "@/utils/format-number";
 import { formatProfitLoss } from "@/utils/format-profit-loss";
+import { resolveRuleName, toSessionStatus } from "../session-fields";
 
 const TICK_MS = 1000;
-
-function toSessionStatus(value: string): SessionStatus {
-	const match = SESSION_STATUSES.find((status) => status === value);
-	return match ?? "completed";
-}
-
-function resolveRuleName(
-	ruleName: string | null | undefined,
-	variant: string | null | undefined
-): string {
-	const trimmed = ruleName?.trim();
-	if (trimmed) {
-		return trimmed;
-	}
-	return variant ? variantLabel(variant) : "Cash game";
-}
 
 export function useCashCockpit(sessionId: string) {
 	const { session } = useCashGameSession(sessionId);
@@ -76,10 +59,7 @@ export function useCashCockpit(sessionId: string) {
 	const clock = computeSessionClock(session.events, now);
 
 	const lastUpdateAt = findLastStackUpdateAt(session.events);
-	const blind2 = session.blind2;
-
-	const bigBlinds =
-		currentStack !== null && blind2 ? Math.round(currentStack / blind2) : null;
+	const bigBlinds = computeBigBlinds(currentStack, session.blind2);
 
 	return {
 		bbText: bigBlinds === null ? "— BB" : `${formatNumber(bigBlinds)} BB`,
@@ -110,7 +90,7 @@ export function useCashCockpit(sessionId: string) {
 		onRecordStack: (values: { stackAmount: number }) =>
 			stack.recordStack(values),
 		onResume: () => stack.resume(),
-		ruleName: resolveRuleName(session.ruleName, session.variant),
+		ruleName: resolveRuleName(session.ruleName, session.variant, "Cash game"),
 		seats,
 		stackFormatted: currentStack === null ? "—" : formatNumber(currentStack),
 		staleness: describeStaleness(lastUpdateAt, now),
