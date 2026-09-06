@@ -1,4 +1,9 @@
-import { appendFileSync } from "node:fs";
+import {
+	appendFileSync,
+	existsSync,
+	readFileSync,
+	writeFileSync,
+} from "node:fs";
 
 export type GateEvent =
 	| "opened"
@@ -10,6 +15,11 @@ export type GateEvent =
 export interface ReviewState {
 	lastSha: string;
 	rounds: number;
+}
+
+export interface ReviewResult {
+	subtype: string;
+	trailer: string | null;
 }
 
 export interface GateInput {
@@ -40,6 +50,7 @@ export const STATE_MARKER = "<!-- pre-merge-review:state";
 const MARKER_PATTERN = /<!-- pre-merge-review:state (\{.*?\}) -->/;
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const DOC_FILE = /\.md$/;
+const TRAILER_PATTERN = /<!-- pr-review: (\{[^}]*\}) -->/g;
 
 function nextRound(state: ReviewState | null, reason: string): GateDecision {
 	return {
@@ -146,6 +157,89 @@ export function renderStateComment(
 	].join("\n");
 }
 
+interface ResultEvent {
+	result: string;
+	subtype: string;
+}
+
+function collectResultEvents(node: unknown, found: ResultEvent[]): void {
+	if (Array.isArray(node)) {
+		for (const item of node) {
+			collectResultEvents(item, found);
+		}
+		return;
+	}
+	if (typeof node !== "object" || node === null) {
+		return;
+	}
+	const record = node as Record<string, unknown>;
+	if (record.type === "result") {
+		found.push({
+			result: typeof record.result === "string" ? record.result : "",
+			subtype: typeof record.subtype === "string" ? record.subtype : "",
+		});
+	}
+	for (const value of Object.values(record)) {
+		collectResultEvents(value, found);
+	}
+}
+
+function parseJson(text: string): unknown {
+	try {
+		return JSON.parse(text);
+	} catch {
+		return undefined;
+	}
+}
+
+export function extractReviewTrailer(finalMessage: string): string | null {
+	let payload: string | null = null;
+	for (const match of finalMessage.matchAll(TRAILER_PATTERN)) {
+		const candidate = match[1] ?? "";
+		const parsed = parseJson(candidate);
+		if (
+			typeof parsed === "object" &&
+			parsed !== null &&
+			!Array.isArray(parsed)
+		) {
+			payload = candidate;
+		}
+	}
+	return payload;
+}
+
+export function parseReviewResult(log: string): ReviewResult {
+	const found: ResultEvent[] = [];
+	const whole = parseJson(log);
+	if (whole === undefined) {
+		for (const line of log.split("\n")) {
+			const value = parseJson(line.trim());
+			if (value !== undefined) {
+				collectResultEvents(value, found);
+			}
+		}
+	} else {
+		collectResultEvents(whole, found);
+	}
+	const last = found.at(-1);
+	if (!last) {
+		return { subtype: "", trailer: null };
+	}
+	return { subtype: last.subtype, trailer: extractReviewTrailer(last.result) };
+}
+
+export function formatSummaryOutputs(
+	hasLog: boolean,
+	result: ReviewResult
+): string {
+	return [
+		`has_log=${hasLog}`,
+		`has_summary=${result.trailer !== null}`,
+		`subtype=${result.subtype.replace(/\s+/g, " ")}`,
+		"",
+	].join("\n");
+}
+
 export function formatGithubOutputs(decision: GateDecision): string {
 	const oneLine = (value: string) => value.replace(/\s*\n\s*/g, " ");
 	const lines = decision.run
@@ -175,6 +269,14 @@ function requireEnv(name: string): string {
 	return value;
 }
 
+function emitOutputs(outputs: string): void {
+	const target = process.env.GITHUB_OUTPUT;
+	if (target) {
+		appendFileSync(target, outputs);
+	}
+	console.log(outputs.trimEnd());
+}
+
 function decideCommand(): void {
 	const parsed = JSON.parse(requireEnv("GATE_INPUT")) as Omit<
 		GateInput,
@@ -187,11 +289,7 @@ function decideCommand(): void {
 		state: parseReviewState(parsed.stateComments),
 	});
 	const outputs = formatGithubOutputs(decision);
-	const target = process.env.GITHUB_OUTPUT;
-	if (target) {
-		appendFileSync(target, outputs);
-	}
-	console.log(outputs.trimEnd());
+	emitOutputs(outputs);
 }
 
 function renderStateCommand(): void {
@@ -204,12 +302,30 @@ function renderStateCommand(): void {
 	);
 }
 
+function summaryCommand(): void {
+	const runnerTemp = process.env.RUNNER_TEMP ?? ".";
+	const candidates = [
+		process.env.EXECUTION_FILE ?? "",
+		`${runnerTemp}/claude-execution-output.json`,
+	];
+	const logPath = candidates.find((path) => path !== "" && existsSync(path));
+	const result = logPath
+		? parseReviewResult(readFileSync(logPath, "utf8"))
+		: { subtype: "", trailer: null };
+	if (result.trailer !== null) {
+		writeFileSync(`${runnerTemp}/pr-review-trailer.json`, result.trailer);
+	}
+	emitOutputs(formatSummaryOutputs(logPath !== undefined, result));
+}
+
 if (import.meta.main) {
 	const command = process.argv[2] ?? "decide";
 	if (command === "decide") {
 		decideCommand();
 	} else if (command === "render-state") {
 		renderStateCommand();
+	} else if (command === "summary") {
+		summaryCommand();
 	} else if (command === "last-sha") {
 		const comments = JSON.parse(requireEnv("STATE_COMMENTS")) as string[];
 		console.log(parseReviewState(comments)?.lastSha ?? "");
