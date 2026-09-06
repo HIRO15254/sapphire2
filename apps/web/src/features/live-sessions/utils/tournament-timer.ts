@@ -188,11 +188,3 @@ export function formatBlindsValue(level: TournamentBlindLevel): string {
 	}
 	return parts.length > 0 ? parts.join(" / ") : "—";
 }
-
-export function formatBlindsWithAnte(level: TournamentBlindLevel): string {
-	const blinds = formatBlindsValue(level);
-	if (!level.ante) {
-		return blinds;
-	}
-	return `${blinds} (ante ${level.ante})`;
-}

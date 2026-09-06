@@ -60,7 +60,7 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 							staleness={cockpit.staleness}
 						/>
 					</div>
-					<ActionBar />
+					<ActionBar variant="cash" />
 				</div>
 				{cockpit.isPaused ? (
 					<PausedOverlay

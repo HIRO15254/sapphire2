@@ -19,14 +19,14 @@ function makeLevel(
 
 const LEVELS: TournamentBlindLevel[] = [
 	makeLevel({ blind1: 100, blind2: 200, level: 1 }),
-	makeLevel({ ante: 400, blind1: 200, blind2: 400, level: 2 }),
+	makeLevel({ ante: 1000, blind1: 500, blind2: 1000, level: 2 }),
 	makeLevel({ isBreak: true, level: 3, minutes: 10 }),
 ];
 
 const T0 = new Date("2026-01-01T12:00:00Z").getTime();
 
-function at(minutes: number): number {
-	return T0 + minutes * 60_000;
+function at(minutes: number, seconds = 0): number {
+	return T0 + minutes * 60_000 + seconds * 1000;
 }
 
 describe("describeBlindLevel", () => {
@@ -35,61 +35,87 @@ describe("describeBlindLevel", () => {
 	});
 
 	it("offers the opening level before the timer is started", () => {
-		const view = describeBlindLevel(LEVELS, null, T0);
-		expect(view).toMatchObject({
-			detailText: "100 / 200",
+		expect(describeBlindLevel(LEVELS, null, T0)).toMatchObject({
+			anteText: null,
+			blindsText: "100/200",
+			clockText: "20:00",
 			hasStarted: false,
-			levelLabel: "L1",
-			progress: null,
-			remainingText: null,
+			levelLabel: "Level 1",
+			progress: 0,
+			stateLabel: "Not started",
 		});
-		expect(view?.nextText).toBe("L2 · 200 / 400 (ante 400)");
 	});
 
-	it("counts the running level down and names the next one", () => {
+	it("counts the running level down and keeps the ante beside the blinds", () => {
 		const view = describeBlindLevel(LEVELS, T0, at(25));
 		expect(view).toMatchObject({
-			bigBlind: 400,
-			detailText: "200 / 400 (ante 400)",
+			anteText: "a 1,000",
+			bigBlind: 1000,
+			blindsText: "500/1,000",
+			clockText: "15:00",
 			hasStarted: true,
-			isFinished: false,
-			levelLabel: "L2",
-			remainingText: "15:00",
+			isWarning: false,
+			levelLabel: "Level 2",
+			stateLabel: "Next level in",
 		});
-		expect(view?.nextText).toBe("Break");
 		expect(view?.progress).toBeCloseTo(0.25);
 	});
 
-	it("reads a break as a break with no blinds", () => {
-		const view = describeBlindLevel(LEVELS, T0, at(45));
-		expect(view).toMatchObject({
-			detailText: null,
+	it("warns in the last minute of a level", () => {
+		expect(describeBlindLevel(LEVELS, T0, at(19, 10))).toMatchObject({
+			clockText: "00:50",
+			isWarning: true,
+		});
+	});
+
+	it("reads a break as a break", () => {
+		expect(describeBlindLevel(LEVELS, T0, at(45))).toMatchObject({
+			anteText: null,
+			blindsText: "On break",
+			gameText: null,
 			isBreak: true,
+			isWarning: true,
 			levelLabel: "Break",
+			stateLabel: "Break ends in",
+		});
+	});
+
+	it("says the clock is held while the session is paused", () => {
+		expect(
+			describeBlindLevel(LEVELS, T0, at(25), { isPaused: true })
+		).toMatchObject({
+			isPaused: true,
+			stateLabel: "Paused",
 		});
 	});
 
 	it("stops counting once the structure is exhausted", () => {
-		const view = describeBlindLevel(LEVELS, T0, at(90));
-		expect(view).toMatchObject({
-			isFinished: true,
-			nextText: null,
-			progress: null,
+		expect(describeBlindLevel(LEVELS, T0, at(90))).toMatchObject({
+			progress: 1,
+			stateLabel: "Structure complete",
 		});
 	});
 
-	it("shows the per-group stakes of a mixed level instead of flat blinds", () => {
+	it("names the variants of a mixed level beside the level", () => {
 		const mixed = [
 			makeLevel({
+				blind1: 100,
+				blind2: 200,
 				games: [
 					{ blind1: 100, blind2: 200, name: "Hold'em", variants: ["NLH"] },
-					{ blind1: 150, blind2: 300, name: "Omaha", variants: ["PLO"] },
+					{
+						blind1: 150,
+						blind2: 300,
+						name: "Omaha",
+						variants: ["PLO", "PLO5"],
+					},
 				],
 				level: 1,
 			}),
 		];
-		expect(describeBlindLevel(mixed, T0, T0)?.detailText).toBe(
-			"Hold'em 100/200 · Omaha 150/300"
-		);
+		expect(describeBlindLevel(mixed, T0, T0)).toMatchObject({
+			blindsText: "100/200",
+			gameText: "NLH · PLO · PLO5",
+		});
 	});
 });

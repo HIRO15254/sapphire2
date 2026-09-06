@@ -44,9 +44,9 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 					<TableView
 						center={
 							<TournamentTableStats
-								averageStackText={cockpit.averageStackText}
+								avgText={cockpit.avgText}
 								bbText={cockpit.bbText}
-								fieldText={cockpit.fieldText}
+								remainText={cockpit.remainText}
 								stackFormatted={cockpit.stackFormatted}
 							/>
 						}
@@ -69,7 +69,7 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 							staleness={cockpit.staleness}
 						/>
 					</div>
-					<ActionBar />
+					<ActionBar variant="tournament" />
 				</div>
 				{cockpit.isPaused ? (
 					<PausedOverlay

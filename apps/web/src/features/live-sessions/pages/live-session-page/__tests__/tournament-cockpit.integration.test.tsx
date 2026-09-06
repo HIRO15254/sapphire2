@@ -174,10 +174,26 @@ describe("TournamentCockpit", () => {
 
 		expect(await screen.findByText("12,000")).toBeInTheDocument();
 		expect(screen.getByText("30 BB")).toBeInTheDocument();
-		expect(screen.getByText("12 / 48")).toBeInTheDocument();
-		expect(screen.getByText("Avg 25k")).toBeInTheDocument();
-		expect(screen.getByText("L2")).toBeInTheDocument();
+		expect(screen.getByText("12/48")).toBeInTheDocument();
+		expect(screen.getByText("25,000")).toBeInTheDocument();
+		expect(screen.getByText("Level 2")).toBeInTheDocument();
+		expect(screen.getByText("200/400")).toBeInTheDocument();
+		expect(screen.getByText("Next level in")).toBeInTheDocument();
 		expect(screen.getByText("Sunday Deepstack")).toBeInTheDocument();
+	});
+
+	it("offers the tournament actions rather than the cash ones", async () => {
+		renderCockpit();
+
+		expect(
+			await screen.findByRole("button", { name: "Chip purchase" })
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: "All-in" })
+		).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: "Chip adjust" })
+		).not.toBeInTheDocument();
 	});
 
 	it("records the stack, the players left and the entries as a single event", async () => {
@@ -225,10 +241,11 @@ describe("TournamentCockpit", () => {
 		renderCockpit();
 
 		expect(
-			await screen.findByRole("button", { name: "Start" })
+			await screen.findByRole("button", { name: "Start timer" })
 		).toBeInTheDocument();
-		expect(screen.getByText("L1")).toBeInTheDocument();
-		expect(screen.getByText("100 / 200")).toBeInTheDocument();
+		expect(screen.getByText("Level 1")).toBeInTheDocument();
+		expect(screen.getByText("100/200")).toBeInTheDocument();
+		expect(screen.getByText("Not started")).toBeInTheDocument();
 	});
 
 	it("holds the blind level at the moment the pause began", async () => {
@@ -237,8 +254,9 @@ describe("TournamentCockpit", () => {
 		renderCockpit();
 
 		expect(await screen.findByText("Session paused")).toBeInTheDocument();
-		expect(screen.getByText("L5")).toBeInTheDocument();
+		expect(screen.getByText("Level 5")).toBeInTheDocument();
 		expect(screen.getByText("10:00")).toBeInTheDocument();
+		expect(screen.getByText("Paused")).toBeInTheDocument();
 		expect(screen.getByLabelText(STACK_LABEL)).toBeDisabled();
 	});
 

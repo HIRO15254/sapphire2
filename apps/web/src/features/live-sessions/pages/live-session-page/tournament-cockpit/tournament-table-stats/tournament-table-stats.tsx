@@ -1,14 +1,14 @@
 interface TournamentTableStatsProps {
-	averageStackText: string;
+	avgText: string;
 	bbText: string;
-	fieldText: string;
+	remainText: string;
 	stackFormatted: string;
 }
 
 export function TournamentTableStats({
-	averageStackText,
+	avgText,
 	bbText,
-	fieldText,
+	remainText,
 	stackFormatted,
 }: TournamentTableStatsProps) {
 	return (
@@ -17,11 +17,11 @@ export function TournamentTableStats({
 				{stackFormatted}
 			</span>
 			<div className="flex gap-2 font-mono text-[length:var(--text-xs)] tabular-nums">
-				<span>{bbText}</span>
-				<span className="text-muted-foreground">Avg {averageStackText}</span>
+				<span className="text-muted-foreground">{bbText}</span>
 			</div>
 			<span className="text-[11px] text-muted-foreground">
-				Players <span className="font-mono tabular-nums">{fieldText}</span>
+				Left <span className="font-mono tabular-nums">{remainText}</span> · Avg{" "}
+				<span className="font-mono tabular-nums">{avgText}</span>
 			</span>
 		</>
 	);

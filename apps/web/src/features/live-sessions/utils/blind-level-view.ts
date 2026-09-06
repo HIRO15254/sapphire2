@@ -1,49 +1,83 @@
 import {
-	formatGroupStakes,
-	groupDisplayLabel,
+	formatBlindParts,
+	type GameGroupLike,
 } from "@/features/live-sessions/utils/game-scene-formatters";
 import {
 	computeTournamentTimerState,
-	formatBlindsWithAnte,
 	formatTimerDuration,
 	type TournamentBlindLevel,
 } from "@/features/live-sessions/utils/tournament-timer";
+import { createGroupFormatter } from "@/utils/format-number";
+
+const WARNING_SECONDS = 60;
+const SECONDS_PER_MINUTE = 60;
 
 export interface BlindLevelView {
+	anteText: string | null;
 	bigBlind: number | null;
-	detailText: string | null;
+	blindsText: string;
+	clockText: string;
+	gameText: string | null;
 	hasStarted: boolean;
 	isBreak: boolean;
-	isFinished: boolean;
+	isPaused: boolean;
+	isWarning: boolean;
 	levelLabel: string;
-	nextText: string | null;
-	progress: number | null;
-	remainingText: string | null;
+	progress: number;
+	stateLabel: string;
+}
+
+function anteText(level: TournamentBlindLevel): string | null {
+	if (level.isBreak || !level.ante) {
+		return null;
+	}
+	const format = createGroupFormatter([
+		level.blind1,
+		level.blind2,
+		level.blind3,
+		level.ante,
+	]);
+	return `a ${format(level.ante)}`;
+}
+
+function blindsText(level: TournamentBlindLevel): string {
+	if (level.isBreak) {
+		return "On break";
+	}
+	const parts = formatBlindParts(level);
+	return parts === "" ? "—" : parts;
+}
+
+function gameText(level: TournamentBlindLevel): string | null {
+	if (level.isBreak) {
+		return null;
+	}
+	const variants = (level.games ?? []).flatMap(
+		(group: GameGroupLike) => group.variants
+	);
+	return variants.length === 0 ? null : variants.join(" · ");
 }
 
 function levelLabel(level: TournamentBlindLevel): string {
-	return level.isBreak ? "Break" : `L${level.level}`;
+	return level.isBreak ? "Break" : `Level ${level.level}`;
 }
 
-function detailText(level: TournamentBlindLevel): string | null {
-	if (level.games && level.games.length > 0) {
-		return level.games
-			.map((group) => {
-				const stakes = formatGroupStakes(group);
-				const label = groupDisplayLabel(group);
-				return stakes === "—" ? label : `${label} ${stakes}`;
-			})
-			.join(" · ");
-	}
-	const blinds = formatBlindsWithAnte(level);
-	return blinds === "—" ? null : blinds;
-}
-
-function summarize(level: TournamentBlindLevel): string {
-	const detail = detailText(level);
-	return detail === null
-		? levelLabel(level)
-		: `${levelLabel(level)} · ${detail}`;
+function describeLevel(
+	level: TournamentBlindLevel,
+	isPaused: boolean
+): Omit<
+	BlindLevelView,
+	"clockText" | "hasStarted" | "isWarning" | "progress" | "stateLabel"
+> {
+	return {
+		anteText: anteText(level),
+		bigBlind: level.blind2,
+		blindsText: blindsText(level),
+		gameText: gameText(level),
+		isBreak: level.isBreak,
+		isPaused,
+		levelLabel: levelLabel(level),
+	};
 }
 
 function sortByLevel(
@@ -53,36 +87,36 @@ function sortByLevel(
 }
 
 function describeUnstarted(
-	levels: readonly TournamentBlindLevel[]
+	levels: readonly TournamentBlindLevel[],
+	isPaused: boolean
 ): BlindLevelView | null {
-	const sorted = sortByLevel(levels);
-	const first = sorted[0];
+	const first = sortByLevel(levels)[0];
 	if (!first) {
 		return null;
 	}
+	const minutes = typeof first.minutes === "number" ? first.minutes : 0;
 	return {
-		bigBlind: first.blind2,
-		detailText: detailText(first),
+		...describeLevel(first, isPaused),
+		clockText: formatTimerDuration(minutes * SECONDS_PER_MINUTE),
 		hasStarted: false,
-		isBreak: first.isBreak,
-		isFinished: false,
-		levelLabel: levelLabel(first),
-		nextText: sorted[1] ? summarize(sorted[1]) : null,
-		progress: null,
-		remainingText: null,
+		isWarning: first.isBreak,
+		progress: 0,
+		stateLabel: "Not started",
 	};
 }
 
 export function describeBlindLevel(
 	blindLevels: readonly TournamentBlindLevel[],
 	timerStartedAt: Date | string | number | null,
-	now: Date | number
+	now: Date | number,
+	options: { isPaused?: boolean } = {}
 ): BlindLevelView | null {
+	const isPaused = options.isPaused ?? false;
 	if (blindLevels.length === 0) {
 		return null;
 	}
 	if (timerStartedAt === null) {
-		return describeUnstarted(blindLevels);
+		return describeUnstarted(blindLevels, isPaused);
 	}
 
 	const state = computeTournamentTimerState(blindLevels, timerStartedAt, now);
@@ -94,20 +128,27 @@ export function describeBlindLevel(
 	const remaining = state.remainingSecondsInLevel;
 	const isFinished =
 		state.nextLevel === null && remaining !== null && remaining <= 0;
+	const isWarning =
+		!isFinished &&
+		(current.isBreak || (remaining !== null && remaining <= WARNING_SECONDS));
+
+	function stateLabel(): string {
+		if (isFinished) {
+			return "Structure complete";
+		}
+		if (isPaused) {
+			return "Paused";
+		}
+		return current?.isBreak ? "Break ends in" : "Next level in";
+	}
 
 	return {
-		bigBlind: current.blind2,
-		detailText: detailText(current),
+		...describeLevel(current, isPaused),
+		clockText:
+			remaining === null ? "—" : formatTimerDuration(Math.max(0, remaining)),
 		hasStarted: true,
-		isBreak: current.isBreak,
-		isFinished,
-		levelLabel: levelLabel(current),
-		nextText:
-			isFinished || state.nextLevel === null
-				? null
-				: summarize(state.nextLevel),
-		progress: isFinished ? null : state.levelProgressFraction,
-		remainingText:
-			remaining === null ? null : formatTimerDuration(Math.max(0, remaining)),
+		isWarning,
+		progress: isFinished ? 1 : (state.levelProgressFraction ?? 0),
+		stateLabel: stateLabel(),
 	};
 }

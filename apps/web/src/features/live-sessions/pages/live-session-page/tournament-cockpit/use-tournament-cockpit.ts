@@ -13,11 +13,7 @@ import {
 import { formatTimerDuration } from "@/features/live-sessions/utils/tournament-timer";
 import { useKeyboardOpen } from "@/shared/hooks/use-keyboard-open";
 import { useNowTick } from "@/shared/hooks/use-now-tick";
-import {
-	formatCompactNumber,
-	formatLocalHm,
-	formatNumber,
-} from "@/utils/format-number";
+import { formatLocalHm, formatNumber } from "@/utils/format-number";
 import { resolveRuleName, toSessionStatus } from "../session-fields";
 import type { TournamentCompleteValues } from "../sheets";
 import type { TournamentStackValues } from "../tournament-quick-input";
@@ -56,10 +52,12 @@ export function useTournamentCockpit(sessionId: string) {
 
 	const clock = computeSessionClock(session.events, now);
 	const timerStartedAt = session.timerStartedAt;
+	const isPaused = status === "paused";
 	const blindLevel = describeBlindLevel(
 		session.blindLevels,
 		timerStartedAt,
-		clock.pausedSinceMs ?? now
+		clock.pausedSinceMs ?? now,
+		{ isPaused }
 	);
 	const bigBlinds = computeBigBlinds(currentStack, blindLevel?.bigBlind);
 	const lastUpdateAt = findLastStackUpdateAt(session.events);
@@ -75,22 +73,19 @@ export function useTournamentCockpit(sessionId: string) {
 	};
 
 	return {
-		averageStackText:
-			summary.averageStack === null
-				? "—"
-				: formatCompactNumber(summary.averageStack),
+		avgText:
+			summary.averageStack === null ? "—" : formatNumber(summary.averageStack),
 		bbText: bigBlinds === null ? "— BB" : `${formatNumber(bigBlinds)} BB`,
 		blindLevel,
 		canRecordStack: isEventAllowedInState("update_stack", status),
 		currentStack,
 		elapsed: formatTimerDuration(clock.activeSeconds, { padHours: true }),
-		fieldText: `${summary.remainingPlayers ?? "—"} / ${summary.totalEntries ?? "—"}`,
 		isCompletePending: stack.isCompletePending,
 		isEndSessionOpen,
 		isKeyboardOpen,
 		isLoading: false as const,
 		isMasterLinked: Boolean(session.tournamentId),
-		isPaused: status === "paused",
+		isPaused,
 		isStackPending: stack.isStackPending,
 		isUpdatingTimer,
 		lastUpdateLabel: lastUpdateAt === null ? null : formatLocalHm(lastUpdateAt),
@@ -105,6 +100,7 @@ export function useTournamentCockpit(sessionId: string) {
 		pausedElapsed: formatTimerDuration(clock.pausedSeconds, {
 			padHours: true,
 		}),
+		remainText: `${summary.remainingPlayers ?? "—"}/${summary.totalEntries ?? "—"}`,
 		remainingPlayers: summary.remainingPlayers,
 		ruleName: resolveRuleName(session.ruleName, session.variant, "Tournament"),
 		seats,
