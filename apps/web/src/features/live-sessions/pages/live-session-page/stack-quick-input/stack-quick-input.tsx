@@ -17,7 +17,11 @@ export function StackQuickInput({
 	isPending,
 	onSubmit,
 }: StackQuickInputProps) {
-	const { form } = useStackQuickInput({ currentStack, onSubmit });
+	const { form } = useStackQuickInput({
+		currentStack,
+		isSaving: isPending,
+		onSubmit,
+	});
 
 	return (
 		<form

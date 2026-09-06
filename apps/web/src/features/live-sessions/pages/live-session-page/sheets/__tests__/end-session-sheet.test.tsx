@@ -5,11 +5,11 @@ import { EndSessionSheet } from "@/features/live-sessions/pages/live-session-pag
 
 const CASH_OUT_LABEL = /Cash-out amount/;
 
-function setup() {
+function setup(evDiff = 500) {
 	render(
 		<EndSessionSheet
 			chipRemoveTotal={300}
-			evDiff={500}
+			evDiff={evDiff}
 			isPending={false}
 			onOpenChange={vi.fn()}
 			onSubmit={vi.fn()}
@@ -20,12 +20,20 @@ function setup() {
 	return userEvent.setup();
 }
 
-function rowValue(label: string): string {
-	const row = screen.getByText(label, { exact: true }).closest("div");
-	if (!row) {
+function row(label: string): HTMLElement {
+	const found = screen.getByText(label, { exact: true }).closest("div");
+	if (!found) {
 		throw new Error(`row for ${label} not found`);
 	}
-	return within(row).getByRole("definition").textContent ?? "";
+	return found;
+}
+
+function rowValue(label: string): string {
+	return within(row(label)).getByRole("definition").textContent ?? "";
+}
+
+function rowLabel(label: string): string {
+	return within(row(label)).getByRole("term").textContent ?? "";
 }
 
 describe("EndSessionSheet", () => {
@@ -49,6 +57,25 @@ describe("EndSessionSheet", () => {
 		await user.clear(input);
 		expect(rowValue("Result")).toBe("—");
 		expect(rowValue("EV result")).toBe("—");
+	});
+
+	it("explains a row with its formula only once it has a value", async () => {
+		const user = setup();
+		expect(rowLabel("Result")).toBe("Result");
+		expect(rowLabel("EV result")).toBe("EV result");
+
+		await user.type(screen.getByLabelText(CASH_OUT_LABEL), "12000");
+
+		expect(rowLabel("Result")).toBe("Result (12,000 + 300 − 10,000)");
+		expect(rowLabel("EV result")).toBe("EV result (result + EV delta +500)");
+	});
+
+	it("drops the EV formula when the session recorded no all-in", async () => {
+		const user = setup(0);
+		await user.type(screen.getByLabelText(CASH_OUT_LABEL), "12000");
+
+		expect(rowValue("EV result")).toBe("—");
+		expect(rowLabel("EV result")).toBe("EV result");
 	});
 
 	it("keeps the fixed buy-in and withdrawal rows independent of the input", async () => {

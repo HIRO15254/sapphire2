@@ -9,6 +9,7 @@ const stackQuickInputSchema = z.object({
 
 interface UseStackQuickInputOptions {
 	currentStack: number | null;
+	isSaving: boolean;
 	onSubmit: (values: { stackAmount: number }) => void;
 }
 
@@ -18,6 +19,7 @@ function toFieldValue(currentStack: number | null): string {
 
 export function useStackQuickInput({
 	currentStack,
+	isSaving,
 	onSubmit,
 }: UseStackQuickInputOptions) {
 	const form = useForm({
@@ -31,8 +33,11 @@ export function useStackQuickInput({
 	});
 
 	useEffect(() => {
+		if (isSaving) {
+			return;
+		}
 		form.reset({ stackAmount: toFieldValue(currentStack) });
-	}, [currentStack, form]);
+	}, [currentStack, form, isSaving]);
 
 	return { form };
 }

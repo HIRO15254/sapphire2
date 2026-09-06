@@ -73,13 +73,19 @@ export function EndSessionSheet({
 					value={formatNumber(chipRemoveTotal)}
 				/>
 				<SummaryRow
-					formula={`${cashOut} + ${formatNumber(chipRemoveTotal)} − ${formatNumber(totalBuyIn)}`}
+					formula={
+						displayPL === null
+							? undefined
+							: `${cashOut} + ${formatNumber(chipRemoveTotal)} − ${formatNumber(totalBuyIn)}`
+					}
 					label="Result"
 					tone={plToneClass(displayPL)}
 					value={displayPL === null ? "—" : formatProfitLoss(displayPL)}
 				/>
 				<SummaryRow
-					formula={`result + EV delta ${signed(evDiff)}`}
+					formula={
+						evPL === null ? undefined : `result + EV delta ${signed(evDiff)}`
+					}
 					label="EV result"
 					value={evPL === null ? "—" : formatProfitLoss(evPL)}
 				/>
