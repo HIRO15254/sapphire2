@@ -32,6 +32,7 @@ const LAST_UPDATE_LINE = /Last update/;
 const STACK_FIELD = /^Stack/;
 const STACK_ROW = /Stack update/;
 const START_ROW = /Session start/;
+const CASH_CHART_SUMMARY = /Cash game result chart/;
 
 interface CreatedEvent {
 	eventType: string;
@@ -357,6 +358,36 @@ describe("CashCockpit", () => {
 		});
 	});
 
+	it("returns to the timeline when the editor it opened is closed", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(await screen.findByRole("button", { name: "Timeline" }));
+		await user.click(await screen.findByRole("button", { name: STACK_ROW }));
+
+		expect(
+			await screen.findByRole("heading", { name: "Edit event" })
+		).toBeInTheDocument();
+
+		await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+		expect(
+			await screen.findByRole("button", { name: STACK_ROW })
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("heading", { name: "Edit event" })
+		).not.toBeInTheDocument();
+	});
+
+	it("charts the recorded result above the timeline", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(await screen.findByRole("button", { name: "Timeline" }));
+
+		expect(await screen.findByText(CASH_CHART_SUMMARY)).toBeInTheDocument();
+	});
+
 	it("deletes an editable event but never the session start", async () => {
 		const user = userEvent.setup();
 		renderCockpit();
@@ -368,7 +399,6 @@ describe("CashCockpit", () => {
 		).not.toBeInTheDocument();
 		await user.click(screen.getByRole("button", { name: "Cancel" }));
 
-		await user.click(await screen.findByRole("button", { name: "Timeline" }));
 		await user.click(await screen.findByRole("button", { name: STACK_ROW }));
 		await user.click(
 			await screen.findByRole("button", { name: "Delete this event" })

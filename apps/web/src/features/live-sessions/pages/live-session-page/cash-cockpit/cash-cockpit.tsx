@@ -93,6 +93,8 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 				onSelect={journal.onSelectEvent}
 				open={journal.isTimelineOpen}
 				rows={journal.rows}
+				sessionId={sessionId}
+				sessionType="cash_game"
 			/>
 			{journal.editorTarget === null ? null : (
 				<EventEditorSheet

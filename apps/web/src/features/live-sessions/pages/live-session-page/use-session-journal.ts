@@ -108,7 +108,6 @@ export function useSessionJournal({
 			mode: "edit",
 			openedAt: new Date(),
 		});
-		setIsTimelineOpen(false);
 		setIsEditorOpen(true);
 	};
 

@@ -11,6 +11,7 @@ import { CRYST_SCOPE_CLASS } from "../cryst-scope";
 interface CrystSheetProps {
 	children: ReactNode;
 	className?: string;
+	header?: ReactNode;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 	title: string;
@@ -19,6 +20,7 @@ interface CrystSheetProps {
 export function CrystSheet({
 	children,
 	className,
+	header,
 	onOpenChange,
 	open,
 	title,
@@ -40,6 +42,11 @@ export function CrystSheet({
 					<DrawerTitle className="t-h4">{title}</DrawerTitle>
 					<DrawerDescription className="sr-only">{title}</DrawerDescription>
 				</div>
+				{header === undefined ? null : (
+					<div className="shrink-0 border-border border-b px-4 pt-1 pb-2">
+						{header}
+					</div>
+				)}
 				<div className="flex-1 overflow-y-auto px-4 pt-2 pb-[calc(1rem+env(safe-area-inset-bottom))]">
 					{children}
 				</div>

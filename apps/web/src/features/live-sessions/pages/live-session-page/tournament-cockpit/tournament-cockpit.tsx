@@ -98,6 +98,8 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 				onSelect={journal.onSelectEvent}
 				open={journal.isTimelineOpen}
 				rows={journal.rows}
+				sessionId={sessionId}
+				sessionType="tournament"
 			/>
 			{journal.editorTarget === null ? null : (
 				<EventEditorSheet
