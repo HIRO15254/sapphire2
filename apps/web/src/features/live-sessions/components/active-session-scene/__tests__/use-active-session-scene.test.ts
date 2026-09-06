@@ -2,11 +2,11 @@ import { IconCoin } from "@tabler/icons-react";
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { useActiveSessionScene } from "@/features/live-sessions/components/active-session-scene/use-active-session-scene";
-import type { ActiveSessionSceneState } from "@/features/live-sessions/components/active-session-scene/use-active-session-scene-state";
+import type { SessionSeatsState } from "@/features/live-sessions/hooks/use-session-seats";
 
 function makeState(
-	overrides: Partial<ActiveSessionSceneState> = {}
-): ActiveSessionSceneState {
+	overrides: Partial<SessionSeatsState> = {}
+): SessionSeatsState {
 	return {
 		excludePlayerIds: [],
 		heroAvailable: true,

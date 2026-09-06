@@ -1,7 +1,7 @@
 import { IconCoins, IconNote } from "@tabler/icons-react";
 import { useState } from "react";
 import type { ActionsDrawerItem } from "@/features/live-sessions/components/actions-drawer";
-import { useActiveSessionSceneState } from "@/features/live-sessions/components/active-session-scene";
+import { useSessionSeats } from "@/features/live-sessions/hooks/use-session-seats";
 import { useTournamentSession } from "@/features/live-sessions/hooks/use-tournament-session";
 import { useTournamentStack } from "@/features/live-sessions/hooks/use-tournament-stack";
 import type { TournamentBlindLevel } from "@/features/live-sessions/utils/tournament-timer";
@@ -53,7 +53,7 @@ export function useTournamentSessionView(sessionId: string) {
 	const rawHeroSeat = session?.heroSeatPosition;
 	const heroSeatPosition =
 		typeof rawHeroSeat === "number" && rawHeroSeat >= 0 ? rawHeroSeat : null;
-	const sceneState = useActiveSessionSceneState({
+	const sceneState = useSessionSeats({
 		heroSeatPosition,
 		sessionId,
 		sessionType: "tournament",

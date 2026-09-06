@@ -32,20 +32,23 @@ export interface SeatPlayer {
 	tags: PlayerTagWithColor[];
 }
 
+export type SeatOccupancy = "empty" | "hero" | "player";
+
 export interface SeatEntry {
 	isHero: boolean;
+	occupancy: SeatOccupancy;
 	player: SeatPlayer | null;
 	seatPosition: number;
 }
 
-interface UseActiveSessionSceneStateOptions {
+interface UseSessionSeatsOptions {
 	heroSeatPosition: number | null;
 	sessionId: string;
 	sessionType: "cash_game" | "tournament";
 	tableSize: number | null;
 }
 
-export interface ActiveSessionSceneState {
+export interface SessionSeatsState {
 	excludePlayerIds: string[];
 	heroAvailable: boolean;
 	heroSeatPosition: number | null;
@@ -85,12 +88,12 @@ export function resolveSeatCount(tableSize: number | null): number {
 	return DEFAULT_SEAT_COUNT;
 }
 
-export function useActiveSessionSceneState({
+export function useSessionSeats({
 	heroSeatPosition,
 	sessionId,
 	sessionType,
 	tableSize,
-}: UseActiveSessionSceneStateOptions): ActiveSessionSceneState {
+}: UseSessionSeatsOptions): SessionSeatsState {
 	const sessionParam: SessionParam =
 		sessionType === "cash_game"
 			? { liveCashGameSessionId: sessionId }
@@ -151,13 +154,14 @@ export function useActiveSessionSceneState({
 	const seats: SeatEntry[] = [];
 	for (let i = 0; i < seatCount; i++) {
 		const isHero = heroSeatPosition === i;
-		seats.push({
-			isHero,
-			seatPosition: i,
-			player: isHero
-				? null
-				: (activePlayers.find((p) => p.seatPosition === i) ?? null),
-		});
+		const player = activePlayers.find((p) => p.seatPosition === i) ?? null;
+		let occupancy: SeatOccupancy = "empty";
+		if (isHero) {
+			occupancy = "hero";
+		} else if (player) {
+			occupancy = "player";
+		}
+		seats.push({ isHero, occupancy, player, seatPosition: i });
 	}
 
 	const unseatedPlayers = activePlayers.filter(

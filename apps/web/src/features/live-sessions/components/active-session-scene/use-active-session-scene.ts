@@ -6,13 +6,13 @@ import {
 } from "@tabler/icons-react";
 import { useState } from "react";
 import type { ActionsDrawerItem } from "@/features/live-sessions/components/actions-drawer";
-import type { ActiveSessionSceneState } from "./use-active-session-scene-state";
+import type { SessionSeatsState } from "@/features/live-sessions/hooks/use-session-seats";
 
 interface UseActiveSessionSceneOptions {
 	eventMenuExtraItems: ActionsDrawerItem[];
 	onEndSession: () => void;
 	onPause: () => void;
-	state: ActiveSessionSceneState;
+	state: SessionSeatsState;
 }
 
 export function useActiveSessionScene({

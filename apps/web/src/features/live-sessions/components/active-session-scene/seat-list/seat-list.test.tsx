@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import type {
 	SeatEntry,
 	SeatPlayer,
-} from "@/features/live-sessions/components/active-session-scene/use-active-session-scene-state";
+} from "@/features/live-sessions/hooks/use-session-seats";
 
 vi.mock("./empty-seat-editor", () => ({
 	EmptySeatEditor: ({
@@ -78,11 +78,16 @@ function makePlayer(overrides: Partial<SeatPlayer> = {}): SeatPlayer {
 function makeSeats(
 	entries: Array<Partial<SeatEntry> & { seatPosition: number }>
 ): SeatEntry[] {
-	return entries.map((e) => ({
-		isHero: false,
-		player: null,
-		...e,
-	}));
+	return entries.map((e) => {
+		const entry = { isHero: false, player: null, ...e };
+		let occupancy: SeatEntry["occupancy"] = "empty";
+		if (entry.isHero) {
+			occupancy = "hero";
+		} else if (entry.player) {
+			occupancy = "player";
+		}
+		return { occupancy, ...entry };
+	});
 }
 
 function setup(overrides: Partial<React.ComponentProps<typeof SeatList>> = {}) {
@@ -176,6 +181,16 @@ describe("SeatList", () => {
 		expect(
 			screen.getByRole("button", { name: REGEX_SEAT_N })
 		).toHaveTextContent("Seat 2");
+	});
+
+	it("renders 'Hero' on a hero seat that also carries a player record", () => {
+		setup({
+			seats: makeSeats([
+				{ seatPosition: 0, isHero: true, player: makePlayer() },
+			]),
+		});
+		expect(screen.getByText("Hero")).toBeInTheDocument();
+		expect(screen.queryByText("Alice")).not.toBeInTheDocument();
 	});
 
 	it("unseats the hero from the hero row's unseat action", async () => {

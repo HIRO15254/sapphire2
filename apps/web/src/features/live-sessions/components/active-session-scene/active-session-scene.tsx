@@ -5,6 +5,7 @@ import {
 	type ActionsDrawerItem,
 } from "@/features/live-sessions/components/actions-drawer";
 import { SeatFromScreenshotSheet } from "@/features/live-sessions/components/seat-from-screenshot-sheet";
+import type { SessionSeatsState } from "@/features/live-sessions/hooks/use-session-seats";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -19,7 +20,6 @@ import { GameSettingsSheet } from "./game-settings-sheet";
 import { HistorySection } from "./history-section";
 import { SeatList } from "./seat-list";
 import { useActiveSessionScene } from "./use-active-session-scene";
-import type { ActiveSessionSceneState } from "./use-active-session-scene-state";
 
 interface ActiveSessionSceneProps {
 	discardDescription?: ReactNode;
@@ -29,7 +29,7 @@ interface ActiveSessionSceneProps {
 	onDiscard: () => void;
 	onEndSession: () => void;
 	onPause: () => void;
-	state: ActiveSessionSceneState;
+	state: SessionSeatsState;
 	summary: ReactNode;
 	title: string;
 	topSlot?: ReactNode;

@@ -6,9 +6,9 @@ import {
 } from "@tabler/icons-react";
 import { useState } from "react";
 import type { ActionsDrawerItem } from "@/features/live-sessions/components/actions-drawer";
-import { useActiveSessionSceneState } from "@/features/live-sessions/components/active-session-scene";
 import { useCashGameSession } from "@/features/live-sessions/hooks/use-cash-game-session";
 import { useCashGameStack } from "@/features/live-sessions/hooks/use-cash-game-stack";
+import { useSessionSeats } from "@/features/live-sessions/hooks/use-session-seats";
 
 export interface CashGameCompactSummaryData {
 	chipRemoveTotal: number;
@@ -31,7 +31,7 @@ export function useCashGameSessionView(sessionId: string) {
 	const rawHeroSeat = session?.heroSeatPosition;
 	const heroSeatPosition =
 		typeof rawHeroSeat === "number" && rawHeroSeat >= 0 ? rawHeroSeat : null;
-	const sceneState = useActiveSessionSceneState({
+	const sceneState = useSessionSeats({
 		heroSeatPosition,
 		sessionId,
 		sessionType: "cash_game",

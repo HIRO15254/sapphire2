@@ -43,8 +43,8 @@ vi.mock("@/features/live-sessions/hooks/use-cash-game-stack", () => ({
 	},
 }));
 
-vi.mock("@/features/live-sessions/components/active-session-scene", () => ({
-	useActiveSessionSceneState: (options: Record<string, unknown>) => {
+vi.mock("@/features/live-sessions/hooks/use-session-seats", () => ({
+	useSessionSeats: (options: Record<string, unknown>) => {
 		mocks.lastSceneOptions = options;
 		return mocks.sceneState;
 	},
@@ -124,7 +124,7 @@ describe("useCashGameSessionView", () => {
 			expect(mocks.lastSceneOptions?.heroSeatPosition).toBeNull();
 		});
 
-		it("returns the scene state from useActiveSessionSceneState", () => {
+		it("returns the scene state from useSessionSeats", () => {
 			mocks.session = makeSession();
 			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
 			expect(result.current.sceneState).toBe(mocks.sceneState);
