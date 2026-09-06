@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
 	decideReview,
+	extractReviewTrailer,
 	formatGithubOutputs,
+	formatSummaryOutputs,
 	type GateInput,
+	parseReviewResult,
 	parseReviewState,
 	renderStateComment,
 	STATE_MARKER,
@@ -437,5 +440,126 @@ describe("formatGithubOutputs", () => {
 		expect(formatGithubOutputs({ run: false, reason: "a\nb" })).toContain(
 			"reason=a b\n"
 		);
+	});
+});
+
+const TRAILER =
+	'<!-- pr-review: {"verdict":"approve","important":0,"nit":1,"unverified":0,"resolved":["apps/web/src/a.ts:12"]} -->';
+
+function resultLog(result: string, subtype = "success"): string {
+	return JSON.stringify([
+		{ type: "system", subtype: "init" },
+		{ type: "assistant", message: { content: "working" } },
+		{ type: "result", subtype, result },
+	]);
+}
+
+describe("extractReviewTrailer", () => {
+	it("returns the trailer payload of a completed summary", () => {
+		expect(extractReviewTrailer(`## 結果\n\n${TRAILER}`)).toBe(
+			'{"verdict":"approve","important":0,"nit":1,"unverified":0,"resolved":["apps/web/src/a.ts:12"]}'
+		);
+	});
+
+	it("returns null for a final message that never reported (SA2-231)", () => {
+		expect(
+			extractReviewTrailer("差分を確認しています…\n- [ ] 検証・結果報告")
+		).toBeNull();
+	});
+
+	it("returns null for an empty final message", () => {
+		expect(extractReviewTrailer("")).toBeNull();
+	});
+
+	it("ignores a trailer whose payload is not valid JSON", () => {
+		expect(
+			extractReviewTrailer("<!-- pr-review: {verdict: approve} -->")
+		).toBeNull();
+	});
+
+	it("takes the last trailer when the message quotes an earlier one", () => {
+		const quoted = '<!-- pr-review: {"verdict":"changes-requested"} -->';
+		expect(extractReviewTrailer(`${quoted}\n${TRAILER}`)).toContain(
+			'"verdict":"approve"'
+		);
+	});
+});
+
+describe("parseReviewResult", () => {
+	it("reads the trailer and the subtype of the last result event", () => {
+		expect(parseReviewResult(resultLog(`要約\n${TRAILER}`))).toEqual({
+			subtype: "success",
+			trailer:
+				'{"verdict":"approve","important":0,"nit":1,"unverified":0,"resolved":["apps/web/src/a.ts:12"]}',
+		});
+	});
+
+	it("reports no trailer for a run that exited success without a summary", () => {
+		expect(parseReviewResult(resultLog("- [ ] 検証・結果報告"))).toEqual({
+			subtype: "success",
+			trailer: null,
+		});
+	});
+
+	it("keeps the subtype of a turn-limit cutoff so the report can name it", () => {
+		expect(parseReviewResult(resultLog("", "error_max_turns")).subtype).toBe(
+			"error_max_turns"
+		);
+	});
+
+	it("reads a JSONL execution log as well as a JSON array", () => {
+		const jsonl = [
+			JSON.stringify({ type: "system", subtype: "init" }),
+			JSON.stringify({ type: "result", subtype: "success", result: TRAILER }),
+			"",
+		].join("\n");
+		expect(parseReviewResult(jsonl).trailer).toContain('"verdict":"approve"');
+	});
+
+	it("finds a result event nested inside a wrapper object", () => {
+		const nested = JSON.stringify({
+			events: [{ type: "result", subtype: "success", result: TRAILER }],
+		});
+		expect(parseReviewResult(nested).trailer).toContain('"verdict":"approve"');
+	});
+
+	it("reports no trailer for a log with no result event", () => {
+		expect(parseReviewResult('[{"type":"system"}]')).toEqual({
+			subtype: "",
+			trailer: null,
+		});
+	});
+
+	it("reports no trailer for an unparseable log", () => {
+		expect(parseReviewResult("not json at all")).toEqual({
+			subtype: "",
+			trailer: null,
+		});
+	});
+});
+
+describe("formatSummaryOutputs", () => {
+	it("marks a completed review so the round is recorded", () => {
+		expect(
+			formatSummaryOutputs(true, { subtype: "success", trailer: "{}" })
+		).toBe("has_log=true\nhas_summary=true\nsubtype=success\n");
+	});
+
+	it("marks a summary-less run so the round is not recorded", () => {
+		expect(
+			formatSummaryOutputs(true, { subtype: "success", trailer: null })
+		).toBe("has_log=true\nhas_summary=false\nsubtype=success\n");
+	});
+
+	it("marks a run the action never started", () => {
+		expect(formatSummaryOutputs(false, { subtype: "", trailer: null })).toBe(
+			"has_log=false\nhas_summary=false\nsubtype=\n"
+		);
+	});
+
+	it("keeps one key per line when the subtype carries whitespace", () => {
+		expect(
+			formatSummaryOutputs(true, { subtype: "a\nb", trailer: null })
+		).toContain("subtype=a b\n");
 	});
 });
