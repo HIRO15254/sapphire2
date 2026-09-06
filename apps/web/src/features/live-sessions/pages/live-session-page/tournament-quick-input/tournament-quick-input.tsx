@@ -1,5 +1,5 @@
 import { IconPencilCheck, IconStack2, IconUsers } from "@tabler/icons-react";
-import { Field } from "@/shared/components/ui/field";
+import { Field, FieldError } from "@/shared/components/ui/field";
 import {
 	type TournamentStackValues,
 	useTournamentQuickInput,
@@ -15,6 +15,8 @@ interface TournamentQuickInputProps {
 }
 
 const FORM_ID = "cryst-tournament-quick-input";
+const PLAYERS_ERROR_ID = "cryst-tournament-players-error";
+const ENTRIES_ERROR_ID = "cryst-tournament-entries-error";
 
 const COUNT_INPUT_CLASS =
 	"border-none bg-transparent font-mono text-[length:var(--m-text-secondary)] tabular-nums outline-none disabled:opacity-50";
@@ -73,20 +75,20 @@ export function TournamentQuickInput({
 				{(playersField) => (
 					<form.Field name="totalEntries">
 						{(entriesField) => {
-							const error =
-								playersField.state.meta.errors[0]?.message ??
-								entriesField.state.meta.errors[0]?.message;
+							const playersError = playersField.state.meta.errors[0]?.message;
+							const entriesError = entriesField.state.meta.errors[0]?.message;
 							return (
-								<Field error={error}>
+								<div className="flex flex-col gap-2">
 									<div className="flex h-[var(--m-control)] items-center gap-0.5 rounded-md border border-input bg-background px-2">
 										<IconUsers
 											className="mr-1 shrink-0 text-muted-foreground"
 											size={15}
 										/>
 										<input
-											aria-invalid={
-												playersField.state.meta.errors.length > 0 || undefined
+											aria-describedby={
+												playersError ? PLAYERS_ERROR_ID : undefined
 											}
+											aria-invalid={playersError ? true : undefined}
 											aria-label="Players left"
 											className={`${COUNT_INPUT_CLASS} w-[34px] text-right`}
 											disabled={isDisabled}
@@ -104,9 +106,10 @@ export function TournamentQuickInput({
 											/
 										</span>
 										<input
-											aria-invalid={
-												entriesField.state.meta.errors.length > 0 || undefined
+											aria-describedby={
+												entriesError ? ENTRIES_ERROR_ID : undefined
 											}
+											aria-invalid={entriesError ? true : undefined}
 											aria-label="Total entries"
 											className={`${COUNT_INPUT_CLASS} w-[38px] text-muted-foreground`}
 											disabled={isDisabled}
@@ -121,7 +124,17 @@ export function TournamentQuickInput({
 											value={entriesField.state.value}
 										/>
 									</div>
-								</Field>
+									{playersError ? (
+										<FieldError id={PLAYERS_ERROR_ID}>
+											Players left: {playersError}
+										</FieldError>
+									) : null}
+									{entriesError ? (
+										<FieldError id={ENTRIES_ERROR_ID}>
+											Total entries: {entriesError}
+										</FieldError>
+									) : null}
+								</div>
 							);
 						}}
 					</form.Field>

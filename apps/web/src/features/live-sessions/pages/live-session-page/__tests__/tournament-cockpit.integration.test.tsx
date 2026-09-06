@@ -1,4 +1,4 @@
-import { cleanup, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { initTRPC } from "@trpc/server";
 import { setupServer } from "msw/node";
@@ -234,6 +234,12 @@ describe("TournamentCockpit", () => {
 
 		expect(await screen.findByRole("alert")).toBeInTheDocument();
 		expect(players).toHaveAttribute("aria-invalid", "true");
+		expect(players).toHaveAccessibleDescription(
+			"Players left: Must be at least 1"
+		);
+		expect(screen.getByLabelText("Total entries")).not.toHaveAttribute(
+			"aria-invalid"
+		);
 		expect(backend.createdEvents).toEqual([]);
 	});
 
@@ -279,5 +285,24 @@ describe("TournamentCockpit", () => {
 		expect(backend.createdEvents.map((event) => event.eventType)).toContain(
 			"session_resume"
 		);
+	});
+
+	it("shifts the blind timer only once when a poll puts the session back into the paused state", async () => {
+		const user = userEvent.setup();
+		backend.status = "paused";
+		backend.timerStartedAt = new Date(backend.now - 2 * 60 * MINUTE);
+		renderCockpit();
+
+		await user.click(await screen.findByRole("button", { name: "Resume" }));
+		await waitFor(() => {
+			expect(backend.timerUpdates).toHaveLength(1);
+		});
+
+		await act(async () => {
+			await queryClient.invalidateQueries();
+		});
+		await user.click(await screen.findByRole("button", { name: "Resume" }));
+
+		expect(backend.timerUpdates).toHaveLength(1);
 	});
 });

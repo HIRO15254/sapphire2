@@ -62,16 +62,43 @@ function levelLabel(level: TournamentBlindLevel): string {
 	return level.isBreak ? "Break" : `Level ${level.level}`;
 }
 
+function resolveBigBlind(
+	levels: readonly TournamentBlindLevel[],
+	index: number
+): number | null {
+	const current = levels[index];
+	if (!current) {
+		return null;
+	}
+	if (!current.isBreak) {
+		return current.blind2;
+	}
+	for (let i = index - 1; i >= 0; i--) {
+		const level = levels[i];
+		if (level && !level.isBreak && level.blind2 !== null) {
+			return level.blind2;
+		}
+	}
+	for (let i = index + 1; i < levels.length; i++) {
+		const level = levels[i];
+		if (level && !level.isBreak && level.blind2 !== null) {
+			return level.blind2;
+		}
+	}
+	return null;
+}
+
 function describeLevel(
 	level: TournamentBlindLevel,
-	isPaused: boolean
+	isPaused: boolean,
+	bigBlind: number | null
 ): Omit<
 	BlindLevelView,
 	"clockText" | "hasStarted" | "isWarning" | "progress" | "stateLabel"
 > {
 	return {
 		anteText: anteText(level),
-		bigBlind: level.blind2,
+		bigBlind,
 		blindsText: blindsText(level),
 		gameText: gameText(level),
 		isBreak: level.isBreak,
@@ -90,13 +117,14 @@ function describeUnstarted(
 	levels: readonly TournamentBlindLevel[],
 	isPaused: boolean
 ): BlindLevelView | null {
-	const first = sortByLevel(levels)[0];
+	const sorted = sortByLevel(levels);
+	const first = sorted[0];
 	if (!first) {
 		return null;
 	}
 	const minutes = typeof first.minutes === "number" ? first.minutes : 0;
 	return {
-		...describeLevel(first, isPaused),
+		...describeLevel(first, isPaused, resolveBigBlind(sorted, 0)),
 		clockText: formatTimerDuration(minutes * SECONDS_PER_MINUTE),
 		hasStarted: false,
 		isWarning: first.isBreak,
@@ -143,7 +171,11 @@ export function describeBlindLevel(
 	}
 
 	return {
-		...describeLevel(current, isPaused),
+		...describeLevel(
+			current,
+			isPaused,
+			resolveBigBlind(sortByLevel(blindLevels), state.currentLevelIndex)
+		),
 		clockText:
 			remaining === null ? "—" : formatTimerDuration(Math.max(0, remaining)),
 		hasStarted: true,

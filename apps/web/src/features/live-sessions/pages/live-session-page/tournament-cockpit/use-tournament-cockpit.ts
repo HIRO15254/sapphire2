@@ -1,5 +1,5 @@
 import { isEventAllowedInState } from "@sapphire2/db/constants/session-event-types";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useSessionSeats } from "@/features/live-sessions/hooks/use-session-seats";
 import { useTournamentSession } from "@/features/live-sessions/hooks/use-tournament-session";
 import { useTournamentStack } from "@/features/live-sessions/hooks/use-tournament-stack";
@@ -31,6 +31,7 @@ export function useTournamentCockpit(sessionId: string) {
 	const now = useNowTick(TICK_MS);
 	const isKeyboardOpen = useKeyboardOpen();
 	const [isEndSessionOpen, setIsEndSessionOpen] = useState(false);
+	const shiftedPauseRef = useRef<number | null>(null);
 
 	const rawHeroSeat = session?.heroSeatPosition;
 	const heroSeatPosition =
@@ -65,11 +66,16 @@ export function useTournamentCockpit(sessionId: string) {
 	const onResume = () => {
 		const pausedSinceMs = clock.pausedSinceMs;
 		stack.resume();
-		if (timerStartedAt !== null && pausedSinceMs !== null) {
-			updateTimerStartedAt(
-				new Date(toMs(timerStartedAt) + (now - pausedSinceMs))
-			);
+		if (timerStartedAt === null || pausedSinceMs === null) {
+			return;
 		}
+		if (shiftedPauseRef.current === pausedSinceMs) {
+			return;
+		}
+		shiftedPauseRef.current = pausedSinceMs;
+		updateTimerStartedAt(
+			new Date(toMs(timerStartedAt) + (now - pausedSinceMs))
+		);
 	};
 
 	return {

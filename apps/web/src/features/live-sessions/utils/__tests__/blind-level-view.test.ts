@@ -68,9 +68,10 @@ describe("describeBlindLevel", () => {
 		});
 	});
 
-	it("reads a break as a break", () => {
+	it("reads a break as a break and keeps the big blind of the level it follows", () => {
 		expect(describeBlindLevel(LEVELS, T0, at(45))).toMatchObject({
 			anteText: null,
+			bigBlind: 1000,
 			blindsText: "On break",
 			gameText: null,
 			isBreak: true,
@@ -78,6 +79,14 @@ describe("describeBlindLevel", () => {
 			levelLabel: "Break",
 			stateLabel: "Break ends in",
 		});
+	});
+
+	it("takes the big blind from the level ahead when a break opens the structure", () => {
+		const opensOnBreak = [
+			makeLevel({ isBreak: true, level: 1, minutes: 10 }),
+			makeLevel({ blind1: 100, blind2: 200, level: 2 }),
+		];
+		expect(describeBlindLevel(opensOnBreak, T0, T0)?.bigBlind).toBe(200);
 	});
 
 	it("says the clock is held while the session is paused", () => {
