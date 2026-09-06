@@ -28,6 +28,7 @@ const SESSION_ID = "tourney-1";
 const STACK_LABEL = "Current stack";
 const MINUTE = 60_000;
 const LEVEL_MINUTES = 20;
+const REENTRY_OPTION = /Re-entry/;
 
 interface CreatedEvent {
 	eventType: string;
@@ -63,13 +64,17 @@ function events() {
 	const base = [
 		{
 			eventType: "session_start",
+			id: "evt-start",
 			occurredAt: new Date(backend.now - 3 * 60 * MINUTE),
+			payload: { timerStartedAt: null },
 		},
 	];
 	if (backend.status === "paused") {
 		base.push({
 			eventType: "session_pause",
+			id: "evt-pause",
 			occurredAt: new Date(backend.now - 30 * MINUTE),
+			payload: {},
 		});
 	}
 	return base;
@@ -78,8 +83,9 @@ function events() {
 function session() {
 	return {
 		blindLevels: blindLevels(),
-		chipPurchases: [],
-		events: events(),
+		chipPurchases: [
+			{ chips: 30_000, cost: 10_000, id: "p-re", name: "Re-entry" },
+		],
 		heroSeatPosition: null,
 		id: SESSION_ID,
 		memo: null,
@@ -121,6 +127,7 @@ const fixtureRouter = t.router({
 				backend.createdEvents.push(input);
 				return { id: "evt-1" };
 			}),
+		list: t.procedure.input(z.custom()).query(() => events()),
 	}),
 	sessionTablePlayer: t.router({
 		list: t.procedure.input(z.custom()).query(() => []),
@@ -304,5 +311,31 @@ describe("TournamentCockpit", () => {
 		await user.click(await screen.findByRole("button", { name: "Resume" }));
 
 		expect(backend.timerUpdates).toHaveLength(1);
+	});
+
+	it("logs a chip purchase with the option's cost and chips snapshotted", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Chip purchase" })
+		);
+		await user.click(
+			await screen.findByRole("button", { name: REENTRY_OPTION })
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.createdEvents).toHaveLength(1);
+		});
+		expect(backend.createdEvents[0]).toMatchObject({
+			eventType: "purchase_chips",
+			payload: {
+				chips: 30_000,
+				cost: 10_000,
+				name: "Re-entry",
+				sessionChipPurchaseId: "p-re",
+			},
+		});
 	});
 });

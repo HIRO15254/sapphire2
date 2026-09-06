@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	computeAllInEv,
 	computeBigBlinds,
 	computeCashGamePL,
 } from "@/features/live-sessions/utils/live-session-summary";
@@ -113,5 +114,56 @@ describe("computeBigBlinds", () => {
 	it("is unknown when the level carries no big blind", () => {
 		expect(computeBigBlinds(12_500, null)).toBeNull();
 		expect(computeBigBlinds(12_500, 0)).toBeNull();
+	});
+});
+
+describe("computeAllInEv", () => {
+	it("splits the pot into the equity share and the share actually won", () => {
+		const ev = computeAllInEv({
+			equity: 78,
+			potSize: 12_400,
+			trials: 1,
+			wins: 1,
+		});
+
+		expect(ev.expected).toBe(9672);
+		expect(ev.realized).toBe(12_400);
+		expect(ev.evDelta).toBe(-2728);
+	});
+
+	it("splits a run-it-twice pot per run and counts a chop as half a win", () => {
+		const ev = computeAllInEv({
+			equity: 50,
+			potSize: 10_000,
+			trials: 2,
+			wins: 1,
+		});
+
+		expect(ev.expected).toBe(5000);
+		expect(ev.realized).toBe(5000);
+		expect(ev.evDelta).toBe(0);
+
+		const chopped = computeAllInEv({
+			equity: 50,
+			potSize: 10_000,
+			trials: 1,
+			wins: 0.5,
+		});
+
+		expect(chopped.realized).toBe(5000);
+		expect(chopped.evDelta).toBe(0);
+	});
+
+	it("credits the full pot as expected value at 100% equity", () => {
+		const ev = computeAllInEv({
+			equity: 100,
+			potSize: 8000,
+			trials: 1,
+			wins: 0,
+		});
+
+		expect(ev.expected).toBe(8000);
+		expect(ev.realized).toBe(0);
+		expect(ev.evDelta).toBe(8000);
 	});
 });

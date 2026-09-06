@@ -160,6 +160,7 @@ export function useSessionEvents({
 
 	return {
 		events,
+		isEventsLoading: eventsQuery.isPending,
 		update: (args: { id: string; payload?: unknown; occurredAt?: number }) =>
 			updateMutation.mutateAsync(args),
 		delete: (id: string) => deleteMutation.mutateAsync(id),

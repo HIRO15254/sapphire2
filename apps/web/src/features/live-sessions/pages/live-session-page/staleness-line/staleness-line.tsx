@@ -3,11 +3,15 @@ import {
 	IconClockExclamation,
 	IconClockPause,
 } from "@tabler/icons-react";
-import type { Staleness } from "@/features/live-sessions/utils/session-staleness";
+import type {
+	StackReferenceSource,
+	Staleness,
+} from "@/features/live-sessions/utils/session-staleness";
 import { cn } from "@/lib/utils";
 
 interface StalenessLineProps {
-	lastUpdateLabel: string | null;
+	referenceLabel: string | null;
+	source: StackReferenceSource | null;
 	staleness: Staleness | null;
 }
 
@@ -16,6 +20,11 @@ const TONE = {
 	stale: { className: "text-warning", Icon: IconClockPause },
 	critical: { className: "text-destructive", Icon: IconClockExclamation },
 } as const;
+
+const SOURCE_LABEL: Record<StackReferenceSource, string> = {
+	session_start: "Session start",
+	update_stack: "Last update",
+};
 
 const MINUTES_PER_HOUR = 60;
 
@@ -28,10 +37,11 @@ function formatAgo(minutes: number): string {
 }
 
 export function StalenessLine({
-	lastUpdateLabel,
+	referenceLabel,
+	source,
 	staleness,
 }: StalenessLineProps) {
-	if (staleness === null || lastUpdateLabel === null) {
+	if (staleness === null || referenceLabel === null || source === null) {
 		return (
 			<div className="flex items-center gap-[5px] text-[11px] text-muted-foreground">
 				<IconClockCheck size={12} />
@@ -45,8 +55,8 @@ export function StalenessLine({
 	return (
 		<div className={cn("flex items-center gap-[5px] text-[11px]", className)}>
 			<Icon size={12} />
-			Last update{" "}
-			<span className="font-mono tabular-nums">{lastUpdateLabel}</span> ·{" "}
+			{SOURCE_LABEL[source]}{" "}
+			<span className="font-mono tabular-nums">{referenceLabel}</span> ·{" "}
 			{formatAgo(staleness.minutesAgo)}
 		</div>
 	);

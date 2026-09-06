@@ -3,7 +3,7 @@ import { BlindLevelBar } from "../blind-level-bar";
 import { PausedOverlay } from "../paused-overlay";
 import { SeatPanelPlaceholder } from "../seat-panel-placeholder";
 import { SessionHeader } from "../session-header";
-import { EndTournamentSheet } from "../sheets";
+import { EndTournamentSheet, EventEditorSheet, TimelineSheet } from "../sheets";
 import { StalenessLine } from "../staleness-line";
 import { TableView } from "../table-view";
 import { TournamentQuickInput } from "../tournament-quick-input";
@@ -20,6 +20,8 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 			</div>
 		);
 	}
+
+	const { journal } = cockpit;
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
@@ -65,14 +67,21 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 							totalEntries={cockpit.totalEntries}
 						/>
 						<StalenessLine
-							lastUpdateLabel={cockpit.lastUpdateLabel}
+							referenceLabel={cockpit.referenceLabel}
+							source={cockpit.stalenessSource}
 							staleness={cockpit.staleness}
 						/>
 					</div>
-					<ActionBar variant="tournament" />
+					<ActionBar
+						canLog={journal.canLog}
+						onOpenNewEvent={journal.onOpenNewEvent}
+						onOpenTimeline={journal.onOpenTimeline}
+						variant="tournament"
+					/>
 				</div>
 				{cockpit.isPaused ? (
 					<PausedOverlay
+						onNote={() => journal.onOpenNewEvent("memo")}
 						onResume={cockpit.onResume}
 						pausedElapsed={cockpit.pausedElapsed}
 					/>
@@ -84,6 +93,28 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 				onSubmit={cockpit.onCompleteSubmit}
 				open={cockpit.isEndSessionOpen}
 			/>
+			<TimelineSheet
+				onOpenChange={journal.onCloseTimeline}
+				onSelect={journal.onSelectEvent}
+				open={journal.isTimelineOpen}
+				rows={journal.rows}
+				sessionId={sessionId}
+				sessionType="tournament"
+			/>
+			{journal.editorTarget === null ? null : (
+				<EventEditorSheet
+					chipPurchaseOptions={journal.chipPurchaseOptions}
+					isPending={journal.isEditorPending}
+					isTournament
+					maxTime={journal.maxTime}
+					minTime={journal.minTime}
+					onDelete={journal.onDelete}
+					onOpenChange={journal.onCloseEditor}
+					onSubmit={journal.onEditorSubmit}
+					open={journal.isEditorOpen}
+					target={journal.editorTarget}
+				/>
+			)}
 		</div>
 	);
 }

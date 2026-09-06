@@ -2,7 +2,7 @@ import { ActionBar } from "../action-bar";
 import { PausedOverlay } from "../paused-overlay";
 import { SeatPanelPlaceholder } from "../seat-panel-placeholder";
 import { SessionHeader } from "../session-header";
-import { EndSessionSheet } from "../sheets";
+import { EndSessionSheet, EventEditorSheet, TimelineSheet } from "../sheets";
 import { StackQuickInput } from "../stack-quick-input";
 import { StalenessLine } from "../staleness-line";
 import { TableView } from "../table-view";
@@ -19,6 +19,8 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 			</div>
 		);
 	}
+
+	const { journal } = cockpit;
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
@@ -56,14 +58,21 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 							onSubmit={cockpit.onRecordStack}
 						/>
 						<StalenessLine
-							lastUpdateLabel={cockpit.lastUpdateLabel}
+							referenceLabel={cockpit.referenceLabel}
+							source={cockpit.stalenessSource}
 							staleness={cockpit.staleness}
 						/>
 					</div>
-					<ActionBar variant="cash" />
+					<ActionBar
+						canLog={journal.canLog}
+						onOpenNewEvent={journal.onOpenNewEvent}
+						onOpenTimeline={journal.onOpenTimeline}
+						variant="cash"
+					/>
 				</div>
 				{cockpit.isPaused ? (
 					<PausedOverlay
+						onNote={() => journal.onOpenNewEvent("memo")}
 						onResume={cockpit.onResume}
 						pausedElapsed={cockpit.pausedElapsed}
 					/>
@@ -79,6 +88,28 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 				open={cockpit.isEndSessionOpen}
 				totalBuyIn={cockpit.totalBuyIn}
 			/>
+			<TimelineSheet
+				onOpenChange={journal.onCloseTimeline}
+				onSelect={journal.onSelectEvent}
+				open={journal.isTimelineOpen}
+				rows={journal.rows}
+				sessionId={sessionId}
+				sessionType="cash_game"
+			/>
+			{journal.editorTarget === null ? null : (
+				<EventEditorSheet
+					chipPurchaseOptions={journal.chipPurchaseOptions}
+					isPending={journal.isEditorPending}
+					isTournament={false}
+					maxTime={journal.maxTime}
+					minTime={journal.minTime}
+					onDelete={journal.onDelete}
+					onOpenChange={journal.onCloseEditor}
+					onSubmit={journal.onEditorSubmit}
+					open={journal.isEditorOpen}
+					target={journal.editorTarget}
+				/>
+			)}
 		</div>
 	);
 }

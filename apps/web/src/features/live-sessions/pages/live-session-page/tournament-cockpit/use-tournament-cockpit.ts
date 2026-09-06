@@ -8,7 +8,7 @@ import { computeBigBlinds } from "@/features/live-sessions/utils/live-session-su
 import { computeSessionClock } from "@/features/live-sessions/utils/session-clock";
 import {
 	describeStaleness,
-	findLastStackUpdateAt,
+	findStackReference,
 } from "@/features/live-sessions/utils/session-staleness";
 import { formatTimerDuration } from "@/features/live-sessions/utils/tournament-timer";
 import { useKeyboardOpen } from "@/shared/hooks/use-keyboard-open";
@@ -17,6 +17,7 @@ import { formatLocalHm, formatNumber } from "@/utils/format-number";
 import { resolveRuleName, toSessionStatus } from "../session-fields";
 import type { TournamentCompleteValues } from "../sheets";
 import type { TournamentStackValues } from "../tournament-quick-input";
+import { useSessionJournal } from "../use-session-journal";
 
 const TICK_MS = 1000;
 
@@ -36,22 +37,29 @@ export function useTournamentCockpit(sessionId: string) {
 	const rawHeroSeat = session?.heroSeatPosition;
 	const heroSeatPosition =
 		typeof rawHeroSeat === "number" && rawHeroSeat >= 0 ? rawHeroSeat : null;
-	const { seats } = useSessionSeats({
+	const { playerNames, seats } = useSessionSeats({
 		heroSeatPosition,
 		sessionId,
 		sessionType: "tournament",
 		tableSize: session?.tableSize ?? null,
 	});
+	const status = toSessionStatus(session?.status ?? "");
+	const journal = useSessionJournal({
+		chipPurchaseOptions: stack.chipPurchaseTypes,
+		playerNames,
+		sessionId,
+		sessionType: "tournament",
+		status,
+	});
 
-	if (!session) {
+	if (!session || journal.isEventsLoading) {
 		return { isLoading: true as const };
 	}
 
-	const status = toSessionStatus(session.status);
 	const summary = session.summary;
 	const currentStack = summary.currentStack;
 
-	const clock = computeSessionClock(session.events, now);
+	const clock = computeSessionClock(journal.events, now);
 	const timerStartedAt = session.timerStartedAt;
 	const isPaused = status === "paused";
 	const blindLevel = describeBlindLevel(
@@ -61,7 +69,7 @@ export function useTournamentCockpit(sessionId: string) {
 		{ isPaused }
 	);
 	const bigBlinds = computeBigBlinds(currentStack, blindLevel?.bigBlind);
-	const lastUpdateAt = findLastStackUpdateAt(session.events);
+	const stackReference = findStackReference(journal.events);
 
 	const onResume = () => {
 		const pausedSinceMs = clock.pausedSinceMs;
@@ -94,7 +102,9 @@ export function useTournamentCockpit(sessionId: string) {
 		isPaused,
 		isStackPending: stack.isStackPending,
 		isUpdatingTimer,
-		lastUpdateLabel: lastUpdateAt === null ? null : formatLocalHm(lastUpdateAt),
+		journal,
+		referenceLabel:
+			stackReference === null ? null : formatLocalHm(stackReference.at),
 		onCompleteSubmit: (values: TournamentCompleteValues) =>
 			stack.complete(values),
 		onEndSession: () => setIsEndSessionOpen(true),
@@ -111,7 +121,8 @@ export function useTournamentCockpit(sessionId: string) {
 		ruleName: resolveRuleName(session.ruleName, session.variant, "Tournament"),
 		seats,
 		stackFormatted: currentStack === null ? "—" : formatNumber(currentStack),
-		staleness: describeStaleness(lastUpdateAt, now),
+		staleness: describeStaleness(stackReference?.at ?? null, now),
+		stalenessSource: stackReference?.source ?? null,
 		totalEntries: summary.totalEntries,
 	};
 }

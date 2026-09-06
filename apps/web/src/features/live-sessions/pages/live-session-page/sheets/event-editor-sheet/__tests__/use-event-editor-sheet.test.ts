@@ -1,0 +1,223 @@
+import { act, renderHook } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import type { SessionEvent } from "@/features/live-sessions/hooks/use-session-events";
+import type {
+	ChipPurchaseOption,
+	EventEditorSubmit,
+	EventEditorTarget,
+} from "@/features/live-sessions/pages/live-session-page/sheets/event-editor-sheet/use-event-editor-sheet";
+import { useEventEditorSheet } from "@/features/live-sessions/pages/live-session-page/sheets/event-editor-sheet/use-event-editor-sheet";
+import type { EventEditorKind } from "@/features/live-sessions/utils/timeline-view";
+
+const OCCURRED_AT = new Date(2026, 5, 1, 22, 41);
+
+const PURCHASE_OPTIONS: ChipPurchaseOption[] = [
+	{ chips: 30_000, cost: 10_000, id: "p-re", name: "Re-entry" },
+	{ chips: 20_000, cost: 5000, id: "p-add", name: "Add-on" },
+];
+
+function editTarget(
+	kind: EventEditorKind,
+	event: Partial<SessionEvent> & { payload: unknown }
+): EventEditorTarget {
+	return {
+		event: {
+			eventType: "x",
+			id: "evt-1",
+			occurredAt: OCCURRED_AT,
+			...event,
+		},
+		kind,
+		label: "Existing",
+		mode: "edit",
+		openedAt: OCCURRED_AT,
+	};
+}
+
+function setup(target: EventEditorTarget, isTournament = false) {
+	const onSubmit = vi.fn<(values: EventEditorSubmit) => void>();
+	const view = renderHook(() =>
+		useEventEditorSheet({
+			chipPurchaseOptions: PURCHASE_OPTIONS,
+			isTournament,
+			maxTime: null,
+			minTime: null,
+			onSubmit,
+			target,
+		})
+	);
+	return { onSubmit, ...view };
+}
+
+async function submit(form: { handleSubmit: () => Promise<void> }) {
+	await act(async () => {
+		await form.handleSubmit();
+	});
+}
+
+describe("chip adjust editing", () => {
+	it("loads a withdrawal as a positive amount with the remove direction", () => {
+		const { result } = setup(
+			editTarget("chips", { payload: { amount: -10_000 } })
+		);
+
+		expect(result.current.form.state.values.amount).toBe("10000");
+		expect(result.current.form.state.values.direction).toBe("remove");
+	});
+
+	it("signs the amount by the chosen direction", async () => {
+		const { onSubmit, result } = setup(
+			editTarget("chips", { payload: { amount: 20_000 } })
+		);
+
+		await submit(result.current.form);
+		expect(onSubmit.mock.calls[0]?.[0].payload).toEqual({ amount: 20_000 });
+
+		act(() => {
+			result.current.form.setFieldValue("direction", "remove");
+		});
+		await submit(result.current.form);
+		expect(onSubmit.mock.calls[1]?.[0].payload).toEqual({ amount: -20_000 });
+	});
+
+	it("rejects a zero amount, which the server refuses to store", async () => {
+		const { onSubmit, result } = setup(
+			editTarget("chips", { payload: { amount: 20_000 } })
+		);
+
+		act(() => {
+			result.current.form.setFieldValue("amount", "0");
+		});
+		await submit(result.current.form);
+
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+});
+
+describe("stack editing", () => {
+	it("keeps recorded chip purchases and clears blank player counts", async () => {
+		const chipPurchaseCounts = [
+			{ chipsPerUnit: 30_000, count: 2, name: "Re-entry" },
+		];
+		const { onSubmit, result } = setup(
+			editTarget("stack", {
+				payload: {
+					chipPurchaseCounts,
+					remainingPlayers: 42,
+					stackAmount: 48_300,
+					totalEntries: 128,
+				},
+			}),
+			true
+		);
+
+		act(() => {
+			result.current.form.setFieldValue("remainingPlayers", "");
+		});
+		await submit(result.current.form);
+
+		expect(onSubmit.mock.calls[0]?.[0].payload).toEqual({
+			chipPurchaseCounts,
+			remainingPlayers: null,
+			stackAmount: 48_300,
+			totalEntries: 128,
+		});
+	});
+
+	it("omits the tournament-only fields for a cash session", async () => {
+		const { onSubmit, result } = setup(
+			editTarget("stack", { payload: { stackAmount: 51_800 } })
+		);
+
+		await submit(result.current.form);
+
+		expect(onSubmit.mock.calls[0]?.[0].payload).toEqual({
+			stackAmount: 51_800,
+		});
+	});
+});
+
+describe("all-in editing", () => {
+	it("refuses more wins than runs, which would corrupt the EV total", async () => {
+		const { onSubmit, result } = setup(
+			editTarget("allin", {
+				payload: { equity: 78, potSize: 12_400, trials: 1, wins: 1 },
+			})
+		);
+
+		act(() => {
+			result.current.form.setFieldValue("wins", "2");
+		});
+		await submit(result.current.form);
+
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+});
+
+describe("logging a new event", () => {
+	it("times a new note by the entered clock time on the day it was opened", async () => {
+		const target: EventEditorTarget = {
+			event: null,
+			kind: "memo",
+			label: "Note",
+			mode: "create",
+			openedAt: new Date(2026, 5, 1, 23, 10),
+		};
+		const { onSubmit, result } = setup(target);
+
+		act(() => {
+			result.current.form.setFieldValue("memoText", "  S2 started drinking.  ");
+			result.current.form.setFieldValue("time", "23:05");
+		});
+		await submit(result.current.form);
+
+		const submitted = onSubmit.mock.calls[0]?.[0];
+		expect(submitted?.payload).toEqual({ text: "S2 started drinking." });
+		expect(submitted?.occurredAt).toBe(
+			Math.floor(new Date(2026, 5, 1, 23, 5).getTime() / 1000)
+		);
+	});
+
+	it("snapshots the selected purchase option into the payload", async () => {
+		const target: EventEditorTarget = {
+			event: null,
+			kind: "purchase",
+			label: "Chip purchase",
+			mode: "create",
+			openedAt: OCCURRED_AT,
+		};
+		const { onSubmit, result } = setup(target, true);
+
+		act(() => {
+			result.current.form.setFieldValue("purchaseId", "p-add");
+		});
+		await submit(result.current.form);
+
+		expect(onSubmit.mock.calls[0]?.[0].payload).toEqual({
+			chips: 20_000,
+			cost: 5000,
+			name: "Add-on",
+			sessionChipPurchaseId: "p-add",
+		});
+	});
+});
+
+describe("time bounds", () => {
+	it("blocks a time that would cross the neighbouring events", () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useEventEditorSheet({
+				chipPurchaseOptions: PURCHASE_OPTIONS,
+				isTournament: false,
+				maxTime: new Date(2026, 5, 1, 23, 0),
+				minTime: new Date(2026, 5, 1, 22, 0),
+				onSubmit,
+				target: editTarget("memo", { payload: { text: "note" } }),
+			})
+		);
+
+		expect(result.current.timeValidator("21:59")).toBe("Must be after 22:00");
+		expect(result.current.timeValidator("23:01")).toBe("Must be before 23:00");
+		expect(result.current.timeValidator("22:30")).toBeUndefined();
+	});
+});

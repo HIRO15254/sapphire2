@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	describeStaleness,
 	findLastStackUpdateAt,
+	findStackReference,
 } from "@/features/live-sessions/utils/session-staleness";
 
 const NOW = new Date("2026-06-01T12:00:00Z");
@@ -83,5 +84,30 @@ describe("describeStaleness", () => {
 			level: "fresh",
 			minutesAgo: 0,
 		});
+	});
+});
+
+describe("findStackReference", () => {
+	it("measures from the last stack update once one exists", () => {
+		const result = findStackReference([
+			{ eventType: "session_start", occurredAt: minutesBefore(180) },
+			{ eventType: "update_stack", occurredAt: minutesBefore(30) },
+		]);
+		expect(result).toEqual({ at: minutesBefore(30), source: "update_stack" });
+	});
+
+	it("falls back to the session start while no stack has been recorded", () => {
+		const result = findStackReference([
+			{ eventType: "session_start", occurredAt: minutesBefore(180) },
+			{ eventType: "memo", occurredAt: minutesBefore(10) },
+		]);
+		expect(result).toEqual({
+			at: minutesBefore(180),
+			source: "session_start",
+		});
+	});
+
+	it("has nothing to measure from without a start event", () => {
+		expect(findStackReference([])).toBeNull();
 	});
 });

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { CashGameCompleteForm } from "@/features/live-sessions/components/cash-game-complete-form";
 import { computeCashGamePL } from "@/features/live-sessions/utils/live-session-summary";
 import { cn } from "@/lib/utils";
-import { formatNumber } from "@/utils/format-number";
+import { formatNumber, formatSignedNumber } from "@/utils/format-number";
 import { formatProfitLoss } from "@/utils/format-profit-loss";
 import { plToneClass } from "../cryst-tone";
 import { CrystFormSheet } from "./cryst-form-sheet";
@@ -40,10 +40,6 @@ function SummaryRow({
 			<dd className={cn("font-mono tabular-nums", tone)}>{value}</dd>
 		</div>
 	);
-}
-
-function signed(value: number): string {
-	return `${value < 0 ? "−" : "+"}${formatNumber(Math.abs(value))}`;
 }
 
 export function EndSessionSheet({
@@ -84,7 +80,9 @@ export function EndSessionSheet({
 				/>
 				<SummaryRow
 					formula={
-						evPL === null ? undefined : `result + EV delta ${signed(evDiff)}`
+						evPL === null
+							? undefined
+							: `result + EV delta ${formatSignedNumber(evDiff)}`
 					}
 					label="EV result"
 					value={evPL === null ? "—" : formatProfitLoss(evPL)}
