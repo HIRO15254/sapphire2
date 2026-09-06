@@ -10,7 +10,7 @@ import {
 import { computeSessionClock } from "@/features/live-sessions/utils/session-clock";
 import {
 	describeStaleness,
-	findLastStackUpdateAt,
+	findStackReference,
 } from "@/features/live-sessions/utils/session-staleness";
 import { formatTimerDuration } from "@/features/live-sessions/utils/tournament-timer";
 import { useKeyboardOpen } from "@/shared/hooks/use-keyboard-open";
@@ -68,7 +68,7 @@ export function useCashCockpit(sessionId: string) {
 
 	const clock = computeSessionClock(journal.events, now);
 
-	const lastUpdateAt = findLastStackUpdateAt(journal.events);
+	const stackReference = findStackReference(journal.events);
 	const bigBlinds = computeBigBlinds(currentStack, session.blind2);
 
 	return {
@@ -92,7 +92,8 @@ export function useCashCockpit(sessionId: string) {
 		isPaused: status === "paused",
 		isStackPending: stack.isStackPending,
 		canRecordStack: isEventAllowedInState("update_stack", status),
-		lastUpdateLabel: lastUpdateAt === null ? null : formatLocalHm(lastUpdateAt),
+		referenceLabel:
+			stackReference === null ? null : formatLocalHm(stackReference.at),
 		onEndSession: () => setIsEndSessionOpen(true),
 		onEndSessionOpenChange: setIsEndSessionOpen,
 		onCompleteSubmit: (values: { finalStack: number }) =>
@@ -104,7 +105,8 @@ export function useCashCockpit(sessionId: string) {
 		ruleName: resolveRuleName(session.ruleName, session.variant, "Cash game"),
 		seats,
 		stackFormatted: currentStack === null ? "—" : formatNumber(currentStack),
-		staleness: describeStaleness(lastUpdateAt, now),
+		staleness: describeStaleness(stackReference?.at ?? null, now),
+		stalenessSource: stackReference?.source ?? null,
 		totalBuyIn,
 	};
 }

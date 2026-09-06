@@ -27,6 +27,8 @@ vi.mock("@sapphire2/env/web", () => ({
 const SESSION_ID = "cash-1";
 const STACK_LABEL = "Current stack";
 const NOTE_FIELD = /^Note/;
+const SINCE_START_LINE = /Session start/;
+const LAST_UPDATE_LINE = /Last update/;
 const STACK_FIELD = /^Stack/;
 const STACK_ROW = /Stack update/;
 const START_ROW = /Session start/;
@@ -47,6 +49,7 @@ const backend = {
 	createdEvents: [] as CreatedEvent[],
 	currentStack: 12_000 as number | null,
 	deletedEventIds: [] as string[],
+	hasStackUpdate: true,
 	status: "active",
 	updatedEvents: [] as UpdatedEvent[],
 };
@@ -59,13 +62,15 @@ function events() {
 			occurredAt: new Date("2026-06-01T10:00:00Z"),
 			payload: { buyInAmount: 10_000 },
 		},
-		{
+	];
+	if (backend.hasStackUpdate) {
+		base.push({
 			eventType: "update_stack",
 			id: "evt-stack",
 			occurredAt: new Date("2026-06-01T11:00:00Z"),
 			payload: { stackAmount: backend.currentStack ?? 0 },
-		},
-	];
+		});
+	}
 	if (backend.status === "paused") {
 		base.push({
 			eventType: "session_pause",
@@ -192,6 +197,7 @@ beforeEach(() => {
 	backend.createdEvents = [];
 	backend.currentStack = 12_000;
 	backend.deletedEventIds = [];
+	backend.hasStackUpdate = true;
 	backend.status = "active";
 	backend.updatedEvents = [];
 });
@@ -371,6 +377,14 @@ describe("CashCockpit", () => {
 		await waitFor(() => {
 			expect(backend.deletedEventIds).toEqual(["evt-stack"]);
 		});
+	});
+
+	it("measures staleness from the session start until a stack is recorded", async () => {
+		backend.hasStackUpdate = false;
+		renderCockpit();
+
+		expect(await screen.findByText(SINCE_START_LINE)).toBeInTheDocument();
+		expect(screen.queryByText(LAST_UPDATE_LINE)).not.toBeInTheDocument();
 	});
 
 	it("offers only notes and the timeline while the session is paused", async () => {

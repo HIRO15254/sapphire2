@@ -58,7 +58,8 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 							onSubmit={cockpit.onRecordStack}
 						/>
 						<StalenessLine
-							lastUpdateLabel={cockpit.lastUpdateLabel}
+							referenceLabel={cockpit.referenceLabel}
+							source={cockpit.stalenessSource}
 							staleness={cockpit.staleness}
 						/>
 					</div>

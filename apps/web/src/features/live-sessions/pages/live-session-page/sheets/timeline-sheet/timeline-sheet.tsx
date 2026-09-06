@@ -16,13 +16,18 @@ export function TimelineSheet({
 	rows,
 }: TimelineSheetProps) {
 	return (
-		<CrystSheet onOpenChange={onOpenChange} open={open} title="Event timeline">
+		<CrystSheet
+			className="h-[calc(100svh-2rem)] max-h-[calc(100svh-2rem)]"
+			onOpenChange={onOpenChange}
+			open={open}
+			title="Event timeline"
+		>
 			{rows.length === 0 ? (
 				<p className="py-6 text-center text-[length:var(--text-xs)] text-muted-foreground">
 					No events recorded yet.
 				</p>
 			) : (
-				<ul className="flex flex-col gap-0.5">
+				<ul className="flex flex-col">
 					{rows.map((row) => (
 						<li key={row.id}>
 							<TimelineRow onSelect={onSelect} row={row} />

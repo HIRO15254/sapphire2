@@ -174,3 +174,44 @@ describe("timeline editing affordances", () => {
 		expect(resolveEditorKind("session_start")).toBe("start");
 	});
 });
+
+describe("timeline rail during a pause", () => {
+	it("breaks the rail between the pause and the resume that ends it", () => {
+		const rows = describeTimeline(
+			[
+				event("session_start", { buyInAmount: 30_000 }, 20, 0),
+				event("session_pause", {}, 21, 0),
+				event("memo", { text: "break" }, 21, 10),
+				event("session_resume", {}, 21, 30),
+				event("update_stack", { stackAmount: 1000 }, 22, 0),
+			],
+			{ playerNames: NO_NAMES }
+		);
+
+		expect(
+			rows.map((row) => [row.title, row.hasLineAbove, row.hasLineBelow])
+		).toEqual([
+			["Stack update", true, true],
+			["Resume", true, false],
+			["Note — break", false, false],
+			["Pause", false, true],
+			["Session start", true, true],
+		]);
+	});
+
+	it("leaves the rail open above the newest row while the session is paused", () => {
+		const rows = describeTimeline(
+			[
+				event("session_start", { buyInAmount: 30_000 }, 20, 0),
+				event("session_pause", {}, 21, 0),
+			],
+			{ playerNames: NO_NAMES }
+		);
+
+		expect(rows[0]).toMatchObject({
+			hasLineAbove: false,
+			hasLineBelow: true,
+			title: "Pause",
+		});
+	});
+});

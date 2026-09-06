@@ -1,16 +1,10 @@
-import type { Icon } from "@tabler/icons-react";
-import {
-	IconBolt,
-	IconChartLine,
-	IconCoin,
-	IconFlag,
-	IconNote,
-	IconPlayerPause,
-	IconShoppingCart,
-	IconTrash,
-	IconUser,
-} from "@tabler/icons-react";
+import { IconTrash } from "@tabler/icons-react";
 import type { EventEditorKind } from "@/features/live-sessions/utils/timeline-view";
+import {
+	EVENT_TONE_TEXT,
+	resolveEventIcon,
+	resolveKindTone,
+} from "../../event-visuals";
 import { CrystFormSheet } from "../cryst-form-sheet";
 import {
 	AllInFields,
@@ -30,18 +24,6 @@ import { useEventEditorSheet } from "./use-event-editor-sheet";
 
 const FORM_ID = "cryst-event-editor-form";
 
-const KIND_ICONS: Record<EventEditorKind, { Icon: Icon; tone: string }> = {
-	allin: { Icon: IconBolt, tone: "text-warning" },
-	chips: { Icon: IconCoin, tone: "text-primary" },
-	end: { Icon: IconFlag, tone: "text-muted-foreground" },
-	memo: { Icon: IconNote, tone: "text-info" },
-	purchase: { Icon: IconShoppingCart, tone: "text-primary" },
-	seat: { Icon: IconUser, tone: "text-muted-foreground" },
-	stack: { Icon: IconChartLine, tone: "text-success" },
-	start: { Icon: IconFlag, tone: "text-muted-foreground" },
-	time: { Icon: IconPlayerPause, tone: "text-warning" },
-};
-
 export const NEW_EVENT_TITLES: Record<EventEditorKind, string> = {
 	allin: "All-in (EV log)",
 	chips: "Chip adjust",
@@ -54,20 +36,15 @@ export const NEW_EVENT_TITLES: Record<EventEditorKind, string> = {
 	time: "Timer",
 };
 
-const KIND_HINTS: Record<EventEditorKind, string> = {
+const KIND_HINTS: Partial<Record<EventEditorKind, string>> = {
 	allin:
 		"Wins cannot exceed runs. A chop can be logged as 0.5 wins. EV delta feeds into EV result.",
 	chips:
-		"Additions count toward total buy-in; withdrawals count toward the result. 0 cannot be logged.",
-	end: "The end event cannot be deleted.",
-	memo: "Empty notes cannot be logged. Notes can be logged while paused.",
+		"Additions count toward total buy-in; withdrawals count toward the result.",
 	purchase:
 		"Name, cost and chips are snapshotted at selection, and the cost feeds into the result.",
 	seat: "Seat and player assignments are edited from the table; only the time can be changed here.",
-	stack:
-		"Stack is recorded as an absolute value; the delta is derived from the previous update.",
-	start: "The start event cannot be deleted.",
-	time: "Pause and resume events allow editing the time only.",
+	stack: "Stack is recorded as an absolute value, not a delta.",
 };
 
 interface EventEditorSheetProps {
@@ -104,7 +81,9 @@ export function EventEditorSheet({
 		target,
 	});
 
-	const { Icon: KindIcon, tone } = KIND_ICONS[target.kind];
+	const KindIcon = resolveEventIcon(target.kind, target.event?.eventType);
+	const tone = EVENT_TONE_TEXT[resolveKindTone(target.kind)];
+	const hint = KIND_HINTS[target.kind];
 	const isEdit = target.mode === "edit";
 
 	return (
@@ -148,9 +127,11 @@ export function EventEditorSheet({
 					<StartFields form={form} isTournament={isTournament} />
 				) : null}
 
-				<p className="col-span-6 text-pretty text-[length:var(--text-xs)] text-muted-foreground">
-					{KIND_HINTS[target.kind]}
-				</p>
+				{hint === undefined ? null : (
+					<p className="col-span-6 text-pretty text-[length:var(--text-xs)] text-muted-foreground">
+						{hint}
+					</p>
+				)}
 			</form>
 
 			{onDelete === null ? null : (

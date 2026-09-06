@@ -5,6 +5,13 @@ export interface StackUpdateEventLike {
 
 export type StalenessLevel = "critical" | "fresh" | "stale";
 
+export type StackReferenceSource = "session_start" | "update_stack";
+
+export interface StackReference {
+	at: Date;
+	source: StackReferenceSource;
+}
+
 export interface Staleness {
 	level: StalenessLevel;
 	minutesAgo: number;
@@ -41,6 +48,36 @@ export function findLastStackUpdateAt(
 		}
 	}
 	return latest === null ? null : new Date(latest);
+}
+
+function findSessionStartAt(
+	events: readonly StackUpdateEventLike[]
+): Date | null {
+	let earliest: number | null = null;
+	for (const event of events) {
+		if (event.eventType !== "session_start") {
+			continue;
+		}
+		const ms = toMs(event.occurredAt);
+		if (Number.isNaN(ms)) {
+			continue;
+		}
+		if (earliest === null || ms < earliest) {
+			earliest = ms;
+		}
+	}
+	return earliest === null ? null : new Date(earliest);
+}
+
+export function findStackReference(
+	events: readonly StackUpdateEventLike[]
+): StackReference | null {
+	const lastStackUpdate = findLastStackUpdateAt(events);
+	if (lastStackUpdate !== null) {
+		return { at: lastStackUpdate, source: "update_stack" };
+	}
+	const startedAt = findSessionStartAt(events);
+	return startedAt === null ? null : { at: startedAt, source: "session_start" };
 }
 
 export function describeStaleness(

@@ -36,6 +36,8 @@ export interface TimelineRow {
 	amount: string | null;
 	editorKind: EventEditorKind;
 	eventType: string;
+	hasLineAbove: boolean;
+	hasLineBelow: boolean;
 	id: string;
 	isDeletable: boolean;
 	sub: string | null;
@@ -283,10 +285,25 @@ function describeContent(
 	}
 }
 
+function computePausedAfter(events: readonly TimelineEventLike[]): boolean[] {
+	const flags: boolean[] = [];
+	let isPaused = false;
+	for (const event of events) {
+		if (event.eventType === "session_pause") {
+			isPaused = true;
+		} else if (event.eventType === "session_resume") {
+			isPaused = false;
+		}
+		flags.push(isPaused);
+	}
+	return flags;
+}
+
 export function describeTimeline(
 	events: readonly TimelineEventLike[],
 	context: TimelineContext
 ): TimelineRow[] {
+	const pausedAfter = computePausedAfter(events);
 	const rows: TimelineRow[] = [];
 	for (let i = events.length - 1; i >= 0; i--) {
 		const event = events[i];
@@ -297,6 +314,8 @@ export function describeTimeline(
 			...describeContent(event, context),
 			editorKind: resolveEditorKind(event.eventType),
 			eventType: event.eventType,
+			hasLineAbove: !pausedAfter[i],
+			hasLineBelow: i === 0 || !pausedAfter[i - 1],
 			id: event.id,
 			isDeletable: isDeletableEventType(event.eventType),
 			time: formatLocalHm(event.occurredAt),

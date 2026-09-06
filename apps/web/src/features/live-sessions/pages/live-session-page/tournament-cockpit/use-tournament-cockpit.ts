@@ -8,7 +8,7 @@ import { computeBigBlinds } from "@/features/live-sessions/utils/live-session-su
 import { computeSessionClock } from "@/features/live-sessions/utils/session-clock";
 import {
 	describeStaleness,
-	findLastStackUpdateAt,
+	findStackReference,
 } from "@/features/live-sessions/utils/session-staleness";
 import { formatTimerDuration } from "@/features/live-sessions/utils/tournament-timer";
 import { useKeyboardOpen } from "@/shared/hooks/use-keyboard-open";
@@ -69,7 +69,7 @@ export function useTournamentCockpit(sessionId: string) {
 		{ isPaused }
 	);
 	const bigBlinds = computeBigBlinds(currentStack, blindLevel?.bigBlind);
-	const lastUpdateAt = findLastStackUpdateAt(journal.events);
+	const stackReference = findStackReference(journal.events);
 
 	const onResume = () => {
 		const pausedSinceMs = clock.pausedSinceMs;
@@ -103,7 +103,8 @@ export function useTournamentCockpit(sessionId: string) {
 		isStackPending: stack.isStackPending,
 		isUpdatingTimer,
 		journal,
-		lastUpdateLabel: lastUpdateAt === null ? null : formatLocalHm(lastUpdateAt),
+		referenceLabel:
+			stackReference === null ? null : formatLocalHm(stackReference.at),
 		onCompleteSubmit: (values: TournamentCompleteValues) =>
 			stack.complete(values),
 		onEndSession: () => setIsEndSessionOpen(true),
@@ -120,7 +121,8 @@ export function useTournamentCockpit(sessionId: string) {
 		ruleName: resolveRuleName(session.ruleName, session.variant, "Tournament"),
 		seats,
 		stackFormatted: currentStack === null ? "—" : formatNumber(currentStack),
-		staleness: describeStaleness(lastUpdateAt, now),
+		staleness: describeStaleness(stackReference?.at ?? null, now),
+		stalenessSource: stackReference?.source ?? null,
 		totalEntries: summary.totalEntries,
 	};
 }

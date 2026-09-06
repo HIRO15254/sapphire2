@@ -67,7 +67,8 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 							totalEntries={cockpit.totalEntries}
 						/>
 						<StalenessLine
-							lastUpdateLabel={cockpit.lastUpdateLabel}
+							referenceLabel={cockpit.referenceLabel}
+							source={cockpit.stalenessSource}
 							staleness={cockpit.staleness}
 						/>
 					</div>
