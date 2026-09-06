@@ -8,6 +8,7 @@ import {
 	playerLeavePayload,
 	purchaseChipsPayload,
 	tournamentSessionEndPayload,
+	updateStackPayload,
 } from "@sapphire2/db/constants/session-event-types";
 import { currencyTransaction } from "@sapphire2/db/schema/currency";
 import { gameSession } from "@sapphire2/db/schema/session";
@@ -159,6 +160,82 @@ export function computeCashGamePLFromEvents(
 		evDiff: totalEvDiff,
 		addonTotal,
 	};
+}
+
+export interface CashGameEventSummary {
+	addonCount: number;
+	cashOut: number | null;
+	currentStack: number | null;
+	maxStack: number | null;
+	minStack: number | null;
+	totalBuyIn: number;
+}
+
+function applyStartToSummary(
+	summary: CashGameEventSummary,
+	parsed: unknown
+): void {
+	const data = cashSessionStartPayload.parse(parsed);
+	summary.totalBuyIn += data.buyInAmount;
+	summary.currentStack = (summary.currentStack ?? 0) + data.buyInAmount;
+}
+
+function applyChipsToSummary(
+	summary: CashGameEventSummary,
+	parsed: unknown
+): void {
+	const data = chipsAddRemovePayload.parse(parsed);
+	if (data.amount > 0) {
+		summary.totalBuyIn += data.amount;
+		summary.addonCount++;
+	}
+	if (summary.currentStack !== null) {
+		summary.currentStack += data.amount;
+	}
+}
+
+function applyStackToSummary(
+	summary: CashGameEventSummary,
+	parsed: unknown
+): void {
+	const { stackAmount } = updateStackPayload.parse(parsed);
+	summary.maxStack =
+		summary.maxStack === null
+			? stackAmount
+			: Math.max(summary.maxStack, stackAmount);
+	summary.minStack =
+		summary.minStack === null
+			? stackAmount
+			: Math.min(summary.minStack, stackAmount);
+	summary.currentStack = stackAmount;
+}
+
+export function computeCashGameSummaryFromEvents(
+	events: { eventType: string; payload: string }[]
+): CashGameEventSummary {
+	const summary: CashGameEventSummary = {
+		addonCount: 0,
+		cashOut: null,
+		currentStack: null,
+		maxStack: null,
+		minStack: null,
+		totalBuyIn: 0,
+	};
+
+	for (const event of events) {
+		const parsed = JSON.parse(event.payload);
+		if (event.eventType === "session_start") {
+			applyStartToSummary(summary, parsed);
+		} else if (event.eventType === "chips_add_remove") {
+			applyChipsToSummary(summary, parsed);
+		} else if (event.eventType === "update_stack") {
+			applyStackToSummary(summary, parsed);
+		} else if (event.eventType === "session_end") {
+			summary.cashOut = cashSessionEndPayload.parse(parsed).cashOutAmount;
+		}
+	}
+
+	return summary;
 }
 
 export function computeTournamentPLFromEvents(

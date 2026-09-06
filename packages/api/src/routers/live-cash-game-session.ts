@@ -1,8 +1,6 @@
 import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import {
 	cashSessionEndPayload,
-	cashSessionStartPayload,
-	chipsAddRemovePayload,
 	MAX_SEAT_POSITION,
 	updateStackPayload,
 } from "@sapphire2/db/constants/session-event-types";
@@ -23,6 +21,7 @@ import {
 } from "../lib/db-errors";
 import {
 	computeCashGamePLFromEvents,
+	computeCashGameSummaryFromEvents,
 	computeHeroSeatPositionFromEvents,
 	recalculateCashGameSession,
 } from "../services/live-session-pl";
@@ -159,62 +158,6 @@ async function findLiveCashGameSession(
 	}
 
 	return found;
-}
-
-interface EventSummary {
-	addonCount: number;
-	cashOut: number | null;
-	currentStack: number | null;
-	maxStack: number | null;
-	minStack: number | null;
-	totalBuyIn: number;
-}
-
-function computeSummaryFromEvents(
-	events: { eventType: string; payload: string }[]
-): EventSummary {
-	let totalBuyIn = 0;
-	let cashOut: number | null = null;
-	let maxStack: number | null = null;
-	let minStack: number | null = null;
-	let currentStack: number | null = null;
-	let addonCount = 0;
-
-	for (const event of events) {
-		const parsed = JSON.parse(event.payload);
-		if (event.eventType === "session_start") {
-			const data = cashSessionStartPayload.parse(parsed);
-			totalBuyIn += data.buyInAmount;
-		} else if (event.eventType === "chips_add_remove") {
-			const data = chipsAddRemovePayload.parse(parsed);
-			if (data.amount > 0) {
-				totalBuyIn += data.amount;
-				addonCount++;
-			}
-		} else if (event.eventType === "update_stack") {
-			const data = updateStackPayload.parse(parsed);
-			const stack = data.stackAmount;
-			if (maxStack === null || stack > maxStack) {
-				maxStack = stack;
-			}
-			if (minStack === null || stack < minStack) {
-				minStack = stack;
-			}
-			currentStack = stack;
-		} else if (event.eventType === "session_end") {
-			const data = cashSessionEndPayload.parse(parsed);
-			cashOut = data.cashOutAmount;
-		}
-	}
-
-	return {
-		totalBuyIn,
-		cashOut,
-		currentStack,
-		maxStack,
-		minStack,
-		addonCount,
-	};
 }
 
 async function resolveRingGameAssignment(
@@ -389,7 +332,7 @@ export const liveCashGameSessionRouter = router({
 				eventType: e.eventType,
 				payload: e.payload,
 			}));
-			const s = computeSummaryFromEvents(mappedEvents);
+			const s = computeCashGameSummaryFromEvents(mappedEvents);
 			const pl = computeCashGamePLFromEvents(mappedEvents);
 
 			const summary = {

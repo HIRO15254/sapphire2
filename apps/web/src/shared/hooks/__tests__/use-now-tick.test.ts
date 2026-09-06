@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useNowTick } from "@/features/live-sessions/pages/active-session-page/tournament-session/tournament-timer/use-tournament-timer-scene";
+import { useNowTick } from "@/shared/hooks/use-now-tick";
 
 describe("useNowTick", () => {
 	beforeEach(() => {

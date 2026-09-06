@@ -1,5 +1,4 @@
 import { IconClock } from "@tabler/icons-react";
-import { useNowTick } from "@/features/live-sessions/pages/active-session-page/tournament-session/tournament-timer/use-tournament-timer-scene";
 import {
 	computeTournamentTimerState,
 	formatBlindLevelLabel,
@@ -9,6 +8,7 @@ import {
 } from "@/features/live-sessions/utils/tournament-timer";
 import { cn } from "@/lib/utils";
 import { Button } from "@/shared/components/ui/button";
+import { useNowTick } from "@/shared/hooks/use-now-tick";
 
 const SECONDS_PER_MINUTE = 60;
 

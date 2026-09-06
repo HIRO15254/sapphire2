@@ -1,5 +1,6 @@
-import { IconCheck, IconX } from "@tabler/icons-react";
+import { IconCheck, IconLoader2, IconX } from "@tabler/icons-react";
 import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/shared/components/ui/button";
 import {
 	Drawer,
@@ -10,6 +11,7 @@ import {
 
 interface FormSheetProps {
 	children: ReactNode;
+	className?: string;
 	formId: string;
 	isLoading?: boolean;
 	isSaveDisabled?: boolean;
@@ -20,6 +22,7 @@ interface FormSheetProps {
 
 export function FormSheet({
 	children,
+	className,
 	formId,
 	isLoading = false,
 	isSaveDisabled = false,
@@ -29,7 +32,9 @@ export function FormSheet({
 }: FormSheetProps) {
 	return (
 		<Drawer dismissible={false} onOpenChange={onOpenChange} open={open}>
-			<DrawerContent className="h-[calc(100svh-2rem)] rounded-t-xl">
+			<DrawerContent
+				className={cn("h-[calc(100svh-2rem)] rounded-t-xl", className)}
+			>
 				<div className="grid shrink-0 grid-cols-[auto_1fr_auto] items-center gap-2 border-b px-2 py-1.5">
 					<Button
 						aria-label="Cancel"
@@ -45,6 +50,7 @@ export function FormSheet({
 						{title}
 					</DrawerTitle>
 					<Button
+						aria-busy={isLoading}
 						aria-label="Save"
 						className="justify-self-end text-primary hover:text-primary"
 						disabled={isLoading || isSaveDisabled}
@@ -53,7 +59,11 @@ export function FormSheet({
 						type="submit"
 						variant="ghost"
 					>
-						<IconCheck className="size-6" />
+						{isLoading ? (
+							<IconLoader2 className="size-6 animate-spin" />
+						) : (
+							<IconCheck className="size-6" />
+						)}
 					</Button>
 				</div>
 				<DrawerDescription className="sr-only">{title}</DrawerDescription>

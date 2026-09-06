@@ -102,7 +102,7 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
-import { useActiveSessionSceneState } from "@/features/live-sessions/components/active-session-scene/use-active-session-scene-state";
+import { useSessionSeats } from "@/features/live-sessions/hooks/use-session-seats";
 
 function renderState(
 	overrides: Partial<{
@@ -113,7 +113,7 @@ function renderState(
 	}> = {}
 ) {
 	return renderHook(() =>
-		useActiveSessionSceneState({
+		useSessionSeats({
 			heroSeatPosition: null,
 			sessionId: "s-1",
 			sessionType: "cash_game",
@@ -134,7 +134,7 @@ function makePlayer(overrides: Partial<MockTablePlayer> = {}): MockTablePlayer {
 	};
 }
 
-describe("useActiveSessionSceneState", () => {
+describe("useSessionSeats", () => {
 	beforeEach(() => {
 		mocks.tablePlayers.players = [];
 		mocks.tablePlayers.excludePlayerIds = [];
@@ -209,7 +209,9 @@ describe("useActiveSessionSceneState", () => {
 			mocks.tablePlayers.players = [makePlayer({ seatPosition: 2 })];
 			const { result } = renderState({ tableSize: 6 });
 			expect(result.current.seats[2]?.player?.name).toBe("Alice");
+			expect(result.current.seats[2]?.occupancy).toBe("player");
 			expect(result.current.seats[0]?.player).toBeNull();
+			expect(result.current.seats[0]?.occupancy).toBe("empty");
 		});
 
 		it("leaves a seat empty when no active player occupies it", () => {
@@ -236,10 +238,25 @@ describe("useActiveSessionSceneState", () => {
 			]);
 		});
 
-		it("marks the hero seat and never seats a player there", () => {
+		it("marks the hero seat as hero while keeping the player record on it", () => {
 			mocks.tablePlayers.players = [makePlayer({ seatPosition: 3 })];
 			const { result } = renderState({ tableSize: 6, heroSeatPosition: 3 });
 			expect(result.current.seats[3]?.isHero).toBe(true);
+			expect(result.current.seats[3]?.occupancy).toBe("hero");
+			expect(result.current.seats[3]?.player?.name).toBe("Alice");
+		});
+
+		it("keeps a hero-displaced player in the unseated list", () => {
+			mocks.tablePlayers.players = [makePlayer({ seatPosition: 3 })];
+			const { result } = renderState({ tableSize: 6, heroSeatPosition: 3 });
+			expect(result.current.unseatedPlayers.map((p) => p.playerId)).toEqual([
+				"p-1",
+			]);
+		});
+
+		it("marks an empty hero seat as hero", () => {
+			const { result } = renderState({ tableSize: 6, heroSeatPosition: 3 });
+			expect(result.current.seats[3]?.occupancy).toBe("hero");
 			expect(result.current.seats[3]?.player).toBeNull();
 		});
 	});

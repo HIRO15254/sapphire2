@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type React from "react";
 import { describe, expect, it, vi } from "vitest";
-import type { ActiveSessionSceneState } from "./use-active-session-scene-state";
+import type { SessionSeatsState } from "@/features/live-sessions/hooks/use-session-seats";
 
 vi.mock("./seat-list", () => ({
 	SeatList: ({
@@ -52,8 +52,8 @@ vi.mock("./history-section", () => ({
 import { ActiveSessionScene } from "./active-session-scene";
 
 function makeState(
-	overrides: Partial<ActiveSessionSceneState> = {}
-): ActiveSessionSceneState {
+	overrides: Partial<SessionSeatsState> = {}
+): SessionSeatsState {
 	return {
 		excludePlayerIds: [],
 		heroAvailable: true,
@@ -176,8 +176,8 @@ describe("ActiveSessionScene", () => {
 		setup({
 			state: makeState({
 				seats: [
-					{ isHero: false, player: null, seatPosition: 0 },
-					{ isHero: false, player: null, seatPosition: 1 },
+					{ isHero: false, occupancy: "empty", player: null, seatPosition: 0 },
+					{ isHero: false, occupancy: "empty", player: null, seatPosition: 1 },
 				],
 			}),
 		});

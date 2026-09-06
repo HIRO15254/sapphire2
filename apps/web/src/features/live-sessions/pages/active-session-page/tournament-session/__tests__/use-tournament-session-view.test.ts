@@ -49,8 +49,8 @@ vi.mock("@/features/live-sessions/hooks/use-tournament-stack", () => ({
 	},
 }));
 
-vi.mock("@/features/live-sessions/components/active-session-scene", () => ({
-	useActiveSessionSceneState: (options: Record<string, unknown>) => {
+vi.mock("@/features/live-sessions/hooks/use-session-seats", () => ({
+	useSessionSeats: (options: Record<string, unknown>) => {
 		mocks.lastSceneOptions = options;
 		return mocks.sceneState;
 	},
@@ -133,7 +133,7 @@ describe("useTournamentSessionView", () => {
 			expect(mocks.lastSceneOptions?.heroSeatPosition).toBeNull();
 		});
 
-		it("returns the scene state from useActiveSessionSceneState", () => {
+		it("returns the scene state from useSessionSeats", () => {
 			const { result } = renderHook(() => useTournamentSessionView("t-1"));
 			expect(result.current.sceneState).toBe(mocks.sceneState);
 		});

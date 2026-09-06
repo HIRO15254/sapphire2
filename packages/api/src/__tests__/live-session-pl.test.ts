@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	computeBreakMinutesFromEvents,
 	computeCashGamePLFromEvents,
+	computeCashGameSummaryFromEvents,
 	computeHeroSeatPositionFromEvents,
 	computeSeatedPlayersFromEvents,
 	computeSessionStateFromEvents,
@@ -10,6 +11,79 @@ import {
 	recalculateTournamentSession,
 	syncChipPurchaseResults,
 } from "../services/live-session-pl";
+
+function cashEvent(eventType: string, payload: Record<string, unknown>) {
+	return { eventType, payload: JSON.stringify(payload) };
+}
+
+describe("computeCashGameSummaryFromEvents", () => {
+	it("seeds the current stack from the buy-in the session started with", () => {
+		const summary = computeCashGameSummaryFromEvents([
+			cashEvent("session_start", { buyInAmount: 30_000 }),
+		]);
+		expect(summary.currentStack).toBe(30_000);
+		expect(summary.totalBuyIn).toBe(30_000);
+	});
+
+	it("keeps a freshly started session at break-even instead of unknown", () => {
+		const summary = computeCashGameSummaryFromEvents([
+			cashEvent("session_start", { buyInAmount: 30_000 }),
+		]);
+		expect((summary.currentStack ?? 0) - summary.totalBuyIn).toBe(0);
+	});
+
+	it("moves the stack with chips brought to or taken off the table", () => {
+		const summary = computeCashGameSummaryFromEvents([
+			cashEvent("session_start", { buyInAmount: 30_000 }),
+			cashEvent("chips_add_remove", { amount: 10_000 }),
+			cashEvent("chips_add_remove", { amount: -4000 }),
+		]);
+		expect(summary.currentStack).toBe(36_000);
+		expect(summary.totalBuyIn).toBe(40_000);
+		expect(summary.addonCount).toBe(1);
+	});
+
+	it("keeps the result unchanged when chips are only added to the table", () => {
+		const before = computeCashGameSummaryFromEvents([
+			cashEvent("session_start", { buyInAmount: 30_000 }),
+			cashEvent("update_stack", { stackAmount: 50_000 }),
+		]);
+		const after = computeCashGameSummaryFromEvents([
+			cashEvent("session_start", { buyInAmount: 30_000 }),
+			cashEvent("update_stack", { stackAmount: 50_000 }),
+			cashEvent("chips_add_remove", { amount: 10_000 }),
+		]);
+		expect((before.currentStack ?? 0) - before.totalBuyIn).toBe(20_000);
+		expect((after.currentStack ?? 0) - after.totalBuyIn).toBe(20_000);
+	});
+
+	it("lets a recorded stack replace the derived one", () => {
+		const summary = computeCashGameSummaryFromEvents([
+			cashEvent("session_start", { buyInAmount: 30_000 }),
+			cashEvent("chips_add_remove", { amount: 10_000 }),
+			cashEvent("update_stack", { stackAmount: 51_800 }),
+		]);
+		expect(summary.currentStack).toBe(51_800);
+	});
+
+	it("tracks max and min from recorded stacks only", () => {
+		const summary = computeCashGameSummaryFromEvents([
+			cashEvent("session_start", { buyInAmount: 30_000 }),
+			cashEvent("update_stack", { stackAmount: 51_800 }),
+			cashEvent("update_stack", { stackAmount: 42_000 }),
+		]);
+		expect(summary.maxStack).toBe(51_800);
+		expect(summary.minStack).toBe(42_000);
+	});
+
+	it("reads the cash-out from the closing event", () => {
+		const summary = computeCashGameSummaryFromEvents([
+			cashEvent("session_start", { buyInAmount: 30_000 }),
+			cashEvent("session_end", { cashOutAmount: 44_000 }),
+		]);
+		expect(summary.cashOut).toBe(44_000);
+	});
+});
 
 describe("syncChipPurchaseResults", () => {
 	it("upserts all purchases in one atomic batch with D1-safe chunks", async () => {

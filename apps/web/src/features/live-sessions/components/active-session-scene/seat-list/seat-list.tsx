@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import type {
 	SeatEntry,
 	SeatPlayer,
-} from "@/features/live-sessions/components/active-session-scene/use-active-session-scene-state";
+} from "@/features/live-sessions/hooks/use-session-seats";
 import { memoExcerpt } from "@/features/live-sessions/utils/memo-excerpt";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/shared/components/ui/avatar";

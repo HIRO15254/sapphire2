@@ -1,28 +1,28 @@
-import { IconChevronLeft } from "@tabler/icons-react";
-import { Link } from "@tanstack/react-router";
 import { QueryError } from "@/shared/components/query-error";
 import { EmptyState } from "@/shared/components/ui/empty-state";
+import { CashCockpit } from "./cash-cockpit";
 import { CRYST_SCOPE_CLASS } from "./cryst-scope";
+import { CrystHeaderShell } from "./session-header";
 import { useLiveSessionPage } from "./use-live-session-page";
 
 function CrystScreen({ children }: { children: React.ReactNode }) {
 	return (
 		<div
-			className={`${CRYST_SCOPE_CLASS} flex h-svh flex-col bg-background text-foreground`}
+			className={`${CRYST_SCOPE_CLASS} mx-auto flex h-svh w-full max-w-[412px] flex-col bg-background pt-[env(safe-area-inset-top)] font-sans text-foreground tracking-[var(--tracking-body)]`}
 		>
-			<header className="flex shrink-0 items-center gap-2 px-2 pt-[env(safe-area-inset-top)]">
-				<Link
-					aria-label="Back to sessions"
-					className="inline-flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-					to="/sessions"
-				>
-					<IconChevronLeft size={20} stroke={1.75} />
-				</Link>
-			</header>
-			<div className="mx-auto flex w-full max-w-[412px] flex-1 flex-col overflow-hidden">
+			{children}
+		</div>
+	);
+}
+
+function CrystMessageScreen({ children }: { children: React.ReactNode }) {
+	return (
+		<CrystScreen>
+			<CrystHeaderShell />
+			<div className="flex flex-1 items-center justify-center p-4">
 				{children}
 			</div>
-		</div>
+		</CrystScreen>
 	);
 }
 
@@ -31,50 +31,52 @@ export function LiveSessionPage() {
 
 	if (isLoading) {
 		return (
-			<CrystScreen>
-				<div className="flex flex-1 items-center justify-center p-4">
-					<EmptyState
-						className="border-none bg-transparent py-0"
-						description="Fetching the current active session."
-						heading="Loading..."
-					/>
-				</div>
-			</CrystScreen>
+			<CrystMessageScreen>
+				<EmptyState
+					className="border-none bg-transparent py-0"
+					description="Fetching the current active session."
+					heading="Loading..."
+				/>
+			</CrystMessageScreen>
 		);
 	}
 
 	if (isError) {
 		return (
-			<CrystScreen>
-				<div className="flex flex-1 items-center justify-center p-4">
-					<QueryError
-						message="Unable to load the active session"
-						onRetry={onRetry}
-					/>
-				</div>
-			</CrystScreen>
+			<CrystMessageScreen>
+				<QueryError
+					message="Unable to load the active session"
+					onRetry={onRetry}
+				/>
+			</CrystMessageScreen>
 		);
 	}
 
 	if (!activeSession) {
 		return (
-			<CrystScreen>
-				<div className="flex flex-1 items-center justify-center p-4">
-					<EmptyState
-						className="border-none bg-transparent py-0"
-						description="Start a live session from the sessions screen."
-						heading="No active session"
-					/>
-				</div>
-			</CrystScreen>
+			<CrystMessageScreen>
+				<EmptyState
+					className="border-none bg-transparent py-0"
+					description="Start a live session from the sessions screen."
+					heading="No active session"
+				/>
+			</CrystMessageScreen>
+		);
+	}
+
+	if (activeSession.type === "tournament") {
+		return (
+			<CrystMessageScreen>
+				<p className="text-center text-muted-foreground text-sm">
+					Tournament sessions are not on this screen yet
+				</p>
+			</CrystMessageScreen>
 		);
 	}
 
 	return (
 		<CrystScreen>
-			<div className="flex flex-1 items-center justify-center p-4 text-sm">
-				{activeSession.type === "cash_game" ? "Cash game" : "Tournament"}
-			</div>
+			<CashCockpit sessionId={activeSession.id} />
 		</CrystScreen>
 	);
 }
