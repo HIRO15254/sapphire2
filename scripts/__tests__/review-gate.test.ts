@@ -4,8 +4,10 @@ import {
 	decideReview,
 	extractReviewTrailer,
 	formatGithubOutputs,
+	formatPublishedOutputs,
 	formatSummaryOutputs,
 	type GateInput,
+	hasPublishedSummary,
 	parseReviewResult,
 	parseReviewState,
 	renderStateComment,
@@ -535,6 +537,57 @@ describe("parseReviewResult", () => {
 			subtype: "",
 			trailer: null,
 		});
+	});
+});
+
+const TRACKING_HEADER =
+	"**Claude finished @HIRO15254's task in 1m 27s** —— [View job](https://github.com/HIRO15254/sapphire2/actions/runs/34012323755)";
+
+describe("hasPublishedSummary", () => {
+	it("rejects the placeholder the action leaves when the reviewer never wrote the summary (#620 round 2)", () => {
+		expect(
+			hasPublishedSummary(
+				`${TRACKING_HEADER}\n\n---\nI'll analyze this and get back to you.`
+			)
+		).toBe(false);
+	});
+
+	it("accepts a tracking comment carrying the mandated summary heading", () => {
+		expect(
+			hasPublishedSummary(
+				`${TRACKING_HEADER}\n\n---\n### レビュー結果（round 1/2）\n\n**Verdict: approve** — important 0 件。`
+			)
+		).toBe(true);
+	});
+
+	it("accepts a summary whose heading was dropped but whose trailer survived", () => {
+		expect(hasPublishedSummary(`要約\n\n${TRAILER}`)).toBe(true);
+	});
+
+	it("rejects an empty body, which is what a missing tracking comment reads as", () => {
+		expect(hasPublishedSummary("")).toBe(false);
+	});
+
+	it("does not mistake the incomplete-review notice for a summary", () => {
+		expect(
+			hasPublishedSummary(
+				"<!-- pre-merge-review:truncated -->\n### ⚠️ 自動レビューは完了しませんでした"
+			)
+		).toBe(false);
+	});
+});
+
+describe("formatPublishedOutputs", () => {
+	it("lets the round be recorded when the summary is on the PR", () => {
+		expect(formatPublishedOutputs("### レビュー結果（round 2/2）")).toBe(
+			"is_published=true\n"
+		);
+	});
+
+	it("holds the round back when only the placeholder is on the PR", () => {
+		expect(
+			formatPublishedOutputs("I'll analyze this and get back to you.")
+		).toBe("is_published=false\n");
 	});
 });
 
