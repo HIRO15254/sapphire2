@@ -9,6 +9,7 @@ import { useCashGameStack } from "@/features/live-sessions/hooks/use-cash-game-s
 import { useSessionSeats } from "@/features/live-sessions/hooks/use-session-seats";
 import { variantLabel } from "@/features/live-sessions/utils/game-scene-formatters";
 import { computeCashGamePL } from "@/features/live-sessions/utils/live-session-summary";
+import { computeSessionClock } from "@/features/live-sessions/utils/session-clock";
 import {
 	describeStaleness,
 	findLastStackUpdateAt,
@@ -20,7 +21,6 @@ import { formatLocalHm, formatNumber } from "@/utils/format-number";
 import { formatProfitLoss } from "@/utils/format-profit-loss";
 
 const TICK_MS = 1000;
-const MS_PER_SECOND = 1000;
 
 function toSessionStatus(value: string): SessionStatus {
 	const match = SESSION_STATUSES.find((status) => status === value);
@@ -73,13 +73,7 @@ export function useCashCockpit(sessionId: string) {
 		totalBuyIn,
 	});
 
-	const startedAtMs = session.startedAt
-		? new Date(session.startedAt).getTime()
-		: now;
-	const elapsedSeconds = Math.max(
-		0,
-		Math.floor((now - startedAtMs) / MS_PER_SECOND)
-	);
+	const clock = computeSessionClock(session.events, now);
 
 	const lastUpdateAt = findLastStackUpdateAt(session.events);
 	const blind2 = session.blind2;
@@ -93,7 +87,7 @@ export function useCashCockpit(sessionId: string) {
 		defaultFinalStack: currentStack ?? undefined,
 		displayPL,
 		displayPLFormatted: displayPL === null ? "—" : formatProfitLoss(displayPL),
-		elapsed: formatTimerDuration(elapsedSeconds, { padHours: true }),
+		elapsed: formatTimerDuration(clock.activeSeconds, { padHours: true }),
 		evDiff,
 		evPLFormatted: showEvPL && evPL !== null ? formatProfitLoss(evPL) : null,
 		isCompletePending: stack.isCompletePending,
@@ -101,6 +95,9 @@ export function useCashCockpit(sessionId: string) {
 		isKeyboardOpen,
 		isLoading: false as const,
 		isMasterLinked: Boolean(session.ringGameId),
+		pausedElapsed: formatTimerDuration(clock.pausedSeconds, {
+			padHours: true,
+		}),
 		isPaused: status === "paused",
 		isStackPending: stack.isStackPending,
 		canRecordStack: isEventAllowedInState("update_stack", status),

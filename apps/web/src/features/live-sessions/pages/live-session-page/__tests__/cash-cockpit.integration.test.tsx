@@ -51,12 +51,24 @@ function session() {
 		tableSize: 6,
 		heroSeatPosition: null,
 		memo: null,
-		events: [
-			{
-				eventType: "session_start",
-				occurredAt: new Date("2026-06-01T10:00:00Z"),
-			},
-		],
+		events:
+			backend.status === "paused"
+				? [
+						{
+							eventType: "session_start",
+							occurredAt: new Date("2026-06-01T10:00:00Z"),
+						},
+						{
+							eventType: "session_pause",
+							occurredAt: new Date("2026-06-01T12:00:00Z"),
+						},
+					]
+				: [
+						{
+							eventType: "session_start",
+							occurredAt: new Date("2026-06-01T10:00:00Z"),
+						},
+					],
 		summary: {
 			chipRemoveTotal: 0,
 			currentStack: backend.currentStack,
@@ -243,5 +255,12 @@ describe("CashCockpit", () => {
 		expect(screen.getByRole("button", { name: "Resume" })).toBeInTheDocument();
 		expect(screen.getByLabelText(STACK_LABEL)).toBeDisabled();
 		expect(screen.getByRole("button", { name: "Save stack" })).toBeDisabled();
+	});
+
+	it("freezes the session timer at the time the pause began", async () => {
+		backend.status = "paused";
+		renderCockpit();
+
+		expect(await screen.findByText("02:00:00")).toBeInTheDocument();
 	});
 });

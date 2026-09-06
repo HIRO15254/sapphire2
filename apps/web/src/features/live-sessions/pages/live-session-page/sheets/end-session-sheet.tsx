@@ -89,6 +89,7 @@ export function EndSessionSheet({
 
 	return (
 		<CrystFormSheet
+			className="h-auto max-h-[calc(100svh-2rem)]"
 			formId={FORM_ID}
 			isLoading={isPending}
 			onOpenChange={onOpenChange}

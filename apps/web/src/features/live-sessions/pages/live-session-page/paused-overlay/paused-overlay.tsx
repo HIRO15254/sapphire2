@@ -1,11 +1,11 @@
 import { IconNote, IconPlayerPause, IconPlayerPlay } from "@tabler/icons-react";
 
 interface PausedOverlayProps {
-	elapsed: string;
 	onResume: () => void;
+	pausedElapsed: string;
 }
 
-export function PausedOverlay({ elapsed, onResume }: PausedOverlayProps) {
+export function PausedOverlay({ onResume, pausedElapsed }: PausedOverlayProps) {
 	return (
 		<div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[color-mix(in_oklab,var(--background)_72%,transparent)] backdrop-blur-[2px]">
 			<IconPlayerPause className="text-warning" size={26} />
@@ -13,7 +13,7 @@ export function PausedOverlay({ elapsed, onResume }: PausedOverlayProps) {
 				Session paused
 			</span>
 			<span className="font-mono font-semibold text-[22px] tabular-nums tracking-[-0.02em]">
-				{elapsed}
+				{pausedElapsed}
 			</span>
 			<span className="max-w-[230px] text-pretty text-center text-[length:var(--m-text-caption)] text-muted-foreground">
 				Only notes can be logged while paused.

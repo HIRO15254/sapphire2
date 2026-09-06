@@ -66,8 +66,8 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 				</div>
 				{cockpit.isPaused ? (
 					<PausedOverlay
-						elapsed={cockpit.elapsed}
 						onResume={cockpit.onResume}
+						pausedElapsed={cockpit.pausedElapsed}
 					/>
 				) : null}
 			</div>

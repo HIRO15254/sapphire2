@@ -4,7 +4,6 @@ import {
 	IconLink,
 	IconPlayerPause,
 	IconPlayerPlay,
-	IconPlayerRecordFilled,
 	IconSquare,
 	IconUnlink,
 } from "@tabler/icons-react";
@@ -48,20 +47,6 @@ export function CrystHeaderShell({ children }: { children?: ReactNode }) {
 	);
 }
 
-function StatusIndicator({ isPaused }: { isPaused: boolean }) {
-	if (isPaused) {
-		return null;
-	}
-	return (
-		<IconPlayerRecordFilled
-			aria-label="Recording"
-			className="shrink-0 text-destructive"
-			role="img"
-			size={11}
-		/>
-	);
-}
-
 function MasterPill({ isLinked }: { isLinked: boolean }) {
 	return (
 		<button
@@ -86,7 +71,6 @@ export function SessionHeader({
 }: SessionHeaderProps) {
 	return (
 		<CrystHeaderShell>
-			<StatusIndicator isPaused={isPaused} />
 			<button
 				className="inline-flex min-h-8 min-w-0 max-w-[190px] shrink-0 items-center gap-1 hover:text-primary"
 				type="button"

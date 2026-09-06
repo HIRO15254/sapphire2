@@ -1,4 +1,4 @@
-import { IconCheck, IconX } from "@tabler/icons-react";
+import { IconCheck, IconLoader2, IconX } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/shared/components/ui/button";
@@ -50,6 +50,7 @@ export function FormSheet({
 						{title}
 					</DrawerTitle>
 					<Button
+						aria-busy={isLoading}
 						aria-label="Save"
 						className="justify-self-end text-primary hover:text-primary"
 						disabled={isLoading || isSaveDisabled}
@@ -58,7 +59,11 @@ export function FormSheet({
 						type="submit"
 						variant="ghost"
 					>
-						<IconCheck className="size-6" />
+						{isLoading ? (
+							<IconLoader2 className="size-6 animate-spin" />
+						) : (
+							<IconCheck className="size-6" />
+						)}
 					</Button>
 				</div>
 				<DrawerDescription className="sr-only">{title}</DrawerDescription>
