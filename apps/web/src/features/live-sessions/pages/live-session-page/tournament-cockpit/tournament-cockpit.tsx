@@ -1,16 +1,17 @@
 import { ActionBar } from "../action-bar";
+import { BlindLevelBar } from "../blind-level-bar";
 import { PausedOverlay } from "../paused-overlay";
 import { SeatPanelPlaceholder } from "../seat-panel-placeholder";
 import { SessionHeader } from "../session-header";
-import { EndSessionSheet } from "../sheets";
-import { StackQuickInput } from "../stack-quick-input";
+import { EndTournamentSheet } from "../sheets";
 import { StalenessLine } from "../staleness-line";
 import { TableView } from "../table-view";
-import { CashTableStats } from "./cash-table-stats";
-import { useCashCockpit } from "./use-cash-cockpit";
+import { TournamentQuickInput } from "../tournament-quick-input";
+import { TournamentTableStats } from "./tournament-table-stats";
+import { useTournamentCockpit } from "./use-tournament-cockpit";
 
-export function CashCockpit({ sessionId }: { sessionId: string }) {
-	const cockpit = useCashCockpit(sessionId);
+export function TournamentCockpit({ sessionId }: { sessionId: string }) {
+	const cockpit = useTournamentCockpit(sessionId);
 
 	if (cockpit.isLoading) {
 		return (
@@ -32,14 +33,20 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 				ruleName={cockpit.ruleName}
 			/>
 			<div className="relative flex min-h-0 flex-1 flex-col">
+				{cockpit.isKeyboardOpen || cockpit.blindLevel === null ? null : (
+					<BlindLevelBar
+						isStartPending={cockpit.isUpdatingTimer}
+						level={cockpit.blindLevel}
+						onStartTimer={cockpit.onStartTimer}
+					/>
+				)}
 				{cockpit.isKeyboardOpen ? null : (
 					<TableView
 						center={
-							<CashTableStats
+							<TournamentTableStats
+								averageStackText={cockpit.averageStackText}
 								bbText={cockpit.bbText}
-								displayPL={cockpit.displayPL}
-								displayPLFormatted={cockpit.displayPLFormatted}
-								evPLFormatted={cockpit.evPLFormatted}
+								fieldText={cockpit.fieldText}
 								stackFormatted={cockpit.stackFormatted}
 							/>
 						}
@@ -49,11 +56,13 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 				<SeatPanelPlaceholder />
 				<div className="shrink-0 border-border border-t bg-card">
 					<div className="flex flex-col gap-1.5 px-[var(--m-inset)] pt-2">
-						<StackQuickInput
-							currentStack={cockpit.defaultFinalStack ?? null}
+						<TournamentQuickInput
+							currentStack={cockpit.currentStack}
 							isDisabled={!cockpit.canRecordStack}
 							isPending={cockpit.isStackPending}
 							onSubmit={cockpit.onRecordStack}
+							remainingPlayers={cockpit.remainingPlayers}
+							totalEntries={cockpit.totalEntries}
 						/>
 						<StalenessLine
 							lastUpdateLabel={cockpit.lastUpdateLabel}
@@ -69,15 +78,11 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 					/>
 				) : null}
 			</div>
-			<EndSessionSheet
-				chipRemoveTotal={cockpit.chipRemoveTotal}
-				defaultFinalStack={cockpit.defaultFinalStack}
-				evDiff={cockpit.evDiff}
+			<EndTournamentSheet
 				isPending={cockpit.isCompletePending}
 				onOpenChange={cockpit.onEndSessionOpenChange}
 				onSubmit={cockpit.onCompleteSubmit}
 				open={cockpit.isEndSessionOpen}
-				totalBuyIn={cockpit.totalBuyIn}
 			/>
 		</div>
 	);

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	computeTournamentTimerState,
 	formatBlindLevelLabel,
+	formatBlindsWithAnte,
 	formatTimerDuration,
 	type TournamentBlindLevel,
 } from "../tournament-timer";
@@ -208,5 +209,27 @@ describe("formatBlindLevelLabel — mix levels", () => {
 	it("keeps the Break label for mix break levels", () => {
 		const level = { ...makeLevel({ level: 4 }), isBreak: true, games };
 		expect(formatBlindLevelLabel(level)).toBe("Break (L4)");
+	});
+});
+
+describe("formatBlindsWithAnte", () => {
+	it("keeps the ante the blinds-only formatter drops", () => {
+		expect(
+			formatBlindsWithAnte(
+				makeLevel({ level: 4, blind1: 400, blind2: 800, ante: 800 })
+			)
+		).toBe("400 / 800 (ante 800)");
+	});
+
+	it("omits the ante when the level has none", () => {
+		expect(
+			formatBlindsWithAnte(makeLevel({ level: 1, blind1: 100, blind2: 200 }))
+		).toBe("100 / 200");
+	});
+
+	it("is a dash for a level with no blinds", () => {
+		expect(formatBlindsWithAnte(makeLevel({ level: 3, isBreak: true }))).toBe(
+			"—"
+		);
 	});
 });

@@ -27,3 +27,13 @@ export function computeCashGamePL(input: CashGamePLInput): CashGamePL {
 
 	return { displayPL, evPL, showEvPL: evPL !== null && evPL !== displayPL };
 }
+
+export function computeBigBlinds(
+	stack: number | null,
+	bigBlind: number | null | undefined
+): number | null {
+	if (stack === null || !bigBlind || bigBlind <= 0) {
+		return null;
+	}
+	return Math.round(stack / bigBlind);
+}

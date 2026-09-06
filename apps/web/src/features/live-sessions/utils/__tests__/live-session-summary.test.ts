@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { computeCashGamePL } from "@/features/live-sessions/utils/live-session-summary";
+import {
+	computeBigBlinds,
+	computeCashGamePL,
+} from "@/features/live-sessions/utils/live-session-summary";
 
 const BASE = {
 	chipRemoveTotal: 0,
@@ -95,5 +98,20 @@ describe("computeCashGamePL", () => {
 		expect(result.displayPL).toBe(2000);
 		expect(result.evPL).toBe(1200);
 		expect(result.showEvPL).toBe(true);
+	});
+});
+
+describe("computeBigBlinds", () => {
+	it("rounds the stack to the nearest big blind", () => {
+		expect(computeBigBlinds(12_500, 400)).toBe(31);
+	});
+
+	it("is unknown while the stack is unknown", () => {
+		expect(computeBigBlinds(null, 400)).toBeNull();
+	});
+
+	it("is unknown when the level carries no big blind", () => {
+		expect(computeBigBlinds(12_500, null)).toBeNull();
+		expect(computeBigBlinds(12_500, 0)).toBeNull();
 	});
 });
