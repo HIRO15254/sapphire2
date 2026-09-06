@@ -83,7 +83,7 @@ export function MobileNav() {
 
 	return (
 		<>
-			<nav className="fixed inset-x-0 bottom-0 z-40 border-sidebar-border border-t bg-sidebar md:hidden">
+			<nav className="fixed inset-x-0 bottom-0 z-40 border-sidebar-border border-t bg-sidebar pb-[env(safe-area-inset-bottom)] md:hidden">
 				<ul className="grid h-16 grid-cols-5 items-center">
 					{leftItems.map((item) => (
 						<MobileNavItem
