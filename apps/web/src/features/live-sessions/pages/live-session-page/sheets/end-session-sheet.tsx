@@ -32,16 +32,18 @@ function SummaryRow({
 	value: string;
 }) {
 	return (
-		<div className="flex items-baseline justify-between gap-3">
-			<dt className="flex items-baseline gap-1 text-muted-foreground">
+		<div className="flex justify-between gap-3">
+			<dt className="text-muted-foreground">
 				<span>{label}</span>
-				{formula ? (
-					<span className="font-mono text-[10px]">{formula}</span>
-				) : null}
+				{formula ? <span> ({formula})</span> : null}
 			</dt>
 			<dd className={cn("font-mono tabular-nums", tone)}>{value}</dd>
 		</div>
 	);
+}
+
+function signed(value: number): string {
+	return `${value < 0 ? "−" : "+"}${formatNumber(Math.abs(value))}`;
 }
 
 export function EndSessionSheet({
@@ -77,9 +79,8 @@ export function EndSessionSheet({
 					value={displayPL === null ? "—" : formatProfitLoss(displayPL)}
 				/>
 				<SummaryRow
-					formula={`Result ${evDiff < 0 ? "−" : "+"} ${formatNumber(Math.abs(evDiff))}`}
+					formula={`result + EV delta ${signed(evDiff)}`}
 					label="EV result"
-					tone={plToneClass(evPL)}
 					value={evPL === null ? "—" : formatProfitLoss(evPL)}
 				/>
 			</dl>
@@ -94,10 +95,11 @@ export function EndSessionSheet({
 			open={open}
 			title="End session"
 		>
-			<div className="flex flex-col gap-4">
+			<div className="flex flex-col gap-3">
 				<CashGameCompleteForm
 					defaultFinalStack={defaultFinalStack}
 					formId={FORM_ID}
+					label="Cash-out amount"
 					onSubmit={onSubmit}
 					renderSummary={renderSummary}
 				/>

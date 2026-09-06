@@ -82,11 +82,11 @@ export function useCashCockpit(sessionId: string) {
 	const lastUpdateAt = findLastStackUpdateAt(session.events);
 	const blind2 = session.blind2;
 
+	const bigBlinds =
+		currentStack !== null && blind2 ? Math.round(currentStack / blind2) : null;
+
 	return {
-		bigBlinds:
-			currentStack !== null && blind2
-				? Math.round(currentStack / blind2)
-				: null,
+		bbText: bigBlinds === null ? "— BB" : `${formatNumber(bigBlinds)} BB`,
 		chipRemoveTotal,
 		defaultFinalStack: currentStack ?? undefined,
 		displayPL,

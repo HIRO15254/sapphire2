@@ -1,4 +1,6 @@
 import {
+	IconChevronDown,
+	IconChevronLeft,
 	IconLink,
 	IconPlayerPause,
 	IconPlayerPlay,
@@ -6,8 +8,20 @@ import {
 	IconSquare,
 	IconUnlink,
 } from "@tabler/icons-react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/shared/components/ui/button";
+import { Link } from "@tanstack/react-router";
+import type { ReactNode } from "react";
+
+const ICON_BUTTON_CLASS =
+	"inline-flex size-9 shrink-0 items-center justify-center rounded-md border border-transparent bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground";
+
+const MASTER_PILL_BASE =
+	"inline-flex min-h-[22px] min-w-0 max-w-24 shrink-[2] items-center gap-1 truncate rounded-full border px-[7px] font-semibold text-[11px]";
+
+const MASTER_LINKED_CLASS =
+	"border-border bg-transparent text-muted-foreground";
+
+const MASTER_UNLINKED_CLASS =
+	"border-[color-mix(in_oklab,var(--warning)_45%,transparent)] bg-[color-mix(in_oklab,var(--warning)_15%,transparent)] text-warning";
 
 interface SessionHeaderProps {
 	elapsed: string;
@@ -17,6 +31,21 @@ interface SessionHeaderProps {
 	onPause: () => void;
 	onResume: () => void;
 	ruleName: string;
+}
+
+export function CrystHeaderShell({ children }: { children?: ReactNode }) {
+	return (
+		<header className="flex shrink-0 items-center gap-2 px-4 py-2.5">
+			<Link
+				aria-label="Back to sessions"
+				className={ICON_BUTTON_CLASS}
+				to="/sessions"
+			>
+				<IconChevronLeft size={16} />
+			</Link>
+			{children}
+		</header>
+	);
 }
 
 function StatusIndicator({ isPaused }: { isPaused: boolean }) {
@@ -39,22 +68,15 @@ function StatusIndicator({ isPaused }: { isPaused: boolean }) {
 }
 
 function MasterPill({ isLinked }: { isLinked: boolean }) {
-	if (isLinked) {
-		return (
-			<span
-				aria-label="Linked to a master ring game"
-				className="inline-flex min-h-[22px] shrink-0 items-center rounded-full border border-border px-[7px] text-muted-foreground"
-				role="img"
-			>
-				<IconLink size={11} />
-			</span>
-		);
-	}
 	return (
-		<span className="inline-flex min-h-[22px] max-w-24 shrink-0 items-center gap-1 truncate rounded-full bg-[color-mix(in_oklab,var(--warning)_15%,transparent)] px-[7px] font-semibold text-[11px] text-warning">
-			<IconUnlink size={11} />
-			Link
-		</span>
+		<button
+			className={`${MASTER_PILL_BASE} ${isLinked ? MASTER_LINKED_CLASS : MASTER_UNLINKED_CLASS}`}
+			title="Master link"
+			type="button"
+		>
+			{isLinked ? <IconLink size={12} /> : <IconUnlink size={12} />}
+			{isLinked ? null : "Link"}
+		</button>
 	);
 }
 
@@ -68,44 +90,44 @@ export function SessionHeader({
 	ruleName,
 }: SessionHeaderProps) {
 	return (
-		<header className="flex h-14 shrink-0 items-center gap-2 px-4 py-2.5">
+		<CrystHeaderShell>
 			<StatusIndicator isPaused={isPaused} />
-			<span
-				className={cn(
-					"min-w-0 max-w-[190px] truncate font-semibold",
-					"text-[length:var(--text-sm)] tracking-[var(--tracking-heading)]"
-				)}
+			<button
+				className="inline-flex min-h-8 min-w-0 max-w-[190px] shrink-0 items-center gap-1 hover:text-primary"
+				type="button"
 			>
-				{ruleName}
-			</span>
+				<span className="min-w-0 truncate font-semibold text-[length:var(--text-sm)] tracking-[var(--tracking-heading)]">
+					{ruleName}
+				</span>
+				<IconChevronDown className="shrink-0 text-muted-foreground" size={13} />
+			</button>
 			<MasterPill isLinked={isMasterLinked} />
-			<span className="ml-auto shrink-0 font-mono text-[length:var(--text-xs)] text-muted-foreground tabular-nums">
+			<span className="flex-1" />
+			<span className="shrink-0 font-mono text-[length:var(--text-xs)] text-muted-foreground tabular-nums">
 				{elapsed}
 			</span>
-			<Button
-				aria-label={isPaused ? "Resume session" : "Pause session"}
-				className="size-9 shrink-0"
+			<button
+				aria-label="Pause / resume"
+				className={ICON_BUTTON_CLASS}
 				onClick={isPaused ? onResume : onPause}
-				size="icon"
+				title="Pause / resume"
 				type="button"
-				variant="ghost"
 			>
 				{isPaused ? (
-					<IconPlayerPlay size={18} />
+					<IconPlayerPlay size={16} />
 				) : (
-					<IconPlayerPause size={18} />
+					<IconPlayerPause size={16} />
 				)}
-			</Button>
-			<Button
+			</button>
+			<button
 				aria-label="End session"
-				className="size-9 shrink-0"
+				className={ICON_BUTTON_CLASS}
 				onClick={onEndSession}
-				size="icon"
+				title="End session"
 				type="button"
-				variant="ghost"
 			>
-				<IconSquare size={18} />
-			</Button>
-		</header>
+				<IconSquare size={16} />
+			</button>
+		</CrystHeaderShell>
 	);
 }

@@ -32,30 +32,36 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 			/>
 			<div className="relative flex min-h-0 flex-1 flex-col">
 				<TableView
-					bigBlinds={cockpit.bigBlinds}
+					bbText={cockpit.bbText}
 					displayPL={cockpit.displayPL}
 					displayPLFormatted={cockpit.displayPLFormatted}
 					evPLFormatted={cockpit.evPLFormatted}
 					seats={cockpit.seats}
 					stackFormatted={cockpit.stackFormatted}
 				/>
-				<div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-[var(--m-inset)] text-center text-[11px] text-muted-foreground">
-					<IconUserSearch size={20} />
-					Seat and player details are not editable on this screen yet
+				<div className="mx-[var(--m-inset)] my-2.5 flex min-h-16 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
+					<div className="flex h-full min-h-16 flex-col items-center justify-center gap-1.5 p-4 text-muted-foreground">
+						<IconUserSearch size={20} />
+						<span className="text-pretty text-center text-[length:var(--m-text-footnote)]">
+							Tap a seated player to edit their profile here
+						</span>
+					</div>
 				</div>
-				<div className="shrink-0 border-border border-t bg-card px-[var(--m-inset)] pt-2">
-					<StackQuickInput
-						currentStack={cockpit.defaultFinalStack ?? null}
-						isDisabled={!cockpit.canRecordStack}
-						isPending={cockpit.isStackPending}
-						onSubmit={cockpit.onRecordStack}
-					/>
-					<StalenessLine
-						lastUpdateLabel={cockpit.lastUpdateLabel}
-						staleness={cockpit.staleness}
-					/>
+				<div className="shrink-0 border-border border-t bg-card">
+					<div className="flex flex-col gap-1.5 px-[var(--m-inset)] pt-2">
+						<StackQuickInput
+							currentStack={cockpit.defaultFinalStack ?? null}
+							isDisabled={!cockpit.canRecordStack}
+							isPending={cockpit.isStackPending}
+							onSubmit={cockpit.onRecordStack}
+						/>
+						<StalenessLine
+							lastUpdateLabel={cockpit.lastUpdateLabel}
+							staleness={cockpit.staleness}
+						/>
+					</div>
+					<ActionBar />
 				</div>
-				<ActionBar />
 				{cockpit.isPaused ? (
 					<PausedOverlay
 						elapsed={cockpit.elapsed}

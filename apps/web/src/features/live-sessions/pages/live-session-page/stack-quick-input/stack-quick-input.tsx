@@ -1,5 +1,4 @@
 import { IconPencilCheck, IconStack2 } from "@tabler/icons-react";
-import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { useStackQuickInput } from "./use-stack-quick-input";
 
@@ -40,7 +39,7 @@ export function StackQuickInput({
 						<Field error={field.state.meta.errors[0]?.message}>
 							<input
 								aria-label="Current stack"
-								className="h-[var(--m-control)] w-full rounded-md border border-input bg-transparent pr-2.5 pl-8 font-mono text-[length:var(--m-text-secondary)] tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+								className="h-[var(--m-control)] w-full rounded-md border border-input bg-background pr-2.5 pl-[31px] font-mono text-[length:var(--m-text-secondary)] tabular-nums outline-none focus-visible:border-primary disabled:opacity-50"
 								disabled={isDisabled}
 								id={field.name}
 								inputMode="numeric"
@@ -54,16 +53,16 @@ export function StackQuickInput({
 					</div>
 				)}
 			</form.Field>
-			<Button
+			<button
 				aria-label="Save stack"
-				className="size-10 shrink-0"
+				className="inline-flex size-[var(--m-control)] shrink-0 items-center justify-center rounded-md border border-transparent bg-primary text-primary-foreground disabled:opacity-50"
 				disabled={isDisabled || isPending}
 				form={FORM_ID}
-				size="icon"
+				title="Save stack"
 				type="submit"
 			>
 				<IconPencilCheck size={18} />
-			</Button>
+			</button>
 		</form>
 	);
 }

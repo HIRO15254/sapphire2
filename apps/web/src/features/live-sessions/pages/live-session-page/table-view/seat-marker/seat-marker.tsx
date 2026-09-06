@@ -7,15 +7,10 @@ interface SeatMarkerProps {
 	seat: SeatEntry;
 }
 
-function playerTint(color: string | undefined): React.CSSProperties {
-	if (!color) {
-		return {};
-	}
-	return {
-		borderColor: color,
-		backgroundColor: `color-mix(in oklab, ${color} 14%, var(--background))`,
-	};
-}
+const WRAPPER_CLASS =
+	"-translate-x-1/2 -translate-y-1/2 absolute flex flex-col items-center gap-[3px]";
+
+const DOT_FALLBACK = "var(--muted-foreground)";
 
 export function SeatMarker({ point, seat }: SeatMarkerProps) {
 	const label = `Seat ${seat.seatPosition + 1}`;
@@ -26,38 +21,46 @@ export function SeatMarker({ point, seat }: SeatMarkerProps) {
 
 	if (seat.occupancy === "hero") {
 		return (
-			<div
-				aria-label={`${label}: Hero`}
-				className="absolute flex size-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-primary bg-[color-mix(in_oklab,var(--primary)_15%,var(--background))] text-primary"
-				role="img"
-				style={style}
-			>
-				<IconUserStar size={18} />
+			<div className={WRAPPER_CLASS} style={style}>
+				<div
+					aria-label={`${label}: Hero`}
+					className="flex size-10 items-center justify-center rounded-full border border-primary bg-[color-mix(in_oklab,var(--primary)_15%,transparent)] text-primary"
+					role="img"
+				>
+					<IconUserStar size={18} />
+				</div>
 			</div>
 		);
 	}
 
 	if (seat.player) {
+		const dot = seat.player.tags[0]?.color ?? DOT_FALLBACK;
 		return (
-			<div
-				aria-label={`${label}: ${seat.player.name}`}
-				className="absolute flex size-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card text-foreground"
-				role="img"
-				style={{ ...style, ...playerTint(seat.player.tags[0]?.color) }}
-			>
-				<IconUser size={17} />
+			<div className={WRAPPER_CLASS} style={style}>
+				<div
+					aria-label={`${label}: ${seat.player.name}`}
+					className="flex size-10 items-center justify-center rounded-full border text-foreground shadow-[var(--shadow-sm)]"
+					role="img"
+					style={{
+						borderColor: dot,
+						backgroundColor: `color-mix(in oklab, ${dot} 14%, var(--background))`,
+					}}
+				>
+					<IconUser size={17} />
+				</div>
 			</div>
 		);
 	}
 
 	return (
-		<div
-			aria-label={`${label}: empty`}
-			className="absolute flex size-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-border border-dashed text-muted-foreground"
-			role="img"
-			style={style}
-		>
-			<IconUserPlus size={13} />
+		<div className={WRAPPER_CLASS} style={style}>
+			<div
+				aria-label={`${label}: empty`}
+				className="flex size-7 items-center justify-center rounded-full border border-border border-dashed bg-background text-muted-foreground"
+				role="img"
+			>
+				<IconUserPlus size={13} />
+			</div>
 		</div>
 	);
 }

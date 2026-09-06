@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { EndSessionSheet } from "@/features/live-sessions/pages/live-session-page/sheets/end-session-sheet";
 
-const FINAL_STACK_LABEL = /Final Stack/;
+const CASH_OUT_LABEL = /Cash-out amount/;
 
 function setup() {
 	render(
@@ -37,14 +37,14 @@ describe("EndSessionSheet", () => {
 
 	it("follows the entered cash-out amount", async () => {
 		const user = setup();
-		await user.type(screen.getByLabelText(FINAL_STACK_LABEL), "12000");
+		await user.type(screen.getByLabelText(CASH_OUT_LABEL), "12000");
 		expect(rowValue("Result")).toBe("+2,300");
 		expect(rowValue("EV result")).toBe("+2,800");
 	});
 
 	it("goes back to a dash when the amount is cleared", async () => {
 		const user = setup();
-		const input = screen.getByLabelText(FINAL_STACK_LABEL);
+		const input = screen.getByLabelText(CASH_OUT_LABEL);
 		await user.type(input, "12000");
 		await user.clear(input);
 		expect(rowValue("Result")).toBe("—");
@@ -53,7 +53,7 @@ describe("EndSessionSheet", () => {
 
 	it("keeps the fixed buy-in and withdrawal rows independent of the input", async () => {
 		const user = setup();
-		await user.type(screen.getByLabelText(FINAL_STACK_LABEL), "12000");
+		await user.type(screen.getByLabelText(CASH_OUT_LABEL), "12000");
 		expect(rowValue("Total buy-in")).toBe("10,000");
 		expect(rowValue("Total withdrawn")).toBe("300");
 	});

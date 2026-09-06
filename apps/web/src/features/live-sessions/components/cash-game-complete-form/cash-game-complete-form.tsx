@@ -7,6 +7,7 @@ import { useCashGameCompleteForm } from "./use-cash-game-complete-form";
 interface CashGameCompleteFormProps {
 	defaultFinalStack?: number;
 	formId: string;
+	label?: string;
 	onSubmit: (values: { finalStack: number }) => void;
 	renderSummary?: (finalStack: number | undefined) => ReactNode;
 }
@@ -14,6 +15,7 @@ interface CashGameCompleteFormProps {
 export function CashGameCompleteForm({
 	defaultFinalStack,
 	formId,
+	label = "Final Stack",
 	onSubmit,
 	renderSummary,
 }: CashGameCompleteFormProps) {
@@ -34,7 +36,7 @@ export function CashGameCompleteForm({
 					<Field
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
-						label="Final Stack"
+						label={label}
 						required
 					>
 						<Input

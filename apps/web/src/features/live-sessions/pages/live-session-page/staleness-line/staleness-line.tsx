@@ -17,27 +17,37 @@ const TONE = {
 	critical: { className: "text-destructive", Icon: IconClockExclamation },
 } as const;
 
+const MINUTES_PER_HOUR = 60;
+
+function formatAgo(minutes: number): string {
+	if (minutes < MINUTES_PER_HOUR) {
+		return `${minutes}m ago`;
+	}
+	const hours = Math.floor(minutes / MINUTES_PER_HOUR);
+	return `${hours}h ${minutes % MINUTES_PER_HOUR}m ago`;
+}
+
 export function StalenessLine({
 	lastUpdateLabel,
 	staleness,
 }: StalenessLineProps) {
 	if (staleness === null || lastUpdateLabel === null) {
 		return (
-			<p className="flex items-center gap-1 py-1.5 text-[11px] text-muted-foreground">
+			<div className="flex items-center gap-[5px] text-[11px] text-muted-foreground">
 				<IconClockCheck size={12} />
 				No stack recorded yet
-			</p>
+			</div>
 		);
 	}
 
 	const { className, Icon } = TONE[staleness.level];
 
 	return (
-		<p className={cn("flex items-center gap-1 py-1.5 text-[11px]", className)}>
+		<div className={cn("flex items-center gap-[5px] text-[11px]", className)}>
 			<Icon size={12} />
 			Last update{" "}
 			<span className="font-mono tabular-nums">{lastUpdateLabel}</span> ·{" "}
-			{staleness.minutesAgo}m ago
-		</p>
+			{formatAgo(staleness.minutesAgo)}
+		</div>
 	);
 }
