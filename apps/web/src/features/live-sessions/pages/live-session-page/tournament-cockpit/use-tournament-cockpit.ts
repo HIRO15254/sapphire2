@@ -17,6 +17,7 @@ import { formatLocalHm, formatNumber } from "@/utils/format-number";
 import { resolveRuleName, toSessionStatus } from "../session-fields";
 import type { TournamentCompleteValues } from "../sheets";
 import type { TournamentStackValues } from "../tournament-quick-input";
+import { useSeatSelection } from "../use-seat-selection";
 import { useSessionJournal } from "../use-session-journal";
 
 const TICK_MS = 1000;
@@ -37,12 +38,13 @@ export function useTournamentCockpit(sessionId: string) {
 	const rawHeroSeat = session?.heroSeatPosition;
 	const heroSeatPosition =
 		typeof rawHeroSeat === "number" && rawHeroSeat >= 0 ? rawHeroSeat : null;
-	const { playerNames, seats } = useSessionSeats({
+	const { onRemovePlayer, playerNames, seats } = useSessionSeats({
 		heroSeatPosition,
 		sessionId,
 		sessionType: "tournament",
 		tableSize: session?.tableSize ?? null,
 	});
+	const seatSelection = useSeatSelection(seats);
 	const status = toSessionStatus(session?.status ?? "");
 	const journal = useSessionJournal({
 		chipPurchaseOptions: stack.chipPurchaseTypes,
@@ -119,7 +121,11 @@ export function useTournamentCockpit(sessionId: string) {
 		remainText: `${summary.remainingPlayers ?? "—"}/${summary.totalEntries ?? "—"}`,
 		remainingPlayers: summary.remainingPlayers,
 		ruleName: resolveRuleName(session.ruleName, session.variant, "Tournament"),
+		onLeaveSeat: onRemovePlayer,
+		onSelectSeat: seatSelection.onSelectSeat,
 		seats,
+		selectedPlayerId: seatSelection.selectedPlayerId,
+		selectedSeatPosition: seatSelection.selectedSeatPosition,
 		stackFormatted: currentStack === null ? "—" : formatNumber(currentStack),
 		staleness: describeStaleness(stackReference?.at ?? null, now),
 		stalenessSource: stackReference?.source ?? null,

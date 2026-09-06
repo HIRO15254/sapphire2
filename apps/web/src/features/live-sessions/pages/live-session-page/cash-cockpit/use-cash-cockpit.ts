@@ -19,6 +19,7 @@ import { formatLocalHm, formatNumber } from "@/utils/format-number";
 import { formatProfitLoss } from "@/utils/format-profit-loss";
 import { resolveRuleName, toSessionStatus } from "../session-fields";
 import type { ChipPurchaseOption } from "../sheets";
+import { useSeatSelection } from "../use-seat-selection";
 import { useSessionJournal } from "../use-session-journal";
 
 const TICK_MS = 1000;
@@ -34,12 +35,13 @@ export function useCashCockpit(sessionId: string) {
 	const rawHeroSeat = session?.heroSeatPosition;
 	const heroSeatPosition =
 		typeof rawHeroSeat === "number" && rawHeroSeat >= 0 ? rawHeroSeat : null;
-	const { playerNames, seats } = useSessionSeats({
+	const { onRemovePlayer, playerNames, seats } = useSessionSeats({
 		heroSeatPosition,
 		sessionId,
 		sessionType: "cash_game",
 		tableSize: session?.tableSize ?? null,
 	});
+	const seatSelection = useSeatSelection(seats);
 	const status = toSessionStatus(session?.status ?? "");
 	const journal = useSessionJournal({
 		chipPurchaseOptions: NO_PURCHASE_OPTIONS,
@@ -103,7 +105,11 @@ export function useCashCockpit(sessionId: string) {
 			stack.recordStack(values),
 		onResume: () => stack.resume(),
 		ruleName: resolveRuleName(session.ruleName, session.variant, "Cash game"),
+		onLeaveSeat: onRemovePlayer,
+		onSelectSeat: seatSelection.onSelectSeat,
 		seats,
+		selectedPlayerId: seatSelection.selectedPlayerId,
+		selectedSeatPosition: seatSelection.selectedSeatPosition,
 		stackFormatted: currentStack === null ? "—" : formatNumber(currentStack),
 		staleness: describeStaleness(stackReference?.at ?? null, now),
 		stalenessSource: stackReference?.source ?? null,

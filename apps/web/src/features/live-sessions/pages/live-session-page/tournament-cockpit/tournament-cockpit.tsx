@@ -1,7 +1,9 @@
 import { ActionBar } from "../action-bar";
 import { BlindLevelBar } from "../blind-level-bar";
 import { PausedOverlay } from "../paused-overlay";
+import { SeatPanel } from "../seat-panel";
 import { SeatPanelPlaceholder } from "../seat-panel-placeholder";
+import { SelectedPlayerPanel } from "../selected-player-panel";
 import { SessionHeader } from "../session-header";
 import { EndTournamentSheet, EventEditorSheet, TimelineSheet } from "../sheets";
 import { StalenessLine } from "../staleness-line";
@@ -52,10 +54,23 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 								stackFormatted={cockpit.stackFormatted}
 							/>
 						}
+						onSelectSeat={cockpit.onSelectSeat}
 						seats={cockpit.seats}
+						selectedSeatPosition={cockpit.selectedSeatPosition}
 					/>
 				)}
-				<SeatPanelPlaceholder />
+				<SeatPanel>
+					{cockpit.selectedPlayerId === null ||
+					cockpit.selectedSeatPosition === null ? (
+						<SeatPanelPlaceholder />
+					) : (
+						<SelectedPlayerPanel
+							onLeave={cockpit.onLeaveSeat}
+							playerId={cockpit.selectedPlayerId}
+							seatLabel={`S${cockpit.selectedSeatPosition + 1}`}
+						/>
+					)}
+				</SeatPanel>
 				<div className="shrink-0 border-border border-t bg-card">
 					<div className="flex flex-col gap-1.5 px-[var(--m-inset)] pt-2">
 						<TournamentQuickInput

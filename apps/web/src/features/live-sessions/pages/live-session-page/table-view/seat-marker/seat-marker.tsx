@@ -1,8 +1,11 @@
 import { IconUser, IconUserPlus, IconUserStar } from "@tabler/icons-react";
 import type { SeatEntry } from "@/features/live-sessions/hooks/use-session-seats";
 import type { SeatPoint } from "@/features/live-sessions/utils/table-geometry";
+import { cn } from "@/lib/utils";
 
 interface SeatMarkerProps {
+	isSelected: boolean;
+	onSelect: (seatPosition: number) => void;
 	point: SeatPoint;
 	seat: SeatEntry;
 }
@@ -12,7 +15,12 @@ const WRAPPER_CLASS =
 
 const DOT_FALLBACK = "var(--muted-foreground)";
 
-export function SeatMarker({ point, seat }: SeatMarkerProps) {
+export function SeatMarker({
+	isSelected,
+	onSelect,
+	point,
+	seat,
+}: SeatMarkerProps) {
 	const label = `Seat ${seat.seatPosition + 1}`;
 	const style: React.CSSProperties = {
 		left: `${point.x}%`,
@@ -33,21 +41,27 @@ export function SeatMarker({ point, seat }: SeatMarkerProps) {
 		);
 	}
 
-	if (seat.player) {
+	if (seat.occupancy === "player" && seat.player) {
 		const dot = seat.player.tags[0]?.color ?? DOT_FALLBACK;
 		return (
 			<div className={WRAPPER_CLASS} style={style}>
-				<div
+				<button
 					aria-label={`${label}: ${seat.player.name}`}
-					className="flex size-10 items-center justify-center rounded-full border text-foreground shadow-[var(--shadow-sm)]"
-					role="img"
+					aria-pressed={isSelected}
+					className={cn(
+						"flex size-10 items-center justify-center rounded-full border text-foreground shadow-[var(--shadow-sm)]",
+						isSelected &&
+							"ring-2 ring-ring ring-offset-2 ring-offset-background"
+					)}
+					onClick={() => onSelect(seat.seatPosition)}
 					style={{
 						borderColor: dot,
 						backgroundColor: `color-mix(in oklab, ${dot} 14%, var(--background))`,
 					}}
+					type="button"
 				>
 					<IconUser size={17} />
-				</div>
+				</button>
 			</div>
 		);
 	}

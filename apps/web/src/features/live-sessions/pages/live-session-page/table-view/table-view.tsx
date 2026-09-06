@@ -6,10 +6,17 @@ import { SeatMarker } from "./seat-marker";
 
 interface TableViewProps {
 	center: ReactNode;
+	onSelectSeat: (seatPosition: number) => void;
 	seats: SeatEntry[];
+	selectedSeatPosition: number | null;
 }
 
-export function TableView({ center, seats }: TableViewProps) {
+export function TableView({
+	center,
+	onSelectSeat,
+	seats,
+	selectedSeatPosition,
+}: TableViewProps) {
 	const points = seatLayout(seats.length);
 
 	return (
@@ -24,7 +31,15 @@ export function TableView({ center, seats }: TableViewProps) {
 				if (!point) {
 					return null;
 				}
-				return <SeatMarker key={seat.seatPosition} point={point} seat={seat} />;
+				return (
+					<SeatMarker
+						isSelected={seat.seatPosition === selectedSeatPosition}
+						key={seat.seatPosition}
+						onSelect={onSelectSeat}
+						point={point}
+						seat={seat}
+					/>
+				);
 			})}
 			<button
 				aria-label="Register seats from a photo"
