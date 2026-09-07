@@ -36,7 +36,9 @@ const LOGGABLE_EVENT_TYPES: Partial<
 
 interface UseSessionJournalOptions {
 	chipPurchaseOptions: ChipPurchaseOption[];
+	onMoveSeat: (playerId: string, seatPosition: number) => void;
 	playerNames: ReadonlyMap<string, string>;
+	seatCount: number;
 	sessionId: string;
 	sessionType: "cash_game" | "tournament";
 	status: SessionStatus;
@@ -44,7 +46,9 @@ interface UseSessionJournalOptions {
 
 export function useSessionJournal({
 	chipPurchaseOptions,
+	onMoveSeat,
 	playerNames,
+	seatCount,
 	sessionId,
 	sessionType,
 	status,
@@ -150,6 +154,9 @@ export function useSessionJournal({
 			occurredAt: values.occurredAt,
 			payload: values.payload ?? undefined,
 		});
+		if (values.seatMove) {
+			onMoveSeat(values.seatMove.playerId, values.seatMove.seatPosition);
+		}
 		closeEditor();
 	};
 
@@ -179,6 +186,8 @@ export function useSessionJournal({
 		onOpenNewEvent,
 		onOpenTimeline: () => setIsTimelineOpen(true),
 		onSelectEvent,
+		playerNames,
 		rows,
+		seatCount,
 	};
 }

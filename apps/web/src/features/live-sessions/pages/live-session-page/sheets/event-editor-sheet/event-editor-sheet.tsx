@@ -11,6 +11,7 @@ import {
 	ChipsFields,
 	MemoFields,
 	PurchaseFields,
+	SeatFields,
 	StackFields,
 	StartFields,
 	TimeField,
@@ -43,7 +44,7 @@ const KIND_HINTS: Partial<Record<EventEditorKind, string>> = {
 		"Additions count toward total buy-in; withdrawals count toward the result.",
 	purchase:
 		"Name, cost and chips are snapshotted at selection, and the cost feeds into the result.",
-	seat: "Seat and player assignments are edited from the table; only the time can be changed here.",
+	seat: "Moving the seat also moves the player at the table. Which player this event belongs to is set from the table.",
 	stack: "Stack is recorded as an absolute value, not a delta.",
 };
 
@@ -57,6 +58,8 @@ interface EventEditorSheetProps {
 	onOpenChange: (open: boolean) => void;
 	onSubmit: (values: EventEditorSubmit) => void;
 	open: boolean;
+	playerNames: ReadonlyMap<string, string>;
+	seatCount: number;
 	target: EventEditorTarget;
 }
 
@@ -70,16 +73,21 @@ export function EventEditorSheet({
 	onOpenChange,
 	onSubmit,
 	open,
+	playerNames,
+	seatCount,
 	target,
 }: EventEditorSheetProps) {
-	const { form, timeValidator } = useEventEditorSheet({
-		chipPurchaseOptions,
-		isTournament,
-		maxTime,
-		minTime,
-		onSubmit,
-		target,
-	});
+	const { form, isSeatEditable, playerLabel, timeValidator } =
+		useEventEditorSheet({
+			chipPurchaseOptions,
+			isTournament,
+			maxTime,
+			minTime,
+			onSubmit,
+			playerNames,
+			seatCount,
+			target,
+		});
 
 	const KindIcon = resolveEventIcon(target.kind, target.event?.eventType);
 	const tone = EVENT_TONE_TEXT[resolveKindTone(target.kind)];
@@ -122,6 +130,13 @@ export function EventEditorSheet({
 				{target.kind === "memo" ? <MemoFields form={form} /> : null}
 				{target.kind === "purchase" ? (
 					<PurchaseFields form={form} options={chipPurchaseOptions} />
+				) : null}
+				{target.kind === "seat" ? (
+					<SeatFields
+						form={form}
+						isSeatEditable={isSeatEditable}
+						playerLabel={playerLabel}
+					/>
 				) : null}
 				{target.kind === "start" ? (
 					<StartFields form={form} isTournament={isTournament} />

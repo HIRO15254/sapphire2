@@ -5,7 +5,13 @@ import { SeatPanel } from "../seat-panel";
 import { SeatPanelPlaceholder } from "../seat-panel-placeholder";
 import { SelectedPlayerPanel } from "../selected-player-panel";
 import { SessionHeader } from "../session-header";
-import { EndTournamentSheet, EventEditorSheet, TimelineSheet } from "../sheets";
+import {
+	EndTournamentSheet,
+	EventEditorSheet,
+	ScanSeatsSheet,
+	SitInSheet,
+	TimelineSheet,
+} from "../sheets";
 import { StalenessLine } from "../staleness-line";
 import { TableView } from "../table-view";
 import { TournamentQuickInput } from "../tournament-quick-input";
@@ -54,6 +60,7 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 								stackFormatted={cockpit.stackFormatted}
 							/>
 						}
+						onScan={cockpit.onOpenScan}
 						onSelectSeat={cockpit.onSelectSeat}
 						seats={cockpit.seats}
 						selectedSeatPosition={cockpit.selectedSeatPosition}
@@ -102,6 +109,25 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 					/>
 				) : null}
 			</div>
+			{cockpit.sitInSeatPosition === null ? null : (
+				<SitInSheet
+					excludePlayerIds={cockpit.excludePlayerIds}
+					heroSeatPosition={cockpit.heroSeatPosition}
+					onOpenChange={cockpit.onCloseSeatSheet}
+					onOpenScan={cockpit.onOpenScan}
+					onSeatExisting={cockpit.onSitInExisting}
+					onSeatHero={cockpit.onSitInHero}
+					onSeatNew={cockpit.onSitInNew}
+					open={cockpit.seatSheet === "sitIn"}
+					seatPosition={cockpit.sitInSeatPosition}
+				/>
+			)}
+			<ScanSeatsSheet
+				onOpenChange={cockpit.onCloseSeatSheet}
+				open={cockpit.seatSheet === "scan"}
+				seats={cockpit.scanSeats}
+				sessionParam={cockpit.sessionParam}
+			/>
 			<EndTournamentSheet
 				isPending={cockpit.isCompletePending}
 				onOpenChange={cockpit.onEndSessionOpenChange}
@@ -127,6 +153,8 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 					onOpenChange={journal.onCloseEditor}
 					onSubmit={journal.onEditorSubmit}
 					open={journal.isEditorOpen}
+					playerNames={journal.playerNames}
+					seatCount={journal.seatCount}
 					target={journal.editorTarget}
 				/>
 			)}

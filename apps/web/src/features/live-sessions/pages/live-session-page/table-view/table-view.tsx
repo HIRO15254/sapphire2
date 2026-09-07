@@ -6,6 +6,7 @@ import { SeatMarker } from "./seat-marker";
 
 interface TableViewProps {
 	center: ReactNode;
+	onScan: () => void;
 	onSelectSeat: (seatPosition: number) => void;
 	seats: SeatEntry[];
 	selectedSeatPosition: number | null;
@@ -13,6 +14,7 @@ interface TableViewProps {
 
 export function TableView({
 	center,
+	onScan,
 	onSelectSeat,
 	seats,
 	selectedSeatPosition,
@@ -43,8 +45,8 @@ export function TableView({
 			})}
 			<button
 				aria-label="Register seats from a photo"
-				className="absolute top-3 left-3 z-[2] inline-flex size-[34px] items-center justify-center rounded-full border border-border bg-card text-primary disabled:opacity-50"
-				disabled
+				className="absolute top-3 left-3 z-[2] inline-flex size-[34px] items-center justify-center rounded-full border border-border bg-card text-primary"
+				onClick={onScan}
 				title="Register seats from a photo"
 				type="button"
 			>

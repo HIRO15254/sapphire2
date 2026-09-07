@@ -4,7 +4,13 @@ import { SeatPanel } from "../seat-panel";
 import { SeatPanelPlaceholder } from "../seat-panel-placeholder";
 import { SelectedPlayerPanel } from "../selected-player-panel";
 import { SessionHeader } from "../session-header";
-import { EndSessionSheet, EventEditorSheet, TimelineSheet } from "../sheets";
+import {
+	EndSessionSheet,
+	EventEditorSheet,
+	ScanSeatsSheet,
+	SitInSheet,
+	TimelineSheet,
+} from "../sheets";
 import { StackQuickInput } from "../stack-quick-input";
 import { StalenessLine } from "../staleness-line";
 import { TableView } from "../table-view";
@@ -47,6 +53,7 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 								stackFormatted={cockpit.stackFormatted}
 							/>
 						}
+						onScan={cockpit.onOpenScan}
 						onSelectSeat={cockpit.onSelectSeat}
 						seats={cockpit.seats}
 						selectedSeatPosition={cockpit.selectedSeatPosition}
@@ -93,6 +100,25 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 					/>
 				) : null}
 			</div>
+			{cockpit.sitInSeatPosition === null ? null : (
+				<SitInSheet
+					excludePlayerIds={cockpit.excludePlayerIds}
+					heroSeatPosition={cockpit.heroSeatPosition}
+					onOpenChange={cockpit.onCloseSeatSheet}
+					onOpenScan={cockpit.onOpenScan}
+					onSeatExisting={cockpit.onSitInExisting}
+					onSeatHero={cockpit.onSitInHero}
+					onSeatNew={cockpit.onSitInNew}
+					open={cockpit.seatSheet === "sitIn"}
+					seatPosition={cockpit.sitInSeatPosition}
+				/>
+			)}
+			<ScanSeatsSheet
+				onOpenChange={cockpit.onCloseSeatSheet}
+				open={cockpit.seatSheet === "scan"}
+				seats={cockpit.scanSeats}
+				sessionParam={cockpit.sessionParam}
+			/>
 			<EndSessionSheet
 				chipRemoveTotal={cockpit.chipRemoveTotal}
 				defaultFinalStack={cockpit.defaultFinalStack}
@@ -122,6 +148,8 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 					onOpenChange={journal.onCloseEditor}
 					onSubmit={journal.onEditorSubmit}
 					open={journal.isEditorOpen}
+					playerNames={journal.playerNames}
+					seatCount={journal.seatCount}
 					target={journal.editorTarget}
 				/>
 			)}

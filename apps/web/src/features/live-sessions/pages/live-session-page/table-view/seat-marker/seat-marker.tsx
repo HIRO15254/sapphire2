@@ -68,13 +68,14 @@ export function SeatMarker({
 
 	return (
 		<div className={WRAPPER_CLASS} style={style}>
-			<div
+			<button
 				aria-label={`${label}: empty`}
 				className="flex size-7 items-center justify-center rounded-full border border-border border-dashed bg-background text-muted-foreground"
-				role="img"
+				onClick={() => onSelect(seat.seatPosition)}
+				type="button"
 			>
 				<IconUserPlus size={13} />
-			</div>
+			</button>
 		</div>
 	);
 }

@@ -3,6 +3,7 @@ import {
 	type TablePlayerSourceApp,
 } from "@sapphire2/api/routers/ai-extract-sources";
 import { trpcClient } from "@/utils/trpc";
+import type { ScanRow } from "./seat-scan-review";
 
 export type SessionParam =
 	| { liveCashGameSessionId: string; liveTournamentSessionId?: never }
@@ -122,6 +123,40 @@ export async function applyRow(
 				seatPosition: row.seatPosition,
 			});
 		}
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+export async function applyScanRow(
+	row: ScanRow,
+	sessionParam: SessionParam
+): Promise<boolean> {
+	try {
+		if (row.kind === "hero") {
+			await updateHeroSeatViaClient(sessionParam, row.seatPosition);
+			return true;
+		}
+		if (row.kind === "conflict" && row.currentPlayerId !== null) {
+			await trpcClient.sessionTablePlayer.remove.mutate({
+				...sessionParam,
+				playerId: row.currentPlayerId,
+			});
+		}
+		if (row.matchedPlayerId === null) {
+			await trpcClient.sessionTablePlayer.addNew.mutate({
+				...sessionParam,
+				playerName: row.name.trim(),
+				seatPosition: row.seatPosition,
+			});
+			return true;
+		}
+		await trpcClient.sessionTablePlayer.add.mutate({
+			...sessionParam,
+			playerId: row.matchedPlayerId,
+			seatPosition: row.seatPosition,
+		});
 		return true;
 	} catch {
 		return false;

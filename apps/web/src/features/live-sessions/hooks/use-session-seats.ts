@@ -53,6 +53,7 @@ export interface SessionSeatsState {
 	heroAvailable: boolean;
 	heroSeatPosition: number | null;
 	occupiedSeatPositions: Set<number>;
+	onMoveSeat: (playerId: string, seatPosition: number | null) => void;
 	onRemovePlayer: (playerId: string) => void;
 	onSeatExisting: (
 		seatPosition: number,
@@ -186,15 +187,24 @@ export function useSessionSeats({
 		}
 	}
 
+	const activePlayerIds = new Set(activePlayers.map((p) => p.playerId));
+
 	return {
 		excludePlayerIds: tablePlayers.excludePlayerIds,
 		heroAvailable: heroSeatPosition === null,
 		heroSeatPosition,
 		occupiedSeatPositions,
+		onMoveSeat: (playerId, seatPosition) => {
+			tablePlayers.handleUpdateSeat(playerId, seatPosition);
+		},
 		onRemovePlayer: (playerId) => {
 			tablePlayers.handleRemovePlayer(playerId);
 		},
 		onSeatExisting: (seatPosition, playerId, playerName) => {
+			if (activePlayerIds.has(playerId)) {
+				tablePlayers.handleUpdateSeat(playerId, seatPosition);
+				return;
+			}
 			tablePlayers.handleAddExisting(playerId, playerName, seatPosition);
 		},
 		onSeatHero: (seatPosition) => {

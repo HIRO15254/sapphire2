@@ -34,6 +34,8 @@ function editTarget(
 	};
 }
 
+const PLAYER_NAMES = new Map([["player-1", "Young guy"]]);
+
 function setup(target: EventEditorTarget, isTournament = false) {
 	const onSubmit = vi.fn<(values: EventEditorSubmit) => void>();
 	const view = renderHook(() =>
@@ -43,6 +45,8 @@ function setup(target: EventEditorTarget, isTournament = false) {
 			maxTime: null,
 			minTime: null,
 			onSubmit,
+			playerNames: PLAYER_NAMES,
+			seatCount: 9,
 			target,
 		})
 	);
@@ -219,5 +223,77 @@ describe("time bounds", () => {
 		expect(result.current.timeValidator("21:59")).toBe("Must be after 22:00");
 		expect(result.current.timeValidator("23:01")).toBe("Must be before 23:00");
 		expect(result.current.timeValidator("22:30")).toBeUndefined();
+	});
+});
+
+describe("seat editing", () => {
+	function joinTarget(payload: unknown) {
+		return editTarget("seat", { eventType: "player_join", payload });
+	}
+
+	it("moves the table seat as well as the event payload", async () => {
+		const { onSubmit, result } = setup(
+			joinTarget({ playerId: "player-1", seatPosition: 7 })
+		);
+
+		expect(result.current.isSeatEditable).toBe(true);
+		expect(result.current.form.state.values.seatNumber).toBe("8");
+
+		act(() => {
+			result.current.form.setFieldValue("seatNumber", "3");
+		});
+		await submit(result.current.form);
+
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				payload: { playerId: "player-1", seatPosition: 2 },
+				seatMove: { playerId: "player-1", seatPosition: 2 },
+			})
+		);
+	});
+
+	it("rejects a seat outside the table", async () => {
+		const { onSubmit, result } = setup(
+			joinTarget({ playerId: "player-1", seatPosition: 0 })
+		);
+
+		act(() => {
+			result.current.form.setFieldValue("seatNumber", "10");
+		});
+		await submit(result.current.form);
+
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("keeps a hero seating event time-only because its seat is owned by the session", async () => {
+		const { onSubmit, result } = setup(
+			joinTarget({ isHero: true, seatPosition: 6 })
+		);
+
+		expect(result.current.isSeatEditable).toBe(false);
+		expect(result.current.playerLabel).toBe("You");
+
+		await submit(result.current.form);
+
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({ payload: null, seatMove: undefined })
+		);
+	});
+
+	it("names the player the event belongs to", () => {
+		const { result } = setup(joinTarget({ playerId: "player-1" }));
+
+		expect(result.current.playerLabel).toBe("Young guy");
+	});
+
+	it("keeps a leave event time-only", () => {
+		const { result } = setup(
+			editTarget("seat", {
+				eventType: "player_leave",
+				payload: { playerId: "player-1" },
+			})
+		);
+
+		expect(result.current.isSeatEditable).toBe(false);
 	});
 });

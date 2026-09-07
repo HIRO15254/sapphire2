@@ -9,4 +9,6 @@ export type {
 	EventEditorTarget,
 } from "./event-editor-sheet";
 export { EventEditorSheet, NEW_EVENT_TITLES } from "./event-editor-sheet";
+export { ScanSeatsSheet } from "./scan-seats-sheet";
+export { SitInSheet } from "./sit-in-sheet";
 export { TimelineSheet } from "./timeline-sheet";

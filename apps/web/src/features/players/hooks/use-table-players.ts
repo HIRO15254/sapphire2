@@ -330,6 +330,9 @@ export function useTablePlayers({
 		handleRemovePlayer: (playerId: string) => {
 			removeMutation.mutate(playerId);
 		},
-		updateSeatMutation,
+		handleUpdateSeat: (playerId: string, seatPosition: number | null) => {
+			updateSeatMutation.mutate({ playerId, seatPosition });
+		},
+		isSeatUpdatePending: updateSeatMutation.isPending,
 	};
 }

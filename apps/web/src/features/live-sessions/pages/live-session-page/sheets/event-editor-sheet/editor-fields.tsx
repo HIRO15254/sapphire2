@@ -320,6 +320,49 @@ export function PurchaseFields({
 	);
 }
 
+export function SeatFields({
+	form,
+	isSeatEditable,
+	playerLabel,
+}: {
+	form: EditorForm;
+	isSeatEditable: boolean;
+	playerLabel: string;
+}) {
+	return (
+		<>
+			<form.Field name="seatNumber">
+				{(field) => (
+					<Field
+						className="col-span-2 min-w-0 gap-1.5"
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={fieldId(field.name)}
+						label="Seat"
+						required={isSeatEditable}
+					>
+						<input
+							className={NUMERIC_CLASS}
+							disabled={!isSeatEditable}
+							id={fieldId(field.name)}
+							inputMode="numeric"
+							name={field.name}
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							type="text"
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
+			<Field className="col-span-4 min-w-0 gap-1.5" label="Player">
+				<p className={`${INPUT_CLASS} flex items-center opacity-50`}>
+					{playerLabel}
+				</p>
+			</Field>
+		</>
+	);
+}
+
 export function StartFields({
 	form,
 	isTournament,

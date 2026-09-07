@@ -34,6 +34,9 @@ const STACK_ROW = /Stack update/;
 const START_ROW = /Session start/;
 const NIT_TAG_CHOICE = /Nit/;
 const CASH_CHART_SUMMARY = /Cash game result chart/;
+const KNOWN_PLAYER_ROW = /Takashi/;
+const NEW_PLAYER_ROW = /New temporary player/;
+const CHOOSE_PHOTO_BUTTON = /Choose from library/;
 
 interface CreatedEvent {
 	eventType: string;
@@ -54,7 +57,14 @@ interface UpdatedEvent {
 	payload?: Record<string, unknown>;
 }
 
+interface SeatedPlayer {
+	name: string;
+	playerId: string;
+	seatPosition: number;
+}
+
 const backend = {
+	addedSeats: [] as SeatedPlayer[],
 	createdEvents: [] as CreatedEvent[],
 	currentStack: 12_000 as number | null,
 	deletedEventIds: [] as string[],
@@ -133,6 +143,26 @@ const fixtureRouter = t.router({
 		getById: t.procedure.input(z.custom()).query(() => session()),
 	}),
 	sessionTablePlayer: t.router({
+		add: t.procedure
+			.input(z.custom<{ playerId: string; seatPosition?: number }>())
+			.mutation(({ input }) => {
+				backend.addedSeats.push({
+					name: "Takashi",
+					playerId: input.playerId,
+					seatPosition: input.seatPosition ?? -1,
+				});
+				return { id: "seat-added" };
+			}),
+		addNew: t.procedure
+			.input(z.custom<{ playerName: string; seatPosition?: number }>())
+			.mutation(({ input }) => {
+				backend.addedSeats.push({
+					name: input.playerName,
+					playerId: "player-new",
+					seatPosition: input.seatPosition ?? -1,
+				});
+				return { id: "seat-added-new" };
+			}),
 		list: t.procedure.input(z.custom()).query(() => ({
 			items: [
 				{
@@ -149,6 +179,20 @@ const fixtureRouter = t.router({
 					seatPosition: 2,
 					stints: [],
 				},
+				...backend.addedSeats.map((seat, index) => ({
+					id: `seat-added-${index}`,
+					isActive: true,
+					joinedAt: new Date("2026-06-01T11:30:00Z"),
+					leftAt: null,
+					player: {
+						id: seat.playerId,
+						isTemporary: false,
+						memo: null,
+						name: seat.name,
+					},
+					seatPosition: seat.seatPosition,
+					stints: [],
+				})),
 			],
 		})),
 		remove: t.procedure
@@ -168,6 +212,7 @@ const fixtureRouter = t.router({
 		})),
 		list: t.procedure.query(() => [
 			{ id: "player-1", name: backend.playerName, tags: playerTags() },
+			{ id: "player-2", name: "Takashi", tags: [] },
 		]),
 		update: t.procedure
 			.input(z.custom<PlayerUpdate>())
@@ -267,6 +312,7 @@ beforeEach(() => {
 		queries: { retry: false, gcTime: 0, staleTime: Number.POSITIVE_INFINITY },
 		mutations: { retry: false },
 	});
+	backend.addedSeats = [];
 	backend.createdEvents = [];
 	backend.currentStack = 12_000;
 	backend.deletedEventIds = [];
@@ -593,6 +639,72 @@ describe("CashCockpit", () => {
 
 		expect(await screen.findByText(SINCE_START_LINE)).toBeInTheDocument();
 		expect(screen.queryByText(LAST_UPDATE_LINE)).not.toBeInTheDocument();
+	});
+
+	it("seats a known player from the sheet an empty seat opens", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Seat 1: empty" })
+		);
+		expect(
+			await screen.findByRole("heading", { name: "Sit in at S1" })
+		).toBeInTheDocument();
+
+		await user.click(
+			await screen.findByRole("button", { name: KNOWN_PLAYER_ROW })
+		);
+		await user.click(screen.getByRole("button", { name: "Sit in" }));
+
+		await waitFor(() => {
+			expect(backend.addedSeats).toEqual([
+				{ name: "Takashi", playerId: "player-2", seatPosition: 0 },
+			]);
+		});
+	});
+
+	it("registers a typed name as a new player at that seat", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Seat 4: empty" })
+		);
+		await user.type(
+			await screen.findByRole("textbox", {
+				name: "Search by name, or type a new one",
+			}),
+			"Blue shirt"
+		);
+		await user.click(
+			await screen.findByRole("button", { name: NEW_PLAYER_ROW })
+		);
+		await user.click(screen.getByRole("button", { name: "Sit in" }));
+
+		await waitFor(() => {
+			expect(backend.addedSeats).toEqual([
+				{ name: "Blue shirt", playerId: "player-new", seatPosition: 3 },
+			]);
+		});
+	});
+
+	it("opens the screenshot scan from the table", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: "Register seats from a photo",
+			})
+		);
+
+		expect(
+			await screen.findByRole("heading", { name: "Scan seats" })
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: CHOOSE_PHOTO_BUTTON })
+		).toBeEnabled();
 	});
 
 	it("offers only notes and the timeline while the session is paused", async () => {
