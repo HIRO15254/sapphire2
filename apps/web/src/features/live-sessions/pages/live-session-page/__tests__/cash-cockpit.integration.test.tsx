@@ -37,6 +37,8 @@ const CASH_CHART_SUMMARY = /Cash game result chart/;
 const KNOWN_PLAYER_ROW = /Takashi/;
 const NEW_PLAYER_ROW = /Create as a new player/;
 const CHOOSE_PHOTO_BUTTON = /Choose from library/;
+const TEMPORARY_ROW = /Temporary player/;
+const CREATE_TAG_ROW = /Create "Fish"/;
 
 interface CreatedEvent {
 	eventType: string;
@@ -72,6 +74,7 @@ const backend = {
 	playerMemo: "<p>Loose caller</p>" as string | null,
 	playerName: "Young guy",
 	secondPlayerMemo: null as string | null,
+	createdTagNames: [] as string[],
 	temporaryAdds: [] as { seatPosition?: number }[],
 	secondPlayerName: "Red cap",
 	secondPlayerTagIds: [] as string[],
@@ -132,7 +135,7 @@ function session() {
 	};
 }
 
-const ALL_TAGS = [
+const ALL_TAGS: { color: string; id: string; name: string }[] = [
 	{ color: "#ff0000", id: "tag-1", name: "Aggro" },
 	{ color: "#00ff00", id: "tag-2", name: "Nit" },
 ];
@@ -282,6 +285,18 @@ const fixtureRouter = t.router({
 			}),
 	}),
 	playerTag: t.router({
+		create: t.procedure
+			.input(z.custom<{ name: string }>())
+			.mutation(({ input }) => {
+				backend.createdTagNames.push(input.name);
+				const created = {
+					color: "#0000ff",
+					id: `tag-${backend.createdTagNames.length + 2}`,
+					name: input.name,
+				};
+				ALL_TAGS.push(created);
+				return created;
+			}),
 		list: t.procedure.query(() => ALL_TAGS),
 	}),
 	sessionEvent: t.router({
@@ -373,6 +388,7 @@ beforeEach(() => {
 	backend.playerTagIds = ["tag-1"];
 	backend.playerUpdates = [];
 	backend.secondPlayerMemo = null;
+	backend.createdTagNames = [];
 	backend.temporaryAdds = [];
 	backend.secondPlayerName = "Red cap";
 	backend.secondPlayerTagIds = [];
@@ -694,6 +710,48 @@ describe("CashCockpit", () => {
 
 		expect(await screen.findByText(SINCE_START_LINE)).toBeInTheDocument();
 		expect(screen.queryByText(LAST_UPDATE_LINE)).not.toBeInTheDocument();
+	});
+
+	it("creates a label from the dropdown row rather than the Enter key", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Seat 3: Young guy" })
+		);
+		const input = await screen.findByRole("textbox", { name: "Add labels" });
+		await user.type(input, "Fish");
+		await user.keyboard("{Enter}");
+
+		expect(backend.createdTagNames).toEqual([]);
+
+		await user.click(
+			await screen.findByRole("button", { name: CREATE_TAG_ROW })
+		);
+
+		await waitFor(() => {
+			expect(backend.createdTagNames).toEqual(["Fish"]);
+		});
+	});
+
+	it("seats an anonymous temporary player from the sit-in sheet", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Seat 1: empty" })
+		);
+		await user.click(
+			await screen.findByRole("button", { name: TEMPORARY_ROW })
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.temporaryAdds).toEqual([
+				expect.objectContaining({ seatPosition: 0 }),
+			]);
+		});
+		expect(backend.addedSeats).toEqual([]);
 	});
 
 	it("closes the label choices when focus leaves the tag row", async () => {

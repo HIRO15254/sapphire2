@@ -48,7 +48,7 @@ interface EventEditorSheetProps {
 	onOpenChange: (open: boolean) => void;
 	onSubmit: (values: EventEditorSubmit) => void;
 	open: boolean;
-	playerNames: ReadonlyMap<string, string>;
+	seatablePlayers: readonly { id: string; name: string }[];
 	seatCount: number;
 	target: EventEditorTarget;
 }
@@ -64,11 +64,11 @@ export function EventEditorSheet({
 	onOpenChange,
 	onSubmit,
 	open,
-	playerNames,
 	seatCount,
+	seatablePlayers,
 	target,
 }: EventEditorSheetProps) {
-	const { form, isSeatEditable, playerLabel, timeValidator } =
+	const { form, isHeroSeatEvent, isSeatEditable, timeValidator } =
 		useEventEditorSheet({
 			chipPurchaseOptions,
 			isTournament,
@@ -76,8 +76,8 @@ export function EventEditorSheet({
 			minTime,
 			occupiedSeatPositions,
 			onSubmit,
-			playerNames,
 			seatCount,
+			seatablePlayers,
 			target,
 		});
 
@@ -125,8 +125,9 @@ export function EventEditorSheet({
 				{target.kind === "seat" ? (
 					<SeatFields
 						form={form}
+						isHeroSeatEvent={isHeroSeatEvent}
 						isSeatEditable={isSeatEditable}
-						playerLabel={playerLabel}
+						seatablePlayers={seatablePlayers}
 					/>
 				) : null}
 				{target.kind === "start" ? (

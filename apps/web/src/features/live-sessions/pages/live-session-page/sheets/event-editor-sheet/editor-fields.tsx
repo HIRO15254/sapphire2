@@ -1,4 +1,4 @@
-import { IconRefresh, IconStackPush } from "@tabler/icons-react";
+import { IconCheck, IconRefresh, IconStackPush } from "@tabler/icons-react";
 import { computeAllInEv } from "@/features/live-sessions/utils/live-session-summary";
 import { cn } from "@/lib/utils";
 import { Field } from "@/shared/components/ui/field";
@@ -322,12 +322,14 @@ export function PurchaseFields({
 
 export function SeatFields({
 	form,
+	isHeroSeatEvent,
 	isSeatEditable,
-	playerLabel,
+	seatablePlayers,
 }: {
 	form: EditorForm;
+	isHeroSeatEvent: boolean;
 	isSeatEditable: boolean;
-	playerLabel: string;
+	seatablePlayers: readonly { id: string; name: string }[];
 }) {
 	return (
 		<>
@@ -354,11 +356,46 @@ export function SeatFields({
 					</Field>
 				)}
 			</form.Field>
-			<Field className="col-span-4 min-w-0 gap-1.5" label="Player">
-				<p className={`${INPUT_CLASS} flex items-center opacity-50`}>
-					{playerLabel}
-				</p>
-			</Field>
+			<form.Field name="playerId">
+				{(field) => (
+					<Field
+						className="col-span-4 min-w-0 gap-1.5"
+						error={field.state.meta.errors[0]?.message}
+						label="Player"
+						required={isSeatEditable}
+					>
+						{isSeatEditable ? (
+							<div className="max-h-[132px] overflow-y-auto rounded-md border border-input">
+								{seatablePlayers.map((candidate) => {
+									const isSelected = field.state.value === candidate.id;
+									return (
+										<button
+											aria-pressed={isSelected}
+											className={cn(
+												"flex h-8 w-full items-center gap-2 border-border border-b px-2 text-left text-[length:var(--text-xs)] last:border-b-0",
+												isSelected &&
+													"bg-[color-mix(in_oklab,var(--primary)_12%,transparent)] font-semibold text-primary"
+											)}
+											key={candidate.id}
+											onClick={() => field.handleChange(candidate.id)}
+											type="button"
+										>
+											<span className="min-w-0 flex-1 truncate">
+												{candidate.name}
+											</span>
+											{isSelected ? <IconCheck size={13} /> : null}
+										</button>
+									);
+								})}
+							</div>
+						) : (
+							<p className={`${INPUT_CLASS} flex items-center opacity-50`}>
+								{isHeroSeatEvent ? "You" : "Set from the table"}
+							</p>
+						)}
+					</Field>
+				)}
+			</form.Field>
 		</>
 	);
 }

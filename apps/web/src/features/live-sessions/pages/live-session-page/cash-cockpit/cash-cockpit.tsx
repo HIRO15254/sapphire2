@@ -109,6 +109,7 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 					onSeatExisting={cockpit.onSitInExisting}
 					onSeatHero={cockpit.onSitInHero}
 					onSeatNew={cockpit.onSitInNew}
+					onSeatTemporary={cockpit.onSitInTemporary}
 					open={cockpit.seatSheet === "sitIn"}
 					seatPosition={cockpit.sitInSeatPosition}
 				/>
@@ -150,7 +151,7 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 					onOpenChange={journal.onCloseEditor}
 					onSubmit={journal.onEditorSubmit}
 					open={journal.isEditorOpen}
-					playerNames={journal.playerNames}
+					seatablePlayers={journal.seatablePlayers}
 					seatCount={journal.seatCount}
 					target={journal.editorTarget}
 				/>

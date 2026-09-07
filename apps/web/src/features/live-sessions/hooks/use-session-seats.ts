@@ -68,6 +68,7 @@ export interface SessionSeatsState {
 	onSeatTemporary: (seatPosition: number) => void;
 	onUnseatHero: () => void;
 	playerNames: ReadonlyMap<string, string>;
+	seatablePlayers: { id: string; name: string }[];
 	seats: SeatEntry[];
 	sessionParam: SessionParam;
 	tableSize: number;
@@ -189,6 +190,12 @@ export function useSessionSeats({
 
 	const activePlayerIds = new Set(activePlayers.map((p) => p.playerId));
 
+	const seatableById = new Map<string, string>(playerNames);
+	for (const p of tablePlayers.players) {
+		seatableById.set(p.player.id, p.player.name);
+	}
+	const seatablePlayers = [...seatableById].map(([id, name]) => ({ id, name }));
+
 	return {
 		excludePlayerIds: tablePlayers.excludePlayerIds,
 		heroAvailable: heroSeatPosition === null,
@@ -220,6 +227,7 @@ export function useSessionSeats({
 			heroSeatMutation.mutate(null);
 		},
 		playerNames,
+		seatablePlayers,
 		seats,
 		sessionParam,
 		tableSize: seatCount,

@@ -6,6 +6,7 @@ import {
 	IconUser,
 	IconUserOff,
 	IconUserPlus,
+	IconUserQuestion,
 	IconUserStar,
 	IconX,
 } from "@tabler/icons-react";
@@ -26,6 +27,7 @@ interface SitInSheetProps {
 	onSeatExisting: (playerId: string, playerName: string) => void;
 	onSeatHero: () => void;
 	onSeatNew: (name: string) => void;
+	onSeatTemporary: () => void;
 	open: boolean;
 	seatPosition: number;
 }
@@ -39,7 +41,12 @@ function CandidateRow({
 	isPicked: boolean;
 	onPick: (candidate: SitInCandidate) => void;
 }) {
-	const Icon = candidate.id === null ? IconUserPlus : IconUser;
+	let Icon = IconUser;
+	if (candidate.key === "temporary") {
+		Icon = IconUserQuestion;
+	} else if (candidate.id === null) {
+		Icon = IconUserPlus;
+	}
 	return (
 		<button
 			aria-pressed={isPicked}
@@ -81,6 +88,7 @@ export function SitInSheet({
 	onSeatExisting,
 	onSeatHero,
 	onSeatNew,
+	onSeatTemporary,
 	open,
 	seatPosition,
 }: SitInSheetProps) {
@@ -90,6 +98,7 @@ export function SitInSheet({
 		onSeatExisting,
 		onSeatHero,
 		onSeatNew,
+		onSeatTemporary,
 		open,
 		seatPosition,
 	});

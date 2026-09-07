@@ -54,9 +54,9 @@ export function useTournamentCockpit(sessionId: string) {
 			seatState.occupiedSeatPositions,
 			heroSeatPosition
 		),
-		onMoveSeat: seatState.onMoveSeat,
 		playerNames,
 		seatCount: seats.length,
+		seatablePlayers: seatState.seatablePlayers,
 		sessionId,
 		sessionType: "tournament",
 		status,
@@ -154,6 +154,9 @@ export function useTournamentCockpit(sessionId: string) {
 		},
 		onSitInNew: (name: string) => {
 			sitIn((seatPosition) => seatState.onSeatNew(seatPosition, { name }));
+		},
+		onSitInTemporary: () => {
+			sitIn((seatPosition) => seatState.onSeatTemporary(seatPosition));
 		},
 		scanSeats: seatSelection.scanSeats,
 		seatSheet: seatSelection.seatSheet,

@@ -91,10 +91,6 @@ export function SelectedPlayerPanel({
 						onChange={(e) => panel.onTagQueryChange(e.target.value)}
 						onFocus={panel.onOpenTagList}
 						onKeyDown={(e) => {
-							if (e.key === "Enter") {
-								e.preventDefault();
-								panel.onSubmitTagQuery();
-							}
 							if (e.key === "Escape") {
 								panel.onCloseTagList();
 							}
@@ -105,9 +101,22 @@ export function SelectedPlayerPanel({
 				</div>
 				{panel.isTagListOpen ? (
 					<div className="absolute inset-x-0 top-[calc(100%+4px)] z-[5] max-h-[168px] overflow-y-auto rounded-md border border-border bg-popover p-1 shadow-[var(--shadow-popover)]">
-						{panel.tagChoices.length === 0 ? (
+						{panel.newTagName === null ? null : (
+							<button
+								className="flex h-[30px] w-full items-center gap-[7px] rounded-sm px-2 text-left text-[length:var(--text-xs)] text-primary"
+								onClick={panel.onCreateTag}
+								onMouseDown={(e) => e.preventDefault()}
+								type="button"
+							>
+								<IconPlus size={13} />
+								<span className="min-w-0 truncate font-semibold">
+									Create "{panel.newTagName}"
+								</span>
+							</button>
+						)}
+						{panel.newTagName === null && panel.tagChoices.length === 0 ? (
 							<p className="p-2 text-[length:var(--text-xs)] text-muted-foreground">
-								No match — press Enter to create
+								No label matches
 							</p>
 						) : (
 							panel.tagChoices.map((tag) => (

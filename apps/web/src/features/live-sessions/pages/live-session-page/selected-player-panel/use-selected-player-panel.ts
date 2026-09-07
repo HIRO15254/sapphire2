@@ -34,21 +34,22 @@ export function useSelectedPlayerPanel({
 		setTagQuery("");
 	};
 
+	const newTagName = tagQuery.trim();
+	const hasExactTag = availableTags.some(
+		(tag) => tag.name.toLowerCase() === newTagName.toLowerCase()
+	);
+
 	const onCreateTag = async () => {
-		const name = tagQuery.trim();
-		if (name === "") {
+		if (newTagName === "" || hasExactTag) {
 			return;
 		}
-		const existing = availableTags.find(
-			(tag) => tag.name.toLowerCase() === name.toLowerCase()
-		);
-		const tag = existing ?? (await createTag(name));
-		addTag(tag);
+		addTag(await createTag(newTagName));
 	};
 
 	return {
 		isSaving,
 		isTagListOpen,
+		newTagName: newTagName === "" || hasExactTag ? null : newTagName,
 		notesText: memoExcerpt(player?.memo ?? null) ?? "",
 		onAddTag: addTag,
 		onCloseTagList: () => {
@@ -80,7 +81,7 @@ export function useSelectedPlayerPanel({
 				tagIds: selectedTagIds.filter((id) => id !== tag.id),
 			});
 		},
-		onSubmitTagQuery: onCreateTag,
+		onCreateTag,
 		onTagQueryChange: (value: string) => {
 			setTagQuery(value);
 			setIsTagListOpen(true);

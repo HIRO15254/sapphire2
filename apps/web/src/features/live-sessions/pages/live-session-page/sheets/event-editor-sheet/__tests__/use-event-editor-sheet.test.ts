@@ -35,7 +35,10 @@ function editTarget(
 	};
 }
 
-const PLAYER_NAMES = new Map([["player-1", "Young guy"]]);
+const SEATABLE_PLAYERS = [
+	{ id: "player-1", name: "Young guy" },
+	{ id: "player-2", name: "Red cap" },
+];
 
 function setup(
 	target: EventEditorTarget,
@@ -51,8 +54,8 @@ function setup(
 			minTime: null,
 			occupiedSeatPositions,
 			onSubmit,
-			playerNames: PLAYER_NAMES,
 			seatCount: 9,
+			seatablePlayers: SEATABLE_PLAYERS,
 			target,
 		})
 	);
@@ -237,7 +240,7 @@ describe("seat editing", () => {
 		return editTarget("seat", { eventType: "player_join", payload });
 	}
 
-	it("moves the table seat as well as the event payload", async () => {
+	it("records the new seat in the event payload the table is derived from", async () => {
 		const { onSubmit, result } = setup(
 			joinTarget({ playerId: "player-1", seatPosition: 7 })
 		);
@@ -253,7 +256,23 @@ describe("seat editing", () => {
 		expect(onSubmit).toHaveBeenCalledWith(
 			expect.objectContaining({
 				payload: { playerId: "player-1", seatPosition: 2 },
-				seatMove: { playerId: "player-1", seatPosition: 2 },
+			})
+		);
+	});
+
+	it("reassigns the seating event to another player", async () => {
+		const { onSubmit, result } = setup(
+			joinTarget({ playerId: "player-1", seatPosition: 7 })
+		);
+
+		act(() => {
+			result.current.form.setFieldValue("playerId", "player-2");
+		});
+		await submit(result.current.form);
+
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				payload: { playerId: "player-2", seatPosition: 7 },
 			})
 		);
 	});
@@ -277,12 +296,12 @@ describe("seat editing", () => {
 		);
 
 		expect(result.current.isSeatEditable).toBe(false);
-		expect(result.current.playerLabel).toBe("You");
+		expect(result.current.isHeroSeatEvent).toBe(true);
 
 		await submit(result.current.form);
 
 		expect(onSubmit).toHaveBeenCalledWith(
-			expect.objectContaining({ payload: null, seatMove: undefined })
+			expect.objectContaining({ payload: null })
 		);
 	});
 
@@ -326,12 +345,6 @@ describe("seat editing", () => {
 		await submit(result.current.form);
 
 		expect(onSubmit).toHaveBeenCalled();
-	});
-
-	it("names the player the event belongs to", () => {
-		const { result } = setup(joinTarget({ playerId: "player-1" }));
-
-		expect(result.current.playerLabel).toBe("Young guy");
 	});
 
 	it("keeps a leave event time-only", () => {

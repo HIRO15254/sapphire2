@@ -15,6 +15,7 @@ interface UseSitInSheetOptions {
 	onSeatExisting: (playerId: string, playerName: string) => void;
 	onSeatHero: () => void;
 	onSeatNew: (name: string) => void;
+	onSeatTemporary: () => void;
 	open: boolean;
 	seatPosition: number;
 }
@@ -22,6 +23,9 @@ interface UseSitInSheetOptions {
 const NEW_PLAYER_KEY = "new";
 const NEW_PLAYER_META = "Create as a new player";
 const NO_LABELS_META = "No labels";
+const TEMPORARY_KEY = "temporary";
+const TEMPORARY_NAME = "Anonymous";
+const TEMPORARY_META = "Temporary player — name it later";
 
 export function useSitInSheet({
 	excludePlayerIds,
@@ -29,6 +33,7 @@ export function useSitInSheet({
 	onSeatExisting,
 	onSeatHero,
 	onSeatNew,
+	onSeatTemporary,
 	open,
 	seatPosition,
 }: UseSitInSheetOptions) {
@@ -80,6 +85,16 @@ export function useSitInSheet({
 					: player.tags.map((tag) => tag.name).join(" · "),
 			name: player.name,
 		})),
+		...(trimmed === ""
+			? [
+					{
+						id: null,
+						key: TEMPORARY_KEY,
+						meta: TEMPORARY_META,
+						name: TEMPORARY_NAME,
+					},
+				]
+			: []),
 	];
 
 	const isHeroSeat = heroOverride ?? heroSeatPosition === seatPosition;
@@ -101,6 +116,10 @@ export function useSitInSheet({
 				return;
 			}
 			if (picked === null) {
+				return;
+			}
+			if (picked.key === TEMPORARY_KEY) {
+				onSeatTemporary();
 				return;
 			}
 			if (picked.id === null) {

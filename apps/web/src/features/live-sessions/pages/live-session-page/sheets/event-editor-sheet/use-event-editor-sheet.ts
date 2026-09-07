@@ -33,15 +33,9 @@ export interface EventEditorTarget {
 	openedAt: Date;
 }
 
-export interface SeatMove {
-	playerId: string;
-	seatPosition: number;
-}
-
 export interface EventEditorSubmit {
 	occurredAt: number | undefined;
 	payload: Record<string, unknown> | null;
-	seatMove?: SeatMove;
 }
 
 interface UseEventEditorSheetOptions {
@@ -51,7 +45,7 @@ interface UseEventEditorSheetOptions {
 	minTime: Date | null;
 	occupiedSeatPositions: ReadonlySet<number>;
 	onSubmit: (values: EventEditorSubmit) => void;
-	playerNames: ReadonlyMap<string, string>;
+	seatablePlayers: readonly { id: string; name: string }[];
 	seatCount: number;
 	target: EventEditorTarget;
 }
@@ -66,6 +60,7 @@ const baseSchema = z.object({
 	memoText: z.string(),
 	potSize: z.string(),
 	purchaseId: z.string(),
+	playerId: z.string(),
 	remainingPlayers: z.string(),
 	seatNumber: z.string(),
 	stackAmount: z.string(),
@@ -132,6 +127,7 @@ function buildDefaults(target: EventEditorTarget) {
 			typeof payload.sessionChipPurchaseId === "string"
 				? payload.sessionChipPurchaseId
 				: "",
+		playerId: typeof payload.playerId === "string" ? payload.playerId : "",
 		remainingPlayers: numberField(payload, "remainingPlayers"),
 		seatNumber: seatNumberField(payload),
 		stackAmount: numberField(payload, "stackAmount"),
@@ -205,6 +201,7 @@ function buildSchema(
 			return isSeatEditable(target)
 				? baseSchema
 						.extend({
+							playerId: z.string().min(1, "Required"),
 							seatNumber: requiredNumericString({
 								integer: true,
 								max: seatCount,
@@ -304,6 +301,7 @@ function buildPayload(
 			return isSeatEditable(target)
 				? {
 						...toPayload(target.event?.payload),
+						playerId: values.playerId,
 						seatPosition: Number(values.seatNumber) - 1,
 					}
 				: null;
@@ -314,42 +312,14 @@ function buildPayload(
 	}
 }
 
-function buildSeatMove(
-	values: EventEditorValues,
-	target: EventEditorTarget
-): SeatMove | undefined {
-	if (!isSeatEditable(target)) {
-		return undefined;
-	}
-	const playerId = toPayload(target.event?.payload).playerId;
-	if (typeof playerId !== "string") {
-		return undefined;
-	}
-	return { playerId, seatPosition: Number(values.seatNumber) - 1 };
-}
-
-function resolvePlayerLabel(
-	target: EventEditorTarget,
-	playerNames: ReadonlyMap<string, string>
-): string {
-	const payload = toPayload(target.event?.payload);
-	if (payload.isHero === true) {
-		return "You";
-	}
-	const playerId = payload.playerId;
-	return typeof playerId === "string"
-		? (playerNames.get(playerId) ?? "Player")
-		: "Player";
-}
-
 export function useEventEditorSheet(options: UseEventEditorSheetOptions) {
 	const {
 		maxTime,
 		minTime,
 		occupiedSeatPositions,
 		onSubmit,
-		playerNames,
 		seatCount,
+		seatablePlayers,
 		target,
 	} = options;
 
@@ -359,7 +329,6 @@ export function useEventEditorSheet(options: UseEventEditorSheetOptions) {
 			onSubmit({
 				occurredAt: toOccurredAtTimestamp(baseDateOf(target), value.time),
 				payload: buildPayload(value, target, options),
-				seatMove: buildSeatMove(value, target),
 			});
 		},
 		validators: {
@@ -383,7 +352,8 @@ export function useEventEditorSheet(options: UseEventEditorSheetOptions) {
 	return {
 		form,
 		isSeatEditable: isSeatEditable(target),
-		playerLabel: resolvePlayerLabel(target, playerNames),
+		isHeroSeatEvent: toPayload(target.event?.payload).isHero === true,
+		seatablePlayers,
 		timeValidator,
 	};
 }

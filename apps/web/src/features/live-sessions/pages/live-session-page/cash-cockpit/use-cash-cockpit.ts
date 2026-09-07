@@ -51,9 +51,9 @@ export function useCashCockpit(sessionId: string) {
 			seatState.occupiedSeatPositions,
 			heroSeatPosition
 		),
-		onMoveSeat: seatState.onMoveSeat,
 		playerNames,
 		seatCount: seats.length,
+		seatablePlayers: seatState.seatablePlayers,
 		sessionId,
 		sessionType: "cash_game",
 		status,
@@ -138,6 +138,9 @@ export function useCashCockpit(sessionId: string) {
 		},
 		onSitInNew: (name: string) => {
 			sitIn((seatPosition) => seatState.onSeatNew(seatPosition, { name }));
+		},
+		onSitInTemporary: () => {
+			sitIn((seatPosition) => seatState.onSeatTemporary(seatPosition));
 		},
 		scanSeats: seatSelection.scanSeats,
 		seatSheet: seatSelection.seatSheet,

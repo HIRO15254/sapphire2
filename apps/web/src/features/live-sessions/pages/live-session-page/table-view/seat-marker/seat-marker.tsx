@@ -15,6 +15,9 @@ const WRAPPER_CLASS =
 
 const DOT_FALLBACK = "var(--muted-foreground)";
 
+const NAME_CLASS =
+	"-bottom-1.5 -translate-x-1/2 pointer-events-none absolute left-1/2 max-w-[68px] truncate rounded-full border border-border bg-card px-1.5 py-px text-[10px] leading-[14px]";
+
 export function SeatMarker({
 	isSelected,
 	onSelect,
@@ -37,6 +40,9 @@ export function SeatMarker({
 				>
 					<IconUserStar size={18} />
 				</div>
+				<span className={cn(NAME_CLASS, "font-semibold text-primary")}>
+					You
+				</span>
 			</div>
 		);
 	}
@@ -62,6 +68,7 @@ export function SeatMarker({
 				>
 					<IconUser size={17} />
 				</button>
+				<span className={NAME_CLASS}>{seat.player.name}</span>
 			</div>
 		);
 	}
