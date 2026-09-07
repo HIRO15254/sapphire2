@@ -216,7 +216,7 @@ export function ScanSeatsSheet({
 							<span className="text-muted-foreground">Logged at</span>
 							<span className="font-mono">{sheet.committedAtText}</span>
 						</div>
-					</div>{" "}
+					</div>
 				</div>
 			) : null}
 		</CrystSheet>
