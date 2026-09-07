@@ -105,7 +105,6 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 					excludePlayerIds={cockpit.excludePlayerIds}
 					heroSeatPosition={cockpit.heroSeatPosition}
 					onOpenChange={cockpit.onCloseSeatSheet}
-					onOpenScan={cockpit.onOpenScan}
 					onSeatExisting={cockpit.onSitInExisting}
 					onSeatHero={cockpit.onSitInHero}
 					onSeatNew={cockpit.onSitInNew}

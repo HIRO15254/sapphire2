@@ -1,7 +1,8 @@
 import { useForm } from "@tanstack/react-form";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import z from "zod";
 import type { SessionEvent } from "@/features/live-sessions/hooks/use-session-events";
+import type { SeatablePlayer } from "@/features/live-sessions/hooks/use-session-seats";
 import { refineWinsNotExceedingTrials } from "@/features/live-sessions/utils/all-in-validation";
 import {
 	applyTimeToDate,
@@ -15,6 +16,7 @@ import {
 	parseOptionalInt,
 	requiredNumericString,
 } from "@/shared/lib/form-fields";
+import type { PlayerPickerCandidate } from "../../player-picker";
 
 export type EventEditorMode = "create" | "edit";
 
@@ -45,12 +47,13 @@ interface UseEventEditorSheetOptions {
 	minTime: Date | null;
 	occupiedSeatPositions: ReadonlySet<number>;
 	onSubmit: (values: EventEditorSubmit) => void;
-	seatablePlayers: readonly { id: string; name: string }[];
+	seatablePlayers: readonly SeatablePlayer[];
 	seatCount: number;
 	target: EventEditorTarget;
 }
 
 const MS_PER_SECOND = 1000;
+const UNSEATED_META = "Not seated";
 
 const baseSchema = z.object({
 	amount: z.string(),
@@ -312,6 +315,26 @@ function buildPayload(
 	}
 }
 
+function toPlayerCandidates(
+	seatablePlayers: readonly SeatablePlayer[],
+	query: string
+): PlayerPickerCandidate[] {
+	const needle = query.trim().toLowerCase();
+	return seatablePlayers
+		.filter(
+			(player) => needle === "" || player.name.toLowerCase().includes(needle)
+		)
+		.map((player) => ({
+			key: player.id,
+			kind: "existing" as const,
+			meta:
+				player.seatPosition === null
+					? UNSEATED_META
+					: `Seat S${player.seatPosition + 1}`,
+			name: player.name,
+		}));
+}
+
 export function useEventEditorSheet(options: UseEventEditorSheetOptions) {
 	const {
 		maxTime,
@@ -322,6 +345,8 @@ export function useEventEditorSheet(options: UseEventEditorSheetOptions) {
 		seatablePlayers,
 		target,
 	} = options;
+
+	const [playerQuery, setPlayerQuery] = useState("");
 
 	const form = useForm({
 		defaultValues: buildDefaults(target),
@@ -343,6 +368,7 @@ export function useEventEditorSheet(options: UseEventEditorSheetOptions) {
 
 	useEffect(() => {
 		form.reset(buildDefaults(target));
+		setPlayerQuery("");
 	}, [form, target]);
 
 	const timeValidator = (value: string) =>
@@ -353,7 +379,9 @@ export function useEventEditorSheet(options: UseEventEditorSheetOptions) {
 		form,
 		isSeatEditable: isSeatEditable(target),
 		isHeroSeatEvent: toPayload(target.event?.payload).isHero === true,
-		seatablePlayers,
+		onPlayerQueryChange: setPlayerQuery,
+		playerCandidates: toPlayerCandidates(seatablePlayers, playerQuery),
+		playerQuery,
 		timeValidator,
 	};
 }

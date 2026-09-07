@@ -1,12 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { trpc } from "@/utils/trpc";
+import type { PlayerPickerCandidate } from "../../player-picker";
 
-export interface SitInCandidate {
+export interface SitInCandidate extends PlayerPickerCandidate {
 	id: string | null;
-	key: string;
-	meta: string;
-	name: string;
 }
 
 interface UseSitInSheetOptions {
@@ -66,12 +64,24 @@ export function useSitInSheet({
 	);
 
 	const candidates: SitInCandidate[] = [
+		...(trimmed === ""
+			? [
+					{
+						id: null,
+						key: TEMPORARY_KEY,
+						kind: "temporary" as const,
+						meta: TEMPORARY_META,
+						name: TEMPORARY_NAME,
+					},
+				]
+			: []),
 		...(trimmed === "" || hasExactMatch
 			? []
 			: [
 					{
 						id: null,
 						key: NEW_PLAYER_KEY,
+						kind: "new" as const,
 						meta: NEW_PLAYER_META,
 						name: trimmed,
 					},
@@ -79,22 +89,13 @@ export function useSitInSheet({
 		...matched.map((player) => ({
 			id: player.id,
 			key: player.id,
+			kind: "existing" as const,
 			meta:
 				player.tags.length === 0
 					? NO_LABELS_META
 					: player.tags.map((tag) => tag.name).join(" · "),
 			name: player.name,
 		})),
-		...(trimmed === ""
-			? [
-					{
-						id: null,
-						key: TEMPORARY_KEY,
-						meta: TEMPORARY_META,
-						name: TEMPORARY_NAME,
-					},
-				]
-			: []),
 	];
 
 	const isHeroSeat = heroOverride ?? heroSeatPosition === seatPosition;
@@ -105,7 +106,7 @@ export function useSitInSheet({
 		candidates,
 		isHeroSeat,
 		isLoading: playersQuery.isLoading,
-		onPick: (candidate: SitInCandidate) => setPickedKey(candidate.key),
+		onPick: (candidate: PlayerPickerCandidate) => setPickedKey(candidate.key),
 		onQueryChange: (value: string) => {
 			setQuery(value);
 			setPickedKey(null);

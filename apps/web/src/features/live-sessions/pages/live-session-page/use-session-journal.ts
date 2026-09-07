@@ -6,6 +6,7 @@ import { useState } from "react";
 import type { LoggableEventType } from "@/features/live-sessions/hooks/use-session-event-log";
 import { useSessionEventLog } from "@/features/live-sessions/hooks/use-session-event-log";
 import { useSessionEvents } from "@/features/live-sessions/hooks/use-session-events";
+import type { SeatablePlayer } from "@/features/live-sessions/hooks/use-session-seats";
 import { isPersistedEventId } from "@/features/live-sessions/utils/optimistic-session-event";
 import { getTimeBounds } from "@/features/live-sessions/utils/session-events-formatters";
 import type { EventEditorKind } from "@/features/live-sessions/utils/timeline-view";
@@ -38,7 +39,7 @@ interface UseSessionJournalOptions {
 	chipPurchaseOptions: ChipPurchaseOption[];
 	occupiedSeatPositions: ReadonlySet<number>;
 	playerNames: ReadonlyMap<string, string>;
-	seatablePlayers: { id: string; name: string }[];
+	seatablePlayers: SeatablePlayer[];
 	seatCount: number;
 	sessionId: string;
 	sessionType: "cash_game" | "tournament";

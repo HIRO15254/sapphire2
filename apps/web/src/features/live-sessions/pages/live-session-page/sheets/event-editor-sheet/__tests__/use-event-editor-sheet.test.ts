@@ -36,8 +36,8 @@ function editTarget(
 }
 
 const SEATABLE_PLAYERS = [
-	{ id: "player-1", name: "Young guy" },
-	{ id: "player-2", name: "Red cap" },
+	{ id: "player-1", name: "Young guy", seatPosition: 2 },
+	{ id: "player-2", name: "Red cap", seatPosition: null },
 ];
 
 function setup(
@@ -224,7 +224,10 @@ describe("time bounds", () => {
 				isTournament: false,
 				maxTime: new Date(2026, 5, 1, 23, 0),
 				minTime: new Date(2026, 5, 1, 22, 0),
+				occupiedSeatPositions: new Set<number>(),
 				onSubmit,
+				seatCount: 9,
+				seatablePlayers: SEATABLE_PLAYERS,
 				target: editTarget("memo", { payload: { text: "note" } }),
 			})
 		);
@@ -275,6 +278,25 @@ describe("seat editing", () => {
 				payload: { playerId: "player-2", seatPosition: 7 },
 			})
 		);
+	});
+
+	it("narrows the player candidates by the search query", () => {
+		const { result } = setup(
+			joinTarget({ playerId: "player-1", seatPosition: 7 })
+		);
+
+		expect(result.current.playerCandidates).toEqual([
+			expect.objectContaining({ key: "player-1", meta: "Seat S3" }),
+			expect.objectContaining({ key: "player-2", meta: "Not seated" }),
+		]);
+
+		act(() => {
+			result.current.onPlayerQueryChange("red");
+		});
+
+		expect(result.current.playerCandidates).toEqual([
+			expect.objectContaining({ key: "player-2", name: "Red cap" }),
+		]);
 	});
 
 	it("rejects a seat outside the table", async () => {

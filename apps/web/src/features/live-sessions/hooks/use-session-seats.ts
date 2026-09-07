@@ -32,6 +32,12 @@ export interface SeatPlayer {
 	tags: PlayerTagWithColor[];
 }
 
+export interface SeatablePlayer {
+	id: string;
+	name: string;
+	seatPosition: number | null;
+}
+
 export type SeatOccupancy = "empty" | "hero" | "player";
 
 export interface SeatEntry {
@@ -68,7 +74,7 @@ export interface SessionSeatsState {
 	onSeatTemporary: (seatPosition: number) => void;
 	onUnseatHero: () => void;
 	playerNames: ReadonlyMap<string, string>;
-	seatablePlayers: { id: string; name: string }[];
+	seatablePlayers: SeatablePlayer[];
 	seats: SeatEntry[];
 	sessionParam: SessionParam;
 	tableSize: number;
@@ -194,7 +200,12 @@ export function useSessionSeats({
 	for (const p of tablePlayers.players) {
 		seatableById.set(p.player.id, p.player.name);
 	}
-	const seatablePlayers = [...seatableById].map(([id, name]) => ({ id, name }));
+	const seatedById = new Map<string, number | null>(
+		activePlayers.map((p) => [p.playerId, p.seatPosition])
+	);
+	const seatablePlayers: SeatablePlayer[] = [...seatableById].map(
+		([id, name]) => ({ id, name, seatPosition: seatedById.get(id) ?? null })
+	);
 
 	return {
 		excludePlayerIds: tablePlayers.excludePlayerIds,
