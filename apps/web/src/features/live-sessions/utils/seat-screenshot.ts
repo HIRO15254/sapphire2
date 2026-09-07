@@ -132,7 +132,7 @@ export async function applyRow(
 async function seatScannedPlayer(
 	row: ScanRow,
 	sessionParam: SessionParam,
-	activePlayerIds: ReadonlySet<string>
+	activePlayerIds: Set<string>
 ): Promise<void> {
 	const playerId = row.matchedPlayerId;
 	if (playerId === null) {
@@ -156,12 +156,14 @@ async function seatScannedPlayer(
 		playerId,
 		seatPosition: row.seatPosition,
 	});
+	activePlayerIds.add(playerId);
 }
 
 export async function applyScanRow(
 	row: ScanRow,
 	sessionParam: SessionParam,
-	activePlayerIds: ReadonlySet<string>
+	activePlayerIds: Set<string>,
+	incomingPlayerIds: ReadonlySet<string>
 ): Promise<boolean> {
 	if (row.kind === "hero") {
 		try {
@@ -183,7 +185,7 @@ export async function applyScanRow(
 	if (
 		row.kind !== "conflict" ||
 		displaced === null ||
-		displaced === row.matchedPlayerId
+		incomingPlayerIds.has(displaced)
 	) {
 		return true;
 	}
@@ -195,6 +197,7 @@ export async function applyScanRow(
 	} catch {
 		return false;
 	}
+	activePlayerIds.delete(displaced);
 	return true;
 }
 

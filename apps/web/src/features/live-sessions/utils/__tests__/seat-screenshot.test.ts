@@ -440,7 +440,12 @@ describe("applyScanRow", () => {
 	});
 
 	it("moves a player who is already seated in this session instead of adding them", async () => {
-		const ok = await applyScanRow(scanRow({}), SESSION, new Set(["p-y"]));
+		const ok = await applyScanRow(
+			scanRow({}),
+			SESSION,
+			new Set(["p-y"]),
+			new Set(["p-y"])
+		);
 
 		expect(ok).toBe(true);
 		expect(seat.updateSeat.mutate).toHaveBeenCalledWith({
@@ -452,7 +457,12 @@ describe("applyScanRow", () => {
 	});
 
 	it("adds a known player who is not at the table yet", async () => {
-		const ok = await applyScanRow(scanRow({}), SESSION, new Set());
+		const ok = await applyScanRow(
+			scanRow({}),
+			SESSION,
+			new Set(),
+			new Set(["p-y"])
+		);
 
 		expect(ok).toBe(true);
 		expect(seat.add.mutate).toHaveBeenCalledWith({
@@ -477,6 +487,7 @@ describe("applyScanRow", () => {
 		const ok = await applyScanRow(
 			scanRow({ currentName: "X", currentPlayerId: "p-x", kind: "conflict" }),
 			SESSION,
+			new Set(["p-y"]),
 			new Set(["p-y"])
 		);
 
@@ -490,7 +501,8 @@ describe("applyScanRow", () => {
 		const ok = await applyScanRow(
 			scanRow({ currentName: "X", currentPlayerId: "p-x", kind: "conflict" }),
 			SESSION,
-			new Set()
+			new Set(),
+			new Set(["p-y"])
 		);
 
 		expect(ok).toBe(false);
@@ -505,6 +517,7 @@ describe("applyScanRow", () => {
 				kind: "conflict",
 			}),
 			SESSION,
+			new Set(["p-y"]),
 			new Set(["p-y"])
 		);
 
@@ -512,10 +525,82 @@ describe("applyScanRow", () => {
 		expect(seat.remove.mutate).not.toHaveBeenCalled();
 	});
 
+	it("swaps two seated players without dropping either of them", async () => {
+		const activeIds = new Set(["p-x", "p-y"]);
+		const incomingIds = new Set(["p-x", "p-y"]);
+		const swapRows = [
+			scanRow({
+				currentName: "X",
+				currentPlayerId: "p-x",
+				kind: "conflict",
+				matchedPlayerId: "p-y",
+				name: "Y",
+				seatPosition: 2,
+			}),
+			scanRow({
+				currentName: "Y",
+				currentPlayerId: "p-y",
+				kind: "conflict",
+				matchedPlayerId: "p-x",
+				name: "X",
+				seatPosition: 4,
+			}),
+		];
+
+		const results: boolean[] = [];
+		for (const row of swapRows) {
+			results.push(await applyScanRow(row, SESSION, activeIds, incomingIds));
+		}
+
+		expect(results).toEqual([true, true]);
+		expect(
+			vi.mocked(seat.updateSeat.mutate).mock.calls.map(([c]) => c)
+		).toEqual([
+			{ liveCashGameSessionId: "s1", playerId: "p-y", seatPosition: 2 },
+			{ liveCashGameSessionId: "s1", playerId: "p-x", seatPosition: 4 },
+		]);
+		expect(seat.remove.mutate).not.toHaveBeenCalled();
+		expect(activeIds).toEqual(new Set(["p-x", "p-y"]));
+	});
+
+	it("re-seats a player an earlier row removed instead of moving a departed one", async () => {
+		const activeIds = new Set(["p-x"]);
+		const incomingIds = new Set(["p-y"]);
+
+		await applyScanRow(
+			scanRow({
+				currentName: "X",
+				currentPlayerId: "p-x",
+				kind: "conflict",
+				matchedPlayerId: "p-y",
+				seatPosition: 2,
+			}),
+			SESSION,
+			activeIds,
+			incomingIds
+		);
+		expect(activeIds.has("p-x")).toBe(false);
+
+		const ok = await applyScanRow(
+			scanRow({ matchedPlayerId: "p-x", name: "X", seatPosition: 4 }),
+			SESSION,
+			activeIds,
+			incomingIds
+		);
+
+		expect(ok).toBe(true);
+		expect(seat.add.mutate).toHaveBeenCalledWith({
+			liveCashGameSessionId: "s1",
+			playerId: "p-x",
+			seatPosition: 4,
+		});
+	});
+
 	it("skips an unmatched row whose name was cleared instead of sending an empty name", async () => {
 		const ok = await applyScanRow(
 			scanRow({ kind: "new", matchedPlayerId: null, name: "  " }),
 			SESSION,
+			new Set(),
 			new Set()
 		);
 

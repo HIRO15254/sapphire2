@@ -153,8 +153,13 @@ export function useScanSeatsSheet({
 		const applied: CommittedSeat[] = [];
 		let failures = 0;
 		const activeIds = new Set(activePlayerIds);
+		const incomingIds = new Set(
+			selected
+				.map((row) => row.matchedPlayerId)
+				.filter((id): id is string => id !== null)
+		);
 		for (const row of selected) {
-			const ok = await applyScanRow(row, sessionParam, activeIds);
+			const ok = await applyScanRow(row, sessionParam, activeIds, incomingIds);
 			if (ok) {
 				applied.push({
 					name: row.name === "" ? "You" : row.name,
