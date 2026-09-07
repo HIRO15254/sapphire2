@@ -71,6 +71,7 @@ const backend = {
 	hasStackUpdate: true,
 	playerMemo: "<p>Loose caller</p>" as string | null,
 	playerName: "Young guy",
+	secondPlayerMemo: null as string | null,
 	playerTagIds: ["tag-1"] as string[],
 	playerUpdates: [] as PlayerUpdate[],
 	removedPlayerIds: [] as string[],
@@ -179,6 +180,20 @@ const fixtureRouter = t.router({
 					seatPosition: 2,
 					stints: [],
 				},
+				{
+					id: "seat-2",
+					isActive: !backend.removedPlayerIds.includes("player-3"),
+					joinedAt: new Date("2026-06-01T10:06:00Z"),
+					leftAt: null,
+					player: {
+						id: "player-3",
+						isTemporary: false,
+						memo: backend.secondPlayerMemo,
+						name: "Red cap",
+					},
+					seatPosition: 4,
+					stints: [],
+				},
 				...backend.addedSeats.map((seat, index) => ({
 					id: `seat-added-${index}`,
 					isActive: true,
@@ -203,13 +218,26 @@ const fixtureRouter = t.router({
 			}),
 	}),
 	player: t.router({
-		getById: t.procedure.input(z.custom()).query(() => ({
-			id: "player-1",
-			isTemporary: false,
-			memo: backend.playerMemo,
-			name: backend.playerName,
-			tags: playerTags(),
-		})),
+		getById: t.procedure
+			.input(z.custom<{ id: string }>())
+			.query(({ input }) => {
+				if (input.id === "player-3") {
+					return {
+						id: "player-3",
+						isTemporary: false,
+						memo: backend.secondPlayerMemo,
+						name: "Red cap",
+						tags: [],
+					};
+				}
+				return {
+					id: "player-1",
+					isTemporary: false,
+					memo: backend.playerMemo,
+					name: backend.playerName,
+					tags: playerTags(),
+				};
+			}),
 		list: t.procedure.query(() => [
 			{ id: "player-1", name: backend.playerName, tags: playerTags() },
 			{ id: "player-2", name: "Takashi", tags: [] },
@@ -218,6 +246,12 @@ const fixtureRouter = t.router({
 			.input(z.custom<PlayerUpdate>())
 			.mutation(({ input }) => {
 				backend.playerUpdates.push(input);
+				if (input.id === "player-3") {
+					if (Object.hasOwn(input, "memo")) {
+						backend.secondPlayerMemo = input.memo ?? null;
+					}
+					return { id: input.id };
+				}
 				if (input.name !== undefined) {
 					backend.playerName = input.name;
 				}
@@ -321,6 +355,7 @@ beforeEach(() => {
 	backend.playerName = "Young guy";
 	backend.playerTagIds = ["tag-1"];
 	backend.playerUpdates = [];
+	backend.secondPlayerMemo = null;
 	backend.removedPlayerIds = [];
 	backend.status = "active";
 	backend.updatedEvents = [];
@@ -639,6 +674,37 @@ describe("CashCockpit", () => {
 
 		expect(await screen.findByText(SINCE_START_LINE)).toBeInTheDocument();
 		expect(screen.queryByText(LAST_UPDATE_LINE)).not.toBeInTheDocument();
+	});
+
+	it("does not carry one player's notes onto the next seat that is opened", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Seat 3: Young guy" })
+		);
+		const notes = await screen.findByRole("textbox", {
+			name: "Notes on this player",
+		});
+		await user.clear(notes);
+		await user.type(notes, "loose caller");
+		await user.tab();
+		await waitFor(() => {
+			expect(backend.playerMemo).toBe("loose caller");
+		});
+
+		await user.click(
+			await screen.findByRole("button", { name: "Seat 5: Red cap" })
+		);
+		await user.click(
+			await screen.findByRole("textbox", { name: "Notes on this player" })
+		);
+		await user.tab();
+
+		expect(
+			backend.playerUpdates.filter((update) => update.id === "player-3")
+		).toEqual([]);
+		expect(backend.secondPlayerMemo).toBeNull();
 	});
 
 	it("seats a known player from the sheet an empty seat opens", async () => {

@@ -129,8 +129,7 @@ export function SelectedPlayerPanel({
 				className="min-h-14 w-full flex-1 resize-none rounded-md border border-input bg-card p-2 text-[length:var(--m-text-footnote)] leading-[var(--leading-relaxed)] outline-none focus-visible:border-ring"
 				defaultValue={panel.notesText}
 				key={playerId}
-				onBlur={panel.onNotesCommit}
-				onChange={(e) => panel.onNotesChange(e.target.value)}
+				onBlur={(e) => panel.onNotesCommit(e.target.value)}
 			/>
 		</div>
 	);

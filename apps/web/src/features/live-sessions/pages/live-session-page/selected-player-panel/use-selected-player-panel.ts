@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { memoExcerpt } from "@/features/live-sessions/utils/memo-excerpt";
 import type { PlayerTagWithColor } from "@/features/players/hooks/use-player-detail";
 import { usePlayerDetail } from "@/features/players/hooks/use-player-detail";
@@ -16,7 +16,6 @@ export function useSelectedPlayerPanel({
 		usePlayerDetail(playerId);
 	const [tagQuery, setTagQuery] = useState("");
 	const [isTagListOpen, setIsTagListOpen] = useState(false);
-	const notesDraft = useRef<string | null>(null);
 
 	const selectedTags = player?.tags ?? [];
 	const selectedTagIds = selectedTags.map((tag) => tag.id);
@@ -64,19 +63,15 @@ export function useSelectedPlayerPanel({
 			}
 			updatePlayer({ id: playerId, name: trimmed });
 		},
-		onNotesChange: (value: string) => {
-			notesDraft.current = value;
-		},
-		onNotesCommit: () => {
-			const draft = notesDraft.current;
-			if (draft === null || !player) {
+		onNotesCommit: (value: string) => {
+			if (!player) {
 				return;
 			}
 			const current = memoExcerpt(player.memo ?? null) ?? "";
-			if (draft === current) {
+			if (value === current) {
 				return;
 			}
-			updatePlayer({ id: playerId, memo: draft === "" ? null : draft });
+			updatePlayer({ id: playerId, memo: value === "" ? null : value });
 		},
 		onOpenTagList: () => setIsTagListOpen(true),
 		onRemoveTag: (tag: PlayerTagWithColor) => {
