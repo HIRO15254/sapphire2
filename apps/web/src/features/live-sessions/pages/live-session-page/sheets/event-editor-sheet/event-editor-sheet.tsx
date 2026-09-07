@@ -37,17 +37,6 @@ export const NEW_EVENT_TITLES: Record<EventEditorKind, string> = {
 	time: "Timer",
 };
 
-const KIND_HINTS: Partial<Record<EventEditorKind, string>> = {
-	allin:
-		"Wins cannot exceed runs. A chop can be logged as 0.5 wins. EV delta feeds into EV result.",
-	chips:
-		"Additions count toward total buy-in; withdrawals count toward the result.",
-	purchase:
-		"Name, cost and chips are snapshotted at selection, and the cost feeds into the result.",
-	seat: "Moving the seat also moves the player at the table. Which player this event belongs to is set from the table.",
-	stack: "Stack is recorded as an absolute value, not a delta.",
-};
-
 interface EventEditorSheetProps {
 	chipPurchaseOptions: ChipPurchaseOption[];
 	isPending: boolean;
@@ -94,7 +83,6 @@ export function EventEditorSheet({
 
 	const KindIcon = resolveEventIcon(target.kind, target.event?.eventType);
 	const tone = EVENT_TONE_TEXT[resolveKindTone(target.kind)];
-	const hint = KIND_HINTS[target.kind];
 	const isEdit = target.mode === "edit";
 
 	return (
@@ -144,12 +132,6 @@ export function EventEditorSheet({
 				{target.kind === "start" ? (
 					<StartFields form={form} isTournament={isTournament} />
 				) : null}
-
-				{hint === undefined ? null : (
-					<p className="col-span-6 text-pretty text-[length:var(--text-xs)] text-muted-foreground">
-						{hint}
-					</p>
-				)}
 			</form>
 
 			{onDelete === null ? null : (

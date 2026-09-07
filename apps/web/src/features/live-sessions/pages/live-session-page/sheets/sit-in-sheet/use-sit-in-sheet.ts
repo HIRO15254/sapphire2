@@ -20,7 +20,7 @@ interface UseSitInSheetOptions {
 }
 
 const NEW_PLAYER_KEY = "new";
-const NEW_PLAYER_META = "New temporary player";
+const NEW_PLAYER_META = "Create as a new player";
 const NO_LABELS_META = "No labels";
 
 export function useSitInSheet({

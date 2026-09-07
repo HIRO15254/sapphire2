@@ -188,11 +188,6 @@ export function SitInSheet({
 						onCheckedChange={sheet.onToggleHeroSeat}
 					/>
 				</div>
-
-				<p className="text-pretty text-[11px] text-muted-foreground">
-					Pick a known player, or type a name to register a temporary player
-					(can be merged later).
-				</p>
 			</form>
 		</CrystFormSheet>
 	);

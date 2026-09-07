@@ -1,9 +1,7 @@
 import {
 	IconAlertHexagon,
 	IconCircleCheck,
-	IconInfoCircle,
 	IconLoader2,
-	IconLock,
 	IconPhoto,
 	IconRefresh,
 } from "@tabler/icons-react";
@@ -111,10 +109,6 @@ export function ScanSeatsSheet({
 
 			{sheet.step === "choose" ? (
 				<div className="flex flex-col gap-3">
-					<p className="text-pretty text-[length:var(--m-text-footnote)] text-muted-foreground">
-						Pick a screenshot of the venue app's seat list. Seat numbers and
-						names are read from it.
-					</p>
 					<button
 						className={`inline-flex w-full items-center justify-center gap-2 ${PRIMARY_BUTTON}`}
 						onClick={sheet.onPickFile}
@@ -123,22 +117,6 @@ export function ScanSeatsSheet({
 						<IconPhoto size={17} />
 						Choose from library
 					</button>
-					<div className="flex flex-col gap-[5px] text-[length:var(--text-xs)] text-muted-foreground">
-						<span className="inline-flex items-start gap-1.5">
-							<IconInfoCircle className="mt-px shrink-0" size={14} />
-							<span className="text-pretty">
-								Seats already filled are kept — you decide row by row on the
-								next step.
-							</span>
-						</span>
-						<span className="inline-flex items-start gap-1.5">
-							<IconLock className="mt-px shrink-0" size={14} />
-							<span className="text-pretty">
-								The image is used for reading only and is not stored with the
-								session.
-							</span>
-						</span>
-					</div>
 				</div>
 			) : null}
 
@@ -205,11 +183,6 @@ export function ScanSeatsSheet({
 							/>
 						))}
 					</div>
-
-					<p className="text-pretty text-[11px] text-muted-foreground">
-						Unchecked seats are left as they are. Each registered seat is logged
-						as its own seating event at the current time.
-					</p>
 				</div>
 			) : null}
 
@@ -243,11 +216,7 @@ export function ScanSeatsSheet({
 							<span className="text-muted-foreground">Logged at</span>
 							<span className="font-mono">{sheet.committedAtText}</span>
 						</div>
-					</div>
-					<p className="text-pretty text-[11px] text-muted-foreground">
-						Temporary players can be merged into known players later from the
-						player list.
-					</p>
+					</div>{" "}
 				</div>
 			) : null}
 		</CrystSheet>

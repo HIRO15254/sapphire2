@@ -41,9 +41,6 @@ export function EndTournamentSheet({
 		>
 			<div className="flex flex-col gap-3">
 				<TournamentCompleteForm formId={FORM_ID} onSubmit={onSubmit} />
-				<p className="text-[11px] text-muted-foreground">
-					You can edit this from history later. This closes the record.
-				</p>
 			</div>
 		</CrystFormSheet>
 	);

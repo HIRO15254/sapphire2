@@ -55,7 +55,7 @@ export function SelectedPlayerPanel({
 				</button>
 			</div>
 
-			<div className="relative shrink-0">
+			<div className="relative shrink-0" data-tag-row>
 				<div className="flex min-h-8 flex-wrap items-center gap-[5px] rounded-md border border-input bg-card px-1.5 py-1">
 					<IconTag className="shrink-0 text-muted-foreground" size={13} />
 					{panel.selectedTags.map((tag) => (
@@ -72,6 +72,7 @@ export function SelectedPlayerPanel({
 								aria-label={`Remove tag ${tag.name}`}
 								className="inline-flex size-3.5 items-center justify-center rounded-full opacity-65"
 								onClick={() => panel.onRemoveTag(tag)}
+								onMouseDown={(e) => e.preventDefault()}
 								type="button"
 							>
 								<IconX size={11} />
@@ -81,6 +82,12 @@ export function SelectedPlayerPanel({
 					<input
 						aria-label="Add labels"
 						className="h-6 min-w-[72px] flex-1 border-none bg-transparent px-0.5 text-[length:var(--text-xs)] outline-none"
+						onBlur={(e) => {
+							const row = e.currentTarget.closest("[data-tag-row]");
+							if (!row?.contains(e.relatedTarget)) {
+								panel.onCloseTagList();
+							}
+						}}
 						onChange={(e) => panel.onTagQueryChange(e.target.value)}
 						onFocus={panel.onOpenTagList}
 						onKeyDown={(e) => {
@@ -108,6 +115,7 @@ export function SelectedPlayerPanel({
 									className="flex h-[30px] w-full items-center gap-[7px] rounded-sm px-2 text-left text-[length:var(--text-xs)]"
 									key={tag.id}
 									onClick={() => panel.onAddTag(tag)}
+									onMouseDown={(e) => e.preventDefault()}
 									type="button"
 								>
 									<span

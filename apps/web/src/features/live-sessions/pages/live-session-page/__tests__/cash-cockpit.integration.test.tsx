@@ -35,7 +35,7 @@ const START_ROW = /Session start/;
 const NIT_TAG_CHOICE = /Nit/;
 const CASH_CHART_SUMMARY = /Cash game result chart/;
 const KNOWN_PLAYER_ROW = /Takashi/;
-const NEW_PLAYER_ROW = /New temporary player/;
+const NEW_PLAYER_ROW = /Create as a new player/;
 const CHOOSE_PHOTO_BUTTON = /Choose from library/;
 
 interface CreatedEvent {
@@ -72,6 +72,7 @@ const backend = {
 	playerMemo: "<p>Loose caller</p>" as string | null,
 	playerName: "Young guy",
 	secondPlayerMemo: null as string | null,
+	temporaryAdds: [] as { seatPosition?: number }[],
 	secondPlayerName: "Red cap",
 	secondPlayerTagIds: [] as string[],
 	playerTagIds: ["tag-1"] as string[],
@@ -155,6 +156,12 @@ const fixtureRouter = t.router({
 					seatPosition: input.seatPosition ?? -1,
 				});
 				return { id: "seat-added" };
+			}),
+		addTemporary: t.procedure
+			.input(z.custom<{ seatPosition?: number }>())
+			.mutation(({ input }) => {
+				backend.temporaryAdds.push(input);
+				return { id: "seat-temp" };
 			}),
 		addNew: t.procedure
 			.input(z.custom<{ playerName: string; seatPosition?: number }>())
@@ -366,6 +373,7 @@ beforeEach(() => {
 	backend.playerTagIds = ["tag-1"];
 	backend.playerUpdates = [];
 	backend.secondPlayerMemo = null;
+	backend.temporaryAdds = [];
 	backend.secondPlayerName = "Red cap";
 	backend.secondPlayerTagIds = [];
 	backend.removedPlayerIds = [];
@@ -688,6 +696,31 @@ describe("CashCockpit", () => {
 		expect(screen.queryByText(LAST_UPDATE_LINE)).not.toBeInTheDocument();
 	});
 
+	it("closes the label choices when focus leaves the tag row", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Seat 3: Young guy" })
+		);
+		await user.click(
+			await screen.findByRole("textbox", { name: "Add labels" })
+		);
+		expect(
+			await screen.findByRole("button", { name: NIT_TAG_CHOICE })
+		).toBeInTheDocument();
+
+		await user.click(
+			screen.getByRole("textbox", { name: "Notes on this player" })
+		);
+
+		await waitFor(() => {
+			expect(
+				screen.queryByRole("button", { name: NIT_TAG_CHOICE })
+			).not.toBeInTheDocument();
+		});
+	});
+
 	it("does not carry one player's notes onto the next seat that is opened", async () => {
 		const user = userEvent.setup();
 		renderCockpit();
@@ -742,7 +775,7 @@ describe("CashCockpit", () => {
 		});
 	});
 
-	it("registers a typed name as a new player at that seat", async () => {
+	it("registers a typed name as a regular player, not a temporary one", async () => {
 		const user = userEvent.setup();
 		renderCockpit();
 
@@ -765,6 +798,7 @@ describe("CashCockpit", () => {
 				{ name: "Blue shirt", playerId: "player-new", seatPosition: 3 },
 			]);
 		});
+		expect(backend.temporaryAdds).toEqual([]);
 	});
 
 	it("opens the screenshot scan from the table", async () => {
