@@ -17,6 +17,7 @@ import { useKeyboardOpen } from "@/shared/hooks/use-keyboard-open";
 import { useNowTick } from "@/shared/hooks/use-now-tick";
 import { formatLocalHm, formatNumber } from "@/utils/format-number";
 import { formatProfitLoss } from "@/utils/format-profit-loss";
+import { withHeroSeat } from "../seat-fields";
 import { resolveRuleName, toSessionStatus } from "../session-fields";
 import type { ChipPurchaseOption } from "../sheets";
 import { useSeatSelection } from "../use-seat-selection";
@@ -46,7 +47,10 @@ export function useCashCockpit(sessionId: string) {
 	const status = toSessionStatus(session?.status ?? "");
 	const journal = useSessionJournal({
 		chipPurchaseOptions: NO_PURCHASE_OPTIONS,
-		occupiedSeatPositions: seatState.occupiedSeatPositions,
+		occupiedSeatPositions: withHeroSeat(
+			seatState.occupiedSeatPositions,
+			heroSeatPosition
+		),
 		onMoveSeat: seatState.onMoveSeat,
 		playerNames,
 		seatCount: seats.length,

@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { SessionEvent } from "@/features/live-sessions/hooks/use-session-events";
+import { withHeroSeat } from "@/features/live-sessions/pages/live-session-page/seat-fields";
 import type {
 	ChipPurchaseOption,
 	EventEditorSubmit,
@@ -294,6 +295,21 @@ describe("seat editing", () => {
 
 		act(() => {
 			result.current.form.setFieldValue("seatNumber", "3");
+		});
+		await submit(result.current.form);
+
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("refuses to move a player onto the hero seat", async () => {
+		const { onSubmit, result } = setup(
+			joinTarget({ playerId: "player-1", seatPosition: 7 }),
+			false,
+			withHeroSeat(new Set([7]), 4)
+		);
+
+		act(() => {
+			result.current.form.setFieldValue("seatNumber", "5");
 		});
 		await submit(result.current.form);
 

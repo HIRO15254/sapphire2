@@ -14,6 +14,7 @@ import { formatTimerDuration } from "@/features/live-sessions/utils/tournament-t
 import { useKeyboardOpen } from "@/shared/hooks/use-keyboard-open";
 import { useNowTick } from "@/shared/hooks/use-now-tick";
 import { formatLocalHm, formatNumber } from "@/utils/format-number";
+import { withHeroSeat } from "../seat-fields";
 import { resolveRuleName, toSessionStatus } from "../session-fields";
 import type { TournamentCompleteValues } from "../sheets";
 import type { TournamentStackValues } from "../tournament-quick-input";
@@ -49,7 +50,10 @@ export function useTournamentCockpit(sessionId: string) {
 	const status = toSessionStatus(session?.status ?? "");
 	const journal = useSessionJournal({
 		chipPurchaseOptions: stack.chipPurchaseTypes,
-		occupiedSeatPositions: seatState.occupiedSeatPositions,
+		occupiedSeatPositions: withHeroSeat(
+			seatState.occupiedSeatPositions,
+			heroSeatPosition
+		),
 		onMoveSeat: seatState.onMoveSeat,
 		playerNames,
 		seatCount: seats.length,
