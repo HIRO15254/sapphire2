@@ -72,6 +72,8 @@ const backend = {
 	playerMemo: "<p>Loose caller</p>" as string | null,
 	playerName: "Young guy",
 	secondPlayerMemo: null as string | null,
+	secondPlayerName: "Red cap",
+	secondPlayerTagIds: [] as string[],
 	playerTagIds: ["tag-1"] as string[],
 	playerUpdates: [] as PlayerUpdate[],
 	removedPlayerIds: [] as string[],
@@ -189,7 +191,7 @@ const fixtureRouter = t.router({
 						id: "player-3",
 						isTemporary: false,
 						memo: backend.secondPlayerMemo,
-						name: "Red cap",
+						name: backend.secondPlayerName,
 					},
 					seatPosition: 4,
 					stints: [],
@@ -226,8 +228,10 @@ const fixtureRouter = t.router({
 						id: "player-3",
 						isTemporary: false,
 						memo: backend.secondPlayerMemo,
-						name: "Red cap",
-						tags: [],
+						name: backend.secondPlayerName,
+						tags: ALL_TAGS.filter((tag) =>
+							backend.secondPlayerTagIds.includes(tag.id)
+						),
 					};
 				}
 				return {
@@ -247,6 +251,12 @@ const fixtureRouter = t.router({
 			.mutation(({ input }) => {
 				backend.playerUpdates.push(input);
 				if (input.id === "player-3") {
+					if (input.name !== undefined) {
+						backend.secondPlayerName = input.name;
+					}
+					if (input.tagIds !== undefined) {
+						backend.secondPlayerTagIds = input.tagIds;
+					}
 					if (Object.hasOwn(input, "memo")) {
 						backend.secondPlayerMemo = input.memo ?? null;
 					}
@@ -356,6 +366,8 @@ beforeEach(() => {
 	backend.playerTagIds = ["tag-1"];
 	backend.playerUpdates = [];
 	backend.secondPlayerMemo = null;
+	backend.secondPlayerName = "Red cap";
+	backend.secondPlayerTagIds = [];
 	backend.removedPlayerIds = [];
 	backend.status = "active";
 	backend.updatedEvents = [];
