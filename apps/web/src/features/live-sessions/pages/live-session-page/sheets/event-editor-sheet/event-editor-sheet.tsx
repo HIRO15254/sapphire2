@@ -1,5 +1,4 @@
 import { IconTrash } from "@tabler/icons-react";
-import type { SeatablePlayer } from "@/features/live-sessions/hooks/use-session-seats";
 import type { EventEditorKind } from "@/features/live-sessions/utils/timeline-view";
 import {
 	EVENT_TONE_TEXT,
@@ -49,7 +48,6 @@ interface EventEditorSheetProps {
 	onOpenChange: (open: boolean) => void;
 	onSubmit: (values: EventEditorSubmit) => void;
 	open: boolean;
-	seatablePlayers: readonly SeatablePlayer[];
 	seatCount: number;
 	target: EventEditorTarget;
 }
@@ -66,28 +64,19 @@ export function EventEditorSheet({
 	onSubmit,
 	open,
 	seatCount,
-	seatablePlayers,
 	target,
 }: EventEditorSheetProps) {
-	const {
-		form,
-		isHeroSeatEvent,
-		isSeatEditable,
-		onPlayerQueryChange,
-		playerCandidates,
-		playerQuery,
-		timeValidator,
-	} = useEventEditorSheet({
-		chipPurchaseOptions,
-		isTournament,
-		maxTime,
-		minTime,
-		occupiedSeatPositions,
-		onSubmit,
-		seatCount,
-		seatablePlayers,
-		target,
-	});
+	const { form, isHeroSeatEvent, isSeatEditable, timeValidator } =
+		useEventEditorSheet({
+			chipPurchaseOptions,
+			isTournament,
+			maxTime,
+			minTime,
+			occupiedSeatPositions,
+			onSubmit,
+			seatCount,
+			target,
+		});
 
 	const KindIcon = resolveEventIcon(target.kind, target.event?.eventType);
 	const tone = EVENT_TONE_TEXT[resolveKindTone(target.kind)];
@@ -135,9 +124,6 @@ export function EventEditorSheet({
 						form={form}
 						isHeroSeatEvent={isHeroSeatEvent}
 						isSeatEditable={isSeatEditable}
-						onPlayerQueryChange={onPlayerQueryChange}
-						playerCandidates={playerCandidates}
-						playerQuery={playerQuery}
 					/>
 				) : null}
 				{target.kind === "start" ? (

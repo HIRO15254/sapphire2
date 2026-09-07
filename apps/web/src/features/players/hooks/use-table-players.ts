@@ -327,12 +327,23 @@ export function useTablePlayers({
 		handleAddTemporary: (seatPosition?: number) => {
 			addTemporaryMutation.mutate({ seatPosition });
 		},
+		handleRemoveAllPlayers: async (playerIds: readonly string[]) => {
+			for (const playerId of playerIds) {
+				try {
+					await removeMutation.mutateAsync(playerId);
+				} catch {
+					return false;
+				}
+			}
+			return true;
+		},
 		handleRemovePlayer: (playerId: string) => {
 			removeMutation.mutate(playerId);
 		},
 		handleUpdateSeat: (playerId: string, seatPosition: number | null) => {
 			updateSeatMutation.mutate({ playerId, seatPosition });
 		},
+		isRemovePending: removeMutation.isPending,
 		isSeatUpdatePending: updateSeatMutation.isPending,
 	};
 }

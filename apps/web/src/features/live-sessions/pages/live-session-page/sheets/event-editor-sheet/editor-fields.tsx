@@ -5,8 +5,6 @@ import { Field } from "@/shared/components/ui/field";
 import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
 import { formatNumber, formatSignedNumber } from "@/utils/format-number";
 import { plToneClass } from "../../cryst-tone";
-import type { PlayerPickerCandidate } from "../../player-picker";
-import { PlayerPicker } from "../../player-picker";
 import type {
 	ChipPurchaseOption,
 	useEventEditorSheet,
@@ -328,16 +326,10 @@ export function SeatFields({
 	form,
 	isHeroSeatEvent,
 	isSeatEditable,
-	onPlayerQueryChange,
-	playerCandidates,
-	playerQuery,
 }: {
 	form: EditorForm;
 	isHeroSeatEvent: boolean;
 	isSeatEditable: boolean;
-	onPlayerQueryChange: (value: string) => void;
-	playerCandidates: readonly PlayerPickerCandidate[];
-	playerQuery: string;
 }) {
 	return (
 		<>
@@ -365,32 +357,11 @@ export function SeatFields({
 					</Field>
 				)}
 			</form.Field>
-			<form.Field name="playerId">
-				{(field) => (
-					<Field
-						className="col-span-4 min-w-0 gap-1.5"
-						error={field.state.meta.errors[0]?.message}
-						label="Player"
-						required={isSeatEditable}
-					>
-						{isSeatEditable ? (
-							<PlayerPicker
-								candidates={playerCandidates}
-								emptyLabel="No player matches"
-								onPick={(candidate) => field.handleChange(candidate.key)}
-								onQueryChange={onPlayerQueryChange}
-								pickedKey={field.state.value === "" ? null : field.state.value}
-								query={playerQuery}
-								searchLabel="Search players by name"
-							/>
-						) : (
-							<p className={`${INPUT_CLASS} flex items-center opacity-50`}>
-								{isHeroSeatEvent ? "You" : "Set from the table"}
-							</p>
-						)}
-					</Field>
-				)}
-			</form.Field>
+			<Field className="col-span-4 min-w-0 gap-1.5" label="Player">
+				<p className={`${INPUT_CLASS} flex items-center opacity-50`}>
+					{isHeroSeatEvent ? "You" : "Set from the table"}
+				</p>
+			</Field>
 		</>
 	);
 }

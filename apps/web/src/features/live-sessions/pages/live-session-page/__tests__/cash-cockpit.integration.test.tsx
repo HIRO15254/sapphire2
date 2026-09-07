@@ -859,6 +859,34 @@ describe("CashCockpit", () => {
 		expect(backend.temporaryAdds).toEqual([]);
 	});
 
+	it("clears every seated player once the reset is confirmed", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Clear every seat" })
+		);
+		await user.click(
+			await screen.findByRole("button", { name: "Clear seats" })
+		);
+
+		await waitFor(() => {
+			expect(backend.removedPlayerIds).toEqual(["player-1", "player-3"]);
+		});
+	});
+
+	it("keeps the seats when the reset is cancelled", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Clear every seat" })
+		);
+		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+		expect(backend.removedPlayerIds).toEqual([]);
+	});
+
 	it("opens the screenshot scan from the table", async () => {
 		const user = userEvent.setup();
 		renderCockpit();

@@ -8,6 +8,7 @@ import { SessionHeader } from "../session-header";
 import {
 	EndTournamentSheet,
 	EventEditorSheet,
+	ResetSeatsDialog,
 	ScanSeatsSheet,
 	SitInSheet,
 	TimelineSheet,
@@ -52,6 +53,7 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 				)}
 				{cockpit.isKeyboardOpen ? null : (
 					<TableView
+						canResetSeats={cockpit.seatedCount > 0}
 						center={
 							<TournamentTableStats
 								avgText={cockpit.avgText}
@@ -60,6 +62,7 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 								stackFormatted={cockpit.stackFormatted}
 							/>
 						}
+						onResetSeats={cockpit.onOpenResetSeats}
 						onScan={cockpit.onOpenScan}
 						onSelectSeat={cockpit.onSelectSeat}
 						seats={cockpit.seats}
@@ -122,6 +125,16 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 					seatPosition={cockpit.sitInSeatPosition}
 				/>
 			)}
+			<ResetSeatsDialog
+				isPending={cockpit.isResetSeatsPending}
+				onConfirm={() => {
+					cockpit.onResetSeats();
+					cockpit.onCloseSeatSheet();
+				}}
+				onOpenChange={cockpit.onCloseSeatSheet}
+				open={cockpit.seatSheet === "reset"}
+				seatedCount={cockpit.seatedCount}
+			/>
 			<ScanSeatsSheet
 				activePlayerIds={cockpit.excludePlayerIds}
 				onOpenChange={cockpit.onCloseSeatSheet}
@@ -155,7 +168,6 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 					onOpenChange={journal.onCloseEditor}
 					onSubmit={journal.onEditorSubmit}
 					open={journal.isEditorOpen}
-					seatablePlayers={journal.seatablePlayers}
 					seatCount={journal.seatCount}
 					target={journal.editorTarget}
 				/>

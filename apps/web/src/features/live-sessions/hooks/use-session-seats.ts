@@ -32,12 +32,6 @@ export interface SeatPlayer {
 	tags: PlayerTagWithColor[];
 }
 
-export interface SeatablePlayer {
-	id: string;
-	name: string;
-	seatPosition: number | null;
-}
-
 export type SeatOccupancy = "empty" | "hero" | "player";
 
 export interface SeatEntry {
@@ -58,9 +52,11 @@ export interface SessionSeatsState {
 	excludePlayerIds: string[];
 	heroAvailable: boolean;
 	heroSeatPosition: number | null;
+	isResetSeatsPending: boolean;
 	occupiedSeatPositions: Set<number>;
 	onMoveSeat: (playerId: string, seatPosition: number | null) => void;
 	onRemovePlayer: (playerId: string) => void;
+	onResetSeats: () => void;
 	onSeatExisting: (
 		seatPosition: number,
 		playerId: string,
@@ -74,7 +70,6 @@ export interface SessionSeatsState {
 	onSeatTemporary: (seatPosition: number) => void;
 	onUnseatHero: () => void;
 	playerNames: ReadonlyMap<string, string>;
-	seatablePlayers: SeatablePlayer[];
 	seats: SeatEntry[];
 	sessionParam: SessionParam;
 	tableSize: number;
@@ -196,27 +191,26 @@ export function useSessionSeats({
 
 	const activePlayerIds = new Set(activePlayers.map((p) => p.playerId));
 
-	const seatableById = new Map<string, string>(playerNames);
-	for (const p of tablePlayers.players) {
-		seatableById.set(p.player.id, p.player.name);
-	}
-	const seatedById = new Map<string, number | null>(
-		activePlayers.map((p) => [p.playerId, p.seatPosition])
-	);
-	const seatablePlayers: SeatablePlayer[] = [...seatableById].map(
-		([id, name]) => ({ id, name, seatPosition: seatedById.get(id) ?? null })
-	);
-
 	return {
 		excludePlayerIds: tablePlayers.excludePlayerIds,
 		heroAvailable: heroSeatPosition === null,
 		heroSeatPosition,
+		isResetSeatsPending:
+			tablePlayers.isRemovePending || heroSeatMutation.isPending,
 		occupiedSeatPositions,
 		onMoveSeat: (playerId, seatPosition) => {
 			tablePlayers.handleUpdateSeat(playerId, seatPosition);
 		},
 		onRemovePlayer: (playerId) => {
 			tablePlayers.handleRemovePlayer(playerId);
+		},
+		onResetSeats: async () => {
+			const removed = await tablePlayers.handleRemoveAllPlayers(
+				activePlayers.map((p) => p.playerId)
+			);
+			if (removed && heroSeatPosition !== null) {
+				heroSeatMutation.mutate(null);
+			}
 		},
 		onSeatExisting: (seatPosition, playerId, playerName) => {
 			if (activePlayerIds.has(playerId)) {
@@ -238,7 +232,6 @@ export function useSessionSeats({
 			heroSeatMutation.mutate(null);
 		},
 		playerNames,
-		seatablePlayers,
 		seats,
 		sessionParam,
 		tableSize: seatCount,

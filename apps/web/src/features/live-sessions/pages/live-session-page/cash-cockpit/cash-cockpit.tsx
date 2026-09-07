@@ -7,6 +7,7 @@ import { SessionHeader } from "../session-header";
 import {
 	EndSessionSheet,
 	EventEditorSheet,
+	ResetSeatsDialog,
 	ScanSeatsSheet,
 	SitInSheet,
 	TimelineSheet,
@@ -44,6 +45,7 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 			<div className="relative flex min-h-0 flex-1 flex-col">
 				{cockpit.isKeyboardOpen ? null : (
 					<TableView
+						canResetSeats={cockpit.seatedCount > 0}
 						center={
 							<CashTableStats
 								bbText={cockpit.bbText}
@@ -53,6 +55,7 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 								stackFormatted={cockpit.stackFormatted}
 							/>
 						}
+						onResetSeats={cockpit.onOpenResetSeats}
 						onScan={cockpit.onOpenScan}
 						onSelectSeat={cockpit.onSelectSeat}
 						seats={cockpit.seats}
@@ -113,6 +116,16 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 					seatPosition={cockpit.sitInSeatPosition}
 				/>
 			)}
+			<ResetSeatsDialog
+				isPending={cockpit.isResetSeatsPending}
+				onConfirm={() => {
+					cockpit.onResetSeats();
+					cockpit.onCloseSeatSheet();
+				}}
+				onOpenChange={cockpit.onCloseSeatSheet}
+				open={cockpit.seatSheet === "reset"}
+				seatedCount={cockpit.seatedCount}
+			/>
 			<ScanSeatsSheet
 				activePlayerIds={cockpit.excludePlayerIds}
 				onOpenChange={cockpit.onCloseSeatSheet}
@@ -150,7 +163,6 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 					onOpenChange={journal.onCloseEditor}
 					onSubmit={journal.onEditorSubmit}
 					open={journal.isEditorOpen}
-					seatablePlayers={journal.seatablePlayers}
 					seatCount={journal.seatCount}
 					target={journal.editorTarget}
 				/>

@@ -72,6 +72,7 @@ export function useSitInSheet({
 						kind: "temporary" as const,
 						meta: TEMPORARY_META,
 						name: TEMPORARY_NAME,
+						tags: [],
 					},
 				]
 			: []),
@@ -84,26 +85,30 @@ export function useSitInSheet({
 						kind: "new" as const,
 						meta: NEW_PLAYER_META,
 						name: trimmed,
+						tags: [],
 					},
 				]),
 		...matched.map((player) => ({
 			id: player.id,
 			key: player.id,
 			kind: "existing" as const,
-			meta:
-				player.tags.length === 0
-					? NO_LABELS_META
-					: player.tags.map((tag) => tag.name).join(" · "),
+			meta: player.tags.length === 0 ? NO_LABELS_META : null,
 			name: player.name,
+			tags: player.tags,
 		})),
 	];
 
 	const isHeroSeat = heroOverride ?? heroSeatPosition === seatPosition;
+	const heroMovesFrom =
+		heroSeatPosition === null || heroSeatPosition === seatPosition
+			? null
+			: `S${heroSeatPosition + 1}`;
 	const picked =
 		candidates.find((candidate) => candidate.key === pickedKey) ?? null;
 
 	return {
 		candidates,
+		heroMovesFrom,
 		isHeroSeat,
 		isLoading: playersQuery.isLoading,
 		onPick: (candidate: PlayerPickerCandidate) => setPickedKey(candidate.key),

@@ -1,11 +1,13 @@
-import { IconScan } from "@tabler/icons-react";
+import { IconPhotoScan, IconUsersMinus } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import type { SeatEntry } from "@/features/live-sessions/hooks/use-session-seats";
 import { seatLayout } from "@/features/live-sessions/utils/table-geometry";
 import { SeatMarker } from "./seat-marker";
 
 interface TableViewProps {
+	canResetSeats: boolean;
 	center: ReactNode;
+	onResetSeats: () => void;
 	onScan: () => void;
 	onSelectSeat: (seatPosition: number) => void;
 	seats: SeatEntry[];
@@ -13,7 +15,9 @@ interface TableViewProps {
 }
 
 export function TableView({
+	canResetSeats,
 	center,
+	onResetSeats,
 	onScan,
 	onSelectSeat,
 	seats,
@@ -50,8 +54,19 @@ export function TableView({
 				title="Register seats from a photo"
 				type="button"
 			>
-				<IconScan size={18} />
+				<IconPhotoScan size={18} />
 			</button>
+			{canResetSeats ? (
+				<button
+					aria-label="Clear every seat"
+					className="absolute top-3 right-3 z-[2] inline-flex size-[34px] items-center justify-center rounded-full border border-border bg-card text-muted-foreground"
+					onClick={onResetSeats}
+					title="Clear every seat"
+					type="button"
+				>
+					<IconUsersMinus size={18} />
+				</button>
+			) : null}
 		</div>
 	);
 }

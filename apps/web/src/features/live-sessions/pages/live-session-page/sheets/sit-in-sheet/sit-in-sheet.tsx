@@ -76,13 +76,20 @@ export function SitInSheet({
 					searchLabel="Search by name, or type a new one"
 				/>
 
-				<div className="flex min-h-[var(--m-control)] items-center justify-between gap-2 rounded-md border border-border px-3">
+				<div className="flex min-h-[var(--m-control)] items-center justify-between gap-2 rounded-md border border-border px-3 py-1.5">
 					<label
-						className="inline-flex items-center gap-1.5 text-[length:var(--m-text-footnote)]"
+						className="flex min-w-0 flex-col gap-0.5 text-[length:var(--m-text-footnote)]"
 						htmlFor={HERO_SWITCH_ID}
 					>
-						<IconUserStar className="text-primary" size={16} />
-						This is my seat
+						<span className="inline-flex items-center gap-1.5">
+							<IconUserStar className="text-primary" size={16} />
+							This is my seat
+						</span>
+						{sheet.heroMovesFrom === null ? null : (
+							<span className="text-[length:var(--m-text-caption)] text-warning">
+								Moves your seat from {sheet.heroMovesFrom}
+							</span>
+						)}
 					</label>
 					<Switch
 						checked={sheet.isHeroSeat}

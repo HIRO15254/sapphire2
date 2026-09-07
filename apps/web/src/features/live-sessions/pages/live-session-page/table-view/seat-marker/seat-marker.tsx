@@ -16,7 +16,7 @@ const WRAPPER_CLASS =
 const DOT_FALLBACK = "var(--muted-foreground)";
 
 const NAME_CLASS =
-	"-bottom-1 -translate-x-1/2 pointer-events-none absolute left-1/2 max-w-[56px] truncate rounded-full border border-border bg-card px-1 text-[9px] leading-[12px]";
+	"-bottom-2.5 -translate-x-1/2 pointer-events-none absolute left-1/2 max-w-[52px] truncate rounded-full border border-border bg-card px-1 text-[8px] leading-[11px]";
 
 export function SeatMarker({
 	isSelected,

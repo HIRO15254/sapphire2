@@ -12,11 +12,18 @@ import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
 
 export type PlayerPickerKind = "existing" | "new" | "temporary";
 
+export interface PlayerPickerTag {
+	color: string;
+	id: string;
+	name: string;
+}
+
 export interface PlayerPickerCandidate {
 	key: string;
 	kind: PlayerPickerKind;
-	meta: string;
+	meta: string | null;
 	name: string;
+	tags: readonly PlayerPickerTag[];
 }
 
 interface PlayerPickerProps {
@@ -34,6 +41,13 @@ const KIND_ICONS = {
 	existing: IconUser,
 	new: IconUserPlus,
 	temporary: IconUserQuestion,
+} as const;
+
+const KIND_AVATAR = {
+	existing: "bg-muted text-muted-foreground",
+	new: "bg-[color-mix(in_oklab,var(--primary)_15%,transparent)] text-primary",
+	temporary:
+		"bg-[color-mix(in_oklab,var(--warning)_18%,transparent)] text-warning",
 } as const;
 
 function CandidateRow({
@@ -56,21 +70,44 @@ function CandidateRow({
 			onClick={() => onPick(candidate)}
 			type="button"
 		>
-			<span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-muted">
-				<Icon
-					className={
-						candidate.kind === "new" ? "text-primary" : "text-muted-foreground"
-					}
-					size={16}
-				/>
+			<span
+				className={cn(
+					"inline-flex size-8 shrink-0 items-center justify-center rounded-full",
+					KIND_AVATAR[candidate.kind]
+				)}
+			>
+				<Icon size={16} />
 			</span>
 			<span className="flex min-w-0 flex-1 flex-col gap-[3px]">
-				<span className="truncate font-medium text-[length:var(--m-text-secondary)] leading-[1.3]">
+				<span
+					className={cn(
+						"truncate font-medium text-[length:var(--m-text-secondary)] leading-[1.3]",
+						candidate.kind === "temporary" && "text-warning"
+					)}
+				>
 					{candidate.name}
 				</span>
-				<span className="truncate text-[length:var(--m-text-caption)] text-muted-foreground leading-[1.35]">
-					{candidate.meta}
-				</span>
+				{candidate.tags.length === 0 ? null : (
+					<span className="flex min-w-0 flex-wrap items-center gap-[5px]">
+						{candidate.tags.map((tag) => (
+							<span
+								className="inline-flex items-center rounded-full px-2 py-[3px] font-semibold text-[11px]"
+								key={tag.id}
+								style={{
+									backgroundColor: `color-mix(in oklab, ${tag.color} 18%, transparent)`,
+									color: tag.color,
+								}}
+							>
+								{tag.name}
+							</span>
+						))}
+					</span>
+				)}
+				{candidate.meta === null ? null : (
+					<span className="truncate text-[length:var(--m-text-caption)] text-muted-foreground leading-[1.35]">
+						{candidate.meta}
+					</span>
+				)}
 			</span>
 			{isPicked ? (
 				<IconCheck className="shrink-0 text-primary" size={16} />

@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { SeatEntry } from "@/features/live-sessions/hooks/use-session-seats";
 import type { ScanSeatState } from "@/features/live-sessions/utils/seat-scan-review";
 
-export type SeatSheet = "scan" | "sitIn";
+export type SeatSheet = "reset" | "scan" | "sitIn";
 
 export function toScanSeatStates(seats: SeatEntry[]): ScanSeatState[] {
 	return seats.map((seat) => ({
@@ -31,6 +31,7 @@ export function useSeatSelection(seats: SeatEntry[]) {
 
 	return {
 		onCloseSeatSheet: () => setSeatSheet(null),
+		onOpenResetSeats: () => setSeatSheet("reset"),
 		onOpenScan: () => setSeatSheet("scan"),
 		onSelectSeat: (seatPosition: number) => {
 			const seat = seats.find((item) => item.seatPosition === seatPosition);

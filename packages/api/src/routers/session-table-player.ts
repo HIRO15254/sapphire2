@@ -7,13 +7,10 @@ import {
 	playerTag,
 	playerToPlayerTag,
 } from "@sapphire2/db/schema/player";
-import { ringGame } from "@sapphire2/db/schema/ring-game";
-import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
-import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
 import z from "zod";
@@ -105,79 +102,6 @@ async function validateSeatPositionForSession(
 	assertSeatPositionFitsTableSize(seatPosition, detail?.tableSize ?? null);
 }
 
-async function fetchSessionContext(
-	db: DbInstance,
-	sessionId: string,
-	sessionType: "cash_game" | "tournament",
-	userId: string
-): Promise<{ roomName: string | null; gameName: string | null }> {
-	let roomName: string | null = null;
-	let gameName: string | null = null;
-	let roomId: string | null = null;
-
-	const [session] = await db
-		.select({ roomId: gameSession.roomId })
-		.from(gameSession)
-		.where(and(eq(gameSession.id, sessionId), eq(gameSession.userId, userId)));
-
-	roomId = session?.roomId ?? null;
-
-	if (sessionType === "cash_game") {
-		const [cashDetail] = await db
-			.select({ ringGameId: sessionCashDetail.ringGameId })
-			.from(sessionCashDetail)
-			.where(eq(sessionCashDetail.sessionId, sessionId));
-		if (cashDetail?.ringGameId) {
-			const [gameRow] = await db
-				.select({
-					blind1: ringGame.blind1,
-					blind2: ringGame.blind2,
-					name: ringGame.name,
-				})
-				.from(ringGame)
-				.where(
-					and(
-						eq(ringGame.id, cashDetail.ringGameId),
-						eq(ringGame.userId, userId)
-					)
-				);
-			if (gameRow) {
-				const blinds =
-					gameRow.blind1 !== null && gameRow.blind2 !== null
-						? ` ${gameRow.blind1}/${gameRow.blind2}`
-						: "";
-				gameName = `${gameRow.name}${blinds}`;
-			}
-		}
-	} else {
-		const [tournDetail] = await db
-			.select({ tournamentId: sessionTournamentDetail.tournamentId })
-			.from(sessionTournamentDetail)
-			.where(eq(sessionTournamentDetail.sessionId, sessionId));
-		if (tournDetail?.tournamentId) {
-			const [tourneyRow] = await db
-				.select({ name: tournament.name })
-				.from(tournament)
-				.innerJoin(
-					room,
-					and(eq(room.id, tournament.roomId), eq(room.userId, userId))
-				)
-				.where(eq(tournament.id, tournDetail.tournamentId));
-			gameName = tourneyRow?.name ?? null;
-		}
-	}
-
-	if (roomId) {
-		const [roomRow] = await db
-			.select({ name: room.name })
-			.from(room)
-			.where(and(eq(room.id, roomId), eq(room.userId, userId)));
-		roomName = roomRow?.name ?? null;
-	}
-
-	return { roomName, gameName };
-}
-
 function fetchSeatEvents(db: DbInstance, sessionId: string) {
 	return db
 		.select({
@@ -248,6 +172,8 @@ export async function insertPlayerLeaveEvent(
 		updatedAt: now,
 	});
 }
+
+const TEMPORARY_PLAYER_NAME = "Anonymous";
 
 const sessionIdInput = z.object({
 	sessionId: z.string().optional(),
@@ -581,38 +507,13 @@ export const sessionTablePlayerRouter = router({
 				seatPosition
 			);
 
-			const { roomName, gameName } = await fetchSessionContext(
-				ctx.db,
-				sessionId,
-				sessionType,
-				userId
-			);
-
 			const now = new Date();
-			const hh = String(now.getUTCHours()).padStart(2, "0");
-			const mm = String(now.getUTCMinutes()).padStart(2, "0");
-			const dateStr = now.toISOString().slice(0, 10);
-			const memoLines = [`Joined: ${dateStr} ${hh}:${mm}`];
-			if (roomName) {
-				memoLines.push(`Room: ${roomName}`);
-			}
-			if (gameName) {
-				memoLines.push(`Game: ${gameName}`);
-			}
-			if (seatPosition !== undefined) {
-				memoLines.push(`Seat: ${seatPosition + 1}`);
-			}
-			const memo = `<p>${memoLines.join("<br>")}</p>`;
-
-			const finalName = "Anonymous";
-
 			const playerId = crypto.randomUUID();
 			const statements: BatchStatement[] = [
 				ctx.db.insert(player).values({
 					id: playerId,
 					isTemporary: true,
-					memo,
-					name: finalName,
+					name: TEMPORARY_PLAYER_NAME,
 					updatedAt: now,
 					userId,
 				}) as unknown as BatchStatement,

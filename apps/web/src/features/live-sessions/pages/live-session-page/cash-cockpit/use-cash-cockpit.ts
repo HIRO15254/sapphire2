@@ -53,7 +53,6 @@ export function useCashCockpit(sessionId: string) {
 		),
 		playerNames,
 		seatCount: seats.length,
-		seatablePlayers: seatState.seatablePlayers,
 		sessionId,
 		sessionType: "cash_game",
 		status,
@@ -126,7 +125,11 @@ export function useCashCockpit(sessionId: string) {
 		heroSeatPosition,
 		onCloseSeatSheet: seatSelection.onCloseSeatSheet,
 		onLeaveSeat: seatState.onRemovePlayer,
+		isResetSeatsPending: seatState.isResetSeatsPending,
+		onOpenResetSeats: seatSelection.onOpenResetSeats,
 		onOpenScan: seatSelection.onOpenScan,
+		onResetSeats: seatState.onResetSeats,
+		seatedCount: seats.filter((seat) => seat.occupancy !== "empty").length,
 		onSelectSeat: seatSelection.onSelectSeat,
 		onSitInExisting: (playerId: string, playerName: string) => {
 			sitIn((seatPosition) =>

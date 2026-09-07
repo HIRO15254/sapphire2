@@ -301,12 +301,16 @@ function computePausedAfter(events: readonly TimelineEventLike[]): boolean[] {
 
 export function describeTimeline(
 	events: readonly TimelineEventLike[],
-	context: TimelineContext
+	context: TimelineContext,
+	options: { includeSeatEvents?: boolean } = {}
 ): TimelineRow[] {
-	const pausedAfter = computePausedAfter(events);
+	const visible = options.includeSeatEvents
+		? events
+		: events.filter((event) => resolveEditorKind(event.eventType) !== "seat");
+	const pausedAfter = computePausedAfter(visible);
 	const rows: TimelineRow[] = [];
-	for (let i = events.length - 1; i >= 0; i--) {
-		const event = events[i];
+	for (let i = visible.length - 1; i >= 0; i--) {
+		const event = visible[i];
 		if (!event) {
 			continue;
 		}
@@ -314,7 +318,7 @@ export function describeTimeline(
 			...describeContent(event, context),
 			editorKind: resolveEditorKind(event.eventType),
 			eventType: event.eventType,
-			hasLineAbove: i < events.length - 1 && !pausedAfter[i],
+			hasLineAbove: i < visible.length - 1 && !pausedAfter[i],
 			hasLineBelow: i > 0 && !pausedAfter[i - 1],
 			id: event.id,
 			isDeletable: isDeletableEventType(event.eventType),
