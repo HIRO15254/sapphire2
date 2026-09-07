@@ -70,6 +70,16 @@ docs/
 - **Merge release PRs with a MERGE COMMIT, never squash.** Squashing collapses `dev`'s commit history into a single commit on `main`, so `main` and `dev` share no common ancestry. Each subsequent `release/vX.Y.Z → main` PR then re-diffs from before the previous release and every already-released file explodes into a phantom conflict (`mergeable_state: dirty`, thousands of files). A real merge commit keeps `dev`'s commits reachable from `main`, so the next release stays a clean fast-forward. If a release PR ever shows mass conflicts, the fix is `git merge -s ours origin/main` on the release branch (records `main` as a parent, keeps `dev`'s tree — verify `HEAD^{tree}` equals `origin/dev^{tree}` before pushing) — it reconciles history without changing content.
 - **No self check-in after opening a PR**: don't schedule any reminder/trigger (`send_later`, `create_trigger`, cron, or similar) to re-check a newly opened PR later — react to PR webhook/activity events (or ask the user) instead; scheduled self-reminders are unnecessary noise on routine PRs in this repo.
 
+## Issue Tracking (Linear)
+
+Work is tracked in Linear (team **Sapphire2**, issue prefix `SA2-`). Multi-phase work gets one project plus one issue per phase, so the issue — not the chat log — is where a phase's decisions survive a context reset.
+
+- **A phase starts by moving its issue to In Progress.** If the work has no issue, create one in the project first; don't start untracked multi-phase work.
+- **Opening a PR attaches its link to the issue and sets In Review; merging sets Done.** The GitHub integration only auto-links when the branch carries the issue id, so attach the link explicitly when it doesn't.
+- **Record every decision that changes the spec in the issue, not only in the PR.** An answered open question, a control dropped because the schema can't persist it, a user-directed change that overrides the design, a phase split, a deviation from the design file. PRs are per-diff and get merged away; the issue is what the next phase reads.
+- **Splitting a phase creates a new issue** in the same project, related to the original, and the moved scope leaves the original's description.
+- **A deferral names its destination issue.** "Handled in a later phase" is not a record — append the item to that phase's issue at the moment you defer it.
+
 ## PR Review Loop
 
 The automated reviewer ([`pre-merge-review.yml`](.github/workflows/pre-merge-review.yml)) runs **at most two automatic rounds** per PR — a full review once the PR is ready and CI is green, then one incremental round after the next code push — and only on request after that (add the `re-review` label). Docs-only pushes, red CI, and `release/*` PRs identical to `dev` never start a round, and a run that ends without posting a summary does not consume one — it posts a ⚠️ notice instead of leaving the tracking comment an empty checklist. Data and mechanics: [`docs/design/pr-review.md`](docs/design/pr-review.md).
