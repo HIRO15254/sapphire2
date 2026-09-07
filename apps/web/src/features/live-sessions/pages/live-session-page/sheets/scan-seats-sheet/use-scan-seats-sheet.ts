@@ -28,6 +28,7 @@ export interface CommittedSeat {
 }
 
 interface UseScanSeatsSheetOptions {
+	activePlayerIds: readonly string[];
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 	seats: readonly ScanSeatState[];
@@ -49,6 +50,7 @@ function seatLabelOf(seatPosition: number) {
 }
 
 export function useScanSeatsSheet({
+	activePlayerIds,
 	onOpenChange,
 	open,
 	seats,
@@ -94,7 +96,13 @@ export function useScanSeatsSheet({
 		name: names[row.seatPosition] ?? row.name,
 	}));
 	const pickable = resolved.filter((row) => row.isPickable);
-	const selected = pickable.filter((row) => row.isSelected);
+	const selected = pickable.filter(
+		(row) =>
+			row.isSelected &&
+			(row.kind === "hero" ||
+				row.matchedPlayerId !== null ||
+				row.name.trim() !== "")
+	);
 	const conflicts = resolved.filter((row) => row.kind === "conflict");
 	const isAllSelected =
 		pickable.length > 0 && selected.length === pickable.length;
@@ -144,8 +152,9 @@ export function useScanSeatsSheet({
 		setIsApplying(true);
 		const applied: CommittedSeat[] = [];
 		let failures = 0;
+		const activeIds = new Set(activePlayerIds);
 		for (const row of selected) {
-			const ok = await applyScanRow(row, sessionParam);
+			const ok = await applyScanRow(row, sessionParam, activeIds);
 			if (ok) {
 				applied.push({
 					name: row.name === "" ? "You" : row.name,

@@ -36,7 +36,11 @@ function editTarget(
 
 const PLAYER_NAMES = new Map([["player-1", "Young guy"]]);
 
-function setup(target: EventEditorTarget, isTournament = false) {
+function setup(
+	target: EventEditorTarget,
+	isTournament = false,
+	occupiedSeatPositions: ReadonlySet<number> = new Set()
+) {
 	const onSubmit = vi.fn<(values: EventEditorSubmit) => void>();
 	const view = renderHook(() =>
 		useEventEditorSheet({
@@ -44,6 +48,7 @@ function setup(target: EventEditorTarget, isTournament = false) {
 			isTournament,
 			maxTime: null,
 			minTime: null,
+			occupiedSeatPositions,
 			onSubmit,
 			playerNames: PLAYER_NAMES,
 			seatCount: 9,
@@ -278,6 +283,33 @@ describe("seat editing", () => {
 		expect(onSubmit).toHaveBeenCalledWith(
 			expect.objectContaining({ payload: null, seatMove: undefined })
 		);
+	});
+
+	it("refuses to move a player onto a seat another player already holds", async () => {
+		const { onSubmit, result } = setup(
+			joinTarget({ playerId: "player-1", seatPosition: 7 }),
+			false,
+			new Set([2, 7])
+		);
+
+		act(() => {
+			result.current.form.setFieldValue("seatNumber", "3");
+		});
+		await submit(result.current.form);
+
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("accepts a submit that leaves the player on its own seat", async () => {
+		const { onSubmit, result } = setup(
+			joinTarget({ playerId: "player-1", seatPosition: 7 }),
+			false,
+			new Set([7])
+		);
+
+		await submit(result.current.form);
+
+		expect(onSubmit).toHaveBeenCalled();
 	});
 
 	it("names the player the event belongs to", () => {

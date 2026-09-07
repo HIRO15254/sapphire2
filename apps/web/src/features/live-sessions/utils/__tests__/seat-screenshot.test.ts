@@ -1,7 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ScanRow } from "@/features/live-sessions/utils/seat-scan-review";
 import {
 	ACCEPTED_TYPES,
 	applyRowAction,
+	applyScanRow,
 	buildRow,
 	computeRowAction,
 	computeRowWarning,
@@ -9,6 +11,7 @@ import {
 	normalizeName,
 	type ReviewRow,
 } from "@/features/live-sessions/utils/seat-screenshot";
+import { trpcClient } from "@/utils/trpc";
 
 vi.mock("@/utils/trpc", () => ({
 	trpcClient: {
@@ -17,6 +20,8 @@ vi.mock("@/utils/trpc", () => ({
 		sessionTablePlayer: {
 			add: { mutate: vi.fn() },
 			addNew: { mutate: vi.fn() },
+			remove: { mutate: vi.fn() },
+			updateSeat: { mutate: vi.fn() },
 		},
 	},
 }));
@@ -406,5 +411,115 @@ describe("buildRow", () => {
 			seatPosition: 6,
 		});
 		expect(row.rowId).toBe("seat-7");
+	});
+});
+
+describe("applyScanRow", () => {
+	const SESSION = { liveCashGameSessionId: "s1" };
+	const seat = trpcClient.sessionTablePlayer;
+
+	function scanRow(overrides: Partial<ScanRow>): ScanRow {
+		return {
+			currentName: null,
+			currentPlayerId: null,
+			isPickable: true,
+			isSelectedByDefault: true,
+			kind: "known",
+			matchedPlayerId: "p-y",
+			name: "Y",
+			seatPosition: 6,
+			...overrides,
+		};
+	}
+
+	beforeEach(() => {
+		vi.mocked(seat.add.mutate).mockReset().mockResolvedValue(undefined);
+		vi.mocked(seat.addNew.mutate).mockReset().mockResolvedValue(undefined);
+		vi.mocked(seat.remove.mutate).mockReset().mockResolvedValue(undefined);
+		vi.mocked(seat.updateSeat.mutate).mockReset().mockResolvedValue(undefined);
+	});
+
+	it("moves a player who is already seated in this session instead of adding them", async () => {
+		const ok = await applyScanRow(scanRow({}), SESSION, new Set(["p-y"]));
+
+		expect(ok).toBe(true);
+		expect(seat.updateSeat.mutate).toHaveBeenCalledWith({
+			liveCashGameSessionId: "s1",
+			playerId: "p-y",
+			seatPosition: 6,
+		});
+		expect(seat.add.mutate).not.toHaveBeenCalled();
+	});
+
+	it("adds a known player who is not at the table yet", async () => {
+		const ok = await applyScanRow(scanRow({}), SESSION, new Set());
+
+		expect(ok).toBe(true);
+		expect(seat.add.mutate).toHaveBeenCalledWith({
+			liveCashGameSessionId: "s1",
+			playerId: "p-y",
+			seatPosition: 6,
+		});
+		expect(seat.updateSeat.mutate).not.toHaveBeenCalled();
+	});
+
+	it("seats the incoming player before removing the one being replaced", async () => {
+		const order: string[] = [];
+		vi.mocked(seat.updateSeat.mutate).mockImplementation(() => {
+			order.push("updateSeat");
+			return Promise.resolve(undefined);
+		});
+		vi.mocked(seat.remove.mutate).mockImplementation(() => {
+			order.push("remove");
+			return Promise.resolve(undefined);
+		});
+
+		const ok = await applyScanRow(
+			scanRow({ currentName: "X", currentPlayerId: "p-x", kind: "conflict" }),
+			SESSION,
+			new Set(["p-y"])
+		);
+
+		expect(ok).toBe(true);
+		expect(order).toEqual(["updateSeat", "remove"]);
+	});
+
+	it("keeps the replaced player at the table when seating the incoming one fails", async () => {
+		vi.mocked(seat.add.mutate).mockRejectedValue(new Error("already active"));
+
+		const ok = await applyScanRow(
+			scanRow({ currentName: "X", currentPlayerId: "p-x", kind: "conflict" }),
+			SESSION,
+			new Set()
+		);
+
+		expect(ok).toBe(false);
+		expect(seat.remove.mutate).not.toHaveBeenCalled();
+	});
+
+	it("does not remove the seat's current player when they are the incoming player", async () => {
+		const ok = await applyScanRow(
+			scanRow({
+				currentName: "Y old",
+				currentPlayerId: "p-y",
+				kind: "conflict",
+			}),
+			SESSION,
+			new Set(["p-y"])
+		);
+
+		expect(ok).toBe(true);
+		expect(seat.remove.mutate).not.toHaveBeenCalled();
+	});
+
+	it("skips an unmatched row whose name was cleared instead of sending an empty name", async () => {
+		const ok = await applyScanRow(
+			scanRow({ kind: "new", matchedPlayerId: null, name: "  " }),
+			SESSION,
+			new Set()
+		);
+
+		expect(ok).toBe(false);
+		expect(seat.addNew.mutate).not.toHaveBeenCalled();
 	});
 });

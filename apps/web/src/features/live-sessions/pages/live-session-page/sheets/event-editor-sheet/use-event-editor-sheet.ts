@@ -49,6 +49,7 @@ interface UseEventEditorSheetOptions {
 	isTournament: boolean;
 	maxTime: Date | null;
 	minTime: Date | null;
+	occupiedSeatPositions: ReadonlySet<number>;
 	onSubmit: (values: EventEditorSubmit) => void;
 	playerNames: ReadonlyMap<string, string>;
 	seatCount: number;
@@ -84,6 +85,11 @@ function toPayload(payload: unknown): Record<string, unknown> {
 function numberField(payload: Record<string, unknown>, key: string) {
 	const value = payload[key];
 	return typeof value === "number" ? String(value) : "";
+}
+
+function readSeatPosition(target: EventEditorTarget): number | null {
+	const value = toPayload(target.event?.payload).seatPosition;
+	return typeof value === "number" ? value : null;
 }
 
 function seatNumberField(payload: Record<string, unknown>) {
@@ -142,10 +148,29 @@ function buildDefaults(target: EventEditorTarget) {
 
 export type EventEditorValues = ReturnType<typeof buildDefaults>;
 
+function refineSeatIsFree(
+	target: EventEditorTarget,
+	occupiedSeatPositions: ReadonlySet<number>
+) {
+	const ownSeat = readSeatPosition(target);
+	return (values: { seatNumber: string }, ctx: z.RefinementCtx) => {
+		const seatPosition = Number(values.seatNumber) - 1;
+		if (seatPosition === ownSeat || !occupiedSeatPositions.has(seatPosition)) {
+			return;
+		}
+		ctx.addIssue({
+			code: "custom",
+			message: "Seat is taken",
+			path: ["seatNumber"],
+		});
+	};
+}
+
 function buildSchema(
 	target: EventEditorTarget,
 	isTournament: boolean,
-	seatCount: number
+	seatCount: number,
+	occupiedSeatPositions: ReadonlySet<number>
 ) {
 	switch (target.kind) {
 		case "stack":
@@ -178,13 +203,15 @@ function buildSchema(
 			});
 		case "seat":
 			return isSeatEditable(target)
-				? baseSchema.extend({
-						seatNumber: requiredNumericString({
-							integer: true,
-							max: seatCount,
-							min: 1,
-						}),
-					})
+				? baseSchema
+						.extend({
+							seatNumber: requiredNumericString({
+								integer: true,
+								max: seatCount,
+								min: 1,
+							}),
+						})
+						.superRefine(refineSeatIsFree(target, occupiedSeatPositions))
 				: baseSchema;
 		case "start":
 			return isTournament
@@ -316,8 +343,15 @@ function resolvePlayerLabel(
 }
 
 export function useEventEditorSheet(options: UseEventEditorSheetOptions) {
-	const { maxTime, minTime, onSubmit, playerNames, seatCount, target } =
-		options;
+	const {
+		maxTime,
+		minTime,
+		occupiedSeatPositions,
+		onSubmit,
+		playerNames,
+		seatCount,
+		target,
+	} = options;
 
 	const form = useForm({
 		defaultValues: buildDefaults(target),
@@ -329,7 +363,12 @@ export function useEventEditorSheet(options: UseEventEditorSheetOptions) {
 			});
 		},
 		validators: {
-			onSubmit: buildSchema(target, options.isTournament, seatCount),
+			onSubmit: buildSchema(
+				target,
+				options.isTournament,
+				seatCount,
+				occupiedSeatPositions
+			),
 		},
 	});
 

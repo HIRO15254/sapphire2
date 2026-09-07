@@ -129,38 +129,73 @@ export async function applyRow(
 	}
 }
 
-export async function applyScanRow(
+async function seatScannedPlayer(
 	row: ScanRow,
-	sessionParam: SessionParam
-): Promise<boolean> {
-	try {
-		if (row.kind === "hero") {
-			await updateHeroSeatViaClient(sessionParam, row.seatPosition);
-			return true;
-		}
-		if (row.kind === "conflict" && row.currentPlayerId !== null) {
-			await trpcClient.sessionTablePlayer.remove.mutate({
-				...sessionParam,
-				playerId: row.currentPlayerId,
-			});
-		}
-		if (row.matchedPlayerId === null) {
-			await trpcClient.sessionTablePlayer.addNew.mutate({
-				...sessionParam,
-				playerName: row.name.trim(),
-				seatPosition: row.seatPosition,
-			});
-			return true;
-		}
-		await trpcClient.sessionTablePlayer.add.mutate({
+	sessionParam: SessionParam,
+	activePlayerIds: ReadonlySet<string>
+): Promise<void> {
+	const playerId = row.matchedPlayerId;
+	if (playerId === null) {
+		await trpcClient.sessionTablePlayer.addNew.mutate({
 			...sessionParam,
-			playerId: row.matchedPlayerId,
+			playerName: row.name.trim(),
 			seatPosition: row.seatPosition,
 		});
-		return true;
+		return;
+	}
+	if (activePlayerIds.has(playerId)) {
+		await trpcClient.sessionTablePlayer.updateSeat.mutate({
+			...sessionParam,
+			playerId,
+			seatPosition: row.seatPosition,
+		});
+		return;
+	}
+	await trpcClient.sessionTablePlayer.add.mutate({
+		...sessionParam,
+		playerId,
+		seatPosition: row.seatPosition,
+	});
+}
+
+export async function applyScanRow(
+	row: ScanRow,
+	sessionParam: SessionParam,
+	activePlayerIds: ReadonlySet<string>
+): Promise<boolean> {
+	if (row.kind === "hero") {
+		try {
+			await updateHeroSeatViaClient(sessionParam, row.seatPosition);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+	if (row.matchedPlayerId === null && row.name.trim() === "") {
+		return false;
+	}
+	try {
+		await seatScannedPlayer(row, sessionParam, activePlayerIds);
 	} catch {
 		return false;
 	}
+	const displaced = row.currentPlayerId;
+	if (
+		row.kind !== "conflict" ||
+		displaced === null ||
+		displaced === row.matchedPlayerId
+	) {
+		return true;
+	}
+	try {
+		await trpcClient.sessionTablePlayer.remove.mutate({
+			...sessionParam,
+			playerId: displaced,
+		});
+	} catch {
+		return false;
+	}
+	return true;
 }
 
 export function computeRowWarning({

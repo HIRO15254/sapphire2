@@ -49,6 +49,7 @@ export function useTournamentCockpit(sessionId: string) {
 	const status = toSessionStatus(session?.status ?? "");
 	const journal = useSessionJournal({
 		chipPurchaseOptions: stack.chipPurchaseTypes,
+		occupiedSeatPositions: seatState.occupiedSeatPositions,
 		onMoveSeat: seatState.onMoveSeat,
 		playerNames,
 		seatCount: seats.length,

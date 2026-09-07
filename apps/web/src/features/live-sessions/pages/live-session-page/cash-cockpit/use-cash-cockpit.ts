@@ -46,6 +46,7 @@ export function useCashCockpit(sessionId: string) {
 	const status = toSessionStatus(session?.status ?? "");
 	const journal = useSessionJournal({
 		chipPurchaseOptions: NO_PURCHASE_OPTIONS,
+		occupiedSeatPositions: seatState.occupiedSeatPositions,
 		onMoveSeat: seatState.onMoveSeat,
 		playerNames,
 		seatCount: seats.length,

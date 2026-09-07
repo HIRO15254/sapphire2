@@ -54,6 +54,7 @@ interface EventEditorSheetProps {
 	isTournament: boolean;
 	maxTime: Date | null;
 	minTime: Date | null;
+	occupiedSeatPositions: ReadonlySet<number>;
 	onDelete: (() => void) | null;
 	onOpenChange: (open: boolean) => void;
 	onSubmit: (values: EventEditorSubmit) => void;
@@ -69,6 +70,7 @@ export function EventEditorSheet({
 	isTournament,
 	maxTime,
 	minTime,
+	occupiedSeatPositions,
 	onDelete,
 	onOpenChange,
 	onSubmit,
@@ -83,6 +85,7 @@ export function EventEditorSheet({
 			isTournament,
 			maxTime,
 			minTime,
+			occupiedSeatPositions,
 			onSubmit,
 			playerNames,
 			seatCount,

@@ -123,6 +123,7 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 				/>
 			)}
 			<ScanSeatsSheet
+				activePlayerIds={cockpit.excludePlayerIds}
 				onOpenChange={cockpit.onCloseSeatSheet}
 				open={cockpit.seatSheet === "scan"}
 				seats={cockpit.scanSeats}
@@ -149,6 +150,7 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 					isTournament
 					maxTime={journal.maxTime}
 					minTime={journal.minTime}
+					occupiedSeatPositions={journal.occupiedSeatPositions}
 					onDelete={journal.onDelete}
 					onOpenChange={journal.onCloseEditor}
 					onSubmit={journal.onEditorSubmit}

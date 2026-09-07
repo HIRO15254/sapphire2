@@ -114,6 +114,7 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 				/>
 			)}
 			<ScanSeatsSheet
+				activePlayerIds={cockpit.excludePlayerIds}
 				onOpenChange={cockpit.onCloseSeatSheet}
 				open={cockpit.seatSheet === "scan"}
 				seats={cockpit.scanSeats}
@@ -144,6 +145,7 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 					isTournament={false}
 					maxTime={journal.maxTime}
 					minTime={journal.minTime}
+					occupiedSeatPositions={journal.occupiedSeatPositions}
 					onDelete={journal.onDelete}
 					onOpenChange={journal.onCloseEditor}
 					onSubmit={journal.onEditorSubmit}

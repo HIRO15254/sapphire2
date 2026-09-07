@@ -16,6 +16,7 @@ import type { ScanStep } from "./use-scan-seats-sheet";
 import { useScanSeatsSheet } from "./use-scan-seats-sheet";
 
 interface ScanSeatsSheetProps {
+	activePlayerIds: readonly string[];
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 	seats: readonly ScanSeatState[];
@@ -35,12 +36,14 @@ const PRIMARY_BUTTON =
 	"min-h-[var(--m-control)] rounded-md bg-primary font-semibold text-[length:var(--m-text-secondary)] text-primary-foreground disabled:opacity-50";
 
 export function ScanSeatsSheet({
+	activePlayerIds,
 	onOpenChange,
 	open,
 	seats,
 	sessionParam,
 }: ScanSeatsSheetProps) {
 	const sheet = useScanSeatsSheet({
+		activePlayerIds,
 		onOpenChange,
 		open,
 		seats,

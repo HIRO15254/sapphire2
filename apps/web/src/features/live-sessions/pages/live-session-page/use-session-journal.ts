@@ -36,6 +36,7 @@ const LOGGABLE_EVENT_TYPES: Partial<
 
 interface UseSessionJournalOptions {
 	chipPurchaseOptions: ChipPurchaseOption[];
+	occupiedSeatPositions: ReadonlySet<number>;
 	onMoveSeat: (playerId: string, seatPosition: number) => void;
 	playerNames: ReadonlyMap<string, string>;
 	seatCount: number;
@@ -46,6 +47,7 @@ interface UseSessionJournalOptions {
 
 export function useSessionJournal({
 	chipPurchaseOptions,
+	occupiedSeatPositions,
 	onMoveSeat,
 	playerNames,
 	seatCount,
@@ -184,6 +186,7 @@ export function useSessionJournal({
 		onDelete,
 		onEditorSubmit,
 		onOpenNewEvent,
+		occupiedSeatPositions,
 		onOpenTimeline: () => setIsTimelineOpen(true),
 		onSelectEvent,
 		playerNames,
