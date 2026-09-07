@@ -2,6 +2,7 @@ import { IconCheck, IconRefresh, IconStackPush } from "@tabler/icons-react";
 import { computeAllInEv } from "@/features/live-sessions/utils/live-session-summary";
 import { cn } from "@/lib/utils";
 import { Field } from "@/shared/components/ui/field";
+import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
 import { formatNumber, formatSignedNumber } from "@/utils/format-number";
 import { plToneClass } from "../../cryst-tone";
 import type {
@@ -60,6 +61,7 @@ export function NumericField({
 					<input
 						className={NUMERIC_CLASS}
 						id={fieldId(field.name)}
+						{...NO_INPUT_SUGGESTIONS}
 						inputMode="numeric"
 						name={field.name}
 						onBlur={field.handleBlur}
@@ -346,6 +348,7 @@ export function SeatFields({
 							className={NUMERIC_CLASS}
 							disabled={!isSeatEditable}
 							id={fieldId(field.name)}
+							{...NO_INPUT_SUGGESTIONS}
 							inputMode="numeric"
 							name={field.name}
 							onBlur={field.handleBlur}

@@ -12,6 +12,7 @@ import {
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/shared/components/ui/switch";
+import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
 import { CrystFormSheet } from "../cryst-form-sheet";
 import type { SitInCandidate } from "./use-sit-in-sheet";
 import { useSitInSheet } from "./use-sit-in-sheet";
@@ -145,6 +146,7 @@ export function SitInSheet({
 						<IconSearch className="shrink-0 text-muted-foreground" size={16} />
 						<input
 							aria-label="Search by name, or type a new one"
+							{...NO_INPUT_SUGGESTIONS}
 							className="min-w-0 flex-1 border-none bg-transparent text-[length:var(--m-text-secondary)] outline-none"
 							onChange={(e) => sheet.onQueryChange(e.target.value)}
 							type="text"

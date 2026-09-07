@@ -14,6 +14,7 @@ import type {
 	ScanRowKind,
 } from "@/features/live-sessions/utils/seat-scan-review";
 import { cn } from "@/lib/utils";
+import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
 
 interface ScanRowMeta {
 	chip: string;
@@ -110,6 +111,7 @@ export function ScanReviewRow({
 				</span>
 				<input
 					aria-label={`Player name at ${seatLabel}`}
+					{...NO_INPUT_SUGGESTIONS}
 					className="h-[30px] min-w-0 rounded-sm border border-transparent bg-transparent px-1.5 font-medium text-[length:var(--m-text-footnote)] outline-none focus-visible:border-input focus-visible:bg-card"
 					disabled={!row.isPickable}
 					onChange={(e) => onNameChange(row.seatPosition, e.target.value)}
