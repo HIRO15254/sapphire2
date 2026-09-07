@@ -733,7 +733,7 @@ describe("CashCockpit", () => {
 		await user.click(
 			await screen.findByRole("button", { name: KNOWN_PLAYER_ROW })
 		);
-		await user.click(screen.getByRole("button", { name: "Sit in" }));
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
 			expect(backend.addedSeats).toEqual([
@@ -758,7 +758,7 @@ describe("CashCockpit", () => {
 		await user.click(
 			await screen.findByRole("button", { name: NEW_PLAYER_ROW })
 		);
-		await user.click(screen.getByRole("button", { name: "Sit in" }));
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
 			expect(backend.addedSeats).toEqual([

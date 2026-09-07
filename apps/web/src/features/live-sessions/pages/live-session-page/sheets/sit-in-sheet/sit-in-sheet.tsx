@@ -11,10 +11,11 @@ import {
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/shared/components/ui/switch";
-import { CrystSheet } from "../cryst-sheet";
+import { CrystFormSheet } from "../cryst-form-sheet";
 import type { SitInCandidate } from "./use-sit-in-sheet";
 import { useSitInSheet } from "./use-sit-in-sheet";
 
+const FORM_ID = "cryst-sit-in-form";
 const HERO_SWITCH_ID = "cryst-sit-in-hero-seat";
 
 interface SitInSheetProps {
@@ -96,31 +97,25 @@ export function SitInSheet({
 	const canSubmit = sheet.isHeroSeat || sheet.pickedKey !== null;
 
 	return (
-		<CrystSheet
-			footer={
-				<div className="grid grid-cols-2 gap-2">
-					<button
-						className="min-h-[var(--m-control)] rounded-md border border-border bg-transparent font-semibold text-[length:var(--m-text-secondary)]"
-						onClick={() => onOpenChange(false)}
-						type="button"
-					>
-						Cancel
-					</button>
-					<button
-						className="min-h-[var(--m-control)] rounded-md bg-primary font-semibold text-[length:var(--m-text-secondary)] text-primary-foreground disabled:opacity-50"
-						disabled={!canSubmit}
-						onClick={sheet.onSubmit}
-						type="button"
-					>
-						Sit in
-					</button>
-				</div>
-			}
+		<CrystFormSheet
+			className="h-auto max-h-[calc(100svh-2rem)]"
+			formId={FORM_ID}
+			isSaveDisabled={!canSubmit}
 			onOpenChange={onOpenChange}
 			open={open}
 			title={`Sit in at ${sheet.seatLabel}`}
 		>
-			<div className="flex flex-col gap-2.5">
+			<form
+				className="flex flex-col gap-2.5"
+				id={FORM_ID}
+				onSubmit={(e) => {
+					e.preventDefault();
+					e.stopPropagation();
+					if (canSubmit) {
+						sheet.onSubmit();
+					}
+				}}
+			>
 				<button
 					className="flex min-h-[var(--m-control)] w-full items-center gap-2.5 rounded-md border border-border bg-transparent px-3 text-left font-semibold text-[length:var(--m-text-footnote)]"
 					onClick={onOpenScan}
@@ -198,7 +193,7 @@ export function SitInSheet({
 					Pick a known player, or type a name to register a temporary player
 					(can be merged later).
 				</p>
-			</div>
-		</CrystSheet>
+			</form>
+		</CrystFormSheet>
 	);
 }
