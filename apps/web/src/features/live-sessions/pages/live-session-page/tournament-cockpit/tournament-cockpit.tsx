@@ -53,7 +53,7 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 				)}
 				{cockpit.isKeyboardOpen ? null : (
 					<TableView
-						canResetSeats={cockpit.seatedCount > 0}
+						canResetSeats={cockpit.canResetSeats}
 						center={
 							<TournamentTableStats
 								avgText={cockpit.avgText}
@@ -126,6 +126,7 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 				/>
 			)}
 			<ResetSeatsDialog
+				isHeroSeated={cockpit.isHeroSeated}
 				isPending={cockpit.isResetSeatsPending}
 				onConfirm={() => {
 					cockpit.onResetSeats();
@@ -133,7 +134,7 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 				}}
 				onOpenChange={cockpit.onCloseSeatSheet}
 				open={cockpit.seatSheet === "reset"}
-				seatedCount={cockpit.seatedCount}
+				playerCount={cockpit.resetPlayerCount}
 			/>
 			<ScanSeatsSheet
 				activePlayerIds={cockpit.excludePlayerIds}

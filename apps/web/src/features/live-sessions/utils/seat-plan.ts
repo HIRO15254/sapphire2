@@ -3,18 +3,29 @@ import type { ScanRow } from "./seat-scan-review";
 
 export type SeatPlanHeroStep =
 	| { kind: "clearHero" }
-	| { kind: "moveHero"; seatPosition: number };
+	| { displaces: string | null; kind: "moveHero"; seatPosition: number };
 
 export type SeatPlanTableStep =
 	| { kind: "leave"; playerId: string }
-	| { kind: "moveExisting"; playerId: string; seatPosition: number }
 	| {
+			displaces: string | null;
+			kind: "moveExisting";
+			playerId: string;
+			seatPosition: number;
+	  }
+	| {
+			displaces: string | null;
 			kind: "seatExisting";
 			name: string;
 			playerId: string;
 			seatPosition: number;
 	  }
-	| { kind: "seatNew"; name: string; seatPosition: number };
+	| {
+			displaces: string | null;
+			kind: "seatNew";
+			name: string;
+			seatPosition: number;
+	  };
 
 export type SeatPlanStep = SeatPlanHeroStep | SeatPlanTableStep;
 
@@ -49,19 +60,29 @@ export interface SeatPlanItem<TStint> {
 	stints: TStint[];
 }
 
-function seatStep(row: ScanRow, active: Set<string>): SeatPlanStep | null {
+function seatStep(
+	row: ScanRow,
+	active: Set<string>,
+	displaces: string | null
+): SeatPlanStep | null {
 	const name = row.name.trim();
 	const playerId = row.matchedPlayerId;
 	if (playerId === null) {
 		return name === ""
 			? null
-			: { kind: "seatNew", name, seatPosition: row.seatPosition };
+			: { displaces, kind: "seatNew", name, seatPosition: row.seatPosition };
 	}
 	if (active.has(playerId)) {
-		return { kind: "moveExisting", playerId, seatPosition: row.seatPosition };
+		return {
+			displaces,
+			kind: "moveExisting",
+			playerId,
+			seatPosition: row.seatPosition,
+		};
 	}
 	active.add(playerId);
 	return {
+		displaces,
 		kind: "seatExisting",
 		name,
 		playerId,
@@ -69,16 +90,25 @@ function seatStep(row: ScanRow, active: Set<string>): SeatPlanStep | null {
 	};
 }
 
+function displacedPlayerId(
+	playerId: string | null,
+	incoming: ReadonlySet<string>,
+	active: Set<string>
+): string | null {
+	if (playerId === null || incoming.has(playerId)) {
+		return null;
+	}
+	active.delete(playerId);
+	return playerId;
+}
+
 function leaveStep(
 	playerId: string | null,
 	incoming: ReadonlySet<string>,
 	active: Set<string>
 ): SeatPlanStep | null {
-	if (playerId === null || incoming.has(playerId)) {
-		return null;
-	}
-	active.delete(playerId);
-	return { kind: "leave", playerId };
+	const displaced = displacedPlayerId(playerId, incoming, active);
+	return displaced === null ? null : { kind: "leave", playerId: displaced };
 }
 
 export function planSeatClear(
@@ -114,27 +144,36 @@ export function planScanCommit(
 
 	for (const row of rows) {
 		if (row.kind === "hero") {
-			steps.push({ kind: "moveHero", seatPosition: row.seatPosition });
-			const displaced = leaveStep(row.currentPlayerId, incoming, active);
-			if (displaced) {
-				steps.push(displaced);
-			}
+			steps.push({
+				displaces: displacedPlayerId(row.currentPlayerId, incoming, active),
+				kind: "moveHero",
+				seatPosition: row.seatPosition,
+			});
 			continue;
 		}
-		const isVacate = row.kind === "vacate";
-		const seat = isVacate ? null : seatStep(row, active);
-		if (!(isVacate || seat)) {
+		if (row.kind === "vacate") {
+			const leave = leaveStep(row.currentPlayerId, incoming, active);
+			steps.push(
+				...[leave, heroClearStep(row, isHeroMoving)].filter(
+					(step): step is SeatPlanStep => step !== null
+				)
+			);
+			continue;
+		}
+		const seat = seatStep(
+			row,
+			active,
+			row.kind === "conflict"
+				? displacedPlayerId(row.currentPlayerId, incoming, active)
+				: null
+		);
+		if (seat === null) {
 			continue;
 		}
 		steps.push(
-			...[
-				seat,
-				isVacate ? leaveStep(row.currentPlayerId, incoming, active) : null,
-				heroClearStep(row, isHeroMoving),
-				row.kind === "conflict"
-					? leaveStep(row.currentPlayerId, incoming, active)
-					: null,
-			].filter((step): step is SeatPlanStep => step !== null)
+			...[seat, heroClearStep(row, isHeroMoving)].filter(
+				(step): step is SeatPlanStep => step !== null
+			)
 		);
 	}
 
@@ -158,6 +197,17 @@ function seatedItem<TStint>(
 	};
 }
 
+function withPlayerLeft<TStint>(
+	items: readonly SeatPlanItem<TStint>[],
+	playerId: string
+): SeatPlanItem<TStint>[] {
+	return items.map((item) =>
+		item.isActive && item.player.id === playerId
+			? { ...item, isActive: false, seatPosition: null }
+			: item
+	);
+}
+
 export function projectSeatPlan<TStint>(
 	items: readonly SeatPlanItem<TStint>[],
 	steps: readonly SeatPlanTableStep[],
@@ -166,11 +216,7 @@ export function projectSeatPlan<TStint>(
 	let next = [...items];
 	for (const step of steps) {
 		if (step.kind === "leave") {
-			next = next.map((item) =>
-				item.isActive && item.player.id === step.playerId
-					? { ...item, isActive: false, seatPosition: null }
-					: item
-			);
+			next = withPlayerLeft(next, step.playerId);
 			continue;
 		}
 		if (step.kind === "moveExisting") {
@@ -179,16 +225,12 @@ export function projectSeatPlan<TStint>(
 					? { ...item, seatPosition: step.seatPosition }
 					: item
 			);
-			continue;
-		}
-		if (step.kind === "seatExisting") {
+		} else if (step.kind === "seatExisting") {
 			next = [
 				...next,
 				seatedItem(step.playerId, step.name, step.seatPosition, joinedAt),
 			];
-			continue;
-		}
-		if (step.kind === "seatNew") {
+		} else {
 			next = [
 				...next,
 				seatedItem(
@@ -198,6 +240,9 @@ export function projectSeatPlan<TStint>(
 					joinedAt
 				),
 			];
+		}
+		if (step.displaces !== null) {
+			next = withPlayerLeft(next, step.displaces);
 		}
 	}
 	return next;

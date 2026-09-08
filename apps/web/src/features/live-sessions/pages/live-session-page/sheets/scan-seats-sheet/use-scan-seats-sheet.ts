@@ -10,6 +10,7 @@ import type {
 import {
 	buildScanRows,
 	countDetectedSeats,
+	needsSeatResolution,
 } from "@/features/live-sessions/utils/seat-scan-review";
 import type { AcceptedMediaType } from "@/features/live-sessions/utils/seat-screenshot";
 import {
@@ -99,9 +100,7 @@ export function useScanSeatsSheet({
 				row.matchedPlayerId !== null ||
 				row.name.trim() !== "")
 	);
-	const conflicts = resolved.filter(
-		(row) => row.kind === "conflict" || row.kind === "vacate"
-	);
+	const conflicts = resolved.filter(needsSeatResolution);
 	const isAllSelected =
 		pickable.length > 0 && selected.length === pickable.length;
 

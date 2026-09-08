@@ -866,6 +866,11 @@ describe("CashCockpit", () => {
 		await user.click(
 			await screen.findByRole("button", { name: "Clear every seat" })
 		);
+		expect(
+			await screen.findByText(
+				"2 players leave the table. Their stints stay in the session history."
+			)
+		).toBeInTheDocument();
 		await user.click(
 			await screen.findByRole("button", { name: "Clear seats" })
 		);

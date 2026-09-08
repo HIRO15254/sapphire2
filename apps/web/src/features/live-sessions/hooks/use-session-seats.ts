@@ -59,6 +59,7 @@ interface UseSessionSeatsOptions {
 }
 
 export interface SessionSeatsState {
+	activePlayerCount: number;
 	excludePlayerIds: string[];
 	heroAvailable: boolean;
 	heroSeatPosition: number | null;
@@ -218,12 +219,19 @@ export function useSessionSeats({
 				);
 			} catch {
 				failures += 1;
+				continue;
+			}
+			if (step.kind === "moveHero" && step.displaces !== null) {
+				failures += await tablePlayers.handleApplySeatPlan([
+					{ kind: "leave", playerId: step.displaces },
+				]);
 			}
 		}
 		return failures;
 	};
 
 	return {
+		activePlayerCount: activePlayers.length,
 		excludePlayerIds: tablePlayers.excludePlayerIds,
 		heroAvailable: heroSeatPosition === null,
 		heroSeatPosition,

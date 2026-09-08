@@ -10,9 +10,10 @@ import {
 	IconUserPlus,
 	IconUserStar,
 } from "@tabler/icons-react";
-import type {
-	ScanRow,
-	ScanRowKind,
+import {
+	needsSeatResolution,
+	type ScanRow,
+	type ScanRowKind,
 } from "@/features/live-sessions/utils/seat-scan-review";
 import { cn } from "@/lib/utils";
 import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
@@ -140,7 +141,7 @@ export function ScanReviewRow({
 					{meta.status}
 				</span>
 			</div>
-			{row.currentName !== null && row.isPickable ? (
+			{needsSeatResolution(row) ? (
 				<div className="flex items-center gap-1.5 pt-0.5 pb-[5px] pl-[62px]">
 					<span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
 						Seated now{" "}

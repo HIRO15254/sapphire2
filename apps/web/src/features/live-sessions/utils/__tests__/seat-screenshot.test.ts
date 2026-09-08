@@ -440,10 +440,26 @@ describe("runSeatPlan", () => {
 
 		const failures = await runSeatPlan(
 			[
-				{ kind: "seatExisting", name: "Y", playerId: "p-y", seatPosition: 6 },
+				{
+					displaces: null,
+					kind: "seatExisting",
+					name: "Y",
+					playerId: "p-y",
+					seatPosition: 6,
+				},
 				{ kind: "leave", playerId: "p-x" },
-				{ kind: "moveExisting", playerId: "p-z", seatPosition: 1 },
-				{ kind: "seatNew", name: "Blue shirt", seatPosition: 3 },
+				{
+					displaces: null,
+					kind: "moveExisting",
+					playerId: "p-z",
+					seatPosition: 1,
+				},
+				{
+					displaces: null,
+					kind: "seatNew",
+					name: "Blue shirt",
+					seatPosition: 3,
+				},
 			],
 			SESSION
 		);
@@ -467,7 +483,13 @@ describe("runSeatPlan", () => {
 
 		const failures = await runSeatPlan(
 			[
-				{ kind: "seatExisting", name: "Y", playerId: "p-y", seatPosition: 6 },
+				{
+					displaces: null,
+					kind: "seatExisting",
+					name: "Y",
+					playerId: "p-y",
+					seatPosition: 6,
+				},
 				{ kind: "leave", playerId: "p-x" },
 			],
 			SESSION
@@ -478,5 +500,57 @@ describe("runSeatPlan", () => {
 			liveCashGameSessionId: "s1",
 			playerId: "p-x",
 		});
+	});
+
+	it("removes the replaced player only after the incoming one is seated", async () => {
+		const order: string[] = [];
+		vi.mocked(seat.add.mutate).mockImplementation(() => {
+			order.push("add");
+			return Promise.resolve(undefined);
+		});
+		vi.mocked(seat.remove.mutate).mockImplementation(() => {
+			order.push("remove");
+			return Promise.resolve(undefined);
+		});
+
+		const failures = await runSeatPlan(
+			[
+				{
+					displaces: "p-x",
+					kind: "seatExisting",
+					name: "Y",
+					playerId: "p-y",
+					seatPosition: 6,
+				},
+			],
+			SESSION
+		);
+
+		expect(failures).toBe(0);
+		expect(order).toEqual(["add", "remove"]);
+		expect(seat.remove.mutate).toHaveBeenCalledWith({
+			liveCashGameSessionId: "s1",
+			playerId: "p-x",
+		});
+	});
+
+	it("keeps the replaced player at the table when seating the incoming one fails", async () => {
+		vi.mocked(seat.add.mutate).mockRejectedValue(new Error("already active"));
+
+		const failures = await runSeatPlan(
+			[
+				{
+					displaces: "p-x",
+					kind: "seatExisting",
+					name: "Y",
+					playerId: "p-y",
+					seatPosition: 6,
+				},
+			],
+			SESSION
+		);
+
+		expect(failures).toBe(1);
+		expect(seat.remove.mutate).not.toHaveBeenCalled();
 	});
 });
