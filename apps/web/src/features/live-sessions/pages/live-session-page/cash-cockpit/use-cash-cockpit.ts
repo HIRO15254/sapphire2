@@ -126,7 +126,7 @@ export function useCashCockpit(sessionId: string) {
 		onCloseSeatSheet: seatSelection.onCloseSeatSheet,
 		onLeaveSeat: seatState.onRemovePlayer,
 		isResetSeatsPending: seatState.isResetSeatsPending,
-		onApplyScan: seatState.onApplyScan,
+		onApplySeatPlan: seatState.onApplySeatPlan,
 		onOpenResetSeats: seatSelection.onOpenResetSeats,
 		onOpenScan: seatSelection.onOpenScan,
 		onResetSeats: seatState.onResetSeats,

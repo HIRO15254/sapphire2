@@ -128,7 +128,7 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 			/>
 			<ScanSeatsSheet
 				activePlayerIds={cockpit.excludePlayerIds}
-				onApplyScan={cockpit.onApplyScan}
+				onApplySeatPlan={cockpit.onApplySeatPlan}
 				onOpenChange={cockpit.onCloseSeatSheet}
 				open={cockpit.seatSheet === "scan"}
 				seats={cockpit.scanSeats}

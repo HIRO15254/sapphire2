@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
 	planScanCommit,
-	projectScanPlan,
-} from "@/features/live-sessions/utils/seat-scan-plan";
+	planSeatClear,
+	projectSeatPlan,
+	splitSeatPlan,
+} from "@/features/live-sessions/utils/seat-plan";
 import type { ScanRow } from "@/features/live-sessions/utils/seat-scan-review";
 
 function scanRow(overrides: Partial<ScanRow>): ScanRow {
@@ -231,7 +233,7 @@ describe("planScanCommit", () => {
 	});
 });
 
-describe("projectScanPlan", () => {
+describe("projectSeatPlan", () => {
 	const JOINED_AT = "2026-06-01T12:00:00.000Z";
 
 	function item(playerId: string, name: string, seatPosition: number | null) {
@@ -247,7 +249,7 @@ describe("projectScanPlan", () => {
 	}
 
 	it("moves a seated player to the scanned seat", () => {
-		const next = projectScanPlan(
+		const next = projectSeatPlan(
 			[item("p-x", "X", 2)],
 			[{ kind: "moveExisting", playerId: "p-x", seatPosition: 5 }],
 			JOINED_AT
@@ -257,7 +259,7 @@ describe("projectScanPlan", () => {
 	});
 
 	it("takes a player who left off the table", () => {
-		const next = projectScanPlan(
+		const next = projectSeatPlan(
 			[item("p-x", "X", 2)],
 			[{ kind: "leave", playerId: "p-x" }],
 			JOINED_AT
@@ -267,7 +269,7 @@ describe("projectScanPlan", () => {
 	});
 
 	it("adds a row for each newly seated player", () => {
-		const next = projectScanPlan(
+		const next = projectSeatPlan(
 			[],
 			[
 				{ kind: "seatExisting", name: "Y", playerId: "p-y", seatPosition: 6 },
@@ -288,16 +290,43 @@ describe("projectScanPlan", () => {
 		});
 		expect(next[1]?.player.id).not.toBe(next[0]?.player.id);
 	});
+});
 
-	it("leaves the table untouched for hero-only steps", () => {
-		const items = [item("p-x", "X", 2)];
+describe("planSeatClear", () => {
+	it("takes every seated player off the table in one plan", () => {
+		expect(planSeatClear(["p-x", "p-y"], false)).toEqual([
+			{ kind: "leave", playerId: "p-x" },
+			{ kind: "leave", playerId: "p-y" },
+		]);
+	});
 
+	it("gives up the hero seat last when one is taken", () => {
+		expect(planSeatClear(["p-x"], true)).toEqual([
+			{ kind: "leave", playerId: "p-x" },
+			{ kind: "clearHero" },
+		]);
+	});
+
+	it("plans nothing for an empty table", () => {
+		expect(planSeatClear([], false)).toEqual([]);
+	});
+});
+
+describe("splitSeatPlan", () => {
+	it("routes hero steps away from the table steps while keeping their order", () => {
 		expect(
-			projectScanPlan(
-				items,
-				[{ kind: "moveHero", seatPosition: 1 }, { kind: "clearHero" }],
-				JOINED_AT
-			)
-		).toEqual(items);
+			splitSeatPlan([
+				{ kind: "seatNew", name: "Blue shirt", seatPosition: 3 },
+				{ kind: "clearHero" },
+				{ kind: "leave", playerId: "p-x" },
+				{ kind: "moveHero", seatPosition: 1 },
+			])
+		).toEqual({
+			heroSteps: [{ kind: "clearHero" }, { kind: "moveHero", seatPosition: 1 }],
+			tableSteps: [
+				{ kind: "seatNew", name: "Blue shirt", seatPosition: 3 },
+				{ kind: "leave", playerId: "p-x" },
+			],
+		});
 	});
 });

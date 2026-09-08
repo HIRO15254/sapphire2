@@ -3,7 +3,7 @@ import {
 	type TablePlayerSourceApp,
 } from "@sapphire2/api/routers/ai-extract-sources";
 import { trpcClient } from "@/utils/trpc";
-import type { ScanPlanStep } from "./seat-scan-plan";
+import type { SeatPlanTableStep } from "./seat-plan";
 
 export type SessionParam =
 	| { liveCashGameSessionId: string; liveTournamentSessionId?: never }
@@ -129,16 +129,12 @@ export async function applyRow(
 	}
 }
 
-export async function runScanPlanStep(
-	step: ScanPlanStep,
+export async function runSeatPlanStep(
+	step: SeatPlanTableStep,
 	sessionParam: SessionParam
 ): Promise<boolean> {
 	try {
-		if (step.kind === "moveHero") {
-			await updateHeroSeatViaClient(sessionParam, step.seatPosition);
-		} else if (step.kind === "clearHero") {
-			await updateHeroSeatViaClient(sessionParam, null);
-		} else if (step.kind === "leave") {
+		if (step.kind === "leave") {
 			await trpcClient.sessionTablePlayer.remove.mutate({
 				...sessionParam,
 				playerId: step.playerId,
@@ -168,13 +164,13 @@ export async function runScanPlanStep(
 	}
 }
 
-export async function runScanPlan(
-	steps: readonly ScanPlanStep[],
+export async function runSeatPlan(
+	steps: readonly SeatPlanTableStep[],
 	sessionParam: SessionParam
 ): Promise<number> {
 	let failures = 0;
 	for (const step of steps) {
-		const ok = await runScanPlanStep(step, sessionParam);
+		const ok = await runSeatPlanStep(step, sessionParam);
 		if (!ok) {
 			failures += 1;
 		}

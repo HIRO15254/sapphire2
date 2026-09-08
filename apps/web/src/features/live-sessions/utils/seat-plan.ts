@@ -1,11 +1,13 @@
 import { createOptimisticId } from "@/utils/optimistic-update";
 import type { ScanRow } from "./seat-scan-review";
 
-export type ScanPlanStep =
+export type SeatPlanHeroStep =
 	| { kind: "clearHero" }
+	| { kind: "moveHero"; seatPosition: number };
+
+export type SeatPlanTableStep =
 	| { kind: "leave"; playerId: string }
 	| { kind: "moveExisting"; playerId: string; seatPosition: number }
-	| { kind: "moveHero"; seatPosition: number }
 	| {
 			kind: "seatExisting";
 			name: string;
@@ -14,7 +16,25 @@ export type ScanPlanStep =
 	  }
 	| { kind: "seatNew"; name: string; seatPosition: number };
 
-export interface ScanPlanItem<TStint> {
+export type SeatPlanStep = SeatPlanHeroStep | SeatPlanTableStep;
+
+export function splitSeatPlan(steps: readonly SeatPlanStep[]): {
+	heroSteps: SeatPlanHeroStep[];
+	tableSteps: SeatPlanTableStep[];
+} {
+	const heroSteps: SeatPlanHeroStep[] = [];
+	const tableSteps: SeatPlanTableStep[] = [];
+	for (const step of steps) {
+		if (step.kind === "clearHero" || step.kind === "moveHero") {
+			heroSteps.push(step);
+		} else {
+			tableSteps.push(step);
+		}
+	}
+	return { heroSteps, tableSteps };
+}
+
+export interface SeatPlanItem<TStint> {
 	id: string;
 	isActive: boolean;
 	joinedAt: string;
@@ -29,7 +49,7 @@ export interface ScanPlanItem<TStint> {
 	stints: TStint[];
 }
 
-function seatStep(row: ScanRow, active: Set<string>): ScanPlanStep | null {
+function seatStep(row: ScanRow, active: Set<string>): SeatPlanStep | null {
 	const name = row.name.trim();
 	const playerId = row.matchedPlayerId;
 	if (playerId === null) {
@@ -53,7 +73,7 @@ function leaveStep(
 	playerId: string | null,
 	incoming: ReadonlySet<string>,
 	active: Set<string>
-): ScanPlanStep | null {
+): SeatPlanStep | null {
 	if (playerId === null || incoming.has(playerId)) {
 		return null;
 	}
@@ -61,10 +81,21 @@ function leaveStep(
 	return { kind: "leave", playerId };
 }
 
+export function planSeatClear(
+	activePlayerIds: readonly string[],
+	isHeroSeated: boolean
+): SeatPlanStep[] {
+	const steps: SeatPlanStep[] = activePlayerIds.map((playerId) => ({
+		kind: "leave",
+		playerId,
+	}));
+	return isHeroSeated ? [...steps, { kind: "clearHero" }] : steps;
+}
+
 export function planScanCommit(
 	rows: readonly ScanRow[],
 	activePlayerIds: ReadonlySet<string>
-): ScanPlanStep[] {
+): SeatPlanStep[] {
 	const active = new Set(activePlayerIds);
 	const incoming = new Set(
 		rows
@@ -72,7 +103,7 @@ export function planScanCommit(
 			.filter((id): id is string => id !== null)
 	);
 	const isHeroMoving = rows.some((row) => row.kind === "hero");
-	const steps: ScanPlanStep[] = [];
+	const steps: SeatPlanStep[] = [];
 
 	for (const row of rows) {
 		if (row.kind === "hero") {
@@ -110,7 +141,7 @@ function seatedItem<TStint>(
 	name: string,
 	seatPosition: number,
 	joinedAt: string
-): ScanPlanItem<TStint> {
+): SeatPlanItem<TStint> {
 	return {
 		id: createOptimisticId("optimistic"),
 		isActive: true,
@@ -122,11 +153,11 @@ function seatedItem<TStint>(
 	};
 }
 
-export function projectScanPlan<TStint>(
-	items: readonly ScanPlanItem<TStint>[],
-	steps: readonly ScanPlanStep[],
+export function projectSeatPlan<TStint>(
+	items: readonly SeatPlanItem<TStint>[],
+	steps: readonly SeatPlanTableStep[],
 	joinedAt: string
-): ScanPlanItem<TStint>[] {
+): SeatPlanItem<TStint>[] {
 	let next = [...items];
 	for (const step of steps) {
 		if (step.kind === "leave") {

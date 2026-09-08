@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
-import type { ScanPlanStep } from "@/features/live-sessions/utils/seat-scan-plan";
-import { projectScanPlan } from "@/features/live-sessions/utils/seat-scan-plan";
-import { runScanPlan } from "@/features/live-sessions/utils/seat-screenshot";
+import { useRef, useState } from "react";
+import type { SeatPlanTableStep } from "@/features/live-sessions/utils/seat-plan";
+import { projectSeatPlan } from "@/features/live-sessions/utils/seat-plan";
+import { runSeatPlan } from "@/features/live-sessions/utils/seat-screenshot";
 import {
 	cancelTargets,
 	createOptimisticId,
@@ -68,6 +68,8 @@ export function useTablePlayers({
 
 	const playersKey =
 		trpc.sessionTablePlayer.list.queryOptions(sessionParam).queryKey;
+
+	const [isSeatPlanPending, setIsSeatPlanPending] = useState(false);
 
 	const addMutation = useMutation({
 		mutationFn: (params: {
@@ -330,37 +332,29 @@ export function useTablePlayers({
 		handleAddTemporary: (seatPosition?: number) => {
 			addTemporaryMutation.mutate({ seatPosition });
 		},
-		handleApplyScan: async (steps: readonly ScanPlanStep[]) => {
+		handleApplySeatPlan: async (steps: readonly SeatPlanTableStep[]) => {
 			if (steps.length === 0) {
 				return 0;
 			}
 			beginMutation();
+			setIsSeatPlanPending(true);
 			await cancelTargets(queryClient, [{ queryKey: playersKey }]);
 			const previous = snapshotQuery<TablePlayerData>(queryClient, playersKey);
 			const joinedAt = new Date().toISOString();
 			updateQueryData<TablePlayerData>(queryClient, playersKey, (old) =>
-				old ? { items: projectScanPlan(old.items, steps, joinedAt) } : old
+				old ? { items: projectSeatPlan(old.items, steps, joinedAt) } : old
 			);
-			const failures = await runScanPlan(steps, sessionParam);
+			const failures = await runSeatPlan(steps, sessionParam);
 			if (failures === steps.length) {
 				restoreSnapshots(queryClient, [previous]);
 			}
 			endMutation();
+			setIsSeatPlanPending(false);
 			await invalidateTargets(queryClient, [
 				{ queryKey: playersKey },
 				{ queryKey: trpc.player.list.queryOptions().queryKey },
 			]);
 			return failures;
-		},
-		handleRemoveAllPlayers: async (playerIds: readonly string[]) => {
-			for (const playerId of playerIds) {
-				try {
-					await removeMutation.mutateAsync(playerId);
-				} catch {
-					return false;
-				}
-			}
-			return true;
 		},
 		handleRemovePlayer: (playerId: string) => {
 			removeMutation.mutate(playerId);
@@ -368,7 +362,7 @@ export function useTablePlayers({
 		handleUpdateSeat: (playerId: string, seatPosition: number | null) => {
 			updateSeatMutation.mutate({ playerId, seatPosition });
 		},
-		isRemovePending: removeMutation.isPending,
+		isSeatPlanPending,
 		isSeatUpdatePending: updateSeatMutation.isPending,
 	};
 }

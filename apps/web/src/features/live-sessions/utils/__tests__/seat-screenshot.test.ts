@@ -8,7 +8,7 @@ import {
 	isAcceptedMediaType,
 	normalizeName,
 	type ReviewRow,
-	runScanPlan,
+	runSeatPlan,
 } from "@/features/live-sessions/utils/seat-screenshot";
 import { trpcClient } from "@/utils/trpc";
 
@@ -413,23 +413,20 @@ describe("buildRow", () => {
 	});
 });
 
-describe("runScanPlan", () => {
+describe("runSeatPlan", () => {
 	const SESSION = { liveCashGameSessionId: "s1" };
 	const seat = trpcClient.sessionTablePlayer;
-	const hero = trpcClient.liveCashGameSession.updateHeroSeat;
 
 	beforeEach(() => {
 		vi.mocked(seat.add.mutate).mockReset().mockResolvedValue(undefined);
 		vi.mocked(seat.addNew.mutate).mockReset().mockResolvedValue(undefined);
 		vi.mocked(seat.remove.mutate).mockReset().mockResolvedValue(undefined);
 		vi.mocked(seat.updateSeat.mutate).mockReset().mockResolvedValue(undefined);
-		vi.mocked(hero.mutate).mockReset().mockResolvedValue(undefined);
 	});
 
 	it("sends each step to the procedure that performs it, in order", async () => {
 		const order: string[] = [];
 		for (const [label, spy] of [
-			["moveHero", hero.mutate],
 			["leave", seat.remove.mutate],
 			["moveExisting", seat.updateSeat.mutate],
 			["seatExisting", seat.add.mutate],
@@ -441,25 +438,18 @@ describe("runScanPlan", () => {
 			});
 		}
 
-		const failures = await runScanPlan(
+		const failures = await runSeatPlan(
 			[
 				{ kind: "seatExisting", name: "Y", playerId: "p-y", seatPosition: 6 },
 				{ kind: "leave", playerId: "p-x" },
 				{ kind: "moveExisting", playerId: "p-z", seatPosition: 1 },
 				{ kind: "seatNew", name: "Blue shirt", seatPosition: 3 },
-				{ kind: "moveHero", seatPosition: 8 },
 			],
 			SESSION
 		);
 
 		expect(failures).toBe(0);
-		expect(order).toEqual([
-			"seatExisting",
-			"leave",
-			"moveExisting",
-			"seatNew",
-			"moveHero",
-		]);
+		expect(order).toEqual(["seatExisting", "leave", "moveExisting", "seatNew"]);
 		expect(seat.add.mutate).toHaveBeenCalledWith({
 			liveCashGameSessionId: "s1",
 			playerId: "p-y",
@@ -472,20 +462,10 @@ describe("runScanPlan", () => {
 		});
 	});
 
-	it("gives up the hero seat when the plan clears it", async () => {
-		const failures = await runScanPlan([{ kind: "clearHero" }], SESSION);
-
-		expect(failures).toBe(0);
-		expect(hero.mutate).toHaveBeenCalledWith({
-			id: "s1",
-			heroSeatPosition: null,
-		});
-	});
-
 	it("counts a rejected step and keeps applying the rest", async () => {
 		vi.mocked(seat.add.mutate).mockRejectedValue(new Error("already active"));
 
-		const failures = await runScanPlan(
+		const failures = await runSeatPlan(
 			[
 				{ kind: "seatExisting", name: "Y", playerId: "p-y", seatPosition: 6 },
 				{ kind: "leave", playerId: "p-x" },

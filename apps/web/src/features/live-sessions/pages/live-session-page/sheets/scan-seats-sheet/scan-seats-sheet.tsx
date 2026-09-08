@@ -4,7 +4,7 @@ import {
 	IconPhoto,
 	IconRefresh,
 } from "@tabler/icons-react";
-import type { ScanPlanStep } from "@/features/live-sessions/utils/seat-scan-plan";
+import type { SeatPlanStep } from "@/features/live-sessions/utils/seat-plan";
 import type { ScanSeatState } from "@/features/live-sessions/utils/seat-scan-review";
 import { ACCEPTED_TYPES } from "@/features/live-sessions/utils/seat-screenshot";
 import { CrystFormSheet } from "../cryst-form-sheet";
@@ -14,7 +14,7 @@ import { useScanSeatsSheet } from "./use-scan-seats-sheet";
 
 interface ScanSeatsSheetProps {
 	activePlayerIds: readonly string[];
-	onApplyScan: (steps: readonly ScanPlanStep[]) => Promise<number>;
+	onApplySeatPlan: (steps: readonly SeatPlanStep[]) => Promise<number>;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 	seats: readonly ScanSeatState[];
@@ -33,14 +33,14 @@ const PRIMARY_BUTTON =
 
 export function ScanSeatsSheet({
 	activePlayerIds,
-	onApplyScan,
+	onApplySeatPlan,
 	onOpenChange,
 	open,
 	seats,
 }: ScanSeatsSheetProps) {
 	const sheet = useScanSeatsSheet({
 		activePlayerIds,
-		onApplyScan,
+		onApplySeatPlan,
 		onOpenChange,
 		open,
 		seats,

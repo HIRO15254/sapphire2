@@ -1,8 +1,8 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import type { ScanPlanStep } from "@/features/live-sessions/utils/seat-scan-plan";
-import { planScanCommit } from "@/features/live-sessions/utils/seat-scan-plan";
+import type { SeatPlanStep } from "@/features/live-sessions/utils/seat-plan";
+import { planScanCommit } from "@/features/live-sessions/utils/seat-plan";
 import type {
 	ScanRow,
 	ScanSeatState,
@@ -26,7 +26,7 @@ const MAX_IMAGES = 5;
 
 interface UseScanSeatsSheetOptions {
 	activePlayerIds: readonly string[];
-	onApplyScan: (steps: readonly ScanPlanStep[]) => Promise<number>;
+	onApplySeatPlan: (steps: readonly SeatPlanStep[]) => Promise<number>;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 	seats: readonly ScanSeatState[];
@@ -49,7 +49,7 @@ function describeScan(imageCount: number, scannedAt: Date | null): string {
 
 export function useScanSeatsSheet({
 	activePlayerIds,
-	onApplyScan,
+	onApplySeatPlan,
 	onOpenChange,
 	open,
 	seats,
@@ -164,7 +164,7 @@ export function useScanSeatsSheet({
 		}
 		setIsApplying(true);
 		const steps = planScanCommit(selected, new Set(activePlayerIds));
-		const failures = await onApplyScan(steps);
+		const failures = await onApplySeatPlan(steps);
 		setIsApplying(false);
 		onOpenChange(false);
 		if (failures > 0) {
