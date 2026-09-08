@@ -196,6 +196,10 @@ export function buildScanRows({
 	});
 }
 
+export function needsSeatResolution(row: ScanRow): boolean {
+	return row.isPickable && row.currentName !== null;
+}
+
 export function countDetectedSeats(rows: readonly ScanRow[]): number {
 	return rows.filter((row) => row.kind !== "none").length;
 }

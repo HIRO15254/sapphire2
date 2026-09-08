@@ -11,19 +11,33 @@ import {
 import { CRYST_SCOPE_CLASS } from "../../cryst-scope";
 
 interface ResetSeatsDialogProps {
+	isHeroSeated: boolean;
 	isPending: boolean;
 	onConfirm: () => void;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
-	seatedCount: number;
+	playerCount: number;
+}
+
+function describeReset(playerCount: number, isHeroSeated: boolean): string {
+	if (playerCount === 0) {
+		return "Your own seat is cleared.";
+	}
+	const players =
+		playerCount === 1
+			? "1 player leaves the table"
+			: `${playerCount} players leave the table`;
+	const hero = isHeroSeated ? ", and your own seat is cleared too" : "";
+	return `${players}${hero}. Their stints stay in the session history.`;
 }
 
 export function ResetSeatsDialog({
+	isHeroSeated,
 	isPending,
 	onConfirm,
 	onOpenChange,
 	open,
-	seatedCount,
+	playerCount,
 }: ResetSeatsDialogProps) {
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
@@ -31,11 +45,7 @@ export function ResetSeatsDialog({
 				<DialogHeader>
 					<DialogTitle>Clear every seat?</DialogTitle>
 					<DialogDescription>
-						{seatedCount === 1
-							? "1 player leaves the table"
-							: `${seatedCount} players leave the table`}
-						, and your own seat is cleared too. Their stints stay in the session
-						history.
+						{describeReset(playerCount, isHeroSeated)}
 					</DialogDescription>
 				</DialogHeader>
 				<DialogFooter className="flex-row justify-end gap-2">

@@ -146,7 +146,9 @@ export function useTournamentCockpit(sessionId: string) {
 		onOpenResetSeats: seatSelection.onOpenResetSeats,
 		onOpenScan: seatSelection.onOpenScan,
 		onResetSeats: seatState.onResetSeats,
-		seatedCount: seats.filter((seat) => seat.occupancy !== "empty").length,
+		canResetSeats: seatState.activePlayerCount > 0 || heroSeatPosition !== null,
+		isHeroSeated: heroSeatPosition !== null,
+		resetPlayerCount: seatState.activePlayerCount,
 		onSelectSeat: seatSelection.onSelectSeat,
 		onSitInExisting: (playerId: string, playerName: string) => {
 			sitIn((seatPosition) =>

@@ -45,7 +45,7 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 			<div className="relative flex min-h-0 flex-1 flex-col">
 				{cockpit.isKeyboardOpen ? null : (
 					<TableView
-						canResetSeats={cockpit.seatedCount > 0}
+						canResetSeats={cockpit.canResetSeats}
 						center={
 							<CashTableStats
 								bbText={cockpit.bbText}
@@ -117,6 +117,7 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 				/>
 			)}
 			<ResetSeatsDialog
+				isHeroSeated={cockpit.isHeroSeated}
 				isPending={cockpit.isResetSeatsPending}
 				onConfirm={() => {
 					cockpit.onResetSeats();
@@ -124,7 +125,7 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 				}}
 				onOpenChange={cockpit.onCloseSeatSheet}
 				open={cockpit.seatSheet === "reset"}
-				seatedCount={cockpit.seatedCount}
+				playerCount={cockpit.resetPlayerCount}
 			/>
 			<ScanSeatsSheet
 				activePlayerIds={cockpit.excludePlayerIds}

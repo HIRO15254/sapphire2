@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { ScannedSeat, ScanSeatState } from "../seat-scan-review";
-import { buildScanRows, countDetectedSeats } from "../seat-scan-review";
+import {
+	buildScanRows,
+	countDetectedSeats,
+	needsSeatResolution,
+} from "../seat-scan-review";
 
 const KNOWN = [
 	{ id: "p-takashi", name: "Takashi" },
@@ -199,5 +203,30 @@ describe("countDetectedSeats", () => {
 		);
 
 		expect(countDetectedSeats(rows)).toBe(2);
+	});
+});
+
+describe("needsSeatResolution", () => {
+	it("asks for Keep or Replace on every row that overrides someone at the table", () => {
+		const rows = rowsFor(
+			[
+				seatedSeat(0, "p-takashi", "Takashi"),
+				seatedSeat(1, "p-glasses", "Glasses"),
+				seatedSeat(2, "p-other", "Other"),
+				emptySeat(3),
+			],
+			[scanned(1, "Glasses"), scanned(3, "You", true), scanned(4, "New")]
+		);
+
+		expect(rows.map(needsSeatResolution)).toEqual([true, true, true, false]);
+	});
+
+	it("leaves rows alone that take no seat from anyone", () => {
+		const rows = rowsFor(
+			[seatedSeat(0, "p-takashi", "Takashi"), emptySeat(1), heroSeat(2)],
+			[scanned(1, "Takashi"), scanned(3, "Takashi", true)]
+		);
+
+		expect(rows.map(needsSeatResolution)).toEqual([false, false, false]);
 	});
 });

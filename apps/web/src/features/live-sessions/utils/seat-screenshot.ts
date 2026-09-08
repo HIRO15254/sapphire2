@@ -129,34 +129,52 @@ export async function applyRow(
 	}
 }
 
+function removeTablePlayer(
+	sessionParam: SessionParam,
+	playerId: string
+): Promise<unknown> {
+	return trpcClient.sessionTablePlayer.remove.mutate({
+		...sessionParam,
+		playerId,
+	});
+}
+
+function seatStepMutation(
+	step: SeatPlanTableStep,
+	sessionParam: SessionParam
+): Promise<unknown> {
+	if (step.kind === "leave") {
+		return removeTablePlayer(sessionParam, step.playerId);
+	}
+	if (step.kind === "moveExisting") {
+		return trpcClient.sessionTablePlayer.updateSeat.mutate({
+			...sessionParam,
+			playerId: step.playerId,
+			seatPosition: step.seatPosition,
+		});
+	}
+	if (step.kind === "seatExisting") {
+		return trpcClient.sessionTablePlayer.add.mutate({
+			...sessionParam,
+			playerId: step.playerId,
+			seatPosition: step.seatPosition,
+		});
+	}
+	return trpcClient.sessionTablePlayer.addNew.mutate({
+		...sessionParam,
+		playerName: step.name,
+		seatPosition: step.seatPosition,
+	});
+}
+
 export async function runSeatPlanStep(
 	step: SeatPlanTableStep,
 	sessionParam: SessionParam
 ): Promise<boolean> {
 	try {
-		if (step.kind === "leave") {
-			await trpcClient.sessionTablePlayer.remove.mutate({
-				...sessionParam,
-				playerId: step.playerId,
-			});
-		} else if (step.kind === "moveExisting") {
-			await trpcClient.sessionTablePlayer.updateSeat.mutate({
-				...sessionParam,
-				playerId: step.playerId,
-				seatPosition: step.seatPosition,
-			});
-		} else if (step.kind === "seatExisting") {
-			await trpcClient.sessionTablePlayer.add.mutate({
-				...sessionParam,
-				playerId: step.playerId,
-				seatPosition: step.seatPosition,
-			});
-		} else {
-			await trpcClient.sessionTablePlayer.addNew.mutate({
-				...sessionParam,
-				playerName: step.name,
-				seatPosition: step.seatPosition,
-			});
+		await seatStepMutation(step, sessionParam);
+		if (step.kind !== "leave" && step.displaces !== null) {
+			await removeTablePlayer(sessionParam, step.displaces);
 		}
 		return true;
 	} catch {
