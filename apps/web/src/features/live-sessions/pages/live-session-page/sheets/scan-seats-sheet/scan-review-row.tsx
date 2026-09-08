@@ -6,6 +6,7 @@ import {
 	IconEqual,
 	IconHelpCircle,
 	IconUserCheck,
+	IconUserMinus,
 	IconUserPlus,
 	IconUserStar,
 } from "@tabler/icons-react";
@@ -52,6 +53,11 @@ const ROW_META: Record<ScanRowKind, ScanRowMeta> = {
 		chip: "bg-muted text-muted-foreground",
 		icon: IconEqual,
 		status: "No change",
+	},
+	vacate: {
+		chip: "bg-[color-mix(in_oklab,var(--warning)_15%,transparent)] text-warning",
+		icon: IconUserMinus,
+		status: "Left",
 	},
 };
 
@@ -109,15 +115,21 @@ export function ScanReviewRow({
 				<span className="font-mono text-[length:var(--m-text-caption)] text-muted-foreground">
 					{seatLabel}
 				</span>
-				<input
-					aria-label={`Player name at ${seatLabel}`}
-					{...NO_INPUT_SUGGESTIONS}
-					className="h-[30px] min-w-0 rounded-sm border border-transparent bg-transparent px-1.5 font-medium text-[length:var(--m-text-footnote)] outline-none focus-visible:border-input focus-visible:bg-card"
-					disabled={!row.isPickable}
-					onChange={(e) => onNameChange(row.seatPosition, e.target.value)}
-					type="text"
-					value={row.name}
-				/>
+				{row.kind === "vacate" ? (
+					<span className="min-w-0 truncate px-1.5 text-[length:var(--m-text-footnote)] text-muted-foreground italic">
+						Read as empty
+					</span>
+				) : (
+					<input
+						aria-label={`Player name at ${seatLabel}`}
+						{...NO_INPUT_SUGGESTIONS}
+						className="h-[30px] min-w-0 rounded-sm border border-transparent bg-transparent px-1.5 font-medium text-[length:var(--m-text-footnote)] outline-none focus-visible:border-input focus-visible:bg-card"
+						disabled={!row.isPickable}
+						onChange={(e) => onNameChange(row.seatPosition, e.target.value)}
+						type="text"
+						value={row.name}
+					/>
+				)}
 				<span
 					className={cn(
 						"inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-[7px] py-0.5 font-semibold text-[11px]",
@@ -128,7 +140,7 @@ export function ScanReviewRow({
 					{meta.status}
 				</span>
 			</div>
-			{row.kind === "conflict" ? (
+			{row.kind === "conflict" || row.kind === "vacate" ? (
 				<div className="flex items-center gap-1.5 pt-0.5 pb-[5px] pl-[62px]">
 					<span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
 						Seated now{" "}

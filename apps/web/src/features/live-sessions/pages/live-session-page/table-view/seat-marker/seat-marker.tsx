@@ -1,4 +1,9 @@
-import { IconUser, IconUserPlus, IconUserStar } from "@tabler/icons-react";
+import {
+	IconLoader2,
+	IconUser,
+	IconUserPlus,
+	IconUserStar,
+} from "@tabler/icons-react";
 import type { SeatEntry } from "@/features/live-sessions/hooks/use-session-seats";
 import type { SeatPoint } from "@/features/live-sessions/utils/table-geometry";
 import { cn } from "@/lib/utils";
@@ -16,7 +21,7 @@ const WRAPPER_CLASS =
 const DOT_FALLBACK = "var(--muted-foreground)";
 
 const NAME_CLASS =
-	"-bottom-2.5 -translate-x-1/2 pointer-events-none absolute left-1/2 max-w-[52px] truncate rounded-full border border-border bg-card px-1 text-[8px] leading-[11px]";
+	"-bottom-2 -translate-x-1/2 pointer-events-none absolute left-1/2 max-w-[68px] truncate rounded-full border border-border bg-card px-1 text-[8px] leading-[11px]";
 
 export function SeatMarker({
 	isSelected,
@@ -49,16 +54,23 @@ export function SeatMarker({
 
 	if (seat.occupancy === "player" && seat.player) {
 		const dot = seat.player.tags[0]?.color ?? DOT_FALLBACK;
+		const isSaving = seat.player.isLoading;
 		return (
 			<div className={WRAPPER_CLASS} style={style}>
 				<button
-					aria-label={`${label}: ${seat.player.name}`}
+					aria-label={
+						isSaving
+							? `${label}: ${seat.player.name}, saving`
+							: `${label}: ${seat.player.name}`
+					}
 					aria-pressed={isSelected}
 					className={cn(
 						"flex size-10 items-center justify-center rounded-full border text-foreground shadow-[var(--shadow-sm)]",
 						isSelected &&
-							"ring-2 ring-ring ring-offset-2 ring-offset-background"
+							"ring-2 ring-ring ring-offset-2 ring-offset-background",
+						isSaving && "opacity-60"
 					)}
+					disabled={isSaving}
 					onClick={() => onSelect(seat.seatPosition)}
 					style={{
 						borderColor: dot,
@@ -66,9 +78,15 @@ export function SeatMarker({
 					}}
 					type="button"
 				>
-					<IconUser size={17} />
+					{isSaving ? (
+						<IconLoader2 className="animate-spin" size={17} />
+					) : (
+						<IconUser size={17} />
+					)}
 				</button>
-				<span className={NAME_CLASS}>{seat.player.name}</span>
+				<span className={NAME_CLASS}>
+					{isSaving ? "Saving..." : seat.player.name}
+				</span>
 			</div>
 		);
 	}

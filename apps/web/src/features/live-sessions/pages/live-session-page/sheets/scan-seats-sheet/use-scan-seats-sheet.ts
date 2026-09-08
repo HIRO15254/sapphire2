@@ -9,7 +9,10 @@ import {
 	buildScanRows,
 	countDetectedSeats,
 } from "@/features/live-sessions/utils/seat-scan-review";
-import type { SessionParam } from "@/features/live-sessions/utils/seat-screenshot";
+import type {
+	AcceptedMediaType,
+	SessionParam,
+} from "@/features/live-sessions/utils/seat-screenshot";
 import {
 	applyScanRow,
 	fileToBase64,
@@ -21,6 +24,8 @@ import { invalidateTargets } from "@/utils/optimistic-update";
 import { trpc } from "@/utils/trpc";
 
 export type ScanStep = "busy" | "choose" | "done" | "review";
+
+const MAX_IMAGES = 5;
 
 export interface CommittedSeat {
 	name: string;
@@ -45,8 +50,20 @@ function firstSourceApp() {
 
 const SOURCE_APP = firstSourceApp();
 
+function describeScan(imageCount: number, scannedAt: Date | null): string {
+	const label = imageCount > 1 ? `${imageCount} screenshots` : "Screenshot";
+	return scannedAt === null ? label : `${label} ${formatLocalHm(scannedAt)}`;
+}
+
 function seatLabelOf(seatPosition: number) {
 	return `S${seatPosition + 1}`;
+}
+
+function committedNameOf(row: ScanRow): string {
+	if (row.kind === "vacate") {
+		return row.currentName === null ? "Empty" : `${row.currentName} left`;
+	}
+	return row.name === "" ? "You" : row.name;
 }
 
 export function useScanSeatsSheet({
@@ -65,6 +82,7 @@ export function useScanSeatsSheet({
 	const [committed, setCommitted] = useState<CommittedSeat[]>([]);
 	const [committedAt, setCommittedAt] = useState<Date | null>(null);
 	const [scannedAt, setScannedAt] = useState<Date | null>(null);
+	const [imageCount, setImageCount] = useState(0);
 	const [isApplying, setIsApplying] = useState(false);
 
 	const playersQuery = useQuery({
@@ -85,6 +103,7 @@ export function useScanSeatsSheet({
 			setCommitted([]);
 			setCommittedAt(null);
 			setScannedAt(null);
+			setImageCount(0);
 			setIsApplying(false);
 			extractReset();
 		}
@@ -100,10 +119,13 @@ export function useScanSeatsSheet({
 		(row) =>
 			row.isSelected &&
 			(row.kind === "hero" ||
+				row.kind === "vacate" ||
 				row.matchedPlayerId !== null ||
 				row.name.trim() !== "")
 	);
-	const conflicts = resolved.filter((row) => row.kind === "conflict");
+	const conflicts = resolved.filter(
+		(row) => row.kind === "conflict" || row.kind === "vacate"
+	);
 	const isAllSelected =
 		pickable.length > 0 && selected.length === pickable.length;
 
@@ -112,21 +134,32 @@ export function useScanSeatsSheet({
 	};
 
 	const onImageSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
-		const file = e.target.files?.[0];
+		const files = [...(e.target.files ?? [])];
 		e.target.value = "";
-		if (!file) {
+		if (files.length === 0) {
 			return;
 		}
-		if (!isAcceptedMediaType(file.type)) {
+		if (!files.every((file) => isAcceptedMediaType(file.type))) {
 			toast.error("Only JPEG, PNG, GIF, or WEBP images are supported.");
 			return;
 		}
+		if (files.length > MAX_IMAGES) {
+			toast.error(`Choose up to ${MAX_IMAGES} images at once.`);
+			return;
+		}
 		setStep("busy");
+		setImageCount(files.length);
 		try {
-			const data = await fileToBase64(file);
+			const sources = await Promise.all(
+				files.map(async (file) => ({
+					data: await fileToBase64(file),
+					kind: "image" as const,
+					mediaType: file.type as AcceptedMediaType,
+				}))
+			);
 			const result = await extractMutation.mutateAsync({
 				sourceApp: SOURCE_APP,
-				sources: [{ data, kind: "image", mediaType: file.type }],
+				sources,
 			});
 			setRows(
 				buildScanRows({
@@ -140,7 +173,11 @@ export function useScanSeatsSheet({
 			setScannedAt(new Date());
 			setStep("review");
 		} catch {
-			toast.error("Could not read the image.");
+			toast.error(
+				files.length === 1
+					? "Could not read the image."
+					: "Could not read the images."
+			);
 			setStep("choose");
 		}
 	};
@@ -152,17 +189,20 @@ export function useScanSeatsSheet({
 		setIsApplying(true);
 		const applied: CommittedSeat[] = [];
 		let failures = 0;
-		const activeIds = new Set(activePlayerIds);
-		const incomingIds = new Set(
-			selected
-				.map((row) => row.matchedPlayerId)
-				.filter((id): id is string => id !== null)
-		);
+		const context = {
+			activePlayerIds: new Set(activePlayerIds),
+			incomingPlayerIds: new Set(
+				selected
+					.map((row) => row.matchedPlayerId)
+					.filter((id): id is string => id !== null)
+			),
+			isHeroMoving: selected.some((row) => row.kind === "hero"),
+		};
 		for (const row of selected) {
-			const ok = await applyScanRow(row, sessionParam, activeIds, incomingIds);
+			const ok = await applyScanRow(row, sessionParam, context);
 			if (ok) {
 				applied.push({
-					name: row.name === "" ? "You" : row.name,
+					name: committedNameOf(row),
 					seatLabel: seatLabelOf(row.seatPosition),
 				});
 			} else {
@@ -193,12 +233,11 @@ export function useScanSeatsSheet({
 		conflictNote:
 			conflicts.length === 0
 				? null
-				: `${conflicts.length} seats already have a different player — choose Keep or Replace.`,
+				: `${conflicts.length} seats disagree with the table — choose Keep or Replace.`,
 		detectedText: `${countDetectedSeats(rows)} of ${seats.length} seats detected`,
 		fileInputRef,
 		isApplying,
 		keptText: `${rows.length - committed.length} seats`,
-		onCancel: () => onOpenChange(false),
 		onCommit,
 		onDone: () => onOpenChange(false),
 		onImageSelected,
@@ -218,10 +257,7 @@ export function useScanSeatsSheet({
 			setRowSelected(seatPosition, isSelected);
 		},
 		rows: resolved,
-		scannedAtText:
-			scannedAt === null
-				? "Screenshot"
-				: `Screenshot ${formatLocalHm(scannedAt)}`,
+		scannedAtText: describeScan(imageCount, scannedAt),
 		selectAllLabel: isAllSelected ? "Clear all" : "Select all",
 		selectedCount: selected.length,
 		step,

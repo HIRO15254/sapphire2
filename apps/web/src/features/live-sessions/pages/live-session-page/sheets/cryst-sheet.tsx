@@ -11,7 +11,6 @@ import { CRYST_SCOPE_CLASS } from "../cryst-scope";
 interface CrystSheetProps {
 	children: ReactNode;
 	className?: string;
-	footer?: ReactNode;
 	header?: ReactNode;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
@@ -21,7 +20,6 @@ interface CrystSheetProps {
 export function CrystSheet({
 	children,
 	className,
-	footer,
 	header,
 	onOpenChange,
 	open,
@@ -49,21 +47,9 @@ export function CrystSheet({
 						{header}
 					</div>
 				)}
-				<div
-					className={cn(
-						"flex-1 overflow-y-auto px-4 pt-2",
-						footer === undefined
-							? "pb-[calc(1rem+env(safe-area-inset-bottom))]"
-							: "pb-3"
-					)}
-				>
+				<div className="flex-1 overflow-y-auto px-4 pt-2 pb-[calc(1rem+env(safe-area-inset-bottom))]">
 					{children}
 				</div>
-				{footer === undefined ? null : (
-					<div className="shrink-0 border-border border-t px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
-						{footer}
-					</div>
-				)}
 			</DrawerContent>
 		</Drawer>
 	);

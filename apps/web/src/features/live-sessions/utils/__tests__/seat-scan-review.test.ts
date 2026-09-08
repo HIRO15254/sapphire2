@@ -97,7 +97,7 @@ describe("buildScanRows classification", () => {
 			currentName: "Red cap",
 			currentPlayerId: "p-red",
 			isPickable: true,
-			isSelectedByDefault: false,
+			isSelectedByDefault: true,
 			kind: "conflict",
 			matchedPlayerId: "p-takashi",
 		});
@@ -107,6 +107,32 @@ describe("buildScanRows classification", () => {
 		const [row] = rowsFor([heroSeat(0)], [scanned(1, "You", true)]);
 
 		expect(row).toMatchObject({ isPickable: false, kind: "hero" });
+	});
+
+	it("lets a scanned player take over the hero seat", () => {
+		const [row] = rowsFor([heroSeat(0)], [scanned(1, "Takashi")]);
+
+		expect(row).toMatchObject({
+			currentName: "You",
+			currentPlayerId: null,
+			displacesHero: true,
+			isPickable: true,
+			isSelectedByDefault: true,
+			kind: "conflict",
+			matchedPlayerId: "p-takashi",
+		});
+	});
+
+	it("flags a seated player the scan read as empty so the seat can be freed", () => {
+		const [row] = rowsFor([seatedSeat(0, "p-red", "Red cap")], []);
+
+		expect(row).toMatchObject({
+			currentName: "Red cap",
+			currentPlayerId: "p-red",
+			isPickable: true,
+			isSelectedByDefault: true,
+			kind: "vacate",
+		});
 	});
 
 	it("offers a seat the scan identifies as the hero when it is not the hero seat yet", () => {

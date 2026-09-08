@@ -159,12 +159,35 @@ async function seatScannedPlayer(
 	activePlayerIds.add(playerId);
 }
 
+async function unseatDisplaced(
+	sessionParam: SessionParam,
+	playerId: string,
+	activePlayerIds: Set<string>
+): Promise<boolean> {
+	try {
+		await trpcClient.sessionTablePlayer.remove.mutate({
+			...sessionParam,
+			playerId,
+		});
+	} catch {
+		return false;
+	}
+	activePlayerIds.delete(playerId);
+	return true;
+}
+
+export interface ApplyScanContext {
+	activePlayerIds: Set<string>;
+	incomingPlayerIds: ReadonlySet<string>;
+	isHeroMoving: boolean;
+}
+
 export async function applyScanRow(
 	row: ScanRow,
 	sessionParam: SessionParam,
-	activePlayerIds: Set<string>,
-	incomingPlayerIds: ReadonlySet<string>
+	context: ApplyScanContext
 ): Promise<boolean> {
+	const { activePlayerIds, incomingPlayerIds, isHeroMoving } = context;
 	if (row.kind === "hero") {
 		try {
 			await updateHeroSeatViaClient(sessionParam, row.seatPosition);
@@ -172,6 +195,13 @@ export async function applyScanRow(
 		} catch {
 			return false;
 		}
+	}
+	if (row.kind === "vacate") {
+		const leaving = row.currentPlayerId;
+		if (leaving === null || incomingPlayerIds.has(leaving)) {
+			return true;
+		}
+		return await unseatDisplaced(sessionParam, leaving, activePlayerIds);
 	}
 	if (row.matchedPlayerId === null && row.name.trim() === "") {
 		return false;
@@ -181,6 +211,13 @@ export async function applyScanRow(
 	} catch {
 		return false;
 	}
+	if (row.displacesHero && !isHeroMoving) {
+		try {
+			await updateHeroSeatViaClient(sessionParam, null);
+		} catch {
+			return false;
+		}
+	}
 	const displaced = row.currentPlayerId;
 	if (
 		row.kind !== "conflict" ||
@@ -189,16 +226,7 @@ export async function applyScanRow(
 	) {
 		return true;
 	}
-	try {
-		await trpcClient.sessionTablePlayer.remove.mutate({
-			...sessionParam,
-			playerId: displaced,
-		});
-	} catch {
-		return false;
-	}
-	activePlayerIds.delete(displaced);
-	return true;
+	return await unseatDisplaced(sessionParam, displaced, activePlayerIds);
 }
 
 export function computeRowWarning({

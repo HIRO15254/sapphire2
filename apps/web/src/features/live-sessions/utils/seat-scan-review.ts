@@ -4,7 +4,8 @@ export type ScanRowKind =
 	| "known"
 	| "new"
 	| "none"
-	| "occupied";
+	| "occupied"
+	| "vacate";
 
 export interface ScannedSeat {
 	isHero: boolean | null;
@@ -27,6 +28,7 @@ export interface ScanKnownPlayer {
 export interface ScanRow {
 	currentName: string | null;
 	currentPlayerId: string | null;
+	displacesHero: boolean;
 	isPickable: boolean;
 	isSelectedByDefault: boolean;
 	kind: ScanRowKind;
@@ -82,9 +84,24 @@ function emptyRow(seat: ScanSeatState): ScanRow {
 	return {
 		currentName: seat.playerName,
 		currentPlayerId: seat.playerId,
+		displacesHero: false,
 		isPickable: false,
 		isSelectedByDefault: false,
 		kind: "none",
+		matchedPlayerId: null,
+		name: "",
+		seatPosition: seat.seatPosition,
+	};
+}
+
+function vacateRow(seat: ScanSeatState): ScanRow {
+	return {
+		currentName: seat.playerName,
+		currentPlayerId: seat.playerId,
+		displacesHero: false,
+		isPickable: true,
+		isSelectedByDefault: true,
+		kind: "vacate",
 		matchedPlayerId: null,
 		name: "",
 		seatPosition: seat.seatPosition,
@@ -96,6 +113,7 @@ function heroRow(seat: ScanSeatState, name: string): ScanRow {
 	return {
 		currentName: seat.playerName,
 		currentPlayerId: seat.playerId,
+		displacesHero: false,
 		isPickable: !isAlreadyHero,
 		isSelectedByDefault: !isAlreadyHero,
 		kind: "hero",
@@ -105,17 +123,24 @@ function heroRow(seat: ScanSeatState, name: string): ScanRow {
 	};
 }
 
+const HERO_LABEL = "You";
+
 function seatedRow(
 	seat: ScanSeatState,
 	name: string,
 	matchedPlayerId: string | null
 ): ScanRow {
+	const isHeroSeat = seat.occupancy === "hero";
+	const currentName = isHeroSeat ? HERO_LABEL : seat.playerName;
 	const isSamePlayer =
-		seat.playerName !== null && normalize(seat.playerName) === normalize(name);
+		!isHeroSeat &&
+		seat.playerName !== null &&
+		normalize(seat.playerName) === normalize(name);
 	if (isSamePlayer) {
 		return {
-			currentName: seat.playerName,
+			currentName,
 			currentPlayerId: seat.playerId,
+			displacesHero: false,
 			isPickable: false,
 			isSelectedByDefault: false,
 			kind: "occupied",
@@ -125,10 +150,11 @@ function seatedRow(
 		};
 	}
 	return {
-		currentName: seat.playerName,
-		currentPlayerId: seat.playerId,
+		currentName,
+		currentPlayerId: isHeroSeat ? null : seat.playerId,
+		displacesHero: isHeroSeat,
 		isPickable: true,
-		isSelectedByDefault: false,
+		isSelectedByDefault: true,
 		kind: "conflict",
 		matchedPlayerId,
 		name,
@@ -145,19 +171,23 @@ export function buildScanRows({
 	return seats.map((seat) => {
 		const hit = pickScannedSeat(scanned, seat.seatPosition);
 		if (hit === null) {
-			return seat.occupancy === "hero" ? heroRow(seat, "") : emptyRow(seat);
+			if (seat.occupancy === "hero") {
+				return heroRow(seat, "");
+			}
+			return seat.occupancy === "player" ? vacateRow(seat) : emptyRow(seat);
 		}
 		const name = hit.name.trim();
-		if (hit.isHero === true || seat.occupancy === "hero") {
+		if (hit.isHero === true) {
 			return heroRow(seat, name);
 		}
 		const { isAmbiguous, matchedPlayerId } = matchKnownPlayer(knownIndex, name);
-		if (seat.occupancy === "player") {
+		if (seat.occupancy === "hero" || seat.occupancy === "player") {
 			return seatedRow(seat, name, matchedPlayerId);
 		}
 		return {
 			currentName: null,
 			currentPlayerId: null,
+			displacesHero: false,
 			isPickable: true,
 			isSelectedByDefault: !isAmbiguous,
 			kind: matchedPlayerId === null ? "new" : "known",

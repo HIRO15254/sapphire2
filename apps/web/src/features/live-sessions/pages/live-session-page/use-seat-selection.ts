@@ -26,7 +26,8 @@ export function useSeatSelection(seats: SeatEntry[]) {
 		seats.find(
 			(seat) =>
 				seat.seatPosition === selectedSeatPosition &&
-				seat.occupancy === "player"
+				seat.occupancy === "player" &&
+				seat.player?.isLoading !== true
 		) ?? null;
 
 	return {
@@ -35,6 +36,9 @@ export function useSeatSelection(seats: SeatEntry[]) {
 		onOpenScan: () => setSeatSheet("scan"),
 		onSelectSeat: (seatPosition: number) => {
 			const seat = seats.find((item) => item.seatPosition === seatPosition);
+			if (seat?.player?.isLoading) {
+				return;
+			}
 			if (seat?.occupancy === "player") {
 				setSelectedSeatPosition(seatPosition);
 				return;
