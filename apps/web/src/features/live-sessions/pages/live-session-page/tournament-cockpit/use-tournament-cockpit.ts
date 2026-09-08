@@ -34,6 +34,7 @@ export function useTournamentCockpit(sessionId: string) {
 	const now = useNowTick(TICK_MS);
 	const isKeyboardOpen = useKeyboardOpen();
 	const [isEndSessionOpen, setIsEndSessionOpen] = useState(false);
+	const [isSessionSheetOpen, setIsSessionSheetOpen] = useState(false);
 	const shiftedPauseRef = useRef<number | null>(null);
 
 	const rawHeroSeat = session?.heroSeatPosition;
@@ -114,6 +115,10 @@ export function useTournamentCockpit(sessionId: string) {
 		elapsed: formatTimerDuration(clock.activeSeconds, { padHours: true }),
 		isCompletePending: stack.isCompletePending,
 		isEndSessionOpen,
+		chipPurchaseOptions: stack.chipPurchaseTypes,
+		isSessionSheetOpen,
+		onOpenSession: () => setIsSessionSheetOpen(true),
+		onSessionSheetOpenChange: setIsSessionSheetOpen,
 		isKeyboardOpen,
 		isLoading: false as const,
 		isMasterLinked: Boolean(session.tournamentId),

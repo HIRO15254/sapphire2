@@ -39,6 +39,9 @@ const NEW_PLAYER_ROW = /Create as a new player/;
 const CHOOSE_PHOTO_BUTTON = /Choose from library/;
 const TEMPORARY_ROW = /Temporary player/;
 const CREATE_TAG_ROW = /Create "Fish"/;
+const WEEKEND_TAG_CHOICE = /Weekend/;
+const CURRENCY_ROW = /Currency/;
+const CLUB_CHIPS_ROW = /Club chips/;
 
 interface CreatedEvent {
 	eventType: string;
@@ -81,6 +84,11 @@ const backend = {
 	playerTagIds: ["tag-1"] as string[],
 	playerUpdates: [] as PlayerUpdate[],
 	removedPlayerIds: [] as string[],
+	sessionCurrencyId: null as string | null,
+	sessionMemo: null as string | null,
+	sessionTableSize: 6 as number | null,
+	sessionTagIds: [] as string[],
+	snapshotUpdates: [] as Record<string, unknown>[],
 	status: "active",
 	updatedEvents: [] as UpdatedEvent[],
 };
@@ -123,9 +131,9 @@ function session() {
 		ruleName: "Friday 200/400",
 		variant: "NLH",
 		blind2: 400,
-		tableSize: 6,
+		tableSize: backend.sessionTableSize,
 		heroSeatPosition: null,
-		memo: null,
+		memo: backend.sessionMemo,
 		summary: {
 			chipRemoveTotal: 0,
 			currentStack: backend.currentStack,
@@ -134,6 +142,11 @@ function session() {
 		},
 	};
 }
+
+const SESSION_TAGS: { id: string; name: string; usageCount: number }[] = [
+	{ id: "stag-1", name: "Weekend", usageCount: 12 },
+	{ id: "stag-2", name: "Trip: Osaka", usageCount: 3 },
+];
 
 const ALL_TAGS: { color: string; id: string; name: string }[] = [
 	{ color: "#ff0000", id: "tag-1", name: "Aggro" },
@@ -148,6 +161,28 @@ const t = initTRPC.create({ isServer: true });
 const fixtureRouter = t.router({
 	liveCashGameSession: t.router({
 		getById: t.procedure.input(z.custom()).query(() => session()),
+		update: t.procedure
+			.input(
+				z.custom<{ currencyId?: string; id: string; memo?: string | null }>()
+			)
+			.mutation(({ input }) => {
+				if (input.memo !== undefined) {
+					backend.sessionMemo = input.memo;
+				}
+				if (input.currencyId !== undefined) {
+					backend.sessionCurrencyId = input.currencyId;
+				}
+				return { id: input.id };
+			}),
+		updateSnapshot: t.procedure
+			.input(z.custom<Record<string, unknown>>())
+			.mutation(({ input }) => {
+				backend.snapshotUpdates.push(input);
+				if (typeof input.tableSize === "number") {
+					backend.sessionTableSize = input.tableSize;
+				}
+				return { id: SESSION_ID };
+			}),
 	}),
 	sessionTablePlayer: t.router({
 		add: t.procedure
@@ -228,6 +263,76 @@ const fixtureRouter = t.router({
 				backend.removedPlayerIds.push(input.playerId);
 				return { success: true };
 			}),
+	}),
+	currency: t.router({
+		list: t.procedure.query(() => [
+			{ id: "cur-1", isFavorite: true, name: "Japanese yen", unit: "¥" },
+			{ id: "cur-2", isFavorite: false, name: "Club chips", unit: "chips" },
+		]),
+	}),
+	gameGroup: t.router({
+		list: t.procedure.query(() => [
+			{
+				blind1Label: "SB",
+				blind2Label: "BB",
+				blind3Label: null,
+				builtinKey: "bigbet",
+				id: "grp-1",
+				label: "Big Bet",
+			},
+		]),
+	}),
+	gameMix: t.router({ list: t.procedure.query(() => []) }),
+	gameVariant: t.router({
+		list: t.procedure.query(() => [
+			{ groupId: "grp-1", id: "var-1", label: "NLH" },
+		]),
+	}),
+	session: t.router({
+		getById: t.procedure.input(z.custom()).query(() => ({
+			cashAnte: 0,
+			cashAnteType: "none",
+			cashBlind1: 200,
+			cashBlind3: null,
+			cashMaxBuyIn: null,
+			cashMinBuyIn: null,
+			cashTableSize: backend.sessionTableSize,
+			cashVariant: "NLH",
+			currencyId: backend.sessionCurrencyId,
+			currencyName: backend.sessionCurrencyId === "cur-2" ? "Club chips" : null,
+			currencyUnit: backend.sessionCurrencyId === "cur-2" ? "chips" : null,
+			id: SESSION_ID,
+			memo: backend.sessionMemo,
+			ringGameBlind2: 400,
+			ringGameId: null,
+			ringGameName: "Friday 200/400",
+			roomName: null,
+			tags: SESSION_TAGS.filter((tag) =>
+				backend.sessionTagIds.includes(tag.id)
+			),
+		})),
+		update: t.procedure
+			.input(z.custom<{ id: string; tagIds?: string[] }>())
+			.mutation(({ input }) => {
+				if (input.tagIds !== undefined) {
+					backend.sessionTagIds = input.tagIds;
+				}
+				return { id: input.id };
+			}),
+	}),
+	sessionTag: t.router({
+		create: t.procedure
+			.input(z.custom<{ name: string }>())
+			.mutation(({ input }) => {
+				const created = {
+					id: `tag-new-${SESSION_TAGS.length}`,
+					name: input.name,
+					usageCount: 0,
+				};
+				SESSION_TAGS.push(created);
+				return created;
+			}),
+		list: t.procedure.query(() => SESSION_TAGS),
 	}),
 	player: t.router({
 		getById: t.procedure
@@ -393,8 +498,18 @@ beforeEach(() => {
 	backend.secondPlayerName = "Red cap";
 	backend.secondPlayerTagIds = [];
 	backend.removedPlayerIds = [];
+	backend.sessionCurrencyId = null;
+	backend.sessionMemo = null;
+	backend.sessionTableSize = 6;
+	backend.sessionTagIds = [];
+	backend.snapshotUpdates = [];
 	backend.status = "active";
 	backend.updatedEvents = [];
+	SESSION_TAGS.length = 0;
+	SESSION_TAGS.push(
+		{ id: "stag-1", name: "Weekend", usageCount: 12 },
+		{ id: "stag-2", name: "Trip: Osaka", usageCount: 3 }
+	);
 });
 
 afterEach(() => {
@@ -920,5 +1035,83 @@ describe("CashCockpit", () => {
 		expect(screen.getByRole("button", { name: "All-in" })).toBeDisabled();
 		expect(screen.getByRole("button", { name: "Timeline" })).toBeEnabled();
 		expect(screen.getAllByRole("button", { name: "Note" })[0]).toBeEnabled();
+	});
+	it("edits the session rule from the header sheet and saves the table size", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Session settings" })
+		);
+		await user.click(await screen.findByRole("tab", { name: "Basics" }));
+
+		expect(await screen.findByLabelText("Rule name")).toHaveValue(
+			"Friday 200/400"
+		);
+		await user.selectOptions(screen.getByLabelText("Table size"), "9");
+
+		await waitFor(() => {
+			expect(backend.snapshotUpdates).toContainEqual(
+				expect.objectContaining({ tableSize: 9 })
+			);
+		});
+	});
+
+	it("adds an existing session tag and drops it again", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Session settings" })
+		);
+		await user.click(await screen.findByLabelText("Add session tag"));
+		await user.click(
+			await screen.findByRole("button", { name: WEEKEND_TAG_CHOICE })
+		);
+
+		await waitFor(() => {
+			expect(backend.sessionTagIds).toEqual(["stag-1"]);
+		});
+
+		await user.click(
+			await screen.findByRole("button", { name: "Remove Weekend" })
+		);
+
+		await waitFor(() => {
+			expect(backend.sessionTagIds).toEqual([]);
+		});
+	});
+
+	it("switches the session currency from the currency sheet", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Session settings" })
+		);
+		await user.click(await screen.findByRole("button", { name: CURRENCY_ROW }));
+		await user.click(
+			await screen.findByRole("button", { name: CLUB_CHIPS_ROW })
+		);
+
+		await waitFor(() => {
+			expect(backend.sessionCurrencyId).toBe("cur-2");
+		});
+	});
+
+	it("saves the session memo when the field loses focus", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Session settings" })
+		);
+		const memo = await screen.findByLabelText("Session memo");
+		await user.type(memo, "Table is loose");
+		await user.tab();
+
+		await waitFor(() => {
+			expect(backend.sessionMemo).toBe("Table is loose");
+		});
 	});
 });

@@ -26,7 +26,7 @@ const router = createRouter({
 					maxAge: 1000 * 60 * 60 * 24,
 					// NOTE(ops): When a release changes any tRPC procedure's output shape or
 					// value semantics, bump this buster string in the same change (SA2-154).
-					buster: "2026-07-mix-games",
+					buster: "2026-09-session-tag-usage",
 					dehydrateOptions: {
 						shouldDehydrateQuery: shouldPersistQuery,
 					},

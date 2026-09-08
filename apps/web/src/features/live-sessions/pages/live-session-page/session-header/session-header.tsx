@@ -27,6 +27,7 @@ interface SessionHeaderProps {
 	isMasterLinked: boolean;
 	isPaused: boolean;
 	onEndSession: () => void;
+	onOpenSession: () => void;
 	onPause: () => void;
 	onResume: () => void;
 	ruleName: string;
@@ -65,6 +66,7 @@ export function SessionHeader({
 	isMasterLinked,
 	isPaused,
 	onEndSession,
+	onOpenSession,
 	onPause,
 	onResume,
 	ruleName,
@@ -72,7 +74,9 @@ export function SessionHeader({
 	return (
 		<CrystHeaderShell>
 			<button
+				aria-label="Session settings"
 				className="inline-flex min-h-8 min-w-0 max-w-[190px] shrink-0 items-center gap-1 hover:text-primary"
+				onClick={onOpenSession}
 				type="button"
 			>
 				<span className="min-w-0 truncate font-semibold text-[length:var(--text-sm)] tracking-[var(--tracking-heading)]">

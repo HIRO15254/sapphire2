@@ -9,6 +9,7 @@ import {
 	EventEditorSheet,
 	ResetSeatsDialog,
 	ScanSeatsSheet,
+	SessionSheet,
 	SitInSheet,
 	TimelineSheet,
 } from "../sheets";
@@ -38,6 +39,7 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 				isMasterLinked={cockpit.isMasterLinked}
 				isPaused={cockpit.isPaused}
 				onEndSession={cockpit.onEndSession}
+				onOpenSession={cockpit.onOpenSession}
 				onPause={cockpit.onPause}
 				onResume={cockpit.onResume}
 				ruleName={cockpit.ruleName}
@@ -133,6 +135,12 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 				onOpenChange={cockpit.onCloseSeatSheet}
 				open={cockpit.seatSheet === "scan"}
 				seats={cockpit.scanSeats}
+			/>
+			<SessionSheet
+				onOpenChange={cockpit.onSessionSheetOpenChange}
+				open={cockpit.isSessionSheetOpen}
+				sessionId={sessionId}
+				sessionType="cash_game"
 			/>
 			<EndSessionSheet
 				chipRemoveTotal={cockpit.chipRemoveTotal}
