@@ -123,6 +123,18 @@ describe("buildScanRows classification", () => {
 		});
 	});
 
+	it("flags the hero seat the scan read as empty the same way as any other", () => {
+		const [row] = rowsFor([heroSeat(0)], []);
+
+		expect(row).toMatchObject({
+			currentName: "You",
+			displacesHero: true,
+			isPickable: true,
+			isSelectedByDefault: true,
+			kind: "vacate",
+		});
+	});
+
 	it("flags a seated player the scan read as empty so the seat can be freed", () => {
 		const [row] = rowsFor([seatedSeat(0, "p-red", "Red cap")], []);
 

@@ -92,6 +92,13 @@ export function planSeatClear(
 	return isHeroSeated ? [...steps, { kind: "clearHero" }] : steps;
 }
 
+function heroClearStep(
+	row: ScanRow,
+	isHeroMoving: boolean
+): SeatPlanStep | null {
+	return row.displacesHero && !isHeroMoving ? { kind: "clearHero" } : null;
+}
+
 export function planScanCommit(
 	rows: readonly ScanRow[],
 	activePlayerIds: ReadonlySet<string>
@@ -110,27 +117,21 @@ export function planScanCommit(
 			steps.push({ kind: "moveHero", seatPosition: row.seatPosition });
 			continue;
 		}
-		if (row.kind === "vacate") {
-			const leave = leaveStep(row.currentPlayerId, incoming, active);
-			if (leave) {
-				steps.push(leave);
-			}
+		const isVacate = row.kind === "vacate";
+		const seat = isVacate ? null : seatStep(row, active);
+		if (!(isVacate || seat)) {
 			continue;
 		}
-		const seat = seatStep(row, active);
-		if (seat === null) {
-			continue;
-		}
-		steps.push(seat);
-		if (row.displacesHero && !isHeroMoving) {
-			steps.push({ kind: "clearHero" });
-		}
-		if (row.kind === "conflict") {
-			const leave = leaveStep(row.currentPlayerId, incoming, active);
-			if (leave) {
-				steps.push(leave);
-			}
-		}
+		steps.push(
+			...[
+				seat,
+				isVacate ? leaveStep(row.currentPlayerId, incoming, active) : null,
+				heroClearStep(row, isHeroMoving),
+				row.kind === "conflict"
+					? leaveStep(row.currentPlayerId, incoming, active)
+					: null,
+			].filter((step): step is SeatPlanStep => step !== null)
+		);
 	}
 
 	return steps;

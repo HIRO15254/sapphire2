@@ -94,20 +94,6 @@ function emptyRow(seat: ScanSeatState): ScanRow {
 	};
 }
 
-function vacateRow(seat: ScanSeatState): ScanRow {
-	return {
-		currentName: seat.playerName,
-		currentPlayerId: seat.playerId,
-		displacesHero: false,
-		isPickable: true,
-		isSelectedByDefault: true,
-		kind: "vacate",
-		matchedPlayerId: null,
-		name: "",
-		seatPosition: seat.seatPosition,
-	};
-}
-
 function heroRow(seat: ScanSeatState, name: string): ScanRow {
 	const isAlreadyHero = seat.occupancy === "hero";
 	return {
@@ -124,6 +110,21 @@ function heroRow(seat: ScanSeatState, name: string): ScanRow {
 }
 
 const HERO_LABEL = "You";
+
+function vacateRow(seat: ScanSeatState): ScanRow {
+	const isHeroSeat = seat.occupancy === "hero";
+	return {
+		currentName: isHeroSeat ? HERO_LABEL : seat.playerName,
+		currentPlayerId: seat.playerId,
+		displacesHero: isHeroSeat,
+		isPickable: true,
+		isSelectedByDefault: true,
+		kind: "vacate",
+		matchedPlayerId: null,
+		name: "",
+		seatPosition: seat.seatPosition,
+	};
+}
 
 function seatedRow(
 	seat: ScanSeatState,
@@ -171,10 +172,7 @@ export function buildScanRows({
 	return seats.map((seat) => {
 		const hit = pickScannedSeat(scanned, seat.seatPosition);
 		if (hit === null) {
-			if (seat.occupancy === "hero") {
-				return heroRow(seat, "");
-			}
-			return seat.occupancy === "player" ? vacateRow(seat) : emptyRow(seat);
+			return seat.occupancy === "empty" ? emptyRow(seat) : vacateRow(seat);
 		}
 		const name = hit.name.trim();
 		if (hit.isHero === true) {

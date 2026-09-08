@@ -194,6 +194,48 @@ describe("planScanCommit", () => {
 		]);
 	});
 
+	it("gives up the hero seat the scan read as empty", () => {
+		expect(
+			planScanCommit(
+				[
+					scanRow({
+						currentName: "You",
+						currentPlayerId: null,
+						displacesHero: true,
+						kind: "vacate",
+						matchedPlayerId: null,
+						name: "",
+					}),
+				],
+				new Set()
+			)
+		).toEqual([{ kind: "clearHero" }]);
+	});
+
+	it("keeps the hero seat when another row moves it away from there", () => {
+		const steps = planScanCommit(
+			[
+				scanRow({
+					currentName: "You",
+					currentPlayerId: null,
+					displacesHero: true,
+					kind: "vacate",
+					matchedPlayerId: null,
+					name: "",
+				}),
+				scanRow({
+					kind: "hero",
+					matchedPlayerId: null,
+					name: "",
+					seatPosition: 1,
+				}),
+			],
+			new Set()
+		);
+
+		expect(steps).toEqual([{ kind: "moveHero", seatPosition: 1 }]);
+	});
+
 	it("clears the hero seat when a scanned player takes it over", () => {
 		expect(
 			planScanCommit(
