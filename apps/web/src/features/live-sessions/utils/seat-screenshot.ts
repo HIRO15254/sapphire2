@@ -3,7 +3,7 @@ import {
 	type TablePlayerSourceApp,
 } from "@sapphire2/api/routers/ai-extract-sources";
 import { trpcClient } from "@/utils/trpc";
-import type { ScanRow } from "./seat-scan-review";
+import type { ScanPlanStep } from "./seat-scan-plan";
 
 export type SessionParam =
 	| { liveCashGameSessionId: string; liveTournamentSessionId?: never }
@@ -129,104 +129,57 @@ export async function applyRow(
 	}
 }
 
-async function seatScannedPlayer(
-	row: ScanRow,
-	sessionParam: SessionParam,
-	activePlayerIds: Set<string>
-): Promise<void> {
-	const playerId = row.matchedPlayerId;
-	if (playerId === null) {
-		await trpcClient.sessionTablePlayer.addNew.mutate({
-			...sessionParam,
-			playerName: row.name.trim(),
-			seatPosition: row.seatPosition,
-		});
-		return;
-	}
-	if (activePlayerIds.has(playerId)) {
-		await trpcClient.sessionTablePlayer.updateSeat.mutate({
-			...sessionParam,
-			playerId,
-			seatPosition: row.seatPosition,
-		});
-		return;
-	}
-	await trpcClient.sessionTablePlayer.add.mutate({
-		...sessionParam,
-		playerId,
-		seatPosition: row.seatPosition,
-	});
-	activePlayerIds.add(playerId);
-}
-
-async function unseatDisplaced(
-	sessionParam: SessionParam,
-	playerId: string,
-	activePlayerIds: Set<string>
+export async function runScanPlanStep(
+	step: ScanPlanStep,
+	sessionParam: SessionParam
 ): Promise<boolean> {
 	try {
-		await trpcClient.sessionTablePlayer.remove.mutate({
-			...sessionParam,
-			playerId,
-		});
-	} catch {
-		return false;
-	}
-	activePlayerIds.delete(playerId);
-	return true;
-}
-
-export interface ApplyScanContext {
-	activePlayerIds: Set<string>;
-	incomingPlayerIds: ReadonlySet<string>;
-	isHeroMoving: boolean;
-}
-
-export async function applyScanRow(
-	row: ScanRow,
-	sessionParam: SessionParam,
-	context: ApplyScanContext
-): Promise<boolean> {
-	const { activePlayerIds, incomingPlayerIds, isHeroMoving } = context;
-	if (row.kind === "hero") {
-		try {
-			await updateHeroSeatViaClient(sessionParam, row.seatPosition);
-			return true;
-		} catch {
-			return false;
-		}
-	}
-	if (row.kind === "vacate") {
-		const leaving = row.currentPlayerId;
-		if (leaving === null || incomingPlayerIds.has(leaving)) {
-			return true;
-		}
-		return await unseatDisplaced(sessionParam, leaving, activePlayerIds);
-	}
-	if (row.matchedPlayerId === null && row.name.trim() === "") {
-		return false;
-	}
-	try {
-		await seatScannedPlayer(row, sessionParam, activePlayerIds);
-	} catch {
-		return false;
-	}
-	if (row.displacesHero && !isHeroMoving) {
-		try {
+		if (step.kind === "moveHero") {
+			await updateHeroSeatViaClient(sessionParam, step.seatPosition);
+		} else if (step.kind === "clearHero") {
 			await updateHeroSeatViaClient(sessionParam, null);
-		} catch {
-			return false;
+		} else if (step.kind === "leave") {
+			await trpcClient.sessionTablePlayer.remove.mutate({
+				...sessionParam,
+				playerId: step.playerId,
+			});
+		} else if (step.kind === "moveExisting") {
+			await trpcClient.sessionTablePlayer.updateSeat.mutate({
+				...sessionParam,
+				playerId: step.playerId,
+				seatPosition: step.seatPosition,
+			});
+		} else if (step.kind === "seatExisting") {
+			await trpcClient.sessionTablePlayer.add.mutate({
+				...sessionParam,
+				playerId: step.playerId,
+				seatPosition: step.seatPosition,
+			});
+		} else {
+			await trpcClient.sessionTablePlayer.addNew.mutate({
+				...sessionParam,
+				playerName: step.name,
+				seatPosition: step.seatPosition,
+			});
+		}
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+export async function runScanPlan(
+	steps: readonly ScanPlanStep[],
+	sessionParam: SessionParam
+): Promise<number> {
+	let failures = 0;
+	for (const step of steps) {
+		const ok = await runScanPlanStep(step, sessionParam);
+		if (!ok) {
+			failures += 1;
 		}
 	}
-	const displaced = row.currentPlayerId;
-	if (
-		row.kind !== "conflict" ||
-		displaced === null ||
-		incomingPlayerIds.has(displaced)
-	) {
-		return true;
-	}
-	return await unseatDisplaced(sessionParam, displaced, activePlayerIds);
+	return failures;
 }
 
 export function computeRowWarning({

@@ -137,10 +137,10 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 			/>
 			<ScanSeatsSheet
 				activePlayerIds={cockpit.excludePlayerIds}
+				onApplyScan={cockpit.onApplyScan}
 				onOpenChange={cockpit.onCloseSeatSheet}
 				open={cockpit.seatSheet === "scan"}
 				seats={cockpit.scanSeats}
-				sessionParam={cockpit.sessionParam}
 			/>
 			<EndTournamentSheet
 				isPending={cockpit.isCompletePending}

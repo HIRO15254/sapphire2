@@ -1,6 +1,12 @@
 import { MAX_SEAT_POSITION } from "@sapphire2/db/constants/session-event-types";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	useMutation,
+	useQueries,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { useMemo } from "react";
+import type { ScanPlanStep } from "@/features/live-sessions/utils/seat-scan-plan";
 import { updateHeroSeatViaClient } from "@/features/live-sessions/utils/seat-screenshot";
 import type { PlayerTagWithColor } from "@/features/players/hooks/use-player-detail";
 import { useTablePlayers } from "@/features/players/hooks/use-table-players";
@@ -54,6 +60,7 @@ export interface SessionSeatsState {
 	heroSeatPosition: number | null;
 	isResetSeatsPending: boolean;
 	occupiedSeatPositions: Set<number>;
+	onApplyScan: (steps: readonly ScanPlanStep[]) => Promise<number>;
 	onMoveSeat: (playerId: string, seatPosition: number | null) => void;
 	onRemovePlayer: (playerId: string) => void;
 	onResetSeats: () => void;
@@ -160,6 +167,12 @@ export function useSessionSeats({
 			tags: tagsByPlayerId.get(p.player.id) ?? [],
 		}));
 
+	useQueries({
+		queries: activePlayers
+			.filter((p) => !p.isLoading)
+			.map((p) => trpc.player.getById.queryOptions({ id: p.playerId })),
+	});
+
 	const seatCount = resolveSeatCount(tableSize);
 
 	const seats: SeatEntry[] = [];
@@ -198,6 +211,7 @@ export function useSessionSeats({
 		isResetSeatsPending:
 			tablePlayers.isRemovePending || heroSeatMutation.isPending,
 		occupiedSeatPositions,
+		onApplyScan: (steps) => tablePlayers.handleApplyScan(steps),
 		onMoveSeat: (playerId, seatPosition) => {
 			tablePlayers.handleUpdateSeat(playerId, seatPosition);
 		},

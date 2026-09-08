@@ -142,6 +142,7 @@ export function useTournamentCockpit(sessionId: string) {
 		onCloseSeatSheet: seatSelection.onCloseSeatSheet,
 		onLeaveSeat: seatState.onRemovePlayer,
 		isResetSeatsPending: seatState.isResetSeatsPending,
+		onApplyScan: seatState.onApplyScan,
 		onOpenResetSeats: seatSelection.onOpenResetSeats,
 		onOpenScan: seatSelection.onOpenScan,
 		onResetSeats: seatState.onResetSeats,

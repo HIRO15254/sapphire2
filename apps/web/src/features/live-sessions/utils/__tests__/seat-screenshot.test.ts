@@ -1,15 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ScanRow } from "@/features/live-sessions/utils/seat-scan-review";
 import {
 	ACCEPTED_TYPES,
 	applyRowAction,
-	applyScanRow,
 	buildRow,
 	computeRowAction,
 	computeRowWarning,
 	isAcceptedMediaType,
 	normalizeName,
 	type ReviewRow,
+	runScanPlan,
 } from "@/features/live-sessions/utils/seat-screenshot";
 import { trpcClient } from "@/utils/trpc";
 
@@ -414,276 +413,90 @@ describe("buildRow", () => {
 	});
 });
 
-describe("applyScanRow", () => {
+describe("runScanPlan", () => {
 	const SESSION = { liveCashGameSessionId: "s1" };
 	const seat = trpcClient.sessionTablePlayer;
-
-	function scanRow(overrides: Partial<ScanRow>): ScanRow {
-		return {
-			currentName: null,
-			currentPlayerId: null,
-			displacesHero: false,
-			isPickable: true,
-			isSelectedByDefault: true,
-			kind: "known",
-			matchedPlayerId: "p-y",
-			name: "Y",
-			seatPosition: 6,
-			...overrides,
-		};
-	}
-
-	function apply(
-		row: ScanRow,
-		activePlayerIds: Set<string>,
-		incomingPlayerIds: Set<string>,
-		isHeroMoving = false
-	) {
-		return applyScanRow(row, SESSION, {
-			activePlayerIds,
-			incomingPlayerIds,
-			isHeroMoving,
-		});
-	}
+	const hero = trpcClient.liveCashGameSession.updateHeroSeat;
 
 	beforeEach(() => {
 		vi.mocked(seat.add.mutate).mockReset().mockResolvedValue(undefined);
 		vi.mocked(seat.addNew.mutate).mockReset().mockResolvedValue(undefined);
 		vi.mocked(seat.remove.mutate).mockReset().mockResolvedValue(undefined);
 		vi.mocked(seat.updateSeat.mutate).mockReset().mockResolvedValue(undefined);
+		vi.mocked(hero.mutate).mockReset().mockResolvedValue(undefined);
 	});
 
-	it("moves a player who is already seated in this session instead of adding them", async () => {
-		const ok = await apply(scanRow({}), new Set(["p-y"]), new Set(["p-y"]));
-
-		expect(ok).toBe(true);
-		expect(seat.updateSeat.mutate).toHaveBeenCalledWith({
-			liveCashGameSessionId: "s1",
-			playerId: "p-y",
-			seatPosition: 6,
-		});
-		expect(seat.add.mutate).not.toHaveBeenCalled();
-	});
-
-	it("adds a known player who is not at the table yet", async () => {
-		const ok = await apply(scanRow({}), new Set(), new Set(["p-y"]));
-
-		expect(ok).toBe(true);
-		expect(seat.add.mutate).toHaveBeenCalledWith({
-			liveCashGameSessionId: "s1",
-			playerId: "p-y",
-			seatPosition: 6,
-		});
-		expect(seat.updateSeat.mutate).not.toHaveBeenCalled();
-	});
-
-	it("seats the incoming player before removing the one being replaced", async () => {
+	it("sends each step to the procedure that performs it, in order", async () => {
 		const order: string[] = [];
-		vi.mocked(seat.updateSeat.mutate).mockImplementation(() => {
-			order.push("updateSeat");
-			return Promise.resolve(undefined);
-		});
-		vi.mocked(seat.remove.mutate).mockImplementation(() => {
-			order.push("remove");
-			return Promise.resolve(undefined);
-		});
-
-		const ok = await apply(
-			scanRow({ currentName: "X", currentPlayerId: "p-x", kind: "conflict" }),
-			new Set(["p-y"]),
-			new Set(["p-y"])
-		);
-
-		expect(ok).toBe(true);
-		expect(order).toEqual(["updateSeat", "remove"]);
-	});
-
-	it("keeps the replaced player at the table when seating the incoming one fails", async () => {
-		vi.mocked(seat.add.mutate).mockRejectedValue(new Error("already active"));
-
-		const ok = await apply(
-			scanRow({ currentName: "X", currentPlayerId: "p-x", kind: "conflict" }),
-			new Set(),
-			new Set(["p-y"])
-		);
-
-		expect(ok).toBe(false);
-		expect(seat.remove.mutate).not.toHaveBeenCalled();
-	});
-
-	it("does not remove the seat's current player when they are the incoming player", async () => {
-		const ok = await apply(
-			scanRow({
-				currentName: "Y old",
-				currentPlayerId: "p-y",
-				kind: "conflict",
-			}),
-			new Set(["p-y"]),
-			new Set(["p-y"])
-		);
-
-		expect(ok).toBe(true);
-		expect(seat.remove.mutate).not.toHaveBeenCalled();
-	});
-
-	it("swaps two seated players without dropping either of them", async () => {
-		const activeIds = new Set(["p-x", "p-y"]);
-		const incomingIds = new Set(["p-x", "p-y"]);
-		const swapRows = [
-			scanRow({
-				currentName: "X",
-				currentPlayerId: "p-x",
-				kind: "conflict",
-				matchedPlayerId: "p-y",
-				name: "Y",
-				seatPosition: 2,
-			}),
-			scanRow({
-				currentName: "Y",
-				currentPlayerId: "p-y",
-				kind: "conflict",
-				matchedPlayerId: "p-x",
-				name: "X",
-				seatPosition: 4,
-			}),
-		];
-
-		const results: boolean[] = [];
-		for (const row of swapRows) {
-			results.push(await apply(row, activeIds, incomingIds));
+		for (const [label, spy] of [
+			["moveHero", hero.mutate],
+			["leave", seat.remove.mutate],
+			["moveExisting", seat.updateSeat.mutate],
+			["seatExisting", seat.add.mutate],
+			["seatNew", seat.addNew.mutate],
+		] as const) {
+			vi.mocked(spy).mockImplementation(() => {
+				order.push(label);
+				return Promise.resolve(undefined);
+			});
 		}
 
-		expect(results).toEqual([true, true]);
-		expect(
-			vi.mocked(seat.updateSeat.mutate).mock.calls.map(([c]) => c)
-		).toEqual([
-			{ liveCashGameSessionId: "s1", playerId: "p-y", seatPosition: 2 },
-			{ liveCashGameSessionId: "s1", playerId: "p-x", seatPosition: 4 },
+		const failures = await runScanPlan(
+			[
+				{ kind: "seatExisting", name: "Y", playerId: "p-y", seatPosition: 6 },
+				{ kind: "leave", playerId: "p-x" },
+				{ kind: "moveExisting", playerId: "p-z", seatPosition: 1 },
+				{ kind: "seatNew", name: "Blue shirt", seatPosition: 3 },
+				{ kind: "moveHero", seatPosition: 8 },
+			],
+			SESSION
+		);
+
+		expect(failures).toBe(0);
+		expect(order).toEqual([
+			"seatExisting",
+			"leave",
+			"moveExisting",
+			"seatNew",
+			"moveHero",
 		]);
-		expect(seat.remove.mutate).not.toHaveBeenCalled();
-		expect(activeIds).toEqual(new Set(["p-x", "p-y"]));
-	});
-
-	it("re-seats a player an earlier row removed instead of moving a departed one", async () => {
-		const activeIds = new Set(["p-x"]);
-		const incomingIds = new Set(["p-y"]);
-
-		await apply(
-			scanRow({
-				currentName: "X",
-				currentPlayerId: "p-x",
-				kind: "conflict",
-				matchedPlayerId: "p-y",
-				seatPosition: 2,
-			}),
-			activeIds,
-			incomingIds
-		);
-		expect(activeIds.has("p-x")).toBe(false);
-
-		const ok = await apply(
-			scanRow({ matchedPlayerId: "p-x", name: "X", seatPosition: 4 }),
-			activeIds,
-			incomingIds
-		);
-
-		expect(ok).toBe(true);
 		expect(seat.add.mutate).toHaveBeenCalledWith({
 			liveCashGameSessionId: "s1",
-			playerId: "p-x",
-			seatPosition: 4,
+			playerId: "p-y",
+			seatPosition: 6,
 		});
-	});
-
-	it("frees a seat the scan read as empty", async () => {
-		const activeIds = new Set(["p-x"]);
-		const ok = await apply(
-			scanRow({
-				currentName: "X",
-				currentPlayerId: "p-x",
-				kind: "vacate",
-				matchedPlayerId: null,
-				name: "",
-			}),
-			activeIds,
-			new Set()
-		);
-
-		expect(ok).toBe(true);
-		expect(seat.remove.mutate).toHaveBeenCalledWith({
+		expect(seat.addNew.mutate).toHaveBeenCalledWith({
 			liveCashGameSessionId: "s1",
-			playerId: "p-x",
+			playerName: "Blue shirt",
+			seatPosition: 3,
 		});
-		expect(activeIds.has("p-x")).toBe(false);
 	});
 
-	it("keeps a player the scan read as gone when another row re-seats them", async () => {
-		const ok = await apply(
-			scanRow({
-				currentName: "X",
-				currentPlayerId: "p-x",
-				kind: "vacate",
-				matchedPlayerId: null,
-				name: "",
-			}),
-			new Set(["p-x"]),
-			new Set(["p-x"])
-		);
+	it("gives up the hero seat when the plan clears it", async () => {
+		const failures = await runScanPlan([{ kind: "clearHero" }], SESSION);
 
-		expect(ok).toBe(true);
-		expect(seat.remove.mutate).not.toHaveBeenCalled();
-	});
-
-	it("clears the hero seat when a scanned player takes it over", async () => {
-		const hero = trpcClient.liveCashGameSession.updateHeroSeat;
-		vi.mocked(hero.mutate).mockReset().mockResolvedValue(undefined);
-
-		const ok = await apply(
-			scanRow({
-				currentName: "You",
-				currentPlayerId: null,
-				displacesHero: true,
-				kind: "conflict",
-			}),
-			new Set(),
-			new Set()
-		);
-
-		expect(ok).toBe(true);
+		expect(failures).toBe(0);
 		expect(hero.mutate).toHaveBeenCalledWith({
 			id: "s1",
 			heroSeatPosition: null,
 		});
 	});
 
-	it("leaves the hero seat alone when another row moves it instead", async () => {
-		const hero = trpcClient.liveCashGameSession.updateHeroSeat;
-		vi.mocked(hero.mutate).mockReset().mockResolvedValue(undefined);
+	it("counts a rejected step and keeps applying the rest", async () => {
+		vi.mocked(seat.add.mutate).mockRejectedValue(new Error("already active"));
 
-		const ok = await apply(
-			scanRow({
-				currentName: "You",
-				currentPlayerId: null,
-				displacesHero: true,
-				kind: "conflict",
-			}),
-			new Set(),
-			new Set(),
-			true
+		const failures = await runScanPlan(
+			[
+				{ kind: "seatExisting", name: "Y", playerId: "p-y", seatPosition: 6 },
+				{ kind: "leave", playerId: "p-x" },
+			],
+			SESSION
 		);
 
-		expect(ok).toBe(true);
-		expect(hero.mutate).not.toHaveBeenCalled();
-	});
-
-	it("skips an unmatched row whose name was cleared instead of sending an empty name", async () => {
-		const ok = await apply(
-			scanRow({ kind: "new", matchedPlayerId: null, name: "  " }),
-			new Set(),
-			new Set()
-		);
-
-		expect(ok).toBe(false);
-		expect(seat.addNew.mutate).not.toHaveBeenCalled();
+		expect(failures).toBe(1);
+		expect(seat.remove.mutate).toHaveBeenCalledWith({
+			liveCashGameSessionId: "s1",
+			playerId: "p-x",
+		});
 	});
 });

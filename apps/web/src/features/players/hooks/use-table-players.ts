@@ -1,5 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
+import type { ScanPlanStep } from "@/features/live-sessions/utils/seat-scan-plan";
+import { projectScanPlan } from "@/features/live-sessions/utils/seat-scan-plan";
+import { runScanPlan } from "@/features/live-sessions/utils/seat-screenshot";
 import {
 	cancelTargets,
 	createOptimisticId,
@@ -326,6 +329,28 @@ export function useTablePlayers({
 		},
 		handleAddTemporary: (seatPosition?: number) => {
 			addTemporaryMutation.mutate({ seatPosition });
+		},
+		handleApplyScan: async (steps: readonly ScanPlanStep[]) => {
+			if (steps.length === 0) {
+				return 0;
+			}
+			beginMutation();
+			await cancelTargets(queryClient, [{ queryKey: playersKey }]);
+			const previous = snapshotQuery<TablePlayerData>(queryClient, playersKey);
+			const joinedAt = new Date().toISOString();
+			updateQueryData<TablePlayerData>(queryClient, playersKey, (old) =>
+				old ? { items: projectScanPlan(old.items, steps, joinedAt) } : old
+			);
+			const failures = await runScanPlan(steps, sessionParam);
+			if (failures === steps.length) {
+				restoreSnapshots(queryClient, [previous]);
+			}
+			endMutation();
+			await invalidateTargets(queryClient, [
+				{ queryKey: playersKey },
+				{ queryKey: trpc.player.list.queryOptions().queryKey },
+			]);
+			return failures;
 		},
 		handleRemoveAllPlayers: async (playerIds: readonly string[]) => {
 			for (const playerId of playerIds) {

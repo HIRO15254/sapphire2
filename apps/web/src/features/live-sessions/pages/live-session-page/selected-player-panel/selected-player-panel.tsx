@@ -1,4 +1,10 @@
-import { IconLogout, IconPlus, IconTag, IconX } from "@tabler/icons-react";
+import {
+	IconLoader2,
+	IconLogout,
+	IconPlus,
+	IconTag,
+	IconX,
+} from "@tabler/icons-react";
 import { useSelectedPlayerPanel } from "./use-selected-player-panel";
 
 interface SelectedPlayerPanelProps {
@@ -18,8 +24,13 @@ export function SelectedPlayerPanel({
 
 	if (!panel.player) {
 		return (
-			<div className="flex h-full min-h-16 items-center justify-center p-4 text-[length:var(--m-text-footnote)] text-muted-foreground">
-				Loading player...
+			<div className="flex h-full min-h-16 items-center justify-center p-4">
+				<IconLoader2
+					aria-label="Loading player"
+					className="animate-spin text-muted-foreground"
+					role="img"
+					size={20}
+				/>
 			</div>
 		);
 	}

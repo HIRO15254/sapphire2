@@ -1,12 +1,11 @@
 import {
 	IconAlertHexagon,
-	IconCircleCheck,
 	IconLoader2,
 	IconPhoto,
 	IconRefresh,
 } from "@tabler/icons-react";
+import type { ScanPlanStep } from "@/features/live-sessions/utils/seat-scan-plan";
 import type { ScanSeatState } from "@/features/live-sessions/utils/seat-scan-review";
-import type { SessionParam } from "@/features/live-sessions/utils/seat-screenshot";
 import { ACCEPTED_TYPES } from "@/features/live-sessions/utils/seat-screenshot";
 import { CrystFormSheet } from "../cryst-form-sheet";
 import { ScanReviewRow } from "./scan-review-row";
@@ -15,10 +14,10 @@ import { useScanSeatsSheet } from "./use-scan-seats-sheet";
 
 interface ScanSeatsSheetProps {
 	activePlayerIds: readonly string[];
+	onApplyScan: (steps: readonly ScanPlanStep[]) => Promise<number>;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 	seats: readonly ScanSeatState[];
-	sessionParam: SessionParam;
 }
 
 const FORM_ID = "cryst-scan-seats-form";
@@ -26,7 +25,6 @@ const FORM_ID = "cryst-scan-seats-form";
 const TITLES: Record<ScanStep, string> = {
 	busy: "Reading images",
 	choose: "Scan seats",
-	done: "Seats registered",
 	review: "Check the result",
 };
 
@@ -35,17 +33,17 @@ const PRIMARY_BUTTON =
 
 export function ScanSeatsSheet({
 	activePlayerIds,
+	onApplyScan,
 	onOpenChange,
 	open,
 	seats,
-	sessionParam,
 }: ScanSeatsSheetProps) {
 	const sheet = useScanSeatsSheet({
 		activePlayerIds,
+		onApplyScan,
 		onOpenChange,
 		open,
 		seats,
-		sessionParam,
 	});
 
 	const isSaveDisabled =
@@ -70,10 +68,6 @@ export function ScanSeatsSheet({
 					e.stopPropagation();
 					if (sheet.step === "review") {
 						sheet.onCommit();
-						return;
-					}
-					if (sheet.step === "done") {
-						sheet.onDone();
 					}
 				}}
 			>
@@ -159,40 +153,6 @@ export function ScanSeatsSheet({
 									row={row}
 								/>
 							))}
-						</div>
-					</div>
-				) : null}
-
-				{sheet.step === "done" ? (
-					<div className="flex flex-col gap-3">
-						<div className="flex items-center gap-2.5 rounded-md bg-[color-mix(in_oklab,var(--success)_12%,transparent)] p-3">
-							<IconCircleCheck className="text-success" size={20} />
-							<span className="font-semibold text-[length:var(--m-text-secondary)]">
-								{sheet.committed.length} seats registered
-							</span>
-						</div>
-						<div className="flex flex-wrap gap-1.5">
-							{sheet.committed.map((seat) => (
-								<span
-									className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[length:var(--m-text-caption)]"
-									key={seat.seatLabel}
-								>
-									<span className="font-mono text-muted-foreground">
-										{seat.seatLabel}
-									</span>
-									{seat.name}
-								</span>
-							))}
-						</div>
-						<div className="flex flex-col rounded-md border border-border px-2.5 py-0.5 text-[length:var(--text-sm)]">
-							<div className="flex justify-between border-border border-b py-2">
-								<span className="text-muted-foreground">Kept as they were</span>
-								<span className="font-mono">{sheet.keptText}</span>
-							</div>
-							<div className="flex justify-between py-2">
-								<span className="text-muted-foreground">Logged at</span>
-								<span className="font-mono">{sheet.committedAtText}</span>
-							</div>
 						</div>
 					</div>
 				) : null}

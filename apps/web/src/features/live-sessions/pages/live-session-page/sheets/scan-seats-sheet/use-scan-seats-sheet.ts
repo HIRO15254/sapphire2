@@ -1,6 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import type { ScanPlanStep } from "@/features/live-sessions/utils/seat-scan-plan";
+import { planScanCommit } from "@/features/live-sessions/utils/seat-scan-plan";
 import type {
 	ScanRow,
 	ScanSeatState,
@@ -9,35 +11,25 @@ import {
 	buildScanRows,
 	countDetectedSeats,
 } from "@/features/live-sessions/utils/seat-scan-review";
-import type {
-	AcceptedMediaType,
-	SessionParam,
-} from "@/features/live-sessions/utils/seat-screenshot";
+import type { AcceptedMediaType } from "@/features/live-sessions/utils/seat-screenshot";
 import {
-	applyScanRow,
 	fileToBase64,
 	isAcceptedMediaType,
 	SOURCE_APP_ENTRIES,
 } from "@/features/live-sessions/utils/seat-screenshot";
 import { formatLocalHm } from "@/utils/format-number";
-import { invalidateTargets } from "@/utils/optimistic-update";
 import { trpc } from "@/utils/trpc";
 
-export type ScanStep = "busy" | "choose" | "done" | "review";
+export type ScanStep = "busy" | "choose" | "review";
 
 const MAX_IMAGES = 5;
 
-export interface CommittedSeat {
-	name: string;
-	seatLabel: string;
-}
-
 interface UseScanSeatsSheetOptions {
 	activePlayerIds: readonly string[];
+	onApplyScan: (steps: readonly ScanPlanStep[]) => Promise<number>;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 	seats: readonly ScanSeatState[];
-	sessionParam: SessionParam;
 }
 
 function firstSourceApp() {
@@ -55,32 +47,18 @@ function describeScan(imageCount: number, scannedAt: Date | null): string {
 	return scannedAt === null ? label : `${label} ${formatLocalHm(scannedAt)}`;
 }
 
-function seatLabelOf(seatPosition: number) {
-	return `S${seatPosition + 1}`;
-}
-
-function committedNameOf(row: ScanRow): string {
-	if (row.kind === "vacate") {
-		return row.currentName === null ? "Empty" : `${row.currentName} left`;
-	}
-	return row.name === "" ? "You" : row.name;
-}
-
 export function useScanSeatsSheet({
 	activePlayerIds,
+	onApplyScan,
 	onOpenChange,
 	open,
 	seats,
-	sessionParam,
 }: UseScanSeatsSheetOptions) {
-	const queryClient = useQueryClient();
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [step, setStep] = useState<ScanStep>("choose");
 	const [rows, setRows] = useState<ScanRow[]>([]);
 	const [selection, setSelection] = useState<Record<number, boolean>>({});
 	const [names, setNames] = useState<Record<number, string>>({});
-	const [committed, setCommitted] = useState<CommittedSeat[]>([]);
-	const [committedAt, setCommittedAt] = useState<Date | null>(null);
 	const [scannedAt, setScannedAt] = useState<Date | null>(null);
 	const [imageCount, setImageCount] = useState(0);
 	const [isApplying, setIsApplying] = useState(false);
@@ -100,8 +78,6 @@ export function useScanSeatsSheet({
 			setRows([]);
 			setSelection({});
 			setNames({});
-			setCommitted([]);
-			setCommittedAt(null);
 			setScannedAt(null);
 			setImageCount(0);
 			setIsApplying(false);
@@ -187,49 +163,16 @@ export function useScanSeatsSheet({
 			return;
 		}
 		setIsApplying(true);
-		const applied: CommittedSeat[] = [];
-		let failures = 0;
-		const context = {
-			activePlayerIds: new Set(activePlayerIds),
-			incomingPlayerIds: new Set(
-				selected
-					.map((row) => row.matchedPlayerId)
-					.filter((id): id is string => id !== null)
-			),
-			isHeroMoving: selected.some((row) => row.kind === "hero"),
-		};
-		for (const row of selected) {
-			const ok = await applyScanRow(row, sessionParam, context);
-			if (ok) {
-				applied.push({
-					name: committedNameOf(row),
-					seatLabel: seatLabelOf(row.seatPosition),
-				});
-			} else {
-				failures += 1;
-			}
-		}
-		await invalidateTargets(queryClient, [
-			{
-				queryKey:
-					trpc.sessionTablePlayer.list.queryOptions(sessionParam).queryKey,
-			},
-			{ queryKey: trpc.player.list.queryOptions().queryKey },
-		]);
+		const steps = planScanCommit(selected, new Set(activePlayerIds));
+		const failures = await onApplyScan(steps);
 		setIsApplying(false);
-		setCommitted(applied);
-		setCommittedAt(new Date());
-		setStep("done");
+		onOpenChange(false);
 		if (failures > 0) {
-			toast.error(
-				`${failures} of ${selected.length} seats could not be saved.`
-			);
+			toast.error(`${failures} of ${steps.length} changes could not be saved.`);
 		}
 	};
 
 	return {
-		committed,
-		committedAtText: committedAt === null ? "—" : formatLocalHm(committedAt),
 		conflictNote:
 			conflicts.length === 0
 				? null
@@ -237,9 +180,7 @@ export function useScanSeatsSheet({
 		detectedText: `${countDetectedSeats(rows)} of ${seats.length} seats detected`,
 		fileInputRef,
 		isApplying,
-		keptText: `${rows.length - committed.length} seats`,
 		onCommit,
-		onDone: () => onOpenChange(false),
 		onImageSelected,
 		onNameChange: (seatPosition: number, name: string) => {
 			setNames((prev) => ({ ...prev, [seatPosition]: name }));
