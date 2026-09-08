@@ -123,6 +123,20 @@ describe("buildScanRows classification", () => {
 		});
 	});
 
+	it("names the player the hero takes the seat from", () => {
+		const [row] = rowsFor(
+			[seatedSeat(0, "p-red", "Red cap")],
+			[scanned(1, "Me", true)]
+		);
+
+		expect(row).toMatchObject({
+			currentName: "Red cap",
+			currentPlayerId: "p-red",
+			isPickable: true,
+			kind: "hero",
+		});
+	});
+
 	it("flags the hero seat the scan read as empty the same way as any other", () => {
 		const [row] = rowsFor([heroSeat(0)], []);
 

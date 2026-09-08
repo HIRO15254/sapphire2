@@ -115,6 +115,10 @@ export function planScanCommit(
 	for (const row of rows) {
 		if (row.kind === "hero") {
 			steps.push({ kind: "moveHero", seatPosition: row.seatPosition });
+			const displaced = leaveStep(row.currentPlayerId, incoming, active);
+			if (displaced) {
+				steps.push(displaced);
+			}
 			continue;
 		}
 		const isVacate = row.kind === "vacate";

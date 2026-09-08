@@ -140,7 +140,7 @@ export function ScanReviewRow({
 					{meta.status}
 				</span>
 			</div>
-			{row.kind === "conflict" || row.kind === "vacate" ? (
+			{row.currentName !== null && row.isPickable ? (
 				<div className="flex items-center gap-1.5 pt-0.5 pb-[5px] pl-[62px]">
 					<span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
 						Seated now{" "}
