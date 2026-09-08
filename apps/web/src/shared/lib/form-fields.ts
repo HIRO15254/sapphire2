@@ -79,3 +79,9 @@ export function parseRequiredInt(value: string): number {
 export function parseRequiredNumber(value: string): number {
 	return parseOptionalNumber(value) ?? 0;
 }
+
+export const NO_INPUT_SUGGESTIONS = {
+	autoComplete: "off",
+	autoCorrect: "off",
+	spellCheck: false,
+} as const;

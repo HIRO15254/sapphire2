@@ -1,8 +1,17 @@
 import { ActionBar } from "../action-bar";
 import { PausedOverlay } from "../paused-overlay";
+import { SeatPanel } from "../seat-panel";
 import { SeatPanelPlaceholder } from "../seat-panel-placeholder";
+import { SelectedPlayerPanel } from "../selected-player-panel";
 import { SessionHeader } from "../session-header";
-import { EndSessionSheet, EventEditorSheet, TimelineSheet } from "../sheets";
+import {
+	EndSessionSheet,
+	EventEditorSheet,
+	ResetSeatsDialog,
+	ScanSeatsSheet,
+	SitInSheet,
+	TimelineSheet,
+} from "../sheets";
 import { StackQuickInput } from "../stack-quick-input";
 import { StalenessLine } from "../staleness-line";
 import { TableView } from "../table-view";
@@ -36,6 +45,7 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 			<div className="relative flex min-h-0 flex-1 flex-col">
 				{cockpit.isKeyboardOpen ? null : (
 					<TableView
+						canResetSeats={cockpit.seatedCount > 0}
 						center={
 							<CashTableStats
 								bbText={cockpit.bbText}
@@ -45,10 +55,25 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 								stackFormatted={cockpit.stackFormatted}
 							/>
 						}
+						onResetSeats={cockpit.onOpenResetSeats}
+						onScan={cockpit.onOpenScan}
+						onSelectSeat={cockpit.onSelectSeat}
 						seats={cockpit.seats}
+						selectedSeatPosition={cockpit.selectedSeatPosition}
 					/>
 				)}
-				<SeatPanelPlaceholder />
+				<SeatPanel>
+					{cockpit.selectedPlayerId === null ||
+					cockpit.selectedSeatPosition === null ? (
+						<SeatPanelPlaceholder />
+					) : (
+						<SelectedPlayerPanel
+							onLeave={cockpit.onLeaveSeat}
+							playerId={cockpit.selectedPlayerId}
+							seatLabel={`S${cockpit.selectedSeatPosition + 1}`}
+						/>
+					)}
+				</SeatPanel>
 				<div className="shrink-0 border-border border-t bg-card">
 					<div className="flex flex-col gap-1.5 px-[var(--m-inset)] pt-2">
 						<StackQuickInput
@@ -78,6 +103,36 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 					/>
 				) : null}
 			</div>
+			{cockpit.sitInSeatPosition === null ? null : (
+				<SitInSheet
+					excludePlayerIds={cockpit.excludePlayerIds}
+					heroSeatPosition={cockpit.heroSeatPosition}
+					onOpenChange={cockpit.onCloseSeatSheet}
+					onSeatExisting={cockpit.onSitInExisting}
+					onSeatHero={cockpit.onSitInHero}
+					onSeatNew={cockpit.onSitInNew}
+					onSeatTemporary={cockpit.onSitInTemporary}
+					open={cockpit.seatSheet === "sitIn"}
+					seatPosition={cockpit.sitInSeatPosition}
+				/>
+			)}
+			<ResetSeatsDialog
+				isPending={cockpit.isResetSeatsPending}
+				onConfirm={() => {
+					cockpit.onResetSeats();
+					cockpit.onCloseSeatSheet();
+				}}
+				onOpenChange={cockpit.onCloseSeatSheet}
+				open={cockpit.seatSheet === "reset"}
+				seatedCount={cockpit.seatedCount}
+			/>
+			<ScanSeatsSheet
+				activePlayerIds={cockpit.excludePlayerIds}
+				onApplySeatPlan={cockpit.onApplySeatPlan}
+				onOpenChange={cockpit.onCloseSeatSheet}
+				open={cockpit.seatSheet === "scan"}
+				seats={cockpit.scanSeats}
+			/>
 			<EndSessionSheet
 				chipRemoveTotal={cockpit.chipRemoveTotal}
 				defaultFinalStack={cockpit.defaultFinalStack}
@@ -103,10 +158,12 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 					isTournament={false}
 					maxTime={journal.maxTime}
 					minTime={journal.minTime}
+					occupiedSeatPositions={journal.occupiedSeatPositions}
 					onDelete={journal.onDelete}
 					onOpenChange={journal.onCloseEditor}
 					onSubmit={journal.onEditorSubmit}
 					open={journal.isEditorOpen}
+					seatCount={journal.seatCount}
 					target={journal.editorTarget}
 				/>
 			)}

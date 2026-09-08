@@ -132,10 +132,17 @@ describe("aiExtract.extractTablePlayers input validation", () => {
 		});
 	});
 
-	it("rejects more than 1 source (length constraint)", () => {
-		expectRejects(appRouter.aiExtract.extractTablePlayers, {
+	it("accepts several screenshots of the same table", () => {
+		expectAccepts(appRouter.aiExtract.extractTablePlayers, {
 			sourceApp: "dmm_waitinglist",
 			sources: [validImage, validImage],
+		});
+	});
+
+	it("rejects more sources than the batch limit", () => {
+		expectRejects(appRouter.aiExtract.extractTablePlayers, {
+			sourceApp: "dmm_waitinglist",
+			sources: Array.from({ length: 6 }, () => validImage),
 		});
 	});
 

@@ -1,5 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import type { SeatPlanTableStep } from "@/features/live-sessions/utils/seat-plan";
+import { projectSeatPlan } from "@/features/live-sessions/utils/seat-plan";
+import { runSeatPlan } from "@/features/live-sessions/utils/seat-screenshot";
 import {
 	cancelTargets,
 	createOptimisticId,
@@ -65,6 +68,8 @@ export function useTablePlayers({
 
 	const playersKey =
 		trpc.sessionTablePlayer.list.queryOptions(sessionParam).queryKey;
+
+	const [isSeatPlanPending, setIsSeatPlanPending] = useState(false);
 
 	const addMutation = useMutation({
 		mutationFn: (params: {
@@ -327,9 +332,37 @@ export function useTablePlayers({
 		handleAddTemporary: (seatPosition?: number) => {
 			addTemporaryMutation.mutate({ seatPosition });
 		},
+		handleApplySeatPlan: async (steps: readonly SeatPlanTableStep[]) => {
+			if (steps.length === 0) {
+				return 0;
+			}
+			beginMutation();
+			setIsSeatPlanPending(true);
+			await cancelTargets(queryClient, [{ queryKey: playersKey }]);
+			const previous = snapshotQuery<TablePlayerData>(queryClient, playersKey);
+			const joinedAt = new Date().toISOString();
+			updateQueryData<TablePlayerData>(queryClient, playersKey, (old) =>
+				old ? { items: projectSeatPlan(old.items, steps, joinedAt) } : old
+			);
+			const failures = await runSeatPlan(steps, sessionParam);
+			if (failures === steps.length) {
+				restoreSnapshots(queryClient, [previous]);
+			}
+			endMutation();
+			setIsSeatPlanPending(false);
+			await invalidateTargets(queryClient, [
+				{ queryKey: playersKey },
+				{ queryKey: trpc.player.list.queryOptions().queryKey },
+			]);
+			return failures;
+		},
 		handleRemovePlayer: (playerId: string) => {
 			removeMutation.mutate(playerId);
 		},
-		updateSeatMutation,
+		handleUpdateSeat: (playerId: string, seatPosition: number | null) => {
+			updateSeatMutation.mutate({ playerId, seatPosition });
+		},
+		isSeatPlanPending,
+		isSeatUpdatePending: updateSeatMutation.isPending,
 	};
 }

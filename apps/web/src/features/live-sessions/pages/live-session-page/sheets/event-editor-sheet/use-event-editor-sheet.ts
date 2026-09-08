@@ -43,12 +43,13 @@ interface UseEventEditorSheetOptions {
 	isTournament: boolean;
 	maxTime: Date | null;
 	minTime: Date | null;
+	occupiedSeatPositions: ReadonlySet<number>;
 	onSubmit: (values: EventEditorSubmit) => void;
+	seatCount: number;
 	target: EventEditorTarget;
 }
 
 const MS_PER_SECOND = 1000;
-
 const baseSchema = z.object({
 	amount: z.string(),
 	buyInAmount: z.string(),
@@ -58,6 +59,7 @@ const baseSchema = z.object({
 	potSize: z.string(),
 	purchaseId: z.string(),
 	remainingPlayers: z.string(),
+	seatNumber: z.string(),
 	stackAmount: z.string(),
 	time: z.string().min(1, "Required"),
 	timerStart: z.string(),
@@ -75,6 +77,26 @@ function toPayload(payload: unknown): Record<string, unknown> {
 function numberField(payload: Record<string, unknown>, key: string) {
 	const value = payload[key];
 	return typeof value === "number" ? String(value) : "";
+}
+
+function readSeatPosition(target: EventEditorTarget): number | null {
+	const value = toPayload(target.event?.payload).seatPosition;
+	return typeof value === "number" ? value : null;
+}
+
+function seatNumberField(payload: Record<string, unknown>) {
+	const value = payload.seatPosition;
+	return typeof value === "number" ? String(value + 1) : "";
+}
+
+export function isSeatEditable(target: EventEditorTarget): boolean {
+	const payload = toPayload(target.event?.payload);
+	return (
+		target.kind === "seat" &&
+		target.event?.eventType === "player_join" &&
+		payload.isHero !== true &&
+		typeof payload.playerId === "string"
+	);
 }
 
 function baseDateOf(target: EventEditorTarget): Date {
@@ -103,6 +125,7 @@ function buildDefaults(target: EventEditorTarget) {
 				? payload.sessionChipPurchaseId
 				: "",
 		remainingPlayers: numberField(payload, "remainingPlayers"),
+		seatNumber: seatNumberField(payload),
 		stackAmount: numberField(payload, "stackAmount"),
 		time: toTimeInputValue(baseDateOf(target)),
 		timerStart:
@@ -117,8 +140,31 @@ function buildDefaults(target: EventEditorTarget) {
 
 export type EventEditorValues = ReturnType<typeof buildDefaults>;
 
-function buildSchema(kind: EventEditorKind, isTournament: boolean) {
-	switch (kind) {
+function refineSeatIsFree(
+	target: EventEditorTarget,
+	occupiedSeatPositions: ReadonlySet<number>
+) {
+	const ownSeat = readSeatPosition(target);
+	return (values: { seatNumber: string }, ctx: z.RefinementCtx) => {
+		const seatPosition = Number(values.seatNumber) - 1;
+		if (seatPosition === ownSeat || !occupiedSeatPositions.has(seatPosition)) {
+			return;
+		}
+		ctx.addIssue({
+			code: "custom",
+			message: "Seat is taken",
+			path: ["seatNumber"],
+		});
+	};
+}
+
+function buildSchema(
+	target: EventEditorTarget,
+	isTournament: boolean,
+	seatCount: number,
+	occupiedSeatPositions: ReadonlySet<number>
+) {
+	switch (target.kind) {
 		case "stack":
 			return baseSchema.extend({
 				remainingPlayers: optionalNumericString({ integer: true, min: 1 }),
@@ -147,6 +193,18 @@ function buildSchema(kind: EventEditorKind, isTournament: boolean) {
 			return baseSchema.extend({
 				purchaseId: z.string().min(1, "Required"),
 			});
+		case "seat":
+			return isSeatEditable(target)
+				? baseSchema
+						.extend({
+							seatNumber: requiredNumericString({
+								integer: true,
+								max: seatCount,
+								min: 1,
+							}),
+						})
+						.superRefine(refineSeatIsFree(target, occupiedSeatPositions))
+				: baseSchema;
 		case "start":
 			return isTournament
 				? baseSchema
@@ -234,6 +292,13 @@ function buildPayload(
 			return { text: values.memoText.trim() };
 		case "purchase":
 			return buildPurchasePayload(values, options.chipPurchaseOptions);
+		case "seat":
+			return isSeatEditable(target)
+				? {
+						...toPayload(target.event?.payload),
+						seatPosition: Number(values.seatNumber) - 1,
+					}
+				: null;
 		case "start":
 			return buildStartPayload(values, target, options.isTournament);
 		default:
@@ -242,7 +307,14 @@ function buildPayload(
 }
 
 export function useEventEditorSheet(options: UseEventEditorSheetOptions) {
-	const { maxTime, minTime, onSubmit, target } = options;
+	const {
+		maxTime,
+		minTime,
+		occupiedSeatPositions,
+		onSubmit,
+		seatCount,
+		target,
+	} = options;
 
 	const form = useForm({
 		defaultValues: buildDefaults(target),
@@ -253,7 +325,12 @@ export function useEventEditorSheet(options: UseEventEditorSheetOptions) {
 			});
 		},
 		validators: {
-			onSubmit: buildSchema(target.kind, options.isTournament),
+			onSubmit: buildSchema(
+				target,
+				options.isTournament,
+				seatCount,
+				occupiedSeatPositions
+			),
 		},
 	});
 
@@ -265,5 +342,10 @@ export function useEventEditorSheet(options: UseEventEditorSheetOptions) {
 		validateOccurredAtTime(value, baseDateOf(target), minTime, maxTime) ??
 		undefined;
 
-	return { form, timeValidator };
+	return {
+		form,
+		isSeatEditable: isSeatEditable(target),
+		isHeroSeatEvent: toPayload(target.event?.payload).isHero === true,
+		timeValidator,
+	};
 }

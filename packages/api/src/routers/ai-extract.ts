@@ -254,7 +254,7 @@ export const aiExtractRouter = router({
 		.input(
 			z.object({
 				sourceApp: z.enum(TABLE_PLAYER_SOURCE_APP_IDS),
-				sources: z.array(SourceSchema).length(1),
+				sources: z.array(SourceSchema).min(1).max(5),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {

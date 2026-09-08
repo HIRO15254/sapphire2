@@ -26,7 +26,11 @@ function event(
 }
 
 function firstRow(input: TimelineEventLike, names = NO_NAMES) {
-	const rows = describeTimeline([input], { playerNames: names });
+	const rows = describeTimeline(
+		[input],
+		{ playerNames: names },
+		{ includeSeatEvents: true }
+	);
 	const row = rows[0];
 	if (!row) {
 		throw new Error("expected one row");
@@ -117,6 +121,17 @@ describe("describeTimeline content", () => {
 			title: "Chip purchase — Re-entry",
 			tone: "primary",
 		});
+	});
+
+	it("keeps seat events out of the timeline unless they are asked for", () => {
+		const seatEvent = event("player_join", {
+			isHero: false,
+			playerId: "player-1",
+			seatPosition: 7,
+		});
+		expect(describeTimeline([seatEvent], { playerNames: NO_NAMES })).toEqual(
+			[]
+		);
 	});
 
 	it("resolves seat events to the player's name and one-based seat", () => {

@@ -1,6 +1,16 @@
 import { MAX_SEAT_POSITION } from "@sapphire2/db/constants/session-event-types";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	useMutation,
+	useQueries,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { useMemo } from "react";
+import type { SeatPlanStep } from "@/features/live-sessions/utils/seat-plan";
+import {
+	planSeatClear,
+	splitSeatPlan,
+} from "@/features/live-sessions/utils/seat-plan";
 import { updateHeroSeatViaClient } from "@/features/live-sessions/utils/seat-screenshot";
 import type { PlayerTagWithColor } from "@/features/players/hooks/use-player-detail";
 import { useTablePlayers } from "@/features/players/hooks/use-table-players";
@@ -52,8 +62,12 @@ export interface SessionSeatsState {
 	excludePlayerIds: string[];
 	heroAvailable: boolean;
 	heroSeatPosition: number | null;
+	isResetSeatsPending: boolean;
 	occupiedSeatPositions: Set<number>;
+	onApplySeatPlan: (steps: readonly SeatPlanStep[]) => Promise<number>;
+	onMoveSeat: (playerId: string, seatPosition: number | null) => void;
 	onRemovePlayer: (playerId: string) => void;
+	onResetSeats: () => Promise<number>;
 	onSeatExisting: (
 		seatPosition: number,
 		playerId: string,
@@ -157,6 +171,12 @@ export function useSessionSeats({
 			tags: tagsByPlayerId.get(p.player.id) ?? [],
 		}));
 
+	useQueries({
+		queries: activePlayers
+			.filter((p) => !p.isLoading)
+			.map((p) => trpc.player.getById.queryOptions({ id: p.playerId })),
+	});
+
 	const seatCount = resolveSeatCount(tableSize);
 
 	const seats: SeatEntry[] = [];
@@ -186,15 +206,48 @@ export function useSessionSeats({
 		}
 	}
 
+	const activePlayerIds = new Set(activePlayers.map((p) => p.playerId));
+
+	const applySeatPlan = async (steps: readonly SeatPlanStep[]) => {
+		const { heroSteps, tableSteps } = splitSeatPlan(steps);
+		let failures = await tablePlayers.handleApplySeatPlan(tableSteps);
+		for (const step of heroSteps) {
+			try {
+				await heroSeatMutation.mutateAsync(
+					step.kind === "clearHero" ? null : step.seatPosition
+				);
+			} catch {
+				failures += 1;
+			}
+		}
+		return failures;
+	};
+
 	return {
 		excludePlayerIds: tablePlayers.excludePlayerIds,
 		heroAvailable: heroSeatPosition === null,
 		heroSeatPosition,
+		isResetSeatsPending: tablePlayers.isSeatPlanPending,
 		occupiedSeatPositions,
+		onApplySeatPlan: applySeatPlan,
+		onMoveSeat: (playerId, seatPosition) => {
+			tablePlayers.handleUpdateSeat(playerId, seatPosition);
+		},
 		onRemovePlayer: (playerId) => {
 			tablePlayers.handleRemovePlayer(playerId);
 		},
+		onResetSeats: () =>
+			applySeatPlan(
+				planSeatClear(
+					activePlayers.map((p) => p.playerId),
+					heroSeatPosition !== null
+				)
+			),
 		onSeatExisting: (seatPosition, playerId, playerName) => {
+			if (activePlayerIds.has(playerId)) {
+				tablePlayers.handleUpdateSeat(playerId, seatPosition);
+				return;
+			}
 			tablePlayers.handleAddExisting(playerId, playerName, seatPosition);
 		},
 		onSeatHero: (seatPosition) => {

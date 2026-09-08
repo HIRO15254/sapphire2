@@ -2,6 +2,7 @@ import { IconRefresh, IconStackPush } from "@tabler/icons-react";
 import { computeAllInEv } from "@/features/live-sessions/utils/live-session-summary";
 import { cn } from "@/lib/utils";
 import { Field } from "@/shared/components/ui/field";
+import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
 import { formatNumber, formatSignedNumber } from "@/utils/format-number";
 import { plToneClass } from "../../cryst-tone";
 import type {
@@ -60,6 +61,7 @@ export function NumericField({
 					<input
 						className={NUMERIC_CLASS}
 						id={fieldId(field.name)}
+						{...NO_INPUT_SUGGESTIONS}
 						inputMode="numeric"
 						name={field.name}
 						onBlur={field.handleBlur}
@@ -317,6 +319,50 @@ export function PurchaseFields({
 				</Field>
 			)}
 		</form.Field>
+	);
+}
+
+export function SeatFields({
+	form,
+	isHeroSeatEvent,
+	isSeatEditable,
+}: {
+	form: EditorForm;
+	isHeroSeatEvent: boolean;
+	isSeatEditable: boolean;
+}) {
+	return (
+		<>
+			<form.Field name="seatNumber">
+				{(field) => (
+					<Field
+						className="col-span-2 min-w-0 gap-1.5"
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={fieldId(field.name)}
+						label="Seat"
+						required={isSeatEditable}
+					>
+						<input
+							className={NUMERIC_CLASS}
+							disabled={!isSeatEditable}
+							id={fieldId(field.name)}
+							{...NO_INPUT_SUGGESTIONS}
+							inputMode="numeric"
+							name={field.name}
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							type="text"
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
+			<Field className="col-span-4 min-w-0 gap-1.5" label="Player">
+				<p className={`${INPUT_CLASS} flex items-center opacity-50`}>
+					{isHeroSeatEvent ? "You" : "Set from the table"}
+				</p>
+			</Field>
+		</>
 	);
 }
 

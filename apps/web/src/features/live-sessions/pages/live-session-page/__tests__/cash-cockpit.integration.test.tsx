@@ -32,12 +32,25 @@ const LAST_UPDATE_LINE = /Last update/;
 const STACK_FIELD = /^Stack/;
 const STACK_ROW = /Stack update/;
 const START_ROW = /Session start/;
+const NIT_TAG_CHOICE = /Nit/;
 const CASH_CHART_SUMMARY = /Cash game result chart/;
+const KNOWN_PLAYER_ROW = /Takashi/;
+const NEW_PLAYER_ROW = /Create as a new player/;
+const CHOOSE_PHOTO_BUTTON = /Choose from library/;
+const TEMPORARY_ROW = /Temporary player/;
+const CREATE_TAG_ROW = /Create "Fish"/;
 
 interface CreatedEvent {
 	eventType: string;
 	occurredAt?: number;
 	payload: Record<string, unknown>;
+}
+
+interface PlayerUpdate {
+	id: string;
+	memo?: string | null;
+	name?: string;
+	tagIds?: string[];
 }
 
 interface UpdatedEvent {
@@ -46,11 +59,28 @@ interface UpdatedEvent {
 	payload?: Record<string, unknown>;
 }
 
+interface SeatedPlayer {
+	name: string;
+	playerId: string;
+	seatPosition: number;
+}
+
 const backend = {
+	addedSeats: [] as SeatedPlayer[],
 	createdEvents: [] as CreatedEvent[],
 	currentStack: 12_000 as number | null,
 	deletedEventIds: [] as string[],
 	hasStackUpdate: true,
+	playerMemo: "<p>Loose caller</p>" as string | null,
+	playerName: "Young guy",
+	secondPlayerMemo: null as string | null,
+	createdTagNames: [] as string[],
+	temporaryAdds: [] as { seatPosition?: number }[],
+	secondPlayerName: "Red cap",
+	secondPlayerTagIds: [] as string[],
+	playerTagIds: ["tag-1"] as string[],
+	playerUpdates: [] as PlayerUpdate[],
+	removedPlayerIds: [] as string[],
 	status: "active",
 	updatedEvents: [] as UpdatedEvent[],
 };
@@ -105,16 +135,169 @@ function session() {
 	};
 }
 
+const ALL_TAGS: { color: string; id: string; name: string }[] = [
+	{ color: "#ff0000", id: "tag-1", name: "Aggro" },
+	{ color: "#00ff00", id: "tag-2", name: "Nit" },
+];
+
+function playerTags() {
+	return ALL_TAGS.filter((tag) => backend.playerTagIds.includes(tag.id));
+}
+
 const t = initTRPC.create({ isServer: true });
 const fixtureRouter = t.router({
 	liveCashGameSession: t.router({
 		getById: t.procedure.input(z.custom()).query(() => session()),
 	}),
 	sessionTablePlayer: t.router({
-		list: t.procedure.input(z.custom()).query(() => []),
+		add: t.procedure
+			.input(z.custom<{ playerId: string; seatPosition?: number }>())
+			.mutation(({ input }) => {
+				backend.addedSeats.push({
+					name: "Takashi",
+					playerId: input.playerId,
+					seatPosition: input.seatPosition ?? -1,
+				});
+				return { id: "seat-added" };
+			}),
+		addTemporary: t.procedure
+			.input(z.custom<{ seatPosition?: number }>())
+			.mutation(({ input }) => {
+				backend.temporaryAdds.push(input);
+				return { id: "seat-temp" };
+			}),
+		addNew: t.procedure
+			.input(z.custom<{ playerName: string; seatPosition?: number }>())
+			.mutation(({ input }) => {
+				backend.addedSeats.push({
+					name: input.playerName,
+					playerId: "player-new",
+					seatPosition: input.seatPosition ?? -1,
+				});
+				return { id: "seat-added-new" };
+			}),
+		list: t.procedure.input(z.custom()).query(() => ({
+			items: [
+				{
+					id: "seat-1",
+					isActive: !backend.removedPlayerIds.includes("player-1"),
+					joinedAt: new Date("2026-06-01T10:05:00Z"),
+					leftAt: null,
+					player: {
+						id: "player-1",
+						isTemporary: false,
+						memo: backend.playerMemo,
+						name: backend.playerName,
+					},
+					seatPosition: 2,
+					stints: [],
+				},
+				{
+					id: "seat-2",
+					isActive: !backend.removedPlayerIds.includes("player-3"),
+					joinedAt: new Date("2026-06-01T10:06:00Z"),
+					leftAt: null,
+					player: {
+						id: "player-3",
+						isTemporary: false,
+						memo: backend.secondPlayerMemo,
+						name: backend.secondPlayerName,
+					},
+					seatPosition: 4,
+					stints: [],
+				},
+				...backend.addedSeats.map((seat, index) => ({
+					id: `seat-added-${index}`,
+					isActive: true,
+					joinedAt: new Date("2026-06-01T11:30:00Z"),
+					leftAt: null,
+					player: {
+						id: seat.playerId,
+						isTemporary: false,
+						memo: null,
+						name: seat.name,
+					},
+					seatPosition: seat.seatPosition,
+					stints: [],
+				})),
+			],
+		})),
+		remove: t.procedure
+			.input(z.custom<{ playerId: string }>())
+			.mutation(({ input }) => {
+				backend.removedPlayerIds.push(input.playerId);
+				return { success: true };
+			}),
 	}),
 	player: t.router({
-		list: t.procedure.query(() => []),
+		getById: t.procedure
+			.input(z.custom<{ id: string }>())
+			.query(({ input }) => {
+				if (input.id === "player-3") {
+					return {
+						id: "player-3",
+						isTemporary: false,
+						memo: backend.secondPlayerMemo,
+						name: backend.secondPlayerName,
+						tags: ALL_TAGS.filter((tag) =>
+							backend.secondPlayerTagIds.includes(tag.id)
+						),
+					};
+				}
+				return {
+					id: "player-1",
+					isTemporary: false,
+					memo: backend.playerMemo,
+					name: backend.playerName,
+					tags: playerTags(),
+				};
+			}),
+		list: t.procedure.query(() => [
+			{ id: "player-1", name: backend.playerName, tags: playerTags() },
+			{ id: "player-2", name: "Takashi", tags: [] },
+		]),
+		update: t.procedure
+			.input(z.custom<PlayerUpdate>())
+			.mutation(({ input }) => {
+				backend.playerUpdates.push(input);
+				if (input.id === "player-3") {
+					if (input.name !== undefined) {
+						backend.secondPlayerName = input.name;
+					}
+					if (input.tagIds !== undefined) {
+						backend.secondPlayerTagIds = input.tagIds;
+					}
+					if (Object.hasOwn(input, "memo")) {
+						backend.secondPlayerMemo = input.memo ?? null;
+					}
+					return { id: input.id };
+				}
+				if (input.name !== undefined) {
+					backend.playerName = input.name;
+				}
+				if (input.tagIds !== undefined) {
+					backend.playerTagIds = input.tagIds;
+				}
+				if (Object.hasOwn(input, "memo")) {
+					backend.playerMemo = input.memo ?? null;
+				}
+				return { id: input.id };
+			}),
+	}),
+	playerTag: t.router({
+		create: t.procedure
+			.input(z.custom<{ name: string }>())
+			.mutation(({ input }) => {
+				backend.createdTagNames.push(input.name);
+				const created = {
+					color: "#0000ff",
+					id: `tag-${backend.createdTagNames.length + 2}`,
+					name: input.name,
+				};
+				ALL_TAGS.push(created);
+				return created;
+			}),
+		list: t.procedure.query(() => ALL_TAGS),
 	}),
 	sessionEvent: t.router({
 		create: t.procedure
@@ -195,10 +378,21 @@ beforeEach(() => {
 		queries: { retry: false, gcTime: 0, staleTime: Number.POSITIVE_INFINITY },
 		mutations: { retry: false },
 	});
+	backend.addedSeats = [];
 	backend.createdEvents = [];
 	backend.currentStack = 12_000;
 	backend.deletedEventIds = [];
 	backend.hasStackUpdate = true;
+	backend.playerMemo = "<p>Loose caller</p>";
+	backend.playerName = "Young guy";
+	backend.playerTagIds = ["tag-1"];
+	backend.playerUpdates = [];
+	backend.secondPlayerMemo = null;
+	backend.createdTagNames = [];
+	backend.temporaryAdds = [];
+	backend.secondPlayerName = "Red cap";
+	backend.secondPlayerTagIds = [];
+	backend.removedPlayerIds = [];
 	backend.status = "active";
 	backend.updatedEvents = [];
 });
@@ -409,12 +603,306 @@ describe("CashCockpit", () => {
 		});
 	});
 
+	it("opens a seated player's profile when their marker is tapped", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		expect(
+			await screen.findByText("Tap a seated player to edit their profile here")
+		).toBeInTheDocument();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Seat 3: Young guy" })
+		);
+
+		expect(
+			await screen.findByRole("textbox", { name: "Player name" })
+		).toHaveValue("Young guy");
+		expect(screen.getByText("S3")).toBeInTheDocument();
+		expect(
+			screen.queryByText("Tap a seated player to edit their profile here")
+		).not.toBeInTheDocument();
+	});
+
+	it("flattens a rich-text memo into the plain-text notes field", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Seat 3: Young guy" })
+		);
+
+		expect(
+			await screen.findByRole("textbox", { name: "Notes on this player" })
+		).toHaveValue("Loose caller");
+	});
+
+	it("renames the player on blur and keeps their other fields", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Seat 3: Young guy" })
+		);
+		const name = await screen.findByRole("textbox", { name: "Player name" });
+		await user.clear(name);
+		await user.type(name, "Sunglasses");
+		await user.tab();
+
+		await waitFor(() => {
+			expect(backend.playerUpdates).toEqual([
+				{ id: "player-1", name: "Sunglasses" },
+			]);
+		});
+	});
+
+	it("sends the whole tag list when a label is added or removed", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Seat 3: Young guy" })
+		);
+		await user.click(
+			await screen.findByRole("textbox", { name: "Add labels" })
+		);
+		await user.click(
+			await screen.findByRole("button", { name: NIT_TAG_CHOICE })
+		);
+
+		await waitFor(() => {
+			expect(backend.playerUpdates).toEqual([
+				{ id: "player-1", tagIds: ["tag-1", "tag-2"] },
+			]);
+		});
+
+		await user.click(screen.getByRole("button", { name: "Remove tag Aggro" }));
+
+		await waitFor(() => {
+			expect(backend.playerUpdates).toHaveLength(2);
+		});
+		expect(backend.playerUpdates[1]).toEqual({
+			id: "player-1",
+			tagIds: ["tag-2"],
+		});
+	});
+
+	it("clears the seat and the panel when the player leaves", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Seat 3: Young guy" })
+		);
+		await user.click(await screen.findByRole("button", { name: "Leave" }));
+
+		await waitFor(() => {
+			expect(backend.removedPlayerIds).toEqual(["player-1"]);
+		});
+		expect(
+			await screen.findByText("Tap a seated player to edit their profile here")
+		).toBeInTheDocument();
+	});
+
 	it("measures staleness from the session start until a stack is recorded", async () => {
 		backend.hasStackUpdate = false;
 		renderCockpit();
 
 		expect(await screen.findByText(SINCE_START_LINE)).toBeInTheDocument();
 		expect(screen.queryByText(LAST_UPDATE_LINE)).not.toBeInTheDocument();
+	});
+
+	it("creates a label from the dropdown row rather than the Enter key", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Seat 3: Young guy" })
+		);
+		const input = await screen.findByRole("textbox", { name: "Add labels" });
+		await user.type(input, "Fish");
+		await user.keyboard("{Enter}");
+
+		expect(backend.createdTagNames).toEqual([]);
+
+		await user.click(
+			await screen.findByRole("button", { name: CREATE_TAG_ROW })
+		);
+
+		await waitFor(() => {
+			expect(backend.createdTagNames).toEqual(["Fish"]);
+		});
+	});
+
+	it("seats an anonymous temporary player from the sit-in sheet", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Seat 1: empty" })
+		);
+		await user.click(
+			await screen.findByRole("button", { name: TEMPORARY_ROW })
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.temporaryAdds).toEqual([
+				expect.objectContaining({ seatPosition: 0 }),
+			]);
+		});
+		expect(backend.addedSeats).toEqual([]);
+	});
+
+	it("closes the label choices when focus leaves the tag row", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Seat 3: Young guy" })
+		);
+		await user.click(
+			await screen.findByRole("textbox", { name: "Add labels" })
+		);
+		expect(
+			await screen.findByRole("button", { name: NIT_TAG_CHOICE })
+		).toBeInTheDocument();
+
+		await user.click(
+			screen.getByRole("textbox", { name: "Notes on this player" })
+		);
+
+		await waitFor(() => {
+			expect(
+				screen.queryByRole("button", { name: NIT_TAG_CHOICE })
+			).not.toBeInTheDocument();
+		});
+	});
+
+	it("does not carry one player's notes onto the next seat that is opened", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Seat 3: Young guy" })
+		);
+		const notes = await screen.findByRole("textbox", {
+			name: "Notes on this player",
+		});
+		await user.clear(notes);
+		await user.type(notes, "loose caller");
+		await user.tab();
+		await waitFor(() => {
+			expect(backend.playerMemo).toBe("loose caller");
+		});
+
+		await user.click(
+			await screen.findByRole("button", { name: "Seat 5: Red cap" })
+		);
+		await user.click(
+			await screen.findByRole("textbox", { name: "Notes on this player" })
+		);
+		await user.tab();
+
+		expect(
+			backend.playerUpdates.filter((update) => update.id === "player-3")
+		).toEqual([]);
+		expect(backend.secondPlayerMemo).toBeNull();
+	});
+
+	it("seats a known player from the sheet an empty seat opens", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Seat 1: empty" })
+		);
+		expect(
+			await screen.findByRole("heading", { name: "Sit in at S1" })
+		).toBeInTheDocument();
+
+		await user.click(
+			await screen.findByRole("button", { name: KNOWN_PLAYER_ROW })
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.addedSeats).toEqual([
+				{ name: "Takashi", playerId: "player-2", seatPosition: 0 },
+			]);
+		});
+	});
+
+	it("registers a typed name as a regular player, not a temporary one", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Seat 4: empty" })
+		);
+		await user.type(
+			await screen.findByRole("textbox", {
+				name: "Search by name, or type a new one",
+			}),
+			"Blue shirt"
+		);
+		await user.click(
+			await screen.findByRole("button", { name: NEW_PLAYER_ROW })
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.addedSeats).toEqual([
+				{ name: "Blue shirt", playerId: "player-new", seatPosition: 3 },
+			]);
+		});
+		expect(backend.temporaryAdds).toEqual([]);
+	});
+
+	it("clears every seated player once the reset is confirmed", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Clear every seat" })
+		);
+		await user.click(
+			await screen.findByRole("button", { name: "Clear seats" })
+		);
+
+		await waitFor(() => {
+			expect(backend.removedPlayerIds).toEqual(["player-1", "player-3"]);
+		});
+	});
+
+	it("keeps the seats when the reset is cancelled", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Clear every seat" })
+		);
+		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+		expect(backend.removedPlayerIds).toEqual([]);
+	});
+
+	it("opens the screenshot scan from the table", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: "Register seats from a photo",
+			})
+		);
+
+		expect(
+			await screen.findByRole("heading", { name: "Scan seats" })
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: CHOOSE_PHOTO_BUTTON })
+		).toBeEnabled();
 	});
 
 	it("offers only notes and the timeline while the session is paused", async () => {

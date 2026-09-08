@@ -15,6 +15,7 @@ import { TRPCError } from "@trpc/server";
 import { and, desc, eq, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { runBatch } from "../lib/batch";
 import {
 	ACTIVE_SESSION_CONFLICT_MESSAGE,
 	runUnfinishedLiveSessionWrite,
@@ -28,6 +29,7 @@ import {
 import { assertSeatPositionFitsTableSize } from "../utils/seat-position";
 import {
 	floorToMinute,
+	heroSeatEventValues,
 	latestSessionEventOrderBy,
 	nextAppendSortOrderSql,
 	sessionEventOrderBy,
@@ -966,44 +968,22 @@ export const liveCashGameSessionRouter = router({
 
 			const previousHeroSeat = computeHeroSeatPositionFromEvents(events);
 
-			if (previousHeroSeat !== null && input.heroSeatPosition !== null) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message:
-						"Hero is already seated. Leave the seat before assigning a new one.",
-				});
-			}
-
 			if (previousHeroSeat === input.heroSeatPosition) {
 				return { id: input.id };
 			}
 
-			const now = new Date();
-
-			if (input.heroSeatPosition === null) {
-				await ctx.db.insert(sessionEvent).values({
-					id: crypto.randomUUID(),
+			await runBatch(
+				ctx.db,
+				heroSeatEventValues({
+					heroSeatPosition: input.heroSeatPosition,
+					now: new Date(),
+					previousHeroSeat,
 					sessionId: input.id,
-					eventType: "player_leave",
-					occurredAt: floorToMinute(now),
-					sortOrder: nextAppendSortOrderSql(input.id),
-					payload: JSON.stringify({ isHero: true }),
-					updatedAt: now,
-				});
-			} else {
-				await ctx.db.insert(sessionEvent).values({
-					id: crypto.randomUUID(),
-					sessionId: input.id,
-					eventType: "player_join",
-					occurredAt: floorToMinute(now),
-					sortOrder: nextAppendSortOrderSql(input.id),
-					payload: JSON.stringify({
-						isHero: true,
-						seatPosition: input.heroSeatPosition,
-					}),
-					updatedAt: now,
-				});
-			}
+				}).map(
+					(values) =>
+						ctx.db.insert(sessionEvent).values(values) as BatchStatement
+				)
+			);
 
 			return { id: input.id };
 		}),

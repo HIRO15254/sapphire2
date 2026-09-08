@@ -38,6 +38,7 @@ const mocks = vi.hoisted(() => ({
 		tags: { color: string; id: string; name: string }[];
 	}>,
 	updateHeroSeat: vi.fn(),
+	warmedPlayerIds: vi.fn(),
 }));
 
 vi.mock("@/features/players/hooks/use-table-players", () => ({
@@ -55,6 +56,10 @@ vi.mock("@/features/players/hooks/use-player-detail", () => ({
 }));
 
 vi.mock("@tanstack/react-query", () => ({
+	useQueries: ({ queries }: { queries: { queryKey: unknown[] }[] }) => {
+		mocks.warmedPlayerIds(queries.map((query) => query.queryKey[1]));
+		return [];
+	},
 	useQuery: () => ({ data: mocks.playerList }),
 	useQueryClient: () => ({
 		cancelQueries: vi.fn(),
@@ -83,6 +88,11 @@ vi.mock("@/utils/optimistic-update", () => ({
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		player: {
+			getById: {
+				queryOptions: ({ id }: { id: string }) => ({
+					queryKey: ["player", id],
+				}),
+			},
 			list: { queryOptions: () => ({ queryKey: ["player", "list"] }) },
 		},
 		liveCashGameSession: {
@@ -121,6 +131,10 @@ function renderState(
 			...overrides,
 		})
 	);
+}
+
+function player(id: string, name: string) {
+	return { id, isTemporary: false, memo: null, name };
 }
 
 function makePlayer(overrides: Partial<MockTablePlayer> = {}): MockTablePlayer {
@@ -392,6 +406,34 @@ describe("useSessionSeats", () => {
 		it("is false once a hero seat exists", () => {
 			const { result } = renderState({ heroSeatPosition: 2 });
 			expect(result.current.heroAvailable).toBe(false);
+		});
+	});
+
+	describe("player detail prefetch", () => {
+		it("warms the profile of every seated player before it is opened", () => {
+			mocks.tablePlayers.players = [
+				makePlayer({ player: player("p-1", "Alice"), seatPosition: 0 }),
+				makePlayer({ player: player("p-2", "Bob"), seatPosition: 3 }),
+			];
+
+			renderState({ tableSize: 6 });
+
+			expect(mocks.warmedPlayerIds).toHaveBeenLastCalledWith(["p-1", "p-2"]);
+		});
+
+		it("skips a seat whose player has not been saved yet", () => {
+			mocks.tablePlayers.players = [
+				makePlayer({ player: player("p-1", "Alice"), seatPosition: 0 }),
+				makePlayer({
+					isLoading: true,
+					player: player("new-optimistic", "Bob"),
+					seatPosition: 3,
+				}),
+			];
+
+			renderState({ tableSize: 6 });
+
+			expect(mocks.warmedPlayerIds).toHaveBeenLastCalledWith(["p-1"]);
 		});
 	});
 

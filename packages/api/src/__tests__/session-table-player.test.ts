@@ -3,13 +3,9 @@ import {
 	playerTag,
 	playerToPlayerTag,
 } from "@sapphire2/db/schema/player";
-import { ringGame } from "@sapphire2/db/schema/ring-game";
-import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
-import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
-import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -620,6 +616,20 @@ describe("sessionTablePlayer.addNew tag ownership (SA2-178)", () => {
 		expect(batch.mock.calls[0]?.[0]).toHaveLength(2);
 	});
 
+	it("creates the temporary player without a generated memo", async () => {
+		const rows = ownedSessionRows(new Map());
+		const { caller, inserted } = makeCaller(rows);
+
+		await caller.addTemporary({ sessionId: "s1" });
+
+		const playerInsert = inserted.find((i) => i.table === player);
+		expect(playerInsert?.values).toMatchObject({
+			isTemporary: true,
+			name: "Anonymous",
+		});
+		expect(playerInsert?.values).not.toHaveProperty("memo");
+	});
+
 	it("surfaces addTemporary batch failure without sequential writes", async () => {
 		const rows = ownedSessionRows(new Map());
 		const { caller, batch } = makeCaller(rows);
@@ -854,6 +864,21 @@ describe("sessionTablePlayer ownership error uniformity", () => {
 		}
 	});
 
+	it("uses the same FORBIDDEN error when addTemporary targets a foreign session", async () => {
+		for (const sessions of [
+			[],
+			[{ ...ownedAuthorizationSession("cash_game"), userId: "other-user" }],
+		]) {
+			const { db } = createAuthorizationDb(new Map([[gameSession, sessions]]));
+			await expect(
+				authorizationCaller(db).addTemporary({ sessionId: "s1" })
+			).rejects.toMatchObject({
+				code: "FORBIDDEN",
+				message: "You do not own this session",
+			});
+		}
+	});
+
 	it("checks player ownership before reporting an invalid seat", async () => {
 		const rows = playerAuthorizationRows([
 			{ id: "p1", userId: "other-user", name: "Other" },
@@ -871,69 +896,5 @@ describe("sessionTablePlayer ownership error uniformity", () => {
 			code: "FORBIDDEN",
 			message: "You do not own this player",
 		});
-	});
-});
-
-describe("sessionTablePlayer temporary-player context ownership", () => {
-	it("scopes cash session, ring game, and room reads to the caller", async () => {
-		const session = {
-			...ownedAuthorizationSession("cash_game"),
-			roomId: "room-1",
-		};
-		const { db, whereParams } = createAuthorizationDb(
-			new Map<unknown, Record<string, unknown>[]>([
-				[gameSession, [session]],
-				[sessionCashDetail, [{ sessionId: "s1", ringGameId: "ring-1" }]],
-				[
-					ringGame,
-					[
-						{
-							id: "ring-1",
-							userId: AUTH_OWNER,
-							name: "1/2",
-							blind1: 1,
-							blind2: 2,
-						},
-					],
-				],
-				[room, [{ id: "room-1", userId: AUTH_OWNER, name: "Casino" }]],
-				[sessionEvent, []],
-			])
-		);
-
-		await authorizationCaller(db).addTemporary({ sessionId: "s1" });
-
-		for (const table of [gameSession, ringGame, room]) {
-			const calls = whereParams.get(table) ?? [];
-			expect(calls.length).toBeGreaterThan(0);
-			expect(calls.every((params) => params.includes(AUTH_OWNER))).toBe(true);
-		}
-	});
-
-	it("scopes a tournament context read through its owning room", async () => {
-		const session = {
-			...ownedAuthorizationSession("tournament"),
-			roomId: "room-1",
-		};
-		const { db, joinParams } = createAuthorizationDb(
-			new Map<unknown, Record<string, unknown>[]>([
-				[gameSession, [session]],
-				[
-					sessionTournamentDetail,
-					[{ sessionId: "s1", tournamentId: "tournament-1" }],
-				],
-				[tournament, [{ id: "tournament-1", roomId: "room-1", name: "Main" }]],
-				[room, [{ id: "room-1", userId: AUTH_OWNER, name: "Casino" }]],
-				[sessionEvent, []],
-			])
-		);
-
-		await authorizationCaller(db).addTemporary({ sessionId: "s1" });
-
-		expect(
-			joinParams.some(
-				(join) => join.table === room && join.params.includes(AUTH_OWNER)
-			)
-		).toBe(true);
 	});
 });

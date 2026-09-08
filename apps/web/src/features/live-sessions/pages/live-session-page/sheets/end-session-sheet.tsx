@@ -108,9 +108,6 @@ export function EndSessionSheet({
 					onSubmit={onSubmit}
 					renderSummary={renderSummary}
 				/>
-				<p className="text-[11px] text-muted-foreground">
-					You can edit this from history later. This closes the record.
-				</p>
 			</div>
 		</CrystFormSheet>
 	);

@@ -14,9 +14,11 @@ import { formatTimerDuration } from "@/features/live-sessions/utils/tournament-t
 import { useKeyboardOpen } from "@/shared/hooks/use-keyboard-open";
 import { useNowTick } from "@/shared/hooks/use-now-tick";
 import { formatLocalHm, formatNumber } from "@/utils/format-number";
+import { withHeroSeat } from "../seat-fields";
 import { resolveRuleName, toSessionStatus } from "../session-fields";
 import type { TournamentCompleteValues } from "../sheets";
 import type { TournamentStackValues } from "../tournament-quick-input";
+import { useSeatSelection } from "../use-seat-selection";
 import { useSessionJournal } from "../use-session-journal";
 
 const TICK_MS = 1000;
@@ -37,16 +39,23 @@ export function useTournamentCockpit(sessionId: string) {
 	const rawHeroSeat = session?.heroSeatPosition;
 	const heroSeatPosition =
 		typeof rawHeroSeat === "number" && rawHeroSeat >= 0 ? rawHeroSeat : null;
-	const { playerNames, seats } = useSessionSeats({
+	const seatState = useSessionSeats({
 		heroSeatPosition,
 		sessionId,
 		sessionType: "tournament",
 		tableSize: session?.tableSize ?? null,
 	});
+	const { playerNames, seats } = seatState;
+	const seatSelection = useSeatSelection(seats);
 	const status = toSessionStatus(session?.status ?? "");
 	const journal = useSessionJournal({
 		chipPurchaseOptions: stack.chipPurchaseTypes,
+		occupiedSeatPositions: withHeroSeat(
+			seatState.occupiedSeatPositions,
+			heroSeatPosition
+		),
 		playerNames,
+		seatCount: seats.length,
 		sessionId,
 		sessionType: "tournament",
 		status,
@@ -58,6 +67,15 @@ export function useTournamentCockpit(sessionId: string) {
 
 	const summary = session.summary;
 	const currentStack = summary.currentStack;
+
+	const sitIn = (apply: (seatPosition: number) => void) => {
+		const seatPosition = seatSelection.sitInSeatPosition;
+		if (seatPosition === null) {
+			return;
+		}
+		apply(seatPosition);
+		seatSelection.onCloseSeatSheet();
+	};
 
 	const clock = computeSessionClock(journal.events, now);
 	const timerStartedAt = session.timerStartedAt;
@@ -119,7 +137,38 @@ export function useTournamentCockpit(sessionId: string) {
 		remainText: `${summary.remainingPlayers ?? "—"}/${summary.totalEntries ?? "—"}`,
 		remainingPlayers: summary.remainingPlayers,
 		ruleName: resolveRuleName(session.ruleName, session.variant, "Tournament"),
+		excludePlayerIds: seatState.excludePlayerIds,
+		heroSeatPosition,
+		onCloseSeatSheet: seatSelection.onCloseSeatSheet,
+		onLeaveSeat: seatState.onRemovePlayer,
+		isResetSeatsPending: seatState.isResetSeatsPending,
+		onApplySeatPlan: seatState.onApplySeatPlan,
+		onOpenResetSeats: seatSelection.onOpenResetSeats,
+		onOpenScan: seatSelection.onOpenScan,
+		onResetSeats: seatState.onResetSeats,
+		seatedCount: seats.filter((seat) => seat.occupancy !== "empty").length,
+		onSelectSeat: seatSelection.onSelectSeat,
+		onSitInExisting: (playerId: string, playerName: string) => {
+			sitIn((seatPosition) =>
+				seatState.onSeatExisting(seatPosition, playerId, playerName)
+			);
+		},
+		onSitInHero: () => {
+			sitIn((seatPosition) => seatState.onSeatHero(seatPosition));
+		},
+		onSitInNew: (name: string) => {
+			sitIn((seatPosition) => seatState.onSeatNew(seatPosition, { name }));
+		},
+		onSitInTemporary: () => {
+			sitIn((seatPosition) => seatState.onSeatTemporary(seatPosition));
+		},
+		scanSeats: seatSelection.scanSeats,
+		seatSheet: seatSelection.seatSheet,
 		seats,
+		selectedPlayerId: seatSelection.selectedPlayerId,
+		selectedSeatPosition: seatSelection.selectedSeatPosition,
+		sessionParam: seatState.sessionParam,
+		sitInSeatPosition: seatSelection.sitInSeatPosition,
 		stackFormatted: currentStack === null ? "—" : formatNumber(currentStack),
 		staleness: describeStaleness(stackReference?.at ?? null, now),
 		stalenessSource: stackReference?.source ?? null,

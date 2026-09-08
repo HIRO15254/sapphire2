@@ -1,5 +1,6 @@
 import { IconPencilCheck, IconStack2, IconUsers } from "@tabler/icons-react";
 import { Field, FieldError } from "@/shared/components/ui/field";
+import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
 import {
 	type TournamentStackValues,
 	useTournamentQuickInput,
@@ -60,6 +61,7 @@ export function TournamentQuickInput({
 								className="h-[var(--m-control)] w-full rounded-md border border-input bg-background pr-2.5 pl-[31px] font-mono text-[length:var(--m-text-secondary)] tabular-nums outline-none focus-visible:border-primary disabled:opacity-50 aria-invalid:border-destructive aria-invalid:bg-[color-mix(in_oklab,var(--destructive)_8%,transparent)]"
 								disabled={isDisabled}
 								id={field.name}
+								{...NO_INPUT_SUGGESTIONS}
 								inputMode="numeric"
 								name={field.name}
 								onBlur={field.handleBlur}
@@ -93,6 +95,7 @@ export function TournamentQuickInput({
 											className={`${COUNT_INPUT_CLASS} w-[34px] text-right`}
 											disabled={isDisabled}
 											id={playersField.name}
+											{...NO_INPUT_SUGGESTIONS}
 											inputMode="numeric"
 											name={playersField.name}
 											onBlur={playersField.handleBlur}
@@ -114,6 +117,7 @@ export function TournamentQuickInput({
 											className={`${COUNT_INPUT_CLASS} w-[38px] text-muted-foreground`}
 											disabled={isDisabled}
 											id={entriesField.name}
+											{...NO_INPUT_SUGGESTIONS}
 											inputMode="numeric"
 											name={entriesField.name}
 											onBlur={entriesField.handleBlur}

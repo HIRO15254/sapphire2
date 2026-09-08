@@ -36,7 +36,9 @@ const LOGGABLE_EVENT_TYPES: Partial<
 
 interface UseSessionJournalOptions {
 	chipPurchaseOptions: ChipPurchaseOption[];
+	occupiedSeatPositions: ReadonlySet<number>;
 	playerNames: ReadonlyMap<string, string>;
+	seatCount: number;
 	sessionId: string;
 	sessionType: "cash_game" | "tournament";
 	status: SessionStatus;
@@ -44,7 +46,9 @@ interface UseSessionJournalOptions {
 
 export function useSessionJournal({
 	chipPurchaseOptions,
+	occupiedSeatPositions,
 	playerNames,
+	seatCount,
 	sessionId,
 	sessionType,
 	status,
@@ -177,8 +181,11 @@ export function useSessionJournal({
 		onDelete,
 		onEditorSubmit,
 		onOpenNewEvent,
+		occupiedSeatPositions,
 		onOpenTimeline: () => setIsTimelineOpen(true),
 		onSelectEvent,
+		playerNames,
 		rows,
+		seatCount,
 	};
 }

@@ -11,6 +11,7 @@ import {
 	ChipsFields,
 	MemoFields,
 	PurchaseFields,
+	SeatFields,
 	StackFields,
 	StartFields,
 	TimeField,
@@ -36,27 +37,18 @@ export const NEW_EVENT_TITLES: Record<EventEditorKind, string> = {
 	time: "Timer",
 };
 
-const KIND_HINTS: Partial<Record<EventEditorKind, string>> = {
-	allin:
-		"Wins cannot exceed runs. A chop can be logged as 0.5 wins. EV delta feeds into EV result.",
-	chips:
-		"Additions count toward total buy-in; withdrawals count toward the result.",
-	purchase:
-		"Name, cost and chips are snapshotted at selection, and the cost feeds into the result.",
-	seat: "Seat and player assignments are edited from the table; only the time can be changed here.",
-	stack: "Stack is recorded as an absolute value, not a delta.",
-};
-
 interface EventEditorSheetProps {
 	chipPurchaseOptions: ChipPurchaseOption[];
 	isPending: boolean;
 	isTournament: boolean;
 	maxTime: Date | null;
 	minTime: Date | null;
+	occupiedSeatPositions: ReadonlySet<number>;
 	onDelete: (() => void) | null;
 	onOpenChange: (open: boolean) => void;
 	onSubmit: (values: EventEditorSubmit) => void;
 	open: boolean;
+	seatCount: number;
 	target: EventEditorTarget;
 }
 
@@ -66,24 +58,28 @@ export function EventEditorSheet({
 	isTournament,
 	maxTime,
 	minTime,
+	occupiedSeatPositions,
 	onDelete,
 	onOpenChange,
 	onSubmit,
 	open,
+	seatCount,
 	target,
 }: EventEditorSheetProps) {
-	const { form, timeValidator } = useEventEditorSheet({
-		chipPurchaseOptions,
-		isTournament,
-		maxTime,
-		minTime,
-		onSubmit,
-		target,
-	});
+	const { form, isHeroSeatEvent, isSeatEditable, timeValidator } =
+		useEventEditorSheet({
+			chipPurchaseOptions,
+			isTournament,
+			maxTime,
+			minTime,
+			occupiedSeatPositions,
+			onSubmit,
+			seatCount,
+			target,
+		});
 
 	const KindIcon = resolveEventIcon(target.kind, target.event?.eventType);
 	const tone = EVENT_TONE_TEXT[resolveKindTone(target.kind)];
-	const hint = KIND_HINTS[target.kind];
 	const isEdit = target.mode === "edit";
 
 	return (
@@ -123,15 +119,16 @@ export function EventEditorSheet({
 				{target.kind === "purchase" ? (
 					<PurchaseFields form={form} options={chipPurchaseOptions} />
 				) : null}
+				{target.kind === "seat" ? (
+					<SeatFields
+						form={form}
+						isHeroSeatEvent={isHeroSeatEvent}
+						isSeatEditable={isSeatEditable}
+					/>
+				) : null}
 				{target.kind === "start" ? (
 					<StartFields form={form} isTournament={isTournament} />
 				) : null}
-
-				{hint === undefined ? null : (
-					<p className="col-span-6 text-pretty text-[length:var(--text-xs)] text-muted-foreground">
-						{hint}
-					</p>
-				)}
 			</form>
 
 			{onDelete === null ? null : (
