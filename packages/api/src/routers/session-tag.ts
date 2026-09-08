@@ -3,7 +3,7 @@ import {
 	sessionToSessionTag,
 } from "@sapphire2/db/schema/session-tag";
 import { TRPCError } from "@trpc/server";
-import { eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { runBatch } from "../lib/batch";
@@ -16,9 +16,15 @@ export const sessionTagRouter = router({
 	list: protectedProcedure.query(async ({ ctx }) => {
 		const userId = ctx.session.user.id;
 		return await ctx.db
-			.select()
+			.select({
+				id: sessionTag.id,
+				userId: sessionTag.userId,
+				name: sessionTag.name,
+				usageCount: sql<number>`(SELECT COUNT(*) FROM session_to_session_tag WHERE session_to_session_tag.session_tag_id = session_tag.id)`,
+			})
 			.from(sessionTag)
-			.where(eq(sessionTag.userId, userId));
+			.where(eq(sessionTag.userId, userId))
+			.orderBy(asc(sessionTag.name));
 	}),
 
 	create: protectedProcedure
