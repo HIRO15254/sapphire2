@@ -8,6 +8,8 @@ import {
 import { cn } from "@/lib/utils";
 import { CrystFormSheet } from "../cryst-form-sheet";
 import { CurrencySheet } from "../currency-sheet";
+import { DiscardChangesDialog } from "../discard-changes-dialog";
+import { useDiscardConfirm } from "../use-discard-confirm";
 import { SessionBasicsTab } from "./session-basics-tab";
 import { SessionOverviewTab } from "./session-overview-tab";
 import { useSessionSheet } from "./use-session-sheet";
@@ -32,13 +34,17 @@ export function SessionSheet({
 }: SessionSheetProps) {
 	const sheet = useSessionSheet({ onOpenChange, open, sessionId, sessionType });
 	const { form } = sheet;
+	const discard = useDiscardConfirm({
+		isDirty: () => form.state.isDirty,
+		onOpenChange,
+	});
 
 	return (
 		<>
 			<CrystFormSheet
 				formId={FORM_ID}
 				isLoading={sheet.isSaving}
-				onOpenChange={onOpenChange}
+				onOpenChange={discard.onRequestClose}
 				open={open}
 				title="Session"
 			>
@@ -78,32 +84,28 @@ export function SessionSheet({
 					<form.Subscribe selector={(state) => state.values}>
 						{(values) =>
 							hasMasterDrift(sheet.masterValues, values) ? (
-								<div className="flex flex-col gap-2 rounded-lg border border-[color-mix(in_oklab,var(--info)_45%,transparent)] bg-[color-mix(in_oklab,var(--info)_10%,transparent)] px-3 py-2.5">
-									<div className="flex items-center gap-2">
-										<IconInfoCircle className="shrink-0 text-info" size={16} />
-										<span className="flex-1 text-[length:var(--m-text-caption)]">
-											This session differs from its linked master.
-										</span>
-									</div>
-									<div className="flex gap-2">
-										<button
-											className="h-8 flex-1 rounded-md border border-border bg-card font-semibold text-[length:var(--m-text-caption)]"
-											onClick={sheet.onResetToMaster}
-											type="button"
-										>
-											Reset to master
-										</button>
-										<button
-											className="h-8 flex-1 rounded-md border border-info bg-transparent font-semibold text-[length:var(--m-text-caption)] text-info disabled:opacity-60"
-											disabled={sheet.isSyncingMaster}
-											onClick={() => {
-												sheet.onPushToMaster().catch(() => undefined);
-											}}
-											type="button"
-										>
-											Update master
-										</button>
-									</div>
+								<div className="flex items-center gap-2 rounded-lg border border-[color-mix(in_oklab,var(--info)_45%,transparent)] bg-[color-mix(in_oklab,var(--info)_10%,transparent)] px-3 py-2">
+									<IconInfoCircle className="shrink-0 text-info" size={15} />
+									<span className="min-w-0 flex-1 truncate text-[length:var(--m-text-caption)]">
+										Differs from linked master
+									</span>
+									<button
+										className="shrink-0 font-semibold text-[length:var(--m-text-caption)] text-muted-foreground hover:text-foreground"
+										onClick={sheet.onResetToMaster}
+										type="button"
+									>
+										Reset
+									</button>
+									<button
+										className="shrink-0 font-semibold text-[length:var(--m-text-caption)] text-muted-foreground hover:text-foreground disabled:opacity-60"
+										disabled={sheet.isSyncingMaster}
+										onClick={() => {
+											sheet.onPushToMaster().catch(() => undefined);
+										}}
+										type="button"
+									>
+										Update
+									</button>
 								</div>
 							) : null
 						}
@@ -158,6 +160,11 @@ export function SessionSheet({
 				}}
 				open={sheet.isCurrencyOpen}
 				selectedCurrencyId={form.state.values.currencyId}
+			/>
+			<DiscardChangesDialog
+				onConfirmDiscard={discard.onConfirmDiscard}
+				onOpenChange={discard.onCancelDiscard}
+				open={discard.isConfirmOpen}
 			/>
 		</>
 	);

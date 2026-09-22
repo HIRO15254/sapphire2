@@ -1,5 +1,6 @@
 export { CrystFormSheet } from "./cryst-form-sheet";
 export { CrystSheet } from "./cryst-sheet";
+export { DiscardChangesDialog } from "./discard-changes-dialog";
 export { EndSessionSheet } from "./end-session-sheet";
 export type { TournamentCompleteValues } from "./end-tournament-sheet";
 export { EndTournamentSheet } from "./end-tournament-sheet";
@@ -14,3 +15,4 @@ export { ScanSeatsSheet } from "./scan-seats-sheet";
 export { SessionSheet } from "./session-sheet";
 export { SitInSheet } from "./sit-in-sheet";
 export { TimelineSheet } from "./timeline-sheet";
+export { useDiscardConfirm } from "./use-discard-confirm";

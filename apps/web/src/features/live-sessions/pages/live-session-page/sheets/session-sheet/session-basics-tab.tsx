@@ -9,13 +9,14 @@ import { cn } from "@/lib/utils";
 import { Field } from "@/shared/components/ui/field";
 import type { BlindSlotLabels } from "@/shared/hooks/use-game-groups";
 import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
+import { SegmentedButtons } from "../../segmented-buttons";
 import type { AnteType } from "./session-sheet-view";
 import type { SessionForm } from "./use-session-sheet";
 
-const ANTE_TYPES: { key: AnteType; label: string }[] = [
-	{ key: "none", label: "None" },
-	{ key: "bb", label: "BB" },
-	{ key: "all", label: "All" },
+const ANTE_TYPES: { label: string; value: AnteType }[] = [
+	{ label: "None", value: "none" },
+	{ label: "BB", value: "bb" },
+	{ label: "All", value: "all" },
 ];
 
 const FIELD_LABEL_CLASS =
@@ -356,24 +357,12 @@ export function SessionBasicsTab({
 										label="Ante type"
 									/>
 								</legend>
-								<div className="grid grid-cols-3 gap-1.5">
-									{ANTE_TYPES.map((option) => (
-										<button
-											aria-pressed={anteTypeField.state.value === option.key}
-											className={cn(
-												"h-[var(--m-control)] rounded-full border font-semibold text-[length:var(--text-sm)]",
-												anteTypeField.state.value === option.key
-													? "border-primary bg-[color-mix(in_oklab,var(--primary)_15%,transparent)] text-primary"
-													: "border-border bg-transparent text-muted-foreground"
-											)}
-											key={option.key}
-											onClick={() => anteTypeField.handleChange(option.key)}
-											type="button"
-										>
-											{option.label}
-										</button>
-									))}
-								</div>
+								<SegmentedButtons
+									columns={3}
+									onChange={anteTypeField.handleChange}
+									options={ANTE_TYPES}
+									value={anteTypeField.state.value}
+								/>
 							</fieldset>
 							<NumericField
 								disabled={anteTypeField.state.value === "none"}

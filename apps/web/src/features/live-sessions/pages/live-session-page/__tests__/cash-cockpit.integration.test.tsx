@@ -752,6 +752,34 @@ describe("CashCockpit", () => {
 		).not.toBeInTheDocument();
 	});
 
+	it("asks for confirmation before discarding unsaved event editor edits", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(await screen.findByRole("button", { name: "Timeline" }));
+		await user.click(await screen.findByRole("button", { name: STACK_ROW }));
+
+		const stack = await screen.findByRole("textbox", { name: STACK_FIELD });
+		await user.clear(stack);
+		await user.type(stack, "26000");
+
+		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+		expect(
+			await screen.findByRole("heading", { name: "Discard changes?" })
+		).toBeInTheDocument();
+
+		await user.click(await screen.findByRole("button", { name: "Discard" }));
+
+		expect(
+			await screen.findByRole("button", { name: STACK_ROW })
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("heading", { name: "Edit event" })
+		).not.toBeInTheDocument();
+		expect(backend.updatedEvents).toEqual([]);
+	});
+
 	it("charts the recorded result above the timeline", async () => {
 		const user = userEvent.setup();
 		renderCockpit();
@@ -1138,6 +1166,64 @@ describe("CashCockpit", () => {
 		});
 	});
 
+	it("asks for confirmation before discarding unsaved Session sheet edits", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Session settings" })
+		);
+		await user.click(await screen.findByRole("tab", { name: "Basics" }));
+
+		const ruleName = await screen.findByLabelText(RULE_NAME_FIELD);
+		await user.clear(ruleName);
+		await user.type(ruleName, "Friday Deep");
+
+		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+		expect(
+			await screen.findByRole("heading", { name: "Discard changes?" })
+		).toBeInTheDocument();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Keep editing" })
+		);
+		expect(
+			screen.queryByRole("heading", { name: "Discard changes?" })
+		).not.toBeInTheDocument();
+		expect(screen.getByLabelText(RULE_NAME_FIELD)).toHaveValue("Friday Deep");
+
+		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+		await user.click(await screen.findByRole("button", { name: "Discard" }));
+
+		await waitFor(() => {
+			expect(
+				screen.queryByRole("tablist", { name: "Session sections" })
+			).not.toBeInTheDocument();
+		});
+		expect(backend.snapshotUpdates).toEqual([]);
+	});
+
+	it("closes the Session sheet immediately when there are no unsaved edits", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Session settings" })
+		);
+		await user.click(await screen.findByRole("tab", { name: "Basics" }));
+		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+		expect(
+			screen.queryByRole("heading", { name: "Discard changes?" })
+		).not.toBeInTheDocument();
+		await waitFor(() => {
+			expect(
+				screen.queryByRole("tablist", { name: "Session sections" })
+			).not.toBeInTheDocument();
+		});
+	});
+
 	it("shows a master-drift banner once Basics values diverge, and Reset to master reverts them", async () => {
 		backend.masterRoomId = "room-1";
 		backend.masterRingGameId = "ring-master-1";
@@ -1151,19 +1237,17 @@ describe("CashCockpit", () => {
 
 		const ruleName = await screen.findByLabelText(RULE_NAME_FIELD);
 		expect(
-			screen.queryByText("This session differs from its linked master.")
+			screen.queryByText("Differs from linked master")
 		).not.toBeInTheDocument();
 
 		await user.clear(ruleName);
 		await user.type(ruleName, "Friday Deep");
 
 		expect(
-			await screen.findByText("This session differs from its linked master.")
+			await screen.findByText("Differs from linked master")
 		).toBeInTheDocument();
 
-		await user.click(
-			await screen.findByRole("button", { name: "Reset to master" })
-		);
+		await user.click(await screen.findByRole("button", { name: "Reset" }));
 
 		await waitFor(() => {
 			expect(screen.getByLabelText(RULE_NAME_FIELD)).toHaveValue(
@@ -1171,12 +1255,12 @@ describe("CashCockpit", () => {
 			);
 		});
 		expect(
-			screen.queryByText("This session differs from its linked master.")
+			screen.queryByText("Differs from linked master")
 		).not.toBeInTheDocument();
 		expect(backend.snapshotUpdates).toEqual([]);
 	});
 
-	it("pushes the current Basics values to the linked master when Update master is pressed", async () => {
+	it("pushes the current Basics values to the linked master when Update is pressed", async () => {
 		backend.masterRoomId = "room-1";
 		backend.masterRingGameId = "ring-master-1";
 		const user = userEvent.setup();
@@ -1191,9 +1275,7 @@ describe("CashCockpit", () => {
 		await user.clear(ruleName);
 		await user.type(ruleName, "Friday Deep");
 
-		await user.click(
-			await screen.findByRole("button", { name: "Update master" })
-		);
+		await user.click(await screen.findByRole("button", { name: "Update" }));
 
 		await waitFor(() => {
 			expect(backend.ringGameUpdates).toContainEqual(
@@ -1203,7 +1285,7 @@ describe("CashCockpit", () => {
 
 		await waitFor(() => {
 			expect(
-				screen.queryByText("This session differs from its linked master.")
+				screen.queryByText("Differs from linked master")
 			).not.toBeInTheDocument();
 		});
 	});
@@ -1273,6 +1355,7 @@ describe("CashCockpit", () => {
 		);
 
 		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+		await user.click(await screen.findByRole("button", { name: "Discard" }));
 		expect(backend.snapshotUpdates).toEqual([]);
 
 		await user.click(

@@ -5,6 +5,7 @@ import { Field } from "@/shared/components/ui/field";
 import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
 import { formatNumber, formatSignedNumber } from "@/utils/format-number";
 import { plToneClass } from "../../cryst-tone";
+import { SegmentedButtons } from "../../segmented-buttons";
 import type {
 	ChipPurchaseOption,
 	useEventEditorSheet,
@@ -188,6 +189,11 @@ export function AllInFields({ form }: { form: EditorForm }) {
 	);
 }
 
+const DIRECTION_OPTIONS = [
+	{ label: "Add chips (+)", value: "add" },
+	{ label: "Withdraw (−)", value: "remove" },
+] as const;
+
 export function ChipsFields({ form }: { form: EditorForm }) {
 	return (
 		<>
@@ -198,29 +204,12 @@ export function ChipsFields({ form }: { form: EditorForm }) {
 						<legend className="mb-1.5 font-medium text-[length:var(--text-sm)]">
 							Direction
 						</legend>
-						<div className="grid grid-cols-2 gap-1.5">
-							{(
-								[
-									{ label: "Add chips (+)", value: "add" },
-									{ label: "Withdraw (−)", value: "remove" },
-								] as const
-							).map((option) => (
-								<button
-									aria-pressed={field.state.value === option.value}
-									className={cn(
-										"h-[var(--m-control)] rounded-full border font-semibold text-[length:var(--text-sm)]",
-										field.state.value === option.value
-											? "border-primary bg-primary text-primary-foreground"
-											: "border-border bg-transparent text-foreground"
-									)}
-									key={option.value}
-									onClick={() => field.handleChange(option.value)}
-									type="button"
-								>
-									{option.label}
-								</button>
-							))}
-						</div>
+						<SegmentedButtons
+							columns={2}
+							onChange={field.handleChange}
+							options={DIRECTION_OPTIONS}
+							value={field.state.value}
+						/>
 					</fieldset>
 				)}
 			</form.Field>
