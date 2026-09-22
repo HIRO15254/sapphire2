@@ -29,7 +29,6 @@ describe("describeSessionDetail", () => {
 		const view = describeSessionDetail(CASH_DETAIL, "cash_game");
 		expect(view).toMatchObject({
 			anteType: "bb",
-			currencyLabel: "¥ Japanese yen",
 			roomName: "Grand Room Umeda",
 			ruleName: "NLH 100/200",
 			tableSize: 9,
@@ -89,7 +88,6 @@ describe("describeSessionDetail", () => {
 
 	it("renders an empty session without throwing", () => {
 		expect(describeSessionDetail(null, "cash_game")).toMatchObject({
-			currencyLabel: "Not set",
 			memo: "",
 			roomName: "Not set",
 			ruleName: "",

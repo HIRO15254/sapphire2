@@ -258,17 +258,14 @@ export function useSessionSettings({
 		detail: detailQuery.data ?? null,
 		isCurrencyPending: createCurrency.isPending,
 		isLoading: detailQuery.isLoading,
+		isSaving: snapshot.isPending || live.isPending || tags.isPending,
 		onCreateCurrency: (values: { name: string; unit: string }) =>
 			createCurrency.mutateAsync(values),
 		onCreateTag: (name: string) => createTag.mutateAsync(name),
-		onUpdateLive: (patch: { currencyId?: string; memo?: string | null }) => {
-			live.mutate(patch);
-		},
-		onUpdateSnapshot: (patch: SessionSnapshotPatch) => {
-			snapshot.mutate(patch);
-		},
-		onUpdateTags: (tagIds: string[]) => {
-			tags.mutate(tagIds);
-		},
+		onUpdateLive: (patch: { currencyId?: string; memo?: string | null }) =>
+			live.mutateAsync(patch),
+		onUpdateSnapshot: (patch: SessionSnapshotPatch) =>
+			snapshot.mutateAsync(patch),
+		onUpdateTags: (tagIds: string[]) => tags.mutateAsync(tagIds),
 	};
 }

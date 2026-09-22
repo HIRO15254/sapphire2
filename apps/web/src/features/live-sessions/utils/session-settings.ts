@@ -39,6 +39,13 @@ export function currencyRowLabel(currency: CurrencyLike | null): string {
 	return currency.unit ? `${currency.unit} ${currency.name}` : currency.name;
 }
 
+export function findCurrency<T extends CurrencyLike>(
+	currencies: readonly T[],
+	currencyId: string
+): T | null {
+	return currencies.find((currency) => currency.id === currencyId) ?? null;
+}
+
 export interface MasterLinkCopy {
 	action: string;
 	subtitle: string;

@@ -4,6 +4,7 @@ import {
 	currencySample,
 	describeMasterLink,
 	filterTagCandidates,
+	findCurrency,
 	findExactTag,
 	formatWithUnit,
 } from "../session-settings";
@@ -12,6 +13,11 @@ const TAGS = [
 	{ id: "t1", name: "Weekend", usageCount: 12 },
 	{ id: "t2", name: "Trip: Osaka", usageCount: 3 },
 	{ id: "t3", name: "Tilt", usageCount: 1 },
+];
+
+const CURRENCIES = [
+	{ id: "c1", name: "Japanese yen", unit: "¥" },
+	{ id: "c2", name: "Club chips", unit: "chips" },
 ];
 
 describe("formatWithUnit", () => {
@@ -41,6 +47,17 @@ describe("currencyRowLabel", () => {
 			currencyRowLabel({ id: "c1", name: "Club points", unit: null })
 		).toBe("Club points");
 		expect(currencyRowLabel(null)).toBe("Not set");
+	});
+});
+
+describe("findCurrency", () => {
+	it("finds the matching currency by id", () => {
+		expect(findCurrency(CURRENCIES, "c2")).toEqual(CURRENCIES[1]);
+	});
+
+	it("returns null for an unknown or empty id", () => {
+		expect(findCurrency(CURRENCIES, "missing")).toBeNull();
+		expect(findCurrency(CURRENCIES, "")).toBeNull();
 	});
 });
 

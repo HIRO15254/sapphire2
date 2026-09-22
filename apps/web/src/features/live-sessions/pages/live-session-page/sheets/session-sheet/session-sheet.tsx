@@ -1,6 +1,7 @@
 import type { ChipPurchaseOption } from "@/features/live-sessions/pages/live-session-page/sheets/event-editor-sheet";
+import { currencyRowLabel } from "@/features/live-sessions/utils/session-settings";
 import { cn } from "@/lib/utils";
-import { CrystSheet } from "../cryst-sheet";
+import { CrystFormSheet } from "../cryst-form-sheet";
 import { CurrencySheet } from "../currency-sheet";
 import { SessionBasicsTab } from "./session-basics-tab";
 import { SessionOverviewTab } from "./session-overview-tab";
@@ -15,6 +16,7 @@ interface SessionSheetProps {
 }
 
 const NO_PURCHASE_OPTIONS: ChipPurchaseOption[] = [];
+const FORM_ID = "cryst-session-form";
 
 export function SessionSheet({
 	onOpenChange,
@@ -23,12 +25,27 @@ export function SessionSheet({
 	sessionId,
 	sessionType,
 }: SessionSheetProps) {
-	const sheet = useSessionSheet({ sessionId, sessionType });
+	const sheet = useSessionSheet({ onOpenChange, open, sessionId, sessionType });
+	const { form } = sheet;
 
 	return (
 		<>
-			<CrystSheet onOpenChange={onOpenChange} open={open} title="Session">
-				<div className="flex flex-col gap-3">
+			<CrystFormSheet
+				formId={FORM_ID}
+				isLoading={sheet.isSaving}
+				onOpenChange={onOpenChange}
+				open={open}
+				title="Session"
+			>
+				<form
+					className="flex flex-col gap-3"
+					id={FORM_ID}
+					onSubmit={(e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						form.handleSubmit();
+					}}
+				>
 					<div
 						aria-label="Session sections"
 						className="flex gap-0.5 rounded-lg bg-muted p-[3px]"
@@ -53,61 +70,55 @@ export function SessionSheet({
 						))}
 					</div>
 
-					{sheet.tab === "overview" ? (
-						<SessionOverviewTab
-							currencyLabel={sheet.currencyLabel}
-							isMasterLinked={sheet.isMasterLinked}
-							master={sheet.master}
-							memo={sheet.memoValue}
-							onCommitMemo={sheet.onCommitMemo}
-							onMemoChange={(value) => sheet.onDraftChange("memo", value)}
-							onOpenCurrency={sheet.onOpenCurrency}
-							roomName={sheet.roomName}
-							tagField={{
-								candidates: sheet.tagCandidates,
-								isListOpen: sheet.isTagListOpen,
-								onAdd: (name) => {
-									sheet.onAddTag(name);
-								},
-								onCloseList: sheet.onCloseTagList,
-								onOpenList: sheet.onOpenTagList,
-								onQueryChange: sheet.onTagQueryChange,
-								onRemove: sheet.onRemoveTag,
-								query: sheet.tagQuery,
-								tags: sheet.selectedTags,
-							}}
-						/>
-					) : (
-						<SessionBasicsTab
-							anteType={sheet.anteType}
-							blindFields={sheet.blindFields}
-							currencyLabel={sheet.currencyLabel}
-							currencyUnit={sheet.currencyUnit}
-							isCash={sheet.isCash}
-							numberFields={sheet.numberFields}
-							onChangeField={sheet.onDraftChange}
-							onCommitField={sheet.onCommitField}
-							onCommitRuleName={sheet.onCommitRuleName}
-							onOpenCurrency={sheet.onOpenCurrency}
-							onSelectAnteType={sheet.onSelectAnteType}
-							onSelectTableSize={sheet.onSelectTableSize}
-							purchaseOptions={purchaseOptions}
-							ruleName={sheet.ruleNameValue}
-							tableSize={sheet.tableSize}
-							tableSizes={sheet.tableSizes}
-							variantLabel={sheet.variantLabel}
-						/>
-					)}
-				</div>
-			</CrystSheet>
+					<form.Field name="currencyId">
+						{(currencyField) => {
+							const currency = sheet.findCurrency(currencyField.state.value);
+							const currencyLabel = currencyRowLabel(currency);
+							return sheet.tab === "overview" ? (
+								<SessionOverviewTab
+									currencyLabel={currencyLabel}
+									form={form}
+									isMasterLinked={sheet.isMasterLinked}
+									isTagListOpen={sheet.isTagListOpen}
+									master={sheet.master}
+									onAddTag={sheet.onAddTag}
+									onCloseTagList={sheet.onCloseTagList}
+									onOpenCurrency={sheet.onOpenCurrency}
+									onOpenTagList={sheet.onOpenTagList}
+									onTagQueryChange={sheet.onTagQueryChange}
+									roomName={sheet.roomName}
+									tagCandidatesFor={sheet.tagCandidatesFor}
+									tagQuery={sheet.tagQuery}
+									tagsById={sheet.tagsById}
+								/>
+							) : (
+								<SessionBasicsTab
+									blindLabels={sheet.blindLabels}
+									currencyLabel={currencyLabel}
+									currencyUnit={currency?.unit ?? null}
+									form={form}
+									isCash={sheet.isCash}
+									onOpenCurrency={sheet.onOpenCurrency}
+									purchaseOptions={purchaseOptions}
+									tableSizes={sheet.tableSizes}
+									variantLabel={sheet.variantLabel}
+								/>
+							);
+						}}
+					</form.Field>
+				</form>
+			</CrystFormSheet>
 			<CurrencySheet
 				currencies={sheet.currencyOptions}
 				isAddPending={sheet.isCurrencyPending}
 				onAdd={sheet.onCreateCurrency}
 				onOpenChange={sheet.onCurrencyOpenChange}
-				onPick={sheet.onPickCurrency}
+				onPick={(currencyId) => {
+					form.setFieldValue("currencyId", currencyId);
+					sheet.onCurrencyOpenChange(false);
+				}}
 				open={sheet.isCurrencyOpen}
-				selectedCurrencyId={sheet.selectedCurrencyId}
+				selectedCurrencyId={form.state.values.currencyId}
 			/>
 		</>
 	);

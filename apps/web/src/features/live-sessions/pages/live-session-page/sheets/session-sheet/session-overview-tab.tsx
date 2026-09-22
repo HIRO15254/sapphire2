@@ -5,33 +5,50 @@ import {
 	IconLink,
 	IconUnlink,
 } from "@tabler/icons-react";
-import type { MasterLinkCopy } from "@/features/live-sessions/utils/session-settings";
+import type {
+	MasterLinkCopy,
+	SessionTagLike,
+} from "@/features/live-sessions/utils/session-settings";
 import { cn } from "@/lib/utils";
-import type { SessionTagFieldProps } from "./session-tag-field";
 import { SessionTagField } from "./session-tag-field";
+import type { SessionForm } from "./use-session-sheet";
 
 interface SessionOverviewTabProps {
 	currencyLabel: string;
+	form: SessionForm;
 	isMasterLinked: boolean;
+	isTagListOpen: boolean;
 	master: MasterLinkCopy;
-	memo: string;
-	onCommitMemo: () => void;
-	onMemoChange: (value: string) => void;
+	onAddTag: (
+		name: string,
+		selectedIds: readonly string[],
+		onChange: (tagIds: string[]) => void
+	) => void;
+	onCloseTagList: () => void;
 	onOpenCurrency: () => void;
+	onOpenTagList: () => void;
+	onTagQueryChange: (value: string) => void;
 	roomName: string;
-	tagField: SessionTagFieldProps;
+	tagCandidatesFor: (selectedIds: readonly string[]) => SessionTagLike[];
+	tagQuery: string;
+	tagsById: ReadonlyMap<string, SessionTagLike>;
 }
 
 export function SessionOverviewTab({
 	currencyLabel,
+	form,
 	isMasterLinked,
+	isTagListOpen,
 	master,
-	memo,
-	onCommitMemo,
-	onMemoChange,
+	onAddTag,
+	onCloseTagList,
 	onOpenCurrency,
+	onOpenTagList,
+	onTagQueryChange,
 	roomName,
-	tagField,
+	tagCandidatesFor,
+	tagQuery,
+	tagsById,
 }: SessionOverviewTabProps) {
 	return (
 		<div className="flex flex-col gap-3">
@@ -76,22 +93,47 @@ export function SessionOverviewTab({
 				</button>
 			</div>
 
-			<SessionTagField {...tagField} />
+			<form.Field name="tagIds">
+				{(field) => (
+					<SessionTagField
+						candidates={tagCandidatesFor(field.state.value)}
+						isListOpen={isTagListOpen}
+						onAdd={(name) =>
+							onAddTag(name, field.state.value, field.handleChange)
+						}
+						onCloseList={onCloseTagList}
+						onOpenList={onOpenTagList}
+						onQueryChange={onTagQueryChange}
+						onRemove={(tagId) =>
+							field.handleChange(field.state.value.filter((id) => id !== tagId))
+						}
+						query={tagQuery}
+						tags={field.state.value.map((id) => ({
+							id,
+							name: tagsById.get(id)?.name ?? "",
+						}))}
+					/>
+				)}
+			</form.Field>
 
-			<div>
-				<div className="mb-1.5 font-medium text-[length:var(--text-sm)]">
-					Session memo
-				</div>
-				<textarea
-					aria-label="Session memo"
-					className="w-full resize-none rounded-lg border border-input bg-card px-3 py-2.5 text-[length:var(--m-text-footnote)] leading-relaxed outline-none focus-visible:border-ring"
-					onBlur={onCommitMemo}
-					onChange={(e) => onMemoChange(e.target.value)}
-					placeholder="How the session went, table conditions, anything to remember."
-					rows={3}
-					value={memo}
-				/>
-			</div>
+			<form.Field name="memo">
+				{(field) => (
+					<div>
+						<div className="mb-1.5 font-medium text-[length:var(--text-sm)]">
+							Session memo
+						</div>
+						<textarea
+							aria-label="Session memo"
+							className="w-full resize-none rounded-lg border border-input bg-card px-3 py-2.5 text-[length:var(--m-text-footnote)] leading-relaxed outline-none focus-visible:border-ring"
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							placeholder="How the session went, table conditions, anything to remember."
+							rows={3}
+							value={field.state.value}
+						/>
+					</div>
+				)}
+			</form.Field>
 		</div>
 	);
 }

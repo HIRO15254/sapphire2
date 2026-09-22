@@ -1,8 +1,5 @@
 import type { MasterLinkCopy } from "@/features/live-sessions/utils/session-settings";
-import {
-	currencyRowLabel,
-	describeMasterLink,
-} from "@/features/live-sessions/utils/session-settings";
+import { describeMasterLink } from "@/features/live-sessions/utils/session-settings";
 
 export type AnteType = "all" | "bb" | "none";
 
@@ -38,8 +35,6 @@ export interface SessionDetailLike {
 
 export interface SessionSheetView {
 	anteType: AnteType;
-	currencyLabel: string;
-	currencyUnit: string | null;
 	isMasterLinked: boolean;
 	master: MasterLinkCopy;
 	memo: string;
@@ -69,18 +64,6 @@ function serverNumbersOf(
 	};
 }
 
-function currencyLabelOf(detail: SessionDetailLike | null): string {
-	const currencyId = detail?.currencyId ?? null;
-	if (currencyId === null) {
-		return currencyRowLabel(null);
-	}
-	return currencyRowLabel({
-		id: currencyId,
-		name: detail?.currencyName ?? "",
-		unit: detail?.currencyUnit ?? null,
-	});
-}
-
 export function describeSessionDetail(
 	detail: SessionDetailLike | null,
 	sessionType: "cash_game" | "tournament"
@@ -92,8 +75,6 @@ export function describeSessionDetail(
 	return {
 		anteType:
 			ANTE_TYPE_KEYS.find((key) => key === detail?.cashAnteType) ?? "none",
-		currencyLabel: currencyLabelOf(detail),
-		currencyUnit: detail?.currencyUnit ?? null,
 		isMasterLinked: masterId !== null,
 		master: describeMasterLink(
 			masterId === null ? null : (detail?.roomName ?? "Linked"),

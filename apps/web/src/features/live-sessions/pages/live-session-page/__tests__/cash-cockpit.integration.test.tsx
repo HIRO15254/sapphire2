@@ -39,6 +39,8 @@ const NEW_PLAYER_ROW = /Create as a new player/;
 const CHOOSE_PHOTO_BUTTON = /Choose from library/;
 const TEMPORARY_ROW = /Temporary player/;
 const CREATE_TAG_ROW = /Create "Fish"/;
+const RULE_NAME_FIELD = /Rule name/;
+const TABLE_SIZE_FIELD = /Table size/;
 const WEEKEND_TAG_CHOICE = /Weekend/;
 const CURRENCY_ROW = /Currency/;
 const CLUB_CHIPS_ROW = /Club chips/;
@@ -88,7 +90,6 @@ const backend = {
 	sessionMemo: null as string | null,
 	sessionTableSize: 6 as number | null,
 	sessionTagIds: [] as string[],
-	snapshotGate: null as Promise<void> | null,
 	snapshotUpdates: [] as Record<string, unknown>[],
 	status: "active",
 	updatedEvents: [] as UpdatedEvent[],
@@ -177,10 +178,7 @@ const fixtureRouter = t.router({
 			}),
 		updateSnapshot: t.procedure
 			.input(z.custom<Record<string, unknown>>())
-			.mutation(async ({ input }) => {
-				if (backend.snapshotGate) {
-					await backend.snapshotGate;
-				}
+			.mutation(({ input }) => {
 				backend.snapshotUpdates.push(input);
 				if (typeof input.tableSize === "number") {
 					backend.sessionTableSize = input.tableSize;
@@ -506,7 +504,6 @@ beforeEach(() => {
 	backend.sessionMemo = null;
 	backend.sessionTableSize = 6;
 	backend.sessionTagIds = [];
-	backend.snapshotGate = null;
 	backend.snapshotUpdates = [];
 	backend.status = "active";
 	backend.updatedEvents = [];
@@ -1041,7 +1038,7 @@ describe("CashCockpit", () => {
 		expect(screen.getByRole("button", { name: "Timeline" })).toBeEnabled();
 		expect(screen.getAllByRole("button", { name: "Note" })[0]).toBeEnabled();
 	});
-	it("edits the session rule from the header sheet and saves the table size", async () => {
+	it("collects Basics edits and saves them together when Save is pressed", async () => {
 		const user = userEvent.setup();
 		renderCockpit();
 
@@ -1050,71 +1047,36 @@ describe("CashCockpit", () => {
 		);
 		await user.click(await screen.findByRole("tab", { name: "Basics" }));
 
-		expect(await screen.findByLabelText("Rule name")).toHaveValue(
-			"Friday 200/400"
+		const ruleName = await screen.findByLabelText(RULE_NAME_FIELD);
+		await user.clear(ruleName);
+		await user.type(ruleName, "Friday Deep");
+		await user.selectOptions(
+			await screen.findByLabelText(TABLE_SIZE_FIELD),
+			"9"
 		);
-		await user.selectOptions(screen.getByLabelText("Table size"), "9");
+		await user.click(await screen.findByRole("button", { name: "BB" }));
 
-		await waitFor(() => {
-			expect(backend.snapshotUpdates).toContainEqual(
-				expect.objectContaining({ tableSize: 9 })
-			);
-		});
-	});
-
-	it("reflects an Ante type selection immediately, without waiting for the server", async () => {
-		const user = userEvent.setup();
-		let releaseSnapshot: () => void = () => undefined;
-		backend.snapshotGate = new Promise((resolve) => {
-			releaseSnapshot = resolve;
-		});
-		renderCockpit();
-
-		await user.click(
-			await screen.findByRole("button", { name: "Session settings" })
-		);
-		await user.click(await screen.findByRole("tab", { name: "Basics" }));
-		const bbButton = await screen.findByRole("button", { name: "BB" });
-
-		await user.click(bbButton);
-
-		expect(bbButton).toHaveAttribute("aria-pressed", "true");
 		expect(backend.snapshotUpdates).toEqual([]);
 
-		releaseSnapshot();
+		await user.click(await screen.findByRole("button", { name: "Save" }));
+
 		await waitFor(() => {
 			expect(backend.snapshotUpdates).toContainEqual(
-				expect.objectContaining({ anteType: "bb" })
+				expect.objectContaining({
+					anteType: "bb",
+					ruleName: "Friday Deep",
+					tableSize: 9,
+				})
 			);
 		});
-	});
-
-	it("adds an existing session tag and drops it again", async () => {
-		const user = userEvent.setup();
-		renderCockpit();
-
-		await user.click(
-			await screen.findByRole("button", { name: "Session settings" })
-		);
-		await user.click(await screen.findByLabelText("Add session tag"));
-		await user.click(
-			await screen.findByRole("button", { name: WEEKEND_TAG_CHOICE })
-		);
-
 		await waitFor(() => {
-			expect(backend.sessionTagIds).toEqual(["stag-1"]);
-		});
-
-		await user.click(
-			await screen.findByRole("button", { name: "Remove Weekend" })
-		);
-
-		await waitFor(() => {
-			expect(backend.sessionTagIds).toEqual([]);
+			expect(
+				screen.queryByRole("tablist", { name: "Session sections" })
+			).not.toBeInTheDocument();
 		});
 	});
 
-	it("switches the session currency from the currency sheet", async () => {
+	it("collects Overview edits (currency, tag, memo) and saves them together", async () => {
 		const user = userEvent.setup();
 		renderCockpit();
 
@@ -1126,24 +1088,49 @@ describe("CashCockpit", () => {
 			await screen.findByRole("button", { name: CLUB_CHIPS_ROW })
 		);
 
+		await user.click(await screen.findByLabelText("Add session tag"));
+		await user.click(
+			await screen.findByRole("button", { name: WEEKEND_TAG_CHOICE })
+		);
+
+		const memo = await screen.findByLabelText("Session memo");
+		await user.type(memo, "Table is loose");
+
+		expect(backend.sessionCurrencyId).toBeNull();
+		expect(backend.sessionTagIds).toEqual([]);
+		expect(backend.sessionMemo).toBeNull();
+
+		await user.click(await screen.findByRole("button", { name: "Save" }));
+
 		await waitFor(() => {
 			expect(backend.sessionCurrencyId).toBe("cur-2");
+			expect(backend.sessionTagIds).toEqual(["stag-1"]);
+			expect(backend.sessionMemo).toBe("Table is loose");
 		});
 	});
 
-	it("saves the session memo when the field loses focus", async () => {
+	it("discards edits when Cancel is pressed, without contacting the server", async () => {
 		const user = userEvent.setup();
 		renderCockpit();
 
 		await user.click(
 			await screen.findByRole("button", { name: "Session settings" })
 		);
-		const memo = await screen.findByLabelText("Session memo");
-		await user.type(memo, "Table is loose");
-		await user.tab();
+		await user.click(await screen.findByRole("tab", { name: "Basics" }));
+		await user.selectOptions(
+			await screen.findByLabelText(TABLE_SIZE_FIELD),
+			"9"
+		);
 
-		await waitFor(() => {
-			expect(backend.sessionMemo).toBe("Table is loose");
-		});
+		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+		expect(backend.snapshotUpdates).toEqual([]);
+
+		await user.click(
+			await screen.findByRole("button", { name: "Session settings" })
+		);
+		await user.click(await screen.findByRole("tab", { name: "Basics" }));
+
+		expect(await screen.findByLabelText(TABLE_SIZE_FIELD)).toHaveValue("6");
+		expect(backend.snapshotUpdates).toEqual([]);
 	});
 });
