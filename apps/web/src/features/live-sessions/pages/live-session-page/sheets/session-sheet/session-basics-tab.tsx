@@ -76,6 +76,8 @@ function NumericField({
 	);
 }
 
+const BUY_IN_ERROR_ID = "cryst-session-buyIn-error";
+
 function BuyInRangeField({ form }: { form: SessionForm }) {
 	return (
 		<form.Field name="minBuyIn">
@@ -85,14 +87,23 @@ function BuyInRangeField({ form }: { form: SessionForm }) {
 						const errorMessage =
 							minField.state.meta.errors[0]?.message ??
 							maxField.state.meta.errors[0]?.message;
+						const hasError = errorMessage !== undefined;
 						return (
 							<div className="col-span-4 min-w-0">
 								<div className={FIELD_LABEL_CLASS}>Buy-in</div>
-								<div className="flex items-center gap-1.5">
+								<div
+									className={cn(
+										CONTROL_CLASS,
+										"mt-1.5 flex items-center gap-1.5 focus-within:border-ring",
+										hasError ? "border-destructive" : null
+									)}
+								>
 									<input
 										{...NO_INPUT_SUGGESTIONS}
+										aria-describedby={hasError ? BUY_IN_ERROR_ID : undefined}
+										aria-invalid={hasError}
 										aria-label="Min buy-in"
-										className={cn(NUMBER_CLASS, "min-w-0 flex-1")}
+										className="min-w-0 flex-1 bg-transparent font-mono outline-none"
 										id={fieldId(minField.name)}
 										inputMode="numeric"
 										onBlur={minField.handleBlur}
@@ -103,8 +114,10 @@ function BuyInRangeField({ form }: { form: SessionForm }) {
 									<span className="shrink-0 text-muted-foreground">–</span>
 									<input
 										{...NO_INPUT_SUGGESTIONS}
+										aria-describedby={hasError ? BUY_IN_ERROR_ID : undefined}
+										aria-invalid={hasError}
 										aria-label="Max buy-in"
-										className={cn(NUMBER_CLASS, "min-w-0 flex-1")}
+										className="min-w-0 flex-1 bg-transparent font-mono outline-none"
 										id={fieldId(maxField.name)}
 										inputMode="numeric"
 										onBlur={maxField.handleBlur}
@@ -116,6 +129,7 @@ function BuyInRangeField({ form }: { form: SessionForm }) {
 								{errorMessage ? (
 									<p
 										className="mt-1 text-[length:var(--text-xs)] text-destructive"
+										id={BUY_IN_ERROR_ID}
 										role="alert"
 									>
 										{errorMessage}
