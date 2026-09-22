@@ -1,11 +1,5 @@
-import {
-	IconLoader2,
-	IconLogout,
-	IconPlus,
-	IconTag,
-	IconX,
-} from "@tabler/icons-react";
-import { TagPickerBase } from "@/shared/components/ui/tag-picker-base";
+import { IconLoader2, IconLogout } from "@tabler/icons-react";
+import { TagInput } from "../tag-input";
 import { useSelectedPlayerPanel } from "./use-selected-player-panel";
 
 interface SelectedPlayerPanelProps {
@@ -67,57 +61,13 @@ export function SelectedPlayerPanel({
 				</button>
 			</div>
 
-			<TagPickerBase
-				availableTags={[...panel.availableTags]}
-				containerClassName="shrink-0"
-				emptyText="No label matches"
-				leadingIcon={
-					<IconTag className="shrink-0 text-muted-foreground" size={13} />
-				}
+			<TagInput
+				availableTags={panel.availableTags}
 				onAdd={panel.onAddTag}
 				onCreateTag={panel.onCreateTag}
 				onRemove={panel.onRemoveTag}
-				renderCreateOption={(name) => (
-					<>
-						<IconPlus size={13} />
-						<span className="min-w-0 truncate font-semibold">
-							Create "{name}"
-						</span>
-					</>
-				)}
-				renderSelectedTag={(tag, handleRemove) => (
-					<span
-						className="inline-flex items-center gap-1 rounded-full py-[3px] pr-1.5 pl-2 font-semibold text-[11px]"
-						style={{
-							backgroundColor: `color-mix(in oklab, ${tag.color} 18%, transparent)`,
-							color: tag.color,
-						}}
-					>
-						{tag.name}
-						<button
-							aria-label={`Remove tag ${tag.name}`}
-							className="inline-flex size-3.5 items-center justify-center rounded-full opacity-65"
-							onClick={handleRemove}
-							type="button"
-						>
-							<IconX size={11} />
-						</button>
-					</span>
-				)}
-				renderSuggestion={(tag) => (
-					<>
-						<span
-							className="size-[7px] shrink-0 rounded-full"
-							style={{ backgroundColor: tag.color }}
-						/>
-						{tag.name}
-						<span className="flex-1" />
-						<IconPlus className="text-muted-foreground" size={13} />
-					</>
-				)}
-				searchAriaLabel="Add labels"
-				selectedTags={[...panel.selectedTags]}
-				variant="inline"
+				searchLabel="Add labels"
+				selectedTags={panel.selectedTags}
 			/>
 
 			<textarea

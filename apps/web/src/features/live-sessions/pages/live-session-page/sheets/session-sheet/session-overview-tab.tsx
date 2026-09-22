@@ -10,7 +10,7 @@ import type {
 	SessionTagLike,
 } from "@/features/live-sessions/utils/session-settings";
 import { cn } from "@/lib/utils";
-import { SessionTagField } from "./session-tag-field";
+import { TagInput } from "../../tag-input";
 import type { SessionForm } from "./use-session-sheet";
 
 interface SessionOverviewTabProps {
@@ -79,19 +79,27 @@ export function SessionOverviewTab({
 
 			<form.Field name="tagIds">
 				{(field) => (
-					<SessionTagField
-						availableTags={availableTags}
-						onAdd={(tag) => field.handleChange([...field.state.value, tag.id])}
-						onCreateTag={onCreateTag}
-						onRemove={(tag) =>
-							field.handleChange(
-								field.state.value.filter((id) => id !== tag.id)
-							)
-						}
-						selectedTags={field.state.value
-							.map((id) => availableTags.find((tag) => tag.id === id))
-							.filter((tag): tag is SessionTagLike => tag !== undefined)}
-					/>
+					<div>
+						<div className="mb-1.5 font-medium text-[length:var(--text-sm)]">
+							Session tags
+						</div>
+						<TagInput
+							availableTags={availableTags}
+							onAdd={(tag) =>
+								field.handleChange([...field.state.value, tag.id])
+							}
+							onCreateTag={onCreateTag}
+							onRemove={(tag) =>
+								field.handleChange(
+									field.state.value.filter((id) => id !== tag.id)
+								)
+							}
+							searchLabel="Add session tag"
+							selectedTags={field.state.value
+								.map((id) => availableTags.find((tag) => tag.id === id))
+								.filter((tag): tag is SessionTagLike => tag !== undefined)}
+						/>
+					</div>
 				)}
 			</form.Field>
 
