@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
 	currencyRowLabel,
+	describeCashMasterValues,
 	describeMasterLink,
+	describeTournamentMasterValues,
 	filterTagCandidates,
 	findCurrency,
 	findExactTag,
 	formatWithUnit,
+	isMasterFieldDifferent,
 } from "../session-settings";
 
 const TAGS = [
@@ -94,5 +97,98 @@ describe("findExactTag", () => {
 	it("returns null for a partial name or an empty one", () => {
 		expect(findExactTag(TAGS, "week")).toBeNull();
 		expect(findExactTag(TAGS, "   ")).toBeNull();
+	});
+});
+
+describe("describeCashMasterValues", () => {
+	it("maps null numeric fields to empty strings and a null ante type to none", () => {
+		expect(
+			describeCashMasterValues({
+				ante: null,
+				anteType: null,
+				blind1: 100,
+				blind2: 200,
+				blind3: null,
+				currencyId: null,
+				maxBuyIn: null,
+				minBuyIn: 20_000,
+				name: "Friday game",
+				tableSize: 9,
+			})
+		).toEqual({
+			ante: "",
+			anteType: "none",
+			blind1: "100",
+			blind2: "200",
+			blind3: "",
+			currencyId: "",
+			maxBuyIn: "",
+			minBuyIn: "20000",
+			ruleName: "Friday game",
+			tableSize: "9",
+		});
+	});
+
+	it("returns null for a null master", () => {
+		expect(describeCashMasterValues(null)).toBeNull();
+	});
+});
+
+describe("describeTournamentMasterValues", () => {
+	it("maps buyIn to tournamentBuyIn and null numeric fields to empty strings", () => {
+		expect(
+			describeTournamentMasterValues({
+				bountyAmount: null,
+				buyIn: 5000,
+				currencyId: "cur-1",
+				entryFee: 500,
+				name: "Sunday special",
+				startingStack: null,
+				tableSize: 9,
+			})
+		).toEqual({
+			bountyAmount: "",
+			currencyId: "cur-1",
+			entryFee: "500",
+			ruleName: "Sunday special",
+			startingStack: "",
+			tableSize: "9",
+			tournamentBuyIn: "5000",
+		});
+	});
+
+	it("returns null for a null master", () => {
+		expect(describeTournamentMasterValues(null)).toBeNull();
+	});
+});
+
+describe("isMasterFieldDifferent", () => {
+	const master = describeCashMasterValues({
+		ante: null,
+		anteType: "none",
+		blind1: 100,
+		blind2: 200,
+		blind3: null,
+		currencyId: "cur-1",
+		maxBuyIn: null,
+		minBuyIn: null,
+		name: "Friday game",
+		tableSize: 9,
+	});
+
+	it("is false when there is no master to compare against", () => {
+		expect(isMasterFieldDifferent(null, "blind2", "999")).toBe(false);
+	});
+
+	it("is false when the current value matches the master", () => {
+		expect(isMasterFieldDifferent(master, "blind2", "200")).toBe(false);
+	});
+
+	it("is true when the current value diverges from the master", () => {
+		expect(isMasterFieldDifferent(master, "blind2", "400")).toBe(true);
+	});
+
+	it("is false for a key the master does not carry (tournament-only key on a cash master)", () => {
+		expect(isMasterFieldDifferent(master, "entryFee", "500")).toBe(false);
 	});
 });

@@ -1,6 +1,10 @@
 import { IconChevronRight } from "@tabler/icons-react";
 import type { ChipPurchaseOption } from "@/features/live-sessions/pages/live-session-page/sheets/event-editor-sheet";
-import { formatWithUnit } from "@/features/live-sessions/utils/session-settings";
+import {
+	formatWithUnit,
+	isMasterFieldDifferent,
+	type MasterFieldValues,
+} from "@/features/live-sessions/utils/session-settings";
 import { cn } from "@/lib/utils";
 import { Field } from "@/shared/components/ui/field";
 import type { BlindSlotLabels } from "@/shared/hooks/use-game-groups";
@@ -24,6 +28,25 @@ function fieldId(name: string) {
 	return `cryst-session-${name}`;
 }
 
+function FieldLabel({
+	isDifferent,
+	label,
+}: {
+	isDifferent: boolean;
+	label: string;
+}) {
+	if (!isDifferent) {
+		return label;
+	}
+	return (
+		<span className="inline-flex items-center gap-1.5">
+			{label}
+			<span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-info" />
+			<span className="sr-only">(differs from master)</span>
+		</span>
+	);
+}
+
 type NumericFieldName =
 	| "ante"
 	| "blind1"
@@ -40,12 +63,14 @@ function NumericField({
 	disabled = false,
 	form,
 	label,
+	master,
 	name,
 	span = "col-span-2",
 }: {
 	disabled?: boolean;
 	form: SessionForm;
 	label: string;
+	master: MasterFieldValues | null;
 	name: NumericFieldName;
 	span?: string;
 }) {
@@ -56,7 +81,16 @@ function NumericField({
 					className={cn(span, "min-w-0 gap-0")}
 					error={field.state.meta.errors[0]?.message}
 					htmlFor={fieldId(field.name)}
-					label={label}
+					label={
+						<FieldLabel
+							isDifferent={isMasterFieldDifferent(
+								master,
+								name,
+								field.state.value
+							)}
+							label={label}
+						/>
+					}
 				>
 					<input
 						{...NO_INPUT_SUGGESTIONS}
@@ -78,7 +112,13 @@ function NumericField({
 
 const BUY_IN_ERROR_ID = "cryst-session-buyIn-error";
 
-function BuyInRangeField({ form }: { form: SessionForm }) {
+function BuyInRangeField({
+	form,
+	master,
+}: {
+	form: SessionForm;
+	master: MasterFieldValues | null;
+}) {
 	return (
 		<form.Field name="minBuyIn">
 			{(minField) => (
@@ -88,9 +128,18 @@ function BuyInRangeField({ form }: { form: SessionForm }) {
 							minField.state.meta.errors[0]?.message ??
 							maxField.state.meta.errors[0]?.message;
 						const hasError = errorMessage !== undefined;
+						const isDifferent =
+							isMasterFieldDifferent(
+								master,
+								"minBuyIn",
+								minField.state.value
+							) ||
+							isMasterFieldDifferent(master, "maxBuyIn", maxField.state.value);
 						return (
 							<div className="col-span-4 min-w-0">
-								<div className={FIELD_LABEL_CLASS}>Buy-in</div>
+								<div className={FIELD_LABEL_CLASS}>
+									<FieldLabel isDifferent={isDifferent} label="Buy-in" />
+								</div>
 								<div
 									className={cn(
 										CONTROL_CLASS,
@@ -146,9 +195,11 @@ function BuyInRangeField({ form }: { form: SessionForm }) {
 
 function TableSizeField({
 	form,
+	master,
 	tableSizes,
 }: {
 	form: SessionForm;
+	master: MasterFieldValues | null;
 	tableSizes: readonly number[];
 }) {
 	return (
@@ -158,7 +209,16 @@ function TableSizeField({
 					className="col-span-2 min-w-0 gap-0"
 					error={field.state.meta.errors[0]?.message}
 					htmlFor={fieldId(field.name)}
-					label="Table size"
+					label={
+						<FieldLabel
+							isDifferent={isMasterFieldDifferent(
+								master,
+								"tableSize",
+								field.state.value
+							)}
+							label="Table size"
+						/>
+					}
 				>
 					<select
 						className={cn(CONTROL_CLASS, "mt-1.5 px-2")}
@@ -187,6 +247,8 @@ interface SessionBasicsTabProps {
 	currencyUnit: string | null;
 	form: SessionForm;
 	isCash: boolean;
+	isCurrencyDifferent: boolean;
+	master: MasterFieldValues | null;
 	onOpenCurrency: () => void;
 	purchaseOptions: readonly ChipPurchaseOption[];
 	tableSizes: readonly number[];
@@ -199,6 +261,8 @@ export function SessionBasicsTab({
 	currencyUnit,
 	form,
 	isCash,
+	isCurrencyDifferent,
+	master,
 	onOpenCurrency,
 	purchaseOptions,
 	tableSizes,
@@ -212,7 +276,16 @@ export function SessionBasicsTab({
 						className="col-span-6 min-w-0 gap-0"
 						error={field.state.meta.errors[0]?.message}
 						htmlFor="cryst-session-rule-name"
-						label="Rule name"
+						label={
+							<FieldLabel
+								isDifferent={isMasterFieldDifferent(
+									master,
+									"ruleName",
+									field.state.value
+								)}
+								label="Rule name"
+							/>
+						}
 						required
 					>
 						<input
@@ -245,12 +318,23 @@ export function SessionBasicsTab({
 
 			{isCash ? (
 				<>
-					<NumericField form={form} label={blindLabels.blind1} name="blind1" />
-					<NumericField form={form} label={blindLabels.blind2} name="blind2" />
+					<NumericField
+						form={form}
+						label={blindLabels.blind1}
+						master={master}
+						name="blind1"
+					/>
+					<NumericField
+						form={form}
+						label={blindLabels.blind2}
+						master={master}
+						name="blind2"
+					/>
 					{blindLabels.blind3 === null ? null : (
 						<NumericField
 							form={form}
 							label={blindLabels.blind3}
+							master={master}
 							name="blind3"
 						/>
 					)}
@@ -262,7 +346,16 @@ export function SessionBasicsTab({
 					{(anteTypeField) => (
 						<>
 							<fieldset className="col-span-4 min-w-0">
-								<legend className={FIELD_LABEL_CLASS}>Ante type</legend>
+								<legend className={FIELD_LABEL_CLASS}>
+									<FieldLabel
+										isDifferent={isMasterFieldDifferent(
+											master,
+											"anteType",
+											anteTypeField.state.value
+										)}
+										label="Ante type"
+									/>
+								</legend>
 								<div className="grid grid-cols-3 gap-1.5">
 									{ANTE_TYPES.map((option) => (
 										<button
@@ -286,6 +379,7 @@ export function SessionBasicsTab({
 								disabled={anteTypeField.state.value === "none"}
 								form={form}
 								label="Ante"
+								master={master}
 								name="ante"
 							/>
 						</>
@@ -294,7 +388,9 @@ export function SessionBasicsTab({
 			) : null}
 
 			<div className="col-span-6 min-w-0">
-				<div className={FIELD_LABEL_CLASS}>Currency</div>
+				<div className={FIELD_LABEL_CLASS}>
+					<FieldLabel isDifferent={isCurrencyDifferent} label="Currency" />
+				</div>
 				<button
 					className={cn(
 						CONTROL_CLASS,
@@ -310,29 +406,37 @@ export function SessionBasicsTab({
 
 			{isCash ? (
 				<>
-					<BuyInRangeField form={form} />
-					<TableSizeField form={form} tableSizes={tableSizes} />
+					<BuyInRangeField form={form} master={master} />
+					<TableSizeField form={form} master={master} tableSizes={tableSizes} />
 				</>
 			) : (
 				<>
 					<NumericField
 						form={form}
 						label="Buy-in"
+						master={master}
 						name="tournamentBuyIn"
 						span="col-span-3"
 					/>
 					<NumericField
 						form={form}
 						label="Entry fee"
+						master={master}
 						name="entryFee"
 						span="col-span-3"
 					/>
 					<NumericField
 						form={form}
 						label="Starting stack"
+						master={master}
 						name="startingStack"
 					/>
-					<NumericField form={form} label="Bounty" name="bountyAmount" />
+					<NumericField
+						form={form}
+						label="Bounty"
+						master={master}
+						name="bountyAmount"
+					/>
 				</>
 			)}
 
@@ -360,7 +464,9 @@ export function SessionBasicsTab({
 				</div>
 			)}
 
-			{isCash ? null : <TableSizeField form={form} tableSizes={tableSizes} />}
+			{isCash ? null : (
+				<TableSizeField form={form} master={master} tableSizes={tableSizes} />
+			)}
 		</div>
 	);
 }

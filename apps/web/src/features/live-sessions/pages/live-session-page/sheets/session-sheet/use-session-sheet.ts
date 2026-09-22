@@ -217,6 +217,7 @@ export function useSessionSheet({
 		isSaving: settings.isSaving,
 		isTagListOpen,
 		master: view.master,
+		masterValues: settings.master,
 		onAddTag,
 		onCloseTagList: () => setIsTagListOpen(false),
 		onCreateCurrency: settings.onCreateCurrency,

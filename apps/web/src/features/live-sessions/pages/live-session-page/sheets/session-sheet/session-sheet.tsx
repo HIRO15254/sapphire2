@@ -1,5 +1,8 @@
 import type { ChipPurchaseOption } from "@/features/live-sessions/pages/live-session-page/sheets/event-editor-sheet";
-import { currencyRowLabel } from "@/features/live-sessions/utils/session-settings";
+import {
+	currencyRowLabel,
+	isMasterFieldDifferent,
+} from "@/features/live-sessions/utils/session-settings";
 import { cn } from "@/lib/utils";
 import { CrystFormSheet } from "../cryst-form-sheet";
 import { CurrencySheet } from "../currency-sheet";
@@ -98,6 +101,12 @@ export function SessionSheet({
 									currencyUnit={currency?.unit ?? null}
 									form={form}
 									isCash={sheet.isCash}
+									isCurrencyDifferent={isMasterFieldDifferent(
+										sheet.masterValues,
+										"currencyId",
+										currencyField.state.value
+									)}
+									master={sheet.masterValues}
 									onOpenCurrency={sheet.onOpenCurrency}
 									purchaseOptions={purchaseOptions}
 									tableSizes={sheet.tableSizes}

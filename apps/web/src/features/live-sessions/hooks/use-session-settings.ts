@@ -1,5 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+	describeCashMasterValues,
+	describeTournamentMasterValues,
+} from "@/features/live-sessions/utils/session-settings";
+import {
 	cancelTargets,
 	invalidateTargets,
 	restoreSnapshots,
@@ -142,6 +146,26 @@ export function useSessionSettings({
 	const tagsQuery = useQuery(trpc.sessionTag.list.queryOptions());
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
 
+	const masterRoomId = detailQuery.data?.roomId ?? null;
+	const masterRingGameId = detailQuery.data?.ringGameId ?? null;
+	const masterTournamentId = detailQuery.data?.tournamentId ?? null;
+
+	const ringGameMasterQuery = useQuery({
+		...trpc.ringGame.listByRoom.queryOptions({ roomId: masterRoomId ?? "" }),
+		enabled: isCash && masterRoomId !== null && masterRingGameId !== null,
+	});
+	const tournamentMasterQuery = useQuery({
+		...trpc.tournament.getById.queryOptions({ id: masterTournamentId ?? "" }),
+		enabled: !isCash && masterTournamentId !== null,
+	});
+
+	const master = isCash
+		? describeCashMasterValues(
+				ringGameMasterQuery.data?.find((row) => row.id === masterRingGameId) ??
+					null
+			)
+		: describeTournamentMasterValues(tournamentMasterQuery.data ?? null);
+
 	const refresh = () =>
 		invalidateTargets(queryClient, [
 			{ queryKey: detailKey },
@@ -259,6 +283,7 @@ export function useSessionSettings({
 		isCurrencyPending: createCurrency.isPending,
 		isLoading: detailQuery.isLoading,
 		isSaving: snapshot.isPending || live.isPending || tags.isPending,
+		master,
 		onCreateCurrency: (values: { name: string; unit: string }) =>
 			createCurrency.mutateAsync(values),
 		onCreateTag: (name: string) => createTag.mutateAsync(name),
