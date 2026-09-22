@@ -66,30 +66,6 @@ export function describeMasterLink(
 	};
 }
 
-export function filterTagCandidates(
-	tags: readonly SessionTagLike[],
-	selectedIds: readonly string[],
-	query: string
-): SessionTagLike[] {
-	const needle = query.trim().toLowerCase();
-	return tags.filter(
-		(tag) =>
-			!selectedIds.includes(tag.id) &&
-			(needle === "" || tag.name.toLowerCase().includes(needle))
-	);
-}
-
-export function findExactTag(
-	tags: readonly SessionTagLike[],
-	name: string
-): SessionTagLike | null {
-	const needle = name.trim().toLowerCase();
-	if (needle === "") {
-		return null;
-	}
-	return tags.find((tag) => tag.name.toLowerCase() === needle) ?? null;
-}
-
 export type MasterFieldKey =
 	| "ante"
 	| "anteType"

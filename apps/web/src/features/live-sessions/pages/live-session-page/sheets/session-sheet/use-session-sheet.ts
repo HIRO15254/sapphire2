@@ -4,9 +4,8 @@ import z from "zod";
 import type { SessionSnapshotPatch } from "@/features/live-sessions/hooks/use-session-settings";
 import { useSessionSettings } from "@/features/live-sessions/hooks/use-session-settings";
 import {
-	filterTagCandidates,
 	findCurrency,
-	findExactTag,
+	type SessionTagLike,
 } from "@/features/live-sessions/utils/session-settings";
 import { useGameGroups } from "@/shared/hooks/use-game-groups";
 import {
@@ -150,8 +149,6 @@ export function useSessionSheet({
 	const { labelsFor } = useGameGroups();
 	const isCash = sessionType === "cash_game";
 	const [tab, setTab] = useState<SessionSheetTab>("overview");
-	const [tagQuery, setTagQuery] = useState("");
-	const [isTagListOpen, setIsTagListOpen] = useState(false);
 	const [isCurrencyOpen, setIsCurrencyOpen] = useState(false);
 
 	const form = useForm({
@@ -177,27 +174,8 @@ export function useSessionSheet({
 
 	const view = describeSessionDetail(settings.detail, sessionType);
 
-	const onAddTag = async (
-		name: string,
-		selectedIds: readonly string[],
-		onChange: (tagIds: string[]) => void
-	) => {
-		const trimmed = name.trim();
-		if (trimmed === "") {
-			return;
-		}
-		setTagQuery("");
-		setIsTagListOpen(false);
-		const existing = findExactTag(settings.availableTags, trimmed);
-		const tagId = existing
-			? existing.id
-			: ((await settings.onCreateTag(trimmed))?.id ?? null);
-		if (tagId !== null && !selectedIds.includes(tagId)) {
-			onChange([...selectedIds, tagId]);
-		}
-	};
-
 	return {
+		availableTags: settings.availableTags,
 		blindLabels: labelsFor(view.variantLabel),
 		currencyOptions: settings.currencies.map((row) => ({
 			balance: row.balance,
@@ -215,25 +193,23 @@ export function useSessionSheet({
 		isLoading: settings.isLoading,
 		isMasterLinked: view.isMasterLinked,
 		isSaving: settings.isSaving,
-		isTagListOpen,
 		master: view.master,
 		masterValues: settings.master,
-		onAddTag,
-		onCloseTagList: () => setIsTagListOpen(false),
 		onCreateCurrency: settings.onCreateCurrency,
+		onCreateTag: async (name: string): Promise<SessionTagLike> => {
+			const created = await settings.onCreateTag(name);
+			if (!created) {
+				throw new Error("Failed to create session tag");
+			}
+			return { id: created.id, name: created.name, usageCount: 0 };
+		},
 		onCurrencyOpenChange: setIsCurrencyOpen,
 		onOpenCurrency: () => setIsCurrencyOpen(true),
-		onOpenTagList: () => setIsTagListOpen(true),
 		onSelectTab: setTab,
-		onTagQueryChange: setTagQuery,
 		roomName: view.roomName,
 		tab,
 		tableSizes: TABLE_SIZES,
 		tabs: TABS.map((entry) => ({ ...entry, isActive: entry.key === tab })),
-		tagCandidatesFor: (selectedIds: readonly string[]) =>
-			filterTagCandidates(settings.availableTags, selectedIds, tagQuery),
-		tagQuery,
-		tagsById: new Map(settings.availableTags.map((tag) => [tag.id, tag])),
 		variantLabel: view.variantLabel,
 	};
 }

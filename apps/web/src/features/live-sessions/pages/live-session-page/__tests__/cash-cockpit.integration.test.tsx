@@ -793,7 +793,7 @@ describe("CashCockpit", () => {
 			await screen.findByRole("button", { name: "Seat 3: Young guy" })
 		);
 		await user.click(
-			await screen.findByRole("textbox", { name: "Add labels" })
+			await screen.findByRole("combobox", { name: "Add labels" })
 		);
 		await user.click(
 			await screen.findByRole("button", { name: NIT_TAG_CHOICE })
@@ -848,7 +848,7 @@ describe("CashCockpit", () => {
 		await user.click(
 			await screen.findByRole("button", { name: "Seat 3: Young guy" })
 		);
-		const input = await screen.findByRole("textbox", { name: "Add labels" });
+		const input = await screen.findByRole("combobox", { name: "Add labels" });
 		await user.type(input, "Fish");
 		await user.keyboard("{Enter}");
 
@@ -891,7 +891,7 @@ describe("CashCockpit", () => {
 			await screen.findByRole("button", { name: "Seat 3: Young guy" })
 		);
 		await user.click(
-			await screen.findByRole("textbox", { name: "Add labels" })
+			await screen.findByRole("combobox", { name: "Add labels" })
 		);
 		expect(
 			await screen.findByRole("button", { name: NIT_TAG_CHOICE })

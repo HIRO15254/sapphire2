@@ -5,6 +5,7 @@ import {
 	IconTag,
 	IconX,
 } from "@tabler/icons-react";
+import { TagPickerBase } from "@/shared/components/ui/tag-picker-base";
 import { useSelectedPlayerPanel } from "./use-selected-player-panel";
 
 interface SelectedPlayerPanelProps {
@@ -66,91 +67,58 @@ export function SelectedPlayerPanel({
 				</button>
 			</div>
 
-			<div className="relative shrink-0" data-tag-row>
-				<div className="flex min-h-8 flex-wrap items-center gap-[5px] rounded-md border border-input bg-card px-1.5 py-1">
+			<TagPickerBase
+				availableTags={[...panel.availableTags]}
+				containerClassName="shrink-0"
+				emptyText="No label matches"
+				leadingIcon={
 					<IconTag className="shrink-0 text-muted-foreground" size={13} />
-					{panel.selectedTags.map((tag) => (
-						<span
-							className="inline-flex items-center gap-1 rounded-full py-[3px] pr-1.5 pl-2 font-semibold text-[11px]"
-							key={tag.id}
-							style={{
-								backgroundColor: `color-mix(in oklab, ${tag.color} 18%, transparent)`,
-								color: tag.color,
-							}}
-						>
-							{tag.name}
-							<button
-								aria-label={`Remove tag ${tag.name}`}
-								className="inline-flex size-3.5 items-center justify-center rounded-full opacity-65"
-								onClick={() => panel.onRemoveTag(tag)}
-								onMouseDown={(e) => e.preventDefault()}
-								type="button"
-							>
-								<IconX size={11} />
-							</button>
+				}
+				onAdd={panel.onAddTag}
+				onCreateTag={panel.onCreateTag}
+				onRemove={panel.onRemoveTag}
+				renderCreateOption={(name) => (
+					<>
+						<IconPlus size={13} />
+						<span className="min-w-0 truncate font-semibold">
+							Create "{name}"
 						</span>
-					))}
-					<input
-						aria-label="Add labels"
-						className="h-6 min-w-[72px] flex-1 border-none bg-transparent px-0.5 text-[length:var(--text-xs)] outline-none"
-						onBlur={(e) => {
-							const row = e.currentTarget.closest("[data-tag-row]");
-							if (!row?.contains(e.relatedTarget)) {
-								panel.onCloseTagList();
-							}
+					</>
+				)}
+				renderSelectedTag={(tag, handleRemove) => (
+					<span
+						className="inline-flex items-center gap-1 rounded-full py-[3px] pr-1.5 pl-2 font-semibold text-[11px]"
+						style={{
+							backgroundColor: `color-mix(in oklab, ${tag.color} 18%, transparent)`,
+							color: tag.color,
 						}}
-						onChange={(e) => panel.onTagQueryChange(e.target.value)}
-						onFocus={panel.onOpenTagList}
-						onKeyDown={(e) => {
-							if (e.key === "Escape") {
-								panel.onCloseTagList();
-							}
-						}}
-						type="text"
-						value={panel.tagQuery}
-					/>
-				</div>
-				{panel.isTagListOpen ? (
-					<div className="absolute inset-x-0 top-[calc(100%+4px)] z-[5] max-h-[168px] overflow-y-auto rounded-md border border-border bg-popover p-1 shadow-[var(--shadow-popover)]">
-						{panel.newTagName === null ? null : (
-							<button
-								className="flex h-[30px] w-full items-center gap-[7px] rounded-sm px-2 text-left text-[length:var(--text-xs)] text-primary"
-								onClick={panel.onCreateTag}
-								onMouseDown={(e) => e.preventDefault()}
-								type="button"
-							>
-								<IconPlus size={13} />
-								<span className="min-w-0 truncate font-semibold">
-									Create "{panel.newTagName}"
-								</span>
-							</button>
-						)}
-						{panel.newTagName === null && panel.tagChoices.length === 0 ? (
-							<p className="p-2 text-[length:var(--text-xs)] text-muted-foreground">
-								No label matches
-							</p>
-						) : (
-							panel.tagChoices.map((tag) => (
-								<button
-									className="flex h-[30px] w-full items-center gap-[7px] rounded-sm px-2 text-left text-[length:var(--text-xs)]"
-									key={tag.id}
-									onClick={() => panel.onAddTag(tag)}
-									onMouseDown={(e) => e.preventDefault()}
-									type="button"
-								>
-									<span
-										className="size-[7px] shrink-0 rounded-full"
-										style={{ backgroundColor: tag.color }}
-									/>
-									{tag.name}
-									<span className="flex-1" />
-									<IconPlus className="text-muted-foreground" size={13} />
-								</button>
-							))
-						)}
-					</div>
-				) : null}
-			</div>
+					>
+						{tag.name}
+						<button
+							aria-label={`Remove tag ${tag.name}`}
+							className="inline-flex size-3.5 items-center justify-center rounded-full opacity-65"
+							onClick={handleRemove}
+							type="button"
+						>
+							<IconX size={11} />
+						</button>
+					</span>
+				)}
+				renderSuggestion={(tag) => (
+					<>
+						<span
+							className="size-[7px] shrink-0 rounded-full"
+							style={{ backgroundColor: tag.color }}
+						/>
+						{tag.name}
+						<span className="flex-1" />
+						<IconPlus className="text-muted-foreground" size={13} />
+					</>
+				)}
+				searchAriaLabel="Add labels"
+				selectedTags={[...panel.selectedTags]}
+				variant="inline"
+			/>
 
 			<textarea
 				aria-label="Notes on this player"

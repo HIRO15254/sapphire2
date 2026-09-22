@@ -79,20 +79,14 @@ export function SessionSheet({
 							const currencyLabel = currencyRowLabel(currency);
 							return sheet.tab === "overview" ? (
 								<SessionOverviewTab
+									availableTags={sheet.availableTags}
 									currencyLabel={currencyLabel}
 									form={form}
 									isMasterLinked={sheet.isMasterLinked}
-									isTagListOpen={sheet.isTagListOpen}
 									master={sheet.master}
-									onAddTag={sheet.onAddTag}
-									onCloseTagList={sheet.onCloseTagList}
+									onCreateTag={sheet.onCreateTag}
 									onOpenCurrency={sheet.onOpenCurrency}
-									onOpenTagList={sheet.onOpenTagList}
-									onTagQueryChange={sheet.onTagQueryChange}
 									roomName={sheet.roomName}
-									tagCandidatesFor={sheet.tagCandidatesFor}
-									tagQuery={sheet.tagQuery}
-									tagsById={sheet.tagsById}
 								/>
 							) : (
 								<SessionBasicsTab

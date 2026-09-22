@@ -14,41 +14,25 @@ import { SessionTagField } from "./session-tag-field";
 import type { SessionForm } from "./use-session-sheet";
 
 interface SessionOverviewTabProps {
+	availableTags: readonly SessionTagLike[];
 	currencyLabel: string;
 	form: SessionForm;
 	isMasterLinked: boolean;
-	isTagListOpen: boolean;
 	master: MasterLinkCopy;
-	onAddTag: (
-		name: string,
-		selectedIds: readonly string[],
-		onChange: (tagIds: string[]) => void
-	) => void;
-	onCloseTagList: () => void;
+	onCreateTag: (name: string) => Promise<SessionTagLike>;
 	onOpenCurrency: () => void;
-	onOpenTagList: () => void;
-	onTagQueryChange: (value: string) => void;
 	roomName: string;
-	tagCandidatesFor: (selectedIds: readonly string[]) => SessionTagLike[];
-	tagQuery: string;
-	tagsById: ReadonlyMap<string, SessionTagLike>;
 }
 
 export function SessionOverviewTab({
+	availableTags,
 	currencyLabel,
 	form,
 	isMasterLinked,
-	isTagListOpen,
 	master,
-	onAddTag,
-	onCloseTagList,
+	onCreateTag,
 	onOpenCurrency,
-	onOpenTagList,
-	onTagQueryChange,
 	roomName,
-	tagCandidatesFor,
-	tagQuery,
-	tagsById,
 }: SessionOverviewTabProps) {
 	return (
 		<div className="flex flex-col gap-3">
@@ -96,22 +80,17 @@ export function SessionOverviewTab({
 			<form.Field name="tagIds">
 				{(field) => (
 					<SessionTagField
-						candidates={tagCandidatesFor(field.state.value)}
-						isListOpen={isTagListOpen}
-						onAdd={(name) =>
-							onAddTag(name, field.state.value, field.handleChange)
+						availableTags={availableTags}
+						onAdd={(tag) => field.handleChange([...field.state.value, tag.id])}
+						onCreateTag={onCreateTag}
+						onRemove={(tag) =>
+							field.handleChange(
+								field.state.value.filter((id) => id !== tag.id)
+							)
 						}
-						onCloseList={onCloseTagList}
-						onOpenList={onOpenTagList}
-						onQueryChange={onTagQueryChange}
-						onRemove={(tagId) =>
-							field.handleChange(field.state.value.filter((id) => id !== tagId))
-						}
-						query={tagQuery}
-						tags={field.state.value.map((id) => ({
-							id,
-							name: tagsById.get(id)?.name ?? "",
-						}))}
+						selectedTags={field.state.value
+							.map((id) => availableTags.find((tag) => tag.id === id))
+							.filter((tag): tag is SessionTagLike => tag !== undefined)}
 					/>
 				)}
 			</form.Field>

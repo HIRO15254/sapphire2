@@ -4,18 +4,10 @@ import {
 	describeCashMasterValues,
 	describeMasterLink,
 	describeTournamentMasterValues,
-	filterTagCandidates,
 	findCurrency,
-	findExactTag,
 	formatWithUnit,
 	isMasterFieldDifferent,
 } from "../session-settings";
-
-const TAGS = [
-	{ id: "t1", name: "Weekend", usageCount: 12 },
-	{ id: "t2", name: "Trip: Osaka", usageCount: 3 },
-	{ id: "t3", name: "Tilt", usageCount: 1 },
-];
 
 const CURRENCIES = [
 	{ id: "c1", name: "Japanese yen", unit: "¥" },
@@ -75,28 +67,6 @@ describe("describeMasterLink", () => {
 			action: "Change",
 			title: "NLH 100/200",
 		});
-	});
-});
-
-describe("filterTagCandidates", () => {
-	it("hides already-selected tags and matches case-insensitively on a substring", () => {
-		expect(filterTagCandidates(TAGS, ["t3"], "T")).toEqual([TAGS[1]]);
-		expect(filterTagCandidates(TAGS, [], "OSAKA")).toEqual([TAGS[1]]);
-	});
-
-	it("returns every unselected tag for an empty query", () => {
-		expect(filterTagCandidates(TAGS, ["t2"], "  ")).toEqual([TAGS[0], TAGS[2]]);
-	});
-});
-
-describe("findExactTag", () => {
-	it("matches a whole name ignoring case and surrounding space", () => {
-		expect(findExactTag(TAGS, "  weekend ")).toEqual(TAGS[0]);
-	});
-
-	it("returns null for a partial name or an empty one", () => {
-		expect(findExactTag(TAGS, "week")).toBeNull();
-		expect(findExactTag(TAGS, "   ")).toBeNull();
 	});
 });
 
