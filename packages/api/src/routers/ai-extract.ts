@@ -168,6 +168,24 @@ function missingStructuredOutputError(): TRPCError {
 	});
 }
 
+function failedToParseError(): TRPCError {
+	return new TRPCError({
+		code: "INTERNAL_SERVER_ERROR",
+		message: "Failed to parse AI response",
+	});
+}
+
+async function parseStructuredResponse<T>(call: Promise<T>): Promise<T> {
+	try {
+		return await call;
+	} catch (error) {
+		if (error instanceof z.ZodError || error instanceof SyntaxError) {
+			throw failedToParseError();
+		}
+		throw error;
+	}
+}
+
 function buildInput(sources: Source[], prompt: string): ResponseInput {
 	const content: ResponseInputContent[] = sources.map((source) => ({
 		type: "input_image",
@@ -206,20 +224,22 @@ export const aiExtractRouter = router({
 
 			const client = new OpenAI({ apiKey: ctx.openaiApiKey });
 
-			const response = await client.responses.parse({
-				model: AI_MODELS.tournamentExtraction,
-				max_output_tokens: EXTRACTION_MAX_OUTPUT_TOKENS,
-				input: buildInput(
-					input.sources,
-					"上記からポーカートーナメントのデータを抽出してください。ソースに明示された値のみ返し、不明なフィールドは null にしてください。"
-				),
-				text: {
-					format: zodTextFormat(
-						TOURNAMENT_OUTPUT_SCHEMA,
-						"extract_tournament_data"
+			const response = await parseStructuredResponse(
+				client.responses.parse({
+					model: AI_MODELS.tournamentExtraction,
+					max_output_tokens: EXTRACTION_MAX_OUTPUT_TOKENS,
+					input: buildInput(
+						input.sources,
+						"上記からポーカートーナメントのデータを抽出してください。ソースに明示された値のみ返し、不明なフィールドは null にしてください。"
 					),
-				},
-			});
+					text: {
+						format: zodTextFormat(
+							TOURNAMENT_OUTPUT_SCHEMA,
+							"extract_tournament_data"
+						),
+					},
+				})
+			);
 
 			assertNotTruncated(response);
 
@@ -231,10 +251,7 @@ export const aiExtractRouter = router({
 				withoutNulls(response.output_parsed)
 			);
 			if (!parsed.success) {
-				throw new TRPCError({
-					code: "INTERNAL_SERVER_ERROR",
-					message: "Failed to parse AI response",
-				});
+				throw failedToParseError();
 			}
 
 			return parsed.data;
@@ -255,17 +272,19 @@ export const aiExtractRouter = router({
 			const client = new OpenAI({ apiKey: ctx.openaiApiKey });
 			const appConfig = TABLE_PLAYER_SOURCE_APPS[input.sourceApp];
 
-			const response = await client.responses.parse({
-				model: AI_MODELS.seating,
-				max_output_tokens: EXTRACTION_MAX_OUTPUT_TOKENS,
-				input: buildInput(input.sources, appConfig.prompt),
-				text: {
-					format: zodTextFormat(
-						TABLE_PLAYERS_OUTPUT_SCHEMA,
-						"extract_table_players"
-					),
-				},
-			});
+			const response = await parseStructuredResponse(
+				client.responses.parse({
+					model: AI_MODELS.seating,
+					max_output_tokens: EXTRACTION_MAX_OUTPUT_TOKENS,
+					input: buildInput(input.sources, appConfig.prompt),
+					text: {
+						format: zodTextFormat(
+							TABLE_PLAYERS_OUTPUT_SCHEMA,
+							"extract_table_players"
+						),
+					},
+				})
+			);
 
 			assertNotTruncated(response);
 

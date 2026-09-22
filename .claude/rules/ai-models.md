@@ -33,7 +33,9 @@ Strict mode also rejects `allOf` / `oneOf` / `not` / `uniqueItems` / `propertyNa
 
 `max_output_tokens` limits the **combined total** of reasoning and response text. Setting the limit barely above the expected output size lets reasoning consume the budget, truncating structured output and leaving `output_parsed` null (causing an `AI did not return structured data` failure). Extraction features use [`EXTRACTION_MAX_OUTPUT_TOKENS`](../../packages/api/src/ai/models.ts). Only generated tokens are billed, so allocating extra headroom does not itself increase cost.
 
-Truncation is reported by `response.incomplete_details.reason === "max_output_tokens"`, not by a stop reason on the content. A response can be `status: "incomplete"` for other reasons (`content_filter`, `steered`) while still carrying a schema-valid `output_parsed`, so check the status before trusting the payload — a partial extraction that validates is the failure mode that silently writes wrong data.
+Truncation is reported by `response.incomplete_details.reason === "max_output_tokens"`, not by a stop reason on the content. The SDK parses only a response whose `status` is `completed` (`shouldParse` in `openai/lib/ResponsesParser`), so an incomplete one always arrives with `output_parsed` null. The status guard therefore exists for **attribution**, not rescue: without it every incomplete response reports `AI did not return structured data`, which points at the prompt when the real remedy is the token budget or a provider-side stop (`content_filter`, `steered`). Check it before the null check, or the generic error wins.
+
+**The wire schema is enforced inside the SDK, not by the router.** `zodTextFormat` attaches the schema's own `parse` as `$parseRaw`, so a response violating it makes `responses.parse()` throw a `ZodError` before the router sees a value. Convert it (`parseStructuredResponse`) — an escaping `ZodError` reaches the client as a 500 carrying raw schema text. The router's second validation against the app contract stays as drift protection between the two schemas, not as the primary gate.
 
 ## Model upgrade checklist
 

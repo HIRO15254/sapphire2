@@ -40,9 +40,10 @@ Consequence: an all-optional contract cannot distinguish "nothing found" from "o
 Why this ordering is load-bearing:
 
 - **Truncation is a realistic failure path.** Reasoning shares `max_output_tokens` with the response text, so exhausting the budget cuts structured output mid-stream.
-- **Truncation is invisible to parsing.** It is reported on `response.incomplete_details.reason`, not on the content, so a schema-valid payload can accompany it and must stay distinguishable from a schema mismatch.
-- **Truncated output is frequently schema-valid.** Every field of `ExtractedTournamentDataSchema` is `.optional()`, so a partially-filled object — in the extreme, `{}` after `withoutNulls` — still passes `safeParse`. `blindLevels` is the only variable-length field that can eat the budget, so the most common truncation shape is a schema-valid "array filled only part-way": without the status check, a blind structure would be saved silently incomplete.
-- **The seating schema fails the same way.** A `seats` array mangled by truncation could still pass as a successful "table with only empty seats".
+- **The guard buys attribution, not rescue.** The SDK parses only a `status: "completed"` response (`shouldParse` in `openai/lib/ResponsesParser`), so `output_parsed` is already null whenever the turn was cut short. Dropping the guard would not leak a half-filled object; it would report every incomplete response as `AI did not return structured data`, which sends the reader at the prompt when the real remedy is the token budget (`max_output_tokens`) or a provider-side stop (`content_filter`, `steered`).
+- **The contract cannot tell the two apart on its own.** Every field of `ExtractedTournamentDataSchema` is `.optional()`, so `{}` is a valid extraction result — "found nothing" and "was cut off" are the same value once the status is discarded. `blindLevels` is the field that can actually eat the budget, and a silently-truncated blind structure is the outcome the ordering prevents.
+
+Because the wire schema is enforced inside the SDK (`zodTextFormat` installs `schema.parse` as `$parseRaw`), an off-schema response throws a `ZodError` out of `responses.parse()` rather than returning a bad value. `parseStructuredResponse` converts that — and a malformed-JSON `SyntaxError` — into the same `Failed to parse AI response`, so raw Zod text never reaches the client. The router's own `safeParse` against the app contract then stays as **drift protection**: it is what fires if the wire schema and `ExtractedTournamentDataSchema` are ever edited out of step.
 
 Regression coverage: [`packages/api/src/__tests__/ai-extract-truncation.test.ts`](../../packages/api/src/__tests__/ai-extract-truncation.test.ts).
 

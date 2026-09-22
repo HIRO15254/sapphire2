@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import z from "zod";
 
 const mocks = vi.hoisted(() => ({
 	parse: vi.fn(),
@@ -85,11 +86,9 @@ describe("extractTablePlayers truncation reporting", () => {
 		);
 	});
 
-	it("reports truncation even when the partial output satisfies the schema", async () => {
+	it("reports truncation ahead of the missing structured output it causes", async () => {
 		mocks.parse.mockResolvedValue({
-			output_parsed: {
-				seats: [{ seatNumber: 1, name: "Alice", isHero: null }],
-			},
+			output_parsed: null,
 			status: "incomplete",
 			incomplete_details: { reason: "max_output_tokens" },
 		});
@@ -105,7 +104,7 @@ describe("extractTablePlayers truncation reporting", () => {
 
 	it("reports an incomplete response that stopped for another reason", async () => {
 		mocks.parse.mockResolvedValue({
-			output_parsed: { seats: [] },
+			output_parsed: null,
 			status: "incomplete",
 			incomplete_details: { reason: "content_filter" },
 		});
@@ -201,7 +200,7 @@ describe("extractTournamentData truncation reporting", () => {
 		);
 	});
 
-	it("reports a parse failure when the schema rejects a complete response", async () => {
+	it("reports a parse failure when the wire and app schemas disagree", async () => {
 		mocks.parse.mockResolvedValue({
 			output_parsed: { buyIn: -1 },
 			status: "completed",
@@ -212,6 +211,27 @@ describe("extractTournamentData truncation reporting", () => {
 			makeCaller().extractTournamentData({ sources: [IMAGE_SOURCE] }),
 			"Failed to parse AI response"
 		);
+	});
+
+	it("converts the ZodError the SDK throws for an off-schema response", async () => {
+		mocks.parse.mockRejectedValue(
+			new z.ZodError([
+				{ code: "custom", message: "off schema", path: ["buyIn"] },
+			])
+		);
+
+		await expectMessage(
+			makeCaller().extractTournamentData({ sources: [IMAGE_SOURCE] }),
+			"Failed to parse AI response"
+		);
+	});
+
+	it("lets a transport error from the SDK surface unchanged", async () => {
+		mocks.parse.mockRejectedValue(new Error("connection reset"));
+
+		await expect(
+			makeCaller().extractTournamentData({ sources: [IMAGE_SOURCE] })
+		).rejects.toThrow("connection reset");
 	});
 
 	it("drops the nulls strict Structured Outputs forces the model to emit", async () => {
