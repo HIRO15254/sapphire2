@@ -74,7 +74,7 @@ async function createApiFixture() {
 			return appRouter.createCaller({
 				session,
 				db,
-				anthropicApiKey: undefined,
+				openaiApiKey: undefined,
 				googleMapsApiKey: undefined,
 			});
 		}

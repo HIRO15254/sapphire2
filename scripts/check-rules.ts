@@ -98,14 +98,14 @@ const CHECKS: Check[] = [
 		excludePath: /__tests__|\.test\./,
 	},
 	{
-		name: "inline Claude model id — import it from packages/api/src/ai/models.ts",
+		name: "inline OpenAI model id — import it from packages/api/src/ai/models.ts",
 		rule: ".claude/rules/ai-models.md",
 		globs: [
 			"apps/**/*.{ts,tsx}",
 			"packages/**/*.{ts,tsx}",
 			"scripts/**/*.{ts,tsx}",
 		],
-		pattern: /["'`]claude-[\dA-Za-z._-]+["'`]/,
+		pattern: /["'`]gpt-[\dA-Za-z._-]+["'`]/,
 		excludePath: /packages\/api\/src\/ai\/models\.ts$/,
 	},
 	{

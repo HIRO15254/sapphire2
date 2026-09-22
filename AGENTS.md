@@ -121,7 +121,7 @@ The following rule files live in `.claude/rules/` and are loaded automatically w
 | `web-ui.md` | `apps/web/**` | PageHeader, shadcn primitives (Table / Badge / Avatar / RadioGroup), mobile = Drawer, tabler-icons. |
 | `web-data-fetching.md` | `apps/web/**` | Optimistic updates must go through `utils/optimistic-update.ts` helpers. |
 | `web-theme.md` | `apps/web/**` | Sapphire 2 Design System (single theme): token format, semantic colors, typography roles, sheet patterns. |
-| `ai-models.md` | `packages/api/**`, `apps/web/**`, `apps/server/**` | Write Claude model IDs only in `packages/api/src/ai/models.ts` so all AI features use the same latest model. Include thinking in the `max_tokens` budget. |
+| `ai-models.md` | `packages/api/**`, `apps/web/**`, `apps/server/**` | Write OpenAI model IDs only in `packages/api/src/ai/models.ts` so all AI features use the same latest model. Responses API + strict Structured Outputs; include reasoning in the `max_output_tokens` budget. |
 | `api-security.md` | `packages/api/**`, `apps/server/**` | Object-level authorization: every input FK id ownership-checked, scoped bulk WHEREs / joins / cursors, uniform FORBIDDEN, no server-side fetch of user URLs. |
 | `api-data-integrity.md` | `packages/api/**`, `packages/db/**` | Zod input conventions (`.int().min(0)`, create/update refine parity, shared write/read schemas) and D1 hazards (100-bind-param chunking, `db.batch()`, N+1, keyset pagination). |
 | `datetime-and-numbers.md` | `apps/web/**`, `packages/api/**` | Date-only values are UTC midnight (read with UTC getters), day-crossing handling + backfill, period boundaries, shared locale-fixed number formatters. |
