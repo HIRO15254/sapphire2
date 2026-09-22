@@ -1088,6 +1088,22 @@ describe("CashCockpit", () => {
 		});
 	});
 
+	it("disables the Ante amount input while Ante type is None, and enables it after switching", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Session settings" })
+		);
+		await user.click(await screen.findByRole("tab", { name: "Basics" }));
+
+		const anteInput = await screen.findByLabelText("Ante");
+		expect(anteInput).toBeDisabled();
+
+		await user.click(await screen.findByRole("button", { name: "BB" }));
+		expect(anteInput).toBeEnabled();
+	});
+
 	it("collects Overview edits (currency, tag, memo) and saves them together", async () => {
 		const user = userEvent.setup();
 		renderCockpit();

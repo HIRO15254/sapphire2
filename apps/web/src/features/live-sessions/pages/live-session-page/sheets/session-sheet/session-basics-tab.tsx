@@ -17,7 +17,7 @@ const ANTE_TYPES: { key: AnteType; label: string }[] = [
 const FIELD_LABEL_CLASS =
 	"mb-1.5 block font-medium text-[length:var(--text-sm)] text-foreground";
 const CONTROL_CLASS =
-	"box-border h-[var(--m-control)] w-full rounded-lg border border-input bg-card px-2.5 text-[length:var(--m-text-body)] outline-none focus-visible:border-ring aria-invalid:border-destructive";
+	"box-border h-[var(--m-control)] w-full rounded-lg border border-input bg-card px-2.5 text-[length:var(--m-text-body)] outline-none focus-visible:border-ring aria-invalid:border-destructive disabled:cursor-not-allowed disabled:opacity-50";
 const NUMBER_CLASS = `${CONTROL_CLASS} font-mono`;
 
 function fieldId(name: string) {
@@ -37,11 +37,13 @@ type NumericFieldName =
 	| "tournamentBuyIn";
 
 function NumericField({
+	disabled = false,
 	form,
 	label,
 	name,
 	span = "col-span-2",
 }: {
+	disabled?: boolean;
 	form: SessionForm;
 	label: string;
 	name: NumericFieldName;
@@ -59,6 +61,7 @@ function NumericField({
 					<input
 						{...NO_INPUT_SUGGESTIONS}
 						className={cn(NUMBER_CLASS, "mt-1.5")}
+						disabled={disabled}
 						id={fieldId(field.name)}
 						inputMode="numeric"
 						name={field.name}
@@ -67,6 +70,97 @@ function NumericField({
 						type="text"
 						value={field.state.value}
 					/>
+				</Field>
+			)}
+		</form.Field>
+	);
+}
+
+function BuyInRangeField({ form }: { form: SessionForm }) {
+	return (
+		<form.Field name="minBuyIn">
+			{(minField) => (
+				<form.Field name="maxBuyIn">
+					{(maxField) => {
+						const errorMessage =
+							minField.state.meta.errors[0]?.message ??
+							maxField.state.meta.errors[0]?.message;
+						return (
+							<div className="col-span-4 min-w-0">
+								<div className={FIELD_LABEL_CLASS}>Buy-in</div>
+								<div className="flex items-center gap-1.5">
+									<input
+										{...NO_INPUT_SUGGESTIONS}
+										aria-label="Min buy-in"
+										className={cn(NUMBER_CLASS, "min-w-0 flex-1")}
+										id={fieldId(minField.name)}
+										inputMode="numeric"
+										onBlur={minField.handleBlur}
+										onChange={(e) => minField.handleChange(e.target.value)}
+										type="text"
+										value={minField.state.value}
+									/>
+									<span className="shrink-0 text-muted-foreground">–</span>
+									<input
+										{...NO_INPUT_SUGGESTIONS}
+										aria-label="Max buy-in"
+										className={cn(NUMBER_CLASS, "min-w-0 flex-1")}
+										id={fieldId(maxField.name)}
+										inputMode="numeric"
+										onBlur={maxField.handleBlur}
+										onChange={(e) => maxField.handleChange(e.target.value)}
+										type="text"
+										value={maxField.state.value}
+									/>
+								</div>
+								{errorMessage ? (
+									<p
+										className="mt-1 text-[length:var(--text-xs)] text-destructive"
+										role="alert"
+									>
+										{errorMessage}
+									</p>
+								) : null}
+							</div>
+						);
+					}}
+				</form.Field>
+			)}
+		</form.Field>
+	);
+}
+
+function TableSizeField({
+	form,
+	tableSizes,
+}: {
+	form: SessionForm;
+	tableSizes: readonly number[];
+}) {
+	return (
+		<form.Field name="tableSize">
+			{(field) => (
+				<Field
+					className="col-span-2 min-w-0 gap-0"
+					error={field.state.meta.errors[0]?.message}
+					htmlFor={fieldId(field.name)}
+					label="Table size"
+				>
+					<select
+						className={cn(CONTROL_CLASS, "mt-1.5 px-2")}
+						id={fieldId(field.name)}
+						onChange={(e) => field.handleChange(e.target.value)}
+						value={field.state.value}
+					>
+						<option disabled value="">
+							—
+						</option>
+						{tableSizes.map((size) => (
+							<option key={size} value={size}>
+								{size}
+							</option>
+						))}
+					</select>
 				</Field>
 			)}
 		</form.Field>
@@ -149,6 +243,42 @@ export function SessionBasicsTab({
 				</>
 			) : null}
 
+			{isCash ? (
+				<form.Field name="anteType">
+					{(anteTypeField) => (
+						<>
+							<fieldset className="col-span-4 min-w-0">
+								<legend className={FIELD_LABEL_CLASS}>Ante type</legend>
+								<div className="grid grid-cols-3 gap-1.5">
+									{ANTE_TYPES.map((option) => (
+										<button
+											aria-pressed={anteTypeField.state.value === option.key}
+											className={cn(
+												"h-[var(--m-control)] rounded-full border font-semibold text-[length:var(--text-sm)]",
+												anteTypeField.state.value === option.key
+													? "border-primary bg-[color-mix(in_oklab,var(--primary)_15%,transparent)] text-primary"
+													: "border-border bg-transparent text-muted-foreground"
+											)}
+											key={option.key}
+											onClick={() => anteTypeField.handleChange(option.key)}
+											type="button"
+										>
+											{option.label}
+										</button>
+									))}
+								</div>
+							</fieldset>
+							<NumericField
+								disabled={anteTypeField.state.value === "none"}
+								form={form}
+								label="Ante"
+								name="ante"
+							/>
+						</>
+					)}
+				</form.Field>
+			) : null}
+
 			<div className="col-span-6 min-w-0">
 				<div className={FIELD_LABEL_CLASS}>Currency</div>
 				<button
@@ -165,48 +295,9 @@ export function SessionBasicsTab({
 			</div>
 
 			{isCash ? (
-				<form.Field name="anteType">
-					{(field) => (
-						<fieldset className="col-span-4 min-w-0">
-							<legend className={FIELD_LABEL_CLASS}>Ante type</legend>
-							<div className="grid grid-cols-3 gap-1.5">
-								{ANTE_TYPES.map((option) => (
-									<button
-										aria-pressed={field.state.value === option.key}
-										className={cn(
-											"h-[var(--m-control)] rounded-full border font-semibold text-[length:var(--text-sm)]",
-											field.state.value === option.key
-												? "border-primary bg-[color-mix(in_oklab,var(--primary)_15%,transparent)] text-primary"
-												: "border-border bg-transparent text-muted-foreground"
-										)}
-										key={option.key}
-										onClick={() => field.handleChange(option.key)}
-										type="button"
-									>
-										{option.label}
-									</button>
-								))}
-							</div>
-						</fieldset>
-					)}
-				</form.Field>
-			) : null}
-
-			{isCash ? (
 				<>
-					<NumericField form={form} label="Ante" name="ante" />
-					<NumericField
-						form={form}
-						label="Min buy-in"
-						name="minBuyIn"
-						span="col-span-3"
-					/>
-					<NumericField
-						form={form}
-						label="Max buy-in"
-						name="maxBuyIn"
-						span="col-span-3"
-					/>
+					<BuyInRangeField form={form} />
+					<TableSizeField form={form} tableSizes={tableSizes} />
 				</>
 			) : (
 				<>
@@ -255,32 +346,7 @@ export function SessionBasicsTab({
 				</div>
 			)}
 
-			<form.Field name="tableSize">
-				{(field) => (
-					<Field
-						className="col-span-2 min-w-0 gap-0"
-						error={field.state.meta.errors[0]?.message}
-						htmlFor="cryst-session-table-size"
-						label="Table size"
-					>
-						<select
-							className={cn(CONTROL_CLASS, "mt-1.5 px-2")}
-							id="cryst-session-table-size"
-							onChange={(e) => field.handleChange(e.target.value)}
-							value={field.state.value}
-						>
-							<option disabled value="">
-								—
-							</option>
-							{tableSizes.map((size) => (
-								<option key={size} value={size}>
-									{size}
-								</option>
-							))}
-						</select>
-					</Field>
-				)}
-			</form.Field>
+			{isCash ? null : <TableSizeField form={form} tableSizes={tableSizes} />}
 		</div>
 	);
 }
