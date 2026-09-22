@@ -1,5 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { invalidateTargets } from "@/utils/optimistic-update";
+import {
+	cancelTargets,
+	invalidateTargets,
+	restoreSnapshots,
+	snapshotQuery,
+	updateQueryEntity,
+} from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 export type SessionSettingsType = "cash_game" | "tournament";
@@ -69,21 +75,63 @@ function liveUpdateMutation(
 		: trpcClient.liveTournamentSession.update.mutate({ id, ...patch });
 }
 
+interface PatchableEntity {
+	[key: string]: unknown;
+}
+
+type SnapshotKeyMap = Partial<Record<keyof SessionSnapshotPatch, string>>;
+
+const CASH_DETAIL_KEY_MAP: SnapshotKeyMap = {
+	ante: "cashAnte",
+	anteType: "cashAnteType",
+	blind1: "cashBlind1",
+	blind2: "ringGameBlind2",
+	blind3: "cashBlind3",
+	maxBuyIn: "cashMaxBuyIn",
+	minBuyIn: "cashMinBuyIn",
+	ruleName: "ringGameName",
+	tableSize: "cashTableSize",
+};
+
+const TOURNAMENT_DETAIL_KEY_MAP: SnapshotKeyMap = {
+	bountyAmount: "tournamentBountyAmount",
+	ruleName: "tournamentName",
+	startingStack: "tournamentStartingStack",
+	tableSize: "tournamentTableSize",
+};
+
+const TOURNAMENT_LIVE_KEY_MAP: SnapshotKeyMap = {
+	tournamentBuyIn: "buyIn",
+};
+
+function remapPatchKeys(
+	patch: SessionSnapshotPatch,
+	keyMap: SnapshotKeyMap
+): PatchableEntity {
+	const remapped: PatchableEntity = {};
+	for (const [key, value] of Object.entries(patch) as [
+		keyof SessionSnapshotPatch,
+		unknown,
+	][]) {
+		remapped[keyMap[key] ?? key] = value;
+	}
+	return remapped;
+}
+
 export function useSessionSettings({
 	sessionId,
 	sessionType,
 }: UseSessionSettingsOptions) {
 	const queryClient = useQueryClient();
+	const isCash = sessionType === "cash_game";
 
 	const detailKey = trpc.session.getById.queryOptions({
 		id: sessionId,
 	}).queryKey;
-	const liveKey =
-		sessionType === "cash_game"
-			? trpc.liveCashGameSession.getById.queryOptions({ id: sessionId })
-					.queryKey
-			: trpc.liveTournamentSession.getById.queryOptions({ id: sessionId })
-					.queryKey;
+	const liveKey = isCash
+		? trpc.liveCashGameSession.getById.queryOptions({ id: sessionId }).queryKey
+		: trpc.liveTournamentSession.getById.queryOptions({ id: sessionId })
+				.queryKey;
 	const tagsKey = trpc.sessionTag.list.queryOptions().queryKey;
 	const currenciesKey = trpc.currency.list.queryOptions().queryKey;
 
@@ -101,21 +149,91 @@ export function useSessionSettings({
 			{ queryKey: trpc.session.list.pathKey() },
 		]);
 
+	const cancelSettingsQueries = () =>
+		cancelTargets(queryClient, [
+			{ queryKey: detailKey },
+			{ queryKey: liveKey },
+		]);
+
 	const snapshot = useMutation({
 		mutationFn: (patch: SessionSnapshotPatch) =>
 			snapshotMutation(sessionType, sessionId, patch),
+		onMutate: async (patch) => {
+			await cancelSettingsQueries();
+			const previousDetail = snapshotQuery(queryClient, detailKey);
+			const previousLive = snapshotQuery(queryClient, liveKey);
+			updateQueryEntity<PatchableEntity>(
+				queryClient,
+				detailKey,
+				remapPatchKeys(
+					patch,
+					isCash ? CASH_DETAIL_KEY_MAP : TOURNAMENT_DETAIL_KEY_MAP
+				)
+			);
+			updateQueryEntity<PatchableEntity>(
+				queryClient,
+				liveKey,
+				remapPatchKeys(patch, isCash ? {} : TOURNAMENT_LIVE_KEY_MAP)
+			);
+			return { previousDetail, previousLive };
+		},
+		onError: (_error, _variables, context) => {
+			restoreSnapshots(queryClient, [
+				context?.previousDetail,
+				context?.previousLive,
+			]);
+		},
 		onSettled: refresh,
 	});
 
 	const live = useMutation({
 		mutationFn: (patch: { currencyId?: string; memo?: string | null }) =>
 			liveUpdateMutation(sessionType, sessionId, patch),
+		onMutate: async (patch) => {
+			await cancelSettingsQueries();
+			const previousDetail = snapshotQuery(queryClient, detailKey);
+			const previousLive = snapshotQuery(queryClient, liveKey);
+			const currency =
+				patch.currencyId === undefined
+					? null
+					: ((currenciesQuery.data ?? []).find(
+							(candidate) => candidate.id === patch.currencyId
+						) ?? null);
+			updateQueryEntity<PatchableEntity>(queryClient, detailKey, {
+				...patch,
+				...(currency
+					? { currencyName: currency.name, currencyUnit: currency.unit }
+					: null),
+			});
+			updateQueryEntity<PatchableEntity>(queryClient, liveKey, patch);
+			return { previousDetail, previousLive };
+		},
+		onError: (_error, _variables, context) => {
+			restoreSnapshots(queryClient, [
+				context?.previousDetail,
+				context?.previousLive,
+			]);
+		},
 		onSettled: refresh,
 	});
 
 	const tags = useMutation({
 		mutationFn: (tagIds: string[]) =>
 			trpcClient.session.update.mutate({ id: sessionId, tagIds }),
+		onMutate: async (tagIds) => {
+			await cancelTargets(queryClient, [{ queryKey: detailKey }]);
+			const previousDetail = snapshotQuery(queryClient, detailKey);
+			const tagsById = new Map(
+				(tagsQuery.data ?? []).map((tag) => [tag.id, tag])
+			);
+			updateQueryEntity<PatchableEntity>(queryClient, detailKey, {
+				tags: tagIds.map((id) => ({ id, name: tagsById.get(id)?.name ?? "" })),
+			});
+			return { previousDetail };
+		},
+		onError: (_error, _variables, context) => {
+			restoreSnapshots(queryClient, [context?.previousDetail]);
+		},
 		onSettled: refresh,
 	});
 

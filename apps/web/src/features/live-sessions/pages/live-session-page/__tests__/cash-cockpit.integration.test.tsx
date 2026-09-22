@@ -88,6 +88,7 @@ const backend = {
 	sessionMemo: null as string | null,
 	sessionTableSize: 6 as number | null,
 	sessionTagIds: [] as string[],
+	snapshotGate: null as Promise<void> | null,
 	snapshotUpdates: [] as Record<string, unknown>[],
 	status: "active",
 	updatedEvents: [] as UpdatedEvent[],
@@ -176,7 +177,10 @@ const fixtureRouter = t.router({
 			}),
 		updateSnapshot: t.procedure
 			.input(z.custom<Record<string, unknown>>())
-			.mutation(({ input }) => {
+			.mutation(async ({ input }) => {
+				if (backend.snapshotGate) {
+					await backend.snapshotGate;
+				}
 				backend.snapshotUpdates.push(input);
 				if (typeof input.tableSize === "number") {
 					backend.sessionTableSize = input.tableSize;
@@ -502,6 +506,7 @@ beforeEach(() => {
 	backend.sessionMemo = null;
 	backend.sessionTableSize = 6;
 	backend.sessionTagIds = [];
+	backend.snapshotGate = null;
 	backend.snapshotUpdates = [];
 	backend.status = "active";
 	backend.updatedEvents = [];
@@ -1053,6 +1058,33 @@ describe("CashCockpit", () => {
 		await waitFor(() => {
 			expect(backend.snapshotUpdates).toContainEqual(
 				expect.objectContaining({ tableSize: 9 })
+			);
+		});
+	});
+
+	it("reflects an Ante type selection immediately, without waiting for the server", async () => {
+		const user = userEvent.setup();
+		let releaseSnapshot: () => void = () => undefined;
+		backend.snapshotGate = new Promise((resolve) => {
+			releaseSnapshot = resolve;
+		});
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Session settings" })
+		);
+		await user.click(await screen.findByRole("tab", { name: "Basics" }));
+		const bbButton = await screen.findByRole("button", { name: "BB" });
+
+		await user.click(bbButton);
+
+		expect(bbButton).toHaveAttribute("aria-pressed", "true");
+		expect(backend.snapshotUpdates).toEqual([]);
+
+		releaseSnapshot();
+		await waitFor(() => {
+			expect(backend.snapshotUpdates).toContainEqual(
+				expect.objectContaining({ anteType: "bb" })
 			);
 		});
 	});
