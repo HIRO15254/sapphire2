@@ -1,10 +1,10 @@
-import { IconLoader2 } from "@tabler/icons-react";
+import { IconCheck, IconLoader2, IconX } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import {
 	CrystSheetFrame,
-	SHEET_ACTION_CLASS,
 	SHEET_BODY_CLASS,
+	SHEET_ICON_CLASS,
 } from "./cryst-sheet";
 
 interface CrystFormSheetProps {
@@ -32,29 +32,29 @@ export function CrystFormSheet({
 		<CrystSheetFrame
 			cancel={
 				<button
-					className={cn(
-						SHEET_ACTION_CLASS,
-						"font-medium text-muted-foreground"
-					)}
+					aria-label="Cancel"
+					className={SHEET_ICON_CLASS}
 					onClick={() => onOpenChange(false)}
 					type="button"
 				>
-					Cancel
+					<IconX aria-hidden size={24} />
 				</button>
 			}
 			className={cn("h-auto", className)}
 			confirm={
 				<button
 					aria-busy={isLoading}
-					className={cn(SHEET_ACTION_CLASS, "font-semibold text-primary")}
+					aria-label="Save"
+					className={cn(SHEET_ICON_CLASS, "text-primary")}
 					disabled={isLoading || isSaveDisabled}
 					form={formId}
 					type="submit"
 				>
 					{isLoading ? (
-						<IconLoader2 aria-hidden className="animate-spin" size={16} />
-					) : null}
-					Save
+						<IconLoader2 aria-hidden className="animate-spin" size={24} />
+					) : (
+						<IconCheck aria-hidden size={24} />
+					)}
 				</button>
 			}
 			dismissible={false}

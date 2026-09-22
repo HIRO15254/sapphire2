@@ -53,7 +53,7 @@ export function TableView({
 				aria-label="Register seats from a photo"
 				className={cn(
 					crystButton({ size: "icon", variant: "outline" }),
-					"absolute top-3 left-3 z-[2]"
+					"absolute top-3 left-3 z-[2] size-[34px]"
 				)}
 				onClick={onScan}
 				title="Register seats from a photo"
@@ -66,7 +66,7 @@ export function TableView({
 					aria-label="Clear every seat"
 					className={cn(
 						crystButton({ size: "icon", variant: "outline" }),
-						"absolute top-3 right-3 z-[2]"
+						"absolute top-3 right-3 z-[2] size-[34px]"
 					)}
 					onClick={onResetSeats}
 					title="Clear every seat"

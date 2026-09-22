@@ -4,9 +4,10 @@ import { cn } from "@/lib/utils";
 import { Field } from "@/shared/components/ui/field";
 import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
 import { formatNumber, formatSignedNumber } from "@/utils/format-number";
-import { CRYST_FIELD, CRYST_FOCUS_RING } from "../../cryst-controls";
+import { CRYST_FIELD } from "../../cryst-controls";
 import { plToneClass } from "../../cryst-tone";
-import { SegmentedButtons } from "../../segmented-buttons";
+import { RadioCard, RadioCardGroup } from "../../radio-card";
+import { SegmentedControl } from "../../segmented-control";
 import type {
 	ChipPurchaseOption,
 	useEventEditorSheet,
@@ -200,17 +201,20 @@ export function ChipsFields({ form }: { form: EditorForm }) {
 			<NumericField form={form} label="Amount" name="amount" />
 			<form.Field name="direction">
 				{(field) => (
-					<fieldset className="col-span-6 min-w-0">
-						<legend className="mb-1.5 font-medium text-[length:var(--text-sm)]">
+					<div className="col-span-6 min-w-0">
+						<span
+							className="mb-1.5 block font-medium text-[length:var(--text-sm)]"
+							id={fieldId("direction")}
+						>
 							Direction
-						</legend>
-						<SegmentedButtons
-							columns={2}
+						</span>
+						<SegmentedControl
+							aria-labelledby={fieldId("direction")}
 							onChange={field.handleChange}
 							options={DIRECTION_OPTIONS}
 							value={field.state.value}
 						/>
-					</fieldset>
+					</div>
 				)}
 			</form.Field>
 		</>
@@ -268,46 +272,24 @@ export function PurchaseFields({
 							No purchase options are configured for this tournament.
 						</p>
 					) : (
-						<div className="flex flex-col gap-1.5">
-							{options.map((option, index) => {
-								const isSelected = field.state.value === option.id;
-								const OptionIcon =
-									PURCHASE_ICONS[index % PURCHASE_ICONS.length] ?? IconRefresh;
-								return (
-									<button
-										aria-pressed={isSelected}
-										className={cn(
-											"flex w-full items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors",
-											CRYST_FOCUS_RING,
-											isSelected
-												? "border-primary bg-[var(--selection)]"
-												: "border-border bg-card hover:bg-accent"
-										)}
-										key={option.id}
-										onClick={() => field.handleChange(option.id)}
-										type="button"
-									>
-										<OptionIcon
-											className={
-												isSelected ? "text-primary" : "text-muted-foreground"
-											}
-											size={16}
-										/>
-										<span className="min-w-0 flex-1">
-											<span className="block font-semibold text-[length:var(--text-sm)]">
-												{option.name}
-											</span>
-											<span className="block text-[length:var(--text-xs)] text-muted-foreground">
-												{formatSignedNumber(option.chips)} chips
-											</span>
-										</span>
-										<span className="font-mono text-[length:var(--text-sm)] tabular-nums">
-											{formatNumber(option.cost)}
-										</span>
-									</button>
-								);
-							})}
-						</div>
+						<RadioCardGroup
+							aria-label="Purchase option"
+							onValueChange={field.handleChange}
+							value={field.state.value}
+						>
+							{options.map((option, index) => (
+								<RadioCard
+									description={`${formatSignedNumber(option.chips)} chips`}
+									icon={
+										PURCHASE_ICONS[index % PURCHASE_ICONS.length] ?? IconRefresh
+									}
+									key={option.id}
+									meta={formatNumber(option.cost)}
+									title={option.name}
+									value={option.id}
+								/>
+							))}
+						</RadioCardGroup>
 					)}
 				</Field>
 			)}

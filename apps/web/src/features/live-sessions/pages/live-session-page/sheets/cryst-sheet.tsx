@@ -12,7 +12,21 @@ import { CRYST_SCOPE_CLASS } from "../cryst-scope";
 const SHEET_SURFACE =
 	"mx-auto max-h-[85svh] w-full max-w-[560px] rounded-t-[var(--m-sheet-radius)] border-border border-b-0 bg-popover text-popover-foreground shadow-[var(--shadow-lg)]";
 
-export const SHEET_ACTION_CLASS = `inline-flex min-h-[var(--m-control)] items-center gap-1.5 rounded-md px-2.5 text-[length:var(--m-text-body)] transition-opacity active:opacity-60 disabled:cursor-not-allowed disabled:opacity-40 ${CRYST_FOCUS_RING}`;
+const SHEET_TITLE_CLASS =
+	"min-w-0 truncate text-center font-semibold text-[length:var(--m-text-title)] leading-tight tracking-[var(--tracking-heading)]";
+
+export const SHEET_ICON_CLASS = `inline-flex size-[var(--m-control)] items-center justify-center rounded-md text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40 ${CRYST_FOCUS_RING}`;
+
+type CrystSheetFrameProps = {
+	children: ReactNode;
+	className?: string;
+	onOpenChange: (open: boolean) => void;
+	open: boolean;
+	title: string;
+} & (
+	| { cancel?: never; confirm?: never; dismissible: true }
+	| { cancel: ReactNode; confirm: ReactNode; dismissible: false }
+);
 
 export function CrystSheetFrame({
 	cancel,
@@ -23,32 +37,32 @@ export function CrystSheetFrame({
 	onOpenChange,
 	open,
 	title,
-}: {
-	cancel: ReactNode;
-	children: ReactNode;
-	className?: string;
-	confirm?: ReactNode;
-	dismissible: boolean;
-	onOpenChange: (open: boolean) => void;
-	open: boolean;
-	title: string;
-}) {
+}: CrystSheetFrameProps) {
 	return (
 		<Drawer dismissible={dismissible} onOpenChange={onOpenChange} open={open}>
 			<DrawerContent
 				className={cn(CRYST_SCOPE_CLASS, SHEET_SURFACE, className)}
 				overlayClassName={CRYST_SCRIM}
 			>
-				<div aria-hidden className="flex shrink-0 justify-center pt-2">
-					<span className="h-1 w-9 rounded-full bg-input" />
-				</div>
-				<div className="grid shrink-0 grid-cols-[1fr_minmax(0,auto)_1fr] items-center border-border border-b px-2 pt-0.5 pb-1.5">
-					<div className="justify-self-start">{cancel}</div>
-					<DrawerTitle className="min-w-0 truncate text-center font-semibold text-[length:var(--m-text-title)] leading-tight tracking-[var(--tracking-heading)]">
-						{title}
-					</DrawerTitle>
-					<div className="justify-self-end">{confirm}</div>
-				</div>
+				{dismissible ? (
+					<>
+						<div
+							aria-hidden
+							className="flex shrink-0 cursor-grab justify-center pt-2 pb-1.5"
+						>
+							<span className="h-1 w-9 rounded-full bg-input" />
+						</div>
+						<div className="shrink-0 border-border border-b px-[var(--m-inset)] pb-2.5">
+							<DrawerTitle className={SHEET_TITLE_CLASS}>{title}</DrawerTitle>
+						</div>
+					</>
+				) : (
+					<div className="grid min-h-[var(--m-navbar-height)] shrink-0 grid-cols-[1fr_minmax(0,auto)_1fr] items-center border-border border-b px-1 py-0.5">
+						<div className="justify-self-start">{cancel}</div>
+						<DrawerTitle className={SHEET_TITLE_CLASS}>{title}</DrawerTitle>
+						<div className="justify-self-end">{confirm}</div>
+					</div>
+				)}
 				<DrawerDescription className="sr-only">{title}</DrawerDescription>
 				{children}
 			</DrawerContent>
@@ -78,18 +92,6 @@ export function CrystSheet({
 }: CrystSheetProps) {
 	return (
 		<CrystSheetFrame
-			cancel={
-				<button
-					className={cn(
-						SHEET_ACTION_CLASS,
-						"font-medium text-muted-foreground"
-					)}
-					onClick={() => onOpenChange(false)}
-					type="button"
-				>
-					Close
-				</button>
-			}
 			className={className}
 			dismissible
 			onOpenChange={onOpenChange}

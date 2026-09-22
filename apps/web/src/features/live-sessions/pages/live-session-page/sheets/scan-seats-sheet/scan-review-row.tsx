@@ -18,9 +18,9 @@ import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
 import {
 	CRYST_BADGE,
 	CRYST_BADGE_TONE,
-	CRYST_FOCUS_RING,
 	CRYST_INLINE_FIELD,
 } from "../../cryst-controls";
+import { SegmentedControl } from "../../segmented-control";
 
 interface ScanRowMeta {
 	chip: string;
@@ -66,10 +66,10 @@ const ROW_META: Record<ScanRowKind, ScanRowMeta> = {
 	},
 };
 
-const PILL = `min-h-6 rounded-full border px-[9px] font-medium text-[length:var(--text-xs)] transition-colors ${CRYST_FOCUS_RING}`;
-const PILL_ON = "border-primary bg-[var(--selection)] text-primary";
-const PILL_OFF =
-	"border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground";
+const CONFLICT_OPTIONS = [
+	{ label: "Keep", value: "keep" },
+	{ label: "Replace", value: "replace" },
+] as const;
 
 export interface ResolvedScanRow extends ScanRow {
 	isSelected: boolean;
@@ -154,20 +154,16 @@ export function ScanReviewRow({
 							{row.currentName}
 						</span>
 					</span>
-					<button
-						className={cn(PILL, row.isSelected ? PILL_OFF : PILL_ON)}
-						onClick={() => onToggle(row.seatPosition, false)}
-						type="button"
-					>
-						Keep
-					</button>
-					<button
-						className={cn(PILL, row.isSelected ? PILL_ON : PILL_OFF)}
-						onClick={() => onToggle(row.seatPosition, true)}
-						type="button"
-					>
-						Replace
-					</button>
+					<SegmentedControl
+						aria-label={`${seatLabel} conflict`}
+						fit
+						onChange={(choice) =>
+							onToggle(row.seatPosition, choice === "replace")
+						}
+						options={CONFLICT_OPTIONS}
+						size="sm"
+						value={row.isSelected ? "replace" : "keep"}
+					/>
 				</div>
 			) : null}
 		</div>

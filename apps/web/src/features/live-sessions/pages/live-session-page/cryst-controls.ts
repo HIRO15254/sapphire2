@@ -73,9 +73,9 @@ export const CRYST_TAG =
 export const CRYST_TAG_DOT = "size-2 shrink-0 rounded-full";
 
 export const CRYST_TAB_LIST =
-	"flex gap-0.5 rounded-md bg-muted p-0.5 text-[length:var(--text-sm)]";
+	"flex gap-0.5 rounded-md bg-muted p-0.5 text-[length:var(--m-text-secondary)]";
 
-export const CRYST_TAB = `inline-flex min-h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-sm px-2.5 py-1 font-medium text-muted-foreground transition-[background-color,color] hover:text-foreground aria-selected:bg-card aria-selected:text-foreground aria-selected:shadow-[var(--shadow-sm)] disabled:cursor-not-allowed disabled:opacity-50 ${CRYST_FOCUS_RING}`;
+export const CRYST_TAB = `inline-flex min-h-[calc(var(--m-control)-4px)] min-w-0 flex-1 items-center justify-center gap-1.5 rounded-sm px-3 font-medium text-muted-foreground transition-[background-color,color] hover:text-foreground aria-selected:bg-[var(--tab-active)] aria-selected:text-foreground aria-selected:shadow-[var(--shadow-sm)] disabled:cursor-not-allowed disabled:opacity-50 ${CRYST_FOCUS_RING}`;
 
 const TAB_KEYS = new Set(["ArrowLeft", "ArrowRight", "End", "Home"]);
 

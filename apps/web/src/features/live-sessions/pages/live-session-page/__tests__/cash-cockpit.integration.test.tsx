@@ -1,4 +1,4 @@
-import { act, cleanup, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { initTRPC } from "@trpc/server";
 import { setupServer } from "msw/node";
@@ -1169,7 +1169,7 @@ describe("CashCockpit", () => {
 			await screen.findByLabelText(TABLE_SIZE_FIELD),
 			"9"
 		);
-		await user.click(await screen.findByRole("button", { name: "BB" }));
+		await user.click(await screen.findByRole("radio", { name: "BB" }));
 
 		expect(backend.snapshotUpdates).toEqual([]);
 
@@ -1315,7 +1315,7 @@ describe("CashCockpit", () => {
 		});
 	});
 
-	it("disables the Ante amount input while Ante type is None, and enables it after switching", async () => {
+	it("disables the Ante amount input while Ante type is None, and enables it after switching with the arrow keys", async () => {
 		const user = userEvent.setup();
 		renderCockpit();
 
@@ -1327,7 +1327,18 @@ describe("CashCockpit", () => {
 		const anteInput = await screen.findByLabelText("Ante");
 		expect(anteInput).toBeDisabled();
 
-		await user.click(await screen.findByRole("button", { name: "BB" }));
+		const anteType = await screen.findByRole("radiogroup", {
+			name: "Ante type",
+		});
+		expect(within(anteType).getByRole("radio", { name: "None" })).toBeChecked();
+
+		await user.click(within(anteType).getByRole("radio", { name: "None" }));
+		await user.keyboard("{ArrowRight>}");
+		await waitFor(() => {
+			expect(within(anteType).getByRole("radio", { name: "BB" })).toBeChecked();
+		});
+		await user.keyboard("{/ArrowRight}");
+
 		expect(anteInput).toBeEnabled();
 	});
 

@@ -10,7 +10,7 @@ import { Field } from "@/shared/components/ui/field";
 import type { BlindSlotLabels } from "@/shared/hooks/use-game-groups";
 import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
 import { CRYST_FIELD, CRYST_FIELD_GROUP } from "../../cryst-controls";
-import { SegmentedButtons } from "../../segmented-buttons";
+import { SegmentedControl } from "../../segmented-control";
 import type { AnteType } from "./session-sheet-view";
 import type { SessionForm } from "./use-session-sheet";
 
@@ -346,8 +346,11 @@ export function SessionBasicsTab({
 				<form.Field name="anteType">
 					{(anteTypeField) => (
 						<>
-							<fieldset className="col-span-4 min-w-0">
-								<legend className={FIELD_LABEL_CLASS}>
+							<div className="col-span-4 min-w-0">
+								<span
+									className={FIELD_LABEL_CLASS}
+									id={fieldId(anteTypeField.name)}
+								>
 									<FieldLabel
 										isDifferent={isMasterFieldDifferent(
 											master,
@@ -356,14 +359,14 @@ export function SessionBasicsTab({
 										)}
 										label="Ante type"
 									/>
-								</legend>
-								<SegmentedButtons
-									columns={3}
+								</span>
+								<SegmentedControl
+									aria-labelledby={fieldId(anteTypeField.name)}
 									onChange={anteTypeField.handleChange}
 									options={ANTE_TYPES}
 									value={anteTypeField.state.value}
 								/>
-							</fieldset>
+							</div>
 							<NumericField
 								disabled={anteTypeField.state.value === "none"}
 								form={form}

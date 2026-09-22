@@ -13,6 +13,7 @@
 	--muted-foreground: #6f6e77;
 	--accent: #eef0f4;
 	--accent-foreground: #282a30;
+	--tab-active: #ffffff;
 	--destructive: #eb5757;
 	--destructive-foreground: #ffffff;
 	--success: #3fa370;
@@ -77,6 +78,7 @@
 	--muted-foreground: #8a8f98;
 	--accent: #1c1e22;
 	--accent-foreground: #f7f8f8;
+	--tab-active: #3d4047;
 	--destructive: #f2555a;
 	--destructive-foreground: #ffffff;
 	--success: #4cb782;
