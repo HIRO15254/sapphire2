@@ -17,8 +17,12 @@ export const TABLE_PLAYER_SOURCE_APPS: Record<
 Extract the player name at each seat.
 
 Seat numbering rules:
-- The seat with the notch at the bottom-center of the screen is seat number 1.
-- Number the remaining seats clockwise: 2, 3, 4, ...
+- The table graphic has a notch cut into its bottom edge. Counting clockwise from
+  that notch, the seats are numbered 1, 2, 3, ... The notch is a landmark on the
+  table edge, not a seat itself.
+- Empty seats have their seat number stamped on them. Where a stamped number is
+  readable it is authoritative: read it directly instead of inferring it, and use
+  it to anchor the numbering of the occupied seats around it.
 
 Hero detection:
 - The name of the user who is using this app is displayed at the top area of the screen (typically next to an account icon / header).
@@ -28,7 +32,7 @@ Hero detection:
 
 Extraction rules:
 - Include only seats whose names are readable in the \`seats\` array.
-- A seat with nobody seated displays only its seat number and no player name. Treat those as empty seats.
+- A seat with nobody seated shows only that stamped seat number and no player name. Treat those as empty seats.
 - Omit empty seats and seats whose names are unclear.
 - Return only the player name; strip surrounding symbols, decorations, and stack / chip count displays.
 - Player names may be in Japanese (hiragana, katakana, kanji), English, or a mix. Preserve the exact characters as shown, do not translate or romanize.`,

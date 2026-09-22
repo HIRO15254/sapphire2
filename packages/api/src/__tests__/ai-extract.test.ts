@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import {
 	ExtractedTournamentDataSchema,
-	TOOL_INPUT_SCHEMA,
+	TOURNAMENT_OUTPUT_SCHEMA,
 } from "../routers/ai-extract";
 import { expectAccepts, expectRejects } from "./test-utils";
 
@@ -109,7 +109,7 @@ describe("aiExtract.extractTablePlayers input validation", () => {
 		});
 	});
 
-	it("rejects URL sources so Anthropic never fetches a user-supplied URL", () => {
+	it("rejects URL sources so OpenAI never fetches a user-supplied URL", () => {
 		expectRejects(appRouter.aiExtract.extractTablePlayers, {
 			sourceApp: "dmm_waitinglist",
 			sources: [
@@ -237,22 +237,55 @@ describe("ExtractedTournamentDataSchema numeric boundaries", () => {
 		}
 	});
 
-	it("keeps the Anthropic tool schema aligned with numeric Zod bounds", () => {
-		const properties = TOOL_INPUT_SCHEMA.properties;
-		expect(properties.buyIn).toMatchObject({ type: "integer", minimum: 0 });
-		expect(properties.tableSize).toMatchObject({
-			type: "integer",
-			minimum: 2,
-			maximum: 10,
-		});
-		expect(properties.chipPurchases.items.properties.cost).toMatchObject({
-			type: "integer",
-			minimum: 0,
-		});
-		expect(properties.blindLevels.items.properties.minutes).toMatchObject({
-			type: "integer",
-			minimum: 0,
-		});
+	it("keeps the OpenAI output schema aligned with numeric Zod bounds", () => {
+		const base = {
+			name: null,
+			buyIn: null,
+			entryFee: null,
+			startingStack: null,
+			tableSize: null,
+			chipPurchases: null,
+			blindLevels: null,
+		};
+		expect(TOURNAMENT_OUTPUT_SCHEMA.safeParse(base).success).toBe(true);
+
+		for (const value of [-1, 1.5]) {
+			expect(
+				TOURNAMENT_OUTPUT_SCHEMA.safeParse({ ...base, buyIn: value }).success
+			).toBe(false);
+		}
+		for (const tableSize of [1, 11, 2.5]) {
+			expect(
+				TOURNAMENT_OUTPUT_SCHEMA.safeParse({ ...base, tableSize }).success
+			).toBe(false);
+		}
+		expect(
+			TOURNAMENT_OUTPUT_SCHEMA.safeParse({
+				...base,
+				chipPurchases: [{ name: "Addon", cost: -1, chips: 0 }],
+			}).success
+		).toBe(false);
+		expect(
+			TOURNAMENT_OUTPUT_SCHEMA.safeParse({
+				...base,
+				blindLevels: [
+					{
+						isBreak: false,
+						blind1: null,
+						blind2: null,
+						blind3: null,
+						ante: null,
+						minutes: 1.5,
+					},
+				],
+			}).success
+		).toBe(false);
+	});
+
+	it("requires every top-level key so strict Structured Outputs can omit nothing", () => {
+		expect(TOURNAMENT_OUTPUT_SCHEMA.safeParse({ name: "Daily" }).success).toBe(
+			false
+		);
 	});
 
 	it("rejects non-finite numeric output values", () => {

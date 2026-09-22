@@ -17,7 +17,7 @@
       "@better-auth/passkey": "1.6.0",
       "@trpc/client": "^11.16.0",
       "drizzle-orm": "^0.45.2",
-      "@anthropic-ai/sdk": "^0.90.0"
+      "openai": "^7.21.0"
     }
   },
   "type": "module",
@@ -43,6 +43,7 @@
     "lint": "ultracite check",
     "check": "ultracite check",
     "check:rules": "bun scripts/check-rules.ts",
+    "try:ai-extract": "bun scripts/try-ai-extract.ts",
     "fix": "ultracite fix",
     "prepare": "husky"
   },

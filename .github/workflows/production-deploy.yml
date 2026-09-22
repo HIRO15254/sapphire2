@@ -75,7 +75,7 @@ jobs:
           echo "${{ secrets.GOOGLE_CLIENT_SECRET }}" | bunx wrangler secret put GOOGLE_CLIENT_SECRET
           echo "${{ secrets.DISCORD_CLIENT_ID }}" | bunx wrangler secret put DISCORD_CLIENT_ID
           echo "${{ secrets.DISCORD_CLIENT_SECRET }}" | bunx wrangler secret put DISCORD_CLIENT_SECRET
-          echo "${{ secrets.ANTHROPIC_API_KEY }}" | bunx wrangler secret put ANTHROPIC_API_KEY
+          echo "${{ secrets.OPENAI_API_KEY }}" | bunx wrangler secret put OPENAI_API_KEY
           echo "${{ secrets.GOOGLE_MAPS_API_KEY }}" | bunx wrangler secret put GOOGLE_MAPS_API_KEY
 
   deploy-web:

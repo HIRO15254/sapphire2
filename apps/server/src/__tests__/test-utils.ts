@@ -1,5 +1,4 @@
 export interface FakeEnv {
-	ANTHROPIC_API_KEY?: string;
 	BETTER_AUTH_SECRET: string;
 	BETTER_AUTH_URL: string;
 	CORS_ORIGIN: string;
@@ -9,6 +8,7 @@ export interface FakeEnv {
 	GOOGLE_CLIENT_ID?: string;
 	GOOGLE_CLIENT_SECRET?: string;
 	GOOGLE_MAPS_API_KEY?: string;
+	OPENAI_API_KEY?: string;
 }
 
 export function createFakeEnv(overrides: Partial<FakeEnv> = {}): FakeEnv {

@@ -11,7 +11,7 @@
   },
   "scripts": {},
   "dependencies": {
-    "@anthropic-ai/sdk": "catalog:",
+    "openai": "catalog:",
     "@sapphire2/auth": "workspace:*",
     "@sapphire2/db": "workspace:*",
     "@trpc/client": "catalog:",
