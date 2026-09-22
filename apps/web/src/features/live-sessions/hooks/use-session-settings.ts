@@ -179,7 +179,6 @@ export function useSessionSettings({
 		: trpc.liveTournamentSession.getById.queryOptions({ id: sessionId })
 				.queryKey;
 	const tagsKey = trpc.sessionTag.list.queryOptions().queryKey;
-	const currenciesKey = trpc.currency.list.queryOptions().queryKey;
 
 	const detailQuery = useQuery({
 		...trpc.session.getById.queryOptions({ id: sessionId }),
@@ -334,25 +333,14 @@ export function useSessionSettings({
 		},
 	});
 
-	const createCurrency = useMutation({
-		mutationFn: (values: { name: string; unit: string }) =>
-			trpcClient.currency.create.mutate(values),
-		onSettled: () => {
-			invalidateTargets(queryClient, [{ queryKey: currenciesKey }]);
-		},
-	});
-
 	return {
 		availableTags: tagsQuery.data ?? [],
 		currencies: currenciesQuery.data ?? [],
 		detail: detailQuery.data ?? null,
-		isCurrencyPending: createCurrency.isPending,
 		isLoading: detailQuery.isLoading,
 		isSaving: snapshot.isPending || live.isPending || tags.isPending,
 		isSyncingMaster: syncMaster.isPending,
 		master,
-		onCreateCurrency: (values: { name: string; unit: string }) =>
-			createCurrency.mutateAsync(values),
 		onCreateTag: (name: string) => createTag.mutateAsync(name),
 		onSyncMasterFromSession: (patch: MasterFieldPatch) =>
 			syncMaster.mutateAsync(patch),

@@ -226,14 +226,12 @@ export function useSessionSheet({
 		form,
 		isCash,
 		isCurrencyOpen,
-		isCurrencyPending: settings.isCurrencyPending,
 		isLoading: settings.isLoading,
 		isMasterLinked: view.isMasterLinked,
 		isSaving: settings.isSaving,
 		isSyncingMaster: settings.isSyncingMaster,
 		master: view.master,
 		masterValues: settings.master,
-		onCreateCurrency: settings.onCreateCurrency,
 		onCreateTag: async (name: string): Promise<SessionTagLike> => {
 			const created = await settings.onCreateTag(name);
 			if (!created) {

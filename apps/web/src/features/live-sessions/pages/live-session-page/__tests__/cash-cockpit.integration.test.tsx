@@ -44,6 +44,7 @@ const TABLE_SIZE_FIELD = /Table size/;
 const WEEKEND_TAG_CHOICE = /Weekend/;
 const CURRENCY_ROW = /Currency/;
 const CLUB_CHIPS_ROW = /Club chips/;
+const JAPANESE_YEN_ROW = /Japanese yen/;
 
 interface CreatedEvent {
 	eventType: string;
@@ -1314,6 +1315,10 @@ describe("CashCockpit", () => {
 			await screen.findByRole("button", { name: "Session settings" })
 		);
 		await user.click(await screen.findByRole("button", { name: CURRENCY_ROW }));
+		await user.type(await screen.findByLabelText("Search currencies"), "club");
+		expect(
+			screen.queryByRole("button", { name: JAPANESE_YEN_ROW })
+		).not.toBeInTheDocument();
 		const clubChipsRow = await screen.findByRole("button", {
 			name: CLUB_CHIPS_ROW,
 		});

@@ -151,8 +151,6 @@ export function SessionSheet({
 			</CrystFormSheet>
 			<CurrencySheet
 				currencies={sheet.currencyOptions}
-				isAddPending={sheet.isCurrencyPending}
-				onAdd={sheet.onCreateCurrency}
 				onOpenChange={sheet.onCurrencyOpenChange}
 				onPick={(currencyId) => {
 					form.setFieldValue("currencyId", currencyId);

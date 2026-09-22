@@ -1,30 +1,41 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { CurrencyLike } from "@/features/live-sessions/utils/session-settings";
 
-interface UseCurrencySheetOptions {
-	onAdd: (values: { name: string; unit: string }) => Promise<unknown>;
+export interface CurrencyOption extends CurrencyLike {
+	balance: number;
+	isFavorite: boolean;
 }
 
-export function useCurrencySheet({ onAdd }: UseCurrencySheetOptions) {
-	const [name, setName] = useState("");
-	const [unit, setUnit] = useState("");
+interface UseCurrencySheetOptions {
+	currencies: readonly CurrencyOption[];
+	open: boolean;
+}
 
-	const onSubmitNew = async () => {
-		const trimmedName = name.trim();
-		const trimmedUnit = unit.trim();
-		if (trimmedName === "" || trimmedUnit === "") {
-			return;
+export function useCurrencySheet({
+	currencies,
+	open,
+}: UseCurrencySheetOptions) {
+	const [query, setQuery] = useState("");
+
+	useEffect(() => {
+		if (open) {
+			setQuery("");
 		}
-		await onAdd({ name: trimmedName, unit: trimmedUnit });
-		setName("");
-		setUnit("");
-	};
+	}, [open]);
+
+	const needle = query.trim().toLowerCase();
+	const matched =
+		needle === ""
+			? currencies
+			: currencies.filter(
+					(currency) =>
+						currency.name.toLowerCase().includes(needle) ||
+						(currency.unit ?? "").toLowerCase().includes(needle)
+				);
 
 	return {
-		canSubmitNew: name.trim() !== "" && unit.trim() !== "",
-		name,
-		onNameChange: setName,
-		onSubmitNew,
-		onUnitChange: setUnit,
-		unit,
+		matched,
+		onQueryChange: setQuery,
+		query,
 	};
 }
