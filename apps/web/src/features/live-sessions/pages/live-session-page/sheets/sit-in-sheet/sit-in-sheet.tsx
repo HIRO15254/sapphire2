@@ -45,7 +45,6 @@ export function SitInSheet({
 
 	return (
 		<CrystFormSheet
-			className="h-auto max-h-[calc(100svh-2rem)]"
 			formId={FORM_ID}
 			isSaveDisabled={!canSubmit}
 			onOpenChange={onOpenChange}

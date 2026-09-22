@@ -33,7 +33,10 @@ export function FormSheet({
 	return (
 		<Drawer dismissible={false} onOpenChange={onOpenChange} open={open}>
 			<DrawerContent
-				className={cn("h-[calc(100svh-2rem)] rounded-t-xl", className)}
+				className={cn(
+					"h-auto max-h-[calc(100svh-2rem)] rounded-t-xl",
+					className
+				)}
 			>
 				<div className="grid shrink-0 grid-cols-[auto_1fr_auto] items-center gap-2 border-b px-2 py-1.5">
 					<Button
