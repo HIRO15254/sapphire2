@@ -39,10 +39,10 @@ export function CurrencySheet({
 						onClick={() => onPick(currency.id)}
 					>
 						<span className="flex min-w-0 flex-1 flex-col gap-0.5">
-							<span className="truncate font-medium text-[length:var(--m-text-secondary)] leading-[1.3]">
+							<span className="truncate font-medium leading-[1.3]">
 								{currency.name}
 							</span>
-							<span className="truncate text-[length:var(--m-text-caption)] text-muted-foreground leading-[1.35]">
+							<span className="truncate text-[length:var(--text-xs)] text-muted-foreground leading-[1.35]">
 								{formatWithUnit(currency.balance, currency.unit)}
 							</span>
 						</span>

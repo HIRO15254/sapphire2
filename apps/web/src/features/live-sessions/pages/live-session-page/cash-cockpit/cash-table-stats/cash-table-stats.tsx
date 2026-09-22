@@ -25,7 +25,7 @@ export function CashTableStats({
 				<span className={cn(plToneClass(displayPL))}>{displayPLFormatted}</span>
 				<span className="text-muted-foreground">{bbText}</span>
 			</div>
-			<span className="text-[11px] text-muted-foreground">
+			<span className="text-[length:var(--text-xs)] text-muted-foreground">
 				EV result{" "}
 				<span className="font-mono tabular-nums">{evPLFormatted ?? "—"}</span>
 			</span>

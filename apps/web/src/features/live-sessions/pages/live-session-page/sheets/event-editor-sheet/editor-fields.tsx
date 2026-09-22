@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { Field } from "@/shared/components/ui/field";
 import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
 import { formatNumber, formatSignedNumber } from "@/utils/format-number";
+import { CRYST_FIELD, CRYST_FOCUS_RING } from "../../cryst-controls";
 import { plToneClass } from "../../cryst-tone";
 import { SegmentedButtons } from "../../segmented-buttons";
 import type {
@@ -13,8 +14,7 @@ import type {
 
 type EditorForm = ReturnType<typeof useEventEditorSheet>["form"];
 
-const INPUT_CLASS =
-	"h-[var(--m-control)] w-full rounded-md border border-input bg-background px-2.5 text-[length:var(--m-text-secondary)] outline-none focus-visible:border-primary disabled:opacity-50 aria-invalid:border-destructive";
+const INPUT_CLASS = `${CRYST_FIELD} h-[var(--m-control)] w-full px-2.5`;
 
 const NUMERIC_CLASS = `${INPUT_CLASS} font-mono tabular-nums`;
 
@@ -229,7 +229,10 @@ export function MemoFields({ form }: { form: EditorForm }) {
 					required
 				>
 					<textarea
-						className="min-h-[88px] w-full resize-none rounded-lg border border-input bg-card px-3 py-2.5 text-[length:var(--m-text-secondary)] outline-none focus-visible:border-primary aria-invalid:border-destructive"
+						className={cn(
+							CRYST_FIELD,
+							"min-h-[88px] w-full resize-none px-3 py-2.5 leading-normal"
+						)}
 						id={fieldId(field.name)}
 						name={field.name}
 						onBlur={field.handleBlur}
@@ -274,10 +277,11 @@ export function PurchaseFields({
 									<button
 										aria-pressed={isSelected}
 										className={cn(
-											"flex w-full items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left",
+											"flex w-full items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors",
+											CRYST_FOCUS_RING,
 											isSelected
-												? "border-primary bg-[color-mix(in_oklab,var(--primary)_12%,transparent)]"
-												: "border-border bg-transparent"
+												? "border-primary bg-[var(--selection)]"
+												: "border-border bg-card hover:bg-accent"
 										)}
 										key={option.id}
 										onClick={() => field.handleChange(option.id)}
@@ -293,7 +297,7 @@ export function PurchaseFields({
 											<span className="block font-semibold text-[length:var(--text-sm)]">
 												{option.name}
 											</span>
-											<span className="block text-[11px] text-muted-foreground">
+											<span className="block text-[length:var(--text-xs)] text-muted-foreground">
 												{formatSignedNumber(option.chips)} chips
 											</span>
 										</span>

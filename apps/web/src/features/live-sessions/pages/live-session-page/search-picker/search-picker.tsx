@@ -3,6 +3,12 @@ import { IconCheck, IconSearch, IconX } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
+import {
+	CRYST_FIELD_GROUP,
+	CRYST_LIST_ROW,
+	crystButton,
+} from "../cryst-controls";
+import { CrystEmptyState } from "../cryst-empty-state";
 
 interface SearchPickerProps {
 	children: ReactNode;
@@ -32,12 +38,17 @@ export function SearchPicker({
 				isDisabled && "pointer-events-none opacity-50"
 			)}
 		>
-			<div className="flex h-[var(--m-control)] items-center gap-2 rounded-md border border-border bg-input px-2.5">
+			<div
+				className={cn(
+					CRYST_FIELD_GROUP,
+					"flex h-[var(--m-control)] items-center gap-2 pr-1.5 pl-[9px]"
+				)}
+			>
 				<IconSearch className="shrink-0 text-muted-foreground" size={16} />
 				<input
 					aria-label={searchLabel}
 					{...NO_INPUT_SUGGESTIONS}
-					className="min-w-0 flex-1 border-none bg-transparent text-[length:var(--m-text-secondary)] outline-none"
+					className="h-full min-w-0 flex-1 border-none bg-transparent outline-none"
 					onChange={(e) => onQueryChange(e.target.value)}
 					type="text"
 					value={query}
@@ -45,23 +56,18 @@ export function SearchPicker({
 				{query === "" ? null : (
 					<button
 						aria-label="Clear search"
-						className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"
+						className={crystButton({ size: "iconSm", variant: "ghost" })}
 						onClick={() => onQueryChange("")}
 						type="button"
 					>
-						<IconX size={13} />
+						<IconX size={14} />
 					</button>
 				)}
 			</div>
 
 			<div className="max-h-[280px] overflow-y-auto rounded-md border border-border">
 				{isEmpty ? (
-					<div className="flex flex-col items-center gap-1 px-4 py-5 text-muted-foreground">
-						<EmptyIcon size={18} />
-						<span className="text-[length:var(--m-text-footnote)]">
-							{emptyLabel}
-						</span>
-					</div>
+					<CrystEmptyState icon={EmptyIcon} size="sm" title={emptyLabel} />
 				) : (
 					children
 				)}
@@ -86,11 +92,7 @@ export function SearchPickerRow({
 	return (
 		<button
 			aria-pressed={isPicked}
-			className={cn(
-				"flex min-h-11 w-full items-center gap-3 border-border border-b px-3.5 py-2 text-left last:border-b-0",
-				isPicked && "bg-[color-mix(in_oklab,var(--primary)_12%,transparent)]",
-				className
-			)}
+			className={cn(CRYST_LIST_ROW, "py-2", isPicked && "bg-accent", className)}
 			onClick={onClick}
 			type="button"
 		>

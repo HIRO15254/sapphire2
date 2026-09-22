@@ -1,5 +1,7 @@
 import { IconPlus, IconTag, IconX } from "@tabler/icons-react";
+import { cn } from "@/lib/utils";
 import { TagPickerBase } from "@/shared/components/ui/tag-picker-base";
+import { CRYST_FOCUS_RING, CRYST_TAG, CRYST_TAG_DOT } from "../cryst-controls";
 
 export interface TagInputTag {
 	color?: string | null;
@@ -16,7 +18,7 @@ interface TagInputProps<TTag extends TagInputTag> {
 	selectedTags: readonly TTag[];
 }
 
-const FALLBACK_COLOR = "var(--primary)";
+const FALLBACK_COLOR = "var(--muted-foreground)";
 
 function tagColor(tag: TagInputTag): string {
 	return tag.color ?? FALLBACK_COLOR;
@@ -36,47 +38,44 @@ export function TagInput<TTag extends TagInputTag>({
 			containerClassName="shrink-0"
 			emptyText="No tag matches"
 			leadingIcon={
-				<IconTag className="shrink-0 text-muted-foreground" size={13} />
+				<IconTag className="shrink-0 text-muted-foreground" size={16} />
 			}
 			onAdd={onAdd}
 			onCreateTag={onCreateTag}
 			onRemove={onRemove}
 			renderCreateOption={(name) => (
 				<>
-					<IconPlus size={13} />
-					<span className="min-w-0 truncate font-semibold">
-						Create "{name}"
-					</span>
+					<IconPlus className="shrink-0 text-muted-foreground" size={14} />
+					<span className="min-w-0 truncate">Create "{name}"</span>
 				</>
 			)}
 			renderSelectedTag={(tag, handleRemove) => (
-				<span
-					className="inline-flex items-center gap-1 rounded-full py-[3px] pr-1.5 pl-2 font-semibold text-[11px]"
-					style={{
-						backgroundColor: `color-mix(in oklab, ${tagColor(tag)} 18%, transparent)`,
-						color: tagColor(tag),
-					}}
-				>
+				<span className={CRYST_TAG}>
+					<span
+						className={CRYST_TAG_DOT}
+						style={{ backgroundColor: tagColor(tag) }}
+					/>
 					{tag.name}
 					<button
 						aria-label={`Remove tag ${tag.name}`}
-						className="inline-flex size-3.5 items-center justify-center rounded-full opacity-65"
+						className={cn(
+							"-mr-0.5 ml-px inline-flex rounded-sm text-muted-foreground hover:text-foreground",
+							CRYST_FOCUS_RING
+						)}
 						onClick={handleRemove}
 						type="button"
 					>
-						<IconX size={11} />
+						<IconX size={12} />
 					</button>
 				</span>
 			)}
 			renderSuggestion={(tag) => (
 				<>
 					<span
-						className="size-[7px] shrink-0 rounded-full"
+						className={CRYST_TAG_DOT}
 						style={{ backgroundColor: tagColor(tag) }}
 					/>
-					{tag.name}
-					<span className="flex-1" />
-					<IconPlus className="text-muted-foreground" size={13} />
+					<span className="min-w-0 truncate">{tag.name}</span>
 				</>
 			)}
 			searchAriaLabel={searchLabel}

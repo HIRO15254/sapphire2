@@ -9,9 +9,10 @@ import {
 } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
+import { CRYST_FOCUS_RING, crystButton } from "../cryst-controls";
 
-const ICON_BUTTON_CLASS =
-	"inline-flex size-9 shrink-0 items-center justify-center rounded-md border border-transparent bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground";
+const ICON_BUTTON_CLASS = crystButton({ size: "icon", variant: "ghost" });
 
 const MASTER_PILL_BASE =
 	"inline-flex min-h-[22px] min-w-0 max-w-24 shrink-[2] items-center gap-1 truncate rounded-full border px-[7px] font-semibold text-[11px]";
@@ -35,13 +36,13 @@ interface SessionHeaderProps {
 
 export function CrystHeaderShell({ children }: { children?: ReactNode }) {
 	return (
-		<header className="flex shrink-0 items-center gap-2 px-4 py-2.5">
+		<header className="flex shrink-0 items-center gap-2 px-4 py-2">
 			<Link
 				aria-label="Back to sessions"
 				className={ICON_BUTTON_CLASS}
 				to="/sessions"
 			>
-				<IconChevronLeft size={16} />
+				<IconChevronLeft size={18} />
 			</Link>
 			{children}
 		</header>
@@ -75,7 +76,10 @@ export function SessionHeader({
 		<CrystHeaderShell>
 			<button
 				aria-label="Session settings"
-				className="inline-flex min-h-8 min-w-0 max-w-[190px] shrink-0 items-center gap-1 hover:text-primary"
+				className={cn(
+					"-mx-1.5 inline-flex min-h-8 min-w-0 max-w-[190px] shrink-0 items-center gap-1 rounded-md px-1.5 transition-colors hover:bg-accent",
+					CRYST_FOCUS_RING
+				)}
 				onClick={onOpenSession}
 				type="button"
 			>
@@ -97,9 +101,9 @@ export function SessionHeader({
 				type="button"
 			>
 				{isPaused ? (
-					<IconPlayerPlay size={16} />
+					<IconPlayerPlay size={18} />
 				) : (
-					<IconPlayerPause size={16} />
+					<IconPlayerPause size={18} />
 				)}
 			</button>
 			<button
@@ -109,7 +113,7 @@ export function SessionHeader({
 				title="End session"
 				type="button"
 			>
-				<IconSquare size={16} />
+				<IconSquare size={18} />
 			</button>
 		</CrystHeaderShell>
 	);

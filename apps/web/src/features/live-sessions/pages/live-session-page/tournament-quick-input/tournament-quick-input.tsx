@@ -1,6 +1,8 @@
 import { IconPencilCheck, IconStack2, IconUsers } from "@tabler/icons-react";
+import { cn } from "@/lib/utils";
 import { Field, FieldError } from "@/shared/components/ui/field";
 import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
+import { CRYST_FIELD, CRYST_FIELD_GROUP, crystButton } from "../cryst-controls";
 import {
 	type TournamentStackValues,
 	useTournamentQuickInput,
@@ -20,7 +22,7 @@ const PLAYERS_ERROR_ID = "cryst-tournament-players-error";
 const ENTRIES_ERROR_ID = "cryst-tournament-entries-error";
 
 const COUNT_INPUT_CLASS =
-	"border-none bg-transparent font-mono text-[length:var(--m-text-secondary)] tabular-nums outline-none disabled:opacity-50";
+	"border-none bg-transparent font-mono tabular-nums outline-none disabled:opacity-50";
 
 export function TournamentQuickInput({
 	currentStack,
@@ -52,13 +54,16 @@ export function TournamentQuickInput({
 				{(field) => (
 					<div className="relative min-w-0">
 						<IconStack2
-							className="pointer-events-none absolute top-5 left-2.5 -translate-y-1/2 text-muted-foreground"
-							size={15}
+							className="pointer-events-none absolute top-5 left-[9px] -translate-y-1/2 text-muted-foreground"
+							size={16}
 						/>
 						<Field error={field.state.meta.errors[0]?.message}>
 							<input
 								aria-label="Current stack"
-								className="h-[var(--m-control)] w-full rounded-md border border-input bg-background pr-2.5 pl-[31px] font-mono text-[length:var(--m-text-secondary)] tabular-nums outline-none focus-visible:border-primary disabled:opacity-50 aria-invalid:border-destructive aria-invalid:bg-[color-mix(in_oklab,var(--destructive)_8%,transparent)]"
+								className={cn(
+									CRYST_FIELD,
+									"h-[var(--m-control)] w-full pr-2.5 pl-[31px] font-mono tabular-nums"
+								)}
 								disabled={isDisabled}
 								id={field.name}
 								{...NO_INPUT_SUGGESTIONS}
@@ -81,10 +86,16 @@ export function TournamentQuickInput({
 							const entriesError = entriesField.state.meta.errors[0]?.message;
 							return (
 								<div className="flex flex-col gap-2">
-									<div className="flex h-[var(--m-control)] items-center gap-0.5 rounded-md border border-input bg-background px-2">
+									<div
+										className={cn(
+											CRYST_FIELD_GROUP,
+											"flex h-[var(--m-control)] items-center gap-0.5 px-2",
+											(playersError || entriesError) && "border-destructive"
+										)}
+									>
 										<IconUsers
 											className="mr-1 shrink-0 text-muted-foreground"
-											size={15}
+											size={16}
 										/>
 										<input
 											aria-describedby={
@@ -105,9 +116,7 @@ export function TournamentQuickInput({
 											type="text"
 											value={playersField.state.value}
 										/>
-										<span className="font-mono text-[length:var(--m-text-secondary)] text-muted-foreground">
-											/
-										</span>
+										<span className="font-mono text-muted-foreground">/</span>
 										<input
 											aria-describedby={
 												entriesError ? ENTRIES_ERROR_ID : undefined
@@ -146,7 +155,7 @@ export function TournamentQuickInput({
 			</form.Field>
 			<button
 				aria-label="Save stack"
-				className="inline-flex size-[var(--m-control)] shrink-0 items-center justify-center rounded-md border border-transparent bg-primary text-primary-foreground disabled:opacity-50"
+				className={crystButton({ size: "icon", variant: "primary" })}
 				disabled={isDisabled || isPending}
 				form={FORM_ID}
 				title="Save stack"

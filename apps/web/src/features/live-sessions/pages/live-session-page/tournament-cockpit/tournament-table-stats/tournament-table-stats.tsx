@@ -19,7 +19,7 @@ export function TournamentTableStats({
 			<div className="flex gap-2 font-mono text-[length:var(--text-xs)] tabular-nums">
 				<span className="text-muted-foreground">{bbText}</span>
 			</div>
-			<span className="text-[11px] text-muted-foreground">
+			<span className="text-[length:var(--text-xs)] text-muted-foreground">
 				Left <span className="font-mono tabular-nums">{remainText}</span> · Avg{" "}
 				<span className="font-mono tabular-nums">{avgText}</span>
 			</span>

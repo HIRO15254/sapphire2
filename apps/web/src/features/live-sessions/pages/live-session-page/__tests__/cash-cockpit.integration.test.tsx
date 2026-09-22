@@ -1129,6 +1129,30 @@ describe("CashCockpit", () => {
 		expect(screen.getByRole("button", { name: "Timeline" })).toBeEnabled();
 		expect(screen.getAllByRole("button", { name: "Note" })[0]).toBeEnabled();
 	});
+	it("moves between Session sheet tabs with the arrow keys", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Session settings" })
+		);
+		const overview = await screen.findByRole("tab", { name: "Overview" });
+		const basics = screen.getByRole("tab", { name: "Basics" });
+		expect(basics).toHaveAttribute("tabindex", "-1");
+
+		overview.focus();
+		await user.keyboard("{ArrowRight}");
+
+		expect(basics).toHaveFocus();
+		expect(basics).toHaveAttribute("aria-selected", "true");
+		expect(await screen.findByLabelText(RULE_NAME_FIELD)).toBeInTheDocument();
+
+		await user.keyboard("{ArrowRight}");
+
+		expect(overview).toHaveFocus();
+		expect(overview).toHaveAttribute("aria-selected", "true");
+	});
+
 	it("collects Basics edits and saves them together when Save is pressed", async () => {
 		const user = userEvent.setup();
 		renderCockpit();

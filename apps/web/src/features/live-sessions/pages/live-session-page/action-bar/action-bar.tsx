@@ -7,6 +7,7 @@ import {
 	IconShoppingCart,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
+import { CRYST_FOCUS_RING } from "../cryst-controls";
 import type { LoggableKind } from "../use-session-journal";
 
 interface ActionBarItem {
@@ -52,7 +53,10 @@ export function ActionBar({
 		>
 			{items.map(({ icon: ItemIcon, kind, label }) => (
 				<button
-					className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-lg border border-border font-medium text-[11px] disabled:opacity-40"
+					className={cn(
+						"flex min-h-12 flex-col items-center justify-center gap-1 rounded-lg border border-border font-medium text-[length:var(--text-xs)] transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50",
+						CRYST_FOCUS_RING
+					)}
 					disabled={kind !== null && !canLog[kind]}
 					key={label}
 					onClick={() =>

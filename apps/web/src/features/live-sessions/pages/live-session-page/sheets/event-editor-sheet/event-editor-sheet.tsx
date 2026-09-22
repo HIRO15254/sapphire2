@@ -1,5 +1,7 @@
 import { IconTrash } from "@tabler/icons-react";
 import type { EventEditorKind } from "@/features/live-sessions/utils/timeline-view";
+import { cn } from "@/lib/utils";
+import { crystButton } from "../../cryst-controls";
 import {
 	EVENT_TONE_TEXT,
 	resolveEventIcon,
@@ -140,12 +142,15 @@ export function EventEditorSheet({
 				{onDelete === null ? null : (
 					<div className="mt-4 border-border border-t pt-3">
 						<button
-							className="inline-flex min-h-[var(--m-control)] w-full items-center justify-center gap-1.5 rounded-md border border-destructive bg-transparent font-medium text-[length:var(--text-sm)] text-destructive disabled:opacity-50"
+							className={cn(
+								crystButton({ variant: "outline" }),
+								"w-full text-destructive hover:text-destructive"
+							)}
 							disabled={isPending}
 							onClick={onDelete}
 							type="button"
 						>
-							<IconTrash size={15} />
+							<IconTrash size={16} />
 							Delete this event
 						</button>
 					</div>

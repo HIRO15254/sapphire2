@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { Field } from "@/shared/components/ui/field";
 import type { BlindSlotLabels } from "@/shared/hooks/use-game-groups";
 import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
+import { CRYST_FIELD, CRYST_FIELD_GROUP } from "../../cryst-controls";
 import { SegmentedButtons } from "../../segmented-buttons";
 import type { AnteType } from "./session-sheet-view";
 import type { SessionForm } from "./use-session-sheet";
@@ -21,8 +22,7 @@ const ANTE_TYPES: { label: string; value: AnteType }[] = [
 
 const FIELD_LABEL_CLASS =
 	"mb-1.5 block font-medium text-[length:var(--text-sm)] text-foreground";
-const CONTROL_CLASS =
-	"box-border h-[var(--m-control)] w-full rounded-lg border border-input bg-card px-2.5 text-[length:var(--m-text-body)] outline-none focus-visible:border-ring aria-invalid:border-destructive disabled:cursor-not-allowed disabled:opacity-50";
+const CONTROL_CLASS = `${CRYST_FIELD} box-border h-[var(--m-control)] w-full px-2.5`;
 const NUMBER_CLASS = `${CONTROL_CLASS} font-mono`;
 
 function fieldId(name: string) {
@@ -143,8 +143,8 @@ function BuyInRangeField({
 								</div>
 								<div
 									className={cn(
-										CONTROL_CLASS,
-										"mt-1.5 flex items-center gap-1.5 focus-within:border-ring",
+										CRYST_FIELD_GROUP,
+										"mt-1.5 box-border flex h-[var(--m-control)] w-full items-center gap-1.5 px-2.5",
 										hasError ? "border-destructive" : null
 									)}
 								>
@@ -383,7 +383,7 @@ export function SessionBasicsTab({
 				<button
 					className={cn(
 						CONTROL_CLASS,
-						"flex items-center justify-between gap-2 text-left hover:bg-muted"
+						"flex items-center justify-between gap-2 text-left hover:bg-accent"
 					)}
 					onClick={onOpenCurrency}
 					type="button"

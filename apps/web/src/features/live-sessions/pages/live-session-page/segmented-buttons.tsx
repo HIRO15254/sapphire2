@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { CRYST_FOCUS_RING } from "./cryst-controls";
 
 export interface SegmentedOption<TValue extends string> {
 	label: string;
@@ -29,10 +30,11 @@ export function SegmentedButtons<TValue extends string>({
 				<button
 					aria-pressed={value === option.value}
 					className={cn(
-						"h-[var(--m-control)] rounded-full border font-semibold text-[length:var(--text-sm)]",
+						"h-[var(--m-control)] rounded-full border font-medium text-[length:var(--text-sm)] transition-colors",
+						CRYST_FOCUS_RING,
 						value === option.value
-							? "border-primary bg-[color-mix(in_oklab,var(--primary)_15%,transparent)] text-primary"
-							: "border-border bg-transparent text-muted-foreground"
+							? "border-primary bg-[var(--selection)] text-primary"
+							: "border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground"
 					)}
 					key={option.value}
 					onClick={() => onChange(option.value)}

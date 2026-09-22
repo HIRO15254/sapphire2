@@ -5,6 +5,7 @@ import {
 	IconUserQuestion,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
+import { CRYST_TAG, CRYST_TAG_DOT } from "../cryst-controls";
 import { SearchPicker, SearchPickerRow } from "../search-picker";
 
 export type PlayerPickerKind = "existing" | "new" | "temporary";
@@ -42,7 +43,7 @@ const KIND_ICONS = {
 
 const KIND_AVATAR = {
 	existing: "bg-muted text-muted-foreground",
-	new: "bg-[color-mix(in_oklab,var(--primary)_15%,transparent)] text-primary",
+	new: "bg-[var(--selection)] text-primary",
 	temporary:
 		"bg-[color-mix(in_oklab,var(--warning)_18%,transparent)] text-warning",
 } as const;
@@ -59,7 +60,7 @@ function CandidateRow({
 	const Icon = KIND_ICONS[candidate.kind];
 	return (
 		<SearchPickerRow
-			className="min-h-14"
+			className="min-h-12"
 			isPicked={isPicked}
 			onClick={() => onPick(candidate)}
 		>
@@ -74,30 +75,27 @@ function CandidateRow({
 			<span className="flex min-w-0 flex-1 flex-col gap-[3px]">
 				<span
 					className={cn(
-						"truncate font-medium text-[length:var(--m-text-secondary)] leading-[1.3]",
+						"truncate font-medium leading-[1.3]",
 						candidate.kind === "temporary" && "text-warning"
 					)}
 				>
 					{candidate.name}
 				</span>
 				{candidate.tags.length === 0 ? null : (
-					<span className="flex min-w-0 flex-wrap items-center gap-[5px]">
+					<span className="flex min-w-0 flex-wrap items-center gap-1">
 						{candidate.tags.map((tag) => (
-							<span
-								className="inline-flex items-center rounded-full px-2 py-[3px] font-semibold text-[11px]"
-								key={tag.id}
-								style={{
-									backgroundColor: `color-mix(in oklab, ${tag.color} 18%, transparent)`,
-									color: tag.color,
-								}}
-							>
+							<span className={CRYST_TAG} key={tag.id}>
+								<span
+									className={CRYST_TAG_DOT}
+									style={{ backgroundColor: tag.color }}
+								/>
 								{tag.name}
 							</span>
 						))}
 					</span>
 				)}
 				{candidate.meta === null ? null : (
-					<span className="truncate text-[length:var(--m-text-caption)] text-muted-foreground leading-[1.35]">
+					<span className="truncate text-[length:var(--text-xs)] text-muted-foreground leading-[1.35]">
 						{candidate.meta}
 					</span>
 				)}

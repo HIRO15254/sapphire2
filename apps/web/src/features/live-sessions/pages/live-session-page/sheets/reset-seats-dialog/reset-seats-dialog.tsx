@@ -1,14 +1,4 @@
-import { cn } from "@/lib/utils";
-import { Button } from "@/shared/components/ui/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@/shared/components/ui/dialog";
-import { CRYST_SCOPE_CLASS } from "../../cryst-scope";
+import { CrystConfirmDialog } from "../cryst-confirm-dialog";
 
 interface ResetSeatsDialogProps {
 	isHeroSeated: boolean;
@@ -40,32 +30,15 @@ export function ResetSeatsDialog({
 	playerCount,
 }: ResetSeatsDialogProps) {
 	return (
-		<Dialog onOpenChange={onOpenChange} open={open}>
-			<DialogContent className={cn(CRYST_SCOPE_CLASS)}>
-				<DialogHeader>
-					<DialogTitle>Clear every seat?</DialogTitle>
-					<DialogDescription>
-						{describeReset(playerCount, isHeroSeated)}
-					</DialogDescription>
-				</DialogHeader>
-				<DialogFooter className="flex-row justify-end gap-2">
-					<Button
-						onClick={() => onOpenChange(false)}
-						type="button"
-						variant="outline"
-					>
-						Cancel
-					</Button>
-					<Button
-						disabled={isPending}
-						onClick={onConfirm}
-						type="button"
-						variant="destructive"
-					>
-						Clear seats
-					</Button>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
+		<CrystConfirmDialog
+			cancelLabel="Cancel"
+			confirmLabel="Clear seats"
+			description={describeReset(playerCount, isHeroSeated)}
+			isPending={isPending}
+			onConfirm={onConfirm}
+			onOpenChange={onOpenChange}
+			open={open}
+			title="Clear every seat?"
+		/>
 	);
 }

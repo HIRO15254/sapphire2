@@ -53,6 +53,13 @@
 	--m-text-footnote: 0.75rem;
 	--m-text-caption: 0.75rem;
 	--m-leading-body: 1.4;
+	--m-sheet-radius: 12px;
+
+	--h-control-md: var(--m-control);
+	--ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+	--ease-in-out: cubic-bezier(0.45, 0, 0.25, 1);
+	--default-transition-duration: 100ms;
+	--default-transition-timing-function: var(--ease-out);
 }
 
 .dark .cryst {

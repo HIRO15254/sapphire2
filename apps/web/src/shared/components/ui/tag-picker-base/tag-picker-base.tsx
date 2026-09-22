@@ -119,7 +119,7 @@ export function TagPickerBase<TTag extends TagItemBase>({
 					}
 				}}
 			>
-				<div className="flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border border-input bg-card px-2 py-1.5">
+				<div className="flex min-h-[var(--m-control)] flex-wrap items-center gap-1.5 rounded-lg border border-input bg-card px-[9px] py-[7px] transition-[border-color,box-shadow] focus-within:border-ring focus-within:shadow-[0_0_0_3px_var(--selection)]">
 					{leadingIcon}
 					{selectedTags.map((tag) => (
 						<div key={tag.id}>
@@ -130,7 +130,7 @@ export function TagPickerBase<TTag extends TagItemBase>({
 						aria-expanded={shouldRenderPopover}
 						aria-label={searchAriaLabel}
 						autoComplete="off"
-						className="h-6 min-w-20 flex-1 border-none bg-transparent px-0.5 text-[length:var(--text-xs)] outline-none"
+						className="h-6 min-w-20 flex-1 border-none bg-transparent px-0.5 text-[length:var(--m-text-body)] outline-none"
 						onChange={(event) => {
 							onInputChange(event.target.value);
 							onOpenChange(true);
@@ -144,10 +144,10 @@ export function TagPickerBase<TTag extends TagItemBase>({
 					/>
 				</div>
 				{shouldRenderPopover ? (
-					<div className="absolute inset-x-0 top-[calc(100%+4px)] z-[5] max-h-40 overflow-y-auto rounded-md border border-border bg-popover p-1 shadow-[var(--shadow-popover)]">
+					<div className="absolute inset-x-0 top-[calc(100%+6px)] z-[5] max-h-40 overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-[var(--shadow-popover)]">
 						{filteredTags.map((tag) => (
 							<button
-								className="flex h-[30px] w-full items-center gap-[7px] rounded-sm px-2 text-left text-[length:var(--text-xs)] hover:bg-accent"
+								className="flex h-[30px] w-full items-center gap-2 rounded-sm px-2 text-left text-[length:var(--text-sm)] hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
 								key={tag.id}
 								onClick={() => handleTagSelect(tag)}
 								onMouseDown={(event) => event.preventDefault()}
@@ -158,7 +158,7 @@ export function TagPickerBase<TTag extends TagItemBase>({
 						))}
 						{canCreate ? (
 							<button
-								className="flex h-[30px] w-full items-center gap-[7px] rounded-sm px-2 text-left text-[length:var(--text-xs)] text-primary disabled:opacity-60"
+								className="flex h-[30px] w-full items-center gap-2 rounded-sm px-2 text-left text-[length:var(--text-sm)] hover:bg-accent focus-visible:bg-accent focus-visible:outline-none disabled:opacity-50"
 								disabled={isCreatingTag}
 								onClick={() => handleInputSubmit().catch(() => undefined)}
 								onMouseDown={(event) => event.preventDefault()}
@@ -171,7 +171,7 @@ export function TagPickerBase<TTag extends TagItemBase>({
 							</button>
 						) : null}
 						{filteredTags.length === 0 && !canCreate ? (
-							<p className="p-2 text-[length:var(--text-xs)] text-muted-foreground">
+							<p className="p-2 text-[length:var(--text-sm)] text-muted-foreground">
 								{emptyText}
 							</p>
 						) : null}

@@ -6,6 +6,13 @@ import {
 	isMasterFieldDifferent,
 } from "@/features/live-sessions/utils/session-settings";
 import { cn } from "@/lib/utils";
+import {
+	CRYST_ALERT,
+	CRYST_TAB,
+	CRYST_TAB_LIST,
+	crystButton,
+	onCrystTabListKeyDown,
+} from "../../cryst-controls";
 import { CrystFormSheet } from "../cryst-form-sheet";
 import { CurrencySheet } from "../currency-sheet";
 import { DiscardChangesDialog } from "../discard-changes-dialog";
@@ -59,21 +66,18 @@ export function SessionSheet({
 				>
 					<div
 						aria-label="Session sections"
-						className="flex gap-0.5 rounded-lg bg-muted p-[3px]"
+						className={CRYST_TAB_LIST}
+						onKeyDown={onCrystTabListKeyDown}
 						role="tablist"
 					>
 						{sheet.tabs.map((tab) => (
 							<button
 								aria-selected={tab.isActive}
-								className={cn(
-									"h-[34px] min-w-0 flex-1 rounded-md text-[length:var(--text-sm)]",
-									tab.isActive
-										? "bg-card font-semibold text-foreground"
-										: "bg-transparent font-medium text-muted-foreground"
-								)}
+								className={CRYST_TAB}
 								key={tab.key}
 								onClick={() => sheet.onSelectTab(tab.key)}
 								role="tab"
+								tabIndex={tab.isActive ? 0 : -1}
 								type="button"
 							>
 								{tab.label}
@@ -84,20 +88,26 @@ export function SessionSheet({
 					<form.Subscribe selector={(state) => state.values}>
 						{(values) =>
 							hasMasterDrift(sheet.masterValues, values) ? (
-								<div className="flex items-center gap-2 rounded-lg border border-[color-mix(in_oklab,var(--info)_45%,transparent)] bg-[color-mix(in_oklab,var(--info)_10%,transparent)] px-3 py-2">
-									<IconInfoCircle className="shrink-0 text-info" size={15} />
-									<span className="min-w-0 flex-1 truncate text-[length:var(--m-text-caption)]">
+								<div
+									className={cn(
+										CRYST_ALERT,
+										"flex items-center gap-2.5 py-1.5 pr-1.5 pl-3.5"
+									)}
+									role="status"
+								>
+									<IconInfoCircle className="shrink-0 text-info" size={16} />
+									<span className="min-w-0 flex-1 truncate font-semibold tracking-[var(--tracking-heading)]">
 										Differs from linked master
 									</span>
 									<button
-										className="shrink-0 font-semibold text-[length:var(--m-text-caption)] text-muted-foreground hover:text-foreground"
+										className={crystButton({ size: "sm", variant: "ghost" })}
 										onClick={sheet.onResetToMaster}
 										type="button"
 									>
 										Reset
 									</button>
 									<button
-										className="shrink-0 font-semibold text-[length:var(--m-text-caption)] text-muted-foreground hover:text-foreground disabled:opacity-60"
+										className={crystButton({ size: "sm", variant: "ghost" })}
 										disabled={sheet.isSyncingMaster}
 										onClick={() => {
 											sheet.onPushToMaster().catch(() => undefined);

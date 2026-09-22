@@ -75,9 +75,9 @@ export function SitInSheet({
 					searchLabel="Search by name, or type a new one"
 				/>
 
-				<div className="flex min-h-[var(--m-control)] items-center justify-between gap-2 rounded-md border border-border px-3 py-1.5">
+				<div className="flex min-h-[var(--m-control)] items-center justify-between gap-2.5 rounded-lg border border-border bg-card px-3 py-1.5">
 					<label
-						className="flex min-w-0 flex-col gap-0.5 text-[length:var(--m-text-footnote)]"
+						className="flex min-w-0 flex-col gap-0.5 text-[length:var(--m-text-body)]"
 						htmlFor={HERO_SWITCH_ID}
 					>
 						<span className="inline-flex items-center gap-1.5">
@@ -85,13 +85,14 @@ export function SitInSheet({
 							This is my seat
 						</span>
 						{sheet.heroMovesFrom === null ? null : (
-							<span className="text-[length:var(--m-text-caption)] text-warning">
+							<span className="text-[length:var(--text-xs)] text-warning">
 								Moves your seat from {sheet.heroMovesFrom}
 							</span>
 						)}
 					</label>
 					<Switch
 						checked={sheet.isHeroSeat}
+						className="h-6 w-10 shadow-none duration-[160ms] [&_[data-slot=switch-thumb]]:size-5 [&_[data-slot=switch-thumb]]:bg-white [&_[data-slot=switch-thumb]]:shadow-[var(--shadow-sm)] [&_[data-slot=switch-thumb]]:duration-[160ms]"
 						id={HERO_SWITCH_ID}
 						onCheckedChange={sheet.onToggleHeroSeat}
 					/>

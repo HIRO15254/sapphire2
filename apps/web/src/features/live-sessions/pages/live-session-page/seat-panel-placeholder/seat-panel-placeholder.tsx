@@ -1,12 +1,13 @@
 import { IconUserSearch } from "@tabler/icons-react";
+import { CrystEmptyState } from "../cryst-empty-state";
 
 export function SeatPanelPlaceholder() {
 	return (
-		<div className="flex h-full min-h-16 flex-col items-center justify-center gap-1.5 p-4 text-muted-foreground">
-			<IconUserSearch size={20} />
-			<span className="text-pretty text-center text-[length:var(--m-text-footnote)]">
-				Tap a seated player to edit their profile here
-			</span>
-		</div>
+		<CrystEmptyState
+			className="h-full min-h-16"
+			description="Tap a seated player to edit their profile here"
+			icon={IconUserSearch}
+			size="sm"
+		/>
 	);
 }

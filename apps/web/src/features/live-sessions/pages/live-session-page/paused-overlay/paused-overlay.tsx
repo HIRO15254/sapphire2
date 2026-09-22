@@ -1,4 +1,5 @@
 import { IconNote, IconPlayerPause, IconPlayerPlay } from "@tabler/icons-react";
+import { crystButton } from "../cryst-controls";
 
 interface PausedOverlayProps {
 	onNote: () => void;
@@ -25,19 +26,19 @@ export function PausedOverlay({
 			</span>
 			<div className="mt-1 flex gap-2">
 				<button
-					className="inline-flex min-h-[var(--m-control)] items-center gap-[7px] rounded-full border border-transparent bg-primary px-4 font-semibold text-[length:var(--m-text-secondary)] text-primary-foreground"
+					className={crystButton({ variant: "primary" })}
 					onClick={onResume}
 					type="button"
 				>
-					<IconPlayerPlay size={17} />
+					<IconPlayerPlay size={18} />
 					Resume
 				</button>
 				<button
-					className="inline-flex min-h-[var(--m-control)] items-center gap-[7px] rounded-full border border-border bg-card px-3.5 font-medium text-[length:var(--m-text-secondary)] text-foreground disabled:opacity-50"
+					className={crystButton({ variant: "outline" })}
 					onClick={onNote}
 					type="button"
 				>
-					<IconNote size={17} />
+					<IconNote size={18} />
 					Note
 				</button>
 			</div>

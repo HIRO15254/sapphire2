@@ -1,5 +1,7 @@
+import { IconListDetails } from "@tabler/icons-react";
 import { SessionResultChart } from "@/features/live-sessions/components/session-result-chart";
 import type { TimelineRow as TimelineRowModel } from "@/features/live-sessions/utils/timeline-view";
+import { CrystEmptyState } from "../../cryst-empty-state";
 import { CrystSheet } from "../cryst-sheet";
 import { TimelineRow } from "./timeline-row";
 
@@ -35,9 +37,11 @@ export function TimelineSheet({
 			title="Event timeline"
 		>
 			{rows.length === 0 ? (
-				<p className="py-6 text-center text-[length:var(--text-xs)] text-muted-foreground">
-					No events recorded yet.
-				</p>
+				<CrystEmptyState
+					icon={IconListDetails}
+					size="sm"
+					title="No events recorded yet"
+				/>
 			) : (
 				<ul className="flex flex-col">
 					{rows.map((row) => (

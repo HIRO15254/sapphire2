@@ -1,4 +1,10 @@
 import { IconLoader2, IconLogout } from "@tabler/icons-react";
+import { cn } from "@/lib/utils";
+import {
+	CRYST_FIELD_MD,
+	CRYST_INLINE_FIELD,
+	crystButton,
+} from "../cryst-controls";
 import { TagInput } from "../tag-input";
 import { useSelectedPlayerPanel } from "./use-selected-player-panel";
 
@@ -44,19 +50,25 @@ export function SelectedPlayerPanel({
 				</span>
 				<input
 					aria-label="Player name"
-					className="-mx-1.5 h-7 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1.5 font-semibold text-[length:var(--m-text-body)] outline-none focus-visible:border-input focus-visible:bg-card"
+					className={cn(
+						CRYST_INLINE_FIELD,
+						"-mx-1.5 h-7 min-w-0 flex-1 px-1.5 font-semibold text-[length:var(--m-text-body)]"
+					)}
 					defaultValue={panel.player.name}
 					key={playerId}
 					onBlur={(e) => panel.onNameCommit(e.target.value)}
 					type="text"
 				/>
 				<button
-					className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-border bg-transparent px-2 text-[length:var(--text-xs)] text-destructive"
+					className={cn(
+						crystButton({ size: "sm", variant: "outline" }),
+						"text-destructive hover:text-destructive"
+					)}
 					onClick={panel.onLeave}
 					title="Log leaving and clear the seat"
 					type="button"
 				>
-					<IconLogout size={13} />
+					<IconLogout size={14} />
 					Leave
 				</button>
 			</div>
@@ -72,7 +84,10 @@ export function SelectedPlayerPanel({
 
 			<textarea
 				aria-label="Notes on this player"
-				className="min-h-14 w-full flex-1 resize-none rounded-md border border-input bg-card p-2 text-[length:var(--m-text-footnote)] leading-[var(--leading-relaxed)] outline-none focus-visible:border-ring"
+				className={cn(
+					CRYST_FIELD_MD,
+					"min-h-14 w-full flex-1 resize-none px-2.5 py-2 leading-normal"
+				)}
 				defaultValue={panel.notesText}
 				key={playerId}
 				onBlur={(e) => panel.onNotesCommit(e.target.value)}
