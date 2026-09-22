@@ -14,7 +14,7 @@ Enforcement is deliberately split across three mechanisms, which is why [`models
 
 `EXTRACTION_MAX_OUTPUT_TOKENS` is the output cap for both extraction requests. It is sized well above the realistic output size because `max_output_tokens` bounds reasoning **plus** response text, and only generated tokens are billed — headroom is free, while a tight cap turns into the truncation failure below.
 
-`LATEST_MODEL` pins a concrete tier (`gpt-5.6-sol`) rather than the `gpt-5.6` alias, so OpenAI repointing the alias cannot change behavior or cost without a PR.
+`LATEST_MODEL` pins a concrete tier (`gpt-5.6-luna`) rather than the `gpt-5.6` alias, so OpenAI repointing the alias cannot change behavior or cost without a PR. Luna is the family's cheapest tier, chosen because it was tried against the real screenshots and read them acceptably at roughly a twentieth of the flagship's price. All three tiers take image input and strict Structured Outputs, so moving between them is a one-line edit here.
 
 ## Two schemas per procedure: strict wire, optional contract
 

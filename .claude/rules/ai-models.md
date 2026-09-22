@@ -19,7 +19,7 @@ Why this file exists: scattered inline model IDs let features drift across model
 
 Do not query the Models API and select the newest model by date. Model upgrades require human review because they can introduce breaking API changes, and because automatic selection by date can silently switch to a model with different pricing or a different tier (preview models, or the far more expensive frontier tier).
 
-`gpt-5.6` is an **alias** OpenAI repoints as the family moves; `AI_MODELS` pins the concrete tier (`gpt-5.6-sol`) so a provider-side alias change cannot alter behavior or cost without a PR. The family's tiers — `sol` (flagship), `terra`, `luna` (cheapest) — differ in price and latency, not in API shape.
+`gpt-5.6` is an **alias** OpenAI repoints as the family moves; `AI_MODELS` pins the concrete tier (`gpt-5.6-luna`) so a provider-side alias change cannot alter behavior or cost without a PR. The family's tiers — `sol` (flagship), `terra`, `luna` (cheapest) — differ in price and latency, not in API shape: all three take image input and strict Structured Outputs, so moving between them is a one-line edit. Luna is the current pick: it was tried against the real screenshots and extracted them acceptably at roughly a twentieth of the flagship's price. Do not move up a tier without evidence from those screenshots that Luna is the cause of a failure — an extraction error is far more often a prompt or schema problem than a tier problem.
 
 ## Every AI call goes through the Responses API with Structured Outputs
 

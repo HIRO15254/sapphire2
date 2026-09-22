@@ -1,4 +1,4 @@
-export const LATEST_MODEL = "gpt-5.6-sol";
+export const LATEST_MODEL = "gpt-5.6-luna";
 
 export const AI_MODELS = {
 	seating: LATEST_MODEL,
