@@ -43,6 +43,7 @@
     "lint": "ultracite check",
     "check": "ultracite check",
     "check:rules": "bun scripts/check-rules.ts",
+    "try:ai-extract": "bun scripts/try-ai-extract.ts",
     "fix": "ultracite fix",
     "prepare": "husky"
   },
