@@ -1,6 +1,6 @@
 import { IconCheck, IconPlus, IconStarFilled } from "@tabler/icons-react";
 import type { CurrencyLike } from "@/features/live-sessions/utils/session-settings";
-import { currencySample } from "@/features/live-sessions/utils/session-settings";
+import { formatWithUnit } from "@/features/live-sessions/utils/session-settings";
 import { cn } from "@/lib/utils";
 import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
 import { CrystSheet } from "../cryst-sheet";
@@ -12,6 +12,7 @@ const TEXT_INPUT_CLASS =
 	"h-[var(--m-control)] min-w-0 rounded-md border border-input bg-background px-2.5 text-[length:var(--text-sm)] outline-none focus-visible:border-primary";
 
 export interface CurrencyOption extends CurrencyLike {
+	balance: number;
 	isFavorite: boolean;
 }
 
@@ -70,7 +71,7 @@ export function CurrencySheet({
 										{currency.name}
 									</span>
 									<span className="text-[length:var(--m-text-caption)] text-muted-foreground">
-										{currencySample(currency.unit)}
+										{formatWithUnit(currency.balance, currency.unit)}
 									</span>
 								</span>
 								{currency.isFavorite ? (

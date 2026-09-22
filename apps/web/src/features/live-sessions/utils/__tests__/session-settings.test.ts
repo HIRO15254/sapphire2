@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
 	currencyRowLabel,
-	currencySample,
 	describeMasterLink,
 	filterTagCandidates,
 	findCurrency,
@@ -30,11 +29,6 @@ describe("formatWithUnit", () => {
 	it("drops the unit entirely when there is none", () => {
 		expect(formatWithUnit(51_800, null)).toBe("51,800");
 		expect(formatWithUnit(51_800, "")).toBe("51,800");
-	});
-
-	it("formats the picker sample with the same rule", () => {
-		expect(currencySample("$")).toBe("$51,800");
-		expect(currencySample("chips")).toBe("51,800 chips");
 	});
 });
 

@@ -200,6 +200,7 @@ export function useSessionSheet({
 	return {
 		blindLabels: labelsFor(view.variantLabel),
 		currencyOptions: settings.currencies.map((row) => ({
+			balance: row.balance,
 			id: row.id,
 			isFavorite: row.isFavorite,
 			name: row.name,

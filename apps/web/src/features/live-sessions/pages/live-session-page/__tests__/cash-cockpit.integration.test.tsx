@@ -268,8 +268,20 @@ const fixtureRouter = t.router({
 	}),
 	currency: t.router({
 		list: t.procedure.query(() => [
-			{ id: "cur-1", isFavorite: true, name: "Japanese yen", unit: "¥" },
-			{ id: "cur-2", isFavorite: false, name: "Club chips", unit: "chips" },
+			{
+				balance: 12_000,
+				id: "cur-1",
+				isFavorite: true,
+				name: "Japanese yen",
+				unit: "¥",
+			},
+			{
+				balance: 30_000,
+				id: "cur-2",
+				isFavorite: false,
+				name: "Club chips",
+				unit: "chips",
+			},
 		]),
 	}),
 	gameGroup: t.router({
@@ -1084,9 +1096,11 @@ describe("CashCockpit", () => {
 			await screen.findByRole("button", { name: "Session settings" })
 		);
 		await user.click(await screen.findByRole("button", { name: CURRENCY_ROW }));
-		await user.click(
-			await screen.findByRole("button", { name: CLUB_CHIPS_ROW })
-		);
+		const clubChipsRow = await screen.findByRole("button", {
+			name: CLUB_CHIPS_ROW,
+		});
+		expect(clubChipsRow).toHaveTextContent("30,000 chips");
+		await user.click(clubChipsRow);
 
 		await user.click(await screen.findByLabelText("Add session tag"));
 		await user.click(

@@ -1,7 +1,6 @@
 import { formatNumber } from "@/utils/format-number";
 
 const SYMBOL_UNIT_LENGTH = 1;
-const SAMPLE_AMOUNT = 51_800;
 
 export interface CurrencyLike {
 	id: string;
@@ -26,10 +25,6 @@ export function formatWithUnit(
 	return unit.length === SYMBOL_UNIT_LENGTH
 		? `${unit}${body}`
 		: `${body} ${unit}`;
-}
-
-export function currencySample(unit: string | null | undefined): string {
-	return formatWithUnit(SAMPLE_AMOUNT, unit);
 }
 
 export function currencyRowLabel(currency: CurrencyLike | null): string {
