@@ -1,3 +1,4 @@
+import { IconLoader2 } from "@tabler/icons-react";
 import type * as React from "react";
 import { cn } from "@/lib/utils";
 import {
@@ -39,6 +40,23 @@ const defaultRenderCreateOption = (name: string) => (
 	<>Create &quot;{name}&quot;</>
 );
 
+function CreateOptionContent({
+	isCreatingTag,
+	label,
+}: {
+	isCreatingTag: boolean;
+	label: React.ReactNode;
+}) {
+	return (
+		<>
+			{isCreatingTag ? (
+				<IconLoader2 className="size-3.5 shrink-0 animate-spin" />
+			) : null}
+			{label}
+		</>
+	);
+}
+
 export function TagPickerBase<TTag extends TagItemBase>({
 	availableTags,
 	containerClassName,
@@ -63,6 +81,7 @@ export function TagPickerBase<TTag extends TagItemBase>({
 		handleTagSelect,
 		inputRef,
 		inputValue,
+		isCreatingTag,
 		normalizedInput,
 		onInputChange,
 		onOpenChange,
@@ -139,12 +158,16 @@ export function TagPickerBase<TTag extends TagItemBase>({
 						))}
 						{canCreate ? (
 							<button
-								className="flex h-[30px] w-full items-center gap-[7px] rounded-sm px-2 text-left text-[length:var(--text-xs)] text-primary"
+								className="flex h-[30px] w-full items-center gap-[7px] rounded-sm px-2 text-left text-[length:var(--text-xs)] text-primary disabled:opacity-60"
+								disabled={isCreatingTag}
 								onClick={() => handleInputSubmit().catch(() => undefined)}
 								onMouseDown={(event) => event.preventDefault()}
 								type="button"
 							>
-								{renderCreateOption(normalizedInput)}
+								<CreateOptionContent
+									isCreatingTag={isCreatingTag}
+									label={renderCreateOption(normalizedInput)}
+								/>
 							</button>
 						) : null}
 						{filteredTags.length === 0 && !canCreate ? (
@@ -218,13 +241,17 @@ export function TagPickerBase<TTag extends TagItemBase>({
 								))}
 								{canCreate ? (
 									<CommandItem
+										disabled={isCreatingTag}
 										onMouseDown={(event) => event.preventDefault()}
 										onSelect={() => {
 											handleInputSubmit().catch(() => undefined);
 										}}
 										value={`create-${normalizedInput}`}
 									>
-										{renderCreateOption(normalizedInput)}
+										<CreateOptionContent
+											isCreatingTag={isCreatingTag}
+											label={renderCreateOption(normalizedInput)}
+										/>
 									</CommandItem>
 								) : null}
 							</CommandList>

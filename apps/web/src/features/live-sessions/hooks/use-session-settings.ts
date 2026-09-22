@@ -30,6 +30,8 @@ export interface SessionSnapshotPatch {
 	tournamentBuyIn?: number | null;
 }
 
+export type MasterFieldPatch = SessionSnapshotPatch & { currencyId?: string };
+
 interface UseSessionSettingsOptions {
 	sessionId: string;
 	sessionType: SessionSettingsType;
@@ -66,6 +68,46 @@ function snapshotMutation(
 	return trpcClient.liveTournamentSession.updateSnapshot.mutate({
 		id,
 		...tournament,
+	});
+}
+
+function syncMasterMutation(
+	sessionType: SessionSettingsType,
+	masterId: string,
+	patch: MasterFieldPatch
+): Promise<unknown> {
+	if (sessionType === "cash_game") {
+		const {
+			bountyAmount: _bounty,
+			entryFee: _fee,
+			ruleName,
+			startingStack: _stack,
+			tournamentBuyIn: _buyIn,
+			...rest
+		} = patch;
+		return trpcClient.ringGame.update.mutate({
+			id: masterId,
+			...rest,
+			...(ruleName === undefined ? {} : { name: ruleName }),
+		});
+	}
+	const {
+		ante: _ante,
+		anteType: _anteType,
+		blind1: _b1,
+		blind2: _b2,
+		blind3: _b3,
+		maxBuyIn: _max,
+		minBuyIn: _min,
+		ruleName,
+		tournamentBuyIn,
+		...rest
+	} = patch;
+	return trpcClient.tournament.update.mutate({
+		id: masterId,
+		...rest,
+		...(ruleName === undefined ? {} : { name: ruleName }),
+		...(tournamentBuyIn === undefined ? {} : { buyIn: tournamentBuyIn }),
 	});
 }
 
@@ -150,12 +192,19 @@ export function useSessionSettings({
 	const masterRingGameId = detailQuery.data?.ringGameId ?? null;
 	const masterTournamentId = detailQuery.data?.tournamentId ?? null;
 
+	const ringGameListQueryOptions = trpc.ringGame.listByRoom.queryOptions({
+		roomId: masterRoomId ?? "",
+	});
+	const tournamentMasterQueryOptions = trpc.tournament.getById.queryOptions({
+		id: masterTournamentId ?? "",
+	});
+
 	const ringGameMasterQuery = useQuery({
-		...trpc.ringGame.listByRoom.queryOptions({ roomId: masterRoomId ?? "" }),
+		...ringGameListQueryOptions,
 		enabled: isCash && masterRoomId !== null && masterRingGameId !== null,
 	});
 	const tournamentMasterQuery = useQuery({
-		...trpc.tournament.getById.queryOptions({ id: masterTournamentId ?? "" }),
+		...tournamentMasterQueryOptions,
 		enabled: !isCash && masterTournamentId !== null,
 	});
 
@@ -165,6 +214,8 @@ export function useSessionSettings({
 					null
 			)
 		: describeTournamentMasterValues(tournamentMasterQuery.data ?? null);
+
+	const masterId = isCash ? masterRingGameId : masterTournamentId;
 
 	const refresh = () =>
 		invalidateTargets(queryClient, [
@@ -261,6 +312,21 @@ export function useSessionSettings({
 		onSettled: refresh,
 	});
 
+	const syncMaster = useMutation({
+		mutationFn: (patch: MasterFieldPatch) => {
+			if (masterId === null) {
+				return Promise.reject(new Error("No linked master to sync"));
+			}
+			return syncMasterMutation(sessionType, masterId, patch);
+		},
+		onSettled: () => {
+			invalidateTargets(queryClient, [
+				{ queryKey: ringGameListQueryOptions.queryKey },
+				{ queryKey: tournamentMasterQueryOptions.queryKey },
+			]);
+		},
+	});
+
 	const createTag = useMutation({
 		mutationFn: (name: string) => trpcClient.sessionTag.create.mutate({ name }),
 		onSettled: () => {
@@ -283,10 +349,13 @@ export function useSessionSettings({
 		isCurrencyPending: createCurrency.isPending,
 		isLoading: detailQuery.isLoading,
 		isSaving: snapshot.isPending || live.isPending || tags.isPending,
+		isSyncingMaster: syncMaster.isPending,
 		master,
 		onCreateCurrency: (values: { name: string; unit: string }) =>
 			createCurrency.mutateAsync(values),
 		onCreateTag: (name: string) => createTag.mutateAsync(name),
+		onSyncMasterFromSession: (patch: MasterFieldPatch) =>
+			syncMaster.mutateAsync(patch),
 		onUpdateLive: (patch: { currencyId?: string; memo?: string | null }) =>
 			live.mutateAsync(patch),
 		onUpdateSnapshot: (patch: SessionSnapshotPatch) =>

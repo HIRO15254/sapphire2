@@ -166,6 +166,40 @@ describe("useTagPickerBase", () => {
 			});
 			expect(onAdd).not.toHaveBeenCalled();
 		});
+
+		it("ignores a second submit while a create is still pending, so no duplicate tag is created", async () => {
+			const { hook, onAdd, onCreateTag } = setup();
+			const created: Tag = { id: "new", name: "Fresh" };
+			let resolveCreate: (tag: Tag) => void = () => undefined;
+			onCreateTag.mockReturnValue(
+				new Promise<Tag>((resolve) => {
+					resolveCreate = resolve;
+				})
+			);
+
+			act(() => hook.result.current.onInputChange("Fresh"));
+
+			let firstSubmit: Promise<void> = Promise.resolve();
+			let secondSubmit: Promise<void> = Promise.resolve();
+			act(() => {
+				firstSubmit = hook.result.current.handleInputSubmit();
+				secondSubmit = hook.result.current.handleInputSubmit();
+			});
+
+			expect(hook.result.current.isCreatingTag).toBe(true);
+			expect(onCreateTag).toHaveBeenCalledTimes(1);
+
+			await act(async () => {
+				resolveCreate(created);
+				await firstSubmit;
+				await secondSubmit;
+			});
+
+			expect(onCreateTag).toHaveBeenCalledTimes(1);
+			expect(onAdd).toHaveBeenCalledTimes(1);
+			expect(onAdd).toHaveBeenCalledWith(created);
+			expect(hook.result.current.isCreatingTag).toBe(false);
+		});
 	});
 
 	describe("shouldRenderPopover", () => {

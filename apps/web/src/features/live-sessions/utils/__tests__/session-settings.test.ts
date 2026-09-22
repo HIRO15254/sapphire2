@@ -6,6 +6,7 @@ import {
 	describeTournamentMasterValues,
 	findCurrency,
 	formatWithUnit,
+	hasMasterDrift,
 	isMasterFieldDifferent,
 } from "../session-settings";
 
@@ -160,5 +161,62 @@ describe("isMasterFieldDifferent", () => {
 
 	it("is false for a key the master does not carry (tournament-only key on a cash master)", () => {
 		expect(isMasterFieldDifferent(master, "entryFee", "500")).toBe(false);
+	});
+});
+
+describe("hasMasterDrift", () => {
+	const master = describeCashMasterValues({
+		ante: null,
+		anteType: "none",
+		blind1: 100,
+		blind2: 200,
+		blind3: null,
+		currencyId: "cur-1",
+		maxBuyIn: null,
+		minBuyIn: null,
+		name: "Friday game",
+		tableSize: 9,
+	});
+
+	it("is false when there is no master (unlinked session)", () => {
+		expect(hasMasterDrift(null, { blind2: "999" })).toBe(false);
+	});
+
+	it("is false when every value present matches the master", () => {
+		expect(
+			hasMasterDrift(master, {
+				ante: "",
+				anteType: "none",
+				blind1: "100",
+				blind2: "200",
+				blind3: "",
+				currencyId: "cur-1",
+				maxBuyIn: "",
+				minBuyIn: "",
+				ruleName: "Friday game",
+				tableSize: "9",
+			})
+		).toBe(false);
+	});
+
+	it("is true when a single field diverges from the master", () => {
+		expect(
+			hasMasterDrift(master, {
+				ante: "",
+				anteType: "none",
+				blind1: "100",
+				blind2: "400",
+				blind3: "",
+				currencyId: "cur-1",
+				maxBuyIn: "",
+				minBuyIn: "",
+				ruleName: "Friday game",
+				tableSize: "9",
+			})
+		).toBe(true);
+	});
+
+	it("treats a missing key as an empty string, so an unset field can still drift", () => {
+		expect(hasMasterDrift(master, {})).toBe(true);
 	});
 });

@@ -1,10 +1,14 @@
 import { useForm } from "@tanstack/react-form";
 import { useEffect, useRef, useState } from "react";
 import z from "zod";
-import type { SessionSnapshotPatch } from "@/features/live-sessions/hooks/use-session-settings";
+import type {
+	MasterFieldPatch,
+	SessionSnapshotPatch,
+} from "@/features/live-sessions/hooks/use-session-settings";
 import { useSessionSettings } from "@/features/live-sessions/hooks/use-session-settings";
 import {
 	findCurrency,
+	type MasterFieldKey,
 	type SessionTagLike,
 } from "@/features/live-sessions/utils/session-settings";
 import { useGameGroups } from "@/shared/hooks/use-game-groups";
@@ -130,6 +134,16 @@ function buildLivePatch(values: SessionFormValues) {
 	};
 }
 
+function buildMasterPatch(
+	values: SessionFormValues,
+	isCash: boolean
+): MasterFieldPatch {
+	return {
+		...buildSnapshotPatch(values, isCash),
+		...(values.currencyId === "" ? null : { currencyId: values.currencyId }),
+	};
+}
+
 interface UseSessionSheetOptions {
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
@@ -174,6 +188,29 @@ export function useSessionSheet({
 
 	const view = describeSessionDetail(settings.detail, sessionType);
 
+	const onResetToMaster = () => {
+		const master = settings.master;
+		if (master === null) {
+			return;
+		}
+		for (const [key, value] of Object.entries(master) as [
+			MasterFieldKey,
+			string,
+		][]) {
+			if (key === "anteType") {
+				form.setFieldValue("anteType", value as SessionFormValues["anteType"]);
+				continue;
+			}
+			form.setFieldValue(key as Exclude<MasterFieldKey, "anteType">, value);
+		}
+	};
+
+	const onPushToMaster = async () => {
+		await settings.onSyncMasterFromSession(
+			buildMasterPatch(form.state.values, isCash)
+		);
+	};
+
 	return {
 		availableTags: settings.availableTags,
 		blindLabels: labelsFor(view.variantLabel),
@@ -193,6 +230,7 @@ export function useSessionSheet({
 		isLoading: settings.isLoading,
 		isMasterLinked: view.isMasterLinked,
 		isSaving: settings.isSaving,
+		isSyncingMaster: settings.isSyncingMaster,
 		master: view.master,
 		masterValues: settings.master,
 		onCreateCurrency: settings.onCreateCurrency,
@@ -205,6 +243,8 @@ export function useSessionSheet({
 		},
 		onCurrencyOpenChange: setIsCurrencyOpen,
 		onOpenCurrency: () => setIsCurrencyOpen(true),
+		onPushToMaster,
+		onResetToMaster,
 		onSelectTab: setTab,
 		roomName: view.roomName,
 		tab,

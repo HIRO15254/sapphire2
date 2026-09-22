@@ -159,3 +159,15 @@ export function isMasterFieldDifferent(
 	const masterValue = master[key];
 	return masterValue !== undefined && masterValue !== currentValue;
 }
+
+export function hasMasterDrift(
+	master: MasterFieldValues | null,
+	values: Partial<Record<MasterFieldKey, string>>
+): boolean {
+	if (master === null) {
+		return false;
+	}
+	return (Object.keys(master) as MasterFieldKey[]).some((key) =>
+		isMasterFieldDifferent(master, key, values[key] ?? "")
+	);
+}

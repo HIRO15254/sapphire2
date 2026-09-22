@@ -93,6 +93,22 @@ const backend = {
 	snapshotUpdates: [] as Record<string, unknown>[],
 	status: "active",
 	updatedEvents: [] as UpdatedEvent[],
+	masterRingGameId: null as string | null,
+	masterRoomId: null as string | null,
+	ringGameMaster: {
+		ante: 0,
+		anteType: "none" as string | null,
+		blind1: 200,
+		blind2: 400,
+		blind3: null as number | null,
+		currencyId: null as string | null,
+		id: "ring-master-1",
+		maxBuyIn: null as number | null,
+		minBuyIn: null as number | null,
+		name: "Friday 200/400",
+		tableSize: 6 as number | null,
+	},
+	ringGameUpdates: [] as Record<string, unknown>[],
 };
 
 function events() {
@@ -302,6 +318,23 @@ const fixtureRouter = t.router({
 			{ groupId: "grp-1", id: "var-1", label: "NLH" },
 		]),
 	}),
+	ringGame: t.router({
+		listByRoom: t.procedure
+			.input(z.custom<{ roomId: string }>())
+			.query(() => [backend.ringGameMaster]),
+		update: t.procedure
+			.input(z.custom<Record<string, unknown>>())
+			.mutation(({ input }) => {
+				backend.ringGameUpdates.push(input);
+				for (const [key, value] of Object.entries(input)) {
+					if (key === "id") {
+						continue;
+					}
+					(backend.ringGameMaster as Record<string, unknown>)[key] = value;
+				}
+				return { id: backend.ringGameMaster.id };
+			}),
+	}),
 	session: t.router({
 		getById: t.procedure.input(z.custom()).query(() => ({
 			cashAnte: 0,
@@ -318,9 +351,10 @@ const fixtureRouter = t.router({
 			id: SESSION_ID,
 			memo: backend.sessionMemo,
 			ringGameBlind2: 400,
-			ringGameId: null,
+			ringGameId: backend.masterRingGameId,
 			ringGameName: "Friday 200/400",
-			roomName: null,
+			roomId: backend.masterRoomId,
+			roomName: backend.masterRoomId === null ? null : "Card House Tokyo",
 			tags: SESSION_TAGS.filter((tag) =>
 				backend.sessionTagIds.includes(tag.id)
 			),
@@ -519,6 +553,22 @@ beforeEach(() => {
 	backend.snapshotUpdates = [];
 	backend.status = "active";
 	backend.updatedEvents = [];
+	backend.masterRingGameId = null;
+	backend.masterRoomId = null;
+	backend.ringGameMaster = {
+		ante: 0,
+		anteType: "none",
+		blind1: 200,
+		blind2: 400,
+		blind3: null,
+		currencyId: null,
+		id: "ring-master-1",
+		maxBuyIn: null,
+		minBuyIn: null,
+		name: "Friday 200/400",
+		tableSize: 6,
+	};
+	backend.ringGameUpdates = [];
 	SESSION_TAGS.length = 0;
 	SESSION_TAGS.push(
 		{ id: "stag-1", name: "Weekend", usageCount: 12 },
@@ -1084,6 +1134,76 @@ describe("CashCockpit", () => {
 		await waitFor(() => {
 			expect(
 				screen.queryByRole("tablist", { name: "Session sections" })
+			).not.toBeInTheDocument();
+		});
+	});
+
+	it("shows a master-drift banner once Basics values diverge, and Reset to master reverts them", async () => {
+		backend.masterRoomId = "room-1";
+		backend.masterRingGameId = "ring-master-1";
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Session settings" })
+		);
+		await user.click(await screen.findByRole("tab", { name: "Basics" }));
+
+		const ruleName = await screen.findByLabelText(RULE_NAME_FIELD);
+		expect(
+			screen.queryByText("This session differs from its linked master.")
+		).not.toBeInTheDocument();
+
+		await user.clear(ruleName);
+		await user.type(ruleName, "Friday Deep");
+
+		expect(
+			await screen.findByText("This session differs from its linked master.")
+		).toBeInTheDocument();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Reset to master" })
+		);
+
+		await waitFor(() => {
+			expect(screen.getByLabelText(RULE_NAME_FIELD)).toHaveValue(
+				"Friday 200/400"
+			);
+		});
+		expect(
+			screen.queryByText("This session differs from its linked master.")
+		).not.toBeInTheDocument();
+		expect(backend.snapshotUpdates).toEqual([]);
+	});
+
+	it("pushes the current Basics values to the linked master when Update master is pressed", async () => {
+		backend.masterRoomId = "room-1";
+		backend.masterRingGameId = "ring-master-1";
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Session settings" })
+		);
+		await user.click(await screen.findByRole("tab", { name: "Basics" }));
+
+		const ruleName = await screen.findByLabelText(RULE_NAME_FIELD);
+		await user.clear(ruleName);
+		await user.type(ruleName, "Friday Deep");
+
+		await user.click(
+			await screen.findByRole("button", { name: "Update master" })
+		);
+
+		await waitFor(() => {
+			expect(backend.ringGameUpdates).toContainEqual(
+				expect.objectContaining({ id: "ring-master-1", name: "Friday Deep" })
+			);
+		});
+
+		await waitFor(() => {
+			expect(
+				screen.queryByText("This session differs from its linked master.")
 			).not.toBeInTheDocument();
 		});
 	});

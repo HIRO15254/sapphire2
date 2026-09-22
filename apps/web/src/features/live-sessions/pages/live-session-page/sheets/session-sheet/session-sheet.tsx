@@ -1,6 +1,8 @@
+import { IconInfoCircle } from "@tabler/icons-react";
 import type { ChipPurchaseOption } from "@/features/live-sessions/pages/live-session-page/sheets/event-editor-sheet";
 import {
 	currencyRowLabel,
+	hasMasterDrift,
 	isMasterFieldDifferent,
 } from "@/features/live-sessions/utils/session-settings";
 import { cn } from "@/lib/utils";
@@ -72,6 +74,40 @@ export function SessionSheet({
 							</button>
 						))}
 					</div>
+
+					<form.Subscribe selector={(state) => state.values}>
+						{(values) =>
+							hasMasterDrift(sheet.masterValues, values) ? (
+								<div className="flex flex-col gap-2 rounded-lg border border-[color-mix(in_oklab,var(--info)_45%,transparent)] bg-[color-mix(in_oklab,var(--info)_10%,transparent)] px-3 py-2.5">
+									<div className="flex items-center gap-2">
+										<IconInfoCircle className="shrink-0 text-info" size={16} />
+										<span className="flex-1 text-[length:var(--m-text-caption)]">
+											This session differs from its linked master.
+										</span>
+									</div>
+									<div className="flex gap-2">
+										<button
+											className="h-8 flex-1 rounded-md border border-border bg-card font-semibold text-[length:var(--m-text-caption)]"
+											onClick={sheet.onResetToMaster}
+											type="button"
+										>
+											Reset to master
+										</button>
+										<button
+											className="h-8 flex-1 rounded-md border border-info bg-transparent font-semibold text-[length:var(--m-text-caption)] text-info disabled:opacity-60"
+											disabled={sheet.isSyncingMaster}
+											onClick={() => {
+												sheet.onPushToMaster().catch(() => undefined);
+											}}
+											type="button"
+										>
+											Update master
+										</button>
+									</div>
+								</div>
+							) : null
+						}
+					</form.Subscribe>
 
 					<form.Field name="currencyId">
 						{(currencyField) => {
