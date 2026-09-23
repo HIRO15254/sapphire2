@@ -47,6 +47,41 @@ describe("useTournamentCompleteForm", () => {
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
+	it("rejects a placement above total entries, which the server refuses", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useTournamentCompleteForm({ onSubmit })
+		);
+		act(() => {
+			result.current.form.setFieldValue("placement", "51");
+			result.current.form.setFieldValue("totalEntries", "50");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+		expect(
+			result.current.form.getFieldMeta("placement")?.errors[0]?.message
+		).toBe("Must not exceed total entries");
+	});
+
+	it("accepts a placement equal to total entries", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useTournamentCompleteForm({ onSubmit })
+		);
+		act(() => {
+			result.current.form.setFieldValue("placement", "50");
+			result.current.form.setFieldValue("totalEntries", "50");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({ placement: 50, totalEntries: 50 })
+		);
+	});
+
 	it("submits full finished-tournament payload when beforeDeadline=false", async () => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() =>
