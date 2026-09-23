@@ -1,4 +1,4 @@
-import { act, cleanup, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { initTRPC } from "@trpc/server";
 import { setupServer } from "msw/node";
@@ -39,6 +39,12 @@ const NEW_PLAYER_ROW = /Create as a new player/;
 const CHOOSE_PHOTO_BUTTON = /Choose from library/;
 const TEMPORARY_ROW = /Temporary player/;
 const CREATE_TAG_ROW = /Create "Fish"/;
+const RULE_NAME_FIELD = /Rule name/;
+const TABLE_SIZE_FIELD = /Table size/;
+const WEEKEND_TAG_CHOICE = /Weekend/;
+const CURRENCY_ROW = /Currency/;
+const CLUB_CHIPS_ROW = /Club chips/;
+const JAPANESE_YEN_ROW = /Japanese yen/;
 
 interface CreatedEvent {
 	eventType: string;
@@ -81,8 +87,29 @@ const backend = {
 	playerTagIds: ["tag-1"] as string[],
 	playerUpdates: [] as PlayerUpdate[],
 	removedPlayerIds: [] as string[],
+	sessionCurrencyId: null as string | null,
+	sessionMemo: null as string | null,
+	sessionTableSize: 6 as number | null,
+	sessionTagIds: [] as string[],
+	snapshotUpdates: [] as Record<string, unknown>[],
 	status: "active",
 	updatedEvents: [] as UpdatedEvent[],
+	masterRingGameId: null as string | null,
+	masterRoomId: null as string | null,
+	ringGameMaster: {
+		ante: 0,
+		anteType: "none" as string | null,
+		blind1: 200,
+		blind2: 400,
+		blind3: null as number | null,
+		currencyId: null as string | null,
+		id: "ring-master-1",
+		maxBuyIn: null as number | null,
+		minBuyIn: null as number | null,
+		name: "Friday 200/400",
+		tableSize: 6 as number | null,
+	},
+	ringGameUpdates: [] as Record<string, unknown>[],
 };
 
 function events() {
@@ -119,13 +146,13 @@ function session() {
 		status: backend.status,
 		startedAt: new Date("2026-06-01T10:00:00Z"),
 		roomId: null,
-		ringGameId: null,
+		ringGameId: backend.masterRingGameId,
 		ruleName: "Friday 200/400",
 		variant: "NLH",
 		blind2: 400,
-		tableSize: 6,
+		tableSize: backend.sessionTableSize,
 		heroSeatPosition: null,
-		memo: null,
+		memo: backend.sessionMemo,
 		summary: {
 			chipRemoveTotal: 0,
 			currentStack: backend.currentStack,
@@ -134,6 +161,11 @@ function session() {
 		},
 	};
 }
+
+const SESSION_TAGS: { id: string; name: string }[] = [
+	{ id: "stag-1", name: "Weekend" },
+	{ id: "stag-2", name: "Trip: Osaka" },
+];
 
 const ALL_TAGS: { color: string; id: string; name: string }[] = [
 	{ color: "#ff0000", id: "tag-1", name: "Aggro" },
@@ -148,6 +180,28 @@ const t = initTRPC.create({ isServer: true });
 const fixtureRouter = t.router({
 	liveCashGameSession: t.router({
 		getById: t.procedure.input(z.custom()).query(() => session()),
+		update: t.procedure
+			.input(
+				z.custom<{ currencyId?: string; id: string; memo?: string | null }>()
+			)
+			.mutation(({ input }) => {
+				if (input.memo !== undefined) {
+					backend.sessionMemo = input.memo;
+				}
+				if (input.currencyId !== undefined) {
+					backend.sessionCurrencyId = input.currencyId;
+				}
+				return { id: input.id };
+			}),
+		updateSnapshot: t.procedure
+			.input(z.custom<Record<string, unknown>>())
+			.mutation(({ input }) => {
+				backend.snapshotUpdates.push(input);
+				if (typeof input.tableSize === "number") {
+					backend.sessionTableSize = input.tableSize;
+				}
+				return { id: SESSION_ID };
+			}),
 	}),
 	sessionTablePlayer: t.router({
 		add: t.procedure
@@ -228,6 +282,105 @@ const fixtureRouter = t.router({
 				backend.removedPlayerIds.push(input.playerId);
 				return { success: true };
 			}),
+	}),
+	currency: t.router({
+		list: t.procedure.query(() => [
+			{
+				balance: 12_000,
+				id: "cur-1",
+				isFavorite: true,
+				name: "Japanese yen",
+				unit: "¥",
+			},
+			{
+				balance: 30_000,
+				id: "cur-2",
+				isFavorite: false,
+				name: "Club chips",
+				unit: "chips",
+			},
+		]),
+	}),
+	gameGroup: t.router({
+		list: t.procedure.query(() => [
+			{
+				blind1Label: "SB",
+				blind2Label: "BB",
+				blind3Label: null,
+				builtinKey: "bigbet",
+				id: "grp-1",
+				label: "Big Bet",
+			},
+		]),
+	}),
+	gameMix: t.router({ list: t.procedure.query(() => []) }),
+	gameVariant: t.router({
+		list: t.procedure.query(() => [
+			{ groupId: "grp-1", id: "var-1", label: "NLH" },
+		]),
+	}),
+	ringGame: t.router({
+		listByRoom: t.procedure
+			.input(z.custom<{ roomId: string }>())
+			.query(() => [backend.ringGameMaster]),
+		update: t.procedure
+			.input(z.custom<Record<string, unknown>>())
+			.mutation(({ input }) => {
+				backend.ringGameUpdates.push(input);
+				for (const [key, value] of Object.entries(input)) {
+					if (key === "id") {
+						continue;
+					}
+					(backend.ringGameMaster as Record<string, unknown>)[key] = value;
+				}
+				return { id: backend.ringGameMaster.id };
+			}),
+	}),
+	session: t.router({
+		getById: t.procedure.input(z.custom()).query(() => ({
+			cashAnte: 0,
+			cashAnteType: "none",
+			cashBlind1: 200,
+			cashBlind3: null,
+			cashMaxBuyIn: null,
+			cashMinBuyIn: null,
+			cashTableSize: backend.sessionTableSize,
+			cashVariant: "NLH",
+			currencyId: backend.sessionCurrencyId,
+			currencyName: backend.sessionCurrencyId === "cur-2" ? "Club chips" : null,
+			currencyUnit: backend.sessionCurrencyId === "cur-2" ? "chips" : null,
+			id: SESSION_ID,
+			memo: backend.sessionMemo,
+			ringGameBlind2: 400,
+			ringGameId: backend.masterRingGameId,
+			ringGameName: "Friday 200/400",
+			roomId: backend.masterRoomId,
+			roomName: backend.masterRoomId === null ? null : "Card House Tokyo",
+			tags: SESSION_TAGS.filter((tag) =>
+				backend.sessionTagIds.includes(tag.id)
+			),
+		})),
+		update: t.procedure
+			.input(z.custom<{ id: string; tagIds?: string[] }>())
+			.mutation(({ input }) => {
+				if (input.tagIds !== undefined) {
+					backend.sessionTagIds = input.tagIds;
+				}
+				return { id: input.id };
+			}),
+	}),
+	sessionTag: t.router({
+		create: t.procedure
+			.input(z.custom<{ name: string }>())
+			.mutation(({ input }) => {
+				const created = {
+					id: `tag-new-${SESSION_TAGS.length}`,
+					name: input.name,
+				};
+				SESSION_TAGS.push(created);
+				return created;
+			}),
+		list: t.procedure.query(() => SESSION_TAGS),
 	}),
 	player: t.router({
 		getById: t.procedure
@@ -393,8 +546,34 @@ beforeEach(() => {
 	backend.secondPlayerName = "Red cap";
 	backend.secondPlayerTagIds = [];
 	backend.removedPlayerIds = [];
+	backend.sessionCurrencyId = null;
+	backend.sessionMemo = null;
+	backend.sessionTableSize = 6;
+	backend.sessionTagIds = [];
+	backend.snapshotUpdates = [];
 	backend.status = "active";
 	backend.updatedEvents = [];
+	backend.masterRingGameId = null;
+	backend.masterRoomId = null;
+	backend.ringGameMaster = {
+		ante: 0,
+		anteType: "none",
+		blind1: 200,
+		blind2: 400,
+		blind3: null,
+		currencyId: null,
+		id: "ring-master-1",
+		maxBuyIn: null,
+		minBuyIn: null,
+		name: "Friday 200/400",
+		tableSize: 6,
+	};
+	backend.ringGameUpdates = [];
+	SESSION_TAGS.length = 0;
+	SESSION_TAGS.push(
+		{ id: "stag-1", name: "Weekend" },
+		{ id: "stag-2", name: "Trip: Osaka" }
+	);
 });
 
 afterEach(() => {
@@ -418,6 +597,15 @@ describe("CashCockpit", () => {
 		expect(screen.getByText("+2,000")).toBeInTheDocument();
 		expect(screen.getByText("30 BB")).toBeInTheDocument();
 		expect(screen.getByText("Friday 200/400")).toBeInTheDocument();
+	});
+
+	it.each([
+		[null, "Not linked to master"],
+		["ring-master-1", "Linked to master"],
+	])("names the icon-only master link state (ringGameId %s)", async (ringGameId, label) => {
+		backend.masterRingGameId = ringGameId;
+		renderCockpit();
+		expect(await screen.findByRole("img", { name: label })).toBeInTheDocument();
 	});
 
 	it("records a stack update and follows the new value", async () => {
@@ -573,6 +761,34 @@ describe("CashCockpit", () => {
 		).not.toBeInTheDocument();
 	});
 
+	it("asks for confirmation before discarding unsaved event editor edits", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(await screen.findByRole("button", { name: "Timeline" }));
+		await user.click(await screen.findByRole("button", { name: STACK_ROW }));
+
+		const stack = await screen.findByRole("textbox", { name: STACK_FIELD });
+		await user.clear(stack);
+		await user.type(stack, "26000");
+
+		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+		expect(
+			await screen.findByRole("heading", { name: "Discard changes?" })
+		).toBeInTheDocument();
+
+		await user.click(await screen.findByRole("button", { name: "Discard" }));
+
+		expect(
+			await screen.findByRole("button", { name: STACK_ROW })
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("heading", { name: "Edit event" })
+		).not.toBeInTheDocument();
+		expect(backend.updatedEvents).toEqual([]);
+	});
+
 	it("charts the recorded result above the timeline", async () => {
 		const user = userEvent.setup();
 		renderCockpit();
@@ -664,7 +880,7 @@ describe("CashCockpit", () => {
 			await screen.findByRole("button", { name: "Seat 3: Young guy" })
 		);
 		await user.click(
-			await screen.findByRole("textbox", { name: "Add labels" })
+			await screen.findByRole("combobox", { name: "Add labels" })
 		);
 		await user.click(
 			await screen.findByRole("button", { name: NIT_TAG_CHOICE })
@@ -719,7 +935,7 @@ describe("CashCockpit", () => {
 		await user.click(
 			await screen.findByRole("button", { name: "Seat 3: Young guy" })
 		);
-		const input = await screen.findByRole("textbox", { name: "Add labels" });
+		const input = await screen.findByRole("combobox", { name: "Add labels" });
 		await user.type(input, "Fish");
 		await user.keyboard("{Enter}");
 
@@ -762,7 +978,7 @@ describe("CashCockpit", () => {
 			await screen.findByRole("button", { name: "Seat 3: Young guy" })
 		);
 		await user.click(
-			await screen.findByRole("textbox", { name: "Add labels" })
+			await screen.findByRole("combobox", { name: "Add labels" })
 		);
 		expect(
 			await screen.findByRole("button", { name: NIT_TAG_CHOICE })
@@ -920,5 +1136,286 @@ describe("CashCockpit", () => {
 		expect(screen.getByRole("button", { name: "All-in" })).toBeDisabled();
 		expect(screen.getByRole("button", { name: "Timeline" })).toBeEnabled();
 		expect(screen.getAllByRole("button", { name: "Note" })[0]).toBeEnabled();
+	});
+	it("moves between Session sheet tabs with the arrow keys", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Session settings" })
+		);
+		const overview = await screen.findByRole("tab", { name: "Overview" });
+		const basics = screen.getByRole("tab", { name: "Basics" });
+		expect(basics).toHaveAttribute("tabindex", "-1");
+
+		overview.focus();
+		await user.keyboard("{ArrowRight}");
+
+		expect(basics).toHaveFocus();
+		expect(basics).toHaveAttribute("aria-selected", "true");
+		expect(
+			within(
+				await screen.findByRole("tabpanel", { name: "Basics" })
+			).getByLabelText(RULE_NAME_FIELD)
+		).toBeInTheDocument();
+
+		await user.keyboard("{ArrowRight}");
+
+		expect(overview).toHaveFocus();
+		expect(overview).toHaveAttribute("aria-selected", "true");
+	});
+
+	it("collects Basics edits and saves them together when Save is pressed", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Session settings" })
+		);
+		await user.click(await screen.findByRole("tab", { name: "Basics" }));
+
+		const ruleName = await screen.findByLabelText(RULE_NAME_FIELD);
+		await user.clear(ruleName);
+		await user.type(ruleName, "Friday Deep");
+		await user.selectOptions(
+			await screen.findByLabelText(TABLE_SIZE_FIELD),
+			"9"
+		);
+		await user.click(await screen.findByRole("radio", { name: "BB" }));
+
+		expect(backend.snapshotUpdates).toEqual([]);
+
+		await user.click(await screen.findByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.snapshotUpdates).toContainEqual(
+				expect.objectContaining({
+					anteType: "bb",
+					ruleName: "Friday Deep",
+					tableSize: 9,
+				})
+			);
+		});
+		await waitFor(() => {
+			expect(
+				screen.queryByRole("tablist", { name: "Session sections" })
+			).not.toBeInTheDocument();
+		});
+	});
+
+	it("asks for confirmation before discarding unsaved Session sheet edits", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Session settings" })
+		);
+		await user.click(await screen.findByRole("tab", { name: "Basics" }));
+
+		const ruleName = await screen.findByLabelText(RULE_NAME_FIELD);
+		await user.clear(ruleName);
+		await user.type(ruleName, "Friday Deep");
+
+		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+		expect(
+			await screen.findByRole("heading", { name: "Discard changes?" })
+		).toBeInTheDocument();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Keep editing" })
+		);
+		expect(
+			screen.queryByRole("heading", { name: "Discard changes?" })
+		).not.toBeInTheDocument();
+		expect(screen.getByLabelText(RULE_NAME_FIELD)).toHaveValue("Friday Deep");
+
+		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+		await user.click(await screen.findByRole("button", { name: "Discard" }));
+
+		await waitFor(() => {
+			expect(
+				screen.queryByRole("tablist", { name: "Session sections" })
+			).not.toBeInTheDocument();
+		});
+		expect(backend.snapshotUpdates).toEqual([]);
+	});
+
+	it("closes the Session sheet immediately when there are no unsaved edits", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Session settings" })
+		);
+		await user.click(await screen.findByRole("tab", { name: "Basics" }));
+		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+		expect(
+			screen.queryByRole("heading", { name: "Discard changes?" })
+		).not.toBeInTheDocument();
+		await waitFor(() => {
+			expect(
+				screen.queryByRole("tablist", { name: "Session sections" })
+			).not.toBeInTheDocument();
+		});
+	});
+
+	it("shows a master-drift banner once Basics values diverge, and Reset to master reverts them", async () => {
+		backend.masterRoomId = "room-1";
+		backend.masterRingGameId = "ring-master-1";
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Session settings" })
+		);
+		await user.click(await screen.findByRole("tab", { name: "Basics" }));
+
+		const ruleName = await screen.findByLabelText(RULE_NAME_FIELD);
+		expect(
+			screen.queryByText("Differs from linked master")
+		).not.toBeInTheDocument();
+
+		await user.clear(ruleName);
+		await user.type(ruleName, "Friday Deep");
+
+		expect(
+			await screen.findByText("Differs from linked master")
+		).toBeInTheDocument();
+
+		await user.click(await screen.findByRole("button", { name: "Reset" }));
+
+		await waitFor(() => {
+			expect(screen.getByLabelText(RULE_NAME_FIELD)).toHaveValue(
+				"Friday 200/400"
+			);
+		});
+		expect(
+			screen.queryByText("Differs from linked master")
+		).not.toBeInTheDocument();
+		expect(backend.snapshotUpdates).toEqual([]);
+	});
+
+	it("pushes the current Basics values to the linked master when Update is pressed", async () => {
+		backend.masterRoomId = "room-1";
+		backend.masterRingGameId = "ring-master-1";
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Session settings" })
+		);
+		await user.click(await screen.findByRole("tab", { name: "Basics" }));
+
+		const ruleName = await screen.findByLabelText(RULE_NAME_FIELD);
+		await user.clear(ruleName);
+		await user.type(ruleName, "Friday Deep");
+
+		await user.click(await screen.findByRole("button", { name: "Update" }));
+
+		await waitFor(() => {
+			expect(backend.ringGameUpdates).toContainEqual(
+				expect.objectContaining({ id: "ring-master-1", name: "Friday Deep" })
+			);
+		});
+
+		await waitFor(() => {
+			expect(
+				screen.queryByText("Differs from linked master")
+			).not.toBeInTheDocument();
+		});
+	});
+
+	it("disables the Ante amount input while Ante type is None, and enables it after switching with the arrow keys", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Session settings" })
+		);
+		await user.click(await screen.findByRole("tab", { name: "Basics" }));
+
+		const anteInput = await screen.findByLabelText("Ante");
+		expect(anteInput).toBeDisabled();
+
+		const anteType = await screen.findByRole("radiogroup", {
+			name: "Ante type",
+		});
+		expect(within(anteType).getByRole("radio", { name: "None" })).toBeChecked();
+
+		await user.click(within(anteType).getByRole("radio", { name: "None" }));
+		await user.keyboard("{ArrowRight>}");
+		await waitFor(() => {
+			expect(within(anteType).getByRole("radio", { name: "BB" })).toBeChecked();
+		});
+		await user.keyboard("{/ArrowRight}");
+
+		expect(anteInput).toBeEnabled();
+	});
+
+	it("collects Overview edits (currency, tag, memo) and saves them together", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Session settings" })
+		);
+		await user.click(await screen.findByRole("button", { name: CURRENCY_ROW }));
+		await user.type(await screen.findByLabelText("Search currencies"), "club");
+		expect(
+			screen.queryByRole("button", { name: JAPANESE_YEN_ROW })
+		).not.toBeInTheDocument();
+		const clubChipsRow = await screen.findByRole("button", {
+			name: CLUB_CHIPS_ROW,
+		});
+		expect(clubChipsRow).toHaveTextContent("30,000 chips");
+		await user.click(clubChipsRow);
+
+		await user.click(await screen.findByLabelText("Add session tag"));
+		await user.click(
+			await screen.findByRole("button", { name: WEEKEND_TAG_CHOICE })
+		);
+
+		const memo = await screen.findByLabelText("Session memo");
+		await user.type(memo, "Table is loose");
+
+		expect(backend.sessionCurrencyId).toBeNull();
+		expect(backend.sessionTagIds).toEqual([]);
+		expect(backend.sessionMemo).toBeNull();
+
+		await user.click(await screen.findByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.sessionCurrencyId).toBe("cur-2");
+			expect(backend.sessionTagIds).toEqual(["stag-1"]);
+			expect(backend.sessionMemo).toBe("Table is loose");
+		});
+	});
+
+	it("discards edits when Cancel is pressed, without contacting the server", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Session settings" })
+		);
+		await user.click(await screen.findByRole("tab", { name: "Basics" }));
+		await user.selectOptions(
+			await screen.findByLabelText(TABLE_SIZE_FIELD),
+			"9"
+		);
+
+		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+		await user.click(await screen.findByRole("button", { name: "Discard" }));
+		expect(backend.snapshotUpdates).toEqual([]);
+
+		await user.click(
+			await screen.findByRole("button", { name: "Session settings" })
+		);
+		await user.click(await screen.findByRole("tab", { name: "Basics" }));
+
+		expect(await screen.findByLabelText(TABLE_SIZE_FIELD)).toHaveValue("6");
+		expect(backend.snapshotUpdates).toEqual([]);
 	});
 });

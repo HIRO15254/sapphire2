@@ -1,6 +1,8 @@
 import { IconPencilCheck, IconStack2 } from "@tabler/icons-react";
+import { cn } from "@/lib/utils";
 import { Field } from "@/shared/components/ui/field";
 import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
+import { CRYST_FIELD, crystButton } from "../cryst-controls";
 import { useStackQuickInput } from "./use-stack-quick-input";
 
 interface StackQuickInputProps {
@@ -38,13 +40,16 @@ export function StackQuickInput({
 				{(field) => (
 					<div className="relative min-w-0">
 						<IconStack2
-							className="pointer-events-none absolute top-5 left-2.5 -translate-y-1/2 text-muted-foreground"
-							size={15}
+							className="pointer-events-none absolute top-5 left-[9px] -translate-y-1/2 text-muted-foreground"
+							size={16}
 						/>
 						<Field error={field.state.meta.errors[0]?.message}>
 							<input
 								aria-label="Current stack"
-								className="h-[var(--m-control)] w-full rounded-md border border-input bg-background pr-2.5 pl-[31px] font-mono text-[length:var(--m-text-secondary)] tabular-nums outline-none focus-visible:border-primary disabled:opacity-50 aria-invalid:border-destructive aria-invalid:bg-[color-mix(in_oklab,var(--destructive)_8%,transparent)]"
+								className={cn(
+									CRYST_FIELD,
+									"h-[var(--m-control)] w-full pr-2.5 pl-[31px] font-mono tabular-nums"
+								)}
 								disabled={isDisabled}
 								id={field.name}
 								{...NO_INPUT_SUGGESTIONS}
@@ -61,7 +66,7 @@ export function StackQuickInput({
 			</form.Field>
 			<button
 				aria-label="Save stack"
-				className="inline-flex size-[var(--m-control)] shrink-0 items-center justify-center rounded-md border border-transparent bg-primary text-primary-foreground disabled:opacity-50"
+				className={crystButton({ size: "icon", variant: "primary" })}
 				disabled={isDisabled || isPending}
 				form={FORM_ID}
 				title="Save stack"

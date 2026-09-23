@@ -16,5 +16,6 @@ Issue references (`SA2-NNN`) point at the Linear issues that motivated a decisio
 | [`passkeys.md`](passkeys.md) | WebAuthn relying-party pinning across the split origin, the `passkey` table contract, silent conditional-create upgrades, device naming, plugin version coupling |
 | [`ai-extraction.md`](ai-extraction.md) | AI extraction truncation failure model, schema design, model pinning, form-merge semantics |
 | [`web-platform.md`](web-platform.md) | Persisted-cache busting, open-redirect guard, shared UI component traps, filter presets, geolocation and maps, number formatting |
+| [`cryst-exceptions.md`](cryst-exceptions.md) | Cryst migration: what the live session screen takes from the Cryst design system (two BottomSheet kinds, pill tabs, SegmentedControl, RadioCard) and every exception to it with its reason |
 | [`testing-and-tooling.md`](testing-and-tooling.md) | Mock-db contract, test-infra gotchas, migration tests on `bun:sqlite`, preview seed/restore pipeline, `check-rules.ts` mechanics |
 | [`pr-review.md`](pr-review.md) | Automated PR review loop: the round-by-round audit data, the two-round cap and `re-review` label, CI-green gating, the state comment, the reviewer prompt's severity rubric |

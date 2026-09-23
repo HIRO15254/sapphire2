@@ -32,6 +32,7 @@ export function useCashCockpit(sessionId: string) {
 	const now = useNowTick(TICK_MS);
 	const isKeyboardOpen = useKeyboardOpen();
 	const [isEndSessionOpen, setIsEndSessionOpen] = useState(false);
+	const [isSessionSheetOpen, setIsSessionSheetOpen] = useState(false);
 
 	const rawHeroSeat = session?.heroSeatPosition;
 	const heroSeatPosition =
@@ -100,6 +101,9 @@ export function useCashCockpit(sessionId: string) {
 		evPLFormatted: showEvPL && evPL !== null ? formatProfitLoss(evPL) : null,
 		isCompletePending: stack.isCompletePending,
 		isEndSessionOpen,
+		isSessionSheetOpen,
+		onOpenSession: () => setIsSessionSheetOpen(true),
+		onSessionSheetOpenChange: setIsSessionSheetOpen,
 		isKeyboardOpen,
 		isLoading: false as const,
 		isMasterLinked: Boolean(session.ringGameId),

@@ -1,4 +1,6 @@
 import type { TimelineRow as TimelineRowModel } from "@/features/live-sessions/utils/timeline-view";
+import { cn } from "@/lib/utils";
+import { CRYST_FOCUS_RING } from "../../cryst-controls";
 import { EVENT_TONE_MARKER, resolveEventIcon } from "../../event-visuals";
 
 export function TimelineRow({
@@ -12,7 +14,10 @@ export function TimelineRow({
 
 	return (
 		<button
-			className="flex w-full gap-2.5 rounded-md text-left"
+			className={cn(
+				"flex w-full gap-2.5 rounded-md text-left transition-colors hover:bg-accent",
+				CRYST_FOCUS_RING
+			)}
 			onClick={() => onSelect(row.id)}
 			type="button"
 		>

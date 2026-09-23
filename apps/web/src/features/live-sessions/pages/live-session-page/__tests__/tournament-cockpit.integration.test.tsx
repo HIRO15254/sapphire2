@@ -321,7 +321,7 @@ describe("TournamentCockpit", () => {
 			await screen.findByRole("button", { name: "Chip purchase" })
 		);
 		await user.click(
-			await screen.findByRole("button", { name: REENTRY_OPTION })
+			await screen.findByRole("radio", { name: REENTRY_OPTION })
 		);
 		await user.click(screen.getByRole("button", { name: "Save" }));
 

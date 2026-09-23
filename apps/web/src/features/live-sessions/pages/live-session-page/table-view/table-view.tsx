@@ -2,6 +2,8 @@ import { IconPhotoScan, IconUsersMinus } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import type { SeatEntry } from "@/features/live-sessions/hooks/use-session-seats";
 import { seatLayout } from "@/features/live-sessions/utils/table-geometry";
+import { cn } from "@/lib/utils";
+import { crystButton } from "../cryst-controls";
 import { SeatMarker } from "./seat-marker";
 
 interface TableViewProps {
@@ -49,7 +51,10 @@ export function TableView({
 			})}
 			<button
 				aria-label="Register seats from a photo"
-				className="absolute top-3 left-3 z-[2] inline-flex size-[34px] items-center justify-center rounded-full border border-border bg-card text-primary"
+				className={cn(
+					crystButton({ size: "icon", variant: "outline" }),
+					"absolute top-3 left-3 z-[2] size-[34px]"
+				)}
 				onClick={onScan}
 				title="Register seats from a photo"
 				type="button"
@@ -59,7 +64,10 @@ export function TableView({
 			{canResetSeats ? (
 				<button
 					aria-label="Clear every seat"
-					className="absolute top-3 right-3 z-[2] inline-flex size-[34px] items-center justify-center rounded-full border border-border bg-card text-muted-foreground"
+					className={cn(
+						crystButton({ size: "icon", variant: "outline" }),
+						"absolute top-3 right-3 z-[2] size-[34px]"
+					)}
 					onClick={onResetSeats}
 					title="Clear every seat"
 					type="button"

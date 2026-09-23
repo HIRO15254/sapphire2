@@ -4,7 +4,10 @@ import { cn } from "@/lib/utils";
 import { Field } from "@/shared/components/ui/field";
 import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
 import { formatNumber, formatSignedNumber } from "@/utils/format-number";
+import { CRYST_FIELD } from "../../cryst-controls";
 import { plToneClass } from "../../cryst-tone";
+import { RadioCard, RadioCardGroup } from "../../radio-card";
+import { SegmentedControl } from "../../segmented-control";
 import type {
 	ChipPurchaseOption,
 	useEventEditorSheet,
@@ -12,8 +15,7 @@ import type {
 
 type EditorForm = ReturnType<typeof useEventEditorSheet>["form"];
 
-const INPUT_CLASS =
-	"h-[var(--m-control)] w-full rounded-md border border-input bg-background px-2.5 text-[length:var(--m-text-secondary)] outline-none focus-visible:border-primary disabled:opacity-50 aria-invalid:border-destructive";
+const INPUT_CLASS = `${CRYST_FIELD} h-[var(--m-control)] w-full px-2.5`;
 
 const NUMERIC_CLASS = `${INPUT_CLASS} font-mono tabular-nums`;
 
@@ -188,40 +190,31 @@ export function AllInFields({ form }: { form: EditorForm }) {
 	);
 }
 
+const DIRECTION_OPTIONS = [
+	{ label: "Add chips (+)", value: "add" },
+	{ label: "Withdraw (−)", value: "remove" },
+] as const;
+
 export function ChipsFields({ form }: { form: EditorForm }) {
 	return (
 		<>
 			<NumericField form={form} label="Amount" name="amount" />
 			<form.Field name="direction">
 				{(field) => (
-					<fieldset className="col-span-6 min-w-0">
-						<legend className="mb-1.5 font-medium text-[length:var(--text-sm)]">
+					<div className="col-span-6 min-w-0">
+						<span
+							className="mb-1.5 block font-medium text-[length:var(--text-sm)]"
+							id={fieldId("direction")}
+						>
 							Direction
-						</legend>
-						<div className="grid grid-cols-2 gap-1.5">
-							{(
-								[
-									{ label: "Add chips (+)", value: "add" },
-									{ label: "Withdraw (−)", value: "remove" },
-								] as const
-							).map((option) => (
-								<button
-									aria-pressed={field.state.value === option.value}
-									className={cn(
-										"h-[var(--m-control)] rounded-full border font-semibold text-[length:var(--text-sm)]",
-										field.state.value === option.value
-											? "border-primary bg-primary text-primary-foreground"
-											: "border-border bg-transparent text-foreground"
-									)}
-									key={option.value}
-									onClick={() => field.handleChange(option.value)}
-									type="button"
-								>
-									{option.label}
-								</button>
-							))}
-						</div>
-					</fieldset>
+						</span>
+						<SegmentedControl
+							aria-labelledby={fieldId("direction")}
+							onChange={field.handleChange}
+							options={DIRECTION_OPTIONS}
+							value={field.state.value}
+						/>
+					</div>
 				)}
 			</form.Field>
 		</>
@@ -240,7 +233,10 @@ export function MemoFields({ form }: { form: EditorForm }) {
 					required
 				>
 					<textarea
-						className="min-h-[88px] w-full resize-none rounded-lg border border-input bg-card px-3 py-2.5 text-[length:var(--m-text-secondary)] outline-none focus-visible:border-primary aria-invalid:border-destructive"
+						className={cn(
+							CRYST_FIELD,
+							"min-h-[88px] w-full resize-none px-3 py-2.5 leading-normal"
+						)}
 						id={fieldId(field.name)}
 						name={field.name}
 						onBlur={field.handleBlur}
@@ -276,45 +272,24 @@ export function PurchaseFields({
 							No purchase options are configured for this tournament.
 						</p>
 					) : (
-						<div className="flex flex-col gap-1.5">
-							{options.map((option, index) => {
-								const isSelected = field.state.value === option.id;
-								const OptionIcon =
-									PURCHASE_ICONS[index % PURCHASE_ICONS.length] ?? IconRefresh;
-								return (
-									<button
-										aria-pressed={isSelected}
-										className={cn(
-											"flex w-full items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left",
-											isSelected
-												? "border-primary bg-[color-mix(in_oklab,var(--primary)_12%,transparent)]"
-												: "border-border bg-transparent"
-										)}
-										key={option.id}
-										onClick={() => field.handleChange(option.id)}
-										type="button"
-									>
-										<OptionIcon
-											className={
-												isSelected ? "text-primary" : "text-muted-foreground"
-											}
-											size={16}
-										/>
-										<span className="min-w-0 flex-1">
-											<span className="block font-semibold text-[length:var(--text-sm)]">
-												{option.name}
-											</span>
-											<span className="block text-[11px] text-muted-foreground">
-												{formatSignedNumber(option.chips)} chips
-											</span>
-										</span>
-										<span className="font-mono text-[length:var(--text-sm)] tabular-nums">
-											{formatNumber(option.cost)}
-										</span>
-									</button>
-								);
-							})}
-						</div>
+						<RadioCardGroup
+							aria-label="Purchase option"
+							onValueChange={field.handleChange}
+							value={field.state.value}
+						>
+							{options.map((option, index) => (
+								<RadioCard
+									description={`${formatSignedNumber(option.chips)} chips`}
+									icon={
+										PURCHASE_ICONS[index % PURCHASE_ICONS.length] ?? IconRefresh
+									}
+									key={option.id}
+									meta={formatNumber(option.cost)}
+									title={option.name}
+									value={option.id}
+								/>
+							))}
+						</RadioCardGroup>
 					)}
 				</Field>
 			)}

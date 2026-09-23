@@ -1,23 +1,17 @@
-import type { ReactNode } from "react";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
-import { parseOptionalInt } from "@/shared/lib/form-fields";
 import { useCashGameCompleteForm } from "./use-cash-game-complete-form";
 
 interface CashGameCompleteFormProps {
 	defaultFinalStack?: number;
 	formId: string;
-	label?: string;
 	onSubmit: (values: { finalStack: number }) => void;
-	renderSummary?: (finalStack: number | undefined) => ReactNode;
 }
 
 export function CashGameCompleteForm({
 	defaultFinalStack,
 	formId,
-	label = "Final Stack",
 	onSubmit,
-	renderSummary,
 }: CashGameCompleteFormProps) {
 	const { form } = useCashGameCompleteForm({ defaultFinalStack, onSubmit });
 
@@ -36,7 +30,7 @@ export function CashGameCompleteForm({
 					<Field
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
-						label={label}
+						label="Final Stack"
 						required
 					>
 						<Input
@@ -50,11 +44,6 @@ export function CashGameCompleteForm({
 					</Field>
 				)}
 			</form.Field>
-			{renderSummary ? (
-				<form.Subscribe selector={(state) => state.values.finalStack}>
-					{(value) => renderSummary(parseOptionalInt(value))}
-				</form.Subscribe>
-			) : null}
 		</form>
 	);
 }

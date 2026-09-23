@@ -1,11 +1,15 @@
 import { IconTrash } from "@tabler/icons-react";
 import type { EventEditorKind } from "@/features/live-sessions/utils/timeline-view";
+import { cn } from "@/lib/utils";
+import { crystButton } from "../../cryst-controls";
 import {
 	EVENT_TONE_TEXT,
 	resolveEventIcon,
 	resolveKindTone,
 } from "../../event-visuals";
 import { CrystFormSheet } from "../cryst-form-sheet";
+import { DiscardChangesDialog } from "../discard-changes-dialog";
+import { useDiscardConfirm } from "../use-discard-confirm";
 import {
 	AllInFields,
 	ChipsFields,
@@ -77,73 +81,86 @@ export function EventEditorSheet({
 			seatCount,
 			target,
 		});
+	const discard = useDiscardConfirm({
+		isDirty: () => form.state.isDirty,
+		onOpenChange,
+	});
 
 	const KindIcon = resolveEventIcon(target.kind, target.event?.eventType);
 	const tone = EVENT_TONE_TEXT[resolveKindTone(target.kind)];
 	const isEdit = target.mode === "edit";
 
 	return (
-		<CrystFormSheet
-			className="h-auto max-h-[calc(100svh-2rem)]"
-			formId={FORM_ID}
-			isLoading={isPending}
-			onOpenChange={onOpenChange}
-			open={open}
-			title={isEdit ? "Edit event" : NEW_EVENT_TITLES[target.kind]}
-		>
-			<form
-				className="grid grid-cols-6 items-end gap-x-2 gap-y-3"
-				id={FORM_ID}
-				onSubmit={(e) => {
-					e.preventDefault();
-					e.stopPropagation();
-					form.handleSubmit();
-				}}
+		<>
+			<CrystFormSheet
+				formId={FORM_ID}
+				isLoading={isPending}
+				onOpenChange={discard.onRequestClose}
+				open={open}
+				title={isEdit ? "Edit event" : NEW_EVENT_TITLES[target.kind]}
 			>
-				<p className="col-span-6 flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-[length:var(--text-xs)]">
-					<KindIcon className={tone} size={15} />
-					<span className="font-semibold">{target.label}</span>
-					<span className="text-muted-foreground">
-						{isEdit ? "· type cannot be changed" : "· new event"}
-					</span>
-				</p>
+				<form
+					className="grid grid-cols-6 items-end gap-x-2 gap-y-3"
+					id={FORM_ID}
+					onSubmit={(e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						form.handleSubmit();
+					}}
+				>
+					<p className="col-span-6 flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-[length:var(--text-xs)]">
+						<KindIcon className={tone} size={15} />
+						<span className="font-semibold">{target.label}</span>
+						<span className="text-muted-foreground">
+							{isEdit ? "· type cannot be changed" : "· new event"}
+						</span>
+					</p>
 
-				<TimeField form={form} timeValidator={timeValidator} />
+					<TimeField form={form} timeValidator={timeValidator} />
 
-				{target.kind === "stack" ? (
-					<StackFields form={form} isTournament={isTournament} />
-				) : null}
-				{target.kind === "allin" ? <AllInFields form={form} /> : null}
-				{target.kind === "chips" ? <ChipsFields form={form} /> : null}
-				{target.kind === "memo" ? <MemoFields form={form} /> : null}
-				{target.kind === "purchase" ? (
-					<PurchaseFields form={form} options={chipPurchaseOptions} />
-				) : null}
-				{target.kind === "seat" ? (
-					<SeatFields
-						form={form}
-						isHeroSeatEvent={isHeroSeatEvent}
-						isSeatEditable={isSeatEditable}
-					/>
-				) : null}
-				{target.kind === "start" ? (
-					<StartFields form={form} isTournament={isTournament} />
-				) : null}
-			</form>
+					{target.kind === "stack" ? (
+						<StackFields form={form} isTournament={isTournament} />
+					) : null}
+					{target.kind === "allin" ? <AllInFields form={form} /> : null}
+					{target.kind === "chips" ? <ChipsFields form={form} /> : null}
+					{target.kind === "memo" ? <MemoFields form={form} /> : null}
+					{target.kind === "purchase" ? (
+						<PurchaseFields form={form} options={chipPurchaseOptions} />
+					) : null}
+					{target.kind === "seat" ? (
+						<SeatFields
+							form={form}
+							isHeroSeatEvent={isHeroSeatEvent}
+							isSeatEditable={isSeatEditable}
+						/>
+					) : null}
+					{target.kind === "start" ? (
+						<StartFields form={form} isTournament={isTournament} />
+					) : null}
+				</form>
 
-			{onDelete === null ? null : (
-				<div className="mt-4 border-border border-t pt-3">
-					<button
-						className="inline-flex min-h-[var(--m-control)] w-full items-center justify-center gap-1.5 rounded-md border border-destructive bg-transparent font-medium text-[length:var(--text-sm)] text-destructive disabled:opacity-50"
-						disabled={isPending}
-						onClick={onDelete}
-						type="button"
-					>
-						<IconTrash size={15} />
-						Delete this event
-					</button>
-				</div>
-			)}
-		</CrystFormSheet>
+				{onDelete === null ? null : (
+					<div className="mt-4 border-border border-t pt-3">
+						<button
+							className={cn(
+								crystButton({ variant: "outline" }),
+								"w-full text-destructive hover:text-destructive"
+							)}
+							disabled={isPending}
+							onClick={onDelete}
+							type="button"
+						>
+							<IconTrash size={16} />
+							Delete this event
+						</button>
+					</div>
+				)}
+			</CrystFormSheet>
+			<DiscardChangesDialog
+				onConfirmDiscard={discard.onConfirmDiscard}
+				onOpenChange={discard.onCancelDiscard}
+				open={discard.isConfirmOpen}
+			/>
+		</>
 	);
 }

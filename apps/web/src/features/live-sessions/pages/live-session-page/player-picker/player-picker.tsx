@@ -1,14 +1,12 @@
 import {
-	IconCheck,
-	IconSearch,
 	IconUser,
 	IconUserOff,
 	IconUserPlus,
 	IconUserQuestion,
-	IconX,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
-import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
+import { CRYST_TAG, CRYST_TAG_DOT } from "../cryst-controls";
+import { SearchPicker, SearchPickerRow } from "../search-picker";
 
 export type PlayerPickerKind = "existing" | "new" | "temporary";
 
@@ -45,7 +43,7 @@ const KIND_ICONS = {
 
 const KIND_AVATAR = {
 	existing: "bg-muted text-muted-foreground",
-	new: "bg-[color-mix(in_oklab,var(--primary)_15%,transparent)] text-primary",
+	new: "bg-[var(--selection)] text-primary",
 	temporary:
 		"bg-[color-mix(in_oklab,var(--warning)_18%,transparent)] text-warning",
 } as const;
@@ -61,14 +59,10 @@ function CandidateRow({
 }) {
 	const Icon = KIND_ICONS[candidate.kind];
 	return (
-		<button
-			aria-pressed={isPicked}
-			className={cn(
-				"flex min-h-14 w-full items-center gap-3 border-border border-b px-3.5 py-2 text-left last:border-b-0",
-				isPicked && "bg-[color-mix(in_oklab,var(--primary)_12%,transparent)]"
-			)}
+		<SearchPickerRow
+			className="min-h-12"
+			isPicked={isPicked}
 			onClick={() => onPick(candidate)}
-			type="button"
 		>
 			<span
 				className={cn(
@@ -81,38 +75,32 @@ function CandidateRow({
 			<span className="flex min-w-0 flex-1 flex-col gap-[3px]">
 				<span
 					className={cn(
-						"truncate font-medium text-[length:var(--m-text-secondary)] leading-[1.3]",
+						"truncate font-medium leading-[1.3]",
 						candidate.kind === "temporary" && "text-warning"
 					)}
 				>
 					{candidate.name}
 				</span>
 				{candidate.tags.length === 0 ? null : (
-					<span className="flex min-w-0 flex-wrap items-center gap-[5px]">
+					<span className="flex min-w-0 flex-wrap items-center gap-1">
 						{candidate.tags.map((tag) => (
-							<span
-								className="inline-flex items-center rounded-full px-2 py-[3px] font-semibold text-[11px]"
-								key={tag.id}
-								style={{
-									backgroundColor: `color-mix(in oklab, ${tag.color} 18%, transparent)`,
-									color: tag.color,
-								}}
-							>
+							<span className={CRYST_TAG} key={tag.id}>
+								<span
+									className={CRYST_TAG_DOT}
+									style={{ backgroundColor: tag.color }}
+								/>
 								{tag.name}
 							</span>
 						))}
 					</span>
 				)}
 				{candidate.meta === null ? null : (
-					<span className="truncate text-[length:var(--m-text-caption)] text-muted-foreground leading-[1.35]">
+					<span className="truncate text-[length:var(--text-xs)] text-muted-foreground leading-[1.35]">
 						{candidate.meta}
 					</span>
 				)}
 			</span>
-			{isPicked ? (
-				<IconCheck className="shrink-0 text-primary" size={16} />
-			) : null}
-		</button>
+		</SearchPickerRow>
 	);
 }
 
@@ -127,53 +115,23 @@ export function PlayerPicker({
 	searchLabel,
 }: PlayerPickerProps) {
 	return (
-		<div
-			className={cn(
-				"flex flex-col gap-2.5",
-				isDisabled && "pointer-events-none opacity-50"
-			)}
+		<SearchPicker
+			emptyIcon={IconUserOff}
+			emptyLabel={emptyLabel}
+			isDisabled={isDisabled}
+			isEmpty={candidates.length === 0}
+			onQueryChange={onQueryChange}
+			query={query}
+			searchLabel={searchLabel}
 		>
-			<div className="flex h-[var(--m-control)] items-center gap-2 rounded-md border border-border bg-input px-2.5">
-				<IconSearch className="shrink-0 text-muted-foreground" size={16} />
-				<input
-					aria-label={searchLabel}
-					{...NO_INPUT_SUGGESTIONS}
-					className="min-w-0 flex-1 border-none bg-transparent text-[length:var(--m-text-secondary)] outline-none"
-					onChange={(e) => onQueryChange(e.target.value)}
-					type="text"
-					value={query}
+			{candidates.map((candidate) => (
+				<CandidateRow
+					candidate={candidate}
+					isPicked={pickedKey === candidate.key}
+					key={candidate.key}
+					onPick={onPick}
 				/>
-				{query === "" ? null : (
-					<button
-						aria-label="Clear search"
-						className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"
-						onClick={() => onQueryChange("")}
-						type="button"
-					>
-						<IconX size={13} />
-					</button>
-				)}
-			</div>
-
-			<div className="max-h-[280px] overflow-y-auto rounded-md border border-border">
-				{candidates.length === 0 ? (
-					<div className="flex flex-col items-center gap-1 px-4 py-5 text-muted-foreground">
-						<IconUserOff size={18} />
-						<span className="text-[length:var(--m-text-footnote)]">
-							{emptyLabel}
-						</span>
-					</div>
-				) : (
-					candidates.map((candidate) => (
-						<CandidateRow
-							candidate={candidate}
-							isPicked={pickedKey === candidate.key}
-							key={candidate.key}
-							onPick={onPick}
-						/>
-					))
-				)}
-			</div>
-		</div>
+			))}
+		</SearchPicker>
 	);
 }

@@ -1,6 +1,12 @@
 import { IconCards, IconPlayerPlayFilled } from "@tabler/icons-react";
 import type { BlindLevelView } from "@/features/live-sessions/utils/blind-level-view";
 import { cn } from "@/lib/utils";
+import {
+	CRYST_BADGE,
+	CRYST_BADGE_TONE,
+	CRYST_CARD,
+	crystButton,
+} from "../cryst-controls";
 
 interface BlindLevelBarProps {
 	isStartPending: boolean;
@@ -18,18 +24,27 @@ export function BlindLevelBar({
 	return (
 		<section
 			aria-label="Blind level"
-			className="mx-4 mb-1.5 flex shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card"
+			className={cn(
+				CRYST_CARD,
+				"mx-4 mb-1.5 flex shrink-0 flex-col overflow-hidden"
+			)}
 		>
 			<div className="flex items-center gap-2.5 px-3 py-2">
 				<div className="-m-1 min-w-0 flex-1 rounded-md p-1">
 					<div className="flex min-w-0 items-center gap-[5px]">
-						<span className="shrink-0 text-[11px] text-muted-foreground">
+						<span className="shrink-0 text-[length:var(--text-xs)] text-muted-foreground">
 							{level.levelLabel}
 						</span>
 						{level.gameText === null ? null : (
-							<span className="inline-flex min-w-0 items-center gap-[3px] truncate rounded-full bg-[color-mix(in_oklab,var(--info)_14%,transparent)] px-1.5 py-px font-semibold text-[11px] text-info">
-								<IconCards className="shrink-0" size={11} />
-								{level.gameText}
+							<span
+								className={cn(
+									CRYST_BADGE,
+									CRYST_BADGE_TONE.info,
+									"min-w-0 truncate"
+								)}
+							>
+								<IconCards className="shrink-0" size={12} />
+								<span className="truncate">{level.gameText}</span>
 							</span>
 						)}
 					</div>
@@ -46,7 +61,7 @@ export function BlindLevelBar({
 				<div className="text-right">
 					<div
 						className={cn(
-							"text-[11px]",
+							"text-[length:var(--text-xs)]",
 							level.isWarning && !level.isPaused
 								? "text-warning"
 								: "text-muted-foreground"
@@ -66,7 +81,7 @@ export function BlindLevelBar({
 				{level.hasStarted ? null : (
 					<button
 						aria-label="Start timer"
-						className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-transparent text-primary disabled:opacity-50"
+						className={crystButton({ size: "iconMd", variant: "outline" })}
 						disabled={isStartPending}
 						onClick={onStartTimer}
 						title="Start timer"
@@ -76,11 +91,18 @@ export function BlindLevelBar({
 					</button>
 				)}
 			</div>
-			<div className="h-0.5 shrink-0 bg-muted">
+			<div
+				aria-label="Level progress"
+				aria-valuemax={100}
+				aria-valuemin={0}
+				aria-valuenow={Math.round(level.progress * 100)}
+				className="h-1 shrink-0 bg-muted"
+				role="progressbar"
+			>
 				<div
 					className={cn(
-						"h-full transition-[width] duration-300 ease-out",
-						level.isWarning ? "bg-warning" : "bg-foreground"
+						"h-full rounded-r-full transition-[width] duration-[160ms]",
+						level.isWarning ? "bg-warning" : "bg-primary"
 					)}
 					style={{ width: `${level.progress * 100}%` }}
 				/>

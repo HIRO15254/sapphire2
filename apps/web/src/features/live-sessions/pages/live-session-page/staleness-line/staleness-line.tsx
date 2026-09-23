@@ -43,7 +43,7 @@ export function StalenessLine({
 }: StalenessLineProps) {
 	if (staleness === null || referenceLabel === null || source === null) {
 		return (
-			<div className="flex items-center gap-[5px] text-[11px] text-muted-foreground">
+			<div className="flex items-center gap-[5px] text-[length:var(--text-xs)] text-muted-foreground">
 				<IconClockCheck size={12} />
 				No stack recorded yet
 			</div>
@@ -53,7 +53,12 @@ export function StalenessLine({
 	const { className, Icon } = TONE[staleness.level];
 
 	return (
-		<div className={cn("flex items-center gap-[5px] text-[11px]", className)}>
+		<div
+			className={cn(
+				"flex items-center gap-[5px] text-[length:var(--text-xs)]",
+				className
+			)}
+		>
 			<Icon size={12} />
 			{SOURCE_LABEL[source]}{" "}
 			<span className="font-mono tabular-nums">{referenceLabel}</span> ·{" "}

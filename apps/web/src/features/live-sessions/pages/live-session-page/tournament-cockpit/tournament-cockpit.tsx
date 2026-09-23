@@ -10,6 +10,7 @@ import {
 	EventEditorSheet,
 	ResetSeatsDialog,
 	ScanSeatsSheet,
+	SessionSheet,
 	SitInSheet,
 	TimelineSheet,
 } from "../sheets";
@@ -39,6 +40,7 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 				isMasterLinked={cockpit.isMasterLinked}
 				isPaused={cockpit.isPaused}
 				onEndSession={cockpit.onEndSession}
+				onOpenSession={cockpit.onOpenSession}
 				onPause={cockpit.onPause}
 				onResume={cockpit.onResume}
 				ruleName={cockpit.ruleName}
@@ -142,6 +144,13 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 				onOpenChange={cockpit.onCloseSeatSheet}
 				open={cockpit.seatSheet === "scan"}
 				seats={cockpit.scanSeats}
+			/>
+			<SessionSheet
+				onOpenChange={cockpit.onSessionSheetOpenChange}
+				open={cockpit.isSessionSheetOpen}
+				purchaseOptions={cockpit.chipPurchaseOptions}
+				sessionId={sessionId}
+				sessionType="tournament"
 			/>
 			<EndTournamentSheet
 				isPending={cockpit.isCompletePending}

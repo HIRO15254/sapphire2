@@ -1,5 +1,5 @@
 import {
-	IconAlertHexagon,
+	IconAlertTriangle,
 	IconLoader2,
 	IconPhoto,
 	IconRefresh,
@@ -7,6 +7,8 @@ import {
 import type { SeatPlanStep } from "@/features/live-sessions/utils/seat-plan";
 import type { ScanSeatState } from "@/features/live-sessions/utils/seat-scan-review";
 import { ACCEPTED_TYPES } from "@/features/live-sessions/utils/seat-screenshot";
+import { cn } from "@/lib/utils";
+import { CRYST_ALERT, crystButton } from "../../cryst-controls";
 import { CrystFormSheet } from "../cryst-form-sheet";
 import { ScanReviewRow } from "./scan-review-row";
 import type { ScanStep } from "./use-scan-seats-sheet";
@@ -27,9 +29,6 @@ const TITLES: Record<ScanStep, string> = {
 	choose: "Scan seats",
 	review: "Check the result",
 };
-
-const PRIMARY_BUTTON =
-	"min-h-[var(--m-control)] rounded-md bg-primary font-semibold text-[length:var(--m-text-secondary)] text-primary-foreground disabled:opacity-50";
 
 export function ScanSeatsSheet({
 	activePlayerIds,
@@ -82,19 +81,19 @@ export function ScanSeatsSheet({
 
 				{sheet.step === "choose" ? (
 					<button
-						className={`inline-flex w-full items-center justify-center gap-2 ${PRIMARY_BUTTON}`}
+						className={cn(crystButton({ variant: "primary" }), "w-full")}
 						onClick={sheet.onPickFile}
 						type="button"
 					>
-						<IconPhoto size={17} />
+						<IconPhoto size={18} />
 						Choose from library
 					</button>
 				) : null}
 
 				{sheet.step === "busy" ? (
 					<div className="flex min-h-[140px] flex-col items-center justify-center gap-2.5 text-muted-foreground">
-						<IconLoader2 className="animate-spin text-primary" size={24} />
-						<span className="text-[length:var(--m-text-footnote)]">
+						<IconLoader2 className="animate-spin" size={24} />
+						<span className="text-[length:var(--text-sm)]">
 							Detecting seat numbers and names...
 						</span>
 					</div>
@@ -102,20 +101,20 @@ export function ScanSeatsSheet({
 
 				{sheet.step === "review" ? (
 					<div className="flex flex-col gap-2.5">
-						<div className="flex items-center gap-2.5 rounded-md border border-border p-2.5">
-							<span className="inline-flex size-10 shrink-0 items-center justify-center rounded-sm bg-muted text-muted-foreground">
+						<div className="flex items-center gap-2.5 rounded-lg border border-border bg-card p-2.5">
+							<span className="inline-flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
 								<IconPhoto size={18} />
 							</span>
 							<span className="flex min-w-0 flex-1 flex-col gap-0.5">
-								<span className="font-semibold text-[length:var(--m-text-footnote)]">
+								<span className="font-semibold text-[length:var(--text-sm)]">
 									{sheet.scannedAtText}
 								</span>
-								<span className="font-mono text-[length:var(--m-text-caption)] text-muted-foreground">
+								<span className="font-mono text-[length:var(--text-xs)] text-muted-foreground">
 									{sheet.detectedText}
 								</span>
 							</span>
 							<button
-								className="inline-flex min-h-7 items-center gap-1 rounded-md border border-border px-2 text-[length:var(--text-xs)]"
+								className={crystButton({ size: "sm", variant: "outline" })}
 								onClick={sheet.onRescan}
 								type="button"
 							>
@@ -129,7 +128,7 @@ export function ScanSeatsSheet({
 								{sheet.summaryText}
 							</span>
 							<button
-								className="min-h-[26px] rounded-md px-2 font-semibold text-[length:var(--text-xs)] text-primary"
+								className={crystButton({ size: "sm", variant: "ghost" })}
 								onClick={sheet.onToggleAll}
 								type="button"
 							>
@@ -138,13 +137,19 @@ export function ScanSeatsSheet({
 						</div>
 
 						{sheet.conflictNote === null ? null : (
-							<p className="flex items-start gap-[7px] rounded-md bg-[color-mix(in_oklab,var(--warning)_12%,transparent)] px-2.5 py-2 text-[length:var(--text-xs)] text-warning">
-								<IconAlertHexagon className="mt-px shrink-0" size={14} />
+							<p
+								className={cn(
+									CRYST_ALERT,
+									"grid grid-cols-[auto_1fr] gap-2.5 px-3.5 py-3"
+								)}
+								role="alert"
+							>
+								<IconAlertTriangle className="mt-px text-warning" size={16} />
 								<span className="text-pretty">{sheet.conflictNote}</span>
 							</p>
 						)}
 
-						<div className="flex flex-col rounded-md border border-border px-2.5">
+						<div className="flex flex-col rounded-lg border border-border bg-card px-2.5">
 							{sheet.rows.map((row) => (
 								<ScanReviewRow
 									key={row.seatPosition}
