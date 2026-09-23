@@ -11,7 +11,6 @@ export interface CurrencyLike {
 export interface SessionTagLike {
 	id: string;
 	name: string;
-	usageCount: number;
 }
 
 export function formatWithUnit(

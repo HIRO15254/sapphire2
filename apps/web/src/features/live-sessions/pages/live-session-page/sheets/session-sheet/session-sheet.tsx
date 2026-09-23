@@ -32,6 +32,9 @@ interface SessionSheetProps {
 const NO_PURCHASE_OPTIONS: ChipPurchaseOption[] = [];
 const FORM_ID = "cryst-session-form";
 
+const tabId = (key: string) => `cryst-session-tab-${key}`;
+const panelId = (key: string) => `cryst-session-panel-${key}`;
+
 export function SessionSheet({
 	onOpenChange,
 	open,
@@ -72,8 +75,10 @@ export function SessionSheet({
 					>
 						{sheet.tabs.map((tab) => (
 							<button
+								aria-controls={panelId(tab.key)}
 								aria-selected={tab.isActive}
 								className={CRYST_TAB}
+								id={tabId(tab.key)}
 								key={tab.key}
 								onClick={() => sheet.onSelectTab(tab.key)}
 								role="tab"
@@ -125,35 +130,43 @@ export function SessionSheet({
 						{(currencyField) => {
 							const currency = sheet.findCurrency(currencyField.state.value);
 							const currencyLabel = currencyRowLabel(currency);
-							return sheet.tab === "overview" ? (
-								<SessionOverviewTab
-									availableTags={sheet.availableTags}
-									currencyLabel={currencyLabel}
-									form={form}
-									isMasterLinked={sheet.isMasterLinked}
-									master={sheet.master}
-									onCreateTag={sheet.onCreateTag}
-									onOpenCurrency={sheet.onOpenCurrency}
-									roomName={sheet.roomName}
-								/>
-							) : (
-								<SessionBasicsTab
-									blindLabels={sheet.blindLabels}
-									currencyLabel={currencyLabel}
-									currencyUnit={currency?.unit ?? null}
-									form={form}
-									isCash={sheet.isCash}
-									isCurrencyDifferent={isMasterFieldDifferent(
-										sheet.masterValues,
-										"currencyId",
-										currencyField.state.value
+							return (
+								<div
+									aria-labelledby={tabId(sheet.tab)}
+									id={panelId(sheet.tab)}
+									role="tabpanel"
+								>
+									{sheet.tab === "overview" ? (
+										<SessionOverviewTab
+											availableTags={sheet.availableTags}
+											currencyLabel={currencyLabel}
+											form={form}
+											isMasterLinked={sheet.isMasterLinked}
+											master={sheet.master}
+											onCreateTag={sheet.onCreateTag}
+											onOpenCurrency={sheet.onOpenCurrency}
+											roomName={sheet.roomName}
+										/>
+									) : (
+										<SessionBasicsTab
+											blindLabels={sheet.blindLabels}
+											currencyLabel={currencyLabel}
+											currencyUnit={currency?.unit ?? null}
+											form={form}
+											isCash={sheet.isCash}
+											isCurrencyDifferent={isMasterFieldDifferent(
+												sheet.masterValues,
+												"currencyId",
+												currencyField.state.value
+											)}
+											master={sheet.masterValues}
+											onOpenCurrency={sheet.onOpenCurrency}
+											purchaseOptions={purchaseOptions}
+											tableSizes={sheet.tableSizes}
+											variantLabel={sheet.variantLabel}
+										/>
 									)}
-									master={sheet.masterValues}
-									onOpenCurrency={sheet.onOpenCurrency}
-									purchaseOptions={purchaseOptions}
-									tableSizes={sheet.tableSizes}
-									variantLabel={sheet.variantLabel}
-								/>
+								</div>
 							);
 						}}
 					</form.Field>

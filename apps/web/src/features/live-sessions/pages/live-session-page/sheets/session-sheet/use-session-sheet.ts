@@ -226,7 +226,6 @@ export function useSessionSheet({
 		form,
 		isCash,
 		isCurrencyOpen,
-		isLoading: settings.isLoading,
 		isMasterLinked: view.isMasterLinked,
 		isSaving: settings.isSaving,
 		isSyncingMaster: settings.isSyncingMaster,
@@ -237,7 +236,7 @@ export function useSessionSheet({
 			if (!created) {
 				throw new Error("Failed to create session tag");
 			}
-			return { id: created.id, name: created.name, usageCount: 0 };
+			return { id: created.id, name: created.name };
 		},
 		onCurrencyOpenChange: setIsCurrencyOpen,
 		onOpenCurrency: () => setIsCurrencyOpen(true),

@@ -337,7 +337,6 @@ export function useSessionSettings({
 		availableTags: tagsQuery.data ?? [],
 		currencies: currenciesQuery.data ?? [],
 		detail: detailQuery.data ?? null,
-		isLoading: detailQuery.isLoading,
 		isSaving: snapshot.isPending || live.isPending || tags.isPending,
 		isSyncingMaster: syncMaster.isPending,
 		master,

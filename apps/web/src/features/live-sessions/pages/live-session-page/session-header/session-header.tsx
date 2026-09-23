@@ -34,18 +34,18 @@ interface SessionHeaderProps {
 function MasterPill({ isLinked }: { isLinked: boolean }) {
 	const label = isLinked ? "Linked to master" : "Not linked to master";
 	return (
-		<button
+		<span
 			aria-label={label}
 			className={`${MASTER_PILL_BASE} ${isLinked ? MASTER_LINKED_CLASS : MASTER_UNLINKED_CLASS}`}
+			role="img"
 			title={label}
-			type="button"
 		>
 			{isLinked ? (
 				<IconLink aria-hidden size={12} />
 			) : (
 				<IconUnlink aria-hidden size={12} />
 			)}
-		</button>
+		</span>
 	);
 }
 

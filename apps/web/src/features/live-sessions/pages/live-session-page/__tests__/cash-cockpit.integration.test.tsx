@@ -162,9 +162,9 @@ function session() {
 	};
 }
 
-const SESSION_TAGS: { id: string; name: string; usageCount: number }[] = [
-	{ id: "stag-1", name: "Weekend", usageCount: 12 },
-	{ id: "stag-2", name: "Trip: Osaka", usageCount: 3 },
+const SESSION_TAGS: { id: string; name: string }[] = [
+	{ id: "stag-1", name: "Weekend" },
+	{ id: "stag-2", name: "Trip: Osaka" },
 ];
 
 const ALL_TAGS: { color: string; id: string; name: string }[] = [
@@ -376,7 +376,6 @@ const fixtureRouter = t.router({
 				const created = {
 					id: `tag-new-${SESSION_TAGS.length}`,
 					name: input.name,
-					usageCount: 0,
 				};
 				SESSION_TAGS.push(created);
 				return created;
@@ -572,8 +571,8 @@ beforeEach(() => {
 	backend.ringGameUpdates = [];
 	SESSION_TAGS.length = 0;
 	SESSION_TAGS.push(
-		{ id: "stag-1", name: "Weekend", usageCount: 12 },
-		{ id: "stag-2", name: "Trip: Osaka", usageCount: 3 }
+		{ id: "stag-1", name: "Weekend" },
+		{ id: "stag-2", name: "Trip: Osaka" }
 	);
 });
 
@@ -606,9 +605,7 @@ describe("CashCockpit", () => {
 	])("names the icon-only master link state (ringGameId %s)", async (ringGameId, label) => {
 		backend.masterRingGameId = ringGameId;
 		renderCockpit();
-		expect(
-			await screen.findByRole("button", { name: label })
-		).toBeInTheDocument();
+		expect(await screen.findByRole("img", { name: label })).toBeInTheDocument();
 	});
 
 	it("records a stack update and follows the new value", async () => {
@@ -1156,7 +1153,11 @@ describe("CashCockpit", () => {
 
 		expect(basics).toHaveFocus();
 		expect(basics).toHaveAttribute("aria-selected", "true");
-		expect(await screen.findByLabelText(RULE_NAME_FIELD)).toBeInTheDocument();
+		expect(
+			within(
+				await screen.findByRole("tabpanel", { name: "Basics" })
+			).getByLabelText(RULE_NAME_FIELD)
+		).toBeInTheDocument();
 
 		await user.keyboard("{ArrowRight}");
 

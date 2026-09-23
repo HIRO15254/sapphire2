@@ -122,7 +122,6 @@ export function SessionOverviewTab({
 							)}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="How the session went, table conditions, anything to remember."
 							rows={3}
 							value={field.state.value}
 						/>
