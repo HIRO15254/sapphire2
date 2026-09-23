@@ -23,7 +23,7 @@
 	--info: #136dbe;
 	--info-foreground: #ffffff;
 	--border: #e4e5e9;
-	--input: #8c8e92;
+	--input: #dfe1e5;
 	--ring: #1961d2;
 	--selection: rgba(59, 130, 246, 0.18);
 	--chart-1: var(--primary);
@@ -105,7 +105,7 @@
 	--info: #4ea7fc;
 	--info-foreground: #08090a;
 	--border: #26282d;
-	--input: #66686e;
+	--input: #2e3035;
 	--ring: #5ea1f9;
 	--selection: rgba(69, 147, 248, 0.18);
 

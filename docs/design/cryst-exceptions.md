@@ -26,6 +26,7 @@ Everything not listed under [Exceptions](#exceptions) follows a design-system co
 | Compact master-drift Alert (tighter padding than Alert) | `sheets/session-sheet/session-sheet.tsx` | User-directed in P4a (SA2-223). |
 | Seat map: seat names at 8px, below the 11px floor | `table-view/seat-marker/seat-marker.tsx` | User-directed when names were added to the markers; kept by decision in P4a (SA2-223). |
 | Seat map: 34px square scan and clear-seats buttons, below the 44px target | `table-view/table-view.tsx` | Kept at the original 34px by decision in P4a (SA2-223). The square shape follows the system's icon Button. |
+| Field borders (`--input`) stay light: `#dfe1e5` in light and `#2e3035` in dark instead of the system's `#8c8e92` / `#66686e` | `apps/web/src/cryst-tokens.css` | User-directed in P4a (SA2-223): the darker borders were rejected after the tokens were aligned. Fields then rely on their `card` fill against `background` to read, so they fall below the system's 3:1 border contrast. |
 | Sans face is Noto Sans (Latin), not Noto Sans JP | `apps/web/src/index.css` | `--font-sans` is a literal in `@theme inline`, so the `.cryst` scope cannot change it; adopting the Japanese face is an app-wide change tracked in SA2-237. |
 
 ## Behavior that differs from the system's reference
