@@ -1,3 +1,9 @@
+export function formatHoursMinutes(totalMinutes: number): string {
+	const hours = Math.floor(totalMinutes / 60);
+	const minutes = totalMinutes % 60;
+	return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+}
+
 export function formatElapsedTime(
 	startedAt: Date | string | number | null | undefined
 ): string {
@@ -9,8 +15,5 @@ export function formatElapsedTime(
 	if (Number.isNaN(diffMs) || diffMs < 0) {
 		return "—";
 	}
-	const totalMinutes = Math.floor(diffMs / 60_000);
-	const hours = Math.floor(totalMinutes / 60);
-	const minutes = totalMinutes % 60;
-	return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+	return formatHoursMinutes(Math.floor(diffMs / 60_000));
 }

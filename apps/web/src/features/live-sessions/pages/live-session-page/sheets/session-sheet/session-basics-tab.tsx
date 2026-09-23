@@ -112,6 +112,9 @@ function NumericField({
 }
 
 const BUY_IN_ERROR_ID = "cryst-session-buyIn-error";
+const GAME_TYPE_LABEL_ID = "cryst-session-game-type-label";
+const COMPOSITION_LABEL_ID = "cryst-session-composition-label";
+const COMPOSITION_ERROR_ID = "cryst-session-composition-error";
 
 function BuyInRangeField({
 	form,
@@ -244,30 +247,38 @@ function TableSizeField({
 
 interface SessionBasicsTabProps {
 	blindLabels: BlindSlotLabels;
+	composition: { error: string | null; stakesLine: string; summary: string };
 	currencyLabel: string;
 	currencyUnit: string | null;
 	form: SessionForm;
+	gameType: { code: string | null; name: string };
 	isCash: boolean;
 	isCurrencyDifferent: boolean;
+	isMix: boolean;
 	master: MasterFieldValues | null;
+	onOpenComposition: () => void;
 	onOpenCurrency: () => void;
+	onOpenGameType: () => void;
 	purchaseOptions: readonly ChipPurchaseOption[];
 	tableSizes: readonly number[];
-	variantLabel: string;
 }
 
 export function SessionBasicsTab({
 	blindLabels,
+	composition,
 	currencyLabel,
 	currencyUnit,
 	form,
+	gameType,
 	isCash,
 	isCurrencyDifferent,
+	isMix,
 	master,
+	onOpenComposition,
 	onOpenCurrency,
+	onOpenGameType,
 	purchaseOptions,
 	tableSizes,
-	variantLabel,
 }: SessionBasicsTabProps) {
 	return (
 		<div className="grid grid-cols-6 items-end gap-x-2 gap-y-3">
@@ -303,21 +314,82 @@ export function SessionBasicsTab({
 			</form.Field>
 
 			<div className="col-span-6 min-w-0">
-				<div className={FIELD_LABEL_CLASS}>Game type</div>
-				<div
+				<div className={FIELD_LABEL_CLASS} id={GAME_TYPE_LABEL_ID}>
+					Game type
+				</div>
+				<button
+					aria-describedby={GAME_TYPE_LABEL_ID}
 					className={cn(
 						CONTROL_CLASS,
-						"flex items-center justify-between gap-2 text-muted-foreground"
+						"flex items-center justify-between gap-2 text-left hover:bg-accent"
 					)}
+					onClick={onOpenGameType}
+					type="button"
 				>
-					<span className="min-w-0 truncate font-medium text-foreground">
-						{variantLabel === "" ? "Not set" : variantLabel}
+					<span className="flex min-w-0 items-baseline gap-2">
+						<span className="min-w-0 truncate font-medium">
+							{gameType.name}
+						</span>
+						{gameType.code === null ? null : (
+							<span className="shrink-0 font-mono text-[length:var(--text-sm)] text-muted-foreground">
+								{gameType.code}
+							</span>
+						)}
 					</span>
-					<IconChevronRight size={16} />
-				</div>
+					<IconChevronRight
+						aria-hidden
+						className="shrink-0 text-muted-foreground"
+						size={16}
+					/>
+				</button>
 			</div>
 
-			{isCash ? (
+			{isCash && isMix ? (
+				<div className="col-span-6 min-w-0">
+					<div className={FIELD_LABEL_CLASS} id={COMPOSITION_LABEL_ID}>
+						Game composition
+					</div>
+					<button
+						aria-describedby={
+							composition.error === null
+								? COMPOSITION_LABEL_ID
+								: `${COMPOSITION_LABEL_ID} ${COMPOSITION_ERROR_ID}`
+						}
+						aria-invalid={composition.error !== null}
+						className={cn(
+							CRYST_FIELD,
+							"box-border flex min-h-[var(--m-control)] w-full items-center justify-between gap-2 px-2.5 py-2 text-left text-[length:var(--m-text-footnote)] hover:bg-accent"
+						)}
+						onClick={onOpenComposition}
+						type="button"
+					>
+						<span className="flex min-w-0 flex-1 flex-col gap-0.5">
+							<span className="font-semibold">{composition.summary}</span>
+							{composition.stakesLine === "" ? null : (
+								<span className="truncate text-[length:var(--m-text-caption)] text-muted-foreground">
+									{composition.stakesLine}
+								</span>
+							)}
+						</span>
+						<IconChevronRight
+							aria-hidden
+							className="shrink-0 text-muted-foreground"
+							size={16}
+						/>
+					</button>
+					{composition.error === null ? null : (
+						<p
+							className="mt-1 text-[length:var(--text-xs)] text-destructive"
+							id={COMPOSITION_ERROR_ID}
+							role="alert"
+						>
+							{composition.error}
+						</p>
+					)}
+				</div>
+			) : null}
+
+			{isCash && !isMix ? (
 				<>
 					<NumericField
 						form={form}
@@ -342,7 +414,7 @@ export function SessionBasicsTab({
 				</>
 			) : null}
 
-			{isCash ? (
+			{isCash && !isMix ? (
 				<form.Field name="anteType">
 					{(anteTypeField) => (
 						<>

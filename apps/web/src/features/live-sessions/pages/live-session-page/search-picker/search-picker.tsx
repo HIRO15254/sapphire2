@@ -79,6 +79,7 @@ export function SearchPicker({
 interface SearchPickerRowProps {
 	children: ReactNode;
 	className?: string;
+	isDisabled?: boolean;
 	isPicked: boolean;
 	onClick: () => void;
 }
@@ -86,13 +87,20 @@ interface SearchPickerRowProps {
 export function SearchPickerRow({
 	children,
 	className,
+	isDisabled = false,
 	isPicked,
 	onClick,
 }: SearchPickerRowProps) {
 	return (
 		<button
 			aria-pressed={isPicked}
-			className={cn(CRYST_LIST_ROW, "py-2", isPicked && "bg-accent", className)}
+			className={cn(
+				CRYST_LIST_ROW,
+				"py-2 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent",
+				isPicked && "bg-accent",
+				className
+			)}
+			disabled={isDisabled}
 			onClick={onClick}
 			type="button"
 		>

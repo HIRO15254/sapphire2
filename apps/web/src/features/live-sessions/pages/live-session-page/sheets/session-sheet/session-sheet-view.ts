@@ -1,3 +1,4 @@
+import type { MixGameGroup } from "@sapphire2/db/schemas/game";
 import type { MasterLinkCopy } from "@/features/live-sessions/utils/session-settings";
 import { describeMasterLink } from "@/features/live-sessions/utils/session-settings";
 
@@ -12,6 +13,7 @@ export interface SessionDetailLike {
 	cashBlind3?: number | null;
 	cashMaxBuyIn?: number | null;
 	cashMinBuyIn?: number | null;
+	cashMixGames?: MixGameGroup[] | null;
 	cashTableSize?: number | null;
 	cashVariant?: string | null;
 	currencyId?: string | null;
@@ -38,6 +40,7 @@ export interface SessionSheetView {
 	isMasterLinked: boolean;
 	master: MasterLinkCopy;
 	memo: string;
+	mixGames: MixGameGroup[] | null;
 	roomName: string;
 	ruleName: string;
 	selectedCurrencyId: string | null;
@@ -81,6 +84,7 @@ export function describeSessionDetail(
 			sessionType
 		),
 		memo: detail?.memo ?? "",
+		mixGames: isCash ? (detail?.cashMixGames ?? null) : null,
 		roomName: detail?.roomName ?? "Not set",
 		ruleName: (isCash ? detail?.ringGameName : detail?.tournamentName) ?? "",
 		selectedCurrencyId: currencyId,
