@@ -1,10 +1,10 @@
 import { IconCircleX, IconPlayerRecord } from "@tabler/icons-react";
+import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { CashCockpit } from "./cash-cockpit";
 import { CRYST_ALERT, crystButton } from "./cryst-controls";
 import { CrystEmptyState } from "./cryst-empty-state";
 import { CRYST_SCOPE_CLASS } from "./cryst-scope";
-import { CrystHeaderShell } from "./session-header";
 import { TournamentCockpit } from "./tournament-cockpit";
 import { useLiveSessionPage } from "./use-live-session-page";
 
@@ -17,6 +17,8 @@ function CrystScreen({ children }: { children: React.ReactNode }) {
 		</div>
 	);
 }
+
+const SESSIONS_LINK_CLASS = crystButton({ size: "sm", variant: "outline" });
 
 const SKELETON =
 	"block rounded-md bg-muted animate-pulse [animation-duration:1.6s] motion-reduce:animate-none";
@@ -49,7 +51,6 @@ function CockpitSkeleton() {
 function CrystMessageScreen({ children }: { children: React.ReactNode }) {
 	return (
 		<CrystScreen>
-			<CrystHeaderShell />
 			<div className="flex flex-1 items-center justify-center p-4">
 				{children}
 			</div>
@@ -63,7 +64,6 @@ export function LiveSessionPage() {
 	if (isLoading) {
 		return (
 			<CrystScreen>
-				<CrystHeaderShell />
 				<CockpitSkeleton />
 			</CrystScreen>
 		);
@@ -92,6 +92,9 @@ export function LiveSessionPage() {
 							>
 								Retry
 							</button>
+							<Link className={SESSIONS_LINK_CLASS} to="/sessions">
+								Go to sessions
+							</Link>
 						</div>
 					</div>
 				</div>
@@ -103,6 +106,11 @@ export function LiveSessionPage() {
 		return (
 			<CrystMessageScreen>
 				<CrystEmptyState
+					action={
+						<Link className={SESSIONS_LINK_CLASS} to="/sessions">
+							Go to sessions
+						</Link>
+					}
 					description="Start a live session from the sessions screen."
 					icon={IconPlayerRecord}
 					title="No active session"

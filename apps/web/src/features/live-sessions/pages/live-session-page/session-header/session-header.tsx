@@ -1,21 +1,18 @@
 import {
 	IconChevronDown,
-	IconChevronLeft,
 	IconLink,
 	IconPlayerPause,
 	IconPlayerPlay,
 	IconSquare,
 	IconUnlink,
 } from "@tabler/icons-react";
-import { Link } from "@tanstack/react-router";
-import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { CRYST_FOCUS_RING, crystButton } from "../cryst-controls";
 
 const ICON_BUTTON_CLASS = crystButton({ size: "icon", variant: "ghost" });
 
 const MASTER_PILL_BASE =
-	"inline-flex min-h-[22px] min-w-0 max-w-24 shrink-[2] items-center gap-1 truncate rounded-full border px-[7px] font-semibold text-[11px]";
+	"inline-flex min-h-[22px] shrink-0 items-center rounded-full border px-[7px]";
 
 const MASTER_LINKED_CLASS =
 	"border-border bg-transparent text-muted-foreground";
@@ -34,30 +31,20 @@ interface SessionHeaderProps {
 	ruleName: string;
 }
 
-export function CrystHeaderShell({ children }: { children?: ReactNode }) {
-	return (
-		<header className="flex shrink-0 items-center gap-2 px-4 py-2">
-			<Link
-				aria-label="Back to sessions"
-				className={ICON_BUTTON_CLASS}
-				to="/sessions"
-			>
-				<IconChevronLeft size={18} />
-			</Link>
-			{children}
-		</header>
-	);
-}
-
 function MasterPill({ isLinked }: { isLinked: boolean }) {
+	const label = isLinked ? "Linked to master" : "Not linked to master";
 	return (
 		<button
+			aria-label={label}
 			className={`${MASTER_PILL_BASE} ${isLinked ? MASTER_LINKED_CLASS : MASTER_UNLINKED_CLASS}`}
-			title="Master link"
+			title={label}
 			type="button"
 		>
-			{isLinked ? <IconLink size={12} /> : <IconUnlink size={12} />}
-			{isLinked ? null : "Link"}
+			{isLinked ? (
+				<IconLink aria-hidden size={12} />
+			) : (
+				<IconUnlink aria-hidden size={12} />
+			)}
 		</button>
 	);
 }
@@ -73,7 +60,7 @@ export function SessionHeader({
 	ruleName,
 }: SessionHeaderProps) {
 	return (
-		<CrystHeaderShell>
+		<header className="flex shrink-0 items-center gap-2 px-4 py-2">
 			<button
 				aria-label="Session settings"
 				className={cn(
@@ -115,6 +102,6 @@ export function SessionHeader({
 			>
 				<IconSquare size={18} />
 			</button>
-		</CrystHeaderShell>
+		</header>
 	);
 }

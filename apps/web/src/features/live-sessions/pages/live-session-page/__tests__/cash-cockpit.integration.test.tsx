@@ -146,7 +146,7 @@ function session() {
 		status: backend.status,
 		startedAt: new Date("2026-06-01T10:00:00Z"),
 		roomId: null,
-		ringGameId: null,
+		ringGameId: backend.masterRingGameId,
 		ruleName: "Friday 200/400",
 		variant: "NLH",
 		blind2: 400,
@@ -598,6 +598,17 @@ describe("CashCockpit", () => {
 		expect(screen.getByText("+2,000")).toBeInTheDocument();
 		expect(screen.getByText("30 BB")).toBeInTheDocument();
 		expect(screen.getByText("Friday 200/400")).toBeInTheDocument();
+	});
+
+	it.each([
+		[null, "Not linked to master"],
+		["ring-master-1", "Linked to master"],
+	])("names the icon-only master link state (ringGameId %s)", async (ringGameId, label) => {
+		backend.masterRingGameId = ringGameId;
+		renderCockpit();
+		expect(
+			await screen.findByRole("button", { name: label })
+		).toBeInTheDocument();
 	});
 
 	it("records a stack update and follows the new value", async () => {

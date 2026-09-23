@@ -1,1 +1,1 @@
-export { CrystHeaderShell, SessionHeader } from "./session-header";
+export { SessionHeader } from "./session-header";
