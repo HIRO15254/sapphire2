@@ -22,6 +22,7 @@ export interface BlindLevelView {
 	isBreak: boolean;
 	isPaused: boolean;
 	isWarning: boolean;
+	levelId: string;
 	levelLabel: string;
 	progress: number;
 	stateLabel: string;
@@ -103,6 +104,7 @@ function describeLevel(
 		gameText: gameText(level),
 		isBreak: level.isBreak,
 		isPaused,
+		levelId: level.id,
 		levelLabel: levelLabel(level),
 	};
 }

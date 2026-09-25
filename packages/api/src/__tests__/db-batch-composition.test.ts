@@ -31,7 +31,6 @@ import {
 	persistSessionChipPurchases,
 	resnapshotTournamentStructure,
 	snapshotTournamentStructure,
-	syncCurrencyTransaction,
 } from "../routers/session";
 
 type Rows = Record<string, unknown>[];
@@ -940,48 +939,69 @@ describe("tournament.updateWithLevels batch composition (SA2-116)", () => {
 	});
 });
 
-describe("syncCurrencyTransaction currency-change batch composition (SA2-116)", () => {
-	it("batches the ledger DELETE and its re-INSERT together on a currency switch", async () => {
+describe("session.update ledger batch composition (SA2-116)", () => {
+	const cashSessionRows = (transactionTypes: Rows) =>
+		new Map<unknown, Rows>([
+			[
+				gameSession,
+				[
+					{
+						id: "sess-1",
+						userId: "user-1",
+						kind: "cash_game",
+						source: "manual",
+						currencyId: "cur-old",
+						sessionDate: new Date(1_000_000),
+					},
+				],
+			],
+			[
+				sessionCashDetail,
+				[
+					{
+						sessionId: "sess-1",
+						buyIn: 100,
+						cashOut: 600,
+						variant: "NL Hold'em",
+						mixGames: null,
+						chipRemoveTotal: null,
+					},
+				],
+			],
+			[currency, [{ id: "cur-new", userId: "user-1" }]],
+			[transactionType, transactionTypes],
+		]);
+
+	it("moves the ledger row to the new currency in the batch that updates the session", async () => {
 		const { db, batchCalls } = createBatchTrackingDb(
-			new Map<unknown, Rows>([[transactionType, [{ id: "type-1" }]]])
+			cashSessionRows([{ id: "type-1" }])
 		);
 
-		await syncCurrencyTransaction(
-			db as never,
-			"sess-1",
-			"cur-old",
-			"cur-new",
-			500,
-			new Date(1_000_000),
-			"user-1"
-		);
-
-		expect(batchCalls).toHaveLength(1);
-		const batch = sole(batchCalls);
-
-		expect(batch[0]).toMatchObject({
-			kind: "delete",
-			table: currencyTransaction,
+		await callerFor(db, "user-1").session.update({
+			id: "sess-1",
+			currencyId: "cur-new",
 		});
-		expect(opsOn(batch, currencyTransaction, "delete")).toHaveLength(1);
-		expect(opsOn(batch, currencyTransaction, "insert")).toHaveLength(1);
-		expect(opsOn(batch, transactionType, "insert")).toHaveLength(0);
+
+		const batch = sole(batchCalls);
+		expect(opsOn(batch, gameSession, "update")).toHaveLength(1);
+		const ledgerOps = batch.filter((s) => s.table === currencyTransaction);
+		expect(ledgerOps.map((s) => s.kind)).toEqual(["delete", "insert"]);
+		expect(ledgerOps[1]?.values).toMatchObject({
+			currencyId: "cur-new",
+			amount: 500,
+			transactionTypeId: "type-1",
+		});
 	});
 
 	it("ensures the Session Result type before batching the replacement ledger row", async () => {
 		const { db, batchCalls, inserts } = createBatchTrackingDb(
-			new Map<unknown, Rows>([[transactionType, []]])
+			cashSessionRows([])
 		);
 
-		await syncCurrencyTransaction(
-			db as never,
-			"sess-1",
-			"cur-old",
-			"cur-new",
-			500,
-			new Date(1_000_000),
-			"user-1"
-		);
+		await callerFor(db, "user-1").session.update({
+			id: "sess-1",
+			currencyId: "cur-new",
+		});
 
 		const batch = sole(batchCalls);
 		expect(opsOn(inserts, transactionType, "insert")).toHaveLength(1);
@@ -989,33 +1009,35 @@ describe("syncCurrencyTransaction currency-change batch composition (SA2-116)", 
 		expect(opsOn(batch, currencyTransaction, "insert")).toHaveLength(1);
 	});
 
-	it("leaves the single-statement branches (pure removal / same-currency update) unbatched", async () => {
-		const removal = createBatchTrackingDb();
-		await syncCurrencyTransaction(
-			removal.db as never,
-			"sess-1",
-			"cur-old",
-			null,
-			0,
-			new Date(1_000_000),
-			"user-1"
+	it("removes or re-amounts the ledger row in the batch that updates the session", async () => {
+		const removal = createBatchTrackingDb(cashSessionRows([{ id: "type-1" }]));
+		await callerFor(removal.db, "user-1").session.update({
+			id: "sess-1",
+			currencyId: null,
+		});
+		const removalBatch = sole(removal.batchCalls);
+		expect(opsOn(removalBatch, gameSession, "update")).toHaveLength(1);
+		expect(removalBatch.filter((s) => s.table === currencyTransaction)).toEqual(
+			[expect.objectContaining({ kind: "delete" })]
 		);
-		expect(removal.batchCalls).toHaveLength(0);
-		expect(removal.deletes).toHaveLength(1);
 
-		const same = createBatchTrackingDb();
-		await syncCurrencyTransaction(
-			same.db as never,
-			"sess-1",
-			"cur-x",
-			"cur-x",
-			10,
-			new Date(1_000_000),
-			"user-1"
-		);
-		expect(same.batchCalls).toHaveLength(0);
+		const same = createBatchTrackingDb(cashSessionRows([{ id: "type-1" }]));
+		await callerFor(same.db, "user-1").session.update({
+			id: "sess-1",
+			cashOut: 900,
+		});
+		const sameBatch = sole(same.batchCalls);
+		expect(opsOn(sameBatch, gameSession, "update")).toHaveLength(1);
+		expect(opsOn(sameBatch, sessionCashDetail, "update")).toHaveLength(1);
+		expect(sameBatch.filter((s) => s.table === currencyTransaction)).toEqual([
+			expect.objectContaining({
+				kind: "update",
+				values: expect.objectContaining({ amount: 800 }),
+			}),
+		]);
 	});
 });
+
 describe("tag deletion batch composition (SA2-116)", () => {
 	it("deletes player-tag links and the player tag in one batch", async () => {
 		const rows = new Map<unknown, Rows>([

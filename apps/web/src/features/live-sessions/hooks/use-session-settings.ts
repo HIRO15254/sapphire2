@@ -1,10 +1,13 @@
+import type { MixGameGroup } from "@sapphire2/db/schemas/game";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { BlindLevelInput } from "@/features/live-sessions/utils/blind-level-rows";
 import {
 	describeCashMasterValues,
 	describeTournamentMasterValues,
 } from "@/features/live-sessions/utils/session-settings";
 import {
 	cancelTargets,
+	createOptimisticId,
 	invalidateTargets,
 	restoreSnapshots,
 	snapshotQuery,
@@ -20,17 +23,23 @@ export interface SessionSnapshotPatch {
 	blind1?: number | null;
 	blind2?: number | null;
 	blind3?: number | null;
+	blindLevels?: BlindLevelInput[];
 	bountyAmount?: number | null;
 	entryFee?: number | null;
 	maxBuyIn?: number | null;
 	minBuyIn?: number | null;
+	mixGames?: MixGameGroup[] | null;
 	ruleName?: string;
 	startingStack?: number | null;
 	tableSize?: number | null;
 	tournamentBuyIn?: number | null;
+	variant?: string;
 }
 
-export type MasterFieldPatch = SessionSnapshotPatch & { currencyId?: string };
+export type MasterFieldPatch = Omit<
+	SessionSnapshotPatch,
+	"blindLevels" | "mixGames" | "variant"
+> & { currencyId?: string };
 
 interface UseSessionSettingsOptions {
 	sessionId: string;
@@ -44,6 +53,7 @@ function snapshotMutation(
 ): Promise<unknown> {
 	if (sessionType === "cash_game") {
 		const {
+			blindLevels: _levels,
 			bountyAmount: _bounty,
 			entryFee: _fee,
 			startingStack: _stack,
@@ -63,6 +73,7 @@ function snapshotMutation(
 		blind3: _b3,
 		maxBuyIn: _max,
 		minBuyIn: _min,
+		mixGames: _mixGames,
 		...tournament
 	} = patch;
 	return trpcClient.liveTournamentSession.updateSnapshot.mutate({
@@ -121,6 +132,8 @@ function liveUpdateMutation(
 		: trpcClient.liveTournamentSession.update.mutate({ id, ...patch });
 }
 
+const NO_BLIND_LEVELS: never[] = [];
+
 interface PatchableEntity {
 	[key: string]: unknown;
 }
@@ -135,8 +148,10 @@ const CASH_DETAIL_KEY_MAP: SnapshotKeyMap = {
 	blind3: "cashBlind3",
 	maxBuyIn: "cashMaxBuyIn",
 	minBuyIn: "cashMinBuyIn",
+	mixGames: "cashMixGames",
 	ruleName: "ringGameName",
 	tableSize: "cashTableSize",
+	variant: "cashVariant",
 };
 
 const TOURNAMENT_DETAIL_KEY_MAP: SnapshotKeyMap = {
@@ -144,6 +159,7 @@ const TOURNAMENT_DETAIL_KEY_MAP: SnapshotKeyMap = {
 	ruleName: "tournamentName",
 	startingStack: "tournamentStartingStack",
 	tableSize: "tournamentTableSize",
+	variant: "tournamentVariant",
 };
 
 const TOURNAMENT_LIVE_KEY_MAP: SnapshotKeyMap = {
@@ -159,9 +175,23 @@ function remapPatchKeys(
 		keyof SessionSnapshotPatch,
 		unknown,
 	][]) {
-		remapped[keyMap[key] ?? key] = value;
+		if (key !== "blindLevels") {
+			remapped[keyMap[key] ?? key] = value;
+		}
 	}
 	return remapped;
+}
+
+function toOptimisticBlindLevels(
+	sessionId: string,
+	levels: BlindLevelInput[]
+): PatchableEntity[] {
+	return levels.map((level, index) => ({
+		...level,
+		id: createOptimisticId("blind-level"),
+		level: index + 1,
+		sessionId,
+	}));
 }
 
 export function useSessionSettings({
@@ -183,6 +213,10 @@ export function useSessionSettings({
 	const detailQuery = useQuery({
 		...trpc.session.getById.queryOptions({ id: sessionId }),
 		enabled: !!sessionId,
+	});
+	const tournamentLiveQuery = useQuery({
+		...trpc.liveTournamentSession.getById.queryOptions({ id: sessionId }),
+		enabled: !!sessionId && !isCash,
 	});
 	const tagsQuery = useQuery(trpc.sessionTag.list.queryOptions());
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
@@ -244,11 +278,17 @@ export function useSessionSettings({
 					isCash ? CASH_DETAIL_KEY_MAP : TOURNAMENT_DETAIL_KEY_MAP
 				)
 			);
-			updateQueryEntity<PatchableEntity>(
-				queryClient,
-				liveKey,
-				remapPatchKeys(patch, isCash ? {} : TOURNAMENT_LIVE_KEY_MAP)
-			);
+			updateQueryEntity<PatchableEntity>(queryClient, liveKey, {
+				...remapPatchKeys(patch, isCash ? {} : TOURNAMENT_LIVE_KEY_MAP),
+				...(patch.blindLevels === undefined
+					? null
+					: {
+							blindLevels: toOptimisticBlindLevels(
+								sessionId,
+								patch.blindLevels
+							),
+						}),
+			});
 			return { previousDetail, previousLive };
 		},
 		onError: (_error, _variables, context) => {
@@ -335,8 +375,10 @@ export function useSessionSettings({
 
 	return {
 		availableTags: tagsQuery.data ?? [],
+		blindLevels: tournamentLiveQuery.data?.blindLevels ?? NO_BLIND_LEVELS,
 		currencies: currenciesQuery.data ?? [],
 		detail: detailQuery.data ?? null,
+		hasBlindLevels: tournamentLiveQuery.data !== undefined,
 		isSaving: snapshot.isPending || live.isPending || tags.isPending,
 		isSyncingMaster: syncMaster.isPending,
 		master,

@@ -11,14 +11,13 @@ import type { BlindSlotLabels } from "@/shared/hooks/use-game-groups";
 import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
 import { CRYST_FIELD, CRYST_FIELD_GROUP } from "../../cryst-controls";
 import { SegmentedControl } from "../../segmented-control";
-import type { AnteType } from "./session-sheet-view";
-import type { SessionForm } from "./use-session-sheet";
-
-const ANTE_TYPES: { label: string; value: AnteType }[] = [
-	{ label: "None", value: "none" },
-	{ label: "BB", value: "bb" },
-	{ label: "All", value: "all" },
-];
+import { MixStakesFields } from "./mix-stakes-fields";
+import { ANTE_TYPE_OPTIONS, type AnteType } from "./session-sheet-view";
+import type {
+	MixStakeSlot,
+	MixStakesView,
+	SessionForm,
+} from "./use-session-sheet";
 
 const FIELD_LABEL_CLASS =
 	"mb-1.5 block font-medium text-[length:var(--text-sm)] text-foreground";
@@ -112,6 +111,8 @@ function NumericField({
 }
 
 const BUY_IN_ERROR_ID = "cryst-session-buyIn-error";
+const GAME_TYPE_LABEL_ID = "cryst-session-game-type-label";
+const GAME_TYPE_ERROR_ID = "cryst-session-game-type-error";
 
 function BuyInRangeField({
 	form,
@@ -247,13 +248,19 @@ interface SessionBasicsTabProps {
 	currencyLabel: string;
 	currencyUnit: string | null;
 	form: SessionForm;
+	gameType: { code: string | null; name: string };
+	gameTypeError: string | null;
 	isCash: boolean;
 	isCurrencyDifferent: boolean;
+	isMix: boolean;
 	master: MasterFieldValues | null;
+	mixStakes: readonly MixStakesView[];
+	onMixAnteTypeChange: (uid: string, anteType: AnteType) => void;
+	onMixStakeChange: (uid: string, slot: MixStakeSlot, value: string) => void;
 	onOpenCurrency: () => void;
+	onOpenGameType: () => void;
 	purchaseOptions: readonly ChipPurchaseOption[];
 	tableSizes: readonly number[];
-	variantLabel: string;
 }
 
 export function SessionBasicsTab({
@@ -261,13 +268,19 @@ export function SessionBasicsTab({
 	currencyLabel,
 	currencyUnit,
 	form,
+	gameType,
+	gameTypeError,
 	isCash,
 	isCurrencyDifferent,
+	isMix,
 	master,
+	mixStakes,
+	onMixAnteTypeChange,
+	onMixStakeChange,
 	onOpenCurrency,
+	onOpenGameType,
 	purchaseOptions,
 	tableSizes,
-	variantLabel,
 }: SessionBasicsTabProps) {
 	return (
 		<div className="grid grid-cols-6 items-end gap-x-2 gap-y-3">
@@ -303,21 +316,67 @@ export function SessionBasicsTab({
 			</form.Field>
 
 			<div className="col-span-6 min-w-0">
-				<div className={FIELD_LABEL_CLASS}>Game type</div>
-				<div
+				<div className={FIELD_LABEL_CLASS} id={GAME_TYPE_LABEL_ID}>
+					Game type
+				</div>
+				<button
+					aria-describedby={
+						gameTypeError === null
+							? GAME_TYPE_LABEL_ID
+							: `${GAME_TYPE_LABEL_ID} ${GAME_TYPE_ERROR_ID}`
+					}
+					aria-invalid={gameTypeError !== null}
 					className={cn(
 						CONTROL_CLASS,
-						"flex items-center justify-between gap-2 text-muted-foreground"
+						"flex items-center justify-between gap-2 text-left hover:bg-accent"
 					)}
+					onClick={onOpenGameType}
+					type="button"
 				>
-					<span className="min-w-0 truncate font-medium text-foreground">
-						{variantLabel === "" ? "Not set" : variantLabel}
+					<span className="flex min-w-0 items-baseline gap-2">
+						<span className="min-w-0 truncate font-medium">
+							{gameType.name}
+						</span>
+						{gameType.code === null ? null : (
+							<span className="min-w-0 truncate font-mono text-[length:var(--text-sm)] text-muted-foreground">
+								{gameType.code}
+							</span>
+						)}
 					</span>
-					<IconChevronRight size={16} />
-				</div>
+					<IconChevronRight
+						aria-hidden
+						className="shrink-0 text-muted-foreground"
+						size={16}
+					/>
+				</button>
+				{gameTypeError === null ? null : (
+					<p
+						className="mt-1 text-[length:var(--text-xs)] text-destructive"
+						id={GAME_TYPE_ERROR_ID}
+						role="alert"
+					>
+						{gameTypeError}
+					</p>
+				)}
 			</div>
 
-			{isCash ? (
+			{mixStakes.map((group) => (
+				<MixStakesFields
+					ante={group.ante}
+					anteType={group.anteType}
+					blinds={group.blinds}
+					codes={group.codes}
+					key={group.uid}
+					name={group.name}
+					onAnteTypeChange={(anteType) =>
+						onMixAnteTypeChange(group.uid, anteType)
+					}
+					onChange={(slot, value) => onMixStakeChange(group.uid, slot, value)}
+					uid={group.uid}
+				/>
+			))}
+
+			{isCash && !isMix ? (
 				<>
 					<NumericField
 						form={form}
@@ -342,7 +401,7 @@ export function SessionBasicsTab({
 				</>
 			) : null}
 
-			{isCash ? (
+			{isCash && !isMix ? (
 				<form.Field name="anteType">
 					{(anteTypeField) => (
 						<>
@@ -363,7 +422,7 @@ export function SessionBasicsTab({
 								<SegmentedControl
 									aria-labelledby={fieldId(anteTypeField.name)}
 									onChange={anteTypeField.handleChange}
-									options={ANTE_TYPES}
+									options={ANTE_TYPE_OPTIONS}
 									value={anteTypeField.state.value}
 								/>
 							</div>

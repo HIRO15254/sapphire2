@@ -16,12 +16,16 @@ import {
 import { CrystFormSheet } from "../cryst-form-sheet";
 import { CurrencySheet } from "../currency-sheet";
 import { DiscardChangesDialog } from "../discard-changes-dialog";
+import { GameTypeSheet } from "../game-type-sheet";
 import { useDiscardConfirm } from "../use-discard-confirm";
 import { SessionBasicsTab } from "./session-basics-tab";
+import { SessionBlindsTab } from "./session-blinds-tab";
 import { SessionOverviewTab } from "./session-overview-tab";
-import { useSessionSheet } from "./use-session-sheet";
+import { type SessionSheetTab, useSessionSheet } from "./use-session-sheet";
 
 interface SessionSheetProps {
+	currentBlindLevelId?: string | null;
+	initialTab?: SessionSheetTab;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 	purchaseOptions?: readonly ChipPurchaseOption[];
@@ -36,13 +40,22 @@ const tabId = (key: string) => `cryst-session-tab-${key}`;
 const panelId = (key: string) => `cryst-session-panel-${key}`;
 
 export function SessionSheet({
+	currentBlindLevelId = null,
+	initialTab = "overview",
 	onOpenChange,
 	open,
 	purchaseOptions = NO_PURCHASE_OPTIONS,
 	sessionId,
 	sessionType,
 }: SessionSheetProps) {
-	const sheet = useSessionSheet({ onOpenChange, open, sessionId, sessionType });
+	const sheet = useSessionSheet({
+		currentBlindLevelId,
+		initialTab,
+		onOpenChange,
+		open,
+		sessionId,
+		sessionType,
+	});
 	const { form } = sheet;
 	const discard = useDiscardConfirm({
 		isDirty: () => form.state.isDirty,
@@ -147,25 +160,47 @@ export function SessionSheet({
 											onOpenCurrency={sheet.onOpenCurrency}
 											roomName={sheet.roomName}
 										/>
-									) : (
+									) : null}
+									{sheet.tab === "basics" ? (
 										<SessionBasicsTab
 											blindLabels={sheet.blindLabels}
 											currencyLabel={currencyLabel}
 											currencyUnit={currency?.unit ?? null}
 											form={form}
+											gameType={sheet.gameType}
+											gameTypeError={sheet.gameTypeError}
 											isCash={sheet.isCash}
 											isCurrencyDifferent={isMasterFieldDifferent(
 												sheet.masterValues,
 												"currencyId",
 												currencyField.state.value
 											)}
+											isMix={sheet.isMix}
 											master={sheet.masterValues}
+											mixStakes={sheet.mixStakes}
+											onMixAnteTypeChange={sheet.onMixAnteTypeChange}
+											onMixStakeChange={sheet.onMixStakeChange}
 											onOpenCurrency={sheet.onOpenCurrency}
+											onOpenGameType={sheet.onOpenGameType}
 											purchaseOptions={purchaseOptions}
 											tableSizes={sheet.tableSizes}
-											variantLabel={sheet.variantLabel}
 										/>
-									)}
+									) : null}
+									{sheet.tab === "blinds" ? (
+										<SessionBlindsTab
+											blindLabels={sheet.blindLabels}
+											defaultMinutes={sheet.defaultMinutes}
+											onAddBreak={sheet.onAddBlindBreak}
+											onAddLevel={sheet.onAddBlindLevel}
+											onCellChange={sheet.onBlindCellChange}
+											onDefaultMinutesChange={sheet.onDefaultMinutesChange}
+											onGameStakeChange={sheet.onLevelGameStakeChange}
+											onOpenGames={sheet.onOpenLevelGames}
+											onRemoveRow={sheet.onRemoveBlindRow}
+											rows={sheet.blinds.rows}
+											summary={sheet.blinds.summary}
+										/>
+									) : null}
 								</div>
 							);
 						}}
@@ -181,6 +216,14 @@ export function SessionSheet({
 				}}
 				open={sheet.isCurrencyOpen}
 				selectedCurrencyId={form.state.values.currencyId}
+			/>
+			<GameTypeSheet
+				onClear={sheet.gameTypeSheet.onClear}
+				onOpenChange={sheet.gameTypeSheet.onOpenChange}
+				onPickMix={sheet.gameTypeSheet.onPickMix}
+				onPickVariant={sheet.gameTypeSheet.onPickVariant}
+				open={sheet.gameTypeSheet.open}
+				target={sheet.gameTypeSheet.target}
 			/>
 			<DiscardChangesDialog
 				onConfirmDiscard={discard.onConfirmDiscard}

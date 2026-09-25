@@ -16,7 +16,7 @@ import { useNowTick } from "@/shared/hooks/use-now-tick";
 import { formatLocalHm, formatNumber } from "@/utils/format-number";
 import { withHeroSeat } from "../seat-fields";
 import { resolveRuleName, toSessionStatus } from "../session-fields";
-import type { TournamentCompleteValues } from "../sheets";
+import type { SessionSheetTab, TournamentCompleteValues } from "../sheets";
 import type { TournamentStackValues } from "../tournament-quick-input";
 import { useSeatSelection } from "../use-seat-selection";
 import { useSessionJournal } from "../use-session-journal";
@@ -35,6 +35,8 @@ export function useTournamentCockpit(sessionId: string) {
 	const isKeyboardOpen = useKeyboardOpen();
 	const [isEndSessionOpen, setIsEndSessionOpen] = useState(false);
 	const [isSessionSheetOpen, setIsSessionSheetOpen] = useState(false);
+	const [sessionSheetTab, setSessionSheetTab] =
+		useState<SessionSheetTab>("overview");
 	const shiftedPauseRef = useRef<number | null>(null);
 
 	const rawHeroSeat = session?.heroSeatPosition;
@@ -117,8 +119,16 @@ export function useTournamentCockpit(sessionId: string) {
 		isEndSessionOpen,
 		chipPurchaseOptions: stack.chipPurchaseTypes,
 		isSessionSheetOpen,
-		onOpenSession: () => setIsSessionSheetOpen(true),
+		onOpenBlinds: () => {
+			setSessionSheetTab("blinds");
+			setIsSessionSheetOpen(true);
+		},
+		onOpenSession: () => {
+			setSessionSheetTab("overview");
+			setIsSessionSheetOpen(true);
+		},
 		onSessionSheetOpenChange: setIsSessionSheetOpen,
+		sessionSheetTab,
 		isKeyboardOpen,
 		isLoading: false as const,
 		isMasterLinked: Boolean(session.tournamentId),

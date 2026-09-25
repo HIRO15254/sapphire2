@@ -1,4 +1,4 @@
-import { act, cleanup, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { initTRPC } from "@trpc/server";
 import { setupServer } from "msw/node";
@@ -29,6 +29,20 @@ const STACK_LABEL = "Current stack";
 const MINUTE = 60_000;
 const LEVEL_MINUTES = 20;
 const REENTRY_OPTION = /Re-entry/;
+const EDIT_BLINDS_BUTTON = /Edit blind structure/;
+const STUD_MIX_PRESET = /^Stud mix/;
+
+interface BlindLevelRow {
+	ante: number | null;
+	blind1: number | null;
+	blind2: number | null;
+	blind3: number | null;
+	games: { variants: string[] }[] | null;
+	id: string;
+	isBreak: boolean;
+	level: number;
+	minutes: number | null;
+}
 
 interface CreatedEvent {
 	eventType: string;
@@ -36,17 +50,19 @@ interface CreatedEvent {
 }
 
 const backend = {
+	blindLevels: [] as BlindLevelRow[],
 	createdEvents: [] as CreatedEvent[],
 	currentStack: 12_000 as number | null,
 	now: Date.now(),
 	remainingPlayers: 12 as number | null,
+	snapshotUpdates: [] as Record<string, unknown>[],
 	status: "active",
 	timerStartedAt: null as Date | null,
 	timerUpdates: [] as (number | null)[],
 	totalEntries: 48 as number | null,
 };
 
-function blindLevels() {
+function initialBlindLevels(): BlindLevelRow[] {
 	return [1, 2, 3, 4, 5].map((level) => ({
 		ante: null,
 		blind1: 100 * level,
@@ -82,7 +98,7 @@ function events() {
 
 function session() {
 	return {
-		blindLevels: blindLevels(),
+		blindLevels: backend.blindLevels,
 		chipPurchases: [
 			{ chips: 30_000, cost: 10_000, id: "p-re", name: "Re-entry" },
 		],
@@ -113,12 +129,81 @@ const fixtureRouter = t.router({
 		update: t.procedure
 			.input(z.custom<{ timerStartedAt?: number | null }>())
 			.mutation(({ input }) => {
-				backend.timerUpdates.push(input.timerStartedAt ?? null);
+				if (Object.hasOwn(input, "timerStartedAt")) {
+					backend.timerUpdates.push(input.timerStartedAt ?? null);
+				}
+				return { id: SESSION_ID };
+			}),
+		updateSnapshot: t.procedure
+			.input(
+				z.custom<{ blindLevels?: Omit<BlindLevelRow, "id" | "level">[] }>()
+			)
+			.mutation(({ input }) => {
+				backend.snapshotUpdates.push(input);
+				if (input.blindLevels) {
+					backend.blindLevels = input.blindLevels.map((row, index) => ({
+						...row,
+						id: `saved-${index + 1}`,
+						level: index + 1,
+					}));
+				}
 				return { id: SESSION_ID };
 			}),
 	}),
+	currency: t.router({ list: t.procedure.query(() => []) }),
+	gameGroup: t.router({
+		list: t.procedure.query(() => [
+			{
+				blind1Label: "SB",
+				blind2Label: "BB",
+				blind3Label: null,
+				builtinKey: "bigbet",
+				id: "grp-1",
+				label: "Big Bet",
+			},
+			{
+				blind1Label: "Small Bet",
+				blind2Label: "Big Bet",
+				blind3Label: "Bring-in",
+				builtinKey: "stud",
+				id: "grp-2",
+				label: "Stud",
+			},
+		]),
+	}),
+	gameMix: t.router({
+		list: t.procedure.query(() => [
+			{
+				builtinKey: null,
+				games: ["var-2", "var-3"],
+				id: "mix-1",
+				label: "Stud mix",
+			},
+		]),
+	}),
+	gameVariant: t.router({
+		list: t.procedure.query(() => [
+			{ groupId: "grp-1", id: "var-1", label: "NLH", shortLabel: "NLH" },
+			{ groupId: "grp-2", id: "var-2", label: "Razz", shortLabel: "RAZZ" },
+			{ groupId: "grp-2", id: "var-3", label: "Stud", shortLabel: "STUD" },
+		]),
+	}),
 	player: t.router({
 		list: t.procedure.query(() => []),
+	}),
+	session: t.router({
+		getById: t.procedure.input(z.custom()).query(() => ({
+			id: SESSION_ID,
+			memo: null,
+			tags: [],
+			tournamentId: null,
+			tournamentName: "Sunday Deepstack",
+			tournamentTableSize: 9,
+			tournamentVariant: "NLH",
+		})),
+		update: t.procedure
+			.input(z.custom<{ id: string }>())
+			.mutation(({ input }) => ({ id: input.id })),
 	}),
 	sessionEvent: t.router({
 		create: t.procedure
@@ -132,6 +217,7 @@ const fixtureRouter = t.router({
 	sessionTablePlayer: t.router({
 		list: t.procedure.input(z.custom()).query(() => []),
 	}),
+	sessionTag: t.router({ list: t.procedure.query(() => []) }),
 });
 
 const server = setupServer(
@@ -145,6 +231,18 @@ function renderCockpit() {
 	});
 }
 
+async function openBlinds(user: ReturnType<typeof userEvent.setup>) {
+	await user.click(
+		await screen.findByRole("button", { name: EDIT_BLINDS_BUTTON })
+	);
+	await waitFor(() => {
+		expect(screen.getByRole("tab", { name: "Blinds" })).toHaveAttribute(
+			"aria-selected",
+			"true"
+		);
+	});
+}
+
 beforeAll(() => {
 	server.listen({ onUnhandledRequest: "error" });
 });
@@ -155,10 +253,12 @@ beforeEach(() => {
 		queries: { retry: false, gcTime: 0, staleTime: Number.POSITIVE_INFINITY },
 		mutations: { retry: false },
 	});
+	backend.blindLevels = initialBlindLevels();
 	backend.createdEvents = [];
 	backend.currentStack = 12_000;
 	backend.now = Date.now();
 	backend.remainingPlayers = 12;
+	backend.snapshotUpdates = [];
 	backend.status = "active";
 	backend.timerStartedAt = null;
 	backend.timerUpdates = [];
@@ -337,5 +437,161 @@ describe("TournamentCockpit", () => {
 				sessionChipPurchaseId: "p-re",
 			},
 		});
+	});
+
+	it("opens the blind structure from the level bar with the running level marked", async () => {
+		backend.timerStartedAt = new Date(backend.now - 25 * MINUTE);
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await openBlinds(user);
+
+		expect(screen.getByRole("group", { name: "Level 2" })).toHaveAttribute(
+			"aria-current",
+			"step"
+		);
+		expect(screen.getByRole("group", { name: "Level 1" })).not.toHaveAttribute(
+			"aria-current"
+		);
+	});
+
+	it("saves the edited structure as a whole and shows it on the level bar", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+		await openBlinds(user);
+
+		await user.click(screen.getByRole("button", { name: "Add level" }));
+		const smallBlind = screen.getByLabelText("Level 1 SB");
+		await user.clear(smallBlind);
+		await user.type(smallBlind, "150");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.snapshotUpdates).toHaveLength(1);
+		});
+		const sent = backend.snapshotUpdates[0]?.blindLevels as Record<
+			string,
+			unknown
+		>[];
+		expect(sent).toHaveLength(6);
+		expect(sent[0]).toMatchObject({ blind1: 150, blind2: 200 });
+		expect(sent[5]).toMatchObject({ isBreak: false, minutes: LEVEL_MINUTES });
+		expect(await screen.findByText("150/200")).toBeInTheDocument();
+	});
+
+	it("picks a saved mix for a level and sends the stakes entered on its row", async () => {
+		backend.timerStartedAt = new Date(backend.now - 25 * MINUTE);
+		const user = userEvent.setup();
+		renderCockpit();
+		await openBlinds(user);
+
+		await user.click(screen.getByRole("button", { name: "Games for level 2" }));
+		const picker = await screen.findByRole("dialog", {
+			name: "Level 2 games",
+		});
+		await user.click(within(picker).getByRole("tab", { name: "Mixed game" }));
+		await user.click(
+			within(picker).getByRole("radio", { name: STUD_MIX_PRESET })
+		);
+		await waitFor(() => {
+			expect(
+				screen.queryByRole("dialog", { name: "Level 2 games" })
+			).not.toBeInTheDocument();
+		});
+
+		expect(
+			screen.getByRole("button", { name: "Stud mix, games for level 2" })
+		).toBeInTheDocument();
+		expect(screen.queryByLabelText("Level 2 SB")).not.toBeInTheDocument();
+		await user.type(screen.getByLabelText("Level 2 Stud Small Bet"), "100");
+		await user.type(screen.getByLabelText("Level 2 Stud Big Bet"), "200");
+		await user.type(screen.getByLabelText("Level 2 Stud Bring-in"), "25");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.snapshotUpdates).toHaveLength(1);
+		});
+		const sent = backend.snapshotUpdates[0]?.blindLevels as Record<
+			string,
+			unknown
+		>[];
+		expect(sent[1]).toMatchObject({
+			games: [
+				{
+					ante: null,
+					blind1: 100,
+					blind2: 200,
+					blind3: 25,
+					name: "Stud",
+					variants: ["Razz", "Stud"],
+				},
+			],
+		});
+		expect(sent[0]).toMatchObject({ games: null });
+		expect(await screen.findByText("Razz · Stud")).toBeInTheDocument();
+	});
+
+	it("puts a level back on the session game and its own blinds", async () => {
+		backend.blindLevels = initialBlindLevels().map((row) =>
+			row.level === 2 ? { ...row, games: [{ variants: ["Razz"] }] } : row
+		);
+		const user = userEvent.setup();
+		renderCockpit();
+		await openBlinds(user);
+
+		await user.click(
+			screen.getByRole("button", { name: "Razz, games for level 2" })
+		);
+		const picker = await screen.findByRole("dialog", {
+			name: "Level 2 games",
+		});
+		await user.click(
+			within(picker).getByRole("button", { name: "Use session game" })
+		);
+		await waitFor(() => {
+			expect(
+				screen.queryByRole("dialog", { name: "Level 2 games" })
+			).not.toBeInTheDocument();
+		});
+
+		expect(screen.getByLabelText("Level 2 SB")).toHaveValue("200");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.snapshotUpdates).toHaveLength(1);
+		});
+		const sent = backend.snapshotUpdates[0]?.blindLevels as Record<
+			string,
+			unknown
+		>[];
+		expect(sent[1]).toMatchObject({ blind1: 200, blind2: 400, games: null });
+	});
+
+	it("keeps an invalid blind amount from being saved and returns to the Blinds tab", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+		await openBlinds(user);
+
+		const smallBlind = screen.getByLabelText("Level 1 SB");
+		await user.clear(smallBlind);
+		await user.type(smallBlind, "1.5");
+		expect(smallBlind).toHaveAccessibleDescription(
+			"Must be a whole number ≥ 0"
+		);
+
+		await user.click(screen.getByRole("tab", { name: "Overview" }));
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(screen.getByRole("tab", { name: "Blinds" })).toHaveAttribute(
+				"aria-selected",
+				"true"
+			);
+		});
+		expect(screen.getByLabelText("Level 1 SB")).toHaveAttribute(
+			"aria-invalid",
+			"true"
+		);
+		expect(backend.snapshotUpdates).toEqual([]);
 	});
 });

@@ -12,6 +12,7 @@ export type {
 export { EventEditorSheet, NEW_EVENT_TITLES } from "./event-editor-sheet";
 export { ResetSeatsDialog } from "./reset-seats-dialog";
 export { ScanSeatsSheet } from "./scan-seats-sheet";
+export type { SessionSheetTab } from "./session-sheet";
 export { SessionSheet } from "./session-sheet";
 export { SitInSheet } from "./sit-in-sheet";
 export { TimelineSheet } from "./timeline-sheet";
