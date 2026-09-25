@@ -11,6 +11,7 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { assertLevelGameStructures } from "../services/game-structure";
 import { selectInChunks, validateEntityOwnership } from "./session";
 
 type DbInstance = Parameters<
@@ -497,6 +498,7 @@ export const tournamentRouter = router({
 					userId
 				);
 			}
+			await assertLevelGameStructures(ctx.db, userId, input.blindLevels, {});
 
 			const id = crypto.randomUUID();
 			const statements = buildTournamentCreateStatements(ctx.db, {
@@ -526,6 +528,9 @@ export const tournamentRouter = router({
 					userId
 				);
 			}
+			await assertLevelGameStructures(ctx.db, userId, input.blindLevels, {
+				tournamentId: input.id,
+			});
 
 			const updateData: Partial<typeof found> = { updatedAt: new Date() };
 			if (input.name !== undefined) {

@@ -55,6 +55,10 @@ import {
 } from "../lib/batch";
 import { optionalUniqueTagIdsSchema } from "../lib/tag-ids";
 import { listOwnedGameMixes } from "../services/game-mix";
+import {
+	assertLevelGameStructures,
+	assertSingleStructurePerGroup,
+} from "../services/game-structure";
 import { ensureSessionResultTypeId } from "../services/session-result-type";
 import { sessionEventOrderBy } from "../utils/session-event-time";
 import { compareBuiltinFirst } from "./_game-masters";
@@ -2403,6 +2407,12 @@ async function isValidMixedVariant(
 				mixGames,
 				sameVariant ? currentMixGames : null
 			);
+			await assertSingleStructurePerGroup(
+				db,
+				userId,
+				mixGames,
+				currentMixGames ?? []
+			);
 		}
 		return true;
 	}
@@ -2954,6 +2964,11 @@ export const sessionRouter = router({
 
 			await validateCreateLinks(ctx.db, input, userId);
 			await validateTagsOwnership(ctx.db, sessionTag, input.tagIds, userId);
+			if (input.type === "tournament") {
+				await assertLevelGameStructures(ctx.db, userId, input.blindLevels, {
+					tournamentId: input.tournamentId,
+				});
+			}
 
 			const statements: BatchStatement[] = [
 				ctx.db.insert(gameSession).values({
@@ -3098,6 +3113,12 @@ export const sessionRouter = router({
 
 			if (input.tagIds !== undefined) {
 				await validateTagsOwnership(ctx.db, sessionTag, input.tagIds, userId);
+			}
+			if (session.kind === "tournament") {
+				await assertLevelGameStructures(ctx.db, userId, input.blindLevels, {
+					sessionId: input.id,
+					tournamentId: input.tournamentId,
+				});
 			}
 
 			const sessionUpdateFields = buildSessionUpdateFields(input);

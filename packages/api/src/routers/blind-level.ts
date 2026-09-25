@@ -5,6 +5,7 @@ import { and, asc, eq } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { runBatch } from "../lib/batch";
+import { assertLevelGameStructures } from "../services/game-structure";
 import { validateEntityOwnership } from "./session";
 
 function validateTournamentOwnership(
@@ -72,6 +73,9 @@ export const blindLevelRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await validateTournamentOwnership(ctx.db, input.tournamentId, userId);
+			await assertLevelGameStructures(ctx.db, userId, [input], {
+				tournamentId: input.tournamentId,
+			});
 
 			const id = crypto.randomUUID();
 			await ctx.db.insert(blindLevel).values({
@@ -111,6 +115,9 @@ export const blindLevelRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const found = await validateBlindLevelOwnership(ctx.db, input.id, userId);
+			await assertLevelGameStructures(ctx.db, userId, [input], {
+				tournamentId: found.tournamentId,
+			});
 
 			const updateData: Partial<typeof found> = {};
 			if (input.level !== undefined) {
