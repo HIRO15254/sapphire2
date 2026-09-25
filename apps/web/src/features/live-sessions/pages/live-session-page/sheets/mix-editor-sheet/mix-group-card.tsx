@@ -68,6 +68,17 @@ export function MixGroupCard({
 					type="text"
 					value={name}
 				/>
+				<button
+					aria-label={`Delete ${groupLabel.toLowerCase()}`}
+					className={cn(
+						crystButton({ size: "icon", variant: "ghost" }),
+						"text-destructive hover:text-destructive"
+					)}
+					onClick={onRemove}
+					type="button"
+				>
+					<IconTrash aria-hidden size={16} />
+				</button>
 			</div>
 
 			<div className="flex flex-wrap items-center gap-1.5">
@@ -138,17 +149,6 @@ export function MixGroupCard({
 					{cellError}
 				</p>
 			) : null}
-			<button
-				className={cn(
-					crystButton({ variant: "outline" }),
-					"w-full text-destructive hover:text-destructive"
-				)}
-				onClick={onRemove}
-				type="button"
-			>
-				<IconTrash aria-hidden size={16} />
-				Delete group
-			</button>
 		</fieldset>
 	);
 }

@@ -1649,7 +1649,7 @@ describe("CashCockpit", () => {
 		await user.click(
 			within(within(editor).getByRole("group", { name: "Group 3" })).getByRole(
 				"button",
-				{ name: "Delete group" }
+				{ name: "Delete group 3" }
 			)
 		);
 
