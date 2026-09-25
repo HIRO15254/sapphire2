@@ -694,25 +694,6 @@ async function validateEntityOwnership(
 	}
 }
 
-async function createCurrencyTransactionForSession(
-	db: DbInstance,
-	sessionId: string,
-	currencyId: string,
-	amount: number,
-	sessionDate: Date,
-	userId: string
-) {
-	const typeId = await ensureSessionResultTypeId(db, userId);
-	await db.insert(currencyTransaction).values({
-		id: crypto.randomUUID(),
-		currencyId,
-		transactionTypeId: typeId,
-		sessionId,
-		amount,
-		transactedAt: sessionDate,
-	});
-}
-
 async function buildCurrencyTransactionStatements(
 	db: DbInstance,
 	sessionId: string,
@@ -734,7 +715,7 @@ async function buildCurrencyTransactionStatements(
 	];
 }
 
-export async function syncCurrencyTransaction(
+async function buildSyncCurrencyTransactionStatements(
 	db: DbInstance,
 	sessionId: string,
 	oldCurrencyId: string | null,
@@ -742,47 +723,33 @@ export async function syncCurrencyTransaction(
 	amount: number,
 	sessionDate: Date,
 	userId: string
-) {
+): Promise<BatchStatement[]> {
 	const effectiveNewCurrencyId =
 		newCurrencyId === undefined ? oldCurrencyId : newCurrencyId;
+	const deleteLedger = db
+		.delete(currencyTransaction)
+		.where(eq(currencyTransaction.sessionId, sessionId));
 
-	if (oldCurrencyId && !effectiveNewCurrencyId) {
-		await db
-			.delete(currencyTransaction)
-			.where(eq(currencyTransaction.sessionId, sessionId));
-	} else if (!oldCurrencyId && effectiveNewCurrencyId) {
-		await createCurrencyTransactionForSession(
-			db,
-			sessionId,
-			effectiveNewCurrencyId,
-			amount,
-			sessionDate,
-			userId
-		);
-	} else if (
-		oldCurrencyId &&
-		effectiveNewCurrencyId &&
-		oldCurrencyId !== effectiveNewCurrencyId
-	) {
-		await runBatch(db, [
-			db
-				.delete(currencyTransaction)
-				.where(eq(currencyTransaction.sessionId, sessionId)),
-			...(await buildCurrencyTransactionStatements(
-				db,
-				sessionId,
-				effectiveNewCurrencyId,
-				amount,
-				sessionDate,
-				userId
-			)),
-		]);
-	} else if (effectiveNewCurrencyId) {
-		await db
-			.update(currencyTransaction)
-			.set({ amount, transactedAt: sessionDate })
-			.where(eq(currencyTransaction.sessionId, sessionId));
+	if (!effectiveNewCurrencyId) {
+		return oldCurrencyId ? [deleteLedger] : [];
 	}
+	if (oldCurrencyId === effectiveNewCurrencyId) {
+		return [
+			db
+				.update(currencyTransaction)
+				.set({ amount, transactedAt: sessionDate })
+				.where(eq(currencyTransaction.sessionId, sessionId)),
+		];
+	}
+	const insertLedger = await buildCurrencyTransactionStatements(
+		db,
+		sessionId,
+		effectiveNewCurrencyId,
+		amount,
+		sessionDate,
+		userId
+	);
+	return oldCurrencyId ? [deleteLedger, ...insertLedger] : insertLedger;
 }
 
 export {
@@ -1882,12 +1849,17 @@ function applyCashRuleScalarUpdates(
 	}
 }
 
-async function applyCashDetailUpdate(
+interface SessionDetailPlan {
+	profitLoss: number;
+	statements: BatchStatement[];
+}
+
+async function planCashDetailUpdate(
 	db: DbInstance,
 	sessionId: string,
 	input: CashUpdateInput,
 	userId: string
-): Promise<void> {
+): Promise<SessionDetailPlan> {
 	const [existingDetail] = await db
 		.select()
 		.from(sessionCashDetail)
@@ -1939,17 +1911,31 @@ async function applyCashDetailUpdate(
 		Object.assign(cashUpdate, cashMixFlatFieldClearPatch(selection.mixGames));
 	}
 
-	if (Object.keys(cashUpdate).length === 0) {
-		return;
+	const statements: BatchStatement[] = [];
+	if (Object.keys(cashUpdate).length > 0) {
+		statements.push(
+			existingDetail
+				? db
+						.update(sessionCashDetail)
+						.set(cashUpdate)
+						.where(eq(sessionCashDetail.sessionId, sessionId))
+				: db.insert(sessionCashDetail).values({ sessionId, ...cashUpdate })
+		);
 	}
-	if (existingDetail) {
-		await db
-			.update(sessionCashDetail)
-			.set(cashUpdate)
-			.where(eq(sessionCashDetail.sessionId, sessionId));
-	} else {
-		await db.insert(sessionCashDetail).values({ sessionId, ...cashUpdate });
-	}
+	const nextDetail = { ...existingDetail, ...cashUpdate };
+	return {
+		statements,
+		profitLoss: computeSessionPLFromDetails(
+			"cash_game",
+			{
+				buyIn: nextDetail.buyIn ?? null,
+				cashOut: nextDetail.cashOut ?? null,
+				chipRemoveTotal: nextDetail.chipRemoveTotal ?? null,
+			},
+			undefined,
+			0
+		),
+	};
 }
 
 interface TournamentUpdateInput {
@@ -2103,42 +2089,82 @@ function applyTournamentScalarUpdates(
 	}
 }
 
-async function applyTournamentDetailUpdate(
+async function plannedChipPurchaseCost(
 	db: DbInstance,
 	sessionId: string,
 	input: TournamentUpdateInput
-): Promise<void> {
+): Promise<number> {
+	if (input.chipPurchases !== undefined) {
+		return sumChipPurchaseCost(input.chipPurchases);
+	}
+	if (input.tournamentId) {
+		return 0;
+	}
+	const purchases = await getSessionChipPurchaseMap(db, [sessionId]);
+	return sumChipPurchaseCost(purchases.get(sessionId) ?? []);
+}
+
+async function planTournamentDetailUpdate(
+	db: DbInstance,
+	sessionId: string,
+	input: TournamentUpdateInput
+): Promise<SessionDetailPlan> {
 	const tournUpdate: Partial<typeof sessionTournamentDetail.$inferInsert> = {};
 	await applyTournamentSnapshotUpdate(db, tournUpdate, input);
 	applyTournamentScalarUpdates(tournUpdate, input);
+	const [existingDetail] = await db
+		.select()
+		.from(sessionTournamentDetail)
+		.where(eq(sessionTournamentDetail.sessionId, sessionId));
 
+	const statements: BatchStatement[] = [];
 	if (Object.keys(tournUpdate).length > 0) {
-		const [existingDetail] = await db
-			.select()
-			.from(sessionTournamentDetail)
-			.where(eq(sessionTournamentDetail.sessionId, sessionId));
-		if (existingDetail) {
-			await db
-				.update(sessionTournamentDetail)
-				.set(tournUpdate)
-				.where(eq(sessionTournamentDetail.sessionId, sessionId));
-		} else {
-			await db
-				.insert(sessionTournamentDetail)
-				.values({ sessionId, ...tournUpdate });
-		}
+		statements.push(
+			existingDetail
+				? db
+						.update(sessionTournamentDetail)
+						.set(tournUpdate)
+						.where(eq(sessionTournamentDetail.sessionId, sessionId))
+				: db
+						.insert(sessionTournamentDetail)
+						.values({ sessionId, ...tournUpdate })
+		);
 	}
-
 	if (input.tournamentId) {
-		await resnapshotTournamentStructure(db, sessionId, input.tournamentId);
+		statements.push(
+			...(await buildTournamentStructureReplacementStatements(
+				db,
+				sessionId,
+				input.tournamentId
+			))
+		);
 	}
-
 	if (input.blindLevels !== undefined) {
-		await persistSessionBlindLevels(db, sessionId, input.blindLevels);
+		statements.push(
+			...buildSessionBlindLevelStatements(db, sessionId, input.blindLevels)
+		);
 	}
 	if (input.chipPurchases !== undefined) {
-		await persistSessionChipPurchases(db, sessionId, input.chipPurchases);
+		statements.push(
+			...buildSessionChipPurchaseStatements(db, sessionId, input.chipPurchases)
+		);
 	}
+
+	const nextDetail = { ...existingDetail, ...tournUpdate };
+	return {
+		statements,
+		profitLoss: computeSessionPLFromDetails(
+			"tournament",
+			undefined,
+			{
+				tournamentBuyIn: nextDetail.tournamentBuyIn ?? null,
+				entryFee: nextDetail.entryFee ?? null,
+				prizeMoney: nextDetail.prizeMoney ?? null,
+				bountyPrizes: nextDetail.bountyPrizes ?? null,
+			},
+			await plannedChipPurchaseCost(db, sessionId, input)
+		),
+	};
 }
 
 interface CashRuleSnapshot {
@@ -2824,12 +2850,12 @@ async function snapshotTournamentStructure(
 	);
 }
 
-async function resnapshotTournamentStructure(
+async function buildTournamentStructureReplacementStatements(
 	db: DbInstance,
 	sessionId: string,
 	tournamentId: string
-): Promise<void> {
-	const statements: BatchStatement[] = [
+): Promise<BatchStatement[]> {
+	return [
 		db
 			.delete(sessionBlindLevel)
 			.where(eq(sessionBlindLevel.sessionId, sessionId)),
@@ -2838,7 +2864,21 @@ async function resnapshotTournamentStructure(
 			.where(eq(sessionChipPurchase.sessionId, sessionId)),
 		...(await buildTournamentStructureStatements(db, sessionId, tournamentId)),
 	];
-	await runBatch(db, statements);
+}
+
+async function resnapshotTournamentStructure(
+	db: DbInstance,
+	sessionId: string,
+	tournamentId: string
+): Promise<void> {
+	await runBatch(
+		db,
+		await buildTournamentStructureReplacementStatements(
+			db,
+			sessionId,
+			tournamentId
+		)
+	);
 }
 
 export {
@@ -3122,36 +3162,36 @@ export const sessionRouter = router({
 			}
 
 			const sessionUpdateFields = buildSessionUpdateFields(input);
-			await ctx.db
-				.update(gameSession)
-				.set(sessionUpdateFields)
-				.where(eq(gameSession.id, input.id));
+			const detailPlan =
+				session.kind === "cash_game"
+					? await planCashDetailUpdate(ctx.db, input.id, input, userId)
+					: await planTournamentDetailUpdate(ctx.db, input.id, input);
+			const ledgerStatements = await buildSyncCurrencyTransactionStatements(
+				ctx.db,
+				input.id,
+				session.currencyId,
+				input.currencyId,
+				detailPlan.profitLoss,
+				sessionUpdateFields.sessionDate ?? session.sessionDate,
+				userId
+			);
 
-			if (session.kind === "cash_game") {
-				await applyCashDetailUpdate(ctx.db, input.id, input, userId);
-			} else {
-				await applyTournamentDetailUpdate(ctx.db, input.id, input);
-			}
-
-			if (input.tagIds !== undefined) {
-				const tagStatements: BatchStatement[] = [
-					ctx.db
-						.delete(sessionToSessionTag)
-						.where(eq(sessionToSessionTag.sessionId, input.id)),
-				];
-				if (input.tagIds.length > 0) {
-					const tagRows = input.tagIds.map((tagId) => ({
-						sessionId: input.id,
-						sessionTagId: tagId,
-					}));
-					for (const chunk of chunkForInsert(tagRows, 2)) {
-						tagStatements.push(
-							ctx.db.insert(sessionToSessionTag).values(chunk)
-						);
-					}
-				}
-				await runBatch(ctx.db, tagStatements);
-			}
+			await runBatch(ctx.db, [
+				ctx.db
+					.update(gameSession)
+					.set(sessionUpdateFields)
+					.where(eq(gameSession.id, input.id)),
+				...detailPlan.statements,
+				...(input.tagIds === undefined
+					? []
+					: [
+							ctx.db
+								.delete(sessionToSessionTag)
+								.where(eq(sessionToSessionTag.sessionId, input.id)),
+							...buildSessionTagStatements(ctx.db, input.id, input.tagIds),
+						]),
+				...ledgerStatements,
+			]);
 
 			const [updated] = await ctx.db
 				.select()
@@ -3164,36 +3204,6 @@ export const sessionRouter = router({
 					message: "Session not found after update",
 				});
 			}
-
-			const [updatedCashDetail] = await ctx.db
-				.select()
-				.from(sessionCashDetail)
-				.where(eq(sessionCashDetail.sessionId, input.id));
-
-			const [updatedTournamentDetail] = await ctx.db
-				.select()
-				.from(sessionTournamentDetail)
-				.where(eq(sessionTournamentDetail.sessionId, input.id));
-
-			const updatedChipPurchaseMap = await getSessionChipPurchaseMap(ctx.db, [
-				input.id,
-			]);
-			const pl = computeSessionPLFromDetails(
-				updated.kind,
-				updatedCashDetail,
-				updatedTournamentDetail,
-				sumChipPurchaseCost(updatedChipPurchaseMap.get(input.id) ?? [])
-			);
-
-			await syncCurrencyTransaction(
-				ctx.db,
-				input.id,
-				session.currencyId,
-				input.currencyId,
-				pl,
-				updated.sessionDate,
-				userId
-			);
 
 			return updated;
 		}),

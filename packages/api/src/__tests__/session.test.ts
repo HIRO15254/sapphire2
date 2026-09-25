@@ -2035,7 +2035,7 @@ describe("session.update cash variant / mixGames persistence invariant", () => {
 		);
 	});
 
-	it("replaces tag links atomically in a single batch (SA2-116)", async () => {
+	it("replaces tag links in the batch that updates the session row (SA2-116)", async () => {
 		const { db, inserted, batch, deleteWhereParams } = createChainableMockDb({
 			select: {
 				game_session: [
@@ -2078,7 +2078,7 @@ describe("session.update cash variant / mixGames persistence invariant", () => {
 		});
 
 		expect(batch).toHaveBeenCalledTimes(1);
-		expect(batch.mock.calls[0]?.[0]).toHaveLength(2);
+		expect(batch.mock.calls[0]?.[0]).toHaveLength(3);
 		expect(deleteWhereParams).toContainEqual(["session-1"]);
 		expect(inserted.session_to_session_tag).toHaveLength(1);
 		expect(inserted.session_to_session_tag?.[0]).toEqual([
