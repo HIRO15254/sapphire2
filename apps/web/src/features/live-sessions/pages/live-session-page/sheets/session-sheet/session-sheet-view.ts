@@ -4,6 +4,12 @@ import { describeMasterLink } from "@/features/live-sessions/utils/session-setti
 
 export type AnteType = "all" | "bb" | "none";
 
+export const ANTE_TYPE_OPTIONS: { label: string; value: AnteType }[] = [
+	{ label: "None", value: "none" },
+	{ label: "BB", value: "bb" },
+	{ label: "All", value: "all" },
+];
+
 const ANTE_TYPE_KEYS: AnteType[] = ["all", "bb", "none"];
 
 export interface SessionDetailLike {

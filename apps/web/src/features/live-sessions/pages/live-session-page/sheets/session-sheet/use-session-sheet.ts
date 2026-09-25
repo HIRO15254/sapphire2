@@ -1,5 +1,4 @@
 import { MIX_VARIANT } from "@sapphire2/db/constants/game-variants";
-import type { MixGameGroup } from "@sapphire2/db/schemas/game";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useEffect, useRef, useState } from "react";
 import z from "zod";
@@ -22,9 +21,14 @@ import {
 	toBlindLevelRows,
 } from "@/features/live-sessions/utils/blind-level-rows";
 import {
+	autoGroupNames,
 	countGames,
-	describeMixStakesLine,
 	describeMixValidity,
+	groupStructure,
+	seedLevelGroups,
+	seedMixGroups,
+	serializeLevelGroups,
+	serializeMixGroups,
 	summarizeMix,
 	variantForComposition,
 } from "@/features/live-sessions/utils/mix-composition";
@@ -40,12 +44,13 @@ import {
 	parseOptionalInt,
 } from "@/shared/lib/form-fields";
 import {
-	fromMixGames,
+	hasMixCellErrors,
 	type MixGameGroupRow,
+	mixCellError,
+	type ResolveGroup,
 	reseedFromLabels,
 	rowsFromVariantLabels,
-	toLevelGames,
-	toMixGames,
+	updateGroup,
 } from "@/shared/lib/mix-games";
 import { formatHoursMinutes } from "@/utils/format-elapsed-time";
 import type { MixEditorTarget } from "../mix-editor-sheet";
@@ -77,7 +82,7 @@ const SESSION_FORM_SCHEMA = z.object({
 	maxBuyIn: MONEY,
 	memo: z.string(),
 	minBuyIn: MONEY,
-	mixGames: z.custom<MixGameGroup[] | null>(),
+	mixGroups: z.custom<MixGameGroupRow[]>(),
 	ruleName: z.string().trim().min(1, "Required"),
 	startingStack: MONEY,
 	tableSize: optionalNumericString({ integer: true, max: 10, min: 2 }),
@@ -99,7 +104,7 @@ export interface SessionFormValues {
 	maxBuyIn: string;
 	memo: string;
 	minBuyIn: string;
-	mixGames: MixGameGroup[] | null;
+	mixGroups: MixGameGroupRow[];
 	ruleName: string;
 	startingStack: string;
 	tableSize: string;
@@ -109,6 +114,10 @@ export interface SessionFormValues {
 }
 
 export type BlindCell = "ante" | "blind1" | "blind2" | "blind3" | "minutes";
+
+export type MixStakeSlot = "ante" | "blind1" | "blind2" | "blind3";
+
+const MIX_BLIND_SLOTS = ["blind1", "blind2", "blind3"] as const;
 
 type MixTarget =
 	| { kind: "cash" }
@@ -131,7 +140,8 @@ function plural(count: number, noun: string): string {
 function buildDefaultValues(
 	detail: SessionDetailLike | null,
 	blindLevels: readonly TournamentBlindLevel[],
-	sessionType: "cash_game" | "tournament"
+	sessionType: "cash_game" | "tournament",
+	resolveGroup: ResolveGroup
 ): SessionFormValues {
 	const view = describeSessionDetail(detail, sessionType);
 	return {
@@ -148,7 +158,7 @@ function buildDefaultValues(
 		maxBuyIn: textOf(view.serverNumbers.maxBuyIn),
 		memo: view.memo,
 		minBuyIn: textOf(view.serverNumbers.minBuyIn),
-		mixGames: view.mixGames,
+		mixGroups: seedMixGroups(view.mixGames, resolveGroup),
 		ruleName: view.ruleName,
 		startingStack: textOf(view.serverNumbers.startingStack),
 		tableSize: view.tableSize === null ? "" : String(view.tableSize),
@@ -192,15 +202,16 @@ function buildScalarPatch(
 function buildRulePatch(
 	values: SessionFormValues,
 	baseline: SessionFormValues,
-	isCash: boolean
+	isCash: boolean,
+	resolveGroup: ResolveGroup
 ): SessionSnapshotPatch {
 	if (isCash) {
+		const mixGames = serializeMixGroups(values.mixGroups, resolveGroup);
 		const isChanged =
 			values.variant !== baseline.variant ||
-			JSON.stringify(values.mixGames) !== JSON.stringify(baseline.mixGames);
-		return isChanged
-			? { mixGames: values.mixGames, variant: values.variant }
-			: {};
+			JSON.stringify(mixGames) !==
+				JSON.stringify(serializeMixGroups(baseline.mixGroups, resolveGroup));
+		return isChanged ? { mixGames, variant: values.variant } : {};
 	}
 	return {
 		...(values.variant === baseline.variant
@@ -229,6 +240,10 @@ interface UseSessionSheetOptions {
 }
 
 export type SessionForm = ReturnType<typeof useSessionSheet>["form"];
+
+export type MixStakesView = ReturnType<
+	typeof useSessionSheet
+>["mixStakes"][number];
 
 export type BlindRowView = ReturnType<
 	typeof useSessionSheet
@@ -261,7 +276,10 @@ export function useSessionSheet({
 	const findRuleIssue = (values: SessionFormValues): SessionSheetTab | null => {
 		if (isCash) {
 			return isMixValue(values.variant) &&
-				!describeMixValidity(values.mixGames ?? [], "cash").isValid
+				!(
+					describeMixValidity(values.mixGroups, "cash").isValid &&
+					!hasMixCellErrors(values.mixGroups)
+				)
 				? "basics"
 				: null;
 		}
@@ -272,7 +290,8 @@ export function useSessionSheet({
 		defaultValues: buildDefaultValues(
 			settings.detail,
 			settings.blindLevels,
-			sessionType
+			sessionType,
+			groupFor
 		),
 		onSubmit: async ({ value }) => {
 			const ruleIssue = findRuleIssue(value);
@@ -283,12 +302,13 @@ export function useSessionSheet({
 			const baseline = buildDefaultValues(
 				settings.detail,
 				settings.blindLevels,
-				sessionType
+				sessionType,
+				groupFor
 			);
 			await Promise.all([
 				settings.onUpdateSnapshot({
 					...buildScalarPatch(value, isCash, isMixValue(value.variant)),
-					...buildRulePatch(value, baseline, isCash),
+					...buildRulePatch(value, baseline, isCash, groupFor),
 				}),
 				settings.onUpdateLive(buildLivePatch(value)),
 				settings.onUpdateTags(value.tagIds),
@@ -310,7 +330,8 @@ export function useSessionSheet({
 		const defaults = buildDefaultValues(
 			settings.detail,
 			settings.blindLevels,
-			sessionType
+			sessionType,
+			groupFor
 		);
 		if (seedPhaseRef.current === "closed") {
 			form.reset(defaults);
@@ -332,6 +353,7 @@ export function useSessionSheet({
 	}, [
 		open,
 		form,
+		groupFor,
 		initialTab,
 		isReady,
 		settings.blindLevels,
@@ -340,7 +362,7 @@ export function useSessionSheet({
 	]);
 
 	const variant = useStore(form.store, (state) => state.values.variant);
-	const mixGames = useStore(form.store, (state) => state.values.mixGames);
+	const mixGroups = useStore(form.store, (state) => state.values.mixGroups);
 	const blindLevels = useStore(form.store, (state) => state.values.blindLevels);
 
 	const view = describeSessionDetail(settings.detail, sessionType);
@@ -349,6 +371,9 @@ export function useSessionSheet({
 
 	const variantRow = variants.find(
 		(row) => normalized(row.label) === normalized(variant)
+	);
+	const shortLabelByLabel = new Map(
+		variants.map((row) => [normalized(row.label), row.shortLabel ?? row.label])
 	);
 	const describeGameType = (): { code: string | null; name: string } => {
 		if (variant.trim() === "") {
@@ -402,7 +427,7 @@ export function useSessionSheet({
 
 	const onPickVariant = (label: string) => {
 		form.setFieldValue("variant", label);
-		form.setFieldValue("mixGames", null);
+		form.setFieldValue("mixGroups", []);
 		setIsGameTypeOpen(false);
 	};
 
@@ -411,12 +436,8 @@ export function useSessionSheet({
 		if (!isCash || normalized(value) === MIX_VARIANT) {
 			return;
 		}
-		const current = fromMixGames(form.state.values.mixGames, groupFor);
-		form.setFieldValue(
-			"mixGames",
-			toMixGames(
-				reseedFromLabels(current, mixCompositionLabels(value), groupFor)
-			)
+		form.setFieldValue("mixGroups", (current) =>
+			reseedFromLabels(current, mixCompositionLabels(value), groupFor)
 		);
 	};
 
@@ -427,17 +448,16 @@ export function useSessionSheet({
 
 	const onSaveMix = (rows: MixGameGroupRow[]) => {
 		if (mixTarget.kind === "cash") {
-			const saved = toMixGames(rows);
 			const current = form.state.values.variant;
-			form.setFieldValue("mixGames", saved);
+			form.setFieldValue("mixGroups", rows);
 			form.setFieldValue(
 				"variant",
-				variantForComposition(current, saved ?? [], namedMixBuckets(current))
+				variantForComposition(current, rows, namedMixBuckets(current))
 			);
 			return;
 		}
 		const levelUid = mixTarget.uid;
-		const games = toLevelGames(rows);
+		const games = serializeLevelGroups(rows, groupFor);
 		setBlindLevels((current) =>
 			current.map((row) => (row.uid === levelUid ? { ...row, games } : row))
 		);
@@ -449,10 +469,54 @@ export function useSessionSheet({
 			: { kind: "level", levelNumber: mixTarget.levelNumber };
 	const mixEditorGroups =
 		mixTarget.kind === "cash"
-			? mixGames
-			: (blindLevels.find((row) => row.uid === mixTarget.uid)?.games ?? null);
+			? mixGroups
+			: seedLevelGroups(
+					blindLevels.find((row) => row.uid === mixTarget.uid)?.games ?? null,
+					groupFor
+				);
 
-	const compositionGames = mixGames ?? [];
+	const compositionValidity = describeMixValidity(mixGroups, "cash");
+	const describeCompositionError = (): string | null => {
+		if (!(isCash && isMix) || compositionValidity.isValid) {
+			return null;
+		}
+		return countGames(mixGroups) < 2
+			? MIX_NEEDS_GAMES
+			: compositionValidity.label;
+	};
+	const autoNames = autoGroupNames(mixGroups, groupFor);
+	const mixStakes =
+		isCash && isMix
+			? mixGroups.map((row, index) => {
+					const structure = groupStructure(row, groupFor);
+					const labels = {
+						blind1: structure?.blind1Label ?? row.blind1Label,
+						blind2: structure?.blind2Label ?? row.blind2Label,
+						blind3:
+							structure === null ? row.blind3Label : structure.blind3Label,
+					};
+					return {
+						ante: { error: mixCellError(row.ante), value: row.ante },
+						anteType: row.anteType,
+						blinds: MIX_BLIND_SLOTS.filter(
+							(slot) => slot !== "blind3" || labels.blind3 !== null
+						).map((slot) => ({
+							error: mixCellError(row[slot]),
+							label: labels[slot] ?? "",
+							slot,
+							value: row[slot],
+						})),
+						codes: row.variants
+							.map((label) => shortLabelByLabel.get(normalized(label)) ?? label)
+							.join(" · "),
+						name: row.name?.trim() || autoNames[index] || `Group ${index + 1}`,
+						uid: row.uid,
+					};
+				})
+			: [];
+	const setMixGroups = (
+		update: (rows: MixGameGroupRow[]) => MixGameGroupRow[]
+	) => form.setFieldValue("mixGroups", update);
 
 	return {
 		availableTags: settings.availableTags,
@@ -488,14 +552,8 @@ export function useSessionSheet({
 			summary: `${plural(blindSummary.levelCount, "level")} · ${formatHoursMinutes(blindSummary.totalMinutes)}`,
 		},
 		composition: {
-			error:
-				isCash &&
-				isMix &&
-				!describeMixValidity(compositionGames, "cash").isValid
-					? MIX_NEEDS_GAMES
-					: null,
-			stakesLine: describeMixStakesLine(compositionGames, groupFor),
-			summary: summarizeMix(compositionGames),
+			error: describeCompositionError(),
+			summary: summarizeMix(mixGroups),
 		},
 		currencyOptions: settings.currencies.map((row) => ({
 			balance: row.balance,
@@ -510,7 +568,7 @@ export function useSessionSheet({
 		form,
 		gameType: describeGameType(),
 		gameTypeSheet: {
-			mixGames,
+			mixGames: serializeMixGroups(mixGroups, groupFor),
 			onEditComposition: () => {
 				setIsGameTypeOpen(false);
 				openMixEditor({ kind: "cash" });
@@ -536,6 +594,7 @@ export function useSessionSheet({
 			open: isMixEditorOpen,
 			target: mixEditorTarget,
 		},
+		mixStakes,
 		onAddBlindBreak: () =>
 			setBlindLevels((rows) => [...rows, breakRow(crypto.randomUUID())]),
 		onAddBlindLevel: () =>
@@ -556,6 +615,10 @@ export function useSessionSheet({
 		},
 		onCurrencyOpenChange: setIsCurrencyOpen,
 		onDefaultMinutesChange: setDefaultMinutes,
+		onMixAnteTypeChange: (uid: string, anteType: AnteType) =>
+			setMixGroups((rows) => updateGroup(rows, uid, { anteType })),
+		onMixStakeChange: (uid: string, slot: MixStakeSlot, value: string) =>
+			setMixGroups((rows) => updateGroup(rows, uid, { [slot]: value })),
 		onOpenComposition: () => openMixEditor({ kind: "cash" }),
 		onOpenCurrency: () => setIsCurrencyOpen(true),
 		onOpenGameType: () => setIsGameTypeOpen(true),

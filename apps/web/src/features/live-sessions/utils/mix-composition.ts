@@ -1,15 +1,21 @@
 import { MIX_VARIANT } from "@sapphire2/db/constants/game-variants";
-import { MAX_MIX_GROUPS } from "@sapphire2/db/schemas/game";
-import type {
-	MixGameGroupRow,
-	MixGroupInfo,
-	ResolveGroup,
+import {
+	type LevelGameGroup,
+	MAX_MIX_GROUPS,
+	type MixGameGroup,
+} from "@sapphire2/db/schemas/game";
+import {
+	fromLevelGames,
+	fromMixGames,
+	type MixGameGroupRow,
+	type MixGroupInfo,
+	type ResolveGroup,
+	toLevelGames,
+	toMixGames,
 } from "@/shared/lib/mix-games";
 import { createGroupFormatter } from "@/utils/format-number";
 
 export type MixTarget = "cash" | "level";
-
-type AnteType = MixGameGroupRow["anteType"];
 
 interface VariantBucket {
 	variants: readonly string[];
@@ -25,6 +31,8 @@ interface StakesLike {
 
 const MIN_GAMES: Record<MixTarget, number> = { cash: 2, level: 1 };
 
+const TRAILING_NUMBER = /^\d+$/;
+
 function normalized(label: string): string {
 	return label.trim().toLowerCase();
 }
@@ -37,18 +45,27 @@ export function countGames(groups: readonly VariantBucket[]): number {
 	return groups.reduce((total, group) => total + group.variants.length, 0);
 }
 
+function findEmptyGroupNumber(groups: readonly VariantBucket[]): number | null {
+	const index = groups.findIndex((group) => group.variants.length === 0);
+	return index === -1 ? null : index + 1;
+}
+
 export function describeMixValidity(
 	groups: readonly VariantBucket[],
 	target: MixTarget
 ): { isValid: boolean; label: string } {
 	const minimum = MIN_GAMES[target];
-	const isValid = countGames(groups) >= minimum;
-	return {
-		isValid,
-		label: isValid
-			? "Valid"
-			: `Needs ${minimum}+ ${minimum === 1 ? "game" : "games"}`,
-	};
+	if (countGames(groups) < minimum) {
+		return {
+			isValid: false,
+			label: `Needs ${minimum}+ ${minimum === 1 ? "game" : "games"}`,
+		};
+	}
+	const emptyGroupNumber = findEmptyGroupNumber(groups);
+	if (emptyGroupNumber !== null) {
+		return { isValid: false, label: `Group ${emptyGroupNumber} has no games` };
+	}
+	return { isValid: true, label: "Valid" };
 }
 
 export function summarizeMix(groups: readonly VariantBucket[]): string {
@@ -72,6 +89,116 @@ function withGroupInfo(
 		groupLabel: group.label,
 		sortIndex: group.sortIndex,
 	};
+}
+
+const EMPTY_STAKES = {
+	ante: "",
+	anteType: "none",
+	blind1: "",
+	blind2: "",
+	blind3: "",
+} as const;
+
+export function groupStructure(
+	group: VariantBucket,
+	resolveGroup: ResolveGroup
+): MixGroupInfo | null {
+	const first = group.variants[0];
+	return first === undefined ? null : resolveGroup(first);
+}
+
+export function autoGroupNames(
+	groups: readonly VariantBucket[],
+	resolveGroup: ResolveGroup
+): string[] {
+	const structures = groups.map((group) => groupStructure(group, resolveGroup));
+	const totals = new Map<string, number>();
+	for (const structure of structures) {
+		if (structure !== null) {
+			totals.set(structure.id, (totals.get(structure.id) ?? 0) + 1);
+		}
+	}
+	const seen = new Map<string, number>();
+	return structures.map((structure) => {
+		if (structure === null) {
+			return "";
+		}
+		const ordinal = (seen.get(structure.id) ?? 0) + 1;
+		seen.set(structure.id, ordinal);
+		return (totals.get(structure.id) ?? 0) > 1
+			? `${structure.label} ${ordinal}`
+			: structure.label;
+	});
+}
+
+export function isAutoGroupName(name: string, structureLabel: string): boolean {
+	const trimmed = name.trim();
+	if (trimmed === structureLabel) {
+		return true;
+	}
+	const prefix = `${structureLabel} `;
+	return (
+		trimmed.startsWith(prefix) &&
+		TRAILING_NUMBER.test(trimmed.slice(prefix.length))
+	);
+}
+
+export function withAutoGroupNames(
+	rows: readonly MixGameGroupRow[],
+	resolveGroup: ResolveGroup
+): MixGameGroupRow[] {
+	const names = autoGroupNames(rows, resolveGroup);
+	return rows.map((row, index) => ({
+		...row,
+		name: row.name?.trim() || names[index] || null,
+	}));
+}
+
+function seedRows(
+	rows: MixGameGroupRow[],
+	resolveGroup: ResolveGroup
+): MixGameGroupRow[] {
+	return rows.map((row, index) => {
+		const structure = groupStructure(row, resolveGroup);
+		const isAuto =
+			row.name !== null &&
+			structure !== null &&
+			isAutoGroupName(row.name, structure.label);
+		return {
+			...row,
+			groupId: structure?.id ?? row.groupId,
+			name: isAuto ? null : row.name,
+			uid: `group-${index}`,
+		};
+	});
+}
+
+export function seedMixGroups(
+	games: MixGameGroup[] | null,
+	resolveGroup: ResolveGroup
+): MixGameGroupRow[] {
+	return seedRows(fromMixGames(games, resolveGroup), resolveGroup);
+}
+
+export function seedLevelGroups(
+	games: LevelGameGroup[] | null,
+	resolveGroup: ResolveGroup
+): MixGameGroupRow[] {
+	return seedRows(fromLevelGames(games, resolveGroup), resolveGroup);
+}
+
+export function serializeMixGroups(
+	rows: readonly MixGameGroupRow[],
+	resolveGroup: ResolveGroup
+): MixGameGroup[] | null {
+	return toMixGames(withAutoGroupNames(rows, resolveGroup));
+}
+
+export function serializeLevelGroups(
+	rows: readonly MixGameGroupRow[],
+	resolveGroup: ResolveGroup
+): LevelGameGroup[] | null {
+	return toLevelGames(withAutoGroupNames(rows, resolveGroup));
 }
 
 export function addEmptyGroup(
@@ -123,6 +250,31 @@ export function isVariantTakenElsewhere(
 	return variantsTakenElsewhere(rows, uid).has(normalized(label));
 }
 
+function isInGroup(row: MixGameGroupRow, label: string): boolean {
+	const key = normalized(label);
+	return row.variants.some((variant) => normalized(variant) === key);
+}
+
+export function canToggleVariantInGroup(
+	rows: readonly MixGameGroupRow[],
+	uid: string,
+	label: string,
+	resolveGroup: ResolveGroup
+): boolean {
+	const row = rows.find((candidate) => candidate.uid === uid);
+	if (!row) {
+		return false;
+	}
+	if (isInGroup(row, label)) {
+		return true;
+	}
+	if (isVariantTakenElsewhere(rows, uid, label)) {
+		return false;
+	}
+	const structure = groupStructure(row, resolveGroup);
+	return structure === null || structure.id === resolveGroup(label).id;
+}
+
 export function toggleVariantInGroup(
 	rows: readonly MixGameGroupRow[],
 	uid: string,
@@ -130,21 +282,19 @@ export function toggleVariantInGroup(
 	resolveGroup: ResolveGroup
 ): MixGameGroupRow[] {
 	const row = rows.find((candidate) => candidate.uid === uid);
-	if (!row) {
+	if (!(row && canToggleVariantInGroup(rows, uid, label, resolveGroup))) {
 		return [...rows];
 	}
-	const key = normalized(label);
-	if (row.variants.some((variant) => normalized(variant) === key)) {
+	if (isInGroup(row, label)) {
 		return removeVariantFromGroup(rows, uid, label);
 	}
-	if (isVariantTakenElsewhere(rows, uid, label)) {
-		return [...rows];
-	}
 	const added = { ...row, variants: [...row.variants, label] };
-	const next =
-		row.variants.length === 0
-			? withGroupInfo(added, resolveGroup(label))
-			: added;
+	let next = added;
+	if (row.variants.length === 0) {
+		const structure = resolveGroup(label);
+		const stakes = structure.id === row.groupId ? null : EMPTY_STAKES;
+		next = withGroupInfo({ ...added, ...stakes }, structure);
+	}
 	return rows.map((candidate) => (candidate.uid === uid ? next : candidate));
 }
 
@@ -164,22 +314,6 @@ export function removeVariantFromGroup(
 				}
 			: row
 	);
-}
-
-export function deriveAnteType(previous: AnteType, ante: string): AnteType {
-	if (ante.trim() === "") {
-		return "none";
-	}
-	return previous === "bb" ? "bb" : "all";
-}
-
-export function withDerivedAnteTypes(
-	rows: readonly MixGameGroupRow[]
-): MixGameGroupRow[] {
-	return rows.map((row) => ({
-		...row,
-		anteType: deriveAnteType(row.anteType, row.ante),
-	}));
 }
 
 export function describeGroupStakes(group: StakesLike): string {

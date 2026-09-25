@@ -132,6 +132,16 @@ Mix-editor invariants ([`use-session-form-state.ts`](../../apps/web/src/features
 
 Room geolocation (SA2-100): `room.latitude` / `longitude` are nullable on purpose — **(0, 0) is a valid coordinate** and cannot mean "unset". The "you are at this venue" radius is **500 m** (venue footprint + GPS jitter, without matching across town). The suggested nearest room applies only while the user hasn't picked one; a manual choice or explicit clear always wins.
 
+## Live session sheet: mix groups (SA2-224)
+
+Invariants of the cash mix composition and per-level games edited from the live session sheet ([`mix-composition.ts`](../../apps/web/src/features/live-sessions/utils/mix-composition.ts)):
+
+- A group holds games of **one blind structure** (one game group). The first game sets it; an emptied group takes the next game's structure and drops stakes typed for a different one rather than carrying them across slots that mean something else.
+- A group needs at least one game — an empty group makes the composition invalid; only a per-level composition may have zero groups (which clears it back to the session game type).
+- Stakes and ante type are edited per group in Basics, like a single game, not inside the group editor. The ante type is chosen explicitly; nothing derives it from the ante amount.
+- `name: null` means an automatic name: the structure label, numbered when several groups share a structure. A stored name that matches that pattern reads back as automatic, so numbering follows later edits; the resolved names are what is saved.
+- Seeded rows take index-based uids. TanStack Form deep-compares `defaultValues` on every render and resets an untouched form when they differ, so random uids would re-seed the form on each render.
+
 ## Render-time reset (SA2-171)
 
 `SessionFormProvider` is mounted once at app-shell scope; its state is keyed to the active session id ([`use-authenticated-shell.ts`](../../apps/web/src/shared/components/authenticated-shell/use-authenticated-shell.ts)), and [`use-session-form.tsx`](../../apps/web/src/features/live-sessions/hooks/use-session-form.tsx) resets every cash + tournament field whenever it changes, **including when it clears to null** — otherwise a finished tournament's `chipPurchaseCounts` carry into the next session's `update_stack` payload, corrupting the average-stack calculation (SA2-171). The reset adjusts state **during render** (React's "reset on prop change" pattern): no extra effect pass or stale-value flash, and no `key` remounting the whole shell.

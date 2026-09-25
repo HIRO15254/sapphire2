@@ -11,14 +11,13 @@ import type { BlindSlotLabels } from "@/shared/hooks/use-game-groups";
 import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
 import { CRYST_FIELD, CRYST_FIELD_GROUP } from "../../cryst-controls";
 import { SegmentedControl } from "../../segmented-control";
-import type { AnteType } from "./session-sheet-view";
-import type { SessionForm } from "./use-session-sheet";
-
-const ANTE_TYPES: { label: string; value: AnteType }[] = [
-	{ label: "None", value: "none" },
-	{ label: "BB", value: "bb" },
-	{ label: "All", value: "all" },
-];
+import { MixStakesFields } from "./mix-stakes-fields";
+import { ANTE_TYPE_OPTIONS, type AnteType } from "./session-sheet-view";
+import type {
+	MixStakeSlot,
+	MixStakesView,
+	SessionForm,
+} from "./use-session-sheet";
 
 const FIELD_LABEL_CLASS =
 	"mb-1.5 block font-medium text-[length:var(--text-sm)] text-foreground";
@@ -247,7 +246,7 @@ function TableSizeField({
 
 interface SessionBasicsTabProps {
 	blindLabels: BlindSlotLabels;
-	composition: { error: string | null; stakesLine: string; summary: string };
+	composition: { error: string | null; summary: string };
 	currencyLabel: string;
 	currencyUnit: string | null;
 	form: SessionForm;
@@ -256,6 +255,9 @@ interface SessionBasicsTabProps {
 	isCurrencyDifferent: boolean;
 	isMix: boolean;
 	master: MasterFieldValues | null;
+	mixStakes: readonly MixStakesView[];
+	onMixAnteTypeChange: (uid: string, anteType: AnteType) => void;
+	onMixStakeChange: (uid: string, slot: MixStakeSlot, value: string) => void;
 	onOpenComposition: () => void;
 	onOpenCurrency: () => void;
 	onOpenGameType: () => void;
@@ -274,6 +276,9 @@ export function SessionBasicsTab({
 	isCurrencyDifferent,
 	isMix,
 	master,
+	mixStakes,
+	onMixAnteTypeChange,
+	onMixStakeChange,
 	onOpenComposition,
 	onOpenCurrency,
 	onOpenGameType,
@@ -357,19 +362,14 @@ export function SessionBasicsTab({
 						}
 						aria-invalid={composition.error !== null}
 						className={cn(
-							CRYST_FIELD,
-							"box-border flex min-h-[var(--m-control)] w-full items-center justify-between gap-2 px-2.5 py-2 text-left text-[length:var(--m-text-footnote)] hover:bg-accent"
+							CONTROL_CLASS,
+							"flex items-center justify-between gap-2 text-left hover:bg-accent"
 						)}
 						onClick={onOpenComposition}
 						type="button"
 					>
-						<span className="flex min-w-0 flex-1 flex-col gap-0.5">
-							<span className="font-semibold">{composition.summary}</span>
-							{composition.stakesLine === "" ? null : (
-								<span className="truncate text-[length:var(--m-text-caption)] text-muted-foreground">
-									{composition.stakesLine}
-								</span>
-							)}
+						<span className="min-w-0 truncate font-medium">
+							{composition.summary}
 						</span>
 						<IconChevronRight
 							aria-hidden
@@ -388,6 +388,22 @@ export function SessionBasicsTab({
 					)}
 				</div>
 			) : null}
+
+			{mixStakes.map((group) => (
+				<MixStakesFields
+					ante={group.ante}
+					anteType={group.anteType}
+					blinds={group.blinds}
+					codes={group.codes}
+					key={group.uid}
+					name={group.name}
+					onAnteTypeChange={(anteType) =>
+						onMixAnteTypeChange(group.uid, anteType)
+					}
+					onChange={(slot, value) => onMixStakeChange(group.uid, slot, value)}
+					uid={group.uid}
+				/>
+			))}
 
 			{isCash && !isMix ? (
 				<>
@@ -435,7 +451,7 @@ export function SessionBasicsTab({
 								<SegmentedControl
 									aria-labelledby={fieldId(anteTypeField.name)}
 									onChange={anteTypeField.handleChange}
-									options={ANTE_TYPES}
+									options={ANTE_TYPE_OPTIONS}
 									value={anteTypeField.state.value}
 								/>
 							</div>

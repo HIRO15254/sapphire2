@@ -178,6 +178,9 @@ export function SessionSheet({
 											)}
 											isMix={sheet.isMix}
 											master={sheet.masterValues}
+											mixStakes={sheet.mixStakes}
+											onMixAnteTypeChange={sheet.onMixAnteTypeChange}
+											onMixStakeChange={sheet.onMixStakeChange}
 											onOpenComposition={sheet.onOpenComposition}
 											onOpenCurrency={sheet.onOpenCurrency}
 											onOpenGameType={sheet.onOpenGameType}

@@ -1,4 +1,3 @@
-import type { LevelGameGroup, MixGameGroup } from "@sapphire2/db/schemas/game";
 import { IconArrowsShuffle, IconPlus } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import type { MixGameGroupRow } from "@/shared/lib/mix-games";
@@ -13,7 +12,7 @@ import {
 } from "./use-mix-editor-sheet";
 
 interface MixEditorSheetProps {
-	groups: readonly (LevelGameGroup | MixGameGroup)[] | null;
+	groups: readonly MixGameGroupRow[];
 	onOpenChange: (open: boolean) => void;
 	onSave: (rows: MixGameGroupRow[]) => void;
 	open: boolean;
@@ -80,7 +79,6 @@ export function MixEditorSheet({
 					{editor.groups.map((group) => (
 						<MixGroupCard
 							cells={group.cells}
-							familyLabel={group.familyLabel}
 							key={group.uid}
 							name={group.name}
 							number={group.number}
@@ -93,6 +91,7 @@ export function MixEditorSheet({
 								editor.onRemoveVariant(group.uid, label)
 							}
 							onRename={(name) => editor.onRenameGroup(group.uid, name)}
+							onRenameEnd={() => editor.onRenameGroupEnd(group.uid)}
 							variants={group.variants}
 						/>
 					))}
@@ -112,6 +111,7 @@ export function MixEditorSheet({
 				</form>
 			</CrystFormSheet>
 			<GroupGamesSheet
+				hint={editor.picker.hint}
 				isDisabled={editor.picker.isDisabled}
 				isPicked={editor.picker.isPicked}
 				onOpenChange={editor.picker.onOpenChange}

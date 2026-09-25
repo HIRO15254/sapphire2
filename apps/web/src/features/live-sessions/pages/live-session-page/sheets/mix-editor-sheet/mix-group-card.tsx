@@ -2,8 +2,6 @@ import { IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
 import {
-	CRYST_BADGE,
-	CRYST_BADGE_TONE,
 	CRYST_FIELD,
 	CRYST_INLINE_FIELD,
 	CRYST_TAG,
@@ -18,7 +16,6 @@ interface MixGroupCardProps {
 		slot: MixAmountSlot;
 		value: string;
 	}[];
-	familyLabel: string;
 	name: string;
 	number: number;
 	onAddGames: () => void;
@@ -26,12 +23,12 @@ interface MixGroupCardProps {
 	onRemove: () => void;
 	onRemoveVariant: (label: string) => void;
 	onRename: (name: string) => void;
+	onRenameEnd: () => void;
 	variants: { code: string; label: string }[];
 }
 
 export function MixGroupCard({
 	cells,
-	familyLabel,
 	name,
 	number,
 	onAddGames,
@@ -39,6 +36,7 @@ export function MixGroupCard({
 	onRemove,
 	onRemoveVariant,
 	onRename,
+	onRenameEnd,
 	variants,
 }: MixGroupCardProps) {
 	const groupLabel = `Group ${number}`;
@@ -65,21 +63,11 @@ export function MixGroupCard({
 						"h-[var(--m-control)] min-w-0 flex-1 px-2 font-semibold text-[length:var(--m-text-secondary)]"
 					)}
 					maxLength={30}
+					onBlur={onRenameEnd}
 					onChange={(e) => onRename(e.target.value)}
 					type="text"
 					value={name}
 				/>
-				<span className={cn(CRYST_BADGE, CRYST_BADGE_TONE.neutral)}>
-					{familyLabel}
-				</span>
-				<button
-					aria-label={`Remove ${groupLabel.toLowerCase()}`}
-					className={crystButton({ size: "icon", variant: "ghost" })}
-					onClick={onRemove}
-					type="button"
-				>
-					<IconTrash aria-hidden size={16} />
-				</button>
 			</div>
 
 			<div className="flex flex-wrap items-center gap-1.5">
@@ -111,34 +99,36 @@ export function MixGroupCard({
 				</button>
 			</div>
 
-			<div
-				className={cn(
-					"grid gap-1.5",
-					cells.length === 4 ? "grid-cols-4" : "grid-cols-3"
-				)}
-			>
-				{cells.map((cell) => (
-					<label className="flex min-w-0 flex-col gap-1" key={cell.slot}>
-						<span className="truncate text-[length:var(--m-text-caption)] text-muted-foreground">
-							{cell.label}
-						</span>
-						<input
-							{...NO_INPUT_SUGGESTIONS}
-							aria-describedby={cell.error ? errorId : undefined}
-							aria-invalid={cell.error !== undefined}
-							aria-label={`${groupLabel} ${cell.label}`}
-							className={cn(
-								CRYST_FIELD,
-								"box-border h-[var(--m-control)] w-full min-w-0 px-2 font-mono"
-							)}
-							inputMode="numeric"
-							onChange={(e) => onCellChange(cell.slot, e.target.value)}
-							type="text"
-							value={cell.value}
-						/>
-					</label>
-				))}
-			</div>
+			{cells.length === 0 ? null : (
+				<div
+					className={cn(
+						"grid gap-1.5",
+						cells.length === 4 ? "grid-cols-4" : "grid-cols-3"
+					)}
+				>
+					{cells.map((cell) => (
+						<label className="flex min-w-0 flex-col gap-1" key={cell.slot}>
+							<span className="truncate text-[length:var(--m-text-caption)] text-muted-foreground">
+								{cell.label}
+							</span>
+							<input
+								{...NO_INPUT_SUGGESTIONS}
+								aria-describedby={cell.error ? errorId : undefined}
+								aria-invalid={cell.error !== undefined}
+								aria-label={`${groupLabel} ${cell.label}`}
+								className={cn(
+									CRYST_FIELD,
+									"box-border h-[var(--m-control)] w-full min-w-0 px-2 font-mono"
+								)}
+								inputMode="numeric"
+								onChange={(e) => onCellChange(cell.slot, e.target.value)}
+								type="text"
+								value={cell.value}
+							/>
+						</label>
+					))}
+				</div>
+			)}
 			{cellError ? (
 				<p
 					className="text-[length:var(--text-xs)] text-destructive"
@@ -148,6 +138,17 @@ export function MixGroupCard({
 					{cellError}
 				</p>
 			) : null}
+			<button
+				className={cn(
+					crystButton({ variant: "outline" }),
+					"w-full text-destructive hover:text-destructive"
+				)}
+				onClick={onRemove}
+				type="button"
+			>
+				<IconTrash aria-hidden size={16} />
+				Delete group
+			</button>
 		</fieldset>
 	);
 }

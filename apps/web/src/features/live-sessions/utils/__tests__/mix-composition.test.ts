@@ -3,17 +3,20 @@ import { describe, expect, it } from "vitest";
 import {
 	type MixGameGroupRow,
 	type MixGroupInfo,
-	toMixGames,
+	updateGroup,
 } from "@/shared/lib/mix-games";
 import {
 	addEmptyGroup,
+	autoGroupNames,
+	canToggleVariantInGroup,
 	describeMixStakesLine,
 	describeMixValidity,
 	filterVariantOptions,
+	seedMixGroups,
+	serializeMixGroups,
 	summarizeMix,
 	toggleVariantInGroup,
 	variantForComposition,
-	withDerivedAnteTypes,
 } from "../mix-composition";
 
 const BIG_BET: MixGroupInfo = {
@@ -56,7 +59,7 @@ function twoEmptyGroups(): MixGameGroupRow[] {
 }
 
 describe("toggleVariantInGroup", () => {
-	it("takes the family and its blind labels from the first game added to an empty group", () => {
+	it("takes the blind structure from the first game and then only accepts games sharing it", () => {
 		const rows = toggleVariantInGroup(twoEmptyGroups(), "a", "Razz", groupFor);
 		expect(rows[0]).toMatchObject({
 			blind1Label: "Small Bet",
@@ -64,11 +67,12 @@ describe("toggleVariantInGroup", () => {
 			groupLabel: "Stud",
 			variants: ["Razz"],
 		});
-		const withSecond = toggleVariantInGroup(rows, "a", "NL Hold'em", groupFor);
-		expect(withSecond[0]).toMatchObject({
-			groupLabel: "Stud",
-			variants: ["Razz", "NL Hold'em"],
-		});
+		expect(toggleVariantInGroup(rows, "a", "NL Hold'em", groupFor)).toEqual(
+			rows
+		);
+		expect(
+			toggleVariantInGroup(rows, "a", "Stud", groupFor)[0]?.variants
+		).toEqual(["Razz", "Stud"]);
 	});
 
 	it("refuses a game another group already uses, whatever its casing", () => {
@@ -81,6 +85,48 @@ describe("toggleVariantInGroup", () => {
 		const cleared = toggleVariantInGroup(rows, "a", "Razz", groupFor);
 		expect(cleared).toHaveLength(2);
 		expect(cleared[0]).toMatchObject({ groupLabel: "Stud", variants: [] });
+	});
+
+	it("keeps an emptied group's stakes for a game of the same structure but drops them for another structure", () => {
+		const staked = updateGroup(
+			toggleVariantInGroup(twoEmptyGroups(), "a", "Razz", groupFor),
+			"a",
+			{ ante: "25", anteType: "all", blind1: "200", blind2: "400" }
+		);
+		const emptied = toggleVariantInGroup(staked, "a", "Razz", groupFor);
+
+		expect(
+			toggleVariantInGroup(emptied, "a", "Stud", groupFor)[0]
+		).toMatchObject({
+			ante: "25",
+			anteType: "all",
+			blind1: "200",
+			blind2: "400",
+		});
+		expect(
+			toggleVariantInGroup(emptied, "a", "NL Hold'em", groupFor)[0]
+		).toMatchObject({
+			ante: "",
+			anteType: "none",
+			blind1: "",
+			blind2: "",
+			groupLabel: "Big Bet",
+		});
+	});
+});
+
+describe("canToggleVariantInGroup", () => {
+	it("lets an empty group take any free game and a filled group only its own structure or its own picks", () => {
+		const rows = toggleVariantInGroup(twoEmptyGroups(), "a", "Razz", groupFor);
+		expect(canToggleVariantInGroup(rows, "a", "Razz", groupFor)).toBe(true);
+		expect(canToggleVariantInGroup(rows, "a", "Stud", groupFor)).toBe(true);
+		expect(canToggleVariantInGroup(rows, "a", "Limit Hold'em", groupFor)).toBe(
+			false
+		);
+		expect(canToggleVariantInGroup(rows, "b", "Limit Hold'em", groupFor)).toBe(
+			true
+		);
+		expect(canToggleVariantInGroup(rows, "b", "Razz", groupFor)).toBe(false);
 	});
 });
 
@@ -110,6 +156,19 @@ describe("describeMixValidity", () => {
 		expect(describeMixValidity(one, "level").isValid).toBe(true);
 	});
 
+	it("rejects a group without games even when the mix has enough games", () => {
+		expect(
+			describeMixValidity(
+				[{ variants: ["Limit Hold'em", "Omaha Hi-Lo"] }, { variants: [] }],
+				"cash"
+			)
+		).toEqual({ isValid: false, label: "Group 2 has no games" });
+		expect(
+			describeMixValidity([{ variants: [] }, { variants: ["Razz"] }], "level")
+				.isValid
+		).toBe(false);
+	});
+
 	it("counts groups and games in the summary line", () => {
 		expect(
 			summarizeMix([{ variants: ["Razz", "Stud"] }, { variants: [] }])
@@ -118,25 +177,57 @@ describe("describeMixValidity", () => {
 	});
 });
 
-describe("withDerivedAnteTypes", () => {
-	it("stores no ante for a blank cell, keeps a big-blind ante, and treats any other ante as everyone's", () => {
-		const base = toggleVariantInGroup(
-			addEmptyGroup([], BIG_BET, "a"),
-			"a",
-			"NL Hold'em",
-			groupFor
-		)[0] as MixGameGroupRow;
-		const rows: MixGameGroupRow[] = [
-			{ ...base, ante: "", anteType: "all", uid: "blank" },
-			{ ...base, ante: "200", anteType: "bb", uid: "bb" },
-			{ ...base, ante: "50", anteType: "none", uid: "new" },
-		];
-		const stored = toMixGames(withDerivedAnteTypes(rows));
-		expect(stored?.map(({ ante, anteType }) => ({ ante, anteType }))).toEqual([
-			{ ante: null, anteType: "none" },
-			{ ante: 200, anteType: "bb" },
-			{ ante: 50, anteType: "all" },
-		]);
+describe("autoGroupNames", () => {
+	it("names each group after its blind structure, numbers a structure that repeats, and leaves an empty group unnamed", () => {
+		expect(
+			autoGroupNames(
+				[
+					{ variants: ["NL Hold'em"] },
+					{ variants: ["Razz"] },
+					{ variants: ["Limit Hold'em"] },
+					{ variants: ["Stud"] },
+					{ variants: [] },
+				],
+				groupFor
+			)
+		).toEqual(["Big Bet", "Stud 1", "Limit", "Stud 2", ""]);
+	});
+});
+
+describe("seedMixGroups / serializeMixGroups", () => {
+	const stored = [
+		{
+			ante: null,
+			anteType: "none" as const,
+			blind1: 100,
+			blind2: 200,
+			blind3: null,
+			name: "Stud 2",
+			variants: ["Razz"],
+		},
+		{
+			ante: null,
+			anteType: "none" as const,
+			blind1: null,
+			blind2: null,
+			blind3: null,
+			name: "Flop",
+			variants: ["NL Hold'em"],
+		},
+	];
+
+	it("seeds the same rows every time so an untouched form is not re-seeded on each render", () => {
+		expect(seedMixGroups(stored, groupFor)).toEqual(
+			seedMixGroups(stored, groupFor)
+		);
+	});
+
+	it("treats a stored default-looking name as automatic, keeps a custom one, and saves the resolved names", () => {
+		const rows = seedMixGroups(stored, groupFor);
+		expect(rows.map((row) => row.name)).toEqual([null, "Flop"]);
+		expect(
+			serializeMixGroups(rows, groupFor)?.map((group) => group.name)
+		).toEqual(["Stud", "Flop"]);
 	});
 });
 

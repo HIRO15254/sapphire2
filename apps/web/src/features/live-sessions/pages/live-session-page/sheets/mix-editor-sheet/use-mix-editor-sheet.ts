@@ -1,23 +1,22 @@
-import type { LevelGameGroup, MixGameGroup } from "@sapphire2/db/schemas/game";
 import { useEffect, useRef, useState } from "react";
 import {
 	addEmptyGroup,
+	autoGroupNames,
 	canAddGroup,
+	canToggleVariantInGroup,
 	describeMixValidity,
-	isVariantTakenElsewhere,
+	groupStructure,
 	type MixTarget,
 	removeVariantFromGroup,
 	summarizeMix,
 	toggleVariantInGroup,
-	withDerivedAnteTypes,
 } from "@/features/live-sessions/utils/mix-composition";
 import { useGameGroups } from "@/shared/hooks/use-game-groups";
 import {
-	fromLevelGames,
-	fromMixGames,
 	hasMixCellErrors,
 	MIX_AMOUNT_SLOTS,
 	type MixGameGroupRow,
+	type MixGroupInfo,
 	mixCellError,
 	removeGroup,
 	updateGroup,
@@ -31,7 +30,7 @@ export type MixEditorTarget =
 export type MixAmountSlot = (typeof MIX_AMOUNT_SLOTS)[number];
 
 interface UseMixEditorSheetOptions {
-	groups: readonly (LevelGameGroup | MixGameGroup)[] | null;
+	groups: readonly MixGameGroupRow[];
 	onOpenChange: (open: boolean) => void;
 	onSave: (rows: MixGameGroupRow[]) => void;
 	open: boolean;
@@ -39,7 +38,7 @@ interface UseMixEditorSheetOptions {
 }
 
 const CASH_HINT =
-	"Each game belongs to exactly one group, and every group keeps its own stakes — that is how a limit round and a big-bet round can sit in the same session.";
+	"A group holds games that share one blind structure, and each game belongs to exactly one group. Set each group's stakes in Basics.";
 const LEVEL_HINT =
 	"Levels without a composition fall back to the session game type. Games set here override it for this level only.";
 
@@ -60,6 +59,13 @@ function normalized(value: string): string {
 	return value.trim().toLowerCase();
 }
 
+function describePickerHint(structure: MixGroupInfo | null): string {
+	if (structure === null) {
+		return "The first game sets this group's blind structure. Games used by another group are greyed out.";
+	}
+	return `This group uses ${structure.label} blinds, so only ${structure.label} games can join it. Games used by another group are greyed out.`;
+}
+
 export function useMixEditorSheet({
 	groups,
 	onOpenChange,
@@ -76,20 +82,16 @@ export function useMixEditorSheet({
 	const wasOpenRef = useRef(false);
 	useEffect(() => {
 		if (open && !wasOpenRef.current) {
-			const loaded =
-				kind === "cash"
-					? fromMixGames(groups as MixGameGroup[] | null, groupFor)
-					: fromLevelGames(groups as LevelGameGroup[] | null, groupFor);
 			const seeded =
-				loaded.length > 0
-					? loaded
+				groups.length > 0
+					? [...groups]
 					: addEmptyGroup([], groupFor(""), crypto.randomUUID());
 			setRows(seeded);
 			setInitialRows(seeded);
 			setPickingUid(null);
 		}
 		wasOpenRef.current = open;
-	}, [open, groups, groupFor, kind]);
+	}, [open, groups, groupFor]);
 
 	const discard = useDiscardConfirm({
 		isDirty: () => JSON.stringify(rows) !== JSON.stringify(initialRows),
@@ -98,7 +100,10 @@ export function useMixEditorSheet({
 
 	const validity = describeMixValidity(rows, kind);
 	const hasCellErrors = hasMixCellErrors(rows);
-	const canSave = !hasCellErrors && (kind === "level" || validity.isValid);
+	const clearsLevelGames = kind === "level" && rows.length === 0;
+	const canSave = !hasCellErrors && (validity.isValid || clearsLevelGames);
+	const autoNames = autoGroupNames(rows, groupFor);
+	const pickingRow = rows.find((row) => row.uid === pickingUid) ?? null;
 
 	const shortLabelByLabel = new Map(
 		variants.map((row) => [normalized(row.label), row.shortLabel ?? row.label])
@@ -108,7 +113,7 @@ export function useMixEditorSheet({
 		if (!canSave) {
 			return;
 		}
-		onSave(withDerivedAnteTypes(rows));
+		onSave(rows);
 		onOpenChange(false);
 	};
 
@@ -117,16 +122,18 @@ export function useMixEditorSheet({
 		canSave,
 		discard,
 		groups: rows.map((row, index) => ({
-			cells: MIX_AMOUNT_SLOTS.filter(
-				(slot) => slot !== "blind3" || row.blind3Label !== null
-			).map((slot) => ({
-				error: mixCellError(row[slot]),
-				label: cellLabel(row, slot),
-				slot,
-				value: row[slot],
-			})),
-			familyLabel: row.groupLabel,
-			name: row.name ?? "",
+			cells:
+				kind === "level"
+					? MIX_AMOUNT_SLOTS.filter(
+							(slot) => slot !== "blind3" || row.blind3Label !== null
+						).map((slot) => ({
+							error: mixCellError(row[slot]),
+							label: cellLabel(row, slot),
+							slot,
+							value: row[slot],
+						}))
+					: [],
+			name: row.name ?? autoNames[index] ?? "",
 			number: index + 1,
 			uid: row.uid,
 			variants: row.variants.map((label) => ({
@@ -148,16 +155,26 @@ export function useMixEditorSheet({
 			setRows((current) => removeVariantFromGroup(current, uid, label)),
 		onRenameGroup: (uid: string, name: string) =>
 			setRows((current) => updateGroup(current, uid, { name })),
+		onRenameGroupEnd: (uid: string) =>
+			setRows((current) =>
+				current.map((row) =>
+					row.uid === uid && row.name?.trim() === ""
+						? { ...row, name: null }
+						: row
+				)
+			),
 		onSubmit,
 		picker: {
+			hint: describePickerHint(
+				pickingRow === null ? null : groupStructure(pickingRow, groupFor)
+			),
 			isDisabled: (label: string) =>
-				pickingUid !== null && isVariantTakenElsewhere(rows, pickingUid, label),
+				pickingUid !== null &&
+				!canToggleVariantInGroup(rows, pickingUid, label, groupFor),
 			isPicked: (label: string) =>
-				rows
-					.find((row) => row.uid === pickingUid)
-					?.variants.some(
-						(variant) => normalized(variant) === normalized(label)
-					) ?? false,
+				pickingRow?.variants.some(
+					(variant) => normalized(variant) === normalized(label)
+				) ?? false,
 			onOpenChange: (next: boolean) => {
 				if (!next) {
 					setPickingUid(null);

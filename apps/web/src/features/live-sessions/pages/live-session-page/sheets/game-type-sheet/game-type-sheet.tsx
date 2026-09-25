@@ -118,11 +118,11 @@ export function GameTypeSheet({
 									type="button"
 								>
 									<IconAdjustments aria-hidden size={16} />
-									Edit groups and stakes
+									Edit groups
 								</button>
 								<p className={HINT_CLASS}>
-									A mix needs at least two games. Stakes are set per group, so
-									limit and big-bet rounds keep their own bet sizes.
+									A mix needs at least two games. Each group holds games that
+									share one blind structure, and its stakes are set in Basics.
 								</p>
 							</>
 						) : (

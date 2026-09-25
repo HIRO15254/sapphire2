@@ -51,6 +51,7 @@ const CUSTOM_MIX_PRESET = /^Custom mix/;
 const LIMIT_HOLDEM_ROW = /^Limit Hold'em/;
 const RAZZ_ROW = /^Razz/;
 const NLH_ROW = /^NLH/;
+const EMPTY_GROUP_STATUS = /Group 3 has no games/;
 
 const HORSE_GAMES: MixGameGroup[] = [
 	{
@@ -1547,14 +1548,85 @@ describe("CashCockpit", () => {
 					ante: null,
 					blind1: null,
 					blind2: null,
-					mixGames: HORSE_GAMES,
+					mixGames: [
+						{ ...HORSE_GAMES[0], name: "Limit" },
+						{ ...HORSE_GAMES[1], name: "Stud" },
+					],
 					variant: "HORSE",
 				})
 			);
 		});
 	});
 
-	it("saves per-group stakes and keeps a game out of a second group", async () => {
+	it("sets each group's stakes in Basics and only offers a group games of its blind structure", async () => {
+		backend.sessionVariant = "HORSE";
+		backend.sessionMixGames = HORSE_GAMES;
+		const user = userEvent.setup();
+		renderCockpit();
+		await openBasics(user);
+
+		const limit = await screen.findByRole("group", { name: "Limit" });
+		await user.type(within(limit).getByLabelText("Small Bet"), "200");
+		await user.type(within(limit).getByLabelText("Big Bet"), "400");
+		expect(within(limit).getByLabelText("Ante")).toBeDisabled();
+		await user.click(within(limit).getByRole("radio", { name: "BB" }));
+		await user.type(within(limit).getByLabelText("Ante"), "400");
+		const stud = screen.getByRole("group", { name: "Stud" });
+		await user.type(within(stud).getByLabelText("Bring-in"), "50");
+
+		await user.click(
+			screen.getByRole("button", { description: "Game composition" })
+		);
+		const editor = await screen.findByRole("dialog", {
+			name: "Game composition",
+		});
+		expect(
+			within(editor).queryByLabelText("Group 1 Small Bet")
+		).not.toBeInTheDocument();
+		await user.click(
+			within(editor).getByRole("button", { name: "Add games to group 2" })
+		);
+		const games = await screen.findByRole("dialog", {
+			name: "Add games to group",
+		});
+		expect(
+			within(games).getByRole("button", { name: LIMIT_HOLDEM_ROW })
+		).toBeDisabled();
+		expect(within(games).getByRole("button", { name: NLH_ROW })).toBeDisabled();
+		expect(
+			within(games).getByRole("button", { name: RAZZ_ROW })
+		).toHaveAttribute("aria-pressed", "true");
+		await closeSheet(user, "Add games to group");
+		await saveMixEditor(user);
+
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.snapshotUpdates).toContainEqual(
+				expect.objectContaining({
+					mixGames: [
+						expect.objectContaining({
+							ante: 400,
+							anteType: "bb",
+							blind1: 200,
+							blind2: 400,
+							name: "Limit",
+							variants: ["Limit Hold'em", "Omaha Hi-Lo"],
+						}),
+						expect.objectContaining({
+							blind1: null,
+							blind3: 50,
+							name: "Stud",
+							variants: ["Razz", "Stud", "Stud Hi-Lo"],
+						}),
+					],
+					variant: "HORSE",
+				})
+			);
+		});
+	});
+
+	it("will not save a composition while a group has no games, until that group is deleted", async () => {
 		backend.sessionVariant = "HORSE";
 		backend.sessionMixGames = HORSE_GAMES;
 		const user = userEvent.setup();
@@ -1567,44 +1639,22 @@ describe("CashCockpit", () => {
 		const editor = await screen.findByRole("dialog", {
 			name: "Game composition",
 		});
-		await user.type(within(editor).getByLabelText("Group 1 Small Bet"), "200");
-		await user.type(within(editor).getByLabelText("Group 1 Big Bet"), "400");
+		await user.click(within(editor).getByRole("button", { name: "Add group" }));
+
+		expect(within(editor).getByRole("status")).toHaveTextContent(
+			EMPTY_GROUP_STATUS
+		);
+		expect(within(editor).getByRole("button", { name: "Save" })).toBeDisabled();
 
 		await user.click(
-			within(editor).getByRole("button", { name: "Add games to group 2" })
+			within(within(editor).getByRole("group", { name: "Group 3" })).getByRole(
+				"button",
+				{ name: "Delete group" }
+			)
 		);
-		const games = await screen.findByRole("dialog", {
-			name: "Add games to group",
-		});
-		expect(
-			within(games).getByRole("button", { name: LIMIT_HOLDEM_ROW })
-		).toBeDisabled();
-		expect(
-			within(games).getByRole("button", { name: RAZZ_ROW })
-		).toHaveAttribute("aria-pressed", "true");
-		await closeSheet(user, "Add games to group");
 
-		await saveMixEditor(user);
-		await user.click(screen.getByRole("button", { name: "Save" }));
-
-		await waitFor(() => {
-			expect(backend.snapshotUpdates).toContainEqual(
-				expect.objectContaining({
-					mixGames: [
-						expect.objectContaining({
-							blind1: 200,
-							blind2: 400,
-							variants: ["Limit Hold'em", "Omaha Hi-Lo"],
-						}),
-						expect.objectContaining({
-							blind1: null,
-							variants: ["Razz", "Stud", "Stud Hi-Lo"],
-						}),
-					],
-					variant: "HORSE",
-				})
-			);
-		});
+		expect(within(editor).getByRole("status")).toHaveTextContent("Valid");
+		expect(within(editor).getByRole("button", { name: "Save" })).toBeEnabled();
 	});
 
 	it("turns a preset mix into a custom mix once its groups no longer match the preset", async () => {

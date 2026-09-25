@@ -2,6 +2,7 @@ import { VariantPickList } from "../../variant-pick-list";
 import { CrystSheet } from "../cryst-sheet";
 
 interface GroupGamesSheetProps {
+	hint: string;
 	isDisabled: (label: string) => boolean;
 	isPicked: (label: string) => boolean;
 	onOpenChange: (open: boolean) => void;
@@ -10,6 +11,7 @@ interface GroupGamesSheetProps {
 }
 
 export function GroupGamesSheet({
+	hint,
 	isDisabled,
 	isPicked,
 	onOpenChange,
@@ -29,8 +31,7 @@ export function GroupGamesSheet({
 					onPick={onToggle}
 				/>
 				<p className="text-pretty text-[length:var(--m-text-caption)] text-muted-foreground leading-[var(--m-leading-body)]">
-					Games already used by another group are greyed out — each game belongs
-					to exactly one group.
+					{hint}
 				</p>
 			</div>
 		</CrystSheet>
