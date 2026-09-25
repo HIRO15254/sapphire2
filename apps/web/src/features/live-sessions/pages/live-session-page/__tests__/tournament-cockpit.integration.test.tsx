@@ -30,8 +30,7 @@ const MINUTE = 60_000;
 const LEVEL_MINUTES = 20;
 const REENTRY_OPTION = /Re-entry/;
 const EDIT_BLINDS_BUTTON = /Edit blind structure/;
-const RAZZ_ROW = /^Razz/;
-const STUD_ROW = /^Stud/;
+const STUD_MIX_PRESET = /^Stud mix/;
 
 interface BlindLevelRow {
 	ante: number | null;
@@ -172,7 +171,16 @@ const fixtureRouter = t.router({
 			},
 		]),
 	}),
-	gameMix: t.router({ list: t.procedure.query(() => []) }),
+	gameMix: t.router({
+		list: t.procedure.query(() => [
+			{
+				builtinKey: null,
+				games: ["var-2", "var-3"],
+				id: "mix-1",
+				label: "Stud mix",
+			},
+		]),
+	}),
 	gameVariant: t.router({
 		list: t.procedure.query(() => [
 			{ groupId: "grp-1", id: "var-1", label: "NLH", shortLabel: "NLH" },
@@ -471,35 +479,33 @@ describe("TournamentCockpit", () => {
 		expect(await screen.findByText("150/200")).toBeInTheDocument();
 	});
 
-	it("sends a level's own games and shows them on the level bar", async () => {
+	it("picks a saved mix for a level and sends the stakes entered on its row", async () => {
 		backend.timerStartedAt = new Date(backend.now - 25 * MINUTE);
 		const user = userEvent.setup();
 		renderCockpit();
 		await openBlinds(user);
 
 		await user.click(screen.getByRole("button", { name: "Games for level 2" }));
-		const editor = await screen.findByRole("dialog", {
+		const picker = await screen.findByRole("dialog", {
 			name: "Level 2 games",
 		});
+		await user.click(within(picker).getByRole("tab", { name: "Mixed game" }));
 		await user.click(
-			within(editor).getByRole("button", { name: "Add games to group 1" })
+			within(picker).getByRole("radio", { name: STUD_MIX_PRESET })
 		);
-		const picker = await screen.findByRole("dialog", {
-			name: "Add games to group",
-		});
-		await user.click(within(picker).getByRole("button", { name: RAZZ_ROW }));
-		await user.click(within(picker).getByRole("button", { name: STUD_ROW }));
-		await user.keyboard("{Escape}");
 		await waitFor(() => {
 			expect(
-				screen.queryByRole("dialog", { name: "Add games to group" })
+				screen.queryByRole("dialog", { name: "Level 2 games" })
 			).not.toBeInTheDocument();
 		});
-		await user.click(within(editor).getByRole("button", { name: "Save" }));
 
 		expect(
-			await screen.findByRole("button", { name: "2 games for level 2" })
+			screen.getByRole("button", { name: "Stud mix, games for level 2" })
 		).toBeInTheDocument();
+		expect(screen.queryByLabelText("Level 2 SB")).not.toBeInTheDocument();
+		await user.type(screen.getByLabelText("Level 2 Stud Small Bet"), "100");
+		await user.type(screen.getByLabelText("Level 2 Stud Big Bet"), "200");
+		await user.type(screen.getByLabelText("Level 2 Stud Bring-in"), "25");
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
@@ -510,10 +516,55 @@ describe("TournamentCockpit", () => {
 			unknown
 		>[];
 		expect(sent[1]).toMatchObject({
-			games: [expect.objectContaining({ variants: ["Razz", "Stud"] })],
+			games: [
+				{
+					ante: null,
+					blind1: 100,
+					blind2: 200,
+					blind3: 25,
+					name: "Stud",
+					variants: ["Razz", "Stud"],
+				},
+			],
 		});
 		expect(sent[0]).toMatchObject({ games: null });
 		expect(await screen.findByText("Razz · Stud")).toBeInTheDocument();
+	});
+
+	it("puts a level back on the session game and its own blinds", async () => {
+		backend.blindLevels = initialBlindLevels().map((row) =>
+			row.level === 2 ? { ...row, games: [{ variants: ["Razz"] }] } : row
+		);
+		const user = userEvent.setup();
+		renderCockpit();
+		await openBlinds(user);
+
+		await user.click(
+			screen.getByRole("button", { name: "Razz, games for level 2" })
+		);
+		const picker = await screen.findByRole("dialog", {
+			name: "Level 2 games",
+		});
+		await user.click(
+			within(picker).getByRole("button", { name: "Use session game" })
+		);
+		await waitFor(() => {
+			expect(
+				screen.queryByRole("dialog", { name: "Level 2 games" })
+			).not.toBeInTheDocument();
+		});
+
+		expect(screen.getByLabelText("Level 2 SB")).toHaveValue("200");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.snapshotUpdates).toHaveLength(1);
+		});
+		const sent = backend.snapshotUpdates[0]?.blindLevels as Record<
+			string,
+			unknown
+		>[];
+		expect(sent[1]).toMatchObject({ blind1: 200, blind2: 400, games: null });
 	});
 
 	it("keeps an invalid blind amount from being saved and returns to the Blinds tab", async () => {

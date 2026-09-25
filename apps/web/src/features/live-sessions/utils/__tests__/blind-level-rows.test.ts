@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { MixGroupInfo } from "@/shared/lib/mix-games";
 import {
 	type BlindLevelRow,
 	breakRow,
@@ -11,6 +12,17 @@ import {
 	toBlindLevelInputs,
 	toBlindLevelRows,
 } from "../blind-level-rows";
+
+const STUD: MixGroupInfo = {
+	blind1Label: "Small Bet",
+	blind2Label: "Big Bet",
+	blind3Label: "Bring-in",
+	id: "g-stud",
+	label: "Stud",
+	sortIndex: 0,
+};
+
+const groupFor = (): MixGroupInfo => STUD;
 
 function level(
 	uid: string,
@@ -70,7 +82,7 @@ describe("toBlindLevelInputs", () => {
 			games: [],
 		};
 		const pause: BlindLevelRow = { ...breakRow("br"), blind1: "5" };
-		expect(toBlindLevelInputs([withBlanks, pause])).toEqual([
+		expect(toBlindLevelInputs([withBlanks, pause], groupFor)).toEqual([
 			{
 				ante: null,
 				blind1: 100,
@@ -91,47 +103,74 @@ describe("toBlindLevelInputs", () => {
 			},
 		]);
 	});
+
+	it("saves a level's games with their stakes as numbers and the structure as the group name", () => {
+		const [row] = toBlindLevelRows(
+			[
+				{
+					ante: null,
+					blind1: null,
+					blind2: null,
+					blind3: null,
+					games: [{ blind1: 100, variants: ["Razz", "Stud"] }],
+					id: "lv1",
+					isBreak: false,
+					level: 1,
+					minutes: 20,
+				},
+			],
+			groupFor
+		);
+		const edited: BlindLevelRow = {
+			...(row as BlindLevelRow),
+			games: (row?.games ?? []).map((group) => ({ ...group, blind3: "25" })),
+		};
+		expect(toBlindLevelInputs([edited], groupFor)[0]?.games).toEqual([
+			{
+				ante: null,
+				blind1: 100,
+				blind2: null,
+				blind3: 25,
+				name: "Stud",
+				variants: ["Razz", "Stud"],
+			},
+		]);
+	});
 });
 
 describe("toBlindLevelRows", () => {
 	it("orders the server levels by number and keeps their ids as row keys", () => {
-		const rows = toBlindLevelRows([
-			{
-				ante: 200,
-				blind1: 100,
-				blind2: 200,
-				blind3: null,
-				games: [{ blind1: 100, variants: ["Razz"] }],
-				id: "lv2",
-				isBreak: false,
-				level: 2,
-				minutes: 20,
-			},
-			{
-				ante: null,
-				blind1: null,
-				blind2: null,
-				blind3: null,
-				id: "lv1",
-				isBreak: true,
-				level: 1,
-				minutes: 10,
-			},
-		]);
+		const rows = toBlindLevelRows(
+			[
+				{
+					ante: 200,
+					blind1: 100,
+					blind2: 200,
+					blind3: null,
+					games: [{ blind1: 100, variants: ["Razz"] }],
+					id: "lv2",
+					isBreak: false,
+					level: 2,
+					minutes: 20,
+				},
+				{
+					ante: null,
+					blind1: null,
+					blind2: null,
+					blind3: null,
+					id: "lv1",
+					isBreak: true,
+					level: 1,
+					minutes: 10,
+				},
+			],
+			groupFor
+		);
 		expect(rows.map((row) => row.uid)).toEqual(["lv1", "lv2"]);
 		expect(rows[1]).toMatchObject({
 			ante: "200",
 			blind3: "",
-			games: [
-				{
-					ante: null,
-					blind1: 100,
-					blind2: null,
-					blind3: null,
-					name: null,
-					variants: ["Razz"],
-				},
-			],
+			games: [{ ante: "", blind1: "100", blind2: "", variants: ["Razz"] }],
 		});
 	});
 });
@@ -167,8 +206,12 @@ describe("labelBlindRows / summarizeBlindRows", () => {
 describe("sameBlindStructure / hasBlindRowErrors", () => {
 	it("compares what would be saved, not the row keys", () => {
 		const rows = [level("1", "100", "200")];
-		expect(sameBlindStructure(rows, [level("other", "100", "200")])).toBe(true);
-		expect(sameBlindStructure(rows, [level("1", "100", "300")])).toBe(false);
+		expect(
+			sameBlindStructure(rows, [level("other", "100", "200")], groupFor)
+		).toBe(true);
+		expect(sameBlindStructure(rows, [level("1", "100", "300")], groupFor)).toBe(
+			false
+		);
 	});
 
 	it("flags a non-integer amount but ignores blind cells on a break", () => {
@@ -177,5 +220,34 @@ describe("sameBlindStructure / hasBlindRowErrors", () => {
 		expect(hasBlindRowErrors([{ ...breakRow("br"), minutes: "-1" }])).toBe(
 			true
 		);
+	});
+
+	it("checks a level's game stakes instead of the level cells those games replace", () => {
+		const [withGames] = toBlindLevelRows(
+			[
+				{
+					ante: null,
+					blind1: null,
+					blind2: null,
+					blind3: null,
+					games: [{ variants: ["Razz"] }],
+					id: "lv1",
+					isBreak: false,
+					level: 1,
+					minutes: 20,
+				},
+			],
+			groupFor
+		);
+		const row = { ...(withGames as BlindLevelRow), blind1: "x" };
+		expect(hasBlindRowErrors([row])).toBe(false);
+		expect(
+			hasBlindRowErrors([
+				{
+					...row,
+					games: (row.games ?? []).map((group) => ({ ...group, ante: "1.5" })),
+				},
+			])
+		).toBe(true);
 	});
 });

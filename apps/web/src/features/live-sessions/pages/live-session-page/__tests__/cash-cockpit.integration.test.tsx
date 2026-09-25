@@ -47,11 +47,13 @@ const CURRENCY_ROW = /Currency/;
 const CLUB_CHIPS_ROW = /Club chips/;
 const JAPANESE_YEN_ROW = /Japanese yen/;
 const HORSE_PRESET = /^HORSE/;
-const CUSTOM_MIX_PRESET = /^Custom mix/;
-const LIMIT_HOLDEM_ROW = /^Limit Hold'em/;
-const RAZZ_ROW = /^Razz/;
+const BADUGI_PRESET = /^Badugi/;
+const LIMIT_STRUCTURE = /^Limit/;
+const NAME_FIELD = /^Name/;
+const GAME_TYPE_DESCRIPTION = /^Game type/;
 const NLH_ROW = /^NLH/;
-const EMPTY_GROUP_STATUS = /Group 3 has no games/;
+const RAZZ_ROW = /^Razz/;
+const STUD_ROW = /^Stud(?! Hi-Lo)/;
 
 const HORSE_GAMES: MixGameGroup[] = [
 	{
@@ -93,6 +95,47 @@ interface UpdatedEvent {
 	payload?: Record<string, unknown>;
 }
 
+interface VariantRow {
+	groupId: string;
+	id: string;
+	label: string;
+	shortLabel: string | null;
+}
+
+interface MixRow {
+	builtinKey: string | null;
+	games: string[];
+	id: string;
+	label: string;
+}
+
+function initialVariants(): VariantRow[] {
+	return [
+		{ groupId: "grp-1", id: "var-1", label: "NLH", shortLabel: "NLH" },
+		{
+			groupId: "grp-2",
+			id: "var-2",
+			label: "Limit Hold'em",
+			shortLabel: "LHE",
+		},
+		{ groupId: "grp-2", id: "var-3", label: "Omaha Hi-Lo", shortLabel: "O8" },
+		{ groupId: "grp-3", id: "var-4", label: "Razz", shortLabel: "RAZZ" },
+		{ groupId: "grp-3", id: "var-5", label: "Stud", shortLabel: "STUD" },
+		{ groupId: "grp-3", id: "var-6", label: "Stud Hi-Lo", shortLabel: "S8" },
+	];
+}
+
+function initialMixes(): MixRow[] {
+	return [
+		{
+			builtinKey: "horse",
+			games: ["var-2", "var-3", "var-4", "var-5", "var-6"],
+			id: "mix-1",
+			label: "HORSE",
+		},
+	];
+}
+
 interface SeatedPlayer {
 	name: string;
 	playerId: string;
@@ -126,6 +169,10 @@ const backend = {
 	updatedEvents: [] as UpdatedEvent[],
 	masterRingGameId: null as string | null,
 	masterRoomId: null as string | null,
+	mixes: initialMixes(),
+	mixWrites: [] as Record<string, unknown>[],
+	variants: initialVariants(),
+	variantWrites: [] as Record<string, unknown>[],
 	ringGameMaster: {
 		ante: 0,
 		anteType: "none" as string | null,
@@ -366,29 +413,42 @@ const fixtureRouter = t.router({
 		]),
 	}),
 	gameMix: t.router({
-		list: t.procedure.query(() => [
-			{
-				builtinKey: "horse",
-				games: ["var-2", "var-3", "var-4", "var-5", "var-6"],
-				id: "mix-1",
-				label: "HORSE",
-			},
-		]),
+		create: t.procedure
+			.input(z.custom<{ games: string[]; label: string }>())
+			.mutation(({ input }) => {
+				backend.mixWrites.push(input);
+				const created = { builtinKey: null, id: "mix-new", ...input };
+				backend.mixes.push(created);
+				return created;
+			}),
+		list: t.procedure.query(() => backend.mixes),
+		update: t.procedure
+			.input(z.custom<{ games: string[]; id: string; label: string }>())
+			.mutation(({ input }) => {
+				backend.mixWrites.push(input);
+				backend.mixes = backend.mixes.map((mix) =>
+					mix.id === input.id ? { ...mix, ...input } : mix
+				);
+				return backend.mixes.find((mix) => mix.id === input.id);
+			}),
 	}),
 	gameVariant: t.router({
-		list: t.procedure.query(() => [
-			{ groupId: "grp-1", id: "var-1", label: "NLH", shortLabel: "NLH" },
-			{
-				groupId: "grp-2",
-				id: "var-2",
-				label: "Limit Hold'em",
-				shortLabel: "LHE",
-			},
-			{ groupId: "grp-2", id: "var-3", label: "Omaha Hi-Lo", shortLabel: "O8" },
-			{ groupId: "grp-3", id: "var-4", label: "Razz", shortLabel: "RAZZ" },
-			{ groupId: "grp-3", id: "var-5", label: "Stud", shortLabel: "STUD" },
-			{ groupId: "grp-3", id: "var-6", label: "Stud Hi-Lo", shortLabel: "S8" },
-		]),
+		create: t.procedure
+			.input(z.custom<Omit<VariantRow, "id">>())
+			.mutation(({ input }) => {
+				backend.variantWrites.push(input);
+				const created = { id: "var-new", ...input };
+				backend.variants.push(created);
+				return created;
+			}),
+		list: t.procedure.query(() => backend.variants),
+		update: t.procedure.input(z.custom<VariantRow>()).mutation(({ input }) => {
+			backend.variantWrites.push(input);
+			backend.variants = backend.variants.map((row) =>
+				row.id === input.id ? { ...row, ...input } : row
+			);
+			return backend.variants.find((row) => row.id === input.id);
+		}),
 	}),
 	ringGame: t.router({
 		listByRoom: t.procedure
@@ -600,23 +660,16 @@ async function openBasics(user: ReturnType<typeof userEvent.setup>) {
 	await user.click(await screen.findByRole("tab", { name: "Basics" }));
 }
 
-async function closeSheet(
-	user: ReturnType<typeof userEvent.setup>,
-	name: string
-) {
-	await user.keyboard("{Escape}");
-	await waitFor(() => {
-		expect(screen.queryByRole("dialog", { name })).not.toBeInTheDocument();
-	});
+async function openGameTypePicker(user: ReturnType<typeof userEvent.setup>) {
+	await user.click(
+		await screen.findByRole("button", { description: "Game type" })
+	);
+	return screen.findByRole("dialog", { name: "Select game type" });
 }
 
-async function saveMixEditor(user: ReturnType<typeof userEvent.setup>) {
-	const editor = screen.getByRole("dialog", { name: "Game composition" });
-	await user.click(within(editor).getByRole("button", { name: "Save" }));
+async function waitForClosed(name: string) {
 	await waitFor(() => {
-		expect(
-			screen.queryByRole("dialog", { name: "Game composition" })
-		).not.toBeInTheDocument();
+		expect(screen.queryByRole("dialog", { name })).not.toBeInTheDocument();
 	});
 }
 
@@ -656,6 +709,10 @@ beforeEach(() => {
 	backend.updatedEvents = [];
 	backend.masterRingGameId = null;
 	backend.masterRoomId = null;
+	backend.mixes = initialMixes();
+	backend.mixWrites = [];
+	backend.variants = initialVariants();
+	backend.variantWrites = [];
 	backend.ringGameMaster = {
 		ante: 0,
 		anteType: "none",
@@ -1520,24 +1577,18 @@ describe("CashCockpit", () => {
 		expect(backend.snapshotUpdates).toEqual([]);
 	});
 
-	it("builds a preset mix's groups from the game masters and saves them with the variant", async () => {
+	it("builds a picked mix's groups from the game masters and saves them with the variant, leaving the masters alone", async () => {
 		const user = userEvent.setup();
 		renderCockpit();
 		await openBasics(user);
 
-		await user.click(
-			await screen.findByRole("button", { description: "Game type" })
-		);
-		const picker = await screen.findByRole("dialog", {
-			name: "Select game type",
-		});
+		const picker = await openGameTypePicker(user);
 		await user.click(within(picker).getByRole("tab", { name: "Mixed game" }));
 		await user.click(within(picker).getByRole("radio", { name: HORSE_PRESET }));
-		await closeSheet(user, "Select game type");
+		await waitForClosed("Select game type");
 
-		expect(
-			screen.getByRole("button", { description: "Game composition" })
-		).toHaveTextContent("2 groups · 5 games");
+		expect(screen.getByRole("group", { name: "Limit" })).toBeInTheDocument();
+		expect(screen.getByRole("group", { name: "Stud" })).toBeInTheDocument();
 		expect(screen.queryByLabelText("SB")).not.toBeInTheDocument();
 
 		await user.click(screen.getByRole("button", { name: "Save" }));
@@ -1556,9 +1607,11 @@ describe("CashCockpit", () => {
 				})
 			);
 		});
+		expect(backend.mixWrites).toEqual([]);
+		expect(backend.variantWrites).toEqual([]);
 	});
 
-	it("sets each group's stakes in Basics and only offers a group games of its blind structure", async () => {
+	it("sets each group's stakes in Basics and saves them with the mix", async () => {
 		backend.sessionVariant = "HORSE";
 		backend.sessionMixGames = HORSE_GAMES;
 		const user = userEvent.setup();
@@ -1573,31 +1626,6 @@ describe("CashCockpit", () => {
 		await user.type(within(limit).getByLabelText("Ante"), "400");
 		const stud = screen.getByRole("group", { name: "Stud" });
 		await user.type(within(stud).getByLabelText("Bring-in"), "50");
-
-		await user.click(
-			screen.getByRole("button", { description: "Game composition" })
-		);
-		const editor = await screen.findByRole("dialog", {
-			name: "Game composition",
-		});
-		expect(
-			within(editor).queryByLabelText("Group 1 Small Bet")
-		).not.toBeInTheDocument();
-		await user.click(
-			within(editor).getByRole("button", { name: "Add games to group 2" })
-		);
-		const games = await screen.findByRole("dialog", {
-			name: "Add games to group",
-		});
-		expect(
-			within(games).getByRole("button", { name: LIMIT_HOLDEM_ROW })
-		).toBeDisabled();
-		expect(within(games).getByRole("button", { name: NLH_ROW })).toBeDisabled();
-		expect(
-			within(games).getByRole("button", { name: RAZZ_ROW })
-		).toHaveAttribute("aria-pressed", "true");
-		await closeSheet(user, "Add games to group");
-		await saveMixEditor(user);
 
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
@@ -1626,59 +1654,33 @@ describe("CashCockpit", () => {
 		});
 	});
 
-	it("will not save a composition while a group has no games, until that group is deleted", async () => {
+	it("edits the selected mix's master only through Edit mix, then applies its new games to the session", async () => {
 		backend.sessionVariant = "HORSE";
 		backend.sessionMixGames = HORSE_GAMES;
 		const user = userEvent.setup();
 		renderCockpit();
 		await openBasics(user);
 
-		await user.click(
-			await screen.findByRole("button", { description: "Game composition" })
-		);
-		const editor = await screen.findByRole("dialog", {
-			name: "Game composition",
-		});
-		await user.click(within(editor).getByRole("button", { name: "Add group" }));
-
-		expect(within(editor).getByRole("status")).toHaveTextContent(
-			EMPTY_GROUP_STATUS
-		);
-		expect(within(editor).getByRole("button", { name: "Save" })).toBeDisabled();
-
-		await user.click(
-			within(within(editor).getByRole("group", { name: "Group 3" })).getByRole(
-				"button",
-				{ name: "Delete group 3" }
-			)
-		);
-
-		expect(within(editor).getByRole("status")).toHaveTextContent("Valid");
-		expect(within(editor).getByRole("button", { name: "Save" })).toBeEnabled();
-	});
-
-	it("turns a preset mix into a custom mix once its groups no longer match the preset", async () => {
-		backend.sessionVariant = "HORSE";
-		backend.sessionMixGames = HORSE_GAMES;
-		const user = userEvent.setup();
-		renderCockpit();
-		await openBasics(user);
-
-		await user.click(
-			await screen.findByRole("button", { description: "Game composition" })
-		);
-		const editor = await screen.findByRole("dialog", {
-			name: "Game composition",
-		});
-		await user.click(
-			within(editor).getByRole("button", { name: "Remove Omaha Hi-Lo" })
-		);
-		await saveMixEditor(user);
-
+		const picker = await openGameTypePicker(user);
 		expect(
-			screen.getByRole("button", { description: "Game type" })
-		).toHaveTextContent("Custom mix");
+			within(picker).getByRole("radio", { name: HORSE_PRESET })
+		).toBeChecked();
+		await user.click(within(picker).getByRole("button", { name: "Edit mix" }));
+		const master = await screen.findByRole("dialog", { name: "Edit mix" });
+		await user.click(
+			within(master).getByRole("button", { name: "Remove Omaha Hi-Lo" })
+		);
+		await user.click(within(master).getByRole("button", { name: "Save" }));
+		await waitForClosed("Edit mix");
+		await waitForClosed("Select game type");
 
+		expect(backend.mixWrites).toEqual([
+			{
+				games: ["var-2", "var-4", "var-5", "var-6"],
+				id: "mix-1",
+				label: "HORSE",
+			},
+		]);
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
@@ -1690,28 +1692,149 @@ describe("CashCockpit", () => {
 							variants: ["Razz", "Stud", "Stud Hi-Lo"],
 						}),
 					],
+					variant: "HORSE",
+				})
+			);
+		});
+	});
+
+	it("creates a mix from the picker only once it has two games, then picks it for the session", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+		await openBasics(user);
+
+		const picker = await openGameTypePicker(user);
+		await user.click(within(picker).getByRole("tab", { name: "Mixed game" }));
+		expect(
+			within(picker).getByRole("button", { name: "Edit mix" })
+		).toBeDisabled();
+		await user.click(within(picker).getByRole("button", { name: "New mix" }));
+		const master = await screen.findByRole("dialog", { name: "New mix" });
+		await user.type(within(master).getByLabelText(NAME_FIELD), "Stud pair");
+		await user.click(within(master).getByRole("button", { name: "Add games" }));
+		const games = await screen.findByRole("dialog", { name: "Games in mix" });
+		await user.click(within(games).getByRole("button", { name: RAZZ_ROW }));
+		await user.keyboard("{Escape}");
+		await waitForClosed("Games in mix");
+
+		await user.click(within(master).getByRole("button", { name: "Save" }));
+		expect(await within(master).findByRole("alert")).toHaveTextContent(
+			"Pick at least 2 games"
+		);
+		expect(backend.mixWrites).toEqual([]);
+
+		await user.click(within(master).getByRole("button", { name: "Add games" }));
+		const again = await screen.findByRole("dialog", { name: "Games in mix" });
+		await user.click(within(again).getByRole("button", { name: STUD_ROW }));
+		await user.keyboard("{Escape}");
+		await waitForClosed("Games in mix");
+		await user.click(within(master).getByRole("button", { name: "Save" }));
+		await waitForClosed("New mix");
+		await waitForClosed("Select game type");
+
+		expect(backend.mixWrites).toEqual([
+			{ games: ["var-4", "var-5"], label: "Stud pair" },
+		]);
+		expect(
+			screen.getByRole("button", { description: "Game type" })
+		).toHaveTextContent("Stud pair");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.snapshotUpdates).toContainEqual(
+				expect.objectContaining({
+					mixGames: [
+						expect.objectContaining({
+							name: "Stud",
+							variants: ["Razz", "Stud"],
+						}),
+					],
+					variant: "Stud pair",
+				})
+			);
+		});
+	});
+
+	it("creates a game from the picker and picks it for the session", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+		await openBasics(user);
+
+		const picker = await openGameTypePicker(user);
+		await user.click(within(picker).getByRole("button", { name: "New game" }));
+		const master = await screen.findByRole("dialog", { name: "New game" });
+		await user.type(within(master).getByLabelText(NAME_FIELD), "Badugi");
+		await user.type(within(master).getByLabelText("Short name"), "BDG");
+		await user.click(
+			within(master).getByRole("radio", { name: LIMIT_STRUCTURE })
+		);
+		await user.click(within(master).getByRole("button", { name: "Save" }));
+		await waitForClosed("New game");
+		await waitForClosed("Select game type");
+
+		expect(backend.variantWrites).toEqual([
+			{ groupId: "grp-2", label: "Badugi", shortLabel: "BDG" },
+		]);
+		expect(
+			screen.getByRole("button", { description: "Game type" })
+		).toHaveTextContent("Badugi");
+		expect(screen.getByLabelText("Small Bet")).toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.snapshotUpdates).toContainEqual(
+				expect.objectContaining({ mixGames: null, variant: "Badugi" })
+			);
+		});
+	});
+
+	it("keeps a legacy custom mix's games, saves its stakes and no longer offers custom mixes", async () => {
+		backend.sessionVariant = "mix";
+		backend.sessionMixGames = HORSE_GAMES;
+		const user = userEvent.setup();
+		renderCockpit();
+		await openBasics(user);
+
+		expect(
+			await screen.findByRole("button", { description: "Game type" })
+		).toHaveTextContent("Custom mix");
+		const stud = screen.getByRole("group", { name: "Stud" });
+		await user.type(within(stud).getByLabelText("Bring-in"), "50");
+
+		const picker = await openGameTypePicker(user);
+		expect(within(picker).getByRole("status")).toHaveTextContent(
+			"custom mix that is not in your game list"
+		);
+		expect(within(picker).getAllByRole("radio")).toHaveLength(1);
+		expect(
+			within(picker).queryByRole("radio", { name: BADUGI_PRESET })
+		).not.toBeInTheDocument();
+		await user.keyboard("{Escape}");
+		await waitForClosed("Select game type");
+
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.snapshotUpdates).toContainEqual(
+				expect.objectContaining({
+					mixGames: [
+						expect.objectContaining({ blind3: null }),
+						expect.objectContaining({ blind3: 50 }),
+					],
 					variant: "mix",
 				})
 			);
 		});
 	});
 
-	it("refuses to save a custom mix without two games and returns to Basics to say why", async () => {
+	it("refuses to save a mix without two games and returns to Basics to say why", async () => {
+		backend.sessionVariant = "mix";
+		backend.sessionMixGames = [
+			{ ...(HORSE_GAMES[1] as MixGameGroup), variants: ["Razz"] },
+		];
 		const user = userEvent.setup();
 		renderCockpit();
 		await openBasics(user);
-
-		await user.click(
-			await screen.findByRole("button", { description: "Game type" })
-		);
-		const picker = await screen.findByRole("dialog", {
-			name: "Select game type",
-		});
-		await user.click(within(picker).getByRole("tab", { name: "Mixed game" }));
-		await user.click(
-			within(picker).getByRole("radio", { name: CUSTOM_MIX_PRESET })
-		);
-		await closeSheet(user, "Select game type");
 
 		await user.click(screen.getByRole("tab", { name: "Overview" }));
 		await user.click(screen.getByRole("button", { name: "Save" }));
@@ -1725,6 +1848,9 @@ describe("CashCockpit", () => {
 		expect(screen.getByRole("alert")).toHaveTextContent(
 			"A mix needs at least two games"
 		);
+		expect(
+			screen.getByRole("button", { description: GAME_TYPE_DESCRIPTION })
+		).toHaveAttribute("aria-invalid", "true");
 		expect(backend.snapshotUpdates).toEqual([]);
 	});
 
@@ -1735,22 +1861,13 @@ describe("CashCockpit", () => {
 		renderCockpit();
 		await openBasics(user);
 
-		await user.click(
-			await screen.findByRole("button", { description: "Game type" })
-		);
-		const picker = await screen.findByRole("dialog", {
-			name: "Select game type",
-		});
+		const picker = await openGameTypePicker(user);
 		await user.click(within(picker).getByRole("tab", { name: "Single game" }));
 		await user.click(within(picker).getByRole("button", { name: NLH_ROW }));
-		await waitFor(() => {
-			expect(
-				screen.queryByRole("dialog", { name: "Select game type" })
-			).not.toBeInTheDocument();
-		});
+		await waitForClosed("Select game type");
 
 		expect(
-			screen.queryByRole("button", { description: "Game composition" })
+			screen.queryByRole("group", { name: "Limit" })
 		).not.toBeInTheDocument();
 
 		await user.click(screen.getByRole("button", { name: "Save" }));

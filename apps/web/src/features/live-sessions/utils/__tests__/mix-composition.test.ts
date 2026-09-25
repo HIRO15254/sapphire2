@@ -1,22 +1,17 @@
-import { MAX_MIX_GROUPS } from "@sapphire2/db/schemas/game";
 import { describe, expect, it } from "vitest";
 import {
-	type MixGameGroupRow,
 	type MixGroupInfo,
+	rowsFromVariantLabels,
 	updateGroup,
 } from "@/shared/lib/mix-games";
 import {
-	addEmptyGroup,
 	autoGroupNames,
-	canToggleVariantInGroup,
-	describeMixStakesLine,
 	describeMixValidity,
 	filterVariantOptions,
+	levelGroupsFor,
+	matchMixLabel,
 	seedMixGroups,
 	serializeMixGroups,
-	summarizeMix,
-	toggleVariantInGroup,
-	variantForComposition,
 } from "../mix-composition";
 
 const BIG_BET: MixGroupInfo = {
@@ -54,126 +49,27 @@ const FAMILY: Record<string, MixGroupInfo> = {
 const groupFor = (label: string): MixGroupInfo =>
 	FAMILY[label.trim().toLowerCase()] ?? BIG_BET;
 
-function twoEmptyGroups(): MixGameGroupRow[] {
-	return addEmptyGroup(addEmptyGroup([], BIG_BET, "a"), BIG_BET, "b");
-}
-
-describe("toggleVariantInGroup", () => {
-	it("takes the blind structure from the first game and then only accepts games sharing it", () => {
-		const rows = toggleVariantInGroup(twoEmptyGroups(), "a", "Razz", groupFor);
-		expect(rows[0]).toMatchObject({
-			blind1Label: "Small Bet",
-			blind3Label: "Bring-in",
-			groupLabel: "Stud",
-			variants: ["Razz"],
-		});
-		expect(toggleVariantInGroup(rows, "a", "NL Hold'em", groupFor)).toEqual(
-			rows
-		);
-		expect(
-			toggleVariantInGroup(rows, "a", "Stud", groupFor)[0]?.variants
-		).toEqual(["Razz", "Stud"]);
-	});
-
-	it("refuses a game another group already uses, whatever its casing", () => {
-		const rows = toggleVariantInGroup(twoEmptyGroups(), "a", "Razz", groupFor);
-		expect(toggleVariantInGroup(rows, "b", " razz ", groupFor)).toEqual(rows);
-	});
-
-	it("removes an already picked game but keeps the now empty group and its family", () => {
-		const rows = toggleVariantInGroup(twoEmptyGroups(), "a", "Razz", groupFor);
-		const cleared = toggleVariantInGroup(rows, "a", "Razz", groupFor);
-		expect(cleared).toHaveLength(2);
-		expect(cleared[0]).toMatchObject({ groupLabel: "Stud", variants: [] });
-	});
-
-	it("keeps an emptied group's stakes for a game of the same structure but drops them for another structure", () => {
-		const staked = updateGroup(
-			toggleVariantInGroup(twoEmptyGroups(), "a", "Razz", groupFor),
-			"a",
-			{ ante: "25", anteType: "all", blind1: "200", blind2: "400" }
-		);
-		const emptied = toggleVariantInGroup(staked, "a", "Razz", groupFor);
-
-		expect(
-			toggleVariantInGroup(emptied, "a", "Stud", groupFor)[0]
-		).toMatchObject({
-			ante: "25",
-			anteType: "all",
-			blind1: "200",
-			blind2: "400",
-		});
-		expect(
-			toggleVariantInGroup(emptied, "a", "NL Hold'em", groupFor)[0]
-		).toMatchObject({
-			ante: "",
-			anteType: "none",
-			blind1: "",
-			blind2: "",
-			groupLabel: "Big Bet",
-		});
-	});
-});
-
-describe("canToggleVariantInGroup", () => {
-	it("lets an empty group take any free game and a filled group only its own structure or its own picks", () => {
-		const rows = toggleVariantInGroup(twoEmptyGroups(), "a", "Razz", groupFor);
-		expect(canToggleVariantInGroup(rows, "a", "Razz", groupFor)).toBe(true);
-		expect(canToggleVariantInGroup(rows, "a", "Stud", groupFor)).toBe(true);
-		expect(canToggleVariantInGroup(rows, "a", "Limit Hold'em", groupFor)).toBe(
-			false
-		);
-		expect(canToggleVariantInGroup(rows, "b", "Limit Hold'em", groupFor)).toBe(
-			true
-		);
-		expect(canToggleVariantInGroup(rows, "b", "Razz", groupFor)).toBe(false);
-	});
-});
-
-describe("addEmptyGroup", () => {
-	it("stops at the stored-schema cap on groups", () => {
-		let rows: MixGameGroupRow[] = [];
-		for (let i = 0; i < MAX_MIX_GROUPS + 2; i++) {
-			rows = addEmptyGroup(rows, BIG_BET, `g${i}`);
-		}
-		expect(rows).toHaveLength(MAX_MIX_GROUPS);
-	});
-});
-
 describe("describeMixValidity", () => {
-	it("needs two games for a cash mix and one for a level composition", () => {
-		const one = [{ variants: ["Razz"] }];
-		const two = [{ variants: ["Razz"] }, { variants: ["NL Hold'em"] }];
-		expect(describeMixValidity(one, "cash")).toEqual({
+	it("needs two games for a cash mix", () => {
+		expect(describeMixValidity([{ variants: ["Razz"] }])).toEqual({
 			isValid: false,
 			label: "Needs 2+ games",
 		});
-		expect(describeMixValidity(two, "cash").isValid).toBe(true);
-		expect(describeMixValidity([], "level")).toEqual({
-			isValid: false,
-			label: "Needs 1+ game",
-		});
-		expect(describeMixValidity(one, "level").isValid).toBe(true);
+		expect(
+			describeMixValidity([
+				{ variants: ["Razz"] },
+				{ variants: ["NL Hold'em"] },
+			]).isValid
+		).toBe(true);
 	});
 
 	it("rejects a group without games even when the mix has enough games", () => {
 		expect(
-			describeMixValidity(
-				[{ variants: ["Limit Hold'em", "Omaha Hi-Lo"] }, { variants: [] }],
-				"cash"
-			)
+			describeMixValidity([
+				{ variants: ["Limit Hold'em", "Omaha Hi-Lo"] },
+				{ variants: [] },
+			])
 		).toEqual({ isValid: false, label: "Group 2 has no games" });
-		expect(
-			describeMixValidity([{ variants: [] }, { variants: ["Razz"] }], "level")
-				.isValid
-		).toBe(false);
-	});
-
-	it("counts groups and games in the summary line", () => {
-		expect(
-			summarizeMix([{ variants: ["Razz", "Stud"] }, { variants: [] }])
-		).toBe("2 groups · 2 games");
-		expect(summarizeMix([{ variants: ["Razz"] }])).toBe("1 group · 1 game");
 	});
 });
 
@@ -231,57 +127,74 @@ describe("seedMixGroups / serializeMixGroups", () => {
 	});
 });
 
-describe("variantForComposition", () => {
-	const horse = [
-		{ variants: ["NL Hold'em"] },
-		{ variants: ["Limit Hold'em"] },
-		{ variants: ["Razz", "Stud"] },
+describe("matchMixLabel", () => {
+	const candidates = [
+		{
+			groups: rowsFromVariantLabels(
+				["Limit Hold'em", "Razz", "Stud"],
+				groupFor
+			),
+			label: "HORSE",
+		},
+		{
+			groups: rowsFromVariantLabels(["NL Hold'em", "Razz"], groupFor),
+			label: "Mini",
+		},
 	];
 
-	it("keeps a named mix while its games stay in the canonical buckets, ignoring names, stakes and casing", () => {
-		const edited = [
-			{ name: "Flop", variants: ["nl hold'em"] },
-			{ variants: ["Limit Hold'em"] },
-			{ variants: ["RAZZ", "Stud"] },
-		];
-		expect(variantForComposition("HORSE", edited, horse)).toBe("HORSE");
+	it("finds the mix whose games a level uses, ignoring group names, stakes and casing", () => {
+		expect(
+			matchMixLabel(
+				[
+					{ name: "Flop", variants: ["limit hold'em"] },
+					{ variants: ["RAZZ", "Stud"] },
+				],
+				candidates
+			)
+		).toBe("HORSE");
 	});
 
-	it("turns a named mix into a custom mix once its structure changes, so the server accepts it", () => {
-		const moved = [
-			{ variants: ["NL Hold'em", "Limit Hold'em"] },
-			{ variants: ["Razz", "Stud"] },
-		];
-		expect(variantForComposition("HORSE", moved, horse)).toBe("mix");
-		expect(variantForComposition("HORSE", horse.slice(0, 2), horse)).toBe(
-			"mix"
-		);
-	});
-
-	it("leaves a custom mix alone", () => {
-		expect(variantForComposition("mix", [{ variants: ["Razz"] }], null)).toBe(
-			"mix"
-		);
+	it("finds nothing for an empty or unmatched composition", () => {
+		expect(matchMixLabel([], candidates)).toBeNull();
+		expect(
+			matchMixLabel([{ variants: ["Limit Hold'em", "Razz"] }], candidates)
+		).toBeNull();
 	});
 });
 
-describe("describeMixStakesLine", () => {
-	it("names each group by its name or family and shows missing blinds as a dash", () => {
-		expect(
-			describeMixStakesLine(
-				[
-					{ blind1: 100, blind2: 200, name: "Flop", variants: ["NL Hold'em"] },
-					{
-						blind1: null,
-						blind2: 400,
-						blind3: 50,
-						name: "  ",
-						variants: ["Razz"],
-					},
-				],
-				groupFor
-			)
-		).toBe("Flop 100/200 · Stud —/400/50");
+describe("levelGroupsFor", () => {
+	it("names a single game's group after the game", () => {
+		expect(levelGroupsFor([], ["Razz"], groupFor)).toEqual([
+			expect.objectContaining({ name: "Razz", variants: ["Razz"] }),
+		]);
+	});
+
+	it("keeps the stakes of a structure the new games share, and leaves the others blank", () => {
+		const razz = levelGroupsFor([], ["Razz"], groupFor);
+		const single = updateGroup(razz, razz[0]?.uid ?? "", {
+			blind1: "200",
+			blind2: "400",
+			blind3: "50",
+		});
+		const mixed = levelGroupsFor(
+			single,
+			["Limit Hold'em", "Razz", "Stud"],
+			groupFor
+		);
+		expect(mixed).toEqual([
+			expect.objectContaining({
+				blind1: "",
+				name: null,
+				variants: ["Limit Hold'em"],
+			}),
+			expect.objectContaining({
+				blind1: "200",
+				blind2: "400",
+				blind3: "50",
+				name: null,
+				variants: ["Razz", "Stud"],
+			}),
+		]);
 	});
 });
 

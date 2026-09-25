@@ -1,14 +1,23 @@
 import type { LevelGameGroup } from "@sapphire2/db/schemas/game";
 import type { GameGroupLike } from "@/features/live-sessions/utils/game-scene-formatters";
+import {
+	seedLevelGroups,
+	serializeLevelGroups,
+} from "@/features/live-sessions/utils/mix-composition";
 import type { TournamentBlindLevel } from "@/features/live-sessions/utils/tournament-timer";
-import { mixCellError } from "@/shared/lib/mix-games";
+import {
+	hasMixCellErrors,
+	type MixGameGroupRow,
+	mixCellError,
+	type ResolveGroup,
+} from "@/shared/lib/mix-games";
 
 export interface BlindLevelRow {
 	ante: string;
 	blind1: string;
 	blind2: string;
 	blind3: string;
-	games: LevelGameGroup[] | null;
+	games: MixGameGroupRow[] | null;
 	isBreak: boolean;
 	minutes: string;
 	uid: string;
@@ -60,8 +69,21 @@ function toLevelGames(
 	}));
 }
 
+export function hasLevelGames(row: BlindLevelRow): boolean {
+	return !row.isBreak && row.games !== null && row.games.length > 0;
+}
+
+function seedRowGames(
+	level: TournamentBlindLevel,
+	resolveGroup: ResolveGroup
+): MixGameGroupRow[] | null {
+	const games = level.isBreak ? null : toLevelGames(level.games);
+	return games === null ? null : seedLevelGroups(games, resolveGroup);
+}
+
 export function toBlindLevelRows(
-	levels: readonly TournamentBlindLevel[]
+	levels: readonly TournamentBlindLevel[],
+	resolveGroup: ResolveGroup
 ): BlindLevelRow[] {
 	return [...levels]
 		.sort((a, b) => a.level - b.level)
@@ -70,7 +92,7 @@ export function toBlindLevelRows(
 			blind1: textOf(level.blind1),
 			blind2: textOf(level.blind2),
 			blind3: textOf(level.blind3),
-			games: level.isBreak ? null : toLevelGames(level.games),
+			games: seedRowGames(level, resolveGroup),
 			isBreak: level.isBreak,
 			minutes: textOf(level.minutes),
 			uid: level.id,
@@ -78,7 +100,8 @@ export function toBlindLevelRows(
 }
 
 export function toBlindLevelInputs(
-	rows: readonly BlindLevelRow[]
+	rows: readonly BlindLevelRow[],
+	resolveGroup: ResolveGroup
 ): BlindLevelInput[] {
 	return rows.map((row) =>
 		row.isBreak
@@ -96,7 +119,9 @@ export function toBlindLevelInputs(
 					blind1: intOf(row.blind1),
 					blind2: intOf(row.blind2),
 					blind3: intOf(row.blind3),
-					games: row.games && row.games.length > 0 ? row.games : null,
+					games: hasLevelGames(row)
+						? serializeLevelGroups(row.games ?? [], resolveGroup)
+						: null,
 					isBreak: false,
 					minutes: intOf(row.minutes),
 				}
@@ -105,11 +130,12 @@ export function toBlindLevelInputs(
 
 export function sameBlindStructure(
 	left: readonly BlindLevelRow[],
-	right: readonly BlindLevelRow[]
+	right: readonly BlindLevelRow[],
+	resolveGroup: ResolveGroup
 ): boolean {
 	return (
-		JSON.stringify(toBlindLevelInputs(left)) ===
-		JSON.stringify(toBlindLevelInputs(right))
+		JSON.stringify(toBlindLevelInputs(left, resolveGroup)) ===
+		JSON.stringify(toBlindLevelInputs(right, resolveGroup))
 	);
 }
 
@@ -117,15 +143,17 @@ export function blindCellError(
 	row: BlindLevelRow,
 	cell: (typeof AMOUNT_CELLS)[number]
 ): string | undefined {
-	if (row.isBreak && cell !== "minutes") {
+	if (cell !== "minutes" && (row.isBreak || hasLevelGames(row))) {
 		return undefined;
 	}
 	return mixCellError(row[cell]);
 }
 
 export function hasBlindRowErrors(rows: readonly BlindLevelRow[]): boolean {
-	return rows.some((row) =>
-		AMOUNT_CELLS.some((cell) => blindCellError(row, cell) !== undefined)
+	return rows.some(
+		(row) =>
+			AMOUNT_CELLS.some((cell) => blindCellError(row, cell) !== undefined) ||
+			(hasLevelGames(row) && hasMixCellErrors(row.games ?? []))
 	);
 }
 

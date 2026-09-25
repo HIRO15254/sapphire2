@@ -14,7 +14,11 @@ import {
 	CRYST_FIELD_GROUP,
 	crystButton,
 } from "../../cryst-controls";
-import type { BlindCell, BlindRowView } from "./use-session-sheet";
+import type {
+	BlindCell,
+	BlindRowView,
+	MixStakeSlot,
+} from "./use-session-sheet";
 
 const ROW_GRID = "grid grid-cols-[34px_1fr_1fr_52px_44px] items-center gap-1.5";
 const CELL_CLASS = `${CRYST_FIELD} box-border h-[var(--m-control)] w-full min-w-0 px-2 font-mono text-[length:var(--m-text-secondary)]`;
@@ -23,6 +27,10 @@ const INLINE_INPUT_CLASS =
 	"w-14 min-w-0 bg-transparent font-mono text-[length:var(--m-text-secondary)] outline-none";
 const CAPTION_CLASS =
 	"text-[length:var(--m-text-caption)] text-muted-foreground";
+const GAMES_PILL_CLASS =
+	"inline-flex h-[var(--m-control)] min-w-0 items-center gap-1 whitespace-nowrap rounded-full border px-3 font-semibold text-[11px] transition-[filter] hover:brightness-110";
+const GAMES_PILL_SET =
+	"border-[color-mix(in_oklab,var(--info)_45%,transparent)] bg-[color-mix(in_oklab,var(--info)_14%,transparent)] text-info";
 
 function labelColor(row: BlindRowView): string {
 	if (row.isCurrent) {
@@ -88,6 +96,147 @@ function InlineField({
 	);
 }
 
+function GamesPill({
+	className,
+	name,
+	onClick,
+	row,
+}: {
+	className?: string;
+	name: string | null;
+	onClick: () => void;
+	row: BlindRowView;
+}) {
+	const levelLabel = row.groupLabel.toLowerCase();
+	return (
+		<button
+			aria-label={
+				name === null
+					? `Games for ${levelLabel}`
+					: `${name}, games for ${levelLabel}`
+			}
+			className={cn(
+				GAMES_PILL_CLASS,
+				name === null
+					? "border-border bg-transparent text-muted-foreground"
+					: GAMES_PILL_SET,
+				className
+			)}
+			onClick={onClick}
+			type="button"
+		>
+			<IconCards aria-hidden className="shrink-0" size={12} />
+			<span className="min-w-0 truncate">{name ?? "Games"}</span>
+		</button>
+	);
+}
+
+function GameGroupStakes({
+	group,
+	isOnlyGroup,
+	onChange,
+	row,
+}: {
+	group: BlindRowView["gameGroups"][number];
+	isOnlyGroup: boolean;
+	onChange: (slot: MixStakeSlot, value: string) => void;
+	row: BlindRowView;
+}) {
+	return (
+		<div className="flex min-w-0 flex-col gap-1 pl-10">
+			{isOnlyGroup ? null : (
+				<div className="flex min-w-0 items-baseline gap-2">
+					<span className="min-w-0 truncate font-semibold text-[length:var(--m-text-caption)]">
+						{group.name}
+					</span>
+					<span className="min-w-0 truncate font-mono text-[11px] text-muted-foreground">
+						{group.codes}
+					</span>
+				</div>
+			)}
+			<div className="flex flex-wrap items-center gap-1.5">
+				{group.cells.map((cell) => (
+					<label className={INLINE_GROUP_CLASS} key={cell.slot}>
+						<span className={cn(CAPTION_CLASS, "whitespace-nowrap")}>
+							{cell.label}
+						</span>
+						<input
+							{...NO_INPUT_SUGGESTIONS}
+							aria-describedby={cell.error ? `${row.uid}-error` : undefined}
+							aria-invalid={cell.error !== undefined}
+							aria-label={`${row.groupLabel} ${group.name} ${cell.label}`}
+							className={INLINE_INPUT_CLASS}
+							inputMode="numeric"
+							onChange={(e) => onChange(cell.slot, e.target.value)}
+							type="text"
+							value={cell.value}
+						/>
+					</label>
+				))}
+			</div>
+		</div>
+	);
+}
+
+function LevelBlindCells({
+	blindLabels,
+	onChange,
+	onOpenGames,
+	row,
+}: {
+	blindLabels: BlindSlotLabels;
+	onChange: (cell: BlindCell, value: string) => void;
+	onOpenGames: (() => void) | null;
+	row: BlindRowView;
+}) {
+	if (row.isBreak) {
+		return (
+			<span className="col-span-2 inline-flex items-center gap-1.5 text-[length:var(--m-text-caption)] text-warning">
+				<IconCoffee aria-hidden size={14} />
+				Break
+			</span>
+		);
+	}
+	if (row.gamesName !== null && onOpenGames !== null) {
+		return (
+			<GamesPill
+				className="col-span-2 max-w-full justify-self-start"
+				name={row.gamesName}
+				onClick={onOpenGames}
+				row={row}
+			/>
+		);
+	}
+	return (
+		<>
+			<CellInput
+				cell="blind1"
+				label={blindLabels.blind1}
+				onChange={onChange}
+				row={row}
+			/>
+			<CellInput
+				cell="blind2"
+				label={blindLabels.blind2}
+				onChange={onChange}
+				row={row}
+			/>
+		</>
+	);
+}
+
+function firstRowError(row: BlindRowView): string | undefined {
+	const cellError = Object.values(row.errors).find(
+		(message) => message !== undefined
+	);
+	if (cellError !== undefined) {
+		return cellError;
+	}
+	return row.gameGroups
+		.flatMap((group) => group.cells)
+		.find((cell) => cell.error !== undefined)?.error;
+}
+
 interface SessionBlindsTabProps {
 	blindLabels: BlindSlotLabels;
 	defaultMinutes: string;
@@ -95,6 +244,12 @@ interface SessionBlindsTabProps {
 	onAddLevel: () => void;
 	onCellChange: (uid: string, cell: BlindCell, value: string) => void;
 	onDefaultMinutesChange: (value: string) => void;
+	onGameStakeChange: (
+		levelUid: string,
+		groupUid: string,
+		slot: MixStakeSlot,
+		value: string
+	) => void;
 	onOpenGames: (uid: string, levelNumber: number) => void;
 	onRemoveRow: (uid: string) => void;
 	rows: BlindRowView[];
@@ -108,6 +263,7 @@ export function SessionBlindsTab({
 	onAddLevel,
 	onCellChange,
 	onDefaultMinutesChange,
+	onGameStakeChange,
 	onOpenGames,
 	onRemoveRow,
 	rows,
@@ -163,9 +319,11 @@ export function SessionBlindsTab({
 					const { levelNumber } = row;
 					const onChange = (cell: BlindCell, value: string) =>
 						onCellChange(row.uid, cell, value);
-					const error = Object.values(row.errors).find(
-						(message) => message !== undefined
-					);
+					const error = firstRowError(row);
+					const openGames =
+						levelNumber === null
+							? null
+							: () => onOpenGames(row.uid, levelNumber);
 					return (
 						<fieldset
 							aria-current={row.isCurrent ? "step" : undefined}
@@ -187,27 +345,12 @@ export function SessionBlindsTab({
 								>
 									{row.label}
 								</span>
-								{row.isBreak ? (
-									<span className="col-span-2 inline-flex items-center gap-1.5 text-[length:var(--m-text-caption)] text-warning">
-										<IconCoffee aria-hidden size={14} />
-										Break
-									</span>
-								) : (
-									<>
-										<CellInput
-											cell="blind1"
-											label={blindLabels.blind1}
-											onChange={onChange}
-											row={row}
-										/>
-										<CellInput
-											cell="blind2"
-											label={blindLabels.blind2}
-											onChange={onChange}
-											row={row}
-										/>
-									</>
-								)}
+								<LevelBlindCells
+									blindLabels={blindLabels}
+									onChange={onChange}
+									onOpenGames={openGames}
+									row={row}
+								/>
 								<CellInput
 									cell="minutes"
 									label="minutes"
@@ -226,7 +369,20 @@ export function SessionBlindsTab({
 									<IconX aria-hidden size={14} />
 								</button>
 							</div>
-							{row.isBreak || levelNumber === null ? null : (
+							{row.gameGroups.map((group) => (
+								<GameGroupStakes
+									group={group}
+									isOnlyGroup={row.gameGroups.length === 1}
+									key={group.uid}
+									onChange={(slot, value) =>
+										onGameStakeChange(row.uid, group.uid, slot, value)
+									}
+									row={row}
+								/>
+							))}
+							{row.isBreak ||
+							row.gamesName !== null ||
+							openGames === null ? null : (
 								<div className="flex flex-wrap items-center gap-1.5 pl-10">
 									{blindLabels.blind3 === null ? null : (
 										<InlineField
@@ -242,20 +398,7 @@ export function SessionBlindsTab({
 										onChange={onChange}
 										row={row}
 									/>
-									<button
-										aria-label={`${row.gamesLabel} for ${row.groupLabel.toLowerCase()}`}
-										className={cn(
-											"inline-flex h-[var(--m-control)] items-center gap-1 whitespace-nowrap rounded-full border px-3 font-semibold text-[11px] transition-[filter] hover:brightness-110",
-											row.hasGames
-												? "border-[color-mix(in_oklab,var(--info)_45%,transparent)] bg-[color-mix(in_oklab,var(--info)_14%,transparent)] text-info"
-												: "border-border bg-transparent text-muted-foreground"
-										)}
-										onClick={() => onOpenGames(row.uid, levelNumber)}
-										type="button"
-									>
-										<IconCards aria-hidden size={12} />
-										{row.gamesLabel}
-									</button>
+									<GamesPill name={null} onClick={openGames} row={row} />
 								</div>
 							)}
 							{error ? (

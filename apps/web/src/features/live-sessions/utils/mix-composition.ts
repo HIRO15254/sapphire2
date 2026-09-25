@@ -1,44 +1,25 @@
-import { MIX_VARIANT } from "@sapphire2/db/constants/game-variants";
-import {
-	type LevelGameGroup,
-	MAX_MIX_GROUPS,
-	type MixGameGroup,
-} from "@sapphire2/db/schemas/game";
+import type { LevelGameGroup, MixGameGroup } from "@sapphire2/db/schemas/game";
 import {
 	fromLevelGames,
 	fromMixGames,
 	type MixGameGroupRow,
 	type MixGroupInfo,
 	type ResolveGroup,
+	reseedFromLabels,
 	toLevelGames,
 	toMixGames,
 } from "@/shared/lib/mix-games";
-import { createGroupFormatter } from "@/utils/format-number";
-
-export type MixTarget = "cash" | "level";
 
 interface VariantBucket {
 	variants: readonly string[];
 }
 
-interface StakesLike {
-	blind1?: number | null;
-	blind2?: number | null;
-	blind3?: number | null;
-	name?: string | null;
-	variants: readonly string[];
-}
-
-const MIN_GAMES: Record<MixTarget, number> = { cash: 2, level: 1 };
+const MIN_MIX_GAMES = 2;
 
 const TRAILING_NUMBER = /^\d+$/;
 
 function normalized(label: string): string {
 	return label.trim().toLowerCase();
-}
-
-function plural(count: number, noun: string): string {
-	return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 export function countGames(groups: readonly VariantBucket[]): number {
@@ -50,16 +31,12 @@ function findEmptyGroupNumber(groups: readonly VariantBucket[]): number | null {
 	return index === -1 ? null : index + 1;
 }
 
-export function describeMixValidity(
-	groups: readonly VariantBucket[],
-	target: MixTarget
-): { isValid: boolean; label: string } {
-	const minimum = MIN_GAMES[target];
-	if (countGames(groups) < minimum) {
-		return {
-			isValid: false,
-			label: `Needs ${minimum}+ ${minimum === 1 ? "game" : "games"}`,
-		};
+export function describeMixValidity(groups: readonly VariantBucket[]): {
+	isValid: boolean;
+	label: string;
+} {
+	if (countGames(groups) < MIN_MIX_GAMES) {
+		return { isValid: false, label: `Needs ${MIN_MIX_GAMES}+ games` };
 	}
 	const emptyGroupNumber = findEmptyGroupNumber(groups);
 	if (emptyGroupNumber !== null) {
@@ -67,37 +44,6 @@ export function describeMixValidity(
 	}
 	return { isValid: true, label: "Valid" };
 }
-
-export function summarizeMix(groups: readonly VariantBucket[]): string {
-	return `${plural(groups.length, "group")} · ${plural(countGames(groups), "game")}`;
-}
-
-export function canAddGroup(rows: readonly MixGameGroupRow[]): boolean {
-	return rows.length < MAX_MIX_GROUPS;
-}
-
-function withGroupInfo(
-	row: MixGameGroupRow,
-	group: MixGroupInfo
-): MixGameGroupRow {
-	return {
-		...row,
-		blind1Label: group.blind1Label,
-		blind2Label: group.blind2Label,
-		blind3Label: group.blind3Label,
-		groupId: group.id,
-		groupLabel: group.label,
-		sortIndex: group.sortIndex,
-	};
-}
-
-const EMPTY_STAKES = {
-	ante: "",
-	anteType: "none",
-	blind1: "",
-	blind2: "",
-	blind3: "",
-} as const;
 
 export function groupStructure(
 	group: VariantBucket,
@@ -201,149 +147,6 @@ export function serializeLevelGroups(
 	return toLevelGames(withAutoGroupNames(rows, resolveGroup));
 }
 
-export function addEmptyGroup(
-	rows: readonly MixGameGroupRow[],
-	group: MixGroupInfo,
-	uid: string
-): MixGameGroupRow[] {
-	if (!canAddGroup(rows)) {
-		return [...rows];
-	}
-	const empty: MixGameGroupRow = withGroupInfo(
-		{
-			ante: "",
-			anteType: "none",
-			blind1: "",
-			blind1Label: "",
-			blind2: "",
-			blind2Label: "",
-			blind3: "",
-			blind3Label: null,
-			groupId: "",
-			groupLabel: "",
-			name: null,
-			sortIndex: 0,
-			uid,
-			variants: [],
-		},
-		group
-	);
-	return [...rows, empty];
-}
-
-export function variantsTakenElsewhere(
-	rows: readonly MixGameGroupRow[],
-	uid: string
-): Set<string> {
-	return new Set(
-		rows
-			.filter((row) => row.uid !== uid)
-			.flatMap((row) => row.variants.map(normalized))
-	);
-}
-
-export function isVariantTakenElsewhere(
-	rows: readonly MixGameGroupRow[],
-	uid: string,
-	label: string
-): boolean {
-	return variantsTakenElsewhere(rows, uid).has(normalized(label));
-}
-
-function isInGroup(row: MixGameGroupRow, label: string): boolean {
-	const key = normalized(label);
-	return row.variants.some((variant) => normalized(variant) === key);
-}
-
-export function canToggleVariantInGroup(
-	rows: readonly MixGameGroupRow[],
-	uid: string,
-	label: string,
-	resolveGroup: ResolveGroup
-): boolean {
-	const row = rows.find((candidate) => candidate.uid === uid);
-	if (!row) {
-		return false;
-	}
-	if (isInGroup(row, label)) {
-		return true;
-	}
-	if (isVariantTakenElsewhere(rows, uid, label)) {
-		return false;
-	}
-	const structure = groupStructure(row, resolveGroup);
-	return structure === null || structure.id === resolveGroup(label).id;
-}
-
-export function toggleVariantInGroup(
-	rows: readonly MixGameGroupRow[],
-	uid: string,
-	label: string,
-	resolveGroup: ResolveGroup
-): MixGameGroupRow[] {
-	const row = rows.find((candidate) => candidate.uid === uid);
-	if (!(row && canToggleVariantInGroup(rows, uid, label, resolveGroup))) {
-		return [...rows];
-	}
-	if (isInGroup(row, label)) {
-		return removeVariantFromGroup(rows, uid, label);
-	}
-	const added = { ...row, variants: [...row.variants, label] };
-	let next = added;
-	if (row.variants.length === 0) {
-		const structure = resolveGroup(label);
-		const stakes = structure.id === row.groupId ? null : EMPTY_STAKES;
-		next = withGroupInfo({ ...added, ...stakes }, structure);
-	}
-	return rows.map((candidate) => (candidate.uid === uid ? next : candidate));
-}
-
-export function removeVariantFromGroup(
-	rows: readonly MixGameGroupRow[],
-	uid: string,
-	label: string
-): MixGameGroupRow[] {
-	const key = normalized(label);
-	return rows.map((row) =>
-		row.uid === uid
-			? {
-					...row,
-					variants: row.variants.filter(
-						(variant) => normalized(variant) !== key
-					),
-				}
-			: row
-	);
-}
-
-export function describeGroupStakes(group: StakesLike): string {
-	const format = createGroupFormatter([
-		group.blind1,
-		group.blind2,
-		group.blind3,
-	]);
-	const parts = [group.blind1, group.blind2].map((value) =>
-		value == null ? "—" : format(value)
-	);
-	if (group.blind3 != null) {
-		parts.push(format(group.blind3));
-	}
-	return parts.join("/");
-}
-
-export function describeMixStakesLine(
-	groups: readonly StakesLike[],
-	resolveGroup: ResolveGroup
-): string {
-	return groups
-		.map((group) => {
-			const name =
-				group.name?.trim() || resolveGroup(group.variants[0] ?? "").label;
-			return `${name} ${describeGroupStakes(group)}`;
-		})
-		.join(" · ");
-}
-
 function gameBuckets(groups: readonly VariantBucket[]): string[][] {
 	return groups
 		.filter((group) => group.variants.length > 0)
@@ -366,15 +169,34 @@ export function sameGameBuckets(
 	);
 }
 
-export function variantForComposition(
-	variant: string,
+export function matchMixLabel(
 	groups: readonly VariantBucket[],
-	namedMixBuckets: readonly VariantBucket[] | null
-): string {
-	if (namedMixBuckets === null || sameGameBuckets(groups, namedMixBuckets)) {
-		return variant;
+	candidates: readonly { groups: readonly VariantBucket[]; label: string }[]
+): string | null {
+	if (countGames(groups) === 0) {
+		return null;
 	}
-	return MIX_VARIANT;
+	return (
+		candidates.find((candidate) => sameGameBuckets(groups, candidate.groups))
+			?.label ?? null
+	);
+}
+
+export function levelGroupsFor(
+	current: readonly MixGameGroupRow[],
+	labels: readonly string[],
+	resolveGroup: ResolveGroup
+): MixGameGroupRow[] {
+	const [only] = labels;
+	const name = labels.length === 1 && only !== undefined ? only : null;
+	const resolved = current.map((row) => ({
+		...row,
+		groupId: groupStructure(row, resolveGroup)?.id ?? row.groupId,
+	}));
+	return reseedFromLabels(resolved, [...labels], resolveGroup).map((row) => ({
+		...row,
+		name,
+	}));
 }
 
 export interface VariantOption {

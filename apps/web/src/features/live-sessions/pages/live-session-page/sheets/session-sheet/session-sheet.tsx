@@ -17,7 +17,6 @@ import { CrystFormSheet } from "../cryst-form-sheet";
 import { CurrencySheet } from "../currency-sheet";
 import { DiscardChangesDialog } from "../discard-changes-dialog";
 import { GameTypeSheet } from "../game-type-sheet";
-import { MixEditorSheet } from "../mix-editor-sheet";
 import { useDiscardConfirm } from "../use-discard-confirm";
 import { SessionBasicsTab } from "./session-basics-tab";
 import { SessionBlindsTab } from "./session-blinds-tab";
@@ -165,11 +164,11 @@ export function SessionSheet({
 									{sheet.tab === "basics" ? (
 										<SessionBasicsTab
 											blindLabels={sheet.blindLabels}
-											composition={sheet.composition}
 											currencyLabel={currencyLabel}
 											currencyUnit={currency?.unit ?? null}
 											form={form}
 											gameType={sheet.gameType}
+											gameTypeError={sheet.gameTypeError}
 											isCash={sheet.isCash}
 											isCurrencyDifferent={isMasterFieldDifferent(
 												sheet.masterValues,
@@ -181,7 +180,6 @@ export function SessionSheet({
 											mixStakes={sheet.mixStakes}
 											onMixAnteTypeChange={sheet.onMixAnteTypeChange}
 											onMixStakeChange={sheet.onMixStakeChange}
-											onOpenComposition={sheet.onOpenComposition}
 											onOpenCurrency={sheet.onOpenCurrency}
 											onOpenGameType={sheet.onOpenGameType}
 											purchaseOptions={purchaseOptions}
@@ -196,6 +194,7 @@ export function SessionSheet({
 											onAddLevel={sheet.onAddBlindLevel}
 											onCellChange={sheet.onBlindCellChange}
 											onDefaultMinutesChange={sheet.onDefaultMinutesChange}
+											onGameStakeChange={sheet.onLevelGameStakeChange}
 											onOpenGames={sheet.onOpenLevelGames}
 											onRemoveRow={sheet.onRemoveBlindRow}
 											rows={sheet.blinds.rows}
@@ -219,21 +218,12 @@ export function SessionSheet({
 				selectedCurrencyId={form.state.values.currencyId}
 			/>
 			<GameTypeSheet
-				isCash={sheet.isCash}
-				mixGames={sheet.gameTypeSheet.mixGames}
-				onEditComposition={sheet.gameTypeSheet.onEditComposition}
+				onClear={sheet.gameTypeSheet.onClear}
 				onOpenChange={sheet.gameTypeSheet.onOpenChange}
 				onPickMix={sheet.gameTypeSheet.onPickMix}
 				onPickVariant={sheet.gameTypeSheet.onPickVariant}
 				open={sheet.gameTypeSheet.open}
-				variant={sheet.gameTypeSheet.variant}
-			/>
-			<MixEditorSheet
-				groups={sheet.mixEditor.groups}
-				onOpenChange={sheet.mixEditor.onOpenChange}
-				onSave={sheet.mixEditor.onSave}
-				open={sheet.mixEditor.open}
-				target={sheet.mixEditor.target}
+				target={sheet.gameTypeSheet.target}
 			/>
 			<DiscardChangesDialog
 				onConfirmDiscard={discard.onConfirmDiscard}

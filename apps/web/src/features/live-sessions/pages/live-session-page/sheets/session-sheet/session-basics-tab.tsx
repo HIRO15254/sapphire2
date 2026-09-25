@@ -112,8 +112,7 @@ function NumericField({
 
 const BUY_IN_ERROR_ID = "cryst-session-buyIn-error";
 const GAME_TYPE_LABEL_ID = "cryst-session-game-type-label";
-const COMPOSITION_LABEL_ID = "cryst-session-composition-label";
-const COMPOSITION_ERROR_ID = "cryst-session-composition-error";
+const GAME_TYPE_ERROR_ID = "cryst-session-game-type-error";
 
 function BuyInRangeField({
 	form,
@@ -246,11 +245,11 @@ function TableSizeField({
 
 interface SessionBasicsTabProps {
 	blindLabels: BlindSlotLabels;
-	composition: { error: string | null; summary: string };
 	currencyLabel: string;
 	currencyUnit: string | null;
 	form: SessionForm;
 	gameType: { code: string | null; name: string };
+	gameTypeError: string | null;
 	isCash: boolean;
 	isCurrencyDifferent: boolean;
 	isMix: boolean;
@@ -258,7 +257,6 @@ interface SessionBasicsTabProps {
 	mixStakes: readonly MixStakesView[];
 	onMixAnteTypeChange: (uid: string, anteType: AnteType) => void;
 	onMixStakeChange: (uid: string, slot: MixStakeSlot, value: string) => void;
-	onOpenComposition: () => void;
 	onOpenCurrency: () => void;
 	onOpenGameType: () => void;
 	purchaseOptions: readonly ChipPurchaseOption[];
@@ -267,11 +265,11 @@ interface SessionBasicsTabProps {
 
 export function SessionBasicsTab({
 	blindLabels,
-	composition,
 	currencyLabel,
 	currencyUnit,
 	form,
 	gameType,
+	gameTypeError,
 	isCash,
 	isCurrencyDifferent,
 	isMix,
@@ -279,7 +277,6 @@ export function SessionBasicsTab({
 	mixStakes,
 	onMixAnteTypeChange,
 	onMixStakeChange,
-	onOpenComposition,
 	onOpenCurrency,
 	onOpenGameType,
 	purchaseOptions,
@@ -323,7 +320,12 @@ export function SessionBasicsTab({
 					Game type
 				</div>
 				<button
-					aria-describedby={GAME_TYPE_LABEL_ID}
+					aria-describedby={
+						gameTypeError === null
+							? GAME_TYPE_LABEL_ID
+							: `${GAME_TYPE_LABEL_ID} ${GAME_TYPE_ERROR_ID}`
+					}
+					aria-invalid={gameTypeError !== null}
 					className={cn(
 						CONTROL_CLASS,
 						"flex items-center justify-between gap-2 text-left hover:bg-accent"
@@ -336,7 +338,7 @@ export function SessionBasicsTab({
 							{gameType.name}
 						</span>
 						{gameType.code === null ? null : (
-							<span className="shrink-0 font-mono text-[length:var(--text-sm)] text-muted-foreground">
+							<span className="min-w-0 truncate font-mono text-[length:var(--text-sm)] text-muted-foreground">
 								{gameType.code}
 							</span>
 						)}
@@ -347,47 +349,16 @@ export function SessionBasicsTab({
 						size={16}
 					/>
 				</button>
-			</div>
-
-			{isCash && isMix ? (
-				<div className="col-span-6 min-w-0">
-					<div className={FIELD_LABEL_CLASS} id={COMPOSITION_LABEL_ID}>
-						Game composition
-					</div>
-					<button
-						aria-describedby={
-							composition.error === null
-								? COMPOSITION_LABEL_ID
-								: `${COMPOSITION_LABEL_ID} ${COMPOSITION_ERROR_ID}`
-						}
-						aria-invalid={composition.error !== null}
-						className={cn(
-							CONTROL_CLASS,
-							"flex items-center justify-between gap-2 text-left hover:bg-accent"
-						)}
-						onClick={onOpenComposition}
-						type="button"
+				{gameTypeError === null ? null : (
+					<p
+						className="mt-1 text-[length:var(--text-xs)] text-destructive"
+						id={GAME_TYPE_ERROR_ID}
+						role="alert"
 					>
-						<span className="min-w-0 truncate font-medium">
-							{composition.summary}
-						</span>
-						<IconChevronRight
-							aria-hidden
-							className="shrink-0 text-muted-foreground"
-							size={16}
-						/>
-					</button>
-					{composition.error === null ? null : (
-						<p
-							className="mt-1 text-[length:var(--text-xs)] text-destructive"
-							id={COMPOSITION_ERROR_ID}
-							role="alert"
-						>
-							{composition.error}
-						</p>
-					)}
-				</div>
-			) : null}
+						{gameTypeError}
+					</p>
+				)}
+			</div>
 
 			{mixStakes.map((group) => (
 				<MixStakesFields
