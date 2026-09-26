@@ -11,6 +11,7 @@ Issue references (`SA2-NNN`) point at the Linear issues that motivated a decisio
 | [`data-integrity.md`](data-integrity.md) | Cloudflare D1 limits (100 bound parameters, chunking), `db.batch()` atomicity and statement ordering, keyset pagination, N+1 avoidance, TOCTOU guards, unique-constraint error shapes, UTC date handling |
 | [`sessions-and-live-editing.md`](sessions-and-live-editing.md) | Event-sourced session lifecycle, payload invariants, ownership contracts, frozen rule snapshots, live-linked editing, optimistic updates, session wizard |
 | [`game-masters.md`](game-masters.md) | Game group / variant / mix master data: self-freezing labels, the migration-0049 compat mirror, seeding idempotency, derived mix buckets |
+| [`game-lineups.md`](game-lineups.md) | Target model replacing the self-freezing labels (SA2-242): id-referenced immutable lineups, per-group stake rows, master archiving, the phased expand/contract migration and its release ordering |
 | [`statistics.md`](statistics.md) | EV recording gate and population semantics, summary agreement, breakdown bucketing, URL-based stats filters, period boundaries |
 | [`mcp-and-oauth.md`](mcp-and-oauth.md) | MCP OAuth consent gate threat model, discovery endpoints, token expiry, tool projection, Workers runtime constraints |
 | [`passkeys.md`](passkeys.md) | WebAuthn relying-party pinning across the split origin, the `passkey` table contract, silent conditional-create upgrades, device naming, plugin version coupling |
