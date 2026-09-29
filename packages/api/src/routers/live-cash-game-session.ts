@@ -26,6 +26,12 @@ import {
 	computeHeroSeatPositionFromEvents,
 	recalculateCashGameSession,
 } from "../services/live-session-pl";
+import {
+	assertHandTrackingEditable,
+	buildLiveSessionUpdateData,
+	dealerOffsetSchema,
+	handCountSchema,
+} from "../utils/live-session-update";
 import { assertSeatPositionFitsTableSize } from "../utils/seat-position";
 import {
 	floorToMinute,
@@ -87,6 +93,7 @@ async function ringGameSnapshotPatch(
 		blind1: snapshot.blind1,
 		blind2: snapshot.blind2,
 		blind3: snapshot.blind3,
+		houseRules: snapshot.houseRules,
 		maxBuyIn: snapshot.maxBuyIn,
 		minBuyIn: snapshot.minBuyIn,
 		mixGames: snapshot.mixGames,
@@ -393,6 +400,7 @@ export const liveCashGameSessionRouter = router({
 				minBuyIn: cashDetail?.minBuyIn ?? null,
 				maxBuyIn: cashDetail?.maxBuyIn ?? null,
 				tableSize: cashDetail?.tableSize ?? null,
+				houseRules: cashDetail?.houseRules ?? null,
 			};
 		}),
 
@@ -506,6 +514,7 @@ export const liveCashGameSessionRouter = router({
 						minBuyIn: snapshot.minBuyIn,
 						maxBuyIn: snapshot.maxBuyIn,
 						tableSize: snapshot.tableSize,
+						houseRules: snapshot.houseRules,
 					}),
 					ctx.db.insert(sessionEvent).values({
 						id: crypto.randomUUID(),
@@ -572,6 +581,7 @@ export const liveCashGameSessionRouter = router({
 				minBuyIn: input.minBuyIn ?? null,
 				maxBuyIn: input.maxBuyIn ?? null,
 				tableSize: input.tableSize ?? null,
+				houseRules: input.houseRules ?? null,
 				...frozenFlatFields,
 			};
 			const detailStatement = ctx.db
@@ -620,32 +630,23 @@ export const liveCashGameSessionRouter = router({
 				currencyId: z.string().min(1).nullable().optional(),
 				ringGameId: z.string().min(1).nullable().optional(),
 				keepSnapshot: z.boolean().optional(),
+				handCount: handCountSchema,
+				dealerOffset: dealerOffsetSchema,
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const existing = await findLiveCashGameSession(ctx.db, input.id, userId);
+			assertHandTrackingEditable(existing.status, input);
 
 			const [existingCashDetail] = await ctx.db
 				.select()
 				.from(sessionCashDetail)
 				.where(eq(sessionCashDetail.sessionId, input.id));
 
-			const updateData: Partial<typeof gameSession.$inferInsert> = {
-				updatedAt: new Date(),
-			};
-
 			await validateLiveLinkOwnership(ctx.db, input, userId);
 
-			if (input.memo !== undefined) {
-				updateData.memo = input.memo;
-			}
-			if (input.roomId !== undefined) {
-				updateData.roomId = input.roomId;
-			}
-			if (input.currencyId !== undefined) {
-				updateData.currencyId = input.currencyId;
-			}
+			const updateData = buildLiveSessionUpdateData(input);
 
 			const cashDetailUpdate: Partial<typeof sessionCashDetail.$inferInsert> =
 				{};
@@ -745,6 +746,7 @@ export const liveCashGameSessionRouter = router({
 				minBuyIn: nullableNonnegativeSafeIntegerSchema,
 				maxBuyIn: nullableNonnegativeSafeIntegerSchema,
 				tableSize: nullableTableSizeSchema,
+				houseRules: z.string().nullable().optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -799,6 +801,9 @@ export const liveCashGameSessionRouter = router({
 			}
 			if (input.tableSize !== undefined) {
 				detailUpdate.tableSize = input.tableSize;
+			}
+			if (input.houseRules !== undefined) {
+				detailUpdate.houseRules = input.houseRules;
 			}
 			if (Object.keys(detailUpdate).length > 0) {
 				Object.assign(

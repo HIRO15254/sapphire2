@@ -46,6 +46,7 @@ export const ringGameCreateInputSchema = z.object({
 	tableSize: tableSizeSchema.optional(),
 	currencyId: z.string().min(1).optional(),
 	memo: z.string().optional(),
+	houseRules: z.string().optional(),
 });
 
 type RingGameCreateInput = z.infer<typeof ringGameCreateInputSchema>;
@@ -80,6 +81,7 @@ export function buildRingGameCreateStatement(
 		tableSize: params.input.tableSize ?? null,
 		currencyId: params.input.currencyId ?? null,
 		memo: params.input.memo ?? null,
+		houseRules: params.input.houseRules ?? null,
 		updatedAt: params.now,
 	});
 }
@@ -106,6 +108,7 @@ export const ringGameUpdateInputSchema = z.object({
 	tableSize: tableSizeSchema.nullable().optional(),
 	currencyId: z.string().min(1).nullable().optional(),
 	memo: z.string().nullable().optional(),
+	houseRules: z.string().nullable().optional(),
 });
 
 export const ringGameRouter = router({
@@ -224,6 +227,9 @@ export const ringGameRouter = router({
 			}
 			if (input.memo !== undefined) {
 				updateData.memo = input.memo;
+			}
+			if (input.houseRules !== undefined) {
+				updateData.houseRules = input.houseRules;
 			}
 			Object.assign(updateData, cashMixFlatFieldClearPatch(selection.mixGames));
 
