@@ -10,6 +10,7 @@ import {
 interface CrystFormSheetProps {
 	children: ReactNode;
 	className?: string;
+	confirmLabel?: string;
 	formId: string;
 	isLoading?: boolean;
 	isSaveDisabled?: boolean;
@@ -21,6 +22,7 @@ interface CrystFormSheetProps {
 export function CrystFormSheet({
 	children,
 	className,
+	confirmLabel = "Save",
 	formId,
 	isLoading = false,
 	isSaveDisabled = false,
@@ -44,7 +46,7 @@ export function CrystFormSheet({
 			confirm={
 				<button
 					aria-busy={isLoading}
-					aria-label="Save"
+					aria-label={confirmLabel}
 					className={cn(SHEET_ICON_CLASS, "text-primary")}
 					disabled={isLoading || isSaveDisabled}
 					form={formId}

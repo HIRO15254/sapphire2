@@ -63,9 +63,15 @@ describe("describeMasterLink", () => {
 		});
 	});
 
-	it("shows the linked master and offers Change", () => {
-		expect(describeMasterLink("NLH 100/200", "cash_game")).toMatchObject({
+	it("shows the linked master with its rules and offers Change", () => {
+		expect(
+			describeMasterLink(
+				{ meta: "Club · 100/200 · 9-max", name: "NLH 100/200" },
+				"cash_game"
+			)
+		).toEqual({
 			action: "Change",
+			subtitle: "Club · 100/200 · 9-max",
 			title: "NLH 100/200",
 		});
 	});

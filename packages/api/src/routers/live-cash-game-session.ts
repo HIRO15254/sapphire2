@@ -72,6 +72,30 @@ type DbInstance = Parameters<
 
 type BatchStatement = Parameters<DbInstance["batch"]>[0][number];
 
+async function ringGameSnapshotPatch(
+	db: DbInstance,
+	ringGameId: string,
+	keepSnapshot: boolean
+): Promise<Partial<typeof sessionCashDetail.$inferInsert>> {
+	if (keepSnapshot) {
+		return {};
+	}
+	const snapshot = await resolveCashRuleSnapshot(db, { ringGameId });
+	return {
+		ante: snapshot.ante,
+		anteType: snapshot.anteType,
+		blind1: snapshot.blind1,
+		blind2: snapshot.blind2,
+		blind3: snapshot.blind3,
+		maxBuyIn: snapshot.maxBuyIn,
+		minBuyIn: snapshot.minBuyIn,
+		mixGames: snapshot.mixGames,
+		ruleName: snapshot.ruleName,
+		tableSize: snapshot.tableSize,
+		variant: snapshot.variant,
+	};
+}
+
 export async function persistCashSessionReopenEvents(
 	db: DbInstance,
 	params: {
@@ -595,6 +619,7 @@ export const liveCashGameSessionRouter = router({
 				roomId: z.string().min(1).nullable().optional(),
 				currencyId: z.string().min(1).nullable().optional(),
 				ringGameId: z.string().min(1).nullable().optional(),
+				keepSnapshot: z.boolean().optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -655,20 +680,14 @@ export const liveCashGameSessionRouter = router({
 					updateData.currencyId = patch.currencyId;
 				}
 
-				const snapshot = await resolveCashRuleSnapshot(ctx.db, {
-					ringGameId: input.ringGameId,
-				});
-				cashDetailUpdate.ruleName = snapshot.ruleName;
-				cashDetailUpdate.variant = snapshot.variant;
-				cashDetailUpdate.mixGames = snapshot.mixGames;
-				cashDetailUpdate.blind1 = snapshot.blind1;
-				cashDetailUpdate.blind2 = snapshot.blind2;
-				cashDetailUpdate.blind3 = snapshot.blind3;
-				cashDetailUpdate.ante = snapshot.ante;
-				cashDetailUpdate.anteType = snapshot.anteType;
-				cashDetailUpdate.minBuyIn = snapshot.minBuyIn;
-				cashDetailUpdate.maxBuyIn = snapshot.maxBuyIn;
-				cashDetailUpdate.tableSize = snapshot.tableSize;
+				Object.assign(
+					cashDetailUpdate,
+					await ringGameSnapshotPatch(
+						ctx.db,
+						input.ringGameId,
+						input.keepSnapshot === true
+					)
+				);
 			}
 
 			await ctx.db

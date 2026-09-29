@@ -33,6 +33,7 @@ export function useCashCockpit(sessionId: string) {
 	const isKeyboardOpen = useKeyboardOpen();
 	const [isEndSessionOpen, setIsEndSessionOpen] = useState(false);
 	const [isSessionSheetOpen, setIsSessionSheetOpen] = useState(false);
+	const [isMasterLinkOpen, setIsMasterLinkOpen] = useState(false);
 
 	const rawHeroSeat = session?.heroSeatPosition;
 	const heroSeatPosition =
@@ -101,7 +102,10 @@ export function useCashCockpit(sessionId: string) {
 		evPLFormatted: showEvPL && evPL !== null ? formatProfitLoss(evPL) : null,
 		isCompletePending: stack.isCompletePending,
 		isEndSessionOpen,
+		isMasterLinkOpen,
 		isSessionSheetOpen,
+		onMasterLinkOpenChange: setIsMasterLinkOpen,
+		onOpenMaster: () => setIsMasterLinkOpen(true),
 		onOpenSession: () => setIsSessionSheetOpen(true),
 		onSessionSheetOpenChange: setIsSessionSheetOpen,
 		isKeyboardOpen,

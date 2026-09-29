@@ -286,6 +286,7 @@ function buildLiveSessionUpdateData(input: {
 async function resolveDetailUpdate(
 	db: DbInstance,
 	input: {
+		keepSnapshot?: boolean;
 		tournamentId?: string | null;
 		timerStartedAt?: number | null;
 	},
@@ -332,16 +333,18 @@ async function resolveDetailUpdate(
 			patchedUpdateData.currencyId = patch.currencyId;
 		}
 
-		const snapshot = await resolveTournamentRuleSnapshot(db, {
-			tournamentId: input.tournamentId,
-		});
-		detailUpdate.ruleName = snapshot.ruleName;
-		detailUpdate.variant = snapshot.variant;
-		detailUpdate.startingStack = snapshot.startingStack;
-		detailUpdate.bountyAmount = snapshot.bountyAmount;
-		detailUpdate.tableSize = snapshot.tableSize;
-		detailUpdate.tournamentBuyIn = snapshot.tournamentBuyIn;
-		detailUpdate.entryFee = snapshot.entryFee;
+		if (!input.keepSnapshot) {
+			const snapshot = await resolveTournamentRuleSnapshot(db, {
+				tournamentId: input.tournamentId,
+			});
+			detailUpdate.ruleName = snapshot.ruleName;
+			detailUpdate.variant = snapshot.variant;
+			detailUpdate.startingStack = snapshot.startingStack;
+			detailUpdate.bountyAmount = snapshot.bountyAmount;
+			detailUpdate.tableSize = snapshot.tableSize;
+			detailUpdate.tournamentBuyIn = snapshot.tournamentBuyIn;
+			detailUpdate.entryFee = snapshot.entryFee;
+		}
 	}
 
 	return { detailUpdate, patchedUpdateData };
@@ -885,6 +888,7 @@ export const liveTournamentSessionRouter = router({
 				roomId: z.string().min(1).nullable().optional(),
 				currencyId: z.string().min(1).nullable().optional(),
 				tournamentId: z.string().min(1).nullable().optional(),
+				keepSnapshot: z.boolean().optional(),
 				timerStartedAt: z.number().int().nullable().optional(),
 			})
 		)
@@ -924,7 +928,7 @@ export const liveTournamentSessionRouter = router({
 				detailUpdate
 			);
 
-			if (input.tournamentId) {
+			if (input.tournamentId && !input.keepSnapshot) {
 				await resnapshotTournamentStructure(
 					ctx.db,
 					input.id,

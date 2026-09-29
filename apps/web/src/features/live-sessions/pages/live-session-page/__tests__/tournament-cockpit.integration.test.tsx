@@ -31,6 +31,8 @@ const LEVEL_MINUTES = 20;
 const REENTRY_OPTION = /Re-entry/;
 const EDIT_BLINDS_BUTTON = /Edit blind structure/;
 const STUD_MIX_PRESET = /^Stud mix/;
+const SUNDAY_MASTER = /Sunday Deepstack/;
+const TURBO_MASTER = /Turbo 5,000/;
 
 interface BlindLevelRow {
 	ante: number | null;
@@ -60,7 +62,34 @@ const backend = {
 	timerStartedAt: null as Date | null,
 	timerUpdates: [] as (number | null)[],
 	totalEntries: 48 as number | null,
+	linkUpdates: [] as Record<string, unknown>[],
+	roomId: null as string | null,
+	tournamentCreates: [] as Record<string, unknown>[],
+	tournamentId: null as string | null,
 };
+
+const TOURNAMENT_MASTERS = [
+	{
+		bountyAmount: null,
+		buyIn: 10_000,
+		currencyId: null,
+		entryFee: 1000,
+		id: "t-master-1",
+		name: "Sunday Deepstack",
+		startingStack: 30_000,
+		tableSize: 9,
+	},
+	{
+		bountyAmount: null,
+		buyIn: 5000,
+		currencyId: null,
+		entryFee: null,
+		id: "t-master-2",
+		name: "Turbo 5,000",
+		startingStack: 15_000,
+		tableSize: 9,
+	},
+];
 
 function initialBlindLevels(): BlindLevelRow[] {
 	return [1, 2, 3, 4, 5].map((level) => ({
@@ -105,7 +134,7 @@ function session() {
 		heroSeatPosition: null,
 		id: SESSION_ID,
 		memo: null,
-		roomId: null,
+		roomId: backend.roomId,
 		ruleName: "Sunday Deepstack",
 		startedAt: new Date(backend.now - 3 * 60 * MINUTE),
 		status: backend.status,
@@ -117,7 +146,7 @@ function session() {
 		},
 		tableSize: 9,
 		timerStartedAt: backend.timerStartedAt,
-		tournamentId: null,
+		tournamentId: backend.tournamentId,
 		variant: "NLH",
 	};
 }
@@ -127,8 +156,21 @@ const fixtureRouter = t.router({
 	liveTournamentSession: t.router({
 		getById: t.procedure.input(z.custom()).query(() => session()),
 		update: t.procedure
-			.input(z.custom<{ timerStartedAt?: number | null }>())
+			.input(
+				z.custom<{
+					roomId?: string;
+					timerStartedAt?: number | null;
+					tournamentId?: string | null;
+				}>()
+			)
 			.mutation(({ input }) => {
+				if (input.tournamentId !== undefined) {
+					backend.linkUpdates.push(input);
+					backend.tournamentId = input.tournamentId;
+				}
+				if (input.roomId !== undefined) {
+					backend.roomId = input.roomId;
+				}
 				if (Object.hasOwn(input, "timerStartedAt")) {
 					backend.timerUpdates.push(input.timerStartedAt ?? null);
 				}
@@ -191,13 +233,22 @@ const fixtureRouter = t.router({
 	player: t.router({
 		list: t.procedure.query(() => []),
 	}),
+	room: t.router({
+		list: t.procedure.query(() => [{ id: "room-1", name: "Card House Tokyo" }]),
+	}),
 	session: t.router({
 		getById: t.procedure.input(z.custom()).query(() => ({
+			entryFee: 1000,
 			id: SESSION_ID,
 			memo: null,
+			roomId: backend.roomId,
+			roomName: backend.roomId === null ? null : "Card House Tokyo",
 			tags: [],
-			tournamentId: null,
+			tournamentBountyAmount: null,
+			tournamentBuyIn: 10_000,
+			tournamentId: backend.tournamentId,
 			tournamentName: "Sunday Deepstack",
+			tournamentStartingStack: 30_000,
 			tournamentTableSize: 9,
 			tournamentVariant: "NLH",
 		})),
@@ -218,6 +269,25 @@ const fixtureRouter = t.router({
 		list: t.procedure.input(z.custom()).query(() => []),
 	}),
 	sessionTag: t.router({ list: t.procedure.query(() => []) }),
+	tournament: t.router({
+		createWithLevels: t.procedure
+			.input(z.custom<Record<string, unknown>>())
+			.mutation(({ input }) => {
+				backend.tournamentCreates.push(input);
+				return { id: "t-new" };
+			}),
+		getById: t.procedure
+			.input(z.custom<{ id: string }>())
+			.query(
+				({ input }) =>
+					TOURNAMENT_MASTERS.find((row) => row.id === input.id) ?? null
+			),
+		listByRoom: t.procedure
+			.input(z.custom<{ roomId: string }>())
+			.query(({ input }) =>
+				input.roomId === "room-1" ? TOURNAMENT_MASTERS : []
+			),
+	}),
 });
 
 const server = setupServer(
@@ -263,6 +333,10 @@ beforeEach(() => {
 	backend.timerStartedAt = null;
 	backend.timerUpdates = [];
 	backend.totalEntries = 48;
+	backend.linkUpdates = [];
+	backend.roomId = null;
+	backend.tournamentCreates = [];
+	backend.tournamentId = null;
 });
 
 afterEach(() => {
@@ -593,5 +667,93 @@ describe("TournamentCockpit", () => {
 			"true"
 		);
 		expect(backend.snapshotUpdates).toEqual([]);
+	});
+});
+
+describe("TournamentCockpit master link", () => {
+	const LINK_SHEET = "Link tournament";
+
+	it("links an existing tournament from the header pill without touching the snapshot", async () => {
+		backend.roomId = "room-1";
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Not linked to master" })
+		);
+		const sheet = await screen.findByRole("dialog", { name: LINK_SHEET });
+		const sunday = await within(sheet).findByRole("button", {
+			name: SUNDAY_MASTER,
+		});
+		const turbo = within(sheet).getByRole("button", { name: TURBO_MASTER });
+		expect(within(sunday).getByText("Same rules")).toBeInTheDocument();
+		expect(within(turbo).queryByText("Same rules")).not.toBeInTheDocument();
+
+		await user.click(sunday);
+		await user.click(within(sheet).getByRole("button", { name: "Link" }));
+
+		await waitFor(() => {
+			expect(
+				screen.queryByRole("dialog", { name: LINK_SHEET })
+			).not.toBeInTheDocument();
+		});
+		expect(backend.linkUpdates).toEqual([
+			{
+				id: SESSION_ID,
+				keepSnapshot: true,
+				roomId: "room-1",
+				tournamentId: "t-master-1",
+			},
+		]);
+		expect(backend.snapshotUpdates).toEqual([]);
+		expect(
+			await screen.findByRole("button", { name: "Linked to master" })
+		).toBeInTheDocument();
+	});
+
+	it("saves the session's rules with its blind structure and chip purchases as a new tournament", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Not linked to master" })
+		);
+		const sheet = await screen.findByRole("dialog", { name: LINK_SHEET });
+		await user.click(within(sheet).getByRole("tab", { name: "Create new" }));
+		expect(within(sheet).getByText("10,000 + 1,000")).toBeInTheDocument();
+		expect(await within(sheet).findByText("5 levels")).toBeInTheDocument();
+
+		await user.click(
+			within(sheet).getByRole("button", { name: "Create and link" })
+		);
+
+		await waitFor(() => {
+			expect(
+				screen.queryByRole("dialog", { name: LINK_SHEET })
+			).not.toBeInTheDocument();
+		});
+		expect(backend.tournamentCreates).toEqual([
+			{
+				blindLevels: initialBlindLevels().map(
+					({ id: _id, level: _level, ...row }) => row
+				),
+				buyIn: 10_000,
+				chipPurchases: [{ chips: 30_000, cost: 10_000, name: "Re-entry" }],
+				entryFee: 1000,
+				name: "Sunday Deepstack",
+				roomId: "room-1",
+				startingStack: 30_000,
+				tableSize: 9,
+				variant: "NLH",
+			},
+		]);
+		expect(backend.linkUpdates).toEqual([
+			{
+				id: SESSION_ID,
+				keepSnapshot: true,
+				roomId: "room-1",
+				tournamentId: "t-new",
+			},
+		]);
 	});
 });

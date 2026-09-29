@@ -17,6 +17,7 @@ import { CrystFormSheet } from "../cryst-form-sheet";
 import { CurrencySheet } from "../currency-sheet";
 import { DiscardChangesDialog } from "../discard-changes-dialog";
 import { GameTypeSheet } from "../game-type-sheet";
+import { MasterLinkSheet } from "../master-link-sheet";
 import { useDiscardConfirm } from "../use-discard-confirm";
 import { SessionBasicsTab } from "./session-basics-tab";
 import { SessionBlindsTab } from "./session-blinds-tab";
@@ -103,41 +104,37 @@ export function SessionSheet({
 						))}
 					</div>
 
-					<form.Subscribe selector={(state) => state.values}>
-						{(values) =>
-							hasMasterDrift(sheet.masterValues, values) ? (
-								<div
-									className={cn(
-										CRYST_ALERT,
-										"flex items-center gap-2.5 py-1.5 pr-1.5 pl-3.5"
-									)}
-									role="status"
-								>
-									<IconInfoCircle className="shrink-0 text-info" size={16} />
-									<span className="min-w-0 flex-1 truncate font-semibold tracking-[var(--tracking-heading)]">
-										Differs from linked master
-									</span>
-									<button
-										className={crystButton({ size: "sm", variant: "ghost" })}
-										onClick={sheet.onResetToMaster}
-										type="button"
+					{sheet.tab === "overview" ? null : (
+						<form.Subscribe
+							selector={(state) =>
+								hasMasterDrift(sheet.masterValues, state.values)
+							}
+						>
+							{(isDifferent) =>
+								isDifferent ? (
+									<div
+										className={cn(
+											CRYST_ALERT,
+											"flex items-center gap-2.5 py-1.5 pr-1.5 pl-3.5"
+										)}
+										role="status"
 									>
-										Reset
-									</button>
-									<button
-										className={crystButton({ size: "sm", variant: "ghost" })}
-										disabled={sheet.isSyncingMaster}
-										onClick={() => {
-											sheet.onPushToMaster().catch(() => undefined);
-										}}
-										type="button"
-									>
-										Update
-									</button>
-								</div>
-							) : null
-						}
-					</form.Subscribe>
+										<IconInfoCircle className="shrink-0 text-info" size={16} />
+										<span className="min-w-0 flex-1 truncate font-semibold tracking-[var(--tracking-heading)]">
+											Differs from linked master
+										</span>
+										<button
+											className={crystButton({ size: "sm", variant: "ghost" })}
+											onClick={sheet.onResetToMaster}
+											type="button"
+										>
+											Reset to master
+										</button>
+									</div>
+								) : null
+							}
+						</form.Subscribe>
+					)}
 
 					<form.Field name="currencyId">
 						{(currencyField) => {
@@ -155,9 +152,13 @@ export function SessionSheet({
 											currencyLabel={currencyLabel}
 											form={form}
 											isMasterLinked={sheet.isMasterLinked}
+											isSyncingMaster={sheet.isSyncingMaster}
 											master={sheet.master}
+											masterValues={sheet.masterValues}
 											onCreateTag={sheet.onCreateTag}
 											onOpenCurrency={sheet.onOpenCurrency}
+											onOpenMaster={sheet.onOpenMasterLink}
+											onUpdateMaster={sheet.onUpdateMaster}
 											roomName={sheet.roomName}
 										/>
 									) : null}
@@ -224,6 +225,12 @@ export function SessionSheet({
 				onPickVariant={sheet.gameTypeSheet.onPickVariant}
 				open={sheet.gameTypeSheet.open}
 				target={sheet.gameTypeSheet.target}
+			/>
+			<MasterLinkSheet
+				onOpenChange={sheet.onMasterLinkOpenChange}
+				open={sheet.isMasterLinkOpen}
+				sessionId={sessionId}
+				sessionType={sessionType}
 			/>
 			<DiscardChangesDialog
 				onConfirmDiscard={discard.onConfirmDiscard}

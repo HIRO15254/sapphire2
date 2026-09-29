@@ -70,13 +70,11 @@ describe("describeSessionDetail", () => {
 	it("marks the master unlinked when the session carries no master id", () => {
 		expect(describeSessionDetail(CASH_DETAIL, "cash_game")).toMatchObject({
 			isMasterLinked: false,
-			master: { action: "Link", title: "Not linked to a ring game" },
 		});
 		expect(
 			describeSessionDetail({ ...CASH_DETAIL, ringGameId: "rg-1" }, "cash_game")
 		).toMatchObject({
 			isMasterLinked: true,
-			master: { action: "Change" },
 		});
 	});
 
