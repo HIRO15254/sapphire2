@@ -2,18 +2,22 @@ import {
 	IconBuildingStore,
 	IconChevronRight,
 	IconCoins,
+	IconInfoCircle,
 	IconLink,
 	IconUnlink,
 } from "@tabler/icons-react";
-import type {
-	MasterLinkCopy,
-	SessionTagLike,
+import {
+	hasMasterDrift,
+	type MasterFieldValues,
+	type MasterLinkCopy,
+	type SessionTagLike,
 } from "@/features/live-sessions/utils/session-settings";
 import { cn } from "@/lib/utils";
 import {
 	CRYST_FIELD,
 	CRYST_FOCUS_RING,
 	CRYST_LIST_ROW,
+	crystButton,
 } from "../../cryst-controls";
 import { TagInput } from "../../tag-input";
 import type { SessionForm } from "./use-session-sheet";
@@ -23,10 +27,13 @@ interface SessionOverviewTabProps {
 	currencyLabel: string;
 	form: SessionForm;
 	isMasterLinked: boolean;
+	isSyncingMaster: boolean;
 	master: MasterLinkCopy;
+	masterValues: MasterFieldValues | null;
 	onCreateTag: (name: string) => Promise<SessionTagLike>;
 	onOpenCurrency: () => void;
 	onOpenMaster: () => void;
+	onUpdateMaster: () => void;
 	roomName: string;
 }
 
@@ -35,43 +42,80 @@ export function SessionOverviewTab({
 	currencyLabel,
 	form,
 	isMasterLinked,
+	isSyncingMaster,
 	master,
+	masterValues,
 	onCreateTag,
 	onOpenCurrency,
 	onOpenMaster,
+	onUpdateMaster,
 	roomName,
 }: SessionOverviewTabProps) {
 	return (
 		<div className="flex flex-col gap-3">
-			<button
+			<div
 				className={cn(
-					"flex w-full items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-[filter] hover:brightness-110",
-					CRYST_FOCUS_RING,
+					"flex flex-col rounded-lg border",
 					isMasterLinked
-						? "border-border bg-transparent"
-						: "border-[color-mix(in_oklab,var(--warning)_45%,transparent)] bg-[color-mix(in_oklab,var(--warning)_10%,transparent)]"
+						? "border-border"
+						: "border-[color-mix(in_oklab,var(--warning)_45%,transparent)]"
 				)}
-				onClick={onOpenMaster}
-				type="button"
 			>
-				{isMasterLinked ? (
-					<IconLink className="shrink-0 text-muted-foreground" size={18} />
-				) : (
-					<IconUnlink className="shrink-0 text-warning" size={18} />
-				)}
-				<span className="flex min-w-0 flex-1 flex-col gap-0.5">
-					<span className="font-semibold text-[length:var(--m-text-footnote)]">
-						{master.title}
+				<button
+					className={cn(
+						"flex w-full items-center gap-2.5 rounded-[calc(var(--radius)-1px)] px-3 py-2.5 text-left transition-[filter] hover:brightness-110",
+						CRYST_FOCUS_RING,
+						isMasterLinked
+							? "bg-transparent"
+							: "bg-[color-mix(in_oklab,var(--warning)_10%,transparent)]"
+					)}
+					onClick={onOpenMaster}
+					type="button"
+				>
+					{isMasterLinked ? (
+						<IconLink className="shrink-0 text-muted-foreground" size={18} />
+					) : (
+						<IconUnlink className="shrink-0 text-warning" size={18} />
+					)}
+					<span className="flex min-w-0 flex-1 flex-col gap-0.5">
+						<span className="font-semibold text-[length:var(--m-text-footnote)]">
+							{master.title}
+						</span>
+						<span className="text-pretty text-[length:var(--m-text-caption)] text-muted-foreground">
+							{master.subtitle}
+						</span>
 					</span>
-					<span className="text-pretty text-[length:var(--m-text-caption)] text-muted-foreground">
-						{master.subtitle}
+					<span className="inline-flex shrink-0 items-center gap-[3px] font-semibold text-[length:var(--text-sm)] text-primary">
+						{master.action}
+						<IconChevronRight aria-hidden size={15} />
 					</span>
-				</span>
-				<span className="inline-flex shrink-0 items-center gap-[3px] font-semibold text-[length:var(--text-sm)] text-primary">
-					{master.action}
-					<IconChevronRight aria-hidden size={15} />
-				</span>
-			</button>
+				</button>
+				<form.Subscribe
+					selector={(state) => hasMasterDrift(masterValues, state.values)}
+				>
+					{(isDifferent) =>
+						isDifferent ? (
+							<div
+								className="flex items-center gap-2.5 border-border border-t py-1.5 pr-1.5 pl-3 text-[length:var(--text-sm)]"
+								role="status"
+							>
+								<IconInfoCircle className="shrink-0 text-info" size={16} />
+								<span className="min-w-0 flex-1 truncate font-semibold tracking-[var(--tracking-heading)]">
+									Differs from linked master
+								</span>
+								<button
+									className={crystButton({ size: "sm", variant: "ghost" })}
+									disabled={isSyncingMaster}
+									onClick={onUpdateMaster}
+									type="button"
+								>
+									Update master
+								</button>
+							</div>
+						) : null
+					}
+				</form.Subscribe>
+			</div>
 
 			<div className="flex flex-col overflow-hidden rounded-lg border border-border">
 				<div className="flex min-h-[var(--m-list-row)] items-center gap-2.5 border-border border-b px-3 text-[length:var(--text-sm)]">

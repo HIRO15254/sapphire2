@@ -431,13 +431,13 @@ export function useSessionSheet({
 		}
 	};
 
-	const onPushToMaster = async () => {
+	const onUpdateMaster = () => {
 		const values = form.state.values;
 		const patch: MasterFieldPatch = {
 			...buildScalarPatch(values, isCash, isMixValue(values.variant)),
 			...(values.currencyId === "" ? null : { currencyId: values.currencyId }),
 		};
-		await settings.onSyncMasterFromSession(patch);
+		settings.onSyncMasterFromSession(patch).catch(() => undefined);
 	};
 
 	const codesOf = (labels: readonly string[]) =>
@@ -687,11 +687,11 @@ export function useSessionSheet({
 			setGameTypeFocus({ kind: "level", levelNumber, uid });
 			setIsGameTypeOpen(true);
 		},
-		onPushToMaster,
 		onRemoveBlindRow: (uid: string) =>
 			setBlindLevels((rows) => rows.filter((row) => row.uid !== uid)),
 		onResetToMaster,
 		onSelectTab: setTab,
+		onUpdateMaster,
 		roomName: view.roomName,
 		tab,
 		tableSizes: TABLE_SIZES,

@@ -1522,8 +1522,13 @@ describe("CashCockpit", () => {
 		expect(
 			await screen.findByText("Differs from linked master")
 		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: "Update master" })
+		).not.toBeInTheDocument();
 
-		await user.click(await screen.findByRole("button", { name: "Reset" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Reset to master" })
+		);
 
 		await waitFor(() => {
 			expect(screen.getByLabelText(RULE_NAME_FIELD)).toHaveValue(
@@ -1536,7 +1541,7 @@ describe("CashCockpit", () => {
 		expect(backend.snapshotUpdates).toEqual([]);
 	});
 
-	it("pushes the current Basics values to the linked master when Update is pressed", async () => {
+	it("shows the drift on the Overview master card and pushes the Basics values with Update master", async () => {
 		backend.masterRoomId = "room-1";
 		backend.masterRingGameId = "ring-master-1";
 		const user = userEvent.setup();
@@ -1551,7 +1556,18 @@ describe("CashCockpit", () => {
 		await user.clear(ruleName);
 		await user.type(ruleName, "Friday Deep");
 
-		await user.click(await screen.findByRole("button", { name: "Update" }));
+		await user.click(await screen.findByRole("tab", { name: "Overview" }));
+
+		expect(
+			await screen.findByText("Differs from linked master")
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: "Reset to master" })
+		).not.toBeInTheDocument();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Update master" })
+		);
 
 		await waitFor(() => {
 			expect(backend.ringGameUpdates).toContainEqual(
