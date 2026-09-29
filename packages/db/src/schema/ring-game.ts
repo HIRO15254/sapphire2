@@ -31,6 +31,7 @@ export const ringGame = sqliteTable(
 			onDelete: "set null",
 		}),
 		memo: text("memo"),
+		houseRules: text("house_rules"),
 		archivedAt: integer("archived_at", { mode: "timestamp" }),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)

@@ -781,6 +781,7 @@ const CASH_LIVE_LINKED_RESTRICTED_FIELDS = [
 	"minBuyIn",
 	"maxBuyIn",
 	"tableSize",
+	"houseRules",
 ] as const;
 
 const TOURNAMENT_LIVE_LINKED_RESTRICTED_FIELDS = [
@@ -802,6 +803,7 @@ const TOURNAMENT_LIVE_LINKED_RESTRICTED_FIELDS = [
 	"startingStack",
 	"bountyAmount",
 	"tableSize",
+	"houseRules",
 	"blindLevels",
 ] as const;
 
@@ -876,6 +878,7 @@ export const cashGameCreateSchema = z.object({
 	minBuyIn: nonNegativeIntegerSchema.optional(),
 	maxBuyIn: nonNegativeIntegerSchema.optional(),
 	tableSize: tableSizeSchema.optional(),
+	houseRules: z.string().optional(),
 	startedAt: z.number().optional(),
 	endedAt: z.number().optional(),
 	breakMinutes: nonNegativeIntegerSchema.optional(),
@@ -909,6 +912,7 @@ export const tournamentCreateSchema = z
 		startingStack: nonNegativeIntegerSchema.optional(),
 		bountyAmount: nonNegativeIntegerSchema.optional(),
 		tableSize: tableSizeSchema.optional(),
+		houseRules: z.string().optional(),
 		blindLevels: z.array(sessionBlindLevelInputSchema).optional(),
 		chipPurchases: z.array(chipPurchaseInputSchema).optional(),
 		startedAt: z.number().optional(),
@@ -985,6 +989,7 @@ export const sessionUpdateInputSchema = z
 		tableSize: nullableTableSizeSchema.optional(),
 		minBuyIn: nullableNonNegativeIntegerSchema.optional(),
 		maxBuyIn: nullableNonNegativeIntegerSchema.optional(),
+		houseRules: z.string().nullable().optional(),
 		tagIds: optionalUniqueTagIdsSchema,
 	})
 	.refine(
@@ -1682,10 +1687,12 @@ function selectEnrichedSessionRows(db: DbInstance, userId: string) {
 			cashMinBuyIn: sessionCashDetail.minBuyIn,
 			cashMaxBuyIn: sessionCashDetail.maxBuyIn,
 			cashTableSize: sessionCashDetail.tableSize,
+			cashHouseRules: sessionCashDetail.houseRules,
 			tournamentVariant: sessionTournamentDetail.variant,
 			tournamentStartingStack: sessionTournamentDetail.startingStack,
 			tournamentBountyAmount: sessionTournamentDetail.bountyAmount,
 			tournamentTableSize: sessionTournamentDetail.tableSize,
+			tournamentHouseRules: sessionTournamentDetail.houseRules,
 		})
 		.from(gameSession)
 		.leftJoin(
@@ -1804,6 +1811,7 @@ interface CashUpdateInput {
 	buyIn?: number;
 	cashOut?: number;
 	evCashOut?: number | null;
+	houseRules?: string | null;
 	maxBuyIn?: number | null;
 	minBuyIn?: number | null;
 	mixGames?: MixGameGroup[] | null;
@@ -1846,6 +1854,9 @@ function applyCashRuleScalarUpdates(
 	}
 	if (input.maxBuyIn !== undefined) {
 		cashUpdate.maxBuyIn = input.maxBuyIn;
+	}
+	if (input.houseRules !== undefined) {
+		cashUpdate.houseRules = input.houseRules;
 	}
 }
 
@@ -1893,6 +1904,7 @@ async function planCashDetailUpdate(
 		cashUpdate.minBuyIn = snapshot.minBuyIn;
 		cashUpdate.maxBuyIn = snapshot.maxBuyIn;
 		cashUpdate.tableSize = snapshot.tableSize;
+		cashUpdate.houseRules = snapshot.houseRules;
 	} else {
 		const selection = await reconcileCashRuleSelection(
 			db,
@@ -1958,6 +1970,7 @@ interface TournamentUpdateInput {
 		name: string;
 	}[];
 	entryFee?: number;
+	houseRules?: string | null;
 	placement?: number | null;
 	prizeMoney?: number | null;
 	ruleName?: string;
@@ -2034,12 +2047,14 @@ async function applyTournamentSnapshotUpdate(
 		startingStack: input.startingStack,
 		bountyAmount: input.bountyAmount,
 		tableSize: input.tableSize,
+		houseRules: input.houseRules,
 	});
 	tournUpdate.ruleName = snapshot.ruleName;
 	tournUpdate.variant = snapshot.variant;
 	tournUpdate.startingStack = snapshot.startingStack;
 	tournUpdate.bountyAmount = snapshot.bountyAmount;
 	tournUpdate.tableSize = snapshot.tableSize;
+	tournUpdate.houseRules = snapshot.houseRules;
 	if (input.tournamentBuyIn === undefined) {
 		tournUpdate.tournamentBuyIn = snapshot.tournamentBuyIn;
 	}
@@ -2079,6 +2094,9 @@ function applyTournamentScalarUpdates(
 	}
 	if (input.tableSize !== undefined) {
 		tournUpdate.tableSize = input.tableSize;
+	}
+	if (input.houseRules !== undefined) {
+		tournUpdate.houseRules = input.houseRules;
 	}
 	if (input.beforeDeadline !== undefined) {
 		tournUpdate.beforeDeadline = input.beforeDeadline;
@@ -2173,6 +2191,7 @@ interface CashRuleSnapshot {
 	blind1: number | null;
 	blind2: number | null;
 	blind3: number | null;
+	houseRules: string | null;
 	maxBuyIn: number | null;
 	minBuyIn: number | null;
 	mixGames: MixGameGroup[] | null;
@@ -2187,6 +2206,7 @@ interface CashRuleInput {
 	blind1?: number | null;
 	blind2?: number | null;
 	blind3?: number | null;
+	houseRules?: string | null;
 	maxBuyIn?: number | null;
 	minBuyIn?: number | null;
 	mixGames?: MixGameGroup[] | null;
@@ -2535,6 +2555,7 @@ function defaultCashSnapshot(input: CashRuleInput): CashRuleSnapshot {
 		minBuyIn: input.minBuyIn ?? null,
 		maxBuyIn: input.maxBuyIn ?? null,
 		tableSize: input.tableSize ?? null,
+		houseRules: input.houseRules ?? null,
 	};
 	return { ...snapshot, ...cashMixFlatFieldClearPatch(snapshot.mixGames) };
 }
@@ -2555,6 +2576,7 @@ function mergeCashSnapshotWithParent(
 		minBuyIn: pick(input.minBuyIn, rg.minBuyIn),
 		maxBuyIn: pick(input.maxBuyIn, rg.maxBuyIn),
 		tableSize: pick(input.tableSize, rg.tableSize),
+		houseRules: pick(input.houseRules, rg.houseRules),
 	};
 	return { ...snapshot, ...cashMixFlatFieldClearPatch(snapshot.mixGames) };
 }
@@ -2636,6 +2658,7 @@ async function buildCashGameSessionDetailStatements(
 				minBuyIn: null,
 				maxBuyIn: null,
 				tableSize: snapshot.tableSize,
+				houseRules: snapshot.houseRules,
 				updatedAt: now,
 			})
 		);
@@ -2659,6 +2682,7 @@ async function buildCashGameSessionDetailStatements(
 			minBuyIn: snapshot.minBuyIn,
 			maxBuyIn: snapshot.maxBuyIn,
 			tableSize: snapshot.tableSize,
+			houseRules: snapshot.houseRules,
 		})
 	);
 	return statements;
@@ -2667,6 +2691,7 @@ async function buildCashGameSessionDetailStatements(
 interface TournamentRuleSnapshot {
 	bountyAmount: number | null;
 	entryFee: number | null;
+	houseRules: string | null;
 	ruleName: string;
 	startingStack: number | null;
 	tableSize: number | null;
@@ -2677,12 +2702,29 @@ interface TournamentRuleSnapshot {
 interface TournamentRuleInput {
 	bountyAmount?: number | null;
 	entryFee?: number | null;
+	houseRules?: string | null;
 	ruleName?: string;
 	startingStack?: number | null;
 	tableSize?: number | null;
 	tournamentBuyIn?: number | null;
 	tournamentId?: string | null;
 	variant?: string;
+}
+
+function mergeTournamentSnapshotWithParent(
+	input: TournamentRuleInput,
+	t: typeof tournament.$inferSelect
+): TournamentRuleSnapshot {
+	return {
+		ruleName: input.ruleName ?? t.name,
+		variant: input.variant ?? t.variant,
+		tournamentBuyIn: input.tournamentBuyIn ?? t.buyIn,
+		entryFee: input.entryFee ?? t.entryFee,
+		startingStack: pick(input.startingStack, t.startingStack),
+		bountyAmount: pick(input.bountyAmount, t.bountyAmount),
+		tableSize: pick(input.tableSize, t.tableSize),
+		houseRules: pick(input.houseRules, t.houseRules),
+	};
 }
 
 async function resolveTournamentRuleSnapshot(
@@ -2697,6 +2739,7 @@ async function resolveTournamentRuleSnapshot(
 		startingStack: input.startingStack ?? null,
 		bountyAmount: input.bountyAmount ?? null,
 		tableSize: input.tableSize ?? null,
+		houseRules: input.houseRules ?? null,
 	};
 	if (input.tournamentId) {
 		const [t] = await db
@@ -2704,21 +2747,7 @@ async function resolveTournamentRuleSnapshot(
 			.from(tournament)
 			.where(eq(tournament.id, input.tournamentId));
 		if (t) {
-			base = {
-				ruleName: input.ruleName ?? t.name,
-				variant: input.variant ?? t.variant,
-				tournamentBuyIn:
-					input.tournamentBuyIn !== undefined && input.tournamentBuyIn !== null
-						? input.tournamentBuyIn
-						: t.buyIn,
-				entryFee:
-					input.entryFee !== undefined && input.entryFee !== null
-						? input.entryFee
-						: t.entryFee,
-				startingStack: pick(input.startingStack, t.startingStack),
-				bountyAmount: pick(input.bountyAmount, t.bountyAmount),
-				tableSize: pick(input.tableSize, t.tableSize),
-			};
+			base = mergeTournamentSnapshotWithParent(input, t);
 		}
 	}
 	return base;
@@ -2739,6 +2768,7 @@ async function buildTournamentSessionDetailStatements(
 		startingStack: input.startingStack,
 		bountyAmount: input.bountyAmount,
 		tableSize: input.tableSize,
+		houseRules: input.houseRules,
 	});
 	const statements: BatchStatement[] = [
 		db.insert(sessionTournamentDetail).values({
@@ -2756,6 +2786,7 @@ async function buildTournamentSessionDetailStatements(
 			startingStack: snapshot.startingStack,
 			bountyAmount: snapshot.bountyAmount,
 			tableSize: snapshot.tableSize,
+			houseRules: snapshot.houseRules,
 		}),
 	];
 	if (input.tournamentId) {

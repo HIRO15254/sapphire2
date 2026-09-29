@@ -29,6 +29,7 @@ export const sessionCashDetail = sqliteTable(
 		minBuyIn: integer("min_buy_in"),
 		maxBuyIn: integer("max_buy_in"),
 		tableSize: integer("table_size"),
+		houseRules: text("house_rules"),
 	},
 	(t) => [index("session_cash_ring_idx").on(t.ringGameId)]
 );

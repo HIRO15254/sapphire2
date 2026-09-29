@@ -111,6 +111,7 @@ export const tournamentCreateWithLevelsInputSchema = z.object({
 
 	currencyId: z.string().min(1).optional(),
 	memo: z.string().optional(),
+	houseRules: z.string().optional(),
 	tags: z.array(z.string()).optional(),
 
 	chipPurchases: z.array(chipPurchaseInputSchema).optional(),
@@ -143,6 +144,7 @@ export function buildTournamentCreateStatements(
 			tableSize: params.input.tableSize ?? null,
 			currencyId: params.input.currencyId ?? null,
 			memo: params.input.memo ?? null,
+			houseRules: params.input.houseRules ?? null,
 			updatedAt: params.now,
 		}),
 		...(params.input.tags ?? []).map((name) =>
@@ -252,6 +254,7 @@ export const tournamentUpdateWithLevelsInputSchema = z.object({
 
 	currencyId: z.string().min(1).nullable().optional(),
 	memo: z.string().nullable().optional(),
+	houseRules: z.string().nullable().optional(),
 	tags: z.array(z.string()).optional(),
 	chipPurchases: z.array(chipPurchaseInputSchema).optional(),
 	blindLevels: z.array(blindLevelInputSchema),
@@ -337,6 +340,7 @@ export const tournamentRouter = router({
 
 				currencyId: z.string().min(1).optional(),
 				memo: z.string().optional(),
+				houseRules: z.string().optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -364,6 +368,7 @@ export const tournamentRouter = router({
 				tableSize: input.tableSize ?? null,
 				currencyId: input.currencyId ?? null,
 				memo: input.memo ?? null,
+				houseRules: input.houseRules ?? null,
 				updatedAt: new Date(),
 			});
 
@@ -384,6 +389,7 @@ export const tournamentRouter = router({
 
 				currencyId: z.string().min(1).nullable().optional(),
 				memo: z.string().nullable().optional(),
+				houseRules: z.string().nullable().optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -425,6 +431,9 @@ export const tournamentRouter = router({
 			}
 			if (input.memo !== undefined) {
 				updateData.memo = input.memo;
+			}
+			if (input.houseRules !== undefined) {
+				updateData.houseRules = input.houseRules;
 			}
 
 			await ctx.db
@@ -559,6 +568,9 @@ export const tournamentRouter = router({
 			}
 			if (input.memo !== undefined) {
 				updateData.memo = input.memo;
+			}
+			if (input.houseRules !== undefined) {
+				updateData.houseRules = input.houseRules;
 			}
 
 			const statements: [BatchStatement, ...BatchStatement[]] = [
