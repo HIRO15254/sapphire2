@@ -110,6 +110,48 @@ function NumericField({
 	);
 }
 
+function HouseRulesField({
+	form,
+	master,
+}: {
+	form: SessionForm;
+	master: MasterFieldValues | null;
+}) {
+	return (
+		<form.Field name="houseRules">
+			{(field) => (
+				<Field
+					className="col-span-6 min-w-0 gap-0"
+					htmlFor={fieldId(field.name)}
+					label={
+						<FieldLabel
+							isDifferent={isMasterFieldDifferent(
+								master,
+								"houseRules",
+								field.state.value
+							)}
+							label="House rules"
+						/>
+					}
+				>
+					<textarea
+						className={cn(
+							CRYST_FIELD,
+							"mt-1.5 box-border w-full resize-none px-3 py-2.5 leading-normal"
+						)}
+						id={fieldId(field.name)}
+						name={field.name}
+						onBlur={field.handleBlur}
+						onChange={(e) => field.handleChange(e.target.value)}
+						rows={4}
+						value={field.state.value}
+					/>
+				</Field>
+			)}
+		</form.Field>
+	);
+}
+
 const BUY_IN_ERROR_ID = "cryst-session-buyIn-error";
 const GAME_TYPE_LABEL_ID = "cryst-session-game-type-label";
 const GAME_TYPE_ERROR_ID = "cryst-session-game-type-error";
@@ -518,6 +560,8 @@ export function SessionBasicsTab({
 			{isCash ? null : (
 				<TableSizeField form={form} master={master} tableSizes={tableSizes} />
 			)}
+
+			<HouseRulesField form={form} master={master} />
 		</div>
 	);
 }

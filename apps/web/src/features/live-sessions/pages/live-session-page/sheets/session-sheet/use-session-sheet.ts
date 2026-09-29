@@ -61,13 +61,12 @@ import {
 	describeSessionRuleValues,
 } from "./session-sheet-view";
 
-export type SessionSheetTab = "basics" | "blinds" | "notes" | "overview";
+export type SessionSheetTab = "basics" | "blinds" | "overview";
 
 const TABS: { key: SessionSheetTab; label: string }[] = [
 	{ key: "overview", label: "Overview" },
 	{ key: "basics", label: "Basics" },
 	{ key: "blinds", label: "Blinds" },
-	{ key: "notes", label: "Notes" },
 ];
 
 const TABLE_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10];

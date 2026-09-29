@@ -1431,12 +1431,6 @@ describe("CashCockpit", () => {
 
 		await user.keyboard("{ArrowRight}");
 
-		const notes = screen.getByRole("tab", { name: "Notes" });
-		expect(notes).toHaveFocus();
-		expect(notes).toHaveAttribute("aria-selected", "true");
-
-		await user.keyboard("{ArrowRight}");
-
 		expect(overview).toHaveFocus();
 		expect(overview).toHaveAttribute("aria-selected", "true");
 	});
@@ -2199,12 +2193,14 @@ describe("CashCockpit master link", () => {
 });
 
 describe("CashCockpit hands and house rules", () => {
-	async function openNotes(user: ReturnType<typeof userEvent.setup>) {
+	async function openHouseRules(user: ReturnType<typeof userEvent.setup>) {
 		await user.click(
 			await screen.findByRole("button", { name: "Session settings" })
 		);
-		await user.click(await screen.findByRole("tab", { name: "Notes" }));
-		return screen.findByRole("textbox", { name: "House rules" });
+		await user.click(await screen.findByRole("tab", { name: "Basics" }));
+		return within(
+			await screen.findByRole("tabpanel", { name: "Basics" })
+		).findByRole("textbox", { name: "House rules" });
 	}
 
 	it("counts hands from the table, passing the button between seated players, one request at a time", async () => {
@@ -2392,12 +2388,12 @@ describe("CashCockpit hands and house rules", () => {
 		).toBeInTheDocument();
 	});
 
-	it("saves the house rules from the Notes tab and clears them when emptied", async () => {
+	it("saves the house rules from the Basics tab and clears them when emptied", async () => {
 		backend.sessionHouseRules = "No straddle";
 		const user = userEvent.setup();
 		renderCockpit();
 
-		const rules = await openNotes(user);
+		const rules = await openHouseRules(user);
 		expect(rules).toHaveValue("No straddle");
 		await user.clear(rules);
 		await user.type(rules, "Straddle UTG only{Enter}Tip 1%");
@@ -2410,7 +2406,7 @@ describe("CashCockpit hands and house rules", () => {
 		});
 		await waitForClosed("Session");
 
-		const reopened = await openNotes(user);
+		const reopened = await openHouseRules(user);
 		expect(reopened).toHaveValue("Straddle UTG only\nTip 1%");
 		await user.clear(reopened);
 		await user.type(reopened, "   ");
@@ -2431,7 +2427,7 @@ describe("CashCockpit hands and house rules", () => {
 		const user = userEvent.setup();
 		renderCockpit();
 
-		const rules = await openNotes(user);
+		const rules = await openHouseRules(user);
 		expect(
 			screen.queryByText("Differs from linked master")
 		).not.toBeInTheDocument();

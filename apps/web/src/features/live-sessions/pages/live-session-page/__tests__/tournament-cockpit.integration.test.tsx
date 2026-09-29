@@ -746,7 +746,7 @@ describe("TournamentCockpit hands and house rules", () => {
 		});
 	});
 
-	it("saves the house rules to the tournament snapshot from the Notes tab", async () => {
+	it("saves the house rules to the tournament snapshot from the Basics tab", async () => {
 		backend.houseRules = "Re-entry until level 8";
 		const user = userEvent.setup();
 		renderCockpit();
@@ -754,8 +754,10 @@ describe("TournamentCockpit hands and house rules", () => {
 		await user.click(
 			await screen.findByRole("button", { name: "Session settings" })
 		);
-		await user.click(await screen.findByRole("tab", { name: "Notes" }));
-		const rules = await screen.findByRole("textbox", { name: "House rules" });
+		await user.click(await screen.findByRole("tab", { name: "Basics" }));
+		const rules = await within(
+			await screen.findByRole("tabpanel", { name: "Basics" })
+		).findByRole("textbox", { name: "House rules" });
 		expect(rules).toHaveValue("Re-entry until level 8");
 
 		await user.type(rules, "{Enter}Late reg closes at break 2");
