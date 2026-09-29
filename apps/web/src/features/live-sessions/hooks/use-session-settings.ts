@@ -1,10 +1,7 @@
 import type { MixGameGroup } from "@sapphire2/db/schemas/game";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLinkedMaster } from "@/features/live-sessions/hooks/use-linked-master";
 import type { BlindLevelInput } from "@/features/live-sessions/utils/blind-level-rows";
-import {
-	describeCashMasterValues,
-	describeTournamentMasterValues,
-} from "@/features/live-sessions/utils/session-settings";
 import {
 	cancelTargets,
 	createOptimisticId,
@@ -210,10 +207,7 @@ export function useSessionSettings({
 				.queryKey;
 	const tagsKey = trpc.sessionTag.list.queryOptions().queryKey;
 
-	const detailQuery = useQuery({
-		...trpc.session.getById.queryOptions({ id: sessionId }),
-		enabled: !!sessionId,
-	});
+	const linked = useLinkedMaster({ sessionId, sessionType });
 	const tournamentLiveQuery = useQuery({
 		...trpc.liveTournamentSession.getById.queryOptions({ id: sessionId }),
 		enabled: !!sessionId && !isCash,
@@ -221,34 +215,7 @@ export function useSessionSettings({
 	const tagsQuery = useQuery(trpc.sessionTag.list.queryOptions());
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
 
-	const masterRoomId = detailQuery.data?.roomId ?? null;
-	const masterRingGameId = detailQuery.data?.ringGameId ?? null;
-	const masterTournamentId = detailQuery.data?.tournamentId ?? null;
-
-	const ringGameListQueryOptions = trpc.ringGame.listByRoom.queryOptions({
-		roomId: masterRoomId ?? "",
-	});
-	const tournamentMasterQueryOptions = trpc.tournament.getById.queryOptions({
-		id: masterTournamentId ?? "",
-	});
-
-	const ringGameMasterQuery = useQuery({
-		...ringGameListQueryOptions,
-		enabled: isCash && masterRoomId !== null && masterRingGameId !== null,
-	});
-	const tournamentMasterQuery = useQuery({
-		...tournamentMasterQueryOptions,
-		enabled: !isCash && masterTournamentId !== null,
-	});
-
-	const master = isCash
-		? describeCashMasterValues(
-				ringGameMasterQuery.data?.find((row) => row.id === masterRingGameId) ??
-					null
-			)
-		: describeTournamentMasterValues(tournamentMasterQuery.data ?? null);
-
-	const masterId = isCash ? masterRingGameId : masterTournamentId;
+	const masterId = linked.masterId;
 
 	const refresh = () =>
 		invalidateTargets(queryClient, [
@@ -360,8 +327,8 @@ export function useSessionSettings({
 		},
 		onSettled: () => {
 			invalidateTargets(queryClient, [
-				{ queryKey: ringGameListQueryOptions.queryKey },
-				{ queryKey: tournamentMasterQueryOptions.queryKey },
+				{ queryKey: trpc.ringGame.listByRoom.pathKey() },
+				{ queryKey: trpc.tournament.getById.pathKey() },
 			]);
 		},
 	});
@@ -377,11 +344,12 @@ export function useSessionSettings({
 		availableTags: tagsQuery.data ?? [],
 		blindLevels: tournamentLiveQuery.data?.blindLevels ?? NO_BLIND_LEVELS,
 		currencies: currenciesQuery.data ?? [],
-		detail: detailQuery.data ?? null,
+		detail: linked.detail,
 		hasBlindLevels: tournamentLiveQuery.data !== undefined,
 		isSaving: snapshot.isPending || live.isPending || tags.isPending,
 		isSyncingMaster: syncMaster.isPending,
-		master,
+		linkedMaster: linked.summary,
+		master: linked.values,
 		onCreateTag: (name: string) => createTag.mutateAsync(name),
 		onSyncMasterFromSession: (patch: MasterFieldPatch) =>
 			syncMaster.mutateAsync(patch),

@@ -1,6 +1,5 @@
 import type { MixGameGroup } from "@sapphire2/db/schemas/game";
-import type { MasterLinkCopy } from "@/features/live-sessions/utils/session-settings";
-import { describeMasterLink } from "@/features/live-sessions/utils/session-settings";
+import type { MasterFieldKey } from "@/features/live-sessions/utils/session-settings";
 
 export type AnteType = "all" | "bb" | "none";
 
@@ -44,7 +43,6 @@ export interface SessionDetailLike {
 export interface SessionSheetView {
 	anteType: AnteType;
 	isMasterLinked: boolean;
-	master: MasterLinkCopy;
 	memo: string;
 	mixGames: MixGameGroup[] | null;
 	roomName: string;
@@ -85,10 +83,6 @@ export function describeSessionDetail(
 		anteType:
 			ANTE_TYPE_KEYS.find((key) => key === detail?.cashAnteType) ?? "none",
 		isMasterLinked: masterId !== null,
-		master: describeMasterLink(
-			masterId === null ? null : (detail?.roomName ?? "Linked"),
-			sessionType
-		),
 		memo: detail?.memo ?? "",
 		mixGames: isCash ? (detail?.cashMixGames ?? null) : null,
 		roomName: detail?.roomName ?? "Not set",
@@ -100,5 +94,33 @@ export function describeSessionDetail(
 		tags: detail?.tags ?? [],
 		variantLabel:
 			(isCash ? detail?.cashVariant : detail?.tournamentVariant) ?? "",
+	};
+}
+
+function textOf(value: number | null | undefined): string {
+	return value === null || value === undefined ? "" : String(value);
+}
+
+export function describeSessionRuleValues(
+	detail: SessionDetailLike | null,
+	sessionType: "cash_game" | "tournament"
+): Record<MasterFieldKey, string> {
+	const view = describeSessionDetail(detail, sessionType);
+	const numbers = view.serverNumbers;
+	return {
+		ante: textOf(numbers.ante),
+		anteType: view.anteType,
+		blind1: textOf(numbers.blind1),
+		blind2: textOf(numbers.blind2),
+		blind3: textOf(numbers.blind3),
+		bountyAmount: textOf(numbers.bountyAmount),
+		currencyId: view.selectedCurrencyId ?? "",
+		entryFee: textOf(numbers.entryFee),
+		maxBuyIn: textOf(numbers.maxBuyIn),
+		minBuyIn: textOf(numbers.minBuyIn),
+		ruleName: view.ruleName,
+		startingStack: textOf(numbers.startingStack),
+		tableSize: textOf(view.tableSize),
+		tournamentBuyIn: textOf(numbers.tournamentBuyIn),
 	};
 }

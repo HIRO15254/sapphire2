@@ -17,6 +17,7 @@ import { CrystFormSheet } from "../cryst-form-sheet";
 import { CurrencySheet } from "../currency-sheet";
 import { DiscardChangesDialog } from "../discard-changes-dialog";
 import { GameTypeSheet } from "../game-type-sheet";
+import { MasterLinkSheet } from "../master-link-sheet";
 import { useDiscardConfirm } from "../use-discard-confirm";
 import { SessionBasicsTab } from "./session-basics-tab";
 import { SessionBlindsTab } from "./session-blinds-tab";
@@ -158,6 +159,7 @@ export function SessionSheet({
 											master={sheet.master}
 											onCreateTag={sheet.onCreateTag}
 											onOpenCurrency={sheet.onOpenCurrency}
+											onOpenMaster={sheet.onOpenMasterLink}
 											roomName={sheet.roomName}
 										/>
 									) : null}
@@ -224,6 +226,12 @@ export function SessionSheet({
 				onPickVariant={sheet.gameTypeSheet.onPickVariant}
 				open={sheet.gameTypeSheet.open}
 				target={sheet.gameTypeSheet.target}
+			/>
+			<MasterLinkSheet
+				onOpenChange={sheet.onMasterLinkOpenChange}
+				open={sheet.isMasterLinkOpen}
+				sessionId={sessionId}
+				sessionType={sessionType}
 			/>
 			<DiscardChangesDialog
 				onConfirmDiscard={discard.onConfirmDiscard}

@@ -46,15 +46,20 @@ export interface MasterLinkCopy {
 	title: string;
 }
 
+export interface LinkedMasterSummary {
+	meta: string;
+	name: string;
+}
+
 export function describeMasterLink(
-	linkedName: string | null,
+	linked: LinkedMasterSummary | null,
 	sessionType: "cash_game" | "tournament"
 ): MasterLinkCopy {
-	if (linkedName !== null) {
+	if (linked !== null) {
 		return {
 			action: "Change",
-			subtitle: "Results from this session roll up into the master.",
-			title: linkedName,
+			subtitle: linked.meta,
+			title: linked.name,
 		};
 	}
 	const kind = sessionType === "tournament" ? "tournament" : "ring game";

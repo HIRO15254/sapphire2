@@ -25,27 +25,40 @@ interface SessionHeaderProps {
 	isMasterLinked: boolean;
 	isPaused: boolean;
 	onEndSession: () => void;
+	onOpenMaster: () => void;
 	onOpenSession: () => void;
 	onPause: () => void;
 	onResume: () => void;
 	ruleName: string;
 }
 
-function MasterPill({ isLinked }: { isLinked: boolean }) {
+function MasterPill({
+	isLinked,
+	onClick,
+}: {
+	isLinked: boolean;
+	onClick: () => void;
+}) {
 	const label = isLinked ? "Linked to master" : "Not linked to master";
 	return (
-		<span
+		<button
 			aria-label={label}
-			className={`${MASTER_PILL_BASE} ${isLinked ? MASTER_LINKED_CLASS : MASTER_UNLINKED_CLASS}`}
-			role="img"
+			className={cn(
+				MASTER_PILL_BASE,
+				"transition-[filter] hover:brightness-110",
+				CRYST_FOCUS_RING,
+				isLinked ? MASTER_LINKED_CLASS : MASTER_UNLINKED_CLASS
+			)}
+			onClick={onClick}
 			title={label}
+			type="button"
 		>
 			{isLinked ? (
 				<IconLink aria-hidden size={12} />
 			) : (
 				<IconUnlink aria-hidden size={12} />
 			)}
-		</span>
+		</button>
 	);
 }
 
@@ -54,6 +67,7 @@ export function SessionHeader({
 	isMasterLinked,
 	isPaused,
 	onEndSession,
+	onOpenMaster,
 	onOpenSession,
 	onPause,
 	onResume,
@@ -75,7 +89,7 @@ export function SessionHeader({
 				</span>
 				<IconChevronDown className="shrink-0 text-muted-foreground" size={13} />
 			</button>
-			<MasterPill isLinked={isMasterLinked} />
+			<MasterPill isLinked={isMasterLinked} onClick={onOpenMaster} />
 			<span className="flex-1" />
 			<span className="shrink-0 font-mono text-[length:var(--text-xs)] text-muted-foreground tabular-nums">
 				{elapsed}

@@ -32,6 +32,7 @@ import {
 	serializeMixGroups,
 } from "@/features/live-sessions/utils/mix-composition";
 import {
+	describeMasterLink,
 	findCurrency,
 	type MasterFieldKey,
 	type SessionTagLike,
@@ -54,7 +55,10 @@ import {
 import { formatHoursMinutes } from "@/utils/format-elapsed-time";
 import type { GameTypeTarget, PickedMix } from "../game-type-sheet";
 import type { AnteType, SessionDetailLike } from "./session-sheet-view";
-import { describeSessionDetail } from "./session-sheet-view";
+import {
+	describeSessionDetail,
+	describeSessionRuleValues,
+} from "./session-sheet-view";
 
 export type SessionSheetTab = "basics" | "blinds" | "overview";
 
@@ -124,10 +128,6 @@ type GameTypeFocus =
 
 const MIX_NEEDS_GAMES = "A mix needs at least two games";
 
-function textOf(value: number | null | undefined): string {
-	return value === null || value === undefined ? "" : String(value);
-}
-
 function normalized(value: string): string {
 	return value.trim().toLowerCase();
 }
@@ -161,27 +161,15 @@ function buildDefaultValues(
 ): SessionFormValues {
 	const view = describeSessionDetail(detail, sessionType);
 	return {
-		ante: textOf(view.serverNumbers.ante),
+		...describeSessionRuleValues(detail, sessionType),
 		anteType: view.anteType,
-		blind1: textOf(view.serverNumbers.blind1),
-		blind2: textOf(view.serverNumbers.blind2),
-		blind3: textOf(view.serverNumbers.blind3),
 		blindLevels:
 			sessionType === "tournament"
 				? toBlindLevelRows(blindLevels, resolveGroup)
 				: [],
-		bountyAmount: textOf(view.serverNumbers.bountyAmount),
-		currencyId: view.selectedCurrencyId ?? "",
-		entryFee: textOf(view.serverNumbers.entryFee),
-		maxBuyIn: textOf(view.serverNumbers.maxBuyIn),
 		memo: view.memo,
-		minBuyIn: textOf(view.serverNumbers.minBuyIn),
 		mixGroups: seedMixGroups(view.mixGames, resolveGroup),
-		ruleName: view.ruleName,
-		startingStack: textOf(view.serverNumbers.startingStack),
-		tableSize: view.tableSize === null ? "" : String(view.tableSize),
 		tagIds: view.tags.map((tag) => tag.id),
-		tournamentBuyIn: textOf(view.serverNumbers.tournamentBuyIn),
 		variant: view.variantLabel,
 	};
 }
@@ -294,6 +282,7 @@ export function useSessionSheet({
 	const [tab, setTab] = useState<SessionSheetTab>(initialTab);
 	const [isCurrencyOpen, setIsCurrencyOpen] = useState(false);
 	const [isGameTypeOpen, setIsGameTypeOpen] = useState(false);
+	const [isMasterLinkOpen, setIsMasterLinkOpen] = useState(false);
 	const [gameTypeFocus, setGameTypeFocus] = useState<GameTypeFocus>({
 		kind: "session",
 	});
@@ -364,6 +353,7 @@ export function useSessionSheet({
 			setTab(initialTab);
 			setIsCurrencyOpen(false);
 			setIsGameTypeOpen(false);
+			setIsMasterLinkOpen(false);
 			setDefaultMinutes(defaultLevelMinutes(defaults.blindLevels));
 			seedPhaseRef.current = isReady ? "seeded" : "pending";
 			return;
@@ -637,10 +627,11 @@ export function useSessionSheet({
 		isCash,
 		isCurrencyOpen,
 		isMasterLinked: view.isMasterLinked,
+		isMasterLinkOpen,
 		isMix,
 		isSaving: settings.isSaving,
 		isSyncingMaster: settings.isSyncingMaster,
-		master: view.master,
+		master: describeMasterLink(settings.linkedMaster, sessionType),
 		masterValues: settings.master,
 		mixStakes,
 		onAddBlindBreak: () =>
@@ -663,6 +654,7 @@ export function useSessionSheet({
 		},
 		onCurrencyOpenChange: setIsCurrencyOpen,
 		onDefaultMinutesChange: setDefaultMinutes,
+		onMasterLinkOpenChange: setIsMasterLinkOpen,
 		onLevelGameStakeChange: (
 			levelUid: string,
 			groupUid: string,
@@ -686,6 +678,7 @@ export function useSessionSheet({
 		onMixStakeChange: (uid: string, slot: MixStakeSlot, value: string) =>
 			setMixGroups((rows) => updateGroup(rows, uid, { [slot]: value })),
 		onOpenCurrency: () => setIsCurrencyOpen(true),
+		onOpenMasterLink: () => setIsMasterLinkOpen(true),
 		onOpenGameType: () => {
 			setGameTypeFocus({ kind: "session" });
 			setIsGameTypeOpen(true);

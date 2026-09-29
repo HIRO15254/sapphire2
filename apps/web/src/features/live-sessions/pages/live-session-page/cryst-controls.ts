@@ -54,6 +54,8 @@ export const CRYST_BADGE_TONE = {
 	info: "bg-[color-mix(in_oklab,var(--info)_15%,transparent)] text-info",
 	neutral: "bg-muted text-muted-foreground",
 	primary: "bg-[var(--selection)] text-primary",
+	success:
+		"bg-[color-mix(in_oklab,var(--success)_15%,transparent)] text-success",
 	warning:
 		"bg-[color-mix(in_oklab,var(--warning)_15%,transparent)] text-warning",
 } as const;

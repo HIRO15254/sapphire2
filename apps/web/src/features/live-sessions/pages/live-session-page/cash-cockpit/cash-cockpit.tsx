@@ -7,6 +7,7 @@ import { SessionHeader } from "../session-header";
 import {
 	EndSessionSheet,
 	EventEditorSheet,
+	MasterLinkSheet,
 	ResetSeatsDialog,
 	ScanSeatsSheet,
 	SessionSheet,
@@ -39,6 +40,7 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 				isMasterLinked={cockpit.isMasterLinked}
 				isPaused={cockpit.isPaused}
 				onEndSession={cockpit.onEndSession}
+				onOpenMaster={cockpit.onOpenMaster}
 				onOpenSession={cockpit.onOpenSession}
 				onPause={cockpit.onPause}
 				onResume={cockpit.onResume}
@@ -135,6 +137,12 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 				onOpenChange={cockpit.onCloseSeatSheet}
 				open={cockpit.seatSheet === "scan"}
 				seats={cockpit.scanSeats}
+			/>
+			<MasterLinkSheet
+				onOpenChange={cockpit.onMasterLinkOpenChange}
+				open={cockpit.isMasterLinkOpen}
+				sessionId={sessionId}
+				sessionType="cash_game"
 			/>
 			<SessionSheet
 				onOpenChange={cockpit.onSessionSheetOpenChange}

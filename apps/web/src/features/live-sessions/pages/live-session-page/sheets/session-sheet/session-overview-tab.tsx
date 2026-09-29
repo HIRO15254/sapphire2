@@ -10,7 +10,11 @@ import type {
 	SessionTagLike,
 } from "@/features/live-sessions/utils/session-settings";
 import { cn } from "@/lib/utils";
-import { CRYST_ALERT, CRYST_FIELD, CRYST_LIST_ROW } from "../../cryst-controls";
+import {
+	CRYST_FIELD,
+	CRYST_FOCUS_RING,
+	CRYST_LIST_ROW,
+} from "../../cryst-controls";
 import { TagInput } from "../../tag-input";
 import type { SessionForm } from "./use-session-sheet";
 
@@ -22,6 +26,7 @@ interface SessionOverviewTabProps {
 	master: MasterLinkCopy;
 	onCreateTag: (name: string) => Promise<SessionTagLike>;
 	onOpenCurrency: () => void;
+	onOpenMaster: () => void;
 	roomName: string;
 }
 
@@ -33,28 +38,40 @@ export function SessionOverviewTab({
 	master,
 	onCreateTag,
 	onOpenCurrency,
+	onOpenMaster,
 	roomName,
 }: SessionOverviewTabProps) {
 	return (
 		<div className="flex flex-col gap-3">
-			<div
+			<button
 				className={cn(
-					CRYST_ALERT,
-					"grid grid-cols-[auto_1fr] gap-2.5 px-3.5 py-3"
+					"flex w-full items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-[filter] hover:brightness-110",
+					CRYST_FOCUS_RING,
+					isMasterLinked
+						? "border-border bg-transparent"
+						: "border-[color-mix(in_oklab,var(--warning)_45%,transparent)] bg-[color-mix(in_oklab,var(--warning)_10%,transparent)]"
 				)}
+				onClick={onOpenMaster}
+				type="button"
 			>
 				{isMasterLinked ? (
-					<IconLink className="mt-px text-muted-foreground" size={16} />
+					<IconLink className="shrink-0 text-muted-foreground" size={18} />
 				) : (
-					<IconUnlink className="mt-px text-warning" size={16} />
+					<IconUnlink className="shrink-0 text-warning" size={18} />
 				)}
-				<div className="min-w-0">
-					<p className="font-semibold tracking-[var(--tracking-heading)]">
+				<span className="flex min-w-0 flex-1 flex-col gap-0.5">
+					<span className="font-semibold text-[length:var(--m-text-footnote)]">
 						{master.title}
-					</p>
-					<p className="mt-0.5 text-muted-foreground">{master.subtitle}</p>
-				</div>
-			</div>
+					</span>
+					<span className="text-pretty text-[length:var(--m-text-caption)] text-muted-foreground">
+						{master.subtitle}
+					</span>
+				</span>
+				<span className="inline-flex shrink-0 items-center gap-[3px] font-semibold text-[length:var(--text-sm)] text-primary">
+					{master.action}
+					<IconChevronRight aria-hidden size={15} />
+				</span>
+			</button>
 
 			<div className="flex flex-col overflow-hidden rounded-lg border border-border">
 				<div className="flex min-h-[var(--m-list-row)] items-center gap-2.5 border-border border-b px-3 text-[length:var(--text-sm)]">

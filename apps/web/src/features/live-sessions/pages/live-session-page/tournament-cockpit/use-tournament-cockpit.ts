@@ -35,6 +35,7 @@ export function useTournamentCockpit(sessionId: string) {
 	const isKeyboardOpen = useKeyboardOpen();
 	const [isEndSessionOpen, setIsEndSessionOpen] = useState(false);
 	const [isSessionSheetOpen, setIsSessionSheetOpen] = useState(false);
+	const [isMasterLinkOpen, setIsMasterLinkOpen] = useState(false);
 	const [sessionSheetTab, setSessionSheetTab] =
 		useState<SessionSheetTab>("overview");
 	const shiftedPauseRef = useRef<number | null>(null);
@@ -118,7 +119,10 @@ export function useTournamentCockpit(sessionId: string) {
 		isCompletePending: stack.isCompletePending,
 		isEndSessionOpen,
 		chipPurchaseOptions: stack.chipPurchaseTypes,
+		isMasterLinkOpen,
 		isSessionSheetOpen,
+		onMasterLinkOpenChange: setIsMasterLinkOpen,
+		onOpenMaster: () => setIsMasterLinkOpen(true),
 		onOpenBlinds: () => {
 			setSessionSheetTab("blinds");
 			setIsSessionSheetOpen(true);

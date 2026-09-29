@@ -28,6 +28,12 @@ vi.mock("@sapphire2/env/web", () => ({
 const SESSION_ID = "cash-1";
 const STACK_LABEL = "Current stack";
 const NOTE_FIELD = /^Note/;
+const FRIDAY_MASTER = /Friday 200\/400/;
+const DEEP_MASTER = /Deep 500\/1000/;
+const UNLINKED_CARD = /Not linked to a ring game/;
+const MASTER_NAME_FIELD = /Master name/;
+const FRIDAY_DEEP = /Friday Deep/;
+const UNLINKED_NOTICE = /is not linked to a ring game master/;
 const SINCE_START_LINE = /Session start/;
 const LAST_UPDATE_LINE = /Last update/;
 const STACK_FIELD = /^Stack/;
@@ -187,6 +193,24 @@ const backend = {
 		tableSize: 6 as number | null,
 	},
 	ringGameUpdates: [] as Record<string, unknown>[],
+	createdRingGames: [] as Record<string, unknown>[],
+	ringGameCreates: [] as Record<string, unknown>[],
+	failNextLink: false,
+	linkUpdates: [] as Record<string, unknown>[],
+};
+
+const DEEP_RING_GAME = {
+	ante: 0,
+	anteType: "none",
+	blind1: 500,
+	blind2: 1000,
+	blind3: null,
+	currencyId: null,
+	id: "ring-master-2",
+	maxBuyIn: null,
+	minBuyIn: null,
+	name: "Deep 500/1000",
+	tableSize: 9,
 };
 
 function events() {
@@ -259,9 +283,26 @@ const fixtureRouter = t.router({
 		getById: t.procedure.input(z.custom()).query(() => session()),
 		update: t.procedure
 			.input(
-				z.custom<{ currencyId?: string; id: string; memo?: string | null }>()
+				z.custom<{
+					currencyId?: string;
+					id: string;
+					memo?: string | null;
+					ringGameId?: string | null;
+					roomId?: string;
+				}>()
 			)
 			.mutation(({ input }) => {
+				if (input.ringGameId !== undefined) {
+					backend.linkUpdates.push(input);
+					if (backend.failNextLink) {
+						backend.failNextLink = false;
+						throw new Error("link failed");
+					}
+					backend.masterRingGameId = input.ringGameId;
+				}
+				if (input.roomId !== undefined) {
+					backend.masterRoomId = input.roomId;
+				}
 				if (input.memo !== undefined) {
 					backend.sessionMemo = input.memo;
 				}
@@ -451,9 +492,37 @@ const fixtureRouter = t.router({
 		}),
 	}),
 	ringGame: t.router({
+		create: t.procedure
+			.input(z.custom<Record<string, unknown>>())
+			.mutation(({ input }) => {
+				backend.ringGameCreates.push(input);
+				const created = {
+					ante: null,
+					anteType: null,
+					blind1: null,
+					blind2: null,
+					blind3: null,
+					currencyId: null,
+					maxBuyIn: null,
+					minBuyIn: null,
+					tableSize: null,
+					...input,
+					id: "ring-new",
+				};
+				backend.createdRingGames.push(created);
+				return { id: created.id };
+			}),
 		listByRoom: t.procedure
 			.input(z.custom<{ roomId: string }>())
-			.query(() => [backend.ringGameMaster]),
+			.query(({ input }) =>
+				input.roomId === "room-1"
+					? [
+							backend.ringGameMaster,
+							DEEP_RING_GAME,
+							...backend.createdRingGames,
+						]
+					: []
+			),
 		update: t.procedure
 			.input(z.custom<Record<string, unknown>>())
 			.mutation(({ input }) => {
@@ -466,6 +535,12 @@ const fixtureRouter = t.router({
 				}
 				return { id: backend.ringGameMaster.id };
 			}),
+	}),
+	room: t.router({
+		list: t.procedure.query(() => [
+			{ id: "room-1", name: "Card House Tokyo" },
+			{ id: "room-2", name: "Poker Bar Umeda" },
+		]),
 	}),
 	session: t.router({
 		getById: t.procedure.input(z.custom()).query(() => ({
@@ -727,6 +802,10 @@ beforeEach(() => {
 		tableSize: 6,
 	};
 	backend.ringGameUpdates = [];
+	backend.createdRingGames = [];
+	backend.ringGameCreates = [];
+	backend.failNextLink = false;
+	backend.linkUpdates = [];
 	SESSION_TAGS.length = 0;
 	SESSION_TAGS.push(
 		{ id: "stag-1", name: "Weekend" },
@@ -760,10 +839,12 @@ describe("CashCockpit", () => {
 	it.each([
 		[null, "Not linked to master"],
 		["ring-master-1", "Linked to master"],
-	])("names the icon-only master link state (ringGameId %s)", async (ringGameId, label) => {
+	])("names the icon-only master link button (ringGameId %s)", async (ringGameId, label) => {
 		backend.masterRingGameId = ringGameId;
 		renderCockpit();
-		expect(await screen.findByRole("img", { name: label })).toBeInTheDocument();
+		expect(
+			await screen.findByRole("button", { name: label })
+		).toBeInTheDocument();
 	});
 
 	it("records a stack update and follows the new value", async () => {
@@ -1877,5 +1958,187 @@ describe("CashCockpit", () => {
 				expect.objectContaining({ mixGames: null, variant: "NLH" })
 			);
 		});
+	});
+});
+
+describe("CashCockpit master link", () => {
+	const LINK_SHEET = "Link ring game";
+
+	async function openFromPill(user: ReturnType<typeof userEvent.setup>) {
+		await user.click(
+			await screen.findByRole("button", { name: "Not linked to master" })
+		);
+		return screen.findByRole("dialog", { name: LINK_SHEET });
+	}
+
+	it("links an existing ring game from the header pill without touching the snapshot", async () => {
+		backend.masterRoomId = "room-1";
+		const user = userEvent.setup();
+		renderCockpit();
+
+		const sheet = await openFromPill(user);
+		expect(within(sheet).getByLabelText("Room")).toHaveValue("room-1");
+		const list = within(sheet).getByRole("group", {
+			name: "Existing ring game masters",
+		});
+		const friday = await within(list).findByRole("button", {
+			name: FRIDAY_MASTER,
+		});
+		const deep = within(list).getByRole("button", { name: DEEP_MASTER });
+		expect(within(friday).getByText("Same rules")).toBeInTheDocument();
+		expect(within(deep).queryByText("Same rules")).not.toBeInTheDocument();
+		const confirm = within(sheet).getByRole("button", { name: "Link" });
+		expect(confirm).toBeDisabled();
+
+		await user.click(friday);
+		expect(friday).toHaveAttribute("aria-pressed", "true");
+		await user.click(confirm);
+
+		await waitForClosed(LINK_SHEET);
+		expect(backend.linkUpdates).toEqual([
+			{
+				id: SESSION_ID,
+				keepSnapshot: true,
+				ringGameId: "ring-master-1",
+				roomId: "room-1",
+			},
+		]);
+		expect(backend.snapshotUpdates).toEqual([]);
+		expect(
+			await screen.findByRole("button", { name: "Linked to master" })
+		).toBeInTheDocument();
+	});
+
+	it("drops the pick when the room changes and shows the empty state for a room without ring games", async () => {
+		backend.masterRoomId = "room-1";
+		const user = userEvent.setup();
+		renderCockpit();
+
+		const sheet = await openFromPill(user);
+		await user.click(
+			await within(sheet).findByRole("button", { name: FRIDAY_MASTER })
+		);
+		await user.selectOptions(within(sheet).getByLabelText("Room"), "room-2");
+
+		expect(
+			await within(sheet).findByText(
+				"No ring game in this room — create one instead"
+			)
+		).toBeInTheDocument();
+		expect(within(sheet).getByRole("button", { name: "Link" })).toBeDisabled();
+	});
+
+	it("saves the session's rules as a new ring game from the Overview card and links it", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Session settings" })
+		);
+		await user.click(
+			await screen.findByRole("button", { name: UNLINKED_CARD })
+		);
+		const sheet = await screen.findByRole("dialog", { name: LINK_SHEET });
+		await user.click(within(sheet).getByRole("tab", { name: "Create new" }));
+
+		expect(within(sheet).getByText("200 / 400")).toBeInTheDocument();
+		expect(within(sheet).getByText("6-max")).toBeInTheDocument();
+		const name = within(sheet).getByLabelText(MASTER_NAME_FIELD);
+		expect(name).toHaveValue("Friday 200/400");
+		await user.clear(name);
+		const confirm = within(sheet).getByRole("button", {
+			name: "Create and link",
+		});
+		await user.click(confirm);
+		expect(await within(sheet).findByRole("alert")).toHaveTextContent(
+			"Required"
+		);
+		expect(backend.ringGameCreates).toEqual([]);
+
+		await user.type(name, "Friday Deep");
+		await user.click(confirm);
+
+		await waitForClosed(LINK_SHEET);
+		expect(backend.ringGameCreates).toEqual([
+			{
+				ante: 0,
+				anteType: "none",
+				blind1: 200,
+				blind2: 400,
+				mixGames: null,
+				name: "Friday Deep",
+				roomId: "room-1",
+				tableSize: 6,
+				variant: "NLH",
+			},
+		]);
+		expect(backend.linkUpdates).toEqual([
+			{
+				id: SESSION_ID,
+				keepSnapshot: true,
+				ringGameId: "ring-new",
+				roomId: "room-1",
+			},
+		]);
+		const card = await screen.findByRole("button", { name: FRIDAY_DEEP });
+		expect(card).toHaveTextContent("Card House Tokyo · 200/400 · 6-max");
+	});
+
+	it("keeps a created ring game picked when linking it fails, so the retry does not create it twice", async () => {
+		backend.masterRoomId = "room-1";
+		backend.failNextLink = true;
+		const user = userEvent.setup();
+		renderCockpit();
+
+		const sheet = await openFromPill(user);
+		await user.click(within(sheet).getByRole("tab", { name: "Create new" }));
+		const name = within(sheet).getByLabelText(MASTER_NAME_FIELD);
+		await user.clear(name);
+		await user.type(name, "Friday Deep");
+		await user.click(
+			within(sheet).getByRole("button", { name: "Create and link" })
+		);
+
+		const created = await within(sheet).findByRole("button", {
+			name: FRIDAY_DEEP,
+		});
+		expect(created).toHaveAttribute("aria-pressed", "true");
+		expect(
+			within(sheet).getByRole("tab", { name: "Select existing" })
+		).toHaveAttribute("aria-selected", "true");
+
+		await user.click(within(sheet).getByRole("button", { name: "Link" }));
+
+		await waitForClosed(LINK_SHEET);
+		expect(backend.ringGameCreates).toHaveLength(1);
+		expect(backend.linkUpdates.map((update) => update.ringGameId)).toEqual([
+			"ring-new",
+			"ring-new",
+		]);
+	});
+
+	it("unlinks the linked ring game and leaves the sheet on the unlinked state", async () => {
+		backend.masterRoomId = "room-1";
+		backend.masterRingGameId = "ring-master-1";
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Linked to master" })
+		);
+		const sheet = await screen.findByRole("dialog", { name: "Change master" });
+		expect(
+			await within(sheet).findByText("Card House Tokyo · 200/400 · 6-max")
+		).toBeInTheDocument();
+
+		await user.click(within(sheet).getByRole("button", { name: "Unlink" }));
+
+		await waitFor(() => {
+			expect(backend.linkUpdates).toEqual([
+				{ id: SESSION_ID, keepSnapshot: true, ringGameId: null },
+			]);
+		});
+		expect(await within(sheet).findByText(UNLINKED_NOTICE)).toBeInTheDocument();
+		expect(backend.snapshotUpdates).toEqual([]);
 	});
 });
