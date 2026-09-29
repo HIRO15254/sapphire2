@@ -1,3 +1,4 @@
+import type { MixGameGroup } from "@sapphire2/db/schemas/game";
 import { act, cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { initTRPC } from "@trpc/server";
@@ -45,6 +46,35 @@ const WEEKEND_TAG_CHOICE = /Weekend/;
 const CURRENCY_ROW = /Currency/;
 const CLUB_CHIPS_ROW = /Club chips/;
 const JAPANESE_YEN_ROW = /Japanese yen/;
+const HORSE_PRESET = /^HORSE/;
+const BADUGI_PRESET = /^Badugi/;
+const LIMIT_STRUCTURE = /^Limit/;
+const NAME_FIELD = /^Name/;
+const GAME_TYPE_DESCRIPTION = /^Game type/;
+const NLH_ROW = /^NLH/;
+const RAZZ_ROW = /^Razz/;
+const STUD_ROW = /^Stud(?! Hi-Lo)/;
+
+const HORSE_GAMES: MixGameGroup[] = [
+	{
+		ante: null,
+		anteType: "none",
+		blind1: null,
+		blind2: null,
+		blind3: null,
+		name: null,
+		variants: ["Limit Hold'em", "Omaha Hi-Lo"],
+	},
+	{
+		ante: null,
+		anteType: "none",
+		blind1: null,
+		blind2: null,
+		blind3: null,
+		name: null,
+		variants: ["Razz", "Stud", "Stud Hi-Lo"],
+	},
+];
 
 interface CreatedEvent {
 	eventType: string;
@@ -63,6 +93,47 @@ interface UpdatedEvent {
 	id: string;
 	occurredAt?: number;
 	payload?: Record<string, unknown>;
+}
+
+interface VariantRow {
+	groupId: string;
+	id: string;
+	label: string;
+	shortLabel: string | null;
+}
+
+interface MixRow {
+	builtinKey: string | null;
+	games: string[];
+	id: string;
+	label: string;
+}
+
+function initialVariants(): VariantRow[] {
+	return [
+		{ groupId: "grp-1", id: "var-1", label: "NLH", shortLabel: "NLH" },
+		{
+			groupId: "grp-2",
+			id: "var-2",
+			label: "Limit Hold'em",
+			shortLabel: "LHE",
+		},
+		{ groupId: "grp-2", id: "var-3", label: "Omaha Hi-Lo", shortLabel: "O8" },
+		{ groupId: "grp-3", id: "var-4", label: "Razz", shortLabel: "RAZZ" },
+		{ groupId: "grp-3", id: "var-5", label: "Stud", shortLabel: "STUD" },
+		{ groupId: "grp-3", id: "var-6", label: "Stud Hi-Lo", shortLabel: "S8" },
+	];
+}
+
+function initialMixes(): MixRow[] {
+	return [
+		{
+			builtinKey: "horse",
+			games: ["var-2", "var-3", "var-4", "var-5", "var-6"],
+			id: "mix-1",
+			label: "HORSE",
+		},
+	];
 }
 
 interface SeatedPlayer {
@@ -89,13 +160,19 @@ const backend = {
 	removedPlayerIds: [] as string[],
 	sessionCurrencyId: null as string | null,
 	sessionMemo: null as string | null,
+	sessionMixGames: null as MixGameGroup[] | null,
 	sessionTableSize: 6 as number | null,
 	sessionTagIds: [] as string[],
+	sessionVariant: "NLH",
 	snapshotUpdates: [] as Record<string, unknown>[],
 	status: "active",
 	updatedEvents: [] as UpdatedEvent[],
 	masterRingGameId: null as string | null,
 	masterRoomId: null as string | null,
+	mixes: initialMixes(),
+	mixWrites: [] as Record<string, unknown>[],
+	variants: initialVariants(),
+	variantWrites: [] as Record<string, unknown>[],
 	ringGameMaster: {
 		ante: 0,
 		anteType: "none" as string | null,
@@ -148,7 +225,7 @@ function session() {
 		roomId: null,
 		ringGameId: backend.masterRingGameId,
 		ruleName: "Friday 200/400",
-		variant: "NLH",
+		variant: backend.sessionVariant,
 		blind2: 400,
 		tableSize: backend.sessionTableSize,
 		heroSeatPosition: null,
@@ -199,6 +276,12 @@ const fixtureRouter = t.router({
 				backend.snapshotUpdates.push(input);
 				if (typeof input.tableSize === "number") {
 					backend.sessionTableSize = input.tableSize;
+				}
+				if (typeof input.variant === "string") {
+					backend.sessionVariant = input.variant;
+				}
+				if (Object.hasOwn(input, "mixGames")) {
+					backend.sessionMixGames = input.mixGames as MixGameGroup[] | null;
 				}
 				return { id: SESSION_ID };
 			}),
@@ -311,13 +394,61 @@ const fixtureRouter = t.router({
 				id: "grp-1",
 				label: "Big Bet",
 			},
+			{
+				blind1Label: "Small Bet",
+				blind2Label: "Big Bet",
+				blind3Label: null,
+				builtinKey: "limit",
+				id: "grp-2",
+				label: "Limit",
+			},
+			{
+				blind1Label: "Small Bet",
+				blind2Label: "Big Bet",
+				blind3Label: "Bring-in",
+				builtinKey: "stud",
+				id: "grp-3",
+				label: "Stud",
+			},
 		]),
 	}),
-	gameMix: t.router({ list: t.procedure.query(() => []) }),
+	gameMix: t.router({
+		create: t.procedure
+			.input(z.custom<{ games: string[]; label: string }>())
+			.mutation(({ input }) => {
+				backend.mixWrites.push(input);
+				const created = { builtinKey: null, id: "mix-new", ...input };
+				backend.mixes.push(created);
+				return created;
+			}),
+		list: t.procedure.query(() => backend.mixes),
+		update: t.procedure
+			.input(z.custom<{ games: string[]; id: string; label: string }>())
+			.mutation(({ input }) => {
+				backend.mixWrites.push(input);
+				backend.mixes = backend.mixes.map((mix) =>
+					mix.id === input.id ? { ...mix, ...input } : mix
+				);
+				return backend.mixes.find((mix) => mix.id === input.id);
+			}),
+	}),
 	gameVariant: t.router({
-		list: t.procedure.query(() => [
-			{ groupId: "grp-1", id: "var-1", label: "NLH" },
-		]),
+		create: t.procedure
+			.input(z.custom<Omit<VariantRow, "id">>())
+			.mutation(({ input }) => {
+				backend.variantWrites.push(input);
+				const created = { id: "var-new", ...input };
+				backend.variants.push(created);
+				return created;
+			}),
+		list: t.procedure.query(() => backend.variants),
+		update: t.procedure.input(z.custom<VariantRow>()).mutation(({ input }) => {
+			backend.variantWrites.push(input);
+			backend.variants = backend.variants.map((row) =>
+				row.id === input.id ? { ...row, ...input } : row
+			);
+			return backend.variants.find((row) => row.id === input.id);
+		}),
 	}),
 	ringGame: t.router({
 		listByRoom: t.procedure
@@ -344,8 +475,9 @@ const fixtureRouter = t.router({
 			cashBlind3: null,
 			cashMaxBuyIn: null,
 			cashMinBuyIn: null,
+			cashMixGames: backend.sessionMixGames,
 			cashTableSize: backend.sessionTableSize,
-			cashVariant: "NLH",
+			cashVariant: backend.sessionVariant,
 			currencyId: backend.sessionCurrencyId,
 			currencyName: backend.sessionCurrencyId === "cur-2" ? "Club chips" : null,
 			currencyUnit: backend.sessionCurrencyId === "cur-2" ? "chips" : null,
@@ -521,6 +653,26 @@ function renderCockpit() {
 	});
 }
 
+async function openBasics(user: ReturnType<typeof userEvent.setup>) {
+	await user.click(
+		await screen.findByRole("button", { name: "Session settings" })
+	);
+	await user.click(await screen.findByRole("tab", { name: "Basics" }));
+}
+
+async function openGameTypePicker(user: ReturnType<typeof userEvent.setup>) {
+	await user.click(
+		await screen.findByRole("button", { description: "Game type" })
+	);
+	return screen.findByRole("dialog", { name: "Select game type" });
+}
+
+async function waitForClosed(name: string) {
+	await waitFor(() => {
+		expect(screen.queryByRole("dialog", { name })).not.toBeInTheDocument();
+	});
+}
+
 beforeAll(() => {
 	server.listen({ onUnhandledRequest: "error" });
 });
@@ -548,13 +700,19 @@ beforeEach(() => {
 	backend.removedPlayerIds = [];
 	backend.sessionCurrencyId = null;
 	backend.sessionMemo = null;
+	backend.sessionMixGames = null;
 	backend.sessionTableSize = 6;
 	backend.sessionTagIds = [];
+	backend.sessionVariant = "NLH";
 	backend.snapshotUpdates = [];
 	backend.status = "active";
 	backend.updatedEvents = [];
 	backend.masterRingGameId = null;
 	backend.masterRoomId = null;
+	backend.mixes = initialMixes();
+	backend.mixWrites = [];
+	backend.variants = initialVariants();
+	backend.variantWrites = [];
 	backend.ringGameMaster = {
 		ante: 0,
 		anteType: "none",
@@ -1417,5 +1575,307 @@ describe("CashCockpit", () => {
 
 		expect(await screen.findByLabelText(TABLE_SIZE_FIELD)).toHaveValue("6");
 		expect(backend.snapshotUpdates).toEqual([]);
+	});
+
+	it("builds a picked mix's groups from the game masters and saves them with the variant, leaving the masters alone", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+		await openBasics(user);
+
+		const picker = await openGameTypePicker(user);
+		await user.click(within(picker).getByRole("tab", { name: "Mixed game" }));
+		await user.click(within(picker).getByRole("radio", { name: HORSE_PRESET }));
+		await waitForClosed("Select game type");
+
+		expect(screen.getByRole("group", { name: "Limit" })).toBeInTheDocument();
+		expect(screen.getByRole("group", { name: "Stud" })).toBeInTheDocument();
+		expect(screen.queryByLabelText("SB")).not.toBeInTheDocument();
+
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.snapshotUpdates).toContainEqual(
+				expect.objectContaining({
+					ante: null,
+					blind1: null,
+					blind2: null,
+					mixGames: [
+						{ ...HORSE_GAMES[0], name: "Limit" },
+						{ ...HORSE_GAMES[1], name: "Stud" },
+					],
+					variant: "HORSE",
+				})
+			);
+		});
+		expect(backend.mixWrites).toEqual([]);
+		expect(backend.variantWrites).toEqual([]);
+	});
+
+	it("sets each group's stakes in Basics and saves them with the mix", async () => {
+		backend.sessionVariant = "HORSE";
+		backend.sessionMixGames = HORSE_GAMES;
+		const user = userEvent.setup();
+		renderCockpit();
+		await openBasics(user);
+
+		const limit = await screen.findByRole("group", { name: "Limit" });
+		await user.type(within(limit).getByLabelText("Small Bet"), "200");
+		await user.type(within(limit).getByLabelText("Big Bet"), "400");
+		expect(within(limit).getByLabelText("Ante")).toBeDisabled();
+		await user.click(within(limit).getByRole("radio", { name: "BB" }));
+		await user.type(within(limit).getByLabelText("Ante"), "400");
+		const stud = screen.getByRole("group", { name: "Stud" });
+		await user.type(within(stud).getByLabelText("Bring-in"), "50");
+
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.snapshotUpdates).toContainEqual(
+				expect.objectContaining({
+					mixGames: [
+						expect.objectContaining({
+							ante: 400,
+							anteType: "bb",
+							blind1: 200,
+							blind2: 400,
+							name: "Limit",
+							variants: ["Limit Hold'em", "Omaha Hi-Lo"],
+						}),
+						expect.objectContaining({
+							blind1: null,
+							blind3: 50,
+							name: "Stud",
+							variants: ["Razz", "Stud", "Stud Hi-Lo"],
+						}),
+					],
+					variant: "HORSE",
+				})
+			);
+		});
+	});
+
+	it("edits the selected mix's master only through Edit mix, then applies its new games to the session", async () => {
+		backend.sessionVariant = "HORSE";
+		backend.sessionMixGames = HORSE_GAMES;
+		const user = userEvent.setup();
+		renderCockpit();
+		await openBasics(user);
+
+		const picker = await openGameTypePicker(user);
+		expect(
+			within(picker).getByRole("radio", { name: HORSE_PRESET })
+		).toBeChecked();
+		await user.click(within(picker).getByRole("button", { name: "Edit mix" }));
+		const master = await screen.findByRole("dialog", { name: "Edit mix" });
+		await user.click(
+			within(master).getByRole("button", { name: "Remove Omaha Hi-Lo" })
+		);
+		await user.click(within(master).getByRole("button", { name: "Save" }));
+		await waitForClosed("Edit mix");
+		await waitForClosed("Select game type");
+
+		expect(backend.mixWrites).toEqual([
+			{
+				games: ["var-2", "var-4", "var-5", "var-6"],
+				id: "mix-1",
+				label: "HORSE",
+			},
+		]);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.snapshotUpdates).toContainEqual(
+				expect.objectContaining({
+					mixGames: [
+						expect.objectContaining({ variants: ["Limit Hold'em"] }),
+						expect.objectContaining({
+							variants: ["Razz", "Stud", "Stud Hi-Lo"],
+						}),
+					],
+					variant: "HORSE",
+				})
+			);
+		});
+	});
+
+	it("creates a mix from the picker only once it has two games, then picks it for the session", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+		await openBasics(user);
+
+		const picker = await openGameTypePicker(user);
+		await user.click(within(picker).getByRole("tab", { name: "Mixed game" }));
+		expect(
+			within(picker).getByRole("button", { name: "Edit mix" })
+		).toBeDisabled();
+		await user.click(within(picker).getByRole("button", { name: "New mix" }));
+		const master = await screen.findByRole("dialog", { name: "New mix" });
+		await user.type(within(master).getByLabelText(NAME_FIELD), "Stud pair");
+		await user.click(within(master).getByRole("button", { name: "Add games" }));
+		const games = await screen.findByRole("dialog", { name: "Games in mix" });
+		await user.click(within(games).getByRole("button", { name: RAZZ_ROW }));
+		await user.keyboard("{Escape}");
+		await waitForClosed("Games in mix");
+
+		await user.click(within(master).getByRole("button", { name: "Save" }));
+		expect(await within(master).findByRole("alert")).toHaveTextContent(
+			"Pick at least 2 games"
+		);
+		expect(backend.mixWrites).toEqual([]);
+
+		await user.click(within(master).getByRole("button", { name: "Add games" }));
+		const again = await screen.findByRole("dialog", { name: "Games in mix" });
+		await user.click(within(again).getByRole("button", { name: STUD_ROW }));
+		await user.keyboard("{Escape}");
+		await waitForClosed("Games in mix");
+		await user.click(within(master).getByRole("button", { name: "Save" }));
+		await waitForClosed("New mix");
+		await waitForClosed("Select game type");
+
+		expect(backend.mixWrites).toEqual([
+			{ games: ["var-4", "var-5"], label: "Stud pair" },
+		]);
+		expect(
+			screen.getByRole("button", { description: "Game type" })
+		).toHaveTextContent("Stud pair");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.snapshotUpdates).toContainEqual(
+				expect.objectContaining({
+					mixGames: [
+						expect.objectContaining({
+							name: "Stud",
+							variants: ["Razz", "Stud"],
+						}),
+					],
+					variant: "Stud pair",
+				})
+			);
+		});
+	});
+
+	it("creates a game from the picker and picks it for the session", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+		await openBasics(user);
+
+		const picker = await openGameTypePicker(user);
+		await user.click(within(picker).getByRole("button", { name: "New game" }));
+		const master = await screen.findByRole("dialog", { name: "New game" });
+		await user.type(within(master).getByLabelText(NAME_FIELD), "Badugi");
+		await user.type(within(master).getByLabelText("Short name"), "BDG");
+		await user.click(
+			within(master).getByRole("radio", { name: LIMIT_STRUCTURE })
+		);
+		await user.click(within(master).getByRole("button", { name: "Save" }));
+		await waitForClosed("New game");
+		await waitForClosed("Select game type");
+
+		expect(backend.variantWrites).toEqual([
+			{ groupId: "grp-2", label: "Badugi", shortLabel: "BDG" },
+		]);
+		expect(
+			screen.getByRole("button", { description: "Game type" })
+		).toHaveTextContent("Badugi");
+		expect(screen.getByLabelText("Small Bet")).toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.snapshotUpdates).toContainEqual(
+				expect.objectContaining({ mixGames: null, variant: "Badugi" })
+			);
+		});
+	});
+
+	it("keeps a legacy custom mix's games, saves its stakes and no longer offers custom mixes", async () => {
+		backend.sessionVariant = "mix";
+		backend.sessionMixGames = HORSE_GAMES;
+		const user = userEvent.setup();
+		renderCockpit();
+		await openBasics(user);
+
+		expect(
+			await screen.findByRole("button", { description: "Game type" })
+		).toHaveTextContent("Custom mix");
+		const stud = screen.getByRole("group", { name: "Stud" });
+		await user.type(within(stud).getByLabelText("Bring-in"), "50");
+
+		const picker = await openGameTypePicker(user);
+		expect(within(picker).getByRole("status")).toHaveTextContent(
+			"custom mix that is not in your game list"
+		);
+		expect(within(picker).getAllByRole("radio")).toHaveLength(1);
+		expect(
+			within(picker).queryByRole("radio", { name: BADUGI_PRESET })
+		).not.toBeInTheDocument();
+		await user.keyboard("{Escape}");
+		await waitForClosed("Select game type");
+
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.snapshotUpdates).toContainEqual(
+				expect.objectContaining({
+					mixGames: [
+						expect.objectContaining({ blind3: null }),
+						expect.objectContaining({ blind3: 50 }),
+					],
+					variant: "mix",
+				})
+			);
+		});
+	});
+
+	it("refuses to save a mix without two games and returns to Basics to say why", async () => {
+		backend.sessionVariant = "mix";
+		backend.sessionMixGames = [
+			{ ...(HORSE_GAMES[1] as MixGameGroup), variants: ["Razz"] },
+		];
+		const user = userEvent.setup();
+		renderCockpit();
+		await openBasics(user);
+
+		await user.click(screen.getByRole("tab", { name: "Overview" }));
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(screen.getByRole("tab", { name: "Basics" })).toHaveAttribute(
+				"aria-selected",
+				"true"
+			);
+		});
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"A mix needs at least two games"
+		);
+		expect(
+			screen.getByRole("button", { description: GAME_TYPE_DESCRIPTION })
+		).toHaveAttribute("aria-invalid", "true");
+		expect(backend.snapshotUpdates).toEqual([]);
+	});
+
+	it("drops the mix composition when a single game is picked", async () => {
+		backend.sessionVariant = "HORSE";
+		backend.sessionMixGames = HORSE_GAMES;
+		const user = userEvent.setup();
+		renderCockpit();
+		await openBasics(user);
+
+		const picker = await openGameTypePicker(user);
+		await user.click(within(picker).getByRole("tab", { name: "Single game" }));
+		await user.click(within(picker).getByRole("button", { name: NLH_ROW }));
+		await waitForClosed("Select game type");
+
+		expect(
+			screen.queryByRole("group", { name: "Limit" })
+		).not.toBeInTheDocument();
+
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.snapshotUpdates).toContainEqual(
+				expect.objectContaining({ mixGames: null, variant: "NLH" })
+			);
+		});
 	});
 });

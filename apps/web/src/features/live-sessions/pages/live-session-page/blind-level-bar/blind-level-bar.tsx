@@ -5,18 +5,21 @@ import {
 	CRYST_BADGE,
 	CRYST_BADGE_TONE,
 	CRYST_CARD,
+	CRYST_FOCUS_RING,
 	crystButton,
 } from "../cryst-controls";
 
 interface BlindLevelBarProps {
 	isStartPending: boolean;
 	level: BlindLevelView;
+	onOpenBlinds: () => void;
 	onStartTimer: () => void;
 }
 
 export function BlindLevelBar({
 	isStartPending,
 	level,
+	onOpenBlinds,
 	onStartTimer,
 }: BlindLevelBarProps) {
 	const clockClass = level.isWarning ? "text-warning" : "text-foreground";
@@ -30,8 +33,15 @@ export function BlindLevelBar({
 			)}
 		>
 			<div className="flex items-center gap-2.5 px-3 py-2">
-				<div className="-m-1 min-w-0 flex-1 rounded-md p-1">
-					<div className="flex min-w-0 items-center gap-[5px]">
+				<button
+					className={cn(
+						"-m-1 min-w-0 flex-1 rounded-md p-1 text-left transition-colors hover:bg-accent",
+						CRYST_FOCUS_RING
+					)}
+					onClick={onOpenBlinds}
+					type="button"
+				>
+					<span className="flex min-w-0 items-center gap-[5px]">
 						<span className="shrink-0 text-[length:var(--text-xs)] text-muted-foreground">
 							{level.levelLabel}
 						</span>
@@ -47,8 +57,8 @@ export function BlindLevelBar({
 								<span className="truncate">{level.gameText}</span>
 							</span>
 						)}
-					</div>
-					<div className="truncate font-mono font-semibold text-[length:var(--text-sm)] tabular-nums">
+					</span>
+					<span className="block truncate font-mono font-semibold text-[length:var(--text-sm)] tabular-nums">
 						{level.blindsText}
 						{level.anteText === null ? null : (
 							<span className="font-normal text-muted-foreground">
@@ -56,8 +66,9 @@ export function BlindLevelBar({
 								{level.anteText}
 							</span>
 						)}
-					</div>
-				</div>
+					</span>
+					<span className="sr-only">Edit blind structure</span>
+				</button>
 				<div className="text-right">
 					<div
 						className={cn(

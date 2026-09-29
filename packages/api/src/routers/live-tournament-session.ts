@@ -22,6 +22,7 @@ import {
 	ACTIVE_SESSION_CONFLICT_MESSAGE,
 	runUnfinishedLiveSessionWrite,
 } from "../lib/db-errors";
+import { assertLevelGameStructures } from "../services/game-structure";
 import {
 	computeHeroSeatPositionFromEvents,
 	computeTournamentPLFromEvents,
@@ -997,6 +998,9 @@ export const liveTournamentSessionRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await findLiveTournamentSession(ctx.db, input.id, userId);
+			await assertLevelGameStructures(ctx.db, userId, input.blindLevels, {
+				sessionId: input.id,
+			});
 
 			const detailUpdate: Partial<typeof sessionTournamentDetail.$inferInsert> =
 				{};

@@ -50,6 +50,7 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 					<BlindLevelBar
 						isStartPending={cockpit.isUpdatingTimer}
 						level={cockpit.blindLevel}
+						onOpenBlinds={cockpit.onOpenBlinds}
 						onStartTimer={cockpit.onStartTimer}
 					/>
 				)}
@@ -146,6 +147,8 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 				seats={cockpit.scanSeats}
 			/>
 			<SessionSheet
+				currentBlindLevelId={cockpit.blindLevel?.levelId ?? null}
+				initialTab={cockpit.sessionSheetTab}
 				onOpenChange={cockpit.onSessionSheetOpenChange}
 				open={cockpit.isSessionSheetOpen}
 				purchaseOptions={cockpit.chipPurchaseOptions}
