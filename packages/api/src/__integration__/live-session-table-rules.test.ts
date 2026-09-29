@@ -228,8 +228,8 @@ describe("manual sessions linked to a master", () => {
 	});
 });
 
-describe("hand count and dealer offset", () => {
-	test("a new live session starts uncounted with the dealer offset at zero, and both persist while it is active", async ({
+describe("hand count and dealer seat", () => {
+	test("a new live session starts uncounted with no dealer seat, and both persist while it is active", async ({
 		api,
 	}) => {
 		const saved = requireCreatedRow(
@@ -238,19 +238,19 @@ describe("hand count and dealer offset", () => {
 		const read = () =>
 			api.caller("alice").liveCashGameSession.getById({ id: saved.id });
 
-		expect(await read()).toMatchObject({ handCount: null, dealerOffset: 0 });
+		expect(await read()).toMatchObject({ handCount: null, dealerSeat: null });
 
 		await api.alice.liveCashGameSession.update({
 			id: saved.id,
 			handCount: 42,
-			dealerOffset: 3,
+			dealerSeat: 3,
 		});
-		expect(await read()).toMatchObject({ handCount: 42, dealerOffset: 3 });
+		expect(await read()).toMatchObject({ handCount: 42, dealerSeat: 3 });
 
 		await expect(
 			api.bob.liveCashGameSession.update({ id: saved.id, handCount: 0 })
 		).rejects.toMatchObject({ code: "FORBIDDEN" });
-		expect(await read()).toMatchObject({ handCount: 42, dealerOffset: 3 });
+		expect(await read()).toMatchObject({ handCount: 42, dealerSeat: 3 });
 	});
 
 	test("rejects hand tracking edits while paused or after completion without writing them", async ({
@@ -262,7 +262,7 @@ describe("hand count and dealer offset", () => {
 		await api.alice.liveTournamentSession.update({
 			id: saved.id,
 			handCount: 10,
-			dealerOffset: 1,
+			dealerSeat: 1,
 		});
 		await api.alice.sessionEvent.create({
 			sessionId: saved.id,
@@ -273,7 +273,7 @@ describe("hand count and dealer offset", () => {
 			const [row] = await api.db
 				.select({
 					handCount: gameSession.handCount,
-					dealerOffset: gameSession.dealerOffset,
+					dealerSeat: gameSession.dealerSeat,
 					memo: gameSession.memo,
 				})
 				.from(gameSession)
@@ -289,11 +289,11 @@ describe("hand count and dealer offset", () => {
 			})
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		await expect(
-			api.alice.liveTournamentSession.update({ id: saved.id, dealerOffset: 2 })
+			api.alice.liveTournamentSession.update({ id: saved.id, dealerSeat: 2 })
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		expect(await readRow()).toEqual({
 			handCount: 10,
-			dealerOffset: 1,
+			dealerSeat: 1,
 			memo: null,
 		});
 

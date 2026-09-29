@@ -1,83 +1,85 @@
-import { MAX_SEAT_POSITION } from "@sapphire2/db/constants/session-event-types";
 import { describe, expect, it } from "vitest";
 import {
 	computeHandsPerHour,
-	dealerSeatIndex,
-	dealerSpot,
-	shiftDealerOffset,
+	resolveDealerSeat,
+	seatedPositions,
+	stepDealerSeat,
 } from "@/features/live-sessions/utils/hand-tracking";
 
-describe("dealerSeatIndex", () => {
-	it("advances one seat per hand and wraps at the table size", () => {
-		expect(dealerSeatIndex(0, 0, 9)).toBe(0);
-		expect(dealerSeatIndex(1, 0, 9)).toBe(1);
-		expect(dealerSeatIndex(9, 0, 9)).toBe(0);
-		expect(dealerSeatIndex(10, 0, 6)).toBe(4);
-	});
-
-	it("treats an uncounted session as hand zero", () => {
-		expect(dealerSeatIndex(null, 2, 9)).toBe(2);
-	});
-
-	it("adds the drift correction on top of the hand count", () => {
-		expect(dealerSeatIndex(3, 2, 6)).toBe(5);
-		expect(dealerSeatIndex(4, 2, 6)).toBe(0);
-	});
-
-	it("keeps a heads-up button alternating between the two seats", () => {
-		expect(dealerSeatIndex(0, 0, 2)).toBe(0);
-		expect(dealerSeatIndex(1, 0, 2)).toBe(1);
-		expect(dealerSeatIndex(2, 0, 2)).toBe(0);
-	});
-
-	it("has no seat to point at when the table has none", () => {
-		expect(dealerSeatIndex(5, 0, 0)).toBeNull();
+describe("seatedPositions", () => {
+	it("counts the hero and seated players, never an empty seat", () => {
+		expect(
+			seatedPositions([
+				{ occupancy: "empty", seatPosition: 0 },
+				{ occupancy: "player", seatPosition: 1 },
+				{ occupancy: "empty", seatPosition: 2 },
+				{ occupancy: "hero", seatPosition: 3 },
+			])
+		).toEqual([1, 3]);
 	});
 });
 
-describe("shiftDealerOffset", () => {
-	it("moves the button back from seat one to the last seat", () => {
-		expect(shiftDealerOffset(0, -1, 9)).toBe(8);
+describe("resolveDealerSeat", () => {
+	it("keeps the stored seat while someone sits there", () => {
+		expect(resolveDealerSeat(5, [1, 5, 7])).toBe(5);
 	});
 
-	it("moves the button forward from the last seat to seat one", () => {
-		expect(shiftDealerOffset(8, 1, 9)).toBe(0);
+	it("hands a vacated seat's button to the next seated player clockwise", () => {
+		expect(resolveDealerSeat(3, [1, 5, 7])).toBe(5);
 	});
 
-	it("undoes a back step with a forward step", () => {
-		const back = shiftDealerOffset(3, -1, 6);
-		expect(shiftDealerOffset(back, 1, 6)).toBe(3);
+	it("wraps past the last seat to the first seated player", () => {
+		expect(resolveDealerSeat(8, [1, 5])).toBe(1);
 	});
 
-	it("normalises an offset saved for a larger table into the current one", () => {
-		expect(shiftDealerOffset(7, 1, 6)).toBe(2);
+	it("starts an unplaced button at the first seated player", () => {
+		expect(resolveDealerSeat(null, [6, 2, 4])).toBe(2);
 	});
 
-	it("always stays inside the range the server accepts", () => {
-		for (let seats = 2; seats <= 10; seats++) {
-			for (let offset = 0; offset <= MAX_SEAT_POSITION; offset++) {
-				for (const step of [-1, 1]) {
-					const next = shiftDealerOffset(offset, step, seats);
-					expect(next).toBeGreaterThanOrEqual(0);
-					expect(next).toBeLessThanOrEqual(
-						Math.min(seats - 1, MAX_SEAT_POSITION)
-					);
-				}
+	it("has no seat when nobody is seated", () => {
+		expect(resolveDealerSeat(3, [])).toBeNull();
+		expect(resolveDealerSeat(null, [])).toBeNull();
+	});
+});
+
+describe("stepDealerSeat", () => {
+	it("moves forward past empty seats to the next seated player", () => {
+		expect(stepDealerSeat(1, 1, [1, 4, 6])).toBe(4);
+		expect(stepDealerSeat(6, 1, [1, 4, 6])).toBe(1);
+	});
+
+	it("moves back past empty seats, wrapping to the last seated player", () => {
+		expect(stepDealerSeat(4, -1, [1, 4, 6])).toBe(1);
+		expect(stepDealerSeat(1, -1, [1, 4, 6])).toBe(6);
+	});
+
+	it("steps from where the button is shown when its stored seat was vacated", () => {
+		expect(stepDealerSeat(3, 1, [1, 5, 7])).toBe(7);
+		expect(stepDealerSeat(3, -1, [1, 5, 7])).toBe(1);
+	});
+
+	it("steps from the first seated player when the button was never placed", () => {
+		expect(stepDealerSeat(null, 1, [2, 4])).toBe(4);
+	});
+
+	it("leaves the button on a lone seated player", () => {
+		expect(stepDealerSeat(3, 1, [3])).toBe(3);
+		expect(stepDealerSeat(3, -1, [3])).toBe(3);
+	});
+
+	it("has nowhere to go when nobody is seated", () => {
+		expect(stepDealerSeat(2, 1, [])).toBeNull();
+	});
+
+	it("returns to the same seated player after one step forward and one back", () => {
+		const tables = [[0, 1], [0, 3, 8], [2, 3, 4, 9], [5]];
+		for (const seated of tables) {
+			for (const seat of seated) {
+				const forward = stepDealerSeat(seat, 1, seated);
+				expect(seated).toContain(forward);
+				expect(stepDealerSeat(forward, -1, seated)).toBe(seat);
 			}
 		}
-	});
-});
-
-describe("dealerSpot", () => {
-	it("sits 34% of the way from the seat toward the table centre", () => {
-		const seat = { x: 14.5, y: 63 };
-		const spot = dealerSpot(seat);
-		expect(50 - spot.x).toBeCloseTo((50 - seat.x) * 0.66);
-		expect(spot.y - 50).toBeCloseTo((seat.y - 50) * 0.66);
-	});
-
-	it("leaves a seat already on the centre line on that line", () => {
-		expect(dealerSpot({ x: 50, y: 14.2 }).x).toBe(50);
 	});
 });
 

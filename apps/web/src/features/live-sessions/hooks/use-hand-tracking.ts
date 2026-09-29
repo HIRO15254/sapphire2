@@ -9,17 +9,17 @@ import {
 import { trpc, trpcClient } from "@/utils/trpc";
 
 export interface HandTrackingState {
-	dealerOffset: number;
+	dealerSeat: number | null;
 	handCount: number | null;
 }
 
 export type HandTrackingPatch = Partial<{
-	dealerOffset: number;
+	dealerSeat: number;
 	handCount: number;
 }>;
 
 interface HandTrackingEntity {
-	dealerOffset?: number | null;
+	dealerSeat?: number | null;
 	handCount?: number | null;
 }
 
@@ -73,7 +73,7 @@ export function useHandTracking({
 	const readCurrent = (): HandTrackingState => {
 		const entity = queryClient.getQueryData<HandTrackingEntity>(liveKey);
 		return {
-			dealerOffset: entity?.dealerOffset ?? 0,
+			dealerSeat: entity?.dealerSeat ?? null,
 			handCount: entity?.handCount ?? null,
 		};
 	};

@@ -28,7 +28,7 @@ vi.mock("@sapphire2/env/web", () => ({
 const SESSION_ID = "cash-1";
 
 function dealerButton(seat: string) {
-	return `Dealer button at ${seat}. Move it to the next seat`;
+	return `Dealer button at ${seat}. Move it to the next player`;
 }
 const STACK_LABEL = "Current stack";
 const NOTE_FIELD = /^Note/;
@@ -156,7 +156,7 @@ const backend = {
 	addedSeats: [] as SeatedPlayer[],
 	createdEvents: [] as CreatedEvent[],
 	currentStack: 12_000 as number | null,
-	dealerOffset: 0,
+	dealerSeat: null as number | null,
 	deletedEventIds: [] as string[],
 	handCount: null as number | null,
 	handGate: null as Promise<void> | null,
@@ -262,7 +262,7 @@ function session() {
 		variant: backend.sessionVariant,
 		blind2: 400,
 		tableSize: backend.sessionTableSize,
-		dealerOffset: backend.dealerOffset,
+		dealerSeat: backend.dealerSeat,
 		handCount: backend.handCount,
 		heroSeatPosition: null,
 		memo: backend.sessionMemo,
@@ -297,7 +297,7 @@ const fixtureRouter = t.router({
 			.input(
 				z.custom<{
 					currencyId?: string;
-					dealerOffset?: number;
+					dealerSeat?: number;
 					handCount?: number;
 					id: string;
 					memo?: string | null;
@@ -306,11 +306,11 @@ const fixtureRouter = t.router({
 				}>()
 			)
 			.mutation(async ({ input }) => {
-				if (input.handCount !== undefined || input.dealerOffset !== undefined) {
+				if (input.handCount !== undefined || input.dealerSeat !== undefined) {
 					backend.handUpdates.push(input);
 					await backend.handGate;
 					backend.handCount = input.handCount ?? backend.handCount;
-					backend.dealerOffset = input.dealerOffset ?? backend.dealerOffset;
+					backend.dealerSeat = input.dealerSeat ?? backend.dealerSeat;
 				}
 				if (input.ringGameId !== undefined) {
 					backend.linkUpdates.push(input);
@@ -785,7 +785,7 @@ beforeEach(() => {
 	backend.addedSeats = [];
 	backend.createdEvents = [];
 	backend.currentStack = 12_000;
-	backend.dealerOffset = 0;
+	backend.dealerSeat = null;
 	backend.deletedEventIds = [];
 	backend.handCount = null;
 	backend.handGate = null;
@@ -2206,7 +2206,7 @@ describe("CashCockpit hands and house rules", () => {
 		return screen.findByRole("textbox", { name: "House rules" });
 	}
 
-	it("counts hands from the table and sends each count as an absolute value, one request at a time", async () => {
+	it("counts hands from the table, passing the button between seated players, one request at a time", async () => {
 		let release: () => void = () => undefined;
 		backend.handGate = new Promise<void>((resolve) => {
 			release = resolve;
@@ -2227,18 +2227,20 @@ describe("CashCockpit hands and house rules", () => {
 			screen.getByRole("button", { name: "Hand count: 3" })
 		).toBeInTheDocument();
 		expect(
-			screen.getByRole("button", { name: dealerButton("S4") })
+			screen.getByRole("button", { name: dealerButton("S5") })
 		).toBeInTheDocument();
 		await waitFor(() => {
-			expect(backend.handUpdates).toEqual([{ handCount: 1, id: SESSION_ID }]);
+			expect(backend.handUpdates).toEqual([
+				{ dealerSeat: 4, handCount: 1, id: SESSION_ID },
+			]);
 		});
 
 		release();
 
 		await waitFor(() => {
 			expect(backend.handUpdates).toEqual([
-				{ handCount: 1, id: SESSION_ID },
-				{ handCount: 3, id: SESSION_ID },
+				{ dealerSeat: 4, handCount: 1, id: SESSION_ID },
+				{ dealerSeat: 4, handCount: 3, id: SESSION_ID },
 			]);
 		});
 		await waitFor(() => {
@@ -2249,26 +2251,48 @@ describe("CashCockpit hands and house rules", () => {
 		).toBeInTheDocument();
 	});
 
-	it("moves the dealer button one seat when D is tapped, leaving the hand count alone", async () => {
+	it("moves the dealer button past empty seats when D is tapped, leaving the hand count alone", async () => {
 		backend.handCount = 4;
+		backend.dealerSeat = 2;
 		const user = userEvent.setup();
 		renderCockpit();
 
 		await user.click(
-			await screen.findByRole("button", { name: dealerButton("S5") })
+			await screen.findByRole("button", { name: dealerButton("S3") })
 		);
 
 		expect(
-			await screen.findByRole("button", { name: dealerButton("S6") })
+			await screen.findByRole("button", { name: dealerButton("S5") })
 		).toBeInTheDocument();
 		await waitFor(() => {
-			expect(backend.handUpdates).toEqual([
-				{ dealerOffset: 1, id: SESSION_ID },
-			]);
+			expect(backend.dealerSeat).toBe(4);
 		});
+
+		await user.click(screen.getByRole("button", { name: dealerButton("S5") }));
+
+		expect(
+			await screen.findByRole("button", { name: dealerButton("S3") })
+		).toBeInTheDocument();
+		await waitFor(() => {
+			expect(backend.dealerSeat).toBe(2);
+		});
+		expect(
+			backend.handUpdates.every((update) => !("handCount" in update))
+		).toBe(true);
 		expect(
 			screen.getByRole("button", { name: "Hand count: 4" })
 		).toBeInTheDocument();
+	});
+
+	it("shows the button on the next seated player once the player holding it leaves", async () => {
+		backend.dealerSeat = 2;
+		backend.removedPlayerIds = ["player-1"];
+		renderCockpit();
+
+		expect(
+			await screen.findByRole("button", { name: dealerButton("S5") })
+		).toBeInTheDocument();
+		expect(backend.handUpdates).toEqual([]);
 	});
 
 	it("adjusts the count and the button from the Hand count sheet, never below zero", async () => {
@@ -2289,23 +2313,40 @@ describe("CashCockpit hands and house rules", () => {
 		);
 		expect(count).toHaveTextContent("0");
 
+		expect(within(sheet).getByText("S3")).toBeInTheDocument();
+
 		await user.click(
 			within(sheet).getByRole("button", {
-				name: "Move the button back one seat",
+				name: "Move the button to the previous player",
 			})
 		);
-		expect(within(sheet).getByText("S6")).toBeInTheDocument();
+		expect(within(sheet).getByText("S5")).toBeInTheDocument();
+		await waitFor(() => {
+			expect(backend.dealerSeat).toBe(4);
+		});
 
 		await user.click(within(sheet).getByRole("button", { name: "Add a hand" }));
 		expect(count).toHaveTextContent("1");
+		expect(within(sheet).getByText("S3")).toBeInTheDocument();
+		await waitFor(() => {
+			expect(backend.handCount).toBe(1);
+		});
+
+		await user.click(
+			within(sheet).getByRole("button", { name: "Remove a hand" })
+		);
+		expect(count).toHaveTextContent("0");
+		expect(within(sheet).getByText("S5")).toBeInTheDocument();
 
 		await waitFor(() => {
-			expect(backend.handUpdates).toEqual([
-				{ dealerOffset: 5, id: SESSION_ID },
-				{ handCount: 1, id: SESSION_ID },
-			]);
+			expect(backend.handCount).toBe(0);
 		});
-		expect(within(sheet).getByText("S1")).toBeInTheDocument();
+		expect(backend.dealerSeat).toBe(4);
+		expect(
+			backend.handUpdates.flatMap((update) =>
+				"handCount" in update ? [update.handCount] : []
+			)
+		).toEqual([1, 0]);
 	});
 
 	it("locks the hand counter and the dealer button while the session is paused", async () => {

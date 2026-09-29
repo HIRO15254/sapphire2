@@ -1,7 +1,6 @@
 import { IconPhotoScan, IconUsersMinus } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import type { SeatEntry } from "@/features/live-sessions/hooks/use-session-seats";
-import { dealerSpot } from "@/features/live-sessions/utils/hand-tracking";
 import { seatLayout } from "@/features/live-sessions/utils/table-geometry";
 import { cn } from "@/lib/utils";
 import { crystButton } from "../cryst-controls";
@@ -61,8 +60,8 @@ export function TableView({
 				<DealerButton
 					canEdit={hands.canEdit}
 					onMoveForward={hands.onMoveDealerForward}
+					seat={dealerPoint}
 					seatLabel={hands.dealerSeatLabel}
-					spot={dealerSpot(dealerPoint)}
 				/>
 			) : null}
 			<HandCounter

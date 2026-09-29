@@ -100,7 +100,7 @@ export function HandCountSheet({ elapsed, hands }: HandCountSheetProps) {
 					</span>
 					<div className={cn(STEPPER_CLASS, "shrink-0")}>
 						<button
-							aria-label="Move the button back one seat"
+							aria-label="Move the button to the previous player"
 							className={cn(NEUTRAL_STEP_CLASS, "border-r")}
 							disabled={!hands.canEdit || hands.dealerSeatIndex === null}
 							onClick={hands.onMoveDealerBack}
@@ -109,7 +109,7 @@ export function HandCountSheet({ elapsed, hands }: HandCountSheetProps) {
 							<IconRotate2 size={17} />
 						</button>
 						<button
-							aria-label="Move the button forward one seat"
+							aria-label="Move the button to the next player"
 							className={NEUTRAL_STEP_CLASS}
 							disabled={!hands.canEdit || hands.dealerSeatIndex === null}
 							onClick={hands.onMoveDealerForward}
@@ -120,8 +120,8 @@ export function HandCountSheet({ elapsed, hands }: HandCountSheetProps) {
 					</div>
 				</div>
 				<p className="text-[11px] text-muted-foreground">
-					The button advances one seat per hand. Use the arrows (or tap D) to
-					adjust position only — the hand count stays.
+					The button moves to the next seated player with each hand. Use the
+					arrows (or tap D) to move it without changing the hand count.
 				</p>
 			</div>
 		</CrystSheet>

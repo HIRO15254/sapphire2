@@ -1,7 +1,5 @@
-import type { SeatPoint } from "@/features/live-sessions/utils/table-geometry";
+import type { SeatOccupancy } from "@/features/live-sessions/hooks/use-session-seats";
 
-const TABLE_CENTRE = 50;
-const DEALER_PULL_TOWARD_CENTRE = 0.34;
 const SECONDS_PER_HOUR = 3600;
 const MIN_RATE_SECONDS = 60;
 
@@ -9,32 +7,44 @@ function wrap(value: number, size: number): number {
 	return ((value % size) + size) % size;
 }
 
-export function dealerSeatIndex(
-	handCount: number | null,
-	dealerOffset: number,
-	seatCount: number
+function toRing(seated: readonly number[]): number[] {
+	return [...new Set(seated)].sort((a, b) => a - b);
+}
+
+export function seatedPositions(
+	seats: readonly { occupancy: SeatOccupancy; seatPosition: number }[]
+): number[] {
+	return seats
+		.filter((seat) => seat.occupancy !== "empty")
+		.map((seat) => seat.seatPosition);
+}
+
+export function resolveDealerSeat(
+	storedSeat: number | null,
+	seated: readonly number[]
 ): number | null {
-	if (seatCount <= 0) {
+	const ring = toRing(seated);
+	const first = ring[0];
+	if (first === undefined) {
 		return null;
 	}
-	return wrap((handCount ?? 0) + dealerOffset, seatCount);
-}
-
-export function shiftDealerOffset(
-	dealerOffset: number,
-	step: number,
-	seatCount: number
-): number {
-	if (seatCount <= 0) {
-		return 0;
+	if (storedSeat === null) {
+		return first;
 	}
-	return wrap(dealerOffset + step, seatCount);
+	return ring.find((seat) => seat >= storedSeat) ?? first;
 }
 
-export function dealerSpot(seat: SeatPoint): SeatPoint {
-	const pull = (value: number) =>
-		value + (TABLE_CENTRE - value) * DEALER_PULL_TOWARD_CENTRE;
-	return { x: pull(seat.x), y: pull(seat.y) };
+export function stepDealerSeat(
+	storedSeat: number | null,
+	step: number,
+	seated: readonly number[]
+): number | null {
+	const ring = toRing(seated);
+	const current = resolveDealerSeat(storedSeat, ring);
+	if (current === null) {
+		return null;
+	}
+	return ring[wrap(ring.indexOf(current) + step, ring.length)] ?? null;
 }
 
 export function computeHandsPerHour(

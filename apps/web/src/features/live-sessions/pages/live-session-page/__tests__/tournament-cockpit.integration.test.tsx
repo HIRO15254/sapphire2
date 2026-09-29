@@ -27,7 +27,7 @@ vi.mock("@sapphire2/env/web", () => ({
 const SESSION_ID = "tourney-1";
 
 function dealerButton(seat: string) {
-	return `Dealer button at ${seat}. Move it to the next seat`;
+	return `Dealer button at ${seat}. Move it to the next player`;
 }
 const STACK_LABEL = "Current stack";
 const MINUTE = 60_000;
@@ -35,6 +35,7 @@ const LEVEL_MINUTES = 20;
 const REENTRY_OPTION = /Re-entry/;
 const EDIT_BLINDS_BUTTON = /Edit blind structure/;
 const STUD_MIX_PRESET = /^Stud mix/;
+const ANY_DEALER_BUTTON = /^Dealer button at /;
 const SUNDAY_MASTER = /Sunday Deepstack/;
 const TURBO_MASTER = /Turbo 5,000/;
 
@@ -59,8 +60,10 @@ const backend = {
 	blindLevels: [] as BlindLevelRow[],
 	createdEvents: [] as CreatedEvent[],
 	currentStack: 12_000 as number | null,
+	dealerSeat: null as number | null,
 	handCount: null as number | null,
 	handUpdates: [] as Record<string, unknown>[],
+	heroSeatPosition: null as number | null,
 	houseRules: null as string | null,
 	now: Date.now(),
 	remainingPlayers: 12 as number | null,
@@ -138,9 +141,9 @@ function session() {
 		chipPurchases: [
 			{ chips: 30_000, cost: 10_000, id: "p-re", name: "Re-entry" },
 		],
-		dealerOffset: 0,
+		dealerSeat: backend.dealerSeat,
 		handCount: backend.handCount,
-		heroSeatPosition: null,
+		heroSeatPosition: backend.heroSeatPosition,
 		id: SESSION_ID,
 		memo: null,
 		roomId: backend.roomId,
@@ -167,6 +170,7 @@ const fixtureRouter = t.router({
 		update: t.procedure
 			.input(
 				z.custom<{
+					dealerSeat?: number;
 					handCount?: number;
 					id: string;
 					roomId?: string;
@@ -175,9 +179,10 @@ const fixtureRouter = t.router({
 				}>()
 			)
 			.mutation(({ input }) => {
-				if (input.handCount !== undefined) {
+				if (input.handCount !== undefined || input.dealerSeat !== undefined) {
 					backend.handUpdates.push(input);
-					backend.handCount = input.handCount;
+					backend.handCount = input.handCount ?? backend.handCount;
+					backend.dealerSeat = input.dealerSeat ?? backend.dealerSeat;
 				}
 				if (input.tournamentId !== undefined) {
 					backend.linkUpdates.push(input);
@@ -348,8 +353,10 @@ beforeEach(() => {
 	backend.blindLevels = initialBlindLevels();
 	backend.createdEvents = [];
 	backend.currentStack = 12_000;
+	backend.dealerSeat = null;
 	backend.handCount = null;
 	backend.handUpdates = [];
+	backend.heroSeatPosition = null;
 	backend.houseRules = null;
 	backend.now = Date.now();
 	backend.remainingPlayers = 12;
@@ -696,8 +703,27 @@ describe("TournamentCockpit", () => {
 });
 
 describe("TournamentCockpit hands and house rules", () => {
-	it("counts hands through the tournament session and moves the button with them", async () => {
+	it("counts hands with no button while nobody is seated", async () => {
 		backend.handCount = 7;
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(await screen.findByRole("button", { name: "Add a hand" }));
+
+		expect(
+			await screen.findByRole("button", { name: "Hand count: 8" })
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: ANY_DEALER_BUTTON })
+		).not.toBeInTheDocument();
+		await waitFor(() => {
+			expect(backend.handUpdates).toEqual([{ handCount: 8, id: SESSION_ID }]);
+		});
+	});
+
+	it("puts the button on the hero's seat when the hero is the only one seated", async () => {
+		backend.handCount = 7;
+		backend.heroSeatPosition = 7;
 		const user = userEvent.setup();
 		renderCockpit();
 
@@ -708,10 +734,15 @@ describe("TournamentCockpit hands and house rules", () => {
 		await user.click(screen.getByRole("button", { name: "Add a hand" }));
 
 		expect(
-			await screen.findByRole("button", { name: dealerButton("S9") })
+			await screen.findByRole("button", { name: "Hand count: 8" })
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: dealerButton("S8") })
 		).toBeInTheDocument();
 		await waitFor(() => {
-			expect(backend.handUpdates).toEqual([{ handCount: 8, id: SESSION_ID }]);
+			expect(backend.handUpdates).toEqual([
+				{ dealerSeat: 7, handCount: 8, id: SESSION_ID },
+			]);
 		});
 	});
 

@@ -68,9 +68,9 @@ export function useTournamentCockpit(sessionId: string) {
 	const clock = computeSessionClock(journal.events, now);
 	const hands = useHandCounter({
 		activeSeconds: clock.activeSeconds,
-		dealerOffset: session?.dealerOffset,
+		dealerSeat: session?.dealerSeat,
 		handCount: session?.handCount,
-		seatCount: seats.length,
+		seats,
 		sessionId,
 		sessionType: "tournament",
 		status,
