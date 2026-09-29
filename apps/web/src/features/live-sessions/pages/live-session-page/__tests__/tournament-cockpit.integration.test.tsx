@@ -27,7 +27,7 @@ vi.mock("@sapphire2/env/web", () => ({
 const SESSION_ID = "tourney-1";
 
 function dealerButton(seat: string) {
-	return `Dealer button at ${seat}. Move it to the next player`;
+	return `Dealer button at ${seat}`;
 }
 const STACK_LABEL = "Current stack";
 const MINUTE = 60_000;
@@ -714,7 +714,7 @@ describe("TournamentCockpit hands and house rules", () => {
 			await screen.findByRole("button", { name: "Hand count: 8" })
 		).toBeInTheDocument();
 		expect(
-			screen.queryByRole("button", { name: ANY_DEALER_BUTTON })
+			screen.queryByRole("img", { name: ANY_DEALER_BUTTON })
 		).not.toBeInTheDocument();
 		await waitFor(() => {
 			expect(backend.handUpdates).toEqual([{ handCount: 8, id: SESSION_ID }]);
@@ -728,7 +728,7 @@ describe("TournamentCockpit hands and house rules", () => {
 		renderCockpit();
 
 		expect(
-			await screen.findByRole("button", { name: dealerButton("S8") })
+			await screen.findByRole("img", { name: dealerButton("S8") })
 		).toBeInTheDocument();
 
 		await user.click(screen.getByRole("button", { name: "Add a hand" }));
@@ -737,7 +737,7 @@ describe("TournamentCockpit hands and house rules", () => {
 			await screen.findByRole("button", { name: "Hand count: 8" })
 		).toBeInTheDocument();
 		expect(
-			screen.getByRole("button", { name: dealerButton("S8") })
+			screen.getByRole("img", { name: dealerButton("S8") })
 		).toBeInTheDocument();
 		await waitFor(() => {
 			expect(backend.handUpdates).toEqual([

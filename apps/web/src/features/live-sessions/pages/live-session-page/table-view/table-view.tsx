@@ -57,12 +57,7 @@ export function TableView({
 				);
 			})}
 			{dealerPoint ? (
-				<DealerButton
-					canEdit={hands.canEdit}
-					onMoveForward={hands.onMoveDealerForward}
-					seat={dealerPoint}
-					seatLabel={hands.dealerSeatLabel}
-				/>
+				<DealerButton seat={dealerPoint} seatLabel={hands.dealerSeatLabel} />
 			) : null}
 			<HandCounter
 				canEdit={hands.canEdit}

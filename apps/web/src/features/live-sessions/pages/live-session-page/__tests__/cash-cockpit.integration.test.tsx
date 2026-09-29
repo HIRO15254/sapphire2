@@ -28,7 +28,7 @@ vi.mock("@sapphire2/env/web", () => ({
 const SESSION_ID = "cash-1";
 
 function dealerButton(seat: string) {
-	return `Dealer button at ${seat}. Move it to the next player`;
+	return `Dealer button at ${seat}`;
 }
 const STACK_LABEL = "Current stack";
 const NOTE_FIELD = /^Note/;
@@ -40,6 +40,7 @@ const FRIDAY_DEEP = /Friday Deep/;
 const UNLINKED_NOTICE = /is not linked to a ring game master/;
 const SINCE_START_LINE = /Session start/;
 const LAST_UPDATE_LINE = /Last update/;
+const ANY_DEALER_BUTTON = /^Dealer button at /;
 const STACK_FIELD = /^Stack/;
 const STACK_ROW = /Stack update/;
 const START_ROW = /Session start/;
@@ -2227,7 +2228,7 @@ describe("CashCockpit hands and house rules", () => {
 			screen.getByRole("button", { name: "Hand count: 3" })
 		).toBeInTheDocument();
 		expect(
-			screen.getByRole("button", { name: dealerButton("S5") })
+			screen.getByRole("img", { name: dealerButton("S5") })
 		).toBeInTheDocument();
 		await waitFor(() => {
 			expect(backend.handUpdates).toEqual([
@@ -2251,28 +2252,30 @@ describe("CashCockpit hands and house rules", () => {
 		).toBeInTheDocument();
 	});
 
-	it("moves the dealer button past empty seats when D is tapped, leaving the hand count alone", async () => {
+	it("moves the dealer button past empty seats from the sheet arrows, leaving the hand count alone", async () => {
 		backend.handCount = 4;
 		backend.dealerSeat = 2;
 		const user = userEvent.setup();
 		renderCockpit();
 
 		await user.click(
-			await screen.findByRole("button", { name: dealerButton("S3") })
+			await screen.findByRole("button", { name: "Hand count: 4" })
 		);
+		const sheet = await screen.findByRole("dialog", { name: "Hand count" });
+		const next = within(sheet).getByRole("button", {
+			name: "Move the button to the next player",
+		});
 
-		expect(
-			await screen.findByRole("button", { name: dealerButton("S5") })
-		).toBeInTheDocument();
+		expect(within(sheet).getByText("S3")).toBeInTheDocument();
+
+		await user.click(next);
+		expect(within(sheet).getByText("S5")).toBeInTheDocument();
 		await waitFor(() => {
 			expect(backend.dealerSeat).toBe(4);
 		});
 
-		await user.click(screen.getByRole("button", { name: dealerButton("S5") }));
-
-		expect(
-			await screen.findByRole("button", { name: dealerButton("S3") })
-		).toBeInTheDocument();
+		await user.click(next);
+		expect(within(sheet).getByText("S3")).toBeInTheDocument();
 		await waitFor(() => {
 			expect(backend.dealerSeat).toBe(2);
 		});
@@ -2280,8 +2283,31 @@ describe("CashCockpit hands and house rules", () => {
 			backend.handUpdates.every((update) => !("handCount" in update))
 		).toBe(true);
 		expect(
-			screen.getByRole("button", { name: "Hand count: 4" })
+			within(sheet).getByRole("status", { name: "Hands this session" })
+		).toHaveTextContent("4");
+	});
+
+	it("leaves the button in place when the seat holding it is tapped to open the player", async () => {
+		backend.dealerSeat = 2;
+		const user = userEvent.setup();
+		renderCockpit();
+
+		expect(
+			await screen.findByRole("img", { name: dealerButton("S3") })
 		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: ANY_DEALER_BUTTON })
+		).not.toBeInTheDocument();
+
+		await user.click(screen.getByRole("button", { name: "Seat 3: Young guy" }));
+
+		expect(
+			await screen.findByRole("textbox", { name: "Player name" })
+		).toHaveValue("Young guy");
+		expect(
+			screen.getByRole("img", { name: dealerButton("S3") })
+		).toBeInTheDocument();
+		expect(backend.handUpdates).toEqual([]);
 	});
 
 	it("shows the button on the next seated player once the player holding it leaves", async () => {
@@ -2290,7 +2316,7 @@ describe("CashCockpit hands and house rules", () => {
 		renderCockpit();
 
 		expect(
-			await screen.findByRole("button", { name: dealerButton("S5") })
+			await screen.findByRole("img", { name: dealerButton("S5") })
 		).toBeInTheDocument();
 		expect(backend.handUpdates).toEqual([]);
 	});
@@ -2362,8 +2388,8 @@ describe("CashCockpit hands and house rules", () => {
 			screen.getByRole("button", { name: "Remove a hand" })
 		).toBeDisabled();
 		expect(
-			screen.getByRole("button", { name: dealerButton("S3") })
-		).toBeDisabled();
+			screen.getByRole("img", { name: dealerButton("S3") })
+		).toBeInTheDocument();
 	});
 
 	it("saves the house rules from the Notes tab and clears them when emptied", async () => {

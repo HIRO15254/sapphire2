@@ -121,7 +121,7 @@ export function HandCountSheet({ elapsed, hands }: HandCountSheetProps) {
 				</div>
 				<p className="text-[11px] text-muted-foreground">
 					The button moves to the next seated player with each hand. Use the
-					arrows (or tap D) to move it without changing the hand count.
+					arrows to move it without changing the hand count.
 				</p>
 			</div>
 		</CrystSheet>
