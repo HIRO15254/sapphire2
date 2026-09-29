@@ -5,6 +5,7 @@ import { MixGamesEditor } from "@/shared/components/mix-games-editor";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import type { UseSessionWizardReturn } from "../../use-session-wizard";
+import { HouseRulesField } from "../house-rules-field";
 import { RuleNameField } from "../rule-name-field";
 import { CashGameFields } from "./cash-game-fields";
 
@@ -124,6 +125,11 @@ export function CashRulesStepBody({
 							</>
 						)}
 						<CashBuyInBoundsFields
+							isLiveLinked={isLiveLinked}
+							overriddenLabels={overriddenLabels}
+							state={state}
+						/>
+						<HouseRulesField
 							isLiveLinked={isLiveLinked}
 							overriddenLabels={overriddenLabels}
 							state={state}

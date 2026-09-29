@@ -27,6 +27,7 @@ interface TournamentFormStateValues {
 	chipPurchases: ChipPurchaseFormItem[];
 	currencyId: string;
 	entryFee: string;
+	houseRules: string;
 	memo: string;
 	name: string;
 	startingStack: string;
@@ -48,6 +49,7 @@ function formValuesToPartial(
 		tableSize: parseOptionalInt(value.tableSize),
 		currencyId: value.currencyId || undefined,
 		memo: value.memo || undefined,
+		houseRules: textOrUndefined(value.houseRules),
 		tags: value.tags,
 		chipPurchases: value.chipPurchases.map((cp) => ({
 			name: cp.name,
@@ -55,6 +57,10 @@ function formValuesToPartial(
 			chips: parseRequiredInt(cp.chips),
 		})),
 	};
+}
+
+function textOrUndefined(value: string): string | undefined {
+	return value.trim() === "" ? undefined : value;
 }
 
 function numStrOrEmpty(value: number | undefined): string {
@@ -78,6 +84,7 @@ const tournamentFormSchema = z.object({
 	tableSize: optionalNumericString({ integer: true, min: 2, max: 10 }),
 	currencyId: z.string(),
 	memo: z.string(),
+	houseRules: z.string(),
 	tags: z.array(z.string()),
 	chipPurchases: z.array(chipPurchaseItemSchema),
 });
@@ -114,6 +121,7 @@ export function useTournamentForm({
 			tableSize: defaultValues?.tableSize?.toString() ?? "",
 			currencyId: defaultValues?.currencyId ?? "",
 			memo: defaultValues?.memo ?? "",
+			houseRules: defaultValues?.houseRules ?? "",
 			tags: defaultValues?.tags ?? [],
 			chipPurchases: (defaultValues?.chipPurchases ?? []).map((cp) => ({
 				name: cp.name,
@@ -138,6 +146,7 @@ export function useTournamentForm({
 				tableSize: parseOptionalInt(value.tableSize),
 				currencyId: value.currencyId || undefined,
 				memo: value.memo ? value.memo : undefined,
+				houseRules: textOrUndefined(value.houseRules),
 				tags: value.tags,
 			});
 		},

@@ -97,6 +97,7 @@ describe("useRingGameForm", () => {
 						tableSize: 9,
 						currencyId: "c1",
 						memo: "cozy",
+						houseRules: "Straddle allowed",
 					},
 				}),
 			{ wrapper: wrapper(qc) }
@@ -115,6 +116,7 @@ describe("useRingGameForm", () => {
 			tableSize: "9",
 			currencyId: "c1",
 			memo: "cozy",
+			houseRules: "Straddle allowed",
 		});
 	});
 

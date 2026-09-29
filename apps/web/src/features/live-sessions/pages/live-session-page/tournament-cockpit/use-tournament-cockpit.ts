@@ -18,6 +18,7 @@ import { withHeroSeat } from "../seat-fields";
 import { resolveRuleName, toSessionStatus } from "../session-fields";
 import type { SessionSheetTab, TournamentCompleteValues } from "../sheets";
 import type { TournamentStackValues } from "../tournament-quick-input";
+import { useHandCounter } from "../use-hand-counter";
 import { useSeatSelection } from "../use-seat-selection";
 import { useSessionJournal } from "../use-session-journal";
 
@@ -64,6 +65,16 @@ export function useTournamentCockpit(sessionId: string) {
 		sessionType: "tournament",
 		status,
 	});
+	const clock = computeSessionClock(journal.events, now);
+	const hands = useHandCounter({
+		activeSeconds: clock.activeSeconds,
+		dealerOffset: session?.dealerOffset,
+		handCount: session?.handCount,
+		seatCount: seats.length,
+		sessionId,
+		sessionType: "tournament",
+		status,
+	});
 
 	if (!session || journal.isEventsLoading) {
 		return { isLoading: true as const };
@@ -81,7 +92,6 @@ export function useTournamentCockpit(sessionId: string) {
 		seatSelection.onCloseSeatSheet();
 	};
 
-	const clock = computeSessionClock(journal.events, now);
 	const timerStartedAt = session.timerStartedAt;
 	const isPaused = status === "paused";
 	const blindLevel = describeBlindLevel(
@@ -157,6 +167,7 @@ export function useTournamentCockpit(sessionId: string) {
 		remainingPlayers: summary.remainingPlayers,
 		ruleName: resolveRuleName(session.ruleName, session.variant, "Tournament"),
 		excludePlayerIds: seatState.excludePlayerIds,
+		hands,
 		heroSeatPosition,
 		onCloseSeatSheet: seatSelection.onCloseSeatSheet,
 		onLeaveSeat: seatState.onRemovePlayer,

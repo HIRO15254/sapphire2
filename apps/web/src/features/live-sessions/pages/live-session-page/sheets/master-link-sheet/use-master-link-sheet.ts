@@ -24,6 +24,7 @@ import {
 	type MasterFieldValues,
 } from "@/features/live-sessions/utils/session-settings";
 import { useGameGroups } from "@/shared/hooks/use-game-groups";
+import { houseRulesOrNull } from "@/shared/lib/house-rules";
 import { invalidateTargets } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 import {
@@ -117,6 +118,7 @@ function cashSnapshotOf(view: SessionSheetView): CashRuleSnapshot {
 		blind1: numberOf(view, "blind1"),
 		blind2: numberOf(view, "blind2"),
 		blind3: numberOf(view, "blind3"),
+		houseRules: houseRulesOrNull(view.houseRules),
 		maxBuyIn: numberOf(view, "maxBuyIn"),
 		minBuyIn: numberOf(view, "minBuyIn"),
 		mixGames: view.mixGames,
@@ -130,6 +132,7 @@ function tournamentSnapshotOf(view: SessionSheetView): TournamentRuleSnapshot {
 		bountyAmount: numberOf(view, "bountyAmount"),
 		buyIn: numberOf(view, "tournamentBuyIn"),
 		entryFee: numberOf(view, "entryFee"),
+		houseRules: houseRulesOrNull(view.houseRules),
 		startingStack: numberOf(view, "startingStack"),
 		tableSize: view.tableSize,
 		variant: view.variantLabel,

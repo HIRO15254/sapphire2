@@ -117,6 +117,7 @@ export function useAssignTournament({
 				tableSize: values.tableSize,
 				currencyId: values.currencyId,
 				memo: values.memo,
+				houseRules: values.houseRules,
 				tags: values.tags,
 				chipPurchases: values.chipPurchases,
 				blindLevels: levelsToPayload(levels),

@@ -26,6 +26,7 @@ export interface Tournament {
 	createdAt: string;
 	currencyId: string | null;
 	entryFee: number | null;
+	houseRules: string | null;
 	id: string;
 	memo: string | null;
 	name: string;
@@ -49,6 +50,7 @@ export interface TournamentFormValues {
 	chipPurchases: ChipPurchaseFormItem[];
 	currencyId?: string;
 	entryFee?: number;
+	houseRules?: string;
 	memo?: string;
 	name: string;
 	startingStack?: number;
@@ -78,6 +80,7 @@ function buildOptimisticTournament(
 			})) ?? [],
 		currencyId: values.currencyId ?? null,
 		entryFee: values.entryFee ?? null,
+		houseRules: values.houseRules ?? null,
 		id,
 		memo: values.memo ?? null,
 		name: values.name,

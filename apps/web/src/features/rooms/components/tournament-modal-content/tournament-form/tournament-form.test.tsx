@@ -126,6 +126,31 @@ describe("TournamentForm", () => {
 		);
 	});
 
+	it("submits house rules separately from the memo", async () => {
+		const user = userEvent.setup();
+		const { onSubmit } = renderForm({
+			defaultValues: {
+				houseRules: "Two re-entries",
+				memo: "two flights",
+				name: "Sunday Major",
+				variant: "nlh",
+			},
+		});
+
+		expect(screen.getByLabelText("House rules")).toHaveValue("Two re-entries");
+		fireEvent.change(screen.getByLabelText("House rules"), {
+			target: { value: "Two re-entries\nNo late reg after level 8" },
+		});
+		await user.click(screen.getByRole("button", { name: "submit-trigger" }));
+
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				houseRules: "Two re-entries\nNo late reg after level 8",
+				memo: "two flights",
+			})
+		);
+	});
+
 	it("blocks submit when the required tournament name is empty", async () => {
 		const user = userEvent.setup();
 		const { onSubmit } = renderForm({});

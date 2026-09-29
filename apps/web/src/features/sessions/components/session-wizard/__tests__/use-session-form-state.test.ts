@@ -447,6 +447,93 @@ function setupWithMasterData(
 	return { result, onSubmit };
 }
 
+describe("useSessionFormState — house rules", () => {
+	const LINKED_MASTER: RingGameOption[] = [
+		{ ...RING_GAMES[0], houseRules: "Straddle allowed from UTG" },
+	] as RingGameOption[];
+
+	it("submits the session's own house rules when editing a master-linked session", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(
+			() =>
+				useSessionFormState({
+					onSubmit,
+					defaultValues: {
+						buyIn: 100,
+						cashOut: 150,
+						houseRules: "No straddles tonight",
+						ringGameId: "rg1",
+						sessionDate: "2026-04-10",
+						type: "cash_game",
+					},
+					ringGames: LINKED_MASTER,
+				}),
+			{ wrapper: withQueryClient() }
+		);
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				houseRules: "No straddles tonight",
+				ringGameId: "rg1",
+			})
+		);
+	});
+
+	it("prefills the picked master's house rules and submits a blanked field as a clear", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(
+			() =>
+				useSessionFormState({
+					onSubmit,
+					defaultValues: { type: "cash_game", sessionDate: "2026-04-10" },
+					ringGames: LINKED_MASTER,
+				}),
+			{ wrapper: withQueryClient() }
+		);
+		act(() => {
+			result.current.handleGameChange("rg1");
+		});
+		expect(result.current.form.state.values.houseRules).toBe(
+			"Straddle allowed from UTG"
+		);
+		act(() => {
+			result.current.form.setFieldValue("buyIn", "100");
+			result.current.form.setFieldValue("cashOut", "150");
+			result.current.form.setFieldValue("houseRules", "  \n ");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit.mock.calls[0]?.[0].houseRules).toBeNull();
+	});
+
+	it("leaves house rules out of a live session start so the master's copy applies", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(
+			() =>
+				useSessionFormState({
+					mode: "live",
+					onSubmit,
+					defaultValues: { type: "cash_game", sessionDate: "2026-04-10" },
+					ringGames: LINKED_MASTER,
+				}),
+			{ wrapper: withQueryClient() }
+		);
+		act(() => {
+			result.current.handleGameChange("rg1");
+			result.current.form.setFieldValue("buyIn", "100");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit.mock.calls[0]?.[0].houseRules).toBeUndefined();
+	});
+});
+
 describe("useSessionFormState — onVariantChange mix expansion", () => {
 	it("sets the variant field and seeds mixGames from the mix's composition", () => {
 		const { result } = setupWithMasterData();

@@ -1,14 +1,19 @@
 import { IconPhotoScan, IconUsersMinus } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import type { SeatEntry } from "@/features/live-sessions/hooks/use-session-seats";
+import { dealerSpot } from "@/features/live-sessions/utils/hand-tracking";
 import { seatLayout } from "@/features/live-sessions/utils/table-geometry";
 import { cn } from "@/lib/utils";
 import { crystButton } from "../cryst-controls";
+import type { HandCounterView } from "../use-hand-counter";
+import { DealerButton } from "./dealer-button";
+import { HandCounter } from "./hand-counter";
 import { SeatMarker } from "./seat-marker";
 
 interface TableViewProps {
 	canResetSeats: boolean;
 	center: ReactNode;
+	hands: HandCounterView;
 	onResetSeats: () => void;
 	onScan: () => void;
 	onSelectSeat: (seatPosition: number) => void;
@@ -19,6 +24,7 @@ interface TableViewProps {
 export function TableView({
 	canResetSeats,
 	center,
+	hands,
 	onResetSeats,
 	onScan,
 	onSelectSeat,
@@ -26,6 +32,8 @@ export function TableView({
 	selectedSeatPosition,
 }: TableViewProps) {
 	const points = seatLayout(seats.length);
+	const dealerPoint =
+		hands.dealerSeatIndex === null ? undefined : points[hands.dealerSeatIndex];
 
 	return (
 		<div className="relative mx-3 h-60 shrink-0">
@@ -49,6 +57,21 @@ export function TableView({
 					/>
 				);
 			})}
+			{dealerPoint ? (
+				<DealerButton
+					canEdit={hands.canEdit}
+					onMoveForward={hands.onMoveDealerForward}
+					seatLabel={hands.dealerSeatLabel}
+					spot={dealerSpot(dealerPoint)}
+				/>
+			) : null}
+			<HandCounter
+				canEdit={hands.canEdit}
+				handCount={hands.handCount}
+				onAddHand={hands.onAddHand}
+				onOpenSheet={hands.onOpenSheet}
+				onRemoveHand={hands.onRemoveHand}
+			/>
 			<button
 				aria-label="Register seats from a photo"
 				className={cn(

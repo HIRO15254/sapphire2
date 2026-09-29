@@ -23,6 +23,7 @@ export interface SessionSnapshotPatch {
 	blindLevels?: BlindLevelInput[];
 	bountyAmount?: number | null;
 	entryFee?: number | null;
+	houseRules?: string | null;
 	maxBuyIn?: number | null;
 	minBuyIn?: number | null;
 	mixGames?: MixGameGroup[] | null;
@@ -143,6 +144,7 @@ const CASH_DETAIL_KEY_MAP: SnapshotKeyMap = {
 	blind1: "cashBlind1",
 	blind2: "ringGameBlind2",
 	blind3: "cashBlind3",
+	houseRules: "cashHouseRules",
 	maxBuyIn: "cashMaxBuyIn",
 	minBuyIn: "cashMinBuyIn",
 	mixGames: "cashMixGames",
@@ -153,6 +155,7 @@ const CASH_DETAIL_KEY_MAP: SnapshotKeyMap = {
 
 const TOURNAMENT_DETAIL_KEY_MAP: SnapshotKeyMap = {
 	bountyAmount: "tournamentBountyAmount",
+	houseRules: "tournamentHouseRules",
 	ruleName: "tournamentName",
 	startingStack: "tournamentStartingStack",
 	tableSize: "tournamentTableSize",

@@ -21,6 +21,7 @@ import { MasterLinkSheet } from "../master-link-sheet";
 import { useDiscardConfirm } from "../use-discard-confirm";
 import { SessionBasicsTab } from "./session-basics-tab";
 import { SessionBlindsTab } from "./session-blinds-tab";
+import { SessionNotesTab } from "./session-notes-tab";
 import { SessionOverviewTab } from "./session-overview-tab";
 import { type SessionSheetTab, useSessionSheet } from "./use-session-sheet";
 
@@ -201,6 +202,9 @@ export function SessionSheet({
 											rows={sheet.blinds.rows}
 											summary={sheet.blinds.summary}
 										/>
+									) : null}
+									{sheet.tab === "notes" ? (
+										<SessionNotesTab form={form} />
 									) : null}
 								</div>
 							);

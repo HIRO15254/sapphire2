@@ -16,6 +16,7 @@ export interface SessionDetailLike {
 	cashAnteType?: string | null;
 	cashBlind1?: number | null;
 	cashBlind3?: number | null;
+	cashHouseRules?: string | null;
 	cashMaxBuyIn?: number | null;
 	cashMinBuyIn?: number | null;
 	cashMixGames?: MixGameGroup[] | null;
@@ -33,6 +34,7 @@ export interface SessionDetailLike {
 	tags?: readonly { id: string; name: string }[];
 	tournamentBountyAmount?: number | null;
 	tournamentBuyIn?: number | null;
+	tournamentHouseRules?: string | null;
 	tournamentId?: string | null;
 	tournamentName?: string | null;
 	tournamentStartingStack?: number | null;
@@ -42,6 +44,7 @@ export interface SessionDetailLike {
 
 export interface SessionSheetView {
 	anteType: AnteType;
+	houseRules: string;
 	isMasterLinked: boolean;
 	memo: string;
 	mixGames: MixGameGroup[] | null;
@@ -82,6 +85,8 @@ export function describeSessionDetail(
 	return {
 		anteType:
 			ANTE_TYPE_KEYS.find((key) => key === detail?.cashAnteType) ?? "none",
+		houseRules:
+			(isCash ? detail?.cashHouseRules : detail?.tournamentHouseRules) ?? "",
 		isMasterLinked: masterId !== null,
 		memo: detail?.memo ?? "",
 		mixGames: isCash ? (detail?.cashMixGames ?? null) : null,
@@ -116,6 +121,7 @@ export function describeSessionRuleValues(
 		bountyAmount: textOf(numbers.bountyAmount),
 		currencyId: view.selectedCurrencyId ?? "",
 		entryFee: textOf(numbers.entryFee),
+		houseRules: view.houseRules,
 		maxBuyIn: textOf(numbers.maxBuyIn),
 		minBuyIn: textOf(numbers.minBuyIn),
 		ruleName: view.ruleName,

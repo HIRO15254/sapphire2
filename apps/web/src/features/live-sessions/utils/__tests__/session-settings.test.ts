@@ -87,6 +87,7 @@ describe("describeCashMasterValues", () => {
 				blind2: 200,
 				blind3: null,
 				currencyId: null,
+				houseRules: null,
 				maxBuyIn: null,
 				minBuyIn: 20_000,
 				name: "Friday game",
@@ -99,6 +100,7 @@ describe("describeCashMasterValues", () => {
 			blind2: "200",
 			blind3: "",
 			currencyId: "",
+			houseRules: "",
 			maxBuyIn: "",
 			minBuyIn: "20000",
 			ruleName: "Friday game",
@@ -119,6 +121,7 @@ describe("describeTournamentMasterValues", () => {
 				buyIn: 5000,
 				currencyId: "cur-1",
 				entryFee: 500,
+				houseRules: "Re-entry until level 8",
 				name: "Sunday special",
 				startingStack: null,
 				tableSize: 9,
@@ -127,6 +130,7 @@ describe("describeTournamentMasterValues", () => {
 			bountyAmount: "",
 			currencyId: "cur-1",
 			entryFee: "500",
+			houseRules: "Re-entry until level 8",
 			ruleName: "Sunday special",
 			startingStack: "",
 			tableSize: "9",
@@ -147,6 +151,7 @@ describe("isMasterFieldDifferent", () => {
 		blind2: 200,
 		blind3: null,
 		currencyId: "cur-1",
+		houseRules: null,
 		maxBuyIn: null,
 		minBuyIn: null,
 		name: "Friday game",
@@ -168,6 +173,32 @@ describe("isMasterFieldDifferent", () => {
 	it("is false for a key the master does not carry (tournament-only key on a cash master)", () => {
 		expect(isMasterFieldDifferent(master, "entryFee", "500")).toBe(false);
 	});
+
+	it("ignores line-ending style and surrounding whitespace in house rules", () => {
+		const withRules = describeCashMasterValues({
+			ante: null,
+			anteType: "none",
+			blind1: 100,
+			blind2: 200,
+			blind3: null,
+			currencyId: "cur-1",
+			houseRules: "No straddle\nRun it twice allowed",
+			maxBuyIn: null,
+			minBuyIn: null,
+			name: "Friday game",
+			tableSize: 9,
+		});
+		expect(
+			isMasterFieldDifferent(
+				withRules,
+				"houseRules",
+				"No straddle\r\nRun it twice allowed\n  "
+			)
+		).toBe(false);
+		expect(isMasterFieldDifferent(withRules, "houseRules", "No straddle")).toBe(
+			true
+		);
+	});
 });
 
 describe("hasMasterDrift", () => {
@@ -178,6 +209,7 @@ describe("hasMasterDrift", () => {
 		blind2: 200,
 		blind3: null,
 		currencyId: "cur-1",
+		houseRules: null,
 		maxBuyIn: null,
 		minBuyIn: null,
 		name: "Friday game",

@@ -45,6 +45,7 @@ const ringGameFormSchema = z.object({
 	tableSize: optionalNumericString({ integer: true, min: 2, max: 10 }),
 	currencyId: z.string(),
 	memo: z.string(),
+	houseRules: z.string(),
 });
 
 function numStrOrEmpty(value: number | undefined): string {
@@ -89,6 +90,7 @@ export function useRingGameForm({
 			tableSize: defaultValues?.tableSize?.toString() ?? "",
 			currencyId: defaultValues?.currencyId ?? "",
 			memo: defaultValues?.memo ?? "",
+			houseRules: defaultValues?.houseRules ?? "",
 		},
 		onSubmit: ({ value }) => {
 			const mixGames =
@@ -116,6 +118,8 @@ export function useRingGameForm({
 				tableSize: parseOptionalInt(value.tableSize),
 				currencyId: value.currencyId || undefined,
 				memo: value.memo ? value.memo : undefined,
+				houseRules:
+					value.houseRules.trim() === "" ? undefined : value.houseRules,
 			});
 		},
 		validators: {

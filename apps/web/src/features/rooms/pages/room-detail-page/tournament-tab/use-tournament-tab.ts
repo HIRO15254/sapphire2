@@ -28,6 +28,7 @@ function tournamentToInitialFormValues(
 		tableSize: tournament.tableSize ?? undefined,
 		currencyId: tournament.currencyId ?? undefined,
 		memo: tournament.memo ?? undefined,
+		houseRules: tournament.houseRules ?? undefined,
 		tags: tournament.tags.map((t) => t.name),
 	};
 }
@@ -116,6 +117,7 @@ export function useTournamentTab({ roomId }: UseTournamentTabOptions) {
 				tableSize: values.tableSize,
 				currencyId: values.currencyId,
 				memo: values.memo,
+				houseRules: values.houseRules,
 				tags: values.tags,
 				chipPurchases: values.chipPurchases,
 				blindLevels: levelsToPayload(levels),
@@ -147,6 +149,7 @@ export function useTournamentTab({ roomId }: UseTournamentTabOptions) {
 				tableSize: values.tableSize ?? null,
 				currencyId: values.currencyId ?? null,
 				memo: values.memo ?? null,
+				houseRules: values.houseRules ?? null,
 				tags: values.tags,
 				chipPurchases: values.chipPurchases,
 				blindLevels: levelsToPayload(levels),

@@ -26,6 +26,10 @@ vi.mock("@sapphire2/env/web", () => ({
 }));
 
 const SESSION_ID = "cash-1";
+
+function dealerButton(seat: string) {
+	return `Dealer button at ${seat}. Move it to the next seat`;
+}
 const STACK_LABEL = "Current stack";
 const NOTE_FIELD = /^Note/;
 const FRIDAY_MASTER = /Friday 200\/400/;
@@ -152,7 +156,11 @@ const backend = {
 	addedSeats: [] as SeatedPlayer[],
 	createdEvents: [] as CreatedEvent[],
 	currentStack: 12_000 as number | null,
+	dealerOffset: 0,
 	deletedEventIds: [] as string[],
+	handCount: null as number | null,
+	handGate: null as Promise<void> | null,
+	handUpdates: [] as Record<string, unknown>[],
 	hasStackUpdate: true,
 	playerMemo: "<p>Loose caller</p>" as string | null,
 	playerName: "Young guy",
@@ -165,6 +173,7 @@ const backend = {
 	playerUpdates: [] as PlayerUpdate[],
 	removedPlayerIds: [] as string[],
 	sessionCurrencyId: null as string | null,
+	sessionHouseRules: null as string | null,
 	sessionMemo: null as string | null,
 	sessionMixGames: null as MixGameGroup[] | null,
 	sessionTableSize: 6 as number | null,
@@ -186,6 +195,7 @@ const backend = {
 		blind2: 400,
 		blind3: null as number | null,
 		currencyId: null as string | null,
+		houseRules: null as string | null,
 		id: "ring-master-1",
 		maxBuyIn: null as number | null,
 		minBuyIn: null as number | null,
@@ -252,6 +262,8 @@ function session() {
 		variant: backend.sessionVariant,
 		blind2: 400,
 		tableSize: backend.sessionTableSize,
+		dealerOffset: backend.dealerOffset,
+		handCount: backend.handCount,
 		heroSeatPosition: null,
 		memo: backend.sessionMemo,
 		summary: {
@@ -285,13 +297,21 @@ const fixtureRouter = t.router({
 			.input(
 				z.custom<{
 					currencyId?: string;
+					dealerOffset?: number;
+					handCount?: number;
 					id: string;
 					memo?: string | null;
 					ringGameId?: string | null;
 					roomId?: string;
 				}>()
 			)
-			.mutation(({ input }) => {
+			.mutation(async ({ input }) => {
+				if (input.handCount !== undefined || input.dealerOffset !== undefined) {
+					backend.handUpdates.push(input);
+					await backend.handGate;
+					backend.handCount = input.handCount ?? backend.handCount;
+					backend.dealerOffset = input.dealerOffset ?? backend.dealerOffset;
+				}
 				if (input.ringGameId !== undefined) {
 					backend.linkUpdates.push(input);
 					if (backend.failNextLink) {
@@ -323,6 +343,9 @@ const fixtureRouter = t.router({
 				}
 				if (Object.hasOwn(input, "mixGames")) {
 					backend.sessionMixGames = input.mixGames as MixGameGroup[] | null;
+				}
+				if (Object.hasOwn(input, "houseRules")) {
+					backend.sessionHouseRules = input.houseRules as string | null;
 				}
 				return { id: SESSION_ID };
 			}),
@@ -548,6 +571,7 @@ const fixtureRouter = t.router({
 			cashAnteType: "none",
 			cashBlind1: 200,
 			cashBlind3: null,
+			cashHouseRules: backend.sessionHouseRules,
 			cashMaxBuyIn: null,
 			cashMinBuyIn: null,
 			cashMixGames: backend.sessionMixGames,
@@ -761,7 +785,11 @@ beforeEach(() => {
 	backend.addedSeats = [];
 	backend.createdEvents = [];
 	backend.currentStack = 12_000;
+	backend.dealerOffset = 0;
 	backend.deletedEventIds = [];
+	backend.handCount = null;
+	backend.handGate = null;
+	backend.handUpdates = [];
 	backend.hasStackUpdate = true;
 	backend.playerMemo = "<p>Loose caller</p>";
 	backend.playerName = "Young guy";
@@ -774,6 +802,7 @@ beforeEach(() => {
 	backend.secondPlayerTagIds = [];
 	backend.removedPlayerIds = [];
 	backend.sessionCurrencyId = null;
+	backend.sessionHouseRules = null;
 	backend.sessionMemo = null;
 	backend.sessionMixGames = null;
 	backend.sessionTableSize = 6;
@@ -795,6 +824,7 @@ beforeEach(() => {
 		blind2: 400,
 		blind3: null,
 		currencyId: null,
+		houseRules: null,
 		id: "ring-master-1",
 		maxBuyIn: null,
 		minBuyIn: null,
@@ -1397,6 +1427,12 @@ describe("CashCockpit", () => {
 				await screen.findByRole("tabpanel", { name: "Basics" })
 			).getByLabelText(RULE_NAME_FIELD)
 		).toBeInTheDocument();
+
+		await user.keyboard("{ArrowRight}");
+
+		const notes = screen.getByRole("tab", { name: "Notes" });
+		expect(notes).toHaveFocus();
+		expect(notes).toHaveAttribute("aria-selected", "true");
 
 		await user.keyboard("{ArrowRight}");
 
@@ -2045,6 +2081,7 @@ describe("CashCockpit master link", () => {
 	});
 
 	it("saves the session's rules as a new ring game from the Overview card and links it", async () => {
+		backend.sessionHouseRules = "No straddle";
 		const user = userEvent.setup();
 		renderCockpit();
 
@@ -2081,6 +2118,7 @@ describe("CashCockpit master link", () => {
 				anteType: "none",
 				blind1: 200,
 				blind2: 400,
+				houseRules: "No straddle",
 				mixGames: null,
 				name: "Friday Deep",
 				roomId: "room-1",
@@ -2155,6 +2193,211 @@ describe("CashCockpit master link", () => {
 			]);
 		});
 		expect(await within(sheet).findByText(UNLINKED_NOTICE)).toBeInTheDocument();
+		expect(backend.snapshotUpdates).toEqual([]);
+	});
+});
+
+describe("CashCockpit hands and house rules", () => {
+	async function openNotes(user: ReturnType<typeof userEvent.setup>) {
+		await user.click(
+			await screen.findByRole("button", { name: "Session settings" })
+		);
+		await user.click(await screen.findByRole("tab", { name: "Notes" }));
+		return screen.findByRole("textbox", { name: "House rules" });
+	}
+
+	it("counts hands from the table and sends each count as an absolute value, one request at a time", async () => {
+		let release: () => void = () => undefined;
+		backend.handGate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const user = userEvent.setup();
+		renderCockpit();
+
+		const add = await screen.findByRole("button", { name: "Add a hand" });
+		expect(
+			screen.getByRole("button", { name: "Hand count: 0" })
+		).toBeInTheDocument();
+
+		await user.click(add);
+		await user.click(add);
+		await user.click(add);
+
+		expect(
+			screen.getByRole("button", { name: "Hand count: 3" })
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: dealerButton("S4") })
+		).toBeInTheDocument();
+		await waitFor(() => {
+			expect(backend.handUpdates).toEqual([{ handCount: 1, id: SESSION_ID }]);
+		});
+
+		release();
+
+		await waitFor(() => {
+			expect(backend.handUpdates).toEqual([
+				{ handCount: 1, id: SESSION_ID },
+				{ handCount: 3, id: SESSION_ID },
+			]);
+		});
+		await waitFor(() => {
+			expect(backend.handCount).toBe(3);
+		});
+		expect(
+			await screen.findByRole("button", { name: "Hand count: 3" })
+		).toBeInTheDocument();
+	});
+
+	it("moves the dealer button one seat when D is tapped, leaving the hand count alone", async () => {
+		backend.handCount = 4;
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: dealerButton("S5") })
+		);
+
+		expect(
+			await screen.findByRole("button", { name: dealerButton("S6") })
+		).toBeInTheDocument();
+		await waitFor(() => {
+			expect(backend.handUpdates).toEqual([
+				{ dealerOffset: 1, id: SESSION_ID },
+			]);
+		});
+		expect(
+			screen.getByRole("button", { name: "Hand count: 4" })
+		).toBeInTheDocument();
+	});
+
+	it("adjusts the count and the button from the Hand count sheet, never below zero", async () => {
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Hand count: 0" })
+		);
+		const sheet = await screen.findByRole("dialog", { name: "Hand count" });
+		const count = within(sheet).getByRole("status", {
+			name: "Hands this session",
+		});
+		expect(count).toHaveTextContent("0");
+
+		await user.click(
+			within(sheet).getByRole("button", { name: "Remove a hand" })
+		);
+		expect(count).toHaveTextContent("0");
+
+		await user.click(
+			within(sheet).getByRole("button", {
+				name: "Move the button back one seat",
+			})
+		);
+		expect(within(sheet).getByText("S6")).toBeInTheDocument();
+
+		await user.click(within(sheet).getByRole("button", { name: "Add a hand" }));
+		expect(count).toHaveTextContent("1");
+
+		await waitFor(() => {
+			expect(backend.handUpdates).toEqual([
+				{ dealerOffset: 5, id: SESSION_ID },
+				{ handCount: 1, id: SESSION_ID },
+			]);
+		});
+		expect(within(sheet).getByText("S1")).toBeInTheDocument();
+	});
+
+	it("locks the hand counter and the dealer button while the session is paused", async () => {
+		backend.status = "paused";
+		backend.handCount = 2;
+		renderCockpit();
+
+		expect(
+			await screen.findByRole("button", { name: "Hand count: 2" })
+		).toBeDisabled();
+		expect(screen.getByRole("button", { name: "Add a hand" })).toBeDisabled();
+		expect(
+			screen.getByRole("button", { name: "Remove a hand" })
+		).toBeDisabled();
+		expect(
+			screen.getByRole("button", { name: dealerButton("S3") })
+		).toBeDisabled();
+	});
+
+	it("saves the house rules from the Notes tab and clears them when emptied", async () => {
+		backend.sessionHouseRules = "No straddle";
+		const user = userEvent.setup();
+		renderCockpit();
+
+		const rules = await openNotes(user);
+		expect(rules).toHaveValue("No straddle");
+		await user.clear(rules);
+		await user.type(rules, "Straddle UTG only{Enter}Tip 1%");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.snapshotUpdates).toContainEqual(
+				expect.objectContaining({ houseRules: "Straddle UTG only\nTip 1%" })
+			);
+		});
+		await waitForClosed("Session");
+
+		const reopened = await openNotes(user);
+		expect(reopened).toHaveValue("Straddle UTG only\nTip 1%");
+		await user.clear(reopened);
+		await user.type(reopened, "   ");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.snapshotUpdates.at(-1)).toEqual(
+				expect.objectContaining({ houseRules: null })
+			);
+		});
+	});
+
+	it("treats the house rules as a master field for drift, Reset to master and Update master", async () => {
+		backend.masterRoomId = "room-1";
+		backend.masterRingGameId = "ring-master-1";
+		backend.ringGameMaster.houseRules = "No straddle";
+		backend.sessionHouseRules = "No straddle\r\n";
+		const user = userEvent.setup();
+		renderCockpit();
+
+		const rules = await openNotes(user);
+		expect(
+			screen.queryByText("Differs from linked master")
+		).not.toBeInTheDocument();
+
+		await user.clear(rules);
+		await user.type(rules, "Straddle allowed");
+		expect(
+			await screen.findByText("Differs from linked master")
+		).toBeInTheDocument();
+
+		await user.click(screen.getByRole("button", { name: "Reset to master" }));
+		await waitFor(() => {
+			expect(rules).toHaveValue("No straddle");
+		});
+		expect(
+			screen.queryByText("Differs from linked master")
+		).not.toBeInTheDocument();
+
+		await user.clear(rules);
+		await user.type(rules, "Straddle allowed");
+		await user.click(screen.getByRole("tab", { name: "Overview" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Update master" })
+		);
+
+		await waitFor(() => {
+			expect(backend.ringGameUpdates).toContainEqual(
+				expect.objectContaining({
+					houseRules: "Straddle allowed",
+					id: "ring-master-1",
+				})
+			);
+		});
 		expect(backend.snapshotUpdates).toEqual([]);
 	});
 });

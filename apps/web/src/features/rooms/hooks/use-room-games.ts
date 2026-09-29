@@ -53,6 +53,7 @@ export function useRoomGames(
 			maxBuyIn: g.maxBuyIn,
 			tableSize: g.tableSize,
 			currencyId: g.currencyId,
+			houseRules: g.houseRules,
 		})),
 		tournaments: allTournaments.map((t) => ({
 			id: t.id,
@@ -64,6 +65,7 @@ export function useRoomGames(
 			bountyAmount: t.bountyAmount,
 			tableSize: t.tableSize,
 			currencyId: t.currencyId,
+			houseRules: t.houseRules,
 		})),
 	};
 }

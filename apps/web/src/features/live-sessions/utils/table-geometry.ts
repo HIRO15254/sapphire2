@@ -12,7 +12,7 @@ export const FELT_INSET_X_PERCENT = 14.5;
 export const FELT_INSET_Y_PERCENT = 14.2;
 
 const SEAT_LAYOUTS: Record<number, SeatPoint[]> = {
-	2: [point(50, 85.8), point(50, 14.2)],
+	2: [point(14.5, 49), point(85.5, 49)],
 	3: [point(26, 85.8), point(50, 14.2), point(74, 85.8)],
 	4: [point(26, 85.8), point(31, 14.2), point(69, 14.2), point(74, 85.8)],
 	5: [

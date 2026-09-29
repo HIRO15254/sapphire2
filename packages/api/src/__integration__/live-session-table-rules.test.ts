@@ -184,6 +184,50 @@ describe("house rules are a frozen copy of the master", () => {
 	});
 });
 
+describe("manual sessions linked to a master", () => {
+	test("take the master's house rules only when the payload leaves them out", async ({
+		api,
+	}) => {
+		const club = requireCreatedRow(
+			await api.alice.room.create({ name: "Club" })
+		);
+		const master = requireCreatedRow(
+			await api.alice.ringGame.create({
+				roomId: club.id,
+				name: "NLH 100/200",
+				houseRules: "Straddle allowed from UTG",
+			})
+		);
+		const record = (houseRules?: string | null) =>
+			api.alice.session.create({
+				type: "cash_game",
+				sessionDate: 1_788_000_000,
+				buyIn: 10_000,
+				cashOut: 12_000,
+				roomId: club.id,
+				ringGameId: master.id,
+				...(houseRules === undefined ? {} : { houseRules }),
+			});
+		const houseRulesOf = async (id: string) =>
+			(await api.caller("alice").session.getById({ id })).cashHouseRules;
+
+		const copied = requireCreatedRow(await record());
+		const cleared = requireCreatedRow(await record(null));
+		const edited = requireCreatedRow(await record("No straddles tonight"));
+
+		expect(await houseRulesOf(copied.id)).toBe("Straddle allowed from UTG");
+		expect(await houseRulesOf(cleared.id)).toBeNull();
+		expect(await houseRulesOf(edited.id)).toBe("No straddles tonight");
+
+		await api.alice.session.update({
+			id: edited.id,
+			ringGameId: master.id,
+			houseRules: "No straddles tonight",
+		});
+		expect(await houseRulesOf(edited.id)).toBe("No straddles tonight");
+	});
+});
+
 describe("hand count and dealer offset", () => {
 	test("a new live session starts uncounted with the dealer offset at zero, and both persist while it is active", async ({
 		api,

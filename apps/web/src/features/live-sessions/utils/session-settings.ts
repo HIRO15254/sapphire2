@@ -1,3 +1,4 @@
+import { comparableHouseRules } from "@/shared/lib/house-rules";
 import { formatNumber } from "@/utils/format-number";
 
 const SYMBOL_UNIT_LENGTH = 1;
@@ -79,6 +80,7 @@ export type MasterFieldKey =
 	| "bountyAmount"
 	| "currencyId"
 	| "entryFee"
+	| "houseRules"
 	| "maxBuyIn"
 	| "minBuyIn"
 	| "ruleName"
@@ -95,6 +97,7 @@ export interface CashMasterLike {
 	blind2: number | null;
 	blind3: number | null;
 	currencyId: string | null;
+	houseRules: string | null;
 	maxBuyIn: number | null;
 	minBuyIn: number | null;
 	name: string;
@@ -106,6 +109,7 @@ export interface TournamentMasterLike {
 	buyIn: number | null;
 	currencyId: string | null;
 	entryFee: number | null;
+	houseRules: string | null;
 	name: string;
 	startingStack: number | null;
 	tableSize: number | null;
@@ -128,6 +132,7 @@ export function describeCashMasterValues(
 		blind2: numberText(master.blind2),
 		blind3: numberText(master.blind3),
 		currencyId: master.currencyId ?? "",
+		houseRules: master.houseRules ?? "",
 		maxBuyIn: numberText(master.maxBuyIn),
 		minBuyIn: numberText(master.minBuyIn),
 		ruleName: master.name,
@@ -145,11 +150,24 @@ export function describeTournamentMasterValues(
 		bountyAmount: numberText(master.bountyAmount),
 		currencyId: master.currencyId ?? "",
 		entryFee: numberText(master.entryFee),
+		houseRules: master.houseRules ?? "",
 		ruleName: master.name,
 		startingStack: numberText(master.startingStack),
 		tableSize: numberText(master.tableSize),
 		tournamentBuyIn: numberText(master.buyIn),
 	};
+}
+
+function comparableText(key: MasterFieldKey, value: string): string {
+	return key === "houseRules" ? comparableHouseRules(value) : value;
+}
+
+export function isSameMasterValue(
+	key: MasterFieldKey,
+	left: string,
+	right: string
+): boolean {
+	return comparableText(key, left) === comparableText(key, right);
 }
 
 export function isMasterFieldDifferent(
@@ -161,7 +179,10 @@ export function isMasterFieldDifferent(
 		return false;
 	}
 	const masterValue = master[key];
-	return masterValue !== undefined && masterValue !== currentValue;
+	return (
+		masterValue !== undefined &&
+		!isSameMasterValue(key, masterValue, currentValue)
+	);
 }
 
 export function hasMasterDrift(

@@ -19,6 +19,7 @@ export interface RingGame {
 	blind3: number | null;
 	createdAt: string;
 	currencyId: string | null;
+	houseRules: string | null;
 	id: string;
 	maxBuyIn: number | null;
 	memo: string | null;
@@ -39,6 +40,7 @@ export interface RingGameFormValues {
 	blind2?: number;
 	blind3?: number;
 	currencyId?: string;
+	houseRules?: string;
 	maxBuyIn?: number;
 	memo?: string;
 	minBuyIn?: number;
@@ -61,6 +63,7 @@ function buildOptimisticRingGame(
 		blind2: values.blind2 ?? null,
 		blind3: values.blind3 ?? null,
 		currencyId: values.currencyId ?? null,
+		houseRules: values.houseRules ?? null,
 		id,
 		maxBuyIn: values.maxBuyIn ?? null,
 		memo: values.memo ?? null,
@@ -167,6 +170,7 @@ export function useRingGames({ roomId, showArchived }: UseRingGamesOptions) {
 				tableSize: values.tableSize ?? null,
 				currencyId: values.currencyId ?? null,
 				memo: values.memo ?? null,
+				houseRules: values.houseRules ?? null,
 			}),
 		onMutate: async (values) => {
 			await cancelTargets(queryClient, [

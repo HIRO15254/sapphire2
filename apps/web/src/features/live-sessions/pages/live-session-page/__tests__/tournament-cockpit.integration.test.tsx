@@ -25,6 +25,10 @@ vi.mock("@sapphire2/env/web", () => ({
 }));
 
 const SESSION_ID = "tourney-1";
+
+function dealerButton(seat: string) {
+	return `Dealer button at ${seat}. Move it to the next seat`;
+}
 const STACK_LABEL = "Current stack";
 const MINUTE = 60_000;
 const LEVEL_MINUTES = 20;
@@ -55,6 +59,9 @@ const backend = {
 	blindLevels: [] as BlindLevelRow[],
 	createdEvents: [] as CreatedEvent[],
 	currentStack: 12_000 as number | null,
+	handCount: null as number | null,
+	handUpdates: [] as Record<string, unknown>[],
+	houseRules: null as string | null,
 	now: Date.now(),
 	remainingPlayers: 12 as number | null,
 	snapshotUpdates: [] as Record<string, unknown>[],
@@ -131,6 +138,8 @@ function session() {
 		chipPurchases: [
 			{ chips: 30_000, cost: 10_000, id: "p-re", name: "Re-entry" },
 		],
+		dealerOffset: 0,
+		handCount: backend.handCount,
 		heroSeatPosition: null,
 		id: SESSION_ID,
 		memo: null,
@@ -158,12 +167,18 @@ const fixtureRouter = t.router({
 		update: t.procedure
 			.input(
 				z.custom<{
+					handCount?: number;
+					id: string;
 					roomId?: string;
 					timerStartedAt?: number | null;
 					tournamentId?: string | null;
 				}>()
 			)
 			.mutation(({ input }) => {
+				if (input.handCount !== undefined) {
+					backend.handUpdates.push(input);
+					backend.handCount = input.handCount;
+				}
 				if (input.tournamentId !== undefined) {
 					backend.linkUpdates.push(input);
 					backend.tournamentId = input.tournamentId;
@@ -178,10 +193,16 @@ const fixtureRouter = t.router({
 			}),
 		updateSnapshot: t.procedure
 			.input(
-				z.custom<{ blindLevels?: Omit<BlindLevelRow, "id" | "level">[] }>()
+				z.custom<{
+					blindLevels?: Omit<BlindLevelRow, "id" | "level">[];
+					houseRules?: string | null;
+				}>()
 			)
 			.mutation(({ input }) => {
 				backend.snapshotUpdates.push(input);
+				if (input.houseRules !== undefined) {
+					backend.houseRules = input.houseRules;
+				}
 				if (input.blindLevels) {
 					backend.blindLevels = input.blindLevels.map((row, index) => ({
 						...row,
@@ -246,6 +267,7 @@ const fixtureRouter = t.router({
 			tags: [],
 			tournamentBountyAmount: null,
 			tournamentBuyIn: 10_000,
+			tournamentHouseRules: backend.houseRules,
 			tournamentId: backend.tournamentId,
 			tournamentName: "Sunday Deepstack",
 			tournamentStartingStack: 30_000,
@@ -326,6 +348,9 @@ beforeEach(() => {
 	backend.blindLevels = initialBlindLevels();
 	backend.createdEvents = [];
 	backend.currentStack = 12_000;
+	backend.handCount = null;
+	backend.handUpdates = [];
+	backend.houseRules = null;
 	backend.now = Date.now();
 	backend.remainingPlayers = 12;
 	backend.snapshotUpdates = [];
@@ -667,6 +692,51 @@ describe("TournamentCockpit", () => {
 			"true"
 		);
 		expect(backend.snapshotUpdates).toEqual([]);
+	});
+});
+
+describe("TournamentCockpit hands and house rules", () => {
+	it("counts hands through the tournament session and moves the button with them", async () => {
+		backend.handCount = 7;
+		const user = userEvent.setup();
+		renderCockpit();
+
+		expect(
+			await screen.findByRole("button", { name: dealerButton("S8") })
+		).toBeInTheDocument();
+
+		await user.click(screen.getByRole("button", { name: "Add a hand" }));
+
+		expect(
+			await screen.findByRole("button", { name: dealerButton("S9") })
+		).toBeInTheDocument();
+		await waitFor(() => {
+			expect(backend.handUpdates).toEqual([{ handCount: 8, id: SESSION_ID }]);
+		});
+	});
+
+	it("saves the house rules to the tournament snapshot from the Notes tab", async () => {
+		backend.houseRules = "Re-entry until level 8";
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Session settings" })
+		);
+		await user.click(await screen.findByRole("tab", { name: "Notes" }));
+		const rules = await screen.findByRole("textbox", { name: "House rules" });
+		expect(rules).toHaveValue("Re-entry until level 8");
+
+		await user.type(rules, "{Enter}Late reg closes at break 2");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(backend.snapshotUpdates).toContainEqual(
+				expect.objectContaining({
+					houseRules: "Re-entry until level 8\nLate reg closes at break 2",
+				})
+			);
+		});
 	});
 });
 

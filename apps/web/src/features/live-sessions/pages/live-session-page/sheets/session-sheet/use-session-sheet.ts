@@ -43,6 +43,7 @@ import {
 	optionalNumericString,
 	parseOptionalInt,
 } from "@/shared/lib/form-fields";
+import { houseRulesOrNull } from "@/shared/lib/house-rules";
 import {
 	hasMixCellErrors,
 	type MixGameGroupRow,
@@ -60,12 +61,13 @@ import {
 	describeSessionRuleValues,
 } from "./session-sheet-view";
 
-export type SessionSheetTab = "basics" | "blinds" | "overview";
+export type SessionSheetTab = "basics" | "blinds" | "notes" | "overview";
 
 const TABS: { key: SessionSheetTab; label: string }[] = [
 	{ key: "overview", label: "Overview" },
 	{ key: "basics", label: "Basics" },
 	{ key: "blinds", label: "Blinds" },
+	{ key: "notes", label: "Notes" },
 ];
 
 const TABLE_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -82,6 +84,7 @@ const SESSION_FORM_SCHEMA = z.object({
 	bountyAmount: MONEY,
 	currencyId: z.string(),
 	entryFee: MONEY,
+	houseRules: z.string(),
 	maxBuyIn: MONEY,
 	memo: z.string(),
 	minBuyIn: MONEY,
@@ -104,6 +107,7 @@ export interface SessionFormValues {
 	bountyAmount: string;
 	currencyId: string;
 	entryFee: string;
+	houseRules: string;
 	maxBuyIn: string;
 	memo: string;
 	minBuyIn: string;
@@ -185,6 +189,7 @@ function buildScalarPatch(
 	isMix: boolean
 ): SessionSnapshotPatch {
 	const patch: SessionSnapshotPatch = {
+		houseRules: houseRulesOrNull(values.houseRules),
 		ruleName: values.ruleName.trim(),
 		tableSize: numberOrNull(values.tableSize),
 	};

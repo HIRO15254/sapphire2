@@ -23,6 +23,7 @@ import {
 	scopeOf as getVariantScope,
 	useVariantScope,
 } from "@/shared/hooks/use-variant-scope";
+import { houseRulesOrNull } from "@/shared/lib/house-rules";
 import {
 	fromMixGames,
 	hasMixCellErrors,
@@ -217,6 +218,20 @@ export function useSessionFormState({
 		};
 	};
 
+	const buildCommonSubmitValues = (value: SessionFormFieldValues) => ({
+		sessionDate: value.sessionDate,
+		startTime: value.startTime || undefined,
+		endTime: value.endTime || undefined,
+		breakMinutes: parseOptInt(value.breakMinutes),
+		tagIds: selectedTagIds,
+		memo: value.memo || undefined,
+		houseRules:
+			mode === "live" ? undefined : houseRulesOrNull(value.houseRules),
+		roomId: selectedRoomId,
+		currencyId: selectedCurrencyId,
+		ruleName: emptyToUndefined(value.ruleName),
+	});
+
 	const form = useForm({
 		defaultValues: buildDefaults(defaultValues),
 		onSubmitInvalid: ({ formApi }) => {
@@ -227,17 +242,7 @@ export function useSessionFormState({
 		},
 
 		onSubmit: ({ value }) => {
-			const common = {
-				sessionDate: value.sessionDate,
-				startTime: value.startTime || undefined,
-				endTime: value.endTime || undefined,
-				breakMinutes: parseOptInt(value.breakMinutes),
-				tagIds: selectedTagIds,
-				memo: value.memo || undefined,
-				roomId: selectedRoomId,
-				currencyId: selectedCurrencyId,
-				ruleName: emptyToUndefined(value.ruleName),
-			};
+			const common = buildCommonSubmitValues(value);
 
 			if (isCashGame) {
 				if (hasMixCellErrors(mixGames)) {
@@ -319,6 +324,7 @@ export function useSessionFormState({
 			tableSize: game.tableSize?.toString() ?? undefined,
 			minBuyIn: numStrOrEmpty(game.minBuyIn ?? undefined),
 			maxBuyIn: numStrOrEmpty(game.maxBuyIn ?? undefined),
+			houseRules: game.houseRules ?? "",
 		});
 	};
 
@@ -372,6 +378,7 @@ export function useSessionFormState({
 			bountyAmount: numStrOrEmpty(game.bountyAmount ?? undefined),
 			tableSize: game.tableSize?.toString() ?? undefined,
 			variant: game.variant ?? undefined,
+			houseRules: game.houseRules ?? "",
 		});
 		applyTournamentStructure(gameId).catch(() => undefined);
 	};
