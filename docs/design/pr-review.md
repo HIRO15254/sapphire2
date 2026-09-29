@@ -1,5 +1,7 @@
 # Automated PR Review
 
+2026-09-29: レビューモデルを `--model opus`（action同梱CLIの別名解決で `claude-opus-5` になっていた）から `claude-opus-5-5` の明示指定へ変更。effort は medium のまま（Opus 5.5 の既定値も medium）。
+
 2026-09-05: 全PRのレビュー手順を単一コンテキストのleanへ統一する。Opus・medium・上限80ターン、サブエージェントとFast modeは無効。OAuth認証を継続し、追加使用はアカウント側でオフにして運用する。計測結果と条件は[Claudeレビューの軽量化評価](pr-review-lean-evaluation.md)を参照。以下の過去の運用データと、最大2巡・CI待機の根拠は維持する。
 
 Design rationale for [`pre-merge-review.yml`](../../.github/workflows/pre-merge-review.yml) and [`scripts/review-gate.ts`](../../scripts/review-gate.ts): why the reviewer runs at most two automatic rounds, why it waits for CI, why it installs dependencies, and what the author-side rules in [`AGENTS.md`](../../AGENTS.md) (PR Review Loop) are protecting. The imperatives live there; this doc holds the data that justified them so the next change to the loop can be judged against the same baseline.
