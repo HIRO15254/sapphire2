@@ -10,8 +10,8 @@ import { cn } from "@/lib/utils";
 import type { BlindSlotLabels } from "@/shared/hooks/use-game-groups";
 import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
 import {
-	CRYST_FIELD,
 	CRYST_FIELD_GROUP,
+	CRYST_FIELD_MD,
 	crystButton,
 } from "../../cryst-controls";
 import type {
@@ -20,15 +20,24 @@ import type {
 	MixStakeSlot,
 } from "./use-session-sheet";
 
-const ROW_GRID = "grid grid-cols-[34px_1fr_1fr_52px_44px] items-center gap-1.5";
-const CELL_CLASS = `${CRYST_FIELD} box-border h-[var(--m-control)] w-full min-w-0 px-2 font-mono text-[length:var(--m-text-secondary)]`;
-const INLINE_GROUP_CLASS = `${CRYST_FIELD_GROUP} box-border inline-flex h-[var(--m-control)] min-w-0 items-center gap-1.5 px-2 has-[input[aria-invalid=true]]:border-destructive`;
+const ROW_GRID = "grid grid-cols-[34px_1fr_1fr_40px_28px] items-center gap-1.5";
+const CELL_CLASS = cn(
+	CRYST_FIELD_MD,
+	"box-border h-8 w-full min-w-0 px-1.5 font-mono text-[length:var(--m-text-caption)]"
+);
+const DEFAULT_MINUTES_CLASS = `${CRYST_FIELD_GROUP} box-border inline-flex h-[var(--m-control)] min-w-0 items-center gap-1.5 px-2`;
+const INLINE_GROUP_CLASS = cn(
+	CRYST_FIELD_GROUP,
+	"box-border inline-flex h-7 min-w-0 items-center gap-1 rounded-md px-[7px] has-[input[aria-invalid=true]]:border-destructive"
+);
 const INLINE_INPUT_CLASS =
-	"w-14 min-w-0 bg-transparent font-mono text-[length:var(--m-text-secondary)] outline-none";
+	"w-12 min-w-0 bg-transparent font-mono text-[length:var(--m-text-caption)] outline-none";
 const CAPTION_CLASS =
 	"text-[length:var(--m-text-caption)] text-muted-foreground";
+const INLINE_LABEL_CLASS =
+	"whitespace-nowrap text-[length:var(--text-xs)] text-muted-foreground";
 const GAMES_PILL_CLASS =
-	"inline-flex h-[var(--m-control)] min-w-0 items-center gap-1 whitespace-nowrap rounded-full border px-3 font-semibold text-[11px] transition-[filter] hover:brightness-110";
+	"inline-flex h-7 min-w-0 items-center gap-1 whitespace-nowrap rounded-full border px-2 font-semibold text-[length:var(--text-xs)] transition-[filter] hover:brightness-110";
 const GAMES_PILL_SET =
 	"border-[color-mix(in_oklab,var(--info)_45%,transparent)] bg-[color-mix(in_oklab,var(--info)_14%,transparent)] text-info";
 
@@ -80,7 +89,7 @@ function InlineField({
 	const error = row.errors[cell];
 	return (
 		<label className={INLINE_GROUP_CLASS}>
-			<span className={cn(CAPTION_CLASS, "whitespace-nowrap")}>{label}</span>
+			<span className={INLINE_LABEL_CLASS}>{label}</span>
 			<input
 				{...NO_INPUT_SUGGESTIONS}
 				aria-describedby={error ? `${row.uid}-error` : undefined}
@@ -154,12 +163,10 @@ function GameGroupStakes({
 					</span>
 				</div>
 			)}
-			<div className="flex flex-wrap items-center gap-1.5">
+			<div className="flex flex-wrap items-center gap-1">
 				{group.cells.map((cell) => (
 					<label className={INLINE_GROUP_CLASS} key={cell.slot}>
-						<span className={cn(CAPTION_CLASS, "whitespace-nowrap")}>
-							{cell.label}
-						</span>
+						<span className={INLINE_LABEL_CLASS}>{cell.label}</span>
 						<input
 							{...NO_INPUT_SUGGESTIONS}
 							aria-describedby={cell.error ? `${row.uid}-error` : undefined}
@@ -272,7 +279,7 @@ export function SessionBlindsTab({
 	return (
 		<div className="flex flex-col gap-2.5">
 			<div className="grid grid-cols-[auto_1fr] items-center gap-2">
-				<label className={INLINE_GROUP_CLASS}>
+				<label className={DEFAULT_MINUTES_CLASS}>
 					<IconClock
 						aria-hidden
 						className="shrink-0 text-muted-foreground"
@@ -329,7 +336,7 @@ export function SessionBlindsTab({
 							aria-current={row.isCurrent ? "step" : undefined}
 							aria-label={row.groupLabel}
 							className={cn(
-								"flex min-w-0 flex-col gap-1 rounded-md px-1 py-1",
+								"flex min-w-0 flex-col gap-1 rounded-md px-1 py-[5px]",
 								row.isCurrent
 									? "bg-[color-mix(in_oklab,var(--primary)_10%,transparent)]"
 									: null
@@ -360,8 +367,8 @@ export function SessionBlindsTab({
 								<button
 									aria-label={`Remove ${row.groupLabel.toLowerCase()}`}
 									className={cn(
-										crystButton({ size: "icon", variant: "ghost" }),
-										"w-11 hover:text-destructive"
+										crystButton({ size: "iconSm", variant: "ghost" }),
+										"hover:text-destructive"
 									)}
 									onClick={() => onRemoveRow(row.uid)}
 									type="button"
@@ -383,7 +390,7 @@ export function SessionBlindsTab({
 							{row.isBreak ||
 							row.gamesName !== null ||
 							openGames === null ? null : (
-								<div className="flex flex-wrap items-center gap-1.5 pl-10">
+								<div className="flex flex-wrap items-center gap-1 pl-10">
 									{blindLabels.blind3 === null ? null : (
 										<InlineField
 											cell="blind3"
