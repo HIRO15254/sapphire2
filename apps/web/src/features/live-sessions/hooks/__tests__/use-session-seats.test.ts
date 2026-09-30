@@ -35,7 +35,7 @@ const mocks = vi.hoisted(() => ({
 	usePlayerDetailSpy: vi.fn(),
 	playerDetails: {} as Record<
 		string,
-		{ tags: { color: string; id: string; name: string }[] }
+		{ name?: string; tags: { color: string; id: string; name: string }[] }
 	>,
 	updateHeroSeat: vi.fn(),
 	warmedPlayerIds: vi.fn(),
@@ -274,6 +274,14 @@ describe("useSessionSeats", () => {
 	});
 
 	describe("playerNames", () => {
+		it("takes a seated player's name from the profile query so a panel edit shows at once", () => {
+			mocks.tablePlayers.players = [makePlayer({ seatPosition: 2 })];
+			mocks.playerDetails = { "p-1": { name: "Alicia", tags: [] } };
+			const { result } = renderState({ tableSize: 6 });
+			expect(result.current.playerNames.get("p-1")).toBe("Alicia");
+			expect(result.current.seats[2]?.player?.name).toBe("Alicia");
+		});
+
 		it("names every player who ever sat, including those who left", () => {
 			mocks.tablePlayers.players = [
 				makePlayer({ seatPosition: 2 }),

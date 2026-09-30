@@ -136,11 +136,6 @@ export function useSessionSeats({
 		},
 	});
 
-	const playerNames = new Map<string, string>();
-	for (const p of tablePlayers.players) {
-		playerNames.set(p.player.id, p.player.name);
-	}
-
 	const settledPlayers = tablePlayers.players.filter(
 		(p) => p.isActive && !p.isLoading
 	);
@@ -149,26 +144,40 @@ export function useSessionSeats({
 			trpc.player.getById.queryOptions({ id: p.player.id })
 		),
 	});
-	const tagsByPlayerId = new Map<string, PlayerTagWithColor[]>();
+	const detailByPlayerId = new Map<
+		string,
+		{ name: string; tags: PlayerTagWithColor[] }
+	>();
 	settledPlayers.forEach((p, index) => {
-		const tags = playerDetailQueries[index]?.data?.tags;
-		if (tags) {
-			tagsByPlayerId.set(p.player.id, tags);
+		const detail = playerDetailQueries[index]?.data;
+		if (detail) {
+			detailByPlayerId.set(p.player.id, detail);
 		}
 	});
 
+	const playerNames = new Map<string, string>();
+	for (const p of tablePlayers.players) {
+		playerNames.set(
+			p.player.id,
+			detailByPlayerId.get(p.player.id)?.name ?? p.player.name
+		);
+	}
+
 	const activePlayers: SeatPlayer[] = tablePlayers.players
 		.filter((p) => p.isActive)
-		.map((p) => ({
-			id: p.id,
-			isLoading: p.isLoading,
-			isTemporary: p.player.isTemporary,
-			memo: p.player.memo,
-			name: p.player.name,
-			playerId: p.player.id,
-			seatPosition: p.seatPosition,
-			tags: tagsByPlayerId.get(p.player.id) ?? [],
-		}));
+		.map((p) => {
+			const detail = detailByPlayerId.get(p.player.id);
+			return {
+				id: p.id,
+				isLoading: p.isLoading,
+				isTemporary: p.player.isTemporary,
+				memo: p.player.memo,
+				name: detail?.name ?? p.player.name,
+				playerId: p.player.id,
+				seatPosition: p.seatPosition,
+				tags: detail?.tags ?? [],
+			};
+		});
 
 	const seatCount = resolveSeatCount(tableSize);
 

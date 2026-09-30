@@ -23,7 +23,7 @@ The tokens went app-wide in SA2-230 (decision (b) of that issue). Screens other 
 
 Beyond colors, `:root` ships the full Cryst contract:
 
-- **Type scale** `--text-xs` … `--text-3xl` (11 / 13 / 15 / 17 / 21 / 26 / 32px). Cryst's scale ends at `--text-3xl: 2rem`; `--text-4xl` / `--text-5xl` / `--text-6xl` (used by `.t-h1` / `.t-display`) keep their pre-Cryst values because the design system defines no larger steps — do not invent Cryst values for them.
+- **Type scale** `--text-xs` … `--text-3xl` (11 / 13 / 15 / 17 / 21 / 26 / 32px) are the Cryst steps. Cryst's scale ends at `--text-3xl: 2rem`; `--text-4xl` / `--text-5xl` / `--text-6xl` (38 / 48 / 60px, used by `.t-h1` / `.t-display` and a few hero numbers) are **not** Cryst tokens — they only continue the scale monotonically above 3xl (a Cryst screen never needs them). Never let a larger step resolve smaller than the one below it; the first global switch shipped `--text-4xl` at 30px under a 32px `--text-3xl`.
 - **Tracking** `--tracking-heading` / `--tracking-body` / `--tracking-caps`. `body` applies `--tracking-body`; the `.t-h*` roles apply `--tracking-heading`.
 - **Mobile sizes** `--m-*` (`--m-control` = 44px control height, `--m-list-row`, `--m-inset`, `--m-sheet-radius`, `--m-text-*`). `--h-control-md` resolves to `--m-control`.
 - **Shadows** `--shadow-sm` / `--shadow-md` / `--shadow-lg` / `--shadow-popover`. **Write `shadow-[var(--shadow-md)]`, never the bare `shadow-*` utility** — Tailwind compiles `shadow-md` to a literal default shadow (it rewrites the value to inject `--tw-shadow-color` and never reads `var(--shadow-md)`), which is far too weak for Cryst's dark surfaces.
