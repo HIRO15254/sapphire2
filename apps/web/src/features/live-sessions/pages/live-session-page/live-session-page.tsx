@@ -11,7 +11,7 @@ import { useLiveSessionPage } from "./use-live-session-page";
 function CrystScreen({ children }: { children: React.ReactNode }) {
 	return (
 		<div
-			className={`${CRYST_SCOPE_CLASS} mx-auto flex h-svh w-full max-w-[412px] flex-col bg-background pt-[env(safe-area-inset-top)] font-sans text-foreground tracking-[var(--tracking-body)]`}
+			className={`${CRYST_SCOPE_CLASS} mx-auto flex h-full w-full max-w-[412px] flex-col bg-background pt-[env(safe-area-inset-top)] font-sans text-foreground tracking-[var(--tracking-body)]`}
 		>
 			{children}
 		</div>

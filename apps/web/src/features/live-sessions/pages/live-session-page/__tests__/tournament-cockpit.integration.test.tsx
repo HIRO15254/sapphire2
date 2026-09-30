@@ -323,7 +323,7 @@ const server = setupServer(
 
 function renderCockpit() {
 	return renderIntegrationPage(<TournamentCockpit sessionId={SESSION_ID} />, {
-		path: "/active-session-next",
+		path: "/active-session",
 		queryClient,
 	});
 }

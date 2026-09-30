@@ -2,7 +2,7 @@
 
 The Cryst design system is the whole vocabulary for migrated screens. A migrated screen that needs something the system does not describe builds it as an **exception**: local to that screen, recorded here with its reason, and never a precedent for another screen. If a second screen needs the same thing, propose it to the design system as a component instead of copying it. The design system's README lists the same exceptions under "Exceptions" and points here for the reasons.
 
-Scope: the Cryst live session screen, `apps/web/src/features/live-sessions/pages/live-session-page/` (route `/active-session-next`). The temporary `.cryst` token scope itself is described in [`.claude/rules/web-theme.md`](../../.claude/rules/web-theme.md).
+Scope: the Cryst live session screen, `apps/web/src/features/live-sessions/pages/live-session-page/` (route `/active-session`). The temporary `.cryst` token scope itself is described in [`.claude/rules/web-theme.md`](../../.claude/rules/web-theme.md).
 
 ## What the implementation takes from the system
 
@@ -39,6 +39,10 @@ These are platform differences, not visual exceptions:
 - In SegmentedControl and RadioCard, Home and End move focus to the first and last option without selecting it (Radix radio group); the arrow keys select.
 
 ## Transitional reuse
+
+The production cockpit remains inside `AuthenticatedShell` in its `fullBleed` layout (SA2-228). The shell retains `SessionFormProvider`, `StackSheetProvider`, `UpdateNotesProvider`, offline status and its desktop guard. By user direction, the legacy mobile navigation and its reserved bottom padding are hidden on the cockpit while an active or paused session exists, so recording fills the available viewport until completion. Navigation returns once the session is completed or no active session exists; other pages retain their navigation. The session header still has no back button, and the standalone PWA stays in the cockpit until session completion. The shared center action is Live for an active session and Resume for a paused one where navigation is visible. Stack recording belongs to the cockpit's quick input, and the shell's legacy `LiveStackFormSheet` is not mounted on the cockpit. Old components and providers remain for the separately tracked removals in SA2-229 and SA2-230.
+
+The full-bleed path check matches `/active-session` and its slash-delimited descendants, including a trailing slash, without matching `/active-sessions`. Login alone bypasses the authenticated shell. This keeps the layout decision in the root shell without introducing route metadata for a single cockpit.
 
 The End session and End tournament sheets render Cryst fields but take their form state and validation from the old screen's completion-form hooks (`useCashGameCompleteForm`, `useTournamentCompleteForm` in `features/live-sessions/components/`), so cash-out and result validation keeps one source (SA2-113, SA2-137). The hooks move into the Cryst tree when the old live session screen is deleted (SA2-229).
 

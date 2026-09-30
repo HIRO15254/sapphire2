@@ -22,4 +22,11 @@ test("directs desktop users to the supported mobile experience after login", asy
 			"This app is optimized for mobile. Open it on a smartphone to continue."
 		)
 	).toBeVisible();
+	await page.goto("/active-session");
+	await expect(
+		page.getByText("Use on your phone", { exact: true })
+	).toBeVisible();
+	await expect(
+		page.getByRole("textbox", { name: "Current stack" })
+	).toHaveCount(0);
 });
