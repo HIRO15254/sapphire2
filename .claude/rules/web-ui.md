@@ -9,7 +9,7 @@ paths:
 
 Every top-level page composes its header with [`PageHeader`](../../apps/web/src/shared/components/page-header/page-header.tsx). It supports an inline actions slot and an optional badge slot. Do not hand-roll page titles or action rows.
 
-Exception: the live session screens are full-bleed session cockpits, not document pages — they render their own header. The production cockpit uses `AuthenticatedShell`'s `fullBleed` layout to retain navigation, providers, offline status and the desktop guard (SA2-228). They are the only pages allowed to skip `PageHeader`.
+Exception: the live session screens are full-bleed session cockpits, not document pages — they render their own header. The production cockpit uses `AuthenticatedShell`'s `fullBleed` layout to retain providers, offline status and the desktop guard; mobile navigation is hidden there while an active or paused session exists and restored after completion (SA2-228). They are the only pages allowed to skip `PageHeader`.
 
 ## Use shadcn primitives
 

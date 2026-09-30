@@ -22,6 +22,7 @@ export function AuthenticatedShell({
 	fullBleed?: boolean;
 }) {
 	const { isDesktop, activeSessionId } = useAuthenticatedShell();
+	const showMobileNav = !fullBleed || activeSessionId === null;
 
 	if (isDesktop) {
 		return (
@@ -46,14 +47,16 @@ export function AuthenticatedShell({
 							<OnlineStatusBar />
 							<div
 								className={cn(
-									"flex-1 pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0",
+									"flex-1",
+									showMobileNav &&
+										"pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0",
 									fullBleed ? "min-h-0" : "overflow-auto"
 								)}
 							>
 								{children}
 							</div>
 						</div>
-						<MobileNav />
+						{showMobileNav ? <MobileNav /> : null}
 						{fullBleed ? null : <LiveStackFormSheet />}
 						<UpdateNotesSheet />
 					</div>

@@ -14,7 +14,7 @@ for (const session of [
 		input: { buyIn: 1000, startingStack: 20_000 },
 	},
 ]) {
-	test(`${session.name} cockpit keeps navigation and recording accessible after route cutover`, async ({
+	test(`${session.name} cockpit hides legacy navigation until the session is completed`, async ({
 		page,
 		account,
 		context,
@@ -48,43 +48,56 @@ for (const session of [
 			name: "Timeline",
 			exact: true,
 		});
-		const sessionsLink = page.getByRole("link", {
-			name: "Sessions",
-			exact: true,
-		});
-		const navigation = page
-			.getByRole("navigation")
-			.filter({ has: sessionsLink });
-		const timelineBox = await timeline.boundingBox();
-		const navigationBox = await sessionsLink.boundingBox();
-		expect(timelineBox).not.toBeNull();
-		expect(navigationBox).not.toBeNull();
-		expect(
-			(timelineBox?.y ?? 0) + (timelineBox?.height ?? 0)
-		).toBeLessThanOrEqual(navigationBox?.y ?? 0);
+		await expect(
+			page.getByRole("link", { name: "Sessions", exact: true })
+		).toHaveCount(0);
 		await page.screenshot({ path: test.info().outputPath("cockpit.png") });
-		await sessionsLink.click();
-		await expect(page).toHaveURL((url) => url.pathname === "/sessions");
-		await page.goto("/active-session");
+		await page.reload();
 		await expect(
 			page.getByRole("button", { name: "Session settings" })
 		).toBeVisible();
+		await expect(
+			page.getByRole("link", { name: "Sessions", exact: true })
+		).toHaveCount(0);
 		await page.getByRole("button", { name: "Pause / resume" }).click();
 		await expect(
-			navigation.getByRole("button", { name: "Resume", exact: true })
+			page.getByText("Session paused", { exact: true })
 		).toBeVisible();
-		await sessionsLink.click();
-		await expect(page).toHaveURL((url) => url.pathname === "/sessions");
-		await navigation
-			.getByRole("button", { name: "Resume", exact: true })
-			.click();
-		await expect(page).toHaveURL((url) => url.pathname === "/active-session");
 		await expect(
-			page.getByRole("button", { name: "Live", exact: true })
-		).toBeVisible();
+			page.getByRole("link", { name: "Sessions", exact: true })
+		).toHaveCount(0);
+		await page.getByRole("button", { name: "Resume", exact: true }).click();
+		await expect(page.getByText("Session paused", { exact: true })).toHaveCount(
+			0
+		);
 		await context.setOffline(true);
 		await expect(page.getByText(OFFLINE_NOTICE)).toBeVisible();
 		await expect(timeline).toBeVisible();
 		await context.setOffline(false);
+		await page
+			.getByRole("button", { name: "End session", exact: true })
+			.click();
+		const endSheet = page.getByRole("dialog", { name: "End session" });
+		if (session.name === "cash") {
+			await endSheet
+				.getByRole("textbox", { name: "Cash-out amount" })
+				.fill("10000");
+		} else {
+			await endSheet.getByRole("textbox", { name: "Place" }).fill("1");
+			await endSheet.getByRole("textbox", { name: "Total entries" }).fill("1");
+			await endSheet.getByRole("textbox", { name: "Prize" }).fill("0");
+		}
+		await endSheet.getByRole("button", { name: "Save", exact: true }).click();
+		await expect(page).toHaveURL((url) => url.pathname === "/sessions");
+		await expect(
+			page.getByRole("link", { name: "Sessions", exact: true })
+		).toBeVisible();
+		await page.goto("/active-session");
+		await expect(
+			page.getByText("No active session", { exact: true })
+		).toBeVisible();
+		await expect(
+			page.getByRole("link", { name: "Sessions", exact: true })
+		).toBeVisible();
 	});
 }
