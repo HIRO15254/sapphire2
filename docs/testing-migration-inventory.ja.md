@@ -2,7 +2,7 @@
 
 2026-09-05 / 基準HEAD: `37371fd84f2a6c5fd32e726d2793c3489f455ca3` / **全407ファイルの初期分類。移行完了表ではない。**
 
-以下のファイルパスと分類は基準HEAD時点の履歴であり、現在の保護状況を示すものではない。2026-09-30 の SA2-229 で旧 `active-session-page/` / `active-session-scene/` と旧ページ専用の `tournament-lifecycle.test.tsx` を削除し、2つの終了フォームの共通フックとテストを `features/live-sessions/hooks/` へ移動した。削除したテストの契約・代替検証・残存リスクは [PR #657 の監査表](https://github.com/HIRO15254/sapphire2/pull/657)を参照する。基準値と当時の分類は変更しない。
+以下のファイルパスと分類は基準HEAD時点の履歴であり、現在の保護状況を示すものではない。2026-09-30 の SA2-229 で旧 `active-session-page/` / `active-session-scene/` と旧ページ専用の `tournament-lifecycle.test.tsx` を削除し、2つの終了フォームの共通フックとテストを `features/live-sessions/hooks/` へ移動した。削除したテストの契約・代替検証・残存リスクは [PR #657 の監査表](https://github.com/HIRO15254/sapphire2/pull/657)を参照する。同日の SA2-230 で旧シェル経路（`SessionFormProvider` / `StackSheetProvider` / `LiveStackFormSheet`）と、旧ライブセッション画面だけが使っていた `features/live-sessions/components/` 配下のコンポーネント・フック・ユーティリティをテストごと削除した（一覧は [`testing-live-review.ja.md`](testing-live-review.ja.md) 冒頭）。基準値と当時の分類は変更しない。
 
 [承認済み計画](testing-refactor-plan.ja.md)に沿って、既存の保護を失わずにテストを再編するための一覧。基準HEADの追跡済み `*.test.ts(x)` / `*.spec.ts(x)` を `git ls-tree -r --name-only HEAD` で列挙し、各ファイルを `git show HEAD:<path>` で取得した。作業中の追加・削除を基準値へ混ぜない。
 

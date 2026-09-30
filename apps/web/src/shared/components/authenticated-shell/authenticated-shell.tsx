@@ -1,8 +1,5 @@
 import { IconDeviceMobile } from "@tabler/icons-react";
 import type { ReactNode } from "react";
-import { LiveStackFormSheet } from "@/features/live-sessions/components/live-stack-form-sheet";
-import { SessionFormProvider } from "@/features/live-sessions/hooks/use-session-form";
-import { StackSheetProvider } from "@/features/live-sessions/hooks/use-stack-sheet";
 import {
 	UpdateNotesProvider,
 	UpdateNotesSheet,
@@ -38,30 +35,25 @@ export function AuthenticatedShell({
 	}
 
 	return (
-		<SessionFormProvider sessionId={activeSessionId}>
-			<StackSheetProvider>
-				<UpdateNotesProvider>
-					<div className="min-h-svh bg-background">
-						<SidebarNav />
-						<div className="flex h-svh flex-col md:ml-56">
-							<OnlineStatusBar />
-							<div
-								className={cn(
-									"flex-1",
-									showMobileNav &&
-										"pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0",
-									fullBleed ? "min-h-0" : "overflow-auto"
-								)}
-							>
-								{children}
-							</div>
-						</div>
-						{showMobileNav ? <MobileNav /> : null}
-						{fullBleed ? null : <LiveStackFormSheet />}
-						<UpdateNotesSheet />
+		<UpdateNotesProvider>
+			<div className="min-h-svh bg-background">
+				<SidebarNav />
+				<div className="flex h-svh flex-col md:ml-56">
+					<OnlineStatusBar />
+					<div
+						className={cn(
+							"flex-1",
+							showMobileNav &&
+								"pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0",
+							fullBleed ? "min-h-0" : "overflow-auto"
+						)}
+					>
+						{children}
 					</div>
-				</UpdateNotesProvider>
-			</StackSheetProvider>
-		</SessionFormProvider>
+				</div>
+				{showMobileNav ? <MobileNav /> : null}
+				<UpdateNotesSheet />
+			</div>
+		</UpdateNotesProvider>
 	);
 }

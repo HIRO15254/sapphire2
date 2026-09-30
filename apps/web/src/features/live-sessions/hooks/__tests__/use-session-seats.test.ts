@@ -33,10 +33,10 @@ const mocks = vi.hoisted(() => ({
 		updatePlayer: vi.fn(),
 	},
 	usePlayerDetailSpy: vi.fn(),
-	playerList: [] as Array<{
-		id: string;
-		tags: { color: string; id: string; name: string }[];
-	}>,
+	playerDetails: {} as Record<
+		string,
+		{ name?: string; tags: { color: string; id: string; name: string }[] }
+	>,
 	updateHeroSeat: vi.fn(),
 	warmedPlayerIds: vi.fn(),
 }));
@@ -58,9 +58,10 @@ vi.mock("@/features/players/hooks/use-player-detail", () => ({
 vi.mock("@tanstack/react-query", () => ({
 	useQueries: ({ queries }: { queries: { queryKey: unknown[] }[] }) => {
 		mocks.warmedPlayerIds(queries.map((query) => query.queryKey[1]));
-		return [];
+		return queries.map((query) => ({
+			data: mocks.playerDetails[query.queryKey[1] as string],
+		}));
 	},
-	useQuery: () => ({ data: mocks.playerList }),
 	useQueryClient: () => ({
 		cancelQueries: vi.fn(),
 		getQueryData: vi.fn(),
@@ -93,7 +94,6 @@ vi.mock("@/utils/trpc", () => ({
 					queryKey: ["player", id],
 				}),
 			},
-			list: { queryOptions: () => ({ queryKey: ["player", "list"] }) },
 		},
 		liveCashGameSession: {
 			getById: {
@@ -158,7 +158,7 @@ describe("useSessionSeats", () => {
 		mocks.tablePlayers.handleRemovePlayer.mockReset();
 		mocks.useTablePlayersSpy.mockReset();
 		mocks.usePlayerDetailSpy.mockReset();
-		mocks.playerList = [];
+		mocks.playerDetails = {};
 		mocks.updateHeroSeat.mockReset();
 	});
 
@@ -241,15 +241,21 @@ describe("useSessionSeats", () => {
 			expect(result.current.seats[1]?.player).toBeNull();
 		});
 
-		it("joins tag badges from the player list by playerId", () => {
+		it("joins tag badges from each seated player's profile query", () => {
 			mocks.tablePlayers.players = [makePlayer({ seatPosition: 0 })];
-			mocks.playerList = [
-				{ id: "p-1", tags: [{ color: "#f00", id: "t9", name: "Whale" }] },
-			];
+			mocks.playerDetails = {
+				"p-1": { tags: [{ color: "#f00", id: "t9", name: "Whale" }] },
+			};
 			const { result } = renderState({ tableSize: 6 });
 			expect(result.current.seats[0]?.player?.tags).toEqual([
 				{ color: "#f00", id: "t9", name: "Whale" },
 			]);
+		});
+
+		it("shows no tags for a player whose profile has not loaded", () => {
+			mocks.tablePlayers.players = [makePlayer({ seatPosition: 0 })];
+			const { result } = renderState({ tableSize: 6 });
+			expect(result.current.seats[0]?.player?.tags).toEqual([]);
 		});
 
 		it("marks the hero seat as hero while keeping the player record on it", () => {
@@ -260,14 +266,6 @@ describe("useSessionSeats", () => {
 			expect(result.current.seats[3]?.player?.name).toBe("Alice");
 		});
 
-		it("keeps a hero-displaced player in the unseated list", () => {
-			mocks.tablePlayers.players = [makePlayer({ seatPosition: 3 })];
-			const { result } = renderState({ tableSize: 6, heroSeatPosition: 3 });
-			expect(result.current.unseatedPlayers.map((p) => p.playerId)).toEqual([
-				"p-1",
-			]);
-		});
-
 		it("marks an empty hero seat as hero", () => {
 			const { result } = renderState({ tableSize: 6, heroSeatPosition: 3 });
 			expect(result.current.seats[3]?.occupancy).toBe("hero");
@@ -275,33 +273,28 @@ describe("useSessionSeats", () => {
 		});
 	});
 
-	describe("unseated players", () => {
-		it("collects seatless active players", () => {
-			mocks.tablePlayers.players = [makePlayer({ seatPosition: null })];
-			const { result } = renderState({ tableSize: 6 });
-			expect(result.current.unseatedPlayers.map((p) => p.name)).toEqual([
-				"Alice",
-			]);
-		});
-
-		it("collects players seated beyond the seat count", () => {
-			mocks.tablePlayers.players = [makePlayer({ seatPosition: 8 })];
-			const { result } = renderState({ tableSize: 6 });
-			expect(result.current.unseatedPlayers).toHaveLength(1);
-		});
-
-		it("collects a player displaced by the hero seat", () => {
+	describe("playerNames", () => {
+		it("takes a seated player's name from the profile query so a panel edit shows at once", () => {
 			mocks.tablePlayers.players = [makePlayer({ seatPosition: 2 })];
-			const { result } = renderState({ tableSize: 6, heroSeatPosition: 2 });
-			expect(result.current.unseatedPlayers.map((p) => p.playerId)).toEqual([
-				"p-1",
-			]);
+			mocks.playerDetails = { "p-1": { name: "Alicia", tags: [] } };
+			const { result } = renderState({ tableSize: 6 });
+			expect(result.current.playerNames.get("p-1")).toBe("Alicia");
+			expect(result.current.seats[2]?.player?.name).toBe("Alicia");
 		});
 
-		it("excludes seated players from the unseated list", () => {
-			mocks.tablePlayers.players = [makePlayer({ seatPosition: 1 })];
+		it("names every player who ever sat, including those who left", () => {
+			mocks.tablePlayers.players = [
+				makePlayer({ seatPosition: 2 }),
+				makePlayer({
+					id: "tp-2",
+					isActive: false,
+					player: { id: "p-2", isTemporary: true, memo: null, name: "Gone" },
+					seatPosition: null,
+				}),
+			];
 			const { result } = renderState({ tableSize: 6 });
-			expect(result.current.unseatedPlayers).toHaveLength(0);
+			expect(result.current.playerNames.get("p-1")).toBe("Alice");
+			expect(result.current.playerNames.get("p-2")).toBe("Gone");
 		});
 	});
 
