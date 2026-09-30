@@ -9,6 +9,7 @@ import {
 	DialogTitle,
 } from "@/shared/components/ui/dialog";
 import { CRYST_SCRIM, crystButton } from "../cryst-controls";
+import { CRYST_SCOPE_CLASS } from "../cryst-scope";
 
 interface CrystConfirmDialogProps {
 	cancelLabel: string;
@@ -35,6 +36,7 @@ export function CrystConfirmDialog({
 		<Dialog onOpenChange={onOpenChange} open={open}>
 			<DialogContent
 				className={cn(
+					CRYST_SCOPE_CLASS,
 					"w-[min(440px,calc(100vw-32px))] max-w-none gap-0 rounded-xl border border-border bg-popover p-0 text-popover-foreground shadow-[var(--shadow-lg)] ring-0 sm:max-w-none"
 				)}
 				overlayClassName={CRYST_SCRIM}

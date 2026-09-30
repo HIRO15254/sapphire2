@@ -215,7 +215,7 @@ describe("useTournamentStats", () => {
 		const result = await renderLoadedTournament(ctx());
 		const net = rowsByKey(result).net;
 		expect(net.value).toBe("-750 USD");
-		expect(net.valueColor).toBe("text-destructive");
+		expect(net.valueColor).toBe("text-red-600 dark:text-red-400");
 	});
 	it("exposes query errors and retries the summary request", async () => {
 		trpcMocks.summaryQueryFn.mockReset();

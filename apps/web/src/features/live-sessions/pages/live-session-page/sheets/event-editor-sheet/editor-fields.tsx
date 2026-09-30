@@ -4,8 +4,8 @@ import { cn } from "@/lib/utils";
 import { Field } from "@/shared/components/ui/field";
 import { NO_INPUT_SUGGESTIONS } from "@/shared/lib/form-fields";
 import { formatNumber, formatSignedNumber } from "@/utils/format-number";
-import { profitLossColorClass } from "@/utils/format-profit-loss";
 import { CRYST_FIELD } from "../../cryst-controls";
+import { plToneClass } from "../../cryst-tone";
 import { RadioCard, RadioCardGroup } from "../../radio-card";
 import { SegmentedControl } from "../../segmented-control";
 import type {
@@ -165,7 +165,7 @@ function AllInSummary({ form }: { form: EditorForm }) {
 							<dd
 								className={cn(
 									"font-mono tabular-nums",
-									ev === null ? "" : profitLossColorClass(ev.evDelta)
+									ev === null ? "" : plToneClass(ev.evDelta)
 								)}
 							>
 								{ev === null ? "—" : formatSignedNumber(Math.round(ev.evDelta))}

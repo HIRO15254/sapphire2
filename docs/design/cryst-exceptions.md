@@ -2,7 +2,7 @@
 
 The Cryst design system is the whole vocabulary for migrated screens. A migrated screen that needs something the system does not describe builds it as an **exception**: local to that screen, recorded here with its reason, and never a precedent for another screen. If a second screen needs the same thing, propose it to the design system as a component instead of copying it. The design system's README lists the same exceptions under "Exceptions" and points here for the reasons.
 
-Scope: the Cryst live session screen, `apps/web/src/features/live-sessions/pages/live-session-page/` (route `/active-session`). The Cryst tokens are the app-wide theme since SA2-230; the token contract and the screen-by-screen migration plan are described in [`.claude/rules/web-theme.md`](../../.claude/rules/web-theme.md).
+Scope: the Cryst live session screen, `apps/web/src/features/live-sessions/pages/live-session-page/` (route `/active-session`). The temporary `.cryst` token scope itself is described in [`.claude/rules/web-theme.md`](../../.claude/rules/web-theme.md).
 
 ## What the implementation takes from the system
 
@@ -29,7 +29,7 @@ Everything not listed under [Exceptions](#exceptions) follows a design-system co
 | Seat map: seat names at 8px, below the 11px floor | `table-view/seat-marker/seat-marker.tsx` | User-directed when names were added to the markers; kept by decision in P4a (SA2-223). |
 | Seat map: 34px square scan and clear-seats buttons, below the 44px target | `table-view/table-view.tsx` | Kept at the original 34px by decision in P4a (SA2-223). The square shape follows the system's icon Button. |
 | Blinds tab level rows below the 44px target, one line per level: 32px cells for the blinds, the ante and the minutes, a 24px icon-only Games button and a 22px remove button; a level with games takes one more line per game group, each stake a 32px field with its caption stacked above the value | `sheets/session-sheet/session-blinds-tab.tsx` | User-directed in P4c (SA2-225): at the 44px target each level took two 44px lines and a structure no longer fit on screen, and then each level and each game group was asked to fit on one line. The design file puts the third blind, the ante and the Games pill on a second line. The default-minutes field and the Add level / Add break buttons keep the system sizes. |
-| Sans face is Noto Sans (Latin), not Noto Sans JP | `apps/web/src/index.css` | The app ships the Latin face; adopting the Japanese face is an app-wide font change tracked in SA2-237. |
+| Sans face is Noto Sans (Latin), not Noto Sans JP | `apps/web/src/index.css` | `--font-sans` is a literal in `@theme inline`, so the `.cryst` scope cannot change it; adopting the Japanese face is an app-wide change tracked in SA2-237. |
 
 ## Behavior that differs from the system's reference
 

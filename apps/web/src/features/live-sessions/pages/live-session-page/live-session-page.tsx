@@ -4,12 +4,15 @@ import { cn } from "@/lib/utils";
 import { CashCockpit } from "./cash-cockpit";
 import { CRYST_ALERT, crystButton } from "./cryst-controls";
 import { CrystEmptyState } from "./cryst-empty-state";
+import { CRYST_SCOPE_CLASS } from "./cryst-scope";
 import { TournamentCockpit } from "./tournament-cockpit";
 import { useLiveSessionPage } from "./use-live-session-page";
 
 function CrystScreen({ children }: { children: React.ReactNode }) {
 	return (
-		<div className="mx-auto flex h-full w-full max-w-[412px] flex-col bg-background pt-[env(safe-area-inset-top)] text-foreground">
+		<div
+			className={`${CRYST_SCOPE_CLASS} mx-auto flex h-full w-full max-w-[412px] flex-col bg-background pt-[env(safe-area-inset-top)] font-sans text-foreground tracking-[var(--tracking-body)]`}
+		>
 			{children}
 		</div>
 	);
