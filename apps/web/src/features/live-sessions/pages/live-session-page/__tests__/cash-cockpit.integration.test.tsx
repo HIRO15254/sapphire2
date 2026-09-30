@@ -748,7 +748,7 @@ function stubVisualViewport(height: number) {
 
 function renderCockpit() {
 	return renderIntegrationPage(<CashCockpit sessionId={SESSION_ID} />, {
-		path: "/active-session-next",
+		path: "/active-session",
 		queryClient,
 	});
 }

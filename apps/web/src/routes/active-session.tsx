@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ActiveSessionPage } from "@/features/live-sessions/pages/active-session-page";
+import { LiveSessionPage } from "@/features/live-sessions/pages/live-session-page";
 
 export const Route = createFileRoute("/active-session")({
-	component: ActiveSessionPage,
+	component: LiveSessionPage,
 });

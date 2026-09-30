@@ -151,6 +151,33 @@ describe("RootComponent", () => {
 		expect(screen.getByText("Outlet Content")).toBeInTheDocument();
 	});
 
+	it.each([
+		"/active-session",
+		"/active-session/",
+	])("keeps navigation and offline status without the legacy stack sheet on %s", (pathname) => {
+		mocks.useLocation.mockReturnValue({ pathname });
+		render(<RootComponent />);
+		expect(screen.getByText("Mobile Nav")).toBeInTheDocument();
+		expect(screen.getByText("Online Status")).toBeInTheDocument();
+		expect(screen.getByText("Update Notes Sheet")).toBeInTheDocument();
+		expect(screen.getByText("Outlet Content")).toBeInTheDocument();
+		expect(screen.queryByText("Live Stack Sheet")).not.toBeInTheDocument();
+	});
+
+	it("guards desktop access to the production cockpit", () => {
+		mocks.useLocation.mockReturnValue({ pathname: "/active-session" });
+		mocks.isDesktop = true;
+		render(<RootComponent />);
+		expect(screen.getByText("Use on your phone")).toBeInTheDocument();
+		expect(screen.queryByText("Outlet Content")).not.toBeInTheDocument();
+	});
+
+	it("does not treat similarly prefixed pages as the cockpit", () => {
+		mocks.useLocation.mockReturnValue({ pathname: "/active-sessions" });
+		render(<RootComponent />);
+		expect(screen.getByText("Live Stack Sheet")).toBeInTheDocument();
+	});
+
 	it("renders the head content and toaster wrapper always", () => {
 		mocks.useLocation.mockReturnValue({ pathname: "/statistics" });
 

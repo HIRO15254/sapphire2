@@ -174,11 +174,10 @@ vi.mock("@/utils/trpc", () => ({
 }));
 
 import { StackSheetProvider } from "@/features/live-sessions/hooks/use-stack-sheet";
-// biome-ignore lint/performance/noNamespaceImport: required to access named export from route module
-import * as ActiveSessionModule from "@/routes/active-session";
+// biome-ignore lint/performance/noNamespaceImport: required to access named export from retained legacy page module
+import * as ActiveSessionModule from "@/features/live-sessions/pages/active-session-page";
 
-const ActiveSessionPage = ActiveSessionModule.Route.options
-	.component as () => ReactNode;
+const ActiveSessionPage = ActiveSessionModule.ActiveSessionPage;
 
 const REGEX_HISTORY = /History/;
 
@@ -235,7 +234,7 @@ function createTestRouter(
 	});
 }
 
-describe("ActiveSessionPage — no active session", () => {
+describe("Legacy ActiveSessionPage — no active session", () => {
 	beforeEach(() => {
 		mockUseActiveSession.mockReturnValue({
 			activeSession: null,
@@ -265,7 +264,7 @@ describe("ActiveSessionPage — no active session", () => {
 	});
 });
 
-describe("ActiveSessionPage — active cash game session", () => {
+describe("Legacy ActiveSessionPage — active cash game session", () => {
 	beforeEach(() => {
 		mockUseActiveSession.mockReturnValue({
 			activeSession: { id: "cash-001", type: "cash_game" },
@@ -314,7 +313,7 @@ describe("ActiveSessionPage — active cash game session", () => {
 	});
 });
 
-describe("ActiveSessionPage — active tournament session", () => {
+describe("Legacy ActiveSessionPage — active tournament session", () => {
 	beforeEach(() => {
 		mockUseActiveSession.mockReturnValue({
 			activeSession: { id: "tourn-001", type: "tournament" },
@@ -354,7 +353,7 @@ describe("ActiveSessionPage — active tournament session", () => {
 	});
 });
 
-describe("ActiveSessionPage — tournament summary labels", () => {
+describe("Legacy ActiveSessionPage — tournament summary labels", () => {
 	beforeEach(() => {
 		mockUseActiveSession.mockReturnValue({
 			activeSession: { id: "tourn-002", type: "tournament" },

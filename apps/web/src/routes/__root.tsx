@@ -67,7 +67,7 @@ export function RootComponent() {
 	usePwaUpdate();
 	const { pathname } = useLocation();
 	const isFullBleedPage =
-		pathname === "/login" || pathname === "/active-session-next";
+		pathname === "/active-session" || pathname.startsWith("/active-session/");
 
 	return (
 		<>
@@ -78,10 +78,10 @@ export function RootComponent() {
 				disableTransitionOnChange
 				storageKey="vite-ui-theme"
 			>
-				{isFullBleedPage ? (
+				{pathname === "/login" ? (
 					<Outlet />
 				) : (
-					<AuthenticatedShell>
+					<AuthenticatedShell fullBleed={isFullBleedPage}>
 						<Outlet />
 					</AuthenticatedShell>
 				)}
