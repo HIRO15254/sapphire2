@@ -7,7 +7,6 @@ import {
 	DrawerTitle,
 } from "@/shared/components/ui/drawer";
 import { CRYST_FOCUS_RING, CRYST_SCRIM } from "../cryst-controls";
-import { CRYST_SCOPE_CLASS } from "../cryst-scope";
 
 const SHEET_SURFACE =
 	"mx-auto max-h-[85svh] w-full max-w-[560px] rounded-t-[var(--m-sheet-radius)] border-border border-b-0 bg-popover text-popover-foreground shadow-[var(--shadow-lg)]";
@@ -41,7 +40,7 @@ export function CrystSheetFrame({
 	return (
 		<Drawer dismissible={dismissible} onOpenChange={onOpenChange} open={open}>
 			<DrawerContent
-				className={cn(CRYST_SCOPE_CLASS, SHEET_SURFACE, className)}
+				className={cn(SHEET_SURFACE, className)}
 				overlayClassName={CRYST_SCRIM}
 			>
 				{dismissible ? (

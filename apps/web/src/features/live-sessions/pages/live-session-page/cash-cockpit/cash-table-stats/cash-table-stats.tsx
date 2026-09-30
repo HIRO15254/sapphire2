@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { plToneClass } from "../../cryst-tone";
+import { profitLossColorClass } from "@/utils/format-profit-loss";
 
 interface CashTableStatsProps {
 	bbText: string;
@@ -22,7 +22,9 @@ export function CashTableStats({
 				{stackFormatted}
 			</span>
 			<div className="flex gap-2 font-mono text-[length:var(--text-xs)] tabular-nums">
-				<span className={cn(plToneClass(displayPL))}>{displayPLFormatted}</span>
+				<span className={cn(profitLossColorClass(displayPL))}>
+					{displayPLFormatted}
+				</span>
 				<span className="text-muted-foreground">{bbText}</span>
 			</div>
 			<span className="text-[length:var(--text-xs)] text-muted-foreground">

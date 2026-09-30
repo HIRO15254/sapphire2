@@ -207,7 +207,7 @@ describe("useCashGameStats", () => {
 		const result = await renderLoadedCash(ctx());
 		const net = rowsByKey(result).net;
 		expect(net.value).toBe("-500 USD");
-		expect(net.valueColor).toBe("text-red-600 dark:text-red-400");
+		expect(net.valueColor).toBe("text-destructive");
 	});
 	it("exposes query errors and retries the summary request", async () => {
 		trpcMocks.summaryQueryFn.mockReset();

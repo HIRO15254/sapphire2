@@ -210,13 +210,13 @@ describe("SessionListCard", () => {
 	it("colors a winning EV figure green", async () => {
 		renderCard({ ...baseSession, evCashOut: 2000, evProfitLoss: 800 });
 		await screen.findByText("1/2 NLH");
-		expect(screen.getByTestId("ev-result")).toHaveClass("text-green-600");
+		expect(screen.getByTestId("ev-result")).toHaveClass("text-success");
 	});
 
 	it("colors a losing EV figure red", async () => {
 		renderCard({ ...baseSession, evCashOut: 400, evProfitLoss: -800 });
 		await screen.findByText("1/2 NLH");
-		expect(screen.getByTestId("ev-result")).toHaveClass("text-red-600");
+		expect(screen.getByTestId("ev-result")).toHaveClass("text-destructive");
 	});
 
 	it("does not show an EV row for a tournament", async () => {

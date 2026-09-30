@@ -23,7 +23,5 @@ export function profitLossColorClass(value: number | null | undefined): string {
 	if (value === null || value === undefined || value === 0) {
 		return "";
 	}
-	return value > 0
-		? "text-green-600 dark:text-green-400"
-		: "text-red-600 dark:text-red-400";
+	return value > 0 ? "text-success" : "text-destructive";
 }

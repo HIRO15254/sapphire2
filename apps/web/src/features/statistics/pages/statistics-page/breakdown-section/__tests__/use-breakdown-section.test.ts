@@ -204,7 +204,7 @@ describe("useBreakdownSection", () => {
 		expect(row.label).toBe("WSOP");
 		expect(row.sessions).toBe(5);
 		expect(row.netText).toBe("+1,500 USD");
-		expect(row.netColor).toBe("text-green-600 dark:text-green-400");
+		expect(row.netColor).toBe("text-success");
 		expect(row.playTimeText).toBe("10h");
 	});
 
@@ -216,7 +216,7 @@ describe("useBreakdownSection", () => {
 		const { result } = await renderLoadedBreakdown(ctx({ type: "all" }));
 		const row = result.current.rows[0];
 		expect(row.netText).toBe("-500 USD");
-		expect(row.netColor).toBe("text-red-600 dark:text-red-400");
+		expect(row.netColor).toBe("text-destructive");
 	});
 
 	it("formats a break-even row with no color class", async () => {

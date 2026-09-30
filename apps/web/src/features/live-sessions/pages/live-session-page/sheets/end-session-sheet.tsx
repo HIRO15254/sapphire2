@@ -3,8 +3,10 @@ import { computeCashGamePL } from "@/features/live-sessions/utils/live-session-s
 import { cn } from "@/lib/utils";
 import { parseOptionalInt } from "@/shared/lib/form-fields";
 import { formatNumber, formatSignedNumber } from "@/utils/format-number";
-import { formatProfitLoss } from "@/utils/format-profit-loss";
-import { plToneClass } from "../cryst-tone";
+import {
+	formatProfitLoss,
+	profitLossColorClass,
+} from "@/utils/format-profit-loss";
 import { CrystFormSheet } from "./cryst-form-sheet";
 import {
 	END_SHEET_FOOTER,
@@ -81,7 +83,7 @@ function CashOutSummary({
 						: `${cashOut} + ${formatNumber(chipRemoveTotal)} − ${formatNumber(totalBuyIn)}`
 				}
 				label="Result"
-				tone={plToneClass(displayPL)}
+				tone={profitLossColorClass(displayPL)}
 				value={displayPL === null ? "—" : formatProfitLoss(displayPL)}
 			/>
 			<SummaryRow

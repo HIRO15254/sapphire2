@@ -76,14 +76,12 @@ describe("formatProfitLoss", () => {
 });
 
 describe("profitLossColorClass", () => {
-	it("returns green for positive", () => {
-		expect(profitLossColorClass(100)).toBe(
-			"text-green-600 dark:text-green-400"
-		);
+	it("returns the success tone for positive", () => {
+		expect(profitLossColorClass(100)).toBe("text-success");
 	});
 
-	it("returns red for negative", () => {
-		expect(profitLossColorClass(-100)).toBe("text-red-600 dark:text-red-400");
+	it("returns the destructive tone for negative", () => {
+		expect(profitLossColorClass(-100)).toBe("text-destructive");
 	});
 
 	it("returns empty for zero", () => {
