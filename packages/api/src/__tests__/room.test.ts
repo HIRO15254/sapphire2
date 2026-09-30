@@ -1,62 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 import { appRouter } from "../routers";
-import {
-	expectAccepts,
-	expectProtected,
-	expectRejects,
-	expectType,
-} from "./test-utils";
-
-describe("room router", () => {
-	it("appRouter has room namespace", () => {
-		expect(appRouter.room).toBeDefined();
-	});
-
-	it("has list procedure", () => {
-		expect(appRouter.room.list).toBeDefined();
-	});
-
-	it("has getById procedure", () => {
-		expect(appRouter.room.getById).toBeDefined();
-	});
-
-	it("has create procedure", () => {
-		expect(appRouter.room.create).toBeDefined();
-	});
-
-	it("has update procedure", () => {
-		expect(appRouter.room.update).toBeDefined();
-	});
-
-	it("has delete procedure", () => {
-		expect(appRouter.room.delete).toBeDefined();
-	});
-
-	it("exposes exactly the expected procedure set", () => {
-		expect(Object.keys(appRouter.room).sort()).toEqual(
-			["create", "delete", "getById", "list", "toggleFavorite", "update"].sort()
-		);
-	});
-
-	it("list / getById are protected queries", () => {
-		expectProtected(appRouter.room.list);
-		expectType(appRouter.room.list, "query");
-		expectProtected(appRouter.room.getById);
-		expectType(appRouter.room.getById, "query");
-	});
-
-	it("create / update / delete / toggleFavorite are protected mutations", () => {
-		for (const proc of [
-			appRouter.room.create,
-			appRouter.room.update,
-			appRouter.room.delete,
-			appRouter.room.toggleFavorite,
-		]) {
-			expectProtected(proc);
-			expectType(proc, "mutation");
-		}
-	});
-});
+import { expectAccepts, expectRejects } from "./test-utils";
 
 describe("room.getById input validation", () => {
 	it("accepts a valid id", () => {

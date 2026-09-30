@@ -75,7 +75,7 @@ cp apps/web/.env.example apps/web/.env
 `apps/server/.dev.vars` はサーバー側の設定です。値を設定してください。
 
 ```env
-ANTHROPIC_API_KEY=your-anthropic-api-key
+OPENAI_API_KEY=your-openai-api-key
 BETTER_AUTH_SECRET=your-secret-at-least-32-characters-long
 BETTER_AUTH_URL=http://localhost:8787
 CORS_ORIGIN=http://localhost:3001

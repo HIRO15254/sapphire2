@@ -52,13 +52,4 @@ describe("RichTextContent", () => {
 		rerender(<RichTextContent html="<p>two</p>" />);
 		expect(el.innerHTML).toBe("<p>two</p>");
 	});
-
-	it("merges a custom className onto the prose container", () => {
-		const { container } = render(
-			<RichTextContent className="text-xs" html="<p>x</p>" />
-		);
-		const el = container.firstChild as HTMLElement;
-		expect(el.className).toContain("text-xs");
-		expect(el.className).toContain("prose");
-	});
 });

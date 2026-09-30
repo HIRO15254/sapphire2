@@ -3,11 +3,28 @@ import {
 	createRootRoute,
 	createRoute,
 	createRouter,
+	Outlet,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Route as ActiveSessionRoute } from "@/routes/active-session";
 import { MobileNav } from "@/shared/components/authenticated-shell/mobile-nav";
+
+vi.mock(
+	"@/features/live-sessions/pages/live-session-page/cash-cockpit",
+	() => ({
+		CashCockpit: () => <div>Cash cockpit</div>,
+	})
+);
+
+vi.mock(
+	"@/features/live-sessions/pages/live-session-page/tournament-cockpit",
+	() => ({
+		TournamentCockpit: () => <div>Tournament cockpit</div>,
+	})
+);
 
 const mockUseActiveSession = vi.fn();
 vi.mock("@/features/live-sessions/hooks/use-active-session", () => ({
@@ -16,16 +33,6 @@ vi.mock("@/features/live-sessions/hooks/use-active-session", () => ({
 
 vi.mock("@/features/live-sessions/components/create-session-dialog", () => ({
 	CreateSessionDialog: () => null,
-}));
-
-const mockStackOpen = vi.fn();
-vi.mock("@/features/live-sessions/hooks/use-stack-sheet", () => ({
-	useStackSheet: () => ({
-		isOpen: false,
-		open: mockStackOpen,
-		close: vi.fn(),
-		setIsOpen: vi.fn(),
-	}),
 }));
 
 vi.mock("@/utils/trpc", () => {
@@ -56,7 +63,12 @@ vi.mock("@tanstack/react-query", () => ({
 
 function createTestRouter(initialPath: string) {
 	const rootRoute = createRootRoute({
-		component: () => <MobileNav />,
+		component: () => (
+			<>
+				<Outlet />
+				<MobileNav />
+			</>
+		),
 	});
 
 	const routes = [
@@ -75,7 +87,10 @@ function createTestRouter(initialPath: string) {
 		createRoute({
 			getParentRoute: () => rootRoute,
 			path,
-			component: () => <div>{path}</div>,
+			component:
+				path === "/active-session"
+					? ActiveSessionRoute.options.component
+					: () => <div>{path}</div>,
 		})
 	);
 
@@ -192,7 +207,6 @@ describe("MobileNav - Active Session Mode", () => {
 			hasActive: true,
 			isLoading: false,
 		});
-		mockStackOpen.mockReset();
 	});
 
 	it("keeps the normal nav items while a session is live", async () => {
@@ -223,12 +237,42 @@ describe("MobileNav - Active Session Mode", () => {
 		expect(screen.queryByText("Stack")).not.toBeInTheDocument();
 	});
 
-	it("shows 'Stack' on the center button on the active-session page", async () => {
+	it("keeps Live on the cockpit and leaves stack recording to the page", async () => {
 		const router = createTestRouter("/active-session");
 		render(<RouterProvider router={router} />);
 
-		await screen.findByText("Stack");
-		expect(screen.queryByText("Live")).not.toBeInTheDocument();
+		const user = userEvent.setup();
+		await user.click(await screen.findByRole("button", { name: "Live" }));
+		expect(await screen.findByText("Cash cockpit")).toBeInTheDocument();
+		expect(screen.queryByText("Stack")).not.toBeInTheDocument();
+	});
+
+	it("opens the same production cockpit from Live and can leave via Sessions", async () => {
+		const user = userEvent.setup();
+		const router = createTestRouter("/sessions");
+		render(<RouterProvider router={router} />);
+		await user.click(await screen.findByRole("button", { name: "Live" }));
+		expect(await screen.findByText("Cash cockpit")).toBeInTheDocument();
+		expect(router.state.location.pathname).toBe("/active-session");
+		await user.click(screen.getByRole("link", { name: "Sessions" }));
+		await waitFor(() => {
+			expect(router.state.location.pathname).toBe("/sessions");
+		});
+		expect(screen.queryByText("Cash cockpit")).not.toBeInTheDocument();
+	});
+
+	it("opens the tournament cockpit at the production URL", async () => {
+		mockUseActiveSession.mockReturnValue({
+			activeSession: {
+				id: "tournament-1",
+				type: "tournament",
+				status: "active",
+			},
+			hasActive: true,
+			isLoading: false,
+		});
+		render(<RouterProvider router={createTestRouter("/active-session")} />);
+		expect(await screen.findByText("Tournament cockpit")).toBeInTheDocument();
 	});
 
 	it("center button has green styling in live mode", async () => {

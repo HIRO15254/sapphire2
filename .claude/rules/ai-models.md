@@ -5,33 +5,41 @@ paths:
   - "apps/server/**"
 ---
 
-# Claude Model Selection
+# OpenAI Model Selection
 
-Why this file exists: モデル ID がインラインリテラルで各所に散ると、機能ごとに世代がずれる。実際に `extractTablePlayers` を Opus 5 に上げた時点で `extractTournamentData` が Opus 4.8 に取り残された（PR #572）。方針は「**全 AI 機能が常に同じ最新モデルを使う**」。
+Why this file exists: scattered inline model IDs let features drift across model generations. When `extractTablePlayers` was upgraded, `extractTournamentData` was left a generation behind (PR #572). The policy is: **all AI features always use the same latest model**.
 
-## モデル ID は `packages/api/src/ai/models.ts` にしか書かない
+## Write model IDs only in `packages/api/src/ai/models.ts`
 
-- 新しいモデルが出たら [`LATEST_MODEL`](../../packages/api/src/ai/models.ts) を書き換える。それだけで全機能が追従する。
-- 呼び出し側は `AI_MODELS.<機能名>` を使う。新しい AI 機能を足すときは `AI_MODELS` にキーを 1 つ増やす。`satisfies Record<string, typeof LATEST_MODEL>` により、古いモデル ID を割り当てると **型エラー**になる。
-- `scripts/check-rules.ts` が `models.ts` 以外での `claude-*` リテラルを禁止する（Anthropic SDK の `Model` 型は `string & {}` を含む緩いユニオンなので、型チェックだけではタイポも旧モデルの直書きも検出できない）。
+- When a new model is released, update [`LATEST_MODEL`](../../packages/api/src/ai/models.ts). Every feature follows that change automatically.
+- Callers use `AI_MODELS.<featureName>`. Add one key to `AI_MODELS` for each new AI feature. `satisfies Record<string, typeof LATEST_MODEL>` makes assigning an older model ID a **type error**.
+- `scripts/check-rules.ts` prohibits `gpt-*` literals outside `models.ts`. The OpenAI SDK's model type is a permissive union containing `string & {}`, so type checking alone cannot detect typos or hardcoded older models.
 
-## 実行時に「最新」を自動解決しない
+## Do not resolve the "latest" model automatically at runtime
 
-Models API を引いて日付順で最新を選ぶ方式は採らない。モデル更新は破壊的 API 変更を伴うため、人間のレビューを通す:
+Do not query the Models API and select the newest model by date. Model upgrades require human review because they can introduce breaking API changes, and because automatic selection by date can silently switch to a model with different pricing or a different tier (preview models, or the far more expensive frontier tier).
 
-- Opus 5 で thinking がデフォルト ON（`thinking` 未指定でも thinking が走る）
-- Opus 4.7 で `temperature` / `top_p` / `top_k` / `budget_tokens` が削除（送ると 400）
-- Opus 4.7 でトークナイザが変わり、それ以前のモデルと比べて同じ入力が約 1.3 倍のトークンになった（Opus 4.8 / Opus 5 / Sonnet 5 / Fable 5 はこの新トークナイザ。世代を跨がない更新ではトークン数の見積りは変わらない）
+`gpt-5.6` is an **alias** OpenAI repoints as the family moves; `AI_MODELS` pins the concrete tier (`gpt-5.6-luna`) so a provider-side alias change cannot alter behavior or cost without a PR. The family's tiers — `sol` (flagship), `terra`, `luna` (cheapest) — differ in price and latency, not in API shape: all three take image input and strict Structured Outputs, so moving between them is a one-line edit. Luna is the current pick: it was tried against the real screenshots and extracted them acceptably at roughly a twentieth of the flagship's price. Do not move up a tier without evidence from those screenshots that Luna is the cause of a failure — an extraction error is far more often a prompt or schema problem than a tier problem.
 
-日付順の自動選択は、単価やティアの違うモデル（preview 系、Haiku 系、$10/$50 の Fable 系）にも黙って乗り換わる。
+## Every AI call goes through the Responses API with Structured Outputs
 
-## `max_tokens` は thinking の分を含めて取る
+[`ai-extract.ts`](../../packages/api/src/routers/ai-extract.ts) calls `client.responses.parse()` with `text.format: zodTextFormat(<schema>, "<name>")`. Do not add `chat.completions` calls: two API surfaces means two truncation conventions and two parse paths.
 
-`max_tokens` は thinking と応答テキストの**合計**に対する上限で、Opus 5 以降 thinking はデフォルト ON。出力サイズぎりぎりに設定すると thinking が食い潰し、構造化出力が途中で切れて `parsed_output` が null になる（= `AI did not return structured data` で失敗）。抽出系は [`EXTRACTION_MAX_TOKENS`](../../packages/api/src/ai/models.ts) を使う。生成された分しか課金されないので、余裕を持たせてもコストは増えない。
+**Strict Structured Outputs cannot omit a field.** Every property is forced into `required` with `additionalProperties: false`, so a Zod `.optional()` in a wire schema becomes a field the model *must* emit. Optional data is therefore modelled as `.nullable()` in the OpenAI-facing schemas (`TOURNAMENT_OUTPUT_SCHEMA`, `TABLE_PLAYERS_OUTPUT_SCHEMA`), and the nulls are stripped before the result is validated against the app-facing contract (`ExtractedTournamentDataSchema`). Keep those two schemas separate: the app contract is what the web client's merge helpers consume, and it must keep using `.optional()` so an unknown field stays absent rather than arriving as `null`.
 
-## モデルを上げるときのチェックリスト
+Strict mode also rejects `allOf` / `oneOf` / `not` / `uniqueItems` / `propertyNames` and caps nesting at five levels. Numeric and string bounds (`minimum`, `maximum`, `minLength`) are accepted but **not enforced by the model** — they are guidance only, which is why the router re-validates every response with Zod.
 
-1. 対象モデルの破壊的変更を確認する。Claude Code なら `/claude-api migrate`、それ以外は公式の移行ガイド <https://platform.claude.com/docs/en/about-claude/models/migration-guide> を読む。
-2. `thinking` / `effort` / サンプリングパラメータの扱いが変わっていないか、既存の呼び出しを確認する。
-3. `max_tokens` に thinking の余地があるか確認する。
-4. プロンプトの挙動変化（冗長さ、ツール呼び出し頻度）を実機で確認する。プロンプト文言はテストで固定しない（実装詳細なので、調整のたびにテストを直す手間だけが残る）。
+## Include reasoning in the `max_output_tokens` budget
+
+`max_output_tokens` limits the **combined total** of reasoning and response text. Setting the limit barely above the expected output size lets reasoning consume the budget, truncating structured output and leaving `output_parsed` null (causing an `AI did not return structured data` failure). Extraction features use [`EXTRACTION_MAX_OUTPUT_TOKENS`](../../packages/api/src/ai/models.ts). Only generated tokens are billed, so allocating extra headroom does not itself increase cost.
+
+Truncation is reported by `response.incomplete_details.reason === "max_output_tokens"`, not by a stop reason on the content. The SDK parses only a response whose `status` is `completed` (`shouldParse` in `openai/lib/ResponsesParser`), so an incomplete one always arrives with `output_parsed` null. The status guard therefore exists for **attribution**, not rescue: without it every incomplete response reports `AI did not return structured data`, which points at the prompt when the real remedy is the token budget or a provider-side stop (`content_filter`, `steered`). Check it before the null check, or the generic error wins.
+
+**The wire schema is enforced inside the SDK, not by the router.** `zodTextFormat` attaches the schema's own `parse` as `$parseRaw`, so a response violating it makes `responses.parse()` throw a `ZodError` before the router sees a value. Convert it (`parseStructuredResponse`) — an escaping `ZodError` reaches the client as a 500 carrying raw schema text. The router's second validation against the app contract stays as drift protection between the two schemas, not as the primary gate.
+
+## Model upgrade checklist
+
+1. Check the target model's breaking changes against <https://developers.openai.com/api/docs/guides/latest-model>.
+2. Review existing calls for changes in how `reasoning`, verbosity, and sampling parameters are handled. Reasoning models reject `temperature` / `top_p`.
+3. Verify that `max_output_tokens` leaves room for reasoning.
+4. Check prompt behavior changes against the actual model. Do not lock prompt wording in tests: it is an implementation detail, and doing so only adds test maintenance on every adjustment.

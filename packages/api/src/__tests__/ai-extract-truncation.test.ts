@@ -1,19 +1,19 @@
 import { TRPCError } from "@trpc/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import z from "zod";
 
 const mocks = vi.hoisted(() => ({
-	create: vi.fn(),
 	parse: vi.fn(),
 }));
 
-vi.mock("@anthropic-ai/sdk", () => ({
+vi.mock("openai", () => ({
 	default: class {
-		messages = { create: mocks.create, parse: mocks.parse };
+		responses = { parse: mocks.parse };
 	},
 }));
 
-vi.mock("@anthropic-ai/sdk/helpers/zod", () => ({
-	zodOutputFormat: () => ({ type: "json_schema" }),
+vi.mock("openai/helpers/zod", () => ({
+	zodTextFormat: () => ({ type: "json_schema" }),
 }));
 
 const { appRouter } = await import("../routers");
@@ -27,7 +27,7 @@ const IMAGE_SOURCE = {
 function makeCaller() {
 	return appRouter.createCaller({
 		session: { user: { id: "user-1" } },
-		anthropicApiKey: "test-key",
+		openaiApiKey: "test-key",
 	} as unknown as Parameters<typeof appRouter.createCaller>[0]).aiExtract;
 }
 
@@ -46,16 +46,19 @@ async function expectMessage(
 	throw new Error(`expected the call to throw "${message}" but it resolved`);
 }
 
+const TRUNCATED_MESSAGE =
+	"AI response was truncated (max_output_tokens reached)";
+
 beforeEach(() => {
-	mocks.create.mockReset();
 	mocks.parse.mockReset();
 });
 
 describe("extractTablePlayers truncation reporting", () => {
-	it("reports truncation when the response hit max_tokens", async () => {
+	it("reports truncation when the response hit max_output_tokens", async () => {
 		mocks.parse.mockResolvedValue({
-			parsed_output: null,
-			stop_reason: "max_tokens",
+			output_parsed: null,
+			status: "incomplete",
+			incomplete_details: { reason: "max_output_tokens" },
 		});
 
 		await expectMessage(
@@ -63,14 +66,15 @@ describe("extractTablePlayers truncation reporting", () => {
 				sourceApp: "dmm_waitinglist",
 				sources: [IMAGE_SOURCE],
 			}),
-			"AI response was truncated (max_tokens reached)"
+			TRUNCATED_MESSAGE
 		);
 	});
 
 	it("reports a missing structured output when the turn ended normally", async () => {
 		mocks.parse.mockResolvedValue({
-			parsed_output: null,
-			stop_reason: "end_turn",
+			output_parsed: null,
+			status: "completed",
+			incomplete_details: null,
 		});
 
 		await expectMessage(
@@ -82,12 +86,11 @@ describe("extractTablePlayers truncation reporting", () => {
 		);
 	});
 
-	it("reports truncation even when the partial output satisfies the schema", async () => {
+	it("reports truncation ahead of the missing structured output it causes", async () => {
 		mocks.parse.mockResolvedValue({
-			parsed_output: {
-				seats: [{ seatNumber: 1, name: "Alice", isHero: null }],
-			},
-			stop_reason: "max_tokens",
+			output_parsed: null,
+			status: "incomplete",
+			incomplete_details: { reason: "max_output_tokens" },
 		});
 
 		await expectMessage(
@@ -95,20 +98,37 @@ describe("extractTablePlayers truncation reporting", () => {
 				sourceApp: "dmm_waitinglist",
 				sources: [IMAGE_SOURCE],
 			}),
-			"AI response was truncated (max_tokens reached)"
+			TRUNCATED_MESSAGE
+		);
+	});
+
+	it("reports an incomplete response that stopped for another reason", async () => {
+		mocks.parse.mockResolvedValue({
+			output_parsed: null,
+			status: "incomplete",
+			incomplete_details: { reason: "content_filter" },
+		});
+
+		await expectMessage(
+			makeCaller().extractTablePlayers({
+				sourceApp: "dmm_waitinglist",
+				sources: [IMAGE_SOURCE],
+			}),
+			"AI response was incomplete"
 		);
 	});
 
 	it("returns deduped seats on success", async () => {
 		mocks.parse.mockResolvedValue({
-			parsed_output: {
+			output_parsed: {
 				seats: [
 					{ seatNumber: 1, name: "Alice", isHero: true },
 					{ seatNumber: 1, name: "Duplicate", isHero: false },
 					{ seatNumber: 2, name: "Bob", isHero: false },
 				],
 			},
-			stop_reason: "end_turn",
+			status: "completed",
+			incomplete_details: null,
 		});
 
 		const result = await makeCaller().extractTablePlayers({
@@ -123,25 +143,55 @@ describe("extractTablePlayers truncation reporting", () => {
 			],
 		});
 	});
+
+	it("sends every screenshot as a base64 data URL image input", async () => {
+		mocks.parse.mockResolvedValue({
+			output_parsed: { seats: [] },
+			status: "completed",
+			incomplete_details: null,
+		});
+
+		await makeCaller().extractTablePlayers({
+			sourceApp: "dmm_waitinglist",
+			sources: [IMAGE_SOURCE, { ...IMAGE_SOURCE, mediaType: "image/webp" }],
+		});
+
+		const { input } = mocks.parse.mock.calls[0][0];
+		expect(input[0].content.slice(0, 2)).toEqual([
+			{
+				type: "input_image",
+				detail: "auto",
+				image_url: "data:image/png;base64,base64data",
+			},
+			{
+				type: "input_image",
+				detail: "auto",
+				image_url: "data:image/webp;base64,base64data",
+			},
+		]);
+		expect(input[0].content.at(-1)).toMatchObject({ type: "input_text" });
+	});
 });
 
 describe("extractTournamentData truncation reporting", () => {
-	it("reports truncation when no tool_use block came back at max_tokens", async () => {
-		mocks.create.mockResolvedValue({
-			content: [{ type: "text", text: "partial" }],
-			stop_reason: "max_tokens",
+	it("reports truncation when nothing came back at max_output_tokens", async () => {
+		mocks.parse.mockResolvedValue({
+			output_parsed: null,
+			status: "incomplete",
+			incomplete_details: { reason: "max_output_tokens" },
 		});
 
 		await expectMessage(
 			makeCaller().extractTournamentData({ sources: [IMAGE_SOURCE] }),
-			"AI response was truncated (max_tokens reached)"
+			TRUNCATED_MESSAGE
 		);
 	});
 
-	it("reports missing structured data when the turn ended without a tool_use block", async () => {
-		mocks.create.mockResolvedValue({
-			content: [{ type: "text", text: "no tool call" }],
-			stop_reason: "end_turn",
+	it("reports missing structured data when the turn ended without parsed output", async () => {
+		mocks.parse.mockResolvedValue({
+			output_parsed: null,
+			status: "completed",
+			incomplete_details: null,
 		});
 
 		await expectMessage(
@@ -150,34 +200,11 @@ describe("extractTournamentData truncation reporting", () => {
 		);
 	});
 
-	it("reports truncation when a tool_use block was cut off mid-input", async () => {
-		mocks.create.mockResolvedValue({
-			content: [
-				{
-					type: "tool_use",
-					name: "extract_tournament_data",
-					input: { buyIn: -1 },
-				},
-			],
-			stop_reason: "max_tokens",
-		});
-
-		await expectMessage(
-			makeCaller().extractTournamentData({ sources: [IMAGE_SOURCE] }),
-			"AI response was truncated (max_tokens reached)"
-		);
-	});
-
-	it("reports a parse failure when the schema rejects a complete response", async () => {
-		mocks.create.mockResolvedValue({
-			content: [
-				{
-					type: "tool_use",
-					name: "extract_tournament_data",
-					input: { buyIn: -1 },
-				},
-			],
-			stop_reason: "end_turn",
+	it("reports a parse failure when the wire and app schemas disagree", async () => {
+		mocks.parse.mockResolvedValue({
+			output_parsed: { buyIn: -1 },
+			status: "completed",
+			incomplete_details: null,
 		});
 
 		await expectMessage(
@@ -186,60 +213,74 @@ describe("extractTournamentData truncation reporting", () => {
 		);
 	});
 
-	it("reports truncation when a partial blind structure still satisfies the schema", async () => {
-		mocks.create.mockResolvedValue({
-			content: [
-				{
-					type: "tool_use",
-					name: "extract_tournament_data",
-					input: {
-						name: "Daily",
-						blindLevels: [
-							{ isBreak: false, blind1: 100, blind2: 200 },
-							{ isBreak: false, blind1: 200, blind2: 400 },
-						],
+	it("converts the ZodError the SDK throws for an off-schema response", async () => {
+		mocks.parse.mockRejectedValue(
+			new z.ZodError([
+				{ code: "custom", message: "off schema", path: ["buyIn"] },
+			])
+		);
+
+		await expectMessage(
+			makeCaller().extractTournamentData({ sources: [IMAGE_SOURCE] }),
+			"Failed to parse AI response"
+		);
+	});
+
+	it("lets a transport error from the SDK surface unchanged", async () => {
+		mocks.parse.mockRejectedValue(new Error("connection reset"));
+
+		await expect(
+			makeCaller().extractTournamentData({ sources: [IMAGE_SOURCE] })
+		).rejects.toThrow("connection reset");
+	});
+
+	it("drops the nulls strict Structured Outputs forces the model to emit", async () => {
+		mocks.parse.mockResolvedValue({
+			output_parsed: {
+				name: "Daily",
+				buyIn: 10_000,
+				entryFee: null,
+				startingStack: null,
+				tableSize: null,
+				chipPurchases: null,
+				blindLevels: [
+					{
+						isBreak: false,
+						blind1: 100,
+						blind2: 200,
+						blind3: null,
+						ante: null,
+						minutes: 20,
 					},
-				},
-			],
-			stop_reason: "max_tokens",
-		});
-
-		await expectMessage(
-			makeCaller().extractTournamentData({ sources: [IMAGE_SOURCE] }),
-			"AI response was truncated (max_tokens reached)"
-		);
-	});
-
-	it("reports truncation when the tool input collapsed to an empty object", async () => {
-		mocks.create.mockResolvedValue({
-			content: [
-				{ type: "tool_use", name: "extract_tournament_data", input: {} },
-			],
-			stop_reason: "max_tokens",
-		});
-
-		await expectMessage(
-			makeCaller().extractTournamentData({ sources: [IMAGE_SOURCE] }),
-			"AI response was truncated (max_tokens reached)"
-		);
-	});
-
-	it("returns the parsed tournament data on success", async () => {
-		mocks.create.mockResolvedValue({
-			content: [
-				{
-					type: "tool_use",
-					name: "extract_tournament_data",
-					input: { name: "Daily", buyIn: 5000, tableSize: 9 },
-				},
-			],
-			stop_reason: "end_turn",
+				],
+			},
+			status: "completed",
+			incomplete_details: null,
 		});
 
 		const result = await makeCaller().extractTournamentData({
 			sources: [IMAGE_SOURCE],
 		});
 
-		expect(result).toEqual({ name: "Daily", buyIn: 5000, tableSize: 9 });
+		expect(result).toEqual({
+			name: "Daily",
+			buyIn: 10_000,
+			blindLevels: [{ isBreak: false, blind1: 100, blind2: 200, minutes: 20 }],
+		});
+		expect("entryFee" in result).toBe(false);
+		expect("chipPurchases" in result).toBe(false);
+	});
+});
+
+describe("missing API key", () => {
+	it("reports the OpenAI key as the missing configuration", async () => {
+		const caller = appRouter.createCaller({
+			session: { user: { id: "user-1" } },
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]).aiExtract;
+
+		await expectMessage(
+			caller.extractTournamentData({ sources: [IMAGE_SOURCE] }),
+			"AI extraction is not configured (missing OPENAI_API_KEY)"
+		);
 	});
 });

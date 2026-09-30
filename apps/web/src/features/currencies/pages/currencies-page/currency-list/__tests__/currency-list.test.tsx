@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -37,7 +37,7 @@ const currency = (id: string, name: string) => ({
 
 describe("CurrencyList", () => {
 	describe("loading", () => {
-		it("renders the skeleton (5 card skeletons) and neither cards nor empty state", () => {
+		it("shows loading without reporting an empty list", () => {
 			render(
 				<CurrencyList
 					currencies={[]}
@@ -46,10 +46,7 @@ describe("CurrencyList", () => {
 					onToggleFavorite={vi.fn()}
 				/>
 			);
-			const skeleton = screen.getByTestId("currency-list-skeleton");
-			expect(
-				within(skeleton).getAllByTestId("card-skeleton-stub")
-			).toHaveLength(5);
+			expect(screen.getByTestId("currency-list-skeleton")).toBeInTheDocument();
 			expect(screen.queryByText("No currencies yet")).not.toBeInTheDocument();
 		});
 

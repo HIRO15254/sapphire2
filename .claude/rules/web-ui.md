@@ -9,6 +9,8 @@ paths:
 
 Every top-level page composes its header with [`PageHeader`](../../apps/web/src/shared/components/page-header/page-header.tsx). It supports an inline actions slot and an optional badge slot. Do not hand-roll page titles or action rows.
 
+Exception: the live session screen (`features/live-sessions/pages/live-session-page/`, route `/active-session`) is a full-bleed session cockpit, not a document page — it renders its own `SessionHeader`. It sits inside `AuthenticatedShell`'s `fullBleed` layout to keep the offline status bar, the update-notes sheet and the desktop guard; mobile navigation is hidden there while an active or paused session exists and restored after completion (SA2-228). It is the only page allowed to skip `PageHeader`.
+
 ## Use shadcn primitives
 
 Reach for existing shadcn components before building a custom wrapper:

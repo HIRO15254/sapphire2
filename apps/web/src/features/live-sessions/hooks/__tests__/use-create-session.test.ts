@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { trpcKeys } from "@/__tests__/trpc-keys";
 
 function buildKey(namespace: string, procedure: string, input: unknown) {
 	return input === undefined
@@ -59,10 +60,10 @@ vi.mock("@/utils/trpc", () => ({
 		},
 		session: {
 			list: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("session", "list", input),
-					queryFn: () => Promise.resolve([]),
-				}),
+				pathKey: () => trpcKeys.session.list.pathKey(),
+				queryOptions: (
+					input: Parameters<typeof trpcKeys.session.list.queryOptions>[0]
+				) => trpcKeys.session.list.queryOptions(input),
 			},
 		},
 		room: {
@@ -246,6 +247,14 @@ describe("useCreateSession", () => {
 	describe("createCash", () => {
 		it("forwards the full payload to liveCashGameSession.create and navigates to /active-session on success", async () => {
 			const qc = createClient();
+			const sessionListKey = trpcKeys.session.list.infiniteQueryKey({
+				roomId: "r1",
+			});
+			qc.setQueryDefaults(sessionListKey, { gcTime: Number.POSITIVE_INFINITY });
+			qc.setQueryData(sessionListKey, {
+				pages: [{ items: [], nextCursor: undefined }],
+				pageParams: [undefined],
+			});
 			const onClose = vi.fn();
 			trpcMocks.createCash.mockResolvedValue({ id: "new-1" });
 			const { result } = renderHook(() => useCreateSession({ onClose }), {
@@ -274,6 +283,8 @@ describe("useCreateSession", () => {
 				expect(onClose).toHaveBeenCalledTimes(1);
 				expect(navigateMock).toHaveBeenCalledWith({ to: "/active-session" });
 			});
+			expect(qc.getQueryState(sessionListKey)?.isInvalidated).toBe(true);
+			qc.clear();
 		});
 
 		it("reflects isLoading=true while createCash is in flight", async () => {
@@ -301,6 +312,14 @@ describe("useCreateSession", () => {
 	describe("createTournament", () => {
 		it("creates the tournament, then creates an initial update_stack event with startingStack payload", async () => {
 			const qc = createClient();
+			const sessionListKey = trpcKeys.session.list.infiniteQueryKey({
+				roomId: "r1",
+			});
+			qc.setQueryDefaults(sessionListKey, { gcTime: Number.POSITIVE_INFINITY });
+			qc.setQueryData(sessionListKey, {
+				pages: [{ items: [], nextCursor: undefined }],
+				pageParams: [undefined],
+			});
 			const onClose = vi.fn();
 			trpcMocks.createTournament.mockResolvedValue({ id: "tr-1" });
 			trpcMocks.sessionEventCreate.mockResolvedValue({ id: "ev-1" });
@@ -336,6 +355,8 @@ describe("useCreateSession", () => {
 				expect(onClose).toHaveBeenCalledTimes(1);
 				expect(navigateMock).toHaveBeenCalledWith({ to: "/active-session" });
 			});
+			expect(qc.getQueryState(sessionListKey)?.isInvalidated).toBe(true);
+			qc.clear();
 		});
 
 		it("does not fire navigation / sessionEvent create when createTournament rejects", async () => {

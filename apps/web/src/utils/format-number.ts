@@ -45,6 +45,10 @@ export function createGroupFormatter(
 	return (value: number) => formatWithTier(value, tier);
 }
 
+export function formatSignedNumber(value: number): string {
+	return `${value < 0 ? "−" : "+"}${formatNumber(Math.abs(value))}`;
+}
+
 export function formatYmdSlash(input: string | Date): string {
 	const d = typeof input === "string" ? new Date(input) : input;
 	const y = d.getUTCFullYear();
@@ -59,4 +63,11 @@ export function formatLocalYmdSlash(input: string | Date): string {
 	const m = String(d.getMonth() + 1).padStart(2, "0");
 	const day = String(d.getDate()).padStart(2, "0");
 	return `${y}/${m}/${day}`;
+}
+
+export function formatLocalHm(input: string | Date): string {
+	const d = typeof input === "string" ? new Date(input) : input;
+	const h = String(d.getHours()).padStart(2, "0");
+	const m = String(d.getMinutes()).padStart(2, "0");
+	return `${h}:${m}`;
 }

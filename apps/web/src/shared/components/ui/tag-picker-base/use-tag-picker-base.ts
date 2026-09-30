@@ -24,6 +24,7 @@ interface UseTagPickerBaseResult<TTag extends TagItemBase> {
 	handleTagSelect: (tag: TTag) => void;
 	inputRef: React.RefObject<HTMLInputElement | null>;
 	inputValue: string;
+	isCreatingTag: boolean;
 	isOpen: boolean;
 	normalizedInput: string;
 	onInputChange: (value: string) => void;
@@ -41,6 +42,8 @@ export function useTagPickerBase<TTag extends TagItemBase>({
 	const [inputValue, setInputValue] = useState("");
 	const [isOpen, setIsOpen] = useState(false);
 	const [contentWidth, setContentWidth] = useState<number>();
+	const [isCreatingTag, setIsCreatingTag] = useState(false);
+	const isCreatingTagRef = useRef(false);
 	const anchorRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
 
@@ -97,12 +100,19 @@ export function useTagPickerBase<TTag extends TagItemBase>({
 			return;
 		}
 
-		if (!onCreateTag) {
+		if (!onCreateTag || isCreatingTagRef.current) {
 			return;
 		}
 
-		const createdTag = await onCreateTag(normalizedInput);
-		handleTagSelect(createdTag);
+		isCreatingTagRef.current = true;
+		setIsCreatingTag(true);
+		try {
+			const createdTag = await onCreateTag(normalizedInput);
+			handleTagSelect(createdTag);
+		} finally {
+			isCreatingTagRef.current = false;
+			setIsCreatingTag(false);
+		}
 	};
 
 	return {
@@ -116,6 +126,7 @@ export function useTagPickerBase<TTag extends TagItemBase>({
 		handleTagSelect,
 		inputRef,
 		inputValue,
+		isCreatingTag,
 		isOpen,
 		normalizedInput,
 		onInputChange: setInputValue,

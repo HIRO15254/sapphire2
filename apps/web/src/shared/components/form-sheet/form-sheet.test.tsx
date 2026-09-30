@@ -82,6 +82,15 @@ describe("FormSheet", () => {
 		expect(screen.getByLabelText("Save")).toBeDisabled();
 	});
 
+	it("marks the Save button busy while isLoading is true", () => {
+		render(
+			<FormSheet formId="x" isLoading onOpenChange={vi.fn()} open title="t">
+				<div>body</div>
+			</FormSheet>
+		);
+		expect(screen.getByLabelText("Save")).toHaveAttribute("aria-busy", "true");
+	});
+
 	it("calls onOpenChange(false) when Cancel is clicked", async () => {
 		const user = userEvent.setup();
 		const onOpenChange = vi.fn();

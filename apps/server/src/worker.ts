@@ -26,7 +26,6 @@ import {
 import { withClientName } from "./oauth-register";
 
 interface Env {
-	ANTHROPIC_API_KEY?: string;
 	BETTER_AUTH_SECRET: string;
 	BETTER_AUTH_URL: string;
 	CORS_ORIGIN: string;
@@ -36,6 +35,7 @@ interface Env {
 	GOOGLE_CLIENT_ID?: string;
 	GOOGLE_CLIENT_SECRET?: string;
 	GOOGLE_MAPS_API_KEY?: string;
+	OPENAI_API_KEY?: string;
 }
 
 interface McpPluginApi {
@@ -167,7 +167,7 @@ app.use("/trpc/*", (c, next) => {
 	const contextFactory = createContextFactory(
 		auth,
 		db,
-		c.env.ANTHROPIC_API_KEY,
+		c.env.OPENAI_API_KEY,
 		c.env.GOOGLE_MAPS_API_KEY
 	);
 	const middleware = trpcServer({
@@ -223,7 +223,7 @@ app.all("/mcp", async (c) => {
 		const caller = appRouter.createCaller({
 			session,
 			db,
-			anthropicApiKey: c.env.ANTHROPIC_API_KEY,
+			openaiApiKey: c.env.OPENAI_API_KEY,
 			googleMapsApiKey: c.env.GOOGLE_MAPS_API_KEY,
 		});
 		const handler = createSapphireMcpHandler({

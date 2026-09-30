@@ -3,6 +3,7 @@ import {
 	type TablePlayerSourceApp,
 } from "@sapphire2/api/routers/ai-extract-sources";
 import { trpcClient } from "@/utils/trpc";
+import type { SeatPlanTableStep } from "./seat-plan";
 
 export type SessionParam =
 	| { liveCashGameSessionId: string; liveTournamentSessionId?: never }
@@ -126,6 +127,73 @@ export async function applyRow(
 	} catch {
 		return false;
 	}
+}
+
+function removeTablePlayer(
+	sessionParam: SessionParam,
+	playerId: string
+): Promise<unknown> {
+	return trpcClient.sessionTablePlayer.remove.mutate({
+		...sessionParam,
+		playerId,
+	});
+}
+
+function seatStepMutation(
+	step: SeatPlanTableStep,
+	sessionParam: SessionParam
+): Promise<unknown> {
+	if (step.kind === "leave") {
+		return removeTablePlayer(sessionParam, step.playerId);
+	}
+	if (step.kind === "moveExisting") {
+		return trpcClient.sessionTablePlayer.updateSeat.mutate({
+			...sessionParam,
+			playerId: step.playerId,
+			seatPosition: step.seatPosition,
+		});
+	}
+	if (step.kind === "seatExisting") {
+		return trpcClient.sessionTablePlayer.add.mutate({
+			...sessionParam,
+			playerId: step.playerId,
+			seatPosition: step.seatPosition,
+		});
+	}
+	return trpcClient.sessionTablePlayer.addNew.mutate({
+		...sessionParam,
+		playerName: step.name,
+		seatPosition: step.seatPosition,
+	});
+}
+
+export async function runSeatPlanStep(
+	step: SeatPlanTableStep,
+	sessionParam: SessionParam
+): Promise<boolean> {
+	try {
+		await seatStepMutation(step, sessionParam);
+		if (step.kind !== "leave" && step.displaces !== null) {
+			await removeTablePlayer(sessionParam, step.displaces);
+		}
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+export async function runSeatPlan(
+	steps: readonly SeatPlanTableStep[],
+	sessionParam: SessionParam
+): Promise<number> {
+	let failures = 0;
+	for (const step of steps) {
+		const ok = await runSeatPlanStep(step, sessionParam);
+		if (!ok) {
+			failures += 1;
+		}
+	}
+	return failures;
 }
 
 export function computeRowWarning({

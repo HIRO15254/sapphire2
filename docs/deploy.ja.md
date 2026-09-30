@@ -44,7 +44,7 @@ cp apps/web/.env.example apps/web/.env
 `apps/server/.dev.vars` をサーバー側の設定に合わせて編集:
 
 ```
-ANTHROPIC_API_KEY=your-anthropic-api-key
+OPENAI_API_KEY=your-openai-api-key
 BETTER_AUTH_SECRET=your-secret-at-least-32-characters-long
 BETTER_AUTH_URL=http://localhost:8787
 CORS_ORIGIN=http://localhost:3001
@@ -55,7 +55,7 @@ DISCORD_CLIENT_ID=your-discord-client-id
 DISCORD_CLIENT_SECRET=your-discord-client-secret
 ```
 
-`ANTHROPIC_API_KEY` と `GOOGLE_MAPS_API_KEY` は、AI 抽出または Google Places 検索を使う場合だけ必要です。
+`OPENAI_API_KEY` と `GOOGLE_MAPS_API_KEY` は、AI 抽出または Google Places 検索を使う場合だけ必要です。
 
 `apps/web/.env` は Vite クライアントを設定します。既定の `VITE_SERVER_URL` はローカル API の `http://localhost:8787` を指します。
 
@@ -165,7 +165,7 @@ bunx wrangler d1 create sapphire2-db
 
 | Secret 名 | 取得元 | 説明 |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Anthropic | AI 抽出を有効化 |
+| `OPENAI_API_KEY` | OpenAI | AI 抽出を有効化 |
 | `GOOGLE_MAPS_API_KEY` | Google Cloud | Google Places 検索を有効化 |
 
 #### プレビュー自動ログイン

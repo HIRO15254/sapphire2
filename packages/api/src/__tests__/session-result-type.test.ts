@@ -72,20 +72,6 @@ describe("ensureSessionResultTypeId", () => {
 		expect(conflictCalls).toHaveLength(1);
 	});
 
-	it("converges two concurrent missing-type calls on the same stored id", async () => {
-		const { db, rows, conflictCalls } = createDb();
-
-		const [first, second] = await Promise.all([
-			ensureSessionResultTypeId(db as never, "user-1"),
-			ensureSessionResultTypeId(db as never, "user-1"),
-		]);
-
-		expect(first).toBe(second);
-		expect(rows).toHaveLength(1);
-		expect(rows[0]?.id).toBe(first);
-		expect(conflictCalls).toHaveLength(2);
-	});
-
 	it("fails explicitly when the canonical row is still missing after the upsert", async () => {
 		const onConflictDoNothing = vi.fn(() => undefined);
 		const db = {

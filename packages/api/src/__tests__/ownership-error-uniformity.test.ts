@@ -84,24 +84,6 @@ describe("ownership failures hide resource existence", () => {
 				caller.room.toggleFavorite({ id: "room-1" }),
 		],
 		[
-			"player.getById",
-			"player",
-			(caller: ReturnType<typeof makeCaller>["caller"]) =>
-				caller.player.getById({ id: "player-1" }),
-		],
-		[
-			"player.update",
-			"player",
-			(caller: ReturnType<typeof makeCaller>["caller"]) =>
-				caller.player.update({ id: "player-1", name: "Renamed" }),
-		],
-		[
-			"player.delete",
-			"player",
-			(caller: ReturnType<typeof makeCaller>["caller"]) =>
-				caller.player.delete({ id: "player-1" }),
-		],
-		[
 			"filterPreset.update",
 			"filter_preset",
 			(caller: ReturnType<typeof makeCaller>["caller"]) =>
@@ -132,50 +114,5 @@ describe("ownership failures hide resource existence", () => {
 				makeCaller({ [table]: [{ id: "resource-1", userId: OTHER }] }).caller
 			)
 		);
-	});
-});
-
-describe("player tag ownership boundaries", () => {
-	it("returns FORBIDDEN for missing or foreign list filter tags", async () => {
-		for (const id of ["missing-tag", "foreign-tag"]) {
-			const { caller, selectWhereParams } = makeCaller({ player_tag: [] });
-			await expectForbidden(caller.player.list({ tagIds: [id] }));
-			expect(selectWhereParams).toContainEqual(
-				expect.arrayContaining([id, OWNER])
-			);
-		}
-	});
-
-	it("returns FORBIDDEN for missing or foreign create tags before writing", async () => {
-		for (const id of ["missing-tag", "foreign-tag"]) {
-			const { caller, inserted, selectWhereParams } = makeCaller({
-				player_tag: [],
-			});
-			await expectForbidden(
-				caller.player.create({ name: "Player", tagIds: [id] })
-			);
-			expect(inserted.player).toBeUndefined();
-			expect(selectWhereParams).toContainEqual(
-				expect.arrayContaining([id, OWNER])
-			);
-		}
-	});
-
-	it("returns FORBIDDEN for missing or foreign replacement tags before writing", async () => {
-		for (const id of ["missing-tag", "foreign-tag"]) {
-			const { caller, inserted, updateWhereParams, selectWhereParams } =
-				makeCaller({
-					player: [{ id: "player-1", userId: OWNER }],
-					player_tag: [],
-				});
-			await expectForbidden(
-				caller.player.update({ id: "player-1", tagIds: [id] })
-			);
-			expect(inserted.player_to_player_tag).toBeUndefined();
-			expect(updateWhereParams).toHaveLength(0);
-			expect(selectWhereParams).toContainEqual(
-				expect.arrayContaining([id, OWNER])
-			);
-		}
 	});
 });

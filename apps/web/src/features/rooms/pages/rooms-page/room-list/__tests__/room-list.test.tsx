@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -35,7 +35,7 @@ const room = (id: string, name: string) => ({
 
 describe("RoomList", () => {
 	describe("loading", () => {
-		it("renders the skeleton (5 card skeletons) and neither cards nor empty state", () => {
+		it("shows loading without reporting an empty list", () => {
 			render(
 				<RoomList
 					isLoading
@@ -44,10 +44,7 @@ describe("RoomList", () => {
 					rooms={[]}
 				/>
 			);
-			const skeleton = screen.getByTestId("room-list-skeleton");
-			expect(
-				within(skeleton).getAllByTestId("card-skeleton-stub")
-			).toHaveLength(5);
+			expect(screen.getByTestId("room-list-skeleton")).toBeInTheDocument();
 			expect(screen.queryByText("No rooms yet")).not.toBeInTheDocument();
 		});
 

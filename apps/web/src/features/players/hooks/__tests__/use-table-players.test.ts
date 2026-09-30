@@ -495,7 +495,7 @@ describe("useTablePlayers", () => {
 		});
 	});
 
-	describe("updateSeatMutation (raw mutation exposed)", () => {
+	describe("handleUpdateSeat", () => {
 		it("optimistically patches the seatPosition for the player id", async () => {
 			const qc = createClient();
 			qc.setQueryData(cashKey, {
@@ -528,10 +528,7 @@ describe("useTablePlayers", () => {
 			);
 			await waitFor(() => expect(result.current.players).toHaveLength(1));
 			act(() => {
-				result.current.updateSeatMutation.mutate({
-					playerId: "p1",
-					seatPosition: 9,
-				});
+				result.current.handleUpdateSeat("p1", 9);
 			});
 			await waitFor(() => {
 				const data = qc.getQueryData<{

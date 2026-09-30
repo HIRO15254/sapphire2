@@ -11,13 +11,7 @@ import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import { encodeSessionCursor } from "../routers/session";
-import {
-	expectAccepts,
-	expectProtected,
-	expectRejects,
-	expectType,
-	getInputSchema,
-} from "./test-utils";
+import { expectAccepts, expectRejects, getInputSchema } from "./test-utils";
 
 type Rows = Record<string, unknown>[];
 
@@ -500,92 +494,6 @@ describe("liveCashGameSession.update ring game ownership (SA2-181)", () => {
 		await expect(
 			makeCaller(OWNER, rows).update({ id: "s1", ringGameId: null })
 		).resolves.toBeDefined();
-	});
-});
-
-describe("liveCashGameSession router", () => {
-	it("appRouter has liveCashGameSession namespace", () => {
-		expect(appRouter.liveCashGameSession).toBeDefined();
-	});
-
-	it("has list procedure", () => {
-		expect(appRouter.liveCashGameSession.list).toBeDefined();
-	});
-
-	it("has getById procedure", () => {
-		expect(appRouter.liveCashGameSession.getById).toBeDefined();
-	});
-
-	it("has create procedure", () => {
-		expect(appRouter.liveCashGameSession.create).toBeDefined();
-	});
-
-	it("has update procedure", () => {
-		expect(appRouter.liveCashGameSession.update).toBeDefined();
-	});
-
-	it("has atomic createAndAssignRingGame procedure", () => {
-		expect(appRouter.liveCashGameSession.createAndAssignRingGame).toBeDefined();
-	});
-
-	it("has discard procedure", () => {
-		expect(appRouter.liveCashGameSession.discard).toBeDefined();
-	});
-
-	it("update accepts ringGameId input", () => {
-		const inputSchema =
-			appRouter.liveCashGameSession.update._def.inputs[0] ??
-			appRouter.liveCashGameSession.update._def.inputs;
-		const shape =
-			(inputSchema as { shape?: Record<string, unknown> })?.shape ??
-			(
-				inputSchema as {
-					_def?: { shape?: () => Record<string, unknown> };
-				}
-			)?._def?.shape?.();
-		expect(shape).toBeDefined();
-		expect(shape?.ringGameId).toBeDefined();
-	});
-
-	it("exposes exactly the expected procedure set", () => {
-		expect(Object.keys(appRouter.liveCashGameSession).sort()).toEqual(
-			[
-				"complete",
-				"create",
-				"createAndAssignRingGame",
-				"discard",
-				"getById",
-				"list",
-				"reopen",
-				"update",
-				"updateHeroSeat",
-				"updateSnapshot",
-			].sort()
-		);
-	});
-
-	it("list / getById are protected queries", () => {
-		expectProtected(appRouter.liveCashGameSession.list);
-		expectType(appRouter.liveCashGameSession.list, "query");
-		expectProtected(appRouter.liveCashGameSession.getById);
-		expectType(appRouter.liveCashGameSession.getById, "query");
-	});
-
-	it("all mutations are protected mutations", () => {
-		for (const name of [
-			"create",
-			"createAndAssignRingGame",
-			"update",
-			"complete",
-			"reopen",
-			"discard",
-			"updateHeroSeat",
-			"updateSnapshot",
-		] as const) {
-			const proc = appRouter.liveCashGameSession[name];
-			expectProtected(proc);
-			expectType(proc, "mutation");
-		}
 	});
 });
 

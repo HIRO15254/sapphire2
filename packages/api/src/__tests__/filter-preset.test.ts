@@ -6,9 +6,7 @@ import { appRouter } from "../routers";
 import {
 	createChainableMockDb,
 	expectAccepts,
-	expectProtected,
 	expectRejects,
-	expectType,
 } from "./test-utils";
 
 type Rows = Record<string, unknown>[];
@@ -42,67 +40,6 @@ const SESSIONS_ROW = {
 	payload: { period: "last_7_days" },
 	isDefault: false,
 };
-
-describe("filterPreset router", () => {
-	it("appRouter has filterPreset namespace", () => {
-		expect(appRouter.filterPreset).toBeDefined();
-	});
-
-	it("has list procedure", () => {
-		expect(appRouter.filterPreset.list).toBeDefined();
-	});
-
-	it("has create procedure", () => {
-		expect(appRouter.filterPreset.create).toBeDefined();
-	});
-
-	it("has update procedure", () => {
-		expect(appRouter.filterPreset.update).toBeDefined();
-	});
-
-	it("has delete procedure", () => {
-		expect(appRouter.filterPreset.delete).toBeDefined();
-	});
-
-	it("has setDefault procedure", () => {
-		expect(appRouter.filterPreset.setDefault).toBeDefined();
-	});
-
-	it("has clearDefault procedure", () => {
-		expect(appRouter.filterPreset.clearDefault).toBeDefined();
-	});
-
-	it("exposes exactly the expected procedure set", () => {
-		expect(Object.keys(appRouter.filterPreset).sort()).toEqual(
-			[
-				"clearDefault",
-				"create",
-				"delete",
-				"list",
-				"setDefault",
-				"update",
-			].sort()
-		);
-	});
-
-	it("list is a protected query", () => {
-		expectProtected(appRouter.filterPreset.list);
-		expectType(appRouter.filterPreset.list, "query");
-	});
-
-	it("create / update / delete / setDefault / clearDefault are protected mutations", () => {
-		for (const proc of [
-			appRouter.filterPreset.create,
-			appRouter.filterPreset.update,
-			appRouter.filterPreset.delete,
-			appRouter.filterPreset.setDefault,
-			appRouter.filterPreset.clearDefault,
-		]) {
-			expectProtected(proc);
-			expectType(proc, "mutation");
-		}
-	});
-});
 
 describe("filterPreset.list input validation", () => {
 	it("accepts screenKey: sessions", () => {

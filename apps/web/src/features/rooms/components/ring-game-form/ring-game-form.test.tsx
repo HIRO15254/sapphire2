@@ -129,6 +129,50 @@ describe("RingGameForm", () => {
 		);
 	});
 
+	it("submits house rules separately from the memo", async () => {
+		const user = userEvent.setup();
+		const { onSubmit } = await renderForm({});
+
+		fireEvent.change(screen.getByLabelText("Game name *"), {
+			target: { value: "5/10 NLH" },
+		});
+		fireEvent.change(screen.getByLabelText("Memo"), {
+			target: { value: "friendly table" },
+		});
+		fireEvent.change(screen.getByLabelText("House rules"), {
+			target: { value: "No straddle\nShow one, show all" },
+		});
+
+		await user.click(screen.getByRole("button", { name: "submit-trigger" }));
+
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				houseRules: "No straddle\nShow one, show all",
+				memo: "friendly table",
+			})
+		);
+	});
+
+	it("drops house rules that are only whitespace so an edit clears them", async () => {
+		const user = userEvent.setup();
+		const { onSubmit } = await renderForm({
+			defaultValues: {
+				houseRules: "No straddle",
+				name: "1/2 NLH",
+				variant: "nlh",
+			},
+		});
+
+		expect(screen.getByLabelText("House rules")).toHaveValue("No straddle");
+		fireEvent.change(screen.getByLabelText("House rules"), {
+			target: { value: "  \n " },
+		});
+		await user.click(screen.getByRole("button", { name: "submit-trigger" }));
+
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit.mock.calls[0]?.[0].houseRules).toBeUndefined();
+	});
+
 	it("blocks submit when the required game name is empty (Zod validation)", async () => {
 		const user = userEvent.setup();
 		const { onSubmit } = await renderForm({});

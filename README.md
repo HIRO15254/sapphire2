@@ -75,7 +75,7 @@ cp apps/web/.env.example apps/web/.env
 `apps/server/.dev.vars` contains the server-side configuration; edit it with your values.
 
 ```env
-ANTHROPIC_API_KEY=your-anthropic-api-key
+OPENAI_API_KEY=your-openai-api-key
 BETTER_AUTH_SECRET=your-secret-at-least-32-characters-long
 BETTER_AUTH_URL=http://localhost:8787
 CORS_ORIGIN=http://localhost:3001

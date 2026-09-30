@@ -31,9 +31,10 @@ export function usePlayersPage() {
 		: players;
 
 	const handleCreate = (values: PlayerFormValues) => {
-		create(values).then(() => {
-			setIsCreateOpen(false);
-		});
+		create(values).then(
+			() => setIsCreateOpen(false),
+			() => undefined
+		);
 	};
 
 	return {

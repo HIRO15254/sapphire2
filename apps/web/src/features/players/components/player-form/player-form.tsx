@@ -90,6 +90,7 @@ export function PlayerForm({
 				{(field) => (
 					<Field label="Memo">
 						<RichTextEditor
+							ariaLabel="Memo"
 							initialContent={field.state.value ?? undefined}
 							onChange={(html) => field.handleChange(html || null)}
 						/>

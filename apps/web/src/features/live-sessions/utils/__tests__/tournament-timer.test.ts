@@ -128,6 +128,13 @@ describe("formatTimerDuration", () => {
 	it("clamps negative inputs", () => {
 		expect(formatTimerDuration(-10)).toBe("00:00");
 	});
+
+	it("keeps a constant width with padHours so the clock does not jump", () => {
+		expect(formatTimerDuration(0, { padHours: true })).toBe("00:00:00");
+		expect(formatTimerDuration(3599, { padHours: true })).toBe("00:59:59");
+		expect(formatTimerDuration(3600, { padHours: true })).toBe("01:00:00");
+		expect(formatTimerDuration(360_000, { padHours: true })).toBe("100:00:00");
+	});
 });
 
 describe("formatBlindLevelLabel", () => {

@@ -26,6 +26,47 @@ export function nextAppendSortOrderSql(sessionId: string) {
 	return sql<number>`(SELECT COALESCE(MAX(${sessionEvent.sortOrder}), -1) + 1 FROM ${sessionEvent} WHERE ${sessionEvent.sessionId} = ${sessionId})`;
 }
 
+export function heroSeatEventValues({
+	heroSeatPosition,
+	now,
+	previousHeroSeat,
+	sessionId,
+}: {
+	heroSeatPosition: number | null;
+	now: Date;
+	previousHeroSeat: number | null;
+	sessionId: string;
+}) {
+	const base = {
+		occurredAt: floorToMinute(now),
+		sessionId,
+		sortOrder: nextAppendSortOrderSql(sessionId),
+		updatedAt: now,
+	};
+	const values: (typeof base & {
+		eventType: string;
+		id: string;
+		payload: string;
+	})[] = [];
+	if (previousHeroSeat !== null) {
+		values.push({
+			...base,
+			eventType: "player_leave",
+			id: crypto.randomUUID(),
+			payload: JSON.stringify({ isHero: true }),
+		});
+	}
+	if (heroSeatPosition !== null) {
+		values.push({
+			...base,
+			eventType: "player_join",
+			id: crypto.randomUUID(),
+			payload: JSON.stringify({ isHero: true, seatPosition: heroSeatPosition }),
+		});
+	}
+	return values;
+}
+
 export function sessionEventOrderBy() {
 	return [
 		asc(sessionEvent.occurredAt),

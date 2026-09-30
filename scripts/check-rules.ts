@@ -17,6 +17,19 @@ const IGNORED_DIRS = /(^|\/)(node_modules|dist|\.wrangler|coverage|\.git)\//;
 
 const CHECKS: Check[] = [
 	{
+		name: "Japanese text in agent rule files — write rules in English",
+		rule: "AGENTS.md (Communication)",
+		globs: ["AGENTS.md", "CLAUDE.md"],
+		pattern: /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u,
+	},
+	{
+		name: "Japanese text in agent rule files — write rules in English",
+		rule: "AGENTS.md (Communication)",
+		cwd: ".claude/rules",
+		globs: ["**/*.md"],
+		pattern: /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u,
+	},
+	{
 		name: 'named zod import — use `import z from "zod"`',
 		rule: "AGENTS.md (Vite bundler breaks the namespace import)",
 		globs: ["apps/**/*.{ts,tsx}", "packages/**/*.{ts,tsx}"],
@@ -69,6 +82,14 @@ const CHECKS: Check[] = [
 		excludePath: /__tests__|\.test\./,
 	},
 	{
+		name: "ordinary query key for the infinite session list — use pathKey() for invalidation",
+		rule: ".claude/rules/web-data-fetching.md",
+		globs: ["apps/web/src/**/*.{ts,tsx}"],
+		pattern:
+			/\btrpc\s*\.\s*session\s*\.\s*list\s*\.\s*(queryKey|queryOptions)\s*\(/,
+		excludePath: /__tests__|\.test\./,
+	},
+	{
 		name: "session-event append pre-read — allocate order inside the INSERT",
 		rule: ".claude/rules/api-data-integrity.md (SA2-196)",
 		globs: ["packages/api/src/**/*.ts"],
@@ -77,14 +98,14 @@ const CHECKS: Check[] = [
 		excludePath: /__tests__|\.test\./,
 	},
 	{
-		name: "inline Claude model id — import it from packages/api/src/ai/models.ts",
+		name: "inline OpenAI model id — import it from packages/api/src/ai/models.ts",
 		rule: ".claude/rules/ai-models.md",
 		globs: [
 			"apps/**/*.{ts,tsx}",
 			"packages/**/*.{ts,tsx}",
 			"scripts/**/*.{ts,tsx}",
 		],
-		pattern: /["'`]claude-[\dA-Za-z._-]+["'`]/,
+		pattern: /["'`]gpt-[\dA-Za-z._-]+["'`]/,
 		excludePath: /packages\/api\/src\/ai\/models\.ts$/,
 	},
 	{
@@ -104,6 +125,16 @@ const CHECKS: Check[] = [
 		],
 		pattern: /^\s*(?:\{?\/\*+|\/{2,}|\*)\s*\S*[-=*#_~─═]{4,}/m,
 		excludePath: /routeTree\.gen\.ts$/,
+	},
+	{
+		name: "Cryst screen imports a portal primitive directly — use sheets/Cryst* so the scope class is applied",
+		rule: ".claude/rules/web-theme.md (Cryst migration scope: portals escape the scope)",
+		globs: [
+			"apps/web/src/features/live-sessions/pages/live-session-page/**/*.tsx",
+		],
+		pattern:
+			/from "@\/shared\/components\/(form-sheet|ui\/(drawer|dialog|popover|select))"/,
+		excludePath: /\/sheets\//,
 	},
 	{
 		name: "GitHub pull-request head ref assigned inside a run script — pass it through step env",

@@ -165,7 +165,7 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 		onSuccess: async () => {
 			await invalidateTargets(queryClient, [
 				{ queryKey: listKey },
-				{ queryKey: trpc.session.list.queryOptions({}).queryKey },
+				{ queryKey: trpc.session.list.pathKey() },
 			]);
 			await navigate({ to: "/sessions" });
 		},

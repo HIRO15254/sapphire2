@@ -210,6 +210,30 @@ describe("SessionDetailPage", () => {
 		expect(screen.getByText("good session")).toBeInTheDocument();
 	});
 
+	it("renders the house rules recorded for the session's type, apart from the memo", () => {
+		mocks.state = {
+			...mocks.state,
+			session: {
+				...manualCashSession,
+				cashHouseRules: "No straddle\nRun it twice allowed",
+				tournamentHouseRules: "Not this one",
+			},
+		};
+		renderPage();
+		const region = screen.getByRole("region", { name: "House rules" });
+		expect(region).toHaveTextContent("No straddle");
+		expect(region).toHaveTextContent("Run it twice allowed");
+		expect(region).not.toHaveTextContent("good session");
+		expect(screen.queryByText("Not this one")).not.toBeInTheDocument();
+	});
+
+	it("omits the house rules card when the session has none", () => {
+		renderPage();
+		expect(
+			screen.queryByRole("region", { name: "House rules" })
+		).not.toBeInTheDocument();
+	});
+
 	it("renders the tags when present", () => {
 		renderPage();
 		expect(screen.getByText("Profit")).toBeInTheDocument();

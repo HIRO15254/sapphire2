@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it, vi } from "vitest";
+import { trpcKeys } from "@/__tests__/trpc-keys";
 import { SessionTagManager } from "./session-tag-manager";
 
 beforeAll(() => {
@@ -27,7 +28,8 @@ const mocks = vi.hoisted(() => ({
 	updateMutate: vi.fn(async () => undefined),
 }));
 
-vi.mock("@tanstack/react-query", () => ({
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@tanstack/react-query")>()),
 	useMutation: (options: {
 		mutationFn: (arg: unknown) => Promise<unknown> | unknown;
 		onSettled?: () => void;
@@ -58,7 +60,7 @@ vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		session: {
 			list: {
-				queryOptions: () => ({ queryKey: ["sessions"] }),
+				pathKey: () => trpcKeys.session.list.pathKey(),
 			},
 		},
 		sessionTag: {

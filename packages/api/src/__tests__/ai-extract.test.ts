@@ -2,41 +2,9 @@ import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import {
 	ExtractedTournamentDataSchema,
-	TOOL_INPUT_SCHEMA,
+	TOURNAMENT_OUTPUT_SCHEMA,
 } from "../routers/ai-extract";
-import {
-	expectAccepts,
-	expectProtected,
-	expectRejects,
-	expectType,
-} from "./test-utils";
-
-describe("aiExtract router", () => {
-	it("appRouter has aiExtract namespace", () => {
-		expect(appRouter.aiExtract).toBeDefined();
-	});
-
-	it("has extractTournamentData procedure", () => {
-		expect(appRouter.aiExtract.extractTournamentData).toBeDefined();
-	});
-
-	it("has extractTablePlayers procedure", () => {
-		expect(appRouter.aiExtract.extractTablePlayers).toBeDefined();
-	});
-
-	it("exposes exactly the expected procedure set", () => {
-		expect(Object.keys(appRouter.aiExtract).sort()).toEqual(
-			["extractTablePlayers", "extractTournamentData"].sort()
-		);
-	});
-
-	it("both procedures are protected mutations", () => {
-		expectProtected(appRouter.aiExtract.extractTournamentData);
-		expectType(appRouter.aiExtract.extractTournamentData, "mutation");
-		expectProtected(appRouter.aiExtract.extractTablePlayers);
-		expectType(appRouter.aiExtract.extractTablePlayers, "mutation");
-	});
-});
+import { expectAccepts, expectRejects } from "./test-utils";
 
 describe("aiExtract.extractTournamentData input validation", () => {
 	const urlSource = { kind: "url", url: "https://example.com/tournament" };
@@ -141,7 +109,7 @@ describe("aiExtract.extractTablePlayers input validation", () => {
 		});
 	});
 
-	it("rejects URL sources so Anthropic never fetches a user-supplied URL", () => {
+	it("rejects URL sources so OpenAI never fetches a user-supplied URL", () => {
 		expectRejects(appRouter.aiExtract.extractTablePlayers, {
 			sourceApp: "dmm_waitinglist",
 			sources: [
@@ -164,10 +132,17 @@ describe("aiExtract.extractTablePlayers input validation", () => {
 		});
 	});
 
-	it("rejects more than 1 source (length constraint)", () => {
-		expectRejects(appRouter.aiExtract.extractTablePlayers, {
+	it("accepts several screenshots of the same table", () => {
+		expectAccepts(appRouter.aiExtract.extractTablePlayers, {
 			sourceApp: "dmm_waitinglist",
 			sources: [validImage, validImage],
+		});
+	});
+
+	it("rejects more sources than the batch limit", () => {
+		expectRejects(appRouter.aiExtract.extractTablePlayers, {
+			sourceApp: "dmm_waitinglist",
+			sources: Array.from({ length: 6 }, () => validImage),
 		});
 	});
 
@@ -262,22 +237,55 @@ describe("ExtractedTournamentDataSchema numeric boundaries", () => {
 		}
 	});
 
-	it("keeps the Anthropic tool schema aligned with numeric Zod bounds", () => {
-		const properties = TOOL_INPUT_SCHEMA.properties;
-		expect(properties.buyIn).toMatchObject({ type: "integer", minimum: 0 });
-		expect(properties.tableSize).toMatchObject({
-			type: "integer",
-			minimum: 2,
-			maximum: 10,
-		});
-		expect(properties.chipPurchases.items.properties.cost).toMatchObject({
-			type: "integer",
-			minimum: 0,
-		});
-		expect(properties.blindLevels.items.properties.minutes).toMatchObject({
-			type: "integer",
-			minimum: 0,
-		});
+	it("keeps the OpenAI output schema aligned with numeric Zod bounds", () => {
+		const base = {
+			name: null,
+			buyIn: null,
+			entryFee: null,
+			startingStack: null,
+			tableSize: null,
+			chipPurchases: null,
+			blindLevels: null,
+		};
+		expect(TOURNAMENT_OUTPUT_SCHEMA.safeParse(base).success).toBe(true);
+
+		for (const value of [-1, 1.5]) {
+			expect(
+				TOURNAMENT_OUTPUT_SCHEMA.safeParse({ ...base, buyIn: value }).success
+			).toBe(false);
+		}
+		for (const tableSize of [1, 11, 2.5]) {
+			expect(
+				TOURNAMENT_OUTPUT_SCHEMA.safeParse({ ...base, tableSize }).success
+			).toBe(false);
+		}
+		expect(
+			TOURNAMENT_OUTPUT_SCHEMA.safeParse({
+				...base,
+				chipPurchases: [{ name: "Addon", cost: -1, chips: 0 }],
+			}).success
+		).toBe(false);
+		expect(
+			TOURNAMENT_OUTPUT_SCHEMA.safeParse({
+				...base,
+				blindLevels: [
+					{
+						isBreak: false,
+						blind1: null,
+						blind2: null,
+						blind3: null,
+						ante: null,
+						minutes: 1.5,
+					},
+				],
+			}).success
+		).toBe(false);
+	});
+
+	it("requires every top-level key so strict Structured Outputs can omit nothing", () => {
+		expect(TOURNAMENT_OUTPUT_SCHEMA.safeParse({ name: "Daily" }).success).toBe(
+			false
+		);
 	});
 
 	it("rejects non-finite numeric output values", () => {

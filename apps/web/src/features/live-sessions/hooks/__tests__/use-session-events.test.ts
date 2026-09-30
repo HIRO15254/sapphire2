@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { trpcKeys } from "@/__tests__/trpc-keys";
 
 function buildKey(namespace: string, procedure: string, input: unknown) {
 	return input === undefined
@@ -55,7 +56,8 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 			list: {
-				queryKey: () => ["session", "list"],
+				queryKey: () => trpcKeys.session.list.queryKey(),
+				pathKey: () => trpcKeys.session.list.pathKey(),
 			},
 		},
 	},
@@ -471,6 +473,12 @@ describe("derived live-session list invalidation", () => {
 
 	it("invalidates the recorded session detail and list after an event edit", async () => {
 		const qc = createClient();
+		const listKey = trpcKeys.session.list.infiniteQueryKey({ roomId: "r1" });
+		qc.setQueryDefaults(listKey, { gcTime: Number.POSITIVE_INFINITY });
+		qc.setQueryData(listKey, {
+			pages: [{ items: [] }],
+			pageParams: [undefined],
+		});
 		qc.setQueryData(cashEventsKey("s1"), [
 			{ id: "e1", eventType: "session_end", payload: {}, occurredAt: "t0" },
 		]);
@@ -486,9 +494,7 @@ describe("derived live-session list invalidation", () => {
 		expect(invalidateSpy).toHaveBeenCalledWith({
 			queryKey: ["session", "getById", { id: "s1" }],
 		});
-		expect(invalidateSpy).toHaveBeenCalledWith({
-			queryKey: ["session", "list"],
-		});
+		expect(qc.getQueryState(listKey)?.isInvalidated).toBe(true);
 	});
 
 	it("invalidates tournament lists after an event deletion", async () => {

@@ -39,12 +39,12 @@ Writes governed by the contract (all in [`session.ts`](../../packages/api/src/ro
 |---|---|
 | Chip purchases + result counts (`create`/`update`) | DELETE leads; the `session_chip_purchase` delete cascades to old result rows, so only the inserts are added; counts are written against the freshly generated purchase ids |
 | Blind-structure re-seed | DELETE leads so the whole re-seed commits or rolls back as one unit |
-| Currency-ledger sync (`syncCurrencyTransaction`) | stale ledger DELETE + re-INSERT for the new currency in a single batch |
+| Currency-ledger sync (`buildSyncCurrencyTransactionStatements`) | returns the ledger change un-executed — stale DELETE + re-INSERT on a currency switch, a lone DELETE when the currency is cleared, a lone UPDATE on the same currency — for `session.update` to commit with the session row |
 | Ledger create (`buildCurrencyTransactionStatements`) | returns only ledger statements so parent/session/tag writes stay atomic; the persistent transaction-type master is ensured **before** the batch |
 | Tournament structure copy (`buildTournamentStructureStatements`) | returns the statement list **un-executed** so callers commit it alongside any preceding DELETEs |
 | Structure re-snapshot (`resnapshotTournamentStructure`) | both DELETEs and the re-copied structure in one batch — a failed re-snapshot can no longer leave the old structure wiped with nothing written back |
 | `session.create` | session row, type detail, tag links, and currency-ledger row land together |
-| `session.update` tag replacement | DELETE + re-INSERT batched (the create path's shape) |
+| `session.update` | session row, detail patch, tournament re-snapshot and explicit blind-level / chip-purchase replacements, tag replacement, and the ledger change land together; the ledger amount is computed from the planned detail, not read back after the write |
 | `tournament.createWithLevels` / `updateWithLevels` ([`tournament.ts`](../../packages/api/src/routers/tournament.ts)) | tournament row/UPDATE first, then each clear-and-reseed group |
 | Cash-session reopen events | fixed contiguous sort-orders, allowed only because the replacement is one batch — see [`sessions-and-live-editing.md`](sessions-and-live-editing.md) |
 
@@ -55,8 +55,8 @@ The ordering inside a batch is load-bearing, not stylistic:
 - **The DELETE leads the group.** "Clear then re-seed" must run as one atomic unit; a DELETE that commits separately can strand the table empty on a later failure.
 - **The parent row precedes child rows**, so FK checks pass inside the transaction.
 - **Ensure-persistent-master runs outside (before) the batch.** The shared transaction-type ensure commits first; the accepted consequence is that an unused master may remain when the parent batch fails — an orphan master is harmless, an orphan session is not.
-- **Validate every link and tag ownership before any write** (`session.create`), so the batch never starts if it cannot finish.
-- **Single-statement branches are deliberately unbatched** — clearing a currency is a lone DELETE, an amount refresh on the same currency is a lone UPDATE; a one-statement batch adds nothing.
+- **Validate every link and tag ownership, and resolve every rule snapshot, before any write** (`session.create`, `session.update`), so the batch never starts if it cannot finish. A cash `session.update` whose rule is rejected used to have already saved its `game_session` fields; the api-integration test `session-update.test.ts` pins the all-or-nothing contract on D1.
+- **A ledger change rides the batch of the session it belongs to** — even a lone DELETE (currency cleared) or UPDATE (same currency, new amount), so a rejected or failed update never moves the ledger on its own.
 - **A pure copy never deletes** (`snapshotTournamentStructure`): only replacement flows carry a DELETE.
 
 ### FK-checked upserts as concurrency guards

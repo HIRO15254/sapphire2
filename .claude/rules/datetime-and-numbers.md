@@ -12,11 +12,11 @@ Why this file exists: the Fable review found repeated one-day-off and negative-d
 
 `sessionDate`, transaction dates, and any other date-only field are stored as UTC midnight and travel as UTC ISO strings. **Display, editing, and grouping must use `getUTCFullYear` / `getUTCMonth` / `getUTCDate`** (or an explicit `timeZone: "UTC"` formatter). Local getters show the previous day for users west of UTC, and a local-read → save round-trip shifts the stored date one more day per edit (SA2-145, 133).
 
-### 例外: ライブ記録セッションの `sessionDate` は日付ではなくタイムスタンプ
+### Exception: `sessionDate` for live-recorded sessions is a timestamp, not a date-only value
 
-`source = "live"` のセッションでは、サーバが `game_session.sessionDate` に `session_start` の時刻をそのまま書く（[`live-session-pl.ts`](../../packages/api/src/services/live-session-pl.ts) の `recalculateCashGameSession` / `recalculateTournamentSession`）。つまり UTC 深夜ではない。表示側は一覧 [`session-list-card.tsx`](../../apps/web/src/features/sessions/pages/sessions-page/session-list-card/session-list-card.tsx) も詳細 [`session-display.ts`](../../apps/web/src/features/sessions/utils/session-display.ts) も `formatYmdSlash`（UTC ゲッター）で読むため、**UTC 外のユーザーでは開始時刻の暦日と 1 日ずれることがある**（例: `startedAt = 2026-04-11T03:00Z` は UTC-7 では 04-10 20:00 だが「2026/04/11」と表示される）。
+For sessions with `source = "live"`, the server writes the `session_start` timestamp directly to `game_session.sessionDate` (`recalculateCashGameSession` / `recalculateTournamentSession` in [`live-session-pl.ts`](../../packages/api/src/services/live-session-pl.ts)). This is not UTC midnight. Both the list ([`session-list-card.tsx`](../../apps/web/src/features/sessions/pages/sessions-page/session-list-card/session-list-card.tsx)) and the detail view ([`session-display.ts`](../../apps/web/src/features/sessions/utils/session-display.ts)) read it with `formatYmdSlash` (UTC getters), so **users outside UTC may see a date one day different from the local calendar date of the start time**. For example, `startedAt = 2026-04-11T03:00Z` is 04-10 20:00 in UTC-7, but displays as "2026/04/11".
 
-現状は「全画面が同じ UTC 読みで一致している」状態を優先しており、編集フォームの日付欄も同じ `formatDateForInput`（UTC）で埋めてライブでは読み取り専用にしてある。直すなら一覧・詳細・編集・統計をまとめてローカル読みに揃えること（片側だけ変えると画面間で日付が食い違う）。イベントのタイムスタンプをローカル暦日で見せたい箇所には [`formatLocalYmdSlash`](../../apps/web/src/utils/format-number.ts) を使う。
+The current behavior prioritizes consistent UTC reads across all screens. The edit form likewise populates its date field with `formatDateForInput` (UTC) and makes it read-only for live sessions. If this behavior is corrected, switch the list, detail, edit, and statistics views to local-time reads together; changing only some views makes dates disagree across screens. Use [`formatLocalYmdSlash`](../../apps/web/src/utils/format-number.ts) wherever event timestamps should display their local calendar date.
 
 ## Composing times from one date: handle day crossing
 

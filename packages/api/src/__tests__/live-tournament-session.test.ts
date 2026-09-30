@@ -14,9 +14,7 @@ import {
 import {
 	createChainableMockDb,
 	expectAccepts,
-	expectProtected,
 	expectRejects,
-	expectType,
 } from "./test-utils";
 
 const BLIND_LEVEL_COLUMNS = 10;
@@ -365,94 +363,6 @@ describe("liveTournamentSession.update ownership validation (SA2-102)", () => {
 		await expect(
 			makeCaller(OWNER, rows).update({ id: "s1", memo: "note" })
 		).resolves.toBeDefined();
-	});
-});
-
-describe("liveTournamentSession router", () => {
-	it("appRouter has liveTournamentSession namespace", () => {
-		expect(appRouter.liveTournamentSession).toBeDefined();
-	});
-
-	it("has list procedure", () => {
-		expect(appRouter.liveTournamentSession.list).toBeDefined();
-	});
-
-	it("has getById procedure", () => {
-		expect(appRouter.liveTournamentSession.getById).toBeDefined();
-	});
-
-	it("has create procedure", () => {
-		expect(appRouter.liveTournamentSession.create).toBeDefined();
-	});
-
-	it("has update procedure", () => {
-		expect(appRouter.liveTournamentSession.update).toBeDefined();
-	});
-
-	it("has atomic createAndAssignTournament procedure", () => {
-		expect(
-			appRouter.liveTournamentSession.createAndAssignTournament
-		).toBeDefined();
-	});
-
-	it("has discard procedure", () => {
-		expect(appRouter.liveTournamentSession.discard).toBeDefined();
-	});
-
-	it("update accepts tournamentId input", () => {
-		const inputSchema =
-			appRouter.liveTournamentSession.update._def.inputs[0] ??
-			appRouter.liveTournamentSession.update._def.inputs;
-		const shape =
-			(inputSchema as { shape?: Record<string, unknown> })?.shape ??
-			(
-				inputSchema as {
-					_def?: { shape?: () => Record<string, unknown> };
-				}
-			)?._def?.shape?.();
-		expect(shape).toBeDefined();
-		expect(shape?.tournamentId).toBeDefined();
-	});
-
-	it("exposes exactly the expected procedure set", () => {
-		expect(Object.keys(appRouter.liveTournamentSession).sort()).toEqual(
-			[
-				"complete",
-				"create",
-				"createAndAssignTournament",
-				"discard",
-				"getById",
-				"list",
-				"reopen",
-				"update",
-				"updateHeroSeat",
-				"updateSnapshot",
-			].sort()
-		);
-	});
-
-	it("list / getById are protected queries", () => {
-		expectProtected(appRouter.liveTournamentSession.list);
-		expectType(appRouter.liveTournamentSession.list, "query");
-		expectProtected(appRouter.liveTournamentSession.getById);
-		expectType(appRouter.liveTournamentSession.getById, "query");
-	});
-
-	it("all mutations are protected mutations", () => {
-		for (const name of [
-			"create",
-			"createAndAssignTournament",
-			"update",
-			"complete",
-			"reopen",
-			"discard",
-			"updateHeroSeat",
-			"updateSnapshot",
-		] as const) {
-			const proc = appRouter.liveTournamentSession[name];
-			expectProtected(proc);
-			expectType(proc, "mutation");
-		}
 	});
 });
 

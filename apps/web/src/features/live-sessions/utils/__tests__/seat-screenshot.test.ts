@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	ACCEPTED_TYPES,
 	applyRowAction,
@@ -8,8 +8,9 @@ import {
 	isAcceptedMediaType,
 	normalizeName,
 	type ReviewRow,
-	SOURCE_APP_ENTRIES,
+	runSeatPlan,
 } from "@/features/live-sessions/utils/seat-screenshot";
+import { trpcClient } from "@/utils/trpc";
 
 vi.mock("@/utils/trpc", () => ({
 	trpcClient: {
@@ -18,6 +19,8 @@ vi.mock("@/utils/trpc", () => ({
 		sessionTablePlayer: {
 			add: { mutate: vi.fn() },
 			addNew: { mutate: vi.fn() },
+			remove: { mutate: vi.fn() },
+			updateSeat: { mutate: vi.fn() },
 		},
 	},
 }));
@@ -33,16 +36,6 @@ describe("isAcceptedMediaType", () => {
 		expect(isAcceptedMediaType("application/pdf")).toBe(false);
 		expect(isAcceptedMediaType("image/tiff")).toBe(false);
 		expect(isAcceptedMediaType("")).toBe(false);
-	});
-});
-
-describe("SOURCE_APP_ENTRIES", () => {
-	it("is a non-empty list of [app, metadata] tuples", () => {
-		expect(SOURCE_APP_ENTRIES.length).toBeGreaterThan(0);
-		for (const entry of SOURCE_APP_ENTRIES) {
-			expect(entry).toHaveLength(2);
-			expect(typeof entry[0]).toBe("string");
-		}
 	});
 });
 
@@ -417,5 +410,147 @@ describe("buildRow", () => {
 			seatPosition: 6,
 		});
 		expect(row.rowId).toBe("seat-7");
+	});
+});
+
+describe("runSeatPlan", () => {
+	const SESSION = { liveCashGameSessionId: "s1" };
+	const seat = trpcClient.sessionTablePlayer;
+
+	beforeEach(() => {
+		vi.mocked(seat.add.mutate).mockReset().mockResolvedValue(undefined);
+		vi.mocked(seat.addNew.mutate).mockReset().mockResolvedValue(undefined);
+		vi.mocked(seat.remove.mutate).mockReset().mockResolvedValue(undefined);
+		vi.mocked(seat.updateSeat.mutate).mockReset().mockResolvedValue(undefined);
+	});
+
+	it("sends each step to the procedure that performs it, in order", async () => {
+		const order: string[] = [];
+		for (const [label, spy] of [
+			["leave", seat.remove.mutate],
+			["moveExisting", seat.updateSeat.mutate],
+			["seatExisting", seat.add.mutate],
+			["seatNew", seat.addNew.mutate],
+		] as const) {
+			vi.mocked(spy).mockImplementation(() => {
+				order.push(label);
+				return Promise.resolve(undefined);
+			});
+		}
+
+		const failures = await runSeatPlan(
+			[
+				{
+					displaces: null,
+					kind: "seatExisting",
+					name: "Y",
+					playerId: "p-y",
+					seatPosition: 6,
+				},
+				{ kind: "leave", playerId: "p-x" },
+				{
+					displaces: null,
+					kind: "moveExisting",
+					playerId: "p-z",
+					seatPosition: 1,
+				},
+				{
+					displaces: null,
+					kind: "seatNew",
+					name: "Blue shirt",
+					seatPosition: 3,
+				},
+			],
+			SESSION
+		);
+
+		expect(failures).toBe(0);
+		expect(order).toEqual(["seatExisting", "leave", "moveExisting", "seatNew"]);
+		expect(seat.add.mutate).toHaveBeenCalledWith({
+			liveCashGameSessionId: "s1",
+			playerId: "p-y",
+			seatPosition: 6,
+		});
+		expect(seat.addNew.mutate).toHaveBeenCalledWith({
+			liveCashGameSessionId: "s1",
+			playerName: "Blue shirt",
+			seatPosition: 3,
+		});
+	});
+
+	it("counts a rejected step and keeps applying the rest", async () => {
+		vi.mocked(seat.add.mutate).mockRejectedValue(new Error("already active"));
+
+		const failures = await runSeatPlan(
+			[
+				{
+					displaces: null,
+					kind: "seatExisting",
+					name: "Y",
+					playerId: "p-y",
+					seatPosition: 6,
+				},
+				{ kind: "leave", playerId: "p-x" },
+			],
+			SESSION
+		);
+
+		expect(failures).toBe(1);
+		expect(seat.remove.mutate).toHaveBeenCalledWith({
+			liveCashGameSessionId: "s1",
+			playerId: "p-x",
+		});
+	});
+
+	it("removes the replaced player only after the incoming one is seated", async () => {
+		const order: string[] = [];
+		vi.mocked(seat.add.mutate).mockImplementation(() => {
+			order.push("add");
+			return Promise.resolve(undefined);
+		});
+		vi.mocked(seat.remove.mutate).mockImplementation(() => {
+			order.push("remove");
+			return Promise.resolve(undefined);
+		});
+
+		const failures = await runSeatPlan(
+			[
+				{
+					displaces: "p-x",
+					kind: "seatExisting",
+					name: "Y",
+					playerId: "p-y",
+					seatPosition: 6,
+				},
+			],
+			SESSION
+		);
+
+		expect(failures).toBe(0);
+		expect(order).toEqual(["add", "remove"]);
+		expect(seat.remove.mutate).toHaveBeenCalledWith({
+			liveCashGameSessionId: "s1",
+			playerId: "p-x",
+		});
+	});
+
+	it("keeps the replaced player at the table when seating the incoming one fails", async () => {
+		vi.mocked(seat.add.mutate).mockRejectedValue(new Error("already active"));
+
+		const failures = await runSeatPlan(
+			[
+				{
+					displaces: "p-x",
+					kind: "seatExisting",
+					name: "Y",
+					playerId: "p-y",
+					seatPosition: 6,
+				},
+			],
+			SESSION
+		);
+
+		expect(failures).toBe(1);
+		expect(seat.remove.mutate).not.toHaveBeenCalled();
 	});
 });

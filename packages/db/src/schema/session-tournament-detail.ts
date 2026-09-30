@@ -26,6 +26,7 @@ export const sessionTournamentDetail = sqliteTable(
 		startingStack: integer("starting_stack"),
 		bountyAmount: integer("bounty_amount"),
 		tableSize: integer("table_size"),
+		houseRules: text("house_rules"),
 	},
 	(t) => [index("session_tournament_tournament_idx").on(t.tournamentId)]
 );

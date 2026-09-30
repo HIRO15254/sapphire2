@@ -44,7 +44,7 @@ cp apps/web/.env.example apps/web/.env
 Edit `apps/server/.dev.vars` with your server-side configuration:
 
 ```
-ANTHROPIC_API_KEY=your-anthropic-api-key
+OPENAI_API_KEY=your-openai-api-key
 BETTER_AUTH_SECRET=your-secret-at-least-32-characters-long
 BETTER_AUTH_URL=http://localhost:8787
 CORS_ORIGIN=http://localhost:3001
@@ -55,7 +55,7 @@ DISCORD_CLIENT_ID=your-discord-client-id
 DISCORD_CLIENT_SECRET=your-discord-client-secret
 ```
 
-`ANTHROPIC_API_KEY` and `GOOGLE_MAPS_API_KEY` are optional unless AI extraction or Google Places search is used.
+`OPENAI_API_KEY` and `GOOGLE_MAPS_API_KEY` are optional unless AI extraction or Google Places search is used.
 
 `apps/web/.env` configures the Vite client. Its default `VITE_SERVER_URL` points to the local API at `http://localhost:8787`.
 
@@ -165,7 +165,7 @@ Add via **Settings > Secrets and variables > Actions > Secrets tab > New reposit
 
 | Secret Name | Source | Description |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Anthropic | Enables AI-assisted extraction |
+| `OPENAI_API_KEY` | OpenAI | Enables AI-assisted extraction |
 | `GOOGLE_MAPS_API_KEY` | Google Cloud | Enables Google Places search |
 
 #### Preview Auto-Login

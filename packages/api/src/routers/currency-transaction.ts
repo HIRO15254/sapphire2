@@ -70,8 +70,12 @@ export const currencyTransactionRouter = router({
 					);
 
 				if (cursor) {
+					const cursorDate = sql.param(
+						cursor.transactedAt,
+						currencyTransaction.transactedAt
+					);
 					conditions.push(
-						sql`(${currencyTransaction.transactedAt}, ${currencyTransaction.id}) < (${cursor.transactedAt}, ${cursor.id})`
+						sql`(${currencyTransaction.transactedAt}, ${currencyTransaction.id}) < (${cursorDate}, ${cursor.id})`
 					);
 				}
 			}

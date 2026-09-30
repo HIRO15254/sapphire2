@@ -219,6 +219,45 @@ describe("usePlayerDetail", () => {
 			expect(list?.[0]?.memo).toBeNull();
 		});
 
+		it("orders the patched tags the way the server will store them", async () => {
+			const qc = createClient();
+			qc.setQueryData(playerKey("p1"), {
+				id: "p1",
+				name: "Alice",
+				memo: null,
+				tags: [{ id: "fish", name: "Fish", color: "green" }],
+			} satisfies PlayerDetailData);
+			qc.setQueryData(TAG_LIST_KEY, [
+				{ id: "vip", name: "VIP", color: "blue" },
+				{ id: "fish", name: "Fish", color: "green" },
+			]);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.playerUpdate.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => usePlayerDetail("p1"), {
+				wrapper: makeWrapper(qc),
+			});
+			await waitFor(() => expect(result.current.player?.name).toBe("Alice"));
+
+			act(() => {
+				result.current.updatePlayer({ id: "p1", tagIds: ["fish", "vip"] });
+			});
+
+			await waitFor(() => {
+				expect(
+					qc.getQueryData<PlayerDetailData>(playerKey("p1"))?.tags
+				).toEqual([
+					{ id: "fish", name: "Fish", color: "green" },
+					{ id: "vip", name: "VIP", color: "blue" },
+				]);
+			});
+			resolve?.({ id: "p1" });
+		});
+
 		it("keeps existing tags when tagIds is omitted", async () => {
 			const qc = createClient();
 			const prev: PlayerDetailData = {
@@ -247,6 +286,45 @@ describe("usePlayerDetail", () => {
 				expect(detail?.tags).toEqual([
 					{ id: "vip", name: "VIP", color: "blue" },
 				]);
+			});
+			resolve?.({ id: "p1" });
+		});
+
+		it("shows a tag created moments earlier without waiting for a refetch", async () => {
+			const qc = createClient();
+			qc.setQueryData(playerKey("p1"), {
+				id: "p1",
+				name: "Alice",
+				memo: null,
+				tags: [],
+			} satisfies PlayerDetailData);
+			qc.setQueryData(TAG_LIST_KEY, []);
+			trpcMocks.tagCreate.mockResolvedValue({
+				color: "blue",
+				id: "whale",
+				name: "Whale",
+			});
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.playerUpdate.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => usePlayerDetail("p1"), {
+				wrapper: makeWrapper(qc),
+			});
+			await waitFor(() => expect(result.current.player?.name).toBe("Alice"));
+
+			await act(async () => {
+				const created = await result.current.createTag("Whale");
+				result.current.updatePlayer({ id: "p1", tagIds: [created.id] });
+			});
+
+			await waitFor(() => {
+				expect(
+					qc.getQueryData<PlayerDetailData>(playerKey("p1"))?.tags
+				).toEqual([{ id: "whale", name: "Whale", color: "blue" }]);
 			});
 			resolve?.({ id: "p1" });
 		});

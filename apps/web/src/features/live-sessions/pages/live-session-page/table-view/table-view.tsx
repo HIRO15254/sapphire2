@@ -1,0 +1,97 @@
+import { IconPhotoScan, IconUsersMinus } from "@tabler/icons-react";
+import type { ReactNode } from "react";
+import type { SeatEntry } from "@/features/live-sessions/hooks/use-session-seats";
+import { seatLayout } from "@/features/live-sessions/utils/table-geometry";
+import { cn } from "@/lib/utils";
+import { crystButton } from "../cryst-controls";
+import type { HandCounterView } from "../use-hand-counter";
+import { DealerButton } from "./dealer-button";
+import { HandCounter } from "./hand-counter";
+import { SeatMarker } from "./seat-marker";
+
+interface TableViewProps {
+	canResetSeats: boolean;
+	center: ReactNode;
+	hands: HandCounterView;
+	onResetSeats: () => void;
+	onScan: () => void;
+	onSelectSeat: (seatPosition: number) => void;
+	seats: SeatEntry[];
+	selectedSeatPosition: number | null;
+}
+
+export function TableView({
+	canResetSeats,
+	center,
+	hands,
+	onResetSeats,
+	onScan,
+	onSelectSeat,
+	seats,
+	selectedSeatPosition,
+}: TableViewProps) {
+	const points = seatLayout(seats.length);
+	const dealerPoint =
+		hands.dealerSeatIndex === null ? undefined : points[hands.dealerSeatIndex];
+
+	return (
+		<div className="relative mx-3 h-60 shrink-0">
+			<div className="absolute inset-x-[46px] inset-y-[34px] rounded-[48px] border border-border bg-card">
+				<div className="absolute inset-0 flex flex-col items-center justify-center gap-px">
+					{center}
+				</div>
+			</div>
+			{seats.map((seat, index) => {
+				const point = points[index];
+				if (!point) {
+					return null;
+				}
+				return (
+					<SeatMarker
+						isSelected={seat.seatPosition === selectedSeatPosition}
+						key={seat.seatPosition}
+						onSelect={onSelectSeat}
+						point={point}
+						seat={seat}
+					/>
+				);
+			})}
+			{dealerPoint ? (
+				<DealerButton seat={dealerPoint} seatLabel={hands.dealerSeatLabel} />
+			) : null}
+			<HandCounter
+				canEdit={hands.canEdit}
+				handCount={hands.handCount}
+				onAddHand={hands.onAddHand}
+				onOpenSheet={hands.onOpenSheet}
+				onRemoveHand={hands.onRemoveHand}
+			/>
+			<button
+				aria-label="Register seats from a photo"
+				className={cn(
+					crystButton({ size: "icon", variant: "outline" }),
+					"absolute top-3 left-3 z-[2] size-[34px]"
+				)}
+				onClick={onScan}
+				title="Register seats from a photo"
+				type="button"
+			>
+				<IconPhotoScan size={18} />
+			</button>
+			{canResetSeats ? (
+				<button
+					aria-label="Clear every seat"
+					className={cn(
+						crystButton({ size: "icon", variant: "outline" }),
+						"absolute top-3 right-3 z-[2] size-[34px]"
+					)}
+					onClick={onResetSeats}
+					title="Clear every seat"
+					type="button"
+				>
+					<IconUsersMinus size={18} />
+				</button>
+			) : null}
+		</div>
+	);
+}

@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
 		return err;
 	}),
 	isDesktop: false,
+	activeSessionId: null as string | null,
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -38,7 +39,10 @@ vi.mock("@/shared/hooks/use-pwa-update", () => ({
 vi.mock(
 	"@/shared/components/authenticated-shell/use-authenticated-shell",
 	() => ({
-		useAuthenticatedShell: () => ({ isDesktop: mocks.isDesktop }),
+		useAuthenticatedShell: () => ({
+			isDesktop: mocks.isDesktop,
+			activeSessionId: mocks.activeSessionId,
+		}),
 	})
 );
 
@@ -48,10 +52,6 @@ vi.mock("@/shared/components/authenticated-shell/sidebar-nav", () => ({
 
 vi.mock("@/shared/components/authenticated-shell/mobile-nav", () => ({
 	MobileNav: () => <div>Mobile Nav</div>,
-}));
-
-vi.mock("@/features/live-sessions/components/live-stack-form-sheet", () => ({
-	LiveStackFormSheet: () => <div>Live Stack Sheet</div>,
 }));
 
 vi.mock("@/shared/components/authenticated-shell/online-status-bar", () => ({
@@ -66,18 +66,6 @@ vi.mock("@/shared/components/ui/sonner", () => ({
 	Toaster: () => <div>Toaster</div>,
 }));
 
-vi.mock("@/features/live-sessions/hooks/use-session-form", () => ({
-	SessionFormProvider: ({ children }: { children: ReactNode }) => (
-		<>{children}</>
-	),
-}));
-
-vi.mock("@/features/live-sessions/hooks/use-stack-sheet", () => ({
-	StackSheetProvider: ({ children }: { children: ReactNode }) => (
-		<>{children}</>
-	),
-}));
-
 vi.mock("@/features/update-notes/components/update-notes-sheet", () => ({
 	UpdateNotesProvider: ({ children }: { children: ReactNode }) => (
 		<>{children}</>
@@ -88,6 +76,7 @@ vi.mock("@/features/update-notes/components/update-notes-sheet", () => ({
 describe("AuthenticatedShell", () => {
 	beforeEach(() => {
 		mocks.isDesktop = false;
+		mocks.activeSessionId = null;
 	});
 
 	it("renders the authenticated navigation shell on mobile viewports", () => {
@@ -100,7 +89,6 @@ describe("AuthenticatedShell", () => {
 
 		expect(screen.getByText("Sidebar Nav")).toBeInTheDocument();
 		expect(screen.getByText("Mobile Nav")).toBeInTheDocument();
-		expect(screen.getByText("Live Stack Sheet")).toBeInTheDocument();
 		expect(screen.getByText("Online Status")).toBeInTheDocument();
 		expect(screen.getByText("Shell Body")).toBeInTheDocument();
 		expect(screen.queryByText("Use on your phone")).not.toBeInTheDocument();
@@ -123,7 +111,6 @@ describe("AuthenticatedShell", () => {
 		expect(screen.queryByText("Sidebar Nav")).not.toBeInTheDocument();
 		expect(screen.queryByText("Mobile Nav")).not.toBeInTheDocument();
 		expect(screen.queryByText("Shell Body")).not.toBeInTheDocument();
-		expect(screen.queryByText("Live Stack Sheet")).not.toBeInTheDocument();
 	});
 });
 
@@ -133,6 +120,7 @@ describe("RootComponent", () => {
 		mocks.redirect.mockClear();
 		mocks.useLocation.mockReturnValue({ pathname: "/statistics" });
 		mocks.isDesktop = false;
+		mocks.activeSessionId = null;
 	});
 
 	it("renders the authenticated shell away from login", () => {
@@ -149,6 +137,44 @@ describe("RootComponent", () => {
 
 		expect(screen.queryByText("Sidebar Nav")).not.toBeInTheDocument();
 		expect(screen.getByText("Outlet Content")).toBeInTheDocument();
+	});
+
+	it.each([
+		"/active-session",
+		"/active-session/",
+	])("hides navigation during the live session while keeping offline status on %s", (pathname) => {
+		mocks.useLocation.mockReturnValue({ pathname });
+		mocks.activeSessionId = "session-1";
+		render(<RootComponent />);
+		expect(screen.queryByText("Mobile Nav")).not.toBeInTheDocument();
+		expect(screen.getByText("Online Status")).toBeInTheDocument();
+		expect(screen.getByText("Update Notes Sheet")).toBeInTheDocument();
+		expect(screen.getByText("Outlet Content")).toBeInTheDocument();
+	});
+
+	it("restores navigation when the live session finishes", () => {
+		mocks.useLocation.mockReturnValue({ pathname: "/active-session" });
+		mocks.activeSessionId = "session-1";
+		const { rerender } = render(<RootComponent />);
+		expect(screen.queryByText("Mobile Nav")).not.toBeInTheDocument();
+		mocks.activeSessionId = null;
+		rerender(<RootComponent />);
+		expect(screen.getByText("Mobile Nav")).toBeInTheDocument();
+	});
+
+	it("guards desktop access to the production cockpit", () => {
+		mocks.useLocation.mockReturnValue({ pathname: "/active-session" });
+		mocks.isDesktop = true;
+		render(<RootComponent />);
+		expect(screen.getByText("Use on your phone")).toBeInTheDocument();
+		expect(screen.queryByText("Outlet Content")).not.toBeInTheDocument();
+	});
+
+	it("does not treat similarly prefixed pages as the cockpit", () => {
+		mocks.useLocation.mockReturnValue({ pathname: "/active-sessions" });
+		mocks.activeSessionId = "session-1";
+		render(<RootComponent />);
+		expect(screen.getByText("Mobile Nav")).toBeInTheDocument();
 	});
 
 	it("renders the head content and toaster wrapper always", () => {

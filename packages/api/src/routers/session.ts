@@ -55,6 +55,10 @@ import {
 } from "../lib/batch";
 import { optionalUniqueTagIdsSchema } from "../lib/tag-ids";
 import { listOwnedGameMixes } from "../services/game-mix";
+import {
+	assertLevelGameStructures,
+	assertSingleStructurePerGroup,
+} from "../services/game-structure";
 import { ensureSessionResultTypeId } from "../services/session-result-type";
 import { sessionEventOrderBy } from "../utils/session-event-time";
 import { compareBuiltinFirst } from "./_game-masters";
@@ -690,25 +694,6 @@ async function validateEntityOwnership(
 	}
 }
 
-async function createCurrencyTransactionForSession(
-	db: DbInstance,
-	sessionId: string,
-	currencyId: string,
-	amount: number,
-	sessionDate: Date,
-	userId: string
-) {
-	const typeId = await ensureSessionResultTypeId(db, userId);
-	await db.insert(currencyTransaction).values({
-		id: crypto.randomUUID(),
-		currencyId,
-		transactionTypeId: typeId,
-		sessionId,
-		amount,
-		transactedAt: sessionDate,
-	});
-}
-
 async function buildCurrencyTransactionStatements(
 	db: DbInstance,
 	sessionId: string,
@@ -730,7 +715,7 @@ async function buildCurrencyTransactionStatements(
 	];
 }
 
-export async function syncCurrencyTransaction(
+async function buildSyncCurrencyTransactionStatements(
 	db: DbInstance,
 	sessionId: string,
 	oldCurrencyId: string | null,
@@ -738,47 +723,33 @@ export async function syncCurrencyTransaction(
 	amount: number,
 	sessionDate: Date,
 	userId: string
-) {
+): Promise<BatchStatement[]> {
 	const effectiveNewCurrencyId =
 		newCurrencyId === undefined ? oldCurrencyId : newCurrencyId;
+	const deleteLedger = db
+		.delete(currencyTransaction)
+		.where(eq(currencyTransaction.sessionId, sessionId));
 
-	if (oldCurrencyId && !effectiveNewCurrencyId) {
-		await db
-			.delete(currencyTransaction)
-			.where(eq(currencyTransaction.sessionId, sessionId));
-	} else if (!oldCurrencyId && effectiveNewCurrencyId) {
-		await createCurrencyTransactionForSession(
-			db,
-			sessionId,
-			effectiveNewCurrencyId,
-			amount,
-			sessionDate,
-			userId
-		);
-	} else if (
-		oldCurrencyId &&
-		effectiveNewCurrencyId &&
-		oldCurrencyId !== effectiveNewCurrencyId
-	) {
-		await runBatch(db, [
-			db
-				.delete(currencyTransaction)
-				.where(eq(currencyTransaction.sessionId, sessionId)),
-			...(await buildCurrencyTransactionStatements(
-				db,
-				sessionId,
-				effectiveNewCurrencyId,
-				amount,
-				sessionDate,
-				userId
-			)),
-		]);
-	} else if (effectiveNewCurrencyId) {
-		await db
-			.update(currencyTransaction)
-			.set({ amount, transactedAt: sessionDate })
-			.where(eq(currencyTransaction.sessionId, sessionId));
+	if (!effectiveNewCurrencyId) {
+		return oldCurrencyId ? [deleteLedger] : [];
 	}
+	if (oldCurrencyId === effectiveNewCurrencyId) {
+		return [
+			db
+				.update(currencyTransaction)
+				.set({ amount, transactedAt: sessionDate })
+				.where(eq(currencyTransaction.sessionId, sessionId)),
+		];
+	}
+	const insertLedger = await buildCurrencyTransactionStatements(
+		db,
+		sessionId,
+		effectiveNewCurrencyId,
+		amount,
+		sessionDate,
+		userId
+	);
+	return oldCurrencyId ? [deleteLedger, ...insertLedger] : insertLedger;
 }
 
 export {
@@ -810,6 +781,7 @@ const CASH_LIVE_LINKED_RESTRICTED_FIELDS = [
 	"minBuyIn",
 	"maxBuyIn",
 	"tableSize",
+	"houseRules",
 ] as const;
 
 const TOURNAMENT_LIVE_LINKED_RESTRICTED_FIELDS = [
@@ -831,6 +803,7 @@ const TOURNAMENT_LIVE_LINKED_RESTRICTED_FIELDS = [
 	"startingStack",
 	"bountyAmount",
 	"tableSize",
+	"houseRules",
 	"blindLevels",
 ] as const;
 
@@ -905,6 +878,7 @@ export const cashGameCreateSchema = z.object({
 	minBuyIn: nonNegativeIntegerSchema.optional(),
 	maxBuyIn: nonNegativeIntegerSchema.optional(),
 	tableSize: tableSizeSchema.optional(),
+	houseRules: z.string().nullable().optional(),
 	startedAt: z.number().optional(),
 	endedAt: z.number().optional(),
 	breakMinutes: nonNegativeIntegerSchema.optional(),
@@ -938,6 +912,7 @@ export const tournamentCreateSchema = z
 		startingStack: nonNegativeIntegerSchema.optional(),
 		bountyAmount: nonNegativeIntegerSchema.optional(),
 		tableSize: tableSizeSchema.optional(),
+		houseRules: z.string().nullable().optional(),
 		blindLevels: z.array(sessionBlindLevelInputSchema).optional(),
 		chipPurchases: z.array(chipPurchaseInputSchema).optional(),
 		startedAt: z.number().optional(),
@@ -1014,6 +989,7 @@ export const sessionUpdateInputSchema = z
 		tableSize: nullableTableSizeSchema.optional(),
 		minBuyIn: nullableNonNegativeIntegerSchema.optional(),
 		maxBuyIn: nullableNonNegativeIntegerSchema.optional(),
+		houseRules: z.string().nullable().optional(),
 		tagIds: optionalUniqueTagIdsSchema,
 	})
 	.refine(
@@ -1711,10 +1687,12 @@ function selectEnrichedSessionRows(db: DbInstance, userId: string) {
 			cashMinBuyIn: sessionCashDetail.minBuyIn,
 			cashMaxBuyIn: sessionCashDetail.maxBuyIn,
 			cashTableSize: sessionCashDetail.tableSize,
+			cashHouseRules: sessionCashDetail.houseRules,
 			tournamentVariant: sessionTournamentDetail.variant,
 			tournamentStartingStack: sessionTournamentDetail.startingStack,
 			tournamentBountyAmount: sessionTournamentDetail.bountyAmount,
 			tournamentTableSize: sessionTournamentDetail.tableSize,
+			tournamentHouseRules: sessionTournamentDetail.houseRules,
 		})
 		.from(gameSession)
 		.leftJoin(
@@ -1833,6 +1811,7 @@ interface CashUpdateInput {
 	buyIn?: number;
 	cashOut?: number;
 	evCashOut?: number | null;
+	houseRules?: string | null;
 	maxBuyIn?: number | null;
 	minBuyIn?: number | null;
 	mixGames?: MixGameGroup[] | null;
@@ -1876,14 +1855,22 @@ function applyCashRuleScalarUpdates(
 	if (input.maxBuyIn !== undefined) {
 		cashUpdate.maxBuyIn = input.maxBuyIn;
 	}
+	if (input.houseRules !== undefined) {
+		cashUpdate.houseRules = input.houseRules;
+	}
 }
 
-async function applyCashDetailUpdate(
+interface SessionDetailPlan {
+	profitLoss: number;
+	statements: BatchStatement[];
+}
+
+async function planCashDetailUpdate(
 	db: DbInstance,
 	sessionId: string,
 	input: CashUpdateInput,
 	userId: string
-): Promise<void> {
+): Promise<SessionDetailPlan> {
 	const [existingDetail] = await db
 		.select()
 		.from(sessionCashDetail)
@@ -1917,6 +1904,7 @@ async function applyCashDetailUpdate(
 		cashUpdate.minBuyIn = snapshot.minBuyIn;
 		cashUpdate.maxBuyIn = snapshot.maxBuyIn;
 		cashUpdate.tableSize = snapshot.tableSize;
+		cashUpdate.houseRules = snapshot.houseRules;
 	} else {
 		const selection = await reconcileCashRuleSelection(
 			db,
@@ -1935,17 +1923,31 @@ async function applyCashDetailUpdate(
 		Object.assign(cashUpdate, cashMixFlatFieldClearPatch(selection.mixGames));
 	}
 
-	if (Object.keys(cashUpdate).length === 0) {
-		return;
+	const statements: BatchStatement[] = [];
+	if (Object.keys(cashUpdate).length > 0) {
+		statements.push(
+			existingDetail
+				? db
+						.update(sessionCashDetail)
+						.set(cashUpdate)
+						.where(eq(sessionCashDetail.sessionId, sessionId))
+				: db.insert(sessionCashDetail).values({ sessionId, ...cashUpdate })
+		);
 	}
-	if (existingDetail) {
-		await db
-			.update(sessionCashDetail)
-			.set(cashUpdate)
-			.where(eq(sessionCashDetail.sessionId, sessionId));
-	} else {
-		await db.insert(sessionCashDetail).values({ sessionId, ...cashUpdate });
-	}
+	const nextDetail = { ...existingDetail, ...cashUpdate };
+	return {
+		statements,
+		profitLoss: computeSessionPLFromDetails(
+			"cash_game",
+			{
+				buyIn: nextDetail.buyIn ?? null,
+				cashOut: nextDetail.cashOut ?? null,
+				chipRemoveTotal: nextDetail.chipRemoveTotal ?? null,
+			},
+			undefined,
+			0
+		),
+	};
 }
 
 interface TournamentUpdateInput {
@@ -1968,6 +1970,7 @@ interface TournamentUpdateInput {
 		name: string;
 	}[];
 	entryFee?: number;
+	houseRules?: string | null;
 	placement?: number | null;
 	prizeMoney?: number | null;
 	ruleName?: string;
@@ -2044,12 +2047,14 @@ async function applyTournamentSnapshotUpdate(
 		startingStack: input.startingStack,
 		bountyAmount: input.bountyAmount,
 		tableSize: input.tableSize,
+		houseRules: input.houseRules,
 	});
 	tournUpdate.ruleName = snapshot.ruleName;
 	tournUpdate.variant = snapshot.variant;
 	tournUpdate.startingStack = snapshot.startingStack;
 	tournUpdate.bountyAmount = snapshot.bountyAmount;
 	tournUpdate.tableSize = snapshot.tableSize;
+	tournUpdate.houseRules = snapshot.houseRules;
 	if (input.tournamentBuyIn === undefined) {
 		tournUpdate.tournamentBuyIn = snapshot.tournamentBuyIn;
 	}
@@ -2090,6 +2095,9 @@ function applyTournamentScalarUpdates(
 	if (input.tableSize !== undefined) {
 		tournUpdate.tableSize = input.tableSize;
 	}
+	if (input.houseRules !== undefined) {
+		tournUpdate.houseRules = input.houseRules;
+	}
 	if (input.beforeDeadline !== undefined) {
 		tournUpdate.beforeDeadline = input.beforeDeadline;
 		if (input.beforeDeadline === true) {
@@ -2099,42 +2107,82 @@ function applyTournamentScalarUpdates(
 	}
 }
 
-async function applyTournamentDetailUpdate(
+async function plannedChipPurchaseCost(
 	db: DbInstance,
 	sessionId: string,
 	input: TournamentUpdateInput
-): Promise<void> {
+): Promise<number> {
+	if (input.chipPurchases !== undefined) {
+		return sumChipPurchaseCost(input.chipPurchases);
+	}
+	if (input.tournamentId) {
+		return 0;
+	}
+	const purchases = await getSessionChipPurchaseMap(db, [sessionId]);
+	return sumChipPurchaseCost(purchases.get(sessionId) ?? []);
+}
+
+async function planTournamentDetailUpdate(
+	db: DbInstance,
+	sessionId: string,
+	input: TournamentUpdateInput
+): Promise<SessionDetailPlan> {
 	const tournUpdate: Partial<typeof sessionTournamentDetail.$inferInsert> = {};
 	await applyTournamentSnapshotUpdate(db, tournUpdate, input);
 	applyTournamentScalarUpdates(tournUpdate, input);
+	const [existingDetail] = await db
+		.select()
+		.from(sessionTournamentDetail)
+		.where(eq(sessionTournamentDetail.sessionId, sessionId));
 
+	const statements: BatchStatement[] = [];
 	if (Object.keys(tournUpdate).length > 0) {
-		const [existingDetail] = await db
-			.select()
-			.from(sessionTournamentDetail)
-			.where(eq(sessionTournamentDetail.sessionId, sessionId));
-		if (existingDetail) {
-			await db
-				.update(sessionTournamentDetail)
-				.set(tournUpdate)
-				.where(eq(sessionTournamentDetail.sessionId, sessionId));
-		} else {
-			await db
-				.insert(sessionTournamentDetail)
-				.values({ sessionId, ...tournUpdate });
-		}
+		statements.push(
+			existingDetail
+				? db
+						.update(sessionTournamentDetail)
+						.set(tournUpdate)
+						.where(eq(sessionTournamentDetail.sessionId, sessionId))
+				: db
+						.insert(sessionTournamentDetail)
+						.values({ sessionId, ...tournUpdate })
+		);
 	}
-
 	if (input.tournamentId) {
-		await resnapshotTournamentStructure(db, sessionId, input.tournamentId);
+		statements.push(
+			...(await buildTournamentStructureReplacementStatements(
+				db,
+				sessionId,
+				input.tournamentId
+			))
+		);
 	}
-
 	if (input.blindLevels !== undefined) {
-		await persistSessionBlindLevels(db, sessionId, input.blindLevels);
+		statements.push(
+			...buildSessionBlindLevelStatements(db, sessionId, input.blindLevels)
+		);
 	}
 	if (input.chipPurchases !== undefined) {
-		await persistSessionChipPurchases(db, sessionId, input.chipPurchases);
+		statements.push(
+			...buildSessionChipPurchaseStatements(db, sessionId, input.chipPurchases)
+		);
 	}
+
+	const nextDetail = { ...existingDetail, ...tournUpdate };
+	return {
+		statements,
+		profitLoss: computeSessionPLFromDetails(
+			"tournament",
+			undefined,
+			{
+				tournamentBuyIn: nextDetail.tournamentBuyIn ?? null,
+				entryFee: nextDetail.entryFee ?? null,
+				prizeMoney: nextDetail.prizeMoney ?? null,
+				bountyPrizes: nextDetail.bountyPrizes ?? null,
+			},
+			await plannedChipPurchaseCost(db, sessionId, input)
+		),
+	};
 }
 
 interface CashRuleSnapshot {
@@ -2143,6 +2191,7 @@ interface CashRuleSnapshot {
 	blind1: number | null;
 	blind2: number | null;
 	blind3: number | null;
+	houseRules: string | null;
 	maxBuyIn: number | null;
 	minBuyIn: number | null;
 	mixGames: MixGameGroup[] | null;
@@ -2157,6 +2206,7 @@ interface CashRuleInput {
 	blind1?: number | null;
 	blind2?: number | null;
 	blind3?: number | null;
+	houseRules?: string | null;
 	maxBuyIn?: number | null;
 	minBuyIn?: number | null;
 	mixGames?: MixGameGroup[] | null;
@@ -2403,6 +2453,12 @@ async function isValidMixedVariant(
 				mixGames,
 				sameVariant ? currentMixGames : null
 			);
+			await assertSingleStructurePerGroup(
+				db,
+				userId,
+				mixGames,
+				currentMixGames ?? []
+			);
 		}
 		return true;
 	}
@@ -2499,6 +2555,7 @@ function defaultCashSnapshot(input: CashRuleInput): CashRuleSnapshot {
 		minBuyIn: input.minBuyIn ?? null,
 		maxBuyIn: input.maxBuyIn ?? null,
 		tableSize: input.tableSize ?? null,
+		houseRules: input.houseRules ?? null,
 	};
 	return { ...snapshot, ...cashMixFlatFieldClearPatch(snapshot.mixGames) };
 }
@@ -2519,6 +2576,7 @@ function mergeCashSnapshotWithParent(
 		minBuyIn: pick(input.minBuyIn, rg.minBuyIn),
 		maxBuyIn: pick(input.maxBuyIn, rg.maxBuyIn),
 		tableSize: pick(input.tableSize, rg.tableSize),
+		houseRules: pick(input.houseRules, rg.houseRules),
 	};
 	return { ...snapshot, ...cashMixFlatFieldClearPatch(snapshot.mixGames) };
 }
@@ -2600,6 +2658,7 @@ async function buildCashGameSessionDetailStatements(
 				minBuyIn: null,
 				maxBuyIn: null,
 				tableSize: snapshot.tableSize,
+				houseRules: snapshot.houseRules,
 				updatedAt: now,
 			})
 		);
@@ -2623,6 +2682,7 @@ async function buildCashGameSessionDetailStatements(
 			minBuyIn: snapshot.minBuyIn,
 			maxBuyIn: snapshot.maxBuyIn,
 			tableSize: snapshot.tableSize,
+			houseRules: snapshot.houseRules,
 		})
 	);
 	return statements;
@@ -2631,6 +2691,7 @@ async function buildCashGameSessionDetailStatements(
 interface TournamentRuleSnapshot {
 	bountyAmount: number | null;
 	entryFee: number | null;
+	houseRules: string | null;
 	ruleName: string;
 	startingStack: number | null;
 	tableSize: number | null;
@@ -2641,12 +2702,29 @@ interface TournamentRuleSnapshot {
 interface TournamentRuleInput {
 	bountyAmount?: number | null;
 	entryFee?: number | null;
+	houseRules?: string | null;
 	ruleName?: string;
 	startingStack?: number | null;
 	tableSize?: number | null;
 	tournamentBuyIn?: number | null;
 	tournamentId?: string | null;
 	variant?: string;
+}
+
+function mergeTournamentSnapshotWithParent(
+	input: TournamentRuleInput,
+	t: typeof tournament.$inferSelect
+): TournamentRuleSnapshot {
+	return {
+		ruleName: input.ruleName ?? t.name,
+		variant: input.variant ?? t.variant,
+		tournamentBuyIn: input.tournamentBuyIn ?? t.buyIn,
+		entryFee: input.entryFee ?? t.entryFee,
+		startingStack: pick(input.startingStack, t.startingStack),
+		bountyAmount: pick(input.bountyAmount, t.bountyAmount),
+		tableSize: pick(input.tableSize, t.tableSize),
+		houseRules: pick(input.houseRules, t.houseRules),
+	};
 }
 
 async function resolveTournamentRuleSnapshot(
@@ -2661,6 +2739,7 @@ async function resolveTournamentRuleSnapshot(
 		startingStack: input.startingStack ?? null,
 		bountyAmount: input.bountyAmount ?? null,
 		tableSize: input.tableSize ?? null,
+		houseRules: input.houseRules ?? null,
 	};
 	if (input.tournamentId) {
 		const [t] = await db
@@ -2668,21 +2747,7 @@ async function resolveTournamentRuleSnapshot(
 			.from(tournament)
 			.where(eq(tournament.id, input.tournamentId));
 		if (t) {
-			base = {
-				ruleName: input.ruleName ?? t.name,
-				variant: input.variant ?? t.variant,
-				tournamentBuyIn:
-					input.tournamentBuyIn !== undefined && input.tournamentBuyIn !== null
-						? input.tournamentBuyIn
-						: t.buyIn,
-				entryFee:
-					input.entryFee !== undefined && input.entryFee !== null
-						? input.entryFee
-						: t.entryFee,
-				startingStack: pick(input.startingStack, t.startingStack),
-				bountyAmount: pick(input.bountyAmount, t.bountyAmount),
-				tableSize: pick(input.tableSize, t.tableSize),
-			};
+			base = mergeTournamentSnapshotWithParent(input, t);
 		}
 	}
 	return base;
@@ -2703,6 +2768,7 @@ async function buildTournamentSessionDetailStatements(
 		startingStack: input.startingStack,
 		bountyAmount: input.bountyAmount,
 		tableSize: input.tableSize,
+		houseRules: input.houseRules,
 	});
 	const statements: BatchStatement[] = [
 		db.insert(sessionTournamentDetail).values({
@@ -2720,6 +2786,7 @@ async function buildTournamentSessionDetailStatements(
 			startingStack: snapshot.startingStack,
 			bountyAmount: snapshot.bountyAmount,
 			tableSize: snapshot.tableSize,
+			houseRules: snapshot.houseRules,
 		}),
 	];
 	if (input.tournamentId) {
@@ -2814,12 +2881,12 @@ async function snapshotTournamentStructure(
 	);
 }
 
-async function resnapshotTournamentStructure(
+async function buildTournamentStructureReplacementStatements(
 	db: DbInstance,
 	sessionId: string,
 	tournamentId: string
-): Promise<void> {
-	const statements: BatchStatement[] = [
+): Promise<BatchStatement[]> {
+	return [
 		db
 			.delete(sessionBlindLevel)
 			.where(eq(sessionBlindLevel.sessionId, sessionId)),
@@ -2828,7 +2895,21 @@ async function resnapshotTournamentStructure(
 			.where(eq(sessionChipPurchase.sessionId, sessionId)),
 		...(await buildTournamentStructureStatements(db, sessionId, tournamentId)),
 	];
-	await runBatch(db, statements);
+}
+
+async function resnapshotTournamentStructure(
+	db: DbInstance,
+	sessionId: string,
+	tournamentId: string
+): Promise<void> {
+	await runBatch(
+		db,
+		await buildTournamentStructureReplacementStatements(
+			db,
+			sessionId,
+			tournamentId
+		)
+	);
 }
 
 export {
@@ -2954,6 +3035,11 @@ export const sessionRouter = router({
 
 			await validateCreateLinks(ctx.db, input, userId);
 			await validateTagsOwnership(ctx.db, sessionTag, input.tagIds, userId);
+			if (input.type === "tournament") {
+				await assertLevelGameStructures(ctx.db, userId, input.blindLevels, {
+					tournamentId: input.tournamentId,
+				});
+			}
 
 			const statements: BatchStatement[] = [
 				ctx.db.insert(gameSession).values({
@@ -3099,38 +3185,44 @@ export const sessionRouter = router({
 			if (input.tagIds !== undefined) {
 				await validateTagsOwnership(ctx.db, sessionTag, input.tagIds, userId);
 			}
+			if (session.kind === "tournament") {
+				await assertLevelGameStructures(ctx.db, userId, input.blindLevels, {
+					sessionId: input.id,
+					tournamentId: input.tournamentId,
+				});
+			}
 
 			const sessionUpdateFields = buildSessionUpdateFields(input);
-			await ctx.db
-				.update(gameSession)
-				.set(sessionUpdateFields)
-				.where(eq(gameSession.id, input.id));
+			const detailPlan =
+				session.kind === "cash_game"
+					? await planCashDetailUpdate(ctx.db, input.id, input, userId)
+					: await planTournamentDetailUpdate(ctx.db, input.id, input);
+			const ledgerStatements = await buildSyncCurrencyTransactionStatements(
+				ctx.db,
+				input.id,
+				session.currencyId,
+				input.currencyId,
+				detailPlan.profitLoss,
+				sessionUpdateFields.sessionDate ?? session.sessionDate,
+				userId
+			);
 
-			if (session.kind === "cash_game") {
-				await applyCashDetailUpdate(ctx.db, input.id, input, userId);
-			} else {
-				await applyTournamentDetailUpdate(ctx.db, input.id, input);
-			}
-
-			if (input.tagIds !== undefined) {
-				const tagStatements: BatchStatement[] = [
-					ctx.db
-						.delete(sessionToSessionTag)
-						.where(eq(sessionToSessionTag.sessionId, input.id)),
-				];
-				if (input.tagIds.length > 0) {
-					const tagRows = input.tagIds.map((tagId) => ({
-						sessionId: input.id,
-						sessionTagId: tagId,
-					}));
-					for (const chunk of chunkForInsert(tagRows, 2)) {
-						tagStatements.push(
-							ctx.db.insert(sessionToSessionTag).values(chunk)
-						);
-					}
-				}
-				await runBatch(ctx.db, tagStatements);
-			}
+			await runBatch(ctx.db, [
+				ctx.db
+					.update(gameSession)
+					.set(sessionUpdateFields)
+					.where(eq(gameSession.id, input.id)),
+				...detailPlan.statements,
+				...(input.tagIds === undefined
+					? []
+					: [
+							ctx.db
+								.delete(sessionToSessionTag)
+								.where(eq(sessionToSessionTag.sessionId, input.id)),
+							...buildSessionTagStatements(ctx.db, input.id, input.tagIds),
+						]),
+				...ledgerStatements,
+			]);
 
 			const [updated] = await ctx.db
 				.select()
@@ -3143,36 +3235,6 @@ export const sessionRouter = router({
 					message: "Session not found after update",
 				});
 			}
-
-			const [updatedCashDetail] = await ctx.db
-				.select()
-				.from(sessionCashDetail)
-				.where(eq(sessionCashDetail.sessionId, input.id));
-
-			const [updatedTournamentDetail] = await ctx.db
-				.select()
-				.from(sessionTournamentDetail)
-				.where(eq(sessionTournamentDetail.sessionId, input.id));
-
-			const updatedChipPurchaseMap = await getSessionChipPurchaseMap(ctx.db, [
-				input.id,
-			]);
-			const pl = computeSessionPLFromDetails(
-				updated.kind,
-				updatedCashDetail,
-				updatedTournamentDetail,
-				sumChipPurchaseCost(updatedChipPurchaseMap.get(input.id) ?? [])
-			);
-
-			await syncCurrencyTransaction(
-				ctx.db,
-				input.id,
-				session.currencyId,
-				input.currencyId,
-				pl,
-				updated.sessionDate,
-				userId
-			);
 
 			return updated;
 		}),

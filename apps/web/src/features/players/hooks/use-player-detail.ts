@@ -72,13 +72,20 @@ export function usePlayerDetail(playerId: string | null) {
 			const previousLists = snapshotQueries(queryClient, {
 				queryKey: playerListKey,
 			});
+			const knownTags = new Map(
+				[
+					...(queryClient.getQueryData<PlayerTagQueryItem[]>(tagsKey) ?? []),
+					...((previousPlayer.data as PlayerDetailData | null | undefined)
+						?.tags ?? []),
+				].map((tag) => [tag.id, tag as PlayerTagWithColor])
+			);
 			const nextTags =
 				values.tagIds === undefined
 					? ((previousPlayer.data as PlayerDetailData | null | undefined)
 							?.tags ?? [])
-					: (tagsQuery.data ?? []).filter((tag) =>
-							values.tagIds?.includes(tag.id)
-						);
+					: values.tagIds
+							.map((id) => knownTags.get(id))
+							.filter((tag) => tag !== undefined);
 			updateQueryEntity<PlayerDetailData>(queryClient, playerKey, (old) => ({
 				memo: Object.hasOwn(values, "memo") ? (values.memo ?? null) : old.memo,
 				name: values.name ?? old.name,
@@ -173,8 +180,15 @@ export function usePlayerDetail(playerId: string | null) {
 	return {
 		availableTags: (tagsQuery.data ?? []) as PlayerTagWithColor[],
 		createTag: async (name: string) => {
-			const createdTag = await createTagMutation.mutateAsync(name);
-			return createdTag as PlayerTagWithColor;
+			const createdTag = (await createTagMutation.mutateAsync(
+				name
+			)) as PlayerTagWithColor;
+			updateQueryData<PlayerTagQueryItem[]>(queryClient, tagsKey, (old) =>
+				(old ?? []).some((tag) => tag.id === createdTag.id)
+					? (old ?? [])
+					: [...(old ?? []), createdTag as PlayerTagQueryItem]
+			);
+			return createdTag;
 		},
 		deletePlayer: deleteMutation.mutate,
 		isDeleting: deleteMutation.isPending,

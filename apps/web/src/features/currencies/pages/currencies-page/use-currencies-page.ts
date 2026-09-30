@@ -16,13 +16,14 @@ export function useCurrenciesPage() {
 	} = useCurrencies(null);
 
 	const handleCreate = (values: CurrencyValues) => {
-		create(values).then(() => {
-			setIsCreateOpen(false);
-		});
+		create(values).then(
+			() => setIsCreateOpen(false),
+			() => undefined
+		);
 	};
 
 	const handleToggleFavorite = (id: string) => {
-		toggleFavorite(id);
+		toggleFavorite(id).catch(() => undefined);
 	};
 
 	return {

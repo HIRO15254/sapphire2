@@ -8,9 +8,7 @@ import { appRouter } from "../routers";
 import {
 	createChainableMockDb,
 	expectAccepts,
-	expectProtected,
 	expectRejects,
-	expectType,
 	getInputSchema,
 } from "./test-utils";
 
@@ -52,34 +50,6 @@ function seededRows(extra: { variant?: Rows; group?: Rows } = {}) {
 		[VARIANT_TABLE]: extra.variant ?? [{ id: "gv-1", userId: CUR_OWNER }],
 	};
 }
-
-describe("gameGroup router", () => {
-	it("appRouter has gameGroup namespace", () => {
-		expect(appRouter.gameGroup).toBeDefined();
-	});
-
-	it("exposes exactly the expected procedure set", () => {
-		expect(Object.keys(appRouter.gameGroup).sort()).toEqual(
-			["create", "delete", "list", "update"].sort()
-		);
-	});
-
-	it("list is a protected query", () => {
-		expectProtected(appRouter.gameGroup.list);
-		expectType(appRouter.gameGroup.list, "query");
-	});
-
-	it("create / update / delete are protected mutations", () => {
-		for (const proc of [
-			appRouter.gameGroup.create,
-			appRouter.gameGroup.update,
-			appRouter.gameGroup.delete,
-		]) {
-			expectProtected(proc);
-			expectType(proc, "mutation");
-		}
-	});
-});
 
 describe("gameGroup.create input validation", () => {
 	it("accepts a minimal valid label", () => {

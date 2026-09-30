@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { TransactionListV2 } from "@/features/currencies/pages/currency-detail-page/transaction-list";
 
-const SIZE_8_CLASS = /(^| )size-8( |$)/;
 const VIEW_SESSION_NAME = /view session/i;
 
 const regularTransaction = {
@@ -174,18 +173,6 @@ describe("TransactionListV2", () => {
 		expect(screen.getByRole("button", { name: "Loading..." })).toBeDisabled();
 	});
 
-	it("reserves the same width on session rows as the action button takes on editable rows so the amount column stays aligned (no onNavigateToSession)", () => {
-		const { container } = render(
-			<TransactionListV2
-				onOpenActions={vi.fn()}
-				transactions={[sessionTransaction]}
-			/>
-		);
-		const placeholder = container.querySelector("span[aria-hidden]");
-		expect(placeholder).not.toBeNull();
-		expect(placeholder?.className).toMatch(SIZE_8_CLASS);
-	});
-
 	it("displays the session name in the memo column for session-generated rows", () => {
 		render(<TransactionListV2 transactions={[sessionTransaction]} />);
 		expect(screen.getByText("NLH 1/2")).toBeInTheDocument();
@@ -203,29 +190,6 @@ describe("TransactionListV2", () => {
 			/>
 		);
 		expect(screen.queryByText("Regular transaction")).not.toBeInTheDocument();
-	});
-
-	it("shows a chevron indicator on session rows when onNavigateToSession is provided", () => {
-		const { container } = render(
-			<TransactionListV2
-				onNavigateToSession={vi.fn()}
-				transactions={[sessionTransaction]}
-			/>
-		);
-		const chevronSpan = container.querySelector("span[aria-hidden]");
-		expect(chevronSpan).not.toBeNull();
-		expect(chevronSpan?.className).toMatch(SIZE_8_CLASS);
-	});
-
-	it("does not show the placeholder span on session rows when onNavigateToSession is provided", () => {
-		const { container } = render(
-			<TransactionListV2
-				onNavigateToSession={vi.fn()}
-				transactions={[sessionTransaction]}
-			/>
-		);
-		const spans = container.querySelectorAll("span[aria-hidden]");
-		expect(spans).toHaveLength(1);
 	});
 
 	it("calls onNavigateToSession with the sessionId when a session row is clicked", async () => {

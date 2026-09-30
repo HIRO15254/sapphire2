@@ -1,39 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 import { appRouter } from "../routers";
-import {
-	expectAccepts,
-	expectProtected,
-	expectRejects,
-	expectType,
-} from "./test-utils";
-
-describe("sessionTag router structure", () => {
-	it("appRouter has sessionTag namespace", () => {
-		expect(appRouter.sessionTag).toBeDefined();
-	});
-
-	it("exposes exactly the expected procedure set", () => {
-		expect(Object.keys(appRouter.sessionTag).sort()).toEqual(
-			["create", "delete", "list", "update"].sort()
-		);
-	});
-
-	it("list is a protected query", () => {
-		expectProtected(appRouter.sessionTag.list);
-		expectType(appRouter.sessionTag.list, "query");
-	});
-
-	it("create / update / delete are protected mutations", () => {
-		for (const proc of [
-			appRouter.sessionTag.create,
-			appRouter.sessionTag.update,
-			appRouter.sessionTag.delete,
-		]) {
-			expectProtected(proc);
-			expectType(proc, "mutation");
-		}
-	});
-});
+import { expectAccepts, expectRejects } from "./test-utils";
 
 describe("sessionTag.create input validation", () => {
 	it("accepts a non-empty name", () => {

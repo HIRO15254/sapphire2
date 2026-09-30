@@ -27,7 +27,7 @@ export function useCashGameSession(sessionId: string) {
 		onSuccess: async () => {
 			await invalidateTargets(queryClient, [
 				{ queryKey: trpc.liveCashGameSession.list.queryOptions({}).queryKey },
-				{ queryKey: trpc.session.list.queryOptions({}).queryKey },
+				{ queryKey: trpc.session.list.pathKey() },
 			]);
 			await navigate({ to: "/sessions" });
 		},

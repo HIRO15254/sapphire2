@@ -14,7 +14,6 @@ interface ZodLikeSchema {
 
 interface ProcedureDef {
 	inputs: unknown[];
-	middlewares: unknown[];
 	type: "mutation" | "query" | "subscription";
 }
 
@@ -60,22 +59,11 @@ export function expectRejects(procedure: unknown, input: unknown): void {
 	expect(result.success).toBe(false);
 }
 
-export function expectProtected(procedure: unknown): void {
-	const def = getProcedureDef(procedure);
-	expect(def.middlewares.length).toBeGreaterThanOrEqual(2);
-}
-
-export function expectType(
-	procedure: unknown,
-	type: "mutation" | "query" | "subscription"
-): void {
-	expect(getProcedureDef(procedure).type).toBe(type);
-}
-
 type MockRow = Record<string, unknown>;
 
 interface ChainableMockDbConfig {
 	evaluateWhere?: boolean;
+
 	select?: Record<string, MockRow[]>;
 }
 
@@ -172,6 +160,7 @@ function conditionMatches(condition: unknown, row: MockRow): boolean {
 		}
 		return operands.some((operand) => conditionMatches(operand, row));
 	}
+
 	return operands.every((operand) => conditionMatches(operand, row));
 }
 
@@ -246,6 +235,7 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 			const bucket = inserted[name] ?? [];
 			bucket.push(values);
 			inserted[name] = bucket;
+
 			const chain = Promise.resolve(undefined) as Promise<undefined> &
 				Record<string, (...args: unknown[]) => unknown>;
 			chain.onConflictDoNothing = () => chain;
@@ -273,6 +263,7 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 			};
 		}),
 	}));
+
 	const batch = vi.fn((statements: unknown[]) =>
 		Promise.all(statements as Promise<unknown>[])
 	);

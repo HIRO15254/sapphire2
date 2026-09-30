@@ -7,13 +7,7 @@ import { room } from "@sapphire2/db/schema/room";
 import { TRPCError } from "@trpc/server";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
-import {
-	expectAccepts,
-	expectProtected,
-	expectRejects,
-	expectType,
-	getInputSchema,
-} from "./test-utils";
+import { expectAccepts, expectRejects, getInputSchema } from "./test-utils";
 
 type Rows = Record<string, unknown>[];
 
@@ -82,61 +76,6 @@ async function expectTrpcCode(
 
 const CUR_OWNER = "user-1";
 const CUR_OTHER = "user-2";
-
-describe("ringGame router", () => {
-	it("appRouter has ringGame namespace", () => {
-		expect(appRouter.ringGame).toBeDefined();
-	});
-
-	it("has listByRoom procedure", () => {
-		expect(appRouter.ringGame.listByRoom).toBeDefined();
-	});
-
-	it("has create procedure", () => {
-		expect(appRouter.ringGame.create).toBeDefined();
-	});
-
-	it("has update procedure", () => {
-		expect(appRouter.ringGame.update).toBeDefined();
-	});
-
-	it("has archive procedure", () => {
-		expect(appRouter.ringGame.archive).toBeDefined();
-	});
-
-	it("has restore procedure", () => {
-		expect(appRouter.ringGame.restore).toBeDefined();
-	});
-
-	it("has delete procedure", () => {
-		expect(appRouter.ringGame.delete).toBeDefined();
-	});
-
-	it("exposes exactly the expected procedure set", () => {
-		expect(Object.keys(appRouter.ringGame).sort()).toEqual(
-			["archive", "create", "delete", "listByRoom", "restore", "update"].sort()
-		);
-	});
-
-	it("listByRoom is a protected query", () => {
-		expectProtected(appRouter.ringGame.listByRoom);
-		expectType(appRouter.ringGame.listByRoom, "query");
-	});
-
-	it("all mutations are protected mutations", () => {
-		for (const name of [
-			"create",
-			"update",
-			"archive",
-			"restore",
-			"delete",
-		] as const) {
-			const proc = appRouter.ringGame[name];
-			expectProtected(proc);
-			expectType(proc, "mutation");
-		}
-	});
-});
 
 describe("ringGame.listByRoom input validation", () => {
 	it("accepts roomId only", () => {

@@ -1,8 +1,6 @@
 import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import {
 	cashSessionEndPayload,
-	cashSessionStartPayload,
-	chipsAddRemovePayload,
 	MAX_SEAT_POSITION,
 	updateStackPayload,
 } from "@sapphire2/db/constants/session-event-types";
@@ -17,18 +15,27 @@ import { TRPCError } from "@trpc/server";
 import { and, desc, eq, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { runBatch } from "../lib/batch";
 import {
 	ACTIVE_SESSION_CONFLICT_MESSAGE,
 	runUnfinishedLiveSessionWrite,
 } from "../lib/db-errors";
 import {
 	computeCashGamePLFromEvents,
+	computeCashGameSummaryFromEvents,
 	computeHeroSeatPositionFromEvents,
 	recalculateCashGameSession,
 } from "../services/live-session-pl";
+import {
+	assertHandTrackingEditable,
+	buildLiveSessionUpdateData,
+	dealerSeatSchema,
+	handCountSchema,
+} from "../utils/live-session-update";
 import { assertSeatPositionFitsTableSize } from "../utils/seat-position";
 import {
 	floorToMinute,
+	heroSeatEventValues,
 	latestSessionEventOrderBy,
 	nextAppendSortOrderSql,
 	sessionEventOrderBy,
@@ -70,6 +77,31 @@ type DbInstance = Parameters<
 >[0]["ctx"]["db"];
 
 type BatchStatement = Parameters<DbInstance["batch"]>[0][number];
+
+async function ringGameSnapshotPatch(
+	db: DbInstance,
+	ringGameId: string,
+	keepSnapshot: boolean
+): Promise<Partial<typeof sessionCashDetail.$inferInsert>> {
+	if (keepSnapshot) {
+		return {};
+	}
+	const snapshot = await resolveCashRuleSnapshot(db, { ringGameId });
+	return {
+		ante: snapshot.ante,
+		anteType: snapshot.anteType,
+		blind1: snapshot.blind1,
+		blind2: snapshot.blind2,
+		blind3: snapshot.blind3,
+		houseRules: snapshot.houseRules,
+		maxBuyIn: snapshot.maxBuyIn,
+		minBuyIn: snapshot.minBuyIn,
+		mixGames: snapshot.mixGames,
+		ruleName: snapshot.ruleName,
+		tableSize: snapshot.tableSize,
+		variant: snapshot.variant,
+	};
+}
 
 export async function persistCashSessionReopenEvents(
 	db: DbInstance,
@@ -159,62 +191,6 @@ async function findLiveCashGameSession(
 	}
 
 	return found;
-}
-
-interface EventSummary {
-	addonCount: number;
-	cashOut: number | null;
-	currentStack: number | null;
-	maxStack: number | null;
-	minStack: number | null;
-	totalBuyIn: number;
-}
-
-function computeSummaryFromEvents(
-	events: { eventType: string; payload: string }[]
-): EventSummary {
-	let totalBuyIn = 0;
-	let cashOut: number | null = null;
-	let maxStack: number | null = null;
-	let minStack: number | null = null;
-	let currentStack: number | null = null;
-	let addonCount = 0;
-
-	for (const event of events) {
-		const parsed = JSON.parse(event.payload);
-		if (event.eventType === "session_start") {
-			const data = cashSessionStartPayload.parse(parsed);
-			totalBuyIn += data.buyInAmount;
-		} else if (event.eventType === "chips_add_remove") {
-			const data = chipsAddRemovePayload.parse(parsed);
-			if (data.amount > 0) {
-				totalBuyIn += data.amount;
-				addonCount++;
-			}
-		} else if (event.eventType === "update_stack") {
-			const data = updateStackPayload.parse(parsed);
-			const stack = data.stackAmount;
-			if (maxStack === null || stack > maxStack) {
-				maxStack = stack;
-			}
-			if (minStack === null || stack < minStack) {
-				minStack = stack;
-			}
-			currentStack = stack;
-		} else if (event.eventType === "session_end") {
-			const data = cashSessionEndPayload.parse(parsed);
-			cashOut = data.cashOutAmount;
-		}
-	}
-
-	return {
-		totalBuyIn,
-		cashOut,
-		currentStack,
-		maxStack,
-		minStack,
-		addonCount,
-	};
 }
 
 async function resolveRingGameAssignment(
@@ -389,7 +365,7 @@ export const liveCashGameSessionRouter = router({
 				eventType: e.eventType,
 				payload: e.payload,
 			}));
-			const s = computeSummaryFromEvents(mappedEvents);
+			const s = computeCashGameSummaryFromEvents(mappedEvents);
 			const pl = computeCashGamePLFromEvents(mappedEvents);
 
 			const summary = {
@@ -424,6 +400,7 @@ export const liveCashGameSessionRouter = router({
 				minBuyIn: cashDetail?.minBuyIn ?? null,
 				maxBuyIn: cashDetail?.maxBuyIn ?? null,
 				tableSize: cashDetail?.tableSize ?? null,
+				houseRules: cashDetail?.houseRules ?? null,
 			};
 		}),
 
@@ -537,6 +514,7 @@ export const liveCashGameSessionRouter = router({
 						minBuyIn: snapshot.minBuyIn,
 						maxBuyIn: snapshot.maxBuyIn,
 						tableSize: snapshot.tableSize,
+						houseRules: snapshot.houseRules,
 					}),
 					ctx.db.insert(sessionEvent).values({
 						id: crypto.randomUUID(),
@@ -603,6 +581,7 @@ export const liveCashGameSessionRouter = router({
 				minBuyIn: input.minBuyIn ?? null,
 				maxBuyIn: input.maxBuyIn ?? null,
 				tableSize: input.tableSize ?? null,
+				houseRules: input.houseRules ?? null,
 				...frozenFlatFields,
 			};
 			const detailStatement = ctx.db
@@ -650,32 +629,24 @@ export const liveCashGameSessionRouter = router({
 				roomId: z.string().min(1).nullable().optional(),
 				currencyId: z.string().min(1).nullable().optional(),
 				ringGameId: z.string().min(1).nullable().optional(),
+				keepSnapshot: z.boolean().optional(),
+				handCount: handCountSchema,
+				dealerSeat: dealerSeatSchema,
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const existing = await findLiveCashGameSession(ctx.db, input.id, userId);
+			assertHandTrackingEditable(existing.status, input);
 
 			const [existingCashDetail] = await ctx.db
 				.select()
 				.from(sessionCashDetail)
 				.where(eq(sessionCashDetail.sessionId, input.id));
 
-			const updateData: Partial<typeof gameSession.$inferInsert> = {
-				updatedAt: new Date(),
-			};
-
 			await validateLiveLinkOwnership(ctx.db, input, userId);
 
-			if (input.memo !== undefined) {
-				updateData.memo = input.memo;
-			}
-			if (input.roomId !== undefined) {
-				updateData.roomId = input.roomId;
-			}
-			if (input.currencyId !== undefined) {
-				updateData.currencyId = input.currencyId;
-			}
+			const updateData = buildLiveSessionUpdateData(input);
 
 			const cashDetailUpdate: Partial<typeof sessionCashDetail.$inferInsert> =
 				{};
@@ -710,20 +681,14 @@ export const liveCashGameSessionRouter = router({
 					updateData.currencyId = patch.currencyId;
 				}
 
-				const snapshot = await resolveCashRuleSnapshot(ctx.db, {
-					ringGameId: input.ringGameId,
-				});
-				cashDetailUpdate.ruleName = snapshot.ruleName;
-				cashDetailUpdate.variant = snapshot.variant;
-				cashDetailUpdate.mixGames = snapshot.mixGames;
-				cashDetailUpdate.blind1 = snapshot.blind1;
-				cashDetailUpdate.blind2 = snapshot.blind2;
-				cashDetailUpdate.blind3 = snapshot.blind3;
-				cashDetailUpdate.ante = snapshot.ante;
-				cashDetailUpdate.anteType = snapshot.anteType;
-				cashDetailUpdate.minBuyIn = snapshot.minBuyIn;
-				cashDetailUpdate.maxBuyIn = snapshot.maxBuyIn;
-				cashDetailUpdate.tableSize = snapshot.tableSize;
+				Object.assign(
+					cashDetailUpdate,
+					await ringGameSnapshotPatch(
+						ctx.db,
+						input.ringGameId,
+						input.keepSnapshot === true
+					)
+				);
 			}
 
 			await ctx.db
@@ -781,6 +746,7 @@ export const liveCashGameSessionRouter = router({
 				minBuyIn: nullableNonnegativeSafeIntegerSchema,
 				maxBuyIn: nullableNonnegativeSafeIntegerSchema,
 				tableSize: nullableTableSizeSchema,
+				houseRules: z.string().nullable().optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -835,6 +801,9 @@ export const liveCashGameSessionRouter = router({
 			}
 			if (input.tableSize !== undefined) {
 				detailUpdate.tableSize = input.tableSize;
+			}
+			if (input.houseRules !== undefined) {
+				detailUpdate.houseRules = input.houseRules;
 			}
 			if (Object.keys(detailUpdate).length > 0) {
 				Object.assign(
@@ -1023,44 +992,22 @@ export const liveCashGameSessionRouter = router({
 
 			const previousHeroSeat = computeHeroSeatPositionFromEvents(events);
 
-			if (previousHeroSeat !== null && input.heroSeatPosition !== null) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message:
-						"Hero is already seated. Leave the seat before assigning a new one.",
-				});
-			}
-
 			if (previousHeroSeat === input.heroSeatPosition) {
 				return { id: input.id };
 			}
 
-			const now = new Date();
-
-			if (input.heroSeatPosition === null) {
-				await ctx.db.insert(sessionEvent).values({
-					id: crypto.randomUUID(),
+			await runBatch(
+				ctx.db,
+				heroSeatEventValues({
+					heroSeatPosition: input.heroSeatPosition,
+					now: new Date(),
+					previousHeroSeat,
 					sessionId: input.id,
-					eventType: "player_leave",
-					occurredAt: floorToMinute(now),
-					sortOrder: nextAppendSortOrderSql(input.id),
-					payload: JSON.stringify({ isHero: true }),
-					updatedAt: now,
-				});
-			} else {
-				await ctx.db.insert(sessionEvent).values({
-					id: crypto.randomUUID(),
-					sessionId: input.id,
-					eventType: "player_join",
-					occurredAt: floorToMinute(now),
-					sortOrder: nextAppendSortOrderSql(input.id),
-					payload: JSON.stringify({
-						isHero: true,
-						seatPosition: input.heroSeatPosition,
-					}),
-					updatedAt: now,
-				});
-			}
+				}).map(
+					(values) =>
+						ctx.db.insert(sessionEvent).values(values) as BatchStatement
+				)
+			);
 
 			return { id: input.id };
 		}),

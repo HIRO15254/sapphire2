@@ -13,7 +13,6 @@ const mocks = vi.hoisted(() => ({
 	navigate: vi.fn(),
 	activeSession: null as ActiveSession,
 	hasActive: false,
-	stackOpen: vi.fn(),
 	mutate: vi.fn(),
 	sessionEventCreateMutate: vi.fn(),
 	leftItems: [{ id: "left" }],
@@ -50,10 +49,6 @@ vi.mock("@/features/live-sessions/hooks/use-active-session", () => ({
 	}),
 }));
 
-vi.mock("@/features/live-sessions/hooks/use-stack-sheet", () => ({
-	useStackSheet: () => ({ open: mocks.stackOpen }),
-}));
-
 vi.mock("@/features/live-sessions/utils/optimistic-session-event", () => ({
 	createSessionEventMutationOptions: vi.fn(() => mocks.mutationOptions),
 }));
@@ -81,7 +76,6 @@ describe("useMobileNav", () => {
 		mocks.navigate.mockReset();
 		mocks.activeSession = null;
 		mocks.hasActive = false;
-		mocks.stackOpen.mockReset();
 		mocks.mutate.mockReset();
 		mocks.sessionEventCreateMutate.mockReset();
 	});
@@ -161,12 +155,6 @@ describe("useMobileNav", () => {
 			expect(mocks.navigate).toHaveBeenCalledWith({ to: "/active-session" });
 		});
 
-		it("'Live' onClick does not open the stack sheet", () => {
-			const { result } = renderHook(() => useMobileNav());
-			act(() => result.current.centerAction.onClick());
-			expect(mocks.stackOpen).not.toHaveBeenCalled();
-		});
-
 		it("a similarly-prefixed path (/active-sessions) still counts as off-page", () => {
 			mocks.pathname = "/active-sessions";
 			const { result } = renderHook(() => useMobileNav());
@@ -185,28 +173,22 @@ describe("useMobileNav", () => {
 			mocks.pathname = "/active-session";
 		});
 
-		it("shows 'Stack' with live tone", () => {
+		it("shows 'Live' with live tone", () => {
 			const { result } = renderHook(() => useMobileNav());
-			expect(result.current.centerAction.label).toBe("Stack");
+			expect(result.current.centerAction.label).toBe("Live");
 			expect(result.current.centerAction.tone).toBe("live");
 		});
 
-		it("'Stack' onClick opens the stack sheet exactly once", () => {
+		it("'Live' onClick targets the production cockpit", () => {
 			const { result } = renderHook(() => useMobileNav());
 			act(() => result.current.centerAction.onClick());
-			expect(mocks.stackOpen).toHaveBeenCalledTimes(1);
+			expect(mocks.navigate).toHaveBeenCalledWith({ to: "/active-session" });
 		});
 
-		it("'Stack' onClick does not navigate", () => {
-			const { result } = renderHook(() => useMobileNav());
-			act(() => result.current.centerAction.onClick());
-			expect(mocks.navigate).not.toHaveBeenCalled();
-		});
-
-		it("treats /active-session sub-paths as on-page", () => {
+		it("keeps Live on /active-session sub-paths", () => {
 			mocks.pathname = "/active-session/anything";
 			const { result } = renderHook(() => useMobileNav());
-			expect(result.current.centerAction.label).toBe("Stack");
+			expect(result.current.centerAction.label).toBe("Live");
 		});
 	});
 

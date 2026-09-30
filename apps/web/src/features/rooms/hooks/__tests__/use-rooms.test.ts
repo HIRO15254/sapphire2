@@ -1,7 +1,9 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	createTestQueryClient as createClient,
+	withQueryClient as makeWrapper,
+} from "@/__tests__/test-utils";
 
 function buildKey(namespace: string, procedure: string, input: unknown) {
 	return input === undefined
@@ -42,21 +44,6 @@ import { useRooms } from "@/features/rooms/hooks/use-rooms";
 
 const STORE_KEY = ["room", "list"];
 const TEMP_ID_PATTERN = /^temp-/;
-
-function createClient(): QueryClient {
-	return new QueryClient({
-		defaultOptions: {
-			queries: { retry: false, gcTime: 0, staleTime: Number.POSITIVE_INFINITY },
-			mutations: { retry: false },
-		},
-	});
-}
-
-function makeWrapper(client: QueryClient) {
-	return function Wrapper({ children }: { children: ReactNode }) {
-		return createElement(QueryClientProvider, { client }, children);
-	};
-}
 
 describe("useRooms", () => {
 	beforeEach(() => {
@@ -397,41 +384,35 @@ describe("useRooms", () => {
 			});
 		});
 
-		it("rolls back on update error (observed via setQueryData spy)", async () => {
+		it("restores the original room after a rejected edit while refetch is pending", async () => {
 			const qc = createClient();
-			const prev = [{ id: "s1", name: "Main", memo: null }];
-			qc.setQueryData(STORE_KEY, prev);
-			trpcMocks.update.mockRejectedValue(new Error("nope"));
-
-			let snapshotAtRollback: typeof prev | undefined;
-			const originalSetQueryData = qc.setQueryData.bind(qc);
-			vi.spyOn(qc, "setQueryData").mockImplementation(
-				<T>(key: unknown, updater: unknown) => {
-					const r = originalSetQueryData(
-						key as Parameters<typeof originalSetQueryData>[0],
-						updater as Parameters<typeof originalSetQueryData>[1]
-					) as T;
-					const post = qc.getQueryData<typeof prev>(STORE_KEY);
-					if (
-						!snapshotAtRollback &&
-						post?.length === 1 &&
-						post[0]?.name === "Main"
-					) {
-						snapshotAtRollback = post;
-					}
-					return r;
-				}
-			);
-
-			const { result } = renderHook(() => useRooms(), {
+			const previous = [{ id: "s1", name: "Main", memo: null }];
+			qc.setQueryData(STORE_KEY, previous);
+			const mutation = Promise.withResolvers<unknown>();
+			const refetch = Promise.withResolvers<typeof previous>();
+			trpcMocks.update.mockReturnValue(mutation.promise);
+			trpcMocks.list.mockReturnValue(refetch.promise);
+			const { result, unmount } = renderHook(() => useRooms(), {
 				wrapper: makeWrapper(qc),
 			});
-			await act(async () => {
-				await expect(
-					result.current.update({ id: "s1", name: "Changed" })
-				).rejects.toThrow("nope");
+			let completion: Promise<unknown>;
+			act(() => {
+				completion = result.current
+					.update({ id: "s1", name: "Changed" })
+					.catch((error: unknown) => error);
 			});
-			expect(snapshotAtRollback).toEqual(prev);
+			await waitFor(() =>
+				expect(result.current.rooms[0]?.name).toBe("Changed")
+			);
+			await act(async () => {
+				mutation.reject(new Error("denied"));
+				expect(await completion).toEqual(new Error("denied"));
+			});
+			await waitFor(() => expect(result.current.rooms).toEqual(previous));
+			expect(qc.getQueryState(STORE_KEY)?.fetchStatus).toBe("fetching");
+			unmount();
+			await qc.cancelQueries();
+			qc.clear();
 		});
 
 		it("flips isUpdatePending during update", async () => {
@@ -483,39 +464,34 @@ describe("useRooms", () => {
 			resolve?.({ id: "s1" });
 		});
 
-		it("restores the cache when delete fails (observed via setQueryData spy)", async () => {
+		it("restores the deleted room before the retrying list responds", async () => {
 			const qc = createClient();
-			const prev = [
+			const previous = [
 				{ id: "s1", name: "Main", memo: null },
 				{ id: "s2", name: "Branch", memo: null },
 			];
-			qc.setQueryData(STORE_KEY, prev);
-			trpcMocks.delete.mockRejectedValue(new Error("denied"));
-
-			let snapshotAtRollback: typeof prev | undefined;
-			const originalSetQueryData = qc.setQueryData.bind(qc);
-			vi.spyOn(qc, "setQueryData").mockImplementation(
-				<T>(key: unknown, updater: unknown) => {
-					const r = originalSetQueryData(
-						key as Parameters<typeof originalSetQueryData>[0],
-						updater as Parameters<typeof originalSetQueryData>[1]
-					) as T;
-					const post = qc.getQueryData<typeof prev>(STORE_KEY);
-					if (!snapshotAtRollback && post?.length === 2) {
-						snapshotAtRollback = post;
-					}
-					return r;
-				}
-			);
-
-			const { result } = renderHook(() => useRooms(), {
+			qc.setQueryData(STORE_KEY, previous);
+			const mutation = Promise.withResolvers<unknown>();
+			const refetch = Promise.withResolvers<typeof previous>();
+			trpcMocks.delete.mockReturnValue(mutation.promise);
+			trpcMocks.list.mockReturnValue(refetch.promise);
+			const { result, unmount } = renderHook(() => useRooms(), {
 				wrapper: makeWrapper(qc),
 			});
 			act(() => {
 				result.current.delete("s1");
 			});
-			await waitFor(() => expect(trpcMocks.delete).toHaveBeenCalled());
-			await waitFor(() => expect(snapshotAtRollback).toEqual(prev));
+			await waitFor(() =>
+				expect(result.current.rooms.map((room) => room.id)).toEqual(["s2"])
+			);
+			act(() => {
+				mutation.reject(new Error("denied"));
+			});
+			await waitFor(() => expect(result.current.rooms).toEqual(previous));
+			expect(qc.getQueryState(STORE_KEY)?.fetchStatus).toBe("fetching");
+			unmount();
+			await qc.cancelQueries();
+			qc.clear();
 		});
 	});
 
@@ -656,9 +632,9 @@ describe("useRooms", () => {
 			);
 		});
 
-		it("restores the cache when toggleFavorite fails (observed via setQueryData spy)", async () => {
+		it("restores favorite state and ordering before refetch responds", async () => {
 			const qc = createClient();
-			const prev = [
+			const previous = [
 				{
 					id: "s1",
 					name: "Main",
@@ -666,39 +642,43 @@ describe("useRooms", () => {
 					isFavorite: false,
 					createdAt: CREATED_AT,
 				},
+				{
+					id: "s2",
+					name: "Branch",
+					memo: null,
+					isFavorite: false,
+					createdAt: "2024-01-02T00:00:00.000Z",
+				},
 			];
-			qc.setQueryData(STORE_KEY, prev);
-			trpcMocks.toggleFavorite.mockRejectedValue(new Error("fail"));
-
-			let snapshotAtRollback: typeof prev | undefined;
-			const originalSetQueryData = qc.setQueryData.bind(qc);
-			vi.spyOn(qc, "setQueryData").mockImplementation(
-				<T>(key: unknown, updater: unknown) => {
-					const r = originalSetQueryData(
-						key as Parameters<typeof originalSetQueryData>[0],
-						updater as Parameters<typeof originalSetQueryData>[1]
-					) as T;
-					const post = qc.getQueryData<typeof prev>(STORE_KEY);
-					if (
-						!snapshotAtRollback &&
-						post?.length === 1 &&
-						post[0]?.isFavorite === false
-					) {
-						snapshotAtRollback = post;
-					}
-					return r;
-				}
-			);
-
-			const { result } = renderHook(() => useRooms(), {
+			qc.setQueryData(STORE_KEY, previous);
+			const mutation = Promise.withResolvers<unknown>();
+			const refetch = Promise.withResolvers<typeof previous>();
+			trpcMocks.toggleFavorite.mockReturnValue(mutation.promise);
+			trpcMocks.list.mockReturnValue(refetch.promise);
+			const { result, unmount } = renderHook(() => useRooms(), {
 				wrapper: makeWrapper(qc),
 			});
-			await act(async () => {
-				await expect(result.current.toggleFavorite("s1")).rejects.toThrow(
-					"fail"
-				);
+			let completion: Promise<unknown>;
+			act(() => {
+				completion = result.current
+					.toggleFavorite("s2")
+					.catch((error: unknown) => error);
 			});
-			expect(snapshotAtRollback).toEqual(prev);
+			await waitFor(() =>
+				expect(result.current.rooms[0]).toMatchObject({
+					id: "s2",
+					isFavorite: true,
+				})
+			);
+			await act(async () => {
+				mutation.reject(new Error("denied"));
+				expect(await completion).toEqual(new Error("denied"));
+			});
+			await waitFor(() => expect(result.current.rooms).toEqual(previous));
+			expect(qc.getQueryState(STORE_KEY)?.fetchStatus).toBe("fetching");
+			unmount();
+			await qc.cancelQueries();
+			qc.clear();
 		});
 	});
 });

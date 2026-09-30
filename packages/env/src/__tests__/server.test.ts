@@ -10,8 +10,8 @@ const validEnv = {
 
 describe("createServerEnv", () => {
 	it("parses required bindings and optional keys", () => {
-		const env = createServerEnv({ ...validEnv, ANTHROPIC_API_KEY: "key" });
-		expect(env.ANTHROPIC_API_KEY).toBe("key");
+		const env = createServerEnv({ ...validEnv, OPENAI_API_KEY: "key" });
+		expect(env.OPENAI_API_KEY).toBe("key");
 		expect(env.BETTER_AUTH_URL).toBe("https://app.example.com");
 	});
 

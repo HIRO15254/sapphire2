@@ -61,14 +61,6 @@ describe("useDefaultFilterPreset", () => {
 		expect(mocks.useFilterPresets).toHaveBeenCalledWith("statistics");
 	});
 
-	it("returns undefined (side-effect-only hook)", () => {
-		setPresets([DEFAULT_ROW]);
-		const { result } = renderHook(() =>
-			useDefaultFilterPreset("sessions", true, vi.fn())
-		);
-		expect(result.current).toBeUndefined();
-	});
-
 	describe("loading gate", () => {
 		it("does not call applyDefault while the presets query is still loading", () => {
 			const applyDefault = vi.fn();

@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { trpcKeys } from "@/__tests__/trpc-keys";
 
 function buildKey(namespace: string, procedure: string, input: unknown) {
 	return input === undefined
@@ -54,9 +55,10 @@ vi.mock("@/utils/trpc", () => ({
 		},
 		session: {
 			list: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("session", "list", input),
-				}),
+				pathKey: () => trpcKeys.session.list.pathKey(),
+				queryOptions: (
+					input: Parameters<typeof trpcKeys.session.list.queryOptions>[0]
+				) => trpcKeys.session.list.queryOptions(input),
 			},
 		},
 		tournamentChipPurchase: {
@@ -409,6 +411,14 @@ describe("useTournamentStack", () => {
 	describe("complete", () => {
 		it("beforeDeadline=false: forwards { placement, totalEntries, prizeMoney, bountyPrizes }", async () => {
 			const qc = createClient();
+			const sessionListKey = trpcKeys.session.list.infiniteQueryKey({
+				roomId: "r1",
+			});
+			qc.setQueryDefaults(sessionListKey, { gcTime: Number.POSITIVE_INFINITY });
+			qc.setQueryData(sessionListKey, {
+				pages: [{ items: [], nextCursor: undefined }],
+				pageParams: [undefined],
+			});
 			trpcMocks.complete.mockResolvedValue({ id: "t1" });
 			const { result } = renderHook(
 				() => useTournamentStack({ sessionId: "t1" }),
@@ -437,6 +447,8 @@ describe("useTournamentStack", () => {
 			await waitFor(() => {
 				expect(navigateMock).toHaveBeenCalledWith({ to: "/sessions" });
 			});
+			expect(qc.getQueryState(sessionListKey)?.isInvalidated).toBe(true);
+			qc.clear();
 		});
 
 		it("beforeDeadline=true: forwards only prizeMoney / bountyPrizes", async () => {

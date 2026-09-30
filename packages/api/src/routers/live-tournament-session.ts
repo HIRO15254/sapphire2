@@ -17,18 +17,27 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { runBatch } from "../lib/batch";
 import {
 	ACTIVE_SESSION_CONFLICT_MESSAGE,
 	runUnfinishedLiveSessionWrite,
 } from "../lib/db-errors";
+import { assertLevelGameStructures } from "../services/game-structure";
 import {
 	computeHeroSeatPositionFromEvents,
 	computeTournamentPLFromEvents,
 	recalculateTournamentSession,
 } from "../services/live-session-pl";
+import {
+	assertHandTrackingEditable,
+	buildLiveSessionUpdateData,
+	dealerSeatSchema,
+	handCountSchema,
+} from "../utils/live-session-update";
 import { assertSeatPositionFitsTableSize } from "../utils/seat-position";
 import {
 	floorToMinute,
+	heroSeatEventValues,
 	nextAppendSortOrderSql,
 	sessionEventOrderBy,
 } from "../utils/session-event-time";
@@ -260,29 +269,10 @@ function computeStackStats(
 	return { ...bounds, ...info, averageStack };
 }
 
-function buildLiveSessionUpdateData(input: {
-	memo?: string | null;
-	roomId?: string | null;
-	currencyId?: string | null;
-}): Partial<typeof gameSession.$inferInsert> {
-	const updateData: Partial<typeof gameSession.$inferInsert> = {
-		updatedAt: new Date(),
-	};
-	if (input.memo !== undefined) {
-		updateData.memo = input.memo;
-	}
-	if (input.roomId !== undefined) {
-		updateData.roomId = input.roomId;
-	}
-	if (input.currencyId !== undefined) {
-		updateData.currencyId = input.currencyId;
-	}
-	return updateData;
-}
-
 async function resolveDetailUpdate(
 	db: DbInstance,
 	input: {
+		keepSnapshot?: boolean;
 		tournamentId?: string | null;
 		timerStartedAt?: number | null;
 	},
@@ -329,16 +319,19 @@ async function resolveDetailUpdate(
 			patchedUpdateData.currencyId = patch.currencyId;
 		}
 
-		const snapshot = await resolveTournamentRuleSnapshot(db, {
-			tournamentId: input.tournamentId,
-		});
-		detailUpdate.ruleName = snapshot.ruleName;
-		detailUpdate.variant = snapshot.variant;
-		detailUpdate.startingStack = snapshot.startingStack;
-		detailUpdate.bountyAmount = snapshot.bountyAmount;
-		detailUpdate.tableSize = snapshot.tableSize;
-		detailUpdate.tournamentBuyIn = snapshot.tournamentBuyIn;
-		detailUpdate.entryFee = snapshot.entryFee;
+		if (!input.keepSnapshot) {
+			const snapshot = await resolveTournamentRuleSnapshot(db, {
+				tournamentId: input.tournamentId,
+			});
+			detailUpdate.ruleName = snapshot.ruleName;
+			detailUpdate.variant = snapshot.variant;
+			detailUpdate.startingStack = snapshot.startingStack;
+			detailUpdate.bountyAmount = snapshot.bountyAmount;
+			detailUpdate.tableSize = snapshot.tableSize;
+			detailUpdate.houseRules = snapshot.houseRules;
+			detailUpdate.tournamentBuyIn = snapshot.tournamentBuyIn;
+			detailUpdate.entryFee = snapshot.entryFee;
+		}
 	}
 
 	return { detailUpdate, patchedUpdateData };
@@ -666,6 +659,7 @@ export const liveTournamentSessionRouter = router({
 				variant: detail?.variant ?? null,
 				startingStack: detail?.startingStack ?? null,
 				bountyAmount: detail?.bountyAmount ?? null,
+				houseRules: detail?.houseRules ?? null,
 			};
 		}),
 
@@ -740,6 +734,7 @@ export const liveTournamentSessionRouter = router({
 						startingStack: snapshot.startingStack,
 						bountyAmount: snapshot.bountyAmount,
 						tableSize: snapshot.tableSize,
+						houseRules: snapshot.houseRules,
 					}),
 					ctx.db.insert(sessionEvent).values({
 						id: crypto.randomUUID(),
@@ -801,6 +796,7 @@ export const liveTournamentSessionRouter = router({
 				startingStack: input.startingStack ?? null,
 				bountyAmount: input.bountyAmount ?? null,
 				tableSize: input.tableSize ?? null,
+				houseRules: input.houseRules ?? null,
 			};
 			const detailStatement = ctx.db
 				.insert(sessionTournamentDetail)
@@ -882,7 +878,10 @@ export const liveTournamentSessionRouter = router({
 				roomId: z.string().min(1).nullable().optional(),
 				currencyId: z.string().min(1).nullable().optional(),
 				tournamentId: z.string().min(1).nullable().optional(),
+				keepSnapshot: z.boolean().optional(),
 				timerStartedAt: z.number().int().nullable().optional(),
+				handCount: handCountSchema,
+				dealerSeat: dealerSeatSchema,
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -892,6 +891,7 @@ export const liveTournamentSessionRouter = router({
 				input.id,
 				userId
 			);
+			assertHandTrackingEditable(existing.status, input);
 
 			const [existingDetail] = await ctx.db
 				.select()
@@ -921,7 +921,7 @@ export const liveTournamentSessionRouter = router({
 				detailUpdate
 			);
 
-			if (input.tournamentId) {
+			if (input.tournamentId && !input.keepSnapshot) {
 				await resnapshotTournamentStructure(
 					ctx.db,
 					input.id,
@@ -968,6 +968,7 @@ export const liveTournamentSessionRouter = router({
 				startingStack: nullableNonnegativeSafeIntegerSchema,
 				bountyAmount: nullableNonnegativeSafeIntegerSchema,
 				tableSize: nullableTableSizeSchema,
+				houseRules: z.string().nullable().optional(),
 				blindLevels: z
 					.array(
 						z.object({
@@ -995,6 +996,9 @@ export const liveTournamentSessionRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await findLiveTournamentSession(ctx.db, input.id, userId);
+			await assertLevelGameStructures(ctx.db, userId, input.blindLevels, {
+				sessionId: input.id,
+			});
 
 			const detailUpdate: Partial<typeof sessionTournamentDetail.$inferInsert> =
 				{};
@@ -1018,6 +1022,9 @@ export const liveTournamentSessionRouter = router({
 			}
 			if (input.tableSize !== undefined) {
 				detailUpdate.tableSize = input.tableSize;
+			}
+			if (input.houseRules !== undefined) {
+				detailUpdate.houseRules = input.houseRules;
 			}
 			if (Object.keys(detailUpdate).length > 0) {
 				await ctx.db
@@ -1134,44 +1141,22 @@ export const liveTournamentSessionRouter = router({
 
 			const previousHeroSeat = computeHeroSeatPositionFromEvents(events);
 
-			if (previousHeroSeat !== null && input.heroSeatPosition !== null) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message:
-						"Hero is already seated. Leave the seat before assigning a new one.",
-				});
-			}
-
 			if (previousHeroSeat === input.heroSeatPosition) {
 				return { id: input.id };
 			}
 
-			const now = new Date();
-
-			if (input.heroSeatPosition === null) {
-				await ctx.db.insert(sessionEvent).values({
-					id: crypto.randomUUID(),
+			await runBatch(
+				ctx.db,
+				heroSeatEventValues({
+					heroSeatPosition: input.heroSeatPosition,
+					now: new Date(),
+					previousHeroSeat,
 					sessionId: input.id,
-					eventType: "player_leave",
-					occurredAt: floorToMinute(now),
-					sortOrder: nextAppendSortOrderSql(input.id),
-					payload: JSON.stringify({ isHero: true }),
-					updatedAt: now,
-				});
-			} else {
-				await ctx.db.insert(sessionEvent).values({
-					id: crypto.randomUUID(),
-					sessionId: input.id,
-					eventType: "player_join",
-					occurredAt: floorToMinute(now),
-					sortOrder: nextAppendSortOrderSql(input.id),
-					payload: JSON.stringify({
-						isHero: true,
-						seatPosition: input.heroSeatPosition,
-					}),
-					updatedAt: now,
-				});
-			}
+				}).map(
+					(values) =>
+						ctx.db.insert(sessionEvent).values(values) as BatchStatement
+				)
+			);
 
 			return { id: input.id };
 		}),

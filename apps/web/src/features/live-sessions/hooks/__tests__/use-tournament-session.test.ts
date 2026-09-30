@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { trpcKeys } from "@/__tests__/trpc-keys";
 
 function buildKey(namespace: string, procedure: string, input: unknown) {
 	return input === undefined
@@ -37,10 +38,10 @@ vi.mock("@/utils/trpc", () => ({
 		},
 		session: {
 			list: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("session", "list", input),
-					queryFn: () => Promise.resolve([]),
-				}),
+				pathKey: () => trpcKeys.session.list.pathKey(),
+				queryOptions: (
+					input: Parameters<typeof trpcKeys.session.list.queryOptions>[0]
+				) => trpcKeys.session.list.queryOptions(input),
 			},
 		},
 	},
@@ -109,6 +110,14 @@ describe("useTournamentSession", () => {
 
 	it("discard() calls trpcClient.liveTournamentSession.discard and navigates to /sessions on success", async () => {
 		const qc = createClient();
+		const sessionListKey = trpcKeys.session.list.infiniteQueryKey({
+			roomId: "r1",
+		});
+		qc.setQueryDefaults(sessionListKey, { gcTime: Number.POSITIVE_INFINITY });
+		qc.setQueryData(sessionListKey, {
+			pages: [{ items: [], nextCursor: undefined }],
+			pageParams: [undefined],
+		});
 		trpcMocks.discard.mockResolvedValue({ id: "t1" });
 		const { result } = renderHook(() => useTournamentSession("t1"), {
 			wrapper: makeWrapper(qc),
@@ -123,6 +132,8 @@ describe("useTournamentSession", () => {
 		await waitFor(() => {
 			expect(navigateMock).toHaveBeenCalledWith({ to: "/sessions" });
 		});
+		expect(qc.getQueryState(sessionListKey)?.isInvalidated).toBe(true);
+		qc.clear();
 	});
 
 	it("updateTimerStartedAt(null) passes null through", async () => {

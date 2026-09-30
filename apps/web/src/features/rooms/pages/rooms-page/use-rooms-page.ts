@@ -16,13 +16,14 @@ export function useRoomsPage() {
 	} = useRooms();
 
 	const handleCreate = (values: RoomValues) => {
-		create(values).then(() => {
-			setIsCreateOpen(false);
-		});
+		create(values).then(
+			() => setIsCreateOpen(false),
+			() => undefined
+		);
 	};
 
 	const handleToggleFavorite = (id: string) => {
-		toggleFavorite(id);
+		toggleFavorite(id).catch(() => undefined);
 	};
 
 	return {

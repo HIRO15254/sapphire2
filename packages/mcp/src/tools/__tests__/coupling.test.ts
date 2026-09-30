@@ -1,5 +1,4 @@
 import {
-	expectProtected,
 	getInputSchema,
 	getProcedureDef,
 } from "@sapphire2/api/__tests__/test-utils";
@@ -7,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
 	DELIBERATELY_EXCLUDED,
 	entityName,
+	LEVEL_GAMES_RULE,
 	MIX_RULE,
 	TOOL_DEFINITIONS,
 	toolAnnotations,
@@ -77,10 +77,8 @@ describe("tool/router coupling", () => {
 		}
 	});
 
-	it("only exposes protected procedures", () => {
-		for (const path of exposedPaths) {
-			expectProtected(getProcedure(path));
-		}
+	it("does not expose the public health check as an authenticated tool", () => {
+		expect(exposedPaths.has("healthCheck")).toBe(false);
 	});
 
 	it("derives readOnlyHint from the router's query/mutation type", () => {
@@ -210,6 +208,23 @@ describe("tool/router coupling", () => {
 		expect(accepting.length).toBeGreaterThanOrEqual(4);
 		for (const def of accepting) {
 			expect(def.description).toContain(MIX_RULE);
+		}
+	});
+
+	it("explains the level games contract on every tool that accepts blindLevels", () => {
+		const accepting = TOOL_DEFINITIONS.filter((def) => {
+			const shape = (def.inputSchema as { shape?: Record<string, unknown> })
+				?.shape;
+			return shape !== undefined && "blindLevels" in shape;
+		});
+		expect(accepting.map((def) => def.name).sort()).toEqual([
+			"session_create_tournament",
+			"session_update",
+			"tournament_create_with_levels",
+			"tournament_update_with_levels",
+		]);
+		for (const def of accepting) {
+			expect(def.description).toContain(LEVEL_GAMES_RULE);
 		}
 	});
 

@@ -1,7 +1,9 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	createTestQueryClient as createClient,
+	withQueryClient as makeWrapper,
+} from "@/__tests__/test-utils";
 
 function buildKey(namespace: string, procedure: string, input: unknown) {
 	return input === undefined
@@ -11,6 +13,7 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 
 const trpcMocks = vi.hoisted(() => ({
 	createMutate: vi.fn(),
+	list: vi.fn(),
 }));
 
 vi.mock("@/utils/trpc", () => ({
@@ -19,7 +22,7 @@ vi.mock("@/utils/trpc", () => ({
 			list: {
 				queryOptions: () => ({
 					queryKey: buildKey("transactionType", "list", undefined),
-					queryFn: () => Promise.resolve([]),
+					queryFn: trpcMocks.list,
 				}),
 			},
 		},
@@ -36,24 +39,10 @@ import { useTransactionTypes } from "@/features/currencies/hooks/use-transaction
 const TEMP_TYPE_ID_PATTERN = /^temp-type-/;
 const TYPE_LIST_KEY = ["transactionType", "list"];
 
-function createClient(): QueryClient {
-	return new QueryClient({
-		defaultOptions: {
-			queries: { retry: false, gcTime: 0, staleTime: Number.POSITIVE_INFINITY },
-			mutations: { retry: false },
-		},
-	});
-}
-
-function makeWrapper(client: QueryClient) {
-	return function Wrapper({ children }: { children: ReactNode }) {
-		return createElement(QueryClientProvider, { client }, children);
-	};
-}
-
 describe("useTransactionTypes", () => {
 	beforeEach(() => {
 		trpcMocks.createMutate.mockReset();
+		trpcMocks.list.mockReset().mockResolvedValue([]);
 	});
 
 	afterEach(() => {
@@ -143,46 +132,38 @@ describe("useTransactionTypes", () => {
 			expect(trpcMocks.createMutate).toHaveBeenCalledWith({ name: "Tip" });
 		});
 
-		it("onError restores the previous snapshot (rollback observed before onSettled refetch)", async () => {
+		it("removes the rejected optimistic type before refetch responds", async () => {
 			const qc = createClient();
-			const initial = [{ id: "t1", name: "Deposit" }];
-			qc.setQueryData(TYPE_LIST_KEY, initial);
-
-			let snapshotAtRollback: Array<{ id: string; name: string }> | undefined;
-			trpcMocks.createMutate.mockImplementation(() => {
-				const optimistic =
-					qc.getQueryData<Array<{ id: string; name: string }>>(TYPE_LIST_KEY);
-				expect(optimistic).toHaveLength(2);
-				return Promise.reject(new Error("boom"));
-			});
-
-			const originalSetQueryData = qc.setQueryData.bind(qc);
-			const setQueryDataSpy = vi
-				.spyOn(qc, "setQueryData")
-				.mockImplementation(<T>(key: unknown, updater: unknown) => {
-					const result = originalSetQueryData(
-						key as Parameters<typeof originalSetQueryData>[0],
-						updater as Parameters<typeof originalSetQueryData>[1]
-					) as T;
-					const post =
-						qc.getQueryData<Array<{ id: string; name: string }>>(TYPE_LIST_KEY);
-					if (!snapshotAtRollback && post && post.length === 1) {
-						snapshotAtRollback = post;
-					}
-					return result;
-				});
-
-			const { result } = renderHook(() => useTransactionTypes(), {
+			const previous = [{ id: "t1", name: "Deposit" }];
+			qc.setQueryData(TYPE_LIST_KEY, previous);
+			const mutation = Promise.withResolvers<unknown>();
+			const refetch = Promise.withResolvers<typeof previous>();
+			trpcMocks.createMutate.mockReturnValue(mutation.promise);
+			trpcMocks.list.mockReturnValue(refetch.promise);
+			const { result, unmount } = renderHook(() => useTransactionTypes(), {
 				wrapper: makeWrapper(qc),
 			});
-			await act(async () => {
-				await expect(result.current.createType("Bonus")).rejects.toThrow(
-					"boom"
-				);
+			let completion: Promise<unknown>;
+			act(() => {
+				completion = result.current
+					.createType("Bonus")
+					.catch((error: unknown) => error);
 			});
-
-			expect(snapshotAtRollback).toEqual(initial);
-			setQueryDataSpy.mockRestore();
+			await waitFor(() =>
+				expect(result.current.types.map((type) => type.name)).toEqual([
+					"Deposit",
+					"Bonus",
+				])
+			);
+			await act(async () => {
+				mutation.reject(new Error("denied"));
+				expect(await completion).toEqual(new Error("denied"));
+			});
+			await waitFor(() => expect(result.current.types).toEqual(previous));
+			expect(qc.getQueryState(TYPE_LIST_KEY)?.fetchStatus).toBe("fetching");
+			unmount();
+			await qc.cancelQueries();
+			qc.clear();
 		});
 
 		it("isCreatingType flips to true during in-flight mutation", async () => {

@@ -41,16 +41,27 @@ describe("ThemeSetting", () => {
 		expect(screen.getByRole("radio", { name: "System" })).not.toBeChecked();
 	});
 
-	it("calls setTheme with the selected value when a different option is clicked", async () => {
-		mocks.theme = "dark";
+	it.each([
+		["dark", "Light", "light"],
+		["light", "Dark", "dark"],
+	])("changes %s to the selected %s option", async (initial, label, value) => {
+		mocks.theme = initial;
 		mocks.setTheme.mockClear();
 		const user = userEvent.setup();
 
 		render(<ThemeSetting />);
 
-		await user.click(screen.getByRole("radio", { name: "Light" }));
+		await user.click(screen.getByRole("radio", { name: label }));
 		expect(mocks.setTheme).toHaveBeenCalledTimes(1);
-		expect(mocks.setTheme).toHaveBeenCalledWith("light");
+		expect(mocks.setTheme).toHaveBeenCalledWith(value);
+	});
+
+	it("does not select a theme before the provider has resolved one", () => {
+		mocks.theme = undefined;
+		render(<ThemeSetting />);
+		for (const option of screen.getAllByRole("radio")) {
+			expect(option).not.toBeChecked();
+		}
 	});
 
 	it("does not call setTheme when the currently selected option is clicked (RadioGroup semantics)", async () => {

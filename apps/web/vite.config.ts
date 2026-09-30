@@ -7,9 +7,12 @@ import { VitePWA } from "vite-plugin-pwa";
 import { githubReleasesPlugin } from "./src/plugins/vite-plugin-github-releases";
 import { pwaManifest } from "./src/shared/lib/pwa-manifest";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
 	plugins: [
-		githubReleasesPlugin("hiro15254/sapphire2"),
+		githubReleasesPlugin(
+			"hiro15254/sapphire2",
+			mode === "test" ? [] : undefined
+		),
 		tailwindcss(),
 		tanstackRouter({}),
 		react(),
@@ -28,4 +31,4 @@ export default defineConfig({
 	server: {
 		port: 3001,
 	},
-});
+}));

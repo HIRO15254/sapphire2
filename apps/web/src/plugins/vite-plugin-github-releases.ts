@@ -36,6 +36,10 @@ async function fetchGitHubReleases(repo: string): Promise<UpdateNote[]> {
 
 	const releases: GitHubRelease[] = await res.json();
 
+	return releaseNotes(releases);
+}
+
+function releaseNotes(releases: GitHubRelease[]): UpdateNote[] {
 	return releases
 		.filter((r) => !(r.draft || r.prerelease))
 		.map((r) => ({
@@ -52,8 +56,13 @@ async function fetchGitHubReleases(repo: string): Promise<UpdateNote[]> {
 const VIRTUAL_MODULE_ID = "virtual:update-notes";
 const RESOLVED_ID = `\0${VIRTUAL_MODULE_ID}`;
 
-export function githubReleasesPlugin(repo: string): Plugin {
-	let cachedNotes: UpdateNote[] | null = null;
+export function githubReleasesPlugin(
+	repo: string,
+	releaseFixture?: GitHubRelease[]
+): Plugin {
+	let cachedNotes: UpdateNote[] | null = releaseFixture
+		? releaseNotes(releaseFixture)
+		: null;
 
 	return {
 		name: "vite-plugin-github-releases",

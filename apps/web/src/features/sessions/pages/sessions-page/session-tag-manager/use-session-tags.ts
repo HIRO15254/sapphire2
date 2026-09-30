@@ -21,7 +21,7 @@ export function useSessionTags() {
 	const tags = (tagsQuery.data ?? []) as SessionTag[];
 
 	const sessionListFilters = {
-		queryKey: trpc.session.list.queryOptions({}).queryKey,
+		queryKey: trpc.session.list.pathKey(),
 	};
 
 	const createMutation = useMutation({
