@@ -2,6 +2,8 @@
 
 対象は開始時点の `features/live-sessions` 全85テストファイル、Webルート直下の関連3ファイル、sessions側のlive編集連携2ファイルの計90ファイル。ケース名だけでなく、実際のassertion・mock境界を読んで判定し、変更候補のsetupと対象実装も確認した。長さやmock数から機械的に削除を決めていない。
 
+この文書の「維持」やファイルパスは、当時の整理・レビュー時点の判断を記録したものであり、現在の保護状況の一覧ではない。2026-09-30 の SA2-229 で旧 `active-session-page/` / `active-session-scene/` と旧ページ専用の `tournament-lifecycle.test.tsx` を削除し、2つの終了フォームの共通フックとテストを `features/live-sessions/hooks/` へ移動した。削除したテストの契約・代替検証・残存リスクは [PR #657 の監査表](https://github.com/HIRO15254/sapphire2/pull/657)を参照する。
+
 ## 変更と保護の対応
 
 - 偽の単一セッションguard: テスト内画面とmock自体を検証する11件を削除。UI側の候補選択は実 `use-active-session` テスト、永続的な同時開始拒否は `packages/api/src/__integration__/live-session.test.ts` に置く。開始drawerの表示は既存専用テストにある。
