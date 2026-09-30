@@ -45,18 +45,18 @@ describe("seatLayout", () => {
 	});
 
 	it.each(
-		COUNTS.filter((n) => n > 2)
-	)("leaves the bottom centre clear so the stack input stays readable (%i)", (count) => {
+		COUNTS
+	)("leaves the bottom centre clear for the hand counter (%i)", (count) => {
 		const blocking = seatLayout(count).filter(
 			(p) => p.y > 70 && Math.abs(p.x - 50) < 10
 		);
 		expect(blocking).toEqual([]);
 	});
 
-	it("seats heads-up across the table rather than around the rim", () => {
+	it("seats heads-up on opposite rails, away from the hand counter", () => {
 		expect(seatLayout(2)).toEqual([
-			{ x: 50, y: 85.8 },
-			{ x: 50, y: 14.2 },
+			{ x: 14.5, y: 49 },
+			{ x: 85.5, y: 49 },
 		]);
 	});
 

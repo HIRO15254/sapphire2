@@ -7,6 +7,7 @@ import { SessionHeader } from "../session-header";
 import {
 	EndSessionSheet,
 	EventEditorSheet,
+	HandCountSheet,
 	MasterLinkSheet,
 	ResetSeatsDialog,
 	ScanSeatsSheet,
@@ -59,6 +60,7 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 								stackFormatted={cockpit.stackFormatted}
 							/>
 						}
+						hands={cockpit.hands}
 						onResetSeats={cockpit.onOpenResetSeats}
 						onScan={cockpit.onOpenScan}
 						onSelectSeat={cockpit.onSelectSeat}
@@ -138,6 +140,7 @@ export function CashCockpit({ sessionId }: { sessionId: string }) {
 				open={cockpit.seatSheet === "scan"}
 				seats={cockpit.scanSeats}
 			/>
+			<HandCountSheet elapsed={cockpit.elapsed} hands={cockpit.hands} />
 			<MasterLinkSheet
 				onOpenChange={cockpit.onMasterLinkOpenChange}
 				open={cockpit.isMasterLinkOpen}

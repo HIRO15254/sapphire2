@@ -10,6 +10,7 @@ export type {
 	EventEditorTarget,
 } from "./event-editor-sheet";
 export { EventEditorSheet, NEW_EVENT_TITLES } from "./event-editor-sheet";
+export { HandCountSheet } from "./hand-count-sheet";
 export { MasterLinkSheet } from "./master-link-sheet";
 export { ResetSeatsDialog } from "./reset-seats-dialog";
 export { ScanSeatsSheet } from "./scan-seats-sheet";

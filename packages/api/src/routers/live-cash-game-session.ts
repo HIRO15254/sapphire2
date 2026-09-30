@@ -29,7 +29,7 @@ import {
 import {
 	assertHandTrackingEditable,
 	buildLiveSessionUpdateData,
-	dealerOffsetSchema,
+	dealerSeatSchema,
 	handCountSchema,
 } from "../utils/live-session-update";
 import { assertSeatPositionFitsTableSize } from "../utils/seat-position";
@@ -631,7 +631,7 @@ export const liveCashGameSessionRouter = router({
 				ringGameId: z.string().min(1).nullable().optional(),
 				keepSnapshot: z.boolean().optional(),
 				handCount: handCountSchema,
-				dealerOffset: dealerOffsetSchema,
+				dealerSeat: dealerSeatSchema,
 			})
 		)
 		.mutation(async ({ ctx, input }) => {

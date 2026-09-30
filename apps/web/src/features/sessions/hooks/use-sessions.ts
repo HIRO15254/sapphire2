@@ -41,6 +41,7 @@ export interface SessionItem {
 	cashAnteType: string | null;
 	cashBlind1: number | null;
 	cashBlind3: number | null;
+	cashHouseRules: string | null;
 	cashMaxBuyIn: number | null;
 	cashMinBuyIn: number | null;
 	cashMixGames?: MixGameGroup[] | null;
@@ -85,6 +86,7 @@ export interface SessionItem {
 	totalEntries: number | null;
 	tournamentBountyAmount: number | null;
 	tournamentBuyIn: number | null;
+	tournamentHouseRules: string | null;
 	tournamentId: string | null;
 	tournamentName: string | null;
 	tournamentStartingStack: number | null;
@@ -131,6 +133,7 @@ export function buildCreatePayload(values: SessionFormValues) {
 		endedAt,
 		breakMinutes: values.breakMinutes,
 		memo: values.memo,
+		houseRules: values.houseRules,
 		tagIds: values.tagIds,
 		roomId: values.roomId,
 		currencyId: values.currencyId,
@@ -202,6 +205,7 @@ export function buildUpdatePayload(values: SessionFormValues & { id: string }) {
 		endedAt: endedAt ?? null,
 		breakMinutes: values.breakMinutes ?? null,
 		memo: values.memo,
+		houseRules: values.houseRules,
 		ruleName: values.ruleName,
 		tagIds: values.tagIds,
 		roomId: values.roomId ?? null,
@@ -260,6 +264,7 @@ function applyCashSnapshot(
 	item.cashMaxBuyIn = newSession.maxBuyIn ?? null;
 	item.cashTableSize = newSession.tableSize ?? null;
 	item.cashMixGames = newSession.mixGames ?? null;
+	item.cashHouseRules = newSession.houseRules ?? null;
 }
 
 export function buildOptimisticItem(
@@ -309,12 +314,14 @@ export function buildOptimisticItem(
 		cashAnteType: null,
 		cashBlind1: null,
 		cashBlind3: null,
+		cashHouseRules: null,
 		cashMaxBuyIn: null,
 		cashMinBuyIn: null,
 		cashMixGames: null,
 		cashTableSize: null,
 		cashVariant: null,
 		tournamentBountyAmount: null,
+		tournamentHouseRules: null,
 		tournamentStartingStack: null,
 		tournamentTableSize: null,
 		tournamentVariant: null,
@@ -332,6 +339,7 @@ export function buildOptimisticItem(
 		item.tournamentBuyIn = newSession.tournamentBuyIn;
 		item.entryFee = newSession.entryFee ?? null;
 		item.beforeDeadline = newSession.beforeDeadline ?? null;
+		item.tournamentHouseRules = newSession.houseRules ?? null;
 	}
 	return item;
 }
@@ -352,6 +360,7 @@ function cashSnapshotDefaults(session: SessionItem) {
 		maxBuyIn: session.cashMaxBuyIn ?? undefined,
 		tableSize: session.cashTableSize ?? undefined,
 		mixGames: session.cashMixGames ?? undefined,
+		houseRules: session.cashHouseRules ?? undefined,
 	};
 }
 
@@ -365,6 +374,7 @@ function tournamentSnapshotDefaults(session: SessionItem) {
 		tableSize: session.tournamentTableSize ?? undefined,
 		startingStack: session.tournamentStartingStack ?? undefined,
 		bountyAmount: session.tournamentBountyAmount ?? undefined,
+		houseRules: session.tournamentHouseRules ?? undefined,
 	};
 }
 

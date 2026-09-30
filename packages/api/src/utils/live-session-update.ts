@@ -5,7 +5,7 @@ import z from "zod";
 
 export const handCountSchema = z.number().int().min(0).optional();
 
-export const dealerOffsetSchema = z
+export const dealerSeatSchema = z
 	.number()
 	.int()
 	.min(0)
@@ -14,9 +14,9 @@ export const dealerOffsetSchema = z
 
 export function assertHandTrackingEditable(
 	status: string,
-	input: { dealerOffset?: number; handCount?: number }
+	input: { dealerSeat?: number; handCount?: number }
 ): void {
-	if (input.handCount === undefined && input.dealerOffset === undefined) {
+	if (input.handCount === undefined && input.dealerSeat === undefined) {
 		return;
 	}
 	if (status !== "active") {
@@ -29,7 +29,7 @@ export function assertHandTrackingEditable(
 
 export function buildLiveSessionUpdateData(input: {
 	currencyId?: string | null;
-	dealerOffset?: number;
+	dealerSeat?: number;
 	handCount?: number;
 	memo?: string | null;
 	roomId?: string | null;
@@ -49,8 +49,8 @@ export function buildLiveSessionUpdateData(input: {
 	if (input.handCount !== undefined) {
 		updateData.handCount = input.handCount;
 	}
-	if (input.dealerOffset !== undefined) {
-		updateData.dealerOffset = input.dealerOffset;
+	if (input.dealerSeat !== undefined) {
+		updateData.dealerSeat = input.dealerSeat;
 	}
 	return updateData;
 }

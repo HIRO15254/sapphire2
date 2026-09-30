@@ -4,6 +4,7 @@ import { formatBlindParts } from "@/features/live-sessions/utils/game-scene-form
 import { countGames } from "@/features/live-sessions/utils/mix-composition";
 import {
 	formatWithUnit,
+	isSameMasterValue,
 	type LinkedMasterSummary,
 	type MasterFieldKey,
 	type MasterFieldValues,
@@ -271,7 +272,9 @@ export function hasSameRules(
 	}
 	return (Object.keys(master) as MasterFieldKey[])
 		.filter((key) => !NON_RULE_KEYS.includes(key))
-		.every((key) => master[key] === (session[key] ?? ""));
+		.every((key) =>
+			isSameMasterValue(key, master[key] ?? "", session[key] ?? "")
+		);
 }
 
 export interface CashRuleSnapshot {
@@ -280,6 +283,7 @@ export interface CashRuleSnapshot {
 	blind1: number | null;
 	blind2: number | null;
 	blind3: number | null;
+	houseRules: string | null;
 	maxBuyIn: number | null;
 	minBuyIn: number | null;
 	mixGames: MixGameGroup[] | null;
@@ -291,6 +295,7 @@ export interface TournamentRuleSnapshot {
 	bountyAmount: number | null;
 	buyIn: number | null;
 	entryFee: number | null;
+	houseRules: string | null;
 	startingStack: number | null;
 	tableSize: number | null;
 	variant: string;
@@ -344,6 +349,7 @@ export function buildRingGameCreateInput(
 			blind2: snapshot.blind2,
 			blind3: snapshot.blind3,
 			currencyId: target.currencyId,
+			houseRules: snapshot.houseRules,
 			maxBuyIn: snapshot.maxBuyIn,
 			minBuyIn: snapshot.minBuyIn,
 			tableSize: snapshot.tableSize,
@@ -367,6 +373,7 @@ export function buildTournamentCreateInput(
 			buyIn: snapshot.buyIn,
 			currencyId: target.currencyId,
 			entryFee: snapshot.entryFee,
+			houseRules: snapshot.houseRules,
 			startingStack: snapshot.startingStack,
 			tableSize: snapshot.tableSize,
 		}),

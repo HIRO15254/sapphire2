@@ -202,11 +202,13 @@ function baseSessionItem(overrides: Partial<SessionItem> = {}): SessionItem {
 		cashAnteType: null,
 		cashBlind1: null,
 		cashBlind3: null,
+		cashHouseRules: null,
 		cashMaxBuyIn: null,
 		cashMinBuyIn: null,
 		cashTableSize: null,
 		cashVariant: null,
 		tournamentBountyAmount: null,
+		tournamentHouseRules: null,
 		tournamentStartingStack: null,
 		tournamentTableSize: null,
 		tournamentVariant: null,
@@ -455,6 +457,19 @@ describe("pure helpers", () => {
 			expect(out.currencyId).toBe("cur-1");
 		});
 
+		it("forwards house rules, including a clear, so a relink keeps the session's own copy", () => {
+			const cash = buildUpdatePayload({
+				...cashValues({ houseRules: "No straddles", ringGameId: "rg1" }),
+				id: "s1",
+			});
+			expect(cash.houseRules).toBe("No straddles");
+			const cleared = buildUpdatePayload({
+				...tournamentValues({ houseRules: null, tournamentId: "t1" }),
+				id: "s1",
+			});
+			expect(cleared.houseRules).toBeNull();
+		});
+
 		it("forwards the edited rule name for cash and tournament", () => {
 			const cash = buildUpdatePayload({
 				...cashValues({ ruleName: "My 1/2 NLH" }),
@@ -520,7 +535,11 @@ describe("pure helpers", () => {
 	describe("buildLiveLinkedUpdatePayload", () => {
 		it("returns only id/memo/tagIds/roomId/currencyId with nulls for missing links", () => {
 			const out = buildLiveLinkedUpdatePayload({
-				...cashValues({ memo: "note", tagIds: ["t1"] }),
+				...cashValues({
+					houseRules: "Straddle allowed",
+					memo: "note",
+					tagIds: ["t1"],
+				}),
 				id: "s1",
 			});
 			expect(out).toEqual({
@@ -675,9 +694,11 @@ describe("pure helpers", () => {
 					cashMinBuyIn: 100,
 					cashMaxBuyIn: 400,
 					cashTableSize: 9,
+					cashHouseRules: "Straddle allowed from UTG",
 				})
 			);
 			expect(out.ruleName).toBe("1/2 NLH");
+			expect(out.houseRules).toBe("Straddle allowed from UTG");
 			expect(out.variant).toBe("nlh");
 			expect(out.blind1).toBe(1);
 			expect(out.blind2).toBe(2);
@@ -698,9 +719,11 @@ describe("pure helpers", () => {
 					tournamentStartingStack: 20_000,
 					tournamentBountyAmount: 500,
 					tournamentTableSize: 9,
+					tournamentHouseRules: "Two re-entries",
 				})
 			);
 			expect(out.ruleName).toBe("Main Event");
+			expect(out.houseRules).toBe("Two re-entries");
 			expect(out.variant).toBe("nlh");
 			expect(out.startingStack).toBe(20_000);
 			expect(out.bountyAmount).toBe(500);

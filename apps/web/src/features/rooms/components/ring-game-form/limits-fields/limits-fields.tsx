@@ -113,6 +113,20 @@ export function LimitsFields({ currencies, form }: LimitsFieldsProps) {
 					</Field>
 				)}
 			</form.Field>
+
+			<form.Field name="houseRules">
+				{(field) => (
+					<Field htmlFor={field.name} label="House rules">
+						<Textarea
+							id={field.name}
+							onBlur={field.handleBlur}
+							onChange={(event) => field.handleChange(event.target.value)}
+							rows={4}
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
 		</>
 	);
 }

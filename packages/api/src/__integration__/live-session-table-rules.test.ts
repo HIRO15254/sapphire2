@@ -184,8 +184,52 @@ describe("house rules are a frozen copy of the master", () => {
 	});
 });
 
-describe("hand count and dealer offset", () => {
-	test("a new live session starts uncounted with the dealer offset at zero, and both persist while it is active", async ({
+describe("manual sessions linked to a master", () => {
+	test("take the master's house rules only when the payload leaves them out", async ({
+		api,
+	}) => {
+		const club = requireCreatedRow(
+			await api.alice.room.create({ name: "Club" })
+		);
+		const master = requireCreatedRow(
+			await api.alice.ringGame.create({
+				roomId: club.id,
+				name: "NLH 100/200",
+				houseRules: "Straddle allowed from UTG",
+			})
+		);
+		const record = (houseRules?: string | null) =>
+			api.alice.session.create({
+				type: "cash_game",
+				sessionDate: 1_788_000_000,
+				buyIn: 10_000,
+				cashOut: 12_000,
+				roomId: club.id,
+				ringGameId: master.id,
+				...(houseRules === undefined ? {} : { houseRules }),
+			});
+		const houseRulesOf = async (id: string) =>
+			(await api.caller("alice").session.getById({ id })).cashHouseRules;
+
+		const copied = requireCreatedRow(await record());
+		const cleared = requireCreatedRow(await record(null));
+		const edited = requireCreatedRow(await record("No straddles tonight"));
+
+		expect(await houseRulesOf(copied.id)).toBe("Straddle allowed from UTG");
+		expect(await houseRulesOf(cleared.id)).toBeNull();
+		expect(await houseRulesOf(edited.id)).toBe("No straddles tonight");
+
+		await api.alice.session.update({
+			id: edited.id,
+			ringGameId: master.id,
+			houseRules: "No straddles tonight",
+		});
+		expect(await houseRulesOf(edited.id)).toBe("No straddles tonight");
+	});
+});
+
+describe("hand count and dealer seat", () => {
+	test("a new live session starts uncounted with no dealer seat, and both persist while it is active", async ({
 		api,
 	}) => {
 		const saved = requireCreatedRow(
@@ -194,19 +238,19 @@ describe("hand count and dealer offset", () => {
 		const read = () =>
 			api.caller("alice").liveCashGameSession.getById({ id: saved.id });
 
-		expect(await read()).toMatchObject({ handCount: null, dealerOffset: 0 });
+		expect(await read()).toMatchObject({ handCount: null, dealerSeat: null });
 
 		await api.alice.liveCashGameSession.update({
 			id: saved.id,
 			handCount: 42,
-			dealerOffset: 3,
+			dealerSeat: 3,
 		});
-		expect(await read()).toMatchObject({ handCount: 42, dealerOffset: 3 });
+		expect(await read()).toMatchObject({ handCount: 42, dealerSeat: 3 });
 
 		await expect(
 			api.bob.liveCashGameSession.update({ id: saved.id, handCount: 0 })
 		).rejects.toMatchObject({ code: "FORBIDDEN" });
-		expect(await read()).toMatchObject({ handCount: 42, dealerOffset: 3 });
+		expect(await read()).toMatchObject({ handCount: 42, dealerSeat: 3 });
 	});
 
 	test("rejects hand tracking edits while paused or after completion without writing them", async ({
@@ -218,7 +262,7 @@ describe("hand count and dealer offset", () => {
 		await api.alice.liveTournamentSession.update({
 			id: saved.id,
 			handCount: 10,
-			dealerOffset: 1,
+			dealerSeat: 1,
 		});
 		await api.alice.sessionEvent.create({
 			sessionId: saved.id,
@@ -229,7 +273,7 @@ describe("hand count and dealer offset", () => {
 			const [row] = await api.db
 				.select({
 					handCount: gameSession.handCount,
-					dealerOffset: gameSession.dealerOffset,
+					dealerSeat: gameSession.dealerSeat,
 					memo: gameSession.memo,
 				})
 				.from(gameSession)
@@ -245,11 +289,11 @@ describe("hand count and dealer offset", () => {
 			})
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		await expect(
-			api.alice.liveTournamentSession.update({ id: saved.id, dealerOffset: 2 })
+			api.alice.liveTournamentSession.update({ id: saved.id, dealerSeat: 2 })
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		expect(await readRow()).toEqual({
 			handCount: 10,
-			dealerOffset: 1,
+			dealerSeat: 1,
 			memo: null,
 		});
 

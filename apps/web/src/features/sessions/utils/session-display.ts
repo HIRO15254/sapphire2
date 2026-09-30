@@ -30,6 +30,18 @@ export function getSessionGameName(session: GameNameInput): string {
 	return session.type === "tournament" ? "Tournament" : "Cash game";
 }
 
+export function sessionHouseRules(session: {
+	cashHouseRules?: string | null;
+	tournamentHouseRules?: string | null;
+	type: string;
+}): string | null {
+	const value =
+		session.type === "tournament"
+			? session.tournamentHouseRules
+			: session.cashHouseRules;
+	return value && value.trim() !== "" ? value : null;
+}
+
 export function isLiveSession(session: { source: string }): boolean {
 	return session.source === "live";
 }

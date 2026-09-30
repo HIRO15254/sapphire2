@@ -20,6 +20,7 @@ import { formatProfitLoss } from "@/utils/format-profit-loss";
 import { withHeroSeat } from "../seat-fields";
 import { resolveRuleName, toSessionStatus } from "../session-fields";
 import type { ChipPurchaseOption } from "../sheets";
+import { useHandCounter } from "../use-hand-counter";
 import { useSeatSelection } from "../use-seat-selection";
 import { useSessionJournal } from "../use-session-journal";
 
@@ -59,6 +60,16 @@ export function useCashCockpit(sessionId: string) {
 		sessionType: "cash_game",
 		status,
 	});
+	const clock = computeSessionClock(journal.events, now);
+	const hands = useHandCounter({
+		activeSeconds: clock.activeSeconds,
+		dealerSeat: session?.dealerSeat,
+		handCount: session?.handCount,
+		seats,
+		sessionId,
+		sessionType: "cash_game",
+		status,
+	});
 
 	if (!session || journal.isEventsLoading) {
 		return { isLoading: true as const };
@@ -85,8 +96,6 @@ export function useCashCockpit(sessionId: string) {
 		apply(seatPosition);
 		seatSelection.onCloseSeatSheet();
 	};
-
-	const clock = computeSessionClock(journal.events, now);
 
 	const stackReference = findStackReference(journal.events);
 	const bigBlinds = computeBigBlinds(currentStack, session.blind2);
@@ -130,6 +139,7 @@ export function useCashCockpit(sessionId: string) {
 		onResume: () => stack.resume(),
 		ruleName: resolveRuleName(session.ruleName, session.variant, "Cash game"),
 		excludePlayerIds: seatState.excludePlayerIds,
+		hands,
 		heroSeatPosition,
 		onCloseSeatSheet: seatSelection.onCloseSeatSheet,
 		onLeaveSeat: seatState.onRemovePlayer,

@@ -8,6 +8,7 @@ import { SessionHeader } from "../session-header";
 import {
 	EndTournamentSheet,
 	EventEditorSheet,
+	HandCountSheet,
 	MasterLinkSheet,
 	ResetSeatsDialog,
 	ScanSeatsSheet,
@@ -67,6 +68,7 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 								stackFormatted={cockpit.stackFormatted}
 							/>
 						}
+						hands={cockpit.hands}
 						onResetSeats={cockpit.onOpenResetSeats}
 						onScan={cockpit.onOpenScan}
 						onSelectSeat={cockpit.onSelectSeat}
@@ -148,6 +150,7 @@ export function TournamentCockpit({ sessionId }: { sessionId: string }) {
 				open={cockpit.seatSheet === "scan"}
 				seats={cockpit.scanSeats}
 			/>
+			<HandCountSheet elapsed={cockpit.elapsed} hands={cockpit.hands} />
 			<MasterLinkSheet
 				onOpenChange={cockpit.onMasterLinkOpenChange}
 				open={cockpit.isMasterLinkOpen}

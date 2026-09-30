@@ -242,6 +242,19 @@ describe("hasSameRules", () => {
 		expect(hasSameRules({ ...master, ante: "50" }, withoutAnte)).toBe(false);
 	});
 
+	it("compares house rules as a rule, ignoring line endings and outer whitespace", () => {
+		const withRules = { ...master, houseRules: "No straddle\nTip 1%" };
+		expect(
+			hasSameRules(withRules, {
+				...withRules,
+				houseRules: "No straddle\r\nTip 1%\n",
+			})
+		).toBe(true);
+		expect(
+			hasSameRules(withRules, { ...withRules, houseRules: "No straddle" })
+		).toBe(false);
+	});
+
 	it("never matches without both sides", () => {
 		expect(hasSameRules(null, master)).toBe(false);
 		expect(hasSameRules(master, null)).toBe(false);
@@ -259,6 +272,7 @@ describe("buildRingGameCreateInput", () => {
 					blind1: 100,
 					blind2: 200,
 					blind3: null,
+					houseRules: null,
 					maxBuyIn: 60_000,
 					minBuyIn: null,
 					mixGames: null,
@@ -298,6 +312,7 @@ describe("buildRingGameCreateInput", () => {
 					blind1: null,
 					blind2: null,
 					blind3: null,
+					houseRules: "Straddle UTG only",
 					maxBuyIn: null,
 					minBuyIn: null,
 					mixGames,
@@ -309,6 +324,7 @@ describe("buildRingGameCreateInput", () => {
 			ante: 50,
 			anteType: "bb",
 			currencyId: "cur-1",
+			houseRules: "Straddle UTG only",
 			mixGames,
 			name: "Mix",
 			roomId: "room-1",
@@ -326,6 +342,7 @@ describe("buildTournamentCreateInput", () => {
 					bountyAmount: null,
 					buyIn: 5000,
 					entryFee: 500,
+					houseRules: null,
 					startingStack: 15_000,
 					tableSize: null,
 					variant: "NLH",

@@ -13,6 +13,7 @@ import {
 	displayableEvProfitLoss,
 	getSessionGameName,
 	isLiveSession,
+	sessionHouseRules,
 } from "@/features/sessions/utils/session-display";
 import { FormSheet } from "@/shared/components/form-sheet";
 import { PageHeader } from "@/shared/components/page-header";
@@ -112,6 +113,7 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 		? buildTournamentStatRows(session)
 		: buildCashStatRows(session);
 	const metaRows = buildSessionMetaRows(session);
+	const houseRules = sessionHouseRules(session);
 
 	return (
 		<PageShell>
@@ -174,6 +176,18 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 						</Badge>
 					))}
 				</div>
+			) : null}
+
+			{houseRules ? (
+				<section
+					aria-label="House rules"
+					className="mb-4 rounded-lg border border-border bg-card px-4 py-3 text-card-foreground"
+				>
+					<h2 className="t-label mb-1">House rules</h2>
+					<p className="whitespace-pre-wrap text-muted-foreground text-sm">
+						{houseRules}
+					</p>
+				</section>
 			) : null}
 
 			{session.memo ? (

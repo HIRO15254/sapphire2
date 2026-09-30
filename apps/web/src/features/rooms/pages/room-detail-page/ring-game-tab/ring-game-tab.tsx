@@ -119,6 +119,7 @@ export function RingGameTab({ roomId }: { roomId: string }) {
 							tableSize: editingGame.tableSize ?? undefined,
 							currencyId: editingGame.currencyId ?? undefined,
 							memo: editingGame.memo ?? undefined,
+							houseRules: editingGame.houseRules ?? undefined,
 						}}
 						formId={EDIT_FORM_ID}
 						onSubmit={handleUpdate}

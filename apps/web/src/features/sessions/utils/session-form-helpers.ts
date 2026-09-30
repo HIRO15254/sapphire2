@@ -6,6 +6,7 @@ import {
 	parseOptionalInt,
 	requiredNumericString,
 } from "@/shared/lib/form-fields";
+import { comparableHouseRules } from "@/shared/lib/house-rules";
 
 export interface SessionBlindLevelInput {
 	ante: number | null;
@@ -36,6 +37,7 @@ export interface CashGameFormValues {
 	currencyId?: string;
 	endTime?: string;
 	evCashOut?: number;
+	houseRules?: string | null;
 	maxBuyIn?: number;
 	memo?: string;
 	minBuyIn?: number;
@@ -61,6 +63,7 @@ export interface TournamentFormValues {
 	currencyId?: string;
 	endTime?: string;
 	entryFee?: number;
+	houseRules?: string | null;
 	memo?: string;
 	placement?: number;
 	prizeMoney?: number;
@@ -88,6 +91,7 @@ export interface RingGameOption {
 	blind2?: number | null;
 	blind3?: number | null;
 	currencyId?: string | null;
+	houseRules?: string | null;
 	id: string;
 	maxBuyIn?: number | null;
 	minBuyIn?: number | null;
@@ -102,6 +106,7 @@ export interface TournamentOption {
 	buyIn?: number | null;
 	currencyId?: string | null;
 	entryFee?: number | null;
+	houseRules?: string | null;
 	id: string;
 	name: string;
 	startingStack?: number | null;
@@ -127,6 +132,7 @@ export interface SessionFormDefaults {
 	endTime?: string;
 	entryFee?: number;
 	evCashOut?: number;
+	houseRules?: string;
 	maxBuyIn?: number;
 	memo?: string;
 	minBuyIn?: number;
@@ -181,6 +187,7 @@ export const sessionFormSchema = z.object({
 	endTime: z.string(),
 	breakMinutes: optionalNumericString({ integer: true, min: 0 }),
 	memo: z.string(),
+	houseRules: z.string(),
 	ruleName: z.string(),
 	buyIn: requiredNumericString({ integer: true, min: 0 }),
 	cashOut: requiredNumericString({ integer: true, min: 0 }),
@@ -226,6 +233,7 @@ export function buildDefaults(defaults: SessionFormDefaults | undefined) {
 		endTime: defaults?.endTime ?? "",
 		breakMinutes: numStrOrEmpty(defaults?.breakMinutes),
 		memo: defaults?.memo ?? "",
+		houseRules: defaults?.houseRules ?? "",
 		ruleName: defaults?.ruleName ?? "",
 		buyIn: numStrOrEmpty(defaults?.buyIn),
 		cashOut: numStrOrEmpty(defaults?.cashOut),
@@ -254,6 +262,19 @@ export function buildDefaults(defaults: SessionFormDefaults | undefined) {
 
 export type SessionFormFieldValues = ReturnType<typeof buildDefaults>;
 
+export const HOUSE_RULES_LABEL = "House rules";
+
+function houseRulesCheck(
+	value: string,
+	masterValue: string | null | undefined
+): [string, string, string] {
+	return [
+		HOUSE_RULES_LABEL,
+		comparableHouseRules(value),
+		comparableHouseRules(masterValue ?? ""),
+	];
+}
+
 export function cashOverriddenFields(
 	values: Pick<
 		SessionFormFieldValues,
@@ -267,6 +288,7 @@ export function cashOverriddenFields(
 		| "minBuyIn"
 		| "maxBuyIn"
 		| "tableSize"
+		| "houseRules"
 	>,
 	master: RingGameOption | undefined
 ): string[] {
@@ -292,6 +314,7 @@ export function cashOverriddenFields(
 			numStrOrEmpty(master.maxBuyIn ?? undefined),
 		],
 		["Table size", values.tableSize, master.tableSize?.toString() ?? ""],
+		houseRulesCheck(values.houseRules, master.houseRules),
 	];
 	return checks.filter(([, a, b]) => a !== b).map(([label]) => label);
 }
@@ -306,6 +329,7 @@ export function tournamentOverriddenFields(
 		| "startingStack"
 		| "bountyAmount"
 		| "tableSize"
+		| "houseRules"
 	>,
 	master: TournamentOption | undefined
 ): string[] {
@@ -332,6 +356,7 @@ export function tournamentOverriddenFields(
 			numStrOrEmpty(master.bountyAmount ?? undefined),
 		],
 		["Table size", values.tableSize, master.tableSize?.toString() ?? ""],
+		houseRulesCheck(values.houseRules, master.houseRules),
 	];
 	return checks.filter(([, a, b]) => a !== b).map(([label]) => label);
 }

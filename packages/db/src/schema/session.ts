@@ -28,7 +28,7 @@ export const gameSession = sqliteTable(
 		breakMinutes: integer("break_minutes"),
 		memo: text("memo"),
 		handCount: integer("hand_count"),
-		dealerOffset: integer("dealer_offset").notNull().default(0),
+		dealerSeat: integer("dealer_seat"),
 		roomId: text("room_id").references(() => room.id, {
 			onDelete: "set null",
 		}),

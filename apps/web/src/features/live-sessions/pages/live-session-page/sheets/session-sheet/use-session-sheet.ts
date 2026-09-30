@@ -43,6 +43,7 @@ import {
 	optionalNumericString,
 	parseOptionalInt,
 } from "@/shared/lib/form-fields";
+import { houseRulesOrNull } from "@/shared/lib/house-rules";
 import {
 	hasMixCellErrors,
 	type MixGameGroupRow,
@@ -82,6 +83,7 @@ const SESSION_FORM_SCHEMA = z.object({
 	bountyAmount: MONEY,
 	currencyId: z.string(),
 	entryFee: MONEY,
+	houseRules: z.string(),
 	maxBuyIn: MONEY,
 	memo: z.string(),
 	minBuyIn: MONEY,
@@ -104,6 +106,7 @@ export interface SessionFormValues {
 	bountyAmount: string;
 	currencyId: string;
 	entryFee: string;
+	houseRules: string;
 	maxBuyIn: string;
 	memo: string;
 	minBuyIn: string;
@@ -185,6 +188,7 @@ function buildScalarPatch(
 	isMix: boolean
 ): SessionSnapshotPatch {
 	const patch: SessionSnapshotPatch = {
+		houseRules: houseRulesOrNull(values.houseRules),
 		ruleName: values.ruleName.trim(),
 		tableSize: numberOrNull(values.tableSize),
 	};
