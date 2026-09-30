@@ -32,4 +32,4 @@ When adding a feature, create `apps/web/src/features/<name>/` and colocate every
 
 **Placement follows consumers**: a component used by exactly one page lives in that page's child folders; a component used by exactly one parent component lives in a child folder of that parent (its hook colocates the same way); only components designed as generic building blocks stay in `components/` / `shared/` while they happen to have a single consumer. Promote a subcomponent from a page folder to `components/` when a second page imports it, or when reuse across multiple pages is clearly anticipated, and to `shared/` only when a second feature imports it.
 
-`features/currencies/`, `features/players/`, `features/sessions/`, and `features/live-sessions/pages/active-session-page/` are the reference implementations.
+`features/currencies/`, `features/players/`, `features/sessions/`, and `features/live-sessions/pages/live-session-page/` are the reference implementations.

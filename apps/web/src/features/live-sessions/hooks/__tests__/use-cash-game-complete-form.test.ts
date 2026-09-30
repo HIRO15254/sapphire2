@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { useCashGameCompleteForm } from "@/features/live-sessions/components/cash-game-complete-form/use-cash-game-complete-form";
+import { useCashGameCompleteForm } from "@/features/live-sessions/hooks/use-cash-game-complete-form";
 
 describe("useCashGameCompleteForm", () => {
 	it("seeds finalStack with empty string when defaultFinalStack is undefined", () => {

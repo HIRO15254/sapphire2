@@ -47,6 +47,7 @@ const START_ROW = /Session start/;
 const NIT_TAG_CHOICE = /Nit/;
 const CASH_CHART_SUMMARY = /Cash game result chart/;
 const KNOWN_PLAYER_ROW = /Takashi/;
+const SEATED_PLAYER_ROW = /Young guy/;
 const NEW_PLAYER_ROW = /Create as a new player/;
 const CHOOSE_PHOTO_BUTTON = /Choose from library/;
 const TEMPORARY_ROW = /Temporary player/;
@@ -154,6 +155,7 @@ interface SeatedPlayer {
 }
 
 const backend = {
+	knownPlayerTagIds: [] as string[],
 	addedSeats: [] as SeatedPlayer[],
 	createdEvents: [] as CreatedEvent[],
 	currentStack: 12_000 as number | null,
@@ -639,7 +641,13 @@ const fixtureRouter = t.router({
 			}),
 		list: t.procedure.query(() => [
 			{ id: "player-1", name: backend.playerName, tags: playerTags() },
-			{ id: "player-2", name: "Takashi", tags: [] },
+			{
+				id: "player-2",
+				name: "Takashi",
+				tags: ALL_TAGS.filter((tag) =>
+					backend.knownPlayerTagIds.includes(tag.id)
+				),
+			},
 		]),
 		update: t.procedure
 			.input(z.custom<PlayerUpdate>())
@@ -778,6 +786,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+	backend.knownPlayerTagIds = [];
 	queryClient.clear();
 	queryClient.setDefaultOptions({
 		queries: { retry: false, gcTime: 0, staleTime: Number.POSITIVE_INFINITY },
@@ -1294,6 +1303,37 @@ describe("CashCockpit", () => {
 			backend.playerUpdates.filter((update) => update.id === "player-3")
 		).toEqual([]);
 		expect(backend.secondPlayerMemo).toBeNull();
+	});
+
+	it("finds players by tag without offering players already at the table", async () => {
+		backend.knownPlayerTagIds = ["tag-1"];
+		const user = userEvent.setup();
+		renderCockpit();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Seat 1: empty" })
+		);
+		const sheet = await screen.findByRole("dialog", { name: "Sit in at S1" });
+		await within(sheet).findByRole("button", { name: KNOWN_PLAYER_ROW });
+		await user.type(
+			within(sheet).getByRole("textbox", {
+				name: "Search by name, or type a new one",
+			}),
+			"aGgRo"
+		);
+
+		expect(
+			within(sheet).queryByRole("button", { name: SEATED_PLAYER_ROW })
+		).not.toBeInTheDocument();
+		await user.click(
+			await within(sheet).findByRole("button", { name: KNOWN_PLAYER_ROW })
+		);
+		await user.click(within(sheet).getByRole("button", { name: "Save" }));
+		await waitFor(() => {
+			expect(backend.addedSeats).toEqual([
+				{ name: "Takashi", playerId: "player-2", seatPosition: 0 },
+			]);
+		});
 	});
 
 	it("seats a known player from the sheet an empty seat opens", async () => {
