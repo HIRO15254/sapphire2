@@ -38,6 +38,7 @@ const STUD_MIX_PRESET = /^Stud mix/;
 const ANY_DEALER_BUTTON = /^Dealer button at /;
 const SUNDAY_MASTER = /Sunday Deepstack/;
 const TURBO_MASTER = /Turbo 5,000/;
+const FIELD_AND_AVERAGE = /Left.*Avg/;
 
 interface BlindLevelRow {
 	ante: number | null;
@@ -57,6 +58,7 @@ interface CreatedEvent {
 }
 
 const backend = {
+	averageStack: 25_000 as number | null,
 	blindLevels: [] as BlindLevelRow[],
 	createdEvents: [] as CreatedEvent[],
 	currentStack: 12_000 as number | null,
@@ -151,7 +153,7 @@ function session() {
 		startedAt: new Date(backend.now - 3 * 60 * MINUTE),
 		status: backend.status,
 		summary: {
-			averageStack: 25_000,
+			averageStack: backend.averageStack,
 			currentStack: backend.currentStack,
 			remainingPlayers: backend.remainingPlayers,
 			totalEntries: backend.totalEntries,
@@ -345,6 +347,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+	backend.averageStack = 25_000;
 	queryClient.clear();
 	queryClient.setDefaultOptions({
 		queries: { retry: false, gcTime: 0, staleTime: Number.POSITIVE_INFINITY },
@@ -381,6 +384,18 @@ afterAll(() => {
 });
 
 describe("TournamentCockpit", () => {
+	it("keeps an unknown field and average stack distinct from zero", async () => {
+		backend.averageStack = null;
+		backend.remainingPlayers = null;
+		backend.totalEntries = null;
+		renderCockpit();
+
+		expect(await screen.findByText("—/—")).toBeInTheDocument();
+		expect(screen.getByText(FIELD_AND_AVERAGE)).toHaveTextContent(
+			"Left —/— · Avg —"
+		);
+	});
+
 	it("shows the stack against the running level's big blind, the field and the average stack", async () => {
 		backend.timerStartedAt = new Date(backend.now - 25 * MINUTE);
 		renderCockpit();

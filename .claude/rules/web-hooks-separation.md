@@ -47,7 +47,7 @@ rg '\b(useState|useEffect|useMemo|useRef|useCallback|useForm|useQuery|useMutatio
 ## Reference implementations
 
 - Feature `pages/` layout (logic lifted out of the route file): [`features/players/pages/players-page/`](../../apps/web/src/features/players/pages/players-page/) — the route file is just `createFileRoute` wiring, the page component consumes [`use-players-page.ts`](../../apps/web/src/features/players/pages/players-page/use-players-page.ts).
-- Page with subcomponent view hooks: [`features/live-sessions/pages/active-session-page/`](../../apps/web/src/features/live-sessions/pages/active-session-page/) — the page dispatches to `cash-game-session/` / `tournament-session/` child folders, each driven by a colocated `use-*-view.ts` hook.
+- Page with subcomponent hooks: [`features/live-sessions/pages/live-session-page/`](../../apps/web/src/features/live-sessions/pages/live-session-page/) — the page dispatches to `cash-cockpit/` / `tournament-cockpit/` child folders, each driven by a colocated `use-*-cockpit.ts` hook.
 - Component + hook (colocated): [`use-player-form.ts`](../../apps/web/src/features/players/components/player-form/use-player-form.ts) + [`player-form.tsx`](../../apps/web/src/features/players/components/player-form/player-form.tsx).
 - Cross-component data hook: [`use-currencies.ts`](../../apps/web/src/features/currencies/hooks/use-currencies.ts), [`use-cash-game-session.ts`](../../apps/web/src/features/live-sessions/hooks/use-cash-game-session.ts).
 - Auth (shared composite): [`use-sign-in.ts`](../../apps/web/src/features/auth/pages/login-page/sign-in-form/use-sign-in.ts) + [`sign-in-form.tsx`](../../apps/web/src/features/auth/pages/login-page/sign-in-form/sign-in-form.tsx).

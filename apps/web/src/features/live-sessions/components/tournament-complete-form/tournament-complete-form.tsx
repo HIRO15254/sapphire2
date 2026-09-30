@@ -1,8 +1,8 @@
+import { useTournamentCompleteForm } from "@/features/live-sessions/hooks/use-tournament-complete-form";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
-import { useTournamentCompleteForm } from "./use-tournament-complete-form";
 
 interface TournamentCompleteFormProps {
 	formId: string;

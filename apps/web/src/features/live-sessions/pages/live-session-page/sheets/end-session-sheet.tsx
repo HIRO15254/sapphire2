@@ -1,4 +1,4 @@
-import { useCashGameCompleteForm } from "@/features/live-sessions/components/cash-game-complete-form";
+import { useCashGameCompleteForm } from "@/features/live-sessions/hooks/use-cash-game-complete-form";
 import { computeCashGamePL } from "@/features/live-sessions/utils/live-session-summary";
 import { cn } from "@/lib/utils";
 import { parseOptionalInt } from "@/shared/lib/form-fields";

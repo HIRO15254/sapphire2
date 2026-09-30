@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { useTournamentCompleteForm } from "@/features/live-sessions/components/tournament-complete-form/use-tournament-complete-form";
+import { useTournamentCompleteForm } from "@/features/live-sessions/hooks/use-tournament-complete-form";
 
 describe("useTournamentCompleteForm", () => {
 	it("initialises with beforeDeadline=false and empty placement/totalEntries", () => {

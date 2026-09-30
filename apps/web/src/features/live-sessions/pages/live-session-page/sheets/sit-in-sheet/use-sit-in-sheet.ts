@@ -57,7 +57,10 @@ export function useSitInSheet({
 	const matched = (playersQuery.data ?? [])
 		.filter((player) => !excludePlayerIds.includes(player.id))
 		.filter(
-			(player) => needle === "" || player.name.toLowerCase().includes(needle)
+			(player) =>
+				needle === "" ||
+				player.name.toLowerCase().includes(needle) ||
+				player.tags.some((tag) => tag.name.toLowerCase().includes(needle))
 		);
 	const hasExactMatch = matched.some(
 		(player) => player.name.toLowerCase() === needle

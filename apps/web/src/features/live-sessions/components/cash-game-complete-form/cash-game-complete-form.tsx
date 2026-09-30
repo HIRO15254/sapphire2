@@ -1,6 +1,6 @@
+import { useCashGameCompleteForm } from "@/features/live-sessions/hooks/use-cash-game-complete-form";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
-import { useCashGameCompleteForm } from "./use-cash-game-complete-form";
 
 interface CashGameCompleteFormProps {
 	defaultFinalStack?: number;

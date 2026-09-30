@@ -1,5 +1,5 @@
 import { IconClockOff } from "@tabler/icons-react";
-import { useTournamentCompleteForm } from "@/features/live-sessions/components/tournament-complete-form";
+import { useTournamentCompleteForm } from "@/features/live-sessions/hooks/use-tournament-complete-form";
 import { Switch } from "@/shared/components/ui/switch";
 import { CrystFormSheet } from "./cryst-form-sheet";
 import {
