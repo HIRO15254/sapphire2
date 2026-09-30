@@ -2,7 +2,7 @@
 
 対象は開始時点の `features/live-sessions` 全85テストファイル、Webルート直下の関連3ファイル、sessions側のlive編集連携2ファイルの計90ファイル。ケース名だけでなく、実際のassertion・mock境界を読んで判定し、変更候補のsetupと対象実装も確認した。長さやmock数から機械的に削除を決めていない。
 
-この文書の「維持」やファイルパスは、当時の整理・レビュー時点の判断を記録したものであり、現在の保護状況の一覧ではない。2026-09-30 の SA2-229 で旧 `active-session-page/` / `active-session-scene/` と旧ページ専用の `tournament-lifecycle.test.tsx` を削除し、2つの終了フォームの共通フックとテストを `features/live-sessions/hooks/` へ移動した。削除したテストの契約・代替検証・残存リスクは [PR #657 の監査表](https://github.com/HIRO15254/sapphire2/pull/657)を参照する。
+この文書の「維持」やファイルパスは、当時の整理・レビュー時点の判断を記録したものであり、現在の保護状況の一覧ではない。2026-09-30 の SA2-229 で旧 `active-session-page/` / `active-session-scene/` と旧ページ専用の `tournament-lifecycle.test.tsx` を削除し、2つの終了フォームの共通フックとテストを `features/live-sessions/hooks/` へ移動した。削除したテストの契約・代替検証・残存リスクは [PR #657 の監査表](https://github.com/HIRO15254/sapphire2/pull/657)を参照する。同日の SA2-230 で `AuthenticatedShell` から `SessionFormProvider` / `StackSheetProvider` / `LiveStackFormSheet` を外し、旧スタック入力・終了フォーム・ピッカー系コンポーネント（`live-stack-form-sheet/`、`cash-game-stack-form/`、`tournament-stack-form/`、`cash-game-complete-form/`、`tournament-complete-form/`、`addon-bottom-sheet/`、`all-in-bottom-sheet/`、`chip-purchase-sheet/`、`stack-record-editor/`、`seat-from-screenshot-sheet/`、`active-session-game-scene/`、`assign-ring-game-dialog/`、`assign-tournament-dialog/`、`actions-drawer/`、`event-badge/`、`modified-badge/`、`live-session-card/`、`session-summary/`）と、それらだけが使っていたフック・ユーティリティをテストごと削除した。終了フォームの共通フック（`use-cash-game-complete-form` / `use-tournament-complete-form`）とそのテストは Cryst の End sheet が使うため残る。監査表は [issue #617](https://github.com/HIRO15254/sapphire2/issues/617) に紐づく PR を参照する。
 
 ## 変更と保護の対応
 

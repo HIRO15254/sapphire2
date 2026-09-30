@@ -1,11 +1,5 @@
 import { MAX_SEAT_POSITION } from "@sapphire2/db/constants/session-event-types";
-import {
-	useMutation,
-	useQueries,
-	useQuery,
-	useQueryClient,
-} from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import type { SeatPlanStep } from "@/features/live-sessions/utils/seat-plan";
 import {
 	planSeatClear,
@@ -85,7 +79,6 @@ export interface SessionSeatsState {
 	seats: SeatEntry[];
 	sessionParam: SessionParam;
 	tableSize: number;
-	unseatedPlayers: SeatPlayer[];
 }
 
 interface SessionHeroSeat {
@@ -143,21 +136,26 @@ export function useSessionSeats({
 		},
 	});
 
-	const playerListQuery = useQuery(trpc.player.list.queryOptions());
-	const playerNames = useMemo(() => {
-		const map = new Map<string, string>();
-		for (const p of playerListQuery.data ?? []) {
-			map.set(p.id, p.name);
+	const playerNames = new Map<string, string>();
+	for (const p of tablePlayers.players) {
+		playerNames.set(p.player.id, p.player.name);
+	}
+
+	const settledPlayers = tablePlayers.players.filter(
+		(p) => p.isActive && !p.isLoading
+	);
+	const playerDetailQueries = useQueries({
+		queries: settledPlayers.map((p) =>
+			trpc.player.getById.queryOptions({ id: p.player.id })
+		),
+	});
+	const tagsByPlayerId = new Map<string, PlayerTagWithColor[]>();
+	settledPlayers.forEach((p, index) => {
+		const tags = playerDetailQueries[index]?.data?.tags;
+		if (tags) {
+			tagsByPlayerId.set(p.player.id, tags);
 		}
-		return map;
-	}, [playerListQuery.data]);
-	const tagsByPlayerId = useMemo(() => {
-		const map = new Map<string, PlayerTagWithColor[]>();
-		for (const p of playerListQuery.data ?? []) {
-			map.set(p.id, p.tags);
-		}
-		return map;
-	}, [playerListQuery.data]);
+	});
 
 	const activePlayers: SeatPlayer[] = tablePlayers.players
 		.filter((p) => p.isActive)
@@ -171,12 +169,6 @@ export function useSessionSeats({
 			seatPosition: p.seatPosition,
 			tags: tagsByPlayerId.get(p.player.id) ?? [],
 		}));
-
-	useQueries({
-		queries: activePlayers
-			.filter((p) => !p.isLoading)
-			.map((p) => trpc.player.getById.queryOptions({ id: p.playerId })),
-	});
 
 	const seatCount = resolveSeatCount(tableSize);
 
@@ -192,13 +184,6 @@ export function useSessionSeats({
 		}
 		seats.push({ isHero, occupancy, player, seatPosition: i });
 	}
-
-	const unseatedPlayers = activePlayers.filter(
-		(p) =>
-			p.seatPosition === null ||
-			p.seatPosition >= seatCount ||
-			p.seatPosition === heroSeatPosition
-	);
 
 	const occupiedSeatPositions = new Set<number>();
 	for (const p of activePlayers) {
@@ -274,6 +259,5 @@ export function useSessionSeats({
 		seats,
 		sessionParam,
 		tableSize: seatCount,
-		unseatedPlayers,
 	};
 }

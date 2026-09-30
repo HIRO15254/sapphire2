@@ -54,10 +54,6 @@ vi.mock("@/shared/components/authenticated-shell/mobile-nav", () => ({
 	MobileNav: () => <div>Mobile Nav</div>,
 }));
 
-vi.mock("@/features/live-sessions/components/live-stack-form-sheet", () => ({
-	LiveStackFormSheet: () => <div>Live Stack Sheet</div>,
-}));
-
 vi.mock("@/shared/components/authenticated-shell/online-status-bar", () => ({
 	OnlineStatusBar: () => <div>Online Status</div>,
 }));
@@ -68,18 +64,6 @@ vi.mock("@/shared/components/theme-provider", () => ({
 
 vi.mock("@/shared/components/ui/sonner", () => ({
 	Toaster: () => <div>Toaster</div>,
-}));
-
-vi.mock("@/features/live-sessions/hooks/use-session-form", () => ({
-	SessionFormProvider: ({ children }: { children: ReactNode }) => (
-		<>{children}</>
-	),
-}));
-
-vi.mock("@/features/live-sessions/hooks/use-stack-sheet", () => ({
-	StackSheetProvider: ({ children }: { children: ReactNode }) => (
-		<>{children}</>
-	),
 }));
 
 vi.mock("@/features/update-notes/components/update-notes-sheet", () => ({
@@ -105,7 +89,6 @@ describe("AuthenticatedShell", () => {
 
 		expect(screen.getByText("Sidebar Nav")).toBeInTheDocument();
 		expect(screen.getByText("Mobile Nav")).toBeInTheDocument();
-		expect(screen.getByText("Live Stack Sheet")).toBeInTheDocument();
 		expect(screen.getByText("Online Status")).toBeInTheDocument();
 		expect(screen.getByText("Shell Body")).toBeInTheDocument();
 		expect(screen.queryByText("Use on your phone")).not.toBeInTheDocument();
@@ -128,7 +111,6 @@ describe("AuthenticatedShell", () => {
 		expect(screen.queryByText("Sidebar Nav")).not.toBeInTheDocument();
 		expect(screen.queryByText("Mobile Nav")).not.toBeInTheDocument();
 		expect(screen.queryByText("Shell Body")).not.toBeInTheDocument();
-		expect(screen.queryByText("Live Stack Sheet")).not.toBeInTheDocument();
 	});
 });
 
@@ -168,7 +150,6 @@ describe("RootComponent", () => {
 		expect(screen.getByText("Online Status")).toBeInTheDocument();
 		expect(screen.getByText("Update Notes Sheet")).toBeInTheDocument();
 		expect(screen.getByText("Outlet Content")).toBeInTheDocument();
-		expect(screen.queryByText("Live Stack Sheet")).not.toBeInTheDocument();
 	});
 
 	it("restores navigation when the live session finishes", () => {
@@ -191,8 +172,9 @@ describe("RootComponent", () => {
 
 	it("does not treat similarly prefixed pages as the cockpit", () => {
 		mocks.useLocation.mockReturnValue({ pathname: "/active-sessions" });
+		mocks.activeSessionId = "session-1";
 		render(<RootComponent />);
-		expect(screen.getByText("Live Stack Sheet")).toBeInTheDocument();
+		expect(screen.getByText("Mobile Nav")).toBeInTheDocument();
 	});
 
 	it("renders the head content and toaster wrapper always", () => {
