@@ -1,6 +1,6 @@
 # sapphire2 — Project Guide for AI Agents
 
-`AGENTS.md` is the single source of truth for agent instructions in this repo, shared across Codex, Claude Code, and other AGENTS.md-aware tools. Claude Code loads it via a one-line `@AGENTS.md` import in [`CLAUDE.md`](CLAUDE.md). **Edit this file, not `CLAUDE.md`.** Keep it concise (≤200 lines): general facts that must be remembered across turns. Historical context (PR numbers, past refactors) belongs in git / PR descriptions, not here.
+`AGENTS.md` is the single source of truth for agent instructions in this repo, shared across Codex, Claude Code, and other AGENTS.md-aware tools. Claude Code loads it via a one-line `@AGENTS.md` import in [`CLAUDE.md`](CLAUDE.md); Gemini CLI via `context.fileName` in [`.gemini/settings.json`](.gemini/settings.json). **Edit this file, not `CLAUDE.md`.** Keep it concise (≤200 lines): general facts that must be remembered across turns. Historical context (PR numbers, past refactors) belongs in git / PR descriptions, not here.
 
 Companion memory: [`.claude/rules/`](.claude/rules/) contains path-scoped rules. Claude Code auto-loads matching files; **other agents (Codex etc.) must read them manually before editing matching paths** — see the table near the bottom.
 
@@ -74,8 +74,10 @@ docs/
 
 Work is tracked in Linear (team **Sapphire2**, issue prefix `SA2-`). Multi-phase work gets one project plus one issue per phase, so the issue — not the chat log — is where a phase's decisions survive a context reset.
 
-- **A phase starts by moving its issue to In Progress.** If the work has no issue, create one in the project first; don't start untracked multi-phase work.
-- **Opening a PR attaches its link to the issue and sets In Review; merging sets Done.** The GitHub integration only auto-links when the branch carries the issue id, so attach the link explicitly when it doesn't.
+- **Start an issue's work from Orca's Linear task list, then move the issue to In Progress** with the Linear MCP if it is not there yet — creating the workspace does not change the status. If the work has no issue, create one in the project first; don't start untracked multi-phase work.
+- **Branch names are ASCII: `feature/sa2-xxx`.** Replace the Japanese title slug Linear suggests. `claude-code-action` rejects non-ASCII branch names, so the automated review never runs on them. [`scripts/check-branch-name.ts`](scripts/check-branch-name.ts) enforces this in `.husky/pre-push` and the `branch-name` job in `ci.yml`. Renaming the head branch of an open PR closes it — fix the name before the first push.
+- **Status transitions are automated.** Linear's GitHub integration links a PR that carries the issue id in its branch name or title, sets In Review when it opens and Done when it merges into `dev`. Always put `(SA2-xxx)` in the PR title. Attach the link or set the status by hand only when the automation did not fire.
+- **Agents never merge PRs.** `gh pr merge` is denied in [`.claude/settings.json`](.claude/settings.json); Codex and Gemini follow this line. Merging is the human's checkpoint.
 - **Record every decision that changes the spec in the issue, not only in the PR.** An answered open question, a control dropped because the schema can't persist it, a user-directed change that overrides the design, a phase split, a deviation from the design file. PRs are per-diff and get merged away; the issue is what the next phase reads.
 - **Splitting a phase creates a new issue** in the same project, related to the original, and the moved scope leaves the original's description.
 - **A deferral names its destination issue.** "Handled in a later phase" is not a record — append the item to that phase's issue at the moment you defer it.

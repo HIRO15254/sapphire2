@@ -46,8 +46,7 @@ sapphire2/
     ├── preview-cleanup.yml  # Cleanup on PR close
     ├── dev-deploy.yml       # Dev environment deploy on push to `dev`
     ├── release.yml          # Release creation and production dispatch
-    ├── production-deploy.yml # Production deployment
-    └── project-sync.yml     # Optional GitHub Project sync (requires configuration)
+    └── production-deploy.yml # Production deployment
 ```
 
 ## Getting Started
