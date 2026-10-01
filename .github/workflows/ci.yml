@@ -9,6 +9,18 @@ env:
   TZ: Asia/Tokyo
 
 jobs:
+  branch-name:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require an ASCII branch name accepted by claude-code-action
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if ! printf '%s' "$HEAD_REF" | LC_ALL=C grep -Eq '^[A-Za-z0-9_@][A-Za-z0-9/_.#+,@()-]*$'; then
+            echo "::error::Branch names must be ASCII (e.g. feature/sa2-123). Got: '$HEAD_REF'"
+            exit 1
+          fi
+
   static:
     runs-on: ubuntu-latest
     steps:
@@ -114,10 +126,10 @@ jobs:
 
   ci:
     if: always()
-    needs: [static, unit, integration, migrations, browser]
+    needs: [branch-name, static, unit, integration, migrations, browser]
     runs-on: ubuntu-latest
     steps:
       - name: Require all checks
         env:
           RESULTS: ${{ join(needs.*.result, ',') }}
-        run: test "$RESULTS" = "success,success,success,success,success"
+        run: test "$RESULTS" = "success,success,success,success,success,success"

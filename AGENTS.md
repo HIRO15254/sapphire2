@@ -74,8 +74,9 @@ docs/
 
 Work is tracked in Linear (team **Sapphire2**, issue prefix `SA2-`). Multi-phase work gets one project plus one issue per phase, so the issue — not the chat log — is where a phase's decisions survive a context reset.
 
-- **Start an issue's work from Orca's Linear task list.** The worktree then gets Linear's suggested branch name (`feature/sa2-xxx-…`) and Orca moves the issue to In Progress. If the work has no issue, create one in the project first; don't start untracked multi-phase work.
-- **Status transitions are automated.** Linear's GitHub integration links a PR whose branch carries the issue id, sets In Review when it opens and Done when it merges into `dev`. Also put `(SA2-xxx)` in the PR title. Attach the link or set the status by hand only when the automation did not fire (e.g. a branch without the id).
+- **Start an issue's work from Orca's Linear task list**, which moves the issue to In Progress. If the work has no issue, create one in the project first; don't start untracked multi-phase work.
+- **Branch names are ASCII: `feature/sa2-xxx`.** Replace the Japanese title slug Linear suggests. `claude-code-action` rejects non-ASCII branch names, so the automated review never runs on them; the `branch-name` job in `ci.yml` fails such PRs. Renaming the head branch of an open PR closes it — choose the name before pushing.
+- **Status transitions are automated.** Linear's GitHub integration links a PR that carries the issue id in its branch name or title, sets In Review when it opens and Done when it merges into `dev`. Always put `(SA2-xxx)` in the PR title. Attach the link or set the status by hand only when the automation did not fire.
 - **Agents never merge PRs.** `gh pr merge` is denied in [`.claude/settings.json`](.claude/settings.json); Codex and Gemini follow this line. Merging is the human's checkpoint.
 - **Record every decision that changes the spec in the issue, not only in the PR.** An answered open question, a control dropped because the schema can't persist it, a user-directed change that overrides the design, a phase split, a deviation from the design file. PRs are per-diff and get merged away; the issue is what the next phase reads.
 - **Splitting a phase creates a new issue** in the same project, related to the original, and the moved scope leaves the original's description.
