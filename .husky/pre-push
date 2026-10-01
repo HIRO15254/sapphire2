@@ -1,0 +1,18 @@
+#!/usr/bin/env sh
+# Reject pushes that would create a non-ASCII remote branch. Renaming the
+# head branch of an open PR closes the PR, so this has to fail before the
+# first push rather than in CI. Deletions and tags are not checked.
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/*) ;;
+    *) continue ;;
+  esac
+  case "$local_sha" in
+    *[!0]*) ;;
+    *) continue ;;
+  esac
+  if ! bun scripts/check-branch-name.ts "${remote_ref#refs/heads/}"; then
+    echo "[husky] Rename the branch before pushing: git branch -m feature/sa2-<id>" >&2
+    exit 1
+  fi
+done

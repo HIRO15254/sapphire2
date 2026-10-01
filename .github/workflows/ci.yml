@@ -12,14 +12,14 @@ jobs:
   branch-name:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.10
       - name: Require an ASCII branch name accepted by claude-code-action
         env:
           HEAD_REF: ${{ github.head_ref }}
-        run: |
-          if ! printf '%s' "$HEAD_REF" | LC_ALL=C grep -Eq '^[A-Za-z0-9_@][A-Za-z0-9/_.#+,@()-]*$'; then
-            echo "::error::Branch names must be ASCII (e.g. feature/sa2-123). Got: '$HEAD_REF'"
-            exit 1
-          fi
+        run: bun scripts/check-branch-name.ts "$HEAD_REF"
 
   static:
     runs-on: ubuntu-latest
