@@ -13,7 +13,8 @@ Why this file exists: scattered inline model IDs let features drift across model
 
 - When a new model is released, update [`LATEST_MODEL`](../../packages/api/src/ai/models.ts). Every feature follows that change automatically.
 - Callers use `AI_MODELS.<featureName>`. Add one key to `AI_MODELS` for each new AI feature. `satisfies Record<string, typeof LATEST_MODEL>` makes assigning an older model ID a **type error**.
-- `scripts/check-rules.ts` prohibits `gpt-*` literals outside `models.ts`. The OpenAI SDK's model type is a permissive union containing `string & {}`, so type checking alone cannot detect typos or hardcoded older models.
+- The one exception is [`scripts/audit-run.ts`](../../scripts/audit-run.ts): it pins the model of the scheduled Codex audit agent (a coding agent, not an app AI feature), which must not follow `LATEST_MODEL`.
+- `scripts/check-rules.ts` prohibits `gpt-*` literals outside `models.ts` (and that script). The OpenAI SDK's model type is a permissive union containing `string & {}`, so type checking alone cannot detect typos or hardcoded older models.
 
 ## Do not resolve the "latest" model automatically at runtime
 
