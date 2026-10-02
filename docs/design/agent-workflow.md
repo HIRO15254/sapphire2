@@ -26,7 +26,7 @@ The semi-automated loop in [`AGENTS.md`](../../AGENTS.md) (Issue Tracking, PR Re
 
 - **GitHub integration** (PR and commit linking only; GitHub Issues sync is disconnected and Issues are disabled on the repository): draft PR opened → Human Review; PR opened or marked ready → AI Review; review requested / review activity / ready for merge → no change; merged → Done. Review events are left unassigned because the automated verdict is a PR comment, not a GitHub review, so Linear cannot see an approve.
 - **Estimates**: T-shirt sizes (XS 1, S 2, M 3, L 5, XL 8 through the API).
-- **Labels**: groups `type` (Bug / Feature / Improvement / Chore, single choice) and `level` (`supervised` / `auto-fix` / `auto-merge`, set only by the human at Triage); `source` (`review` / `audit` / `prod-error` / `ui-patrol`, set on every issue a discovery run files). `UI` and `development` are retired.
+- **Labels**: groups `type` (Bug / Feature / Improvement / Chore, single choice) and `level` (`supervised` / `auto-fix` / `auto-merge`, set only by the human at Triage); `source` (`review` / `audit`, set on every issue a discovery run files; `prod-error` and `ui-patrol` are retired until a discovery source for them is built). `UI` and `development` are retired.
 - **Branch name format** includes the issue title, so Linear's suggestion contains Japanese; agents rename to `feature/sa2-xxx` before the first push.
 
 ## GitHub (`HIRO15254/sapphire2`)
