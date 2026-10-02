@@ -129,15 +129,36 @@ export function renderLedger(rows: LedgerRow[]): string {
 	].join("\n");
 }
 
-export function rowCovers(rowPath: string, filePath: string): boolean {
-	if (rowPath.endsWith("/*")) {
-		const dir = rowPath.slice(0, -2);
-		return (
-			filePath.startsWith(`${dir}/`) &&
-			!filePath.slice(dir.length + 1).includes("/")
-		);
+const PART_SEPARATOR = "+";
+const RANGE_MARKER = "/*:";
+
+function isDirectChild(dir: string, filePath: string): boolean {
+	return (
+		filePath.startsWith(`${dir}/`) &&
+		!filePath.slice(dir.length + 1).includes("/")
+	);
+}
+
+function partCovers(part: string, filePath: string): boolean {
+	const rangeAt = part.indexOf(RANGE_MARKER);
+	if (rangeAt !== -1) {
+		const dir = part.slice(0, rangeAt);
+		const [first = "", last = ""] = part
+			.slice(rangeAt + RANGE_MARKER.length)
+			.split("..");
+		const name = filePath.slice(dir.length + 1);
+		return isDirectChild(dir, filePath) && name >= first && name <= last;
 	}
-	return filePath === rowPath || filePath.startsWith(`${rowPath}/`);
+	if (part.endsWith("/*")) {
+		return isDirectChild(part.slice(0, -2), filePath);
+	}
+	return filePath === part || filePath.startsWith(`${part}/`);
+}
+
+export function rowCovers(rowPath: string, filePath: string): boolean {
+	return rowPath
+		.split(PART_SEPARATOR)
+		.some((part) => partCovers(part, filePath));
 }
 
 export function coveringRow(
@@ -153,11 +174,88 @@ export function coveringRow(
 	return best;
 }
 
+function partWithin(outer: string, inner: string): boolean {
+	if (outer === inner) {
+		return true;
+	}
+	if (outer.includes("/*")) {
+		return false;
+	}
+	return inner === outer || inner.startsWith(`${outer}/`);
+}
+
 export function applyRun(rows: LedgerRow[], run: LedgerRow): LedgerRow[] {
+	const runParts = run.path.split(PART_SEPARATOR);
 	const replaced = (rowPath: string) =>
-		rowPath === run.path ||
-		(!run.path.endsWith("/*") && rowCovers(run.path, rowPath));
+		rowPath
+			.split(PART_SEPARATOR)
+			.every((part) => runParts.some((outer) => partWithin(outer, part)));
 	return [...rows.filter((row) => !replaced(row.path)), run];
+}
+
+function sumLoc(files: AuditFile[]): number {
+	return files.reduce((sum, file) => sum + file.loc, 0);
+}
+
+function looseUnits(
+	dir: string,
+	loose: AuditFile[],
+	budget: number
+): AuditUnit[] {
+	if (loose.length === 0) {
+		return [];
+	}
+	const sorted = [...loose].sort((a, b) => a.path.localeCompare(b.path, "en"));
+	if (sumLoc(sorted) <= budget) {
+		return [{ path: `${dir}/*`, loc: sumLoc(sorted), files: sorted }];
+	}
+	const chunks: AuditFile[][] = [];
+	let current: AuditFile[] = [];
+	for (const file of sorted) {
+		if (current.length > 0 && sumLoc(current) + file.loc > budget) {
+			chunks.push(current);
+			current = [];
+		}
+		current.push(file);
+	}
+	chunks.push(current);
+	return chunks.map((chunk) => {
+		const name = (file: AuditFile) => file.path.slice(dir.length + 1);
+		const first = chunk[0] as AuditFile;
+		const last = chunk.at(-1) as AuditFile;
+		return {
+			path: `${dir}/*:${name(first)}..${name(last)}`,
+			loc: sumLoc(chunk),
+			files: chunk,
+		};
+	});
+}
+
+function atomsOf(
+	dir: string,
+	members: AuditFile[],
+	budget: number
+): AuditUnit[] {
+	if (sumLoc(members) <= budget) {
+		return [{ path: dir, loc: sumLoc(members), files: members }];
+	}
+	const loose: AuditFile[] = [];
+	const children = new Map<string, AuditFile[]>();
+	for (const file of members) {
+		const rest = file.path.slice(dir.length + 1);
+		const slash = rest.indexOf("/");
+		if (slash === -1) {
+			loose.push(file);
+			continue;
+		}
+		const child = `${dir}/${rest.slice(0, slash)}`;
+		children.set(child, [...(children.get(child) ?? []), file]);
+	}
+	const atoms = looseUnits(dir, loose, budget);
+	for (const child of [...children.keys()].sort()) {
+		atoms.push(...atomsOf(child, children.get(child) as AuditFile[], budget));
+	}
+	return atoms;
 }
 
 export function splitUnits(
@@ -165,45 +263,28 @@ export function splitUnits(
 	budget = UNIT_LOC_BUDGET
 ): AuditUnit[] {
 	const units: AuditUnit[] = [];
-	const visit = (dir: string, members: AuditFile[]) => {
-		const loc = members.reduce((sum, file) => sum + file.loc, 0);
-		if (loc <= budget) {
-			units.push({ path: dir, loc, files: members });
-			return;
-		}
-		const loose: AuditFile[] = [];
-		const children = new Map<string, AuditFile[]>();
-		for (const file of members) {
-			const rest = file.path.slice(dir.length + 1);
-			const slash = rest.indexOf("/");
-			if (slash === -1) {
-				loose.push(file);
-				continue;
-			}
-			const child = `${dir}/${rest.slice(0, slash)}`;
-			children.set(child, [...(children.get(child) ?? []), file]);
-		}
-		for (const file of loose) {
-			if (file.loc > budget) {
-				units.push({ path: file.path, loc: file.loc, files: [file] });
-			}
-		}
-		const small = loose.filter((file) => file.loc <= budget);
-		if (small.length > 0) {
-			units.push({
-				path: `${dir}/*`,
-				loc: small.reduce((sum, file) => sum + file.loc, 0),
-				files: small,
-			});
-		}
-		for (const [child, childFiles] of children) {
-			visit(child, childFiles);
-		}
-	};
 	for (const root of ROOTS) {
 		const members = files.filter((file) => file.path.startsWith(`${root}/`));
-		if (members.length > 0) {
-			visit(root, members);
+		if (members.length === 0) {
+			continue;
+		}
+		let bin: AuditUnit | null = null;
+		for (const atom of atomsOf(root, members, budget)) {
+			if (bin && bin.loc + atom.loc <= budget) {
+				bin = {
+					path: `${bin.path}${PART_SEPARATOR}${atom.path}`,
+					loc: bin.loc + atom.loc,
+					files: [...bin.files, ...atom.files],
+				};
+				continue;
+			}
+			if (bin) {
+				units.push(bin);
+			}
+			bin = atom;
+		}
+		if (bin) {
+			units.push(bin);
 		}
 	}
 	return units;

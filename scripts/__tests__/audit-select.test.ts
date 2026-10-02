@@ -34,32 +34,47 @@ function audited(path: string, loc: number, date: string, churn = 0) {
 }
 
 describe("splitUnits", () => {
-	it("keeps a directory whole while it fits the budget and splits it when it does not", () => {
-		const files = [
-			file("apps/web/src/features/a/x.ts", 600),
-			file("apps/web/src/features/a/y.ts", 600),
-			file("apps/web/src/features/b/z.ts", 600),
-		];
-		expect(splitUnits(files, 5000).map((u) => u.path)).toEqual([
-			"apps/web/src",
-		]);
-		expect(splitUnits(files, 1500).map((u) => u.path)).toEqual([
-			"apps/web/src/features/a",
-			"apps/web/src/features/b",
-		]);
+	const files = [
+		file("packages/api/src/index.ts", 100),
+		file("packages/api/src/routers/a.ts", 900),
+		file("packages/api/src/routers/b.ts", 900),
+		file("packages/api/src/routers/c.ts", 900),
+		file("apps/web/src/features/a/x.ts", 600),
+		file("apps/web/src/features/a/y.ts", 600),
+		file("apps/web/src/features/b/z.ts", 600),
+		file("apps/web/src/features/c/z.ts", 3000),
+	];
+
+	it("covers every file exactly once and keeps each unit within the budget", () => {
+		const units = splitUnits(files, 2000);
+		expect(units.flatMap((u) => u.files.map((f) => f.path)).sort()).toEqual(
+			files.map((f) => f.path).sort()
+		);
+		for (const unit of units) {
+			expect(unit.files.length === 1 || unit.loc <= 2000).toBe(true);
+		}
 	});
 
-	it("covers every file exactly once, including loose files beside subdirectories", () => {
-		const files = [
-			file("packages/api/src/index.ts", 100),
-			file("packages/api/src/routers/a.ts", 900),
-			file("packages/api/src/routers/b.ts", 900),
-		];
-		const units = splitUnits(files, 1000);
-		expect(units.map((u) => u.path).sort()).toEqual(
-			["packages/api/src/*", "packages/api/src/routers/*"].sort()
+	it("keeps a directory whole while it fits and merges small neighbours instead of leaving tiny units", () => {
+		const units = splitUnits(files, 2000);
+		expect(units.map((u) => u.path)).toContain(
+			"apps/web/src/features/a+apps/web/src/features/b"
 		);
-		expect(units.flatMap((u) => u.files).length).toBe(files.length);
+	});
+
+	it("gives an oversized file its own unit", () => {
+		const units = splitUnits(files, 2000);
+		expect(units.find((u) => u.loc === 3000)?.files).toHaveLength(1);
+	});
+
+	it("names the unit a ledger row can later match back to exactly its files", () => {
+		for (const unit of splitUnits(files, 2000)) {
+			for (const f of files) {
+				expect(rowCovers(unit.path, f.path)).toBe(
+					unit.files.some((m) => m.path === f.path)
+				);
+			}
+		}
 	});
 });
 
