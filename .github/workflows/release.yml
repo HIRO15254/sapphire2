@@ -128,3 +128,31 @@ jobs:
           gh workflow run production-deploy.yml \
             --repo "$REPO" \
             --ref "$RELEASE_VERSION"
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.10
+
+      # Moves the Linear issues of this release from Done to Released. The
+      # release's PRs come from the commits between the previous tag and this
+      # merge (every change reaches dev through a PR, per the dev ruleset), and
+      # the issues are the ones Linear itself linked to those PRs — not IDs
+      # parsed from titles or branch names. A failure here must not hold back
+      # the release, so the step is allowed to fail.
+      - name: Move the release's Linear issues to Released
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          REPO: ${{ github.repository }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 "${MERGE_SHA}^1")
+          git rev-list "${PREV_TAG}..${MERGE_SHA}" > "$RUNNER_TEMP/release-commits.txt"
+          OLDEST=$(git log --format=%ct "${PREV_TAG}..${MERGE_SHA}" | sort -n | head -n 1)
+          SINCE=$(date -u -d "@$((OLDEST - 86400))" +%F)
+          gh pr list --repo "$REPO" --state merged --limit 1000 \
+            --search "merged:>=${SINCE}" --json url,mergeCommit \
+            > "$RUNNER_TEMP/merged-prs.json"
+          bun scripts/release-linear-issues.ts \
+            "$RUNNER_TEMP/release-commits.txt" "$RUNNER_TEMP/merged-prs.json"

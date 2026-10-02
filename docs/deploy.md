@@ -184,6 +184,12 @@ Add via **Settings > Secrets and variables > Actions > Secrets tab > New reposit
 
 > Set `PRODUCTION_API_URL` / `PRODUCTION_WEB_URL` after the first deployment using the actual URLs. Use custom domains if available.
 
+### Release Automation (optional)
+
+| Secret Name | Source | Description |
+|---|---|---|
+| `LINEAR_API_KEY` | Linear personal API key | Lets `release.yml` move the release's issues from Done to Released. Needs write access to the Sapphire2 team's issues. Without it the release still ships and the issues stay in Done |
+
 ## 7. Customization
 
 ### Changing the Worker Name
@@ -207,6 +213,8 @@ Update every workflow that deploys or cleans up Pages:
 ### Production Deployment
 
 `release.yml` publishes the tag and GitHub Release, then explicitly dispatches `production-deploy.yml` at that tag because releases created by the default `GITHUB_TOKEN` do not recursively start another workflow. `production-deploy.yml` also supports external `release: published` events and manual `workflow_dispatch` redeploys. The pipeline is CI → migration → Worker deploy → Pages deploy.
+
+`release.yml` then moves the release's Linear issues from Done to Released with [`scripts/release-linear-issues.ts`](../scripts/release-linear-issues.ts). The release's PRs are the merged PRs whose merge commit lies between the previous tag and the release merge, and the issues are the ones Linear linked to those PRs. Only issues in Done move. The step may fail without holding back the release.
 
 Uses `concurrency` for sequential execution. Deployment is skipped if CI fails.
 
@@ -325,10 +333,12 @@ release PR merged into main
   +-> release.yml: create tag + GitHub Release
         |
         +-> Dispatch production-deploy.yml at the tag
-              |
-              +-> CI (type check, lint, test)
-                    |
-                    +-> Migration -> Worker deploy -> Pages deploy
+        |     |
+        |     +-> CI (type check, lint, test)
+        |           |
+        |           +-> Migration -> Worker deploy -> Pages deploy
+        |
+        +-> Move the release's Linear issues from Done to Released
 ```
 
 ### Tech Stack
