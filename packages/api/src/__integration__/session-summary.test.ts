@@ -44,9 +44,10 @@ describe("session.list summary on D1", () => {
 		const list = await api.alice.session.list({ currencyId: wallet.id });
 		const stats = await api.alice.stats.summary({ currencyId: wallet.id });
 
-		expect(
-			list.items.map((item) => item.profitLoss).sort((a, b) => a - b)
-		).toEqual([-1100, -500, 700, 800]);
+		expect(list.items).toHaveLength(4);
+		expect(list.items.map((item) => item.profitLoss)).toEqual(
+			expect.arrayContaining([-1100, -500, 700, 800])
+		);
 		expect(list.summary).toMatchObject({
 			totalSessions: 4,
 			totalProfitLoss: -100,
