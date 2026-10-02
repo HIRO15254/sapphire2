@@ -6,6 +6,7 @@ import {
 	type LedgerRow,
 	nextAgent,
 	parseLedger,
+	pruneRows,
 	renderLedger,
 	rowCovers,
 	selectUnit,
@@ -124,6 +125,12 @@ describe("selectUnit", () => {
 		});
 	});
 
+	it("audits a package it has never heard of, with no rule files", () => {
+		const selection = selectUnit([file("packages/new/src/a.ts", 100)], [], NOW);
+		expect(selection?.path).toBe("packages/new/src");
+		expect(selection?.rules).toEqual([]);
+	});
+
 	it("selects never-audited code and names the rule files for its path", () => {
 		const selection = selectUnit(
 			[file("packages/mcp/src/tools.ts", 500)],
@@ -196,5 +203,13 @@ describe("ledger", () => {
 		expect(nextAgent([])).toBe("claude");
 		expect(nextAgent(rows)).toBe("claude");
 		expect(nextAgent([rows[0]])).toBe("codex");
+	});
+
+	it("drops rows that no longer cover any existing file", () => {
+		expect(
+			pruneRows(rows, ["apps/web/src/features/rooms/a.ts"]).map(
+				(row) => row.path
+			)
+		).toEqual(["apps/web/src/features/rooms"]);
 	});
 });

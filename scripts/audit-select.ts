@@ -40,14 +40,7 @@ export const STALE_DAYS = 30;
 export const DIFF_MODE_CHURN_RATIO = 0.25;
 export const AGENTS = ["claude", "codex"] as const;
 
-const ROOTS = [
-	"apps/web/src",
-	"apps/server/src",
-	"packages/api/src",
-	"packages/db/src",
-	"packages/auth/src",
-	"packages/mcp/src",
-];
+const SOURCE_ROOT = /^((?:apps|packages)\/[^/]+\/src)\//;
 const EXCLUDED_PATH =
 	/(^|\/)(__tests__|__integration__|migrations)\/|\.test\.tsx?$|\.d\.ts$|\.gen\.ts$|\.(css|json|sql)$/;
 const SOURCE_PATH = /\.(ts|tsx)$/;
@@ -184,6 +177,12 @@ function partWithin(outer: string, inner: string): boolean {
 	return inner === outer || inner.startsWith(`${outer}/`);
 }
 
+export function pruneRows(rows: LedgerRow[], filePaths: string[]): LedgerRow[] {
+	return rows.filter((row) =>
+		filePaths.some((path) => rowCovers(row.path, path))
+	);
+}
+
 export function applyRun(rows: LedgerRow[], run: LedgerRow): LedgerRow[] {
 	const runParts = run.path.split(PART_SEPARATOR);
 	const replaced = (rowPath: string) =>
@@ -263,11 +262,15 @@ export function splitUnits(
 	budget = UNIT_LOC_BUDGET
 ): AuditUnit[] {
 	const units: AuditUnit[] = [];
-	for (const root of ROOTS) {
-		const members = files.filter((file) => file.path.startsWith(`${root}/`));
-		if (members.length === 0) {
-			continue;
+	const byRoot = new Map<string, AuditFile[]>();
+	for (const file of files) {
+		const root = SOURCE_ROOT.exec(file.path)?.[1];
+		if (root) {
+			byRoot.set(root, [...(byRoot.get(root) ?? []), file]);
 		}
+	}
+	for (const root of [...byRoot.keys()].sort()) {
+		const members = byRoot.get(root) as AuditFile[];
 		let bin: AuditUnit | null = null;
 		for (const atom of atomsOf(root, members, budget)) {
 			if (bin && bin.loc + atom.loc <= budget) {
@@ -392,10 +395,14 @@ function churnSince(sha: string): Map<string, number> | null {
 }
 
 export function collectFiles(rows: LedgerRow[]): AuditFile[] {
-	const paths = git("ls-files", ...ROOTS)
+	const paths = git("ls-files", "apps", "packages")
 		.split("\n")
 		.filter(
-			(path) => path && SOURCE_PATH.test(path) && !EXCLUDED_PATH.test(path)
+			(path) =>
+				path &&
+				SOURCE_ROOT.test(path) &&
+				SOURCE_PATH.test(path) &&
+				!EXCLUDED_PATH.test(path)
 		);
 	const churnCache = new Map<string, Map<string, number> | null>();
 	return paths.map((path) => {
