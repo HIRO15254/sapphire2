@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+# Require the agent's Co-Authored-By trailer on commits made by Claude Code,
+# Codex, or Gemini CLI. Human commits and merge commits are not checked.
+if [ -f "$(git rev-parse --git-path MERGE_HEAD)" ]; then
+  exit 0
+fi
+bun scripts/check-commit-trailer.ts "$1"

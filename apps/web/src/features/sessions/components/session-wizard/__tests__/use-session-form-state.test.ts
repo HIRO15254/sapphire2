@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTestQueryClient, withQueryClient } from "@/__tests__/test-utils";
 import type {
 	RingGameOption,
+	SessionFormDefaults,
 	TournamentOption,
 } from "@/features/sessions/utils/session-form-helpers";
 import { updateGroup } from "@/shared/lib/mix-games";
@@ -18,7 +19,32 @@ const masterQueries = vi.hoisted(() => ({
 	},
 }));
 
+const structureQueries = vi.hoisted(() => ({
+	levels: (_input: { tournamentId: string }) =>
+		Promise.resolve([] as unknown[]),
+	purchases: (_input: { tournamentId: string }) =>
+		Promise.resolve([] as unknown[]),
+	reset() {
+		structureQueries.levels = () => Promise.resolve([]);
+		structureQueries.purchases = () => Promise.resolve([]);
+	},
+}));
+
 vi.mock("@/utils/trpc", () => ({
+	trpcClient: {
+		blindLevel: {
+			listByTournament: {
+				query: (input: { tournamentId: string }) =>
+					structureQueries.levels(input),
+			},
+		},
+		tournamentChipPurchase: {
+			listByTournament: {
+				query: (input: { tournamentId: string }) =>
+					structureQueries.purchases(input),
+			},
+		},
+	},
 	trpc: {
 		gameGroup: {
 			list: {
@@ -1191,5 +1217,139 @@ describe("useSessionFormState — live-linked required fields", () => {
 			await result.current.form.handleSubmit();
 		});
 		expect(onSubmit).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("useSessionFormState — tournament structure from the master", () => {
+	afterEach(() => {
+		structureQueries.reset();
+	});
+
+	const MASTER_LEVELS = [
+		{
+			id: "bl-1",
+			tournamentId: "t1",
+			level: 1,
+			isBreak: false,
+			blind1: 100,
+			blind2: 200,
+			blind3: null,
+			ante: 200,
+			minutes: 20,
+			games: null,
+		},
+		{
+			id: "bl-2",
+			tournamentId: "t1",
+			level: 2,
+			isBreak: true,
+			blind1: null,
+			blind2: null,
+			blind3: null,
+			ante: null,
+			minutes: 10,
+			games: null,
+		},
+	];
+	const MASTER_PURCHASES = [
+		{ id: "cp-1", tournamentId: "t1", name: "Rebuy", cost: 100, chips: 10_000 },
+	];
+
+	function selectTournament(
+		defaultValues: SessionFormDefaults = {
+			type: "tournament",
+			sessionDate: "2026-04-10",
+		}
+	) {
+		const onSubmit = vi.fn();
+		const view = renderHook(
+			() =>
+				useSessionFormState({
+					onSubmit,
+					defaultValues,
+					tournaments: TOURNAMENTS,
+				}),
+			{ wrapper: withQueryClient() }
+		);
+		act(() => {
+			view.result.current.handleGameChange("t1");
+		});
+		return { onSubmit, ...view };
+	}
+
+	it("submits the selected tournament's blind levels and chip purchases", async () => {
+		structureQueries.levels = ({ tournamentId }) =>
+			Promise.resolve(tournamentId === "t1" ? MASTER_LEVELS : []);
+		structureQueries.purchases = ({ tournamentId }) =>
+			Promise.resolve(tournamentId === "t1" ? MASTER_PURCHASES : []);
+		const { onSubmit, result } = selectTournament();
+
+		await waitFor(() => {
+			expect(result.current.chipPurchases).toHaveLength(1);
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tournamentId: "t1",
+				blindLevels: [
+					{
+						isBreak: false,
+						blind1: 100,
+						blind2: 200,
+						blind3: null,
+						ante: 200,
+						minutes: 20,
+						games: null,
+					},
+					{
+						isBreak: true,
+						blind1: null,
+						blind2: null,
+						blind3: null,
+						ante: null,
+						minutes: 10,
+						games: null,
+					},
+				],
+				chipPurchases: [{ name: "Rebuy", cost: 100, chips: 10_000, count: 0 }],
+			})
+		);
+	});
+
+	it("still applies chip purchases when the blind level fetch fails, without keeping the previous levels", async () => {
+		structureQueries.levels = () => Promise.reject(new Error("network"));
+		structureQueries.purchases = () => Promise.resolve(MASTER_PURCHASES);
+		const { onSubmit, result } = selectTournament({
+			type: "tournament",
+			sessionDate: "2026-04-10",
+			blindLevels: [
+				{
+					isBreak: false,
+					blind1: 1,
+					blind2: 2,
+					blind3: null,
+					ante: null,
+					minutes: 15,
+				},
+			],
+		});
+
+		await waitFor(() => {
+			expect(result.current.chipPurchases).toHaveLength(1);
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tournamentBuyIn: 100,
+				blindLevels: undefined,
+				chipPurchases: [{ name: "Rebuy", cost: 100, chips: 10_000, count: 0 }],
+			})
+		);
 	});
 });

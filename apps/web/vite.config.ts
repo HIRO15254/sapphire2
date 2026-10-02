@@ -7,6 +7,8 @@ import { VitePWA } from "vite-plugin-pwa";
 import { githubReleasesPlugin } from "./src/plugins/vite-plugin-github-releases";
 import { pwaManifest } from "./src/shared/lib/pwa-manifest";
 
+const NOTO_SANS_JP_ASSET = /\/assets\/noto-sans-jp-.*\.woff2$/;
+
 export default defineConfig(({ mode }) => ({
 	plugins: [
 		githubReleasesPlugin(
@@ -21,6 +23,19 @@ export default defineConfig(({ mode }) => ({
 			manifest: pwaManifest,
 			pwaAssets: { disabled: false, config: true },
 			devOptions: { enabled: false },
+			workbox: {
+				runtimeCaching: [
+					{
+						urlPattern: NOTO_SANS_JP_ASSET,
+						handler: "CacheFirst",
+						options: {
+							cacheName: "noto-sans-jp",
+							cacheableResponse: { statuses: [200] },
+							expiration: { maxEntries: 128, maxAgeSeconds: 31_536_000 },
+						},
+					},
+				],
+			},
 		}),
 	],
 	resolve: {

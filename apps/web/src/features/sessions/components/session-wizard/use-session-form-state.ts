@@ -36,6 +36,7 @@ import {
 	toChipPurchaseRows,
 	toSessionChipPurchases,
 } from "./chip-purchase-rows";
+import { loadTournamentStructure } from "./load-tournament-structure";
 
 interface UseSessionFormStateArgs {
 	defaultRoomId?: string;
@@ -329,35 +330,9 @@ export function useSessionFormState({
 	};
 
 	const applyTournamentStructure = async (tournamentId: string) => {
-		const { trpcClient } = await import("@/utils/trpc");
-		const [levels, purchases] = await Promise.all([
-			trpcClient.blindLevel.listByTournament
-				.query({ tournamentId })
-				.catch(() => []),
-			trpcClient.tournamentChipPurchase.listByTournament
-				.query({ tournamentId })
-				.catch(() => []),
-		]);
-		setBlindLevels(
-			toBlindLevelRows(
-				levels.map((l) => ({
-					isBreak: l.isBreak,
-					blind1: l.blind1,
-					blind2: l.blind2,
-					blind3: l.blind3,
-					ante: l.ante,
-					minutes: l.minutes,
-					games: l.games ?? null,
-				}))
-			)
-		);
-		const chipRows = toChipPurchaseRows(
-			purchases.map((p) => ({
-				name: p.name,
-				cost: p.cost,
-				chips: p.chips,
-			}))
-		);
+		const structure = await loadTournamentStructure(tournamentId);
+		setBlindLevels(toBlindLevelRows(structure.blindLevels));
+		const chipRows = toChipPurchaseRows(structure.chipPurchases);
 		setChipPurchases(chipRows.rows);
 		setChipPurchaseCounts(chipRows.counts);
 	};

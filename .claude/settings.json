@@ -4,8 +4,10 @@
       "Bash(gh release create*)",
       "Bash(gh release view*)",
       "Bash(gh pr comment*)",
-      "Bash(gh pr review*)"
-    ]
+      "Bash(gh pr review*)",
+      "Bash(bunx vitest *)"
+    ],
+    "deny": ["Bash(gh pr merge*)", "Bash(gh pr ready*)"]
   },
   "hooks": {
     "Stop": [

@@ -46,8 +46,7 @@ sapphire2/
     ├── preview-cleanup.yml  # PR クローズ時クリーンアップ
     ├── dev-deploy.yml       # `dev` への push 時の dev 環境デプロイ
     ├── release.yml          # Release 作成と本番デプロイ起動
-    ├── production-deploy.yml # 本番デプロイ
-    └── project-sync.yml     # 任意の GitHub Project 同期（要設定）
+    └── production-deploy.yml # 本番デプロイ
 ```
 
 ## はじめかた

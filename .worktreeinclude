@@ -1,0 +1,2 @@
+apps/server/.dev.vars
+apps/web/.env
