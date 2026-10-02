@@ -454,7 +454,10 @@ function main(argv: string[]) {
 			sha: git("rev-parse", "--short=12", "HEAD").trim(),
 			date: new Date().toISOString().slice(0, 10),
 		};
-		process.stdout.write(`${renderLedger(applyRun(rows, run))}\n`);
+		const current = collectFiles([]).map((file) => file.path);
+		process.stdout.write(
+			`${renderLedger(pruneRows(applyRun(rows, run), current))}\n`
+		);
 		return;
 	}
 	throw new Error(
