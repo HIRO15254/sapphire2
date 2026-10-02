@@ -619,6 +619,49 @@ describe("summarizeStats", () => {
 		expect(summary.bbPerHour).toBeNull();
 	});
 
+	it("leaves cash sessions with no recorded duration out of hourlyRate / bbPerHour while still totalling them", () => {
+		const rows = [
+			cashRow({ id: "timed", profitLoss: 100, playMinutes: 60, bigBlind: 2 }),
+			cashRow({
+				id: "untimed",
+				profitLoss: 900,
+				playMinutes: null,
+				bigBlind: 2,
+			}),
+		];
+		const summary = summarizeStats(rows);
+		expect(summary.hourlyRate).toBe(100);
+		expect(summary.bbPerHour).toBe(50);
+		expect(summary.totalProfitLoss).toBe(1000);
+		expect(summary.cashNormalizedProfitLoss).toBe(500);
+		expect(summary.totalPlayMinutes).toBe(60);
+	});
+
+	it("divides bbPerHour only by the hours of cash sessions that have a big blind", () => {
+		const rows = [
+			cashRow({ id: "flat", profitLoss: 100, playMinutes: 60, bigBlind: 2 }),
+			cashRow({ id: "mix", profitLoss: 300, playMinutes: 60, bigBlind: null }),
+		];
+		const summary = summarizeStats(rows);
+		expect(summary.bbPerHour).toBe(50);
+		expect(summary.hourlyRate).toBe(200);
+	});
+
+	it("returns null bbPerHour when no timed cash session has a big blind", () => {
+		const rows = [
+			cashRow({ id: "mix", profitLoss: 300, playMinutes: 60, bigBlind: null }),
+			cashRow({
+				id: "untimed",
+				profitLoss: 100,
+				playMinutes: null,
+				bigBlind: 2,
+			}),
+		];
+		const summary = summarizeStats(rows);
+		expect(summary.bbPerHour).toBeNull();
+		expect(summary.hourlyRate).toBe(300);
+	});
+
 	it("sums ev metrics over cash rows that have ev", () => {
 		const rows = [
 			cashRow({
