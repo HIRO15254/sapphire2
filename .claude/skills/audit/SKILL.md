@@ -11,6 +11,8 @@ Design, scoring, and ledger format: [`docs/design/agent-workflow.md`](../../../d
 
 ## Procedure
 
+The automation prompt names your agent (`claude` or `codex`). Codex has no skill loader: its prompt says to read and follow this file, and every `agent` below is that name.
+
 1. **Sync.** `git fetch origin` and check out `origin/dev` detached. Run from a clean tree.
 2. **Backpressure.** Count Linear issues in Triage with label `source/audit`. If there are 10 or more, report that and stop without auditing or touching the ledger.
 3. **Ledger.** Read the Linear document "Audit ledger" (project エージェント半自動運用) with `get_document` and save its table to `$TMPDIR/ledger.md`.
