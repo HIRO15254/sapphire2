@@ -8,7 +8,6 @@ Companion memory: [`.claude/rules/`](.claude/rules/) contains path-scoped rules.
 
 - **Think in English, reply in Japanese.** Internal reasoning is in English; chat replies, proposals, and explanations for the user are written in Japanese.
 - **Write agent rule files in English.** This includes `AGENTS.md`, `CLAUDE.md`, and `.claude/rules/**/*.md`. Keep shared instructions in English even when discussing them in Japanese; `bun run check:rules` detects Japanese text in these files to prevent the conversation language from carrying over into rules.
-- This is orthogonal to code conventions: UI copy stays English-only ([`.claude/rules/web-ui.md`](.claude/rules/web-ui.md)), and code identifiers / comments / commit messages / PR descriptions follow their existing rules.
 
 ## Stack
 
@@ -19,7 +18,7 @@ Companion memory: [`.claude/rules/`](.claude/rules/) contains path-scoped rules.
 - **Validation**: Zod (workspace catalog). Import as `import z from "zod"` (default import) — a Vite bundler issue breaks the namespace import.
 - **Tests**: Vitest + Testing Library / MSW (jsdom), Miniflare D1 integration, Bun SQLite migrations, Playwright (HTTPS browser / OAuth / WebAuthn).
 - **Lint / format**: Ultracite (Biome preset) — its defaults are the code standard; run via `bun run lint` / `bun run fix`.
-- **Icons**: `@tabler/icons-react` only. Do not add `lucide-react` imports in new code.
+- **Icons**: `@tabler/icons-react` only (`check:rules` rejects `lucide-react` imports).
 
 ## Commands
 
@@ -39,8 +38,6 @@ bun run db:generate      # drizzle-kit generate — default for schema-shape cha
 bun run db:migrate:local # apply migrations to local D1
 bun run db:studio        # drizzle-kit studio
 ```
-
-Pre-PR verification: run `bun run lint`, `bun run check-types`, `bun run check:rules`, and tests for the changed scope. Verify the full suite in CI (see [Testing](#testing)).
 
 ## Repository Layout
 
@@ -67,8 +64,7 @@ docs/
 
 - **Branches**: `feature → dev → release/vX.Y.Z → main`. `dev` is the default base for PRs; `main` only accepts PRs whose head branch matches `release/v[0-9]+\.[0-9]+\.[0-9]+` (enforced by [`pr-target-guard.yml`](.github/workflows/pr-target-guard.yml) + GitHub Ruleset [`main-release-only.json`](.github/rulesets/main-release-only.json)).
 - **Cutting a release**: `git checkout -b release/vX.Y.Z dev && git push -u origin HEAD`, then `gh pr create --base main`. On merge, [`release.yml`](.github/workflows/release.yml) auto-generates notes via `/create-update-notes`, creates the tag and Release, explicitly dispatches [`production-deploy.yml`](.github/workflows/production-deploy.yml) for that tag, then moves the Linear issues linked to the release's PRs from Done to Released ([`scripts/release-linear-issues.ts`](scripts/release-linear-issues.ts), needs the `LINEAR_API_KEY` secret). Manual notes: `/create-update-notes vX.Y.Z` locally (draft-only outside CI).
-- **Merge release PRs with a MERGE COMMIT, never squash.** Squashing collapses `dev`'s commit history into a single commit on `main`, so `main` and `dev` share no common ancestry. Each subsequent `release/vX.Y.Z → main` PR then re-diffs from before the previous release and every already-released file explodes into a phantom conflict (`mergeable_state: dirty`, thousands of files). A real merge commit keeps `dev`'s commits reachable from `main`, so the next release stays a clean fast-forward. If a release PR ever shows mass conflicts, the fix is `git merge -s ours origin/main` on the release branch (records `main` as a parent, keeps `dev`'s tree — verify `HEAD^{tree}` equals `origin/dev^{tree}` before pushing) — it reconciles history without changing content.
-- **No self check-in after opening a PR**: don't schedule any reminder/trigger (`send_later`, `create_trigger`, cron, or similar) to re-check a newly opened PR later — react to PR webhook/activity events (or ask the user) instead; scheduled self-reminders are unnecessary noise on routine PRs in this repo.
+- **Release PRs land as merge commits.** The repository allows only merge commits (squash and rebase merges are disabled): a squash leaves `main` and `dev` without common ancestry, and the next release PR then conflicts on every already-released file. If a release PR ever shows mass conflicts, run `git merge -s ours origin/main` on the release branch and verify `HEAD^{tree}` equals `origin/dev^{tree}` before pushing — it reconciles history without changing content.
 
 ## Commits
 
@@ -76,21 +72,21 @@ docs/
 
 ## Issue Tracking (Linear)
 
-Work is tracked in Linear (team **Sapphire2**, issue prefix `SA2-`). Multi-phase work gets one project plus one issue per phase, so the issue — not the chat log — is where a phase's decisions survive a context reset.
+Work is tracked in Linear (team **Sapphire2**, issue prefix `SA2-`). Multi-phase work gets one project plus one issue per phase, so the issue — not the chat log — is where a phase's decisions survive a context reset. The settings outside the repo that this section relies on (Linear statuses and GitHub integration, Orca, secrets) are recorded in [`docs/design/agent-workflow.md`](docs/design/agent-workflow.md).
 
-- **Start an issue's work from Orca's Linear task list.** If the work has no issue, create one in the project first; don't start untracked multi-phase work.
-- **Branch names are ASCII: `feature/sa2-xxx`.** Replace the Japanese title slug Linear suggests. `claude-code-action` rejects non-ASCII branch names, so the automated review never runs on them. [`scripts/check-branch-name.ts`](scripts/check-branch-name.ts) enforces this in `.husky/pre-push` and the `branch-name` job in `ci.yml`. Renaming the head branch of an open PR closes it — fix the name before the first push.
-- **The status says whose turn it is.** The human's: Triage, Needs Input, Human Review, Ready to Merge. The agent's: Todo (accepted with level, priority, and estimate set), In Progress. The machines': AI Review (CI and the automated review). Closed: Done = merged into `dev`; Released = shipped to `main` through the release flow (set by `release.yml`); Canceled; Duplicate. Linear's GitHub integration links a PR that carries the issue id in its branch name or title — always put `(SA2-xxx)` in the PR title — and sets Human Review when a draft PR opens, AI Review when the PR opens or is marked ready, and Done when it merges into `dev`. The automated review's outcome moves the issue to Ready to Merge on approve, In Progress on important findings or red CI, and Needs Input when two automatic rounds end without approve (by hand until SA2-257 automates it). Set the rest yourself with the Linear MCP:
+- **Work from a Linear issue.** Workspaces are created from Orca's Linear task list. Before starting, read the issue and its comments with the Linear MCP — earlier decisions live there. If the work has no issue, create one in the project first.
+- **Branch names are ASCII: `feature/sa2-xxx`.** Linear's suggested name carries the Japanese title, which `claude-code-action` rejects, so the automated review would never run. Rename with `git branch -m feature/sa2-xxx` before the first push; `.husky/pre-push` and the `branch-name` job in `ci.yml` reject non-ASCII names ([`scripts/check-branch-name.ts`](scripts/check-branch-name.ts)), and renaming the head branch of an open PR closes the PR.
+- **The status says whose turn it is.** The human's: Triage, Needs Input, Human Review, Ready to Merge. The agent's: Todo (accepted with level, priority, and estimate set), In Progress. The machines': AI Review (CI and the automated review). Closed: Done = merged into `dev`; Released = shipped to `main` through the release flow (set by `release.yml`, which moves only Done issues — one that closes after its PRs already shipped goes straight to Released); Canceled; Duplicate. Linear's GitHub integration links a PR that carries the issue id in its branch name or title — always put `(SA2-xxx)` in the PR title — and sets Human Review when a draft PR opens, AI Review when the PR opens or is marked ready, and Done when it merges into `dev`. The automated review's outcome moves the issue to Ready to Merge on approve, In Progress on important findings or red CI, and Needs Input when two automatic rounds end without approve (by hand until SA2-257 automates it). Set the rest yourself with the Linear MCP:
   - In Progress when you start or resume work, feedback included. Creating the Orca workspace does not change the status.
   - Needs Input when you stop for the user's decision. Write the question as an issue comment first; a question only in the chat never reaches a user who is not watching the session.
   - After pushing to an open PR, Human Review if it is a draft and AI Review if it is ready. Pushes don't trigger Linear's automation.
-- **Open the PR as a draft once the implementation is done and local checks pass, and never mark it ready.** The draft is the request for human review; marking it ready is the human's approval and starts the automated review, which skips drafts. `gh pr ready` is denied in [`.claude/settings.json`](.claude/settings.json). An `auto-merge` issue is the exception: open it ready, since accepting it at Triage already approved it.
+- **Open the PR as a draft once the implementation is done and the checks in [Testing](#testing) pass, and never mark it ready** (`gh pr create --draft --base dev`). The draft is the request for human review; marking it ready is the human's approval and starts the automated review, which skips drafts. `gh pr ready` is denied in [`.claude/settings.json`](.claude/settings.json); Codex and Gemini follow this line. An `auto-merge` issue is the exception: open it ready, since accepting it at Triage already approved it.
 - **Agents never merge PRs.** `gh pr merge` is denied in [`.claude/settings.json`](.claude/settings.json); Codex and Gemini follow this line. Merging is the human's checkpoint.
 - **Every issue you file gets a type, a priority, and an estimate**, Triage issues from discovery included, so the queue can be ordered and oversized work is caught before it starts.
   - Type (label group `type`) follows the conventional commit type the fix would use: `fix` → Bug, `feat` → Feature, `refactor` / `perf` / `style` → Improvement, `chore` / `ci` / `build` / `docs` / `test` → Chore.
   - Priority: Urgent = production is broken, data is lost, or a security hole is open. High = blocks the current project phase or breaks a main flow. Medium = the default for planned work. Low = cleanup and nice-to-have.
   - Estimate (T-shirt) is the size of the change: XS = about one file, or copy/style only. S = contained in one feature folder. M = a small change across `packages/api` and `apps/web`. L = includes a migration or spans several screens. XL = too big; split it into phases before starting. The Linear MCP takes numbers: XS 1, S 2, M 3, L 5, XL 8.
-- **Never set or change the `level` label.** The human sets it when accepting an issue from Triage, and it decides the human gates. `supervised`: the user starts and watches the session, then reviews the draft and merges. `auto-fix`: the agent works alone; the human reviews the draft and merges. `auto-merge`: no human gate after Triage — the PR opens ready and is merged once CI and the automated review pass (SA2-257; a human merges until it lands). An agent picking `auto-merge` would approve its own work. The other label groups are `type` and `source` (discovery origin, added in SA2-254); don't create labels, and don't reuse the retired `UI` / `development` — the area of a change is read from its diff.
+- **Never set or change the `level` label.** The human sets it when accepting an issue from Triage, and it decides the human gates. `supervised`: the user starts and watches the session, then reviews the draft and merges. `auto-fix`: the agent works alone; the human reviews the draft and merges. `auto-merge`: no human gate after Triage — the PR opens ready and is merged once CI and the automated review pass (SA2-257; a human merges until it lands). An agent picking `auto-merge` would approve its own work. The other label groups are `type` and `source` (discovery origin; SA2-254 creates it, so don't apply it before it exists); don't create labels, and don't reuse the retired `UI` / `development` — the area of a change is read from its diff.
 - **Don't post project updates or set project health.** The phase issues already hold status, decisions, and blockers; a second report drifts from them.
 - **Record every decision that changes the spec in the issue, not only in the PR.** An answered open question, a control dropped because the schema can't persist it, a user-directed change that overrides the design, a phase split, a deviation from the design file. PRs are per-diff and get merged away; the issue is what the next phase reads.
 - **Splitting a phase creates a new issue** in the same project, related to the original, and the moved scope leaves the original's description.
@@ -103,6 +99,7 @@ The automated reviewer ([`pre-merge-review.yml`](.github/workflows/pre-merge-rev
 - **Batch fixes into one push.** Address every finding of a round together; one commit per finding turned single PRs into 36-round loops (each round ≈ $2 and 4 minutes).
 - **Severity decides the response.** `[important]` must be fixed or refuted in the thread with evidence. `[nit]` and `[pre-existing]` may be declined with a one-line `Won't fix` reply. `[unverified]` is a question with a command to run: answer it, do not "fix" it. The reviewer itself is [`.claude/skills/pr-review/SKILL.md`](.claude/skills/pr-review/SKILL.md); run `/pr-review full` locally to get the same review before pushing.
 - **Do not narrate.** No PR comment restating the commit; commit messages and thread replies are the record.
+- **No self check-in after opening a PR.** Don't schedule a reminder or trigger (`send_later`, `create_trigger`, cron, or similar) to re-check it later — react to PR activity or ask the user instead.
 - **A `Verdict: approve` is not a merge** and a request for more rounds is not a block — the merge decision stays with the human.
 
 ## Web UI Essentials (cross-cutting)
