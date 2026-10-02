@@ -94,7 +94,7 @@ export function parseLedger(markdown: string): LedgerRow[] {
 		}
 		const cells = line.trim().slice(1, -1).split(MARKDOWN_CELL);
 		const [path, sha, date, agent, filed] = cells.map((cell) =>
-			cell.replaceAll("`", "").trim()
+			cell.replaceAll("`", "").replaceAll("\\", "").trim()
 		);
 		if (
 			!(path && sha && date && agent) ||

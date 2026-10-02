@@ -164,6 +164,19 @@ describe("ledger", () => {
 		expect(parseLedger(renderLedger(rows))).toEqual(rows);
 	});
 
+	it("reads rows back after Linear escapes the asterisks of a /* path", () => {
+		const escaped = [
+			"| path | sha | date | agent | filed |",
+			"| -- | -- | -- | -- | -- |",
+			String.raw`| packages/api/src/routers/\*:a.ts..b.ts | a1 | 2026-10-02 | claude | 0 |`,
+			String.raw`| packages/api/src/\* | b2 | 2026-10-02 | codex | 1 |`,
+		].join("\n");
+		expect(parseLedger(escaped).map((row) => row.path)).toEqual([
+			"packages/api/src/routers/*:a.ts..b.ts",
+			"packages/api/src/*",
+		]);
+	});
+
 	it("matches a row to files by directory prefix, and a /* row to direct children only", () => {
 		expect(
 			rowCovers(

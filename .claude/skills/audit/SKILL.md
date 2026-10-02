@@ -19,7 +19,7 @@ Design, scoring, and ledger format: [`docs/design/agent-workflow.md`](../../../d
 6. **Discover and verify** with [`pr-review/references/lean.md`](../pr-review/references/lean.md), with the whole unit as the range instead of a diff: record every candidate, then refute it with callers, guards, and a targeted test run (`bunx vitest run --project <project> <path>`). Skip what lint, types, or `check:rules` already catch.
 7. **Deduplicate.** For each surviving candidate search Linear (all states, including Done and Canceled) by file path and by keyword. Skip it if an issue or a documented decision already covers it.
 8. **File at most 3 issues**, best evidence first. The cap is a runaway guard, not a quota: file nothing when nothing survives.
-9. **Record the run.** Re-fetch the ledger document, then `bun scripts/audit-select.ts record --ledger <fresh copy> --unit <path> --agent <you> --filed <n>` and save its output as the document content with `save_document`. This replaces only the rows the unit covers. Record a run even when it filed nothing.
+9. **Record the run.** Re-fetch the ledger document, then `bun scripts/audit-select.ts record --ledger <fresh copy> --unit <path> --agent <you> --filed <n>` and save the document with `save_document`, keeping the paragraph above the table and replacing only the table with that output. This replaces only the rows the unit covers. Record a run even when it filed nothing.
 10. **Report** in at most 10 lines of Japanese: unit, mode, files read, issues filed (ids), candidates refuted, anything unchecked.
 
 ## Issue format
