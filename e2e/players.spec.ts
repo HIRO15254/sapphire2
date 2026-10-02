@@ -7,7 +7,11 @@ test("creates a player through the form and preserves it after reload", async ({
 }) => {
 	await signIn(page, account);
 	await page.goto("/players");
-	await page.getByRole("button", { name: "New player", exact: true }).click();
+	await expect(page.getByText("No players yet", { exact: true })).toBeVisible();
+	await page
+		.getByRole("button", { name: "New player", exact: true })
+		.first()
+		.click();
 	const form = page.getByRole("dialog", { name: "New player" });
 	await form.getByLabel("Player name").fill("Alice Riverside");
 	await form.getByRole("button", { name: "Save", exact: true }).click();
@@ -27,7 +31,11 @@ test("keeps an invalid player form open and identifies the required field", asyn
 }) => {
 	await signIn(page, account);
 	await page.goto("/players");
-	await page.getByRole("button", { name: "New player", exact: true }).click();
+	await expect(page.getByText("No players yet", { exact: true })).toBeVisible();
+	await page
+		.getByRole("button", { name: "New player", exact: true })
+		.first()
+		.click();
 	const form = page.getByRole("dialog", { name: "New player" });
 	await form.getByRole("button", { name: "Save", exact: true }).click();
 	await expect(form.getByRole("alert")).toBeVisible();
