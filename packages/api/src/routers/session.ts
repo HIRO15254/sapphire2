@@ -1028,6 +1028,7 @@ interface SummarySessionRow {
 	placement: number | null;
 	prizeMoney: number | null;
 	totalEntries: number | null;
+	tournamentBuyIn: number | null;
 	type: string;
 }
 
@@ -1036,7 +1037,7 @@ function computeSessionPLFromRow(s: SummarySessionRow): number {
 		return computeCashGamePL(s.buyIn, s.cashOut, s.chipRemoveTotal ?? 0);
 	}
 	return computeTournamentPL(
-		s.buyIn,
+		s.tournamentBuyIn,
 		s.entryFee,
 		s.chipPurchaseCost,
 		s.prizeMoney,
@@ -1184,6 +1185,7 @@ async function computeSummary(
 			cashOut: sessionCashDetail.cashOut,
 			evCashOut: sessionCashDetail.evCashOut,
 			chipRemoveTotal: sessionCashDetail.chipRemoveTotal,
+			tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
 			entryFee: sessionTournamentDetail.entryFee,
 			prizeMoney: sessionTournamentDetail.prizeMoney,
 			bountyPrizes: sessionTournamentDetail.bountyPrizes,
