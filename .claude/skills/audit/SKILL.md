@@ -13,7 +13,7 @@ Design, scoring, and ledger format: [`docs/design/agent-workflow.md`](../../../d
 
 The automation prompt names your agent (`claude` or `codex`). Codex has no skill loader: its prompt says to read and follow this file, and every `agent` below is that name.
 
-1. **Sync.** `git fetch origin` and check out `origin/dev` detached. Run from a clean tree.
+1. **Sync.** `git fetch origin` and check out `origin/dev` detached. Run from a clean tree, then `bun install --frozen-lockfile`: a fresh worktree has no dependencies, and without them step 6 cannot run the targeted tests that refute a candidate (the first Codex run could not start Vitest).
 2. **Backpressure.** Count Linear issues in Triage with label `source/audit`. If there are 10 or more, only High or Urgent findings may be filed this run (step 8); Medium and Low ones are dropped. Do not stop: a serious problem must not wait behind a full queue.
 3. **Ledger.** Read the Linear document "Audit ledger" (project エージェント半自動運用) with `get_document` and save its table to `$TMPDIR/ledger.md`.
 4. **Select.** `bun scripts/audit-select.ts select --ledger $TMPDIR/ledger.md`. The JSON gives `path`, `files`, `mode`, `sinceSha`, `rules`, `agent`, `reason`. If `agent` is not you, stop: the other agent owns this turn. Do not pick another unit.
