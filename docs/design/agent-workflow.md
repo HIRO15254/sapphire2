@@ -26,7 +26,7 @@ The semi-automated loop in [`AGENTS.md`](../../AGENTS.md) (Issue Tracking, PR Re
 
 - **GitHub integration** (PR and commit linking only; GitHub Issues sync is disconnected and Issues are disabled on the repository): draft PR opened → Human Review; PR opened or marked ready → AI Review; review requested / review activity / ready for merge → no change; merged → Done. Review events are left unassigned because the automated verdict is a PR comment, not a GitHub review, so Linear cannot see an approve.
 - **Estimates**: T-shirt sizes (XS 1, S 2, M 3, L 5, XL 8 through the API).
-- **Labels**: groups `type` (Bug / Feature / Improvement / Chore, single choice) and `level` (`supervised` / `auto-fix` / `auto-merge`, set only by the human at Triage); `source` is created in SA2-254. `UI` and `development` are retired.
+- **Labels**: groups `type` (Bug / Feature / Improvement / Chore, single choice) and `level` (`supervised` / `auto-fix` / `auto-merge`, set only by the human at Triage); `source` (`review` / `audit` / `prod-error` / `ui-patrol`, set on every issue a discovery run files). `UI` and `development` are retired.
 - **Branch name format** includes the issue title, so Linear's suggestion contains Japanese; agents rename to `feature/sa2-xxx` before the first push.
 
 ## GitHub (`HIRO15254/sapphire2`)
@@ -53,6 +53,17 @@ The semi-automated loop in [`AGENTS.md`](../../AGENTS.md) (Issue Tracking, PR Re
 - [`.claude/settings.json`](../../.claude/settings.json) denies `gh pr merge` and `gh pr ready` for Claude Code, and its Stop hook runs format, changed tests, lint, and `check:rules`; `.husky/pre-commit` is skipped under Claude Code for that reason. Codex and Gemini have no equivalent deny and follow the `AGENTS.md` text.
 - `.husky/pre-push` and the `branch-name` job in `ci.yml` reject non-ASCII branch names ([`scripts/check-branch-name.ts`](../../scripts/check-branch-name.ts)); `claude-code-action` refuses them, so the automated review would never run.
 - Linear MCP is configured for all three agents (Gemini: `/mcp auth linear`).
+
+## Discovery (SA2-254)
+
+Agents find problems and file them, with evidence, to Linear Triage; a human only decides whether to accept. Discovery runs never write code, push, or open PRs.
+
+- **Review findings.** The reviewer lists established `[pre-existing]` problems in its trailer (`preExisting`, at most three). [`scripts/file-preexisting-issues.ts`](../../scripts/file-preexisting-issues.ts) files them after a published round with label `source/review`, deduplicating on a fingerprint of file and title that is stored in the issue description, so round 2 or a re-review does not file them again. Without `LINEAR_API_KEY` (or on a fork PR) it only warns.
+- **Code audit.** The [`audit` skill](../../.claude/skills/audit/SKILL.md) audits one unit per run. Granularity is the point: one run reading a whole domain (`live-sessions` alone is about 20k lines) only skims, so a unit is at most about 4k non-test lines and the cycle is short.
+- **Unit selection** is computed from git by [`scripts/audit-select.ts`](../../scripts/audit-select.ts), not from a manifest, so moving or adding files needs no re-slicing. Directories are split recursively until they fit the budget. A unit's score is `(lines changed since its last audit + average age in days × √size) × risk weight` (api, db, auth, server 1.5; mcp 1.2; web 1.0); a unit unaudited for 30+ days is chosen first, so quiet code is not starved by busy code. A unit with at least 25% of its lines changed since one common audit is reviewed as a diff, otherwise swept. Rule files for the review lens follow from the path.
+- **Ledger.** The Linear document "Audit ledger" (project エージェント半自動運用) holds one row per audited path: SHA, date, agent, issues filed. It is state, not history, so it is a document the run overwrites rather than an issue that collects comments. The audit writes it with `audit-select.ts record`, which replaces only the rows the unit covers.
+- **Limits.** At most 3 issues per run (a runaway guard, not a quota). A run does nothing while 10 or more `source/audit` issues sit in Triage, so filing follows how fast the human can accept.
+- **Schedule.** Orca automations, disabled until one manual run has been checked: one for Claude and one for Codex on alternate days (the selector alternates by the last run's agent, and a run that is not its agent's turn stops). Orca and the PC must be running. A separate monthly Gemini automation checks rules and docs for staleness. The scheduled run is not the self check-in that `AGENTS.md` forbids after opening a PR.
 
 ## Released step
 
