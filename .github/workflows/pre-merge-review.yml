@@ -282,6 +282,7 @@ jobs:
       # resolved here, by path and original line, so the reviewer itself never
       # needs `gh api`.
       - name: Resolve threads the review marked as fixed
+        continue-on-error: true
         if: steps.claude_review.outcome == 'success' && steps.summary.outputs.has_summary == 'true' && steps.published.outputs.is_published == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -313,7 +314,7 @@ jobs:
           done <<< "$resolved"
 
       - name: File pre-existing findings in Linear Triage
-        if: steps.claude_review.outcome == 'success' && steps.summary.outputs.has_summary == 'true' && steps.published.outputs.is_published == 'true'
+        if: ${{ !cancelled() && steps.claude_review.outcome == 'success' && steps.summary.outputs.has_summary == 'true' && steps.published.outputs.is_published == 'true' }}
         env:
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
