@@ -33,7 +33,7 @@ The semi-automated loop in [`AGENTS.md`](../../AGENTS.md) (Issue Tracking, PR Re
 
 - **Rulesets** are applied from [`.github/rulesets/`](../../.github/rulesets/): `dev-protect` (PR required, required check `ci`) and `main-release-only` (PR required, required checks `pr-target-guard` and `ci`). Both also block deletion and force pushes.
 - **Merge settings**: merge commits only (squash and rebase disabled), `delete_branch_on_merge` on, auto-merge off.
-- **Secrets** are registered by the user directly: `CLAUDE_CODE_OAUTH_TOKEN` (`claude.yml`, `pre-merge-review.yml`, release notes in `release.yml`) and `LINEAR_API_KEY` (the Released step of `release.yml`; SA2-257 will reuse it). Without `LINEAR_API_KEY` the Released step only warns.
+- **Secrets** are registered by the user directly. The agent loop uses two: `CLAUDE_CODE_OAUTH_TOKEN` (`claude.yml`, `pre-merge-review.yml`, release notes in `release.yml`) and `LINEAR_API_KEY` (the Released step of `release.yml`; SA2-257 will reuse it). Without `LINEAR_API_KEY` the Released step only warns. The deploy and app secrets the other workflows read (Cloudflare, auth and OAuth providers, OpenAI, Google Maps, preview login, production URLs) are outside this doc.
 
 ## Orca
 
