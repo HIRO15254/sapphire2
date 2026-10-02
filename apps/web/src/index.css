@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/jetbrains-mono";
-@import "@fontsource-variable/noto-sans";
+@import "@fontsource-variable/noto-sans-jp";
 @import "./cryst-tokens.css";
 @plugin "@tailwindcss/typography";
 
@@ -50,8 +50,9 @@
 	--sidebar-ring: hsl(221.2 83.2% 53.3%);
 
 	--font-sans:
-		"Noto Sans Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-		Roboto, "Helvetica Neue", Arial, sans-serif;
+		"Noto Sans JP Variable", "Hiragino Sans", "Yu Gothic UI", ui-sans-serif,
+		system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+		sans-serif;
 	--font-mono:
 		"JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Monaco,
 		Consolas, monospace;
@@ -189,8 +190,9 @@
 	--radius-3xl: calc(var(--radius) + 12px);
 	--radius-4xl: calc(var(--radius) + 16px);
 	--font-sans:
-		"Noto Sans Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-		Roboto, "Helvetica Neue", Arial, sans-serif;
+		"Noto Sans JP Variable", "Hiragino Sans", "Yu Gothic UI", ui-sans-serif,
+		system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+		sans-serif;
 	--font-mono:
 		"JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Monaco,
 		Consolas, monospace;
