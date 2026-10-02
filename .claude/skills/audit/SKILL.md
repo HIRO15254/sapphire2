@@ -22,7 +22,7 @@ The automation prompt names your agent (`claude` or `codex`). Codex has no skill
 7. **Deduplicate.** For each surviving candidate search Linear (all states, including Done and Canceled) by file path and by keyword. Skip it if an issue or a documented decision already covers it.
 8. **File the survivors, best evidence first.** Medium and Low issues: at most 3 per run, and none while step 2's count is 10 or more. High and Urgent issues (priority by the scale in `AGENTS.md`) are not counted against that cap or the Triage count: at most 10 per run, as a runaway guard. The caps are not quotas: file nothing when nothing survives.
 9. **Record the run.** Re-fetch the ledger document, then `bun scripts/audit-select.ts record --ledger <fresh copy> --unit <path> --agent <you> --filed <n>` and save the document with `save_document`, keeping the paragraph above the table and replacing only the table with that output. This replaces only the rows the unit covers. Record a run even when it filed nothing.
-10. **Report** in at most 10 lines of Japanese: unit, mode, files read, issues filed (ids), candidates refuted, anything unchecked.
+10. **Report** in at most 10 lines of Japanese: unit, mode, files read, issues filed (ids), candidates refuted, anything unchecked. List each Medium or Low candidate dropped by the Triage count in step 2 as one line (file:line and title), because the ledger now marks the unit audited and they will not resurface until it is swept again.
 
 ## Issue format
 

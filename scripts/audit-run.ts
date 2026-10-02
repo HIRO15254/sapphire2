@@ -62,6 +62,11 @@ function main(args: string[]): void {
 		stdio: ["pipe", "inherit", "inherit"],
 		shell: process.platform === "win32",
 	});
+	if (result.error) {
+		console.error(
+			`audit-run: could not start ${run.command}: ${result.error.message}`
+		);
+	}
 	process.exit(result.status ?? 1);
 }
 
