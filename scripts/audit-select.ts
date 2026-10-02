@@ -321,7 +321,12 @@ export function scoreUnit(unit: AuditUnit, now: Date) {
 }
 
 export function nextAgent(rows: LedgerRow[]): string {
-	const latest = [...rows].sort((a, b) => b.date.localeCompare(a.date))[0];
+	let latest: LedgerRow | undefined;
+	for (const row of rows) {
+		if (!latest || row.date >= latest.date) {
+			latest = row;
+		}
+	}
 	if (!latest) {
 		return AGENTS[0];
 	}
@@ -452,7 +457,7 @@ function main(argv: string[]) {
 			agent,
 			filed,
 			sha: git("rev-parse", "--short=12", "HEAD").trim(),
-			date: new Date().toISOString().slice(0, 10),
+			date: `${new Date().toISOString().slice(0, 19)}Z`,
 		};
 		const current = collectFiles([]).map((file) => file.path);
 		process.stdout.write(

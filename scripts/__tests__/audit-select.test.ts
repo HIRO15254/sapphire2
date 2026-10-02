@@ -218,6 +218,39 @@ describe("ledger", () => {
 		expect(nextAgent([rows[0]])).toBe("codex");
 	});
 
+	it("alternates when both agents run on the same UTC day, as in Codex 06:00 then Claude 18:00", () => {
+		const row = (agent: string, date: string, path: string) => ({
+			path,
+			sha: "x",
+			date,
+			agent,
+			filed: 0,
+		});
+		expect(
+			nextAgent([
+				row("codex", "2026-10-03T06:00:00Z", "a"),
+				row("claude", "2026-10-03T18:00:00Z", "b"),
+			])
+		).toBe("codex");
+		expect(
+			nextAgent([
+				row("claude", "2026-10-03T18:00:00Z", "b"),
+				row("codex", "2026-10-03T06:00:00Z", "a"),
+			])
+		).toBe("codex");
+	});
+
+	it("takes the later-appended row when two rows carry the same date", () => {
+		const row = (agent: string, path: string) => ({
+			path,
+			sha: "x",
+			date: "2026-10-03",
+			agent,
+			filed: 0,
+		});
+		expect(nextAgent([row("codex", "a"), row("claude", "b")])).toBe("codex");
+	});
+
 	it("drops rows that no longer cover any existing file", () => {
 		expect(
 			pruneRows(rows, ["apps/web/src/features/rooms/a.ts"]).map(
