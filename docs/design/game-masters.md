@@ -1,5 +1,7 @@
 # Game Master Data
 
+> Being replaced: [`game-lineups.md`](game-lineups.md) is the target model (SA2-242) that moves rule masters and sessions from self-freezing labels to id-referenced lineups. This file describes the running code until those phases land.
+
 This document is the reference for the game master-data model: the per-user `game_group` / `game_variant` / `game_mix` tables, the self-freezing label semantics that every other table builds on, the migration-0049 expand/contract state of the `game_mix.games` compatibility mirror, signup seeding, and the web-layer invariants that guard the frozen snapshots. Chunking, batch atomicity and the TOCTOU/label-conflict error-mapping mechanics live in [`data-integrity.md`](data-integrity.md); statistics semantics in [`statistics.md`](statistics.md); test/CI mechanics in [`testing-and-tooling.md`](testing-and-tooling.md).
 
 ## The three master tables
@@ -45,7 +47,7 @@ Consequences, stated completely:
 
 ## Label namespace
 
-- **Reserved labels (c42)**: because the mix pseudo-variant is a mode rather than a per-user row, its key and display label (`"mix"`, `"Mixed Game"`) are reserved — a real game-variant/game-mix row can never collide with them. `RESERVED_LABELS` in [`packages/api/src/routers/_game-masters.ts`](../../packages/api/src/routers/_game-masters.ts) is the single copy shared by the game-group/game-variant/game-mix routers.
+- **Reserved labels (c42)**: because the mix pseudo-variant is a mode rather than a per-user row, its key and display label (`"mix"`, `"Mixed Game"`) are reserved — a real game-variant/game-mix row can never collide with them. `RESERVED_LABELS` in [`packages/api/src/routers/_game-masters.ts`](../../packages/api/src/routers/_game-masters.ts) is the single copy shared by the game-variant/game-mix routers; it is enforced in the app only (no trigger), and group labels are checked separately by `assertGroupLabelAvailable` in `game-group.ts`, without reserved labels.
 - **The namespace spans variants AND mixes (c42)**: a mix's label is chosen from the same client-side select as a plain game variant — both freeze into the same `variant` string once picked — so `assertLabelNamespaceAvailable` checks the caller's game variants, the caller's mixes, *and* the reserved mix-mode strings. It is shared by `game-variant.ts` (`self: "variant"`) and `game-mix.ts` (`self: "mix"`); excluding the row's own id is what lets an unchanged-label update through.
 - **DB backstop (c14)**: each table carries an exact-case unique index on `(userId, label)` — a backstop for the app-level case-insensitive check against a TOCTOU race, **not** a replacement for it. The guard that actually fires under SQLite is the migration-0041 BEFORE trigger; that mechanic, and the two shapes of label collision, are documented in [`data-integrity.md`](data-integrity.md).
 - **Builtin uniqueness (c08)**: each table also has a unique index on `(userId, builtinKey)`. SQLite treats NULLs as distinct, so this never constrains user-created rows against each other — it only guards the seeded builtin rows per user against a concurrent double-seed duplicating them.
