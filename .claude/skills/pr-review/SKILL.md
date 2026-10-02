@@ -37,10 +37,12 @@ The lean reference defines discovery and validation; these transport rules apply
 - Return Japanese in at most 40 lines, opening with the heading `### レビュー結果（round <n>/<max>）`: verdict, one findings table, previous-round status when applicable, and one coverage line with executed tests. Empty findings is valid. Do not list harmless leftovers or refuted candidates. The workflow checks the tracking comment for that heading before spending a round.
 - An interrupted or unfinished review must be visibly marked incomplete. Absence of a finding is not evidence of completion.
 
+Pre-existing findings that are established (a reachable path and a concrete harm, as for any finding) also go into the trailer's `preExisting` list, at most three, each `{"file","line","title","evidence","type"}` with `type` `bug` or `improvement` and `evidence` a command or executed result; the workflow files them to Linear Triage after the round. Leave the list out when there are none. A trailer is one line.
+
 End with the existing machine-readable trailer; keep `resolved` as original `path:line` strings for workflow compatibility:
 
 ```text
-<!-- pr-review: {"verdict":"approve","important":0,"nit":0,"unverified":0,"resolved":[]} -->
+<!-- pr-review: {"verdict":"approve","important":0,"nit":0,"unverified":0,"resolved":[],"preExisting":[]} -->
 ```
 
 Use `changes-requested` only for established important findings. When `--round` is at least `--max` and findings remain, add before the trailer: 次の自動レビューはありません。必要なら `re-review` ラベルで要求してください。

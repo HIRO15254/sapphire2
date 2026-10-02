@@ -312,6 +312,14 @@ jobs:
             done
           done <<< "$resolved"
 
+      - name: File pre-existing findings in Linear Triage
+        if: steps.claude_review.outcome == 'success' && steps.summary.outputs.has_summary == 'true' && steps.published.outputs.is_published == 'true'
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: bun scripts/file-preexisting-issues.ts "${RUNNER_TEMP}/pr-review-trailer.json"
+
       - name: Report a review the action skipped
         if: steps.claude_review.outcome == 'success' && steps.summary.outputs.has_log != 'true'
         run: |

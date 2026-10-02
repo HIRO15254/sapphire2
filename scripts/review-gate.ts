@@ -50,7 +50,7 @@ export const STATE_MARKER = "<!-- pre-merge-review:state";
 const MARKER_PATTERN = /<!-- pre-merge-review:state (\{.*?\}) -->/;
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const DOC_FILE = /\.md$/;
-const TRAILER_PATTERN = /<!-- pr-review: (\{[^}]*\}) -->/g;
+const TRAILER_PATTERN = /<!-- pr-review: (\{.*?\}) -->/g;
 const SUMMARY_HEADING_PATTERN = /^#{1,6}\s*レビュー結果/m;
 
 function nextRound(state: ReviewState | null, reason: string): GateDecision {
