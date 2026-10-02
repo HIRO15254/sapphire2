@@ -1,0 +1,59 @@
+# Agent Workflow Setup
+
+The semi-automated loop in [`AGENTS.md`](../../AGENTS.md) (Issue Tracking, PR Review Loop, Commits, Release Flow) depends on settings that live outside the repository: Linear, GitHub, and Orca. This doc records them and the reason for each, so the loop can be rebuilt or audited without replaying the setup issue (SA2-253). The imperatives stay in `AGENTS.md`.
+
+## The loop
+
+1. A human accepts a Triage issue: sets the `level` label, type, priority, and estimate, and moves it to Todo.
+2. The human creates an Orca workspace from the issue in Orca's Linear task list. The agent sets In Progress, works on a `feature/sa2-xxx` branch, and opens a draft PR → Human Review.
+3. The human reads the draft and marks it ready → AI Review. CI and [`pre-merge-review.yml`](../../.github/workflows/pre-merge-review.yml) run.
+4. Review outcome → Ready to Merge (approve), In Progress (important findings or red CI), or Needs Input (two automatic rounds without approve). Moved by hand until SA2-257 automates it.
+5. The human merges into `dev` → Done. A release PR into `main` runs [`release.yml`](../../.github/workflows/release.yml), which moves the Done issues of the released PRs to Released.
+
+## Linear (team Sapphire2)
+
+- **Plan**: Plus. The Free plan caps non-archived issues (completed and canceled included) and blocked issue creation on 2026-10-02.
+- **Statuses** — the name says whose turn it is:
+
+  | Type | Statuses |
+  |---|---|
+  | triage | Triage |
+  | backlog | Backlog |
+  | unstarted | Todo |
+  | started | In Progress → Needs Input → Human Review → AI Review → Ready to Merge |
+  | completed | Done (merged into `dev`), Released (shipped to `main`) |
+  | canceled / duplicate | Canceled, Duplicate |
+
+- **GitHub integration** (PR and commit linking only; GitHub Issues sync is disconnected and Issues are disabled on the repository): draft PR opened → Human Review; PR opened or marked ready → AI Review; review requested / review activity / ready for merge → no change; merged → Done. Review events are left unassigned because the automated verdict is a PR comment, not a GitHub review, so Linear cannot see an approve.
+- **Estimates**: T-shirt sizes (XS 1, S 2, M 3, L 5, XL 8 through the API).
+- **Labels**: groups `type` (Bug / Feature / Improvement / Chore, single choice) and `level` (`supervised` / `auto-fix` / `auto-merge`, set only by the human at Triage); `source` is created in SA2-254. `UI` and `development` are retired.
+- **Branch name format** includes the issue title, so Linear's suggestion contains Japanese; agents rename to `feature/sa2-xxx` before the first push.
+
+## GitHub (`HIRO15254/sapphire2`)
+
+- **Rulesets** are applied from [`.github/rulesets/`](../../.github/rulesets/): `dev-protect` (PR required, required check `ci`) and `main-release-only` (PR required, required checks `pr-target-guard` and `ci`). Both also block deletion and force pushes.
+- **Merge settings**: merge commits only (squash and rebase disabled), `delete_branch_on_merge` on, auto-merge off.
+- **Secrets** are registered by the user directly: `CLAUDE_CODE_OAUTH_TOKEN` (`claude.yml`, `pre-merge-review.yml`, release notes in `release.yml`) and `LINEAR_API_KEY` (the Released step of `release.yml`; SA2-257 will reuse it). Without `LINEAR_API_KEY` the Released step only warns.
+
+## Orca
+
+- **Base ref**: the repository default (`origin/HEAD` = `origin/dev`), with Settings → Git → "Keep Local Main Up to Date" on. Do not set a repository-specific base ref of `dev`: Orca then neither fetches nor updates it, and new worktrees start from a stale tree that lacks the current rules and hooks. That happened on 2026-10-02 — PR #668 was pushed with a Japanese branch name and opened ready from a tree 23 commits behind.
+- **Setup**: `bun install`, and agents start only after setup finishes. [`.worktreeinclude`](../../.worktreeinclude) copies `apps/server/.dev.vars` and `apps/web/.env` so `bun run dev` works in a new worktree.
+- **Status sync**: the workspace board's "Sync board and issue status" changes the Linear status only when a card is dragged. Creating a workspace from a Linear task does not, so the agent sets In Progress itself.
+- **Branch naming** for workspaces not created from Linear: prefix Git Username and "Auto-rename branch & worktree" give names like `HIRO15254/<slug>`; agents still use `feature/sa2-xxx`.
+
+## Agents and hooks
+
+| Agent | Reads `AGENTS.md` via | Commit trailer detected by `.husky/commit-msg` from |
+|---|---|---|
+| Claude Code | `CLAUDE.md` (`@AGENTS.md`), plus `.claude/rules/` auto-loaded by path | `CLAUDECODE` |
+| Codex | native | `CODEX_MANAGED_*` |
+| Gemini CLI | [`.gemini/settings.json`](../../.gemini/settings.json) `context.fileName` | `GEMINI_CLI` |
+
+- [`.claude/settings.json`](../../.claude/settings.json) denies `gh pr merge` and `gh pr ready` for Claude Code, and its Stop hook runs format, changed tests, lint, and `check:rules`; `.husky/pre-commit` is skipped under Claude Code for that reason. Codex and Gemini have no equivalent deny and follow the `AGENTS.md` text.
+- `.husky/pre-push` and the `branch-name` job in `ci.yml` reject non-ASCII branch names ([`scripts/check-branch-name.ts`](../../scripts/check-branch-name.ts)); `claude-code-action` refuses them, so the automated review would never run.
+- Linear MCP is configured for all three agents (Gemini: `/mcp auth linear`).
+
+## Released step
+
+[`scripts/release-linear-issues.ts`](../../scripts/release-linear-issues.ts) takes the merged PRs whose merge commit lies between the previous tag and the release merge, asks Linear for the issues attached to each PR (`attachmentsForURL`), and moves the Sapphire2 issues in Done to Released. It does not use `(SA2-xxx)` in titles or branch names, which no check guarantees. The first run (v3.5.2) moved SA2-187, SA2-190, and SA2-237. An issue that is not Done at release time (a phase issue still open for non-code work) is moved to Released by hand when it closes.
