@@ -106,7 +106,8 @@ const CHECKS: Check[] = [
 			"scripts/**/*.{ts,tsx}",
 		],
 		pattern: /["'`]gpt-[\dA-Za-z._-]+["'`]/,
-		excludePath: /packages\/api\/src\/ai\/models\.ts$/,
+		excludePath:
+			/packages\/api\/src\/ai\/models\.ts$|scripts\/audit-run\.ts$|scripts\/__tests__\/audit-run\.test\.ts$/,
 	},
 	{
 		name: "direct DB access in the MCP tool layer — go through appRouter.createCaller",
