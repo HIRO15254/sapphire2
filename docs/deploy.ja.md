@@ -184,6 +184,12 @@ bunx wrangler d1 create sapphire2-db
 
 > `PRODUCTION_API_URL` / `PRODUCTION_WEB_URL` は初回デプロイ後に実際の URL を確認して設定。カスタムドメインがあればそちらを指定。
 
+### リリースの自動化（任意）
+
+| Secret 名 | 取得元 | 説明 |
+|---|---|---|
+| `LINEAR_API_KEY` | Linear の個人 API キー | `release.yml` がリリースに含まれる issue を Done から Released に移すために使う。Sapphire2 チームの issue への書き込み権限が必要。未設定でもリリースは行われ、issue は Done のまま残る |
+
 ## 7. カスタマイズ
 
 ### Worker 名の変更
@@ -207,6 +213,8 @@ Pages のデプロイまたはクリーンアップを行う全 workflow を更�
 ### 本番デプロイ
 
 `release.yml` が tag と GitHub Release を公開し、その tag を指定して `production-deploy.yml` を明示的に dispatch します。既定の `GITHUB_TOKEN` で作成した Release は別 workflow を再帰起動しないためです。`production-deploy.yml` は外部の `release: published` と手動 `workflow_dispatch` にも対応します。処理順は CI → マイグレーション → Worker デプロイ → Pages デプロイです。
+
+続いて `release.yml` は、[`scripts/release-linear-issues.ts`](../scripts/release-linear-issues.ts) でリリースに含まれる Linear の issue を Done から Released に移します。リリースの PR は、マージコミットが前回のタグから今回のリリースのマージまでの間にあるマージ済み PR です。issue は、その PR に Linear が紐付けたものです。移すのは Done の issue だけです。この step は失敗してもリリースを止めません。
 
 `concurrency` 設定により直列実行。CI 失敗時はデプロイをスキップ。
 
@@ -325,10 +333,12 @@ release PR を main へマージ
   +-> release.yml: tag + GitHub Release を作成
         |
         +-> tag を指定して production-deploy.yml を dispatch
-              |
-              +-> CI (型チェック, lint, テスト)
-                    |
-                    +-> マイグレーション -> Worker デプロイ -> Pages デプロイ
+        |     |
+        |     +-> CI (型チェック, lint, テスト)
+        |           |
+        |           +-> マイグレーション -> Worker デプロイ -> Pages デプロイ
+        |
+        +-> リリースに含まれる Linear の issue を Done から Released に移す
 ```
 
 ### 技術スタック
