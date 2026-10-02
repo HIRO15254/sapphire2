@@ -345,8 +345,6 @@ interface SummaryAccumulator {
 	cashBbCount: number;
 	cashBbSum: number;
 	cashEvDiffBbSum: number;
-	cashPL: number;
-	cashPlayMinutes: number;
 	evDiffSum: number;
 	evSum: number;
 	itmCount: number;
@@ -356,6 +354,10 @@ interface SummaryAccumulator {
 	recordedEvCount: number;
 	roiPctCount: number;
 	roiPctSum: number;
+	timedCashBbMinutes: number;
+	timedCashBbSum: number;
+	timedCashMinutes: number;
+	timedCashProfitLoss: number;
 	totalPlayMinutes: number;
 	totalProfitLoss: number;
 	tournamentBiCount: number;
@@ -368,9 +370,14 @@ interface SummaryAccumulator {
 }
 
 function accumulateCash(row: StatsSessionRow, acc: SummaryAccumulator): void {
-	acc.cashPL += row.profitLoss;
+	const bb = normalizedSessionValue(row);
 	if (row.playMinutes !== null) {
-		acc.cashPlayMinutes += row.playMinutes;
+		acc.timedCashMinutes += row.playMinutes;
+		acc.timedCashProfitLoss += row.profitLoss;
+		if (bb !== null) {
+			acc.timedCashBbMinutes += row.playMinutes;
+			acc.timedCashBbSum += bb;
+		}
 	}
 	if (row.evProfitLoss !== null) {
 		acc.evSum += row.evProfitLoss;
@@ -387,7 +394,6 @@ function accumulateCash(row: StatsSessionRow, acc: SummaryAccumulator): void {
 			}
 		}
 	}
-	const bb = normalizedSessionValue(row);
 	if (bb !== null) {
 		acc.cashBbSum += bb;
 		acc.cashBbCount += 1;
@@ -426,7 +432,8 @@ function buildSummary(
 	acc: SummaryAccumulator,
 	totalSessions: number
 ): StatsSummary {
-	const cashHours = acc.cashPlayMinutes / 60;
+	const cashHours = acc.timedCashMinutes / 60;
+	const cashBbHours = acc.timedCashBbMinutes / 60;
 	return {
 		totalSessions,
 		cashBbCount: acc.cashBbCount,
@@ -442,9 +449,8 @@ function buildSummary(
 		winRate: (acc.winCount / totalSessions) * 100,
 		avgProfitLoss: acc.totalProfitLoss / totalSessions,
 		totalPlayMinutes: acc.totalPlayMinutes,
-		hourlyRate: cashHours > 0 ? acc.cashPL / cashHours : null,
-		bbPerHour:
-			cashHours > 0 && acc.cashBbCount > 0 ? acc.cashBbSum / cashHours : null,
+		hourlyRate: cashHours > 0 ? acc.timedCashProfitLoss / cashHours : null,
+		bbPerHour: cashBbHours > 0 ? acc.timedCashBbSum / cashBbHours : null,
 		roi:
 			acc.tournamentInvested > 0
 				? ((acc.tournamentPrize - acc.tournamentInvested) /
@@ -476,8 +482,10 @@ export function summarizeStats(rows: StatsSessionRow[]): StatsSummary {
 		evDiffSum: 0,
 		recordedEvCount: 0,
 		recordedEvBbCount: 0,
-		cashPL: 0,
-		cashPlayMinutes: 0,
+		timedCashMinutes: 0,
+		timedCashProfitLoss: 0,
+		timedCashBbMinutes: 0,
+		timedCashBbSum: 0,
 		cashBbSum: 0,
 		cashBbCount: 0,
 		cashEvDiffBbSum: 0,

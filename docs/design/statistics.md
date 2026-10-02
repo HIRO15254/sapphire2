@@ -89,6 +89,8 @@ Aggregate ROI and Total prize sum **raw currency amounts**, so they are only mea
 
 Hands are not tracked, so there is no bb/100 metric anywhere — `bbPerHour` (sum of bb won / cash play hours) is provided as the rate proxy instead. The cash-game stat table's omission of bb/100 is deliberate, not an oversight.
 
+A rate's numerator and denominator come from the same sessions (SA2-275). Start and end times are optional on a manually recorded session, so an untimed cash session has a result but no hours: it still counts in `totalProfitLoss` (and in `cashNormalizedProfitLoss` when it has a big blind), but on neither side of a rate — counting its result over other sessions' hours inflated `hourlyRate` several times over. `hourlyRate` is the profit of the timed cash sessions over their hours; `bbPerHour` is the bb of the timed cash sessions that also have a big blind over only those sessions' hours, so a mixed-game session's time no longer drags it toward zero, and it is `null` when no cash session has both. `totalPlayMinutes` also counts tournament time and is not the rates' denominator.
+
 ## Breakdown
 
 `stats.breakdown` groups the filtered rows by one of: `room`, `stakes`, `type`, `dayOfWeek`, `length`, `month`, `year`, `variant`. **Key/label mapping (`breakdownKeyLabel`)** returns `null` to **exclude** a row from the grouping — tournaments have no stakes (they are excluded from the `stakes` dimension entirely), and a session with no recorded duration has no `length` bucket. `dayOfWeek` / `month` / `year` buckets use UTC consistently (see [`.claude/rules/datetime-and-numbers.md`](../../.claude/rules/datetime-and-numbers.md)); `length` buckets by whole hours of duration (`2~3h`).
