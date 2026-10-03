@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildAuditCommand, isAuditAgent } from "../audit-run";
+import { buildAuditCommand, isAuditAgent, isAuditTask } from "../audit-run";
 
 describe("buildAuditCommand", () => {
 	it("pins Claude to opus at xhigh effort, whatever the interactive settings are", () => {
@@ -26,6 +26,22 @@ describe("buildAuditCommand", () => {
 		expect(buildAuditCommand("codex").input).toContain(
 			"Your agent name is codex."
 		);
+	});
+});
+
+describe("task selection", () => {
+	it("points the session at the audit skill by default and at the UI patrol skill on request", () => {
+		expect(buildAuditCommand("claude").input).toContain(
+			"skills/audit/SKILL.md"
+		);
+		expect(buildAuditCommand("claude", "ui-patrol").input).toContain(
+			"skills/ui-patrol/SKILL.md"
+		);
+	});
+
+	it("accepts only known tasks, so a typo cannot start a session on a missing skill", () => {
+		expect(isAuditTask("ui-patrol")).toBe(true);
+		expect(isAuditTask("patrol")).toBe(false);
 	});
 });
 
