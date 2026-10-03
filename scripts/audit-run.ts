@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 
 export type AuditAgent = "claude" | "codex";
+export type AuditTask = "audit" | "ui-patrol";
 
 export interface AuditCommand {
 	args: string[];
@@ -38,20 +39,29 @@ export function isAuditAgent(value: string | undefined): value is AuditAgent {
 	return value === "claude" || value === "codex";
 }
 
-export function buildAuditCommand(agent: AuditAgent): AuditCommand {
+export function isAuditTask(value: string | undefined): value is AuditTask {
+	return value === "audit" || value === "ui-patrol";
+}
+
+export function buildAuditCommand(
+	agent: AuditAgent,
+	task: AuditTask = "audit"
+): AuditCommand {
 	return {
 		...RUNS[agent],
-		input: `You are the ${agent} agent. Read and follow .claude/skills/audit/SKILL.md exactly, starting from step 1. Your agent name is ${agent}.\n`,
+		input: `You are the ${agent} agent. Read and follow .claude/skills/${task}/SKILL.md exactly, starting from step 1. Your agent name is ${agent}.\n`,
 	};
 }
 
 function main(args: string[]): void {
-	const [agent] = args.filter((arg) => arg !== "--dry-run");
-	if (!isAuditAgent(agent)) {
-		console.error("usage: audit-run.ts claude|codex [--dry-run]");
+	const [agent, task = "audit"] = args.filter((arg) => arg !== "--dry-run");
+	if (!(isAuditAgent(agent) && isAuditTask(task))) {
+		console.error(
+			"usage: audit-run.ts claude|codex [audit|ui-patrol] [--dry-run]"
+		);
 		process.exit(2);
 	}
-	const run = buildAuditCommand(agent);
+	const run = buildAuditCommand(agent, task);
 	if (args.includes("--dry-run")) {
 		console.log([run.command, ...run.args].join(" "));
 		console.log(run.input);
