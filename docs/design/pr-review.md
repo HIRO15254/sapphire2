@@ -235,3 +235,17 @@ Run 11 measured the validator confidence definition (single F1 restored) on #590
 ## Measuring a change to this loop
 
 Re-run the thread classification (round × outcome × real-defect) on the next ~10 PRs and compare with the table above. The signals that the cap is too tight are a drop in real defects caught per PR or authors reaching for the label on most PRs; the signal that the prompt is too loose is retractions or prose threads coming back. The full review is always one label away, so tightening was chosen over the reverse.
+
+## Outcome job: Linear status and auto-merge (SA2-257)
+
+The `outcome` job of `pre-merge-review.yml` runs after `review`, from the base branch's copy of [`scripts/review-outcome.ts`](../../scripts/review-outcome.ts) (a PR cannot rewrite the code that decides its own merge; a PR that edits the workflow file itself is a human merge anyway). It needs `LINEAR_API_KEY`; without it the job only warns.
+
+**Status** (moves only from AI Review or In Progress, so a human's Needs Input / Human Review is never overwritten): red `ci` → In Progress; approve with no important finding → Ready to Merge; anything else → In Progress, or Needs Input (plus a Linear comment) once the round reached `MAX_AUTO_ROUNDS`. A timed-out CI wait or a review that never published changes nothing.
+
+**Auto-merge** happens only when every condition holds, and merges with `merge_method: merge` guarded by the reviewed head sha, then dispatches `dev-deploy.yml` (a `GITHUB_TOKEN` merge does not trigger the `push` event) and sets Done:
+
+- the issue is found from the branch name (`feature/sa2-NNN`; a title naming another `SA2-` id rejects it) and, read from the Linear API, carries exactly one `level` label, `auto-merge`, and is not closed. The PR's own labels are never read.
+- same-repo PR, not draft, base `dev`; the approve came from an automatic round (not the `re-review` label, round ≤ 2) with zero `unverified` findings; the reviewed sha is still the PR head; no unresolved review thread (any author, so a nit the reviewer posted inline also sends the PR to a human).
+- no changed file (or rename source) matches `packages/db/src/migrations/**`, `packages/auth/**`, `apps/server/wrangler.toml`, `.github/**`, `.claude/**`, `AGENTS.md` (decision 15), plus `CLAUDE.md`, `.gemini/**`, `.husky/**` and `scripts/review-*.ts`, which hold agent instructions or the gate itself.
+
+A blocked auto-merge still moves the issue to Ready to Merge and leaves a Linear comment with the reasons. The residual risk is that the issue lookup trusts the branch name: an agent could name its branch after another issue that has `auto-merge`, which the title check and the closed-state check only narrow. This guards against mistakes, not against an agent with push access that edits workflows.
