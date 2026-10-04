@@ -106,6 +106,15 @@ describe("ringGame.listByRoom input validation", () => {
 });
 
 describe("ringGame.create input validation", () => {
+	it("rejects a minimum buy-in greater than the maximum", () => {
+		expectRejects(appRouter.ringGame.create, {
+			roomId: "s1",
+			name: "Broken range",
+			minBuyIn: 200,
+			maxBuyIn: 100,
+		});
+	});
+
 	it("accepts minimal valid payload (roomId + name), variant defaults to 'NL Hold'em'", () => {
 		const schema = getInputSchema(appRouter.ringGame.create);
 		const parsed = schema.safeParse({
@@ -191,6 +200,14 @@ describe("ringGame.create input validation", () => {
 });
 
 describe("ringGame.update input validation", () => {
+	it("rejects a minimum buy-in greater than the maximum", () => {
+		expectRejects(appRouter.ringGame.update, {
+			id: "rg1",
+			minBuyIn: 200,
+			maxBuyIn: 100,
+		});
+	});
+
 	it("accepts id-only payload", () => {
 		expectAccepts(appRouter.ringGame.update, { id: "rg1" });
 	});

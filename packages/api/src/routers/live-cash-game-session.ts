@@ -532,7 +532,7 @@ export const liveCashGameSessionRouter = router({
 		}),
 
 	createAndAssignRingGame: protectedProcedure
-		.input(ringGameCreateInputSchema.extend({ sessionId: z.string() }))
+		.input(ringGameCreateInputSchema.safeExtend({ sessionId: z.string() }))
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const existing = await findLiveCashGameSession(

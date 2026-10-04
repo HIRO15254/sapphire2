@@ -513,6 +513,16 @@ describe("liveCashGameSession.create input validation (initialBuyIn, SA2-148)", 
 });
 
 describe("liveCashGameSession.createAndAssignRingGame input validation", () => {
+	it("preserves the ring-game buy-in range constraint in the extended schema", () => {
+		expectRejects(appRouter.liveCashGameSession.createAndAssignRingGame, {
+			sessionId: "s1",
+			roomId: "room-1",
+			name: "Broken range",
+			minBuyIn: 200,
+			maxBuyIn: 100,
+		});
+	});
+
 	it("accepts the complete create payload plus sessionId", () => {
 		expectAccepts(appRouter.liveCashGameSession.createAndAssignRingGame, {
 			sessionId: "s1",
