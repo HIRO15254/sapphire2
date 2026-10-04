@@ -286,42 +286,6 @@ jobs:
               && echo "removed a stale incomplete-review notice (${id})"
           done <<< "$stale"
 
-      # The summary ends with `<!-- pr-review: {...,"resolved":["path:line"]} -->`.
-      # The step above extracted it; threads the reviewer judged fixed are
-      # resolved here, by path and original line, so the reviewer itself never
-      # needs `gh api`.
-      - name: Resolve threads the review marked as fixed
-        continue-on-error: true
-        if: steps.claude_review.outcome == 'success' && steps.summary.outputs.has_summary == 'true' && steps.published.outputs.is_published == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          set -euo pipefail
-          resolved=$(jq -r '.resolved // [] | .[]' "${RUNNER_TEMP}/pr-review-trailer.json")
-          [ -n "$resolved" ] || { echo "nothing marked fixed"; exit 0; }
-          owner=${GITHUB_REPOSITORY%/*}; repo=${GITHUB_REPOSITORY#*/}
-          threads=$(gh api graphql -f query='
-            query($owner: String!, $repo: String!, $pr: Int!) {
-              repository(owner: $owner, name: $repo) { pullRequest(number: $pr) {
-                reviewThreads(first: 100) { nodes {
-                  id isResolved path line originalLine
-                  comments(first: 1) { nodes { author { login } } }
-                } } } } }' -F owner="$owner" -F repo="$repo" -F pr="$PR_NUMBER" \
-            --jq '.data.repository.pullRequest.reviewThreads.nodes[]
-              | select(.isResolved == false)
-              | select(.comments.nodes[0].author.login | test("claude"))
-              | "\(.id) \(.path):\(.originalLine // .line)"')
-          while read -r key; do
-            [ -n "$key" ] || continue
-            printf '%s\n' "$threads" | while read -r id loc; do
-              if [ "$loc" = "$key" ]; then
-                gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: {threadId: $id}) { thread { id } } }' -F id="$id" >/dev/null \
-                  && echo "resolved $loc"
-              fi
-            done
-          done <<< "$resolved"
-
       - name: File pre-existing findings in Linear Triage
         if: ${{ !cancelled() && steps.claude_review.outcome == 'success' && steps.summary.outputs.has_summary == 'true' && steps.published.outputs.is_published == 'true' }}
         env:
@@ -404,11 +368,60 @@ jobs:
               -F "body=@${RUNNER_TEMP}/review-incomplete.md" >/dev/null
           fi
 
+  resolve-threads:
+    name: resolve threads
+    needs: review
+    if: ${{ !cancelled() && needs.review.result == 'success' && needs.review.outputs.published == 'true' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Resolve threads the review marked as fixed
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          TRAILER: ${{ needs.review.outputs.trailer }}
+        run: |
+          set -euo pipefail
+          resolved=$(printf '%s' "$TRAILER" | jq -r '.resolved // [] | .[]')
+          [ -n "$resolved" ] || { echo "nothing marked fixed"; exit 0; }
+          owner=${GITHUB_REPOSITORY%/*}; repo=${GITHUB_REPOSITORY#*/}
+          echo "Fetching review threads for ${GITHUB_REPOSITORY}#${PR_NUMBER}"
+          if ! threads=$(gh api graphql -f query='
+            query($owner: String!, $repo: String!, $pr: Int!) {
+              repository(owner: $owner, name: $repo) { pullRequest(number: $pr) {
+                reviewThreads(first: 100) { nodes {
+                  id isResolved path line originalLine
+                  comments(first: 1) { nodes { author { login } } }
+                } } } } }' -F owner="$owner" -F repo="$repo" -F pr="$PR_NUMBER" \
+            --jq '.data.repository.pullRequest.reviewThreads.nodes[]
+              | select(.isResolved == false)
+              | select(.comments.nodes[0].author.login // "" | test("claude"))
+              | "\(.id) \(.path):\(.originalLine // .line)"'); then
+            echo "::warning::Failed to fetch review threads"
+            exit 1
+          fi
+          while read -r key; do
+            [ -n "$key" ] || continue
+            while read -r id loc; do
+              if [ "$loc" = "$key" ]; then
+                echo "Resolving review thread ${id} at ${loc}"
+                if ! gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: {threadId: $id}) { thread { id } } }' -F id="$id" >/dev/null; then
+                  echo "::warning::Failed to resolve review thread ${id}"
+                  exit 1
+                fi
+                echo "resolved $loc"
+              fi
+            done <<< "$threads"
+          done <<< "$resolved"
+
   # Runs from the base branch's copy of scripts/review-outcome.ts: a PR must
   # not be able to rewrite the code that decides whether it is merged.
   outcome:
     name: outcome
-    needs: [gate, review]
+    needs: [gate, review, resolve-threads]
     if: ${{ !cancelled() && needs.review.result == 'success' && needs.review.outputs.ci_state != '' && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     permissions:
