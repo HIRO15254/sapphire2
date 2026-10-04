@@ -1,3 +1,4 @@
+import { MAX_SEAT_POSITION } from "@sapphire2/db/constants/session-event-types";
 import { TRPCError } from "@trpc/server";
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
@@ -122,7 +123,7 @@ export const TOURNAMENT_OUTPUT_SCHEMA = z.object({
 		),
 });
 
-const MAX_SEAT_NUMBER = 9;
+const MAX_SEAT_NUMBER = MAX_SEAT_POSITION + 1;
 
 export const TABLE_PLAYERS_OUTPUT_SCHEMA = z.object({
 	seats: z.array(

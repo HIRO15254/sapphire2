@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import {
 	ExtractedTournamentDataSchema,
+	TABLE_PLAYERS_OUTPUT_SCHEMA,
 	TOURNAMENT_OUTPUT_SCHEMA,
 } from "../routers/ai-extract";
 import { expectAccepts, expectRejects } from "./test-utils";
@@ -163,6 +164,31 @@ describe("aiExtract.extractTablePlayers input validation", () => {
 			sourceApp: "dmm_waitinglist",
 			sources: [{ kind: "image", data: "", mediaType: "image/jpeg" }],
 		});
+	});
+});
+
+describe("TABLE_PLAYERS_OUTPUT_SCHEMA seat numbers", () => {
+	function scanWithSeat(seatNumber: number) {
+		return {
+			seats: [
+				{ seatNumber: 1, name: "First", isHero: false },
+				{ seatNumber, name: "Player", isHero: false },
+			],
+		};
+	}
+
+	it("accepts every seat of a 10-max table, including seat 10", () => {
+		expect(
+			TABLE_PLAYERS_OUTPUT_SCHEMA.safeParse(scanWithSeat(10)).success
+		).toBe(true);
+	});
+
+	it("rejects the whole scan when a seat number lies outside any table", () => {
+		for (const seatNumber of [0, 11]) {
+			expect(
+				TABLE_PLAYERS_OUTPUT_SCHEMA.safeParse(scanWithSeat(seatNumber)).success
+			).toBe(false);
+		}
 	});
 });
 
