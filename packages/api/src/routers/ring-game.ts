@@ -1,7 +1,8 @@
 import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { mixGamesSchema } from "@sapphire2/db/schemas/game";
-import { and, eq, isNotNull, isNull } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
+import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import {
@@ -31,23 +32,41 @@ function validateRingGameOwnership(
 const nonNegativeIntegerSchema = z.number().int().min(0);
 const tableSizeSchema = z.number().int().min(2).max(10);
 
-export const ringGameCreateInputSchema = z.object({
-	roomId: z.string(),
-	name: z.string().min(1),
-	variant: z.string().default(DEFAULT_VARIANT_LABEL),
-	mixGames: mixGamesSchema.nullish(),
-	blind1: nonNegativeIntegerSchema.optional(),
-	blind2: nonNegativeIntegerSchema.optional(),
-	blind3: nonNegativeIntegerSchema.optional(),
-	ante: nonNegativeIntegerSchema.optional(),
-	anteType: z.enum(["none", "all", "bb"]).optional(),
-	minBuyIn: nonNegativeIntegerSchema.optional(),
-	maxBuyIn: nonNegativeIntegerSchema.optional(),
-	tableSize: tableSizeSchema.optional(),
-	currencyId: z.string().min(1).optional(),
-	memo: z.string().optional(),
-	houseRules: z.string().optional(),
-});
+function buyInRangeOrdered(value: {
+	minBuyIn?: number | null;
+	maxBuyIn?: number | null;
+}): boolean {
+	return (
+		value.minBuyIn == null ||
+		value.maxBuyIn == null ||
+		value.minBuyIn <= value.maxBuyIn
+	);
+}
+
+const BUY_IN_RANGE_ISSUE = {
+	message: "Minimum buy-in must not exceed maximum buy-in",
+	path: ["maxBuyIn"],
+};
+
+export const ringGameCreateInputSchema = z
+	.object({
+		roomId: z.string(),
+		name: z.string().min(1),
+		variant: z.string().default(DEFAULT_VARIANT_LABEL),
+		mixGames: mixGamesSchema.nullish(),
+		blind1: nonNegativeIntegerSchema.optional(),
+		blind2: nonNegativeIntegerSchema.optional(),
+		blind3: nonNegativeIntegerSchema.optional(),
+		ante: nonNegativeIntegerSchema.optional(),
+		anteType: z.enum(["none", "all", "bb"]).optional(),
+		minBuyIn: nonNegativeIntegerSchema.optional(),
+		maxBuyIn: nonNegativeIntegerSchema.optional(),
+		tableSize: tableSizeSchema.optional(),
+		currencyId: z.string().min(1).optional(),
+		memo: z.string().optional(),
+		houseRules: z.string().optional(),
+	})
+	.refine(buyInRangeOrdered, BUY_IN_RANGE_ISSUE);
 
 type RingGameCreateInput = z.infer<typeof ringGameCreateInputSchema>;
 
@@ -93,23 +112,76 @@ export const ringGameListByRoomInputSchema = z.object({
 
 export const ringGameIdInputSchema = z.object({ id: z.string() });
 
-export const ringGameUpdateInputSchema = z.object({
-	id: z.string(),
-	name: z.string().min(1).optional(),
-	variant: z.string().optional(),
-	mixGames: mixGamesSchema.nullish(),
-	blind1: nonNegativeIntegerSchema.nullable().optional(),
-	blind2: nonNegativeIntegerSchema.nullable().optional(),
-	blind3: nonNegativeIntegerSchema.nullable().optional(),
-	ante: nonNegativeIntegerSchema.nullable().optional(),
-	anteType: z.enum(["none", "all", "bb"]).nullable().optional(),
-	minBuyIn: nonNegativeIntegerSchema.nullable().optional(),
-	maxBuyIn: nonNegativeIntegerSchema.nullable().optional(),
-	tableSize: tableSizeSchema.nullable().optional(),
-	currencyId: z.string().min(1).nullable().optional(),
-	memo: z.string().nullable().optional(),
-	houseRules: z.string().nullable().optional(),
-});
+export const ringGameUpdateInputSchema = z
+	.object({
+		id: z.string(),
+		name: z.string().min(1).optional(),
+		variant: z.string().optional(),
+		mixGames: mixGamesSchema.nullish(),
+		blind1: nonNegativeIntegerSchema.nullable().optional(),
+		blind2: nonNegativeIntegerSchema.nullable().optional(),
+		blind3: nonNegativeIntegerSchema.nullable().optional(),
+		ante: nonNegativeIntegerSchema.nullable().optional(),
+		anteType: z.enum(["none", "all", "bb"]).nullable().optional(),
+		minBuyIn: nonNegativeIntegerSchema.nullable().optional(),
+		maxBuyIn: nonNegativeIntegerSchema.nullable().optional(),
+		tableSize: tableSizeSchema.nullable().optional(),
+		currencyId: z.string().min(1).nullable().optional(),
+		memo: z.string().nullable().optional(),
+		houseRules: z.string().nullable().optional(),
+	})
+	.refine(buyInRangeOrdered, BUY_IN_RANGE_ISSUE);
+
+async function writeRingGameUpdate(
+	db: DbInstance,
+	{
+		input,
+		existing,
+		userId,
+		updateData,
+	}: {
+		input: z.infer<typeof ringGameUpdateInputSchema>;
+		existing: typeof ringGame.$inferSelect;
+		userId: string;
+		updateData: Partial<typeof ringGame.$inferSelect>;
+	}
+) {
+	if (
+		!buyInRangeOrdered({
+			minBuyIn:
+				input.minBuyIn === undefined ? existing.minBuyIn : input.minBuyIn,
+			maxBuyIn:
+				input.maxBuyIn === undefined ? existing.maxBuyIn : input.maxBuyIn,
+		})
+	) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: BUY_IN_RANGE_ISSUE.message,
+		});
+	}
+	const updateStatement = db.update(ringGame).set(updateData);
+	const condition = and(eq(ringGame.id, input.id), eq(ringGame.userId, userId));
+	if (input.minBuyIn !== undefined || input.maxBuyIn !== undefined) {
+		const minBuyIn =
+			input.minBuyIn === undefined ? ringGame.minBuyIn : input.minBuyIn;
+		const maxBuyIn =
+			input.maxBuyIn === undefined ? ringGame.maxBuyIn : input.maxBuyIn;
+		const result = await updateStatement.where(
+			and(
+				condition,
+				sql`(${minBuyIn} IS NULL OR ${maxBuyIn} IS NULL OR ${minBuyIn} <= ${maxBuyIn})`
+			)
+		);
+		if (result.meta.changes === 0) {
+			throw new TRPCError({
+				code: "BAD_REQUEST",
+				message: BUY_IN_RANGE_ISSUE.message,
+			});
+		}
+	} else {
+		await updateStatement.where(condition);
+	}
+}
 
 export const ringGameRouter = router({
 	listByRoom: protectedProcedure
@@ -233,10 +305,12 @@ export const ringGameRouter = router({
 			}
 			Object.assign(updateData, cashMixFlatFieldClearPatch(selection.mixGames));
 
-			await ctx.db
-				.update(ringGame)
-				.set(updateData)
-				.where(eq(ringGame.id, input.id));
+			await writeRingGameUpdate(ctx.db, {
+				input,
+				existing: found,
+				userId,
+				updateData,
+			});
 
 			const [updated] = await ctx.db
 				.select()
