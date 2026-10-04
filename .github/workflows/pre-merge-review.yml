@@ -117,6 +117,10 @@ jobs:
     needs: gate
     if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
+    outputs:
+      ci_state: ${{ steps.ci.outputs.state }}
+      published: ${{ steps.published.outputs.is_published }}
+      trailer: ${{ steps.trailer.outputs.json }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -223,6 +227,11 @@ jobs:
         env:
           EXECUTION_FILE: ${{ steps.claude_review.outputs.execution_file }}
         run: bun scripts/review-gate.ts summary
+
+      - name: Export the review trailer
+        id: trailer
+        if: ${{ !cancelled() && steps.summary.outputs.has_summary == 'true' }}
+        run: echo "json=$(jq -c . "${RUNNER_TEMP}/pr-review-trailer.json")" >> "$GITHUB_OUTPUT"
 
       # `has_summary` only proves the summary reached the execution log. The
       # action fetches the tracking comment and adds its job link; it never
@@ -394,3 +403,39 @@ jobs:
             gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
               -F "body=@${RUNNER_TEMP}/review-incomplete.md" >/dev/null
           fi
+
+  # Runs from the base branch's copy of scripts/review-outcome.ts: a PR must
+  # not be able to rewrite the code that decides whether it is merged.
+  outcome:
+    name: outcome
+    needs: [gate, review]
+    if: ${{ !cancelled() && needs.review.result == 'success' && needs.review.outputs.ci_state != '' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+      actions: write
+    steps:
+      - name: Checkout the base branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.10
+
+      - name: Set the Linear status and auto-merge an approved auto-merge PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EVENT_ACTION: ${{ github.event.action }}
+          ROUND: ${{ needs.gate.outputs.round }}
+          MAX_AUTO_ROUNDS: ${{ env.MAX_AUTO_ROUNDS }}
+          CI_STATE: ${{ needs.review.outputs.ci_state }}
+          PUBLISHED: ${{ needs.review.outputs.published }}
+          TRAILER: ${{ needs.review.outputs.trailer }}
+        run: bun scripts/review-outcome.ts

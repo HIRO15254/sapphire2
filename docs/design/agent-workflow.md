@@ -7,7 +7,7 @@ The semi-automated loop in [`AGENTS.md`](../../AGENTS.md) (Issue Tracking, PR Re
 1. A human accepts a Triage issue: sets the `level` label, type, priority, and estimate, and moves it to Todo.
 2. The human creates an Orca workspace from the issue in Orca's Linear task list. The agent sets In Progress, works on a `feature/sa2-xxx` branch, and opens a draft PR → Human Review.
 3. The human reads the draft and marks it ready → AI Review. CI and [`pre-merge-review.yml`](../../.github/workflows/pre-merge-review.yml) run.
-4. Review outcome → Ready to Merge (approve), In Progress (important findings or red CI), or Needs Input (two automatic rounds without approve). Moved by hand until SA2-257 automates it.
+4. Review outcome → Ready to Merge (approve), In Progress (important findings or red CI), or Needs Input (two automatic rounds without approve). Set by the `outcome` job of `pre-merge-review.yml`; for an `auto-merge` issue an approve is merged by that job and the issue goes to Done.
 5. The human merges into `dev` → Done. A release PR into `main` runs [`release.yml`](../../.github/workflows/release.yml), which moves the Done issues of the released PRs to Released.
 
 ## Linear (team Sapphire2)
@@ -33,7 +33,7 @@ The semi-automated loop in [`AGENTS.md`](../../AGENTS.md) (Issue Tracking, PR Re
 
 - **Rulesets** are applied from [`.github/rulesets/`](../../.github/rulesets/): `dev-protect` (PR required, required check `ci`) and `main-release-only` (PR required, required checks `pr-target-guard` and `ci`). Both also block deletion and force pushes.
 - **Merge settings**: merge commits only (squash and rebase disabled), `delete_branch_on_merge` on, auto-merge off.
-- **Secrets** are registered by the user directly. The agent loop uses two: `CLAUDE_CODE_OAUTH_TOKEN` (`claude.yml`, `pre-merge-review.yml`, release notes in `release.yml`) and `LINEAR_API_KEY` (the Released step of `release.yml`; SA2-257 will reuse it). Without `LINEAR_API_KEY` the Released step only warns. The deploy and app secrets the other workflows read (Cloudflare, auth and OAuth providers, OpenAI, Google Maps, preview login, production URLs) are outside this doc.
+- **Secrets** are registered by the user directly. The agent loop uses two: `CLAUDE_CODE_OAUTH_TOKEN` (`claude.yml`, `pre-merge-review.yml`, release notes in `release.yml`) and `LINEAR_API_KEY` (the Released step of `release.yml`, the Triage filing of `pre-merge-review.yml`, and its `outcome` job). Without `LINEAR_API_KEY` the Released step only warns. The deploy and app secrets the other workflows read (Cloudflare, auth and OAuth providers, OpenAI, Google Maps, preview login, production URLs) are outside this doc.
 
 ## Orca
 
