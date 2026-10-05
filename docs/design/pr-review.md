@@ -59,6 +59,8 @@ The four retracted findings were all built on an assumed library behaviour the r
 
 **CI wait** — the review job polls the `ci` check run on the head for up to 30 minutes and runs Claude only on `success`. A red head is skipped (step summary only, no PR comment: the author is about to push a fix and CI already reports the failure). Because the wait sits inside the concurrency group, a new push cancels a *waiting* run instead of a *running* one — the 37 cancelled runs above were all mid-review.
 
+**Thread resolution permissions (SA2-280)** — GitHub's `resolveReviewThread` mutation requires `contents: write` in addition to `pull-requests: write` ([reproduction in github/gh-aw](https://github.com/github/gh-aw/issues/35726)). Resolution runs in a separate job with these permissions, without checkout, dependency installation, or reviewer execution; the job executing PR code retains `contents: read`. Only a successful review with a published summary on a same-repository PR can start resolution. The trailer is passed through an environment variable and matched against unresolved Claude threads by path and original line. Fetch and mutation failures have distinct diagnostics and remain non-blocking. The outcome job waits for resolution before counting unresolved threads, so it cannot race resolution when deciding auto-merge.
+
 **現在のレビュアー** — [`.claude/skills/pr-review/SKILL.md`](../../.claude/skills/pr-review/SKILL.md)が全PRをleanへ振り分け、同じコンテキストで探索・反証・検証する。workflowは`full`または`incremental`、差分範囲、巡数、`--post`を渡す。ローカルの`/pr-review full`は投稿なし。確定したimportantのみインラインに投稿し、nit・既存・未確認は要約に集約する。末尾のJSON trailerと修正済みスレッドのresolveは維持する。
 
 **以下は比較対象となった従来手順の記録** — AnthropicのOSS `code-review`を基にした複数エージェント構成で、現在の運用手順ではない。過去の測定結果を解釈するために保持する。
