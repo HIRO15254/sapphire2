@@ -1,5 +1,7 @@
 # D1 / SQLite Data Integrity
 
+> The v2 data model ([data-model-v2.md](data-model-v2.md)) replaces parts of this design in stages.
+
 Why writes against Cloudflare D1 are shaped the way they are: the 100-bound-parameter cap and chunk math, the `db.batch()` atomicity contract and its statement-ordering rules, keyset pagination cursors, N+1 collapse on list endpoints, TOCTOU backstops and unique-constraint error shapes, write==read schema identity, and the UTC round-trip rules. The enforceable imperatives live in [`.claude/rules/api-data-integrity.md`](../../.claude/rules/api-data-integrity.md) (and [`.claude/rules/datetime-and-numbers.md`](../../.claude/rules/datetime-and-numbers.md) for dates); this doc holds the mechanics and the incident history behind them.
 
 ## The 100-bound-parameter cap and chunking (SA2-115)
