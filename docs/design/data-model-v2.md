@@ -475,7 +475,7 @@ A card is written as two characters: a rank `[2-9TJQKA]` and a suit `[shdc]`. Th
 
 About the D1 limit:
 
-- hand_action and hand_seat each have 9 columns (including user_id). `chunkForInsert` derives the width from the column count and inserts 11 rows at a time (99 parameters).
+- hand_seat has 9 columns and hand_action has 8 (both including user_id). `chunkForInsert` derives the width from the column count: 11 rows at a time for hand_seat (99 parameters) and 12 rows for hand_action (96 parameters).
 - Saving one hand (updating hand, replacing seats and actions) goes into a single `db.batch`.
 
 What each detail level holds:
@@ -552,7 +552,7 @@ Enumerated values live as `as const` arrays in `packages/db/src/constants/`. Bot
 | --- | --- | --- | --- |
 | bagged | tournament | Survived the day and bagged the chips. end_stack is required | open (waiting for the next day) |
 | held | cash | Left the seat while holding a stack. end_stack is required | open (waiting to resume) |
-| busted | tournament | Eliminated. The placement goes into entry_tournament | settled |
+| busted | tournament | Eliminated. The placement goes into entry_tournament | settled (open again when a re-entry follows, section 13.3) |
 | cashed_out | cash | Cashed out and finished | settled |
 | finished | both | Finished by winning, a deal, etc. Also the default for manual input | settled |
 
@@ -719,7 +719,7 @@ If writes to the same entry arrive concurrently, a projection computed from an o
 | update_stack | — | If totalEntries is present, entry_tournament.total_entries | — |
 | day_end | ended_at, status = ended, end_state = bagged / held, end_stack | entry.status stays open | — |
 | session_end (cash) | ended_at, status = ended, end_state = cashed_out, end_stack = cashOut | entry.status = settled | cash_out (+cashOutAmount; no row if 0) |
-| session_end (tournament) | ended_at, status = ended, end_state (finished if the placement is 1, otherwise busted) | placement, total_entries, before_deadline. entry.status = settled | prize and bounty (no row if both are 0). v2 uses payments (a ticket prize, etc.) |
+| session_end (tournament) | ended_at, status = ended, end_state (finished if the placement is 1, otherwise busted. A NULL placement is busted: a live end leaves it NULL only when before_deadline = 1) | placement, total_entries, before_deadline. entry.status = settled | prize and bounty (no row if both are 0). v2 uses payments (a ticket prize, etc.) |
 | table_change / memo / player_join / player_leave | — | — | — |
 
 ### 13.3 Detailed rules
@@ -727,7 +727,10 @@ If writes to the same entry arrive concurrently, a projection computed from an o
 - A line's occurred_at is the event's occurred_at. A line's play_session_id is the event's play_session_id.
 - A line's id is `<event_id>:<n>` (n is a sequence within the event). Rebuilding gives the same id, so the result matches the backfill.
 - The asset of a buy-in is the assetId of the payment if there are payments. Otherwise it is entry.asset_id. If both are NULL, reject the event write with PRECONDITION_FAILED.
-- To add events after a session_end, start a new play_session (startNextPlay in section 14). At that point, rewrite the session_end as a day_end (held) and do not delete the event.
+- To add events after a session_end, start a new play_session (startNextPlay in section 14). The event is never deleted. What happens to it depends on the kind:
+  - cash: rewrite the session_end as a day_end (held).
+  - tournament: the new play_session is a re-entry, so keep the session_end as it is. Its play_session stays busted, because held is cash only (INV-07). A session_end that ended finished has nothing left to play, and startNextPlay rejects it with PRECONDITION_FAILED.
+  - In both cases the session_start of the new play_session sets entry.status back to open, and INV-06 decides it from then on.
 - A manual-input entry (INV-13) does not go through the projector. Replace its lines and play_sessions directly from the form values.
 - When editing a completed live entry through the form (`live-linked-edit.ts`), rewrite the events and then re-project, as today.
 
@@ -938,7 +941,8 @@ SELECT gs.id, gs.user_id, e.id, 1, e.played_on, gs.started_at,
   CASE gs.status WHEN 'completed' THEN 'ended' WHEN 'paused' THEN 'paused' ELSE 'active' END,
   CASE WHEN gs.status <> 'completed' THEN NULL
        WHEN e.kind = 'cash' THEN 'cashed_out'
-       WHEN std.placement > 1 THEN 'busted'
+       WHEN std.placement = 1 THEN 'finished'
+       WHEN e.source = 'live' OR std.placement > 1 THEN 'busted'
        ELSE 'finished' END,
   CASE WHEN e.kind = 'cash' AND gs.status = 'completed' THEN scd.cash_out END,
   std.timer_started_at, gs.created_at, gs.updated_at
@@ -947,6 +951,8 @@ JOIN entry e ON e.id = gs.id AND e.user_id = gs.user_id
 LEFT JOIN session_cash_detail scd ON scd.session_id = gs.id
 LEFT JOIN session_tournament_detail std ON std.session_id = gs.id;
 ```
+
+The tournament end_state of a live entry follows the projector rule in section 13.2, so a NULL placement (before_deadline = 1) is busted and A-6 finds no difference. A manual entry without a placement keeps the manual default, finished.
 
 ```sql
 INSERT OR IGNORE INTO play_event
