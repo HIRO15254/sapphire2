@@ -129,7 +129,7 @@ There are 23 invariants. Implementation, review, and audit queries refer to them
 | INV-19 | A hand has at most one Hero seat. seat is 0 to 9 (MAX_SEAT_POSITION). The seat of a hand_action exists in that hand's hand_seat | DB |
 | INV-20 | A tag name is unique per user and kind, ignoring case. A link has a composite FK to both the tag and the target | DB |
 | INV-21 | Conversion uses only asset_rate. Each line uses the latest rate with `effective_from <= occurred_at` | Calculation |
-| INV-22 | A referenced master cannot be physically deleted (room, ring_game, tournament, asset, ledger_category, player). The FK rejects it with NO ACTION, and the API points to archive | DB, API |
+| INV-22 | A referenced master cannot be physically deleted (room, ring_game, tournament, asset, ledger_category, player). The FK rejects it with NO ACTION, and the API points to archive. A ring_game or tournament is referenced when an entry links it or uses one of its rule versions; its own versions do not count and are deleted with it (§5.4) | DB, API |
 | INV-23 | JSON columns have a `json_valid` CHECK and are used only for immutable values (event payload, `hand.stakes`) (SA2-214) | DB |
 
 ## 5. Table definitions 1: conventions, masters, rule versions
@@ -144,7 +144,7 @@ Every new table follows the common conventions below. The per-table definitions 
 - A table referenced by a composite FK has `UNIQUE (id, user_id)`. Without this index, deleting a parent fails with `foreign key mismatch` (confirmed in SA2-242).
 - ON DELETE uses only these two behaviors. Do not use RESTRICT or SET NULL.
   - CASCADE for children of the same aggregate (entry to play_session, etc.).
-  - NO ACTION for references to masters and rule versions.
+  - NO ACTION for references to masters and rule versions. The one exception is a rule version's reference to the master that owns it, which is CASCADE (§5.4).
 - Why SET NULL is not used: a composite FK with SET NULL tries to set `user_id` to NULL as well, and fails.
 - Amounts and counts are INTEGER. Store them in the smallest unit of the asset. The sign is decided per column.
 - A date-only value is `TEXT 'YYYY-MM-DD'` (`local_date`, `played_on`). A time is unixepoch seconds.
@@ -186,7 +186,7 @@ Every rule-version table is INSERT-only and is never updated (INV-16). The defin
 
 | Column | Type | Nullable | Constraints and description |
 | --- | --- | --- | --- |
-| ring_game_id | TEXT | yes | The master that owns this version. `(ring_game_id, user_id)` to ring_game, NO ACTION. NULL for manual input without a master |
+| ring_game_id | TEXT | yes | The master that owns this version. `(ring_game_id, user_id)` to ring_game, CASCADE: the versions belong to the master's aggregate, and entries that use them keep the master from being deleted (INV-22). NULL for manual input without a master |
 | parent_rule_id | TEXT | yes | The version this one is based on. `(parent_rule_id, user_id)` to cash_rule, NO ACTION |
 | lineup_id | TEXT | no | `(lineup_id, user_id)` to game_lineup, NO ACTION |
 | min_buy_in / max_buy_in | INTEGER | yes | Both 0 or more. `min_buy_in <= max_buy_in` (SA2-277) |
@@ -209,7 +209,7 @@ Indexes: `UNIQUE (id, user_id)`, `UNIQUE (id, lineup_id)`, `(ring_game_id)`, `(p
 
 | Column | Type | Nullable | Constraints and description |
 | --- | --- | --- | --- |
-| tournament_id | TEXT | yes | `(tournament_id, user_id)` to tournament, NO ACTION |
+| tournament_id | TEXT | yes | The master that owns this version. `(tournament_id, user_id)` to tournament, CASCADE, as on cash_rule |
 | parent_rule_id | TEXT | yes | `(parent_rule_id, user_id)` to tournament_rule, NO ACTION |
 | lineup_id | TEXT | no | The default lineup for the whole tournament |
 | starting_stack | INTEGER | yes | 0 or more |
@@ -778,8 +778,8 @@ During the migration, existing procedures keep their names and input and output 
 | ledgerCategory.\* (new) | The successor of transactionType.\* | T11 | Excluded |
 | userSetting.get / update (new) | baseAssetId, timeZone | T15 | Only get is exposed |
 | stats.summary / breakdown / profitLossSeries | Input: `valuation` (real / virtual), `baseAssetId`, `entryTagIds`, `tournamentTagIds`. Output: virtual values, `bb100`, `handsPerHour`, `excludedEntryCount`, `missingRates` | T14, T17, T23, T33 | Existing tool. Update the snapshot |
-| room.archive / restore (new), room.delete | If referenced, delete returns CONFLICT and points to archive | T01 | room_archive / room_restore exposed. delete excluded |
-| ringGame.delete / tournament.delete | CONFLICT if referenced | T06 | Stays excluded |
+| room.archive / restore (new), room.delete | If referenced, delete returns CONFLICT and points to archive. From T27 on, this includes entries that use a rule version of one of the room's masters | T01 | room_archive / room_restore exposed. delete excluded |
+| ringGame.delete / tournament.delete | CONFLICT if referenced. From T27 on, this includes entries that use one of the master's rule versions | T06 | Stays excluded |
 | ringGame.update / tournament.updateWithLevels | Create a new rule version and repoint current_rule_id | T27 | Existing tool. The schema does not change |
 | player.delete | CONFLICT if referenced by hand_seat | T21 | Stays excluded |
 | entryTag, tournamentTag, handTag, playerTag (factory) | list, create, update, delete, reorder, attach to and detach from a target | T32 | list and create exposed |
@@ -1243,6 +1243,7 @@ This specification decides every question provisionally with the recommended opt
 | 2026-10-06 | tournament_rule_level stores its effective lineup_id (NOT NULL) plus inherits_lineup, instead of NULL = inherit (T26) | A NULL FK column is not checked, so level stakes of an inheriting level would escape the composite FK that ties a stake to its lineup |
 | 2026-10-06 | T27 also adds ledger_line.price_id, so T27 depends on T10 (T26) | T27 is the first task where both ledger_line and tournament_rule_price exist and the dual write can fill the column. T29 still ships in R5 |
 | 2026-10-06 | Stakes have a second composite FK `(rule_id, lineup_id)` to their version (T26) | `(rule_id, user_id)` alone lets a stake name a group of a different lineup than its version's, the c02 / c04 bug class |
+| 2026-10-06 | A rule version's reference to its master (`cash_rule.ring_game_id`, `tournament_rule.tournament_id`) is CASCADE, not NO ACTION (T26) | Every master has a current version from T27 on, so NO ACTION from its own versions would make every ring game, tournament and room delete fail with an FK error, even when no entry uses the master |
 | 2026-10-06 | Express a fixed rate with one row with effective_from = 0. 0 means "valid from the beginning" and is the default for the first row of a pair | effective_from is required and means "valid from this time", so a fixed rate registered today cannot convert past lines. With NULL, UNIQUE cannot prevent duplicates |
 | 2026-10-06 | Put entry and play_session (P1) before the ledger (P2). This is the reverse of the overview version | ledger_line references entry, play_session, and play_event. Re-pointing FKs later would require rebuilding tables |
 | 2026-10-06 | Do not create a new asset table. Extend currency and rename it at the end | The currency_id of ring_game and tournament is a table-level FK that cannot be dropped, and parent tables cannot be rebuilt (confirmed on SQLite 3.53) |
