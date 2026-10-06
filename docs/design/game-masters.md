@@ -1,6 +1,6 @@
 # Game Master Data
 
-> Being replaced: [`game-lineups.md`](game-lineups.md) is the target model (SA2-242) that moves rule masters and sessions from self-freezing labels to id-referenced lineups. This file describes the running code until those phases land.
+> The v2 data model ([data-model-v2.md](data-model-v2.md)) replaces parts of this design in stages. For the game masters, [`game-lineups.md`](game-lineups.md) is the target model (SA2-242) that moves rule masters and sessions from self-freezing labels to id-referenced lineups. This file describes the running code until those phases land.
 
 This document is the reference for the game master-data model: the per-user `game_group` / `game_variant` / `game_mix` tables, the self-freezing label semantics that every other table builds on, the migration-0049 expand/contract state of the `game_mix.games` compatibility mirror, signup seeding, and the web-layer invariants that guard the frozen snapshots. Chunking, batch atomicity and the TOCTOU/label-conflict error-mapping mechanics live in [`data-integrity.md`](data-integrity.md); statistics semantics in [`statistics.md`](statistics.md); test/CI mechanics in [`testing-and-tooling.md`](testing-and-tooling.md).
 

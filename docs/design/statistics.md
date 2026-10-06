@@ -1,5 +1,7 @@
 # Statistics
 
+> The v2 data model ([data-model-v2.md](data-model-v2.md)) replaces parts of this design in stages.
+
 This document owns the design of the statistics domain: EV semantics end to end (the cash-out fallback, the recording gate, population scoping, cross-surface agreement), the currency-scope guard, normalization, breakdown bucketing, the profit/loss series and P&L graph, the `/statistics` URL filter contract, the shared period-filter domain, and stats number formatting. The server side lives in [`packages/api/src/routers/stats.ts`](../../packages/api/src/routers/stats.ts) and the summary/series parts of [`packages/api/src/routers/session.ts`](../../packages/api/src/routers/session.ts); the web side under [`apps/web/src/features/statistics/`](../../apps/web/src/features/statistics/). Session lifecycle and live-editing design is in [`sessions-and-live-editing.md`](sessions-and-live-editing.md); filter presets (payload union, per-screen scoping, apply path) are owned by [`web-platform.md`](web-platform.md).
 
 ## Query scope: filters and the currency-scope guard
