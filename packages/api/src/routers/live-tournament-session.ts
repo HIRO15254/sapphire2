@@ -822,6 +822,7 @@ export const liveTournamentSessionRouter = router({
 					id: tournamentId,
 					input,
 					now,
+					userId,
 				}),
 				ctx.db
 					.update(gameSession)

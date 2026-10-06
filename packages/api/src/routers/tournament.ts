@@ -129,11 +129,13 @@ export function buildTournamentCreateStatements(
 		id: string;
 		input: TournamentCreateWithLevelsInput;
 		now: Date;
+		userId: string;
 	}
 ): [BatchStatement, ...BatchStatement[]] {
 	return [
 		db.insert(tournament).values({
 			id: params.id,
+			userId: params.userId,
 			roomId: params.input.roomId,
 			name: params.input.name,
 			variant: params.input.variant,
@@ -358,6 +360,7 @@ export const tournamentRouter = router({
 			const id = crypto.randomUUID();
 			await ctx.db.insert(tournament).values({
 				id,
+				userId,
 				roomId: input.roomId,
 				name: input.name,
 				variant: input.variant,
@@ -514,6 +517,7 @@ export const tournamentRouter = router({
 				id,
 				input,
 				now: new Date(),
+				userId,
 			});
 			await ctx.db.batch(statements);
 

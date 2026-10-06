@@ -135,6 +135,7 @@ describe("stored defaults and value encoding", () => {
 		});
 		await api.db.insert(tournament).values({
 			id: "tournament",
+			userId: "alice",
 			roomId: "room",
 			name: "Tournament",
 			updatedAt: instant,

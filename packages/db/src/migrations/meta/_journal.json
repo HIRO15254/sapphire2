@@ -379,6 +379,20 @@
       "when": 1790669757513,
       "tag": "0053_confused_hex",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "6",
+      "when": 1791275631638,
+      "tag": "0054_broken_tyger_tiger",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "6",
+      "when": 1791276737784,
+      "tag": "0055_white_norman_osborn",
+      "breakpoints": true
     }
   ]
 }

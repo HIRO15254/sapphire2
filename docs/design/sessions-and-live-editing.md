@@ -41,7 +41,7 @@ The blanket rules (object-level authorization, scoped bulk WHEREs, write-IDOR ro
 - **Live-link ownership (SA2-102)** — `validateLiveLinkOwnership` guards the room / currency links of the live routers. Falsy (`undefined` = omitted, `null` = clear, `""` = empty) skips; a provided id must exist AND belong to the caller. Prevents IDOR on the money-ledger links.
 - **Tag-set ownership (SA2-177)** — `validateTagsOwnership` compares the distinct owned count against the requested distinct count in one scoped query; any mismatch → FORBIDDEN. No-ops on empty/omitted ids.
 - **Ring game (SA2-174 / SA2-181)** — a ring game carries its **own `userId`**; a `null` userId is an unprovable orphan → FORBIDDEN. Ownership is verified **before any `ring_game` read**, so a caller cannot probe another user's config via the buy-in bounds. (The nullability trade-off is covered in [`data-integrity.md`](data-integrity.md).)
-- **Tournament** — no own `userId`; ownership derives from its room, validated **before** `snapshotTournamentStructure` reads anything (IDOR on another user's blind structure otherwise).
+- **Tournament** — nullable `userId` was added in the SA2-296 expand step and every new master stores the caller's id. Existing rows remain unbackfilled; read-side ownership still derives from its room, validated **before** `snapshotTournamentStructure` reads anything (IDOR on another user's blind structure otherwise). Switching reads to `userId` belongs to a later phase.
 - **Transaction type (SA2-179)** — ownership verified before the type is linked to a transaction (read-IDOR otherwise).
 
 ## Session lifecycle: reopen and deletion

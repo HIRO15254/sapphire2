@@ -29,7 +29,10 @@ export const currency = sqliteTable(
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
 	},
-	(table) => [index("currency_userId_idx").on(table.userId)]
+	(table) => [
+		uniqueIndex("currency_id_user_id_unique").on(table.id, table.userId),
+		index("currency_userId_idx").on(table.userId),
+	]
 );
 
 export const transactionType = sqliteTable(

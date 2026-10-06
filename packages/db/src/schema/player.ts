@@ -5,6 +5,7 @@ import {
 	primaryKey,
 	sqliteTable,
 	text,
+	uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 import { user } from "./auth";
 
@@ -27,7 +28,10 @@ export const player = sqliteTable(
 			.$onUpdate(() => new Date())
 			.notNull(),
 	},
-	(table) => [index("player_userId_idx").on(table.userId)]
+	(table) => [
+		uniqueIndex("player_id_user_id_unique").on(table.id, table.userId),
+		index("player_userId_idx").on(table.userId),
+	]
 );
 
 export const playerTag = sqliteTable(
@@ -46,7 +50,10 @@ export const playerTag = sqliteTable(
 			.$onUpdate(() => new Date())
 			.notNull(),
 	},
-	(table) => [index("playerTag_userId_idx").on(table.userId)]
+	(table) => [
+		uniqueIndex("player_tag_id_user_id_unique").on(table.id, table.userId),
+		index("playerTag_userId_idx").on(table.userId),
+	]
 );
 
 export const playerToPlayerTag = sqliteTable(

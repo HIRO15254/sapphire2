@@ -1,5 +1,11 @@
 import { relations, sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+	index,
+	integer,
+	sqliteTable,
+	text,
+	uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 import { DEFAULT_VARIANT_LABEL } from "../constants/game-variants";
 import type { MixGameGroup } from "../schemas/game";
 import { user } from "./auth";
@@ -41,6 +47,7 @@ export const ringGame = sqliteTable(
 			.notNull(),
 	},
 	(table) => [
+		uniqueIndex("ring_game_id_user_id_unique").on(table.id, table.userId),
 		index("ringGame_roomId_idx").on(table.roomId),
 		index("ringGame_userId_idx").on(table.userId),
 		index("ringGame_currencyId_idx").on(table.currencyId),
