@@ -208,10 +208,11 @@ entry_cash         cash_rule_id = R3           (the master stays on R2; drift = 
 
 ## Deviations from data-model-v2.md
 
-Recorded in SA2-297 and applied to [`data-model-v2.md`](data-model-v2.md):
+Recorded in SA2-297. Deviations 1 and 2 are applied to [`data-model-v2.md`](data-model-v2.md); 3 is still to be applied there (tracked in SA2-294):
 
 1. **`tournament_rule_level.lineup_id` is NOT NULL and holds the effective lineup**, with `inherits_lineup` recording that the level follows the version default — SA2-242 decision 2, kept. The data-model-v2 draft had "NULL inherits", which would leave level stakes outside the composite FK below (a NULL FK column is not checked). The API still says `game: null` for an inheriting level.
 2. **L1 adds `ledger_line.price_id`**, so L1 also waits for data model v2 T10 (SA2-302), which creates `ledger_line`. L1 is the first point where both `ledger_line` and `tournament_rule_price` exist and the dual write can fill the column; T28 backfills it. The P4 chain still fits before T35: T27 can ship with R3 and each later step in its own release.
+3. **A version's reference to its master is ON DELETE CASCADE**, not NO ACTION: `(ring_game_id, user_id) → ring_game` on `cash_rule` and `(tournament_id, user_id) → tournament` on `tournament_rule`. Every master has a current version from L1 on, so NO ACTION from its own versions would make every `ringGame.delete` / `tournament.delete` fail, and every `room.delete` too, since it cascades to the room's ring games and tournaments, even when no entry uses the master. A master's versions belong to its aggregate (CASCADE inside an aggregate, data-model-v2 §5.1), and INV-22 still holds in the database through the entries' NO ACTION references ([Masters: archive instead of delete](#masters-archive-instead-of-delete)).
 
 ## Constraints
 
@@ -219,7 +220,7 @@ Recorded in SA2-297 and applied to [`data-model-v2.md`](data-model-v2.md):
 - **A stake can only point at a group of its version's lineup, in the database.** Every stake row stores `lineup_id`, with FKs `(lineup_id, lineup_group_id) → game_lineup_group(lineup_id, id)` and `(rule_id, lineup_id) → cash_rule(id, lineup_id)` ON DELETE CASCADE (levels: `(level_id, lineup_id) → tournament_rule_level(id, lineup_id)`), backed by UNIQUE indexes on `(id, lineup_id)`; the ownership FK `(rule_id, user_id)` (`(level_id, user_id)`) stays alongside. Versions are immutable, so no write swaps a lineup under existing stakes any more; the FK rejects a version assembled with stakes from another lineup, which is the c02 / c04 bug class.
 - **An inheriting level stores its version's default lineup.** When `inherits_lineup` is true, `tournament_rule_level.lineup_id` equals `tournament_rule.lineup_id`. A CHECK cannot read the parent row, so the API writes it and the L3 gate counts violations.
 - **Composite FKs live only on new tables.** SQLite needs a table rebuild to add a table-level FK. The rule-version tables are new and get full composites; the five columns added to existing tables (`ring_game.current_rule_id`, `tournament.current_rule_id`, `entry_cash.cash_rule_id`, `entry_tournament.tournament_rule_id`, `ledger_line.price_id`) are single-column FKs added with `ADD COLUMN … REFERENCES`, guarded by `validateEntityOwnership` on write and by audit A-7 ([`data-model-v2.md`](data-model-v2.md) §5.3, INV-02). `schema-migrations.test.ts` reads only tables registered in `packages/db/src/schema.ts` and compares FKs column by column, so the rejection cases need their own D1 integration tests.
-- **NO ACTION, never RESTRICT**, for every reference into lineups, versions and masters. RESTRICT fires immediately, in the middle of the cascade that deleting a user row starts (the lineups can go before the versions that point at them); NO ACTION is checked at the end of the statement, when the whole account is gone.
+- **NO ACTION, never RESTRICT**, for every reference into lineups, versions and masters, except a version's reference to its own master, which is CASCADE ([deviation 3](#deviations-from-data-model-v2md)). RESTRICT fires immediately, in the middle of the cascade that deleting a user row starts (the lineups can go before the versions that point at them); NO ACTION is checked at the end of the statement, when the whole account is gone.
 
 ## Invariants
 
@@ -231,6 +232,7 @@ Recorded in SA2-297 and applied to [`data-model-v2.md`](data-model-v2.md):
 6. **Every master has a current version, and every entry linked to a master or carrying rules has a version**, once L2 has run (orphans aside, see the backfill).
 7. **A version belongs to its referrers' owner** (INV-17): a master or entry points only at versions of the same user, and a version with `ring_game_id` / `tournament_id` set is a version of that master.
 8. **Archived masters are never offered for a new pick and always resolve for an existing lineup.** A pick is new when the resulting composition differs from both the entry's current version and its linked master's; echoing `{ lineupId }` is how a record keeps an archived game.
+9. **A master's versions stay with that master.** A child version takes its parent's `ring_game_id` / `tournament_id`, and a master's `current_rule_id` points only at one of its own versions. Outside the master, then, only entries and their ledger lines reference its versions, which is what lets deleting a master cascade to them ([Masters](#masters-archive-instead-of-delete)); a reference from another master or another master's version would turn that delete into a raw FK error.
 
 ## Writes
 
@@ -260,7 +262,7 @@ Every id is ownership-checked with the uniform FORBIDDEN of [`api-security.md`](
 
 - An entry created from a master takes `rule_id = master.current_rule_id`. Nothing is copied: the copy paths (`resolveCashRuleSnapshot`, including the room-less ring game that `session.create` auto-creates, and `buildTournamentStructureStatements`) are replaced by sharing the id.
 - An entry without a master that has rules gets a parentless version of its own.
-- Changing rules inside a session (`live*.updateSnapshot`, renamed `overrideRule` at L3) inserts a child version whose parent is the entry's current version and re-points only the entry. Applying the master's newer rules re-points the entry to `current_rule_id`; pushing a session's rules to the master ("Update master") re-points the master to the entry's version.
+- Changing rules inside a session (`live*.updateSnapshot`, renamed `overrideRule` at L3) inserts a child version whose parent is the entry's current version and re-points only the entry. Applying the master's newer rules re-points the entry to `current_rule_id`; pushing a session's rules to the master ("Update master") re-points the master to the entry's version when it is one of the master's, and otherwise inserts an equal version under the master (parent = its current one) and re-points both (invariant 9).
 - Master drift (SA2-225) is `entry.rule_id <> master.current_rule_id`. What differs is a comparison of two immutable versions — exact, with no normalization; the per-column comparison and the normalization of `house-rules.ts` go away at L3.
 
 ## Reads
@@ -282,7 +284,7 @@ Once lineups reference masters by id, a used variant or mix can no longer be del
 - Labels stay unique across archived rows; a conflicting create points the user at restore.
 - A variant used by a non-archived mix cannot be archived (the guard today's delete has).
 - `game_group` keeps hard delete. Its in-use guard counts variants (archived ones keep their group, so history keeps its slot labels) and lineup groups.
-- A ring game or tournament referenced by a version that an entry uses cannot be deleted (data model v2 INV-22); it is archived instead.
+- A ring game or tournament that an entry links, or one of whose versions an entry uses, cannot be deleted (data model v2 INV-22); it is archived instead. One that no entry uses can still be deleted, by the same single DELETE as today: [deviation 3](#deviations-from-data-model-v2md) cascades its versions and their stakes, levels and prices in the same statement, and the master's `current_rule_id` and the versions' `parent_rule_id` point only among the deleted rows (invariant 9), so their NO ACTION does not fire. The API check before the delete counts both kinds of entry reference and returns CONFLICT; the entries' NO ACTION FKs (`entry_cash.cash_rule_id`, `entry_tournament.tournament_rule_id`, `ledger_line.price_id`) back it. `room.delete` cascades to its masters, so its check counts the same references for every master in the room. L1's D1 integration tests cover both outcomes for each of the three deletes.
 
 ## Statistics
 
