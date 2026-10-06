@@ -4,16 +4,21 @@ import { useRooms } from "@/features/rooms/hooks/use-rooms";
 
 export function useRoomsPage() {
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
+	const [showArchived, setShowArchived] = useState(false);
 
 	const {
 		rooms,
+		archivedRooms,
+		archivedLoading,
+		isArchivedError,
+		onRetryArchived,
 		isLoading,
 		isInitialLoadError: isError,
 		onRetry,
 		isCreatePending,
 		create,
 		toggleFavorite,
-	} = useRooms();
+	} = useRooms({ showArchived });
 
 	const handleCreate = (values: RoomValues) => {
 		create(values).then(
@@ -28,6 +33,12 @@ export function useRoomsPage() {
 
 	return {
 		rooms,
+		archivedRooms,
+		archivedLoading,
+		isArchivedError,
+		onRetryArchived,
+		showArchived,
+		toggleArchived: () => setShowArchived((value) => !value),
 		isLoading,
 		isError,
 		onRetry,

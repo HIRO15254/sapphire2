@@ -27,8 +27,9 @@ export function DeleteRoomDialog({
 				<DialogHeader>
 					<DialogTitle>Delete this room?</DialogTitle>
 					<DialogDescription>
-						{roomName} and all of its cash games and tournaments will be removed
-						permanently. This cannot be undone.
+						{roomName} will be removed permanently. Rooms referenced by
+						sessions, cash games, or tournaments must be archived instead. This
+						cannot be undone.
 					</DialogDescription>
 				</DialogHeader>
 				<DialogFooter className="flex-row justify-end gap-2">

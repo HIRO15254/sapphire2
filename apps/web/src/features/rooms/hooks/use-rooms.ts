@@ -17,6 +17,7 @@ export interface RoomValues {
 }
 
 export interface RoomItem {
+	archivedAt?: Date | string | null;
 	createdAt: Date | string;
 	id: string;
 	isFavorite: boolean;
@@ -28,12 +29,25 @@ export interface RoomItem {
 	tournamentCount: number;
 }
 
-export function useRooms() {
+export function useRooms({ showArchived = false } = {}) {
 	const queryClient = useQueryClient();
 	const roomListKey = trpc.room.list.queryOptions().queryKey;
 
 	const roomsQuery = useQuery(trpc.room.list.queryOptions());
 	const rooms = roomsQuery.data ?? [];
+	const archivedListKey = trpc.room.list.queryOptions({
+		includeArchived: true,
+	}).queryKey;
+	const archivedQuery = useQuery({
+		...trpc.room.list.queryOptions({ includeArchived: true }),
+		enabled: showArchived,
+	});
+	const invalidateRooms = () => {
+		invalidateTargets(queryClient, [
+			{ queryKey: roomListKey },
+			{ queryKey: archivedListKey },
+		]);
+	};
 
 	const createMutation = useMutation({
 		mutationFn: (values: RoomValues) => trpcClient.room.create.mutate(values),
@@ -58,6 +72,7 @@ export function useRooms() {
 						latitude: newRoom.latitude ?? null,
 						longitude: newRoom.longitude ?? null,
 						isFavorite: false,
+						archivedAt: null,
 						createdAt: new Date().toISOString(),
 						ringGameCount: 0,
 						tournamentCount: 0,
@@ -69,9 +84,7 @@ export function useRooms() {
 		onError: (_err, _vars, context) => {
 			restoreSnapshots(queryClient, [context?.previous]);
 		},
-		onSettled: () => {
-			invalidateTargets(queryClient, [{ queryKey: roomListKey }]);
-		},
+		onSettled: invalidateRooms,
 	});
 
 	const updateMutation = useMutation({
@@ -94,9 +107,7 @@ export function useRooms() {
 		onError: (_err, _vars, context) => {
 			restoreSnapshots(queryClient, [context?.previous]);
 		},
-		onSettled: () => {
-			invalidateTargets(queryClient, [{ queryKey: roomListKey }]);
-		},
+		onSettled: invalidateRooms,
 	});
 
 	const deleteMutation = useMutation({
@@ -112,9 +123,16 @@ export function useRooms() {
 		onError: (_err, _vars, context) => {
 			restoreSnapshots(queryClient, [context?.previous]);
 		},
-		onSettled: () => {
-			invalidateTargets(queryClient, [{ queryKey: roomListKey }]);
-		},
+		onSettled: invalidateRooms,
+	});
+
+	const archiveMutation = useMutation({
+		mutationFn: (id: string) => trpcClient.room.archive.mutate({ id }),
+		onSettled: invalidateRooms,
+	});
+	const restoreMutation = useMutation({
+		mutationFn: (id: string) => trpcClient.room.restore.mutate({ id }),
+		onSettled: invalidateRooms,
 	});
 
 	const toggleFavoriteMutation = useMutation({
@@ -143,26 +161,31 @@ export function useRooms() {
 		onError: (_err, _vars, context) => {
 			restoreSnapshots(queryClient, [context?.previous]);
 		},
-		onSettled: () => {
-			invalidateTargets(queryClient, [{ queryKey: roomListKey }]);
-		},
+		onSettled: invalidateRooms,
 	});
 
 	return {
 		rooms,
+		archivedRooms: archivedQuery.data ?? [],
+		archivedLoading: archivedQuery.isLoading,
+		isArchivedError: archivedQuery.isError && archivedQuery.data === undefined,
+		onRetryArchived: archivedQuery.refetch,
 		isLoading: roomsQuery.isLoading,
+		isFetching: roomsQuery.isFetching || archivedQuery.isFetching,
 		isError: roomsQuery.isError,
 		isInitialLoadError: roomsQuery.isError && roomsQuery.data === undefined,
 		onRetry: roomsQuery.refetch,
 		isCreatePending: createMutation.isPending,
 		isUpdatePending: updateMutation.isPending,
+		isArchivePending: archiveMutation.isPending,
+		isRestorePending: restoreMutation.isPending,
 		isToggleFavoritePending: toggleFavoriteMutation.isPending,
 		create: (values: RoomValues) => createMutation.mutateAsync(values),
 		update: (values: RoomValues & { id: string }) =>
 			updateMutation.mutateAsync(values),
-		delete: (id: string) => {
-			deleteMutation.mutate(id);
-		},
+		delete: (id: string) => deleteMutation.mutateAsync(id),
+		archive: (id: string) => archiveMutation.mutateAsync(id),
+		restore: (id: string) => restoreMutation.mutateAsync(id),
 		toggleFavorite: (id: string) => toggleFavoriteMutation.mutateAsync(id),
 	};
 }

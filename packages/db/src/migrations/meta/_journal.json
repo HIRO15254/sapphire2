@@ -379,6 +379,13 @@
       "when": 1790669757513,
       "tag": "0053_confused_hex",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "6",
+      "when": 1791275790429,
+      "tag": "0054_white_mojo",
+      "breakpoints": true
     }
   ]
 }

@@ -125,6 +125,26 @@ The imperatives (UTC getters for date-only values, day-crossing handling, backfi
 - **Round-trip drift is cumulative** (SA2-145): `sessionDate` is stored and returned as UTC midnight, and the create/update payloads re-encode a date-only string as UTC midnight, so the edit form must read back the **UTC** calendar day ([`session-form-helpers.ts`](../../apps/web/src/features/sessions/utils/session-form-helpers.ts)). Local getters shift the day back one for users west of UTC — and because the save re-encodes what was read, each edit-save drifts the stored date **one more day earlier**. The same UTC-forcing applies to share text, so the shared date is the calendar day the user saved.
 - **Day crossing and the 0-length boundary** (SA2-157): `computeSessionTimes` in [`use-sessions.ts`](../../apps/web/src/features/sessions/hooks/use-sessions.ts) converts start/end clock times — both entered against a single `sessionDate` with no separate end-date field — into Unix seconds, rolling the end forward 24h when it lands **strictly before** the start (22:00 → 02:00 crossed midnight). Without the roll, the end was stored ~20h before the start: the UI showed a negative duration and the server clamped play time to 0, dropping the session out of every play-time statistic. The boundary decision: **equal start and end is a 0-length span, never a 24h one** — only a strictly earlier end means the session crossed midnight.
 
+## Room archive and deletion (SA2-295)
+
+Rooms use nullable `archived_at`, matching ring games and tournaments. `room.archive` and
+`room.restore` preserve all links and update `updated_at`. `room.list()` (or
+`includeArchived: false`) returns only active rooms; `includeArchived: true` returns only
+archived rooms, as it does for `ringGame.listByRoom` and `tournament.listByRoom`. Every list
+row includes `archivedAt`. Room detail reads and existing session references still resolve
+archived rooms. New-data pickers use the active list; session edits additionally retain their
+currently referenced archived room, and statistics include both lists for historical filters.
+
+`room.delete` validates ownership first, then deletes only when no `game_session`, `ring_game`,
+or `tournament` references the room, including archived masters. A referenced room returns
+`CONFLICT` with a message asking the user to archive it. The reference checks are `NOT EXISTS`
+predicates inside the DELETE statement to avoid a check/write race; they use literal qualified
+column names for the same reason as the room-count subqueries above. Existing foreign-key
+cascade/set-null declarations remain in place; the API blocks those effects for room deletion.
+The migration adds one nullable column without rebuilding `room`, so existing children remain.
+
+MCP exposes `room_archive` and `room_restore`, while `room.delete` stays deliberately excluded.
+
 ## Schema-level integrity anchors
 
 - **`ring_game.userId` is the real ownership anchor** (SA2-181, [`packages/db/src/schema/ring-game.ts`](../../packages/db/src/schema/ring-game.ts)): nullable at the DB level so the `ADD COLUMN` migration is safe on populated tables, but the app sets it on every insert and ownership treats `null` as **not owned**. This closes the IDOR gap for auto-generated snapshot rows whose `roomId` is null and therefore had no ownership anchor under the old room-derived model. The router-side ownership contract is in [`sessions-and-live-editing.md`](sessions-and-live-editing.md) and [`.claude/rules/api-security.md`](../../.claude/rules/api-security.md).

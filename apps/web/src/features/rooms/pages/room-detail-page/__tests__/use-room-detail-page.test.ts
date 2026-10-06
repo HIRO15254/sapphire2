@@ -24,6 +24,12 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("@/features/rooms/hooks/use-rooms", () => ({
 	useRooms: () => ({
 		rooms: hoisted.rooms,
+		archivedRooms: [],
+		archivedLoading: false,
+		isArchivedError: false,
+		onRetryArchived: vi.fn(),
+		archive: vi.fn().mockResolvedValue({}),
+		restore: vi.fn().mockResolvedValue({}),
 		isLoading: hoisted.isLoading,
 		isUpdatePending: hoisted.isUpdatePending,
 		isCreatePending: false,
@@ -49,7 +55,7 @@ describe("useRoomDetailPage", () => {
 	beforeEach(() => {
 		hoisted.navigate.mockReset();
 		hoisted.update.mockReset().mockResolvedValue({ id: "s1" });
-		hoisted.del.mockReset();
+		hoisted.del.mockReset().mockResolvedValue({ success: true });
 		hoisted.toggleFavorite.mockReset().mockResolvedValue({ id: "s1" });
 		hoisted.rooms = [];
 		hoisted.isLoading = false;
@@ -113,13 +119,24 @@ describe("useRoomDetailPage", () => {
 		await waitFor(() => expect(result.current.isEditOpen).toBe(false));
 	});
 
-	it("handleConfirmDelete deletes the room, closes the dialog, and navigates to /rooms", () => {
+	it("handleConfirmDelete deletes the room, closes the dialog, and navigates to /rooms", async () => {
 		const { result } = renderHook(() => useRoomDetailPage("s1"));
 		act(() => result.current.setConfirmingDelete(true));
-		act(() => result.current.handleConfirmDelete());
+		await act(async () => {
+			await result.current.handleConfirmDelete();
+		});
 		expect(hoisted.del).toHaveBeenCalledWith("s1");
 		expect(result.current.confirmingDelete).toBe(false);
 		expect(hoisted.navigate).toHaveBeenCalledWith({ to: "/rooms" });
+	});
+
+	it("stays on the detail page when deleting a referenced room fails", async () => {
+		hoisted.del.mockRejectedValue(new Error("Archive the room instead."));
+		const { result } = renderHook(() => useRoomDetailPage("s1"));
+		await act(async () => {
+			await result.current.handleConfirmDelete();
+		});
+		expect(hoisted.navigate).not.toHaveBeenCalled();
 	});
 
 	it("handleToggleFavorite closes the actions drawer and calls toggleFavorite with the room id", () => {

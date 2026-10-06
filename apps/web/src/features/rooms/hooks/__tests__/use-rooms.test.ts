@@ -16,6 +16,8 @@ const trpcMocks = vi.hoisted(() => ({
 	create: vi.fn(),
 	update: vi.fn(),
 	delete: vi.fn(),
+	archive: vi.fn(),
+	restore: vi.fn(),
 	toggleFavorite: vi.fn(),
 }));
 
@@ -23,8 +25,8 @@ vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		room: {
 			list: {
-				queryOptions: () => ({
-					queryKey: buildKey("room", "list", undefined),
+				queryOptions: (input?: unknown) => ({
+					queryKey: buildKey("room", "list", input),
 					queryFn: trpcMocks.list,
 				}),
 			},
@@ -35,6 +37,8 @@ vi.mock("@/utils/trpc", () => ({
 			create: { mutate: trpcMocks.create },
 			update: { mutate: trpcMocks.update },
 			delete: { mutate: trpcMocks.delete },
+			archive: { mutate: trpcMocks.archive },
+			restore: { mutate: trpcMocks.restore },
 			toggleFavorite: { mutate: trpcMocks.toggleFavorite },
 		},
 	},
@@ -438,7 +442,7 @@ describe("useRooms", () => {
 	});
 
 	describe("delete (optimistic)", () => {
-		it("optimistically removes the room id and uses fire-and-forget mutate", async () => {
+		it("optimistically removes the room id while deletion is pending", async () => {
 			const qc = createClient();
 			qc.setQueryData(STORE_KEY, [
 				{ id: "s1", name: "Main", memo: null },
@@ -479,7 +483,7 @@ describe("useRooms", () => {
 				wrapper: makeWrapper(qc),
 			});
 			act(() => {
-				result.current.delete("s1");
+				result.current.delete("s1").catch(() => undefined);
 			});
 			await waitFor(() =>
 				expect(result.current.rooms.map((room) => room.id)).toEqual(["s2"])

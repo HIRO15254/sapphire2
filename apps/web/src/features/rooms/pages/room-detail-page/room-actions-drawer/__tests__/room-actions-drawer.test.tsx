@@ -10,21 +10,51 @@ function setup(
 	const onEdit = vi.fn();
 	const onOpenChange = vi.fn();
 	const onToggleFavorite = vi.fn();
+	const onArchive = vi.fn();
+	const onRestore = vi.fn();
 	render(
 		<RoomActionsDrawer
+			isArchived={false}
 			isFavorite={false}
+			onArchive={onArchive}
 			onDelete={onDelete}
 			onEdit={onEdit}
 			onOpenChange={onOpenChange}
+			onRestore={onRestore}
 			onToggleFavorite={onToggleFavorite}
 			open
 			{...props}
 		/>
 	);
-	return { onDelete, onEdit, onOpenChange, onToggleFavorite };
+	return {
+		onArchive,
+		onRestore,
+		onDelete,
+		onEdit,
+		onOpenChange,
+		onToggleFavorite,
+	};
 }
 
 describe("RoomActionsDrawer", () => {
+	it("archives an active room from its actions", async () => {
+		const user = userEvent.setup();
+		const { onArchive } = setup();
+		await user.click(screen.getByRole("button", { name: "Archive room" }));
+		expect(onArchive).toHaveBeenCalledTimes(1);
+		expect(
+			screen.queryByRole("button", { name: "Restore room" })
+		).not.toBeInTheDocument();
+	});
+	it("restores an archived room from its actions", async () => {
+		const user = userEvent.setup();
+		const { onRestore } = setup({ isArchived: true });
+		await user.click(screen.getByRole("button", { name: "Restore room" }));
+		expect(onRestore).toHaveBeenCalledTimes(1);
+		expect(
+			screen.queryByRole("button", { name: "Archive room" })
+		).not.toBeInTheDocument();
+	});
 	it("renders Edit and Delete room actions", () => {
 		setup();
 		expect(screen.getByText("Edit room")).toBeInTheDocument();

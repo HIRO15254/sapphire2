@@ -106,8 +106,8 @@ that collided with an existing one. It was re-baselined by registering 0013–00
 `_journal.json` and adding a tip snapshot (`0034_snapshot.json`) that captured the true schema at
 that point, chained onto `0012`. There are intentionally no per-migration snapshots for
 0013–0033 — those migrations were authored in bulk, outside Drizzle, so faithful intermediate
-snapshots do not exist and were not fabricated. Generated migrations 0035–0049 each added their
-own snapshot; the current ledger tip is `0049_snapshot.json` (`0049_normalize_game_mix_variants`).
+snapshots do not exist and were not fabricated. Generated migrations after the re-baseline each add their
+own snapshot; the latest entry in `meta/_journal.json` identifies the current ledger tip.
 `db:generate` reads this newest snapshot, so future migrations continue from the current schema.
 
 > Caveat: `drizzle-kit check` (not currently in CI) validates that a snapshot exists for every

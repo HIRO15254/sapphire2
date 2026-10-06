@@ -20,6 +20,7 @@ import {
 import {
 	roomCreateInputSchema,
 	roomIdInputSchema,
+	roomListInputSchema,
 	roomUpdateInputSchema,
 } from "@sapphire2/api/routers/room";
 import {
@@ -130,7 +131,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "room_list",
 		procedurePath: "room.list",
 		description:
-			"List the user's poker rooms (venues/apps they play at), including favorites. Use the returned ids as roomId in other tools.",
+			"List the user's active poker rooms (venues/apps they play at), including favorites and archivedAt. Set includeArchived to list archived rooms instead. Use active ids as roomId for new data; archived rooms retain existing references.",
+		inputSchema: roomListInputSchema,
 	},
 	{
 		name: "currency_list",
@@ -198,6 +200,24 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 			"Update a room by id. Only the supplied fields change; pass null to clear memo or the coordinates (latitude and longitude must be set or cleared together — sending only one is rejected even when the other is already stored). Existing sessions display the new name.",
 		inputSchema: roomUpdateInputSchema,
 		destructiveHint: true,
+		idempotentHint: true,
+	},
+	{
+		name: "room_archive",
+		procedurePath: "room.archive",
+		description:
+			"Archive a poker room so it stops appearing in pickers for new data. Reversible with room_restore; existing sessions and games keep their links. List archived rooms with room_list and includeArchived.",
+		inputSchema: roomIdInputSchema,
+		destructiveHint: false,
+		idempotentHint: true,
+	},
+	{
+		name: "room_restore",
+		procedurePath: "room.restore",
+		description:
+			"Restore an archived poker room so it appears in pickers again.",
+		inputSchema: roomIdInputSchema,
+		destructiveHint: false,
 		idempotentHint: true,
 	},
 	{
@@ -436,14 +456,13 @@ export const DELIBERATELY_EXCLUDED: {
 	},
 	{
 		reason:
-			"Irreversible master deletion: sessions reference these rows, so removing one rewrites history the user cannot get back. These two have an archive/restore counterpart on the router, which is exposed instead",
-		paths: ["ringGame.delete", "tournament.delete"],
+			"Irreversible master deletion: these masters have reversible archive/restore counterparts, which are exposed instead. Room deletion is refused while sessions or games reference it",
+		paths: ["room.delete", "ringGame.delete", "tournament.delete"],
 	},
 	{
 		reason:
 			"Irreversible deletion with NO archive counterpart on the router: creating these is exposed but removing them is not, so a mistaken create leaves a row only the web UI can clear. Exposing delete instead would put an unrecoverable operation on the tool surface, which is the worse trade",
 		paths: [
-			"room.delete",
 			"gameGroup.delete",
 			"gameVariant.delete",
 			"gameMix.delete",

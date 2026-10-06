@@ -262,7 +262,10 @@ export function useMasterLinkSheet({
 		enabled: open,
 	});
 	const rooms = roomsQuery.data ?? [];
-	const defaultRoomId = linked.detail?.roomId ?? rooms[0]?.id ?? "";
+	const defaultRoomId =
+		rooms.find((room) => room.id === linked.detail?.roomId)?.id ??
+		rooms[0]?.id ??
+		"";
 
 	const liveTournamentQuery = useQuery({
 		...trpc.liveTournamentSession.getById.queryOptions({ id: sessionId }),
