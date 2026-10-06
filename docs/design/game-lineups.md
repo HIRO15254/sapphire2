@@ -208,7 +208,7 @@ entry_cash         cash_rule_id = R3           (the master stays on R2; drift = 
 
 ## Deviations from data-model-v2.md
 
-Recorded in SA2-297. Deviations 1 and 2 are applied to [`data-model-v2.md`](data-model-v2.md); 3 is still to be applied there (tracked in SA2-294):
+Recorded in SA2-297 and applied to [`data-model-v2.md`](data-model-v2.md):
 
 1. **`tournament_rule_level.lineup_id` is NOT NULL and holds the effective lineup**, with `inherits_lineup` recording that the level follows the version default — SA2-242 decision 2, kept. The data-model-v2 draft had "NULL inherits", which would leave level stakes outside the composite FK below (a NULL FK column is not checked). The API still says `game: null` for an inheriting level.
 2. **L1 adds `ledger_line.price_id`**, so L1 also waits for data model v2 T10 (SA2-302), which creates `ledger_line`. L1 is the first point where both `ledger_line` and `tournament_rule_price` exist and the dual write can fill the column; T28 backfills it. The P4 chain still fits before T35: T27 can ship with R3 and each later step in its own release.
