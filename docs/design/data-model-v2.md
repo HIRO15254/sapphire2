@@ -193,15 +193,15 @@ Every rule-version table is INSERT-only and is never updated (INV-16). The defin
 | table_size | INTEGER | yes | 2 to 10 |
 | house_rules | TEXT | yes | Up to 2,000 characters |
 
-Indexes: `UNIQUE (id, user_id)`, `(ring_game_id)`, `(parent_rule_id)`.
+Indexes: `UNIQUE (id, user_id)`, `UNIQUE (id, lineup_id)`, `(ring_game_id)`, `(parent_rule_id)`.
 
 **cash_rule_stake** (primary key `(rule_id, lineup_group_id)`)
 
 | Column | Type | Nullable | Constraints and description |
 | --- | --- | --- | --- |
-| rule_id | TEXT | no | `(rule_id, user_id)` to cash_rule, CASCADE |
-| lineup_group_id | TEXT | no | `(lineup_group_id, lineup_id)` to game_lineup_group. One row per group (invariant 4 in game-lineups.md) |
-| lineup_id | TEXT | no | The same lineup as the parent cash_rule. Held for the composite FK |
+| rule_id | TEXT | no | `(rule_id, user_id)` and `(rule_id, lineup_id)` to cash_rule, CASCADE. The second FK ties the stake to its version's lineup |
+| lineup_group_id | TEXT | no | `(lineup_group_id, lineup_id)` to game_lineup_group. One row per group (invariant 5 in game-lineups.md) |
+| lineup_id | TEXT | no | The same lineup as the parent cash_rule. Held for the two composite FKs, so a stake cannot point at a group of another lineup |
 | blind1 / blind2 / blind3 / ante | INTEGER | yes | All 0 or more |
 | ante_type | TEXT | yes | The same set of values as the current ante_type |
 
@@ -217,6 +217,8 @@ Indexes: `UNIQUE (id, user_id)`, `(ring_game_id)`, `(parent_rule_id)`.
 | bounty_amount | INTEGER | yes | 0 or more |
 | house_rules | TEXT | yes | Up to 2,000 characters |
 
+Indexes: `UNIQUE (id, user_id)`, `(tournament_id)`, `(parent_rule_id)`.
+
 **tournament_rule_level**
 
 | Column | Type | Nullable | Constraints and description |
@@ -226,9 +228,12 @@ Indexes: `UNIQUE (id, user_id)`, `(ring_game_id)`, `(parent_rule_id)`.
 | level | INTEGER | yes | The level number shown to the user. NULL for a break |
 | is_break | INTEGER | no | 0 / 1 |
 | minutes | INTEGER | yes | 1 or more |
-| lineup_id | TEXT | yes | NULL inherits the parent's lineup (SA2-242) |
+| lineup_id | TEXT | no | The effective lineup. `(lineup_id, user_id)` to game_lineup, NO ACTION. Equals the version's lineup_id while inherits_lineup = 1 (API) |
+| inherits_lineup | INTEGER | no | 0 / 1. 1 = the level follows the version's default lineup, and the API returns `game: null` for it (SA2-242 decision 2, kept in SA2-297) |
 
-**tournament_rule_level_stake** (primary key `(level_id, lineup_group_id)`): the same shape as cash_rule_stake, except the parent is tournament_rule_level. A break level has no rows.
+Indexes: `UNIQUE (id, user_id)`, `UNIQUE (id, lineup_id)`.
+
+**tournament_rule_level_stake** (primary key `(level_id, lineup_group_id)`): the same shape as cash_rule_stake, except the parent is tournament_rule_level — `(level_id, user_id)` and `(level_id, lineup_id)` to tournament_rule_level, CASCADE. A NULL lineup on an inheriting level would leave these rows outside the lineup FK, which is why the level stores its effective lineup. A break level has no rows.
 
 **tournament_rule_price**
 
@@ -369,7 +374,7 @@ The row with the reserved name "Session Result" is not moved, because a session 
 | entry_id | TEXT | yes | `(entry_id, user_id)` to entry, CASCADE. Required for entry roles, NULL for wallet roles (INV-09) |
 | play_session_id | TEXT | yes | `(play_session_id, entry_id, user_id)` to play_session, CASCADE. Says which day the event belongs to |
 | source_event_id | TEXT | yes | `(source_event_id, user_id)` to play_event, CASCADE. The projection source. NULL for manual input |
-| price_id | TEXT | yes | An exception column added in P4. Which price was paid. The number of chip purchases is counted by this column |
+| price_id | TEXT | yes | An exception column added in P4 (T27). Which price was paid. The number of chip purchases is counted by this column |
 | category_id | TEXT | yes | `(category_id, user_id)` to ledger_category, NO ACTION. Used only by adjustment and exchange |
 | transfer_id | TEXT | yes | Pairs the two rows of an exchange. Required for exchange |
 | occurred_at | INTEGER | no | The reference time for choosing the conversion rate. For live, the event time. For manual, the start time or noon of local_date |
@@ -992,8 +997,8 @@ Manual tournament input has the same shape. Create buy_in, fee, prize, and bount
 **P4 (T28)**: Create one current version per master.
 
 - If an entry's snapshot has the same values as that version, point to the same version.
-- If it differs, create a child version with that version as its parent.
-- Details follow game-lineups.md, which is revised in T26 (id prefixes are `cr:` / `tr:`).
+- If it differs, create a child version with that version as its parent. Entries with equal snapshots under one master share one child version.
+- Details follow game-lineups.md, revised in T26 (version ids `cr:<ring_game_id>` / `tr:<tournament_id>`, child versions `cr:e:<entry_id>` / `tr:e:<entry_id>`).
 
 **P5 (T33)**: Move the tags.
 
@@ -1074,7 +1079,7 @@ There are 38 tasks, T00 to T37. One task is one Linear issue and one PR.
 | T24 | SA2-321 | Detailed hand input (summary / full), the hand list, and linking all_in to a hand | P3 | Feature | L | T23 | A hand can be raised from count to full and lowered again |
 | T25 | SA2-323 | Per-opponent hands and VPIP / PFR (player detail) | P3 | Feature | M | T24 | Count only full hands. Test the section 11.5 definitions |
 | T26 | SA2-297 | Revise the SA2-242 design. Make the rule version the owner of stakes, and update game-lineups.md | P4 | Chore | S | — | Decide Q5 in section 20 and rewrite the descriptions of SA2-244 to SA2-251 |
-| T27 | SA2-244 | (Revises SA2-244) Rule version tables, current_rule_id, and the entry-side rule_id. Dual writes | P4-E | Improvement | L | T04, T26, SA2-243 | A test confirms that rule versions have no UPDATE |
+| T27 | SA2-244 | (Revises SA2-244) Rule version tables, current_rule_id, the entry-side rule_id, and ledger_line.price_id. Dual writes | P4-E | Improvement | L | T04, T10, T26, SA2-243 | A test confirms that rule versions have no UPDATE |
 | T28 | SA2-245 | (Revises SA2-245) Backfill rule versions, with gates A-7 / A-13 | P4-B | Improvement | L | T27 (separate release) | Snapshots with the same values share the same version |
 | T29 | SA2-246 | (Revises SA2-246) Read switch. Diffs become id comparisons, overrideRule, and chip purchase counts are counted from price_id | P4-R | Improvement | L | T14, T28 | The normalization in house-rules.ts and the per-column comparison can be deleted |
 | T30 | SA2-247 / SA2-248 / SA2-249 | (Revises SA2-247 / 248 / 249) Web switch. rooms, live sessions, sessions | P4 | Improvement | L×3 | T29 | Follow the acceptance criteria of the 3 existing issues |
@@ -1135,6 +1140,7 @@ flowchart LR
     T23 --> T24
     T24 --> T25
     T04 --> T27
+    T10 --> T27
     T26 --> T27
     SA2_243 --> T27
     T27 --> T28
@@ -1159,7 +1165,7 @@ flowchart LR
 
 Dependencies split into P1, P2, and P4 after T04, split into multi-day, assets, hands, and P4 after T14, and come back into one line at T34. The tasks that make T34 wait are T19, T20, T23, T29, and T33.
 
-Each task of the P4 series is a separate release. T29 waits for T14 (R4), so after R4, three releases of T29, T30, and T31 are needed, and all must finish before T35 (R8). T26 can start at any time, and T27 can start after R2 and SA2-243, so doing them early keeps R8 from waiting.
+Each task of the P4 series is a separate release. T29 waits for T14 (R4), so after R4, three releases of T29, T30, and T31 are needed, and all must finish before T35 (R8). T26 can start at any time. T27 needs T04 (R2), T10 (R3, for ledger_line.price_id), and SA2-243, so it ships in R3 at the earliest. Shipping T27 in R3 and T28 in R4 still lets T29 ship in R5, right after T14, so R8 does not wait.
 
 The graph omits dependencies that follow from other paths (T09 → T18, T09 → T32, T14 → T34). SA2-243 and SA2-229 are prerequisite issues outside this specification.
 
@@ -1196,7 +1202,7 @@ When deleting or replacing a test, write in the PR the contract that test protec
 
 ### 20.1 Open questions
 
-This specification decides every question provisionally with the recommended option. Only Q5 blocks starting work.
+This specification decides every question provisionally with the recommended option. Q5, the only one that blocked starting work, was decided on 2026-10-06 (section 20.3).
 
 | ID | Question | Recommendation | Tasks blocked if undecided |
 | --- | --- | --- | --- |
@@ -1204,7 +1210,7 @@ This specification decides every question provisionally with the recommended opt
 | Q2 | Include items in real P/L? | Do not include them (the same as PR #569). If we later want to include only items that can be cashed out, add a flag to asset | T13 |
 | Q3 | Make conversion rates a history with validity periods? | Make them a history. Past converted amounts do not change when a rate is updated | T10 |
 | Q4 | Make the "+1" a hand row too? | Yes. The hand count and the button fact live in one place | T21 |
-| Q5 | Revise L1 and later of SA2-242 to the rule-version approach? | Revise. The stake tables go from 4 to 2, and no session-side copy is needed. L0 (SA2-243) proceeds as is | T26, SA2-244 and later |
+| Q5 | Revise L1 and later of SA2-242 to the rule-version approach? | Decided: revise. The stake tables go from 4 to 2, and no session-side copy is needed. L0 (SA2-243) proceeds as is | T26, SA2-244 and later |
 | Q6 | How to treat past sessions with no currency set? | Group them into a per-user "Unassigned" asset so they can be reassigned later | T12 |
 | Q7 | Is it OK to convert existing live dates using JST (+9 hours)? | Yes. The time zone was not stored, so there is no other clue. The pre-audit reports how many started around midnight | T08 |
 | Q8 | Rename MCP tool names in T34? | Rename (currency_list → asset_list, session_tag_\* → entry_tag_\*). Put the mapping table in the release notes | T34 |
@@ -1214,7 +1220,7 @@ This specification decides every question provisionally with the recommended opt
 | ID | Risk | Mitigation |
 | --- | --- | --- |
 | R1 | A dual-write path is missed and a new table lacks rows | Use the procedure table in section 14 as a checklist. The B gates (A-3, A-5) stop the leak |
-| R2 | SA2-242 L1 builds the stake tables first and the migration is done twice | Decide Q5 first. Do not start SA2-244 until it is decided |
+| R2 | SA2-242 L1 builds the stake tables first and the migration is done twice | Resolved: Q5 was decided (revise) before SA2-244 started, and T26 rewrote SA2-244 to SA2-251 |
 | R3 | The migration spans 9 releases, R1 to R9, and dual-write code stays for a long time | Order the releases so that something becomes usable in each. Keep dual writes in 2 places, the projector and manual input |
 | R4 | Concurrent writes to the same entry leave the projection in a stale state | The next write rebuilds everything. A-6 detects it periodically. If it actually happens, give the entry a version number and use optimistic locking |
 | R5 | In D1, one file is not one transaction, so a half-failed state can remain in production | Write every statement so it can be re-run. Test mid-way failures with `applyThrough` |
@@ -1227,6 +1233,10 @@ This specification decides every question provisionally with the recommended opt
 
 | Date | Decision | Reason |
 | --- | --- | --- |
+| 2026-10-06 | Q5: revise SA2-242 L1 and later to rule versions (T26, game-lineups.md) | Stakes and rule fields get one home per version instead of a copy per owner. The stake tables go from 4 to 2, and drift becomes a version-id comparison |
+| 2026-10-06 | tournament_rule_level stores its effective lineup_id (NOT NULL) plus inherits_lineup, instead of NULL = inherit (T26) | A NULL FK column is not checked, so level stakes of an inheriting level would escape the composite FK that ties a stake to its lineup |
+| 2026-10-06 | T27 also adds ledger_line.price_id, so T27 depends on T10 (T26) | T27 is the first task where both ledger_line and tournament_rule_price exist and the dual write can fill the column. T29 still ships in R5 |
+| 2026-10-06 | Stakes have a second composite FK `(rule_id, lineup_id)` to their version (T26) | `(rule_id, user_id)` alone lets a stake name a group of a different lineup than its version's, the c02 / c04 bug class |
 | 2026-10-06 | Express a fixed rate with one row with effective_from = 0. 0 means "valid from the beginning" and is the default for the first row of a pair | effective_from is required and means "valid from this time", so a fixed rate registered today cannot convert past lines. With NULL, UNIQUE cannot prevent duplicates |
 | 2026-10-06 | Put entry and play_session (P1) before the ledger (P2). This is the reverse of the overview version | ledger_line references entry, play_session, and play_event. Re-pointing FKs later would require rebuilding tables |
 | 2026-10-06 | Do not create a new asset table. Extend currency and rename it at the end | The currency_id of ring_game and tournament is a table-level FK that cannot be dropped, and parent tables cannot be rebuilt (confirmed on SQLite 3.53) |
