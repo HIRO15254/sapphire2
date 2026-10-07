@@ -134,7 +134,7 @@ There are 23 invariants. Implementation, review, and audit queries refer to them
 
 ## 5. Table definitions 1: conventions, masters, rule versions
 
-Every new table follows the common conventions below. The per-table definitions omit these common columns. The existing parent tables (room, ring_game, tournament, currency, player, player_tag) are not rebuilt. They keep being used, with columns and indexes added.
+Every new table follows the common conventions below. The per-table definitions omit these common columns. The existing parent tables (room, ring_game, tournament, currency, player, player_tag) keep being used. ring_game and tournament are rebuilt once in P0 (T02) to get `user_id NOT NULL` and a composite FK to room, with their child rows staged and restored (16.3). The others only get columns and indexes added.
 
 ### 5.1 Common conventions
 
@@ -155,10 +155,10 @@ Every new table follows the common conventions below. The per-table definitions 
 | Table | Change | Phase |
 | --- | --- | --- |
 | room | Add `archived_at INTEGER NULL`. Add `UNIQUE (id, user_id)`. A room can be deleted only when nothing references it | P0 |
-| ring_game | Add `UNIQUE (id, user_id)`. Backfill or delete orphan rows whose `user_id` is NULL. Do not add NOT NULL, because it would rebuild the table. The server and audits enforce it instead | P0 |
+| ring_game | Rebuild with `user_id NOT NULL` and the composite FK `(room_id, user_id) → room(id, user_id) ON DELETE CASCADE` (the existing cascade; T01 refuses a referenced room at the API). Add `UNIQUE (id, user_id)`. A row with a NULL `user_id` takes its room's owner, or else the owner of the oldest session that links it; a row with neither is linked by nothing and is deleted. A row whose room belongs to another user keeps its own owner and loses the room link | P0 (T02) |
 | ring_game | Add `current_rule_id` (exception table). Keep `currency_id` as the "default asset". The Drizzle property name is `defaultAssetId` | P4 |
 | ring_game | DROP COLUMN the rule columns: variant, mix_games, blind1 to blind3, ante, ante_type, min_buy_in, max_buy_in, table_size, house_rules (none has an FK) | P4 (SA2-251) |
-| tournament | Add `user_id TEXT NULL REFERENCES user(id) ON DELETE CASCADE` with ADD COLUMN and backfill it from room. Add `UNIQUE (id, user_id)` | P0 |
+| tournament | Rebuild with `user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE`, filled from room, and the composite FK `(room_id, user_id) → room(id, user_id) ON DELETE CASCADE`. Add `UNIQUE (id, user_id)` | P0 (T02) |
 | tournament | Add `current_rule_id` (exception table). DROP COLUMN buy_in, entry_fee, starting_stack, bounty_amount, table_size, house_rules, variant | P4 |
 | blind_level, tournament_chip_purchase | Move to tournament_rule_level and tournament_rule_price, then drop the tables. They are child tables, so they can be dropped | P4 |
 | player | Add `UNIQUE (id, user_id)`. A row referenced by hand_seat cannot be deleted | P0 |
@@ -855,7 +855,7 @@ A human cuts releases. The table below is the shortest split derived from the de
 | Release | Included tasks | Gate to pass | What becomes available |
 | --- | --- | --- | --- |
 | R1 | T00, T01, T02 | — | Room archive |
-| R2 | T03, T04, T05, T06, T07 | A-1, A-2 | — (dual writes start) |
+| R2 | T04, T05, T06, T07 | — | — (dual writes start) |
 | R3 | T08, T09, T10, T11, T13 | A-3, A-4 | — (reads from entry and play_session) |
 | R4 | T12, T14, T18, T21 | A-5 | P/L from the ledger, multi-day and away-from-seat API |
 | R5 | T15, T16, T17, T19, T20, T22, T23, T32 | A-10 | Multi-day, non-currency, virtual ROI, hand count, bb/100 |
@@ -872,7 +872,7 @@ A human cuts releases. The table below is the shortest split derived from the de
   - Use `CREATE ... IF NOT EXISTS` and `INSERT OR IGNORE`.
   - Make ids deterministic.
   - Write backfills so they never abort: join to the owner with `INNER JOIN`, guard with `CASE WHEN json_valid(x) = 0`, and turn values that violate a CHECK into NULL with CASE.
-- Do not rebuild existing parent tables. D1 checks FKs even during a migration, and the implicit DELETE of DROP TABLE cascades to child rows.
+- Do not rebuild an existing parent table without staging its children. D1 checks FKs even during a migration, and the implicit DELETE of DROP TABLE cascades to child rows and sets SET NULL links to NULL. T02 (`0054_stale_redwing`) stages the child rows and links, restores them after the rebuild, and can be replayed from any statement; follow it if another rebuild is needed.
 - A column with a table-level FK cannot be dropped with DROP COLUMN. Only a column with no FK, index, or CHECK can be dropped (confirmed on SQLite 3.53).
 - Inspect production contents first. Before opening the PR for stage B, run the pre-audit (16.6) with `bunx wrangler d1 execute sapphire2-db --remote --command "..."` and paste the result into the issue.
 
@@ -885,28 +885,14 @@ CREATE TABLE IF NOT EXISTS _migration_gate (v INTEGER NOT NULL);
 INSERT INTO _migration_gate (v)
 SELECT NULL WHERE EXISTS (
   -- Put the audit query here (16.7)
-  SELECT 1 FROM tournament WHERE user_id IS NULL
+  SELECT 1 FROM game_session gs LEFT JOIN entry e ON e.id = gs.id WHERE e.id IS NULL
 );
 DROP TABLE _migration_gate;
 ```
 
 ### 16.5 Backfill SQL (representative examples)
 
-**P0 (T03)**: Fix tournament.user_id and orphan ring_game rows.
-
-```sql
-UPDATE tournament SET user_id = (SELECT r.user_id FROM room r WHERE r.id = tournament.room_id)
-WHERE user_id IS NULL;
-
-UPDATE ring_game SET user_id = COALESCE(
-  (SELECT r.user_id FROM room r WHERE r.id = ring_game.room_id),
-  (SELECT gs.user_id FROM session_cash_detail scd
-     JOIN game_session gs ON gs.id = scd.session_id
-    WHERE scd.ring_game_id = ring_game.id LIMIT 1))
-WHERE user_id IS NULL;
-
-DELETE FROM ring_game WHERE user_id IS NULL; -- only rows that nobody uses remain
-```
+**P0 (T02)**: The rebuild in `0054_stale_redwing` fixes the owners while it copies the staged rows back. tournament takes its room's owner. ring_game keeps its own `user_id`, or else takes its room's owner, or else the owner of the oldest session that links it. A ring_game with none of these is linked by nothing and is not copied back, and a room owned by someone other than the resolved owner is unlinked. NOT NULL replaces the A-1 / A-2 gates.
 
 **P1 (T08)**: Move entry, play_session, and play_event with their old ids. Rows that entered through dual writes are kept by `OR IGNORE`. The value of game_session.kind (`cash_game`) is checked against the constants at implementation time.
 
@@ -1013,6 +999,7 @@ Manual tournament input has the same shape. Create buy_in, fee, prize, and bount
 
 ### 16.6 Pre-audit (run in production before opening the stage B PR)
 
+- (T02, before merging) ring_game rows with a NULL user_id, by how they resolve (own room, linking session, none), ring_game rows whose room belongs to another user, and tournament rows without a room
 - Rows whose session_event.payload is invalid JSON
 - game_session rows with `ended_at < started_at`
 - The number of game_session rows with a NULL currency_id, and the number of users who have them
@@ -1027,8 +1014,8 @@ Each one passes when it returns 0 rows. Which ones are used as gates is written 
 
 | ID | What it checks | Type |
 | --- | --- | --- |
-| A-1 | There is no row with `tournament.user_id IS NULL` | Gate (T03) |
-| A-2 | There is no row with `ring_game.user_id IS NULL` | Gate (T03) |
+| A-1 | Retired: `tournament.user_id` is NOT NULL since T02 | — |
+| A-2 | Retired: `ring_game.user_id` is NOT NULL since T02 | — |
 | A-3 | Each game_session has a matching entry and a seq 1 play_session, and each session_event has a matching play_event (ids that exist on only one side) | Gate (T08) |
 | A-4 | The started_at, ended_at, break_minutes, and status of the play_session match game_session | Gate (T08) |
 | A-5 | For each settled entry, the real P/L of the lines matches the P/L of the old columns. For cash: cash_out + chip_remove_total − buy_in. For a tournament: prize + bounty − (buy_in + fee + Σcost×count) | Gate (T12) |
@@ -1045,7 +1032,7 @@ A-11 is not a gate. The ledger is built from the correct source columns, so drif
 
 ## 17. Task breakdown
 
-There are 38 tasks, T00 to T37. One task is one Linear issue and one PR.
+There are 37 tasks, T00 to T37 with T03 merged into T02. One task is one Linear issue and one PR.
 
 - Size uses the T-shirt sizes in AGENTS.md (XS 1, S 2, M 3, L 5). There is no XL.
 - Every priority starts at Medium. But a B task that has a gate blocks the connected phase, so make it High.
@@ -1060,9 +1047,9 @@ There are 38 tasks, T00 to T37. One task is one Linear issue and one PR.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | T00 | SA2-294 | Put this specification in English at `docs/design/data-model-v2.md` and link it from related docs | — | Chore | S | — | It contains the invariants, table definitions, calculation spec, and migration stages. `check:rules` passes |
 | T01 | SA2-295 | Room archive / restore. Deleting a referenced room returns CONFLICT | P0 | Improvement | M | — | API, MCP (room_archive / room_restore), and the web archive action. A D1 integration test confirms that deleting a referenced room is rejected |
-| T02 | SA2-296 | Add tournament.user_id. Add `UNIQUE (id, user_id)` to room, ring_game, tournament, player, player_tag, and currency. Every create path writes user_id | P0-E | Improvement | M | — | A new tournament and ring_game always get a user_id. `schema-migrations.test.ts` passes |
-| T03 | SA2-298 | Backfill tournament.user_id, clean up orphan ring_game rows, gates A-1 / A-2 | P0-B | Improvement | S | T02 (separate release) | `applyThrough` confirms re-running after a mid-way failure. Paste the production pre-audit result into the issue |
-| T04 | SA2-299 | Tables for entry, entry_cash, entry_tournament, play_session, and play_event | P1-E | Improvement | L | T01, T03 | D1 integration tests confirm that composite FKs, the partial UNIQUE, and CHECKs reject other users' rows and invalid values |
+| T02 | SA2-296 | Rebuild ring_game and tournament with `user_id NOT NULL` and a composite FK to room, filling tournament.user_id from room and resolving orphan ring_game rows. Add `UNIQUE (id, user_id)` to room, ring_game, tournament, player, player_tag, and currency. Every create path writes user_id | P0 | Improvement | M | — | A new tournament and ring_game always get a user_id. `schema-migrations.test.ts` passes. `applyThrough` confirms re-running after a mid-way failure. Paste the production pre-audit result into the issue |
+| T03 | SA2-298 | Merged into T02 (2026-10-07) | — | — | — | — | — |
+| T04 | SA2-299 | Tables for entry, entry_cash, entry_tournament, play_session, and play_event | P1-E | Improvement | L | T01, T02 | D1 integration tests confirm that composite FKs, the partial UNIQUE, and CHECKs reject other users' rows and invalid values |
 | T05 | SA2-300 | The projector: the pure function `projectEntry` and the part that builds batch statements | P1-E | Improvement | M | T04 | Unit-test every row of the section 13 table. For existing event sequences, the result equals the current fold (live-session-pl.ts) |
 | T06 | SA2-301 | Dual writes for manual input (session.create / update / delete). Protect delete of ring_game / tournament | P1-E | Improvement | M | T04 | Write to old and new tables in one batch. D1 confirms that if it fails midway, neither is written |
 | T07 | SA2-303 | Dual writes for live (live\*, sessionEvent, sessionTablePlayer). Put the event and projection in one batch | P1-E | Improvement | L | T05 | The non-atomicity of SA2-192 is gone. Existing live tests pass unchanged |
@@ -1097,7 +1084,7 @@ There are 38 tasks, T00 to T37. One task is one Linear issue and one PR.
 | T36 | SA2-325 | Delete the compatibility views | P5-D | Chore | XS | T35 (separate release) | — |
 | T37 | SA2-326 | Review docs and rules (sessions-and-live-editing, data-integrity, statistics, db-migrations, api-data-integrity, AGENTS.md) | — | Chore | S | T35 | No reference to an old table name remains in the docs |
 
-The total size, counting T30 as 3 issues and T31 as 2 issues, is 163 points (41 issues). The breakdown is 1 XS, 4 S, 13 M, and 23 L, and the 8 P4 issues (L) among them are the existing SA2-244 to SA2-251.
+The total size, counting T30 as 3 issues and T31 as 2 issues, is 161 points (40 issues). The breakdown is 1 XS, 3 S, 13 M, and 23 L, and the 8 P4 issues (L) among them are the existing SA2-244 to SA2-251.
 
 This specification resolves these 4 existing issues. Each is linked and managed.
 
@@ -1115,9 +1102,8 @@ flowchart LR
         SA2_229["SA2-229"]
     end
 
-    T02 --> T03
+    T02 --> T04
     T01 --> T04
-    T03 --> T04
     T04 --> T05
     T04 --> T06
     T05 --> T07
@@ -1188,7 +1174,7 @@ Protect each contract at the one layer that protects it best (testing.md). Take 
 | Projection rules (section 13) | Unit (api) | At least one per event type. v1 and v2 payloads. Keep the match with the existing fold as a characterization test and state its purpose | T05 |
 | Valuation and conversion (section 12) | Unit (api) | The 3 entries of section 12.1. Inverse rate, two-step, missing rate, the effective time boundary (the same second), and rounding at 0.5 and −0.5 | T13 |
 | Compatibility of amount statistics | D1 integration | Run the existing stats tests with the same expected values against the implementation that reads the ledger | T14 |
-| Re-running a migration | Bun SQLite (`migration-*.test.ts`) | Run up to statement N with `applyThrough`. Then update the old tables like an old Worker, and run the whole file. Dual-written rows remain. The gate detects drift and stops | T03, T08, T12, T22, T28, T33, T35 |
+| Re-running a migration | Bun SQLite (`migration-*.test.ts`) | Run up to statement N with `applyThrough`. Then update the old tables like an old Worker, and run the whole file. Dual-written rows remain. The gate detects drift and stops | T02, T08, T12, T22, T28, T33, T35 |
 | Dates (UTC and local_date) | Bun SQLite, unit | Live sessions started at 23:59 and 0:00 JST. Manual-input UTC midnight values | T08, T09 |
 | D1 100-parameter limit | D1 integration | A hand with 120 actions at 10 seats. The projection of an entry with 50 chip purchases | T07, T21 |
 | MCP projection | mcp | The coupling test. The snapshot does not change in a read switch. A new procedure is in either the exposed or the excluded list | All backend tasks |
@@ -1239,6 +1225,7 @@ This specification decides every question provisionally with the recommended opt
 
 | Date | Decision | Reason |
 | --- | --- | --- |
+| 2026-10-07 | T02 rebuilds ring_game and tournament with `user_id NOT NULL` and a composite FK `(room_id, user_id)` to room, staging their child rows and links, instead of a nullable ADD COLUMN followed by the T03 backfill. T03 is merged into T02, and A-1 / A-2 are retired | User-directed: the ideal table shape comes first. Staging keeps every child row. Trade-off: between the migration and the Worker deploy the old Worker cannot create a tournament (it does not write user_id), and a rollback to a pre-T02 Worker cannot create tournaments until it rolls forward. The decisions that cite "parent tables cannot be rebuilt" (section 7, the section 5.3 exception table) are unchanged for now |
 | 2026-10-06 | Q5: revise SA2-242 L1 and later to rule versions (T26, game-lineups.md) | Stakes and rule fields get one home per version instead of a copy per owner. The stake tables go from 4 to 2, and drift becomes a version-id comparison |
 | 2026-10-06 | tournament_rule_level stores its effective lineup_id (NOT NULL) plus inherits_lineup, instead of NULL = inherit (T26) | A NULL FK column is not checked, so level stakes of an inheriting level would escape the composite FK that ties a stake to its lineup |
 | 2026-10-06 | T27 also adds ledger_line.price_id, so T27 depends on T10 (T26) | T27 is the first task where both ledger_line and tournament_rule_price exist and the dual write can fill the column. T29 still ships in R5 |

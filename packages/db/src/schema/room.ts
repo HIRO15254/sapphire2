@@ -5,6 +5,7 @@ import {
 	real,
 	sqliteTable,
 	text,
+	uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 import { user } from "./auth";
 
@@ -29,7 +30,10 @@ export const room = sqliteTable(
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
 	},
-	(table) => [index("room_userId_idx").on(table.userId)]
+	(table) => [
+		uniqueIndex("room_id_user_id_unique").on(table.id, table.userId),
+		index("room_userId_idx").on(table.userId),
+	]
 );
 
 export const roomRelations = relations(room, ({ one }) => ({
