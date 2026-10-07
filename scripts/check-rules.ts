@@ -289,7 +289,7 @@ if (unguardedEntries.length > 0) {
 }
 
 const SEED_RESTORE_MARKER = "--file=dump.sql";
-const TRIGGER_STASH_MARKERS: { hint: string; marker: string }[] = [
+const SEED_GUARD_MARKERS: { hint: string; marker: string }[] = [
 	{
 		marker: "FROM sqlite_master WHERE type = 'trigger'",
 		hint: "read the live trigger DDL back out of sqlite_master",
@@ -299,9 +299,17 @@ const TRIGGER_STASH_MARKERS: { hint: string; marker: string }[] = [
 		marker: "rearm-triggers.sql",
 		hint: "re-arm from drops-then-creates so it converges from a partial drop",
 	},
+	{
+		marker: "--file=fk-on.sql",
+		hint: "re-enable foreign keys with a separate import after the restore",
+	},
+	{
+		marker: '--command="PRAGMA foreign_keys"',
+		hint: "verify foreign keys are back on before the stashed migrations",
+	},
 ];
 
-const unstashed: string[] = [];
+const unguardedSeeds: string[] = [];
 for await (const scannedPath of new Glob("workflows/*.yml").scan({
 	cwd: ".github",
 	dot: true,
@@ -311,20 +319,20 @@ for await (const scannedPath of new Glob("workflows/*.yml").scan({
 	if (!text.includes(SEED_RESTORE_MARKER)) {
 		continue;
 	}
-	for (const { marker, hint } of TRIGGER_STASH_MARKERS) {
+	for (const { marker, hint } of SEED_GUARD_MARKERS) {
 		if (!text.includes(marker)) {
-			unstashed.push(`${path}: missing \`${marker}\` — ${hint}`);
+			unguardedSeeds.push(`${path}: missing \`${marker}\` — ${hint}`);
 		}
 	}
 }
 
-if (unstashed.length > 0) {
+if (unguardedSeeds.length > 0) {
 	failed = true;
 	console.error(
-		`\ncheck-rules FAIL: D1 seed restore (\`${SEED_RESTORE_MARKER}\`) without the trigger stash`
+		`\ncheck-rules FAIL: D1 seed restore (\`${SEED_RESTORE_MARKER}\`) without the trigger stash or the foreign-key re-enable`
 	);
 	console.error("  rule: .claude/rules/db-migrations.md");
-	for (const hit of unstashed) {
+	for (const hit of unguardedSeeds) {
 		console.error(`  ${hit}`);
 	}
 }

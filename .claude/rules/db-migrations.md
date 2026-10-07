@@ -174,6 +174,19 @@ be named in that step), so this paragraph is documentation, not the guard.
 the `sqlite_master` read-back, `DROP TRIGGER IF EXISTS`, and the drops-then-creates
 `rearm-triggers.sql`. Prose alone did not keep the copies in sync; that is what the guard is for.
 
+## The seed must leave foreign keys on
+
+The dump is restored under `PRAGMA foreign_keys = OFF` because it may insert children before their
+parents. On D1 that setting outlives the import: it stays on the database connection, and neither a
+`PRAGMA foreign_keys = ON` at the end of the same file nor one sent with `--command` (a no-op inside
+that request's implicit transaction) turns it back on. The stashed migrations then ran without the
+FK actions production enforces: `0054_stale_redwing`'s `DROP TABLE tournament` cascaded nothing,
+and its restore of the staged children died on `UNIQUE constraint failed: blind_level.id` in the dev
+deploy (SA2-329), although the same SQL applies cleanly with foreign keys on. Both seed steps
+therefore re-enable them with a separate import (`--file=fk-on.sql`) and fail unless
+`--command="PRAGMA foreign_keys"` then reads `1`; `check:rules` asserts both markers alongside the
+trigger stash.
+
 ## Keeping the ledger from drifting again
 
 `bun run db:generate` must report **"No schema changes, nothing to migrate"** whenever
