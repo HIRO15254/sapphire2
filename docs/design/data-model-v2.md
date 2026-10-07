@@ -141,6 +141,7 @@ Every new table follows the common conventions below. The per-table definitions 
 - `id TEXT PRIMARY KEY`: `crypto.randomUUID()`. A row created by backfill uses the same id as its source row, or a prefixed deterministic id (section 16).
 - `user_id TEXT NOT NULL`: `user(id) ON DELETE CASCADE`.
 - `created_at` / `updated_at INTEGER NOT NULL`: unixepoch seconds. An immutable table has only `created_at`.
+- A table keyed by its parent (the 1:1 tables entry_cash and entry_tournament, and the tables with a composite primary key) has no `id` and no `created_at` / `updated_at`. It still has `user_id` for its composite FKs.
 - A table referenced by a composite FK has `UNIQUE (id, user_id)`. Without this index, deleting a parent fails with `foreign key mismatch` (confirmed in SA2-242).
 - ON DELETE uses only these two behaviors. Do not use RESTRICT or SET NULL.
   - CASCADE for children of the same aggregate (entry to play_session, etc.).
@@ -149,6 +150,7 @@ Every new table follows the common conventions below. The per-table definitions 
 - Amounts and counts are INTEGER. Store them in the smallest unit of the asset. The sign is decided per column.
 - A date-only value is `TEXT 'YYYY-MM-DD'` (`local_date`, `played_on`). A time is unixepoch seconds.
 - An enumerated value is TEXT with a CHECK. The list of values is in section 11.
+- A range or a rule between columns in a table definition ("0 or more", "1 or more", `ended_at >= started_at`) is a CHECK. A length limit ("Up to N characters") is validated only by the server's Zod unless the table says otherwise, so a backfill of an older, longer value never aborts.
 
 ### 5.2 Changes to existing masters
 
@@ -267,7 +269,7 @@ entry and play_session are backfilled with the same id as the old game_session (
 | played_on | TEXT | no | — | A projection of `MIN(play_session.local_date)` (INV-03). Used for list sorting and paging |
 | memo | TEXT | yes | — | Up to 5,000 characters |
 
-Indexes: `UNIQUE (id, user_id)`, `(user_id, played_on, id)` (keyset paging), `(user_id, kind, status)`, `(room_id)`, `(asset_id)`. CHECK: `played_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`.
+Indexes: `UNIQUE (id, user_id)`, `UNIQUE (id, kind, user_id)` (the target of play_session's FK, INV-07), `(user_id, played_on, id)` (keyset paging), `(user_id, kind, status)`, `(room_id)`, `(asset_id)`. CHECK: `played_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`.
 
 **entry_cash** (1:1 with entry, kind = cash)
 
@@ -277,6 +279,8 @@ Indexes: `UNIQUE (id, user_id)`, `(user_id, played_on, id)` (keyset paging), `(u
 | ring_game_id | TEXT | yes | `(ring_game_id, user_id)` to ring_game, NO ACTION |
 | ev_diff | INTEGER | yes | EV P/L minus real P/L. NULL means EV was not recorded (the same meaning as the current evCashOut) |
 | cash_rule_id | TEXT | yes | An exception column added in P4. After the P4 read switch, the server makes it required |
+
+Index: `(ring_game_id)`.
 
 **entry_tournament** (1:1 with entry, kind = tournament)
 
@@ -289,21 +293,24 @@ Indexes: `UNIQUE (id, user_id)`, `(user_id, played_on, id)` (keyset paging), `(u
 | before_deadline | INTEGER | yes | 0 / 1. When 1, placement is NULL (the same rule as the current end payload) |
 | tournament_rule_id | TEXT | yes | An exception column added in P4 |
 
+Index: `(tournament_id)`.
+
 The number of entrants and remaining players during play stay in update_stack events, as today. entry_tournament holds only the final result.
 
 **play_session**
 
 | Column | Type | Nullable | Default | Constraints and description |
 | --- | --- | --- | --- | --- |
-| entry_id | TEXT | no | — | `(entry_id, user_id)` to entry, CASCADE |
+| entry_id | TEXT | no | — | `(entry_id, kind, user_id)` to entry, CASCADE |
+| kind | TEXT | no | — | The entry's kind. The FK keeps it equal to `entry.kind`, so the end_state CHECK can read it (INV-07) |
 | seq | INTEGER | no | — | 1 or more. `UNIQUE (entry_id, seq)` |
 | label | TEXT | yes | — | "Day 1A", etc. Up to 50 characters |
-| local_date | TEXT | no | — | The user's local date `YYYY-MM-DD`. Sent by the client |
+| local_date | TEXT | no | — | The user's local date `YYYY-MM-DD`. Sent by the client. The same GLOB CHECK as `played_on` |
 | started_at | INTEGER | yes | — | Can be omitted in manual input |
 | ended_at | INTEGER | yes | — | `ended_at >= started_at` |
 | break_minutes | INTEGER | no | 0 | 0 or more |
 | status | TEXT | no | — | active / paused / ended |
-| end_state | TEXT | yes | — | `(status = 'ended') = (end_state IS NOT NULL)`. Values are in section 11 |
+| end_state | TEXT | yes | — | `(status = 'ended') = (end_state IS NOT NULL)`. Values and the kind each one allows are in section 11.2 (CHECK, INV-07) |
 | end_stack | INTEGER | yes | — | 0 or more. Required for bagged and held (INV-07). Becomes the starting stack of the next play_session |
 | clock_started_at | INTEGER | yes | — | The start time of the tournament timer (the current timerStartedAt) |
 | clock_start_level | INTEGER | yes | — | The ordinal of the level at which that day started. For example, when Day 2 starts at level 15 |
@@ -919,9 +926,9 @@ LEFT JOIN session_tournament_detail std ON std.session_id = gs.id;
 
 ```sql
 INSERT OR IGNORE INTO play_session
-  (id, user_id, entry_id, seq, local_date, started_at, ended_at, break_minutes,
+  (id, user_id, entry_id, kind, seq, local_date, started_at, ended_at, break_minutes,
    status, end_state, end_stack, clock_started_at, created_at, updated_at)
-SELECT gs.id, gs.user_id, e.id, 1, e.played_on, gs.started_at,
+SELECT gs.id, gs.user_id, e.id, e.kind, 1, e.played_on, gs.started_at,
   CASE WHEN gs.ended_at >= gs.started_at OR gs.started_at IS NULL THEN gs.ended_at END,
   COALESCE(gs.break_minutes, 0),
   CASE gs.status WHEN 'completed' THEN 'ended' WHEN 'paused' THEN 'paused' ELSE 'active' END,
@@ -1225,6 +1232,7 @@ This specification decides every question provisionally with the recommended opt
 
 | Date | Decision | Reason |
 | --- | --- | --- |
+| 2026-10-07 | play_session carries the entry's `kind`, kept equal by the composite FK `(entry_id, kind, user_id)` to entry's `UNIQUE (id, kind, user_id)`, so a CHECK rejects the end_state and kind pairs that INV-07 forbids (T04) | INV-07 is enforced by the DB, but a CHECK sees only its own row and play_session had no kind. This is the pattern of the stake's lineup_id. A trigger was rejected: it lives outside the Drizzle ledger and the schema test. `entry.kind` cannot change once a play_session exists, which the API already assumes (kind is written only on create) |
 | 2026-10-07 | T02 rebuilds ring_game and tournament with `user_id NOT NULL` and a composite FK `(room_id, user_id)` to room, staging their child rows and links, instead of a nullable ADD COLUMN followed by the T03 backfill. T03 is merged into T02, and A-1 / A-2 are retired | User-directed: the ideal table shape comes first. Staging keeps every child row. Trade-off: between the migration and the Worker deploy the old Worker cannot create a tournament (it does not write user_id), and a rollback to a pre-T02 Worker cannot create tournaments until it rolls forward. The decisions that cite "parent tables cannot be rebuilt" (section 7, the section 5.3 exception table) are unchanged for now |
 | 2026-10-06 | Q5: revise SA2-242 L1 and later to rule versions (T26, game-lineups.md) | Stakes and rule fields get one home per version instead of a copy per owner. The stake tables go from 4 to 2, and drift becomes a version-id comparison |
 | 2026-10-06 | tournament_rule_level stores its effective lineup_id (NOT NULL) plus inherits_lineup, instead of NULL = inherit (T26) | A NULL FK column is not checked, so level stakes of an inheriting level would escape the composite FK that ties a stake to its lineup |
