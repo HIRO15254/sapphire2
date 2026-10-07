@@ -1,5 +1,7 @@
 # Sessions & Live Editing
 
+> The v2 data model ([data-model-v2.md](data-model-v2.md)) replaces parts of this design in stages.
+
 Design reference for the session domain: the event-sourced live-session model, event payload invariants, frozen rule snapshots, ownership contracts, the live reopen flow, P/L math (`chipRemoveTotal`), and the live-linked edit sheet. EV semantics (recording gate, cash-out fallback, population rules) are owned by [`statistics.md`](statistics.md); D1 batching/atomicity mechanics by [`data-integrity.md`](data-integrity.md); game-master semantics by [`game-masters.md`](game-masters.md); the generic filter-preset system by [`web-platform.md`](web-platform.md).
 
 ## The event-sourced session model
@@ -40,8 +42,8 @@ The blanket rules (object-level authorization, scoped bulk WHEREs, write-IDOR ro
 - **Filter ownership (SA2-183)** — `validateSessionFilterOwnership` validates every optional FK filter at the resolver boundary, before an owner-scoped query can turn a foreign id into an empty result.
 - **Live-link ownership (SA2-102)** — `validateLiveLinkOwnership` guards the room / currency links of the live routers. Falsy (`undefined` = omitted, `null` = clear, `""` = empty) skips; a provided id must exist AND belong to the caller. Prevents IDOR on the money-ledger links.
 - **Tag-set ownership (SA2-177)** — `validateTagsOwnership` compares the distinct owned count against the requested distinct count in one scoped query; any mismatch → FORBIDDEN. No-ops on empty/omitted ids.
-- **Ring game (SA2-174 / SA2-181)** — a ring game carries its **own `userId`**; a `null` userId is an unprovable orphan → FORBIDDEN. Ownership is verified **before any `ring_game` read**, so a caller cannot probe another user's config via the buy-in bounds. (The nullability trade-off is covered in [`data-integrity.md`](data-integrity.md).)
-- **Tournament** — no own `userId`; ownership derives from its room, validated **before** `snapshotTournamentStructure` reads anything (IDOR on another user's blind structure otherwise).
+- **Ring game (SA2-174 / SA2-181 / SA2-296)** — a ring game carries its **own `userId`** (`NOT NULL`, see [`data-integrity.md`](data-integrity.md)). Ownership is verified **before any `ring_game` read**, so a caller cannot probe another user's config via the buy-in bounds.
+- **Tournament** — carries a `NOT NULL` `userId` that the composite FK keeps equal to its room's owner (SA2-296), and every create path writes the caller's id. Read-side ownership still derives from its room, validated **before** `snapshotTournamentStructure` reads anything (IDOR on another user's blind structure otherwise).
 - **Transaction type (SA2-179)** — ownership verified before the type is linked to a transaction (read-IDOR otherwise).
 
 ## Session lifecycle: reopen and deletion

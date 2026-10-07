@@ -40,6 +40,7 @@ describe("room lifecycle on D1", () => {
 			} else {
 				await api.db.insert(tournament).values({
 					id: "tournament",
+					userId: "alice",
 					name: "Tournament",
 					roomId: club.id,
 					archivedAt: day,

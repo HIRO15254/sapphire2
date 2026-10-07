@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "94fd35ea-01c4-48ee-9c42-70dd42a6f72c",
-  "prevId": "352c23e4-d214-4ea7-b1d8-2bae3a90539a",
+  "id": "761f9e61-697b-487a-aea6-229e8b053330",
+  "prevId": "94fd35ea-01c4-48ee-9c42-70dd42a6f72c",
   "tables": {
     "account": {
       "name": "account",
@@ -2009,6 +2009,13 @@
         "longitude": {
           "name": "longitude",
           "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false

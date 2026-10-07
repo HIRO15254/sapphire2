@@ -1,7 +1,15 @@
 import { relations, sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+	foreignKey,
+	index,
+	integer,
+	sqliteTable,
+	text,
+	uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 import { DEFAULT_VARIANT_LABEL } from "../constants/game-variants";
 import type { LevelGameGroup } from "../schemas/game";
+import { user } from "./auth";
 import { currency } from "./currency";
 import { room } from "./room";
 import { tournamentTag } from "./tournament-tag";
@@ -10,9 +18,10 @@ export const tournament = sqliteTable(
 	"tournament",
 	{
 		id: text("id").primaryKey(),
-		roomId: text("room_id")
+		userId: text("user_id")
 			.notNull()
-			.references(() => room.id, { onDelete: "cascade" }),
+			.references(() => user.id, { onDelete: "cascade" }),
+		roomId: text("room_id").notNull(),
 		name: text("name").notNull(),
 		variant: text("variant").notNull().default(DEFAULT_VARIANT_LABEL),
 		buyIn: integer("buy_in"),
@@ -34,8 +43,15 @@ export const tournament = sqliteTable(
 			.notNull(),
 	},
 	(table) => [
+		uniqueIndex("tournament_id_user_id_unique").on(table.id, table.userId),
+		index("tournament_userId_idx").on(table.userId),
 		index("tournament_roomId_idx").on(table.roomId),
 		index("tournament_currencyId_idx").on(table.currencyId),
+		foreignKey({
+			columns: [table.roomId, table.userId],
+			foreignColumns: [room.id, room.userId],
+			name: "tournament_room_owner_fk",
+		}).onDelete("cascade"),
 	]
 );
 
@@ -76,6 +92,10 @@ export const tournamentChipPurchase = sqliteTable(
 );
 
 export const tournamentRelations = relations(tournament, ({ one, many }) => ({
+	user: one(user, {
+		fields: [tournament.userId],
+		references: [user.id],
+	}),
 	room: one(room, {
 		fields: [tournament.roomId],
 		references: [room.id],
