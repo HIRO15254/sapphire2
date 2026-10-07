@@ -4,14 +4,16 @@
 -- inbound child: the child rows and links are staged first and restored after
 -- the rebuild.
 --
--- Replay safety: a stage is created once and refreshed only while its source
--- table still has the pre-0054 shape, so a retry after a failure before the
--- drop picks up rows the old Worker wrote in between, and a retry after the
--- drop keeps the staged copy. The leading CREATE TABLE IF NOT EXISTS only acts
--- when a failure fell between a DROP and its CREATE, so the refresh statements
--- always find their source table; they name the pre-0054 columns because a
--- column-count mismatch fails at prepare time even when no row qualifies.
--- Stages are dropped only after every restore.
+-- Replay safety: each table's UNIQUE (id, user_id) index is created last in
+-- its section, after the restores, and marks the rebuild as complete. A stage
+-- is refreshed from its source only while the source is complete (the
+-- pre-0054 shape, or the rebuilt shape with that marker), so a retry keeps the
+-- rows the old Worker wrote after a failed attempt, and a retry that finds a
+-- table mid-rebuild keeps the staged copy. The leading CREATE TABLE IF NOT
+-- EXISTS only acts when a failure fell between a DROP and its CREATE, so the
+-- refresh statements always find their source table; they name the pre-0054
+-- columns because a column-count mismatch fails at prepare time even when no
+-- row qualifies. Stages are dropped only after every restore.
 CREATE UNIQUE INDEX IF NOT EXISTS `room_id_user_id_unique` ON `room` (`id`,`user_id`);--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS `ring_game` (
 	`id` text PRIMARY KEY NOT NULL,
@@ -71,8 +73,9 @@ CREATE TABLE IF NOT EXISTS `__stage_0054_session_tournament_detail` AS
 SELECT `session_id`, `tournament_id` FROM `session_tournament_detail` WHERE `tournament_id` IS NOT NULL;--> statement-breakpoint
 
 DELETE FROM `__stage_0054_ring_game` WHERE EXISTS (
-	SELECT 1 FROM `sqlite_master` WHERE `type` = 'table' AND `name` = 'ring_game'
-		AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%'
+	SELECT 1 FROM `sqlite_master`
+	WHERE (`type` = 'table' AND `name` = 'ring_game' AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%')
+		OR (`type` = 'index' AND `name` = 'ring_game_id_user_id_unique')
 );--> statement-breakpoint
 INSERT INTO `__stage_0054_ring_game` (
 	`id`, `room_id`, `user_id`, `name`, `variant`, `mix_games`, `blind1`,
@@ -85,22 +88,26 @@ INSERT INTO `__stage_0054_ring_game` (
 	`table_size`, `currency_id`, `memo`, `house_rules`, `archived_at`,
 	`created_at`, `updated_at`
 FROM `ring_game` WHERE EXISTS (
-	SELECT 1 FROM `sqlite_master` WHERE `type` = 'table' AND `name` = 'ring_game'
-		AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%'
+	SELECT 1 FROM `sqlite_master`
+	WHERE (`type` = 'table' AND `name` = 'ring_game' AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%')
+		OR (`type` = 'index' AND `name` = 'ring_game_id_user_id_unique')
 );--> statement-breakpoint
 DELETE FROM `__stage_0054_session_cash_detail` WHERE EXISTS (
-	SELECT 1 FROM `sqlite_master` WHERE `type` = 'table' AND `name` = 'ring_game'
-		AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%'
+	SELECT 1 FROM `sqlite_master`
+	WHERE (`type` = 'table' AND `name` = 'ring_game' AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%')
+		OR (`type` = 'index' AND `name` = 'ring_game_id_user_id_unique')
 );--> statement-breakpoint
 INSERT INTO `__stage_0054_session_cash_detail`
 SELECT `session_id`, `ring_game_id` FROM `session_cash_detail`
 WHERE `ring_game_id` IS NOT NULL AND EXISTS (
-	SELECT 1 FROM `sqlite_master` WHERE `type` = 'table' AND `name` = 'ring_game'
-		AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%'
+	SELECT 1 FROM `sqlite_master`
+	WHERE (`type` = 'table' AND `name` = 'ring_game' AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%')
+		OR (`type` = 'index' AND `name` = 'ring_game_id_user_id_unique')
 );--> statement-breakpoint
 DELETE FROM `__stage_0054_tournament` WHERE EXISTS (
-	SELECT 1 FROM `sqlite_master` WHERE `type` = 'table' AND `name` = 'tournament'
-		AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%'
+	SELECT 1 FROM `sqlite_master`
+	WHERE (`type` = 'table' AND `name` = 'tournament' AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%')
+		OR (`type` = 'index' AND `name` = 'tournament_id_user_id_unique')
 );--> statement-breakpoint
 INSERT INTO `__stage_0054_tournament` (
 	`id`, `room_id`, `name`, `variant`, `buy_in`, `entry_fee`,
@@ -111,42 +118,51 @@ INSERT INTO `__stage_0054_tournament` (
 	`starting_stack`, `bounty_amount`, `table_size`, `currency_id`, `memo`,
 	`house_rules`, `archived_at`, `created_at`, `updated_at`
 FROM `tournament` WHERE EXISTS (
-	SELECT 1 FROM `sqlite_master` WHERE `type` = 'table' AND `name` = 'tournament'
-		AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%'
+	SELECT 1 FROM `sqlite_master`
+	WHERE (`type` = 'table' AND `name` = 'tournament' AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%')
+		OR (`type` = 'index' AND `name` = 'tournament_id_user_id_unique')
 );--> statement-breakpoint
 DELETE FROM `__stage_0054_blind_level` WHERE EXISTS (
-	SELECT 1 FROM `sqlite_master` WHERE `type` = 'table' AND `name` = 'tournament'
-		AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%'
+	SELECT 1 FROM `sqlite_master`
+	WHERE (`type` = 'table' AND `name` = 'tournament' AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%')
+		OR (`type` = 'index' AND `name` = 'tournament_id_user_id_unique')
 );--> statement-breakpoint
 INSERT INTO `__stage_0054_blind_level` SELECT * FROM `blind_level` WHERE EXISTS (
-	SELECT 1 FROM `sqlite_master` WHERE `type` = 'table' AND `name` = 'tournament'
-		AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%'
+	SELECT 1 FROM `sqlite_master`
+	WHERE (`type` = 'table' AND `name` = 'tournament' AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%')
+		OR (`type` = 'index' AND `name` = 'tournament_id_user_id_unique')
 );--> statement-breakpoint
 DELETE FROM `__stage_0054_tournament_chip_purchase` WHERE EXISTS (
-	SELECT 1 FROM `sqlite_master` WHERE `type` = 'table' AND `name` = 'tournament'
-		AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%'
+	SELECT 1 FROM `sqlite_master`
+	WHERE (`type` = 'table' AND `name` = 'tournament' AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%')
+		OR (`type` = 'index' AND `name` = 'tournament_id_user_id_unique')
 );--> statement-breakpoint
 INSERT INTO `__stage_0054_tournament_chip_purchase` SELECT * FROM `tournament_chip_purchase` WHERE EXISTS (
-	SELECT 1 FROM `sqlite_master` WHERE `type` = 'table' AND `name` = 'tournament'
-		AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%'
+	SELECT 1 FROM `sqlite_master`
+	WHERE (`type` = 'table' AND `name` = 'tournament' AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%')
+		OR (`type` = 'index' AND `name` = 'tournament_id_user_id_unique')
 );--> statement-breakpoint
 DELETE FROM `__stage_0054_tournament_tag` WHERE EXISTS (
-	SELECT 1 FROM `sqlite_master` WHERE `type` = 'table' AND `name` = 'tournament'
-		AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%'
+	SELECT 1 FROM `sqlite_master`
+	WHERE (`type` = 'table' AND `name` = 'tournament' AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%')
+		OR (`type` = 'index' AND `name` = 'tournament_id_user_id_unique')
 );--> statement-breakpoint
 INSERT INTO `__stage_0054_tournament_tag` SELECT * FROM `tournament_tag` WHERE EXISTS (
-	SELECT 1 FROM `sqlite_master` WHERE `type` = 'table' AND `name` = 'tournament'
-		AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%'
+	SELECT 1 FROM `sqlite_master`
+	WHERE (`type` = 'table' AND `name` = 'tournament' AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%')
+		OR (`type` = 'index' AND `name` = 'tournament_id_user_id_unique')
 );--> statement-breakpoint
 DELETE FROM `__stage_0054_session_tournament_detail` WHERE EXISTS (
-	SELECT 1 FROM `sqlite_master` WHERE `type` = 'table' AND `name` = 'tournament'
-		AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%'
+	SELECT 1 FROM `sqlite_master`
+	WHERE (`type` = 'table' AND `name` = 'tournament' AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%')
+		OR (`type` = 'index' AND `name` = 'tournament_id_user_id_unique')
 );--> statement-breakpoint
 INSERT INTO `__stage_0054_session_tournament_detail`
 SELECT `session_id`, `tournament_id` FROM `session_tournament_detail`
 WHERE `tournament_id` IS NOT NULL AND EXISTS (
-	SELECT 1 FROM `sqlite_master` WHERE `type` = 'table' AND `name` = 'tournament'
-		AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%'
+	SELECT 1 FROM `sqlite_master`
+	WHERE (`type` = 'table' AND `name` = 'tournament' AND `sql` NOT LIKE '%REFERENCES `room`(`id`,`user_id`)%')
+		OR (`type` = 'index' AND `name` = 'tournament_id_user_id_unique')
 );--> statement-breakpoint
 
 DROP TABLE IF EXISTS `ring_game`;--> statement-breakpoint
@@ -175,6 +191,9 @@ CREATE TABLE `ring_game` (
 	FOREIGN KEY (`currency_id`) REFERENCES `currency`(`id`) ON UPDATE no action ON DELETE set null,
 	FOREIGN KEY (`room_id`,`user_id`) REFERENCES `room`(`id`,`user_id`) ON UPDATE no action ON DELETE cascade
 );--> statement-breakpoint
+CREATE INDEX `ringGame_roomId_idx` ON `ring_game` (`room_id`);--> statement-breakpoint
+CREATE INDEX `ringGame_userId_idx` ON `ring_game` (`user_id`);--> statement-breakpoint
+CREATE INDEX `ringGame_currencyId_idx` ON `ring_game` (`currency_id`);--> statement-breakpoint
 -- Owner: the row's own user_id, else its room's owner, else the owner of the
 -- oldest session that links it. A row with no owner is linked by no session
 -- and is dropped. A room owned by someone other than the owner is unlinked.
@@ -205,10 +224,6 @@ FROM (
 	LEFT JOIN `room` ON `room`.`id` = `staged`.`room_id`
 )
 WHERE `owner` IS NOT NULL;--> statement-breakpoint
-CREATE UNIQUE INDEX `ring_game_id_user_id_unique` ON `ring_game` (`id`,`user_id`);--> statement-breakpoint
-CREATE INDEX `ringGame_roomId_idx` ON `ring_game` (`room_id`);--> statement-breakpoint
-CREATE INDEX `ringGame_userId_idx` ON `ring_game` (`user_id`);--> statement-breakpoint
-CREATE INDEX `ringGame_currencyId_idx` ON `ring_game` (`currency_id`);--> statement-breakpoint
 UPDATE `session_cash_detail`
 SET `ring_game_id` = (
 	SELECT `link`.`ring_game_id` FROM `__stage_0054_session_cash_detail` AS `link`
@@ -218,6 +233,7 @@ WHERE `session_id` IN (
 	SELECT `session_id` FROM `__stage_0054_session_cash_detail`
 	WHERE `ring_game_id` IN (SELECT `id` FROM `ring_game`)
 );--> statement-breakpoint
+CREATE UNIQUE INDEX `ring_game_id_user_id_unique` ON `ring_game` (`id`,`user_id`);--> statement-breakpoint
 
 DROP TABLE IF EXISTS `tournament`;--> statement-breakpoint
 CREATE TABLE `tournament` (
@@ -241,6 +257,9 @@ CREATE TABLE `tournament` (
 	FOREIGN KEY (`currency_id`) REFERENCES `currency`(`id`) ON UPDATE no action ON DELETE set null,
 	FOREIGN KEY (`room_id`,`user_id`) REFERENCES `room`(`id`,`user_id`) ON UPDATE no action ON DELETE cascade
 );--> statement-breakpoint
+CREATE INDEX `tournament_userId_idx` ON `tournament` (`user_id`);--> statement-breakpoint
+CREATE INDEX `tournament_roomId_idx` ON `tournament` (`room_id`);--> statement-breakpoint
+CREATE INDEX `tournament_currencyId_idx` ON `tournament` (`currency_id`);--> statement-breakpoint
 INSERT INTO `tournament` (
 	`id`, `user_id`, `room_id`, `name`, `variant`, `buy_in`, `entry_fee`,
 	`starting_stack`, `bounty_amount`, `table_size`, `currency_id`, `memo`,
@@ -253,10 +272,6 @@ INSERT INTO `tournament` (
 	`staged`.`archived_at`, `staged`.`created_at`, `staged`.`updated_at`
 FROM `__stage_0054_tournament` AS `staged`
 JOIN `room` ON `room`.`id` = `staged`.`room_id`;--> statement-breakpoint
-CREATE UNIQUE INDEX `tournament_id_user_id_unique` ON `tournament` (`id`,`user_id`);--> statement-breakpoint
-CREATE INDEX `tournament_userId_idx` ON `tournament` (`user_id`);--> statement-breakpoint
-CREATE INDEX `tournament_roomId_idx` ON `tournament` (`room_id`);--> statement-breakpoint
-CREATE INDEX `tournament_currencyId_idx` ON `tournament` (`currency_id`);--> statement-breakpoint
 INSERT INTO `blind_level` (
 	`id`, `tournament_id`, `level`, `is_break`, `blind1`, `blind2`, `blind3`,
 	`ante`, `minutes`, `games`
@@ -283,6 +298,7 @@ WHERE `session_id` IN (
 	SELECT `session_id` FROM `__stage_0054_session_tournament_detail`
 	WHERE `tournament_id` IN (SELECT `id` FROM `tournament`)
 );--> statement-breakpoint
+CREATE UNIQUE INDEX `tournament_id_user_id_unique` ON `tournament` (`id`,`user_id`);--> statement-breakpoint
 
 DROP TABLE IF EXISTS `__stage_0054_ring_game`;--> statement-breakpoint
 DROP TABLE IF EXISTS `__stage_0054_session_cash_detail`;--> statement-breakpoint

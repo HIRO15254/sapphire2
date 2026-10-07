@@ -115,15 +115,23 @@ function expectedAfterMigration(before: Snapshot): Snapshot {
 	};
 }
 
+let seededImage: Uint8Array | null = null;
+
 function migratedDatabase(): any {
-	const db = new Database(":memory:");
-	db.exec("PRAGMA foreign_keys=ON");
-	for (const statements of earlierMigrations) {
-		for (const statement of statements) {
-			db.exec(statement);
+	if (!seededImage) {
+		const seeded = new Database(":memory:");
+		seeded.exec("PRAGMA foreign_keys=ON");
+		for (const statements of earlierMigrations) {
+			for (const statement of statements) {
+				seeded.exec(statement);
+			}
 		}
+		seeded.exec(SEED);
+		seededImage = seeded.serialize();
+		seeded.close();
 	}
-	db.exec(SEED);
+	const db = Database.deserialize(seededImage);
+	db.exec("PRAGMA foreign_keys=ON");
 	return db;
 }
 
@@ -131,6 +139,16 @@ function apply(db: any, statements: string[] = targetStatements): void {
 	for (const statement of statements) {
 		db.exec(statement);
 	}
+}
+
+function statementsBefore(prefix: string): string[] {
+	const index = targetStatements.findIndex((statement) =>
+		statement.startsWith(prefix)
+	);
+	if (index < 0) {
+		throw new Error(`no migration statement starts with ${prefix}`);
+	}
+	return targetStatements.slice(0, index);
 }
 
 function stageTables(db: any): string[] {
@@ -277,11 +295,7 @@ skipIfNotBun("migration 0054 — owned ring_game / tournament rebuild", () => {
 	});
 
 	it("keeps rows the old Worker wrote between a failure before the drop and the retry", () => {
-		const firstDrop = targetStatements.indexOf(
-			"DROP TABLE IF EXISTS `ring_game`;"
-		);
-		expect(firstDrop).toBeGreaterThan(0);
-		apply(db, targetStatements.slice(0, firstDrop));
+		apply(db, statementsBefore("DROP TABLE IF EXISTS `ring_game`"));
 		db.exec(`
 			INSERT INTO tournament (id, room_id, name, updated_at) VALUES ('late', 'bob-room', 'Late', 2);
 			INSERT INTO blind_level (id, tournament_id, level) VALUES ('late-level', 'late', 1);
@@ -304,5 +318,49 @@ skipIfNotBun("migration 0054 — owned ring_game / tournament rebuild", () => {
 				)
 				.get()
 		).toEqual({ ring_game_id: "late-ring" });
+	});
+
+	it("keeps ring_game writes the old Worker made after the ring_game rebuild finished", () => {
+		const expected = expectedAfterMigration(snapshot(db));
+		apply(db, statementsBefore("CREATE TABLE `tournament`"));
+		db.exec(`
+			INSERT INTO ring_game (id, user_id, room_id, name, updated_at) VALUES ('late-ring', 'alice', 'alice-room', 'Late', 2);
+			UPDATE ring_game SET name = 'Renamed' WHERE id = 'owned';
+			UPDATE session_cash_detail SET ring_game_id = 'late-ring' WHERE session_id = 'cash-unlinked';
+		`);
+		const ringGame = db.prepare(SNAPSHOT_QUERIES.ringGame).all();
+		const cashLinks = db.prepare(SNAPSHOT_QUERIES.cashLinks).all();
+
+		apply(db);
+
+		expect(snapshot(db)).toEqual({ ...expected, ringGame, cashLinks });
+		expect(ringGame).toContainEqual(
+			expect.objectContaining({ id: "late-ring", user_id: "alice" })
+		);
+	});
+
+	it("keeps writes the old Worker made after both rebuilds finished", () => {
+		apply(
+			db,
+			statementsBefore("DROP TABLE IF EXISTS `__stage_0054_ring_game`")
+		);
+		db.exec(`
+			UPDATE tournament SET name = 'Renamed' WHERE id = 'daily';
+			DELETE FROM blind_level WHERE tournament_id = 'daily';
+			INSERT INTO blind_level (id, tournament_id, level) VALUES ('replaced-level', 'daily', 1);
+			INSERT INTO tournament_tag (id, tournament_id, name, created_at) VALUES ('late-tag', 'weekly', 'Late', 2);
+			INSERT INTO game_session (id, user_id, kind, status, source, session_date, updated_at)
+				VALUES ('late-mtt', 'bob', 'tournament', 'completed', 'manual', 2, 2);
+			INSERT INTO session_tournament_detail (session_id, tournament_id) VALUES ('late-mtt', 'weekly');
+			UPDATE ring_game SET name = 'Renamed' WHERE id = 'owned';
+		`);
+		const before = snapshot(db);
+
+		apply(db);
+
+		expect(snapshot(db)).toEqual(before);
+		expect(before.blindLevel).toEqual([
+			expect.objectContaining({ id: "replaced-level" }),
+		]);
 	});
 });

@@ -33,9 +33,10 @@ change or would do it unsafely:**
   every inbound `ON DELETE CASCADE` / `SET NULL`: stage the child tables first, as
   `0041_amazing_amphibian` does, or the children's rows are lost. `0054_stale_redwing` is the
   replay-safe form: it stages only the child rows and links, refreshes a stage only while its source
-  still has the old shape, and is tested by failing at every statement. Name the columns in any
-  `INSERT … SELECT` that can run against both shapes — a column-count mismatch fails at prepare
-  time even when the `WHERE` selects nothing. In `bun:sqlite` specs read rebuilt tables with
+  is complete (the old shape, or the rebuilt shape with the index created last as a marker), and is
+  tested by failing at every statement and by old-Worker writes after each finished section. Name
+  the columns in any `INSERT … SELECT` that can run against both shapes — a column-count mismatch
+  fails at prepare time even when the `WHERE` selects nothing. In `bun:sqlite` specs read rebuilt tables with
   `db.prepare()`: `db.query()` caches the statement with its old column names.
 
 When you hand-write a migration, still run `db:generate` afterward (see below) so the snapshot stays
