@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "704bfb47-9064-4a6b-a0a7-748e59b7a191",
+  "id": "94fd35ea-01c4-48ee-9c42-70dd42a6f72c",
   "prevId": "352c23e4-d214-4ea7-b1d8-2bae3a90539a",
   "tables": {
     "account": {
@@ -401,6 +401,11 @@
         }
       },
       "indexes": {
+        "currency_id_user_id_unique": {
+          "name": "currency_id_user_id_unique",
+          "columns": ["id", "user_id"],
+          "isUnique": true
+        },
         "currency_userId_idx": {
           "name": "currency_userId_idx",
           "columns": ["user_id"],
@@ -1591,6 +1596,11 @@
         }
       },
       "indexes": {
+        "player_id_user_id_unique": {
+          "name": "player_id_user_id_unique",
+          "columns": ["id", "user_id"],
+          "isUnique": true
+        },
         "player_userId_idx": {
           "name": "player_userId_idx",
           "columns": ["user_id"],
@@ -1661,6 +1671,11 @@
         }
       },
       "indexes": {
+        "player_tag_id_user_id_unique": {
+          "name": "player_tag_id_user_id_unique",
+          "columns": ["id", "user_id"],
+          "isUnique": true
+        },
         "playerTag_userId_idx": {
           "name": "playerTag_userId_idx",
           "columns": ["user_id"],
@@ -1765,7 +1780,7 @@
           "name": "user_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "name": {
@@ -1891,6 +1906,11 @@
         }
       },
       "indexes": {
+        "ring_game_id_user_id_unique": {
+          "name": "ring_game_id_user_id_unique",
+          "columns": ["id", "user_id"],
+          "isUnique": true
+        },
         "ringGame_roomId_idx": {
           "name": "ringGame_roomId_idx",
           "columns": ["room_id"],
@@ -1908,15 +1928,6 @@
         }
       },
       "foreignKeys": {
-        "ring_game_room_id_room_id_fk": {
-          "name": "ring_game_room_id_room_id_fk",
-          "tableFrom": "ring_game",
-          "tableTo": "room",
-          "columnsFrom": ["room_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
         "ring_game_user_id_user_id_fk": {
           "name": "ring_game_user_id_user_id_fk",
           "tableFrom": "ring_game",
@@ -1933,6 +1944,15 @@
           "columnsFrom": ["currency_id"],
           "columnsTo": ["id"],
           "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "ring_game_room_owner_fk": {
+          "name": "ring_game_room_owner_fk",
+          "tableFrom": "ring_game",
+          "tableTo": "room",
+          "columnsFrom": ["room_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -2010,6 +2030,11 @@
         }
       },
       "indexes": {
+        "room_id_user_id_unique": {
+          "name": "room_id_user_id_unique",
+          "columns": ["id", "user_id"],
+          "isUnique": true
+        },
         "room_userId_idx": {
           "name": "room_userId_idx",
           "columns": ["user_id"],
@@ -3090,7 +3115,7 @@
           "name": "user_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "room_id": {
@@ -3195,6 +3220,16 @@
         }
       },
       "indexes": {
+        "tournament_id_user_id_unique": {
+          "name": "tournament_id_user_id_unique",
+          "columns": ["id", "user_id"],
+          "isUnique": true
+        },
+        "tournament_userId_idx": {
+          "name": "tournament_userId_idx",
+          "columns": ["user_id"],
+          "isUnique": false
+        },
         "tournament_roomId_idx": {
           "name": "tournament_roomId_idx",
           "columns": ["room_id"],
@@ -3216,15 +3251,6 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "tournament_room_id_room_id_fk": {
-          "name": "tournament_room_id_room_id_fk",
-          "tableFrom": "tournament",
-          "tableTo": "room",
-          "columnsFrom": ["room_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
         "tournament_currency_id_currency_id_fk": {
           "name": "tournament_currency_id_currency_id_fk",
           "tableFrom": "tournament",
@@ -3232,6 +3258,15 @@
           "columnsFrom": ["currency_id"],
           "columnsTo": ["id"],
           "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "tournament_room_owner_fk": {
+          "name": "tournament_room_owner_fk",
+          "tableFrom": "tournament",
+          "tableTo": "room",
+          "columnsFrom": ["room_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },

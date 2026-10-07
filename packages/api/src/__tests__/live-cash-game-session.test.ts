@@ -376,28 +376,6 @@ describe("liveCashGameSession.create ring game ownership (SA2-181)", () => {
 		);
 	});
 
-	it("rejects a legacy ring game with null userId with FORBIDDEN", async () => {
-		const rows = new Map<unknown, Rows>([
-			[gameSession, []],
-			[
-				ringGame,
-				[
-					{
-						id: "rg-1",
-						roomId: null,
-						userId: null,
-						minBuyIn: null,
-						maxBuyIn: null,
-					},
-				],
-			],
-		]);
-		await expectTrpcCode(
-			makeCaller(OWNER, rows).create({ initialBuyIn: 0, ringGameId: "rg-1" }),
-			"FORBIDDEN"
-		);
-	});
-
 	it("rejects a non-existent ring game with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, []],
@@ -446,21 +424,6 @@ describe("liveCashGameSession.update ring game ownership (SA2-181)", () => {
 			[
 				ringGame,
 				[{ id: "rg-1", roomId: "room-1", userId: OTHER, currencyId: null }],
-			],
-			[sessionCashDetail, []],
-		]);
-		await expectTrpcCode(
-			makeCaller(OWNER, rows).update({ id: "s1", ringGameId: "rg-1" }),
-			"FORBIDDEN"
-		);
-	});
-
-	it("rejects a legacy ring game with null userId with FORBIDDEN", async () => {
-		const rows = new Map<unknown, Rows>([
-			[gameSession, [ownedSession]],
-			[
-				ringGame,
-				[{ id: "rg-1", roomId: null, userId: null, currencyId: null }],
 			],
 			[sessionCashDetail, []],
 		]);

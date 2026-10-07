@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import {
+	foreignKey,
 	index,
 	integer,
 	sqliteTable,
@@ -16,12 +17,10 @@ export const ringGame = sqliteTable(
 	"ring_game",
 	{
 		id: text("id").primaryKey(),
-		roomId: text("room_id").references(() => room.id, {
-			onDelete: "cascade",
-		}),
-		userId: text("user_id").references(() => user.id, {
-			onDelete: "cascade",
-		}),
+		roomId: text("room_id"),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 		name: text("name").notNull(),
 		variant: text("variant").notNull().default(DEFAULT_VARIANT_LABEL),
 		mixGames: text("mix_games", { mode: "json" }).$type<MixGameGroup[]>(),
@@ -51,6 +50,11 @@ export const ringGame = sqliteTable(
 		index("ringGame_roomId_idx").on(table.roomId),
 		index("ringGame_userId_idx").on(table.userId),
 		index("ringGame_currencyId_idx").on(table.currencyId),
+		foreignKey({
+			columns: [table.roomId, table.userId],
+			foreignColumns: [room.id, room.userId],
+			name: "ring_game_room_owner_fk",
+		}).onDelete("cascade"),
 	]
 );
 

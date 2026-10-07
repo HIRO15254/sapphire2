@@ -457,14 +457,6 @@ describe("validateRingGameOwnership via mutations (SA2-181)", () => {
 			await expectTrpcCode(caller[op]({ id: "rg-1" }), "FORBIDDEN");
 		});
 
-		it(`${op} throws FORBIDDEN for a legacy row with null userId`, async () => {
-			const caller = ringGameCaller(
-				CUR_OWNER,
-				ringGameRows([{ id: "rg-1", roomId: null, userId: null }])
-			);
-			await expectTrpcCode(caller[op]({ id: "rg-1" }), "FORBIDDEN");
-		});
-
 		it(`${op} throws FORBIDDEN when the ring game does not exist`, async () => {
 			const caller = ringGameCaller(CUR_OWNER, ringGameRows([]));
 			await expectTrpcCode(caller[op]({ id: "missing" }), "FORBIDDEN");

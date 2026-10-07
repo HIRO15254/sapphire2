@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import {
+	foreignKey,
 	index,
 	integer,
 	sqliteTable,
@@ -17,12 +18,10 @@ export const tournament = sqliteTable(
 	"tournament",
 	{
 		id: text("id").primaryKey(),
-		userId: text("user_id").references(() => user.id, {
-			onDelete: "cascade",
-		}),
-		roomId: text("room_id")
+		userId: text("user_id")
 			.notNull()
-			.references(() => room.id, { onDelete: "cascade" }),
+			.references(() => user.id, { onDelete: "cascade" }),
+		roomId: text("room_id").notNull(),
 		name: text("name").notNull(),
 		variant: text("variant").notNull().default(DEFAULT_VARIANT_LABEL),
 		buyIn: integer("buy_in"),
@@ -48,6 +47,11 @@ export const tournament = sqliteTable(
 		index("tournament_userId_idx").on(table.userId),
 		index("tournament_roomId_idx").on(table.roomId),
 		index("tournament_currencyId_idx").on(table.currencyId),
+		foreignKey({
+			columns: [table.roomId, table.userId],
+			foreignColumns: [room.id, room.userId],
+			name: "tournament_room_owner_fk",
+		}).onDelete("cascade"),
 	]
 );
 

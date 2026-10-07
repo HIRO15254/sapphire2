@@ -1483,18 +1483,6 @@ describe("validateEntityOwnership (ringGame branch) (SA2-181)", () => {
 		expect(selectedTables).toEqual(["ring_game"]);
 	});
 
-	it("throws FORBIDDEN for a legacy row with a null userId", async () => {
-		const { db } = mockDbFor({
-			ringGame: [{ id: RING_GAME_ID, roomId: null, userId: null }],
-		});
-		await expect(
-			validateEntityOwnership(db, "ringGame", RING_GAME_ID, CALLER)
-		).rejects.toMatchObject({
-			code: "FORBIDDEN",
-			message: "You do not own this ring game",
-		});
-	});
-
 	it("throws FORBIDDEN when the ring game does not exist", async () => {
 		const { db, selectedTables } = mockDbFor({ ringGame: [] });
 		await expect(
