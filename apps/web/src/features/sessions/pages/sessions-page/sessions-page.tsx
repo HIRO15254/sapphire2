@@ -24,6 +24,7 @@ export function SessionsPage() {
 		filters,
 		bbBiMode,
 		rooms,
+		filterRooms,
 		currencies,
 		createGames,
 		setFilters,
@@ -65,7 +66,7 @@ export function SessionsPage() {
 				filters={filters}
 				onBbBiModeChange={setBbBiMode}
 				onFiltersChange={setFilters}
-				rooms={rooms}
+				rooms={filterRooms}
 			/>
 
 			<div className="p-4">

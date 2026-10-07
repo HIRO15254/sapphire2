@@ -14,6 +14,8 @@ interface RoomListItem {
 }
 
 interface RoomListProps {
+	hideEmpty?: boolean;
+	isArchived?: boolean;
 	isError?: boolean;
 	isLoading: boolean;
 	onCreate: () => void;
@@ -25,6 +27,8 @@ interface RoomListProps {
 const SKELETON_COUNT = 5;
 
 export function RoomList({
+	hideEmpty = false,
+	isArchived = false,
 	rooms,
 	isLoading,
 	isError = false,
@@ -51,6 +55,16 @@ export function RoomList({
 	}
 
 	if (rooms.length === 0) {
+		if (hideEmpty) {
+			return null;
+		}
+		if (isArchived) {
+			return (
+				<p className="py-6 text-center text-muted-foreground text-sm">
+					No archived rooms.
+				</p>
+			);
+		}
 		return (
 			<EmptyState
 				action={

@@ -61,6 +61,7 @@ vi.mock("@/features/rooms/hooks/use-room-games", () => ({
 		rooms: [{ id: "r1", name: "Aria" }],
 		currencies: [{ id: "c1", name: "USD" }],
 	}),
+	useRoomFilterOptions: () => [{ id: "r1", name: "Aria" }],
 	useRoomGames: (roomId: string | undefined) => {
 		mocks.lastRoomId = roomId;
 		return { ringGames: [], tournaments: [] };

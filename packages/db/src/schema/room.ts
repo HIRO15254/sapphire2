@@ -23,6 +23,7 @@ export const room = sqliteTable(
 			.default(false),
 		latitude: real("latitude"),
 		longitude: real("longitude"),
+		archivedAt: integer("archived_at", { mode: "timestamp" }),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),

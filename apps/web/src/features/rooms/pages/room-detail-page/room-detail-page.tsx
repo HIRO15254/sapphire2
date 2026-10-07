@@ -8,6 +8,7 @@ import { TournamentTab } from "@/features/rooms/pages/room-detail-page/tournamen
 import { FormSheet } from "@/shared/components/form-sheet";
 import { PageHeader } from "@/shared/components/page-header";
 import { QueryError } from "@/shared/components/query-error";
+import { Badge } from "@/shared/components/ui/badge";
 import {
 	Tabs,
 	TabsContent,
@@ -27,6 +28,7 @@ interface RoomDetailPageProps {
 export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 	const {
 		room,
+		canDelete,
 		isLoading,
 		isInitialLoadError,
 		onRetry,
@@ -42,6 +44,8 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 		openDeleteFromActions,
 		handleEdit,
 		handleConfirmDelete,
+		handleArchive,
+		handleRestore,
 	} = useRoomDetailPage(roomId);
 
 	if (isLoading) {
@@ -103,7 +107,14 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 						</button>
 					}
 					description={room.memo ?? undefined}
-					heading={room.name}
+					heading={
+						<span className="inline-flex items-center gap-2">
+							{room.name}
+							{room.archivedAt == null ? null : (
+								<Badge variant="secondary">Archived</Badge>
+							)}
+						</span>
+					}
 				/>
 
 				<RoomLocationLink latitude={room.latitude} longitude={room.longitude} />
@@ -122,10 +133,14 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 				</Tabs>
 
 				<RoomActionsDrawer
+					canDelete={canDelete}
+					isArchived={room.archivedAt != null}
 					isFavorite={room.isFavorite}
+					onArchive={handleArchive}
 					onDelete={openDeleteFromActions}
 					onEdit={openEditFromActions}
 					onOpenChange={setIsActionsOpen}
+					onRestore={handleRestore}
 					onToggleFavorite={handleToggleFavorite}
 					open={isActionsOpen}
 				/>

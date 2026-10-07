@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { DeleteRoomDialog } from "../delete-room-dialog";
 
-const CASCADE_RE = /Akiba Casino and all of its cash games and tournaments/;
+const PERMANENT_RE = /Akiba Casino will be removed permanently/;
 
 function setup(
 	props: Partial<React.ComponentProps<typeof DeleteRoomDialog>> = {}
@@ -23,10 +23,10 @@ function setup(
 }
 
 describe("DeleteRoomDialog", () => {
-	it("names the room and warns about cascading deletes", () => {
+	it("names the room and warns that deletion is permanent", () => {
 		setup();
 		expect(screen.getByText("Delete this room?")).toBeInTheDocument();
-		expect(screen.getByText(CASCADE_RE)).toBeInTheDocument();
+		expect(screen.getByText(PERMANENT_RE)).toBeInTheDocument();
 	});
 
 	it("calls onConfirm when Delete is clicked", async () => {

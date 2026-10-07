@@ -1,4 +1,6 @@
 import {
+	IconArchive,
+	IconArchiveOff,
 	IconEdit,
 	IconStar,
 	IconStarFilled,
@@ -17,15 +19,23 @@ const DESTRUCTIVE_ITEM =
 	"flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-destructive text-sm outline-none hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-ring/40";
 
 interface RoomActionsDrawerProps {
+	canDelete: boolean;
+	isArchived: boolean;
 	isFavorite: boolean;
+	onArchive: () => void;
 	onDelete: () => void;
 	onEdit: () => void;
 	onOpenChange: (open: boolean) => void;
+	onRestore: () => void;
 	onToggleFavorite: () => void;
 	open: boolean;
 }
 
 export function RoomActionsDrawer({
+	canDelete,
+	isArchived,
+	onArchive,
+	onRestore,
 	isFavorite,
 	onDelete,
 	onEdit,
@@ -42,7 +52,7 @@ export function RoomActionsDrawer({
 				/>
 				<DrawerTitle className="sr-only">Room actions</DrawerTitle>
 				<DrawerDescription className="sr-only">
-					Edit or delete this room.
+					Edit, archive, restore, or delete this room.
 				</DrawerDescription>
 				<ul className="flex flex-col gap-1 p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
 					<li>
@@ -66,15 +76,38 @@ export function RoomActionsDrawer({
 						</button>
 					</li>
 					<li>
-						<button
-							className={DESTRUCTIVE_ITEM}
-							onClick={onDelete}
-							type="button"
-						>
-							<IconTrash size={18} />
-							Delete room
-						</button>
+						{isArchived ? (
+							<button
+								className={NEUTRAL_ITEM}
+								onClick={onRestore}
+								type="button"
+							>
+								<IconArchiveOff size={18} />
+								Restore room
+							</button>
+						) : (
+							<button
+								className={NEUTRAL_ITEM}
+								onClick={onArchive}
+								type="button"
+							>
+								<IconArchive size={18} />
+								Archive room
+							</button>
+						)}
 					</li>
+					{canDelete ? (
+						<li>
+							<button
+								className={DESTRUCTIVE_ITEM}
+								onClick={onDelete}
+								type="button"
+							>
+								<IconTrash size={18} />
+								Delete room
+							</button>
+						</li>
+					) : null}
 				</ul>
 			</DrawerContent>
 		</Drawer>

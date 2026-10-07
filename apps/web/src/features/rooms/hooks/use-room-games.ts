@@ -70,14 +70,35 @@ export function useRoomGames(
 	};
 }
 
-export function useEntityLists() {
+export function useEntityLists({
+	existingRoomId,
+}: {
+	existingRoomId?: string | null;
+} = {}) {
 	const roomsQuery = useQuery(trpc.room.list.queryOptions());
+	const archivedRoomsQuery = useQuery({
+		...trpc.room.list.queryOptions({ includeArchived: true }),
+		enabled: !!existingRoomId,
+	});
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
 	return {
-		rooms: (roomsQuery.data ?? []).map((s) => ({ id: s.id, name: s.name })),
+		rooms: [
+			...(roomsQuery.data ?? []),
+			...(archivedRoomsQuery.data ?? []).filter((s) => s.id === existingRoomId),
+		].map((s) => ({ id: s.id, name: s.name })),
 		currencies: (currenciesQuery.data ?? []).map((c) => ({
 			id: c.id,
 			name: c.name,
 		})),
 	};
+}
+
+export function useRoomFilterOptions() {
+	const roomsQuery = useQuery(trpc.room.list.queryOptions());
+	const archivedRoomsQuery = useQuery(
+		trpc.room.list.queryOptions({ includeArchived: true })
+	);
+	return [...(roomsQuery.data ?? []), ...(archivedRoomsQuery.data ?? [])].map(
+		(s) => ({ id: s.id, name: s.name })
+	);
 }

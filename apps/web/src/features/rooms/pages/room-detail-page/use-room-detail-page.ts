@@ -11,16 +11,24 @@ export function useRoomDetailPage(roomId: string) {
 
 	const {
 		rooms,
+		archivedRooms,
+		archivedLoading,
+		isArchivedError,
+		onRetryArchived,
 		isLoading,
+		isFetching = false,
 		isInitialLoadError,
 		onRetry,
 		isUpdatePending,
 		update,
 		delete: deleteRoom,
 		toggleFavorite,
-	} = useRooms();
+		archive,
+		restore,
+	} = useRooms({ showArchived: true });
 
-	const room = rooms.find((s) => s.id === roomId) ?? null;
+	const room =
+		[...rooms, ...archivedRooms].find((s) => s.id === roomId) ?? null;
 
 	const handleToggleFavorite = () => {
 		setIsActionsOpen(false);
@@ -43,17 +51,33 @@ export function useRoomDetailPage(roomId: string) {
 		});
 	};
 
-	const handleConfirmDelete = () => {
-		deleteRoom(roomId);
+	const handleConfirmDelete = async () => {
 		setConfirmingDelete(false);
-		navigate({ to: "/rooms" });
+		try {
+			await deleteRoom(roomId);
+			await navigate({ to: "/rooms" });
+		} catch {
+			return;
+		}
+	};
+	const handleArchive = () => {
+		setIsActionsOpen(false);
+		archive(roomId).catch(() => undefined);
+	};
+	const handleRestore = () => {
+		setIsActionsOpen(false);
+		restore(roomId).catch(() => undefined);
 	};
 
 	return {
 		room,
-		isLoading,
-		isInitialLoadError,
-		onRetry,
+		canDelete: room?.isReferenced === false,
+		isLoading: !room && (isLoading || archivedLoading || isFetching),
+		isInitialLoadError: !room && (isInitialLoadError || isArchivedError),
+		onRetry: () => {
+			onRetry();
+			onRetryArchived();
+		},
 		isUpdatePending,
 		isActionsOpen,
 		isEditOpen,
@@ -66,5 +90,7 @@ export function useRoomDetailPage(roomId: string) {
 		openDeleteFromActions,
 		handleEdit,
 		handleConfirmDelete,
+		handleArchive,
+		handleRestore,
 	};
 }

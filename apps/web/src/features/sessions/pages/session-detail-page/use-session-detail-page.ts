@@ -29,7 +29,9 @@ export function useSessionDetailPage(sessionId: string) {
 		createTag,
 	} = useSessionDetail(sessionId);
 
-	const { rooms, currencies } = useEntityLists();
+	const { rooms, currencies } = useEntityLists({
+		existingRoomId: session?.roomId,
+	});
 	const editGames = useRoomGames(editRoomId, { includeAll: true });
 
 	const isLiveLinked =

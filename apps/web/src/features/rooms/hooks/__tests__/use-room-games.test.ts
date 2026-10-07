@@ -29,8 +29,8 @@ vi.mock("@/utils/trpc", () => ({
 		},
 		room: {
 			list: {
-				queryOptions: () => ({
-					queryKey: buildKey("room", "list", undefined),
+				queryOptions: (input?: unknown) => ({
+					queryKey: buildKey("room", "list", input),
 					queryFn: () => Promise.resolve([]),
 				}),
 			},
@@ -286,6 +286,31 @@ describe("useRoomGames", () => {
 });
 
 describe("useEntityLists", () => {
+	it("offers active rooms for new data and preserves only the currently referenced archived room on edit", () => {
+		const qc = createClient();
+		qc.setQueryData(["room", "list"], [{ id: "active", name: "Active" }]);
+		qc.setQueryData(
+			["room", "list", { includeArchived: true }],
+			[
+				{ id: "linked", name: "Archived reference" },
+				{ id: "other", name: "Other archived room" },
+			]
+		);
+		const create = renderHook(() => useEntityLists(), {
+			wrapper: makeWrapper(qc),
+		});
+		expect(create.result.current.rooms).toEqual([
+			{ id: "active", name: "Active" },
+		]);
+		const edit = renderHook(
+			() => useEntityLists({ existingRoomId: "linked" }),
+			{ wrapper: makeWrapper(qc) }
+		);
+		expect(edit.result.current.rooms).toEqual([
+			{ id: "active", name: "Active" },
+			{ id: "linked", name: "Archived reference" },
+		]);
+	});
 	it("returns empty arrays when caches are empty", () => {
 		const qc = createClient();
 		const { result } = renderHook(() => useEntityLists(), {

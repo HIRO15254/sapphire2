@@ -21,11 +21,17 @@ export interface UseStatsReferenceDataResult {
 export function useStatsReferenceData(): UseStatsReferenceDataResult {
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
 	const roomsQuery = useQuery(trpc.room.list.queryOptions());
+	const archivedRoomsQuery = useQuery(
+		trpc.room.list.queryOptions({ includeArchived: true })
+	);
 
 	const currencies: StatsCurrencyOption[] = (currenciesQuery.data ?? []).map(
 		(c) => ({ id: c.id, name: c.name, unit: c.unit ?? null })
 	);
-	const rooms: StatsRoomOption[] = (roomsQuery.data ?? []).map((r) => ({
+	const rooms: StatsRoomOption[] = [
+		...(roomsQuery.data ?? []),
+		...(archivedRoomsQuery.data ?? []),
+	].map((r) => ({
 		id: r.id,
 		name: r.name,
 	}));
@@ -33,6 +39,9 @@ export function useStatsReferenceData(): UseStatsReferenceDataResult {
 	return {
 		currencies,
 		rooms,
-		isLoading: currenciesQuery.isLoading || roomsQuery.isLoading,
+		isLoading:
+			currenciesQuery.isLoading ||
+			roomsQuery.isLoading ||
+			archivedRoomsQuery.isLoading,
 	};
 }

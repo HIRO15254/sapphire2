@@ -8,6 +8,7 @@ const hoisted = vi.hoisted(() => ({
 	toggleFavorite: vi.fn(),
 	rooms: [] as Array<{
 		id: string;
+		isReferenced: boolean;
 		memo?: string | null;
 		name: string;
 		ringGameCount: number;
@@ -24,6 +25,12 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("@/features/rooms/hooks/use-rooms", () => ({
 	useRooms: () => ({
 		rooms: hoisted.rooms,
+		archivedRooms: [],
+		archivedLoading: false,
+		isArchivedError: false,
+		onRetryArchived: vi.fn(),
+		archive: vi.fn().mockResolvedValue({}),
+		restore: vi.fn().mockResolvedValue({}),
 		isLoading: hoisted.isLoading,
 		isUpdatePending: hoisted.isUpdatePending,
 		isCreatePending: false,
@@ -37,9 +44,10 @@ vi.mock("@/features/rooms/hooks/use-rooms", () => ({
 
 import { useRoomDetailPage } from "@/features/rooms/pages/room-detail-page/use-room-detail-page";
 
-const room = (id: string, name = "Akiba") => ({
+const room = (id: string, name = "Akiba", isReferenced = false) => ({
 	id,
 	name,
+	isReferenced,
 	memo: null,
 	ringGameCount: 0,
 	tournamentCount: 0,
@@ -49,7 +57,7 @@ describe("useRoomDetailPage", () => {
 	beforeEach(() => {
 		hoisted.navigate.mockReset();
 		hoisted.update.mockReset().mockResolvedValue({ id: "s1" });
-		hoisted.del.mockReset();
+		hoisted.del.mockReset().mockResolvedValue({ success: true });
 		hoisted.toggleFavorite.mockReset().mockResolvedValue({ id: "s1" });
 		hoisted.rooms = [];
 		hoisted.isLoading = false;
@@ -60,6 +68,16 @@ describe("useRoomDetailPage", () => {
 		hoisted.rooms = [room("s1"), room("s2", "Shinjuku")];
 		const { result } = renderHook(() => useRoomDetailPage("s2"));
 		expect(result.current.room?.name).toBe("Shinjuku");
+	});
+
+	it("offers deletion only for a room nothing references", () => {
+		hoisted.rooms = [room("free"), room("used", "Shinjuku", true)];
+		expect(
+			renderHook(() => useRoomDetailPage("free")).result.current.canDelete
+		).toBe(true);
+		expect(
+			renderHook(() => useRoomDetailPage("used")).result.current.canDelete
+		).toBe(false);
 	});
 
 	it("returns null room when the id is not in the list", () => {
@@ -113,13 +131,24 @@ describe("useRoomDetailPage", () => {
 		await waitFor(() => expect(result.current.isEditOpen).toBe(false));
 	});
 
-	it("handleConfirmDelete deletes the room, closes the dialog, and navigates to /rooms", () => {
+	it("handleConfirmDelete deletes the room, closes the dialog, and navigates to /rooms", async () => {
 		const { result } = renderHook(() => useRoomDetailPage("s1"));
 		act(() => result.current.setConfirmingDelete(true));
-		act(() => result.current.handleConfirmDelete());
+		await act(async () => {
+			await result.current.handleConfirmDelete();
+		});
 		expect(hoisted.del).toHaveBeenCalledWith("s1");
 		expect(result.current.confirmingDelete).toBe(false);
 		expect(hoisted.navigate).toHaveBeenCalledWith({ to: "/rooms" });
+	});
+
+	it("stays on the detail page when deleting a referenced room fails", async () => {
+		hoisted.del.mockRejectedValue(new Error("Archive the room instead."));
+		const { result } = renderHook(() => useRoomDetailPage("s1"));
+		await act(async () => {
+			await result.current.handleConfirmDelete();
+		});
+		expect(hoisted.navigate).not.toHaveBeenCalled();
 	});
 
 	it("handleToggleFavorite closes the actions drawer and calls toggleFavorite with the room id", () => {
