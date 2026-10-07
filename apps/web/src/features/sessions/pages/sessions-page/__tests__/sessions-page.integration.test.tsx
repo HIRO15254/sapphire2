@@ -31,6 +31,7 @@ type CreateSessionInput = inferRouterInputs<AppRouter>["session"]["create"];
 const BUY_IN_LABEL = /^Buy-in/;
 const CASH_OUT_LABEL = /^Cash-out/;
 const SAVED_SESSION_LINK = /Aria/;
+const ROOM_FILTER_CHIP = /^Room:/;
 let sessions: SessionListCardItem[] = [];
 const create = vi.fn<(input: CreateSessionInput) => Promise<{ id: string }>>();
 const t = initTRPC.create({ isServer: true });
@@ -44,7 +45,13 @@ const fixtureRouter = t.router({
 	}),
 	sessionTag: t.router({ list: emptyList }),
 	room: t.router({
-		list: t.procedure.query(() => [{ id: "r1", name: "Aria" }]),
+		list: t.procedure
+			.input(z.object({ includeArchived: z.boolean().optional() }).optional())
+			.query(({ input }) =>
+				input?.includeArchived
+					? [{ id: "r-archived", name: "Old club" }]
+					: [{ id: "r1", name: "Aria" }]
+			),
 	}),
 	currency: t.router({ list: emptyList }),
 	filterPreset: t.router({ list: emptyList }),
@@ -196,4 +203,33 @@ it("keeps failed session input and the sheet open, then closes after a successfu
 			memo: "Keep this note",
 		})
 	);
+});
+
+it("filters by archived rooms while new sessions offer only active rooms", async () => {
+	renderIntegrationPage(<SessionsPage />, { path: "/sessions", queryClient });
+	const user = userEvent.setup();
+	await user.click(
+		await screen.findByRole("button", { name: ROOM_FILTER_CHIP })
+	);
+	const filterSheet = await screen.findByRole("dialog", { name: "Room" });
+	expect(
+		await within(filterSheet).findByRole("radio", { name: "Old club" })
+	).toBeInTheDocument();
+	expect(
+		within(filterSheet).getByRole("radio", { name: "Aria" })
+	).toBeInTheDocument();
+	await user.keyboard("{Escape}");
+	await waitFor(() =>
+		expect(screen.queryByRole("dialog", { name: "Room" })).toBeNull()
+	);
+
+	await user.click(
+		(await screen.findAllByRole("button", { name: "New session" }))[0]
+	);
+	const dialog = await screen.findByRole("dialog", { name: "New session" });
+	await user.click(await within(dialog).findByRole("combobox"));
+	expect(
+		await screen.findByRole("option", { name: "Aria" })
+	).toBeInTheDocument();
+	expect(screen.queryByRole("option", { name: "Old club" })).toBeNull();
 });

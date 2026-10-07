@@ -2,6 +2,7 @@ import type { SessionsFilterPresetPayload } from "@sapphire2/db/schemas/filter-p
 import { useState } from "react";
 import {
 	useEntityLists,
+	useRoomFilterOptions,
 	useRoomGames,
 } from "@/features/rooms/hooks/use-room-games";
 import type { SessionFormValues } from "@/features/sessions/hooks/use-sessions";
@@ -33,6 +34,7 @@ export function useSessionsPage() {
 	} = useSessions(filters);
 
 	const { rooms, currencies } = useEntityLists();
+	const filterRooms = useRoomFilterOptions();
 	const createGames = useRoomGames(selectedRoomId);
 
 	const isUntouched = !(
@@ -89,6 +91,7 @@ export function useSessionsPage() {
 		filters,
 		bbBiMode,
 		rooms,
+		filterRooms,
 		currencies,
 		createGames,
 		setFilters,

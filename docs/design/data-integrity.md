@@ -135,7 +135,9 @@ Rooms use nullable `archived_at`, matching ring games and tournaments. `room.arc
 archived rooms, as it does for `ringGame.listByRoom` and `tournament.listByRoom`. Every list
 row includes `archivedAt`. Room detail reads and existing session references still resolve
 archived rooms. New-data pickers use the active list; session edits additionally retain their
-currently referenced archived room, and statistics include both lists for historical filters.
+currently referenced archived room. Historical filters — the statistics filters and the Sessions
+list room filter (`useRoomFilterOptions`) — include both lists, so archiving a room never hides
+its past sessions from a filter.
 
 `room.delete` validates ownership first, then deletes only when no `game_session`, `ring_game`,
 or `tournament` references the room, including archived masters. A referenced room returns

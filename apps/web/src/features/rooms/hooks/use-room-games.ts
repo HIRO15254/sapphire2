@@ -92,3 +92,13 @@ export function useEntityLists({
 		})),
 	};
 }
+
+export function useRoomFilterOptions() {
+	const roomsQuery = useQuery(trpc.room.list.queryOptions());
+	const archivedRoomsQuery = useQuery(
+		trpc.room.list.queryOptions({ includeArchived: true })
+	);
+	return [...(roomsQuery.data ?? []), ...(archivedRoomsQuery.data ?? [])].map(
+		(s) => ({ id: s.id, name: s.name })
+	);
+}
