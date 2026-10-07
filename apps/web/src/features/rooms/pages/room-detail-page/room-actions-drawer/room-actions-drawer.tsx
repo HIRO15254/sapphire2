@@ -19,6 +19,7 @@ const DESTRUCTIVE_ITEM =
 	"flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-destructive text-sm outline-none hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-ring/40";
 
 interface RoomActionsDrawerProps {
+	canDelete: boolean;
 	isArchived: boolean;
 	isFavorite: boolean;
 	onArchive: () => void;
@@ -31,6 +32,7 @@ interface RoomActionsDrawerProps {
 }
 
 export function RoomActionsDrawer({
+	canDelete,
 	isArchived,
 	onArchive,
 	onRestore,
@@ -94,16 +96,18 @@ export function RoomActionsDrawer({
 							</button>
 						)}
 					</li>
-					<li>
-						<button
-							className={DESTRUCTIVE_ITEM}
-							onClick={onDelete}
-							type="button"
-						>
-							<IconTrash size={18} />
-							Delete room
-						</button>
-					</li>
+					{canDelete ? (
+						<li>
+							<button
+								className={DESTRUCTIVE_ITEM}
+								onClick={onDelete}
+								type="button"
+							>
+								<IconTrash size={18} />
+								Delete room
+							</button>
+						</li>
+					) : null}
 				</ul>
 			</DrawerContent>
 		</Drawer>

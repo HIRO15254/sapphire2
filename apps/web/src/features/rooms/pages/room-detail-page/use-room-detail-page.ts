@@ -71,6 +71,7 @@ export function useRoomDetailPage(roomId: string) {
 
 	return {
 		room,
+		canDelete: room?.isReferenced === false,
 		isLoading: !room && (isLoading || archivedLoading || isFetching),
 		isInitialLoadError: !room && (isInitialLoadError || isArchivedError),
 		onRetry: () => {

@@ -49,6 +49,9 @@ describe("room lifecycle on D1", () => {
 					.insert(blindLevel)
 					.values({ id: "level", tournamentId: "tournament", level: 1 });
 			}
+			expect(await api.alice.room.list()).toEqual([
+				expect.objectContaining({ id: club.id, isReferenced: true }),
+			]);
 			const before = {
 				rooms: await api.db.select().from(room),
 				sessions: await api.db.select().from(gameSession),
@@ -78,6 +81,9 @@ describe("room lifecycle on D1", () => {
 		const other = requireCreatedRow(
 			await api.bob.room.create({ name: "Other" })
 		);
+		expect(await api.alice.room.list()).toEqual([
+			expect.objectContaining({ id: club.id, isReferenced: false }),
+		]);
 		expect(await api.alice.room.delete({ id: club.id })).toEqual({
 			success: true,
 		});
@@ -108,7 +114,11 @@ describe("room lifecycle on D1", () => {
 		expect(await api.alice.room.list()).toEqual([]);
 		expect(await api.alice.room.list({ includeArchived: false })).toEqual([]);
 		expect(await api.alice.room.list({ includeArchived: true })).toEqual([
-			expect.objectContaining({ id: club.id, archivedAt: archived.archivedAt }),
+			expect.objectContaining({
+				id: club.id,
+				archivedAt: archived.archivedAt,
+				isReferenced: true,
+			}),
 		]);
 		expect(await api.alice.room.getById({ id: club.id })).toEqual(archived);
 		expect(await api.db.select().from(gameSession)).toEqual([

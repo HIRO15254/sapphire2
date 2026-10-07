@@ -1,6 +1,6 @@
 import { room } from "@sapphire2/db/schema/room";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, not, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { validateEntityOwnership } from "./session";
@@ -19,6 +19,9 @@ const COORDINATES_PAIRED_ISSUE = {
 	message: "latitude and longitude must be set or cleared together",
 	path: ["longitude"],
 };
+
+const roomIsReferenced = () =>
+	sql<boolean>`(EXISTS (SELECT 1 FROM game_session WHERE game_session.room_id = room.id) OR EXISTS (SELECT 1 FROM ring_game WHERE ring_game.room_id = room.id) OR EXISTS (SELECT 1 FROM tournament WHERE tournament.room_id = room.id))`;
 
 export const roomIdInputSchema = z.object({ id: z.string() });
 
@@ -64,6 +67,7 @@ export const roomRouter = router({
 					archivedAt: room.archivedAt,
 					ringGameCount: sql<number>`(SELECT COUNT(*) FROM ring_game WHERE ring_game.room_id = room.id AND ring_game.archived_at IS NULL)`,
 					tournamentCount: sql<number>`(SELECT COUNT(*) FROM tournament WHERE tournament.room_id = room.id AND tournament.archived_at IS NULL)`,
+					isReferenced: roomIsReferenced().mapWith(Boolean),
 				})
 				.from(room)
 				.where(
@@ -199,9 +203,7 @@ export const roomRouter = router({
 					and(
 						eq(room.id, input.id),
 						eq(room.userId, userId),
-						sql`NOT EXISTS (SELECT 1 FROM game_session WHERE game_session.room_id = room.id)`,
-						sql`NOT EXISTS (SELECT 1 FROM ring_game WHERE ring_game.room_id = room.id)`,
-						sql`NOT EXISTS (SELECT 1 FROM tournament WHERE tournament.room_id = room.id)`
+						not(roomIsReferenced())
 					)
 				)
 				.returning({ id: room.id });

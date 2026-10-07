@@ -8,6 +8,7 @@ const hoisted = vi.hoisted(() => ({
 	toggleFavorite: vi.fn(),
 	rooms: [] as Array<{
 		id: string;
+		isReferenced: boolean;
 		memo?: string | null;
 		name: string;
 		ringGameCount: number;
@@ -43,9 +44,10 @@ vi.mock("@/features/rooms/hooks/use-rooms", () => ({
 
 import { useRoomDetailPage } from "@/features/rooms/pages/room-detail-page/use-room-detail-page";
 
-const room = (id: string, name = "Akiba") => ({
+const room = (id: string, name = "Akiba", isReferenced = false) => ({
 	id,
 	name,
+	isReferenced,
 	memo: null,
 	ringGameCount: 0,
 	tournamentCount: 0,
@@ -66,6 +68,16 @@ describe("useRoomDetailPage", () => {
 		hoisted.rooms = [room("s1"), room("s2", "Shinjuku")];
 		const { result } = renderHook(() => useRoomDetailPage("s2"));
 		expect(result.current.room?.name).toBe("Shinjuku");
+	});
+
+	it("offers deletion only for a room nothing references", () => {
+		hoisted.rooms = [room("free"), room("used", "Shinjuku", true)];
+		expect(
+			renderHook(() => useRoomDetailPage("free")).result.current.canDelete
+		).toBe(true);
+		expect(
+			renderHook(() => useRoomDetailPage("used")).result.current.canDelete
+		).toBe(false);
 	});
 
 	it("returns null room when the id is not in the list", () => {

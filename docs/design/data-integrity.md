@@ -143,6 +143,11 @@ column names for the same reason as the room-count subqueries above. Existing fo
 cascade/set-null declarations remain in place; the API blocks those effects for room deletion.
 The migration adds one nullable column without rebuilding `room`, so existing children remain.
 
+Every `room.list` row also carries `isReferenced`, built from the same predicate the DELETE
+negates, so the flag and the delete rule cannot drift apart. The room actions drawer offers
+Delete only when `isReferenced` is false; a referenced room can only be archived. The CONFLICT
+stays as the guard for a reference added after the list was fetched.
+
 MCP exposes `room_archive` and `room_restore`, while `room.delete` stays deliberately excluded.
 
 ## Schema-level integrity anchors

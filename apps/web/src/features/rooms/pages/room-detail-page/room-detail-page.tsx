@@ -28,6 +28,7 @@ interface RoomDetailPageProps {
 export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 	const {
 		room,
+		canDelete,
 		isLoading,
 		isInitialLoadError,
 		onRetry,
@@ -132,6 +133,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 				</Tabs>
 
 				<RoomActionsDrawer
+					canDelete={canDelete}
 					isArchived={room.archivedAt != null}
 					isFavorite={room.isFavorite}
 					onArchive={handleArchive}

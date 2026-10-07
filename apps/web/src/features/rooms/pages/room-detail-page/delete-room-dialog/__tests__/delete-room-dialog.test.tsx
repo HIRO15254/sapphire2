@@ -3,8 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { DeleteRoomDialog } from "../delete-room-dialog";
 
-const ARCHIVE_RE =
-	/Akiba Casino will be removed permanently.*must be archived instead/;
+const PERMANENT_RE = /Akiba Casino will be removed permanently/;
 
 function setup(
 	props: Partial<React.ComponentProps<typeof DeleteRoomDialog>> = {}
@@ -24,10 +23,10 @@ function setup(
 }
 
 describe("DeleteRoomDialog", () => {
-	it("names the room and explains that referenced rooms must be archived", () => {
+	it("names the room and warns that deletion is permanent", () => {
 		setup();
 		expect(screen.getByText("Delete this room?")).toBeInTheDocument();
-		expect(screen.getByText(ARCHIVE_RE)).toBeInTheDocument();
+		expect(screen.getByText(PERMANENT_RE)).toBeInTheDocument();
 	});
 
 	it("calls onConfirm when Delete is clicked", async () => {

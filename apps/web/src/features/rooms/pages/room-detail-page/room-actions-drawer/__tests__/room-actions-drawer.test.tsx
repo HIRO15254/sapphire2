@@ -14,6 +14,7 @@ function setup(
 	const onRestore = vi.fn();
 	render(
 		<RoomActionsDrawer
+			canDelete
 			isArchived={false}
 			isFavorite={false}
 			onArchive={onArchive}
@@ -83,6 +84,16 @@ describe("RoomActionsDrawer", () => {
 		const { onEdit } = setup();
 		await user.click(screen.getByText("Edit room"));
 		expect(onEdit).toHaveBeenCalledTimes(1);
+	});
+
+	it("hides Delete room for a room that cannot be deleted", () => {
+		setup({ canDelete: false });
+		expect(
+			screen.queryByRole("button", { name: "Delete room" })
+		).not.toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Archive room" })
+		).toBeInTheDocument();
 	});
 
 	it("calls onDelete when Delete room is clicked", async () => {

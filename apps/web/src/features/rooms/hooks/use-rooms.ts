@@ -21,6 +21,7 @@ export interface RoomItem {
 	createdAt: Date | string;
 	id: string;
 	isFavorite: boolean;
+	isReferenced: boolean;
 	latitude?: number | null;
 	longitude?: number | null;
 	memo?: string | null;
@@ -72,6 +73,7 @@ export function useRooms({ showArchived = false } = {}) {
 						latitude: newRoom.latitude ?? null,
 						longitude: newRoom.longitude ?? null,
 						isFavorite: false,
+						isReferenced: false,
 						archivedAt: null,
 						createdAt: new Date().toISOString(),
 						ringGameCount: 0,
