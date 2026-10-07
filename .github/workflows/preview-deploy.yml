@@ -204,8 +204,11 @@ jobs:
           # Remove d1_migrations data (already applied via migrations step)
           sed -i '/INSERT INTO.*d1_migrations/d' dump.sql
 
+          # The dump may insert children before their parents. Foreign keys are
+          # turned back on by fk-on.sql after the restore, not by a trailing
+          # PRAGMA here — see the comment there.
           sed -i '1i PRAGMA foreign_keys = OFF;' dump.sql
-          echo 'PRAGMA foreign_keys = ON;' >> dump.sql
+          echo 'PRAGMA foreign_keys = ON;' > fk-on.sql
 
           sed -i "s/database_id = \".*\"/database_id = \"${{ needs.d1-setup.outputs.d1_database_id }}\"/" wrangler.toml
           sed -i "s/database_name = \".*\"/database_name = \"${{ needs.setup.outputs.d1_db_name }}\"/" wrangler.toml
@@ -271,6 +274,24 @@ jobs:
           # missed something — fail the job so we notice instead of shipping
           # a preview with incomplete data.
           bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=dump.sql
+
+          # The dump's `PRAGMA foreign_keys = OFF` outlives the import: D1 keeps
+          # it on the database connection, while a `= ON` at the end of the same
+          # file has no effect, and neither has one sent with --command (the
+          # pragma is a no-op inside that request's implicit transaction). Left
+          # off, the stashed migrations in the next step run without the FK
+          # actions production enforces — 0054's DROP TABLE then cascaded
+          # nothing and its restore collided on blind_level.id. Only a separate
+          # import re-enables it, so do that and verify it, which turns a
+          # change in D1's behavior into a failure here instead of a
+          # migration that diverges from production.
+          bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=fk-on.sql
+          FOREIGN_KEYS=$(bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --json \
+            --command="PRAGMA foreign_keys" | jq -r '.[0].results[0].foreign_keys')
+          if [ "$FOREIGN_KEYS" != "1" ]; then
+            echo "::error::foreign keys are still off on ${{ needs.setup.outputs.d1_db_name }} after the seed (PRAGMA foreign_keys = ${FOREIGN_KEYS})"
+            exit 1
+          fi
 
       - name: Restore and apply stashed migrations (new DB only)
         if: needs.d1-setup.outputs.is_new_db == 'true'
