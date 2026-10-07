@@ -13,9 +13,23 @@ interface SqlColumn {
 
 interface SqlForeignKey {
 	from: string;
+	id: number;
 	on_delete: string;
 	table: string;
 	to: string;
+}
+
+interface ForeignKeyShape {
+	from: string[];
+	on_delete: string;
+	table: string;
+	to: string[];
+}
+
+function sortedForeignKeys(foreignKeys: ForeignKeyShape[]) {
+	return [...foreignKeys].sort((a, b) =>
+		JSON.stringify(a).localeCompare(JSON.stringify(b))
+	);
 }
 
 interface SqlIndex {
@@ -79,28 +93,37 @@ describe("application schema agrees with the installed production migrations", (
 					.map(({ name }) => name),
 				`${config.name} primary key`
 			).toEqual(primary);
-			const foreignKeys = await api.d1
+			const foreignKeyColumns = await api.d1
 				.prepare(
-					"SELECT [from], [to], [table], on_delete FROM pragma_foreign_key_list(?)"
+					"SELECT id, [from], [to], [table], on_delete FROM pragma_foreign_key_list(?) ORDER BY id, seq"
 				)
 				.bind(config.name)
 				.all<SqlForeignKey>();
-			const expectedForeignKeys = config.foreignKeys.flatMap((foreignKey) => {
+			const installedForeignKeys = new Map<number, ForeignKeyShape>();
+			for (const column of foreignKeyColumns.results) {
+				const foreignKey = installedForeignKeys.get(column.id) ?? {
+					from: [],
+					on_delete: column.on_delete,
+					table: column.table,
+					to: [],
+				};
+				foreignKey.from.push(column.from);
+				foreignKey.to.push(column.to);
+				installedForeignKeys.set(column.id, foreignKey);
+			}
+			const expectedForeignKeys = config.foreignKeys.map((foreignKey) => {
 				const reference = foreignKey.reference();
-				return reference.columns.map((column, position) => ({
-					from: column.name,
-					to: reference.foreignColumns[position]?.name,
-					table: getTableConfig(reference.foreignTable).name,
+				return {
+					from: reference.columns.map(({ name }) => name),
 					on_delete: (foreignKey.onDelete ?? "no action").toUpperCase(),
-				}));
+					table: getTableConfig(reference.foreignTable).name,
+					to: reference.foreignColumns.map(({ name }) => name),
+				};
 			});
-			expect(foreignKeys.results, `${config.name} foreign keys`).toEqual(
-				expect.arrayContaining(expectedForeignKeys)
-			);
 			expect(
-				foreignKeys.results,
-				`${config.name} foreign key count`
-			).toHaveLength(expectedForeignKeys.length);
+				sortedForeignKeys([...installedForeignKeys.values()]),
+				`${config.name} foreign keys with column order and on_delete`
+			).toEqual(sortedForeignKeys(expectedForeignKeys));
 			const indexes = await api.d1
 				.prepare("SELECT name, origin, [unique] FROM pragma_index_list(?)")
 				.bind(config.name)

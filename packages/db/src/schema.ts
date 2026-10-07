@@ -15,6 +15,18 @@ import {
 	transactionType,
 	transactionTypeRelations,
 } from "./schema/currency";
+import {
+	entry,
+	entryCash,
+	entryCashRelations,
+	entryRelations,
+	entryTournament,
+	entryTournamentRelations,
+	playEvent,
+	playEventRelations,
+	playSession,
+	playSessionRelations,
+} from "./schema/entry";
 import { filterPreset, filterPresetRelations } from "./schema/filter-preset";
 import { gameGroup, gameGroupRelations } from "./schema/game-group";
 import {
@@ -155,4 +167,14 @@ export const schema = {
 	oauthConsentRelations,
 	passkey,
 	passkeyRelations,
+	entry,
+	entryRelations,
+	entryCash,
+	entryCashRelations,
+	entryTournament,
+	entryTournamentRelations,
+	playSession,
+	playSessionRelations,
+	playEvent,
+	playEventRelations,
 };
