@@ -32,6 +32,12 @@ export const END_STATES_REQUIRING_STACK = [
 	"held",
 ] as const satisfies readonly PlaySessionEndState[];
 
+export const SETTLING_END_STATES = [
+	"busted",
+	"cashed_out",
+	"finished",
+] as const satisfies readonly PlaySessionEndState[];
+
 export function endStatesForKind(kind: EntryKind): PlaySessionEndState[] {
 	return PLAY_SESSION_END_STATES.filter((endState) =>
 		(END_STATE_KINDS[endState] as readonly EntryKind[]).includes(kind)
