@@ -100,6 +100,13 @@ Consequences for any migration that touches existing rows:
   GROUP BY m.id, g.value HAVING COUNT(*) > 1;
   ```
 
+**Exception: the data model v2 cutovers** (T07, T12, T22, T32, SA2-244, SA2-245, and the T35 drop;
+[`data-model-v2.md`](../../docs/design/data-model-v2.md) §16). Production has one user and each such
+release records a D1 Time Travel restore point first, so a failed cutover is restored and released
+again instead of retried (SA2-330). These migrations skip re-runnable statements, the self-healing
+retry and the `applyThrough` test. They still make backfills unable to abort and end with the check
+of §16.4; the production audit above is optional for them.
+
 ## The Drizzle `meta/` ledger
 
 `bun run db:generate` (`drizzle-kit generate`) does **not** apply anything — it diffs the current
