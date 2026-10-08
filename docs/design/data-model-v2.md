@@ -1,6 +1,6 @@
 # Data Model v2
 
-This is the specification and migration plan for data model v2. It replaces the current `game_session`-centered schema with five separate concerns: the unit of profit and loss (`entry`), the unit of time (`play_session`), asset movement (`ledger_line`), rule versions, and hand history. The migration runs in six phases (0 to 5) without stopping existing features, and each phase can ship on its own. Work is tracked in the Linear project "Data Model v2". Later implementation tasks treat this file as the source of truth.
+This is the specification and migration plan for data model v2. It replaces the current `game_session`-centered schema with five separate concerns: the unit of profit and loss (`entry`), the unit of time (`play_session`), asset movement (`ledger_line`), rule versions, and hand history. The migration runs in six phases (0 to 5). Each phase moves its data in one cutover task that ships on its own (section 16). Work is tracked in the Linear project "Data Model v2". Later implementation tasks treat this file as the source of truth.
 
 ## 1. Overview
 
@@ -100,7 +100,7 @@ erDiagram
     HAND_TAG ||--o{ HAND_TAG_LINK : tags
 ```
 
-The `entry` handles money and results, `play_session` handles time, `ledger_line` handles money movement, and `hand` handles what happens at the table. Masters can be edited, but a rule version never changes once written. The diagram shows only the main FKs and leaves out the `user_id` half of every composite FK. `tournament_tag` is built as `tournament_tag_def` until the P5 rename (section 10).
+The `entry` handles money and results, `play_session` handles time, `ledger_line` handles money movement, and `hand` handles what happens at the table. Masters can be edited, but a rule version never changes once written. The diagram shows only the main FKs and leaves out the `user_id` half of every composite FK. `tournament_tag` is built as `tournament_tag_def` until the T35 rename (section 10).
 
 ## 4. Invariants
 
@@ -159,10 +159,10 @@ Every new table follows the common conventions below. The per-table definitions 
 | room | Add `archived_at INTEGER NULL`. Add `UNIQUE (id, user_id)`. A room can be deleted only when nothing references it | P0 |
 | ring_game | Rebuild with `user_id NOT NULL` and the composite FK `(room_id, user_id) → room(id, user_id) ON DELETE CASCADE` (the existing cascade; T01 refuses a referenced room at the API). Add `UNIQUE (id, user_id)`. A row with a NULL `user_id` takes its room's owner, or else the owner of the oldest session that links it; a row with neither is linked by nothing and is deleted. A row whose room belongs to another user keeps its own owner and loses the room link | P0 (T02) |
 | ring_game | Add `current_rule_id` (exception table). Keep `currency_id` as the "default asset". The Drizzle property name is `defaultAssetId` | P4 |
-| ring_game | DROP COLUMN the rule columns: variant, mix_games, blind1 to blind3, ante, ante_type, min_buy_in, max_buy_in, table_size, house_rules (none has an FK) | P4 (SA2-251) |
+| ring_game | Retire the rule columns in P4 (SA2-244) and DROP COLUMN them in T35: variant, mix_games, blind1 to blind3, ante, ante_type, min_buy_in, max_buy_in, table_size, house_rules (none has an FK) | P4 / T35 |
 | tournament | Rebuild with `user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE`, filled from room, and the composite FK `(room_id, user_id) → room(id, user_id) ON DELETE CASCADE`. Add `UNIQUE (id, user_id)` | P0 (T02) |
-| tournament | Add `current_rule_id` (exception table). DROP COLUMN buy_in, entry_fee, starting_stack, bounty_amount, table_size, house_rules, variant | P4 |
-| blind_level, tournament_chip_purchase | Move to tournament_rule_level and tournament_rule_price, then drop the tables. They are child tables, so they can be dropped | P4 |
+| tournament | Add `current_rule_id` (exception table). Retire buy_in, entry_fee, starting_stack, bounty_amount, table_size, house_rules, variant, and DROP COLUMN them in T35 | P4 / T35 |
+| blind_level, tournament_chip_purchase | Move to tournament_rule_level and tournament_rule_price (P4), then drop the tables in T35. They are child tables, so they can be dropped | P4 / T35 |
 | player | Add `UNIQUE (id, user_id)`. A row referenced by hand_seat cannot be deleted | P0 |
 | player_tag | Add `UNIQUE (id, user_id)`. After auditing duplicate names, add `UNIQUE (user_id, lower(name))` | P0 / P5 |
 | currency | Extend it as asset (section 7). Rename the table to asset at the end | P2 / P5 |
@@ -278,7 +278,7 @@ Indexes: `UNIQUE (id, user_id)`, `UNIQUE (id, kind, user_id)` (the target of pla
 | entry_id | TEXT | no | Primary key. `(entry_id, user_id)` to entry, CASCADE |
 | ring_game_id | TEXT | yes | `(ring_game_id, user_id)` to ring_game, NO ACTION |
 | ev_diff | INTEGER | yes | EV P/L minus real P/L. NULL means EV was not recorded (the same meaning as the current evCashOut) |
-| cash_rule_id | TEXT | yes | An exception column added in P4. After the P4 read switch, the server makes it required |
+| cash_rule_id | TEXT | yes | An exception column added in P4 (SA2-245). From that cutover on, the server makes it required |
 
 Index: `(ring_game_id)`.
 
@@ -334,7 +334,7 @@ The asset table is not created new. It adds columns to the existing currency tab
 - The `currency_id` of ring_game and tournament is a table-level FK and cannot be dropped with DROP COLUMN.
 - ring_game and tournament are parent tables, so rebuilding them would cascade-delete child rows.
 
-The table is renamed in P5 with `ALTER TABLE currency RENAME TO asset`. We confirmed that RENAME also rewrites the FK definitions of child tables to the new name. This section uses the post-rename name (asset).
+The table is renamed in T35 with `ALTER TABLE currency RENAME TO asset`. We confirmed that RENAME also rewrites the FK definitions of child tables to the new name. This section uses the post-rename name (asset).
 
 **asset** (formerly currency. Existing columns: name, unit, description, is_favorite)
 
@@ -381,7 +381,7 @@ The row with the reserved name "Session Result" is not moved, because a session 
 | entry_id | TEXT | yes | `(entry_id, user_id)` to entry, CASCADE. Required for entry roles, NULL for wallet roles (INV-09) |
 | play_session_id | TEXT | yes | `(play_session_id, entry_id, user_id)` to play_session, CASCADE. Says which day the event belongs to |
 | source_event_id | TEXT | yes | `(source_event_id, user_id)` to play_event, CASCADE. The projection source. NULL for manual input |
-| price_id | TEXT | yes | An exception column added in P4 (T27). Which price was paid. The number of chip purchases is counted by this column |
+| price_id | TEXT | yes | An exception column added in P4 (T28, SA2-245). Which price was paid. The number of chip purchases is counted by this column |
 | category_id | TEXT | yes | `(category_id, user_id)` to ledger_category, NO ACTION. Used only by adjustment and exchange |
 | transfer_id | TEXT | yes | Pairs the two rows of an exchange. Required for exchange |
 | occurred_at | INTEGER | no | The reference time for choosing the conversion rate. For live, the event time. For manual, the start time or noon of local_date |
@@ -516,7 +516,7 @@ Common columns of a link table:
 - FKs: `(tag_id, user_id)` to the tag table, `(target_id, user_id)` to the target. Both CASCADE
 - Index: `(tag_id)`
 
-Because the old tournament_tag already uses that name, the per-user tournament tag table is created as tournament_tag_def. After the old table is dropped, it is renamed to tournament_tag in the same release as currency to asset (section 16, P5).
+Because the old tournament_tag already uses that name, the per-user tournament tag table is created as tournament_tag_def. After the old table is dropped, it is renamed to tournament_tag in the same migration as currency to asset (T35).
 
 Classifications that can be derived are not tags. Bounty is computed from bounty_amount, and Turbo from the level minutes, on the statistics side.
 
@@ -525,14 +525,18 @@ Classifications that can be derived are not tags. Bounty is computed from bounty
 - filter_preset: add `entryTagIds` and `tournamentTagIds` to `payload`. No table change. An old payload can be read through the Zod defaults.
 - player: once `is_self` from SA2-233 lands, put the user's own player row into Hero's hand_seat.player_id. Until then, represent Hero with is_hero = 1 and player_id = NULL.
 
-**Old tables dropped in P5** (drop from children first)
+**Retired tables dropped in T35** (drop from children first)
+
+Each phase's cutover retires the old tables it replaces: from then on nothing reads or writes them, but they stay in the database and in the Drizzle schema until T35 drops them all at once (section 16.1).
 
 1. session_chip_purchase_result, session_chip_purchase, session_blind_level
 2. session_to_session_tag, currency_transaction
 3. session_cash_detail, session_tournament_detail, session_event
 4. game_session, session_tag, transaction_type
 5. tournament_tag (old), player_to_player_tag
-6. blind_level, tournament_chip_purchase (dropped in T31 of P4, not in P5)
+6. blind_level, tournament_chip_purchase (retired in P4 by SA2-244)
+
+T35 also drops the retired columns of tables that stay: the rule columns of ring_game and tournament (section 5.2) and `game_mix.games`.
 
 None of these tables is referenced by the new tables. So the implicit DELETE of DROP TABLE never removes rows of the new tables.
 
@@ -709,7 +713,8 @@ Every time a live event is written, the projector rebuilds all projections of th
    3. INSERT of the projected lines (split with `chunkForInsert`)
    4. UPDATE of each play_session
    5. UPDATE of entry_cash / entry_tournament and entry (status, played_on)
-4. Until the P5 contract, write to the old tables in the same batch (the dual write in section 16).
+
+Nothing is written to a retired table. A fact whose phase has not cut over yet (the money columns of the detail tables and currency_transaction before T12, for example) still has its single home in the old tables (section 16.1), and its write joins the same batch.
 
 If writes to the same entry arrive concurrently, a projection computed from an old state can remain. But the next write rebuilds everything, so the drift does not persist. Audit A-6 in section 16 detects drift (R4 in section 20).
 
@@ -743,17 +748,17 @@ If writes to the same entry arrive concurrently, a projection computed from an o
 
 ## 14. API and MCP changes
 
-During the migration, existing procedures keep their names and input and output shapes. New behavior is added through optional fields and new procedures. Renaming and removing old inputs are done together in the P5 contract (T34).
+During the migration, existing procedures keep their names and input and output shapes. New behavior is added through optional fields and new procedures. A rename happens once, without aliases, in a named task: T14 (currency to asset and ledger), T32 (sessionTag to entryTag), SA2-245 (updateSnapshot to overrideRule), and SA2-250 (the legacy label inputs and outputs).
 
 ### 14.1 Policy
 
 - **Keep the public name "session"**: Even though the content is an entry, keep the router name `session`. The URL, the MCP tool names, and the user's word for it are all "session".
-- **A read switch does not change the output shape**: The read switch (R) in each phase builds the same shape from the new tables. The acceptance condition is that the MCP coupling test snapshot does not change.
+- **A cutover does not change the output shape**: The cutover task of each phase builds the same shape from the new tables. The acceptance condition is that the MCP coupling test snapshot does not change.
 - **Update MCP in the same task**: Register a new procedure in `TOOL_DEFINITIONS` or `DELIBERATELY_EXCLUDED` in the same task. The exposure policy is the same as today. These two are not exposed:
   - `*.delete`
   - Live cockpit operations (live\*, sessionEvent, hand writes)
-- **Reject old input explicitly**: Input that P5 removes is rejected by a strict schema. A PWA keeps an old bundle, so if Zod silently dropped fields, the input would vanish (the same reason as SA2-250).
-- **Bump the persisted-cache buster**: In a release that changes the meaning or shape of a cached query, bump the buster in `apps/web/src/main.tsx` (P2-R, P5-C).
+- **No aliases and no strict rejection of removed input**: A renamed or removed procedure or field is gone in the same task, and the web app changes in the same PR. Production has one user, so a PWA that still runs an old bundle is fixed by reloading it (decided 2026-10-08, section 20.3).
+- **Bump the persisted-cache buster**: In a task that changes the meaning or shape of a cached query, bump the buster in `apps/web/src/main.tsx` (T12, T14, T32, SA2-246, SA2-250).
 - **Extend ownership checks**: Add these kinds to `validateEntityOwnership`. Check every input id, and fail uniformly with FORBIDDEN (api-security.md).
   - entry, playSession, asset, assetRate, ledgerCategory, ledgerLine
   - hand, the 4 tag kinds
@@ -761,43 +766,45 @@ During the migration, existing procedures keep their names and input and output 
 
 ### 14.2 Changes per procedure
 
+A pair such as "T06 / T07" names a prep task that builds the service and the cutover that wires it into the router (section 17).
+
 | Procedure | Change | Task | MCP |
 | --- | --- | --- | --- |
-| session.create / update | Write entry, play_session, and lines in the same batch. Add optional inputs `playSessions[]` (date, times, label, endState, endStack) and `payments[]`. If omitted, build one play_session and the lines from today's input | T06, T11, T20 | Existing tool. The schema gains optional fields |
-| session.list / getById | Build from entry, play_session, and lines. Add `playSessions[]`, `virtualProfitLoss`, `virtualBuyIn`, `handCount` | T09, T14 | Existing tool. The output grows |
-| session.delete | Delete the entry (children cascade). Until P5-C, delete from the old tables in the same batch | T06 | Stays excluded |
-| session.profitLossSeries | Compute from lines | T14 | Stays excluded |
-| live\*.create / complete / discard / updateHeroSeat | Write entry, play_session, play_event, and the projection in one batch | T07 | Stays excluded |
+| session.create / update | Write entry, play_session, and lines in the same batch. Add optional inputs `playSessions[]` (date, times, label, endState, endStack) and `payments[]`. If omitted, build one play_session and the lines from today's input | T06 / T07, T11 / T12, T20 | Existing tool. The schema gains optional fields |
+| session.list / getById | Build from entry, play_session, and lines. Add `playSessions[]`, `virtualProfitLoss`, `virtualBuyIn`, `handCount` | T07, T12, T14 | Existing tool. The output grows |
+| session.delete | Delete the entry (children cascade). Until T35, delete the game_session row that anchors the children not moved yet in the same batch | T06 / T07 | Stays excluded |
+| session.profitLossSeries | Compute from lines | T12 | Stays excluded |
+| live\*.create / complete / discard / updateHeroSeat | Write entry, play_session, play_event, and the projection in one batch | T06 / T07 | Stays excluded |
 | live\*.endPlay (new) | Add day_end and close the play_session (bagged / held) | T18 | Excluded |
 | live\*.startNextPlay (new) | Add a play_session to the same entry and add session_start. Input is label, localDate, startLevel | T18 | Excluded |
 | liveCashGameSession.reopen | Only call startNextPlay. Delete neither the end event nor the currency transaction (replaces the SA2-211 behavior) | T18 | Stays excluded |
-| live\*.update | handCount / dealerSeat move to the hand router from T23. Remove them from the input in T34 | T23, T34 | Stays excluded |
-| live\*.updateSnapshot | Replace with overrideRule (create a version with the original as its parent and repoint the entry) | T29 | Excluded |
-| sessionEvent.create / update / delete | Write play_event and the projection in one batch. Add the optional input `playSessionId` (default is the unfinished play_session). Also accept the new event types | T07, T18 | Stays excluded |
-| sessionEvent.list / sessionTablePlayer.\* | Read and write play_event. Input and output do not change | T07, T09 | Stays excluded |
-| hand.list / getById (new) | Return per play_session with keyset paging | T21 | Exposed (hand_list, hand_get_by_id) |
-| hand.add / undoLast / update / delete (new) | "+1", undo, saving details (seats and actions are replaced in full), delete | T21, T24 | Excluded |
-| asset.list / getById (new) | The successor of currency.list. Returns kind, balance, and holding | T14 | Exposed (asset_list) |
+| live\*.update | handCount / dealerSeat move to the hand router and leave the input in the same task | T22 | Stays excluded |
+| live\*.updateSnapshot | Rename to overrideRule without an alias (create a version with the original as its parent and repoint the entry) | T28 (SA2-245) | Excluded |
+| sessionEvent.create / update / delete | Write play_event and the projection in one batch. Add the optional input `playSessionId` (default is the unfinished play_session). Also accept the new event types | T06 / T07, T18 | Stays excluded |
+| sessionEvent.list / sessionTablePlayer.\* | Read and write play_event. Input and output do not change | T07 | Stays excluded |
+| hand.list / getById (new) | Return per play_session with keyset paging | T21 / T22 | Exposed (hand_list, hand_get_by_id) |
+| hand.add / undoLast / update / delete (new) | "+1", undo, saving details (seats and actions are replaced in full), delete | T21 / T22, T24 | Excluded |
+| asset.list / getById (new) | Renamed from currency.list. Returns kind, balance, and holding | T14 | Exposed (asset_list) |
 | asset.create / update / archive / restore (new) | Allow creating items. Delete only when nothing references it | T15 | Excluded (the same as today's currency.create) |
 | assetRate.list / create / delete (new) | Rates with validity periods. To correct, delete and recreate | T15 | Only list is exposed |
-| ledger.listByAsset (new) | The successor of currencyTransaction.listByCurrency. Entry lines carry the entry name | T14 | Excluded (as today) |
+| ledger.listByAsset (new) | Renamed from currencyTransaction.listByCurrency. Entry lines carry the entry name | T12, T14 | Excluded (as today) |
 | ledger.createAdjustment / createExchange / update / delete (new) | Handle only wallet lines. Specifying an entry line returns FORBIDDEN (the same as today's transaction with a sessionId) | T15 | Excluded |
-| ledgerCategory.\* (new) | The successor of transactionType.\* | T11 | Excluded |
+| ledgerCategory.\* (new) | Renamed from transactionType.\* | T12, T14 | Excluded |
 | userSetting.get / update (new) | baseAssetId, timeZone | T15 | Only get is exposed |
-| stats.summary / breakdown / profitLossSeries | Input: `valuation` (real / virtual), `baseAssetId`, `entryTagIds`, `tournamentTagIds`. Output: virtual values, `bb100`, `handsPerHour`, `excludedEntryCount`, `missingRates` | T14, T17, T23, T33 | Existing tool. Update the snapshot |
-| room.archive / restore (new), room.delete | If referenced, delete returns CONFLICT and points to archive. From T27 on, this includes entries that use a rule version of one of the room's masters | T01 | room_archive / room_restore exposed. delete excluded |
-| ringGame.delete / tournament.delete | CONFLICT if referenced. From T27 on, this includes entries that use one of the master's rule versions | T06 | Stays excluded |
-| ringGame.update / tournament.updateWithLevels | Create a new rule version and repoint current_rule_id | T27 | Existing tool. The schema does not change |
-| player.delete | CONFLICT if referenced by hand_seat | T21 | Stays excluded |
-| entryTag, tournamentTag, handTag, playerTag (factory) | list, create, update, delete, reorder, attach to and detach from a target | T32 | list and create exposed |
-| sessionTag.\*, tournament.addTag / removeTag | Become thin aliases of entryTag and tournamentTag. Deleted in T34, and the MCP session_tag_\* tools are renamed to entry_tag_\* | T32, T34 | Renamed |
-| currency.\*, currencyTransaction.\*, transactionType.\* | Become thin aliases of asset, ledger, and ledgerCategory. Deleted in T34, and currency_list is unified into asset_list | T11, T34 | Renamed |
+| stats.summary / breakdown / profitLossSeries | Input: `valuation` (real / virtual), `baseAssetId`, `entryTagIds`, `tournamentTagIds`. Output: virtual values, `bb100`, `handsPerHour`, `excludedEntryCount`, `missingRates` | T12, T17, T23, T33 | Existing tool. Update the snapshot |
+| room.archive / restore (new), room.delete | If referenced, delete returns CONFLICT and points to archive. From SA2-245 on, this includes entries that use a rule version of one of the room's masters | T01 | room_archive / room_restore exposed. delete excluded |
+| ringGame.delete / tournament.delete | CONFLICT if referenced. From SA2-245 on, this includes entries that use one of the master's rule versions | T07 | Stays excluded |
+| ringGame.update / tournament.updateWithLevels | Create a new rule version and repoint current_rule_id | T27 (SA2-244) | Existing tool. The schema does not change |
+| player.delete | CONFLICT if referenced by hand_seat | T22 | Stays excluded |
+| entryTag, tournamentTag, handTag, playerTag (factory) | list, create, update, delete, reorder, attach to and detach from a target | T32, T33 | list and create exposed |
+| sessionTag.\*, tournament.addTag / removeTag | Renamed to entryTag and tournamentTag without aliases. The MCP session_tag_\* tools become entry_tag_\* | T32 | Renamed |
+| currency.\*, currencyTransaction.\*, transactionType.\* | Renamed to asset, ledger, and ledgerCategory without aliases. currency_list becomes asset_list | T14 | Renamed |
 
-Only T34 changes MCP tool names. Its release notes include a table mapping old names to new names.
+Only T14 and T32 change MCP tool names. The release notes of each include a table mapping old names to new names.
 
 ## 15. Impact on the web app
 
-The API output shape is preserved, so the read-switch tasks (T09, T14, T23, T29) change almost nothing in the web app. The web app changes substantially only for the new-feature screens (T15 to T20, T24, T25, T33) and the cleanup of formulas on the client. Files are paths relative to `apps/web/src/`.
+The API output shape is preserved, so the cutover tasks (T07, T12, T22, SA2-244, SA2-245) change almost nothing in the web app. The renames (T14, T32, SA2-245) change the procedure names the web app calls in the same PR. The web app changes substantially only for the new-feature screens (T15 to T20, T24, T25, T33) and the cleanup of formulas on the client. Files are paths relative to `apps/web/src/`.
 
 ### 15.1 Screens and hooks
 
@@ -808,7 +815,7 @@ The API output shape is preserved, so the read-switch tasks (T09, T14, T23, T29)
 | Editing a completed live session | `features/sessions/utils/live-linked-edit.ts`, `use-live-linked-session-edit.ts` | Rewrite events per play_session. The flow of rewriting events and then re-projecting is the same as today | T19 |
 | Live cockpit | `features/live-sessions/pages/live-session-page/{cash-cockpit,tournament-cockpit,sheets/end-session-sheet}`, `hooks/use-cash-game-stack.ts`, `use-tournament-stack.ts` | Add "End day (bagged)" and "Leave seat (held)" to the end sheet. Also add a re-entry sheet | T19 |
 | Starting and resuming live | `hooks/use-create-session.ts`, `use-active-session.ts`, home screen | Show an open entry in the list as "has more to play" and let the user start the next day | T19 |
-| Hand counter | `hooks/use-hand-tracking.ts`, `utils/hand-tracking.ts`, `pages/live-session-page/use-hand-counter.ts`, `table-view/{hand-counter,dealer-button}`, `sheets/hand-count-sheet` | Call hand.add / undoLast instead of live\*.update. Take the button position from the latest hand | T23 |
+| Hand counter | `hooks/use-hand-tracking.ts`, `utils/hand-tracking.ts`, `pages/live-session-page/use-hand-counter.ts`, `table-view/{hand-counter,dealer-button}`, `sheets/hand-count-sheet` | Call hand.add / undoLast instead of live\*.update. Take the button position from the latest hand | T22 |
 | Hand details and list (new) | A new feature `features/hands/` | A hand list and an input sheet for summary / full. The new screen starts with PageHeader | T24 |
 | Assets (formerly "currencies") | `features/currencies/**`, `routes/currencies/*` | Add an asset list (currencies and items), rate history, and exchange. When registering a rate, default the first row of a pair to "valid from the beginning" and also allow choosing a date. Warn before saving that fixing a "from the beginning" row changes all past valuations. Keep the route `/currencies` and change the display name to "Assets" | T15 |
 | Settings | `features/settings/**` | Base currency and time zone | T15 |
@@ -833,78 +840,72 @@ The following formulas overlap with the server calculation (section 12). In T14,
 
 ### 15.3 Other
 
-- **Persisted cache**: In T14 and T34, bump the `buster` in `main.tsx` (currently "2026-09-dealer-seat").
-- **Dates**: Date-only values become `'YYYY-MM-DD'` strings. The rule in `datetime-and-numbers.md` to "read UTC midnight values with UTC getters" is rewritten in T09.
+- **Persisted cache**: In T12, T14, and T32, bump the `buster` in `main.tsx` (currently "2026-09-dealer-seat"). SA2-246 and SA2-250 bump it for the lineup outputs.
+- **Dates**: Date-only values become `'YYYY-MM-DD'` strings. The rule in `datetime-and-numbers.md` to "read UTC midnight values with UTC getters" is rewritten in T07.
 - **Test impact**: Of 290 web tests, at most 161 touch session and currency (a high number because it includes the auth session). 15 mock the procedures directly, and the rest use fixtures with amount columns. As long as the output shape is preserved, the fixtures need no change.
 
 ## 16. Migration procedure
 
-Each phase proceeds through the same 5 stages as SA2-242: Expand (E), Backfill (B), Read switch (R), Contract (C), and Drop (D).
+Production has one user, the developer, and a failed release is recovered with D1 Time Travel (decided 2026-10-08, section 20.3). So each phase moves its data once, in a cutover task, instead of the five stages (expand, backfill, read switch, contract, drop) that SA2-242 planned for many users. Nothing is dual-written.
 
-Until T34 stops writes to the old tables, the old tables are kept correct by dual writes. So every phase can be rolled back by simply redeploying the previous Worker.
+### 16.1 Cutovers
 
-### 16.1 Stages and release boundaries
+- **One cutover per phase.** One PR holds the backfill migration and the code that switches every read and write of that data to the new tables. At every point one fact has one home, so the PR can ship on its own in any release, and the dev environment (`dev-deploy.yml`) stays consistent after every merge.
+- **Prep before a large cutover.** A prep task builds and tests the services that read and write the new tables, but does not wire them into the routers, so behavior does not change. The cutover wires them.
+- **Retired tables and columns.** Once a cutover has moved a table or column, nothing reads or writes it. It stays in the database and in the Drizzle schema, where it can be compared with the new rows if something looks wrong, until T35 drops everything retired at once. `schema-migrations.test.ts` therefore needs no pending-drop allowlist. A retired NOT NULL column without a default gets a fixed value on insert, the way `game_mix.games` gets `'[]'`.
+- **game_session is the FK anchor.** Old child tables that have not moved yet still reference game_session. From the P1 cutover (T07) on, creating an entry also inserts a minimal game_session row with the same id in the same batch. It holds only the NOT NULL columns, with status `'completed'` so that the old partial UNIQUE `session_one_unfinished_live_per_user_idx` and `session_manual_completed_check` never fire. Nothing reads it, deleting the entry deletes it in the same batch, and T35 removes this code. The children it anchors:
+  - the money columns of session_cash_detail / session_tournament_detail, and currency_transaction, until T12
+  - the rule columns of the detail tables, session_blind_level, and session_chip_purchase, until SA2-245
+  - the tag links, until T32
+  - hand_count and dealer_seat, which keep their home in game_session itself until T22
+- **Releasing a cutover.** In production, the migration (`db:migrate:remote`) runs before the Worker deploy. Before a release that contains a cutover, record the Time Travel restore point in the issue with `wrangler d1 time-travel info sapphire2-db`, and do not enter data until the new Worker is live: the previous Worker still writes only the old tables. To roll back, restore the database to that point and redeploy the previous tag. Data entered after the restore point is lost (R10 in section 20).
 
-In production, the migration (`db:migrate:remote`) runs before the Worker deploy. This order sets the boundary of each stage.
-
-| Stage | Content | Can ship in the same release as the previous stage? | On failure |
-| --- | --- | --- | --- |
-| E Expand | Add new tables and columns, and make every write path a dual write | — | The migration can be re-run. Redeploy the previous Worker (the new tables stay unused) |
-| B Backfill | Move past rows with hand-written SQL, and stop at a gate (a statement that fails unless the audit returns 0 rows) | No. Rows written between the two would be missed unless the E Worker has already started dual writes | If the gate stops it, `d1_migrations` does not advance and the deploy stops too. Fix the data and release again |
-| R Read switch | The API and statistics read from the new tables. The output shape does not change | Yes. The B gate has already passed before the deploy | Redeploy the previous Worker |
-| C Contract | Stop writes to the old tables and stop accepting old inputs (only once, as T34, for all phases) | No. Only after the R of every phase is stable in production | The old tables become stale, so it cannot be rolled back. Fix forward |
-| D Drop | DROP the old tables and rename. Keep compatibility views for one release only | No. Only after the state where only the C Worker is running | Restore with D1 Time Travel. Before running, record the restore point with `wrangler d1 time-travel info sapphire2-db` |
+| Phase | Prep | Cutover | What moves | Check at the end of the migration |
+| --- | --- | --- | --- | --- |
+| P0 | — | T02 (done) | Owners of ring_game and tournament | NOT NULL (replaces A-1 / A-2) |
+| P1 | T05, T06 | T07 | entry, play_session, play_event | A-3, A-4 |
+| P2 | T10, T11, T13 | T12 | ledger_line, from the money columns and currency_transaction | A-5 (A-11 is reported) |
+| P3 | T21 | T22 | hand, from hand_count and dealer_seat | A-10 |
+| P4 | — | T27 (SA2-244), then T28 (SA2-245) | Rule versions of masters, then of entries | No NULL rule ids, stake coverage, A-7, A-13 |
+| P5 | — | T32 | The tag tables | A-12 |
 
 ### 16.2 Release plan
 
-A human cuts releases. The table below is the shortest split derived from the dependencies, and each row is one `release/vX.Y.Z`. P4 is integrated in parallel, in step with the progress of SA2-242.
-
-| Release | Included tasks | Gate to pass | What becomes available |
-| --- | --- | --- | --- |
-| R1 | T00, T01, T02 | — | Room archive |
-| R2 | T04, T05, T06, T07 | — | — (dual writes start) |
-| R3 | T08, T09, T10, T11, T13 | A-3, A-4 | — (reads from entry and play_session) |
-| R4 | T12, T14, T18, T21 | A-5 | P/L from the ledger, multi-day and away-from-seat API |
-| R5 | T15, T16, T17, T19, T20, T22, T23, T32 | A-10 | Multi-day, non-currency, virtual ROI, hand count, bb/100 |
-| R6 | T24, T25, T33 | A-12 | Hand details, opponent tendencies, filtering by tag |
-| The P4 series | T26 → T27 → T28 → T29 → T30 → T31 (each in a separate release) | A-13 | Rule versions and removal of diff comparison |
-| R7 | T34 | Every R has been stable in production for at least one release | — (writes to old tables stop) |
-| R8 | T35 | Record the Time Travel restore point | — (old tables dropped and renamed) |
-| R9 | T36, T37 | — | — |
+There is no fixed release plan. A human cuts releases from `dev`, and the order follows the dependencies in section 18. Cutovers may share a release, but one cutover per release keeps each restore point to one phase.
 
 ### 16.3 Rules for writing migrations
 
-- Create additions of tables, columns, and indexes with `bun run db:generate`. Hand-write only backfills, gates, renames, and DROPs. Even after hand-writing, run `db:generate` and confirm it ends with "No schema changes" (db-migrations.md).
-- In production, one file is not one transaction. So write every statement so that it can be re-run from the middle.
-  - Use `CREATE ... IF NOT EXISTS` and `INSERT OR IGNORE`.
-  - Make ids deterministic.
-  - Write backfills so they never abort: join to the owner with `INNER JOIN`, guard with `CASE WHEN json_valid(x) = 0`, and turn values that violate a CHECK into NULL with CASE.
-- Do not rebuild an existing parent table without staging its children. D1 checks FKs even during a migration, and the implicit DELETE of DROP TABLE cascades to child rows and sets SET NULL links to NULL. T02 (`0054_stale_redwing`) stages the child rows and links, restores them after the rebuild, and can be replayed from any statement; follow it if another rebuild is needed.
+- Create additions of tables, columns, and indexes with `bun run db:generate`. Hand-write only backfills, checks, renames, and DROPs. Even after hand-writing, run `db:generate` and confirm it ends with "No schema changes" (db-migrations.md).
+- In production, one file is not one transaction, so a migration that stops midway leaves the statements before it applied. Do not build re-runs from the middle. Restore with Time Travel and release a fixed migration instead.
+  - Make ids deterministic, derived from the source row, so that the backfill matches what the new code writes (section 13.3).
+  - Write backfills so they never abort on bad data: join to the owner with `INNER JOIN`, guard with `CASE WHEN json_valid(x) = 0`, and turn values that violate a CHECK into NULL with CASE.
+  - End each cutover migration with its check (16.4).
+- Do not rebuild an existing parent table without staging its children. D1 checks FKs even during a migration, and the implicit DELETE of DROP TABLE cascades to child rows and sets SET NULL links to NULL. T02 (`0054_stale_redwing`) stages the child rows and links and restores them after the rebuild; follow it if another rebuild is needed.
 - A column with a table-level FK cannot be dropped with DROP COLUMN. Only a column with no FK, index, or CHECK can be dropped (confirmed on SQLite 3.53).
-- Inspect production contents first. Before opening the PR for stage B, run the pre-audit (16.6) with `bunx wrangler d1 execute sapphire2-db --remote --command "..."` and paste the result into the issue.
+- The pre-audit (16.6) is optional. Run it only for cases whose treatment depends on what production holds, and paste the result into the issue.
 
-### 16.4 Writing a gate
+### 16.4 Writing the check
 
-If an audit query returns even one row, the INSERT into a NOT NULL column fails and the migration stops (the same method as the L3 gate of SA2-242).
+The last statement of a cutover migration checks that the move is complete. If an audit query returns even one row, the INSERT into a NOT NULL column fails and the migration stops (SQLite raises only from triggers, so a NOT NULL insert stands in for an assertion). The deploy stops with it; restore the database with Time Travel before releasing a fixed migration.
 
 ```sql
-CREATE TABLE IF NOT EXISTS _migration_gate (v INTEGER NOT NULL);
-INSERT INTO _migration_gate (v)
+CREATE TABLE IF NOT EXISTS _migration_check (v INTEGER NOT NULL);
+INSERT INTO _migration_check (v)
 SELECT NULL WHERE EXISTS (
   -- Put the audit query here (16.7)
   SELECT 1 FROM game_session gs LEFT JOIN entry e ON e.id = gs.id WHERE e.id IS NULL
 );
-DROP TABLE _migration_gate;
+DROP TABLE _migration_check;
 ```
 
 ### 16.5 Backfill SQL (representative examples)
 
 **P0 (T02)**: The rebuild in `0054_stale_redwing` fixes the owners while it copies the staged rows back. tournament takes its room's owner. ring_game keeps its own `user_id`, or else takes its room's owner, or else the owner of the oldest session that links it. A ring_game with none of these is linked by nothing and is not copied back, and a room owned by someone other than the resolved owner is unlinked. NOT NULL replaces the A-1 / A-2 gates.
 
-**P1 (T08)**: Move entry, play_session, and play_event with their old ids. Rows that entered through dual writes are kept by `OR IGNORE`. The value of game_session.kind (`cash_game`) is checked against the constants at implementation time.
+**P1 (T07)**: Move entry, play_session, and play_event with their old ids. The value of game_session.kind (`cash_game`) is checked against the constants at implementation time.
 
 ```sql
-INSERT OR IGNORE INTO entry
+INSERT INTO entry
   (id, user_id, kind, source, status, room_id, asset_id, title, played_on, memo, created_at, updated_at)
 SELECT gs.id, gs.user_id,
   CASE gs.kind WHEN 'cash_game' THEN 'cash' ELSE 'tournament' END,
@@ -925,7 +926,7 @@ LEFT JOIN session_tournament_detail std ON std.session_id = gs.id;
 ```
 
 ```sql
-INSERT OR IGNORE INTO play_session
+INSERT INTO play_session
   (id, user_id, entry_id, kind, seq, local_date, started_at, ended_at, break_minutes,
    status, end_state, end_stack, clock_started_at, created_at, updated_at)
 SELECT gs.id, gs.user_id, e.id, e.kind, 1, e.played_on, gs.started_at,
@@ -948,7 +949,7 @@ LEFT JOIN session_tournament_detail std ON std.session_id = gs.id;
 The tournament end_state of a live entry follows the projector rule in section 13.2, so a NULL placement (before_deadline = 1) is busted and A-6 finds no difference. A manual entry without a placement keeps the manual default, finished.
 
 ```sql
-INSERT OR IGNORE INTO play_event
+INSERT INTO play_event
   (id, user_id, entry_id, play_session_id, type, schema_version, occurred_at, sort_order, payload, created_at, updated_at)
 SELECT se.id, gs.user_id, se.session_id, se.session_id, se.event_type, 1, se.occurred_at, se.sort_order,
   CASE WHEN json_valid(se.payload) THEN se.payload ELSE '{}' END, se.created_at, se.updated_at
@@ -960,14 +961,14 @@ entry_cash and entry_tournament are moved in the same way. `ev_diff` is the roun
 
 **P2 (T12)**: Create the ledger lines. How they are created depends on the entry's source.
 
-- Live lines are created from events. The id is `<event_id>:<n>`, the same as the projector, so backfilled rows match later projections.
+- Live lines are created from events. The id is `<event_id>:<n>`, the same as the projector, so the next projection of a backfilled entry replaces its lines with equal rows.
 - Manual lines are created from columns. The id is `m:<entry_id>:<role>:<n>`.
 - For an entry whose currency_id is NULL, first create a per-user asset named "Unassigned" (id `unassigned:<user_id>`) and link to it (Q6 in section 20).
 
 An example for manual cash input:
 
 ```sql
-INSERT OR IGNORE INTO ledger_line
+INSERT INTO ledger_line
   (id, user_id, asset_id, quantity, role, effect, entry_id, play_session_id, occurred_at, created_at, updated_at)
 SELECT 'm:' || e.id || ':' || v.role || ':0', e.user_id,
   COALESCE(e.asset_id, 'unassigned:' || e.user_id),
@@ -993,18 +994,20 @@ Manual tournament input has the same shape. Create buy_in, fee, prize, and bount
 - The id is `h:<play_session_id>:<n>`.
 - played_at is NULL. Only the last row gets button_seat = dealer_seat.
 
-**P4 (T28)**: Create one current version per master.
+**P4 (T27 and T28)**: T27 (SA2-244) creates one current version per master. T28 (SA2-245) then points each entry at a version:
 
-- If an entry's snapshot has the same values as that version, point to the same version.
-- If it differs, create a child version with that version as its parent. Entries with equal snapshots under one master share one child version.
+- If an entry's snapshot has the same values as its master's version, point to that version.
+- If it differs, create a child version with the master's version as its parent. An entry without a master gets a parentless version. Entries with equal snapshots under one master share one child version.
 - Details follow game-lineups.md, revised in T26 (version ids `cr:<ring_game_id>` / `tr:<tournament_id>`, child versions `cr:e:<entry_id>` / `tr:e:<entry_id>`).
 
-**P5 (T33)**: Move the tags.
+**P5 (T32)**: Move the tags.
 
 - session_tag to entry_tag keeps the same id.
 - The old tournament_tag is grouped per user by `lower(trim(name))` (id `tt:<user_id>:<hash of the normalized name>`). Keep the oldest spelling among the original names.
 
-### 16.6 Pre-audit (run in production before opening the stage B PR)
+### 16.6 Pre-audit (optional)
+
+Run these in production with `bunx wrangler d1 execute sapphire2-db --remote --command "..."` only when the treatment of a case depends on the count. The check at the end of each cutover migration catches what the backfill missed either way.
 
 - (T02, before merging) ring_game rows with a NULL user_id, by how they resolve (own room, linking session, none), ring_game rows whose room belongs to another user, and tournament rows without a room
 - Rows whose session_event.payload is invalid JSON
@@ -1017,87 +1020,88 @@ Manual tournament input has the same shape. Create buy_in, fee, prize, and bount
 
 ### 16.7 Audit queries
 
-Each one passes when it returns 0 rows. Which ones are used as gates is written in the release plan above.
+Each one passes when it returns 0 rows. A check runs as the last statement of the named cutover's migration (16.4).
 
 | ID | What it checks | Type |
 | --- | --- | --- |
 | A-1 | Retired: `tournament.user_id` is NOT NULL since T02 | — |
 | A-2 | Retired: `ring_game.user_id` is NOT NULL since T02 | — |
-| A-3 | Each game_session has a matching entry and a seq 1 play_session, and each session_event has a matching play_event (ids that exist on only one side) | Gate (T08) |
-| A-4 | The started_at, ended_at, break_minutes, and status of the play_session match game_session | Gate (T08) |
-| A-5 | For each settled entry, the real P/L of the lines matches the P/L of the old columns. For cash: cash_out + chip_remove_total − buy_in. For a tournament: prize + bounty − (buy_in + fee + Σcost×count) | Gate (T12) |
+| A-3 | Each game_session has a matching entry and a seq 1 play_session, and each session_event has a matching play_event (ids that exist on only one side) | Check (T07) |
+| A-4 | The started_at, ended_at, break_minutes, and status of the play_session match game_session | Check (T07) |
+| A-5 | For each settled entry, the real P/L of the lines matches the P/L of the old columns. For cash: cash_out + chip_remove_total − buy_in. For a tournament: prize + bounty − (buy_in + fee + Σcost×count) | Check (T12) |
 | A-6 | Replaying a live entry through the projector matches the stored projection (a read-only script, `scripts/audit-projections.ts`) | Periodic |
-| A-7 | The exception columns (section 5.3) do not point to another user's row | Periodic, gate (T28) |
+| A-7 | The exception columns (section 5.3) do not point to another user's row | Periodic, check (T28) |
 | A-8 | `entry.played_on = MIN(play_session.local_date)` | Periodic |
 | A-9 | entry.status matches INV-06 | Periodic |
-| A-10 | The number of hand rows per play_session matches game_session.hand_count, and the last button_seat matches dealer_seat | Gate (T22) |
+| A-10 | The number of hand rows per play_session matches game_session.hand_count, and the last button_seat matches dealer_seat | Check (T22) |
 | A-11 | The balance per asset matches the sum of currency_transaction (compare only settled entries and wallet lines). Report differences as existing drift of the SA2-279 kind | Report (T12) |
-| A-12 | The number of old tag links matches the number of new tag links, per target | Gate (T33) |
-| A-13 | The rule version values of masters and entries match the old columns | Gate (T28) |
+| A-12 | The number of old tag links matches the number of new tag links, per target | Check (T32) |
+| A-13 | The rule version values of masters and entries match the old columns | Check (T27 for masters, T28 for entries) |
 
-A-11 is not a gate. The ledger is built from the correct source columns, so drift in currency_transaction is naturally fixed by the read switch. List the differences in the T14 PR as a spec change.
+A-11 is not a check. The ledger is built from the correct source columns, so drift in currency_transaction is fixed by the cutover. Record the differences in the T12 issue before merging, and list them in the T12 PR as a spec change.
 
 ## 17. Task breakdown
 
-There are 37 tasks, T00 to T37 with T03 merged into T02. One task is one Linear issue and one PR.
+There are 38 task ids, T00 to T37. T03 is merged into T02, T08 and T09 into T07, and T34 and T36 are canceled, so 33 tasks remain. One task is one Linear issue and one PR.
 
 - Size uses the T-shirt sizes in AGENTS.md (XS 1, S 2, M 3, L 5). There is no XL.
-- Every priority starts at Medium. But a B task that has a gate blocks the connected phase, so make it High.
+- Every priority starts at Medium. A cutover that the following phases wait for (T07, T12, T22) is High.
 - A human sets the level label at Triage.
 - The 6 P4 tasks do not create new issues. They revise the scope of the existing SA2-244 to SA2-251.
+- A prep task does not wire its services into a router, so its PR does not change behavior. The cutover that follows wires them (section 16.1).
 - Every task's definition of done includes these three:
   - The Testing checks in AGENTS.md (types, lint, `check:rules`, the relevant Vitest) pass.
   - If the backend changes, update the MCP registration.
   - Update the relevant docs/design.
 
-| ID | Issue | Task | Phase and stage | Type | Size | Depends on | Acceptance criteria |
+| ID | Issue | Task | Phase | Type | Size | Depends on | Acceptance criteria |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| T00 | SA2-294 | Put this specification in English at `docs/design/data-model-v2.md` and link it from related docs | — | Chore | S | — | It contains the invariants, table definitions, calculation spec, and migration stages. `check:rules` passes |
+| T00 | SA2-294 | Put this specification in English at `docs/design/data-model-v2.md` and link it from related docs | — | Chore | S | — | It contains the invariants, table definitions, calculation spec, and migration procedure. `check:rules` passes |
 | T01 | SA2-295 | Room archive / restore. Deleting a referenced room returns CONFLICT | P0 | Improvement | M | — | API, MCP (room_archive / room_restore), and the web archive action. A D1 integration test confirms that deleting a referenced room is rejected |
-| T02 | SA2-296 | Rebuild ring_game and tournament with `user_id NOT NULL` and a composite FK to room, filling tournament.user_id from room and resolving orphan ring_game rows. Add `UNIQUE (id, user_id)` to room, ring_game, tournament, player, player_tag, and currency. Every create path writes user_id | P0 | Improvement | M | — | A new tournament and ring_game always get a user_id. `schema-migrations.test.ts` passes. `applyThrough` confirms re-running after a mid-way failure. Paste the production pre-audit result into the issue |
+| T02 | SA2-296 | Rebuild ring_game and tournament with `user_id NOT NULL` and a composite FK to room, filling tournament.user_id from room and resolving orphan ring_game rows. Add `UNIQUE (id, user_id)` to room, ring_game, tournament, player, player_tag, and currency. Every create path writes user_id | P0 cutover | Improvement | M | — | A new tournament and ring_game always get a user_id. `schema-migrations.test.ts` passes. `applyThrough` confirms re-running after a mid-way failure. The production pre-audit is optional since 2026-10-08 |
 | T03 | SA2-298 | Merged into T02 (2026-10-07) | — | — | — | — | — |
-| T04 | SA2-299 | Tables for entry, entry_cash, entry_tournament, play_session, and play_event | P1-E | Improvement | L | T01, T02 | D1 integration tests confirm that composite FKs, the partial UNIQUE, and CHECKs reject other users' rows and invalid values |
-| T05 | SA2-300 | The projector: the pure function `projectEntry` and the part that builds batch statements | P1-E | Improvement | M | T04 | Unit-test every row of the section 13 table. For existing event sequences, the result equals the current fold (live-session-pl.ts) |
-| T06 | SA2-301 | Dual writes for manual input (session.create / update / delete). Protect delete of ring_game / tournament | P1-E | Improvement | M | T04 | Write to old and new tables in one batch. D1 confirms that if it fails midway, neither is written |
-| T07 | SA2-303 | Dual writes for live (live\*, sessionEvent, sessionTablePlayer). Put the event and projection in one batch | P1-E | Improvement | L | T05 | The non-atomicity of SA2-192 is gone. Existing live tests pass unchanged |
-| T08 | SA2-305 | Backfill entry, play_session, and play_event, with gates A-3 / A-4 | P1-B | Improvement | L | T06, T07 (separate release) | A Bun migration test confirms rows already dual-written and re-running after a mid-way failure. Confirm the local_date conversion at the boundary (around JST midnight) |
-| T09 | SA2-307 | Read switch: read session, live\*, sessionEvent, and statistics time from the new tables | P1-R | Improvement | M | T08 | The MCP snapshot does not change. Update datetime-and-numbers.md for local_date |
-| T10 | SA2-302 | Extend currency (kind, decimals, archived_at). Tables for asset_rate, ledger_category, ledger_line, and user_setting | P2-E | Improvement | L | T04 | D1 integration tests confirm the ledger_line CHECKs (sign, wallet role, exchange) |
-| T11 | SA2-306 | Dual writes for the ledger. The projector emits lines, and manual input also writes lines. Make currency / currencyTransaction / transactionType thin aliases of asset / ledger / ledgerCategory | P2-E | Improvement | L | T07, T10 | For new writes, the ledger P/L matches the old-column P/L (run A-5 as an integration test) |
-| T12 | SA2-308 | Backfill lines, gate A-5, and report balance drift A-11 | P2-B | Improvement | L | T08, T11 (separate release) | Live line ids match the projector. Record the A-11 result in the issue and SA2-279 |
-| T13 | SA2-304 | The valuation service `valuation.ts` (conversion, real and virtual amounts, BI, ROI) | P2 | Improvement | M | T10 | Use the section 12.1 table as expected values. Test the inverse rate, two-step conversion, missing rates (including a line older than the first row), a row with effective_from = 0, and the rounding boundary (0.5) |
-| T14 | SA2-309 | Read switch: read list and detail P/L, statistics, balance, and transaction history from the ledger. Clean up web formulas and bump the buster | P2-R | Improvement | L | T09, T12, T13 | Existing statistics tests pass with the same expected values. SA2-124 and SA2-279 can be closed |
-| T15 | SA2-311 | Asset management (items, rates, base currency, time zone, deposits, withdrawals, and exchange) | P2 | Feature | L | T14 | A ticket can be created and its unit price registered as history. An exchange is saved as a pair of two rows. Registering a "valid from the beginning" fixed rate also converts entries before the registration date |
-| T16 | SA2-315 | Input of non-currency buy-ins and prizes (forms and cockpit). The v2 payload | P2 | Feature | L | T15 | The flow of winning a ticket in a satellite and using it in the main event can be recorded from the screen. v1 events can still be read |
-| T17 | SA2-316 | Virtual ROI in statistics and totals in the base currency | P2 | Feature | M | T15 | Show the count of not-convertible entries. Real and virtual can be switched |
-| T18 | SA2-312 | Multi-day and away-from-seat API (endPlay, startNextPlay, reentry, replacing reopen) | P1 feature | Feature | M | T09, T14 | In the flow Day 1A busted → Day 1C reentry → bagged → Day 2 → busted, P/L, time, and placement match the overview version's example |
-| T19 | SA2-317 | Web: live end of day, leaving the seat, next day, re-entry, and a list of entries that have more to play | P1 feature | Feature | L | T18 | Drive the operations with Testing Library. Another live session can be started after a held |
-| T20 | SA2-318 | Web: multiple days in manual input, and per-day display on the detail screen | P1 feature | Feature | M | T18 | A Drawer on mobile. UI copy is in English |
-| T21 | SA2-310 | Hand tables and the hand router. Dual-write "+1" with the old column. Protect player.delete | P3-E | Feature | L | T09 | Saving one hand is one batch and stays within 100 parameters. The DB rejects input that makes Hero occupy 2 seats |
-| T22 | SA2-313 | Backfill hand counts and gate A-10 | P3-B | Improvement | M | T21 (separate release) | Even when hand_count is at its maximum, it fits within the recursive CTE cap |
-| T23 | SA2-319 | Read switch: read hand count and button from hand. Add bb/100 and hands/hour to statistics | P3-R | Feature | M | T14, T22 | Update the "no bb/100" statement in statistics.md. Test the section 12.3 formulas |
-| T24 | SA2-321 | Detailed hand input (summary / full), the hand list, and linking all_in to a hand | P3 | Feature | L | T23 | A hand can be raised from count to full and lowered again |
+| T04 | SA2-299 | Tables for entry, entry_cash, entry_tournament, play_session, and play_event | P1 prep | Improvement | L | T01, T02 | D1 integration tests confirm that composite FKs, the partial UNIQUE, and CHECKs reject other users' rows and invalid values |
+| T05 | SA2-300 | The projector: the pure function `projectEntry` and the part that builds batch statements | P1 prep | Improvement | M | T04 | Unit-test every row of the section 13 table. For existing event sequences, the result equals the current fold (live-session-pl.ts) |
+| T06 | SA2-301 | The entry read and write service, not wired into routers: manual-input writes, the minimal game_session row, the batch of a live event and its projection, and the assembly of today's outputs from entry, play_session, and play_event | P1 prep | Improvement | L | T04, T05 | A D1 test confirms that if a statement in the middle of a batch fails, nothing is written. The read assembly returns today's output for the same data (a characterization test). Router behavior does not change |
+| T07 | SA2-303 | Cutover: backfill entry, play_session, and play_event, wire T06 into session, live\*, sessionEvent, and sessionTablePlayer, and read session, live, event, and statistics time from the new tables. ringGame.delete / tournament.delete return CONFLICT when an entry references the master | P1 cutover | Improvement | L | T05, T06 | Checks A-3 / A-4 end the migration. The MCP snapshot does not change and existing live tests pass unchanged. The non-atomicity of SA2-192 is gone. Confirm local_date around JST midnight and update datetime-and-numbers.md |
+| T08 | SA2-305 | Merged into T07 (2026-10-08) | — | — | — | — | — |
+| T09 | SA2-307 | Merged into T07 (2026-10-08) | — | — | — | — | — |
+| T10 | SA2-302 | Extend currency (kind, decimals, archived_at). Tables for asset_rate, ledger_category, ledger_line, and user_setting | P2 prep | Improvement | L | T04 | D1 integration tests confirm the ledger_line CHECKs (sign, wallet role, exchange) |
+| T11 | SA2-306 | The ledger read and write service, not wired into routers: projector line output, manual-input lines, wallet lines, the read SQL for P/L, statistics, and balance, and the ownership kinds | P2 prep | Improvement | L | T05, T10 | For the same input, the P/L of the lines equals the P/L of the old columns (A-5 as an integration test) |
+| T12 | SA2-308 | Cutover: backfill lines, wire T11 into every money write (adding `payments[]`), and read list and detail P/L, statistics, balance, and transaction history from the ledger without changing the output shape. Bump the buster | P2 cutover | Improvement | L | T07, T11, T13 | Check A-5 ends the migration. Existing statistics tests pass with the same expected values. Live line ids match the projector. Record A-11 in the issue before merging. SA2-124 and SA2-279 can be closed |
+| T13 | SA2-304 | The valuation service `valuation.ts` (conversion, real and virtual amounts, BI, ROI) | P2 prep | Improvement | M | T10 | Use the section 12.1 table as expected values. Test the inverse rate, two-step conversion, missing rates (including a line older than the first row), a row with effective_from = 0, and the rounding boundary (0.5) |
+| T14 | SA2-309 | Rename currency.\*, currencyTransaction.\*, and transactionType.\* to asset.\*, ledger.\*, and ledgerCategory.\* without aliases (MCP currency_list → asset_list). Add `virtualProfitLoss` / `virtualBuyIn`. Clean up web formulas (section 15.2) and bump the buster | P2 | Improvement | L | T12 | No reference to the old procedure names remains. The MCP snapshot changes only by the rename and the added fields |
+| T15 | SA2-311 | Asset management (items, rates, base currency, time zone, deposits, withdrawals, and exchange) | Feature | Feature | L | T14 | A ticket can be created and its unit price registered as history. An exchange is saved as a pair of two rows. Registering a "valid from the beginning" fixed rate also converts entries before the registration date |
+| T16 | SA2-315 | Input of non-currency buy-ins and prizes (forms and cockpit). The v2 payload | Feature | Feature | L | T15 | The flow of winning a ticket in a satellite and using it in the main event can be recorded from the screen. v1 events can still be read |
+| T17 | SA2-316 | Virtual ROI in statistics and totals in the base currency | Feature | Feature | M | T15 | Show the count of not-convertible entries. Real and virtual can be switched |
+| T18 | SA2-312 | Multi-day and away-from-seat API (endPlay, startNextPlay, reentry, replacing reopen) | Feature | Feature | M | T07, T12 | In the flow Day 1A busted → Day 1C reentry → bagged → Day 2 → busted, P/L, time, and placement match the overview version's example |
+| T19 | SA2-317 | Web: live end of day, leaving the seat, next day, re-entry, and a list of entries that have more to play | Feature | Feature | L | T18 | Drive the operations with Testing Library. Another live session can be started after a held |
+| T20 | SA2-318 | Web: multiple days in manual input, and per-day display on the detail screen | Feature | Feature | M | T18 | A Drawer on mobile. UI copy is in English |
+| T21 | SA2-310 | Hand tables and the hand service (+1, undo, details, list), not wired into routers | P3 prep | Feature | M | T04 | Saving one hand is one batch and stays within 100 parameters. The DB rejects input that makes Hero occupy 2 seats |
+| T22 | SA2-313 | Cutover: backfill hand counts and buttons, wire the hand router and its MCP tools, return CONFLICT from player.delete, remove handCount / dealerSeat from live\*.update, read the hand count and button from hand, and switch the web hand counter | P3 cutover | Improvement | L | T07, T21 | Check A-10 ends the migration. Even when hand_count is at its maximum, it fits within the recursive CTE cap. Hand +1 and undo work from the cockpit |
+| T23 | SA2-319 | Add bb/100 and hands/hour to statistics | P3 | Feature | M | T12, T22 | Update the "no bb/100" statement in statistics.md. Test the section 12.3 formulas |
+| T24 | SA2-321 | Detailed hand input (summary / full), the hand list, and linking all_in to a hand | P3 | Feature | L | T22 | A hand can be raised from count to full and lowered again |
 | T25 | SA2-323 | Per-opponent hands and VPIP / PFR (player detail) | P3 | Feature | M | T24 | Count only full hands. Test the section 11.5 definitions |
 | T26 | SA2-297 | Revise the SA2-242 design. Make the rule version the owner of stakes, and update game-lineups.md | P4 | Chore | S | — | Decide Q5 in section 20 and rewrite the descriptions of SA2-244 to SA2-251 |
-| T27 | SA2-244 | (Revises SA2-244) Rule version tables, current_rule_id, the entry-side rule_id, and ledger_line.price_id. Dual writes | P4-E | Improvement | L | T04, T10, T26, SA2-243 | A test confirms that rule versions have no UPDATE |
-| T28 | SA2-245 | (Revises SA2-245) Backfill rule versions, with gates A-7 / A-13 | P4-B | Improvement | L | T27 (separate release) | Snapshots with the same values share the same version |
-| T29 | SA2-246 | (Revises SA2-246) Read switch. Diffs become id comparisons, overrideRule, and chip purchase counts are counted from price_id | P4-R | Improvement | L | T14, T28 | The normalization in house-rules.ts and the per-column comparison can be deleted |
+| T27 | SA2-244 | (Revises SA2-244) Cutover 1: the lineup and rule-version tables and current_rule_id, the master backfill, and master reads and writes through versions. Retire the master rule columns, blind_level, and tournament_chip_purchase | P4 cutover | Improvement | L | T26, SA2-243 | No NULL current_rule_id and the master part of A-13 end the migration. Master outputs equal those before the cutover. A test confirms that rule versions have no UPDATE |
+| T28 | SA2-245 | (Revises SA2-245) Cutover 2: the entry rule columns and ledger_line.price_id, the entry backfill, overrideRule (renamed without an alias), drift as a version-id comparison, and chip purchase counts from price_id. Retire the session rule copies and delete the normalization of house-rules.ts | P4 cutover | Improvement | L | T07, T12, T27 | Stake coverage, A-7, and A-13 end the migration. Snapshots with the same values share the same version |
+| T29 | SA2-246 | (Revises SA2-246) Id-based inputs and outputs in the API, statistics, and MCP. The legacy label inputs and outputs stay. Bump the buster | P4 | Improvement | L | T28 | Either input saves the same result |
 | T30 | SA2-247 / SA2-248 / SA2-249 | (Revises SA2-247 / 248 / 249) Web switch. rooms, live sessions, sessions | P4 | Improvement | L×3 | T29 | Follow the acceptance criteria of the 3 existing issues |
-| T31 | SA2-250 / SA2-251 | (Revises SA2-250 / 251) Contract and drop the master rule columns, blind_level, and tournament_chip_purchase | P4-C/D | Improvement | L×2 | T30, SA2-229 | Update `migration-0041.test.ts` |
-| T32 | SA2-314 | The tag factory and the new tag tables. Dual writes | P5-E | Improvement | L | T09, T21 | The DB rejects links to another user's tag or target. Register MCP tools from the factory |
-| T33 | SA2-320 | Backfill tags, gate A-12, read switch, tag filters for statistics and filter presets, and hand tags | P5-B/R | Feature | L | T32 (separate release) | Spelling variants of a name (case, leading and trailing spaces) merge into one tag |
-| T34 | SA2-322 | Contract: stop writes to old tables, delete aliases, and reject old inputs. Rename MCP tools and bump the buster | P5-C | Improvement | L | T14, T19, T20, T23, T29, T33 | Code that references old tables is 0 by grep. Add a pending-drop allowlist to `schema-migrations.test.ts` |
-| T35 | SA2-324 | DROP the old tables, rename (currency to asset, tournament_tag_def to tournament_tag), and compatibility views | P5-D | Improvement | M | T31, T34 (separate release) | Record the Time Travel restore point in the issue. Update `preview-seed-restore.test.ts` |
-| T36 | SA2-325 | Delete the compatibility views | P5-D | Chore | XS | T35 (separate release) | — |
+| T31 | SA2-250 / SA2-251 | (Revises SA2-250 / 251) Remove the legacy label inputs, outputs, and mechanisms without a strict rejection, and replace the 0041 / 0049 triggers. The DROPs move to T35 | P4 | Improvement | L×2 | T30, SA2-229 | Update `migration-0041.test.ts` |
+| T32 | SA2-314 | Cutover: the tag factory and the per-kind tag tables, the tag backfill, and the switch of reads and writes. sessionTag is renamed to entryTag without an alias (MCP session_tag_\* → entry_tag_\*). Bump the buster | P5 cutover | Improvement | L | T07, T21 | Check A-12 ends the migration. Spelling variants of a name (case, leading and trailing spaces) merge into one tag. The DB rejects links to another user's tag or target |
+| T33 | SA2-320 | Tag filters for statistics and filter presets, hand tags, and the same web components for the 4 tag kinds | P5 | Feature | L | T12, T22, T32 | Statistics filtered by a tag count only the tagged entries. A preset saved with tags restores them |
+| T34 | SA2-322 | Canceled (2026-10-08). Its parts moved to the cutovers, T14, T32, and T35 | — | — | — | — | — |
+| T35 | SA2-324 | DROP every retired table and column (section 10), rename currency to asset and tournament_tag_def to tournament_tag, and remove the minimal game_session row code. No compatibility views | Cleanup | Improvement | M | T12, T14, T22, T28, T31, T32 | Record the Time Travel restore point in the issue. Code that references a retired table is 0 by grep. Update `preview-seed-restore.test.ts` |
+| T36 | SA2-325 | Canceled (2026-10-08): no compatibility views are created | — | — | — | — | — |
 | T37 | SA2-326 | Review docs and rules (sessions-and-live-editing, data-integrity, statistics, db-migrations, api-data-integrity, AGENTS.md) | — | Chore | S | T35 | No reference to an old table name remains in the docs |
 
-The total size, counting T30 as 3 issues and T31 as 2 issues, is 161 points (40 issues). The breakdown is 1 XS, 3 S, 13 M, and 23 L, and the 8 P4 issues (L) among them are the existing SA2-244 to SA2-251.
+The total size, counting T30 as 3 issues and T31 as 2 issues, is 149 points (36 issues). The breakdown is 3 S, 11 M, and 22 L, and the 8 P4 issues (L) among them are the existing SA2-244 to SA2-251.
 
 This specification resolves these 4 existing issues. Each is linked and managed.
 
 - SA2-192: resolved by T07
-- SA2-124: resolved by T14
-- SA2-279: resolved by T14 (reported in A-11 until then)
+- SA2-124: resolved by T12
+- SA2-279: resolved by T12 (A-11 records the drift before it merges)
 - SA2-214: partly resolved by `json_valid` on the new tables
 
 ## 18. Task dependency graph
@@ -1112,61 +1116,55 @@ flowchart LR
     T02 --> T04
     T01 --> T04
     T04 --> T05
-    T04 --> T06
-    T05 --> T07
-    T06 --> T08
-    T07 --> T08
-    T08 --> T09
+    T05 --> T06
+    T06 --> T07
     T04 --> T10
-    T07 --> T11
+    T05 --> T11
     T10 --> T11
-    T08 --> T12
-    T11 --> T12
     T10 --> T13
-    T09 --> T14
+    T07 --> T12
+    T11 --> T12
+    T13 --> T12
     T12 --> T14
-    T13 --> T14
     T14 --> T15
     T15 --> T16
     T15 --> T17
-    T14 --> T18
+    T12 --> T18
     T18 --> T19
     T18 --> T20
-    T09 --> T21
+    T04 --> T21
+    T07 --> T22
     T21 --> T22
-    T14 --> T23
+    T12 --> T23
     T22 --> T23
-    T23 --> T24
+    T22 --> T24
     T24 --> T25
-    T04 --> T27
-    T10 --> T27
     T26 --> T27
     SA2_243 --> T27
     T27 --> T28
-    T14 --> T29
+    T12 --> T28
     T28 --> T29
     T29 --> T30
     T30 --> T31
     SA2_229 --> T31
+    T07 --> T32
     T21 --> T32
+    T12 --> T33
+    T22 --> T33
     T32 --> T33
-    T19 --> T34
-    T20 --> T34
-    T23 --> T34
-    T29 --> T34
-    T33 --> T34
+    T14 --> T35
+    T22 --> T35
     T31 --> T35
-    T34 --> T35
-    T35 --> T36
+    T32 --> T35
     T35 --> T37
     T00
 ```
 
-Dependencies split into P1, P2, and P4 after T04, split into multi-day, assets, hands, and P4 after T14, and come back into one line at T34. The tasks that make T34 wait are T19, T20, T23, T29, and T33.
+After T04, the prep work of three phases can run in parallel: P1 (T05 → T06), P2 (T10, T11, T13), and P3 (T21). The P1 cutover T07 is the hub: the cutovers of P2 (T12), P3 (T22), and P5 (T32) all wait for it. After T12, the work splits into the renames and assets (T14 → T15 → T16 / T17), multi-day (T18 → T19 / T20), hand statistics (T23), and the second P4 cutover (T28). Everything comes back together at T35, which waits for the last task of each line that retires something: T14, T22, T31, and T32.
 
-Each task of the P4 series is a separate release. T29 waits for T14 (R4), so after R4, three releases of T29, T30, and T31 are needed, and all must finish before T35 (R8). T26 can start at any time. T27 needs T04 (R2), T10 (R3, for ledger_line.price_id), and SA2-243, so it ships in R3 at the earliest. Shipping T27 in R3 and T28 in R4 still lets T29 ship in R5, right after T14, so R8 does not wait.
+P4 meets the rest only at T28 (SA2-245), which needs entry (T07) and ledger_line (T12). T27 (SA2-244) needs only T26 and SA2-243, so it can ship before the P1 cutover.
 
-The graph omits dependencies that follow from other paths (T09 → T18, T09 → T32, T14 → T34). SA2-243 and SA2-229 are prerequisite issues outside this specification.
+The graph omits dependencies that follow from other paths (T04 → T06, T05 → T07, T07 → T18, T07 → T28, T12 → T35, T28 → T35). SA2-243 and SA2-229 are prerequisite issues outside this specification.
 
 ## 19. Test strategy
 
@@ -1174,19 +1172,20 @@ Protect each contract at the one layer that protects it best (testing.md). Take 
 
 | Contract | Layer (Vitest project) | Main scenarios | Task |
 | --- | --- | --- | --- |
-| Ownership (INV-01, INV-02, INV-20) | D1 integration (api-integration) | When bob points at alice's entry, room, asset, hand, or tag, the API returns FORBIDDEN and a raw INSERT fails with an FK error | T04, T10, T21, T32 |
+| Ownership (INV-01, INV-02, INV-20) | D1 integration (api-integration) | When bob points at alice's entry, room, asset, hand, or tag, the API returns FORBIDDEN and a raw INSERT fails with an FK error | T04, T10, T21 / T22, T32 |
 | Table shape | D1 integration (schema-migrations.test.ts) | The columns, FKs, and indexes of new tables match the Drizzle schema. Also compare the column order and on_delete of composite FKs | T02, T04, T10, T21, T27, T32 |
 | CHECK and partial UNIQUE (INV-05, INV-07, INV-08, INV-09, INV-19) | D1 integration | Inputs such as two unfinished play_sessions, a line with the wrong sign, an entry_id on a wallet role, and a Hero in 2 seats are rejected | T04, T10, T21 |
-| Atomicity (INV-12, SA2-192) | D1 integration | If a statement in the middle of a projection is made to fail on purpose, neither the event nor the projection is written | T07 |
+| Atomicity (INV-12, SA2-192) | D1 integration | If a statement in the middle of a projection is made to fail on purpose, neither the event nor the projection is written | T06 / T07 |
 | Projection rules (section 13) | Unit (api) | At least one per event type. v1 and v2 payloads. Keep the match with the existing fold as a characterization test and state its purpose | T05 |
 | Valuation and conversion (section 12) | Unit (api) | The 3 entries of section 12.1. Inverse rate, two-step, missing rate, the effective time boundary (the same second), and rounding at 0.5 and −0.5 | T13 |
-| Compatibility of amount statistics | D1 integration | Run the existing stats tests with the same expected values against the implementation that reads the ledger | T14 |
-| Re-running a migration | Bun SQLite (`migration-*.test.ts`) | Run up to statement N with `applyThrough`. Then update the old tables like an old Worker, and run the whole file. Dual-written rows remain. The gate detects drift and stops | T02, T08, T12, T22, T28, T33, T35 |
-| Dates (UTC and local_date) | Bun SQLite, unit | Live sessions started at 23:59 and 0:00 JST. Manual-input UTC midnight values | T08, T09 |
-| D1 100-parameter limit | D1 integration | A hand with 120 actions at 10 seats. The projection of an entry with 50 chip purchases | T07, T21 |
-| MCP projection | mcp | The coupling test. The snapshot does not change in a read switch. A new procedure is in either the exposed or the excluded list | All backend tasks |
-| Screen operations | web-dom (Testing Library + MSW) | End a day → next day. held → another live session → resume. Buy-in with a ticket. Hand +1 and undo | T16, T19, T20, T23, T24 |
-| Persisted cache | browser (Playwright) | After the buster is bumped, a cache of the old shape is discarded (confirm through the existing path) | T14, T34 |
+| Prep services match today's output | D1 integration | The read assembly of a prep task returns today's output for the same data. A characterization test that states its purpose, kept until the cutover makes it the only path | T06, T11 |
+| Compatibility of amount statistics | D1 integration | Run the existing stats tests with the same expected values against the implementation that reads the ledger | T12 |
+| Cutover migration | Bun SQLite (`migration-*.test.ts`) | Representative and edge rows of the old tables move to the expected new rows, and the check at the end stops the migration on a planted inconsistency. Re-running from the middle is not tested (section 16.3) | T07, T12, T22, T27, T28, T32 |
+| Dates (UTC and local_date) | Bun SQLite, unit | Live sessions started at 23:59 and 0:00 JST. Manual-input UTC midnight values | T07 |
+| D1 100-parameter limit | D1 integration | A hand with 120 actions at 10 seats. The projection of an entry with 50 chip purchases | T06, T21 |
+| MCP projection | mcp | The coupling test. The snapshot does not change in a cutover. A new procedure is in either the exposed or the excluded list | All backend tasks |
+| Screen operations | web-dom (Testing Library + MSW) | End a day → next day. held → another live session → resume. Buy-in with a ticket. Hand +1 and undo | T16, T19, T20, T22, T24 |
+| Persisted cache | browser (Playwright) | After the buster is bumped, a cache of the old shape is discarded (confirm through the existing path) | T12, T14, T32 |
 
 When deleting or replacing a test, write in the PR the contract that test protected and the replacement test.
 
@@ -1211,32 +1210,34 @@ This specification decides every question provisionally with the recommended opt
 | Q4 | Make the "+1" a hand row too? | Yes. The hand count and the button fact live in one place | T21 |
 | Q5 | Revise L1 and later of SA2-242 to the rule-version approach? | Decided: revise. The stake tables go from 4 to 2, and no session-side copy is needed. L0 (SA2-243) proceeds as is | T26, SA2-244 and later |
 | Q6 | How to treat past sessions with no currency set? | Group them into a per-user "Unassigned" asset so they can be reassigned later | T12 |
-| Q7 | Is it OK to convert existing live dates using JST (+9 hours)? | Yes. The time zone was not stored, so there is no other clue. The pre-audit reports how many started around midnight | T08 |
-| Q8 | Rename MCP tool names in T34? | Rename (currency_list → asset_list, session_tag_\* → entry_tag_\*). Put the mapping table in the release notes | T34 |
+| Q7 | Is it OK to convert existing live dates using JST (+9 hours)? | Yes. The time zone was not stored, so there is no other clue. The optional pre-audit reports how many started around midnight | T07 |
+| Q8 | Rename MCP tool names? | Decided: rename without aliases, in T14 (currency_list → asset_list) and T32 (session_tag_\* → entry_tag_\*). Put the mapping table in the release notes | T14, T32 |
 
 ### 20.2 Risks
 
 | ID | Risk | Mitigation |
 | --- | --- | --- |
-| R1 | A dual-write path is missed and a new table lacks rows | Use the procedure table in section 14 as a checklist. The B gates (A-3, A-5) stop the leak |
+| R1 | A cutover misses a write path, so new data still goes only to a retired table | Use the procedure table in section 14 as a checklist, and grep the cutover PR for the retired table. The check at the end of the migration catches backfill gaps |
 | R2 | SA2-242 L1 builds the stake tables first and the migration is done twice | Resolved: Q5 was decided (revise) before SA2-244 started, and T26 rewrote SA2-244 to SA2-251 |
-| R3 | The migration spans 9 releases, R1 to R9, and dual-write code stays for a long time | Order the releases so that something becomes usable in each. Keep dual writes in 2 places, the projector and manual input |
+| R3 | The migration spans many releases, and dual-write code stays for a long time | Resolved (2026-10-08): there are no dual writes. Each phase moves in one cutover, and a release can carry any merged state |
 | R4 | Concurrent writes to the same entry leave the projection in a stale state | The next write rebuilds everything. A-6 detects it periodically. If it actually happens, give the entry a version number and use optimistic locking |
-| R5 | In D1, one file is not one transaction, so a half-failed state can remain in production | Write every statement so it can be re-run. Test mid-way failures with `applyThrough` |
-| R6 | The meaning of balance changes and the balance appears to drop during live play | Tell users in the T14 release notes and in the explanation on the asset screen |
+| R5 | In D1, one file is not one transaction, so a half-failed state can remain in production | Restore the restore point recorded before the release with Time Travel, then release a fixed migration (section 16.1) |
+| R6 | The meaning of balance changes and the balance appears to drop during live play | Tell users in the T12 release notes and in the explanation on the asset screen |
 | R7 | More tables make list and statistics queries slow | Look up entries and lines by index. Use `selectInChunks` and do not create N+1. Measure response time with 10,000 entries |
-| R8 | The dates of sessions actually played outside JST are shifted | Let users fix the date by hand on the detail screen. The pre-audit reports the affected count |
-| R9 | An old PWA keeps sending removed inputs | Reject strictly in T34 and bump the buster |
+| R8 | The dates of sessions actually played outside JST are shifted | Let users fix the date by hand on the detail screen. The optional pre-audit reports the affected count |
+| R9 | An old PWA keeps sending removed inputs | Production has one user, who reloads the PWA after a release. Bump the buster when the meaning or shape of a cached query changes |
+| R10 | Restoring with Time Travel loses data entered after the restore point | Record the restore point right before the release, and do not enter data until the release is verified. Re-enter by hand anything entered in between |
 
 ### 20.3 Decision log
 
 | Date | Decision | Reason |
 | --- | --- | --- |
+| 2026-10-08 | Move each phase in one cutover task instead of the expand, backfill, read switch, contract, and drop stages: no dual writes, no gate-only migrations, no re-runnable migrations or `applyThrough` tests, no compatibility views, no aliases, and no strict rejection of removed input. Retired tables and columns stay in the Drizzle schema until T35 drops them all. game_session keeps a minimal row per entry as the FK anchor of the children that have not moved yet. A large cutover gets an unwired prep task (T06, T11, T21). T08 and T09 are merged into T07, T34 and T36 are canceled, and P3 is split into T21 (prep) and T22 (cutover). In P4, SA2-244 cuts over the masters and SA2-245 the entries, adding ledger_line.price_id (SA2-330) | Production has one user, the developer, and D1 Time Travel restores a failed release; the user confirmed both. The stages protected many users without downtime, at the cost of dual-write code in every phase and a fixed chain of releases. P3 is split because its tables, router, backfill, and web hand counter in one PR would be XL |
 | 2026-10-07 | play_session carries the entry's `kind`, kept equal by the composite FK `(entry_id, kind, user_id)` to entry's `UNIQUE (id, kind, user_id)`, so a CHECK rejects the end_state and kind pairs that INV-07 forbids (T04) | INV-07 is enforced by the DB, but a CHECK sees only its own row and play_session had no kind. This is the pattern of the stake's lineup_id. A trigger was rejected: it lives outside the Drizzle ledger and the schema test. `entry.kind` cannot change once a play_session exists, which the API already assumes (kind is written only on create) |
 | 2026-10-07 | T02 rebuilds ring_game and tournament with `user_id NOT NULL` and a composite FK `(room_id, user_id)` to room, staging their child rows and links, instead of a nullable ADD COLUMN followed by the T03 backfill. T03 is merged into T02, and A-1 / A-2 are retired | User-directed: the ideal table shape comes first. Staging keeps every child row. Trade-off: between the migration and the Worker deploy the old Worker cannot create a tournament (it does not write user_id), and a rollback to a pre-T02 Worker cannot create tournaments until it rolls forward. The decisions that cite "parent tables cannot be rebuilt" (section 7, the section 5.3 exception table) are unchanged for now |
 | 2026-10-06 | Q5: revise SA2-242 L1 and later to rule versions (T26, game-lineups.md) | Stakes and rule fields get one home per version instead of a copy per owner. The stake tables go from 4 to 2, and drift becomes a version-id comparison |
 | 2026-10-06 | tournament_rule_level stores its effective lineup_id (NOT NULL) plus inherits_lineup, instead of NULL = inherit (T26) | A NULL FK column is not checked, so level stakes of an inheriting level would escape the composite FK that ties a stake to its lineup |
-| 2026-10-06 | T27 also adds ledger_line.price_id, so T27 depends on T10 (T26) | T27 is the first task where both ledger_line and tournament_rule_price exist and the dual write can fill the column. T29 still ships in R5 |
+| 2026-10-06 | (Superseded on 2026-10-08: T28 adds it) T27 also adds ledger_line.price_id, so T27 depends on T10 (T26) | T27 is the first task where both ledger_line and tournament_rule_price exist and the dual write can fill the column. T29 still ships in R5 |
 | 2026-10-06 | Stakes have a second composite FK `(rule_id, lineup_id)` to their version (T26) | `(rule_id, user_id)` alone lets a stake name a group of a different lineup than its version's, the c02 / c04 bug class |
 | 2026-10-06 | A rule version's reference to its master (`cash_rule.ring_game_id`, `tournament_rule.tournament_id`) is CASCADE, not NO ACTION (T26) | Every master has a current version from T27 on, so NO ACTION from its own versions would make every ring game, tournament and room delete fail with an FK error, even when no entry uses the master |
 | 2026-10-06 | Express a fixed rate with one row with effective_from = 0. 0 means "valid from the beginning" and is the default for the first row of a pair | effective_from is required and means "valid from this time", so a fixed rate registered today cannot convert past lines. With NULL, UNIQUE cannot prevent duplicates |
@@ -1244,7 +1245,7 @@ This specification decides every question provisionally with the recommended opt
 | 2026-10-06 | Do not create a new asset table. Extend currency and rename it at the end | The currency_id of ring_game and tournament is a table-level FK that cannot be dropped, and parent tables cannot be rebuilt (confirmed on SQLite 3.53) |
 | 2026-10-06 | Hold the unit price of an item in asset_rate too, and do not create an asset.unit_value column | The change in unit price is kept as history, and there is only one conversion mechanism |
 | 2026-10-06 | The 6 columns added to existing tables with ADD COLUMN are single-column FKs, protected by the server and audits | ADD COLUMN cannot add a composite FK, and parent tables cannot be rebuilt |
-| 2026-10-06 | Stop writes to the old tables only once, in T34 | The game_session family of old tables is read by all of P1 to P4. Until then, we can roll back to the previous Worker |
+| 2026-10-06 | (Superseded on 2026-10-08: each cutover stops them) Stop writes to the old tables only once, in T34 | The game_session family of old tables is read by all of P1 to P4. Until then, we can roll back to the previous Worker |
 | 2026-10-06 | Create the per-user tournament tag as tournament_tag_def and rename it later | The old tournament_tag already uses that name |
 | 2026-10-06 | Store `entry_cash.ev_diff` rounded, as an integer | The current code stores a decimal in evCashOut |
 | 2026-10-06 | Fix the total real ROI of the overview version (+1,567%) to +1,667% | A calculation error in 50,000 ÷ 3,000 |
