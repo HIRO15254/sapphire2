@@ -838,7 +838,7 @@ function replayLegacyFold({ kind, events }: LegacyFixture) {
 	};
 }
 
-describe("characterization: v1 event logs project to what the legacy live-session-pl fold writes, so T07 dual writes and audit A-6 agree with the old columns until the T09 read switch", () => {
+describe("characterization: v1 event logs project to what the legacy live-session-pl fold writes, so entries backfilled in the T07 cutover keep their values on the next projection and audit A-6 finds no drift", () => {
 	it.each(legacyFixtures)("$name", (fixture) => {
 		const legacy = replayLegacyFold(fixture);
 		const projection = projectEntry(fixture.events, {
