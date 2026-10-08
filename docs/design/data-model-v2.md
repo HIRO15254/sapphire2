@@ -935,6 +935,8 @@ SELECT gs.id, gs.user_id, e.id, e.kind, 1, e.played_on, gs.started_at,
   CASE gs.status WHEN 'completed' THEN 'ended' WHEN 'paused' THEN 'paused' ELSE 'active' END,
   CASE WHEN gs.status <> 'completed' THEN NULL
        WHEN e.kind = 'cash' THEN 'cashed_out'
+       WHEN std.before_deadline = 1 AND e.source = 'live' THEN 'busted'
+       WHEN std.before_deadline = 1 THEN 'finished'
        WHEN std.placement = 1 THEN 'finished'
        WHEN e.source = 'live' OR std.placement > 1 THEN 'busted'
        ELSE 'finished' END,
@@ -946,7 +948,7 @@ LEFT JOIN session_cash_detail scd ON scd.session_id = gs.id
 LEFT JOIN session_tournament_detail std ON std.session_id = gs.id;
 ```
 
-The tournament end_state of a live entry follows the projector rule in section 13.2, so a NULL placement (before_deadline = 1) is busted and A-6 finds no difference. A manual entry without a placement keeps the manual default, finished.
+The tournament end_state of a live entry follows the projector rule in section 13.2, so a NULL placement (before_deadline = 1) is busted and A-6 finds no difference. A manual entry without a placement keeps the manual default, finished. A placement stored while before_deadline = 1 counts as no placement: entry_tournament stores it as NULL (its CHECK), and the end_state follows that value, the same as the T06 write service.
 
 ```sql
 INSERT INTO play_event
@@ -957,7 +959,7 @@ FROM session_event se
 JOIN game_session gs ON gs.id = se.session_id;
 ```
 
-entry_cash and entry_tournament are moved in the same way. `ev_diff` is the rounded value of `ev_cash_out - cash_out`, and NULL if ev_cash_out is NULL. ring_game and tournament are joined only where `user_id` matches, and are NULL otherwise.
+entry_cash and entry_tournament are moved in the same way. `ev_diff` is the rounded value of `ev_cash_out - cash_out`, and NULL if ev_cash_out is NULL. ring_game and tournament are joined only where `user_id` matches, and are NULL otherwise. `placement` is NULL where before_deadline = 1 (session.update can store both today).
 
 **P2 (T12)**: Create the ledger lines. How they are created depends on the entry's source.
 
@@ -1232,6 +1234,9 @@ This specification decides every question provisionally with the recommended opt
 
 | Date | Decision | Reason |
 | --- | --- | --- |
+| 2026-10-08 | T06 puts the SQL over the new tables in `services/entry-session.ts` and `services/entry-live-reads.ts`, and exports procedure-shaped prep functions next to each procedure (`createSessionViaEntry`, `updateSessionViaEntry`, `deleteSessionViaEntry`, `listSessionsViaEntries`, `getSessionViaEntry`, the live `*FromEntries` / `*FromEntry` readers, `listSessionEventsFromPlayEvents`). T07 replaces each procedure body with its prep function and deletes the old path | The prep functions reuse the router's validation, rule resolution, and enrichment instead of copying them, and a service cannot import from a router. The detail planners split their patch into the moved columns (to the entry tables) and the rest (still to the detail tables), so one rule computation feeds both |
+| 2026-10-08 | The minimal game_session row keeps its real kind and source, status `'completed'`, and a fixed session_date of 0 (T06) | kind and source cost nothing and keep the row readable when compared by hand. A date has no single true value once an entry spans days, so it gets the fixed value of a retired NOT NULL column (section 16.1) |
+| 2026-10-08 | Today's output shapes are rebuilt from the entry tables as follows (T06). sessionDate: UTC midnight of played_on for manual input, the seq-1 play_session started_at (else entry.created_at) for live. status: `'completed'` for a settled entry, else the highest-seq play_session's status. breakMinutes: NULLIF of the summed play_session break_minutes, 0. evCashOut: cash_out + ev_diff | Three values cannot be rebuilt 1:1, and these are the closest. An unfinished live session shows its first start instead of the instant it was created (they differ by seconds). A manual break of 0 reads as NULL, the same as an empty field. An end time before the start time reads as NULL, as the backfill stores it |
 | 2026-10-08 | Move each phase in one cutover task instead of the expand, backfill, read switch, contract, and drop stages: no dual writes, no gate-only migrations, no re-runnable migrations or `applyThrough` tests, no compatibility views, no aliases, and no strict rejection of removed input. Retired tables and columns stay in the Drizzle schema until T35 drops them all. game_session keeps a minimal row per entry as the FK anchor of the children that have not moved yet. A large cutover gets an unwired prep task (T06, T11, T21). T08 and T09 are merged into T07, T34 and T36 are canceled, and P3 is split into T21 (prep) and T22 (cutover). In P4, SA2-244 cuts over the masters and SA2-245 the entries, adding ledger_line.price_id (SA2-330) | Production has one user, the developer, and D1 Time Travel restores a failed release; the user confirmed both. The stages protected many users without downtime, at the cost of dual-write code in every phase and a fixed chain of releases. P3 is split because its tables, router, backfill, and web hand counter in one PR would be XL |
 | 2026-10-07 | play_session carries the entry's `kind`, kept equal by the composite FK `(entry_id, kind, user_id)` to entry's `UNIQUE (id, kind, user_id)`, so a CHECK rejects the end_state and kind pairs that INV-07 forbids (T04) | INV-07 is enforced by the DB, but a CHECK sees only its own row and play_session had no kind. This is the pattern of the stake's lineup_id. A trigger was rejected: it lives outside the Drizzle ledger and the schema test. `entry.kind` cannot change once a play_session exists, which the API already assumes (kind is written only on create) |
 | 2026-10-07 | T02 rebuilds ring_game and tournament with `user_id NOT NULL` and a composite FK `(room_id, user_id)` to room, staging their child rows and links, instead of a nullable ADD COLUMN followed by the T03 backfill. T03 is merged into T02, and A-1 / A-2 are retired | User-directed: the ideal table shape comes first. Staging keeps every child row. Trade-off: between the migration and the Worker deploy the old Worker cannot create a tournament (it does not write user_id), and a rollback to a pre-T02 Worker cannot create tournaments until it rolls forward. The decisions that cite "parent tables cannot be rebuilt" (section 7, the section 5.3 exception table) are unchanged for now |
