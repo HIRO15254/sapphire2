@@ -590,7 +590,7 @@ When a player leaves chips with the venue in a cash game, leaving them is a cash
 | type | Applies to | payload (schema_version 2) | Change |
 | --- | --- | --- | --- |
 | session_start | both | `{ payments?: Payment[], timerStartedAt?, startLevel? }`. The v1 `buyInAmount` is read as one buy_in row in the main currency | Existing. Generalized in v2 |
-| session_end | both | For cash, `{ payments: Payment[] }`. For a tournament, the v1 columns plus `payments`. Settles the entry | Existing. Generalized in v2 |
+| session_end | both | For cash, `{ payments: Payment[] }`. For a tournament, the v1 result columns (`beforeDeadline`, `placement`, `totalEntries`) plus `payments`; the v1 `prizeMoney` and `bountyPrizes` become prize and bounty payments. Settles the entry | Existing. Generalized in v2 |
 | day_end | both | `{ endState: 'bagged' \| 'held', stackAmount }`. Closes only the play_session | New |
 | reentry | tournament | `{ payments: Payment[] }` | New |
 | table_change | both | `{ tableLabel?: string, seatPosition? }`. Has no projection | New |
@@ -605,10 +605,12 @@ When a player leaves chips with the venue in a cash game, leaving them is a cash
 A Payment is `{ assetId, quantity, role, effect, priceId? }`.
 
 - quantity: a positive integer, 1 to 10^12
-- role: only a role allowed for that event
+- role: only a role allowed for that event: buy_in on session_start (plus fee for a tournament), cash_out on a cash session_end, prize and bounty on a tournament session_end, reentry and fee on reentry, chip_purchase on purchase_chips
 - effect: defaults to real
 
 The projection adds the sign from the role, so the input carries no sign (to keep the `.int().min(0)` convention in api-data-integrity.md).
+
+The v2 payload schemas the projector reads (session_start, session_end, day_end, update_stack) and the role and effect values live in `packages/db/src/constants/play-event-payloads.ts` and `ledger.ts`. The write path validates v2 payloads with these same objects.
 
 ### 11.5 hand_action.action
 
@@ -706,7 +708,7 @@ Every time a live event is written, the projector rebuilds all projections of th
 ### 13.1 Procedure
 
 1. Read the entry, its play_sessions and play_events, and the rule and prices in use.
-2. Apply the event about to be written in memory, and compute the post-projection rows with the pure function `projectEntry(state, events)`.
+2. Apply the event about to be written in memory, and compute the post-projection rows with the pure function `projectEntry(events, context)` (`packages/api/src/services/entry-projector.ts`). The context is the entry's kind and its play_sessions (id, seq, local_date).
 3. Run the following in one batch.
    1. INSERT / UPDATE / DELETE of the event
    2. `DELETE FROM ledger_line WHERE entry_id = ? AND source_event_id IS NOT NULL`
@@ -715,6 +717,8 @@ Every time a live event is written, the projector rebuilds all projections of th
    5. UPDATE of entry_cash / entry_tournament and entry (status, played_on)
 
 Nothing is written to a retired table. A fact whose phase has not cut over yet (the money columns of the detail tables and currency_transaction before T12, for example) still has its single home in the old tables (section 16.1), and its write joins the same batch.
+
+`buildProjectionStatements` builds steps 3.4 and 3.5 as one UPDATE per row, so the bound parameters of a statement do not grow with the number of events or play_sessions. Steps 3.2 and 3.3 (lines) are added in T11, which is where `chunkForInsert` applies.
 
 If writes to the same entry arrive concurrently, a projection computed from an old state can remain. But the next write rebuilds everything, so the drift does not persist. Audit A-6 in section 16 detects drift (R4 in section 20).
 
@@ -736,6 +740,12 @@ If writes to the same entry arrive concurrently, a projection computed from an o
 
 ### 13.3 Detailed rules
 
+- Events are folded in `(occurred_at, sort_order, id)` order, the order of `sessionEventOrderBy`. A tie on occurred_at is broken by sort_order, whatever order the caller passes them in. Each play_session folds only its own events. The entry-level values (ev_diff, total_entries) fold the events of every play_session.
+- A play_session's status follows its last session_start / session_pause / session_resume / session_end / day_end, as the legacy fold does. started_at is the first session_start. ended_at, end_state, and end_stack come from the last session_end or day_end, and only while the status is ended.
+- break_minutes counts finished pause-to-resume spans and rounds the total down to minutes. A pause still open when the play_session ends is closed at ended_at. A pause still open on an unfinished play_session counts once it resumes.
+- The end_stack of a v2 cash session_end is the sum of its cash_out payment quantities.
+- entry_tournament takes placement, total_entries, and before_deadline only from the session_end that closed the highest-seq play_session. Without one (still playing, bagged, or re-entered), placement and before_deadline are NULL and total_entries is the latest update_stack totalEntries. A before-deadline end leaves total_entries NULL. before_deadline is 1 or NULL, never 0, as in session_tournament_detail.
+- `entry_cash.ev_diff` is NULL until the entry is settled, as evCashOut was NULL until the session completed. Once settled it is `Math.round` of the sum over every all_in of the entry.
 - A line's occurred_at is the event's occurred_at. A line's play_session_id is the event's play_session_id.
 - A line's id is `<event_id>:<n>` (n is a sequence within the event). Rebuilding gives the same id, so the result matches the backfill.
 - The asset of a buy-in is the assetId of the payment if there are payments. Otherwise it is entry.asset_id. If both are NULL, reject the event write with PRECONDITION_FAILED.
@@ -1237,6 +1247,9 @@ This specification decides every question provisionally with the recommended opt
 | 2026-10-08 | T06 puts the SQL over the new tables in `services/entry-session.ts` and `services/entry-live-reads.ts`, and exports procedure-shaped prep functions next to each procedure (`createSessionViaEntry`, `updateSessionViaEntry`, `deleteSessionViaEntry`, `listSessionsViaEntries`, `getSessionViaEntry`, the live `*FromEntries` / `*FromEntry` readers, `listSessionEventsFromPlayEvents`). T07 replaces each procedure body with its prep function and deletes the old path | The prep functions reuse the router's validation, rule resolution, and enrichment instead of copying them, and a service cannot import from a router. The detail planners split their patch into the moved columns (to the entry tables) and the rest (still to the detail tables), so one rule computation feeds both |
 | 2026-10-08 | The minimal game_session row keeps its real kind and source, status `'completed'`, and a fixed session_date of 0 (T06) | kind and source cost nothing and keep the row readable when compared by hand. A date has no single true value once an entry spans days, so it gets the fixed value of a retired NOT NULL column (section 16.1) |
 | 2026-10-08 | Today's output shapes are rebuilt from the entry tables as follows (T06). sessionDate: UTC midnight of played_on for manual input, the seq-1 play_session started_at (else entry.created_at) for live. status: `'completed'` for a settled entry, else the highest-seq play_session's status. breakMinutes: NULLIF of the summed play_session break_minutes, 0. evCashOut: cash_out + ev_diff | Three values cannot be rebuilt 1:1, and these are the closest. An unfinished live session shows its first start instead of the instant it was created (they differ by seconds). A manual break of 0 reads as NULL, the same as an empty field. An end time before the start time reads as NULL, as the backfill stores it |
+| 2026-10-08 | The projector closes a pause still open at a play_session's end at ended_at, instead of counting it up to the current time as `computeBreakMinutesFromEvents` does (T05) | `projectEntry` is a pure function and A-6 replays it, so break_minutes cannot depend on the clock. The legacy value of such a session kept growing after it ended |
+| 2026-10-08 | entry_tournament holds only the result of the highest-seq play_session, and `entry_cash.ev_diff` stays NULL until the entry is settled (T05) | Both match what the legacy fold leaves in session_tournament_detail and evCashOut, so the T07 backfill and A-6 agree. A busted bullet followed by a re-entry is not the final result |
+| 2026-10-08 | A v2 tournament session_end carries its prize and bounty only as payments, without the v1 `prizeMoney` / `bountyPrizes` (T05) | The same amount in two places would drift. Payments can also carry a ticket prize |
 | 2026-10-08 | Move each phase in one cutover task instead of the expand, backfill, read switch, contract, and drop stages: no dual writes, no gate-only migrations, no re-runnable migrations or `applyThrough` tests, no compatibility views, no aliases, and no strict rejection of removed input. Retired tables and columns stay in the Drizzle schema until T35 drops them all. game_session keeps a minimal row per entry as the FK anchor of the children that have not moved yet. A large cutover gets an unwired prep task (T06, T11, T21). T08 and T09 are merged into T07, T34 and T36 are canceled, and P3 is split into T21 (prep) and T22 (cutover). In P4, SA2-244 cuts over the masters and SA2-245 the entries, adding ledger_line.price_id (SA2-330) | Production has one user, the developer, and D1 Time Travel restores a failed release; the user confirmed both. The stages protected many users without downtime, at the cost of dual-write code in every phase and a fixed chain of releases. P3 is split because its tables, router, backfill, and web hand counter in one PR would be XL |
 | 2026-10-07 | play_session carries the entry's `kind`, kept equal by the composite FK `(entry_id, kind, user_id)` to entry's `UNIQUE (id, kind, user_id)`, so a CHECK rejects the end_state and kind pairs that INV-07 forbids (T04) | INV-07 is enforced by the DB, but a CHECK sees only its own row and play_session had no kind. This is the pattern of the stake's lineup_id. A trigger was rejected: it lives outside the Drizzle ledger and the schema test. `entry.kind` cannot change once a play_session exists, which the API already assumes (kind is written only on create) |
 | 2026-10-07 | T02 rebuilds ring_game and tournament with `user_id NOT NULL` and a composite FK `(room_id, user_id)` to room, staging their child rows and links, instead of a nullable ADD COLUMN followed by the T03 backfill. T03 is merged into T02, and A-1 / A-2 are retired | User-directed: the ideal table shape comes first. Staging keeps every child row. Trade-off: between the migration and the Worker deploy the old Worker cannot create a tournament (it does not write user_id), and a rollback to a pre-T02 Worker cannot create tournaments until it rolls forward. The decisions that cite "parent tables cannot be rebuilt" (section 7, the section 5.3 exception table) are unchanged for now |
