@@ -23,15 +23,28 @@ Blanket coverage of every branch and boundary value increased tests of declarati
 | Change | Required verification |
 |---|---|
 | Bug fix | Reproduce the bug and confirm that the test fails because the behavior differs from the expectation before fixing it. Type, import, and environment errors are not evidence of red |
-| Added or changed behavior | Define requirements, success criteria, important failures, and meaningful input boundaries first, then test the contract at the layer that verifies it most directly |
+| Added or changed behavior | Define requirements, success criteria, important failures, and meaningful input boundaries first. Add a permanent test only for the contracts that pass [Admitting a New Test](#admitting-a-new-test), at the layer that verifies them most directly; prove the rest with a throwaway run |
 | Refactoring that preserves behavior | Use existing tests. Add only missing contract protection. Do not deliberately break the implementation merely to manufacture a red result |
 | Copy, styling, or type-only changes | No additional tests are needed when types, lint, visual inspection, and existing tests are sufficient. Verify the behavior if accessibility or input semantics change |
-| Test consolidation or deletion | Check the protected contract, replacement verification, and remaining risks. For tests that freeze decorative structure or are exact duplicates, record why they are unnecessary |
+| Test consolidation or deletion | Check the protected contract, replacement verification, and remaining risks. Tests of a shape listed under [Admitting a New Test](#admitting-a-new-test) need only a one-line rationale |
 | Test infrastructure, configuration, or migrations | In addition to running related tests, verify runner discovery, isolation, shutdown on failure, and preservation of diagnostic artifacts |
 
 Derive expectations from requirements, public contracts, invariants, and known failures. AI must not copy the current implementation's output into expected values or duplicate its calculations in tests. When recording existing behavior whose intent is unclear, explicitly identify it as a characterization test and state which specifications remain unresolved. Review expectations for important monetary values and authorization, and changes that reduce protection, independently of the implementation.
 
 Select success cases and failure or boundary cases that produce distinct business outcomes. There is no need to pass `null` / `undefined` / `NaN` / `Infinity` to every function. Do not omit reachable scenarios involving runtime validation of external inputs, authentication and ownership, monetary calculations, UTC date boundaries, partial failures, or concurrency. Use coverage to find untested areas; do not target 100% overall coverage or a deletion percentage.
+
+## Admitting a New Test
+
+Default to no new test. Adding was free while deleting needed a recorded replacement, so low-value tests only accumulated: SA2-331 removed two of the three tests it had added and 18 from `review-gate.test.ts`. Add a permanent test only when you can name in one sentence the plausible regression it catches and what a user, client, or operator would lose. If you cannot, verify with a throwaway run and report it.
+
+These shapes are not worth a permanent test, even for new code:
+
+- Exact wording of rendered or logged text, unless a machine parses it (a marker, a trailer, an output key).
+- Parameter values the configuration never uses, such as a cap of 0 or 1 when the cap is 2.
+- A function that only forwards to or wraps another tested function.
+- Configuration or workflow YAML assertions that restate the file, unless they guard a permission or secret boundary.
+- A second case on a code path an existing case already exercises, including an empty input that takes the same branch as a missing one.
+- Sort order, formatting, or truncation whose breakage only degrades diagnostics or agent context.
 
 ## Verification Layers and Mock Boundaries
 
@@ -63,7 +76,7 @@ For UI tests, prioritize roles, labels, visible outcomes, and user interactions.
 
 ## Deciding When to Remove Existing Tests
 
-For deletion or consolidation, record "contract protected by the old test → replacement test / existing check → remaining risks" in the PR or migration record. When a replacement is needed, add and verify it before deleting the old test. Tests of decorative structure without a product contract and exact duplicates need no new replacement if the rationale is explained.
+For deletion or consolidation, record "contract protected by the old test → replacement test / existing check → remaining risks" in the PR or migration record. When a replacement is needed, add and verify it before deleting the old test. Tests of decorative structure without a product contract, exact duplicates, and the shapes listed under [Admitting a New Test](#admitting-a-new-test) need no new replacement if the rationale is explained.
 
 Do not delete tests solely because they are long, use many mocks, or execute the same lines. Retain corresponding protection for known failures, profit and loss calculations, migrations, recovery from optimistic updates, and MCP coupling. For important replacements, verify defect detection by reproducing an old failure or introducing a limited intentional fault, and always revert temporary faults. A 100% overall mutation score is not required.
 

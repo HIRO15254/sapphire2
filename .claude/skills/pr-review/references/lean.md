@@ -39,6 +39,8 @@ Read library source or run the narrow relevant test for library claims. For clai
 
 Rules guide intent but do not override observable runtime behavior. If a rule contradicts the installed dependency, give both citations and leave the policy conflict unresolved. Do not force numerical confidence scores. Do not call missing tests an important production defect unless a concrete failure is established.
 
+Review the tests the range adds as well. A new test whose shape is listed under "Admitting a New Test" in `.claude/rules/testing.md` is a nit (scope new): name the test, quote the listed shape and suggest deleting it. Group a file's offending tests into one row. It is never important, and an existing test the range does not touch is out of scope.
+
 If a candidate cannot be settled after focused source reading and at most two relevant test commands, return it as unverified with the missing evidence. Do not create validators or repeat the whole review. New findings, incomplete fixes, and pre-existing problems have separate labels; do not inflate new-regression counts with the latter two.
 
 ## Report
