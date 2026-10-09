@@ -37,6 +37,14 @@ import {
 } from "./schema/game-mix";
 import { gameVariant, gameVariantRelations } from "./schema/game-variant";
 import {
+	hand,
+	handAction,
+	handActionRelations,
+	handRelations,
+	handSeat,
+	handSeatRelations,
+} from "./schema/hand";
+import {
 	oauthAccessToken,
 	oauthAccessTokenRelations,
 	oauthApplication,
@@ -177,4 +185,10 @@ export const schema = {
 	playSessionRelations,
 	playEvent,
 	playEventRelations,
+	hand,
+	handRelations,
+	handSeat,
+	handSeatRelations,
+	handAction,
+	handActionRelations,
 };
