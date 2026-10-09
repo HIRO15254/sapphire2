@@ -5,7 +5,7 @@ The semi-automated loop in [`AGENTS.md`](../../AGENTS.md) (Issue Tracking, PR Re
 ## The loop
 
 1. A human accepts a Triage issue: sets the `level` label, type, priority, and estimate, and moves it to Todo.
-2. The human creates an Orca workspace from the issue in Orca's Linear task list. The agent sets In Progress, works on a `feature/sa2-xxx` branch, and opens a draft PR → Human Review.
+2. The human creates an Orca workspace from the issue in Orca's Linear task list. The agent sets In Progress, works on a `feature/sa2-xxx` branch, opens a draft PR → Human Review, and registers the PR with [pr-watch](#pr-watch) so later PR events reach it.
 3. The human reads the draft and marks it ready → AI Review. CI and [`pre-merge-review.yml`](../../.github/workflows/pre-merge-review.yml) run.
 4. Review outcome → Ready to Merge (approve), In Progress (important findings or red CI), or Needs Input (two automatic rounds without approve). Set by the `outcome` job of `pre-merge-review.yml`; for an `auto-merge` issue an approve is merged by that job and the issue goes to Done.
 5. The human merges into `dev` → Done. A release PR into `main` runs [`release.yml`](../../.github/workflows/release.yml), which moves the Done issues of the released PRs to Released.
@@ -41,6 +41,18 @@ The semi-automated loop in [`AGENTS.md`](../../AGENTS.md) (Issue Tracking, PR Re
 - **Setup**: `bun install`, and agents start only after setup finishes. [`.worktreeinclude`](../../.worktreeinclude) copies `apps/server/.dev.vars` and `apps/web/.env` so `bun run dev` works in a new worktree.
 - **Status sync**: the workspace board's "Sync board and issue status" changes the Linear status only when a card is dragged. Creating a workspace from a Linear task does not, so the agent sets In Progress itself.
 - **Branch naming** for workspaces not created from Linear: prefix Git Username and "Auto-rename branch & worktree" give names like `HIRO15254/<slug>`; agents still use `feature/sa2-xxx`.
+
+## PR watch
+
+[`scripts/pr-watch.ts`](../../scripts/pr-watch.ts) (SA2-333) delivers PR events to the agent that owns the PR, in its own Orca terminal, so a review is answered by the agent that holds the implementation context and nobody polls. It replaced a one-off receiver built for PRs #697 and #698 on 2026-10-09.
+
+- **Flow.** `bun run pr-watch` (`serve`) runs `gh webhook forward` (extension `cli/gh-webhook`) as a child and listens on `127.0.0.1:9871`. An agent runs `bun run pr-watch register` right after opening its PR; that records PR number, head branch, `ORCA_TERMINAL_HANDLE`, and `ORCA_WORKTREE_ID` in `~/.sapphire2/pr-watch/registry.json`. Events for a registered PR are batched per PR (60 s after the last event, at most 4 minutes), written to `~/.sapphire2/pr-watch/batches/`, and announced with one `orca terminal send` line. The registration is removed after the batch that carries the PR's close or merge.
+- **What wakes an agent.** Review submitted or dismissed (except the empty `commented` review GitHub creates for each thread reply), inline review comments, PR comments, close/merge/reopen/ready/draft and label changes, and failed workflow runs (matched by PR number, or by head branch when GitHub omits the PR list). Green runs do not: the agent's own `gh pr checks --watch` covers them. Bot comments pass only when they are the reviewer's round summary (`<!-- pr-review:` trailer) or its truncation notice, so the tracking comment's progress edits and the review state comment stay silent.
+- **Loop guard.** Agents commit and comment as the owner's account, so the author cannot tell an agent's reply from the human's. Agents end every post with `<!-- pr-watch-agent -->` and the daemon drops posts that carry it; an agent that forgets the marker wakes itself with its own post.
+- **Untrusted text.** Only `HIRO15254`, `claude[bot]`, and `github-actions[bot]` reach an agent. Anything else is held: the workspace is marked unread with a comment linking the event, and a human decides. Delivered text is wrapped in `<untrusted-github-text>`.
+- **Delivery failure.** Terminal handles are runtime-scoped and go stale after an Orca restart. When `orca terminal send` is not accepted, the batch file stays and the workspace is marked unread with a comment asking to re-run `register` in the agent's terminal. `register --pr <n> --terminal <handle> --worktree <id>` registers a terminal from elsewhere.
+- **Hosting.** Orca's default terminal for the sapphire2 repository runs `bun run pr-watch` (decision 2026-10-09). The default tab opens in every workspace, so the script exits at once outside the main checkout (it compares `--absolute-git-dir` with `--git-common-dir`) and when the port is taken. Running it in the main checkout also means the daemon runs the `dev` version of the script. It stops with Orca; events sent while it is down are not replayed.
+- **One forwarder per repository.** GitHub refuses a second `gh webhook forward` hook on the same repository (`Hook already exists`), so only one machine can watch at a time; the daemon retries the forwarder every 15 s. The forwarder's hook disappears when it disconnects, including on a forced kill, so no stale hook is left behind. The `repo` scope of the `gh` login is enough to create it.
 
 ## Agents and hooks
 
