@@ -179,7 +179,7 @@ export function canMoveFrom(state: string): boolean {
 const LINEAR_API = "https://api.linear.app/graphql";
 const GITHUB_API = "https://api.github.com";
 
-async function linear<T>(
+export async function linear<T>(
 	apiKey: string,
 	query: string,
 	variables: Record<string, unknown> = {}

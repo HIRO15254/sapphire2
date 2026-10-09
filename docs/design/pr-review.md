@@ -1,5 +1,7 @@
 # Automated PR Review
 
+2026-10-09: レビュアーがリンクされたLinear issue（description と comments）を仕様として読み、要件ごとに met / missing / contradicted / deferred / unsettled を判定する。PR本文は作者の主張にすぎず、issue に記録された決定（後のコメントが先の記述を上書き）と突き合わせないと「PRの説明どおりだが issue の要件を落としている」実装を見逃すため。CIのレビュアーはLinearへのアクセスを持たないので、`issue` ジョブがベースブランチの [`scripts/review-issue-context.ts`](../../scripts/review-issue-context.ts) で `feature/sa2-<n>` から issue を取得し、プロンプトの `## Linear issue` に渡す。`LINEAR_API_KEY` はPRのコードをcheckout・installしないこのジョブだけが持つ。取得失敗はレビューを止めず、要約の Issue 行に理由が出る。missing / contradicted は通常の候補と同じ検証を経て、scope `spec` の行になる。
+
 2026-09-29: レビューモデルを `--model opus`（action同梱CLIの別名解決で `claude-opus-5` になっていた）から `claude-opus-5-5` の明示指定へ変更。effort は medium のまま（Opus 5.5 の既定値も medium）。
 
 2026-09-05: 全PRのレビュー手順を単一コンテキストのleanへ統一する。Opus・medium・上限80ターン、サブエージェントとFast modeは無効。OAuth認証を継続し、追加使用はアカウント側でオフにして運用する。計測結果と条件は[Claudeレビューの軽量化評価](pr-review-lean-evaluation.md)を参照。以下の過去の運用データと、最大2巡・CI待機の根拠は維持する。
@@ -61,7 +63,7 @@ The four retracted findings were all built on an assumed library behaviour the r
 
 **Thread resolution permissions (SA2-280)** — GitHub's `resolveReviewThread` mutation requires `contents: write` in addition to `pull-requests: write` ([reproduction in github/gh-aw](https://github.com/github/gh-aw/issues/35726)). Resolution runs in a separate job with these permissions, without checkout, dependency installation, or reviewer execution; the job executing PR code retains `contents: read`. Only a successful review with a published summary on a same-repository PR can start resolution. The trailer is passed through an environment variable and matched against unresolved Claude threads by path and original line. Fetch and mutation failures have distinct diagnostics and remain non-blocking. The outcome job waits for resolution before counting unresolved threads, so it cannot race resolution when deciding auto-merge.
 
-**現在のレビュアー** — [`.claude/skills/pr-review/SKILL.md`](../../.claude/skills/pr-review/SKILL.md)が全PRをleanへ振り分け、同じコンテキストで探索・反証・検証する。workflowは`full`または`incremental`、差分範囲、巡数、`--post`を渡す。ローカルの`/pr-review full`は投稿なし。確定したimportantのみインラインに投稿し、nit・既存・未確認は要約に集約する。末尾のJSON trailerと修正済みスレッドのresolveは維持する。
+**現在のレビュアー** — [`.claude/skills/pr-review/SKILL.md`](../../.claude/skills/pr-review/SKILL.md)が全PRをleanへ振り分け、同じコンテキストで探索・反証・検証する。workflowは`full`または`incremental`、差分範囲、巡数、`--post`、リンクされたLinear issueを渡す。ローカルの`/pr-review full`は投稿なしで、issue はLinear MCPで読む。差分はissueの要件台帳とも突き合わせる。確定したimportantのみインラインに投稿し、nit・既存・未確認は要約に集約する。末尾のJSON trailerと修正済みスレッドのresolveは維持する。
 
 **以下は比較対象となった従来手順の記録** — AnthropicのOSS `code-review`を基にした複数エージェント構成で、現在の運用手順ではない。過去の測定結果を解釈するために保持する。
 

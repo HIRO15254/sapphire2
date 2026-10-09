@@ -99,6 +99,7 @@ The automated reviewer ([`pre-merge-review.yml`](.github/workflows/pre-merge-rev
 
 - **Batch fixes into one push.** Address every finding of a round together; one commit per finding turned single PRs into 36-round loops (each round ≈ $2 and 4 minutes).
 - **Severity decides the response.** `[important]` must be fixed or refuted in the thread with evidence. `[nit]` may be declined with a one-line `Won't fix` reply. `[pre-existing]` is out of scope for the PR: the workflow files it to Linear Triage (`source/review`), so do not fix it here or reply to it. `[unverified]` is a question with a command to run: answer it, do not "fix" it. The reviewer itself is [`.claude/skills/pr-review/SKILL.md`](.claude/skills/pr-review/SKILL.md); run `/pr-review full` locally to get the same review before pushing.
+- **The reviewer checks the diff against the linked issue.** It reads the `SA2-` issue's description and comments as the specification and reports a missing or contradicted requirement as a `spec` finding. A spec change justified only in the PR body or the chat, or a deferral that names no destination issue, is flagged; record it in the issue first (see Issue Tracking).
 - **Do not narrate.** No PR comment restating the commit; commit messages and thread replies are the record.
 - **No timer-based check-in after opening a PR.** Don't schedule a reminder or trigger (`send_later`, `create_trigger`, cron, `/loop`, or similar) to re-check it later: every wake-up is a paid turn.
 - **Wait for checks with one background watch, then keep going.** After each push run `gh pr checks <pr> --watch --fail-fast` with `run_in_background` (retry a few times if it reports no checks yet); the harness re-invokes you on exit, so waiting costs no tokens. Red CI: fix the failures in one batch and push, at most 2 times, then set Needs Input with an issue comment and stop. Green: set Human Review (draft) or AI Review (ready) and stop. For a ready PR (`auto-merge`, or after the human marked it ready) watch the review job the same way and answer its findings under the severity rules above. This watch never marks ready and never merges.
@@ -115,7 +116,7 @@ Detailed rules live in [`.claude/rules/`](.claude/rules/); the points below appl
 
 ## Testing
 
-- Tests protect the contracts being changed and address failure risks. Read [`.claude/rules/testing.md`](.claude/rules/testing.md) before changing designs, implementation, or tests. Do not add tests solely because a file or branch is new.
+- Tests protect the contracts being changed and address failure risks. Read [`.claude/rules/testing.md`](.claude/rules/testing.md) before changing designs, implementation, or tests. **Default to no new test**: add one only when you can name the plausible regression it catches and who loses what; the shapes not worth a test are listed under its "Admitting a New Test". The reviewer flags a new test of those shapes as a nit.
 - Define expected outcomes before changing behavior. For bug fixes, normally confirm red → green with a reproducing test. For changes that preserve behavior, use existing tests and add only missing protection.
 - Derive expected values from requirements, contracts, invariants, or known failures. Do not treat implementation output or a copy of the implementation as the oracle. State the purpose of characterization tests that record current behavior.
 - Do not require blanket coverage of every branch, boundary value, or call count. Select meaningful success, failure, and boundary scenarios for authentication, authorization, money, persistence, concurrency, and UTC dates. The rule to put logic in hooks does not require a unit test for every hook.
@@ -129,7 +130,7 @@ The following rule files live in `.claude/rules/` and are loaded automatically w
 
 | File | Paths | Summary |
 |---|---|---|
-| `testing.md` | `apps/**`, `packages/**`, `scripts/**`, `e2e/**`, `testing/**`, `patches/**`, test/CI configuration | Test design based on contracts and risks, mock boundaries, deletion decisions, execution, and CI. |
+| `testing.md` | `apps/**`, `packages/**`, `scripts/**`, `e2e/**`, `testing/**`, `patches/**`, test/CI configuration | Admission gate for new tests, test design based on contracts and risks, mock boundaries, deletion decisions, execution, and CI. |
 | `web-architecture.md` | `apps/web/**` | `apps/web/src/` feature-folder layout, page/component placement rules, reference implementations. |
 | `web-hooks-separation.md` | `apps/web/**` | STRICT: components may only call custom `useXxx` hooks; verification script included. |
 | `web-forms.md` | `apps/web/**` | `@tanstack/react-form` in hooks, no `type="number"`, no placeholders, `SelectWithClear` for clearable selects. |
