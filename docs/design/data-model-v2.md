@@ -346,6 +346,8 @@ The table is renamed in T35 with `ALTER TABLE currency RENAME TO asset`. We conf
 
 Indexes: `UNIQUE (id, user_id)`, `(user_id, kind)`. Name uniqueness is added later as `UNIQUE (user_id, lower(name))`, after auditing existing data.
 
+The CHECKs on kind and decimals are column constraints of the ADD COLUMN in `0057_hesitant_the_watchers` (T10), so they are not in the Drizzle schema. The values come from `packages/db/src/constants/asset.ts`. A later migration that rebuilds currency must carry them over (section 20.3).
+
 **asset_rate** (immutable. To correct one, delete the row with the same effective_from and insert it again)
 
 | Column | Type | Nullable | Constraints and description |
@@ -367,6 +369,8 @@ A fixed rate is expressed by registering a single row with effective_from = 0. I
 | --- | --- | --- | --- |
 | name | TEXT | no | Up to 50 characters. `UNIQUE (user_id, lower(name))` |
 | archived_at | INTEGER | yes | — |
+
+Index: `UNIQUE (id, user_id)` (the target of ledger_line's FK).
 
 The row with the reserved name "Session Result" is not moved, because a session result becomes an entry's ledger lines.
 
@@ -396,6 +400,8 @@ CHECKs (all enforced by the DB):
 - `play_session_id IS NULL OR entry_id IS NOT NULL`
 
 Indexes: `(user_id, entry_id)`, `(user_id, asset_id, occurred_at)` (balance and history), `(source_event_id)`, `(play_session_id)`, `(transfer_id)`.
+
+The role groups of the sign CHECK and the bound of 10^12 are `LEDGER_PAYMENT_ROLES`, `LEDGER_RECEIPT_ROLES`, `LEDGER_WALLET_ROLES`, and `LEDGER_MAX_QUANTITY` in `packages/db/src/constants/ledger.ts`. The Payment schema (section 11.4) uses the same bound. Because a wallet role must be real and every other role needs an entry, a virtual line always belongs to an entry (INV-10).
 
 **user_setting** (new. One row per user)
 
@@ -1242,6 +1248,7 @@ This specification decides every question provisionally with the recommended opt
 
 | Date | Decision | Reason |
 | --- | --- | --- |
+| 2026-10-09 | The CHECKs on `currency.kind` (currency / item) and `currency.decimals` (0 to 4) are column constraints written by hand into the ADD COLUMN statements, outside the Drizzle schema. The schema test compares the expression index `UNIQUE (user_id, lower(name))` of ledger_category against a named expression contract (T10) | Drizzle declares a CHECK only on the table, and adding one to an existing table makes `db:generate` rebuild it. currency is a parent, so its DROP would cascade into its children. The D1 integration test covers both CHECKs. RENAME TO asset (T35) keeps them; a rebuild must restate them |
 | 2026-10-08 | The projector closes a pause still open at a play_session's end at ended_at, instead of counting it up to the current time as `computeBreakMinutesFromEvents` does (T05) | `projectEntry` is a pure function and A-6 replays it, so break_minutes cannot depend on the clock. The legacy value of such a session kept growing after it ended |
 | 2026-10-08 | entry_tournament holds only the result of the highest-seq play_session, and `entry_cash.ev_diff` stays NULL until the entry is settled (T05) | Both match what the legacy fold leaves in session_tournament_detail and evCashOut, so the T07 backfill and A-6 agree. A busted bullet followed by a re-entry is not the final result |
 | 2026-10-08 | A v2 tournament session_end carries its prize and bounty only as payments, without the v1 `prizeMoney` / `bountyPrizes` (T05) | The same amount in two places would drift. Payments can also carry a ticket prize |
