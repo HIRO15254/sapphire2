@@ -9,7 +9,7 @@ import {
 } from "@sapphire2/db/schema/entry";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { type BatchStatement, runBatch } from "../lib/batch";
 import { floorToMinute } from "../utils/session-event-time";
 import {
@@ -240,7 +240,12 @@ function planAppend(
 		return row;
 	});
 	return {
-		statements: rows.map((row) => db.insert(playEvent).values(row)),
+		statements: rows.map((row) =>
+			db.insert(playEvent).values({
+				...row,
+				sortOrder: sql<number>`(SELECT COALESCE(MAX(${playEvent.sortOrder}), -1) + 1 FROM ${playEvent} WHERE ${playEvent.entryId} = ${scope.entryId})`,
+			})
+		),
 		events: [...state.events, ...rows],
 		eventIds: rows.map((row) => row.id),
 	};

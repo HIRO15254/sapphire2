@@ -710,7 +710,7 @@ Every time a live event is written, the projector rebuilds all projections of th
 1. Read the entry, its play_sessions and play_events, and the rule and prices in use.
 2. Apply the event about to be written in memory, and compute the post-projection rows with the pure function `projectEntry(events, context)` (`packages/api/src/services/entry-projector.ts`). The context is the entry's kind and its play_sessions (id, seq, local_date).
 3. Run the following in one batch.
-   1. INSERT / UPDATE / DELETE of the event
+   1. INSERT / UPDATE / DELETE of the event. An appended event takes its `sort_order` inside the INSERT (`MAX + 1` over the entry), never from the value read in step 1, so concurrent appenders do not collide on `(entry_id, sort_order)`
    2. `DELETE FROM ledger_line WHERE entry_id = ? AND source_event_id IS NOT NULL`
    3. INSERT of the projected lines (split with `chunkForInsert`)
    4. UPDATE of each play_session
@@ -720,7 +720,7 @@ Nothing is written to a retired table. A fact whose phase has not cut over yet (
 
 `buildProjectionStatements` builds steps 3.4 and 3.5 as one UPDATE per row, so the bound parameters of a statement do not grow with the number of events or play_sessions. Steps 3.2 and 3.3 (lines) are added in T11, which is where `chunkForInsert` applies.
 
-If writes to the same entry arrive concurrently, a projection computed from an old state can remain. But the next write rebuilds everything, so the drift does not persist. Audit A-6 in section 16 detects drift (R4 in section 20).
+If writes to the same entry arrive concurrently, a projection computed from an old state can remain. But the next write rebuilds everything, so the drift does not persist. Audit A-6 in section 16 detects drift (R4 in section 20). Only the events themselves must never be lost to the race, which is why step 3.1 allocates the append order in SQL.
 
 ### 13.2 Projection per event
 

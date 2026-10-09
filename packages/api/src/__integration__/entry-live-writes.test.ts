@@ -323,6 +323,54 @@ describe("live entry writes keep the event log and its projection in step", () =
 		]);
 	});
 
+	test("an append racing another append to the same entry keeps both events", async ({
+		api,
+	}) => {
+		await startLive(api);
+		const racing = new Proxy(api.db, {
+			get(target, property, receiver) {
+				if (property !== "batch") {
+					return Reflect.get(target, property, receiver);
+				}
+				return async (statements: Parameters<Database["batch"]>[0]) => {
+					await applyEntryEventChange(
+						target,
+						"alice",
+						"live-1",
+						{
+							op: "append",
+							events: [
+								{ type: "session_pause", occurredAt: minutes(5), payload: {} },
+							],
+						},
+						minutes(5)
+					);
+					return target.batch(statements);
+				};
+			},
+		});
+
+		await applyEntryEventChange(
+			racing,
+			"alice",
+			"live-1",
+			{
+				op: "append",
+				events: [
+					{ type: "session_resume", occurredAt: minutes(6), payload: {} },
+				],
+			},
+			minutes(6)
+		);
+
+		const events = await listEntryPlayEvents(api.db, "alice", "live-1");
+		expect(events.map((event) => event.eventType)).toEqual([
+			"session_start",
+			"session_pause",
+			"session_resume",
+		]);
+	});
+
 	test("another user can neither append to nor edit nor delete an entry's events", async ({
 		api,
 	}) => {
