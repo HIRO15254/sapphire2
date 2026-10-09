@@ -1,4 +1,7 @@
 {
+  "env": {
+    "BASH_MAX_TIMEOUT_MS": "2147483647"
+  },
   "permissions": {
     "allow": [
       "Bash(gh release create*)",

@@ -5,7 +5,7 @@ The semi-automated loop in [`AGENTS.md`](../../AGENTS.md) (Issue Tracking, PR Re
 ## The loop
 
 1. A human accepts a Triage issue: sets the `level` label, type, priority, and estimate, and moves it to Todo.
-2. The human creates an Orca workspace from the issue in Orca's Linear task list. The agent sets In Progress, works on a `feature/sa2-xxx` branch, and opens a draft PR → Human Review.
+2. The human creates an Orca workspace from the issue in Orca's Linear task list. The agent sets In Progress, works on a `feature/sa2-xxx` branch, opens a draft PR → Human Review, and keeps [pr-watch](#pr-watch) running so later PR events reach it.
 3. The human reads the draft and marks it ready → AI Review. CI and [`pre-merge-review.yml`](../../.github/workflows/pre-merge-review.yml) run.
 4. Review outcome → Ready to Merge (approve), In Progress (important findings or red CI), or Needs Input (two automatic rounds without approve). Set by the `outcome` job of `pre-merge-review.yml`; for an `auto-merge` issue an approve is merged by that job and the issue goes to Done.
 5. The human merges into `dev` → Done. A release PR into `main` runs [`release.yml`](../../.github/workflows/release.yml), which moves the Done issues of the released PRs to Released.
@@ -42,6 +42,20 @@ The semi-automated loop in [`AGENTS.md`](../../AGENTS.md) (Issue Tracking, PR Re
 - **Status sync**: the workspace board's "Sync board and issue status" changes the Linear status only when a card is dragged. Creating a workspace from a Linear task does not, so the agent sets In Progress itself.
 - **Branch naming** for workspaces not created from Linear: prefix Git Username and "Auto-rename branch & worktree" give names like `HIRO15254/<slug>`; agents still use `feature/sa2-xxx`.
 
+## PR watch
+
+[`scripts/pr-watch.ts`](../../scripts/pr-watch.ts) (SA2-333) lets the agent that opened a PR learn what the owner, the reviewer, and CI do on it, so a review is answered by the agent that holds the implementation context. It needs only `gh` and a harness that re-invokes the agent when a background command exits, and no terminal host, daemon, or webhook. It is the only background watch an agent keeps for its PR.
+
+- **Flow.** The agent runs `bun run pr-watch` in the background right after opening its PR and again after each batch until it reports the PR merged or closed. The script finds the PR from the current branch (`--pr <n>` overrides), polls it every 30 s with one GraphQL query (cost 1 of the 5,000 hourly points), and exits with one batch 60 s after the last new item, at most 4 minutes after the first. What it has reported is kept per worktree in `<git dir>/pr-watch/<pr>.json`, so items that arrive while no watch runs are reported by the next one; the first run records what is already on the PR as seen. A merge or close ends the watch with a final batch and deletes the file.
+- **An idle PR costs nothing.** The script has no time limit; only events end it, so the harness must let a background command wait without a deadline. Claude Code caps background commands at `max(7,200,000 ms, BASH_MAX_TIMEOUT_MS)` (2.1.293), so [`.claude/settings.json`](../../.claude/settings.json) raises `BASH_MAX_TIMEOUT_MS` to its ceiling, 2,147,483,647 ms (597 hours); the default timeout of other commands is unchanged. omp's `timeout` is in seconds, defaults to 300 s, and clamps other values to at most 3600 s, so only `timeout: 0` works there, whatever the model. Codex and Gemini CLI are unverified.
+- **What wakes the agent.** Comments, reviews other than the empty `commented` review GitHub creates for a thread reply, inline comments, and any of these whose text changes. A bot comment counts only when it is the reviewer's round summary (`hasPublishedSummary` in [`scripts/review-gate.ts`](../../scripts/review-gate.ts)) or its truncation notice; the posted summary does not reliably carry the `<!-- pr-review:` trailer, so the gate's heading check is reused.
+- **What rides along.** Draft/ready, label, and reopen changes do not wake the agent and are listed as context in the next batch: without a comment there is nothing to do, and after ready the review result arrives on its own.
+- **CI.** The same query reads the checks of the PR's latest commit, and each commit is reported once: at its first failed check, or when every check has finished without one. Checks of the agent workflows, `PR review` and `Claude Code`, are not CI: they run on the same commit when the PR is marked ready, labeled `re-review`, or reviewed, and the review's outcome arrives as the round summary. A result stays recorded while a check re-runs, so a re-run is reported only when it changes the result. A first watch reports CI that had already finished, so a push made just before starting is not lost. A green result must hold through the 60 s debounce, which covers the gap before a later job's check appears.
+- **Loop guard.** Agents post as the owner's account, so pr-watch skips posts whose last line is `<!-- pr-watch-agent -->`; a post that only quotes the marker still arrives. State changes have no body to mark, and agents do not toggle draft/ready (`gh pr ready` is denied).
+- **Untrusted text.** Text reaches the agent only from `HIRO15254`, `claude[bot]`, and `github-actions[bot]`, wrapped in `<untrusted-github-text>`. A post by anyone else is listed with its URL and without its text. GraphQL reports bot logins without `[bot]`; pr-watch adds it for `__typename: Bot`.
+- **Limits.** Nothing is delivered while the agent's session is closed; the next watch reports what it missed. Starting two watches for one PR delivers each batch twice. Only a top-level session is re-invoked when its background command exits, so an agent that will own a PR runs as its own session.
+- **Rejected designs (2026-10-09).** A webhook daemon typing into Orca terminals (depended on Orca and `gh webhook forward`, one forwarder per repository); a self-stop every 110 minutes to fit Claude Code's default cap (woke an idle agent every two hours — a timer-based check-in); a separate `gh pr checks --watch` (two watchers woke the agent twice per failure, and omp cut it at 300 s).
+
 ## Agents and hooks
 
 | Agent | Reads `AGENTS.md` via | Commit trailer detected by `.husky/commit-msg` from |
@@ -50,7 +64,7 @@ The semi-automated loop in [`AGENTS.md`](../../AGENTS.md) (Issue Tracking, PR Re
 | Codex | native | `CODEX_MANAGED_*` |
 | Gemini CLI | [`.gemini/settings.json`](../../.gemini/settings.json) `context.fileName` | `GEMINI_CLI` |
 
-- [`.claude/settings.json`](../../.claude/settings.json) denies `gh pr merge` and `gh pr ready` for Claude Code, and its Stop hook runs format, changed tests, lint, and `check:rules`; `.husky/pre-commit` is skipped under Claude Code for that reason. Codex and Gemini have no equivalent deny and follow the `AGENTS.md` text.
+- [`.claude/settings.json`](../../.claude/settings.json) denies `gh pr merge` and `gh pr ready` for Claude Code, raises `BASH_MAX_TIMEOUT_MS` so [pr-watch](#pr-watch) can wait for days, and its Stop hook runs format, changed tests, lint, and `check:rules`; `.husky/pre-commit` is skipped under Claude Code for that reason. Codex and Gemini have no equivalent deny and follow the `AGENTS.md` text.
 - `.husky/pre-push` and the `branch-name` job in `ci.yml` reject non-ASCII branch names ([`scripts/check-branch-name.ts`](../../scripts/check-branch-name.ts)); `claude-code-action` refuses them, so the automated review would never run.
 - Linear MCP is configured for all three agents (Gemini: `/mcp auth linear`).
 
