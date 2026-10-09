@@ -2,13 +2,13 @@ import { randomUUID } from "node:crypto";
 import { appendFileSync } from "node:fs";
 import { issueIdentifier, linear } from "./review-outcome";
 
-export interface IssueComment {
+interface IssueComment {
 	author: string;
 	body: string;
 	createdAt: string;
 }
 
-export interface IssueContext {
+interface IssueContext {
 	comments: IssueComment[];
 	description: string;
 	identifier: string;
@@ -18,14 +18,11 @@ export interface IssueContext {
 	url: string;
 }
 
-export const MAX_CONTEXT_CHARS = 40_000;
+const MAX_CONTEXT_CHARS = 40_000;
 const MAX_DESCRIPTION_CHARS = 20_000;
 const TRUNCATED = "\n\n[truncated]";
 
-export function renderIssueContext(
-	issue: IssueContext,
-	limit = MAX_CONTEXT_CHARS
-): string {
+function renderIssueContext(issue: IssueContext): string {
 	const description = issue.description.trim() || "(empty)";
 	const head = [
 		`### ${issue.identifier}: ${issue.title}`,
@@ -45,7 +42,7 @@ export function renderIssueContext(
 		a.createdAt.localeCompare(b.createdAt)
 	);
 	const kept: string[] = [];
-	let budget = limit - head.length;
+	let budget = MAX_CONTEXT_CHARS - head.length;
 	for (let i = sorted.length - 1; i >= 0; i -= 1) {
 		const comment = sorted[i] as IssueComment;
 		const rendered = `##### ${comment.createdAt} — ${comment.author}\n\n${comment.body.trim()}\n`;

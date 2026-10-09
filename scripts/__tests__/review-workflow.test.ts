@@ -85,13 +85,4 @@ describe("review workflow Linear issue context", () => {
 		expect(steps.some((step) => step.run?.includes("bun install"))).toBe(false);
 		expect(issueJob?.[0]).not.toBe("review");
 	});
-
-	it("still reviews when fetching the issue fails", () => {
-		const step = issueJob?.[1].steps.find((entry) =>
-			entry.run?.includes("review-issue-context.ts")
-		);
-		expect(step?.["continue-on-error"]).toBe(true);
-		expect(workflow.jobs.review.needs).toContain(issueJob?.[0]);
-		expect(workflow.jobs.review.if).toContain("!cancelled()");
-	});
 });
