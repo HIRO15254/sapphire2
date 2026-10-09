@@ -25,7 +25,6 @@ const POLL_MS = 30_000;
 const DEBOUNCE_MS = 60_000;
 const MAX_BATCH_MS = 240_000;
 const MAX_POLL_FAILURES = 10;
-const TIME_LIMIT_MS = 110 * 60_000;
 const ISSUE_BRANCH = /^feature\/sa2-(\d+)$/i;
 const PR_URL = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/pull\/\d+$/;
 const PR_NUMBER = /^\d+$/;
@@ -400,14 +399,14 @@ function isDue(progress: Progress, pending: WatchItem[], now: number): boolean {
 export function createWatcher(
 	target: WatchTarget,
 	stateFile: string
-): (snapshot: Snapshot, now: number, lastPoll: boolean) => string | null {
+): (snapshot: Snapshot, now: number) => string | null {
 	let seen = readSeen(stateFile);
 	const progress: Progress = {
 		firstWakeAt: null,
 		lastChangeAt: 0,
 		signature: "",
 	};
-	return (snapshot, now, lastPoll) => {
+	return (snapshot, now) => {
 		const baseline = seen === null;
 		const { fresh, versions } = scan(snapshot, seen ?? {});
 		if (baseline) {
@@ -419,8 +418,7 @@ export function createWatcher(
 			rmSync(stateFile, { force: true });
 			return formatBatch(target, pending, snapshot.state);
 		}
-		const due = isDue(progress, pending, now);
-		if (!(due || (lastPoll && pending.some((item) => item.wakes)))) {
+		if (!isDue(progress, pending, now)) {
 			return null;
 		}
 		writeFileSync(stateFile, JSON.stringify(versions));
@@ -428,21 +426,15 @@ export function createWatcher(
 	};
 }
 
-async function watch(
-	target: WatchTarget,
-	timeLimitMs: number | null
-): Promise<string> {
+async function watch(target: WatchTarget): Promise<string> {
 	const { lockFile, stateFile, token } = claim(target.number);
 	const onSnapshot = createWatcher(target, stateFile);
-	const deadline =
-		timeLimitMs === null ? Number.POSITIVE_INFINITY : Date.now() + timeLimitMs;
 	let failures = 0;
 	console.log(
 		`pr-watch: watching PR #${target.number}, polling every ${POLL_MS / 1000}s.`
 	);
 	while (readText(lockFile) === token) {
 		const now = Date.now();
-		const lastPoll = now + POLL_MS >= deadline;
 		const snapshot = fetchSnapshot(target);
 		if (typeof snapshot === "string") {
 			failures += 1;
@@ -452,49 +444,35 @@ async function watch(
 			}
 		} else {
 			failures = 0;
-			const output = onSnapshot(snapshot, now, lastPoll);
+			const output = onSnapshot(snapshot, now);
 			if (output !== null) {
 				return output;
 			}
-		}
-		if (lastPoll) {
-			return `pr-watch: nothing on PR #${target.number} needed you within the time limit. Start \`bun run pr-watch\` in the background again.`;
 		}
 		await sleep(POLL_MS);
 	}
 	return `pr-watch: a newer pr-watch took over PR #${target.number}; this one stops.`;
 }
 
-function parseOptions(
-	args: string[]
-): { pr: string | undefined; timeLimitMs: number | null } | null {
+function parsePr(args: string[]): string | undefined | null {
 	try {
-		const { values } = parseArgs({
+		const { pr } = parseArgs({
 			args,
-			options: {
-				pr: { type: "string" },
-				"no-time-limit": { type: "boolean" },
-			},
-		});
-		if (values.pr !== undefined && !PR_NUMBER.test(values.pr)) {
-			return null;
-		}
-		return {
-			pr: values.pr,
-			timeLimitMs: values["no-time-limit"] ? null : TIME_LIMIT_MS,
-		};
+			options: { pr: { type: "string" } },
+		}).values;
+		return pr === undefined || PR_NUMBER.test(pr) ? pr : null;
 	} catch {
 		return null;
 	}
 }
 
 if (import.meta.main) {
-	const options = parseOptions(process.argv.slice(2));
-	if (!options) {
-		console.error("usage: bun run pr-watch [--pr <number>] [--no-time-limit]");
+	const pr = parsePr(process.argv.slice(2));
+	if (pr === null) {
+		console.error("usage: bun run pr-watch [--pr <number>]");
 		process.exit(2);
 	}
 	process.once("SIGINT", () => process.exit(130));
 	process.once("SIGTERM", () => process.exit(143));
-	console.log(await watch(resolveTarget(options.pr), options.timeLimitMs));
+	console.log(await watch(resolveTarget(pr)));
 }

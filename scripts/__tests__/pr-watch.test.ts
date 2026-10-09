@@ -215,45 +215,41 @@ describe("createWatcher", () => {
 	it("treats what is already on the PR as seen, waits out the debounce, and reports only new items once", () => {
 		const onSnapshot = createWatcher(target, stateFile);
 		const old = post("c1", owner, "Old remark.");
-		expect(
-			onSnapshot(snapshot({ comments: { nodes: [old] } }), 0, false)
-		).toBeNull();
+		expect(onSnapshot(snapshot({ comments: { nodes: [old] } }), 0)).toBeNull();
 		const withNew = snapshot({
 			comments: { nodes: [old, post("c2", owner, "New remark.")] },
 		});
-		expect(onSnapshot(withNew, 30_000, false)).toBeNull();
-		const batch = onSnapshot(withNew, 90_000, false);
+		expect(onSnapshot(withNew, 30_000)).toBeNull();
+		const batch = onSnapshot(withNew, 90_000);
 		expect(batch).toContain("New remark.");
 		expect(batch).not.toContain("Old remark.");
-		expect(createWatcher(target, stateFile)(withNew, 0, true)).toBeNull();
+		expect(createWatcher(target, stateFile)(withNew, 0)).toBeNull();
 	});
 
 	it("ends with a final batch on merge and forgets the PR", () => {
 		const onSnapshot = createWatcher(target, stateFile);
-		onSnapshot(snapshot({}), 0, false);
+		onSnapshot(snapshot({}), 0);
 		const merged = snapshot({
 			state: "MERGED",
 			comments: { nodes: [post("c1", owner, "Thanks!")] },
 		});
-		expect(onSnapshot(merged, 30_000, false)).toContain("Thanks!");
+		expect(onSnapshot(merged, 30_000)).toContain("Thanks!");
 		expect(existsSync(stateFile)).toBe(false);
 	});
 
-	it("at the time limit, sends what needs the agent at once and keeps context-only changes for the next run", () => {
+	it("never ends the watch for context-only changes, however long they sit, and carries them into the next batch", () => {
 		const onSnapshot = createWatcher(target, stateFile);
-		onSnapshot(snapshot({}), 0, false);
+		onSnapshot(snapshot({}), 0);
 		const ready = { nodes: [event("ReadyForReviewEvent", "e1")] };
-		expect(onSnapshot(snapshot({ timelineItems: ready }), 30_000, true)).toBe(
-			null
-		);
-		const batch = createWatcher(target, stateFile)(
-			snapshot({
-				timelineItems: ready,
-				comments: { nodes: [post("c1", owner, "Please look.")] },
-			}),
-			0,
-			true
-		);
+		const day = 86_400_000;
+		expect(onSnapshot(snapshot({ timelineItems: ready }), 30_000)).toBeNull();
+		expect(onSnapshot(snapshot({ timelineItems: ready }), day)).toBeNull();
+		const withComment = snapshot({
+			timelineItems: ready,
+			comments: { nodes: [post("c1", owner, "Please look.")] },
+		});
+		expect(onSnapshot(withComment, day + 30_000)).toBeNull();
+		const batch = onSnapshot(withComment, day + 90_000);
 		expect(batch).toContain("marked ready for review");
 		expect(batch).toContain("Please look.");
 	});
