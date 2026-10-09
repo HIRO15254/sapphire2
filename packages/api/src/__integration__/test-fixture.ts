@@ -105,8 +105,10 @@ async function createApiFixture() {
 	}
 }
 
+export type ApiFixture = Awaited<ReturnType<typeof createApiFixture>>;
+
 export const test = baseTest.extend<{
-	api: Awaited<ReturnType<typeof createApiFixture>>;
+	api: ApiFixture;
 }>({
 	// biome-ignore lint/correctness/noEmptyPattern: Vitest requires destructured fixture dependencies, and this fixture has none.
 	api: async ({}, use) => {

@@ -5,6 +5,7 @@ import {
 	updateStackPayload,
 } from "@sapphire2/db/constants/session-event-types";
 import { currency, currencyTransaction } from "@sapphire2/db/schema/currency";
+import { entry } from "@sapphire2/db/schema/entry";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
@@ -20,6 +21,13 @@ import {
 	ACTIVE_SESSION_CONFLICT_MESSAGE,
 	runUnfinishedLiveSessionWrite,
 } from "../lib/db-errors";
+import {
+	findLiveCashEntrySession,
+	getPlayEventMap,
+	listEntryPlayEvents,
+	listLiveCashEntryRows,
+} from "../services/entry-live-reads";
+import { legacySessionDateSql } from "../services/entry-session";
 import {
 	computeCashGamePLFromEvents,
 	computeCashGameSummaryFromEvents,
@@ -77,6 +85,148 @@ type DbInstance = Parameters<
 >[0]["ctx"]["db"];
 
 type BatchStatement = Parameters<DbInstance["batch"]>[0][number];
+
+const LIVE_CASH_SESSION_FORBIDDEN_MESSAGE =
+	"You do not own this live cash game session";
+
+const liveCashGameSessionListInput = z.object({
+	status: z.enum(["active", "paused", "completed"]).optional(),
+	cursor: z.string().optional(),
+	limit: z.number().int().min(1).max(100).default(DEFAULT_LIMIT),
+});
+
+type LiveSessionEventMap = Map<
+	string,
+	{ eventType: string; payload: string }[]
+>;
+
+async function assembleLiveCashListPage<
+	Row extends { id: string; sessionDate: Date; startedAt: Date | null },
+>(
+	rows: Row[],
+	limit: number,
+	loadEvents: (ids: string[]) => Promise<LiveSessionEventMap>
+) {
+	const hasMore = rows.length > limit;
+	const items = hasMore ? rows.slice(0, limit) : rows;
+	const last = items.at(-1);
+	const nextCursor = hasMore && last ? encodeSessionCursor(last) : undefined;
+
+	const eventMap = await loadEvents(items.map((item) => item.id));
+
+	const enrichedItems = items.map((item) => {
+		const events = eventMap.get(item.id) ?? [];
+		const eventCount = events.length;
+		let latestStackAmount: number | null = null;
+
+		for (const event of [...events].reverse()) {
+			if (event.eventType === "update_stack") {
+				const parsed = updateStackPayload.safeParse(JSON.parse(event.payload));
+				if (parsed.success) {
+					latestStackAmount = parsed.data.stackAmount;
+					break;
+				}
+			}
+		}
+
+		return { ...item, eventCount, latestStackAmount };
+	});
+
+	return { items: enrichedItems, nextCursor };
+}
+
+function assembleLiveCashSession(
+	session: typeof gameSession.$inferSelect,
+	ringGameId: string | null,
+	cashDetail: typeof sessionCashDetail.$inferSelect | undefined,
+	events: (typeof sessionEvent.$inferSelect)[]
+) {
+	const mappedEvents = events.map((e) => ({
+		eventType: e.eventType,
+		payload: e.payload,
+	}));
+	const s = computeCashGameSummaryFromEvents(mappedEvents);
+	const pl = computeCashGamePLFromEvents(mappedEvents);
+
+	const summary = {
+		totalBuyIn: s.totalBuyIn,
+		cashOut: s.cashOut,
+		chipRemoveTotal: pl.chipRemoveTotal,
+		profitLoss: pl.profitLoss,
+		evCashOut: pl.evCashOut,
+		evDiff: pl.evDiff,
+		addonCount: s.addonCount,
+		maxStack: s.maxStack,
+		minStack: s.minStack,
+		currentStack: s.currentStack,
+	};
+
+	const heroSeatPosition = computeHeroSeatPositionFromEvents(mappedEvents);
+
+	return {
+		...session,
+		ringGameId,
+		heroSeatPosition,
+		events,
+		summary,
+		ruleName: cashDetail?.ruleName ?? null,
+		variant: cashDetail?.variant ?? null,
+		mixGames: cashDetail?.mixGames ?? null,
+		blind1: cashDetail?.blind1 ?? null,
+		blind2: cashDetail?.blind2 ?? null,
+		blind3: cashDetail?.blind3 ?? null,
+		ante: cashDetail?.ante ?? null,
+		anteType: cashDetail?.anteType ?? null,
+		minBuyIn: cashDetail?.minBuyIn ?? null,
+		maxBuyIn: cashDetail?.maxBuyIn ?? null,
+		tableSize: cashDetail?.tableSize ?? null,
+		houseRules: cashDetail?.houseRules ?? null,
+	};
+}
+
+export async function listLiveCashGameSessionsFromEntries(
+	db: DbInstance,
+	userId: string,
+	input: z.output<typeof liveCashGameSessionListInput>
+) {
+	const rows = await listLiveCashEntryRows(db, userId, {
+		status: input.status,
+		keyset: sessionKeysetCondition(
+			input.cursor,
+			legacySessionDateSql(),
+			entry.id
+		),
+		limit: input.limit + 1,
+	});
+	return assembleLiveCashListPage(rows, input.limit, (ids) =>
+		getPlayEventMap(db, userId, ids)
+	);
+}
+
+export async function getLiveCashGameSessionFromEntry(
+	db: DbInstance,
+	userId: string,
+	input: { id: string }
+) {
+	const found = await findLiveCashEntrySession(db, userId, input.id);
+	if (!found) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: LIVE_CASH_SESSION_FORBIDDEN_MESSAGE,
+		});
+	}
+	const [cashDetail] = await db
+		.select()
+		.from(sessionCashDetail)
+		.where(eq(sessionCashDetail.sessionId, input.id));
+	const events = await listEntryPlayEvents(db, userId, input.id);
+	return assembleLiveCashSession(
+		found.session,
+		found.ringGameId,
+		cashDetail,
+		events
+	);
+}
 
 async function ringGameSnapshotPatch(
 	db: DbInstance,
@@ -186,7 +336,7 @@ async function findLiveCashGameSession(
 	) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
-			message: "You do not own this live cash game session",
+			message: LIVE_CASH_SESSION_FORBIDDEN_MESSAGE,
 		});
 	}
 
@@ -248,13 +398,7 @@ async function resolveRingGameAssignment(
 
 export const liveCashGameSessionRouter = router({
 	list: protectedProcedure
-		.input(
-			z.object({
-				status: z.enum(["active", "paused", "completed"]).optional(),
-				cursor: z.string().optional(),
-				limit: z.number().int().min(1).max(100).default(DEFAULT_LIMIT),
-			})
-		)
+		.input(liveCashGameSessionListInput)
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 
@@ -310,38 +454,9 @@ export const liveCashGameSessionRouter = router({
 				.orderBy(desc(sessionOrderKeySql()), desc(gameSession.id))
 				.limit(input.limit + 1);
 
-			const hasMore = rows.length > input.limit;
-			const items = hasMore ? rows.slice(0, input.limit) : rows;
-			const last = items.at(-1);
-			const nextCursor =
-				hasMore && last ? encodeSessionCursor(last) : undefined;
-
-			const eventMap = await getSessionEventMap(
-				ctx.db,
-				items.map((item) => item.id)
+			return assembleLiveCashListPage(rows, input.limit, (ids) =>
+				getSessionEventMap(ctx.db, ids)
 			);
-
-			const enrichedItems = items.map((item) => {
-				const events = eventMap.get(item.id) ?? [];
-				const eventCount = events.length;
-				let latestStackAmount: number | null = null;
-
-				for (const event of [...events].reverse()) {
-					if (event.eventType === "update_stack") {
-						const parsed = updateStackPayload.safeParse(
-							JSON.parse(event.payload)
-						);
-						if (parsed.success) {
-							latestStackAmount = parsed.data.stackAmount;
-							break;
-						}
-					}
-				}
-
-				return { ...item, eventCount, latestStackAmount };
-			});
-
-			return { items: enrichedItems, nextCursor };
 		}),
 
 	getById: protectedProcedure
@@ -361,47 +476,12 @@ export const liveCashGameSessionRouter = router({
 				.where(eq(sessionEvent.sessionId, input.id))
 				.orderBy(...sessionEventOrderBy());
 
-			const mappedEvents = events.map((e) => ({
-				eventType: e.eventType,
-				payload: e.payload,
-			}));
-			const s = computeCashGameSummaryFromEvents(mappedEvents);
-			const pl = computeCashGamePLFromEvents(mappedEvents);
-
-			const summary = {
-				totalBuyIn: s.totalBuyIn,
-				cashOut: s.cashOut,
-				chipRemoveTotal: pl.chipRemoveTotal,
-				profitLoss: pl.profitLoss,
-				evCashOut: pl.evCashOut,
-				evDiff: pl.evDiff,
-				addonCount: s.addonCount,
-				maxStack: s.maxStack,
-				minStack: s.minStack,
-				currentStack: s.currentStack,
-			};
-
-			const heroSeatPosition = computeHeroSeatPositionFromEvents(mappedEvents);
-
-			return {
-				...session,
-				ringGameId: cashDetail?.ringGameId ?? null,
-				heroSeatPosition,
-				events,
-				summary,
-				ruleName: cashDetail?.ruleName ?? null,
-				variant: cashDetail?.variant ?? null,
-				mixGames: cashDetail?.mixGames ?? null,
-				blind1: cashDetail?.blind1 ?? null,
-				blind2: cashDetail?.blind2 ?? null,
-				blind3: cashDetail?.blind3 ?? null,
-				ante: cashDetail?.ante ?? null,
-				anteType: cashDetail?.anteType ?? null,
-				minBuyIn: cashDetail?.minBuyIn ?? null,
-				maxBuyIn: cashDetail?.maxBuyIn ?? null,
-				tableSize: cashDetail?.tableSize ?? null,
-				houseRules: cashDetail?.houseRules ?? null,
-			};
+			return assembleLiveCashSession(
+				session,
+				cashDetail?.ringGameId ?? null,
+				cashDetail,
+				events
+			);
 		}),
 
 	create: protectedProcedure
