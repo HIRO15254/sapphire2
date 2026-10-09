@@ -423,7 +423,7 @@ play_event is the old session_event moved with the same id. It is the only place
 | payload | TEXT | no | — | `CHECK (json_valid(payload))` |
 | hand_id | TEXT | yes | — | An exception column added with ADD COLUMN in P3. Links all_in to a hand |
 
-Indexes: `UNIQUE (id, user_id)`, `(play_session_id, sort_order)`.
+Indexes: `UNIQUE (id, user_id)`, `(play_session_id, sort_order)`, `(hand_id)` (so the NO ACTION check of a hand delete does not scan every event).
 
 - Why sort_order is per entry: the event order stays one sequence across play_sessions, so the event log screen works as it does today.
 - Deleting a play_session cascades to its events and projected lines. Only the play_session with the highest seq can be deleted (API).
@@ -451,7 +451,7 @@ A hand is a child of play_session. Every hand, including the "+1", is recorded a
 | hero_net | INTEGER | yes | Hero's chip result (signed) |
 | memo | TEXT | yes | Up to 2,000 characters |
 
-Indexes: `UNIQUE (id, user_id)`, `(user_id, played_at)`.
+Indexes: `UNIQUE (id, user_id)`, `(user_id, played_at)`, `(variant_id)`.
 
 **hand_seat** (primary key `(hand_id, seat)`)
 
@@ -465,6 +465,8 @@ Indexes: `UNIQUE (id, user_id)`, `(user_id, played_at)`.
 | hole_cards | TEXT | yes | — | For example `As Kd`. Up to 7 cards (Stud) |
 | net | INTEGER | yes | — | The chip result of that seat |
 | showed | INTEGER | no | 0 | 0 / 1 |
+
+Indexes: `UNIQUE (hand_id) WHERE is_hero = 1`, `(player_id)` (the player.delete check of T22 and the per-opponent reads of T25).
 
 **hand_action** (primary key `(hand_id, seq)`)
 
@@ -492,6 +494,14 @@ What each detail level holds:
 - full: hand_seat rows for all seats and hand_action rows
 
 When lowering detail, delete the matching child rows in the same batch.
+
+The hand service (`packages/api/src/services/hand.ts`, T21) holds these rules. T22 wires it into the hand router:
+
+- The "+1" inserts a count hand whose hand_no is `MAX(hand_no) + 1` of its play_session, computed inside the INSERT so two appends cannot pick the same number. It may carry the button, table size, level, stakes, and variant of that moment.
+- Undo deletes the hand with the highest hand_no, and only when its detail is count. A hand with details is deleted from the hand list instead, so a mistaken undo cannot drop typed-in seats and actions.
+- Deleting a hand renumbers the later hands of its play_session in the same batch, so hand_no stays a sequence (INV-18). Deleting a hand that a play_event links through `hand_id` returns CONFLICT; unlinking it is part of the all_in edit (T24). Deleting the entry or play_session still removes both.
+- Saving a hand replaces its row values, seats, and actions in full. Lowering to count also clears board, pot, hero_net, and memo. A full hand has at most 200 actions.
+- The list returns one play_session's hands from the newest, with each page's seats. The cursor is the last hand_no of the page, so it survives the deletion of the cursor row.
 
 ## 10. Table definitions 6: tags and others (P5)
 
@@ -1242,6 +1252,7 @@ This specification decides every question provisionally with the recommended opt
 
 | Date | Decision | Reason |
 | --- | --- | --- |
+| 2026-10-09 | The hand service renumbers the later hands when a hand is deleted, lets undo delete only a count hand, and refuses with CONFLICT to delete a hand that a play_event links (T21, section 9) | INV-18 makes hand_no a sequence, so a delete in the middle cannot leave a gap. Undo is the "−1" of the counter and should not destroy details. `play_event.hand_id` is NO ACTION, and dropping the link silently would orphan the all_in's `handId` |
 | 2026-10-08 | The projector closes a pause still open at a play_session's end at ended_at, instead of counting it up to the current time as `computeBreakMinutesFromEvents` does (T05) | `projectEntry` is a pure function and A-6 replays it, so break_minutes cannot depend on the clock. The legacy value of such a session kept growing after it ended |
 | 2026-10-08 | entry_tournament holds only the result of the highest-seq play_session, and `entry_cash.ev_diff` stays NULL until the entry is settled (T05) | Both match what the legacy fold leaves in session_tournament_detail and evCashOut, so the T07 backfill and A-6 agree. A busted bullet followed by a re-entry is not the final result |
 | 2026-10-08 | A v2 tournament session_end carries its prize and bounty only as payments, without the v1 `prizeMoney` / `bountyPrizes` (T05) | The same amount in two places would drift. Payments can also carry a ticket prize |
