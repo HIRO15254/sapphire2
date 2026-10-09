@@ -710,7 +710,7 @@ Every time a live event is written, the projector rebuilds all projections of th
 1. Read the entry, its play_sessions and play_events, and the rule and prices in use.
 2. Apply the event about to be written in memory, and compute the post-projection rows with the pure function `projectEntry(events, context)` (`packages/api/src/services/entry-projector.ts`). The context is the entry's kind and its play_sessions (id, seq, local_date).
 3. Run the following in one batch.
-   1. INSERT / UPDATE / DELETE of the event
+   1. INSERT / UPDATE / DELETE of the event. An appended event takes its `sort_order` inside the INSERT (`MAX + 1` over the entry), never from the value read in step 1, so concurrent appenders do not collide on `(entry_id, sort_order)`
    2. `DELETE FROM ledger_line WHERE entry_id = ? AND source_event_id IS NOT NULL`
    3. INSERT of the projected lines (split with `chunkForInsert`)
    4. UPDATE of each play_session
@@ -720,7 +720,7 @@ Nothing is written to a retired table. A fact whose phase has not cut over yet (
 
 `buildProjectionStatements` builds steps 3.4 and 3.5 as one UPDATE per row, so the bound parameters of a statement do not grow with the number of events or play_sessions. Steps 3.2 and 3.3 (lines) are added in T11, which is where `chunkForInsert` applies.
 
-If writes to the same entry arrive concurrently, a projection computed from an old state can remain. But the next write rebuilds everything, so the drift does not persist. Audit A-6 in section 16 detects drift (R4 in section 20).
+If writes to the same entry arrive concurrently, a projection computed from an old state can remain. But the next write rebuilds everything, so the drift does not persist. Audit A-6 in section 16 detects drift (R4 in section 20). Only the events themselves must never be lost to the race, which is why step 3.1 allocates the append order in SQL.
 
 ### 13.2 Projection per event
 
@@ -945,6 +945,8 @@ SELECT gs.id, gs.user_id, e.id, e.kind, 1, e.played_on, gs.started_at,
   CASE gs.status WHEN 'completed' THEN 'ended' WHEN 'paused' THEN 'paused' ELSE 'active' END,
   CASE WHEN gs.status <> 'completed' THEN NULL
        WHEN e.kind = 'cash' THEN 'cashed_out'
+       WHEN std.before_deadline = 1 AND e.source = 'live' THEN 'busted'
+       WHEN std.before_deadline = 1 THEN 'finished'
        WHEN std.placement = 1 THEN 'finished'
        WHEN e.source = 'live' OR std.placement > 1 THEN 'busted'
        ELSE 'finished' END,
@@ -956,7 +958,7 @@ LEFT JOIN session_cash_detail scd ON scd.session_id = gs.id
 LEFT JOIN session_tournament_detail std ON std.session_id = gs.id;
 ```
 
-The tournament end_state of a live entry follows the projector rule in section 13.2, so a NULL placement (before_deadline = 1) is busted and A-6 finds no difference. A manual entry without a placement keeps the manual default, finished.
+The tournament end_state of a live entry follows the projector rule in section 13.2, so a NULL placement (before_deadline = 1) is busted and A-6 finds no difference. A manual entry without a placement keeps the manual default, finished. A placement stored while before_deadline = 1 counts as no placement: entry_tournament stores it as NULL (its CHECK), and the end_state follows that value, the same as the T06 write service.
 
 ```sql
 INSERT INTO play_event
@@ -967,7 +969,7 @@ FROM session_event se
 JOIN game_session gs ON gs.id = se.session_id;
 ```
 
-entry_cash and entry_tournament are moved in the same way. `ev_diff` is the rounded value of `ev_cash_out - cash_out`, and NULL if ev_cash_out is NULL. ring_game and tournament are joined only where `user_id` matches, and are NULL otherwise.
+entry_cash and entry_tournament are moved in the same way. `ev_diff` is the rounded value of `ev_cash_out - cash_out`, and NULL if ev_cash_out is NULL. ring_game and tournament are joined only where `user_id` matches, and are NULL otherwise. `placement` is NULL where before_deadline = 1 (session.update can store both today).
 
 **P2 (T12)**: Create the ledger lines. How they are created depends on the entry's source.
 
@@ -1242,6 +1244,10 @@ This specification decides every question provisionally with the recommended opt
 
 | Date | Decision | Reason |
 | --- | --- | --- |
+| 2026-10-08 | T06 puts the SQL over the new tables in `services/entry-session.ts` and `services/entry-live-reads.ts`, and exports procedure-shaped prep functions next to each procedure (`createSessionViaEntry`, `updateSessionViaEntry`, `deleteSessionViaEntry`, `listSessionsViaEntries`, `getSessionViaEntry`, the live `*FromEntries` / `*FromEntry` readers, `listSessionEventsFromPlayEvents`). T07 replaces each procedure body with its prep function and deletes the old path | The prep functions reuse the router's validation, rule resolution, and enrichment instead of copying them, and a service cannot import from a router. The detail planners split their patch into the moved columns (to the entry tables) and the rest (still to the detail tables), so one rule computation feeds both |
+| 2026-10-08 | The minimal game_session row keeps its real kind and source, status `'completed'`, and a fixed session_date of 0 (T06) | kind and source cost nothing and keep the row readable when compared by hand. A date has no single true value once an entry spans days, so it gets the fixed value of a retired NOT NULL column (section 16.1) |
+| 2026-10-08 | Today's output shapes are rebuilt from the entry tables as follows (T06). sessionDate: UTC midnight of played_on for manual input, the seq-1 play_session started_at (else entry.created_at) for live. status: `'completed'` for a settled entry, else the highest-seq play_session's status. breakMinutes: NULLIF of the summed play_session break_minutes, 0. evCashOut: cash_out + ev_diff | Three values cannot be rebuilt 1:1, and these are the closest. An unfinished live session shows its first start instead of the instant it was created (they differ by seconds). A manual break of 0 reads as NULL, the same as an empty field. An end time before the start time reads as NULL, as the backfill stores it |
+| 2026-10-09 | T06 writes live entries through `services/entry-live-writes.ts`: `buildLiveEntryStartStatements` (anchor row, entry, kind detail, first play_session, session_start, projection), `applyEntryEventChange` (append / update / delete of play_events plus the reprojection of every play_session, entry and detail row in one `db.batch`), and `updateEntryHeroSeat`. complete is an append of session_end, discard is `buildEntryDeleteStatements`. The service reads the entry's events, applies the change in memory, runs `projectEntry`, and writes the event statement and `buildProjectionStatements` together. It assigns explicit sort orders (max + 1) and never validates event state or payloads | The routers keep their validation (event state, payload shape, ordering), which T07 calls before the service. The projection is a pure function of the event list, so it is computed in memory and written in the same batch as the change: a failing statement leaves neither. Explicit sort orders let the `(entry_id, sort_order)` unique index reject a concurrent append instead of interleaving it. Statement count grows with play_sessions, not events, so the 100-parameter limit does not bind |
 | 2026-10-08 | The projector closes a pause still open at a play_session's end at ended_at, instead of counting it up to the current time as `computeBreakMinutesFromEvents` does (T05) | `projectEntry` is a pure function and A-6 replays it, so break_minutes cannot depend on the clock. The legacy value of such a session kept growing after it ended |
 | 2026-10-08 | entry_tournament holds only the result of the highest-seq play_session, and `entry_cash.ev_diff` stays NULL until the entry is settled (T05) | Both match what the legacy fold leaves in session_tournament_detail and evCashOut, so the T07 backfill and A-6 agree. A busted bullet followed by a re-entry is not the final result |
 | 2026-10-08 | A v2 tournament session_end carries its prize and bounty only as payments, without the v1 `prizeMoney` / `bountyPrizes` (T05) | The same amount in two places would drift. Payments can also carry a ticket prize |
