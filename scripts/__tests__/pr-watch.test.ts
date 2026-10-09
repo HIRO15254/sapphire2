@@ -40,15 +40,22 @@ function snapshot(parts: Partial<Snapshot>): Snapshot {
 
 interface Check {
 	__typename: string;
+	checkSuite: { workflowRun: { workflow: { name: string } } };
 	conclusion: string | null;
 	detailsUrl: string;
 	name: string;
 	status: string;
 }
 
-function run(name: string, status: string, conclusion: string | null): Check {
+function run(
+	name: string,
+	status: string,
+	conclusion: string | null,
+	workflow = "CI"
+): Check {
 	return {
 		__typename: "CheckRun",
+		checkSuite: { workflowRun: { workflow: { name: workflow } } },
 		name,
 		status,
 		conclusion,
@@ -313,6 +320,59 @@ describe("createWatcher", () => {
 		expect(watcher(snapshot({ commits: fixed }), 90_000)).toContain(
 			"CI passed on bbbb2222"
 		);
+	});
+
+	it("ignores the PR review workflow's checks, so a review round after green CI neither repeats nor fails the commit's CI", () => {
+		const passed = run("unit", "COMPLETED", "SUCCESS");
+		const onSnapshot = createWatcher(target, stateFile);
+		onSnapshot(snapshot({ commits: head("dddd4444", [passed]) }), 0);
+		expect(
+			onSnapshot(snapshot({ commits: head("dddd4444", [passed]) }), 60_000)
+		).toContain("CI passed on dddd4444");
+		const reviewing = head("dddd4444", [
+			passed,
+			run("review", "IN_PROGRESS", null, "PR review"),
+		]);
+		const summary = snapshot({
+			commits: reviewing,
+			comments: { nodes: [post("c1", owner, "Round summary.")] },
+		});
+		const watcher = createWatcher(target, stateFile);
+		watcher(summary, 0);
+		expect(watcher(summary, 60_000)).toContain("Round summary.");
+		const reviewFailed = head("dddd4444", [
+			passed,
+			run("review", "COMPLETED", "FAILURE", "PR review"),
+		]);
+		const nextWatch = createWatcher(target, stateFile);
+		const later = snapshot({
+			commits: reviewFailed,
+			comments: { nodes: [post("c1", owner, "Round summary.")] },
+		});
+		nextWatch(later, 0);
+		expect(nextWatch(later, 600_000)).toBeNull();
+	});
+
+	it("does not report a commit's CI again when another batch is handled while a check is re-running and it ends the same way", () => {
+		const failed = head("eeee5555", [run("unit", "COMPLETED", "FAILURE")]);
+		const onSnapshot = createWatcher(target, stateFile);
+		onSnapshot(snapshot({ commits: failed }), 0);
+		expect(onSnapshot(snapshot({ commits: failed }), 60_000)).toContain(
+			"CI failed on eeee5555: unit"
+		);
+		const comments = { nodes: [post("c1", owner, "Re-running it.")] };
+		const rerun = createWatcher(target, stateFile);
+		const running = snapshot({
+			comments,
+			commits: head("eeee5555", [run("unit", "IN_PROGRESS", null)]),
+		});
+		rerun(running, 0);
+		expect(rerun(running, 60_000)).toContain("Re-running it.");
+		const watcher = createWatcher(target, stateFile);
+		watcher(snapshot({ comments, commits: failed }), 0);
+		expect(
+			watcher(snapshot({ comments, commits: failed }), 600_000)
+		).toBeNull();
 	});
 
 	it("reports CI that finished before the first watch started", () => {

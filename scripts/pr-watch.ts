@@ -33,6 +33,7 @@ const FAILED_CHECK = [
 	"ERROR",
 ];
 const PENDING_STATUS = ["PENDING", "EXPECTED"];
+const AGENT_WORKFLOWS = ["PR review", "Claude Code"];
 const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
@@ -62,7 +63,7 @@ const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
               contexts(first: 100) {
                 nodes {
                   __typename
-                  ... on CheckRun { name status conclusion detailsUrl }
+                  ... on CheckRun { name status conclusion detailsUrl checkSuite { workflowRun { workflow { name } } } }
                   ... on StatusContext { context state targetUrl }
                 }
               }
@@ -130,6 +131,13 @@ const snapshotSchema = z.object({
 								status: z.string().optional(),
 								conclusion: z.string().nullish(),
 								detailsUrl: z.string().nullish(),
+								checkSuite: z
+									.object({
+										workflowRun: z
+											.object({ workflow: z.object({ name: z.string() }) })
+											.nullable(),
+									})
+									.nullish(),
 								context: z.string().optional(),
 								state: z.string().optional(),
 								targetUrl: z.string().nullish(),
@@ -269,8 +277,14 @@ function stateChangeEntries(snapshot: Snapshot): Entry[] {
 
 function ciEntries(snapshot: Snapshot): Entry[] {
 	const commit = snapshot.commits.nodes[0]?.commit;
-	const checks = (commit?.statusCheckRollup?.contexts.nodes ?? []).map(
-		(check) => {
+	const checks = (commit?.statusCheckRollup?.contexts.nodes ?? [])
+		.filter(
+			(check) =>
+				!AGENT_WORKFLOWS.includes(
+					check.checkSuite?.workflowRun?.workflow.name ?? ""
+				)
+		)
+		.map((check) => {
 			const finished =
 				check.__typename === "CheckRun"
 					? check.status === "COMPLETED"
@@ -282,8 +296,7 @@ function ciEntries(snapshot: Snapshot): Entry[] {
 				finished,
 				failed: finished && FAILED_CHECK.includes(result),
 			};
-		}
-	);
+		});
 	if (!commit || checks.length === 0) {
 		return [];
 	}
@@ -490,7 +503,7 @@ export function createWatcher(
 		if (!isDue(progress, pending, now)) {
 			return null;
 		}
-		writeFileSync(stateFile, JSON.stringify(versions));
+		writeFileSync(stateFile, JSON.stringify({ ...seen, ...versions }));
 		return formatBatch(target, pending, "OPEN");
 	};
 }
