@@ -11,6 +11,7 @@ interface Job {
 		env?: Record<string, string>;
 		run?: string;
 		uses?: string;
+		with?: Record<string, string>;
 	}[];
 }
 
@@ -66,5 +67,31 @@ describe("review workflow token permissions", () => {
 		expect(step?.["continue-on-error"]).toBe(true);
 		expect(workflow.jobs.outcome.if).toContain("!cancelled()");
 		expect(workflow.jobs.outcome.if).not.toContain("success()");
+	});
+});
+
+describe("review workflow Linear issue context", () => {
+	const issueJob = Object.entries(workflow.jobs).find(([, job]) =>
+		job.steps.some((step) => step.run?.includes("review-issue-context.ts"))
+	);
+
+	it("holds LINEAR_API_KEY only where PR code is never checked out or installed", () => {
+		expect(issueJob).toBeDefined();
+		const steps = issueJob?.[1].steps ?? [];
+		const checkout = steps.find((step) =>
+			step.uses?.startsWith("actions/checkout")
+		);
+		expect(checkout?.with?.ref).toContain("github.event.pull_request.base.ref");
+		expect(steps.some((step) => step.run?.includes("bun install"))).toBe(false);
+		expect(issueJob?.[0]).not.toBe("review");
+	});
+
+	it("still reviews when fetching the issue fails", () => {
+		const step = issueJob?.[1].steps.find((entry) =>
+			entry.run?.includes("review-issue-context.ts")
+		);
+		expect(step?.["continue-on-error"]).toBe(true);
+		expect(workflow.jobs.review.needs).toContain(issueJob?.[0]);
+		expect(workflow.jobs.review.if).toContain("!cancelled()");
 	});
 });
