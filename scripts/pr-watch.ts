@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -8,11 +8,7 @@ import z from "zod";
 import { hasPublishedSummary } from "./review-gate";
 
 export const SELF_MARKER = "<!-- pr-watch-agent -->";
-export const ALLOWED_ACTORS = [
-	"HIRO15254",
-	"claude[bot]",
-	"github-actions[bot]",
-];
+const ALLOWED_ACTORS = ["HIRO15254", "claude[bot]", "github-actions[bot]"];
 const TRUNCATED_REVIEW_NOTICE = "<!-- pre-merge-review:truncated -->";
 const STATE_CHANGES: Record<string, string> = {
 	ConvertToDraftEvent: "converted to draft",
@@ -157,9 +153,9 @@ const prViewSchema = z.object({
 	headRefName: z.string(),
 });
 const seenSchema = z.record(z.string(), z.string());
-export type Seen = z.infer<typeof seenSchema>;
+type Seen = z.infer<typeof seenSchema>;
 
-export interface WatchItem {
+interface WatchItem {
 	actor: string | null;
 	body: string | null;
 	edited: boolean;
@@ -173,7 +169,7 @@ interface Entry extends Omit<WatchItem, "edited"> {
 	version: string;
 }
 
-export interface WatchTarget {
+interface WatchTarget {
 	branch: string;
 	name: string;
 	number: number;
@@ -381,14 +377,6 @@ function run(
 	};
 }
 
-function readText(file: string): string | null {
-	try {
-		return readFileSync(file, "utf8");
-	} catch {
-		return null;
-	}
-}
-
 function resolveTarget(pr: string | undefined): WatchTarget {
 	const view = run("gh", [
 		"pr",
@@ -434,11 +422,7 @@ function fetchSnapshot(target: WatchTarget): Snapshot | string {
 		: parsed.error.message;
 }
 
-function claim(pr: number): {
-	lockFile: string;
-	stateFile: string;
-	token: string;
-} {
+function stateFileFor(pr: number): string {
 	const gitDir = run("git", ["rev-parse", "--absolute-git-dir"]);
 	if (!gitDir.ok) {
 		console.error("pr-watch: run it inside the repository.");
@@ -446,15 +430,7 @@ function claim(pr: number): {
 	}
 	const dir = join(gitDir.stdout.trim(), "pr-watch");
 	mkdirSync(dir, { recursive: true });
-	const lockFile = join(dir, `${pr}.lock`);
-	const token = randomUUID();
-	writeFileSync(lockFile, token);
-	process.on("exit", () => {
-		if (readText(lockFile) === token) {
-			rmSync(lockFile, { force: true });
-		}
-	});
-	return { lockFile, stateFile: join(dir, `${pr}.json`), token };
+	return join(dir, `${pr}.json`);
 }
 
 function readSeen(file: string): Seen | null {
@@ -520,13 +496,12 @@ export function createWatcher(
 }
 
 async function watch(target: WatchTarget): Promise<string> {
-	const { lockFile, stateFile, token } = claim(target.number);
-	const onSnapshot = createWatcher(target, stateFile);
+	const onSnapshot = createWatcher(target, stateFileFor(target.number));
 	let failures = 0;
 	console.log(
 		`pr-watch: watching PR #${target.number}, polling every ${POLL_MS / 1000}s.`
 	);
-	while (readText(lockFile) === token) {
+	for (;;) {
 		const now = Date.now();
 		const snapshot = fetchSnapshot(target);
 		if (typeof snapshot === "string") {
@@ -544,7 +519,6 @@ async function watch(target: WatchTarget): Promise<string> {
 		}
 		await sleep(POLL_MS);
 	}
-	return `pr-watch: a newer pr-watch took over PR #${target.number}; this one stops.`;
 }
 
 function parsePr(args: string[]): string | undefined | null {
@@ -565,7 +539,5 @@ if (import.meta.main) {
 		console.error("usage: bun run pr-watch [--pr <number>]");
 		process.exit(2);
 	}
-	process.once("SIGINT", () => process.exit(130));
-	process.once("SIGTERM", () => process.exit(143));
 	console.log(await watch(resolveTarget(pr)));
 }
