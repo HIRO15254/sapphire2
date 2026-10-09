@@ -44,6 +44,7 @@ import {
 } from "../utils/live-session-update";
 import { assertSeatPositionFitsTableSize } from "../utils/seat-position";
 import {
+	assertAppendOccurredAtOrdering,
 	floorToMinute,
 	heroSeatEventValues,
 	nextAppendSortOrderSql,
@@ -1153,6 +1154,8 @@ export const liveTournamentSessionRouter = router({
 
 			const now = new Date();
 			const endPayload = buildTournamentEndPayload(input);
+
+			await assertAppendOccurredAtOrdering(ctx.db, input.id, now);
 
 			await ctx.db.insert(sessionEvent).values({
 				id: crypto.randomUUID(),

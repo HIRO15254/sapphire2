@@ -4,10 +4,109 @@ import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { asc, eq } from "drizzle-orm";
-import { describe, expect } from "vitest";
+import { describe, expect, vi } from "vitest";
 import { requireCreatedRow, test } from "./test-fixture";
 
 describe("live-session persisted lifecycle", () => {
+	test.for([
+		"cash",
+		"tournament",
+	] as const)("rejects %s completion before a future tail event without writes and completes after its time is corrected", async (sessionType, {
+		api,
+	}) => {
+		vi.useFakeTimers({ toFake: ["Date"] });
+		vi.setSystemTime(new Date("2026-10-05T12:00:30.000Z"));
+		try {
+			const wallet = requireCreatedRow(
+				await api.alice.currency.create({ name: "Live bankroll" })
+			);
+			const saved = requireCreatedRow(
+				sessionType === "cash"
+					? await api.alice.liveCashGameSession.create({
+							initialBuyIn: 1000,
+							currencyId: wallet.id,
+						})
+					: await api.alice.liveTournamentSession.create({
+							buyIn: 1000,
+							currencyId: wallet.id,
+						})
+			);
+			const pause = requireCreatedRow(
+				await api.alice.sessionEvent.create({
+					sessionId: saved.id,
+					eventType: "session_pause",
+					payload: {},
+				})
+			);
+			const nowSeconds = Date.now() / 1000;
+			await api.alice.sessionEvent.update({
+				id: pause.id,
+				occurredAt: nowSeconds + 3600,
+			});
+			const readPersistedState = async () => ({
+				sessions: await api.db.select().from(gameSession),
+				events: await api.db
+					.select()
+					.from(sessionEvent)
+					.orderBy(asc(sessionEvent.sortOrder)),
+				cashDetails: await api.db.select().from(sessionCashDetail),
+				tournamentDetails: await api.db.select().from(sessionTournamentDetail),
+				ledger: await api.db.select().from(currencyTransaction),
+			});
+			const before = await readPersistedState();
+			expect(before.sessions).toEqual([
+				expect.objectContaining({ status: "paused", endedAt: null }),
+			]);
+			const complete = () =>
+				sessionType === "cash"
+					? api.alice.liveCashGameSession.complete({
+							id: saved.id,
+							finalStack: 1800,
+						})
+					: api.alice.liveTournamentSession.complete({
+							id: saved.id,
+							beforeDeadline: false,
+							placement: 2,
+							totalEntries: 10,
+							prizeMoney: 1800,
+							bountyPrizes: 0,
+						});
+			await expect(complete()).rejects.toMatchObject({
+				code: "BAD_REQUEST",
+				message:
+					"occurredAt would precede the previous event by minute; reorder via sortOrder instead",
+			});
+			expect(await readPersistedState()).toEqual(before);
+			await api.alice.sessionEvent.update({
+				id: pause.id,
+				occurredAt: nowSeconds,
+			});
+			await expect(complete()).resolves.toEqual({
+				id: saved.id,
+				pokerSessionId: saved.id,
+			});
+			const after = await readPersistedState();
+			expect(after.sessions).toEqual([
+				expect.objectContaining({
+					status: "completed",
+					endedAt: new Date("2026-10-05T12:00:00.000Z"),
+				}),
+			]);
+			expect(
+				after.events.filter(({ eventType }) => eventType === "session_end")
+			).toEqual([expect.objectContaining({ sortOrder: 2 })]);
+			expect(after.ledger).toEqual([
+				expect.objectContaining({
+					sessionId: saved.id,
+					currencyId: wallet.id,
+					amount: 800,
+				}),
+			]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	test("records cash buy-ins, settles the ledger, reloads and reopens with the ledger removed", async ({
 		api,
 	}) => {
