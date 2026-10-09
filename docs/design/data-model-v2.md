@@ -487,11 +487,13 @@ About the D1 limit:
 - hand_seat has 9 columns and hand_action has 8 (both including user_id). `chunkForInsert` derives the width from the column count: 11 rows at a time for hand_seat (99 parameters) and 12 rows for hand_action (96 parameters).
 - Saving one hand (updating hand, replacing seats and actions) goes into a single `db.batch`.
 
-What each detail level holds:
+What each detail level holds and what reads it:
 
-- count: only the hand row
-- summary: one hand_seat row for Hero, plus board, pot, hero_net, and memo
-- full: hand_seat rows for all seats and hand_action rows
+| detail | Holds | Used for |
+| --- | --- | --- |
+| count | Only the hand row: hand_no, played_at, button_seat, table_size, level_ordinal, stakes, variant_id | The hand count and the current button (INV-18), and hands/hour and bb/100 (section 12.3, T23). Every hand counts here, whatever its detail |
+| summary | count's values, plus one hand_seat row for Hero (player_id NULL) and board, pot, hero_net, and memo. No actions | A live note of a hand worth remembering, entered at the table where the full action cannot be typed: reviewing it in the hand list, linking an all_in event to it, and raising it to full later (T24). No statistic reads summary values |
+| full | summary's values, plus hand_seat rows for all seats and the hand_action rows | Per-opponent hands and VPIP / PFR (section 11.5, T25), which count only full hands |
 
 When lowering detail, delete the matching child rows in the same batch.
 
@@ -1254,6 +1256,7 @@ This specification decides every question provisionally with the recommended opt
 
 | Date | Decision | Reason |
 | --- | --- | --- |
+| 2026-10-09 | A summary hand is a live note of a hand worth remembering, for the hand list, the all_in link, and a later raise to full. No statistic reads summary values: the hand count comes from rows of every detail, and VPIP / PFR from full hands only (T21, section 9) | User decision. The spec named the three levels but not what reads summary. Values typed at the table without the action are too uneven to aggregate, for example Hero's result by hole cards, so analysis stays on full hands. The alternatives were dropping summary (count and full only) and also analysing Hero's results from it |
 | 2026-10-09 | The hand service renumbers the later hands when a hand is deleted, lets undo delete only a count hand, and refuses with CONFLICT to delete a hand that a play_event links (T21, section 9) | INV-18 makes hand_no a sequence, so a delete in the middle cannot leave a gap. Undo is the "−1" of the counter and should not destroy details. `play_event.hand_id` is NO ACTION, and dropping the link silently would orphan the all_in's `handId` |
 | 2026-10-08 | T06 puts the SQL over the new tables in `services/entry-session.ts` and `services/entry-live-reads.ts`, and exports procedure-shaped prep functions next to each procedure (`createSessionViaEntry`, `updateSessionViaEntry`, `deleteSessionViaEntry`, `listSessionsViaEntries`, `getSessionViaEntry`, the live `*FromEntries` / `*FromEntry` readers, `listSessionEventsFromPlayEvents`). T07 replaces each procedure body with its prep function and deletes the old path | The prep functions reuse the router's validation, rule resolution, and enrichment instead of copying them, and a service cannot import from a router. The detail planners split their patch into the moved columns (to the entry tables) and the rest (still to the detail tables), so one rule computation feeds both |
 | 2026-10-08 | The minimal game_session row keeps its real kind and source, status `'completed'`, and a fixed session_date of 0 (T06) | kind and source cost nothing and keep the row readable when compared by hand. A date has no single true value once an entry spans days, so it gets the fixed value of a retired NOT NULL column (section 16.1) |
