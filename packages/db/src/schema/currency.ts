@@ -6,6 +6,7 @@ import {
 	text,
 	uniqueIndex,
 } from "drizzle-orm/sqlite-core";
+import { ASSET_KINDS } from "../constants/asset";
 import { user } from "./auth";
 import { gameSession } from "./session";
 
@@ -22,6 +23,9 @@ export const currency = sqliteTable(
 		isFavorite: integer("is_favorite", { mode: "boolean" })
 			.notNull()
 			.default(false),
+		kind: text("kind", { enum: ASSET_KINDS }).notNull().default("currency"),
+		decimals: integer("decimals").notNull().default(0),
+		archivedAt: integer("archived_at", { mode: "timestamp" }),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),
@@ -32,6 +36,7 @@ export const currency = sqliteTable(
 	(table) => [
 		uniqueIndex("currency_id_user_id_unique").on(table.id, table.userId),
 		index("currency_userId_idx").on(table.userId),
+		index("currency_user_kind_idx").on(table.userId, table.kind),
 	]
 );
 

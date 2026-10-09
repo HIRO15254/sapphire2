@@ -37,6 +37,16 @@ import {
 } from "./schema/game-mix";
 import { gameVariant, gameVariantRelations } from "./schema/game-variant";
 import {
+	assetRate,
+	assetRateRelations,
+	ledgerCategory,
+	ledgerCategoryRelations,
+	ledgerLine,
+	ledgerLineRelations,
+	userSetting,
+	userSettingRelations,
+} from "./schema/ledger";
+import {
 	oauthAccessToken,
 	oauthAccessTokenRelations,
 	oauthApplication,
@@ -177,4 +187,12 @@ export const schema = {
 	playSessionRelations,
 	playEvent,
 	playEventRelations,
+	assetRate,
+	assetRateRelations,
+	ledgerCategory,
+	ledgerCategoryRelations,
+	ledgerLine,
+	ledgerLineRelations,
+	userSetting,
+	userSettingRelations,
 };
