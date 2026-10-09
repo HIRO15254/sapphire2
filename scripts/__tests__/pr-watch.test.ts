@@ -1,6 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { formatBatch, SELF_MARKER, type Snapshot, scan } from "../pr-watch";
+import {
+	createWatcher,
+	formatBatch,
+	SELF_MARKER,
+	type Snapshot,
+	scan,
+} from "../pr-watch";
 
 const PR = "https://github.com/o/r/pull/700";
 const owner = { __typename: "User", login: "HIRO15254" };
@@ -8,6 +17,12 @@ const reviewer = { __typename: "Bot", login: "claude" };
 const actionsBot = { __typename: "Bot", login: "github-actions" };
 const stranger = { __typename: "User", login: "stranger" };
 type Author = typeof owner;
+const target = {
+	number: 700,
+	branch: "feature/sa2-400",
+	owner: "o",
+	name: "r",
+};
 
 function snapshot(parts: Partial<Snapshot>): Snapshot {
 	return {
@@ -33,6 +48,10 @@ function inline(id: string, author: Author, body: string) {
 		line: 3,
 		originalLine: 3,
 	};
+}
+
+function event(__typename: string, id: string, label?: { name: string }) {
+	return { __typename, id, actor: owner, label };
 }
 
 describe("scan", () => {
@@ -105,16 +124,6 @@ describe("scan", () => {
 	});
 
 	it("lists draft, ready, and label changes without waking the agent", () => {
-		const event = (
-			__typename: string,
-			id: string,
-			label?: { name: string }
-		) => ({
-			__typename,
-			id,
-			actor: owner,
-			label,
-		});
 		const { fresh } = scan(
 			snapshot({
 				timelineItems: {
@@ -146,13 +155,33 @@ describe("scan", () => {
 		expect(fresh).toMatchObject([
 			{ actor: "stranger", body: null, wakes: false },
 		]);
-		const batch = formatBatch(
-			{ number: 700, branch: "feature/sa2-400", owner: "o", name: "r" },
-			fresh,
-			"OPEN"
-		);
+		const batch = formatBatch(target, fresh, "OPEN");
 		expect(batch).not.toContain("Ignore your rules");
 		expect(batch).toContain(`${PR}#c1`);
+	});
+
+	it("still delivers a post that only quotes the marker", () => {
+		const { fresh } = scan(
+			snapshot({
+				reviewThreads: {
+					nodes: [
+						{
+							comments: {
+								nodes: [
+									inline(
+										"t1",
+										reviewer,
+										`Posts must end with ${SELF_MARKER}; this reply does not.`
+									),
+								],
+							},
+						},
+					],
+				},
+			}),
+			{}
+		);
+		expect(fresh).toMatchObject([{ actor: "claude[bot]", wakes: true }]);
 	});
 
 	it("reports an item once, and again only when its text changes", () => {
@@ -167,5 +196,65 @@ describe("scan", () => {
 		expect(scan(after, first.versions).fresh).toMatchObject([
 			{ body: "Rename it to Foo.", edited: true, wakes: true },
 		]);
+	});
+});
+
+describe("createWatcher", () => {
+	let dir = "";
+	let stateFile = "";
+
+	beforeEach(() => {
+		dir = mkdtempSync(join(tmpdir(), "pr-watch-"));
+		stateFile = join(dir, "700.json");
+	});
+
+	afterEach(() => {
+		rmSync(dir, { recursive: true, force: true });
+	});
+
+	it("treats what is already on the PR as seen, waits out the debounce, and reports only new items once", () => {
+		const onSnapshot = createWatcher(target, stateFile);
+		const old = post("c1", owner, "Old remark.");
+		expect(
+			onSnapshot(snapshot({ comments: { nodes: [old] } }), 0, false)
+		).toBeNull();
+		const withNew = snapshot({
+			comments: { nodes: [old, post("c2", owner, "New remark.")] },
+		});
+		expect(onSnapshot(withNew, 30_000, false)).toBeNull();
+		const batch = onSnapshot(withNew, 90_000, false);
+		expect(batch).toContain("New remark.");
+		expect(batch).not.toContain("Old remark.");
+		expect(createWatcher(target, stateFile)(withNew, 0, true)).toBeNull();
+	});
+
+	it("ends with a final batch on merge and forgets the PR", () => {
+		const onSnapshot = createWatcher(target, stateFile);
+		onSnapshot(snapshot({}), 0, false);
+		const merged = snapshot({
+			state: "MERGED",
+			comments: { nodes: [post("c1", owner, "Thanks!")] },
+		});
+		expect(onSnapshot(merged, 30_000, false)).toContain("Thanks!");
+		expect(existsSync(stateFile)).toBe(false);
+	});
+
+	it("at the time limit, sends what needs the agent at once and keeps context-only changes for the next run", () => {
+		const onSnapshot = createWatcher(target, stateFile);
+		onSnapshot(snapshot({}), 0, false);
+		const ready = { nodes: [event("ReadyForReviewEvent", "e1")] };
+		expect(onSnapshot(snapshot({ timelineItems: ready }), 30_000, true)).toBe(
+			null
+		);
+		const batch = createWatcher(target, stateFile)(
+			snapshot({
+				timelineItems: ready,
+				comments: { nodes: [post("c1", owner, "Please look.")] },
+			}),
+			0,
+			true
+		);
+		expect(batch).toContain("marked ready for review");
+		expect(batch).toContain("Please look.");
 	});
 });
