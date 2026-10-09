@@ -33,7 +33,39 @@ function snapshot(parts: Partial<Snapshot>): Snapshot {
 		reviews: { nodes: [] },
 		reviewThreads: { nodes: [] },
 		timelineItems: { nodes: [] },
+		commits: { nodes: [] },
 		...parts,
+	};
+}
+
+interface Check {
+	__typename: string;
+	conclusion: string | null;
+	detailsUrl: string;
+	name: string;
+	status: string;
+}
+
+function run(name: string, status: string, conclusion: string | null): Check {
+	return {
+		__typename: "CheckRun",
+		name,
+		status,
+		conclusion,
+		detailsUrl: `https://ci/${name}`,
+	};
+}
+
+function head(oid: string, checks: Check[]): Snapshot["commits"] {
+	return {
+		nodes: [
+			{
+				commit: {
+					oid,
+					statusCheckRollup: { contexts: { nodes: checks } },
+				},
+			},
+		],
 	};
 }
 
@@ -252,5 +284,43 @@ describe("createWatcher", () => {
 		const batch = onSnapshot(withComment, day + 90_000);
 		expect(batch).toContain("marked ready for review");
 		expect(batch).toContain("Please look.");
+	});
+
+	it("reports the head commit's CI once: at the first failure without waiting for the rest, or when every check has passed", () => {
+		const onSnapshot = createWatcher(target, stateFile);
+		onSnapshot(snapshot({}), 0);
+		const running = head("aaaa1111", [
+			run("unit", "IN_PROGRESS", null),
+			run("static", "COMPLETED", "SUCCESS"),
+		]);
+		expect(onSnapshot(snapshot({ commits: running }), 30_000)).toBeNull();
+		expect(onSnapshot(snapshot({ commits: running }), 600_000)).toBeNull();
+		const failing = head("aaaa1111", [
+			run("unit", "COMPLETED", "FAILURE"),
+			run("browser", "IN_PROGRESS", null),
+		]);
+		onSnapshot(snapshot({ commits: failing }), 630_000);
+		expect(onSnapshot(snapshot({ commits: failing }), 690_000)).toContain(
+			"CI failed on aaaa1111: unit"
+		);
+		const watcher = createWatcher(target, stateFile);
+		expect(watcher(snapshot({ commits: failing }), 0)).toBeNull();
+		const fixed = head("bbbb2222", [
+			run("unit", "COMPLETED", "SUCCESS"),
+			run("review", "COMPLETED", "SKIPPED"),
+		]);
+		watcher(snapshot({ commits: fixed }), 30_000);
+		expect(watcher(snapshot({ commits: fixed }), 90_000)).toContain(
+			"CI passed on bbbb2222"
+		);
+	});
+
+	it("reports CI that finished before the first watch started", () => {
+		const done = head("cccc3333", [run("unit", "COMPLETED", "SUCCESS")]);
+		const onSnapshot = createWatcher(target, stateFile);
+		onSnapshot(snapshot({ commits: done }), 0);
+		expect(onSnapshot(snapshot({ commits: done }), 60_000)).toContain(
+			"CI passed on cccc3333"
+		);
 	});
 });

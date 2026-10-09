@@ -28,6 +28,15 @@ const MAX_POLL_FAILURES = 10;
 const ISSUE_BRANCH = /^feature\/sa2-(\d+)$/i;
 const PR_URL = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/pull\/\d+$/;
 const PR_NUMBER = /^\d+$/;
+const CI_KEY = "ci:";
+const FAILED_CHECK = [
+	"FAILURE",
+	"TIMED_OUT",
+	"STARTUP_FAILURE",
+	"ACTION_REQUIRED",
+	"ERROR",
+];
+const PENDING_STATUS = ["PENDING", "EXPECTED"];
 const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
@@ -47,6 +56,22 @@ const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
           ... on LabeledEvent { id actor { __typename login } label { name } }
           ... on UnlabeledEvent { id actor { __typename login } label { name } }
           ... on ReopenedEvent { id actor { __typename login } }
+        }
+      }
+      commits(last: 1) {
+        nodes {
+          commit {
+            oid
+            statusCheckRollup {
+              contexts(first: 100) {
+                nodes {
+                  __typename
+                  ... on CheckRun { name status conclusion detailsUrl }
+                  ... on StatusContext { context state targetUrl }
+                }
+              }
+            }
+          }
         }
       }
     }
@@ -94,6 +119,29 @@ const snapshotSchema = z.object({
 			id: z.string(),
 			actor: actorSchema,
 			label: z.object({ name: z.string() }).optional(),
+		})
+	),
+	commits: connection(
+		z.object({
+			commit: z.object({
+				oid: z.string(),
+				statusCheckRollup: z
+					.object({
+						contexts: connection(
+							z.object({
+								__typename: z.string(),
+								name: z.string().optional(),
+								status: z.string().optional(),
+								conclusion: z.string().nullish(),
+								detailsUrl: z.string().nullish(),
+								context: z.string().optional(),
+								state: z.string().optional(),
+								targetUrl: z.string().nullish(),
+							})
+						),
+					})
+					.nullable(),
+			}),
 		})
 	),
 });
@@ -223,6 +271,47 @@ function stateChangeEntries(snapshot: Snapshot): Entry[] {
 	});
 }
 
+function ciEntries(snapshot: Snapshot): Entry[] {
+	const commit = snapshot.commits.nodes[0]?.commit;
+	const checks = (commit?.statusCheckRollup?.contexts.nodes ?? []).map(
+		(check) => {
+			const finished =
+				check.__typename === "CheckRun"
+					? check.status === "COMPLETED"
+					: !PENDING_STATUS.includes(check.state ?? "PENDING");
+			const result = check.conclusion ?? check.state ?? "";
+			return {
+				name: check.name ?? check.context ?? "unknown check",
+				url: check.detailsUrl ?? check.targetUrl ?? snapshot.url,
+				finished,
+				failed: finished && FAILED_CHECK.includes(result),
+			};
+		}
+	);
+	if (!commit || checks.length === 0) {
+		return [];
+	}
+	const sha = commit.oid.slice(0, 8);
+	const failed = checks.filter((check) => check.failed);
+	if (failed.length === 0 && checks.some((check) => !check.finished)) {
+		return [];
+	}
+	return [
+		{
+			key: `${CI_KEY}${commit.oid}`,
+			version: failed.length > 0 ? "failure" : "success",
+			actor: null,
+			url: failed[0]?.url ?? snapshot.url,
+			summary:
+				failed.length > 0
+					? `CI failed on ${sha}: ${failed.map((check) => check.name).join(", ")}`
+					: `CI passed on ${sha}`,
+			body: null,
+			wakes: true,
+		},
+	];
+}
+
 export function scan(
 	snapshot: Snapshot,
 	seen: Seen
@@ -234,6 +323,7 @@ export function scan(
 		...reviewEntries(snapshot),
 		...inlineEntries(snapshot),
 		...stateChangeEntries(snapshot),
+		...ciEntries(snapshot),
 	];
 	for (const { key, version, ...item } of entries) {
 		versions[key] = version;
@@ -260,7 +350,8 @@ export function formatBatch(
 			? `\n<untrusted-github-text>\n${text}\n</untrusted-github-text>\n`
 			: "";
 		const flags = `${item.edited ? " (updated)" : ""}${item.wakes ? "" : " [context]"}`;
-		return `## ${index + 1}. ${item.summary}${flags}\n\n- by: ${item.actor ?? "unknown"}\n- url: ${item.url}\n${quoted}`;
+		const by = item.actor ? `- by: ${item.actor}\n` : "";
+		return `## ${index + 1}. ${item.summary}${flags}\n\n${by}- url: ${item.url}\n${quoted}`;
 	});
 	return [
 		`# pr-watch: PR #${target.number} (${issue ? `SA2-${issue}` : target.branch})`,
@@ -407,13 +498,15 @@ export function createWatcher(
 		signature: "",
 	};
 	return (snapshot, now) => {
-		const baseline = seen === null;
-		const { fresh, versions } = scan(snapshot, seen ?? {});
-		if (baseline) {
-			seen = versions;
-			writeFileSync(stateFile, JSON.stringify(versions));
+		if (seen === null) {
+			seen = Object.fromEntries(
+				Object.entries(scan(snapshot, {}).versions).filter(
+					([key]) => !key.startsWith(CI_KEY)
+				)
+			);
+			writeFileSync(stateFile, JSON.stringify(seen));
 		}
-		const pending = baseline ? [] : fresh;
+		const { fresh: pending, versions } = scan(snapshot, seen);
 		if (snapshot.state !== "OPEN") {
 			rmSync(stateFile, { force: true });
 			return formatBatch(target, pending, snapshot.state);
