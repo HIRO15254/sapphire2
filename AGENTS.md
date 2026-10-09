@@ -115,7 +115,7 @@ Detailed rules live in [`.claude/rules/`](.claude/rules/); the points below appl
 
 ## Testing
 
-- Tests protect the contracts being changed and address failure risks. Read [`.claude/rules/testing.md`](.claude/rules/testing.md) before changing designs, implementation, or tests. Do not add tests solely because a file or branch is new.
+- Tests protect the contracts being changed and address failure risks. Read [`.claude/rules/testing.md`](.claude/rules/testing.md) before changing designs, implementation, or tests. **Default to no new test**: add one only when you can name the plausible regression it catches and who loses what; the shapes not worth a test are listed under its "Admitting a New Test". The reviewer flags a new test of those shapes as a nit.
 - Define expected outcomes before changing behavior. For bug fixes, normally confirm red → green with a reproducing test. For changes that preserve behavior, use existing tests and add only missing protection.
 - Derive expected values from requirements, contracts, invariants, or known failures. Do not treat implementation output or a copy of the implementation as the oracle. State the purpose of characterization tests that record current behavior.
 - Do not require blanket coverage of every branch, boundary value, or call count. Select meaningful success, failure, and boundary scenarios for authentication, authorization, money, persistence, concurrency, and UTC dates. The rule to put logic in hooks does not require a unit test for every hook.
@@ -129,7 +129,7 @@ The following rule files live in `.claude/rules/` and are loaded automatically w
 
 | File | Paths | Summary |
 |---|---|---|
-| `testing.md` | `apps/**`, `packages/**`, `scripts/**`, `e2e/**`, `testing/**`, `patches/**`, test/CI configuration | Test design based on contracts and risks, mock boundaries, deletion decisions, execution, and CI. |
+| `testing.md` | `apps/**`, `packages/**`, `scripts/**`, `e2e/**`, `testing/**`, `patches/**`, test/CI configuration | Admission gate for new tests, test design based on contracts and risks, mock boundaries, deletion decisions, execution, and CI. |
 | `web-architecture.md` | `apps/web/**` | `apps/web/src/` feature-folder layout, page/component placement rules, reference implementations. |
 | `web-hooks-separation.md` | `apps/web/**` | STRICT: components may only call custom `useXxx` hooks; verification script included. |
 | `web-forms.md` | `apps/web/**` | `@tanstack/react-form` in hooks, no `type="number"`, no placeholders, `SelectWithClear` for clearable selects. |
