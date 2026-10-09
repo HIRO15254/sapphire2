@@ -4,6 +4,7 @@ import {
 	updateStackPayload,
 } from "@sapphire2/db/constants/session-event-types";
 import { currency } from "@sapphire2/db/schema/currency";
+import { entry } from "@sapphire2/db/schema/entry";
 import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionBlindLevel } from "@sapphire2/db/schema/session-blind-level";
@@ -22,6 +23,13 @@ import {
 	ACTIVE_SESSION_CONFLICT_MESSAGE,
 	runUnfinishedLiveSessionWrite,
 } from "../lib/db-errors";
+import {
+	findLiveTournamentEntrySession,
+	getPlayEventMap,
+	listEntryPlayEvents,
+	listLiveTournamentEntryRows,
+} from "../services/entry-live-reads";
+import { legacySessionDateSql } from "../services/entry-session";
 import { assertLevelGameStructures } from "../services/game-structure";
 import {
 	computeHeroSeatPositionFromEvents,
@@ -82,6 +90,15 @@ type DbInstance = Parameters<
 
 type BatchStatement = Parameters<DbInstance["batch"]>[0][number];
 
+const LIVE_TOURNAMENT_SESSION_FORBIDDEN_MESSAGE =
+	"You do not own this live tournament session";
+
+const liveTournamentSessionListInput = z.object({
+	status: z.enum(["active", "paused", "completed"]).optional(),
+	cursor: z.string().optional(),
+	limit: z.number().int().min(1).max(100).default(DEFAULT_LIMIT),
+});
+
 async function findLiveTournamentSession(
 	db: DbInstance,
 	id: string,
@@ -107,7 +124,7 @@ async function findLiveTournamentSession(
 	) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
-			message: "You do not own this live tournament session",
+			message: LIVE_TOURNAMENT_SESSION_FORBIDDEN_MESSAGE,
 		});
 	}
 
@@ -267,6 +284,165 @@ function computeStackStats(
 	}
 
 	return { ...bounds, ...info, averageStack };
+}
+
+async function assembleLiveTournamentListPage<
+	Row extends {
+		id: string;
+		sessionDate: Date;
+		startedAt: Date | null;
+		startingStack: number | null;
+	},
+>(
+	rows: Row[],
+	limit: number,
+	loadEvents: (
+		ids: string[]
+	) => Promise<Map<string, { eventType: string; payload: string }[]>>
+) {
+	const hasMore = rows.length > limit;
+	const items = hasMore ? rows.slice(0, limit) : rows;
+	const last = items.at(-1);
+	const nextCursor = hasMore && last ? encodeSessionCursor(last) : undefined;
+
+	const eventMap = await loadEvents(items.map((item) => item.id));
+
+	const enrichedItems = items.map((item) => {
+		const events = eventMap.get(item.id) ?? [];
+		const eventCount = events.length;
+		const statsForList = computeStackStats(events, item.startingStack);
+
+		return {
+			...item,
+			eventCount,
+			latestStackAmount: statsForList.currentStack,
+			remainingPlayers: statsForList.remainingPlayers,
+			averageStack: statsForList.averageStack,
+		};
+	});
+
+	return { items: enrichedItems, nextCursor };
+}
+
+async function assembleLiveTournamentSession(
+	db: DbInstance,
+	session: typeof gameSession.$inferSelect,
+	moved: { timerStartedAt: Date | null; tournamentId: string | null },
+	detail: typeof sessionTournamentDetail.$inferSelect | undefined,
+	events: (typeof sessionEvent.$inferSelect)[]
+) {
+	const masterData = detailSnapshotForGetById(detail);
+
+	const tournamentBuyIn = detail?.tournamentBuyIn ?? masterData.tournamentBuyIn;
+	const entryFee = detail?.entryFee ?? masterData.entryFee;
+
+	const blindLevels = await db
+		.select()
+		.from(sessionBlindLevel)
+		.where(eq(sessionBlindLevel.sessionId, session.id))
+		.orderBy(asc(sessionBlindLevel.level));
+
+	const chipPurchases = await db
+		.select()
+		.from(sessionChipPurchase)
+		.where(eq(sessionChipPurchase.sessionId, session.id))
+		.orderBy(asc(sessionChipPurchase.sortOrder));
+
+	const pl = computeTournamentPLFromEvents(
+		events.map((e) => ({ eventType: e.eventType, payload: e.payload })),
+		tournamentBuyIn,
+		entryFee
+	);
+
+	const stackStats = computeStackStats(
+		events.map((e) => ({ eventType: e.eventType, payload: e.payload })),
+		masterData.startingStack
+	);
+
+	const summary = {
+		buyIn: tournamentBuyIn ?? null,
+		entryFee: entryFee ?? null,
+		chipPurchaseCost: pl.chipPurchaseCost,
+		placement: pl.placement,
+		totalEntries: stackStats.totalEntries ?? pl.totalEntries,
+		prizeMoney: pl.prizeMoney,
+		bountyPrizes: pl.bountyPrizes,
+		profitLoss: pl.profitLoss,
+		maxStack: stackStats.maxStack,
+		minStack: stackStats.minStack,
+		currentStack: stackStats.currentStack,
+		remainingPlayers: stackStats.remainingPlayers,
+		averageStack: stackStats.averageStack,
+		startingStack: masterData.startingStack ?? null,
+	};
+
+	const heroSeatPosition = computeHeroSeatPositionFromEvents(
+		events.map((e) => ({ eventType: e.eventType, payload: e.payload }))
+	);
+
+	return {
+		...session,
+		tournamentId: moved.tournamentId,
+		buyIn: detail?.tournamentBuyIn ?? null,
+		entryFee: detail?.entryFee ?? null,
+		timerStartedAt: moved.timerStartedAt,
+		heroSeatPosition,
+		events,
+		blindLevels,
+		chipPurchases,
+		summary,
+		tableSize: masterData.tableSize,
+		ruleName: detail?.ruleName ?? null,
+		variant: detail?.variant ?? null,
+		startingStack: detail?.startingStack ?? null,
+		bountyAmount: detail?.bountyAmount ?? null,
+		houseRules: detail?.houseRules ?? null,
+	};
+}
+
+export async function listLiveTournamentSessionsFromEntries(
+	db: DbInstance,
+	userId: string,
+	input: z.output<typeof liveTournamentSessionListInput>
+) {
+	const rows = await listLiveTournamentEntryRows(db, userId, {
+		status: input.status,
+		keyset: sessionKeysetCondition(
+			input.cursor,
+			legacySessionDateSql(),
+			entry.id
+		),
+		limit: input.limit + 1,
+	});
+	return assembleLiveTournamentListPage(rows, input.limit, (ids) =>
+		getPlayEventMap(db, userId, ids)
+	);
+}
+
+export async function getLiveTournamentSessionFromEntry(
+	db: DbInstance,
+	userId: string,
+	input: { id: string }
+) {
+	const found = await findLiveTournamentEntrySession(db, userId, input.id);
+	if (!found) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: LIVE_TOURNAMENT_SESSION_FORBIDDEN_MESSAGE,
+		});
+	}
+	const [detail] = await db
+		.select()
+		.from(sessionTournamentDetail)
+		.where(eq(sessionTournamentDetail.sessionId, input.id));
+	const events = await listEntryPlayEvents(db, userId, input.id);
+	return assembleLiveTournamentSession(
+		db,
+		found.session,
+		{ tournamentId: found.tournamentId, timerStartedAt: found.timerStartedAt },
+		detail,
+		events
+	);
 }
 
 async function resolveDetailUpdate(
@@ -485,13 +661,7 @@ const liveTournamentCompleteInputSchema = z
 
 export const liveTournamentSessionRouter = router({
 	list: protectedProcedure
-		.input(
-			z.object({
-				status: z.enum(["active", "paused", "completed"]).optional(),
-				cursor: z.string().optional(),
-				limit: z.number().int().min(1).max(100).default(DEFAULT_LIMIT),
-			})
-		)
+		.input(liveTournamentSessionListInput)
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 
@@ -548,32 +718,9 @@ export const liveTournamentSessionRouter = router({
 				.orderBy(desc(sessionOrderKeySql()), desc(gameSession.id))
 				.limit(input.limit + 1);
 
-			const hasMore = rows.length > input.limit;
-			const items = hasMore ? rows.slice(0, input.limit) : rows;
-			const last = items.at(-1);
-			const nextCursor =
-				hasMore && last ? encodeSessionCursor(last) : undefined;
-
-			const eventMap = await getSessionEventMap(
-				ctx.db,
-				items.map((item) => item.id)
+			return assembleLiveTournamentListPage(rows, input.limit, (ids) =>
+				getSessionEventMap(ctx.db, ids)
 			);
-
-			const enrichedItems = items.map((item) => {
-				const events = eventMap.get(item.id) ?? [];
-				const eventCount = events.length;
-				const statsForList = computeStackStats(events, item.startingStack);
-
-				return {
-					...item,
-					eventCount,
-					latestStackAmount: statsForList.currentStack,
-					remainingPlayers: statsForList.remainingPlayers,
-					averageStack: statsForList.averageStack,
-				};
-			});
-
-			return { items: enrichedItems, nextCursor };
 		}),
 
 	getById: protectedProcedure
@@ -587,80 +734,22 @@ export const liveTournamentSessionRouter = router({
 				.from(sessionTournamentDetail)
 				.where(eq(sessionTournamentDetail.sessionId, input.id));
 
-			const masterData = detailSnapshotForGetById(detail);
-
-			const tournamentBuyIn =
-				detail?.tournamentBuyIn ?? masterData.tournamentBuyIn;
-			const entryFee = detail?.entryFee ?? masterData.entryFee;
-
 			const events = await ctx.db
 				.select()
 				.from(sessionEvent)
 				.where(eq(sessionEvent.sessionId, input.id))
 				.orderBy(...sessionEventOrderBy());
 
-			const blindLevels = await ctx.db
-				.select()
-				.from(sessionBlindLevel)
-				.where(eq(sessionBlindLevel.sessionId, input.id))
-				.orderBy(asc(sessionBlindLevel.level));
-
-			const chipPurchases = await ctx.db
-				.select()
-				.from(sessionChipPurchase)
-				.where(eq(sessionChipPurchase.sessionId, input.id))
-				.orderBy(asc(sessionChipPurchase.sortOrder));
-
-			const pl = computeTournamentPLFromEvents(
-				events.map((e) => ({ eventType: e.eventType, payload: e.payload })),
-				tournamentBuyIn,
-				entryFee
+			return assembleLiveTournamentSession(
+				ctx.db,
+				session,
+				{
+					tournamentId: detail?.tournamentId ?? null,
+					timerStartedAt: detail?.timerStartedAt ?? null,
+				},
+				detail,
+				events
 			);
-
-			const stackStats = computeStackStats(
-				events.map((e) => ({ eventType: e.eventType, payload: e.payload })),
-				masterData.startingStack
-			);
-
-			const summary = {
-				buyIn: tournamentBuyIn ?? null,
-				entryFee: entryFee ?? null,
-				chipPurchaseCost: pl.chipPurchaseCost,
-				placement: pl.placement,
-				totalEntries: stackStats.totalEntries ?? pl.totalEntries,
-				prizeMoney: pl.prizeMoney,
-				bountyPrizes: pl.bountyPrizes,
-				profitLoss: pl.profitLoss,
-				maxStack: stackStats.maxStack,
-				minStack: stackStats.minStack,
-				currentStack: stackStats.currentStack,
-				remainingPlayers: stackStats.remainingPlayers,
-				averageStack: stackStats.averageStack,
-				startingStack: masterData.startingStack ?? null,
-			};
-
-			const heroSeatPosition = computeHeroSeatPositionFromEvents(
-				events.map((e) => ({ eventType: e.eventType, payload: e.payload }))
-			);
-
-			return {
-				...session,
-				tournamentId: detail?.tournamentId ?? null,
-				buyIn: detail?.tournamentBuyIn ?? null,
-				entryFee: detail?.entryFee ?? null,
-				timerStartedAt: detail?.timerStartedAt ?? null,
-				heroSeatPosition,
-				events,
-				blindLevels,
-				chipPurchases,
-				summary,
-				tableSize: masterData.tableSize,
-				ruleName: detail?.ruleName ?? null,
-				variant: detail?.variant ?? null,
-				startingStack: detail?.startingStack ?? null,
-				bountyAmount: detail?.bountyAmount ?? null,
-				houseRules: detail?.houseRules ?? null,
-			};
 		}),
 
 	create: protectedProcedure

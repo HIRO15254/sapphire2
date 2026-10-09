@@ -19,6 +19,10 @@ import { and, eq } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import {
+	findOwnedEntryId,
+	listEntryPlayEvents,
+} from "../services/entry-live-reads";
+import {
 	recalculateCashGameSession,
 	recalculateTournamentSession,
 } from "../services/live-session-pl";
@@ -46,13 +50,22 @@ function resolveSessionId(input: {
 	sessionId?: string;
 	liveCashGameSessionId?: string;
 	liveTournamentSessionId?: string;
-}): string | undefined {
-	return (
+}): string {
+	const sessionId =
 		input.sessionId ??
 		input.liveCashGameSessionId ??
-		input.liveTournamentSessionId
-	);
+		input.liveTournamentSessionId;
+	if (!sessionId) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message:
+				"Exactly one of liveCashGameSessionId or liveTournamentSessionId must be specified",
+		});
+	}
+	return sessionId;
 }
+
+const SESSION_FORBIDDEN_MESSAGE = "You do not own this session";
 
 async function resolveSessionOwnership(
 	db: DbInstance,
@@ -67,7 +80,7 @@ async function resolveSessionOwnership(
 	if (!session || session.userId !== userId) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
-			message: "You do not own this session",
+			message: SESSION_FORBIDDEN_MESSAGE,
 		});
 	}
 
@@ -163,19 +176,31 @@ const sessionIdInput = z.object({
 	liveTournamentSessionId: z.string().optional(),
 });
 
+export async function listSessionEventsFromPlayEvents(
+	db: DbInstance,
+	userId: string,
+	input: z.output<typeof sessionIdInput>
+) {
+	const sessionId = resolveSessionId(input);
+	const ownedId = await findOwnedEntryId(db, userId, sessionId);
+	if (!ownedId) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: SESSION_FORBIDDEN_MESSAGE,
+		});
+	}
+	const events = await listEntryPlayEvents(db, userId, ownedId);
+	return events.map((event) => ({
+		...event,
+		payload: parseEventPayload(event),
+	}));
+}
+
 export const sessionEventRouter = router({
 	list: protectedProcedure
 		.input(sessionIdInput)
 		.query(async ({ ctx, input }) => {
 			const sessionId = resolveSessionId(input);
-
-			if (!sessionId) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message:
-						"Exactly one of liveCashGameSessionId or liveTournamentSessionId must be specified",
-				});
-			}
 
 			const userId = ctx.session.user.id;
 			await resolveSessionOwnership(ctx.db, sessionId, userId);
@@ -202,14 +227,6 @@ export const sessionEventRouter = router({
 		)
 		.mutation(async ({ ctx, input }) => {
 			const sessionId = resolveSessionId(input);
-
-			if (!sessionId) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message:
-						"Exactly one of liveCashGameSessionId or liveTournamentSessionId must be specified",
-				});
-			}
 
 			const userId = ctx.session.user.id;
 			const { sessionType } = await resolveSessionOwnership(

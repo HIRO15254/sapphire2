@@ -5,6 +5,7 @@ import {
 	variantDisplayLabel,
 } from "@sapphire2/db/constants/game-variants";
 import { currency, currencyTransaction } from "@sapphire2/db/schema/currency";
+import { entry, entryCash, entryTournament } from "@sapphire2/db/schema/entry";
 import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { gameMix } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
@@ -55,6 +56,22 @@ import {
 	runBatch,
 } from "../lib/batch";
 import { optionalUniqueTagIdsSchema } from "../lib/tag-ids";
+import {
+	buildEntryDeleteStatements,
+	buildEntryRewriteStatements,
+	buildManualEntryInsertStatements,
+	CASH_DETAIL_MOVED_COLUMNS,
+	type EntrySessionFacts,
+	firstPlaySession,
+	firstPlaySessionJoin,
+	legacyBreakMinutesSql,
+	legacyKindSql,
+	legacySessionDateSql,
+	legacySessionStatusSql,
+	loadEntrySessionFacts,
+	TOURNAMENT_DETAIL_MOVED_COLUMNS,
+	toEntryKind,
+} from "../services/entry-session";
 import { listOwnedGameMixes } from "../services/game-mix";
 import {
 	assertLevelGameStructures,
@@ -964,7 +981,7 @@ const createInputSchema = z.discriminatedUnion("type", [
 	tournamentCreateSchema,
 ]);
 
-type CreateInput = z.infer<typeof createInputSchema>;
+export type SessionCreateInput = z.infer<typeof createInputSchema>;
 
 export const sessionListInputSchema = z.object({
 	cursor: z.string().optional(),
@@ -1227,7 +1244,14 @@ async function computeSummary(
 			eq(sessionTournamentDetail.sessionId, gameSession.id)
 		)
 		.where(and(...conditions));
+	return summarizeSessions(db, rawSessions, typeFilter);
+}
 
+async function summarizeSessions(
+	db: DbInstance,
+	rawSessions: (Omit<SummarySessionRow, "chipPurchaseCost"> & { id: string })[],
+	typeFilter: "cash_game" | "tournament" | undefined
+): Promise<SessionSummary> {
 	const totalSessions = rawSessions.length;
 	if (totalSessions === 0) {
 		return EMPTY_SUMMARY;
@@ -1264,9 +1288,9 @@ async function computeSummary(
 	};
 }
 
-async function validateCreateLinks(
+async function validateSessionCreate(
 	db: DbInstance,
-	input: CreateInput,
+	input: SessionCreateInput,
 	userId: string
 ) {
 	if (input.roomId) {
@@ -1280,6 +1304,41 @@ async function validateCreateLinks(
 	}
 	if (input.type === "tournament" && input.tournamentId) {
 		await validateEntityOwnership(db, "tournament", input.tournamentId, userId);
+	}
+	await validateTagsOwnership(db, sessionTag, input.tagIds, userId);
+	if (input.type === "tournament") {
+		await assertLevelGameStructures(db, userId, input.blindLevels, {
+			tournamentId: input.tournamentId,
+		});
+	}
+}
+
+async function validateSessionUpdateLinks(
+	db: DbInstance,
+	input: z.infer<typeof sessionUpdateInputSchema>,
+	userId: string,
+	kind: string
+) {
+	if (input.roomId) {
+		await validateEntityOwnership(db, "room", input.roomId, userId);
+	}
+	if (input.currencyId) {
+		await validateEntityOwnership(db, "currency", input.currencyId, userId);
+	}
+	if (input.ringGameId) {
+		await validateEntityOwnership(db, "ringGame", input.ringGameId, userId);
+	}
+	if (input.tournamentId) {
+		await validateEntityOwnership(db, "tournament", input.tournamentId, userId);
+	}
+	if (input.tagIds !== undefined) {
+		await validateTagsOwnership(db, sessionTag, input.tagIds, userId);
+	}
+	if (kind === "tournament") {
+		await assertLevelGameStructures(db, userId, input.blindLevels, {
+			sessionId: input.id,
+			tournamentId: input.tournamentId,
+		});
 	}
 }
 
@@ -1338,7 +1397,7 @@ export async function validateTagsOwnership(
 	}
 }
 
-function _computeCreatePL(input: CreateInput): number {
+function _computeCreatePL(input: SessionCreateInput): number {
 	if (input.type === "cash_game") {
 		return computeCashGamePL(input.buyIn, input.cashOut);
 	}
@@ -1394,7 +1453,9 @@ export function parseSessionCursor(
 }
 
 export function sessionKeysetCondition(
-	cursor: string | undefined
+	cursor: string | undefined,
+	orderKey: SQL = sessionOrderKeySql(),
+	idColumn: SQLiteColumn = gameSession.id
 ): SQL | undefined {
 	if (!cursor) {
 		return undefined;
@@ -1404,7 +1465,7 @@ export function sessionKeysetCondition(
 		return undefined;
 	}
 	const cursorSeconds = Math.floor(parsed.sortKey.getTime() / 1000);
-	return sql`(${sessionOrderKeySql()} < ${cursorSeconds}) or (${sessionOrderKeySql()} = ${cursorSeconds} and ${gameSession.id} < ${parsed.id})`;
+	return sql`((${orderKey} < ${cursorSeconds}) or (${orderKey} = ${cursorSeconds} and ${idColumn} < ${parsed.id}))`;
 }
 
 function buildSessionListConditions(userId: string, filters: ListFilters) {
@@ -1887,17 +1948,33 @@ function applyCashRuleScalarUpdates(
 	}
 }
 
-interface SessionDetailPlan {
+interface SessionDetailPlan<Detail> {
+	movedPatch: Partial<Detail>;
+	next: Partial<Detail>;
 	profitLoss: number;
 	statements: BatchStatement[];
+}
+
+function splitDetailPatch<Detail extends Record<string, unknown>>(
+	patch: Partial<Detail>,
+	movedColumns: readonly string[]
+): { legacyPatch: Partial<Detail>; movedPatch: Partial<Detail> } {
+	const legacyPatch: Partial<Detail> = {};
+	const movedPatch: Partial<Detail> = {};
+	for (const [key, value] of Object.entries(patch)) {
+		const target = movedColumns.includes(key) ? movedPatch : legacyPatch;
+		target[key as keyof Detail] = value as Detail[keyof Detail];
+	}
+	return { legacyPatch, movedPatch };
 }
 
 async function planCashDetailUpdate(
 	db: DbInstance,
 	sessionId: string,
 	input: CashUpdateInput,
-	userId: string
-): Promise<SessionDetailPlan> {
+	userId: string,
+	movedColumns: readonly string[] = []
+): Promise<SessionDetailPlan<typeof sessionCashDetail.$inferInsert>> {
 	const [existingDetail] = await db
 		.select()
 		.from(sessionCashDetail)
@@ -1950,20 +2027,26 @@ async function planCashDetailUpdate(
 		Object.assign(cashUpdate, cashMixFlatFieldClearPatch(selection.mixGames));
 	}
 
+	const { legacyPatch, movedPatch } = splitDetailPatch(
+		cashUpdate,
+		movedColumns
+	);
 	const statements: BatchStatement[] = [];
-	if (Object.keys(cashUpdate).length > 0) {
+	if (Object.keys(legacyPatch).length > 0) {
 		statements.push(
 			existingDetail
 				? db
 						.update(sessionCashDetail)
-						.set(cashUpdate)
+						.set(legacyPatch)
 						.where(eq(sessionCashDetail.sessionId, sessionId))
-				: db.insert(sessionCashDetail).values({ sessionId, ...cashUpdate })
+				: db.insert(sessionCashDetail).values({ sessionId, ...legacyPatch })
 		);
 	}
 	const nextDetail = { ...existingDetail, ...cashUpdate };
 	return {
 		statements,
+		movedPatch,
+		next: nextDetail,
 		profitLoss: computeSessionPLFromDetails(
 			"cash_game",
 			{
@@ -2009,10 +2092,15 @@ interface TournamentUpdateInput {
 	variant?: string;
 }
 
+interface PlacementState {
+	beforeDeadline: boolean | null;
+	placement: number | null;
+	totalEntries: number | null;
+}
+
 async function assertTournamentPlacementIntegrity(
-	db: DbInstance,
-	sessionId: string,
-	input: TournamentUpdateInput
+	input: TournamentUpdateInput,
+	loadExisting: () => Promise<PlacementState | undefined>
 ): Promise<void> {
 	const changesPlacementState =
 		input.beforeDeadline !== undefined ||
@@ -2022,14 +2110,7 @@ async function assertTournamentPlacementIntegrity(
 		return;
 	}
 
-	const [existing] = await db
-		.select({
-			beforeDeadline: sessionTournamentDetail.beforeDeadline,
-			placement: sessionTournamentDetail.placement,
-			totalEntries: sessionTournamentDetail.totalEntries,
-		})
-		.from(sessionTournamentDetail)
-		.where(eq(sessionTournamentDetail.sessionId, sessionId));
+	const existing = await loadExisting();
 
 	const effectiveBeforeDeadline =
 		input.beforeDeadline === undefined && existing?.beforeDeadline === true;
@@ -2152,8 +2233,9 @@ async function plannedChipPurchaseCost(
 async function planTournamentDetailUpdate(
 	db: DbInstance,
 	sessionId: string,
-	input: TournamentUpdateInput
-): Promise<SessionDetailPlan> {
+	input: TournamentUpdateInput,
+	movedColumns: readonly string[] = []
+): Promise<SessionDetailPlan<typeof sessionTournamentDetail.$inferInsert>> {
 	const tournUpdate: Partial<typeof sessionTournamentDetail.$inferInsert> = {};
 	await applyTournamentSnapshotUpdate(db, tournUpdate, input);
 	applyTournamentScalarUpdates(tournUpdate, input);
@@ -2162,17 +2244,21 @@ async function planTournamentDetailUpdate(
 		.from(sessionTournamentDetail)
 		.where(eq(sessionTournamentDetail.sessionId, sessionId));
 
+	const { legacyPatch, movedPatch } = splitDetailPatch(
+		tournUpdate,
+		movedColumns
+	);
 	const statements: BatchStatement[] = [];
-	if (Object.keys(tournUpdate).length > 0) {
+	if (Object.keys(legacyPatch).length > 0) {
 		statements.push(
 			existingDetail
 				? db
 						.update(sessionTournamentDetail)
-						.set(tournUpdate)
+						.set(legacyPatch)
 						.where(eq(sessionTournamentDetail.sessionId, sessionId))
 				: db
 						.insert(sessionTournamentDetail)
-						.values({ sessionId, ...tournUpdate })
+						.values({ sessionId, ...legacyPatch })
 		);
 	}
 	if (input.tournamentId) {
@@ -2198,6 +2284,8 @@ async function planTournamentDetailUpdate(
 	const nextDetail = { ...existingDetail, ...tournUpdate };
 	return {
 		statements,
+		movedPatch,
+		next: nextDetail,
 		profitLoss: computeSessionPLFromDetails(
 			"tournament",
 			undefined,
@@ -2649,13 +2737,16 @@ async function resolveValidatedCashRuleSnapshot(
 		: defaultCashSnapshot(normalizedInput);
 }
 
-async function buildCashGameSessionDetailStatements(
+async function planCashGameSessionDetail(
 	db: DbInstance,
 	sessionId: string,
 	input: z.infer<typeof cashGameCreateSchema>,
 	now: Date,
 	userId: string
-): Promise<BatchStatement[]> {
+): Promise<{
+	statements: BatchStatement[];
+	values: typeof sessionCashDetail.$inferInsert;
+}> {
 	const statements: BatchStatement[] = [];
 	let ringGameId = input.ringGameId ?? null;
 	const snapshot = await resolveValidatedCashRuleSnapshot(db, input, userId);
@@ -2691,8 +2782,9 @@ async function buildCashGameSessionDetailStatements(
 		);
 		snapshot.ruleName = derivedName;
 	}
-	statements.push(
-		db.insert(sessionCashDetail).values({
+	return {
+		statements,
+		values: {
 			sessionId,
 			ringGameId,
 			buyIn: input.buyIn,
@@ -2710,9 +2802,8 @@ async function buildCashGameSessionDetailStatements(
 			maxBuyIn: snapshot.maxBuyIn,
 			tableSize: snapshot.tableSize,
 			houseRules: snapshot.houseRules,
-		})
-	);
-	return statements;
+		},
+	};
 }
 
 interface TournamentRuleSnapshot {
@@ -2780,11 +2871,14 @@ async function resolveTournamentRuleSnapshot(
 	return base;
 }
 
-async function buildTournamentSessionDetailStatements(
+async function planTournamentSessionDetail(
 	db: DbInstance,
 	sessionId: string,
 	input: z.infer<typeof tournamentCreateSchema>
-): Promise<BatchStatement[]> {
+): Promise<{
+	childStatements: BatchStatement[];
+	values: typeof sessionTournamentDetail.$inferInsert;
+}> {
 	const beforeDeadline = input.beforeDeadline === true;
 	const snapshot = await resolveTournamentRuleSnapshot(db, {
 		tournamentId: input.tournamentId,
@@ -2797,27 +2891,26 @@ async function buildTournamentSessionDetailStatements(
 		tableSize: input.tableSize,
 		houseRules: input.houseRules,
 	});
-	const statements: BatchStatement[] = [
-		db.insert(sessionTournamentDetail).values({
-			sessionId,
-			tournamentId: input.tournamentId ?? null,
-			tournamentBuyIn: snapshot.tournamentBuyIn,
-			entryFee: snapshot.entryFee,
-			beforeDeadline: beforeDeadline ? true : null,
-			placement: beforeDeadline ? null : (input.placement ?? null),
-			totalEntries: beforeDeadline ? null : (input.totalEntries ?? null),
-			prizeMoney: input.prizeMoney ?? null,
-			bountyPrizes: input.bountyPrizes ?? null,
-			ruleName: snapshot.ruleName,
-			variant: snapshot.variant,
-			startingStack: snapshot.startingStack,
-			bountyAmount: snapshot.bountyAmount,
-			tableSize: snapshot.tableSize,
-			houseRules: snapshot.houseRules,
-		}),
-	];
+	const values = {
+		sessionId,
+		tournamentId: input.tournamentId ?? null,
+		tournamentBuyIn: snapshot.tournamentBuyIn,
+		entryFee: snapshot.entryFee,
+		beforeDeadline: beforeDeadline ? true : null,
+		placement: beforeDeadline ? null : (input.placement ?? null),
+		totalEntries: beforeDeadline ? null : (input.totalEntries ?? null),
+		prizeMoney: input.prizeMoney ?? null,
+		bountyPrizes: input.bountyPrizes ?? null,
+		ruleName: snapshot.ruleName,
+		variant: snapshot.variant,
+		startingStack: snapshot.startingStack,
+		bountyAmount: snapshot.bountyAmount,
+		tableSize: snapshot.tableSize,
+		houseRules: snapshot.houseRules,
+	};
+	const childStatements: BatchStatement[] = [];
 	if (input.tournamentId) {
-		statements.push(
+		childStatements.push(
 			...(await buildTournamentStructureStatements(
 				db,
 				sessionId,
@@ -2826,16 +2919,16 @@ async function buildTournamentSessionDetailStatements(
 		);
 	}
 	if (input.blindLevels !== undefined) {
-		statements.push(
+		childStatements.push(
 			...buildSessionBlindLevelStatements(db, sessionId, input.blindLevels)
 		);
 	}
 	if (input.chipPurchases !== undefined) {
-		statements.push(
+		childStatements.push(
 			...buildSessionChipPurchaseStatements(db, sessionId, input.chipPurchases)
 		);
 	}
-	return statements;
+	return { values, childStatements };
 }
 
 async function buildTournamentStructureStatements(
@@ -2991,7 +3084,7 @@ async function selectCreatedSession(db: DbInstance, id: string) {
 async function buildCreateCurrencyTxStatements(
 	db: DbInstance,
 	id: string,
-	input: CreateInput,
+	input: SessionCreateInput,
 	sessionDate: Date,
 	userId: string
 ): Promise<BatchStatement[]> {
@@ -3051,6 +3144,446 @@ function computeSessionPLFromDetails(
 	return 0;
 }
 
+function legacySessionColumns() {
+	return {
+		id: entry.id,
+		userId: entry.userId,
+		kind: legacyKindSql(),
+		status: legacySessionStatusSql(),
+		source: entry.source,
+		sessionDate: legacySessionDateSql(),
+		startedAt: firstPlaySession.startedAt,
+		endedAt: firstPlaySession.endedAt,
+		breakMinutes: legacyBreakMinutesSql(),
+		memo: entry.memo,
+		roomId: entry.roomId,
+		currencyId: entry.assetId,
+		createdAt: entry.createdAt,
+		updatedAt: entry.updatedAt,
+	};
+}
+
+function legacySessionRowFromEntry(db: DbInstance) {
+	return db
+		.select({
+			...legacySessionColumns(),
+			handCount: gameSession.handCount,
+			dealerSeat: gameSession.dealerSeat,
+		})
+		.from(entry)
+		.leftJoin(firstPlaySession, firstPlaySessionJoin())
+		.leftJoin(gameSession, eq(gameSession.id, entry.id));
+}
+
+export async function createSessionViaEntry(
+	db: DbInstance,
+	userId: string,
+	input: SessionCreateInput
+) {
+	const id = crypto.randomUUID();
+	const now = new Date();
+	const sessionDate = new Date(input.sessionDate * 1000);
+
+	await validateSessionCreate(db, input, userId);
+
+	const base = {
+		id,
+		userId,
+		source: "manual",
+		sessionDate,
+		startedAt: timestampToDate(input.startedAt),
+		endedAt: timestampToDate(input.endedAt),
+		breakMinutes: input.breakMinutes ?? null,
+		memo: input.memo ?? null,
+		roomId: input.roomId ?? null,
+		currencyId: input.currencyId ?? null,
+	};
+	const statements: BatchStatement[] = [];
+	if (input.type === "cash_game") {
+		const plan = await planCashGameSessionDetail(db, id, input, now, userId);
+		const { legacyPatch } = splitDetailPatch(
+			plan.values,
+			CASH_DETAIL_MOVED_COLUMNS
+		);
+		statements.push(
+			...plan.statements,
+			...buildManualEntryInsertStatements(
+				db,
+				{
+					...base,
+					kind: "cash_game",
+					ruleName: plan.values.ruleName ?? null,
+					cash: {
+						ringGameId: plan.values.ringGameId ?? null,
+						cashOut: plan.values.cashOut ?? null,
+						evCashOut: plan.values.evCashOut ?? null,
+					},
+				},
+				now
+			),
+			db.insert(sessionCashDetail).values({ ...legacyPatch, sessionId: id })
+		);
+	} else {
+		const plan = await planTournamentSessionDetail(db, id, input);
+		const { legacyPatch } = splitDetailPatch(
+			plan.values,
+			TOURNAMENT_DETAIL_MOVED_COLUMNS
+		);
+		statements.push(
+			...buildManualEntryInsertStatements(
+				db,
+				{
+					...base,
+					kind: "tournament",
+					ruleName: plan.values.ruleName ?? null,
+					tournament: {
+						tournamentId: plan.values.tournamentId ?? null,
+						placement: plan.values.placement ?? null,
+						totalEntries: plan.values.totalEntries ?? null,
+						beforeDeadline: plan.values.beforeDeadline ?? null,
+					},
+				},
+				now
+			),
+			db
+				.insert(sessionTournamentDetail)
+				.values({ ...legacyPatch, sessionId: id }),
+			...plan.childStatements
+		);
+	}
+	statements.push(
+		...buildSessionTagStatements(db, id, input.tagIds),
+		...(await buildCreateCurrencyTxStatements(
+			db,
+			id,
+			input,
+			sessionDate,
+			userId
+		))
+	);
+
+	await runBatch(db, statements);
+
+	const [created] = await db
+		.select({
+			...legacySessionColumns(),
+			type: legacyKindSql(),
+			liveCashGameSessionId: entry.id,
+			liveTournamentSessionId: entry.id,
+		})
+		.from(entry)
+		.leftJoin(firstPlaySession, firstPlaySessionJoin())
+		.where(eq(entry.id, id));
+	return created;
+}
+
+export async function updateSessionViaEntry(
+	db: DbInstance,
+	userId: string,
+	input: z.infer<typeof sessionUpdateInputSchema>
+) {
+	const current = await loadEntrySessionFacts(db, input.id, userId);
+
+	assertNoLiveLinkedRestrictedEdits(
+		{ source: current.source, kind: current.kind },
+		input
+	);
+	if (current.kind === "tournament") {
+		await assertTournamentPlacementIntegrity(input, () =>
+			Promise.resolve(current.tournament)
+		);
+	}
+	await validateSessionUpdateLinks(db, input, userId, current.kind);
+
+	const now = new Date();
+	const fields = buildSessionUpdateFields(input);
+	const base = {
+		id: current.id,
+		userId: current.userId,
+		source: current.source,
+		sessionDate: pick(fields.sessionDate, current.sessionDate),
+		startedAt: pick(fields.startedAt, current.startedAt),
+		endedAt: pick(fields.endedAt, current.endedAt),
+		breakMinutes: pick(fields.breakMinutes, current.breakMinutes),
+		memo: pick(fields.memo, current.memo),
+		roomId: pick(fields.roomId, current.roomId),
+		currencyId: pick(fields.currencyId, current.currencyId),
+	};
+
+	let facts: EntrySessionFacts;
+	let detailStatements: BatchStatement[];
+	let profitLoss: number;
+	if (current.kind === "cash_game") {
+		const plan = await planCashDetailUpdate(
+			db,
+			input.id,
+			input,
+			userId,
+			CASH_DETAIL_MOVED_COLUMNS
+		);
+		facts = {
+			...base,
+			kind: "cash_game",
+			ruleName: plan.next.ruleName ?? null,
+			cash: {
+				ringGameId: pick(plan.movedPatch.ringGameId, current.cash.ringGameId),
+				cashOut: plan.next.cashOut ?? null,
+				evCashOut: pick(plan.movedPatch.evCashOut, current.cash.evCashOut),
+			},
+		};
+		detailStatements = plan.statements;
+		profitLoss = plan.profitLoss;
+	} else {
+		const plan = await planTournamentDetailUpdate(
+			db,
+			input.id,
+			input,
+			TOURNAMENT_DETAIL_MOVED_COLUMNS
+		);
+		const moved = plan.movedPatch;
+		const was = current.tournament;
+		facts = {
+			...base,
+			kind: "tournament",
+			ruleName: plan.next.ruleName ?? null,
+			tournament: {
+				tournamentId: pick(moved.tournamentId, was.tournamentId),
+				placement: pick(moved.placement, was.placement),
+				totalEntries: pick(moved.totalEntries, was.totalEntries),
+				beforeDeadline: pick(moved.beforeDeadline, was.beforeDeadline),
+			},
+		};
+		detailStatements = plan.statements;
+		profitLoss = plan.profitLoss;
+	}
+	const ledgerStatements = await buildSyncCurrencyTransactionStatements(
+		db,
+		input.id,
+		current.currencyId,
+		input.currencyId,
+		profitLoss,
+		facts.sessionDate,
+		userId
+	);
+
+	await runBatch(db, [
+		...buildEntryRewriteStatements(db, facts, now),
+		...detailStatements,
+		...(input.tagIds === undefined
+			? []
+			: [
+					db
+						.delete(sessionToSessionTag)
+						.where(eq(sessionToSessionTag.sessionId, input.id)),
+					...buildSessionTagStatements(db, input.id, input.tagIds),
+				]),
+		...ledgerStatements,
+	]);
+
+	const [updated] = await legacySessionRowFromEntry(db).where(
+		eq(entry.id, input.id)
+	);
+	if (!updated) {
+		throw new TRPCError({
+			code: "INTERNAL_SERVER_ERROR",
+			message: "Session not found after update",
+		});
+	}
+	return updated;
+}
+
+export async function deleteSessionViaEntry(
+	db: DbInstance,
+	userId: string,
+	id: string
+) {
+	await loadEntrySessionFacts(db, id, userId);
+	await runBatch(db, buildEntryDeleteStatements(db, id, userId));
+	return { success: true };
+}
+
+function selectEnrichedEntryRows(db: DbInstance, userId: string) {
+	return db
+		.select({
+			id: entry.id,
+			type: legacyKindSql(),
+			sessionDate: legacySessionDateSql(),
+			source: entry.source,
+			status: legacySessionStatusSql(),
+			buyIn: sessionCashDetail.buyIn,
+			cashOut: sessionCashDetail.cashOut,
+			evCashOut: sql<
+				number | null
+			>`${sessionCashDetail.cashOut} + ${entryCash.evDiff}`,
+			chipRemoveTotal: sessionCashDetail.chipRemoveTotal,
+			tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
+			entryFee: sessionTournamentDetail.entryFee,
+			placement: entryTournament.placement,
+			totalEntries: entryTournament.totalEntries,
+			beforeDeadline: entryTournament.beforeDeadline,
+			prizeMoney: sessionTournamentDetail.prizeMoney,
+			bountyPrizes: sessionTournamentDetail.bountyPrizes,
+			startedAt: firstPlaySession.startedAt,
+			endedAt: firstPlaySession.endedAt,
+			breakMinutes: legacyBreakMinutesSql(),
+			memo: entry.memo,
+			roomId: entry.roomId,
+			roomName: room.name,
+			ringGameId: entryCash.ringGameId,
+			ringGameName: sessionCashDetail.ruleName,
+			ringGameBlind2: sessionCashDetail.blind2,
+			tournamentId: entryTournament.tournamentId,
+			tournamentName: sessionTournamentDetail.ruleName,
+			currencyId: entry.assetId,
+			currencyName: currency.name,
+			currencyUnit: currency.unit,
+			createdAt: entry.createdAt,
+			cashVariant: sessionCashDetail.variant,
+			cashMixGames: sessionCashDetail.mixGames,
+			cashBlind1: sessionCashDetail.blind1,
+			cashBlind3: sessionCashDetail.blind3,
+			cashAnte: sessionCashDetail.ante,
+			cashAnteType: sessionCashDetail.anteType,
+			cashMinBuyIn: sessionCashDetail.minBuyIn,
+			cashMaxBuyIn: sessionCashDetail.maxBuyIn,
+			cashTableSize: sessionCashDetail.tableSize,
+			cashHouseRules: sessionCashDetail.houseRules,
+			tournamentVariant: sessionTournamentDetail.variant,
+			tournamentStartingStack: sessionTournamentDetail.startingStack,
+			tournamentBountyAmount: sessionTournamentDetail.bountyAmount,
+			tournamentTableSize: sessionTournamentDetail.tableSize,
+			tournamentHouseRules: sessionTournamentDetail.houseRules,
+		})
+		.from(entry)
+		.leftJoin(firstPlaySession, firstPlaySessionJoin())
+		.leftJoin(entryCash, eq(entryCash.entryId, entry.id))
+		.leftJoin(entryTournament, eq(entryTournament.entryId, entry.id))
+		.leftJoin(sessionCashDetail, eq(sessionCashDetail.sessionId, entry.id))
+		.leftJoin(
+			sessionTournamentDetail,
+			eq(sessionTournamentDetail.sessionId, entry.id)
+		)
+		.leftJoin(room, and(eq(room.id, entry.roomId), eq(room.userId, userId)))
+		.leftJoin(
+			currency,
+			and(eq(currency.id, entry.assetId), eq(currency.userId, userId))
+		);
+}
+
+function entrySessionOrderKeySql() {
+	return sql`coalesce(${firstPlaySession.startedAt}, ${legacySessionDateSql()})`;
+}
+
+function entrySessionConditions(
+	userId: string,
+	filters: Omit<ListFilters, "cursor">
+): SQL[] {
+	const conditions = [eq(entry.userId, userId)];
+	if (filters.type) {
+		conditions.push(eq(entry.kind, toEntryKind(filters.type)));
+	}
+	if (filters.roomId) {
+		conditions.push(eq(entry.roomId, filters.roomId));
+	}
+	if (filters.currencyId) {
+		conditions.push(eq(entry.assetId, filters.currencyId));
+	}
+	if (filters.dateFrom !== undefined) {
+		conditions.push(sql`${legacySessionDateSql()} >= ${filters.dateFrom}`);
+	}
+	if (filters.dateTo !== undefined) {
+		conditions.push(sql`${legacySessionDateSql()} <= ${filters.dateTo}`);
+	}
+	return conditions;
+}
+
+async function computeEntrySummary(
+	db: DbInstance,
+	userId: string,
+	filters: Omit<ListFilters, "cursor">,
+	typeFilter?: "cash_game" | "tournament"
+): Promise<SessionSummary> {
+	const rawSessions = await db
+		.select({
+			id: entry.id,
+			type: legacyKindSql(),
+			buyIn: sessionCashDetail.buyIn,
+			cashOut: sessionCashDetail.cashOut,
+			evCashOut: sql<
+				number | null
+			>`${sessionCashDetail.cashOut} + ${entryCash.evDiff}`,
+			chipRemoveTotal: sessionCashDetail.chipRemoveTotal,
+			tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
+			entryFee: sessionTournamentDetail.entryFee,
+			prizeMoney: sessionTournamentDetail.prizeMoney,
+			bountyPrizes: sessionTournamentDetail.bountyPrizes,
+			placement: entryTournament.placement,
+			totalEntries: entryTournament.totalEntries,
+		})
+		.from(entry)
+		.leftJoin(entryCash, eq(entryCash.entryId, entry.id))
+		.leftJoin(entryTournament, eq(entryTournament.entryId, entry.id))
+		.leftJoin(sessionCashDetail, eq(sessionCashDetail.sessionId, entry.id))
+		.leftJoin(
+			sessionTournamentDetail,
+			eq(sessionTournamentDetail.sessionId, entry.id)
+		)
+		.where(and(...entrySessionConditions(userId, filters)));
+	return summarizeSessions(db, rawSessions, typeFilter);
+}
+
+export async function listSessionsViaEntries(
+	db: DbInstance,
+	userId: string,
+	input: z.infer<typeof sessionListInputSchema>
+) {
+	await validateSessionFilterOwnership(db, input, userId);
+	const conditions = entrySessionConditions(userId, input);
+	const keyset = sessionKeysetCondition(
+		input.cursor,
+		entrySessionOrderKeySql(),
+		entry.id
+	);
+	if (keyset) {
+		conditions.push(keyset);
+	}
+
+	const data = await selectEnrichedEntryRows(db, userId)
+		.where(and(...conditions))
+		.orderBy(desc(entrySessionOrderKeySql()), desc(entry.id))
+		.limit(PAGE_SIZE + 1);
+
+	const hasMore = data.length > PAGE_SIZE;
+	const items = hasMore ? data.slice(0, PAGE_SIZE) : data;
+	const last = items.at(-1);
+	const nextCursor = hasMore && last ? encodeSessionCursor(last) : undefined;
+
+	const itemsWithTags = await enrichSessionRows(db, items, userId);
+	const summary = await computeEntrySummary(db, userId, input, input.type);
+
+	return { items: itemsWithTags, nextCursor, summary };
+}
+
+export async function getSessionViaEntry(
+	db: DbInstance,
+	userId: string,
+	id: string
+) {
+	await loadEntrySessionFacts(db, id, userId);
+
+	const rows = await selectEnrichedEntryRows(db, userId).where(
+		and(eq(entry.id, id), eq(entry.userId, userId))
+	);
+	const [enriched] = await enrichSessionRows(db, rows, userId);
+	if (!enriched) {
+		throw new TRPCError({
+			code: "NOT_FOUND",
+			message: "Session not found",
+		});
+	}
+	return enriched;
+}
+
 export const sessionRouter = router({
 	create: protectedProcedure
 		.input(createInputSchema)
@@ -3060,13 +3593,7 @@ export const sessionRouter = router({
 			const now = new Date();
 			const sessionDate = new Date(input.sessionDate * 1000);
 
-			await validateCreateLinks(ctx.db, input, userId);
-			await validateTagsOwnership(ctx.db, sessionTag, input.tagIds, userId);
-			if (input.type === "tournament") {
-				await assertLevelGameStructures(ctx.db, userId, input.blindLevels, {
-					tournamentId: input.tournamentId,
-				});
-			}
+			await validateSessionCreate(ctx.db, input, userId);
 
 			const statements: BatchStatement[] = [
 				ctx.db.insert(gameSession).values({
@@ -3087,18 +3614,22 @@ export const sessionRouter = router({
 			];
 
 			if (input.type === "cash_game") {
+				const plan = await planCashGameSessionDetail(
+					ctx.db,
+					id,
+					input,
+					now,
+					userId
+				);
 				statements.push(
-					...(await buildCashGameSessionDetailStatements(
-						ctx.db,
-						id,
-						input,
-						now,
-						userId
-					))
+					...plan.statements,
+					ctx.db.insert(sessionCashDetail).values(plan.values)
 				);
 			} else {
+				const plan = await planTournamentSessionDetail(ctx.db, id, input);
 				statements.push(
-					...(await buildTournamentSessionDetailStatements(ctx.db, id, input))
+					ctx.db.insert(sessionTournamentDetail).values(plan.values),
+					...plan.childStatements
 				);
 			}
 
@@ -3179,45 +3710,19 @@ export const sessionRouter = router({
 			);
 
 			if (session.kind === "tournament") {
-				await assertTournamentPlacementIntegrity(ctx.db, input.id, input);
-			}
-			if (input.roomId) {
-				await validateEntityOwnership(ctx.db, "room", input.roomId, userId);
-			}
-			if (input.currencyId) {
-				await validateEntityOwnership(
-					ctx.db,
-					"currency",
-					input.currencyId,
-					userId
-				);
-			}
-			if (input.ringGameId) {
-				await validateEntityOwnership(
-					ctx.db,
-					"ringGame",
-					input.ringGameId,
-					userId
-				);
-			}
-			if (input.tournamentId) {
-				await validateEntityOwnership(
-					ctx.db,
-					"tournament",
-					input.tournamentId,
-					userId
-				);
-			}
-
-			if (input.tagIds !== undefined) {
-				await validateTagsOwnership(ctx.db, sessionTag, input.tagIds, userId);
-			}
-			if (session.kind === "tournament") {
-				await assertLevelGameStructures(ctx.db, userId, input.blindLevels, {
-					sessionId: input.id,
-					tournamentId: input.tournamentId,
+				await assertTournamentPlacementIntegrity(input, async () => {
+					const [existing] = await ctx.db
+						.select({
+							beforeDeadline: sessionTournamentDetail.beforeDeadline,
+							placement: sessionTournamentDetail.placement,
+							totalEntries: sessionTournamentDetail.totalEntries,
+						})
+						.from(sessionTournamentDetail)
+						.where(eq(sessionTournamentDetail.sessionId, input.id));
+					return existing;
 				});
 			}
+			await validateSessionUpdateLinks(ctx.db, input, userId, session.kind);
 
 			const sessionUpdateFields = buildSessionUpdateFields(input);
 			const detailPlan =
