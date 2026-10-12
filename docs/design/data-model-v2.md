@@ -346,6 +346,8 @@ The table is renamed in T35 with `ALTER TABLE currency RENAME TO asset`. We conf
 
 Indexes: `UNIQUE (id, user_id)`, `(user_id, kind)`. Name uniqueness is added later as `UNIQUE (user_id, lower(name))`, after auditing existing data.
 
+The CHECKs on kind and decimals are column constraints of the ADD COLUMN in `0057_hesitant_the_watchers` (T10), so they are not in the Drizzle schema. The values come from `packages/db/src/constants/asset.ts`. A later migration that rebuilds currency must carry them over (section 20.3).
+
 **asset_rate** (immutable. To correct one, delete the row with the same effective_from and insert it again)
 
 | Column | Type | Nullable | Constraints and description |
@@ -367,6 +369,8 @@ A fixed rate is expressed by registering a single row with effective_from = 0. I
 | --- | --- | --- | --- |
 | name | TEXT | no | Up to 50 characters. `UNIQUE (user_id, lower(name))` |
 | archived_at | INTEGER | yes | — |
+
+Index: `UNIQUE (id, user_id)` (the target of ledger_line's FK).
 
 The row with the reserved name "Session Result" is not moved, because a session result becomes an entry's ledger lines.
 
@@ -396,6 +400,8 @@ CHECKs (all enforced by the DB):
 - `play_session_id IS NULL OR entry_id IS NOT NULL`
 
 Indexes: `(user_id, entry_id)`, `(user_id, asset_id, occurred_at)` (balance and history), `(source_event_id)`, `(play_session_id)`, `(transfer_id)`.
+
+The role groups of the sign CHECK and the bound of 10^12 are `LEDGER_PAYMENT_ROLES`, `LEDGER_RECEIPT_ROLES`, `LEDGER_WALLET_ROLES`, and `LEDGER_MAX_QUANTITY` in `packages/db/src/constants/ledger.ts`. The Payment schema (section 11.4) uses the same bound. Because a wallet role must be real and every other role needs an entry, a virtual line always belongs to an entry (INV-10).
 
 **user_setting** (new. One row per user)
 
@@ -1244,6 +1250,7 @@ This specification decides every question provisionally with the recommended opt
 
 | Date | Decision | Reason |
 | --- | --- | --- |
+| 2026-10-09 | The CHECKs on `currency.kind` (currency / item) and `currency.decimals` (0 to 4) are column constraints written by hand into the ADD COLUMN statements, outside the Drizzle schema. The schema test compares the expression index `UNIQUE (user_id, lower(name))` of ledger_category against a named expression contract (T10) | Drizzle declares a CHECK only on the table, and adding one to an existing table makes `db:generate` rebuild it. currency is a parent, so its DROP would cascade into its children. The D1 integration test covers both CHECKs. RENAME TO asset (T35) keeps them; a rebuild must restate them |
 | 2026-10-08 | T06 puts the SQL over the new tables in `services/entry-session.ts` and `services/entry-live-reads.ts`, and exports procedure-shaped prep functions next to each procedure (`createSessionViaEntry`, `updateSessionViaEntry`, `deleteSessionViaEntry`, `listSessionsViaEntries`, `getSessionViaEntry`, the live `*FromEntries` / `*FromEntry` readers, `listSessionEventsFromPlayEvents`). T07 replaces each procedure body with its prep function and deletes the old path | The prep functions reuse the router's validation, rule resolution, and enrichment instead of copying them, and a service cannot import from a router. The detail planners split their patch into the moved columns (to the entry tables) and the rest (still to the detail tables), so one rule computation feeds both |
 | 2026-10-08 | The minimal game_session row keeps its real kind and source, status `'completed'`, and a fixed session_date of 0 (T06) | kind and source cost nothing and keep the row readable when compared by hand. A date has no single true value once an entry spans days, so it gets the fixed value of a retired NOT NULL column (section 16.1) |
 | 2026-10-08 | Today's output shapes are rebuilt from the entry tables as follows (T06). sessionDate: UTC midnight of played_on for manual input, the seq-1 play_session started_at (else entry.created_at) for live. status: `'completed'` for a settled entry, else the highest-seq play_session's status. breakMinutes: NULLIF of the summed play_session break_minutes, 0. evCashOut: cash_out + ev_diff | Three values cannot be rebuilt 1:1, and these are the closest. An unfinished live session shows its first start instead of the instant it was created (they differ by seconds). A manual break of 0 reads as NULL, the same as an empty field. An end time before the start time reads as NULL, as the backfill stores it |
