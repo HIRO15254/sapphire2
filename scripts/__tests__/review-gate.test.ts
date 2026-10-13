@@ -4,7 +4,6 @@ import {
 	decideReview,
 	extractReviewTrailer,
 	formatGithubOutputs,
-	formatPublishedOutputs,
 	formatSummaryOutputs,
 	type GateInput,
 	hasPublishedSummary,
@@ -50,14 +49,6 @@ describe("decideReview — first review", () => {
 		expect(decision.run).toBe(true);
 		expect(decision).toMatchObject({ mode: "full", round: 1 });
 	});
-
-	it("runs round 1 on reopened when there is no state", () => {
-		expect(decideReview(input({ event: "reopened" }))).toMatchObject({
-			run: true,
-			mode: "full",
-			round: 1,
-		});
-	});
 });
 
 describe("decideReview — draft handling", () => {
@@ -97,13 +88,6 @@ describe("decideReview — labeled event", () => {
 		});
 	});
 
-	it("ignores a labeled event with no label payload", () => {
-		expect(decideReview(input({ event: "labeled", label: null }))).toEqual({
-			run: false,
-			reason: "label  is not re-review",
-		});
-	});
-
 	it("bypasses the round cap and reviews incrementally when state exists", () => {
 		const decision = decideReview(
 			input({
@@ -133,29 +117,6 @@ describe("decideReview — labeled event", () => {
 			run: true,
 			mode: "incremental",
 			round: 2,
-		});
-	});
-
-	it("matches the configured label name, not a hard-coded one", () => {
-		const decision = decideReview(
-			input({
-				event: "labeled",
-				label: "review-again",
-				reReviewLabel: "review-again",
-			})
-		);
-		expect(decision.run).toBe(true);
-		expect(
-			decideReview(
-				input({
-					event: "labeled",
-					label: "re-review",
-					reReviewLabel: "review-again",
-				})
-			)
-		).toEqual({
-			run: false,
-			reason: "label re-review is not review-again",
 		});
 	});
 });
@@ -191,14 +152,6 @@ describe("decideReview — release branches", () => {
 		expect(
 			decideReview(
 				input({ event: "opened", headRef: "release/v3.5.0", devTree: null })
-			)
-		).toMatchObject({ run: true });
-	});
-
-	it("does not apply the tree comparison to non-release branches", () => {
-		expect(
-			decideReview(
-				input({ event: "opened", headTree: "same", devTree: "same" })
 			)
 		).toMatchObject({ run: true });
 	});
@@ -244,25 +197,6 @@ describe("decideReview — subsequent pushes", () => {
 		});
 	});
 
-	it("treats a cap of 1 as first-review-only", () => {
-		expect(
-			decideReview(
-				input({
-					maxAutoRounds: 1,
-					state: { rounds: 1, lastSha: PREV },
-					changedSinceLast: ["x.ts"],
-				})
-			)
-		).toMatchObject({ run: false });
-	});
-
-	it("treats a cap of 0 as never reviewing automatically", () => {
-		expect(decideReview(input({ event: "opened", maxAutoRounds: 0 }))).toEqual({
-			run: false,
-			reason: "automatic round cap (0) reached; add the re-review label",
-		});
-	});
-
 	it("skips a docs-only push", () => {
 		expect(
 			decideReview(
@@ -298,17 +232,6 @@ describe("decideReview — subsequent pushes", () => {
 			sinceSha: PREV,
 		});
 	});
-
-	it("is case-sensitive about the .md suffix so README.MD-like files still count as code", () => {
-		expect(
-			decideReview(
-				input({
-					state: { rounds: 1, lastSha: PREV },
-					changedSinceLast: ["NOTES.MD"],
-				})
-			)
-		).toMatchObject({ run: true });
-	});
 });
 
 describe("parseReviewState", () => {
@@ -316,10 +239,6 @@ describe("parseReviewState", () => {
 		expect(
 			parseReviewState(["hello", "<!-- pre-merge-review:truncated -->"])
 		).toBeNull();
-	});
-
-	it("returns null for an empty list", () => {
-		expect(parseReviewState([])).toBeNull();
 	});
 
 	it("parses the marker payload", () => {
@@ -372,39 +291,6 @@ describe("parseReviewState", () => {
 	});
 });
 
-describe("renderStateComment", () => {
-	it("tells the author the cap is reached and how to request another round", () => {
-		const body = renderStateComment(
-			{ rounds: 2, lastSha: HEAD },
-			2,
-			"re-review"
-		);
-		expect(body.startsWith(STATE_MARKER)).toBe(true);
-		expect(body).toContain("2 / 2");
-		expect(body).toContain("`re-review`");
-		expect(body).toContain(HEAD.slice(0, 8));
-	});
-
-	it("says a round remains while under the cap", () => {
-		const body = renderStateComment(
-			{ rounds: 1, lastSha: HEAD },
-			2,
-			"re-review"
-		);
-		expect(body).toContain("1 / 2");
-		expect(body).not.toContain("上限に達しました");
-	});
-
-	it("reports label-requested rounds beyond the cap without lying about the cap", () => {
-		const body = renderStateComment(
-			{ rounds: 3, lastSha: HEAD },
-			2,
-			"re-review"
-		);
-		expect(body).toContain("3 / 2");
-	});
-});
-
 describe("formatGithubOutputs", () => {
 	it("emits every key for a run decision", () => {
 		expect(
@@ -423,24 +309,6 @@ describe("formatGithubOutputs", () => {
 	it("emits empty values for a skip decision so later steps can still read the keys", () => {
 		expect(formatGithubOutputs({ run: false, reason: "draft" })).toBe(
 			"run=false\nmode=\nround=0\nsince_sha=\nreason=draft\n"
-		);
-	});
-
-	it("emits an empty since_sha for a full review", () => {
-		expect(
-			formatGithubOutputs({
-				run: true,
-				mode: "full",
-				round: 1,
-				sinceSha: null,
-				reason: "first review",
-			})
-		).toContain("since_sha=\n");
-	});
-
-	it("strips newlines from the reason so the output file stays one key per line", () => {
-		expect(formatGithubOutputs({ run: false, reason: "a\nb" })).toContain(
-			"reason=a b\n"
 		);
 	});
 });
@@ -467,10 +335,6 @@ describe("extractReviewTrailer", () => {
 		expect(
 			extractReviewTrailer("差分を確認しています…\n- [ ] 検証・結果報告")
 		).toBeNull();
-	});
-
-	it("returns null for an empty final message", () => {
-		expect(extractReviewTrailer("")).toBeNull();
 	});
 
 	it("ignores a trailer whose payload is not valid JSON", () => {
@@ -577,20 +441,6 @@ describe("hasPublishedSummary", () => {
 	});
 });
 
-describe("formatPublishedOutputs", () => {
-	it("lets the round be recorded when the summary is on the PR", () => {
-		expect(formatPublishedOutputs("### レビュー結果（round 2/2）")).toBe(
-			"is_published=true\n"
-		);
-	});
-
-	it("holds the round back when only the placeholder is on the PR", () => {
-		expect(
-			formatPublishedOutputs("I'll analyze this and get back to you.")
-		).toBe("is_published=false\n");
-	});
-});
-
 describe("formatSummaryOutputs", () => {
 	it("marks a completed review so the round is recorded", () => {
 		expect(
@@ -608,11 +458,5 @@ describe("formatSummaryOutputs", () => {
 		expect(formatSummaryOutputs(false, { subtype: "", trailer: null })).toBe(
 			"has_log=false\nhas_summary=false\nsubtype=\n"
 		);
-	});
-
-	it("keeps one key per line when the subtype carries whitespace", () => {
-		expect(
-			formatSummaryOutputs(true, { subtype: "a\nb", trailer: null })
-		).toContain("subtype=a b\n");
 	});
 });

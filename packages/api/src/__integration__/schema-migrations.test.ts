@@ -42,12 +42,20 @@ type DeclaredIndex = ReturnType<
 	typeof getTableConfig
 >["indexes"][number]["config"];
 
+const INDEX_EXPRESSIONS: Record<string, string> = {
+	ledger_category_user_name_unique: 'lower("name")',
+};
+
 function declaredIndexColumns(index: DeclaredIndex) {
 	return index.columns.map((column) => {
-		if (!("name" in column)) {
+		if ("name" in column) {
+			return column.name;
+		}
+		const expression = INDEX_EXPRESSIONS[index.name];
+		if (!expression) {
 			throw new Error(`Add a SQL expression contract for index ${index.name}`);
 		}
-		return column.name;
+		return expression;
 	});
 }
 
@@ -133,10 +141,24 @@ describe("application schema agrees with the installed production migrations", (
 				const columns = await api.d1
 					.prepare("SELECT name FROM pragma_index_info(?) ORDER BY seqno")
 					.bind(index.name)
-					.all<{ name: string }>();
+					.all<{ name: string | null }>();
+				const definition = await api.d1
+					.prepare(
+						"SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?"
+					)
+					.bind(index.name)
+					.first<{ sql: string | null }>();
+				const expression = INDEX_EXPRESSIONS[index.name];
 				installedIndexColumns.set(
 					index.name,
-					columns.results.map(({ name }) => name)
+					columns.results.map(({ name }) => {
+						if (name !== null) {
+							return name;
+						}
+						return expression && definition?.sql?.includes(expression)
+							? expression
+							: `expression not in contract: ${definition?.sql}`;
+					})
 				);
 			}
 			for (const { config: index } of config.indexes) {

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "cfc83480-d1d3-47d7-a908-33c17ffaa772",
+  "id": "73a9ee0c-911d-49c7-b436-57d1f8168e4d",
   "prevId": "aad44433-1925-462d-915e-5102b235cd62",
   "tables": {
     "account": {
@@ -384,6 +384,29 @@
           "autoincrement": false,
           "default": false
         },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'currency'"
+        },
+        "decimals": {
+          "name": "decimals",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -409,6 +432,11 @@
         "currency_userId_idx": {
           "name": "currency_userId_idx",
           "columns": ["user_id"],
+          "isUnique": false
+        },
+        "currency_user_kind_idx": {
+          "name": "currency_user_kind_idx",
+          "columns": ["user_id", "kind"],
           "isUnique": false
         }
       },
@@ -1041,13 +1069,6 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
-        },
-        "hand_id": {
-          "name": "hand_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
         }
       },
       "indexes": {
@@ -1065,11 +1086,6 @@
           "name": "play_event_play_session_sort_order_idx",
           "columns": ["play_session_id", "sort_order"],
           "isUnique": false
-        },
-        "play_event_hand_idx": {
-          "name": "play_event_hand_idx",
-          "columns": ["hand_id"],
-          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -1080,15 +1096,6 @@
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "play_event_hand_id_hand_id_fk": {
-          "name": "play_event_hand_id_hand_id_fk",
-          "tableFrom": "play_event",
-          "tableTo": "hand",
-          "columnsFrom": ["hand_id"],
-          "columnsTo": ["id"],
-          "onDelete": "no action",
           "onUpdate": "no action"
         },
         "play_event_entry_owner_fk": {
@@ -1827,8 +1834,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "hand": {
-      "name": "hand",
+    "asset_rate": {
+      "name": "asset_rate",
       "columns": {
         "id": {
           "name": "id",
@@ -1844,88 +1851,274 @@
           "notNull": true,
           "autoincrement": false
         },
+        "base_asset_id": {
+          "name": "base_asset_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quote_asset_id": {
+          "name": "quote_asset_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "rate_num": {
+          "name": "rate_num",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "rate_den": {
+          "name": "rate_den",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "effective_from": {
+          "name": "effective_from",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "memo": {
+          "name": "memo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {
+        "asset_rate_pair_effective_from_unique": {
+          "name": "asset_rate_pair_effective_from_unique",
+          "columns": [
+            "user_id",
+            "base_asset_id",
+            "quote_asset_id",
+            "effective_from"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "asset_rate_user_id_user_id_fk": {
+          "name": "asset_rate_user_id_user_id_fk",
+          "tableFrom": "asset_rate",
+          "tableTo": "user",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "asset_rate_base_asset_owner_fk": {
+          "name": "asset_rate_base_asset_owner_fk",
+          "tableFrom": "asset_rate",
+          "tableTo": "currency",
+          "columnsFrom": ["base_asset_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "asset_rate_quote_asset_owner_fk": {
+          "name": "asset_rate_quote_asset_owner_fk",
+          "tableFrom": "asset_rate",
+          "tableTo": "currency",
+          "columnsFrom": ["quote_asset_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "asset_rate_distinct_assets_check": {
+          "name": "asset_rate_distinct_assets_check",
+          "value": "\"asset_rate\".\"base_asset_id\" <> \"asset_rate\".\"quote_asset_id\""
+        },
+        "asset_rate_rate_num_check": {
+          "name": "asset_rate_rate_num_check",
+          "value": "\"asset_rate\".\"rate_num\" BETWEEN 1 AND 1000000000000"
+        },
+        "asset_rate_rate_den_check": {
+          "name": "asset_rate_rate_den_check",
+          "value": "\"asset_rate\".\"rate_den\" BETWEEN 1 AND 1000000000000"
+        }
+      }
+    },
+    "ledger_category": {
+      "name": "ledger_category",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "ledger_category_id_user_id_unique": {
+          "name": "ledger_category_id_user_id_unique",
+          "columns": ["id", "user_id"],
+          "isUnique": true
+        },
+        "ledger_category_user_name_unique": {
+          "name": "ledger_category_user_name_unique",
+          "columns": ["user_id", "lower(\"name\")"],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "ledger_category_user_id_user_id_fk": {
+          "name": "ledger_category_user_id_user_id_fk",
+          "tableFrom": "ledger_category",
+          "tableTo": "user",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "ledger_line": {
+      "name": "ledger_line",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "asset_id": {
+          "name": "asset_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "effect": {
+          "name": "effect",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "entry_id": {
+          "name": "entry_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "play_session_id": {
           "name": "play_session_id",
           "type": "text",
           "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "source_event_id": {
+          "name": "source_event_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "category_id": {
+          "name": "category_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "transfer_id": {
+          "name": "transfer_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "integer",
+          "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "hand_no": {
-          "name": "hand_no",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "played_at": {
-          "name": "played_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "detail": {
-          "name": "detail",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "button_seat": {
-          "name": "button_seat",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "table_size": {
-          "name": "table_size",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "level_ordinal": {
-          "name": "level_ordinal",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "stakes": {
-          "name": "stakes",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "variant_id": {
-          "name": "variant_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "board": {
-          "name": "board",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "pot": {
-          "name": "pot",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "hero_net": {
-          "name": "hero_net",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         },
         "memo": {
@@ -1952,51 +2145,83 @@
         }
       },
       "indexes": {
-        "hand_id_user_id_unique": {
-          "name": "hand_id_user_id_unique",
-          "columns": ["id", "user_id"],
-          "isUnique": true
-        },
-        "hand_play_session_hand_no_unique": {
-          "name": "hand_play_session_hand_no_unique",
-          "columns": ["play_session_id", "hand_no"],
-          "isUnique": true
-        },
-        "hand_user_played_at_idx": {
-          "name": "hand_user_played_at_idx",
-          "columns": ["user_id", "played_at"],
+        "ledger_line_user_entry_idx": {
+          "name": "ledger_line_user_entry_idx",
+          "columns": ["user_id", "entry_id"],
           "isUnique": false
         },
-        "hand_variant_idx": {
-          "name": "hand_variant_idx",
-          "columns": ["variant_id"],
+        "ledger_line_user_asset_occurred_at_idx": {
+          "name": "ledger_line_user_asset_occurred_at_idx",
+          "columns": ["user_id", "asset_id", "occurred_at"],
+          "isUnique": false
+        },
+        "ledger_line_source_event_idx": {
+          "name": "ledger_line_source_event_idx",
+          "columns": ["source_event_id"],
+          "isUnique": false
+        },
+        "ledger_line_play_session_idx": {
+          "name": "ledger_line_play_session_idx",
+          "columns": ["play_session_id"],
+          "isUnique": false
+        },
+        "ledger_line_transfer_idx": {
+          "name": "ledger_line_transfer_idx",
+          "columns": ["transfer_id"],
           "isUnique": false
         }
       },
       "foreignKeys": {
-        "hand_user_id_user_id_fk": {
-          "name": "hand_user_id_user_id_fk",
-          "tableFrom": "hand",
+        "ledger_line_user_id_user_id_fk": {
+          "name": "ledger_line_user_id_user_id_fk",
+          "tableFrom": "ledger_line",
           "tableTo": "user",
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "hand_play_session_owner_fk": {
-          "name": "hand_play_session_owner_fk",
-          "tableFrom": "hand",
-          "tableTo": "play_session",
-          "columnsFrom": ["play_session_id", "user_id"],
+        "ledger_line_asset_owner_fk": {
+          "name": "ledger_line_asset_owner_fk",
+          "tableFrom": "ledger_line",
+          "tableTo": "currency",
+          "columnsFrom": ["asset_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ledger_line_entry_owner_fk": {
+          "name": "ledger_line_entry_owner_fk",
+          "tableFrom": "ledger_line",
+          "tableTo": "entry",
+          "columnsFrom": ["entry_id", "user_id"],
           "columnsTo": ["id", "user_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "hand_variant_owner_fk": {
-          "name": "hand_variant_owner_fk",
-          "tableFrom": "hand",
-          "tableTo": "game_variant",
-          "columnsFrom": ["variant_id", "user_id"],
+        "ledger_line_play_session_owner_fk": {
+          "name": "ledger_line_play_session_owner_fk",
+          "tableFrom": "ledger_line",
+          "tableTo": "play_session",
+          "columnsFrom": ["play_session_id", "entry_id", "user_id"],
+          "columnsTo": ["id", "entry_id", "user_id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "ledger_line_source_event_owner_fk": {
+          "name": "ledger_line_source_event_owner_fk",
+          "tableFrom": "ledger_line",
+          "tableTo": "play_event",
+          "columnsFrom": ["source_event_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "ledger_line_category_owner_fk": {
+          "name": "ledger_line_category_owner_fk",
+          "tableFrom": "ledger_line",
+          "tableTo": "ledger_category",
+          "columnsFrom": ["category_id", "user_id"],
           "columnsTo": ["id", "user_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
@@ -2005,297 +2230,92 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "hand_hand_no_check": {
-          "name": "hand_hand_no_check",
-          "value": "\"hand\".\"hand_no\" >= 1"
+        "ledger_line_role_check": {
+          "name": "ledger_line_role_check",
+          "value": "\"ledger_line\".\"role\" IN ('buy_in', 'reentry', 'fee', 'chip_purchase', 'addon', 'chip_remove', 'cash_out', 'prize', 'bounty', 'adjustment', 'exchange')"
         },
-        "hand_detail_check": {
-          "name": "hand_detail_check",
-          "value": "\"hand\".\"detail\" IN ('count', 'summary', 'full')"
+        "ledger_line_effect_check": {
+          "name": "ledger_line_effect_check",
+          "value": "\"ledger_line\".\"effect\" IN ('real', 'virtual')"
         },
-        "hand_button_seat_check": {
-          "name": "hand_button_seat_check",
-          "value": "\"hand\".\"button_seat\" BETWEEN 0 AND 9"
+        "ledger_line_quantity_check": {
+          "name": "ledger_line_quantity_check",
+          "value": "\"ledger_line\".\"quantity\" <> 0 AND abs(\"ledger_line\".\"quantity\") <= 1000000000000"
         },
-        "hand_table_size_check": {
-          "name": "hand_table_size_check",
-          "value": "\"hand\".\"table_size\" BETWEEN 2 AND 10"
+        "ledger_line_role_sign_check": {
+          "name": "ledger_line_role_sign_check",
+          "value": "(\"ledger_line\".\"role\" IN ('buy_in', 'reentry', 'fee', 'chip_purchase', 'addon') AND \"ledger_line\".\"quantity\" < 0) OR (\"ledger_line\".\"role\" IN ('chip_remove', 'cash_out', 'prize', 'bounty') AND \"ledger_line\".\"quantity\" > 0) OR \"ledger_line\".\"role\" IN ('adjustment', 'exchange')"
         },
-        "hand_stakes_json_check": {
-          "name": "hand_stakes_json_check",
-          "value": "json_valid(\"hand\".\"stakes\")"
+        "ledger_line_role_entry_check": {
+          "name": "ledger_line_role_entry_check",
+          "value": "(\"ledger_line\".\"role\" IN ('adjustment', 'exchange') AND \"ledger_line\".\"entry_id\" IS NULL AND \"ledger_line\".\"effect\" = 'real') OR (NOT (\"ledger_line\".\"role\" IN ('adjustment', 'exchange')) AND \"ledger_line\".\"entry_id\" IS NOT NULL)"
         },
-        "hand_board_length_check": {
-          "name": "hand_board_length_check",
-          "value": "length(\"hand\".\"board\") <= 14"
+        "ledger_line_exchange_transfer_check": {
+          "name": "ledger_line_exchange_transfer_check",
+          "value": "\"ledger_line\".\"role\" <> 'exchange' OR \"ledger_line\".\"transfer_id\" IS NOT NULL"
         },
-        "hand_pot_check": {
-          "name": "hand_pot_check",
-          "value": "\"hand\".\"pot\" >= 0"
+        "ledger_line_play_session_entry_check": {
+          "name": "ledger_line_play_session_entry_check",
+          "value": "\"ledger_line\".\"play_session_id\" IS NULL OR \"ledger_line\".\"entry_id\" IS NOT NULL"
         }
       }
     },
-    "hand_action": {
-      "name": "hand_action",
+    "user_setting": {
+      "name": "user_setting",
       "columns": {
-        "hand_id": {
-          "name": "hand_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "user_id": {
           "name": "user_id",
           "type": "text",
-          "primaryKey": false,
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
-        "seq": {
-          "name": "seq",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "street": {
-          "name": "street",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "seat": {
-          "name": "seat",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "action": {
-          "name": "action",
+        "base_asset_id": {
+          "name": "base_asset_id",
           "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "amount": {
-          "name": "amount",
-          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "all_in": {
-          "name": "all_in",
+        "time_zone": {
+          "name": "time_zone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": false
+          "autoincrement": false
         }
       },
       "indexes": {},
       "foreignKeys": {
-        "hand_action_user_id_user_id_fk": {
-          "name": "hand_action_user_id_user_id_fk",
-          "tableFrom": "hand_action",
+        "user_setting_user_id_user_id_fk": {
+          "name": "user_setting_user_id_user_id_fk",
+          "tableFrom": "user_setting",
           "tableTo": "user",
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "hand_action_hand_owner_fk": {
-          "name": "hand_action_hand_owner_fk",
-          "tableFrom": "hand_action",
-          "tableTo": "hand",
-          "columnsFrom": ["hand_id", "user_id"],
-          "columnsTo": ["id", "user_id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "hand_action_seat_fk": {
-          "name": "hand_action_seat_fk",
-          "tableFrom": "hand_action",
-          "tableTo": "hand_seat",
-          "columnsFrom": ["hand_id", "seat"],
-          "columnsTo": ["hand_id", "seat"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "hand_action_hand_id_seq_pk": {
-          "columns": ["hand_id", "seq"],
-          "name": "hand_action_hand_id_seq_pk"
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "hand_action_seq_check": {
-          "name": "hand_action_seq_check",
-          "value": "\"hand_action\".\"seq\" >= 1"
-        },
-        "hand_action_street_check": {
-          "name": "hand_action_street_check",
-          "value": "\"hand_action\".\"street\" BETWEEN 0 AND 7"
-        },
-        "hand_action_action_check": {
-          "name": "hand_action_action_check",
-          "value": "\"hand_action\".\"action\" IN ('post', 'straddle', 'bring_in', 'fold', 'check', 'call', 'bet', 'raise', 'draw', 'show', 'muck')"
-        },
-        "hand_action_amount_check": {
-          "name": "hand_action_amount_check",
-          "value": "\"hand_action\".\"amount\" >= 0"
-        },
-        "hand_action_all_in_check": {
-          "name": "hand_action_all_in_check",
-          "value": "\"hand_action\".\"all_in\" IN (0, 1)"
-        }
-      }
-    },
-    "hand_seat": {
-      "name": "hand_seat",
-      "columns": {
-        "hand_id": {
-          "name": "hand_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "seat": {
-          "name": "seat",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "player_id": {
-          "name": "player_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "is_hero": {
-          "name": "is_hero",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
-        "start_stack": {
-          "name": "start_stack",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "hole_cards": {
-          "name": "hole_cards",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "net": {
-          "name": "net",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "showed": {
-          "name": "showed",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        }
-      },
-      "indexes": {
-        "hand_seat_one_hero_per_hand_idx": {
-          "name": "hand_seat_one_hero_per_hand_idx",
-          "columns": ["hand_id"],
-          "isUnique": true,
-          "where": "\"hand_seat\".\"is_hero\" = 1"
-        },
-        "hand_seat_player_idx": {
-          "name": "hand_seat_player_idx",
-          "columns": ["player_id"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "hand_seat_user_id_user_id_fk": {
-          "name": "hand_seat_user_id_user_id_fk",
-          "tableFrom": "hand_seat",
-          "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "hand_seat_hand_owner_fk": {
-          "name": "hand_seat_hand_owner_fk",
-          "tableFrom": "hand_seat",
-          "tableTo": "hand",
-          "columnsFrom": ["hand_id", "user_id"],
-          "columnsTo": ["id", "user_id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "hand_seat_player_owner_fk": {
-          "name": "hand_seat_player_owner_fk",
-          "tableFrom": "hand_seat",
-          "tableTo": "player",
-          "columnsFrom": ["player_id", "user_id"],
+        "user_setting_base_asset_owner_fk": {
+          "name": "user_setting_base_asset_owner_fk",
+          "tableFrom": "user_setting",
+          "tableTo": "currency",
+          "columnsFrom": ["base_asset_id", "user_id"],
           "columnsTo": ["id", "user_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {
-        "hand_seat_hand_id_seat_pk": {
-          "columns": ["hand_id", "seat"],
-          "name": "hand_seat_hand_id_seat_pk"
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {
-        "hand_seat_seat_check": {
-          "name": "hand_seat_seat_check",
-          "value": "\"hand_seat\".\"seat\" BETWEEN 0 AND 9"
-        },
-        "hand_seat_is_hero_check": {
-          "name": "hand_seat_is_hero_check",
-          "value": "\"hand_seat\".\"is_hero\" IN (0, 1)"
-        },
-        "hand_seat_start_stack_check": {
-          "name": "hand_seat_start_stack_check",
-          "value": "\"hand_seat\".\"start_stack\" >= 0"
-        },
-        "hand_seat_hole_cards_length_check": {
-          "name": "hand_seat_hole_cards_length_check",
-          "value": "length(\"hand_seat\".\"hole_cards\") <= 20"
-        },
-        "hand_seat_showed_check": {
-          "name": "hand_seat_showed_check",
-          "value": "\"hand_seat\".\"showed\" IN (0, 1)"
-        }
-      }
+      "checkConstraints": {}
     },
     "oauth_access_token": {
       "name": "oauth_access_token",
@@ -4616,6 +4636,14 @@
     "columns": {}
   },
   "internal": {
-    "indexes": {}
+    "indexes": {
+      "ledger_category_user_name_unique": {
+        "columns": {
+          "lower(\"name\")": {
+            "isExpression": true
+          }
+        }
+      }
+    }
   }
 }

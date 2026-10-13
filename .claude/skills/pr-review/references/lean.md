@@ -1,6 +1,6 @@
 # PR review — focused discovery and evidence
 
-Review the supplied committed range. Read AGENTS.md and only the rule files applying to changed paths. The author intent is the commit message for this range. Review only; do not edit product files or post unless explicitly instructed. A full review covers the supplied range; an incremental review covers changes since the last reviewed SHA and checks previous findings first.
+Review the supplied committed range. Read AGENTS.md and only the rule files applying to changed paths. The specification is the linked Linear issue (description and comments); the author intent is the commit message for this range. Review only; do not edit product files or post unless explicitly instructed. A full review covers the supplied range; an incremental review covers changes since the last reviewed SHA and checks previous findings first.
 
 ## Discover
 
@@ -13,6 +13,17 @@ For each changed aggregate, compare the contributing rows and units of related o
 If API/MCP descriptions, schemas, or their handlers change, make a compact internal claim ledger: each changed factual claim → implementing handler/schema → supported / contradicted / unsettled. Check required/optional fields, response shape, overwrite/merge behavior, contributing rows, units and defaults. Claims left unchecked must be disclosed as coverage gaps. Do not add an agent for the same task.
 
 Record every concrete candidate with all affected locations before judging it. Merge by root cause but retain distinct entry points and their individual status. Do not require a minimum finding count or manufacture issues to fill the report.
+
+## Check against the issue
+
+With a readable issue, write a compact internal requirement ledger before judging the diff: each acceptance criterion, requested behaviour, constraint and recorded decision → implementing file:line → met / missing / contradicted / deferred / unsettled. Comments record decisions made after the description (answered questions, dropped controls, user-directed changes, phase splits); a later decision supersedes the earlier text it addresses. A requirement is met only when the code path a user or client reaches delivers it — not because a name, test title or the PR description says so. Existing code untouched by the diff can meet a requirement; cite it.
+
+- **missing / contradicted** is a candidate like any other and goes through verification. Quote the requirement as the answer to "why is this wrong". Important when the issue promises user/client-visible behaviour, a data or security contract, or a persisted result and a reachable path does not deliver it; otherwise nit.
+- **deferred** requires a named destination: a split or deferral recorded in the issue or the PR body naming another issue. A deferral without one is a nit, not a missing requirement.
+- **unsettled**: wording admits several readings or needs a product decision → unverified, quoting the requirement and the competing readings. A departure from the issue justified only in the PR body or commit message is also unverified: the decision is not recorded in the issue.
+- Changes beyond the issue's scope are not findings by themselves; review them like any other change.
+
+In incremental mode, re-check only requirements left missing / contradicted / unsettled in the previous round and those the new diff touches.
 
 ## Verify candidates
 
@@ -28,13 +39,15 @@ Read library source or run the narrow relevant test for library claims. For clai
 
 Rules guide intent but do not override observable runtime behavior. If a rule contradicts the installed dependency, give both citations and leave the policy conflict unresolved. Do not force numerical confidence scores. Do not call missing tests an important production defect unless a concrete failure is established.
 
+Review the tests the range adds as well. A new test whose shape is listed under "Admitting a New Test" in `.claude/rules/testing.md` is a nit (scope new): name the test, quote the listed shape and suggest deleting it. Group a file's offending tests into one row. It is never important, and an existing test the range does not touch is out of scope.
+
 If a candidate cannot be settled after focused source reading and at most two relevant test commands, return it as unverified with the missing evidence. Do not create validators or repeat the whole review. New findings, incomplete fixes, and pre-existing problems have separate labels; do not inflate new-regression counts with the latter two.
 
 ## Report
 
 Return Japanese, no more than 40 lines. Important means a demonstrated user/client failure, incorrect result, data loss/corruption or security gap. Nits are nonblocking and appear only in the summary, at most three. Unverified questions are nonblocking. Intentional behavior with no demonstrated harm is omitted.
 
-Use a table with tier, scope (new / incomplete-fix / pre-existing), every affected file:line, the scenario, and evidence. Include nits and unverified questions in this table, not in prose supplements. An uncertain contract interpretation is unverified, not important. Omit harmless implementation leftovers. Empty findings is valid. Do not precede the table with a general assurance that contracts are correct. Add one concise coverage line including any unverified or unchecked areas and the targeted tests actually executed with selected/pass/fail counts. Mark an interrupted or incomplete review as incomplete rather than approve.
+Use a table with tier, scope (new / incomplete-fix / pre-existing / spec), every affected file:line, the scenario, and evidence. Scope `spec` marks an issue requirement that is missing or contradicted; its evidence quotes the requirement. Include nits and unverified questions in this table, not in prose supplements. An uncertain contract interpretation is unverified, not important. Omit harmless implementation leftovers. Empty findings is valid. Do not precede the table with a general assurance that contracts are correct. Add one issue line with met/total requirements and deferred items (or why no issue was checked), and one concise coverage line including any unverified or unchecked areas and the targeted tests actually executed with selected/pass/fail counts. Mark an interrupted or incomplete review as incomplete rather than approve.
 
 For compatibility with the PR workflow, end with:
 <!-- pr-review: {"verdict":"approve","important":0,"nit":0,"unverified":0,"resolved":[]} -->

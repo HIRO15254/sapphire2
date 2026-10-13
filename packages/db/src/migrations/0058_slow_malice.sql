@@ -1,8 +1,3 @@
--- Data model v2, P3 prep (SA2-310): the hand history tables and the
--- play_event.hand_id exception column. Nothing writes them until T22.
---
--- hand_seat is created before hand_action so the (hand_id, seat) FK of an
--- action never names a parent table that is missing.
 CREATE TABLE `hand` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,
@@ -37,6 +32,26 @@ CREATE UNIQUE INDEX `hand_id_user_id_unique` ON `hand` (`id`,`user_id`);--> stat
 CREATE UNIQUE INDEX `hand_play_session_hand_no_unique` ON `hand` (`play_session_id`,`hand_no`);--> statement-breakpoint
 CREATE INDEX `hand_user_played_at_idx` ON `hand` (`user_id`,`played_at`);--> statement-breakpoint
 CREATE INDEX `hand_variant_idx` ON `hand` (`variant_id`);--> statement-breakpoint
+CREATE TABLE `hand_action` (
+	`hand_id` text NOT NULL,
+	`user_id` text NOT NULL,
+	`seq` integer NOT NULL,
+	`street` integer NOT NULL,
+	`seat` integer NOT NULL,
+	`action` text NOT NULL,
+	`amount` integer,
+	`all_in` integer DEFAULT false NOT NULL,
+	PRIMARY KEY(`hand_id`, `seq`),
+	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`hand_id`,`user_id`) REFERENCES `hand`(`id`,`user_id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`hand_id`,`seat`) REFERENCES `hand_seat`(`hand_id`,`seat`) ON UPDATE no action ON DELETE cascade,
+	CONSTRAINT "hand_action_seq_check" CHECK("hand_action"."seq" >= 1),
+	CONSTRAINT "hand_action_street_check" CHECK("hand_action"."street" BETWEEN 0 AND 7),
+	CONSTRAINT "hand_action_action_check" CHECK("hand_action"."action" IN ('post', 'straddle', 'bring_in', 'fold', 'check', 'call', 'bet', 'raise', 'draw', 'show', 'muck')),
+	CONSTRAINT "hand_action_amount_check" CHECK("hand_action"."amount" >= 0),
+	CONSTRAINT "hand_action_all_in_check" CHECK("hand_action"."all_in" IN (0, 1))
+);
+--> statement-breakpoint
 CREATE TABLE `hand_seat` (
 	`hand_id` text NOT NULL,
 	`user_id` text NOT NULL,
@@ -60,25 +75,5 @@ CREATE TABLE `hand_seat` (
 --> statement-breakpoint
 CREATE UNIQUE INDEX `hand_seat_one_hero_per_hand_idx` ON `hand_seat` (`hand_id`) WHERE "hand_seat"."is_hero" = 1;--> statement-breakpoint
 CREATE INDEX `hand_seat_player_idx` ON `hand_seat` (`player_id`);--> statement-breakpoint
-CREATE TABLE `hand_action` (
-	`hand_id` text NOT NULL,
-	`user_id` text NOT NULL,
-	`seq` integer NOT NULL,
-	`street` integer NOT NULL,
-	`seat` integer NOT NULL,
-	`action` text NOT NULL,
-	`amount` integer,
-	`all_in` integer DEFAULT false NOT NULL,
-	PRIMARY KEY(`hand_id`, `seq`),
-	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`hand_id`,`user_id`) REFERENCES `hand`(`id`,`user_id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`hand_id`,`seat`) REFERENCES `hand_seat`(`hand_id`,`seat`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "hand_action_seq_check" CHECK("hand_action"."seq" >= 1),
-	CONSTRAINT "hand_action_street_check" CHECK("hand_action"."street" BETWEEN 0 AND 7),
-	CONSTRAINT "hand_action_action_check" CHECK("hand_action"."action" IN ('post', 'straddle', 'bring_in', 'fold', 'check', 'call', 'bet', 'raise', 'draw', 'show', 'muck')),
-	CONSTRAINT "hand_action_amount_check" CHECK("hand_action"."amount" >= 0),
-	CONSTRAINT "hand_action_all_in_check" CHECK("hand_action"."all_in" IN (0, 1))
-);
---> statement-breakpoint
 ALTER TABLE `play_event` ADD `hand_id` text REFERENCES hand(id);--> statement-breakpoint
 CREATE INDEX `play_event_hand_idx` ON `play_event` (`hand_id`);

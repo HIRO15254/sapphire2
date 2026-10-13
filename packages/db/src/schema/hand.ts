@@ -21,7 +21,8 @@ import {
 } from "../constants/hand";
 import { MAX_SEAT_POSITION } from "../constants/session-event-types";
 import { user } from "./auth";
-import { oneOf, playEvent, playSession } from "./entry";
+import { playEvent, playSession } from "./entry";
+import { oneOf } from "./sql-checks";
 import { gameVariant } from "./game-variant";
 import { player } from "./player";
 

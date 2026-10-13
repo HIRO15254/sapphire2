@@ -45,6 +45,16 @@ import {
 	handSeatRelations,
 } from "./schema/hand";
 import {
+	assetRate,
+	assetRateRelations,
+	ledgerCategory,
+	ledgerCategoryRelations,
+	ledgerLine,
+	ledgerLineRelations,
+	userSetting,
+	userSettingRelations,
+} from "./schema/ledger";
+import {
 	oauthAccessToken,
 	oauthAccessTokenRelations,
 	oauthApplication,
@@ -191,4 +201,12 @@ export const schema = {
 	handSeatRelations,
 	handAction,
 	handActionRelations,
+	assetRate,
+	assetRateRelations,
+	ledgerCategory,
+	ledgerCategoryRelations,
+	ledgerLine,
+	ledgerLineRelations,
+	userSetting,
+	userSettingRelations,
 };

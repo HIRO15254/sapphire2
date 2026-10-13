@@ -1,9 +1,7 @@
 import z from "zod";
 import { END_STATES_REQUIRING_STACK } from "./entry";
-import { LEDGER_EFFECTS, type LedgerRole } from "./ledger";
+import { LEDGER_EFFECTS, LEDGER_MAX_QUANTITY, type LedgerRole } from "./ledger";
 import { updateStackPayload } from "./session-event-types";
-
-export const PAYMENT_MAX_QUANTITY = 1_000_000_000_000;
 
 function paymentsSchema<
 	const Roles extends readonly [LedgerRole, ...LedgerRole[]],
@@ -11,7 +9,7 @@ function paymentsSchema<
 	return z.array(
 		z.object({
 			assetId: z.string().min(1),
-			quantity: z.number().int().min(1).max(PAYMENT_MAX_QUANTITY),
+			quantity: z.number().int().min(1).max(LEDGER_MAX_QUANTITY),
 			role: z.enum(roles),
 			effect: z.enum(LEDGER_EFFECTS).default("real"),
 			priceId: z.string().min(1).optional(),

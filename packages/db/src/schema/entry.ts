@@ -1,10 +1,9 @@
-import { relations, type SQL, sql } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
 	check,
 	foreignKey,
 	index,
 	integer,
-	type SQLiteColumn,
 	sqliteTable,
 	text,
 	uniqueIndex,
@@ -23,17 +22,9 @@ import { currency } from "./currency";
 import { hand } from "./hand";
 import { ringGame } from "./ring-game";
 import { room } from "./room";
+import { isoDate, oneOf } from "./sql-checks";
 import { tournament } from "./tournament";
 
-const ISO_DATE_GLOB = "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]";
-
-export function oneOf(column: SQLiteColumn, values: readonly string[]): SQL {
-	return sql`${column} IN (${sql.raw(values.map((value) => `'${value}'`).join(", "))})`;
-}
-
-function isoDate(column: SQLiteColumn): SQL {
-	return sql`${column} GLOB ${sql.raw(`'${ISO_DATE_GLOB}'`)}`;
-}
 
 export const entry = sqliteTable(
 	"entry",
