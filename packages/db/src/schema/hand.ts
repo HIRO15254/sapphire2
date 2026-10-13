@@ -14,6 +14,7 @@ import {
 	HAND_ACTIONS,
 	HAND_DETAILS,
 	MAX_BOARD_CARDS,
+	MAX_HAND_BOARDS,
 	MAX_HAND_STREET,
 	MAX_HAND_TABLE_SIZE,
 	MAX_HOLE_CARDS,
@@ -22,9 +23,9 @@ import {
 import { MAX_SEAT_POSITION } from "../constants/session-event-types";
 import { user } from "./auth";
 import { playEvent, playSession } from "./entry";
-import { oneOf } from "./sql-checks";
 import { gameVariant } from "./game-variant";
 import { player } from "./player";
+import { oneOf } from "./sql-checks";
 
 const SEAT_RANGE = sql.raw(`BETWEEN 0 AND ${MAX_SEAT_POSITION}`);
 
@@ -44,9 +45,8 @@ export const hand = sqliteTable(
 		levelOrdinal: integer("level_ordinal"),
 		stakes: text("stakes"),
 		variantId: text("variant_id"),
-		board: text("board"),
 		pot: integer("pot"),
-		heroNet: integer("hero_net"),
+		rake: integer("rake"),
 		memo: text("memo"),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
@@ -81,11 +81,36 @@ export const hand = sqliteTable(
 			sql`${t.tableSize} BETWEEN ${sql.raw(`${MIN_HAND_TABLE_SIZE}`)} AND ${sql.raw(`${MAX_HAND_TABLE_SIZE}`)}`
 		),
 		check("hand_stakes_json_check", sql`json_valid(${t.stakes})`),
-		check(
-			"hand_board_length_check",
-			sql`length(${t.board}) <= ${sql.raw(`${cardListMaxLength(MAX_BOARD_CARDS)}`)}`
-		),
 		check("hand_pot_check", sql`${t.pot} >= 0`),
+		check("hand_rake_check", sql`${t.rake} >= 0`),
+	]
+);
+
+export const handBoard = sqliteTable(
+	"hand_board",
+	{
+		handId: text("hand_id").notNull(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		boardNo: integer("board_no").notNull(),
+		cards: text("cards").notNull(),
+	},
+	(t) => [
+		primaryKey({ columns: [t.handId, t.boardNo] }),
+		foreignKey({
+			columns: [t.handId, t.userId],
+			foreignColumns: [hand.id, hand.userId],
+			name: "hand_board_hand_owner_fk",
+		}).onDelete("cascade"),
+		check(
+			"hand_board_board_no_check",
+			sql`${t.boardNo} BETWEEN 1 AND ${sql.raw(`${MAX_HAND_BOARDS}`)}`
+		),
+		check(
+			"hand_board_cards_length_check",
+			sql`length(${t.cards}) <= ${sql.raw(`${cardListMaxLength(MAX_BOARD_CARDS)}`)}`
+		),
 	]
 );
 
@@ -128,6 +153,10 @@ export const handSeat = sqliteTable(
 			sql`length(${t.holeCards}) <= ${sql.raw(`${cardListMaxLength(MAX_HOLE_CARDS)}`)}`
 		),
 		check("hand_seat_showed_check", sql`${t.showed} IN (0, 1)`),
+		check(
+			"hand_seat_showed_cards_check",
+			sql`${t.showed} = 0 OR ${t.holeCards} IS NOT NULL`
+		),
 	]
 );
 
@@ -177,9 +206,17 @@ export const handRelations = relations(hand, ({ one, many }) => ({
 		fields: [hand.variantId, hand.userId],
 		references: [gameVariant.id, gameVariant.userId],
 	}),
+	boards: many(handBoard),
 	seats: many(handSeat),
 	actions: many(handAction),
 	playEvents: many(playEvent),
+}));
+
+export const handBoardRelations = relations(handBoard, ({ one }) => ({
+	hand: one(hand, {
+		fields: [handBoard.handId, handBoard.userId],
+		references: [hand.id, hand.userId],
+	}),
 }));
 
 export const handSeatRelations = relations(handSeat, ({ one }) => ({

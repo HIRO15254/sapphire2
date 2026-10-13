@@ -2,7 +2,12 @@ import type { Database } from "@sapphire2/db";
 import { entry, playEvent, playSession } from "@sapphire2/db/schema/entry";
 import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
-import { hand, handAction, handSeat } from "@sapphire2/db/schema/hand";
+import {
+	hand,
+	handAction,
+	handBoard,
+	handSeat,
+} from "@sapphire2/db/schema/hand";
 import { player } from "@sapphire2/db/schema/player";
 import { asc, eq } from "drizzle-orm";
 import { describe, expect, vi } from "vitest";
@@ -96,6 +101,16 @@ function seatRow(handId: string, owner: Owner, overrides: Row = {}): Row {
 	return { hand_id: handId, user_id: owner, seat: 0, ...overrides };
 }
 
+function boardRow(handId: string, owner: Owner, overrides: Row = {}): Row {
+	return {
+		hand_id: handId,
+		user_id: owner,
+		board_no: 1,
+		cards: "Ah Kd 7c",
+		...overrides,
+	};
+}
+
 function actionRow(handId: string, owner: Owner, overrides: Row = {}): Row {
 	return {
 		hand_id: handId,
@@ -119,11 +134,11 @@ function fullHand(
 		buttonSeat: 0,
 		tableSize: 10,
 		levelOrdinal: null,
-		stakes: { sb: 100, bb: 200, ante: 200 },
+		stakes: { blind1: 100, blind2: 200, ante: 200, anteType: "bb" },
 		variantId: "alice-variant",
-		board: "Ah Kd 7c 2s 9h",
+		boards: ["Ah Kd 7c 2s 9h", "Ah Kd 7c 3d 4c"],
 		pot: 12_000,
-		heroNet: 6400,
+		rake: 500,
 		memo: "Long hand",
 		seats: Array.from({ length: seats }, (_, seat) => ({
 			seat,
@@ -164,6 +179,10 @@ async function handNumbers(db: Database, playSessionId: string) {
 }
 
 async function childCounts(db: Database, handId: string) {
+	const boards = await db
+		.select()
+		.from(handBoard)
+		.where(eq(handBoard.handId, handId));
 	const seats = await db
 		.select()
 		.from(handSeat)
@@ -172,11 +191,15 @@ async function childCounts(db: Database, handId: string) {
 		.select()
 		.from(handAction)
 		.where(eq(handAction.handId, handId));
-	return { seats: seats.length, actions: actions.length };
+	return {
+		boards: boards.length,
+		seats: seats.length,
+		actions: actions.length,
+	};
 }
 
 describe("hand tables on D1", () => {
-	test("hands, seats and actions that point at another user's play session, hand, player or game variant are rejected while the owner's own references are stored", async ({
+	test("hands, boards, seats and actions that point at another user's play session, hand, player or game variant are rejected while the owner's own references are stored", async ({
 		api,
 	}) => {
 		await seedOwner(api.db, "alice");
@@ -199,6 +222,7 @@ describe("hand tables on D1", () => {
 					variant_id: "alice-variant",
 				}),
 			],
+			["hand_board", boardRow("alice-hand", "bob")],
 			["hand_seat", seatRow("alice-hand", "bob")],
 			[
 				"hand_seat",
@@ -223,6 +247,7 @@ describe("hand tables on D1", () => {
 			"hand_seat",
 			seatRow("bob-hand", "bob", { player_id: "bob-player-1" })
 		);
+		await insert(api.d1, "hand_board", boardRow("bob-hand", "bob"));
 		await insert(api.d1, "hand_action", actionRow("bob-hand", "bob"));
 		expect(await handNumbers(api.db, "bob-play")).toEqual([
 			[1, "bob-hand"],
@@ -232,6 +257,7 @@ describe("hand tables on D1", () => {
 			[1, "alice-hand"],
 		]);
 		expect(await childCounts(api.db, "bob-hand")).toEqual({
+			boards: 1,
 			seats: 1,
 			actions: 1,
 		});
@@ -253,7 +279,7 @@ describe("hand tables on D1", () => {
 		).resolves.toMatchObject({ id: "bob-hand", userId: "bob" });
 	});
 
-	test("hand numbers, seats, actions and the stakes snapshot outside INV-18, INV-19 and INV-23 are rejected", async ({
+	test("hand numbers, boards, seats, actions and the stakes snapshot outside INV-18, INV-19 and INV-23 are rejected", async ({
 		api,
 	}) => {
 		await seedOwner(api.db, "alice");
@@ -284,11 +310,23 @@ describe("hand tables on D1", () => {
 			],
 			[
 				"hand",
-				handRow("board", "alice", {
-					hand_no: 2,
-					board: "Ah Kd 7c 2s 9h 3d",
-				}),
-				"hand_board_length_check",
+				handRow("rake", "alice", { hand_no: 2, rake: -1 }),
+				"hand_rake_check",
+			],
+			[
+				"hand_board",
+				boardRow("first", "alice", { board_no: 0 }),
+				"hand_board_board_no_check",
+			],
+			[
+				"hand_board",
+				boardRow("first", "alice", { board_no: 5 }),
+				"hand_board_board_no_check",
+			],
+			[
+				"hand_board",
+				boardRow("first", "alice", { cards: "Ah Kd 7c 2s 9h 3d" }),
+				"hand_board_cards_length_check",
 			],
 			[
 				"hand_seat",
@@ -299,6 +337,11 @@ describe("hand tables on D1", () => {
 				"hand_seat",
 				seatRow("first", "alice", { seat: -1 }),
 				"hand_seat_seat_check",
+			],
+			[
+				"hand_seat",
+				seatRow("first", "alice", { seat: 7, showed: 1 }),
+				"hand_seat_showed_cards_check",
 			],
 			[
 				"hand_action",
@@ -339,12 +382,13 @@ describe("hand tables on D1", () => {
 			actionRow("first", "alice", { seat: 3 })
 		);
 		expect(await childCounts(api.db, "first")).toEqual({
+			boards: 0,
 			seats: 2,
 			actions: 1,
 		});
 	});
 
-	test("deleting the entry removes its hands, seats and actions even when an all-in event links one of them", async ({
+	test("deleting the entry removes its hands, boards, seats and actions even when an all-in event links one of them", async ({
 		api,
 	}) => {
 		await seedOwner(api.db, "alice");
@@ -381,6 +425,7 @@ describe("hand tables on D1", () => {
 			{ id: kept.id },
 		]);
 		expect(await childCounts(api.db, added.id)).toEqual({
+			boards: 0,
 			seats: 0,
 			actions: 0,
 		});
@@ -399,7 +444,7 @@ describe("hand service on D1", () => {
 			{
 				playSessionId: "alice-play",
 				buttonSeat: 3,
-				stakes: { sb: 1, bb: 2 },
+				stakes: { blind1: 1, blind2: 2 },
 				variantId: "alice-variant",
 			},
 			NOW
@@ -420,7 +465,7 @@ describe("hand service on D1", () => {
 			handNo: 1,
 			detail: "count",
 			buttonSeat: 3,
-			stakes: { sb: 1, bb: 2 },
+			stakes: { blind1: 1, blind2: 2 },
 			variantId: "alice-variant",
 			playedAt: NOW,
 		});
@@ -491,6 +536,7 @@ describe("hand service on D1", () => {
 			[3, fourth],
 		]);
 		expect(await childCounts(api.db, second)).toEqual({
+			boards: 0,
 			seats: 0,
 			actions: 0,
 		});
@@ -555,9 +601,9 @@ describe("hand service on D1", () => {
 		expect(saved).toMatchObject({
 			detail: "full",
 			handNo: 1,
-			board: "Ah Kd 7c 2s 9h",
-			stakes: { sb: 100, bb: 200, ante: 200 },
-			heroNet: 6400,
+			boards: ["Ah Kd 7c 2s 9h", "Ah Kd 7c 3d 4c"],
+			stakes: { blind1: 100, blind2: 200, ante: 200, anteType: "bb" },
+			rake: 500,
 		});
 		expect(saved.seats.map(({ seat }) => seat)).toEqual([
 			0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
@@ -634,9 +680,9 @@ describe("hand service on D1", () => {
 				levelOrdinal: null,
 				stakes: null,
 				variantId: null,
-				board: "Qh Jh Th",
+				boards: ["Qh Jh Th"],
 				pot: 900,
-				heroNet: -300,
+				rake: null,
 				memo: null,
 				hero: {
 					seat: 4,
@@ -651,8 +697,8 @@ describe("hand service on D1", () => {
 		const summary = await getHand(api.db, "alice", added.id);
 		expect(summary).toMatchObject({
 			detail: "summary",
-			board: "Qh Jh Th",
-			heroNet: -300,
+			boards: ["Qh Jh Th"],
+			pot: 900,
 			variantId: null,
 			actions: [],
 		});
@@ -685,9 +731,9 @@ describe("hand service on D1", () => {
 		expect(await getHand(api.db, "alice", added.id)).toMatchObject({
 			detail: "count",
 			buttonSeat: 2,
-			board: null,
+			boards: [],
 			pot: null,
-			heroNet: null,
+			rake: null,
 			memo: null,
 			seats: [],
 			actions: [],
@@ -714,12 +760,13 @@ describe("hand service on D1", () => {
 			)
 		).rejects.toMatchObject({ code: "FORBIDDEN" });
 		expect(await childCounts(api.db, bobHand.id)).toEqual({
+			boards: 0,
 			seats: 0,
 			actions: 0,
 		});
 	});
 
-	test("the list pages a play session's hands from the newest with a hand-number cursor and carries each page's seats", async ({
+	test("the list pages a play session's hands from the newest with a hand-number cursor and carries each page's boards and seats", async ({
 		api,
 	}) => {
 		await seedOwner(api.db, "alice");
@@ -738,7 +785,11 @@ describe("hand service on D1", () => {
 		});
 		expect(firstPage.items.map(({ id }) => id)).toEqual([fifth, fourth]);
 		expect(firstPage.items[1]?.seats.map(({ seat }) => seat)).toEqual([0, 1]);
-		expect(firstPage.items[0]?.seats).toEqual([]);
+		expect(firstPage.items[1]?.boards).toEqual([
+			"Ah Kd 7c 2s 9h",
+			"Ah Kd 7c 3d 4c",
+		]);
+		expect(firstPage.items[0]).toMatchObject({ boards: [], seats: [] });
 		expect(firstPage.nextCursor).toBe(4);
 
 		await deleteHand(api.db, "alice", fourth);

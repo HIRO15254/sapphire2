@@ -84,6 +84,7 @@ erDiagram
     TOURNAMENT_RULE_PRICE |o--o{ LEDGER_LINE : price_id
 
     PLAY_SESSION ||--o{ HAND : has
+    HAND ||--o{ HAND_BOARD : has
     HAND ||--o{ HAND_SEAT : has
     HAND ||--o{ HAND_ACTION : has
     HAND_SEAT ||--o{ HAND_ACTION : acts
@@ -450,14 +451,23 @@ A hand is a child of play_session. Every hand, including the "+1", is recorded a
 | button_seat | INTEGER | yes | 0 to 9 |
 | table_size | INTEGER | yes | 2 to 10 |
 | level_ordinal | INTEGER | yes | The tournament level |
-| stakes | TEXT | yes | `{"sb","bb","ante","straddle"}` at that moment. `json_valid` |
+| stakes | TEXT | yes | `{"blind1","blind2","blind3","ante","anteType"}` at that moment, the keys of the rule stakes. The blinds mean what the game group's labels say (SB / BB / Straddle, Small Bet / Big Bet / Bring-in). `json_valid` |
 | variant_id | TEXT | yes | Which game in a mix. `(variant_id, user_id)` to game_variant, NO ACTION |
-| board | TEXT | yes | Cards separated by spaces (for example `Ah Kd 7c 2s 9h`). At most 5 cards |
 | pot | INTEGER | yes | 0 or more (chips) |
-| hero_net | INTEGER | yes | Hero's chip result (signed) |
+| rake | INTEGER | yes | 0 or more. The chips the house took from the pot |
 | memo | TEXT | yes | Up to 2,000 characters |
 
 Indexes: `UNIQUE (id, user_id)`, `(user_id, played_at)`, `(variant_id)`.
+
+**hand_board** (primary key `(hand_id, board_no)`)
+
+| Column | Type | Nullable | Constraints and description |
+| --- | --- | --- | --- |
+| hand_id | TEXT | no | `(hand_id, user_id)` to hand, CASCADE |
+| board_no | INTEGER | no | 1 to 4 |
+| cards | TEXT | no | Cards separated by spaces (for example `Ah Kd 7c 2s 9h`). At most 5 cards |
+
+One row per board. A run-it-twice stores each run as a full board, so the runs repeat the cards they share. A double board stores its two boards, and a double board run twice stores four.
 
 **hand_seat** (primary key `(hand_id, seat)`)
 
@@ -469,8 +479,8 @@ Indexes: `UNIQUE (id, user_id)`, `(user_id, played_at)`, `(variant_id)`.
 | is_hero | INTEGER | no | 0 | 0 / 1. `UNIQUE (hand_id) WHERE is_hero = 1` (INV-19) |
 | start_stack | INTEGER | yes | — | 0 or more |
 | hole_cards | TEXT | yes | — | For example `As Kd`. Up to 7 cards (Stud) |
-| net | INTEGER | yes | — | The chip result of that seat |
-| showed | INTEGER | no | 0 | 0 / 1 |
+| net | INTEGER | yes | — | The chip result of that seat. Hero's result is the net of Hero's seat |
+| showed | INTEGER | no | 0 | 0 / 1. 1 means the hole cards are known because the seat showed them to the table. `CHECK (showed = 0 OR hole_cards IS NOT NULL)` |
 
 Indexes: `UNIQUE (hand_id) WHERE is_hero = 1`, `(player_id)` (the player.delete check of T22 and the per-opponent reads of T25).
 
@@ -486,19 +496,21 @@ Indexes: `UNIQUE (hand_id) WHERE is_hero = 1`, `(player_id)` (the player.delete 
 | amount | INTEGER | yes | 0 or more. The chips added by that action |
 | all_in | INTEGER | no | 0 / 1. Default 0 |
 
-A card is written as two characters: a rank `[2-9TJQKA]` and a suit `[shdc]`. The server's Zod validates the format, and the DB has only a length CHECK.
+A card is written as two characters: a rank `[2-9TJQKA]` and a suit `[shdc]`. The server's Zod validates the format and rejects a card repeated within one board or one seat's hole cards; the DB has only a length CHECK.
+
+The `show` and `muck` actions record when a seat showed or mucked; `showed` records how its hole cards became known. In a full hand, a seat with a `show` action must have `showed = 1` (Zod).
 
 About the D1 limit:
 
-- hand_seat has 9 columns and hand_action has 8 (both including user_id). `chunkForInsert` derives the width from the column count: 11 rows at a time for hand_seat (99 parameters) and 12 rows for hand_action (96 parameters).
-- Saving one hand (updating hand, replacing seats and actions) goes into a single `db.batch`.
+- hand_board has 4 columns, hand_seat 9, and hand_action 8 (all including user_id). At most 4 boards fit one INSERT (16 parameters). `chunkForInsert` derives the width from the column count: 11 rows at a time for hand_seat (99 parameters) and 12 rows for hand_action (96 parameters).
+- Saving one hand (updating hand, replacing boards, seats and actions) goes into a single `db.batch`.
 
 What each detail level holds and what reads it:
 
 | detail | Holds | Used for |
 | --- | --- | --- |
 | count | Only the hand row: hand_no, played_at, button_seat, table_size, level_ordinal, stakes, variant_id | The hand count and the current button (INV-18), and hands/hour and bb/100 (section 12.3, T23). Every hand counts here, whatever its detail |
-| summary | count's values, plus one hand_seat row for Hero (player_id NULL) and board, pot, hero_net, and memo. No actions | A live note of a hand worth remembering, entered at the table where the full action cannot be typed: reviewing it in the hand list, linking an all_in event to it, and raising it to full later (T24). No statistic reads summary values |
+| summary | count's values, plus one hand_seat row for Hero (player_id NULL), the hand_board rows, and pot, rake, and memo. No actions | A live note of a hand worth remembering, entered at the table where the full action cannot be typed: reviewing it in the hand list, linking an all_in event to it, and raising it to full later (T24). No statistic reads summary values |
 | full | summary's values, plus hand_seat rows for all seats and the hand_action rows | Per-opponent hands and VPIP / PFR (section 11.5, T25), which count only full hands |
 
 When lowering detail, delete the matching child rows in the same batch.
@@ -508,8 +520,8 @@ The hand service (`packages/api/src/services/hand.ts`, T21) holds these rules. T
 - The "+1" inserts a count hand whose hand_no is `MAX(hand_no) + 1` of its play_session, computed inside the INSERT so two appends cannot pick the same number. It may carry the button, table size, level, stakes, and variant of that moment.
 - Undo deletes the hand with the highest hand_no, and only when its detail is count. A hand with details is deleted from the hand list instead, so a mistaken undo cannot drop typed-in seats and actions.
 - Deleting a hand renumbers the later hands of its play_session in the same batch, so hand_no stays a sequence (INV-18). Deleting a hand that a play_event links through `hand_id` returns CONFLICT; unlinking it is part of the all_in edit (T24). Deleting the entry or play_session still removes both.
-- Saving a hand replaces its row values, seats, and actions in full. Lowering to count also clears board, pot, hero_net, and memo. A full hand has at most 200 actions.
-- The list returns one play_session's hands from the newest, with each page's seats. The cursor is the last hand_no of the page, so it survives the deletion of the cursor row.
+- Saving a hand replaces its row values, boards, seats, and actions in full. Lowering to count also clears pot, rake, and memo. A full hand has at most 200 actions.
+- The list returns one play_session's hands from the newest, with each page's boards and seats. The cursor is the last hand_no of the page, so it survives the deletion of the cursor row.
 
 ## 10. Table definitions 6: tags and others (P5)
 
@@ -1262,6 +1274,7 @@ This specification decides every question provisionally with the recommended opt
 
 | Date | Decision | Reason |
 | --- | --- | --- |
+| 2026-10-13 | The hand tables change before T22 wires them (T21, section 9): `hand.hero_net` is dropped for the net of Hero's seat; `hand.stakes` takes the rule stake keys `blind1-3 / ante / anteType`; boards move to the child table `hand_board` (up to 4, for run-it-twice and double board); `hand.rake` is added; `hand_seat.showed` means the hole cards are known because the seat showed them, and stays beside the `show` / `muck` actions | User decision after a review of the structure. hero_net and Hero's net held one value in two places. `{sb, bb, ante, straddle}` could not hold a Stud bring-in or Limit bet sizes, which the game groups already name. One board per hand could not hold a run-it-twice. The kinds of `post` (ante, small blind, big blind, dead) stay one value: the seats of the blinds are not enforced by the structure, so a finer kind could not be kept consistent |
 | 2026-10-09 | A summary hand is a live note of a hand worth remembering, for the hand list, the all_in link, and a later raise to full. No statistic reads summary values: the hand count comes from rows of every detail, and VPIP / PFR from full hands only (T21, section 9) | User decision. The spec named the three levels but not what reads summary. Values typed at the table without the action are too uneven to aggregate, for example Hero's result by hole cards, so analysis stays on full hands. The alternatives were dropping summary (count and full only) and also analysing Hero's results from it |
 | 2026-10-09 | The hand service renumbers the later hands when a hand is deleted, lets undo delete only a count hand, and refuses with CONFLICT to delete a hand that a play_event links (T21, section 9) | INV-18 makes hand_no a sequence, so a delete in the middle cannot leave a gap. Undo is the "−1" of the counter and should not destroy details. `play_event.hand_id` is NO ACTION, and dropping the link silently would orphan the all_in's `handId` |
 | 2026-10-09 | The CHECKs on `currency.kind` (currency / item) and `currency.decimals` (0 to 4) are column constraints written by hand into the ADD COLUMN statements, outside the Drizzle schema. The schema test compares the expression index `UNIQUE (user_id, lower(name))` of ledger_category against a named expression contract (T10) | Drizzle declares a CHECK only on the table, and adding one to an existing table makes `db:generate` rebuild it. currency is a parent, so its DROP would cascade into its children. The D1 integration test covers both CHECKs. RENAME TO asset (T35) keeps them; a rebuild must restate them |

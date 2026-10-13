@@ -25,7 +25,6 @@ import { room } from "./room";
 import { isoDate, oneOf } from "./sql-checks";
 import { tournament } from "./tournament";
 
-
 export const entry = sqliteTable(
 	"entry",
 	{

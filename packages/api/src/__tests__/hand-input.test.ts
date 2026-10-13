@@ -6,14 +6,14 @@ const context = {
 	buttonSeat: 0,
 	tableSize: 6,
 	levelOrdinal: null,
-	stakes: { sb: 100, bb: 200 },
+	stakes: { blind1: 100, blind2: 200, ante: 200, anteType: "bb" },
 	variantId: null,
 };
 
 const summaryValues = {
-	board: "Ah Kd 7c 2s 9h",
+	boards: ["Ah Kd 7c 2s 9h"],
 	pot: 1200,
-	heroNet: -600,
+	rake: 60,
 	memo: null,
 };
 
@@ -45,7 +45,7 @@ function fullHand(overrides: Record<string, unknown> = {}) {
 }
 
 describe("handSaveInputSchema", () => {
-	it("accepts a full hand, a summary with only Hero's seat, and a bare count with a signed Hero result", () => {
+	it("accepts a full hand, a summary with only Hero's seat, and a bare count", () => {
 		expect(handSaveInputSchema.safeParse(fullHand()).success).toBe(true);
 		expect(
 			handSaveInputSchema.safeParse({
@@ -66,14 +66,39 @@ describe("handSaveInputSchema", () => {
 		).toBe(true);
 	});
 
+	it("accepts a run-it-twice whose boards share the flop and a shown seat with its cards", () => {
+		expect(
+			handSaveInputSchema.safeParse(
+				fullHand({
+					boards: ["Ah Kd 7c 2s 9h", "Ah Kd 7c 3d 4c"],
+					seats: [
+						seat(0, { isHero: true, holeCards: "As Ks" }),
+						seat(3, { holeCards: "Qd Qc", showed: true }),
+					],
+					actions: [
+						{ street: 0, seat: 3, action: "raise", amount: 600, allIn: true },
+						{ street: 0, seat: 0, action: "call", amount: 400, allIn: false },
+						{ street: 3, seat: 3, action: "show", amount: null, allIn: false },
+					],
+				})
+			).success
+		).toBe(true);
+	});
+
 	const hero = seat(0, { isHero: true });
 	const villain = seat(3);
 	it.each<[string, Record<string, unknown>, (string | number)[]]>([
-		["a malformed card", { board: "Ah 1d 7c" }, ["board"]],
-		["a lowercase rank", { board: "ah Kd 7c" }, ["board"]],
-		["the same card twice on the board", { board: "Ah Ah 7c" }, ["board"]],
-		["a board of six cards", { board: "Ah Kd 7c 2s 9h 3d" }, ["board"]],
+		["a malformed card", { boards: ["Ah 1d 7c"] }, ["boards", 0]],
+		["a lowercase rank", { boards: ["ah Kd 7c"] }, ["boards", 0]],
+		[
+			"the same card twice on one board",
+			{ boards: ["Ah Kd 7c", "Ah Ah 7c"] },
+			["boards", 1],
+		],
+		["a board of six cards", { boards: ["Ah Kd 7c 2s 9h 3d"] }, ["boards", 0]],
+		["five boards", { boards: ["Ah", "Kd", "7c", "2s", "9h"] }, ["boards"]],
 		["a negative pot", { pot: -1 }, ["pot"]],
+		["a negative rake", { rake: -1 }, ["rake"]],
 		[
 			"a seat outside 0 to 9",
 			{ seats: [hero, villain, seat(10)] },
@@ -91,6 +116,21 @@ describe("handSaveInputSchema", () => {
 		],
 		["two Hero seats", { seats: [hero, seat(3, { isHero: true })] }, ["seats"]],
 		["the same seat twice", { seats: [hero, villain, seat(3)] }, ["seats"]],
+		[
+			"a shown seat without its hole cards",
+			{ seats: [hero, seat(3, { showed: true })] },
+			["seats", 1, "holeCards"],
+		],
+		[
+			"a show action from a seat not marked as shown",
+			{
+				seats: [hero, seat(3, { holeCards: "Qd Qc" })],
+				actions: [
+					{ street: 3, seat: 3, action: "show", amount: null, allIn: false },
+				],
+			},
+			["actions", 0, "seat"],
+		],
 		[
 			"an action from an empty seat",
 			{
@@ -119,9 +159,14 @@ describe("handSaveInputSchema", () => {
 			["actions", 0, "street"],
 		],
 		[
-			"a stakes key outside sb, bb, ante and straddle",
-			{ stakes: { bigBlind: 200 } },
+			"a stakes key outside blind1-3, ante and anteType",
+			{ stakes: { sb: 100, bb: 200 } },
 			["stakes"],
+		],
+		[
+			"an ante type outside none, all and bb",
+			{ stakes: { ante: 100, anteType: "button" } },
+			["stakes", "anteType"],
 		],
 	])("rejects %s", (_label, overrides, path) => {
 		const result = handSaveInputSchema.safeParse(fullHand(overrides));
@@ -135,5 +180,23 @@ describe("handSaveInputSchema", () => {
 			detail: "summary",
 		});
 		expect(result.error?.issues.map((issue) => issue.path)).toEqual([["hero"]]);
+	});
+
+	it("rejects a summary whose Hero showed without hole cards", () => {
+		const result = handSaveInputSchema.safeParse({
+			...context,
+			...summaryValues,
+			detail: "summary",
+			hero: {
+				seat: 2,
+				startStack: null,
+				holeCards: null,
+				net: 600,
+				showed: true,
+			},
+		});
+		expect(result.error?.issues.map((issue) => issue.path)).toEqual([
+			["hero", "holeCards"],
+		]);
 	});
 });

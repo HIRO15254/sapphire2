@@ -4,6 +4,7 @@ import {
 	HAND_ACTIONS,
 	MAX_BOARD_CARDS,
 	MAX_HAND_ACTIONS,
+	MAX_HAND_BOARDS,
 	MAX_HAND_MEMO_LENGTH,
 	MAX_HAND_STREET,
 	MAX_HAND_TABLE_SIZE,
@@ -13,8 +14,14 @@ import {
 import { MAX_SEAT_POSITION } from "@sapphire2/db/constants/session-event-types";
 import { playSession } from "@sapphire2/db/schema/entry";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
-import { hand, handAction, handSeat } from "@sapphire2/db/schema/hand";
+import {
+	hand,
+	handAction,
+	handBoard,
+	handSeat,
+} from "@sapphire2/db/schema/hand";
 import { player } from "@sapphire2/db/schema/player";
+import { anteTypeSchema } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, gt, inArray, lt, sql } from "drizzle-orm";
 import z from "zod";
@@ -44,10 +51,11 @@ const chipResultSchema = z.number().int();
 
 export const handStakesSchema = z
 	.object({
-		sb: chipsSchema.optional(),
-		bb: chipsSchema.optional(),
+		blind1: chipsSchema.optional(),
+		blind2: chipsSchema.optional(),
+		blind3: chipsSchema.optional(),
 		ante: chipsSchema.optional(),
-		straddle: chipsSchema.optional(),
+		anteType: anteTypeSchema.optional(),
 	})
 	.strict();
 
@@ -70,9 +78,9 @@ export const handAddInputSchema = z.object({
 });
 
 const handSummaryFields = {
-	board: cardListSchema(MAX_BOARD_CARDS).nullable(),
+	boards: z.array(cardListSchema(MAX_BOARD_CARDS)).max(MAX_HAND_BOARDS),
 	pot: chipsSchema.nullable(),
-	heroNet: chipResultSchema.nullable(),
+	rake: chipsSchema.nullable(),
 	memo: z.string().max(MAX_HAND_MEMO_LENGTH).nullable(),
 };
 
@@ -94,19 +102,37 @@ const handActionSchema = z.object({
 	allIn: z.boolean(),
 });
 
+function checkShowedCards(
+	seat: { holeCards: string | null; showed: boolean },
+	ctx: z.RefinementCtx,
+	path: (string | number)[]
+): void {
+	if (seat.showed && seat.holeCards === null) {
+		ctx.addIssue({
+			code: "custom",
+			path: [...path, "holeCards"],
+			message: "A shown seat needs its hole cards",
+		});
+	}
+}
+
 export const handSaveInputSchema = z.discriminatedUnion("detail", [
 	z.object({
 		id: z.string(),
 		detail: z.literal("count"),
 		...handContextFields,
 	}),
-	z.object({
-		id: z.string(),
-		detail: z.literal("summary"),
-		...handContextFields,
-		...handSummaryFields,
-		hero: handSeatSchema.omit({ playerId: true, isHero: true }),
-	}),
+	z
+		.object({
+			id: z.string(),
+			detail: z.literal("summary"),
+			...handContextFields,
+			...handSummaryFields,
+			hero: handSeatSchema.omit({ playerId: true, isHero: true }),
+		})
+		.superRefine((input, ctx) => {
+			checkShowedCards(input.hero, ctx, ["hero"]);
+		}),
 	z
 		.object({
 			id: z.string(),
@@ -121,6 +147,9 @@ export const handSaveInputSchema = z.discriminatedUnion("detail", [
 		})
 		.superRefine((input, ctx) => {
 			const seats = new Set(input.seats.map(({ seat }) => seat));
+			for (const [index, seat] of input.seats.entries()) {
+				checkShowedCards(seat, ctx, ["seats", index]);
+			}
 			if (seats.size !== input.seats.length) {
 				ctx.addIssue({
 					code: "custom",
@@ -135,12 +164,21 @@ export const handSaveInputSchema = z.discriminatedUnion("detail", [
 					message: "Only one seat can be Hero",
 				});
 			}
+			const shownSeats = new Set(
+				input.seats.filter(({ showed }) => showed).map(({ seat }) => seat)
+			);
 			for (const [index, action] of input.actions.entries()) {
 				if (!seats.has(action.seat)) {
 					ctx.addIssue({
 						code: "custom",
 						path: ["actions", index, "seat"],
 						message: "The action's seat is not in the hand",
+					});
+				} else if (action.action === "show" && !shownSeats.has(action.seat)) {
+					ctx.addIssue({
+						code: "custom",
+						path: ["actions", index, "seat"],
+						message: "A seat that shows must be marked as shown",
 					});
 				}
 			}
@@ -156,6 +194,7 @@ type HandSeatRow = typeof handSeat.$inferSelect;
 type HandActionRow = typeof handAction.$inferSelect;
 
 export type HandOutput = Omit<HandRow, "stakes" | "userId"> & {
+	boards: string[];
 	stakes: HandStakes | null;
 };
 export type HandSeatOutput = Omit<HandSeatRow, "handId" | "userId">;
@@ -168,15 +207,42 @@ interface OwnedHand {
 	playSessionId: string;
 }
 
-function toHandOutput({
-	stakes,
-	userId: _userId,
-	...row
-}: HandRow): HandOutput {
+function toHandOutput(
+	{ stakes, userId: _userId, ...row }: HandRow,
+	boards: string[]
+): HandOutput {
 	return {
 		...row,
+		boards,
 		stakes: stakes === null ? null : handStakesSchema.parse(JSON.parse(stakes)),
 	};
+}
+
+async function loadBoards(
+	db: Database,
+	userId: string,
+	handIds: string[]
+): Promise<Map<string, string[]>> {
+	const boards = new Map<string, string[]>();
+	if (handIds.length === 0) {
+		return boards;
+	}
+	const rows = await db
+		.select({ handId: handBoard.handId, cards: handBoard.cards })
+		.from(handBoard)
+		.where(
+			and(inArray(handBoard.handId, handIds), eq(handBoard.userId, userId))
+		)
+		.orderBy(asc(handBoard.handId), asc(handBoard.boardNo));
+	for (const { handId, cards } of rows) {
+		const list = boards.get(handId);
+		if (list) {
+			list.push(cards);
+		} else {
+			boards.set(handId, [cards]);
+		}
+	}
+	return boards;
 }
 
 function forbidden(message: string): TRPCError {
@@ -331,13 +397,17 @@ export function buildHandSaveStatements(
 ): BatchStatement[] {
 	const summary =
 		input.detail === "count"
-			? { board: null, pot: null, heroNet: null, memo: null }
-			: {
-					board: input.board,
-					pot: input.pot,
-					heroNet: input.heroNet,
-					memo: input.memo,
-				};
+			? { pot: null, rake: null, memo: null }
+			: { pot: input.pot, rake: input.rake, memo: input.memo };
+	const boards =
+		input.detail === "count"
+			? []
+			: input.boards.map((cards, index) => ({
+					handId: input.id,
+					userId,
+					boardNo: index + 1,
+					cards,
+				}));
 	const seats = seatRows(userId, input);
 	const actions = actionRows(userId, input);
 	const statements: BatchStatement[] = [
@@ -349,6 +419,9 @@ export function buildHandSaveStatements(
 		db
 			.delete(handSeat)
 			.where(and(eq(handSeat.handId, input.id), eq(handSeat.userId, userId))),
+		db
+			.delete(handBoard)
+			.where(and(eq(handBoard.handId, input.id), eq(handBoard.userId, userId))),
 		db
 			.update(hand)
 			.set({
@@ -363,6 +436,9 @@ export function buildHandSaveStatements(
 			})
 			.where(and(eq(hand.id, input.id), eq(hand.userId, userId))),
 	];
+	if (boards.length > 0) {
+		statements.push(db.insert(handBoard).values(boards));
+	}
 	if (seats[0]) {
 		for (const chunk of chunkForInsert(seats, Object.keys(seats[0]).length)) {
 			statements.push(db.insert(handSeat).values(chunk));
@@ -416,7 +492,7 @@ export async function addHand(
 	if (!row) {
 		throw new Error("The hand insert returned no row");
 	}
-	return toHandOutput(row);
+	return toHandOutput(row, []);
 }
 
 export async function undoLastHand(
@@ -523,9 +599,14 @@ export async function listHands(
 						)
 					)
 					.orderBy(asc(handSeat.seat));
+	const boards = await loadBoards(
+		db,
+		userId,
+		page.map(({ id }) => id)
+	);
 	return {
 		items: page.map((row) => ({
-			...toHandOutput(row),
+			...toHandOutput(row, boards.get(row.id) ?? []),
 			seats: seats
 				.filter((seat) => seat.handId === row.id)
 				.map(({ handId: _handId, userId: _userId, ...seat }) => seat),
@@ -558,8 +639,9 @@ export async function getHand(
 		.from(handAction)
 		.where(and(eq(handAction.handId, handId), eq(handAction.userId, userId)))
 		.orderBy(asc(handAction.seq));
+	const boards = await loadBoards(db, userId, [handId]);
 	return {
-		...toHandOutput(row),
+		...toHandOutput(row, boards.get(handId) ?? []),
 		seats: seats.map(({ handId: _handId, userId: _userId, ...seat }) => seat),
 		actions: actions.map(
 			({ handId: _handId, userId: _userId, ...action }) => action
