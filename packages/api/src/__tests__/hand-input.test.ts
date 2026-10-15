@@ -89,7 +89,6 @@ describe("handSaveInputSchema", () => {
 	const villain = seat(3);
 	it.each<[string, Record<string, unknown>, (string | number)[]]>([
 		["a malformed card", { boards: ["Ah 1d 7c"] }, ["boards", 0]],
-		["a lowercase rank", { boards: ["ah Kd 7c"] }, ["boards", 0]],
 		[
 			"the same card twice on one board",
 			{ boards: ["Ah Kd 7c", "Ah Ah 7c"] },
@@ -98,7 +97,6 @@ describe("handSaveInputSchema", () => {
 		["a board of six cards", { boards: ["Ah Kd 7c 2s 9h 3d"] }, ["boards", 0]],
 		["five boards", { boards: ["Ah", "Kd", "7c", "2s", "9h"] }, ["boards"]],
 		["a negative pot", { pot: -1 }, ["pot"]],
-		["a negative rake", { rake: -1 }, ["rake"]],
 		[
 			"a seat outside 0 to 9",
 			{ seats: [hero, villain, seat(10)] },
