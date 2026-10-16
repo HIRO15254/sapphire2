@@ -67,9 +67,14 @@ function createMockDb(batchError?: Error) {
 			select: () => ({
 				from: (table: unknown) => {
 					const result = Promise.resolve(rows.get(table) ?? []);
-					return Object.assign(result, {
+					const query: Promise<Record<string, unknown>[]> & {
+						leftJoin: () => typeof query;
+						where: () => Promise<Record<string, unknown>[]>;
+					} = Object.assign(result, {
+						leftJoin: () => query,
 						where: () => Object.assign(result, { orderBy: () => result }),
 					});
+					return query;
 				},
 			}),
 			batch,

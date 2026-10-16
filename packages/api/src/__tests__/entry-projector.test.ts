@@ -5,6 +5,10 @@ import {
 	type ProjectorEvent,
 	projectEntry,
 } from "../services/entry-projector";
+import {
+	computeCashGamePLFromEvents,
+	computeTournamentPLFromEvents,
+} from "../services/live-session-pl";
 
 const START = Date.parse("2026-09-05T10:00:00.000Z");
 const TIMER_STARTED_AT = Math.floor(START / 1000) - 600;
@@ -37,11 +41,20 @@ const twoDays = [
 	{ id: "day-1", seq: 1, localDate: "2026-09-05" },
 	{ id: "day-2", seq: 2, localDate: "2026-09-06" },
 ];
-const cash: ProjectorContext = { kind: "cash", playSessions: oneDay };
-const tournament: ProjectorContext = {
-	kind: "tournament",
-	playSessions: oneDay,
-};
+function contextFor(
+	kind: ProjectorContext["kind"],
+	playSessions: ProjectorContext["playSessions"] = oneDay
+): ProjectorContext {
+	return {
+		kind,
+		assetId: "jpy",
+		playSessions,
+		tournamentEntryCost:
+			kind === "tournament" ? { buyIn: 10_000, fee: 1000 } : null,
+	};
+}
+const cash = contextFor("cash");
+const tournament = contextFor("tournament");
 
 function onlySession(projection: EntryProjection) {
 	expect(projection.playSessions).toHaveLength(1);
@@ -138,7 +151,7 @@ describe("projectEntry: session_pause / session_resume", () => {
 	it("pauses the play session and counts only finished breaks", () => {
 		const projection = projectEntry(
 			[
-				ev("session_start", 0),
+				ev("session_start", 0, { buyInAmount: 30_000 }),
 				ev("session_pause", 30),
 				ev("session_resume", 45),
 				ev("session_pause", 60),
@@ -154,7 +167,7 @@ describe("projectEntry: session_pause / session_resume", () => {
 	it("resumes the play session and sums every pause-to-resume span", () => {
 		const projection = projectEntry(
 			[
-				ev("session_start", 0),
+				ev("session_start", 0, { buyInAmount: 30_000 }),
 				ev("session_pause", 30),
 				ev("session_resume", 45),
 				ev("session_pause", 60),
@@ -172,7 +185,11 @@ describe("projectEntry: session_pause / session_resume", () => {
 		const resume = ev("session_resume", 10);
 		resume.occurredAt = new Date(at(10).getTime() + 59_000);
 		const projection = projectEntry(
-			[ev("session_start", 0), ev("session_pause", 5), resume],
+			[
+				ev("session_start", 0, { buyInAmount: 30_000 }),
+				ev("session_pause", 5),
+				resume,
+			],
 			cash
 		);
 		expect(onlySession(projection)?.breakMinutes).toBe(5);
@@ -181,7 +198,7 @@ describe("projectEntry: session_pause / session_resume", () => {
 	it("closes a pause left open by the end event at the end time", () => {
 		const projection = projectEntry(
 			[
-				ev("session_start", 0),
+				ev("session_start", 0, { buyInAmount: 30_000 }),
 				ev("session_pause", 60),
 				ev("session_end", 90, { cashOutAmount: 30_000 }),
 			],
@@ -199,7 +216,7 @@ describe("projectEntry: event order", () => {
 		const projection = projectEntry(
 			[
 				ev("session_resume", 45),
-				ev("session_start", 0),
+				ev("session_start", 0, { buyInAmount: 30_000 }),
 				ev("session_pause", 30),
 			],
 			cash
@@ -212,7 +229,7 @@ describe("projectEntry: event order", () => {
 	});
 
 	it("breaks an occurred_at tie with sort_order", () => {
-		const start = ev("session_start", 0);
+		const start = ev("session_start", 0, { buyInAmount: 30_000 });
 		const pauseFirst = projectEntry(
 			[
 				start,
@@ -262,8 +279,8 @@ describe("projectEntry: all_in", () => {
 	});
 });
 
-describe("projectEntry: events without a T05 projection", () => {
-	it("ignores chip, seat, memo, table and re-entry events", () => {
+describe("projectEntry: events without a play-session or detail projection", () => {
+	it("leaves play sessions and detail unchanged for chip, seat, memo, table and re-entry events", () => {
 		const base = [
 			ev("session_start", 0, { buyInAmount: 30_000 }),
 			ev("session_end", 90, { cashOutAmount: 30_000 }),
@@ -284,7 +301,12 @@ describe("projectEntry: events without a T05 projection", () => {
 			ev("player_leave", 50, { isHero: true }),
 			ev("memo", 60, { text: "note" }),
 		];
-		expect(projectEntry(noisy, cash)).toEqual(projectEntry(base, cash));
+		const { lines: _noisyLines, ...noisyProjection } = projectEntry(
+			noisy,
+			cash
+		);
+		const { lines: _baseLines, ...baseProjection } = projectEntry(base, cash);
+		expect(noisyProjection).toEqual(baseProjection);
 	});
 });
 
@@ -519,10 +541,7 @@ describe("projectEntry: session_end (tournament)", () => {
 
 describe("projectEntry: several play sessions (§13.3)", () => {
 	const day2 = { playSessionId: "day-2" };
-	const multiDay: ProjectorContext = {
-		kind: "tournament",
-		playSessions: [...twoDays].reverse(),
-	};
+	const multiDay = contextFor("tournament", [...twoDays].reverse());
 	const dayOne = [
 		ev("session_start", 0, { timerStartedAt: TIMER_STARTED_AT }),
 		ev("update_stack", 100, { stackAmount: 50_000, totalEntries: 200 }),
@@ -605,7 +624,7 @@ describe("projectEntry: several play sessions (§13.3)", () => {
 		];
 		const reentered = projectEntry(
 			[...firstBullet, ev("session_start", 70, {}, day2)],
-			{ kind: "tournament", playSessions: twoDays }
+			contextFor("tournament", twoDays)
 		);
 		expect(reentered.playSessions[0]?.endState).toBe("busted");
 		expect(reentered.status).toBe("open");
@@ -628,7 +647,7 @@ describe("projectEntry: several play sessions (§13.3)", () => {
 					day2
 				),
 			],
-			{ kind: "tournament", playSessions: twoDays }
+			contextFor("tournament", twoDays)
 		);
 		expect(finished.status).toBe("settled");
 		expect(finished.detail).toMatchObject({ placement: 2, totalEntries: 180 });
@@ -654,7 +673,7 @@ describe("projectEntry: several play sessions (§13.3)", () => {
 				),
 				ev("session_end", 200, { cashOutAmount: 20_000 }, day2),
 			],
-			{ kind: "cash", playSessions: twoDays }
+			contextFor("cash", twoDays)
 		);
 		expect(projection.playSessions.map((session) => session.endState)).toEqual([
 			"held",
@@ -671,5 +690,418 @@ describe("projectEntry: several play sessions (§13.3)", () => {
 				cash
 			)
 		).toThrow("outside the entry");
+	});
+});
+
+function lineSummary(projection: EntryProjection) {
+	return projection.lines.map(({ id, assetId, quantity, role, effect }) => ({
+		id,
+		assetId,
+		quantity,
+		role,
+		effect,
+	}));
+}
+
+describe("projectEntry: ledger lines (§13.2)", () => {
+	it("signs v1 cash buy-ins, add-ons, chip removals and the cash-out in the entry's currency", () => {
+		const start = ev("session_start", 0, { buyInAmount: 30_000 });
+		const addon = ev("chips_add_remove", 10, { amount: 10_000 });
+		const remove = ev("chips_add_remove", 20, { amount: -5000 });
+		const end = ev("session_end", 90, { cashOutAmount: 52_000 });
+		const projection = projectEntry([end, remove, addon, start], cash);
+		expect(lineSummary(projection)).toEqual([
+			{
+				id: `${start.id}:0`,
+				assetId: "jpy",
+				quantity: -30_000,
+				role: "buy_in",
+				effect: "real",
+			},
+			{
+				id: `${addon.id}:0`,
+				assetId: "jpy",
+				quantity: -10_000,
+				role: "addon",
+				effect: "real",
+			},
+			{
+				id: `${remove.id}:0`,
+				assetId: "jpy",
+				quantity: 5000,
+				role: "chip_remove",
+				effect: "real",
+			},
+			{
+				id: `${end.id}:0`,
+				assetId: "jpy",
+				quantity: 52_000,
+				role: "cash_out",
+				effect: "real",
+			},
+		]);
+		expect(projection.lines[3]).toMatchObject({
+			sourceEventId: end.id,
+			playSessionId: "day-1",
+			occurredAt: at(90),
+		});
+	});
+
+	it("writes no line for a zero cash-out or an end event the play session has moved past", () => {
+		expect(
+			lineSummary(
+				projectEntry(
+					[
+						ev("session_start", 0, { buyInAmount: 30_000 }),
+						ev("session_end", 90, { cashOutAmount: 0 }),
+					],
+					cash
+				)
+			).map((line) => line.role)
+		).toEqual(["buy_in"]);
+		expect(
+			lineSummary(
+				projectEntry(
+					[
+						ev("session_start", 0, { buyInAmount: 30_000 }),
+						ev("session_end", 90, { cashOutAmount: 40_000 }),
+						ev("session_start", 100, { buyInAmount: 0 }),
+					],
+					cash
+				)
+			).map((line) => line.role)
+		).toEqual(["buy_in"]);
+	});
+
+	it("charges a v1 tournament's buy-in and fee once, on the entry's first start, then rebuys and the closing prize", () => {
+		const firstStart = ev("session_start", 0);
+		const rebuy = ev("purchase_chips", 30, {
+			sessionChipPurchaseId: "rebuy",
+			name: "Rebuy",
+			cost: 5000,
+			chips: 10_000,
+		});
+		const bust = ev("session_end", 60, {
+			beforeDeadline: false,
+			placement: 150,
+			totalEntries: 150,
+			prizeMoney: 0,
+			bountyPrizes: 0,
+		});
+		const day2 = { playSessionId: "day-2" };
+		const finalEnd = ev(
+			"session_end",
+			400,
+			{
+				beforeDeadline: false,
+				placement: 2,
+				totalEntries: 180,
+				prizeMoney: 120_000,
+				bountyPrizes: 4000,
+			},
+			day2
+		);
+		const projection = projectEntry(
+			[firstStart, rebuy, bust, ev("session_start", 70, {}, day2), finalEnd],
+			contextFor("tournament", twoDays)
+		);
+		expect(lineSummary(projection)).toEqual([
+			{
+				id: `${firstStart.id}:0`,
+				assetId: "jpy",
+				quantity: -10_000,
+				role: "buy_in",
+				effect: "real",
+			},
+			{
+				id: `${firstStart.id}:1`,
+				assetId: "jpy",
+				quantity: -1000,
+				role: "fee",
+				effect: "real",
+			},
+			{
+				id: `${rebuy.id}:0`,
+				assetId: "jpy",
+				quantity: -5000,
+				role: "chip_purchase",
+				effect: "real",
+			},
+			{
+				id: `${finalEnd.id}:0`,
+				assetId: "jpy",
+				quantity: 120_000,
+				role: "prize",
+				effect: "real",
+			},
+			{
+				id: `${finalEnd.id}:1`,
+				assetId: "jpy",
+				quantity: 4000,
+				role: "bounty",
+				effect: "real",
+			},
+		]);
+		expect(projection.lines[4]?.playSessionId).toBe("day-2");
+	});
+
+	it("writes v2 payments in their own assets and effects, one line each", () => {
+		const start = ev(
+			"session_start",
+			0,
+			{
+				payments: [
+					{ assetId: "ticket", quantity: 1, role: "buy_in" },
+					{ assetId: "pt", quantity: 500, role: "fee", effect: "virtual" },
+				],
+			},
+			{ version: 2 }
+		);
+		const reentry = ev(
+			"reentry",
+			60,
+			{
+				payments: [
+					{ assetId: "pt", quantity: 20_000, role: "reentry" },
+					{ assetId: "pt", quantity: 500, role: "fee" },
+				],
+			},
+			{ version: 2 }
+		);
+		const addon = ev(
+			"purchase_chips",
+			90,
+			{
+				priceId: "addon-price",
+				label: "Add-on",
+				chips: 20_000,
+				payments: [{ assetId: "pt", quantity: 3000, role: "chip_purchase" }],
+			},
+			{ version: 2 }
+		);
+		const end = ev(
+			"session_end",
+			400,
+			{
+				beforeDeadline: false,
+				placement: 3,
+				totalEntries: 90,
+				payments: [
+					{ assetId: "main-ticket", quantity: 1, role: "prize" },
+					{ assetId: "pt", quantity: 2000, role: "bounty" },
+				],
+			},
+			{ version: 2 }
+		);
+		const projection = projectEntry([start, reentry, addon, end], tournament);
+		expect(lineSummary(projection)).toEqual([
+			{
+				id: `${start.id}:0`,
+				assetId: "ticket",
+				quantity: -1,
+				role: "buy_in",
+				effect: "real",
+			},
+			{
+				id: `${start.id}:1`,
+				assetId: "pt",
+				quantity: -500,
+				role: "fee",
+				effect: "virtual",
+			},
+			{
+				id: `${reentry.id}:0`,
+				assetId: "pt",
+				quantity: -20_000,
+				role: "reentry",
+				effect: "real",
+			},
+			{
+				id: `${reentry.id}:1`,
+				assetId: "pt",
+				quantity: -500,
+				role: "fee",
+				effect: "real",
+			},
+			{
+				id: `${addon.id}:0`,
+				assetId: "pt",
+				quantity: -3000,
+				role: "chip_purchase",
+				effect: "real",
+			},
+			{
+				id: `${end.id}:0`,
+				assetId: "main-ticket",
+				quantity: 1,
+				role: "prize",
+				effect: "real",
+			},
+			{
+				id: `${end.id}:1`,
+				assetId: "pt",
+				quantity: 2000,
+				role: "bounty",
+				effect: "real",
+			},
+		]);
+	});
+
+	it("leaves a v1 line without an asset when the entry has no currency", () => {
+		const projection = projectEntry(
+			[ev("session_start", 0, { buyInAmount: 30_000 })],
+			{ ...cash, assetId: null }
+		);
+		expect(projection.lines.map((line) => line.assetId)).toEqual([null]);
+	});
+});
+
+interface LegacyFixture {
+	events: ProjectorEvent[];
+	kind: "cash" | "tournament";
+	name: string;
+}
+
+const legacyFixtures: LegacyFixture[] = [
+	{
+		name: "completed cash session with breaks, chips and all-ins",
+		kind: "cash",
+		events: [
+			ev("session_start", 0, { buyInAmount: 30_000 }),
+			ev("all_in", 15, { potSize: 12_000, trials: 1, equity: 82, wins: 0 }),
+			ev("session_pause", 40),
+			ev("session_resume", 55),
+			ev("chips_add_remove", 60, { amount: 10_000 }),
+			ev("update_stack", 70, { stackAmount: 26_000 }),
+			ev("all_in", 90, { potSize: 8000, trials: 4, equity: 30, wins: 2 }),
+			ev("chips_add_remove", 120, { amount: -5000 }),
+			ev("session_pause", 150),
+			ev("session_resume", 162),
+			ev("session_end", 240, { cashOutAmount: 52_000 }),
+		],
+	},
+	{
+		name: "cash session in progress",
+		kind: "cash",
+		events: [
+			ev("session_start", 0, { buyInAmount: 20_000 }),
+			ev("all_in", 15, { potSize: 6000, trials: 1, equity: 50, wins: 1 }),
+			ev("session_pause", 40),
+			ev("session_resume", 50),
+		],
+	},
+	{
+		name: "cash session paused in progress",
+		kind: "cash",
+		events: [
+			ev("session_start", 0, { buyInAmount: 20_000 }),
+			ev("session_pause", 40),
+		],
+	},
+	{
+		name: "completed tournament with rebuys and a cash",
+		kind: "tournament",
+		events: [
+			ev("session_start", 0, { timerStartedAt: TIMER_STARTED_AT }),
+			ev("purchase_chips", 30, {
+				sessionChipPurchaseId: "rebuy",
+				name: "Rebuy",
+				cost: 5000,
+				chips: 10_000,
+			}),
+			ev("update_stack", 60, {
+				stackAmount: 42_000,
+				remainingPlayers: 60,
+				totalEntries: 118,
+			}),
+			ev("session_pause", 120),
+			ev("session_resume", 135),
+			ev("session_end", 360, {
+				beforeDeadline: false,
+				placement: 3,
+				totalEntries: 120,
+				prizeMoney: 150_000,
+				bountyPrizes: 10_000,
+			}),
+		],
+	},
+	{
+		name: "completed tournament win",
+		kind: "tournament",
+		events: [
+			ev("session_start", 0, { timerStartedAt: null }),
+			ev("session_end", 480, {
+				beforeDeadline: false,
+				placement: 1,
+				totalEntries: 45,
+				prizeMoney: 400_000,
+				bountyPrizes: 0,
+			}),
+		],
+	},
+	{
+		name: "tournament busted before the registration deadline",
+		kind: "tournament",
+		events: [
+			ev("session_start", 0, {}),
+			ev("update_stack", 30, { stackAmount: 0, totalEntries: 60 }),
+			ev("session_end", 45, {
+				beforeDeadline: true,
+				prizeMoney: 0,
+				bountyPrizes: 0,
+			}),
+		],
+	},
+	{
+		name: "tournament in progress",
+		kind: "tournament",
+		events: [
+			ev("session_start", 0, { timerStartedAt: TIMER_STARTED_AT }),
+			ev("session_pause", 30),
+			ev("session_resume", 40),
+		],
+	},
+];
+
+function replayLegacyMoneyFold({ kind, events }: LegacyFixture) {
+	const legacyEvents = events.map((event) => ({
+		eventType: event.type,
+		occurredAt: event.occurredAt,
+		payload: event.payload,
+	}));
+	if (kind === "cash") {
+		const pl = computeCashGamePLFromEvents(legacyEvents);
+		return {
+			profitLoss: pl.profitLoss,
+			detail: {
+				kind,
+				evDiff:
+					pl.evCashOut === null || pl.cashOut === null
+						? null
+						: Math.round(pl.evCashOut - pl.cashOut),
+			},
+		};
+	}
+	const pl = computeTournamentPLFromEvents(
+		legacyEvents,
+		tournament.tournamentEntryCost?.buyIn ?? undefined,
+		tournament.tournamentEntryCost?.fee ?? undefined
+	);
+	return { profitLoss: pl.profitLoss, detail: null };
+}
+
+describe("characterization: v1 event logs project to the P/L the legacy live-session-pl money fold computes, so entries backfilled in the T12 cutover keep their values on the next projection and audit A-5 finds no drift", () => {
+	it.each(legacyFixtures)("$name", (fixture) => {
+		const legacy = replayLegacyMoneyFold(fixture);
+		const projection = projectEntry(fixture.events, contextFor(fixture.kind));
+
+		if (legacy.detail !== null) {
+			expect(projection.detail).toEqual(legacy.detail);
+		}
+		if (legacy.profitLoss !== null) {
+			expect(
+				projection.lines.reduce((sum, line) => sum + line.quantity, 0)
+			).toBe(legacy.profitLoss);
+		}
 	});
 });

@@ -3,7 +3,7 @@ import { END_STATES_REQUIRING_STACK } from "./entry";
 import { LEDGER_EFFECTS, LEDGER_MAX_QUANTITY, type LedgerRole } from "./ledger";
 import { updateStackPayload } from "./session-event-types";
 
-function paymentsSchema<
+export function paymentsSchema<
 	const Roles extends readonly [LedgerRole, ...LedgerRole[]],
 >(roles: Roles) {
 	return z.array(
@@ -67,4 +67,15 @@ export const dayEndPayload = z.object({
 
 export const updateStackPayloadV2 = updateStackPayload.omit({
 	chipPurchaseCounts: true,
+});
+
+export const reentryPayload = z.object({
+	payments: paymentsSchema(["reentry", "fee"]),
+});
+
+export const purchaseChipsPayloadV2 = z.object({
+	priceId: z.string().min(1),
+	label: z.string().min(1),
+	chips: z.number().int().min(0),
+	payments: paymentsSchema(["chip_purchase"]),
 });

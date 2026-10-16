@@ -21,6 +21,7 @@ import { floorToMinute } from "../utils/session-event-time";
 import {
 	buildProjectionStatements,
 	type EntryProjection,
+	type ProjectorContext,
 	type ProjectorEvent,
 	projectEntry,
 } from "./entry-projector";
@@ -58,7 +59,12 @@ export interface LiveEntryStart {
 	assetId: string | null;
 	detail:
 		| { kind: "cash"; ringGameId: string | null }
-		| { kind: "tournament"; tournamentId: string | null };
+		| {
+				kind: "tournament";
+				tournamentId: string | null;
+				buyIn: number | null;
+				entryFee: number | null;
+		  };
 	id: string;
 	localDate: string;
 	memo: string | null;
@@ -73,17 +79,12 @@ interface StoredPlayEvent extends ProjectorEvent {
 	entryId: string;
 }
 
-interface EntryEventState {
-	assetId: string | null;
+type EntryEventState = Omit<ProjectorContext, "playSessions"> & {
 	events: StoredPlayEvent[];
-	kind: EntryKind;
-	playSessions: {
-		id: string;
-		seq: number;
-		localDate: string;
+	playSessions: (ProjectorContext["playSessions"][number] & {
 		status: string;
-	}[];
-}
+	})[];
+};
 
 function playEventRow(
 	scope: { entryId: string; userId: string },
@@ -122,7 +123,12 @@ export function buildLiveEntryStartStatements(
 	);
 	const projection = projectEntry([startRow], {
 		kind,
+		assetId: start.assetId,
 		playSessions: [{ id: playSessionId, seq: 1, localDate: start.localDate }],
+		tournamentEntryCost:
+			start.detail.kind === "tournament"
+				? { buyIn: start.detail.buyIn, fee: start.detail.entryFee }
+				: null,
 	});
 
 	return [
@@ -180,8 +186,29 @@ async function loadEntryEventState(
 	entryId: string
 ): Promise<EntryEventState> {
 	const [owned] = await db
-		.select({ kind: entry.kind, assetId: entry.assetId })
+		.select({
+			kind: entry.kind,
+			assetId: entry.assetId,
+			buyIn: sql<
+				number | null
+			>`COALESCE(${sessionTournamentDetail.tournamentBuyIn}, ${tournament.buyIn})`,
+			entryFee: sql<
+				number | null
+			>`COALESCE(${sessionTournamentDetail.entryFee}, ${tournament.entryFee})`,
+		})
 		.from(entry)
+		.leftJoin(
+			sessionTournamentDetail,
+			eq(sessionTournamentDetail.sessionId, entry.id)
+		)
+		.leftJoin(entryTournament, eq(entryTournament.entryId, entry.id))
+		.leftJoin(
+			tournament,
+			and(
+				eq(tournament.id, entryTournament.tournamentId),
+				eq(tournament.userId, userId)
+			)
+		)
 		.where(and(eq(entry.id, entryId), eq(entry.userId, userId)));
 	if (!owned) {
 		throw new TRPCError({
@@ -214,7 +241,16 @@ async function loadEntryEventState(
 		})
 		.from(playEvent)
 		.where(and(eq(playEvent.entryId, entryId), eq(playEvent.userId, userId)));
-	return { kind: owned.kind, assetId: owned.assetId, playSessions, events };
+	return {
+		kind: owned.kind,
+		assetId: owned.assetId,
+		tournamentEntryCost:
+			owned.kind === "tournament"
+				? { buyIn: owned.buyIn, fee: owned.entryFee }
+				: null,
+		playSessions,
+		events,
+	};
 }
 
 function findStoredEvent(state: EntryEventState, id: string): StoredPlayEvent {
@@ -555,10 +591,7 @@ export async function applyEntryEventChange(
 		statements.push(...planned.statements);
 		eventIds.push(...planned.eventIds);
 	}
-	const projection = projectEntry(state.events, {
-		kind: state.kind,
-		playSessions: state.playSessions,
-	});
+	const projection = projectEntry(state.events, state);
 	await runBatch(db, [
 		...statements,
 		...buildProjectionStatements(db, scope, projection),

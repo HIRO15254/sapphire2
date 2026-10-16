@@ -691,6 +691,8 @@ export const liveTournamentSessionRouter = router({
 						detail: {
 							kind: "tournament",
 							tournamentId: input.tournamentId ?? null,
+							buyIn: snapshot.tournamentBuyIn ?? null,
+							entryFee: snapshot.entryFee ?? null,
 						},
 						assetId: input.currencyId ?? null,
 						roomId: input.roomId ?? null,

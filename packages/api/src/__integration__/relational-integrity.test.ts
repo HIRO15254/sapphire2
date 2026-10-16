@@ -71,7 +71,7 @@ async function seedLiveEntry(
 		playSessionId: `${id}-play`,
 		userId,
 		type: "session_start",
-		payload: "{}",
+		payload: kind === "cash" ? JSON.stringify({ buyInAmount: 1000 }) : "{}",
 		occurredAt: day,
 		sortOrder: 0,
 		updatedAt: day,

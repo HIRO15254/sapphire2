@@ -404,6 +404,10 @@ Indexes: `(user_id, entry_id)`, `(user_id, asset_id, occurred_at)` (balance and 
 
 The role groups of the sign CHECK and the bound of 10^12 are `LEDGER_PAYMENT_ROLES`, `LEDGER_RECEIPT_ROLES`, `LEDGER_WALLET_ROLES`, and `LEDGER_MAX_QUANTITY` in `packages/db/src/constants/ledger.ts`. The Payment schema (section 11.4) uses the same bound. Because a wallet role must be real and every other role needs an entry, a virtual line always belongs to an entry (INV-10).
 
+Wallet lines are written by `packages/api/src/services/ledger-writes.ts` (T11, wired by T12 and T15). An adjustment is one signed line. An exchange is two lines inserted in one statement with a fresh transfer_id: the outgoing asset negative, the incoming asset positive, and the same asset on both sides is BAD_REQUEST (INV-11). `updateWalletLine` and `deleteWalletLine` load the line within the caller's user_id; another user's line or an entry line is FORBIDDEN with today's currency_transaction messages. On an exchange, occurred_at, memo, and category change on both lines, quantity changes only the chosen line and must keep its sign, and delete removes the pair. The router checks the ownership of asset_id and category_id with `validateEntityOwnership` (kinds asset, assetRate, ledgerCategory, ledgerLine) before calling them.
+
+The read SQL is `packages/api/src/services/ledger-reads.ts`: `selectEntryRealTotals` (per entry and asset, the real lines of currency assets: P/L, buy-in as the sum of payments, and `receipts` as the sum of positive lines; items are excluded, section 12.1), `selectAssetBalances` (section 12.4, every asset of the user including those without lines), and `selectAssetHistory` (one row per wallet line and one total per entry, keyset-paged on `(occurred_at, id)` descending, an entry total dated at its first line). They return unconverted sums; T12 assembles today's output shapes from them and T13 / T17 add conversion. `receipts` includes chip_remove, while today's cash `cashOut` does not, so T12 builds the cash-out from the cash_out lines alone.
+
 **user_setting** (new. One row per user)
 
 | Column | Type | Nullable | Constraints and description |
@@ -640,7 +644,7 @@ A Payment is `{ assetId, quantity, role, effect, priceId? }`.
 
 The projection adds the sign from the role, so the input carries no sign (to keep the `.int().min(0)` convention in api-data-integrity.md).
 
-The v2 payload schemas the projector reads (session_start, session_end, day_end, update_stack) and the role and effect values live in `packages/db/src/constants/play-event-payloads.ts` and `ledger.ts`. The write path validates v2 payloads with these same objects.
+The v2 payload schemas the projector reads (session_start, session_end, day_end, update_stack, reentry, purchase_chips) and the role and effect values live in `packages/db/src/constants/play-event-payloads.ts` and `ledger.ts`. The write path validates v2 payloads with these same objects. Manual input reuses `paymentsSchema` with the entry roles of each kind (`LEDGER_ENTRY_ROLES_BY_KIND`) as `manualPaymentsSchema`, which T12 adds to the session input as `payments[]`.
 
 ### 11.5 hand_action.action
 
@@ -689,16 +693,16 @@ The total real ROI is 50,000 ÷ 3,000 = +1,667%. The +1,567% in the overview ver
 2. Otherwise, look for the rate valid at the line's `occurred_at` (the newest row whose effective_from is at or before occurred_at; a row with effective_from = 0 matches every line), in this order:
    1. The a to B rate
    2. The B to a rate (take the inverse)
-   3. Only when a is an item, two steps: a to c (c is a currency) and c to B (or B to c)
-3. If no path matches, that entry is "not convertible". Exclude it from the total and report it in the response through `excludedEntryCount` and `missingRates`. Never silently treat it as 0. A line older than the first row's effective_from of a pair also lands here. Do not silently apply the first rate.
-4. Round only once. Sum the quantity per (entry, asset, set of rates used), multiply by the ratios along the path, and then round.
+   3. Only when a is an item, two steps: a to c (c is a currency) and c to B (or B to c). If several currencies c qualify, try them from the a to c row with the newest effective_from, ties by c's id, and take the first whose second step matches
+3. If no path matches, that entry is "not convertible". Exclude it from the total and report it in the response through `excludedEntryCount` and `missingRates`. Never silently treat it as 0. A line older than the first row's effective_from of a pair also lands here. Do not silently apply the first rate. Real and virtual amounts are judged separately: an item line without a rate excludes the entry from virtual amounts only, because real amounts do not contain items. `missingRates` lists each unconvertible asset once with the `occurred_at` of its oldest unconvertible line.
+4. Round only once. Sum the quantity per (entry, asset, set of rates used), multiply by the ratios along the path, and then round. P/L, BI, and CO are each summed and rounded on their own (BI over the negative lines, CO over the positive lines), so P/L can differ from CO − BI by the rounding of each group.
 
 ```latex
 v = \operatorname{round}\left(Q \times \frac{n_1 \, n_2}{d_1 \, d_2}\right)
 ```
 
 - Compute with BigInt rationals, and round half away from zero. For a one-step path, n₂ = d₂ = 1.
-- SQL returns only a SUM per (entry_id, asset_id, rate id). Conversion and rounding happen in valuation.ts.
+- valuation.ts chooses the rate itself from the user's asset_rate rows, so SQL returns lines summed at most per (entry_id, asset_id, effect, sign of quantity, occurred_at). Conversion and rounding happen in valuation.ts (`valueEntries`).
 - When viewing in a single currency without choosing a base currency, do not convert. Sum only the rows of that currency. This is the same behavior as the current `assertCurrencyScope`.
 
 ### 12.3 Time, hands, BB, EV
@@ -748,7 +752,7 @@ Every time a live event is written, the projector rebuilds all projections of th
 
 Nothing is written to a retired table. A fact whose phase has not cut over yet (the money columns of the detail tables and currency_transaction before T12, for example) still has its single home in the old tables (section 16.1), and its write joins the same batch.
 
-`buildProjectionStatements` builds steps 3.4 and 3.5 as one UPDATE per row, so the bound parameters of a statement do not grow with the number of events or play_sessions. Steps 3.2 and 3.3 (lines) are added in T11, which is where `chunkForInsert` applies.
+`buildProjectionStatements` builds steps 3.4 and 3.5 as one UPDATE per row, so the bound parameters of a statement do not grow with the number of events or play_sessions. `projectEntry` also returns the lines, and `buildProjectionLineStatements` builds steps 3.2 and 3.3 (the DELETE, then INSERTs split with `chunkForInsert`). The two builders stay separate until the P2 cutover: before T12 the lines have no home yet, so a live write wired in T07 must not write them, and T12 adds the line statements to every live batch.
 
 If writes to the same entry arrive concurrently, a projection computed from an old state can remain. But the next write rebuilds everything, so the drift does not persist. Audit A-6 in section 16 detects drift (R4 in section 20). Only the events themselves must never be lost to the race, which is why step 3.1 allocates the append order in SQL.
 
@@ -777,13 +781,15 @@ If writes to the same entry arrive concurrently, a projection computed from an o
 - entry_tournament takes placement, total_entries, and before_deadline only from the session_end that closed the highest-seq play_session. Without one (still playing, bagged, or re-entered), placement and before_deadline are NULL and total_entries is the latest update_stack totalEntries. A before-deadline end leaves total_entries NULL. before_deadline is 1 or NULL, never 0, as in session_tournament_detail.
 - `entry_cash.ev_diff` is NULL until the entry is settled, as evCashOut was NULL until the session completed. Once settled it is `Math.round` of the sum over every all_in of the entry.
 - A line's occurred_at is the event's occurred_at. A line's play_session_id is the event's play_session_id.
-- A line's id is `<event_id>:<n>` (n is a sequence within the event). Rebuilding gives the same id, so the result matches the backfill.
-- The asset of a buy-in is the assetId of the payment if there are payments. Otherwise it is entry.asset_id. If both are NULL, reject the event write with PRECONDITION_FAILED.
+- A line's id is `<event_id>:<n>` (n is the position among the lines that event writes, in payload order; a v1 tournament start writes buy_in then fee, a v1 tournament end prize then bounty). Rebuilding gives the same id, so the result matches the backfill.
+- The asset of a buy-in is the assetId of the payment if there are payments. Otherwise it is entry.asset_id. If both are NULL, reject the event write with PRECONDITION_FAILED. `projectEntry` keeps such a line with a NULL asset, and `buildProjectionLineStatements` raises the error, so building the batch fails before anything is written.
+- A v1 tournament session_start writes buy_in and fee only when it is the first session_start of the seq 1 play_session. Their amounts come from the projector context (`tournamentEntryCost`), which the loader fills with `session_tournament_detail.tournament_buy_in` / `entry_fee`, falling back to the tournament master, the same fallback as the legacy recalculation.
+- Only the session_end that closes its play_session (the fold's closing event) writes cash_out, prize, or bounty. A session_end followed by a later session_start in the same play_session writes nothing, as the legacy fold gives such a session no P/L.
 - To add events after a session_end, start a new play_session (startNextPlay in section 14). The event is never deleted. What happens to it depends on the kind:
   - cash: rewrite the session_end as a day_end (held).
   - tournament: the new play_session is a re-entry, so keep the session_end as it is. Its play_session stays busted, because held is cash only (INV-07). A session_end that ended finished has nothing left to play, and startNextPlay rejects it with PRECONDITION_FAILED.
   - In both cases the session_start of the new play_session sets entry.status back to open, and INV-06 decides it from then on.
-- A manual-input entry (INV-13) does not go through the projector. Replace its lines and play_sessions directly from the form values.
+- A manual-input entry (INV-13) does not go through the projector. Replace its lines and play_sessions directly from the form values. `buildManualLineStatements` (`packages/api/src/services/ledger-writes.ts`) deletes the entry's lines that have no source_event_id and inserts one line per payment, with the id `m:<entry_id>:<role>:<n>` (n counts per role). Without `payments[]`, `manualMoneyPayments` turns the old money columns into payments (buy_in, chip_remove, cash_out for cash; buy_in, fee, one chip_purchase per purchase × count, prize, bounty for a tournament; zero amounts write no line). occurred_at is the start time, or noon UTC of local_date (`manualLineOccurredAt`).
 - When editing a completed live entry through the form (`live-linked-edit.ts`), rewrite the events and then re-project, as today.
 
 ## 14. API and MCP changes

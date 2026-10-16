@@ -50,7 +50,7 @@ async function addEvent(
 
 async function reproject(db: Database, entryId: string) {
 	const [owner] = await db
-		.select({ kind: entry.kind })
+		.select({ kind: entry.kind, assetId: entry.assetId })
 		.from(entry)
 		.where(eq(entry.id, entryId));
 	const sessions = await db
@@ -70,7 +70,9 @@ async function reproject(db: Database, entryId: string) {
 	}
 	const projection = projectEntry(events, {
 		kind: owner.kind,
+		assetId: owner.assetId,
 		playSessions: sessions,
+		tournamentEntryCost: null,
 	});
 	await runBatch(
 		db,

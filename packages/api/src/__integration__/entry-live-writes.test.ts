@@ -303,7 +303,12 @@ describe("live entry writes keep the event log and its projection in step", () =
 		await startLive(
 			api,
 			cashStart({
-				detail: { kind: "tournament", tournamentId: null },
+				detail: {
+					kind: "tournament",
+					tournamentId: null,
+					buyIn: null,
+					entryFee: null,
+				},
 				startEvent: {
 					occurredAt: START,
 					payload: { buyInAmount: 1000, entryFee: 0 },
@@ -583,7 +588,12 @@ describe("live entry writes commit all of a write or none of it on D1", () => {
 		await startLive(
 			api,
 			cashStart({
-				detail: { kind: "tournament", tournamentId: null },
+				detail: {
+					kind: "tournament",
+					tournamentId: null,
+					buyIn: null,
+					entryFee: null,
+				},
 				assetId: wallet.id,
 				startEvent: { occurredAt: START, payload: {} },
 			})
@@ -666,7 +676,12 @@ describe("live entry writes commit all of a write or none of it on D1", () => {
 		await startLive(
 			api,
 			cashStart({
-				detail: { kind: "tournament", tournamentId: null },
+				detail: {
+					kind: "tournament",
+					tournamentId: null,
+					buyIn: null,
+					entryFee: null,
+				},
 				assetId: wallet.id,
 				startEvent: { occurredAt: START, payload: {} },
 			})
@@ -740,7 +755,12 @@ describe("live entry writes commit all of a write or none of it on D1", () => {
 		await startLive(
 			api,
 			cashStart({
-				detail: { kind: "tournament", tournamentId: null },
+				detail: {
+					kind: "tournament",
+					tournamentId: null,
+					buyIn: null,
+					entryFee: null,
+				},
 				startEvent: { occurredAt: START, payload: {} },
 			})
 		);
