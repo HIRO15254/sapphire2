@@ -7,9 +7,16 @@ import {
 	SETTLING_END_STATES,
 } from "@sapphire2/db/constants/entry";
 import {
+	type LedgerEffect,
+	type LedgerRole,
+	signedLedgerQuantity,
+} from "@sapphire2/db/constants/ledger";
+import {
 	cashSessionEndPayloadV2,
 	cashSessionStartPayloadV2,
 	dayEndPayload,
+	purchaseChipsPayloadV2,
+	reentryPayload,
 	tournamentSessionEndPayloadV2,
 	tournamentSessionStartPayloadV2,
 	updateStackPayloadV2,
@@ -17,6 +24,9 @@ import {
 import {
 	allInPayload,
 	cashSessionEndPayload,
+	cashSessionStartPayload,
+	chipsAddRemovePayload,
+	purchaseChipsPayload,
 	tournamentSessionEndPayload,
 	tournamentSessionStartPayload,
 	updateStackPayload,
@@ -28,8 +38,10 @@ import {
 	type playEvent,
 	playSession,
 } from "@sapphire2/db/schema/entry";
-import { and, eq } from "drizzle-orm";
-import type { BatchStatement } from "../lib/batch";
+import { ledgerLine } from "@sapphire2/db/schema/ledger";
+import { TRPCError } from "@trpc/server";
+import { and, eq, isNotNull } from "drizzle-orm";
+import { type BatchStatement, chunkForInsert } from "../lib/batch";
 
 export type ProjectorEvent = Pick<
 	typeof playEvent.$inferSelect,
@@ -43,8 +55,10 @@ export type ProjectorEvent = Pick<
 >;
 
 export interface ProjectorContext {
+	assetId: string | null;
 	kind: EntryKind;
 	playSessions: { id: string; seq: number; localDate: string }[];
+	tournamentEntryCost: { buyIn: number | null; fee: number | null } | null;
 }
 
 export interface PlaySessionProjection {
@@ -68,11 +82,30 @@ export type EntryDetailProjection =
 			totalEntries: number | null;
 	  };
 
+export interface ProjectedLine {
+	assetId: string | null;
+	effect: LedgerEffect;
+	id: string;
+	occurredAt: Date;
+	playSessionId: string;
+	quantity: number;
+	role: LedgerRole;
+	sourceEventId: string;
+}
+
 export interface EntryProjection {
 	detail: EntryDetailProjection;
+	lines: ProjectedLine[];
 	playedOn: string;
 	playSessions: PlaySessionProjection[];
 	status: EntryStatus;
+}
+
+interface LinePayment {
+	assetId: string | null;
+	effect: LedgerEffect;
+	quantity: number;
+	role: LedgerRole;
 }
 
 interface PlaySessionFold {
@@ -290,6 +323,135 @@ function projectTournament(
 	};
 }
 
+function mainAssetPayment(
+	context: ProjectorContext,
+	role: LedgerRole,
+	quantity: number
+): LinePayment[] {
+	return quantity > 0
+		? [{ assetId: context.assetId, quantity, role, effect: "real" }]
+		: [];
+}
+
+function sessionStartPayments(
+	event: ProjectorEvent,
+	context: ProjectorContext,
+	isEntryStart: boolean
+): LinePayment[] {
+	const payload = JSON.parse(event.payload);
+	if (isV2(event)) {
+		const schema =
+			context.kind === "cash"
+				? cashSessionStartPayloadV2
+				: tournamentSessionStartPayloadV2;
+		return schema.parse(payload).payments ?? [];
+	}
+	if (context.kind === "cash") {
+		return mainAssetPayment(
+			context,
+			"buy_in",
+			cashSessionStartPayload.parse(payload).buyInAmount
+		);
+	}
+	if (!isEntryStart) {
+		return [];
+	}
+	return [
+		...mainAssetPayment(
+			context,
+			"buy_in",
+			context.tournamentEntryCost?.buyIn ?? 0
+		),
+		...mainAssetPayment(context, "fee", context.tournamentEntryCost?.fee ?? 0),
+	];
+}
+
+function sessionEndPayments(
+	event: ProjectorEvent,
+	context: ProjectorContext
+): LinePayment[] {
+	const payload = JSON.parse(event.payload);
+	if (context.kind === "cash") {
+		return isV2(event)
+			? cashSessionEndPayloadV2.parse(payload).payments
+			: mainAssetPayment(
+					context,
+					"cash_out",
+					cashSessionEndPayload.parse(payload).cashOutAmount
+				);
+	}
+	if (isV2(event)) {
+		const parsed = tournamentSessionEndPayloadV2.safeParse(payload);
+		return parsed.success ? parsed.data.payments : [];
+	}
+	const parsed = tournamentSessionEndPayload.safeParse(payload);
+	if (!parsed.success) {
+		return [];
+	}
+	return [
+		...mainAssetPayment(context, "prize", parsed.data.prizeMoney),
+		...mainAssetPayment(context, "bounty", parsed.data.bountyPrizes),
+	];
+}
+
+function eventPayments(
+	event: ProjectorEvent,
+	context: ProjectorContext,
+	entryStartId: string | null,
+	closingEventIds: ReadonlySet<string>
+): LinePayment[] {
+	switch (event.type) {
+		case "session_start":
+			return sessionStartPayments(event, context, event.id === entryStartId);
+		case "chips_add_remove": {
+			const { amount } = chipsAddRemovePayload.parse(JSON.parse(event.payload));
+			return amount > 0
+				? mainAssetPayment(context, "addon", amount)
+				: mainAssetPayment(context, "chip_remove", -amount);
+		}
+		case "purchase_chips": {
+			const payload = JSON.parse(event.payload);
+			return isV2(event)
+				? purchaseChipsPayloadV2.parse(payload).payments
+				: mainAssetPayment(
+						context,
+						"chip_purchase",
+						purchaseChipsPayload.parse(payload).cost
+					);
+		}
+		case "reentry":
+			return reentryPayload.parse(JSON.parse(event.payload)).payments;
+		case "session_end":
+			return closingEventIds.has(event.id)
+				? sessionEndPayments(event, context)
+				: [];
+		default:
+			return [];
+	}
+}
+
+function projectLines(
+	ordered: readonly ProjectorEvent[],
+	context: ProjectorContext,
+	entryStartId: string | null,
+	closingEventIds: ReadonlySet<string>
+): ProjectedLine[] {
+	return ordered.flatMap((event) =>
+		eventPayments(event, context, entryStartId, closingEventIds).map(
+			(payment, n) => ({
+				id: `${event.id}:${n}`,
+				assetId: payment.assetId,
+				quantity: signedLedgerQuantity(payment.role, payment.quantity),
+				role: payment.role,
+				effect: payment.effect,
+				playSessionId: event.playSessionId,
+				sourceEventId: event.id,
+				occurredAt: event.occurredAt,
+			})
+		)
+	);
+}
+
 export function projectEntry(
 	events: readonly ProjectorEvent[],
 	context: ProjectorContext
@@ -340,6 +502,18 @@ export function projectEntry(
 			context.kind === "cash"
 				? projectCash(ordered, settled)
 				: projectTournament(ordered, finalFold.endEvent),
+		lines: projectLines(
+			ordered,
+			context,
+			(eventsBySession.get(sessions[0]?.id ?? "") ?? []).find(
+				(event) => event.type === "session_start"
+			)?.id ?? null,
+			new Set(
+				folds.flatMap((fold) =>
+					fold.endEvent?.type === "session_end" ? [fold.endEvent.id] : []
+				)
+			)
+		),
 	};
 }
 
@@ -400,5 +574,44 @@ export function buildProjectionStatements(
 			.where(and(eq(entry.id, scope.entryId), eq(entry.userId, scope.userId)))
 	);
 
+	return statements;
+}
+
+export function buildProjectionLineStatements(
+	db: Database,
+	scope: { entryId: string; userId: string },
+	lines: readonly ProjectedLine[],
+	now: Date
+): BatchStatement[] {
+	const rows = lines.map(({ assetId, ...line }) => {
+		if (assetId === null) {
+			throw new TRPCError({
+				code: "PRECONDITION_FAILED",
+				message: "Choose a currency for this session before recording money",
+			});
+		}
+		return {
+			...line,
+			assetId,
+			userId: scope.userId,
+			entryId: scope.entryId,
+			createdAt: now,
+			updatedAt: now,
+		};
+	});
+	const statements: BatchStatement[] = [
+		db
+			.delete(ledgerLine)
+			.where(
+				and(
+					eq(ledgerLine.entryId, scope.entryId),
+					eq(ledgerLine.userId, scope.userId),
+					isNotNull(ledgerLine.sourceEventId)
+				)
+			),
+	];
+	for (const chunk of chunkForInsert(rows, Object.keys(rows[0] ?? {}).length)) {
+		statements.push(db.insert(ledgerLine).values(chunk));
+	}
 	return statements;
 }

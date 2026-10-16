@@ -267,7 +267,12 @@ describe("live entry writes keep the event log and its projection in step", () =
 		await startLive(
 			api,
 			cashStart({
-				detail: { kind: "tournament", tournamentId: null },
+				detail: {
+					kind: "tournament",
+					tournamentId: null,
+					buyIn: null,
+					entryFee: null,
+				},
 				startEvent: {
 					occurredAt: START,
 					payload: { buyInAmount: 1000, entryFee: 0 },
