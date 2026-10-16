@@ -2,27 +2,27 @@ import {
 	MAX_SEAT_POSITION,
 	playerJoinPayload,
 } from "@sapphire2/db/constants/session-event-types";
+import { entry } from "@sapphire2/db/schema/entry";
 import {
 	player,
 	playerTag,
 	playerToPlayerTag,
 } from "@sapphire2/db/schema/player";
-import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
-import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
-import { type BatchStatement, runBatch } from "../lib/batch";
+import type { BatchStatement } from "../lib/batch";
+import {
+	findOwnedEntryId,
+	listEntryPlayEvents,
+} from "../services/entry-live-reads";
+import { applyEntryEventChange } from "../services/entry-live-writes";
 import { computeSeatedPlayersFromEvents } from "../services/live-session-pl";
 import { assertSeatPositionFitsTableSize } from "../utils/seat-position";
-import {
-	floorToMinute,
-	nextAppendSortOrderSql,
-	sessionEventOrderBy,
-} from "../utils/session-event-time";
+import { floorToMinute } from "../utils/session-event-time";
 import {
 	chunkForInsert,
 	selectInChunks,
@@ -50,17 +50,20 @@ async function resolveSessionOwnership(
 	sessionId: string,
 	userId: string
 ): Promise<{ sessionType: "cash_game" | "tournament" }> {
-	const [session] = await db
-		.select()
-		.from(gameSession)
-		.where(and(eq(gameSession.id, sessionId), eq(gameSession.userId, userId)));
-	if (!session || session.userId !== userId) {
+	const ownedId = await findOwnedEntryId(db, userId, sessionId);
+	const [session] = ownedId
+		? await db
+				.select({ kind: entry.kind })
+				.from(entry)
+				.where(and(eq(entry.id, ownedId), eq(entry.userId, userId)))
+		: [];
+	if (!session) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
 			message: "You do not own this session",
 		});
 	}
-	return { sessionType: session.kind as "cash_game" | "tournament" };
+	return { sessionType: session.kind === "cash" ? "cash_game" : "tournament" };
 }
 
 async function validatePlayerOwnership(
@@ -102,75 +105,23 @@ async function validateSeatPositionForSession(
 	assertSeatPositionFitsTableSize(seatPosition, detail?.tableSize ?? null);
 }
 
-function fetchSeatEvents(db: DbInstance, sessionId: string) {
-	return db
-		.select({
-			id: sessionEvent.id,
-			eventType: sessionEvent.eventType,
-			payload: sessionEvent.payload,
-			occurredAt: sessionEvent.occurredAt,
-			sortOrder: sessionEvent.sortOrder,
-		})
-		.from(sessionEvent)
-		.where(eq(sessionEvent.sessionId, sessionId))
-		.orderBy(...sessionEventOrderBy());
+function fetchSeatEvents(db: DbInstance, sessionId: string, userId: string) {
+	return listEntryPlayEvents(db, userId, sessionId);
 }
 
-function buildPlayerJoinEventStatement(
-	db: DbInstance,
-	sessionId: string,
+function playerJoinEvent(
 	playerId: string,
-	seatPosition?: number
-): { statement: BatchStatement } {
-	const now = new Date();
-	const payload: { playerId: string; seatPosition?: number } = { playerId };
-	if (seatPosition !== undefined) {
-		payload.seatPosition = seatPosition;
-	}
-
+	seatPosition: number | undefined,
+	now: Date
+) {
 	return {
-		statement: db.insert(sessionEvent).values({
-			id: crypto.randomUUID(),
-			sessionId,
-			eventType: "player_join",
-			occurredAt: floorToMinute(now),
-			sortOrder: nextAppendSortOrderSql(sessionId),
-			payload: JSON.stringify(payload),
-			updatedAt: now,
-		}) as unknown as BatchStatement,
-	};
-}
-
-export async function insertPlayerJoinEvent(
-	db: DbInstance,
-	sessionId: string,
-	playerId: string,
-	seatPosition?: number
-) {
-	const { statement } = buildPlayerJoinEventStatement(
-		db,
-		sessionId,
-		playerId,
-		seatPosition
-	);
-	await statement;
-}
-
-export async function insertPlayerLeaveEvent(
-	db: DbInstance,
-	sessionId: string,
-	playerId: string
-) {
-	const now = new Date();
-	await db.insert(sessionEvent).values({
-		id: crypto.randomUUID(),
-		sessionId,
-		eventType: "player_leave",
+		type: "player_join",
 		occurredAt: floorToMinute(now),
-		sortOrder: nextAppendSortOrderSql(sessionId),
-		payload: JSON.stringify({ playerId }),
-		updatedAt: now,
-	});
+		payload: {
+			playerId,
+			...(seatPosition === undefined ? {} : { seatPosition }),
+		},
+	};
 }
 
 const TEMPORARY_PLAYER_NAME = "Anonymous";
@@ -209,7 +160,7 @@ export const sessionTablePlayerRouter = router({
 			const userId = ctx.session.user.id;
 			await resolveSessionOwnership(ctx.db, sessionId, userId);
 
-			const events = await fetchSeatEvents(ctx.db, sessionId);
+			const events = await fetchSeatEvents(ctx.db, sessionId, userId);
 			const seated = computeSeatedPlayersFromEvents(events);
 
 			if (seated.length === 0) {
@@ -301,7 +252,7 @@ export const sessionTablePlayerRouter = router({
 				seatPosition
 			);
 
-			const events = await fetchSeatEvents(ctx.db, sessionId);
+			const events = await fetchSeatEvents(ctx.db, sessionId, userId);
 			const seated = computeSeatedPlayersFromEvents(events);
 			const isActive = seated.some(
 				(s) => s.playerId === playerId && s.isActive
@@ -313,7 +264,17 @@ export const sessionTablePlayerRouter = router({
 				});
 			}
 
-			await insertPlayerJoinEvent(ctx.db, sessionId, playerId, seatPosition);
+			const now = new Date();
+			await applyEntryEventChange(
+				ctx.db,
+				userId,
+				sessionId,
+				{
+					op: "append",
+					events: [playerJoinEvent(playerId, seatPosition, now)],
+				},
+				now
+			);
 
 			return { id: playerId, playerId };
 		}),
@@ -376,14 +337,17 @@ export const sessionTablePlayerRouter = router({
 				}
 			}
 
-			const { statement: joinStatement } = await buildPlayerJoinEventStatement(
+			await applyEntryEventChange(
 				ctx.db,
+				userId,
 				sessionId,
-				playerId,
-				seatPosition
+				{
+					op: "append",
+					events: [playerJoinEvent(playerId, seatPosition, now)],
+				},
+				now,
+				statements
 			);
-			statements.push(joinStatement);
-			await runBatch(ctx.db, statements);
 
 			return { id: playerId, playerId };
 		}),
@@ -412,7 +376,7 @@ export const sessionTablePlayerRouter = router({
 				seatPosition
 			);
 
-			const events = await fetchSeatEvents(ctx.db, sessionId);
+			const events = await fetchSeatEvents(ctx.db, sessionId, userId);
 			const seated = computeSeatedPlayersFromEvents(events);
 			const isActive = seated.some(
 				(s) => s.playerId === playerId && s.isActive
@@ -447,10 +411,17 @@ export const sessionTablePlayerRouter = router({
 			if (seatPosition !== null) {
 				payload.seatPosition = seatPosition;
 			}
-			await ctx.db
-				.update(sessionEvent)
-				.set({ payload: JSON.stringify(payload), updatedAt: new Date() })
-				.where(eq(sessionEvent.id, joinEventId));
+			await applyEntryEventChange(
+				ctx.db,
+				userId,
+				sessionId,
+				{
+					op: "update",
+					id: joinEventId,
+					payload,
+				},
+				new Date()
+			);
 
 			return { id: playerId, playerId };
 		}),
@@ -468,7 +439,7 @@ export const sessionTablePlayerRouter = router({
 			await resolveSessionOwnership(ctx.db, sessionId, userId);
 			await validatePlayerOwnership(ctx.db, playerId, userId);
 
-			const events = await fetchSeatEvents(ctx.db, sessionId);
+			const events = await fetchSeatEvents(ctx.db, sessionId, userId);
 			const seated = computeSeatedPlayersFromEvents(events);
 			const isActive = seated.some(
 				(s) => s.playerId === playerId && s.isActive
@@ -480,7 +451,23 @@ export const sessionTablePlayerRouter = router({
 				});
 			}
 
-			await insertPlayerLeaveEvent(ctx.db, sessionId, playerId);
+			const now = new Date();
+			await applyEntryEventChange(
+				ctx.db,
+				userId,
+				sessionId,
+				{
+					op: "append",
+					events: [
+						{
+							type: "player_leave",
+							occurredAt: floorToMinute(now),
+							payload: { playerId },
+						},
+					],
+				},
+				now
+			);
 
 			return { id: playerId, playerId };
 		}),
@@ -519,14 +506,17 @@ export const sessionTablePlayerRouter = router({
 				}) as unknown as BatchStatement,
 			];
 
-			const { statement: joinStatement } = await buildPlayerJoinEventStatement(
+			await applyEntryEventChange(
 				ctx.db,
+				userId,
 				sessionId,
-				playerId,
-				seatPosition
+				{
+					op: "append",
+					events: [playerJoinEvent(playerId, seatPosition, now)],
+				},
+				now,
+				statements
 			);
-			statements.push(joinStatement);
-			await runBatch(ctx.db, statements);
 
 			return { id: playerId, playerId };
 		}),

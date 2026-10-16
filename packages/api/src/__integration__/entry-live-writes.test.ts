@@ -1,4 +1,5 @@
 import type { Database } from "@sapphire2/db";
+import { currencyTransaction } from "@sapphire2/db/schema/currency";
 import {
 	entry,
 	entryTournament,
@@ -6,8 +7,13 @@ import {
 	playSession,
 } from "@sapphire2/db/schema/entry";
 import { gameSession } from "@sapphire2/db/schema/session";
+import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
+import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
+import { sessionChipPurchaseResult } from "@sapphire2/db/schema/session-chip-purchase-result";
+import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { asc, eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
+import { chunkForInsert } from "../lib/batch";
 import { listEntryPlayEvents } from "../services/entry-live-reads";
 import {
 	applyEntryEventChange,
@@ -15,7 +21,7 @@ import {
 	type LiveEntryStart,
 	updateEntryHeroSeat,
 } from "../services/entry-live-writes";
-import { type ApiFixture, test } from "./test-fixture";
+import { type ApiFixture, requireCreatedRow, test } from "./test-fixture";
 
 const START = new Date("2026-09-05T10:00:00.000Z");
 const LOCAL_DATE = "2026-09-05";
@@ -54,6 +60,10 @@ async function everyRow(db: Database) {
 		tournaments: await db.select().from(entryTournament),
 		plays: await db.select().from(playSession),
 		events: await db.select().from(playEvent).orderBy(asc(playEvent.sortOrder)),
+		cashMoney: await db.select().from(sessionCashDetail),
+		tournamentMoney: await db.select().from(sessionTournamentDetail),
+		chipResults: await db.select().from(sessionChipPurchaseResult),
+		transactions: await db.select().from(currencyTransaction),
 	};
 }
 
@@ -223,10 +233,13 @@ describe("live entry writes keep the event log and its projection in step", () =
 		});
 	});
 
-	test("deleting the only session_end reopens a settled entry", async ({
+	test("deleting the end and appending reopen events clears the ledger but preserves completed money", async ({
 		api,
 	}) => {
-		await startLive(api);
+		const wallet = requireCreatedRow(
+			await api.alice.currency.create({ name: "Reopen bankroll" })
+		);
+		await startLive(api, cashStart({ assetId: wallet.id }));
 		const { eventIds } = await applyEntryEventChange(
 			api.db,
 			"alice",
@@ -244,12 +257,33 @@ describe("live entry writes keep the event log and its projection in step", () =
 			minutes(30)
 		);
 		expect(only(await api.db.select().from(entry)).status).toBe("settled");
+		expect(only(await api.db.select().from(currencyTransaction))).toMatchObject(
+			{
+				amount: 200,
+				transactedAt: START,
+			}
+		);
+		const money = await api.db.select().from(sessionCashDetail);
 
 		await applyEntryEventChange(
 			api.db,
 			"alice",
 			"live-1",
-			{ op: "delete", id: eventIds[0] as string },
+			[
+				{ op: "delete", id: eventIds[0] as string },
+				{
+					op: "append",
+					events: [
+						{
+							type: "update_stack",
+							occurredAt: minutes(30),
+							payload: { stackAmount: 1200 },
+						},
+						{ type: "session_pause", occurredAt: minutes(30), payload: {} },
+						{ type: "session_resume", occurredAt: minutes(31), payload: {} },
+					],
+				},
+			],
 			minutes(31)
 		);
 
@@ -259,6 +293,8 @@ describe("live entry writes keep the event log and its projection in step", () =
 			endState: null,
 			endStack: null,
 		});
+		expect(await api.db.select().from(currencyTransaction)).toEqual([]);
+		expect(await api.db.select().from(sessionCashDetail)).toEqual(money);
 	});
 
 	test("a tournament busted without a placement is projected onto entry_tournament", async ({
@@ -455,15 +491,28 @@ describe("live entry writes commit all of a write or none of it on D1", () => {
 			tournaments: [],
 			plays: [],
 			events: [],
+			cashMoney: [],
+			tournamentMoney: [],
+			chipResults: [],
+			transactions: [],
 		});
 	});
 
-	test("an append whose projection fails writes neither the event nor the projection", async ({
+	test("a failed cash ledger insert rolls back the event, projection and cash money", async ({
 		api,
 	}) => {
-		await startLive(api);
+		const wallet = requireCreatedRow(
+			await api.alice.currency.create({ name: "Cash bankroll" })
+		);
+		await startLive(api, cashStart({ assetId: wallet.id }));
+		await api.db.insert(sessionCashDetail).values({
+			sessionId: "live-1",
+			buyIn: 1000,
+			cashOut: null,
+			chipRemoveTotal: null,
+		});
 		const before = await everyRow(api.db);
-		await forceFailure(api, "BEFORE UPDATE ON entry");
+		await forceFailure(api, "BEFORE INSERT ON currency_transaction");
 
 		const failure = await applyEntryEventChange(
 			api.db,
@@ -525,10 +574,190 @@ describe("live entry writes commit all of a write or none of it on D1", () => {
 		expect(await everyRow(api.db)).toEqual(before);
 	});
 
+	test("a failed ledger write rolls back events, projections, money and chip results together", async ({
+		api,
+	}) => {
+		const wallet = requireCreatedRow(
+			await api.alice.currency.create({ name: "Bankroll" })
+		);
+		await startLive(
+			api,
+			cashStart({
+				detail: { kind: "tournament", tournamentId: null },
+				assetId: wallet.id,
+				startEvent: { occurredAt: START, payload: {} },
+			})
+		);
+		await api.db.insert(sessionTournamentDetail).values({
+			sessionId: "live-1",
+			tournamentBuyIn: 200,
+			entryFee: 20,
+		});
+		await api.db.insert(sessionChipPurchase).values({
+			id: "rebuy",
+			sessionId: "live-1",
+			name: "Rebuy",
+			cost: 100,
+			chips: 1000,
+		});
+		const purchase = {
+			type: "purchase_chips",
+			occurredAt: minutes(10),
+			payload: {
+				sessionChipPurchaseId: "rebuy",
+				name: "Rebuy",
+				cost: 100,
+				chips: 1000,
+			},
+		};
+		const end = {
+			type: "session_end",
+			occurredAt: minutes(60),
+			payload: {
+				beforeDeadline: false,
+				placement: 1,
+				totalEntries: 20,
+				prizeMoney: 1000,
+				bountyPrizes: 50,
+			},
+		};
+		const { eventIds } = await applyEntryEventChange(
+			api.db,
+			"alice",
+			"live-1",
+			{
+				op: "append",
+				events: [purchase, end],
+			},
+			minutes(60)
+		);
+		expect(
+			only(await api.db.select().from(sessionChipPurchaseResult)).count
+		).toBe(1);
+		expect(only(await api.db.select().from(currencyTransaction)).amount).toBe(
+			730
+		);
+		const before = await everyRow(api.db);
+		await forceFailure(api, "BEFORE UPDATE ON currency_transaction");
+		const failure = await applyEntryEventChange(
+			api.db,
+			"alice",
+			"live-1",
+			[
+				{ op: "append", events: [{ ...purchase, occurredAt: minutes(20) }] },
+				{
+					op: "update",
+					id: eventIds[1] as string,
+					payload: { ...end.payload, prizeMoney: 2000 },
+				},
+			],
+			minutes(61)
+		).catch((error: unknown) => error);
+		expect(errorMessages(failure)).toContain("test forced failure");
+		expect(await everyRow(api.db)).toEqual(before);
+	});
+
+	test("replacing a settled tournament's chip snapshots resets new result counts without repricing old events", async ({
+		api,
+	}) => {
+		const wallet = requireCreatedRow(
+			await api.alice.currency.create({ name: "Snapshot bankroll" })
+		);
+		await startLive(
+			api,
+			cashStart({
+				detail: { kind: "tournament", tournamentId: null },
+				assetId: wallet.id,
+				startEvent: { occurredAt: START, payload: {} },
+			})
+		);
+		await api.db.insert(sessionTournamentDetail).values({
+			sessionId: "live-1",
+			tournamentBuyIn: 200,
+			entryFee: 20,
+		});
+		await api.db.insert(sessionChipPurchase).values({
+			id: "old-rebuy",
+			sessionId: "live-1",
+			name: "Rebuy",
+			cost: 100,
+			chips: 1000,
+		});
+		await applyEntryEventChange(
+			api.db,
+			"alice",
+			"live-1",
+			{
+				op: "append",
+				events: [
+					{
+						type: "purchase_chips",
+						occurredAt: minutes(10),
+						payload: {
+							sessionChipPurchaseId: "old-rebuy",
+							name: "Rebuy",
+							cost: 100,
+							chips: 1000,
+						},
+					},
+					{
+						type: "session_end",
+						occurredAt: minutes(60),
+						payload: {
+							beforeDeadline: false,
+							placement: 1,
+							totalEntries: 20,
+							prizeMoney: 1000,
+							bountyPrizes: 50,
+						},
+					},
+				],
+			},
+			minutes(60)
+		);
+		const transaction = only(await api.db.select().from(currencyTransaction));
+		expect(transaction.amount).toBe(730);
+		await api.alice.liveTournamentSession.updateSnapshot({
+			id: "live-1",
+			chipPurchases: [{ name: "New rebuy", cost: 500, chips: 5000 }],
+		});
+		const snapshot = only(await api.db.select().from(sessionChipPurchase));
+		expect(snapshot.id).not.toBe("old-rebuy");
+		expect(only(await api.db.select().from(sessionChipPurchaseResult))).toEqual(
+			{
+				sessionChipPurchaseId: snapshot.id,
+				count: 0,
+			}
+		);
+		expect(await api.db.select().from(currencyTransaction)).toEqual([
+			transaction,
+		]);
+	});
+
 	test("an entry with 50 chip purchases stays within the 100-parameter limit on append, update and delete", async ({
 		api,
 	}) => {
-		await startLive(api);
+		await startLive(
+			api,
+			cashStart({
+				detail: { kind: "tournament", tournamentId: null },
+				startEvent: { occurredAt: START, payload: {} },
+			})
+		);
+		const rows = Array.from({ length: 50 }, (_, index) => ({
+			id: `chip-${index}`,
+			sessionId: "live-1",
+			name: "Rebuy",
+			cost: 100,
+			chips: 1000,
+			sortOrder: index,
+		}));
+		for (const chunk of chunkForInsert(
+			rows,
+			Object.keys(rows[0] as object).length
+		)) {
+			await api.db.insert(sessionChipPurchase).values(chunk);
+		}
 		const purchases = Array.from({ length: 50 }, (_, index) => ({
 			type: "purchase_chips",
 			occurredAt: minutes(index + 1),
@@ -558,7 +787,13 @@ describe("live entry writes commit all of a write or none of it on D1", () => {
 					{
 						type: "session_end",
 						occurredAt: minutes(60),
-						payload: { cashOutAmount: 7000 },
+						payload: {
+							beforeDeadline: false,
+							placement: 1,
+							totalEntries: 50,
+							prizeMoney: 7000,
+							bountyPrizes: 0,
+						},
 					},
 				],
 			},
@@ -580,9 +815,20 @@ describe("live entry writes commit all of a write or none of it on D1", () => {
 		);
 
 		expect(await api.db.select().from(playEvent)).toHaveLength(51 + 1 - 1);
-		expect(await onlyPlay(api.db, "live-1")).toMatchObject({
-			status: "ended",
-			endStack: 7000,
+		expect(await onlyPlay(api.db, "live-1")).toMatchObject({ status: "ended" });
+		const results = await api.db.select().from(sessionChipPurchaseResult);
+		expect(results).toHaveLength(50);
+		expect(
+			results.find((row) => row.sessionChipPurchaseId === "chip-0")?.count
+		).toBe(0);
+		expect(
+			results.find((row) => row.sessionChipPurchaseId === "chip-49")?.count
+		).toBe(1);
+		expect(
+			only(await api.db.select().from(sessionTournamentDetail))
+		).toMatchObject({
+			prizeMoney: 7000,
+			bountyPrizes: 0,
 		});
 	});
 });

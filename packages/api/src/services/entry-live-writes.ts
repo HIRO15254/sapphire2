@@ -1,5 +1,6 @@
 import type { Database } from "@sapphire2/db";
 import type { EntryKind } from "@sapphire2/db/constants/entry";
+import { currencyTransaction } from "@sapphire2/db/schema/currency";
 import {
 	entry,
 	entryCash,
@@ -8,9 +9,14 @@ import {
 	playSession,
 } from "@sapphire2/db/schema/entry";
 import { gameSession } from "@sapphire2/db/schema/session";
+import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
+import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
+import { sessionChipPurchaseResult } from "@sapphire2/db/schema/session-chip-purchase-result";
+import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
+import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, sql } from "drizzle-orm";
-import { type BatchStatement, runBatch } from "../lib/batch";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { type BatchStatement, chunkForInsert, runBatch } from "../lib/batch";
 import { floorToMinute } from "../utils/session-event-time";
 import {
 	buildProjectionStatements,
@@ -19,7 +25,12 @@ import {
 	projectEntry,
 } from "./entry-projector";
 import { MINIMAL_GAME_SESSION_DATE } from "./entry-session";
-import { computeHeroSeatPositionFromEvents } from "./live-session-pl";
+import {
+	computeCashGamePLFromEvents,
+	computeHeroSeatPositionFromEvents,
+	computeTournamentPLFromEvents,
+} from "./live-session-pl";
+import { ensureSessionResultTypeId } from "./session-result-type";
 
 const SESSION_FORBIDDEN_MESSAGE = "You do not own this session";
 const EVENT_FORBIDDEN_MESSAGE = "You do not own this event";
@@ -63,9 +74,15 @@ interface StoredPlayEvent extends ProjectorEvent {
 }
 
 interface EntryEventState {
+	assetId: string | null;
 	events: StoredPlayEvent[];
 	kind: EntryKind;
-	playSessions: { id: string; seq: number; localDate: string }[];
+	playSessions: {
+		id: string;
+		seq: number;
+		localDate: string;
+		status: string;
+	}[];
 }
 
 function playEventRow(
@@ -163,7 +180,7 @@ async function loadEntryEventState(
 	entryId: string
 ): Promise<EntryEventState> {
 	const [owned] = await db
-		.select({ kind: entry.kind })
+		.select({ kind: entry.kind, assetId: entry.assetId })
 		.from(entry)
 		.where(and(eq(entry.id, entryId), eq(entry.userId, userId)));
 	if (!owned) {
@@ -177,6 +194,7 @@ async function loadEntryEventState(
 			id: playSession.id,
 			seq: playSession.seq,
 			localDate: playSession.localDate,
+			status: playSession.status,
 		})
 		.from(playSession)
 		.where(
@@ -196,7 +214,7 @@ async function loadEntryEventState(
 		})
 		.from(playEvent)
 		.where(and(eq(playEvent.entryId, entryId), eq(playEvent.userId, userId)));
-	return { kind: owned.kind, playSessions, events };
+	return { kind: owned.kind, assetId: owned.assetId, playSessions, events };
 }
 
 function findStoredEvent(state: EntryEventState, id: string): StoredPlayEvent {
@@ -217,7 +235,9 @@ function planAppend(
 	events: readonly NewPlayEvent[],
 	now: Date
 ) {
-	const latest = state.playSessions.at(-1);
+	const latest =
+		state.playSessions.find((session) => session.status !== "ended") ??
+		state.playSessions.at(-1);
 	if (!latest) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
@@ -297,25 +317,254 @@ function planChange(
 	};
 }
 
+export interface EntryEventOverrides {
+	assetId?: string | null;
+	entryFee?: number | null;
+	tournamentBuyIn?: number | null;
+	tournamentId?: string | null;
+}
+
+async function buildTournamentMoneyStatements(
+	db: Database,
+	scope: { entryId: string; userId: string },
+	events: Parameters<typeof computeTournamentPLFromEvents>[0],
+	overrides: EntryEventOverrides
+): Promise<{ profitLoss: number | null; statements: BatchStatement[] }> {
+	const { entryId, userId } = scope;
+	const statements: BatchStatement[] = [];
+	const [detail] = await db
+		.select({
+			tournamentId: entryTournament.tournamentId,
+			tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
+			entryFee: sessionTournamentDetail.entryFee,
+		})
+		.from(entryTournament)
+		.leftJoin(
+			sessionTournamentDetail,
+			eq(sessionTournamentDetail.sessionId, entryTournament.entryId)
+		)
+		.where(
+			and(
+				eq(entryTournament.entryId, entryId),
+				eq(entryTournament.userId, userId)
+			)
+		);
+	const tournamentId =
+		overrides.tournamentId === undefined
+			? detail?.tournamentId
+			: overrides.tournamentId;
+	let tournamentBuyIn =
+		overrides.tournamentBuyIn === undefined
+			? detail?.tournamentBuyIn
+			: overrides.tournamentBuyIn;
+	let entryFee =
+		overrides.entryFee === undefined ? detail?.entryFee : overrides.entryFee;
+	if (tournamentId && (tournamentBuyIn == null || entryFee == null)) {
+		const [master] = await db
+			.select({ buyIn: tournament.buyIn, entryFee: tournament.entryFee })
+			.from(tournament)
+			.where(
+				and(eq(tournament.id, tournamentId), eq(tournament.userId, userId))
+			);
+		tournamentBuyIn ??= master?.buyIn;
+		entryFee ??= master?.entryFee;
+	}
+	const pl = computeTournamentPLFromEvents(
+		events,
+		tournamentBuyIn ?? undefined,
+		entryFee ?? undefined
+	);
+	const { profitLoss } = pl;
+	const values = { prizeMoney: pl.prizeMoney, bountyPrizes: pl.bountyPrizes };
+	statements.push(
+		db
+			.insert(sessionTournamentDetail)
+			.values({ sessionId: entryId, ...values })
+			.onConflictDoUpdate({
+				target: sessionTournamentDetail.sessionId,
+				set: values,
+			})
+	);
+	statements.push(
+		db
+			.insert(sessionChipPurchaseResult)
+			.select(
+				db
+					.select({
+						sessionChipPurchaseId: sessionChipPurchase.id,
+						count: sql<number>`0`.as("count"),
+					})
+					.from(sessionChipPurchase)
+					.where(eq(sessionChipPurchase.sessionId, entryId))
+			)
+			.onConflictDoUpdate({
+				target: sessionChipPurchaseResult.sessionChipPurchaseId,
+				set: { count: sql`excluded.count` },
+			})
+	);
+	const rows = [...pl.chipPurchaseCounts].map(([id, count]) => ({
+		id,
+		count,
+	}));
+	for (const chunk of chunkForInsert(
+		rows,
+		Object.keys(rows[0] ?? {}).length + 1
+	)) {
+		const count = sql<number>`CASE ${sessionChipPurchase.id} ${sql.join(
+			chunk.map((row) => sql`WHEN ${row.id} THEN ${row.count}`),
+			sql` `
+		)} ELSE 0 END`.as("count");
+		statements.push(
+			db
+				.insert(sessionChipPurchaseResult)
+				.select(
+					db
+						.select({ sessionChipPurchaseId: sessionChipPurchase.id, count })
+						.from(sessionChipPurchase)
+						.where(
+							and(
+								eq(sessionChipPurchase.sessionId, entryId),
+								inArray(
+									sessionChipPurchase.id,
+									chunk.map((row) => row.id)
+								)
+							)
+						)
+				)
+				.onConflictDoUpdate({
+					target: sessionChipPurchaseResult.sessionChipPurchaseId,
+					set: { count: sql`excluded.count` },
+				})
+		);
+	}
+	return { profitLoss, statements };
+}
+
+async function buildMoneyStatements(
+	db: Database,
+	scope: { entryId: string; userId: string },
+	state: EntryEventState,
+	projection: EntryProjection,
+	overrides: EntryEventOverrides
+): Promise<BatchStatement[]> {
+	const { entryId, userId } = scope;
+	if (projection.status !== "settled") {
+		return [
+			db
+				.delete(currencyTransaction)
+				.where(eq(currencyTransaction.sessionId, entryId)),
+		];
+	}
+	const events = [...state.events]
+		.sort(
+			(a, b) =>
+				a.occurredAt.getTime() - b.occurredAt.getTime() ||
+				a.sortOrder - b.sortOrder ||
+				a.id.localeCompare(b.id)
+		)
+		.map((event) => ({
+			eventType: event.type,
+			payload: event.payload,
+			occurredAt: event.occurredAt,
+		}));
+	const statements: BatchStatement[] = [];
+	let profitLoss: number | null;
+	if (state.kind === "cash") {
+		const pl = computeCashGamePLFromEvents(events);
+		profitLoss = pl.profitLoss;
+		const values = {
+			buyIn: pl.totalBuyIn,
+			cashOut: pl.cashOut,
+			chipRemoveTotal: pl.chipRemoveTotal,
+		};
+		statements.push(
+			db
+				.insert(sessionCashDetail)
+				.values({ sessionId: entryId, ...values })
+				.onConflictDoUpdate({
+					target: sessionCashDetail.sessionId,
+					set: values,
+				})
+		);
+	} else {
+		const tournamentMoney = await buildTournamentMoneyStatements(
+			db,
+			scope,
+			events,
+			overrides
+		);
+		profitLoss = tournamentMoney.profitLoss;
+		statements.push(...tournamentMoney.statements);
+	}
+	const assetId =
+		overrides.assetId === undefined ? state.assetId : overrides.assetId;
+	const transactedAt = events.find(
+		(event) => event.eventType === "session_start"
+	)?.occurredAt;
+	if (!assetId || profitLoss === null || !transactedAt) {
+		statements.push(
+			db
+				.delete(currencyTransaction)
+				.where(eq(currencyTransaction.sessionId, entryId))
+		);
+		return statements;
+	}
+	const [existing] = await db
+		.select({ id: currencyTransaction.id })
+		.from(currencyTransaction)
+		.where(eq(currencyTransaction.sessionId, entryId));
+	const values = { amount: profitLoss, currencyId: assetId, transactedAt };
+	if (existing) {
+		statements.push(
+			db
+				.update(currencyTransaction)
+				.set(values)
+				.where(eq(currencyTransaction.id, existing.id))
+		);
+	} else {
+		const transactionTypeId = await ensureSessionResultTypeId(db, userId);
+		statements.push(
+			db.insert(currencyTransaction).values({
+				id: crypto.randomUUID(),
+				sessionId: entryId,
+				transactionTypeId,
+				...values,
+			})
+		);
+	}
+	return statements;
+}
+
 export async function applyEntryEventChange(
 	db: Database,
 	userId: string,
 	entryId: string,
-	change: EntryEventChange,
-	now: Date
+	change: EntryEventChange | readonly EntryEventChange[],
+	now: Date,
+	extraStatements: readonly BatchStatement[] = [],
+	overrides: EntryEventOverrides = {}
 ): Promise<{ eventIds: string[]; projection: EntryProjection }> {
 	const scope = { entryId, userId };
 	const state = await loadEntryEventState(db, userId, entryId);
-	const planned = planChange(db, scope, state, change, now);
-	const projection = projectEntry(planned.events, {
+	const statements: BatchStatement[] = [...extraStatements];
+	const eventIds: string[] = [];
+	const changes = Array.isArray(change) ? change : [change as EntryEventChange];
+	for (const current of changes) {
+		const planned = planChange(db, scope, state, current, now);
+		state.events = planned.events;
+		statements.push(...planned.statements);
+		eventIds.push(...planned.eventIds);
+	}
+	const projection = projectEntry(state.events, {
 		kind: state.kind,
 		playSessions: state.playSessions,
 	});
 	await runBatch(db, [
-		...planned.statements,
+		...statements,
 		...buildProjectionStatements(db, scope, projection),
+		...(await buildMoneyStatements(db, scope, state, projection, overrides)),
 	]);
-	return { eventIds: planned.eventIds, projection };
+	return { eventIds, projection };
 }
 
 export async function updateEntryHeroSeat(

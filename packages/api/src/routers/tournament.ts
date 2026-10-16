@@ -1,4 +1,5 @@
 import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
+import { entryTournament } from "@sapphire2/db/schema/entry";
 import { room } from "@sapphire2/db/schema/room";
 import {
 	blindLevel,
@@ -8,7 +9,15 @@ import {
 import { tournamentTag } from "@sapphire2/db/schema/tournament-tag";
 import { levelGamesSchema } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import {
+	and,
+	asc,
+	eq,
+	inArray,
+	isNotNull,
+	isNull,
+	notExists,
+} from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { assertLevelGameStructures } from "../services/game-structure";
@@ -491,9 +500,44 @@ export const tournamentRouter = router({
 		.input(tournamentIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await validateTournamentOwnership(ctx.db, input.id, userId);
+			const [owned] = await ctx.db
+				.select({ userId: tournament.userId })
+				.from(tournament)
+				.where(and(eq(tournament.id, input.id), eq(tournament.userId, userId)));
+			if (!owned || owned.userId !== userId) {
+				throw new TRPCError({
+					code: "FORBIDDEN",
+					message: "You do not own this tournament",
+				});
+			}
 
-			await ctx.db.delete(tournament).where(eq(tournament.id, input.id));
+			const deleted = await ctx.db
+				.delete(tournament)
+				.where(
+					and(
+						eq(tournament.id, input.id),
+						eq(tournament.userId, userId),
+						notExists(
+							ctx.db
+								.select({ id: entryTournament.entryId })
+								.from(entryTournament)
+								.where(
+									and(
+										eq(entryTournament.tournamentId, tournament.id),
+										eq(entryTournament.userId, userId)
+									)
+								)
+						)
+					)
+				)
+				.returning({ id: tournament.id });
+			if (deleted.length === 0) {
+				throw new TRPCError({
+					code: "CONFLICT",
+					message:
+						"This tournament is referenced by sessions. Archive the tournament instead of deleting it.",
+				});
+			}
 			return { success: true };
 		}),
 

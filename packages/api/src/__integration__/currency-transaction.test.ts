@@ -1,4 +1,5 @@
 import { currencyTransaction } from "@sapphire2/db/schema/currency";
+import { entry } from "@sapphire2/db/schema/entry";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { eq } from "drizzle-orm";
@@ -173,7 +174,16 @@ describe("currency transaction SQL boundaries", () => {
 			kind: "cash_game",
 			status: "completed",
 			source: "manual",
-			sessionDate: new Date("2026-09-05"),
+			sessionDate: new Date(0),
+			updatedAt: new Date("2026-09-05"),
+		});
+		await api.db.insert(entry).values({
+			id: "private-session",
+			userId: "bob",
+			kind: "cash",
+			status: "settled",
+			source: "manual",
+			playedOn: "2026-09-05",
 			updatedAt: new Date("2026-09-05"),
 		});
 		await api.db
@@ -196,6 +206,61 @@ describe("currency transaction SQL boundaries", () => {
 				amount: 10,
 				transactionTypeName: "Adjustment",
 				sessionName: null,
+			}),
+		]);
+	});
+
+	test("labels linked transactions using entry kind rather than the retired anchor kind", async ({
+		api,
+	}) => {
+		const wallet = requireCreatedRow(
+			await api.alice.currency.create({ name: "Own" })
+		);
+		const kind = requireCreatedRow(
+			await api.alice.transactionType.create({ name: "Payout" })
+		);
+		const day = new Date("2026-09-05");
+		await api.db.insert(gameSession).values({
+			id: "linked-session",
+			userId: "alice",
+			kind: "tournament",
+			status: "completed",
+			source: "manual",
+			sessionDate: new Date(0),
+			updatedAt: day,
+		});
+		await api.db.insert(entry).values({
+			id: "linked-session",
+			userId: "alice",
+			kind: "cash",
+			status: "settled",
+			source: "manual",
+			playedOn: "2026-09-05",
+			updatedAt: day,
+		});
+		await api.db.insert(sessionCashDetail).values({
+			sessionId: "linked-session",
+			ruleName: "Cash table",
+		});
+		await api.db.insert(currencyTransaction).values({
+			id: "session-result",
+			currencyId: wallet.id,
+			transactionTypeId: kind.id,
+			sessionId: "linked-session",
+			amount: 100,
+			transactedAt: day,
+		});
+		expect(
+			(
+				await api.alice.currencyTransaction.listByCurrency({
+					currencyId: wallet.id,
+				})
+			).items
+		).toEqual([
+			expect.objectContaining({
+				id: "session-result",
+				sessionName: "Cash table",
+				amount: 100,
 			}),
 		]);
 	});

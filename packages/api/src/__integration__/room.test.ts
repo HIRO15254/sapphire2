@@ -1,6 +1,6 @@
+import { entry } from "@sapphire2/db/schema/entry";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
-import { gameSession } from "@sapphire2/db/schema/session";
 import { blindLevel, tournament } from "@sapphire2/db/schema/tournament";
 import { describe, expect } from "vitest";
 import { requireCreatedRow, test } from "./test-fixture";
@@ -18,13 +18,13 @@ describe("room lifecycle on D1", () => {
 				await api.alice.room.create({ name: "Club" })
 			);
 			if (reference === "session") {
-				await api.db.insert(gameSession).values({
+				await api.db.insert(entry).values({
 					id: "session",
 					userId: "alice",
-					kind: "cash_game",
-					status: "completed",
+					kind: "cash",
+					status: "settled",
 					source: "manual",
-					sessionDate: day,
+					playedOn: "2026-09-05",
 					roomId: club.id,
 					updatedAt: day,
 				});
@@ -55,7 +55,7 @@ describe("room lifecycle on D1", () => {
 			]);
 			const before = {
 				rooms: await api.db.select().from(room),
-				sessions: await api.db.select().from(gameSession),
+				sessions: await api.db.select().from(entry),
 				games: await api.db.select().from(ringGame),
 				tournaments: await api.db.select().from(tournament),
 				levels: await api.db.select().from(blindLevel),
@@ -65,7 +65,7 @@ describe("room lifecycle on D1", () => {
 			).rejects.toMatchObject({ code: "CONFLICT", message: conflictMessage });
 			expect({
 				rooms: await api.db.select().from(room),
-				sessions: await api.db.select().from(gameSession),
+				sessions: await api.db.select().from(entry),
 				games: await api.db.select().from(ringGame),
 				tournaments: await api.db.select().from(tournament),
 				levels: await api.db.select().from(blindLevel),
@@ -97,13 +97,13 @@ describe("room lifecycle on D1", () => {
 		const club = requireCreatedRow(
 			await api.alice.room.create({ name: "Club" })
 		);
-		await api.db.insert(gameSession).values({
+		await api.db.insert(entry).values({
 			id: "session",
 			userId: "alice",
-			kind: "cash_game",
-			status: "completed",
+			kind: "cash",
+			status: "settled",
 			source: "manual",
-			sessionDate: day,
+			playedOn: "2026-09-05",
 			roomId: club.id,
 			updatedAt: day,
 		});
@@ -122,7 +122,7 @@ describe("room lifecycle on D1", () => {
 			}),
 		]);
 		expect(await api.alice.room.getById({ id: club.id })).toEqual(archived);
-		expect(await api.db.select().from(gameSession)).toEqual([
+		expect(await api.db.select().from(entry)).toEqual([
 			expect.objectContaining({ id: "session", roomId: club.id }),
 		]);
 		const restored = requireCreatedRow(

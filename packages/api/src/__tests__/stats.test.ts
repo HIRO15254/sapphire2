@@ -950,7 +950,7 @@ describe("fetchStatsRows variant mapping", () => {
 	it("takes the cash detail variant for a cash_game row", async () => {
 		const { db } = createChainableMockDb({
 			select: {
-				game_session: [
+				entry: [
 					rawRow({
 						id: "cash-1",
 						type: "cash_game",
@@ -973,7 +973,7 @@ describe("fetchStatsRows variant mapping", () => {
 	it("takes the tournament detail variant for a tournament row", async () => {
 		const { db } = createChainableMockDb({
 			select: {
-				game_session: [
+				entry: [
 					rawRow({
 						id: "tourney-1",
 						type: "tournament",
@@ -998,7 +998,7 @@ describe("fetchStatsRows variant mapping", () => {
 	it("passes through a null variant when the detail row has none", async () => {
 		const { db } = createChainableMockDb({
 			select: {
-				game_session: [
+				entry: [
 					rawRow({
 						id: "cash-2",
 						type: "cash_game",
@@ -1016,7 +1016,7 @@ describe("fetchStatsRows variant mapping", () => {
 	it("adds chipRemoveTotal into a cash_game row's profitLoss and evProfitLoss (chip remove bug)", async () => {
 		const { db } = createChainableMockDb({
 			select: {
-				game_session: [
+				entry: [
 					rawRow({
 						id: "cash-3",
 						type: "cash_game",
@@ -1040,7 +1040,7 @@ describe("fetchStatsRows variant mapping", () => {
 	it("falls back to the actual result when a cash_game row has no evCashOut", async () => {
 		const { db } = createChainableMockDb({
 			select: {
-				game_session: [
+				entry: [
 					rawRow({
 						id: "cash-no-ev",
 						type: "cash_game",
@@ -1061,7 +1061,7 @@ describe("fetchStatsRows variant mapping", () => {
 	it("keeps chipRemoveTotal inside the fallback EV so evDiff stays 0", async () => {
 		const { db } = createChainableMockDb({
 			select: {
-				game_session: [
+				entry: [
 					rawRow({
 						id: "cash-no-ev-chips",
 						type: "cash_game",
@@ -1083,7 +1083,7 @@ describe("fetchStatsRows variant mapping", () => {
 	it("leaves evProfitLoss null when a cash_game row has no recorded result", async () => {
 		const { db } = createChainableMockDb({
 			select: {
-				game_session: [
+				entry: [
 					rawRow({
 						id: "cash-no-result",
 						type: "cash_game",
@@ -1103,7 +1103,7 @@ describe("fetchStatsRows variant mapping", () => {
 	it("treats an evCashOut of 0 as recorded, not as missing", async () => {
 		const { db } = createChainableMockDb({
 			select: {
-				game_session: [
+				entry: [
 					rawRow({
 						id: "cash-zero-ev",
 						type: "cash_game",
@@ -1124,7 +1124,7 @@ describe("fetchStatsRows variant mapping", () => {
 	it("marks a cash_game row with a stored evCashOut as evRecorded", async () => {
 		const { db } = createChainableMockDb({
 			select: {
-				game_session: [
+				entry: [
 					rawRow({
 						id: "cash-recorded-ev",
 						type: "cash_game",
@@ -1143,7 +1143,7 @@ describe("fetchStatsRows variant mapping", () => {
 	it("leaves evRecorded false when the ev figures came from the cashOut fallback", async () => {
 		const { db } = createChainableMockDb({
 			select: {
-				game_session: [
+				entry: [
 					rawRow({
 						id: "cash-fallback-ev",
 						type: "cash_game",
@@ -1164,7 +1164,7 @@ describe("fetchStatsRows variant mapping", () => {
 	it("leaves evRecorded false for a tournament row", async () => {
 		const { db } = createChainableMockDb({
 			select: {
-				game_session: [
+				entry: [
 					rawRow({
 						id: "tourney-ev",
 						type: "tournament",
@@ -1184,7 +1184,7 @@ describe("fetchStatsRows variant mapping", () => {
 	it("treats a null chipRemoveTotal as 0 for a cash_game row's profitLoss", async () => {
 		const { db } = createChainableMockDb({
 			select: {
-				game_session: [
+				entry: [
 					rawRow({
 						id: "cash-4",
 						type: "cash_game",
@@ -1242,7 +1242,7 @@ describe("stats ownership scoping", () => {
 		const { caller } = makeStatsCaller({
 			currency: [{ id: "currency-1", userId: "user-1" }],
 			room: [{ id: "room-1", userId: "user-1" }],
-			game_session: [],
+			entry: [],
 		});
 
 		await expect(
@@ -1252,7 +1252,7 @@ describe("stats ownership scoping", () => {
 
 	it("owner-scopes the room join that surfaces its name", async () => {
 		const { db, selectJoinParams } = createChainableMockDb({
-			select: { game_session: [] },
+			select: { entry: [] },
 		});
 
 		await fetchStatsRows(db, "user-1", { normalized: true });

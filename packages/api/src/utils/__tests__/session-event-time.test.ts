@@ -4,7 +4,6 @@ import {
 	assertAppendOccurredAtOrdering,
 	floorToMinute,
 	latestSessionEventOrderBy,
-	nextAppendSortOrderSql,
 	resolveOccurredAt,
 	sessionEventOrderBy,
 } from "../session-event-time";
@@ -179,19 +178,6 @@ describe("assertAppendOccurredAtOrdering", () => {
 		});
 	});
 });
-describe("nextAppendSortOrderSql", () => {
-	const dialect = new SQLiteSyncDialect();
-
-	it("computes max plus one inside the INSERT statement", () => {
-		const query = dialect.sqlToQuery(nextAppendSortOrderSql("session-1"));
-		const normalizedSql = query.sql.toLowerCase();
-		expect(normalizedSql).toContain("coalesce(max(");
-		expect(normalizedSql).toContain('from "session_event"');
-		expect(normalizedSql).toContain('where "session_event"."session_id" = ?');
-		expect(normalizedSql).toContain("+ 1");
-		expect(query.params).toEqual(["session-1"]);
-	});
-});
 
 describe("sessionEventOrderBy", () => {
 	it("uses occurredAt, sortOrder, and id as the shared stable order", () => {
@@ -200,9 +186,9 @@ describe("sessionEventOrderBy", () => {
 			(order) => dialect.sqlToQuery(order).sql
 		);
 		expect(sqlParts).toEqual([
-			'"session_event"."occurred_at" asc',
-			'"session_event"."sort_order" asc',
-			'"session_event"."id" asc',
+			'"play_event"."occurred_at" asc',
+			'"play_event"."sort_order" asc',
+			'"play_event"."id" asc',
 		]);
 	});
 });
@@ -214,9 +200,9 @@ describe("latestSessionEventOrderBy", () => {
 			(order) => dialect.sqlToQuery(order).sql
 		);
 		expect(sqlParts).toEqual([
-			'"session_event"."occurred_at" desc',
-			'"session_event"."sort_order" desc',
-			'"session_event"."id" desc',
+			'"play_event"."occurred_at" desc',
+			'"play_event"."sort_order" desc',
+			'"play_event"."id" desc',
 		]);
 	});
 });

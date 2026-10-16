@@ -4,16 +4,13 @@ import {
 	MAX_SEAT_POSITION,
 	updateStackPayload,
 } from "@sapphire2/db/constants/session-event-types";
-import { currency, currencyTransaction } from "@sapphire2/db/schema/currency";
-import { entry } from "@sapphire2/db/schema/entry";
+import { entry, entryCash, playSession } from "@sapphire2/db/schema/entry";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
-import { room } from "@sapphire2/db/schema/room";
-import { gameSession } from "@sapphire2/db/schema/session";
+import type { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
-import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { mixGamesSchema } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { runBatch } from "../lib/batch";
@@ -24,30 +21,33 @@ import {
 import {
 	findLiveCashEntrySession,
 	getPlayEventMap,
+	type LegacySessionEventRow,
 	listEntryPlayEvents,
 	listLiveCashEntryRows,
 } from "../services/entry-live-reads";
-import { legacySessionDateSql } from "../services/entry-session";
+import {
+	applyEntryEventChange,
+	buildLiveEntryStartStatements,
+	updateEntryHeroSeat,
+} from "../services/entry-live-writes";
+import {
+	buildEntryDeleteStatements,
+	legacySessionDateSql,
+} from "../services/entry-session";
 import {
 	computeCashGamePLFromEvents,
 	computeCashGameSummaryFromEvents,
 	computeHeroSeatPositionFromEvents,
-	recalculateCashGameSession,
 } from "../services/live-session-pl";
 import {
 	assertHandTrackingEditable,
+	buildHandTrackingStatements,
 	buildLiveSessionUpdateData,
 	dealerSeatSchema,
 	handCountSchema,
 } from "../utils/live-session-update";
 import { assertSeatPositionFitsTableSize } from "../utils/seat-position";
-import {
-	floorToMinute,
-	heroSeatEventValues,
-	latestSessionEventOrderBy,
-	nextAppendSortOrderSql,
-	sessionEventOrderBy,
-} from "../utils/session-event-time";
+import { floorToMinute } from "../utils/session-event-time";
 import {
 	buildRingGameCreateStatement,
 	ringGameCreateInputSchema,
@@ -55,11 +55,9 @@ import {
 import {
 	cashMixFlatFieldClearPatch,
 	encodeSessionCursor,
-	getSessionEventMap,
 	reconcileCashRuleSelection,
 	resolveCashRuleSnapshot,
 	sessionKeysetCondition,
-	sessionOrderKeySql,
 	validateEntityOwnership,
 	validateLiveLinkOwnership,
 } from "./session";
@@ -88,6 +86,25 @@ type BatchStatement = Parameters<DbInstance["batch"]>[0][number];
 
 const LIVE_CASH_SESSION_FORBIDDEN_MESSAGE =
 	"You do not own this live cash game session";
+
+const cashDetailColumns = {
+	sessionId: sessionCashDetail.sessionId,
+	buyIn: sessionCashDetail.buyIn,
+	cashOut: sessionCashDetail.cashOut,
+	chipRemoveTotal: sessionCashDetail.chipRemoveTotal,
+	ruleName: sessionCashDetail.ruleName,
+	variant: sessionCashDetail.variant,
+	mixGames: sessionCashDetail.mixGames,
+	blind1: sessionCashDetail.blind1,
+	blind2: sessionCashDetail.blind2,
+	blind3: sessionCashDetail.blind3,
+	ante: sessionCashDetail.ante,
+	anteType: sessionCashDetail.anteType,
+	minBuyIn: sessionCashDetail.minBuyIn,
+	maxBuyIn: sessionCashDetail.maxBuyIn,
+	tableSize: sessionCashDetail.tableSize,
+	houseRules: sessionCashDetail.houseRules,
+};
 
 const liveCashGameSessionListInput = z.object({
 	status: z.enum(["active", "paused", "completed"]).optional(),
@@ -138,8 +155,10 @@ async function assembleLiveCashListPage<
 function assembleLiveCashSession(
 	session: typeof gameSession.$inferSelect,
 	ringGameId: string | null,
-	cashDetail: typeof sessionCashDetail.$inferSelect | undefined,
-	events: (typeof sessionEvent.$inferSelect)[]
+	cashDetail:
+		| Omit<typeof sessionCashDetail.$inferSelect, "ringGameId" | "evCashOut">
+		| undefined,
+	events: LegacySessionEventRow[]
 ) {
 	const mappedEvents = events.map((e) => ({
 		eventType: e.eventType,
@@ -184,7 +203,7 @@ function assembleLiveCashSession(
 	};
 }
 
-export async function listLiveCashGameSessionsFromEntries(
+async function listLiveCashGameSessions(
 	db: DbInstance,
 	userId: string,
 	input: z.output<typeof liveCashGameSessionListInput>
@@ -203,7 +222,7 @@ export async function listLiveCashGameSessionsFromEntries(
 	);
 }
 
-export async function getLiveCashGameSessionFromEntry(
+async function getLiveCashGameSession(
 	db: DbInstance,
 	userId: string,
 	input: { id: string }
@@ -216,7 +235,7 @@ export async function getLiveCashGameSessionFromEntry(
 		});
 	}
 	const [cashDetail] = await db
-		.select()
+		.select(cashDetailColumns)
 		.from(sessionCashDetail)
 		.where(eq(sessionCashDetail.sessionId, input.id));
 	const events = await listEntryPlayEvents(db, userId, input.id);
@@ -257,58 +276,43 @@ export async function persistCashSessionReopenEvents(
 	db: DbInstance,
 	params: {
 		cashOutAmount: number;
-		endSortOrder: number;
 		flooredEndOccurredAt: Date;
 		flooredNow: Date;
 		now: Date;
 		sessionEndEventId: string;
 		sessionId: string;
+		userId: string;
 	}
 ): Promise<void> {
-	const statements: [BatchStatement, ...BatchStatement[]] = [
-		db
-			.delete(sessionEvent)
-			.where(eq(sessionEvent.id, params.sessionEndEventId)),
-		db.insert(sessionEvent).values({
-			id: crypto.randomUUID(),
-			sessionId: params.sessionId,
-			eventType: "update_stack",
-			occurredAt: params.flooredEndOccurredAt,
-			sortOrder: params.endSortOrder,
-			payload: JSON.stringify({ stackAmount: params.cashOutAmount }),
-			updatedAt: params.now,
-		}),
-		db.insert(sessionEvent).values({
-			id: crypto.randomUUID(),
-			sessionId: params.sessionId,
-			eventType: "session_pause",
-			occurredAt: params.flooredEndOccurredAt,
-			sortOrder: params.endSortOrder + 1,
-			payload: JSON.stringify({}),
-			updatedAt: params.now,
-		}),
-		db.insert(sessionEvent).values({
-			id: crypto.randomUUID(),
-			sessionId: params.sessionId,
-			eventType: "session_resume",
-			occurredAt: params.flooredNow,
-			sortOrder: params.endSortOrder + 2,
-			payload: JSON.stringify({}),
-			updatedAt: params.now,
-		}),
-		db
-			.update(gameSession)
-			.set({
-				endedAt: null,
-				status: "active",
-				updatedAt: params.now,
-			})
-			.where(eq(gameSession.id, params.sessionId)),
-		db
-			.delete(currencyTransaction)
-			.where(eq(currencyTransaction.sessionId, params.sessionId)),
-	];
-	await db.batch(statements);
+	await applyEntryEventChange(
+		db,
+		params.userId,
+		params.sessionId,
+		[
+			{ op: "delete", id: params.sessionEndEventId },
+			{
+				op: "append",
+				events: [
+					{
+						type: "update_stack",
+						occurredAt: params.flooredEndOccurredAt,
+						payload: { stackAmount: params.cashOutAmount },
+					},
+					{
+						type: "session_pause",
+						occurredAt: params.flooredEndOccurredAt,
+						payload: {},
+					},
+					{
+						type: "session_resume",
+						occurredAt: params.flooredNow,
+						payload: {},
+					},
+				],
+			},
+		],
+		params.now
+	);
 }
 
 async function findLiveCashGameSession(
@@ -316,31 +320,15 @@ async function findLiveCashGameSession(
 	id: string,
 	userId: string
 ) {
-	const [found] = await db
-		.select()
-		.from(gameSession)
-		.where(
-			and(
-				eq(gameSession.id, id),
-				eq(gameSession.kind, "cash_game"),
-				eq(gameSession.source, "live"),
-				eq(gameSession.userId, userId)
-			)
-		);
-
-	if (
-		!found ||
-		found.kind !== "cash_game" ||
-		found.source !== "live" ||
-		found.userId !== userId
-	) {
+	const found = await findLiveCashEntrySession(db, userId, id);
+	if (!found) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
 			message: LIVE_CASH_SESSION_FORBIDDEN_MESSAGE,
 		});
 	}
 
-	return found;
+	return found.session;
 }
 
 async function resolveRingGameAssignment(
@@ -399,90 +387,15 @@ async function resolveRingGameAssignment(
 export const liveCashGameSessionRouter = router({
 	list: protectedProcedure
 		.input(liveCashGameSessionListInput)
-		.query(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-
-			const conditions = [
-				eq(gameSession.userId, userId),
-				eq(gameSession.kind, "cash_game"),
-				eq(gameSession.source, "live"),
-			];
-			if (input.status) {
-				conditions.push(eq(gameSession.status, input.status));
-			}
-			const keyset = sessionKeysetCondition(input.cursor);
-			if (keyset) {
-				conditions.push(keyset);
-			}
-
-			const rows = await ctx.db
-				.select({
-					id: gameSession.id,
-					userId: gameSession.userId,
-					status: gameSession.status,
-					roomId: gameSession.roomId,
-					roomName: room.name,
-					ringGameId: sessionCashDetail.ringGameId,
-					ringGameName: sessionCashDetail.ruleName,
-					currencyId: gameSession.currencyId,
-					currencyName: currency.name,
-					currencyUnit: currency.unit,
-					startedAt: gameSession.startedAt,
-					sessionDate: gameSession.sessionDate,
-					endedAt: gameSession.endedAt,
-					memo: gameSession.memo,
-					createdAt: gameSession.createdAt,
-					updatedAt: gameSession.updatedAt,
-				})
-				.from(gameSession)
-				.leftJoin(
-					sessionCashDetail,
-					eq(sessionCashDetail.sessionId, gameSession.id)
-				)
-				.leftJoin(
-					room,
-					and(eq(room.id, gameSession.roomId), eq(room.userId, userId))
-				)
-				.leftJoin(
-					currency,
-					and(
-						eq(currency.id, gameSession.currencyId),
-						eq(currency.userId, userId)
-					)
-				)
-				.where(and(...conditions))
-				.orderBy(desc(sessionOrderKeySql()), desc(gameSession.id))
-				.limit(input.limit + 1);
-
-			return assembleLiveCashListPage(rows, input.limit, (ids) =>
-				getSessionEventMap(ctx.db, ids)
-			);
-		}),
+		.query(({ ctx, input }) =>
+			listLiveCashGameSessions(ctx.db, ctx.session.user.id, input)
+		),
 
 	getById: protectedProcedure
 		.input(z.object({ id: z.string() }))
-		.query(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			const session = await findLiveCashGameSession(ctx.db, input.id, userId);
-
-			const [cashDetail] = await ctx.db
-				.select()
-				.from(sessionCashDetail)
-				.where(eq(sessionCashDetail.sessionId, input.id));
-
-			const events = await ctx.db
-				.select()
-				.from(sessionEvent)
-				.where(eq(sessionEvent.sessionId, input.id))
-				.orderBy(...sessionEventOrderBy());
-
-			return assembleLiveCashSession(
-				session,
-				cashDetail?.ringGameId ?? null,
-				cashDetail,
-				events
-			);
-		}),
+		.query(({ ctx, input }) =>
+			getLiveCashGameSession(ctx.db, ctx.session.user.id, input)
+		),
 
 	create: protectedProcedure
 		.input(
@@ -509,14 +422,10 @@ export const liveCashGameSessionRouter = router({
 			}
 
 			const anyActive = await ctx.db
-				.select({ id: gameSession.id })
-				.from(gameSession)
+				.select({ id: playSession.id })
+				.from(playSession)
 				.where(
-					and(
-						eq(gameSession.userId, userId),
-						eq(gameSession.source, "live"),
-						sql`${gameSession.status} != 'completed'`
-					)
+					and(eq(playSession.userId, userId), ne(playSession.status, "ended"))
 				)
 				.limit(1);
 
@@ -566,23 +475,26 @@ export const liveCashGameSessionRouter = router({
 				ringGameId: input.ringGameId,
 			});
 			await runUnfinishedLiveSessionWrite(() =>
-				ctx.db.batch([
-					ctx.db.insert(gameSession).values({
+				runBatch(ctx.db, [
+					...buildLiveEntryStartStatements(ctx.db, {
 						id,
 						userId,
-						kind: "cash_game",
-						status: "active",
-						source: "live",
+						now,
+						detail: { kind: "cash", ringGameId: input.ringGameId ?? null },
+						assetId: input.currencyId ?? null,
 						roomId: input.roomId ?? null,
-						currencyId: input.currencyId ?? null,
-						startedAt: now,
 						memo: input.memo ?? null,
-						sessionDate: now,
-						updatedAt: now,
+						title: null,
+						localDate: new Date(now.getTime() + 9 * 60 * 60 * 1000)
+							.toISOString()
+							.slice(0, 10),
+						startEvent: {
+							occurredAt: floorToMinute(now),
+							payload: { buyInAmount: input.initialBuyIn },
+						},
 					}),
 					ctx.db.insert(sessionCashDetail).values({
 						sessionId: id,
-						ringGameId: input.ringGameId ?? null,
 						ruleName: input.ringGameId ? snapshot.ruleName : "Cash Game",
 						variant: snapshot.variant,
 						mixGames: snapshot.mixGames,
@@ -595,15 +507,6 @@ export const liveCashGameSessionRouter = router({
 						maxBuyIn: snapshot.maxBuyIn,
 						tableSize: snapshot.tableSize,
 						houseRules: snapshot.houseRules,
-					}),
-					ctx.db.insert(sessionEvent).values({
-						id: crypto.randomUUID(),
-						sessionId: id,
-						eventType: "session_start",
-						occurredAt: floorToMinute(now),
-						sortOrder: 0,
-						payload: JSON.stringify({ buyInAmount: input.initialBuyIn }),
-						updatedAt: now,
 					}),
 				])
 			);
@@ -638,18 +541,17 @@ export const liveCashGameSessionRouter = router({
 			const now = new Date();
 			const ringGameId = crypto.randomUUID();
 
-			const sessionUpdate: Partial<typeof gameSession.$inferInsert> = {
+			const sessionUpdate: Partial<typeof entry.$inferInsert> = {
 				updatedAt: now,
 			};
 			if (!existing.roomId) {
 				sessionUpdate.roomId = input.roomId;
 			}
 			if (!existing.currencyId && input.currencyId) {
-				sessionUpdate.currencyId = input.currencyId;
+				sessionUpdate.assetId = input.currencyId;
 			}
 
 			const snapshot = {
-				ringGameId,
 				ruleName: input.name,
 				variant: selection.variant,
 				mixGames: selection.mixGames,
@@ -684,19 +586,31 @@ export const liveCashGameSessionRouter = router({
 					now,
 				}),
 				ctx.db
-					.update(gameSession)
+					.update(entry)
 					.set(sessionUpdate)
+					.where(and(eq(entry.id, input.sessionId), eq(entry.userId, userId))),
+				ctx.db
+					.update(entryCash)
+					.set({ ringGameId })
 					.where(
 						and(
-							eq(gameSession.id, input.sessionId),
-							eq(gameSession.userId, userId),
-							eq(gameSession.kind, "cash_game"),
-							eq(gameSession.source, "live")
+							eq(entryCash.entryId, input.sessionId),
+							eq(entryCash.userId, userId)
 						)
 					),
 				detailStatement,
 			];
-			await ctx.db.batch(statements);
+			await applyEntryEventChange(
+				ctx.db,
+				userId,
+				input.sessionId,
+				[],
+				now,
+				statements,
+				{
+					assetId: sessionUpdate.assetId,
+				}
+			);
 
 			return { sessionId: input.sessionId, ringGameId };
 		}),
@@ -717,10 +631,10 @@ export const liveCashGameSessionRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const existing = await findLiveCashGameSession(ctx.db, input.id, userId);
-			assertHandTrackingEditable(existing.status, input);
+			await assertHandTrackingEditable(ctx.db, userId, input.id, input);
 
 			const [existingCashDetail] = await ctx.db
-				.select()
+				.select(cashDetailColumns)
 				.from(sessionCashDetail)
 				.where(eq(sessionCashDetail.sessionId, input.id));
 
@@ -730,9 +644,10 @@ export const liveCashGameSessionRouter = router({
 
 			const cashDetailUpdate: Partial<typeof sessionCashDetail.$inferInsert> =
 				{};
+			const entryCashUpdate: Partial<typeof entryCash.$inferInsert> = {};
 
 			if (input.ringGameId === null) {
-				cashDetailUpdate.ringGameId = null;
+				entryCashUpdate.ringGameId = null;
 			} else if (input.ringGameId !== undefined) {
 				await validateEntityOwnership(
 					ctx.db,
@@ -743,9 +658,9 @@ export const liveCashGameSessionRouter = router({
 				const resolvedRoomId =
 					updateData.roomId === undefined ? existing.roomId : updateData.roomId;
 				const resolvedCurrencyId =
-					updateData.currencyId === undefined
+					updateData.assetId === undefined
 						? existing.currencyId
-						: updateData.currencyId;
+						: updateData.assetId;
 				const patch = await resolveRingGameAssignment(
 					ctx.db,
 					input.ringGameId,
@@ -753,12 +668,12 @@ export const liveCashGameSessionRouter = router({
 					resolvedRoomId,
 					resolvedCurrencyId
 				);
-				cashDetailUpdate.ringGameId = patch.ringGameId;
+				entryCashUpdate.ringGameId = patch.ringGameId;
 				if (patch.roomId) {
 					updateData.roomId = patch.roomId;
 				}
 				if (patch.currencyId) {
-					updateData.currencyId = patch.currencyId;
+					updateData.assetId = patch.currencyId;
 				}
 
 				Object.assign(
@@ -771,44 +686,50 @@ export const liveCashGameSessionRouter = router({
 				);
 			}
 
-			await ctx.db
-				.update(gameSession)
-				.set(updateData)
-				.where(eq(gameSession.id, input.id));
-
+			const statements: BatchStatement[] = [
+				ctx.db
+					.update(entry)
+					.set(updateData)
+					.where(and(eq(entry.id, input.id), eq(entry.userId, userId))),
+				...buildHandTrackingStatements(ctx.db, userId, input.id, input),
+			];
+			if (Object.keys(entryCashUpdate).length > 0) {
+				statements.push(
+					ctx.db
+						.update(entryCash)
+						.set(entryCashUpdate)
+						.where(
+							and(eq(entryCash.entryId, input.id), eq(entryCash.userId, userId))
+						)
+				);
+			}
 			if (Object.keys(cashDetailUpdate).length > 0) {
-				if (existingCashDetail) {
-					await ctx.db
-						.update(sessionCashDetail)
-						.set(cashDetailUpdate)
-						.where(eq(sessionCashDetail.sessionId, input.id));
-				} else {
-					await ctx.db.insert(sessionCashDetail).values({
-						sessionId: input.id,
-						variant: DEFAULT_VARIANT_LABEL,
-						...cashDetailUpdate,
-					});
+				statements.push(
+					existingCashDetail
+						? ctx.db
+								.update(sessionCashDetail)
+								.set(cashDetailUpdate)
+								.where(eq(sessionCashDetail.sessionId, input.id))
+						: ctx.db.insert(sessionCashDetail).values({
+								sessionId: input.id,
+								variant: DEFAULT_VARIANT_LABEL,
+								...cashDetailUpdate,
+							})
+				);
+			}
+			await applyEntryEventChange(
+				ctx.db,
+				userId,
+				input.id,
+				[],
+				new Date(),
+				statements,
+				{
+					assetId: updateData.assetId,
 				}
-			}
-
-			if (
-				existing.status === "completed" &&
-				updateData.currencyId !== undefined
-			) {
-				await recalculateCashGameSession(ctx.db, input.id, userId);
-			}
-
-			const [updated] = await ctx.db
-				.select()
-				.from(gameSession)
-				.where(eq(gameSession.id, input.id));
-
-			const [updatedDetail] = await ctx.db
-				.select()
-				.from(sessionCashDetail)
-				.where(eq(sessionCashDetail.sessionId, input.id));
-
-			return { ...updated, ringGameId: updatedDetail?.ringGameId ?? null };
+			);
+			const updated = await findLiveCashEntrySession(ctx.db, userId, input.id);
+			return { ...updated?.session, ringGameId: updated?.ringGameId ?? null };
 		}),
 
 	updateSnapshot: protectedProcedure
@@ -833,7 +754,7 @@ export const liveCashGameSessionRouter = router({
 			const userId = ctx.session.user.id;
 			await findLiveCashGameSession(ctx.db, input.id, userId);
 			const [existingDetail] = await ctx.db
-				.select()
+				.select(cashDetailColumns)
 				.from(sessionCashDetail)
 				.where(eq(sessionCashDetail.sessionId, input.id));
 			const selection = await reconcileCashRuleSelection(
@@ -894,10 +815,12 @@ export const liveCashGameSessionRouter = router({
 			if (Object.keys(detailUpdate).length === 0) {
 				return { id: input.id };
 			}
-			await ctx.db
-				.update(sessionCashDetail)
-				.set(detailUpdate)
-				.where(eq(sessionCashDetail.sessionId, input.id));
+			await applyEntryEventChange(ctx.db, userId, input.id, [], new Date(), [
+				ctx.db
+					.update(sessionCashDetail)
+					.set(detailUpdate)
+					.where(eq(sessionCashDetail.sessionId, input.id)),
+			]);
 			return { id: input.id };
 		}),
 
@@ -921,17 +844,22 @@ export const liveCashGameSessionRouter = router({
 
 			const now = new Date();
 
-			await ctx.db.insert(sessionEvent).values({
-				id: crypto.randomUUID(),
-				sessionId: input.id,
-				eventType: "session_end",
-				occurredAt: floorToMinute(now),
-				sortOrder: nextAppendSortOrderSql(input.id),
-				payload: JSON.stringify({ cashOutAmount: input.finalStack }),
-				updatedAt: now,
-			});
-
-			await recalculateCashGameSession(ctx.db, input.id, userId);
+			await applyEntryEventChange(
+				ctx.db,
+				userId,
+				input.id,
+				{
+					op: "append",
+					events: [
+						{
+							type: "session_end",
+							occurredAt: floorToMinute(now),
+							payload: { cashOutAmount: input.finalStack },
+						},
+					],
+				},
+				now
+			);
 
 			return { id: input.id, pokerSessionId: input.id };
 		}),
@@ -950,14 +878,10 @@ export const liveCashGameSessionRouter = router({
 			}
 
 			const anyActive = await ctx.db
-				.select({ id: gameSession.id })
-				.from(gameSession)
+				.select({ id: playSession.id })
+				.from(playSession)
 				.where(
-					and(
-						eq(gameSession.userId, userId),
-						eq(gameSession.source, "live"),
-						sql`${gameSession.status} != 'completed'`
-					)
+					and(eq(playSession.userId, userId), ne(playSession.status, "ended"))
 				)
 				.limit(1);
 
@@ -970,22 +894,11 @@ export const liveCashGameSessionRouter = router({
 
 			const now = new Date();
 
-			const [sessionEndEvent] = await ctx.db
-				.select({
-					id: sessionEvent.id,
-					occurredAt: sessionEvent.occurredAt,
-					sortOrder: sessionEvent.sortOrder,
-					payload: sessionEvent.payload,
-				})
-				.from(sessionEvent)
-				.where(
-					and(
-						eq(sessionEvent.sessionId, input.id),
-						eq(sessionEvent.eventType, "session_end")
-					)
-				)
-				.orderBy(...latestSessionEventOrderBy())
-				.limit(1);
+			const sessionEndEvent = (
+				await listEntryPlayEvents(ctx.db, userId, input.id)
+			)
+				.filter((event) => event.eventType === "session_end")
+				.at(-1);
 
 			if (!sessionEndEvent) {
 				throw new TRPCError({
@@ -999,7 +912,6 @@ export const liveCashGameSessionRouter = router({
 			);
 			const cashOutAmount = endPayload.cashOutAmount;
 			const endOccurredAt = sessionEndEvent.occurredAt;
-			const endSortOrder = sessionEndEvent.sortOrder;
 
 			const flooredEndOccurredAt = floorToMinute(endOccurredAt);
 			const flooredNow = floorToMinute(now);
@@ -1009,7 +921,7 @@ export const liveCashGameSessionRouter = router({
 					sessionId: input.id,
 					sessionEndEventId: sessionEndEvent.id,
 					flooredEndOccurredAt,
-					endSortOrder,
+					userId,
 					cashOutAmount,
 					flooredNow,
 					now,
@@ -1032,7 +944,10 @@ export const liveCashGameSessionRouter = router({
 				});
 			}
 
-			await ctx.db.delete(gameSession).where(eq(gameSession.id, input.id));
+			await runBatch(
+				ctx.db,
+				buildEntryDeleteStatements(ctx.db, input.id, userId)
+			);
 
 			return { id: input.id };
 		}),
@@ -1061,32 +976,12 @@ export const liveCashGameSessionRouter = router({
 				detail?.tableSize ?? null
 			);
 
-			const events = await ctx.db
-				.select({
-					eventType: sessionEvent.eventType,
-					payload: sessionEvent.payload,
-				})
-				.from(sessionEvent)
-				.where(eq(sessionEvent.sessionId, input.id))
-				.orderBy(...sessionEventOrderBy());
-
-			const previousHeroSeat = computeHeroSeatPositionFromEvents(events);
-
-			if (previousHeroSeat === input.heroSeatPosition) {
-				return { id: input.id };
-			}
-
-			await runBatch(
+			await updateEntryHeroSeat(
 				ctx.db,
-				heroSeatEventValues({
-					heroSeatPosition: input.heroSeatPosition,
-					now: new Date(),
-					previousHeroSeat,
-					sessionId: input.id,
-				}).map(
-					(values) =>
-						ctx.db.insert(sessionEvent).values(values) as BatchStatement
-				)
+				userId,
+				input.id,
+				input.heroSeatPosition,
+				new Date()
 			);
 
 			return { id: input.id };

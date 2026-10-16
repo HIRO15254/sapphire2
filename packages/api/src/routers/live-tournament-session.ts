@@ -3,19 +3,21 @@ import {
 	tournamentSessionEndPayload,
 	updateStackPayload,
 } from "@sapphire2/db/constants/session-event-types";
-import { currency } from "@sapphire2/db/schema/currency";
-import { entry } from "@sapphire2/db/schema/entry";
+import {
+	entry,
+	entryTournament,
+	playSession,
+} from "@sapphire2/db/schema/entry";
 import { room } from "@sapphire2/db/schema/room";
-import { gameSession } from "@sapphire2/db/schema/session";
+import type { gameSession } from "@sapphire2/db/schema/session";
 import { sessionBlindLevel } from "@sapphire2/db/schema/session-blind-level";
 import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
 import { sessionChipPurchaseResult } from "@sapphire2/db/schema/session-chip-purchase-result";
-import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { levelGamesSchema } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, ne } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { runBatch } from "../lib/batch";
@@ -26,39 +28,42 @@ import {
 import {
 	findLiveTournamentEntrySession,
 	getPlayEventMap,
+	type LegacySessionEventRow,
 	listEntryPlayEvents,
 	listLiveTournamentEntryRows,
 } from "../services/entry-live-reads";
-import { legacySessionDateSql } from "../services/entry-session";
+import {
+	applyEntryEventChange,
+	buildLiveEntryStartStatements,
+	type EntryEventChange,
+	updateEntryHeroSeat,
+} from "../services/entry-live-writes";
+import {
+	buildEntryDeleteStatements,
+	legacySessionDateSql,
+} from "../services/entry-session";
 import { assertLevelGameStructures } from "../services/game-structure";
 import {
 	computeHeroSeatPositionFromEvents,
 	computeTournamentPLFromEvents,
-	recalculateTournamentSession,
 } from "../services/live-session-pl";
 import {
 	assertHandTrackingEditable,
+	buildHandTrackingStatements,
 	buildLiveSessionUpdateData,
 	dealerSeatSchema,
 	handCountSchema,
 } from "../utils/live-session-update";
 import { assertSeatPositionFitsTableSize } from "../utils/seat-position";
+import { floorToMinute } from "../utils/session-event-time";
 import {
-	floorToMinute,
-	heroSeatEventValues,
-	nextAppendSortOrderSql,
-	sessionEventOrderBy,
-} from "../utils/session-event-time";
-import {
+	buildSessionBlindLevelStatements,
+	buildSessionChipPurchaseStatements,
+	buildTournamentStructureReplacementStatements,
 	buildTournamentStructureStatements,
 	encodeSessionCursor,
-	getSessionEventMap,
-	persistSessionBlindLevels,
-	persistSessionChipPurchases,
-	resnapshotTournamentStructure,
 	resolveTournamentRuleSnapshot,
 	sessionKeysetCondition,
-	sessionOrderKeySql,
 	validateEntityOwnership,
 	validateLiveLinkOwnership,
 } from "./session";
@@ -93,6 +98,25 @@ type BatchStatement = Parameters<DbInstance["batch"]>[0][number];
 const LIVE_TOURNAMENT_SESSION_FORBIDDEN_MESSAGE =
 	"You do not own this live tournament session";
 
+const tournamentDetailColumns = {
+	sessionId: sessionTournamentDetail.sessionId,
+	tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
+	entryFee: sessionTournamentDetail.entryFee,
+	prizeMoney: sessionTournamentDetail.prizeMoney,
+	bountyPrizes: sessionTournamentDetail.bountyPrizes,
+	ruleName: sessionTournamentDetail.ruleName,
+	variant: sessionTournamentDetail.variant,
+	startingStack: sessionTournamentDetail.startingStack,
+	bountyAmount: sessionTournamentDetail.bountyAmount,
+	tableSize: sessionTournamentDetail.tableSize,
+	houseRules: sessionTournamentDetail.houseRules,
+};
+
+type TournamentDetail = Pick<
+	typeof sessionTournamentDetail.$inferSelect,
+	keyof typeof tournamentDetailColumns
+>;
+
 const liveTournamentSessionListInput = z.object({
 	status: z.enum(["active", "paused", "completed"]).optional(),
 	cursor: z.string().optional(),
@@ -104,31 +128,15 @@ async function findLiveTournamentSession(
 	id: string,
 	userId: string
 ) {
-	const [found] = await db
-		.select()
-		.from(gameSession)
-		.where(
-			and(
-				eq(gameSession.id, id),
-				eq(gameSession.kind, "tournament"),
-				eq(gameSession.source, "live"),
-				eq(gameSession.userId, userId)
-			)
-		);
-
-	if (
-		!found ||
-		found.kind !== "tournament" ||
-		found.source !== "live" ||
-		found.userId !== userId
-	) {
+	const found = await findLiveTournamentEntrySession(db, userId, id);
+	if (!found) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
 			message: LIVE_TOURNAMENT_SESSION_FORBIDDEN_MESSAGE,
 		});
 	}
 
-	return found;
+	return found.session;
 }
 
 async function assertNoActiveSession(
@@ -136,15 +144,9 @@ async function assertNoActiveSession(
 	userId: string
 ): Promise<void> {
 	const anyActive = await db
-		.select({ id: gameSession.id })
-		.from(gameSession)
-		.where(
-			and(
-				eq(gameSession.userId, userId),
-				eq(gameSession.source, "live"),
-				sql`${gameSession.status} != 'completed'`
-			)
-		)
+		.select({ id: playSession.id })
+		.from(playSession)
+		.where(and(eq(playSession.userId, userId), ne(playSession.status, "ended")))
 		.limit(1);
 
 	if (anyActive.length > 0) {
@@ -328,8 +330,8 @@ async function assembleLiveTournamentSession(
 	db: DbInstance,
 	session: typeof gameSession.$inferSelect,
 	moved: { timerStartedAt: Date | null; tournamentId: string | null },
-	detail: typeof sessionTournamentDetail.$inferSelect | undefined,
-	events: (typeof sessionEvent.$inferSelect)[]
+	detail: TournamentDetail | undefined,
+	events: LegacySessionEventRow[]
 ) {
 	const masterData = detailSnapshotForGetById(detail);
 
@@ -400,7 +402,7 @@ async function assembleLiveTournamentSession(
 	};
 }
 
-export async function listLiveTournamentSessionsFromEntries(
+async function listLiveTournamentSessions(
 	db: DbInstance,
 	userId: string,
 	input: z.output<typeof liveTournamentSessionListInput>
@@ -419,7 +421,7 @@ export async function listLiveTournamentSessionsFromEntries(
 	);
 }
 
-export async function getLiveTournamentSessionFromEntry(
+async function getLiveTournamentSession(
 	db: DbInstance,
 	userId: string,
 	input: { id: string }
@@ -432,7 +434,7 @@ export async function getLiveTournamentSessionFromEntry(
 		});
 	}
 	const [detail] = await db
-		.select()
+		.select(tournamentDetailColumns)
 		.from(sessionTournamentDetail)
 		.where(eq(sessionTournamentDetail.sessionId, input.id));
 	const events = await listEntryPlayEvents(db, userId, input.id);
@@ -452,34 +454,31 @@ async function resolveDetailUpdate(
 		tournamentId?: string | null;
 		timerStartedAt?: number | null;
 	},
-	updateData: Partial<typeof gameSession.$inferInsert>,
+	updateData: Partial<typeof entry.$inferInsert>,
 	existing: { roomId: string | null; currencyId: string | null },
 	userId: string
 ): Promise<{
 	detailUpdate: Partial<typeof sessionTournamentDetail.$inferInsert>;
-	patchedUpdateData: Partial<typeof gameSession.$inferInsert>;
+	patchedUpdateData: Partial<typeof entry.$inferInsert>;
+	entryTournamentUpdate: Partial<typeof entryTournament.$inferInsert>;
 }> {
 	const detailUpdate: Partial<typeof sessionTournamentDetail.$inferInsert> = {};
 	const patchedUpdateData = { ...updateData };
 
-	if (input.timerStartedAt !== undefined) {
-		detailUpdate.timerStartedAt =
-			input.timerStartedAt === null
-				? null
-				: new Date(input.timerStartedAt * 1000);
-	}
+	const entryTournamentUpdate: Partial<typeof entryTournament.$inferInsert> =
+		{};
 
 	if (input.tournamentId === null) {
-		detailUpdate.tournamentId = null;
+		entryTournamentUpdate.tournamentId = null;
 	} else if (input.tournamentId !== undefined) {
 		const resolvedRoomId =
 			patchedUpdateData.roomId === undefined
 				? existing.roomId
 				: patchedUpdateData.roomId;
 		const resolvedCurrencyId =
-			patchedUpdateData.currencyId === undefined
+			patchedUpdateData.assetId === undefined
 				? existing.currencyId
-				: patchedUpdateData.currencyId;
+				: patchedUpdateData.assetId;
 		const patch = await resolveTournamentAssignment(
 			db,
 			input.tournamentId,
@@ -487,12 +486,12 @@ async function resolveDetailUpdate(
 			resolvedRoomId,
 			resolvedCurrencyId
 		);
-		detailUpdate.tournamentId = patch.tournamentId;
+		entryTournamentUpdate.tournamentId = patch.tournamentId;
 		if (patch.roomId) {
 			patchedUpdateData.roomId = patch.roomId;
 		}
 		if (patch.currencyId) {
-			patchedUpdateData.currencyId = patch.currencyId;
+			patchedUpdateData.assetId = patch.currencyId;
 		}
 
 		if (!input.keepSnapshot) {
@@ -510,65 +509,34 @@ async function resolveDetailUpdate(
 		}
 	}
 
-	return { detailUpdate, patchedUpdateData };
+	return { detailUpdate, patchedUpdateData, entryTournamentUpdate };
 }
 
-async function upsertLiveTournamentDetail(
+async function timerStartedAtEventChange(
 	db: DbInstance,
-	sessionId: string,
-	existingDetail: { sessionId: string } | undefined,
-	detailUpdate: Partial<typeof sessionTournamentDetail.$inferInsert>
-): Promise<void> {
-	if (Object.keys(detailUpdate).length === 0) {
-		return;
-	}
-	if (existingDetail) {
-		await db
-			.update(sessionTournamentDetail)
-			.set(detailUpdate)
-			.where(eq(sessionTournamentDetail.sessionId, sessionId));
-	} else {
-		await db.insert(sessionTournamentDetail).values({
-			sessionId,
-			...detailUpdate,
-		});
-	}
-}
-
-async function syncTimerStartedAtEvent(
-	db: DbInstance,
+	userId: string,
 	sessionId: string,
 	timerStartedAt: number | null | undefined
-): Promise<void> {
+): Promise<EntryEventChange[]> {
 	if (timerStartedAt === undefined) {
-		return;
+		return [];
 	}
-	const [startEvent] = await db
-		.select()
-		.from(sessionEvent)
-		.where(
-			and(
-				eq(sessionEvent.sessionId, sessionId),
-				eq(sessionEvent.eventType, "session_start")
-			)
-		);
+	const startEvent = (await listEntryPlayEvents(db, userId, sessionId)).find(
+		(event) => event.eventType === "session_start"
+	);
 	if (!startEvent) {
-		return;
+		throw new TRPCError({
+			code: "PRECONDITION_FAILED",
+			message: "Session start event not found",
+		});
 	}
-	const existingPayload = JSON.parse(startEvent.payload) as Record<
-		string,
-		unknown
-	>;
-	await db
-		.update(sessionEvent)
-		.set({
-			payload: JSON.stringify({
-				...existingPayload,
-				timerStartedAt: timerStartedAt ?? null,
-			}),
-			updatedAt: new Date(),
-		})
-		.where(eq(sessionEvent.id, startEvent.id));
+	return [
+		{
+			op: "update",
+			id: startEvent.id,
+			payload: { ...JSON.parse(startEvent.payload), timerStartedAt },
+		},
+	];
 }
 
 async function resolveTournamentAssignment(
@@ -592,7 +560,7 @@ async function resolveTournamentAssignment(
 			room,
 			and(eq(room.id, tournament.roomId), eq(room.userId, userId))
 		)
-		.where(eq(tournament.id, tournamentId));
+		.where(and(eq(tournament.id, tournamentId), eq(tournament.userId, userId)));
 
 	if (!foundTournament) {
 		throw new TRPCError({
@@ -662,95 +630,15 @@ const liveTournamentCompleteInputSchema = z
 export const liveTournamentSessionRouter = router({
 	list: protectedProcedure
 		.input(liveTournamentSessionListInput)
-		.query(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-
-			const conditions = [
-				eq(gameSession.userId, userId),
-				eq(gameSession.kind, "tournament"),
-				eq(gameSession.source, "live"),
-			];
-			if (input.status) {
-				conditions.push(eq(gameSession.status, input.status));
-			}
-			const keyset = sessionKeysetCondition(input.cursor);
-			if (keyset) {
-				conditions.push(keyset);
-			}
-
-			const rows = await ctx.db
-				.select({
-					id: gameSession.id,
-					userId: gameSession.userId,
-					status: gameSession.status,
-					roomId: gameSession.roomId,
-					roomName: room.name,
-					tournamentId: sessionTournamentDetail.tournamentId,
-					tournamentName: sessionTournamentDetail.ruleName,
-					startingStack: sessionTournamentDetail.startingStack,
-					currencyId: gameSession.currencyId,
-					currencyName: currency.name,
-					currencyUnit: currency.unit,
-					startedAt: gameSession.startedAt,
-					sessionDate: gameSession.sessionDate,
-					endedAt: gameSession.endedAt,
-					memo: gameSession.memo,
-					createdAt: gameSession.createdAt,
-					updatedAt: gameSession.updatedAt,
-				})
-				.from(gameSession)
-				.leftJoin(
-					sessionTournamentDetail,
-					eq(sessionTournamentDetail.sessionId, gameSession.id)
-				)
-				.leftJoin(
-					room,
-					and(eq(room.id, gameSession.roomId), eq(room.userId, userId))
-				)
-				.leftJoin(
-					currency,
-					and(
-						eq(currency.id, gameSession.currencyId),
-						eq(currency.userId, userId)
-					)
-				)
-				.where(and(...conditions))
-				.orderBy(desc(sessionOrderKeySql()), desc(gameSession.id))
-				.limit(input.limit + 1);
-
-			return assembleLiveTournamentListPage(rows, input.limit, (ids) =>
-				getSessionEventMap(ctx.db, ids)
-			);
-		}),
+		.query(({ ctx, input }) =>
+			listLiveTournamentSessions(ctx.db, ctx.session.user.id, input)
+		),
 
 	getById: protectedProcedure
 		.input(z.object({ id: z.string() }))
-		.query(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			const session = await findLiveTournamentSession(ctx.db, input.id, userId);
-
-			const [detail] = await ctx.db
-				.select()
-				.from(sessionTournamentDetail)
-				.where(eq(sessionTournamentDetail.sessionId, input.id));
-
-			const events = await ctx.db
-				.select()
-				.from(sessionEvent)
-				.where(eq(sessionEvent.sessionId, input.id))
-				.orderBy(...sessionEventOrderBy());
-
-			return assembleLiveTournamentSession(
-				ctx.db,
-				session,
-				{
-					tournamentId: detail?.tournamentId ?? null,
-					timerStartedAt: detail?.timerStartedAt ?? null,
-				},
-				detail,
-				events
-			);
-		}),
+		.query(({ ctx, input }) =>
+			getLiveTournamentSession(ctx.db, ctx.session.user.id, input)
+		),
 
 	create: protectedProcedure
 		.input(
@@ -795,46 +683,37 @@ export const liveTournamentSessionRouter = router({
 				: [];
 
 			await runUnfinishedLiveSessionWrite(() =>
-				ctx.db.batch([
-					ctx.db.insert(gameSession).values({
+				runBatch(ctx.db, [
+					...buildLiveEntryStartStatements(ctx.db, {
 						id,
 						userId,
-						kind: "tournament",
-						status: "active",
-						source: "live",
+						now,
+						detail: {
+							kind: "tournament",
+							tournamentId: input.tournamentId ?? null,
+						},
+						assetId: input.currencyId ?? null,
 						roomId: input.roomId ?? null,
-						currencyId: input.currencyId ?? null,
-						startedAt: now,
 						memo: input.memo ?? null,
-						sessionDate: now,
-						updatedAt: now,
+						title: null,
+						localDate: new Date(now.getTime() + 9 * 60 * 60 * 1000)
+							.toISOString()
+							.slice(0, 10),
+						startEvent: {
+							occurredAt: floorToMinute(now),
+							payload: { timerStartedAt: input.timerStartedAt ?? null },
+						},
 					}),
 					ctx.db.insert(sessionTournamentDetail).values({
 						sessionId: id,
-						tournamentId: input.tournamentId ?? null,
 						tournamentBuyIn: snapshot.tournamentBuyIn,
 						entryFee: snapshot.entryFee,
-						timerStartedAt:
-							input.timerStartedAt === undefined
-								? null
-								: new Date(input.timerStartedAt * 1000),
 						ruleName: input.tournamentId ? snapshot.ruleName : "Tournament",
 						variant: snapshot.variant,
 						startingStack: snapshot.startingStack,
 						bountyAmount: snapshot.bountyAmount,
 						tableSize: snapshot.tableSize,
 						houseRules: snapshot.houseRules,
-					}),
-					ctx.db.insert(sessionEvent).values({
-						id: crypto.randomUUID(),
-						sessionId: id,
-						eventType: "session_start",
-						occurredAt: floorToMinute(now),
-						sortOrder: 0,
-						payload: JSON.stringify({
-							timerStartedAt: input.timerStartedAt ?? null,
-						}),
-						updatedAt: now,
 					}),
 					...structureStatements,
 				])
@@ -867,17 +746,16 @@ export const liveTournamentSessionRouter = router({
 			const blindLevels = input.blindLevels ?? [];
 			const chipPurchases = input.chipPurchases ?? [];
 
-			const sessionUpdate: Partial<typeof gameSession.$inferInsert> = {
+			const sessionUpdate: Partial<typeof entry.$inferInsert> = {
 				updatedAt: now,
 			};
 			if (!existing.roomId) {
 				sessionUpdate.roomId = input.roomId;
 			}
 			if (!existing.currencyId && input.currencyId) {
-				sessionUpdate.currencyId = input.currencyId;
+				sessionUpdate.assetId = input.currencyId;
 			}
 			const detailSnapshot = {
-				tournamentId,
 				tournamentBuyIn: input.buyIn ?? null,
 				entryFee: input.entryFee ?? null,
 				ruleName: input.name,
@@ -914,14 +792,16 @@ export const liveTournamentSessionRouter = router({
 					userId,
 				}),
 				ctx.db
-					.update(gameSession)
+					.update(entry)
 					.set(sessionUpdate)
+					.where(and(eq(entry.id, input.sessionId), eq(entry.userId, userId))),
+				ctx.db
+					.update(entryTournament)
+					.set({ tournamentId })
 					.where(
 						and(
-							eq(gameSession.id, input.sessionId),
-							eq(gameSession.userId, userId),
-							eq(gameSession.kind, "tournament"),
-							eq(gameSession.source, "live")
+							eq(entryTournament.entryId, input.sessionId),
+							eq(entryTournament.userId, userId)
 						)
 					),
 				detailStatement,
@@ -955,7 +835,20 @@ export const liveTournamentSessionRouter = router({
 					})
 				),
 			];
-			await ctx.db.batch(statements);
+			await applyEntryEventChange(
+				ctx.db,
+				userId,
+				input.sessionId,
+				[],
+				now,
+				statements,
+				{
+					assetId: sessionUpdate.assetId,
+					tournamentId,
+					tournamentBuyIn: detailSnapshot.tournamentBuyIn,
+					entryFee: detailSnapshot.entryFee,
+				}
+			);
 
 			return { sessionId: input.sessionId, tournamentId };
 		}),
@@ -981,69 +874,101 @@ export const liveTournamentSessionRouter = router({
 				input.id,
 				userId
 			);
-			assertHandTrackingEditable(existing.status, input);
+			await assertHandTrackingEditable(ctx.db, userId, input.id, input);
 
 			const [existingDetail] = await ctx.db
-				.select()
+				.select(tournamentDetailColumns)
 				.from(sessionTournamentDetail)
 				.where(eq(sessionTournamentDetail.sessionId, input.id));
 
 			await validateLiveLinkOwnership(ctx.db, input, userId);
 
 			const baseUpdateData = buildLiveSessionUpdateData(input);
-			const { detailUpdate, patchedUpdateData } = await resolveDetailUpdate(
-				ctx.db,
-				input,
-				baseUpdateData,
-				existing,
-				userId
-			);
-
-			await ctx.db
-				.update(gameSession)
-				.set(patchedUpdateData)
-				.where(eq(gameSession.id, input.id));
-
-			await upsertLiveTournamentDetail(
-				ctx.db,
-				input.id,
-				existingDetail,
-				detailUpdate
-			);
-
-			if (input.tournamentId && !input.keepSnapshot) {
-				await resnapshotTournamentStructure(
+			const { detailUpdate, patchedUpdateData, entryTournamentUpdate } =
+				await resolveDetailUpdate(
 					ctx.db,
-					input.id,
-					input.tournamentId
+					input,
+					baseUpdateData,
+					existing,
+					userId
+				);
+
+			const statements: BatchStatement[] = [
+				ctx.db
+					.update(entry)
+					.set(patchedUpdateData)
+					.where(and(eq(entry.id, input.id), eq(entry.userId, userId))),
+				...buildHandTrackingStatements(ctx.db, userId, input.id, input),
+			];
+			if (Object.keys(entryTournamentUpdate).length > 0) {
+				statements.push(
+					ctx.db
+						.update(entryTournament)
+						.set(entryTournamentUpdate)
+						.where(
+							and(
+								eq(entryTournament.entryId, input.id),
+								eq(entryTournament.userId, userId)
+							)
+						)
 				);
 			}
-
-			await syncTimerStartedAtEvent(ctx.db, input.id, input.timerStartedAt);
-
-			if (
-				existing.status === "completed" &&
-				patchedUpdateData.currencyId !== undefined
-			) {
-				await recalculateTournamentSession(ctx.db, input.id, userId);
+			if (Object.keys(detailUpdate).length > 0) {
+				statements.push(
+					existingDetail
+						? ctx.db
+								.update(sessionTournamentDetail)
+								.set(detailUpdate)
+								.where(eq(sessionTournamentDetail.sessionId, input.id))
+						: ctx.db
+								.insert(sessionTournamentDetail)
+								.values({ sessionId: input.id, ...detailUpdate })
+				);
 			}
-
-			const [updated] = await ctx.db
-				.select()
-				.from(gameSession)
-				.where(eq(gameSession.id, input.id));
-
+			if (input.tournamentId && !input.keepSnapshot) {
+				statements.push(
+					...(await buildTournamentStructureReplacementStatements(
+						ctx.db,
+						input.id,
+						input.tournamentId
+					))
+				);
+			}
+			const changes = await timerStartedAtEventChange(
+				ctx.db,
+				userId,
+				input.id,
+				input.timerStartedAt
+			);
+			await applyEntryEventChange(
+				ctx.db,
+				userId,
+				input.id,
+				changes,
+				new Date(),
+				statements,
+				{
+					assetId: patchedUpdateData.assetId,
+					tournamentId: entryTournamentUpdate.tournamentId,
+					tournamentBuyIn: detailUpdate.tournamentBuyIn,
+					entryFee: detailUpdate.entryFee,
+				}
+			);
+			const updated = await findLiveTournamentEntrySession(
+				ctx.db,
+				userId,
+				input.id
+			);
 			const [updatedDetail] = await ctx.db
-				.select()
+				.select(tournamentDetailColumns)
 				.from(sessionTournamentDetail)
 				.where(eq(sessionTournamentDetail.sessionId, input.id));
-
 			return {
-				...updated,
-				tournamentId: updatedDetail?.tournamentId ?? null,
+				...updated?.session,
+				tournamentId: updated?.tournamentId ?? null,
 				buyIn: updatedDetail?.tournamentBuyIn ?? null,
 				entryFee: updatedDetail?.entryFee ?? null,
-				timerStartedAt: updatedDetail?.timerStartedAt ?? null,
+				timerStartedAt: updated?.timerStartedAt ?? null,
 			};
 		}),
 
@@ -1116,24 +1041,45 @@ export const liveTournamentSessionRouter = router({
 			if (input.houseRules !== undefined) {
 				detailUpdate.houseRules = input.houseRules;
 			}
+			const statements: BatchStatement[] = [];
 			if (Object.keys(detailUpdate).length > 0) {
-				await ctx.db
-					.update(sessionTournamentDetail)
-					.set(detailUpdate)
-					.where(eq(sessionTournamentDetail.sessionId, input.id));
-			}
-
-			if (input.blindLevels !== undefined) {
-				await persistSessionBlindLevels(ctx.db, input.id, input.blindLevels);
-			}
-
-			if (input.chipPurchases !== undefined) {
-				await persistSessionChipPurchases(
-					ctx.db,
-					input.id,
-					input.chipPurchases.map((p) => ({ ...p, count: 0 }))
+				statements.push(
+					ctx.db
+						.update(sessionTournamentDetail)
+						.set(detailUpdate)
+						.where(eq(sessionTournamentDetail.sessionId, input.id))
 				);
 			}
+			if (input.blindLevels !== undefined) {
+				statements.push(
+					...buildSessionBlindLevelStatements(
+						ctx.db,
+						input.id,
+						input.blindLevels
+					)
+				);
+			}
+			if (input.chipPurchases !== undefined) {
+				statements.push(
+					...buildSessionChipPurchaseStatements(
+						ctx.db,
+						input.id,
+						input.chipPurchases.map((purchase) => ({ ...purchase, count: 0 }))
+					)
+				);
+			}
+			await applyEntryEventChange(
+				ctx.db,
+				userId,
+				input.id,
+				[],
+				new Date(),
+				statements,
+				{
+					tournamentBuyIn: detailUpdate.tournamentBuyIn,
+					entryFee: detailUpdate.entryFee,
+				}
+			);
 
 			return { id: input.id };
 		}),
@@ -1154,17 +1100,22 @@ export const liveTournamentSessionRouter = router({
 			const now = new Date();
 			const endPayload = buildTournamentEndPayload(input);
 
-			await ctx.db.insert(sessionEvent).values({
-				id: crypto.randomUUID(),
-				sessionId: input.id,
-				eventType: "session_end",
-				occurredAt: floorToMinute(now),
-				sortOrder: nextAppendSortOrderSql(input.id),
-				payload: JSON.stringify(endPayload),
-				updatedAt: now,
-			});
-
-			await recalculateTournamentSession(ctx.db, input.id, userId);
+			await applyEntryEventChange(
+				ctx.db,
+				userId,
+				input.id,
+				{
+					op: "append",
+					events: [
+						{
+							type: "session_end",
+							occurredAt: floorToMinute(now),
+							payload: endPayload,
+						},
+					],
+				},
+				now
+			);
 
 			return { id: input.id, pokerSessionId: input.id };
 		}),
@@ -1191,7 +1142,10 @@ export const liveTournamentSessionRouter = router({
 				});
 			}
 
-			await ctx.db.delete(gameSession).where(eq(gameSession.id, input.id));
+			await runBatch(
+				ctx.db,
+				buildEntryDeleteStatements(ctx.db, input.id, userId)
+			);
 
 			return { id: input.id };
 		}),
@@ -1220,32 +1174,12 @@ export const liveTournamentSessionRouter = router({
 				detail?.tableSize ?? null
 			);
 
-			const events = await ctx.db
-				.select({
-					eventType: sessionEvent.eventType,
-					payload: sessionEvent.payload,
-				})
-				.from(sessionEvent)
-				.where(eq(sessionEvent.sessionId, input.id))
-				.orderBy(...sessionEventOrderBy());
-
-			const previousHeroSeat = computeHeroSeatPositionFromEvents(events);
-
-			if (previousHeroSeat === input.heroSeatPosition) {
-				return { id: input.id };
-			}
-
-			await runBatch(
+			await updateEntryHeroSeat(
 				ctx.db,
-				heroSeatEventValues({
-					heroSeatPosition: input.heroSeatPosition,
-					now: new Date(),
-					previousHeroSeat,
-					sessionId: input.id,
-				}).map(
-					(values) =>
-						ctx.db.insert(sessionEvent).values(values) as BatchStatement
-				)
+				userId,
+				input.id,
+				input.heroSeatPosition,
+				new Date()
 			);
 
 			return { id: input.id };

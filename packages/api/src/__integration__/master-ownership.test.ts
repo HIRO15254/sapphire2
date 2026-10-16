@@ -1,9 +1,11 @@
+import { entry, entryCash, entryTournament } from "@sapphire2/db/schema/entry";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
-import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
 import { requireCreatedRow, test } from "./test-fixture";
+
+const ARCHIVE_PATTERN = /archive/i;
 
 describe("new masters persist the caller's ownership on D1", () => {
 	for (const userId of ["alice", "bob"] as const) {
@@ -97,8 +99,8 @@ describe("new masters persist the caller's ownership on D1", () => {
 			);
 			const [detail] = await api.db
 				.select()
-				.from(sessionCashDetail)
-				.where(eq(sessionCashDetail.sessionId, created.id));
+				.from(entryCash)
+				.where(eq(entryCash.entryId, created.id));
 			expect(detail?.ringGameId).toEqual(expect.any(String));
 			expect(await api.db.select().from(ringGame)).toEqual([
 				expect.objectContaining({
@@ -130,6 +132,83 @@ describe("new masters persist the caller's ownership on D1", () => {
 					.from(ringGame)
 					.where(eq(ringGame.id, created.ringGameId))
 			).toEqual([expect.objectContaining({ userId })]);
+		});
+	}
+});
+
+describe("master deletion preserves entry references on D1", () => {
+	for (const kind of ["cash", "tournament"] as const) {
+		test(`${kind}: protects referenced masters and deletes unreferenced masters`, async ({
+			api,
+		}) => {
+			const room = requireCreatedRow(
+				await api.alice.room.create({ name: "Club" })
+			);
+			const master = requireCreatedRow(
+				kind === "cash"
+					? await api.alice.ringGame.create({ roomId: room.id, name: "Cash" })
+					: await api.alice.tournament.create({
+							roomId: room.id,
+							name: "Daily",
+						})
+			);
+			const table = kind === "cash" ? ringGame : tournament;
+			const owner = kind === "cash" ? api.alice.ringGame : api.alice.tournament;
+			const other = kind === "cash" ? api.bob.ringGame : api.bob.tournament;
+			await api.db.insert(entry).values({
+				id: "referencing-entry",
+				userId: "alice",
+				kind,
+				source: "manual",
+				status: "settled",
+				playedOn: "2026-09-05",
+			});
+			if (kind === "cash") {
+				await api.db.insert(entryCash).values({
+					entryId: "referencing-entry",
+					userId: "alice",
+					ringGameId: master.id,
+				});
+			} else {
+				await api.db.insert(entryTournament).values({
+					entryId: "referencing-entry",
+					userId: "alice",
+					tournamentId: master.id,
+				});
+			}
+			const before = await api.db.select().from(table);
+			for (const id of [master.id, "missing-master"]) {
+				await expect(other.delete({ id })).rejects.toMatchObject({
+					code: "FORBIDDEN",
+				});
+			}
+			await expect(
+				owner.delete({ id: "missing-master" })
+			).rejects.toMatchObject({
+				code: "FORBIDDEN",
+			});
+			await expect(owner.delete({ id: master.id })).rejects.toMatchObject({
+				code: "CONFLICT",
+				message: expect.stringMatching(ARCHIVE_PATTERN),
+			});
+			expect(await api.db.select().from(table)).toEqual(before);
+			expect(await api.db.select().from(entry)).toEqual([
+				expect.objectContaining({ id: "referencing-entry", userId: "alice" }),
+			]);
+			if (kind === "cash") {
+				expect(await api.db.select().from(entryCash)).toEqual([
+					expect.objectContaining({ ringGameId: master.id }),
+				]);
+			} else {
+				expect(await api.db.select().from(entryTournament)).toEqual([
+					expect.objectContaining({ tournamentId: master.id }),
+				]);
+			}
+			await api.db.delete(entry).where(eq(entry.id, "referencing-entry"));
+			await expect(owner.delete({ id: master.id })).resolves.toEqual({
+				success: true,
+			});
+			expect(await api.db.select().from(table)).toEqual([]);
 		});
 	}
 });

@@ -83,6 +83,8 @@ function aggregatedColumnKey(expr: SQL): string | null {
 	return null;
 }
 
+const MAX_AGGREGATE_PATTERN = /^max\s*\(/i;
+
 function applyProjection(
 	projection: Record<string, unknown> | undefined,
 	rows: MockRow[]
@@ -90,8 +92,9 @@ function applyProjection(
 	if (!projection) {
 		return rows;
 	}
-	const aggregateEntry = Object.entries(projection).find(([, value]) =>
-		is(value, SQL)
+	const aggregateEntry = Object.entries(projection).find(
+		([, value]) =>
+			is(value, SQL) && MAX_AGGREGATE_PATTERN.test(chunkText(sqlChunks(value)))
 	);
 	if (!aggregateEntry) {
 		return rows;

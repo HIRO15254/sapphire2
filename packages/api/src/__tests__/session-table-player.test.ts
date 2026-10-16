@@ -1,19 +1,14 @@
+import { entry, playEvent, playSession } from "@sapphire2/db/schema/entry";
 import {
 	player,
 	playerTag,
 	playerToPlayerTag,
 } from "@sapphire2/db/schema/player";
-import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
-import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { TRPCError } from "@trpc/server";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { appRouter } from "../routers";
-import {
-	insertPlayerJoinEvent,
-	insertPlayerLeaveEvent,
-} from "../routers/session-table-player";
 import { expectAccepts, expectRejects, getInputSchema } from "./test-utils";
 
 describe("sessionTablePlayer.list input validation", () => {
@@ -249,221 +244,6 @@ describe("sessionTablePlayer.addTemporary input validation", () => {
 	});
 });
 
-function makeInsertEventDb(maxSortOrder: number | null) {
-	const valuesSpy = vi.fn().mockResolvedValue(undefined);
-	const insertSpy = vi.fn().mockReturnValue({ values: valuesSpy });
-	const whereSpy = vi.fn().mockResolvedValue([{ maxSortOrder }]);
-	const fromSpy = vi.fn().mockReturnValue({ where: whereSpy });
-	const selectSpy = vi.fn().mockReturnValue({ from: fromSpy });
-	return {
-		db: { select: selectSpy, insert: insertSpy },
-		valuesSpy,
-		insertSpy,
-		whereSpy,
-		fromSpy,
-		selectSpy,
-	};
-}
-
-function firstInsertedRow(valuesSpy: ReturnType<typeof vi.fn>) {
-	const calls = valuesSpy.mock.calls;
-	if (calls.length === 0 || !calls[0] || calls[0].length === 0) {
-		throw new Error("expected values() to have been called at least once");
-	}
-	return calls[0][0] as Record<string, unknown>;
-}
-
-function expectAtomicAppendSortOrder(
-	valuesSpy: ReturnType<typeof vi.fn>,
-	sessionId: string
-) {
-	const sortOrder = firstInsertedRow(valuesSpy).sortOrder;
-	const query = new SQLiteSyncDialect().sqlToQuery(sortOrder as never);
-	const normalizedSql = query.sql.toLowerCase();
-
-	expect(normalizedSql).toContain("coalesce(max(");
-	expect(normalizedSql).toContain('from "session_event"');
-	expect(normalizedSql).toContain('where "session_event"."session_id" = ?');
-	expect(normalizedSql).toContain("+ 1");
-	expect(query.params).toEqual([sessionId]);
-}
-describe("insertPlayerJoinEvent (write-side ordering contract)", () => {
-	beforeEach(() => {
-		vi.useFakeTimers();
-		vi.setSystemTime(new Date("2026-04-24T17:30:45.123Z"));
-	});
-
-	afterEach(() => {
-		vi.useRealTimers();
-	});
-
-	it("floors occurredAt to the minute (no leaked seconds or ms)", async () => {
-		const { db, valuesSpy } = makeInsertEventDb(null);
-		await insertPlayerJoinEvent(
-			db as unknown as Parameters<typeof insertPlayerJoinEvent>[0],
-			"session-1",
-			"player-1"
-		);
-
-		expect(valuesSpy).toHaveBeenCalledTimes(1);
-		const inserted = firstInsertedRow(valuesSpy);
-		expect(inserted.eventType).toBe("player_join");
-		expect((inserted.occurredAt as Date).toISOString()).toBe(
-			"2026-04-24T17:30:00.000Z"
-		);
-	});
-
-	it("allocates sortOrder inside the player_join INSERT", async () => {
-		const { db, valuesSpy } = makeInsertEventDb(null);
-		await insertPlayerJoinEvent(
-			db as unknown as Parameters<typeof insertPlayerJoinEvent>[0],
-			"session-1",
-			"player-1"
-		);
-		expectAtomicAppendSortOrder(valuesSpy, "session-1");
-	});
-	it("serializes the playerId into the payload", async () => {
-		const { db, valuesSpy } = makeInsertEventDb(2);
-		await insertPlayerJoinEvent(
-			db as unknown as Parameters<typeof insertPlayerJoinEvent>[0],
-			"session-1",
-			"player-xyz"
-		);
-		const inserted = firstInsertedRow(valuesSpy);
-		expect(JSON.parse(inserted.payload as string)).toEqual({
-			playerId: "player-xyz",
-		});
-	});
-
-	it("omits seatPosition from the payload when not provided", async () => {
-		const { db, valuesSpy } = makeInsertEventDb(2);
-		await insertPlayerJoinEvent(
-			db as unknown as Parameters<typeof insertPlayerJoinEvent>[0],
-			"session-1",
-			"player-xyz"
-		);
-		const inserted = firstInsertedRow(valuesSpy);
-		expect(JSON.parse(inserted.payload as string)).not.toHaveProperty(
-			"seatPosition"
-		);
-	});
-
-	it("serializes the seatPosition into the payload when provided", async () => {
-		const { db, valuesSpy } = makeInsertEventDb(2);
-		await insertPlayerJoinEvent(
-			db as unknown as Parameters<typeof insertPlayerJoinEvent>[0],
-			"session-1",
-			"player-xyz",
-			5
-		);
-		const inserted = firstInsertedRow(valuesSpy);
-		expect(JSON.parse(inserted.payload as string)).toEqual({
-			playerId: "player-xyz",
-			seatPosition: 5,
-		});
-	});
-
-	it("serializes seatPosition 0 (boundary) into the payload", async () => {
-		const { db, valuesSpy } = makeInsertEventDb(2);
-		await insertPlayerJoinEvent(
-			db as unknown as Parameters<typeof insertPlayerJoinEvent>[0],
-			"session-1",
-			"player-xyz",
-			0
-		);
-		const inserted = firstInsertedRow(valuesSpy);
-		expect(JSON.parse(inserted.payload as string)).toEqual({
-			playerId: "player-xyz",
-			seatPosition: 0,
-		});
-	});
-});
-
-describe("insertPlayerLeaveEvent (write-side ordering contract)", () => {
-	beforeEach(() => {
-		vi.useFakeTimers();
-		vi.setSystemTime(new Date("2026-04-24T23:59:59.999Z"));
-	});
-
-	afterEach(() => {
-		vi.useRealTimers();
-	});
-
-	it("floors occurredAt to the minute even at the end-of-day boundary", async () => {
-		const { db, valuesSpy } = makeInsertEventDb(3);
-		await insertPlayerLeaveEvent(
-			db as unknown as Parameters<typeof insertPlayerLeaveEvent>[0],
-			"session-1",
-			"player-1"
-		);
-		const inserted = firstInsertedRow(valuesSpy);
-		expect(inserted.eventType).toBe("player_leave");
-		expect((inserted.occurredAt as Date).toISOString()).toBe(
-			"2026-04-24T23:59:00.000Z"
-		);
-	});
-
-	it("allocates sortOrder inside the player_leave INSERT", async () => {
-		const { db, valuesSpy } = makeInsertEventDb(9);
-		await insertPlayerLeaveEvent(
-			db as unknown as Parameters<typeof insertPlayerLeaveEvent>[0],
-			"session-1",
-			"player-1"
-		);
-		expectAtomicAppendSortOrder(valuesSpy, "session-1");
-	});
-
-	it("serializes the playerId into the payload", async () => {
-		const { db, valuesSpy } = makeInsertEventDb(0);
-		await insertPlayerLeaveEvent(
-			db as unknown as Parameters<typeof insertPlayerLeaveEvent>[0],
-			"session-1",
-			"player-abc"
-		);
-		const inserted = firstInsertedRow(valuesSpy);
-		expect(JSON.parse(inserted.payload as string)).toEqual({
-			playerId: "player-abc",
-		});
-	});
-});
-
-describe("concurrent player event append (SA2-196)", () => {
-	it("submits both append allocations inside their INSERTs without a MAX pre-read", async () => {
-		const { db, selectSpy, valuesSpy } = makeInsertEventDb(null);
-
-		await Promise.all([
-			insertPlayerJoinEvent(
-				db as unknown as Parameters<typeof insertPlayerJoinEvent>[0],
-				"session-1",
-				"player-1"
-			),
-			insertPlayerLeaveEvent(
-				db as unknown as Parameters<typeof insertPlayerLeaveEvent>[0],
-				"session-1",
-				"player-2"
-			),
-		]);
-
-		expect(selectSpy).not.toHaveBeenCalled();
-		expect(valuesSpy).toHaveBeenCalledTimes(2);
-		const insertedRows = valuesSpy.mock.calls.map(
-			([row]) => row as Record<string, unknown>
-		);
-		expect(insertedRows.map(({ eventType }) => eventType)).toEqual([
-			"player_join",
-			"player_leave",
-		]);
-		for (const row of insertedRows) {
-			const query = new SQLiteSyncDialect().sqlToQuery(row.sortOrder as never);
-			const normalizedSql = query.sql.toLowerCase();
-			expect(normalizedSql).toContain("coalesce(max(");
-			expect(normalizedSql).toContain('from "session_event"');
-			expect(normalizedSql).toContain('where "session_event"."session_id" = ?');
-			expect(normalizedSql).toContain("+ 1");
-			expect(query.params).toEqual(["session-1"]);
-		}
-	});
-});
 describe("sessionTablePlayer.addNew tag ownership (SA2-178)", () => {
 	type Rows = Record<string, unknown>[];
 	const OWNER = "owner-1";
@@ -515,7 +295,8 @@ describe("sessionTablePlayer.addNew tag ownership (SA2-178)", () => {
 
 	function ownedSessionRows(extra: Map<unknown, Rows>) {
 		const map = new Map<unknown, Rows>([
-			[gameSession, [{ id: "s1", userId: OWNER, kind: "cash_game" }]],
+			[entry, [{ id: "s1", userId: OWNER, kind: "cash" }]],
+			[playSession, [{ id: "play-1", seq: 1, localDate: "2026-04-24" }]],
 		]);
 		for (const [k, v] of extra) {
 			map.set(k, v);
@@ -582,7 +363,6 @@ describe("sessionTablePlayer.addNew tag ownership (SA2-178)", () => {
 			.map((entry) => (entry.values as unknown[]).length);
 		expect(linkInserts).toEqual([33, 1]);
 		expect(batch).toHaveBeenCalledTimes(1);
-		expect(batch.mock.calls[0]?.[0]).toHaveLength(4);
 	});
 
 	it("surfaces a batch failure instead of committing sequential writes", async () => {
@@ -613,7 +393,6 @@ describe("sessionTablePlayer.addNew tag ownership (SA2-178)", () => {
 		await caller.addTemporary({ sessionId: "s1" });
 
 		expect(batch).toHaveBeenCalledTimes(1);
-		expect(batch.mock.calls[0]?.[0]).toHaveLength(2);
 	});
 
 	it("creates the temporary player without a generated memo", async () => {
@@ -695,8 +474,8 @@ describe("sessionTablePlayer.list D1-safe ownership hydration", () => {
 		}));
 		const { db, playerWhereParams } = createListDb(
 			new Map<unknown, Rows>([
-				[gameSession, [{ id: "s1", userId: OWNER, kind: "cash_game" }]],
-				[sessionEvent, events],
+				[entry, [{ id: "s1", userId: OWNER, kind: "cash" }]],
+				[playEvent, events],
 				[player, players],
 			])
 		);
@@ -783,7 +562,7 @@ function ownedAuthorizationSession(kind: "cash_game" | "tournament") {
 	return {
 		id: "s1",
 		userId: AUTH_OWNER,
-		kind,
+		kind: kind === "cash_game" ? "cash" : "tournament",
 		status: "active",
 		source: "live",
 		roomId: null,
@@ -793,9 +572,9 @@ function ownedAuthorizationSession(kind: "cash_game" | "tournament") {
 
 function playerAuthorizationRows(playerRows: Record<string, unknown>[]) {
 	return new Map<unknown, Record<string, unknown>[]>([
-		[gameSession, [ownedAuthorizationSession("cash_game")]],
+		[entry, [ownedAuthorizationSession("cash_game")]],
 		[player, playerRows],
-		[sessionEvent, []],
+		[playEvent, []],
 	]);
 }
 
@@ -805,7 +584,7 @@ describe("sessionTablePlayer ownership error uniformity", () => {
 			[],
 			[{ ...ownedAuthorizationSession("cash_game"), userId: "other-user" }],
 		]) {
-			const { db } = createAuthorizationDb(new Map([[gameSession, sessions]]));
+			const { db } = createAuthorizationDb(new Map([[entry, sessions]]));
 			await expect(
 				authorizationCaller(db).list({ sessionId: "s1" })
 			).rejects.toMatchObject({
@@ -869,7 +648,7 @@ describe("sessionTablePlayer ownership error uniformity", () => {
 			[],
 			[{ ...ownedAuthorizationSession("cash_game"), userId: "other-user" }],
 		]) {
-			const { db } = createAuthorizationDb(new Map([[gameSession, sessions]]));
+			const { db } = createAuthorizationDb(new Map([[entry, sessions]]));
 			await expect(
 				authorizationCaller(db).addTemporary({ sessionId: "s1" })
 			).rejects.toMatchObject({

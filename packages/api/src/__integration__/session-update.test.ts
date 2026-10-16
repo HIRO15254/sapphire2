@@ -1,6 +1,11 @@
 import type { Database } from "@sapphire2/db";
 import { currencyTransaction } from "@sapphire2/db/schema/currency";
-import { gameSession } from "@sapphire2/db/schema/session";
+import {
+	entry,
+	entryCash,
+	entryTournament,
+	playSession,
+} from "@sapphire2/db/schema/entry";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
 import { sessionToSessionTag } from "@sapphire2/db/schema/session-tag";
@@ -14,10 +19,19 @@ const STALE_UPDATED_AT = new Date("2026-01-01T00:00:00.000Z");
 
 async function storedSession(db: Database, sessionId: string) {
 	return {
-		session: await db
+		session: await db.select().from(entry).where(eq(entry.id, sessionId)),
+		cash: await db
 			.select()
-			.from(gameSession)
-			.where(eq(gameSession.id, sessionId)),
+			.from(entryCash)
+			.where(eq(entryCash.entryId, sessionId)),
+		tournament: await db
+			.select()
+			.from(entryTournament)
+			.where(eq(entryTournament.entryId, sessionId)),
+		plays: await db
+			.select()
+			.from(playSession)
+			.where(eq(playSession.entryId, sessionId)),
 		cashDetail: await db
 			.select()
 			.from(sessionCashDetail)
@@ -74,9 +88,9 @@ describe("session.update commits all of an update or none of it on D1", () => {
 			})
 		);
 		await api.db
-			.update(gameSession)
+			.update(entry)
 			.set({ updatedAt: STALE_UPDATED_AT })
-			.where(eq(gameSession.id, created.id));
+			.where(eq(entry.id, created.id));
 		const before = await storedSession(api.db, created.id);
 
 		const rejectedRules = [

@@ -59,11 +59,11 @@ describe("isLabelConflictError", () => {
 });
 
 describe("isSessionEventOrderConflictError", () => {
-	it("returns true for the composite session event order violation", () => {
+	it("returns true for the composite play event order violation", () => {
 		expect(
 			isSessionEventOrderConflictError(
 				new Error(
-					"D1_ERROR: UNIQUE constraint failed: session_event.session_id, session_event.sort_order: SQLITE_CONSTRAINT"
+					"D1_ERROR: UNIQUE constraint failed: play_event.entry_id, play_event.sort_order: SQLITE_CONSTRAINT"
 				)
 			)
 		).toBe(true);
@@ -73,7 +73,7 @@ describe("isSessionEventOrderConflictError", () => {
 		expect(
 			isSessionEventOrderConflictError(
 				new Error(
-					"unique constraint failed: SESSION_EVENT.SESSION_ID, SESSION_EVENT.SORT_ORDER"
+					"unique constraint failed: PLAY_EVENT.ENTRY_ID, PLAY_EVENT.SORT_ORDER"
 				)
 			)
 		).toBe(true);
@@ -82,7 +82,7 @@ describe("isSessionEventOrderConflictError", () => {
 	it("returns false for unrelated violations and non-Errors", () => {
 		expect(
 			isSessionEventOrderConflictError(
-				new Error("UNIQUE constraint failed: session_event.id")
+				new Error("UNIQUE constraint failed: play_event.id")
 			)
 		).toBe(false);
 		expect(isSessionEventOrderConflictError("session event conflict")).toBe(
@@ -91,11 +91,11 @@ describe("isSessionEventOrderConflictError", () => {
 	});
 });
 describe("isUnfinishedLiveSessionConflictError", () => {
-	it("returns true for the D1 unique violation on game_session.user_id", () => {
+	it("returns true for the D1 unique violation on play_session.user_id", () => {
 		expect(
 			isUnfinishedLiveSessionConflictError(
 				new Error(
-					"D1_ERROR: UNIQUE constraint failed: game_session.user_id: SQLITE_CONSTRAINT"
+					"D1_ERROR: UNIQUE constraint failed: play_session.user_id: SQLITE_CONSTRAINT"
 				)
 			)
 		).toBe(true);
@@ -104,7 +104,7 @@ describe("isUnfinishedLiveSessionConflictError", () => {
 	it("is case-insensitive", () => {
 		expect(
 			isUnfinishedLiveSessionConflictError(
-				new Error("unique constraint failed: GAME_SESSION.USER_ID")
+				new Error("unique constraint failed: PLAY_SESSION.USER_ID")
 			)
 		).toBe(true);
 	});
@@ -112,7 +112,7 @@ describe("isUnfinishedLiveSessionConflictError", () => {
 	it("returns false for unrelated unique violations and non-Errors", () => {
 		expect(
 			isUnfinishedLiveSessionConflictError(
-				new Error("UNIQUE constraint failed: game_session.id")
+				new Error("UNIQUE constraint failed: play_session.id")
 			)
 		).toBe(false);
 		expect(
@@ -122,7 +122,7 @@ describe("isUnfinishedLiveSessionConflictError", () => {
 		).toBe(false);
 		expect(
 			isUnfinishedLiveSessionConflictError(
-				"UNIQUE constraint failed: game_session.user_id"
+				"UNIQUE constraint failed: play_session.user_id"
 			)
 		).toBe(false);
 	});
@@ -203,7 +203,7 @@ describe("runUnfinishedLiveSessionWrite", () => {
 		const operation = vi
 			.fn()
 			.mockRejectedValue(
-				new Error("UNIQUE constraint failed: game_session.user_id")
+				new Error("UNIQUE constraint failed: play_session.user_id")
 			);
 
 		await expect(
@@ -215,12 +215,12 @@ describe("runUnfinishedLiveSessionWrite", () => {
 		expect(operation).toHaveBeenCalledTimes(1);
 	});
 
-	it("maps a session-event order collision to the domain conflict", async () => {
+	it("maps a play-event order collision to the domain conflict", async () => {
 		const operation = vi
 			.fn()
 			.mockRejectedValue(
 				new Error(
-					"UNIQUE constraint failed: session_event.session_id, session_event.sort_order"
+					"UNIQUE constraint failed: play_event.entry_id, play_event.sort_order"
 				)
 			);
 

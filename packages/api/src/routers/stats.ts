@@ -1,11 +1,19 @@
+import { entry, entryCash, entryTournament } from "@sapphire2/db/schema/entry";
 import { room } from "@sapphire2/db/schema/room";
-import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { TRPCError } from "@trpc/server";
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, eq, gte, lte, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+import {
+	firstPlaySession,
+	firstPlaySessionJoin,
+	legacyBreakMinutesSql,
+	legacyKindSql,
+	legacySessionDateSql,
+	toEntryKind,
+} from "../services/entry-session";
 import {
 	computeCashGamePL,
 	computeTournamentPL,
@@ -204,65 +212,60 @@ export async function fetchStatsRows(
 	userId: string,
 	filters: StatsFilters
 ): Promise<StatsSessionRow[]> {
-	const conditions = [eq(gameSession.userId, userId)];
+	const conditions = [eq(entry.userId, userId)];
 	if (filters.type) {
-		conditions.push(eq(gameSession.kind, filters.type));
+		conditions.push(eq(entry.kind, toEntryKind(filters.type)));
 	}
 	if (filters.roomId) {
-		conditions.push(eq(gameSession.roomId, filters.roomId));
+		conditions.push(eq(entry.roomId, filters.roomId));
 	}
 	if (filters.currencyId) {
-		conditions.push(eq(gameSession.currencyId, filters.currencyId));
+		conditions.push(eq(entry.assetId, filters.currencyId));
 	}
 	if (filters.dateFrom !== undefined) {
-		conditions.push(
-			gte(gameSession.sessionDate, new Date(filters.dateFrom * 1000))
-		);
+		conditions.push(gte(legacySessionDateSql(), filters.dateFrom));
 	}
 	if (filters.dateTo !== undefined) {
-		conditions.push(
-			lte(gameSession.sessionDate, new Date(filters.dateTo * 1000))
-		);
+		conditions.push(lte(legacySessionDateSql(), filters.dateTo));
 	}
 
 	const rows: RawStatsRow[] = await db
 		.select({
-			id: gameSession.id,
-			type: gameSession.kind,
-			sessionDate: gameSession.sessionDate,
-			startedAt: gameSession.startedAt,
-			endedAt: gameSession.endedAt,
-			breakMinutes: gameSession.breakMinutes,
+			id: entry.id,
+			type: legacyKindSql(),
+			sessionDate: legacySessionDateSql(),
+			startedAt: firstPlaySession.startedAt,
+			endedAt: firstPlaySession.endedAt,
+			breakMinutes: legacyBreakMinutesSql(),
 			buyIn: sessionCashDetail.buyIn,
 			cashOut: sessionCashDetail.cashOut,
-			evCashOut: sessionCashDetail.evCashOut,
+			evCashOut: sql<
+				number | null
+			>`${sessionCashDetail.cashOut} + ${entryCash.evDiff}`,
 			chipRemoveTotal: sessionCashDetail.chipRemoveTotal,
 			blind1: sessionCashDetail.blind1,
 			blind2: sessionCashDetail.blind2,
 			cashVariant: sessionCashDetail.variant,
 			tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
 			entryFee: sessionTournamentDetail.entryFee,
-			placement: sessionTournamentDetail.placement,
-			totalEntries: sessionTournamentDetail.totalEntries,
+			placement: entryTournament.placement,
+			totalEntries: entryTournament.totalEntries,
 			prizeMoney: sessionTournamentDetail.prizeMoney,
 			bountyPrizes: sessionTournamentDetail.bountyPrizes,
 			tournamentVariant: sessionTournamentDetail.variant,
-			roomId: gameSession.roomId,
+			roomId: entry.roomId,
 			roomName: room.name,
 		})
-		.from(gameSession)
-		.leftJoin(
-			sessionCashDetail,
-			eq(sessionCashDetail.sessionId, gameSession.id)
-		)
+		.from(entry)
+		.leftJoin(firstPlaySession, firstPlaySessionJoin())
+		.leftJoin(entryCash, eq(entryCash.entryId, entry.id))
+		.leftJoin(entryTournament, eq(entryTournament.entryId, entry.id))
+		.leftJoin(sessionCashDetail, eq(sessionCashDetail.sessionId, entry.id))
 		.leftJoin(
 			sessionTournamentDetail,
-			eq(sessionTournamentDetail.sessionId, gameSession.id)
+			eq(sessionTournamentDetail.sessionId, entry.id)
 		)
-		.leftJoin(
-			room,
-			and(eq(room.id, gameSession.roomId), eq(room.userId, userId))
-		)
+		.leftJoin(room, and(eq(room.id, entry.roomId), eq(room.userId, userId)))
 		.where(and(...conditions));
 
 	const chipPurchaseMap = await getSessionChipPurchaseMap(

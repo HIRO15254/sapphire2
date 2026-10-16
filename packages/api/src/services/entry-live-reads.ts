@@ -10,7 +10,6 @@ import {
 import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
-import type { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { and, asc, desc, eq, inArray, type SQL, sql } from "drizzle-orm";
 import type { protectedProcedure } from "../index";
@@ -29,7 +28,10 @@ type DbInstance = Parameters<
 >[0]["ctx"]["db"];
 
 export type LegacyGameSessionRow = typeof gameSession.$inferSelect;
-export type LegacySessionEventRow = typeof sessionEvent.$inferSelect;
+export type LegacySessionEventRow = Pick<
+	typeof playEvent.$inferSelect,
+	"id" | "occurredAt" | "sortOrder" | "payload" | "createdAt" | "updatedAt"
+> & { sessionId: string; eventType: string };
 
 export interface LiveEntryListParams {
 	keyset: SQL | undefined;

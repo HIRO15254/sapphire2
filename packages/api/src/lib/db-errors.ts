@@ -3,9 +3,9 @@ import { TRPCError } from "@trpc/server";
 const LABEL_CONFLICT_RE = /UNIQUE constraint failed|label already exists/i;
 
 const UNFINISHED_LIVE_SESSION_CONFLICT_RE =
-	/UNIQUE constraint failed:\s*game_session\.user_id/i;
+	/UNIQUE constraint failed:\s*play_session\.user_id/i;
 const SESSION_EVENT_ORDER_CONFLICT_RE =
-	/UNIQUE constraint failed:\s*session_event\.session_id,\s*session_event\.sort_order/i;
+	/UNIQUE constraint failed:\s*play_event\.entry_id,\s*play_event\.sort_order/i;
 
 const FILTER_PRESET_NAME_CONFLICT_RE =
 	/UNIQUE constraint failed:\s*filter_preset\.user_id,\s*filter_preset\.screen_key,\s*filter_preset\.name/i;

@@ -1,3 +1,4 @@
+import { entry, playSession } from "@sapphire2/db/schema/entry";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { eq } from "drizzle-orm";
@@ -246,6 +247,12 @@ describe("hand count and dealer seat", () => {
 			dealerSeat: 3,
 		});
 		expect(await read()).toMatchObject({ handCount: 42, dealerSeat: 3 });
+		expect(
+			await api.db
+				.select({ status: playSession.status })
+				.from(playSession)
+				.where(eq(playSession.entryId, saved.id))
+		).toEqual([{ status: "active" }]);
 
 		await expect(
 			api.bob.liveCashGameSession.update({ id: saved.id, handCount: 0 })
@@ -264,6 +271,15 @@ describe("hand count and dealer seat", () => {
 			handCount: 10,
 			dealerSeat: 1,
 		});
+		expect(
+			await api.alice.liveTournamentSession.getById({ id: saved.id })
+		).toMatchObject({ status: "active", handCount: 10, dealerSeat: 1 });
+		expect(
+			await api.db
+				.select({ status: playSession.status })
+				.from(playSession)
+				.where(eq(playSession.entryId, saved.id))
+		).toEqual([{ status: "active" }]);
 		await api.alice.sessionEvent.create({
 			sessionId: saved.id,
 			eventType: "session_pause",
@@ -274,9 +290,10 @@ describe("hand count and dealer seat", () => {
 				.select({
 					handCount: gameSession.handCount,
 					dealerSeat: gameSession.dealerSeat,
-					memo: gameSession.memo,
+					memo: entry.memo,
 				})
 				.from(gameSession)
+				.innerJoin(entry, eq(entry.id, gameSession.id))
 				.where(eq(gameSession.id, saved.id));
 			return row;
 		};

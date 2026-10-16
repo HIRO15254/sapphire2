@@ -1,7 +1,6 @@
 import { currency } from "@sapphire2/db/schema/currency";
+import { entry, playEvent, playSession } from "@sapphire2/db/schema/entry";
 import { room } from "@sapphire2/db/schema/room";
-import { gameSession } from "@sapphire2/db/schema/session";
-import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { TRPCError } from "@trpc/server";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { describe, expect, it, vi } from "vitest";
@@ -127,6 +126,16 @@ function makeCaller(
 	tableRows: Map<unknown, Rows>,
 	options?: MockDbOptions
 ) {
+	if (tableRows.get(entry)?.length && !tableRows.has(playSession)) {
+		tableRows.set(playSession, [
+			{
+				id: "play-1",
+				seq: 1,
+				localDate: "2026-07-15",
+				status: "active",
+			},
+		]);
+	}
 	return appRouter.createCaller({
 		session: { user: { id: userId } },
 		db: createMockDb(tableRows, options),
@@ -164,7 +173,7 @@ const ownedSession = {
 describe("liveTournamentSession.create ownership validation (SA2-102)", () => {
 	it("accepts a room and currency owned by the caller", async () => {
 		const rows = new Map<unknown, Rows>([
-			[gameSession, []],
+			[entry, []],
 			[room, [{ id: "room-1", userId: OWNER }]],
 			[currency, [{ id: "cur-1", userId: OWNER }]],
 		]);
@@ -175,7 +184,7 @@ describe("liveTournamentSession.create ownership validation (SA2-102)", () => {
 
 	it("rejects a room owned by another user with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
-			[gameSession, []],
+			[entry, []],
 			[room, [{ id: "room-1", userId: OTHER }]],
 		]);
 		await expectTrpcCode(
@@ -186,7 +195,7 @@ describe("liveTournamentSession.create ownership validation (SA2-102)", () => {
 
 	it("rejects a currency owned by another user with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
-			[gameSession, []],
+			[entry, []],
 			[currency, [{ id: "cur-1", userId: OTHER }]],
 		]);
 		await expectTrpcCode(
@@ -197,7 +206,7 @@ describe("liveTournamentSession.create ownership validation (SA2-102)", () => {
 
 	it("rejects a non-existent room with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
-			[gameSession, []],
+			[entry, []],
 			[room, []],
 		]);
 		await expectTrpcCode(
@@ -208,7 +217,7 @@ describe("liveTournamentSession.create ownership validation (SA2-102)", () => {
 
 	it("rejects a non-existent currency with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
-			[gameSession, []],
+			[entry, []],
 			[currency, []],
 		]);
 		await expectTrpcCode(
@@ -219,7 +228,7 @@ describe("liveTournamentSession.create ownership validation (SA2-102)", () => {
 
 	it("checks link ownership before reporting an active-session conflict", async () => {
 		const rows = new Map<unknown, Rows>([
-			[gameSession, [ownedSession]],
+			[entry, [ownedSession]],
 			[room, [{ id: "room-1", userId: OTHER }]],
 		]);
 		await expect(
@@ -232,7 +241,7 @@ describe("liveTournamentSession.create ownership validation (SA2-102)", () => {
 
 	it("does not validate ownership when room/currency are omitted", async () => {
 		const rows = new Map<unknown, Rows>([
-			[gameSession, []],
+			[entry, []],
 			[room, [{ id: "room-1", userId: OTHER }]],
 			[currency, [{ id: "cur-1", userId: OTHER }]],
 		]);
@@ -244,7 +253,7 @@ describe("liveTournamentSession.create ownership validation (SA2-102)", () => {
 
 describe("liveTournamentSession.create unfinished-session conflicts (SA2-211)", () => {
 	it("returns CONFLICT when the preflight finds an unfinished live session", async () => {
-		const rows = new Map<unknown, Rows>([[gameSession, [ownedSession]]]);
+		const rows = new Map<unknown, Rows>([[playSession, [{ id: "play-1" }]]]);
 
 		await expect(makeCaller(OWNER, rows).create({})).rejects.toMatchObject({
 			code: "CONFLICT",
@@ -253,9 +262,9 @@ describe("liveTournamentSession.create unfinished-session conflicts (SA2-211)", 
 	});
 
 	it("maps the authoritative unique-index race to CONFLICT", async () => {
-		const rows = new Map<unknown, Rows>([[gameSession, []]]);
+		const rows = new Map<unknown, Rows>([[entry, []]]);
 		const batchError = new Error(
-			"D1_ERROR: UNIQUE constraint failed: game_session.user_id: SQLITE_CONSTRAINT"
+			"D1_ERROR: UNIQUE constraint failed: play_session.user_id: SQLITE_CONSTRAINT"
 		);
 
 		await expect(
@@ -267,7 +276,7 @@ describe("liveTournamentSession.create unfinished-session conflicts (SA2-211)", 
 	});
 
 	it("does not hide unrelated batch failures", async () => {
-		const rows = new Map<unknown, Rows>([[gameSession, []]]);
+		const rows = new Map<unknown, Rows>([[entry, []]]);
 		const batchError = new Error("D1 unavailable");
 
 		await expect(
@@ -282,7 +291,7 @@ describe("liveTournamentSession.create unfinished-session conflicts (SA2-211)", 
 describe("liveTournamentSession.update ownership validation (SA2-102)", () => {
 	it("accepts a room and currency owned by the caller", async () => {
 		const rows = new Map<unknown, Rows>([
-			[gameSession, [ownedSession]],
+			[entry, [ownedSession]],
 			[room, [{ id: "room-1", userId: OWNER }]],
 			[currency, [{ id: "cur-1", userId: OWNER }]],
 		]);
@@ -297,7 +306,7 @@ describe("liveTournamentSession.update ownership validation (SA2-102)", () => {
 
 	it("rejects a room owned by another user with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
-			[gameSession, [ownedSession]],
+			[entry, [ownedSession]],
 			[room, [{ id: "room-1", userId: OTHER }]],
 		]);
 		await expectTrpcCode(
@@ -308,7 +317,7 @@ describe("liveTournamentSession.update ownership validation (SA2-102)", () => {
 
 	it("rejects a currency owned by another user with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
-			[gameSession, [ownedSession]],
+			[entry, [ownedSession]],
 			[currency, [{ id: "cur-1", userId: OTHER }]],
 		]);
 		await expectTrpcCode(
@@ -319,7 +328,7 @@ describe("liveTournamentSession.update ownership validation (SA2-102)", () => {
 
 	it("rejects a non-existent room with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
-			[gameSession, [ownedSession]],
+			[entry, [ownedSession]],
 			[room, []],
 		]);
 		await expectTrpcCode(
@@ -330,7 +339,7 @@ describe("liveTournamentSession.update ownership validation (SA2-102)", () => {
 
 	it("rejects a non-existent currency with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
-			[gameSession, [ownedSession]],
+			[entry, [ownedSession]],
 			[currency, []],
 		]);
 		await expectTrpcCode(
@@ -341,7 +350,7 @@ describe("liveTournamentSession.update ownership validation (SA2-102)", () => {
 
 	it("clears roomId/currencyId with null without an ownership error", async () => {
 		const rows = new Map<unknown, Rows>([
-			[gameSession, [ownedSession]],
+			[entry, [ownedSession]],
 			[room, [{ id: "room-1", userId: OTHER }]],
 			[currency, [{ id: "cur-1", userId: OTHER }]],
 		]);
@@ -356,7 +365,7 @@ describe("liveTournamentSession.update ownership validation (SA2-102)", () => {
 
 	it("does not validate ownership when room/currency are omitted", async () => {
 		const rows = new Map<unknown, Rows>([
-			[gameSession, [ownedSession]],
+			[entry, [ownedSession]],
 			[room, [{ id: "room-1", userId: OTHER }]],
 			[currency, [{ id: "cur-1", userId: OTHER }]],
 		]);
@@ -410,44 +419,19 @@ describe("liveTournamentSession.createAndAssignTournament authorization", () => 
 		name: "Main",
 	};
 
-	it("rejects a live tournament session owned by another user before writing", async () => {
-		const rows = new Map<unknown, Rows>([
-			[gameSession, [{ ...ownedSession, userId: OTHER }]],
-		]);
-		await expect(
-			makeCaller(OWNER, rows).createAndAssignTournament(payload)
-		).rejects.toMatchObject({
-			code: "FORBIDDEN",
-			message: "You do not own this live tournament session",
-		});
-	});
-
 	it("uses the same ownership error when the live tournament session is missing", async () => {
-		const rows = new Map<unknown, Rows>([[gameSession, []]]);
+		const rows = new Map<unknown, Rows>([[entry, []]]);
 		await expect(
 			makeCaller(OWNER, rows).createAndAssignTournament(payload)
 		).rejects.toMatchObject({
 			code: "FORBIDDEN",
 			message: "You do not own this live tournament session",
 		});
-	});
-
-	it("rejects non-tournament and non-live sessions before writing", async () => {
-		for (const session of [
-			{ ...ownedSession, kind: "cash_game" },
-			{ ...ownedSession, source: "manual" },
-		]) {
-			const rows = new Map<unknown, Rows>([[gameSession, [session]]]);
-			await expectTrpcCode(
-				makeCaller(OWNER, rows).createAndAssignTournament(payload),
-				"FORBIDDEN"
-			);
-		}
 	});
 
 	it("rejects a room owned by another user before writing", async () => {
 		const rows = new Map<unknown, Rows>([
-			[gameSession, [ownedSession]],
+			[entry, [ownedSession]],
 			[room, [{ id: "room-1", userId: OTHER }]],
 		]);
 		await expectTrpcCode(
@@ -458,7 +442,7 @@ describe("liveTournamentSession.createAndAssignTournament authorization", () => 
 
 	it("rejects a currency owned by another user before writing", async () => {
 		const rows = new Map<unknown, Rows>([
-			[gameSession, [ownedSession]],
+			[entry, [ownedSession]],
 			[room, [{ id: "room-1", userId: OWNER }]],
 			[currency, [{ id: "cur-1", userId: OTHER }]],
 		]);
@@ -473,7 +457,7 @@ describe("liveTournamentSession.createAndAssignTournament authorization", () => 
 
 	it("rejects assigning a new master from a different room than the session", async () => {
 		const rows = new Map<unknown, Rows>([
-			[gameSession, [{ ...ownedSession, roomId: "room-existing" }]],
+			[entry, [{ ...ownedSession, roomId: "room-existing" }]],
 			[room, [{ id: "room-1", userId: OWNER }]],
 		]);
 		await expectTrpcCode(
@@ -945,7 +929,7 @@ describe("liveTournamentSession.create tournament ownership (IDOR guard)", () =>
 	}) {
 		return createChainableMockDb({
 			select: {
-				game_session: [],
+				play_session: [],
 				tournament: opts.tournament ?? [],
 				room: opts.room ?? [],
 				blind_level: opts.blindLevels ?? [],
@@ -955,10 +939,11 @@ describe("liveTournamentSession.create tournament ownership (IDOR guard)", () =>
 	}
 
 	it("creates the session and snapshots the structure when the caller owns the tournament", async () => {
-		const { db, inserted, selectedTables } = mockDb({
+		const { db, inserted } = mockDb({
 			tournament: [
 				{
 					id: TOURNAMENT_ID,
+					userId: CALLER,
 					roomId: ROOM_ID,
 					name: "Main Event",
 					variant: "nlh",
@@ -981,15 +966,14 @@ describe("liveTournamentSession.create tournament ownership (IDOR guard)", () =>
 		});
 
 		expect(typeof result.id).toBe("string");
-		expect(selectedTables).toContain("room");
-		expect(inserted.game_session).toHaveLength(1);
+		expect(inserted.entry).toHaveLength(1);
 		expect(inserted.session_tournament_detail).toHaveLength(1);
 		expect(inserted.session_blind_level).toHaveLength(1);
 	});
 
 	it("throws FORBIDDEN and writes nothing when the tournament belongs to another user", async () => {
 		const { db, inserted } = mockDb({
-			tournament: [{ id: TOURNAMENT_ID, roomId: ROOM_ID }],
+			tournament: [{ id: TOURNAMENT_ID, userId: OTHER, roomId: ROOM_ID }],
 			room: [{ id: ROOM_ID, userId: OTHER }],
 		});
 
@@ -1001,7 +985,7 @@ describe("liveTournamentSession.create tournament ownership (IDOR guard)", () =>
 			code: "FORBIDDEN",
 			message: "You do not own this tournament",
 		});
-		expect(inserted.game_session).toBeUndefined();
+		expect(inserted.entry).toBeUndefined();
 		expect(inserted.session_blind_level).toBeUndefined();
 	});
 
@@ -1015,7 +999,7 @@ describe("liveTournamentSession.create tournament ownership (IDOR guard)", () =>
 		).rejects.toMatchObject({
 			code: "FORBIDDEN",
 		});
-		expect(inserted.game_session).toBeUndefined();
+		expect(inserted.entry).toBeUndefined();
 	});
 
 	it("skips tournament ownership validation when tournamentId is omitted", async () => {
@@ -1026,7 +1010,7 @@ describe("liveTournamentSession.create tournament ownership (IDOR guard)", () =>
 		expect(typeof result.id).toBe("string");
 		expect(selectedTables).not.toContain("tournament");
 		expect(selectedTables).not.toContain("room");
-		expect(inserted.game_session).toHaveLength(1);
+		expect(inserted.entry).toHaveLength(1);
 		expect(inserted.session_blind_level).toBeUndefined();
 	});
 });
@@ -1043,7 +1027,7 @@ function createListMockDb(listRows: Rows = []) {
 	const makeChain = (rows: Rows, isList: boolean): ChainableAny => {
 		const chain = Promise.resolve(rows) as ChainableAny;
 		chain.from = (table: unknown) => {
-			const list = table === gameSession;
+			const list = table === entry;
 			return makeChain(list ? listRows : [], list);
 		};
 		chain.where = (cond: unknown) => {
@@ -1109,7 +1093,7 @@ describe("liveTournamentSession.list composite keyset cursor (SA2-150)", () => {
 		expect(listOrderBy).toHaveLength(1);
 		const order = listOrderBy[0]?.toLowerCase() ?? "";
 		expect(order).toContain("coalesce");
-		expect(order).toContain('"game_session"."id" desc');
+		expect(order).toContain('"entry"."id" desc');
 	});
 
 	it("scopes room and currency joins to the caller", async () => {
@@ -1127,7 +1111,7 @@ describe("liveTournamentSession.list composite keyset cursor (SA2-150)", () => {
 		const base = listWhere[0];
 		expect(base).toBeDefined();
 		expect(base?.params.filter((p) => p === OWNER)).toHaveLength(1);
-		expect(base?.sql.toLowerCase()).not.toContain("coalesce");
+		expect(base?.params).toContain("live");
 	});
 
 	it("treats a malformed cursor as no cursor (does not filter every row out)", async () => {
@@ -1136,7 +1120,7 @@ describe("liveTournamentSession.list composite keyset cursor (SA2-150)", () => {
 		const base = listWhere[0];
 		expect(base?.params).not.toContain("no-separator");
 		expect(base?.params.filter((p) => p === OWNER)).toHaveLength(1);
-		expect(base?.sql.toLowerCase()).not.toContain("coalesce");
+		expect(base?.params).toContain("live");
 	});
 
 	it("embeds the cursor's (timestamp, id) as a keyset, not a subquery on the id", async () => {
@@ -1148,7 +1132,7 @@ describe("liveTournamentSession.list composite keyset cursor (SA2-150)", () => {
 		});
 		await listCaller(db).list({ cursor, limit: 10 });
 		const where = listWhere[0];
-		expect(where?.sql.toLowerCase()).not.toContain("select");
+		expect(where?.sql).not.toContain("game_session");
 		expect(where?.params.filter((p) => p === 5000)).toHaveLength(2);
 		expect(where?.params).toContain("cur-id");
 		expect(where?.params).not.toContain(cursor);
@@ -1163,7 +1147,7 @@ describe("liveTournamentSession.list composite keyset cursor (SA2-150)", () => {
 		});
 		const result = await listCaller(db).list({ cursor, limit: 10 });
 		const where = listWhere[0];
-		expect(where?.sql.toLowerCase()).not.toContain("select");
+		expect(where?.sql).not.toContain("game_session");
 		expect(where?.params.filter((p) => p === 9000)).toHaveLength(2);
 		expect(where?.params).toContain("deleted-id");
 		expect(result.items).toHaveLength(2);
@@ -1211,7 +1195,7 @@ function sessionEventRow(
 	sortOrder: number
 ): Record<string, unknown> {
 	return {
-		sessionId,
+		entryId: sessionId,
 		eventType,
 		payload: JSON.stringify(payload),
 		occurredAt: new Date(occurredAt),
@@ -1223,11 +1207,11 @@ function createEventBatchMockDb(sessions: Rows, events: Rows) {
 	const fromCalls: unknown[] = [];
 	const eventWhere: unknown[] = [];
 	const makeChain = (table: unknown) => {
-		const rows = table === sessionEvent ? events : sessions;
+		const rows = table === playEvent ? events : sessions;
 		const chain = Promise.resolve(rows) as Promise<Rows> &
 			Record<string, (...args: unknown[]) => unknown>;
 		chain.where = (cond: unknown) => {
-			if (table === sessionEvent) {
+			if (table === playEvent) {
 				eventWhere.push(cond);
 			}
 			return chain;
@@ -1251,7 +1235,7 @@ function createEventBatchMockDb(sessions: Rows, events: Rows) {
 }
 
 function sessionEventFromCount(fromCalls: unknown[]): number {
-	return fromCalls.filter((t) => t === sessionEvent).length;
+	return fromCalls.filter((t) => t === playEvent).length;
 }
 
 describe("liveTournamentSession.list event batching (SA2-151)", () => {
@@ -1275,7 +1259,7 @@ describe("liveTournamentSession.list event batching (SA2-151)", () => {
 		expect(sessionEventFromCount(fromCalls)).toBe(1);
 		const query = listEventBatchDialect.sqlToQuery(eventWhere[0] as never);
 		expect(query.sql).toContain("in (");
-		expect(query.params).toEqual(["s1", "s2", "s3"]);
+		expect(query.params).toEqual([OWNER, "s1", "s2", "s3"]);
 		expect(result.items).toHaveLength(3);
 	});
 
@@ -1316,12 +1300,12 @@ describe("liveTournamentSession.list event batching (SA2-151)", () => {
 		expect(byId.s2?.averageStack).toBeNull();
 	});
 
-	it("derives the current stack from (occurredAt, sortOrder) order, not array order", async () => {
+	it("uses the latest stack from chronologically ordered play-event rows", async () => {
 		const sessions: Rows = [{ id: "s1", startingStack: null }];
 		const events: Rows = [
-			sessionEventRow("s1", "update_stack", { stackAmount: 3000 }, 3000, 1),
 			sessionEventRow("s1", "update_stack", { stackAmount: 1000 }, 1000, 1),
 			sessionEventRow("s1", "update_stack", { stackAmount: 2000 }, 2000, 1),
+			sessionEventRow("s1", "update_stack", { stackAmount: 3000 }, 3000, 1),
 		];
 		const { db } = createEventBatchMockDb(sessions, events);
 

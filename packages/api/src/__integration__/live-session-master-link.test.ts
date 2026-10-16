@@ -1,3 +1,4 @@
+import { entryCash, entryTournament } from "@sapphire2/db/schema/entry";
 import { sessionBlindLevel } from "@sapphire2/db/schema/session-blind-level";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
@@ -54,7 +55,13 @@ describe("linking a live session to a master while keeping its snapshot", () => 
 			keepSnapshot: true,
 		});
 
-		expect(await readDetail()).toEqual({ ...before, ringGameId: master.id });
+		expect(await readDetail()).toEqual(before);
+		expect(
+			await api.db
+				.select()
+				.from(entryCash)
+				.where(eq(entryCash.entryId, saved.id))
+		).toEqual([expect.objectContaining({ ringGameId: master.id })]);
 		expect(
 			await api.caller("alice").session.getById({ id: saved.id })
 		).toMatchObject({ roomId: club.id, ringGameId: master.id });
@@ -63,7 +70,13 @@ describe("linking a live session to a master while keeping its snapshot", () => 
 			id: saved.id,
 			ringGameId: null,
 		});
-		expect(await readDetail()).toEqual({ ...before, ringGameId: null });
+		expect(await readDetail()).toEqual(before);
+		expect(
+			await api.db
+				.select()
+				.from(entryCash)
+				.where(eq(entryCash.entryId, saved.id))
+		).toEqual([expect.objectContaining({ ringGameId: null })]);
 	});
 
 	test("refuses another user's ring game without writing anything", async ({
@@ -158,10 +171,13 @@ describe("linking a live session to a master while keeping its snapshot", () => 
 			keepSnapshot: true,
 		});
 
-		expect(await readDetail()).toEqual({
-			...detailBefore,
-			tournamentId: master.id,
-		});
+		expect(await readDetail()).toEqual(detailBefore);
+		expect(
+			await api.db
+				.select()
+				.from(entryTournament)
+				.where(eq(entryTournament.entryId, saved.id))
+		).toEqual([expect.objectContaining({ tournamentId: master.id })]);
 		expect(await readLevels()).toEqual(levelsBefore);
 	});
 
@@ -188,8 +204,81 @@ describe("linking a live session to a master while keeping its snapshot", () => 
 		).rejects.toMatchObject({ code: "FORBIDDEN" });
 		const [detail] = await api.db
 			.select()
-			.from(sessionTournamentDetail)
-			.where(eq(sessionTournamentDetail.sessionId, saved.id));
+			.from(entryTournament)
+			.where(eq(entryTournament.entryId, saved.id));
 		expect(detail?.tournamentId).toBeNull();
+	});
+
+	test("create-and-assign rejects foreign, manual and wrong-kind entries without creating masters", async ({
+		api,
+	}) => {
+		const club = requireCreatedRow(
+			await api.alice.room.create({ name: "Alice club" })
+		);
+		const aliceCash = requireCreatedRow(
+			await api.alice.liveCashGameSession.create({ initialBuyIn: 100 })
+		);
+		const bobTournament = requireCreatedRow(
+			await api.bob.liveTournamentSession.create({ buyIn: 100 })
+		);
+		const manualCash = requireCreatedRow(
+			await api.alice.session.create({
+				type: "cash_game",
+				sessionDate: 1_788_000_000,
+				buyIn: 100,
+				cashOut: 100,
+			})
+		);
+		const manualTournament = requireCreatedRow(
+			await api.alice.session.create({
+				type: "tournament",
+				sessionDate: 1_788_000_000,
+				tournamentBuyIn: 100,
+			})
+		);
+		for (const sessionId of [
+			bobTournament.id,
+			manualCash.id,
+			manualTournament.id,
+		]) {
+			await expect(
+				api.alice.liveCashGameSession.createAndAssignRingGame({
+					sessionId,
+					roomId: club.id,
+					name: "Forbidden cash",
+				})
+			).rejects.toMatchObject({ code: "FORBIDDEN" });
+		}
+		for (const sessionId of [
+			bobTournament.id,
+			manualCash.id,
+			manualTournament.id,
+			aliceCash.id,
+		]) {
+			await expect(
+				api.alice.liveTournamentSession.createAndAssignTournament({
+					sessionId,
+					roomId: club.id,
+					name: "Forbidden tournament",
+				})
+			).rejects.toMatchObject({ code: "FORBIDDEN" });
+		}
+		await api.alice.liveCashGameSession.discard({ id: aliceCash.id });
+		const aliceTournament = requireCreatedRow(
+			await api.alice.liveTournamentSession.create({ buyIn: 100 })
+		);
+		await expect(
+			api.alice.liveCashGameSession.createAndAssignRingGame({
+				sessionId: aliceTournament.id,
+				roomId: club.id,
+				name: "Wrong kind",
+			})
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await api.alice.ringGame.listByRoom({ roomId: club.id })).toEqual(
+			[]
+		);
+		expect(await api.alice.tournament.listByRoom({ roomId: club.id })).toEqual(
+			[]
+		);
 	});
 });

@@ -1,5 +1,7 @@
+import { entry } from "@sapphire2/db/schema/entry";
 import { sessionTag } from "@sapphire2/db/schema/session-tag";
 import { TRPCError } from "@trpc/server";
+import { sql } from "drizzle-orm";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
@@ -552,21 +554,41 @@ describe("session router input validation", () => {
 		const keysetDialect = new SQLiteSyncDialect();
 
 		it("returns undefined for an omitted cursor (start from the beginning)", () => {
-			expect(sessionKeysetCondition(undefined)).toBeUndefined();
+			expect(
+				sessionKeysetCondition(undefined, sql`${entry.playedOn}`, entry.id)
+			).toBeUndefined();
 		});
 
 		it("returns undefined for an empty-string cursor", () => {
-			expect(sessionKeysetCondition("")).toBeUndefined();
+			expect(
+				sessionKeysetCondition("", sql`${entry.playedOn}`, entry.id)
+			).toBeUndefined();
 		});
 
 		it("returns undefined for a malformed cursor instead of filtering everything", () => {
-			expect(sessionKeysetCondition("no-separator")).toBeUndefined();
-			expect(sessionKeysetCondition("abc_s1")).toBeUndefined();
+			expect(
+				sessionKeysetCondition("no-separator", sql`${entry.playedOn}`, entry.id)
+			).toBeUndefined();
+			expect(
+				sessionKeysetCondition("abc_s1", sql`${entry.playedOn}`, entry.id)
+			).toBeUndefined();
 		});
 
 		it("returns undefined for a cursor timestamp outside the Date range", () => {
-			expect(sessionKeysetCondition("8640000000000001_s1")).toBeUndefined();
-			expect(sessionKeysetCondition("-8640000000000001_s1")).toBeUndefined();
+			expect(
+				sessionKeysetCondition(
+					"8640000000000001_s1",
+					sql`${entry.playedOn}`,
+					entry.id
+				)
+			).toBeUndefined();
+			expect(
+				sessionKeysetCondition(
+					"-8640000000000001_s1",
+					sql`${entry.playedOn}`,
+					entry.id
+				)
+			).toBeUndefined();
 		});
 
 		it("binds the floored-seconds order key twice and the id once, with no subquery", () => {
@@ -575,7 +597,11 @@ describe("session router input validation", () => {
 				startedAt: new Date(5_000_000),
 				sessionDate: new Date(5_000_000),
 			});
-			const condition = sessionKeysetCondition(cursor);
+			const condition = sessionKeysetCondition(
+				cursor,
+				sql`${entry.playedOn}`,
+				entry.id
+			);
 			expect(condition).toBeDefined();
 			const query = keysetDialect.sqlToQuery(condition as never);
 			expect(query.sql.toLowerCase()).not.toContain("select");
@@ -1919,7 +1945,7 @@ describe("session.update cash variant / mixGames persistence invariant", () => {
 	it("rejects invalid tags before mutating the session", async () => {
 		const { batch, db, updateWhereParams } = createChainableMockDb({
 			select: {
-				game_session: [
+				entry: [
 					{
 						id: "session-1",
 						userId: "user-1",
@@ -1927,6 +1953,15 @@ describe("session.update cash variant / mixGames persistence invariant", () => {
 						source: "manual",
 						currencyId: null,
 						sessionDate: new Date(1_700_000_000_000),
+						startedAt: null,
+						endedAt: null,
+						breakMinutes: null,
+						memo: null,
+						roomId: null,
+						ringGameId: null,
+						evDiff: null,
+						cashOut: 200,
+						cashRuleName: null,
 					},
 				],
 				session_cash_detail: [
@@ -1936,7 +1971,6 @@ describe("session.update cash variant / mixGames persistence invariant", () => {
 						mixGames: null,
 						buyIn: 100,
 						cashOut: 200,
-						evCashOut: null,
 					},
 				],
 				session_tournament_detail: [],
@@ -1970,7 +2004,7 @@ describe("session.update cash variant / mixGames persistence invariant", () => {
 		];
 		const { db: baseDb } = createChainableMockDb({
 			select: {
-				game_session: [
+				entry: [
 					{
 						id: "session-1",
 						userId: "user-1",
@@ -1978,6 +2012,15 @@ describe("session.update cash variant / mixGames persistence invariant", () => {
 						source: "manual",
 						currencyId: null,
 						sessionDate: new Date(1_700_000_000_000),
+						startedAt: null,
+						endedAt: null,
+						breakMinutes: null,
+						memo: null,
+						roomId: null,
+						ringGameId: null,
+						evDiff: null,
+						cashOut: 200,
+						cashRuleName: null,
 					},
 				],
 				session_cash_detail: [
@@ -1987,7 +2030,6 @@ describe("session.update cash variant / mixGames persistence invariant", () => {
 						mixGames: frozenMix,
 						buyIn: 100,
 						cashOut: 200,
-						evCashOut: null,
 					},
 				],
 				game_mix: [],
@@ -2026,7 +2068,7 @@ describe("session.update cash variant / mixGames persistence invariant", () => {
 	it("replaces tag links in the batch that updates the session row (SA2-116)", async () => {
 		const { db, inserted, batch, deleteWhereParams } = createChainableMockDb({
 			select: {
-				game_session: [
+				entry: [
 					{
 						id: "session-1",
 						userId: "user-1",
@@ -2034,6 +2076,15 @@ describe("session.update cash variant / mixGames persistence invariant", () => {
 						source: "manual",
 						currencyId: null,
 						sessionDate: new Date(1_700_000_000_000),
+						startedAt: null,
+						endedAt: null,
+						breakMinutes: null,
+						memo: null,
+						roomId: null,
+						ringGameId: null,
+						evDiff: null,
+						cashOut: 200,
+						cashRuleName: null,
 					},
 				],
 				session_cash_detail: [
@@ -2043,7 +2094,6 @@ describe("session.update cash variant / mixGames persistence invariant", () => {
 						mixGames: null,
 						buyIn: 100,
 						cashOut: 200,
-						evCashOut: null,
 					},
 				],
 				session_tournament_detail: [],
@@ -2066,7 +2116,7 @@ describe("session.update cash variant / mixGames persistence invariant", () => {
 		});
 
 		expect(batch).toHaveBeenCalledTimes(1);
-		expect(batch.mock.calls[0]?.[0]).toHaveLength(3);
+		expect(batch.mock.calls[0]?.[0]).toHaveLength(5);
 		expect(deleteWhereParams).toContainEqual(["session-1"]);
 		expect(inserted.session_to_session_tag).toHaveLength(1);
 		expect(inserted.session_to_session_tag?.[0]).toEqual([
@@ -2078,7 +2128,7 @@ describe("session.update cash variant / mixGames persistence invariant", () => {
 	it("re-syncs currencyTransaction.amount with chipRemoveTotal included, not just cashOut - buyIn", async () => {
 		const { db, updated } = createChainableMockDb({
 			select: {
-				game_session: [
+				entry: [
 					{
 						id: "session-1",
 						userId: "user-1",
@@ -2086,6 +2136,15 @@ describe("session.update cash variant / mixGames persistence invariant", () => {
 						source: "live",
 						currencyId: "currency-1",
 						sessionDate: new Date(1_700_000_000_000),
+						startedAt: null,
+						endedAt: null,
+						breakMinutes: null,
+						memo: null,
+						roomId: null,
+						ringGameId: null,
+						evDiff: null,
+						cashOut: 200,
+						cashRuleName: null,
 					},
 				],
 				session_cash_detail: [
@@ -2095,7 +2154,6 @@ describe("session.update cash variant / mixGames persistence invariant", () => {
 						mixGames: null,
 						buyIn: 100,
 						cashOut: 200,
-						evCashOut: null,
 						chipRemoveTotal: 50,
 					},
 				],
@@ -2124,6 +2182,13 @@ describe("session.update tournament placement integrity (SA2-161)", () => {
 		source: "manual",
 		currencyId: null,
 		sessionDate: new Date(1_700_000_000_000),
+		startedAt: null,
+		endedAt: null,
+		breakMinutes: null,
+		memo: null,
+		roomId: null,
+		tournamentId: null,
+		tournamentRuleName: null,
 	};
 
 	function makeCaller(detail: {
@@ -2133,8 +2198,8 @@ describe("session.update tournament placement integrity (SA2-161)", () => {
 	}) {
 		const mock = createChainableMockDb({
 			select: {
-				game_session: [existingSession],
-				session_tournament_detail: [{ sessionId: "session-1", ...detail }],
+				entry: [{ ...existingSession, ...detail }],
+				session_tournament_detail: [{ sessionId: "session-1" }],
 			},
 		});
 		return {
@@ -2175,15 +2240,15 @@ describe("session.update tournament placement integrity (SA2-161)", () => {
 	it("accepts beforeDeadline true and clears placement fields like create", async () => {
 		const { db: baseDb } = createChainableMockDb({
 			select: {
-				game_session: [existingSession],
-				session_tournament_detail: [
+				entry: [
 					{
-						sessionId: "session-1",
+						...existingSession,
 						beforeDeadline: false,
 						placement: 3,
 						totalEntries: 10,
 					},
 				],
+				session_tournament_detail: [{ sessionId: "session-1" }],
 			},
 		});
 		const updates: Record<string, unknown>[] = [];
@@ -2222,7 +2287,7 @@ describe("session joined ownership scoping", () => {
 	it("owner-scopes room, currency, and tag joins that surface names", async () => {
 		const { db, selectJoinParams } = createChainableMockDb({
 			select: {
-				game_session: [
+				entry: [
 					{
 						id: "session-1",
 						type: "cash_game",
@@ -2255,7 +2320,7 @@ describe("session.list EV falls back to the actual result without an EV cash-out
 	function listCallerRows(rows: Record<string, unknown>[]) {
 		const { db } = createChainableMockDb({
 			select: {
-				game_session: rows.map((row, index) => ({
+				entry: rows.map((row, index) => ({
 					id: `session-${index + 1}`,
 					type: "cash_game",
 					source: "manual",
@@ -2407,11 +2472,11 @@ describe("session.list filter ownership", () => {
 	}
 
 	it("continues to the session query when no ownership-scoped filter is supplied", async () => {
-		const { caller, selectedTables } = makeCaller({ game_session: [] });
+		const { caller, selectedTables } = makeCaller({ entry: [] });
 
 		await expect(caller.session.list({})).resolves.toMatchObject({ items: [] });
 
-		expect(selectedTables).toContain("game_session");
+		expect(selectedTables).toContain("entry");
 		expect(selectedTables).not.toContain("room");
 		expect(selectedTables).not.toContain("currency");
 	});
@@ -2456,7 +2521,7 @@ describe("session.list filter ownership", () => {
 	}) => {
 		const { caller, selectedTables } = makeCaller({
 			[table]: [{ id: Object.values(input)[0], userId: CALLER }],
-			game_session: [],
+			entry: [],
 		});
 
 		await expect(caller.session.list(input)).resolves.toMatchObject({
@@ -2464,7 +2529,7 @@ describe("session.list filter ownership", () => {
 		});
 
 		expect(selectedTables).toContain(table);
-		expect(selectedTables).toContain("game_session");
+		expect(selectedTables).toContain("entry");
 	});
 });
 
@@ -2489,13 +2554,13 @@ describe("session.profitLossSeries filter ownership", () => {
 	}
 
 	it("continues to the session query when no ownership-scoped filter is supplied", async () => {
-		const { caller, selectedTables } = makeCaller({ game_session: [] });
+		const { caller, selectedTables } = makeCaller({ entry: [] });
 
 		await expect(caller.session.profitLossSeries({})).resolves.toEqual({
 			points: [],
 		});
 
-		expect(selectedTables).toContain("game_session");
+		expect(selectedTables).toContain("entry");
 		expect(selectedTables).not.toContain("room");
 		expect(selectedTables).not.toContain("currency");
 		expect(selectedTables).not.toContain("ring_game");
@@ -2541,7 +2606,7 @@ describe("session.profitLossSeries filter ownership", () => {
 	}) => {
 		const { caller, selectedTables } = makeCaller({
 			[table]: [{ id: Object.values(input)[0], userId: CALLER }],
-			game_session: [],
+			entry: [],
 		});
 
 		await expect(caller.session.profitLossSeries(input)).resolves.toEqual({
@@ -2549,6 +2614,6 @@ describe("session.profitLossSeries filter ownership", () => {
 		});
 
 		expect(selectedTables).toContain(table);
-		expect(selectedTables).toContain("game_session");
+		expect(selectedTables).toContain("entry");
 	});
 });

@@ -3,7 +3,7 @@ import {
 	currencyTransaction,
 	transactionType,
 } from "@sapphire2/db/schema/currency";
-import { gameSession } from "@sapphire2/db/schema/session";
+import { entry } from "@sapphire2/db/schema/entry";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { TRPCError } from "@trpc/server";
@@ -89,7 +89,7 @@ export const currencyTransactionRouter = router({
 					sessionId: currencyTransaction.sessionId,
 					sessionName: sql<
 						string | null
-					>`CASE WHEN ${gameSession.kind} = 'cash_game' THEN ${sessionCashDetail.ruleName} WHEN ${gameSession.kind} = 'tournament' THEN ${sessionTournamentDetail.ruleName} ELSE NULL END`,
+					>`CASE WHEN ${entry.kind} = 'cash' THEN ${sessionCashDetail.ruleName} WHEN ${entry.kind} = 'tournament' THEN ${sessionTournamentDetail.ruleName} ELSE NULL END`,
 					amount: currencyTransaction.amount,
 					transactedAt: currencyTransaction.transactedAt,
 					memo: currencyTransaction.memo,
@@ -104,19 +104,16 @@ export const currencyTransactionRouter = router({
 					)
 				)
 				.leftJoin(
-					gameSession,
+					entry,
 					and(
-						eq(gameSession.id, currencyTransaction.sessionId),
-						eq(gameSession.userId, userId)
+						eq(entry.id, currencyTransaction.sessionId),
+						eq(entry.userId, userId)
 					)
 				)
-				.leftJoin(
-					sessionCashDetail,
-					eq(sessionCashDetail.sessionId, gameSession.id)
-				)
+				.leftJoin(sessionCashDetail, eq(sessionCashDetail.sessionId, entry.id))
 				.leftJoin(
 					sessionTournamentDetail,
-					eq(sessionTournamentDetail.sessionId, gameSession.id)
+					eq(sessionTournamentDetail.sessionId, entry.id)
 				)
 				.where(and(...conditions))
 				.orderBy(

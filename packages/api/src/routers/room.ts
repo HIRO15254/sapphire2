@@ -21,7 +21,7 @@ const COORDINATES_PAIRED_ISSUE = {
 };
 
 const roomIsReferenced = () =>
-	sql<boolean>`(EXISTS (SELECT 1 FROM game_session WHERE game_session.room_id = room.id) OR EXISTS (SELECT 1 FROM ring_game WHERE ring_game.room_id = room.id) OR EXISTS (SELECT 1 FROM tournament WHERE tournament.room_id = room.id))`;
+	sql<boolean>`(EXISTS (SELECT 1 FROM entry WHERE entry.room_id = room.id) OR EXISTS (SELECT 1 FROM ring_game WHERE ring_game.room_id = room.id) OR EXISTS (SELECT 1 FROM tournament WHERE tournament.room_id = room.id))`;
 
 export const roomIdInputSchema = z.object({ id: z.string() });
 

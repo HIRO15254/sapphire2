@@ -965,30 +965,31 @@ LEFT JOIN session_cash_detail scd ON scd.session_id = gs.id
 LEFT JOIN session_tournament_detail std ON std.session_id = gs.id;
 ```
 
+The full migration is `packages/db/src/migrations/0059_entry_p1_cutover.sql`. play_session reads the placement already normalized into entry_tournament, so an invalid legacy placement cannot change the end_state:
+
 ```sql
 INSERT INTO play_session
   (id, user_id, entry_id, kind, seq, local_date, started_at, ended_at, break_minutes,
    status, end_state, end_stack, clock_started_at, created_at, updated_at)
 SELECT gs.id, gs.user_id, e.id, e.kind, 1, e.played_on, gs.started_at,
   CASE WHEN gs.ended_at >= gs.started_at OR gs.started_at IS NULL THEN gs.ended_at END,
-  COALESCE(gs.break_minutes, 0),
+  CASE WHEN gs.break_minutes >= 0 THEN gs.break_minutes ELSE 0 END,
   CASE gs.status WHEN 'completed' THEN 'ended' WHEN 'paused' THEN 'paused' ELSE 'active' END,
   CASE WHEN gs.status <> 'completed' THEN NULL
        WHEN e.kind = 'cash' THEN 'cashed_out'
-       WHEN std.before_deadline = 1 AND e.source = 'live' THEN 'busted'
-       WHEN std.before_deadline = 1 THEN 'finished'
-       WHEN std.placement = 1 THEN 'finished'
-       WHEN e.source = 'live' OR std.placement > 1 THEN 'busted'
+       WHEN et.placement = 1 THEN 'finished'
+       WHEN e.source = 'live' OR et.placement > 1 THEN 'busted'
        ELSE 'finished' END,
-  CASE WHEN e.kind = 'cash' AND gs.status = 'completed' THEN scd.cash_out END,
+  CASE WHEN e.kind = 'cash' AND gs.status = 'completed' AND scd.cash_out >= 0 THEN scd.cash_out END,
   std.timer_started_at, gs.created_at, gs.updated_at
 FROM game_session gs
 JOIN entry e ON e.id = gs.id AND e.user_id = gs.user_id
+LEFT JOIN entry_tournament et ON et.entry_id = e.id AND et.user_id = e.user_id
 LEFT JOIN session_cash_detail scd ON scd.session_id = gs.id
 LEFT JOIN session_tournament_detail std ON std.session_id = gs.id;
 ```
 
-The tournament end_state of a live entry follows the projector rule in section 13.2, so a NULL placement (before_deadline = 1) is busted and A-6 finds no difference. A manual entry without a placement keeps the manual default, finished. A placement stored while before_deadline = 1 counts as no placement: entry_tournament stores it as NULL (its CHECK), and the end_state follows that value, the same as the T06 write service.
+The tournament end_state of a live entry follows the projector rule in section 13.2, so a NULL placement (before_deadline = 1) is busted and A-6 finds no difference. A manual entry without a placement keeps the manual default, finished.
 
 ```sql
 INSERT INTO play_event
@@ -999,7 +1000,7 @@ FROM session_event se
 JOIN game_session gs ON gs.id = se.session_id;
 ```
 
-entry_cash and entry_tournament are moved in the same way. `ev_diff` is the rounded value of `ev_cash_out - cash_out`, and NULL if ev_cash_out is NULL. ring_game and tournament are joined only where `user_id` matches, and are NULL otherwise. `placement` is NULL where before_deadline = 1 (session.update can store both today).
+entry_cash and entry_tournament are moved in the same way, and every entry gets its kind's row even when the legacy detail row is missing. `ev_diff` is `CAST(floor(ev_cash_out - cash_out + 0.5) AS INTEGER)`, which rounds like `Math.round` (SQLite `round()` rounds -0.5 away from zero); it is set only for settled entries and is NULL for open ones or when ev_cash_out is NULL, matching the projector. ring_game and tournament are joined only where `user_id` matches, and are NULL otherwise. `placement` is NULL where before_deadline = 1 (session.update can store both today), where it is below 1, or where it exceeds a valid total_entries; total_entries below 1 becomes NULL, and before_deadline keeps only 1 (anything else becomes NULL). Titles, memos, and event types are copied as they are: the new tables have no length or type CHECK on them.
 
 **P2 (T12)**: Create the ledger lines. How they are created depends on the entry's source.
 
@@ -1274,6 +1275,11 @@ This specification decides every question provisionally with the recommended opt
 
 | Date | Decision | Reason |
 | --- | --- | --- |
+| 2026-10-16 | A live entry started after T07 gets its play_session `local_date` from the server: the JST (+9 h) date of the start instant, with no client input (T07) | The same rule as the backfill of older live sessions (Q7), so a date never depends on which side of the cutover the session started. T15's per-user time zone replaces the fixed offset |
+| 2026-10-16 | Until T12 moves the money, every live event change recomputes the facts that have not moved (session_cash_detail buy_in / cash_out / chip_remove_total, session_tournament_detail prize_money / bounty_prizes, session_chip_purchase_result counts, and the currency_transaction) from the post-change event list and writes them in the same `db.batch` as the event and the projection. While the entry is open the detail money is left as it is and the currency_transaction is deleted (T07) | This keeps the semantics of the deleted `recalculateCashGameSession` / `recalculateTournamentSession` while closing SA2-192: those ran as separate awaits after the event write, so a failure left the event without its money |
+| 2026-10-16 | `sessionEvent.create` takes an optional `playSessionId`, defaulting to the entry's unfinished play_session, else the latest. The web app does not send it yet; the mobile nav's resume relies on the default (T07) | Only multi-day input (T16) needs to name a day, and the default is the day a single-day session is on |
+| 2026-10-16 | Statistics keep counting unfinished live sessions, as before the cutover (T07) | The legacy stats query had no status filter, and the cutover does not change outputs |
+| 2026-10-16 | The backfill normalizes values a CHECK of the new tables would reject instead of aborting: placement below 1 or above a valid total_entries becomes NULL, total_entries below 1 becomes NULL, a negative break becomes 0, a negative cash end_stack becomes NULL, and before_deadline keeps only 1 (T07, section 16.5) | The data is moved once and a stopped migration means a Time Travel restore. The values dropped this way were already invalid input; the final check (A-3 / A-4) still stops the migration if a row is missing or a time differs |
 | 2026-10-13 | The hand tables change before T22 wires them (T21, section 9): `hand.hero_net` is dropped for the net of Hero's seat; `hand.stakes` takes the rule stake keys `blind1-3 / ante / anteType`; boards move to the child table `hand_board` (up to 4, for run-it-twice and double board); `hand.rake` is added; `hand_seat.showed` means the hole cards are known because the seat showed them, and stays beside the `show` / `muck` actions | User decision after a review of the structure. hero_net and Hero's net held one value in two places. `{sb, bb, ante, straddle}` could not hold a Stud bring-in or Limit bet sizes, which the game groups already name. One board per hand could not hold a run-it-twice. The kinds of `post` (ante, small blind, big blind, dead) stay one value: the seats of the blinds are not enforced by the structure, so a finer kind could not be kept consistent |
 | 2026-10-09 | A summary hand is a live note of a hand worth remembering, for the hand list, the all_in link, and a later raise to full. No statistic reads summary values: the hand count comes from rows of every detail, and VPIP / PFR from full hands only (T21, section 9) | User decision. The spec named the three levels but not what reads summary. Values typed at the table without the action are too uneven to aggregate, for example Hero's result by hole cards, so analysis stays on full hands. The alternatives were dropping summary (count and full only) and also analysing Hero's results from it |
 | 2026-10-09 | The hand service renumbers the later hands when a hand is deleted, lets undo delete only a count hand, and refuses with CONFLICT to delete a hand that a play_event links (T21, section 9) | INV-18 makes hand_no a sequence, so a delete in the middle cannot leave a gap. Undo is the "−1" of the counter and should not destroy details. `play_event.hand_id` is NO ACTION, and dropping the link silently would orphan the all_in's `handId` |

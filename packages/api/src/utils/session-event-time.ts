@@ -1,6 +1,6 @@
-import { sessionEvent } from "@sapphire2/db/schema/session-event";
+import { playEvent } from "@sapphire2/db/schema/entry";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, gt, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, lt } from "drizzle-orm";
 import type { protectedProcedure } from "../index";
 
 type DbInstance = Parameters<
@@ -22,64 +22,19 @@ export function resolveOccurredAt(
 	return floorToMinute(raw);
 }
 
-export function nextAppendSortOrderSql(sessionId: string) {
-	return sql<number>`(SELECT COALESCE(MAX(${sessionEvent.sortOrder}), -1) + 1 FROM ${sessionEvent} WHERE ${sessionEvent.sessionId} = ${sessionId})`;
-}
-
-export function heroSeatEventValues({
-	heroSeatPosition,
-	now,
-	previousHeroSeat,
-	sessionId,
-}: {
-	heroSeatPosition: number | null;
-	now: Date;
-	previousHeroSeat: number | null;
-	sessionId: string;
-}) {
-	const base = {
-		occurredAt: floorToMinute(now),
-		sessionId,
-		sortOrder: nextAppendSortOrderSql(sessionId),
-		updatedAt: now,
-	};
-	const values: (typeof base & {
-		eventType: string;
-		id: string;
-		payload: string;
-	})[] = [];
-	if (previousHeroSeat !== null) {
-		values.push({
-			...base,
-			eventType: "player_leave",
-			id: crypto.randomUUID(),
-			payload: JSON.stringify({ isHero: true }),
-		});
-	}
-	if (heroSeatPosition !== null) {
-		values.push({
-			...base,
-			eventType: "player_join",
-			id: crypto.randomUUID(),
-			payload: JSON.stringify({ isHero: true, seatPosition: heroSeatPosition }),
-		});
-	}
-	return values;
-}
-
 export function sessionEventOrderBy() {
 	return [
-		asc(sessionEvent.occurredAt),
-		asc(sessionEvent.sortOrder),
-		asc(sessionEvent.id),
+		asc(playEvent.occurredAt),
+		asc(playEvent.sortOrder),
+		asc(playEvent.id),
 	] as const;
 }
 
 export function latestSessionEventOrderBy() {
 	return [
-		desc(sessionEvent.occurredAt),
-		desc(sessionEvent.sortOrder),
-		desc(sessionEvent.id),
+		desc(playEvent.occurredAt),
+		desc(playEvent.sortOrder),
+		desc(playEvent.id),
 	] as const;
 }
 function minuteEpoch(date: Date): number {
@@ -92,10 +47,10 @@ export async function assertAppendOccurredAtOrdering(
 	newOccurredAt: Date
 ): Promise<void> {
 	const [previous] = await db
-		.select({ occurredAt: sessionEvent.occurredAt })
-		.from(sessionEvent)
-		.where(eq(sessionEvent.sessionId, sessionId))
-		.orderBy(desc(sessionEvent.sortOrder), desc(sessionEvent.id))
+		.select({ occurredAt: playEvent.occurredAt })
+		.from(playEvent)
+		.where(eq(playEvent.entryId, sessionId))
+		.orderBy(desc(playEvent.sortOrder), desc(playEvent.id))
 		.limit(1);
 
 	if (
@@ -118,15 +73,12 @@ export async function assertOccurredAtOrdering(
 	const target = minuteEpoch(newOccurredAt);
 
 	const [prev] = await db
-		.select({ occurredAt: sessionEvent.occurredAt })
-		.from(sessionEvent)
+		.select({ occurredAt: playEvent.occurredAt })
+		.from(playEvent)
 		.where(
-			and(
-				eq(sessionEvent.sessionId, sessionId),
-				lt(sessionEvent.sortOrder, sortOrder)
-			)
+			and(eq(playEvent.entryId, sessionId), lt(playEvent.sortOrder, sortOrder))
 		)
-		.orderBy(desc(sessionEvent.sortOrder))
+		.orderBy(desc(playEvent.sortOrder))
 		.limit(1);
 
 	if (prev && minuteEpoch(prev.occurredAt) > target) {
@@ -138,15 +90,12 @@ export async function assertOccurredAtOrdering(
 	}
 
 	const [next] = await db
-		.select({ occurredAt: sessionEvent.occurredAt })
-		.from(sessionEvent)
+		.select({ occurredAt: playEvent.occurredAt })
+		.from(playEvent)
 		.where(
-			and(
-				eq(sessionEvent.sessionId, sessionId),
-				gt(sessionEvent.sortOrder, sortOrder)
-			)
+			and(eq(playEvent.entryId, sessionId), gt(playEvent.sortOrder, sortOrder))
 		)
-		.orderBy(asc(sessionEvent.sortOrder))
+		.orderBy(asc(playEvent.sortOrder))
 		.limit(1);
 
 	if (next && minuteEpoch(next.occurredAt) < target) {

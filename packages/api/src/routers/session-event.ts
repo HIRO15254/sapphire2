@@ -9,11 +9,9 @@ import {
 	type SessionEventType,
 	validateEventPayload,
 } from "@sapphire2/db/constants/session-event-types";
+import { entry, playEvent, playSession } from "@sapphire2/db/schema/entry";
 import { player } from "@sapphire2/db/schema/player";
-import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
-import { sessionEvent } from "@sapphire2/db/schema/session-event";
-import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
 import z from "zod";
@@ -23,28 +21,19 @@ import {
 	listEntryPlayEvents,
 } from "../services/entry-live-reads";
 import {
-	recalculateCashGameSession,
-	recalculateTournamentSession,
-} from "../services/live-session-pl";
+	applyEntryEventChange,
+	type EntryEventChange,
+} from "../services/entry-live-writes";
 import {
 	assertAppendOccurredAtOrdering,
 	assertOccurredAtOrdering,
 	floorToMinute,
-	nextAppendSortOrderSql,
 	resolveOccurredAt,
-	sessionEventOrderBy,
 } from "../utils/session-event-time";
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
 >[0]["ctx"]["db"];
-
-interface SessionInfo {
-	sessionDate: Date;
-	sessionId: string;
-	sessionType: "cash_game" | "tournament";
-	status: string;
-}
 
 function resolveSessionId(input: {
 	sessionId?: string;
@@ -71,24 +60,27 @@ async function resolveSessionOwnership(
 	db: DbInstance,
 	sessionId: string,
 	userId: string
-): Promise<SessionInfo> {
-	const [session] = await db
-		.select()
-		.from(gameSession)
-		.where(eq(gameSession.id, sessionId));
-
-	if (!session || session.userId !== userId) {
+) {
+	const ownedId = await findOwnedEntryId(db, userId, sessionId);
+	if (!ownedId) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
 			message: SESSION_FORBIDDEN_MESSAGE,
 		});
 	}
-
+	const [owned] = await db
+		.select({ kind: entry.kind })
+		.from(entry)
+		.where(and(eq(entry.id, ownedId), eq(entry.userId, userId)));
+	if (!owned) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: SESSION_FORBIDDEN_MESSAGE,
+		});
+	}
 	return {
-		sessionId: session.id,
-		sessionType: session.kind as "cash_game" | "tournament",
-		status: session.status,
-		sessionDate: session.sessionDate,
+		sessionType:
+			owned.kind === "cash" ? ("cash_game" as const) : ("tournament" as const),
 	};
 }
 
@@ -153,19 +145,6 @@ async function resolveSessionScopedEventPayload(
 	return validatedPayload;
 }
 
-async function recalculateSession(
-	db: DbInstance,
-	sessionId: string,
-	sessionType: "cash_game" | "tournament",
-	userId: string
-) {
-	if (sessionType === "cash_game") {
-		await recalculateCashGameSession(db, sessionId, userId);
-	} else {
-		await recalculateTournamentSession(db, sessionId, userId);
-	}
-}
-
 function parseEventPayload(event: { payload: string }) {
 	return JSON.parse(event.payload) as unknown;
 }
@@ -176,7 +155,7 @@ const sessionIdInput = z.object({
 	liveTournamentSessionId: z.string().optional(),
 });
 
-export async function listSessionEventsFromPlayEvents(
+async function listSessionEvents(
 	db: DbInstance,
 	userId: string,
 	input: z.output<typeof sessionIdInput>
@@ -199,23 +178,9 @@ export async function listSessionEventsFromPlayEvents(
 export const sessionEventRouter = router({
 	list: protectedProcedure
 		.input(sessionIdInput)
-		.query(async ({ ctx, input }) => {
-			const sessionId = resolveSessionId(input);
-
-			const userId = ctx.session.user.id;
-			await resolveSessionOwnership(ctx.db, sessionId, userId);
-
-			const events = await ctx.db
-				.select()
-				.from(sessionEvent)
-				.where(eq(sessionEvent.sessionId, sessionId))
-				.orderBy(...sessionEventOrderBy());
-
-			return events.map((event) => ({
-				...event,
-				payload: parseEventPayload(event),
-			}));
-		}),
+		.query(({ ctx, input }) =>
+			listSessionEvents(ctx.db, ctx.session.user.id, input)
+		),
 
 	create: protectedProcedure
 		.input(
@@ -223,6 +188,7 @@ export const sessionEventRouter = router({
 				eventType: z.enum(ALL_EVENT_TYPES),
 				occurredAt: z.number().optional(),
 				payload: z.unknown(),
+				playSessionId: z.string().optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -252,11 +218,44 @@ export const sessionEventRouter = router({
 				});
 			}
 
-			const sessionEvents = await ctx.db
-				.select()
-				.from(sessionEvent)
-				.where(eq(sessionEvent.sessionId, sessionId));
-			const currentState = getSessionCurrentState(sessionEvents);
+			const sessionEvents = await listEntryPlayEvents(
+				ctx.db,
+				userId,
+				sessionId
+			);
+			const plays = await ctx.db
+				.select({ id: playSession.id, status: playSession.status })
+				.from(playSession)
+				.where(
+					and(
+						eq(playSession.entryId, sessionId),
+						eq(playSession.userId, userId)
+					)
+				)
+				.orderBy(playSession.seq);
+			const target = input.playSessionId
+				? plays.find((play) => play.id === input.playSessionId)
+				: (plays.find((play) => play.status !== "ended") ?? plays.at(-1));
+			if (!target) {
+				throw new TRPCError({
+					code: "FORBIDDEN",
+					message: SESSION_FORBIDDEN_MESSAGE,
+				});
+			}
+			const targetIds = await ctx.db
+				.select({ id: playEvent.id })
+				.from(playEvent)
+				.where(
+					and(
+						eq(playEvent.entryId, sessionId),
+						eq(playEvent.userId, userId),
+						eq(playEvent.playSessionId, target.id)
+					)
+				);
+			const ids = new Set(targetIds.map(({ id }) => id));
+			const currentState = getSessionCurrentState(
+				sessionEvents.filter((event) => ids.has(event.id))
+			);
 			if (!isEventAllowedInState(eventType, currentState)) {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
@@ -276,22 +275,27 @@ export const sessionEventRouter = router({
 			await assertAppendOccurredAtOrdering(ctx.db, sessionId, occurredAtDate);
 
 			const id = crypto.randomUUID();
-			await ctx.db.insert(sessionEvent).values({
-				id,
+			await applyEntryEventChange(
+				ctx.db,
+				userId,
 				sessionId,
-				eventType,
-				occurredAt: occurredAtDate,
-				sortOrder: nextAppendSortOrderSql(sessionId),
-				payload: JSON.stringify(validatedPayload),
-				updatedAt: new Date(),
-			});
-
-			await recalculateSession(ctx.db, sessionId, sessionType, userId);
-
-			const [created] = await ctx.db
-				.select()
-				.from(sessionEvent)
-				.where(eq(sessionEvent.id, id));
+				{
+					op: "append",
+					events: [
+						{
+							id,
+							type: eventType,
+							playSessionId: target.id,
+							occurredAt: occurredAtDate,
+							payload: validatedPayload,
+						},
+					],
+				},
+				new Date()
+			);
+			const created = (
+				await listEntryPlayEvents(ctx.db, userId, sessionId)
+			).find((event) => event.id === id);
 			if (!created) {
 				throw new TRPCError({ code: "NOT_FOUND", message: "Event not found" });
 			}
@@ -311,8 +315,8 @@ export const sessionEventRouter = router({
 
 			const [event] = await ctx.db
 				.select()
-				.from(sessionEvent)
-				.where(eq(sessionEvent.id, input.id));
+				.from(playEvent)
+				.where(and(eq(playEvent.id, input.id), eq(playEvent.userId, userId)));
 			if (!event) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
@@ -322,19 +326,22 @@ export const sessionEventRouter = router({
 
 			const { sessionType } = await resolveSessionOwnership(
 				ctx.db,
-				event.sessionId,
+				event.entryId,
 				userId
 			);
 
-			const eventType = event.eventType as SessionEventType;
-			const updates: Record<string, unknown> = { updatedAt: new Date() };
+			const eventType = event.type as SessionEventType;
+			const updates: Extract<EntryEventChange, { op: "update" }> = {
+				op: "update",
+				id: input.id,
+			};
 			if (input.occurredAt !== undefined) {
 				const flooredOccurredAt = floorToMinute(
 					new Date(input.occurredAt * 1000)
 				);
 				await assertOccurredAtOrdering(
 					ctx.db,
-					event.sessionId,
+					event.entryId,
 					event.sortOrder,
 					flooredOccurredAt
 				);
@@ -344,47 +351,24 @@ export const sessionEventRouter = router({
 			if (input.payload !== undefined) {
 				validatedPayload = await resolveSessionScopedEventPayload(
 					ctx.db,
-					event.sessionId,
+					event.entryId,
 					userId,
 					eventType,
 					validateEventPayload(eventType, input.payload, sessionType)
 				);
-				updates.payload = JSON.stringify(validatedPayload);
+				updates.payload = validatedPayload;
 			}
 
-			await ctx.db
-				.update(sessionEvent)
-				.set(updates)
-				.where(eq(sessionEvent.id, input.id));
-
-			if (
-				eventType === "session_start" &&
-				sessionType === "tournament" &&
-				validatedPayload &&
-				typeof validatedPayload === "object"
-			) {
-				const timerRaw = (validatedPayload as Record<string, unknown>)
-					.timerStartedAt;
-				let timerStartedAt: Date | null | undefined;
-				if (typeof timerRaw === "number") {
-					timerStartedAt = new Date(timerRaw * 1000);
-				} else if (timerRaw === null) {
-					timerStartedAt = null;
-				}
-				if (timerStartedAt !== undefined) {
-					await ctx.db
-						.update(sessionTournamentDetail)
-						.set({ timerStartedAt })
-						.where(eq(sessionTournamentDetail.sessionId, event.sessionId));
-				}
-			}
-
-			await recalculateSession(ctx.db, event.sessionId, sessionType, userId);
-
-			const [updated] = await ctx.db
-				.select()
-				.from(sessionEvent)
-				.where(eq(sessionEvent.id, input.id));
+			await applyEntryEventChange(
+				ctx.db,
+				userId,
+				event.entryId,
+				updates,
+				new Date()
+			);
+			const updated = (
+				await listEntryPlayEvents(ctx.db, userId, event.entryId)
+			).find((row) => row.id === input.id);
 			if (!updated) {
 				throw new TRPCError({ code: "NOT_FOUND", message: "Event not found" });
 			}
@@ -398,8 +382,8 @@ export const sessionEventRouter = router({
 
 			const [event] = await ctx.db
 				.select()
-				.from(sessionEvent)
-				.where(eq(sessionEvent.id, input.id));
+				.from(playEvent)
+				.where(and(eq(playEvent.id, input.id), eq(playEvent.userId, userId)));
 			if (!event) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
@@ -407,24 +391,22 @@ export const sessionEventRouter = router({
 				});
 			}
 
-			const { sessionType } = await resolveSessionOwnership(
-				ctx.db,
-				event.sessionId,
-				userId
-			);
+			await resolveSessionOwnership(ctx.db, event.entryId, userId);
 
-			if (
-				(LIFECYCLE_EVENT_TYPES as readonly string[]).includes(event.eventType)
-			) {
+			if ((LIFECYCLE_EVENT_TYPES as readonly string[]).includes(event.type)) {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
 					message: "Lifecycle events cannot be deleted",
 				});
 			}
 
-			await ctx.db.delete(sessionEvent).where(eq(sessionEvent.id, input.id));
-
-			await recalculateSession(ctx.db, event.sessionId, sessionType, userId);
+			await applyEntryEventChange(
+				ctx.db,
+				userId,
+				event.entryId,
+				{ op: "delete", id: input.id },
+				new Date()
+			);
 
 			return { success: true };
 		}),

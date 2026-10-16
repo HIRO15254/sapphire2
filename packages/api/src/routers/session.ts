@@ -17,7 +17,6 @@ import { sessionBlindLevel } from "@sapphire2/db/schema/session-blind-level";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
 import { sessionChipPurchaseResult } from "@sapphire2/db/schema/session-chip-purchase-result";
-import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import {
 	sessionTag,
 	sessionToSessionTag,
@@ -35,17 +34,7 @@ import {
 	mixGamesSchema,
 } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
-import {
-	and,
-	asc,
-	desc,
-	eq,
-	gte,
-	inArray,
-	lte,
-	type SQL,
-	sql,
-} from "drizzle-orm";
+import { and, asc, desc, eq, inArray, type SQL, sql } from "drizzle-orm";
 import type { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
@@ -78,7 +67,6 @@ import {
 	assertSingleStructurePerGroup,
 } from "../services/game-structure";
 import { ensureSessionResultTypeId } from "../services/session-result-type";
-import { sessionEventOrderBy } from "../utils/session-event-time";
 import { compareBuiltinFirst } from "./_game-masters";
 
 const PAGE_SIZE = 20;
@@ -93,33 +81,6 @@ const compareCanonicalGameGroups = compareBuiltinFirst(
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
 >[0]["ctx"]["db"];
-
-async function validateSessionOwnership(
-	db: DbInstance,
-	sessionId: string,
-	userId: string
-) {
-	const [found] = await db
-		.select()
-		.from(gameSession)
-		.where(eq(gameSession.id, sessionId));
-
-	if (!found) {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: "You do not own this session",
-		});
-	}
-
-	if (found.userId !== userId) {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: "You do not own this session",
-		});
-	}
-
-	return found;
-}
 
 function computeCashGamePL(
 	buyIn: number,
@@ -294,73 +255,6 @@ async function getSessionBlindLevelMap(
 		} else {
 			map.set(r.sessionId, [entry]);
 		}
-	}
-	return map;
-}
-
-interface SessionEventForList {
-	eventType: string;
-	payload: string;
-}
-
-export async function getSessionEventMap(
-	db: DbInstance,
-	sessionIds: string[]
-): Promise<Map<string, SessionEventForList[]>> {
-	const map = new Map<string, SessionEventForList[]>();
-	if (sessionIds.length === 0) {
-		return map;
-	}
-	const rows = await selectInChunks(sessionIds, (chunk) =>
-		db
-			.select({
-				id: sessionEvent.id,
-				sessionId: sessionEvent.sessionId,
-				eventType: sessionEvent.eventType,
-				payload: sessionEvent.payload,
-				occurredAt: sessionEvent.occurredAt,
-				sortOrder: sessionEvent.sortOrder,
-			})
-			.from(sessionEvent)
-			.where(inArray(sessionEvent.sessionId, chunk))
-			.orderBy(...sessionEventOrderBy())
-	);
-	const buckets = new Map<
-		string,
-		{
-			id: string;
-			eventType: string;
-			occurredAt: Date;
-			payload: string;
-			sortOrder: number;
-		}[]
-	>();
-	for (const r of rows) {
-		const entry = {
-			id: r.id,
-			eventType: r.eventType,
-			payload: r.payload,
-			occurredAt: r.occurredAt,
-			sortOrder: r.sortOrder,
-		};
-		const existing = buckets.get(r.sessionId);
-		if (existing) {
-			existing.push(entry);
-		} else {
-			buckets.set(r.sessionId, [entry]);
-		}
-	}
-	for (const [sessionId, events] of buckets) {
-		events.sort(
-			(a, b) =>
-				Number(a.occurredAt) - Number(b.occurredAt) ||
-				a.sortOrder - b.sortOrder ||
-				a.id.localeCompare(b.id)
-		);
-		map.set(
-			sessionId,
-			events.map((e) => ({ eventType: e.eventType, payload: e.payload }))
-		);
 	}
 	return map;
 }
@@ -800,7 +694,6 @@ export {
 	getSessionChipPurchaseMap,
 	sumChipPurchaseCost,
 	validateEntityOwnership,
-	validateSessionOwnership,
 };
 
 const CASH_LIVE_LINKED_RESTRICTED_FIELDS = [
@@ -1186,67 +1079,6 @@ const EMPTY_SUMMARY: SessionSummary = {
 	totalEvDiff: null,
 };
 
-async function computeSummary(
-	db: DbInstance,
-	userId: string,
-	filters: {
-		currencyId?: string;
-		dateFrom?: number;
-		dateTo?: number;
-		roomId?: string;
-		type?: "cash_game" | "tournament";
-	},
-	typeFilter?: "cash_game" | "tournament"
-): Promise<SessionSummary> {
-	const conditions = [eq(gameSession.userId, userId)];
-	if (filters.type) {
-		conditions.push(eq(gameSession.kind, filters.type));
-	}
-	if (filters.roomId) {
-		conditions.push(eq(gameSession.roomId, filters.roomId));
-	}
-	if (filters.currencyId) {
-		conditions.push(eq(gameSession.currencyId, filters.currencyId));
-	}
-	if (filters.dateFrom !== undefined) {
-		conditions.push(
-			gte(gameSession.sessionDate, new Date(filters.dateFrom * 1000))
-		);
-	}
-	if (filters.dateTo !== undefined) {
-		conditions.push(
-			lte(gameSession.sessionDate, new Date(filters.dateTo * 1000))
-		);
-	}
-
-	const rawSessions = await db
-		.select({
-			id: gameSession.id,
-			type: gameSession.kind,
-			buyIn: sessionCashDetail.buyIn,
-			cashOut: sessionCashDetail.cashOut,
-			evCashOut: sessionCashDetail.evCashOut,
-			chipRemoveTotal: sessionCashDetail.chipRemoveTotal,
-			tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
-			entryFee: sessionTournamentDetail.entryFee,
-			prizeMoney: sessionTournamentDetail.prizeMoney,
-			bountyPrizes: sessionTournamentDetail.bountyPrizes,
-			placement: sessionTournamentDetail.placement,
-			totalEntries: sessionTournamentDetail.totalEntries,
-		})
-		.from(gameSession)
-		.leftJoin(
-			sessionCashDetail,
-			eq(sessionCashDetail.sessionId, gameSession.id)
-		)
-		.leftJoin(
-			sessionTournamentDetail,
-			eq(sessionTournamentDetail.sessionId, gameSession.id)
-		)
-		.where(and(...conditions));
-	return summarizeSessions(db, rawSessions, typeFilter);
-}
-
 async function summarizeSessions(
 	db: DbInstance,
 	rawSessions: (Omit<SummarySessionRow, "chipPurchaseCost"> & { id: string })[],
@@ -1419,10 +1251,6 @@ interface ListFilters {
 	type?: "cash_game" | "tournament";
 }
 
-export function sessionOrderKeySql() {
-	return sql`coalesce(${gameSession.startedAt}, ${gameSession.sessionDate})`;
-}
-
 export function encodeSessionCursor(row: {
 	id: string;
 	sessionDate: Date;
@@ -1454,8 +1282,8 @@ export function parseSessionCursor(
 
 export function sessionKeysetCondition(
 	cursor: string | undefined,
-	orderKey: SQL = sessionOrderKeySql(),
-	idColumn: SQLiteColumn = gameSession.id
+	orderKey: SQL,
+	idColumn: SQLiteColumn
 ): SQL | undefined {
 	if (!cursor) {
 		return undefined;
@@ -1466,35 +1294,6 @@ export function sessionKeysetCondition(
 	}
 	const cursorSeconds = Math.floor(parsed.sortKey.getTime() / 1000);
 	return sql`((${orderKey} < ${cursorSeconds}) or (${orderKey} = ${cursorSeconds} and ${idColumn} < ${parsed.id}))`;
-}
-
-function buildSessionListConditions(userId: string, filters: ListFilters) {
-	const conditions = [eq(gameSession.userId, userId)];
-	if (filters.type) {
-		conditions.push(eq(gameSession.kind, filters.type));
-	}
-	if (filters.roomId) {
-		conditions.push(eq(gameSession.roomId, filters.roomId));
-	}
-	if (filters.currencyId) {
-		conditions.push(eq(gameSession.currencyId, filters.currencyId));
-	}
-	if (filters.dateFrom !== undefined) {
-		conditions.push(
-			gte(gameSession.sessionDate, new Date(filters.dateFrom * 1000))
-		);
-	}
-	if (filters.dateTo !== undefined) {
-		conditions.push(
-			lte(gameSession.sessionDate, new Date(filters.dateTo * 1000))
-		);
-	}
-	const paginationConditions = [...conditions];
-	const keyset = sessionKeysetCondition(filters.cursor);
-	if (keyset) {
-		paginationConditions.push(keyset);
-	}
-	return { conditions, paginationConditions };
 }
 
 interface ListItemRaw {
@@ -1593,41 +1392,24 @@ export async function fetchProfitLossSeries(
 	userId: string,
 	input: ProfitLossSeriesFilters
 ) {
-	const conditions = [eq(gameSession.userId, userId)];
-	if (input.type) {
-		conditions.push(eq(gameSession.kind, input.type));
-	}
-	if (input.roomId) {
-		conditions.push(eq(gameSession.roomId, input.roomId));
-	}
-	if (input.currencyId) {
-		conditions.push(eq(gameSession.currencyId, input.currencyId));
-	}
+	const conditions = entrySessionConditions(userId, input);
 	if (input.ringGameId) {
-		conditions.push(eq(sessionCashDetail.ringGameId, input.ringGameId));
-	}
-	if (input.dateFrom !== undefined) {
-		conditions.push(
-			gte(gameSession.sessionDate, new Date(input.dateFrom * 1000))
-		);
-	}
-	if (input.dateTo !== undefined) {
-		conditions.push(
-			lte(gameSession.sessionDate, new Date(input.dateTo * 1000))
-		);
+		conditions.push(eq(entryCash.ringGameId, input.ringGameId));
 	}
 
 	const rows = await db
 		.select({
-			id: gameSession.id,
-			type: gameSession.kind,
-			sessionDate: gameSession.sessionDate,
-			startedAt: gameSession.startedAt,
-			endedAt: gameSession.endedAt,
-			breakMinutes: gameSession.breakMinutes,
+			id: entry.id,
+			type: legacyKindSql(),
+			sessionDate: legacySessionDateSql(),
+			startedAt: firstPlaySession.startedAt,
+			endedAt: firstPlaySession.endedAt,
+			breakMinutes: legacyBreakMinutesSql(),
 			buyIn: sessionCashDetail.buyIn,
 			cashOut: sessionCashDetail.cashOut,
-			evCashOut: sessionCashDetail.evCashOut,
+			evCashOut: sql<
+				number | null
+			>`${sessionCashDetail.cashOut} + ${entryCash.evDiff}`,
 			chipRemoveTotal: sessionCashDetail.chipRemoveTotal,
 			ringGameBlind2: sessionCashDetail.blind2,
 			tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
@@ -1635,17 +1417,16 @@ export async function fetchProfitLossSeries(
 			prizeMoney: sessionTournamentDetail.prizeMoney,
 			bountyPrizes: sessionTournamentDetail.bountyPrizes,
 		})
-		.from(gameSession)
-		.leftJoin(
-			sessionCashDetail,
-			eq(sessionCashDetail.sessionId, gameSession.id)
-		)
+		.from(entry)
+		.leftJoin(firstPlaySession, firstPlaySessionJoin())
+		.leftJoin(entryCash, eq(entryCash.entryId, entry.id))
+		.leftJoin(sessionCashDetail, eq(sessionCashDetail.sessionId, entry.id))
 		.leftJoin(
 			sessionTournamentDetail,
-			eq(sessionTournamentDetail.sessionId, gameSession.id)
+			eq(sessionTournamentDetail.sessionId, entry.id)
 		)
 		.where(and(...conditions))
-		.orderBy(asc(sessionOrderKeySql()), asc(gameSession.id));
+		.orderBy(asc(entrySessionOrderKeySql()), asc(entry.id));
 
 	const chipPurchaseMap = await getSessionChipPurchaseMap(
 		db,
@@ -1730,75 +1511,6 @@ function enrichItemWithPL<T extends ListItemRaw>(item: T) {
 		evProfitLoss,
 		evDiff,
 	};
-}
-
-function selectEnrichedSessionRows(db: DbInstance, userId: string) {
-	return db
-		.select({
-			id: gameSession.id,
-			type: gameSession.kind,
-			sessionDate: gameSession.sessionDate,
-			source: gameSession.source,
-			status: gameSession.status,
-			buyIn: sessionCashDetail.buyIn,
-			cashOut: sessionCashDetail.cashOut,
-			evCashOut: sessionCashDetail.evCashOut,
-			chipRemoveTotal: sessionCashDetail.chipRemoveTotal,
-			tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
-			entryFee: sessionTournamentDetail.entryFee,
-			placement: sessionTournamentDetail.placement,
-			totalEntries: sessionTournamentDetail.totalEntries,
-			beforeDeadline: sessionTournamentDetail.beforeDeadline,
-			prizeMoney: sessionTournamentDetail.prizeMoney,
-			bountyPrizes: sessionTournamentDetail.bountyPrizes,
-			startedAt: gameSession.startedAt,
-			endedAt: gameSession.endedAt,
-			breakMinutes: gameSession.breakMinutes,
-			memo: gameSession.memo,
-			roomId: gameSession.roomId,
-			roomName: room.name,
-			ringGameId: sessionCashDetail.ringGameId,
-			ringGameName: sessionCashDetail.ruleName,
-			ringGameBlind2: sessionCashDetail.blind2,
-			tournamentId: sessionTournamentDetail.tournamentId,
-			tournamentName: sessionTournamentDetail.ruleName,
-			currencyId: gameSession.currencyId,
-			currencyName: currency.name,
-			currencyUnit: currency.unit,
-			createdAt: gameSession.createdAt,
-			cashVariant: sessionCashDetail.variant,
-			cashMixGames: sessionCashDetail.mixGames,
-			cashBlind1: sessionCashDetail.blind1,
-			cashBlind3: sessionCashDetail.blind3,
-			cashAnte: sessionCashDetail.ante,
-			cashAnteType: sessionCashDetail.anteType,
-			cashMinBuyIn: sessionCashDetail.minBuyIn,
-			cashMaxBuyIn: sessionCashDetail.maxBuyIn,
-			cashTableSize: sessionCashDetail.tableSize,
-			cashHouseRules: sessionCashDetail.houseRules,
-			tournamentVariant: sessionTournamentDetail.variant,
-			tournamentStartingStack: sessionTournamentDetail.startingStack,
-			tournamentBountyAmount: sessionTournamentDetail.bountyAmount,
-			tournamentTableSize: sessionTournamentDetail.tableSize,
-			tournamentHouseRules: sessionTournamentDetail.houseRules,
-		})
-		.from(gameSession)
-		.leftJoin(
-			sessionCashDetail,
-			eq(sessionCashDetail.sessionId, gameSession.id)
-		)
-		.leftJoin(
-			sessionTournamentDetail,
-			eq(sessionTournamentDetail.sessionId, gameSession.id)
-		)
-		.leftJoin(
-			room,
-			and(eq(room.id, gameSession.roomId), eq(room.userId, userId))
-		)
-		.leftJoin(
-			currency,
-			and(eq(currency.id, gameSession.currencyId), eq(currency.userId, userId))
-		);
 }
 
 async function enrichSessionRows<
@@ -1973,10 +1685,26 @@ async function planCashDetailUpdate(
 	sessionId: string,
 	input: CashUpdateInput,
 	userId: string,
-	movedColumns: readonly string[] = []
+	movedColumns: readonly string[]
 ): Promise<SessionDetailPlan<typeof sessionCashDetail.$inferInsert>> {
 	const [existingDetail] = await db
-		.select()
+		.select({
+			buyIn: sessionCashDetail.buyIn,
+			cashOut: sessionCashDetail.cashOut,
+			chipRemoveTotal: sessionCashDetail.chipRemoveTotal,
+			ruleName: sessionCashDetail.ruleName,
+			variant: sessionCashDetail.variant,
+			mixGames: sessionCashDetail.mixGames,
+			blind1: sessionCashDetail.blind1,
+			blind2: sessionCashDetail.blind2,
+			blind3: sessionCashDetail.blind3,
+			ante: sessionCashDetail.ante,
+			anteType: sessionCashDetail.anteType,
+			minBuyIn: sessionCashDetail.minBuyIn,
+			maxBuyIn: sessionCashDetail.maxBuyIn,
+			tableSize: sessionCashDetail.tableSize,
+			houseRules: sessionCashDetail.houseRules,
+		})
 		.from(sessionCashDetail)
 		.where(eq(sessionCashDetail.sessionId, sessionId));
 	const cashUpdate: Partial<typeof sessionCashDetail.$inferInsert> = {};
@@ -2234,13 +1962,24 @@ async function planTournamentDetailUpdate(
 	db: DbInstance,
 	sessionId: string,
 	input: TournamentUpdateInput,
-	movedColumns: readonly string[] = []
+	movedColumns: readonly string[]
 ): Promise<SessionDetailPlan<typeof sessionTournamentDetail.$inferInsert>> {
 	const tournUpdate: Partial<typeof sessionTournamentDetail.$inferInsert> = {};
 	await applyTournamentSnapshotUpdate(db, tournUpdate, input);
 	applyTournamentScalarUpdates(tournUpdate, input);
 	const [existingDetail] = await db
-		.select()
+		.select({
+			tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
+			entryFee: sessionTournamentDetail.entryFee,
+			prizeMoney: sessionTournamentDetail.prizeMoney,
+			bountyPrizes: sessionTournamentDetail.bountyPrizes,
+			ruleName: sessionTournamentDetail.ruleName,
+			variant: sessionTournamentDetail.variant,
+			startingStack: sessionTournamentDetail.startingStack,
+			bountyAmount: sessionTournamentDetail.bountyAmount,
+			tableSize: sessionTournamentDetail.tableSize,
+			houseRules: sessionTournamentDetail.houseRules,
+		})
 		.from(sessionTournamentDetail)
 		.where(eq(sessionTournamentDetail.sessionId, sessionId));
 
@@ -3033,6 +2772,9 @@ async function resnapshotTournamentStructure(
 }
 
 export {
+	buildSessionBlindLevelStatements,
+	buildSessionChipPurchaseStatements,
+	buildTournamentStructureReplacementStatements,
 	buildTournamentStructureStatements,
 	persistSessionChipPurchases,
 	resnapshotTournamentStructure,
@@ -3053,32 +2795,6 @@ function buildSessionTagStatements(
 	return chunkForInsert(rows, 2).map((chunk) =>
 		db.insert(sessionToSessionTag).values(chunk)
 	);
-}
-
-async function selectCreatedSession(db: DbInstance, id: string) {
-	const [created] = await db
-		.select({
-			id: gameSession.id,
-			userId: gameSession.userId,
-			type: gameSession.kind,
-			kind: gameSession.kind,
-			status: gameSession.status,
-			source: gameSession.source,
-			sessionDate: gameSession.sessionDate,
-			startedAt: gameSession.startedAt,
-			endedAt: gameSession.endedAt,
-			breakMinutes: gameSession.breakMinutes,
-			memo: gameSession.memo,
-			roomId: gameSession.roomId,
-			currencyId: gameSession.currencyId,
-			createdAt: gameSession.createdAt,
-			updatedAt: gameSession.updatedAt,
-			liveCashGameSessionId: gameSession.id,
-			liveTournamentSessionId: gameSession.id,
-		})
-		.from(gameSession)
-		.where(eq(gameSession.id, id));
-	return created;
 }
 
 async function buildCreateCurrencyTxStatements(
@@ -3175,7 +2891,7 @@ function legacySessionRowFromEntry(db: DbInstance) {
 		.leftJoin(gameSession, eq(gameSession.id, entry.id));
 }
 
-export async function createSessionViaEntry(
+async function createSession(
 	db: DbInstance,
 	userId: string,
 	input: SessionCreateInput
@@ -3277,7 +2993,7 @@ export async function createSessionViaEntry(
 	return created;
 }
 
-export async function updateSessionViaEntry(
+async function updateSession(
 	db: DbInstance,
 	userId: string,
 	input: z.infer<typeof sessionUpdateInputSchema>
@@ -3392,11 +3108,7 @@ export async function updateSessionViaEntry(
 	return updated;
 }
 
-export async function deleteSessionViaEntry(
-	db: DbInstance,
-	userId: string,
-	id: string
-) {
+async function deleteSession(db: DbInstance, userId: string, id: string) {
 	await loadEntrySessionFacts(db, id, userId);
 	await runBatch(db, buildEntryDeleteStatements(db, id, userId));
 	return { success: true };
@@ -3532,7 +3244,7 @@ async function computeEntrySummary(
 	return summarizeSessions(db, rawSessions, typeFilter);
 }
 
-export async function listSessionsViaEntries(
+async function listSessions(
 	db: DbInstance,
 	userId: string,
 	input: z.infer<typeof sessionListInputSchema>
@@ -3564,11 +3276,7 @@ export async function listSessionsViaEntries(
 	return { items: itemsWithTags, nextCursor, summary };
 }
 
-export async function getSessionViaEntry(
-	db: DbInstance,
-	userId: string,
-	id: string
-) {
+async function getSession(db: DbInstance, userId: string, id: string) {
 	await loadEntrySessionFacts(db, id, userId);
 
 	const rows = await selectEnrichedEntryRows(db, userId).where(
@@ -3587,189 +3295,27 @@ export async function getSessionViaEntry(
 export const sessionRouter = router({
 	create: protectedProcedure
 		.input(createInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			const id = crypto.randomUUID();
-			const now = new Date();
-			const sessionDate = new Date(input.sessionDate * 1000);
-
-			await validateSessionCreate(ctx.db, input, userId);
-
-			const statements: BatchStatement[] = [
-				ctx.db.insert(gameSession).values({
-					id,
-					userId,
-					kind: input.type,
-					status: "completed",
-					source: "manual",
-					sessionDate,
-					startedAt: timestampToDate(input.startedAt),
-					endedAt: timestampToDate(input.endedAt),
-					breakMinutes: input.breakMinutes ?? null,
-					memo: input.memo ?? null,
-					roomId: input.roomId ?? null,
-					currencyId: input.currencyId ?? null,
-					updatedAt: now,
-				}),
-			];
-
-			if (input.type === "cash_game") {
-				const plan = await planCashGameSessionDetail(
-					ctx.db,
-					id,
-					input,
-					now,
-					userId
-				);
-				statements.push(
-					...plan.statements,
-					ctx.db.insert(sessionCashDetail).values(plan.values)
-				);
-			} else {
-				const plan = await planTournamentSessionDetail(ctx.db, id, input);
-				statements.push(
-					ctx.db.insert(sessionTournamentDetail).values(plan.values),
-					...plan.childStatements
-				);
-			}
-
-			statements.push(...buildSessionTagStatements(ctx.db, id, input.tagIds));
-			statements.push(
-				...(await buildCreateCurrencyTxStatements(
-					ctx.db,
-					id,
-					input,
-					sessionDate,
-					userId
-				))
-			);
-
-			await runBatch(ctx.db, statements);
-
-			return selectCreatedSession(ctx.db, id);
-		}),
+		.mutation(({ ctx, input }) =>
+			createSession(ctx.db, ctx.session.user.id, input)
+		),
 
 	list: protectedProcedure
 		.input(sessionListInputSchema)
-		.query(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateSessionFilterOwnership(ctx.db, input, userId);
-			const { paginationConditions } = buildSessionListConditions(
-				userId,
-				input
-			);
-
-			const data = await selectEnrichedSessionRows(ctx.db, userId)
-				.where(and(...paginationConditions))
-				.orderBy(desc(sessionOrderKeySql()), desc(gameSession.id))
-				.limit(PAGE_SIZE + 1);
-
-			const hasMore = data.length > PAGE_SIZE;
-			const items = hasMore ? data.slice(0, PAGE_SIZE) : data;
-			const last = items.at(-1);
-			const nextCursor =
-				hasMore && last ? encodeSessionCursor(last) : undefined;
-
-			const itemsWithTags = await enrichSessionRows(ctx.db, items, userId);
-
-			const summary = await computeSummary(ctx.db, userId, input, input.type);
-
-			return { items: itemsWithTags, nextCursor, summary };
-		}),
+		.query(({ ctx, input }) =>
+			listSessions(ctx.db, ctx.session.user.id, input)
+		),
 
 	getById: protectedProcedure
 		.input(sessionGetByIdInputSchema)
-		.query(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateSessionOwnership(ctx.db, input.id, userId);
-
-			const rows = await selectEnrichedSessionRows(ctx.db, userId).where(
-				and(eq(gameSession.id, input.id), eq(gameSession.userId, userId))
-			);
-			const [enriched] = await enrichSessionRows(ctx.db, rows, userId);
-
-			if (!enriched) {
-				throw new TRPCError({
-					code: "NOT_FOUND",
-					message: "Session not found",
-				});
-			}
-
-			return enriched;
-		}),
+		.query(({ ctx, input }) =>
+			getSession(ctx.db, ctx.session.user.id, input.id)
+		),
 
 	update: protectedProcedure
 		.input(sessionUpdateInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			const session = await validateSessionOwnership(ctx.db, input.id, userId);
-
-			assertNoLiveLinkedRestrictedEdits(
-				{ source: session.source, kind: session.kind },
-				input
-			);
-
-			if (session.kind === "tournament") {
-				await assertTournamentPlacementIntegrity(input, async () => {
-					const [existing] = await ctx.db
-						.select({
-							beforeDeadline: sessionTournamentDetail.beforeDeadline,
-							placement: sessionTournamentDetail.placement,
-							totalEntries: sessionTournamentDetail.totalEntries,
-						})
-						.from(sessionTournamentDetail)
-						.where(eq(sessionTournamentDetail.sessionId, input.id));
-					return existing;
-				});
-			}
-			await validateSessionUpdateLinks(ctx.db, input, userId, session.kind);
-
-			const sessionUpdateFields = buildSessionUpdateFields(input);
-			const detailPlan =
-				session.kind === "cash_game"
-					? await planCashDetailUpdate(ctx.db, input.id, input, userId)
-					: await planTournamentDetailUpdate(ctx.db, input.id, input);
-			const ledgerStatements = await buildSyncCurrencyTransactionStatements(
-				ctx.db,
-				input.id,
-				session.currencyId,
-				input.currencyId,
-				detailPlan.profitLoss,
-				sessionUpdateFields.sessionDate ?? session.sessionDate,
-				userId
-			);
-
-			await runBatch(ctx.db, [
-				ctx.db
-					.update(gameSession)
-					.set(sessionUpdateFields)
-					.where(eq(gameSession.id, input.id)),
-				...detailPlan.statements,
-				...(input.tagIds === undefined
-					? []
-					: [
-							ctx.db
-								.delete(sessionToSessionTag)
-								.where(eq(sessionToSessionTag.sessionId, input.id)),
-							...buildSessionTagStatements(ctx.db, input.id, input.tagIds),
-						]),
-				...ledgerStatements,
-			]);
-
-			const [updated] = await ctx.db
-				.select()
-				.from(gameSession)
-				.where(eq(gameSession.id, input.id));
-
-			if (!updated) {
-				throw new TRPCError({
-					code: "INTERNAL_SERVER_ERROR",
-					message: "Session not found after update",
-				});
-			}
-
-			return updated;
-		}),
+		.mutation(({ ctx, input }) =>
+			updateSession(ctx.db, ctx.session.user.id, input)
+		),
 
 	profitLossSeries: protectedProcedure
 		.input(
@@ -3790,11 +3336,7 @@ export const sessionRouter = router({
 
 	delete: protectedProcedure
 		.input(z.object({ id: z.string() }))
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateSessionOwnership(ctx.db, input.id, userId);
-
-			await ctx.db.delete(gameSession).where(eq(gameSession.id, input.id));
-			return { success: true };
-		}),
+		.mutation(({ ctx, input }) =>
+			deleteSession(ctx.db, ctx.session.user.id, input.id)
+		),
 });

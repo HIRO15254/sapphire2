@@ -3,6 +3,13 @@ import {
 	currencyTransaction,
 	transactionType,
 } from "@sapphire2/db/schema/currency";
+import {
+	entry,
+	entryCash,
+	entryTournament,
+	playEvent,
+	playSession,
+} from "@sapphire2/db/schema/entry";
 import { playerTag, playerToPlayerTag } from "@sapphire2/db/schema/player";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
@@ -11,7 +18,6 @@ import { sessionBlindLevel } from "@sapphire2/db/schema/session-blind-level";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
 import { sessionChipPurchaseResult } from "@sapphire2/db/schema/session-chip-purchase-result";
-import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import {
 	sessionTag,
 	sessionToSessionTag,
@@ -25,7 +31,6 @@ import {
 import { tournamentTag } from "@sapphire2/db/schema/tournament-tag";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
-import { persistCashSessionReopenEvents } from "../routers/live-cash-game-session";
 import {
 	persistSessionBlindLevels,
 	persistSessionChipPurchases,
@@ -349,37 +354,8 @@ describe("resnapshotTournamentStructure batch composition (SA2-116)", () => {
 	});
 });
 
-describe("persistCashSessionReopenEvents batch composition (SA2-116)", () => {
-	it("deletes the session_end event and inserts the 3 reopen events in one batch", async () => {
-		const { db, batchCalls } = createBatchTrackingDb();
-
-		await persistCashSessionReopenEvents(db as never, {
-			sessionId: "s1",
-			sessionEndEventId: "end-1",
-			flooredEndOccurredAt: new Date(1_000_000),
-			endSortOrder: 5,
-			cashOutAmount: 4200,
-			flooredNow: new Date(2_000_000),
-			now: new Date(3_000_000),
-		});
-
-		expect(batchCalls).toHaveLength(1);
-		const batch = sole(batchCalls);
-		expect(batch[0]).toMatchObject({ kind: "delete", table: sessionEvent });
-		const eventInserts = opsOn(batch, sessionEvent, "insert");
-		expect(eventInserts).toHaveLength(3);
-		expect(
-			eventInserts.map((s) => (s.values as { eventType: string }).eventType)
-		).toEqual(["update_stack", "session_pause", "session_resume"]);
-
-		expect(
-			eventInserts.map((s) => (s.values as { sortOrder: number }).sortOrder)
-		).toEqual([5, 6, 7]);
-	});
-});
-
 describe("session.create batch composition (SA2-116)", () => {
-	it("submits gameSession + cash detail (+ auto ring game) in a single batch", async () => {
+	it("submits entry, play session, legacy anchor, cash detail and auto ring game in a single batch", async () => {
 		const { db, batchCalls } = createBatchTrackingDb();
 
 		await callerFor(db, "user-1").session.create({
@@ -395,10 +371,27 @@ describe("session.create batch composition (SA2-116)", () => {
 		expect(opsOn(batch, ringGame, "insert")).toHaveLength(1);
 		expect(opsOn(batch, sessionCashDetail, "insert")).toHaveLength(1);
 
-		expect(batch[0]).toMatchObject({ kind: "insert", table: gameSession });
+		expect(opsOn(batch, entry, "insert")).toHaveLength(1);
+		expect(opsOn(batch, entryCash, "insert")).toHaveLength(1);
+		expect(opsOn(batch, playSession, "insert")).toHaveLength(1);
+		expect(opsOn(batch, gameSession, "insert")[0]?.values).toMatchObject({
+			userId: "user-1",
+			sessionDate: new Date(0),
+		});
+		expect(opsOn(batch, entry, "insert")[0]?.values).toMatchObject({
+			userId: "user-1",
+			kind: "cash",
+			status: "settled",
+			playedOn: "2023-11-14",
+		});
+		expect(opsOn(batch, playSession, "insert")[0]?.values).toMatchObject({
+			userId: "user-1",
+			seq: 1,
+			endStack: 2000,
+		});
 	});
 
-	it("submits gameSession + tournament detail + copied structure in the same batch", async () => {
+	it("submits entry, play session, legacy anchor, tournament detail and copied structure in the same batch", async () => {
 		const rows = new Map<unknown, Rows>([
 			[
 				tournament,
@@ -423,6 +416,9 @@ describe("session.create batch composition (SA2-116)", () => {
 		expect(batchCalls).toHaveLength(1);
 		const batch = sole(batchCalls);
 		expect(opsOn(batch, gameSession, "insert")).toHaveLength(1);
+		expect(opsOn(batch, entry, "insert")).toHaveLength(1);
+		expect(opsOn(batch, entryTournament, "insert")).toHaveLength(1);
+		expect(opsOn(batch, playSession, "insert")).toHaveLength(1);
 		expect(opsOn(batch, sessionTournamentDetail, "insert")).toHaveLength(1);
 		expect(opsOn(batch, sessionBlindLevel, "insert")).toHaveLength(1);
 		expect(opsOn(batch, sessionChipPurchase, "insert")).toHaveLength(1);
@@ -514,9 +510,9 @@ describe("live session create batch composition", () => {
 		const batch = sole(batchCalls);
 		expect(opsOn(batch, gameSession, "insert")).toHaveLength(1);
 		expect(opsOn(batch, sessionCashDetail, "insert")).toHaveLength(1);
-		expect(opsOn(batch, sessionEvent, "insert")).toHaveLength(1);
-		expect(opsOn(batch, sessionEvent, "insert")[0]?.values).toMatchObject({
-			eventType: "session_start",
+		expect(opsOn(batch, playEvent, "insert")).toHaveLength(1);
+		expect(opsOn(batch, playEvent, "insert")[0]?.values).toMatchObject({
+			type: "session_start",
 			sortOrder: 0,
 		});
 	});
@@ -535,7 +531,7 @@ describe("live session create batch composition", () => {
 		const attempted = sole(batchCalls);
 		expect(opsOn(attempted, gameSession, "insert")).toHaveLength(1);
 		expect(opsOn(attempted, sessionCashDetail, "insert")).toHaveLength(1);
-		expect(opsOn(attempted, sessionEvent, "insert")).toHaveLength(1);
+		expect(opsOn(attempted, playEvent, "insert")).toHaveLength(1);
 	});
 
 	it("submits a tournament session, frozen detail, and start event in one batch", async () => {
@@ -546,7 +542,7 @@ describe("live session create batch composition", () => {
 		const batch = sole(batchCalls);
 		expect(opsOn(batch, gameSession, "insert")).toHaveLength(1);
 		expect(opsOn(batch, sessionTournamentDetail, "insert")).toHaveLength(1);
-		expect(opsOn(batch, sessionEvent, "insert")).toHaveLength(1);
+		expect(opsOn(batch, playEvent, "insert")).toHaveLength(1);
 		expect(opsOn(batch, sessionBlindLevel, "insert")).toHaveLength(0);
 		expect(opsOn(batch, sessionChipPurchase, "insert")).toHaveLength(0);
 	});
@@ -558,6 +554,7 @@ describe("live session create batch composition", () => {
 				[
 					{
 						id: "tournament-1",
+						userId: "user-1",
 						roomId: "room-1",
 						name: "Main",
 						variant: "No Limit Hold'em",
@@ -632,20 +629,58 @@ describe("live session create batch composition", () => {
 		const attempted = sole(batchCalls);
 		expect(opsOn(attempted, gameSession, "insert")).toHaveLength(1);
 		expect(opsOn(attempted, sessionTournamentDetail, "insert")).toHaveLength(1);
-		expect(opsOn(attempted, sessionEvent, "insert")).toHaveLength(1);
+		expect(opsOn(attempted, playEvent, "insert")).toHaveLength(1);
 	});
 });
 
 describe("live master create-and-assign batch composition", () => {
+	function livePlayRows(
+		sessionId: string,
+		kind: "cash" | "tournament"
+	): [unknown, Rows][] {
+		const playSessionId = `play-${sessionId}`;
+		return [
+			[
+				playSession,
+				[
+					{
+						id: playSessionId,
+						seq: 1,
+						localDate: "2026-07-15",
+						status: "active",
+					},
+				],
+			],
+			[
+				playEvent,
+				[
+					{
+						id: `start-${sessionId}`,
+						entryId: sessionId,
+						playSessionId,
+						type: "session_start",
+						schemaVersion: 1,
+						occurredAt: new Date("2026-07-15T04:00:00.000Z"),
+						sortOrder: 0,
+						payload: JSON.stringify(
+							kind === "cash" ? { buyInAmount: 1000 } : {}
+						),
+					},
+				],
+			],
+		];
+	}
+
 	it("submits a new ring game, session patch, and frozen cash snapshot in one batch", async () => {
 		const rows = new Map<unknown, Rows>([
+			...livePlayRows("sess-cash", "cash"),
 			[
-				gameSession,
+				entry,
 				[
 					{
 						id: "sess-cash",
 						userId: "user-1",
-						kind: "cash_game",
+						kind: "cash",
 						source: "live",
 						roomId: null,
 						currencyId: null,
@@ -668,28 +703,29 @@ describe("live master create-and-assign batch composition", () => {
 		const batch = sole(batchCalls);
 		expect(batch[0]).toMatchObject({ kind: "insert", table: ringGame });
 		expect(opsOn(batch, ringGame, "insert")).toHaveLength(1);
-		expect(opsOn(batch, gameSession, "update")).toHaveLength(1);
+		expect(opsOn(batch, entry, "update")).toHaveLength(2);
 		expect(opsOn(batch, sessionCashDetail, "insert")).toHaveLength(1);
 		expect(opsOn(batch, ringGame, "insert")[0]?.values).toMatchObject({
 			userId: "user-1",
 			roomId: "room-1",
 			currencyId: "currency-1",
 		});
-		expect(opsOn(batch, gameSession, "update")[0]?.values).toMatchObject({
+		expect(opsOn(batch, entry, "update")[0]?.values).toMatchObject({
 			roomId: "room-1",
-			currencyId: "currency-1",
+			assetId: "currency-1",
 		});
 	});
 
 	it("propagates ring-game assignment batch failure after submitting both writes together", async () => {
 		const rows = new Map<unknown, Rows>([
+			...livePlayRows("sess-cash", "cash"),
 			[
-				gameSession,
+				entry,
 				[
 					{
 						id: "sess-cash",
 						userId: "user-1",
-						kind: "cash_game",
+						kind: "cash",
 						source: "live",
 						roomId: null,
 						currencyId: null,
@@ -712,18 +748,19 @@ describe("live master create-and-assign batch composition", () => {
 
 		const attempted = sole(batchCalls);
 		expect(opsOn(attempted, ringGame, "insert")).toHaveLength(1);
-		expect(opsOn(attempted, gameSession, "update")).toHaveLength(1);
+		expect(opsOn(attempted, entry, "update")).toHaveLength(2);
 	});
 
 	it("does not overwrite an existing session room or currency while replacing its cash assignment", async () => {
 		const rows = new Map<unknown, Rows>([
+			...livePlayRows("sess-cash", "cash"),
 			[
-				gameSession,
+				entry,
 				[
 					{
 						id: "sess-cash",
 						userId: "user-1",
-						kind: "cash_game",
+						kind: "cash",
 						source: "live",
 						roomId: "room-1",
 						currencyId: "currency-existing",
@@ -740,16 +777,17 @@ describe("live master create-and-assign batch composition", () => {
 			name: "2/5",
 		});
 
-		const sessionPatch = opsOn(sole(batchCalls), gameSession, "update")[0]
+		const sessionPatch = opsOn(sole(batchCalls), entry, "update")[0]
 			?.values as Record<string, unknown>;
 		expect(sessionPatch).not.toHaveProperty("roomId");
-		expect(sessionPatch).not.toHaveProperty("currencyId");
+		expect(sessionPatch).not.toHaveProperty("assetId");
 	});
 
 	it("submits a new tournament, all master children, assignment, and full frozen structure in one batch", async () => {
 		const rows = new Map<unknown, Rows>([
+			...livePlayRows("sess-tournament", "tournament"),
 			[
-				gameSession,
+				entry,
 				[
 					{
 						id: "sess-tournament",
@@ -785,7 +823,7 @@ describe("live master create-and-assign batch composition", () => {
 		expect(opsOn(batch, tournamentTag, "insert")).toHaveLength(1);
 		expect(opsOn(batch, tournamentChipPurchase, "insert")).toHaveLength(1);
 		expect(opsOn(batch, blindLevel, "insert")).toHaveLength(1);
-		expect(opsOn(batch, gameSession, "update")).toHaveLength(1);
+		expect(opsOn(batch, entry, "update")).toHaveLength(2);
 		expect(opsOn(batch, sessionTournamentDetail, "insert")).toHaveLength(1);
 		expect(opsOn(batch, sessionBlindLevel, "delete")).toHaveLength(1);
 		expect(opsOn(batch, sessionBlindLevel, "insert")).toHaveLength(1);
@@ -796,16 +834,17 @@ describe("live master create-and-assign batch composition", () => {
 			roomId: "room-1",
 			currencyId: "currency-1",
 		});
-		expect(opsOn(batch, gameSession, "update")[0]?.values).toMatchObject({
+		expect(opsOn(batch, entry, "update")[0]?.values).toMatchObject({
 			roomId: "room-1",
-			currencyId: "currency-1",
+			assetId: "currency-1",
 		});
 	});
 
 	it("propagates tournament assignment batch failure after submitting both writes together", async () => {
 		const rows = new Map<unknown, Rows>([
+			...livePlayRows("sess-tournament", "tournament"),
 			[
-				gameSession,
+				entry,
 				[
 					{
 						id: "sess-tournament",
@@ -834,13 +873,14 @@ describe("live master create-and-assign batch composition", () => {
 
 		const attempted = sole(batchCalls);
 		expect(opsOn(attempted, tournament, "insert")).toHaveLength(1);
-		expect(opsOn(attempted, gameSession, "update")).toHaveLength(1);
+		expect(opsOn(attempted, entry, "update")).toHaveLength(2);
 	});
 
 	it("in the same batch clears the old frozen structure when the newly created tournament has no children", async () => {
 		const rows = new Map<unknown, Rows>([
+			...livePlayRows("sess-tournament", "tournament"),
 			[
-				gameSession,
+				entry,
 				[
 					{
 						id: "sess-tournament",
@@ -873,10 +913,12 @@ describe("live master create-and-assign batch composition", () => {
 		expect(opsOn(batch, sessionBlindLevel, "insert")).toHaveLength(0);
 		expect(opsOn(batch, sessionChipPurchase, "delete")).toHaveLength(1);
 		expect(opsOn(batch, sessionChipPurchase, "insert")).toHaveLength(0);
-		const sessionPatch = opsOn(batch, gameSession, "update")[0]
-			?.values as Record<string, unknown>;
+		const sessionPatch = opsOn(batch, entry, "update")[0]?.values as Record<
+			string,
+			unknown
+		>;
 		expect(sessionPatch).not.toHaveProperty("roomId");
-		expect(sessionPatch).not.toHaveProperty("currencyId");
+		expect(sessionPatch).not.toHaveProperty("assetId");
 	});
 });
 
@@ -943,7 +985,7 @@ describe("session.update ledger batch composition (SA2-116)", () => {
 	const cashSessionRows = (transactionTypes: Rows) =>
 		new Map<unknown, Rows>([
 			[
-				gameSession,
+				entry,
 				[
 					{
 						id: "sess-1",
@@ -952,6 +994,15 @@ describe("session.update ledger batch composition (SA2-116)", () => {
 						source: "manual",
 						currencyId: "cur-old",
 						sessionDate: new Date(1_000_000),
+						startedAt: null,
+						endedAt: null,
+						breakMinutes: null,
+						memo: null,
+						roomId: null,
+						ringGameId: null,
+						evDiff: null,
+						cashOut: 600,
+						cashRuleName: null,
 					},
 				],
 			],
@@ -983,7 +1034,10 @@ describe("session.update ledger batch composition (SA2-116)", () => {
 		});
 
 		const batch = sole(batchCalls);
-		expect(opsOn(batch, gameSession, "update")).toHaveLength(1);
+		expect(opsOn(batch, entry, "update")).toHaveLength(1);
+		expect(opsOn(batch, entryCash, "update")).toHaveLength(1);
+		expect(opsOn(batch, playSession, "update")).toHaveLength(1);
+		expect(opsOn(batch, gameSession, "update")).toHaveLength(0);
 		const ledgerOps = batch.filter((s) => s.table === currencyTransaction);
 		expect(ledgerOps.map((s) => s.kind)).toEqual(["delete", "insert"]);
 		expect(ledgerOps[1]?.values).toMatchObject({
@@ -1016,7 +1070,7 @@ describe("session.update ledger batch composition (SA2-116)", () => {
 			currencyId: null,
 		});
 		const removalBatch = sole(removal.batchCalls);
-		expect(opsOn(removalBatch, gameSession, "update")).toHaveLength(1);
+		expect(opsOn(removalBatch, entry, "update")).toHaveLength(1);
 		expect(removalBatch.filter((s) => s.table === currencyTransaction)).toEqual(
 			[expect.objectContaining({ kind: "delete" })]
 		);
@@ -1027,7 +1081,7 @@ describe("session.update ledger batch composition (SA2-116)", () => {
 			cashOut: 900,
 		});
 		const sameBatch = sole(same.batchCalls);
-		expect(opsOn(sameBatch, gameSession, "update")).toHaveLength(1);
+		expect(opsOn(sameBatch, entry, "update")).toHaveLength(1);
 		expect(opsOn(sameBatch, sessionCashDetail, "update")).toHaveLength(1);
 		expect(sameBatch.filter((s) => s.table === currencyTransaction)).toEqual([
 			expect.objectContaining({
