@@ -163,4 +163,23 @@ describe("currency persistence and account isolation on D1", () => {
 			await api.db.select().from(currency).where(eq(currency.id, wallet.id))
 		).toHaveLength(1);
 	});
+
+	test("refuses deleting a currency an unsettled live session uses, which has no transaction yet", async ({
+		api,
+	}) => {
+		const wallet = requireCreatedRow(
+			await api.alice.currency.create({ name: "Live wallet" })
+		);
+		await api.alice.liveCashGameSession.create({
+			currencyId: wallet.id,
+			initialBuyIn: 10_000,
+		});
+		expect(await api.db.select().from(currencyTransaction)).toEqual([]);
+		await expect(
+			api.alice.currency.delete({ id: wallet.id })
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		expect(
+			await api.db.select().from(currency).where(eq(currency.id, wallet.id))
+		).toHaveLength(1);
+	});
 });

@@ -1,6 +1,7 @@
 import { currency, currencyTransaction } from "@sapphire2/db/schema/currency";
+import { entry } from "@sapphire2/db/schema/entry";
 import { TRPCError } from "@trpc/server";
-import { asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 
@@ -148,6 +149,17 @@ export const currencyRouter = router({
 				throw new TRPCError({
 					code: "CONFLICT",
 					message: "Currency cannot be deleted while it has transactions",
+				});
+			}
+			const [referencingEntry] = await ctx.db
+				.select({ id: entry.id })
+				.from(entry)
+				.where(and(eq(entry.assetId, input.id), eq(entry.userId, userId)))
+				.limit(1);
+			if (referencingEntry) {
+				throw new TRPCError({
+					code: "CONFLICT",
+					message: "Currency cannot be deleted while sessions use it",
 				});
 			}
 			await ctx.db.delete(currency).where(eq(currency.id, input.id));
