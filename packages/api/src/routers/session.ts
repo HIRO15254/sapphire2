@@ -10,6 +10,11 @@ import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { gameMix } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { hand } from "@sapphire2/db/schema/hand";
+import {
+	assetRate,
+	ledgerCategory,
+	ledgerLine,
+} from "@sapphire2/db/schema/ledger";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
@@ -652,6 +657,92 @@ async function validateHandOwnershipBranch(
 	return found;
 }
 
+const LEDGER_ENTITY_FORBIDDEN_MESSAGES = {
+	asset: "You do not own this asset",
+	assetRate: "You do not own this rate",
+	ledgerCategory: "You do not own this category",
+	ledgerLine: "You do not own this transaction",
+} as const;
+
+async function findOwnedLedgerEntity(
+	db: DbInstance,
+	entityType: keyof typeof LEDGER_ENTITY_FORBIDDEN_MESSAGES,
+	entityId: string,
+	userId: string
+) {
+	switch (entityType) {
+		case "asset":
+			return (
+				await db
+					.select()
+					.from(currency)
+					.where(and(eq(currency.id, entityId), eq(currency.userId, userId)))
+			)[0];
+		case "assetRate":
+			return (
+				await db
+					.select()
+					.from(assetRate)
+					.where(and(eq(assetRate.id, entityId), eq(assetRate.userId, userId)))
+			)[0];
+		case "ledgerCategory":
+			return (
+				await db
+					.select()
+					.from(ledgerCategory)
+					.where(
+						and(
+							eq(ledgerCategory.id, entityId),
+							eq(ledgerCategory.userId, userId)
+						)
+					)
+			)[0];
+		default:
+			return (
+				await db
+					.select()
+					.from(ledgerLine)
+					.where(
+						and(eq(ledgerLine.id, entityId), eq(ledgerLine.userId, userId))
+					)
+			)[0];
+	}
+}
+
+async function validateLedgerOwnershipBranch(
+	db: DbInstance,
+	entityType: keyof typeof LEDGER_ENTITY_FORBIDDEN_MESSAGES,
+	entityId: string,
+	userId: string
+) {
+	const found = await findOwnedLedgerEntity(db, entityType, entityId, userId);
+	if (!found) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: LEDGER_ENTITY_FORBIDDEN_MESSAGES[entityType],
+		});
+	}
+	return found;
+}
+
+async function validateEntityOwnership(
+	db: DbInstance,
+	entityType: "assetRate",
+	entityId: string,
+	userId: string
+): Promise<typeof assetRate.$inferSelect>;
+async function validateEntityOwnership(
+	db: DbInstance,
+	entityType: "ledgerCategory",
+	entityId: string,
+	userId: string
+): Promise<typeof ledgerCategory.$inferSelect>;
+async function validateEntityOwnership(
+	db: DbInstance,
+	entityType: "ledgerLine",
+	entityId: string,
+	userId: string
+): Promise<typeof ledgerLine.$inferSelect>;
 async function validateEntityOwnership(
 	db: DbInstance,
 	entityType: "gameGroup",
@@ -678,7 +769,7 @@ async function validateEntityOwnership(
 ): Promise<typeof hand.$inferSelect>;
 async function validateEntityOwnership(
 	db: DbInstance,
-	entityType: "currency",
+	entityType: "currency" | "asset",
 	entityId: string,
 	userId: string
 ): Promise<typeof currency.$inferSelect>;
@@ -703,6 +794,7 @@ async function validateEntityOwnership(
 async function validateEntityOwnership(
 	db: DbInstance,
 	entityType:
+		| keyof typeof LEDGER_ENTITY_FORBIDDEN_MESSAGES
 		| "currency"
 		| "gameGroup"
 		| "gameMix"
@@ -731,6 +823,16 @@ async function validateEntityOwnership(
 			return await validateGameMixOwnershipBranch(db, entityId, userId);
 		case "hand":
 			return await validateHandOwnershipBranch(db, entityId, userId);
+		case "asset":
+		case "assetRate":
+		case "ledgerCategory":
+		case "ledgerLine":
+			return await validateLedgerOwnershipBranch(
+				db,
+				entityType,
+				entityId,
+				userId
+			);
 		default:
 			return undefined;
 	}

@@ -8,6 +8,8 @@ import {
 	playSession,
 } from "@sapphire2/db/schema/entry";
 import { gameSession } from "@sapphire2/db/schema/session";
+import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
+import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { type BatchStatement, runBatch } from "../lib/batch";
@@ -15,6 +17,7 @@ import { floorToMinute } from "../utils/session-event-time";
 import {
 	buildProjectionStatements,
 	type EntryProjection,
+	type ProjectorContext,
 	type ProjectorEvent,
 	projectEntry,
 } from "./entry-projector";
@@ -47,7 +50,12 @@ export interface LiveEntryStart {
 	assetId: string | null;
 	detail:
 		| { kind: "cash"; ringGameId: string | null }
-		| { kind: "tournament"; tournamentId: string | null };
+		| {
+				kind: "tournament";
+				tournamentId: string | null;
+				buyIn: number | null;
+				entryFee: number | null;
+		  };
 	id: string;
 	localDate: string;
 	memo: string | null;
@@ -62,11 +70,7 @@ interface StoredPlayEvent extends ProjectorEvent {
 	entryId: string;
 }
 
-interface EntryEventState {
-	events: StoredPlayEvent[];
-	kind: EntryKind;
-	playSessions: { id: string; seq: number; localDate: string }[];
-}
+type EntryEventState = ProjectorContext & { events: StoredPlayEvent[] };
 
 function playEventRow(
 	scope: { entryId: string; userId: string },
@@ -105,7 +109,12 @@ export function buildLiveEntryStartStatements(
 	);
 	const projection = projectEntry([startRow], {
 		kind,
+		assetId: start.assetId,
 		playSessions: [{ id: playSessionId, seq: 1, localDate: start.localDate }],
+		tournamentEntryCost:
+			start.detail.kind === "tournament"
+				? { buyIn: start.detail.buyIn, fee: start.detail.entryFee }
+				: null,
 	});
 
 	return [
@@ -163,8 +172,29 @@ async function loadEntryEventState(
 	entryId: string
 ): Promise<EntryEventState> {
 	const [owned] = await db
-		.select({ kind: entry.kind })
+		.select({
+			kind: entry.kind,
+			assetId: entry.assetId,
+			buyIn: sql<
+				number | null
+			>`COALESCE(${sessionTournamentDetail.tournamentBuyIn}, ${tournament.buyIn})`,
+			entryFee: sql<
+				number | null
+			>`COALESCE(${sessionTournamentDetail.entryFee}, ${tournament.entryFee})`,
+		})
 		.from(entry)
+		.leftJoin(
+			sessionTournamentDetail,
+			eq(sessionTournamentDetail.sessionId, entry.id)
+		)
+		.leftJoin(entryTournament, eq(entryTournament.entryId, entry.id))
+		.leftJoin(
+			tournament,
+			and(
+				eq(tournament.id, entryTournament.tournamentId),
+				eq(tournament.userId, userId)
+			)
+		)
 		.where(and(eq(entry.id, entryId), eq(entry.userId, userId)));
 	if (!owned) {
 		throw new TRPCError({
@@ -196,7 +226,16 @@ async function loadEntryEventState(
 		})
 		.from(playEvent)
 		.where(and(eq(playEvent.entryId, entryId), eq(playEvent.userId, userId)));
-	return { kind: owned.kind, playSessions, events };
+	return {
+		kind: owned.kind,
+		assetId: owned.assetId,
+		tournamentEntryCost:
+			owned.kind === "tournament"
+				? { buyIn: owned.buyIn, fee: owned.entryFee }
+				: null,
+		playSessions,
+		events,
+	};
 }
 
 function findStoredEvent(state: EntryEventState, id: string): StoredPlayEvent {
@@ -307,10 +346,7 @@ export async function applyEntryEventChange(
 	const scope = { entryId, userId };
 	const state = await loadEntryEventState(db, userId, entryId);
 	const planned = planChange(db, scope, state, change, now);
-	const projection = projectEntry(planned.events, {
-		kind: state.kind,
-		playSessions: state.playSessions,
-	});
+	const projection = projectEntry(planned.events, state);
 	await runBatch(db, [
 		...planned.statements,
 		...buildProjectionStatements(db, scope, projection),
