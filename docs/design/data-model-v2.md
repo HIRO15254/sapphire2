@@ -693,16 +693,16 @@ The total real ROI is 50,000 ÷ 3,000 = +1,667%. The +1,567% in the overview ver
 2. Otherwise, look for the rate valid at the line's `occurred_at` (the newest row whose effective_from is at or before occurred_at; a row with effective_from = 0 matches every line), in this order:
    1. The a to B rate
    2. The B to a rate (take the inverse)
-   3. Only when a is an item, two steps: a to c (c is a currency) and c to B (or B to c)
-3. If no path matches, that entry is "not convertible". Exclude it from the total and report it in the response through `excludedEntryCount` and `missingRates`. Never silently treat it as 0. A line older than the first row's effective_from of a pair also lands here. Do not silently apply the first rate.
-4. Round only once. Sum the quantity per (entry, asset, set of rates used), multiply by the ratios along the path, and then round.
+   3. Only when a is an item, two steps: a to c (c is a currency) and c to B (or B to c). If several currencies c qualify, try them from the a to c row with the newest effective_from, ties by c's id, and take the first whose second step matches
+3. If no path matches, that entry is "not convertible". Exclude it from the total and report it in the response through `excludedEntryCount` and `missingRates`. Never silently treat it as 0. A line older than the first row's effective_from of a pair also lands here. Do not silently apply the first rate. Real and virtual amounts are judged separately: an item line without a rate excludes the entry from virtual amounts only, because real amounts do not contain items. `missingRates` lists each unconvertible asset once with the `occurred_at` of its oldest unconvertible line.
+4. Round only once. Sum the quantity per (entry, asset, set of rates used), multiply by the ratios along the path, and then round. P/L, BI, and CO are each summed and rounded on their own (BI over the negative lines, CO over the positive lines), so P/L can differ from CO − BI by the rounding of each group.
 
 ```latex
 v = \operatorname{round}\left(Q \times \frac{n_1 \, n_2}{d_1 \, d_2}\right)
 ```
 
 - Compute with BigInt rationals, and round half away from zero. For a one-step path, n₂ = d₂ = 1.
-- SQL returns only a SUM per (entry_id, asset_id, rate id). Conversion and rounding happen in valuation.ts.
+- valuation.ts chooses the rate itself from the user's asset_rate rows, so SQL returns lines summed at most per (entry_id, asset_id, effect, sign of quantity, occurred_at). Conversion and rounding happen in valuation.ts (`valueEntries`).
 - When viewing in a single currency without choosing a base currency, do not convert. Sum only the rows of that currency. This is the same behavior as the current `assertCurrencyScope`.
 
 ### 12.3 Time, hands, BB, EV
