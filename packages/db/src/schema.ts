@@ -37,6 +37,16 @@ import {
 } from "./schema/game-mix";
 import { gameVariant, gameVariantRelations } from "./schema/game-variant";
 import {
+	hand,
+	handAction,
+	handActionRelations,
+	handBoard,
+	handBoardRelations,
+	handRelations,
+	handSeat,
+	handSeatRelations,
+} from "./schema/hand";
+import {
 	assetRate,
 	assetRateRelations,
 	ledgerCategory,
@@ -187,6 +197,14 @@ export const schema = {
 	playSessionRelations,
 	playEvent,
 	playEventRelations,
+	hand,
+	handRelations,
+	handBoard,
+	handBoardRelations,
+	handSeat,
+	handSeatRelations,
+	handAction,
+	handActionRelations,
 	assetRate,
 	assetRateRelations,
 	ledgerCategory,

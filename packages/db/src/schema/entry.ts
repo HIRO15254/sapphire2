@@ -19,6 +19,7 @@ import {
 } from "../constants/entry";
 import { user } from "./auth";
 import { currency } from "./currency";
+import { hand } from "./hand";
 import { ringGame } from "./ring-game";
 import { room } from "./room";
 import { isoDate, oneOf } from "./sql-checks";
@@ -237,6 +238,7 @@ export const playEvent = sqliteTable(
 		updatedAt: integer("updated_at", { mode: "timestamp" })
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
+		handId: text("hand_id").references(() => hand.id),
 	},
 	(t) => [
 		uniqueIndex("play_event_id_user_id_unique").on(t.id, t.userId),
@@ -248,6 +250,7 @@ export const playEvent = sqliteTable(
 			t.playSessionId,
 			t.sortOrder
 		),
+		index("play_event_hand_idx").on(t.handId),
 		foreignKey({
 			columns: [t.entryId, t.userId],
 			foreignColumns: [entry.id, entry.userId],
@@ -312,6 +315,7 @@ export const playSessionRelations = relations(playSession, ({ one, many }) => ({
 		references: [entry.id, entry.userId],
 	}),
 	playEvents: many(playEvent),
+	hands: many(hand),
 }));
 
 export const playEventRelations = relations(playEvent, ({ one }) => ({
@@ -322,5 +326,9 @@ export const playEventRelations = relations(playEvent, ({ one }) => ({
 	playSession: one(playSession, {
 		fields: [playEvent.playSessionId, playEvent.userId],
 		references: [playSession.id, playSession.userId],
+	}),
+	hand: one(hand, {
+		fields: [playEvent.handId],
+		references: [hand.id],
 	}),
 }));

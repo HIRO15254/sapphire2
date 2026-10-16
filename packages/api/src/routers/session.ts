@@ -9,6 +9,7 @@ import { entry, entryCash, entryTournament } from "@sapphire2/db/schema/entry";
 import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { gameMix } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
+import { hand } from "@sapphire2/db/schema/hand";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
@@ -636,6 +637,21 @@ async function validateGameMixOwnershipBranch(
 	return found;
 }
 
+async function validateHandOwnershipBranch(
+	db: DbInstance,
+	entityId: string,
+	userId: string
+): Promise<typeof hand.$inferSelect> {
+	const [found] = await db.select().from(hand).where(eq(hand.id, entityId));
+	if (!found || found.userId !== userId) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this hand",
+		});
+	}
+	return found;
+}
+
 async function validateEntityOwnership(
 	db: DbInstance,
 	entityType: "gameGroup",
@@ -654,6 +670,12 @@ async function validateEntityOwnership(
 	entityId: string,
 	userId: string
 ): Promise<typeof gameVariant.$inferSelect>;
+async function validateEntityOwnership(
+	db: DbInstance,
+	entityType: "hand",
+	entityId: string,
+	userId: string
+): Promise<typeof hand.$inferSelect>;
 async function validateEntityOwnership(
 	db: DbInstance,
 	entityType: "currency",
@@ -685,6 +707,7 @@ async function validateEntityOwnership(
 		| "gameGroup"
 		| "gameMix"
 		| "gameVariant"
+		| "hand"
 		| "ringGame"
 		| "room"
 		| "tournament",
@@ -706,6 +729,8 @@ async function validateEntityOwnership(
 			return await validateGameVariantOwnershipBranch(db, entityId, userId);
 		case "gameMix":
 			return await validateGameMixOwnershipBranch(db, entityId, userId);
+		case "hand":
+			return await validateHandOwnershipBranch(db, entityId, userId);
 		default:
 			return undefined;
 	}
