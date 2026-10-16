@@ -8,9 +8,9 @@ import { D1_MAX_BOUND_PARAMS } from "../lib/batch";
 export interface EntryRealTotals {
 	assetId: string;
 	buyIn: number;
-	cashOut: number;
 	entryId: string;
 	profitLoss: number;
+	receipts: number;
 }
 
 export interface AssetBalance {
@@ -47,7 +47,7 @@ export async function selectEntryRealTotals(
 					assetId: ledgerLine.assetId,
 					profitLoss: sql<number>`SUM(${ledgerLine.quantity})`,
 					buyIn: sql<number>`-SUM(MIN(${ledgerLine.quantity}, 0))`,
-					cashOut: sql<number>`SUM(MAX(${ledgerLine.quantity}, 0))`,
+					receipts: sql<number>`SUM(MAX(${ledgerLine.quantity}, 0))`,
 				})
 				.from(ledgerLine)
 				.innerJoin(
