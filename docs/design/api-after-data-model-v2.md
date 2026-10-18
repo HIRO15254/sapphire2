@@ -425,7 +425,7 @@ Points are per-entry **deltas**, not running totals, ordered `(playedOn,id)` asc
 
 ## 16. `gameGroup` — L0, L6; required blinds T47 (SA2-241)
 
-`GameGroup = {id,label,blind1Label,blind2Label,blind3Label,blind1Required:boolean,blind2Required:boolean,blind3Required:boolean,builtinKey,sortOrder,archivedAt,createdAt,updatedAt}`. Label trimmed 1–30 characters; blind labels nullable, trimmed 1–20. Case-insensitive trimmed label uniqueness is within this master kind, enforced without triggers. Archived rows keep their label reservation.
+`GameGroup = {id,label,blind1Label,blind2Label,blind3Label,blind1Required:boolean,blind2Required:boolean,blind3Required:boolean,builtinKey,archivedAt,createdAt,updatedAt}`. Label trimmed 1–30 characters; blind labels nullable, trimmed 1–20. Case-insensitive trimmed label uniqueness is within this master kind, enforced without triggers. Archived rows keep their label reservation.
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |

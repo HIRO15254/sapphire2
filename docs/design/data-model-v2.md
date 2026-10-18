@@ -213,13 +213,18 @@ CREATE TABLE game_group (
   created_at INTEGER NOT NULL DEFAULT (unixepoch()),
   updated_at INTEGER NOT NULL,
   label TEXT NOT NULL,
+  builtin_key TEXT,
   blind1_label TEXT,
   blind2_label TEXT,
   blind3_label TEXT,
+  blind1_required INTEGER NOT NULL DEFAULT 0 CHECK (blind1_required IN (0,1)),
+  blind2_required INTEGER NOT NULL DEFAULT 0 CHECK (blind2_required IN (0,1)),
+  blind3_required INTEGER NOT NULL DEFAULT 0 CHECK (blind3_required IN (0,1)),
   archived_at INTEGER,
   UNIQUE (id,user_id)
 );
 CREATE UNIQUE INDEX game_group_label_uq ON game_group(user_id,lower(trim(label)));
+CREATE UNIQUE INDEX game_group_builtin_uq ON game_group(user_id,builtin_key);
 ```
 
 ```sql
@@ -231,11 +236,14 @@ CREATE TABLE game_variant (
   group_id TEXT NOT NULL,
   label TEXT NOT NULL,
   short_label TEXT,
+  builtin_key TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0 CHECK (sort_order >= 0),
   archived_at INTEGER,
   FOREIGN KEY (group_id,user_id) REFERENCES game_group(id,user_id) ON DELETE NO ACTION,
   UNIQUE (id,user_id)
 );
 CREATE UNIQUE INDEX game_variant_label_uq ON game_variant(user_id,lower(trim(label)));
+CREATE UNIQUE INDEX game_variant_builtin_uq ON game_variant(user_id,builtin_key);
 CREATE INDEX game_variant_group_idx ON game_variant(group_id);
 ```
 
@@ -246,10 +254,12 @@ CREATE TABLE game_mix (
   created_at INTEGER NOT NULL DEFAULT (unixepoch()),
   updated_at INTEGER NOT NULL,
   label TEXT NOT NULL,
+  builtin_key TEXT,
   archived_at INTEGER,
   UNIQUE (id,user_id)
 );
 CREATE UNIQUE INDEX game_mix_label_uq ON game_mix(user_id,lower(trim(label)));
+CREATE UNIQUE INDEX game_mix_builtin_uq ON game_mix(user_id,builtin_key);
 ```
 
 ```sql
@@ -905,13 +915,13 @@ MCP is an untrimmed projection through appRouter.createCaller, using the identic
 
 ## 15. The old UI, the freeze and the new UI
 
-T44 deletes the old API-dependent UI once, before API-breaking tasks. It removes feature routes/screens/hooks and tests that call a v2-affected procedure or import its types, including the released Cryst cockpit. It keeps authentication and account flows (login, sign-up, passkeys, OAuth consent/continuation, linked accounts, set-password), authenticated shell with placeholder home, PWA/persisted-cache infrastructure, theme tokens including Cryst scope, API-free shared primitives such as PageHeader and shadcn components, tRPC/QueryClient setup, and unaffected update notes.
+T44 deletes the old API-dependent UI once, before API-breaking tasks. It removes feature routes/screens/hooks and tests that call a v2-affected procedure or import its types, including the released Cryst cockpit. It keeps authentication and account flows (login, sign-up, passkeys, OAuth consent/continuation, linked accounts, set-password), authenticated shell with placeholder home, PWA/persisted-cache infrastructure, theme tokens including Cryst scope, API-free shared primitives such as PageHeader and shadcn components, tRPC/QueryClient setup, and unaffected update notes. T44 points every kept navigation that targeted a deleted screen at the placeholder home `/`: the signed-in redirects of `/` and `/login`, post-sign-in, post-sign-up and preview auto-login navigation, the social-login callback URL and the router not-found/error fallback links.
 
 T44 moves API-independent Cryst primitives and their tests to `apps/web/src/shared/components/cryst/` rather than deleting them: scope/controls/tone helpers, sheet/form-sheet/confirm-dialog, segmented-control, radio-card, empty-state, search-picker and player-picker. The same PR updates portal-check globs and web-theme paths; NEW-UI's UI-0 owns the root Toaster's Cryst scope.
 
 T44 records every deleted test's protected contract and the last old-UI SHA in NEW-UI; it updates AGENTS.md and rule reference implementations (web-architecture, web-ui, web-hooks-separation, web-forms, web-data-fetching, web-theme), keeping check:rules meaningful. It does not create a hidden replacement screen project.
 
-All screen requirements, persisted-cache buster/reload behavior, client formula removal, new asset/statistics/entry/multi-day/hand/tag screens, lineup screens and self-player UI move to NEW-UI, outside this project. The human splits that XL issue before work starts. Production does not deploy intermediate v2 API states. The new UI preserves every current route path and adapts display names only to the supplied `.dc.html`; no redirect layer is added. Hotfixes during the freeze branch release/vX.Y.Z from origin/main and merge main back into dev. Current dev is not released before T38/T42 (§20.1 item 9); the next normal release is v2 plus the new UI.
+All screen requirements, persisted-cache buster/reload behavior, client formula removal, new asset/statistics/entry/multi-day/hand/tag screens, lineup screens and self-player UI move to NEW-UI, outside this project. The human splits that XL issue before work starts. Production does not deploy intermediate v2 API states. The new UI defines its own route structure and display names from the supplied `.dc.html`; v3.5.2 paths are not preserved and no redirect layer is added. Two paths stay fixed: `/login`, the MCP OAuth login page configured in `apps/server/src/auth-options.ts`, and `/`, the PWA `start_url`. Retired v3.5.2 paths render the router's default not-found fallback. Hotfixes during the freeze branch release/vX.Y.Z from origin/main and merge main back into dev. Current dev is not released before T38/T42 (§20.1 item 9); the next normal release is v2 plus the new UI.
 
 ## 16. Migration procedure
 
