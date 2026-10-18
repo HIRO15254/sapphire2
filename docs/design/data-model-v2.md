@@ -6,9 +6,9 @@ This is the final backend specification for data model v2. It separates particip
 
 Goals: multi-day participation and re-entry in one result; tickets and other non-currency assets; historical valuation; count, summary and full hand history; one source per fact; database-enforced ownership. Non-goals: imports, staking, sharing, and building the new UI.
 
-**Release freeze (Z1):** production remains on the current release until the new UI is ready; current dev is not released before T38/T42 either (§20.1 item 9). All API tasks build the final contract directly, deleting replaced APIs in the same task. V2 and the new UI ship together once. The new UI belongs to `NEW-UI`, outside this project. There is no obligation to keep the old UI, response shape, or MCP snapshot working between merges.
+**Release freeze (Z1):** production remains on the current release until the new UI is ready; current dev is not released before B01/B02 either (§20.1 item 9). All API tasks build the final contract directly, deleting replaced APIs in the same task. V2 and the new UI ship together once. The new UI belongs to the UI v3 project (phases U01–U12), outside this project. There is no obligation to keep the old UI, response shape, or MCP snapshot working between merges.
 
-Assumptions: one production user; Cloudflare D1 / SQLite and Drizzle on Workers Paid (§20.1 item 10); foreign keys always enabled; no invariant triggers; at most 100 bound parameters per statement; runtime multi-statement changes use `db.batch()`. A migration file is applied statement by statement, not as a transaction. Production is at migration 0053 or earlier; 0054–0058 and all v2 tables are unreleased (§20.1 item 9). Those facts are the precondition for T38/T42, not a general license to drop populated tables.
+Assumptions: one production user; Cloudflare D1 / SQLite and Drizzle on Workers Paid (§20.1 item 10); foreign keys always enabled; no invariant triggers; at most 100 bound parameters per statement; runtime multi-statement changes use `db.batch()`. A migration file is applied statement by statement, not as a transaction. Production is at migration 0053 or earlier; 0054–0058 and all v2 tables are unreleased (§20.1 item 9). Those facts are the precondition for B01/B02, not a general license to drop populated tables.
 
 ## 2. Glossary
 
@@ -75,12 +75,12 @@ The diagram omits `user_id` halves of composite references. Seat occupancy is fo
 
 ## 4. Invariants
 
-A named audit is executable by T45 (§16.7), not a substitute for a constraint SQLite can express. Constraints do not replace API ownership checks. Aggregate cardinality, immutable write policy and contiguous sequences cannot be enforced by ordinary SQLite CHECKs without triggers, so the API and named audits cover them.
+A named audit is executable by B04 (§16.7), not a substitute for a constraint SQLite can express. Constraints do not replace API ownership checks. Aggregate cardinality, immutable write policy and contiguous sequences cannot be enforced by ordinary SQLite CHECKs without triggers, so the API and named audits cover them.
 
 | ID | Final invariant | Guard |
 | --- | --- | --- |
 | INV-01 | Every domain row has `user_id NOT NULL`; every reference to an owned parent includes ownership | NOT NULL, composite FK, parent UNIQUE keys |
-| INV-02 | **Retired.** The ADD COLUMN single-column-FK exception is removed | T38/L1/L1b composite FKs replace it; A-7 retired |
+| INV-02 | **Retired.** The ADD COLUMN single-column-FK exception is removed | B01/B07/B08 composite FKs replace it; A-7 retired |
 | INV-03 | At least one day per entry; `played_on = MIN(local_date)` | Atomic entry API; A-8 (including missing-day rows) |
 | INV-04 | Days have contiguous seq starting at 1 | CHECK seq >= 1; UNIQUE(entry_id,seq); API; A-14 |
 | INV-05 | At most one unfinished play_session per user | Partial UNIQUE(user_id) WHERE status <> 'ended' |
@@ -119,7 +119,7 @@ Owned references use `(id,user_id)` UNIQUE parents. CASCADE is only for aggregat
 
 ### 5.2 Masters
 
-Asset replaces currency in T42, before money is backfilled. Names are unique per user after `lower(trim(name))`; duplicates are renamed in `(created_at,id)` order with the first available numeric suffix, checking against all existing normalized names, not blindly adding `(2)`. Kind and decimals cannot change once referenced. Archive hides a row only from new-input choices; historical reads still resolve it. All master lists take `includeArchived`.
+Asset replaces currency in B02, before money is backfilled. Names are unique per user after `lower(trim(name))`; duplicates are renamed in `(created_at,id)` order with the first available numeric suffix, checking against all existing normalized names, not blindly adding `(2)`. Kind and decimals cannot change once referenced. Archive hides a row only from new-input choices; historical reads still resolve it. All master lists take `includeArchived`.
 
 ```sql
 CREATE TABLE asset (
@@ -204,7 +204,7 @@ CREATE INDEX tournament_asset_idx ON tournament(default_asset_id);
 CREATE INDEX tournament_rule_idx ON tournament(current_rule_id);
 ```
 
-The current-rule FK guards ownership; the API and A-13 master half additionally require that the chosen version belongs to that master. This permits the migration bootstrap in §16 without file-wide FK deferral. Entries and parent versions have the stronger same-master FK (G1). A master deletes its unreferenced version aggregate only after checking entry references and external version lineage. Delete children before parents where NO ACTION lineage would otherwise obstruct removal. Room deletion rejects referenced rows rather than cascading history. Legacy rule columns are absent from these rebuilt tables, not left for T35.
+The current-rule FK guards ownership; the API and A-13 master half additionally require that the chosen version belongs to that master. This permits the migration bootstrap in §16 without file-wide FK deferral. Entries and parent versions have the stronger same-master FK (G1). A master deletes its unreferenced version aggregate only after checking entry references and external version lineage. Delete children before parents where NO ACTION lineage would otherwise obstruct removal. Room deletion rejects referenced rows rather than cascading history. Legacy rule columns are absent from these rebuilt tables, not left for B25.
 
 ```sql
 CREATE TABLE game_group (
@@ -276,7 +276,7 @@ CREATE TABLE game_mix_variant (
 CREATE INDEX game_mix_variant_variant_idx ON game_mix_variant(variant_id);
 ```
 
-L6 removes normalized-label and JSON-mirror triggers and replaces same-table label uniqueness with the expression indexes above. Variant and mix namespaces are separate: id references remove the old text discriminator's need for shared labels. L6 deletes cross-table application checks/reserved labels and updates MCP descriptions to per-table uniqueness. `game_mix.games` is not final DDL; while retained as a retired NOT NULL column its sole write is `'[]'`, until T35.
+B05 removes normalized-label and JSON-mirror triggers and replaces same-table label uniqueness with the expression indexes above. Variant and mix namespaces are separate: id references remove the old text discriminator's need for shared labels. B05 deletes cross-table application checks/reserved labels and updates MCP descriptions to per-table uniqueness. `game_mix.games` is not final DDL; while retained as a retired NOT NULL column its sole write is `'[]'`, until B25.
 
 ```sql
 CREATE TABLE player (
@@ -294,11 +294,11 @@ CREATE UNIQUE INDEX player_self_uq ON player(user_id) WHERE is_self=1;
 CREATE INDEX player_user_idx ON player(user_id);
 ```
 
-T46 creates the existing user's self row, ensures one when needed for a new user, prohibits client changes to is_self and deletion of that row, and hides it from player.list, opponent statistics and opponent pickers. tablePlayer includes Hero; its join/leave operations determine Hero's seat. There is no independent updateHeroSeat field. A hand seat for Hero refers to this player rather than a NULL-player convention.
+B15 creates the existing user's self row, ensures one when needed for a new user, prohibits client changes to is_self and deletion of that row, and hides it from player.list, opponent statistics and opponent pickers. tablePlayer includes Hero; its join/leave operations determine Hero's seat. There is no independent updateHeroSeat field. A hand seat for Hero refers to this player rather than a NULL-player convention.
 
 ### 5.3 Rule and lineup schema contract
 
-[game-lineups.md](game-lineups.md) is the authoritative detailed DDL and write protocol for the following tables. They are created empty by T38, used by L1/L1b/L2, and have the same ownership, integer, CHECK and immutable conventions as this section. This inventory fixes names and the constraints shared with other aggregates; it does not duplicate the detailed rule specification.
+[game-lineups.md](game-lineups.md) is the authoritative detailed DDL and write protocol for the following tables. They are created empty by B01, used by B07/B08/B13, and have the same ownership, integer, CHECK and immutable conventions as this section. This inventory fixes names and the constraints shared with other aggregates; it does not duplicate the detailed rule specification.
 
 | Table | Final columns beyond common columns | Keys and guards |
 | --- | --- | --- |
@@ -324,7 +324,7 @@ FOREIGN KEY (rule_id,inherited_lineup_id)
 
 Every rule FK also has an ownership FK, so nullable master ids cannot bypass ownership. G1 same-master FKs apply to both parent versions and entry details (§6). API validation rejects parent lineage whose NULL/non-NULL master relationship does not match. Complete stake coverage and no stakes on a break are API rules audited by A-14; duplicate lineup variants are prevented by UNIQUE(lineup_id,variant_id). All rule/price parents carry UNIQUE(id,user_id); indexes cover master id, parent_rule_id, lineup_id, rule_id/level_id, price.asset_id and every FK lookup. Entry rule-id, ledger price-id and master current-rule-id indexes are required (G7).
 
-Prices are explicit assets, not NULL = main currency. A cash and a ticket entry option are separate `entry` prices. Tournament editing replaces the complete immutable structure, including levels and prices; row-level blindLevel and tournamentChipPurchase procedures are deleted by L1b. L2 provides version creation/reuse, hydration and version-id drift services without router wiring; T40/T41 use them. L2b adds entry/live override/apply/push/relink and restoreRule operations. Restore only repoints existing versions without creating a version. [game-lineups.md](game-lineups.md) owns the detailed write protocol.
+Prices are explicit assets, not NULL = main currency. A cash and a ticket entry option are separate `entry` prices. Tournament editing replaces the complete immutable structure, including levels and prices; row-level blindLevel and tournamentChipPurchase procedures are deleted by B08. B13 provides version creation/reuse, hydration and version-id drift services without router wiring; B16/B17 use them. B20 adds entry/live override/apply/push/relink and restoreRule operations. Restore only repoints existing versions without creating a version. [game-lineups.md](game-lineups.md) owns the detailed write protocol.
 
 ## 6. Tables 2: entry, details and play_session
 
@@ -393,7 +393,7 @@ CREATE INDEX entry_tournament_master_idx ON entry_tournament(tournament_id);
 CREATE INDEX entry_tournament_rule_idx ON entry_tournament(tournament_rule_id);
 ```
 
-The SQL above is the final L2 shape. T38 creates the two rule-id columns nullable as an explicitly interim schema because T07 precedes snapshot resolution. L2 backfills every rule id and rebuilds these leaf tables with NOT NULL; there are no inbound FKs to them, so no child staging is needed. Its end check proves equal row counts, no NULL and foreign_key_check. From L2 onward entry/live creates write the rule version first. NULL master means a standalone rule, not no rule; the API and A-14 require an unlinked entry's rule to be masterless. G3 kind CHECKs and three-column FKs reject the opposite detail. Exactly one matching detail is created even when the source detail was missing.
+The SQL above is the final B13 shape. B01 creates the two rule-id columns nullable as an explicitly interim schema because B06 precedes snapshot resolution. B13 backfills every rule id and rebuilds these leaf tables with NOT NULL; there are no inbound FKs to them, so no child staging is needed. Its end check proves equal row counts, no NULL and foreign_key_check. From B13 onward entry/live creates write the rule version first. NULL master means a standalone rule, not no rule; the API and A-14 require an unlinked entry's rule to be masterless. G3 kind CHECKs and three-column FKs reject the opposite detail. Exactly one matching detail is created even when the source detail was missing.
 
 `entry.asset_id` is optional default/display metadata, not an entry's money source or a stats filter shortcut. Every payment has its own required assetId; an entry with no lines need not choose an asset. A referenced EV/BB normalization requires a defined table asset and reports exclusion if absent. No runtime API creates Unassigned or stand-in masters.
 
@@ -469,7 +469,7 @@ CREATE TABLE ledger_category (
 CREATE UNIQUE INDEX ledger_category_name_uq ON ledger_category(user_id,lower(trim(name)));
 ```
 
-T12 moves transaction_type with the same ids except the reserved Session Result row, which is not a category. Normalized duplicate names merge into the oldest (created_at,id) representative and all referencing lines use that representative. T12 deletes the reserved-name machinery and DEFAULT_TRANSACTION_TYPES; T15 provides archive/restore and referenced-delete CONFLICT guidance.
+B09 moves transaction_type with the same ids except the reserved Session Result row, which is not a category. Normalized duplicate names merge into the oldest (created_at,id) representative and all referencing lines use that representative. B09 deletes the reserved-name machinery and DEFAULT_TRANSACTION_TYPES; B14 provides archive/restore and referenced-delete CONFLICT guidance.
 
 ```sql
 CREATE TABLE ledger_line (
@@ -517,7 +517,7 @@ CREATE INDEX ledger_line_category_idx ON ledger_line(category_id);
 
 G5 is enforced even for raw SQL writes. API additionally validates role against entry kind, price against the selected tournament rule, and payment amount/fee semantics; A-15 checks payload/price correspondence and A-14 manual lines. Wallet updates and deletes reject entry-owned lines with FORBIDDEN. createExchange takes `{ from, to }`, each with assetId and positive quantity; assets differ. One batch writes the two signed lines with one transfer_id. Updating common fields changes both; quantities keep each side's sign; deleting removes the pair. occurredAt is epoch seconds, not a date-only field.
 
-The ledger is the sole money store after T12. Entry totals use grouped lines, not a net-result shadow transaction. Read services batch page enrichment with selectInChunks; keyset history sorts `(occurred_at,id)` and survives deletion of the cursor row. An entry's history item is dated at its first line. Every money line has an explicit asset, even if entry.asset_id is NULL.
+The ledger is the sole money store after B09. Entry totals use grouped lines, not a net-result shadow transaction. Read services batch page enrichment with selectInChunks; keyset history sorts `(occurred_at,id)` and survives deletion of the cursor row. An entry's history item is dated at its first line. Every money line has an explicit asset, even if entry.asset_id is NULL.
 
 ```sql
 CREATE TABLE user_setting (
@@ -531,11 +531,11 @@ CREATE TABLE user_setting (
 
 ```
 
-The base asset must be kind currency (API and A-14). time_zone is a validated IANA identifier; NULL means Asia/Tokyo. Changing it affects newly derived live dates; T43 corrects migrated dates by the recorded rule. It never silently reinterprets stored manual dates.
+The base asset must be kind currency (API and A-14). time_zone is a validated IANA identifier; NULL means Asia/Tokyo. Changing it affects newly derived live dates; B23 corrects migrated dates by the recorded rule. It never silently reinterprets stored manual dates.
 
 ## 8. Tables 4: play_event
 
-Events are mutable facts, not immutable summary rows. Every create/update/delete runs registry validation and recomputes projections in the same batch. v2 is the only final payload format; v1 exists solely as T39 migration input. The DDL has no schema_version default: every writer, including memo and table-player operations, explicitly sets 2. Until T39, only the projector and event registry understand v1, for T45's A-6 and T39's input. T41 lands after T39, so no API reads or writes v1.
+Events are mutable facts, not immutable summary rows. Every create/update/delete runs registry validation and recomputes projections in the same batch. v2 is the only final payload format; v1 exists solely as B15 migration input. The DDL has no schema_version default: every writer, including memo and table-player operations, explicitly sets 2. Until B15, only the projector and event registry understand v1, for B04's A-6 and B15's input. B17 lands after B15, so no API reads or writes v1.
 
 ```sql
 CREATE TABLE play_event (
@@ -567,7 +567,7 @@ The version column remains extensible; the final write/read registry accepts exa
 
 ## 9. Tables 5: hands
 
-Every counted hand is one row. T22 migrates production's single-day counts to seq 1 before T41/T18 can create multi-day entries. hand.add and undoLast require an active play_session, not merely ownership; paused and ended both reject them. Detail editing is independent of that live counter gate.
+Every counted hand is one row. B10 migrates production's single-day counts to seq 1 before B17/B19 can create multi-day entries. hand.add and undoLast require an active play_session, not merely ownership; paused and ended both reject them. Detail editing is independent of that live counter gate.
 
 ```sql
 CREATE TABLE hand (
@@ -760,15 +760,15 @@ CREATE TABLE player_tag_link (
 CREATE INDEX player_tag_link_tag_idx ON player_tag_link(tag_id);
 ```
 
-T32 retains source ids except deterministic normalized-name merges: oldest (created_at,id) is representative, links are remapped and deduplicated. Tournament tags use `tt:<user_id>:<hash(normalized-name)>`, keeping the oldest spelling. player_tag_link replaces player_to_player_tag, preserving color and position. If the old tournament_tag name still exists, create tournament_tag_def, migrate links and drop the old table before renaming; T35 guarantees no temporary name remains. A-12 compares the mapped expected link set per target, not the raw number of duplicate source rows.
+B18 retains source ids except deterministic normalized-name merges: oldest (created_at,id) is representative, links are remapped and deduplicated. Tournament tags use `tt:<user_id>:<hash(normalized-name)>`, keeping the oldest spelling. player_tag_link replaces player_to_player_tag, preserving color and position. If the old tournament_tag name still exists, create tournament_tag_def, migrate links and drop the old table before renaming; B25 guarantees no temporary name remains. A-12 compares the mapped expected link set per target, not the raw number of duplicate source rows.
 
-Owners accept tagIds, never tag names. All four tag kinds expose MCP list/create. Classification derivable from rules (bounty, turbo) is not stored as a tag. T17 retains filter_preset's columns while rebuilding it with the JSON guard below, and migrates JSON keys and values from currency/type/session-tag names to final stats asset/kind/tag mode fields, validating the same stats filter schema on save and load. A legacy payload is transformed, not silently read through indefinite defaults. The final payload is a saved query, not a mutable relationship store.
+Owners accept tagIds, never tag names. All four tag kinds expose MCP list/create. Classification derivable from rules (bounty, turbo) is not stored as a tag. B22 retains filter_preset's columns while rebuilding it with the JSON guard below, and migrates JSON keys and values from currency/type/session-tag names to final stats asset/kind/tag mode fields, validating the same stats filter schema on save and load. A legacy payload is transformed, not silently read through indefinite defaults. The final payload is a saved query, not a mutable relationship store.
 
-T17 rebuilds the leaf `filter_preset` table while migrating its payloads, preserving every row and adding `CHECK (json_valid(payload))` in Drizzle and SQL. Its only FK is to user, with no inbound children to stage. End checks prove equal row counts and `foreign_key_check`; payloads also validate against the final filter schema.
+B22 rebuilds the leaf `filter_preset` table while migrating its payloads, preserving every row and adding `CHECK (json_valid(payload))` in Drizzle and SQL. Its only FK is to user, with no inbound children to stage. End checks prove equal row counts and `foreign_key_check`; payloads also validate against the final filter schema.
 
 ## 11. Enumerated values
 
-Enums live as `as const` arrays in packages/db/src/constants; CHECKs and Zod share those arrays. Event payload schemas share one registry between write validation, replay and T39 conversion.
+Enums live as `as const` arrays in packages/db/src/constants; CHECKs and Zod share those arrays. Event payload schemas share one registry between write validation, replay and B15 conversion.
 
 | Field | Values |
 | --- | --- |
@@ -809,13 +809,13 @@ A Payment is `{ assetId, quantity, role, effect, priceId? }`: quantity is positi
 | player_join / player_leave | player id and seat transition; Hero uses the self player id |
 | memo | text |
 
-No prizeMoney/bountyPrizes or scalar buyInAmount is a v2 money field. They are only T39 source fields. Re-entry payments created by startNextPlay belong to the new day's session_start, which permits reentry/fee roles in this continuation context. Entry-level placement is final-result state, not an in-play remaining-player counter.
+No prizeMoney/bountyPrizes or scalar buyInAmount is a v2 money field. They are only B15 source fields. Re-entry payments created by startNextPlay belong to the new day's session_start, which permits reentry/fee roles in this continuation context. Entry-level placement is final-result state, not an in-play remaining-player counter.
 
 ## 12. Calculation
 
 ### 12.1 Population, modes and money
 
-`packages/api/src/services/valuation.ts` is the sole conversion/P&L implementation. Ledger reads return integer line groups; clients consume API values, not another monetary formula. Statistics (summary, breakdown and series) count **settled entries only** (C1). The historical T07 population including open entries ends at T17. Lists may show open entries and their paid amounts, but those are not realized result statistics.
+`packages/api/src/services/valuation.ts` is the sole conversion/P&L implementation. Ledger reads return integer line groups; clients consume API values, not another monetary formula. Statistics (summary, breakdown and series) count **settled entries only** (C1). The historical B06 population including open entries ends at B22. Lists may show open entries and their paid amounts, but those are not realized result statistics.
 
 Let L(e) be all lines of e, R(e) its real currency lines, and v(l) its value in the selected base asset. Real P/L = ΣR v(l); virtual P/L = ΣL v(l). BI = negative of the sum over negative lines in the respective set; CO = sum over positive lines. Aggregate ROI = ΣP/L / ΣBI × 100, not the mean of entry ROIs. ROI covers **tournament entries only**; cash uses cash win rate and bb/100. A zero denominator yields null, never infinity or zero masquerading as a valid rate.
 
@@ -848,11 +848,11 @@ Cash BB = blind2 only when the rule's cash lineup has exactly one group and the 
 
 Tournament **1 BI = first buy_in + its fee**, excluding re-entries, their fees and chip purchases (C7). Where initial payments span assets, valuation to the declared base must succeed before deriving a scalar BI; otherwise normalized output excludes/reports the entry. ROI's invested-money denominator still includes all applicable negative lines; 1 BI normalization is a distinct unit definition.
 
-EV PL = real PL + ev_diff when EV exists; NULL means unrecorded. ev_diff is Math.round of the sum `potSize*equity/100 − potSize/trials*wins` across all all_in events, not separately rounded events. After T14 it is projected while open too; no all_in/EV record leaves NULL. T07's settled-only legacy bridge is removed by T14. EV uses the table asset and cannot be added to an unrelated currency total.
+EV PL = real PL + ev_diff when EV exists; NULL means unrecorded. ev_diff is Math.round of the sum `potSize*equity/100 − potSize/trials*wins` across all all_in events, not separately rounded events. After B12 it is projected while open too; no all_in/EV record leaves NULL. B06's settled-only legacy bridge is removed by B12. EV uses the table asset and cannot be added to an unrelated currency total.
 
 Breaks: sum finished pause/resume spans per day and floor total seconds/60. A pause open at day end closes at ended_at. An unfinished pause does not depend on wall clock; replay stays pure.
 
-All date filters are inclusive `'YYYY-MM-DD'` comparisons on entry.played_on (C5). Weekday/month/year axes derive from that same string, not UTC event timestamps. local_date is supplied for manual days or derived server-side at live start using userSetting.timeZone, NULL→Asia/Tokyo. T07's historical migration alone assumes JST. Persisted filter presets migrate keys and values in T17, including mode, final ids and tag arrays.
+All date filters are inclusive `'YYYY-MM-DD'` comparisons on entry.played_on (C5). Weekday/month/year axes derive from that same string, not UTC event timestamps. local_date is supplied for manual days or derived server-side at live start using userSetting.timeZone, NULL→Asia/Tokyo. B06's historical migration alone assumes JST. Persisted filter presets migrate keys and values in B22, including mode, final ids and tag arrays.
 
 ### 12.4 Balance
 
@@ -885,11 +885,11 @@ Append order is allocated inside INSERT, not from a previously loaded MAX. Concu
 
 State validation reads **play_session.status**, including day_end, not just presence of session_end (F5). Append to ended days fails PRECONDITION_FAILED. Omitted target selects only an unfinished day; it never silently falls back to an ended highest day. A pause requires active, resume requires paused, and day_end/session_end requires active or paused. Edit/delete revalidates the resulting entire sequence, so a historical edit cannot make an impossible transition. day_end is written through endPlay; re-entry payments through startNextPlay in session_start, not arbitrary event insertion on an ended day.
 
-T41 rejects a newly written event time later than server now + 60 seconds with BAD_REQUEST in playEvent.create/update and live.create/complete/endPlay/startNextPlay. This checks only the time being written, never revalidates existing rows against today's clock, and exempts non-event payload clocks such as timerStartedAt. A terminal session_end/day_end must sort last in its play_session: complete/endPlay rejects occurredAt earlier than any existing event of that day with BAD_REQUEST before writing.
+B17 rejects a newly written event time later than server now + 60 seconds with BAD_REQUEST in playEvent.create/update and live.create/complete/endPlay/startNextPlay. This checks only the time being written, never revalidates existing rows against today's clock, and exempts non-event payload clocks such as timerStartedAt. A terminal session_end/day_end must sort last in its play_session: complete/endPlay rejects occurredAt earlier than any existing event of that day with BAD_REQUEST before writing.
 
-Tournament live.create accepts optional nonnegative initialStack and writes its first update_stack in the same batch as entry, detail, day, session_start and payments (T41). This provides the chart's opening stack point.
+Tournament live.create accepts optional nonnegative initialStack and writes its first update_stack in the same batch as entry, detail, day, session_start and payments (B17). This provides the chart's opening stack point.
 
-T41 computes tournament progress server-side from the ordered event fold: currentStack, remainingPlayers, totalEntries, purchased-chip total (chipTotal), and averageStack. `averageStack = Math.round((startingStack * totalEntries + chipTotal) / remainingPlayers)`; unavailable inputs or nonpositive remainingPlayers yield NULL. chipTotal includes purchase_chips and the cumulative chipPurchaseCounts reported by update_stack; a reported cumulative snapshot replaces the prior count basis rather than double-counting those purchases, with subsequent purchases accumulated thereafter. Explicit NULL remainingPlayers/totalEntries clears the value; omission preserves it. Progress-only counts never create money lines. A-6 replays these values. NEW-UI charts consume the API values, not another formula.
+B17 computes tournament progress server-side from the ordered event fold: currentStack, remainingPlayers, totalEntries, purchased-chip total (chipTotal), and averageStack. `averageStack = Math.round((startingStack * totalEntries + chipTotal) / remainingPlayers)`; unavailable inputs or nonpositive remainingPlayers yield NULL. chipTotal includes purchase_chips and the cumulative chipPurchaseCounts reported by update_stack; a reported cumulative snapshot replaces the prior count basis rather than double-counting those purchases, with subsequent purchases accumulated thereafter. Explicit NULL remainingPlayers/totalEntries clears the value; omission preserves it. Progress-only counts never create money lines. A-6 replays these values. The new UI's charts consume the API values, not another formula.
 
 Events fold by `(occurred_at,sort_order,id)`. Each day takes its own first start and closing end; entry-wide totals fold all days. Final tournament result comes only from the highest-seq day's closing session_end. Without one, placement=NULL, before_deadline=0, total_entries=latest in-play total; a before-deadline final end has placement and total_entries NULL and before_deadline=1. All other before_deadline values are 0. Only a closing session_end produces receipts. Line ids are `<event_id>:<n>` in payment order, with event timestamp/day and explicit asset.
 
@@ -907,7 +907,7 @@ hand.add/undoLast only while active; tablePlayer and all_in links obey the same 
 
 This section defines policy only; the sole procedure contracts and tool map are [api-after-data-model-v2.md](api-after-data-model-v2.md). There is no duplicate router map here.
 
-P1/P2: each API task directly builds the final names and shapes, deletes its replaced path and updates MCP in the same PR. D1 names the participation API `entry`, D3 gives one `live` router, with `playEvent` and `tablePlayer` for their own concerns. Money uses assetId, rule/game references use ids, kind is cash/tournament, dates are playedOn/localDate strings, state is open/settled plus per-day status. No session alias, flat legacy-money fallback, stringified event payload, compatibility view or strict removed-input rejection is carried forward. T07 deletes the old session API, including unused session.profitLossSeries; T40 deletes privateData.
+P1/P2: each API task directly builds the final names and shapes, deletes its replaced path and updates MCP in the same PR. D1 names the participation API `entry`, D3 gives one `live` router, with `playEvent` and `tablePlayer` for their own concerns. Money uses assetId, rule/game references use ids, kind is cash/tournament, dates are playedOn/localDate strings, state is open/settled plus per-day status. No session alias, flat legacy-money fallback, stringified event payload, compatibility view or strict removed-input rejection is carried forward. B06 deletes the old session API, including unused session.profitLossSeries; B16 deletes privateData.
 
 Every input id, including nested payments/rules/tags, reorder ids and cursor boundaries, is ownership checked; bulk WHERE and joined reads bind owner and parent. Missing and foreign-owned ids both return uniform FORBIDDEN. Invalid input is BAD_REQUEST; invalid state is PRECONDITION_FAILED; duplicate rates/labels and referenced master deletion are CONFLICT with archive guidance where available. DB constraints are the backstop, not an authorization oracle. Input timestamps are epoch seconds; JSON output timestamps are ISO strings through the existing transformer/serialization contract; date-only strings are never timestamp-normalized.
 
@@ -915,55 +915,55 @@ MCP is an untrimmed projection through appRouter.createCaller, using the identic
 
 ## 15. The old UI, the freeze and the new UI
 
-T44 deletes the old API-dependent UI once, before API-breaking tasks. It removes feature routes/screens/hooks and tests that call a v2-affected procedure or import its types, including the released Cryst cockpit. It keeps authentication and account flows (login, sign-up, passkeys, OAuth consent/continuation, linked accounts, set-password), authenticated shell with placeholder home, PWA/persisted-cache infrastructure, theme tokens including Cryst scope, API-free shared primitives such as PageHeader and shadcn components, tRPC/QueryClient setup, and unaffected update notes. T44 points every kept navigation that targeted a deleted screen at the placeholder home `/`: the signed-in redirects of `/` and `/login`, post-sign-in, post-sign-up and preview auto-login navigation, the social-login callback URL and the router not-found/error fallback links.
+B03 deletes the old API-dependent UI once, before API-breaking tasks. It removes feature routes/screens/hooks and tests that call a v2-affected procedure or import its types, including the released Cryst cockpit. It keeps authentication and account flows (login, sign-up, passkeys, OAuth consent/continuation, linked accounts, set-password), authenticated shell with placeholder home, PWA/persisted-cache infrastructure, theme tokens including Cryst scope, API-free shared primitives such as PageHeader and shadcn components, tRPC/QueryClient setup, and unaffected update notes. B03 points every kept navigation that targeted a deleted screen at the placeholder home `/`: the signed-in redirects of `/` and `/login`, post-sign-in, post-sign-up and preview auto-login navigation, the social-login callback URL and the router not-found/error fallback links.
 
-T44 moves API-independent Cryst primitives and their tests to `apps/web/src/shared/components/cryst/` rather than deleting them: scope/controls/tone helpers, sheet/form-sheet/confirm-dialog, segmented-control, radio-card, empty-state, search-picker and player-picker. The same PR updates portal-check globs and web-theme paths; NEW-UI's UI-0 owns the root Toaster's Cryst scope.
+B03 moves API-independent Cryst primitives and their tests to `apps/web/src/shared/components/cryst/` rather than deleting them: scope/controls/tone helpers, sheet/form-sheet/confirm-dialog, segmented-control, radio-card, empty-state, search-picker and player-picker. The same PR updates portal-check globs and web-theme paths; U01 owns the root Toaster's Cryst scope.
 
-T44 records every deleted test's protected contract and the last old-UI SHA in NEW-UI; it updates AGENTS.md and rule reference implementations (web-architecture, web-ui, web-hooks-separation, web-forms, web-data-fetching, web-theme), keeping check:rules meaningful. It does not create a hidden replacement screen project.
+B03 records every deleted test's protected contract and the last old-UI SHA on U01; it updates AGENTS.md and rule reference implementations (web-architecture, web-ui, web-hooks-separation, web-forms, web-data-fetching, web-theme), keeping check:rules meaningful. It does not create a hidden replacement screen project.
 
-All screen requirements, persisted-cache buster/reload behavior, client formula removal, new asset/statistics/entry/multi-day/hand/tag screens, lineup screens and self-player UI move to NEW-UI, outside this project. The human splits that XL issue before work starts. Production does not deploy intermediate v2 API states. The new UI defines its own route structure and display names from the supplied `.dc.html`; v3.5.2 paths are not preserved and no redirect layer is added. Two paths stay fixed: `/login`, the MCP OAuth login page configured in `apps/server/src/auth-options.ts`, and `/`, the PWA `start_url`. Retired v3.5.2 paths render the router's default not-found fallback. Hotfixes during the freeze branch release/vX.Y.Z from origin/main and merge main back into dev. Current dev is not released before T38/T42 (§20.1 item 9); the next normal release is v2 plus the new UI.
+All screen requirements, persisted-cache buster/reload behavior, client formula removal, new asset/statistics/entry/multi-day/hand/tag screens, lineup screens and self-player UI move to the UI v3 phases U01–U12, outside this project. Production does not deploy intermediate v2 API states. The new UI defines its own route structure and display names from the supplied `.dc.html`; v3.5.2 paths are not preserved and no redirect layer is added. Two paths stay fixed: `/login`, the MCP OAuth login page configured in `apps/server/src/auth-options.ts`, and `/`, the PWA `start_url`. Retired v3.5.2 paths render the router's default not-found fallback. Hotfixes during the freeze branch release/vX.Y.Z from origin/main and merge main back into dev. Current dev is not released before B01/B02 (§20.1 item 9); the next normal release is v2 plus the new UI.
 
 ## 16. Migration procedure
 
 ### 16.1 Order and one-home cutovers
 
-The order is a dependency DAG (§18), not a requirement to serialize independent tasks. Its backbone is T44 → T07; T38/T42 → T07 → T45 → T12/T22; L0 → L6 → L1/L1b → L2 (after T12) → T40 → T41 → L2b; T46 → T39 (after L2) → T41; T32 and T17; T43 → T35 → T37. T38 and T42 are independent; whichever merges second rebases its schema/migration snapshot. PR #704 is closed: T07 ports only its migration and migration test from head 3d6f3dfa onto T38/T42, renumbers 0059 and writes before_deadline as 0/1. It does not port the router changes, legacy-output tests or old spec edits.
+The order is a dependency DAG (§18), not a requirement to serialize independent tasks. Its backbone is B01/B02 → B04 → B06 (also after B03) → B09/B10; B03 → B05 → B07/B08 (after B04); B07/B08 + B09 → B13 → B15/B16 → B17 → B19/B20/B21/B23; B16 → B18 → B22 → B24; everything → B25 → REL. B04 lands before the first data cutover, so every cutover and populated rebuild is audited on the dev deploy that ships it. B01 and B02 are independent; whichever merges second rebases its schema/migration snapshot. PR #704 is closed: B06 ports only its migration and migration test from head 3d6f3dfa onto B01/B02, renumbers 0059 and writes before_deadline as 0/1. It does not port the router changes, legacy-output tests or old spec edits.
 
 | Task | What it leaves authoritative | End-of-migration gate |
 | --- | --- | --- |
-| T38 | Final empty v2 schema, lineups and versions, with interim nullable detail rule ids | emptiness precondition, shape/constraint inventory, foreign_key_check |
-| T42 | asset under its final name, constraints in Drizzle | source/target counts, restored links/children, name uniqueness, foreign_key_check |
-| T07 | Port #704's migration/test; migrate entry, kind details, days and events; delete old entry/live APIs and MCP registrations | A-3, A-4 and foreign_key_check |
-| T12 | Migrate ledger lines and categories; no API wiring | A-5; A-11 reported, not a failure gate |
-| T22 | hand rows replace hand_count/dealer_seat | A-10 |
-| L6 | game_variant composite ownership, expression label indexes | child counts/links, normalized uniqueness, foreign_key_check |
-| L1 | ring_game with current_rule_id NOT NULL; immutable cash rules | no NULL current ids, A-13 master half, stake coverage, counts/FK |
-| L1b | tournament current rule, whole levels/prices | no NULL current ids, A-13 master half, stake/price coverage, counts/FK |
-| L2 | Entry versions, ledger price ids and final NOT NULL leaf details; rule creation/read services, not router wiring | no NULL ids, counts, A-13 entry half, coverage, foreign_key_check |
-| T32 | four tag definitions/links by id | A-12 mapped link sets and FK |
-| T39 | Every payload v2; remove v1 from projector and registry before T41 | SQL version/count gates; A-6 replay and A-15 run by T45 after migration |
-| T43 | rule-based stand-in cleanup, no seed exception | A-16, FK/lineup duplicate check, A-6 after migration |
-| T35 | All remaining retired schema/code removed, including todo | final table/column inventory, row preservation, FK, all final audits |
+| B01 | Final empty v2 schema, lineups and versions, with interim nullable detail rule ids | emptiness precondition, shape/constraint inventory, foreign_key_check |
+| B02 | asset under its final name, constraints in Drizzle | source/target counts, restored links/children, name uniqueness, foreign_key_check |
+| B06 | Port #704's migration/test; migrate entry, kind details, days and events; delete old entry/live APIs and MCP registrations | A-3, A-4 and foreign_key_check |
+| B09 | Migrate ledger lines and categories; no API wiring | A-5; A-11 reported, not a failure gate |
+| B10 | hand rows replace hand_count/dealer_seat | A-10 |
+| B05 | game_variant composite ownership, expression label indexes | child counts/links, normalized uniqueness, foreign_key_check |
+| B07 | ring_game with current_rule_id NOT NULL; immutable cash rules | no NULL current ids, A-13 master half, stake coverage, counts/FK |
+| B08 | tournament current rule, whole levels/prices | no NULL current ids, A-13 master half, stake/price coverage, counts/FK |
+| B13 | Entry versions, ledger price ids and final NOT NULL leaf details; rule creation/read services, not router wiring | no NULL ids, counts, A-13 entry half, coverage, foreign_key_check |
+| B18 | four tag definitions/links by id | A-12 mapped link sets and FK |
+| B15 | Every payload v2; remove v1 from projector and registry before B17 | SQL version/count gates; A-6 replay and A-15 run by B04 after migration |
+| B23 | rule-based stand-in cleanup, no seed exception | A-16, FK/lineup duplicate check, A-6 after migration |
+| B25 | All remaining retired schema/code removed, including todo | final table/column inventory, row preservation, FK, all final audits |
 
-Runtime code reads and writes only its final tables. Retired tables are migration sources, not an intermediate backend for final APIs. Old routers whose replacements have not landed (including stats, currency, currencyTransaction, transactionType, sessionTag, ringGame and tournament) continue using their own old tables until their replacement PR. Rows those old routers write in dev after migration are not carried forward: every dev deploy rebuilds the database from production (`dev-deploy.yml:107`). Rebuilt tables omit retired columns; L2 rebuilds only leaf detail tables, and T35 removes all remaining retired tables/columns and code.
+Runtime code reads and writes only its final tables. Retired tables are migration sources, not an intermediate backend for final APIs. Old routers whose replacements have not landed (including stats, currency, currencyTransaction, transactionType, sessionTag, ringGame and tournament) continue using their own old tables until their replacement PR. Rows those old routers write in dev after migration are not carried forward: every dev deploy rebuilds the database from production (`dev-deploy.yml:107`). Rebuilt tables omit retired columns; B13 rebuilds only leaf detail tables, and B25 removes all remaining retired tables/columns and code.
 
-After T07, no code writes old entry child tables, so no compatibility parent row is created. T07 deletes the old entry/live routers and their MCP tools together. Dev has no entry/live API until T40/T41 add the final APIs; production remains on v3.5.2 until the joint release.
+After B06, no code writes old entry child tables, so no compatibility parent row is created. B06 deletes the old entry/live routers and their MCP tools together. Dev has no entry/live API until B16/B17 add the final APIs; production remains on v3.5.2 until the joint release.
 
 ### 16.2 Empty-schema precondition and asset rebuild
 
-T38 first asserts that all v2 target tables are empty. Migrations 0054–0058 are unreleased and services are not router-wired before T07, so every fresh production replay reaches it empty. A local test database with invented target rows is reset, not silently copied or discarded in production. T38 drops/recreates empty targets with every composite key, G1–G7 guard and index. Referenced asset is currency or asset according to whether T42 already merged; rebase to one final snapshot, do not create a second asset table.
+B01 first asserts that all v2 target tables are empty. Migrations 0054–0058 are unreleased and services are not router-wired before B06, so every fresh production replay reaches it empty. A local test database with invented target rows is reset, not silently copied or discarded in production. B01 drops/recreates empty targets with every composite key, G1–G7 guard and index. Referenced asset is currency or asset according to whether B02 already merged; rebase to one final snapshot, do not create a second asset table.
 
-F3 is resolved by **T42 before T07**, not a file-wide rebuild trick. Enumerate and stage only legacy inbound children: currency_transaction rows and currency_id links on game_session, ring_game, tournament, plus anything the actual merge-time Drizzle schema adds. V2 entry/ledger/rate/price/setting children are still empty. Clear nullable legacy links and remove staged leaf children before DROP. Rebuild under `currency` with final kind/decimals CHECKs and name uniqueness; restore staged rows and links; then RENAME TO asset so SQLite rewrites child FK targets. Rename the Drizzle export/imports mechanically. Do not depend on disabling FK checks or a PRAGMA surviving across migration statements. Verify counts, exact restored ids/links and foreign_key_check, including duplicate-name suffix collisions.
+F3 is resolved by **B02 before B06**, not a file-wide rebuild trick. Enumerate and stage only legacy inbound children: currency_transaction rows and currency_id links on game_session, ring_game, tournament, plus anything the actual merge-time Drizzle schema adds. V2 entry/ledger/rate/price/setting children are still empty. Clear nullable legacy links and remove staged leaf children before DROP. Rebuild under `currency` with final kind/decimals CHECKs and name uniqueness; restore staged rows and links; then RENAME TO asset so SQLite rewrites child FK targets. Rename the Drizzle export/imports mechanically. Do not depend on disabling FK checks or a PRAGMA surviving across migration statements. Verify counts, exact restored ids/links and foreign_key_check, including duplicate-name suffix collisions.
 
 ### 16.3 Populated rebuild staging
 
 D1 keeps FKs enabled and DROP TABLE fires inbound CASCADE/SET NULL. For **each** rebuild, enumerate inbound references from the actual Drizzle schema and classify CASCADE rows, SET NULL links and NO ACTION blockers, including transitive children. Stage rows/links in ordinary migration stage tables; detach or remove blockers before DROP; restore parents before dependents, and prove counts and links afterward. A stage is not a compatibility data store and is dropped after its gate. No migration file transaction, deferred-FK group, trigger or disabled-FK assumption is permitted.
 
-L6 stages game_mix_variant and any hand.variant_id links (T22 may have merged). ring_game has session_cash_detail and entry_cash, plus its cash_rule ownership references. tournament has session_tournament_detail, entry_tournament, blind_level, tournament_chip_purchase, legacy tournament_tag, tournament tag links if already created, and tournament_rule. The snapshot is not an exhaustive future list: actual schema enumeration is an acceptance condition. Stage cascaded descendants too; never discover lost levels after rebuilding.
+B05 stages game_mix_variant and any hand.variant_id links (B10 may have merged). ring_game has session_cash_detail and entry_cash, plus its cash_rule ownership references. tournament has session_tournament_detail, entry_tournament, blind_level, tournament_chip_purchase, legacy tournament_tag, tournament tag links if already created, and tournament_rule. The snapshot is not an exhaustive future list: actual schema enumeration is an acceptance condition. Stage cascaded descendants too; never discover lost levels after rebuilding.
 
-The master/current-version cycle uses nullable **version→master** links, never nullable current_rule_id. Before rebuilding, stage legacy masters, snapshots and children; insert the backfilled versions with master id NULL; detach existing version ownership links if necessary; rebuild the empty master with final NOT NULL current_rule_id and the owned current-version FK. Restore masters pointing at those existing versions, set the versions' master ids, then restore children. Migration-only assignment of the master id is the sole bootstrap update; runtime rule content remains INSERT-only. A-13 master half proves current version belongs to that master at every audit run. Runtime master create uses the same version(NULL master) → master → version-owner-link bootstrap in one batch. Entry/parent same-master FKs remain DB-enforced. Master legacy rule columns are omitted in L1/L1b.
+The master/current-version cycle uses nullable **version→master** links, never nullable current_rule_id. Before rebuilding, stage legacy masters, snapshots and children; insert the backfilled versions with master id NULL; detach existing version ownership links if necessary; rebuild the empty master with final NOT NULL current_rule_id and the owned current-version FK. Restore masters pointing at those existing versions, set the versions' master ids, then restore children. Migration-only assignment of the master id is the sole bootstrap update; runtime rule content remains INSERT-only. A-13 master half proves current version belongs to that master at every audit run. Runtime master create uses the same version(NULL master) → master → version-owner-link bootstrap in one batch. Entry/parent same-master FKs remain DB-enforced. Master legacy rule columns are omitted in B07/B08.
 
-L2 resolves every entry rule and price id, then rebuilds entry_cash and entry_tournament with rule ids NOT NULL. They are leaves, so copy to final successor, drop old and rename; prove equal row counts and foreign_key_check. No placeholder rule-id default is introduced.
+B13 resolves every entry rule and price id, then rebuilds entry_cash and entry_tournament with rule ids NOT NULL. They are leaves, so copy to final successor, drop old and rename; prove equal row counts and foreign_key_check. No placeholder rule-id default is introduced.
 
 ### 16.4 Migration authorship and abort gates
 
@@ -988,7 +988,7 @@ Use the named cutover query in place of this example. Check foreign_key_check th
 
 ### 16.5 Backfill SQL and normalization
 
-T07 retains entry ids, seq-1 play_session ids and event ids. Port only PR #704's migration `packages/db/src/migrations/0059_entry_p1_cutover.sql` and its migration test from head 3d6f3dfa; its number changes after T38/T42. Do not port its router or legacy-output test changes. Representative final-name SQL follows. Legacy currency_id columns remain source names, but their parent is already asset.
+B06 retains entry ids, seq-1 play_session ids and event ids. Port only PR #704's migration `packages/db/src/migrations/0059_entry_p1_cutover.sql` and its migration test from head 3d6f3dfa; its number changes after B01/B02. Do not port its router or legacy-output test changes. Representative final-name SQL follows. Legacy currency_id columns remain source names, but their parent is already asset.
 
 ```sql
 INSERT INTO entry
@@ -1010,7 +1010,7 @@ LEFT JOIN session_cash_detail scd ON scd.session_id=gs.id
 LEFT JOIN session_tournament_detail std ON std.session_id=gs.id;
 ```
 
-Every entry receives its kind detail even if the legacy detail was missing. entry_tournament is populated before deriving the day end_state, so normalized placement, not dirty legacy placement, decides finished/busted. Normalize total_entries below 1 to NULL; placement to NULL when below 1, beyond a valid total, or before_deadline=1. before_deadline is CASE old=1 THEN 1 ELSE 0, never NULL. Owner-mismatched optional room/asset/master references become NULL. Cash ev_diff is `CAST(floor(ev_cash_out - cash_out + 0.5) AS INTEGER)` to match Math.round (SQLite round(-0.5) differs); T07 sets it only when settled and recorded, then T14 replaces this bridge with always-on projection.
+Every entry receives its kind detail even if the legacy detail was missing. entry_tournament is populated before deriving the day end_state, so normalized placement, not dirty legacy placement, decides finished/busted. Normalize total_entries below 1 to NULL; placement to NULL when below 1, beyond a valid total, or before_deadline=1. before_deadline is CASE old=1 THEN 1 ELSE 0, never NULL. Owner-mismatched optional room/asset/master references become NULL. Cash ev_diff is `CAST(floor(ev_cash_out - cash_out + 0.5) AS INTEGER)` to match Math.round (SQLite round(-0.5) differs); B06 sets it only when settled and recorded, then B12 replaces this bridge with always-on projection.
 
 ```sql
 INSERT INTO play_session
@@ -1035,7 +1035,7 @@ LEFT JOIN session_tournament_detail std ON std.session_id=gs.id;
 
 A live tournament without placement ends busted; a manual one without placement uses finished. An invalid ended_at becomes NULL, a negative cash end_stack becomes NULL, a negative break becomes 0. A-4 compares the declared normalized expectation, not invalid source bytes.
 
-T07 copies v1 events as an explicitly temporary migration source; every row supplies its version and source mirror:
+B06 copies v1 events as an explicitly temporary migration source; every row supplies its version and source mirror:
 
 ```sql
 INSERT INTO play_event
@@ -1050,7 +1050,7 @@ FROM session_event se JOIN entry e ON e.id=se.session_id AND e.source='live';
 
 Pre-audit identifies legacy events attached to non-live entries; normalize their source classification according to event-backed provenance before inserting rather than violating INV-13 or dropping facts. A-3 accounts for the resulting declared source normalization.
 
-T12 first moves categories and maps duplicates, then money. Live lines come from replay with ids `<event_id>:<n>`; manual lines come from columns. Missing legacy asset uses `unassigned:<user_id>` as an ordinary asset; new API writes must supply actual asset ids. Representative manual cash rows:
+B09 first moves categories and maps duplicates, then money. Live lines come from replay with ids `<event_id>:<n>`; manual lines come from columns. Missing legacy asset uses `unassigned:<user_id>` as an ordinary asset; new API writes must supply actual asset ids. Representative manual cash rows:
 
 ```sql
 INSERT INTO ledger_line
@@ -1067,44 +1067,44 @@ JOIN (
 ) v ON v.session_id=e.id WHERE e.source='manual';
 ```
 
-Tournament manual backfill similarly creates buy_in/fee/prize/bounty and expands purchase counts with a recursive CTE; zero amounts write no line. Wallet currency_transaction rows without a session become same-id adjustments; zero rows are counted/reported and excluded. Nonzero wallet rows whose only category was the excluded reserved category retain value with category_id NULL, not a fake reserved ledger category. T12 migrates and audits the ledger without API wiring: entry/live use it in T40/T41, balances in T14, and statistics in T17. T15 deletes currencyTransaction/transactionType routers, MCP registrations and DEFAULT_TRANSACTION_TYPES while adding the final wallet/category API.
+Tournament manual backfill similarly creates buy_in/fee/prize/bounty and expands purchase counts with a recursive CTE; zero amounts write no line. Wallet currency_transaction rows without a session become same-id adjustments; zero rows are counted/reported and excluded. Nonzero wallet rows whose only category was the excluded reserved category retain value with category_id NULL, not a fake reserved ledger category. B09 migrates and audits the ledger without API wiring: entry/live use it in B16/B17, balances in B12, and statistics in B22. B14 deletes currencyTransaction/transactionType routers, MCP registrations and DEFAULT_TRANSACTION_TYPES while adding the final wallet/category API.
 
-T22 expands old hand_count to `h:<play_session_id>:<n>` count rows on seq 1, played_at NULL, last row button=dealer_seat. Pre-audit checks the maximum against the 5,000 expansion cap; a value above the cap must be fully handled, never silently truncated to make A-10 pass. T22 precedes T41 and therefore T18.
+B10 expands old hand_count to `h:<play_session_id>:<n>` count rows on seq 1, played_at NULL, last row button=dealer_seat. Pre-audit checks the maximum against the 5,000 expansion cap; a value above the cap must be fully handled, never silently truncated to make A-10 pass. B10 precedes B17 and therefore B19.
 
-L1/L1b create deterministic master rules (`cr:<ring_game_id>` / `tr:<tournament_id>`); L2 shares identical snapshot versions under the same master or creates child versions (`cr:e:<entry_id>` / `tr:e:<entry_id>`). Unlinked snapshots create parentless rules. Price correspondence uses the resolved version and snapshot ordinal, not an assumed id prefix. T39 takes priceId from the ledger_line for the **same event**; master-shared prices need not have entry-prefixed ids. T39 also maps Hero seat events to the self player id and rewrites every payment/seat payload before deleting the v1 reader.
+B07/B08 create deterministic master rules (`cr:<ring_game_id>` / `tr:<tournament_id>`); B13 shares identical snapshot versions under the same master or creates child versions (`cr:e:<entry_id>` / `tr:e:<entry_id>`). Unlinked snapshots create parentless rules. Price correspondence uses the resolved version and snapshot ordinal, not an assumed id prefix. B15 takes priceId from the ledger_line for the **same event**; master-shared prices need not have entry-prefixed ids. B15 also maps Hero seat events to the self player id and rewrites every payment/seat payload before deleting the v1 reader.
 
-T43 starts with category counts posted to its issue and Needs Input. Only the owner's mapping of their rows is task-start input. Use rule-based transformations that rerun against the release-day production copy, never a hardcoded list of dev ids. Defaults: Unassigned stays an ordinary asset named Unassigned, archived stand-in masters stay archived unless the user names a target, migrated JST-derived live dates are recomputed where userSetting.timeZone differs (Asia/Tokyo is a no-op). Any asset/master remap updates event payload references as well as relational columns and reprojects. Recheck variant/lineup duplicates before merging master mappings. Remove the seed placeholder exception completely. T43 follows T39/T41/L2/T14/T45 and precedes T35, while original snapshots are available for comparison.
+B23 starts with category counts posted to its issue and Needs Input. Only the owner's mapping of their rows is task-start input. Use rule-based transformations that rerun against the release-day production copy, never a hardcoded list of dev ids. Defaults: Unassigned stays an ordinary asset named Unassigned, archived stand-in masters stay archived unless the user names a target, migrated JST-derived live dates are recomputed where userSetting.timeZone differs (Asia/Tokyo is a no-op). Any asset/master remap updates event payload references as well as relational columns and reprojects. Recheck variant/lineup duplicates before merging master mappings. Remove the seed placeholder exception completely. B23 follows B15/B17/B13/B12/B04 and precedes B25, while original snapshots are available for comparison.
 
-T32 backfills tags with mapped ids and deduped link sets (§10). T35 drops, child-first, everything retired that remains: session_chip_purchase_result, session_chip_purchase, session_blind_level, session_to_session_tag, currency_transaction, session_cash_detail, session_tournament_detail, session_event, game_session, session_tag, transaction_type, the old tournament_tag shape, player_to_player_tag, blind_level, tournament_chip_purchase, todo, and game_mix.games. The orphan todo table comes from migration 0000 and is absent from the Drizzle schema. Remove temporary tournament_tag_def by final rename if not already done. Actual table inventory decides whether an already-removed table needs a DROP, not whether an obsolete table may stay. No session_table_player table is invented: tablePlayer is an event fold; T07 already deletes its legacy router. Remove any actual residual store discovered in the merge-time schema. No compatibility views remain.
+B18 backfills tags with mapped ids and deduped link sets (§10). B25 drops, child-first, everything retired that remains: session_chip_purchase_result, session_chip_purchase, session_blind_level, session_to_session_tag, currency_transaction, session_cash_detail, session_tournament_detail, session_event, game_session, session_tag, transaction_type, the old tournament_tag shape, player_to_player_tag, blind_level, tournament_chip_purchase, todo, and game_mix.games. The orphan todo table comes from migration 0000 and is absent from the Drizzle schema. Remove temporary tournament_tag_def by final rename if not already done. Actual table inventory decides whether an already-removed table needs a DROP, not whether an obsolete table may stay. No session_table_player table is invented: tablePlayer is an event fold; B06 already deletes its legacy router. Remove any actual residual store discovered in the merge-time schema. No compatibility views remain.
 
 ### 16.6 Dev rehearsal and pre-audit
 
-Every dev-deploy rebuilds a fresh production copy and replays **all** unreleased migrations. The freeze grows that pending chain to all of v2. T45 adds an audit step after migrations and before marking deploy successful; a violating audit fails the deploy with its audit id and row counts. It does not patch data. Local D1 and remote D1 via wrangler run the same script and registry/projector.
+Every dev-deploy rebuilds a fresh production copy and replays **all** unreleased migrations. The freeze grows that pending chain to all of v2. B04 adds an audit step after migrations and before marking deploy successful; a violating audit fails the deploy with its audit id and row counts. It does not patch data. Local D1 and remote D1 via wrangler run the same script and registry/projector.
 
-Optional production pre-audit informs normalization: NULL/cross-owner links, malformed JSON, invalid placements/times, negative breaks, missing details, duplicate normalized asset/category/tag/game labels, events on non-live entries, NULL asset entries, zero wallet quantities, maximum hand counts, stand-in masters and date assumptions. T43's categorized counts are mandatory because they request the owner's mapping. Gates remain mandatory whether the optional pre-audit ran or not.
+Optional production pre-audit informs normalization: NULL/cross-owner links, malformed JSON, invalid placements/times, negative breaks, missing details, duplicate normalized asset/category/tag/game labels, events on non-live entries, NULL asset entries, zero wallet quantities, maximum hand counts, stand-in masters and date assumptions. B23's categorized counts are mandatory because they request the owner's mapping. Gates remain mandatory whether the optional pre-audit ran or not.
 
 ### 16.7 Audit catalogue
 
-`scripts/audit-data-model.ts` (T45) owns **every** A-x below. A retired audit remains enumerated, not executable. Historical source comparisons operate on the cutover's migration-origin population and staged expected values while those sources exist; they never compare subsequently edited/new v2 rows with stale retired columns. Run each historical gate before its stage/source is discarded and record the result in its cutover issue. After T35, historical comparisons report not-applicable with the retirement task, never a fake zero. Every fresh dev production-copy replay exercises the same cutover gates again. Current-state guards (FK, A-6/8/9/14/15/16 and A-13 master membership) continue. A-11 is report-only; every other active violation fails dev-deploy/release.
+`scripts/audit-data-model.ts` (B04) owns **every** A-x below. A retired audit remains enumerated, not executable. Historical source comparisons operate on the cutover's migration-origin population and staged expected values while those sources exist; they never compare subsequently edited/new v2 rows with stale retired columns. Run each historical gate before its stage/source is discarded and record the result in its cutover issue. After B25, historical comparisons report not-applicable with the retirement task, never a fake zero. Every fresh dev production-copy replay exercises the same cutover gates again. Current-state guards (FK, A-6/8/9/14/15/16 and A-13 master membership) continue. A-11 is report-only; every other active violation fails dev-deploy/release.
 
 | ID | Query/algorithm and lifecycle |
 | --- | --- |
 | A-1 | Retired: tournament.user_id NOT NULL since T02; NOT NULL replaces it |
 | A-2 | Retired: ring_game.user_id NOT NULL since T02; NOT NULL replaces it |
-| A-3 | Bidirectional id difference of source game_session↔entry/seq1 and source session_event↔play_event, with owner and declared source normalization (T07; historical until T35) |
-| A-4 | Compare normalized source start/end/break/status to migrated seq1 (T07; historical) |
-| A-5 | Settled per-entry real line PL equals old cash_out+chip_remove−buy_in or prize+bounty−buy_in−fee−Σpurchase cost*count (T12; historical) |
+| A-3 | Bidirectional id difference of source game_session↔entry/seq1 and source session_event↔play_event, with owner and declared source normalization (B06; historical until B25) |
+| A-4 | Compare normalized source start/end/break/status to migrated seq1 (B06; historical) |
+| A-5 | Settled per-entry real line PL equals old cash_out+chip_remove−buy_in or prize+bounty−buy_in−fee−Σpurchase cost*count (B09; historical) |
 | A-6 | Replay projectEntry for every live entry using its stored events/rules; compare normalized rows of projected lines, all day times/state/clocks, played_on/status, result/EV, tournament progress (§13.2) and tablePlayer seat fold. Read-only TypeScript, not fake SQL replay |
-| A-7 | **Retired:** single-column exception ownership audit replaced by T38/L1/L1b composite FKs and foreign_key_check |
+| A-7 | **Retired:** single-column exception ownership audit replaced by B01/B07/B08 composite FKs and foreign_key_check |
 | A-8 | Missing days or entry.played_on different from MIN(local_date) |
 | A-9 | entry.status differs from settled iff no unfinished days and final highest-seq end_state; manual entries/days must be settled/ended |
-| A-10 | Backfilled hand count and last button differ from source hand_count/dealer_seat on seq1 (T22; historical) |
+| A-10 | Backfilled hand count and last button differ from source hand_count/dealer_seat on seq1 (B10; historical) |
 | A-11 | Per-asset balance differs from legacy transactions over settled entries plus wallet lines; record as historical drift, never fail or copy drift into the ledger |
-| A-12 | Mapped/deduplicated old tag-link set differs from new set per target (T32; historical) |
-| A-13 | Master/entry rule content differs from staged/source snapshots at L1/L1b/L2; permanently also checks selected current rule belongs to that master and entry rule same-master/standalone relationship |
+| A-12 | Mapped/deduplicated old tag-link set differs from new set per target (B18; historical) |
+| A-13 | Master/entry rule content differs from staged/source snapshots at B07/B08/B13; permanently also checks selected current rule belongs to that master and entry rule same-master/standalone relationship |
 | A-14 | Structural query suite: missing/wrong detail; contiguous play_session/hand/action/level ordinals; manual days ended; rule parent/master NULL parity; nonempty lineups/groups and complete stakes, breaks without stakes; exchange pair count/distinct asset/opposite sign/common metadata; line role-kind/price ownership and version provenance (historical prices survive rule changes); base setting currency; self-player/Hero consistency. INSERT-only application services plus migration fingerprints/A-13 protect immutable content; do not claim a query can reconstruct an unrecorded past mutation |
-| A-15 | All stored events use schema_version=2 after T39, parse with the v2 registry and have owned payload references; canonical hand/price links match payload and immutable price provenance (historical payment prices survive later rule changes). Before T39, validate the explicitly supported migration-source versions; after T41 every new writer emits 2 |
-| A-16 | T43 cleanup policy: mapped assets/masters/payload ids and recomputed migrated local dates match recorded rules; no seed placeholder special case or runtime placeholder creator remains; ordinary retained Unassigned/archived masters are allowed by the declared defaults, not exceptions |
+| A-15 | All stored events use schema_version=2 after B15, parse with the v2 registry and have owned payload references; canonical hand/price links match payload and immutable price provenance (historical payment prices survive later rule changes). Before B15, validate the explicitly supported migration-source versions; after B17 every new writer emits 2 |
+| A-16 | B23 cleanup policy: mapped assets/masters/payload ids and recomputed migrated local dates match recorded rules; no seed placeholder special case or runtime placeholder creator remains; ordinary retained Unassigned/archived masters are allowed by the declared defaults, not exceptions |
 
 Representative current-state SQL:
 
@@ -1138,303 +1138,203 @@ The script supplements these examples with the tournament twin, ownership-qualif
 
 ### 16.8 Final release runbook
 
-1. Finish the dependency graph and the new UI; rehearse the complete pending migration chain plus T45 on a fresh production copy. Record no unresolved failing audit.
+1. Finish the dependency graph and the new UI; rehearse the complete pending migration chain plus B04 on a fresh production copy. Record no unresolved failing audit.
 2. Freeze data entry; record `wrangler d1 time-travel info sapphire2-db`'s restore point in the release issue immediately before migration. Keep the previous tag deployable.
 3. Run `db:migrate:remote`. The old Worker must receive no writes during the migration/deploy window.
-4. Run T45 against production, including A-6 replay and the final-state audit catalogue. **A failed migration or audit means Time Travel restore**, not patch-forward or deploying over it. Restore the previous tag with the database if needed, fix the migration and rehearse again.
+4. Run B04 against production, including A-6 replay and the final-state audit catalogue. **A failed migration or audit means Time Travel restore**, not patch-forward or deploying over it. Restore the previous tag with the database if needed, fix the migration and rehearse again.
 5. Only after the audit passes, deploy the new Worker and new UI together; verify the release's actual user flows under the normal release process before allowing data entry. The new UI invalidates persisted old cache and reloads old bundles as its own release acceptance.
 
 Time Travel loses writes after the restore point; avoid those writes and record any manual re-entry needed. Non-v2 fixes currently on dev (SA2-274/275/277/281/295 and tooling) wait for this joint release (§20.1 item 9). During the freeze hotfix branches start at main, not frozen dev.
 
 ## 17. Task breakdown
 
-This is the final task list. Estimates are XS=1, S=2, M=3, L=5; only NEW-UI is XL=8 and must be split by the human. Each API task owns its MCP registration, schema/description updates and both MCP catalogues in the same PR. DDL and runtime cutovers belong together except the deliberate empty-schema T38/T42 foundation. Completed prep migrations/services are inputs, not extra waiting tasks.
+This is the final task list, numbered in execution order (rebuilt on 2026-10-17; the old T/L/UI identifiers map to these ids in §20.4). B is backend work, U is a new-UI phase, REL is the joint release and X are post-release issues. Estimates are XS=1, S=2, M=3, L=5; nothing is XL. Each API task owns its MCP registration, schema/description updates and both MCP catalogues in the same PR. DDL and runtime cutovers belong together except the deliberate empty-schema B01/B02 foundation. Completed prep migrations/services are inputs, not extra waiting tasks. Blocked by lists direct prerequisites only; §18 holds the same edges.
 
-| Task | Issue | Scope / end state | Estimate | Blocked by |
-| --- | --- | --- | --- | --- |
-| T38 | SA2-341 | Empty final DDL, versions/lineups, G1–G7; interim nullable entry rule ids | 5 | — |
-| T42 | SA2-342 | Early asset rebuild/rename; Drizzle CHECKs and unique names | 3 | — |
-| T07 | SA2-368 | Port #704's migration/test, migrate entry/day/events, A-3/A-4; delete old entry/live APIs and MCP | 5 | T38, T42, T44 |
-| T44 | SA2-343 | Delete API-dependent old UI, transfer test contracts and rule references | 5 | — |
-| T45 | SA2-344 | All A-x audit runner, projector replay, dev-deploy/release gate | 3 | T07 |
-| T12 | SA2-345 | Ledger/category migration, A-5 and A-11 reporting; no API wiring | 5 | T07, T44, T45 |
-| T14 | SA2-346 | Final asset/rate/settings API, always projected EV, delete currency API | 3 | T12, T44 |
-| T15 | SA2-347 | Final wallet/category API and guarded archive/delete; delete currencyTransaction/transactionType routers, MCP and DEFAULT_TRANSACTION_TYPES | 3 | T12, T14 |
-| T22 | SA2-348 | Hand backfill/final hand counter API, A-10, player delete guard | 5 | T07, T44, T45 |
-| T40 | SA2-349 | Final entry API, playSessions/payments with invocation-budget maxima; wire L2 services and drift; delete privateData only (old session API already removed) | 5 | T12, T22, T44, L2 |
-| T41 | SA2-350 | Final live/playEvent/tablePlayer, including self/Hero seat source; L2 service wiring; no v1 branch; zoned dates, event-time/terminal-order guards, initialStack and server progress | 5 | T40, T22, T14, T44, T39, T46, L2 |
-| T46 | SA2-351 | Self-player DDL/backfill, getSelf and opponent exclusions; backend only | 3 | T45 |
-| T18 | SA2-352 | endPlay/startNextPlay and undo, ended-day state machine | 3 | T41 |
-| T39 | SA2-353 | Rewrite all v1 payloads with resolved price/self-player ids; remove v1 from projector and registry | 3 | T46, L2, T45 |
-| L0 | SA2-354 | Game-master archive/restore and includeArchived, API only | 3 | T44 |
-| L6 | SA2-355 | Composite game_variant rebuild, expression UNIQUE, no label/JSON triggers | 3 | L0 |
-| L1 | SA2-356 | Cash master version/lineup backfill and ring_game rebuild/final API | 5 | T38, T42, L6, T44, T45 |
-| L1b | SA2-357 | Tournament version/levels/prices with invocation-budget maxima and master rebuild/final API | 5 | T38, T42, L6, T44, T45 |
-| L2 | SA2-358 | Entry versions, NOT NULL leaf details, price ids and rule creation/read services; no router wiring | 5 | L1, L1b, T12, T45 |
-| L2b | SA2-369 | Entry/live rule-operation APIs, including restoreRule | 3 | L2, T40, T41 |
-| T47 | SA2-241 | Required blind flags and built-in defaults, remove Big Bet Straddle; shared new-stake validation, API/MCP, no UI | 5 | L1b |
-| T32 | SA2-359 | Four tag factories/backfill and APIs/MCP; mapped ids, A-12 | 5 | T40, L1b, T22, T44, T45 |
-| T17 | SA2-360 | Final settled-only stats modes/date axes/tags/presets/reporting; rebuild filter_preset with JSON CHECK and row-count/FK gates | 5 | T12, T14, T22, T40, L2, T32 |
-| T23 | SA2-361 | bb/100 and hands/hour | 2 | T17, T22 |
-| T24 | SA2-362 | Summary/full replacement writes and all_in hand link, API only | 3 | T22, T41 |
-| T25 | SA2-363 | Opponent full-hand count and VPIP/PFR, API only | 2 | T24, T40 |
-| T43 | SA2-364 | Rule-based stand-in cleanup and seed-exception removal | 3 | T39, T41, L2, T14, T45 |
-| T35 | SA2-365 | Remove every remaining retired schema/code path, including todo | 3 | T12, T15, T22, T40, T41, L1, L1b, L2, L2b, T32, T39, T43, T45 |
-| T37 | SA2-366 | Final docs/rules, every SA2-334 compromise row and obsolete-name sweep | 2 | T35, T17, T23, T18, T25, T47 |
-| Record | SA2-334 | Z1/Z2, principles, resolutions/tasks/cancellations and this documentation change | 2 | — |
-| New UI | SA2-367 | Every deferred screen/cache/test contract; outside project; Triage; joint release | 8 | final API; human splits before implementation |
+| Task | Issue | Project | Scope / end state | Estimate | Blocked by |
+| --- | --- | --- | --- | --- | --- |
+| B01 | SA2-385 | Data Model v2 | Empty final DDL, versions/lineups, G1–G7; interim nullable entry rule ids | 5 | — |
+| B02 | SA2-386 | Data Model v2 | Early asset rebuild/rename; Drizzle CHECKs and unique names | 3 | — |
+| B03 | SA2-387 | Data Model v2 | Delete API-dependent old UI, transfer test contracts and rule references | 5 | — |
+| B04 | SA2-388 | Data Model v2 | All A-x audit runner, projector replay, dev-deploy/release gate | 3 | B01, B02 |
+| B05 | SA2-389 | Non-NLH games | Game-master archive/restore and includeArchived, API only; composite game_variant rebuild, expression UNIQUE, no label/JSON triggers | 5 | B03 |
+| U01 | SA2-390 | UI v3 | Shell, route map, home, Undo toast base (`useUndoableMutation`), persisted-cache buster; receives B03's last old-UI SHA and test-contract ledger and assigns each row to a phase | 5 | B03 |
+| B06 | SA2-391 | Data Model v2 | Port #704's migration/test, migrate entry/day/events, A-3/A-4; delete old entry/live APIs and MCP | 5 | B03, B04 |
+| B07 | SA2-392 | Non-NLH games | Cash master version/lineup backfill and ring_game rebuild/final API | 5 | B04, B05 |
+| B08 | SA2-393 | Non-NLH games | Tournament version/levels/prices with invocation-budget maxima and master rebuild/final API | 5 | B04, B05 |
+| B09 | SA2-394 | Data Model v2 | Ledger/category migration, A-5 and A-11 reporting; no API wiring | 5 | B06 |
+| B10 | SA2-395 | Data Model v2 | Hand backfill/final hand counter API, A-10, player delete guard | 5 | B06 |
+| B11 | SA2-396 | Non-NLH games | Required blind flags and built-in defaults, remove Big Bet Straddle; shared new-stake validation, API/MCP, no UI | 5 | B08 |
+| B12 | SA2-397 | Data Model v2 | Final asset/rate/settings API, always projected EV, delete currency API | 3 | B09 |
+| B13 | SA2-398 | Non-NLH games | Entry versions, NOT NULL leaf details, price ids and rule creation/read services; no router wiring | 5 | B09, B07, B08 |
+| U02 | SA2-399 | UI v3 | Games screens (archive/restore) and the shared id-based game/group/mix and stakes/lineup editors, including Must/Optional blind display and ante type input | 5 | U01, B11 |
+| B14 | SA2-400 | Data Model v2 | Final wallet/category API and guarded archive/delete; delete currencyTransaction/transactionType routers, MCP and DEFAULT_TRANSACTION_TYPES | 3 | B12 |
+| B15 | SA2-401 | Data Model v2 | Self-player DDL/backfill, getSelf and opponent exclusions; backend only; rewrite all v1 payloads with resolved price/self-player ids; remove v1 from projector and registry | 5 | B13 |
+| B16 | SA2-402 | Data Model v2 | Final entry API, playSessions/payments with invocation-budget maxima; wire B13 services and drift; delete privateData only (old session API already removed) | 5 | B10, B13 |
+| B17 | SA2-403 | Data Model v2 | Final live/playEvent/tablePlayer, including self/Hero seat source; B13 service wiring; no v1 branch; zoned dates, event-time/terminal-order guards, initialStack and server progress | 5 | B12, B15, B16 |
+| B18 | SA2-404 | Data Model v2 | Four tag factories/backfill and APIs/MCP; mapped ids, A-12 | 5 | B16 |
+| U03 | SA2-405 | UI v3 | Asset, wallet, rate and settings screens | 5 | U01, B14 |
+| B19 | SA2-406 | Data Model v2 | endPlay/startNextPlay and undo, ended-day state machine | 3 | B17 |
+| B20 | SA2-407 | Non-NLH games | Entry/live rule-operation APIs, including restoreRule | 3 | B17 |
+| B21 | SA2-408 | Data Model v2 | Summary/full replacement writes and all_in hand link, API only | 3 | B17 |
+| B22 | SA2-409 | Data Model v2 | Final settled-only stats modes/date axes/tags/presets/reporting; rebuild filter_preset with JSON CHECK and row-count/FK gates | 5 | B12, B18 |
+| B23 | SA2-410 | Data Model v2 | Rule-based stand-in cleanup and seed-exception removal | 3 | B17 |
+| U04 | SA2-411 | UI v3 | Management and pickers for the four tag kinds; the other screens use these pickers from the start | 3 | U01, B18 |
+| U05 | SA2-412 | UI v3 | Live cockpit: table, events, summary and P/L | 5 | U01, B17 |
+| B24 | SA2-413 | Data Model v2 | bb/100 and hands/hour; opponent full-hand count and VPIP/PFR, API only | 3 | B22, B21 |
+| U06 | SA2-414 | UI v3 | Rooms and ring-game/tournament rule editing | 5 | U02, U04 |
+| U07 | SA2-415 | UI v3 | Entry list, detail, share and manual entry wizard | 5 | U02, U04, B20 |
+| U08 | SA2-416 | UI v3 | Live rules and blinds: Basics, Blinds and BlindLevelBar | 5 | U05, U02, B20 |
+| U09 | SA2-417 | UI v3 | Live multi-day: end sheet, next day and resume | 3 | U05, B19 |
+| B25 | SA2-418 | Data Model v2 | Remove every remaining retired schema/code path, including todo; final docs/rules, every SA2-334 compromise row and obsolete-name sweep | 5 | B14, B11, B19, B20, B24, B23 |
+| U10 | SA2-419 | UI v3 | Hand and opponent screens | 5 | U05, U04, B24 |
+| U11 | SA2-420 | UI v3 | Statistics and presets | 5 | U04, B24 |
+| U12 | SA2-421 | UI v3 | Authentication/account/update notes moved to Cryst; remove the `.cryst` scope. Not a release condition | 3 | U03, U06, U07, U08, U09, U10, U11 |
+| REL | SA2-422 | Data Model v2 | v4.0.0 joint release: gates, Time Travel restore point, `db:migrate:remote`, production B04 audit, Worker and new UI deploy | 2 | B25, U03, U06, U07, U08, U09, U10, U11 |
+| X1 | SA2-423 | UI v3 | Balance-history sparkline (SA2-32). After the release | 3 | REL |
+| X2 | SA2-424 | UI v3 | Automatic mix rotation every N hands. After the release | 3 | REL |
+| Record | SA2-334 | Data Model v2 | Z1/Z2, principles, resolutions/tasks/cancellations and this documentation change | 2 | — |
 
-L-series tasks belong to the non-NLH-games project; the remaining backend tasks belong to Data Model v2. NEW-UI has no project. #704 is closed and SA2-303 was canceled with it; T07 continues as SA2-368 and ports only #704's migration and migration test. SA2-334 records the restructure rather than adding another implementation phase.
+B04 precedes every data cutover so each cutover is audited on the dev deploy that ships it. U01 only needs B03; every other U phase waits for its final APIs. REL waits for B25 and the U phases except U12; U12, X1 and X2 are not release conditions. #704 is closed and SA2-303 was canceled with it; B06 ports only #704's migration and migration test. SA2-334 records the restructure rather than adding another implementation phase.
 
-Canceled work is fully reassigned: T16 (SA2-315)→T40/T41/NEW-UI; T19 (SA2-317)→T18/NEW-UI; T20 (SA2-318)→T40/NEW-UI; T33 (SA2-320)→T17/T32/NEW-UI; L3 (SA2-246)→L1/L1b/L2/T17/T40/T41; L4a/b/c (SA2-247/248/249)→NEW-UI; L5 (SA2-250)→L1/L1b/L2/L6/T40/T41/T35. Historical T03→T02, T08/T09→T07, T34/T36 canceled, remain recorded in the decision log, not active tasks. SA2-242's design deliverable is complete; its old phase table is superseded by this one. T47 owns Must/Optional blind-field validation after L1b; related Cryst screen requirements move to NEW-UI.
+Canceled work is fully reassigned: T16 (SA2-315)→B16/B17/U07/U05; T19 (SA2-317)→B19/U09; T20 (SA2-318)→B16/U07; T33 (SA2-320)→B22/B18/U04; L3 (SA2-246)→B07/B08/B13/B22/B16/B17; L4a/b/c (SA2-247/248/249)→U06/U08/U07 and U02; L5 (SA2-250)→B07/B08/B13/B05/B16/B17/B25. Historical T03→T02, T08/T09→T07, T34/T36 canceled, remain recorded in the decision log, not active tasks. SA2-242's design deliverable is complete; its old phase table is superseded by this one. B11 owns Must/Optional blind-field validation after B08; the screens are U02's shared stakes components.
 
 ### 17.1 Finding-to-task resolution
 
-Every audit finding has a final resolution; none is a task-start design question. User row mappings in T43 are the only input exception, with explicit defaults.
+Every audit finding has a final resolution; none is a task-start design question. User row mappings in B23 are the only input exception, with explicit defaults.
 
 | Finding | Final resolution and home | Owning task |
 | --- | --- | --- |
-| C1 | Settled-only stats (§12) | T17 |
-| C2 | Default asset composite FK NO ACTION (§5) | L1, L1b |
-| C3 | Live outputs use entry shape (§14/API reference) | T41 |
-| C4 | Zoned live local_date; asset delete archive guidance (§7/12/14) | T41, T14 |
-| C5 | Date strings/played_on date axes (§12) | T17 |
-| C6 | Hours summed per day (§12.3) | T17 |
-| C7 | 1 BI = first buy_in+fee, not re-entry (§12.3/20.1) | T17 |
-| C8 | Delete row-level level/purchase routers; whole versions (§5) | L1b |
-| C9 | Version NOT NULL without default; explicit v2 writers (§8) | T38, T41, T39 |
-| C10 | Owned player_tag_link (§10) | T32 |
-| C11 | Owned variant→group NO ACTION (§5) | L6 |
-| C12 | Expression UNIQUE instead of label triggers (§5) | L6 |
-| C13 | Delete unused series/privateData (§14) | T40 |
-| C14 | Asset names unique; category archive/unique; no reserved machinery (§5/7) | T42, T38, T12, T15 |
-| C15 | Preset migration, id tags, four-kind MCP, includeArchived, string cursors (§10/14) | T17, T32, L0, T22 |
-| F1 | Same-id category move and deterministic dedup/remap (§7/16) | T12 |
-| F2 | Event price id from its existing ledger line (§16) | T39 |
-| F3 | Asset rebuild before backfills (§16.2) | T42 |
-| F4 | Every audit and real projector replay executed by one runner (§16.7) | T45 |
-| F5 | State from day status including day_end (§13) | T18 |
-| F6 | Rule-based cleanup after v2/zoned writers, before drop (§16) | T43 |
-| F7 | Enumerate inbound children, counts+FK, concrete cyclic bootstrap (§16.3) | L1, L1b, L6 |
-| F8 | Hands precede live final API and multi-day (§18) | T22 |
-| F9 | Manual playSessions[] API (§6/13) | T40 |
-| F10 | API version-id drift, no web work (§5) | L2 services; T40/T41 wiring |
-| F11 | Master current NOT NULL; every retired column dropped (§5/16) | L1, L1b, T35 |
-| F12 | Walk every SA2-334 compromise row (§19/20) | T37 |
+| C1 | Settled-only stats (§12) | B22 |
+| C2 | Default asset composite FK NO ACTION (§5) | B07, B08 |
+| C3 | Live outputs use entry shape (§14/API reference) | B17 |
+| C4 | Zoned live local_date; asset delete archive guidance (§7/12/14) | B17, B12 |
+| C5 | Date strings/played_on date axes (§12) | B22 |
+| C6 | Hours summed per day (§12.3) | B22 |
+| C7 | 1 BI = first buy_in+fee, not re-entry (§12.3/20.1) | B22 |
+| C8 | Delete row-level level/purchase routers; whole versions (§5) | B08 |
+| C9 | Version NOT NULL without default; explicit v2 writers (§8) | B01, B17, B15 |
+| C10 | Owned player_tag_link (§10) | B18 |
+| C11 | Owned variant→group NO ACTION (§5) | B05 |
+| C12 | Expression UNIQUE instead of label triggers (§5) | B05 |
+| C13 | Delete unused series/privateData (§14) | B16 |
+| C14 | Asset names unique; category archive/unique; no reserved machinery (§5/7) | B02, B01, B09, B14 |
+| C15 | Preset migration, id tags, four-kind MCP, includeArchived, string cursors (§10/14) | B22, B18, B05, B10 |
+| F1 | Same-id category move and deterministic dedup/remap (§7/16) | B09 |
+| F2 | Event price id from its existing ledger line (§16) | B15 |
+| F3 | Asset rebuild before backfills (§16.2) | B02 |
+| F4 | Every audit and real projector replay executed by one runner (§16.7) | B04 |
+| F5 | State from day status including day_end (§13) | B19 |
+| F6 | Rule-based cleanup after v2/zoned writers, before drop (§16) | B23 |
+| F7 | Enumerate inbound children, counts+FK, concrete cyclic bootstrap (§16.3) | B07, B08, B05 |
+| F8 | Hands precede live final API and multi-day (§18) | B10 |
+| F9 | Manual playSessions[] API (§6/13) | B16 |
+| F10 | API version-id drift, no web work (§5) | B13 services; B16/B17 wiring |
+| F11 | Master current NOT NULL; every retired column dropped (§5/16) | B07, B08, B25 |
+| F12 | Walk every SA2-334 compromise row (§19/20) | B25 |
 | F13 | Coherent full documentation rewrite (§1–20) | SA2-334 |
-| U1 | lines/totals/valuation (§12/API reference) | T40 |
-| U2 | Three stats modes, tournament ROI (§12) | T17 |
-| U3 | Selected-asset lines, report multi-asset entries (§12) | T17 |
-| U4 | Undo last end/empty last day, no reopening wrapper (§13) | T18 |
-| U5 | Continuation start and re-entry payments one batch (§13) | T18 |
-| U6 | Apply/push/override/relink keepRule and restoreRule (§5/API reference) | L2b |
-| U7 | Explicit asset prices entry/reentry/addon (§5) | L1b |
-| U8 | Counter add/undo active only (§9) | T22 |
-| U9 | Every line explicit asset; migration stand-ins only (§6/16) | T40, T43 |
-| U10 | Balance, duplicate rate conflict, referenced kind immutable, epoch ledger times, from/to exchange (§7/12) | T14, T15 |
-| G1 | Entry and parent same-master composite FKs; master current-rule ownership plus API/A-13 membership (§5/6) | T38, L1, L1b |
-| G2 | Inherited lineup mirror CHECK+FK (§5) | T38 |
-| G3 | Detail kind mirror CHECK+FK (§6) | T38 |
-| G4 | Event source mirror CHECK+FK (§8) | T38 |
-| G5 | Ledger role/column CHECKs (§7) | T38 |
-| G6 | Same-play-session all_in hand FK (§8/9) | T38 |
-| G7 | Rule/price/current-rule FK indexes (§5–9) | T38, L1, L1b |
+| U1 | lines/totals/valuation (§12/API reference) | B16 |
+| U2 | Three stats modes, tournament ROI (§12) | B22 |
+| U3 | Selected-asset lines, report multi-asset entries (§12) | B22 |
+| U4 | Undo last end/empty last day, no reopening wrapper (§13) | B19 |
+| U5 | Continuation start and re-entry payments one batch (§13) | B19 |
+| U6 | Apply/push/override/relink keepRule and restoreRule (§5/API reference) | B20 |
+| U7 | Explicit asset prices entry/reentry/addon (§5) | B08 |
+| U8 | Counter add/undo active only (§9) | B10 |
+| U9 | Every line explicit asset; migration stand-ins only (§6/16) | B16, B23 |
+| U10 | Balance, duplicate rate conflict, referenced kind immutable, epoch ledger times, from/to exchange (§7/12) | B12, B14 |
+| G1 | Entry and parent same-master composite FKs; master current-rule ownership plus API/A-13 membership (§5/6) | B01, B07, B08 |
+| G2 | Inherited lineup mirror CHECK+FK (§5) | B01 |
+| G3 | Detail kind mirror CHECK+FK (§6) | B01 |
+| G4 | Event source mirror CHECK+FK (§8) | B01 |
+| G5 | Ledger role/column CHECKs (§7) | B01 |
+| G6 | Same-play-session all_in hand FK (§8/9) | B01 |
+| G7 | Rule/price/current-rule FK indexes (§5–9) | B01, B07, B08 |
 
 ## 18. Dependency graph
 
-The graph contains every authoritative blockedBy edge, including redundant edges; visual convenience does not remove a blocker.
+The graph contains every authoritative blockedBy edge between the tasks of §17 (direct prerequisites only; an edge implied by a longer path is omitted, and Linear holds the same edges).
 
 ```mermaid
 flowchart LR
-
-T38
-
-T42
-
-T38 --> T07
-
-T42 --> T07
-
-T44
-
-T07 --> T45
-
-T07 --> T12
-
-T44 --> T12
-
-T45 --> T12
-
-T12 --> T14
-
-T44 --> T14
-
-T12 --> T15
-
-T14 --> T15
-
-T07 --> T22
-
-T44 --> T22
-
-T45 --> T22
-
-T12 --> T40
-
-T22 --> T40
-
-T44 --> T40
-
-T40 --> T41
-
-T22 --> T41
-
-T14 --> T41
-
-T44 --> T41
-
-T41 --> T18
-
-T46 --> T39
-
-L2 --> T39
-
-T45 --> T39
-
-T44 --> L0
-
-L0 --> L6
-
-T38 --> L1
-
-T42 --> L1
-
-L6 --> L1
-
-T44 --> L1
-
-T45 --> L1
-
-T38 --> L1b
-
-T42 --> L1b
-
-L6 --> L1b
-
-T44 --> L1b
-
-T45 --> L1b
-
-L1 --> L2
-
-L1b --> L2
-
-T45 --> L2
-
-T40 --> T32
-
-L1b --> T32
-
-T22 --> T32
-
-T44 --> T32
-
-T45 --> T32
-
-T12 --> T17
-
-T14 --> T17
-
-T22 --> T17
-
-T40 --> T17
-
-L2 --> T17
-
-T32 --> T17
-
-T17 --> T23
-
-T22 --> T23
-
-T22 --> T24
-
-T41 --> T24
-
-T24 --> T25
-
-T40 --> T25
-
-T39 --> T43
-
-T41 --> T43
-
-L2 --> T43
-
-T14 --> T43
-
-T45 --> T43
-
-T12 --> T35
-
-T15 --> T35
-
-T22 --> T35
-
-T40 --> T35
-
-T41 --> T35
-
-L1 --> T35
-
-L1b --> T35
-
-L2 --> T35
-
-T32 --> T35
-
-T39 --> T35
-
-T43 --> T35
-
-T45 --> T35
-
-T35 --> T37
-
-T17 --> T37
-
-T23 --> T37
-
-T18 --> T37
-
-T25 --> T37
-
-T44 --> T07
-
-T12 --> L2
-
-T45 --> T46
-
-L2 --> T40
-
-L2 --> T41
-
-T39 --> T41
-
-T46 --> T41
-
-L2 --> L2b
-
-T40 --> L2b
-
-T41 --> L2b
-
-L2b --> T35
-
-L1b --> T47
-
-T47 --> T37
-
+B01 --> B04
+B02 --> B04
+B03 --> B05
+B03 --> U01
+B03 --> B06
+B04 --> B06
+B04 --> B07
+B05 --> B07
+B04 --> B08
+B05 --> B08
+B06 --> B09
+B06 --> B10
+B08 --> B11
+B09 --> B12
+B09 --> B13
+B07 --> B13
+B08 --> B13
+U01 --> U02
+B11 --> U02
+B12 --> B14
+B13 --> B15
+B10 --> B16
+B13 --> B16
+B12 --> B17
+B15 --> B17
+B16 --> B17
+B16 --> B18
+U01 --> U03
+B14 --> U03
+B17 --> B19
+B17 --> B20
+B17 --> B21
+B12 --> B22
+B18 --> B22
+B17 --> B23
+U01 --> U04
+B18 --> U04
+U01 --> U05
+B17 --> U05
+B22 --> B24
+B21 --> B24
+U02 --> U06
+U04 --> U06
+U02 --> U07
+U04 --> U07
+B20 --> U07
+U05 --> U08
+U02 --> U08
+B20 --> U08
+U05 --> U09
+B19 --> U09
+B14 --> B25
+B11 --> B25
+B19 --> B25
+B20 --> B25
+B24 --> B25
+B23 --> B25
+U05 --> U10
+U04 --> U10
+B24 --> U10
+U04 --> U11
+B24 --> U11
+U03 --> U12
+U06 --> U12
+U07 --> U12
+U08 --> U12
+U09 --> U12
+U10 --> U12
+U11 --> U12
+B25 --> REL
+U03 --> REL
+U06 --> REL
+U07 --> REL
+U08 --> REL
+U09 --> REL
+U10 --> REL
+U11 --> REL
+REL --> X1
+REL --> X2
 ```
 
 ## 19. Test strategy
@@ -1443,25 +1343,25 @@ Follow [testing.md](../../.claude/rules/testing.md): expectations come from this
 
 | Contract / plausible regression | Best layer and observation | Tasks |
 | --- | --- | --- |
-| Composite ownership, G1–G6, CHECKs, partial UNIQUE | Real D1 API/DB integration: foreign owner's and missing ids uniformly forbidden; raw mismatched-owner/kind/master/day inserts rejected; read persisted rows | T38/T42, L1/L1b/L2, T32 |
+| Composite ownership, G1–G6, CHECKs, partial UNIQUE | Real D1 API/DB integration: foreign owner's and missing ids uniformly forbidden; raw mismatched-owner/kind/master/day inserts rejected; read persisted rows | B01/B02, B07/B08/B13, B18 |
 | Schema ledger matches final DDL | Existing schema-migrations test compares columns, FK column order/actions, expression-index contracts and Drizzle CHECKs; no separate declarations-only test | Every DDL task |
-| Parent rebuild silently cascades history | Real migration SQLite plus real D1 rehearsal: representative inbound CASCADE/SET NULL/NO ACTION rows survive; row counts and foreign_key_check detect a lost child | T42, L6, L1/L1b |
+| Parent rebuild silently cascades history | Real migration SQLite plus real D1 rehearsal: representative inbound CASCADE/SET NULL/NO ACTION rows survive; row counts and foreign_key_check detect a lost child | B02, B05, B07/B08 |
 | Bad legacy data aborts or is silently lost | migration-*.test.ts on real history: missing details, invalid placement/break/end, duplicate normalized names, dirty JSON, owned links and gates; statement-by-statement failure is not presented as rollback evidence | Cutovers |
-| Event/projection partial failure | Real D1 batch: fail a middle statement and read back no event or projection change | T18/T41 |
-| Replay/state machine errors | Pure unit tests for distinct event business transitions, day_end rejecting append, busted re-entry/bagged next day, undo and deterministic breaks; final v2 only; temporary v1 cases removed by T39 | T18/T39/T41 |
-| Same-time concurrent append loses fact | Real concurrent pending writes, not sequential awaits; distinct event orders persist, A-6 exposes projection drift | T41/T45 |
-| Monetary conversion and exclusions | Unit valuation: §12 example, inverse/two-hop, effective boundary including 0, old line without rate, real vs virtual exclusion, ±0.5 rational rounding | T13/T17 |
-| Multi-day stats use wrong population/time/date | Real caller/D1: open excluded; two timed days and differing breaks summed; date strings and weekday/month/year at UTC boundary; mixed-asset selected-line sums and reporting; first-buy-in BI excludes re-entry | T17/T23 |
-| Wallet category move/exchange integrity | Real migration/caller/D1: duplicate categories remap, reserved category amount retained, referenced deletion rejected, pair update/delete atomic, entry lines forbidden | T12/T14/T15 |
-| Hand count/source divergence or details destroyed by undo | Real D1 hand add/undo active gate, count-only undo, delete renumber, linked-hand CONFLICT; §12 stats over rows | T22/T24/T25 |
-| D1 100-parameter failure after DELETE | Integration: large full hand and long purchase/line/level replacement, failure preserves prior data; use actual batch helpers | T22/T24/L1b |
-| Tag identity/ownership/link loss | Migration and caller/D1: deterministic merge/remap with color/position/reviewed metadata, every tag kind owned; preset restored final ids | T32/T17 |
-| Hero leaks into opponents or moves as separate state | D1 caller: one self row, hidden opponent lists, tablePlayer seat folding, payload backfill matches it | T46/T39/T41 |
-| Audit misses projector drift or source removal | Runner integration on local D1: plant projection/structural drift, observe named failing audits; historical sources become explicitly N/A only at T35; A-11 remains report-only | T45/T35 |
+| Event/projection partial failure | Real D1 batch: fail a middle statement and read back no event or projection change | B19/B17 |
+| Replay/state machine errors | Pure unit tests for distinct event business transitions, day_end rejecting append, busted re-entry/bagged next day, undo and deterministic breaks; final v2 only; temporary v1 cases removed by B15 | B19/B15/B17 |
+| Same-time concurrent append loses fact | Real concurrent pending writes, not sequential awaits; distinct event orders persist, A-6 exposes projection drift | B17/B04 |
+| Monetary conversion and exclusions | Unit valuation: §12 example, inverse/two-hop, effective boundary including 0, old line without rate, real vs virtual exclusion, ±0.5 rational rounding | T13/B22 |
+| Multi-day stats use wrong population/time/date | Real caller/D1: open excluded; two timed days and differing breaks summed; date strings and weekday/month/year at UTC boundary; mixed-asset selected-line sums and reporting; first-buy-in BI excludes re-entry | B22/B24 |
+| Wallet category move/exchange integrity | Real migration/caller/D1: duplicate categories remap, reserved category amount retained, referenced deletion rejected, pair update/delete atomic, entry lines forbidden | B09/B12/B14 |
+| Hand count/source divergence or details destroyed by undo | Real D1 hand add/undo active gate, count-only undo, delete renumber, linked-hand CONFLICT; §12 stats over rows | B10/B21/B24 |
+| D1 100-parameter failure after DELETE | Integration: large full hand and long purchase/line/level replacement, failure preserves prior data; use actual batch helpers | B10/B21/B08 |
+| Tag identity/ownership/link loss | Migration and caller/D1: deterministic merge/remap with color/position/reviewed metadata, every tag kind owned; preset restored final ids | B18/B22 |
+| Hero leaks into opponents or moves as separate state | D1 caller: one self row, hidden opponent lists, tablePlayer seat folding, payload backfill matches it | B15/B17 |
+| Audit misses projector drift or source removal | Runner integration on local D1: plant projection/structural drift, observe named failing audits; historical sources become explicitly N/A only at B25; A-11 remains report-only | B04/B25 |
 | MCP diverges from API | Existing coupling/serialization/auth tests use real caller and schema identity; update expected final catalogue and errors, no unchanged-snapshot criterion | Every API task |
-| Old UI contract deletion | Record protected contract→replacement/existing check→remaining risk and last SHA in NEW-UI; no screen tests inside backend work | T44 |
+| Old UI contract deletion | Record protected contract→replacement/existing check→remaining risk and last SHA on U01; no screen tests inside backend work | B03 |
 
-Keep `test:unit --project=!api-integration` and migration test runner discovery by migration-*.test.ts glob. Types/lint/check:rules protect static rules instead of additional wiring assertions. D1-specific semantics need D1 evidence, not a transaction-wrapped Bun SQLite claim. A bug fix demonstrates the known failure at its direct layer; refactors reuse protection. Removing tests records the contract and replacement first, especially legacy fold, transaction sync and hand-count regressions. T37 walks every row of SA2-334's compromise table and the finding matrix; an old-name grep alone is insufficient.
+Keep `test:unit --project=!api-integration` and migration test runner discovery by migration-*.test.ts glob. Types/lint/check:rules protect static rules instead of additional wiring assertions. D1-specific semantics need D1 evidence, not a transaction-wrapped Bun SQLite claim. A bug fix demonstrates the known failure at its direct layer; refactors reuse protection. Removing tests records the contract and replacement first, especially legacy fold, transaction sync and hand-count regressions. B25 walks every row of SA2-334's compromise table and the finding matrix; an old-name grep alone is insufficient.
 
 Implementation PRs run types, lint, check:rules and the relevant Vitest/migration/integration scopes. This documentation restructure does not claim those implementation checks have been executed. Dev production-copy rehearsal and release production audit are operational gates in addition to tests, not replacements.
 
@@ -1469,24 +1369,24 @@ Implementation PRs run types, lint, check:rules and the relevant Vitest/migratio
 
 ### 20.1 Decisions confirmed by the user
 
-The user confirmed all fourteen items on 2026-10-16: items 1–8 as recommended, item 9 declines the pre-T38/T42 release, item 10 changed from D1 Free to Workers Paid because the user's Cloudflare account subscribes to Workers Paid ($5/month), and items 11–14 fix required blinds, Undo, the deferred sparkline and data-first implementation. A later change updates the binding section/task before implementation proceeds. Item 9 is a release choice, not a product rule.
+The user confirmed all fourteen items on 2026-10-16: items 1–8 as recommended, item 9 declines the pre-T38/B02 release, item 10 changed from D1 Free to Workers Paid because the user's Cloudflare account subscribes to Workers Paid ($5/month), and items 11–14 fix required blinds, Undo, the deferred sparkline and data-first implementation. A later change updates the binding section/task before implementation proceeds. Item 9 is a release choice, not a product rule.
 
 | Item | Decision | Rejected alternative | Binds |
 | --- | --- | --- | --- |
-| 1 (C7) | 1 BI is the first buy_in + fee; exclude re-entry and chip purchases | Include all bullets/purchases in the normalization unit | T17 |
-| 2 (U2) | ROI over tournament entries only; cash uses bb/100 | Blend cash into ROI | T17, T23 |
-| 3 (C14) | Asset names unique per user ignoring case/outer spaces; deterministic available numeric suffix for duplicates | Permit duplicate asset names | T42 |
-| 4 (U4) | Undo by deleting the last end event / discarding the otherwise-empty highest day; no reopen API | Separate reopening operation retaining contradictory end facts | T18 |
-| 5 (C15) | MCP list/create for all four tag kinds | Keep player/hand tag creation unexposed | T32 |
-| 6 (C1) | Statistics count settled entries only (fix already approved; listed for visibility) | Count open paid buy-ins as current result | T17 |
-| 7 (C4,Q7) | New live local_date from userSetting.timeZone, NULL→Asia/Tokyo; old migration assumes JST | Browser-local or fixed-JST dates for every new user | T41, T43 |
-| 8 | T43 keeps Unassigned as an ordinary asset named Unassigned by default | User supplies a rule mapping all/by date/etc. to another asset | T43 |
-| 9 (P7) | Do not release current dev before T38/T42; its unreleased non-v2 fixes (SA2-274/275/277/281/295 and tooling) and 0054–0058 wait for the joint v2/new-UI release | Ship current dev once before the first T38/T42 merge | Release owner; T38/T42 |
-| 10 (D1 plan) | Target Workers Paid: D1 allows 1,000 queries per Worker invocation ([D1 limits](https://developers.cloudflare.com/d1/platform/limits/)); the higher default Workers subrequest limit is not relied on. Every mutation stays within 1,000 queries, counting auth/session reads and every batch statement. L1b fixes and enforces tournament levels × lineup groups/prices maxima (including live.createAndAssignTournament, with L2b relink cost); T40 does likewise for manual days/payments. The owning task records the derived maxima in the API reference and a real D1 integration test counts statements at maximum input. T37 replaces the "Free plan OK" prerequisite in docs/deploy.md and docs/deploy.ja.md with Workers Paid | Target D1 Free's 50-query budget with correspondingly small maxima | L1b, L2b, T40, T37 |
-| 11 (SA2-241) | Limit Small Bet/Big Bet and Big Bet SB/BB are Must; Stud Small Bet/Big Bet are Must, Bring-in Optional. Remove Big Bet Straddle. User-created structures default all flags to Optional; ante is excluded. Enforce labeled/required fields on newly written stakes only; existing-version reuse is exempt. Reject required unlabeled fields with BAD_REQUEST and label removal with saved values with CONFLICT | UI-only required fields, retaining Straddle or revalidating historical versions | T47, L1/L1b shared write service, L2; NEW-UI |
-| 12 (SA2-236) | Non-destructive new-UI mutations show an in-flight toast and Undo for 6 seconds after success. Build compensation from the pre-mutation cache snapshot used for optimistic rollback; last write wins (R4). A documented rejection shows "Couldn't undo" without changing state. No redo, hard-delete/live.discard Undo or non-persistent-operation Undo; hard deletes use a confirmation Dialog only. restoreRule reuses saved versions to preserve ids/drift | Optimistic concurrency control, delete Undo without an exact restore API | API reference §1; T40/T41/T14/L0/L1/L1b/L2b; NEW-UI |
-| 13 (SA2-32) | Balance-history sparkline is a separate post-release issue, not a joint-release condition | Add the sparkline to the joint-release scope | NEW-UI; release owner |
-| 14 (Data-first) | T07 deletes old entry/live APIs with migration; old tables remain migration sources. Final APIs wire once to migrated tables; L2 services precede T40/T41, L2b owns rule operations. T46/T39 precede T41, which has no v1 branch. No intermediate legacy-output API or compatibility parent rows; dev entry/live API gap is intentional | Rewire legacy APIs and tests to new tables, then replace them again; release intermediate dev states to production | §16–18; T07/T12/T22/L2/L2b/T46/T39/T40/T41/T15/T35 |
+| 1 (C7) | 1 BI is the first buy_in + fee; exclude re-entry and chip purchases | Include all bullets/purchases in the normalization unit | B22 |
+| 2 (U2) | ROI over tournament entries only; cash uses bb/100 | Blend cash into ROI | B22, B24 |
+| 3 (C14) | Asset names unique per user ignoring case/outer spaces; deterministic available numeric suffix for duplicates | Permit duplicate asset names | B02 |
+| 4 (U4) | Undo by deleting the last end event / discarding the otherwise-empty highest day; no reopen API | Separate reopening operation retaining contradictory end facts | B19 |
+| 5 (C15) | MCP list/create for all four tag kinds | Keep player/hand tag creation unexposed | B18 |
+| 6 (C1) | Statistics count settled entries only (fix already approved; listed for visibility) | Count open paid buy-ins as current result | B22 |
+| 7 (C4,Q7) | New live local_date from userSetting.timeZone, NULL→Asia/Tokyo; old migration assumes JST | Browser-local or fixed-JST dates for every new user | B17, B23 |
+| 8 | B23 keeps Unassigned as an ordinary asset named Unassigned by default | User supplies a rule mapping all/by date/etc. to another asset | B23 |
+| 9 (P7) | Do not release current dev before B01/B02; its unreleased non-v2 fixes (SA2-274/275/277/281/295 and tooling) and 0054–0058 wait for the joint v2/new-UI release | Ship current dev once before the first B01/B02 merge | Release owner; B01/B02 |
+| 10 (D1 plan) | Target Workers Paid: D1 allows 1,000 queries per Worker invocation ([D1 limits](https://developers.cloudflare.com/d1/platform/limits/)); the higher default Workers subrequest limit is not relied on. Every mutation stays within 1,000 queries, counting auth/session reads and every batch statement. B08 fixes and enforces tournament levels × lineup groups/prices maxima (including live.createAndAssignTournament, with B20 relink cost); B16 does likewise for manual days/payments. The owning task records the derived maxima in the API reference and a real D1 integration test counts statements at maximum input. B25 replaces the "Free plan OK" prerequisite in docs/deploy.md and docs/deploy.ja.md with Workers Paid | Target D1 Free's 50-query budget with correspondingly small maxima | B08, B20, B16, B25 |
+| 11 (SA2-396) | Limit Small Bet/Big Bet and Big Bet SB/BB are Must; Stud Small Bet/Big Bet are Must, Bring-in Optional. Remove Big Bet Straddle. User-created structures default all flags to Optional; ante is excluded. Enforce labeled/required fields on newly written stakes only; existing-version reuse is exempt. Reject required unlabeled fields with BAD_REQUEST and label removal with saved values with CONFLICT | UI-only required fields, retaining Straddle or revalidating historical versions | B11, B07/B08 shared write service, B13; U02 and the stakes forms of U06/U07/U08 |
+| 12 (SA2-236) | Non-destructive new-UI mutations show an in-flight toast and Undo for 6 seconds after success. Build compensation from the pre-mutation cache snapshot used for optimistic rollback; last write wins (R4). A documented rejection shows "Couldn't undo" without changing state. No redo, hard-delete/live.discard Undo or non-persistent-operation Undo; hard deletes use a confirmation Dialog only. restoreRule reuses saved versions to preserve ids/drift | Optimistic concurrency control, delete Undo without an exact restore API | API reference §1; B16/B17/B12/B05/B07/B08/B20; U01 (base) and every UI phase |
+| 13 (SA2-32) | Balance-history sparkline is a separate post-release issue, not a joint-release condition | Add the sparkline to the joint-release scope | X1; release owner |
+| 14 (Data-first) | B06 deletes old entry/live APIs with migration; old tables remain migration sources. Final APIs wire once to migrated tables; B13 services precede B16/B17, B20 owns rule operations. B15 precedes B17, which has no v1 branch. No intermediate legacy-output API or compatibility parent rows; dev entry/live API gap is intentional | Rewire legacy APIs and tests to new tables, then replace them again; release intermediate dev states to production | §16–18; B06/B09/B10/B13/B20/B15/B16/B17/B14/B25 |
 
 ### 20.2 Stable question register
 
@@ -1494,28 +1394,28 @@ Every old Q identifier remains stable; decisions are not reopened merely because
 
 | ID | Resolution | Binding task |
 | --- | --- | --- |
-| Q1 | All tournament re-entry bullets remain one entry; per-bullet facts are lines/days | T18 |
-| Q2 | Items excluded from real P/L, included only in virtual valuation | T13/T17 |
-| Q3 | Rates are effective-time history; historical correction intentionally revalues affected lines | T10/T14 |
-| Q4 | +1 is a hand row, count and button have one source | T21/T22 |
-| Q5 | Use immutable rule versions rather than copied per-owner stakes | L1/L1b/L2 |
-| Q6 | Missing legacy asset uses per-user Unassigned; default final cleanup is ordinary retained asset | T12/T43 |
-| Q7 | Historical live dates assume JST; new writes use setting with Asia/Tokyo fallback | T07/T41/T43 |
-| Q8 | Rename MCP tools without aliases, including entry, asset and tag names; publish final mapping once | T14/T32/T40/T41 |
+| Q1 | All tournament re-entry bullets remain one entry; per-bullet facts are lines/days | B19 |
+| Q2 | Items excluded from real P/L, included only in virtual valuation | T13/B22 |
+| Q3 | Rates are effective-time history; historical correction intentionally revalues affected lines | T10/B12 |
+| Q4 | +1 is a hand row, count and button have one source | T21/B10 |
+| Q5 | Use immutable rule versions rather than copied per-owner stakes | B07/B08/B13 |
+| Q6 | Missing legacy asset uses per-user Unassigned; default final cleanup is ordinary retained asset | B09/B23 |
+| Q7 | Historical live dates assume JST; new writes use setting with Asia/Tokyo fallback | B06/B17/B23 |
+| Q8 | Rename MCP tools without aliases, including entry, asset and tag names; publish final mapping once | B12/B18/B16/B17 |
 
 ### 20.3 Risks
 
 | ID | Risk | Mitigation |
 | --- | --- | --- |
-| R1 | A write path still targets retired data | API cutover ownership checklist, end gates, T35 inventory and T37 compromise walk |
+| R1 | A write path still targets retired data | API cutover ownership checklist, end gates, B25 inventory and compromise walk |
 | R2 | Stake migration is built twice | Rule-version design is authoritative; canceled parallel lineup paths are not implemented |
 | R3 | Long transition grows dual writes | One home at each commit; production freeze; one final joint release |
 | R4 | Concurrent reads compute stale projection | SQL append allocation prevents lost event; next write rebuilds; A-6 every deploy/release detects drift; optimistic locking is not claimed implemented |
 | R5 | Mid-file D1 failure leaves committed prefix | Restore pre-release Time Travel point; do not retry partial migration |
 | R6 | Balance drops during live buy-in | Explicit real-line balance contract and release explanation, independent settled-only stats |
 | R7 | More joins slow queries | Required FK/filter indexes, page bulk enrichment, no N+1; profile representative 10,000-entry data |
-| R8 | Historical JST assumption misdates foreign play | Rule-based T43 setting correction and recorded mapping; never silently reinterpret manual dates |
-| R9 | Old PWA sends removed contract | NEW-UI cache/reload acceptance; no old API aliases |
+| R8 | Historical JST assumption misdates foreign play | Rule-based B23 setting correction and recorded mapping; never silently reinterpret manual dates |
+| R9 | Old PWA sends removed contract | U01 cache/reload acceptance; no old API aliases |
 | R10 | Restore loses post-restore-point writes | No data entry during release; record/manual re-enter any exceptional writes |
 
 ### 20.4 Decision log
@@ -1615,3 +1515,4 @@ Every earlier decision is retained below with its present disposition. Historica
 | 2026-10-16 | User confirmed §20.1 items 1–8 as recommended; item 9: no release before T38/T42, so current dev's unreleased fixes wait for the joint release; item 10 targets Workers Paid's 1,000 D1 queries per invocation instead of Free's 50 | The user's Cloudflare account subscribes to Workers Paid ($5/month); budget-derived maxima and the statement-count test stay with L1b/T40/L2, the deploy prerequisite update with T37 |
 | 2026-10-16 | SA2-241: built-in required blind flags and Big Bet Straddle removal; server validates newly written stakes. SA2-236: six-second success Undo via compensation, no delete Undo or redo, last write wins. SA2-32: defer balance sparkline until after release | User decisions; §20.1 items 11–13 and API reference §1 bind backend and new UI. Existing versions are reused for rule Undo, not recreated |
 | 2026-10-16 | Data-first implementation replaces intermediate legacy-router cutovers: T07 ports only #704's migration/test and removes old entry/live APIs; L2 services → T40/T41 → L2b, T46 → T39 → T41 | Removes throwaway rewiring, compatibility parent rows, legacy payload branches and temporary Hero-seat API. Dev intentionally has no entry/live API between T07 and T40/T41; production migration, final APIs and audits are unchanged. Supersedes the #704 bridge rows above: no legacy money recompute, ended-day playSessionId fallback or unfinished-live T07 statistics exist, and new live local_date starts at T41 with userSetting.timeZone |
+| 2026-10-17 | Rebuild every task of both projects in execution order (B01–B25, U01–U12, REL, X1, X2; issues SA2-385–SA2-424). Mapping: T38→B01; T42→B02; T44→B03; T45→B04; L0/L6→B05; UI-0→U01; T07→B06; L1→B07; L1b→B08; T12→B09; T22→B10; T47→B11; T14→B12; L2→B13; UI-2→U02; T15→B14; T46/T39→B15; T40→B16; T41→B17; T32→B18; UI-1→U03; T18→B19; L2b→B20; T24→B21; T17→B22; T43→B23; UI-7→U04; UI-5a→U05; T23/T25→B24; UI-3→U06; UI-4→U07; UI-5b→U08; UI-5c→U09; T35/T37→B25; UI-6→U10; UI-8→U11; UI-9→U12; SA2-370→REL; the NEW-UI hub SA2-367→U01 (its requirement tables; REL depends on each phase directly); SA2-383→X1; SA2-384→X2. The old issues are Duplicate of the new ones | User-directed: the old split followed issue creation order. B04's audit runner now precedes the first data cutover; the tag pickers (U04) precede every screen that uses them; four small pairs are merged (L0+L6, T46+T39, T23+T25, T35+T37); the UI hub issue is removed and REL depends on each phase directly; redundant edges are dropped (79 direct edges). Scope, acceptance criteria and recorded decisions are unchanged |
