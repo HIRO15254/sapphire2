@@ -100,12 +100,15 @@ Consequences for any migration that touches existing rows:
   GROUP BY m.id, g.value HAVING COUNT(*) > 1;
   ```
 
-**Exception: the data model v2 cutovers** (T07, T12, T22, T32, SA2-244, SA2-245, and the T35 drop;
-[`data-model-v2.md`](../../docs/design/data-model-v2.md) §16). Production has one user and each such
-release records a D1 Time Travel restore point first, so a failed cutover is restored and released
-again instead of retried (SA2-330). These migrations skip re-runnable statements, the self-healing
-retry and the `applyThrough` test. They still make backfills unable to abort and end with the check
-of §16.4; the production audit above is optional for them.
+**Exception: the data model v2 migrations** (tasks in [`data-model-v2.md` §17](../../docs/design/data-model-v2.md#17-task-breakdown);
+procedure in [§16](../../docs/design/data-model-v2.md#16-migration-procedure)). B01/B02 prepare the empty targets/asset before B06;
+B05/B07/B08 stage populated parent rebuilds, B13 rebuilds the entry leaf details, and B22 rebuilds the preset leaf table.
+They ship with the new UI in one release after the freeze (decided in SA2-334, released by REL / SA2-422); B03 deletes old API-dependent UI before API breaks.
+Every dev deploy replays them on a fresh production copy and runs B04's [§16.7 audit catalogue](../../docs/design/data-model-v2.md#167-audit-catalogue).
+The [§16.8 release runbook](../../docs/design/data-model-v2.md#168-final-release-runbook) records a D1 Time Travel point,
+applies migrations, audits production, then deploys Worker and new UI. Failure restores that point and is fixed on `dev`, not retried in production.
+These migrations skip re-runnable statements, self-healing retry and `applyThrough` tests. Backfill normalization and failing end checks remain mandatory;
+the general mandatory production pre-audit above is replaced by rehearsal/end checks/B04 (optional pre-audit and B23's mandatory categorized counts remain).
 
 ## The Drizzle `meta/` ledger
 

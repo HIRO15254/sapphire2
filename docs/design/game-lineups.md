@@ -1,358 +1,252 @@
-# Game Lineups and Rule Versions (target design, SA2-242 / SA2-297)
+# Game Lineups and Rule Versions
 
-This is the target model for how rule masters and sessions record **which games were played, at what stakes, under which rules**. It replaces the self-freezing labels of [`game-masters.md`](game-masters.md) phase by phase; until the cutovers land, `game-masters.md` still describes the running code for anything not yet switched. Decisions and phase scopes live in Linear (SA2-242, SA2-297 and the phase issues); this file keeps what an implementer must not lose: the model, its invariants, the ordering contracts and the migration traps.
+This document defines the final lineup and immutable rule-version model and its implementation path (the game and rule tasks of the non-NLH-games project: B05, B07, B08, B11, B13 and B20). [`data-model-v2.md`](data-model-v2.md) owns the shared invariants, migration framework, audit identifiers and complete task graph; its §5 summarizes these tables. [`api-after-data-model-v2.md`](api-after-data-model-v2.md) owns procedure schemas and the MCP map.
 
-Since SA2-297 (open question Q5 of [`data-model-v2.md`](data-model-v2.md), decided 2026-10-06), stakes and every other rule field belong to **immutable rule versions** (`cash_rule`, `tournament_rule` and their children) instead of being copied onto each owner. A session shares its master's version until it overrides it. This turns the four stake tables of the first SA2-242 design into two and removes the session-side copies. The column definitions of the rule-version tables are in [`data-model-v2.md`](data-model-v2.md) §5.4; the two deviations from that draft are listed under [Deviations from data-model-v2.md](#deviations-from-data-model-v2md).
+Production remains on its current release until data model v2 and the new UI ship together. Each API task implements its final contract and removes the replaced contract in the same PR. There are no compatibility aliases, label-based rule inputs, parallel representations or intermediate public API generations. All screen requirements belong to the UI v3 phases (U01–U12) outside this project.
 
-## Status
+## Purpose and final shape
 
-The phases are the P4 series of data model v2 (T27–T31). Since 2026-10-08 (SA2-330), L1 and L2 are cutovers: each PR backfills its rows and switches every read and write of them to rule versions in one deploy ([`data-model-v2.md`](data-model-v2.md) §16.1). Nothing is dual-written.
-
-| Phase | Issue | What lands | Release constraint | State |
-|---|---|---|---|---|
-| L0 | SA2-243 | `archived_at` on `game_variant` / `game_mix`; archive / restore replaces delete | no later than L1 | Planned |
-| L1 (T27) | SA2-244 | Cutover of the masters: lineup tables, rule-version tables and `current_rule_id` on `ring_game` / `tournament`; the master backfill and its [checks](#checks-at-the-end-of-the-cutovers); master writes and reads go through versions with today's output shape; the master rule columns, `blind_level` and `tournament_chip_purchase` are retired | after L0; record a Time Travel restore point before the release | Planned |
-| L2 (T28) | SA2-245 | Cutover of the entries: `cash_rule_id` / `tournament_rule_id` on `entry_cash` / `entry_tournament` and `price_id` on `ledger_line`; the entry backfill and its checks; entries share versions, `live*.updateSnapshot` becomes `overrideRule` without an alias, master drift is a version-id comparison, chip purchase counts come from `price_id`; the session-side rule copies are retired and the normalization of `house-rules.ts` is deleted | after L1 and after data model v2 T07 (SA2-303) and T12 (SA2-308); record a Time Travel restore point before the release | Planned |
-| L3 (T29) | SA2-246 | API, MCP and stats take and return ids: the lineup map in outputs, `game` / `stakes` inputs, id-keyed statistics. The legacy label inputs and outputs stay | after L2 | Planned |
-| L4a / L4b / L4c (T30) | SA2-247 / SA2-248 / SA2-249 | Web switch: rooms / live sessions / sessions, games page, stats, shared helpers | the same release as L3 or later, in any order | Planned |
-| L5 (T31) | SA2-250 | Remove the legacy label inputs and outputs and the label mechanisms, without a strict rejection | after L4a–c and SA2-229 | Planned |
-| L6 (T31) | SA2-251 | Drop the JSON-reference and 0049 compat triggers, and replace 0041's shared variant/mix label triggers with per-table ones | the same release as L5 or later, before data model v2 T35 (SA2-324) | Planned |
-
-Every PR ships on its own. The retired columns and tables are neither read nor written after their cutover, and stay in the database and in the Drizzle schema until data model v2 T35 (SA2-324) drops them with the rest of the retired schema.
-
-The session-side copies (`session_cash_detail` / `session_tournament_detail` rule fields, `session_blind_level`, `session_chip_purchase`) are retired by L2. They belong to the legacy `game_session` family, which T35 drops.
-
-## Why
-
-The session side still stores games as text, while every other structured record (blind levels, chip purchases, tags, mix compositions since 0049) is normalized:
-
-- `variant` does three jobs — a game label, a mix label or the `"mix"` sentinel — which forced a shared variant/mix label namespace, reserved labels and normalized-label comparisons in many places.
-- References are text. Renaming a master orphans history: `stats_breakdown` splits one game into two buckets and blind-slot labels fall back to SB / BB / Straddle.
-- A group's blind structure is not stored; it is inferred label → variant → `groupId`, so moving a variant to another group turns stored groups mixed (the SA2-224 frozen exemption).
-- Stakes have two homes for cash (flat columns for one game, JSON for a mix) and levels a third; the mode-switch bugs c02 / c04 come from that.
-- Nothing is queryable ("sessions where Razz was played") or FK-checked.
-
-Rules are also copied: every session copies its master's rule fields, blind levels and chip purchases, so master drift is a column-by-column comparison with normalization (`house-rules.ts`), and the first SA2-242 design needed a stake table per owner (four). Immutable rule versions make a session point at the version it played instead.
-
-## Data model today
-
-Solid lines are foreign keys; dotted lines are text copies resolved back to a master by normalized label.
-
-```mermaid
-erDiagram
-    game_group ||--o{ game_variant : "group_id"
-    game_variant ||--o{ game_mix_variant : "variant_id"
-    game_mix ||--o{ game_mix_variant : "mix_id"
-    ring_game }o..o| game_variant : "variant / mix_games labels"
-    ring_game }o..o| game_mix : "variant label"
-    ring_game |o..o{ session_cash_detail : "ring_game_id, rule fields copied"
-    tournament ||--o{ blind_level : "tournament_id"
-    tournament |o..o{ session_tournament_detail : "tournament_id, rule fields copied"
-    blind_level |o..o{ session_blind_level : "levels copied"
-    game_mix {
-        text label
-        json games "compatibility mirror of game_mix_variant"
-    }
-    ring_game {
-        text variant "game label, mix label or mix"
-        json mix_games "groups: variant labels + stakes"
-        int blind1 "flat stakes, NULL while a mix is set"
-        int blind2
-        int blind3
-        int ante
-        text ante_type
-    }
-    session_cash_detail {
-        text variant
-        json mix_games
-        int blind1
-        int blind2
-        int blind3
-        int ante
-        text ante_type
-    }
-    tournament {
-        text variant "free text, not checked"
-    }
-    session_tournament_detail {
-        text variant
-    }
-    blind_level {
-        int blind1
-        int blind2
-        int blind3
-        int ante
-        json games "per-level groups, no ante type"
-    }
-    session_blind_level {
-        int blind1
-        int blind2
-        int blind3
-        int ante
-        json games
-    }
-```
-
-## Target data model
-
-Lineups — a lineup is one immutable answer to "which games, grouped by blind structure":
-
-```mermaid
-erDiagram
-    game_group ||--o{ game_variant : "group_id"
-    game_mix ||--o{ game_mix_variant : "mix_id"
-    game_variant ||--o{ game_mix_variant : "variant_id"
-    game_mix |o--o{ game_lineup : "game_mix_id"
-    game_lineup ||--|{ game_lineup_group : "lineup_id"
-    game_group ||--o{ game_lineup_group : "game_group_id, frozen at write time"
-    game_lineup_group ||--|{ game_lineup_variant : "lineup_group_id"
-    game_variant ||--o{ game_lineup_variant : "variant_id"
-    game_variant {
-        int archived_at "new"
-    }
-    game_mix {
-        int archived_at "new"
-    }
-    game_lineup {
-        text id PK
-        text user_id FK
-        text game_mix_id FK "NULL: single game or legacy custom mix"
-        int created_at
-    }
-    game_lineup_group {
-        text id PK
-        text lineup_id FK
-        int position
-        text game_group_id FK
-        text name "NULL: automatic name"
-    }
-    game_lineup_variant {
-        text lineup_group_id FK
-        text variant_id FK
-        int position
-    }
-```
-
-Rule versions — a version is one immutable answer to "which lineup, at what stakes, under which rules". Masters point at their current version; entries point at the version they played:
-
-```mermaid
-erDiagram
-    ring_game ||--o{ cash_rule : "ring_game_id: versions"
-    ring_game |o--o| cash_rule : "current_rule_id"
-    cash_rule |o--o{ cash_rule : "parent_rule_id"
-    game_lineup ||--o{ cash_rule : "lineup_id"
-    cash_rule ||--|{ cash_rule_stake : "rule_id + lineup_id"
-    game_lineup_group ||--o{ cash_rule_stake : "lineup_id + lineup_group_id"
-    entry_cash }o--|| cash_rule : "cash_rule_id"
-    tournament ||--o{ tournament_rule : "tournament_id: versions"
-    tournament |o--o| tournament_rule : "current_rule_id"
-    game_lineup ||--o{ tournament_rule : "lineup_id: default"
-    tournament_rule ||--o{ tournament_rule_level : "rule_id + lineup_id"
-    game_lineup ||--o{ tournament_rule_level : "lineup_id: effective"
-    tournament_rule_level ||--o{ tournament_rule_level_stake : "level_id + lineup_id"
-    tournament_rule ||--o{ tournament_rule_price : "rule_id"
-    entry_tournament }o--|| tournament_rule : "tournament_rule_id"
-    ledger_line }o--o| tournament_rule_price : "price_id"
-    cash_rule_stake {
-        text rule_id PK
-        text lineup_group_id PK
-        text lineup_id FK
-        int blind1
-        int blind2
-        int blind3
-        int ante
-        text ante_type
-    }
-    tournament_rule_level {
-        text lineup_id FK "the effective lineup"
-        int inherits_lineup "true: follows the version default"
-    }
-```
-
-`tournament_rule_level_stake` has the same columns as `cash_rule_stake` with `level_id` as its owner key. The scalar rule fields (`min_buy_in`, `max_buy_in`, `table_size`, `house_rules` on `cash_rule`; `starting_stack`, `table_size`, `bounty_amount`, `house_rules` on `tournament_rule`) move off the masters into the version. Buy-ins, re-entries and chip purchases become `tournament_rule_price` rows (`kind` = entry / reentry / chip_purchase, with the paying asset), so a tournament that accepts cash or a ticket has two entry prices. `ring_game.currency_id` stays as the master's default asset.
-
-Example — a HORSE ring game, a stake raise, and a live session with a one-off rule:
+A **lineup** answers which games are played, grouped by blind structure. A **rule version** adds stakes, scalar rules and, for a tournament, levels and prices. An entry shares its master's immutable version until it overrides it. Editing a master advances its current version without changing any historical entry.
 
 ```text
-game_lineup        L1  game_mix_id = HORSE
-game_lineup_group  G1  L1, position 0, game_group = Limit, games [LHE, O8]
-game_lineup_group  G2  L1, position 1, game_group = Stud,  games [Razz, Stud, Stud8]
-cash_rule          R1  ring_game = HORSE, lineup L1, buy-in 4,000-20,000
-cash_rule_stake    (R1, L1, G1) 100 / 200
-cash_rule_stake    (R1, L1, G2) 100 / 200 / bring-in 25, ante 25 (all)
-ring_game          current_rule_id = R1
-entry_cash         cash_rule_id = R1           (a session at the game shares the version)
-
-the room raises the stakes
-cash_rule          R2  ring_game = HORSE, parent R1, lineup L1 (same composition, reused)
-cash_rule_stake    (R2, L1, G1) 200 / 400, (R2, L1, G2) 200 / 400 / bring-in 50, ante 50
-ring_game          current_rule_id = R2        (sessions on R1 keep R1)
-
-a live session plays one evening at a different buy-in cap
-cash_rule          R3  ring_game = HORSE, parent R2, lineup L1, buy-in 4,000-40,000
-entry_cash         cash_rule_id = R3           (the master stays on R2; drift = R3 <> R2)
+game_mix ── game_lineup ── game_lineup_group ── game_lineup_variant ── game_variant
+                              │ game_group_id (structure frozen when written)
+ring_game ── current_rule_id → cash_rule ── cash_rule_stake
+                                  ↑ entry_cash.cash_rule_id
+tournament ─ current_rule_id → tournament_rule ── tournament_rule_price
+                                  │                     ↑ ledger_line.price_id
+                                  └─ tournament_rule_level ── tournament_rule_level_stake
+                                  ↑ entry_tournament.tournament_rule_id
 ```
 
-| Today | Target |
-|---|---|
-| `variant` holding a game label | a one-group, one-game lineup |
-| `variant` holding a mix label | `game_lineup.game_mix_id` |
-| `variant = "mix"` | a lineup without `game_mix_id` |
-| `mix_games[].variants`, level `games` | `game_lineup_group` + `game_lineup_variant` |
-| a level without `games` | `inherits_lineup = true`, `lineup_id` = the version default |
-| flat `blind1-3 / ante / ante_type`, stakes inside `mix_games` / `games` | `cash_rule_stake` / `tournament_rule_level_stake` |
-| rule fields on `ring_game` / `tournament` | columns of the master's current version |
-| rule fields copied onto session detail rows, `session_blind_level`, `session_chip_purchase` | the entry's `cash_rule_id` / `tournament_rule_id` (the shared version, or a child version for an override) |
-| `blind_level`, `tournament_chip_purchase` | `tournament_rule_level`, `tournament_rule_price` |
-| (not stored) | `game_lineup_group.game_group_id` |
+Names resolve through ids, including archived rows. A rename changes the displayed name, not the historical composition or the statistics bucket. Moving a variant to another game group does not change the structure stored on existing lineup groups.
 
-## Deviations from data-model-v2.md
+## Tables and database constraints
 
-Recorded in SA2-297 and applied to [`data-model-v2.md`](data-model-v2.md):
+B01 creates all nine lineup/rule tables with their final DDL **before B06 backfills any v2 rows**. It also creates the rule and price reference columns on the still-empty entry and ledger tables with full composite FKs. B13 fills those columns; it does not add them.
 
-1. **`tournament_rule_level.lineup_id` is NOT NULL and holds the effective lineup**, with `inherits_lineup` recording that the level follows the version default — SA2-242 decision 2, kept. The data-model-v2 draft had "NULL inherits", which would leave level stakes outside the composite FK below (a NULL FK column is not checked). The API still says `game: null` for an inheriting level.
-2. **L2 adds `ledger_line.price_id`** (moved from L1 on 2026-10-08), so L2 waits for data model v2 T12 (SA2-308), the cutover that fills `ledger_line`. L2 fills the column for the chip purchase lines T12 created, and every chip purchase line written after it carries the column.
-3. **A version's reference to its master is ON DELETE CASCADE**, not NO ACTION: `(ring_game_id, user_id) → ring_game` on `cash_rule` and `(tournament_id, user_id) → tournament` on `tournament_rule`. Every master has a current version from L1 on, so NO ACTION from its own versions would make every `ringGame.delete` / `tournament.delete` fail, and every `room.delete` too, since it cascades to the room's ring games and tournaments, even when no entry uses the master. A master's versions belong to its aggregate (CASCADE inside an aggregate, data-model-v2 §5.1), and INV-22 still holds in the database through the entries' NO ACTION references ([Masters: archive instead of delete](#masters-archive-instead-of-delete)).
+Unless stated otherwise, every row carries `user_id NOT NULL`; id-bearing rows use `id TEXT PRIMARY KEY`, `created_at`, and `UNIQUE (id, user_id)`. References to owned entities include `user_id`. User deletion cascades; children of an aggregate cascade from their parent. References across aggregates use NO ACTION, never RESTRICT or SET NULL. Declare each parent's referenced UNIQUE key before creating its children. Register the tables in `packages/db/src/schema.ts` and keep the Drizzle schema and migration metadata aligned.
 
-## Constraints
+### Lineups
 
-- **Ownership composites**, as `game_mix_variant` does it: the lineup and rule-version tables carry `user_id`, and references into masters and versions are composite FKs — `(variant_id, user_id) → game_variant(id, user_id)`, `(game_mix_id, user_id) → game_mix(id, user_id)`, `(game_group_id, user_id) → game_group(id, user_id)` (the last needs a new UNIQUE index on `game_group(id, user_id)`), `(ring_game_id, user_id) → ring_game(id, user_id)` and `(tournament_id, user_id) → tournament(id, user_id)` (data model v2 T02 adds those UNIQUE indexes), `(lineup_id, user_id) → game_lineup(id, user_id)`, `(parent_rule_id, user_id)` into the same table.
-- **A stake can only point at a group of its version's lineup, in the database.** Every stake row stores `lineup_id`, with FKs `(lineup_id, lineup_group_id) → game_lineup_group(lineup_id, id)` and `(rule_id, lineup_id) → cash_rule(id, lineup_id)` ON DELETE CASCADE (levels: `(level_id, lineup_id) → tournament_rule_level(id, lineup_id)`), backed by UNIQUE indexes on `(id, lineup_id)`; the ownership FK `(rule_id, user_id)` (`(level_id, user_id)`) stays alongside. Versions are immutable, so no write swaps a lineup under existing stakes any more; the FK rejects a version assembled with stakes from another lineup, which is the c02 / c04 bug class.
-- **An inheriting level stores its version's default lineup.** When `inherits_lineup` is true, `tournament_rule_level.lineup_id` equals `tournament_rule.lineup_id`. A CHECK cannot read the parent row, so the API writes it and the checks at the end of L1 and L2 count violations.
-- **Composite FKs live only on new tables.** SQLite needs a table rebuild to add a table-level FK. The rule-version tables are new and get full composites; the five columns added to existing tables (`ring_game.current_rule_id`, `tournament.current_rule_id`, `entry_cash.cash_rule_id`, `entry_tournament.tournament_rule_id`, `ledger_line.price_id`) are single-column FKs added with `ADD COLUMN … REFERENCES`, guarded by `validateEntityOwnership` on write and by audit A-7 ([`data-model-v2.md`](data-model-v2.md) §5.3, INV-02). `schema-migrations.test.ts` reads only tables registered in `packages/db/src/schema.ts` and compares FKs column by column, so the rejection cases need their own D1 integration tests.
-- **NO ACTION, never RESTRICT**, for every reference into lineups, versions and masters, except a version's reference to its own master, which is CASCADE ([deviation 3](#deviations-from-data-model-v2md)). RESTRICT fires immediately, in the middle of the cascade that deleting a user row starts (the lineups can go before the versions that point at them); NO ACTION is checked at the end of the statement, when the whole account is gone.
+| Table | Columns and keys | References |
+| --- | --- | --- |
+| `game_lineup` | `id`, `user_id`, nullable `game_mix_id`, `created_at` | `(game_mix_id, user_id) → game_mix(id, user_id)` NO ACTION |
+| `game_lineup_group` | `id`, `user_id`, `lineup_id`, `position`, `game_group_id`, nullable `name`; UNIQUE `(lineup_id, position)`, `(lineup_id, id)`, `(id, user_id)` | `(lineup_id, user_id) → game_lineup` CASCADE; `(game_group_id, user_id) → game_group` NO ACTION |
+| `game_lineup_variant` | `user_id`, `lineup_id`, `lineup_group_id`, `variant_id`, `position`; PK `(lineup_group_id, variant_id)`, UNIQUE `(lineup_group_id, position)`, `(lineup_id, variant_id)` | `(lineup_group_id, user_id) → game_lineup_group` CASCADE; `(lineup_id, lineup_group_id) → game_lineup_group(lineup_id, id)` CASCADE; `(variant_id, user_id) → game_variant` NO ACTION |
 
-## Invariants
+Positions are nonnegative integers. `lineup_id` on the variant junction makes “a variant occurs at most once in a lineup” an enforceable UNIQUE constraint, not a cross-group API convention. `game_group(id, user_id)` must have a UNIQUE key before these references exist.
 
-1. **Lineups are immutable.** Nothing updates `game_lineup`, `game_lineup_group` or `game_lineup_variant`. Editing a composition produces a new lineup.
-2. **Rule versions are immutable** (INV-16). Nothing updates `cash_rule`, `tournament_rule` or their children. Editing a master inserts a version whose `parent_rule_id` is the previous current one and re-points `current_rule_id`; entries keep the version they played — freezing by immutability instead of by copy.
-3. **One blind structure per group, checked only for games being added.** A new group takes `game_group_id` from its variants' current `groupId`, and all of them must agree. Stored lineups are never re-validated, so no frozen exemption exists; a variant that later moves to another group leaves past groups on their stored structure.
-4. **A game appears at most once per lineup.**
-5. **Exactly one stake row per version (or level) and group of its lineup**, values nullable; break levels have none. That makes coverage auditable. There are no hidden stakes: P4b's "a level with games keeps its own blinds hidden for Use session game" is form-only state and is not persisted (user decision, 2026-09-25).
-6. **Every master has a current version** once L1 has run, **and every entry linked to a master or carrying rules has a version** once L2 has run.
-7. **A version belongs to its referrers' owner** (INV-17): a master or entry points only at versions of the same user, and a version with `ring_game_id` / `tournament_id` set is a version of that master.
-8. **Archived masters are never offered for a new pick and always resolve for an existing lineup.** A pick is new when the resulting composition differs from both the entry's current version and its linked master's; echoing `{ lineupId }` is how a record keeps an archived game.
-9. **A master's versions stay with that master.** A child version takes its parent's `ring_game_id` / `tournament_id`, and a master's `current_rule_id` points only at one of its own versions. Outside the master, then, only entries and their ledger lines reference its versions, which is what lets deleting a master cascade to them ([Masters](#masters-archive-instead-of-delete)); a reference from another master or another master's version would turn that delete into a raw FK error.
+A lineup has at least one group and each group at least one variant (API validation plus the structural audits of data-model-v2.md §16). A newly assembled group contains variants whose current group matches `game_group_id`; existing compositions are not revalidated against later variant moves. There is no frozen-label exemption.
 
-## Writes
+Built-in structures define these blind fields and required flags (`blind1Required`, `blind2Required`, `blind3Required`):
 
-### Game input
+| Structure | blind1 | blind2 | blind3 |
+| --- | --- | --- | --- |
+| Limit | Small Bet — Must | Big Bet — Must | No label — Optional |
+| Stud | Small Bet — Must | Big Bet — Must | Bring-in — Optional |
+| Big Bet | SB — Must | BB — Must | No label — Optional |
 
-`game` is one of `{ variantId }`, `{ gameMixId }` or `{ lineupId }` (and `null` on a level: follow the version default). `stakes` lists one entry per group of the resulting lineup, in group order, and **each entry names its `gameGroupId`**; the server rejects a mismatch instead of attaching stakes to the wrong structure. Omitted `stakes` carry over (below).
+Big Bet has only SB and BB; there is no Straddle field. User-created structures default all three flags to false (Optional). Ante is outside this requirement. B11 adds `game_group.blind{1,2,3}_required` as INTEGER NOT NULL DEFAULT 0, sets the built-in flags, and clears the built-in Big Bet Straddle label. Its migration aborts if any Big Bet stake has a blind3 value. Production had no such value on 2026-10-17 (26 ring games, 175 cash sessions, 142 tournament sessions and 380 master levels checked). B11 is ordered only after B08, so it may run before B07 writes ring-game master stakes and before B13 writes entry stakes. B13 runs after B07 and B08, so its end check repeats the condition over every Big Bet stake row: cash and tournament, master and entry versions. A straddle entered in production before the release therefore fails the next dev-deploy rehearsal of B11 or B13, before the release can start.
 
-- `variantId` → one group holding that variant; `game_group_id` = the variant's `groupId`; no `game_mix_id`.
-- `gameMixId` → the mix's games bucketed by their current `groupId`, groups ordered by the **first appearance** of each game group in the mix's own game order (stable under renames and reproducible in SQL, unlike the label sort of `compareBuiltinFirst`); `game_mix_id` set.
-- `lineupId` → used as is; this is how an unchanged selection (including a legacy custom mix, which may hold two groups of one structure) round-trips.
+Only a labeled field may be Required (BAD_REQUEST otherwise). B07 and B08 share one stake-write validator (whichever lands first creates it; B13 also uses it). B11 extends it, so every rule write that lands after B11, including B07's, enforces the flags. It rejects a newly written stake with a NULL required blind or a value in an unlabeled field with BAD_REQUEST, using the lineup group's stored `game_group_id`. Reusing an existing version does not revalidate its stakes. Clearing a label while saved stakes still contain a value in that field returns CONFLICT.
 
-Every id is ownership-checked with the uniform FORBIDDEN of [`api-security.md`](../../.claude/rules/api-security.md) (`gameLineup`, `cashRule`, `tournamentRule` and `tournamentRulePrice` branches of `validateEntityOwnership`; bulk ids through one chunked `IN` plus a count). Omitting `game` on create keeps today's inheritance: from the linked ring game or tournament if there is one, otherwise the user's builtin `nlh` variant.
+### Cash versions
 
-### Reuse before insert
+`cash_rule` contains nullable `ring_game_id`, nullable `parent_rule_id`, required `lineup_id`, nullable `min_buy_in`, `max_buy_in`, `table_size`, and `house_rules`, besides the common columns.
 
-- A composition's signature is `game_mix_id` plus its ordered groups of `(game_group_id, ordered variant ids)`. Before inserting a lineup, a write reuses one with the same signature from the request itself, the entry's current version or the linked master's current version. There is no global deduplication; unreferenced lineups are harmless and are not collected.
-- A version's signature is its lineup id, its scalar rule fields, its stakes, and for tournaments its levels (with their effective lineups and stakes) and prices. A write whose resulting signature equals the current version's reuses that version instead of inserting one, so re-saving an unchanged form never churns versions.
+- `(ring_game_id, user_id) → ring_game(id, user_id)` CASCADE. A NULL master is valid only for an unlinked rule.
+- `(lineup_id, user_id) → game_lineup(id, user_id)` NO ACTION.
+- `(parent_rule_id, user_id) → cash_rule(id, user_id)` NO ACTION and `(parent_rule_id, ring_game_id) → cash_rule(id, ring_game_id)` NO ACTION. The second FK prevents a child belonging to another non-NULL master (G1); the API also validates NULL-master cases, which SQLite's nullable composites cannot compare.
+- UNIQUE `(id, ring_game_id)` and `(id, lineup_id)`, in addition to `(id, user_id)`.
+- CHECK: buy-in bounds are nonnegative and `min_buy_in <= max_buy_in` when both exist; table size is 2–10. Text validation limits are owned by the API reference §2, not destructive DDL gates.
 
-### Order inside one batch
+`cash_rule_stake` has PK `(rule_id, lineup_group_id)` and columns `user_id`, `lineup_id`, nullable `blind1`, `blind2`, `blind3`, `ante`, `ante_type`.
 
-- **Insert new lineup rows → insert the version → insert its stakes, levels, level stakes and prices → re-point the master's `current_rule_id` and/or the entry's rule id.** Nothing in the lineup or rule tables is updated or deleted. A master or entry cannot point at a version that does not exist yet.
-- **Changing a version's default lineup carries the inheriting levels along**: in the new version, inheriting levels point at the new lineup and their stakes carry over from the previous version matched by `(game_group_id, ordinal among groups of that game group)` — never by position, since a new group order (Stud + Big Bet → 8-Game) would otherwise move Stud blinds onto Limit. Unmatched new groups start with empty values. `tournament.update`, which changes the default without sending levels, is one of these writes.
-- Every rule write is one `db.batch()`, including the ones that are single statements today (ring game create / update, `blindLevel.create` / `update`, `liveCashGameSession.update` / `updateSnapshot`). `blindLevel.*` edits of one level produce a new version of the whole tournament rule.
-- Inserts are chunked with the width taken from the table's declared columns, not a literal ([`data-integrity.md`](data-integrity.md)). Level counts get an input maximum, since `levels × groups` stake rows grow unbounded otherwise.
+- `(rule_id, user_id) → cash_rule` CASCADE and `(rule_id, lineup_id) → cash_rule(id, lineup_id)` CASCADE.
+- `(lineup_group_id, user_id) → game_lineup_group` NO ACTION and `(lineup_id, lineup_group_id) → game_lineup_group(lineup_id, id)` NO ACTION.
+- All amounts are nonnegative integers; `ante_type` is NULL or `none | all | bb`. It is explicit, never inferred from the amount.
 
-### Entries share versions
+Exactly one stake row exists for every group of the version's lineup, even if every amount is NULL. The FKs prevent stakes from being attached to another lineup; API validation and a coverage audit prevent missing rows.
 
-- An entry created from a master takes `rule_id = master.current_rule_id`. Nothing is copied: the copy paths (`resolveCashRuleSnapshot`, including the room-less ring game that `session.create` auto-creates, and `buildTournamentStructureStatements`) are replaced by sharing the id.
-- An entry without a master that has rules gets a parentless version of its own.
-- Changing rules inside a session (`live*.updateSnapshot`, renamed `overrideRule` at L2) inserts a child version whose parent is the entry's current version and re-points only the entry. Applying the master's newer rules re-points the entry to `current_rule_id`; pushing a session's rules to the master ("Update master") re-points the master to the entry's version when it is one of the master's, and otherwise inserts an equal version under the master (parent = its current one) and re-points both (invariant 9).
-- Master drift (SA2-225) is `entry.rule_id <> master.current_rule_id`. What differs is a comparison of two immutable versions — exact, with no normalization; the per-column comparison and the normalization of `house-rules.ts` go away at L2.
+### Tournament versions, levels and prices
 
-## Reads
+`tournament_rule` has nullable `tournament_id`, nullable `parent_rule_id`, required default `lineup_id`, nullable `starting_stack`, `table_size`, `bounty_amount`, and `house_rules`.
 
-- L1 assembles the masters' outputs and L2 the entries' outputs from versions, in today's shape. From L3 the outputs also carry ids; new outputs are additive.
-- Outputs return each lineup once, in a map keyed by id, with `gameMixId`, a display name and the groups in position order (`gameGroupId`, `name`, variants as `{ id, label, shortLabel }`). Versions reference it and carry their stakes.
-- A level returns what it stores — `game: null` while it inherits — separately from its effective lineup id, so a read-modify-write never turns an inheriting level into an override.
-- Names resolve live from the masters, archived rows included, through user-scoped joins: a rename shows everywhere, a composition change never reaches history. The display name is the mix's label when `game_mix_id` is set, the variant's label for a one-group, one-game lineup, and the groups' short labels otherwise.
-- Unnamed groups (`name` NULL) are named after their game group at read time, numbered when a lineup has several groups of one structure.
-- Hydration is batched and owner-scoped like `hydrateOwnedGameMixes` in [`services/game-mix.ts`](../../packages/api/src/services/game-mix.ts).
-- Chip purchase counts are the ledger lines that carry the purchase's `price_id` ([`data-model-v2.md`](data-model-v2.md) §12), not a stored count.
+Its owner, lineup and parent references follow `cash_rule`: the master reference cascades; parent/lineup references use NO ACTION. Declare UNIQUE `(id, tournament_id)`, `(id, lineup_id)` and `(id, user_id)`. Parent references include both `(parent_rule_id, user_id)` and `(parent_rule_id, tournament_id)`. Stack and bounty are nonnegative; table size is 2–10. Text validation limits are owned by the API reference §2.
 
-## Masters: archive instead of delete
+`tournament_rule_level` contains `id`, `user_id`, `rule_id`, `ordinal` (starting at 1), nullable displayed `level`, `is_break` (0/1), nullable `minutes` (at least 1), required effective `lineup_id`, `inherits_lineup` (0/1), and nullable `inherited_lineup_id`.
 
-Once lineups reference masters by id, a used variant or mix can no longer be deleted, so deletion is replaced (user decision, 2026-09-25):
+- `(rule_id, user_id) → tournament_rule` CASCADE; `(lineup_id, user_id) → game_lineup` NO ACTION.
+- UNIQUE `(rule_id, ordinal)`, `(id, lineup_id)` and `(id, user_id)`.
+- G2 is enforced by a **mirror column**, not by an API-only comparison:
 
-- `game_variant` and `game_mix` gain `archived_at`; `delete` becomes `archive` / `restore`, and hard delete is removed. MCP exposes both, like `ring_game_archive` / `restore`.
-- The master lists keep returning archived rows, flagged. The lists are small, and until the web switch the client resolves stored labels through them — hiding archived rows would re-label history exactly as a delete does today. Pickers and presets filter them out.
-- Labels stay unique across archived rows; a conflicting create points the user at restore.
-- A variant used by a non-archived mix cannot be archived (the guard today's delete has).
-- `game_group` keeps hard delete. Its in-use guard counts variants (archived ones keep their group, so history keeps its slot labels) and lineup groups.
-- A ring game or tournament that an entry links, or one of whose versions an entry uses, cannot be deleted (data model v2 INV-22); it is archived instead. One that no entry uses can still be deleted, by the same single DELETE as today: [deviation 3](#deviations-from-data-model-v2md) cascades its versions and their stakes, levels and prices in the same statement, and the master's `current_rule_id` and the versions' `parent_rule_id` point only among the deleted rows (invariant 9), so their NO ACTION does not fire. The API check before the delete counts both kinds of entry reference and returns CONFLICT; the entries' NO ACTION FKs (`entry_cash.cash_rule_id`, `entry_tournament.tournament_rule_id`, `ledger_line.price_id`) back it. `room.delete` cascades to its masters, so its check counts the same references for every master in the room. L2's D1 integration tests cover both outcomes for each of the three deletes.
+  ```sql
+  CHECK (
+    (inherits_lineup = 1 AND inherited_lineup_id IS NOT NULL
+      AND inherited_lineup_id = lineup_id)
+    OR (inherits_lineup = 0 AND inherited_lineup_id IS NULL)
+  )
+  FOREIGN KEY (rule_id, inherited_lineup_id)
+    REFERENCES tournament_rule(id, lineup_id) ON DELETE CASCADE
+  ```
 
-## Statistics
+  An inheriting level therefore cannot store a lineup different from its version's default. An overriding level keeps its effective lineup but has no inheritance mirror. API `game: null` expresses inheritance; it never makes the persisted effective `lineup_id` NULL.
 
-- The `variant` breakdown is keyed by id, in this precedence: `game_mix_id` set → `mix:<id>`; exactly one group with exactly one variant → `variant:<id>`; anything else → one "Custom mix" bucket (legacy custom mixes, copies of them, and the rooms per-level toggle until L4a removes it). Labels are the masters' current names, so future renames no longer split buckets; splits already stored under old labels stay split, because those rows resolve to placeholder masters. Tournaments use the default lineup of the entry's version, not the levels'.
-- BB normalization, the P/L series' big blind, the session list's BB display and the `stakes` axis read the stake row when the lineup has **exactly one group**, through one aggregate join. That gives single-structure mixes (NLH / PLO) a big blind, an intended change (user decision, 2026-09-25); multi-group lineups keep having none and leave the `"0/0"` stakes bucket for a labelled one. [`statistics.md`](statistics.md) is updated when this lands.
-- **Phasing**: L2 retires the session-side columns these readers use today, so from L2 they read versions while keeping today's shape: the breakdown is keyed by the lineup's display name, and the big blind comes from the stake row only for a lineup of one group with one variant, the case the flat columns covered. L3 switches the keys to ids and gives every one-group lineup its big blind.
+`tournament_rule_level_stake` has PK `(level_id, lineup_group_id)` and otherwise the cash stake shape. Its owner FKs are `(level_id, user_id) → tournament_rule_level` CASCADE and `(level_id, lineup_id) → tournament_rule_level(id, lineup_id)` CASCADE; its lineup-group references match the cash table. A non-break level has exactly one row per effective lineup group; a break has none. Tournament ante type is per **level × group**, with legacy missing values remaining NULL.
 
-## MCP
+`tournament_rule_price` contains `id`, `user_id`, `rule_id`, `kind`, `asset_id`, `amount`, `fee`, nullable `chips`, `label`, and `ordinal`.
 
-Inputs take ids from `game_variant_list` / `game_mix_list`, the list-then-id pattern the tools already use for rooms, currencies and tags. `MIX_RULE` and `LEVEL_GAMES_RULE` collapse into one short rule: a game is a variant id, a mix id or a lineup id from a read, and each `stakes` entry names the game group it is for. `ringGame.update` and `tournament.updateWithLevels` keep their tool schemas while they create a version and re-point the master ([`data-model-v2.md`](data-model-v2.md) §14.2). `coupling.test.ts` pins the tools that carry `mixGames` and `blindLevels`, so those checks move with the keys and gain one for `stakes` ([`mcp-tools.md`](../../.claude/rules/mcp-tools.md) rules 1 and 7). The new `game` / `stakes` inputs join the live-session restricted field lists of `session.update`.
+- `kind` is `entry | reentry | addon` (U7). Old `chip_purchase` is not a final price kind.
+- `asset_id` is NOT NULL: `(asset_id, user_id) → asset(id, user_id)` NO ACTION. There is no implicit “entry's currency” fallback.
+- `(rule_id, user_id) → tournament_rule(id, user_id)` CASCADE; UNIQUE `(rule_id, ordinal)` and `(id, user_id)`.
+- `amount` and `fee` are nonnegative integers in the paying asset's smallest unit; fee defaults to 0. `chips` is NULL or nonnegative. Label validation and omission semantics are owned by the API reference §2.
+- A cash price and a ticket price are separate rows, even when both are `kind: entry`. Prices are written only as part of a whole tournament version.
 
-## Migration
+The API reference §2 owns price inputs and generated-id semantics; clients do not assign price ids. `ledger_line.price_id` references `(id, user_id)` of this table with NO ACTION. Counts of purchases come from payment lines carrying a price id, not a stored count. Changing a rule does not rewrite prices on historical payment lines: those may keep the previous immutable version's price ids, while new payments select prices from the entry's current version. An addon price produces the canonical `chip_purchase` ledger role (and a fee line when needed); price kinds and ledger roles are distinct enums. Manual payments may omit priceId.
 
-### Cutovers instead of dual writes
+### Master and entry reference columns
 
-L1 and L2 each backfill their rows and switch every read and write of them to versions in the same PR, so after the deploy no Worker writes legacy-only rows. The earlier design reached the same point by dual-writing first and backfilling a release later; that is no longer needed with one production user and D1 Time Travel ([`data-model-v2.md`](data-model-v2.md) §16). Two consequences remain:
+B07 rebuilds `ring_game`; B08 separately rebuilds `tournament`. Each final master has `current_rule_id NOT NULL` and nullable `default_asset_id`:
 
-- Deriving lineups and versions inside SQL triggers — what 0049 did for `game_mix_variant` — stays out of reach (label resolution, placeholders, JSON groups and stakes), so the backfill is hand-written SQL.
-- Production applies the migration before it deploys the new Worker, and the previous Worker writes only the legacy columns. Do not enter data while a cutover release deploys, and record the Time Travel restore point before it.
+- `(current_rule_id, user_id) → cash_rule(id, user_id)` / `tournament_rule(id, user_id)` NO ACTION. The API and A-13's master half additionally require the current version to belong to that master; B04 runs this check on every dev deploy and at release. The migration bootstrap below explains why the current reference uses ownership rather than a cyclic master-id FK.
+- `(default_asset_id, user_id) → asset(id, user_id)` NO ACTION (C2). Deleting an asset never silently clears a master's default.
+- Existing owner and room composites remain intact. Metadata such as name, memo and archive state stays on the master; every rule field moves to its current version.
 
-After L1 the API never creates placeholder masters: a new label must resolve to one of the caller's masters, and only the backfill creates placeholders.
+B01 creates `(cash_rule_id, user_id) → cash_rule` and `(cash_rule_id, ring_game_id) → cash_rule(id, ring_game_id)` on `entry_cash`, and the equivalent tournament pair on `entry_tournament`, all NO ACTION (G1). The rule-id columns are nullable only in B01's interim shape, because B06 populates details before versions exist. B13 backfills every rule id and rebuilds both leaf tables with NOT NULL; no inbound FKs require child staging. An unlinked entry still has a standalone rule. NULL-master parity requires API validation and A-14, not an ownership exception.
 
-### Table migration traps (L1, L2)
+G7 indexes include `entry_cash(cash_rule_id)`, `entry_tournament(tournament_rule_id)`, `ledger_line(price_id)`, both masters' `(current_rule_id)`, version `(ring_game_id)` / `(tournament_id)` and `(parent_rule_id)`, and child `(rule_id)` / `(level_id)` indexes where not already the leading columns of a key. Index the asset and lineup reference columns used for deletion guards and hydration too.
 
-- **Parent keys before children.** A composite FK whose parent columns have no UNIQUE index makes every DELETE on the parent fail with `foreign key mismatch` — and D1 applies a migration file statement by statement, not as one transaction, so a failure in between leaves account deletion broken. Order the SQL by hand: `game_group(id, user_id)`, then the lineup tables with their `(id, user_id)` and `(lineup_id, id)` indexes, then the rule tables with their `(id, user_id)` and `(id, lineup_id)` indexes, then the stake and price tables.
-- **The five `ADD COLUMN`s split across the cutovers**: L1 adds `current_rule_id` to `ring_game` and `tournament`, and L2 adds `entry_cash.cash_rule_id`, `entry_tournament.tournament_rule_id` and `ledger_line.price_id`.
-- **Never add a multi-column FK to an existing table.** drizzle-kit would rebuild it, and the rebuild's DROP TABLE fires cascades.
-- **Never rebuild a rule table.** D1 keeps FK enforcement on during migrations, so rebuilding `cash_rule`, `tournament_rule` or `tournament_rule_level` would cascade-delete stakes, levels and prices, and NO ACTION references from masters and entries would abort it. Add columns with `ADD COLUMN` only.
+## Immutable writes and reuse
 
-### Backfill rules (L1 for masters, L2 for entries)
+Lineups, versions, levels, stakes and prices are INSERT-only after migration. No procedure patches an existing version or deletes its children to edit a structure. Parent master deletion may cascade through its unused aggregate; account deletion must also work.
 
-- **Versions per master, shared by equal snapshots.** L1 gives each master one current version with a deterministic id (`cr:<ring_game_id>`, `tr:<tournament_id>`). In L2, an entry whose stored rule snapshot equals its master's version points at that version; an entry that differs gets a child version (`cr:e:<entry_id>` / `tr:e:<entry_id>`, parent = the master's version), and an entry without a master gets a parentless one under the same id scheme. Entries with equal snapshots under one master share the child built for the first of them, so an unchanged series of sessions does not multiply versions. "Equal" is decided once, in SQL, with the normalization `house-rules.ts` applies today.
-- **Deterministic ids**: every row id is derived from its source — lineups from the version or level id (`lu:<version id>`, `lu:<level id>`), groups from the lineup id and position, levels from the blind level (`trl:<blind_level id>`, `trl:e:<session_blind_level id>` in a child version), prices from the purchase (`trp:<tournament_chip_purchase id>`, `trp:e:<session_chip_purchase id>`) or the version (`trp:<version id>:entry`). Each backfill runs once; a failure is restored with Time Travel and released again, not re-run from the middle ([`data-model-v2.md`](data-model-v2.md) §16.3). Follow [`db-migrations.md`](../../.claude/rules/db-migrations.md), and guard **every** JSON level, not only the outer array: `json_each` raises on a non-object element even when the array is valid; keep only text labels and `trim()` them.
-- **Label resolution**: normalized label, then `builtinKey` (0039 converted only top-level `variant`, so pre-0039 keys such as `'nlh'` may remain inside JSON), then an archived placeholder so no data is lost. A variant and a mix may share a label in old data; a cash row resolves as a mix exactly when its `mix_games` is set. SQLite's `trim()` + `NOCASE` folds only spaces and ASCII, unlike the app's `trim().toLowerCase()`.
-- **Placeholders under the 0041 triggers**: those BEFORE INSERT triggers abort before `INSERT OR IGNORE` resolves anything and check variants and mixes together, so placeholder inserts filter with a `WHERE NOT EXISTS` that mirrors the trigger on both tables, collapse duplicates with `GROUP BY user_id, trim(label) COLLATE NOCASE`, and suffix a label that collides with the other table. A placeholder variant takes the group of its resolved siblings, else the user's builtin Big Bet group, else any group of the user's. A placeholder mix is inserted through `game_mix.games` (NOT NULL, checked by the 0041 reference triggers and expanded by the 0049 compat trigger) and never through junction rows in the same pass. `seedDefaultGameData` must ignore placeholder rows, or a user whose signup seed failed would never get the builtins.
-- **Mixes**: a cash `"mix"` row becomes a lineup without `game_mix_id`; a named mix label becomes `game_mix_id` with the stored composition kept, even where the master's games changed since.
-- **Tournaments store no composition**: a `"mix"` tournament (the rooms per-level scope) gets an unnamed lineup of its levels' games, grouped by game group in order of first appearance; an unresolvable tournament label gets a placeholder mix built the same way, or a placeholder variant when no level has games, so flat blinds survive. A level whose games equal the version default inherits; other level `games` become their own lineup, with `game_mix_id` when they equal a saved mix's composition.
-- **Stakes** move from `mix_games` / level `games` or from the flat columns. A level without games under a multi-group default copies its flat blinds to every group. The hidden flat blinds of levels that have games are dropped.
-- **Prices** come from the master's or snapshot's buy-in, fee and chip purchases (`kind` = entry, chip_purchase); `ledger_line.price_id` is filled for the chip purchase lines that data model v2 T12 created, matched to the entry version's chip purchase prices by their position in the stored snapshot.
-- **Groups**: stored names matching the automatic pattern ("Limit", "Big Bet 2") become NULL; a stored group whose games now span two game groups takes its first game's group.
-- **Orphans**: data model v2 T02 (SA2-296) made `ring_game.user_id` NOT NULL, so no ring game without an owner remains.
+`game` is exactly one of `{ variantId }`, `{ gameMixId }`, `{ lineupId }`; on a tournament level, `null` means inherit. Each stakes element names its `gameGroupId`, which the server checks against the resulting ordered group. Omitted stakes carry forward by `(game_group_id, ordinal among groups of that structure)`, never by absolute position.
 
-### Optional audit before L1 and L2
+- A variant produces one group with one variant.
+- A mix buckets its ordered variants by their current group, with groups ordered by the first appearance of that structure in the mix. Renames cannot reorder them.
+- A lineup id reuses the immutable composition, including legacy custom mixes with several groups of the same structure.
+- On create, omitted game inherits from the linked master or uses the user's builtin NLH when unlinked. No API manufactures an archived stand-in master.
 
-Run against production (shapes in [`db-migrations.md`](../../.claude/rules/db-migrations.md)) only for the cases whose treatment depends on the counts, and record them in the issue: malformed JSON at any level of the four JSON columns; unresolved labels, top-level and inside JSON; non-ASCII labels; labels shared by a variant and a mix; levels whose games coexist with flat blinds (the values that will be dropped); `"mix"` tournaments and mix labels without games; groups spanning two game groups; the number of entries whose snapshot differs from their master (the child versions the backfill creates).
+Reuse a lineup with the same signature (`game_mix_id`, ordered structures and ordered variant ids) from the request, current rule's whole structure, or linked master's whole structure. Do not globally deduplicate or garbage-collect lineups. Reuse an unchanged rule version only within the same master identity: its signature includes lineup, scalar fields, stakes, levels with inheritance and effective lineups, and prices. Saving unchanged content must not churn ids.
 
-### Checks at the end of the cutovers
+All referenced ids are ownership-checked with uniform FORBIDDEN, including asset, lineup, rule, level and price ids. Bulk ownership lookups are chunked, not N+1 queries. A new selection cannot introduce archived masters; reusing an existing lineup preserves archived games. A variant used by a non-archived mix cannot be archived.
 
-A NULL count alone proves nothing: missing stake rows do not show up as NULLs. L1's migration ends with these checks: no NULL `current_rule_id` on masters, exactly one stake row per master version (or level) and group, no inheriting level whose lineup differs from its version's, and the master half of audit A-13 (the values of every master's version equal the legacy columns). L2's ends with no NULL rule id on entries that have a master or rules, the same stake coverage for entry versions, audit A-7 (the five single-column FKs point only at the same user's rows), and the entry half of A-13. Each check is a statement that fails when an audit query returns rows (SQLite raises only from triggers, so insert the audit result into a NOT NULL column; [`data-model-v2.md`](data-model-v2.md) §16.4).
+A rule write is one `db.batch()`: insert lineups and their children, insert the new version, insert stakes/levels/level stakes/prices, then repoint the master and/or entry. If the default lineup changes, inheriting levels in the **new** version receive the new default and mirror; stakes carry forward by structure plus ordinal. Old versions remain untouched. Whole tournament writes replace the supplied structure atomically; levels have an explicit input maximum and inserts derive their chunk width from the declared row shape to stay under D1's 100-bind limit.
 
-### Removal traps (L5, L6, T35)
+Tournament writes obey the D1 invocation budget in data-model-v2.md §20.1 item 10: Workers Paid allows 1,000 queries per Worker invocation, including auth/session reads and each batch statement. B08 derives/enforces the levels × groups/prices maxima and records them in the API reference, with a real D1 integration test counting statements at the maximum admitted input. B20 owns live.createAndAssignTournament and its statement-count test at those maxima plus the relink cost; if that exceeds the budget, B20 sets a tighter limit on that procedure and leaves B08's maxima unchanged.
 
-- L5 removes the legacy inputs without a strict rejection. Production has one user, who reloads the installable PWA (`registerType: "prompt"`) after a release ([`data-model-v2.md`](data-model-v2.md) §14.1).
-- The retired columns and tables stay in the Drizzle schema until T35, so `schema-migrations.test.ts` needs no pending-drop allowlist. `game_mix.games` is NOT NULL without a default, so from L5 on, writes put `'[]'` in it until T35 drops it.
-- L6 drops the JSON-reference and 0049 compat triggers, then replaces 0041's cross-table variant/mix label triggers with per-table ones. It needs no safety-net backfill: after the cutovers no code writes the legacy columns. Update `migration-0041.test.ts` and re-point `preview-seed-restore.test.ts` case 1 ([`testing-and-tooling.md`](testing-and-tooling.md)).
-- T35 drops the master rule columns (SQLite drops only columns without a FK, index or CHECK; check each first), then `blind_level` and `tournament_chip_purchase` (child tables, so dropping them cascades nothing upward).
+`blindLevel` and `tournamentChipPurchase` routers are deleted in B08 (C8). There is no row-level edit facade over immutable versions. `tournament.create/update` and `createWithLevels/updateWithLevels` all use complete version bodies; the latter pair is exposed by MCP. Procedure details and omission semantics live in the API reference.
 
-## What goes away
+### Master ↔ entry operations
 
-- Columns, all dropped in data model v2 T35: on `ring_game` — `variant`, `mix_games`, `blind1-3`, `ante`, `ante_type`, `min_buy_in`, `max_buy_in`, `table_size`, `house_rules`, and on `tournament` — `variant`, `buy_in`, `entry_fee`, `starting_stack`, `bounty_amount`, `table_size`, `house_rules` (retired by L1); `game_mix.games` (written as `'[]'` from L5).
-- Tables: `blind_level` and `tournament_chip_purchase`, and the session-side copies with the legacy `game_session` family, all dropped in data model v2 T35.
-- Mechanisms: the `"mix"` sentinel (`MIX_VARIANT`, `MIX_VARIANT_LABEL`), `RESERVED_LABELS`, the shared variant/mix label namespace (the app check and 0041's cross-table triggers, replaced by per-table ones), label-normalized lookups, the SA2-224 frozen exemption, `cashMixFlatFieldClearPatch`, the rooms per-level scope toggle, the rule snapshot copy paths, and the per-column drift comparison with the normalization of `house-rules.ts`.
+B20 implements these operations on `entry` and `live`, using B13's shared version service:
 
-## Related issues
+| Procedure | Atomic effect |
+| --- | --- |
+| `overrideRule { id, rule }` | Build/reuse a child version under the entry's existing master (or an unlinked child when unlinked), with the entry's current version as parent, and repoint only the entry. No `updateSnapshot` alias. |
+| `applyMasterRule { id }` | Repoint the entry to its linked master's current version. |
+| `pushRuleToMaster { id }` | Require a linked master; point its current rule at the entry's version when already under that master. If content must be copied under the destination master, insert an equal version with that master's current rule as parent, and repoint both. |
+| `relink { id, ringGameId \| tournamentId, keepRule }` | Validate the destination's ownership and kind. With `keepRule: false`, adopt its current version. With `keepRule: true`, copy the entry's complete version under the new master (parent = new master's current version), then change the master link and rule id in the same batch. Unlinking with keepRule creates a standalone copy with `parent_rule_id` NULL; never leave a version owned by the previous master attached to a different link. |
+| `restoreRule { id, masterId: Id \| null, ruleVersionId, masterRuleVersionId? }` | Restore the entry's master link and existing version in one batch; when supplied, also restore the master's current version in that batch. Versions must belong to that master (or be standalone when masterId is NULL), otherwise BAD_REQUEST. Archived masters and versions are allowed. |
 
-- SA2-239 (retire the legacy custom mix) is absorbed: `"mix"` rows become lineups without `game_mix_id`.
-- SA2-240 (tournament ante type): stake rows carry `ante_type`, so its granularity is level × group; the remaining work is UI.
-- SA2-241 (Must / Optional blind slots): checked against `game_lineup_group.game_group_id`; only stakes being written are checked, so no frozen exemption.
-- SA2-225 (P4c master link): drift is a version-id comparison, and what changed is a comparison of two versions.
-- SA2-238 (BlindLevelBar group stakes) reads level stake rows.
-- SA2-214 (`json_valid` on JSON columns): the four game JSON columns it targets disappear in data model v2 T35.
+Drift is **version id comparison**, not normalized field comparison: for a linked entry, `ruleDrift = ruleVersionId !== currentMasterRuleId`; an unlinked entry has no master drift. Applying or pushing rules makes the ids equal. Relinking with keepRule may intentionally leave drift even when some values happen to match. Delete the copy paths and `house-rules.ts` normalization used by the old column-by-column comparison.
+
+`restoreRule` only repoints to existing versions; it creates no version and therefore restores the original ids and drift. It reverses overrideRule/applyMasterRule/pushRuleToMaster/relink; reversing createAndAssign also deletes the created master afterward. `ringGame.restoreRule` and `tournament.restoreRule` similarly repoint the master's current selection to an existing version owned by that master, without creating a version. These screen-only Undo operations are excluded from MCP.
+
+B20 rejects a live overrideRule/applyMasterRule/relink/restoreRule with BAD_REQUEST before any write if lowering tableSize would put an active table player or the self player outside the new seat range. Validate the resulting version and folded seats together, not only the supplied partial rule.
+
+## Reads, statistics and MCP
+
+Master outputs include `defaultAssetId`, `currentRuleId`, nested `ruleVersion` and a `lineups` map. Entry/live outputs expose `ruleVersionId`, `currentMasterRuleId`, `ruleDrift`, nested `ruleVersion` and the same map. There are no legacy label I/O fields or parallel flat rule fields.
+
+Hydrate each lineup once, keyed by id: `gameMixId`, display name, ordered groups (`gameGroupId`, optional stored name, ordered variants with id/label/shortLabel). Levels return inheritance (`game: null`) separately from their effective lineup. Names resolve through user-scoped joins, archived rows included. The display name is the saved mix's current label, the lone variant's label for one group/one variant, or the groups' short labels. Unnamed groups use the live game-group name and an ordinal when structures repeat. Hydration is batched.
+
+B22 owns final statistics. Variant buckets use `mix:<id>` when a saved mix is present, `variant:<id>` for one group/one variant, and one Custom mix bucket otherwise. Tournaments use their version's default lineup, not a particular level's. A lineup with exactly **one group** has a usable BB from its stake row, including single-structure mixes such as NLH/PLO; multi-group lineups have no single BB. See data-model-v2.md §12 for the formulas and population.
+
+Every API task updates `TOOL_DEFINITIONS` / `DELIBERATELY_EXCLUDED`, coupling tests and `docs/mcp.md` / `docs/mcp.ja.md` in the same PR. Tools use the exact router schemas. Game inputs follow list-then-id via `game_variant_list` / `game_mix_list`; descriptions explain the group/stakes coupling, whole tournament replacement, inherited levels, required price assets and per-level/group ante type. No master delete is exposed through MCP. The API reference owns the final tool names and exposure decisions.
+
+## Archive and deletion
+
+B05 adds archive/restore and `includeArchived` on game-master lists. Default lists exclude archived rows; existing rule hydration always resolves them. Labels remain unique among archived rows too. A conflicting create can guide the caller to restore. Delete returns CONFLICT when a variant, mix or group is referenced; group guards count both variants and stored lineup groups. Archived rows are not offered for new selections.
+
+A ring game or tournament referenced by an entry, by an entry's version, or through a historical price cannot be deleted; archive it instead. An unused master may be deleted: versions belong to its aggregate and cascade with their children. API guards prevent raw FK errors; the NO ACTION references remain the DB backstop. Room deletion must check referenced descendants as well. Account deletion succeeds because references use NO ACTION rather than RESTRICT.
+
+## Implementation path
+
+These are implementation dependencies, not separate release steps. The authoritative full graph is data-model-v2.md §18.
+
+| Task | Deliverable | Direct prerequisites |
+| --- | --- | --- |
+| B01 | Final empty lineup/rule DDL, entry rule and ledger price composites, G1/G2/G7 keys and indexes | None |
+| B02 | Final asset DDL before any v2 backfill | None |
+| B05 | API-only game-master archive/restore, guarded delete, includeArchived and MCP; rebuild game_variant with the composite group FK and expression label UNIQUE indexes; remove JSON/compatibility triggers | B03, B04 |
+| B07 | Ring-game lineup/version backfill, master rebuild and final ringGame API/MCP | B05 |
+| B08 | Tournament versions, levels, stakes and prices; master rebuild; final tournament API/MCP; delete row routers | B05 |
+| B11 | Required blind flags, built-in defaults and Straddle removal; shared new-stake validation | B08 |
+| B13 | Entry versions and ledger price mapping; NOT NULL leaf-detail rebuild; rule creation/read services and drift, without router wiring | B07, B08, B09 |
+| B20 | Entry/live rule-operation APIs, including restoreRule and live.createAndAssignRingGame/Tournament | B17 |
+
+Canceled tasks have explicit destinations: L3 / SA2-246 → B07, B08, B13, B22, B16, B17; L4a / SA2-247 → U06, L4b / SA2-248 → U08, L4c / SA2-249 → U07, plus U02's shared editors; L5 / SA2-250 → B07, B08, B13, B05, B16, B17, B25. SA2-242 is the completed design, not an additional implementation gate. B11 owns Must/Optional blind-field validation after B08; its screens are U02 (shared stakes components) and the phases that use them.
+
+## Migration choreography and traps
+
+### DDL first, then populated master rebuilds
+
+D1 keeps FKs enabled and streams migration files statement by statement. A file is **not** one transaction; `DROP TABLE` fires inbound CASCADE and SET NULL actions. Do not use `PRAGMA foreign_keys = OFF`, assume a file-wide deferral, or rely on triggers for invariants.
+
+B01 rebuilds the still-empty v2 tables with their final constraints before B06, except the explicitly interim nullable entry rule ids. B02 supplies final asset DDL in the same foundation period. Afterwards, B05 rebuilds `game_variant`, B07 rebuilds `ring_game`, B08 rebuilds `tournament`, and B13 rebuilds the two entry leaf details with NOT NULL rule ids. Master/variant rebuilds stage inbound children; B13 has none. These are not single-column ADD COLUMN exceptions. Never rebuild a rule table after it has rows: it would cascade-delete stakes/levels/prices or fail against master/entry NO ACTION references.
+
+The staging inventory below is derived from the Drizzle schema at `origin/dev` 5ddc2cf0. At implementation, enumerate inbound FKs again, including any dependencies merged meanwhile; the inventory is a required input to the migration, not a sample list.
+
+| Rebuild | Stage before DROP; preserve or detach as appropriate |
+| --- | --- |
+| B05 `game_variant` | Full `game_mix_variant` rows; `hand.variant_id` links if B10 has populated hands; any `game_lineup_variant` rows (must be empty before B07/B08); preserve variant ids/ownership/archive metadata. Existing junction FK is NO ACTION, so detach/stage its rows before DROP. |
+| B07 `ring_game` | Full legacy master rows including rules; `session_cash_detail.ring_game_id` (SET NULL), `entry_cash.ring_game_id` (NO ACTION); `cash_rule` rows (must be empty for this master backfill). Preserve ids and all metadata. |
+| B08 `tournament` | Full legacy master rows including rules; `session_tournament_detail.tournament_id` (SET NULL), `entry_tournament.tournament_id` (NO ACTION); full `blind_level`, `tournament_chip_purchase`, `tournament_tag` rows (CASCADE); `tournament_rule` rows (must be empty for this backfill). Preserve ids, sort order, tag links and all metadata. |
+
+Stage any cascading children's descendants too whenever a child itself must be removed. `session_chip_purchase_result` references `session_chip_purchase`, not `tournament_chip_purchase`, so the master rebuild does not delete that independent snapshot chain. NULL an optional NO ACTION link, or remove a staged junction row, before dropping its parent; do not delete an entry aggregate to clear a master reference. Restore links and rows after restoring parents, with named columns throughout. Keep counts for every staged table and every detached link.
+
+The new masters omit retired rule columns **in the rebuild itself**. B07 omits `variant`, `mix_games`, `blind1–3`, `ante`, `ante_type`, `min_buy_in`, `max_buy_in`, `table_size`, `house_rules`; B08 omits `variant`, `buy_in`, `entry_fee`, `starting_stack`, `bounty_amount`, `table_size`, `house_rules`. Their staged values are still the backfill source and A-13 comparison source, and are discarded only after checks.
+
+A non-NULL `current_rule_id` and the reverse rule→master FK form a bootstrap cycle. Use the ownership composite described above, without FK deferral:
+
+1. Migration: stage and detach children; insert complete versions with their nullable master id temporarily NULL; rebuild the empty final master and insert restored masters pointing at those existing versions; UPDATE the versions' master ids; restore staged children. Run A-13's master half before discarding stages.
+2. Runtime master creation: in one `db.batch()`, insert the version with NULL master id, insert the master with its required current rule id, then set the version's master id. No request can observe the intermediate state. A failure rolls back the whole batch.
+
+The final master assignment is the sole construction-time exception to INSERT-only versions, never an operation on an already published version. API validation and A-13 require same-master current ownership after construction. Neither path needs deferred FKs or triggers, and `current_rule_id` never becomes nullable.
+
+B05 creates `(group_id, user_id) → game_group(id, user_id)` NO ACTION on rebuilt variants (C11). Replace **all** label-uniqueness triggers on game_group/game_variant/game_mix with per-table expression UNIQUE indexes `(user_id, lower(trim(label)))` (C12); the separate variant/mix namespace and retirement of cross-table application checks are defined in data-model-v2.md §5.2. Drop the JSON-reference and 0049 synchronization triggers before subsequent writes rely solely on `game_mix_variant`. Write retired NOT NULL `game_mix.games` as `'[]'` until B25 removes it. Do not recreate integrity triggers after the rebuild.
+
+### Backfill rules
+
+1. **Versions per master.** B07 creates `cr:<ring_game_id>` and B08 `tr:<tournament_id>`. B13 shares the master's version for an equal stored snapshot; differing snapshots become children `cr:e:<entry_id>` / `tr:e:<entry_id>` under that same master. Equal snapshots under one master share the first deterministic child's version. Unlinked entries get parentless, NULL-master versions. Equality uses the old house-rule normalization once in the migration, never as ongoing drift logic.
+2. **Deterministic child ids.** Lineups use `lu:<version id>` / `lu:<level id>`; groups derive from lineup id and position; levels use `trl:<blind_level id>` or `trl:e:<session_blind_level id>`; prices use `trp:<tournament_chip_purchase id>`, `trp:e:<session_chip_purchase id>` or `trp:<version id>:entry`. When versions are shared, all price mappings use the shared version's actual price ids, not a guessed entry-prefixed id.
+3. **Guard every JSON level.** Validate outer arrays, nested group arrays, object elements and string labels before `json_each` or extraction. A WHERE predicate outside a table-valued JSON function does not guard malformed input. Resolve only owned rows and collapse duplicate variants before UNIQUE constraints.
+4. **Label resolution is migration-only.** Resolve normalized labels, then builtin keys (pre-0039 keys may remain inside JSON), then archived stand-ins. B05 has already removed the shared namespace triggers: insert junction rows directly, write `'[]'` to `game_mix.games`, and obey the per-table expression UNIQUE indexes. SQLite lower/trim only implement ASCII folding and space trimming; audit non-ASCII mismatches instead of silently treating application normalization as identical.
+5. **Stand-ins preserve history.** Only the SQL backfill creates them. A placeholder variant takes a resolved sibling's structure, otherwise builtin Big Bet, otherwise a deterministic existing owned group; if none exists, create the missing builtin Big Bet group first. Collapse normalized duplicates deterministically. Seed builtin data must not mistake stand-ins for its own rows; B23 removes the seed placeholder exception and reviews stand-ins with the user.
+6. **Mix composition.** Cash `"mix"` becomes an unnamed lineup without game_mix_id. A named mix retains game_mix_id but uses the saved composition, even if the master composition changed. A tournament `"mix"` derives its default from its levels in first-appearance structure order; an unresolved tournament label uses an archived mix with that composition, or a placeholder variant if no level has games.
+7. **Levels and stakes.** A level with the default composition inherits, including the G2 mirror; other compositions get their own lineup. Match a saved mix id when the composition agrees. Move group stakes from JSON, otherwise flat columns. A level without games under a multi-group default copies its flat values to every group. Drop hidden flat blinds on levels with games. Automatic group names become NULL; legacy groups spanning structures take the first game's structure. Missing legacy ante types remain NULL.
+8. **Prices and payments.** Build entry prices from buy-in/fee and addon prices from legacy chip purchases; reentry prices are supported by the final API without inventing historical rows. Resolve each price's asset from the master or entry's actual paying asset, using the migration's Unassigned asset only where the source truly has none. B13 maps B09 payment lines to the entry version's prices by stored purchase position and actual source identity. B15 takes the price id from the ledger line for the same event, not from an entry-id formula; projector replay must preserve it.
+
+Optional pre-audits record the counts that affect treatment: malformed JSON at every level, unresolved/non-ASCII labels, shared labels, duplicate variants, hidden flat values that will be dropped, tournaments without composition, groups spanning structures, and snapshots differing from masters. The backfill still has to handle each case without aborting.
+
+### End checks and regression protection
+
+Each migration ends with failing checks, not a log-only report. Use temporary NOT NULL check-table inserts to fail when a violation query returns rows; SQLite RAISE is not available outside triggers. Do not introduce invariant triggers to implement checks.
+
+- Every staged row and detached reference is accounted for; compare per-table row counts and source-id sets after restoration. Run `PRAGMA foreign_key_check` and fail on any returned row (F7).
+- B05 proves preserved variant/junction/hand references, owner-correct group links and per-table normalized label uniqueness.
+- B07/B08 prove no NULL current rule, current rule belongs to its master, complete lineup/level stake coverage, valid inheritance mirrors, and A-13's master half **against stages before those sources are removed**.
+- B13 proves equal source/target detail row counts, no NULL rule ids on any entry, same-master/standalone versions, correct payment-price mapping, complete stake coverage, foreign_key_check, A-13's entry half, and no Big Bet stake row with blind3 in any cash or tournament version, master or entry (B11's condition). A NULL-count-only check cannot detect missing stake rows.
+- B04 runs the structural audits and A-6 projector replay on every dev deploy's fresh production copy and again before release. A-7 is retired as a single-column ownership exception audit; these FKs now enforce ownership. The remaining API-only relationships have named audits in data-model-v2.md §16.
+
+Migration and API/DB integration tests must protect plausible losses: account deletion must not fail halfway through a NO ACTION cascade; cross-owner and wrong-master entry/parent links must be rejected; another-lineup stakes and a mismatched inheritance mirror must fail in SQL; staged master rebuilds must not erase entries, levels, prices or tags; ticket entry/reentry/addon prices must persist with their asset; relink keepRule must never retain the old master's version; a failed version write must leave the previous current version and children intact. Tests also cover unchanged-version reuse, stored structure surviving a variant move, drift clearing on apply/push, and projector replay retaining migrated price ids. Use real D1 for batch atomicity and API ownership behavior, not DB mocks. Update migration history/trigger tests and preview seed-restore coverage when B05 removes triggers; keep runner discovery intact.
+
+## Retired storage and cleanup
+
+B07/B08 omit the master rule columns immediately; there is no later task to remove those same columns. Legacy `blind_level`, `tournament_chip_purchase`, session detail rule copies, `session_blind_level`, `session_chip_purchase` and their results remain only as migration/audit sources until their readers have moved. B25 drops **all** remaining retired tables/columns, `game_mix.games`, the game_session anchor and fixed-value writes. No compatibility view or pending-drop escape remains.
+
+Delete obsolete mechanisms in their owning API tasks: `MIX_VARIANT`, `MIX_VARIANT_LABEL`, `RESERVED_LABELS`, label-resolution input paths, cross-table namespace checks, frozen-composition exemptions, `cashMixFlatFieldClearPatch`, rule snapshot copy paths, `updateSnapshot`, and normalized per-column drift comparisons. B22 switches statistics directly to id-based versions. B25 brings related design/rule documents to the final state and walks the SA2-334 resolution table.
+
+SA2-239's custom-mix retirement is represented by lineups without a saved mix id. SA2-214's four legacy game JSON columns disappear with the relevant master rebuild or B25; do not add replacement JSON storage. The release rehearsal and Time Travel restore procedure are defined once in data-model-v2.md §16.
