@@ -11,5 +11,5 @@ export function pendingAuthorizeUrl(): string | null {
 export function socialCallbackUrl(): string {
 	return pendingAuthorizeUrl()
 		? `${window.location.origin}/login${window.location.search}`
-		: `${window.location.origin}/statistics`;
+		: `${window.location.origin}/`;
 }

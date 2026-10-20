@@ -5,7 +5,7 @@ import { RootComponent } from "../routes/__root";
 import { AuthenticatedShell } from "../shared/components/authenticated-shell";
 
 const mocks = vi.hoisted(() => ({
-	useLocation: vi.fn(() => ({ pathname: "/statistics" })),
+	useLocation: vi.fn(() => ({ pathname: "/settings" })),
 	getSession: vi.fn(),
 	useSession: { get: vi.fn() },
 	redirect: vi.fn((input: unknown) => {
@@ -14,7 +14,6 @@ const mocks = vi.hoisted(() => ({
 		return err;
 	}),
 	isDesktop: false,
-	activeSessionId: null as string | null,
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -41,7 +40,6 @@ vi.mock(
 	() => ({
 		useAuthenticatedShell: () => ({
 			isDesktop: mocks.isDesktop,
-			activeSessionId: mocks.activeSessionId,
 		}),
 	})
 );
@@ -76,7 +74,6 @@ vi.mock("@/features/update-notes/components/update-notes-sheet", () => ({
 describe("AuthenticatedShell", () => {
 	beforeEach(() => {
 		mocks.isDesktop = false;
-		mocks.activeSessionId = null;
 	});
 
 	it("renders the authenticated navigation shell on mobile viewports", () => {
@@ -118,9 +115,8 @@ describe("RootComponent", () => {
 	beforeEach(() => {
 		mocks.getSession.mockReset();
 		mocks.redirect.mockClear();
-		mocks.useLocation.mockReturnValue({ pathname: "/statistics" });
+		mocks.useLocation.mockReturnValue({ pathname: "/settings" });
 		mocks.isDesktop = false;
-		mocks.activeSessionId = null;
 	});
 
 	it("renders the authenticated shell away from login", () => {
@@ -139,46 +135,8 @@ describe("RootComponent", () => {
 		expect(screen.getByText("Outlet Content")).toBeInTheDocument();
 	});
 
-	it.each([
-		"/active-session",
-		"/active-session/",
-	])("hides navigation during the live session while keeping offline status on %s", (pathname) => {
-		mocks.useLocation.mockReturnValue({ pathname });
-		mocks.activeSessionId = "session-1";
-		render(<RootComponent />);
-		expect(screen.queryByText("Mobile Nav")).not.toBeInTheDocument();
-		expect(screen.getByText("Online Status")).toBeInTheDocument();
-		expect(screen.getByText("Update Notes Sheet")).toBeInTheDocument();
-		expect(screen.getByText("Outlet Content")).toBeInTheDocument();
-	});
-
-	it("restores navigation when the live session finishes", () => {
-		mocks.useLocation.mockReturnValue({ pathname: "/active-session" });
-		mocks.activeSessionId = "session-1";
-		const { rerender } = render(<RootComponent />);
-		expect(screen.queryByText("Mobile Nav")).not.toBeInTheDocument();
-		mocks.activeSessionId = null;
-		rerender(<RootComponent />);
-		expect(screen.getByText("Mobile Nav")).toBeInTheDocument();
-	});
-
-	it("guards desktop access to the production cockpit", () => {
-		mocks.useLocation.mockReturnValue({ pathname: "/active-session" });
-		mocks.isDesktop = true;
-		render(<RootComponent />);
-		expect(screen.getByText("Use on your phone")).toBeInTheDocument();
-		expect(screen.queryByText("Outlet Content")).not.toBeInTheDocument();
-	});
-
-	it("does not treat similarly prefixed pages as the cockpit", () => {
-		mocks.useLocation.mockReturnValue({ pathname: "/active-sessions" });
-		mocks.activeSessionId = "session-1";
-		render(<RootComponent />);
-		expect(screen.getByText("Mobile Nav")).toBeInTheDocument();
-	});
-
 	it("renders the head content and toaster wrapper always", () => {
-		mocks.useLocation.mockReturnValue({ pathname: "/statistics" });
+		mocks.useLocation.mockReturnValue({ pathname: "/settings" });
 
 		render(<RootComponent />);
 
@@ -215,7 +173,7 @@ describe("Root route beforeLoad guard", () => {
 		const beforeLoad = (Route as unknown as RouteWithBeforeLoad).beforeLoad;
 
 		await expect(
-			beforeLoad({ location: { pathname: "/statistics" } })
+			beforeLoad({ location: { pathname: "/settings" } })
 		).rejects.toThrow("redirect");
 		expect(mocks.redirect).toHaveBeenCalledWith({ to: "/login" });
 	});
@@ -227,7 +185,7 @@ describe("Root route beforeLoad guard", () => {
 		const beforeLoad = (Route as unknown as RouteWithBeforeLoad).beforeLoad;
 
 		await expect(
-			beforeLoad({ location: { pathname: "/statistics" } })
+			beforeLoad({ location: { pathname: "/settings" } })
 		).resolves.toEqual({ session, sessionUnavailable: false });
 		expect(mocks.getSession).toHaveBeenCalledTimes(1);
 		expect(mocks.redirect).not.toHaveBeenCalled();
@@ -241,7 +199,7 @@ describe("Root route beforeLoad guard", () => {
 		const { Route } = await import("../routes/__root");
 		const beforeLoad = (Route as unknown as RouteWithBeforeLoad).beforeLoad;
 		await expect(
-			beforeLoad({ location: { pathname: "/statistics" } })
+			beforeLoad({ location: { pathname: "/settings" } })
 		).resolves.toEqual({ session: null, sessionUnavailable: true });
 		expect(mocks.redirect).not.toHaveBeenCalled();
 	});
@@ -255,7 +213,7 @@ describe("Root route beforeLoad guard", () => {
 		const { Route } = await import("../routes/__root");
 		const beforeLoad = (Route as unknown as RouteWithBeforeLoad).beforeLoad;
 		await expect(
-			beforeLoad({ location: { pathname: "/statistics" } })
+			beforeLoad({ location: { pathname: "/settings" } })
 		).rejects.toThrow("network unavailable");
 		expect(mocks.redirect).not.toHaveBeenCalled();
 	});

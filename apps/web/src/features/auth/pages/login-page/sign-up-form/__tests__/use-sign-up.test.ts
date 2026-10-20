@@ -178,7 +178,7 @@ describe("useSignUp", () => {
 		);
 	});
 
-	it("on success: navigates to /statistics and toasts success", async () => {
+	it("on success: navigates to the home page and toasts success", async () => {
 		mocks.signUpEmail.mockImplementation((_credentials, callbacks) => {
 			callbacks?.onSuccess?.();
 			return Promise.resolve();
@@ -192,7 +192,7 @@ describe("useSignUp", () => {
 		await act(async () => {
 			await result.current.form.handleSubmit();
 		});
-		expect(mocks.navigate).toHaveBeenCalledWith({ to: "/statistics" });
+		expect(mocks.navigate).toHaveBeenCalledWith({ to: "/" });
 		expect(mocks.toastSuccess).toHaveBeenCalledWith("Sign up successful");
 	});
 
@@ -261,7 +261,7 @@ describe("useSignUp", () => {
 		expect(mocks.toastError).toHaveBeenCalledWith("Conflict");
 	});
 
-	it("onSignInWithGoogle: calls social signin with google and statistics callback", async () => {
+	it("onSignInWithGoogle: calls social signin with google and home callback", async () => {
 		stubLocation({ origin: "https://app.test", search: "" });
 		mocks.signInSocial.mockResolvedValue({ error: null });
 		const { result } = renderHook(() => useSignUp());
@@ -270,7 +270,7 @@ describe("useSignUp", () => {
 		});
 		expect(mocks.signInSocial).toHaveBeenCalledWith({
 			provider: "google",
-			callbackURL: "https://app.test/statistics",
+			callbackURL: "https://app.test/",
 		});
 	});
 

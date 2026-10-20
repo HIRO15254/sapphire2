@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, registerAccount, signIn, test } from "./fixtures";
+import { API_URL, expect, registerAccount, signIn, test } from "./fixtures";
 
 async function persistedCache(page: Page) {
 	return await page.evaluate(async () => {
@@ -32,6 +32,19 @@ async function persistedCache(page: Page) {
 	});
 }
 
+async function seedViewedVersion(page: Page) {
+	const version = `e2e-${crypto.randomUUID()}`;
+	const response = await page.request.post(
+		`${API_URL}/trpc/updateNoteView.markViewed`,
+		{
+			headers: { Origin: "https://localhost:13001" },
+			data: { version },
+		}
+	);
+	expect(response.ok(), await response.text()).toBe(true);
+	return version;
+}
+
 test("clears A's persisted records before reload and B's sign in in the same browser", async ({
 	page,
 	account,
@@ -39,70 +52,35 @@ test("clears A's persisted records before reload and B's sign in in the same bro
 }) => {
 	const accountB = await registerAccount(request);
 	await signIn(page, account);
-	await page.goto("/players");
-	await page
-		.getByRole("button", { name: "New player", exact: true })
-		.first()
-		.click();
-	const form = page.getByRole("dialog", { name: "New player" });
-	await form.getByLabel("Player name").fill("Private record for account A");
-	await form.getByRole("button", { name: "Save", exact: true }).click();
-	await expect(
-		page.getByRole("link", {
-			name: "Private record for account A",
-			exact: true,
-		})
-	).toBeVisible();
-	await expect
-		.poll(() => persistedCache(page))
-		.toContain("Private record for account A");
+	const privateRecord = await seedViewedVersion(page);
+	await page.goto("/");
+	await expect(page.getByRole("heading", { name: "Home" })).toBeVisible();
+	await expect.poll(() => persistedCache(page)).toContain(privateRecord);
 
 	await page.goto("/settings");
 	await page.getByRole("button", { name: "Sign out", exact: true }).click();
 	await expect(page).toHaveURL((url) => url.pathname === "/login");
-	await expect
-		.poll(() => persistedCache(page))
-		.not.toContain("Private record for account A");
+	await expect.poll(() => persistedCache(page)).not.toContain(privateRecord);
 	await page.reload();
-	await expect
-		.poll(() => persistedCache(page))
-		.not.toContain("Private record for account A");
+	await expect.poll(() => persistedCache(page)).not.toContain(privateRecord);
 	await signIn(page, accountB);
-	await page.goto("/players");
-	await expect(page.getByText("No players yet", { exact: true })).toBeVisible();
-	await expect(
-		page.getByText("Private record for account A", { exact: true })
-	).toHaveCount(0);
-	await expect
-		.poll(() => persistedCache(page))
-		.not.toContain("Private record for account A");
+	await expect(page.getByRole("heading", { name: "Home" })).toBeVisible();
+	await expect.poll(() => persistedCache(page)).not.toContain(privateRecord);
 });
 
-test("serves the installed app shell offline and reconnects to persisted account data", async ({
+test("serves the installed app shell offline with the persisted account cache", async ({
 	page,
 	context,
 	account,
 }) => {
 	await signIn(page, account);
-	await page.goto("/players");
-	await expect(page.getByText("No players yet", { exact: true })).toBeVisible();
+	const persistedRecord = await seedViewedVersion(page);
 	await page.evaluate(async () => {
 		await navigator.serviceWorker.ready;
 	});
-	await page
-		.getByRole("button", { name: "New player", exact: true })
-		.first()
-		.click();
-	const form = page.getByRole("dialog", { name: "New player" });
-	await form.getByLabel("Player name").fill("Available offline");
-	await form.getByRole("button", { name: "Save", exact: true }).click();
-	await expect(
-		page.getByRole("link", { name: "Available offline", exact: true })
-	).toBeVisible();
-	await expect.poll(() => persistedCache(page)).toContain("Available offline");
-	await page.evaluate(async () => {
-		await navigator.serviceWorker.ready;
-	});
+	await page.goto("/");
+	await expect(page.getByRole("heading", { name: "Home" })).toBeVisible();
+	await expect.poll(() => persistedCache(page)).toContain(persistedRecord);
 	await page.reload();
 	await expect
 		.poll(() =>
@@ -111,20 +89,12 @@ test("serves the installed app shell offline and reconnects to persisted account
 		.toContain("/sw.js");
 	await context.setOffline(true);
 	await page.reload();
-	await expect(
-		page.getByRole("heading", { name: "Players", exact: true })
-	).toBeVisible();
+	await expect(page.getByRole("heading", { name: "Home" })).toBeVisible();
 	await expect(
 		page.getByText("Offline — changes will sync when back online", {
 			exact: true,
 		})
 	).toBeVisible();
-	await expect(
-		page.getByRole("link", { name: "Available offline", exact: true })
-	).toBeVisible();
+	await expect.poll(() => persistedCache(page)).toContain(persistedRecord);
 	await context.setOffline(false);
-	await page.goto("/players");
-	await expect(
-		page.getByRole("link", { name: "Available offline", exact: true })
-	).toBeVisible();
 });

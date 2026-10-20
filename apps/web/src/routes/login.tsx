@@ -15,7 +15,7 @@ export const Route = createFileRoute("/login")({
 			if (authorizeUrl) {
 				throw redirect({ href: authorizeUrl });
 			}
-			throw redirect({ to: "/statistics" });
+			throw redirect({ to: "/" });
 		}
 	},
 	component: LoginPage,

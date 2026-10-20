@@ -131,7 +131,7 @@ describe("useSignIn", () => {
 		);
 	});
 
-	it("on success: navigates to /statistics and toasts success", async () => {
+	it("on success: navigates to the home page and toasts success", async () => {
 		mocks.signInEmail.mockImplementation((_credentials, callbacks) => {
 			callbacks?.onSuccess?.();
 			return Promise.resolve();
@@ -144,7 +144,7 @@ describe("useSignIn", () => {
 		await act(async () => {
 			await result.current.form.handleSubmit();
 		});
-		expect(mocks.navigate).toHaveBeenCalledWith({ to: "/statistics" });
+		expect(mocks.navigate).toHaveBeenCalledWith({ to: "/" });
 		expect(mocks.toastSuccess).toHaveBeenCalledWith("Sign in successful");
 	});
 
@@ -211,7 +211,7 @@ describe("useSignIn", () => {
 		expect(mocks.toastError).toHaveBeenCalledWith("Unauthorized");
 	});
 
-	it("onSignInWithGoogle: calls social signin with google provider and statistics callback", async () => {
+	it("onSignInWithGoogle: calls social signin with google provider and home callback", async () => {
 		stubLocation({ origin: "https://app.test" });
 		mocks.signInSocial.mockResolvedValue({ error: null });
 
@@ -221,7 +221,7 @@ describe("useSignIn", () => {
 		});
 		expect(mocks.signInSocial).toHaveBeenCalledWith({
 			provider: "google",
-			callbackURL: "https://app.test/statistics",
+			callbackURL: "https://app.test/",
 		});
 		expect(mocks.toastError).not.toHaveBeenCalled();
 	});
@@ -307,7 +307,7 @@ describe("useSignIn", () => {
 		});
 		expect(mocks.signInPasskey).toHaveBeenCalledTimes(1);
 		expect(mocks.navigate).toHaveBeenCalledTimes(1);
-		expect(mocks.navigate).toHaveBeenNthCalledWith(1, { to: "/statistics" });
+		expect(mocks.navigate).toHaveBeenNthCalledWith(1, { to: "/" });
 		expect(mocks.toastSuccess).toHaveBeenCalledTimes(1);
 		expect(mocks.toastSuccess).toHaveBeenNthCalledWith(1, "Sign in successful");
 	});

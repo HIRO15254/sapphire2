@@ -57,7 +57,7 @@ describe("pendingAuthorizeUrl", () => {
 describe("socialCallbackUrl", () => {
 	it("returns the app entry point when no authorize request is pending", () => {
 		stubLocation({ origin: "https://app.test", search: "" });
-		expect(socialCallbackUrl()).toBe("https://app.test/statistics");
+		expect(socialCallbackUrl()).toBe("https://app.test/");
 	});
 
 	it("returns to /login with the authorize query when one is pending", () => {

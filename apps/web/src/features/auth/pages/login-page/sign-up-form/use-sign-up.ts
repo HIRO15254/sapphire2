@@ -33,7 +33,7 @@ export function useSignUp() {
 							window.location.assign(authorizeUrl);
 							return;
 						}
-						navigate({ to: "/statistics" });
+						navigate({ to: "/" });
 						toast.success("Sign up successful");
 						offerAutomaticPasskey();
 					},

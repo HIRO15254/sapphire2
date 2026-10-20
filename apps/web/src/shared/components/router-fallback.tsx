@@ -6,10 +6,10 @@ export function RouterErrorFallback() {
 		<div className="flex min-h-dvh flex-col items-center justify-center gap-4 p-6 text-center">
 			<h1 className="t-h2">Something went wrong</h1>
 			<p className="text-muted-foreground text-sm" role="alert">
-				Please try again or return to Statistics.
+				Please try again or return to Home.
 			</p>
 			<Button asChild>
-				<Link to="/statistics">Go to Statistics</Link>
+				<Link to="/">Go to Home</Link>
 			</Button>
 		</div>
 	);
@@ -20,7 +20,7 @@ export function RouterNotFoundFallback() {
 		<div className="flex min-h-dvh flex-col items-center justify-center gap-4 p-6 text-center">
 			<h1 className="t-h2">Page not found</h1>
 			<Button asChild>
-				<Link to="/statistics">Go to Statistics</Link>
+				<Link to="/">Go to Home</Link>
 			</Button>
 		</div>
 	);

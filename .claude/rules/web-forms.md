@@ -20,6 +20,6 @@ All forms in `apps/web` are built with [`@tanstack/react-form`](https://tanstack
 
 ## Reference implementations
 
-- [`use-player-form.ts`](../../apps/web/src/features/players/components/player-form/use-player-form.ts) + [`player-form.tsx`](../../apps/web/src/features/players/components/player-form/player-form.tsx).
-- [`use-session-form-state.ts`](../../apps/web/src/features/sessions/components/session-wizard/use-session-form-state.ts) + [`session-wizard.tsx`](../../apps/web/src/features/sessions/components/session-wizard/session-wizard.tsx).
+- [`use-tag-name-form.ts`](../../apps/web/src/shared/components/management/tag-name-form/use-tag-name-form.ts) + [`tag-name-form.tsx`](../../apps/web/src/shared/components/management/tag-name-form/tag-name-form.tsx).
+- [`use-add-passkey-form.ts`](../../apps/web/src/features/settings/pages/settings-page/passkeys/use-add-passkey-form.ts) + [`passkeys.tsx`](../../apps/web/src/features/settings/pages/settings-page/passkeys/passkeys.tsx).
 - [`use-sign-in.ts`](../../apps/web/src/features/auth/pages/login-page/sign-in-form/use-sign-in.ts) + [`sign-in-form.tsx`](../../apps/web/src/features/auth/pages/login-page/sign-in-form/sign-in-form.tsx).

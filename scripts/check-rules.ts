@@ -128,11 +128,9 @@ const CHECKS: Check[] = [
 		excludePath: /routeTree\.gen\.ts$/,
 	},
 	{
-		name: "Cryst screen imports a portal primitive directly — use sheets/Cryst* so the scope class is applied",
+		name: "Cryst primitive imports a portal primitive directly — use sheets/Cryst* so the scope class is applied",
 		rule: ".claude/rules/web-theme.md (Cryst migration scope: portals escape the scope)",
-		globs: [
-			"apps/web/src/features/live-sessions/pages/live-session-page/**/*.tsx",
-		],
+		globs: ["apps/web/src/shared/components/cryst/**/*.tsx"],
 		pattern:
 			/from "@\/shared\/components\/(form-sheet|ui\/(drawer|dialog|popover|select))"/,
 		excludePath: /\/sheets\//,

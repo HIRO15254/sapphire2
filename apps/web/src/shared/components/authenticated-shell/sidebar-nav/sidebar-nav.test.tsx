@@ -29,14 +29,7 @@ function createTestRouter(initialPath: string) {
 		component: () => <SidebarNav />,
 	});
 
-	const routes = [
-		"/statistics",
-		"/sessions",
-		"/rooms",
-		"/players",
-		"/currencies",
-		"/settings",
-	].map((path) =>
+	const routes = ["/", "/settings"].map((path) =>
 		createRoute({
 			component: () => <div>{path}</div>,
 			getParentRoute: () => rootRoute,
@@ -52,24 +45,23 @@ function createTestRouter(initialPath: string) {
 
 describe("SidebarNav", () => {
 	it("renders shared navigation items and footer controls", async () => {
-		const router = createTestRouter("/sessions");
+		const router = createTestRouter("/settings");
 		render(<RouterProvider router={router} />);
 
-		expect(await screen.findByText("Sessions")).toBeInTheDocument();
-		expect(screen.getByText("Statistics")).toBeInTheDocument();
-		expect(screen.getByText("Rooms")).toBeInTheDocument();
-		expect(screen.getByText("Players")).toBeInTheDocument();
-		expect(screen.getByText("Currencies")).toBeInTheDocument();
+		expect(await screen.findByText("Home")).toBeInTheDocument();
 		expect(screen.getByText("Settings")).toBeInTheDocument();
 		expect(screen.getByText("User Menu")).toBeInTheDocument();
 		expect(screen.getByText("Mode Toggle")).toBeInTheDocument();
 	});
 
 	it("announces the active item as the current page", async () => {
-		const router = createTestRouter("/rooms");
+		const router = createTestRouter("/settings");
 		render(<RouterProvider router={router} />);
 
-		const roomsLink = await screen.findByText("Rooms");
-		expect(roomsLink.closest("a")).toHaveAttribute("aria-current", "page");
+		const settingsLink = await screen.findByText("Settings");
+		expect(settingsLink.closest("a")).toHaveAttribute("aria-current", "page");
+		expect(screen.getByText("Home").closest("a")).not.toHaveAttribute(
+			"aria-current"
+		);
 	});
 });
