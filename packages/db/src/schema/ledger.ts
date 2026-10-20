@@ -17,8 +17,8 @@ import {
 	LEDGER_ROLES,
 	LEDGER_WALLET_ROLES,
 } from "../constants/ledger";
+import { asset } from "./asset";
 import { user } from "./auth";
-import { currency } from "./currency";
 import { entry, playEvent, playSession } from "./entry";
 import { oneOf } from "./sql-checks";
 
@@ -48,12 +48,12 @@ export const assetRate = sqliteTable(
 		),
 		foreignKey({
 			columns: [t.baseAssetId, t.userId],
-			foreignColumns: [currency.id, currency.userId],
+			foreignColumns: [asset.id, asset.userId],
 			name: "asset_rate_base_asset_owner_fk",
 		}).onDelete("cascade"),
 		foreignKey({
 			columns: [t.quoteAssetId, t.userId],
-			foreignColumns: [currency.id, currency.userId],
+			foreignColumns: [asset.id, asset.userId],
 			name: "asset_rate_quote_asset_owner_fk",
 		}).onDelete("cascade"),
 		check(
@@ -133,7 +133,7 @@ export const ledgerLine = sqliteTable(
 		index("ledger_line_transfer_idx").on(t.transferId),
 		foreignKey({
 			columns: [t.assetId, t.userId],
-			foreignColumns: [currency.id, currency.userId],
+			foreignColumns: [asset.id, asset.userId],
 			name: "ledger_line_asset_owner_fk",
 		}).onDelete("no action"),
 		foreignKey({
@@ -196,7 +196,7 @@ export const userSetting = sqliteTable(
 	(t) => [
 		foreignKey({
 			columns: [t.baseAssetId, t.userId],
-			foreignColumns: [currency.id, currency.userId],
+			foreignColumns: [asset.id, asset.userId],
 			name: "user_setting_base_asset_owner_fk",
 		}).onDelete("no action"),
 	]
@@ -207,13 +207,13 @@ export const assetRateRelations = relations(assetRate, ({ one }) => ({
 		fields: [assetRate.userId],
 		references: [user.id],
 	}),
-	baseAsset: one(currency, {
+	baseAsset: one(asset, {
 		fields: [assetRate.baseAssetId, assetRate.userId],
-		references: [currency.id, currency.userId],
+		references: [asset.id, asset.userId],
 	}),
-	quoteAsset: one(currency, {
+	quoteAsset: one(asset, {
 		fields: [assetRate.quoteAssetId, assetRate.userId],
-		references: [currency.id, currency.userId],
+		references: [asset.id, asset.userId],
 	}),
 }));
 
@@ -233,9 +233,9 @@ export const ledgerLineRelations = relations(ledgerLine, ({ one }) => ({
 		fields: [ledgerLine.userId],
 		references: [user.id],
 	}),
-	asset: one(currency, {
+	asset: one(asset, {
 		fields: [ledgerLine.assetId, ledgerLine.userId],
-		references: [currency.id, currency.userId],
+		references: [asset.id, asset.userId],
 	}),
 	entry: one(entry, {
 		fields: [ledgerLine.entryId, ledgerLine.userId],
@@ -260,8 +260,8 @@ export const userSettingRelations = relations(userSetting, ({ one }) => ({
 		fields: [userSetting.userId],
 		references: [user.id],
 	}),
-	baseAsset: one(currency, {
+	baseAsset: one(asset, {
 		fields: [userSetting.baseAssetId, userSetting.userId],
-		references: [currency.id, currency.userId],
+		references: [asset.id, asset.userId],
 	}),
 }));

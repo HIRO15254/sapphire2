@@ -1,3 +1,4 @@
+import { asset, assetRelations } from "./schema/asset";
 import {
 	account,
 	accountRelations,
@@ -8,8 +9,6 @@ import {
 	verification,
 } from "./schema/auth";
 import {
-	currency,
-	currencyRelations,
 	currencyTransaction,
 	currencyTransactionRelations,
 	transactionType,
@@ -127,8 +126,8 @@ export const schema = {
 	verification,
 	room,
 	roomRelations,
-	currency,
-	currencyRelations,
+	asset,
+	assetRelations,
 	transactionType,
 	transactionTypeRelations,
 	currencyTransaction,

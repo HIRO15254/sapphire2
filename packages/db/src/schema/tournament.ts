@@ -9,8 +9,8 @@ import {
 } from "drizzle-orm/sqlite-core";
 import { DEFAULT_VARIANT_LABEL } from "../constants/game-variants";
 import type { LevelGameGroup } from "../schemas/game";
+import { asset } from "./asset";
 import { user } from "./auth";
-import { currency } from "./currency";
 import { room } from "./room";
 import { tournamentTag } from "./tournament-tag";
 
@@ -29,7 +29,7 @@ export const tournament = sqliteTable(
 		startingStack: integer("starting_stack"),
 		bountyAmount: integer("bounty_amount"),
 		tableSize: integer("table_size"),
-		currencyId: text("currency_id").references(() => currency.id, {
+		currencyId: text("currency_id").references(() => asset.id, {
 			onDelete: "set null",
 		}),
 		memo: text("memo"),
@@ -100,9 +100,9 @@ export const tournamentRelations = relations(tournament, ({ one, many }) => ({
 		fields: [tournament.roomId],
 		references: [room.id],
 	}),
-	currency: one(currency, {
+	asset: one(asset, {
 		fields: [tournament.currencyId],
-		references: [currency.id],
+		references: [asset.id],
 	}),
 	blindLevels: many(blindLevel),
 	chipPurchases: many(tournamentChipPurchase),

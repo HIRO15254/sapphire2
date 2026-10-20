@@ -2392,7 +2392,7 @@ describe("session.list filter ownership", () => {
 	const OTHER = "user-2";
 	const FILTER_CASES = [
 		{ input: { roomId: "room-1" }, table: "room" },
-		{ input: { currencyId: "currency-1" }, table: "currency" },
+		{ input: { currencyId: "currency-1" }, table: "asset" },
 	] as const;
 
 	function makeCaller(select: Record<string, Record<string, unknown>[]>) {
@@ -2413,7 +2413,7 @@ describe("session.list filter ownership", () => {
 
 		expect(selectedTables).toContain("game_session");
 		expect(selectedTables).not.toContain("room");
-		expect(selectedTables).not.toContain("currency");
+		expect(selectedTables).not.toContain("asset");
 	});
 
 	it.each(
@@ -2473,7 +2473,7 @@ describe("session.profitLossSeries filter ownership", () => {
 	const OTHER = "user-2";
 	const FILTER_CASES = [
 		{ input: { roomId: "room-1" }, table: "room" },
-		{ input: { currencyId: "currency-1" }, table: "currency" },
+		{ input: { currencyId: "currency-1" }, table: "asset" },
 		{ input: { ringGameId: "ring-game-1" }, table: "ring_game" },
 	] as const;
 
@@ -2497,7 +2497,7 @@ describe("session.profitLossSeries filter ownership", () => {
 
 		expect(selectedTables).toContain("game_session");
 		expect(selectedTables).not.toContain("room");
-		expect(selectedTables).not.toContain("currency");
+		expect(selectedTables).not.toContain("asset");
 		expect(selectedTables).not.toContain("ring_game");
 	});
 

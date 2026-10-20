@@ -6,39 +6,9 @@ import {
 	text,
 	uniqueIndex,
 } from "drizzle-orm/sqlite-core";
-import { ASSET_KINDS } from "../constants/asset";
+import { asset } from "./asset";
 import { user } from "./auth";
 import { gameSession } from "./session";
-
-export const currency = sqliteTable(
-	"currency",
-	{
-		id: text("id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		name: text("name").notNull(),
-		unit: text("unit"),
-		description: text("description"),
-		isFavorite: integer("is_favorite", { mode: "boolean" })
-			.notNull()
-			.default(false),
-		kind: text("kind", { enum: ASSET_KINDS }).notNull().default("currency"),
-		decimals: integer("decimals").notNull().default(0),
-		archivedAt: integer("archived_at", { mode: "timestamp" }),
-		createdAt: integer("created_at", { mode: "timestamp" })
-			.default(sql`(unixepoch())`)
-			.notNull(),
-		updatedAt: integer("updated_at", { mode: "timestamp" })
-			.$onUpdate(() => /* @__PURE__ */ new Date())
-			.notNull(),
-	},
-	(table) => [
-		uniqueIndex("currency_id_user_id_unique").on(table.id, table.userId),
-		index("currency_userId_idx").on(table.userId),
-		index("currency_user_kind_idx").on(table.userId, table.kind),
-	]
-);
 
 export const transactionType = sqliteTable(
 	"transaction_type",
@@ -69,7 +39,7 @@ export const currencyTransaction = sqliteTable(
 		id: text("id").primaryKey(),
 		currencyId: text("currency_id")
 			.notNull()
-			.references(() => currency.id, { onDelete: "cascade" }),
+			.references(() => asset.id, { onDelete: "cascade" }),
 		transactionTypeId: text("transaction_type_id")
 			.notNull()
 			.references(() => transactionType.id),
@@ -92,14 +62,6 @@ export const currencyTransaction = sqliteTable(
 	]
 );
 
-export const currencyRelations = relations(currency, ({ one, many }) => ({
-	user: one(user, {
-		fields: [currency.userId],
-		references: [user.id],
-	}),
-	transactions: many(currencyTransaction),
-}));
-
 export const transactionTypeRelations = relations(
 	transactionType,
 	({ one, many }) => ({
@@ -114,9 +76,9 @@ export const transactionTypeRelations = relations(
 export const currencyTransactionRelations = relations(
 	currencyTransaction,
 	({ one }) => ({
-		currency: one(currency, {
+		asset: one(asset, {
 			fields: [currencyTransaction.currencyId],
-			references: [currency.id],
+			references: [asset.id],
 		}),
 		transactionType: one(transactionType, {
 			fields: [currencyTransaction.transactionTypeId],

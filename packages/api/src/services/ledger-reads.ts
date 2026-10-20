@@ -1,6 +1,6 @@
 import type { Database } from "@sapphire2/db";
 import type { LedgerRole } from "@sapphire2/db/constants/ledger";
-import { currency } from "@sapphire2/db/schema/currency";
+import { asset } from "@sapphire2/db/schema/asset";
 import { ledgerLine } from "@sapphire2/db/schema/ledger";
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { D1_MAX_BOUND_PARAMS } from "../lib/batch";
@@ -51,11 +51,11 @@ export async function selectEntryRealTotals(
 				})
 				.from(ledgerLine)
 				.innerJoin(
-					currency,
+					asset,
 					and(
-						eq(currency.id, ledgerLine.assetId),
-						eq(currency.userId, ledgerLine.userId),
-						sql`${currency.kind} = 'currency'`
+						eq(asset.id, ledgerLine.assetId),
+						eq(asset.userId, ledgerLine.userId),
+						sql`${asset.kind} = 'currency'`
 					)
 				)
 				.where(
@@ -77,20 +77,20 @@ export async function selectAssetBalances(
 ): Promise<AssetBalance[]> {
 	return await db
 		.select({
-			assetId: currency.id,
+			assetId: asset.id,
 			balance: sql<number>`COALESCE(SUM(${ledgerLine.quantity}), 0)`,
 		})
-		.from(currency)
+		.from(asset)
 		.leftJoin(
 			ledgerLine,
 			and(
-				eq(ledgerLine.assetId, currency.id),
-				eq(ledgerLine.userId, currency.userId),
+				eq(ledgerLine.assetId, asset.id),
+				eq(ledgerLine.userId, asset.userId),
 				REAL
 			)
 		)
-		.where(eq(currency.userId, userId))
-		.groupBy(currency.id);
+		.where(eq(asset.userId, userId))
+		.groupBy(asset.id);
 }
 
 export async function selectAssetHistory(

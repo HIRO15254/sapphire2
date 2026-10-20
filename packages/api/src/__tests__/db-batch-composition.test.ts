@@ -1,5 +1,5 @@
+import { asset } from "@sapphire2/db/schema/asset";
 import {
-	currency,
 	currencyTransaction,
 	transactionType,
 } from "@sapphire2/db/schema/currency";
@@ -431,7 +431,7 @@ describe("session.create batch composition (SA2-116)", () => {
 
 	it("includes tag links and the currency ledger row in the same batch", async () => {
 		const rows = new Map<unknown, Rows>([
-			[currency, [{ id: "cur-1", userId: "user-1" }]],
+			[asset, [{ id: "cur-1", userId: "user-1" }]],
 			[sessionTag, [{ id: "tag-1" }]],
 
 			[transactionType, []],
@@ -653,7 +653,7 @@ describe("live master create-and-assign batch composition", () => {
 				],
 			],
 			[room, [{ id: "room-1", userId: "user-1" }]],
-			[currency, [{ id: "currency-1", userId: "user-1" }]],
+			[asset, [{ id: "currency-1", userId: "user-1" }]],
 			[sessionCashDetail, [{ sessionId: "sess-cash" }]],
 		]);
 		const { db, batchCalls } = createBatchTrackingDb(rows);
@@ -762,7 +762,7 @@ describe("live master create-and-assign batch composition", () => {
 				],
 			],
 			[room, [{ id: "room-1", userId: "user-1" }]],
-			[currency, [{ id: "currency-1", userId: "user-1" }]],
+			[asset, [{ id: "currency-1", userId: "user-1" }]],
 			[sessionTournamentDetail, [{ sessionId: "sess-tournament" }]],
 		]);
 		const { db, batchCalls } = createBatchTrackingDb(rows);
@@ -968,7 +968,7 @@ describe("session.update ledger batch composition (SA2-116)", () => {
 					},
 				],
 			],
-			[currency, [{ id: "cur-new", userId: "user-1" }]],
+			[asset, [{ id: "cur-new", userId: "user-1" }]],
 			[transactionType, transactionTypes],
 		]);
 

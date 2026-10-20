@@ -1,4 +1,4 @@
-import { currency } from "@sapphire2/db/schema/currency";
+import { asset } from "@sapphire2/db/schema/asset";
 import { gameMix } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
@@ -102,7 +102,7 @@ describe("liveCashGameSession.create ownership validation (SA2-102)", () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, []],
 			[room, [{ id: "room-1", userId: OWNER }]],
-			[currency, [{ id: "cur-1", userId: OWNER }]],
+			[asset, [{ id: "cur-1", userId: OWNER }]],
 		]);
 		await expect(
 			makeCaller(OWNER, rows).create({
@@ -127,7 +127,7 @@ describe("liveCashGameSession.create ownership validation (SA2-102)", () => {
 	it("rejects a currency owned by another user with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, []],
-			[currency, [{ id: "cur-1", userId: OTHER }]],
+			[asset, [{ id: "cur-1", userId: OTHER }]],
 		]);
 		await expectTrpcCode(
 			makeCaller(OWNER, rows).create({ initialBuyIn: 0, currencyId: "cur-1" }),
@@ -149,7 +149,7 @@ describe("liveCashGameSession.create ownership validation (SA2-102)", () => {
 	it("rejects a non-existent currency with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, []],
-			[currency, []],
+			[asset, []],
 		]);
 		await expectTrpcCode(
 			makeCaller(OWNER, rows).create({ initialBuyIn: 0, currencyId: "cur-x" }),
@@ -174,7 +174,7 @@ describe("liveCashGameSession.create ownership validation (SA2-102)", () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, []],
 			[room, [{ id: "room-1", userId: OTHER }]],
-			[currency, [{ id: "cur-1", userId: OTHER }]],
+			[asset, [{ id: "cur-1", userId: OTHER }]],
 		]);
 		await expect(
 			makeCaller(OWNER, rows).create({ initialBuyIn: 0 })
@@ -226,7 +226,7 @@ describe("liveCashGameSession.update ownership validation (SA2-102)", () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, [ownedSession]],
 			[room, [{ id: "room-1", userId: OWNER }]],
-			[currency, [{ id: "cur-1", userId: OWNER }]],
+			[asset, [{ id: "cur-1", userId: OWNER }]],
 		]);
 		await expect(
 			makeCaller(OWNER, rows).update({
@@ -251,7 +251,7 @@ describe("liveCashGameSession.update ownership validation (SA2-102)", () => {
 	it("rejects a currency owned by another user with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, [ownedSession]],
-			[currency, [{ id: "cur-1", userId: OTHER }]],
+			[asset, [{ id: "cur-1", userId: OTHER }]],
 		]);
 		await expectTrpcCode(
 			makeCaller(OWNER, rows).update({ id: "s1", currencyId: "cur-1" }),
@@ -273,7 +273,7 @@ describe("liveCashGameSession.update ownership validation (SA2-102)", () => {
 	it("rejects a non-existent currency with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, [ownedSession]],
-			[currency, []],
+			[asset, []],
 		]);
 		await expectTrpcCode(
 			makeCaller(OWNER, rows).update({ id: "s1", currencyId: "cur-x" }),
@@ -285,7 +285,7 @@ describe("liveCashGameSession.update ownership validation (SA2-102)", () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, [ownedSession]],
 			[room, [{ id: "room-1", userId: OTHER }]],
-			[currency, [{ id: "cur-1", userId: OTHER }]],
+			[asset, [{ id: "cur-1", userId: OTHER }]],
 		]);
 		await expect(
 			makeCaller(OWNER, rows).update({
@@ -300,7 +300,7 @@ describe("liveCashGameSession.update ownership validation (SA2-102)", () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, [ownedSession]],
 			[room, [{ id: "room-1", userId: OTHER }]],
-			[currency, [{ id: "cur-1", userId: OTHER }]],
+			[asset, [{ id: "cur-1", userId: OTHER }]],
 		]);
 		await expect(
 			makeCaller(OWNER, rows).update({ id: "s1", memo: "note" })
@@ -579,7 +579,7 @@ describe("liveCashGameSession.createAndAssignRingGame authorization", () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, [ownedSession]],
 			[room, [{ id: "room-1", userId: OWNER }]],
-			[currency, [{ id: "cur-1", userId: OTHER }]],
+			[asset, [{ id: "cur-1", userId: OTHER }]],
 		]);
 		await expectTrpcCode(
 			makeCaller(OWNER, rows).createAndAssignRingGame({
@@ -915,7 +915,7 @@ function createListMockDb(listRows: Rows = []) {
 		};
 		chain.limit = () => chain;
 		chain.leftJoin = (table: unknown, condition: unknown) => {
-			if (isList && (table === room || table === currency)) {
+			if (isList && (table === room || table === asset)) {
 				listJoins.push({
 					table,
 					params: dialect.sqlToQuery(condition as never).params,
@@ -960,7 +960,7 @@ describe("liveCashGameSession.list composite keyset cursor (SA2-150)", () => {
 		await listCaller(db).list({ limit: 10 });
 
 		expect(listJoins).toHaveLength(2);
-		expect(listJoins.map((join) => join.table)).toEqual([room, currency]);
+		expect(listJoins.map((join) => join.table)).toEqual([room, asset]);
 		expect(listJoins.map((join) => join.params)).toEqual([[OWNER], [OWNER]]);
 	});
 

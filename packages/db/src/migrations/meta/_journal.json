@@ -414,6 +414,13 @@
       "when": 1791857484701,
       "tag": "0058_wonderful_wolfpack",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "6",
+      "when": 1792457062496,
+      "tag": "0059_rebuild_currency_as_asset",
+      "breakpoints": true
     }
   ]
 }

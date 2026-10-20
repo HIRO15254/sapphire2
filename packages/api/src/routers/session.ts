@@ -4,7 +4,8 @@ import {
 	MIX_VARIANT,
 	variantDisplayLabel,
 } from "@sapphire2/db/constants/game-variants";
-import { currency, currencyTransaction } from "@sapphire2/db/schema/currency";
+import { asset } from "@sapphire2/db/schema/asset";
+import { currencyTransaction } from "@sapphire2/db/schema/currency";
 import { entry, entryCash, entryTournament } from "@sapphire2/db/schema/entry";
 import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { gameMix } from "@sapphire2/db/schema/game-mix";
@@ -568,11 +569,8 @@ async function validateCurrencyOwnershipBranch(
 	db: DbInstance,
 	entityId: string,
 	userId: string
-): Promise<typeof currency.$inferSelect> {
-	const [found] = await db
-		.select()
-		.from(currency)
-		.where(eq(currency.id, entityId));
+): Promise<typeof asset.$inferSelect> {
+	const [found] = await db.select().from(asset).where(eq(asset.id, entityId));
 	if (!found) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
@@ -675,8 +673,8 @@ async function findOwnedLedgerEntity(
 			return (
 				await db
 					.select()
-					.from(currency)
-					.where(and(eq(currency.id, entityId), eq(currency.userId, userId)))
+					.from(asset)
+					.where(and(eq(asset.id, entityId), eq(asset.userId, userId)))
 			)[0];
 		case "assetRate":
 			return (
@@ -772,7 +770,7 @@ async function validateEntityOwnership(
 	entityType: "currency" | "asset",
 	entityId: string,
 	userId: string
-): Promise<typeof currency.$inferSelect>;
+): Promise<typeof asset.$inferSelect>;
 async function validateEntityOwnership(
 	db: DbInstance,
 	entityType: "ringGame",
@@ -1865,8 +1863,8 @@ function selectEnrichedSessionRows(db: DbInstance, userId: string) {
 			tournamentId: sessionTournamentDetail.tournamentId,
 			tournamentName: sessionTournamentDetail.ruleName,
 			currencyId: gameSession.currencyId,
-			currencyName: currency.name,
-			currencyUnit: currency.unit,
+			currencyName: asset.name,
+			currencyUnit: asset.unit,
 			createdAt: gameSession.createdAt,
 			cashVariant: sessionCashDetail.variant,
 			cashMixGames: sessionCashDetail.mixGames,
@@ -1898,8 +1896,8 @@ function selectEnrichedSessionRows(db: DbInstance, userId: string) {
 			and(eq(room.id, gameSession.roomId), eq(room.userId, userId))
 		)
 		.leftJoin(
-			currency,
-			and(eq(currency.id, gameSession.currencyId), eq(currency.userId, userId))
+			asset,
+			and(eq(asset.id, gameSession.currencyId), eq(asset.userId, userId))
 		);
 }
 
@@ -3537,8 +3535,8 @@ function selectEnrichedEntryRows(db: DbInstance, userId: string) {
 			tournamentId: entryTournament.tournamentId,
 			tournamentName: sessionTournamentDetail.ruleName,
 			currencyId: entry.assetId,
-			currencyName: currency.name,
-			currencyUnit: currency.unit,
+			currencyName: asset.name,
+			currencyUnit: asset.unit,
 			createdAt: entry.createdAt,
 			cashVariant: sessionCashDetail.variant,
 			cashMixGames: sessionCashDetail.mixGames,
@@ -3567,8 +3565,8 @@ function selectEnrichedEntryRows(db: DbInstance, userId: string) {
 		)
 		.leftJoin(room, and(eq(room.id, entry.roomId), eq(room.userId, userId)))
 		.leftJoin(
-			currency,
-			and(eq(currency.id, entry.assetId), eq(currency.userId, userId))
+			asset,
+			and(eq(asset.id, entry.assetId), eq(asset.userId, userId))
 		);
 }
 

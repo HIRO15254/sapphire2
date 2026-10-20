@@ -4,7 +4,8 @@ import {
 	MAX_SEAT_POSITION,
 	updateStackPayload,
 } from "@sapphire2/db/constants/session-event-types";
-import { currency, currencyTransaction } from "@sapphire2/db/schema/currency";
+import { asset } from "@sapphire2/db/schema/asset";
+import { currencyTransaction } from "@sapphire2/db/schema/currency";
 import { entry } from "@sapphire2/db/schema/entry";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
@@ -425,8 +426,8 @@ export const liveCashGameSessionRouter = router({
 					ringGameId: sessionCashDetail.ringGameId,
 					ringGameName: sessionCashDetail.ruleName,
 					currencyId: gameSession.currencyId,
-					currencyName: currency.name,
-					currencyUnit: currency.unit,
+					currencyName: asset.name,
+					currencyUnit: asset.unit,
 					startedAt: gameSession.startedAt,
 					sessionDate: gameSession.sessionDate,
 					endedAt: gameSession.endedAt,
@@ -444,11 +445,8 @@ export const liveCashGameSessionRouter = router({
 					and(eq(room.id, gameSession.roomId), eq(room.userId, userId))
 				)
 				.leftJoin(
-					currency,
-					and(
-						eq(currency.id, gameSession.currencyId),
-						eq(currency.userId, userId)
-					)
+					asset,
+					and(eq(asset.id, gameSession.currencyId), eq(asset.userId, userId))
 				)
 				.where(and(...conditions))
 				.orderBy(desc(sessionOrderKeySql()), desc(gameSession.id))

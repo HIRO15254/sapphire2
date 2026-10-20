@@ -1,5 +1,5 @@
+import { asset } from "@sapphire2/db/schema/asset";
 import {
-	currency,
 	currencyTransaction,
 	transactionType,
 } from "@sapphire2/db/schema/currency";
@@ -44,8 +44,8 @@ export const currencyTransactionRouter = router({
 			const userId = ctx.session.user.id;
 			const [found] = await ctx.db
 				.select()
-				.from(currency)
-				.where(eq(currency.id, input.currencyId));
+				.from(asset)
+				.where(eq(asset.id, input.currencyId));
 
 			if (!found || found.userId !== userId) {
 				throw new TRPCError({
@@ -143,8 +143,8 @@ export const currencyTransactionRouter = router({
 			const userId = ctx.session.user.id;
 			const [found] = await ctx.db
 				.select()
-				.from(currency)
-				.where(eq(currency.id, input.currencyId));
+				.from(asset)
+				.where(eq(asset.id, input.currencyId));
 
 			if (!found || found.userId !== userId) {
 				throw new TRPCError({
@@ -190,9 +190,9 @@ export const currencyTransactionRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const [found] = await ctx.db
-				.select({ currencyTransaction, currency })
+				.select({ currencyTransaction, currency: asset })
 				.from(currencyTransaction)
-				.innerJoin(currency, eq(currency.id, currencyTransaction.currencyId))
+				.innerJoin(asset, eq(asset.id, currencyTransaction.currencyId))
 				.where(eq(currencyTransaction.id, input.id));
 
 			if (!found || found.currency.userId !== userId) {
@@ -246,9 +246,9 @@ export const currencyTransactionRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const [found] = await ctx.db
-				.select({ currencyTransaction, currency })
+				.select({ currencyTransaction, currency: asset })
 				.from(currencyTransaction)
-				.innerJoin(currency, eq(currency.id, currencyTransaction.currencyId))
+				.innerJoin(asset, eq(asset.id, currencyTransaction.currencyId))
 				.where(eq(currencyTransaction.id, input.id));
 
 			if (!found || found.currency.userId !== userId) {
