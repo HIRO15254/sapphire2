@@ -19,17 +19,17 @@ LEFT JOIN room r ON r.id = gs.room_id AND r.user_id = gs.user_id
 LEFT JOIN currency c ON c.id = gs.currency_id AND c.user_id = gs.user_id
 LEFT JOIN session_cash_detail scd ON scd.session_id = gs.id
 LEFT JOIN session_tournament_detail std ON std.session_id = gs.id`,
-	`INSERT INTO entry_cash (entry_id, user_id, ring_game_id, ev_diff)
-SELECT e.id, e.user_id, rg.id,
+	`INSERT INTO entry_cash (entry_id, user_id, kind, ring_game_id, ev_diff)
+SELECT e.id, e.user_id, 'cash', rg.id,
   CASE WHEN scd.ev_cash_out IS NOT NULL THEN CAST(ROUND(scd.ev_cash_out - scd.cash_out) AS INTEGER) END
 FROM entry e
 JOIN session_cash_detail scd ON scd.session_id = e.id
 LEFT JOIN ring_game rg ON rg.id = scd.ring_game_id AND rg.user_id = e.user_id
 WHERE e.kind = 'cash'`,
-	`INSERT INTO entry_tournament (entry_id, user_id, tournament_id, placement, total_entries, before_deadline)
-SELECT e.id, e.user_id, t.id,
+	`INSERT INTO entry_tournament (entry_id, user_id, kind, tournament_id, placement, total_entries, before_deadline)
+SELECT e.id, e.user_id, 'tournament', t.id,
   CASE WHEN std.before_deadline = 1 THEN NULL ELSE std.placement END,
-  std.total_entries, std.before_deadline
+  std.total_entries, COALESCE(std.before_deadline, 0)
 FROM entry e
 JOIN session_tournament_detail std ON std.session_id = e.id
 LEFT JOIN tournament t ON t.id = std.tournament_id AND t.user_id = e.user_id
@@ -55,11 +55,11 @@ JOIN entry e ON e.id = gs.id AND e.user_id = gs.user_id
 LEFT JOIN session_cash_detail scd ON scd.session_id = gs.id
 LEFT JOIN session_tournament_detail std ON std.session_id = gs.id`,
 	`INSERT INTO play_event
-  (id, user_id, entry_id, play_session_id, type, schema_version, occurred_at, sort_order, payload, created_at, updated_at)
-SELECT se.id, gs.user_id, se.session_id, se.session_id, se.event_type, 1, se.occurred_at, se.sort_order,
+  (id, user_id, entry_id, entry_source, play_session_id, type, schema_version, occurred_at, sort_order, payload, created_at, updated_at)
+SELECT se.id, e.user_id, e.id, e.source, se.session_id, se.event_type, 1, se.occurred_at, se.sort_order,
   CASE WHEN json_valid(se.payload) THEN se.payload ELSE '{}' END, se.created_at, se.updated_at
 FROM session_event se
-JOIN game_session gs ON gs.id = se.session_id`,
+JOIN entry e ON e.id = se.session_id`,
 ];
 
 const RETIRE_STATEMENTS = [

@@ -96,12 +96,30 @@ async function seedOwner(d1: TestD1Database, owner: string) {
 		id: `${owner}-start`,
 		user_id: owner,
 		entry_id: `${owner}-entry`,
+		entry_source: "live",
 		play_session_id: `${owner}-day-1`,
 		type: "session_start",
+		schema_version: 2,
 		occurred_at: 1_790_000_000,
 		sort_order: 0,
 		payload: "{}",
 		updated_at: 0,
+	});
+	await insert(d1, "game_lineup", { id: `${owner}-lineup`, user_id: owner });
+	await insert(d1, "tournament_rule", {
+		id: `${owner}-rule`,
+		user_id: owner,
+		lineup_id: `${owner}-lineup`,
+	});
+	await insert(d1, "tournament_rule_price", {
+		id: `${owner}-entry-price`,
+		user_id: owner,
+		rule_id: `${owner}-rule`,
+		kind: "entry",
+		label: "Entry",
+		asset_id: `${owner}-currency`,
+		amount: 10_000,
+		ordinal: 1,
 	});
 }
 
@@ -142,7 +160,14 @@ describe("asset and ledger tables on D1", () => {
 			[
 				"ledger_line",
 				lineRow("bob-line-alice-event", "bob", {
+					play_session_id: "bob-day-1",
 					source_event_id: "alice-start",
+				}),
+			],
+			[
+				"ledger_line",
+				lineRow("bob-line-alice-price", "bob", {
+					price_id: "alice-entry-price",
 				}),
 			],
 			[
@@ -173,6 +198,7 @@ describe("asset and ledger tables on D1", () => {
 			lineRow("bob-buy-in", "bob", {
 				play_session_id: "bob-day-1",
 				source_event_id: "bob-start",
+				price_id: "bob-entry-price",
 			})
 		);
 		await insert(
@@ -239,6 +265,7 @@ describe("asset and ledger tables on D1", () => {
 
 		const accepted: Row[] = [
 			{ role: "buy_in", quantity: -10_000 },
+			{ role: "buy_in", quantity: -10_000, price_id: "alice-entry-price" },
 			{ role: "fee", quantity: -1000 },
 			{ role: "chip_purchase", quantity: -MAX_QUANTITY },
 			{ role: "prize", quantity: 1 },
@@ -308,6 +335,44 @@ describe("asset and ledger tables on D1", () => {
 					...wallet,
 				},
 				"ledger_line_play_session_entry_check",
+			],
+			[
+				{ role: "buy_in", quantity: -1, source_event_id: "alice-start" },
+				"ledger_line_source_event_scope_check",
+			],
+			[
+				{ role: "buy_in", quantity: -1, category_id: "alice-deposit" },
+				"ledger_line_category_role_check",
+			],
+			[
+				{ role: "adjustment", quantity: 5000, transfer_id: "swap", ...wallet },
+				"ledger_line_exchange_transfer_check",
+			],
+			[
+				{ role: "prize", quantity: 1, price_id: "alice-entry-price" },
+				"ledger_line_price_role_check",
+			],
+			[
+				{ role: "addon", quantity: -1, price_id: "alice-entry-price" },
+				"ledger_line_price_role_check",
+			],
+			[
+				{
+					role: "adjustment",
+					quantity: 5000,
+					price_id: "alice-entry-price",
+					...wallet,
+				},
+				"ledger_line_price_role_check",
+			],
+			[
+				{
+					role: "adjustment",
+					quantity: 5000,
+					source_event_id: "alice-start",
+					...wallet,
+				},
+				"ledger_line_source_event_scope_check",
 			],
 			[{ role: "rakeback", quantity: 100 }, "ledger_line_role_check"],
 			[{ effect: "estimated" }, "ledger_line_effect_check"],
@@ -425,6 +490,14 @@ describe("asset and ledger tables on D1", () => {
 				id: "shouting",
 				user_id: "alice",
 				name: "DEPOSIT",
+				updated_at: 0,
+			})
+		).rejects.toThrow("UNIQUE constraint failed");
+		await expect(
+			insert(api.d1, "ledger_category", {
+				id: "padded",
+				user_id: "alice",
+				name: "  deposit ",
 				updated_at: 0,
 			})
 		).rejects.toThrow("UNIQUE constraint failed");

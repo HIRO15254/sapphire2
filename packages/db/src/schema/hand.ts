@@ -57,6 +57,11 @@ export const hand = sqliteTable(
 	},
 	(t) => [
 		uniqueIndex("hand_id_user_id_unique").on(t.id, t.userId),
+		uniqueIndex("hand_id_play_session_user_unique").on(
+			t.id,
+			t.playSessionId,
+			t.userId
+		),
 		uniqueIndex("hand_play_session_hand_no_unique").on(
 			t.playSessionId,
 			t.handNo
@@ -131,6 +136,11 @@ export const handSeat = sqliteTable(
 	},
 	(t) => [
 		primaryKey({ columns: [t.handId, t.seat] }),
+		uniqueIndex("hand_seat_hand_seat_user_unique").on(
+			t.handId,
+			t.seat,
+			t.userId
+		),
 		uniqueIndex("hand_seat_one_hero_per_hand_idx")
 			.on(t.handId)
 			.where(sql`${t.isHero} = 1`),
@@ -182,9 +192,9 @@ export const handAction = sqliteTable(
 			name: "hand_action_hand_owner_fk",
 		}).onDelete("cascade"),
 		foreignKey({
-			columns: [t.handId, t.seat],
-			foreignColumns: [handSeat.handId, handSeat.seat],
-			name: "hand_action_seat_fk",
+			columns: [t.handId, t.seat, t.userId],
+			foreignColumns: [handSeat.handId, handSeat.seat, handSeat.userId],
+			name: "hand_action_seat_owner_fk",
 		}).onDelete("cascade"),
 		check("hand_action_seq_check", sql`${t.seq} >= 1`),
 		check(

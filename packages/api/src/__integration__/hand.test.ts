@@ -101,6 +101,23 @@ function seatRow(handId: string, owner: Owner, overrides: Row = {}): Row {
 	return { hand_id: handId, user_id: owner, seat: 0, ...overrides };
 }
 
+function eventRow(id: string, owner: Owner, overrides: Row = {}): Row {
+	return {
+		id,
+		user_id: owner,
+		entry_id: `${owner}-entry`,
+		entry_source: "live",
+		play_session_id: `${owner}-play`,
+		type: "all_in",
+		schema_version: 2,
+		occurred_at: 0,
+		sort_order: 0,
+		payload: "{}",
+		updated_at: 0,
+		...overrides,
+	};
+}
+
 function boardRow(handId: string, owner: Owner, overrides: Row = {}): Row {
 	return {
 		hand_id: handId,
@@ -229,6 +246,10 @@ describe("hand tables on D1", () => {
 				seatRow("bob-hand", "bob", { player_id: "alice-player-1" }),
 			],
 			["hand_action", actionRow("alice-hand", "bob")],
+			[
+				"play_event",
+				eventRow("bob-event-alice-hand", "bob", { hand_id: "alice-hand" }),
+			],
 		];
 		for (const [table, row] of crossOwner) {
 			await expect(
@@ -249,6 +270,11 @@ describe("hand tables on D1", () => {
 		);
 		await insert(api.d1, "hand_board", boardRow("bob-hand", "bob"));
 		await insert(api.d1, "hand_action", actionRow("bob-hand", "bob"));
+		await insert(
+			api.d1,
+			"play_event",
+			eventRow("bob-event", "bob", { hand_id: "bob-hand" })
+		);
 		expect(await handNumbers(api.db, "bob-play")).toEqual([
 			[1, "bob-hand"],
 			[2, "bob-second"],
@@ -277,6 +303,59 @@ describe("hand tables on D1", () => {
 		await expect(
 			validateEntityOwnership(api.db, "hand", "bob-hand", "bob")
 		).resolves.toMatchObject({ id: "bob-hand", userId: "bob" });
+	});
+
+	test("an event can point only at a hand of its own play session, and an action only at a seat dealt into its hand", async ({
+		api,
+	}) => {
+		await seedOwner(api.db, "alice");
+		await api.db.insert(playSession).values({
+			id: "alice-day-2",
+			userId: "alice",
+			entryId: "alice-entry",
+			kind: "cash",
+			seq: 2,
+			localDate: "2026-09-06",
+			status: "ended",
+			endState: "cashed_out",
+			updatedAt: NOW,
+		});
+		await insert(api.d1, "hand", handRow("day-1-hand", "alice"));
+		await insert(api.d1, "hand_seat", seatRow("day-1-hand", "alice"));
+
+		await expect(
+			insert(
+				api.d1,
+				"play_event",
+				eventRow("day-2-event", "alice", {
+					play_session_id: "alice-day-2",
+					hand_id: "day-1-hand",
+				})
+			)
+		).rejects.toThrow(FOREIGN_KEY_FAILED);
+		await expect(
+			insert(
+				api.d1,
+				"hand_action",
+				actionRow("day-1-hand", "alice", { seat: 4 })
+			)
+		).rejects.toThrow(FOREIGN_KEY_FAILED);
+
+		await insert(
+			api.d1,
+			"play_event",
+			eventRow("day-1-event", "alice", { hand_id: "day-1-hand" })
+		);
+		await insert(api.d1, "hand_action", actionRow("day-1-hand", "alice"));
+		const events = await api.db
+			.select({ id: playEvent.id, handId: playEvent.handId })
+			.from(playEvent);
+		expect(events).toEqual([{ id: "day-1-event", handId: "day-1-hand" }]);
+		expect(await childCounts(api.db, "day-1-hand")).toEqual({
+			boards: 0,
+			seats: 1,
+			actions: 1,
+		});
 	});
 
 	test("hand numbers, boards, seats, actions and the stakes snapshot outside INV-18, INV-19 and INV-23 are rejected", async ({
@@ -412,6 +491,7 @@ describe("hand tables on D1", () => {
 			entryId: "alice-entry",
 			playSessionId: "alice-play",
 			type: "all_in",
+			schemaVersion: 2,
 			occurredAt: NOW,
 			sortOrder: 0,
 			payload: "{}",
@@ -547,6 +627,7 @@ describe("hand service on D1", () => {
 			entryId: "alice-entry",
 			playSessionId: "alice-play",
 			type: "all_in",
+			schemaVersion: 2,
 			occurredAt: NOW,
 			sortOrder: 0,
 			payload: "{}",

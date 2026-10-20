@@ -30,6 +30,14 @@ import {
 import { filterPreset, filterPresetRelations } from "./schema/filter-preset";
 import { gameGroup, gameGroupRelations } from "./schema/game-group";
 import {
+	gameLineup,
+	gameLineupGroup,
+	gameLineupGroupRelations,
+	gameLineupRelations,
+	gameLineupVariant,
+	gameLineupVariantRelations,
+} from "./schema/game-lineup";
+import {
 	gameMix,
 	gameMixRelations,
 	gameMixVariant,
@@ -75,6 +83,20 @@ import {
 } from "./schema/player";
 import { ringGame, ringGameRelations } from "./schema/ring-game";
 import { room, roomRelations } from "./schema/room";
+import {
+	cashRule,
+	cashRuleRelations,
+	cashRuleStake,
+	cashRuleStakeRelations,
+	tournamentRule,
+	tournamentRuleLevel,
+	tournamentRuleLevelRelations,
+	tournamentRuleLevelStake,
+	tournamentRuleLevelStakeRelations,
+	tournamentRulePrice,
+	tournamentRulePriceRelations,
+	tournamentRuleRelations,
+} from "./schema/rule";
 import { gameSession, gameSessionRelations } from "./schema/session";
 import {
 	sessionBlindLevel,
@@ -189,6 +211,24 @@ export const schema = {
 	passkeyRelations,
 	entry,
 	entryRelations,
+	gameLineup,
+	gameLineupRelations,
+	gameLineupGroup,
+	gameLineupGroupRelations,
+	gameLineupVariant,
+	gameLineupVariantRelations,
+	cashRule,
+	cashRuleRelations,
+	cashRuleStake,
+	cashRuleStakeRelations,
+	tournamentRule,
+	tournamentRuleRelations,
+	tournamentRuleLevel,
+	tournamentRuleLevelRelations,
+	tournamentRuleLevelStake,
+	tournamentRuleLevelStakeRelations,
+	tournamentRulePrice,
+	tournamentRulePriceRelations,
 	entryCash,
 	entryCashRelations,
 	entryTournament,

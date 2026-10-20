@@ -237,7 +237,7 @@ describe("projection statements against D1", () => {
 		expect(result).toEqual({
 			placement: 9,
 			totalEntries: 200,
-			beforeDeadline: null,
+			beforeDeadline: false,
 		});
 	});
 

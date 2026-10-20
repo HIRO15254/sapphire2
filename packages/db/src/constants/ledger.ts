@@ -35,6 +35,13 @@ export const LEDGER_WALLET_ROLES = [
 	"exchange",
 ] as const satisfies readonly LedgerRole[];
 
+export const LEDGER_PRICE_ROLES = [
+	"buy_in",
+	"reentry",
+	"fee",
+	"chip_purchase",
+] as const satisfies readonly LedgerRole[];
+
 export const LEDGER_EFFECTS = ["real", "virtual"] as const;
 export type LedgerEffect = (typeof LEDGER_EFFECTS)[number];
 
