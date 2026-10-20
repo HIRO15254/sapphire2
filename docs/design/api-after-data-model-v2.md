@@ -12,9 +12,9 @@ Every procedure except root `healthCheck` is authenticated (`UNAUTHORIZED` other
 
 | Error | Contract |
 | --- | --- |
-| `BAD_REQUEST` | Invalid shape/order/time, wrong entry kind, mismatched stakes, duplicate members, newly selected archived master, same-asset exchange, editing event-derived fields manually. |
+| `BAD_REQUEST` | Invalid shape/order/time, wrong entry kind, mismatched stakes, duplicate members, newly selected archived master, same-asset exchange, editing event-derived fields manually, an owned rule version that does not belong to the named master (restoreRule). |
 | `FORBIDDEN` | Missing/foreign entity or cursor scope; accessing a child outside its validated parent; editing entry money through wallet procedures. |
-| `CONFLICT` | Unique-name/label collision, duplicate rate effective instant, reference-protected delete, second active/paused play session, unsafe undo, immutable referenced asset kind/decimals. Reference-protected master deletion explicitly recommends archive. |
+| `CONFLICT` | Unique-name/label collision, duplicate rate effective instant, reference-protected delete, second active/paused play session, unsafe undo (including undoEndPlay/undoStartNextPlay without an undoable step), immutable referenced asset kind/decimals. Reference-protected master deletion explicitly recommends archive. |
 | `PRECONDITION_FAILED` | Invalid lifecycle state (including append to an ended play or count add/undo outside active play); missing configured base asset for requested conversion; continuing an explicitly finished entry; rule operation requiring an absent linked master. |
 | `INTERNAL_SERVER_ERROR` | Configured external service unavailable or malformed provider response; never an ownership substitute. |
 
@@ -22,7 +22,7 @@ Omitted update fields mean unchanged; `null` clears only nullable fields. Suppli
 
 All multistatement writes, event changes plus projection, exchange pairs, rule writes, and replace-all child writes use one D1 `db.batch()`. Inserts respect the 100-bound-parameter limit. Event/hand sequence allocation occurs inside INSERT, not from an earlier application-side MAX. These are observable atomicity requirements, not optional implementation advice.
 
-The D1 budget is Workers Paid's 1,000 queries per Worker invocation, including authentication/session reads and each batch statement (spec §20.1 item 10). B08 derives/enforces tournament levels × lineup groups/prices maxima, B16 derives/enforces manual playSessions/payments maxima. Each records its fixed bounds here and adds a real D1 integration test counting statements at maximum input. live.createAndAssignTournament reuses B08's maxima plus B20's relink cost; B20 owns its statement-count test at maximum input. No independent fixed array maximum overrides this budget.
+The D1 budget is Workers Paid's 1,000 queries per Worker invocation, including authentication/session reads and each batch statement (spec §20.1 item 10). B08 derives/enforces tournament levels × lineup groups/prices maxima and B16 manual playSessions/payments maxima; each records its fixed bounds here. Every mutation's owning task proves with a real D1 integration test counting statements that its maximum admitted input stays within the budget, with nested rule bodies at B07/B08's maxima and days/payments at B16's: entry.create/update B16; live.create B17; tag writes and reorder B18; hand detail writes B21; overrideRule/applyMasterRule/pushRuleToMaster/relink/restoreRule and live.createAndAssignRingGame/Tournament B20; master writes B07/B08. When a combined input exceeds the budget at those maxima, the owning task sets a tighter limit on its own procedure; it never changes another task's maxima. No independent fixed array maximum overrides this budget.
 
 ### Dates, quantities, lists and common results
 
@@ -36,26 +36,27 @@ The D1 budget is Workers Paid's 1,000 queries per Worker invocation, including a
 - `PageInput = { cursor?: string, limit?: integer }`; entry/live limits default 20, range 1–100; hand/player-hand default 20, range 1–50; ledger default 20, range 1–100. Entry/live order `(playedOn,id)` descending; hand `(handNo,id)` descending; ledger `(occurredAt,id)` descending. Series are chronological.
 - Every archivable master list accepts `includeArchived?: boolean` (default false); true includes active **and** archived rows. Historical references always hydrate archived masters regardless of this flag. This applies to asset, room, ringGame, tournament, gameGroup, gameVariant, gameMix and ledgerCategory.
 - `IdInput = { id: Id }`; `Ack = { success: true }`; `IdResult = { id: Id }`. Procedures returning a record return the complete documented record, not a database-only fragment. Common auth, ownership and input errors apply to every row below; the error column lists additional cases.
-- `Q` / `M` in procedure tables mean query / mutation. `Excluded: <reason>` is an explicit MCP exclusion recorded in DELIBERATELY_EXCLUDED, not an unregistered procedure. The reasons are `cockpit`, `cockpit identity`, `wallet`, `destructive`, `screen`, `screen settings`, `screen ordering`, `duplicate read`, `toggle`, `extraction`, `external quota`, `infrastructure`, `rule workflow`, `narrower structure workflow`, `tag maintenance`, `maintenance/ordering`, `opponent maintenance` and `opponent review`.
+- `Q` / `M` in procedure tables mean query / mutation. `Excluded: <reason>` is an explicit MCP exclusion recorded in DELIBERATELY_EXCLUDED, not an unregistered procedure. The reasons are `cockpit`, `cockpit identity`, `wallet`, `destructive`, `screen`, `screen settings`, `screen ordering`, `duplicate read`, `toggle`, `extraction`, `external quota`, `infrastructure`, `rule workflow`, `narrower structure workflow`, `tag maintenance`, `opponent maintenance` and `opponent review`.
 
 ### Undo
 
 All non-destructive mutations in the new UI show a toast while running and offer **Undo** for six seconds after success. Derive the inverse's previous values from the same client-cache snapshot used for optimistic-update rollback. Undo sends a compensating request; it is not a deferred write.
 
-Do not offer Undo for an Undo (no redo), hard deletes (`*.delete`, `live.discard`), non-persisting operations (`location`, `aiExtract`) or read tracking (`markViewed`). Hard deletes use only a confirmation Dialog, as required by `web-theme.md`; no API can restore them exactly (user decision, 2026-10-16).
+Do not offer Undo for an Undo (no redo), hard deletes (`*.delete`, `live.discard`), non-persisting operations (`location`, `aiExtract`) or read tracking (`markViewed`). Hard deletes use only a confirmation Dialog, as required by `web-theme.md`; no API can restore them exactly (user decision, 2026-10-16). An `entry.update` whose `playSessions` omits an existing Day deletes that Day with its hands, so the UI treats it as a hard delete: confirmation Dialog, no Undo.
 
 Conflicts use last-writer-wins (R4), without optimistic concurrency control. If a documented error rejects the inverse, show **"Couldn't undo"** and leave state unchanged.
 
 | Operation | Inverse |
 | --- | --- |
 | create | delete (`live.create` uses `live.discard`) |
-| Partial update | update with previous values |
-| Whole-array replacement | Replace with the previous array |
+| Partial update without a rule change | update with previous values |
+| Whole-array replacement | Replace with the previous array (not offered when `entry.update` removes a Day; see above) |
 | archive | restore, and vice versa |
 | toggleFavorite | toggleFavorite again |
 | setDefault | Previous setDefault / clearDefault |
 | reorder | Previous order |
 | Rule operation | restoreRule |
+| ringGame/tournament update with `rule` | restoreRule to the previous current version; if metadata also changed, update with the previous metadata, then restoreRule (two requests; either rejection shows "Couldn't undo") |
 | playEvent.create | playEvent.delete |
 | tablePlayer operation | playEvent.delete with the returned eventId (for `addNew` / `addTemporary`, the created player row remains; it is not deleted by Undo) |
 | hand.undoLast | No Undo; re-add with hand.add |
@@ -211,8 +212,8 @@ All reads and successful entry mutations return EntryOutput, never game_session/
 | `list` Q | Entry list filters + PageInput; source is live | Page<EntryOutput> | B17 |
 | `getById` Q | IdInput | EntryOutput + live detail above | Non-live target: BAD_REQUEST; B17 |
 | `create` M | `kind:cash|tournament,roomId?,assetId?,memo?,startedAt?:Instant,localDate?:DateOnly,label?:string<=50,payments:Payment[]`; matching `ringGameId?`/`tournamentId?`, `rule?`; tournament `initialStack?:nonnegative integer,timerStartedAt?:Instant,startLevel?:positive integer` | EntryOutput + tournament progress | Existing active/paused play: CONFLICT; initialStack writes the first update_stack in the creation batch; B17 |
-| `createAndAssignRingGame` M | `{entryId,...ringGame.create input}` | EntryOutput | Cash only; create and relink one batch; B17/B20 |
-| `createAndAssignTournament` M | `{entryId,...tournament.createWithLevels input}` | EntryOutput | Tournament only; one batch; B17/B20 |
+| `createAndAssignRingGame` M | `{entryId,...ringGame.create input}` | EntryOutput | Cash only; create and relink one batch; B20 |
+| `createAndAssignTournament` M | `{entryId,...tournament.createWithLevels input}` | EntryOutput | Tournament only; create and relink one batch; B20 |
 | `update` M | `{id,memo?:string|null,roomId?:Id|null,assetId?:Id|null}` | EntryOutput | Derived fields cannot be patched; B17 |
 | `complete` M | `{id,occurredAt?:Instant,endState:cashed_out|busted|finished,payments:Payment[],beforeDeadline?:boolean,placement?:positive integer,totalEntries?:positive integer}` | EntryOutput | Terminal time earlier than an existing event of this play or beyond now+60s: BAD_REQUEST before writes; no active/paused play: PRECONDITION_FAILED; B17 |
 | `endPlay` M | `{id,occurredAt?:Instant,endState:held|bagged,stackAmount:nonnegative integer}` | EntryOutput | held cash only, bagged tournament only; terminal time earlier than an existing event of this play or beyond now+60s: BAD_REQUEST before writes; B19 |
@@ -494,7 +495,7 @@ Same five Tag procedures, shapes, constraints and errors as §19, instantiated a
 
 ## 22. `playerTag` — B18
 
-Same five procedures as §19, instantiated as `playerTag.list/create/update/delete/reorder`. `PlayerTag = Tag & {color:TagColor}`. Create additionally accepts `color?:TagColor='gray'`; update accepts optional name/color, at least one. TagColor is the shared `TAG_COLOR_NAMES` enum, not arbitrary CSS. Outputs use PlayerTag instead of Tag. MCP `player_tag_list`, `player_tag_create`; update/reorder excluded maintenance/ordering, delete excluded destructive. Player create/update tagIds order defines link position; deleting a tag deletes links, not players.
+Same five procedures as §19, instantiated as `playerTag.list/create/update/delete/reorder`. `PlayerTag = Tag & {color:TagColor}`. Create additionally accepts `color?:TagColor='gray'`; update accepts optional name/color, at least one. TagColor is the shared `TAG_COLOR_NAMES` enum, not arbitrary CSS. Outputs use PlayerTag instead of Tag. MCP `player_tag_list`, `player_tag_create`; update excluded tag maintenance, reorder excluded screen ordering, delete excluded destructive. Player create/update tagIds order defines link position; deleting a tag deletes links, not players.
 
 ## 23. `player` — existing surface; protection B10, self B15, opponent detail B24
 
@@ -606,8 +607,8 @@ Names below disappear in the `Removed in` task's PR together with their MCP regi
 | blindLevel.* | tournament.getById / whole-version WithLevels writes | B08 | B08 |
 | tournamentChipPurchase.* | tournament rule.prices read/write | B08 | B08 |
 | keepSnapshot | relink.keepRule | B06 | B20 |
-| variant/mixGames labels, flat master blinds, level games | game ids / stakes / immutable ruleVersion + lineups | B07/B08 (masters), B06 (entry/live) | B07/B08 (masters), B16/B17/B20 (entry/live) |
-| currencyId, sessionDate seconds, type cash_game, evCashOut, flat money inputs/outputs | assetId, playedOn, kind cash, evDiff, payments and lines/totals/valuation | B12/B06 | B12/B16/B17 |
+| variant/mixGames labels, flat master blinds, level games | game ids / stakes / immutable ruleVersion + lineups | B07/B08 (masters), B06 (entry/live), B22 (stats filters/presets) | B07/B08 (masters), B16/B17/B20 (entry/live), B22 (stats/presets) |
+| currencyId, sessionDate seconds, type cash_game, evCashOut, flat money inputs/outputs | assetId / defaultAssetId, playedOn, kind cash, evDiff, payments and lines/totals/valuation | B07/B08 (master currencyId), B12 (currency router), B06 (entry/live), B22 (stats inputs/preset keys) | B07/B08, B12, B16/B17, B22 |
 
 ## 31. Final MCP tool map
 
