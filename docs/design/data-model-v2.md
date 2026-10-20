@@ -469,7 +469,7 @@ CREATE TABLE ledger_category (
 CREATE UNIQUE INDEX ledger_category_name_uq ON ledger_category(user_id,lower(trim(name)));
 ```
 
-B09 moves transaction_type with the same ids except the reserved Session Result row, which is not a category. Normalized duplicate names merge into the oldest (created_at,id) representative and all referencing lines use that representative. B09 deletes the reserved-name machinery and DEFAULT_TRANSACTION_TYPES; B14 provides archive/restore and referenced-delete CONFLICT guidance.
+B09 moves transaction_type with the same ids except the reserved Session Result row, which is not a category. Normalized duplicate names merge into the oldest (created_at,id) representative and all referencing lines use that representative. B09 only migrates categories; the old transactionType router keeps its own table until B14, which deletes the reserved-name machinery and DEFAULT_TRANSACTION_TYPES with that router and provides archive/restore and referenced-delete CONFLICT guidance.
 
 ```sql
 CREATE TABLE ledger_line (
@@ -848,7 +848,7 @@ Cash BB = blind2 only when the rule's cash lineup has exactly one group and the 
 
 Tournament **1 BI = first buy_in + its fee**, excluding re-entries, their fees and chip purchases (C7). Where initial payments span assets, valuation to the declared base must succeed before deriving a scalar BI; otherwise normalized output excludes/reports the entry. ROI's invested-money denominator still includes all applicable negative lines; 1 BI normalization is a distinct unit definition.
 
-EV PL = real PL + ev_diff when EV exists; NULL means unrecorded. ev_diff is Math.round of the sum `potSize*equity/100 − potSize/trials*wins` across all all_in events, not separately rounded events. After B12 it is projected while open too; no all_in/EV record leaves NULL. B06's settled-only legacy bridge is removed by B12. EV uses the table asset and cannot be added to an unrelated currency total.
+EV PL = real PL + ev_diff when EV exists; NULL means unrecorded. ev_diff is Math.round of the sum `potSize*equity/100 − potSize/trials*wins` across all all_in events, not separately rounded events. After B12 it is projected while open too; no all_in/EV record leaves NULL. B06's settled-only legacy bridge is removed by B12, whose migration projects ev_diff for open live cash entries with this formula from their all_in events, so A-6 replay agrees. EV uses the table asset and cannot be added to an unrelated currency total.
 
 Breaks: sum finished pause/resume spans per day and floor total seconds/60. A pause open at day end closes at ended_at. An unfinished pause does not depend on wall clock; replay stays pure.
 
@@ -927,7 +927,7 @@ All screen requirements, persisted-cache buster/reload behavior, client formula 
 
 ### 16.1 Order and one-home cutovers
 
-The order is a dependency DAG (§18), not a requirement to serialize independent tasks. Its backbone is B01/B02 → B04 → B06 (also after B03) → B09/B10; B03 → B05 → B07/B08 (after B04); B07/B08 + B09 → B13 → B15/B16 → B17 → B19/B20/B21/B23; B16 → B18 → B22 → B24; everything → B25 → REL. B04 lands before the first data cutover, so every cutover and populated rebuild is audited on the dev deploy that ships it. B01 and B02 are independent; whichever merges second rebases its schema/migration snapshot. PR #704 is closed: B06 ports only its migration and migration test from head 3d6f3dfa onto B01/B02, renumbers 0059 and writes before_deadline as 0/1. It does not port the router changes, legacy-output tests or old spec edits.
+The order is a dependency DAG (§18), not a requirement to serialize independent tasks. Its backbone is B01/B02 → B04 → B06 (also after B03) → B09/B10; B03 + B04 (after B01/B02) → B05 → B07/B08; B07/B08 + B09 → B13 → B15/B16 → B17 → B19/B20/B21/B23; B16 → B18 → B22 → B24; everything → B25 → REL. B04 lands before every data cutover and every populated rebuild except B02, so each of those is audited on the dev deploy that ships it; B02 runs before the runner exists and relies on its in-migration gates (counts, restored links, uniqueness, foreign_key_check). B01 and B02 are independent; whichever merges second rebases its schema/migration snapshot. PR #704 is closed: B06 ports only its migration and migration test from head 3d6f3dfa onto B01/B02, renumbers 0059 and writes before_deadline as 0/1. It does not port the router changes, legacy-output tests or old spec edits.
 
 | Task | What it leaves authoritative | End-of-migration gate |
 | --- | --- | --- |
@@ -939,10 +939,11 @@ The order is a dependency DAG (§18), not a requirement to serialize independent
 | B05 | game_variant composite ownership, expression label indexes | child counts/links, normalized uniqueness, foreign_key_check |
 | B07 | ring_game with current_rule_id NOT NULL; immutable cash rules | no NULL current ids, A-13 master half, stake coverage, counts/FK |
 | B08 | tournament current rule, whole levels/prices | no NULL current ids, A-13 master half, stake/price coverage, counts/FK |
-| B13 | Entry versions, ledger price ids and final NOT NULL leaf details; rule creation/read services, not router wiring | no NULL ids, counts, A-13 entry half, coverage, foreign_key_check |
+| B13 | Entry versions, ledger price ids and final NOT NULL leaf details; rule creation/read services, not router wiring | no NULL ids, counts, A-13 entry half, coverage, foreign_key_check, no Big Bet stake with blind3 (same condition as B11) |
 | B18 | four tag definitions/links by id | A-12 mapped link sets and FK |
 | B15 | Every payload v2; remove v1 from projector and registry before B17 | SQL version/count gates; A-6 replay and A-15 run by B04 after migration |
 | B23 | rule-based stand-in cleanup, no seed exception | A-16, FK/lineup duplicate check, A-6 after migration |
+| B22 | filter_preset rebuilt with json_valid CHECK and final stats-filter payloads | equal row counts, foreign_key_check, every payload parses with the final filter schema |
 | B25 | All remaining retired schema/code removed, including todo | final table/column inventory, row preservation, FK, all final audits |
 
 Runtime code reads and writes only its final tables. Retired tables are migration sources, not an intermediate backend for final APIs. Old routers whose replacements have not landed (including stats, currency, currencyTransaction, transactionType, sessionTag, ringGame and tournament) continue using their own old tables until their replacement PR. Rows those old routers write in dev after migration are not carried forward: every dev deploy rebuilds the database from production (`dev-deploy.yml:107`). Rebuilt tables omit retired columns; B13 rebuilds only leaf detail tables, and B25 removes all remaining retired tables/columns and code.
@@ -1156,11 +1157,11 @@ This is the final task list, numbered in execution order (rebuilt on 2026-10-17;
 | B02 | SA2-386 | Data Model v2 | Early asset rebuild/rename; Drizzle CHECKs and unique names | 3 | — |
 | B03 | SA2-387 | Data Model v2 | Delete API-dependent old UI, transfer test contracts and rule references | 5 | — |
 | B04 | SA2-388 | Data Model v2 | All A-x audit runner, projector replay, dev-deploy/release gate | 3 | B01, B02 |
-| B05 | SA2-389 | Non-NLH games | Game-master archive/restore and includeArchived, API only; composite game_variant rebuild, expression UNIQUE, no label/JSON triggers | 5 | B03 |
+| B05 | SA2-389 | Non-NLH games | Game-master archive/restore and includeArchived, API only; composite game_variant rebuild, expression UNIQUE, no label/JSON triggers | 5 | B03, B04 |
 | U01 | SA2-390 | UI v3 | Shell, route map, home, Undo toast base (`useUndoableMutation`), persisted-cache buster; receives B03's last old-UI SHA and test-contract ledger and assigns each row to a phase | 5 | B03 |
 | B06 | SA2-391 | Data Model v2 | Port #704's migration/test, migrate entry/day/events, A-3/A-4; delete old entry/live APIs and MCP | 5 | B03, B04 |
-| B07 | SA2-392 | Non-NLH games | Cash master version/lineup backfill and ring_game rebuild/final API | 5 | B04, B05 |
-| B08 | SA2-393 | Non-NLH games | Tournament version/levels/prices with invocation-budget maxima and master rebuild/final API | 5 | B04, B05 |
+| B07 | SA2-392 | Non-NLH games | Cash master version/lineup backfill and ring_game rebuild/final API | 5 | B05 |
+| B08 | SA2-393 | Non-NLH games | Tournament version/levels/prices with invocation-budget maxima and master rebuild/final API | 5 | B05 |
 | B09 | SA2-394 | Data Model v2 | Ledger/category migration, A-5 and A-11 reporting; no API wiring | 5 | B06 |
 | B10 | SA2-395 | Data Model v2 | Hand backfill/final hand counter API, A-10, player delete guard | 5 | B06 |
 | B11 | SA2-396 | Non-NLH games | Required blind flags and built-in defaults, remove Big Bet Straddle; shared new-stake validation, API/MCP, no UI | 5 | B08 |
@@ -1175,7 +1176,7 @@ This is the final task list, numbered in execution order (rebuilt on 2026-10-17;
 | U03 | SA2-405 | UI v3 | Asset, wallet, rate and settings screens | 5 | U01, B14 |
 | B19 | SA2-406 | Data Model v2 | endPlay/startNextPlay and undo, ended-day state machine | 3 | B17 |
 | B20 | SA2-407 | Non-NLH games | Entry/live rule-operation APIs, including restoreRule | 3 | B17 |
-| B21 | SA2-408 | Data Model v2 | Summary/full replacement writes and all_in hand link, API only | 3 | B17 |
+| B21 | SA2-408 | Data Model v2 | Summary/full replacement writes and all_in hand link, hand.update tagIds/tagReviews, API only | 3 | B17, B18 |
 | B22 | SA2-409 | Data Model v2 | Final settled-only stats modes/date axes/tags/presets/reporting; rebuild filter_preset with JSON CHECK and row-count/FK gates | 5 | B12, B18 |
 | B23 | SA2-410 | Data Model v2 | Rule-based stand-in cleanup and seed-exception removal | 3 | B17 |
 | U04 | SA2-411 | UI v3 | Management and pickers for the four tag kinds; the other screens use these pickers from the start | 3 | U01, B18 |
@@ -1194,7 +1195,7 @@ This is the final task list, numbered in execution order (rebuilt on 2026-10-17;
 | X2 | SA2-424 | UI v3 | Automatic mix rotation every N hands. After the release | 3 | REL |
 | Record | SA2-334 | Data Model v2 | Z1/Z2, principles, resolutions/tasks/cancellations and this documentation change | 2 | — |
 
-B04 precedes every data cutover so each cutover is audited on the dev deploy that ships it. U01 only needs B03; every other U phase waits for its final APIs. REL waits for B25 and the U phases except U12; U12, X1 and X2 are not release conditions. #704 is closed and SA2-303 was canceled with it; B06 ports only #704's migration and migration test. SA2-334 records the restructure rather than adding another implementation phase.
+B04 precedes every data cutover and populated rebuild except B02 (in-migration gates only), so each is audited on the dev deploy that ships it. U01 only needs B03; every other U phase waits for its final APIs. REL waits for B25 and the U phases except U12; U12, X1 and X2 are not release conditions. #704 is closed and SA2-303 was canceled with it; B06 ports only #704's migration and migration test. SA2-334 records the restructure rather than adding another implementation phase.
 
 Canceled work is fully reassigned: T16 (SA2-315)→B16/B17/U07/U05; T19 (SA2-317)→B19/U09; T20 (SA2-318)→B16/U07; T33 (SA2-320)→B22/B18/U04; L3 (SA2-246)→B07/B08/B13/B22/B16/B17; L4a/b/c (SA2-247/248/249)→U06/U08/U07 and U02; L5 (SA2-250)→B07/B08/B13/B05/B16/B17/B25. Historical T03→T02, T08/T09→T07, T34/T36 canceled, remain recorded in the decision log, not active tasks. SA2-242's design deliverable is complete; its old phase table is superseded by this one. B11 owns Must/Optional blind-field validation after B08; the screens are U02's shared stakes components.
 
@@ -1216,7 +1217,7 @@ Every audit finding has a final resolution; none is a task-start design question
 | C10 | Owned player_tag_link (§10) | B18 |
 | C11 | Owned variant→group NO ACTION (§5) | B05 |
 | C12 | Expression UNIQUE instead of label triggers (§5) | B05 |
-| C13 | Delete unused series/privateData (§14) | B16 |
+| C13 | Delete unused series/privateData (§14) | B06, B16 |
 | C14 | Asset names unique; category archive/unique; no reserved machinery (§5/7) | B02, B01, B09, B14 |
 | C15 | Preset migration, id tags, four-kind MCP, includeArchived, string cursors (§10/14) | B22, B18, B05, B10 |
 | F1 | Same-id category move and deterministic dedup/remap (§7/16) | B09 |
@@ -1261,10 +1262,9 @@ B02 --> B04
 B03 --> B05
 B03 --> U01
 B03 --> B06
+B04 --> B05
 B04 --> B06
-B04 --> B07
 B05 --> B07
-B04 --> B08
 B05 --> B08
 B06 --> B09
 B06 --> B10
@@ -1288,6 +1288,7 @@ B14 --> U03
 B17 --> B19
 B17 --> B20
 B17 --> B21
+B18 --> B21
 B12 --> B22
 B18 --> B22
 B17 --> B23
@@ -1350,7 +1351,7 @@ Follow [testing.md](../../.claude/rules/testing.md): expectations come from this
 | Event/projection partial failure | Real D1 batch: fail a middle statement and read back no event or projection change | B19/B17 |
 | Replay/state machine errors | Pure unit tests for distinct event business transitions, day_end rejecting append, busted re-entry/bagged next day, undo and deterministic breaks; final v2 only; temporary v1 cases removed by B15 | B19/B15/B17 |
 | Same-time concurrent append loses fact | Real concurrent pending writes, not sequential awaits; distinct event orders persist, A-6 exposes projection drift | B17/B04 |
-| Monetary conversion and exclusions | Unit valuation: §12 example, inverse/two-hop, effective boundary including 0, old line without rate, real vs virtual exclusion, ±0.5 rational rounding | T13/B22 |
+| Monetary conversion and exclusions | Unit valuation: §12 example, inverse/two-hop, effective boundary including 0, old line without rate, real vs virtual exclusion, ±0.5 rational rounding | B22 |
 | Multi-day stats use wrong population/time/date | Real caller/D1: open excluded; two timed days and differing breaks summed; date strings and weekday/month/year at UTC boundary; mixed-asset selected-line sums and reporting; first-buy-in BI excludes re-entry | B22/B24 |
 | Wallet category move/exchange integrity | Real migration/caller/D1: duplicate categories remap, reserved category amount retained, referenced deletion rejected, pair update/delete atomic, entry lines forbidden | B09/B12/B14 |
 | Hand count/source divergence or details destroyed by undo | Real D1 hand add/undo active gate, count-only undo, delete renumber, linked-hand CONFLICT; §12 stats over rows | B10/B21/B24 |
@@ -1369,7 +1370,7 @@ Implementation PRs run types, lint, check:rules and the relevant Vitest/migratio
 
 ### 20.1 Decisions confirmed by the user
 
-The user confirmed all fourteen items on 2026-10-16: items 1–8 as recommended, item 9 declines the pre-T38/B02 release, item 10 changed from D1 Free to Workers Paid because the user's Cloudflare account subscribes to Workers Paid ($5/month), and items 11–14 fix required blinds, Undo, the deferred sparkline and data-first implementation. A later change updates the binding section/task before implementation proceeds. Item 9 is a release choice, not a product rule.
+The user confirmed all fourteen items on 2026-10-16: items 1–8 as recommended, item 9 declines the pre-B01/B02 release, item 10 changed from D1 Free to Workers Paid because the user's Cloudflare account subscribes to Workers Paid ($5/month), and items 11–14 fix required blinds, Undo, the deferred sparkline and data-first implementation. A later change updates the binding section/task before implementation proceeds. Item 9 is a release choice, not a product rule.
 
 | Item | Decision | Rejected alternative | Binds |
 | --- | --- | --- | --- |
@@ -1395,9 +1396,9 @@ Every old Q identifier remains stable; decisions are not reopened merely because
 | ID | Resolution | Binding task |
 | --- | --- | --- |
 | Q1 | All tournament re-entry bullets remain one entry; per-bullet facts are lines/days | B19 |
-| Q2 | Items excluded from real P/L, included only in virtual valuation | T13/B22 |
-| Q3 | Rates are effective-time history; historical correction intentionally revalues affected lines | T10/B12 |
-| Q4 | +1 is a hand row, count and button have one source | T21/B10 |
+| Q2 | Items excluded from real P/L, included only in virtual valuation | B22 |
+| Q3 | Rates are effective-time history; historical correction intentionally revalues affected lines | B12 |
+| Q4 | +1 is a hand row, count and button have one source | B10 |
 | Q5 | Use immutable rule versions rather than copied per-owner stakes | B07/B08/B13 |
 | Q6 | Missing legacy asset uses per-user Unassigned; default final cleanup is ordinary retained asset | B09/B23 |
 | Q7 | Historical live dates assume JST; new writes use setting with Asia/Tokyo fallback | B06/B17/B23 |

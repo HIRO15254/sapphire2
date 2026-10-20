@@ -47,7 +47,7 @@ Built-in structures define these blind fields and required flags (`blind1Require
 | Stud | Small Bet — Must | Big Bet — Must | Bring-in — Optional |
 | Big Bet | SB — Must | BB — Must | No label — Optional |
 
-Big Bet has only SB and BB; there is no Straddle field. User-created structures default all three flags to false (Optional). Ante is outside this requirement. B11 adds `game_group.blind{1,2,3}_required` as INTEGER NOT NULL DEFAULT 0, sets the built-in flags, and clears the built-in Big Bet Straddle label. Its migration aborts if any Big Bet stake has a blind3 value.
+Big Bet has only SB and BB; there is no Straddle field. User-created structures default all three flags to false (Optional). Ante is outside this requirement. B11 adds `game_group.blind{1,2,3}_required` as INTEGER NOT NULL DEFAULT 0, sets the built-in flags, and clears the built-in Big Bet Straddle label. Its migration aborts if any Big Bet stake has a blind3 value. Production had no such value on 2026-10-17 (26 ring games, 175 cash sessions, 142 tournament sessions and 380 master levels checked). B11 and B13 are unordered, so B13's end check applies the same condition to the entry versions it writes; a straddle entered in production before the release fails the next dev-deploy rehearsal of whichever of B11/B13 has landed, before the release can start.
 
 Only a labeled field may be Required (BAD_REQUEST otherwise). Shared B07/B08 stake-write validation, also used by B13, rejects a newly written stake with a NULL required blind or a value in an unlabeled field with BAD_REQUEST, using the lineup group's stored `game_group_id`. Reusing an existing version does not revalidate its stakes. Clearing a label while saved stakes still contain a value in that field returns CONFLICT.
 
@@ -134,7 +134,7 @@ All referenced ids are ownership-checked with uniform FORBIDDEN, including asset
 
 A rule write is one `db.batch()`: insert lineups and their children, insert the new version, insert stakes/levels/level stakes/prices, then repoint the master and/or entry. If the default lineup changes, inheriting levels in the **new** version receive the new default and mirror; stakes carry forward by structure plus ordinal. Old versions remain untouched. Whole tournament writes replace the supplied structure atomically; levels have an explicit input maximum and inserts derive their chunk width from the declared row shape to stay under D1's 100-bind limit.
 
-Tournament writes obey the D1 invocation budget in data-model-v2.md §20.1 item 10: Workers Paid allows 1,000 queries per Worker invocation, including auth/session reads and each batch statement. B08 derives/enforces the levels × groups/prices maxima and records them in the API reference; createAndAssignTournament includes B13's relink cost. A real D1 integration test counts statements at the maximum admitted input.
+Tournament writes obey the D1 invocation budget in data-model-v2.md §20.1 item 10: Workers Paid allows 1,000 queries per Worker invocation, including auth/session reads and each batch statement. B08 derives/enforces the levels × groups/prices maxima and records them in the API reference, with a real D1 integration test counting statements at the maximum admitted input. live.createAndAssignTournament adds B20's relink cost to those maxima; B20 owns its statement-count test.
 
 `blindLevel` and `tournamentChipPurchase` routers are deleted in B08 (C8). There is no row-level edit facade over immutable versions. `tournament.create/update` and `createWithLevels/updateWithLevels` all use complete version bodies; the latter pair is exposed by MCP. Procedure details and omission semantics live in the API reference.
 
@@ -180,14 +180,14 @@ These are implementation dependencies, not separate release steps. The authorita
 | --- | --- | --- |
 | B01 | Final empty lineup/rule DDL, entry rule and ledger price composites, G1/G2/G7 keys and indexes | None |
 | B02 | Final asset DDL before any v2 backfill | None |
-| B05 | API-only game-master archive/restore, guarded delete, includeArchived and MCP; rebuild game_variant with the composite group FK and expression label UNIQUE indexes; remove JSON/compatibility triggers | B03 |
-| B07 | Ring-game lineup/version backfill, master rebuild and final ringGame API/MCP | B04, B05 |
-| B08 | Tournament versions, levels, stakes and prices; master rebuild; final tournament API/MCP; delete row routers | B04, B05 |
+| B05 | API-only game-master archive/restore, guarded delete, includeArchived and MCP; rebuild game_variant with the composite group FK and expression label UNIQUE indexes; remove JSON/compatibility triggers | B03, B04 |
+| B07 | Ring-game lineup/version backfill, master rebuild and final ringGame API/MCP | B05 |
+| B08 | Tournament versions, levels, stakes and prices; master rebuild; final tournament API/MCP; delete row routers | B05 |
 | B11 | Required blind flags, built-in defaults and Straddle removal; shared new-stake validation | B08 |
 | B13 | Entry versions and ledger price mapping; NOT NULL leaf-detail rebuild; rule creation/read services and drift, without router wiring | B07, B08, B09 |
-| B20 | Entry/live rule-operation APIs, including restoreRule | B16, B17 |
+| B20 | Entry/live rule-operation APIs, including restoreRule | B17 |
 
-Canceled tasks have explicit destinations: L3 / SA2-246 → B07, B08, B13, B22, B16, B17; L4a / SA2-247, L4b / SA2-248 and L4c / SA2-249 → the UI v3 phases (U01–U12); L5 / SA2-250 → B07, B08, B13, B05, B16, B17, B25. SA2-242 is the completed design, not an additional implementation gate. B11 owns Must/Optional blind-field validation after B08; its screens are U02 (shared stakes components) and the phases that use them.
+Canceled tasks have explicit destinations: L3 / SA2-246 → B07, B08, B13, B22, B16, B17; L4a / SA2-247 → U06, L4b / SA2-248 → U08, L4c / SA2-249 → U07, plus U02's shared editors; L5 / SA2-250 → B07, B08, B13, B05, B16, B17, B25. SA2-242 is the completed design, not an additional implementation gate. B11 owns Must/Optional blind-field validation after B08; its screens are U02 (shared stakes components) and the phases that use them.
 
 ## Migration choreography and traps
 

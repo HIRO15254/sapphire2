@@ -103,7 +103,7 @@ Consequences for any migration that touches existing rows:
 **Exception: the data model v2 migrations** (tasks in [`data-model-v2.md` §17](../../docs/design/data-model-v2.md#17-task-breakdown);
 procedure in [§16](../../docs/design/data-model-v2.md#16-migration-procedure)). B01/B02 prepare the empty targets/asset before B06;
 B05/B07/B08 stage populated parent rebuilds, B13 rebuilds the entry leaf details, and B22 rebuilds the preset leaf table.
-They ship with the new UI in one release after the freeze (SA2-334); B03 deletes old API-dependent UI before API breaks.
+They ship with the new UI in one release after the freeze (decided in SA2-334, released by REL / SA2-422); B03 deletes old API-dependent UI before API breaks.
 Every dev deploy replays them on a fresh production copy and runs B04's [§16.7 audit catalogue](../../docs/design/data-model-v2.md#167-audit-catalogue).
 The [§16.8 release runbook](../../docs/design/data-model-v2.md#168-final-release-runbook) records a D1 Time Travel point,
 applies migrations, audits production, then deploys Worker and new UI. Failure restores that point and is fixed on `dev`, not retried in production.
