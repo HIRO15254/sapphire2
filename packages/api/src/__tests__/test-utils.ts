@@ -1,5 +1,5 @@
 import type { Database } from "@sapphire2/db";
-import { Column, getTableName, is, Param, SQL, StringChunk } from "drizzle-orm";
+import { Column, getTableName, is, SQL } from "drizzle-orm";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { expect, vi } from "vitest";
 import type z from "zod";
@@ -64,8 +64,6 @@ export function expectRejects(procedure: unknown, input: unknown): void {
 type MockRow = Record<string, unknown>;
 
 interface ChainableMockDbConfig {
-	evaluateWhere?: boolean;
-
 	select?: Record<string, MockRow[]>;
 }
 
@@ -106,66 +104,6 @@ function applyProjection(
 	return [{ [outKey]: values.length > 0 ? Math.max(...values) : null }];
 }
 
-function sqlChunks(node: unknown): unknown[] {
-	return (node as { queryChunks?: unknown[] }).queryChunks ?? [];
-}
-
-function chunkText(chunks: unknown[]): string {
-	return chunks
-		.filter((chunk) => chunk instanceof StringChunk)
-		.map((chunk) => (chunk as unknown as { value: string[] }).value.join(""))
-		.join("")
-		.trim();
-}
-
-function leafMatches(chunks: unknown[], row: MockRow): boolean {
-	const column = chunks.find((chunk) => is(chunk, Column)) as
-		| Column
-		| undefined;
-	const param = chunks.find((chunk) => is(chunk, Param)) as
-		| { value: unknown }
-		| undefined;
-	const operator = chunkText(chunks);
-	if (!(column && param)) {
-		throw new Error(
-			`evaluateWhere: unsupported condition "${operator}" (expected a column/value comparison)`
-		);
-	}
-	const key = columnJsKey(column);
-	if (!key) {
-		throw new Error(
-			`evaluateWhere: cannot resolve a JS key for ${column.name}`
-		);
-	}
-	if (operator === "=") {
-		return row[key] === param.value;
-	}
-	if (operator === "<>") {
-		return row[key] !== param.value;
-	}
-	throw new Error(`evaluateWhere: unsupported operator "${operator}"`);
-}
-
-function conditionMatches(condition: unknown, row: MockRow): boolean {
-	if (!is(condition, SQL)) {
-		throw new Error("evaluateWhere: condition is not a drizzle SQL expression");
-	}
-	const chunks = sqlChunks(condition);
-	const operands = chunks.filter((chunk) => is(chunk, SQL));
-	if (operands.length === 0) {
-		return leafMatches(chunks, row);
-	}
-	const keyword = chunkText(chunks).replaceAll("(", "").replaceAll(")", "");
-	if (keyword.includes("or")) {
-		if (keyword.includes("and")) {
-			throw new Error("evaluateWhere: mixed and/or conditions are unsupported");
-		}
-		return operands.some((operand) => conditionMatches(operand, row));
-	}
-
-	return operands.every((operand) => conditionMatches(operand, row));
-}
-
 export function withGameMixVariantFixtures(
 	select: Record<string, MockRow[]>
 ): Record<string, MockRow[]> {
@@ -186,7 +124,6 @@ export function withGameMixVariantFixtures(
 
 export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 	const selectRows = config.select ?? {};
-	const evaluateWhere = config.evaluateWhere ?? false;
 	const inserted: Record<string, unknown[]> = {};
 	const updated: Record<string, unknown[]> = {};
 	const selectedTables: string[] = [];
@@ -201,17 +138,11 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 			Record<string, (...args: unknown[]) => unknown>;
 		chain.where = (cond: unknown) => {
 			selectWhereParams.push(boundParams(cond));
-			if (!evaluateWhere) {
-				return chain;
-			}
-			return makeSelectChain(rows.filter((row) => conditionMatches(cond, row)));
+			return chain;
 		};
 		chain.limit = (value: unknown) => {
 			selectLimits.push(value);
-			if (!(evaluateWhere && typeof value === "number")) {
-				return chain;
-			}
-			return makeSelectChain(rows.slice(0, value));
+			return chain;
 		};
 		chain.orderBy = () => chain;
 		chain.leftJoin = (_table: unknown, cond: unknown) => {

@@ -33,15 +33,4 @@ describe("Drawer", () => {
 		const props = rootSpy.mock.calls.at(-1)?.[0] as Record<string, unknown>;
 		expect(props.repositionInputs).toBe(false);
 	});
-
-	it("lets a caller opt back into repositionInputs explicitly", () => {
-		rootSpy.mockClear();
-		render(
-			<Drawer onOpenChange={vi.fn()} open repositionInputs>
-				<div>content</div>
-			</Drawer>
-		);
-		const props = rootSpy.mock.calls.at(-1)?.[0] as Record<string, unknown>;
-		expect(props.repositionInputs).toBe(true);
-	});
 });

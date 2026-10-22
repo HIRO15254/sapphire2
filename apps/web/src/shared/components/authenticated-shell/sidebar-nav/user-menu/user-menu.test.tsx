@@ -4,34 +4,48 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UserMenu } from "./user-menu";
 
 const mocks = vi.hoisted(() => ({
-	menuState: {
-		session: null as null | { user: { email: string; name: string } },
+	sessionState: {
+		data: null as null | { user: { email: string; name: string } },
 		isPending: false,
-		onSignOut: vi.fn(),
 	},
-	useUserMenu: vi.fn(),
+	signOut: vi.fn(),
+	navigate: vi.fn(),
+	clearPersistedQueryCache: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
 	Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
 		<a href={to}>{children}</a>
 	),
+	useNavigate: () => mocks.navigate,
 }));
 
-vi.mock("./use-user-menu", () => ({
-	useUserMenu: mocks.useUserMenu,
+vi.mock("@/lib/auth-client", () => ({
+	authClient: {
+		useSession: () => mocks.sessionState,
+		signOut: mocks.signOut,
+	},
+}));
+
+vi.mock("@/utils/trpc", () => ({
+	clearPersistedQueryCache: mocks.clearPersistedQueryCache,
 }));
 
 describe("UserMenu", () => {
 	beforeEach(() => {
-		mocks.menuState.onSignOut.mockReset();
-		mocks.useUserMenu.mockReset();
-		mocks.useUserMenu.mockImplementation(() => mocks.menuState);
+		mocks.signOut.mockReset();
+		mocks.navigate.mockReset();
+		mocks.clearPersistedQueryCache.mockReset();
+		mocks.clearPersistedQueryCache.mockResolvedValue(undefined);
+		mocks.signOut.mockImplementation(
+			(options: { fetchOptions: { onSuccess: () => Promise<void> } }) =>
+				options.fetchOptions.onSuccess()
+		);
 	});
 
 	it("shows the loading skeleton", () => {
-		mocks.menuState.isPending = true;
-		mocks.menuState.session = null;
+		mocks.sessionState.isPending = true;
+		mocks.sessionState.data = null;
 
 		const { container } = render(<UserMenu />);
 
@@ -39,8 +53,8 @@ describe("UserMenu", () => {
 	});
 
 	it("renders sign in when there is no session", () => {
-		mocks.menuState.isPending = false;
-		mocks.menuState.session = null;
+		mocks.sessionState.isPending = false;
+		mocks.sessionState.data = null;
 
 		render(<UserMenu />);
 
@@ -53,10 +67,10 @@ describe("UserMenu", () => {
 		).not.toBeInTheDocument();
 	});
 
-	it("renders the user trigger and calls onSignOut", async () => {
+	it("keeps session identity wired to the menu and signs out once per click", async () => {
 		const user = userEvent.setup();
-		mocks.menuState.isPending = false;
-		mocks.menuState.session = {
+		mocks.sessionState.isPending = false;
+		mocks.sessionState.data = {
 			user: { email: "hero@example.com", name: "Hero User" },
 		};
 
@@ -66,6 +80,6 @@ describe("UserMenu", () => {
 		expect(screen.getByText("hero@example.com")).toBeInTheDocument();
 		await user.click(screen.getByText("Sign Out"));
 
-		expect(mocks.menuState.onSignOut).toHaveBeenCalledTimes(1);
+		expect(mocks.signOut).toHaveBeenCalledTimes(1);
 	});
 });

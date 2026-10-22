@@ -113,6 +113,9 @@ async function requestConsent(
 	).toBeVisible();
 	expect(response?.headers()["cache-control"]).toBe("no-store");
 	expect(response?.headers()["x-frame-options"]).toBe("DENY");
+	expect(response?.headers()["content-security-policy"]).toContain(
+		"frame-ancestors 'none'"
+	);
 	return { state, verifier };
 }
 

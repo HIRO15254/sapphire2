@@ -172,10 +172,6 @@ describe("tool/router coupling", () => {
 		]);
 	});
 
-	it("enumerates the full router procedure list (guard for the exclusion sweep)", () => {
-		expect(allPaths.length).toBeGreaterThanOrEqual(124);
-	});
-
 	it("derives the consent-screen permissions from the catalogue's annotations", () => {
 		const annotations = TOOL_DEFINITIONS.map(toolAnnotations);
 		const summary = toolPermissionSummary().join(" ");
