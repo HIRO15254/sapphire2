@@ -57,7 +57,7 @@ export { expect } from "@playwright/test";
 export async function signIn(page: Page, account: TestAccount) {
 	await page.goto("/login");
 	await submitSignIn(page, account);
-	await expect(page).toHaveURL((url) => url.pathname === "/statistics");
+	await expect(page).toHaveURL((url) => url.pathname === "/");
 }
 
 export async function submitSignIn(page: Page, account: TestAccount) {

@@ -11,12 +11,12 @@ Companion memory: [`.claude/rules/`](.claude/rules/) contains path-scoped rules.
 
 ## Stack
 
-- **Runtime / package manager**: Bun 1.3 (workspaces). Always use `bun`, never `npm` / `yarn` / `pnpm`. Cloudflare Wrangler runs with Node.js >=20.3.0 through the repository scripts.
+- **Runtime / package manager**: Bun 1.3 (workspaces). Always use `bun`, never `npm` / `yarn` / `pnpm`. Node.js >=22.16.0 runs Cloudflare Wrangler and Vitest through the repository scripts; CI pins Node in `.node-version` and Bun in `packageManager`.
 - **Web**: React 19, Vite, TanStack Router, TanStack Query, tRPC v11 client, Tailwind v4, shadcn/ui, `@tanstack/react-form`.
 - **Server**: Hono on Cloudflare Workers, tRPC v11 server, Better Auth.
 - **DB**: Cloudflare D1 (SQLite) via Drizzle ORM. Migrations in `packages/db/src/migrations`.
 - **Validation**: Zod (workspace catalog). Import as `import z from "zod"` (default import) — a Vite bundler issue breaks the namespace import.
-- **Tests**: Vitest + Testing Library / MSW (jsdom), Miniflare D1 integration, Bun SQLite migrations, Playwright (HTTPS browser / OAuth / WebAuthn).
+- **Tests**: Vitest + Testing Library (jsdom), `node:sqlite` migration specs, Miniflare D1 integration, Playwright (HTTPS browser / OAuth / WebAuthn).
 - **Lint / format**: Ultracite (Biome preset) — its defaults are the code standard; run via `bun run lint` / `bun run fix`.
 - **Icons**: `@tabler/icons-react` only (`check:rules` rejects `lucide-react` imports).
 
@@ -32,7 +32,7 @@ bun run test             # vitest run (all workspaces)
 bun run test:watch       # vitest watch
 bun run lint             # ultracite check
 bun run fix              # ultracite fix (auto-format & auto-fix)
-bun run check-types      # tsc --noEmit (workspaces defining check-types: web/server)
+bun run check-types      # tsc --noEmit over every workspace, scripts/ and testing/ — tests included
 bun run build            # build all workspaces
 bun run db:generate      # drizzle-kit generate — default for schema-shape changes; hand-write only data/rename/destructive migrations. see .claude/rules/db-migrations.md
 bun run db:migrate:local # apply migrations to local D1
@@ -123,7 +123,7 @@ Detailed rules live in [`.claude/rules/`](.claude/rules/); the points below appl
 - Do not require blanket coverage of every branch, boundary value, or call count. Select meaningful success, failure, and boundary scenarios for authentication, authorization, money, persistence, concurrency, and UTC dates. The rule to put logic in hooks does not require a unit test for every hook.
 - Protect each contract primarily at one suitable layer. Verify UI integration through user interactions; SQL, authorization, and atomicity against a real database; and cookies and persisted caches through real HTTP or browser boundaries.
 - Do not change expected values, skip tests, exclude tests from discovery, or weaken assertions merely to make the implementation pass. When consolidating, replacing, or deleting tests, record the protected contract and its replacement checks, or why protection is no longer needed.
-- During development, run only the relevant scope with `bunx vitest run --project <project> <path>`. Complete type, lint, and `check:rules` checks, and verify all Vitest, Bun migration, and registered integration tests in CI. Explicitly report tests not run and failures caused by the environment.
+- During development, run only the relevant scope with `bunx vitest run --project <project> <path>`. Complete type, lint, and `check:rules` checks, and verify all Vitest, D1 integration, and E2E tests in CI (`checks.yml`, which the deploys reuse as their gate). Explicitly report tests not run and failures caused by the environment.
 
 ## Path-scoped Rule Files
 
@@ -134,8 +134,8 @@ The following rule files live in `.claude/rules/` and are loaded automatically w
 | `testing.md` | `apps/**`, `packages/**`, `scripts/**`, `e2e/**`, `testing/**`, `patches/**`, test/CI configuration | Admission gate for new tests, test design based on contracts and risks, mock boundaries, deletion decisions, execution, and CI. |
 | `web-architecture.md` | `apps/web/**` | `apps/web/src/` feature-folder layout, page/component placement rules, reference implementations. |
 | `web-hooks-separation.md` | `apps/web/**` | STRICT: components may only call custom `useXxx` hooks; verification script included. |
-| `web-forms.md` | `apps/web/**` | `@tanstack/react-form` in hooks, no `type="number"`, no placeholders, `SelectWithClear` for clearable selects. |
-| `web-ui.md` | `apps/web/**` | PageHeader, shadcn primitives (Table / Badge / Avatar / RadioGroup), mobile = Drawer, tabler-icons. |
+| `web-forms.md` | `apps/web/**` | `@tanstack/react-form` in hooks, no `type="number"`, no placeholders. |
+| `web-ui.md` | `apps/web/**` | PageHeader, shadcn primitives (Badge / RadioGroup), mobile = Drawer, tabler-icons. |
 | `web-data-fetching.md` | `apps/web/**` | Optimistic updates must go through `utils/optimistic-update.ts` helpers. |
 | `web-theme.md` | `apps/web/**` | Sapphire 2 Design System (single theme): token format, semantic colors, typography roles, sheet patterns. |
 | `ai-models.md` | `packages/api/**`, `apps/web/**`, `apps/server/**` | Write OpenAI model IDs only in `packages/api/src/ai/models.ts` so all AI features use the same latest model. Responses API + strict Structured Outputs; include reasoning in the `max_output_tokens` budget. |
@@ -161,7 +161,7 @@ This file evolves as the codebase evolves. The agent should **propose an update 
 1. **Verify it is not already enforced** by Ultracite, TypeScript, a pre-commit hook, `scripts/check-rules.ts`, or a route-level constraint. If it is, reference the enforcement instead of duplicating the rule.
 2. **Decide scope**: narrow path (e.g., `apps/web/**`, `apps/server/**`, `packages/db/**`) → `.claude/rules/<topic>.md` with a `paths:` frontmatter. Truly cross-cutting → this file.
 3. **Write the rule with a one-line "why"** — the incident, issue (SA2-xxx), or decision that created it — so future edits can judge edge cases instead of blindly following the letter.
-4. **Prefer concrete over abstract.** "Use `SelectWithClear` for clearable selects" beats "prefer consistent select behavior". Include explicit file paths and commands.
+4. **Prefer concrete over abstract.** "Use `PageHeader` for page headers" beats "prefer consistent page scaffolding". Include explicit file paths and commands.
 5. **If the rule is mechanically greppable, add a check to `scripts/check-rules.ts`** (Stop hook) — prose alone gets re-violated; a check must be green at the moment it is added.
 6. **If you add a new file under `.claude/rules/`**, update the index table above.
 7. **For large rewrites or ambiguous scope**, propose the change in chat before writing it — this file is shared across the team.

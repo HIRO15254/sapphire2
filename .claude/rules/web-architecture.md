@@ -12,15 +12,15 @@ features/<feature>/
   components/<component>/  shared component judged likely to be reused across pages: <component>.tsx + use-<component>.ts + index.ts
   pages/<page>/            page component + use-<page>-page.ts + index.ts + __tests__ (route file stays thin)
     <subcomponent>/        single-use child of this page → its own folder + index.ts
-  hooks/                   cross-component data hooks (use-players.ts, use-currencies.ts, ...)
+  hooks/                   cross-component data hooks (use-update-notes-viewed.ts, ...)
   utils/                   feature-local pure helpers
   __tests__/               feature-local tests
 routes/                    TanStack Router tree; route files delegate to features/<feature>/pages/<page>
 shared/
-  components/ui/           shadcn primitives (Button, Select, Avatar, Badge, Table, ...)
+  components/ui/           shadcn primitives (Button, Badge, Drawer, Dialog, RadioGroup, ...)
   components/              cross-feature composites (PageHeader, AuthenticatedShell, FormSheet, ...)
   hooks/                   cross-feature hooks (use-media-query, use-online-status, ...)
-  lib/                     cross-feature helpers (form-fields, ...)
+  lib/                     cross-feature helpers (webauthn, device-name, ...)
 lib/                       compatibility helpers shared by app setup and generated integrations
 plugins/                   build-time Vite plugins (not browser runtime modules)
 utils/                     truly global helpers (optimistic-update, formatters, ...)
@@ -32,4 +32,4 @@ When adding a feature, create `apps/web/src/features/<name>/` and colocate every
 
 **Placement follows consumers**: a component used by exactly one page lives in that page's child folders; a component used by exactly one parent component lives in a child folder of that parent (its hook colocates the same way); only components designed as generic building blocks stay in `components/` / `shared/` while they happen to have a single consumer. Promote a subcomponent from a page folder to `components/` when a second page imports it, or when reuse across multiple pages is clearly anticipated, and to `shared/` only when a second feature imports it.
 
-`features/currencies/`, `features/players/`, `features/sessions/`, and `features/live-sessions/pages/live-session-page/` are the reference implementations.
+`features/auth/`, `features/settings/` (`pages/settings-page/` with its colocated child folders), and `shared/components/` (`PageHeader`, `AuthenticatedShell`) are the reference implementations.

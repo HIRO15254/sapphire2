@@ -68,7 +68,7 @@ describe("transactionType default seeding", () => {
 		];
 		let selectCall = 0;
 		const onConflictDoNothing = vi.fn(() => undefined);
-		const values = vi.fn(() => ({ onConflictDoNothing }));
+		const values = vi.fn((_rows: unknown) => ({ onConflictDoNothing }));
 		const db = {
 			select: vi.fn(() => ({
 				from: () => ({

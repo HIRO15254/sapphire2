@@ -2,15 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-// biome-ignore lint/correctness/noUndeclaredVariables: Bun global is only present in Bun runtime
-const isBun = typeof Bun !== "undefined";
-const skipIfNotBun = isBun ? describe : describe.skip;
-
-let Database: any = null;
-if (isBun) {
-	const bunSqlite = require("bun:sqlite");
-	Database = bunSqlite.Database;
-}
+import { type Database, openDatabase } from "./sqlite";
 
 const migrationPath = fileURLToPath(
 	new URL(
@@ -38,23 +30,23 @@ const baseSchema = [
 ].join("\n");
 
 function insertEvent(
-	db: any,
+	db: Database,
 	id: string,
 	sessionId: string,
 	occurredAt: number,
 	sortOrder: number,
 	createdAt: number
 ) {
-	db.query(
+	db.prepare(
 		"INSERT INTO session_event VALUES (?, ?, 'memo', ?, ?, '{}', ?, ?)"
 	).run(id, sessionId, occurredAt, sortOrder, createdAt, createdAt);
 }
 
-skipIfNotBun("migration 0046 — unique session event append order", () => {
-	let db: any;
+describe("migration 0046 — unique session event append order", () => {
+	let db: Database;
 
 	beforeEach(() => {
-		db = new Database(":memory:");
+		db = openDatabase();
 		db.exec(baseSchema);
 	});
 
@@ -73,7 +65,7 @@ skipIfNotBun("migration 0046 — unique session event append order", () => {
 
 		expect(
 			db
-				.query(
+				.prepare(
 					"SELECT id, session_id, sort_order FROM session_event ORDER BY session_id, sort_order"
 				)
 				.all()
@@ -89,7 +81,7 @@ skipIfNotBun("migration 0046 — unique session event append order", () => {
 	it("replaces the standalone session index with the composite unique index", () => {
 		db.exec(migrationSql);
 		const indexes = db
-			.query(
+			.prepare(
 				"SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'session_event' ORDER BY name"
 			)
 			.all();
@@ -102,7 +94,7 @@ skipIfNotBun("migration 0046 — unique session event append order", () => {
 				},
 			])
 		);
-		expect(indexes.map((index: { name: string }) => index.name)).not.toContain(
+		expect(indexes.map((index) => index.name)).not.toContain(
 			"sessionEvent_sessionId_idx"
 		);
 	});
@@ -120,7 +112,7 @@ skipIfNotBun("migration 0046 — unique session event append order", () => {
 
 	it("supports consecutive atomic max-plus-one appends", () => {
 		db.exec(migrationSql);
-		const append = db.query(
+		const append = db.prepare(
 			"INSERT INTO session_event (id, session_id, event_type, occurred_at, sort_order, payload, created_at, updated_at) VALUES (?, ?, 'memo', ?, (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM session_event WHERE session_id = ?), '{}', ?, ?)"
 		);
 		append.run("first", "session-1", 10, "session-1", 10, 10);
@@ -128,7 +120,7 @@ skipIfNotBun("migration 0046 — unique session event append order", () => {
 
 		expect(
 			db
-				.query(
+				.prepare(
 					"SELECT id, sort_order FROM session_event WHERE session_id = 'session-1' ORDER BY sort_order"
 				)
 				.all()

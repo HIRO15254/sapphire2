@@ -23,29 +23,14 @@ env:
 
 jobs:
   ci:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-      - run: bun install --frozen-lockfile
-      - name: Type check
-        run: bun run check-types
-      - name: Lint
-        run: bun run check
-      - name: Test
-        run: bun run test:ci
+    uses: ./.github/workflows/checks.yml
 
   db-migrate:
     needs: ci
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-      - run: bun install --frozen-lockfile
+      - uses: ./.github/actions/setup
       - name: Run D1 migrations
         run: bun run db:migrate:remote
 
@@ -54,10 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-      - run: bun install --frozen-lockfile
+      - uses: ./.github/actions/setup
 
       - name: Deploy Worker
         working-directory: apps/server
@@ -83,10 +65,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-      - run: bun install --frozen-lockfile
+      - uses: ./.github/actions/setup
 
       - name: Build web
         run: bun run --filter web build

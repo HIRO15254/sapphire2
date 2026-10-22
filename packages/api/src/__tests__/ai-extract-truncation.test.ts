@@ -156,7 +156,11 @@ describe("extractTablePlayers truncation reporting", () => {
 			sources: [IMAGE_SOURCE, { ...IMAGE_SOURCE, mediaType: "image/webp" }],
 		});
 
-		const { input } = mocks.parse.mock.calls[0][0];
+		const call = mocks.parse.mock.calls[0];
+		if (!call) {
+			throw new Error("Expected a screenshot extraction request");
+		}
+		const { input } = call[0];
 		expect(input[0].content.slice(0, 2)).toEqual([
 			{
 				type: "input_image",

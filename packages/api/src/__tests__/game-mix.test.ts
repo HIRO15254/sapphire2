@@ -3,7 +3,7 @@ import { gameMix } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { TRPCError } from "@trpc/server";
 import { getTableName } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { appRouter } from "../routers";
 import {
 	createChainableMockDb,
@@ -535,18 +535,18 @@ describe("gameMix.create collision guard (CONFLICT)", () => {
 	});
 
 	it("converts a (user_id, label) unique-constraint violation from the insert into the same CONFLICT (c14 backstop)", async () => {
-		const { caller, db } = gameMixCaller(CUR_OWNER, {
+		const { caller, insert } = gameMixCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: [OWNED_VARIANT_1, OWNED_VARIANT_2],
 			[MIX_TABLE]: [],
 		});
-		db.insert = () => ({
-			values: () => {
+		insert.mockImplementation(() => ({
+			values: vi.fn(() => {
 				throw new Error(
 					"UNIQUE constraint failed: game_mix.user_id, game_mix.label"
 				);
-			},
-		});
+			}),
+		}));
 		await expectTrpcCode(
 			caller.create({
 				label: "Brand New Mix",
@@ -557,16 +557,16 @@ describe("gameMix.create collision guard (CONFLICT)", () => {
 	});
 
 	it("converts the migration-0041 label trigger abort into the same CONFLICT (the guard that actually fires)", async () => {
-		const { caller, db } = gameMixCaller(CUR_OWNER, {
+		const { caller, insert } = gameMixCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: [OWNED_VARIANT_1, OWNED_VARIANT_2],
 			[MIX_TABLE]: [],
 		});
-		db.insert = () => ({
-			values: () => {
+		insert.mockImplementation(() => ({
+			values: vi.fn(() => {
 				throw new Error("game master label already exists");
-			},
-		});
+			}),
+		}));
 		await expectTrpcCode(
 			caller.create({
 				label: "Brand New Mix",

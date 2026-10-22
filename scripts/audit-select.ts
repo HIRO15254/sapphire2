@@ -331,7 +331,7 @@ export function nextAgent(rows: LedgerRow[]): string {
 		return AGENTS[0];
 	}
 	const index = AGENTS.indexOf(latest.agent as (typeof AGENTS)[number]);
-	return AGENTS[(index + 1) % AGENTS.length];
+	return AGENTS[(index + 1) % AGENTS.length] ?? AGENTS[0];
 }
 
 export function selectUnit(
@@ -344,9 +344,6 @@ export function selectUnit(
 		unit,
 		...scoreUnit(unit, now),
 	}));
-	if (scored.length === 0) {
-		return null;
-	}
 	scored.sort((a, b) => {
 		if (a.stale !== b.stale) {
 			return a.stale ? -1 : 1;
@@ -354,20 +351,25 @@ export function selectUnit(
 		return b.score - a.score || a.unit.path.localeCompare(b.unit.path, "en");
 	});
 	const [top] = scored;
+	if (!top) {
+		return null;
+	}
 	const shas = top.unit.files
 		.map((file) => file.auditedSha)
 		.filter((sha): sha is string => sha !== null);
+	const sinceSha = shas[0] ?? null;
 	const diffMode =
 		top.churn / Math.max(1, top.unit.loc) >= DIFF_MODE_CHURN_RATIO &&
 		shas.length === top.unit.files.length &&
-		new Set(shas).size === 1;
+		new Set(shas).size === 1 &&
+		sinceSha !== null;
 	return {
 		path: top.unit.path,
 		files: top.unit.files.map((file) => file.path),
 		loc: top.unit.loc,
 		score: Math.round(top.score),
 		mode: diffMode ? "diff" : "sweep",
-		sinceSha: diffMode ? shas[0] : null,
+		sinceSha: diffMode ? sinceSha : null,
 		rules: rulesFor(top.unit.path),
 		agent: nextAgent(rows),
 		reason: top.stale

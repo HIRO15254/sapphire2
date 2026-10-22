@@ -29,7 +29,11 @@ interface FetchOptions {
 }
 
 function getFetchOptions(): FetchOptions {
-	return mocks.signOut.mock.calls[0][0].fetchOptions as FetchOptions;
+	const call = mocks.signOut.mock.calls[0];
+	if (!call) {
+		throw new Error("Expected a sign-out request");
+	}
+	return call[0].fetchOptions as FetchOptions;
 }
 
 describe("useSignOut", () => {
@@ -62,9 +66,13 @@ describe("useSignOut", () => {
 		expect(mocks.clearPersistedQueryCache).toHaveBeenCalledTimes(1);
 		expect(mocks.navigate).toHaveBeenCalledTimes(1);
 		expect(mocks.navigate).toHaveBeenNthCalledWith(1, { to: "/" });
+		const navigateOrder = mocks.navigate.mock.invocationCallOrder[0];
+		if (navigateOrder === undefined) {
+			throw new Error("Expected navigation to be called");
+		}
 		expect(
 			mocks.clearPersistedQueryCache.mock.invocationCallOrder[0]
-		).toBeLessThan(mocks.navigate.mock.invocationCallOrder[0]);
+		).toBeLessThan(navigateOrder);
 	});
 
 	it("does not navigate until the persisted cache clear resolves", async () => {

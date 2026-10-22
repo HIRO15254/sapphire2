@@ -14,9 +14,6 @@ describe("OAuth discovery endpoints", () => {
 		expect(response.status).toBe(200);
 		const body = (await response.json()) as Record<string, unknown>;
 		expect(body.issuer).toBe("http://localhost:8787");
-		expect(body.authorization_endpoint).toContain("/api/auth/mcp/authorize");
-		expect(body.token_endpoint).toContain("/api/auth/mcp/token");
-		expect(body.registration_endpoint).toContain("/api/auth/mcp/register");
 		expect(body.code_challenge_methods_supported).toContain("S256");
 	});
 

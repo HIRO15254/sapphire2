@@ -1,20 +1,16 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-// biome-ignore lint/correctness/noUndeclaredVariables: Bun is a runtime global
-const isBun = typeof Bun !== "undefined";
-const skipIfNotBun = isBun ? describe : describe.skip;
+import {
+	type Database,
+	migrationFiles,
+	migrationStatements,
+	openDatabase,
+	stringValue,
+} from "./sqlite";
 
-let Database: any = null;
-if (isBun) {
-	// @ts-expect-error -- bun:sqlite only exists in the Bun runtime.
-	const bunSqlite = require("bun:sqlite");
-	Database = bunSqlite.Database;
-}
-
-const MIGRATION_FILE_PATTERN = /^\d{4}_.+\.sql$/;
 const POSITION_UNIQUE_VIOLATION =
 	/UNIQUE constraint failed: game_mix_variant\.mix_id, game_mix_variant\.position/;
 const TRIGGER_ALREADY_EXISTS = /already exists/;
@@ -23,20 +19,14 @@ const migrationsDirectory = fileURLToPath(
 );
 
 const applyAsD1Migration = (db: Database, sql: string) => {
-	const statements = sql
-		.split("--> statement-breakpoint")
-		.map((statement) => statement.trim())
-		.filter(Boolean)
-		.filter((statement) => !statement.startsWith("PRAGMA foreign_keys="));
+	const statements = migrationStatements(sql);
 	for (const statement of statements) {
 		db.exec(statement);
 	}
 };
 
 const applyCompleteMigrationHistory = (db: Database) => {
-	const filenames = readdirSync(migrationsDirectory)
-		.filter((filename) => MIGRATION_FILE_PATTERN.test(filename))
-		.toSorted();
+	const filenames = migrationFiles();
 	for (const filename of filenames) {
 		applyAsD1Migration(
 			db,
@@ -52,10 +42,11 @@ interface TriggerRow {
 
 const readTriggers = (db: Database): TriggerRow[] =>
 	db
-		.query(
+		.prepare(
 			"SELECT name, sql FROM sqlite_master WHERE type = 'trigger' AND sql IS NOT NULL ORDER BY name"
 		)
-		.all() as TriggerRow[];
+		.all()
+		.map((row) => ({ name: stringValue(row.name), sql: stringValue(row.sql) }));
 
 const dropTriggers = (db: Database, triggers: TriggerRow[]) => {
 	for (const trigger of triggers) {
@@ -106,11 +97,11 @@ const replayProductionDump = (db: Database) => {
 	db.exec("PRAGMA foreign_keys = ON;");
 };
 
-skipIfNotBun("seed restore (preview-deploy.yml, dev-deploy.yml)", () => {
+describe("seed restore (preview-deploy.yml, dev-deploy.yml)", () => {
 	let db: Database;
 
 	beforeEach(() => {
-		db = new Database(":memory:");
+		db = openDatabase();
 		applyCompleteMigrationHistory(db);
 	});
 
@@ -135,7 +126,7 @@ skipIfNotBun("seed restore (preview-deploy.yml, dev-deploy.yml)", () => {
 
 		expect(
 			db
-				.query(
+				.prepare(
 					"SELECT mix_id, variant_id, user_id, position FROM game_mix_variant ORDER BY position"
 				)
 				.all()
@@ -202,7 +193,7 @@ skipIfNotBun("seed restore (preview-deploy.yml, dev-deploy.yml)", () => {
 
 		expect(
 			db
-				.query(
+				.prepare(
 					"SELECT variant_id, position FROM game_mix_variant WHERE mix_id = 'mix-2'"
 				)
 				.all()

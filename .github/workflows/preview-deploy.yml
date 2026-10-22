@@ -123,10 +123,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-      - run: bun install --frozen-lockfile
+      - uses: ./.github/actions/setup
 
       # For brand-new preview DBs we seed from the master DB, whose schema
       # may trail HEAD by any number of unreleased migrations. To make the
@@ -312,10 +309,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-      - run: bun install --frozen-lockfile
+      - uses: ./.github/actions/setup
 
       - name: Deploy Worker
         working-directory: apps/server
@@ -344,10 +338,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-      - run: bun install --frozen-lockfile
+      - uses: ./.github/actions/setup
 
       - name: Build web
         run: bun run --filter web build

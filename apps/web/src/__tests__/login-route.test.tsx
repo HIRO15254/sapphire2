@@ -107,14 +107,14 @@ describe("LoginRoute", () => {
 			location: { search },
 		});
 
-		it("redirects to /statistics when a session already exists", async () => {
+		it("redirects to the home page when a session already exists", async () => {
 			mocks.getSession.mockResolvedValue({ data: { user: { id: "u1" } } });
 			const beforeLoad = routeModule.Route.options.beforeLoad as (
 				context: BeforeLoadCtx
 			) => Promise<unknown>;
 
 			await expect(beforeLoad(ctx())).rejects.toThrow("redirect");
-			expect(mocks.redirect).toHaveBeenCalledWith({ to: "/statistics" });
+			expect(mocks.redirect).toHaveBeenCalledWith({ to: "/" });
 		});
 
 		it("resumes a pending MCP OAuth authorize flow instead of entering the app", async () => {
@@ -147,7 +147,7 @@ describe("LoginRoute", () => {
 			) => Promise<unknown>;
 
 			await expect(beforeLoad(ctx({ foo: "bar" }))).rejects.toThrow("redirect");
-			expect(mocks.redirect).toHaveBeenCalledWith({ to: "/statistics" });
+			expect(mocks.redirect).toHaveBeenCalledWith({ to: "/" });
 		});
 
 		it("does not redirect when there is no session", async () => {

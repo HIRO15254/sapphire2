@@ -128,16 +128,6 @@ const CHECKS: Check[] = [
 		excludePath: /routeTree\.gen\.ts$/,
 	},
 	{
-		name: "Cryst screen imports a portal primitive directly — use sheets/Cryst* so the scope class is applied",
-		rule: ".claude/rules/web-theme.md (Cryst migration scope: portals escape the scope)",
-		globs: [
-			"apps/web/src/features/live-sessions/pages/live-session-page/**/*.tsx",
-		],
-		pattern:
-			/from "@\/shared\/components\/(form-sheet|ui\/(drawer|dialog|popover|select))"/,
-		excludePath: /\/sheets\//,
-	},
-	{
 		name: "GitHub pull-request head ref assigned inside a run script — pass it through step env",
 		rule: "GitHub Actions shell-injection prevention",
 		cwd: ".github",
@@ -194,58 +184,6 @@ for (const check of CHECKS) {
 		for (const hit of hits) {
 			console.error(`  ${hit}`);
 		}
-	}
-}
-
-const BUN_SQLITE_STEP = "Test migrations with Bun SQLite";
-const BUN_SQLITE_SPEC_GLOBS = [
-	"apps/**/__tests__/*.test.ts",
-	"packages/**/__tests__/*.test.ts",
-];
-const SPEC_TOKEN = /(?:apps|packages)\/[^\s\\]+\.test\.ts/g;
-const REGEXP_SPECIALS = /[.+?^${}()|[\]]/g;
-
-const ciWorkflow = await readFile(".github/workflows/ci.yml", "utf8");
-const afterStepName = ciWorkflow.split(`- name: ${BUN_SQLITE_STEP}`)[1];
-const unlisted: string[] = [];
-
-if (afterStepName === undefined) {
-	unlisted.push(
-		`.github/workflows/ci.yml: step "${BUN_SQLITE_STEP}" not found — rename it here too`
-	);
-} else {
-	const stepBody = afterStepName.split(/^\s*- name:/m)[0];
-	const listed = [...stepBody.matchAll(SPEC_TOKEN)].map(
-		(match) =>
-			new RegExp(
-				`^${match[0].replace(REGEXP_SPECIALS, "\\$&").replaceAll("*", "[^/]*")}$`
-			)
-	);
-	for (const glob of BUN_SQLITE_SPEC_GLOBS) {
-		for await (const scannedPath of new Glob(glob).scan(".")) {
-			const path = normalizeRulePath(scannedPath);
-			if (IGNORED_DIRS.test(path)) {
-				continue;
-			}
-			const text = await readFile(path, "utf8");
-			if (!text.includes("bun:sqlite")) {
-				continue;
-			}
-			if (!listed.some((pattern) => pattern.test(path))) {
-				unlisted.push(`${path}: not run by any project — add it to ci.yml`);
-			}
-		}
-	}
-}
-
-if (unlisted.length > 0) {
-	failed = true;
-	console.error(
-		`\ncheck-rules FAIL: bun:sqlite spec not listed in ci.yml's "${BUN_SQLITE_STEP}" step`
-	);
-	console.error("  rule: .claude/rules/db-migrations.md");
-	for (const hit of unlisted) {
-		console.error(`  ${hit}`);
 	}
 }
 

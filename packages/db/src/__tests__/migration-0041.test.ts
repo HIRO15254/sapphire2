@@ -1,18 +1,15 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-// biome-ignore lint/correctness/noUndeclaredVariables: Bun global is only present in Bun runtime
-const isBun = typeof Bun !== "undefined";
-const skipIfNotBun = isBun ? describe : describe.skip;
-
-let Database: any = null;
-if (isBun) {
-	// @ts-expect-error - bun:sqlite only exists in Bun runtime
-	const bunSqlite = require("bun:sqlite");
-	Database = bunSqlite.Database;
-}
+import {
+	type Database,
+	migrationFiles,
+	migrationStatements,
+	openDatabase,
+	rowValues,
+} from "./sqlite";
 
 const migrationPath = fileURLToPath(
 	new URL("../migrations/0041_amazing_amphibian.sql", import.meta.url)
@@ -23,7 +20,6 @@ const legacyMigrationPath = fileURLToPath(
 
 const migrationSql = readFileSync(migrationPath, "utf8");
 const legacyMigrationSql = readFileSync(legacyMigrationPath, "utf8");
-const MIGRATION_FILE_PATTERN = /^\d{4}_.+\.sql$/;
 const migrationsDirectory = fileURLToPath(
 	new URL("../migrations/", import.meta.url)
 );
@@ -205,23 +201,22 @@ const schemaBefore0041 = `
 `;
 
 const applyAsD1Migration = (db: Database, sql: string) => {
-	const statements = sql
-		.split("--> statement-breakpoint")
-		.map((statement) => statement.trim())
-		.filter(Boolean)
-		.filter((statement) => !statement.startsWith("PRAGMA foreign_keys="));
+	const statements = migrationStatements(sql);
 
-	db.transaction(() => {
+	db.exec("BEGIN");
+	try {
 		for (const statement of statements) {
 			db.exec(statement);
 		}
-	})();
+		db.exec("COMMIT");
+	} catch (error) {
+		db.exec("ROLLBACK");
+		throw error;
+	}
 };
 
 const applyCompleteMigrationHistory = (db: Database) => {
-	const filenames = readdirSync(migrationsDirectory)
-		.filter((filename) => MIGRATION_FILE_PATTERN.test(filename))
-		.toSorted();
+	const filenames = migrationFiles();
 	for (const filename of filenames) {
 		applyAsD1Migration(
 			db,
@@ -239,11 +234,11 @@ const insertBaseParents = (db: Database) => {
 	`);
 };
 
-skipIfNotBun("0041_amazing_amphibian migration", () => {
-	let db: any;
+describe("0041_amazing_amphibian migration", () => {
+	let db: Database;
 
 	beforeEach(() => {
-		db = new Database(":memory:");
+		db = openDatabase();
 		db.exec("PRAGMA foreign_keys=ON");
 		db.exec(schemaBefore0041);
 		insertBaseParents(db);
@@ -277,28 +272,32 @@ skipIfNotBun("0041_amazing_amphibian migration", () => {
 
 		applyAsD1Migration(db, migrationSql);
 
-		expect(db.query("SELECT id FROM ring_game ORDER BY id").values()).toEqual([
-			["ring-1"],
-		]);
 		expect(
-			db.query("SELECT ring_game_id FROM session_cash_detail").values()
+			rowValues(db.prepare("SELECT id FROM ring_game ORDER BY id"))
 		).toEqual([["ring-1"]]);
-		expect(db.query("SELECT id FROM tournament ORDER BY id").values()).toEqual([
-			["tournament-1"],
-		]);
-		expect(db.query("SELECT tournament_id FROM blind_level").values()).toEqual([
-			["tournament-1"],
-		]);
 		expect(
-			db.query("SELECT tournament_id FROM tournament_chip_purchase").values()
+			rowValues(db.prepare("SELECT ring_game_id FROM session_cash_detail"))
+		).toEqual([["ring-1"]]);
+		expect(
+			rowValues(db.prepare("SELECT id FROM tournament ORDER BY id"))
 		).toEqual([["tournament-1"]]);
 		expect(
-			db.query("SELECT tournament_id FROM tournament_tag").values()
+			rowValues(db.prepare("SELECT tournament_id FROM blind_level"))
 		).toEqual([["tournament-1"]]);
 		expect(
-			db.query("SELECT tournament_id FROM session_tournament_detail").values()
+			rowValues(
+				db.prepare("SELECT tournament_id FROM tournament_chip_purchase")
+			)
 		).toEqual([["tournament-1"]]);
-		expect(db.query("PRAGMA foreign_key_check").values()).toEqual([]);
+		expect(
+			rowValues(db.prepare("SELECT tournament_id FROM tournament_tag"))
+		).toEqual([["tournament-1"]]);
+		expect(
+			rowValues(
+				db.prepare("SELECT tournament_id FROM session_tournament_detail")
+			)
+		).toEqual([["tournament-1"]]);
+		expect(rowValues(db.prepare("PRAGMA foreign_key_check"))).toEqual([]);
 	});
 
 	it("reparents duplicate groups and rewrites ordered mix ids before deduplicating variants", () => {
@@ -345,13 +344,11 @@ skipIfNotBun("0041_amazing_amphibian migration", () => {
 
 		applyAsD1Migration(db, migrationSql);
 
-		expect(db.query("SELECT id FROM game_group ORDER BY id").values()).toEqual([
-			["group-bigbet"],
-			["group-custom"],
-			["group-stud"],
-		]);
 		expect(
-			db.query("SELECT id, group_id FROM game_variant ORDER BY id").values()
+			rowValues(db.prepare("SELECT id FROM game_group ORDER BY id"))
+		).toEqual([["group-bigbet"], ["group-custom"], ["group-stud"]]);
+		expect(
+			rowValues(db.prepare("SELECT id, group_id FROM game_variant ORDER BY id"))
 		).toEqual([
 			["variant-custom", "group-custom"],
 			["variant-nlh", "group-bigbet"],
@@ -359,28 +356,31 @@ skipIfNotBun("0041_amazing_amphibian migration", () => {
 			["variant-stud", "group-stud"],
 		]);
 		expect(
-			db.query("SELECT games FROM game_mix WHERE id = 'mix-custom'").values()
+			rowValues(
+				db.prepare("SELECT games FROM game_mix WHERE id = 'mix-custom'")
+			)
 		).toEqual([
 			['["variant-other","variant-nlh","variant-stud","variant-custom"]'],
 		]);
 		expect(
-			db.query("SELECT id FROM game_mix WHERE builtin_key = 'horse'").values()
+			rowValues(
+				db.prepare("SELECT id FROM game_mix WHERE builtin_key = 'horse'")
+			)
 		).toEqual([["mix-horse"]]);
-		expect(db.query("SELECT id FROM game_mix ORDER BY id").values()).toEqual([
-			["mix-custom"],
-			["mix-horse"],
-		]);
 		expect(
-			db
-				.query(`
+			rowValues(db.prepare("SELECT id FROM game_mix ORDER BY id"))
+		).toEqual([["mix-custom"], ["mix-horse"]]);
+		expect(
+			rowValues(
+				db.prepare(`
 					SELECT game_mix.id, json_each.value
 					FROM game_mix, json_each(game_mix.games)
 					LEFT JOIN game_variant ON game_variant.id = json_each.value
 					WHERE game_variant.id IS NULL
 				`)
-				.values()
+			)
 		).toEqual([]);
-		expect(db.query("PRAGMA foreign_key_check").values()).toEqual([]);
+		expect(rowValues(db.prepare("PRAGMA foreign_key_check"))).toEqual([]);
 	});
 
 	it("carries legacy custom variants into the new group and variant masters", () => {
@@ -408,35 +408,35 @@ skipIfNotBun("0041_amazing_amphibian migration", () => {
 		applyAsD1Migration(db, migrationSql);
 
 		expect(
-			db
-				.query(`
+			rowValues(
+				db.prepare(`
 					SELECT label, blind1_label, blind2_label, blind3_label,
 						created_at, updated_at
 					FROM game_group
 					WHERE id = 'legacy-group-legacy-variant'
 				`)
-				.values()
+			)
 		).toEqual([["Double Board Blinds", "SB", "BB", "Button", 10, 20]]);
 		expect(
-			db
-				.query(`
+			rowValues(
+				db.prepare(`
 					SELECT id, label, group_id, created_at, updated_at
 					FROM game_variant
 					WHERE id = 'legacy-variant'
 				`)
-				.values()
+			)
 		).toEqual([
 			["legacy-variant", "Double Board", "legacy-group-legacy-variant", 10, 20],
 		]);
 		expect(
-			db
-				.query(`
+			rowValues(
+				db.prepare(`
 					SELECT name FROM sqlite_master
 					WHERE type = 'table' AND name = '__legacy_custom_game_variant'
 				`)
-				.values()
+			)
 		).toEqual([]);
-		expect(db.query("PRAGMA foreign_key_check").values()).toEqual([]);
+		expect(rowValues(db.prepare("PRAGMA foreign_key_check"))).toEqual([]);
 	});
 
 	it("rejects trimmed case-insensitive label conflicts including the variant-mix namespace", () => {
@@ -553,30 +553,30 @@ skipIfNotBun("0041_amazing_amphibian migration", () => {
 			db.exec("DELETE FROM game_variant WHERE id = 'variant-unused'")
 		).not.toThrow();
 		expect(
-			db.query("SELECT games FROM game_mix WHERE id = 'mix-valid'").values()
+			rowValues(db.prepare("SELECT games FROM game_mix WHERE id = 'mix-valid'"))
 		).toEqual([['["variant-2","variant-1"]']]);
-		expect(db.query("PRAGMA foreign_key_check").values()).toEqual([]);
+		expect(rowValues(db.prepare("PRAGMA foreign_key_check"))).toEqual([]);
 	});
 });
 
-skipIfNotBun("complete migration history", () => {
+describe("complete migration history", () => {
 	it("keeps rolling-deploy compatibility and integrity triggers after normalization", () => {
-		const db = new Database(":memory:");
+		const db = openDatabase();
 		db.exec("PRAGMA foreign_keys=ON");
 
 		try {
 			applyCompleteMigrationHistory(db);
 
 			expect(
-				db
-					.query(`
+				rowValues(
+					db.prepare(`
 						SELECT name, tbl_name
 						FROM sqlite_master
 						WHERE type = 'trigger'
 							AND tbl_name IN ('game_group', 'game_mix', 'game_variant')
 						ORDER BY name
 					`)
-					.values()
+				)
 			).toEqual(REQUIRED_FINAL_GAME_INTEGRITY_TRIGGERS);
 		} finally {
 			db.close();

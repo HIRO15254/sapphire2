@@ -36,13 +36,20 @@ describe("review workflow token permissions", () => {
 
 	it("keeps contents write out of the job executing PR code and the reviewer", () => {
 		const review = workflow.jobs.review;
+		if (!review) {
+			throw new Error("Expected the review job");
+		}
 		expect((review.permissions ?? workflow.permissions).contents).toBe("read");
 		expect(resolver?.[0]).not.toBe("review");
 		expect(resolver?.[1].steps.every((step) => !step.uses)).toBe(true);
 	});
 
 	it("finishes thread resolution before checking unresolved threads for auto-merge", () => {
-		expect(workflow.jobs.outcome.needs).toContain(resolver?.[0]);
+		const outcome = workflow.jobs.outcome;
+		if (!outcome) {
+			throw new Error("Expected the outcome job");
+		}
+		expect(outcome.needs).toContain(resolver?.[0]);
 	});
 
 	it("resolves only a published successful review on a same-repository PR", () => {
@@ -61,12 +68,16 @@ describe("review workflow token permissions", () => {
 	});
 
 	it("preserves review outcome reporting if resolution fails or is skipped", () => {
+		const outcome = workflow.jobs.outcome;
+		if (!outcome) {
+			throw new Error("Expected the outcome job");
+		}
 		const step = resolver?.[1].steps.find((entry) =>
 			entry.run?.includes("resolveReviewThread")
 		);
 		expect(step?.["continue-on-error"]).toBe(true);
-		expect(workflow.jobs.outcome.if).toContain("!cancelled()");
-		expect(workflow.jobs.outcome.if).not.toContain("success()");
+		expect(outcome.if).toContain("!cancelled()");
+		expect(outcome.if).not.toContain("success()");
 	});
 });
 

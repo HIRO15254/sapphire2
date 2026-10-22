@@ -5,6 +5,5 @@ export default defineConfig({
 		name: "mcp",
 		environment: "node",
 		include: ["src/**/*.test.ts"],
-		env: { TZ: "Asia/Tokyo" },
 	},
 });

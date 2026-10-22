@@ -14,13 +14,13 @@ Why this file exists: the Fable review found repeated one-day-off and negative-d
 
 ### Exception: `sessionDate` for live-recorded sessions is a timestamp, not a date-only value
 
-For sessions with `source = "live"`, the server writes the `session_start` timestamp directly to `game_session.sessionDate` (`recalculateCashGameSession` / `recalculateTournamentSession` in [`live-session-pl.ts`](../../packages/api/src/services/live-session-pl.ts)). This is not UTC midnight. Both the list ([`session-list-card.tsx`](../../apps/web/src/features/sessions/pages/sessions-page/session-list-card/session-list-card.tsx)) and the detail view ([`session-display.ts`](../../apps/web/src/features/sessions/utils/session-display.ts)) read it with `formatYmdSlash` (UTC getters), so **users outside UTC may see a date one day different from the local calendar date of the start time**. For example, `startedAt = 2026-04-11T03:00Z` is 04-10 20:00 in UTC-7, but displays as "2026/04/11".
+For sessions with `source = "live"`, the server writes the `session_start` timestamp directly to `game_session.sessionDate` (`recalculateCashGameSession` / `recalculateTournamentSession` in [`live-session-pl.ts`](../../packages/api/src/services/live-session-pl.ts)). This is not UTC midnight. Session screens read it with `formatYmdSlash` (UTC getters), so **users outside UTC may see a date one day different from the local calendar date of the start time**. For example, `startedAt = 2026-04-11T03:00Z` is 04-10 20:00 in UTC-7, but displays as "2026/04/11".
 
 The current behavior prioritizes consistent UTC reads across all screens. The edit form likewise populates its date field with `formatDateForInput` (UTC) and makes it read-only for live sessions. If this behavior is corrected, switch the list, detail, edit, and statistics views to local-time reads together; changing only some views makes dates disagree across screens. Use [`formatLocalYmdSlash`](../../apps/web/src/utils/format-number.ts) wherever event timestamps should display their local calendar date.
 
 ## Composing times from one date: handle day crossing
 
-When start and end times are combined with a single date (e.g. 22:00–02:00), an `end < start` result means the session crossed midnight — add 24h to the end (`computeSessionTimes` in [`use-sessions.ts`](../../apps/web/src/features/sessions/hooks/use-sessions.ts) is the reference). Never clamp a negative duration to 0 to hide the symptom (SA2-157).
+When start and end times are combined with a single date (e.g. 22:00–02:00), an `end < start` result means the session crossed midnight — add 24h to the end on write. Never clamp a negative duration to 0 to hide the symptom (SA2-157).
 
 **Fixing a write path is only half the fix**: rows written before the fix stay corrupted. Whenever you correct how data is computed on write, decide explicitly whether existing rows need a backfill migration, and say so in the PR (SA2-184, migration `0034`).
 

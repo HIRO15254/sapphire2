@@ -1,39 +1,31 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { copyFileSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+	afterAll,
+	afterEach,
+	beforeAll,
+	beforeEach,
+	describe,
+	expect,
+	it,
+} from "vitest";
 
-// biome-ignore lint/correctness/noUndeclaredVariables: Bun global is only present in Bun runtime
-const isBun = typeof Bun !== "undefined";
-const skipIfNotBun = isBun ? describe : describe.skip;
+import {
+	type Database,
+	migrationFiles,
+	openDatabase,
+	rowValues,
+	type SqliteRow,
+	statementsOf,
+	stringValue,
+} from "./sqlite";
 
-let Database: any = null;
-if (isBun) {
-	const bunSqlite = require("bun:sqlite");
-	Database = bunSqlite.Database;
-}
-
-const migrationsDirectory = fileURLToPath(
-	new URL("../migrations/", import.meta.url)
-);
-const MIGRATION_FILE_PATTERN = /^\d{4}_.+\.sql$/;
 const TARGET_MIGRATION = "0054_stale_redwing.sql";
 const FOREIGN_KEY_VIOLATION = /FOREIGN KEY constraint failed/;
 const NOT_NULL_VIOLATION = /NOT NULL constraint failed/;
 
-function statementsOf(name: string): string[] {
-	return readFileSync(join(migrationsDirectory, name), "utf8")
-		.split("--> statement-breakpoint")
-		.map((statement) => statement.trim())
-		.filter(
-			(statement) => statement && !statement.startsWith("PRAGMA foreign_keys=")
-		);
-}
-
-const earlierMigrations = readdirSync(migrationsDirectory)
-	.filter((name) => MIGRATION_FILE_PATTERN.test(name) && name < "0054_")
-	.toSorted()
-	.map(statementsOf);
+const earlierMigrations = migrationFiles("0054_").map(statementsOf);
 const targetStatements = statementsOf(TARGET_MIGRATION);
 
 const ROOM_OWNERS: Record<string, string> = {
@@ -85,9 +77,9 @@ const SNAPSHOT_QUERIES = {
 		"SELECT session_id, tournament_id, placement FROM session_tournament_detail ORDER BY session_id",
 } as const;
 
-type Snapshot = Record<keyof typeof SNAPSHOT_QUERIES, any[]>;
+type Snapshot = Record<keyof typeof SNAPSHOT_QUERIES, SqliteRow[]>;
 
-function snapshot(db: any): Snapshot {
+function snapshot(db: Database): Snapshot {
 	return Object.fromEntries(
 		Object.entries(SNAPSHOT_QUERIES).map(([key, sql]) => [
 			key,
@@ -107,35 +99,34 @@ function expectedAfterMigration(before: Snapshot): Snapshot {
 		...before,
 		tournament: before.tournament.map((row) => ({
 			...row,
-			user_id: ROOM_OWNERS[row.room_id],
+			user_id: stringValue(ROOM_OWNERS[stringValue(row.room_id)]),
 		})),
 		ringGame: before.ringGame
 			.filter((row) => row.id !== "unused")
-			.map((row) => ({ ...row, ...LEGACY_RING_GAME_FIXES[row.id] })),
+			.map((row) => ({
+				...row,
+				...LEGACY_RING_GAME_FIXES[stringValue(row.id)],
+			})),
 	};
 }
 
-let seededImage: Uint8Array | null = null;
+const snapshotDirectory = mkdtempSync(
+	join(tmpdir(), "sapphire2-migration-0054-")
+);
+const seededPath = join(snapshotDirectory, "seeded.sqlite");
+let databaseIndex = 0;
 
-function migratedDatabase(): any {
-	if (!seededImage) {
-		const seeded = new Database(":memory:");
-		seeded.exec("PRAGMA foreign_keys=ON");
-		for (const statements of earlierMigrations) {
-			for (const statement of statements) {
-				seeded.exec(statement);
-			}
-		}
-		seeded.exec(SEED);
-		seededImage = seeded.serialize();
-		seeded.close();
-	}
-	const db = Database.deserialize(seededImage);
-	db.exec("PRAGMA foreign_keys=ON");
+function migratedDatabase(): Database {
+	const path = join(snapshotDirectory, `${databaseIndex++}.sqlite`);
+	copyFileSync(seededPath, path);
+	const db = openDatabase(path);
+	db.exec(
+		"PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF; PRAGMA foreign_keys=ON"
+	);
 	return db;
 }
 
-function apply(db: any, statements: string[] = targetStatements): void {
+function apply(db: Database, statements: string[] = targetStatements): void {
 	for (const statement of statements) {
 		db.exec(statement);
 	}
@@ -151,7 +142,7 @@ function statementsBefore(prefix: string): string[] {
 	return targetStatements.slice(0, index);
 }
 
-function stageTables(db: any): string[] {
+function stageTables(db: Database): SqliteRow[] {
 	return db
 		.prepare(
 			"SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE '__stage_0054_%'"
@@ -159,8 +150,28 @@ function stageTables(db: any): string[] {
 		.all();
 }
 
-skipIfNotBun("migration 0054 — owned ring_game / tournament rebuild", () => {
-	let db: any;
+describe("migration 0054 — owned ring_game / tournament rebuild", () => {
+	let db: Database;
+
+	beforeAll(() => {
+		const seeded = openDatabase();
+		try {
+			seeded.exec("PRAGMA foreign_keys=ON");
+			for (const statements of earlierMigrations) {
+				for (const statement of statements) {
+					seeded.exec(statement);
+				}
+			}
+			seeded.exec(SEED);
+			seeded.prepare("VACUUM INTO ?").run(seededPath);
+		} finally {
+			seeded.close();
+		}
+	});
+
+	afterAll(() => {
+		rmSync(snapshotDirectory, { recursive: true, force: true });
+	});
 
 	beforeEach(() => {
 		db = migratedDatabase();
@@ -173,8 +184,8 @@ skipIfNotBun("migration 0054 — owned ring_game / tournament rebuild", () => {
 		apply(db);
 		expect(snapshot(db)).toEqual(expectedAfterMigration(before));
 		expect(stageTables(db)).toEqual([]);
-		expect(db.prepare("PRAGMA foreign_keys").values()).toEqual([[1]]);
-		expect(db.prepare("PRAGMA foreign_key_check").values()).toEqual([]);
+		expect(rowValues(db.prepare("PRAGMA foreign_keys"))).toEqual([[1]]);
+		expect(rowValues(db.prepare("PRAGMA foreign_key_check"))).toEqual([]);
 	});
 
 	it("resolves each ring game's owner and drops only the ones no one owns or links", () => {
@@ -270,7 +281,7 @@ skipIfNotBun("migration 0054 — owned ring_game / tournament rebuild", () => {
 		for (const table of Object.keys(parents)) {
 			expect(db.prepare(`SELECT * FROM child_${table}`).all()).toEqual([]);
 		}
-		expect(db.prepare("PRAGMA foreign_key_check").values()).toEqual([]);
+		expect(rowValues(db.prepare("PRAGMA foreign_key_check"))).toEqual([]);
 	});
 
 	it("reaches the same result when the retry follows a failure at any statement", () => {
@@ -285,7 +296,7 @@ skipIfNotBun("migration 0054 — owned ring_game / tournament rebuild", () => {
 					targetStatements[failedAt]
 				).toEqual({ failedAt, result: expected });
 				expect(stageTables(partial)).toEqual([]);
-				expect(partial.prepare("PRAGMA foreign_key_check").values()).toEqual(
+				expect(rowValues(partial.prepare("PRAGMA foreign_key_check"))).toEqual(
 					[]
 				);
 			} finally {
