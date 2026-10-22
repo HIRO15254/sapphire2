@@ -54,17 +54,14 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@axe-core/playwright": "4.13.0",
     "@biomejs/biome": "2.4.10",
     "@playwright/test": "1.63.0",
     "@sapphire2/config": "workspace:*",
     "@types/bun": "catalog:",
     "@vitest/coverage-v8": "4.1.2",
-    "fast-check": "4.9.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
     "miniflare": "4.20260401.0",
-    "msw": "2.15.0",
     "typescript": "catalog:",
     "ultracite": "7.4.3",
     "vitest": "^4.1.2",

@@ -7,7 +7,7 @@ Bun 1.3.10、Node 22.19.0を使用する。初回はリポジトリ直下で `bu
 | 通常の反復 | `bunx vitest run --project <project> <path>` | `web-node` / `web-dom` / `api` / `db` / `server` / `mcp` / `env` / `testing` |
 | D1の契約 | `bun run test:integration` | 実migration・実D1・Drizzle・caller。ケースごとにDBを作成・破棄 |
 | 実ブラウザー・HTTP | `bun run test:e2e` | build→HTTPS Worker/Web→全migration→Playwright→停止 |
-| モバイル保存・キャッシュ | `bun run test:e2e e2e/players.spec.ts e2e/persistence.spec.ts --project mobile` | 実フォーム、reload、a11y、同contextでlogout→reload→別account、SW/IndexedDB |
+| モバイル保存・キャッシュ | `bun run test:e2e e2e/persistence.spec.ts --project mobile` | 同contextでlogout→reload→別account、SW/IndexedDBのオフライン再読込 |
 | OAuth/MCP | `bun run test:e2e e2e/oauth-mcp.spec.ts --project desktop` | 実DCR・PKCE・同意・token・toolとCookie tRPCの読戻し |
 | 未検出の確認 | `bun run check:test-discovery` | Vitest一覧と全specを照合。`test-results/discovery.json` |
 | 新基盤の型 | `bun run check:testing-types` | Playwright・起動script・D1統合。Webは既存 `check-types` |
@@ -15,19 +15,18 @@ Bun 1.3.10、Node 22.19.0を使用する。初回はリポジトリ直下で `bu
 
 反復は対象を絞る。SQL・runner設定・動的参照の変更は `--changed` だけに頼らない。CIは全単体、D1、Bun SQLite migration、ブラウザー、静的検査を別jobで実行し、最後の `ci` jobで全成功を要求する。
 
-`test:unit` は `--project=!api-integration` で実D1専用projectだけを除外する。名前を列挙しないため、新しく登録したprojectも自動で実行される。`testing` projectはテスト基盤のhelperを検証し、`check:test-discovery` は `apps/`・`packages/`・`testing/` のspecを照合する。
+`test:unit` は `--project=!api-integration` で実D1専用projectだけを除外する。名前を列挙しないため、新しく登録したprojectも自動で実行される。`testing` projectはテスト基盤のhelperを検証し、`check:test-discovery` は `apps/`・`packages/`・`scripts/`・`testing/` のspecを照合する。E2Eの `e2e/*.spec.ts` はPlaywrightのdesktop/mobile projectが全件を分担する。
 
 **追加する検証の置き場所**
 
 方針の正本は [testing.md](../.claude/rules/testing.md)。期待値は要求・不変条件・既知障害から決める。runnerの除外やskipで失敗を隠さない。
 
-- UI連携は実page/hook/QueryClient/フォームを使う。[integration.tsx](../apps/web/src/__tests__/integration.tsx)、players/currencies/roomsの `*.integration.test.tsx`、[Session作成の失敗・再試行](../apps/web/src/features/sessions/pages/sessions-page/__tests__/sessions-page.integration.test.tsx) を参照する。MSWは実tRPC clientの通信境界に置き、標準adapterでbatch形式を扱う。未定義通信は失敗させ、ケース間でhandlerと状態を戻す。
-- tRPCのquery/infinite/pathキーの関係は [trpc-keys.ts](../apps/web/src/__tests__/trpc-keys.ts) の実options proxyから取得する。キーを独自の配列で作らず、実QueryClientに置いたcacheが無効化・再取得されることを検証する。
+- UI連携は実page/hook/QueryClient/フォームを使い、通信境界だけを制御する。SA2-387で旧UIを削除した際、画面統合の共通harnessとその利用テストも削除したため、現在の参照例はない。v2 UIで最初の画面統合テストを書くphase（U01 SA2-390）が、`07e141e6` の `apps/web/src/__tests__/integration.tsx`（MSW＋標準tRPC fetch adapter、画面ごとのmemory history）を基にharnessを再導入する。未定義通信は失敗させ、ケース間でhandlerと状態を戻す。
+- tRPCのquery/infinite/pathキーの関係は、`createTRPCOptionsProxy<AppRouter>` で作った実options proxyから取得する。キーを独自の配列で作らず、実QueryClientに置いたcacheが無効化・再取得されることを検証する。
 - SQLは [test-fixture.ts](../packages/api/src/__integration__/test-fixture.ts) の `test` を使う。sessionオブジェクトを渡すcaller統合と、実Cookie/token取得を通すHTTPテストを区別する。
 - 認証・永続化は [fixtures.ts](../e2e/fixtures.ts) の実登録アカウントとログイン操作を使う。各ケースのユーザーを分ける。アカウント切替検証では同じcontextを維持し、本物のsign-outを実行する。
 - passkeyの実登録・認証は [passkeys.spec.ts](../e2e/passkeys.spec.ts) を参照する。[Playwright CDPSession](https://playwright.dev/docs/api/class-cdpsession) から [CDP WebAuthn](https://chromedevtools.github.io/devtools-protocol/tot/WebAuthn/) のCTAP2仮想認証器を作り、resident keyとuser verificationを有効にする。実Settingsで登録し、reload・logout・passkeyログインを通して同じaccountへの復帰と署名counterの増加を確認する。SDK・`navigator.credentials`・認証APIをmockせず、認証器はケース終了時に除去する。実機の生体認証やOSダイアログの見た目は対象に含めない。
-- 競合は複数要求を同時pendingにする。currencyの更新列テストと `optimistic-query-updates.test.ts` を参照する。再取得を保留してrollback自体を確認する。
-- fast-checkは損益グラフの入力順序と非破壊の不変条件に限定した。固定seed・実行回数を指定し、失敗時のseed/pathで再現する。例ベースの金額・UTC日付回帰も保持する。
+- 競合は複数要求を同時pendingにする。[optimistic-query-updates.test.ts](../apps/web/src/utils/__tests__/optimistic-query-updates.test.ts) を参照する。再取得を保留してrollback自体を確認する。
 
 **環境の境界**
 
@@ -51,4 +50,4 @@ HTTPSの別origin・同siteでCookie属性とCORSを確認している。別site
 
 Better Auth 1.6.0の同意拒否redirectが既存callback queryとOAuth stateを落とす不具合を、[Bun patch](../patches/better-auth@1.6.0.patch) で修正した。依存更新時はOAuth回帰を実行し、上流修正済みならpatchを削除する。
 
-Strykerの全体実行や広範な画像snapshotは必須gateにしない。重要なrollback・DB原子性・認可は限定的な故障注入で検出力を確認し、axeでフォームを補完する。画像比較は維持する画面と基準環境を決めてから追加する。
+Strykerの全体実行や広範な画像snapshotは必須gateにしない。重要なrollback・DB原子性・認可は限定的な故障注入で検出力を確認する。画像比較は維持する画面と基準環境を決めてから追加する。
