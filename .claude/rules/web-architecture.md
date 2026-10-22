@@ -12,7 +12,7 @@ features/<feature>/
   components/<component>/  shared component judged likely to be reused across pages: <component>.tsx + use-<component>.ts + index.ts
   pages/<page>/            page component + use-<page>-page.ts + index.ts + __tests__ (route file stays thin)
     <subcomponent>/        single-use child of this page → its own folder + index.ts
-  hooks/                   cross-component data hooks (use-players.ts, use-currencies.ts, ...)
+  hooks/                   cross-component data hooks (use-update-notes-viewed.ts, ...)
   utils/                   feature-local pure helpers
   __tests__/               feature-local tests
 routes/                    TanStack Router tree; route files delegate to features/<feature>/pages/<page>
