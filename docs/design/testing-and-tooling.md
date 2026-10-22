@@ -1,19 +1,36 @@
 # Testing and Tooling
 
-This document records decisions behind the test infrastructure. See [`.claude/rules/testing.md`](../../.claude/rules/testing.md) for contract- and risk-based test design, [`testing-environment.ja.md`](../testing-environment.ja.md) for execution commands and the scope of CI and fixtures, and [`.claude/rules/db-migrations.md`](../../.claude/rules/db-migrations.md) for migration conventions.
+This document owns test mechanisms and rationale. See [`.claude/rules/testing.md`](../../.claude/rules/testing.md) for contract- and risk-based test rules, [`testing-environment.ja.md`](../testing-environment.ja.md) for setup, commands and diagnostics, and [`.claude/rules/db-migrations.md`](../../.claude/rules/db-migrations.md) for migration conventions.
 
-Pre-commit runs `vitest run --changed HEAD` when code changes are staged. Passing every changed path to `vitest related` exceeded the Windows argument-length limit during a large merge, so Vitest now obtains the change list from Git. This also includes tests related to unstaged changes; it is not a staged-only check. [Vitest CLI](https://vitest.dev/guide/cli.html#changed)
+Pre-commit delegates changed-test selection to Vitest rather than passing every changed path to `vitest related`: the latter exceeded the Windows argument-length limit during a large merge. Git-based selection also includes tests related to unstaged changes; it is not staged-only. Hook obligations live in the [testing rules](../../.claude/rules/testing.md#placement-shared-helpers-and-execution). [Vitest CLI](https://vitest.dev/guide/cli.html#changed)
+
+## API/D1 integration and browser infrastructure
+
+### Why local Miniflare/D1
+
+At the initial assessment's base SHA `37371fd8`, Cloudflare's guidance recommended [`@cloudflare/vitest-plugin`](https://developers.cloudflare.com/workers/testing/vitest-integration/) and Wrangler's [`createTestHarness()`](https://developers.cloudflare.com/workers/testing/test-harness/); it did not assume the older `@cloudflare/vitest-pool-workers`. The minimal lockfile-compatible setup was tried. The new API required large dependency updates, so the implementation chose local Miniflare/D1 with the real repository migrations. This was neither a dependency downgrade nor a custom SQL interpreter. Local D1 does not prove production distributed behavior. The implementation and subsequent retirement of legacy test surfaces are traceable through [PR #603](https://github.com/HIRO15254/sapphire2/pull/603) and [PR #657](https://github.com/HIRO15254/sapphire2/pull/657), rather than a second, frozen inventory of current tests.
+
+### Isolation and HTTP boundaries
+
+The API [fixture](../../packages/api/src/__integration__/test-fixture.ts) creates and disposes a non-persistent Miniflare D1 database per case, using [the real migrations](../../packages/api/src/__integration__/test-database.ts). Its typed session caller tests SQL and router behavior, not Cookie or OAuth authentication.
+
+The browser [server harness](../../testing/serve-e2e.ts) bundles the production Worker entrypoint with Wrangler's dry-run build and serves the Web test build over HTTPS. API and Web use `https://localhost:18787` and `https://localhost:13001`: separate origins on the same site exercise Cookie attributes and CORS without weakening production settings. Test Chromium accepts the local self-signed certificate, including Service Worker fetches. This does not cover cross-site third-party Cookie restrictions, real external IdPs, physical biometric prompts, or a deployed PWA upgrade.
+
+Both harnesses use [worker-compatibility.ts](../../testing/worker-compatibility.ts) to read only the production Wrangler compatibility date and flags, not production DB bindings or credentials. A missing date fails explicitly; suppressed Wrangler warnings avoid starting its external update check. Miniflare disables external metadata retrieval (`cf: false`), and the browser Worker's unknown outbound requests return 502. `.test-runtime/` holds bundles, not a persistent development D1. The Web build's test mode injects fixed release data instead of fetching GitHub.
+
+Playwright's [configuration](../../playwright.config.ts) partitions the E2E specs between Desktop Chrome and Pixel 7, with two workers, no retries, and a separate browser `Asia/Tokyo` timezone. The harness owns process shutdown, including on Windows, and refuses to reuse an existing server. The real-account [fixtures](../../e2e/fixtures.ts) and [persistence spec](../../e2e/persistence.spec.ts) exercise authentication, built Service Worker and IndexedDB; the [passkey spec](../../e2e/passkeys.spec.ts) uses a CTAP2 CDP virtual authenticator with resident keys and user verification, exercising real registration, signatures and server checks rather than device UI.
+
+### Discovery, CI and measurement
+
+Vitest is the sole unit, migration and API-integration runner. Root [configuration](../../vitest.config.ts) registers workspace and infrastructure projects; [scripts](../../package.json) exclude only `api-integration` from `test:unit`, so new registered projects are not silently omitted by a fixed allowlist. [Discovery checking](../../testing/check-discovery.ts) compares specs under `apps/`, `packages/`, `scripts/` and `testing/` with Vitest discovery, and E2E specs with their Playwright assignments.
+
+The reusable [checks.yml](../../.github/workflows/checks.yml) separates static checks, unit coverage, D1 integration and browser jobs. The caller workflows own aggregate deployment gating. Unit coverage includes unimported application sources but not the separate workerd process; it is not Worker-wide coverage. CI retains coverage and browser artifacts even after failure. The [run guide](../testing-environment.ja.md) owns commands and diagnostic locations.
 
 ## The packages/api mock-db contract
 
 [`packages/api/src/__tests__/test-utils.ts`](../../packages/api/src/__tests__/test-utils.ts) supplies shared helpers for schema checks and existing unit tests. SQL, ownership, persistence, and atomicity checks use real D1 through [`test-fixture.ts`](../../packages/api/src/__integration__/test-fixture.ts). Do not extend the existing mocks into a SQL interpreter.
 
-**`createChainableMockDb`** is a minimal chainable Drizzle-style mock `db` for exercising router procedures without a real database. Beyond resolving the rows configured per table, it records the bound params of every join and `where(...)` call on select/update/delete (`selectJoinParams`, `selectWhereParams` / `updateWhereParams` / `deleteWhereParams`) so **ownership scoping can be asserted** (SA2-176, SA2-183). Execution is **eager**, unlike a real DB: an insert is already recorded when `.values()` runs, and `db.batch([...])` just awaits already-resolved statements together (SA2-116).
-
-**`evaluateWhere` is opt-in.** Enabling it makes `where(cond)` actually filter the configured rows through `cond` and `limit(n)` truncate them, so a procedure that pushes its whole predicate into SQL (rather than re-filtering rows in JS) can be exercised — the motivating consumer is `filter-preset.ts`'s `assertNameAvailable`, which does no JS re-filtering. Two deliberate constraints:
-
-- **Only `and` / `or` / `eq` / `ne` are understood; any other operator throws** rather than silently matching, so an enabled mock can never quietly report a filter the query does not really apply.
-- **Off by default** because fixtures written before this option assume `where(...)` is a no-op.
+**`createChainableMockDb`** is a minimal chainable Drizzle-style mock `db` for exercising router procedures without a real database. Beyond resolving the rows configured per table, it records the bound params of every join and `where(...)` call on select/update/delete (`selectJoinParams`, `selectWhereParams` / `updateWhereParams` / `deleteWhereParams`), allowing assertions about predicate construction, not proof of SQL authorization (SA2-176, SA2-183). Execution is **eager**, unlike a real DB: an insert is already recorded when `.values()` runs, and `db.batch([...])` just awaits already-resolved statements together (SA2-116).
 
 **The projection contract (c35).** A `select({ ... })` projection with a single-key aggregate (`{ maxSort: max(table.sortOrder) }`) collapses to one computed row like a real DB would. Every **other** select shape returns the configured rows unchanged — every existing fixture is written keyed by the query's **output** field names (including join projections that alias a joined table's column), so re-deriving keys from the Column reference would break that established convention.
 
@@ -76,7 +93,7 @@ Migration specs (`packages/db/src/__tests__/migration-*.test.ts`, `preview-seed-
 
 The harness needs Node 22.16 or later (`setReturnArrays`; `node:sqlite` itself is unflagged from 22.13), which `engines.node` requires. Node 22 prints an `ExperimentalWarning` for `node:sqlite`; the warning is expected.
 
-The shared `applyThrough(marker)` helper applies only the statements up to and including the first one matching `marker`, **without** a transaction — exactly the state a production apply that dies mid-file leaves behind (`wrangler` streams statements and records the migration only after the last succeeds). The rules these specs pin — mid-file death, abort-proof backfills, self-healing retry — live in [`.claude/rules/db-migrations.md`](../../.claude/rules/db-migrations.md).
+The `applyThrough(db, marker)` helpers in [migration-0049.test.ts](../../packages/db/src/__tests__/migration-0049.test.ts) and [migration-0050.test.ts](../../packages/db/src/__tests__/migration-0050.test.ts) apply statements through the first match **without** a transaction, modelling the committed prefix left by a failed production migration. Replay-safe migrations use them to test self-healing retry under the [migration rules](../../.claude/rules/db-migrations.md#a-migration-file-is-not-one-transaction-in-production). The frozen v2 cutover is explicitly different: [data-model-v2 §16.4](data-model-v2.md#164-migration-authorship-and-abort-gates) and [§16.8](data-model-v2.md#168-final-release-runbook) require restore-and-fix, with no re-runnable-migration or `applyThrough` tests. That exception covers the pending v2 chain rehearsed and shipped under the production freeze, not future post-release migrations; other migrations retain replay-safe tests.
 
 ## The preview/dev seed-restore pipeline tests
 

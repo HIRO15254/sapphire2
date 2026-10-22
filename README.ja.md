@@ -118,8 +118,14 @@ bun run dev
 | `bun run db:studio` | Drizzle Studio を開く |
 | `bun run lint` | リント & フォーマットチェック (Ultracite) |
 | `bun run fix` | リンティングとフォーマットの自動修正 |
-| `bun run test` | テスト実行 |
-| `bun run test:watch` | テスト実行（監視モード） |
+| `bun run test` | D1統合を含む全Vitest projectを実行 |
+| `bun run test:watch` | Vitestを監視モードで実行 |
+
+### テスト文書
+
+- [実行ガイド](docs/testing-environment.ja.md): 初回準備、対象を絞ったコマンド、失敗の診断。
+- [テスト規則](.claude/rules/testing.md): 追加の判断、mock境界、削除・統合の判断。
+- [仕組みと設計理由](docs/design/testing-and-tooling.md): runner、D1選定、fixture、CI。
 
 ## デプロイ
 

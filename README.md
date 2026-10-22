@@ -118,8 +118,14 @@ bun run dev
 | `bun run db:studio` | Open Drizzle Studio |
 | `bun run lint` | Lint & format check (Ultracite) |
 | `bun run fix` | Auto-fix linting and formatting |
-| `bun run test` | Run tests |
-| `bun run test:watch` | Run tests in watch mode |
+| `bun run test` | Run all Vitest projects, including D1 integration |
+| `bun run test:watch` | Run Vitest in watch mode |
+
+### Testing documentation
+
+- [Run guide (Japanese)](docs/testing-environment.ja.md): setup, scoped commands and failure diagnostics.
+- [Testing rules](.claude/rules/testing.md): admission, mock boundaries and deletion decisions.
+- [Testing and tooling](docs/design/testing-and-tooling.md): runners, D1 rationale, fixtures and CI mechanics.
 
 ## Deployment
 

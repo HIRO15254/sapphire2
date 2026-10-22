@@ -1,53 +1,59 @@
-**テストの実行と追加方法**
+# テスト実行ガイド
 
-Bunは `package.json` の `packageManager`、Nodeは `.node-version` の版を使う（Nodeは22.16以上。migrationテストが `node:sqlite` を使う）。初回はリポジトリ直下で `bun install --frozen-lockfile` と `bunx playwright install chromium` を実行する。Linuxでは `bunx playwright install --with-deps chromium` を使う。以降のテストに本番認証情報・本番DB・外部サービスへの接続は不要。
+テストの追加・削除・mock境界の規則は [testing.md](../.claude/rules/testing.md)、runner・D1選定理由・fixture・CI・計測限界は [Testing and Tooling](design/testing-and-tooling.md) に集約する。この文書は人が実行するときの入口と診断手順を扱う。
 
-| 目的 | コマンド | 検証範囲 |
-|---|---|---|
-| 通常の反復 | `bunx vitest run --project <project> <path>` | `web-node` / `web-dom` / `api` / `db`（migrationを含む） / `server` / `mcp` / `env` / `scripts` / `testing` |
-| D1の契約 | `bun run test:integration` | 実migration・実D1・Drizzle・caller。ケースごとにDBを作成・破棄 |
-| 実ブラウザー・HTTP | `bun run test:e2e` | build→HTTPS Worker/Web→全migration→Playwright→停止 |
-| モバイル保存・キャッシュ | `bun run test:e2e e2e/persistence.spec.ts --project mobile` | 同contextでlogout→reload→別account、SW/IndexedDBのオフライン再読込 |
-| OAuth/MCP | `bun run test:e2e e2e/oauth-mcp.spec.ts --project desktop` | 実DCR・PKCE・同意・token・toolとCookie tRPCの読戻し |
-| 未検出の確認 | `bun run check:test-discovery` | Vitest一覧と全specを照合 |
-| 型 | `bun run check-types` | 全ワークスペース・`scripts/`・`testing/`・E2E。テストを含む |
-| カバレッジ | `bun run test:coverage` | Node/jsdom全対象。HTMLを `coverage/` に保存 |
+## 初回セットアップ
 
-反復は対象を絞る。SQL・runner設定・動的参照の変更は `--changed` だけに頼らない。CIは再利用workflow [checks.yml](../.github/workflows/checks.yml) で静的検査（型・lint・`check:rules`・未検出確認）、全単体（migrationを含む）、D1、ブラウザーを別jobで実行し、`ci` jobで全成功を要求する。dev・本番デプロイも同じworkflowをゲートとして呼ぶ。Vitestのタイムゾーンはroot [vitest.config.ts](../vitest.config.ts) が `Asia/Tokyo` に固定する。
+リポジトリ直下で実行する。Bunは [package.json](../package.json) の `packageManager`、Nodeは `.node-version` の版を使う（最低版は `engines.node`。migrationの `node:sqlite` に必要）。
 
-`test:unit` は `--project=!api-integration` で実D1専用projectだけを除外する。名前を列挙しないため、新しく登録したprojectも自動で実行される。`testing` projectはテスト基盤のhelperを検証し、`check:test-discovery` は `apps/`・`packages/`・`scripts/`・`testing/` のspecを照合する。E2Eの `e2e/*.spec.ts` はPlaywrightのdesktop/mobile projectが全件を分担する。
+```sh
+bun install --frozen-lockfile
+bunx playwright install chromium
+```
 
-**追加する検証の置き場所**
+LinuxでブラウザーのOS依存も入れる場合は、後者を `bunx playwright install --with-deps chromium` に置き換える。本番認証情報・本番DB・外部サービスへの接続は不要。
 
-方針の正本は [testing.md](../.claude/rules/testing.md)。期待値は要求・不変条件・既知障害から決める。runnerの除外やskipで失敗を隠さない。
+## 実行コマンド
 
-- UI連携は実page/hook/QueryClient/フォームを使い、通信境界だけを制御する。SA2-387で旧UIを削除した際、画面統合の共通harnessとその利用テストも削除したため、現在の参照例はない。v2 UIで最初の画面統合テストを書くphase（U01 SA2-390）が、`07e141e6` の `apps/web/src/__tests__/integration.tsx`（MSW＋標準tRPC fetch adapter、画面ごとのmemory history）を基にharnessを再導入する。未定義通信は失敗させ、ケース間でhandlerと状態を戻す。
-- tRPCのquery/infinite/pathキーの関係は、`createTRPCOptionsProxy<AppRouter>` で作った実options proxyから取得する。キーを独自の配列で作らず、実QueryClientに置いたcacheが無効化・再取得されることを検証する。
-- SQLは [test-fixture.ts](../packages/api/src/__integration__/test-fixture.ts) の `test` を使う。sessionオブジェクトを渡すcaller統合と、実Cookie/token取得を通すHTTPテストを区別する。
-- 認証・永続化は [fixtures.ts](../e2e/fixtures.ts) の実登録アカウントとログイン操作を使う。各ケースのユーザーを分ける。アカウント切替検証では同じcontextを維持し、本物のsign-outを実行する。
-- passkeyの実登録・認証は [passkeys.spec.ts](../e2e/passkeys.spec.ts) を参照する。[Playwright CDPSession](https://playwright.dev/docs/api/class-cdpsession) から [CDP WebAuthn](https://chromedevtools.github.io/devtools-protocol/tot/WebAuthn/) のCTAP2仮想認証器を作り、resident keyとuser verificationを有効にする。実Settingsで登録し、reload・logout・passkeyログインを通して同じaccountへの復帰と署名counterの増加を確認する。SDK・`navigator.credentials`・認証APIをmockせず、認証器はケース終了時に除去する。実機の生体認証やOSダイアログの見た目は対象に含めない。
-- 競合は複数要求を同時pendingにする。[optimistic-query-updates.test.ts](../apps/web/src/utils/__tests__/optimistic-query-updates.test.ts) を参照する。再取得を保留してrollback自体を確認する。
+| 目的 | コマンド |
+|---|---|
+| 全Vitest（D1統合を含む） | `bun run test` |
+| Vitest watch | `bun run test:watch` |
+| D1統合を除く全Vitest | `bun run test:unit` |
+| 純粋関数・Web schema | `bunx vitest run --project web-node <path>` |
+| hook・component・UI統合 | `bunx vitest run --project web-dom <path>` |
+| API単体 | `bunx vitest run --project api <path>` |
+| DB・migration | `bunx vitest run --project db <path>` |
+| Server / MCP / Env | `bunx vitest run --project <server-or-mcp-or-env> <path>` |
+| script / テスト基盤helper | `bunx vitest run --project <scripts-or-testing> <path>` |
+| 全D1統合 | `bun run test:integration` |
+| 特定のD1統合 | `bunx vitest run --project api-integration <path>` |
+| 全ブラウザー・HTTP | `bun run test:e2e` |
+| モバイル保存・キャッシュ | `bun run test:e2e e2e/persistence.spec.ts --project mobile` |
+| OAuth/MCP | `bun run test:e2e e2e/oauth-mcp.spec.ts --project desktop` |
+| パスキー | `bun run test:e2e e2e/passkeys.spec.ts --project mobile` |
+| 未検出・重複割当 | `bun run check:test-discovery` |
+| 全workspace・script・基盤・E2Eの型（テストを含む） | `bun run check-types` |
+| lint / 規約 | `bun run lint` / `bun run check:rules` |
+| Node/jsdomカバレッジ | `bun run test:coverage` |
 
-**環境の境界**
+`<path>` は対象ファイルまたはディレクトリで置き換える。`<server-or-mcp-or-env>` と `<scripts-or-testing>` は一つの実project名を選ぶ。migration専用のBun runnerは不要。実行対象・レポートの定義は [package.json](../package.json)、[vitest.config.ts](../vitest.config.ts)、[playwright.config.ts](../playwright.config.ts)、[checks.yml](../.github/workflows/checks.yml) を参照する。
 
-[serve-e2e.ts](../testing/serve-e2e.ts) は本番entrypointとcompatibility設定をdry-runでbundleし、Miniflareで動かす。APIは `https://localhost:18787`、Webは `https://localhost:13001`。本番のSecure/SameSite/CORS設定は変更しない。ローカル自己署名証明書はテストブラウザーだけで許容する。Service Workerにも必要なためChromium起動引数を指定している。
+## 参照するfixtureと設計
 
-実D1のfixtureとE2Eは [worker-compatibility.ts](../testing/worker-compatibility.ts) を使い、本番 `apps/server/wrangler.toml` のcompatibility dateとflagsを共通で読む。日付未指定は明示的に失敗させる。取得するのは互換設定だけで、本番DBやbindingの値は取り込まない。設定読取り時の警告経由でWranglerの外部更新確認が起動しないよう、警告出力を抑制する。
+- D1 caller統合: [test-fixture.ts](../packages/api/src/__integration__/test-fixture.ts) の `test`。
+- 実HTTP・アカウント登録: [e2e/fixtures.ts](../e2e/fixtures.ts)。
+- Web QueryClient: [test-utils.tsx](../apps/web/src/__tests__/test-utils.tsx)。
+- 実tRPCキーとrollback・並行更新: [Testing and ToolingのWeb節](design/testing-and-tooling.md#web-test-gotchas)。
+- 画面統合harnessの再導入元と現在の制限: [同文書のtrpc/env節](design/testing-and-tooling.md#the-trpcenv-stub-pattern)。
+- パスキーの仮想認証器と検証限界: [同文書のHTTP境界](design/testing-and-tooling.md#isolation-and-http-boundaries) と [passkeys.spec.ts](../e2e/passkeys.spec.ts)。
 
-ポート使用中なら失敗させ、既存の開発サーバーを再利用しない。Playwrightは1回の起動で2 workerを使う。別の `test:e2e` コマンドを同時に起動しない。各ケースは一意のユーザー、D1統合はケース専用DBで分離する。Windowsでも終了時にテスト用Worker/Webが停止する。
+## 失敗を調べる
 
-`.test-runtime/` はテスト用bundleのみ。D1の永続化先は設定せず、開発DBを再利用しない。Web buildの `mode=test` は固定release fixtureを使い、GitHubの応答に依存しない。Workerの外部fetchは未知の要求を502で拒否する。LLM・地図の分岐は既存unitの外部境界fixtureで検証する。
+- E2Eの専用ポート `13001` / `18787` が使用中なら、同じworktreeの別実行が終わってから実行する。開発サーバーへの接続で代用しない。
+- ブラウザー結果は `test-results/` と `playwright-report/`。失敗時trace・画面・error-context、起動ログ `test-results/worker.log` を調べる。`bunx playwright show-trace <trace.zip>` で操作と通信を追える。
+- カバレッジHTMLは `coverage/`。Worker側まで測定された数値とは解釈しない（[計測範囲](design/testing-and-tooling.md#discovery-ci-and-measurement)）。
+- Node 22の `node:sqlite` の `ExperimentalWarning` は既知の通知（[migration harness](design/testing-and-tooling.md#nodesqlite-migration-tests)）。失敗とは分けて読む。
+- OAuthの依存patchと更新時の回帰確認は [patches/README.md](../patches/README.md) を参照する。
 
-本番ビルドのService Workerと実IndexedDBでオフライン再読込・復帰を検証する。desktop幅では製品仕様どおりスマートフォンへの案内を確認し、フォーム操作はmobile projectで行う。
-
-カバレッジは未importの実装も含むが、別processのworkerd内は計測しない。Node/jsdomの数値をWorker全体のカバレッジとは扱わない。実D1は独立した検証結果として読む。ローカルD1は本番の分散・運用障害まで保証しない。
-
-**失敗を調べる**
-
-HTTPSの別origin・同siteでCookie属性とCORSを確認している。別site間での第三者Cookie制限や実IdPログインは、このローカル環境の検証範囲に含まない。
-
-結果は `test-results/` と `playwright-report/`。失敗時trace・画面・error-context、起動ログ `test-results/worker.log` を保存する。`bunx playwright show-trace <trace.zip>` で操作と通信を追える。再試行は0回。CIは失敗時もartifactを保存する。
-
-Better Auth 1.6.0の同意拒否redirectが既存callback queryとOAuth stateを落とす不具合を、[Bun patch](../patches/better-auth@1.6.0.patch) で修正した。依存更新時はOAuth回帰を実行し、上流修正済みならpatchを削除する。
-
-Strykerの全体実行や広範な画像snapshotは必須gateにしない。重要なrollback・DB原子性・認可は限定的な故障注入で検出力を確認する。画像比較は維持する画面と基準環境を決めてから追加する。
+検証結果の報告と故障注入の方針は [テスト規則](../.claude/rules/testing.md) を参照する。

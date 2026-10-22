@@ -84,31 +84,16 @@ Do not modify, skip, exclude, or weaken assertions in tests to hide implementati
 
 ## Placement, Shared Helpers, and Execution
 
-See [`docs/testing-environment.ja.md`](../../docs/testing-environment.ja.md) for current startup instructions, new reference examples, and measurement scope. `bun run check:test-discovery` checks all specs for missing or duplicate assignments.
+See the [human run guide](../../docs/testing-environment.ja.md) for commands and reference entrypoints, and [testing and tooling](../../docs/design/testing-and-tooling.md) for runner, fixture and CI mechanics.
 
 Keep unit, hook, and component tests in `__tests__/foo.test.ts(x)` or `foo.test.tsx` within the component folder, following the existing convention. Register integration and E2E tests for discovery by their dedicated runners. When changing placement, check include/exclude settings and leave no undiscovered tests or unintended duplicate execution.
 
 Reuse existing shared helpers, such as QueryClient creation in [`apps/web/src/__tests__/test-utils.tsx`](../../apps/web/src/__tests__/test-utils.tsx). Use only the necessary schema extraction and fixtures from the API's `test-utils.ts`; do not expand existing DB mocks into SQL emulators. Extract shared code when repetition appears, and do not create a generic DSL that obscures expectations and scenarios. `vi.hoisted` may be used for shared state across module mocks. Use the real `@tanstack/react-form` for form integration.
 
-| Target | Command for local iteration |
-|---|---|
-| Pure functions / Web schemas | `bunx vitest run --project web-node <path>` |
-| Hooks / components / UI integration | `bunx vitest run --project web-dom <path>` |
-| API | `bunx vitest run --project api <path>` |
-| Real D1 / caller integration | `bunx vitest run --project api-integration <path>` (all integration tests: `bun run test:integration`) |
-| Server | `bunx vitest run --project server <path>` |
-| DB, including `node:sqlite` migration specs | `bunx vitest run --project db <path>` |
-| MCP | `bunx vitest run --project mcp <path>` |
-| Env | `bunx vitest run --project env` |
-| Test infrastructure helpers | `bunx vitest run --project testing <path>` |
-| Browser / real HTTP | `bunx playwright test <path> --project <desktop-or-mobile>` (all E2E tests: `bun run test:e2e`) |
-| Missing or duplicate runner registrations | `bun run check:test-discovery` |
-| Types of all code, tests, E2E, and test infrastructure | `bun run check-types` |
+Run related scopes locally. Since `--changed` / `related` alone can miss SQL, configuration, and dynamic references, explicitly select targets for those changes. A new execution setup is complete only after it is registered in both package scripts and [`checks.yml`](../../.github/workflows/checks.yml). Every spec must run under its assigned runner; Vitest specs must use Node APIs (`node:sqlite`, not `bun:sqlite`). Preserve discovery checks for missing or duplicate assignments.
 
-Run related scopes locally. Since `--changed` / `related` alone can miss SQL, configuration, and dynamic references, explicitly select targets for those changes. `test:unit` runs every registered Vitest project except `api-integration`, which has its own CI job. Keep this exclusion instead of listing project names: an allowlist can silently omit a newly registered project. A new execution setup is complete only after it is registered in both package scripts and [`checks.yml`](../../.github/workflows/checks.yml). Every test runs under one runner: a spec that needs a Bun-only API cannot be discovered by Vitest, so write it against Node (`node:sqlite`, not `bun:sqlite`).
+Do not overlap Playwright runs using the dedicated ports in one working directory. Reuse the E2E fixtures for real account registration and login, and preserve cleanup and failure artifacts. For local dependency patches, document the target version, rationale, regression tests, and removal conditions in `patches/README.md`, and verify reproducibility with `bun install --frozen-lockfile`.
 
-Playwright starts test-only HTTPS Web/Worker servers and D1. Do not overlap runs that use the dedicated ports in the same working directory. Reuse the E2E fixtures for real account registration and login, and preserve process cleanup on exit and trace/log retention on failure. For local dependency patches, document the target version, rationale, regression tests, and removal conditions in `patches/README.md`, and verify reproducibility with `bun install --frozen-lockfile`.
+For a PR, verify `bun run lint`, `bun run check-types`, `bun run check:rules`, and the relevant tests. CI must verify every registered runner target before deployment. Report tests that were not run, skipped, failed, or passed only after retries separately. Do not confuse file counts, declaration counts, and executed case counts after parameter expansion.
 
-For a PR, verify `bun run lint`, `bun run check-types`, `bun run check:rules`, and the relevant tests. CI runs [`checks.yml`](../../.github/workflows/checks.yml) — types, lint, `check:rules`, discovery, every Vitest project, D1 integration, and E2E — and the dev and production deploys call the same workflow as their gate. Report tests that were not run, skipped, failed, or passed only after retries separately. Do not confuse file counts, declaration counts, and executed case counts after parameter expansion.
-
-`.husky/pre-commit` runs lint-staged and `bun run test:unit --changed HEAD` when code changes are staged; D1 integration is left to CI because it starts Miniflare. Let Vitest obtain the change list from Git because enumerating many paths reaches the Windows argument-length limit. Tests related to unstaged changes are included too. Under Claude Code (`CLAUDECODE=1`) the pre-commit hook is skipped, because the Stop hook in `.claude/settings.json` already runs formatting, the same changed-test command, lint, and `check:rules`; Codex and Gemini CLI commits go through the pre-commit hook. Neither replaces the full suite; CI performs final verification of all targets. Do not reimplement checks already provided by runners, types, or lint, and do not automatically delete "low-value tests" with regular expressions.
+`.husky/pre-commit` runs lint-staged and `bun run test:unit --changed HEAD` when code changes are staged; D1 integration is left to CI. Keep Git-based changed-test selection rather than enumerating paths ([rationale](../../docs/design/testing-and-tooling.md)). Under Claude Code (`CLAUDECODE=1`) pre-commit is skipped because the Stop hook in `.claude/settings.json` runs formatting, changed tests, lint and `check:rules`; Codex and Gemini CLI commits use pre-commit. Neither replaces the full suite. Do not reimplement checks provided by runners, types or lint, or automatically delete "low-value tests" with regular expressions.
