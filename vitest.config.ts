@@ -1,5 +1,7 @@
 import { defineConfig } from "vitest/config";
 
+process.env.TZ = "Asia/Tokyo";
+
 export default defineConfig({
 	test: {
 		projects: [
@@ -25,7 +27,7 @@ export default defineConfig({
 				"**/routeTree.gen.ts",
 				"**/migrations/**",
 			],
-			reporter: ["text-summary", "json-summary", "html", "lcov"],
+			reporter: ["text-summary", "html"],
 		},
 	},
 });

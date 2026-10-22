@@ -84,9 +84,13 @@ describe("SettingsComponent", () => {
 		expect(mocks.signOut).toHaveBeenCalledOnce();
 		expect(mocks.clearPersistedQueryCache).toHaveBeenCalledTimes(1);
 		expect(mocks.navigate).toHaveBeenCalledWith({ to: "/" });
+		const navigateOrder = mocks.navigate.mock.invocationCallOrder[0];
+		if (navigateOrder === undefined) {
+			throw new Error("Expected navigation to be called");
+		}
 		expect(
 			mocks.clearPersistedQueryCache.mock.invocationCallOrder[0]
-		).toBeLessThan(mocks.navigate.mock.invocationCallOrder[0]);
+		).toBeLessThan(navigateOrder);
 	});
 
 	it("does not navigate when signOut does not call onSuccess", async () => {

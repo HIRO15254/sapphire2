@@ -1,19 +1,19 @@
 **テストの実行と追加方法**
 
-Bun 1.3.10、Node 22.19.0を使用する。初回はリポジトリ直下で `bun install --frozen-lockfile` と `bunx playwright install chromium` を実行する。Linuxでは `bunx playwright install --with-deps chromium` を使う。以降のテストに本番認証情報・本番DB・外部サービスへの接続は不要。
+Bunは `package.json` の `packageManager`、Nodeは `.node-version` の版を使う（Nodeは22.16以上。migrationテストが `node:sqlite` を使う）。初回はリポジトリ直下で `bun install --frozen-lockfile` と `bunx playwright install chromium` を実行する。Linuxでは `bunx playwright install --with-deps chromium` を使う。以降のテストに本番認証情報・本番DB・外部サービスへの接続は不要。
 
 | 目的 | コマンド | 検証範囲 |
 |---|---|---|
-| 通常の反復 | `bunx vitest run --project <project> <path>` | `web-node` / `web-dom` / `api` / `db` / `server` / `mcp` / `env` / `testing` |
+| 通常の反復 | `bunx vitest run --project <project> <path>` | `web-node` / `web-dom` / `api` / `db`（migrationを含む） / `server` / `mcp` / `env` / `scripts` / `testing` |
 | D1の契約 | `bun run test:integration` | 実migration・実D1・Drizzle・caller。ケースごとにDBを作成・破棄 |
 | 実ブラウザー・HTTP | `bun run test:e2e` | build→HTTPS Worker/Web→全migration→Playwright→停止 |
 | モバイル保存・キャッシュ | `bun run test:e2e e2e/persistence.spec.ts --project mobile` | 同contextでlogout→reload→別account、SW/IndexedDBのオフライン再読込 |
 | OAuth/MCP | `bun run test:e2e e2e/oauth-mcp.spec.ts --project desktop` | 実DCR・PKCE・同意・token・toolとCookie tRPCの読戻し |
-| 未検出の確認 | `bun run check:test-discovery` | Vitest一覧と全specを照合。`test-results/discovery.json` |
-| 新基盤の型 | `bun run check:testing-types` | Playwright・起動script・D1統合。Webは既存 `check-types` |
-| カバレッジ | `bun run test:coverage` | Node/jsdom全対象。HTML/LCOV/JSONを `coverage/` に保存 |
+| 未検出の確認 | `bun run check:test-discovery` | Vitest一覧と全specを照合 |
+| 型 | `bun run check-types` | 全ワークスペース・`scripts/`・`testing/`・E2E。テストを含む |
+| カバレッジ | `bun run test:coverage` | Node/jsdom全対象。HTMLを `coverage/` に保存 |
 
-反復は対象を絞る。SQL・runner設定・動的参照の変更は `--changed` だけに頼らない。CIは全単体、D1、Bun SQLite migration、ブラウザー、静的検査を別jobで実行し、最後の `ci` jobで全成功を要求する。
+反復は対象を絞る。SQL・runner設定・動的参照の変更は `--changed` だけに頼らない。CIは再利用workflow [checks.yml](../.github/workflows/checks.yml) で静的検査（型・lint・`check:rules`・未検出確認）、全単体（migrationを含む）、D1、ブラウザーを別jobで実行し、`ci` jobで全成功を要求する。dev・本番デプロイも同じworkflowをゲートとして呼ぶ。Vitestのタイムゾーンはroot [vitest.config.ts](../vitest.config.ts) が `Asia/Tokyo` に固定する。
 
 `test:unit` は `--project=!api-integration` で実D1専用projectだけを除外する。名前を列挙しないため、新しく登録したprojectも自動で実行される。`testing` projectはテスト基盤のhelperを検証し、`check:test-discovery` は `apps/`・`packages/`・`scripts/`・`testing/` のspecを照合する。E2Eの `e2e/*.spec.ts` はPlaywrightのdesktop/mobile projectが全件を分担する。
 

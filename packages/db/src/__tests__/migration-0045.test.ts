@@ -2,15 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-// biome-ignore lint/correctness/noUndeclaredVariables: Bun global is only present in Bun runtime
-const isBun = typeof Bun !== "undefined";
-const skipIfNotBun = isBun ? describe : describe.skip;
-
-let Database: any = null;
-if (isBun) {
-	const bunSqlite = require("bun:sqlite");
-	Database = bunSqlite.Database;
-}
+import { type Database, openDatabase } from "./sqlite";
 
 const migrationPath = fileURLToPath(
 	new URL("../migrations/0045_session_result_type_unique.sql", import.meta.url)
@@ -34,22 +26,22 @@ const baseSchema = [
 ].join("\n");
 
 function insertType(
-	db: any,
+	db: Database,
 	id: string,
 	userId: string,
 	name: string,
 	createdAt: number
 ) {
-	db.query(
+	db.prepare(
 		"INSERT INTO transaction_type (id, user_id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)"
 	).run(id, userId, name, createdAt, createdAt);
 }
 
-skipIfNotBun("migration 0045 — unique Session Result type per user", () => {
-	let db: any;
+describe("migration 0045 — unique Session Result type per user", () => {
+	let db: Database;
 
 	beforeEach(() => {
-		db = new Database(":memory:");
+		db = openDatabase();
 		db.exec("PRAGMA foreign_keys = ON");
 		db.exec(baseSchema);
 	});
@@ -62,7 +54,7 @@ skipIfNotBun("migration 0045 — unique Session Result type per user", () => {
 		db.exec(migrationSql);
 
 		const index = db
-			.query(
+			.prepare(
 				"SELECT name, sql FROM sqlite_master WHERE type = 'index' AND name = ?"
 			)
 			.get("transactionType_sessionResultPerUser_idx") as {
@@ -87,11 +79,11 @@ skipIfNotBun("migration 0045 — unique Session Result type per user", () => {
 		db.exec(migrationSql);
 
 		expect(
-			db.query("SELECT id FROM transaction_type ORDER BY id").all()
+			db.prepare("SELECT id FROM transaction_type ORDER BY id").all()
 		).toEqual([{ id: "oldest" }]);
 		expect(
 			db
-				.query(
+				.prepare(
 					"SELECT id, transaction_type_id FROM currency_transaction ORDER BY id"
 				)
 				.all()
@@ -108,7 +100,7 @@ skipIfNotBun("migration 0045 — unique Session Result type per user", () => {
 
 		db.exec(migrationSql);
 
-		expect(db.query("SELECT id FROM transaction_type").all()).toEqual([
+		expect(db.prepare("SELECT id FROM transaction_type").all()).toEqual([
 			{ id: "a-id" },
 		]);
 	});
@@ -122,7 +114,7 @@ skipIfNotBun("migration 0045 — unique Session Result type per user", () => {
 		db.exec(migrationSql);
 
 		expect(
-			db.query("SELECT COUNT(*) AS count FROM transaction_type").get()
+			db.prepare("SELECT COUNT(*) AS count FROM transaction_type").get()
 		).toEqual({ count: 4 });
 	});
 

@@ -54,7 +54,7 @@ sapphire2/
 ### Prerequisites
 
 - [Bun](https://bun.sh/) installed
-- [Node.js](https://nodejs.org/) 20.3.0 or later installed (runs the Cloudflare Wrangler CLI; Bun remains the package manager)
+- [Node.js](https://nodejs.org/) 22.16.0 or later installed (runs the Cloudflare Wrangler CLI and Vitest, whose migration tests use `node:sqlite`; Bun remains the package manager)
 
 ### Setup
 
@@ -110,8 +110,7 @@ bun run dev
 | `bun run build` | Build all apps |
 | `bun run dev:web` | Start web app only |
 | `bun run dev:server` | Start API server only (Wrangler runs with Node.js) |
-| `bun run check-types` | TypeScript type check for Web and Server (the workspaces that currently define this script) |
-| `bun run check` | CI lint and format check alias |
+| `bun run check-types` | TypeScript type check of every workspace, `scripts/`, and `testing/`, tests included |
 | `bun run check:rules` | Run deterministic project-rule checks |
 | `bun run db:generate` | Generate migration files |
 | `bun run db:migrate:local` | Apply migrations to the local D1 database |
@@ -120,7 +119,6 @@ bun run dev
 | `bun run lint` | Lint & format check (Ultracite) |
 | `bun run fix` | Auto-fix linting and formatting |
 | `bun run test` | Run tests |
-| `bun run test:ci` | Run tests with the verbose CI reporter |
 | `bun run test:watch` | Run tests in watch mode |
 
 ## Deployment

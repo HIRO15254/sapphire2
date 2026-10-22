@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const DESKTOP_SPECS = ["**/desktop.spec.ts", "**/oauth-mcp.spec.ts"];
+
 export default defineConfig({
 	testDir: "./e2e",
 	fullyParallel: true,
@@ -7,11 +9,7 @@ export default defineConfig({
 	retries: 0,
 	workers: 2,
 	timeout: 30_000,
-	reporter: [
-		["list"],
-		["html", { open: "never" }],
-		["junit", { outputFile: "test-results/e2e.xml" }],
-	],
+	reporter: [["list"], ["html", { open: "never" }]],
 	use: {
 		baseURL: "https://localhost:13001",
 		ignoreHTTPSErrors: true,
@@ -25,12 +23,12 @@ export default defineConfig({
 	projects: [
 		{
 			name: "desktop",
-			testMatch: ["**/desktop.spec.ts", "**/oauth-mcp.spec.ts"],
+			testMatch: DESKTOP_SPECS,
 			use: { ...devices["Desktop Chrome"] },
 		},
 		{
 			name: "mobile",
-			testIgnore: ["**/desktop.spec.ts", "**/oauth-mcp.spec.ts"],
+			testIgnore: DESKTOP_SPECS,
 			use: { ...devices["Pixel 7"] },
 		},
 	],

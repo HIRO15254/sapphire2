@@ -17,13 +17,20 @@ describe("ChipPurchasesEditor", () => {
 	});
 
 	it("appends a blank row when Add is clicked", () => {
-		const onChange = vi.fn();
+		const onChange = vi.fn<(rows: ChipPurchaseRow[]) => void>();
 		render(<ChipPurchasesEditor onChange={onChange} value={[]} />);
 		fireEvent.click(screen.getByRole("button", { name: "Add" }));
 		expect(onChange).toHaveBeenCalledTimes(1);
-		const next = onChange.mock.calls[0][0] as ChipPurchaseRow[];
+		const call = onChange.mock.calls[0];
+		if (!call) {
+			throw new Error("Expected added chip purchase rows");
+		}
+		const [next] = call;
 		expect(next).toHaveLength(1);
 		expect(next[0]).toMatchObject({ name: "", cost: "", chips: "" });
+		if (!next[0]) {
+			throw new Error("Expected an added chip purchase");
+		}
 		expect(next[0].uid).toBeTruthy();
 	});
 

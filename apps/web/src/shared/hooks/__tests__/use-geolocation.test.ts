@@ -18,14 +18,22 @@ function setGeolocation(value: unknown) {
 }
 
 function fireSuccess(latitude: number, longitude: number) {
-	const success = getCurrentPosition.mock.calls[0][0] as SuccessFn;
+	const call = getCurrentPosition.mock.calls[0];
+	if (!call) {
+		throw new Error("Expected a geolocation request");
+	}
+	const success = call[0] as SuccessFn;
 	act(() => {
 		success({ coords: { latitude, longitude } });
 	});
 }
 
 function fireError(code: number, message = "geo error") {
-	const errorCb = getCurrentPosition.mock.calls[0][1] as ErrorFn;
+	const call = getCurrentPosition.mock.calls[0];
+	if (!call) {
+		throw new Error("Expected a geolocation request");
+	}
+	const errorCb = call[1] as ErrorFn;
 	act(() => {
 		errorCb({ code, message });
 	});

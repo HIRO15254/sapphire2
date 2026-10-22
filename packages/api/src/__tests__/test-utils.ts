@@ -1,6 +1,8 @@
+import type { Database } from "@sapphire2/db";
 import { Column, getTableName, is, Param, SQL, StringChunk } from "drizzle-orm";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { expect, vi } from "vitest";
+import type z from "zod";
 
 const dialect = new SQLiteSyncDialect();
 
@@ -9,7 +11,7 @@ export function boundParams(cond: unknown): unknown[] {
 }
 
 interface ZodLikeSchema {
-	safeParse: (value: unknown) => { success: boolean };
+	safeParse: (value: unknown) => z.ZodSafeParseResult<unknown>;
 }
 
 interface ProcedureDef {
@@ -267,9 +269,10 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 	const batch = vi.fn((statements: unknown[]) =>
 		Promise.all(statements as Promise<unknown>[])
 	);
+	const db: Database = { select, insert, delete: del, update, batch } as never;
 
 	return {
-		db: { select, insert, delete: del, update, batch } as never,
+		db,
 		selectJoinParams,
 		selectLimits,
 		selectWhereParams,
@@ -281,5 +284,6 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 		selectedTables,
 		batch,
 		updated,
+		update,
 	};
 }

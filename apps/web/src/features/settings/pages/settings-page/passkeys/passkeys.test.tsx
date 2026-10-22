@@ -118,9 +118,7 @@ describe("Passkeys", () => {
 			expect(screen.getByText("MacBook")).toBeInTheDocument()
 		);
 		await user.click(screen.getByRole("button", { name: "Remove MacBook" }));
-		await user.click(
-			await screen.findByRole("button", { name: "Remove", exact: true })
-		);
+		await user.click(await screen.findByRole("button", { name: "Remove" }));
 
 		await waitFor(() =>
 			expect(mocks.deletePasskey).toHaveBeenCalledWith({ id: "pk1" })

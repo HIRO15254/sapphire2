@@ -15,12 +15,8 @@ export default defineConfig({
 			"src/**/*.test.tsx",
 			"src/shared/hooks/__tests__/*.test.ts",
 			"src/shared/components/**/__tests__/*.test.ts",
-			"src/features/**/components/**/__tests__/*.test.ts",
 			"src/features/**/pages/**/__tests__/*.test.ts",
 			"src/features/**/hooks/__tests__/*.test.ts",
-			"src/features/auth/utils/__tests__/login-continuation.test.ts",
-			"src/routes/**/__tests__/*.test.ts",
 		],
-		globals: true,
 	},
 });

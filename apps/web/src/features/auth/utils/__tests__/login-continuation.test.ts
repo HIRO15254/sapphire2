@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
 	env: { VITE_SERVER_URL: "http://localhost:8787" },
@@ -10,11 +10,32 @@ vi.mock("@sapphire2/env/web", () => ({
 	}),
 }));
 
-import { OAUTH_AUTHORIZE_SEARCH, stubLocation } from "@/__tests__/test-utils";
 import {
 	pendingAuthorizeUrl,
 	socialCallbackUrl,
 } from "@/features/auth/utils/login-continuation";
+
+const OAUTH_AUTHORIZE_SEARCH =
+	"?client_id=c1&response_type=code&redirect_uri=https%3A%2F%2Fclaude.ai%2Fcb&state=s1";
+const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+
+function stubLocation(overrides: Partial<Pick<Location, "origin" | "search">>) {
+	Object.defineProperty(globalThis, "window", {
+		configurable: true,
+		value: {
+			location: { origin: "http://localhost", search: "", ...overrides },
+		},
+		writable: true,
+	});
+}
+
+afterEach(() => {
+	if (originalWindow) {
+		Object.defineProperty(globalThis, "window", originalWindow);
+	} else {
+		Reflect.deleteProperty(globalThis, "window");
+	}
+});
 
 describe("pendingAuthorizeUrl", () => {
 	it("returns null when the page carries no query string", () => {

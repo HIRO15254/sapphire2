@@ -11,6 +11,7 @@
       },
       "devDependencies": {
         "@biomejs/biome": "2.4.10",
+        "@cloudflare/workers-types": "^4.20260405.1",
         "@playwright/test": "1.63.0",
         "@sapphire2/config": "workspace:*",
         "@types/bun": "catalog:",
@@ -20,7 +21,7 @@
         "miniflare": "4.20260401.0",
         "typescript": "catalog:",
         "ultracite": "7.4.3",
-        "vitest": "^4.1.2",
+        "vitest": "4.1.2",
         "wrangler": "^4.80.0",
         "yaml": "2.8.2",
       },
@@ -45,7 +46,6 @@
         "@types/bun": "catalog:",
         "kill-port": "^2.0.1",
         "typescript": "catalog:",
-        "vitest": "^4.1.2",
         "wrangler": "^4.80.0",
       },
     },
@@ -115,7 +115,6 @@
         "tailwindcss": "^4.2.2",
         "typescript": "catalog:",
         "vite": "^8.0.5",
-        "vitest": "^4.1.2",
       },
     },
     "packages/api": {
@@ -134,7 +133,6 @@
         "@sapphire2/config": "workspace:*",
         "hono": "catalog:",
         "typescript": "catalog:",
-        "vitest": "^4.1.2",
       },
     },
     "packages/auth": {
@@ -165,7 +163,6 @@
         "@sapphire2/config": "workspace:*",
         "drizzle-kit": "^0.31.10",
         "typescript": "catalog:",
-        "vitest": "^4.1.2",
       },
     },
     "packages/env": {
@@ -192,7 +189,6 @@
         "@sapphire2/config": "workspace:*",
         "@trpc/server": "catalog:",
         "typescript": "catalog:",
-        "vitest": "^4.1.2",
         "zod": "catalog:",
       },
     },

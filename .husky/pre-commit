@@ -16,8 +16,8 @@ fi
 bun x lint-staged
 
 # Let Vitest read changed paths from Git to avoid Windows argument-length limits.
-# This also includes unstaged changes; CI remains the full-suite gate.
+# This also includes unstaged changes; CI remains the full-suite gate, including D1 integration.
 STAGED=$(git diff --cached --name-only --diff-filter=ACMR -- '*.ts' '*.tsx' '*.js' '*.jsx')
 if [ -n "$STAGED" ]; then
-  bun x vitest run --changed HEAD
+  bun run test:unit --changed HEAD
 fi

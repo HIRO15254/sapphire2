@@ -54,7 +54,7 @@ sapphire2/
 ### 前提条件
 
 - [Bun](https://bun.sh/) がインストール済み
-- [Node.js](https://nodejs.org/) 20.3.0 以上がインストール済み（Cloudflare Wrangler CLI の実行用。パッケージマネージャーは引き続き Bun）
+- [Node.js](https://nodejs.org/) 22.16.0 以上がインストール済み（Cloudflare Wrangler CLI と Vitest の実行用。migration テストが `node:sqlite` を使う。パッケージマネージャーは引き続き Bun）
 
 ### セットアップ
 
@@ -110,8 +110,7 @@ bun run dev
 | `bun run build` | 全アプリをビルド |
 | `bun run dev:web` | Web アプリのみ起動 |
 | `bun run dev:server` | API サーバーのみ起動（Wrangler は Node.js で実行） |
-| `bun run check-types` | 現在スクリプトを定義している Web / Server の TypeScript 型チェック |
-| `bun run check` | CI と同じ lint・フォーマット検査 |
+| `bun run check-types` | 全ワークスペースと `scripts/`・`testing/` の TypeScript 型チェック（テストを含む） |
 | `bun run check:rules` | 決定的なプロジェクト規約検査 |
 | `bun run db:generate` | マイグレーションファイルを生成 |
 | `bun run db:migrate:local` | ローカル D1 にマイグレーションを適用 |
@@ -120,7 +119,6 @@ bun run dev
 | `bun run lint` | リント & フォーマットチェック (Ultracite) |
 | `bun run fix` | リンティングとフォーマットの自動修正 |
 | `bun run test` | テスト実行 |
-| `bun run test:ci` | verbose reporter を使う CI 向けテスト実行 |
 | `bun run test:watch` | テスト実行（監視モード） |
 
 ## デプロイ

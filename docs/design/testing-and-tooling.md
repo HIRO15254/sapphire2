@@ -61,18 +61,20 @@ An initial apply exception restores the immediately preceding cache and does not
 - **When the host had no `TZ` set, the restore must actually delete the variable.** `process.env.TZ = undefined` coerces to the string `"undefined"`, which Node treats as an invalid zone and silently falls back to UTC (SA2-145) — leaking instead of restoring the pristine "no TZ" state. `Reflect.deleteProperty` is used because `lint/performance/noDelete` forbids the `delete` operator.
 - Canonical zones: `TZ_WEST = "America/Los_Angeles"` (reproduces the original off-by-one bug), `TZ_EAST = "Asia/Tokyo"`, plus UTC itself.
 
-The `mcp` Vitest project pins `env: { TZ: "Asia/Tokyo" }` for the same reason: date assertions must not depend on the host timezone, and a non-UTC zone makes any accidental local-getter usage fail loudly ([`.claude/rules/datetime-and-numbers.md`](../../.claude/rules/datetime-and-numbers.md)).
+The root [`vitest.config.ts`](../../vitest.config.ts) sets `process.env.TZ = "Asia/Tokyo"` before any project starts, for the same reason: date assertions must not depend on the host timezone, and a non-UTC zone makes any accidental local-getter usage fail loudly ([`.claude/rules/datetime-and-numbers.md`](../../.claude/rules/datetime-and-numbers.md)). It is the single pin for every Vitest project, locally and in CI; Playwright's `timezoneId` separately sets the emulated browser zone.
 
 **Expiry fixtures are relative, never fixed dates.** `buildMcpSession` rejects expired tokens, so a hard-coded future timestamp turns the whole suite red once the clock passes it — fixtures compute expiry relative to `Date.now()`.
 
-## bun:sqlite migration tests
+## node:sqlite migration tests
 
-Migration specs (`packages/db/src/__tests__/migration-*.test.ts`, `preview-seed-restore.test.ts`) run against `bun:sqlite` — a real SQLite engine, matching what D1 executes. `bun:sqlite` is only available in the Bun runtime, so CI runs these files in a dedicated **`bun test` step** ("Test migrations with Bun SQLite" in [`ci.yml`](../../.github/workflows/ci.yml)), while a `skipIfNotBun` guard makes Vitest's Node projects intentionally skip the bodies — the skip that creates the silent-green hole `scripts/check-rules.ts` closes (see below). Every such spec needs the fixed two-directive import waiver — TypeScript has no `bun:sqlite` types under the workspace's Node-flavored config, and the `Bun` global only exists at runtime in Bun:
+Migration specs (`packages/db/src/__tests__/migration-*.test.ts`, `preview-seed-restore.test.ts`) run against `node:sqlite` — a real SQLite engine, matching what D1 executes — inside the ordinary `db` Vitest project, so they are discovered, type-checked, and reported like every other test (SA2-425). They used `bun:sqlite` before; that only exists in the Bun runtime, so Vitest skipped the bodies and a separate `bun test` CI step plus a `check:rules` listing check had to close the resulting "runs nowhere, reports green" hole. One runner removes the hole instead of guarding it.
 
-```ts
-// @ts-expect-error -- bun:sqlite only exists in the Bun runtime.
-// biome-ignore lint/correctness/noUndeclaredVariables: Bun is a runtime global
-```
+[`sqlite.ts`](../../packages/db/src/__tests__/sqlite.ts) is the shared harness: `openDatabase()`, migration listing and `--> statement-breakpoint` splitting, and typed row accessors. Differences from `bun:sqlite` that a ported or new spec must respect:
+
+- `DatabaseSync` enforces foreign keys by default; `openDatabase()` passes `enableForeignKeyConstraints: false` so D1-style table rebuilds behave as before, and specs that need enforcement run `PRAGMA foreign_keys=ON` themselves.
+- Array rows come from `statement.setReturnArrays(true)` (`rowValues`); a missing row is `undefined`, not `null`; there is no `db.transaction()` (use `BEGIN`/`COMMIT`/`ROLLBACK`) and no statement cache (`db.query()`).
+
+The harness needs Node 22.16 or later (`setReturnArrays`; `node:sqlite` itself is unflagged from 22.13), which `engines.node` requires. Node 22 prints an `ExperimentalWarning` for `node:sqlite`; the warning is expected.
 
 The shared `applyThrough(marker)` helper applies only the statements up to and including the first one matching `marker`, **without** a transaction — exactly the state a production apply that dies mid-file leaves behind (`wrangler` streams statements and records the migration only after the last succeeds). The rules these specs pin — mid-file death, abort-proof backfills, self-healing retry — live in [`.claude/rules/db-migrations.md`](../../.claude/rules/db-migrations.md).
 
@@ -86,17 +88,13 @@ The shared `applyThrough(marker)` helper applies only the statements up to and i
 
 ## scripts/check-rules.ts
 
-[`scripts/check-rules.ts`](../../scripts/check-rules.ts) holds the deterministic conformance checks for the rules in AGENTS.md and `.claude/rules/*.md`. It runs in CI ([`ci.yml`](../../.github/workflows/ci.yml)), the Claude Code Stop hook, and manually via `bun run check:rules`.
+[`scripts/check-rules.ts`](../../scripts/check-rules.ts) holds the deterministic conformance checks for the rules in AGENTS.md and `.claude/rules/*.md`. It runs in CI ([`checks.yml`](../../.github/workflows/checks.yml)), the Claude Code Stop hook, and manually via `bun run check:rules`.
 
 **Standing invariant: only currently-green checks may live in the file.** A red check would block every turn (the Stop hook runs it after each Claude Code turn). Checks for known-but-unfixed issues wait here until their Linear issues are fixed — currently the ColorBadge / PlayerAvatar wrapper bans (SA2-112, SA2-119).
 
 ### Matching soundness (excludeLine × multiline)
 
 Each pattern is tested against the whole file first — so multiline patterns can match — and then per line for reporting; `excludeLine` filters individual line hits. A file that matched as a whole while **no single line matched** is reported as a genuine multiline violation. The guard for that fallback is "no line matched at all", not "the check has no excludeLine": this stays sound when a check combines an `excludeLine` with a multiline pattern — a file whose every hit line is excluded is not reported, but a real cross-line hit still is.
-
-### The bun:sqlite listing check
-
-`bun:sqlite` spec bodies sit behind `skipIfNotBun`, so Vitest reports them as *skipped*, not failed — a spec also missing from ci.yml's dedicated `bun test` step **runs nowhere and reports green**. The check is a **cross-file existence assertion** (every `{apps,packages}/**/__tests__/*.test.ts` mentioning `bun:sqlite` must be named in the step), which is why it lives outside the file's generic `CHECKS` table. The glob spans **every workspace**, not just `packages/db`: tests are colocated next to code, so the next bun:sqlite spec plausibly lands in some other `__tests__/`, and `*` does not cross `/` — a narrower glob would let such a spec escape both this check and the `bun test` step, the exact hole the check exists to close.
 
 ### The D1 trigger-stash check (delta beyond db-migrations.md)
 

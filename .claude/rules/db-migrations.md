@@ -36,8 +36,7 @@ change or would do it unsafely:**
   is complete (the old shape, or the rebuilt shape with the index created last as a marker), and is
   tested by failing at every statement and by old-Worker writes after each finished section. Name
   the columns in any `INSERT … SELECT` that can run against both shapes — a column-count mismatch
-  fails at prepare time even when the `WHERE` selects nothing. In `bun:sqlite` specs read rebuilt tables with
-  `db.prepare()`: `db.query()` caches the statement with its old column names.
+  fails at prepare time even when the `WHERE` selects nothing.
 
 When you hand-write a migration, still run `db:generate` afterward (see below) so the snapshot stays
 in sync — let it write the fresh snapshot, then replace/delete its auto `.sql` so `wrangler` applies
@@ -49,7 +48,7 @@ your intended SQL.
 transaction, and `d1_migrations` only advances after the last statement succeeds. A statement that
 fails halfway therefore leaves the earlier objects created **and** the migration unrecorded, so the
 retry dies on `table already exists`. `migration-00NN.test.ts` helpers that wrap the file in
-`BEGIN` / `ROLLBACK` model the local (`bun:sqlite`) behavior, not production — never cite them as
+`BEGIN` / `ROLLBACK` model the local (`node:sqlite`) behavior, not production — never cite them as
 evidence that a migration rolls back.
 
 Consequences for any migration that touches existing rows:
@@ -173,11 +172,6 @@ workflow change; do not special-case one there.** What a new trigger does need i
 that seeded data comes from the dump, not from the trigger.
 [`preview-seed-restore.test.ts`](../../packages/db/src/__tests__/preview-seed-restore.test.ts)
 pins both halves (the collision is real; stashing fixes it without leaving the DB trigger-less).
-It needs `bun:sqlite`, so like the `migration-*` specs it is listed explicitly in
-[`ci.yml`](../../.github/workflows/ci.yml) — a bun:sqlite spec that is not listed runs nowhere and
-reports green, because `skipIfNotBun` makes Vitest skip it rather than fail. `bun run check:rules`
-enforces the listing (every `{apps,packages}/**/__tests__/*.test.ts` mentioning `bun:sqlite` must
-be named in that step), so this paragraph is documentation, not the guard.
 
 **Both seed steps are hand-copied siblings, so `check:rules` also asserts the stash itself**: any
 `.github/workflows/*.yml` containing the restore (`--file=dump.sql`) must carry all three halves —

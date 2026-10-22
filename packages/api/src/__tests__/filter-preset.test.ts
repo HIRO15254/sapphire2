@@ -1,7 +1,7 @@
 import { filterPreset } from "@sapphire2/db/schema/filter-preset";
 import type { TRPCError } from "@trpc/server";
 import { getTableName } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { appRouter } from "../routers";
 import {
 	createChainableMockDb,
@@ -399,16 +399,16 @@ describe("filterPreset.create collision guard (CONFLICT)", () => {
 	});
 
 	it("DB-constraint-catch: converts a UNIQUE constraint violation from the insert into CONFLICT, not a raw 500", async () => {
-		const { caller, db } = filterPresetCaller(OWNER, {
+		const { caller, insert } = filterPresetCaller(OWNER, {
 			[TABLE]: [],
 		});
-		db.insert = () => ({
-			values: () => {
+		insert.mockImplementation(() => ({
+			values: vi.fn(() => {
 				throw new Error(
 					"UNIQUE constraint failed: filter_preset.user_id, filter_preset.screen_key, filter_preset.name"
 				);
-			},
-		});
+			}),
+		}));
 		await expectTrpcCode(
 			caller.create({ screenKey: "sessions", name: "Dup", payload: {} }),
 			"CONFLICT"
@@ -541,18 +541,18 @@ describe("filterPreset.update behavior", () => {
 	});
 
 	it("converts a UNIQUE constraint violation from the update into CONFLICT (TOCTOU backstop)", async () => {
-		const { caller, db } = filterPresetCaller(OWNER, {
+		const { caller, update } = filterPresetCaller(OWNER, {
 			[TABLE]: [SESSIONS_ROW],
 		});
-		db.update = () => ({
-			set: () => ({
-				where: () => {
+		update.mockImplementation(() => ({
+			set: vi.fn(() => ({
+				where: vi.fn(() => {
 					throw new Error(
 						"UNIQUE constraint failed: filter_preset.user_id, filter_preset.screen_key, filter_preset.name"
 					);
-				},
-			}),
-		});
+				}),
+			})),
+		}));
 		await expectTrpcCode(
 			caller.update({ id: "fp-1", name: "New Name" }),
 			"CONFLICT"

@@ -1,4 +1,5 @@
-import { normalizeRulePath } from "../../../../../scripts/check-rules-path";
+import { describe, expect, it } from "vitest";
+import { normalizeRulePath } from "../check-rules-path";
 
 describe("normalizeRulePath", () => {
 	it("normalizes Windows separators for path-based rule exclusions", () => {
