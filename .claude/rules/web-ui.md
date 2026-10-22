@@ -13,11 +13,8 @@ Every top-level page composes its header with [`PageHeader`](../../apps/web/src/
 
 Reach for existing shadcn components before building a custom wrapper:
 
-- Data tables → [shadcn `Table`](../../apps/web/src/shared/components/ui/table/table.tsx). Native `<table>` is banned for tabular data.
 - Status pills, counts → shadcn `Badge`. Do not reintroduce the old `ColorBadge` wrapper.
-- User avatars → shadcn `Avatar`. Do not reintroduce the old `PlayerAvatar` wrapper.
 - Single-choice selection (swatches, enum pickers) → shadcn `RadioGroup`.
-- Clearable `Select` → [`SelectWithClear`](../../apps/web/src/shared/components/ui/select/select-with-clear.tsx). See [`.claude/rules/web-forms.md`](web-forms.md).
 
 ## Language
 

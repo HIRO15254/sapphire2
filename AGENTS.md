@@ -134,8 +134,8 @@ The following rule files live in `.claude/rules/` and are loaded automatically w
 | `testing.md` | `apps/**`, `packages/**`, `scripts/**`, `e2e/**`, `testing/**`, `patches/**`, test/CI configuration | Admission gate for new tests, test design based on contracts and risks, mock boundaries, deletion decisions, execution, and CI. |
 | `web-architecture.md` | `apps/web/**` | `apps/web/src/` feature-folder layout, page/component placement rules, reference implementations. |
 | `web-hooks-separation.md` | `apps/web/**` | STRICT: components may only call custom `useXxx` hooks; verification script included. |
-| `web-forms.md` | `apps/web/**` | `@tanstack/react-form` in hooks, no `type="number"`, no placeholders, `SelectWithClear` for clearable selects. |
-| `web-ui.md` | `apps/web/**` | PageHeader, shadcn primitives (Table / Badge / Avatar / RadioGroup), mobile = Drawer, tabler-icons. |
+| `web-forms.md` | `apps/web/**` | `@tanstack/react-form` in hooks, no `type="number"`, no placeholders. |
+| `web-ui.md` | `apps/web/**` | PageHeader, shadcn primitives (Badge / RadioGroup), mobile = Drawer, tabler-icons. |
 | `web-data-fetching.md` | `apps/web/**` | Optimistic updates must go through `utils/optimistic-update.ts` helpers. |
 | `web-theme.md` | `apps/web/**` | Sapphire 2 Design System (single theme): token format, semantic colors, typography roles, sheet patterns. |
 | `ai-models.md` | `packages/api/**`, `apps/web/**`, `apps/server/**` | Write OpenAI model IDs only in `packages/api/src/ai/models.ts` so all AI features use the same latest model. Responses API + strict Structured Outputs; include reasoning in the `max_output_tokens` budget. |
@@ -161,7 +161,7 @@ This file evolves as the codebase evolves. The agent should **propose an update 
 1. **Verify it is not already enforced** by Ultracite, TypeScript, a pre-commit hook, `scripts/check-rules.ts`, or a route-level constraint. If it is, reference the enforcement instead of duplicating the rule.
 2. **Decide scope**: narrow path (e.g., `apps/web/**`, `apps/server/**`, `packages/db/**`) → `.claude/rules/<topic>.md` with a `paths:` frontmatter. Truly cross-cutting → this file.
 3. **Write the rule with a one-line "why"** — the incident, issue (SA2-xxx), or decision that created it — so future edits can judge edge cases instead of blindly following the letter.
-4. **Prefer concrete over abstract.** "Use `SelectWithClear` for clearable selects" beats "prefer consistent select behavior". Include explicit file paths and commands.
+4. **Prefer concrete over abstract.** "Use `PageHeader` for page headers" beats "prefer consistent page scaffolding". Include explicit file paths and commands.
 5. **If the rule is mechanically greppable, add a check to `scripts/check-rules.ts`** (Stop hook) — prose alone gets re-violated; a check must be green at the moment it is added.
 6. **If you add a new file under `.claude/rules/`**, update the index table above.
 7. **For large rewrites or ambiguous scope**, propose the change in chat before writing it — this file is shared across the team.

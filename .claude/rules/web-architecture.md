@@ -17,10 +17,10 @@ features/<feature>/
   __tests__/               feature-local tests
 routes/                    TanStack Router tree; route files delegate to features/<feature>/pages/<page>
 shared/
-  components/ui/           shadcn primitives (Button, Select, Avatar, Badge, Table, ...)
+  components/ui/           shadcn primitives (Button, Badge, Drawer, Dialog, RadioGroup, ...)
   components/              cross-feature composites (PageHeader, AuthenticatedShell, FormSheet, ...)
   hooks/                   cross-feature hooks (use-media-query, use-online-status, ...)
-  lib/                     cross-feature helpers (form-fields, ...)
+  lib/                     cross-feature helpers (webauthn, device-name, ...)
 lib/                       compatibility helpers shared by app setup and generated integrations
 plugins/                   build-time Vite plugins (not browser runtime modules)
 utils/                     truly global helpers (optimistic-update, formatters, ...)

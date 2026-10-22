@@ -128,14 +128,6 @@ const CHECKS: Check[] = [
 		excludePath: /routeTree\.gen\.ts$/,
 	},
 	{
-		name: "Cryst primitive imports a portal primitive directly — use sheets/Cryst* so the scope class is applied",
-		rule: ".claude/rules/web-theme.md (Cryst migration scope: portals escape the scope)",
-		globs: ["apps/web/src/shared/components/cryst/**/*.tsx"],
-		pattern:
-			/from "@\/shared\/components\/(form-sheet|ui\/(drawer|dialog|popover|select))"/,
-		excludePath: /\/sheets\//,
-	},
-	{
 		name: "GitHub pull-request head ref assigned inside a run script — pass it through step env",
 		rule: "GitHub Actions shell-injection prevention",
 		cwd: ".github",

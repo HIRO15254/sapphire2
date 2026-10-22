@@ -107,7 +107,7 @@ The `applyThrough(db, marker)` helpers in [migration-0049.test.ts](../../package
 
 [`scripts/check-rules.ts`](../../scripts/check-rules.ts) holds the deterministic conformance checks for the rules in AGENTS.md and `.claude/rules/*.md`. It runs in CI ([`checks.yml`](../../.github/workflows/checks.yml)), the Claude Code Stop hook, and manually via `bun run check:rules`.
 
-**Standing invariant: only currently-green checks may live in the file.** A red check would block every turn (the Stop hook runs it after each Claude Code turn). Checks for known-but-unfixed issues wait here until their Linear issues are fixed — currently the ColorBadge / PlayerAvatar wrapper bans (SA2-112, SA2-119).
+**Standing invariant: only currently-green checks may live in the file.** A red check would block every turn (the Stop hook runs it after each Claude Code turn). Checks for known-but-unfixed issues wait here until their Linear issues are fixed.
 
 ### Matching soundness (excludeLine × multiline)
 
