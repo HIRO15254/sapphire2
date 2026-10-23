@@ -9,7 +9,6 @@ import {
 	entryTournament,
 	playSession,
 } from "@sapphire2/db/schema/entry";
-import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { TRPCError } from "@trpc/server";
@@ -18,8 +17,6 @@ import { alias } from "drizzle-orm/sqlite-core";
 import type { BatchStatement } from "../lib/batch";
 
 export type LegacySessionKind = "cash_game" | "tournament";
-
-export const MINIMAL_GAME_SESSION_DATE = new Date(0);
 
 export const CASH_DETAIL_MOVED_COLUMNS = ["ringGameId", "evCashOut"] as const;
 
@@ -183,15 +180,6 @@ export function buildManualEntryInsertStatements(
 ): BatchStatement[] {
 	const kind = toEntryKind(facts.kind);
 	const statements: BatchStatement[] = [
-		db.insert(gameSession).values({
-			id: facts.id,
-			userId: facts.userId,
-			kind: facts.kind,
-			status: "completed",
-			source: "manual",
-			sessionDate: MINIMAL_GAME_SESSION_DATE,
-			updatedAt: now,
-		}),
 		db.insert(entry).values({
 			id: facts.id,
 			userId: facts.userId,
@@ -288,9 +276,6 @@ export function buildEntryDeleteStatements(
 ): BatchStatement[] {
 	return [
 		db.delete(entry).where(and(eq(entry.id, id), eq(entry.userId, userId))),
-		db
-			.delete(gameSession)
-			.where(and(eq(gameSession.id, id), eq(gameSession.userId, userId))),
 	];
 }
 

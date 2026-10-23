@@ -428,6 +428,13 @@
       "when": 1792721196769,
       "tag": "0060_rebuild_currency_as_asset",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "6",
+      "when": 1792740478354,
+      "tag": "0061_entry_p1_cutover",
+      "breakpoints": true
     }
   ]
 }

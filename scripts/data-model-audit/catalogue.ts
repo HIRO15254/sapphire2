@@ -20,7 +20,6 @@ export type AuditId = (typeof AUDIT_IDS)[number];
 
 export const TASK = {
 	B01: "B01 (SA2-385)",
-	B06: "B06 (SA2-391)",
 	B07: "B07 (SA2-392)",
 	B08: "B08 (SA2-393)",
 	B09: "B09 (SA2-394)",
@@ -34,6 +33,7 @@ export const TASK = {
 } as const;
 
 export const B01_MIGRATION = "0059_v2_final_empty_schema.sql";
+export const B06_MIGRATION = "0061_entry_p1_cutover.sql";
 
 export type Activation =
 	| { state: "active"; since: string | null }
@@ -72,6 +72,7 @@ export interface DeferredCheck extends CheckBase {
 export type Check = SqlCheck | ReplayCheck | DeferredCheck;
 
 const SINCE_B01: Activation = { state: "active", since: B01_MIGRATION };
+const SINCE_B06: Activation = { state: "active", since: B06_MIGRATION };
 
 function pending(enabledBy: string): { state: "pending"; enabledBy: string } {
 	return { state: "pending", enabledBy };
@@ -95,9 +96,9 @@ export const CHECKS: readonly Check[] = [
 	},
 	{
 		audit: "A-3",
-		part: "game_session/session_event ids match entry, seq-1 play_session and play_event",
+		part: "game_session/session_event ids and declared source match entry, seq-1 play_session and play_event",
 		kind: "sql",
-		activation: pending(TASK.B06),
+		activation: SINCE_B06,
 		deletedBy: TASK.B25,
 		tables: [
 			"game_session",
@@ -123,13 +124,18 @@ WHERE NOT EXISTS (SELECT 1 FROM play_event pe WHERE pe.id = se.id AND pe.entry_i
 UNION ALL
 SELECT 'play_event', pe.id FROM play_event pe
 WHERE pe.created_at <= ${cutoverAt}
-AND NOT EXISTS (SELECT 1 FROM session_event se JOIN game_session gs ON gs.id = se.session_id WHERE se.id = pe.id AND gs.id = pe.entry_id AND gs.user_id = pe.user_id)`,
+AND NOT EXISTS (SELECT 1 FROM session_event se JOIN game_session gs ON gs.id = se.session_id WHERE se.id = pe.id AND gs.id = pe.entry_id AND gs.user_id = pe.user_id)
+UNION ALL
+SELECT 'entry source', e.id FROM entry e
+JOIN game_session gs ON gs.id = e.id AND gs.user_id = e.user_id
+WHERE e.updated_at <= ${cutoverAt}
+AND e.source IS NOT (CASE WHEN gs.source = 'live' OR EXISTS (SELECT 1 FROM session_event se WHERE se.session_id = gs.id) THEN 'live' ELSE gs.source END)`,
 	},
 	{
 		audit: "A-4",
 		part: "normalized source start/end/break/status equal seq-1 play_session",
 		kind: "sql",
-		activation: pending(TASK.B06),
+		activation: SINCE_B06,
 		deletedBy: TASK.B25,
 		tables: ["game_session", "play_session"],
 		sql: (cutoverAt) => `SELECT p.id AS id FROM game_session gs
@@ -181,7 +187,7 @@ HAVING COALESCE(sum(l.quantity), 0) <> x.pl`,
 		part: "projectEntry replay: entry status/played_on, every play_session, kind detail, Hero seat fold",
 		kind: "replay",
 		replay: "a6-core",
-		activation: pending(TASK.B06),
+		activation: SINCE_B06,
 		tables: [
 			"entry",
 			"entry_cash",
@@ -214,7 +220,7 @@ HAVING COALESCE(sum(l.quantity), 0) <> x.pl`,
 		audit: "A-8",
 		part: "every entry has a day and played_on = MIN(local_date)",
 		kind: "sql",
-		activation: pending(TASK.B06),
+		activation: SINCE_B06,
 		tables: ["entry", "play_session"],
 		sql: () => `SELECT e.id AS id, e.played_on AS played_on, min(p.local_date) AS first_local_date
 FROM entry e LEFT JOIN play_session p ON p.entry_id = e.id AND p.user_id = e.user_id
@@ -225,7 +231,7 @@ HAVING count(p.id) = 0 OR e.played_on <> min(p.local_date)`,
 		audit: "A-9",
 		part: "entry settled iff every day ended and the highest seq settles",
 		kind: "sql",
-		activation: pending(TASK.B06),
+		activation: SINCE_B06,
 		tables: ["entry", "play_session"],
 		sql: () => `SELECT e.id AS id, e.source AS source, e.status AS status FROM entry e WHERE
 (e.status = 'settled') <> (

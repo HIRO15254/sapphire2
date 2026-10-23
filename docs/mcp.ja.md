@@ -2,7 +2,7 @@
 
 > **[English version here](mcp.md)**
 
-sapphire2 はリモート [MCP](https://modelcontextprotocol.io/)（Model Context Protocol）サーバーを公開しており、AI エージェント（claude.ai のコネクタ、Claude Desktop、Claude Code、その他 MCP 対応クライアント）からポーカーセッションデータの参照・記録ができます。
+sapphire2 はリモート [MCP](https://modelcontextprotocol.io/)（Model Context Protocol）サーバーを公開しており、AI エージェント（claude.ai のコネクタ、Claude Desktop、Claude Code、その他 MCP 対応クライアント）からポーカー統計の参照やルーム・ゲームマスタの管理ができます。
 
 - **エンドポイント**: `https://<APIホスト>/mcp`（Streamable HTTP）
 - **認証**: OAuth 2.1 + 動的クライアント登録（RFC 7591）、PKCE 必須
@@ -47,13 +47,10 @@ claude mcp add --transport http sapphire2 https://<APIホスト>/mcp
 
 ツール群は **tRPC `appRouter` の射影**です: 各ツールの入力スキーマは API が検証に使う Zod スキーマそのもので、レスポンスは HTTP API と同じ JSON です。規約もバックエンドに従います — **日付は unix 秒**（date-only 値は UTC midnight）、**金額はその通貨の表示単位の整数**。
 
+B06 の切り替えで旧完了セッション・ライブセッション API と対応する MCP ツールは削除されます。最終版の entry/live API が導入されるまではセッションの記録・編集は利用できません。以下の統計・マスタ系ツールは引き続き利用できます。
+
 | ツール | tRPC 手続き | 種別 |
 |---|---|---|
-| `session_list` | `session.list` | 参照 |
-| `session_get_by_id` | `session.getById` | 参照 |
-| `session_create_cash_game` | `session.create`（cash 枝） | 記録 |
-| `session_create_tournament` | `session.create`（tournament 枝） | 記録 |
-| `session_update` | `session.update` | 記録 |
 | `stats_summary` | `stats.summary` | 参照 |
 | `stats_breakdown` | `stats.breakdown` | 参照 |
 | `stats_profit_loss_series` | `stats.profitLossSeries` | 参照 |
@@ -88,9 +85,9 @@ claude mcp add --transport http sapphire2 https://<APIホスト>/mcp
 
 マスタ系のツールは既存セッションが参照している行を書き換えるため、`*_update` 系は destructive として注釈されています。**削除はどれも公開していません。** リングゲームとトーナメントにはアーカイブ/復元があるのでそちらを公開していますが、ルームとゲームマスタには存在しないので、誤って `room_create` / `game_variant_create` を叩くと Web UI からしか消せない行が残ります — 作成前に対応する list ツールで確認してください。
 
-`session_update`（`tagIds` / `blindLevels` / `chipPurchases`。加えて `tournamentId` / `ringGameId` を送るとリストを送らなくても master の構造・ルールが再コピーされます）・`tournament_update_with_levels`・`game_mix_update` は子リストを**丸ごと置き換える**ので、先に現在の内容を読んでから全件を送ってください。`mixGames` はリングゲーム系だけでなく `session_create_cash_game` / `session_update` も同じ検証器を通して受け付けます — 名前付き mix は完全一致で再現する必要があり、mix が設定されている間は `blind1`〜`blind3` / `ante` / `anteType` が常に `null` になるため、これらのフラットなフィールドに送った値は破棄されます。
+`tournament_update_with_levels`・`game_mix_update` は子リストを**丸ごと置き換える**ので、先に現在の内容を読んでから全件を送ってください。`mixGames` はリングゲーム系ツールが受け付けます — 名前付き mix は完全一致で再現する必要があり、mix が設定されている間は `blind1`〜`blind3` / `ante` / `anteType` が常に `null` になるため、これらのフラットなフィールドに送った値は破棄されます。
 
-ここに無い手続きは意図的な除外です（ライブセッションの状態機械、取り消し不能な削除、非冪等なお気に入りトグル、バンクロール台帳の書き込み、AI 抽出など）— 理由は `packages/mcp/src/tools/registry.ts` に記載され、結合テストで強制されます。
+ここに無い手続きは意図的な除外です（取り消し不能な削除、非冪等なお気に入りトグル、バンクロール台帳の書き込み、AI 抽出など）— 理由は `packages/mcp/src/tools/registry.ts` に記載され、結合テストで強制されます。
 
 認可は API 自身のものです: すべての呼び出しはユーザーセッション付きの `appRouter.createCaller` を通るため、`protectedProcedure` と所有権チェックが web アプリと完全に同じ形で適用されます。
 

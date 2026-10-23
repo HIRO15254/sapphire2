@@ -1,16 +1,16 @@
 import type { Database } from "@sapphire2/db";
 import { asset } from "@sapphire2/db/schema/asset";
-import { playEvent } from "@sapphire2/db/schema/entry";
 import {
 	assetRate,
 	ledgerCategory,
 	ledgerLine,
 } from "@sapphire2/db/schema/ledger";
-import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
+import { room } from "@sapphire2/db/schema/room";
+import { tournament } from "@sapphire2/db/schema/tournament";
 import { asc, eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
 import { runBatch } from "../lib/batch";
-import { validateEntityOwnership } from "../routers/session";
+import { validateEntityOwnership } from "../lib/ownership";
 import {
 	applyEntryEventChange,
 	buildLiveEntryStartStatements,
@@ -37,10 +37,6 @@ import {
 	manualMoneyPayments,
 	updateWalletLine,
 } from "../services/ledger-writes";
-import {
-	computeCashGamePLFromEvents,
-	computeTournamentPLFromEvents,
-} from "../services/live-session-pl";
 import { test } from "./test-fixture";
 
 const NOW = new Date("2026-09-05T10:00:00.000Z");
@@ -177,16 +173,7 @@ async function appendAndProject(
 	);
 }
 
-async function legacyEvents(db: Database, entryId: string) {
-	const rows = await db
-		.select({ eventType: playEvent.type, payload: playEvent.payload })
-		.from(playEvent)
-		.where(eq(playEvent.entryId, entryId))
-		.orderBy(asc(playEvent.occurredAt), asc(playEvent.sortOrder));
-	return rows;
-}
-
-describe("audit A-5: the real P/L of the ledger lines equals the P/L of the old columns", () => {
+describe("entry ledger real profit and loss", () => {
 	test("for manual cash and tournament input, including a rewrite of the same entry", async ({
 		api: { db },
 	}) => {
@@ -285,14 +272,26 @@ describe("audit A-5: the real P/L of the ledger lines equals the P/L of the old 
 				payload: { cashOutAmount: 20_000 },
 			},
 		]);
-		const cashPl = computeCashGamePLFromEvents(
-			await legacyEvents(db, "live-cash")
-		).profitLoss;
-		expect(cashPl).toBe(20_000 + 5000 - (30_000 + 10_000));
+		const cashPl = -15_000;
 		expect(await realProfitLoss(db, "live-cash")).toEqual([
 			{ assetId: JPY, profitLoss: cashPl },
 		]);
 
+		await db.insert(room).values({
+			id: "tournament-room",
+			userId: "alice",
+			name: "Club",
+			updatedAt: NOW,
+		});
+		await db.insert(tournament).values({
+			id: "tournament-master",
+			userId: "alice",
+			roomId: "tournament-room",
+			name: "Daily",
+			buyIn: 10_000,
+			entryFee: 1000,
+			updatedAt: NOW,
+		});
 		await runBatch(
 			db,
 			buildLiveEntryStartStatements(
@@ -301,7 +300,7 @@ describe("audit A-5: the real P/L of the ledger lines equals the P/L of the old 
 					"live-mtt",
 					{
 						kind: "tournament",
-						tournamentId: null,
+						tournamentId: "tournament-master",
 						buyIn: 10_000,
 						entryFee: 1000,
 					},
@@ -309,11 +308,6 @@ describe("audit A-5: the real P/L of the ledger lines equals the P/L of the old 
 				)
 			)
 		);
-		await db.insert(sessionTournamentDetail).values({
-			sessionId: "live-mtt",
-			tournamentBuyIn: 10_000,
-			entryFee: 1000,
-		});
 		await appendAndProject(db, "live-mtt", [
 			{
 				type: "purchase_chips",
@@ -350,12 +344,7 @@ describe("audit A-5: the real P/L of the ledger lines equals the P/L of the old 
 				},
 			},
 		]);
-		const tournamentPl = computeTournamentPLFromEvents(
-			await legacyEvents(db, "live-mtt"),
-			10_000,
-			1000
-		).profitLoss;
-		expect(tournamentPl).toBe(50_000 + 3000 - (10_000 + 1000 + 2000 * 2));
+		const tournamentPl = 38_000;
 		expect(await realProfitLoss(db, "live-mtt")).toEqual([
 			{ assetId: JPY, profitLoss: tournamentPl },
 		]);

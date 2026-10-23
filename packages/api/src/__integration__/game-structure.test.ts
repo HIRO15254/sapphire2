@@ -8,8 +8,6 @@ import { eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
 import { requireCreatedRow, test } from "./test-fixture";
 
-const SESSION_DATE = Date.UTC(2026, 8, 1) / 1000;
-
 const MIXED_GROUP = {
 	variants: ["NL Hold'em", "Razz"],
 	blind1: 100,
@@ -70,17 +68,6 @@ describe("one game group per mix group on D1", () => {
 			.select()
 			.from(blindLevel)
 			.where(eq(blindLevel.tournamentId, master.id));
-		const manual = requireCreatedRow(
-			await api.alice.session.create({
-				type: "tournament",
-				sessionDate: SESSION_DATE,
-				tournamentBuyIn: 100,
-				blindLevels: [SINGLE_STRUCTURE_LEVEL],
-			})
-		);
-		const live = requireCreatedRow(
-			await api.alice.liveTournamentSession.create({ buyIn: 200 })
-		);
 		const before = await persistedRuleRows(api);
 
 		const writes = [
@@ -106,23 +93,6 @@ describe("one game group per mix group on D1", () => {
 					id: storedLevel?.id ?? "",
 					games: MIXED_LEVEL.games,
 				}),
-			() =>
-				api.alice.session.create({
-					type: "tournament",
-					sessionDate: SESSION_DATE,
-					tournamentBuyIn: 100,
-					blindLevels: [MIXED_LEVEL],
-				}),
-			() =>
-				api.alice.session.update({
-					id: manual.id,
-					blindLevels: [MIXED_LEVEL],
-				}),
-			() =>
-				api.alice.liveTournamentSession.updateSnapshot({
-					id: live.id,
-					blindLevels: [MIXED_LEVEL],
-				}),
 		];
 		for (const write of writes) {
 			await expect(write()).rejects.toMatchObject(STRUCTURE_REJECTION);
@@ -137,17 +107,6 @@ describe("one game group per mix group on D1", () => {
 		const room = requireCreatedRow(
 			await api.alice.room.create({ name: "Club" })
 		);
-		const manual = requireCreatedRow(
-			await api.alice.session.create({
-				type: "cash_game",
-				sessionDate: SESSION_DATE,
-				buyIn: 100,
-				cashOut: 100,
-			})
-		);
-		const live = requireCreatedRow(
-			await api.alice.liveCashGameSession.create({ initialBuyIn: 100 })
-		);
 		const before = await persistedRuleRows(api);
 
 		const writes = [
@@ -155,27 +114,6 @@ describe("one game group per mix group on D1", () => {
 				api.alice.ringGame.create({
 					roomId: room.id,
 					name: "Dealer's choice",
-					variant: "mix",
-					mixGames: MIXED_MIX,
-				}),
-			() =>
-				api.alice.session.create({
-					type: "cash_game",
-					sessionDate: SESSION_DATE,
-					buyIn: 100,
-					cashOut: 100,
-					variant: "mix",
-					mixGames: MIXED_MIX,
-				}),
-			() =>
-				api.alice.session.update({
-					id: manual.id,
-					variant: "mix",
-					mixGames: MIXED_MIX,
-				}),
-			() =>
-				api.alice.liveCashGameSession.updateSnapshot({
-					id: live.id,
 					variant: "mix",
 					mixGames: MIXED_MIX,
 				}),
