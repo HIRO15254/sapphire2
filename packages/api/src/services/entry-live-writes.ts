@@ -32,7 +32,7 @@ export interface NewPlayEvent {
 	occurredAt: Date;
 	payload: unknown;
 	playSessionId?: string;
-	schemaVersion?: number;
+	schemaVersion: number;
 	type: string;
 }
 
@@ -85,7 +85,7 @@ function playEventRow(
 		entryId: scope.entryId,
 		playSessionId,
 		type: event.type,
-		schemaVersion: event.schemaVersion ?? 1,
+		schemaVersion: event.schemaVersion,
 		occurredAt: event.occurredAt,
 		sortOrder,
 		payload: JSON.stringify(event.payload),
@@ -382,6 +382,7 @@ export async function updateEntryHeroSeat(
 	if (previous !== null) {
 		events.push({
 			type: "player_leave",
+			schemaVersion: 1,
 			occurredAt,
 			payload: { isHero: true },
 		});
@@ -389,6 +390,7 @@ export async function updateEntryHeroSeat(
 	if (heroSeatPosition !== null) {
 		events.push({
 			type: "player_join",
+			schemaVersion: 1,
 			occurredAt,
 			payload: { isHero: true, seatPosition: heroSeatPosition },
 		});

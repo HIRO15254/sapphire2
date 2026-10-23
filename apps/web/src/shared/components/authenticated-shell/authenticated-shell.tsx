@@ -4,22 +4,14 @@ import {
 	UpdateNotesProvider,
 	UpdateNotesSheet,
 } from "@/features/update-notes/components/update-notes-sheet";
-import { cn } from "@/lib/utils";
 import { MobileNav } from "@/shared/components/authenticated-shell/mobile-nav";
 import { OnlineStatusBar } from "@/shared/components/authenticated-shell/online-status-bar";
 import { SidebarNav } from "@/shared/components/authenticated-shell/sidebar-nav";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { useAuthenticatedShell } from "./use-authenticated-shell";
 
-export function AuthenticatedShell({
-	children,
-	fullBleed = false,
-}: {
-	children: ReactNode;
-	fullBleed?: boolean;
-}) {
-	const { isDesktop, activeSessionId } = useAuthenticatedShell();
-	const showMobileNav = !fullBleed || activeSessionId === null;
+export function AuthenticatedShell({ children }: { children: ReactNode }) {
+	const { isDesktop } = useAuthenticatedShell();
 
 	if (isDesktop) {
 		return (
@@ -40,18 +32,11 @@ export function AuthenticatedShell({
 				<SidebarNav />
 				<div className="flex h-svh flex-col md:ml-56">
 					<OnlineStatusBar />
-					<div
-						className={cn(
-							"flex-1",
-							showMobileNav &&
-								"pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0",
-							fullBleed ? "min-h-0" : "overflow-auto"
-						)}
-					>
+					<div className="flex-1 overflow-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
 						{children}
 					</div>
 				</div>
-				{showMobileNav ? <MobileNav /> : null}
+				<MobileNav />
 				<UpdateNotesSheet />
 			</div>
 		</UpdateNotesProvider>

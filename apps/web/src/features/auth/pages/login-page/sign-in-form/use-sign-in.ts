@@ -34,7 +34,7 @@ export function useSignIn() {
 							window.location.assign(authorizeUrl);
 							return;
 						}
-						navigate({ to: "/statistics" });
+						navigate({ to: "/" });
 						toast.success("Sign in successful");
 						offerAutomaticPasskey();
 					},
@@ -71,7 +71,7 @@ export function useSignIn() {
 				window.location.assign(authorizeUrl);
 				return;
 			}
-			navigate({ to: "/statistics" });
+			navigate({ to: "/" });
 			toast.success("Sign in successful");
 		} finally {
 			setIsPasskeyPending(false);

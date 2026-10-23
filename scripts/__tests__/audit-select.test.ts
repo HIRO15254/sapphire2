@@ -215,7 +215,11 @@ describe("ledger", () => {
 	it("alternates the agent from the most recent run", () => {
 		expect(nextAgent([])).toBe("claude");
 		expect(nextAgent(rows)).toBe("claude");
-		expect(nextAgent([rows[0]])).toBe("codex");
+		const first = rows[0];
+		if (!first) {
+			throw new Error("Expected a ledger fixture row");
+		}
+		expect(nextAgent([first])).toBe("codex");
 	});
 
 	it("alternates when both agents run on the same UTC day, as in Codex 06:00 then Claude 18:00", () => {

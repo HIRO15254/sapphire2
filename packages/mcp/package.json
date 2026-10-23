@@ -21,7 +21,6 @@
     "@sapphire2/config": "workspace:*",
     "@trpc/server": "catalog:",
     "typescript": "catalog:",
-    "vitest": "^4.1.2",
     "zod": "catalog:"
   }
 }

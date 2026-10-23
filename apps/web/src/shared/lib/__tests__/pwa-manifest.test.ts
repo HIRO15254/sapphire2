@@ -13,7 +13,11 @@ function readGeneratedRoutePaths(): Set<string> {
 	const pathLiteral = /(?:full)?[Pp]ath:\s*'([^']+)'/g;
 	let match = pathLiteral.exec(source);
 	while (match !== null) {
-		paths.add(match[1]);
+		const routePath = match[1];
+		if (routePath === undefined) {
+			throw new Error("Expected a captured route path");
+		}
+		paths.add(routePath);
 		match = pathLiteral.exec(source);
 	}
 	return paths;

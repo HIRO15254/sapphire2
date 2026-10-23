@@ -3,16 +3,12 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-// biome-ignore lint/correctness/noUndeclaredVariables: Bun is a runtime global
-const isBun = typeof Bun !== "undefined";
-const skipIfNotBun = isBun ? describe : describe.skip;
-
-let Database: any = null;
-if (isBun) {
-	// @ts-expect-error -- bun:sqlite only exists in the Bun runtime.
-	const bunSqlite = require("bun:sqlite");
-	Database = bunSqlite.Database;
-}
+import {
+	type Database,
+	openDatabase,
+	rowValues,
+	migrationStatements as splitMigrationStatements,
+} from "./sqlite";
 
 const migrationsDirectory = fileURLToPath(
 	new URL("../migrations/", import.meta.url)
@@ -100,12 +96,9 @@ const schemaBefore0049 = `
 		BEFORE UPDATE ON game_variant BEGIN SELECT 1; END;
 `;
 
-const migrationStatements = migrationSql
-	.split("--> statement-breakpoint")
-	.map((part) => part.trim())
-	.filter(Boolean);
+const migrationStatements = splitMigrationStatements(migrationSql);
 
-function applyAtomically(db: any): void {
+function applyAtomically(db: Database): void {
 	db.exec("BEGIN");
 	try {
 		for (const statement of migrationStatements) {
@@ -118,7 +111,7 @@ function applyAtomically(db: any): void {
 	}
 }
 
-function applyThrough(db: any, marker: string): void {
+function applyThrough(db: Database, marker: string): void {
 	const cut = migrationStatements.findIndex((statement) =>
 		statement.includes(marker)
 	);
@@ -130,7 +123,7 @@ function applyThrough(db: any, marker: string): void {
 	}
 }
 
-function seedLegacyRows(db: any): void {
+function seedLegacyRows(db: Database): void {
 	db.exec(`
 		INSERT INTO user (id) VALUES ('user-1'), ('user-2');
 		INSERT INTO game_group (id, user_id, label) VALUES
@@ -155,11 +148,11 @@ function seedLegacyRows(db: any): void {
 	`);
 }
 
-skipIfNotBun("migration 0049 — normalized game mix variants", () => {
-	let db: any;
+describe("migration 0049 — normalized game mix variants", () => {
+	let db: Database;
 
 	beforeEach(() => {
-		db = new Database(":memory:");
+		db = openDatabase();
 		db.exec("PRAGMA foreign_keys=ON");
 		db.exec(schemaBefore0049);
 	});
@@ -170,42 +163,42 @@ skipIfNotBun("migration 0049 — normalized game mix variants", () => {
 
 	it("backfills exact order while preserving every game_mix value", () => {
 		seedLegacyRows(db);
-		const before = db
-			.query(`
+		const before = rowValues(
+			db.prepare(`
 				SELECT id, user_id, builtin_key, label, games, created_at, updated_at
 				FROM game_mix ORDER BY id
 			`)
-			.values();
+		);
 
 		applyAtomically(db);
 
 		expect(
-			db
-				.query(`
+			rowValues(
+				db.prepare(`
 					SELECT mix_id, variant_id, user_id, position
 					FROM game_mix_variant ORDER BY mix_id, position
 				`)
-				.values()
+			)
 		).toEqual([
 			["mix-ordered", "variant-2", "user-1", 0],
 			["mix-ordered", "variant-1", "user-1", 1],
 			["mix-user-2", "variant-3", "user-2", 0],
 		]);
 		expect(
-			db
-				.query(`
+			rowValues(
+				db.prepare(`
 					SELECT id, user_id, builtin_key, label, games, created_at, updated_at
 					FROM game_mix ORDER BY id
 				`)
-				.values()
+			)
 		).toEqual(before);
 		expect(
 			db
-				.query("PRAGMA table_info(game_mix)")
+				.prepare("PRAGMA table_info(game_mix)")
 				.all()
-				.map((column: { name: string }) => column.name)
+				.map((column) => column.name)
 		).toContain("games");
-		expect(db.query("PRAGMA foreign_key_check").values()).toEqual([]);
+		expect(rowValues(db.prepare("PRAGMA foreign_key_check"))).toEqual([]);
 	});
 
 	it("keeps legacy integrity triggers and adds rolling-deploy sync triggers", () => {
@@ -213,12 +206,12 @@ skipIfNotBun("migration 0049 — normalized game mix variants", () => {
 		applyAtomically(db);
 
 		expect(
-			db
-				.query(`
+			rowValues(
+				db.prepare(`
 					SELECT name, tbl_name FROM sqlite_master
 					WHERE type = 'trigger' ORDER BY name
 				`)
-				.values()
+			)
 		).toEqual(FINAL_TRIGGERS);
 	});
 	it("keeps the legacy Worker table contract synchronized during deployment", () => {
@@ -226,7 +219,7 @@ skipIfNotBun("migration 0049 — normalized game mix variants", () => {
 		applyAtomically(db);
 
 		expect(
-			db.query(`SELECT type FROM sqlite_master WHERE name = 'game_mix'`).get()
+			db.prepare(`SELECT type FROM sqlite_master WHERE name = 'game_mix'`).get()
 		).toEqual({ type: "table" });
 		expect(() =>
 			db.exec(`
@@ -239,12 +232,12 @@ skipIfNotBun("migration 0049 — normalized game mix variants", () => {
 			`)
 		).not.toThrow();
 		expect(
-			db
-				.query(`
+			rowValues(
+				db.prepare(`
 					SELECT variant_id, position FROM game_mix_variant
 					WHERE mix_id = 'mix-compat' ORDER BY position
 				`)
-				.values()
+			)
 		).toEqual([
 			["variant-1", 0],
 			["variant-free", 1],
@@ -256,18 +249,18 @@ skipIfNotBun("migration 0049 — normalized game mix variants", () => {
 			WHERE id = 'mix-compat'
 		`);
 		expect(
-			db
-				.query(`
+			rowValues(
+				db.prepare(`
 					SELECT variant_id, position FROM game_mix_variant
 					WHERE mix_id = 'mix-compat' ORDER BY position
 				`)
-				.values()
+			)
 		).toEqual([
 			["variant-free", 0],
 			["variant-2", 1],
 		]);
 		expect(
-			db.query("SELECT games FROM game_mix WHERE id = 'mix-compat'").get()
+			db.prepare("SELECT games FROM game_mix WHERE id = 'mix-compat'").get()
 		).toEqual({ games: '["variant-free","variant-2"]' });
 	});
 	it("creates the planned association indexes", () => {
@@ -275,10 +268,10 @@ skipIfNotBun("migration 0049 — normalized game mix variants", () => {
 		applyAtomically(db);
 
 		expect(
-			db
-				.query(`SELECT name FROM sqlite_master WHERE type = 'index'
+			rowValues(
+				db.prepare(`SELECT name FROM sqlite_master WHERE type = 'index'
 					AND name LIKE 'game_mix_variant_%' ORDER BY name`)
-				.values()
+			)
 		).toEqual([
 			["game_mix_variant_mix_position_unique"],
 			["game_mix_variant_user_mix_position_idx"],
@@ -327,7 +320,7 @@ skipIfNotBun("migration 0049 — normalized game mix variants", () => {
 		applyAtomically(db);
 		db.exec("DELETE FROM game_mix WHERE id = 'mix-ordered'");
 		expect(
-			db.query("SELECT COUNT(*) AS count FROM game_mix_variant").get()
+			db.prepare("SELECT COUNT(*) AS count FROM game_mix_variant").get()
 		).toEqual({ count: 1 });
 	});
 
@@ -344,21 +337,25 @@ skipIfNotBun("migration 0049 — normalized game mix variants", () => {
 		applyAtomically(db);
 		expect(() => db.exec("DELETE FROM user WHERE id = 'user-2'")).not.toThrow();
 		expect(
-			db.query("SELECT id FROM user WHERE id = 'user-2'").values()
+			rowValues(db.prepare("SELECT id FROM user WHERE id = 'user-2'"))
 		).toEqual([]);
 		expect(
-			db.query("SELECT id FROM game_group WHERE user_id = 'user-2'").values()
+			rowValues(
+				db.prepare("SELECT id FROM game_group WHERE user_id = 'user-2'")
+			)
 		).toEqual([]);
 		expect(
-			db.query("SELECT id FROM game_variant WHERE user_id = 'user-2'").values()
+			rowValues(
+				db.prepare("SELECT id FROM game_variant WHERE user_id = 'user-2'")
+			)
 		).toEqual([]);
 		expect(
-			db.query("SELECT id FROM game_mix WHERE user_id = 'user-2'").values()
+			rowValues(db.prepare("SELECT id FROM game_mix WHERE user_id = 'user-2'"))
 		).toEqual([]);
 		expect(
-			db.query("SELECT COUNT(*) AS count FROM game_mix_variant").get()
+			db.prepare("SELECT COUNT(*) AS count FROM game_mix_variant").get()
 		).toEqual({ count: 2 });
-		expect(db.query("PRAGMA foreign_key_check").values()).toEqual([]);
+		expect(rowValues(db.prepare("PRAGMA foreign_key_check"))).toEqual([]);
 	});
 
 	describe("defensive backfill of legacy game_mix.games rows", () => {
@@ -370,16 +367,16 @@ skipIfNotBun("migration 0049 — normalized game mix variants", () => {
 
 			expect(() => applyAtomically(db)).not.toThrow();
 			expect(
-				db
-					.query(`SELECT variant_id, position FROM game_mix_variant
+				rowValues(
+					db.prepare(`SELECT variant_id, position FROM game_mix_variant
 						WHERE mix_id = 'mix-ordered' ORDER BY position`)
-					.values()
+				)
 			).toEqual([
 				["variant-1", 0],
 				["variant-2", 1],
 			]);
 			expect(
-				db.query("SELECT games FROM game_mix WHERE id = 'mix-ordered'").get()
+				db.prepare("SELECT games FROM game_mix WHERE id = 'mix-ordered'").get()
 			).toEqual({ games: '["variant-1","variant-2","variant-1"]' });
 		});
 
@@ -391,15 +388,15 @@ skipIfNotBun("migration 0049 — normalized game mix variants", () => {
 
 			expect(() => applyAtomically(db)).not.toThrow();
 			expect(
-				db
-					.query(`SELECT variant_id, position FROM game_mix_variant
+				rowValues(
+					db.prepare(`SELECT variant_id, position FROM game_mix_variant
 						WHERE mix_id = 'mix-ordered' ORDER BY position`)
-					.values()
+				)
 			).toEqual([
 				["variant-1", 0],
 				["variant-2", 1],
 			]);
-			expect(db.query("PRAGMA foreign_key_check").values()).toEqual([]);
+			expect(rowValues(db.prepare("PRAGMA foreign_key_check"))).toEqual([]);
 		});
 
 		it("drops ids owned by another user", () => {
@@ -410,10 +407,10 @@ skipIfNotBun("migration 0049 — normalized game mix variants", () => {
 
 			expect(() => applyAtomically(db)).not.toThrow();
 			expect(
-				db
-					.query(`SELECT variant_id, position FROM game_mix_variant
+				rowValues(
+					db.prepare(`SELECT variant_id, position FROM game_mix_variant
 						WHERE mix_id = 'mix-ordered' ORDER BY position`)
-					.values()
+				)
 			).toEqual([["variant-1", 0]]);
 		});
 
@@ -427,36 +424,36 @@ skipIfNotBun("migration 0049 — normalized game mix variants", () => {
 
 			expect(() => applyAtomically(db)).not.toThrow();
 			expect(
-				db
-					.query(`SELECT mix_id, variant_id, position FROM game_mix_variant
+				rowValues(
+					db.prepare(`SELECT mix_id, variant_id, position FROM game_mix_variant
 						ORDER BY mix_id, position`)
-					.values()
+				)
 			).toEqual([]);
 			expect(
-				db.query("SELECT games FROM game_mix WHERE id = 'mix-ordered'").get()
+				db.prepare("SELECT games FROM game_mix WHERE id = 'mix-ordered'").get()
 			).toEqual({ games: "not json at all" });
 		});
 
 		it("re-applies cleanly when the whole file is applied twice", () => {
 			seedLegacyRows(db);
 			applyAtomically(db);
-			const rowsAfterFirstApply = db
-				.query(`SELECT mix_id, variant_id, user_id, position
+			const rowsAfterFirstApply = rowValues(
+				db.prepare(`SELECT mix_id, variant_id, user_id, position
 					FROM game_mix_variant ORDER BY mix_id, position`)
-				.values();
+			);
 
 			expect(() => applyAtomically(db)).not.toThrow();
 			expect(
-				db
-					.query(`SELECT mix_id, variant_id, user_id, position
+				rowValues(
+					db.prepare(`SELECT mix_id, variant_id, user_id, position
 						FROM game_mix_variant ORDER BY mix_id, position`)
-					.values()
+				)
 			).toEqual(rowsAfterFirstApply);
 			expect(
-				db
-					.query(`SELECT name, tbl_name FROM sqlite_master
+				rowValues(
+					db.prepare(`SELECT name, tbl_name FROM sqlite_master
 						WHERE type = 'trigger' ORDER BY name`)
-					.values()
+				)
 			).toEqual(FINAL_TRIGGERS);
 		});
 
@@ -466,20 +463,20 @@ skipIfNotBun("migration 0049 — normalized game mix variants", () => {
 
 			expect(() => applyAtomically(db)).not.toThrow();
 			expect(
-				db
-					.query(`SELECT mix_id, variant_id, position
+				rowValues(
+					db.prepare(`SELECT mix_id, variant_id, position
 						FROM game_mix_variant ORDER BY mix_id, position`)
-					.values()
+				)
 			).toEqual([
 				["mix-ordered", "variant-2", 0],
 				["mix-ordered", "variant-1", 1],
 				["mix-user-2", "variant-3", 0],
 			]);
 			expect(
-				db
-					.query(`SELECT name, tbl_name FROM sqlite_master
+				rowValues(
+					db.prepare(`SELECT name, tbl_name FROM sqlite_master
 						WHERE type = 'trigger' ORDER BY name`)
-					.values()
+				)
 			).toEqual(FINAL_TRIGGERS);
 		});
 
@@ -493,10 +490,10 @@ skipIfNotBun("migration 0049 — normalized game mix variants", () => {
 			applyAtomically(db);
 
 			expect(
-				db
-					.query(`SELECT mix_id, variant_id, position
+				rowValues(
+					db.prepare(`SELECT mix_id, variant_id, position
 						FROM game_mix_variant ORDER BY mix_id, position`)
-					.values()
+				)
 			).toEqual([
 				["mix-ordered", "variant-free", 0],
 				["mix-ordered", "variant-1", 1],

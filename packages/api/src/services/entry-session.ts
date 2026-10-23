@@ -172,7 +172,7 @@ function tournamentRow(facts: EntryTournamentFacts) {
 		tournamentId: facts.tournamentId,
 		placement: effectivePlacement(facts),
 		totalEntries: facts.totalEntries,
-		beforeDeadline: facts.beforeDeadline,
+		beforeDeadline: facts.beforeDeadline === true,
 	};
 }
 

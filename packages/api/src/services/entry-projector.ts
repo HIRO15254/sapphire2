@@ -77,7 +77,7 @@ export type EntryDetailProjection =
 	| { kind: "cash"; evDiff: number | null }
 	| {
 			kind: "tournament";
-			beforeDeadline: true | null;
+			beforeDeadline: boolean;
 			placement: number | null;
 			totalEntries: number | null;
 	  };
@@ -114,7 +114,7 @@ interface PlaySessionFold {
 }
 
 interface TournamentResult {
-	beforeDeadline: true | null;
+	beforeDeadline: boolean;
 	placement: number | null;
 	totalEntries: number | null;
 }
@@ -187,13 +187,13 @@ function readTournamentResult(event: ProjectorEvent): TournamentResult {
 		? tournamentSessionEndPayloadV2.safeParse(payload)
 		: tournamentSessionEndPayload.safeParse(payload);
 	if (!parsed.success) {
-		return { beforeDeadline: null, placement: null, totalEntries: null };
+		return { beforeDeadline: false, placement: null, totalEntries: null };
 	}
 	if (parsed.data.beforeDeadline) {
 		return { beforeDeadline: true, placement: null, totalEntries: null };
 	}
 	return {
-		beforeDeadline: null,
+		beforeDeadline: false,
 		placement: parsed.data.placement,
 		totalEntries: parsed.data.totalEntries,
 	};
@@ -317,7 +317,7 @@ function projectTournament(
 	}
 	return {
 		kind: "tournament",
-		beforeDeadline: null,
+		beforeDeadline: false,
 		placement: null,
 		totalEntries: latestStackTotalEntries(events),
 	};

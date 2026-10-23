@@ -1,7 +1,7 @@
 import { useRouterState } from "@tanstack/react-router";
 import {
-	isActiveItem,
-	SIDEBAR_ITEMS,
+	isActive,
+	NAV_ITEMS,
 	SidebarNavItem,
 } from "@/shared/components/app-navigation";
 import { ModeToggle } from "./mode-toggle";
@@ -16,10 +16,13 @@ export function SidebarNav() {
 		<nav className="fixed inset-y-0 left-0 z-40 hidden w-56 flex-col border-sidebar-border border-r bg-sidebar md:flex">
 			<div className="flex-1 overflow-y-auto px-3 py-4">
 				<ul className="flex flex-col gap-1">
-					{SIDEBAR_ITEMS.map((item) => {
-						const active = isActiveItem(pathname, item);
-						return <SidebarNavItem active={active} item={item} key={item.to} />;
-					})}
+					{NAV_ITEMS.map((item) => (
+						<SidebarNavItem
+							active={isActive(pathname, item.to, item.exact)}
+							item={item}
+							key={item.to}
+						/>
+					))}
 				</ul>
 			</div>
 			<div className="border-sidebar-border border-t bg-sidebar-accent/20 px-3 py-3">

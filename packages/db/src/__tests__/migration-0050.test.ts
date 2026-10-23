@@ -2,35 +2,29 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-// biome-ignore lint/correctness/noUndeclaredVariables: Bun global is only present in Bun runtime
-const isBun = typeof Bun !== "undefined";
-const skipIfNotBun = isBun ? describe : describe.skip;
-
-let Database: any = null;
-if (isBun) {
-	const bunSqlite = require("bun:sqlite");
-	Database = bunSqlite.Database;
-}
+import {
+	type Database,
+	openDatabase,
+	migrationStatements as splitMigrationStatements,
+	stringValue,
+} from "./sqlite";
 
 const migrationPath = fileURLToPath(
 	new URL("../migrations/0050_magenta_professor_monster.sql", import.meta.url)
 );
 const migrationSql = readFileSync(migrationPath, "utf8");
 
-const migrationStatements = migrationSql
-	.split("--> statement-breakpoint")
-	.map((part) => part.trim())
-	.filter(Boolean);
+const migrationStatements = splitMigrationStatements(migrationSql);
 
 const baseSchema = "CREATE TABLE user (id TEXT PRIMARY KEY NOT NULL);";
 
-function applyAll(db: any): void {
+function applyAll(db: Database): void {
 	for (const statement of migrationStatements) {
 		db.exec(statement);
 	}
 }
 
-function applyThrough(db: any, marker: string): void {
+function applyThrough(db: Database, marker: string): void {
 	const cut = migrationStatements.findIndex((statement) =>
 		statement.includes(marker)
 	);
@@ -42,27 +36,29 @@ function applyThrough(db: any, marker: string): void {
 	}
 }
 
-function tableNames(db: any): string[] {
+function tableNames(db: Database): string[] {
 	return db
-		.query("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
+		.prepare(
+			"SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name"
+		)
 		.all()
-		.map((row: { name: string }) => row.name);
+		.map((row) => stringValue(row.name));
 }
 
-function indexNames(db: any): string[] {
+function indexNames(db: Database): string[] {
 	return db
-		.query(
+		.prepare(
 			"SELECT name FROM sqlite_master WHERE type = 'index' AND name NOT LIKE 'sqlite_%' ORDER BY name"
 		)
 		.all()
-		.map((row: { name: string }) => row.name);
+		.map((row) => stringValue(row.name));
 }
 
-skipIfNotBun("migration 0050 — OIDC provider tables for MCP OAuth", () => {
-	let db: any;
+describe("migration 0050 — OIDC provider tables for MCP OAuth", () => {
+	let db: Database;
 
 	beforeEach(() => {
-		db = new Database(":memory:");
+		db = openDatabase();
 		db.exec(baseSchema);
 	});
 
@@ -97,9 +93,9 @@ skipIfNotBun("migration 0050 — OIDC provider tables for MCP OAuth", () => {
 	it("points the token and consent client_id FKs at oauth_application(client_id), not its id", () => {
 		applyAll(db);
 		for (const table of ["oauth_access_token", "oauth_consent"]) {
-			const fks = db.query(`PRAGMA foreign_key_list(${table})`).all();
+			const fks = db.prepare(`PRAGMA foreign_key_list(${table})`).all();
 			expect(
-				fks.map((fk: { table: string; from: string; to: string }) => ({
+				fks.map((fk) => ({
 					table: fk.table,
 					from: fk.from,
 					to: fk.to,
@@ -129,11 +125,13 @@ skipIfNotBun("migration 0050 — OIDC provider tables for MCP OAuth", () => {
 		db.exec("DELETE FROM user WHERE id = 'user-1'");
 
 		expect(
-			db.query("SELECT COUNT(*) AS n FROM oauth_access_token").get()
+			db.prepare("SELECT COUNT(*) AS n FROM oauth_access_token").get()
 		).toEqual({ n: 0 });
-		expect(db.query("SELECT COUNT(*) AS n FROM oauth_consent").get()).toEqual({
-			n: 0,
-		});
+		expect(db.prepare("SELECT COUNT(*) AS n FROM oauth_consent").get()).toEqual(
+			{
+				n: 0,
+			}
+		);
 	});
 
 	it("is re-runnable: applying the whole file twice is a no-op", () => {
@@ -174,7 +172,7 @@ skipIfNotBun("migration 0050 — OIDC provider tables for MCP OAuth", () => {
 		applyAll(db);
 
 		expect(
-			db.query("SELECT id, client_id FROM oauth_application").all()
+			db.prepare("SELECT id, client_id FROM oauth_application").all()
 		).toEqual([{ id: "app-1", client_id: "client-1" }]);
 	});
 });

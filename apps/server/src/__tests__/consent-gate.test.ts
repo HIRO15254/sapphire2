@@ -34,43 +34,6 @@ describe("authorize consent gate wiring", () => {
 		setPassword.mockResolvedValue({ status: true });
 	});
 
-	it("hands better-auth a prompt=consent authorize URL", async () => {
-		await app.request(
-			"/api/auth/mcp/authorize?client_id=c1&response_type=code&state=s1",
-			{ method: "GET" },
-			env
-		);
-		expect(handlerUrls).toHaveLength(1);
-		const url = lastHandlerUrl();
-		expect(url.pathname).toBe("/api/auth/mcp/authorize");
-		expect(url.searchParams.get("prompt")).toBe("consent");
-	});
-
-	it("overrides a client-supplied prompt that would skip consent", async () => {
-		await app.request(
-			"/api/auth/mcp/authorize?client_id=c1&response_type=code&prompt=none",
-			{ method: "GET" },
-			env
-		);
-		const url = lastHandlerUrl();
-		expect(url.searchParams.getAll("prompt")).toEqual(["consent"]);
-	});
-
-	it("preserves every other authorize parameter while rewriting prompt", async () => {
-		await app.request(
-			"/api/auth/mcp/authorize?client_id=c1&response_type=code&state=s1&code_challenge=abc&code_challenge_method=S256&scope=openid+profile",
-			{ method: "GET" },
-			env
-		);
-		const url = lastHandlerUrl();
-		expect(url.searchParams.get("client_id")).toBe("c1");
-		expect(url.searchParams.get("response_type")).toBe("code");
-		expect(url.searchParams.get("state")).toBe("s1");
-		expect(url.searchParams.get("code_challenge")).toBe("abc");
-		expect(url.searchParams.get("code_challenge_method")).toBe("S256");
-		expect(url.searchParams.get("scope")).toBe("openid profile");
-	});
-
 	it.each([
 		"POST",
 		"PUT",

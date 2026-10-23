@@ -2,7 +2,7 @@
 
 > The v2 data model ([data-model-v2.md](data-model-v2.md)) replaces parts of this design in stages.
 
-This document owns the design of the statistics domain: EV semantics end to end (the cash-out fallback, the recording gate, population scoping, cross-surface agreement), the currency-scope guard, normalization, breakdown bucketing, the profit/loss series and P&L graph, the `/statistics` URL filter contract, the shared period-filter domain, and stats number formatting. The server side lives in [`packages/api/src/routers/stats.ts`](../../packages/api/src/routers/stats.ts) and the summary/series parts of [`packages/api/src/routers/session.ts`](../../packages/api/src/routers/session.ts); the web side under [`apps/web/src/features/statistics/`](../../apps/web/src/features/statistics/). Session lifecycle and live-editing design is in [`sessions-and-live-editing.md`](sessions-and-live-editing.md); filter presets (payload union, per-screen scoping, apply path) are owned by [`web-platform.md`](web-platform.md).
+This document owns the design of the statistics domain: EV semantics end to end (the cash-out fallback, the recording gate, population scoping, cross-surface agreement), the currency-scope guard, normalization, breakdown bucketing, the profit/loss series and P&L graph, the `/statistics` URL filter contract, shared date-window semantics, and stats number formatting. The server side lives in [`packages/api/src/routers/stats.ts`](../../packages/api/src/routers/stats.ts) and the summary/series parts of [`packages/api/src/routers/session.ts`](../../packages/api/src/routers/session.ts); U11 (SA2-420) rebuilds the statistics UI. Session lifecycle and live-editing design is in [`sessions-and-live-editing.md…
 
 ## Query scope: filters and the currency-scope guard
 
@@ -125,7 +125,7 @@ Filters are URL search params validated by `statsSearchSchema` ([`stats-filters.
 
 ## Period filter (SA2-74)
 
-[`apps/web/src/shared/lib/period-filter.ts`](../../apps/web/src/shared/lib/period-filter.ts) is the date/period filter domain shared by the statistics **and** sessions filter bars (SA2-74), kept feature-neutral in `shared/lib` so neither feature imports the other for it. Inclusive-vs-exclusive boundary comparison rules (SA2-117) and the UTC-getter discipline are imperatives in [`.claude/rules/datetime-and-numbers.md`](../../.claude/rules/datetime-and-numbers.md) — this module is written against them, not an exception to them.
+Statistics and entry filters share date-window semantics. U11 (SA2-420) owns rebuilding the statistics controls. Inclusive-vs-exclusive boundary comparisons (SA2-117) and UTC-getter discipline remain mandated by [`.claude/rules/datetime-and-numbers.md`](../../.claude/rules/datetime-and-numbers.md).
 
 - Preset resolution translates the selected period into a concrete `{ dateFrom?, dateTo? }` window in unix seconds. Relative windows snap their bounds to **UTC day boundaries** so the value — and therefore any query key built from it — only changes once a day, not on every render. The upper bound is the end of today, so future-dated rows are excluded from "last N days" / YTD windows.
 - Custom ranges convert a `yyyy-mm-dd` date-input value to unix seconds (UTC); `endOfDay` snaps to 23:59:59 so an upper bound is inclusive of the whole day. An empty / malformed value returns `undefined` so the bound is cleared. The reverse conversion (unix seconds → `yyyy-mm-dd`, UTC) feeds the date input.

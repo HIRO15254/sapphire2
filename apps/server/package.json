@@ -25,7 +25,6 @@
     "@types/bun": "catalog:",
     "kill-port": "^2.0.1",
     "typescript": "catalog:",
-    "vitest": "^4.1.2",
     "wrangler": "^4.80.0"
   }
 }

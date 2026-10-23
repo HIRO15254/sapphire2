@@ -62,6 +62,18 @@ function stable(row: Row | undefined): Row | undefined {
 	);
 }
 
+function storedDeadline<T>(session: T): T {
+	const row = session as Row;
+	return row.type === "tournament" && row.beforeDeadline === null
+		? ({ ...row, beforeDeadline: false } as T)
+		: session;
+}
+
+function storedDeadlinePage(page: unknown): unknown {
+	const { items, ...rest } = page as { items: unknown[] };
+	return { ...rest, items: items.map(storedDeadline) };
+}
+
 async function ringGameName(db: Database, id: unknown) {
 	if (typeof id !== "string") {
 		return id;
@@ -641,12 +653,12 @@ describe("prep read assembly returns today's session.list / getById output from 
 
 		for (const { filter, page } of todayPages) {
 			expect(await listSessionsViaEntries(api.db, "alice", filter)).toEqual(
-				page
+				storedDeadlinePage(page)
 			);
 		}
 		for (const [index, id] of ids.entries()) {
 			expect(await getSessionViaEntry(api.db, "alice", id)).toEqual(
-				todayDetails[index]
+				storedDeadline(todayDetails[index])
 			);
 		}
 		await expect(

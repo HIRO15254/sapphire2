@@ -35,7 +35,11 @@ function cashStart(overrides: Partial<LiveEntryStart> = {}): LiveEntryStart {
 		memo: null,
 		localDate: LOCAL_DATE,
 		now: START,
-		startEvent: { occurredAt: START, payload: { buyInAmount: 1000 } },
+		startEvent: {
+			schemaVersion: 1,
+			occurredAt: START,
+			payload: { buyInAmount: 1000 },
+		},
 		...overrides,
 	};
 }
@@ -130,8 +134,18 @@ describe("live entry writes keep the event log and its projection in step", () =
 			{
 				op: "append",
 				events: [
-					{ type: "session_pause", occurredAt: minutes(10), payload: {} },
-					{ type: "session_resume", occurredAt: minutes(25), payload: {} },
+					{
+						type: "session_pause",
+						schemaVersion: 1,
+						occurredAt: minutes(10),
+						payload: {},
+					},
+					{
+						type: "session_resume",
+						schemaVersion: 1,
+						occurredAt: minutes(25),
+						payload: {},
+					},
 				],
 			},
 			now
@@ -150,6 +164,7 @@ describe("live entry writes keep the event log and its projection in step", () =
 				events: [
 					{
 						type: "session_end",
+						schemaVersion: 1,
 						occurredAt: minutes(60),
 						payload: { cashOutAmount: 3000 },
 					},
@@ -180,10 +195,21 @@ describe("live entry writes keep the event log and its projection in step", () =
 			{
 				op: "append",
 				events: [
-					{ type: "session_pause", occurredAt: minutes(10), payload: {} },
-					{ type: "session_resume", occurredAt: minutes(25), payload: {} },
+					{
+						type: "session_pause",
+						schemaVersion: 1,
+						occurredAt: minutes(10),
+						payload: {},
+					},
+					{
+						type: "session_resume",
+						schemaVersion: 1,
+						occurredAt: minutes(25),
+						payload: {},
+					},
 					{
 						type: "session_end",
+						schemaVersion: 1,
 						occurredAt: minutes(60),
 						payload: { cashOutAmount: 3000 },
 					},
@@ -236,6 +262,7 @@ describe("live entry writes keep the event log and its projection in step", () =
 				events: [
 					{
 						type: "session_end",
+						schemaVersion: 1,
 						occurredAt: minutes(30),
 						payload: { cashOutAmount: 1200 },
 					},
@@ -274,6 +301,7 @@ describe("live entry writes keep the event log and its projection in step", () =
 					entryFee: null,
 				},
 				startEvent: {
+					schemaVersion: 1,
 					occurredAt: START,
 					payload: { buyInAmount: 1000, entryFee: 0 },
 				},
@@ -289,6 +317,7 @@ describe("live entry writes keep the event log and its projection in step", () =
 				events: [
 					{
 						type: "session_end",
+						schemaVersion: 1,
 						occurredAt: minutes(120),
 						payload: { beforeDeadline: true, prizeMoney: 0, bountyPrizes: 0 },
 					},
@@ -345,7 +374,12 @@ describe("live entry writes keep the event log and its projection in step", () =
 						{
 							op: "append",
 							events: [
-								{ type: "session_pause", occurredAt: minutes(5), payload: {} },
+								{
+									type: "session_pause",
+									schemaVersion: 1,
+									occurredAt: minutes(5),
+									payload: {},
+								},
 							],
 						},
 						minutes(5)
@@ -362,7 +396,12 @@ describe("live entry writes keep the event log and its projection in step", () =
 			{
 				op: "append",
 				events: [
-					{ type: "session_resume", occurredAt: minutes(6), payload: {} },
+					{
+						type: "session_resume",
+						schemaVersion: 1,
+						occurredAt: minutes(6),
+						payload: {},
+					},
 				],
 			},
 			minutes(6)
@@ -387,7 +426,12 @@ describe("live entry writes keep the event log and its projection in step", () =
 			{
 				op: "append",
 				events: [
-					{ type: "session_pause", occurredAt: minutes(5), payload: {} },
+					{
+						type: "session_pause",
+						schemaVersion: 1,
+						occurredAt: minutes(5),
+						payload: {},
+					},
 				],
 			},
 			minutes(5)
@@ -398,7 +442,12 @@ describe("live entry writes keep the event log and its projection in step", () =
 			{
 				op: "append",
 				events: [
-					{ type: "session_resume", occurredAt: minutes(6), payload: {} },
+					{
+						type: "session_resume",
+						schemaVersion: 1,
+						occurredAt: minutes(6),
+						payload: {},
+					},
 				],
 			},
 			{ op: "update", id: eventIds[0] as string, payload: { x: 1 } },
@@ -431,6 +480,7 @@ describe("live entry writes keep the event log and its projection in step", () =
 				events: [
 					{
 						type: "session_pause",
+						schemaVersion: 1,
 						occurredAt: minutes(5),
 						payload: {},
 						playSessionId: "someone-elses-play",
@@ -479,6 +529,7 @@ describe("live entry writes commit all of a write or none of it on D1", () => {
 				events: [
 					{
 						type: "session_end",
+						schemaVersion: 1,
 						occurredAt: minutes(30),
 						payload: { cashOutAmount: 1200 },
 					},
@@ -504,6 +555,7 @@ describe("live entry writes commit all of a write or none of it on D1", () => {
 				events: [
 					{
 						type: "session_end",
+						schemaVersion: 1,
 						occurredAt: minutes(30),
 						payload: { cashOutAmount: 1200 },
 					},
@@ -536,6 +588,7 @@ describe("live entry writes commit all of a write or none of it on D1", () => {
 		await startLive(api);
 		const purchases = Array.from({ length: 50 }, (_, index) => ({
 			type: "purchase_chips",
+			schemaVersion: 1,
 			occurredAt: minutes(index + 1),
 			payload: {
 				sessionChipPurchaseId: `chip-${index}`,
@@ -562,6 +615,7 @@ describe("live entry writes commit all of a write or none of it on D1", () => {
 				events: [
 					{
 						type: "session_end",
+						schemaVersion: 1,
 						occurredAt: minutes(60),
 						payload: { cashOutAmount: 7000 },
 					},

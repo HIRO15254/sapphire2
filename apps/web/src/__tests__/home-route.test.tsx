@@ -53,23 +53,22 @@ type IndexBeforeLoad = (ctx: {
 }) => unknown;
 
 let rootBeforeLoad: RootBeforeLoad;
-let indexBeforeLoad: IndexBeforeLoad;
+let indexBeforeLoad: IndexBeforeLoad | undefined;
 
-async function navigateToHome(): Promise<Error & { redirectTo?: unknown }> {
-	let contextPatch: { session: SessionResult | null } | undefined;
+async function navigateToHome(): Promise<
+	(Error & { redirectTo?: unknown }) | null
+> {
 	try {
-		contextPatch = await rootBeforeLoad({ location: { pathname: "/" } });
-	} catch (err) {
-		return err as Error & { redirectTo?: unknown };
-	}
-	try {
-		await indexBeforeLoad({
+		const contextPatch = await rootBeforeLoad({
+			location: { pathname: "/" },
+		});
+		await indexBeforeLoad?.({
 			context: { session: contextPatch?.session ?? null },
 		});
 	} catch (err) {
 		return err as Error & { redirectTo?: unknown };
 	}
-	throw new Error("expected the root-path dispatch to redirect");
+	return null;
 }
 
 describe("HomeRoute dispatch", () => {
@@ -81,7 +80,7 @@ describe("HomeRoute dispatch", () => {
 		).beforeLoad;
 		indexBeforeLoad = (
 			indexModule.Route as unknown as {
-				options: { beforeLoad: IndexBeforeLoad };
+				options: { beforeLoad?: IndexBeforeLoad };
 			}
 		).options.beforeLoad;
 	});
@@ -91,14 +90,13 @@ describe("HomeRoute dispatch", () => {
 		mocks.redirect.mockClear();
 	});
 
-	it("redirects a signed-in user hitting / to /statistics", async () => {
+	it("keeps a signed-in user on the home page at /", async () => {
 		mocks.getSession.mockResolvedValue({ data: { user: { id: "u1" } } });
 
 		const err = await navigateToHome();
 
-		expect(err.redirectTo).toEqual({ to: "/statistics" });
-		expect(mocks.redirect).toHaveBeenCalledTimes(1);
-		expect(mocks.redirect).toHaveBeenNthCalledWith(1, { to: "/statistics" });
+		expect(err).toBeNull();
+		expect(mocks.redirect).not.toHaveBeenCalled();
 	});
 
 	it("sends a signed-out user hitting / to /login through the root guard", async () => {
@@ -106,7 +104,7 @@ describe("HomeRoute dispatch", () => {
 
 		const err = await navigateToHome();
 
-		expect(err.redirectTo).toEqual({ to: "/login" });
+		expect(err?.redirectTo).toEqual({ to: "/login" });
 		expect(mocks.redirect).toHaveBeenCalledTimes(1);
 		expect(mocks.redirect).toHaveBeenNthCalledWith(1, { to: "/login" });
 	});
@@ -125,40 +123,6 @@ describe("HomeRoute dispatch", () => {
 		await navigateToHome();
 
 		expect(mocks.getSession).toHaveBeenCalledTimes(1);
-	});
-
-	describe("index beforeLoad branch coverage (reads context, never re-fetches)", () => {
-		it("dispatches to /statistics when context carries a session with data", async () => {
-			await expect(async () =>
-				indexBeforeLoad({
-					context: { session: { data: { user: { id: "u1" } } } },
-				})
-			).rejects.toThrow("redirect");
-
-			expect(mocks.redirect).toHaveBeenCalledTimes(1);
-			expect(mocks.redirect).toHaveBeenNthCalledWith(1, { to: "/statistics" });
-			expect(mocks.getSession).not.toHaveBeenCalled();
-		});
-
-		it("dispatches to /login when context carries no session", async () => {
-			await expect(async () =>
-				indexBeforeLoad({ context: { session: null } })
-			).rejects.toThrow("redirect");
-
-			expect(mocks.redirect).toHaveBeenCalledTimes(1);
-			expect(mocks.redirect).toHaveBeenNthCalledWith(1, { to: "/login" });
-			expect(mocks.getSession).not.toHaveBeenCalled();
-		});
-
-		it("dispatches to /login when the context session has null data", async () => {
-			await expect(async () =>
-				indexBeforeLoad({ context: { session: { data: null } } })
-			).rejects.toThrow("redirect");
-
-			expect(mocks.redirect).toHaveBeenCalledTimes(1);
-			expect(mocks.redirect).toHaveBeenNthCalledWith(1, { to: "/login" });
-			expect(mocks.getSession).not.toHaveBeenCalled();
-		});
 	});
 
 	describe("root guard context contract", () => {

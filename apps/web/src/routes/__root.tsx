@@ -7,7 +7,6 @@ import {
 	redirect,
 	useLocation,
 } from "@tanstack/react-router";
-import { CRYST_SCOPE_CLASS } from "@/features/live-sessions/pages/live-session-page/cryst-scope";
 import { authClient } from "@/lib/auth-client";
 import { AuthenticatedShell } from "@/shared/components/authenticated-shell";
 import { RouterErrorFallback } from "@/shared/components/router-fallback";
@@ -67,8 +66,6 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 export function RootComponent() {
 	usePwaUpdate();
 	const { pathname } = useLocation();
-	const isFullBleedPage =
-		pathname === "/active-session" || pathname.startsWith("/active-session/");
 
 	return (
 		<>
@@ -82,17 +79,11 @@ export function RootComponent() {
 				{pathname === "/login" ? (
 					<Outlet />
 				) : (
-					<AuthenticatedShell fullBleed={isFullBleedPage}>
+					<AuthenticatedShell>
 						<Outlet />
 					</AuthenticatedShell>
 				)}
-				<Toaster
-					position="top-right"
-					richColors
-					toastOptions={
-						isFullBleedPage ? { className: CRYST_SCOPE_CLASS } : undefined
-					}
-				/>
+				<Toaster position="top-right" richColors />
 			</ThemeProvider>
 		</>
 	);

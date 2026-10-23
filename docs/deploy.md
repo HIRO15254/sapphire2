@@ -26,7 +26,7 @@ The Worker also serves the MCP endpoint (`/mcp`) and its OAuth discovery routes 
 - [Cloudflare](https://dash.cloudflare.com/sign-up) account (Free plan OK)
 - GitHub repository admin access (required for Secrets configuration)
 - [Bun](https://bun.sh/) installed locally
-- [Node.js](https://nodejs.org/) 20.3.0 or later installed locally (required to run the Cloudflare Wrangler CLI; Bun remains the package manager)
+- [Node.js](https://nodejs.org/) 22.16.0 or later installed locally (required to run the Cloudflare Wrangler CLI and Vitest; Bun remains the package manager)
 
 > Wrangler creates local D1 state for local development. Preview and dev databases are created by the workflows through the Cloudflare API; production uses the existing database configured in `apps/server/wrangler.toml`.
 
@@ -216,7 +216,7 @@ Update every workflow that deploys or cleans up Pages:
 
 `release.yml` then moves the release's Linear issues from Done to Released with [`scripts/release-linear-issues.ts`](../scripts/release-linear-issues.ts). The release's PRs are the merged PRs whose merge commit lies between the previous tag and the release merge, and the issues are the ones Linear linked to those PRs. Only issues in Done move. The step may fail without holding back the release.
 
-Uses `concurrency` for sequential execution. Deployment is skipped if CI fails.
+Uses `concurrency` for sequential execution. The CI job calls the same reusable [`checks.yml`](../.github/workflows/checks.yml) as pull-request CI, so dev and production deploys pass the identical gate; deployment is skipped if it fails.
 
 ## 8. Verification
 

@@ -2,15 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-// biome-ignore lint/correctness/noUndeclaredVariables: Bun global is only present in Bun runtime
-const isBun = typeof Bun !== "undefined";
-const skipIfNotBun = isBun ? describe : describe.skip;
-
-let Database: any = null;
-if (isBun) {
-	const bunSqlite = require("bun:sqlite");
-	Database = bunSqlite.Database;
-}
+import { type Database, openDatabase } from "./sqlite";
 
 const migrationPath = fileURLToPath(
 	new URL("../migrations/0044_oval_captain_flint.sql", import.meta.url)
@@ -22,11 +14,11 @@ const baseSchema =
 const UNIQUE_USER_CONFLICT_RE =
 	/UNIQUE constraint failed: game_session\.user_id/;
 
-skipIfNotBun("migration 0044 — one unfinished live session per user", () => {
-	let db: any;
+describe("migration 0044 — one unfinished live session per user", () => {
+	let db: Database;
 
 	beforeEach(() => {
-		db = new Database(":memory:");
+		db = openDatabase();
 		db.exec(baseSchema);
 	});
 
@@ -38,7 +30,7 @@ skipIfNotBun("migration 0044 — one unfinished live session per user", () => {
 		db.exec(migrationSql);
 
 		const index = db
-			.query(
+			.prepare(
 				"SELECT name, sql FROM sqlite_master WHERE type = 'index' AND name = ?"
 			)
 			.get("session_one_unfinished_live_per_user_idx") as {
@@ -118,7 +110,7 @@ skipIfNotBun("migration 0044 — one unfinished live session per user", () => {
 		).toThrow(UNIQUE_USER_CONFLICT_RE);
 		expect(
 			db
-				.query("SELECT status FROM game_session WHERE id = ?")
+				.prepare("SELECT status FROM game_session WHERE id = ?")
 				.get("completed-1")
 		).toEqual({ status: "completed" });
 	});

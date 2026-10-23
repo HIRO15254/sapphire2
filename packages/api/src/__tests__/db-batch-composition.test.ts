@@ -209,11 +209,19 @@ describe("persistSessionChipPurchases batch composition (SA2-116)", () => {
 		expect(opsOn(batch, sessionChipPurchase, "delete")).toHaveLength(1);
 		const purchaseInserts = opsOn(batch, sessionChipPurchase, "insert");
 		expect(purchaseInserts).toHaveLength(2);
-		expect((purchaseInserts[0].values as unknown[]).length).toBe(16);
-		expect((purchaseInserts[1].values as unknown[]).length).toBe(4);
+		const [firstPurchaseInsert, secondPurchaseInsert] = purchaseInserts;
+		if (!(firstPurchaseInsert && secondPurchaseInsert)) {
+			throw new Error("Expected both purchase insert chunks");
+		}
+		expect((firstPurchaseInsert.values as unknown[]).length).toBe(16);
+		expect((secondPurchaseInsert.values as unknown[]).length).toBe(4);
 		const resultInserts = opsOn(batch, sessionChipPurchaseResult, "insert");
 		expect(resultInserts).toHaveLength(1);
-		expect((resultInserts[0].values as unknown[]).length).toBe(20);
+		const [resultInsert] = resultInserts;
+		if (!resultInsert) {
+			throw new Error("Expected a result insert chunk");
+		}
+		expect((resultInsert.values as unknown[]).length).toBe(20);
 	});
 });
 
@@ -254,9 +262,13 @@ describe("persistSessionBlindLevels batch composition (SA2-116)", () => {
 		expect(opsOn(batch, sessionBlindLevel, "delete")).toHaveLength(1);
 		const inserts = opsOn(batch, sessionBlindLevel, "insert");
 		expect(inserts).toHaveLength(2);
+		const [firstInsert, secondInsert] = inserts;
+		if (!(firstInsert && secondInsert)) {
+			throw new Error("Expected both blind level insert chunks");
+		}
 
-		expect((inserts[0].values as unknown[]).length).toBe(10);
-		expect((inserts[1].values as unknown[]).length).toBe(2);
+		expect((firstInsert.values as unknown[]).length).toBe(10);
+		expect((secondInsert.values as unknown[]).length).toBe(2);
 	});
 });
 

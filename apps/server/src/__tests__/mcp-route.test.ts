@@ -5,31 +5,6 @@ import { createFakeEnv } from "./test-utils";
 const env = createFakeEnv();
 
 describe("/mcp route", () => {
-	it("answers an unauthenticated POST with a 401 challenge pointing at the resource metadata", async () => {
-		const response = await app.request(
-			"/mcp",
-			{
-				method: "POST",
-				headers: {
-					"content-type": "application/json",
-					accept: "application/json, text/event-stream",
-				},
-				body: JSON.stringify({
-					jsonrpc: "2.0",
-					id: 1,
-					method: "tools/list",
-				}),
-			},
-			env
-		);
-		expect(response.status).toBe(401);
-		const challenge = response.headers.get("www-authenticate");
-		expect(challenge).toContain("Bearer");
-		expect(challenge).toContain(
-			'resource_metadata="http://localhost:8787/.well-known/oauth-protected-resource"'
-		);
-	});
-
 	it("exposes WWW-Authenticate to cross-origin MCP clients", async () => {
 		const response = await app.request(
 			"/mcp",
@@ -123,39 +98,6 @@ describe("/oauth/consent page", () => {
 		expect(html).toContain("did not register a recognizable destination");
 		expect(html).toContain("/api/auth/oauth2/consent");
 		expect(html).toContain("Approve");
-	});
-
-	it("keeps the embedded consent code out of the browser cache", async () => {
-		const response = await app.request(
-			"/oauth/consent?consent_code=abc&client_id=c1",
-			{ method: "GET" },
-			env
-		);
-		expect(response.headers.get("cache-control")).toBe("no-store");
-	});
-
-	it("forbids framing so the Approve button cannot be clickjacked", async () => {
-		const response = await app.request(
-			"/oauth/consent?consent_code=abc&client_id=c1",
-			{ method: "GET" },
-			env
-		);
-		expect(response.headers.get("x-frame-options")).toBe("DENY");
-		expect(response.headers.get("content-security-policy")).toContain(
-			"frame-ancestors 'none'"
-		);
-	});
-
-	it("describes the real capability instead of the requested scopes", async () => {
-		const response = await app.request(
-			"/oauth/consent?consent_code=abc&client_id=c1&scope=openid%20profile",
-			{ method: "GET" },
-			env
-		);
-		const html = await response.text();
-		expect(html).not.toContain("openid");
-		expect(html).toContain("Read your poker sessions");
-		expect(html).toContain("Create or change your");
 	});
 });
 

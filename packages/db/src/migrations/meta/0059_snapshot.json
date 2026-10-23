@@ -1,139 +1,9 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "14ac4b7e-269e-479c-bcef-4069bd0c2752",
+  "id": "1137039d-d75e-4496-aef7-bbb8f6698ebf",
   "prevId": "2d0ba67b-87cc-4369-96d0-fc12443f3612",
   "tables": {
-    "asset": {
-      "name": "asset",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "unit": {
-          "name": "unit",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "is_favorite": {
-          "name": "is_favorite",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'currency'"
-        },
-        "decimals": {
-          "name": "decimals",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "archived_at": {
-          "name": "archived_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(unixepoch())"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "asset_id_user_id_unique": {
-          "name": "asset_id_user_id_unique",
-          "columns": ["id", "user_id"],
-          "isUnique": true
-        },
-        "asset_name_uq": {
-          "name": "asset_name_uq",
-          "columns": ["user_id", "lower(trim(\"name\"))"],
-          "isUnique": true
-        },
-        "asset_user_kind_idx": {
-          "name": "asset_user_kind_idx",
-          "columns": ["user_id", "kind"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "asset_user_id_user_id_fk": {
-          "name": "asset_user_id_user_id_fk",
-          "tableFrom": "asset",
-          "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "asset_is_favorite_check": {
-          "name": "asset_is_favorite_check",
-          "value": "\"asset\".\"is_favorite\" IN (0, 1)"
-        },
-        "asset_kind_check": {
-          "name": "asset_kind_check",
-          "value": "\"asset\".\"kind\" IN ('currency', 'item')"
-        },
-        "asset_decimals_check": {
-          "name": "asset_decimals_check",
-          "value": "\"asset\".\"decimals\" BETWEEN 0 AND 4"
-        }
-      }
-    },
     "account": {
       "name": "account",
       "columns": {
@@ -468,6 +338,123 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "currency": {
+      "name": "currency",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "unit": {
+          "name": "unit",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "is_favorite": {
+          "name": "is_favorite",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'currency'"
+        },
+        "decimals": {
+          "name": "decimals",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "currency_id_user_id_unique": {
+          "name": "currency_id_user_id_unique",
+          "columns": ["id", "user_id"],
+          "isUnique": true
+        },
+        "currency_userId_idx": {
+          "name": "currency_userId_idx",
+          "columns": ["user_id"],
+          "isUnique": false
+        },
+        "currency_user_kind_idx": {
+          "name": "currency_user_kind_idx",
+          "columns": ["user_id", "kind"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "currency_user_id_user_id_fk": {
+          "name": "currency_user_id_user_id_fk",
+          "tableFrom": "currency",
+          "tableTo": "user",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "currency_transaction": {
       "name": "currency_transaction",
       "columns": {
@@ -547,10 +534,10 @@
         }
       },
       "foreignKeys": {
-        "currency_transaction_currency_id_asset_id_fk": {
-          "name": "currency_transaction_currency_id_asset_id_fk",
+        "currency_transaction_currency_id_currency_id_fk": {
+          "name": "currency_transaction_currency_id_currency_id_fk",
           "tableFrom": "currency_transaction",
-          "tableTo": "asset",
+          "tableTo": "currency",
           "columnsFrom": ["currency_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
@@ -747,6 +734,11 @@
           "columns": ["id", "kind", "user_id"],
           "isUnique": true
         },
+        "entry_id_source_user_id_unique": {
+          "name": "entry_id_source_user_id_unique",
+          "columns": ["id", "source", "user_id"],
+          "isUnique": true
+        },
         "entry_user_played_on_idx": {
           "name": "entry_user_played_on_idx",
           "columns": ["user_id", "played_on", "id"],
@@ -790,7 +782,7 @@
         "entry_asset_owner_fk": {
           "name": "entry_asset_owner_fk",
           "tableFrom": "entry",
-          "tableTo": "asset",
+          "tableTo": "currency",
           "columnsFrom": ["asset_id", "user_id"],
           "columnsTo": ["id", "user_id"],
           "onDelete": "no action",
@@ -839,8 +831,22 @@
           "notNull": true,
           "autoincrement": false
         },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "ring_game_id": {
           "name": "ring_game_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cash_rule_id": {
+          "name": "cash_rule_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -859,6 +865,11 @@
           "name": "entry_cash_ring_game_idx",
           "columns": ["ring_game_id"],
           "isUnique": false
+        },
+        "entry_cash_cash_rule_idx": {
+          "name": "entry_cash_cash_rule_idx",
+          "columns": ["cash_rule_id"],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -875,8 +886,8 @@
           "name": "entry_cash_entry_owner_fk",
           "tableFrom": "entry_cash",
           "tableTo": "entry",
-          "columnsFrom": ["entry_id", "user_id"],
-          "columnsTo": ["id", "user_id"],
+          "columnsFrom": ["entry_id", "kind", "user_id"],
+          "columnsTo": ["id", "kind", "user_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -888,11 +899,34 @@
           "columnsTo": ["id", "user_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "entry_cash_cash_rule_owner_fk": {
+          "name": "entry_cash_cash_rule_owner_fk",
+          "tableFrom": "entry_cash",
+          "tableTo": "cash_rule",
+          "columnsFrom": ["cash_rule_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "entry_cash_cash_rule_master_fk": {
+          "name": "entry_cash_cash_rule_master_fk",
+          "tableFrom": "entry_cash",
+          "tableTo": "cash_rule",
+          "columnsFrom": ["cash_rule_id", "ring_game_id"],
+          "columnsTo": ["id", "ring_game_id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "entry_cash_kind_check": {
+          "name": "entry_cash_kind_check",
+          "value": "\"entry_cash\".\"kind\" = 'cash'"
+        }
+      }
     },
     "entry_tournament": {
       "name": "entry_tournament",
@@ -911,8 +945,22 @@
           "notNull": true,
           "autoincrement": false
         },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "tournament_id": {
           "name": "tournament_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "tournament_rule_id": {
+          "name": "tournament_rule_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -936,14 +984,20 @@
           "name": "before_deadline",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
         }
       },
       "indexes": {
         "entry_tournament_tournament_idx": {
           "name": "entry_tournament_tournament_idx",
           "columns": ["tournament_id"],
+          "isUnique": false
+        },
+        "entry_tournament_tournament_rule_idx": {
+          "name": "entry_tournament_tournament_rule_idx",
+          "columns": ["tournament_rule_id"],
           "isUnique": false
         }
       },
@@ -961,8 +1015,8 @@
           "name": "entry_tournament_entry_owner_fk",
           "tableFrom": "entry_tournament",
           "tableTo": "entry",
-          "columnsFrom": ["entry_id", "user_id"],
-          "columnsTo": ["id", "user_id"],
+          "columnsFrom": ["entry_id", "kind", "user_id"],
+          "columnsTo": ["id", "kind", "user_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -974,11 +1028,33 @@
           "columnsTo": ["id", "user_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "entry_tournament_tournament_rule_owner_fk": {
+          "name": "entry_tournament_tournament_rule_owner_fk",
+          "tableFrom": "entry_tournament",
+          "tableTo": "tournament_rule",
+          "columnsFrom": ["tournament_rule_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "entry_tournament_tournament_rule_master_fk": {
+          "name": "entry_tournament_tournament_rule_master_fk",
+          "tableFrom": "entry_tournament",
+          "tableTo": "tournament_rule",
+          "columnsFrom": ["tournament_rule_id", "tournament_id"],
+          "columnsTo": ["id", "tournament_id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "entry_tournament_kind_check": {
+          "name": "entry_tournament_kind_check",
+          "value": "\"entry_tournament\".\"kind\" = 'tournament'"
+        },
         "entry_tournament_placement_check": {
           "name": "entry_tournament_placement_check",
           "value": "\"entry_tournament\".\"placement\" >= 1"
@@ -1025,6 +1101,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "entry_source": {
+          "name": "entry_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "play_session_id": {
           "name": "play_session_id",
           "type": "text",
@@ -1044,8 +1127,7 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": 1
+          "autoincrement": false
         },
         "occurred_at": {
           "name": "occurred_at",
@@ -1097,6 +1179,11 @@
           "columns": ["id", "user_id"],
           "isUnique": true
         },
+        "play_event_id_entry_play_session_user_unique": {
+          "name": "play_event_id_entry_play_session_user_unique",
+          "columns": ["id", "entry_id", "play_session_id", "user_id"],
+          "isUnique": true
+        },
         "play_event_entry_sort_order_unique": {
           "name": "play_event_entry_sort_order_unique",
           "columns": ["entry_id", "sort_order"],
@@ -1123,21 +1210,12 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "play_event_hand_id_hand_id_fk": {
-          "name": "play_event_hand_id_hand_id_fk",
-          "tableFrom": "play_event",
-          "tableTo": "hand",
-          "columnsFrom": ["hand_id"],
-          "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
         "play_event_entry_owner_fk": {
           "name": "play_event_entry_owner_fk",
           "tableFrom": "play_event",
           "tableTo": "entry",
-          "columnsFrom": ["entry_id", "user_id"],
-          "columnsTo": ["id", "user_id"],
+          "columnsFrom": ["entry_id", "entry_source", "user_id"],
+          "columnsTo": ["id", "source", "user_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1149,11 +1227,28 @@
           "columnsTo": ["id", "entry_id", "user_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "play_event_hand_owner_fk": {
+          "name": "play_event_hand_owner_fk",
+          "tableFrom": "play_event",
+          "tableTo": "hand",
+          "columnsFrom": ["hand_id", "play_session_id", "user_id"],
+          "columnsTo": ["id", "play_session_id", "user_id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "play_event_entry_source_check": {
+          "name": "play_event_entry_source_check",
+          "value": "\"play_event\".\"entry_source\" = 'live'"
+        },
+        "play_event_schema_version_check": {
+          "name": "play_event_schema_version_check",
+          "value": "\"play_event\".\"schema_version\" >= 1"
+        },
         "play_event_payload_json_check": {
           "name": "play_event_payload_json_check",
           "value": "json_valid(\"play_event\".\"payload\")"
@@ -1543,6 +1638,11 @@
         }
       },
       "indexes": {
+        "game_group_id_user_id_unique": {
+          "name": "game_group_id_user_id_unique",
+          "columns": ["id", "user_id"],
+          "isUnique": true
+        },
         "gameGroup_userId_idx": {
           "name": "gameGroup_userId_idx",
           "columns": ["user_id"],
@@ -1573,6 +1673,297 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
+    },
+    "game_lineup": {
+      "name": "game_lineup",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "game_mix_id": {
+          "name": "game_mix_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {
+        "game_lineup_id_user_id_unique": {
+          "name": "game_lineup_id_user_id_unique",
+          "columns": ["id", "user_id"],
+          "isUnique": true
+        },
+        "game_lineup_game_mix_idx": {
+          "name": "game_lineup_game_mix_idx",
+          "columns": ["game_mix_id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "game_lineup_user_id_user_id_fk": {
+          "name": "game_lineup_user_id_user_id_fk",
+          "tableFrom": "game_lineup",
+          "tableTo": "user",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "game_lineup_game_mix_owner_fk": {
+          "name": "game_lineup_game_mix_owner_fk",
+          "tableFrom": "game_lineup",
+          "tableTo": "game_mix",
+          "columnsFrom": ["game_mix_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "game_lineup_group": {
+      "name": "game_lineup_group",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "lineup_id": {
+          "name": "lineup_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "game_group_id": {
+          "name": "game_group_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {
+        "game_lineup_group_id_user_id_unique": {
+          "name": "game_lineup_group_id_user_id_unique",
+          "columns": ["id", "user_id"],
+          "isUnique": true
+        },
+        "game_lineup_group_lineup_id_id_unique": {
+          "name": "game_lineup_group_lineup_id_id_unique",
+          "columns": ["lineup_id", "id"],
+          "isUnique": true
+        },
+        "game_lineup_group_lineup_position_unique": {
+          "name": "game_lineup_group_lineup_position_unique",
+          "columns": ["lineup_id", "position"],
+          "isUnique": true
+        },
+        "game_lineup_group_game_group_idx": {
+          "name": "game_lineup_group_game_group_idx",
+          "columns": ["game_group_id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "game_lineup_group_user_id_user_id_fk": {
+          "name": "game_lineup_group_user_id_user_id_fk",
+          "tableFrom": "game_lineup_group",
+          "tableTo": "user",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "game_lineup_group_lineup_owner_fk": {
+          "name": "game_lineup_group_lineup_owner_fk",
+          "tableFrom": "game_lineup_group",
+          "tableTo": "game_lineup",
+          "columnsFrom": ["lineup_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "game_lineup_group_game_group_owner_fk": {
+          "name": "game_lineup_group_game_group_owner_fk",
+          "tableFrom": "game_lineup_group",
+          "tableTo": "game_group",
+          "columnsFrom": ["game_group_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "game_lineup_group_position_check": {
+          "name": "game_lineup_group_position_check",
+          "value": "\"game_lineup_group\".\"position\" >= 0"
+        }
+      }
+    },
+    "game_lineup_variant": {
+      "name": "game_lineup_variant",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "lineup_id": {
+          "name": "lineup_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "lineup_group_id": {
+          "name": "lineup_group_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "variant_id": {
+          "name": "variant_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "game_lineup_variant_group_position_unique": {
+          "name": "game_lineup_variant_group_position_unique",
+          "columns": ["lineup_group_id", "position"],
+          "isUnique": true
+        },
+        "game_lineup_variant_lineup_variant_unique": {
+          "name": "game_lineup_variant_lineup_variant_unique",
+          "columns": ["lineup_id", "variant_id"],
+          "isUnique": true
+        },
+        "game_lineup_variant_variant_idx": {
+          "name": "game_lineup_variant_variant_idx",
+          "columns": ["variant_id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "game_lineup_variant_user_id_user_id_fk": {
+          "name": "game_lineup_variant_user_id_user_id_fk",
+          "tableFrom": "game_lineup_variant",
+          "tableTo": "user",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "game_lineup_variant_group_owner_fk": {
+          "name": "game_lineup_variant_group_owner_fk",
+          "tableFrom": "game_lineup_variant",
+          "tableTo": "game_lineup_group",
+          "columnsFrom": ["lineup_group_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "game_lineup_variant_group_lineup_fk": {
+          "name": "game_lineup_variant_group_lineup_fk",
+          "tableFrom": "game_lineup_variant",
+          "tableTo": "game_lineup_group",
+          "columnsFrom": ["lineup_id", "lineup_group_id"],
+          "columnsTo": ["lineup_id", "id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "game_lineup_variant_variant_owner_fk": {
+          "name": "game_lineup_variant_variant_owner_fk",
+          "tableFrom": "game_lineup_variant",
+          "tableTo": "game_variant",
+          "columnsFrom": ["variant_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "game_lineup_variant_lineup_group_id_variant_id_pk": {
+          "columns": ["lineup_group_id", "variant_id"],
+          "name": "game_lineup_variant_lineup_group_id_variant_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "game_lineup_variant_position_check": {
+          "name": "game_lineup_variant_position_check",
+          "value": "\"game_lineup_variant\".\"position\" >= 0"
+        }
+      }
     },
     "game_mix": {
       "name": "game_mix",
@@ -1991,6 +2382,11 @@
           "columns": ["id", "user_id"],
           "isUnique": true
         },
+        "hand_id_play_session_user_unique": {
+          "name": "hand_id_play_session_user_unique",
+          "columns": ["id", "play_session_id", "user_id"],
+          "isUnique": true
+        },
         "hand_play_session_hand_no_unique": {
           "name": "hand_play_session_hand_no_unique",
           "columns": ["play_session_id", "hand_no"],
@@ -2150,12 +2546,12 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "hand_action_seat_fk": {
-          "name": "hand_action_seat_fk",
+        "hand_action_seat_owner_fk": {
+          "name": "hand_action_seat_owner_fk",
           "tableFrom": "hand_action",
           "tableTo": "hand_seat",
-          "columnsFrom": ["hand_id", "seat"],
-          "columnsTo": ["hand_id", "seat"],
+          "columnsFrom": ["hand_id", "seat", "user_id"],
+          "columnsTo": ["hand_id", "seat", "user_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2331,6 +2727,11 @@
         }
       },
       "indexes": {
+        "hand_seat_hand_seat_user_unique": {
+          "name": "hand_seat_hand_seat_user_unique",
+          "columns": ["hand_id", "seat", "user_id"],
+          "isUnique": true
+        },
         "hand_seat_one_hero_per_hand_idx": {
           "name": "hand_seat_one_hero_per_hand_idx",
           "columns": ["hand_id"],
@@ -2475,6 +2876,11 @@
         }
       },
       "indexes": {
+        "asset_rate_id_user_id_unique": {
+          "name": "asset_rate_id_user_id_unique",
+          "columns": ["id", "user_id"],
+          "isUnique": true
+        },
         "asset_rate_pair_effective_from_unique": {
           "name": "asset_rate_pair_effective_from_unique",
           "columns": [
@@ -2484,6 +2890,11 @@
             "effective_from"
           ],
           "isUnique": true
+        },
+        "asset_rate_quote_asset_idx": {
+          "name": "asset_rate_quote_asset_idx",
+          "columns": ["quote_asset_id"],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -2499,7 +2910,7 @@
         "asset_rate_base_asset_owner_fk": {
           "name": "asset_rate_base_asset_owner_fk",
           "tableFrom": "asset_rate",
-          "tableTo": "asset",
+          "tableTo": "currency",
           "columnsFrom": ["base_asset_id", "user_id"],
           "columnsTo": ["id", "user_id"],
           "onDelete": "cascade",
@@ -2508,7 +2919,7 @@
         "asset_rate_quote_asset_owner_fk": {
           "name": "asset_rate_quote_asset_owner_fk",
           "tableFrom": "asset_rate",
-          "tableTo": "asset",
+          "tableTo": "currency",
           "columnsFrom": ["quote_asset_id", "user_id"],
           "columnsTo": ["id", "user_id"],
           "onDelete": "cascade",
@@ -2529,6 +2940,10 @@
         "asset_rate_rate_den_check": {
           "name": "asset_rate_rate_den_check",
           "value": "\"asset_rate\".\"rate_den\" BETWEEN 1 AND 1000000000000"
+        },
+        "asset_rate_effective_from_check": {
+          "name": "asset_rate_effective_from_check",
+          "value": "\"asset_rate\".\"effective_from\" >= 0"
         }
       }
     },
@@ -2587,7 +3002,7 @@
         },
         "ledger_category_user_name_unique": {
           "name": "ledger_category_user_name_unique",
-          "columns": ["user_id", "lower(\"name\")"],
+          "columns": ["user_id", "lower(trim(\"name\"))"],
           "isUnique": true
         }
       },
@@ -2672,6 +3087,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "price_id": {
+          "name": "price_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "category_id": {
           "name": "category_id",
           "type": "text",
@@ -2717,6 +3139,11 @@
         }
       },
       "indexes": {
+        "ledger_line_id_user_id_unique": {
+          "name": "ledger_line_id_user_id_unique",
+          "columns": ["id", "user_id"],
+          "isUnique": true
+        },
         "ledger_line_user_entry_idx": {
           "name": "ledger_line_user_entry_idx",
           "columns": ["user_id", "entry_id"],
@@ -2724,7 +3151,7 @@
         },
         "ledger_line_user_asset_occurred_at_idx": {
           "name": "ledger_line_user_asset_occurred_at_idx",
-          "columns": ["user_id", "asset_id", "occurred_at"],
+          "columns": ["user_id", "asset_id", "occurred_at", "id"],
           "isUnique": false
         },
         "ledger_line_source_event_idx": {
@@ -2741,6 +3168,16 @@
           "name": "ledger_line_transfer_idx",
           "columns": ["transfer_id"],
           "isUnique": false
+        },
+        "ledger_line_price_idx": {
+          "name": "ledger_line_price_idx",
+          "columns": ["price_id"],
+          "isUnique": false
+        },
+        "ledger_line_category_idx": {
+          "name": "ledger_line_category_idx",
+          "columns": ["category_id"],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -2756,7 +3193,7 @@
         "ledger_line_asset_owner_fk": {
           "name": "ledger_line_asset_owner_fk",
           "tableFrom": "ledger_line",
-          "tableTo": "asset",
+          "tableTo": "currency",
           "columnsFrom": ["asset_id", "user_id"],
           "columnsTo": ["id", "user_id"],
           "onDelete": "no action",
@@ -2784,9 +3221,23 @@
           "name": "ledger_line_source_event_owner_fk",
           "tableFrom": "ledger_line",
           "tableTo": "play_event",
-          "columnsFrom": ["source_event_id", "user_id"],
-          "columnsTo": ["id", "user_id"],
+          "columnsFrom": [
+            "source_event_id",
+            "entry_id",
+            "play_session_id",
+            "user_id"
+          ],
+          "columnsTo": ["id", "entry_id", "play_session_id", "user_id"],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "ledger_line_price_owner_fk": {
+          "name": "ledger_line_price_owner_fk",
+          "tableFrom": "ledger_line",
+          "tableTo": "tournament_rule_price",
+          "columnsFrom": ["price_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "no action",
           "onUpdate": "no action"
         },
         "ledger_line_category_owner_fk": {
@@ -2824,11 +3275,27 @@
         },
         "ledger_line_exchange_transfer_check": {
           "name": "ledger_line_exchange_transfer_check",
-          "value": "\"ledger_line\".\"role\" <> 'exchange' OR \"ledger_line\".\"transfer_id\" IS NOT NULL"
+          "value": "(\"ledger_line\".\"role\" = 'exchange') = (\"ledger_line\".\"transfer_id\" IS NOT NULL)"
         },
         "ledger_line_play_session_entry_check": {
           "name": "ledger_line_play_session_entry_check",
           "value": "\"ledger_line\".\"play_session_id\" IS NULL OR \"ledger_line\".\"entry_id\" IS NOT NULL"
+        },
+        "ledger_line_source_event_scope_check": {
+          "name": "ledger_line_source_event_scope_check",
+          "value": "\"ledger_line\".\"source_event_id\" IS NULL OR (\"ledger_line\".\"entry_id\" IS NOT NULL AND \"ledger_line\".\"play_session_id\" IS NOT NULL)"
+        },
+        "ledger_line_category_role_check": {
+          "name": "ledger_line_category_role_check",
+          "value": "\"ledger_line\".\"category_id\" IS NULL OR \"ledger_line\".\"role\" IN ('adjustment', 'exchange')"
+        },
+        "ledger_line_price_role_check": {
+          "name": "ledger_line_price_role_check",
+          "value": "\"ledger_line\".\"price_id\" IS NULL OR \"ledger_line\".\"role\" IN ('buy_in', 'reentry', 'fee', 'chip_purchase')"
+        },
+        "ledger_line_wallet_links_check": {
+          "name": "ledger_line_wallet_links_check",
+          "value": "NOT (\"ledger_line\".\"role\" IN ('adjustment', 'exchange')) OR (\"ledger_line\".\"play_session_id\" IS NULL AND \"ledger_line\".\"source_event_id\" IS NULL AND \"ledger_line\".\"price_id\" IS NULL)"
         }
       }
     },
@@ -2878,7 +3345,7 @@
         "user_setting_base_asset_owner_fk": {
           "name": "user_setting_base_asset_owner_fk",
           "tableFrom": "user_setting",
-          "tableTo": "asset",
+          "tableTo": "currency",
           "columnsFrom": ["base_asset_id", "user_id"],
           "columnsTo": ["id", "user_id"],
           "onDelete": "no action",
@@ -3726,10 +4193,10 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "ring_game_currency_id_asset_id_fk": {
-          "name": "ring_game_currency_id_asset_id_fk",
+        "ring_game_currency_id_currency_id_fk": {
+          "name": "ring_game_currency_id_currency_id_fk",
           "tableFrom": "ring_game",
-          "tableTo": "asset",
+          "tableTo": "currency",
           "columnsFrom": ["currency_id"],
           "columnsTo": ["id"],
           "onDelete": "set null",
@@ -3851,6 +4318,972 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
+    },
+    "cash_rule": {
+      "name": "cash_rule",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ring_game_id": {
+          "name": "ring_game_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "parent_rule_id": {
+          "name": "parent_rule_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "lineup_id": {
+          "name": "lineup_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "min_buy_in": {
+          "name": "min_buy_in",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "max_buy_in": {
+          "name": "max_buy_in",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "table_size": {
+          "name": "table_size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "house_rules": {
+          "name": "house_rules",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {
+        "cash_rule_id_user_id_unique": {
+          "name": "cash_rule_id_user_id_unique",
+          "columns": ["id", "user_id"],
+          "isUnique": true
+        },
+        "cash_rule_id_ring_game_id_unique": {
+          "name": "cash_rule_id_ring_game_id_unique",
+          "columns": ["id", "ring_game_id"],
+          "isUnique": true
+        },
+        "cash_rule_id_lineup_id_unique": {
+          "name": "cash_rule_id_lineup_id_unique",
+          "columns": ["id", "lineup_id"],
+          "isUnique": true
+        },
+        "cash_rule_ring_game_idx": {
+          "name": "cash_rule_ring_game_idx",
+          "columns": ["ring_game_id"],
+          "isUnique": false
+        },
+        "cash_rule_parent_idx": {
+          "name": "cash_rule_parent_idx",
+          "columns": ["parent_rule_id"],
+          "isUnique": false
+        },
+        "cash_rule_lineup_idx": {
+          "name": "cash_rule_lineup_idx",
+          "columns": ["lineup_id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "cash_rule_user_id_user_id_fk": {
+          "name": "cash_rule_user_id_user_id_fk",
+          "tableFrom": "cash_rule",
+          "tableTo": "user",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "cash_rule_ring_game_owner_fk": {
+          "name": "cash_rule_ring_game_owner_fk",
+          "tableFrom": "cash_rule",
+          "tableTo": "ring_game",
+          "columnsFrom": ["ring_game_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "cash_rule_parent_owner_fk": {
+          "name": "cash_rule_parent_owner_fk",
+          "tableFrom": "cash_rule",
+          "tableTo": "cash_rule",
+          "columnsFrom": ["parent_rule_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "cash_rule_parent_master_fk": {
+          "name": "cash_rule_parent_master_fk",
+          "tableFrom": "cash_rule",
+          "tableTo": "cash_rule",
+          "columnsFrom": ["parent_rule_id", "ring_game_id"],
+          "columnsTo": ["id", "ring_game_id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "cash_rule_lineup_owner_fk": {
+          "name": "cash_rule_lineup_owner_fk",
+          "tableFrom": "cash_rule",
+          "tableTo": "game_lineup",
+          "columnsFrom": ["lineup_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "cash_rule_min_buy_in_check": {
+          "name": "cash_rule_min_buy_in_check",
+          "value": "\"cash_rule\".\"min_buy_in\" >= 0"
+        },
+        "cash_rule_max_buy_in_check": {
+          "name": "cash_rule_max_buy_in_check",
+          "value": "\"cash_rule\".\"max_buy_in\" >= 0"
+        },
+        "cash_rule_buy_in_range_check": {
+          "name": "cash_rule_buy_in_range_check",
+          "value": "\"cash_rule\".\"min_buy_in\" <= \"cash_rule\".\"max_buy_in\""
+        },
+        "cash_rule_table_size_check": {
+          "name": "cash_rule_table_size_check",
+          "value": "\"cash_rule\".\"table_size\" BETWEEN 2 AND 10"
+        }
+      }
+    },
+    "cash_rule_stake": {
+      "name": "cash_rule_stake",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "rule_id": {
+          "name": "rule_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "lineup_group_id": {
+          "name": "lineup_group_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "lineup_id": {
+          "name": "lineup_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "blind1": {
+          "name": "blind1",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "blind2": {
+          "name": "blind2",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "blind3": {
+          "name": "blind3",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ante": {
+          "name": "ante",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ante_type": {
+          "name": "ante_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "cash_rule_stake_lineup_group_idx": {
+          "name": "cash_rule_stake_lineup_group_idx",
+          "columns": ["lineup_group_id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "cash_rule_stake_user_id_user_id_fk": {
+          "name": "cash_rule_stake_user_id_user_id_fk",
+          "tableFrom": "cash_rule_stake",
+          "tableTo": "user",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "cash_rule_stake_rule_owner_fk": {
+          "name": "cash_rule_stake_rule_owner_fk",
+          "tableFrom": "cash_rule_stake",
+          "tableTo": "cash_rule",
+          "columnsFrom": ["rule_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "cash_rule_stake_rule_lineup_fk": {
+          "name": "cash_rule_stake_rule_lineup_fk",
+          "tableFrom": "cash_rule_stake",
+          "tableTo": "cash_rule",
+          "columnsFrom": ["rule_id", "lineup_id"],
+          "columnsTo": ["id", "lineup_id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "cash_rule_stake_group_owner_fk": {
+          "name": "cash_rule_stake_group_owner_fk",
+          "tableFrom": "cash_rule_stake",
+          "tableTo": "game_lineup_group",
+          "columnsFrom": ["lineup_group_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "cash_rule_stake_group_lineup_fk": {
+          "name": "cash_rule_stake_group_lineup_fk",
+          "tableFrom": "cash_rule_stake",
+          "tableTo": "game_lineup_group",
+          "columnsFrom": ["lineup_id", "lineup_group_id"],
+          "columnsTo": ["lineup_id", "id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "cash_rule_stake_rule_id_lineup_group_id_pk": {
+          "columns": ["rule_id", "lineup_group_id"],
+          "name": "cash_rule_stake_rule_id_lineup_group_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "cash_rule_stake_blind1_check": {
+          "name": "cash_rule_stake_blind1_check",
+          "value": "\"cash_rule_stake\".\"blind1\" >= 0"
+        },
+        "cash_rule_stake_blind2_check": {
+          "name": "cash_rule_stake_blind2_check",
+          "value": "\"cash_rule_stake\".\"blind2\" >= 0"
+        },
+        "cash_rule_stake_blind3_check": {
+          "name": "cash_rule_stake_blind3_check",
+          "value": "\"cash_rule_stake\".\"blind3\" >= 0"
+        },
+        "cash_rule_stake_ante_check": {
+          "name": "cash_rule_stake_ante_check",
+          "value": "\"cash_rule_stake\".\"ante\" >= 0"
+        },
+        "cash_rule_stake_ante_type_check": {
+          "name": "cash_rule_stake_ante_type_check",
+          "value": "\"cash_rule_stake\".\"ante_type\" IN ('none', 'all', 'bb')"
+        }
+      }
+    },
+    "tournament_rule": {
+      "name": "tournament_rule",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tournament_id": {
+          "name": "tournament_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "parent_rule_id": {
+          "name": "parent_rule_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "lineup_id": {
+          "name": "lineup_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "starting_stack": {
+          "name": "starting_stack",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "table_size": {
+          "name": "table_size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "bounty_amount": {
+          "name": "bounty_amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "house_rules": {
+          "name": "house_rules",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {
+        "tournament_rule_id_user_id_unique": {
+          "name": "tournament_rule_id_user_id_unique",
+          "columns": ["id", "user_id"],
+          "isUnique": true
+        },
+        "tournament_rule_id_tournament_id_unique": {
+          "name": "tournament_rule_id_tournament_id_unique",
+          "columns": ["id", "tournament_id"],
+          "isUnique": true
+        },
+        "tournament_rule_id_lineup_id_unique": {
+          "name": "tournament_rule_id_lineup_id_unique",
+          "columns": ["id", "lineup_id"],
+          "isUnique": true
+        },
+        "tournament_rule_tournament_idx": {
+          "name": "tournament_rule_tournament_idx",
+          "columns": ["tournament_id"],
+          "isUnique": false
+        },
+        "tournament_rule_parent_idx": {
+          "name": "tournament_rule_parent_idx",
+          "columns": ["parent_rule_id"],
+          "isUnique": false
+        },
+        "tournament_rule_lineup_idx": {
+          "name": "tournament_rule_lineup_idx",
+          "columns": ["lineup_id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "tournament_rule_user_id_user_id_fk": {
+          "name": "tournament_rule_user_id_user_id_fk",
+          "tableFrom": "tournament_rule",
+          "tableTo": "user",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "tournament_rule_tournament_owner_fk": {
+          "name": "tournament_rule_tournament_owner_fk",
+          "tableFrom": "tournament_rule",
+          "tableTo": "tournament",
+          "columnsFrom": ["tournament_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "tournament_rule_parent_owner_fk": {
+          "name": "tournament_rule_parent_owner_fk",
+          "tableFrom": "tournament_rule",
+          "tableTo": "tournament_rule",
+          "columnsFrom": ["parent_rule_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "tournament_rule_parent_master_fk": {
+          "name": "tournament_rule_parent_master_fk",
+          "tableFrom": "tournament_rule",
+          "tableTo": "tournament_rule",
+          "columnsFrom": ["parent_rule_id", "tournament_id"],
+          "columnsTo": ["id", "tournament_id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "tournament_rule_lineup_owner_fk": {
+          "name": "tournament_rule_lineup_owner_fk",
+          "tableFrom": "tournament_rule",
+          "tableTo": "game_lineup",
+          "columnsFrom": ["lineup_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "tournament_rule_starting_stack_check": {
+          "name": "tournament_rule_starting_stack_check",
+          "value": "\"tournament_rule\".\"starting_stack\" >= 0"
+        },
+        "tournament_rule_bounty_amount_check": {
+          "name": "tournament_rule_bounty_amount_check",
+          "value": "\"tournament_rule\".\"bounty_amount\" >= 0"
+        },
+        "tournament_rule_table_size_check": {
+          "name": "tournament_rule_table_size_check",
+          "value": "\"tournament_rule\".\"table_size\" BETWEEN 2 AND 10"
+        }
+      }
+    },
+    "tournament_rule_level": {
+      "name": "tournament_rule_level",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "rule_id": {
+          "name": "rule_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ordinal": {
+          "name": "ordinal",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "level": {
+          "name": "level",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "is_break": {
+          "name": "is_break",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "minutes": {
+          "name": "minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "lineup_id": {
+          "name": "lineup_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "inherits_lineup": {
+          "name": "inherits_lineup",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "inherited_lineup_id": {
+          "name": "inherited_lineup_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {
+        "tournament_rule_level_id_user_id_unique": {
+          "name": "tournament_rule_level_id_user_id_unique",
+          "columns": ["id", "user_id"],
+          "isUnique": true
+        },
+        "tournament_rule_level_id_lineup_id_unique": {
+          "name": "tournament_rule_level_id_lineup_id_unique",
+          "columns": ["id", "lineup_id"],
+          "isUnique": true
+        },
+        "tournament_rule_level_rule_ordinal_unique": {
+          "name": "tournament_rule_level_rule_ordinal_unique",
+          "columns": ["rule_id", "ordinal"],
+          "isUnique": true
+        },
+        "tournament_rule_level_lineup_idx": {
+          "name": "tournament_rule_level_lineup_idx",
+          "columns": ["lineup_id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "tournament_rule_level_user_id_user_id_fk": {
+          "name": "tournament_rule_level_user_id_user_id_fk",
+          "tableFrom": "tournament_rule_level",
+          "tableTo": "user",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "tournament_rule_level_rule_owner_fk": {
+          "name": "tournament_rule_level_rule_owner_fk",
+          "tableFrom": "tournament_rule_level",
+          "tableTo": "tournament_rule",
+          "columnsFrom": ["rule_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "tournament_rule_level_inherited_lineup_fk": {
+          "name": "tournament_rule_level_inherited_lineup_fk",
+          "tableFrom": "tournament_rule_level",
+          "tableTo": "tournament_rule",
+          "columnsFrom": ["rule_id", "inherited_lineup_id"],
+          "columnsTo": ["id", "lineup_id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "tournament_rule_level_lineup_owner_fk": {
+          "name": "tournament_rule_level_lineup_owner_fk",
+          "tableFrom": "tournament_rule_level",
+          "tableTo": "game_lineup",
+          "columnsFrom": ["lineup_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "tournament_rule_level_ordinal_check": {
+          "name": "tournament_rule_level_ordinal_check",
+          "value": "\"tournament_rule_level\".\"ordinal\" >= 1"
+        },
+        "tournament_rule_level_is_break_check": {
+          "name": "tournament_rule_level_is_break_check",
+          "value": "\"tournament_rule_level\".\"is_break\" IN (0, 1)"
+        },
+        "tournament_rule_level_minutes_check": {
+          "name": "tournament_rule_level_minutes_check",
+          "value": "\"tournament_rule_level\".\"minutes\" >= 1"
+        },
+        "tournament_rule_level_inherits_lineup_check": {
+          "name": "tournament_rule_level_inherits_lineup_check",
+          "value": "\"tournament_rule_level\".\"inherits_lineup\" IN (0, 1)"
+        },
+        "tournament_rule_level_inherited_lineup_check": {
+          "name": "tournament_rule_level_inherited_lineup_check",
+          "value": "(\"tournament_rule_level\".\"inherits_lineup\" = 1 AND \"tournament_rule_level\".\"inherited_lineup_id\" IS NOT NULL AND \"tournament_rule_level\".\"inherited_lineup_id\" = \"tournament_rule_level\".\"lineup_id\") OR (\"tournament_rule_level\".\"inherits_lineup\" = 0 AND \"tournament_rule_level\".\"inherited_lineup_id\" IS NULL)"
+        }
+      }
+    },
+    "tournament_rule_level_stake": {
+      "name": "tournament_rule_level_stake",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "level_id": {
+          "name": "level_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "lineup_group_id": {
+          "name": "lineup_group_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "lineup_id": {
+          "name": "lineup_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "blind1": {
+          "name": "blind1",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "blind2": {
+          "name": "blind2",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "blind3": {
+          "name": "blind3",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ante": {
+          "name": "ante",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ante_type": {
+          "name": "ante_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "tournament_rule_level_stake_lineup_group_idx": {
+          "name": "tournament_rule_level_stake_lineup_group_idx",
+          "columns": ["lineup_group_id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "tournament_rule_level_stake_user_id_user_id_fk": {
+          "name": "tournament_rule_level_stake_user_id_user_id_fk",
+          "tableFrom": "tournament_rule_level_stake",
+          "tableTo": "user",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "tournament_rule_level_stake_level_owner_fk": {
+          "name": "tournament_rule_level_stake_level_owner_fk",
+          "tableFrom": "tournament_rule_level_stake",
+          "tableTo": "tournament_rule_level",
+          "columnsFrom": ["level_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "tournament_rule_level_stake_level_lineup_fk": {
+          "name": "tournament_rule_level_stake_level_lineup_fk",
+          "tableFrom": "tournament_rule_level_stake",
+          "tableTo": "tournament_rule_level",
+          "columnsFrom": ["level_id", "lineup_id"],
+          "columnsTo": ["id", "lineup_id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "tournament_rule_level_stake_group_owner_fk": {
+          "name": "tournament_rule_level_stake_group_owner_fk",
+          "tableFrom": "tournament_rule_level_stake",
+          "tableTo": "game_lineup_group",
+          "columnsFrom": ["lineup_group_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "tournament_rule_level_stake_group_lineup_fk": {
+          "name": "tournament_rule_level_stake_group_lineup_fk",
+          "tableFrom": "tournament_rule_level_stake",
+          "tableTo": "game_lineup_group",
+          "columnsFrom": ["lineup_id", "lineup_group_id"],
+          "columnsTo": ["lineup_id", "id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "tournament_rule_level_stake_level_id_lineup_group_id_pk": {
+          "columns": ["level_id", "lineup_group_id"],
+          "name": "tournament_rule_level_stake_level_id_lineup_group_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "tournament_rule_level_stake_blind1_check": {
+          "name": "tournament_rule_level_stake_blind1_check",
+          "value": "\"tournament_rule_level_stake\".\"blind1\" >= 0"
+        },
+        "tournament_rule_level_stake_blind2_check": {
+          "name": "tournament_rule_level_stake_blind2_check",
+          "value": "\"tournament_rule_level_stake\".\"blind2\" >= 0"
+        },
+        "tournament_rule_level_stake_blind3_check": {
+          "name": "tournament_rule_level_stake_blind3_check",
+          "value": "\"tournament_rule_level_stake\".\"blind3\" >= 0"
+        },
+        "tournament_rule_level_stake_ante_check": {
+          "name": "tournament_rule_level_stake_ante_check",
+          "value": "\"tournament_rule_level_stake\".\"ante\" >= 0"
+        },
+        "tournament_rule_level_stake_ante_type_check": {
+          "name": "tournament_rule_level_stake_ante_type_check",
+          "value": "\"tournament_rule_level_stake\".\"ante_type\" IN ('none', 'all', 'bb')"
+        }
+      }
+    },
+    "tournament_rule_price": {
+      "name": "tournament_rule_price",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "rule_id": {
+          "name": "rule_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "asset_id": {
+          "name": "asset_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "amount": {
+          "name": "amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "fee": {
+          "name": "fee",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "chips": {
+          "name": "chips",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ordinal": {
+          "name": "ordinal",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {
+        "tournament_rule_price_id_user_id_unique": {
+          "name": "tournament_rule_price_id_user_id_unique",
+          "columns": ["id", "user_id"],
+          "isUnique": true
+        },
+        "tournament_rule_price_rule_ordinal_unique": {
+          "name": "tournament_rule_price_rule_ordinal_unique",
+          "columns": ["rule_id", "ordinal"],
+          "isUnique": true
+        },
+        "tournament_rule_price_asset_idx": {
+          "name": "tournament_rule_price_asset_idx",
+          "columns": ["asset_id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "tournament_rule_price_user_id_user_id_fk": {
+          "name": "tournament_rule_price_user_id_user_id_fk",
+          "tableFrom": "tournament_rule_price",
+          "tableTo": "user",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "tournament_rule_price_rule_owner_fk": {
+          "name": "tournament_rule_price_rule_owner_fk",
+          "tableFrom": "tournament_rule_price",
+          "tableTo": "tournament_rule",
+          "columnsFrom": ["rule_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "tournament_rule_price_asset_owner_fk": {
+          "name": "tournament_rule_price_asset_owner_fk",
+          "tableFrom": "tournament_rule_price",
+          "tableTo": "currency",
+          "columnsFrom": ["asset_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "tournament_rule_price_kind_check": {
+          "name": "tournament_rule_price_kind_check",
+          "value": "\"tournament_rule_price\".\"kind\" IN ('entry', 'reentry', 'addon')"
+        },
+        "tournament_rule_price_amount_check": {
+          "name": "tournament_rule_price_amount_check",
+          "value": "\"tournament_rule_price\".\"amount\" >= 0"
+        },
+        "tournament_rule_price_fee_check": {
+          "name": "tournament_rule_price_fee_check",
+          "value": "\"tournament_rule_price\".\"fee\" >= 0"
+        },
+        "tournament_rule_price_chips_check": {
+          "name": "tournament_rule_price_chips_check",
+          "value": "\"tournament_rule_price\".\"chips\" >= 0"
+        }
+      }
     },
     "session_blind_level": {
       "name": "session_blind_level",
@@ -4726,10 +6159,10 @@
           "onDelete": "set null",
           "onUpdate": "no action"
         },
-        "game_session_currency_id_asset_id_fk": {
-          "name": "game_session_currency_id_asset_id_fk",
+        "game_session_currency_id_currency_id_fk": {
+          "name": "game_session_currency_id_currency_id_fk",
           "tableFrom": "game_session",
-          "tableTo": "asset",
+          "tableTo": "currency",
           "columnsFrom": ["currency_id"],
           "columnsTo": ["id"],
           "onDelete": "set null",
@@ -5047,10 +6480,10 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "tournament_currency_id_asset_id_fk": {
-          "name": "tournament_currency_id_asset_id_fk",
+        "tournament_currency_id_currency_id_fk": {
+          "name": "tournament_currency_id_currency_id_fk",
           "tableFrom": "tournament",
-          "tableTo": "asset",
+          "tableTo": "currency",
           "columnsFrom": ["currency_id"],
           "columnsTo": ["id"],
           "onDelete": "set null",
@@ -5209,16 +6642,9 @@
   },
   "internal": {
     "indexes": {
-      "asset_name_uq": {
-        "columns": {
-          "lower(trim(\"name\"))": {
-            "isExpression": true
-          }
-        }
-      },
       "ledger_category_user_name_unique": {
         "columns": {
-          "lower(\"name\")": {
+          "lower(trim(\"name\"))": {
             "isExpression": true
           }
         }

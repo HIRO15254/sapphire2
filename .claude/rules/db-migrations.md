@@ -36,8 +36,7 @@ change or would do it unsafely:**
   is complete (the old shape, or the rebuilt shape with the index created last as a marker), and is
   tested by failing at every statement and by old-Worker writes after each finished section. Name
   the columns in any `INSERT … SELECT` that can run against both shapes — a column-count mismatch
-  fails at prepare time even when the `WHERE` selects nothing. In `bun:sqlite` specs read rebuilt tables with
-  `db.prepare()`: `db.query()` caches the statement with its old column names.
+  fails at prepare time even when the `WHERE` selects nothing.
 
 When you hand-write a migration, still run `db:generate` afterward (see below) so the snapshot stays
 in sync — let it write the fresh snapshot, then replace/delete its auto `.sql` so `wrangler` applies
@@ -48,11 +47,13 @@ your intended SQL.
 `wrangler d1 migrations apply` streams the statements of a file to D1; there is no file-wide
 transaction, and `d1_migrations` only advances after the last statement succeeds. A statement that
 fails halfway therefore leaves the earlier objects created **and** the migration unrecorded, so the
-retry dies on `table already exists`. `migration-00NN.test.ts` helpers that wrap the file in
-`BEGIN` / `ROLLBACK` model the local (`bun:sqlite`) behavior, not production — never cite them as
-evidence that a migration rolls back.
+retry can die on `table already exists`. Tests that wrap a file in `BEGIN` / `ROLLBACK`
+model local (`node:sqlite`) transaction behavior, not production — never cite them as evidence
+that a migration file rolls back.
 
-Consequences for any migration that touches existing rows:
+### Default: replay-safe migrations
+
+Outside the frozen v2 cutover below, any migration that touches existing rows must follow these rules:
 
 - **Make every statement re-runnable**: `CREATE TABLE / INDEX / TRIGGER IF NOT EXISTS`,
   `INSERT OR IGNORE` for backfills.
@@ -100,15 +101,26 @@ Consequences for any migration that touches existing rows:
   GROUP BY m.id, g.value HAVING COUNT(*) > 1;
   ```
 
-**Exception: the data model v2 migrations** (tasks in [`data-model-v2.md` §17](../../docs/design/data-model-v2.md#17-task-breakdown);
-procedure in [§16](../../docs/design/data-model-v2.md#16-migration-procedure)). B01/B02 prepare the empty targets/asset before B06;
-B05/B07/B08 stage populated parent rebuilds, B13 rebuilds the entry leaf details, and B22 rebuilds the preset leaf table.
-They ship with the new UI in one release after the freeze (decided in SA2-334, released by REL / SA2-422); B03 deletes old API-dependent UI before API breaks.
-Every dev deploy replays them on a fresh production copy and runs B04's [§16.7 audit catalogue](../../docs/design/data-model-v2.md#167-audit-catalogue).
-The [§16.8 release runbook](../../docs/design/data-model-v2.md#168-final-release-runbook) records a D1 Time Travel point,
-applies migrations, audits production, then deploys Worker and new UI. Failure restores that point and is fixed on `dev`, not retried in production.
-These migrations skip re-runnable statements, self-healing retry and `applyThrough` tests. Backfill normalization and failing end checks remain mandatory;
-the general mandatory production pre-audit above is replaced by rehearsal/end checks/B04 (optional pre-audit and B23's mandatory categorized counts remain).
+### Scoped exception: the frozen data model v2 cutover
+
+The binding rules are [`data-model-v2.md` §16.4](../../docs/design/data-model-v2.md#164-migration-authorship-and-abort-gates),
+[§16.6](../../docs/design/data-model-v2.md#166-dev-rehearsal-and-pre-audit) and
+[§16.8](../../docs/design/data-model-v2.md#168-final-release-runbook), not the historical decision-log rows.
+This exception covers the pending migration chain rehearsed during the v2 production freeze and
+shipped once with the new UI. It is not a permanent exception for every migration authored after v2:
+other migrations, including subsequent post-release changes, retain the default replay-safe rules.
+
+For this cutover, do not add re-runnable statements, self-healing retries or `applyThrough` tests.
+Every dev deploy replays the pending chain on a fresh production copy and runs B04's
+[§16.7 audits](../../docs/design/data-model-v2.md#167-audit-catalogue). At release, freeze data entry,
+record a D1 Time Travel point, migrate, audit, and only then deploy Worker and new UI.
+A failed migration or audit requires restoring that point, fixing on `dev`, and rehearsing again;
+never retry the partially applied production chain or patch forward.
+
+Backfill normalization, populated-rebuild staging and failing end checks remain mandatory
+([§16.2–§16.4](../../docs/design/data-model-v2.md#162-empty-schema-precondition-and-asset-rebuild)).
+The default mandatory production pre-audit is replaced by rehearsal/end checks/B04; §16.6 makes
+the pre-audit optional except for B23's mandatory categorized counts.
 
 ## The Drizzle `meta/` ledger
 
@@ -173,11 +185,6 @@ workflow change; do not special-case one there.** What a new trigger does need i
 that seeded data comes from the dump, not from the trigger.
 [`preview-seed-restore.test.ts`](../../packages/db/src/__tests__/preview-seed-restore.test.ts)
 pins both halves (the collision is real; stashing fixes it without leaving the DB trigger-less).
-It needs `bun:sqlite`, so like the `migration-*` specs it is listed explicitly in
-[`ci.yml`](../../.github/workflows/ci.yml) — a bun:sqlite spec that is not listed runs nowhere and
-reports green, because `skipIfNotBun` makes Vitest skip it rather than fail. `bun run check:rules`
-enforces the listing (every `{apps,packages}/**/__tests__/*.test.ts` mentioning `bun:sqlite` must
-be named in that step), so this paragraph is documentation, not the guard.
 
 **Both seed steps are hand-copied siblings, so `check:rules` also asserts the stash itself**: any
 `.github/workflows/*.yml` containing the restore (`--file=dump.sql`) must carry all three halves —

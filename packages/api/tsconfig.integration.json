@@ -1,8 +1,0 @@
-{
-  "extends": "@sapphire2/config/tsconfig.base.json",
-  "compilerOptions": {
-    "noEmit": true,
-    "types": ["bun", "@cloudflare/workers-types"]
-  },
-  "include": ["src/__integration__/**/*.ts"]
-}

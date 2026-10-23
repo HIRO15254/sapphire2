@@ -28,15 +28,6 @@ describe("buildAuthOptions", () => {
 		expect(options.discordClientSecret).toBe("d-secret");
 	});
 
-	it("configures the MCP OAuth provider from env-derived URLs", () => {
-		const options = buildAuthOptions(createFakeEnv(), FAKE_DB);
-		expect(options.mcp?.loginPage).toBe("http://localhost:3001/login");
-		expect(options.mcp?.resource).toBe("http://localhost:8787/mcp");
-		expect(options.mcp?.consentPage).toBe(
-			"http://localhost:8787/oauth/consent"
-		);
-	});
-
 	it("points the passkey relying party at the web app, not the Worker", () => {
 		const options = buildAuthOptions(createFakeEnv(), FAKE_DB);
 		expect(options.passkey).toEqual({

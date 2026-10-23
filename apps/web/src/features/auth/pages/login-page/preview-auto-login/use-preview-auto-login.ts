@@ -49,7 +49,7 @@ export function usePreviewAutoLogin(): void {
 					window.location.assign(authorizeUrl);
 					return;
 				}
-				navigate({ to: "/statistics" });
+				navigate({ to: "/" });
 			})
 			.catch((error) => {
 				console.error("Preview auto-login failed", error);

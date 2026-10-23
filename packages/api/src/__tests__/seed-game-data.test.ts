@@ -204,32 +204,36 @@ describe("seedDefaultGameData", () => {
 		await seedDefaultGameData(second.db, USER_ID);
 
 		expect(
-			(second.inserted[GROUP_TABLE] ?? []).map(({ builtinKey, id }) => ({
-				builtinKey,
-				id,
-			}))
-		).toEqual(
-			(first.inserted[GROUP_TABLE] ?? []).map(({ builtinKey, id }) => ({
-				builtinKey,
-				id,
-			}))
-		);
-		expect(
-			(second.inserted[VARIANT_TABLE] ?? []).map(
-				({ builtinKey, groupId, id }) => ({ builtinKey, groupId, id })
+			flattenedWrites(second.inserted[GROUP_TABLE]).map(
+				({ builtinKey, id }) => ({
+					builtinKey,
+					id,
+				})
 			)
 		).toEqual(
-			(first.inserted[VARIANT_TABLE] ?? []).map(
-				({ builtinKey, groupId, id }) => ({ builtinKey, groupId, id })
+			flattenedWrites(first.inserted[GROUP_TABLE]).map(
+				({ builtinKey, id }) => ({
+					builtinKey,
+					id,
+				})
 			)
 		);
 		expect(
-			(second.inserted[MIX_TABLE] ?? []).map(({ builtinKey, id }) => ({
+			flattenedWrites(second.inserted[VARIANT_TABLE]).map(
+				({ builtinKey, groupId, id }) => ({ builtinKey, groupId, id })
+			)
+		).toEqual(
+			flattenedWrites(first.inserted[VARIANT_TABLE]).map(
+				({ builtinKey, groupId, id }) => ({ builtinKey, groupId, id })
+			)
+		);
+		expect(
+			flattenedWrites(second.inserted[MIX_TABLE]).map(({ builtinKey, id }) => ({
 				builtinKey,
 				id,
 			}))
 		).toEqual(
-			(first.inserted[MIX_TABLE] ?? []).map(({ builtinKey, id }) => ({
+			flattenedWrites(first.inserted[MIX_TABLE]).map(({ builtinKey, id }) => ({
 				builtinKey,
 				id,
 			}))

@@ -26,7 +26,7 @@ Worker は MCP エンドポイント（`/mcp`）と OAuth ディスカバリル�
 - [Cloudflare](https://dash.cloudflare.com/sign-up) アカウント（Free plan OK）
 - GitHub リポジトリの管理者権限（Secrets 設定に必要）
 - [Bun](https://bun.sh/) がローカルにインストール済み
-- [Node.js](https://nodejs.org/) 20.3.0 以上がローカルにインストール済み（Cloudflare Wrangler CLI の実行用。パッケージマネージャーは引き続き Bun）
+- [Node.js](https://nodejs.org/) 22.16.0 以上がローカルにインストール済み（Cloudflare Wrangler CLI と Vitest の実行用。パッケージマネージャーは引き続き Bun）
 
 > ローカル開発用 D1 は Wrangler が作成します。プレビューと dev の DB は workflow が Cloudflare API で作成し、本番は `apps/server/wrangler.toml` に設定済みの DB を使用します。
 
@@ -216,7 +216,7 @@ Pages のデプロイまたはクリーンアップを行う全 workflow を更�
 
 続いて `release.yml` は、[`scripts/release-linear-issues.ts`](../scripts/release-linear-issues.ts) でリリースに含まれる Linear の issue を Done から Released に移します。リリースの PR は、マージコミットが前回のタグから今回のリリースのマージまでの間にあるマージ済み PR です。issue は、その PR に Linear が紐付けたものです。移すのは Done の issue だけです。この step は失敗してもリリースを止めません。
 
-`concurrency` 設定により直列実行。CI 失敗時はデプロイをスキップ。
+`concurrency` 設定により直列実行。CI job は PR の CI と同じ再利用 workflow [`checks.yml`](../.github/workflows/checks.yml) を呼ぶため、dev と本番のデプロイは同一のゲートを通る。失敗時はデプロイをスキップ。
 
 ## 8. 動作確認
 

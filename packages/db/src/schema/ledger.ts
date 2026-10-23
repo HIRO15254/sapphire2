@@ -13,6 +13,7 @@ import {
 	LEDGER_EFFECTS,
 	LEDGER_MAX_QUANTITY,
 	LEDGER_PAYMENT_ROLES,
+	LEDGER_PRICE_ROLES,
 	LEDGER_RECEIPT_ROLES,
 	LEDGER_ROLES,
 	LEDGER_WALLET_ROLES,
@@ -20,6 +21,7 @@ import {
 import { asset } from "./asset";
 import { user } from "./auth";
 import { entry, playEvent, playSession } from "./entry";
+import { tournamentRulePrice } from "./rule";
 import { oneOf } from "./sql-checks";
 
 export const assetRate = sqliteTable(
@@ -40,12 +42,14 @@ export const assetRate = sqliteTable(
 			.notNull(),
 	},
 	(t) => [
+		uniqueIndex("asset_rate_id_user_id_unique").on(t.id, t.userId),
 		uniqueIndex("asset_rate_pair_effective_from_unique").on(
 			t.userId,
 			t.baseAssetId,
 			t.quoteAssetId,
 			t.effectiveFrom
 		),
+		index("asset_rate_quote_asset_idx").on(t.quoteAssetId),
 		foreignKey({
 			columns: [t.baseAssetId, t.userId],
 			foreignColumns: [asset.id, asset.userId],
@@ -68,6 +72,7 @@ export const assetRate = sqliteTable(
 			"asset_rate_rate_den_check",
 			sql`${t.rateDen} BETWEEN 1 AND ${sql.raw(String(ASSET_RATE_MAX_TERM))}`
 		),
+		check("asset_rate_effective_from_check", sql`${t.effectiveFrom} >= 0`),
 	]
 );
 
@@ -91,7 +96,7 @@ export const ledgerCategory = sqliteTable(
 		uniqueIndex("ledger_category_id_user_id_unique").on(t.id, t.userId),
 		uniqueIndex("ledger_category_user_name_unique").on(
 			t.userId,
-			sql`lower(${t.name})`
+			sql`lower(trim(${t.name}))`
 		),
 	]
 );
@@ -110,6 +115,7 @@ export const ledgerLine = sqliteTable(
 		entryId: text("entry_id"),
 		playSessionId: text("play_session_id"),
 		sourceEventId: text("source_event_id"),
+		priceId: text("price_id"),
 		categoryId: text("category_id"),
 		transferId: text("transfer_id"),
 		occurredAt: integer("occurred_at", { mode: "timestamp" }).notNull(),
@@ -122,15 +128,19 @@ export const ledgerLine = sqliteTable(
 			.notNull(),
 	},
 	(t) => [
+		uniqueIndex("ledger_line_id_user_id_unique").on(t.id, t.userId),
 		index("ledger_line_user_entry_idx").on(t.userId, t.entryId),
 		index("ledger_line_user_asset_occurred_at_idx").on(
 			t.userId,
 			t.assetId,
-			t.occurredAt
+			t.occurredAt,
+			t.id
 		),
 		index("ledger_line_source_event_idx").on(t.sourceEventId),
 		index("ledger_line_play_session_idx").on(t.playSessionId),
 		index("ledger_line_transfer_idx").on(t.transferId),
+		index("ledger_line_price_idx").on(t.priceId),
+		index("ledger_line_category_idx").on(t.categoryId),
 		foreignKey({
 			columns: [t.assetId, t.userId],
 			foreignColumns: [asset.id, asset.userId],
@@ -147,10 +157,20 @@ export const ledgerLine = sqliteTable(
 			name: "ledger_line_play_session_owner_fk",
 		}).onDelete("cascade"),
 		foreignKey({
-			columns: [t.sourceEventId, t.userId],
-			foreignColumns: [playEvent.id, playEvent.userId],
+			columns: [t.sourceEventId, t.entryId, t.playSessionId, t.userId],
+			foreignColumns: [
+				playEvent.id,
+				playEvent.entryId,
+				playEvent.playSessionId,
+				playEvent.userId,
+			],
 			name: "ledger_line_source_event_owner_fk",
 		}).onDelete("cascade"),
+		foreignKey({
+			columns: [t.priceId, t.userId],
+			foreignColumns: [tournamentRulePrice.id, tournamentRulePrice.userId],
+			name: "ledger_line_price_owner_fk",
+		}).onDelete("no action"),
 		foreignKey({
 			columns: [t.categoryId, t.userId],
 			foreignColumns: [ledgerCategory.id, ledgerCategory.userId],
@@ -172,11 +192,27 @@ export const ledgerLine = sqliteTable(
 		),
 		check(
 			"ledger_line_exchange_transfer_check",
-			sql`${t.role} <> 'exchange' OR ${t.transferId} IS NOT NULL`
+			sql`(${t.role} = 'exchange') = (${t.transferId} IS NOT NULL)`
 		),
 		check(
 			"ledger_line_play_session_entry_check",
 			sql`${t.playSessionId} IS NULL OR ${t.entryId} IS NOT NULL`
+		),
+		check(
+			"ledger_line_source_event_scope_check",
+			sql`${t.sourceEventId} IS NULL OR (${t.entryId} IS NOT NULL AND ${t.playSessionId} IS NOT NULL)`
+		),
+		check(
+			"ledger_line_category_role_check",
+			sql`${t.categoryId} IS NULL OR ${oneOf(t.role, LEDGER_WALLET_ROLES)}`
+		),
+		check(
+			"ledger_line_price_role_check",
+			sql`${t.priceId} IS NULL OR ${oneOf(t.role, LEDGER_PRICE_ROLES)}`
+		),
+		check(
+			"ledger_line_wallet_links_check",
+			sql`NOT (${oneOf(t.role, LEDGER_WALLET_ROLES)}) OR (${t.playSessionId} IS NULL AND ${t.sourceEventId} IS NULL AND ${t.priceId} IS NULL)`
 		),
 	]
 );

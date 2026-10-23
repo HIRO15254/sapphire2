@@ -66,7 +66,7 @@ test("registers a passkey in Settings and signs back into the same account", asy
 		await page
 			.getByRole("button", { name: "Sign in with a passkey", exact: true })
 			.click();
-		await expect(page).toHaveURL((url) => url.pathname === "/statistics");
+		await expect(page).toHaveURL((url) => url.pathname === "/");
 		const resumed = await page.request.get(`${API_URL}/api/auth/get-session`);
 		expect(resumed.ok()).toBe(true);
 		expect((await resumed.json()).user).toMatchObject({

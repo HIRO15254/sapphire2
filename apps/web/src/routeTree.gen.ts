@@ -9,27 +9,10 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as StatisticsRouteImport } from './routes/statistics'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as GamesRouteImport } from './routes/games'
-import { Route as ActiveSessionRouteImport } from './routes/active-session'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as SessionsIndexRouteImport } from './routes/sessions/index'
-import { Route as RoomsIndexRouteImport } from './routes/rooms/index'
-import { Route as PlayersIndexRouteImport } from './routes/players/index'
-import { Route as CurrenciesIndexRouteImport } from './routes/currencies/index'
-import { Route as SessionsSessionIdRouteImport } from './routes/sessions/$sessionId'
-import { Route as RoomsRoomIdRouteImport } from './routes/rooms/$roomId'
-import { Route as PlayersPlayerIdRouteImport } from './routes/players/$playerId'
-import { Route as CurrenciesCurrencyIdRouteImport } from './routes/currencies/$currencyId'
-import { Route as LiveSessionsSessionTypeSessionIdEventsRouteImport } from './routes/live-sessions/$sessionType/$sessionId/events'
 
-const StatisticsRoute = StatisticsRouteImport.update({
-  id: '/statistics',
-  path: '/statistics',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -40,201 +23,44 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const GamesRoute = GamesRouteImport.update({
-  id: '/games',
-  path: '/games',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ActiveSessionRoute = ActiveSessionRouteImport.update({
-  id: '/active-session',
-  path: '/active-session',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SessionsIndexRoute = SessionsIndexRouteImport.update({
-  id: '/sessions/',
-  path: '/sessions/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RoomsIndexRoute = RoomsIndexRouteImport.update({
-  id: '/rooms/',
-  path: '/rooms/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PlayersIndexRoute = PlayersIndexRouteImport.update({
-  id: '/players/',
-  path: '/players/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CurrenciesIndexRoute = CurrenciesIndexRouteImport.update({
-  id: '/currencies/',
-  path: '/currencies/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SessionsSessionIdRoute = SessionsSessionIdRouteImport.update({
-  id: '/sessions/$sessionId',
-  path: '/sessions/$sessionId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RoomsRoomIdRoute = RoomsRoomIdRouteImport.update({
-  id: '/rooms/$roomId',
-  path: '/rooms/$roomId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PlayersPlayerIdRoute = PlayersPlayerIdRouteImport.update({
-  id: '/players/$playerId',
-  path: '/players/$playerId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CurrenciesCurrencyIdRoute = CurrenciesCurrencyIdRouteImport.update({
-  id: '/currencies/$currencyId',
-  path: '/currencies/$currencyId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LiveSessionsSessionTypeSessionIdEventsRoute =
-  LiveSessionsSessionTypeSessionIdEventsRouteImport.update({
-    id: '/live-sessions/$sessionType/$sessionId/events',
-    path: '/live-sessions/$sessionType/$sessionId/events',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/active-session': typeof ActiveSessionRoute
-  '/games': typeof GamesRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
-  '/statistics': typeof StatisticsRoute
-  '/currencies/$currencyId': typeof CurrenciesCurrencyIdRoute
-  '/players/$playerId': typeof PlayersPlayerIdRoute
-  '/rooms/$roomId': typeof RoomsRoomIdRoute
-  '/sessions/$sessionId': typeof SessionsSessionIdRoute
-  '/currencies/': typeof CurrenciesIndexRoute
-  '/players/': typeof PlayersIndexRoute
-  '/rooms/': typeof RoomsIndexRoute
-  '/sessions/': typeof SessionsIndexRoute
-  '/live-sessions/$sessionType/$sessionId/events': typeof LiveSessionsSessionTypeSessionIdEventsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/active-session': typeof ActiveSessionRoute
-  '/games': typeof GamesRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
-  '/statistics': typeof StatisticsRoute
-  '/currencies/$currencyId': typeof CurrenciesCurrencyIdRoute
-  '/players/$playerId': typeof PlayersPlayerIdRoute
-  '/rooms/$roomId': typeof RoomsRoomIdRoute
-  '/sessions/$sessionId': typeof SessionsSessionIdRoute
-  '/currencies': typeof CurrenciesIndexRoute
-  '/players': typeof PlayersIndexRoute
-  '/rooms': typeof RoomsIndexRoute
-  '/sessions': typeof SessionsIndexRoute
-  '/live-sessions/$sessionType/$sessionId/events': typeof LiveSessionsSessionTypeSessionIdEventsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/active-session': typeof ActiveSessionRoute
-  '/games': typeof GamesRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
-  '/statistics': typeof StatisticsRoute
-  '/currencies/$currencyId': typeof CurrenciesCurrencyIdRoute
-  '/players/$playerId': typeof PlayersPlayerIdRoute
-  '/rooms/$roomId': typeof RoomsRoomIdRoute
-  '/sessions/$sessionId': typeof SessionsSessionIdRoute
-  '/currencies/': typeof CurrenciesIndexRoute
-  '/players/': typeof PlayersIndexRoute
-  '/rooms/': typeof RoomsIndexRoute
-  '/sessions/': typeof SessionsIndexRoute
-  '/live-sessions/$sessionType/$sessionId/events': typeof LiveSessionsSessionTypeSessionIdEventsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/active-session'
-    | '/games'
-    | '/login'
-    | '/settings'
-    | '/statistics'
-    | '/currencies/$currencyId'
-    | '/players/$playerId'
-    | '/rooms/$roomId'
-    | '/sessions/$sessionId'
-    | '/currencies/'
-    | '/players/'
-    | '/rooms/'
-    | '/sessions/'
-    | '/live-sessions/$sessionType/$sessionId/events'
+  fullPaths: '/' | '/login' | '/settings'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/active-session'
-    | '/games'
-    | '/login'
-    | '/settings'
-    | '/statistics'
-    | '/currencies/$currencyId'
-    | '/players/$playerId'
-    | '/rooms/$roomId'
-    | '/sessions/$sessionId'
-    | '/currencies'
-    | '/players'
-    | '/rooms'
-    | '/sessions'
-    | '/live-sessions/$sessionType/$sessionId/events'
-  id:
-    | '__root__'
-    | '/'
-    | '/active-session'
-    | '/games'
-    | '/login'
-    | '/settings'
-    | '/statistics'
-    | '/currencies/$currencyId'
-    | '/players/$playerId'
-    | '/rooms/$roomId'
-    | '/sessions/$sessionId'
-    | '/currencies/'
-    | '/players/'
-    | '/rooms/'
-    | '/sessions/'
-    | '/live-sessions/$sessionType/$sessionId/events'
+  to: '/' | '/login' | '/settings'
+  id: '__root__' | '/' | '/login' | '/settings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ActiveSessionRoute: typeof ActiveSessionRoute
-  GamesRoute: typeof GamesRoute
   LoginRoute: typeof LoginRoute
   SettingsRoute: typeof SettingsRoute
-  StatisticsRoute: typeof StatisticsRoute
-  CurrenciesCurrencyIdRoute: typeof CurrenciesCurrencyIdRoute
-  PlayersPlayerIdRoute: typeof PlayersPlayerIdRoute
-  RoomsRoomIdRoute: typeof RoomsRoomIdRoute
-  SessionsSessionIdRoute: typeof SessionsSessionIdRoute
-  CurrenciesIndexRoute: typeof CurrenciesIndexRoute
-  PlayersIndexRoute: typeof PlayersIndexRoute
-  RoomsIndexRoute: typeof RoomsIndexRoute
-  SessionsIndexRoute: typeof SessionsIndexRoute
-  LiveSessionsSessionTypeSessionIdEventsRoute: typeof LiveSessionsSessionTypeSessionIdEventsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/statistics': {
-      id: '/statistics'
-      path: '/statistics'
-      fullPath: '/statistics'
-      preLoaderRoute: typeof StatisticsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -249,20 +75,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/games': {
-      id: '/games'
-      path: '/games'
-      fullPath: '/games'
-      preLoaderRoute: typeof GamesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/active-session': {
-      id: '/active-session'
-      path: '/active-session'
-      fullPath: '/active-session'
-      preLoaderRoute: typeof ActiveSessionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -270,89 +82,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/sessions/': {
-      id: '/sessions/'
-      path: '/sessions'
-      fullPath: '/sessions/'
-      preLoaderRoute: typeof SessionsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/rooms/': {
-      id: '/rooms/'
-      path: '/rooms'
-      fullPath: '/rooms/'
-      preLoaderRoute: typeof RoomsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/players/': {
-      id: '/players/'
-      path: '/players'
-      fullPath: '/players/'
-      preLoaderRoute: typeof PlayersIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/currencies/': {
-      id: '/currencies/'
-      path: '/currencies'
-      fullPath: '/currencies/'
-      preLoaderRoute: typeof CurrenciesIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sessions/$sessionId': {
-      id: '/sessions/$sessionId'
-      path: '/sessions/$sessionId'
-      fullPath: '/sessions/$sessionId'
-      preLoaderRoute: typeof SessionsSessionIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/rooms/$roomId': {
-      id: '/rooms/$roomId'
-      path: '/rooms/$roomId'
-      fullPath: '/rooms/$roomId'
-      preLoaderRoute: typeof RoomsRoomIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/players/$playerId': {
-      id: '/players/$playerId'
-      path: '/players/$playerId'
-      fullPath: '/players/$playerId'
-      preLoaderRoute: typeof PlayersPlayerIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/currencies/$currencyId': {
-      id: '/currencies/$currencyId'
-      path: '/currencies/$currencyId'
-      fullPath: '/currencies/$currencyId'
-      preLoaderRoute: typeof CurrenciesCurrencyIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/live-sessions/$sessionType/$sessionId/events': {
-      id: '/live-sessions/$sessionType/$sessionId/events'
-      path: '/live-sessions/$sessionType/$sessionId/events'
-      fullPath: '/live-sessions/$sessionType/$sessionId/events'
-      preLoaderRoute: typeof LiveSessionsSessionTypeSessionIdEventsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ActiveSessionRoute: ActiveSessionRoute,
-  GamesRoute: GamesRoute,
   LoginRoute: LoginRoute,
   SettingsRoute: SettingsRoute,
-  StatisticsRoute: StatisticsRoute,
-  CurrenciesCurrencyIdRoute: CurrenciesCurrencyIdRoute,
-  PlayersPlayerIdRoute: PlayersPlayerIdRoute,
-  RoomsRoomIdRoute: RoomsRoomIdRoute,
-  SessionsSessionIdRoute: SessionsSessionIdRoute,
-  CurrenciesIndexRoute: CurrenciesIndexRoute,
-  PlayersIndexRoute: PlayersIndexRoute,
-  RoomsIndexRoute: RoomsIndexRoute,
-  SessionsIndexRoute: SessionsIndexRoute,
-  LiveSessionsSessionTypeSessionIdEventsRoute:
-    LiveSessionsSessionTypeSessionIdEventsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
