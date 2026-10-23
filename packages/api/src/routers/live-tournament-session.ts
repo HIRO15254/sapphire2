@@ -3,7 +3,7 @@ import {
 	tournamentSessionEndPayload,
 	updateStackPayload,
 } from "@sapphire2/db/constants/session-event-types";
-import { currency } from "@sapphire2/db/schema/currency";
+import { asset } from "@sapphire2/db/schema/asset";
 import { entry } from "@sapphire2/db/schema/entry";
 import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
@@ -689,8 +689,8 @@ export const liveTournamentSessionRouter = router({
 					tournamentName: sessionTournamentDetail.ruleName,
 					startingStack: sessionTournamentDetail.startingStack,
 					currencyId: gameSession.currencyId,
-					currencyName: currency.name,
-					currencyUnit: currency.unit,
+					currencyName: asset.name,
+					currencyUnit: asset.unit,
 					startedAt: gameSession.startedAt,
 					sessionDate: gameSession.sessionDate,
 					endedAt: gameSession.endedAt,
@@ -708,11 +708,8 @@ export const liveTournamentSessionRouter = router({
 					and(eq(room.id, gameSession.roomId), eq(room.userId, userId))
 				)
 				.leftJoin(
-					currency,
-					and(
-						eq(currency.id, gameSession.currencyId),
-						eq(currency.userId, userId)
-					)
+					asset,
+					and(eq(asset.id, gameSession.currencyId), eq(asset.userId, userId))
 				)
 				.where(and(...conditions))
 				.orderBy(desc(sessionOrderKeySql()), desc(gameSession.id))

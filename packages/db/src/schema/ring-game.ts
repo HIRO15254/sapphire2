@@ -9,8 +9,8 @@ import {
 } from "drizzle-orm/sqlite-core";
 import { DEFAULT_VARIANT_LABEL } from "../constants/game-variants";
 import type { MixGameGroup } from "../schemas/game";
+import { asset } from "./asset";
 import { user } from "./auth";
-import { currency } from "./currency";
 import { room } from "./room";
 
 export const ringGame = sqliteTable(
@@ -32,7 +32,7 @@ export const ringGame = sqliteTable(
 		minBuyIn: integer("min_buy_in"),
 		maxBuyIn: integer("max_buy_in"),
 		tableSize: integer("table_size"),
-		currencyId: text("currency_id").references(() => currency.id, {
+		currencyId: text("currency_id").references(() => asset.id, {
 			onDelete: "set null",
 		}),
 		memo: text("memo"),
@@ -67,8 +67,8 @@ export const ringGameRelations = relations(ringGame, ({ one }) => ({
 		fields: [ringGame.userId],
 		references: [user.id],
 	}),
-	currency: one(currency, {
+	asset: one(asset, {
 		fields: [ringGame.currencyId],
-		references: [currency.id],
+		references: [asset.id],
 	}),
 }));

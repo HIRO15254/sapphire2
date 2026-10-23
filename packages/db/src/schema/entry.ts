@@ -17,8 +17,8 @@ import {
 	PLAY_SESSION_END_STATES,
 	PLAY_SESSION_STATUSES,
 } from "../constants/entry";
+import { asset } from "./asset";
 import { user } from "./auth";
-import { currency } from "./currency";
 import { hand } from "./hand";
 import { ringGame } from "./ring-game";
 import { room } from "./room";
@@ -63,7 +63,7 @@ export const entry = sqliteTable(
 		}).onDelete("no action"),
 		foreignKey({
 			columns: [t.assetId, t.userId],
-			foreignColumns: [currency.id, currency.userId],
+			foreignColumns: [asset.id, asset.userId],
 			name: "entry_asset_owner_fk",
 		}).onDelete("no action"),
 		check("entry_kind_check", oneOf(t.kind, ENTRY_KINDS)),
@@ -326,9 +326,9 @@ export const entryRelations = relations(entry, ({ one, many }) => ({
 		fields: [entry.roomId, entry.userId],
 		references: [room.id, room.userId],
 	}),
-	asset: one(currency, {
+	asset: one(asset, {
 		fields: [entry.assetId, entry.userId],
-		references: [currency.id, currency.userId],
+		references: [asset.id, asset.userId],
 	}),
 	cash: one(entryCash),
 	tournament: one(entryTournament),

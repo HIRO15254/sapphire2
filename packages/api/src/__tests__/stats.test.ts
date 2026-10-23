@@ -1215,7 +1215,7 @@ describe("stats ownership scoping", () => {
 		["missing", []],
 		["foreign", [{ id: "currency-1", userId: "user-2" }]],
 	])("returns FORBIDDEN for a %s currency filter in every procedure", async (_case, currencies) => {
-		const { caller } = makeStatsCaller({ currency: currencies });
+		const { caller } = makeStatsCaller({ asset: currencies });
 		const calls = [
 			caller.summary({ currencyId: "currency-1" }),
 			caller.breakdown({ currencyId: "currency-1", groupBy: "room" }),
@@ -1240,7 +1240,7 @@ describe("stats ownership scoping", () => {
 
 	it("accepts room and currency filters owned by the caller", async () => {
 		const { caller } = makeStatsCaller({
-			currency: [{ id: "currency-1", userId: "user-1" }],
+			asset: [{ id: "currency-1", userId: "user-1" }],
 			room: [{ id: "room-1", userId: "user-1" }],
 			game_session: [],
 		});

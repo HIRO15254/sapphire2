@@ -53,13 +53,13 @@ function rateRow(id: string, userId: string, overrides: Row = {}): Row {
 }
 
 async function seedOwner(d1: TestD1Database, owner: string) {
-	await insert(d1, "currency", {
+	await insert(d1, "asset", {
 		id: `${owner}-currency`,
 		user_id: owner,
 		name: "Points",
 		updated_at: 0,
 	});
-	await insert(d1, "currency", {
+	await insert(d1, "asset", {
 		id: `${owner}-ticket`,
 		user_id: owner,
 		name: "Main ticket",
@@ -393,7 +393,7 @@ describe("asset and ledger tables on D1", () => {
 		);
 	});
 
-	test("assets are currencies or items with 0 to 4 decimals, existing currencies default to a currency with no decimals, and rates and category names follow their keys", async ({
+	test("assets are currencies or items with 0 to 4 decimals and unique names per user ignoring case and surrounding spaces, existing currencies default to a currency with no decimals, and rates and category names follow their keys", async ({
 		api,
 	}) => {
 		await seedOwner(api.d1, "alice");
@@ -401,7 +401,7 @@ describe("asset and ledger tables on D1", () => {
 
 		const assets = await api.d1
 			.prepare(
-				"SELECT id, kind, decimals, archived_at FROM currency WHERE user_id = 'alice' ORDER BY id"
+				"SELECT id, kind, decimals, archived_at FROM asset WHERE user_id = 'alice' ORDER BY id"
 			)
 			.all();
 		expect(assets.results).toEqual([
@@ -413,7 +413,7 @@ describe("asset and ledger tables on D1", () => {
 			},
 			{ id: "alice-ticket", kind: "item", decimals: 0, archived_at: null },
 		]);
-		await insert(api.d1, "currency", {
+		await insert(api.d1, "asset", {
 			id: "usd",
 			user_id: "alice",
 			name: "USD",
@@ -421,12 +421,12 @@ describe("asset and ledger tables on D1", () => {
 			updated_at: 0,
 		});
 		for (const [overrides, constraint] of [
-			[{ kind: "point" }, "currency_kind_check"],
-			[{ decimals: 5 }, "currency_decimals_check"],
-			[{ decimals: -1 }, "currency_decimals_check"],
+			[{ kind: "point" }, "asset_kind_check"],
+			[{ decimals: 5 }, "asset_decimals_check"],
+			[{ decimals: -1 }, "asset_decimals_check"],
 		] as const) {
 			await expect(
-				insert(api.d1, "currency", {
+				insert(api.d1, "asset", {
 					id: "bad-asset",
 					user_id: "alice",
 					name: "Bad",
@@ -436,6 +436,20 @@ describe("asset and ledger tables on D1", () => {
 				JSON.stringify(overrides)
 			).rejects.toThrow(`CHECK constraint failed: ${constraint}`);
 		}
+		await expect(
+			insert(api.d1, "asset", {
+				id: "usd-again",
+				user_id: "alice",
+				name: " usd ",
+				updated_at: 0,
+			})
+		).rejects.toThrow("UNIQUE constraint failed");
+		await insert(api.d1, "asset", {
+			id: "bob-usd",
+			user_id: "bob",
+			name: "USD",
+			updated_at: 0,
+		});
 
 		await insert(api.d1, "asset_rate", rateRow("from-start", "alice"));
 		await insert(
@@ -539,7 +553,7 @@ describe("asset and ledger tables on D1", () => {
 				category_id: "alice-deposit",
 			})
 		);
-		await insert(api.d1, "currency", {
+		await insert(api.d1, "asset", {
 			id: "yen",
 			user_id: "alice",
 			name: "Yen",
@@ -552,8 +566,8 @@ describe("asset and ledger tables on D1", () => {
 		});
 
 		for (const [table, id] of [
-			["currency", "alice-currency"],
-			["currency", "yen"],
+			["asset", "alice-currency"],
+			["asset", "yen"],
 			["ledger_category", "alice-deposit"],
 		]) {
 			await expect(
@@ -566,9 +580,7 @@ describe("asset and ledger tables on D1", () => {
 			.prepare("DELETE FROM play_event WHERE id = 'alice-start'")
 			.run();
 		expect(await ids(api.d1, "ledger_line")).toEqual(["deposit", "manual"]);
-		await api.d1
-			.prepare("DELETE FROM currency WHERE id = 'alice-ticket'")
-			.run();
+		await api.d1.prepare("DELETE FROM asset WHERE id = 'alice-ticket'").run();
 		expect(await ids(api.d1, "asset_rate")).toEqual([]);
 		await api.d1.prepare("DELETE FROM entry WHERE id = 'alice-entry'").run();
 		expect(await ids(api.d1, "ledger_line")).toEqual(["deposit"]);
@@ -590,10 +602,7 @@ describe("asset and ledger tables on D1", () => {
 
 		await api.d1.prepare("DELETE FROM user WHERE id = 'alice'").run();
 
-		expect(await ids(api.d1, "currency")).toEqual([
-			"bob-currency",
-			"bob-ticket",
-		]);
+		expect(await ids(api.d1, "asset")).toEqual(["bob-currency", "bob-ticket"]);
 		expect(await ids(api.d1, "asset_rate")).toEqual(["bob-rate"]);
 		expect(await ids(api.d1, "ledger_category")).toEqual(["bob-deposit"]);
 		expect(await ids(api.d1, "ledger_line")).toEqual(["bob-line"]);

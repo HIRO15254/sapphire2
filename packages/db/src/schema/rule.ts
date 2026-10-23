@@ -16,8 +16,8 @@ import {
 	MIN_RULE_TABLE_SIZE,
 	RULE_PRICE_KINDS,
 } from "../constants/rule";
+import { asset } from "./asset";
 import { user } from "./auth";
-import { currency } from "./currency";
 import { gameLineup, gameLineupGroup } from "./game-lineup";
 import { ringGame } from "./ring-game";
 import { oneOf } from "./sql-checks";
@@ -328,7 +328,7 @@ export const tournamentRulePrice = sqliteTable(
 		}).onDelete("cascade"),
 		foreignKey({
 			columns: [t.assetId, t.userId],
-			foreignColumns: [currency.id, currency.userId],
+			foreignColumns: [asset.id, asset.userId],
 			name: "tournament_rule_price_asset_owner_fk",
 		}).onDelete("no action"),
 		check("tournament_rule_price_kind_check", oneOf(t.kind, RULE_PRICE_KINDS)),
@@ -419,9 +419,9 @@ export const tournamentRulePriceRelations = relations(
 			fields: [tournamentRulePrice.ruleId, tournamentRulePrice.userId],
 			references: [tournamentRule.id, tournamentRule.userId],
 		}),
-		asset: one(currency, {
+		asset: one(asset, {
 			fields: [tournamentRulePrice.assetId, tournamentRulePrice.userId],
-			references: [currency.id, currency.userId],
+			references: [asset.id, asset.userId],
 		}),
 	})
 );

@@ -1,4 +1,4 @@
-import { currency } from "@sapphire2/db/schema/currency";
+import { asset } from "@sapphire2/db/schema/asset";
 import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { gameMix, gameMixVariant } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
@@ -307,7 +307,7 @@ describe("ringGame currency ownership (SA2-180)", () => {
 		return new Map<unknown, Rows>([
 			[room, [ownedRoom]],
 			[ringGame, [ownedRingGame]],
-			[currency, currencyRows],
+			[asset, currencyRows],
 		]);
 	}
 
@@ -317,7 +317,7 @@ describe("ringGame currency ownership (SA2-180)", () => {
 			new Map<unknown, Rows>([
 				[room, []],
 				[ringGame, []],
-				[currency, []],
+				[asset, []],
 			])
 		);
 		const foreignRoomCaller = ringGameCaller(
@@ -325,7 +325,7 @@ describe("ringGame currency ownership (SA2-180)", () => {
 			new Map<unknown, Rows>([
 				[room, [{ id: "room-1", userId: CUR_OTHER }]],
 				[ringGame, []],
-				[currency, []],
+				[asset, []],
 			])
 		);
 
@@ -406,7 +406,7 @@ describe("ringGame.create sets userId to the caller (SA2-181)", () => {
 		const rowsByTable = new Map<unknown, Rows>([
 			[room, [{ id: "room-1", userId: CUR_OWNER }]],
 			[ringGame, []],
-			[currency, []],
+			[asset, []],
 		]);
 		const inserted: Record<string, unknown>[] = [];
 		const baseDb = createMockDb(rowsByTable);
@@ -436,7 +436,7 @@ describe("validateRingGameOwnership via mutations (SA2-181)", () => {
 		return new Map<unknown, Rows>([
 			[room, []],
 			[ringGame, rg],
-			[currency, []],
+			[asset, []],
 		]);
 	}
 

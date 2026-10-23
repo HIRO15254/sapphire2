@@ -7,8 +7,9 @@ import {
 	text,
 	uniqueIndex,
 } from "drizzle-orm/sqlite-core";
+import { asset } from "./asset";
 import { user } from "./auth";
-import { currency, currencyTransaction } from "./currency";
+import { currencyTransaction } from "./currency";
 import { room } from "./room";
 import { sessionToSessionTag } from "./session-tag";
 
@@ -32,7 +33,7 @@ export const gameSession = sqliteTable(
 		roomId: text("room_id").references(() => room.id, {
 			onDelete: "set null",
 		}),
-		currencyId: text("currency_id").references(() => currency.id, {
+		currencyId: text("currency_id").references(() => asset.id, {
 			onDelete: "set null",
 		}),
 		createdAt: integer("created_at", { mode: "timestamp" })
@@ -66,9 +67,9 @@ export const gameSessionRelations = relations(gameSession, ({ one, many }) => ({
 		fields: [gameSession.roomId],
 		references: [room.id],
 	}),
-	currency: one(currency, {
+	asset: one(asset, {
 		fields: [gameSession.currencyId],
-		references: [currency.id],
+		references: [asset.id],
 	}),
 	transactions: many(currencyTransaction),
 	tagLinks: many(sessionToSessionTag),

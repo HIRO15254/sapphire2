@@ -1,4 +1,4 @@
-import { currency } from "@sapphire2/db/schema/currency";
+import { asset } from "@sapphire2/db/schema/asset";
 import { room } from "@sapphire2/db/schema/room";
 import {
 	blindLevel,
@@ -397,7 +397,7 @@ describe("tournament currency ownership (SA2-180)", () => {
 		return new Map<unknown, Rows>([
 			[room, [ownedRoom]],
 			[tournament, [ownedTournament]],
-			[currency, currencyRows],
+			[asset, currencyRows],
 		]);
 	}
 

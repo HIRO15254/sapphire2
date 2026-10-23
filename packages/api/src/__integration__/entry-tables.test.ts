@@ -88,7 +88,7 @@ async function seedMasters(d1: TestD1Database, owners: string[]) {
 			name: "Room",
 			updated_at: 0,
 		});
-		await insert(d1, "currency", {
+		await insert(d1, "asset", {
 			id: `${owner}-currency`,
 			user_id: owner,
 			name: "Chips",
@@ -787,7 +787,7 @@ describe("entry aggregate tables on D1", () => {
 
 		for (const [table, id] of [
 			["room", "alice-room"],
-			["currency", "alice-currency"],
+			["asset", "alice-currency"],
 			["ring_game", "alice-ring"],
 			["tournament", "alice-tournament"],
 		]) {
@@ -806,9 +806,7 @@ describe("entry aggregate tables on D1", () => {
 		for (const table of ["entry_cash", "entry_tournament"]) {
 			expect(await ids(api.d1, table, "entry_id"), table).toEqual([]);
 		}
-		await api.d1
-			.prepare("DELETE FROM currency WHERE id = 'alice-currency'")
-			.run();
+		await api.d1.prepare("DELETE FROM asset WHERE id = 'alice-currency'").run();
 		await api.d1.prepare("DELETE FROM room WHERE id = 'alice-room'").run();
 		expect(await ids(api.d1, "ring_game")).toEqual([]);
 		expect(await ids(api.d1, "tournament")).toEqual([]);

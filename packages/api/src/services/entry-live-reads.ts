@@ -1,5 +1,5 @@
 import type { EntryKind } from "@sapphire2/db/constants/entry";
-import { currency } from "@sapphire2/db/schema/currency";
+import { asset } from "@sapphire2/db/schema/asset";
 import {
 	entry,
 	entryCash,
@@ -109,8 +109,8 @@ export function listLiveCashEntryRows(
 			roomName: room.name,
 			ringGameId: entryCash.ringGameId,
 			ringGameName: sessionCashDetail.ruleName,
-			currencyName: currency.name,
-			currencyUnit: currency.unit,
+			currencyName: asset.name,
+			currencyUnit: asset.unit,
 		})
 		.from(entry)
 		.leftJoin(firstPlaySession, firstPlaySessionJoin())
@@ -120,10 +120,7 @@ export function listLiveCashEntryRows(
 		)
 		.leftJoin(sessionCashDetail, eq(sessionCashDetail.sessionId, entry.id))
 		.leftJoin(room, and(eq(room.id, entry.roomId), eq(room.userId, userId)))
-		.leftJoin(
-			currency,
-			and(eq(currency.id, entry.assetId), eq(currency.userId, userId))
-		)
+		.leftJoin(asset, and(eq(asset.id, entry.assetId), eq(asset.userId, userId)))
 		.where(liveEntryListCondition(userId, "cash", params))
 		.orderBy(desc(legacySessionDateSql()), desc(entry.id))
 		.limit(params.limit);
@@ -141,8 +138,8 @@ export function listLiveTournamentEntryRows(
 			tournamentId: entryTournament.tournamentId,
 			tournamentName: sessionTournamentDetail.ruleName,
 			startingStack: sessionTournamentDetail.startingStack,
-			currencyName: currency.name,
-			currencyUnit: currency.unit,
+			currencyName: asset.name,
+			currencyUnit: asset.unit,
 		})
 		.from(entry)
 		.leftJoin(firstPlaySession, firstPlaySessionJoin())
@@ -158,10 +155,7 @@ export function listLiveTournamentEntryRows(
 			eq(sessionTournamentDetail.sessionId, entry.id)
 		)
 		.leftJoin(room, and(eq(room.id, entry.roomId), eq(room.userId, userId)))
-		.leftJoin(
-			currency,
-			and(eq(currency.id, entry.assetId), eq(currency.userId, userId))
-		)
+		.leftJoin(asset, and(eq(asset.id, entry.assetId), eq(asset.userId, userId)))
 		.where(liveEntryListCondition(userId, "tournament", params))
 		.orderBy(desc(legacySessionDateSql()), desc(entry.id))
 		.limit(params.limit);

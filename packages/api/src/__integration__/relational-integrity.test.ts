@@ -1,5 +1,6 @@
+import { asset } from "@sapphire2/db/schema/asset";
 import { user } from "@sapphire2/db/schema/auth";
-import { currency, currencyTransaction } from "@sapphire2/db/schema/currency";
+import { currencyTransaction } from "@sapphire2/db/schema/currency";
 import { player, playerToPlayerTag } from "@sapphire2/db/schema/player";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
@@ -135,7 +136,7 @@ describe("installed D1 referential integrity", () => {
 			cashOut: 150,
 		});
 		await api.db.delete(room).where(eq(room.id, "old-room"));
-		await api.db.delete(currency).where(eq(currency.id, wallet.id));
+		await api.db.delete(asset).where(eq(asset.id, wallet.id));
 		expect(await api.db.select().from(gameSession)).toEqual([
 			expect.objectContaining({
 				id: "history",

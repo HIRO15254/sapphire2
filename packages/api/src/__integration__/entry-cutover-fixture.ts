@@ -16,7 +16,7 @@ SELECT gs.id, gs.user_id,
   gs.memo, gs.created_at, gs.updated_at
 FROM game_session gs
 LEFT JOIN room r ON r.id = gs.room_id AND r.user_id = gs.user_id
-LEFT JOIN currency c ON c.id = gs.currency_id AND c.user_id = gs.user_id
+LEFT JOIN asset c ON c.id = gs.currency_id AND c.user_id = gs.user_id
 LEFT JOIN session_cash_detail scd ON scd.session_id = gs.id
 LEFT JOIN session_tournament_detail std ON std.session_id = gs.id`,
 	`INSERT INTO entry_cash (entry_id, user_id, kind, ring_game_id, ev_diff)

@@ -43,6 +43,7 @@ type DeclaredIndex = ReturnType<
 >["indexes"][number]["config"];
 
 const INDEX_EXPRESSIONS: Record<string, string> = {
+	asset_name_uq: 'lower(trim("name"))',
 	ledger_category_user_name_unique: 'lower(trim("name"))',
 };
 

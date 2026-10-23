@@ -1,5 +1,5 @@
 import type { Database } from "@sapphire2/db";
-import { currency } from "@sapphire2/db/schema/currency";
+import { asset } from "@sapphire2/db/schema/asset";
 import { playEvent } from "@sapphire2/db/schema/entry";
 import {
 	assetRate,
@@ -53,7 +53,7 @@ function minutes(count: number): Date {
 }
 
 async function seedAssets(db: Database) {
-	await db.insert(currency).values([
+	await db.insert(asset).values([
 		{ id: JPY, userId: "alice", name: "JPY", updatedAt: NOW },
 		{ id: USD, userId: "alice", name: "USD", updatedAt: NOW },
 		{

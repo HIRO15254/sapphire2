@@ -1,4 +1,5 @@
-import { currency, currencyTransaction } from "@sapphire2/db/schema/currency";
+import { asset } from "@sapphire2/db/schema/asset";
+import { currencyTransaction } from "@sapphire2/db/schema/currency";
 import { eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
 import { requireCreatedRow, test } from "./test-fixture";
@@ -36,7 +37,7 @@ describe("currency persistence and account isolation on D1", () => {
 		});
 		await api.alice.currency.toggleFavorite({ id: created.id });
 		expect(
-			await api.db.select().from(currency).where(eq(currency.id, created.id))
+			await api.db.select().from(asset).where(eq(asset.id, created.id))
 		).toEqual([
 			expect.objectContaining({
 				unit: null,
@@ -55,7 +56,7 @@ describe("currency persistence and account isolation on D1", () => {
 		const saved = requireCreatedRow(
 			await api.alice.currency.create({ name: "Saved" })
 		);
-		const before = await api.db.select().from(currency);
+		const before = await api.db.select().from(asset);
 		const guest = api.caller(null);
 		const requests = [
 			() => guest.currency.list(),
@@ -67,7 +68,7 @@ describe("currency persistence and account isolation on D1", () => {
 		for (const request of requests) {
 			await expect(request()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
 		}
-		expect(await api.db.select().from(currency)).toEqual(before);
+		expect(await api.db.select().from(asset)).toEqual(before);
 	});
 
 	test("rejects foreign and nonexistent IDs uniformly for updates, favorites and deletes", async ({
@@ -76,7 +77,7 @@ describe("currency persistence and account isolation on D1", () => {
 		const saved = requireCreatedRow(
 			await api.bob.currency.create({ name: "Private savings" })
 		);
-		const before = await api.db.select().from(currency);
+		const before = await api.db.select().from(asset);
 		for (const id of [saved.id, "missing-currency"]) {
 			await expect(
 				api.alice.currency.update({ id, name: "Stolen" })
@@ -96,7 +97,29 @@ describe("currency persistence and account isolation on D1", () => {
 			});
 		}
 		expect(await api.alice.currency.list()).toEqual([]);
-		expect(await api.db.select().from(currency)).toEqual(before);
+		expect(await api.db.select().from(asset)).toEqual(before);
+	});
+
+	test("rejects a name another of the caller's currencies already uses, ignoring case and surrounding spaces, without writing", async ({
+		api,
+	}) => {
+		requireCreatedRow(await api.alice.currency.create({ name: "Chips" }));
+		const other = requireCreatedRow(
+			await api.alice.currency.create({ name: "Points" })
+		);
+		const before = await api.db.select().from(asset);
+		const conflict = {
+			code: "CONFLICT",
+			message: "You already have a currency with this name",
+		};
+		await expect(
+			api.alice.currency.create({ name: " chips " })
+		).rejects.toMatchObject(conflict);
+		await expect(
+			api.alice.currency.update({ id: other.id, name: "CHIPS" })
+		).rejects.toMatchObject(conflict);
+		expect(await api.db.select().from(asset)).toEqual(before);
+		requireCreatedRow(await api.bob.currency.create({ name: "Chips" }));
 	});
 
 	test("calculates balances with real joins and prevents deletion while transactions exist", async ({
@@ -160,7 +183,7 @@ describe("currency persistence and account isolation on D1", () => {
 			transactionsBefore
 		);
 		expect(
-			await api.db.select().from(currency).where(eq(currency.id, wallet.id))
+			await api.db.select().from(asset).where(eq(asset.id, wallet.id))
 		).toHaveLength(1);
 	});
 });

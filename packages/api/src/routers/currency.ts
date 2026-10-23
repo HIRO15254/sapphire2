@@ -1,8 +1,24 @@
-import { currency, currencyTransaction } from "@sapphire2/db/schema/currency";
+import { asset } from "@sapphire2/db/schema/asset";
+import { currencyTransaction } from "@sapphire2/db/schema/currency";
 import { TRPCError } from "@trpc/server";
 import { asc, desc, eq, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { isAssetNameConflictError } from "../lib/db-errors";
+
+async function runAssetNameWrite(write: () => Promise<unknown>) {
+	try {
+		await write();
+	} catch (error) {
+		if (isAssetNameConflictError(error)) {
+			throw new TRPCError({
+				code: "CONFLICT",
+				message: "You already have a currency with this name",
+			});
+		}
+		throw error;
+	}
+}
 
 export const currencyRouter = router({
 	list: protectedProcedure.query(async ({ ctx }) => {
@@ -10,24 +26,24 @@ export const currencyRouter = router({
 
 		const currencies = await ctx.db
 			.select({
-				id: currency.id,
-				userId: currency.userId,
-				name: currency.name,
-				unit: currency.unit,
-				description: currency.description,
-				isFavorite: currency.isFavorite,
-				createdAt: currency.createdAt,
-				updatedAt: currency.updatedAt,
+				id: asset.id,
+				userId: asset.userId,
+				name: asset.name,
+				unit: asset.unit,
+				description: asset.description,
+				isFavorite: asset.isFavorite,
+				createdAt: asset.createdAt,
+				updatedAt: asset.updatedAt,
 				balance: sql<number>`COALESCE(SUM(${currencyTransaction.amount}), 0)`,
 			})
-			.from(currency)
+			.from(asset)
 			.leftJoin(
 				currencyTransaction,
-				eq(currencyTransaction.currencyId, currency.id)
+				eq(currencyTransaction.currencyId, asset.id)
 			)
-			.where(eq(currency.userId, userId))
-			.groupBy(currency.id)
-			.orderBy(desc(currency.isFavorite), asc(currency.createdAt));
+			.where(eq(asset.userId, userId))
+			.groupBy(asset.id)
+			.orderBy(desc(asset.isFavorite), asc(asset.createdAt));
 
 		return currencies;
 	}),
@@ -47,18 +63,20 @@ export const currencyRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const id = crypto.randomUUID();
-			await ctx.db.insert(currency).values({
-				id,
-				userId,
-				name: input.name,
-				unit: input.unit ?? null,
-				description: input.description ?? null,
-				updatedAt: new Date(),
-			});
+			await runAssetNameWrite(() =>
+				ctx.db.insert(asset).values({
+					id,
+					userId,
+					name: input.name,
+					unit: input.unit ?? null,
+					description: input.description ?? null,
+					updatedAt: new Date(),
+				})
+			);
 			const [created] = await ctx.db
 				.select()
-				.from(currency)
-				.where(eq(currency.id, id));
+				.from(asset)
+				.where(eq(asset.id, id));
 			return created;
 		}),
 
@@ -80,8 +98,8 @@ export const currencyRouter = router({
 			const userId = ctx.session.user.id;
 			const [found] = await ctx.db
 				.select()
-				.from(currency)
-				.where(eq(currency.id, input.id));
+				.from(asset)
+				.where(eq(asset.id, input.id));
 
 			if (!found) {
 				throw new TRPCError({
@@ -97,22 +115,24 @@ export const currencyRouter = router({
 				});
 			}
 
-			await ctx.db
-				.update(currency)
-				.set({
-					...(input.name === undefined ? {} : { name: input.name }),
-					...(input.unit === undefined ? {} : { unit: input.unit }),
-					...(input.description === undefined
-						? {}
-						: { description: input.description }),
-					updatedAt: new Date(),
-				})
-				.where(eq(currency.id, input.id));
+			await runAssetNameWrite(() =>
+				ctx.db
+					.update(asset)
+					.set({
+						...(input.name === undefined ? {} : { name: input.name }),
+						...(input.unit === undefined ? {} : { unit: input.unit }),
+						...(input.description === undefined
+							? {}
+							: { description: input.description }),
+						updatedAt: new Date(),
+					})
+					.where(eq(asset.id, input.id))
+			);
 
 			const [updated] = await ctx.db
 				.select()
-				.from(currency)
-				.where(eq(currency.id, input.id));
+				.from(asset)
+				.where(eq(asset.id, input.id));
 			return updated;
 		}),
 
@@ -122,8 +142,8 @@ export const currencyRouter = router({
 			const userId = ctx.session.user.id;
 			const [found] = await ctx.db
 				.select()
-				.from(currency)
-				.where(eq(currency.id, input.id));
+				.from(asset)
+				.where(eq(asset.id, input.id));
 
 			if (!found) {
 				throw new TRPCError({
@@ -150,7 +170,7 @@ export const currencyRouter = router({
 					message: "Currency cannot be deleted while it has transactions",
 				});
 			}
-			await ctx.db.delete(currency).where(eq(currency.id, input.id));
+			await ctx.db.delete(asset).where(eq(asset.id, input.id));
 			return { success: true };
 		}),
 
@@ -160,8 +180,8 @@ export const currencyRouter = router({
 			const userId = ctx.session.user.id;
 			const [found] = await ctx.db
 				.select()
-				.from(currency)
-				.where(eq(currency.id, input.id));
+				.from(asset)
+				.where(eq(asset.id, input.id));
 
 			if (!found) {
 				throw new TRPCError({
@@ -178,14 +198,14 @@ export const currencyRouter = router({
 			}
 
 			await ctx.db
-				.update(currency)
+				.update(asset)
 				.set({ isFavorite: !found.isFavorite, updatedAt: new Date() })
-				.where(eq(currency.id, input.id));
+				.where(eq(asset.id, input.id));
 
 			const [updated] = await ctx.db
 				.select()
-				.from(currency)
-				.where(eq(currency.id, input.id));
+				.from(asset)
+				.where(eq(asset.id, input.id));
 			return updated;
 		}),
 });

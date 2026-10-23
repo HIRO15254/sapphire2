@@ -1,8 +1,8 @@
 import type { AssetKind } from "@sapphire2/db/constants/asset";
-import type { currency } from "@sapphire2/db/schema/currency";
+import type { asset } from "@sapphire2/db/schema/asset";
 import type { assetRate, ledgerLine } from "@sapphire2/db/schema/ledger";
 
-export type ValuationAsset = Pick<typeof currency.$inferSelect, "id" | "kind">;
+export type ValuationAsset = Pick<typeof asset.$inferSelect, "id" | "kind">;
 
 export type ValuationRate = Pick<
 	typeof assetRate.$inferSelect,
