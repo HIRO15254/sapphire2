@@ -34,8 +34,20 @@ jobs:
       - name: Run D1 migrations
         run: bun run db:migrate:remote
 
+  # Read-only data-model-v2 audit of the migrated production database. A
+  # violation fails this job, so neither the Worker nor the web deploys over it;
+  # recover with the Time Travel restore in data-model-v2.md §16.8.
+  audit:
+    needs: db-migrate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - name: Audit the data model
+        run: bun scripts/audit-data-model.ts --remote --database sapphire2-db
+
   deploy-api:
-    needs: [ci, db-migrate]
+    needs: [ci, db-migrate, audit]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
