@@ -113,7 +113,18 @@ function payloadSchemaFindings(
 			});
 			continue;
 		}
-		const parsed = schema.safeParse(JSON.parse(event.payload));
+		let payload: unknown;
+		try {
+			payload = JSON.parse(event.payload);
+		} catch {
+			findings.push({
+				entry_id: entryId,
+				event_id: event.id,
+				problem: "payload is not valid JSON",
+			});
+			continue;
+		}
+		const parsed = schema.safeParse(payload);
 		if (!parsed.success) {
 			findings.push({
 				entry_id: entryId,
