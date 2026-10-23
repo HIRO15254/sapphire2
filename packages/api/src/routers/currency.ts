@@ -4,6 +4,21 @@ import { TRPCError } from "@trpc/server";
 import { asc, desc, eq, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { isAssetNameConflictError } from "../lib/db-errors";
+
+async function runAssetNameWrite(write: () => Promise<unknown>) {
+	try {
+		await write();
+	} catch (error) {
+		if (isAssetNameConflictError(error)) {
+			throw new TRPCError({
+				code: "CONFLICT",
+				message: "You already have a currency with this name",
+			});
+		}
+		throw error;
+	}
+}
 
 export const currencyRouter = router({
 	list: protectedProcedure.query(async ({ ctx }) => {
@@ -48,14 +63,16 @@ export const currencyRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const id = crypto.randomUUID();
-			await ctx.db.insert(asset).values({
-				id,
-				userId,
-				name: input.name,
-				unit: input.unit ?? null,
-				description: input.description ?? null,
-				updatedAt: new Date(),
-			});
+			await runAssetNameWrite(() =>
+				ctx.db.insert(asset).values({
+					id,
+					userId,
+					name: input.name,
+					unit: input.unit ?? null,
+					description: input.description ?? null,
+					updatedAt: new Date(),
+				})
+			);
 			const [created] = await ctx.db
 				.select()
 				.from(asset)
@@ -98,17 +115,19 @@ export const currencyRouter = router({
 				});
 			}
 
-			await ctx.db
-				.update(asset)
-				.set({
-					...(input.name === undefined ? {} : { name: input.name }),
-					...(input.unit === undefined ? {} : { unit: input.unit }),
-					...(input.description === undefined
-						? {}
-						: { description: input.description }),
-					updatedAt: new Date(),
-				})
-				.where(eq(asset.id, input.id));
+			await runAssetNameWrite(() =>
+				ctx.db
+					.update(asset)
+					.set({
+						...(input.name === undefined ? {} : { name: input.name }),
+						...(input.unit === undefined ? {} : { unit: input.unit }),
+						...(input.description === undefined
+							? {}
+							: { description: input.description }),
+						updatedAt: new Date(),
+					})
+					.where(eq(asset.id, input.id))
+			);
 
 			const [updated] = await ctx.db
 				.select()

@@ -100,6 +100,28 @@ describe("currency persistence and account isolation on D1", () => {
 		expect(await api.db.select().from(asset)).toEqual(before);
 	});
 
+	test("rejects a name another of the caller's currencies already uses, ignoring case and surrounding spaces, without writing", async ({
+		api,
+	}) => {
+		requireCreatedRow(await api.alice.currency.create({ name: "Chips" }));
+		const other = requireCreatedRow(
+			await api.alice.currency.create({ name: "Points" })
+		);
+		const before = await api.db.select().from(asset);
+		const conflict = {
+			code: "CONFLICT",
+			message: "You already have a currency with this name",
+		};
+		await expect(
+			api.alice.currency.create({ name: " chips " })
+		).rejects.toMatchObject(conflict);
+		await expect(
+			api.alice.currency.update({ id: other.id, name: "CHIPS" })
+		).rejects.toMatchObject(conflict);
+		expect(await api.db.select().from(asset)).toEqual(before);
+		requireCreatedRow(await api.bob.currency.create({ name: "Chips" }));
+	});
+
 	test("calculates balances with real joins and prevents deletion while transactions exist", async ({
 		api,
 	}) => {
