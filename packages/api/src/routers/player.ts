@@ -7,13 +7,14 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, eq, inArray, like } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
-import { type BatchStatement, runBatch } from "../lib/batch";
-import { optionalUniqueTagIdsSchema } from "../lib/tag-ids";
 import {
+	type BatchStatement,
 	chunkForInsert,
+	runBatch,
 	selectInChunks,
-	validateTagsOwnership,
-} from "./session";
+} from "../lib/batch";
+import { validateTagsOwnership } from "../lib/ownership";
+import { optionalUniqueTagIdsSchema } from "../lib/tag-ids";
 
 export const playerListInputSchema = z
 	.object({

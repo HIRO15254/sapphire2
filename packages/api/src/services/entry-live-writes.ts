@@ -7,7 +7,6 @@ import {
 	playEvent,
 	playSession,
 } from "@sapphire2/db/schema/entry";
-import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
@@ -21,7 +20,6 @@ import {
 	type ProjectorEvent,
 	projectEntry,
 } from "./entry-projector";
-import { MINIMAL_GAME_SESSION_DATE } from "./entry-session";
 import { computeHeroSeatPositionFromEvents } from "./live-session-pl";
 
 const SESSION_FORBIDDEN_MESSAGE = "You do not own this session";
@@ -118,15 +116,6 @@ export function buildLiveEntryStartStatements(
 	});
 
 	return [
-		db.insert(gameSession).values({
-			id: start.id,
-			userId: start.userId,
-			kind: kind === "cash" ? "cash_game" : "tournament",
-			status: "completed",
-			source: "live",
-			sessionDate: MINIMAL_GAME_SESSION_DATE,
-			updatedAt: start.now,
-		}),
 		db.insert(entry).values({
 			id: start.id,
 			userId: start.userId,

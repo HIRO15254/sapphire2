@@ -124,24 +124,6 @@ describe("MCP protocol layer", () => {
 		}
 	});
 
-	it("renders the session.create branch literals so the union split survives JSON Schema", async () => {
-		const response = await harness.handler.fetch(
-			rpcRequest({ jsonrpc: "2.0", id: 3, method: "tools/list" })
-		);
-		const [message] = await readMessages(response);
-		const tools = (message?.result as { tools: Record<string, unknown>[] })
-			.tools;
-		const cash = tools.find((t) => t.name === "session_create_cash_game");
-		const schema = cash?.inputSchema as {
-			properties: { type?: { const?: string } };
-			required?: string[];
-		};
-		expect(schema.properties.type?.const).toBe("cash_game");
-		expect(schema.required).toContain("sessionDate");
-		expect(schema.required).toContain("buyIn");
-		expect(schema.required).toContain("cashOut");
-	});
-
 	it("dispatches tools/call to the router procedure and returns its JSON", async () => {
 		const withResult = createHandlerHarness({
 			result: { items: [], nextCursor: undefined, summary: null },
@@ -151,7 +133,7 @@ describe("MCP protocol layer", () => {
 				jsonrpc: "2.0",
 				id: 4,
 				method: "tools/call",
-				params: { name: "session_list", arguments: { type: "cash_game" } },
+				params: { name: "room_list", arguments: { includeArchived: true } },
 			})
 		);
 		const [message] = await readMessages(response);
@@ -165,7 +147,7 @@ describe("MCP protocol layer", () => {
 			JSON.stringify({ items: [], nextCursor: undefined, summary: null })
 		);
 		expect(withResult.calls).toEqual([
-			{ path: "session.list", input: { type: "cash_game" } },
+			{ path: "room.list", input: { includeArchived: true } },
 		]);
 	});
 
@@ -213,7 +195,7 @@ describe("MCP protocol layer", () => {
 				id: 7,
 				method: "tools/call",
 				params: {
-					name: "session_get_by_id",
+					name: "room_get_by_id",
 					arguments: { id: 42 },
 				},
 			})

@@ -12,7 +12,7 @@ import { player } from "@sapphire2/db/schema/player";
 import { asc, eq } from "drizzle-orm";
 import { describe, expect, vi } from "vitest";
 import { D1_MAX_BOUND_PARAMS } from "../lib/batch";
-import { validateEntityOwnership } from "../routers/session";
+import { validateEntityOwnership } from "../lib/ownership";
 import {
 	addHand,
 	buildHandSaveStatements,

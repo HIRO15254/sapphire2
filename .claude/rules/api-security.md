@@ -13,7 +13,7 @@ Why this file exists: the Fable review found ~15 IDOR bugs with one shared root 
 Before any write, link, snapshot, or read that uses an id from `input` (`currencyId`, `roomId`, `tournamentId`, `ringGameId`, `tagIds`, `transactionTypeId`, ids in bulk arrays, cursor ids, …), verify the referenced row belongs to `ctx.session.user.id`.
 
 - **An existence check (`WHERE id = ?`) is not authorization.** The `ringGame`/`tournament` branches of `validateEntityOwnership` had exactly this bug (SA2-111, 174).
-- Use the shared helpers in [`packages/api/src/routers/session.ts`](../../packages/api/src/routers/session.ts): `validateEntityOwnership`, `validateTagsOwnership`, `validateLiveLinkOwnership`. For a new entity type, extend the helper — do not hand-roll a one-off existence query inside the router.
+- Use the shared helpers in [`packages/api/src/lib/ownership.ts`](../../packages/api/src/lib/ownership.ts): `validateEntityOwnership`, `validateTagsOwnership`. For a new entity type, extend the helper — do not hand-roll a one-off existence query inside the router.
 - Entities without a direct `userId` column (e.g. `blind_level` → `tournament`, `session_cash_detail` → `game_session`) must resolve ownership through the full chain; a nullable link in that chain must **fail closed**, not skip the check (SA2-181). `ring_game` and `tournament` carry their own `NOT NULL` `userId` (SA2-296).
 
 ## Bulk / reorder mutations: re-bind every row to the validated parent
