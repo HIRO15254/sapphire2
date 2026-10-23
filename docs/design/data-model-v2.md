@@ -1013,7 +1013,7 @@ LEFT JOIN session_cash_detail scd ON scd.session_id=gs.id
 LEFT JOIN session_tournament_detail std ON std.session_id=gs.id;
 ```
 
-Every entry receives its kind detail even if the legacy detail was missing. entry_tournament is populated before deriving the day end_state, so normalized placement, not dirty legacy placement, decides finished/busted. Normalize total_entries below 1 to NULL; placement to NULL when below 1, beyond a valid total, or before_deadline=1. before_deadline is CASE old=1 THEN 1 ELSE 0, never NULL. Owner-mismatched optional room/asset/master references become NULL. Cash ev_diff is `CAST(floor(ev_cash_out - cash_out + 0.5) AS INTEGER)` to match Math.round (SQLite round(-0.5) differs); B06 sets it only when settled and recorded, then B12 replaces this bridge with always-on projection.
+Every entry receives its kind detail even if the legacy detail was missing. entry_tournament is populated before deriving the day end_state, so normalized placement, not dirty legacy placement, decides finished/busted. Normalize total_entries below 1 to NULL; placement to NULL when below 1, beyond a valid total, or before_deadline=1. before_deadline is CASE old=1 THEN 1 ELSE 0, never NULL. Owner-mismatched optional room/asset/master references become NULL; title comes from the legacy rule name whenever the entry has no *owned* master after that normalization, so dropping a foreign master link keeps the name. Cash ev_diff is `CAST(floor(ev_cash_out - cash_out + 0.5) AS INTEGER)` to match Math.round (SQLite round(-0.5) differs); B06 sets it only when settled and recorded, then B12 replaces this bridge with always-on projection.
 
 ```sql
 INSERT INTO play_session
@@ -1051,7 +1051,7 @@ SELECT se.id,e.user_id,e.id,'live',e.id,se.event_type,1,
 FROM session_event se JOIN entry e ON e.id=se.session_id AND e.source='live';
 ```
 
-Pre-audit identifies legacy events attached to non-live entries; normalize their source classification according to event-backed provenance before inserting rather than violating INV-13 or dropping facts. A-3 accounts for the resulting declared source normalization.
+Pre-audit identifies legacy events attached to non-live entries; normalize their source classification according to event-backed provenance before inserting rather than violating INV-13 or dropping facts. The declared rule: a game_session with any session_event migrates as `live` (and takes the live played_on rule); otherwise the source is kept. A-3 checks entry.source against that rule. The shipped migration is `0061_entry_p1_cutover.sql`; its end gates are A-3, A-4 and foreign_key_check, and it enables A-3, A-4, A-6 (core), A-8 and A-9 in the runner.
 
 B09 first moves categories and maps duplicates, then money. Live lines are built in migration SQL from the v1 event payloads, reproducing the projector's v1 money fold with ids `<event_id>:<n>`; there is no TypeScript backfill step, and A-6 runs the real projector on every dev deploy and fails on any difference; manual lines come from columns. Missing legacy asset uses `unassigned:<user_id>` as an ordinary asset; new API writes must supply actual asset ids. Representative manual cash rows:
 
