@@ -20,8 +20,6 @@ export const CHECK_STATUSES = [
 	"error",
 	"pending",
 	"not-introduced",
-	"not-applicable",
-	"retired",
 ] as const;
 export type CheckStatus = (typeof CHECK_STATUSES)[number];
 
@@ -70,17 +68,6 @@ function plan(
 	options: AuditOptions
 ): Plan | CheckResult {
 	const { activation } = check;
-	if (activation.state === "retired") {
-		return settle(check, "retired", `replaced by ${activation.replacedBy}`);
-	}
-	const retirement = check.historical?.notApplicableAfter;
-	if (retirement?.migration && applied.has(retirement.migration)) {
-		return settle(
-			check,
-			"not-applicable",
-			`historical source removed by ${retirement.task} (${retirement.migration})`
-		);
-	}
 	if (activation.state === "pending") {
 		if (check.kind === "deferred") {
 			return settle(

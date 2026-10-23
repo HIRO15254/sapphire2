@@ -2,13 +2,10 @@ import { LEDGER_ENTRY_ROLES_BY_KIND } from "../../packages/db/src/constants/ledg
 
 export const AUDIT_IDS = [
 	"FK",
-	"A-1",
-	"A-2",
 	"A-3",
 	"A-4",
 	"A-5",
 	"A-6",
-	"A-7",
 	"A-8",
 	"A-9",
 	"A-10",
@@ -40,12 +37,7 @@ export const B01_MIGRATION = "0059_v2_final_empty_schema.sql";
 
 export type Activation =
 	| { state: "active"; since: string | null }
-	| { state: "pending"; enabledBy: string }
-	| { state: "retired"; replacedBy: string };
-
-export interface Historical {
-	notApplicableAfter: { migration: string | null; task: string };
-}
+	| { state: "pending"; enabledBy: string };
 
 export type ReplayPart =
 	| "a6-core"
@@ -56,7 +48,7 @@ export type ReplayPart =
 interface CheckBase {
 	activation: Activation;
 	audit: AuditId;
-	historical?: Historical;
+	deletedBy?: string;
 	part: string;
 	reportOnly?: boolean;
 	tables: readonly string[];
@@ -77,16 +69,8 @@ export interface DeferredCheck extends CheckBase {
 	kind: "deferred";
 }
 
-export interface RetiredCheck extends CheckBase {
-	activation: { state: "retired"; replacedBy: string };
-	kind: "retired";
-}
+export type Check = SqlCheck | ReplayCheck | DeferredCheck;
 
-export type Check = SqlCheck | ReplayCheck | DeferredCheck | RetiredCheck;
-
-const UNTIL_B25: Historical = {
-	notApplicableAfter: { task: TASK.B25, migration: null },
-};
 const SINCE_B01: Activation = { state: "active", since: B01_MIGRATION };
 
 function pending(enabledBy: string): { state: "pending"; enabledBy: string } {
@@ -110,31 +94,11 @@ export const CHECKS: readonly Check[] = [
 		sql: () => "PRAGMA foreign_key_check",
 	},
 	{
-		audit: "A-1",
-		part: "tournament.user_id ownership",
-		kind: "retired",
-		activation: {
-			state: "retired",
-			replacedBy: "tournament.user_id NOT NULL since T02",
-		},
-		tables: [],
-	},
-	{
-		audit: "A-2",
-		part: "ring_game.user_id ownership",
-		kind: "retired",
-		activation: {
-			state: "retired",
-			replacedBy: "ring_game.user_id NOT NULL since T02",
-		},
-		tables: [],
-	},
-	{
 		audit: "A-3",
 		part: "game_session/session_event ids match entry, seq-1 play_session and play_event",
 		kind: "sql",
 		activation: pending(TASK.B06),
-		historical: UNTIL_B25,
+		deletedBy: TASK.B25,
 		tables: [
 			"game_session",
 			"session_event",
@@ -166,7 +130,7 @@ AND NOT EXISTS (SELECT 1 FROM session_event se JOIN game_session gs ON gs.id = s
 		part: "normalized source start/end/break/status equal seq-1 play_session",
 		kind: "sql",
 		activation: pending(TASK.B06),
-		historical: UNTIL_B25,
+		deletedBy: TASK.B25,
 		tables: ["game_session", "play_session"],
 		sql: (cutoverAt) => `SELECT p.id AS id FROM game_session gs
 JOIN play_session p ON p.id = gs.id AND p.user_id = gs.user_id AND p.seq = 1
@@ -181,7 +145,7 @@ OR p.status IS NOT (CASE gs.status WHEN 'completed' THEN 'ended' WHEN 'paused' T
 		part: "settled entry real-line P/L equals the legacy formula",
 		kind: "sql",
 		activation: pending(TASK.B09),
-		historical: UNTIL_B25,
+		deletedBy: TASK.B25,
 		tables: [
 			"game_session",
 			"session_cash_detail",
@@ -247,17 +211,6 @@ HAVING COALESCE(sum(l.quantity), 0) <> x.pl`,
 		tables: ["entry_cash"],
 	},
 	{
-		audit: "A-7",
-		part: "single-column ownership exception",
-		kind: "retired",
-		activation: {
-			state: "retired",
-			replacedBy:
-				"B01/B07/B08 composite FKs, checked by FK (PRAGMA foreign_key_check)",
-		},
-		tables: [],
-	},
-	{
 		audit: "A-8",
 		part: "every entry has a day and played_on = MIN(local_date)",
 		kind: "sql",
@@ -286,7 +239,7 @@ AND p.end_state IN ('busted', 'cashed_out', 'finished')))`,
 		part: "seq-1 hand count and last button equal source hand_count/dealer_seat",
 		kind: "sql",
 		activation: pending(TASK.B10),
-		historical: UNTIL_B25,
+		deletedBy: TASK.B25,
 		tables: ["game_session", "play_session", "hand"],
 		sql: (cutoverAt) => `SELECT p.id AS id,
 (SELECT count(*) FROM hand h WHERE h.play_session_id = p.id AND h.user_id = p.user_id) AS hands,
@@ -304,7 +257,7 @@ OR (gs.hand_count > 0 AND (SELECT h.button_seat FROM hand h WHERE h.play_session
 		part: "per-asset balance vs legacy currency_transaction (historical drift, report only)",
 		kind: "sql",
 		activation: pending(TASK.B09),
-		historical: UNTIL_B25,
+		deletedBy: TASK.B25,
 		reportOnly: true,
 		tables: ["currency_transaction", "asset", "ledger_line", "entry"],
 		sql: () => `WITH legacy AS (
@@ -328,7 +281,7 @@ WHERE COALESCE(g.amount, 0) <> COALESCE(n.amount, 0)`,
 		part: "mapped/deduplicated old tag-link set equals the new set per target",
 		kind: "deferred",
 		activation: pending(TASK.B18),
-		historical: UNTIL_B25,
+		deletedBy: TASK.B25,
 		tables: [],
 	},
 	{
@@ -356,7 +309,7 @@ WHERE v.id IS NULL OR v.tournament_id IS NOT t.id`,
 		part: "master and entry rule content equals staged/source snapshots",
 		kind: "deferred",
 		activation: pending(`${TASK.B07}, ${TASK.B08}, ${TASK.B13}`),
-		historical: UNTIL_B25,
+		deletedBy: TASK.B25,
 		tables: [],
 	},
 	{
