@@ -1,7 +1,22 @@
 import z from "zod";
-import { END_STATES_REQUIRING_STACK } from "./entry";
+import { END_STATES_REQUIRING_STACK, type EntryKind } from "./entry";
 import { LEDGER_EFFECTS, LEDGER_MAX_QUANTITY, type LedgerRole } from "./ledger";
-import { updateStackPayload } from "./session-event-types";
+import {
+	ALL_EVENT_TYPES,
+	allInPayload,
+	chipsAddRemovePayload,
+	EVENT_PAYLOAD_SCHEMAS,
+	isValidEventTypeForSessionType,
+	memoPayload,
+	playerJoinPayload,
+	playerLeavePayload,
+	SESSION_END_PAYLOAD_SCHEMAS,
+	SESSION_START_PAYLOAD_SCHEMAS,
+	type SessionEventType,
+	sessionPausePayload,
+	sessionResumePayload,
+	updateStackPayload,
+} from "./session-event-types";
 
 export function paymentsSchema<
 	const Roles extends readonly [LedgerRole, ...LedgerRole[]],
@@ -79,3 +94,68 @@ export const purchaseChipsPayloadV2 = z.object({
 	chips: z.number().int().min(0),
 	payments: paymentsSchema(["chip_purchase"]),
 });
+
+const SHARED_PAYLOADS_V2 = {
+	session_pause: sessionPausePayload,
+	session_resume: sessionResumePayload,
+	day_end: dayEndPayload,
+	update_stack: updateStackPayloadV2,
+	player_join: playerJoinPayload,
+	player_leave: playerLeavePayload,
+	memo: memoPayload,
+} as const satisfies Record<string, z.ZodType>;
+
+const PAYLOADS_V2: Record<EntryKind, Record<string, z.ZodType>> = {
+	cash: {
+		...SHARED_PAYLOADS_V2,
+		session_start: cashSessionStartPayloadV2,
+		session_end: cashSessionEndPayloadV2,
+		chips_add_remove: chipsAddRemovePayload,
+		all_in: allInPayload,
+	},
+	tournament: {
+		...SHARED_PAYLOADS_V2,
+		session_start: tournamentSessionStartPayloadV2,
+		session_end: tournamentSessionEndPayloadV2,
+		reentry: reentryPayload,
+		purchase_chips: purchaseChipsPayloadV2,
+	},
+};
+
+function isSessionEventType(type: string): type is SessionEventType {
+	return (ALL_EVENT_TYPES as readonly string[]).includes(type);
+}
+
+function payloadSchemaV1(kind: EntryKind, type: string): z.ZodType | null {
+	const sessionType = kind === "cash" ? "cash_game" : "tournament";
+	if (
+		!(
+			isSessionEventType(type) &&
+			isValidEventTypeForSessionType(type, sessionType)
+		)
+	) {
+		return null;
+	}
+	if (type === "session_start") {
+		return SESSION_START_PAYLOAD_SCHEMAS[sessionType];
+	}
+	if (type === "session_end") {
+		return SESSION_END_PAYLOAD_SCHEMAS[sessionType];
+	}
+	return EVENT_PAYLOAD_SCHEMAS[type];
+}
+
+export function playEventPayloadSchema(
+	kind: EntryKind,
+	type: string,
+	schemaVersion: number
+): z.ZodType | null {
+	if (schemaVersion === 1) {
+		return payloadSchemaV1(kind, type);
+	}
+	if (schemaVersion === 2) {
+		const schemas = PAYLOADS_V2[kind];
+		return Object.hasOwn(schemas, type) ? (schemas[type] ?? null) : null;
+	}
+	return null;
+}

@@ -249,6 +249,12 @@ jobs:
           fi
           bunx wrangler d1 migrations apply "${D1_DB_NAME}" --remote
 
+      # Read-only data-model-v2 audit of the migrated production copy
+      # (data-model-v2.md §16.6). A violation or a failed query fails this job,
+      # so deploy-api, which needs db-migrate, never deploys over it.
+      - name: Audit the data model
+        run: bun scripts/audit-data-model.ts --remote --database "${D1_DB_NAME}" --config apps/server/wrangler.toml
+
   deploy-api:
     needs: [setup, d1-recreate, db-migrate]
     runs-on: ubuntu-latest
