@@ -414,6 +414,13 @@
       "when": 1791857484701,
       "tag": "0058_wonderful_wolfpack",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "6",
+      "when": 1792457011024,
+      "tag": "0059_v2_final_empty_schema",
+      "breakpoints": true
     }
   ]
 }

@@ -150,7 +150,7 @@ function liveStart(
 		memo: null,
 		localDate: "2026-09-05",
 		now: NOW,
-		startEvent: { occurredAt: NOW, payload },
+		startEvent: { schemaVersion: 1, occurredAt: NOW, payload },
 	};
 }
 
@@ -266,11 +266,13 @@ describe("audit A-5: the real P/L of the ledger lines equals the P/L of the old 
 		await appendAndProject(db, "live-cash", [
 			{
 				type: "chips_add_remove",
+				schemaVersion: 1,
 				occurredAt: minutes(30),
 				payload: { amount: 10_000 },
 			},
 			{
 				type: "chips_add_remove",
+				schemaVersion: 1,
 				occurredAt: minutes(60),
 				payload: { amount: -5000 },
 			},
@@ -278,6 +280,7 @@ describe("audit A-5: the real P/L of the ledger lines equals the P/L of the old 
 		await appendAndProject(db, "live-cash", [
 			{
 				type: "session_end",
+				schemaVersion: 1,
 				occurredAt: minutes(240),
 				payload: { cashOutAmount: 20_000 },
 			},
@@ -314,6 +317,7 @@ describe("audit A-5: the real P/L of the ledger lines equals the P/L of the old 
 		await appendAndProject(db, "live-mtt", [
 			{
 				type: "purchase_chips",
+				schemaVersion: 1,
 				occurredAt: minutes(60),
 				payload: {
 					sessionChipPurchaseId: "rebuy",
@@ -324,6 +328,7 @@ describe("audit A-5: the real P/L of the ledger lines equals the P/L of the old 
 			},
 			{
 				type: "purchase_chips",
+				schemaVersion: 1,
 				occurredAt: minutes(90),
 				payload: {
 					sessionChipPurchaseId: "rebuy",
@@ -334,6 +339,7 @@ describe("audit A-5: the real P/L of the ledger lines equals the P/L of the old 
 			},
 			{
 				type: "session_end",
+				schemaVersion: 1,
 				occurredAt: minutes(400),
 				payload: {
 					beforeDeadline: false,
@@ -374,6 +380,7 @@ describe("audit A-5: the real P/L of the ledger lines equals the P/L of the old 
 			appendAndProject(db, "no-currency", [
 				{
 					type: "session_end",
+					schemaVersion: 1,
 					occurredAt: minutes(60),
 					payload: { cashOutAmount: 10_000 },
 				},

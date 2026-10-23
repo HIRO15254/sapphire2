@@ -1,8 +1,9 @@
 import z from "zod";
+import { ANTE_TYPES } from "../constants/rule";
 
 export const MAX_MIX_GROUPS = 12;
 
-export const anteTypeSchema = z.enum(["none", "all", "bb"]);
+export const anteTypeSchema = z.enum(ANTE_TYPES);
 
 const storedVariantLabelSchema = z.string().trim().min(1).max(30);
 

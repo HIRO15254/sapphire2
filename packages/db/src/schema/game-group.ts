@@ -29,6 +29,7 @@ export const gameGroup = sqliteTable(
 			.notNull(),
 	},
 	(table) => [
+		uniqueIndex("game_group_id_user_id_unique").on(table.id, table.userId),
 		index("gameGroup_userId_idx").on(table.userId),
 		uniqueIndex("gameGroup_userId_builtinKey_idx").on(
 			table.userId,

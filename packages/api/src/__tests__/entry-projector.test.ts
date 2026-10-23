@@ -338,7 +338,7 @@ describe("projectEntry: update_stack", () => {
 			kind: "tournament",
 			placement: null,
 			totalEntries: 135,
-			beforeDeadline: null,
+			beforeDeadline: false,
 		});
 	});
 });
@@ -466,7 +466,7 @@ describe("projectEntry: session_end (tournament)", () => {
 			kind: "tournament",
 			placement: 1,
 			totalEntries: 80,
-			beforeDeadline: null,
+			beforeDeadline: false,
 		});
 	});
 
@@ -536,7 +536,7 @@ describe("projectEntry: session_end (tournament)", () => {
 			kind: "tournament",
 			placement: 3,
 			totalEntries: 80,
-			beforeDeadline: null,
+			beforeDeadline: false,
 		});
 	});
 });
@@ -609,7 +609,7 @@ describe("projectEntry: several play sessions (§13.3)", () => {
 			kind: "tournament",
 			placement: 4,
 			totalEntries: 200,
-			beforeDeadline: null,
+			beforeDeadline: false,
 		});
 	});
 
@@ -1116,7 +1116,7 @@ function replayLegacyFold({ kind, events }: LegacyFixture) {
 					kind,
 					placement: pl.placement,
 					totalEntries: pl.totalEntries,
-					beforeDeadline: pl.beforeDeadline ? true : null,
+					beforeDeadline: pl.beforeDeadline,
 				}
 			: null,
 	};

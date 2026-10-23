@@ -68,8 +68,10 @@ function playEventRow(
 		id,
 		user_id: userId,
 		entry_id: entryId,
+		entry_source: "live",
 		play_session_id: playSessionId,
 		type: "memo",
+		schema_version: 2,
 		occurred_at: 0,
 		sort_order: 0,
 		payload: '{"text":"note"}',
@@ -114,6 +116,7 @@ async function seedEntryAggregate(d1: TestD1Database, owner: string) {
 		d1,
 		"entry",
 		entryRow(`${owner}-cash`, owner, {
+			source: "live",
 			room_id: `${owner}-room`,
 			asset_id: `${owner}-currency`,
 		})
@@ -121,6 +124,7 @@ async function seedEntryAggregate(d1: TestD1Database, owner: string) {
 	await insert(d1, "entry_cash", {
 		entry_id: `${owner}-cash`,
 		user_id: owner,
+		kind: "cash",
 		ring_game_id: `${owner}-ring`,
 	});
 	await insert(
@@ -149,6 +153,7 @@ async function seedEntryAggregate(d1: TestD1Database, owner: string) {
 	await insert(d1, "entry_tournament", {
 		entry_id: `${owner}-mtt`,
 		user_id: owner,
+		kind: "tournament",
 		tournament_id: `${owner}-tournament`,
 		placement: 3,
 		total_entries: 40,
@@ -169,7 +174,11 @@ describe("entry aggregate tables on D1", () => {
 	}) => {
 		await seedMasters(api.d1, ["alice", "bob"]);
 		await seedEntryAggregate(api.d1, "alice");
-		await insert(api.d1, "entry", entryRow("bob-cash", "bob"));
+		await insert(
+			api.d1,
+			"entry",
+			entryRow("bob-cash", "bob", { source: "live" })
+		);
 		await insert(
 			api.d1,
 			"entry",
@@ -192,13 +201,19 @@ describe("entry aggregate tables on D1", () => {
 			],
 			[
 				"entry_cash",
-				{ entry_id: "bob-cash", user_id: "bob", ring_game_id: "alice-ring" },
+				{
+					entry_id: "bob-cash",
+					user_id: "bob",
+					kind: "cash",
+					ring_game_id: "alice-ring",
+				},
 			],
 			[
 				"entry_tournament",
 				{
 					entry_id: "bob-mtt",
 					user_id: "bob",
+					kind: "tournament",
 					tournament_id: "alice-tournament",
 				},
 			],
@@ -246,11 +261,13 @@ describe("entry aggregate tables on D1", () => {
 		await insert(api.d1, "entry_cash", {
 			entry_id: "bob-cash",
 			user_id: "bob",
+			kind: "cash",
 			ring_game_id: "bob-ring",
 		});
 		await insert(api.d1, "entry_tournament", {
 			entry_id: "bob-mtt",
 			user_id: "bob",
+			kind: "tournament",
 			tournament_id: "bob-tournament",
 		});
 		await insert(
@@ -287,8 +304,16 @@ describe("entry aggregate tables on D1", () => {
 	test("a play event can point only at a play session of its own entry", async ({
 		api,
 	}) => {
-		await insert(api.d1, "entry", entryRow("first", "alice"));
-		await insert(api.d1, "entry", entryRow("second", "alice"));
+		await insert(
+			api.d1,
+			"entry",
+			entryRow("first", "alice", { source: "live" })
+		);
+		await insert(
+			api.d1,
+			"entry",
+			entryRow("second", "alice", { source: "live" })
+		);
 		await insert(
 			api.d1,
 			"play_session",
@@ -313,6 +338,115 @@ describe("entry aggregate tables on D1", () => {
 			playEventRow("filed", "first", "first-play", "alice")
 		);
 		expect(await ids(api.d1, "play_event")).toEqual(["filed"]);
+	});
+
+	test("a detail of the other kind, an event on a manual entry and an event without a schema version are rejected", async ({
+		api,
+	}) => {
+		await insert(api.d1, "entry", entryRow("cash", "alice"));
+		await insert(
+			api.d1,
+			"entry",
+			entryRow("mtt", "alice", { kind: "tournament" })
+		);
+		await insert(
+			api.d1,
+			"entry",
+			entryRow("live", "alice", { source: "live" })
+		);
+		await insert(
+			api.d1,
+			"play_session",
+			playSessionRow("manual-play", "cash", "alice")
+		);
+		await insert(
+			api.d1,
+			"play_session",
+			playSessionRow("live-play", "live", "alice")
+		);
+
+		await expect(
+			insert(api.d1, "entry_cash", {
+				entry_id: "mtt",
+				user_id: "alice",
+				kind: "cash",
+			}),
+			"cash detail on a tournament entry"
+		).rejects.toThrow(FOREIGN_KEY_FAILED);
+		await expect(
+			insert(api.d1, "entry_cash", {
+				entry_id: "mtt",
+				user_id: "alice",
+				kind: "tournament",
+			}),
+			"cash detail claiming the tournament kind"
+		).rejects.toThrow("CHECK constraint failed: entry_cash_kind_check");
+		await expect(
+			insert(api.d1, "entry_tournament", {
+				entry_id: "cash",
+				user_id: "alice",
+				kind: "tournament",
+			}),
+			"tournament detail on a cash entry"
+		).rejects.toThrow(FOREIGN_KEY_FAILED);
+		await expect(
+			insert(
+				api.d1,
+				"play_event",
+				playEventRow("on-manual", "cash", "manual-play", "alice")
+			),
+			"event on a manual entry"
+		).rejects.toThrow(FOREIGN_KEY_FAILED);
+		await expect(
+			insert(
+				api.d1,
+				"play_event",
+				playEventRow("claims-manual", "cash", "manual-play", "alice", {
+					entry_source: "manual",
+				})
+			),
+			"event mirroring the manual source"
+		).rejects.toThrow("CHECK constraint failed: play_event_entry_source_check");
+		const { schema_version: _, ...withoutVersion } = playEventRow(
+			"unversioned",
+			"live",
+			"live-play",
+			"alice"
+		);
+		await expect(
+			insert(api.d1, "play_event", withoutVersion),
+			"event without a schema version"
+		).rejects.toThrow("NOT NULL constraint failed: play_event.schema_version");
+		await expect(
+			insert(api.d1, "entry_tournament", {
+				entry_id: "mtt",
+				user_id: "alice",
+				kind: "tournament",
+				before_deadline: null,
+			}),
+			"before_deadline NULL"
+		).rejects.toThrow(
+			"NOT NULL constraint failed: entry_tournament.before_deadline"
+		);
+
+		await insert(api.d1, "entry_cash", {
+			entry_id: "cash",
+			user_id: "alice",
+			kind: "cash",
+		});
+		await insert(api.d1, "entry_tournament", {
+			entry_id: "mtt",
+			user_id: "alice",
+			kind: "tournament",
+		});
+		await insert(
+			api.d1,
+			"play_event",
+			playEventRow("on-live", "live", "live-play", "alice")
+		);
+		expect(await ids(api.d1, "entry_cash", "entry_id")).toEqual(["cash"]);
+		expect(await ids(api.d1, "entry_tournament", "entry_id")).toEqual(["mtt"]);
+		expect(await ids(api.d1, "play_event")).toEqual(["on-live"]);
 	});
 
 	test("each user has at most one unfinished play session, and ending it frees the slot", async ({
@@ -580,6 +714,7 @@ describe("entry aggregate tables on D1", () => {
 			],
 			[{ placement: 10, total_entries: 10, before_deadline: 0 }, null],
 			[{ before_deadline: 1, placement: null, total_entries: 10 }, null],
+			[{ before_deadline: 2 }, "entry_tournament_before_deadline_check"],
 		];
 		for (const [index, [result, constraint]] of results.entries()) {
 			const id = `mtt-${index}`;
@@ -591,6 +726,7 @@ describe("entry aggregate tables on D1", () => {
 			const write = insert(api.d1, "entry_tournament", {
 				entry_id: id,
 				user_id: "alice",
+				kind: "tournament",
 				...result,
 			});
 			if (constraint) {

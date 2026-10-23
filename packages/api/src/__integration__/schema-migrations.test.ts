@@ -43,7 +43,7 @@ type DeclaredIndex = ReturnType<
 >["indexes"][number]["config"];
 
 const INDEX_EXPRESSIONS: Record<string, string> = {
-	ledger_category_user_name_unique: 'lower("name")',
+	ledger_category_user_name_unique: 'lower(trim("name"))',
 };
 
 function declaredIndexColumns(index: DeclaredIndex) {
@@ -63,6 +63,7 @@ describe("application schema agrees with the installed production migrations", (
 	test("all declared columns, primary and unique keys, foreign keys and indexes exist in real D1", async ({
 		api,
 	}) => {
+		const missingChecks: string[] = [];
 		for (const value of Object.values(schema)) {
 			if (!is(value, SQLiteTable)) {
 				continue;
@@ -174,6 +175,18 @@ describe("application schema agrees with the installed production migrations", (
 				).toEqual(declaredIndexColumns(index));
 			}
 
+			const tableDefinition = await api.d1
+				.prepare(
+					"SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?"
+				)
+				.bind(config.name)
+				.first<{ sql: string }>();
+			for (const { name } of config.checks) {
+				if (!tableDefinition?.sql.includes(`CONSTRAINT "${name}" CHECK`)) {
+					missingChecks.push(`${config.name}.${name}`);
+				}
+			}
+
 			const uniqueKeys = [
 				...config.columns
 					.filter(({ isUnique }) => isUnique)
@@ -193,5 +206,8 @@ describe("application schema agrees with the installed production migrations", (
 				`${config.name} unique keys including column-level declarations`
 			).toEqual(uniqueKeys.map((columns) => JSON.stringify(columns)).sort());
 		}
+		expect(missingChecks).toEqual([
+			"game_session.session_manual_completed_check",
+		]);
 	});
 });

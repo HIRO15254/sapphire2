@@ -22,6 +22,7 @@ import { currency } from "./currency";
 import { hand } from "./hand";
 import { ringGame } from "./ring-game";
 import { room } from "./room";
+import { cashRule, tournamentRule } from "./rule";
 import { isoDate, oneOf } from "./sql-checks";
 import { tournament } from "./tournament";
 
@@ -50,6 +51,7 @@ export const entry = sqliteTable(
 	(t) => [
 		uniqueIndex("entry_id_user_id_unique").on(t.id, t.userId),
 		uniqueIndex("entry_id_kind_user_id_unique").on(t.id, t.kind, t.userId),
+		uniqueIndex("entry_id_source_user_id_unique").on(t.id, t.source, t.userId),
 		index("entry_user_played_on_idx").on(t.userId, t.playedOn, t.id),
 		index("entry_user_kind_status_idx").on(t.userId, t.kind, t.status),
 		index("entry_room_idx").on(t.roomId),
@@ -82,14 +84,19 @@ export const entryCash = sqliteTable(
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
+		kind: text("kind", { enum: ["cash"] })
+			.notNull()
+			.$default(() => "cash"),
 		ringGameId: text("ring_game_id"),
+		cashRuleId: text("cash_rule_id"),
 		evDiff: integer("ev_diff"),
 	},
 	(t) => [
 		index("entry_cash_ring_game_idx").on(t.ringGameId),
+		index("entry_cash_cash_rule_idx").on(t.cashRuleId),
 		foreignKey({
-			columns: [t.entryId, t.userId],
-			foreignColumns: [entry.id, entry.userId],
+			columns: [t.entryId, t.kind, t.userId],
+			foreignColumns: [entry.id, entry.kind, entry.userId],
 			name: "entry_cash_entry_owner_fk",
 		}).onDelete("cascade"),
 		foreignKey({
@@ -97,6 +104,17 @@ export const entryCash = sqliteTable(
 			foreignColumns: [ringGame.id, ringGame.userId],
 			name: "entry_cash_ring_game_owner_fk",
 		}).onDelete("no action"),
+		foreignKey({
+			columns: [t.cashRuleId, t.userId],
+			foreignColumns: [cashRule.id, cashRule.userId],
+			name: "entry_cash_cash_rule_owner_fk",
+		}).onDelete("no action"),
+		foreignKey({
+			columns: [t.cashRuleId, t.ringGameId],
+			foreignColumns: [cashRule.id, cashRule.ringGameId],
+			name: "entry_cash_cash_rule_master_fk",
+		}).onDelete("no action"),
+		check("entry_cash_kind_check", sql`${t.kind} = 'cash'`),
 	]
 );
 
@@ -107,16 +125,23 @@ export const entryTournament = sqliteTable(
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
+		kind: text("kind", { enum: ["tournament"] })
+			.notNull()
+			.$default(() => "tournament"),
 		tournamentId: text("tournament_id"),
+		tournamentRuleId: text("tournament_rule_id"),
 		placement: integer("placement"),
 		totalEntries: integer("total_entries"),
-		beforeDeadline: integer("before_deadline", { mode: "boolean" }),
+		beforeDeadline: integer("before_deadline", { mode: "boolean" })
+			.notNull()
+			.default(false),
 	},
 	(t) => [
 		index("entry_tournament_tournament_idx").on(t.tournamentId),
+		index("entry_tournament_tournament_rule_idx").on(t.tournamentRuleId),
 		foreignKey({
-			columns: [t.entryId, t.userId],
-			foreignColumns: [entry.id, entry.userId],
+			columns: [t.entryId, t.kind, t.userId],
+			foreignColumns: [entry.id, entry.kind, entry.userId],
 			name: "entry_tournament_entry_owner_fk",
 		}).onDelete("cascade"),
 		foreignKey({
@@ -124,6 +149,17 @@ export const entryTournament = sqliteTable(
 			foreignColumns: [tournament.id, tournament.userId],
 			name: "entry_tournament_tournament_owner_fk",
 		}).onDelete("no action"),
+		foreignKey({
+			columns: [t.tournamentRuleId, t.userId],
+			foreignColumns: [tournamentRule.id, tournamentRule.userId],
+			name: "entry_tournament_tournament_rule_owner_fk",
+		}).onDelete("no action"),
+		foreignKey({
+			columns: [t.tournamentRuleId, t.tournamentId],
+			foreignColumns: [tournamentRule.id, tournamentRule.tournamentId],
+			name: "entry_tournament_tournament_rule_master_fk",
+		}).onDelete("no action"),
+		check("entry_tournament_kind_check", sql`${t.kind} = 'tournament'`),
 		check("entry_tournament_placement_check", sql`${t.placement} >= 1`),
 		check("entry_tournament_total_entries_check", sql`${t.totalEntries} >= 1`),
 		check(
@@ -226,9 +262,12 @@ export const playEvent = sqliteTable(
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
 		entryId: text("entry_id").notNull(),
+		entrySource: text("entry_source", { enum: ["live"] })
+			.notNull()
+			.$default(() => "live"),
 		playSessionId: text("play_session_id").notNull(),
 		type: text("type").notNull(),
-		schemaVersion: integer("schema_version").notNull().default(1),
+		schemaVersion: integer("schema_version").notNull(),
 		occurredAt: integer("occurred_at", { mode: "timestamp" }).notNull(),
 		sortOrder: integer("sort_order").notNull(),
 		payload: text("payload").notNull(),
@@ -238,10 +277,16 @@ export const playEvent = sqliteTable(
 		updatedAt: integer("updated_at", { mode: "timestamp" })
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
-		handId: text("hand_id").references(() => hand.id),
+		handId: text("hand_id"),
 	},
 	(t) => [
 		uniqueIndex("play_event_id_user_id_unique").on(t.id, t.userId),
+		uniqueIndex("play_event_id_entry_play_session_user_unique").on(
+			t.id,
+			t.entryId,
+			t.playSessionId,
+			t.userId
+		),
 		uniqueIndex("play_event_entry_sort_order_unique").on(
 			t.entryId,
 			t.sortOrder
@@ -252,8 +297,8 @@ export const playEvent = sqliteTable(
 		),
 		index("play_event_hand_idx").on(t.handId),
 		foreignKey({
-			columns: [t.entryId, t.userId],
-			foreignColumns: [entry.id, entry.userId],
+			columns: [t.entryId, t.entrySource, t.userId],
+			foreignColumns: [entry.id, entry.source, entry.userId],
 			name: "play_event_entry_owner_fk",
 		}).onDelete("cascade"),
 		foreignKey({
@@ -261,6 +306,13 @@ export const playEvent = sqliteTable(
 			foreignColumns: [playSession.id, playSession.entryId, playSession.userId],
 			name: "play_event_play_session_owner_fk",
 		}).onDelete("cascade"),
+		foreignKey({
+			columns: [t.handId, t.playSessionId, t.userId],
+			foreignColumns: [hand.id, hand.playSessionId, hand.userId],
+			name: "play_event_hand_owner_fk",
+		}).onDelete("no action"),
+		check("play_event_entry_source_check", sql`${t.entrySource} = 'live'`),
+		check("play_event_schema_version_check", sql`${t.schemaVersion} >= 1`),
 		check("play_event_payload_json_check", sql`json_valid(${t.payload})`),
 	]
 );
@@ -328,7 +380,7 @@ export const playEventRelations = relations(playEvent, ({ one }) => ({
 		references: [playSession.id, playSession.userId],
 	}),
 	hand: one(hand, {
-		fields: [playEvent.handId],
-		references: [hand.id],
+		fields: [playEvent.handId, playEvent.userId],
+		references: [hand.id, hand.userId],
 	}),
 }));
