@@ -4,12 +4,6 @@ The Cryst design system is the whole vocabulary for migrated screens. A migrated
 
 The temporary `.cryst` token scope is described in [`.claude/rules/web-theme.md`](../../.claude/rules/web-theme.md). SA2-427 removed the unused components; future v2 UI screens re-add design-system components when needed and record any new exceptions here.
 
-## Exceptions
-
-| Exception | Where | Reason |
-|---|---|---|
-| The sidebar replaces the tab bar at 768px (Tailwind `md`), not the design system's 720px | Authenticated shell (`AuthenticatedShell`, `PageHeader`, Home) | `md` is the app's single responsive boundary; a 720px custom breakpoint would add a second one for a 48px band. User decision in SA2-390. |
-
 
 ## Removing an exception
 

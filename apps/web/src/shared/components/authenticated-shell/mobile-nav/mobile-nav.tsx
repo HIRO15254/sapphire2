@@ -10,7 +10,7 @@ export function MobileNav() {
 	return (
 		<nav
 			aria-label="Primary"
-			className="border-border border-t bg-background pt-1 pb-[calc(10px+env(safe-area-inset-bottom))] md:hidden"
+			className="border-border border-t bg-background pt-1 pb-[calc(10px+env(safe-area-inset-bottom))]"
 		>
 			<ul className="grid grid-cols-5">
 				{MOBILE_ITEMS.map((item) => (

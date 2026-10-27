@@ -21,11 +21,12 @@ export interface NavigationItem {
 	to: string;
 }
 
-export const NAV_ITEMS: readonly NavigationItem[] = [
+export const MOBILE_ITEMS: readonly NavigationItem[] = [
 	{ to: "/", label: "Home", icon: IconHome, exact: true },
 	{ to: "/sessions", label: "Sessions", icon: IconCards },
 	{ to: "/stats", label: "Stats", icon: IconChartLine },
 	{ to: "/assets", label: "Assets", icon: IconWallet },
+	{ to: "/more", label: "More", icon: IconDots },
 ];
 export const LIBRARY_ITEMS: readonly NavigationItem[] = [
 	{ to: "/rooms", label: "Rooms", icon: IconBuildingStore },
@@ -35,10 +36,6 @@ export const LIBRARY_ITEMS: readonly NavigationItem[] = [
 ];
 export const APP_ITEMS: readonly NavigationItem[] = [
 	{ to: "/settings", label: "Settings", icon: IconSettings },
-];
-export const MOBILE_ITEMS: readonly NavigationItem[] = [
-	...NAV_ITEMS,
-	{ to: "/more", label: "More", icon: IconDots },
 ];
 
 export function isActive(
@@ -79,32 +76,6 @@ export function MobileNavItem({
 				to={item.to}
 			>
 				<item.icon size={24} />
-				<span>{item.label}</span>
-			</Link>
-		</li>
-	);
-}
-
-export function SidebarNavItem({
-	active,
-	item,
-}: {
-	active: boolean;
-	item: NavigationItem;
-}) {
-	return (
-		<li>
-			<Link
-				aria-current={active ? "page" : undefined}
-				className={cn(
-					"flex h-[30px] w-full items-center gap-2 rounded-md px-2 font-medium text-sm",
-					active
-						? "bg-primary-soft text-primary-text"
-						: "hover:layer-accent active:layer-accent-pressed text-muted-foreground hover:text-foreground"
-				)}
-				to={item.to}
-			>
-				<item.icon size={16} />
 				<span>{item.label}</span>
 			</Link>
 		</li>

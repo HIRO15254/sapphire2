@@ -1,6 +1,6 @@
 import { API_URL, expect, signIn, test } from "./fixtures";
 
-test("opens the desktop shell with a secure session after login", async ({
+test("directs desktop users to the supported mobile experience after login", async ({
 	page,
 	account,
 	context,
@@ -14,11 +14,12 @@ test("opens the desktop shell with a secure session after login", async ({
 		httpOnly: true,
 		sameSite: "None",
 	});
-	const sidebar = page.getByRole("navigation", { name: "Main" });
-	await expect(sidebar).toBeVisible();
-	await expect(sidebar.getByRole("link", { name: "Home" })).toHaveAttribute(
-		"aria-current",
-		"page"
-	);
-	await expect(page.getByRole("navigation", { name: "Primary" })).toBeHidden();
+	await expect(
+		page.getByText("Use on your phone", { exact: true })
+	).toBeVisible();
+	await expect(
+		page.getByText(
+			"This app is optimized for mobile. Open it on a smartphone to continue."
+		)
+	).toBeVisible();
 });

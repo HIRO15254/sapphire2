@@ -52,7 +52,7 @@ export function MorePage() {
 	return (
 		<div className="min-h-full">
 			<PageHeader heading="More" />
-			<main className="px-3.5 md:px-6">
+			<main className="px-3.5">
 				<Group items={LIBRARY_ITEMS} title="Library" />
 				<Group items={APP_ITEMS} title="App" />
 			</main>

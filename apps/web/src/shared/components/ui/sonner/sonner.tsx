@@ -14,7 +14,7 @@ import { TOAST_CARD_CLASS } from "./toast";
 import { useToaster } from "./use-toaster";
 
 export function Toaster() {
-	const { theme, isDesktop } = useToaster();
+	const { theme } = useToaster();
 	return (
 		<Sonner
 			className={`${CRYST_SCOPE_CLASS} toaster`}
@@ -28,12 +28,8 @@ export function Toaster() {
 				),
 			}}
 			mobileOffset={{ bottom: "calc(62px + env(safe-area-inset-bottom))" }}
-			offset={
-				isDesktop
-					? undefined
-					: { bottom: "calc(62px + env(safe-area-inset-bottom))" }
-			}
-			position={isDesktop ? "bottom-right" : "bottom-center"}
+			offset={{ bottom: "calc(62px + env(safe-area-inset-bottom))" }}
+			position="bottom-center"
 			theme={theme as ToasterProps["theme"]}
 			toastOptions={{
 				unstyled: true,

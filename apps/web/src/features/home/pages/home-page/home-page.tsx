@@ -20,28 +20,9 @@ export function HomePage() {
 	const { todayLabel } = useHomePage();
 	return (
 		<div className="flex min-h-full flex-col">
-			<PageHeader
-				actions={
-					<div className="hidden items-center gap-2 md:flex">
-						<Button asChild variant="outline">
-							<Link to={pastTo}>
-								<IconPlus aria-hidden />
-								Add past session
-							</Link>
-						</Button>
-						<Button asChild>
-							<Link to={liveTo}>
-								<IconPlayerPlay aria-hidden />
-								Start live session
-							</Link>
-						</Button>
-					</div>
-				}
-				heading="Home"
-				meta={<span className="md:hidden">{todayLabel}</span>}
-			/>
-			<main className="flex flex-1 flex-col gap-4 px-3.5 pt-3 pb-4 md:p-0">
-				<div className="flex items-center gap-2 md:hidden">
+			<PageHeader heading="Home" meta={todayLabel} />
+			<main className="flex flex-1 flex-col gap-4 px-3.5 pt-3 pb-4">
+				<div className="flex items-center gap-2">
 					<Button asChild className="flex-1" size="xl">
 						<Link to={liveTo}>
 							<IconPlayerPlay aria-hidden />

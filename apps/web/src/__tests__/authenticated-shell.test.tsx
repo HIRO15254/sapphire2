@@ -33,9 +33,12 @@ vi.mock("@/shared/hooks/use-pwa-update", () => ({
 	usePwaUpdate: vi.fn(),
 }));
 
-vi.mock("@/shared/components/authenticated-shell/sidebar-nav", () => ({
-	SidebarNav: () => <div>Sidebar Nav</div>,
-}));
+vi.mock(
+	"@/shared/components/authenticated-shell/use-authenticated-shell",
+	() => ({
+		useAuthenticatedShell: () => ({ isDesktop: false }),
+	})
+);
 
 vi.mock("@/shared/components/authenticated-shell/mobile-nav", () => ({
 	MobileNav: () => <div>Mobile Nav</div>,
@@ -70,7 +73,7 @@ describe("RootComponent", () => {
 	it("renders the authenticated shell away from login", () => {
 		render(<RootComponent />);
 
-		expect(screen.getByText("Sidebar Nav")).toBeInTheDocument();
+		expect(screen.getByText("Mobile Nav")).toBeInTheDocument();
 		expect(screen.getByText("Outlet Content")).toBeInTheDocument();
 	});
 
@@ -79,7 +82,7 @@ describe("RootComponent", () => {
 
 		render(<RootComponent />);
 
-		expect(screen.queryByText("Sidebar Nav")).not.toBeInTheDocument();
+		expect(screen.queryByText("Mobile Nav")).not.toBeInTheDocument();
 		expect(screen.getByText("Outlet Content")).toBeInTheDocument();
 	});
 

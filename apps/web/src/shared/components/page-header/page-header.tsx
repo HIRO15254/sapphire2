@@ -23,8 +23,8 @@ export function PageHeader({
 	return (
 		<header
 			className={cn(
-				"flex h-[var(--m-navbar-height)] shrink-0 items-center gap-2 border-border border-b px-3.5 md:h-auto md:min-h-12 md:flex-wrap md:px-6 md:py-2",
-				back && "gap-0.5 pl-0.5 md:pl-0.5",
+				"flex h-[var(--m-navbar-height)] shrink-0 items-center gap-2 border-border border-b px-3.5",
+				back && "gap-0.5 pl-0.5",
 				className
 			)}
 			{...props}
@@ -34,7 +34,7 @@ export function PageHeader({
 					<IconChevronLeft aria-hidden />
 				</IconButton>
 			)}
-			<h1 className="min-w-0 flex-1 font-semibold text-[length:var(--m-text-title)] tracking-[var(--tracking-heading)] md:text-[15px]">
+			<h1 className="min-w-0 flex-1 font-semibold text-[length:var(--m-text-title)] tracking-[var(--tracking-heading)]">
 				{heading}
 			</h1>
 			{meta && (

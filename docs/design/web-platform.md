@@ -18,7 +18,7 @@ The persisted cache is keyed only by procedure name, **not per-user** — on a s
 
 ## Routing shell and MCP OAuth login continuation
 
-- **Authenticated navigation (SA2-390)**: below `md`, Home, Sessions, Stats, Assets and More form the bottom tabs; More is current for its Library and Settings destinations. At `md` and above, the sidebar shows those first four destinations, Library (Rooms, Games, Players, Tags), and App (Settings). Unimplemented destinations remain links and resolve to the router's not-found fallback.
+- **Authenticated navigation (SA2-390)**: Home, Sessions, Stats, Assets and More form the bottom tabs; More is current for its Library (Rooms, Games, Players, Tags) and App (Settings) destinations. The app is mobile only: from `md` (768px) the authenticated shell shows a "Use on your phone" blocker instead of the app. Unimplemented destinations remain links and resolve to the router's not-found fallback.
 - **Route table**: `/`, `/more`, `/settings`, and `/login` exist. Later phases own `/live/$entryId`, `/sessions`, `/sessions/new`, `/sessions/$entryId`, `/sessions/$entryId/hands/$handId`, `/stats`, `/assets…`, `/rooms…`, `/games`, `/players…`, and `/tags`. The Home live action points to `/live/new` for U05. There are no redirects from old paths. Routes are split automatically at build time.
 - **Back navigation** returns to the previous router history entry, preserving its search parameters; a cold entry navigates to its supplied fallback.
 
