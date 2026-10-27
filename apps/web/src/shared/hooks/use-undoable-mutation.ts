@@ -1,35 +1,56 @@
+import { IconArrowBackUp, IconLoader2, IconTrash } from "@tabler/icons-react";
 import { type UseMutationOptions, useMutation } from "@tanstack/react-query";
-import { createElement } from "react";
+import { createElement, type ReactNode } from "react";
 import { toast } from "sonner";
-import {
-	CrystToast,
-	type CrystToastKind,
-} from "@/shared/components/cryst/cryst-toast";
+import { Button } from "@/shared/components/ui/button";
+import { Toast, type ToastVariant } from "@/shared/components/ui/sonner";
 
 interface Feedback {
 	description?: string;
-	kind: CrystToastKind;
+	icon?: ReactNode;
 	onUndo?: () => void;
 	title: string;
+	variant: ToastVariant;
 }
 
 const UNDO_WINDOW_MS = 6000;
 const FEEDBACK_DURATION_MS = 6000;
 
+const NEUTRAL_ICON_CLASS = "size-4 text-muted-foreground";
+
+const SAVING: Feedback = {
+	variant: "neutral",
+	title: "Saving…",
+	icon: createElement(IconLoader2, {
+		className: `${NEUTRAL_ICON_CLASS} animate-spin`,
+	}),
+};
+
 const SAVE_FAILED: Feedback = {
-	kind: "error",
+	variant: "destructive",
 	title: "Couldn't save changes",
 	description: "Your input is still in the form. Try again.",
 };
 
-const DELETE_FAILED: Feedback = { kind: "error", title: "Couldn't delete" };
+const DELETE_FAILED: Feedback = {
+	variant: "destructive",
+	title: "Couldn't delete",
+};
 
 function showFeedback(
 	id: string | number | undefined,
-	feedback: Feedback,
+	{ onUndo, ...feedback }: Feedback,
 	duration: number
 ) {
-	return toast.custom(() => createElement(CrystToast, feedback), {
+	const action = onUndo
+		? createElement(
+				Button,
+				{ onClick: onUndo, size: "sm", type: "button", variant: "ghost" },
+				createElement(IconArrowBackUp, { "aria-hidden": true }),
+				"Undo"
+			)
+		: undefined;
+	return toast.custom(() => createElement(Toast, { ...feedback, action }), {
 		id,
 		duration,
 		unstyled: true,
@@ -65,11 +86,7 @@ export function useUndoableMutation<TData, TError, TVariables, TContext>(
 	>({
 		...options,
 		onMutate: async (variables, mutationContext) => {
-			const id = showFeedback(
-				undefined,
-				{ kind: "pending", title: "Saving…" },
-				Number.POSITIVE_INFINITY
-			);
+			const id = showFeedback(undefined, SAVING, Number.POSITIVE_INFINITY);
 			try {
 				const original = await options.onMutate?.(variables, mutationContext);
 				return { original, id };
@@ -102,7 +119,11 @@ export function useUndoableMutation<TData, TError, TVariables, TContext>(
 			if (feedback.destructive) {
 				showFeedback(
 					context.id,
-					{ kind: "deleted", title: feedback.message },
+					{
+						variant: "neutral",
+						title: feedback.message,
+						icon: createElement(IconTrash, { className: NEUTRAL_ICON_CLASS }),
+					},
 					FEEDBACK_DURATION_MS
 				);
 				return;
@@ -118,25 +139,27 @@ export function useUndoableMutation<TData, TError, TVariables, TContext>(
 				}
 				undoAvailable = false;
 				clearTimeout(expiryTimer);
-				showFeedback(
-					context.id,
-					{ kind: "pending", title: "Saving…" },
-					Number.POSITIVE_INFINITY
-				);
+				showFeedback(context.id, SAVING, Number.POSITIVE_INFINITY);
 				Promise.resolve()
 					.then(() => feedback.inverse(variables, data, context.original))
 					.then(
 						() =>
 							showFeedback(
 								context.id,
-								{ kind: "undone", title: "Change undone" },
+								{
+									variant: "neutral",
+									title: "Change undone",
+									icon: createElement(IconArrowBackUp, {
+										className: NEUTRAL_ICON_CLASS,
+									}),
+								},
 								FEEDBACK_DURATION_MS
 							),
 						() =>
 							showFeedback(
 								context.id,
 								{
-									kind: "undo-error",
+									variant: "warning",
 									title: "Couldn't undo",
 									description:
 										"It changed again after your edit. Nothing was reverted.",
@@ -147,7 +170,7 @@ export function useUndoableMutation<TData, TError, TVariables, TContext>(
 			};
 			showFeedback(
 				context.id,
-				{ kind: "success", title: feedback.message, onUndo },
+				{ variant: "success", title: feedback.message, onUndo },
 				Number.POSITIVE_INFINITY
 			);
 		},

@@ -93,6 +93,14 @@
 	--h-control-lg: 2.5rem;
 	--h-control-xl: 3rem;
 
+	--control-sm: var(--h-control-sm);
+	--control-md: var(--h-control-md);
+	--control-lg: var(--h-control-lg);
+	--primary-hover: color-mix(in oklab, var(--primary) 85%, black);
+	--primary-text: var(--primary);
+	--accent-pressed: var(--accent);
+	--destructive-hover: color-mix(in oklab, var(--destructive) 85%, black);
+
 	--dur-instant: 80ms;
 	--dur-fast: 150ms;
 	--dur-base: 200ms;
@@ -144,6 +152,25 @@
 }
 
 @theme inline {
+	--color-primary-hover: var(--primary-hover);
+	--color-primary-text: var(--primary-text);
+	--color-primary-soft: var(--primary-soft);
+	--color-accent-pressed: var(--accent-pressed);
+	--color-destructive-hover: var(--destructive-hover);
+	--color-destructive-text: var(--destructive-text);
+	--color-destructive-soft: var(--destructive-soft);
+	--color-success-hover: var(--success-hover);
+	--color-success-text: var(--success-text);
+	--color-success-soft: var(--success-soft);
+	--color-warning-hover: var(--warning-hover);
+	--color-warning-text: var(--warning-text);
+	--color-warning-soft: var(--warning-soft);
+	--color-border-subtle: var(--border-subtle);
+	--color-subtle-foreground: var(--subtle-foreground);
+	--color-overlay: var(--overlay);
+	--color-switch-thumb: var(--switch-thumb);
+	--color-positive: var(--positive);
+	--color-negative: var(--negative);
 	--color-sidebar-ring: var(--sidebar-ring);
 	--color-sidebar-border: var(--sidebar-border);
 	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -196,6 +223,17 @@
 	--font-mono:
 		"JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Monaco,
 		Consolas, monospace;
+}
+
+@utility layer-accent {
+	background-image: linear-gradient(var(--accent), var(--accent));
+}
+
+@utility layer-accent-pressed {
+	background-image: linear-gradient(
+		var(--accent-pressed),
+		var(--accent-pressed)
+	);
 }
 
 @layer base {

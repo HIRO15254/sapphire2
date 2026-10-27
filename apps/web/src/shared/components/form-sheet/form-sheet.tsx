@@ -2,13 +2,13 @@ import { IconCheck, IconLoader2, IconX } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { CRYST_SCOPE_CLASS } from "@/shared/components/cryst/cryst-scope";
-import { Button } from "@/shared/components/ui/button";
 import {
 	Drawer,
 	DrawerContent,
 	DrawerDescription,
 	DrawerTitle,
 } from "@/shared/components/ui/drawer";
+import { IconButton } from "@/shared/components/ui/icon-button";
 
 interface FormSheetProps {
 	children: ReactNode;
@@ -41,35 +41,33 @@ export function FormSheet({
 				)}
 			>
 				<div className="grid shrink-0 grid-cols-[auto_1fr_auto] items-center gap-2 border-b px-2 py-1.5">
-					<Button
-						aria-label="Cancel"
+					<IconButton
 						className="justify-self-start"
+						label="Cancel"
 						onClick={() => onOpenChange(false)}
-						size="icon-lg"
+						size="xl"
 						type="button"
-						variant="ghost"
 					>
-						<IconX className="size-6" />
-					</Button>
+						<IconX aria-hidden />
+					</IconButton>
 					<DrawerTitle className="t-h4 min-w-0 truncate text-center">
 						{title}
 					</DrawerTitle>
-					<Button
+					<IconButton
 						aria-busy={isLoading}
-						aria-label="Save"
-						className="justify-self-end text-primary hover:text-primary"
+						className="justify-self-end text-primary-text hover:text-primary-text"
 						disabled={isLoading || isSaveDisabled}
 						form={formId}
-						size="icon-lg"
+						label="Save"
+						size="xl"
 						type="submit"
-						variant="ghost"
 					>
 						{isLoading ? (
-							<IconLoader2 className="size-6 animate-spin" />
+							<IconLoader2 aria-hidden className="animate-spin" />
 						) : (
-							<IconCheck className="size-6" />
+							<IconCheck aria-hidden />
 						)}
-					</Button>
+					</IconButton>
 				</div>
 				<DrawerDescription className="sr-only">{title}</DrawerDescription>
 				<div className="flex-1 overflow-y-auto px-4 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">

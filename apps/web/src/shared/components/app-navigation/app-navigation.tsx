@@ -74,7 +74,7 @@ export function MobileNavItem({
 				aria-current={active ? "page" : undefined}
 				className={cn(
 					"flex h-12 flex-col items-center justify-center gap-[3px] font-medium text-[length:var(--m-text-tab)]",
-					active ? "text-[var(--accent-text)]" : "text-muted-foreground"
+					active ? "text-primary-text" : "text-muted-foreground"
 				)}
 				to={item.to}
 			>
@@ -99,8 +99,8 @@ export function SidebarNavItem({
 				className={cn(
 					"flex h-[30px] w-full items-center gap-2 rounded-md px-2 font-medium text-sm",
 					active
-						? "bg-[var(--accent-soft)] text-[var(--accent-text)]"
-						: "text-muted-foreground hover:bg-[var(--state-hover)] hover:text-foreground"
+						? "bg-primary-soft text-primary-text"
+						: "hover:layer-accent active:layer-accent-pressed text-muted-foreground hover:text-foreground"
 				)}
 				to={item.to}
 			>

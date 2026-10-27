@@ -1,7 +1,7 @@
 import { IconChevronLeft } from "@tabler/icons-react";
 import type * as React from "react";
 import { cn } from "@/lib/utils";
-import { crystIconButton } from "@/shared/components/cryst/cryst-controls";
+import { IconButton } from "@/shared/components/ui/icon-button";
 import { usePageHeader } from "./use-page-header";
 
 interface PageHeaderProps extends React.ComponentProps<"div"> {
@@ -30,14 +30,9 @@ export function PageHeader({
 			{...props}
 		>
 			{back && (
-				<button
-					aria-label="Back"
-					className={crystIconButton({ variant: "ghost", size: "xl" })}
-					onClick={onBack}
-					type="button"
-				>
-					<IconChevronLeft size={18} />
-				</button>
+				<IconButton label="Back" onClick={onBack} size="xl" type="button">
+					<IconChevronLeft aria-hidden />
+				</IconButton>
 			)}
 			<h1 className="min-w-0 flex-1 font-semibold text-[length:var(--m-text-title)] tracking-[var(--tracking-heading)] md:text-[15px]">
 				{heading}

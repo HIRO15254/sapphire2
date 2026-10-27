@@ -5,11 +5,15 @@ import {
 	IconRefresh,
 } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
+import { Button } from "@/shared/components/ui/button";
 import {
-	CRYST_BUTTON_ICON_SIZE,
-	crystButton,
-} from "@/shared/components/cryst/cryst-controls";
-import { CrystEmptyState } from "@/shared/components/cryst/cryst-empty-state";
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyMedia,
+	EmptyTitle,
+} from "@/shared/components/ui/empty";
 
 interface NotFoundStateProps {
 	entity: string;
@@ -25,22 +29,23 @@ export function NotFoundState({
 	listIcon: ListIcon,
 }: NotFoundStateProps) {
 	return (
-		<div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-3.5 py-6">
-			<CrystEmptyState
-				description="It may have been deleted."
-				icon={IconFileOff}
-				title={`${entity} not found`}
-			/>
-			<Link
-				className={crystButton({ size: "xl", variant: "outline" })}
-				to={listHref}
-			>
-				{ListIcon ? (
-					<ListIcon aria-hidden size={CRYST_BUTTON_ICON_SIZE.xl} />
-				) : null}
-				Back to {listLabel}
-			</Link>
-		</div>
+		<Empty className="min-h-0 flex-1 px-3.5 py-6">
+			<EmptyHeader>
+				<EmptyMedia>
+					<IconFileOff aria-hidden />
+				</EmptyMedia>
+				<EmptyTitle>{entity} not found</EmptyTitle>
+				<EmptyDescription>It may have been deleted.</EmptyDescription>
+			</EmptyHeader>
+			<EmptyContent>
+				<Button asChild size="xl" variant="outline">
+					<Link to={listHref}>
+						{ListIcon ? <ListIcon aria-hidden /> : null}
+						Back to {listLabel}
+					</Link>
+				</Button>
+			</EmptyContent>
+		</Empty>
 	);
 }
 
@@ -56,24 +61,29 @@ export function LoadErrorState({
 	onRetry,
 }: LoadErrorStateProps) {
 	return (
-		<div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-3.5 py-6">
-			<div role="alert">
-				<CrystEmptyState
-					description="Check your connection and try again."
-					icon={IconCloudOff}
-					title={`Couldn't load this ${entity}`}
-				/>
-			</div>
-			<button
-				aria-busy={isRetrying}
-				className={crystButton({ size: "xl", variant: "outline" })}
-				disabled={isRetrying}
-				onClick={onRetry}
-				type="button"
-			>
-				<IconRefresh aria-hidden size={CRYST_BUTTON_ICON_SIZE.xl} />
-				Retry
-			</button>
-		</div>
+		<Empty className="min-h-0 flex-1 px-3.5 py-6">
+			<EmptyHeader role="alert">
+				<EmptyMedia>
+					<IconCloudOff aria-hidden />
+				</EmptyMedia>
+				<EmptyTitle>Couldn't load this {entity}</EmptyTitle>
+				<EmptyDescription>
+					Check your connection and try again.
+				</EmptyDescription>
+			</EmptyHeader>
+			<EmptyContent>
+				<Button
+					aria-busy={isRetrying}
+					disabled={isRetrying}
+					onClick={onRetry}
+					size="xl"
+					type="button"
+					variant="outline"
+				>
+					<IconRefresh aria-hidden />
+					Retry
+				</Button>
+			</EmptyContent>
+		</Empty>
 	);
 }

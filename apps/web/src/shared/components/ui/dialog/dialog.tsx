@@ -3,6 +3,7 @@ import { Dialog as DialogPrimitive } from "radix-ui";
 import type * as React from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/shared/components/ui/button";
+import { IconButton } from "@/shared/components/ui/icon-button";
 
 function Dialog({
 	...props
@@ -68,14 +69,9 @@ function DialogContent({
 				{children}
 				{showCloseButton && (
 					<DialogPrimitive.Close asChild data-slot="dialog-close">
-						<Button
-							className="absolute top-2 right-2"
-							size="icon-sm"
-							variant="ghost"
-						>
+						<IconButton className="absolute top-2 right-2" label="Close">
 							<IconX />
-							<span className="sr-only">Close</span>
-						</Button>
+						</IconButton>
 					</DialogPrimitive.Close>
 				)}
 			</DialogPrimitive.Content>

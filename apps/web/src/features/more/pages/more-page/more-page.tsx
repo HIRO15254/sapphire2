@@ -6,6 +6,14 @@ import {
 	type NavigationItem,
 } from "@/shared/components/app-navigation";
 import { PageHeader } from "@/shared/components/page-header";
+import {
+	Item,
+	ItemActions,
+	ItemContent,
+	ItemGroup,
+	ItemMedia,
+	ItemTitle,
+} from "@/shared/components/ui/item";
 
 function Group({
 	title,
@@ -16,23 +24,26 @@ function Group({
 }) {
 	return (
 		<section>
-			<h2 className="px-2 pt-3 pb-1 font-semibold text-muted-foreground text-xs uppercase tracking-[var(--tracking-caps)]">
+			<h2 className="px-3 pt-3 pb-1 font-semibold text-muted-foreground text-xs uppercase tracking-[var(--tracking-caps)]">
 				{title}
 			</h2>
-			<ul>
+			<ItemGroup size="xl">
 				{items.map((item) => (
-					<li key={item.to}>
-						<Link
-							className="flex h-[var(--m-list-row)] items-center gap-2 rounded-md px-2 text-sm hover:bg-[var(--state-hover)]"
-							to={item.to}
-						>
-							<item.icon size={18} />
-							<span className="flex-1">{item.label}</span>
-							<IconChevronRight className="text-muted-foreground" size={18} />
+					<Item asChild key={item.to}>
+						<Link to={item.to}>
+							<ItemMedia>
+								<item.icon />
+							</ItemMedia>
+							<ItemContent>
+								<ItemTitle>{item.label}</ItemTitle>
+							</ItemContent>
+							<ItemActions>
+								<IconChevronRight aria-hidden />
+							</ItemActions>
 						</Link>
-					</li>
+					</Item>
 				))}
-			</ul>
+			</ItemGroup>
 		</section>
 	);
 }

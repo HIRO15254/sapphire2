@@ -1,37 +1,49 @@
 import { IconCloudOff, IconFileOff } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
-import { crystButton } from "@/shared/components/cryst/cryst-controls";
-import { CrystEmptyState } from "@/shared/components/cryst/cryst-empty-state";
 import { CRYST_SCOPE_CLASS } from "@/shared/components/cryst/cryst-scope";
+import { Button } from "@/shared/components/ui/button";
+import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyMedia,
+	EmptyTitle,
+} from "@/shared/components/ui/empty";
 
 export function RouterErrorFallback() {
 	return (
-		<div
-			className={`${CRYST_SCOPE_CLASS} flex min-h-full flex-col items-center justify-center gap-4 bg-background p-6 text-foreground`}
-		>
-			<div role="alert">
-				<CrystEmptyState
-					description="Please try again or return to Home."
-					icon={IconCloudOff}
-					title="Something went wrong"
-				/>
-			</div>
-			<Link className={crystButton({ variant: "outline", size: "xl" })} to="/">
-				Go to Home
-			</Link>
-		</div>
+		<Empty className={`${CRYST_SCOPE_CLASS} min-h-full bg-background p-6`}>
+			<EmptyHeader role="alert">
+				<EmptyMedia>
+					<IconCloudOff aria-hidden />
+				</EmptyMedia>
+				<EmptyTitle>Something went wrong</EmptyTitle>
+				<EmptyDescription>Please try again or return to Home.</EmptyDescription>
+			</EmptyHeader>
+			<EmptyContent>
+				<Button asChild size="xl" variant="outline">
+					<Link to="/">Go to Home</Link>
+				</Button>
+			</EmptyContent>
+		</Empty>
 	);
 }
 
 export function RouterNotFoundFallback() {
 	return (
-		<div
-			className={`${CRYST_SCOPE_CLASS} flex min-h-full flex-col items-center justify-center gap-4 bg-background p-6 text-foreground`}
-		>
-			<CrystEmptyState icon={IconFileOff} title="Page not found" />
-			<Link className={crystButton({ variant: "outline", size: "xl" })} to="/">
-				Go to Home
-			</Link>
-		</div>
+		<Empty className={`${CRYST_SCOPE_CLASS} min-h-full bg-background p-6`}>
+			<EmptyHeader>
+				<EmptyMedia>
+					<IconFileOff aria-hidden />
+				</EmptyMedia>
+				<EmptyTitle>Page not found</EmptyTitle>
+			</EmptyHeader>
+			<EmptyContent>
+				<Button asChild size="xl" variant="outline">
+					<Link to="/">Go to Home</Link>
+				</Button>
+			</EmptyContent>
+		</Empty>
 	);
 }
