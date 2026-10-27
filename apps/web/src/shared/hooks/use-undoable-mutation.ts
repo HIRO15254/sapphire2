@@ -4,6 +4,7 @@ import { createElement, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
 import { Toast, type ToastVariant } from "@/shared/components/ui/sonner";
+import { trpcErrorCode } from "@/shared/lib/query-failure";
 
 interface Feedback {
 	description?: string;
@@ -155,14 +156,16 @@ export function useUndoableMutation<TData, TError, TVariables, TContext>(
 								},
 								FEEDBACK_DURATION_MS
 							),
-						() =>
+						(error: unknown) =>
 							showFeedback(
 								context.id,
 								{
 									variant: "warning",
 									title: "Couldn't undo",
 									description:
-										"It changed again after your edit. Nothing was reverted.",
+										trpcErrorCode(error) === "CONFLICT"
+											? "It changed again after your edit. Nothing was reverted."
+											: "Nothing was reverted.",
 								},
 								FEEDBACK_DURATION_MS
 							)
