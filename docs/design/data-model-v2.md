@@ -917,7 +917,9 @@ MCP is an untrimmed projection through appRouter.createCaller, using the identic
 
 B03 deletes the old API-dependent UI once, before API-breaking tasks. It removes feature routes/screens/hooks and tests that call a v2-affected procedure or import its types, including the released Cryst cockpit. It keeps authentication and account flows (login, sign-up, passkeys, OAuth consent/continuation, linked accounts, set-password), authenticated shell with placeholder home, PWA/persisted-cache infrastructure, theme tokens including Cryst scope, production-used API-free shared primitives such as PageHeader and shadcn components, tRPC/QueryClient setup, and unaffected update notes. B03 points every kept navigation that targeted a deleted screen at the placeholder home `/`: the signed-in redirects of `/` and `/login`, post-sign-in, post-sign-up and preview auto-login n…
 
-**SA2-427 (user decision, superseding B03's primitive-retention policy):** delete unused UI parts regardless of whether they are shadcn-standard or custom. Production-used parts stay until U12 (SA2-421). This includes deletion of the unused Cryst components and their otherwise-unused dependencies; the v2 UI phases re-add components from the design system when needed. The Cryst theme tokens and `.cryst` scope remain until U12; U01 owns the root Toaster's Cryst scope.
+**SA2-427 (user decision, superseding B03's primitive-retention policy):** delete unused UI parts regardless of whether they are shadcn-standard or custom. Production-used parts stay until U12 (SA2-421). This includes deletion of the unused Cryst components and their otherwise-unused dependencies; the v2 UI phases re-add components from the design system when needed.
+
+**U12 position (2026-10-23 user decision):** U12 runs right after U01 and before U02–U05. After B03 the only kept screens are authentication, settings, update notes and the shell/home; U01 and U12 move them to Cryst, and U12 then moves the Cryst values into `:root` / `.dark` and deletes `cryst-tokens.css` and the `.cryst` scope, so U02 onward build on Cryst as the only theme and no old-UI look survives except logic. SA2-230's reason for withdrawing a whole-app switch (unmigrated screens changing at once) does not apply after B03.
 
 B03 records every deleted test's protected contract and the last old-UI SHA on U01; it updates AGENTS.md and rule reference implementations (web-architecture, web-ui, web-hooks-separation, web-forms, web-data-fetching, web-theme), keeping check:rules meaningful. It does not create a hidden replacement screen project.
 
@@ -1171,6 +1173,7 @@ This is the final task list, numbered in execution order (rebuilt on 2026-10-17;
 | B04 | SA2-388 | Data Model v2 | All A-x audit runner, projector replay, dev-deploy/release gate | 3 | B01, B02 |
 | B05 | SA2-389 | Non-NLH games | Game-master archive/restore and includeArchived, API only; composite game_variant rebuild, expression UNIQUE, no label/JSON triggers | 5 | B03, B04 |
 | U01 | SA2-390 | UI v3 | Shell, route map, home, Undo toast base (`useUndoableMutation`), persisted-cache buster; receives B03's last old-UI SHA and test-contract ledger and assigns each row to a phase | 5 | B03 |
+| U12 | SA2-421 | UI v3 | Authentication/account/update notes moved to Cryst; Cryst values move to `:root` / `.dark`, and `cryst-tokens.css` and the `.cryst` scope are removed | 3 | U01 |
 | B06 | SA2-391 | Data Model v2 | Port #704's migration/test, migrate entry/day/events, A-3/A-4; delete old entry/live APIs and MCP | 5 | B03, B04 |
 | B07 | SA2-392 | Non-NLH games | Cash master version/lineup backfill and ring_game rebuild/final API | 5 | B05 |
 | B08 | SA2-393 | Non-NLH games | Tournament version/levels/prices with invocation-budget maxima and master rebuild/final API | 5 | B05 |
@@ -1179,20 +1182,20 @@ This is the final task list, numbered in execution order (rebuilt on 2026-10-17;
 | B11 | SA2-396 | Non-NLH games | Required blind flags and built-in defaults, remove Big Bet Straddle; shared new-stake validation, API/MCP, no UI | 5 | B08 |
 | B12 | SA2-397 | Data Model v2 | Final asset/rate/settings API, always projected EV, delete currency API | 3 | B09 |
 | B13 | SA2-398 | Non-NLH games | Entry versions, NOT NULL leaf details, price ids and rule creation/read services; no router wiring | 5 | B09, B07, B08 |
-| U02 | SA2-399 | UI v3 | Games screens (archive/restore) and the shared id-based game/group/mix and stakes/lineup editors, including Must/Optional blind display and ante type input | 5 | U01, B11 |
+| U02 | SA2-399 | UI v3 | Games screens (archive/restore) and the shared id-based game/group/mix and stakes/lineup editors, including Must/Optional blind display and ante type input | 5 | U12, B11 |
 | B14 | SA2-400 | Data Model v2 | Final wallet/category API and guarded archive/delete; delete currencyTransaction/transactionType routers, MCP and DEFAULT_TRANSACTION_TYPES | 3 | B12 |
 | B15 | SA2-401 | Data Model v2 | Self-player DDL/backfill, getSelf and opponent exclusions; backend only; rewrite all v1 payloads with resolved price/self-player ids; remove v1 from projector and registry | 5 | B13 |
 | B16 | SA2-402 | Data Model v2 | Final entry API, playSessions/payments with invocation-budget maxima; wire B13 services and drift; delete privateData only (old session API already removed) | 5 | B10, B13 |
 | B17 | SA2-403 | Data Model v2 | Final live/playEvent/tablePlayer, including self/Hero seat source; B13 service wiring; no v1 branch; zoned dates, event-time/terminal-order guards, initialStack and server progress | 5 | B12, B15, B16 |
 | B18 | SA2-404 | Data Model v2 | Four tag factories/backfill and APIs/MCP; mapped ids, A-12 | 5 | B16 |
-| U03 | SA2-405 | UI v3 | Asset, wallet, rate and settings screens | 5 | U01, B14 |
+| U03 | SA2-405 | UI v3 | Asset, wallet, rate and settings screens | 5 | U12, B14 |
 | B19 | SA2-406 | Data Model v2 | endPlay/startNextPlay and undo, ended-day state machine | 3 | B17 |
 | B20 | SA2-407 | Non-NLH games | Entry/live rule-operation APIs, including restoreRule and live.createAndAssignRingGame/Tournament | 3 | B17 |
 | B21 | SA2-408 | Data Model v2 | Summary/full replacement writes and all_in hand link, hand.update tagIds/tagReviews, API only | 3 | B17, B18 |
 | B22 | SA2-409 | Data Model v2 | Final settled-only stats modes/date axes/tags/presets/reporting; rebuild filter_preset with JSON CHECK and row-count/FK gates | 5 | B12, B18 |
 | B23 | SA2-410 | Data Model v2 | Rule-based stand-in cleanup and seed-exception removal | 3 | B17 |
-| U04 | SA2-411 | UI v3 | Management and pickers for the four tag kinds; the other screens use these pickers from the start | 3 | U01, B18 |
-| U05 | SA2-412 | UI v3 | Live cockpit: table, events, summary and P/L | 5 | U01, B17 |
+| U04 | SA2-411 | UI v3 | Management and pickers for the four tag kinds; the other screens use these pickers from the start | 3 | U12, B18 |
+| U05 | SA2-412 | UI v3 | Live cockpit: table, events, summary and P/L | 5 | U12, B17 |
 | B24 | SA2-413 | Data Model v2 | bb/100 and hands/hour; opponent full-hand count and VPIP/PFR, API only | 3 | B22, B21 |
 | U06 | SA2-414 | UI v3 | Rooms and ring-game/tournament rule editing | 5 | U02, U04 |
 | U07 | SA2-415 | UI v3 | Entry list, detail, share and manual entry wizard | 5 | U02, U04, B20 |
@@ -1201,13 +1204,12 @@ This is the final task list, numbered in execution order (rebuilt on 2026-10-17;
 | B25 | SA2-418 | Data Model v2 | Remove every remaining retired schema/code path, including todo; final docs/rules, every SA2-334 compromise row and obsolete-name sweep | 5 | B14, B11, B19, B20, B24, B23 |
 | U10 | SA2-419 | UI v3 | Hand and opponent screens | 5 | U05, U04, B24 |
 | U11 | SA2-420 | UI v3 | Statistics and presets | 5 | U04, B24 |
-| U12 | SA2-421 | UI v3 | Authentication/account/update notes moved to Cryst; remove the `.cryst` scope. Not a release condition | 3 | U03, U06, U07, U08, U09, U10, U11 |
 | REL | SA2-422 | Data Model v2 | v4.0.0 joint release: gates, Time Travel restore point, `db:migrate:remote`, production B04 audit, Worker and new UI deploy | 2 | B25, U03, U06, U07, U08, U09, U10, U11 |
 | X1 | SA2-423 | UI v3 | Balance-history sparkline (SA2-32). After the release | 3 | REL |
 | X2 | SA2-424 | UI v3 | Automatic mix rotation every N hands. After the release | 3 | REL |
 | Record | SA2-334 | Data Model v2 | Z1/Z2, principles, resolutions/tasks/cancellations and this documentation change | 2 | — |
 
-B04 precedes every data cutover and populated rebuild except B02 (in-migration gates only), so each is audited on the dev deploy that ships it. U01 only needs B03; every other U phase waits for its final APIs. REL waits for B25 and the U phases except U12; U12, X1 and X2 are not release conditions. #704 is closed and its issue SA2-303 (the first T07) was canceled with it; the later T07 issue SA2-368 is a Duplicate of B06; B06 ports only #704's migration and migration test. SA2-334 records the restructure rather than adding another implementation phase.
+B04 precedes every data cutover and populated rebuild except B02 (in-migration gates only), so each is audited on the dev deploy that ships it. U01 only needs B03, and U12 only U01; U12 keeps its number but runs second (2026-10-23), so U02–U05 wait for U12 and every U phase after it also waits for its final APIs. REL waits for B25 and the U phases; U12 is a release condition through U03. X1 and X2 are not release conditions. #704 is closed and its issue SA2-303 (the first T07) was canceled with it; the later T07 issue SA2-368 is a Duplicate of B06; B06 ports only #704's migration and migration test. SA2-334 records the restructure rather than adding another implementation phase.
 
 Canceled work is fully reassigned: T16 (SA2-315)→B16/B17/U07/U05; T19 (SA2-317)→B19/U09; T20 (SA2-318)→B16/U07; T33 (SA2-320)→B22/B18/U04; L3 (SA2-246)→B07/B08/B13/B22/B16/B17; L4a/b/c (SA2-247/248/249)→U06/U08/U07 and U02; L5 (SA2-250)→B07/B08/B13/B05/B16/B17/B25. Historical T03→T02, T08/T09→T07, T34/T36 canceled, remain recorded in the decision log, not active tasks. SA2-242's design deliverable is complete; its old phase table is superseded by this one. B11 owns Must/Optional blind-field validation after B08; the screens are U02's shared stakes components.
 
@@ -1273,6 +1275,7 @@ B01 --> B04
 B02 --> B04
 B03 --> B05
 B03 --> U01
+U01 --> U12
 B03 --> B06
 B04 --> B05
 B04 --> B06
@@ -1285,7 +1288,7 @@ B09 --> B12
 B09 --> B13
 B07 --> B13
 B08 --> B13
-U01 --> U02
+U12 --> U02
 B11 --> U02
 B12 --> B14
 B13 --> B15
@@ -1295,7 +1298,7 @@ B12 --> B17
 B15 --> B17
 B16 --> B17
 B16 --> B18
-U01 --> U03
+U12 --> U03
 B14 --> U03
 B17 --> B19
 B17 --> B20
@@ -1304,9 +1307,9 @@ B18 --> B21
 B12 --> B22
 B18 --> B22
 B17 --> B23
-U01 --> U04
+U12 --> U04
 B18 --> U04
-U01 --> U05
+U12 --> U05
 B17 --> U05
 B22 --> B24
 B21 --> B24
@@ -1331,13 +1334,6 @@ U04 --> U10
 B24 --> U10
 U04 --> U11
 B24 --> U11
-U03 --> U12
-U06 --> U12
-U07 --> U12
-U08 --> U12
-U09 --> U12
-U10 --> U12
-U11 --> U12
 B25 --> REL
 U03 --> REL
 U06 --> REL
@@ -1499,3 +1495,4 @@ Every earlier decision is retained below with its present disposition. Historica
 | 2026-10-16 | SA2-241: built-in required blind flags and Big Bet Straddle removal; server validates newly written stakes. SA2-236: six-second success Undo via compensation, no delete Undo or redo, last write wins. SA2-32: defer balance sparkline until after release | User decisions; §20.1 items 11–13 and API reference §1 bind backend and new UI. Existing versions are reused for rule Undo, not recreated |
 | 2026-10-16 | Data-first implementation replaces intermediate legacy-router cutovers: T07 ports only #704's migration/test and removes old entry/live APIs; L2 services → T40/T41 → L2b, T46 → T39 → T41 | Removes throwaway rewiring, compatibility parent rows, legacy payload branches and temporary Hero-seat API. Dev intentionally has no entry/live API between T07 and T40/T41; production migration, final APIs and audits are unchanged. Supersedes the #704 bridge rows above: no legacy money recompute, ended-day playSessionId fallback or unfinished-live T07 statistics exist, and new live local_date starts at T41 with userSetting.timeZone |
 | 2026-10-17 | Rebuild every task of both projects in execution order (B01–B25, U01–U12, REL, X1, X2; issues SA2-385–SA2-424). Mapping: T38→B01; T42→B02; T44→B03; T45→B04; L0/L6→B05; UI-0→U01; T07→B06; L1→B07; L1b→B08; T12→B09; T22→B10; T47→B11; T14→B12; L2→B13; UI-2→U02; T15→B14; T46/T39→B15; T40→B16; T41→B17; T32→B18; UI-1→U03; T18→B19; L2b→B20; T24→B21; T17→B22; T43→B23; UI-7→U04; UI-5a→U05; T23/T25→B24; UI-3→U06; UI-4→U07; UI-5b→U08; UI-5c→U09; T35/T37→B25; UI-6→U10; UI-8→U11; UI-9→U12; SA2-370→REL; the NEW-UI hub SA2-367→U01 (its requirement tables; REL depends on each phase directly); SA2-383→X1; SA2-384→X2. The old issues are Duplicate of the new ones | User-directed: the old split followed issue creation order. B04's audit runner now precedes the first data cutover; the tag pickers (U04) precede every screen that uses them; four small pairs are merged (L0+L6, T46+T39, T23+T25, T35+T37); the UI hub issue is removed and REL depends on each phase directly; redundant edges are dropped (79 direct edges). Scope, acceptance criteria and recorded decisions are unchanged |
+| 2026-10-23 | U12 (SA2-421) moves right after U01 and must finish before U02–U05: edges U01→U12 and U12→U02/U03/U04/U05 replace U01→U02…U05 and U03/U06–U11→U12. U12 becomes a release condition through U03. Applied by U12 itself (§15, §17, §18) | User decision. After B03 the only kept screens are authentication, settings, update notes and the shell/home, so U01 and U12 move them to Cryst and remove the old tokens and the `.cryst` scope before the v2 screens are built; SA2-230's withdrawal reason (unmigrated screens changing at once) does not apply after B03 |

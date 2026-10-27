@@ -14,7 +14,7 @@ Every top-level page composes its header with [`PageHeader`](../../apps/web/src/
 Reach for existing shadcn components before building a custom wrapper:
 
 - Status pills, counts → shadcn `Badge`. Do not reintroduce the old `ColorBadge` wrapper.
-- Single-choice selection (swatches, enum pickers) → shadcn `RadioGroup`.
+- Two to four one-word choices that set a saved value (theme, enum pickers) → `ToggleGroup` (`type="single"`; ignore the empty value Radix emits when the selected item is pressed again). Longer labeled lists → a `RadioGroup` re-added from the design system.
 
 ## Language
 

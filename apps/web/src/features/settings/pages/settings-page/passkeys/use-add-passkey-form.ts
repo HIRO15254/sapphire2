@@ -12,6 +12,7 @@ interface UseAddPasskeyFormOptions {
 	onSuccess: () => void;
 }
 
+const CANCELED_MESSAGE = "The request was canceled or timed out. Try again.";
 const PREVIOUSLY_REGISTERED_CODE = "ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED";
 
 function isPreviouslyRegistered(error?: unknown): boolean {
@@ -29,15 +30,26 @@ const addPasskeySchema = z.object({
 	name: z
 		.string()
 		.trim()
-		.min(1, "Passkey name is required")
-		.max(50, "Passkey name must be 50 characters or less"),
+		.min(1, "Enter a name")
+		.max(50, "Use 50 characters or fewer"),
 });
+
+function describeAddFailure(error?: { message?: string } | null): string {
+	if (isCancelledCeremony(error)) {
+		return CANCELED_MESSAGE;
+	}
+	if (isPreviouslyRegistered(error)) {
+		return "This device already has a passkey.";
+	}
+	return error?.message || "Try again.";
+}
 
 export function useAddPasskeyForm({
 	onOpenChange,
 	onSuccess,
 }: UseAddPasskeyFormOptions) {
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
 	const form = useForm({
 		defaultValues: {
@@ -49,20 +61,14 @@ export function useAddPasskeyForm({
 			}
 
 			setIsSubmitting(true);
+			setErrorMessage(null);
 			try {
 				const result = await authClient.passkey.addPasskey({
 					name: value.name.trim(),
 				});
 
 				if (!result?.data || result.error) {
-					if (isCancelledCeremony(result?.error)) {
-						return;
-					}
-					toast.error(
-						isPreviouslyRegistered(result?.error)
-							? "This device already has a passkey"
-							: result?.error?.message || "Failed to add passkey"
-					);
+					setErrorMessage(describeAddFailure(result?.error));
 					return;
 				}
 
@@ -80,5 +86,13 @@ export function useAddPasskeyForm({
 		},
 	});
 
-	return { form, isSubmitting };
+	const onSheetOpenChange = (open: boolean) => {
+		if (!open) {
+			form.reset();
+			setErrorMessage(null);
+		}
+		onOpenChange(open);
+	};
+
+	return { errorMessage, form, isSubmitting, onSheetOpenChange };
 }

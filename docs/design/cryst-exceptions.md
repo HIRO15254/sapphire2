@@ -1,9 +1,12 @@
 # Cryst Exceptions
 
-The Cryst design system is the whole vocabulary for migrated screens. A migrated screen that needs something the system does not describe builds it as an **exception**: local to that screen, recorded here with its reason, and never a precedent for another screen. If a second screen needs the same thing, propose it to the design system as a component instead of copying it. The design system's README lists the same exceptions under "Exceptions" and points here for the reasons.
+The Cryst design system is the whole vocabulary for the app's screens. A screen that needs something the system does not describe builds it as an **exception**: local to that screen, recorded here with its reason, and never a precedent for another screen. If a second screen needs the same thing, propose it to the design system as a component instead of copying it. The design system's README lists the same exceptions under "Exceptions" and points here for the reasons.
 
-The temporary `.cryst` token scope is described in [`.claude/rules/web-theme.md`](../../.claude/rules/web-theme.md). SA2-427 removed the unused components; future v2 UI screens re-add design-system components when needed and record any new exceptions here.
+The Cryst tokens are the app's only theme (`apps/web/src/index.css`, rules in [`.claude/rules/web-theme.md`](../../.claude/rules/web-theme.md)). Screens re-add design-system components when they need them.
 
+| Screen | Exception | Reason |
+|---|---|---|
+| Login (`features/auth/pages/login-page`) | The content column is capped at 440px and centered. | The login page sits outside the authenticated shell, so it has no "Use on your phone" blocker: MCP OAuth sends desktop browsers here (`/login?client_id=…`). The phone-only board would otherwise stretch its full-width buttons and fields across a desktop window. |
 
 ## Removing an exception
 

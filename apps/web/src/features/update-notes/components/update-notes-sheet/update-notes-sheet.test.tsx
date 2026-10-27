@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
 		close: vi.fn(),
 		setIsOpen: vi.fn(),
 		viewedVersions: new Set<string>(),
-		onAccordionChange: vi.fn(),
+		markViewed: vi.fn(),
 	},
 }));
 
@@ -20,6 +20,8 @@ vi.mock(
 		useUpdateNotesSheet: () => mocks.sheetState,
 	})
 );
+
+const RELEASE_ROW = /1\.0\.0/;
 
 vi.mock("@/features/update-notes/constants", () => ({
 	UPDATE_NOTES: [
@@ -49,21 +51,6 @@ vi.mock("@/features/update-notes/constants", () => ({
 	LATEST_VERSION: "1.0.0",
 }));
 
-vi.mock("@/shared/components/ui/accordion", () => ({
-	Accordion: ({ children }: { children: React.ReactNode }) => (
-		<div data-testid="accordion">{children}</div>
-	),
-	AccordionItem: ({ children }: { children: React.ReactNode }) => (
-		<div data-testid="accordion-item">{children}</div>
-	),
-	AccordionTrigger: ({ children }: { children: React.ReactNode }) => (
-		<button type="button">{children}</button>
-	),
-	AccordionContent: ({ children }: { children: React.ReactNode }) => (
-		<div>{children}</div>
-	),
-}));
-
 vi.mock("@/shared/components/ui/badge", () => ({
 	Badge: ({ children }: { children: React.ReactNode }) => (
 		<span data-testid="badge">{children}</span>
@@ -83,19 +70,25 @@ describe("UpdateNotesSheet", () => {
 		expect(screen.queryByText("Update notes")).not.toBeInTheDocument();
 	});
 
-	it("renders accordion items for update notes", () => {
+	it("expands a release and marks it viewed", async () => {
 		mocks.sheetState.isOpen = true;
 		mocks.sheetState.viewedVersions = new Set();
+		mocks.sheetState.markViewed.mockClear();
 		render(<UpdateNotesSheet />);
-		expect(screen.getByText("1.0.0")).toBeInTheDocument();
-		expect(screen.getByText("2026-04-11")).toBeInTheDocument();
-	});
-
-	it("shows NEW badge for unviewed versions", () => {
-		mocks.sheetState.isOpen = true;
-		mocks.sheetState.viewedVersions = new Set();
-		render(<UpdateNotesSheet />);
-		expect(screen.getByTestId("badge")).toHaveTextContent("NEW");
+		const release = screen.getByRole("button", { name: RELEASE_ROW });
+		expect(release).toHaveAttribute("aria-expanded", "false");
+		expect(release).toHaveTextContent("New");
+		expect(release).toHaveTextContent("2026/04/11");
+		expect(screen.queryByText("Update Notes Feature")).not.toBeInTheDocument();
+		await userEvent.setup().click(release);
+		expect(release).toHaveAttribute("aria-expanded", "true");
+		expect(screen.getByText("Update Notes Feature")).toBeInTheDocument();
+		expect(
+			screen.getByText(
+				"Added update notes modal to view past release information"
+			)
+		).toBeInTheDocument();
+		expect(mocks.sheetState.markViewed).toHaveBeenCalledWith("1.0.0");
 	});
 
 	it("does not show NEW badge for viewed versions", () => {
@@ -103,44 +96,6 @@ describe("UpdateNotesSheet", () => {
 		mocks.sheetState.viewedVersions = new Set(["1.0.0"]);
 		render(<UpdateNotesSheet />);
 		expect(screen.queryByTestId("badge")).not.toBeInTheDocument();
-	});
-
-	it("renders change items in accordion content", () => {
-		mocks.sheetState.isOpen = true;
-		render(<UpdateNotesSheet />);
-		expect(
-			screen.getByText(
-				"Added update notes modal to view past release information"
-			)
-		).toBeInTheDocument();
-	});
-
-	it("renders all three change bullets from the fixture", () => {
-		mocks.sheetState.isOpen = true;
-		render(<UpdateNotesSheet />);
-		expect(
-			screen.getByText("Unviewed updates are highlighted with a NEW badge")
-		).toBeInTheDocument();
-		expect(
-			screen.getByText(
-				"Update notes sheet automatically opens after a new release"
-			)
-		).toBeInTheDocument();
-	});
-
-	it("renders each change section's heading", () => {
-		mocks.sheetState.isOpen = true;
-		render(<UpdateNotesSheet />);
-		expect(screen.getByText("New Features")).toBeInTheDocument();
-		expect(screen.getByText("UI Improvements")).toBeInTheDocument();
-	});
-
-	it("does not render a heading for an unlabeled section", () => {
-		mocks.sheetState.isOpen = true;
-		render(<UpdateNotesSheet />);
-		const orphanItem = screen.getByText("orphan bullet");
-		const group = orphanItem.closest("div");
-		expect(group?.querySelector("p")).toBeNull();
 	});
 
 	it("does not render drawer content when isOpen=false even if a version is viewed", () => {

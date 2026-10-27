@@ -36,8 +36,8 @@ test("registers a passkey in Settings and signs back into the same account", asy
 			exact: true,
 		});
 		const passkeyName = "E2E mobile authenticator";
-		await form.getByLabel("Passkey name").fill(passkeyName);
-		await form.getByRole("button", { name: "Save", exact: true }).click();
+		await form.getByLabel("Name").fill(passkeyName);
+		await form.getByRole("button", { name: "Add", exact: true }).click();
 		await expect(form).toBeHidden();
 		await expect(page.getByText(passkeyName, { exact: true })).toBeVisible();
 		const registered = await cdp.send("WebAuthn.getCredentials", {
@@ -57,12 +57,6 @@ test("registers a passkey in Settings and signs back into the same account", asy
 		const signedOut = await page.request.get(`${API_URL}/api/auth/get-session`);
 		expect(signedOut.ok()).toBe(true);
 		expect(await signedOut.json()).toBeNull();
-		await page
-			.getByRole("button", {
-				name: "Already have an account? Sign In",
-				exact: true,
-			})
-			.click();
 		await page
 			.getByRole("button", { name: "Sign in with a passkey", exact: true })
 			.click();

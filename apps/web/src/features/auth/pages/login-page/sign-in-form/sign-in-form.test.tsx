@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { stubWebAuthnSupport } from "@/__tests__/test-utils";
 import SignInForm from "./sign-in-form";
 
-const SIGN_IN_BUTTON_NAME = "Sign In";
+const SIGN_IN_BUTTON_NAME = "Sign in";
 
 const PASSKEY_BUTTON_NAME = "Sign in with a passkey";
 
@@ -45,22 +45,6 @@ vi.mock("@/lib/auth-client", () => ({
 }));
 
 describe("SignInForm", () => {
-	it("renders auth fields and provider buttons", () => {
-		render(<SignInForm onSwitchToSignUp={mocks.onSwitchToSignUp} />);
-
-		expect(screen.getByLabelText("Email")).toBeInTheDocument();
-		expect(screen.getByLabelText("Password")).toBeInTheDocument();
-		expect(
-			screen.getByRole("button", { name: "Sign in with Google" })
-		).toBeInTheDocument();
-		expect(
-			screen.getByRole("button", { name: "Sign in with Discord" })
-		).toBeInTheDocument();
-		expect(
-			screen.getByRole("button", { name: "Need an account? Sign Up" })
-		).toBeInTheDocument();
-	});
-
 	it("submits valid credentials and calls the switch callback", async () => {
 		const user = userEvent.setup();
 		mocks.signInEmail.mockResolvedValue(undefined);
@@ -79,10 +63,25 @@ describe("SignInForm", () => {
 			expect(mocks.signInEmail).toHaveBeenCalled();
 		});
 
-		await user.click(
-			screen.getByRole("button", { name: "Need an account? Sign Up" })
-		);
+		await user.click(screen.getByRole("button", { name: "Create an account" }));
 		expect(mocks.onSwitchToSignUp).toHaveBeenCalledTimes(1);
+	});
+
+	it("shows wrong credentials and clears only the password", async () => {
+		const user = userEvent.setup();
+		mocks.signInEmail.mockImplementation((_credentials, callbacks) => {
+			callbacks.onError({ error: { status: 401 } });
+			return Promise.resolve();
+		});
+		render(<SignInForm onSwitchToSignUp={mocks.onSwitchToSignUp} />);
+		await user.type(screen.getByLabelText("Email"), "hero@example.com");
+		await user.type(screen.getByLabelText("Password"), "password123");
+		await user.click(screen.getByRole("button", { name: SIGN_IN_BUTTON_NAME }));
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			"Check your email and password, or use another way to sign in."
+		);
+		expect(screen.getByLabelText("Email")).toHaveValue("hero@example.com");
+		expect(screen.getByLabelText("Password")).toHaveValue("");
 	});
 
 	it("hides the passkey button where the browser has no WebAuthn", () => {

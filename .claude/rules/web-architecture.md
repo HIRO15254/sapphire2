@@ -17,7 +17,7 @@ features/<feature>/
   __tests__/               feature-local tests
 routes/                    TanStack Router tree; route files delegate to features/<feature>/pages/<page>
 shared/
-  components/ui/           shadcn primitives (Button, Badge, Drawer, Dialog, RadioGroup, ...)
+  components/ui/           shadcn-named Cryst primitives (Button, Badge, Drawer, Dialog, ToggleGroup, ...)
   components/              cross-feature composites (PageHeader, AuthenticatedShell, FormSheet, ...)
   hooks/                   cross-feature hooks (use-media-query, use-online-status, ...)
   lib/                     cross-feature helpers (webauthn, device-name, ...)

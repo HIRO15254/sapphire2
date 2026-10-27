@@ -8,7 +8,6 @@ import {
 	IconLoader2,
 } from "@tabler/icons-react";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
-import { CRYST_SCOPE_CLASS } from "@/shared/components/cryst/cryst-scope";
 import { buttonVariants } from "@/shared/components/ui/button";
 import { TOAST_CARD_CLASS } from "./toast";
 import { useToaster } from "./use-toaster";
@@ -17,7 +16,7 @@ export function Toaster() {
 	const { theme } = useToaster();
 	return (
 		<Sonner
-			className={`${CRYST_SCOPE_CLASS} toaster`}
+			className="toaster"
 			icons={{
 				success: <IconCircleCheck className="size-4 text-success-text" />,
 				error: <IconCircleX className="size-4 text-destructive-text" />,

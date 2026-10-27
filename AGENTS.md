@@ -113,7 +113,7 @@ Detailed rules live in [`.claude/rules/`](.claude/rules/); the points below appl
 - **UI copy is English-only.** No Japanese in user-facing strings (labels, empty states, toasts, errors). Japanese is fine in commit messages and PR descriptions; code comments are near-zero — see [`.claude/rules/comments.md`](.claude/rules/comments.md).
 - **Mobile forms are bottom sheets** (shadcn `Drawer`, not `Dialog`) and **pages start with [`PageHeader`](apps/web/src/shared/components/page-header/page-header.tsx)** — details in [`.claude/rules/web-ui.md`](.claude/rules/web-ui.md).
 - **Logic lives in `useXxx` hooks, not in components.** Components render JSX from destructured hook returns. Verification & full forbidden list: [`.claude/rules/web-hooks-separation.md`](.claude/rules/web-hooks-separation.md).
-- **Sapphire 2 Design System is the app-wide theme.** Tokens live in `apps/web/src/index.css` (`:root` / `.dark`) and apply everywhere. One temporary exception exists while the Cryst migration runs — the `.cryst` scope described in [`.claude/rules/web-theme.md`](.claude/rules/web-theme.md); do not add any other theme or scope class. Color tokens include the `hsl()` wrapper: reference them as `var(--token)`, never `hsl(var(--token))`. Design rules: [`.claude/rules/web-theme.md`](.claude/rules/web-theme.md).
+- **The Cryst design system is the single app-wide theme.** Tokens live in `apps/web/src/index.css` (`:root` / `.dark`) and apply everywhere; do not add another theme or a scope class. The `.dc.html` design boards are the specification, and departures go to [`docs/design/cryst-exceptions.md`](docs/design/cryst-exceptions.md). Reference color tokens as `var(--token)`, never `hsl(var(--token))`. Design rules: [`.claude/rules/web-theme.md`](.claude/rules/web-theme.md).
 
 ## Testing
 
@@ -135,9 +135,9 @@ The following rule files live in `.claude/rules/` and are loaded automatically w
 | `web-architecture.md` | `apps/web/**` | `apps/web/src/` feature-folder layout, page/component placement rules, reference implementations. |
 | `web-hooks-separation.md` | `apps/web/**` | STRICT: components may only call custom `useXxx` hooks; verification script included. |
 | `web-forms.md` | `apps/web/**` | `@tanstack/react-form` in hooks, no `type="number"`, no placeholders. |
-| `web-ui.md` | `apps/web/**` | PageHeader, shadcn primitives (Badge / RadioGroup), mobile = Drawer, tabler-icons. |
+| `web-ui.md` | `apps/web/**` | PageHeader, shadcn primitives (Badge / ToggleGroup), mobile = Drawer, tabler-icons. |
 | `web-data-fetching.md` | `apps/web/**` | Optimistic updates must go through `utils/optimistic-update.ts` helpers. |
-| `web-theme.md` | `apps/web/**` | Sapphire 2 Design System (single theme): token format, semantic colors, typography roles, sheet patterns. |
+| `web-theme.md` | `apps/web/**` | Cryst design system (single theme): design boards as spec, token names and arbitrary-value rules, shadows, mobile-only, sheet patterns, exceptions. |
 | `ai-models.md` | `packages/api/**`, `apps/web/**`, `apps/server/**` | Write OpenAI model IDs only in `packages/api/src/ai/models.ts` so all AI features use the same latest model. Responses API + strict Structured Outputs; include reasoning in the `max_output_tokens` budget. |
 | `api-security.md` | `packages/api/**`, `apps/server/**` | Object-level authorization: every input FK id ownership-checked, scoped bulk WHEREs / joins / cursors, uniform FORBIDDEN, no server-side fetch of user URLs. |
 | `api-data-integrity.md` | `packages/api/**`, `packages/db/**` | Zod input conventions (`.int().min(0)`, create/update refine parity, shared write/read schemas) and D1 hazards (100-bind-param chunking, `db.batch()`, N+1, keyset pagination). |

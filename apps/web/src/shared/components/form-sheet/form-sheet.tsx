@@ -1,9 +1,8 @@
 import { IconCheck, IconLoader2, IconX } from "@tabler/icons-react";
 import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
-import { CRYST_SCOPE_CLASS } from "@/shared/components/cryst/cryst-scope";
 import {
 	Drawer,
+	DrawerBody,
 	DrawerContent,
 	DrawerDescription,
 	DrawerTitle,
@@ -13,6 +12,7 @@ import { IconButton } from "@/shared/components/ui/icon-button";
 interface FormSheetProps {
 	children: ReactNode;
 	className?: string;
+	confirmLabel?: string;
 	formId: string;
 	isLoading?: boolean;
 	isSaveDisabled?: boolean;
@@ -24,6 +24,7 @@ interface FormSheetProps {
 export function FormSheet({
 	children,
 	className,
+	confirmLabel = "Save",
 	formId,
 	isLoading = false,
 	isSaveDisabled = false,
@@ -33,16 +34,10 @@ export function FormSheet({
 }: FormSheetProps) {
 	return (
 		<Drawer dismissible={false} onOpenChange={onOpenChange} open={open}>
-			<DrawerContent
-				className={cn(
-					CRYST_SCOPE_CLASS,
-					"h-auto max-h-[calc(100svh-2rem)] rounded-t-xl",
-					className
-				)}
-			>
-				<div className="grid shrink-0 grid-cols-[auto_1fr_auto] items-center gap-2 border-b px-2 py-1.5">
+			<DrawerContent className={className}>
+				<div className="grid min-h-[var(--m-navbar-height)] shrink-0 grid-cols-[1fr_minmax(0,auto)_1fr] items-center border-border border-b px-1 py-0.5">
 					<IconButton
-						className="justify-self-start"
+						className="justify-self-start text-foreground [&_svg:not([class*='size-'])]:size-6"
 						label="Cancel"
 						onClick={() => onOpenChange(false)}
 						size="xl"
@@ -50,15 +45,13 @@ export function FormSheet({
 					>
 						<IconX aria-hidden />
 					</IconButton>
-					<DrawerTitle className="t-h4 min-w-0 truncate text-center">
-						{title}
-					</DrawerTitle>
+					<DrawerTitle className="text-center">{title}</DrawerTitle>
 					<IconButton
 						aria-busy={isLoading}
-						className="justify-self-end text-primary-text hover:text-primary-text"
+						className="justify-self-end text-primary-text hover:text-primary-text [&_svg:not([class*='size-'])]:size-6"
 						disabled={isLoading || isSaveDisabled}
 						form={formId}
-						label="Save"
+						label={confirmLabel}
 						size="xl"
 						type="submit"
 					>
@@ -70,9 +63,7 @@ export function FormSheet({
 					</IconButton>
 				</div>
 				<DrawerDescription className="sr-only">{title}</DrawerDescription>
-				<div className="flex-1 overflow-y-auto px-4 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-					{children}
-				</div>
+				<DrawerBody>{children}</DrawerBody>
 			</DrawerContent>
 		</Drawer>
 	);

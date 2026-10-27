@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("./use-about-section", () => ({
 	useAboutSection: () => ({
 		version: mocks.version,
+		hasUnviewedNotes: false,
 		onViewUpdateNotes: mocks.onViewUpdateNotes,
 	}),
 }));
@@ -31,22 +32,13 @@ describe("AboutSection", () => {
 		expect(screen.getByText("Unknown")).toBeInTheDocument();
 	});
 
-	it("renders a 'View update notes' button", () => {
-		mocks.version = "v3.2.2";
-		render(<AboutSection />);
-
-		expect(
-			screen.getByRole("button", { name: "View update notes" })
-		).toBeInTheDocument();
-	});
-
 	it("calls onViewUpdateNotes once when the button is clicked", async () => {
 		mocks.version = "v3.2.2";
 		mocks.onViewUpdateNotes.mockClear();
 		const user = userEvent.setup();
 		render(<AboutSection />);
 
-		await user.click(screen.getByRole("button", { name: "View update notes" }));
+		await user.click(screen.getByRole("button", { name: "Update notes" }));
 
 		expect(mocks.onViewUpdateNotes).toHaveBeenCalledTimes(1);
 	});

@@ -6,7 +6,7 @@ import { shouldAutoOpenUpdateNotes } from "@/features/update-notes/utils/should-
 interface UpdateNotesSheetContextValue {
 	close: () => void;
 	isOpen: boolean;
-	onAccordionChange: (value: string[]) => void;
+	markViewed: (version: string) => void;
 	open: () => void;
 	setIsOpen: (open: boolean) => void;
 	viewedVersions: ReadonlySet<string>;
@@ -22,12 +22,8 @@ export function UpdateNotesProvider({
 }) {
 	const [isOpen, setIsOpen] = useState(false);
 	const [hasAutoOpened, setHasAutoOpened] = useState(false);
-	const {
-		viewedVersions,
-		isViewedListLoaded,
-		markViewed,
-		handleAccordionChange,
-	} = useUpdateNotesViewed();
+	const { viewedVersions, isViewedListLoaded, markViewed } =
+		useUpdateNotesViewed();
 
 	useEffect(() => {
 		if (hasAutoOpened || !isViewedListLoaded) {
@@ -56,7 +52,7 @@ export function UpdateNotesProvider({
 				close: () => setIsOpen(false),
 				setIsOpen,
 				viewedVersions,
-				onAccordionChange: handleAccordionChange,
+				markViewed,
 			}}
 		>
 			{children}

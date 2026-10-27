@@ -6,7 +6,6 @@ import {
 } from "@/features/update-notes/components/update-notes-sheet";
 import { MobileNav } from "@/shared/components/authenticated-shell/mobile-nav";
 import { OnlineStatusBar } from "@/shared/components/authenticated-shell/online-status-bar";
-import { CRYST_SCOPE_CLASS } from "@/shared/components/cryst/cryst-scope";
 import {
 	Empty,
 	EmptyDescription,
@@ -21,7 +20,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
 
 	if (isDesktop) {
 		return (
-			<Empty className={`${CRYST_SCOPE_CLASS} min-h-svh bg-background p-6`}>
+			<Empty className="min-h-svh bg-background p-6">
 				<EmptyHeader>
 					<EmptyMedia>
 						<IconDeviceMobile aria-hidden />
@@ -38,9 +37,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
 
 	return (
 		<UpdateNotesProvider>
-			<div
-				className={`${CRYST_SCOPE_CLASS} flex h-svh flex-col bg-background text-foreground`}
-			>
+			<div className="flex h-svh flex-col bg-background text-foreground">
 				<OnlineStatusBar />
 				<div className="min-h-0 flex-1 overflow-auto">{children}</div>
 				<MobileNav />

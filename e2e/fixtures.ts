@@ -61,13 +61,7 @@ export async function signIn(page: Page, account: TestAccount) {
 }
 
 export async function submitSignIn(page: Page, account: TestAccount) {
-	await page
-		.getByRole("button", {
-			name: "Already have an account? Sign In",
-			exact: true,
-		})
-		.click();
 	await page.getByLabel("Email", { exact: true }).fill(account.email);
 	await page.getByLabel("Password", { exact: true }).fill(account.password);
-	await page.getByRole("button", { name: "Sign In", exact: true }).click();
+	await page.getByRole("button", { name: "Sign in", exact: true }).click();
 }

@@ -10,13 +10,11 @@ interface UseSetPasswordFormOptions {
 
 const setPasswordSchema = z
 	.object({
-		confirmPassword: z
-			.string()
-			.min(8, "Password must be at least 8 characters"),
-		newPassword: z.string().min(8, "Password must be at least 8 characters"),
+		confirmPassword: z.string(),
+		newPassword: z.string().min(8, "Use at least 8 characters"),
 	})
 	.refine((data) => data.newPassword === data.confirmPassword, {
-		message: "Passwords do not match",
+		message: "The passwords don't match",
 		path: ["confirmPassword"],
 	});
 
@@ -36,13 +34,15 @@ export function useSetPasswordForm({
 			});
 
 			if (error) {
-				toast.error(
-					(error as { message?: string }).message ?? "Failed to set password"
-				);
+				toast.error("Couldn't set the password", {
+					description: (error as { message?: string }).message,
+				});
 				return;
 			}
 
-			toast.success("Password set successfully");
+			toast.success("Password set", {
+				description: "You can now sign in with your email.",
+			});
 			onSuccess();
 			onOpenChange(false);
 		},

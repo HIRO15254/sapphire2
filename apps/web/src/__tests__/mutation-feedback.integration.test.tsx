@@ -236,7 +236,6 @@ describe("mutation feedback", () => {
 		await submit("typed value");
 		await screen.findByText("Couldn't save changes");
 		expect(screen.getByLabelText("Name")).toHaveValue("typed value");
-		expect(screen.getByRole("dialog").closest(".cryst")).not.toBeNull();
 		failSave = false;
 		fireEvent.click(screen.getByRole("button", { name: "Save" }));
 		await waitFor(() =>

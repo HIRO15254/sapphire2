@@ -1,6 +1,6 @@
-import { useForm } from "@tanstack/react-form";
+import { useForm, useStore } from "@tanstack/react-form";
 import { useNavigate } from "@tanstack/react-router";
-import { toast } from "sonner";
+import { useState } from "react";
 import z from "zod";
 import { offerAutomaticPasskey } from "@/features/auth/utils/auto-register-passkey";
 import {
@@ -9,9 +9,14 @@ import {
 } from "@/features/auth/utils/login-continuation";
 import { authClient } from "@/lib/auth-client";
 
+const EMAIL_IN_USE_MESSAGE = "This email is already in use";
+const RETRY_MESSAGE = "Try again.";
+
 export function useSignUp() {
 	const navigate = useNavigate({ from: "/" });
 	const { isPending } = authClient.useSession();
+	const [errorMessage, setErrorMessage] = useState<string | null>(null);
+	const [emailInUse, setEmailInUse] = useState<string | null>(null);
 
 	const form = useForm({
 		defaultValues: {
@@ -20,6 +25,7 @@ export function useSignUp() {
 			password: "",
 		},
 		onSubmit: async ({ value }) => {
+			setErrorMessage(null);
 			await authClient.signUp.email(
 				{
 					email: value.email,
@@ -34,43 +40,50 @@ export function useSignUp() {
 							return;
 						}
 						navigate({ to: "/" });
-						toast.success("Sign up successful");
 						offerAutomaticPasskey();
 					},
 					onError: (error) => {
-						toast.error(error.error.message || error.error.statusText);
+						if (error.error.code?.startsWith("USER_ALREADY_EXISTS")) {
+							setEmailInUse(value.email);
+							return;
+						}
+						setErrorMessage(
+							error.error.message || error.error.statusText || RETRY_MESSAGE
+						);
 					},
 				}
 			);
 		},
 		validators: {
 			onSubmit: z.object({
-				name: z.string().min(2, "Name must be at least 2 characters"),
-				email: z.email("Invalid email address"),
-				password: z.string().min(8, "Password must be at least 8 characters"),
+				name: z.string().trim().min(2, "Use at least 2 characters"),
+				email: z.email("Enter a valid email address"),
+				password: z.string().min(8, "Use at least 8 characters"),
 			}),
 		},
 	});
+	const isSubmitting = useStore(form.store, (state) => state.isSubmitting);
 
-	const onSignInWithGoogle = async () => {
+	const signUpWithProvider = async (provider: "discord" | "google") => {
+		setErrorMessage(null);
 		const result = await authClient.signIn.social({
-			provider: "google",
+			provider,
 			callbackURL: socialCallbackUrl(),
 		});
 		if (result.error) {
-			toast.error(result.error.message || "Google sign up unavailable");
+			setErrorMessage(result.error.message || RETRY_MESSAGE);
 		}
 	};
 
-	const onSignInWithDiscord = async () => {
-		const result = await authClient.signIn.social({
-			provider: "discord",
-			callbackURL: socialCallbackUrl(),
-		});
-		if (result.error) {
-			toast.error(result.error.message || "Discord sign up unavailable");
-		}
+	return {
+		emailError: (email: string) =>
+			email === emailInUse ? EMAIL_IN_USE_MESSAGE : undefined,
+		errorMessage,
+		form,
+		isBusy: isSubmitting,
+		isPending,
+		isSubmitting,
+		onSignUpWithDiscord: () => signUpWithProvider("discord"),
+		onSignUpWithGoogle: () => signUpWithProvider("google"),
 	};
-
-	return { form, isPending, onSignInWithDiscord, onSignInWithGoogle };
 }

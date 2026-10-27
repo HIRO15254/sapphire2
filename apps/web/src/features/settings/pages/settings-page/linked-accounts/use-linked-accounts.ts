@@ -1,3 +1,4 @@
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
@@ -8,36 +9,68 @@ interface LinkedAccount {
 	providerId: string;
 }
 
-interface UseLinkedAccountsResult {
-	accounts: LinkedAccount[];
-	error: string | null;
-	fetchAccounts: () => Promise<void>;
-	handleLink: (provider: string) => Promise<void>;
-	handleUnlink: (providerId: string) => Promise<void>;
-	hasCredential: boolean;
-	isSetPasswordOpen: boolean;
-	linkedProviderIds: Set<string>;
-	loading: boolean;
-	onSetPasswordOpenChange: (open: boolean) => void;
-	totalLinked: number;
+export type SocialProviderId = "discord" | "google";
+
+export const SOCIAL_PROVIDERS = [
+	{ id: "google", label: "Google" },
+	{ id: "discord", label: "Discord" },
+] as const satisfies readonly { id: SocialProviderId; label: string }[];
+
+const LINK_CANCELED_MESSAGE = "The sign-in was canceled. Try again.";
+
+function providerLabel(providerId: string) {
+	return (
+		SOCIAL_PROVIDERS.find((provider) => provider.id === providerId)?.label ??
+		providerId
+	);
 }
 
-export function useLinkedAccounts(): UseLinkedAccountsResult {
+function toastLinkFailure(providerId: SocialProviderId, description: string) {
+	toast.error(`Couldn't link ${providerLabel(providerId)}`, {
+		description,
+		id: `link-error-${providerId}`,
+	});
+}
+
+function onlyMethodNote(
+	linkedProviderIds: ReadonlySet<string>,
+	totalLinked: number
+): string | null {
+	if (totalLinked !== 1) {
+		return null;
+	}
+	const only = SOCIAL_PROVIDERS.find((provider) =>
+		linkedProviderIds.has(provider.id)
+	);
+	if (!only) {
+		return null;
+	}
+	const other = SOCIAL_PROVIDERS.find((provider) => provider.id !== only.id);
+	return `${only.label} is your only way to sign in, so it can't be unlinked. Set a password or link ${other?.label} first.`;
+}
+
+export function useLinkedAccounts() {
+	const navigate = useNavigate();
+	const { linkError } = useSearch({ from: "/settings" });
+	const { data: session } = authClient.useSession();
 	const [accounts, setAccounts] = useState<LinkedAccount[]>([]);
 	const [loading, setLoading] = useState(true);
+	const [isRefreshPending, setIsRefreshPending] = useState(false);
 	const [isSetPasswordOpen, setIsSetPasswordOpen] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
 	const fetchAccounts = useCallback(async () => {
+		setIsRefreshPending(true);
 		try {
 			const result = await authClient.listAccounts();
 			setAccounts((result.data as LinkedAccount[]) ?? []);
 			setError(null);
 		} catch {
-			setError("Unable to load linked accounts");
+			setError("Couldn't load your sign-in methods.");
 			setAccounts([]);
 		} finally {
 			setLoading(false);
+			setIsRefreshPending(false);
 		}
 	}, []);
 
@@ -45,42 +78,69 @@ export function useLinkedAccounts(): UseLinkedAccountsResult {
 		fetchAccounts();
 	}, [fetchAccounts]);
 
-	const handleLink = async (provider: string) => {
-		await authClient.linkSocial({
-			provider: provider as "google" | "discord",
-			callbackURL: `${window.location.origin}/settings`,
+	useEffect(() => {
+		if (!linkError) {
+			return;
+		}
+		const timer = window.setTimeout(() => {
+			toastLinkFailure(linkError, LINK_CANCELED_MESSAGE);
+			navigate({ to: "/settings", search: {}, replace: true });
 		});
+		return () => window.clearTimeout(timer);
+	}, [linkError, navigate]);
+
+	const handleLink = async (providerId: SocialProviderId) => {
+		const settingsUrl = `${window.location.origin}/settings`;
+		const result = await authClient.linkSocial({
+			provider: providerId,
+			callbackURL: settingsUrl,
+			errorCallbackURL: `${settingsUrl}?linkError=${providerId}`,
+		});
+		if (result?.error) {
+			toastLinkFailure(
+				providerId,
+				result.error.message || LINK_CANCELED_MESSAGE
+			);
+		}
 	};
 
-	const handleUnlink = async (providerId: string) => {
+	const handleUnlink = async (providerId: SocialProviderId) => {
 		const result = await authClient.unlinkAccount({ providerId });
 		if (result.error) {
-			toast.error(result.error.message ?? "Failed to unlink account");
+			toast.error(`Couldn't unlink ${providerLabel(providerId)}`, {
+				description: result.error.message ?? undefined,
+			});
 			return;
 		}
 
-		toast.success("Account unlinked");
 		await fetchAccounts();
 	};
 
 	const linkedProviderIds = new Set(
 		accounts.map((account) => account.providerId)
 	);
-	const hasCredential = accounts.some(
-		(account) => account.providerId === "credential"
-	);
+	const hasCredential = linkedProviderIds.has("credential");
 	const totalLinked = accounts.length;
+	const linkedSocialLabels = SOCIAL_PROVIDERS.filter((provider) =>
+		linkedProviderIds.has(provider.id)
+	).map((provider) => provider.label);
 
 	return {
 		accounts,
+		email: session?.user.email ?? null,
 		error,
 		fetchAccounts,
 		handleLink,
 		handleUnlink,
 		hasCredential,
+		isRefreshPending,
 		isSetPasswordOpen,
 		linkedProviderIds,
+		linkedSocialLabels,
 		loading,
+		note:
+			onlyMethodNote(linkedProviderIds, totalLinked) ??
+			"Keep at least one way to sign in. Linking opens the provider's sign-in page.",
 		onSetPasswordOpenChange: setIsSetPasswordOpen,
 		totalLinked,
 	};
