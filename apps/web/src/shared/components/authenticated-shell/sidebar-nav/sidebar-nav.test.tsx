@@ -5,63 +5,49 @@ import {
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { render, screen, within } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import { MobileNav } from "../mobile-nav";
 import { SidebarNav } from "./sidebar-nav";
 
-vi.mock(
-	"@/shared/components/authenticated-shell/sidebar-nav/user-menu",
-	() => ({
-		UserMenu: () => <div>User Menu</div>,
-		default: () => <div>User Menu</div>,
-	})
-);
-
-vi.mock(
-	"@/shared/components/authenticated-shell/sidebar-nav/mode-toggle",
-	() => ({
-		ModeToggle: () => <div>Mode Toggle</div>,
-	})
-);
-
-function createTestRouter(initialPath: string) {
-	const rootRoute = createRootRoute({
-		component: () => <SidebarNav />,
+function createTestRouter(path: string) {
+	const root = createRootRoute({
+		component: () => (
+			<>
+				<MobileNav />
+				<SidebarNav />
+			</>
+		),
 	});
-
-	const routes = ["/", "/settings"].map((path) =>
+	const routes = ["/", "/settings"].map((routePath) =>
 		createRoute({
-			component: () => <div>{path}</div>,
-			getParentRoute: () => rootRoute,
-			path,
+			getParentRoute: () => root,
+			path: routePath,
+			component: () => null,
 		})
 	);
-
 	return createRouter({
-		history: createMemoryHistory({ initialEntries: [initialPath] }),
-		routeTree: rootRoute.addChildren(routes),
+		history: createMemoryHistory({ initialEntries: [path] }),
+		routeTree: root.addChildren(routes),
 	});
 }
 
-describe("SidebarNav", () => {
-	it("renders shared navigation items and footer controls", async () => {
-		const router = createTestRouter("/settings");
+describe("navigation", () => {
+	it("identifies Home and the More and Settings destinations as current", async () => {
+		const router = createTestRouter("/");
 		render(<RouterProvider router={router} />);
-
-		expect(await screen.findByText("Home")).toBeInTheDocument();
-		expect(screen.getByText("Settings")).toBeInTheDocument();
-		expect(screen.getByText("User Menu")).toBeInTheDocument();
-		expect(screen.getByText("Mode Toggle")).toBeInTheDocument();
-	});
-
-	it("announces the active item as the current page", async () => {
-		const router = createTestRouter("/settings");
-		render(<RouterProvider router={router} />);
-
-		const settingsLink = await screen.findByText("Settings");
-		expect(settingsLink.closest("a")).toHaveAttribute("aria-current", "page");
-		expect(screen.getByText("Home").closest("a")).not.toHaveAttribute(
-			"aria-current"
+		const mobile = await screen.findByRole("navigation", { name: "Primary" });
+		const desktop = screen.getByRole("navigation", { name: "Main" });
+		expect(within(mobile).getByRole("link", { name: "Home" })).toHaveAttribute(
+			"aria-current",
+			"page"
 		);
+		await router.navigate({ to: "/settings" });
+		expect(
+			await within(mobile).findByRole("link", { name: "More", current: "page" })
+		).toBeInTheDocument();
+		expect(
+			within(desktop).getByRole("link", { name: "Settings" })
+		).toHaveAttribute("aria-current", "page");
 	});
 });

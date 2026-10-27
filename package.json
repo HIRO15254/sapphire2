@@ -60,6 +60,7 @@
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
     "miniflare": "4.20260401.0",
+    "msw": "^3.0.3",
     "typescript": "catalog:",
     "ultracite": "7.4.3",
     "vitest": "4.1.2",

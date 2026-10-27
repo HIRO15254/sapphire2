@@ -83,7 +83,7 @@ export function RootComponent() {
 						<Outlet />
 					</AuthenticatedShell>
 				)}
-				<Toaster position="top-right" richColors />
+				<Toaster />
 			</ThemeProvider>
 		</>
 	);

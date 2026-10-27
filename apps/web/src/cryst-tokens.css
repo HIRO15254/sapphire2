@@ -10,7 +10,7 @@
 	--secondary: #f0f1f4;
 	--secondary-foreground: #3c3f44;
 	--muted: #f4f5f8;
-	--muted-foreground: #6d6c75;
+	--muted-foreground: #646670;
 	--accent: #eef0f4;
 	--accent-foreground: #282a30;
 	--tab-active: #ffffff;
@@ -23,9 +23,20 @@
 	--info: #136dbe;
 	--info-foreground: #ffffff;
 	--border: #e4e5e9;
-	--input: #dfe1e5;
+	--input: #d4d6dc;
 	--ring: #1961d2;
 	--selection: rgba(59, 130, 246, 0.18);
+	--accent-soft: rgba(25, 97, 210, 0.12);
+	--accent-solid-hover: #1553b5;
+	--accent-text: #1961d2;
+	--success-text: #00734a;
+	--warning-text: #a05000;
+	--danger-text: #c33037;
+	--text-subtle: #8e9099;
+	--line-strong: #d4d6dc;
+	--state-hover: rgba(40, 42, 48, 0.05);
+	--state-pressed: rgba(40, 42, 48, 0.1);
+	--scrim: rgba(8, 9, 10, 0.4);
 	--chart-1: var(--primary);
 	--chart-2: var(--success);
 	--chart-3: var(--warning);
@@ -57,9 +68,14 @@
 	--tracking-body: -0.005em;
 	--tracking-caps: 0.06em;
 
-	--m-inset: 16px;
-	--m-control: 44px;
-	--m-list-row: 44px;
+	--control-sm: 28px;
+	--control-md: 32px;
+	--control-lg: 36px;
+	--sidebar-width: 244px;
+
+	--m-inset: 14px;
+	--m-control: 40px;
+	--m-list-row: 40px;
 	--m-navbar-height: 44px;
 	--m-tabbar-height: 44px;
 	--m-text-large-title: 2.125rem;
@@ -76,7 +92,9 @@
 	--h-control-md: var(--m-control);
 	--ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
 	--ease-in-out: cubic-bezier(0.45, 0, 0.25, 1);
-	--default-transition-duration: 100ms;
+	--duration-fast: 100ms;
+	--duration-slow: 250ms;
+	--default-transition-duration: var(--duration-fast);
 	--default-transition-timing-function: var(--ease-out);
 }
 
@@ -85,14 +103,14 @@
 	--foreground: #f7f8f8;
 	--card: #141516;
 	--card-foreground: #f7f8f8;
-	--popover: #1c1d1f;
+	--popover: #1e1f22;
 	--popover-foreground: #f7f8f8;
 	--primary: #4593f8;
 	--primary-foreground: #08090a;
 	--secondary: #1f2023;
 	--secondary-foreground: #e3e4e8;
 	--muted: #17181b;
-	--muted-foreground: #8a8f98;
+	--muted-foreground: #9a9fa8;
 	--accent: #1c1e22;
 	--accent-foreground: #f7f8f8;
 	--tab-active: #3d4047;
@@ -105,9 +123,20 @@
 	--info: #4ea7fc;
 	--info-foreground: #08090a;
 	--border: #26282d;
-	--input: #2e3035;
+	--input: #34363c;
 	--ring: #5ea1f9;
 	--selection: rgba(69, 147, 248, 0.18);
+	--accent-soft: rgba(69, 147, 248, 0.2);
+	--accent-solid-hover: #5ea1f9;
+	--accent-text: #5ea1f9;
+	--success-text: #56c08b;
+	--warning-text: #f5a65b;
+	--danger-text: #ff6b70;
+	--text-subtle: #777b85;
+	--line-strong: #34363c;
+	--state-hover: rgba(247, 248, 248, 0.06);
+	--state-pressed: rgba(247, 248, 248, 0.12);
+	--scrim: rgba(0, 0, 0, 0.6);
 
 	--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
 	--shadow-md: 0 3px 10px rgba(0, 0, 0, 0.45);

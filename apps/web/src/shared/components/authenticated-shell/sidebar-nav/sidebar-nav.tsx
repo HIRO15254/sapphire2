@@ -1,36 +1,55 @@
-import { useRouterState } from "@tanstack/react-router";
 import {
+	APP_ITEMS,
 	isActive,
+	LIBRARY_ITEMS,
 	NAV_ITEMS,
 	SidebarNavItem,
+	useNavigationPathname,
 } from "@/shared/components/app-navigation";
-import { ModeToggle } from "./mode-toggle";
-import UserMenu from "./user-menu";
 
 export function SidebarNav() {
-	const pathname = useRouterState({
-		select: (s) => s.location.pathname,
-	});
-
+	const { pathname } = useNavigationPathname();
 	return (
-		<nav className="fixed inset-y-0 left-0 z-40 hidden w-56 flex-col border-sidebar-border border-r bg-sidebar md:flex">
-			<div className="flex-1 overflow-y-auto px-3 py-4">
-				<ul className="flex flex-col gap-1">
-					{NAV_ITEMS.map((item) => (
-						<SidebarNavItem
-							active={isActive(pathname, item.to, item.exact)}
-							item={item}
-							key={item.to}
-						/>
-					))}
-				</ul>
+		<nav
+			aria-label="Main"
+			className="hidden w-[var(--sidebar-width)] shrink-0 flex-col gap-0.5 overflow-y-auto border-border border-r bg-background p-2.5 md:flex"
+		>
+			<div className="flex min-h-8 items-center px-1.5 pt-1 pb-2.5 text-sm">
+				Sapphire 2
 			</div>
-			<div className="border-sidebar-border border-t bg-sidebar-accent/20 px-3 py-3">
-				<div className="flex items-center justify-between gap-2 rounded-md border border-sidebar-border/60 px-2 py-2">
-					<UserMenu />
-					<ModeToggle />
-				</div>
+			<ul className="flex flex-col gap-0.5">
+				{NAV_ITEMS.map((item) => (
+					<SidebarNavItem
+						active={isActive(pathname, item.to, item.exact)}
+						item={item}
+						key={item.to}
+					/>
+				))}
+			</ul>
+			<div className="px-1.5 pt-3 pb-1 font-semibold text-muted-foreground text-xs uppercase tracking-[var(--tracking-caps)]">
+				Library
 			</div>
+			<ul className="flex flex-col gap-0.5">
+				{LIBRARY_ITEMS.map((item) => (
+					<SidebarNavItem
+						active={isActive(pathname, item.to)}
+						item={item}
+						key={item.to}
+					/>
+				))}
+			</ul>
+			<div className="px-1.5 pt-3 pb-1 font-semibold text-muted-foreground text-xs uppercase tracking-[var(--tracking-caps)]">
+				App
+			</div>
+			<ul className="flex flex-col gap-0.5">
+				{APP_ITEMS.map((item) => (
+					<SidebarNavItem
+						active={isActive(pathname, item.to)}
+						item={item}
+						key={item.to}
+					/>
+				))}
+			</ul>
 		</nav>
 	);
 }

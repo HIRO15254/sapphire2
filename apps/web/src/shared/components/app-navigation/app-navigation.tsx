@@ -1,4 +1,15 @@
-import { IconHome, IconSettings } from "@tabler/icons-react";
+import {
+	IconBuildingStore,
+	IconCards,
+	IconChartLine,
+	IconDots,
+	IconHome,
+	IconPlayCard,
+	IconSettings,
+	IconTag,
+	IconUsers,
+	IconWallet,
+} from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
 import type { ComponentType } from "react";
 import { cn } from "@/lib/utils";
@@ -12,14 +23,38 @@ export interface NavigationItem {
 
 export const NAV_ITEMS: readonly NavigationItem[] = [
 	{ to: "/", label: "Home", icon: IconHome, exact: true },
+	{ to: "/sessions", label: "Sessions", icon: IconCards },
+	{ to: "/stats", label: "Stats", icon: IconChartLine },
+	{ to: "/assets", label: "Assets", icon: IconWallet },
+];
+export const LIBRARY_ITEMS: readonly NavigationItem[] = [
+	{ to: "/rooms", label: "Rooms", icon: IconBuildingStore },
+	{ to: "/games", label: "Games", icon: IconPlayCard },
+	{ to: "/players", label: "Players", icon: IconUsers },
+	{ to: "/tags", label: "Tags", icon: IconTag },
+];
+export const APP_ITEMS: readonly NavigationItem[] = [
 	{ to: "/settings", label: "Settings", icon: IconSettings },
-] as const;
+];
+export const MOBILE_ITEMS: readonly NavigationItem[] = [
+	...NAV_ITEMS,
+	{ to: "/more", label: "More", icon: IconDots },
+];
 
 export function isActive(
 	currentPath: string,
 	itemPath: string,
 	exact = false
 ): boolean {
+	if (itemPath === "/more") {
+		return [
+			"/more",
+			...LIBRARY_ITEMS.map((item) => item.to),
+			...APP_ITEMS.map((item) => item.to),
+		].some(
+			(path) => currentPath === path || currentPath.startsWith(`${path}/`)
+		);
+	}
 	if (itemPath === "/" || exact) {
 		return currentPath === itemPath;
 	}
@@ -34,18 +69,16 @@ export function MobileNavItem({
 	item: NavigationItem;
 }) {
 	return (
-		<li className="flex-1">
+		<li>
 			<Link
 				aria-current={active ? "page" : undefined}
 				className={cn(
-					"flex flex-col items-center gap-0.5 py-1.5 text-xs transition-colors",
-					active
-						? "font-semibold text-sidebar-primary"
-						: "text-sidebar-foreground/60"
+					"flex h-12 flex-col items-center justify-center gap-[3px] font-medium text-[length:var(--m-text-tab)]",
+					active ? "text-[var(--accent-text)]" : "text-muted-foreground"
 				)}
 				to={item.to}
 			>
-				<item.icon size={22} stroke={active ? 2.5 : 1.5} />
+				<item.icon size={24} />
 				<span>{item.label}</span>
 			</Link>
 		</li>
@@ -60,18 +93,18 @@ export function SidebarNavItem({
 	item: NavigationItem;
 }) {
 	return (
-		<li key={item.to}>
+		<li>
 			<Link
 				aria-current={active ? "page" : undefined}
 				className={cn(
-					"flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+					"flex h-[30px] w-full items-center gap-2 rounded-md px-2 font-medium text-sm",
 					active
-						? "bg-sidebar-accent font-semibold text-sidebar-primary"
-						: "text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+						? "bg-[var(--accent-soft)] text-[var(--accent-text)]"
+						: "text-muted-foreground hover:bg-[var(--state-hover)] hover:text-foreground"
 				)}
 				to={item.to}
 			>
-				<item.icon size={20} stroke={active ? 2.5 : 1.5} />
+				<item.icon size={16} />
 				<span>{item.label}</span>
 			</Link>
 		</li>

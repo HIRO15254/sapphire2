@@ -1,6 +1,7 @@
 import { IconCheck, IconLoader2, IconX } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { CRYST_SCOPE_CLASS } from "@/shared/components/cryst/cryst-scope";
 import { Button } from "@/shared/components/ui/button";
 import {
 	Drawer,
@@ -34,6 +35,7 @@ export function FormSheet({
 		<Drawer dismissible={false} onOpenChange={onOpenChange} open={open}>
 			<DrawerContent
 				className={cn(
+					CRYST_SCOPE_CLASS,
 					"h-auto max-h-[calc(100svh-2rem)] rounded-t-xl",
 					className
 				)}

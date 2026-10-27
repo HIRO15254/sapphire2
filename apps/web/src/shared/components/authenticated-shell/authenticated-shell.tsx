@@ -1,4 +1,3 @@
-import { IconDeviceMobile } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import {
 	UpdateNotesProvider,
@@ -7,36 +6,20 @@ import {
 import { MobileNav } from "@/shared/components/authenticated-shell/mobile-nav";
 import { OnlineStatusBar } from "@/shared/components/authenticated-shell/online-status-bar";
 import { SidebarNav } from "@/shared/components/authenticated-shell/sidebar-nav";
-import { EmptyState } from "@/shared/components/ui/empty-state";
-import { useAuthenticatedShell } from "./use-authenticated-shell";
+import { CRYST_SCOPE_CLASS } from "@/shared/components/cryst/cryst-scope";
 
 export function AuthenticatedShell({ children }: { children: ReactNode }) {
-	const { isDesktop } = useAuthenticatedShell();
-
-	if (isDesktop) {
-		return (
-			<div className="flex min-h-svh items-center justify-center bg-background p-6">
-				<EmptyState
-					className="max-w-md"
-					description="This app is optimized for mobile. Open it on a smartphone to continue."
-					heading="Use on your phone"
-					icon={<IconDeviceMobile size={48} stroke={1.5} />}
-				/>
-			</div>
-		);
-	}
-
 	return (
 		<UpdateNotesProvider>
-			<div className="min-h-svh bg-background">
+			<div
+				className={`${CRYST_SCOPE_CLASS} flex h-svh bg-background text-foreground`}
+			>
 				<SidebarNav />
-				<div className="flex h-svh flex-col md:ml-56">
+				<div className="flex min-w-0 flex-1 flex-col">
 					<OnlineStatusBar />
-					<div className="flex-1 overflow-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
-						{children}
-					</div>
+					<div className="min-h-0 flex-1 overflow-auto">{children}</div>
+					<MobileNav />
 				</div>
-				<MobileNav />
 				<UpdateNotesSheet />
 			</div>
 		</UpdateNotesProvider>

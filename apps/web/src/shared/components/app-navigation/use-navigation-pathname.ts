@@ -1,6 +1,6 @@
 import { useRouterState } from "@tanstack/react-router";
 
-export function useMobileNav() {
+export function useNavigationPathname() {
 	const pathname = useRouterState({
 		select: (s) => s.location.pathname,
 	});

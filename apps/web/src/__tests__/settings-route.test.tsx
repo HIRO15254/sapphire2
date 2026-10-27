@@ -14,6 +14,10 @@ vi.mock("@tanstack/react-router", () => ({
 		options,
 	}),
 	useNavigate: () => mocks.navigate,
+	useRouter: () => ({
+		history: { canGoBack: () => false },
+		navigate: mocks.navigate,
+	}),
 }));
 
 vi.mock("@/features/settings/pages/settings-page/linked-accounts", () => ({

@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
+import { dirname, posix } from "node:path";
 import { Glob } from "bun";
 
 import { normalizeRulePath } from "./check-rules-path";
@@ -184,6 +185,95 @@ for (const check of CHECKS) {
 		for (const hit of hits) {
 			console.error(`  ${hit}`);
 		}
+	}
+}
+
+const FEATURE_ROOT = "apps/web/src/features";
+const FEATURE_DEPENDENCIES: Record<string, string[]> = {
+	auth: [],
+	home: [],
+	more: [],
+	settings: ["update-notes"],
+	"update-notes": [],
+};
+const featureHits: string[] = [];
+const featureDirs = await readdir(FEATURE_ROOT, { withFileTypes: true });
+for (const entry of featureDirs) {
+	if (entry.isDirectory() && !(entry.name in FEATURE_DEPENDENCIES)) {
+		featureHits.push(`${FEATURE_ROOT}/${entry.name}: feature is not declared`);
+	}
+}
+const visiting = new Set<string>();
+const visited = new Set<string>();
+function visitFeature(feature: string) {
+	if (visiting.has(feature)) {
+		featureHits.push(`${feature}: feature dependency cycle`);
+		return;
+	}
+	if (visited.has(feature)) {
+		return;
+	}
+	visiting.add(feature);
+	for (const dependency of FEATURE_DEPENDENCIES[feature] ?? []) {
+		if (dependency in FEATURE_DEPENDENCIES) {
+			visitFeature(dependency);
+		} else {
+			featureHits.push(`${feature}: undeclared dependency ${dependency}`);
+		}
+	}
+	visiting.delete(feature);
+	visited.add(feature);
+}
+for (const feature of Object.keys(FEATURE_DEPENDENCIES)) {
+	visitFeature(feature);
+}
+for await (const scannedPath of new Glob("apps/web/src/**/*.{ts,tsx}").scan(
+	"."
+)) {
+	const path = normalizeRulePath(scannedPath);
+	const sourceFeature = /^apps\/web\/src\/features\/([^/]+)\//.exec(path)?.[1];
+	const restricted =
+		/^apps\/web\/src\/(?:shared|utils|lib)\//.test(path) &&
+		!path.startsWith("apps/web/src/shared/components/authenticated-shell/");
+	if (!(sourceFeature || restricted)) {
+		continue;
+	}
+	const text = await readFile(path, "utf8");
+	const imports =
+		/\b(?:import|export)\s+(?:type\s+)?(?:[^"'();]*?\s+from\s*)?["']([^"']+)["']|\b(?:import|require)\s*\(\s*["']([^"']+)["']/g;
+	for (const match of text.matchAll(imports)) {
+		const value = match[1] ?? match[2];
+		if (value === undefined) {
+			continue;
+		}
+		let target = "";
+		if (value.startsWith("@/")) {
+			target = posix.normalize(`apps/web/src/${value.slice(2)}`);
+		} else if (value.startsWith(".")) {
+			target = posix.normalize(
+				posix.join(dirname(path).replaceAll("\\", "/"), value)
+			);
+		}
+		const destination = /^apps\/web\/src\/features\/([^/]+)(?:\/|$)/.exec(
+			target
+		)?.[1];
+		if (
+			destination &&
+			(restricted ||
+				(sourceFeature !== destination &&
+					!FEATURE_DEPENDENCIES[sourceFeature ?? ""]?.includes(destination)))
+		) {
+			const line = text.slice(0, match.index).split("\n").length;
+			featureHits.push(`${path}:${line}: forbidden feature import ${value}`);
+		}
+	}
+}
+if (featureHits.length > 0) {
+	failed = true;
+	console.error("\ncheck-rules FAIL: feature dependency DAG");
+	console.error("  rule: .claude/rules/web-architecture.md");
+	for (const hit of featureHits) {
+		console.error(`  ${hit}`);
 	}
 }
 
