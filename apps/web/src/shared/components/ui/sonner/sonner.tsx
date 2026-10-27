@@ -1,47 +1,46 @@
 "use client";
 
 import {
-	IconAlertOctagon,
 	IconAlertTriangle,
 	IconCircleCheck,
+	IconCircleX,
 	IconInfoCircle,
-	IconLoader,
+	IconLoader2,
 } from "@tabler/icons-react";
-import { useTheme } from "next-themes";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
+import { CRYST_SCOPE_CLASS } from "@/shared/components/cryst/cryst-scope";
+import { buttonVariants } from "@/shared/components/ui/button";
+import { TOAST_CARD_CLASS } from "./toast";
+import { useToaster } from "./use-toaster";
 
-const Toaster = ({ toastOptions, ...props }: ToasterProps) => {
-	const { theme = "system" } = useTheme();
-
+export function Toaster() {
+	const { theme } = useToaster();
 	return (
 		<Sonner
-			className="toaster group"
+			className={`${CRYST_SCOPE_CLASS} toaster`}
 			icons={{
-				success: <IconCircleCheck className="size-4" />,
-				info: <IconInfoCircle className="size-4" />,
-				warning: <IconAlertTriangle className="size-4" />,
-				error: <IconAlertOctagon className="size-4" />,
-				loading: <IconLoader className="size-4 animate-spin" />,
+				success: <IconCircleCheck className="size-4 text-success-text" />,
+				error: <IconCircleX className="size-4 text-destructive-text" />,
+				warning: <IconAlertTriangle className="size-4 text-warning-text" />,
+				info: <IconInfoCircle className="size-4 text-muted-foreground" />,
+				loading: (
+					<IconLoader2 className="size-4 animate-spin text-muted-foreground" />
+				),
 			}}
-			style={
-				{
-					"--normal-bg": "var(--popover)",
-					"--normal-text": "var(--popover-foreground)",
-					"--normal-border": "var(--border)",
-					"--border-radius": "var(--radius)",
-				} as React.CSSProperties
-			}
+			mobileOffset={{ bottom: "calc(62px + env(safe-area-inset-bottom))" }}
+			offset={{ bottom: "calc(62px + env(safe-area-inset-bottom))" }}
+			position="bottom-center"
 			theme={theme as ToasterProps["theme"]}
 			toastOptions={{
-				...toastOptions,
+				unstyled: true,
 				classNames: {
-					toast: "cn-toast",
-					...toastOptions?.classNames,
+					toast: TOAST_CARD_CLASS,
+					content: "min-w-0 flex-1",
+					title: "font-medium text-sm leading-[1.4]",
+					description: "mt-0.5 text-muted-foreground text-xs leading-[1.4]",
+					actionButton: buttonVariants({ variant: "ghost", size: "sm" }),
 				},
 			}}
-			{...props}
 		/>
 	);
-};
-
-export { Toaster };
+}

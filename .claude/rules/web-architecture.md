@@ -33,3 +33,7 @@ When adding a feature, create `apps/web/src/features/<name>/` and colocate every
 **Placement follows consumers**: a component used by exactly one page lives in that page's child folders; a component used by exactly one parent component lives in a child folder of that parent (its hook colocates the same way); only components designed as generic building blocks stay in `components/` / `shared/` while they happen to have a single consumer. Promote a subcomponent from a page folder to `components/` when a second page imports it, or when reuse across multiple pages is clearly anticipated, and to `shared/` only when a second feature imports it.
 
 `features/auth/`, `features/settings/` (`pages/settings-page/` with its colocated child folders), and `shared/components/` (`PageHeader`, `AuthenticatedShell`) are the reference implementations.
+
+## Feature dependency DAG
+
+SA2-205 keeps feature dependencies explicit and acyclic to prevent tangled ownership. `scripts/check-rules.ts` declares every feature and its permitted outgoing edges: currently only `settings → update-notes`. To add a feature, declare it in `FEATURE_DEPENDENCIES`; to add an edge, declare it there only if the graph remains acyclic. Imports within a feature are unrestricted. `shared/`, `utils/`, and `lib/` cannot import features, except the `shared/components/authenticated-shell/` composition root. Routes and `main.tsx` compose features freely. `bun run check:rules` enforces these boundaries for alias and relative imports.

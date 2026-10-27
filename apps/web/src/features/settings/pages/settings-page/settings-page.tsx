@@ -13,37 +13,35 @@ export function SettingsPage() {
 
 	return (
 		<div className="min-h-full bg-background text-foreground">
-			<div className="p-4">
-				<PageHeader
-					actions={
-						<Button onClick={onSignOut} variant="destructive">
-							<IconLogout size={16} />
-							Sign out
-						</Button>
-					}
-					heading="Settings"
-				/>
+			<PageHeader
+				actions={
+					<Button onClick={onSignOut} variant="destructive">
+						<IconLogout size={16} />
+						Sign out
+					</Button>
+				}
+				heading="Settings"
+			/>
 
-				<div className="space-y-6">
-					<PageSection heading="Appearance">
-						<ThemeSetting />
-					</PageSection>
+			<div className="space-y-6 p-4">
+				<PageSection heading="Appearance">
+					<ThemeSetting />
+				</PageSection>
 
-					<PageSection heading="Linked accounts">
-						<LinkedAccounts />
-					</PageSection>
+				<PageSection heading="Linked accounts">
+					<LinkedAccounts />
+				</PageSection>
 
-					<PageSection
-						description="Sign in without a password. On devices that support it, a passkey is saved automatically the first time you sign in."
-						heading="Passkeys"
-					>
-						<Passkeys />
-					</PageSection>
+				<PageSection
+					description="Sign in without a password. On devices that support it, a passkey is saved automatically the first time you sign in."
+					heading="Passkeys"
+				>
+					<Passkeys />
+				</PageSection>
 
-					<PageSection heading="About">
-						<AboutSection />
-					</PageSection>
-				</div>
+				<PageSection heading="About">
+					<AboutSection />
+				</PageSection>
 			</div>
 		</div>
 	);

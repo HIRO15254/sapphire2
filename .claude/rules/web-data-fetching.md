@@ -52,3 +52,5 @@ The query cache is persisted to IndexedDB (24h) and keyed by procedure name, not
 ## Mutation hook shape
 
 Return `{ on*Handler, is*Pending, error, … }`. Keep optimistic state changes isolated inside the mutation's `onMutate`; never leak `queryClient` calls to components.
+
+For user-visible mutations, use `useUndoableMutation` with the existing optimistic callbacks and an inverse built from the rollback snapshot. In a form hook, await `mutateAsync` in `onSubmit`; close the sheet and reset only after success. On rejection keep the sheet and its values intact; `FormSheet` disables Save and sets `aria-busy` while pending. Hard deletes and `entry.update` removing a Day use destructive feedback without Undo.

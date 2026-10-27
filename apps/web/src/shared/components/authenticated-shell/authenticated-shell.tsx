@@ -6,8 +6,14 @@ import {
 } from "@/features/update-notes/components/update-notes-sheet";
 import { MobileNav } from "@/shared/components/authenticated-shell/mobile-nav";
 import { OnlineStatusBar } from "@/shared/components/authenticated-shell/online-status-bar";
-import { SidebarNav } from "@/shared/components/authenticated-shell/sidebar-nav";
-import { EmptyState } from "@/shared/components/ui/empty-state";
+import { CRYST_SCOPE_CLASS } from "@/shared/components/cryst/cryst-scope";
+import {
+	Empty,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyMedia,
+	EmptyTitle,
+} from "@/shared/components/ui/empty";
 import { useAuthenticatedShell } from "./use-authenticated-shell";
 
 export function AuthenticatedShell({ children }: { children: ReactNode }) {
@@ -15,27 +21,28 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
 
 	if (isDesktop) {
 		return (
-			<div className="flex min-h-svh items-center justify-center bg-background p-6">
-				<EmptyState
-					className="max-w-md"
-					description="This app is optimized for mobile. Open it on a smartphone to continue."
-					heading="Use on your phone"
-					icon={<IconDeviceMobile size={48} stroke={1.5} />}
-				/>
-			</div>
+			<Empty className={`${CRYST_SCOPE_CLASS} min-h-svh bg-background p-6`}>
+				<EmptyHeader>
+					<EmptyMedia>
+						<IconDeviceMobile aria-hidden />
+					</EmptyMedia>
+					<EmptyTitle>Use on your phone</EmptyTitle>
+					<EmptyDescription>
+						This app is optimized for mobile. Open it on a smartphone to
+						continue.
+					</EmptyDescription>
+				</EmptyHeader>
+			</Empty>
 		);
 	}
 
 	return (
 		<UpdateNotesProvider>
-			<div className="min-h-svh bg-background">
-				<SidebarNav />
-				<div className="flex h-svh flex-col md:ml-56">
-					<OnlineStatusBar />
-					<div className="flex-1 overflow-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
-						{children}
-					</div>
-				</div>
+			<div
+				className={`${CRYST_SCOPE_CLASS} flex h-svh flex-col bg-background text-foreground`}
+			>
+				<OnlineStatusBar />
+				<div className="min-h-0 flex-1 overflow-auto">{children}</div>
 				<MobileNav />
 				<UpdateNotesSheet />
 			</div>

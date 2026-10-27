@@ -45,7 +45,7 @@ LinuxでブラウザーのOS依存も入れる場合は、後者を `bunx playwr
 - 実HTTP・アカウント登録: [e2e/fixtures.ts](../e2e/fixtures.ts)。
 - Web QueryClient: [test-utils.tsx](../apps/web/src/__tests__/test-utils.tsx)。
 - 実tRPCキーとrollback・並行更新: [Testing and ToolingのWeb節](design/testing-and-tooling.md#web-test-gotchas)。
-- 画面統合harnessの再導入元と現在の制限: [同文書のtrpc/env節](design/testing-and-tooling.md#the-trpcenv-stub-pattern)。
+- 画面統合harness: [integration.tsx](../apps/web/src/__tests__/integration.tsx)。テストごとにQueryClientとMSW serverを管理し、`server.listen({ onUnhandledFrame: "error" })` で未処理フレームを失敗させる。詳細と制限は [同文書のtrpc/env節](design/testing-and-tooling.md#the-trpcenv-stub-pattern)。
 - パスキーの仮想認証器と検証限界: [同文書のHTTP境界](design/testing-and-tooling.md#isolation-and-http-boundaries) と [passkeys.spec.ts](../e2e/passkeys.spec.ts)。
 
 ## 失敗を調べる
