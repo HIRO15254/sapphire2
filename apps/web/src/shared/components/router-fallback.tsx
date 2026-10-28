@@ -1,6 +1,5 @@
 import { IconCloudOff, IconFileOff } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
-import { CRYST_SCOPE_CLASS } from "@/shared/components/cryst/cryst-scope";
 import { Button } from "@/shared/components/ui/button";
 import {
 	Empty,
@@ -13,7 +12,7 @@ import {
 
 export function RouterErrorFallback() {
 	return (
-		<Empty className={`${CRYST_SCOPE_CLASS} min-h-full bg-background p-6`}>
+		<Empty className="min-h-full bg-background p-6">
 			<EmptyHeader role="alert">
 				<EmptyMedia>
 					<IconCloudOff aria-hidden />
@@ -32,7 +31,7 @@ export function RouterErrorFallback() {
 
 export function RouterNotFoundFallback() {
 	return (
-		<Empty className={`${CRYST_SCOPE_CLASS} min-h-full bg-background p-6`}>
+		<Empty className="min-h-full bg-background p-6">
 			<EmptyHeader>
 				<EmptyMedia>
 					<IconFileOff aria-hidden />

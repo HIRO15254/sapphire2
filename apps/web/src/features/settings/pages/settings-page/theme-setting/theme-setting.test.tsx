@@ -56,12 +56,10 @@ describe("ThemeSetting", () => {
 		expect(mocks.setTheme).toHaveBeenCalledWith(value);
 	});
 
-	it("does not select a theme before the provider has resolved one", () => {
+	it("defaults to System before the provider resolves a theme", () => {
 		mocks.theme = undefined;
 		render(<ThemeSetting />);
-		for (const option of screen.getAllByRole("radio")) {
-			expect(option).not.toBeChecked();
-		}
+		expect(screen.getByRole("radio", { name: "System" })).toBeChecked();
 	});
 
 	it("does not call setTheme when the currently selected option is clicked (RadioGroup semantics)", async () => {

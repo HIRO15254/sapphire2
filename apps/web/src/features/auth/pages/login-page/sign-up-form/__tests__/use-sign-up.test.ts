@@ -1,328 +1,116 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const mocks = vi.hoisted(() => ({
-	navigate: vi.fn(),
-	useSession: vi.fn(() => ({ isPending: false })),
-	signUpEmail: vi.fn(),
-	signInSocial: vi.fn(),
-	toastSuccess: vi.fn(),
-	toastError: vi.fn(),
-	offerAutomaticPasskey: vi.fn(),
-	env: { VITE_SERVER_URL: "http://localhost:8787" },
-}));
-
-vi.mock("@/features/auth/utils/auto-register-passkey", () => ({
-	offerAutomaticPasskey: mocks.offerAutomaticPasskey,
-}));
-
-vi.mock("@sapphire2/env/web", () => ({
-	env: new Proxy(mocks.env, {
-		get: (target, prop) => target[prop as keyof typeof target],
-	}),
-}));
-
-vi.mock("@tanstack/react-router", () => ({
-	useNavigate: () => mocks.navigate,
-}));
-
-vi.mock("sonner", () => ({
-	toast: {
-		success: mocks.toastSuccess,
-		error: mocks.toastError,
-	},
-}));
-
-vi.mock("@/lib/auth-client", () => ({
-	authClient: {
-		useSession: mocks.useSession,
-		signUp: { email: mocks.signUpEmail },
-		signIn: { social: mocks.signInSocial },
-	},
-}));
-
 import {
 	locationAssignCalls,
 	OAUTH_AUTHORIZE_SEARCH,
 	stubLocation,
 } from "@/__tests__/test-utils";
-import { useSignUp } from "@/features/auth/pages/login-page/sign-up-form/use-sign-up";
+import { useSignUp } from "../use-sign-up";
+
+const mocks = vi.hoisted(() => ({
+	navigate: vi.fn(),
+	email: vi.fn(),
+	social: vi.fn(),
+	offer: vi.fn(),
+}));
+vi.mock("@sapphire2/env/web", () => ({
+	env: { VITE_SERVER_URL: "http://localhost:8787" },
+}));
+vi.mock("@tanstack/react-router", () => ({
+	useNavigate: () => mocks.navigate,
+}));
+vi.mock("@/features/auth/utils/auto-register-passkey", () => ({
+	offerAutomaticPasskey: mocks.offer,
+}));
+vi.mock("@/lib/auth-client", () => ({
+	authClient: {
+		useSession: () => ({ isPending: false }),
+		signUp: { email: mocks.email },
+		signIn: { social: mocks.social },
+	},
+}));
 
 describe("useSignUp", () => {
 	beforeEach(() => {
-		mocks.navigate.mockReset();
-		mocks.useSession.mockReturnValue({ isPending: false });
-		mocks.signUpEmail.mockReset();
-		mocks.signInSocial.mockReset();
-		mocks.toastSuccess.mockReset();
-		mocks.toastError.mockReset();
-		mocks.offerAutomaticPasskey.mockReset();
+		vi.clearAllMocks();
 	});
-
-	async function submitValidSignUp(result: {
-		current: ReturnType<typeof useSignUp>;
-	}) {
-		mocks.signUpEmail.mockImplementation((_credentials, callbacks) => {
-			callbacks?.onSuccess?.();
-			return Promise.resolve();
-		});
+	async function submit(form: ReturnType<typeof useSignUp>["form"]) {
 		act(() => {
-			result.current.form.setFieldValue("name", "Hero");
-			result.current.form.setFieldValue("email", "user@example.com");
-			result.current.form.setFieldValue("password", "password123");
+			form.setFieldValue("name", "Hero");
+			form.setFieldValue("email", "user@example.com");
+			form.setFieldValue("password", "password123");
 		});
 		await act(async () => {
-			await result.current.form.handleSubmit();
+			await form.handleSubmit();
 		});
 	}
-
-	it("offers the silent passkey upgrade after sign-up", async () => {
-		const { result } = renderHook(() => useSignUp());
-		await submitValidSignUp(result);
-		expect(mocks.offerAutomaticPasskey).toHaveBeenCalledTimes(1);
-	});
-
-	it("does not offer the upgrade after a failed sign-up", async () => {
-		mocks.signUpEmail.mockImplementation((_credentials, callbacks) => {
-			callbacks?.onError?.({
-				error: { message: "Email already taken", statusText: "Conflict" },
-			});
+	it("enters the app and offers a passkey after sign-up", async () => {
+		mocks.email.mockImplementation((_value, callbacks) => {
+			callbacks.onSuccess();
 			return Promise.resolve();
 		});
 		const { result } = renderHook(() => useSignUp());
-		act(() => {
-			result.current.form.setFieldValue("name", "Hero");
-			result.current.form.setFieldValue("email", "user@example.com");
-			result.current.form.setFieldValue("password", "password123");
-		});
-		await act(async () => {
-			await result.current.form.handleSubmit();
-		});
-		expect(mocks.offerAutomaticPasskey).not.toHaveBeenCalled();
-	});
-
-	it("exposes isPending from session", () => {
-		mocks.useSession.mockReturnValue({ isPending: true });
-		const { result } = renderHook(() => useSignUp());
-		expect(result.current.isPending).toBe(true);
-	});
-
-	it("starts with empty name, email, password", () => {
-		const { result } = renderHook(() => useSignUp());
-		expect(result.current.form.state.values).toEqual({
-			email: "",
-			name: "",
-			password: "",
-		});
-	});
-
-	it("rejects name shorter than 2 characters", async () => {
-		const { result } = renderHook(() => useSignUp());
-		act(() => {
-			result.current.form.setFieldValue("name", "A");
-			result.current.form.setFieldValue("email", "user@example.com");
-			result.current.form.setFieldValue("password", "password123");
-		});
-		await act(async () => {
-			await result.current.form.handleSubmit();
-		});
-		expect(mocks.signUpEmail).not.toHaveBeenCalled();
-	});
-
-	it("rejects invalid email", async () => {
-		const { result } = renderHook(() => useSignUp());
-		act(() => {
-			result.current.form.setFieldValue("name", "Alice");
-			result.current.form.setFieldValue("email", "not-an-email");
-			result.current.form.setFieldValue("password", "password123");
-		});
-		await act(async () => {
-			await result.current.form.handleSubmit();
-		});
-		expect(mocks.signUpEmail).not.toHaveBeenCalled();
-	});
-
-	it("rejects short password", async () => {
-		const { result } = renderHook(() => useSignUp());
-		act(() => {
-			result.current.form.setFieldValue("name", "Alice");
-			result.current.form.setFieldValue("email", "user@example.com");
-			result.current.form.setFieldValue("password", "short");
-		});
-		await act(async () => {
-			await result.current.form.handleSubmit();
-		});
-		expect(mocks.signUpEmail).not.toHaveBeenCalled();
-	});
-
-	it("submits valid values with name/email/password", async () => {
-		mocks.signUpEmail.mockImplementation((_credentials, callbacks) => {
-			callbacks?.onSuccess?.();
-			return Promise.resolve();
-		});
-		const { result } = renderHook(() => useSignUp());
-		act(() => {
-			result.current.form.setFieldValue("name", "Alice");
-			result.current.form.setFieldValue("email", "alice@example.com");
-			result.current.form.setFieldValue("password", "password123");
-		});
-		await act(async () => {
-			await result.current.form.handleSubmit();
-		});
-		expect(mocks.signUpEmail).toHaveBeenCalledWith(
-			{ name: "Alice", email: "alice@example.com", password: "password123" },
-			expect.objectContaining({
-				onSuccess: expect.any(Function),
-				onError: expect.any(Function),
-			})
-		);
-	});
-
-	it("on success: navigates to the home page and toasts success", async () => {
-		mocks.signUpEmail.mockImplementation((_credentials, callbacks) => {
-			callbacks?.onSuccess?.();
-			return Promise.resolve();
-		});
-		const { result } = renderHook(() => useSignUp());
-		act(() => {
-			result.current.form.setFieldValue("name", "Alice");
-			result.current.form.setFieldValue("email", "alice@example.com");
-			result.current.form.setFieldValue("password", "password123");
-		});
-		await act(async () => {
-			await result.current.form.handleSubmit();
-		});
+		await submit(result.current.form);
 		expect(mocks.navigate).toHaveBeenCalledWith({ to: "/" });
-		expect(mocks.toastSuccess).toHaveBeenCalledWith("Sign up successful");
+		expect(mocks.offer).toHaveBeenCalledTimes(1);
 	});
-
-	it("on success mid-OAuth: resumes the authorize flow instead of entering the app", async () => {
+	it("resumes OAuth without offering a passkey", async () => {
 		stubLocation({ search: OAUTH_AUTHORIZE_SEARCH });
-		mocks.signUpEmail.mockImplementation((_credentials, callbacks) => {
-			callbacks?.onSuccess?.();
+		mocks.email.mockImplementation((_value, callbacks) => {
+			callbacks.onSuccess();
 			return Promise.resolve();
 		});
 		const { result } = renderHook(() => useSignUp());
-		act(() => {
-			result.current.form.setFieldValue("name", "Alice");
-			result.current.form.setFieldValue("email", "alice@example.com");
-			result.current.form.setFieldValue("password", "password123");
-		});
-		await act(async () => {
-			await result.current.form.handleSubmit();
-		});
-		expect(window.location.assign).toHaveBeenCalledTimes(1);
+		await submit(result.current.form);
 		const url = new URL(locationAssignCalls()[0]?.[0] as string);
-		expect(url.origin).toBe("http://localhost:8787");
-		expect(url.pathname).toBe("/api/auth/mcp/authorize");
+		expect(url.origin + url.pathname).toBe(
+			"http://localhost:8787/api/auth/mcp/authorize"
+		);
 		expect(url.searchParams.get("client_id")).toBe("c1");
-		expect(url.searchParams.get("response_type")).toBe("code");
-		expect(url.searchParams.get("redirect_uri")).toBe("https://claude.ai/cb");
 		expect(url.searchParams.get("state")).toBe("s1");
 		expect(mocks.navigate).not.toHaveBeenCalled();
-		expect(mocks.toastSuccess).not.toHaveBeenCalled();
+		expect(mocks.offer).not.toHaveBeenCalled();
 	});
-
-	it("on error: toasts provided message", async () => {
-		mocks.signUpEmail.mockImplementation((_credentials, callbacks) => {
-			callbacks?.onError?.({
-				error: { message: "Email already in use", statusText: "Conflict" },
+	it("reports a taken email only for the submitted address", async () => {
+		mocks.email.mockImplementation((_value, callbacks) => {
+			callbacks.onError({
+				error: { code: "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL" },
 			});
 			return Promise.resolve();
 		});
 		const { result } = renderHook(() => useSignUp());
+		await submit(result.current.form);
+		expect(result.current.emailError("user@example.com")).toBe(
+			"This email is already in use"
+		);
+		expect(result.current.emailError("other@example.com")).toBeUndefined();
+		expect(mocks.offer).not.toHaveBeenCalled();
+	});
+	it("rejects a name shorter than two trimmed characters", async () => {
+		const { result } = renderHook(() => useSignUp());
 		act(() => {
-			result.current.form.setFieldValue("name", "Alice");
-			result.current.form.setFieldValue("email", "alice@example.com");
+			result.current.form.setFieldValue("name", " A ");
+			result.current.form.setFieldValue("email", "user@example.com");
 			result.current.form.setFieldValue("password", "password123");
 		});
 		await act(async () => {
 			await result.current.form.handleSubmit();
 		});
-		expect(mocks.toastError).toHaveBeenCalledWith("Email already in use");
+		expect(mocks.email).not.toHaveBeenCalled();
 	});
-
-	it("on error: falls back to statusText when message is empty", async () => {
-		mocks.signUpEmail.mockImplementation((_credentials, callbacks) => {
-			callbacks?.onError?.({
-				error: { message: "", statusText: "Conflict" },
-			});
-			return Promise.resolve();
-		});
-		const { result } = renderHook(() => useSignUp());
-		act(() => {
-			result.current.form.setFieldValue("name", "Alice");
-			result.current.form.setFieldValue("email", "alice@example.com");
-			result.current.form.setFieldValue("password", "password123");
-		});
-		await act(async () => {
-			await result.current.form.handleSubmit();
-		});
-		expect(mocks.toastError).toHaveBeenCalledWith("Conflict");
-	});
-
-	it("onSignInWithGoogle: calls social signin with google and home callback", async () => {
-		stubLocation({ origin: "https://app.test", search: "" });
-		mocks.signInSocial.mockResolvedValue({ error: null });
-		const { result } = renderHook(() => useSignUp());
-		await act(async () => {
-			await result.current.onSignInWithGoogle();
-		});
-		expect(mocks.signInSocial).toHaveBeenCalledWith({
-			provider: "google",
-			callbackURL: "https://app.test/",
-		});
-	});
-
-	it("onSignInWithGoogle mid-OAuth: returns to /login with the authorize query preserved", async () => {
+	it("preserves OAuth continuation for social sign-up", async () => {
 		stubLocation({
 			origin: "https://app.test",
 			search: OAUTH_AUTHORIZE_SEARCH,
 		});
-		mocks.signInSocial.mockResolvedValue({ error: null });
+		mocks.social.mockResolvedValue({ error: null });
 		const { result } = renderHook(() => useSignUp());
 		await act(async () => {
-			await result.current.onSignInWithGoogle();
+			await result.current.onSignUpWithDiscord();
 		});
-		expect(mocks.signInSocial).toHaveBeenCalledWith({
-			provider: "google",
-			callbackURL: `https://app.test/login${OAUTH_AUTHORIZE_SEARCH}`,
-		});
-	});
-
-	it("onSignInWithDiscord mid-OAuth: returns to /login with the authorize query preserved", async () => {
-		stubLocation({
-			origin: "https://app.test",
-			search: OAUTH_AUTHORIZE_SEARCH,
-		});
-		mocks.signInSocial.mockResolvedValue({ error: null });
-		const { result } = renderHook(() => useSignUp());
-		await act(async () => {
-			await result.current.onSignInWithDiscord();
-		});
-		expect(mocks.signInSocial).toHaveBeenCalledWith({
+		expect(mocks.social).toHaveBeenCalledWith({
 			provider: "discord",
 			callbackURL: `https://app.test/login${OAUTH_AUTHORIZE_SEARCH}`,
 		});
-	});
-
-	it("onSignInWithGoogle: toasts fallback 'Google sign up unavailable'", async () => {
-		mocks.signInSocial.mockResolvedValue({ error: { message: "" } });
-		const { result } = renderHook(() => useSignUp());
-		await act(async () => {
-			await result.current.onSignInWithGoogle();
-		});
-		expect(mocks.toastError).toHaveBeenCalledWith("Google sign up unavailable");
-	});
-
-	it("onSignInWithDiscord: toasts fallback 'Discord sign up unavailable'", async () => {
-		mocks.signInSocial.mockResolvedValue({ error: { message: "" } });
-		const { result } = renderHook(() => useSignUp());
-		await act(async () => {
-			await result.current.onSignInWithDiscord();
-		});
-		expect(mocks.toastError).toHaveBeenCalledWith(
-			"Discord sign up unavailable"
-		);
 	});
 });

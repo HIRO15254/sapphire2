@@ -102,9 +102,9 @@ describe("useSetPasswordForm", () => {
 		await act(async () => {
 			await result.current.form.handleSubmit();
 		});
-		expect(mocks.toastSuccess).toHaveBeenCalledWith(
-			"Password set successfully"
-		);
+		expect(mocks.toastSuccess).toHaveBeenCalledWith("Password set", {
+			description: "You can now sign in with your email.",
+		});
 		expect(onSuccess).toHaveBeenCalledTimes(1);
 		expect(onOpenChange).toHaveBeenCalledWith(false);
 		expect(mocks.toastError).not.toHaveBeenCalled();
@@ -126,12 +126,14 @@ describe("useSetPasswordForm", () => {
 		await act(async () => {
 			await result.current.form.handleSubmit();
 		});
-		expect(mocks.toastError).toHaveBeenCalledWith("Password rejected");
+		expect(mocks.toastError).toHaveBeenCalledWith("Couldn't set the password", {
+			description: "Password rejected",
+		});
 		expect(onSuccess).not.toHaveBeenCalled();
 		expect(onOpenChange).not.toHaveBeenCalled();
 	});
 
-	it("on error without message: falls back to fixed 'Failed to set password'", async () => {
+	it("reports an error without a message", async () => {
 		mocks.fetch.mockResolvedValue({ error: {} });
 		const { result } = renderHook(() =>
 			useSetPasswordForm({ onOpenChange: vi.fn(), onSuccess: vi.fn() })
@@ -143,6 +145,8 @@ describe("useSetPasswordForm", () => {
 		await act(async () => {
 			await result.current.form.handleSubmit();
 		});
-		expect(mocks.toastError).toHaveBeenCalledWith("Failed to set password");
+		expect(mocks.toastError).toHaveBeenCalledWith("Couldn't set the password", {
+			description: undefined,
+		});
 	});
 });

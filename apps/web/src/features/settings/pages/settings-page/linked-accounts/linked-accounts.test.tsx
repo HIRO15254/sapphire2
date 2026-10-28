@@ -14,6 +14,10 @@ const mocks = vi.hoisted(() => ({
 	toastSuccess: vi.fn(),
 	unlinkAccount: vi.fn(),
 }));
+vi.mock("@tanstack/react-router", () => ({
+	useNavigate: () => vi.fn(),
+	useSearch: () => ({}),
+}));
 
 vi.mock("@/lib/auth-client", () => ({
 	authClient: {
@@ -21,6 +25,7 @@ vi.mock("@/lib/auth-client", () => ({
 		linkSocial: mocks.linkSocial,
 		listAccounts: mocks.listAccounts,
 		unlinkAccount: mocks.unlinkAccount,
+		useSession: () => ({ data: { user: { email: "user@example.com" } } }),
 	},
 }));
 
@@ -50,9 +55,11 @@ describe("LinkedAccounts", () => {
 
 		render(<LinkedAccounts />);
 
-		await screen.findByText("Email / password");
+		await screen.findByText("Email and password");
 		expect(screen.getByRole("button", { name: "Set password" })).toBeVisible();
-		expect(screen.getByRole("button", { name: "Unlink" })).toBeDisabled();
+		expect(
+			screen.getByRole("button", { name: "Unlink Google" })
+		).toBeDisabled();
 
 		await user.click(screen.getByRole("button", { name: "Set password" }));
 
@@ -74,7 +81,7 @@ describe("LinkedAccounts", () => {
 
 		render(<LinkedAccounts />);
 
-		await screen.findByText("Email / password");
+		await screen.findByText("Email and password");
 		expect(screen.queryByLabelText(NEW_PASSWORD_RE)).not.toBeInTheDocument();
 	});
 
@@ -84,7 +91,7 @@ describe("LinkedAccounts", () => {
 		render(<LinkedAccounts />);
 
 		expect(
-			await screen.findByText("Unable to load linked accounts")
+			await screen.findByText("Couldn't load your sign-in methods.")
 		).toBeVisible();
 		expect(screen.queryByText("Loading accounts...")).not.toBeInTheDocument();
 	});
@@ -99,7 +106,7 @@ describe("LinkedAccounts", () => {
 
 		render(<LinkedAccounts />);
 
-		await screen.findByText("Email / password");
+		await screen.findByText("Email and password");
 		await user.click(screen.getByRole("button", { name: "Set password" }));
 
 		await user.type(screen.getByLabelText(NEW_PASSWORD_RE), "supersecret1");
@@ -113,9 +120,9 @@ describe("LinkedAccounts", () => {
 			method: "POST",
 			body: { newPassword: "supersecret1" },
 		});
-		expect(mocks.toastSuccess).toHaveBeenCalledWith(
-			"Password set successfully"
-		);
+		expect(mocks.toastSuccess).toHaveBeenCalledWith("Password set", {
+			description: "You can now sign in with your email.",
+		});
 		await waitFor(() => {
 			expect(mocks.listAccounts).toHaveBeenCalledTimes(2);
 		});
@@ -134,14 +141,15 @@ describe("LinkedAccounts", () => {
 
 		render(<LinkedAccounts />);
 
-		await screen.findByText("Google");
-		await user.click(screen.getByRole("button", { name: "Unlink" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Unlink Google" })
+		);
 
 		await waitFor(() => {
 			expect(mocks.unlinkAccount).toHaveBeenCalledWith({
 				providerId: "google",
 			});
 		});
-		expect(mocks.toastSuccess).toHaveBeenCalledWith("Account unlinked");
+		expect(mocks.toastSuccess).not.toHaveBeenCalled();
 	});
 });

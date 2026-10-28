@@ -1,14 +1,17 @@
 import { IconKey } from "@tabler/icons-react";
-import {
-	AuthFormShell,
-	authSubmitLabels,
-} from "@/shared/components/auth-form-shell";
+import { AuthFormLayout } from "@/features/auth/pages/login-page/auth-form-layout";
 import { DiscordIcon } from "@/shared/components/icons/discord";
 import { GoogleIcon } from "@/shared/components/icons/google";
 import Loader from "@/shared/components/loader";
+import {
+	Alert,
+	AlertDescription,
+	AlertTitle,
+} from "@/shared/components/ui/alert";
 import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
+import { Spinner } from "@/shared/components/ui/spinner";
 import { useSignIn } from "./use-sign-in";
 
 export default function SignInForm({
@@ -17,10 +20,12 @@ export default function SignInForm({
 	onSwitchToSignUp: () => void;
 }) {
 	const {
+		errorMessage,
 		form,
-		isPasskeyPending,
+		isBusy,
 		isPasskeySupported,
 		isPending,
+		isSubmitting,
 		onSignInWithDiscord,
 		onSignInWithGoogle,
 		onSignInWithPasskey,
@@ -30,96 +35,126 @@ export default function SignInForm({
 		return <Loader />;
 	}
 
-	const providerActions = [
-		...(isPasskeySupported
-			? [
-					{
-						disabled: isPasskeyPending,
-						label: "Sign in with a passkey",
-						icon: <IconKey className="mr-2 h-4 w-4" />,
-						onClick: onSignInWithPasskey,
-					},
-				]
-			: []),
-		{
-			label: "Sign in with Google",
-			icon: <GoogleIcon className="mr-2 h-4 w-4" />,
-			onClick: onSignInWithGoogle,
-		},
-		{
-			label: "Sign in with Discord",
-			icon: <DiscordIcon className="mr-2 h-4 w-4" />,
-			onClick: onSignInWithDiscord,
-		},
-	];
-
 	return (
-		<AuthFormShell
+		<AuthFormLayout
+			alert={
+				errorMessage ? (
+					<Alert variant="destructive">
+						<AlertTitle>Couldn't sign in</AlertTitle>
+						<AlertDescription>{errorMessage}</AlertDescription>
+					</Alert>
+				) : null
+			}
+			description="Your sessions, stats and balances, on any device."
+			isBusy={isBusy}
 			onSwitchMode={onSwitchToSignUp}
-			providerActions={providerActions}
-			switchLabel="Need an account? Sign Up"
-			title="Sign in to sapphire2"
+			providers={
+				<>
+					{isPasskeySupported ? (
+						<Button
+							className="w-full"
+							disabled={isBusy}
+							onClick={onSignInWithPasskey}
+							size="xl"
+							type="button"
+							variant="outline"
+						>
+							<IconKey aria-hidden />
+							Sign in with a passkey
+						</Button>
+					) : null}
+					<Button
+						className="w-full"
+						disabled={isBusy}
+						onClick={onSignInWithGoogle}
+						size="xl"
+						type="button"
+						variant="outline"
+					>
+						<GoogleIcon className="size-4" />
+						Sign in with Google
+					</Button>
+					<Button
+						className="w-full"
+						disabled={isBusy}
+						onClick={onSignInWithDiscord}
+						size="xl"
+						type="button"
+						variant="outline"
+					>
+						<DiscordIcon className="size-4" />
+						Sign in with Discord
+					</Button>
+				</>
+			}
+			switchActionLabel="Create an account"
+			switchPrompt="New to Sapphire 2?"
+			title="Sign in"
 		>
 			<form
-				className="space-y-4"
+				className="contents"
+				noValidate
 				onSubmit={(e) => {
 					e.preventDefault();
 					e.stopPropagation();
 					form.handleSubmit();
 				}}
 			>
-				<form.Field name="email">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label="Email"
-						>
-							<Input
-								id={field.name}
-								name={field.name}
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								type="email"
-								value={field.state.value}
-							/>
-						</Field>
+				<div className="flex flex-col gap-4">
+					<form.Field name="email">
+						{(field) => (
+							<Field
+								error={field.state.meta.errors[0]?.message}
+								htmlFor={field.name}
+								label="Email"
+							>
+								<Input
+									autoComplete="email"
+									disabled={isBusy}
+									id={field.name}
+									name={field.name}
+									onBlur={field.handleBlur}
+									onChange={(e) => field.handleChange(e.target.value)}
+									size="xl"
+									type="email"
+									value={field.state.value}
+								/>
+							</Field>
+						)}
+					</form.Field>
+					<form.Field name="password">
+						{(field) => (
+							<Field
+								error={field.state.meta.errors[0]?.message}
+								htmlFor={field.name}
+								label="Password"
+							>
+								<Input
+									autoComplete="current-password"
+									disabled={isBusy}
+									id={field.name}
+									name={field.name}
+									onBlur={field.handleBlur}
+									onChange={(e) => field.handleChange(e.target.value)}
+									size="xl"
+									type="password"
+									value={field.state.value}
+								/>
+							</Field>
+						)}
+					</form.Field>
+				</div>
+				<Button className="w-full" disabled={isBusy} size="xl" type="submit">
+					{isSubmitting ? (
+						<>
+							<Spinner />
+							Signing in
+						</>
+					) : (
+						"Sign in"
 					)}
-				</form.Field>
-
-				<form.Field name="password">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label="Password"
-						>
-							<Input
-								id={field.name}
-								name={field.name}
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								type="password"
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
-
-				<form.Subscribe>
-					{(state) => (
-						<Button
-							className="w-full"
-							disabled={!state.canSubmit || state.isSubmitting}
-							type="submit"
-						>
-							{state.isSubmitting
-								? authSubmitLabels.signIn.submitting
-								: authSubmitLabels.signIn.idle}
-						</Button>
-					)}
-				</form.Subscribe>
+				</Button>
 			</form>
-		</AuthFormShell>
+		</AuthFormLayout>
 	);
 }

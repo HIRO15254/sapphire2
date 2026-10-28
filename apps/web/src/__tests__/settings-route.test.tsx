@@ -65,8 +65,8 @@ describe("SettingsComponent", () => {
 		expect(
 			screen.getByRole("heading", { name: "Settings" })
 		).toBeInTheDocument();
-		expect(screen.getByText("Linked accounts")).toBeInTheDocument();
-		expect(screen.getByText("About")).toBeInTheDocument();
+		expect(screen.getByText("Linked Accounts Content")).toBeInTheDocument();
+		expect(screen.getByText("About Content")).toBeInTheDocument();
 	});
 
 	it("renders the About section body", () => {
@@ -77,7 +77,7 @@ describe("SettingsComponent", () => {
 		expect(screen.getByText("About Content")).toBeInTheDocument();
 	});
 
-	it("signs out from the page header action", async () => {
+	it("signs out from the page body", async () => {
 		const user = userEvent.setup();
 		const Component = routeModule.Route.options.component as ComponentType;
 

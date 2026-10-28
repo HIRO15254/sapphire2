@@ -14,6 +14,7 @@ const iconButtonVariants = cva(
 					"border-input bg-card text-foreground shadow-[var(--shadow-sm)]",
 			},
 			size: {
+				sm: "size-[var(--control-sm)] [&_svg:not([class*='size-'])]:size-3.5",
 				md: "size-[var(--control-md)]",
 				xl: "size-[var(--m-control)] [&_svg:not([class*='size-'])]:size-[18px]",
 			},

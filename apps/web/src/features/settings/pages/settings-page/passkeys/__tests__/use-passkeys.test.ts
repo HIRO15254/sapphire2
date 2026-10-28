@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
 	deletePasskey: vi.fn(),
 	updatePasskey: vi.fn(),
 	toastSuccess: vi.fn(),
+	toastInfo: vi.fn(),
 	toastError: vi.fn(),
 	setAutomaticPasskeyOptOut: vi.fn(),
 }));
@@ -16,7 +17,11 @@ vi.mock("@/shared/lib/passkey-opt-out", () => ({
 }));
 
 vi.mock("sonner", () => ({
-	toast: { success: mocks.toastSuccess, error: mocks.toastError },
+	toast: {
+		success: mocks.toastSuccess,
+		info: mocks.toastInfo,
+		error: mocks.toastError,
+	},
 }));
 
 vi.mock("@/lib/auth-client", () => ({
@@ -50,6 +55,7 @@ describe("usePasskeys", () => {
 		mocks.deletePasskey.mockReset();
 		mocks.updatePasskey.mockReset();
 		mocks.toastSuccess.mockReset();
+		mocks.toastInfo.mockReset();
 		mocks.toastError.mockReset();
 		mocks.setAutomaticPasskeyOptOut.mockReset();
 	});
@@ -88,7 +94,7 @@ describe("usePasskeys", () => {
 		mocks.listUserPasskeys.mockRejectedValue(new Error("offline"));
 		const { result } = renderHook(() => usePasskeys());
 		await waitFor(() => expect(result.current.loading).toBe(false));
-		expect(result.current.error).toBe("Unable to load passkeys");
+		expect(result.current.error).toBe("Couldn't load your passkeys.");
 		expect(result.current.passkeys).toEqual([]);
 	});
 
@@ -99,7 +105,7 @@ describe("usePasskeys", () => {
 		});
 		const { result } = renderHook(() => usePasskeys());
 		await waitFor(() => expect(result.current.loading).toBe(false));
-		expect(result.current.error).toBe("Unable to load passkeys");
+		expect(result.current.error).toBe("Couldn't load your passkeys.");
 		expect(result.current.passkeys).toEqual([]);
 		expect(result.current.totalPasskeys).toBe(0);
 	});
@@ -182,8 +188,7 @@ describe("usePasskeys", () => {
 
 		expect(mocks.deletePasskey).toHaveBeenCalledTimes(1);
 		expect(mocks.deletePasskey).toHaveBeenNthCalledWith(1, { id: "pk1" });
-		expect(mocks.toastSuccess).toHaveBeenCalledTimes(1);
-		expect(mocks.toastSuccess).toHaveBeenNthCalledWith(1, "Passkey removed");
+		expect(mocks.toastInfo).toHaveBeenCalledWith("Passkey removed");
 		expect(result.current.deleteTarget).toBeNull();
 		expect(mocks.listUserPasskeys).toHaveBeenCalledTimes(2);
 		await waitFor(() => expect(result.current.passkeys).toEqual([PASSKEY_B]));
@@ -238,7 +243,10 @@ describe("usePasskeys", () => {
 		});
 
 		expect(mocks.toastError).toHaveBeenCalledTimes(1);
-		expect(mocks.toastError).toHaveBeenNthCalledWith(1, "Passkey not found");
+		expect(mocks.toastError).toHaveBeenCalledWith(
+			"Couldn't remove the passkey",
+			{ description: "Passkey not found" }
+		);
 		expect(mocks.toastSuccess).not.toHaveBeenCalled();
 		expect(result.current.deleteTarget).toEqual(PASSKEY_A);
 		expect(mocks.listUserPasskeys).toHaveBeenCalledTimes(1);
@@ -260,7 +268,8 @@ describe("usePasskeys", () => {
 
 		expect(mocks.toastError).toHaveBeenNthCalledWith(
 			1,
-			"Failed to remove passkey"
+			"Couldn't remove the passkey",
+			{ description: undefined }
 		);
 	});
 
@@ -361,8 +370,7 @@ describe("usePasskeys", () => {
 			id: "pk1",
 			name: "Work laptop",
 		});
-		expect(mocks.toastSuccess).toHaveBeenCalledTimes(1);
-		expect(mocks.toastSuccess).toHaveBeenNthCalledWith(1, "Passkey renamed");
+		expect(mocks.toastSuccess).not.toHaveBeenCalled();
 		expect(result.current.renameTarget).toBeNull();
 		expect(mocks.listUserPasskeys).toHaveBeenCalledTimes(2);
 		await waitFor(() => expect(result.current.passkeys).toEqual([renamed]));
@@ -398,7 +406,10 @@ describe("usePasskeys", () => {
 		});
 
 		expect(mocks.toastError).toHaveBeenCalledTimes(1);
-		expect(mocks.toastError).toHaveBeenNthCalledWith(1, "Passkey not found");
+		expect(mocks.toastError).toHaveBeenCalledWith(
+			"Couldn't rename the passkey",
+			{ description: "Passkey not found" }
+		);
 		expect(result.current.renameTarget).toEqual(PASSKEY_A);
 		expect(mocks.listUserPasskeys).toHaveBeenCalledTimes(1);
 	});
@@ -418,7 +429,8 @@ describe("usePasskeys", () => {
 
 		expect(mocks.toastError).toHaveBeenNthCalledWith(
 			1,
-			"Failed to rename passkey"
+			"Couldn't rename the passkey",
+			{ description: undefined }
 		);
 	});
 
@@ -535,7 +547,7 @@ describe("usePasskeys", () => {
 
 		const { result } = renderHook(() => usePasskeys());
 		await waitFor(() =>
-			expect(result.current.error).toBe("Unable to load passkeys")
+			expect(result.current.error).toBe("Couldn't load your passkeys.")
 		);
 		await act(async () => {
 			await result.current.refreshPasskeys();

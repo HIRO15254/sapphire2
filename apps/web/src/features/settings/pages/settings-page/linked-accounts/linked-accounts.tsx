@@ -1,35 +1,40 @@
-import { IconLink, IconUnlink } from "@tabler/icons-react";
+import { IconLink, IconMail, IconUnlink } from "@tabler/icons-react";
+import { SectionLoadError } from "@/features/settings/pages/settings-page/section-load-error";
+import { SettingsSection } from "@/features/settings/pages/settings-page/settings-section";
 import { FormSheet } from "@/shared/components/form-sheet";
 import { DiscordIcon } from "@/shared/components/icons/discord";
 import { GoogleIcon } from "@/shared/components/icons/google";
-import {
-	ManagementList,
-	ManagementListItem,
-} from "@/shared/components/management/management-list";
-import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
+import {
+	Item,
+	ItemActions,
+	ItemContent,
+	ItemDescription,
+	ItemGroup,
+	ItemMedia,
+	ItemTitle,
+} from "@/shared/components/ui/item";
+import { Spinner } from "@/shared/components/ui/spinner";
 import { useSetPasswordForm } from "@/shared/hooks/use-set-password-form";
-import { useLinkedAccounts } from "./use-linked-accounts";
+import { SOCIAL_PROVIDERS, useLinkedAccounts } from "./use-linked-accounts";
 
 const SET_PASSWORD_FORM_ID = "set-password-form";
 
-const PROVIDERS = [
-	{ id: "google", label: "Google", icon: <GoogleIcon className="h-4 w-4" /> },
-	{
-		id: "discord",
-		label: "Discord",
-		icon: <DiscordIcon className="h-4 w-4" />,
-	},
-] as const;
+const PROVIDER_ICONS = {
+	google: <GoogleIcon className="size-[18px]" />,
+	discord: <DiscordIcon className="size-[18px]" />,
+};
 
 function SetPasswordForm({
 	formId,
+	intro,
 	onOpenChange,
 	onSuccess,
 }: {
 	formId: string;
+	intro: string;
 	onOpenChange: (open: boolean) => void;
 	onSuccess: () => void;
 }) {
@@ -37,32 +42,33 @@ function SetPasswordForm({
 
 	return (
 		<form
-			className="flex flex-col gap-4"
+			className="flex flex-col gap-4 pt-1 pb-2"
 			id={formId}
+			noValidate
 			onSubmit={(event) => {
 				event.preventDefault();
 				event.stopPropagation();
 				form.handleSubmit();
 			}}
 		>
-			<p className="text-muted-foreground text-sm">
-				Create an email and password login in addition to any linked social
-				accounts.
-			</p>
+			<p className="m-0 text-muted-foreground leading-normal">{intro}</p>
 
 			<form.Field name="newPassword">
 				{(field) => (
 					<Field
+						description="At least 8 characters."
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
 						label="New password"
 						required
 					>
 						<Input
+							autoComplete="new-password"
 							id={field.name}
 							name={field.name}
 							onBlur={field.handleBlur}
 							onChange={(event) => field.handleChange(event.target.value)}
+							size="xl"
 							type="password"
 							value={field.state.value}
 						/>
@@ -79,10 +85,12 @@ function SetPasswordForm({
 						required
 					>
 						<Input
+							autoComplete="new-password"
 							id={field.name}
 							name={field.name}
 							onBlur={field.handleBlur}
 							onChange={(event) => field.handleChange(event.target.value)}
+							size="xl"
 							type="password"
 							value={field.state.value}
 						/>
@@ -93,131 +101,136 @@ function SetPasswordForm({
 	);
 }
 
+function setPasswordIntro(email: string | null, linkedSocialLabels: string[]) {
+	const subject = email ? `Sign in with ${email}` : "Sign in with your email";
+	if (linkedSocialLabels.length === 0) {
+		return `${subject} and a password.`;
+	}
+	return `${subject} and a password, alongside ${linkedSocialLabels.join(" and ")}.`;
+}
+
 export function LinkedAccounts() {
 	const {
+		email,
+		error,
 		fetchAccounts,
 		handleLink,
-		error,
 		handleUnlink,
 		hasCredential,
+		isRefreshPending,
 		isSetPasswordOpen,
 		linkedProviderIds,
+		linkedSocialLabels,
 		loading,
+		note,
 		onSetPasswordOpenChange,
 		totalLinked,
 	} = useLinkedAccounts();
 
 	if (loading) {
 		return (
-			<div className="text-muted-foreground text-sm">Loading accounts...</div>
+			<SettingsSection heading="Sign-in methods">
+				<div className="flex justify-center py-3 text-muted-foreground">
+					<Spinner />
+				</div>
+			</SettingsSection>
 		);
 	}
 
 	if (error) {
 		return (
-			<div className="text-destructive text-sm" role="alert">
-				{error}
-			</div>
+			<SettingsSection heading="Sign-in methods">
+				<SectionLoadError
+					isRetrying={isRefreshPending}
+					message={error}
+					onRetry={fetchAccounts}
+				/>
+			</SettingsSection>
 		);
 	}
+
 	return (
-		<div className="space-y-3">
-			<ManagementList>
-				<ManagementListItem
-					actions={
-						hasCredential ? undefined : (
+		<SettingsSection heading="Sign-in methods" note={note}>
+			<ItemGroup aria-label="Sign-in methods" size="xl" variant="inset">
+				<Item>
+					<ItemMedia>
+						<IconMail aria-hidden />
+					</ItemMedia>
+					<ItemContent>
+						<ItemTitle>Email and password</ItemTitle>
+						<ItemDescription>
+							{hasCredential ? (email ?? "Linked") : "Not set"}
+						</ItemDescription>
+					</ItemContent>
+					{hasCredential ? null : (
+						<ItemActions>
 							<Button
 								onClick={() => onSetPasswordOpenChange(true)}
 								size="sm"
+								type="button"
 								variant="outline"
 							>
 								Set password
 							</Button>
-						)
-					}
-					className="min-h-14"
-					title={
-						<span className="flex items-center gap-2">
-							Email / password
-							{hasCredential ? (
-								<Badge
-									className="border-green-500 text-green-600"
-									variant="outline"
-								>
-									Linked
-								</Badge>
-							) : null}
-						</span>
-					}
-				/>
+						</ItemActions>
+					)}
+				</Item>
 
-				{PROVIDERS.map((provider) => {
+				{SOCIAL_PROVIDERS.map((provider) => {
 					const isLinked = linkedProviderIds.has(provider.id);
-					const canUnlink = isLinked && totalLinked > 1;
-
 					return (
-						<ManagementListItem
-							actions={
-								isLinked ? (
+						<Item key={provider.id}>
+							<ItemMedia>{PROVIDER_ICONS[provider.id]}</ItemMedia>
+							<ItemContent>
+								<ItemTitle>{provider.label}</ItemTitle>
+								<ItemDescription>
+									{isLinked ? "Linked" : "Not linked"}
+								</ItemDescription>
+							</ItemContent>
+							<ItemActions>
+								{isLinked ? (
 									<Button
-										disabled={!canUnlink}
+										aria-label={`Unlink ${provider.label}`}
+										disabled={totalLinked <= 1}
 										onClick={() => handleUnlink(provider.id)}
 										size="sm"
-										variant="outline"
+										type="button"
+										variant="ghost"
 									>
-										<IconUnlink />
+										<IconUnlink aria-hidden />
 										Unlink
 									</Button>
 								) : (
 									<Button
+										aria-label={`Link ${provider.label}`}
 										onClick={() => handleLink(provider.id)}
 										size="sm"
+										type="button"
 										variant="outline"
 									>
-										<IconLink />
+										<IconLink aria-hidden />
 										Link
 									</Button>
-								)
-							}
-							className="min-h-14"
-							key={provider.id}
-							leading={provider.icon}
-							title={
-								<span className="flex items-center gap-2">
-									{provider.label}
-									<Badge
-										className={
-											isLinked ? "border-green-500 text-green-600" : ""
-										}
-										variant="outline"
-									>
-										{isLinked ? "Linked" : "Not linked"}
-									</Badge>
-								</span>
-							}
-						/>
+								)}
+							</ItemActions>
+						</Item>
 					);
 				})}
-			</ManagementList>
-
-			{totalLinked <= 1 ? (
-				<p className="text-muted-foreground text-xs">
-					You must have at least one linked login method.
-				</p>
-			) : null}
+			</ItemGroup>
 
 			<FormSheet
 				formId={SET_PASSWORD_FORM_ID}
 				onOpenChange={onSetPasswordOpenChange}
 				open={isSetPasswordOpen}
-				title="Set password"
+				title="Set a password"
 			>
 				<SetPasswordForm
 					formId={SET_PASSWORD_FORM_ID}
+					intro={setPasswordIntro(email, linkedSocialLabels)}
 					onOpenChange={onSetPasswordOpenChange}
 					onSuccess={fetchAccounts}
 				/>
 			</FormSheet>
-		</div>
+		</SettingsSection>
 	);
 }

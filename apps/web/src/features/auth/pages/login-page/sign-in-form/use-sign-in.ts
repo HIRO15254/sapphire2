@@ -1,7 +1,6 @@
-import { useForm } from "@tanstack/react-form";
+import { useForm, useStore } from "@tanstack/react-form";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { toast } from "sonner";
 import z from "zod";
 import { offerAutomaticPasskey } from "@/features/auth/utils/auto-register-passkey";
 import {
@@ -11,17 +10,33 @@ import {
 import { authClient } from "@/lib/auth-client";
 import { isCancelledCeremony, isPasskeySupported } from "@/shared/lib/webauthn";
 
+const WRONG_CREDENTIALS_MESSAGE =
+	"Check your email and password, or use another way to sign in.";
+const RETRY_MESSAGE = "Try again.";
+
 export function useSignIn() {
 	const navigate = useNavigate({ from: "/" });
 	const { isPending } = authClient.useSession();
 	const [isPasskeyPending, setIsPasskeyPending] = useState(false);
+	const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+	const enterApp = () => {
+		const authorizeUrl = pendingAuthorizeUrl();
+		if (authorizeUrl) {
+			window.location.assign(authorizeUrl);
+			return false;
+		}
+		navigate({ to: "/" });
+		return true;
+	};
 
 	const form = useForm({
 		defaultValues: {
 			email: "",
 			password: "",
 		},
-		onSubmit: async ({ value }) => {
+		onSubmit: async ({ value, formApi }) => {
+			setErrorMessage(null);
 			await authClient.signIn.email(
 				{
 					email: value.email,
@@ -29,28 +44,31 @@ export function useSignIn() {
 				},
 				{
 					onSuccess: () => {
-						const authorizeUrl = pendingAuthorizeUrl();
-						if (authorizeUrl) {
-							window.location.assign(authorizeUrl);
-							return;
+						if (enterApp()) {
+							offerAutomaticPasskey();
 						}
-						navigate({ to: "/" });
-						toast.success("Sign in successful");
-						offerAutomaticPasskey();
 					},
 					onError: (error) => {
-						toast.error(error.error.message || error.error.statusText);
+						if (error.error.status === 401) {
+							formApi.setFieldValue("password", "");
+							setErrorMessage(WRONG_CREDENTIALS_MESSAGE);
+							return;
+						}
+						setErrorMessage(
+							error.error.message || error.error.statusText || RETRY_MESSAGE
+						);
 					},
 				}
 			);
 		},
 		validators: {
 			onSubmit: z.object({
-				email: z.email("Invalid email address"),
-				password: z.string().min(8, "Password must be at least 8 characters"),
+				email: z.email("Enter a valid email address"),
+				password: z.string().min(8, "Use at least 8 characters"),
 			}),
 		},
 	});
+	const isSubmitting = useStore(form.store, (state) => state.isSubmitting);
 
 	const onSignInWithPasskey = async () => {
 		if (isPasskeyPending) {
@@ -58,53 +76,42 @@ export function useSignIn() {
 		}
 
 		setIsPasskeyPending(true);
+		setErrorMessage(null);
 		try {
 			const result = await authClient.signIn.passkey();
 			if (!result?.data || result.error) {
 				if (!isCancelledCeremony(result?.error)) {
-					toast.error(result?.error?.message || "Passkey sign in failed");
+					setErrorMessage(result?.error?.message || RETRY_MESSAGE);
 				}
 				return;
 			}
-			const authorizeUrl = pendingAuthorizeUrl();
-			if (authorizeUrl) {
-				window.location.assign(authorizeUrl);
-				return;
-			}
-			navigate({ to: "/" });
-			toast.success("Sign in successful");
+			enterApp();
 		} finally {
 			setIsPasskeyPending(false);
 		}
 	};
 
-	const onSignInWithGoogle = async () => {
+	const signInWithProvider = async (provider: "discord" | "google") => {
+		setErrorMessage(null);
 		const result = await authClient.signIn.social({
-			provider: "google",
+			provider,
 			callbackURL: socialCallbackUrl(),
 		});
 		if (result.error) {
-			toast.error(result.error.message || "Google sign in unavailable");
-		}
-	};
-
-	const onSignInWithDiscord = async () => {
-		const result = await authClient.signIn.social({
-			provider: "discord",
-			callbackURL: socialCallbackUrl(),
-		});
-		if (result.error) {
-			toast.error(result.error.message || "Discord sign in unavailable");
+			setErrorMessage(result.error.message || RETRY_MESSAGE);
 		}
 	};
 
 	return {
+		errorMessage,
 		form,
+		isBusy: isSubmitting || isPasskeyPending,
 		isPasskeyPending,
 		isPasskeySupported: isPasskeySupported(),
 		isPending,
-		onSignInWithDiscord,
-		onSignInWithGoogle,
+		isSubmitting,
+		onSignInWithDiscord: () => signInWithProvider("discord"),
+		onSignInWithGoogle: () => signInWithProvider("google"),
 		onSignInWithPasskey,
 	};
 }

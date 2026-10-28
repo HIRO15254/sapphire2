@@ -4,8 +4,13 @@ import { LinkedAccounts } from "@/features/settings/pages/settings-page/linked-a
 import { Passkeys } from "@/features/settings/pages/settings-page/passkeys";
 import { ThemeSetting } from "@/features/settings/pages/settings-page/theme-setting";
 import { PageHeader } from "@/shared/components/page-header";
-import { PageSection } from "@/shared/components/page-section";
-import { Button } from "@/shared/components/ui/button";
+import {
+	Item,
+	ItemContent,
+	ItemGroup,
+	ItemMedia,
+	ItemTitle,
+} from "@/shared/components/ui/item";
 import { useSettingsPage } from "./use-settings-page";
 
 export function SettingsPage() {
@@ -13,36 +18,26 @@ export function SettingsPage() {
 
 	return (
 		<div className="min-h-full bg-background text-foreground">
-			<PageHeader
-				actions={
-					<Button onClick={onSignOut} variant="destructive">
-						<IconLogout size={16} />
-						Sign out
-					</Button>
-				}
-				heading="Settings"
-			/>
+			<PageHeader back={{ fallbackTo: "/more" }} heading="Settings" />
 
-			<div className="space-y-6 p-4">
-				<PageSection heading="Appearance">
-					<ThemeSetting />
-				</PageSection>
-
-				<PageSection heading="Linked accounts">
-					<LinkedAccounts />
-				</PageSection>
-
-				<PageSection
-					description="Sign in without a password. On devices that support it, a passkey is saved automatically the first time you sign in."
-					heading="Passkeys"
-				>
-					<Passkeys />
-				</PageSection>
-
-				<PageSection heading="About">
-					<AboutSection />
-				</PageSection>
-			</div>
+			<main className="flex flex-col gap-[22px] px-3.5 pt-4 pb-6 text-[length:var(--m-text-secondary)]">
+				<ThemeSetting />
+				<LinkedAccounts />
+				<Passkeys />
+				<AboutSection />
+				<ItemGroup size="xl" variant="inset">
+					<Item asChild variant="destructive">
+						<button onClick={onSignOut} type="button">
+							<ItemMedia>
+								<IconLogout aria-hidden />
+							</ItemMedia>
+							<ItemContent>
+								<ItemTitle>Sign out</ItemTitle>
+							</ItemContent>
+						</button>
+					</Item>
+				</ItemGroup>
+			</main>
 		</div>
 	);
 }

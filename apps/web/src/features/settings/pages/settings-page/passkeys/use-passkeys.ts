@@ -20,9 +20,13 @@ interface UsePasskeysResult {
 	isRefreshPending: boolean;
 	isRenamePending: boolean;
 	loading: boolean;
+	menuTarget: PasskeyEntry | null;
 	onAddOpenChange: (open: boolean) => void;
 	onDeletePasskey: () => Promise<void>;
 	onDeleteTargetChange: (entry: PasskeyEntry | null) => void;
+	onMenuTargetChange: (entry: PasskeyEntry | null) => void;
+	onRemoveFromMenu: () => void;
+	onRenameFromMenu: () => void;
 	onRenamePasskey: (name: string) => Promise<void>;
 	onRenameTargetChange: (entry: PasskeyEntry | null) => void;
 	passkeys: PasskeyEntry[];
@@ -36,6 +40,7 @@ export function usePasskeys(): UsePasskeysResult {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [isAddOpen, setIsAddOpen] = useState(false);
+	const [menuTarget, setMenuTarget] = useState<PasskeyEntry | null>(null);
 	const [renameTarget, setRenameTarget] = useState<PasskeyEntry | null>(null);
 	const [deleteTarget, setDeleteTarget] = useState<PasskeyEntry | null>(null);
 	const [isDeletePending, setIsDeletePending] = useState(false);
@@ -54,7 +59,7 @@ export function usePasskeys(): UsePasskeysResult {
 				return;
 			}
 			if (result.error) {
-				setError("Unable to load passkeys");
+				setError("Couldn't load your passkeys.");
 				setPasskeys([]);
 				return;
 			}
@@ -64,7 +69,7 @@ export function usePasskeys(): UsePasskeysResult {
 			if (isStale()) {
 				return;
 			}
-			setError("Unable to load passkeys");
+			setError("Couldn't load your passkeys.");
 			setPasskeys([]);
 		} finally {
 			if (!isStale()) {
@@ -89,11 +94,13 @@ export function usePasskeys(): UsePasskeysResult {
 				id: deleteTarget.id,
 			});
 			if (result.error) {
-				toast.error(result.error.message ?? "Failed to remove passkey");
+				toast.error("Couldn't remove the passkey", {
+					description: result.error.message ?? undefined,
+				});
 				return;
 			}
 
-			toast.success("Passkey removed");
+			toast.info("Passkey removed");
 			setAutomaticPasskeyOptOut(true);
 			setDeleteTarget(null);
 			await refreshPasskeys();
@@ -114,11 +121,12 @@ export function usePasskeys(): UsePasskeysResult {
 				name,
 			});
 			if (result.error) {
-				toast.error(result.error.message ?? "Failed to rename passkey");
+				toast.error("Couldn't rename the passkey", {
+					description: result.error.message ?? undefined,
+				});
 				return;
 			}
 
-			toast.success("Passkey renamed");
 			setRenameTarget(null);
 			await refreshPasskeys();
 		} finally {
@@ -135,9 +143,19 @@ export function usePasskeys(): UsePasskeysResult {
 		isRefreshPending,
 		isRenamePending,
 		loading,
+		menuTarget,
 		onAddOpenChange: setIsAddOpen,
 		onDeletePasskey,
 		onDeleteTargetChange: setDeleteTarget,
+		onMenuTargetChange: setMenuTarget,
+		onRemoveFromMenu: () => {
+			setDeleteTarget(menuTarget);
+			setMenuTarget(null);
+		},
+		onRenameFromMenu: () => {
+			setRenameTarget(menuTarget);
+			setMenuTarget(null);
+		},
 		onRenamePasskey,
 		onRenameTargetChange: setRenameTarget,
 		passkeys,

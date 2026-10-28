@@ -3,72 +3,36 @@ paths:
   - "apps/web/**"
 ---
 
-# Theme (Sapphire 2 Design System)
+# Theme (Cryst Design System)
 
-The web app ships a **single theme**: the Sapphire 2 Design System. Its tokens live in `apps/web/src/index.css` under `:root` (light) and `.dark` (dark) — **that file is the source of truth** for the exact variable names and values. There is no scope class and no legacy theme; every `bg-background` / `bg-primary` / `border-border` utility resolves to Sapphire 2 tokens everywhere, including Radix portals (Dialog / Drawer / Sonner render to `document.body`, which inherits `:root` tokens like everything else).
+The web app ships a **single theme**: the Cryst design system. Its tokens live in `apps/web/src/index.css` under `:root` (light) and `.dark` (dark) — **that file is the source of truth** for the exact variable names and values. There is no scope class and no legacy theme; every `bg-background` / `bg-primary` / `border-border` utility resolves to Cryst tokens everywhere, including Radix portals (Dialog / Drawer / Sonner render to `document.body`, which inherits `:root` like everything else). Do not add a second theme or a scope class (SA2-421 removed the temporary `.cryst` migration scope).
 
 Dark mode is toggled by `next-themes` adding `.dark` on `<html>`.
 
-## Token format
+## Design source-of-truth
 
-**All color tokens include the `hsl()` wrapper** (`--primary: hsl(221.2 83.2% 53.3%)`), so reference them as `var(--token)` directly — **never** `hsl(var(--token))`, which expands to the invalid `hsl(hsl(…))` and silently falls back to the inherited color (the bug that left the session-list live icon rendering white). For opacity, use Tailwind modifiers (`bg-primary/50`) or `color-mix(in oklab, var(--primary) 14%, transparent)` in arbitrary values.
+**The Claude Design files are the specification — read the relevant one before writing any markup.** Each screen and component has a `.dc.html` board carrying the exact structure, spacing, icon, token and state values. Do not derive a screen's layout from the phase before it, from the old screen, or from what looks consistent — P1 and P1′ each had to be rebuilt after being written that way. If the files are not reachable, ask for them instead of designing a substitute. Record every deliberate departure (a control the schema cannot yet persist, a state the design does not cover) in the Linear issue.
 
-## Semantic colors
+**Anything the Cryst design system does not describe is an exception**, recorded with its reason in [`docs/design/cryst-exceptions.md`](../../docs/design/cryst-exceptions.md) and never reused as precedent. A second use means proposing a design-system component instead.
 
-`--success` / `--warning` / `--info` / `--destructive` (and their `-foreground` pairs) are all registered in `@theme inline`, so the first-class utilities work everywhere: `text-success`, `bg-warning`, `border-info`, `text-destructive-foreground`, etc. Semantic colors carry meaning, never decoration.
+## Tokens
 
-## Design-token contract
-
-Beyond colors, `:root` ships the full Sapphire 2 contract: spacing (`--space-*`, 4px grid), control heights (`--h-control-*`, md = 36px), type scale (`--text-*`, dense tool-UI scale, 14px body), motion (`--dur-*` / `--ease-*`), and the font stack (`--font-sans` = Noto Sans JP Variable, `--font-mono` = JetBrains Mono Variable). The sans face is self-hosted with unicode-range subsets and `font-display: swap`; loaded subsets are runtime-cached rather than precached to avoid downloading every Japanese glyph at installation (SA2-237). Offline glyphs that have not been cached fall back to Hiragino Sans / Yu Gothic UI, then system fonts.
-
-Typography roles are global classes — `t-display / t-h1 … t-h4 / t-body / t-body-sm / t-meta / t-label / t-code / t-kbd`. Use these for headings and text roles instead of hand-rolling font/size/weight combos.
+- **Names are shadcn's.** shadcn names are canonical and Cryst-only roles are extensions of them: `accent` is the hover layer (not the brand — that is `primary`), and `muted` / `secondary` / `accent` are translucent fills. The extensions are registered in `@theme inline`, so use their utilities, never `[var(--…)]` arbitrary values: `primary-hover` / `-text` / `-soft`, `destructive-` / `success-` / `warning-` + `hover` / `text` / `soft`, `accent-pressed`, `border-subtle`, `subtle-foreground`, `overlay`, `switch-thumb`, `positive`, `negative` (e.g. `text-primary-text`, `bg-primary-soft`, `text-success-text`). Colored text on a surface uses the `-text` role, never the fill. There is no `info` role: an info status uses `primary-text` / `primary-soft`.
+- **Format.** Color tokens hold complete values (hex / rgba), so reference them as `var(--token)` — **never** `hsl(var(--token))`, which is invalid and silently falls back to the inherited color. For opacity use Tailwind modifiers (`bg-primary/50`) or `color-mix(in oklab, var(--primary) 14%, transparent)`.
+- **Tokens without utilities** (`--m-*`, `--control-*`, `--shadow-*`, `--tracking-*`, `--duration-*`) are referenced as `var(--token)` in arbitrary values: `h-[var(--m-control)]`, `text-[length:var(--m-text-title)]`, `tracking-[var(--tracking-caps)]`.
+- **Shadows: write `shadow-[var(--shadow-md)]`, never a bare `shadow-*` utility.** Tailwind rewrites shadow values to inject `--tw-shadow-color`, so `shadow-md` compiles to Tailwind's literal default and never reads `var(--shadow-md)`.
+- **Type scale.** `--text-xs` … `--text-3xl` hold Cryst's desktop scale (11–32px); phones use the `--m-text-*` roles (`m-text-title` 16px, `m-text-body` 15px, `m-text-secondary` 14px, `m-text-footnote` 12px, …). There are no global typography classes; compose the role from the board (`font-semibold text-[length:var(--m-text-title)] tracking-[var(--tracking-heading)]`).
+- **Fonts.** `--font-sans` = Noto Sans JP Variable, `--font-mono` = JetBrains Mono Variable (IDs, versions, timestamps, figures). The sans face is self-hosted with unicode-range subsets and `font-display: swap`; loaded subsets are runtime-cached rather than precached to avoid downloading every Japanese glyph at installation (SA2-237).
 
 ## Design rules
 
-- Color philosophy: **blue-600 primary in light, blue-500 in dark**. Neutrals = Tailwind **gray** scale only (no slate — neutrals must not read as bluish; SA2-71).
-- **Radius 8px base**; all other radii derive from `--radius`.
-- **Borders, not shadows**, for structural separation in resting cards. Shadows reserved for floating surfaces.
-- **Sentence case** UI copy, no trailing periods on labels, no emoji in product UI.
-- **Mobile data entry = bottom sheets** (already enforced by [`web-ui.md`](web-ui.md) — `Drawer`, not `Dialog`).
-- **Bottom sheets come in three modes — compose `Drawer` / `Dialog` directly, no `ResponsiveDialog`:**
-  - **Form sheet** (data entry): use the shared [`FormSheet`](../../apps/web/src/shared/components/form-sheet/form-sheet.tsx) component. Sizes to its **content height**, capped at `max-h-[calc(100svh-2rem)]` (`h-auto max-h-[calc(100svh-2rem)]`), so a short form does not sit in a mostly empty full-height sheet; the caller can override through `className` when a form genuinely needs a fixed height. It has a header with title, `[X icon] Title [✓ icon]` toolbar (left = cancel, right = submit), `dismissible={false}` — no drag handle, no swipe-down, no overlay-tap close. The Save button submits the external form via the HTML `form={formId}` attribute, so the form component itself never renders a submit; while `isLoading` it is disabled, carries `aria-busy`, and swaps the checkmark for a spinner. New entry forms should reach for `FormSheet` first.
-  - **Action / menu sheet** (non-data-entry): raw `<Drawer>` (default dismissible) + 36×4 drag handle (`mx-auto h-1 w-9 rounded-full bg-muted-foreground/35`) + sr-only `DrawerTitle` / `DrawerDescription` for a11y. **No visible header**, height collapses to content. Closes via swipe-down on the handle or overlay tap. Used for action menus, share sheets, etc.
-  - **Hybrid / tabbed picker sheet**: raw `<Drawer>` (default dismissible) + drag handle + **visible** `DrawerTitle` (`t-h4`) + sr-only `DrawerDescription`; any submit buttons live **in the body, per tab** — no toolbar. Use it for tabbed pick-or-create flows and read-only content sheets ([`update-notes-sheet`](../../apps/web/src/features/update-notes/components/update-notes-sheet/update-notes-sheet.tsx)). Why: `FormSheet`'s toolbar submits exactly one external form via `form={formId}`, which can't serve two tab forms — and content sheets have nothing to submit but still need a visible title. (The tabbed pick-or-create examples, the old assign-ring-game / assign-tournament dialogs, were replaced by the Cryst cockpit's Master link sheet and removed in SA2-230.)
-  - **Destructive confirmation**: `<Dialog>` (centered modal, not a sheet) with `[Cancel] [Delete]` in `DialogFooter`. Bottom sheets are reserved for entry / picking; one-tap-to-confirm prompts stay in a modal so the affordance is unambiguous.
-- Hover/press: background opacity shift only. No scale/translate on tool surfaces.
-- Focus ring: 2px `--ring` (blue) with 2px transparent offset — non-negotiable accessibility primitive.
-
-## Design source-of-truth
-
-The token contract in `apps/web/src/index.css` (`:root` / `.dark`) is the source of truth. The original Sapphire 2 Design System handoff bundle lives outside this repository; if a design decision is not expressible via the tokens and rules in this file, raise it for discussion rather than guessing from memory of the bundle.
-
-## Don'ts
-
-- **Don't fork `shared/components/ui/`** for theming. Components stay single-source; tuning happens via tokens. If a surface needs different markup, raise it for discussion before duplicating.
-- **Don't introduce a second theme** or a scope class beyond the `.cryst` migration scope below. If a route needs a one-off accent, scope it to that route with CSS variables.
-
-## Cryst migration scope (TEMPORARY)
-
-The app is migrating to the Cryst design system one screen at a time. The authenticated shell root carries `.cryst`, including Home, More, and Settings; login remains outside it until its own migration. Portalled surfaces opened from the shell carry `.cryst` themselves because they escape the shell's scope.
-
-**The Claude Design files are the specification — read the relevant one before writing any markup.** Each screen and component of the migration has a `.dc.html` file (`Live Session v3 Table.dc.html` plus per-component `SessionHeader` / `TableView` / `BlindLevelBar` / `ActionBar` / `SeatMarker` / …) carrying the exact structure, spacing, icon, token and state values, including how a component differs between cash game and tournament. Do not derive a screen's layout from the phase before it, from the old screen, or from what looks consistent — P1 and P1′ each had to be rebuilt after being written that way. If the files are not reachable from the working directory, ask for them instead of designing a substitute. Record every deliberate departure (a control the schema cannot yet persist, a state the design does not cover) in the PR description.
-
-During the migration a **single** extra scope is allowed:
-
-- The class is `cryst`. Its values live in [`apps/web/src/cryst-tokens.css`](../../apps/web/src/cryst-tokens.css) (`.cryst` = light, `.dark .cryst` = dark), imported from `index.css`. A migrated screen puts the class on its root element and every portalled surface it opens.
-- **What the scope reaches.** `@theme inline` emits utilities with the declared value inlined, so `bg-background` compiles to `background-color: var(--background)` and resolves per element. Colors, `--radius`, and the `--text-*` scale are therefore scopable. Two families are **not**:
-  - **Fonts** — `--font-sans` / `--font-mono` are declared as literal stacks, so `font-sans` inlines the literal. Noto Sans JP and JetBrains Mono are shared app-wide; the scope does not change either face.
-  - **Shadows** — `shadow-md` compiles to `--tw-shadow: 0 4px 6px -1px var(--tw-shadow-color,#0000001a), …`, a literal, because Tailwind rewrites the value to inject `--tw-shadow-color`. It never reads `var(--shadow-md)`. **In the Cryst tree write `shadow-[var(--shadow-md)]`, never the bare `shadow-*` utility** — the bare one silently renders Tailwind's default shadow, which is far too weak for Cryst's dark surfaces.
-- **Portals escape the scope.** `Drawer` / `Dialog` render into `document.body`, outside the wrapper. Every such surface opened by a Cryst screen must carry `cryst` on its content element.
-- **Three typography classes are unusable in the Cryst tree.** The scope overrides `--text-xs` … `--text-3xl` only, because Cryst's type scale ends at `--text-3xl: 2rem`. `.t-display` (`--text-5xl`), `.t-h1` (`--text-4xl`) and `.t-kbd` (`--text-2xs`) therefore fall back to Sapphire 2 sizes inside `.cryst`. Do not use them there, and do not invent Cryst values for those steps.
-- **Token names are shadcn's.** Since the 2026-10-27 design system, shadcn names are canonical and Cryst-only roles are extensions of them: `accent` is the hover layer (not the brand — that is `primary`), and `muted` / `secondary` / `accent` are translucent fills. The extensions are registered in `@theme inline`, so use their utilities, never `[var(--…)]` arbitrary values: `primary-hover` / `-text` / `-soft`, `destructive-` / `success-` / `warning-` + `hover` / `text` / `soft`, `accent-pressed`, `border-subtle`, `subtle-foreground`, `overlay`, `switch-thumb`, `positive`, `negative` (e.g. `text-primary-text`, `bg-primary-soft`, `text-success-text`). Colored text on a surface uses the `-text` role, not the fill.
-- **State layers.** Hover and press lay `accent` / `accent-pressed` over the element's own background with the `layer-accent` / `layer-accent-pressed` utilities (`hover:layer-accent active:layer-accent-pressed`); fills (`primary`, `destructive`) switch to their `-hover` instead.
-- **The primitives are `shared/components/ui/`.** `Button` (`default` / `secondary` / `outline` / `ghost` / `destructive` / `link`; sizes `sm` / `default` / `lg` / `xl` / `icon`), `IconButton` (required `label`), `Empty`, `Item` / `ItemGroup`, and `Toast` (in `ui/sonner`) carry the Cryst look; there is no separate Cryst component folder. Phones use `size="xl"`. Login is outside `.cryst`, so `:root` defines the few extension and `--control-*` tokens these primitives read with Sapphire 2 values; U12 replaces them.
-- Cryst-only tokens without utilities (`--m-*`, `--control-*`, `--shadow-popover`, `--tracking-*`) are referenced as `var(--token)` in arbitrary values. `--shadow-popover` composes `var(--border)`, which *is* scoped, so it resolves correctly inside `.cryst`.
-- **Mobile only.** UI v3 builds no desktop layout (user decision recorded in SA2-390): its screens add no `md:` / `lg:` layout variants, and from 768px the authenticated shell shows only the "Use on your phone" blocker. The design system's desktop containers (Sidebar, desktop toolbars) are out of scope until that decision is reopened.
-- **Anything the Cryst design system does not describe is an exception**, recorded with its reason in [`docs/design/cryst-exceptions.md`](../../docs/design/cryst-exceptions.md) and never reused as precedent. Add a row there (and to the design system README's Exceptions list) whenever a Cryst screen needs one; a second use means proposing a design-system component instead.
-
-
-**Rebuilding components.** SA2-427 deletes the unused Cryst components by user decision. The v2 UI phases re-add them from the design system when needed; the theme tokens and scope remain.
-
-**Deletion condition.** U12 (SA2-421) moves the Cryst values into `:root` / `.dark` once every screen has migrated, removes `cryst-tokens.css` and the `.cryst` scope from markup, and deletes this temporary section. Doing it earlier changes unmigrated screens at once; SA2-230 tried and rolled back.
+- **Mobile only.** The UI builds no desktop layout (user decision recorded in SA2-390): screens add no `md:` / `lg:` layout variants, and from 768px the authenticated shell shows only the "Use on your phone" blocker. Phones use the `xl` size of every control (40px, `--m-control`) and a 14px inset (`px-3.5`).
+- **State layers.** Hover and press lay `accent` / `accent-pressed` over the element's own background with `hover:layer-accent active:layer-accent-pressed`; fills (`primary`, `destructive`) switch to their `-hover` instead. No scale/translate, no brightness filters.
+- **Focus.** Buttons: 2px `ring` offset by 2px of background. Fields: the border turns `ring` (or `destructive` when invalid) and thickens to 2px.
+- **Surfaces** are flat: `background` (page), `card` (fields, groups), `popover` (Drawer, Dialog, Toast). Borders do the structural work; shadows only on things that lift.
+- **The primitives are `shared/components/ui/`** with the DS names and props: `Button`, `IconButton` (required `label`), `Input`, `Field` (+ `FieldSeparator`), `Alert`, `Badge`, `Spinner`, `ToggleGroup`, `Item` / `ItemGroup` (`variant="inset"`, `size="xl"`), `Empty`, `Drawer` (+ `DrawerGrab` / `DrawerHeader` / `DrawerBody`), `Dialog` (+ `DialogBody`), `Toast` (in `ui/sonner`). Re-add a DS component from the design system when a screen needs one; do not keep unused ones.
+- **Sheets** (mobile containers):
+  - **Explicit** (a form saved as a whole): the shared [`FormSheet`](../../apps/web/src/shared/components/form-sheet/form-sheet.tsx) — `dismissible={false}`, no grab, `[× Cancel] Title [✓ confirmLabel]` header; the ✓ submits the external form via `form={formId}`, and while `isLoading` it is disabled, carries `aria-busy`, and shows a spinner.
+  - **Dismissible** (menus, pickers, read-only panels): raw `<Drawer>` + `DrawerGrab` + `DrawerHeader` with a visible `DrawerTitle` + `DrawerBody`. Action sheets hold inset `ItemGroup`s stacked 8px apart, destructive actions last in their own group, then a full-width secondary `Cancel` button.
+  - **Destructive confirmation**: `<Dialog>` with `[Cancel] [Delete]` in `DialogFooter` — the one centered modal on mobile.
+- **Copy**: sentence case, no exclamation marks, no emoji.

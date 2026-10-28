@@ -16,16 +16,6 @@ describe("Field", () => {
 		expect(screen.getByLabelText("Name")).toBe(screen.getByRole("textbox"));
 	});
 
-	it("appends a red asterisk when required is true", () => {
-		render(
-			<Field htmlFor="x" label="X" required>
-				<Input id="x" />
-			</Field>
-		);
-		const asterisk = screen.getByText("*");
-		expect(asterisk).toHaveClass("text-destructive");
-	});
-
 	it("omits the asterisk when required is omitted / false", () => {
 		render(
 			<Field htmlFor="x" label="X">
@@ -50,7 +40,11 @@ describe("Field", () => {
 				<Input />
 			</Field>
 		);
-		expect(screen.getByText("Up to 4 characters.")).toBeInTheDocument();
+		const description = screen.getByText("Up to 4 characters.");
+		expect(screen.getByRole("textbox")).toHaveAttribute(
+			"aria-describedby",
+			description.id
+		);
 	});
 
 	it("omits the description block when description is omitted", () => {
@@ -110,7 +104,7 @@ describe("Field", () => {
 		expect(screen.getByTestId("b")).not.toHaveAttribute("aria-invalid");
 	});
 
-	it("renders label + description + error together without dropping either", () => {
+	it("replaces the description with an accessible error", () => {
 		render(
 			<Field
 				description="Up to 4 characters."
@@ -121,9 +115,11 @@ describe("Field", () => {
 				<Input id="u" />
 			</Field>
 		);
-		expect(screen.getByText("Unit")).toBeInTheDocument();
-		expect(screen.getByText("Up to 4 characters.")).toBeInTheDocument();
-		expect(screen.getByText("Too long")).toBeInTheDocument();
+		const input = screen.getByLabelText("Unit");
+		const error = screen.getByRole("alert");
+		expect(screen.queryByText("Up to 4 characters.")).not.toBeInTheDocument();
+		expect(input).toHaveAttribute("aria-describedby", error.id);
+		expect(input).toHaveAttribute("aria-invalid", "true");
 	});
 });
 

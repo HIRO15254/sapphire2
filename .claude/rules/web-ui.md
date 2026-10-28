@@ -7,14 +7,14 @@ paths:
 
 ## Page scaffolding
 
-Every top-level page composes its header with [`PageHeader`](../../apps/web/src/shared/components/page-header/page-header.tsx). It supports an inline actions slot and an optional badge slot. Do not hand-roll page titles or action rows.
+Every top-level page composes its header with [`PageHeader`](../../apps/web/src/shared/components/page-header/page-header.tsx) (`heading`, optional `back`, `meta` and `actions`). Do not hand-roll page titles or action rows.
 
-## Use shadcn primitives
+## Use the Cryst primitives
 
-Reach for existing shadcn components before building a custom wrapper:
+Reach for the components in `shared/components/ui/` before building a custom wrapper; when a screen needs one that is missing, re-add it from the design system (see [`web-theme.md`](web-theme.md)):
 
-- Status pills, counts → shadcn `Badge`. Do not reintroduce the old `ColorBadge` wrapper.
-- Single-choice selection (swatches, enum pickers) → shadcn `RadioGroup`.
+- Status pills, counts → `Badge`.
+- Two to four one-word choices that set a saved value (theme, enum pickers) → `ToggleGroup` (`type="single"`; ignore the empty value Radix emits when the selected item is pressed again). Longer labeled lists → a `RadioGroup` re-added from the design system.
 
 ## Language
 
@@ -22,7 +22,7 @@ UI copy is **English-only**. Do not put Japanese into user-facing strings (label
 
 ## Platform
 
-Mobile-first dialogs are bottom sheets — use shadcn `Drawer`, not `Dialog`.
+Mobile data entry happens in bottom sheets — `Drawer` / `FormSheet`, not `Dialog`; `Dialog` is only for destructive confirmation. The sheet patterns are in [`web-theme.md`](web-theme.md).
 
 ## Icons
 
