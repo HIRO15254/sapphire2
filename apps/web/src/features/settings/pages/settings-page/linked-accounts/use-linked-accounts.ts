@@ -18,6 +18,21 @@ export const SOCIAL_PROVIDERS = [
 
 const LINK_CANCELED_MESSAGE = "The sign-in was canceled. Try again.";
 
+function linkFailureMessage(providerId: SocialProviderId, reason?: string) {
+	const label = providerLabel(providerId);
+	switch (reason) {
+		case undefined:
+		case "access_denied":
+			return LINK_CANCELED_MESSAGE;
+		case "email_doesn't_match":
+			return `Use a ${label} account with the same email as this account.`;
+		case "account_already_linked_to_different_user":
+			return `This ${label} account is already linked to another Sapphire 2 account.`;
+		default:
+			return "Try again.";
+	}
+}
+
 function providerLabel(providerId: string) {
 	return (
 		SOCIAL_PROVIDERS.find((provider) => provider.id === providerId)?.label ??
@@ -51,7 +66,9 @@ function onlyMethodNote(
 
 export function useLinkedAccounts() {
 	const navigate = useNavigate();
-	const { linkError } = useSearch({ from: "/settings" });
+	const { error: linkErrorReason, linkError } = useSearch({
+		from: "/settings",
+	});
 	const { data: session } = authClient.useSession();
 	const [accounts, setAccounts] = useState<LinkedAccount[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -83,11 +100,14 @@ export function useLinkedAccounts() {
 			return;
 		}
 		const timer = window.setTimeout(() => {
-			toastLinkFailure(linkError, LINK_CANCELED_MESSAGE);
+			toastLinkFailure(
+				linkError,
+				linkFailureMessage(linkError, linkErrorReason)
+			);
 			navigate({ to: "/settings", search: {}, replace: true });
 		});
 		return () => window.clearTimeout(timer);
-	}, [linkError, navigate]);
+	}, [linkError, linkErrorReason, navigate]);
 
 	const handleLink = async (providerId: SocialProviderId) => {
 		const settingsUrl = `${window.location.origin}/settings`;
@@ -97,10 +117,7 @@ export function useLinkedAccounts() {
 			errorCallbackURL: `${settingsUrl}?linkError=${providerId}`,
 		});
 		if (result?.error) {
-			toastLinkFailure(
-				providerId,
-				result.error.message || LINK_CANCELED_MESSAGE
-			);
+			toastLinkFailure(providerId, result.error.message || "Try again.");
 		}
 	};
 

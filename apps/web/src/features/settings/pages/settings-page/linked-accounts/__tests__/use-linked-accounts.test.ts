@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
 	toastSuccess: vi.fn(),
 	toastError: vi.fn(),
 	navigate: vi.fn(),
-	search: {} as { linkError?: "google" | "discord" },
+	search: {} as { error?: string; linkError?: "google" | "discord" },
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -181,6 +181,19 @@ describe("useLinkedAccounts", () => {
 			search: {},
 			replace: true,
 		});
+	});
+
+	it("explains a link the provider refused instead of calling it canceled", async () => {
+		mocks.listAccounts.mockResolvedValue({ data: [] });
+		mocks.search = { error: "email_doesn't_match", linkError: "google" };
+		renderHook(() => useLinkedAccounts());
+		await waitFor(() =>
+			expect(mocks.toastError).toHaveBeenCalledWith("Couldn't link Google", {
+				description:
+					"Use a Google account with the same email as this account.",
+				id: "link-error-google",
+			})
+		);
 	});
 
 	it("hasCredential is false when accounts contain only social providers", async () => {
