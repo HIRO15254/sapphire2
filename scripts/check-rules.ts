@@ -43,7 +43,7 @@ const CHECKS: Check[] = [
 		pattern: /from "lucide-react"|require\("lucide-react"\)/,
 	},
 	{
-		name: "hsl(var(--token)) — tokens already include the hsl() wrapper",
+		name: "hsl(var(--token)) — tokens hold complete color values; use var(--token)",
 		rule: ".claude/rules/web-theme.md",
 		globs: ["apps/web/src/**/*.{ts,tsx,css}"],
 		pattern: /hsl\(var\(/,
