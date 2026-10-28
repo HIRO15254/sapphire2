@@ -108,7 +108,7 @@ describe("live entry writes keep the event log and its projection in step", () =
 			status: "open",
 			playedOn: LOCAL_DATE,
 		});
-		expect(await api.db.select().from(gameSession)).toHaveLength(1);
+		expect(await api.db.select().from(gameSession)).toEqual([]);
 		expect(await onlyPlay(api.db, "live-1")).toMatchObject({
 			seq: 1,
 			status: "active",

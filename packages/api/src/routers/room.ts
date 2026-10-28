@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, isNotNull, isNull, not, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
-import { validateEntityOwnership } from "./session";
+import { validateEntityOwnership } from "../lib/ownership";
 
 function coordinatesPaired(value: {
 	latitude?: number | null;

@@ -23,13 +23,6 @@ import {
 	roomListInputSchema,
 	roomUpdateInputSchema,
 } from "@sapphire2/api/routers/room";
-import {
-	cashGameCreateSchema,
-	sessionGetByIdInputSchema,
-	sessionListInputSchema,
-	sessionUpdateInputSchema,
-	tournamentCreateSchema,
-} from "@sapphire2/api/routers/session";
 import { sessionTagCreateInputSchema } from "@sapphire2/api/routers/session-tag";
 import {
 	breakdownFilterSchema,
@@ -73,43 +66,6 @@ export const LEVEL_GAMES_RULE =
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
-		name: "session_list",
-		procedurePath: "session.list",
-		description: `List the user's completed poker sessions, newest first, 20 per page. Optional filters: type ("cash_game" | "tournament"), roomId, currencyId, dateFrom/dateTo (inclusive). Returns { items, nextCursor, summary }; summary aggregates ALL matching sessions, not only the returned page. Its totalEvProfitLoss / totalEvDiff are cash-only (so they trail totalProfitLoss by the tournaments) and are null unless at least one cash session in scope recorded an EV cash-out; once one did, they span every finished cash session, counting the ones that recorded no EV at their actual result, which adds 0 to the diff — so a 0 diff means the recorded EV matched the results, not that EV is untracked. Same rule as stats_summary, over the same scope. Pass nextCursor back as cursor for the next page. ${DATE_CONVENTIONS}`,
-		inputSchema: sessionListInputSchema,
-	},
-	{
-		name: "session_get_by_id",
-		procedurePath: "session.getById",
-		description:
-			"Get a single session by id, including its cash-game or tournament details, tags, blind levels and chip purchases.",
-		inputSchema: sessionGetByIdInputSchema,
-	},
-	{
-		name: "session_create_cash_game",
-		procedurePath: "session.create",
-		description: `Record a completed cash-game session (type must be "cash_game"). Required: sessionDate, buyIn, cashOut. Link roomId/ringGameId/currencyId from the list tools when known — a linked ring game fills rule fields (blinds, variant, houseRules) automatically. ${MIX_RULE} variant has no schema default here, but resolves to a non-mixed label whenever no mixed ring game is linked, so a create that passes mixGames must set variant too — unless the linked ring game is itself the mix, which supplies it. This writes real data: confirm the values with the user before calling. ${DATE_CONVENTIONS}`,
-		inputSchema: cashGameCreateSchema,
-		destructiveHint: false,
-		idempotentHint: false,
-	},
-	{
-		name: "session_create_tournament",
-		procedurePath: "session.create",
-		description: `Record a completed tournament session (type must be "tournament"). Required: sessionDate, tournamentBuyIn. placement must be <= totalEntries unless beforeDeadline is true. Link roomId/tournamentId/currencyId from the list tools when known. ${LEVEL_GAMES_RULE} This writes real data: confirm the values with the user before calling. ${DATE_CONVENTIONS}`,
-		inputSchema: tournamentCreateSchema,
-		destructiveHint: false,
-		idempotentHint: false,
-	},
-	{
-		name: "session_update",
-		procedurePath: "session.update",
-		description: `Update an existing session by id. Only the provided fields change; pass null to clear a nullable field, omit a field to leave it unchanged — except tagIds, blindLevels and chipPurchases, which REPLACE their whole list whenever supplied, so read session_get_by_id first and send the full list back. Two scalar fields replace lists as well, so omitting the lists is not by itself safe: tournamentId re-copies the whole blind structure and the chip purchases from that master with every purchase count reset to 0, so the session's chip cost drops to 0. Sending chipPurchases in the same call overrides that copy, but it replaces name, cost and chips as well, so echoing what session_get_by_id returned would keep the OLD master's prices under the new blind structure: take the new master's purchases from tournament_list_by_room (tournament_get_by_id does not return them, and that list is either/or on archive state — pass includeArchived when the master you relinked to is archived, which this tool still accepts) and carry the old counts onto those. ringGameId re-copies the cash rule fields (ruleName, variant, mixGames, blinds, ante, buy-in range, tableSize, houseRules) from that master, except for any of them you send in the same call, which win — the flat blinds and ante excepted whenever the result is a mix, which nulls them per the mixed-game rule below — so a relink and a correction are one call, not two. Its tags come back as { id, name } objects while tagIds takes plain ids, and each chip purchase's count must be echoed too or it resets to 0 and stops counting toward the session's cost. This tool returns the session row alone, so a list you truncated is not visible in its result. houseRules is the table's free-text house rules, frozen from the linked master like the other rule fields; memo is the session's own note and is never copied from a master. Sessions recorded live (source "live") reject edits to fields derived from their timeline events — amounts and times come from the events themselves, and the rule fields go with them: for a cash session ringGameId, ruleName, variant, mixGames, blinds, ante, buy-in range, tableSize and houseRules; for a tournament tournamentId, ruleName, variant, startingStack, bountyAmount, blindLevels, chipPurchases, tableSize, houseRules and the result fields (placement, totalEntries, beforeDeadline, prizeMoney, bountyPrizes). Those change only through the live session itself, which this surface does not expose, so there is no alternative call to fall back on. ${MIX_RULE} ${LEVEL_GAMES_RULE} Overwrites stored values with no undo — confirm with the user first. ${DATE_CONVENTIONS}`,
-		inputSchema: sessionUpdateInputSchema,
-		destructiveHint: true,
-		idempotentHint: true,
-	},
-	{
 		name: "stats_summary",
 		procedurePath: "stats.summary",
 		description: `Aggregate statistics (profit/loss, win rate, session counts, EV metrics) over the user's sessions. currencyId is required unless normalized is true. normalized does NOT convert or restate anything — it only lifts that requirement, so the query then spans every currency. The response is the same either way and always carries both kinds of figure. Anything built from raw amounts is meaningless once more than one currency is in scope: totalProfitLoss, avgProfitLoss, hourlyRate, totalPrizeMoney, totalEvProfitLoss, totalEvDiff, and also roi — a percentage, but one raw cross-currency sum divided by another. The currency-safe figures include cashNormalizedProfitLoss (big blinds, over cashBbCount), tournamentNormalizedProfitLoss (buy-ins, over tournamentBiCount), bbPerHour, cashEvDiffNormalized and avgRoi (the mean of per-session ROI, unlike roi); the counts and rates (totalSessions, winRate, itmRate, avgPlacement, totalPlayMinutes) do not depend on currency at all — winRate just counts profitLoss > 0. The two normalized P/L figures cover only the sessions that have a denominator: totalSessions minus (cashBbCount + tournamentBiCount) is exactly how many were left out — a cash session with no big blind, which every mixed-game rule produces since those store blind1-3 as null, and a tournament with nothing invested — while those sessions still count in totalProfitLoss and winRate. cashEvDiffNormalized covers the cash sessions that have a big blind AND a settled result, so it is narrower than cashNormalizedProfitLoss by exactly the sessions still in progress, and its count is not returned. The two hourly rates cover only the cash sessions with a recorded duration (both start and end times) — an untimed one still counts in totalProfitLoss (and in cashNormalizedProfitLoss when it has a big blind) but on neither side of a rate: hourlyRate is the profit of the timed cash sessions over their hours, and bbPerHour the bb of the timed cash sessions that also have a big blind over those sessions' hours alone, so it is null when no cash session has both. totalPlayMinutes also counts tournament time, so it is not the rates' denominator. The three EV figures (totalEvProfitLoss, totalEvDiff, cashEvDiffNormalized) are null unless a session each one actually covers has a recorded EV cash-out — for the two raw figures that is any cash session in scope, for cashEvDiffNormalized it has to be one with a big blind. Once one does, they span EVERY finished cash session they cover, not an EV-only subset: a session with no recorded EV cash-out is treated as having run exactly at EV, so it adds its actual result to totalEvProfitLoss and 0 to the two diffs. So totalEvProfitLoss is comparable with the CASH part of totalProfitLoss — that one also carries the tournaments, so the two match only in a cash-scoped query — and totalEvDiff being 0 means the recorded EV matched the results, NOT that EV is untracked; untracked reads as null. bb and bi are different scales that must never be summed. Pass a currencyId whenever the user asked about money. Optional filters: type, roomId, dateFrom/dateTo. ${DATE_CONVENTIONS}`,
@@ -150,8 +106,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "session_tag_list",
 		procedurePath: "sessionTag.list",
-		description:
-			"List the user's session tags. Use the returned ids as tagIds when creating or updating sessions.",
+		description: "List the user's session tags.",
 	},
 	{
 		name: "session_tag_create",
@@ -166,14 +121,14 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "ring_game_list_by_room",
 		procedurePath: "ringGame.listByRoom",
 		description:
-			"List the ring-game (cash-game) rule masters of one room — blinds, variant, buy-in range. Use the returned ids as ringGameId in session_create_cash_game. Set includeArchived to list archived ones instead.",
+			"List the ring-game (cash-game) rule masters of one room — blinds, variant, buy-in range. Set includeArchived to list archived ones instead.",
 		inputSchema: ringGameListByRoomInputSchema,
 	},
 	{
 		name: "tournament_list_by_room",
 		procedurePath: "tournament.listByRoom",
 		description:
-			"List the tournament masters of one room — buy-in, starting stack, chip purchases, and blindLevelCount (the number of blind levels, not the levels themselves; tournament_get_by_id returns those). Use the returned ids as tournamentId in session_create_tournament. Set includeArchived to list archived ones instead.",
+			"List the tournament masters of one room — buy-in, starting stack, chip purchases, and blindLevelCount (the number of blind levels, not the levels themselves; tournament_get_by_id returns those). Set includeArchived to list archived ones instead.",
 		inputSchema: tournamentListByRoomInputSchema,
 	},
 
@@ -231,7 +186,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "ring_game_update",
 		procedurePath: "ringGame.update",
-		description: `Update a ring-game rule master by id. Only the supplied fields change; pass null to clear a nullable one. When both resulting buy-in bounds are set, minBuyIn must be <= maxBuyIn; a one-sided update is checked against the stored opposite bound. Omit a bound to keep it, or pass null to remove that bound. ${MIX_RULE} To edit only the blinds of a mixed rule, echo back the mixGames that ring_game_list_by_room returned — but only while the mix master is untouched, because the check rebuilds the expected shape from the CURRENT variant labels and groups and the mix's current games. After a game_mix_update that replaced games, a game_variant_update that changed a label or group, or a game_group_update that renamed a user-created group (those sort by label, and that order is the entry order), rebuild mixGames from the current masters instead. Renaming the mix inverts that: variant is a copied label rather than a foreign key, so it stops resolving and the stored mixGames becomes the reference instead of the masters — send its grouping and variant labels back unchanged (only the per-entry blinds may differ), or set variant to the new mix label and send a rebuilt mixGames. To move a mixed rule back to flat blinds, set variant to a non-mixed label — that clears mixGames for you. Sending mixGames: null on its own is rejected either way, because leaving variant unchanged keeps the rule mixed. Two kinds of rule never come back from ring_game_list_by_room even though this tool still updates them: an archived one (that list is either/or on archive state, so pass includeArchived) and one auto-created by session_create_cash_game without a ringGameId, which is stored with no roomId and cannot be given one here, so no room ever lists it. That second kind is a per-session shadow: no EXISTING session reads it back, so editing it does NOT change what any recorded session shows — each displays its own frozen snapshot. To change that, send mixGames to session_update instead. Both that and the re-snapshot below are refused on live-recorded sessions, whose variant, mixGames and ringGameId are all event-derived. Edit the shadow only when a later read will actually use it — either re-snapshot onto it with session_update({ id, ringGameId }), or pass it as ringGameId to session_create_cash_game, which fills the new session's rule fields from it. Its id and current mixGames come from session_get_by_id (ringGameId / cashMixGames), frozen from the same snapshot. ${AMOUNT_CONVENTIONS}`,
+		description: `Update a ring-game rule master by id. Only the supplied fields change; pass null to clear a nullable one. When both resulting buy-in bounds are set, minBuyIn must be <= maxBuyIn; a one-sided update is checked against the stored opposite bound. Omit a bound to keep it, or pass null to remove that bound. ${MIX_RULE} To edit only the blinds of a mixed rule, echo back the mixGames that ring_game_list_by_room returned — but only while the mix master is untouched, because the check rebuilds the expected shape from the CURRENT variant labels and groups and the mix's current games. After a game_mix_update that replaced games, a game_variant_update that changed a label or group, or a game_group_update that renamed a user-created group (those sort by label, and that order is the entry order), rebuild mixGames from the current masters instead. Renaming the mix inverts that: variant is a copied label rather than a foreign key, so it stops resolving and the stored mixGames becomes the reference instead of the masters — send its grouping and variant labels back unchanged (only the per-entry blinds may differ), or set variant to the new mix label and send a rebuilt mixGames. To move a mixed rule back to flat blinds, set variant to a non-mixed label — that clears mixGames for you. Sending mixGames: null on its own is rejected either way, because leaving variant unchanged keeps the rule mixed. ring_game_list_by_room lists either active or archived rules, so pass includeArchived to find archived ones. Rules without a roomId never appear in that list and cannot be assigned a room here. Editing a rule does not change existing sessions' frozen snapshots. ${AMOUNT_CONVENTIONS}`,
 		inputSchema: ringGameUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
@@ -323,7 +278,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "game_variant_list",
 		procedurePath: "gameVariant.list",
 		description:
-			"List the user's game variants (NLH, PLO, …) with their group and short labels. Use a variant's label as the variant field of a session or rule master.",
+			"List the user's game variants (NLH, PLO, …) with their group and short labels. Use a variant's label as the variant field of a rule master.",
 	},
 	{
 		name: "game_variant_create",
@@ -338,7 +293,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "game_variant_update",
 		procedurePath: "gameVariant.update",
 		description:
-			'Update a game variant by id. Only the supplied fields change; pass null to clear shortLabel. Renaming rewrites NOTHING already stored: sessions and rule masters keep the label text they were written with, so a renamed variant splits into two buckets in stats_breakdown groupBy "variant" and renaming to tidy up past records leaves their text exactly as it was. It is not inert, though — those rows are tied back to this variant by that stored text alone, so moving it to another group (which is what names the blind fields) applies to every row still naming it, while a rename leaves the old ones matching no variant at all and falling back to generic SB / BB / Straddle blind labels, plus a third blind slot their real group may not have. To relabel past records — and to re-link those orphans — write the new label into each row instead: session_update, ring_game_update and tournament_update_with_levels all accept variant, and a plain (non-mix) label needs no matching master row — except that tournament_update_with_levels also REQUIRES the full blindLevels list and replaces it, so read tournament_get_by_id and send that list back rather than an empty one. Sessions recorded live reject it, though (variant is one of their event-derived fields), so those keep the old label. Either edit also changes the mixGames shape every mix containing this variant expects, so ring-game rules using such a mix need a rebuilt mixGames the next time they send one — updates touching neither variant nor mixGames stay unaffected.',
+			'Update a game variant by id. Only the supplied fields change; pass null to clear shortLabel. Renaming rewrites NOTHING already stored: sessions and rule masters keep the label text they were written with, so a renamed variant splits into two buckets in stats_breakdown groupBy "variant" and renaming to tidy up past records leaves their text exactly as it was. It is not inert, though — those rows are tied back to this variant by that stored text alone, so moving it to another group (which is what names the blind fields) applies to every row still naming it, while a rename leaves the old ones matching no variant at all and falling back to generic SB / BB / Straddle blind labels, plus a third blind slot their real group may not have. To relabel rule masters — and to re-link those orphans — write the new label into each row instead: ring_game_update and tournament_update_with_levels accept variant, and a plain (non-mix) label needs no matching master row — except that tournament_update_with_levels also REQUIRES the full blindLevels list and replaces it, so read tournament_get_by_id and send that list back rather than an empty one. Recorded sessions cannot currently be relabeled through MCP. Either edit also changes the mixGames shape every mix containing this variant expects, so ring-game rules using such a mix need a rebuilt mixGames the next time they send one — updates touching neither variant nor mixGames stay unaffected.',
 		inputSchema: gameVariantUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
@@ -370,7 +325,6 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 ];
 
 const ENTITY_NAMES: Record<string, string> = {
-	session: "poker sessions",
 	stats: "statistics",
 	sessionTag: "session tags",
 	room: "rooms",
@@ -535,52 +489,6 @@ export const DELIBERATELY_EXCLUDED: {
 			"currencyTransaction.create",
 			"currencyTransaction.update",
 			"currencyTransaction.delete",
-		],
-	},
-	{
-		reason:
-			"Irreversible destructive operation with no undo; deliberately kept off the MCP surface",
-		paths: ["session.delete"],
-	},
-	{
-		reason:
-			"Chart-shaped duplicate of stats.profitLossSeries used by the web sessions page",
-		paths: ["session.profitLossSeries"],
-	},
-	{
-		reason:
-			"Live-session state machine (clock, seats, in-flight events); highest blast radius and needs its own design",
-		paths: [
-			"sessionEvent.list",
-			"sessionEvent.create",
-			"sessionEvent.update",
-			"sessionEvent.delete",
-			"liveCashGameSession.list",
-			"liveCashGameSession.getById",
-			"liveCashGameSession.create",
-			"liveCashGameSession.createAndAssignRingGame",
-			"liveCashGameSession.update",
-			"liveCashGameSession.updateSnapshot",
-			"liveCashGameSession.complete",
-			"liveCashGameSession.reopen",
-			"liveCashGameSession.discard",
-			"liveCashGameSession.updateHeroSeat",
-			"liveTournamentSession.list",
-			"liveTournamentSession.getById",
-			"liveTournamentSession.create",
-			"liveTournamentSession.createAndAssignTournament",
-			"liveTournamentSession.update",
-			"liveTournamentSession.updateSnapshot",
-			"liveTournamentSession.complete",
-			"liveTournamentSession.reopen",
-			"liveTournamentSession.discard",
-			"liveTournamentSession.updateHeroSeat",
-			"sessionTablePlayer.list",
-			"sessionTablePlayer.add",
-			"sessionTablePlayer.addNew",
-			"sessionTablePlayer.updateSeat",
-			"sessionTablePlayer.remove",
-			"sessionTablePlayer.addTemporary",
 		],
 	},
 	{

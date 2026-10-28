@@ -18,7 +18,7 @@ describe("renderConsentHtml", () => {
 		const html = renderConsentHtml(BASE_PROPS);
 		expect(html).not.toContain("openid");
 		expect(html).not.toContain("offline_access");
-		expect(html).toContain("Read your poker sessions");
+		expect(html).toContain("Read your statistics");
 	});
 
 	it("discloses write access while the catalogue contains mutation tools", () => {

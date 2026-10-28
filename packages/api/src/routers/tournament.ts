@@ -1,4 +1,5 @@
 import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
+import { entryTournament } from "@sapphire2/db/schema/entry";
 import { room } from "@sapphire2/db/schema/room";
 import {
 	blindLevel,
@@ -11,8 +12,9 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { selectInChunks } from "../lib/batch";
+import { validateEntityOwnership } from "../lib/ownership";
 import { assertLevelGameStructures } from "../services/game-structure";
-import { selectInChunks, validateEntityOwnership } from "./session";
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
@@ -492,6 +494,24 @@ export const tournamentRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await validateTournamentOwnership(ctx.db, input.id, userId);
+
+			const [reference] = await ctx.db
+				.select({ id: entryTournament.entryId })
+				.from(entryTournament)
+				.where(
+					and(
+						eq(entryTournament.tournamentId, input.id),
+						eq(entryTournament.userId, userId)
+					)
+				)
+				.limit(1);
+			if (reference) {
+				throw new TRPCError({
+					code: "CONFLICT",
+					message:
+						"This tournament is referenced by entries. Archive the tournament instead of deleting it.",
+				});
+			}
 
 			await ctx.db.delete(tournament).where(eq(tournament.id, input.id));
 			return { success: true };
