@@ -326,10 +326,10 @@ describe("migration 0061 — entry P1 cutover", () => {
 			)
 		).toEqual([
 			["active", "alice", "cash", null, null, null],
-			["bad-cash", "alice", "cash", null, null, 1],
-			["live-cash", "alice", "cash", "alice-ring", null, -49],
+			["bad-cash", "alice", "cash", null, null, 0],
+			["live-cash", "alice", "cash", "alice-ring", null, 0],
 			["manual-cash", "alice", "cash", null, null, null],
-			["manual-with-event", "alice", "cash", null, null, null],
+			["manual-with-event", "alice", "cash", null, null, 0],
 			["missing-cash", "alice", "cash", null, null, null],
 		]);
 		expect(
@@ -616,6 +616,32 @@ describe("migration 0061 — entry P1 cutover", () => {
 				"SELECT name FROM sqlite_master WHERE name LIKE '\\_\\_%' ESCAPE '\\'"
 			)
 		).toEqual([]);
+	});
+
+	it("derives settled live cash ev_diff by summing all-in events in event order like the projector, not from ev_cash_out", () => {
+		db.exec(`
+UPDATE session_cash_detail SET ev_cash_out = 326.5 WHERE session_id = 'live-cash';
+UPDATE session_cash_detail SET ev_cash_out = 180 WHERE session_id = 'manual-cash';
+INSERT INTO session_event (id, session_id, event_type, occurred_at, sort_order, payload, created_at, updated_at) VALUES
+ ('all-in-3', 'live-cash', 'all_in', ${late + 60}, 3, '{"potSize":900,"trials":1,"equity":7.6,"wins":0}', 1, 2),
+ ('all-in-2', 'live-cash', 'all_in', ${late + 120}, 2, '{"potSize":1600,"trials":1,"equity":14.7,"wins":0}', 1, 2),
+ ('all-in-1', 'live-cash', 'all_in', ${late + 180}, 1, '{"potSize":300,"trials":1,"equity":74.3,"wins":1}', 1, 2),
+ ('all-in-tie', 'bad-cash', 'all_in', ${nextDay}, 0, '{"potSize":100,"trials":1,"equity":0.5,"wins":1}', 1, 2),
+ ('all-in-open', 'active', 'all_in', ${late + 60}, 0, '{"potSize":100,"trials":1,"equity":50,"wins":0}', 1, 2);
+`);
+
+		apply(db);
+
+		expect(
+			values(db, "SELECT entry_id, ev_diff FROM entry_cash ORDER BY entry_id")
+		).toEqual([
+			["active", null],
+			["bad-cash", -99],
+			["live-cash", 226],
+			["manual-cash", 30],
+			["manual-with-event", 0],
+			["missing-cash", null],
+		]);
 	});
 
 	it.each([

@@ -9,7 +9,9 @@
 -- of started_at; invalid placement / total_entries become NULL;
 -- before_deadline is 0/1; ended_at before started_at becomes NULL; a
 -- negative break becomes 0; a negative cash end_stack becomes NULL; settled
--- cash ev_diff is rounded like Math.round; malformed payloads become '{}'.
+-- live cash ev_diff sums the migrated all_in events one by one in projector
+-- order, manual keeps ev_cash_out - cash_out, both rounded like Math.round;
+-- malformed payloads become '{}'.
 --
 -- Each gate inserts NULL into its own NOT NULL column of __gate_0061 when
 -- violated, so a failure names the gate: ids_match is A-3, seq1_matches is
@@ -44,15 +46,6 @@ LEFT JOIN `session_cash_detail` AS `scd` ON `scd`.`session_id` = `gs`.`id`
 LEFT JOIN `ring_game` AS `rg` ON `rg`.`id` = `scd`.`ring_game_id` AND `rg`.`user_id` = `gs`.`user_id`
 LEFT JOIN `session_tournament_detail` AS `std` ON `std`.`session_id` = `gs`.`id`
 LEFT JOIN `tournament` AS `t` ON `t`.`id` = `std`.`tournament_id` AND `t`.`user_id` = `gs`.`user_id`;--> statement-breakpoint
-
-INSERT INTO `entry_cash` (`entry_id`, `user_id`, `kind`, `ring_game_id`, `ev_diff`)
-SELECT `e`.`id`, `e`.`user_id`, 'cash', `rg`.`id`,
-	CASE WHEN `e`.`status` = 'settled' AND `scd`.`ev_cash_out` IS NOT NULL
-		THEN CAST(floor(`scd`.`ev_cash_out` - `scd`.`cash_out` + 0.5) AS INTEGER) END
-FROM `entry` AS `e`
-LEFT JOIN `session_cash_detail` AS `scd` ON `scd`.`session_id` = `e`.`id`
-LEFT JOIN `ring_game` AS `rg` ON `rg`.`id` = `scd`.`ring_game_id` AND `rg`.`user_id` = `e`.`user_id`
-WHERE `e`.`kind` = 'cash';--> statement-breakpoint
 
 INSERT INTO `entry_tournament` (
 	`entry_id`, `user_id`, `kind`, `tournament_id`, `placement`, `total_entries`, `before_deadline`
@@ -98,6 +91,35 @@ INSERT INTO `play_event` (
 	`se`.`created_at`, `se`.`updated_at`
 FROM `session_event` AS `se`
 JOIN `entry` AS `e` ON `e`.`id` = `se`.`session_id`;--> statement-breakpoint
+
+WITH RECURSIVE `all_in` AS (
+	SELECT `entry_id`,
+		row_number() OVER (PARTITION BY `entry_id` ORDER BY `occurred_at`, `sort_order`, `id`) AS `n`,
+		count(*) OVER (PARTITION BY `entry_id`) AS `events`,
+		json_extract(`payload`, '$.potSize') * (json_extract(`payload`, '$.equity') / 100.0)
+			- (CAST(json_extract(`payload`, '$.potSize') AS REAL) / json_extract(`payload`, '$.trials'))
+				* json_extract(`payload`, '$.wins') AS `ev`
+	FROM `play_event`
+	WHERE `type` = 'all_in'
+), `ev_sum` AS (
+	SELECT `entry_id`, `n`, `events`, `ev` AS `total` FROM `all_in` WHERE `n` = 1
+	UNION ALL
+	SELECT `a`.`entry_id`, `a`.`n`, `a`.`events`, `s`.`total` + `a`.`ev`
+	FROM `ev_sum` AS `s`
+	JOIN `all_in` AS `a` ON `a`.`entry_id` = `s`.`entry_id` AND `a`.`n` = `s`.`n` + 1
+)
+INSERT INTO `entry_cash` (`entry_id`, `user_id`, `kind`, `ring_game_id`, `ev_diff`)
+SELECT `e`.`id`, `e`.`user_id`, 'cash', `rg`.`id`,
+	CASE WHEN `e`.`status` <> 'settled' THEN NULL
+		WHEN `e`.`source` = 'live' AND `s`.`entry_id` IS NULL THEN 0
+		WHEN `e`.`source` = 'live' THEN CAST(floor(`s`.`total` + 0.5) AS INTEGER)
+		WHEN `scd`.`ev_cash_out` IS NOT NULL
+		THEN CAST(floor(`scd`.`ev_cash_out` - `scd`.`cash_out` + 0.5) AS INTEGER) END
+FROM `entry` AS `e`
+LEFT JOIN `ev_sum` AS `s` ON `s`.`entry_id` = `e`.`id` AND `s`.`n` = `s`.`events`
+LEFT JOIN `session_cash_detail` AS `scd` ON `scd`.`session_id` = `e`.`id`
+LEFT JOIN `ring_game` AS `rg` ON `rg`.`id` = `scd`.`ring_game_id` AND `rg`.`user_id` = `e`.`user_id`
+WHERE `e`.`kind` = 'cash';--> statement-breakpoint
 
 CREATE TABLE `__gate_0061` (
 	`ids_match` integer DEFAULT 1 NOT NULL,
