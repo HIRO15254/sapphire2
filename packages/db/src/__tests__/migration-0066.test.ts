@@ -38,7 +38,8 @@ describe("migration 0066 — ring game rule versions", () => {
 				INSERT INTO user (id, name, email) VALUES
 				 ('alice', 'Alice', 'alice@example.test'),
 				 ('bob', 'Bob', 'bob@example.test'),
-				 ('charlie', 'Charlie', 'charlie@example.test');
+				 ('charlie', 'Charlie', 'charlie@example.test'),
+				 ('dana', 'Dana', 'dana@example.test');
 				INSERT INTO asset (id, user_id, name, updated_at) VALUES
 				 ('alice-asset', 'alice', 'Chips', 2), ('bob-asset', 'bob', 'Chips', 2);
 				INSERT INTO game_group (id, user_id, builtin_key, label, updated_at) VALUES
@@ -62,7 +63,8 @@ describe("migration 0066 — ring game rule versions", () => {
 				 ('cross-owner', 'alice', 'Cross Owner', 'nlh', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'bob-asset', NULL, NULL, NULL, 10, 11),
 				 ('broken', 'alice', 'Broken', 'mix', '{bad json', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 10, 11),
 				 ('absent-mix', 'alice', 'Absent Mix', 'Lost Rotation', '[{"variants":["nlh","Razz"],"blind1":4,"blind2":8}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 10, 11),
-				 ('malformed', 'alice', 'Malformed', 'mix', '[{"variants":["nlh",null,{"x":1}]},null,{"variants":42},{"variants":{"x":"Razz"}}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 10, 11);
+				 ('malformed', 'alice', 'Malformed', 'mix', '[{"variants":["nlh",null,{"x":1}]},null,{"variants":42},{"variants":{"x":"Razz"}}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 10, 11),
+				 ('horse', 'dana', 'Horse', 'HORSE', '[{"variants":["Limit Hold''em"],"blind1":2,"blind2":4}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 10, 11);
 				INSERT INTO game_session (id, user_id, kind, source, status, session_date, created_at, updated_at) VALUES
 				 ('session', 'alice', 'cash_game', 'manual', 'completed', 1791417600, 1, 2);
 				INSERT INTO session_cash_detail (session_id, ring_game_id, buy_in, cash_out) VALUES
@@ -99,6 +101,7 @@ describe("migration 0066 — ring game rule versions", () => {
 				["builtin", "cr:builtin"],
 				["cross-owner", "cr:cross-owner"],
 				["custom", "cr:custom"],
+				["horse", "cr:horse"],
 				["malformed", "cr:malformed"],
 				["named", "cr:named"],
 				["single", "cr:single"],
@@ -206,7 +209,19 @@ describe("migration 0066 — ring game rule versions", () => {
 					"SELECT variant_id FROM game_lineup_variant WHERE lineup_id = 'lu:cr:builtin'"
 				)
 			).toEqual([["charlie:builtin-variant:nlh"]]);
-			for (const owner of ["bob", "charlie"]) {
+			expect(
+				values(
+					db,
+					"SELECT l.game_mix_id, v.variant_id FROM game_lineup l JOIN game_lineup_variant v ON v.lineup_id = l.id WHERE l.id = 'lu:cr:horse'"
+				)
+			).toEqual([["dana:builtin-mix:horse", "dana:builtin-variant:lhe"]]);
+			expect(
+				values(
+					db,
+					"SELECT id FROM game_mix WHERE user_id = 'dana' AND id LIKE 'standin-%'"
+				)
+			).toEqual([]);
+			for (const owner of ["bob", "charlie", "dana"]) {
 				expect(
 					values(
 						db,
