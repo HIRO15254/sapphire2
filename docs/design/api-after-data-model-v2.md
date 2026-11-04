@@ -288,7 +288,7 @@ Hero is the user's single `player.isSelf:true` row (B15), returned here like any
 | `list` Q | `{playSessionId,...PageInput}` (max 50) | Page<Hand & {seats:Seat[]}> | — | `hand_list` |
 | `getById` Q | IdInput | Hand & `{seats:Seat[],actions:Action[]}` | — | `hand_get_by_id` |
 | `add` M | `{playSessionId,buttonSeat?:0..9,tableSize?:2..10,levelOrdinal?:positive integer,stakes?,variantId?:Id,playedAt?:Instant}` | Hand | Play must be active (not paused/ended): PRECONDITION_FAILED | Excluded: cockpit |
-| `undoLast` M | `{playSessionId}` | Ack | Not active: PRECONDITION_FAILED; last hand not count or linked all-in: CONFLICT | Excluded: cockpit |
+| `undoLast` M | `{playSessionId}` | Ack | Not active: PRECONDITION_FAILED; no hand, last hand not count or linked all-in: CONFLICT | Excluded: cockpit |
 | `update` M (B21) | `{id,detail:count|summary|full,tagIds?:Id[],...detail body}` | Hand & `{seats,actions}` | Invalid seats/actions/cards: BAD_REQUEST | Excluded: cockpit |
 | `delete` M | IdInput | Ack | Linked all-in: CONFLICT | Excluded: destructive |
 

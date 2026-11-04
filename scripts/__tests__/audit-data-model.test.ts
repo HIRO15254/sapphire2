@@ -24,9 +24,9 @@ const T0 = 1_757_066_400;
 const LEGACY_FIXTURE = [
 	`INSERT INTO user (id, name, email, created_at, updated_at) VALUES ('alice', 'Alice', 'alice@example.test', ${T0}, ${T0})`,
 	`INSERT INTO asset (id, user_id, name, kind, decimals, created_at, updated_at) VALUES ('jpy', 'alice', 'JPY', 'currency', 0, ${T0}, ${T0})`,
-	`INSERT INTO game_session (id, user_id, kind, status, source, session_date, started_at, ended_at, break_minutes, currency_id, created_at, updated_at) VALUES
-	 ('live', 'alice', 'cash_game', 'completed', 'live', ${T0}, ${T0 + 17}, ${T0 + 7223}, 168, 'jpy', ${T0}, ${T0}),
-	 ('manual', 'alice', 'cash_game', 'completed', 'manual', 1756944000, NULL, NULL, 0, 'jpy', ${T0}, ${T0})`,
+	`INSERT INTO game_session (id, user_id, kind, status, source, session_date, started_at, ended_at, break_minutes, currency_id, hand_count, dealer_seat, created_at, updated_at) VALUES
+	 ('live', 'alice', 'cash_game', 'completed', 'live', ${T0}, ${T0 + 17}, ${T0 + 7223}, 168, 'jpy', 2, 4, ${T0}, ${T0}),
+	 ('manual', 'alice', 'cash_game', 'completed', 'manual', 1756944000, NULL, NULL, 0, 'jpy', NULL, NULL, ${T0}, ${T0})`,
 	`INSERT INTO session_cash_detail (session_id, buy_in, cash_out, ev_cash_out) VALUES ('live', 30000, 45000, 45000), ('manual', 10000, 12000, NULL)`,
 	`INSERT INTO session_event (id, session_id, event_type, occurred_at, sort_order, payload, created_at, updated_at) VALUES
 	 ('start', 'live', 'session_start', ${T0}, 1, '{"buyInAmount":30000}', ${T0}, ${T0}),
@@ -42,8 +42,8 @@ const FIXTURE = [
 	`INSERT INTO ledger_line (id, user_id, asset_id, quantity, role, effect, entry_id, play_session_id, source_event_id, occurred_at, created_at, updated_at) VALUES
 	 ('start:0', 'alice', 'jpy', -30000, 'buy_in', 'real', 'live', 'live', 'start', ${T0}, ${T0}, ${T0}),
 	 ('end:0', 'alice', 'jpy', 45000, 'cash_out', 'real', 'live', 'live', 'end', ${T0 + 7200}, ${T0}, ${T0})`,
-	`INSERT INTO hand (id, user_id, play_session_id, hand_no, played_at, detail, created_at, updated_at) VALUES ('hand-1', 'alice', 'live', 1, ${T0 + 1800}, 'full', ${T0}, ${T0})`,
-	`INSERT INTO hand_seat (hand_id, user_id, seat, is_hero) VALUES ('hand-1', 'alice', 3, 1)`,
+	`UPDATE hand SET played_at = ${T0 + 1800}, detail = 'full' WHERE id = 'h:live:1'`,
+	`INSERT INTO hand_seat (hand_id, user_id, seat, is_hero) VALUES ('h:live:1', 'alice', 3, 1)`,
 ];
 
 const databaseId = /database_id = "([^"]+)"/.exec(
@@ -179,7 +179,7 @@ describe("audit-data-model through wrangler's local D1", () => {
 
 			const gate = audit(seeded);
 			expect(gate.status).toBe(0);
-			for (const id of ["A-3", "A-4", "A-8", "A-9"]) {
+			for (const id of ["A-3", "A-4", "A-8", "A-9", "A-10"]) {
 				expect(statuses(gate.report, id), id).toEqual(["pass"]);
 			}
 			expect(statuses(gate.report, "A-6")).toEqual([
@@ -214,7 +214,7 @@ describe("audit-data-model through wrangler's local D1", () => {
 		async () => {
 			const dir = await copyWith("broken-projection", [
 				"UPDATE ledger_line SET quantity = -25000 WHERE id = 'start:0'",
-				"UPDATE hand_seat SET seat = 5 WHERE hand_id = 'hand-1'",
+				"UPDATE hand_seat SET seat = 5 WHERE hand_id = 'h:live:1'",
 			]);
 			const result = audit(dir, "--enable", "A-6");
 			expect(result.status).toBe(1);
@@ -227,7 +227,7 @@ describe("audit-data-model through wrangler's local D1", () => {
 						projected: -30_000,
 					}),
 					expect.objectContaining({
-						target: "hand hand-1",
+						target: "hand h:live:1",
 						field: "hero seat",
 						stored: 5,
 						projected: 3,
@@ -254,6 +254,21 @@ describe("audit-data-model through wrangler's local D1", () => {
 			expect(statuses(result.report, "A-9")).toEqual(["violation"]);
 			expect(rows(result.report, "A-9")).toEqual([
 				expect.objectContaining({ id: "live" }),
+			]);
+		},
+		RUN_TIMEOUT
+	);
+
+	it(
+		"fails A-10 when the migrated last hand no longer carries the legacy dealer seat",
+		async () => {
+			const dir = await copyWith("broken-hands", [
+				"UPDATE hand SET button_seat = 5 WHERE id = 'h:live:2'",
+			]);
+			const result = audit(dir);
+			expect(result.status).toBe(1);
+			expect(rows(result.report, "A-10")).toEqual([
+				{ id: "live", hands: 2, hand_count: 2, dealer_seat: 4 },
 			]);
 		},
 		RUN_TIMEOUT
