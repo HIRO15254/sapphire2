@@ -26,22 +26,28 @@ const LEGACY_FIXTURE = [
 	`INSERT INTO asset (id, user_id, name, kind, decimals, created_at, updated_at) VALUES ('jpy', 'alice', 'JPY', 'currency', 0, ${T0}, ${T0})`,
 	`INSERT INTO game_session (id, user_id, kind, status, source, session_date, started_at, ended_at, break_minutes, currency_id, created_at, updated_at) VALUES
 	 ('live', 'alice', 'cash_game', 'completed', 'live', ${T0}, ${T0 + 17}, ${T0 + 7223}, 168, 'jpy', ${T0}, ${T0}),
+	 ('mtt', 'alice', 'tournament', 'completed', 'live', ${T0}, ${T0 + 10_000}, ${T0 + 20_000}, 0, 'jpy', ${T0}, ${T0}),
 	 ('manual', 'alice', 'cash_game', 'completed', 'manual', 1756944000, NULL, NULL, 0, 'jpy', ${T0}, ${T0})`,
-	`INSERT INTO session_cash_detail (session_id, buy_in, cash_out, ev_cash_out) VALUES ('live', 30000, 45000, 45000), ('manual', 10000, 12000, NULL)`,
+	`INSERT INTO session_cash_detail (session_id, buy_in, cash_out, chip_remove_total, ev_cash_out) VALUES ('live', 35000, 45000, 2000, 45000), ('manual', 10000, 12000, NULL, NULL)`,
+	`INSERT INTO session_tournament_detail (session_id, tournament_buy_in, entry_fee, placement, total_entries, before_deadline, prize_money, bounty_prizes) VALUES ('mtt', 10000, 1000, 3, 50, 0, 30000, 2000)`,
+	`INSERT INTO session_chip_purchase (id, session_id, name, cost, chips, sort_order) VALUES ('rebuy', 'mtt', 'Rebuy', 3000, 10000, 0)`,
+	`INSERT INTO session_chip_purchase_result (session_chip_purchase_id, count) VALUES ('rebuy', 1)`,
 	`INSERT INTO session_event (id, session_id, event_type, occurred_at, sort_order, payload, created_at, updated_at) VALUES
 	 ('start', 'live', 'session_start', ${T0}, 1, '{"buyInAmount":30000}', ${T0}, ${T0}),
 	 ('hero', 'live', 'player_join', ${T0 + 60}, 2, '{"isHero":true,"seatPosition":3}', ${T0}, ${T0}),
 	 ('ghost', 'live', 'player_join', ${T0 + 120}, 4, '{"playerId":"ghost","isHero":false,"seatPosition":5}', ${T0}, ${T0}),
 	 ('add-on', 'live', 'purchase_chips', ${T0 + 180}, 5, '{"name":"AddOn","cost":2000,"chips":200000}', ${T0}, ${T0}),
+	 ('chips-in', 'live', 'chips_add_remove', ${T0 + 240}, 9, '{"amount":5000}', ${T0}, ${T0}),
 	 ('pause-1', 'live', 'session_pause', ${T0 + 600}, 6, '{}', ${T0}, ${T0}),
 	 ('pause-2', 'live', 'session_pause', ${T0 + 1200}, 7, '{}', ${T0}, ${T0}),
 	 ('resume', 'live', 'session_resume', ${T0 + 1500}, 8, '{}', ${T0}, ${T0}),
-	 ('end', 'live', 'session_end', ${T0 + 7200}, 3, '{"cashOutAmount":45000}', ${T0}, ${T0})`,
+	 ('chips-out', 'live', 'chips_add_remove', ${T0 + 3000}, 10, '{"amount":-2000}', ${T0}, ${T0}),
+	 ('end', 'live', 'session_end', ${T0 + 7200}, 3, '{"cashOutAmount":45000}', ${T0}, ${T0}),
+	 ('mtt-start', 'mtt', 'session_start', ${T0 + 10_000}, 1, '{"timerStartedAt":null}', ${T0}, ${T0}),
+	 ('mtt-rebuy', 'mtt', 'purchase_chips', ${T0 + 12_000}, 2, '{"sessionChipPurchaseId":"rebuy","name":"Rebuy","cost":3000,"chips":10000}', ${T0}, ${T0}),
+	 ('mtt-end', 'mtt', 'session_end', ${T0 + 20_000}, 3, '{"beforeDeadline":false,"placement":3,"totalEntries":50,"prizeMoney":30000,"bountyPrizes":2000}', ${T0}, ${T0})`,
 ];
 const FIXTURE = [
-	`INSERT INTO ledger_line (id, user_id, asset_id, quantity, role, effect, entry_id, play_session_id, source_event_id, occurred_at, created_at, updated_at) VALUES
-	 ('start:0', 'alice', 'jpy', -30000, 'buy_in', 'real', 'live', 'live', 'start', ${T0}, ${T0}, ${T0}),
-	 ('end:0', 'alice', 'jpy', 45000, 'cash_out', 'real', 'live', 'live', 'end', ${T0 + 7200}, ${T0}, ${T0})`,
 	`INSERT INTO hand (id, user_id, play_session_id, hand_no, played_at, detail, created_at, updated_at) VALUES ('hand-1', 'alice', 'live', 1, ${T0 + 1800}, 'full', ${T0}, ${T0})`,
 	`INSERT INTO hand_seat (hand_id, user_id, seat, is_hero) VALUES ('hand-1', 'alice', 3, 1)`,
 ];
@@ -156,8 +162,6 @@ function rows(report: AuditReport | null, audit: string) {
 		.flatMap((result) => result.rows);
 }
 
-const LEDGER_AUDITS = "A-6,A-11";
-
 beforeAll(async () => {
 	seeded = await createDatabase("seeded", {
 		legacy: LEGACY_FIXTURE,
@@ -179,14 +183,10 @@ describe("audit-data-model through wrangler's local D1", () => {
 
 			const gate = audit(seeded);
 			expect(gate.status).toBe(0);
-			for (const id of ["A-3", "A-4", "A-8", "A-9"]) {
+			for (const id of ["A-3", "A-4", "A-5", "A-8", "A-9"]) {
 				expect(statuses(gate.report, id), id).toEqual(["pass"]);
 			}
-			expect(statuses(gate.report, "A-6")).toEqual([
-				"pass",
-				"pending",
-				"pending",
-			]);
+			expect(statuses(gate.report, "A-6")).toEqual(["pass", "pass", "pending"]);
 			expect(statuses(gate.report, "A-14")).toContain("pass");
 		},
 		RUN_TIMEOUT
@@ -210,7 +210,7 @@ describe("audit-data-model through wrangler's local D1", () => {
 	);
 
 	it(
-		"fails A-6 when a projected amount or the Hero seat is broken",
+		"fails A-5 and A-6 when a projected amount or the Hero seat is broken",
 		async () => {
 			const dir = await copyWith("broken-projection", [
 				"UPDATE ledger_line SET quantity = -25000 WHERE id = 'start:0'",
@@ -234,6 +234,9 @@ describe("audit-data-model through wrangler's local D1", () => {
 					}),
 				])
 			);
+			expect(rows(result.report, "A-5")).toEqual([
+				{ id: "live", expected: 12_000, actual: 17_000 },
+			]);
 		},
 		RUN_TIMEOUT
 	);
@@ -260,17 +263,20 @@ describe("audit-data-model through wrangler's local D1", () => {
 	);
 
 	it(
-		"reports an A-11 balance drift without failing",
+		"reports a per-asset A-11 balance drift without failing",
 		async () => {
 			const dir = await copyWith("balance-drift", [
-				`INSERT INTO transaction_type (id, user_id, name, created_at, updated_at) VALUES ('deposit', 'alice', 'Deposit', ${T0}, ${T0})`,
-				`INSERT INTO currency_transaction (id, currency_id, transaction_type_id, amount, transacted_at, created_at) VALUES ('legacy', 'jpy', 'deposit', 15500, ${T0}, ${T0})`,
+				`INSERT INTO transaction_type (id, user_id, name, created_at, updated_at) VALUES ('result', 'alice', 'Session Result', ${T0}, ${T0})`,
+				`INSERT INTO currency_transaction (id, currency_id, transaction_type_id, session_id, amount, transacted_at, created_at) VALUES
+				 ('manual-result', 'jpy', 'result', 'manual', 2000, ${T0}, ${T0}),
+				 ('live-result', 'jpy', 'result', 'live', 11000, ${T0}, ${T0}),
+				 ('mtt-result', 'jpy', 'result', 'mtt', 18000, ${T0}, ${T0})`,
 			]);
-			const result = audit(dir, "--enable", LEDGER_AUDITS);
+			const result = audit(dir);
 			expect(result.status).toBe(0);
 			expect(statuses(result.report, "A-11")).toEqual(["report"]);
 			expect(rows(result.report, "A-11")).toEqual([
-				{ user_id: "alice", asset_id: "jpy", legacy: 15_500, ledger: 15_000 },
+				{ user_id: "alice", asset_id: "jpy", legacy: 31_000, ledger: 32_000 },
 			]);
 		},
 		RUN_TIMEOUT

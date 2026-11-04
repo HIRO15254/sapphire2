@@ -22,7 +22,6 @@ export const TASK = {
 	B01: "B01 (SA2-385)",
 	B07: "B07 (SA2-392)",
 	B08: "B08 (SA2-393)",
-	B09: "B09 (SA2-394)",
 	B10: "B10 (SA2-395)",
 	B12: "B12 (SA2-397)",
 	B13: "B13 (SA2-398)",
@@ -34,6 +33,7 @@ export const TASK = {
 
 export const B01_MIGRATION = "0059_v2_final_empty_schema.sql";
 export const B06_MIGRATION = "0061_entry_p1_cutover.sql";
+export const B09_MIGRATION = "0062_ledger_cutover.sql";
 
 export type Activation =
 	| { state: "active"; since: string | null }
@@ -73,6 +73,7 @@ export type Check = SqlCheck | ReplayCheck | DeferredCheck;
 
 const SINCE_B01: Activation = { state: "active", since: B01_MIGRATION };
 const SINCE_B06: Activation = { state: "active", since: B06_MIGRATION };
+const SINCE_B09: Activation = { state: "active", since: B09_MIGRATION };
 
 function pending(enabledBy: string): { state: "pending"; enabledBy: string } {
 	return { state: "pending", enabledBy };
@@ -177,7 +178,7 @@ OR p.status IS NOT (CASE s.status WHEN 'completed' THEN 'ended' WHEN 'paused' TH
 		audit: "A-5",
 		part: "settled entry real-line P/L equals the legacy formula",
 		kind: "sql",
-		activation: pending(TASK.B09),
+		activation: SINCE_B09,
 		deletedBy: TASK.B25,
 		tables: [
 			"game_session",
@@ -232,7 +233,7 @@ HAVING COALESCE(sum(l.quantity), 0) <> x.pl`,
 		part: "projectEntry replay: projected ledger lines",
 		kind: "replay",
 		replay: "a6-lines",
-		activation: pending(TASK.B09),
+		activation: SINCE_B09,
 		tables: ["ledger_line"],
 	},
 	{
@@ -289,7 +290,7 @@ OR (gs.hand_count > 0 AND (SELECT h.button_seat FROM hand h WHERE h.play_session
 		audit: "A-11",
 		part: "per-asset balance vs legacy currency_transaction (historical drift, report only)",
 		kind: "sql",
-		activation: pending(TASK.B09),
+		activation: SINCE_B09,
 		deletedBy: TASK.B25,
 		reportOnly: true,
 		tables: ["currency_transaction", "asset", "ledger_line", "entry"],

@@ -122,6 +122,14 @@ Backfill normalization, populated-rebuild staging and failing end checks remain 
 The default mandatory production pre-audit is replaced by rehearsal/end checks/B04; §16.6 makes
 the pre-audit optional except for B23's mandatory categorized counts.
 
+## D1 caps a compound SELECT at five terms
+
+D1 rejects a SELECT with more than five `UNION`/`UNION ALL` terms (`too many terms in compound
+SELECT`); the recursive CTE's own `UNION ALL` counts too. `node:sqlite` migration specs do not
+apply the cap, so only Miniflare or a real D1 catches it. Fan rows out with a `VALUES` table
+(`CROSS JOIN (VALUES ('a'), ('b')) AS r`, read as `r.column1` — exempt from the cap) or split the
+INSERT. Why: SA2-394's ledger backfill passed its `node:sqlite` spec with eight terms and failed on D1.
+
 ## The Drizzle `meta/` ledger
 
 `bun run db:generate` (`drizzle-kit generate`) does **not** apply anything — it diffs the current
