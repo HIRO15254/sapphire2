@@ -11,7 +11,7 @@ describe("stats.summary on D1", () => {
 		api,
 	}) => {
 		const wallet = requireCreatedRow(
-			await api.alice.currency.create({ name: "Wallet" })
+			await api.alice.asset.create({ name: "Wallet", kind: "currency" })
 		);
 		const tournaments = [
 			{ tournamentBuyIn: 1000, entryFee: 100, prizeMoney: 0 },

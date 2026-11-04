@@ -1,7 +1,8 @@
 import { protectedProcedure, publicProcedure, router } from "../index";
 import { aiExtractRouter } from "./ai-extract";
+import { assetRouter } from "./asset";
+import { assetRateRouter } from "./asset-rate";
 import { blindLevelRouter } from "./blind-level";
-import { currencyRouter } from "./currency";
 import { currencyTransactionRouter } from "./currency-transaction";
 import { filterPresetRouter } from "./filter-preset";
 import { gameGroupRouter } from "./game-group";
@@ -19,6 +20,7 @@ import { tournamentRouter } from "./tournament";
 import { tournamentChipPurchaseRouter } from "./tournament-chip-purchase";
 import { transactionTypeRouter } from "./transaction-type";
 import { updateNoteViewRouter } from "./update-note-view";
+import { userSettingRouter } from "./user-setting";
 
 export const appRouter = router({
 	healthCheck: publicProcedure.query(() => {
@@ -34,7 +36,9 @@ export const appRouter = router({
 	location: locationRouter,
 	room: roomRouter,
 	transactionType: transactionTypeRouter,
-	currency: currencyRouter,
+	asset: assetRouter,
+	assetRate: assetRateRouter,
+	userSetting: userSettingRouter,
 	currencyTransaction: currencyTransactionRouter,
 	gameVariant: gameVariantRouter,
 	gameGroup: gameGroupRouter,

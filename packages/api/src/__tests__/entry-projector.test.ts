@@ -76,7 +76,7 @@ describe("projectEntry: session_start", () => {
 		});
 		expect(projection.status).toBe("open");
 		expect(projection.playedOn).toBe("2026-09-05");
-		expect(projection.detail).toEqual({ kind: "cash", evDiff: null });
+		expect(projection.detail).toEqual({ kind: "cash", evDiff: 0 });
 	});
 
 	it("reads the tournament clock from a v1 timerStartedAt in seconds", () => {
@@ -267,10 +267,10 @@ describe("projectEntry: all_in", () => {
 		expect(projection.detail).toEqual({ kind: "cash", evDiff: 451 });
 	});
 
-	it("leaves EV unrecorded while the entry is open", () => {
+	it("projects the same EV difference while the entry is still open", () => {
 		expect(projectEntry(allIns, cash).detail).toEqual({
 			kind: "cash",
-			evDiff: null,
+			evDiff: 451,
 		});
 	});
 });

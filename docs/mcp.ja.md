@@ -55,7 +55,9 @@ B06 の切り替えで旧完了セッション・ライブセッション API �
 | `stats_breakdown` | `stats.breakdown` | 参照 |
 | `stats_profit_loss_series` | `stats.profitLossSeries` | 参照 |
 | `room_list` | `room.list` | 参照 |
-| `currency_list` | `currency.list` | 参照 |
+| `asset_list` | `asset.list` | 参照 |
+| `asset_rate_list` | `assetRate.list` | 参照 |
+| `user_setting_get` | `userSetting.get` | 参照 |
 | `player_list` | `player.list` | 参照 |
 | `hand_list` | `hand.list` | 参照 |
 | `hand_get_by_id` | `hand.getById` | 参照 |
@@ -90,6 +92,8 @@ B06 の切り替えで旧完了セッション・ライブセッション API �
 `tournament_update_with_levels`・`game_mix_update` は子リストを**丸ごと置き換える**ので、先に現在の内容を読んでから全件を送ってください。`mixGames` はリングゲーム系ツールが受け付けます — 名前付き mix は完全一致で再現する必要があり、mix が設定されている間は `blind1`〜`blind3` / `ante` / `anteType` が常に `null` になるため、これらのフラットなフィールドに送った値は破棄されます。
 
 `hand_list` は 1 つの play session のハンドを `handNo` の大きい順に 1 ページ 1〜50 件（既定 20 件）返し、`{ items, nextCursor }` を返します。次のページは `nextCursor` を `cursor` に渡します。cursor は取得したときの `playSessionId` でだけ使えます。play session のハンド数はハンドの件数、現在のボタンは最大の `handNo` のハンドの `buttonSeat` です。ハンドカウンターの書き込み（`hand.add`・`hand.undoLast`）と `hand.delete` は公開していません。
+
+`asset_list` は通貨とアイテムを `balance` 付きで返します。`balance` はその資産の real な台帳明細の符号付き合計（最小単位の整数。アイテムでは保有数）で、プレイ中の entry の buy-in も含みます。アーカイブ済みの資産は `includeArchived` を指定したときだけ、アクティブなものと合わせて返します。`asset_rate_list` はレートの履歴を、`effectiveAt` を指定するとベース/クォートの向きごとにその時点で有効な最新のレートを返します。`user_setting_get` は換算の基準通貨とタイムゾーン（`null` は Asia/Tokyo）を返します。どちらかや過去のレートを変えると、過去の換算値も変わります。資産・レート・設定の書き込みは公開していません。
 
 ここに無い手続きは意図的な除外です（取り消し不能な削除、非冪等なお気に入りトグル、バンクロール台帳の書き込み、AI 抽出など）— 理由は `packages/mcp/src/tools/registry.ts` に記載され、結合テストで強制されます。
 

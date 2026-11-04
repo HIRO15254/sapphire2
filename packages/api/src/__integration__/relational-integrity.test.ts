@@ -101,7 +101,7 @@ describe("installed D1 referential integrity", () => {
 		api,
 	}) => {
 		const wallet = requireCreatedRow(
-			await api.alice.currency.create({ name: "Local chips" })
+			await api.alice.asset.create({ name: "Local chips", kind: "currency" })
 		);
 		await api.db.insert(room).values({
 			id: "old-room",
@@ -166,7 +166,7 @@ describe("installed D1 referential integrity", () => {
 			await api.bob.player.create({ name: "Bob stays" })
 		);
 		const wallet = requireCreatedRow(
-			await api.alice.currency.create({ name: "Owned wallet" })
+			await api.alice.asset.create({ name: "Owned wallet", kind: "currency" })
 		);
 		const kind = requireCreatedRow(
 			await api.alice.transactionType.create({ name: "Adjustment" })

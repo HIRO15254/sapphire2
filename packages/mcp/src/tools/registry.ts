@@ -1,3 +1,5 @@
+import { assetListInputSchema } from "@sapphire2/api/routers/asset";
+import { assetRateListInputSchema } from "@sapphire2/api/routers/asset-rate";
 import {
 	gameGroupCreateInputSchema,
 	gameGroupUpdateInputSchema,
@@ -95,10 +97,24 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		inputSchema: roomListInputSchema,
 	},
 	{
-		name: "currency_list",
-		procedurePath: "currency.list",
+		name: "asset_list",
+		procedurePath: "asset.list",
 		description:
-			"List the user's currencies with their unit and current balance (the sum of their ledger transactions). Use the returned ids as currencyId in other tools.",
+			"List the user's assets: currencies and items (for example tournament tickets), with kind, decimals, unit and balance. balance is the signed sum of every real ledger line of the asset, as an integer in its smallest unit (decimals is the number of digits after the point); for an item it is the number held. It already includes the buy-ins of entries still in play, and virtual lines never count. Archived assets are left out unless includeArchived is true, which returns active and archived ones together. Use the returned ids wherever a tool asks for an assetId or a currencyId.",
+		inputSchema: assetListInputSchema,
+	},
+	{
+		name: "asset_rate_list",
+		procedurePath: "assetRate.list",
+		description:
+			"List the exchange rates between the user's assets. A rate states that one smallest unit of baseAssetId is worth rateNum / rateDen smallest units of quoteAssetId, from effectiveFrom on (the Unix epoch means from the beginning). Without effectiveAt it returns the whole history, ordered by pair and then newest effectiveFrom first. With effectiveAt (Unix seconds) it returns, for each base/quote direction, only the rate in force at that instant: the latest effectiveFrom at or before it. Only stored directions are returned; no reciprocal or chained rate is derived. baseAssetId and quoteAssetId filter by ids from asset_list.",
+		inputSchema: assetRateListInputSchema,
+	},
+	{
+		name: "user_setting_get",
+		procedurePath: "userSetting.get",
+		description:
+			"Get the user's settings: baseAssetId, the currency asset converted figures are reported in (null means conversion is not configured), and timeZone, the IANA zone that dates live play by (null means Asia/Tokyo). Both apply to past records as well: converted figures always use the current base, and each line uses the rate in force at its own time, so changing the base or a past rate changes past converted figures.",
 	},
 	{
 		name: "player_list",
@@ -346,7 +362,9 @@ const ENTITY_NAMES: Record<string, string> = {
 	stats: "statistics",
 	sessionTag: "session tags",
 	room: "rooms",
-	currency: "currencies",
+	asset: "assets",
+	assetRate: "asset rates",
+	userSetting: "settings",
 	player: "players",
 	hand: "hands",
 	ringGame: "ring-game rules",
@@ -445,7 +463,7 @@ export const DELIBERATELY_EXCLUDED: {
 	{
 		reason:
 			"Toggle semantics are not idempotent — a retried call silently reverses the previous one, which a model cannot detect",
-		paths: ["room.toggleFavorite", "currency.toggleFavorite"],
+		paths: ["room.toggleFavorite", "asset.toggleFavorite"],
 	},
 	{
 		reason:
@@ -472,15 +490,12 @@ export const DELIBERATELY_EXCLUDED: {
 	},
 	{
 		reason:
-			"Outside the requested MCP scope: currencies and transaction types manage the bankroll ledger, not rooms or game masters. The name 'Session Result' is reserved against creation and renaming to it, but an existing reserved row can still be renamed away; exposing transaction type mutations needs that behavior settled first",
+			"Outside the requested MCP scope: transaction types manage the bankroll ledger, not rooms or game masters. The name 'Session Result' is reserved against creation and renaming to it, but an existing reserved row can still be renamed away; exposing transaction type mutations needs that behavior settled first",
 		paths: [
 			"transactionType.list",
 			"transactionType.create",
 			"transactionType.update",
 			"transactionType.delete",
-			"currency.create",
-			"currency.update",
-			"currency.delete",
 			"player.create",
 			"player.update",
 			"player.delete",
@@ -489,6 +504,32 @@ export const DELIBERATELY_EXCLUDED: {
 			"playerTag.update",
 			"playerTag.delete",
 		],
+	},
+	{
+		reason:
+			"Wallet: assets and rates define how every balance and converted figure is read, so creating, editing, archiving or restoring them belongs to the asset screens; asset_list and asset_rate_list expose them read-only",
+		paths: [
+			"asset.create",
+			"asset.update",
+			"asset.archive",
+			"asset.restore",
+			"assetRate.create",
+		],
+	},
+	{
+		reason:
+			"Destructive: deleting an asset or a rate cannot be undone, and a deleted rate silently changes every past converted figure that used it",
+		paths: ["asset.delete", "assetRate.delete"],
+	},
+	{
+		reason:
+			"asset.list already returns these rows, so a by-id tool would be a second way to read the same data",
+		paths: ["asset.getById"],
+	},
+	{
+		reason:
+			"Screen settings: the base asset and time zone change how every past figure and live date is shown, so they are edited on the settings screen; user_setting_get exposes them read-only",
+		paths: ["userSetting.update"],
 	},
 	{
 		reason:

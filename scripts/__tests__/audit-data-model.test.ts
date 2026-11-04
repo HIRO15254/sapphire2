@@ -22,13 +22,14 @@ const CUTOVER_MIGRATION = "0061_entry_p1_cutover.sql";
 
 const T0 = 1_757_066_400;
 const LEGACY_FIXTURE = [
-	`INSERT INTO user (id, name, email, created_at, updated_at) VALUES ('alice', 'Alice', 'alice@example.test', ${T0}, ${T0})`,
-	`INSERT INTO asset (id, user_id, name, kind, decimals, created_at, updated_at) VALUES ('jpy', 'alice', 'JPY', 'currency', 0, ${T0}, ${T0})`,
+	`INSERT INTO user (id, name, email, created_at, updated_at) VALUES ('alice', 'Alice', 'alice@example.test', ${T0}, ${T0}), ('bob', 'Bob', 'bob@example.test', ${T0}, ${T0})`,
+	`INSERT INTO asset (id, user_id, name, kind, decimals, created_at, updated_at) VALUES ('jpy', 'alice', 'JPY', 'currency', 0, ${T0}, ${T0}), ('bob-jpy', 'bob', 'JPY', 'currency', 0, ${T0}, ${T0})`,
 	`INSERT INTO game_session (id, user_id, kind, status, source, session_date, started_at, ended_at, break_minutes, currency_id, hand_count, dealer_seat, created_at, updated_at) VALUES
 	 ('live', 'alice', 'cash_game', 'completed', 'live', ${T0}, ${T0 + 17}, ${T0 + 7223}, 168, 'jpy', 2, 4, ${T0}, ${T0}),
 	 ('mtt', 'alice', 'tournament', 'completed', 'live', ${T0}, ${T0 + 10_000}, ${T0 + 20_000}, 0, 'jpy', NULL, NULL, ${T0}, ${T0}),
-	 ('manual', 'alice', 'cash_game', 'completed', 'manual', 1756944000, NULL, NULL, 0, 'jpy', NULL, NULL, ${T0}, ${T0})`,
-	`INSERT INTO session_cash_detail (session_id, buy_in, cash_out, chip_remove_total, ev_cash_out) VALUES ('live', 35000, 45000, 2000, 45000), ('manual', 10000, 12000, NULL, NULL)`,
+	 ('manual', 'alice', 'cash_game', 'completed', 'manual', 1756944000, NULL, NULL, 0, 'jpy', NULL, NULL, ${T0}, ${T0}),
+	 ('open-cash', 'bob', 'cash_game', 'active', 'live', ${T0}, ${T0 + 30_000}, NULL, 0, 'bob-jpy', NULL, NULL, ${T0}, ${T0})`,
+	`INSERT INTO session_cash_detail (session_id, buy_in, cash_out, chip_remove_total, ev_cash_out) VALUES ('live', 35000, 45000, 2000, 45000), ('manual', 10000, 12000, NULL, NULL), ('open-cash', 10000, NULL, NULL, NULL)`,
 	`INSERT INTO session_tournament_detail (session_id, tournament_buy_in, entry_fee, placement, total_entries, before_deadline, prize_money, bounty_prizes) VALUES ('mtt', 10000, 1000, 3, 50, 0, 30000, 2000)`,
 	`INSERT INTO session_chip_purchase (id, session_id, name, cost, chips, sort_order) VALUES ('rebuy', 'mtt', 'Rebuy', 3000, 10000, 0)`,
 	`INSERT INTO session_chip_purchase_result (session_chip_purchase_id, count) VALUES ('rebuy', 1)`,
@@ -45,7 +46,9 @@ const LEGACY_FIXTURE = [
 	 ('end', 'live', 'session_end', ${T0 + 7200}, 3, '{"cashOutAmount":45000}', ${T0}, ${T0}),
 	 ('mtt-start', 'mtt', 'session_start', ${T0 + 10_000}, 1, '{"timerStartedAt":null}', ${T0}, ${T0}),
 	 ('mtt-rebuy', 'mtt', 'purchase_chips', ${T0 + 12_000}, 2, '{"sessionChipPurchaseId":"rebuy","name":"Rebuy","cost":3000,"chips":10000}', ${T0}, ${T0}),
-	 ('mtt-end', 'mtt', 'session_end', ${T0 + 20_000}, 3, '{"beforeDeadline":false,"placement":3,"totalEntries":50,"prizeMoney":30000,"bountyPrizes":2000}', ${T0}, ${T0})`,
+	 ('mtt-end', 'mtt', 'session_end', ${T0 + 20_000}, 3, '{"beforeDeadline":false,"placement":3,"totalEntries":50,"prizeMoney":30000,"bountyPrizes":2000}', ${T0}, ${T0}),
+	 ('open-start', 'open-cash', 'session_start', ${T0 + 30_000}, 1, '{"buyInAmount":10000}', ${T0}, ${T0}),
+	 ('open-all-in', 'open-cash', 'all_in', ${T0 + 30_060}, 2, '{"potSize":101,"trials":1,"equity":50,"wins":0}', ${T0}, ${T0})`,
 ];
 const FIXTURE = [
 	`UPDATE hand SET played_at = ${T0 + 1800}, detail = 'full' WHERE id = 'h:live:1'`,
@@ -186,7 +189,7 @@ describe("audit-data-model through wrangler's local D1", () => {
 			for (const id of ["A-3", "A-4", "A-5", "A-8", "A-9", "A-10"]) {
 				expect(statuses(gate.report, id), id).toEqual(["pass"]);
 			}
-			expect(statuses(gate.report, "A-6")).toEqual(["pass", "pass", "pending"]);
+			expect(statuses(gate.report, "A-6")).toEqual(["pass", "pass", "pass"]);
 			expect(statuses(gate.report, "A-14")).toContain("pass");
 		},
 		RUN_TIMEOUT
@@ -215,6 +218,7 @@ describe("audit-data-model through wrangler's local D1", () => {
 			const dir = await copyWith("broken-projection", [
 				"UPDATE ledger_line SET quantity = -25000 WHERE id = 'start:0'",
 				"UPDATE hand_seat SET seat = 5 WHERE hand_id = 'h:live:1'",
+				"UPDATE entry_cash SET ev_diff = 50 WHERE entry_id = 'open-cash'",
 			]);
 			const result = audit(dir, "--enable", "A-6");
 			expect(result.status).toBe(1);
@@ -231,6 +235,12 @@ describe("audit-data-model through wrangler's local D1", () => {
 						field: "hero seat",
 						stored: 5,
 						projected: 3,
+					}),
+					expect.objectContaining({
+						target: "entry_cash",
+						field: "ev_diff",
+						stored: 50,
+						projected: 51,
 					}),
 				])
 			);

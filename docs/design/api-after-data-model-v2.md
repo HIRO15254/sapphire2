@@ -302,8 +302,8 @@ Count has no child details. Summary body has `boards` (0–4 boards, up to 5 car
 | --- | --- | --- | --- | --- |
 | `list` Q | `{includeArchived?:boolean}` | Asset[] | — | `asset_list` |
 | `getById` Q | IdInput | Asset | — | Excluded: duplicate read |
-| `create` M | `{name:string 1..100,unit?:string<=20,description?:string,kind:currency|item,decimals?:integer 0..4=0}` | Asset | Case-insensitive trimmed name collision: CONFLICT | Excluded: wallet |
-| `update` M | `{id,name?,unit?:string<=20|null,description?:string|null,kind?,decimals?}` | Asset | kind or decimals change when referenced anywhere: CONFLICT | Excluded: wallet |
+| `create` M | `{name:trimmed string 1..100,unit?:string<=20,description?:string<=50000,kind:currency|item,decimals?:integer 0..4=0}` | Asset | Case-insensitive trimmed name collision: CONFLICT | Excluded: wallet |
+| `update` M | `{id,name?,unit?:string<=20|null,description?:string<=50000|null,kind?,decimals?}` | Asset | Name collision: CONFLICT; kind or decimals change when referenced anywhere: CONFLICT | Excluded: wallet |
 | `archive` M | IdInput | Asset | — | Excluded: wallet |
 | `restore` M | IdInput | Asset | — | Excluded: wallet |
 | `delete` M | IdInput | Ack | Any ledger/rate/entry/master-default/price/setting reference: CONFLICT, message "Asset is in use; archive it instead" | Excluded: destructive |
@@ -318,19 +318,19 @@ Archived assets retain references, rates and balances. New selections must be ac
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
 | `list` Q | `{baseAssetId?:Id,quoteAssetId?:Id,effectiveAt?:Instant}` | Rate[], pair then effectiveFrom descending | — | `asset_rate_list` |
-| `create` M | `{baseAssetId,quoteAssetId,rateNum:integer 1..10^12,rateDen:integer 1..10^12,effectiveFrom:Instant>=0,memo?:string}` | Rate | Same asset: BAD_REQUEST; same directed pair/effectiveFrom: CONFLICT | Excluded: wallet |
+| `create` M | `{baseAssetId,quoteAssetId,rateNum:integer 1..10^12,rateDen:integer 1..10^12,effectiveFrom:Instant>=0,memo?:string<=5000}` | Rate | Same asset: BAD_REQUEST; same directed pair/effectiveFrom: CONFLICT | Excluded: wallet |
 | `delete` M | IdInput | Ack | — | Excluded: destructive |
 
-Without effectiveAt, list returns matching history. With it, returns only latest `effectiveFrom <= effectiveAt` per directed pair (not synthesized reciprocal/two-hop rates). Rates are immutable; correction deletes then creates. Base/quote naming here does not require an item to be a currency; userSetting's reporting base does.
+Without effectiveAt, list returns matching history. With it, returns only latest `effectiveFrom <= effectiveAt` per directed pair (not synthesized reciprocal/two-hop rates). Rates are immutable; correction deletes then creates. Base/quote naming here does not require an item to be a currency; userSetting's reporting base does. Rates are effective-time history (Q3): creating or deleting a rate re-values every past line whose occurredAt it now governs, so past converted figures change with it.
 
 ## 10. `userSetting` — B12
 
-`Setting = {baseAssetId:Id|null,timeZone:string|null}`. Null zone means Asia/Tokyo; null base means conversion has not been configured.
+`Setting = {baseAssetId:Id|null,timeZone:string|null}`. Null zone means Asia/Tokyo; null base means conversion has not been configured. Changing baseAssetId re-reports every past converted figure in the new base; nothing stores a past valuation. A newly selected base must be an owned, active currency; keeping an already selected archived base is allowed.
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
 | `get` Q | none | Setting (defaults even without a stored row) | — | `user_setting_get` |
-| `update` M | `{baseAssetId?:Id|null,timeZone?:IANA time zone|null}` | Setting | Non-currency base or invalid zone: BAD_REQUEST | Excluded: screen settings |
+| `update` M | `{baseAssetId?:Id|null,timeZone?:IANA time zone|null}` | Setting | Non-currency or newly selected archived base, invalid zone: BAD_REQUEST | Excluded: screen settings |
 
 ## 11. `ledger` — B14; entry-line ownership B09
 
