@@ -58,9 +58,9 @@ Either gated-off figure is `null` — "the user never tracked EV in this scope" 
 
 ### Cross-surface agreement
 
-The same EV summary exists on two surfaces, and **the two summaries must not disagree over one scope**: `stats.summary` gates in `buildSummary` as above, and `session.list`'s `SessionSummary` carries cash-only EV aggregates gated the **same way** (`accumulateEvMetrics` in [`session.ts`](../../packages/api/src/routers/session.ts)) — `null` unless a session in scope stored a real EV cash-out, otherwise summed over every finished cash session with fallback rows counting at their actual result. Its `recordedEvCount` counts the sessions that actually **stored** an EV cash-out, not the ones that got a resolved value — the resolved `evCashOut` falls back to the actual cash-out, so counting it would leave the gate true for every finished cash session and report "EV diff: 0" to a user who never tracked EV.
+**An EV summary must not disagree with `stats.summary` over one scope.** The legacy session list carried a second, cash-only EV summary gated the same way as `buildSummary`; it was removed in B06 (SA2-391), and any later surface that summarizes EV over the same scope must reuse that gate: `null` unless a session in scope stored a real EV cash-out, otherwise summed over every finished cash session with fallback rows counting at their actual result. `recordedEvCount` counts the sessions that actually **stored** an EV cash-out, not the ones that got a resolved value — the resolved `evCashOut` falls back to the actual cash-out, so counting it would leave the gate true for every finished cash session and report "EV diff: 0" to a user who never tracked EV.
 
-Editing the gate condition, the fallback, or the population on one surface without the other silently splits the app into two contradicting summaries. Keep them in lockstep, and extend the paired tests on both routers when the rule changes.
+Editing the gate condition, the fallback, or the population on one surface without the other silently splits the app into two contradicting summaries.
 
 ### The per-row display gate (web layer)
 

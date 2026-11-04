@@ -1,6 +1,6 @@
 # Sessions & Live Editing
 
-> The v2 data model ([data-model-v2.md](data-model-v2.md)) replaces parts of this design in stages.
+> Legacy record. The session and live-session screens this doc describes were removed in B03, and the session, live-session, session-event and table-player routers in B06 (SA2-391). B16/B17 rebuild them on the entry model ([data-model-v2.md](data-model-v2.md), [api-after-data-model-v2.md](api-after-data-model-v2.md)); the sections below are the legacy contract those phases replace.
 
 Design reference for the session domain: the event-sourced live-session model, event payload invariants, frozen rule snapshots, ownership contracts, the live reopen flow, P/L math (`chipRemoveTotal`), and the live-linked edit sheet. EV semantics (recording gate, cash-out fallback, population rules) are owned by [`statistics.md`](statistics.md); D1 batching/atomicity mechanics by [`data-integrity.md`](data-integrity.md); game-master semantics by [`game-masters.md`](game-masters.md); the generic filter-preset system by [`web-platform.md`](web-platform.md).
 

@@ -16,14 +16,7 @@ The cap constant `D1_MAX_BOUND_PARAMS` and `chunkForInsert` live in [`packages/a
 
 The failure mode is what makes this the most dangerous coupling in the schema: the blind-structure writes are DELETE-then-reINSERT, so a single unchunked INSERT of ≥11 levels (≥110 params) throws at runtime **after the DELETE has already committed**, permanently wiping the session's blind structure (SA2-115). Deriving the width from the row shape (`Object.keys(rows[0]).length`, per the rule file) is what keeps a future column from silently reintroducing the overflow.
 
-Paths governed by this cap:
-
-| Path | Shape |
-|---|---|
-| `persistSessionBlindLevels` / `buildTournamentStructureStatements` in [`session.ts`](../../packages/api/src/routers/session.ts) | 10-column blind rows, 10 rows/INSERT |
-| `updateSnapshot` in [`live-tournament-session.ts`](../../packages/api/src/routers/live-tournament-session.ts) | same blind-row re-seed via the shared helper |
-| chip-purchase result upsert in [`live-session-pl.ts`](../../packages/api/src/services/live-session-pl.ts) | 2 params per result row, all chunks in one batch |
-| `selectInChunks` callers (event / chip-purchase / blind-level maps) | 1 param per id — see below |
+Paths governed by this cap: every multi-row insert chunks through `chunkForInsert` (ledger lines in `services/ledger-writes.ts` and `services/entry-projector.ts`, hand rows in `services/hand.ts`, mix members in `services/game-mix.ts`, player tag links in `routers/player.ts`), and every id-list lookup goes through `selectInChunks` (below). The session blind-level writer the 10 × 10 coupling was written for was removed in B06 (SA2-391); `session_blind_level` stays only as a migration source until B25.
 
 ### Chunked `IN (…)` selects
 
@@ -33,22 +26,15 @@ A one-column `IN` binds one param per id, so a batched lookup across more than 1
 
 The repo-wide contract: **every multi-statement write in the api package commits through a single `db.batch([...])`**, so a mid-sequence failure can no longer leave a DELETE committed with its re-INSERT missing (permanent data loss) or a parent row committed without its children (orphan). Sequential awaited statements auto-commit one by one — that is the root cause of the headline data-loss bug: `tournament.updateWithLevels` ran a bare DELETE followed by a separate `Promise.all(insert…)` as independent auto-commits, so a failed re-INSERT could permanently wipe the tags / chip purchases / blind structure.
 
-`runBatch` in [`packages/api/src/lib/batch.ts`](../../packages/api/src/lib/batch.ts) is the funnel: D1's `db.batch` requires a non-empty tuple, so an empty statement array is treated as a no-op. Every caller builds its statements first, then hands the whole group to a single `batch`. [`packages/api/src/__tests__/db-batch-atomicity.test.ts`](../../packages/api/src/__tests__/db-batch-atomicity.test.ts) drives the real helpers against a descriptor-recording mock db and asserts the statements land together in one batch call.
+`runBatch` in [`packages/api/src/lib/batch.ts`](../../packages/api/src/lib/batch.ts) is the funnel: D1's `db.batch` requires a non-empty tuple, so an empty statement array is treated as a no-op. Every caller builds its statements first, then hands the whole group to a single `batch`.
 
-Writes governed by the contract (all in [`session.ts`](../../packages/api/src/routers/session.ts) unless noted):
+Writes governed by the contract:
 
 | Write | Batch shape |
 |---|---|
-| Chip purchases + result counts (`create`/`update`) | DELETE leads; the `session_chip_purchase` delete cascades to old result rows, so only the inserts are added; counts are written against the freshly generated purchase ids |
-| Blind-structure re-seed | DELETE leads so the whole re-seed commits or rolls back as one unit |
-| Currency-ledger sync (`buildSyncCurrencyTransactionStatements`) | returns the ledger change un-executed — stale DELETE + re-INSERT on a currency switch, a lone DELETE when the currency is cleared, a lone UPDATE on the same currency — for `session.update` to commit with the session row |
-| Ledger create (`buildCurrencyTransactionStatements`) | returns only ledger statements so parent/session/tag writes stay atomic; the persistent transaction-type master is ensured **before** the batch |
-| Tournament structure copy (`buildTournamentStructureStatements`) | returns the statement list **un-executed** so callers commit it alongside any preceding DELETEs |
-| Structure re-snapshot (`resnapshotTournamentStructure`) | both DELETEs and the re-copied structure in one batch — a failed re-snapshot can no longer leave the old structure wiped with nothing written back |
-| `session.create` | session row, type detail, tag links, and currency-ledger row land together |
-| `session.update` | session row, detail patch, tournament re-snapshot and explicit blind-level / chip-purchase replacements, tag replacement, and the ledger change land together; the ledger amount is computed from the planned detail, not read back after the write |
 | `tournament.createWithLevels` / `updateWithLevels` ([`tournament.ts`](../../packages/api/src/routers/tournament.ts)) | tournament row/UPDATE first, then each clear-and-reseed group |
-| Cash-session reopen events | fixed contiguous sort-orders, allowed only because the replacement is one batch — see [`sessions-and-live-editing.md`](sessions-and-live-editing.md) |
+
+The session writes this table also listed (chip purchases and result counts, blind re-seeds, the currency-ledger sync, session create/update, cash reopen events) were removed in B06 (SA2-391); their B16/B17 replacements follow the same contract.
 
 ### Batch composition rules
 
@@ -57,32 +43,32 @@ The ordering inside a batch is load-bearing, not stylistic:
 - **The DELETE leads the group.** "Clear then re-seed" must run as one atomic unit; a DELETE that commits separately can strand the table empty on a later failure.
 - **The parent row precedes child rows**, so FK checks pass inside the transaction.
 - **Ensure-persistent-master runs outside (before) the batch.** The shared transaction-type ensure commits first; the accepted consequence is that an unused master may remain when the parent batch fails — an orphan master is harmless, an orphan session is not.
-- **Validate every link and tag ownership, and resolve every rule snapshot, before any write** (`session.create`, `session.update`), so the batch never starts if it cannot finish. A cash `session.update` whose rule is rejected used to have already saved its `game_session` fields; the api-integration test `session-update.test.ts` pins the all-or-nothing contract on D1.
+- **Validate every link and tag ownership, and resolve every rule snapshot, before any write**, so the batch never starts if it cannot finish. A cash session update whose rule was rejected used to have already saved its session fields.
 - **A ledger change rides the batch of the session it belongs to** — even a lone DELETE (currency cleared) or UPDATE (same currency, new amount), so a rejected or failed update never moves the ledger on its own.
-- **A pure copy never deletes** (`snapshotTournamentStructure`): only replacement flows carry a DELETE.
+- **A pure copy never deletes**: only replacement flows carry a DELETE.
 
 ### FK-checked upserts as concurrency guards
 
-The live-session create paths use an upsert (rather than select-then-update/insert) precisely to keep an FK-checked session-detail write **inside** the batch: if the live session disappears between the authorization read and the write (a concurrent deletion), the FK violation rolls the master insert back instead of committing an orphan ring game / tournament ([`live-cash-game-session.ts`](../../packages/api/src/routers/live-cash-game-session.ts), [`live-tournament-session.ts`](../../packages/api/src/routers/live-tournament-session.ts)).
+A create path that links a new master to an existing parent keeps an FK-checked child write (an upsert rather than select-then-update/insert) **inside** the batch: if the parent disappears between the authorization read and the write (a concurrent deletion), the FK violation rolls the master insert back instead of committing an orphan ring game / tournament. The live-session create paths that did this were removed in B06; B20's create-and-assign flow must keep the same guard.
 
 ## Keyset pagination cursors (SA2-150)
 
-The session list orders by `sessionOrderKey DESC, id DESC`, so paginating on `id` alone is wrong — id order (random UUIDs) is unrelated to that order, which made the second page drop or duplicate rows and stop early ("Load more" only worked once). The cursor therefore encodes both the order key (epoch ms) and the id as `"<ms>_<id>"` (`encodeSessionCursor` in [`session.ts`](../../packages/api/src/routers/session.ts)).
+The legacy session list ordered by `sessionOrderKey DESC, id DESC`, so paginating on `id` alone was wrong — id order (random UUIDs) is unrelated to that order, which made the second page drop or duplicate rows and stop early ("Load more" only worked once). Its cursor therefore encoded both the order key and the id. That list was removed in B06 (SA2-391); the final entry and live lists order by `(playedOn, id)` descending, and their opaque cursors carry the whole ordering tuple ([`api-after-data-model-v2.md`](api-after-data-model-v2.md) §1).
 
 The SA2-150 regression defined the two invariants every cursor implementation here follows:
 
-- **The boundary is derived purely from the cursor value — never a subquery on the raw cursor id.** The old keyset ran `SELECT started_at FROM game_session WHERE id = cursor`; once the cursor row was deleted, that subquery returned `NULL`, `started_at < NULL` matched nothing, and the whole page silently emptied. `sessionKeysetCondition` embeds the cursor's `(timestamp, id)` directly into both the `<` and the `=`-tiebreak arms. The order key is stored in seconds (sqlite `timestamp` mode), so the cursor's ms value is floored (5,000,000 ms → 5,000 s in both arms).
-- **A malformed cursor degrades to "no cursor", never to a filter.** `parseSessionCursor` returns `null` for a missing separator, an empty / non-integer / out-of-range timestamp, or an empty id, so the caller starts from the beginning instead of crashing or dropping every row. It splits on the first separator only, so ids containing `_` survive.
+- **The boundary is derived purely from the cursor value — never a subquery on the raw cursor id.** The old keyset ran `SELECT started_at FROM game_session WHERE id = cursor`; once the cursor row was deleted, that subquery returned `NULL`, `started_at < NULL` matched nothing, and the whole page silently emptied. The cursor's tuple goes directly into both the `<` and the `=`-tiebreak arms.
+- **A malformed cursor is never read as a filter.** The legacy lists degraded it to "no cursor"; the final API rejects it with `BAD_REQUEST` ([`api-after-data-model-v2.md`](api-after-data-model-v2.md) §1).
 
-`nextCursor` is the **last returned** item's composite, not the sentinel (limit+1) row's, so the next page starts strictly after it. The live cash-game and live-tournament lists use the same composite `(startedAt, id)` keyset with the same degrade-to-no-cursor behavior, kept deliberately in lockstep with `session.list`. Cursor subqueries must also carry the caller's ownership scope — that half is [`.claude/rules/api-security.md`](../../.claude/rules/api-security.md)'s SA2-182 rule.
+`nextCursor` is the **last returned** item's composite, not the sentinel (limit+1) row's, so the next page starts strictly after it. Cursor subqueries must also carry the caller's ownership scope — that half is [`.claude/rules/api-security.md`](../../.claude/rules/api-security.md)'s SA2-182 rule.
 
 ## N+1 collapse on list endpoints (SA2-151)
 
-The live-session `list` endpoints used to fetch `session_event` with one `WHERE session_id = ?` query per page item — up to limit+1 ≈ 100 extra round-trips, and on D1 per-query latency dominates, so the N+1 was the whole cost of the page. `getSessionEventMap` in [`session.ts`](../../packages/api/src/routers/session.ts) collapses it: collect the page's session ids, fetch every event in one `inArray` query (chunked via `selectInChunks`), then bucket rows by session id.
+The legacy live-session `list` endpoints fetched `session_event` with one `WHERE session_id = ?` query per page item — up to limit+1 ≈ 100 extra round-trips, and on D1 per-query latency dominates, so the N+1 was the whole cost of the page. The fix collected the page's ids, fetched every event in one `inArray` query (chunked via `selectInChunks`), then bucketed rows by id. Those endpoints were removed in B06; the B17 live list must load its events the same way.
 
 Two details of the design are load-bearing:
 
-- **Ordering `(occurredAt asc, sortOrder asc, id asc)`** is the exact order the per-session query used before the collapse, and both consumers depend on it — the cash list's reverse scan and the tournament list's `computeStackStats` stack derivation. Each bucket is **re-sorted in application code**, because `selectInChunks` concatenates chunk results (and a mocked db may ignore `ORDER BY`).
+- **Ordering `(occurredAt asc, sortOrder asc, id asc)`** is the order the event consumers fold in. Each bucket is **re-sorted in application code**, because `selectInChunks` concatenates chunk results (and a mocked db may ignore `ORDER BY`).
 - **Sessions with no events are absent from the map** — callers treat a missing key as "no events", not an error.
 
 ### The Drizzle unqualified-column subquery trap

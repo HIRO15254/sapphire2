@@ -104,7 +104,7 @@ Because DCR is open, every client-supplied value is hostile input: the name and 
 ## Type-level seams
 
 - **Plugin type erasure, single cast point.** The `mcp()` plugin's inferred type references better-auth internals that cannot be named in the package's emitted declarations (TS4058), so `createAuth` widens `plugins` to the base `BetterAuthPlugin[]`. The endpoints exist at runtime regardless; `McpPluginApi` in [`apps/server/src/worker.ts`](../../apps/server/src/worker.ts) is the **single** cast point for the ones the Worker needs (`getMCPProtectedResource`, `getMcpOAuthConfig`, `getMcpSession`) — do not scatter further casts.
-- **One reach into tRPC internals.** `procedureMap()` in [`packages/mcp/src/tools/resolve.ts`](../../packages/mcp/src/tools/resolve.ts) is the single place the MCP layer touches tRPC internals: tRPC v11 routers expose a flat `_def.procedures` record keyed by dot-path (`"session.list"`), which the api package's test-utils also rely on. A tRPC upgrade that changes this shape breaks both packages — check here first.
+- **One reach into tRPC internals.** `procedureMap()` in [`packages/mcp/src/tools/resolve.ts`](../../packages/mcp/src/tools/resolve.ts) is the single place the MCP layer touches tRPC internals: tRPC v11 routers expose a flat `_def.procedures` record keyed by dot-path (`"room.list"`), which the api package's test-utils also rely on. A tRPC upgrade that changes this shape breaks both packages — check here first.
 
 ## Provisioning and persistence
 
