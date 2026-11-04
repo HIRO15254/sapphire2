@@ -68,6 +68,8 @@ The B06 cutover removes the old completed-session and live-session APIs and thei
 | `room_get_by_id` | `room.getById` | read |
 | `room_create` | `room.create` | write |
 | `room_update` | `room.update` | write |
+| `room_archive` | `room.archive` | write |
+| `room_restore` | `room.restore` | write |
 | `ring_game_create` | `ringGame.create` | write |
 | `ring_game_update` | `ringGame.update` | write |
 | `ring_game_archive` | `ringGame.archive` | write |
@@ -80,14 +82,20 @@ The B06 cutover removes the old completed-session and live-session APIs and thei
 | `game_group_list` | `gameGroup.list` | read |
 | `game_group_create` | `gameGroup.create` | write |
 | `game_group_update` | `gameGroup.update` | write |
+| `game_group_archive` | `gameGroup.archive` | write |
+| `game_group_restore` | `gameGroup.restore` | write |
 | `game_variant_list` | `gameVariant.list` | read |
 | `game_variant_create` | `gameVariant.create` | write |
 | `game_variant_update` | `gameVariant.update` | write |
+| `game_variant_archive` | `gameVariant.archive` | write |
+| `game_variant_restore` | `gameVariant.restore` | write |
 | `game_mix_list` | `gameMix.list` | read |
 | `game_mix_create` | `gameMix.create` | write |
 | `game_mix_update` | `gameMix.update` | write |
+| `game_mix_archive` | `gameMix.archive` | write |
+| `game_mix_restore` | `gameMix.restore` | write |
 
-Master-data tools mutate rows that existing sessions reference, so `*_update` and the game-master updates are annotated destructive. **Deletion is deliberately not exposed anywhere.** Ring games and tournaments have an archive/restore counterpart, which is exposed instead; rooms and the game masters have none, so a mistaken `room_create` or `game_variant_create` leaves a row only the web UI can clear — check the matching list tool before creating.
+Master-data updates are annotated destructive. **Deletion is deliberately not exposed.** Rooms, ring games, tournaments and game masters have archive/restore tools instead. Game-master lists exclude archived rows by default; `includeArchived` includes them.
 
 `tournament_update_with_levels` and `game_mix_update` REPLACE their child lists — read the entity first and send the full list back. `mixGames` is accepted by the ring-game tools: a named mix must be reproduced exactly, and while a mix is set `blind1`-`blind3`, `ante` and `anteType` are always stored as `null`, so values sent for those flat fields are dropped.
 

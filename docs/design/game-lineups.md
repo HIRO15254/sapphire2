@@ -168,7 +168,7 @@ Every API task updates `TOOL_DEFINITIONS` / `DELIBERATELY_EXCLUDED`, coupling te
 
 ## Archive and deletion
 
-B05 adds archive/restore and `includeArchived` on game-master lists. Default lists exclude archived rows; existing rule hydration always resolves them. Labels remain unique among archived rows too. A conflicting create can guide the caller to restore. Delete returns CONFLICT when a variant, mix or group is referenced; group guards count both variants and stored lineup groups. Archived rows are not offered for new selections.
+Game-master lists support archive/restore and `includeArchived`. Default lists exclude archived rows; existing rule hydration always resolves them. Labels remain unique among archived rows too. A conflicting create can guide the caller to restore. Delete returns CONFLICT when a variant, mix or group is referenced; group guards count both variants and stored lineup groups. Archived rows are not offered for new selections.
 
 A ring game or tournament referenced by an entry, by an entry's version, or through a historical price cannot be deleted; archive it instead. An unused master may be deleted: versions belong to its aggregate and cascade with their children. API guards prevent raw FK errors; the NO ACTION references remain the DB backstop. Room deletion must check referenced descendants as well. Account deletion succeeds because references use NO ACTION rather than RESTRICT.
 
@@ -216,7 +216,7 @@ A non-NULL `current_rule_id` and the reverse rule→master FK form a bootstrap c
 
 The final master assignment is the sole construction-time exception to INSERT-only versions, never an operation on an already published version. API validation and A-13 require same-master current ownership after construction. Neither path needs deferred FKs or triggers, and `current_rule_id` never becomes nullable.
 
-B05 creates `(group_id, user_id) → game_group(id, user_id)` NO ACTION on rebuilt variants (C11). Replace **all** label-uniqueness triggers on game_group/game_variant/game_mix with per-table expression UNIQUE indexes `(user_id, lower(trim(label)))` (C12); the separate variant/mix namespace and retirement of cross-table application checks are defined in data-model-v2.md §5.2. Drop the JSON-reference and 0049 synchronization triggers before subsequent writes rely solely on `game_mix_variant`. Write retired NOT NULL `game_mix.games` as `'[]'` until B25 removes it. Do not recreate integrity triggers after the rebuild.
+The rebuilt variant table has `(group_id, user_id) → game_group(id, user_id)` NO ACTION (C11). Per-table expression UNIQUE indexes `(user_id, lower(trim(label)))` enforce labels (C12); variants and mixes have separate namespaces. Composition uses `game_mix_variant`; writes put `'[]'` in the retired `game_mix.games` column until its removal.
 
 ### Backfill rules
 

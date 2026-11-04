@@ -155,44 +155,13 @@ from the current schema.
 
 ## Manual SQLite triggers are outside the Drizzle ledger
 
-Migration `0041_amazing_amphibian` installed ten manual integrity triggers on `game_group`,
-`game_variant`, and `game_mix`. Migration `0049_normalize_game_mix_variants` is the expand phase of
-a rolling-safe normalization: it keeps those ten triggers and adds two `game_mix` →
-`game_mix_variant` synchronization triggers. The physical `games` JSON column remains only as a
-compatibility mirror because production migrations run before the new Worker is deployed; removing
-it in 0049 would break the old Worker during that window and prevent a safe rollback. A later
-contract migration may remove the mirror, its four JSON-reference triggers, and the two sync
-triggers only after all deployed Workers have stopped reading or writing `games`, leaving the six
-normalized-label triggers. Drizzle snapshots do not model triggers, and SQLite drops a table's
-triggers when a table-rebuild migration drops that table. Therefore, any migration that recreates
-one of these three tables must recreate every trigger that is still required in that deployment
-phase.
-
-[`migration-0041.test.ts`](../../packages/db/src/__tests__/migration-0041.test.ts) applies every
-numbered migration from an empty database and asserts the final trigger names and target tables.
-Keep this full-history guard intact and run it after touching these tables; `db:generate` reporting
-no schema changes does not verify manual triggers.
+Drizzle snapshots do not model triggers, and SQLite drops a table's triggers when a rebuild drops that table. Inspect the live schema and recreate any triggers still required by the rebuilt table; `db:generate` alone cannot verify them.
 
 ## Triggers must not be armed while a DB is seeded from the master dump
 
-A trigger keeps a derived table in sync with **application writes**. Restoring a dump is not an
-application write: `preview-deploy.yml` (new preview DB) and `dev-deploy.yml` (every deploy — the
-dev DB is dropped and recreated each time) seed a brand-new D1 by applying every migration and then
-replaying a `--no-schema` export of production, which already contains the derived rows.
-An armed trigger derives them a second time — 0049's compat triggers rebuilt `game_mix_variant`
-from the legacy `games` mirror on each `game_mix` insert, and the dump's own junction rows then hit
-`UNIQUE constraint failed: game_mix_variant.mix_id, game_mix_variant.position`, which D1 surfaces
-as the opaque `{"D1_RESET_DO":true}`. It took `db-migrate` down for every PR that created a preview
-DB after 0049 reached production, and — because the fix initially landed in `preview-deploy.yml`
-only — for every subsequent push to `dev` as well.
+The preview and dev workflows apply migrations and replay a `--no-schema` production dump. A dump already contains derived rows, so a trigger deriving them again can cause collisions. Both workflows read trigger DDL from `sqlite_master`, drop triggers for the restore, and re-arm them afterward. This remains generic even when no game-master triggers exist.
 
-The seed step therefore reads the live trigger DDL out of `sqlite_master`, drops every trigger,
-replays the dump, and recreates them — reading from `sqlite_master` rather than re-running a
-migration so it stays correct as migrations add or drop triggers. **Adding a trigger needs no
-workflow change; do not special-case one there.** What a new trigger does need is the awareness
-that seeded data comes from the dump, not from the trigger.
-[`preview-seed-restore.test.ts`](../../packages/db/src/__tests__/preview-seed-restore.test.ts)
-pins both halves (the collision is real; stashing fixes it without leaving the DB trigger-less).
+[`preview-seed-restore.test.ts`](../../packages/db/src/__tests__/preview-seed-restore.test.ts) checks that the current dump replays without a trigger deriving rows.
 
 **Both seed steps are hand-copied siblings, so `check:rules` also asserts the stash itself**: any
 `.github/workflows/*.yml` containing the restore (`--file=dump.sql`) must carry all three halves —

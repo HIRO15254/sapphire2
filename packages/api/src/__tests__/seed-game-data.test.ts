@@ -7,12 +7,9 @@ import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { gameMix } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { getTableName } from "drizzle-orm";
-import { describe, expect, it, vi } from "vitest";
-import { RESERVED_LABELS } from "../routers/_game-masters";
+import { describe, expect, it } from "vitest";
 import { seedDefaultGameData } from "../services/seed-game-data";
 import { createChainableMockDb } from "./test-utils";
-
-const normalizeLabel = (label: string) => label.trim().toLowerCase();
 
 const USER_ID = "user-1";
 const GROUP_TABLE = getTableName(gameGroup);
@@ -49,9 +46,7 @@ describe("seedDefaultGameData", () => {
 		expect(batch).toHaveBeenCalledTimes(1);
 		const [statements] = batch.mock.calls[0] as [unknown[]];
 		expect(statements).toHaveLength(
-			27 +
-				(inserted[MIX_VARIANT_TABLE]?.length ?? 0) +
-				DEFAULT_GAME_MIXES.length
+			27 + (inserted[MIX_VARIANT_TABLE]?.length ?? 0)
 		);
 	});
 
@@ -243,46 +238,15 @@ describe("seedDefaultGameData", () => {
 		);
 	});
 
-	it("swallows a losing concurrent seed (0041 label trigger abort → no-op, c09)", async () => {
-		const { db } = emptyAccountDb();
-		(db as { batch: unknown }).batch = vi.fn(() =>
-			Promise.reject(new Error("game_group label already exists"))
-		);
-		await expect(seedDefaultGameData(db, USER_ID)).resolves.toBeUndefined();
-	});
-
-	it("rethrows a genuine batch failure (not a label conflict)", async () => {
-		const { db } = emptyAccountDb();
-		(db as { batch: unknown }).batch = vi.fn(() =>
-			Promise.reject(new Error("D1_ERROR: database is locked"))
-		);
-		await expect(seedDefaultGameData(db, USER_ID)).rejects.toThrow(
-			"database is locked"
-		);
-	});
-
-	describe("builtin labels are compatible with the 0041 uniqueness triggers", () => {
-		it("variant + mix labels share one namespace with no duplicates", () => {
-			const labels = [
-				...DEFAULT_GAME_VARIANTS.map((v) => normalizeLabel(v.label)),
-				...DEFAULT_GAME_MIXES.map((m) => normalizeLabel(m.label)),
-			];
-			expect(new Set(labels).size).toBe(labels.length);
-		});
-
-		it("group labels are distinct among groups", () => {
-			const labels = DEFAULT_GAME_GROUPS.map((g) => normalizeLabel(g.label));
-			expect(new Set(labels).size).toBe(labels.length);
-		});
-
-		it("no builtin variant/mix label collides with a reserved mix-mode label", () => {
-			for (const label of [
-				...DEFAULT_GAME_VARIANTS.map((v) => v.label),
-				...DEFAULT_GAME_MIXES.map((m) => m.label),
-			]) {
-				expect(RESERVED_LABELS.has(normalizeLabel(label))).toBe(false);
-			}
-		});
+	it("propagates batch failures including former label-trigger errors", async () => {
+		const { db, batch } = emptyAccountDb();
+		for (const message of [
+			"D1_ERROR: database is locked",
+			"game_group label already exists",
+		]) {
+			batch.mockRejectedValueOnce(new Error(message));
+			await expect(seedDefaultGameData(db, USER_ID)).rejects.toThrow(message);
+		}
 	});
 
 	it("keeps stable built-in ids isolated between users", async () => {
@@ -339,13 +303,7 @@ describe("seedDefaultGameData normalized mix memberships", () => {
 		const variantIdByKey = new Map(
 			variantRows.map((row) => [row.builtinKey as string, row.id as string])
 		);
-		const mirrorWrites = updated[MIX_TABLE] as Record<string, unknown>[];
-		expect(mirrorWrites).toHaveLength(DEFAULT_GAME_MIXES.length);
-		expect(mirrorWrites.map((row) => row.games)).toEqual(
-			DEFAULT_GAME_MIXES.map((mix) =>
-				mix.variantKeys.map((key) => variantIdByKey.get(key))
-			)
-		);
+		expect(updated[MIX_TABLE]).toBeUndefined();
 		for (const definition of DEFAULT_GAME_MIXES) {
 			const mix = mixRows.find((row) => row.builtinKey === definition.key) as {
 				id: string;
@@ -367,8 +325,6 @@ describe("seedDefaultGameData normalized mix memberships", () => {
 
 		expect(batch).toHaveBeenCalledTimes(1);
 		const [statements] = batch.mock.calls[0] as [unknown[]];
-		expect(statements).toHaveLength(
-			27 + membershipWrites.length + DEFAULT_GAME_MIXES.length
-		);
+		expect(statements).toHaveLength(27 + membershipWrites.length);
 	});
 });

@@ -2,14 +2,20 @@ import { assetListInputSchema } from "@sapphire2/api/routers/asset";
 import { assetRateListInputSchema } from "@sapphire2/api/routers/asset-rate";
 import {
 	gameGroupCreateInputSchema,
+	gameGroupIdInputSchema,
+	gameGroupListInputSchema,
 	gameGroupUpdateInputSchema,
 } from "@sapphire2/api/routers/game-group";
 import {
 	gameMixCreateInputSchema,
+	gameMixIdInputSchema,
+	gameMixListInputSchema,
 	gameMixUpdateInputSchema,
 } from "@sapphire2/api/routers/game-mix";
 import {
 	gameVariantCreateInputSchema,
+	gameVariantIdInputSchema,
+	gameVariantListInputSchema,
 	gameVariantUpdateInputSchema,
 } from "@sapphire2/api/routers/game-variant";
 import {
@@ -288,13 +294,14 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "game_group_list",
 		procedurePath: "gameGroup.list",
 		description:
-			"List the user's game groups (the families game variants belong to, e.g. Hold'em / Omaha), including the labels their three blind fields use.",
+			"List the user's game groups (the families game variants belong to, e.g. Hold'em / Omaha), including the labels their three blind fields use. Archived groups are omitted unless includeArchived is true.",
+		inputSchema: gameGroupListInputSchema,
 	},
 	{
 		name: "game_group_create",
 		procedurePath: "gameGroup.create",
 		description:
-			"Create a game group. label must be unique across the user's groups. The blind label fields name that family's blind columns (e.g. SB / BB / straddle).",
+			"Create a game group. label must be unique across the user's groups, ignoring case and surrounding spaces, archived groups included — a label held by an archived group is rejected with a hint to restore that group with game_group_restore instead. The blind label fields name that family's blind columns (e.g. SB / BB / straddle).",
 		inputSchema: gameGroupCreateInputSchema,
 		destructiveHint: false,
 		idempotentHint: false,
@@ -309,16 +316,35 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		idempotentHint: true,
 	},
 	{
+		name: "game_group_archive",
+		procedurePath: "gameGroup.archive",
+		description:
+			"Archive a game group so it stops appearing in game_group_list and cannot be picked for new variants. Reversible with game_group_restore; existing variants and records keep their link, name and blind labels. Rejected while any active variant still belongs to the group — archive those variants first.",
+		inputSchema: gameGroupIdInputSchema,
+		destructiveHint: false,
+		idempotentHint: true,
+	},
+	{
+		name: "game_group_restore",
+		procedurePath: "gameGroup.restore",
+		description:
+			"Restore an archived game group so it appears in game_group_list and can be picked again.",
+		inputSchema: gameGroupIdInputSchema,
+		destructiveHint: false,
+		idempotentHint: true,
+	},
+	{
 		name: "game_variant_list",
 		procedurePath: "gameVariant.list",
 		description:
-			"List the user's game variants (NLH, PLO, …) with their group and short labels. Use a variant's label as the variant field of a rule master.",
+			"List the user's game variants (NLH, PLO, …) with their group and short labels. Use a variant's label as the variant field of a rule master. Archived variants are omitted unless includeArchived is true.",
+		inputSchema: gameVariantListInputSchema,
 	},
 	{
 		name: "game_variant_create",
 		procedurePath: "gameVariant.create",
 		description:
-			"Create a game variant inside a group. label must be unique across the user's variants and mixes; shortLabel is the compact form shown in mixes and blind levels.",
+			"Create a game variant inside an active group. label must be unique across the user's variants, ignoring case and surrounding spaces, archived variants included — a label held by an archived variant is rejected with a hint to restore it with game_variant_restore instead. A mix may share a variant's label. shortLabel is the compact form shown in mixes and blind levels.",
 		inputSchema: gameVariantCreateInputSchema,
 		destructiveHint: false,
 		idempotentHint: false,
@@ -333,16 +359,35 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		idempotentHint: true,
 	},
 	{
+		name: "game_variant_archive",
+		procedurePath: "gameVariant.archive",
+		description:
+			"Archive a game variant so it stops appearing in game_variant_list and cannot be added to a mix. Reversible with game_variant_restore; mixes, lineups and hands already naming it keep their link and label. Rejected while an active game mix contains it — remove it from that mix or archive the mix first.",
+		inputSchema: gameVariantIdInputSchema,
+		destructiveHint: false,
+		idempotentHint: true,
+	},
+	{
+		name: "game_variant_restore",
+		procedurePath: "gameVariant.restore",
+		description:
+			"Restore an archived game variant so it appears in game_variant_list again. Rejected while its group is archived — restore the group first with game_group_restore.",
+		inputSchema: gameVariantIdInputSchema,
+		destructiveHint: false,
+		idempotentHint: true,
+	},
+	{
 		name: "game_mix_list",
 		procedurePath: "gameMix.list",
 		description:
-			"List the user's game mixes (named rotations such as HORSE) and the variants each one contains.",
+			"List the user's game mixes (named rotations such as HORSE) and the variants each one contains. Archived mixes are omitted unless includeArchived is true.",
+		inputSchema: gameMixListInputSchema,
 	},
 	{
 		name: "game_mix_create",
 		procedurePath: "gameMix.create",
 		description:
-			"Create a game mix from existing variants. label must be unique across the user's variants and mixes; games lists the variant ids in rotation order and may not repeat one.",
+			"Create a game mix from existing active variants. label must be unique across the user's mixes, ignoring case and surrounding spaces, archived mixes included — a label held by an archived mix is rejected with a hint to restore it with game_mix_restore instead. A variant may share the mix's label. games lists the variant ids in rotation order and may not repeat one.",
 		inputSchema: gameMixCreateInputSchema,
 		destructiveHint: false,
 		idempotentHint: false,
@@ -354,6 +399,24 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 			"Update a game mix by id. Only the supplied fields change, with one exception: supplying games REPLACES the whole rotation — read game_mix_list first and send back the full list. Sending label alone leaves games untouched. Replacing it also changes the mixGames shape ring-game rules using this mix must send when they next send one. Renaming it does the opposite: their variant keeps the old label, which no longer resolves, so from then on their mixGames is checked against their own stored grouping and variant labels rather than against this mix.",
 		inputSchema: gameMixUpdateInputSchema,
 		destructiveHint: true,
+		idempotentHint: true,
+	},
+	{
+		name: "game_mix_archive",
+		procedurePath: "gameMix.archive",
+		description:
+			"Archive a game mix so it stops appearing in game_mix_list. Reversible with game_mix_restore; lineups already using it keep their link.",
+		inputSchema: gameMixIdInputSchema,
+		destructiveHint: false,
+		idempotentHint: true,
+	},
+	{
+		name: "game_mix_restore",
+		procedurePath: "gameMix.restore",
+		description:
+			"Restore an archived game mix so it appears in game_mix_list again. Rejected while any of its variants is archived — restore them first with game_variant_restore.",
+		inputSchema: gameMixIdInputSchema,
+		destructiveHint: false,
 		idempotentHint: true,
 	},
 ];
@@ -447,18 +510,20 @@ export const DELIBERATELY_EXCLUDED: {
 	},
 	{
 		reason:
-			"Irreversible master deletion: these masters have reversible archive/restore counterparts, which are exposed instead. Room deletion is refused while sessions or games reference it",
-		paths: ["room.delete", "ringGame.delete", "tournament.delete"],
-	},
-	{
-		reason:
-			"Irreversible deletion with NO archive counterpart on the router: creating these is exposed but removing them is not, so a mistaken create leaves a row only the web UI can clear. Exposing delete instead would put an unrecoverable operation on the tool surface, which is the worse trade",
+			"Irreversible master deletion: these masters have reversible archive/restore counterparts, which are exposed instead. Deletion is refused while records reference the master",
 		paths: [
+			"room.delete",
+			"ringGame.delete",
+			"tournament.delete",
 			"gameGroup.delete",
 			"gameVariant.delete",
 			"gameMix.delete",
-			"sessionTag.delete",
 		],
+	},
+	{
+		reason:
+			"Irreversible deletion with NO archive counterpart on the router: creating a session tag is exposed but removing it is not, so a mistaken create leaves a row only the web UI can clear. Exposing delete instead would put an unrecoverable operation on the tool surface, which is the worse trade",
+		paths: ["sessionTag.delete"],
 	},
 	{
 		reason:

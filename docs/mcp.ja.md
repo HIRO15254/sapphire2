@@ -68,6 +68,8 @@ B06 の切り替えで旧完了セッション・ライブセッション API �
 | `room_get_by_id` | `room.getById` | 参照 |
 | `room_create` | `room.create` | 記録 |
 | `room_update` | `room.update` | 記録 |
+| `room_archive` | `room.archive` | 記録 |
+| `room_restore` | `room.restore` | 記録 |
 | `ring_game_create` | `ringGame.create` | 記録 |
 | `ring_game_update` | `ringGame.update` | 記録 |
 | `ring_game_archive` | `ringGame.archive` | 記録 |
@@ -80,14 +82,20 @@ B06 の切り替えで旧完了セッション・ライブセッション API �
 | `game_group_list` | `gameGroup.list` | 参照 |
 | `game_group_create` | `gameGroup.create` | 記録 |
 | `game_group_update` | `gameGroup.update` | 記録 |
+| `game_group_archive` | `gameGroup.archive` | 記録 |
+| `game_group_restore` | `gameGroup.restore` | 記録 |
 | `game_variant_list` | `gameVariant.list` | 参照 |
 | `game_variant_create` | `gameVariant.create` | 記録 |
 | `game_variant_update` | `gameVariant.update` | 記録 |
+| `game_variant_archive` | `gameVariant.archive` | 記録 |
+| `game_variant_restore` | `gameVariant.restore` | 記録 |
 | `game_mix_list` | `gameMix.list` | 参照 |
 | `game_mix_create` | `gameMix.create` | 記録 |
 | `game_mix_update` | `gameMix.update` | 記録 |
+| `game_mix_archive` | `gameMix.archive` | 記録 |
+| `game_mix_restore` | `gameMix.restore` | 記録 |
 
-マスタ系のツールは既存セッションが参照している行を書き換えるため、`*_update` 系は destructive として注釈されています。**削除はどれも公開していません。** リングゲームとトーナメントにはアーカイブ/復元があるのでそちらを公開していますが、ルームとゲームマスタには存在しないので、誤って `room_create` / `game_variant_create` を叩くと Web UI からしか消せない行が残ります — 作成前に対応する list ツールで確認してください。
+マスタの更新は destructive として注釈されています。**削除は公開していません。** 代わりにルーム、リングゲーム、トーナメント、ゲームマスタのアーカイブ/復元ツールを利用できます。ゲームマスタの一覧は既定でアーカイブ済みを除外し、`includeArchived` で含めます。
 
 `tournament_update_with_levels`・`game_mix_update` は子リストを**丸ごと置き換える**ので、先に現在の内容を読んでから全件を送ってください。`mixGames` はリングゲーム系ツールが受け付けます — 名前付き mix は完全一致で再現する必要があり、mix が設定されている間は `blind1`〜`blind3` / `ante` / `anteType` が常に `null` になるため、これらのフラットなフィールドに送った値は破棄されます。
 

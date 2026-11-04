@@ -77,16 +77,9 @@ Two details of the design are load-bearing:
 
 ## TOCTOU races and unique-constraint backstops (c14)
 
-Every uniqueness rule here is enforced twice, by design: an app-level pre-check (case-insensitive label availability via `assertLabelNamespaceAvailable`; the filter-preset name check) gives the user a friendly CONFLICT, and a DB-level unique constraint or trigger is the backstop for the window where that check races a concurrent identical write (c14, TOCTOU). The backstop's D1 error is caught and converted to **the same CONFLICT the pre-check throws**, so callers cannot tell which layer fired. Sites: `create`/`update` (rename) on game-group, game-variant, and game-mix; `create`/`update` on [`filter-preset.ts`](../../packages/api/src/routers/filter-preset.ts); and the concurrent-seed no-op in seed-game-data (c09 — see [`game-masters.md`](game-masters.md)).
+Game-master label uniqueness is enforced by per-table expression UNIQUE indexes on `(user_id, lower(trim(label)))`, including archived rows. `runLabelWrite` maps index conflicts to `CONFLICT` and guides users to restore an archived holder when applicable. The database constraint closes the concurrent-write race without an application namespace pre-check.
 
-### The two shapes of a label collision
-
-A label collision on `game_group` / `game_variant` / `game_mix` surfaces in **two different shapes**, and anything reacting to it must recognize both ([`packages/api/src/lib/db-errors.ts`](../../packages/api/src/lib/db-errors.ts)):
-
-1. The `(user_id, label)` UNIQUE indexes → a generic `Error` whose message contains `UNIQUE constraint failed` (e.g. `D1_ERROR: UNIQUE constraint failed: game_group.user_id, game_group.label: SQLITE_CONSTRAINT`).
-2. The [migration-0041](../../packages/db/src/migrations/0041_amazing_amphibian.sql) BEFORE INSERT/UPDATE triggers, which `RAISE(ABORT, 'game master label already exists')` / `'game_group label already exists'`. **SQLite evaluates a BEFORE trigger ahead of the unique index** (and ahead of `ON CONFLICT` resolution), so in practice the trigger's custom message — *not* `UNIQUE constraint failed` — is the one that surfaces for any real duplicate.
-
-Matching only shape (1) let the trigger-aborted race fall through to a 500 instead of the intended CONFLICT / seed no-op; `isLabelConflictError` matches both. The mix-**reference** trigger (a variant still referenced by a mix) is *not* a label collision and must not be swallowed as one.
+Filter presets use a name pre-check for a friendly error and a unique constraint as the concurrent-write backstop.
 
 ### The `filter_preset` name conflict names all three columns
 

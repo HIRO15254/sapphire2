@@ -100,20 +100,6 @@ describe("seedDefaultGameData with an unresolvable mix variantKey", () => {
 
 		await expect(seedDefaultGameData(db, USER_ID)).resolves.toBeUndefined();
 		expect(batch).toHaveBeenCalledTimes(1);
-		expect(batch.mock.calls[0]?.[0]).toHaveLength(10);
-	});
-
-	it("still mirrors an empty composition into the legacy games column", async () => {
-		const { db, updated } = emptyAccountDb();
-
-		await seedDefaultGameData(db, USER_ID);
-
-		expect(
-			(updated[MIX_TABLE] as Record<string, unknown>[]).map((row) => row.games)
-		).toEqual([
-			[`${USER_ID}:builtin-variant:lhe`],
-			[],
-			[`${USER_ID}:builtin-variant:lhe`],
-		]);
+		expect(batch.mock.calls[0]?.[0]).toHaveLength(7);
 	});
 });

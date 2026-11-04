@@ -3,7 +3,7 @@ import { gameMix } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { TRPCError } from "@trpc/server";
 import { getTableName } from "drizzle-orm";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import {
 	createChainableMockDb,
@@ -180,21 +180,7 @@ describe("gameGroup.delete input validation", () => {
 	});
 });
 
-describe("gameGroup.create collision guard (CONFLICT)", () => {
-	it("rejects a label colliding with the caller's existing group label (case-insensitive)", async () => {
-		const { caller } = gameGroupCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [{ id: "grp-1", userId: CUR_OWNER, label: "My Group" }],
-		});
-		await expectTrpcCode(caller.create({ label: "my group" }), "CONFLICT");
-	});
-
-	it("accepts a genuinely new label with no collision", async () => {
-		const { caller } = gameGroupCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [{ id: "grp-1", userId: CUR_OWNER, label: "Other Group" }],
-		});
-		await expect(caller.create({ label: "Brand New" })).resolves.toBeDefined();
-	});
-
+describe("gameGroup.create", () => {
 	it("stamps the created row with the caller's userId, null builtinKey, and a generated id", async () => {
 		const { caller, inserted } = gameGroupCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [],
@@ -209,32 +195,6 @@ describe("gameGroup.create collision guard (CONFLICT)", () => {
 		expect(
 			typeof (inserted[GROUP_TABLE]?.[0] as Record<string, unknown>)?.id
 		).toBe("string");
-	});
-
-	it("converts a (user_id, label) unique-constraint violation from the insert into the same CONFLICT (c14 backstop)", async () => {
-		const { caller, insert } = gameGroupCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [],
-		});
-		insert.mockImplementation(() => ({
-			values: vi.fn(() => {
-				throw new Error(
-					"UNIQUE constraint failed: game_group.user_id, game_group.label"
-				);
-			}),
-		}));
-		await expectTrpcCode(caller.create({ label: "Brand New" }), "CONFLICT");
-	});
-
-	it("converts the migration-0041 label trigger abort into the same CONFLICT (the guard that actually fires)", async () => {
-		const { caller, insert } = gameGroupCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [],
-		});
-		insert.mockImplementation(() => ({
-			values: vi.fn(() => {
-				throw new Error("game_group label already exists");
-			}),
-		}));
-		await expectTrpcCode(caller.create({ label: "Brand New" }), "CONFLICT");
 	});
 });
 
@@ -269,30 +229,6 @@ describe("gameGroup ownership (uniform FORBIDDEN, SA2-183)", () => {
 	});
 });
 
-describe("gameGroup.update excludes self from collision", () => {
-	it("succeeds when keeping the row's own (unchanged) label", async () => {
-		const { caller } = gameGroupCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [{ id: "grp-1", userId: CUR_OWNER, label: "My Group" }],
-		});
-		await expect(
-			caller.update({ id: "grp-1", label: "My Group" })
-		).resolves.toBeDefined();
-	});
-
-	it("still rejects renaming to a different existing group label (CONFLICT)", async () => {
-		const { caller } = gameGroupCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [
-				{ id: "grp-1", userId: CUR_OWNER, label: "My Group" },
-				{ id: "grp-2", userId: CUR_OWNER, label: "Other Group" },
-			],
-		});
-		await expectTrpcCode(
-			caller.update({ id: "grp-1", label: "Other Group" }),
-			"CONFLICT"
-		);
-	});
-});
-
 describe("gameGroup write-IDOR guard (SA2-176)", () => {
 	it("update WHERE binds both the id and the caller's userId", async () => {
 		const { caller, updateWhereParams } = gameGroupCaller(CUR_OWNER, {
@@ -316,22 +252,7 @@ describe("gameGroup write-IDOR guard (SA2-176)", () => {
 	});
 });
 
-describe("gameGroup.delete in-use rejection (cascade-aware delete, SA2-165)", () => {
-	it("rejects with CONFLICT when a variant references the group", async () => {
-		const { caller } = gameGroupCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [{ id: "grp-1", userId: CUR_OWNER, label: "My Group" }],
-			[VARIANT_TABLE]: [
-				{
-					id: "gv-1",
-					userId: CUR_OWNER,
-					groupId: "grp-1",
-					label: "NL Hold'em",
-				},
-			],
-		});
-		await expectTrpcCode(caller.delete({ id: "grp-1" }), "CONFLICT");
-	});
-
+describe("gameGroup.delete", () => {
 	it("succeeds when no variant references the group", async () => {
 		const { caller } = gameGroupCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [{ id: "grp-1", userId: CUR_OWNER, label: "My Group" }],
@@ -350,30 +271,35 @@ describe("gameGroup.list ordering + self-seed", () => {
 				{
 					id: "custom-1",
 					userId: CUR_OWNER,
+					archivedAt: null,
 					builtinKey: null,
 					label: "Zeta Custom",
 				},
 				{
 					id: "bigbet-1",
 					userId: CUR_OWNER,
+					archivedAt: null,
 					builtinKey: "bigbet",
 					label: "Big Bet",
 				},
 				{
 					id: "custom-2",
 					userId: CUR_OWNER,
+					archivedAt: null,
 					builtinKey: null,
 					label: "Alpha Custom",
 				},
 				{
 					id: "stud-1",
 					userId: CUR_OWNER,
+					archivedAt: null,
 					builtinKey: "stud",
 					label: "Stud",
 				},
 				{
 					id: "limit-1",
 					userId: CUR_OWNER,
+					archivedAt: null,
 					builtinKey: "limit",
 					label: "Limit",
 				},

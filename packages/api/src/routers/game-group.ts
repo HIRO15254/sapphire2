@@ -1,18 +1,19 @@
 import { DEFAULT_GAME_GROUPS } from "@sapphire2/db/constants/game-variants";
 import { gameGroup } from "@sapphire2/db/schema/game-group";
+import { gameLineupGroup } from "@sapphire2/db/schema/game-lineup";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { TRPCError } from "@trpc/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, notExists } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
-import { isLabelConflictError } from "../lib/db-errors";
 import { validateEntityOwnership } from "../lib/ownership";
 import { seedDefaultGameData } from "../services/seed-game-data";
-import { compareBuiltinFirst } from "./_game-masters";
-
-type Db = Parameters<
-	Parameters<typeof protectedProcedure.query>[0]
->[0]["ctx"]["db"];
+import {
+	compareBuiltinFirst,
+	type Db,
+	gameMasterListInputSchema,
+	runLabelWrite,
+} from "./_game-masters";
 
 const labelSchema = z.string().trim().min(1).max(30);
 const blindLabelSchema = z.string().trim().min(1).max(20).nullish();
@@ -23,29 +24,15 @@ const BUILTIN_ORDER: Map<string, number> = new Map(
 
 const compareGroups = compareBuiltinFirst(BUILTIN_ORDER);
 
-async function assertGroupLabelAvailable(
-	db: Db,
-	userId: string,
-	label: string,
-	excludeId?: string
-): Promise<void> {
-	const normalized = label.trim().toLowerCase();
-	const existing = await db
+async function selectGroup(db: Db, userId: string, id: string) {
+	const [found] = await db
 		.select()
 		.from(gameGroup)
-		.where(eq(gameGroup.userId, userId));
-
-	const collides = existing.some(
-		(row) =>
-			row.id !== excludeId && row.label.trim().toLowerCase() === normalized
-	);
-	if (collides) {
-		throw new TRPCError({
-			code: "CONFLICT",
-			message: "You already have a game group with this label",
-		});
-	}
+		.where(and(eq(gameGroup.id, id), eq(gameGroup.userId, userId)));
+	return found;
 }
+
+export const gameGroupListInputSchema = gameMasterListInputSchema();
 
 export const gameGroupCreateInputSchema = z.object({
 	label: labelSchema,
@@ -65,32 +52,33 @@ export const gameGroupUpdateInputSchema = z.object({
 export const gameGroupIdInputSchema = z.object({ id: z.string() });
 
 export const gameGroupRouter = router({
-	list: protectedProcedure.query(async ({ ctx }) => {
-		const userId = ctx.session.user.id;
-		const rows = await ctx.db
-			.select()
-			.from(gameGroup)
-			.where(eq(gameGroup.userId, userId));
-		if (rows.length > 0) {
-			return [...rows].sort(compareGroups);
-		}
-		await seedDefaultGameData(ctx.db, userId);
-		const reseeded = await ctx.db
-			.select()
-			.from(gameGroup)
-			.where(eq(gameGroup.userId, userId));
-		return [...reseeded].sort(compareGroups);
-	}),
+	list: protectedProcedure
+		.input(gameGroupListInputSchema)
+		.query(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			let rows = await ctx.db
+				.select()
+				.from(gameGroup)
+				.where(eq(gameGroup.userId, userId));
+			if (rows.length === 0) {
+				await seedDefaultGameData(ctx.db, userId);
+				rows = await ctx.db
+					.select()
+					.from(gameGroup)
+					.where(eq(gameGroup.userId, userId));
+			}
+			return rows
+				.filter((row) => input?.includeArchived || row.archivedAt === null)
+				.sort(compareGroups);
+		}),
 
 	create: protectedProcedure
 		.input(gameGroupCreateInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await assertGroupLabelAvailable(ctx.db, userId, input.label);
-
 			const id = crypto.randomUUID();
-			try {
-				await ctx.db.insert(gameGroup).values({
+			await runLabelWrite(ctx.db, "game group", userId, input.label, () =>
+				ctx.db.insert(gameGroup).values({
 					id,
 					userId,
 					builtinKey: null,
@@ -99,22 +87,9 @@ export const gameGroupRouter = router({
 					blind2Label: input.blind2Label ?? null,
 					blind3Label: input.blind3Label ?? null,
 					updatedAt: new Date(),
-				});
-			} catch (error) {
-				if (isLabelConflictError(error)) {
-					throw new TRPCError({
-						code: "CONFLICT",
-						message: "You already have a game group with this label",
-					});
-				}
-				throw error;
-			}
-
-			const [created] = await ctx.db
-				.select()
-				.from(gameGroup)
-				.where(eq(gameGroup.id, id));
-			return created;
+				})
+			);
+			return await selectGroup(ctx.db, userId, id);
 		}),
 
 	update: protectedProcedure
@@ -127,10 +102,6 @@ export const gameGroupRouter = router({
 				input.id,
 				userId
 			);
-
-			if (input.label !== undefined) {
-				await assertGroupLabelAvailable(ctx.db, userId, input.label, input.id);
-			}
 
 			const updateData: Partial<typeof found> = { updatedAt: new Date() };
 			if (input.label !== undefined) {
@@ -146,26 +117,56 @@ export const gameGroupRouter = router({
 				updateData.blind3Label = input.blind3Label;
 			}
 
-			try {
-				await ctx.db
+			await runLabelWrite(ctx.db, "game group", userId, input.label, () =>
+				ctx.db
 					.update(gameGroup)
 					.set(updateData)
-					.where(and(eq(gameGroup.id, input.id), eq(gameGroup.userId, userId)));
-			} catch (error) {
-				if (isLabelConflictError(error)) {
-					throw new TRPCError({
-						code: "CONFLICT",
-						message: "You already have a game group with this label",
-					});
-				}
-				throw error;
-			}
+					.where(and(eq(gameGroup.id, input.id), eq(gameGroup.userId, userId)))
+			);
+			return await selectGroup(ctx.db, userId, input.id);
+		}),
 
-			const [updated] = await ctx.db
-				.select()
-				.from(gameGroup)
-				.where(eq(gameGroup.id, input.id));
-			return updated;
+	archive: protectedProcedure
+		.input(gameGroupIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await validateEntityOwnership(ctx.db, "gameGroup", input.id, userId);
+			const [activeVariant] = await ctx.db
+				.select({ id: gameVariant.id })
+				.from(gameVariant)
+				.where(
+					and(
+						eq(gameVariant.groupId, input.id),
+						eq(gameVariant.userId, userId),
+						isNull(gameVariant.archivedAt)
+					)
+				)
+				.limit(1);
+			if (activeVariant) {
+				throw new TRPCError({
+					code: "CONFLICT",
+					message:
+						"This game group still has active game variants; archive them first",
+				});
+			}
+			const now = new Date();
+			await ctx.db
+				.update(gameGroup)
+				.set({ archivedAt: now, updatedAt: now })
+				.where(and(eq(gameGroup.id, input.id), eq(gameGroup.userId, userId)));
+			return await selectGroup(ctx.db, userId, input.id);
+		}),
+
+	restore: protectedProcedure
+		.input(gameGroupIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await validateEntityOwnership(ctx.db, "gameGroup", input.id, userId);
+			await ctx.db
+				.update(gameGroup)
+				.set({ archivedAt: null, updatedAt: new Date() })
+				.where(and(eq(gameGroup.id, input.id), eq(gameGroup.userId, userId)));
+			return await selectGroup(ctx.db, userId, input.id);
 		}),
 
 	delete: protectedProcedure
@@ -173,24 +174,43 @@ export const gameGroupRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await validateEntityOwnership(ctx.db, "gameGroup", input.id, userId);
-
-			const [inUse] = await ctx.db
-				.select({ id: gameVariant.id })
-				.from(gameVariant)
+			const deleted = await ctx.db
+				.delete(gameGroup)
 				.where(
-					and(eq(gameVariant.groupId, input.id), eq(gameVariant.userId, userId))
+					and(
+						eq(gameGroup.id, input.id),
+						eq(gameGroup.userId, userId),
+						notExists(
+							ctx.db
+								.select({ id: gameVariant.id })
+								.from(gameVariant)
+								.where(
+									and(
+										eq(gameVariant.groupId, gameGroup.id),
+										eq(gameVariant.userId, gameGroup.userId)
+									)
+								)
+						),
+						notExists(
+							ctx.db
+								.select({ id: gameLineupGroup.id })
+								.from(gameLineupGroup)
+								.where(
+									and(
+										eq(gameLineupGroup.gameGroupId, gameGroup.id),
+										eq(gameLineupGroup.userId, gameGroup.userId)
+									)
+								)
+						)
+					)
 				)
-				.limit(1);
-			if (inUse) {
+				.returning({ id: gameGroup.id });
+			if (deleted.length === 0) {
 				throw new TRPCError({
 					code: "CONFLICT",
-					message: "This group is used by one or more game variants",
+					message: "This game group is in use; archive it instead",
 				});
 			}
-
-			await ctx.db
-				.delete(gameGroup)
-				.where(and(eq(gameGroup.id, input.id), eq(gameGroup.userId, userId)));
-			return { success: true };
+			return { success: true as const };
 		}),
 });

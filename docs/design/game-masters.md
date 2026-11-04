@@ -2,7 +2,7 @@
 
 > The v2 data model ([data-model-v2.md](data-model-v2.md)) replaces parts of this design in stages. For the game masters, [`game-lineups.md`](game-lineups.md) is the target model (SA2-242) that moves rule masters and sessions from self-freezing labels to id-referenced lineups. This file describes the running code until those phases land.
 
-This document is the reference for the game master-data model: the per-user `game_group` / `game_variant` / `game_mix` tables, the self-freezing label semantics that every other table builds on, the migration-0049 expand/contract state of the `game_mix.games` compatibility mirror, signup seeding, and the web-layer invariants that guard the frozen snapshots. Chunking, batch atomicity and the TOCTOU/label-conflict error-mapping mechanics live in [`data-integrity.md`](data-integrity.md); statistics semantics in [`statistics.md`](statistics.md); test/CI mechanics in [`testing-and-tooling.md`](testing-and-tooling.md).
+This document describes the per-user `game_group` / `game_variant` / `game_mix` tables, self-freezing label semantics, signup seeding, and the web-layer invariants guarding frozen snapshots. Chunking, batch atomicity and label-conflict error mapping live in [`data-integrity.md`](data-integrity.md); statistics semantics in [`statistics.md`](statistics.md); test/CI mechanics in [`testing-and-tooling.md`](testing-and-tooling.md).
 
 ## The three master tables
 
@@ -16,7 +16,7 @@ All game master data is **per-user DB rows**. Both the built-in entries and any 
 
 `builtinKey` is null for user-created rows and **immutable**: it is intentionally absent from every update input schema, so a seeded row's `builtinKey` survives label/blind-label edits unchanged.
 
-A mix is a reusable mixed-game definition — label + ordered game composition — not a session/game record itself. Its composition is read exclusively from the `game_mix_variant` junction table, where ownership and references use native foreign keys (but see [Migration 0049](#migration-0049-the-games-compatibility-mirror-expandcontract) for the transitional state).
+A mix is a reusable mixed-game definition — label + ordered game composition — not a session/game record itself. Composition is read and written exclusively through `game_mix_variant`, ordered by `position`, with ownership and references enforced by foreign keys. The retired `game_mix.games` column is written as `'[]'` and never read; SA2-418 removes it.
 
 ### Canonical ordering
 
@@ -35,7 +35,7 @@ Consequences, stated completely:
 
 - `gameGroup.update` re-labels live: a variant's blind-slot labels are resolved at render time through its owning group (`use-variant-labels.ts` / `labelsFor`), so renaming a group's slot labels changes how past sessions render.
 - `gameVariant.update` / `gameMix.update` rewrite **no stored text**: past rows keep the old label. "Nothing stored changed" is still not "nothing changed" — a frozen copy is resolved back to its master **by the copied text**, so a rename orphans the old rows. `labelsFor` in [`apps/web/src/shared/hooks/use-game-groups.ts`](../../apps/web/src/shared/hooks/use-game-groups.ts) then serves the fallback blind-slot labels (SB / BB / Straddle), which silently re-labels past Limit / Stud sessions and gives a Limit session a third blind slot its group does not have. A rename also splits one variant into two [`stats_breakdown`](statistics.md) buckets.
-- **Deletion is free**: `variant` columns store the display label verbatim rather than a foreign key into the master tables, so deleting a variant or mix definition row never corrupts past sessions/games — no in-use guard is needed for history's sake (groups are the exception; see [Deletion guards](#deletion-guards)).
+- **Deletion is guarded**: frozen labels do not themselves reference masters, but normalized composition, lineups and hands do. Referenced masters cannot be hard-deleted; archive them instead (see [Deletion guards](#archive-and-deletion-guards)).
 - Historical session/rule columns intentionally keep frozen labels and value-object JSON (`ring_game.mix_games`, `session_cash_detail.mix_games`, `blind_level.games`, `session_blind_level.games`), so editing or deleting a master never rewrites past play. The session-side snapshot-freezing rule for detail rows is in [`sessions-and-live-editing.md`](sessions-and-live-editing.md).
 - Frozen values are full display labels ("8-Game", "NL Hold'em") — the UI renders them as-is; uppercasing would mangle them.
 
@@ -47,9 +47,8 @@ Consequences, stated completely:
 
 ## Label namespace
 
-- **Reserved labels (c42)**: because the mix pseudo-variant is a mode rather than a per-user row, its key and display label (`"mix"`, `"Mixed Game"`) are reserved — a real game-variant/game-mix row can never collide with them. `RESERVED_LABELS` in [`packages/api/src/routers/_game-masters.ts`](../../packages/api/src/routers/_game-masters.ts) is the single copy shared by the game-variant/game-mix routers; it is enforced in the app only (no trigger), and group labels are checked separately by `assertGroupLabelAvailable` in `game-group.ts`, without reserved labels.
-- **The namespace spans variants AND mixes (c42)**: a mix's label is chosen from the same client-side select as a plain game variant — both freeze into the same `variant` string once picked — so `assertLabelNamespaceAvailable` checks the caller's game variants, the caller's mixes, *and* the reserved mix-mode strings. It is shared by `game-variant.ts` (`self: "variant"`) and `game-mix.ts` (`self: "mix"`); excluding the row's own id is what lets an unchanged-label update through.
-- **DB backstop (c14)**: each table carries an exact-case unique index on `(userId, label)` — a backstop for the app-level case-insensitive check against a TOCTOU race, **not** a replacement for it. The guard that actually fires under SQLite is the migration-0041 BEFORE trigger; that mechanic, and the two shapes of label collision, are documented in [`data-integrity.md`](data-integrity.md).
+- **Per-table namespace**: expression UNIQUE indexes enforce `(user_id, lower(trim(label)))` separately for groups, variants and mixes, including archived rows. A variant and a mix may share a label; `"mix"` and `"Mixed Game"` are not reserved by the API.
+- **Conflict reporting**: `runLabelWrite` maps index conflicts to `CONFLICT`, guiding the caller to restore an archived holder where applicable. See [`data-integrity.md`](data-integrity.md).
 - **Builtin uniqueness (c08)**: each table also has a unique index on `(userId, builtinKey)`. SQLite treats NULLs as distinct, so this never constrains user-created rows against each other — it only guards the seeded builtin rows per user against a concurrent double-seed duplicating them.
 
 ## Shared write==read schemas and the group-span limit
@@ -64,45 +63,28 @@ A group whose members all sit inside one **stored** group is exempt: the ring ga
 
 `validateGamesOwnership` guards the `games` array (ordered `game_variant` ids) on mix create/update: one `WHERE id IN (…) AND userId = caller` query; if the owned count differs from the requested count → uniform FORBIDDEN (SA2-177, SA2-183). Callers must reject duplicate ids first (`assertNoDuplicateGames`) so the count comparison is meaningful; `groupId` is returned so the caller can also bound the group span (c58).
 
-## Deletion guards
+## Archive and deletion guards
 
-- **Groups (SA2-165)**: a group in use by one of the caller's own game variants cannot be deleted out from under it — an explicit count check runs before the delete, backed by `gameVariant.groupId`'s `onDelete: "restrict"` FK as the DB backstop. The FK is the backstop, the router's count check is the primary guard (and produces the friendly CONFLICT).
-- **Variants**: a variant referenced by one of the caller's mixes gets the same friendly CONFLICT instead of relying on the junction's `NO ACTION` foreign key to surface a database error; the reverse lookup is scoped to the caller as a defense-in-depth guard.
-- **Mixes**: deletion is free — self-freezing labels mean no in-use guard is needed (same as `gameVariant.delete` with respect to history; see [Self-freezing labels](#self-freezing-labels-two-reference-styles)).
+Lists exclude archived rows by default; `includeArchived` includes them. Group archive conflicts while it has active variants, and variant archive conflicts while an active mix contains it. Mix archive is unguarded. Restoring a variant with an archived group or a mix with an archived member returns `BAD_REQUEST`. New selections of archived groups or variants require restoring them first; retaining an existing mix composition is allowed.
+
+Hard deletes use a single `DELETE` with `NOT EXISTS` reference guards and return `CONFLICT` directing users to archive referenced rows. Group references include variants and `game_lineup_group`; variant references include mix composition, `game_lineup_variant` and hands; mix references include `game_lineup.game_mix_id`.
 
 ## Seeding (`seedDefaultGameData`)
 
 [`packages/api/src/services/seed-game-data.ts`](../../packages/api/src/services/seed-game-data.ts) seeds the built-in game groups + variants + named mixes for a user. Each seeded mix's ordered `game_mix_variant` rows reference **this user's** freshly seeded variant ids — `DEFAULT_GAME_MIXES.variantKeys` map to `DEFAULT_GAME_VARIANTS` keys purely as seed-time lookups; the keys themselves are never persisted as memberships.
 
-**Idempotency guard (c09)**: if the user already has ANY `gameGroup` row OR ANY `gameVariant` row OR ANY `gameMix` row, the seed is a no-op. That respects an intentional deletion — a user who cleared out their variant list (or just their mixes) stays empty rather than being re-seeded on the next read. Checking all three (not just group/variant) closes a gap where a user who deleted every group/variant but kept a custom mix would have had the builtins re-inserted underneath their remaining mix.
+**Idempotency guard (c09)**: if the user owns any group, variant or mix row, including archived rows, the seed is a no-op. Archiving all masters therefore never causes builtins to be re-seeded.
 
 **Call sites**:
 
 - Once from better-auth's `user.create` hook (`onUserCreated` in [`packages/auth/src/index.ts`](../../packages/auth/src/index.ts)). The hook body wraps it in try/catch: **signup must succeed even if seeding fails** (c13) — every `list` procedure self-seeds on next read, so a seed failure here would otherwise take down account creation entirely for an unrelated, retriable side effect.
-- Defensively from `gameVariant.list` / `gameGroup.list` / `gameMix.list` (c32), so legacy accounts that predate the auth-hook seed still get the builtin list on first read. Each router's self-seed is only reached when **that** table is empty; `seedDefaultGameData` still re-checks all three tables itself (c09), so a caller who deleted only their groups (but kept a variant/mix) is correctly left empty.
+- Defensively from `gameVariant.list` / `gameGroup.list` / `gameMix.list` (c32), for legacy accounts. The seed checks all three tables, including archived rows, before inserting.
 
-**Race design (stable per-user ids)**: seed ids are deterministic per user, so two racing seed batches (another `list` self-seed, or the auth-hook seed) point at the same group/variant ids — a losing group insert cannot leave its variant statements referencing group ids that never committed. `.onConflictDoNothing()` alone is NOT enough under the migration-0041 label triggers: a BEFORE trigger's `RAISE(ABORT)` fires before ON CONFLICT resolution and rejects the whole losing batch — so the race is caught by the swallow below, not by conflict resolution.
-
-**The swallow and its soundness invariant**: when a concurrent seed committed the same builtin rows first, the 0041 label triggers `RAISE(ABORT)` on the losing batch. That is a benign "someone else already seeded" outcome, not a failure — the three `list` procedures call the seed WITHOUT a try/catch, so surfacing it would turn a routine first-load race into a 500 (c09). Any OTHER error is a real failure and must propagate. This swallow is **only sound while the builtin labels are mutually unique** under those triggers — two builtins sharing a normalized label would abort every seed batch deterministically and be silently hidden, no-opping the seed for EVERY new account. That invariant is pinned by `seed-game-data.test.ts` (see [`testing-and-tooling.md`](testing-and-tooling.md)); it fails loudly if a future edit breaks it.
+**Race design (stable per-user ids)**: deterministic ids and `onConflictDoNothing` inserts make concurrent seeds converge. All statements run in one `runBatch`; seed errors are not swallowed.
 
 **Fail-closed data-entry guards**: a `groupKey` with no matching seeded group fails closed instead of inserting a dangling `groupId`; a mix with no resolvable `variantKey` seeds an empty composition rather than handing Drizzle `values([])` (which throws — and would turn all three `list` procedures into a 500 for that user). Membership inserts are chunked through the same helper as the mix router ([Normalized composition reads](#normalized-composition-reads)) so a future builtin mix wide enough to overflow D1's bind-param cap is split, not rejected at runtime.
 
-**Atomicity (SA2-116)**: every statement — 33 with the current constants (fewer if a mix resolves to no variants) — commits as one atomic `db.batch()`, so a failure cannot leave a user with partial built-in game data. Batch-atomicity mechanics: [`data-integrity.md`](data-integrity.md). The seed also keeps the physical `games` mirror column synchronized for the pre-0049 Worker — see the next section.
-
-## Migration 0049: the `games` compatibility mirror (expand/contract)
-
-`game_mix` is mid expand/contract. The composition's source of truth is the normalized `game_mix_variant` junction, but the legacy `game_mix.games` JSON column **remains temporarily as a rolling-deploy compatibility mirror for the pre-0049 Worker**. It is deprecated: **never use it to hydrate API responses.**
-
-**Direction of truth during the expand phase**: [migration 0049](../../packages/db/src/migrations/0049_normalize_game_mix_variants.sql)'s `game_mix_variants_compat_*` triggers rebuild the normalized rows from `games` on every write that touches it — so while those triggers exist, the JSON column is the *effective derivation source* even though the API never reads it. The API already writes the junction rows explicitly, and both paths produce identical rows; the explicit writes are what keeps the routers correct once the contract migration drops the triggers, so that migration needs no further router change.
-
-> **Ordering trap — mirror UPDATE must run LAST.** In `gameMix.create` and `gameMix.update` ([`packages/api/src/routers/game-mix.ts`](../../packages/api/src/routers/game-mix.ts)), and in `seedDefaultGameData`, the batch writes the normalized junction rows first and the `games` mirror UPDATE **last**. The compatibility triggers are DELETE-then-rebuild (they wipe the mix's junction rows and re-insert them from the JSON), so the final mirror UPDATE fires a trigger that **replaces** the explicitly written normalized rows with byte-identical ones — that is the intended steady state. Two details keep this correct and break if the ordering changes:
->
-> - On create, the master INSERT deliberately carries `games: []` so the AFTER INSERT trigger's rebuild is a no-op; the mirror only gains its real value in the final UPDATE. If the mirror were written before the junction INSERTs, the trigger would materialize the full row set first and the explicit INSERTs would then collide with it (duplicate-key), aborting the whole batch.
-> - Running the mirror UPDATE last is also what keeps the pre-0049 Worker contract valid during a rolling deployment or rollback: old Workers can still write the legacy column, and the trigger keeps the junction in sync from it.
->
-> Delete the mirror statements together with the contract migration that drops the trigger.
-
-A bulk restore is not an application write, so the preview/dev DB seed pipeline must stash the triggers around replaying the production dump (the trigger otherwise duplicates the dump's own junction rows — this took the db-migrate job down once). That pipeline, and the interrupted-apply/retry semantics of 0049 itself, are pinned by tests documented in [`testing-and-tooling.md`](testing-and-tooling.md); migration-authoring rules are in [`.claude/rules/db-migrations.md`](../../.claude/rules/db-migrations.md).
+**Atomicity (SA2-116)**: the seed statements commit as one atomic batch, so a failure cannot leave partial built-in game data. Batch mechanics: [`data-integrity.md`](data-integrity.md).
 
 ## Normalized composition reads
 
