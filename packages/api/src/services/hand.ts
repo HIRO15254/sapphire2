@@ -23,12 +23,14 @@ import {
 import { player } from "@sapphire2/db/schema/player";
 import { anteTypeSchema } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, gt, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import z from "zod";
 import { type BatchStatement, chunkForInsert, runBatch } from "../lib/batch";
+import { decodeCursor, encodeCursor } from "../lib/cursor";
 import { isForeignKeyConstraintError } from "../lib/db-errors";
 
 export const MAX_HAND_PAGE_SIZE = 50;
+export const DEFAULT_HAND_PAGE_SIZE = 20;
 
 const HAND_NO_SHIFT = 1_000_000;
 const CARD_PATTERN = "[2-9TJQKA][shdc]";
@@ -67,7 +69,7 @@ const handContextFields = {
 		.min(MIN_HAND_TABLE_SIZE)
 		.max(MAX_HAND_TABLE_SIZE)
 		.nullable(),
-	levelOrdinal: z.number().int().min(0).nullable(),
+	levelOrdinal: z.number().int().min(1).nullable(),
 	stakes: handStakesSchema.nullable(),
 	variantId: z.string().nullable(),
 };
@@ -75,6 +77,7 @@ const handContextFields = {
 export const handAddInputSchema = z.object({
 	playSessionId: z.string(),
 	...z.object(handContextFields).partial().shape,
+	playedAt: z.number().int().min(0).optional(),
 });
 
 const handSummaryFields = {
@@ -249,19 +252,34 @@ function forbidden(message: string): TRPCError {
 	return new TRPCError({ code: "FORBIDDEN", message });
 }
 
-async function assertOwnedPlaySession(
+async function loadOwnedPlaySessionStatus(
 	db: Database,
 	userId: string,
 	playSessionId: string
-): Promise<void> {
+): Promise<(typeof playSession.$inferSelect)["status"]> {
 	const [found] = await db
-		.select({ id: playSession.id })
+		.select({ status: playSession.status })
 		.from(playSession)
 		.where(
 			and(eq(playSession.id, playSessionId), eq(playSession.userId, userId))
 		);
 	if (!found) {
 		throw forbidden("You do not own this play session");
+	}
+	return found.status;
+}
+
+async function assertActivePlaySession(
+	db: Database,
+	userId: string,
+	playSessionId: string
+): Promise<void> {
+	const status = await loadOwnedPlaySessionStatus(db, userId, playSessionId);
+	if (status !== "active") {
+		throw new TRPCError({
+			code: "PRECONDITION_FAILED",
+			message: "Hands can be counted only while the play session is active",
+		});
 	}
 }
 
@@ -340,7 +358,8 @@ export function buildHandAddStatement(
 			userId,
 			playSessionId: input.playSessionId,
 			handNo: sql`(SELECT COALESCE(MAX(${hand.handNo}), 0) + 1 FROM ${hand} WHERE ${hand.playSessionId} = ${input.playSessionId})`,
-			playedAt: now,
+			playedAt:
+				input.playedAt === undefined ? now : new Date(input.playedAt * 1000),
 			detail: "count",
 			buttonSeat: input.buttonSeat ?? null,
 			tableSize: input.tableSize ?? null,
@@ -483,7 +502,7 @@ export async function addHand(
 	input: HandAddInput,
 	now: Date
 ): Promise<HandOutput> {
-	await assertOwnedPlaySession(db, userId, input.playSessionId);
+	await assertActivePlaySession(db, userId, input.playSessionId);
 	await assertOwnedReferences(db, userId, {
 		playerIds: [],
 		variantId: input.variantId,
@@ -499,8 +518,8 @@ export async function undoLastHand(
 	db: Database,
 	userId: string,
 	playSessionId: string
-): Promise<{ handNo: number; id: string } | null> {
-	await assertOwnedPlaySession(db, userId, playSessionId);
+): Promise<void> {
+	await assertActivePlaySession(db, userId, playSessionId);
 	const [last] = await db
 		.select({
 			id: hand.id,
@@ -513,7 +532,10 @@ export async function undoLastHand(
 		.orderBy(desc(hand.handNo))
 		.limit(1);
 	if (!last) {
-		return null;
+		throw new TRPCError({
+			code: "CONFLICT",
+			message: "There is no hand to undo",
+		});
 	}
 	if (last.detail !== "count") {
 		throw new TRPCError({
@@ -526,7 +548,6 @@ export async function undoLastHand(
 	} catch (error) {
 		throw linkedHandConflict(error);
 	}
-	return { id: last.id, handNo: last.handNo };
 }
 
 export async function saveHand(
@@ -559,30 +580,46 @@ export async function deleteHand(
 	}
 }
 
+const handCursorSchema = z.object({
+	playSessionId: z.string(),
+	handNo: z.number().int().min(1),
+	id: z.string(),
+});
+
 export async function listHands(
 	db: Database,
 	userId: string,
-	input: { cursor?: number; limit: number; playSessionId: string }
+	input: { cursor?: string; limit: number; playSessionId: string }
 ): Promise<{
 	items: (HandOutput & { seats: HandSeatOutput[] })[];
-	nextCursor: number | undefined;
+	nextCursor: string | null;
 }> {
-	await assertOwnedPlaySession(db, userId, input.playSessionId);
-	const pageSize = Math.min(input.limit, MAX_HAND_PAGE_SIZE);
+	const cursor =
+		input.cursor === undefined
+			? undefined
+			: decodeCursor(input.cursor, handCursorSchema);
+	if (cursor && cursor.playSessionId !== input.playSessionId) {
+		throw forbidden("This cursor belongs to another hand list");
+	}
+	await loadOwnedPlaySessionStatus(db, userId, input.playSessionId);
+	const pageSize = input.limit;
 	const conditions = [
 		eq(hand.playSessionId, input.playSessionId),
 		eq(hand.userId, userId),
 	];
-	if (input.cursor !== undefined) {
-		conditions.push(lt(hand.handNo, input.cursor));
+	if (cursor) {
+		conditions.push(
+			sql`(${hand.handNo}, ${hand.id}) < (${cursor.handNo}, ${cursor.id})`
+		);
 	}
 	const rows = await db
 		.select()
 		.from(hand)
 		.where(and(...conditions))
-		.orderBy(desc(hand.handNo))
+		.orderBy(desc(hand.handNo), desc(hand.id))
 		.limit(pageSize + 1);
 	const page = rows.slice(0, pageSize);
+	const boundary = rows.length > pageSize ? page.at(-1) : undefined;
 	const seats =
 		page.length === 0
 			? []
@@ -611,7 +648,13 @@ export async function listHands(
 				.filter((seat) => seat.handId === row.id)
 				.map(({ handId: _handId, userId: _userId, ...seat }) => seat),
 		})),
-		nextCursor: rows.length > pageSize ? page.at(-1)?.handNo : undefined,
+		nextCursor: boundary
+			? encodeCursor({
+					playSessionId: input.playSessionId,
+					handNo: boundary.handNo,
+					id: boundary.id,
+				})
+			: null,
 	};
 }
 

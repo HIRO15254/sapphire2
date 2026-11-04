@@ -57,6 +57,8 @@ B06 の切り替えで旧完了セッション・ライブセッション API �
 | `room_list` | `room.list` | 参照 |
 | `currency_list` | `currency.list` | 参照 |
 | `player_list` | `player.list` | 参照 |
+| `hand_list` | `hand.list` | 参照 |
+| `hand_get_by_id` | `hand.getById` | 参照 |
 | `session_tag_list` | `sessionTag.list` | 参照 |
 | `session_tag_create` | `sessionTag.create` | 記録 |
 | `ring_game_list_by_room` | `ringGame.listByRoom` | 参照 |
@@ -86,6 +88,8 @@ B06 の切り替えで旧完了セッション・ライブセッション API �
 マスタ系のツールは既存セッションが参照している行を書き換えるため、`*_update` 系は destructive として注釈されています。**削除はどれも公開していません。** リングゲームとトーナメントにはアーカイブ/復元があるのでそちらを公開していますが、ルームとゲームマスタには存在しないので、誤って `room_create` / `game_variant_create` を叩くと Web UI からしか消せない行が残ります — 作成前に対応する list ツールで確認してください。
 
 `tournament_update_with_levels`・`game_mix_update` は子リストを**丸ごと置き換える**ので、先に現在の内容を読んでから全件を送ってください。`mixGames` はリングゲーム系ツールが受け付けます — 名前付き mix は完全一致で再現する必要があり、mix が設定されている間は `blind1`〜`blind3` / `ante` / `anteType` が常に `null` になるため、これらのフラットなフィールドに送った値は破棄されます。
+
+`hand_list` は 1 つの play session のハンドを `handNo` の大きい順に 1 ページ 1〜50 件（既定 20 件）返し、`{ items, nextCursor }` を返します。次のページは `nextCursor` を `cursor` に渡します。cursor は取得したときの `playSessionId` でだけ使えます。play session のハンド数はハンドの件数、現在のボタンは最大の `handNo` のハンドの `buttonSeat` です。ハンドカウンターの書き込み（`hand.add`・`hand.undoLast`）と `hand.delete` は公開していません。
 
 ここに無い手続きは意図的な除外です（取り消し不能な削除、非冪等なお気に入りトグル、バンクロール台帳の書き込み、AI 抽出など）— 理由は `packages/mcp/src/tools/registry.ts` に記載され、結合テストで強制されます。
 

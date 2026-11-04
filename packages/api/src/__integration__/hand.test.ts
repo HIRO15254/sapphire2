@@ -16,12 +16,9 @@ import { validateEntityOwnership } from "../lib/ownership";
 import {
 	addHand,
 	buildHandSaveStatements,
-	deleteHand,
 	getHand,
 	type HandSaveInput,
-	listHands,
 	saveHand,
-	undoLastHand,
 } from "../services/hand";
 import type { TestD1Database } from "./test-database";
 import { test } from "./test-fixture";
@@ -512,35 +509,24 @@ describe("hand tables on D1", () => {
 	});
 });
 
-describe("hand service on D1", () => {
-	test("+1 numbers hands from 1 per play session, and undo removes only the latest count hand", async ({
+describe("hand API on D1", () => {
+	test("+1 numbers an active play session's hands from 1, and undo removes only the latest count hand", async ({
 		api,
 	}) => {
 		await seedOwner(api.db, "alice");
 		await seedOwner(api.db, "bob");
-		const first = await addHand(
-			api.db,
-			"alice",
-			{
-				playSessionId: "alice-play",
-				buttonSeat: 3,
-				stakes: { blind1: 1, blind2: 2 },
-				variantId: "alice-variant",
-			},
-			NOW
-		);
-		const second = await addHand(
-			api.db,
-			"alice",
-			{ playSessionId: "alice-play", buttonSeat: 4 },
-			NOW
-		);
-		const bobs = await addHand(
-			api.db,
-			"bob",
-			{ playSessionId: "bob-play" },
-			NOW
-		);
+		const first = await api.alice.hand.add({
+			playSessionId: "alice-play",
+			buttonSeat: 3,
+			stakes: { blind1: 1, blind2: 2 },
+			variantId: "alice-variant",
+			playedAt: NOW.getTime() / 1000,
+		});
+		const second = await api.alice.hand.add({
+			playSessionId: "alice-play",
+			buttonSeat: 4,
+		});
+		const bobs = await api.bob.hand.add({ playSessionId: "bob-play" });
 		expect(first).toMatchObject({
 			handNo: 1,
 			detail: "count",
@@ -552,51 +538,88 @@ describe("hand service on D1", () => {
 		expect(second).toMatchObject({ handNo: 2, buttonSeat: 4, stakes: null });
 		expect(bobs.handNo).toBe(1);
 
-		await expect(
-			addHand(api.db, "bob", { playSessionId: "alice-play" }, NOW)
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(
-			addHand(
-				api.db,
-				"bob",
-				{ playSessionId: "bob-play", variantId: "alice-variant" },
-				NOW
-			)
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(
-			undoLastHand(api.db, "bob", "alice-play")
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
-
-		expect(await undoLastHand(api.db, "alice", "alice-play")).toEqual({
-			id: second.id,
-			handNo: 2,
+		expect(
+			await api.alice.hand.undoLast({ playSessionId: "alice-play" })
+		).toEqual({ success: true });
+		const third = await api.alice.hand.add({
+			playSessionId: "alice-play",
+			buttonSeat: 5,
 		});
-		const third = await addHand(
-			api.db,
-			"alice",
-			{ playSessionId: "alice-play", buttonSeat: 5 },
-			NOW
-		);
 		expect(third.handNo).toBe(2);
 		await saveHand(api.db, "alice", fullHand(third.id, 2, 2), NOW);
 		await expect(
-			undoLastHand(api.db, "alice", "alice-play")
+			api.alice.hand.undoLast({ playSessionId: "alice-play" })
 		).rejects.toMatchObject({ code: "CONFLICT" });
 		expect(await handNumbers(api.db, "alice-play")).toEqual([
 			[1, first.id],
 			[2, third.id],
 		]);
 
-		await deleteHand(api.db, "alice", third.id);
-		expect(await undoLastHand(api.db, "alice", "alice-play")).toEqual({
-			id: first.id,
-			handNo: 1,
-		});
-		expect(await undoLastHand(api.db, "alice", "alice-play")).toBeNull();
+		await api.alice.hand.delete({ id: third.id });
+		await api.alice.hand.undoLast({ playSessionId: "alice-play" });
+		await expect(
+			api.alice.hand.undoLast({ playSessionId: "alice-play" })
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		expect(await handNumbers(api.db, "alice-play")).toEqual([]);
 		expect(await handNumbers(api.db, "bob-play")).toEqual([[1, bobs.id]]);
 	});
 
-	test("deleting a hand closes the gap in hand numbers, and a hand linked to an all-in event is kept", async ({
+	test("a paused or ended play session rejects +1 and undo but its hands stay readable and deletable", async ({
+		api,
+	}) => {
+		await seedOwner(api.db, "alice");
+		const first = await countHand(api.db);
+		const second = await countHand(api.db);
+
+		for (const state of [
+			{ status: "paused", endState: null },
+			{ status: "ended", endState: "cashed_out" },
+		] as const) {
+			await api.db
+				.update(playSession)
+				.set(state)
+				.where(eq(playSession.id, "alice-play"));
+			await expect(
+				api.alice.hand.add({ playSessionId: "alice-play" })
+			).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+			await expect(
+				api.alice.hand.undoLast({ playSessionId: "alice-play" })
+			).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+			expect(await handNumbers(api.db, "alice-play")).toEqual([
+				[1, first],
+				[2, second],
+			]);
+		}
+
+		expect(await api.alice.hand.getById({ id: second })).toMatchObject({
+			handNo: 2,
+		});
+		await api.alice.hand.delete({ id: first });
+		expect(await handNumbers(api.db, "alice-play")).toEqual([[1, second]]);
+	});
+
+	test("concurrent +1 calls give every hand its own number", async ({
+		api,
+	}) => {
+		await seedOwner(api.db, "alice");
+
+		const added = await Promise.allSettled(
+			Array.from({ length: 8 }, () =>
+				api.alice.hand.add({ playSessionId: "alice-play" })
+			)
+		);
+
+		const stored = await handNumbers(api.db, "alice-play");
+		const numbers = stored.map(([handNo]) => handNo);
+		expect(numbers).toEqual(
+			Array.from({ length: stored.length }, (_, index) => index + 1)
+		);
+		expect(stored).toHaveLength(
+			added.filter(({ status }) => status === "fulfilled").length
+		);
+	});
+
+	test("deleting a hand closes the gap in hand numbers, and a hand linked to an all-in event is neither deleted nor undone", async ({
 		api,
 	}) => {
 		await seedOwner(api.db, "alice");
@@ -606,10 +629,7 @@ describe("hand service on D1", () => {
 		const fourth = await countHand(api.db);
 		await saveHand(api.db, "alice", fullHand(second, 2, 3), NOW);
 
-		await expect(deleteHand(api.db, "bob", second)).rejects.toMatchObject({
-			code: "FORBIDDEN",
-		});
-		await deleteHand(api.db, "alice", second);
+		await api.alice.hand.delete({ id: second });
 		expect(await handNumbers(api.db, "alice-play")).toEqual([
 			[1, first],
 			[2, third],
@@ -621,37 +641,177 @@ describe("hand service on D1", () => {
 			actions: 0,
 		});
 
-		await api.db.insert(playEvent).values({
-			id: "all-in",
-			userId: "alice",
-			entryId: "alice-entry",
-			playSessionId: "alice-play",
-			type: "all_in",
-			schemaVersion: 2,
-			occurredAt: NOW,
-			sortOrder: 0,
-			payload: "{}",
-			handId: third,
-			updatedAt: NOW,
-		});
-		await expect(deleteHand(api.db, "alice", third)).rejects.toMatchObject({
+		await api.db.insert(playEvent).values(
+			[third, fourth].map((handId, sortOrder) => ({
+				id: `all-in-${handId}`,
+				userId: "alice",
+				entryId: "alice-entry",
+				playSessionId: "alice-play",
+				type: "all_in",
+				schemaVersion: 2,
+				occurredAt: NOW,
+				sortOrder,
+				payload: "{}",
+				handId,
+				updatedAt: NOW,
+			}))
+		);
+		await expect(api.alice.hand.delete({ id: third })).rejects.toMatchObject({
 			code: "CONFLICT",
 		});
+		await expect(
+			api.alice.hand.undoLast({ playSessionId: "alice-play" })
+		).rejects.toMatchObject({ code: "CONFLICT" });
 		expect(await handNumbers(api.db, "alice-play")).toEqual([
 			[1, first],
 			[2, third],
 			[3, fourth],
 		]);
 
-		const next = await addHand(
-			api.db,
-			"alice",
-			{ playSessionId: "alice-play" },
-			NOW
-		);
+		const next = await api.alice.hand.add({ playSessionId: "alice-play" });
 		expect(next.handNo).toBe(4);
 	});
 
+	test("the list pages hands from the newest with a string cursor that survives deleting its boundary hand", async ({
+		api,
+	}) => {
+		await seedOwner(api.db, "alice");
+		await seedOwner(api.db, "bob");
+		const ids = ["hand-1", "hand-2", "hand-3", "hand-4", "hand-5"] as const;
+		const [first, second, third, fourth, fifth] = ids;
+		for (const [index, id] of ids.entries()) {
+			await insert(
+				api.d1,
+				"hand",
+				handRow(id, "alice", { hand_no: index + 1 })
+			);
+		}
+		await saveHand(api.db, "alice", fullHand(fourth, 2, 1), NOW);
+
+		const firstPage = await api.alice.hand.list({
+			playSessionId: "alice-play",
+			limit: 2,
+		});
+		expect(firstPage.items.map(({ id }) => id)).toEqual([fifth, fourth]);
+		expect(firstPage.items[1]?.seats.map(({ seat }) => seat)).toEqual([0, 1]);
+		expect(firstPage.items[1]?.boards).toEqual([
+			"Ah Kd 7c 2s 9h",
+			"Ah Kd 7c 3d 4c",
+		]);
+		expect(firstPage.items[0]).toMatchObject({ boards: [], seats: [] });
+		const cursor = firstPage.nextCursor;
+		if (cursor === null) {
+			throw new Error("Expected a second page");
+		}
+
+		await api.alice.hand.delete({ id: fourth });
+		const secondPage = await api.alice.hand.list({
+			playSessionId: "alice-play",
+			limit: 2,
+			cursor,
+		});
+		expect(secondPage.items.map(({ id }) => id)).toEqual([third, second]);
+		const lastPage = await api.alice.hand.list({
+			playSessionId: "alice-play",
+			limit: 2,
+			cursor: secondPage.nextCursor ?? undefined,
+		});
+		expect(lastPage.items.map(({ id }) => id)).toEqual([first]);
+		expect(lastPage.nextCursor).toBeNull();
+
+		const bobHand = await api.bob.hand.add({ playSessionId: "bob-play" });
+		await expect(
+			api.bob.hand.list({ playSessionId: "bob-play", cursor })
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		await expect(
+			api.alice.hand.list({
+				playSessionId: "alice-play",
+				cursor: "not-a-cursor",
+			})
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(
+			(await api.alice.hand.list({ playSessionId: "alice-play" })).items
+		).toHaveLength(4);
+		expect(
+			(await api.bob.hand.list({ playSessionId: "bob-play" })).items.map(
+				({ id }) => id
+			)
+		).toEqual([bobHand.id]);
+	});
+
+	test("another user's play session, hand and cursor are uniformly forbidden", async ({
+		api,
+	}) => {
+		await seedOwner(api.db, "alice");
+		await seedOwner(api.db, "bob");
+		const aliceHand = await countHand(api.db);
+		await countHand(api.db);
+		const page = await api.alice.hand.list({
+			playSessionId: "alice-play",
+			limit: 1,
+		});
+		expect(page.nextCursor).not.toBeNull();
+
+		const attempts = [
+			() => api.bob.hand.list({ playSessionId: "alice-play" }),
+			() =>
+				api.bob.hand.list({
+					playSessionId: "alice-play",
+					cursor: page.nextCursor ?? undefined,
+				}),
+			() => api.bob.hand.getById({ id: aliceHand }),
+			() => api.bob.hand.add({ playSessionId: "alice-play" }),
+			() =>
+				api.bob.hand.add({
+					playSessionId: "bob-play",
+					variantId: "alice-variant",
+				}),
+			() => api.bob.hand.undoLast({ playSessionId: "alice-play" }),
+			() => api.bob.hand.delete({ id: aliceHand }),
+			() => api.bob.hand.getById({ id: "missing" }),
+			() => api.bob.hand.list({ playSessionId: "missing" }),
+		];
+		for (const attempt of attempts) {
+			await expect(attempt()).rejects.toMatchObject({ code: "FORBIDDEN" });
+		}
+		expect((await handNumbers(api.db, "alice-play")).length).toBe(2);
+		expect(await handNumbers(api.db, "bob-play")).toEqual([]);
+	});
+
+	test("a player seated in a recorded hand cannot be deleted, so the hand keeps its opponent", async ({
+		api,
+	}) => {
+		await seedOwner(api.db, "alice");
+		const added = await countHand(api.db);
+		await saveHand(api.db, "alice", fullHand(added, 3, 2), NOW);
+
+		await expect(
+			api.alice.player.delete({ id: "alice-player-1" })
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		await expect(
+			api.bob.player.delete({ id: "alice-player-1" })
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			(await api.alice.hand.getById({ id: added })).seats.map(
+				({ seat, playerId }) => [seat, playerId]
+			)
+		).toEqual([
+			[0, null],
+			[1, "alice-player-1"],
+			[2, "alice-player-2"],
+		]);
+
+		await api.alice.player.delete({ id: "alice-player-3" });
+		expect(
+			await api.db
+				.select({ id: player.id })
+				.from(player)
+				.where(eq(player.id, "alice-player-3"))
+		).toEqual([]);
+	});
+});
+
+describe("hand service on D1", () => {
 	test("saving a 10-seat, 120-action hand is one batch whose statements stay within the D1 bind-parameter limit", async ({
 		api,
 	}) => {
@@ -845,51 +1005,5 @@ describe("hand service on D1", () => {
 			seats: 0,
 			actions: 0,
 		});
-	});
-
-	test("the list pages a play session's hands from the newest with a hand-number cursor and carries each page's boards and seats", async ({
-		api,
-	}) => {
-		await seedOwner(api.db, "alice");
-		await seedOwner(api.db, "bob");
-		const first = await countHand(api.db);
-		const second = await countHand(api.db);
-		const third = await countHand(api.db);
-		const fourth = await countHand(api.db);
-		const fifth = await countHand(api.db);
-		await addHand(api.db, "bob", { playSessionId: "bob-play" }, NOW);
-		await saveHand(api.db, "alice", fullHand(fourth, 2, 1), NOW);
-
-		const firstPage = await listHands(api.db, "alice", {
-			playSessionId: "alice-play",
-			limit: 2,
-		});
-		expect(firstPage.items.map(({ id }) => id)).toEqual([fifth, fourth]);
-		expect(firstPage.items[1]?.seats.map(({ seat }) => seat)).toEqual([0, 1]);
-		expect(firstPage.items[1]?.boards).toEqual([
-			"Ah Kd 7c 2s 9h",
-			"Ah Kd 7c 3d 4c",
-		]);
-		expect(firstPage.items[0]).toMatchObject({ boards: [], seats: [] });
-		expect(firstPage.nextCursor).toBe(4);
-
-		await deleteHand(api.db, "alice", fourth);
-		const secondPage = await listHands(api.db, "alice", {
-			playSessionId: "alice-play",
-			limit: 2,
-			cursor: firstPage.nextCursor,
-		});
-		expect(secondPage.items.map(({ id }) => id)).toEqual([third, second]);
-		const lastPage = await listHands(api.db, "alice", {
-			playSessionId: "alice-play",
-			limit: 2,
-			cursor: secondPage.nextCursor,
-		});
-		expect(lastPage.items.map(({ id }) => id)).toEqual([first]);
-		expect(lastPage.nextCursor).toBeUndefined();
-
-		await expect(
-			listHands(api.db, "bob", { playSessionId: "alice-play", limit: 2 })
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
 	});
 });

@@ -10,6 +10,10 @@ import {
 	gameVariantCreateInputSchema,
 	gameVariantUpdateInputSchema,
 } from "@sapphire2/api/routers/game-variant";
+import {
+	handIdInputSchema,
+	handListInputSchema,
+} from "@sapphire2/api/routers/hand";
 import { playerListInputSchema } from "@sapphire2/api/routers/player";
 import {
 	ringGameCreateInputSchema,
@@ -102,6 +106,20 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		description:
 			"List the user's tracked opponents/players. Optional: search (name substring), tagIds (player-tag ids).",
 		inputSchema: playerListInputSchema,
+	},
+	{
+		name: "hand_list",
+		procedurePath: "hand.list",
+		description:
+			"List the hands of one play session (one day of an entry), highest handNo first, limit 1-50 per page (default 20). Returns { items, nextCursor }: pass nextCursor back as cursor for the next page; null means there is no further page. A cursor only works with the playSessionId it came from. The play session's hand count is the number of its hands and its current button is buttonSeat of the hand with the highest handNo. Each item carries detail (count | summary | full), playedAt (null for hands migrated from the old hand counter), button seat, stakes snapshot, boards and seats; use hand_get_by_id for the actions. Deleting a hand renumbers the later ones, so paging across a deletion can repeat a hand but never skips one.",
+		inputSchema: handListInputSchema,
+	},
+	{
+		name: "hand_get_by_id",
+		procedurePath: "hand.getById",
+		description:
+			"Get one hand by id with its boards, seats and actions (ordered by seq). Use hand_list to find hand ids.",
+		inputSchema: handIdInputSchema,
 	},
 	{
 		name: "session_tag_list",
@@ -330,6 +348,7 @@ const ENTITY_NAMES: Record<string, string> = {
 	room: "rooms",
 	currency: "currencies",
 	player: "players",
+	hand: "hands",
 	ringGame: "ring-game rules",
 	tournament: "tournament rules",
 	gameGroup: "game groups",
@@ -490,6 +509,16 @@ export const DELIBERATELY_EXCLUDED: {
 			"currencyTransaction.update",
 			"currencyTransaction.delete",
 		],
+	},
+	{
+		reason:
+			"Cockpit: the live hand counter's +1 and undo belong to the table screen and are allowed only while the play session is active; a retried call silently adds or removes a hand, which a model cannot detect",
+		paths: ["hand.add", "hand.undoLast"],
+	},
+	{
+		reason:
+			"Destructive: deleting a hand drops its boards, seats and actions and renumbers the later hands, and no API can restore them",
+		paths: ["hand.delete"],
 	},
 	{
 		reason: "Web-only release-note read tracking",

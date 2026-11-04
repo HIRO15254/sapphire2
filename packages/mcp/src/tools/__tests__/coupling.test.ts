@@ -123,6 +123,8 @@ describe("tool/router coupling", () => {
 			"game_variant_create",
 			"game_variant_list",
 			"game_variant_update",
+			"hand_get_by_id",
+			"hand_list",
 			"player_list",
 			"ring_game_archive",
 			"ring_game_create",
