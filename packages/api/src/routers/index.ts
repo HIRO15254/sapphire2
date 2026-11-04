@@ -2,7 +2,6 @@ import { protectedProcedure, publicProcedure, router } from "../index";
 import { aiExtractRouter } from "./ai-extract";
 import { assetRouter } from "./asset";
 import { assetRateRouter } from "./asset-rate";
-import { blindLevelRouter } from "./blind-level";
 import { filterPresetRouter } from "./filter-preset";
 import { gameGroupRouter } from "./game-group";
 import { gameMixRouter } from "./game-mix";
@@ -18,7 +17,6 @@ import { roomRouter } from "./room";
 import { sessionTagRouter } from "./session-tag";
 import { statsRouter } from "./stats";
 import { tournamentRouter } from "./tournament";
-import { tournamentChipPurchaseRouter } from "./tournament-chip-purchase";
 import { updateNoteViewRouter } from "./update-note-view";
 import { userSettingRouter } from "./user-setting";
 
@@ -45,8 +43,6 @@ export const appRouter = router({
 	gameMix: gameMixRouter,
 	ringGame: ringGameRouter,
 	tournament: tournamentRouter,
-	blindLevel: blindLevelRouter,
-	tournamentChipPurchase: tournamentChipPurchaseRouter,
 	stats: statsRouter,
 	sessionTag: sessionTagRouter,
 	hand: handRouter,

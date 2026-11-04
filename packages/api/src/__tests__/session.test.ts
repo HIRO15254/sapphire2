@@ -408,44 +408,22 @@ describe("computeTournamentPL", () => {
 
 describe("validateEntityOwnership (tournament branch)", () => {
 	const CALLER = "user-1";
-	const OTHER = "user-2";
 	const TOURNAMENT_ID = "tn-1";
-	const ROOM_ID = "room-1";
 
-	function mockDbFor(opts: {
-		tournament?: Record<string, unknown>[];
-		room?: Record<string, unknown>[];
-	}) {
+	function mockDbFor(opts: { tournament?: Record<string, unknown>[] }) {
 		return createChainableMockDb({
-			select: {
-				tournament: opts.tournament ?? [],
-				room: opts.room ?? [],
-			},
+			select: { tournament: opts.tournament ?? [] },
 		});
 	}
 
-	it("resolves when the tournament's room is owned by the caller", async () => {
+	it("resolves a tournament the caller owns", async () => {
 		const { db, selectedTables } = mockDbFor({
-			tournament: [{ id: TOURNAMENT_ID, roomId: ROOM_ID }],
-			room: [{ id: ROOM_ID, userId: CALLER }],
+			tournament: [{ id: TOURNAMENT_ID, userId: CALLER }],
 		});
 		await expect(
 			validateEntityOwnership(db, "tournament", TOURNAMENT_ID, CALLER)
-		).resolves.toMatchObject({ id: TOURNAMENT_ID, roomId: ROOM_ID });
-		expect(selectedTables).toEqual(["tournament", "room"]);
-	});
-
-	it("throws FORBIDDEN when the tournament's room belongs to another user", async () => {
-		const { db } = mockDbFor({
-			tournament: [{ id: TOURNAMENT_ID, roomId: ROOM_ID }],
-			room: [{ id: ROOM_ID, userId: OTHER }],
-		});
-		await expect(
-			validateEntityOwnership(db, "tournament", TOURNAMENT_ID, CALLER)
-		).rejects.toMatchObject({
-			code: "FORBIDDEN",
-			message: "You do not own this tournament",
-		});
+		).resolves.toMatchObject({ id: TOURNAMENT_ID });
+		expect(selectedTables).toEqual(["tournament"]);
 	});
 
 	it("throws FORBIDDEN when the tournament does not exist", async () => {
@@ -457,16 +435,6 @@ describe("validateEntityOwnership (tournament branch)", () => {
 			message: "You do not own this tournament",
 		});
 		expect(selectedTables).toEqual(["tournament"]);
-	});
-
-	it("throws FORBIDDEN when the tournament's room row is missing", async () => {
-		const { db } = mockDbFor({
-			tournament: [{ id: TOURNAMENT_ID, roomId: ROOM_ID }],
-			room: [],
-		});
-		await expect(
-			validateEntityOwnership(db, "tournament", TOURNAMENT_ID, CALLER)
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
 	});
 });
 

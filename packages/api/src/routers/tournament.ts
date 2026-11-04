@@ -1,520 +1,465 @@
-import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
-import { entryTournament } from "@sapphire2/db/schema/entry";
-import { room } from "@sapphire2/db/schema/room";
-import {
-	blindLevel,
-	tournament,
-	tournamentChipPurchase,
-} from "@sapphire2/db/schema/tournament";
+import { asset } from "@sapphire2/db/schema/asset";
+import { tournamentRule } from "@sapphire2/db/schema/rule";
+import { tournament } from "@sapphire2/db/schema/tournament";
 import { tournamentTag } from "@sapphire2/db/schema/tournament-tag";
-import { levelGamesSchema } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
-import {
-	and,
-	asc,
-	eq,
-	inArray,
-	isNotNull,
-	isNull,
-	notExists,
-} from "drizzle-orm";
+import { and, eq, inArray, isNull, not, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
-import { selectInChunks } from "../lib/batch";
+import { type BatchStatement, runBatch, selectInChunks } from "../lib/batch";
 import { validateEntityOwnership } from "../lib/ownership";
-import { assertLevelGameStructures } from "../services/game-structure";
+import { hydrateLineups, type LineupMap } from "../services/game-lineup";
+import {
+	hydrateTournamentRules,
+	planTournamentRuleWrite,
+	ruleLineupIds,
+	type TournamentRuleOutput,
+	tournamentRuleInputSchema,
+	tournamentRuleWithLevelsInputSchema,
+} from "../services/tournament-rule";
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
 >[0]["ctx"]["db"];
 
-type BatchStatement = Parameters<DbInstance["batch"]>[0][number];
+type TournamentRow = typeof tournament.$inferSelect;
 
-async function validateRoomOwnership(
-	db: Parameters<
-		Parameters<typeof protectedProcedure.query>[0]
-	>[0]["ctx"]["db"],
-	roomId: string,
-	userId: string
-) {
-	const [found] = await db.select().from(room).where(eq(room.id, roomId));
-
-	if (!found) {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: "You do not own this room",
-		});
-	}
-
-	if (found.userId !== userId) {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: "You do not own this room",
-		});
-	}
-
-	return found;
-}
-
-async function validateTournamentOwnership(
-	db: Parameters<
-		Parameters<typeof protectedProcedure.query>[0]
-	>[0]["ctx"]["db"],
-	tournamentId: string,
-	userId: string
-) {
-	const [found] = await db
-		.select()
-		.from(tournament)
-		.where(eq(tournament.id, tournamentId));
-
-	if (!found) {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: "You do not own this tournament",
-		});
-	}
-
-	await validateRoomOwnership(db, found.roomId, userId);
-
-	return found;
-}
-
-const nonNegativeIntegerSchema = z.number().int().min(0);
-const tableSizeSchema = z.number().int().min(2).max(10);
-
-const tournamentCreateNumericFields = {
-	buyIn: nonNegativeIntegerSchema.optional(),
-	entryFee: nonNegativeIntegerSchema.optional(),
-	startingStack: nonNegativeIntegerSchema.optional(),
-	bountyAmount: nonNegativeIntegerSchema.optional(),
-	tableSize: tableSizeSchema.optional(),
-};
-const tournamentUpdateNumericFields = {
-	buyIn: nonNegativeIntegerSchema.nullable().optional(),
-	entryFee: nonNegativeIntegerSchema.nullable().optional(),
-	startingStack: nonNegativeIntegerSchema.nullable().optional(),
-	bountyAmount: nonNegativeIntegerSchema.nullable().optional(),
-	tableSize: tableSizeSchema.nullable().optional(),
-};
-
-const chipPurchaseInputSchema = z.object({
-	name: z.string().min(1),
-	cost: nonNegativeIntegerSchema,
-	chips: nonNegativeIntegerSchema,
-});
-const blindLevelInputSchema = z.object({
-	isBreak: z.boolean(),
-	blind1: nonNegativeIntegerSchema.nullable().optional(),
-	blind2: nonNegativeIntegerSchema.nullable().optional(),
-	blind3: nonNegativeIntegerSchema.nullable().optional(),
-	ante: nonNegativeIntegerSchema.nullable().optional(),
-	minutes: nonNegativeIntegerSchema.nullable().optional(),
-	games: levelGamesSchema.nullish(),
-});
-
-export const tournamentCreateWithLevelsInputSchema = z.object({
-	roomId: z.string(),
-	name: z.string().min(1),
-	variant: z.string().default(DEFAULT_VARIANT_LABEL),
-	...tournamentCreateNumericFields,
-
-	currencyId: z.string().min(1).optional(),
-	memo: z.string().optional(),
-	houseRules: z.string().optional(),
-	tags: z.array(z.string()).optional(),
-
-	chipPurchases: z.array(chipPurchaseInputSchema).optional(),
-
-	blindLevels: z.array(blindLevelInputSchema).optional(),
-});
-
-type TournamentCreateWithLevelsInput = z.infer<
-	typeof tournamentCreateWithLevelsInputSchema
->;
-
-export function buildTournamentCreateStatements(
-	db: DbInstance,
-	params: {
-		id: string;
-		input: TournamentCreateWithLevelsInput;
-		now: Date;
-		userId: string;
-	}
-): [BatchStatement, ...BatchStatement[]] {
-	return [
-		db.insert(tournament).values({
-			id: params.id,
-			userId: params.userId,
-			roomId: params.input.roomId,
-			name: params.input.name,
-			variant: params.input.variant,
-			buyIn: params.input.buyIn ?? null,
-			entryFee: params.input.entryFee ?? null,
-			startingStack: params.input.startingStack ?? null,
-			bountyAmount: params.input.bountyAmount ?? null,
-			tableSize: params.input.tableSize ?? null,
-			currencyId: params.input.currencyId ?? null,
-			memo: params.input.memo ?? null,
-			houseRules: params.input.houseRules ?? null,
-			updatedAt: params.now,
-		}),
-		...(params.input.tags ?? []).map((name) =>
-			db.insert(tournamentTag).values({
-				id: crypto.randomUUID(),
-				tournamentId: params.id,
-				name,
-			})
-		),
-		...(params.input.chipPurchases ?? []).map((purchase, sortOrder) =>
-			db.insert(tournamentChipPurchase).values({
-				id: crypto.randomUUID(),
-				tournamentId: params.id,
-				name: purchase.name,
-				cost: purchase.cost,
-				chips: purchase.chips,
-				sortOrder,
-			})
-		),
-		...(params.input.blindLevels ?? []).map((level, index) =>
-			db.insert(blindLevel).values({
-				id: crypto.randomUUID(),
-				tournamentId: params.id,
-				level: index + 1,
-				isBreak: level.isBreak,
-				blind1: level.blind1 ?? null,
-				blind2: level.blind2 ?? null,
-				blind3: level.blind3 ?? null,
-				ante: level.ante ?? null,
-				minutes: level.minutes ?? null,
-				games: level.games ?? null,
-			})
-		),
-	];
-}
-
-function bucketTournamentRows<Row extends { tournamentId: string }>(
-	rows: Row[]
-): Map<string, Row[]> {
-	const map = new Map<string, Row[]>();
-	for (const row of rows) {
-		const bucket = map.get(row.tournamentId);
-		if (bucket) {
-			bucket.push(row);
-		} else {
-			map.set(row.tournamentId, [row]);
-		}
-	}
-	return map;
-}
-
-async function getTournamentBlindLevels(
-	db: DbInstance,
-	tournamentIds: string[]
-) {
-	if (tournamentIds.length === 0) {
-		return new Map<string, (typeof blindLevel.$inferSelect)[]>();
-	}
-	const rows = await selectInChunks(tournamentIds, (chunk) =>
-		db.select().from(blindLevel).where(inArray(blindLevel.tournamentId, chunk))
-	);
-	return bucketTournamentRows(rows);
-}
-
-async function getTournamentTags(db: DbInstance, tournamentIds: string[]) {
-	if (tournamentIds.length === 0) {
-		return new Map<string, (typeof tournamentTag.$inferSelect)[]>();
-	}
-	const rows = await selectInChunks(tournamentIds, (chunk) =>
-		db
-			.select()
-			.from(tournamentTag)
-			.where(inArray(tournamentTag.tournamentId, chunk))
-	);
-	return bucketTournamentRows(rows);
-}
-
-async function getTournamentChipPurchases(
-	db: DbInstance,
-	tournamentIds: string[]
-) {
-	if (tournamentIds.length === 0) {
-		return new Map<string, (typeof tournamentChipPurchase.$inferSelect)[]>();
-	}
-	const rows = await selectInChunks(tournamentIds, (chunk) =>
-		db
-			.select()
-			.from(tournamentChipPurchase)
-			.where(inArray(tournamentChipPurchase.tournamentId, chunk))
-			.orderBy(asc(tournamentChipPurchase.sortOrder))
-	);
-	return bucketTournamentRows(rows);
-}
+const idSchema = z.string().min(1);
+const nameSchema = z.string().trim().min(1).max(100);
+const memoSchema = z.string().max(50_000);
+const tagsSchema = z.array(z.string().trim().min(1).max(50)).max(50);
 
 export const tournamentListByRoomInputSchema = z.object({
-	roomId: z.string(),
+	roomId: idSchema,
 	includeArchived: z.boolean().optional(),
 });
 
-export const tournamentIdInputSchema = z.object({ id: z.string() });
+export const tournamentIdInputSchema = z.object({ id: idSchema });
+
+const createFields = {
+	roomId: idSchema,
+	name: nameSchema,
+	defaultAssetId: idSchema.nullable().optional(),
+	memo: memoSchema.nullable().optional(),
+	tags: tagsSchema.optional(),
+};
+
+const updateFields = {
+	id: idSchema,
+	name: nameSchema.optional(),
+	defaultAssetId: idSchema.nullable().optional(),
+	memo: memoSchema.nullable().optional(),
+	tags: tagsSchema.optional(),
+};
+
+export const tournamentCreateInputSchema = z.object({
+	...createFields,
+	rule: tournamentRuleInputSchema,
+});
+
+export const tournamentCreateWithLevelsInputSchema = z.object({
+	...createFields,
+	rule: tournamentRuleWithLevelsInputSchema,
+});
+
+export const tournamentUpdateInputSchema = z.object({
+	...updateFields,
+	rule: tournamentRuleInputSchema.optional(),
+});
 
 export const tournamentUpdateWithLevelsInputSchema = z.object({
-	id: z.string(),
-	name: z.string().min(1).optional(),
-	variant: z.string().optional(),
-	...tournamentUpdateNumericFields,
-
-	currencyId: z.string().min(1).nullable().optional(),
-	memo: z.string().nullable().optional(),
-	houseRules: z.string().nullable().optional(),
-	tags: z.array(z.string()).optional(),
-	chipPurchases: z.array(chipPurchaseInputSchema).optional(),
-	blindLevels: z.array(blindLevelInputSchema),
+	...updateFields,
+	rule: tournamentRuleWithLevelsInputSchema,
 });
+
+export const tournamentRestoreRuleInputSchema = z.object({
+	id: idSchema,
+	ruleVersionId: idSchema,
+});
+
+type TournamentCreateInput = z.infer<typeof tournamentCreateInputSchema>;
+type TournamentUpdateInput = z.infer<typeof tournamentUpdateInputSchema>;
+
+export interface TournamentOutput {
+	archivedAt: Date | null;
+	createdAt: Date;
+	currentRuleId: string;
+	defaultAssetId: string | null;
+	id: string;
+	lineups: LineupMap;
+	memo: string | null;
+	name: string;
+	roomId: string | null;
+	ruleVersion: TournamentRuleOutput;
+	tags: { id: string; name: string }[];
+	updatedAt: Date;
+}
+
+const TOURNAMENT_FORBIDDEN = "You do not own this tournament";
+
+async function hydrateTournaments(
+	db: DbInstance,
+	userId: string,
+	rows: TournamentRow[]
+): Promise<TournamentOutput[]> {
+	if (rows.length === 0) {
+		return [];
+	}
+	const [rules, tags] = await Promise.all([
+		hydrateTournamentRules(
+			db,
+			userId,
+			rows.map((row) => row.currentRuleId)
+		),
+		selectInChunks(
+			rows.map((row) => row.id),
+			(chunk) =>
+				db
+					.select({
+						id: tournamentTag.id,
+						name: tournamentTag.name,
+						tournamentId: tournamentTag.tournamentId,
+					})
+					.from(tournamentTag)
+					.where(inArray(tournamentTag.tournamentId, chunk))
+		),
+	]);
+	const lineups = await hydrateLineups(
+		db,
+		userId,
+		[...rules.values()].flatMap(ruleLineupIds)
+	);
+	return rows.map((row) => {
+		const rule = rules.get(row.currentRuleId);
+		if (!rule) {
+			throw new TRPCError({
+				code: "INTERNAL_SERVER_ERROR",
+				message: "The tournament's current rule version is missing",
+			});
+		}
+		const ruleLineups: LineupMap = {};
+		for (const lineupId of ruleLineupIds(rule)) {
+			const lineup = lineups[lineupId];
+			if (lineup) {
+				ruleLineups[lineupId] = lineup;
+			}
+		}
+		return {
+			id: row.id,
+			roomId: row.roomId,
+			name: row.name,
+			defaultAssetId: row.defaultAssetId,
+			memo: row.memo,
+			archivedAt: row.archivedAt,
+			currentRuleId: row.currentRuleId,
+			ruleVersion: rule,
+			lineups: ruleLineups,
+			tags: tags
+				.filter((tag) => tag.tournamentId === row.id)
+				.map((tag) => ({ id: tag.id, name: tag.name })),
+			createdAt: row.createdAt,
+			updatedAt: row.updatedAt,
+		};
+	});
+}
+
+async function getTournament(
+	db: DbInstance,
+	userId: string,
+	id: string
+): Promise<TournamentOutput> {
+	const [hydrated] = await hydrateTournaments(db, userId, [
+		await validateEntityOwnership(db, "tournament", id, userId),
+	]);
+	if (!hydrated) {
+		throw new TRPCError({ code: "FORBIDDEN", message: TOURNAMENT_FORBIDDEN });
+	}
+	return hydrated;
+}
+
+async function assertDefaultAsset(
+	db: DbInstance,
+	userId: string,
+	assetId: string | null | undefined,
+	currentAssetId: string | null
+): Promise<void> {
+	if (!assetId || assetId === currentAssetId) {
+		return;
+	}
+	const [found] = await db
+		.select({ archivedAt: asset.archivedAt })
+		.from(asset)
+		.where(and(eq(asset.id, assetId), eq(asset.userId, userId)));
+	if (!found) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this asset",
+		});
+	}
+	if (found.archivedAt !== null) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "An archived asset cannot be newly selected",
+		});
+	}
+}
+
+function tagStatements(
+	db: DbInstance,
+	tournamentId: string,
+	tags: string[] | undefined
+): BatchStatement[] {
+	if (tags === undefined) {
+		return [];
+	}
+	return [
+		db
+			.delete(tournamentTag)
+			.where(eq(tournamentTag.tournamentId, tournamentId)),
+		...(tags.length > 0
+			? [
+					db.insert(tournamentTag).values(
+						tags.map((name) => ({
+							id: crypto.randomUUID(),
+							tournamentId,
+							name,
+						}))
+					),
+				]
+			: []),
+	];
+}
+
+async function createTournament(
+	db: DbInstance,
+	userId: string,
+	input: TournamentCreateInput
+): Promise<TournamentOutput> {
+	await validateEntityOwnership(db, "room", input.roomId, userId);
+	await assertDefaultAsset(db, userId, input.defaultAssetId, null);
+	const id = crypto.randomUUID();
+	const write = await planTournamentRuleWrite({
+		db,
+		userId,
+		current: null,
+		input: input.rule,
+		tournamentId: null,
+	});
+	const now = new Date();
+	await runBatch(db, [
+		...write.statements,
+		db.insert(tournament).values({
+			id,
+			userId,
+			roomId: input.roomId,
+			name: input.name,
+			memo: input.memo ?? null,
+			defaultAssetId: input.defaultAssetId ?? null,
+			currentRuleId: write.ruleId,
+			createdAt: now,
+			updatedAt: now,
+		}),
+		db
+			.update(tournamentRule)
+			.set({ tournamentId: id })
+			.where(
+				and(
+					eq(tournamentRule.id, write.ruleId),
+					eq(tournamentRule.userId, userId)
+				)
+			),
+		...tagStatements(db, id, input.tags),
+	]);
+	return await getTournament(db, userId, id);
+}
+
+async function updateTournament(
+	db: DbInstance,
+	userId: string,
+	input: TournamentUpdateInput
+): Promise<TournamentOutput> {
+	const found = await validateEntityOwnership(
+		db,
+		"tournament",
+		input.id,
+		userId
+	);
+	await assertDefaultAsset(
+		db,
+		userId,
+		input.defaultAssetId,
+		found.defaultAssetId
+	);
+	let ruleStatements: BatchStatement[] = [];
+	let currentRuleId = found.currentRuleId;
+	if (input.rule) {
+		const current = (
+			await hydrateTournamentRules(db, userId, [found.currentRuleId])
+		).get(found.currentRuleId);
+		if (!current) {
+			throw new TRPCError({
+				code: "INTERNAL_SERVER_ERROR",
+				message: "The tournament's current rule version is missing",
+			});
+		}
+		const write = await planTournamentRuleWrite({
+			db,
+			userId,
+			current,
+			input: input.rule,
+			tournamentId: found.id,
+		});
+		ruleStatements = write.statements;
+		currentRuleId = write.ruleId;
+	}
+	await runBatch(db, [
+		...ruleStatements,
+		db
+			.update(tournament)
+			.set({
+				name: input.name ?? found.name,
+				memo: input.memo === undefined ? found.memo : input.memo,
+				defaultAssetId:
+					input.defaultAssetId === undefined
+						? found.defaultAssetId
+						: input.defaultAssetId,
+				currentRuleId,
+				updatedAt: new Date(),
+			})
+			.where(and(eq(tournament.id, found.id), eq(tournament.userId, userId))),
+		...tagStatements(db, found.id, input.tags),
+	]);
+	return await getTournament(db, userId, found.id);
+}
+
+const tournamentIsReferenced = sql<boolean>`(EXISTS (SELECT 1 FROM entry_tournament WHERE entry_tournament.user_id = tournament.user_id AND (entry_tournament.tournament_id = tournament.id OR entry_tournament.tournament_rule_id IN (SELECT tournament_rule.id FROM tournament_rule WHERE tournament_rule.tournament_id = tournament.id AND tournament_rule.user_id = tournament.user_id)))
+OR EXISTS (SELECT 1 FROM ledger_line INNER JOIN tournament_rule_price ON tournament_rule_price.id = ledger_line.price_id AND tournament_rule_price.user_id = ledger_line.user_id INNER JOIN tournament_rule ON tournament_rule.id = tournament_rule_price.rule_id AND tournament_rule.user_id = tournament_rule_price.user_id WHERE tournament_rule.tournament_id = tournament.id AND tournament_rule.user_id = tournament.user_id)
+OR EXISTS (SELECT 1 FROM tournament_rule AS child INNER JOIN tournament_rule AS parent ON parent.id = child.parent_rule_id AND parent.user_id = child.user_id WHERE parent.tournament_id = tournament.id AND parent.user_id = tournament.user_id AND (child.tournament_id IS NULL OR child.tournament_id <> tournament.id)))`;
 
 export const tournamentRouter = router({
 	listByRoom: protectedProcedure
 		.input(tournamentListByRoomInputSchema)
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await validateRoomOwnership(ctx.db, input.roomId, userId);
-
-			const condition = input.includeArchived
-				? isNotNull(tournament.archivedAt)
-				: isNull(tournament.archivedAt);
-
-			const tournaments = await ctx.db
+			await validateEntityOwnership(ctx.db, "room", input.roomId, userId);
+			const rows = await ctx.db
 				.select()
 				.from(tournament)
-				.where(and(eq(tournament.roomId, input.roomId), condition));
-
-			const tournamentIds = tournaments.map((t) => t.id);
-			const [levelsByTournament, tagsByTournament, chipsByTournament] =
-				await Promise.all([
-					getTournamentBlindLevels(ctx.db, tournamentIds),
-					getTournamentTags(ctx.db, tournamentIds),
-					getTournamentChipPurchases(ctx.db, tournamentIds),
-				]);
-
-			const results = tournaments.map((t) => {
-				const levels = levelsByTournament.get(t.id) ?? [];
-				const tagRows = tagsByTournament.get(t.id) ?? [];
-				const chipPurchaseRows = chipsByTournament.get(t.id) ?? [];
-				return {
-					...t,
-					blindLevelCount: levels.length,
-					tags: tagRows.map((r) => ({ id: r.id, name: r.name })),
-					chipPurchases: chipPurchaseRows.map((r) => ({
-						id: r.id,
-						name: r.name,
-						cost: r.cost,
-						chips: r.chips,
-						sortOrder: r.sortOrder,
-					})),
-				};
-			});
-
-			return results;
+				.where(
+					and(
+						eq(tournament.userId, userId),
+						eq(tournament.roomId, input.roomId),
+						input.includeArchived ? undefined : isNull(tournament.archivedAt)
+					)
+				);
+			return await hydrateTournaments(ctx.db, userId, rows);
 		}),
 
 	getById: protectedProcedure
 		.input(tournamentIdInputSchema)
-		.query(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			const found = await validateTournamentOwnership(ctx.db, input.id, userId);
-
-			const [levels, tagRows] = await Promise.all([
-				ctx.db
-					.select()
-					.from(blindLevel)
-					.where(eq(blindLevel.tournamentId, input.id))
-					.orderBy(asc(blindLevel.level)),
-				ctx.db
-					.select()
-					.from(tournamentTag)
-					.where(eq(tournamentTag.tournamentId, input.id)),
-			]);
-
-			return {
-				...found,
-				blindLevels: levels,
-				tags: tagRows.map((r) => ({ id: r.id, name: r.name })),
-			};
-		}),
+		.query(
+			async ({ ctx, input }) =>
+				await getTournament(ctx.db, ctx.session.user.id, input.id)
+		),
 
 	create: protectedProcedure
-		.input(
-			z.object({
-				roomId: z.string(),
-				name: z.string().min(1),
-				variant: z.string().default(DEFAULT_VARIANT_LABEL),
-				...tournamentCreateNumericFields,
+		.input(tournamentCreateInputSchema)
+		.mutation(
+			async ({ ctx, input }) =>
+				await createTournament(ctx.db, ctx.session.user.id, input)
+		),
 
-				currencyId: z.string().min(1).optional(),
-				memo: z.string().optional(),
-				houseRules: z.string().optional(),
-			})
-		)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateRoomOwnership(ctx.db, input.roomId, userId);
-			if (input.currencyId) {
-				await validateEntityOwnership(
-					ctx.db,
-					"currency",
-					input.currencyId,
-					userId
-				);
-			}
-
-			const id = crypto.randomUUID();
-			await ctx.db.insert(tournament).values({
-				id,
-				userId,
-				roomId: input.roomId,
-				name: input.name,
-				variant: input.variant,
-				buyIn: input.buyIn ?? null,
-				entryFee: input.entryFee ?? null,
-				startingStack: input.startingStack ?? null,
-				bountyAmount: input.bountyAmount ?? null,
-				tableSize: input.tableSize ?? null,
-				currencyId: input.currencyId ?? null,
-				memo: input.memo ?? null,
-				houseRules: input.houseRules ?? null,
-				updatedAt: new Date(),
-			});
-
-			const [created] = await ctx.db
-				.select()
-				.from(tournament)
-				.where(eq(tournament.id, id));
-			return created;
-		}),
+	createWithLevels: protectedProcedure
+		.input(tournamentCreateWithLevelsInputSchema)
+		.mutation(
+			async ({ ctx, input }) =>
+				await createTournament(ctx.db, ctx.session.user.id, input)
+		),
 
 	update: protectedProcedure
-		.input(
-			z.object({
-				id: z.string(),
-				name: z.string().min(1).optional(),
-				variant: z.string().optional(),
-				...tournamentUpdateNumericFields,
+		.input(tournamentUpdateInputSchema)
+		.mutation(
+			async ({ ctx, input }) =>
+				await updateTournament(ctx.db, ctx.session.user.id, input)
+		),
 
-				currencyId: z.string().min(1).nullable().optional(),
-				memo: z.string().nullable().optional(),
-				houseRules: z.string().nullable().optional(),
-			})
-		)
+	updateWithLevels: protectedProcedure
+		.input(tournamentUpdateWithLevelsInputSchema)
+		.mutation(
+			async ({ ctx, input }) =>
+				await updateTournament(ctx.db, ctx.session.user.id, input)
+		),
+
+	restoreRule: protectedProcedure
+		.input(tournamentRestoreRuleInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const found = await validateTournamentOwnership(ctx.db, input.id, userId);
-			if (input.currencyId) {
-				await validateEntityOwnership(
-					ctx.db,
-					"currency",
-					input.currencyId,
-					userId
+			await validateEntityOwnership(ctx.db, "tournament", input.id, userId);
+			const [version] = await ctx.db
+				.select({ tournamentId: tournamentRule.tournamentId })
+				.from(tournamentRule)
+				.where(
+					and(
+						eq(tournamentRule.id, input.ruleVersionId),
+						eq(tournamentRule.userId, userId)
+					)
 				);
+			if (!version) {
+				throw new TRPCError({
+					code: "FORBIDDEN",
+					message: "You do not own this rule version",
+				});
 			}
-
-			const updateData: Partial<typeof found> = { updatedAt: new Date() };
-			if (input.name !== undefined) {
-				updateData.name = input.name;
+			if (version.tournamentId !== input.id) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "This rule version belongs to another tournament",
+				});
 			}
-			if (input.variant !== undefined) {
-				updateData.variant = input.variant;
-			}
-			if (input.buyIn !== undefined) {
-				updateData.buyIn = input.buyIn;
-			}
-			if (input.entryFee !== undefined) {
-				updateData.entryFee = input.entryFee;
-			}
-			if (input.startingStack !== undefined) {
-				updateData.startingStack = input.startingStack;
-			}
-			if (input.bountyAmount !== undefined) {
-				updateData.bountyAmount = input.bountyAmount;
-			}
-			if (input.tableSize !== undefined) {
-				updateData.tableSize = input.tableSize;
-			}
-			if (input.currencyId !== undefined) {
-				updateData.currencyId = input.currencyId;
-			}
-			if (input.memo !== undefined) {
-				updateData.memo = input.memo;
-			}
-			if (input.houseRules !== undefined) {
-				updateData.houseRules = input.houseRules;
-			}
-
 			await ctx.db
 				.update(tournament)
-				.set(updateData)
-				.where(eq(tournament.id, input.id));
-
-			const [updated] = await ctx.db
-				.select()
-				.from(tournament)
-				.where(eq(tournament.id, input.id));
-			return updated;
+				.set({ currentRuleId: input.ruleVersionId, updatedAt: new Date() })
+				.where(and(eq(tournament.id, input.id), eq(tournament.userId, userId)));
+			return await getTournament(ctx.db, userId, input.id);
 		}),
 
 	archive: protectedProcedure
 		.input(tournamentIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await validateTournamentOwnership(ctx.db, input.id, userId);
-
+			await validateEntityOwnership(ctx.db, "tournament", input.id, userId);
+			const now = new Date();
 			await ctx.db
 				.update(tournament)
-				.set({ archivedAt: new Date(), updatedAt: new Date() })
-				.where(eq(tournament.id, input.id));
-
-			const [updated] = await ctx.db
-				.select()
-				.from(tournament)
-				.where(eq(tournament.id, input.id));
-			return updated;
+				.set({ archivedAt: now, updatedAt: now })
+				.where(and(eq(tournament.id, input.id), eq(tournament.userId, userId)));
+			return await getTournament(ctx.db, userId, input.id);
 		}),
 
 	restore: protectedProcedure
 		.input(tournamentIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await validateTournamentOwnership(ctx.db, input.id, userId);
-
+			await validateEntityOwnership(ctx.db, "tournament", input.id, userId);
 			await ctx.db
 				.update(tournament)
 				.set({ archivedAt: null, updatedAt: new Date() })
-				.where(eq(tournament.id, input.id));
-
-			const [updated] = await ctx.db
-				.select()
-				.from(tournament)
-				.where(eq(tournament.id, input.id));
-			return updated;
+				.where(and(eq(tournament.id, input.id), eq(tournament.userId, userId)));
+			return await getTournament(ctx.db, userId, input.id);
 		}),
 
 	delete: protectedProcedure
 		.input(tournamentIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await validateTournamentOwnership(ctx.db, input.id, userId);
-
+			await validateEntityOwnership(ctx.db, "tournament", input.id, userId);
 			const deleted = await ctx.db
 				.delete(tournament)
 				.where(
 					and(
 						eq(tournament.id, input.id),
 						eq(tournament.userId, userId),
-						notExists(
-							ctx.db
-								.select({ id: entryTournament.entryId })
-								.from(entryTournament)
-								.where(eq(entryTournament.tournamentId, tournament.id))
-						)
+						not(tournamentIsReferenced)
 					)
 				)
 				.returning({ id: tournament.id });
@@ -522,198 +467,53 @@ export const tournamentRouter = router({
 				throw new TRPCError({
 					code: "CONFLICT",
 					message:
-						"This tournament is referenced by entries. Archive the tournament instead of deleting it.",
+						"This tournament is referenced by entries or ledger lines. Archive the tournament instead of deleting it.",
 				});
 			}
 			return { success: true };
 		}),
 
-	createWithLevels: protectedProcedure
-		.input(tournamentCreateWithLevelsInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateRoomOwnership(ctx.db, input.roomId, userId);
-			if (input.currencyId) {
-				await validateEntityOwnership(
-					ctx.db,
-					"currency",
-					input.currencyId,
-					userId
-				);
-			}
-			await assertLevelGameStructures(ctx.db, userId, input.blindLevels, {});
-
-			const id = crypto.randomUUID();
-			const statements = buildTournamentCreateStatements(ctx.db, {
-				id,
-				input,
-				now: new Date(),
-				userId,
-			});
-			await ctx.db.batch(statements);
-
-			const [created] = await ctx.db
-				.select()
-				.from(tournament)
-				.where(eq(tournament.id, id));
-			return created;
-		}),
-
-	updateWithLevels: protectedProcedure
-		.input(tournamentUpdateWithLevelsInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			const found = await validateTournamentOwnership(ctx.db, input.id, userId);
-			if (input.currencyId) {
-				await validateEntityOwnership(
-					ctx.db,
-					"currency",
-					input.currencyId,
-					userId
-				);
-			}
-			await assertLevelGameStructures(ctx.db, userId, input.blindLevels, {
-				tournamentId: input.id,
-			});
-
-			const updateData: Partial<typeof found> = { updatedAt: new Date() };
-			if (input.name !== undefined) {
-				updateData.name = input.name;
-			}
-			if (input.variant !== undefined) {
-				updateData.variant = input.variant;
-			}
-			if (input.buyIn !== undefined) {
-				updateData.buyIn = input.buyIn;
-			}
-			if (input.entryFee !== undefined) {
-				updateData.entryFee = input.entryFee;
-			}
-			if (input.startingStack !== undefined) {
-				updateData.startingStack = input.startingStack;
-			}
-			if (input.bountyAmount !== undefined) {
-				updateData.bountyAmount = input.bountyAmount;
-			}
-			if (input.tableSize !== undefined) {
-				updateData.tableSize = input.tableSize;
-			}
-			if (input.currencyId !== undefined) {
-				updateData.currencyId = input.currencyId;
-			}
-			if (input.memo !== undefined) {
-				updateData.memo = input.memo;
-			}
-			if (input.houseRules !== undefined) {
-				updateData.houseRules = input.houseRules;
-			}
-
-			const statements: [BatchStatement, ...BatchStatement[]] = [
-				ctx.db
-					.update(tournament)
-					.set(updateData)
-					.where(eq(tournament.id, input.id)),
-			];
-
-			if (input.tags !== undefined) {
-				statements.push(
-					ctx.db
-						.delete(tournamentTag)
-						.where(eq(tournamentTag.tournamentId, input.id)),
-					...input.tags.map((name) =>
-						ctx.db.insert(tournamentTag).values({
-							id: crypto.randomUUID(),
-							tournamentId: input.id,
-							name,
-						})
-					)
-				);
-			}
-
-			if (input.chipPurchases !== undefined) {
-				statements.push(
-					ctx.db
-						.delete(tournamentChipPurchase)
-						.where(eq(tournamentChipPurchase.tournamentId, input.id)),
-					...input.chipPurchases.map((cp, i) =>
-						ctx.db.insert(tournamentChipPurchase).values({
-							id: crypto.randomUUID(),
-							tournamentId: input.id,
-							name: cp.name,
-							cost: cp.cost,
-							chips: cp.chips,
-							sortOrder: i,
-						})
-					)
-				);
-			}
-
-			statements.push(
-				ctx.db.delete(blindLevel).where(eq(blindLevel.tournamentId, input.id)),
-				...input.blindLevels.map((l, i) =>
-					ctx.db.insert(blindLevel).values({
-						id: crypto.randomUUID(),
-						tournamentId: input.id,
-						level: i + 1,
-						isBreak: l.isBreak,
-						blind1: l.blind1 ?? null,
-						blind2: l.blind2 ?? null,
-						blind3: l.blind3 ?? null,
-						ante: l.ante ?? null,
-						minutes: l.minutes ?? null,
-						games: l.games ?? null,
-					})
-				)
-			);
-
-			await ctx.db.batch(statements);
-
-			const [updated] = await ctx.db
-				.select()
-				.from(tournament)
-				.where(eq(tournament.id, input.id));
-			return updated;
-		}),
-
 	addTag: protectedProcedure
-		.input(z.object({ tournamentId: z.string(), name: z.string().min(1) }))
+		.input(
+			z.object({
+				tournamentId: idSchema,
+				name: z.string().trim().min(1).max(50),
+			})
+		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await validateTournamentOwnership(ctx.db, input.tournamentId, userId);
-
+			await validateEntityOwnership(
+				ctx.db,
+				"tournament",
+				input.tournamentId,
+				userId
+			);
 			const id = crypto.randomUUID();
 			await ctx.db.insert(tournamentTag).values({
 				id,
 				tournamentId: input.tournamentId,
 				name: input.name,
 			});
-
-			const [created] = await ctx.db
-				.select()
-				.from(tournamentTag)
-				.where(eq(tournamentTag.id, id));
-			return created;
+			return { id, tournamentId: input.tournamentId, name: input.name };
 		}),
 
 	removeTag: protectedProcedure
-		.input(z.object({ id: z.string() }))
+		.input(z.object({ id: idSchema }))
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-
 			const [tag] = await ctx.db
-				.select()
+				.select({ id: tournamentTag.id })
 				.from(tournamentTag)
-				.where(eq(tournamentTag.id, input.id));
-
+				.innerJoin(tournament, eq(tournament.id, tournamentTag.tournamentId))
+				.where(
+					and(eq(tournamentTag.id, input.id), eq(tournament.userId, userId))
+				);
 			if (!tag) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this tag",
 				});
 			}
-
-			await validateTournamentOwnership(ctx.db, tag.tournamentId, userId);
-
 			await ctx.db.delete(tournamentTag).where(eq(tournamentTag.id, input.id));
 			return { success: true };
 		}),

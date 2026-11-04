@@ -24,13 +24,17 @@ const T0 = 1_757_066_400;
 const LEGACY_FIXTURE = [
 	`INSERT INTO user (id, name, email, created_at, updated_at) VALUES ('alice', 'Alice', 'alice@example.test', ${T0}, ${T0}), ('bob', 'Bob', 'bob@example.test', ${T0}, ${T0})`,
 	`INSERT INTO asset (id, user_id, name, kind, decimals, created_at, updated_at) VALUES ('jpy', 'alice', 'JPY', 'currency', 0, ${T0}, ${T0}), ('bob-jpy', 'bob', 'JPY', 'currency', 0, ${T0}, ${T0})`,
+	`INSERT INTO room (id, user_id, name, updated_at) VALUES ('club', 'alice', 'Club', ${T0})`,
+	`INSERT INTO tournament (id, user_id, room_id, currency_id, name, buy_in, entry_fee, updated_at) VALUES ('daily', 'alice', 'club', 'jpy', 'Daily', 10000, 1000, ${T0})`,
+	`INSERT INTO blind_level (id, tournament_id, level, blind1, blind2, minutes) VALUES ('daily-level', 'daily', 1, 100, 200, 20)`,
+	`INSERT INTO tournament_chip_purchase (id, tournament_id, name, cost, chips) VALUES ('daily-addon', 'daily', 'Add-on', 3000, 10000)`,
 	`INSERT INTO game_session (id, user_id, kind, status, source, session_date, started_at, ended_at, break_minutes, currency_id, hand_count, dealer_seat, created_at, updated_at) VALUES
 	 ('live', 'alice', 'cash_game', 'completed', 'live', ${T0}, ${T0 + 17}, ${T0 + 7223}, 168, 'jpy', 2, 4, ${T0}, ${T0}),
 	 ('mtt', 'alice', 'tournament', 'completed', 'live', ${T0}, ${T0 + 10_000}, ${T0 + 20_000}, 0, 'jpy', NULL, NULL, ${T0}, ${T0}),
 	 ('manual', 'alice', 'cash_game', 'completed', 'manual', 1756944000, NULL, NULL, 0, 'jpy', NULL, NULL, ${T0}, ${T0}),
 	 ('open-cash', 'bob', 'cash_game', 'active', 'live', ${T0}, ${T0 + 30_000}, NULL, 0, 'bob-jpy', NULL, NULL, ${T0}, ${T0})`,
 	`INSERT INTO session_cash_detail (session_id, buy_in, cash_out, chip_remove_total, ev_cash_out) VALUES ('live', 35000, 45000, 2000, 45000), ('manual', 10000, 12000, NULL, NULL), ('open-cash', 10000, NULL, NULL, NULL)`,
-	`INSERT INTO session_tournament_detail (session_id, tournament_buy_in, entry_fee, placement, total_entries, before_deadline, prize_money, bounty_prizes) VALUES ('mtt', 10000, 1000, 3, 50, 0, 30000, 2000)`,
+	`INSERT INTO session_tournament_detail (session_id, tournament_id, tournament_buy_in, entry_fee, placement, total_entries, before_deadline, prize_money, bounty_prizes) VALUES ('mtt', 'daily', 10000, 1000, 3, 50, 0, 30000, 2000)`,
 	`INSERT INTO session_chip_purchase (id, session_id, name, cost, chips, sort_order) VALUES ('rebuy', 'mtt', 'Rebuy', 3000, 10000, 0)`,
 	`INSERT INTO session_chip_purchase_result (session_chip_purchase_id, count) VALUES ('rebuy', 1)`,
 	`INSERT INTO session_event (id, session_id, event_type, occurred_at, sort_order, payload, created_at, updated_at) VALUES
@@ -191,6 +195,39 @@ describe("audit-data-model through wrangler's local D1", () => {
 			}
 			expect(statuses(gate.report, "A-6")).toEqual(["pass", "pass", "pass"]);
 			expect(statuses(gate.report, "A-14")).toContain("pass");
+		},
+		RUN_TIMEOUT
+	);
+
+	it(
+		"detects changes to migrated tournament levels, flat stakes and addon prices",
+		async () => {
+			const dir = await copyWith("broken-tournament-content", [
+				"UPDATE tournament_rule_level SET minutes = 30 WHERE id = 'trl:daily-level'",
+				"UPDATE tournament_rule_level_stake SET blind1 = 150 WHERE level_id = 'trl:daily-level'",
+				"UPDATE tournament_rule_price SET amount = 4000 WHERE id = 'trp:daily-addon'",
+			]);
+			const result = audit(dir);
+			expect(result.status).toBe(1);
+			expect(rows(result.report, "A-13")).toEqual(
+				expect.arrayContaining([
+					{ problem: "missing or changed level", id: "trl:daily-level" },
+					{ problem: "flat stakes", id: "trl:daily-level" },
+					{ problem: "missing or changed addon", id: "trp:daily-addon" },
+				])
+			);
+		},
+		RUN_TIMEOUT
+	);
+
+	it(
+		"replays tournament prices from the current rule when session prices are absent",
+		async () => {
+			const dir = await copyWith("tournament-price-fallback", [
+				"UPDATE session_tournament_detail SET tournament_buy_in = NULL, entry_fee = NULL WHERE session_id = 'mtt'",
+			]);
+			const result = audit(dir, "--enable", "A-6");
+			expect(statuses(result.report, "A-6")).toEqual(["pass", "pass", "pass"]);
 		},
 		RUN_TIMEOUT
 	);

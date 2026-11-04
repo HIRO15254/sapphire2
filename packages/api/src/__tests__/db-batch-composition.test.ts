@@ -1,15 +1,8 @@
 import { playerTag, playerToPlayerTag } from "@sapphire2/db/schema/player";
-import { room } from "@sapphire2/db/schema/room";
 import {
 	sessionTag,
 	sessionToSessionTag,
 } from "@sapphire2/db/schema/session-tag";
-import {
-	blindLevel,
-	tournament,
-	tournamentChipPurchase,
-} from "@sapphire2/db/schema/tournament";
-import { tournamentTag } from "@sapphire2/db/schema/tournament-tag";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 
@@ -85,9 +78,6 @@ function createBatchTrackingDb(
 	return { db, batchCalls, inserts, deletes };
 }
 
-const opsOn = (stmts: Stmt[], table: unknown, kind: Stmt["kind"]): Stmt[] =>
-	stmts.filter((s) => s.table === table && s.kind === kind);
-
 function sole(batchCalls: Stmt[][]): Stmt[] {
 	expect(batchCalls).toHaveLength(1);
 	return batchCalls[0] as Stmt[];
@@ -99,113 +89,6 @@ function callerFor(db: unknown, userId: string) {
 		db,
 	} as unknown as Parameters<typeof appRouter.createCaller>[0]);
 }
-
-describe("tournament.createWithLevels batch composition (SA2-116)", () => {
-	it("submits the tournament and all tags / chip purchases / blind levels in one batch", async () => {
-		const rows = new Map<unknown, Rows>([
-			[room, [{ id: "room-1", userId: "user-1" }]],
-			[tournament, [{ id: "tn-created", roomId: "room-1", name: "T" }]],
-		]);
-		const { db, batchCalls } = createBatchTrackingDb(rows);
-
-		await callerFor(db, "user-1").tournament.createWithLevels({
-			roomId: "room-1",
-			name: "T",
-			tags: ["A", "B"],
-			chipPurchases: [{ name: "Rebuy", cost: 100, chips: 1000 }],
-			blindLevels: [
-				{ isBreak: false, blind1: 100, blind2: 200 },
-				{ isBreak: true },
-			],
-		});
-
-		expect(batchCalls).toHaveLength(1);
-		const batch = sole(batchCalls);
-		expect(batch[0]).toMatchObject({ kind: "insert", table: tournament });
-		expect(opsOn(batch, tournamentTag, "insert")).toHaveLength(2);
-		expect(opsOn(batch, tournamentChipPurchase, "insert")).toHaveLength(1);
-		expect(opsOn(batch, blindLevel, "insert")).toHaveLength(2);
-	});
-
-	it("submits a bare tournament (no children) as a single-statement batch", async () => {
-		const rows = new Map<unknown, Rows>([
-			[room, [{ id: "room-1", userId: "user-1" }]],
-			[tournament, [{ id: "tn-created", roomId: "room-1", name: "T" }]],
-		]);
-		const { db, batchCalls } = createBatchTrackingDb(rows);
-
-		await callerFor(db, "user-1").tournament.createWithLevels({
-			roomId: "room-1",
-			name: "T",
-		});
-
-		const batch = sole(batchCalls);
-		expect(batch).toHaveLength(1);
-		expect(batch[0]).toMatchObject({
-			kind: "insert",
-			table: tournament,
-		});
-	});
-});
-
-describe("tournament.updateWithLevels batch composition (SA2-116)", () => {
-	it("submits the tournament UPDATE and every clear-and-reseed group in one batch", async () => {
-		const rows = new Map<unknown, Rows>([
-			[
-				tournament,
-				[{ id: "tn-1", roomId: "room-1", userId: "user-1", name: "T" }],
-			],
-			[room, [{ id: "room-1", userId: "user-1" }]],
-		]);
-		const { db, batchCalls } = createBatchTrackingDb(rows);
-
-		await callerFor(db, "user-1").tournament.updateWithLevels({
-			id: "tn-1",
-			name: "T2",
-			tags: ["A", "B"],
-			chipPurchases: [{ name: "Rebuy", cost: 100, chips: 1000 }],
-			blindLevels: [
-				{ isBreak: false, blind1: 100, blind2: 200 },
-				{ isBreak: true },
-			],
-		});
-
-		expect(batchCalls).toHaveLength(1);
-		const batch = sole(batchCalls);
-
-		expect(batch[0]).toMatchObject({ kind: "update", table: tournament });
-		expect(opsOn(batch, tournamentTag, "delete")).toHaveLength(1);
-		expect(opsOn(batch, tournamentTag, "insert")).toHaveLength(2);
-		expect(opsOn(batch, tournamentChipPurchase, "delete")).toHaveLength(1);
-		expect(opsOn(batch, tournamentChipPurchase, "insert")).toHaveLength(1);
-		expect(opsOn(batch, blindLevel, "delete")).toHaveLength(1);
-		expect(opsOn(batch, blindLevel, "insert")).toHaveLength(2);
-	});
-
-	it("batches the blind-level clear-and-reseed even when tags / chips are omitted", async () => {
-		const rows = new Map<unknown, Rows>([
-			[
-				tournament,
-				[{ id: "tn-1", roomId: "room-1", userId: "user-1", name: "T" }],
-			],
-			[room, [{ id: "room-1", userId: "user-1" }]],
-		]);
-		const { db, batchCalls } = createBatchTrackingDb(rows);
-
-		await callerFor(db, "user-1").tournament.updateWithLevels({
-			id: "tn-1",
-			blindLevels: [{ isBreak: false, blind1: 100, blind2: 200 }],
-		});
-
-		const batch = sole(batchCalls);
-		expect(batch[0]).toMatchObject({ kind: "update", table: tournament });
-
-		expect(opsOn(batch, tournamentTag, "delete")).toHaveLength(0);
-		expect(opsOn(batch, tournamentChipPurchase, "delete")).toHaveLength(0);
-		expect(opsOn(batch, blindLevel, "delete")).toHaveLength(1);
-		expect(opsOn(batch, blindLevel, "insert")).toHaveLength(1);
-	});
-});
 
 describe("tag deletion batch composition (SA2-116)", () => {
 	it("deletes player-tag links and the player tag in one batch", async () => {

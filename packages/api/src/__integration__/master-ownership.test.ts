@@ -12,7 +12,11 @@ describe("new masters persist the caller's ownership on D1", () => {
 				await caller.room.create({ name: "Club" })
 			);
 			const created = requireCreatedRow(
-				await caller.tournament.create({ roomId: room.id, name: "Daily" })
+				await caller.tournament.create({
+					roomId: room.id,
+					name: "Daily",
+					rule: {},
+				})
 			);
 			expect(
 				await api.db
@@ -33,9 +37,7 @@ describe("new masters persist the caller's ownership on D1", () => {
 				await caller.tournament.createWithLevels({
 					roomId: room.id,
 					name: "Deepstack",
-					blindLevels: [
-						{ isBreak: false, blind1: 100, blind2: 200, minutes: 20 },
-					],
+					rule: { levels: [{ isBreak: false, minutes: 20 }] },
 				})
 			);
 			expect(

@@ -101,13 +101,24 @@ async function seedMasters(d1: TestD1Database, owners: string[]) {
 			name: "1/2",
 			updated_at: 0,
 		});
+		await insert(d1, "game_lineup", { id: `${owner}-lineup`, user_id: owner });
+		await insert(d1, "tournament_rule", {
+			id: `${owner}-rule`,
+			user_id: owner,
+			lineup_id: `${owner}-lineup`,
+		});
 		await insert(d1, "tournament", {
 			id: `${owner}-tournament`,
 			user_id: owner,
 			room_id: `${owner}-room`,
 			name: "Daily",
+			current_rule_id: `${owner}-rule`,
 			updated_at: 0,
 		});
+		await d1
+			.prepare("UPDATE tournament_rule SET tournament_id = ? WHERE id = ?")
+			.bind(`${owner}-tournament`, `${owner}-rule`)
+			.run();
 	}
 }
 
@@ -807,6 +818,9 @@ describe("entry aggregate tables on D1", () => {
 			expect(await ids(api.d1, table, "entry_id"), table).toEqual([]);
 		}
 		await api.d1.prepare("DELETE FROM asset WHERE id = 'alice-currency'").run();
+		await api.d1
+			.prepare("DELETE FROM tournament WHERE id = 'alice-tournament'")
+			.run();
 		await api.d1.prepare("DELETE FROM room WHERE id = 'alice-room'").run();
 		expect(await ids(api.d1, "ring_game")).toEqual([]);
 		expect(await ids(api.d1, "tournament")).toEqual([]);

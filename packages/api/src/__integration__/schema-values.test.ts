@@ -5,7 +5,6 @@ import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionBlindLevel } from "@sapphire2/db/schema/session-blind-level";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
-import { blindLevel, tournament } from "@sapphire2/db/schema/tournament";
 import { eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
 import { test } from "./test-fixture";
@@ -96,13 +95,6 @@ describe("stored defaults and value encoding", () => {
 			archivedAt: instant,
 			updatedAt: instant,
 		});
-		await api.db.insert(tournament).values({
-			id: "tournament",
-			userId: "alice",
-			roomId: "room",
-			name: "Tournament",
-			updatedAt: instant,
-		});
 		await api.db.insert(gameSession).values([
 			{
 				id: "cash",
@@ -129,12 +121,6 @@ describe("stored defaults and value encoding", () => {
 		await api.db
 			.insert(sessionTournamentDetail)
 			.values({ sessionId: "tour", timerStartedAt: instant });
-		await api.db.insert(blindLevel).values({
-			id: "master-level",
-			tournamentId: "tournament",
-			level: 1,
-			games,
-		});
 		await api.db
 			.insert(sessionBlindLevel)
 			.values({ id: "snapshot-level", sessionId: "tour", level: 1, games });
@@ -152,9 +138,6 @@ describe("stored defaults and value encoding", () => {
 				archivedAt: instant,
 			}),
 		]);
-		expect(await api.db.select().from(tournament)).toEqual([
-			expect.objectContaining({ variant: "NL Hold'em" }),
-		]);
 		expect(await api.db.select().from(sessionCashDetail)).toEqual([
 			expect.objectContaining({ variant: "NL Hold'em", mixGames: games }),
 		]);
@@ -163,9 +146,6 @@ describe("stored defaults and value encoding", () => {
 				variant: "NL Hold'em",
 				timerStartedAt: instant,
 			}),
-		]);
-		expect(await api.db.select().from(blindLevel)).toEqual([
-			expect.objectContaining({ games, isBreak: false }),
 		]);
 		expect(await api.db.select().from(sessionBlindLevel)).toEqual([
 			expect.objectContaining({ games, isBreak: false }),

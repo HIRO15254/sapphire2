@@ -3,7 +3,6 @@ import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionBlindLevel } from "@sapphire2/db/schema/session-blind-level";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
-import { blindLevel, tournament } from "@sapphire2/db/schema/tournament";
 import { eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
 import { requireCreatedRow, test } from "./test-fixture";
@@ -12,12 +11,6 @@ const MIXED_GROUP = {
 	variants: ["NL Hold'em", "Razz"],
 	blind1: 100,
 	blind2: 200,
-};
-
-const MIXED_LEVEL = {
-	isBreak: false,
-	minutes: 20,
-	games: [MIXED_GROUP],
 };
 
 const SINGLE_STRUCTURE_LEVEL = {
@@ -38,68 +31,16 @@ const STRUCTURE_REJECTION = {
 
 async function persistedRuleRows(api: { db: Database }) {
 	return {
-		blindLevels: await api.db.select().from(blindLevel),
 		ringGames: await api.db.select().from(ringGame),
 		cashDetails: await api.db.select().from(sessionCashDetail),
 		sessionLevels: await api.db.select().from(sessionBlindLevel),
 		sessionIds: (await api.db.select({ id: gameSession.id }).from(gameSession))
 			.map((row) => row.id)
 			.sort(),
-		tournaments: await api.db.select().from(tournament),
 	};
 }
 
 describe("one game group per mix group on D1", () => {
-	test("every level-games write path rejects a group mixing game groups and leaves stored levels untouched", async ({
-		api,
-	}) => {
-		await api.alice.gameVariant.list();
-		const room = requireCreatedRow(
-			await api.alice.room.create({ name: "Club" })
-		);
-		const master = requireCreatedRow(
-			await api.alice.tournament.createWithLevels({
-				roomId: room.id,
-				name: "Mixed deepstack",
-				blindLevels: [SINGLE_STRUCTURE_LEVEL],
-			})
-		);
-		const [storedLevel] = await api.db
-			.select()
-			.from(blindLevel)
-			.where(eq(blindLevel.tournamentId, master.id));
-		const before = await persistedRuleRows(api);
-
-		const writes = [
-			() =>
-				api.alice.tournament.createWithLevels({
-					roomId: room.id,
-					name: "Another",
-					blindLevels: [MIXED_LEVEL],
-				}),
-			() =>
-				api.alice.tournament.updateWithLevels({
-					id: master.id,
-					blindLevels: [MIXED_LEVEL],
-				}),
-			() =>
-				api.alice.blindLevel.create({
-					tournamentId: master.id,
-					level: 2,
-					games: MIXED_LEVEL.games,
-				}),
-			() =>
-				api.alice.blindLevel.update({
-					id: storedLevel?.id ?? "",
-					games: MIXED_LEVEL.games,
-				}),
-		];
-		for (const write of writes) {
-			await expect(write()).rejects.toMatchObject(STRUCTURE_REJECTION);
-		}
-		expect(await persistedRuleRows(api)).toEqual(before);
-	});
-
 	test("every legacy mix cash path rejects a group mixing game groups and accepts one group per structure", async ({
 		api,
 	}) => {
@@ -163,13 +104,6 @@ describe("one game group per mix group on D1", () => {
 				],
 			})
 		);
-		const master = requireCreatedRow(
-			await api.alice.tournament.createWithLevels({
-				roomId: room.id,
-				name: "Draw deepstack",
-				blindLevels: [{ isBreak: false, games: [drawGroup] }],
-			})
-		);
 		await api.alice.gameVariant.update({
 			id: badugi?.id ?? "",
 			groupId: bigBet?.id ?? "",
@@ -180,12 +114,6 @@ describe("one game group per mix group on D1", () => {
 			mixGames: [
 				{ ...drawGroup, blind1: 20, blind2: 40 },
 				{ variants: ["Razz"] },
-			],
-		});
-		await api.alice.tournament.updateWithLevels({
-			id: master.id,
-			blindLevels: [
-				{ isBreak: false, games: [{ variants: ["Badeucy", "Badugi"] }] },
 			],
 		});
 		const [ringAfterEcho] = await api.db
@@ -202,12 +130,6 @@ describe("one game group per mix group on D1", () => {
 			api.alice.ringGame.update({
 				id: ring.id,
 				mixGames: [grownGroup, { variants: ["Razz"] }],
-			})
-		).rejects.toMatchObject(STRUCTURE_REJECTION);
-		await expect(
-			api.alice.tournament.updateWithLevels({
-				id: master.id,
-				blindLevels: [{ isBreak: false, games: [grownGroup] }],
 			})
 		).rejects.toMatchObject(STRUCTURE_REJECTION);
 	});
