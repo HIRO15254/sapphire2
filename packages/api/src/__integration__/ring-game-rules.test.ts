@@ -3,21 +3,28 @@ import { user } from "@sapphire2/db/schema/auth";
 import { cashRule } from "@sapphire2/db/schema/rule";
 import { eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
+import { MAX_LINEUP_GROUPS } from "../services/game-lineup";
 import { requireCreatedRow, test } from "./test-fixture";
 
 describe("ring game rule versions on D1", () => {
-	test("rejects an omitted game when builtin NLH is unavailable", async ({
+	test("an omitted game on a fresh account seeds the masters and uses builtin NLH", async ({
 		api,
 	}) => {
 		const room = requireCreatedRow(
 			await api.alice.room.create({ name: "Club" })
 		);
-		await expect(
-			api.alice.ringGame.create({ roomId: room.id, name: "Cash", rule: {} })
-		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		const created = await api.alice.ringGame.create({
+			roomId: room.id,
+			name: "Cash",
+			rule: {},
+		});
+		expect(created.lineups[created.ruleVersion.lineupId]).toMatchObject({
+			displayName: "NL Hold'em",
+			gameMixId: null,
+		});
 	});
 
-	test("persists a 30-group mix and its complete stake set within D1's bind budget", async ({
+	test("persists a mix at the lineup group limit within D1's statement budget and rejects one more group", async ({
 		api,
 	}) => {
 		const room = requireCreatedRow(
@@ -34,7 +41,7 @@ describe("ring game rule versions on D1", () => {
 			})
 		);
 		groups.push(first.id);
-		for (let index = 0; index < 30; index++) {
+		for (let index = 0; index <= MAX_LINEUP_GROUPS; index++) {
 			if (index > 0) {
 				const group = requireCreatedRow(
 					await api.alice.gameGroup.create({
@@ -51,12 +58,20 @@ describe("ring game rule versions on D1", () => {
 				})
 			);
 			games.push(variant.id);
-			stakes.push({ gameGroupId: groups[index] as string, blind1: index });
+			if (index < MAX_LINEUP_GROUPS) {
+				stakes.push({ gameGroupId: groups[index] as string, blind1: index });
+			}
 		}
 		const mix = requireCreatedRow(
-			await api.alice.gameMix.create({ label: "Thirty", games })
+			await api.alice.gameMix.create({
+				label: "Wide",
+				games: games.slice(0, MAX_LINEUP_GROUPS),
+			})
 		);
-		for (let index = 1; index < 30; index++) {
+		const wider = requireCreatedRow(
+			await api.alice.gameMix.create({ label: "Wider", games })
+		);
+		for (let index = 1; index <= MAX_LINEUP_GROUPS; index++) {
 			await api.alice.gameVariant.update({
 				id: games[index] as string,
 				groupId: groups[index] as string,
@@ -81,7 +96,7 @@ describe("ring game rule versions on D1", () => {
 		);
 		const game = await caller.ringGame.create({
 			roomId: room.id,
-			name: "Thirty",
+			name: "Wide",
 			rule: { game: { gameMixId: mix.id }, stakes },
 		});
 		expect(statements).toBeLessThan(1000);
@@ -91,11 +106,22 @@ describe("ring game rule versions on D1", () => {
 			rule: { stakes, minBuyIn: 50 },
 		});
 		expect(statements).toBeLessThan(1000);
-		expect(game.ruleVersion.stakes).toHaveLength(30);
-		expect(game.lineups[game.ruleVersion.lineupId]?.groups).toHaveLength(30);
+		expect(game.ruleVersion.stakes).toHaveLength(MAX_LINEUP_GROUPS);
+		expect(game.lineups[game.ruleVersion.lineupId]?.groups).toHaveLength(
+			MAX_LINEUP_GROUPS
+		);
 		expect(game.ruleVersion.stakes.map((stake) => stake.blind1)).toEqual(
 			stakes.map((stake) => stake.blind1)
 		);
+		const before = await api.db.select().from(cashRule);
+		await expect(
+			api.alice.ringGame.create({
+				roomId: room.id,
+				name: "Wider",
+				rule: { game: { gameMixId: wider.id } },
+			})
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(await api.db.select().from(cashRule)).toEqual(before);
 	});
 
 	test("reuses identical versions, preserves history and restores without inserting a version", async ({

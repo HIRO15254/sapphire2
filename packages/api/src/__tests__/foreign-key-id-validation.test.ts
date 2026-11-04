@@ -11,16 +11,16 @@ describe("foreign-key id input validation", () => {
 			"defaultAssetId",
 		],
 		[
-			"tournament currencyId",
+			"tournament defaultAssetId",
 			appRouter.tournament.create,
-			{ roomId: "room-1", name: "Tournament" },
-			"currencyId",
+			{ roomId: "room-1", name: "Tournament", rule: {} },
+			"defaultAssetId",
 		],
 		[
-			"tournament with levels currencyId",
+			"tournament with levels defaultAssetId",
 			appRouter.tournament.createWithLevels,
-			{ roomId: "room-1", name: "Tournament" },
-			"currencyId",
+			{ roomId: "room-1", name: "Tournament", rule: { levels: [] } },
+			"defaultAssetId",
 		],
 	] as const)("rejects an empty %s while accepting a non-empty id and undefined", (_label, procedure, base, field) => {
 		expectRejects(procedure, { ...base, [field]: "" });
@@ -30,16 +30,20 @@ describe("foreign-key id input validation", () => {
 
 	it.each([
 		["ring game defaultAssetId", appRouter.ringGame.update, "defaultAssetId"],
-		["tournament currencyId", appRouter.tournament.update, "currencyId"],
 		[
-			"tournament with levels currencyId",
+			"tournament defaultAssetId",
+			appRouter.tournament.update,
+			"defaultAssetId",
+		],
+		[
+			"tournament with levels defaultAssetId",
 			appRouter.tournament.updateWithLevels,
-			"currencyId",
+			"defaultAssetId",
 		],
 	] as const)("rejects an empty %s while accepting a non-empty id, null clear, and undefined", (_label, procedure, field) => {
 		const base =
 			procedure === appRouter.tournament.updateWithLevels
-				? { id: "id-1", blindLevels: [] }
+				? { id: "id-1", rule: { levels: [] } }
 				: { id: "id-1" };
 		expectRejects(procedure, { ...base, [field]: "" });
 		expectAccepts(procedure, { ...base, [field]: "linked-id" });

@@ -1,7 +1,8 @@
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
+import { tournamentRuleLevel } from "@sapphire2/db/schema/rule";
 import { gameSession } from "@sapphire2/db/schema/session";
-import { blindLevel, tournament } from "@sapphire2/db/schema/tournament";
+import { tournament } from "@sapphire2/db/schema/tournament";
 import { describe, expect } from "vitest";
 import { requireCreatedRow, test } from "./test-fixture";
 
@@ -39,17 +40,12 @@ describe("room lifecycle on D1", () => {
 				);
 				await api.alice.ringGame.archive({ id: game.id });
 			} else {
-				await api.db.insert(tournament).values({
-					id: "tournament",
-					userId: "alice",
-					name: "Tournament",
+				const created = await api.alice.tournament.createWithLevels({
 					roomId: club.id,
-					archivedAt: day,
-					updatedAt: day,
+					name: "Tournament",
+					rule: { levels: [{ isBreak: false, minutes: 20 }] },
 				});
-				await api.db
-					.insert(blindLevel)
-					.values({ id: "level", tournamentId: "tournament", level: 1 });
+				await api.alice.tournament.archive({ id: created.id });
 			}
 			expect(await api.alice.room.list()).toEqual([
 				expect.objectContaining({ id: club.id, isReferenced: true }),
@@ -59,7 +55,7 @@ describe("room lifecycle on D1", () => {
 				sessions: await api.db.select().from(gameSession),
 				games: await api.db.select().from(ringGame),
 				tournaments: await api.db.select().from(tournament),
-				levels: await api.db.select().from(blindLevel),
+				levels: await api.db.select().from(tournamentRuleLevel),
 			};
 			await expect(
 				api.alice.room.delete({ id: club.id })
@@ -69,7 +65,7 @@ describe("room lifecycle on D1", () => {
 				sessions: await api.db.select().from(gameSession),
 				games: await api.db.select().from(ringGame),
 				tournaments: await api.db.select().from(tournament),
-				levels: await api.db.select().from(blindLevel),
+				levels: await api.db.select().from(tournamentRuleLevel),
 			}).toEqual(before);
 		});
 	}

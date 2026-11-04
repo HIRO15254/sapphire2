@@ -103,10 +103,33 @@ async function createApiFixture() {
 				googleMapsApiKey: undefined,
 			});
 		}
+		function meteredCaller(userId: "alice" | "bob") {
+			const meter = { statements: 0 };
+			const metered = new Proxy(d1, {
+				get(target, property) {
+					if (property === "prepare") {
+						return (query: string) => {
+							meter.statements += 1;
+							return target.prepare(query);
+						};
+					}
+					const value = Reflect.get(target, property);
+					return typeof value === "function" ? value.bind(target) : value;
+				},
+			});
+			return {
+				meter,
+				caller: caller(
+					userId,
+					createDb(metered as unknown as Parameters<typeof createDb>[0])
+				),
+			};
+		}
 		return {
 			d1,
 			db,
 			caller,
+			meteredCaller,
 			alice: caller("alice"),
 			bob: caller("bob"),
 			dispose: () => miniflare.dispose(),

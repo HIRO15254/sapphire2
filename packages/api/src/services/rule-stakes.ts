@@ -1,83 +1,100 @@
-import type { Database } from "@sapphire2/db";
-import { gameGroup } from "@sapphire2/db/schema/game-group";
+import { ANTE_TYPES } from "@sapphire2/db/constants/rule";
 import { TRPCError } from "@trpc/server";
 import z from "zod";
-import { validateOwnedIds } from "../lib/ownership";
-import type { Lineup } from "./game-lineups";
 
-const amount = z.number().int().min(0).nullable().optional();
+const blindAmountSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+
 export const stakeInputSchema = z.object({
 	gameGroupId: z.string().min(1),
-	blind1: amount,
-	blind2: amount,
-	blind3: amount,
-	ante: amount,
-	anteType: z.enum(["none", "all", "bb"]).nullable().optional(),
+	blind1: blindAmountSchema.nullable().optional(),
+	blind2: blindAmountSchema.nullable().optional(),
+	blind3: blindAmountSchema.nullable().optional(),
+	ante: blindAmountSchema.nullable().optional(),
+	anteType: z.enum(ANTE_TYPES).nullable().optional(),
 });
+
 export type StakeInput = z.infer<typeof stakeInputSchema>;
-export interface RuleStake {
+
+export interface StakeValues {
 	ante: number | null;
-	anteType: "none" | "all" | "bb" | null;
+	anteType: (typeof ANTE_TYPES)[number] | null;
 	blind1: number | null;
 	blind2: number | null;
 	blind3: number | null;
+}
+
+export interface StakeTarget {
 	gameGroupId: string;
 	lineupGroupId: string;
 }
 
-export async function resolveRuleStakes(
-	db: Database,
-	userId: string,
-	groups: Lineup["groups"],
-	supplied?: StakeInput[],
-	previousGroups?: Lineup["groups"],
-	previousStakes?: RuleStake[]
-): Promise<RuleStake[]> {
-	if (supplied) {
-		await validateOwnedIds(
-			db,
-			gameGroup,
-			supplied.map((stake) => stake.gameGroupId),
-			userId
-		);
-		if (
-			supplied.length !== groups.length ||
-			supplied.some(
-				(stake, index) => stake.gameGroupId !== groups[index]?.gameGroupId
-			)
-		) {
-			throw new TRPCError({
-				code: "BAD_REQUEST",
-				message: "Stakes must match lineup groups in order",
-			});
-		}
+export interface CarriedStake extends StakeValues {
+	gameGroupId: string;
+}
+
+export type PlannedStake = StakeTarget & StakeValues;
+
+const EMPTY_STAKE: StakeValues = {
+	blind1: null,
+	blind2: null,
+	blind3: null,
+	ante: null,
+	anteType: null,
+};
+
+function withStructureKeys<Item extends { gameGroupId: string }>(
+	items: Item[]
+): [string, Item][] {
+	const seen = new Map<string, number>();
+	return items.map((item) => {
+		const occurrence = seen.get(item.gameGroupId) ?? 0;
+		seen.set(item.gameGroupId, occurrence + 1);
+		return [`${item.gameGroupId}#${occurrence}`, item];
+	});
+}
+
+export function stakeValues(stake: StakeValues): StakeValues {
+	return {
+		blind1: stake.blind1,
+		blind2: stake.blind2,
+		blind3: stake.blind3,
+		ante: stake.ante,
+		anteType: stake.anteType,
+	};
+}
+
+export function planStakes(
+	groups: StakeTarget[],
+	supplied: StakeInput[] | undefined,
+	previous: CarriedStake[]
+): PlannedStake[] {
+	if (supplied === undefined) {
+		const carried = new Map(withStructureKeys(previous));
+		return withStructureKeys(groups).map(([key, group]) => {
+			const source = carried.get(key);
+			return { ...group, ...(source ? stakeValues(source) : EMPTY_STAKE) };
+		});
 	}
-	const oldByGroup = new Map<string, RuleStake[]>();
-	const oldStakesById = new Map(
-		previousStakes?.map((stake) => [stake.lineupGroupId, stake])
-	);
-	for (const group of previousGroups ?? []) {
-		const stake = oldStakesById.get(group.id);
-		if (stake) {
-			const bucket = oldByGroup.get(group.gameGroupId) ?? [];
-			bucket.push(stake);
-			oldByGroup.set(group.gameGroupId, bucket);
-		}
+	const mismatch = new TRPCError({
+		code: "BAD_REQUEST",
+		message:
+			"Stakes must list one entry per game group of the game, in group order",
+	});
+	if (supplied.length !== groups.length) {
+		throw mismatch;
 	}
-	const occurrences = new Map<string, number>();
 	return groups.map((group, index) => {
-		const occurrence = occurrences.get(group.gameGroupId) ?? 0;
-		occurrences.set(group.gameGroupId, occurrence + 1);
-		const stake =
-			supplied?.[index] ?? oldByGroup.get(group.gameGroupId)?.[occurrence];
+		const stake = supplied[index];
+		if (stake?.gameGroupId !== group.gameGroupId) {
+			throw mismatch;
+		}
 		return {
-			lineupGroupId: group.id,
-			gameGroupId: group.gameGroupId,
-			blind1: stake?.blind1 ?? null,
-			blind2: stake?.blind2 ?? null,
-			blind3: stake?.blind3 ?? null,
-			ante: stake?.ante ?? null,
-			anteType: stake?.anteType ?? null,
+			...group,
+			blind1: stake.blind1 ?? null,
+			blind2: stake.blind2 ?? null,
+			blind3: stake.blind3 ?? null,
+			ante: stake.ante ?? null,
+			anteType: stake.anteType ?? null,
 		};
 	});
 }

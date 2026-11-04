@@ -1,17 +1,19 @@
 import { relations, sql } from "drizzle-orm";
 import {
+	check,
 	foreignKey,
 	index,
 	integer,
+	type SQLiteTableExtraConfigValue,
 	sqliteTable,
 	text,
 	uniqueIndex,
 } from "drizzle-orm/sqlite-core";
-import { DEFAULT_VARIANT_LABEL } from "../constants/game-variants";
 import type { LevelGameGroup } from "../schemas/game";
 import { asset } from "./asset";
 import { user } from "./auth";
 import { room } from "./room";
+import { tournamentRule } from "./rule";
 import { tournamentTag } from "./tournament-tag";
 
 export const tournament = sqliteTable(
@@ -21,37 +23,43 @@ export const tournament = sqliteTable(
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
-		roomId: text("room_id").notNull(),
-		name: text("name").notNull(),
-		variant: text("variant").notNull().default(DEFAULT_VARIANT_LABEL),
-		buyIn: integer("buy_in"),
-		entryFee: integer("entry_fee"),
-		startingStack: integer("starting_stack"),
-		bountyAmount: integer("bounty_amount"),
-		tableSize: integer("table_size"),
-		currencyId: text("currency_id").references(() => asset.id, {
-			onDelete: "set null",
-		}),
-		memo: text("memo"),
-		houseRules: text("house_rules"),
-		archivedAt: integer("archived_at", { mode: "timestamp" }),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),
 		updatedAt: integer("updated_at", { mode: "timestamp" })
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
+		roomId: text("room_id"),
+		name: text("name").notNull(),
+		memo: text("memo"),
+		isFavorite: integer("is_favorite", { mode: "boolean" })
+			.notNull()
+			.default(false),
+		archivedAt: integer("archived_at", { mode: "timestamp" }),
+		defaultAssetId: text("default_asset_id"),
+		currentRuleId: text("current_rule_id").notNull(),
 	},
-	(table) => [
-		uniqueIndex("tournament_id_user_id_unique").on(table.id, table.userId),
-		index("tournament_userId_idx").on(table.userId),
-		index("tournament_roomId_idx").on(table.roomId),
-		index("tournament_currencyId_idx").on(table.currencyId),
+	(t): SQLiteTableExtraConfigValue[] => [
+		uniqueIndex("tournament_id_user_id_unique").on(t.id, t.userId),
+		index("tournament_room_idx").on(t.roomId),
+		index("tournament_asset_idx").on(t.defaultAssetId),
+		index("tournament_rule_idx").on(t.currentRuleId),
 		foreignKey({
-			columns: [table.roomId, table.userId],
+			columns: [t.roomId, t.userId],
 			foreignColumns: [room.id, room.userId],
 			name: "tournament_room_owner_fk",
-		}).onDelete("cascade"),
+		}).onDelete("no action"),
+		foreignKey({
+			columns: [t.defaultAssetId, t.userId],
+			foreignColumns: [asset.id, asset.userId],
+			name: "tournament_default_asset_owner_fk",
+		}).onDelete("no action"),
+		foreignKey({
+			columns: [t.currentRuleId, t.userId],
+			foreignColumns: [tournamentRule.id, tournamentRule.userId],
+			name: "tournament_current_rule_owner_fk",
+		}).onDelete("no action"),
+		check("tournament_is_favorite_check", sql`${t.isFavorite} IN (0, 1)`),
 	]
 );
 
@@ -97,12 +105,12 @@ export const tournamentRelations = relations(tournament, ({ one, many }) => ({
 		references: [user.id],
 	}),
 	room: one(room, {
-		fields: [tournament.roomId],
-		references: [room.id],
+		fields: [tournament.roomId, tournament.userId],
+		references: [room.id, room.userId],
 	}),
-	asset: one(asset, {
-		fields: [tournament.currencyId],
-		references: [asset.id],
+	defaultAsset: one(asset, {
+		fields: [tournament.defaultAssetId, tournament.userId],
+		references: [asset.id, asset.userId],
 	}),
 	blindLevels: many(blindLevel),
 	chipPurchases: many(tournamentChipPurchase),

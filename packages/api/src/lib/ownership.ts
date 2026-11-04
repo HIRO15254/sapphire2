@@ -22,18 +22,6 @@ type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
 >[0]["ctx"]["db"];
 
-async function assertRoomOwnedBy(
-	db: DbInstance,
-	roomId: string,
-	userId: string,
-	forbiddenMessage: string
-): Promise<void> {
-	const [foundRoom] = await db.select().from(room).where(eq(room.id, roomId));
-	if (!foundRoom || foundRoom.userId !== userId) {
-		throw new TRPCError({ code: "FORBIDDEN", message: forbiddenMessage });
-	}
-}
-
 async function validateRingGameOwnershipBranch(
 	db: DbInstance,
 	entityId: string,
@@ -87,19 +75,13 @@ async function validateTournamentOwnershipBranch(
 	const [found] = await db
 		.select()
 		.from(tournament)
-		.where(eq(tournament.id, entityId));
+		.where(and(eq(tournament.id, entityId), eq(tournament.userId, userId)));
 	if (!found) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
 			message: "You do not own this tournament",
 		});
 	}
-	await assertRoomOwnedBy(
-		db,
-		found.roomId,
-		userId,
-		"You do not own this tournament"
-	);
 	return found;
 }
 

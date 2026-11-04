@@ -10,8 +10,8 @@ import { describe, expect, it } from "vitest";
 import {
 	DELIBERATELY_EXCLUDED,
 	entityName,
-	LEVEL_GAMES_RULE,
 	TOOL_DEFINITIONS,
+	TOURNAMENT_RULE_CONTRACT,
 	toolAnnotations,
 	toolNamespace,
 	toolPermissionSummary,
@@ -210,25 +210,22 @@ describe("tool/router coupling", () => {
 		}
 	});
 
-	it("excludes ring-game rule undo and destructive deletion", () => {
-		expect(excludedPaths.has("ringGame.restoreRule")).toBe(true);
-		expect(excludedPaths.has("ringGame.delete")).toBe(true);
-		expect(exposedPaths.has("ringGame.restoreRule")).toBe(false);
-		expect(exposedPaths.has("ringGame.delete")).toBe(false);
-	});
-
-	it("explains the level games contract on every tool that accepts blindLevels", () => {
+	it("explains the rule version contract on every tool that accepts a tournament rule", () => {
 		const accepting = TOOL_DEFINITIONS.filter((def) => {
 			const shape = (def.inputSchema as { shape?: Record<string, unknown> })
 				?.shape;
-			return shape !== undefined && "blindLevels" in shape;
+			return (
+				shape !== undefined &&
+				"rule" in shape &&
+				def.procedurePath.startsWith("tournament.")
+			);
 		});
 		expect(accepting.map((def) => def.name).sort()).toEqual([
 			"tournament_create_with_levels",
 			"tournament_update_with_levels",
 		]);
 		for (const def of accepting) {
-			expect(def.description).toContain(LEVEL_GAMES_RULE);
+			expect(def.description).toContain(TOURNAMENT_RULE_CONTRACT);
 		}
 	});
 

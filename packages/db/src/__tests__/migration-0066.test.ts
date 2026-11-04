@@ -1,10 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { copyFileSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
-	DEFAULT_GAME_GROUPS,
-	DEFAULT_GAME_MIXES,
-	DEFAULT_GAME_VARIANTS,
-} from "../constants/game-variants";
-
+	afterAll,
+	afterEach,
+	beforeAll,
+	beforeEach,
+	describe,
+	expect,
+	it,
+} from "vitest";
 import {
 	type Database,
 	migrationFiles,
@@ -13,304 +18,270 @@ import {
 	statementsOf,
 } from "./sqlite";
 
-const TARGET = "0066_ring_game_rule_versions.sql";
-const PRECONDITION_GATE = /NOT NULL constraint failed: __gate_0066/;
+const RULES_EMPTY_GATE = /NOT NULL constraint failed: __gate_0066\.rules_empty/;
 
-function apply(db: Database, statements: string[]): void {
+const target = "0066_tournament_final.sql";
+const beforeEntry = migrationFiles("0061_").map(statementsOf);
+const cutovers = migrationFiles(target)
+	.filter((name) => name >= "0061_")
+	.map(statementsOf);
+const targetStatements = statementsOf(target);
+const directory = mkdtempSync(join(tmpdir(), "sapphire2-migration-0066-"));
+const seededPath = join(directory, "seeded.sqlite");
+let index = 0;
+
+const seed = `
+INSERT INTO user (id, name, email) VALUES
+ ('alice', 'Alice', 'alice@example.test'), ('bob', 'Bob', 'bob@example.test');
+INSERT INTO room (id, user_id, name, updated_at) VALUES
+ ('a-room', 'alice', 'Club', 2), ('b-room', 'bob', 'Bar', 2);
+INSERT INTO asset (id, user_id, name, updated_at) VALUES
+ ('a-asset', 'alice', 'Chips', 2), ('b-asset', 'bob', 'Unassigned', 2);
+INSERT INTO game_group (id, user_id, builtin_key, label, blind1_label, blind2_label, created_at, updated_at) VALUES
+ ('big', 'alice', 'bigbet', 'Big Bet', 'SB', 'BB', 1, 2),
+ ('stud', 'alice', NULL, 'Stud', 'Ante', NULL, 1, 2),
+ ('b-big', 'bob', 'bigbet', 'Big Bet', 'SB', 'BB', 1, 2);
+INSERT INTO game_variant (id, user_id, builtin_key, label, group_id, sort_order, created_at, updated_at) VALUES
+ ('nlh', 'alice', 'nlh', 'Holdem', 'big', 0, 1, 2),
+ ('razz', 'alice', 'razz', 'Razz', 'stud', 0, 1, 2),
+ ('b-nlh', 'bob', 'nlh', 'Holdem', 'b-big', 0, 1, 2);
+INSERT INTO game_mix (id, user_id, builtin_key, label, games, created_at, updated_at) VALUES
+ ('rotation', 'alice', 'horse', 'Rotation', '["nlh","razz"]', 1, 2);
+INSERT INTO tournament (id, user_id, room_id, name, variant, buy_in, entry_fee, starting_stack, bounty_amount, table_size, currency_id, memo, house_rules, created_at, updated_at) VALUES
+ ('main', 'alice', 'a-room', 'Main', 'horse', 1000, 100, 5000, 50, 9, 'a-asset', 'memo', 'rules', 10, 20),
+ ('unknown-mix', 'alice', 'a-room', 'Unknown mix', 'Mystery rotation', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 10, 20),
+ ('unknown-variant', 'bob', 'b-room', 'Unknown variant', 'Mystery game', 25, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 10, 20);
+INSERT INTO blind_level (id, tournament_id, level, is_break, blind1, blind2, blind3, ante, minutes, games) VALUES
+ ('equal', 'main', 1, 0, 999, 998, 997, 996, 20, '[{"name":"Big Bet 1","variants":["nlh"],"blind1":10,"blind2":20,"ante":2},{"name":"Stud","variants":["razz"],"blind1":30,"blind2":60,"ante":3}]'),
+ ('different', 'main', 2, 0, 999, 998, NULL, NULL, 0, '[{"name":"Custom","variants":["razz"],"blind1":40,"blind2":80}]'),
+ ('flat', 'main', 3, 0, 100, 200, -1, 25, 15, NULL),
+ ('break', 'main', 4, 1, 777, 888, NULL, NULL, 10, NULL),
+ ('not-array', 'main', 5, 0, 5, 10, NULL, NULL, 10, '{"variants":["nlh"]}'),
+ ('bad-elements', 'main', 6, 0, 9, 18, NULL, NULL, 10, '[42,{"variants":"nlh"},{"variants":[null,42," ","nlh"],"blind1":"12","blind2":1.5,"blind3":-2,"ante":4}]'),
+ ('bad-json', 'main', 7, 0, 7, 14, NULL, NULL, 10, 'not json'),
+ ('unknown-level', 'unknown-mix', 1, 0, NULL, NULL, NULL, NULL, 10, '[{"variants":["razz"," New Stud "],"blind1":3}]');
+INSERT INTO tournament_chip_purchase (id, tournament_id, name, cost, chips, sort_order) VALUES
+ ('addon-b', 'main', 'Second', 200, 1000, 2), ('addon-a', 'main', 'First', 50, 500, 1),
+ ('bob-addon', 'unknown-variant', 'Bonus', 10, 100, 0);
+INSERT INTO tournament_tag (id, tournament_id, name, created_at) VALUES ('tag', 'main', 'Turbo', 3);
+INSERT INTO game_session (id, user_id, kind, source, status, session_date, created_at, updated_at) VALUES
+ ('session', 'alice', 'tournament', 'manual', 'completed', 1791417600, 1, 2);
+INSERT INTO session_tournament_detail (session_id, tournament_id, tournament_buy_in, entry_fee) VALUES ('session', 'main', 1000, 100);
+`;
+
+function apply(db: Database, statements = targetStatements): void {
 	for (const statement of statements) {
 		db.exec(statement);
 	}
 }
 
-function values(db: Database, sql: string): unknown[] {
+function values(db: Database, sql: string) {
 	return rowValues(db.prepare(sql));
 }
 
-describe("migration 0066 — ring game rule versions", () => {
-	it("preserves legacy rules and inbound links with foreign keys enabled", () => {
-		const db = openDatabase();
+function references(db: Database) {
+	return [
+		"SELECT * FROM blind_level ORDER BY id",
+		"SELECT * FROM tournament_chip_purchase ORDER BY id",
+		"SELECT * FROM tournament_tag ORDER BY id",
+		"SELECT session_id, tournament_id FROM session_tournament_detail ORDER BY session_id",
+		"SELECT entry_id, user_id, tournament_id FROM entry_tournament ORDER BY entry_id",
+	].map((sql) => values(db, sql));
+}
+
+describe("migration 0066 — tournament rule cutover", () => {
+	let db: Database;
+	beforeAll(() => {
+		const source = openDatabase();
 		try {
-			db.exec("PRAGMA foreign_keys=ON");
-			for (const file of migrationFiles(TARGET)) {
-				apply(db, statementsOf(file));
+			source.exec("PRAGMA foreign_keys=ON");
+			for (const statements of beforeEntry) {
+				apply(source, statements);
 			}
-			db.exec(`
-				INSERT INTO user (id, name, email) VALUES
-				 ('alice', 'Alice', 'alice@example.test'),
-				 ('bob', 'Bob', 'bob@example.test'),
-				 ('charlie', 'Charlie', 'charlie@example.test'),
-				 ('dana', 'Dana', 'dana@example.test');
-				INSERT INTO asset (id, user_id, name, updated_at) VALUES
-				 ('alice-asset', 'alice', 'Chips', 2), ('bob-asset', 'bob', 'Chips', 2);
-				INSERT INTO game_group (id, user_id, builtin_key, label, updated_at) VALUES
-				 ('bigbet', 'alice', 'bigbet', 'Big Bet', 2),
-				 ('stud', 'alice', NULL, 'Stud', 2);
-				INSERT INTO game_variant (id, user_id, builtin_key, label, group_id, sort_order, updated_at) VALUES
-				 ('nlh', 'alice', 'nlh', 'NL Hold''em', 'bigbet', 0, 2),
-				 ('plo', 'alice', 'plo', 'Pot Limit Omaha', 'bigbet', 1, 2),
-				 ('razz', 'alice', NULL, 'Razz', 'stud', 2, 2);
-				INSERT INTO game_mix (id, user_id, label, games, updated_at) VALUES
-				 ('rotation', 'alice', 'Rotation', '[]', 2);
-				INSERT INTO game_mix_variant (mix_id, variant_id, user_id, position) VALUES
-				 ('rotation', 'plo', 'alice', 0);
-				INSERT INTO ring_game (id, user_id, name, variant, mix_games, blind1, blind2, ante, ante_type, min_buy_in, max_buy_in, table_size, currency_id, memo, house_rules, archived_at, created_at, updated_at) VALUES
-				 ('single', 'alice', 'Single', ' nl HOLD''EM ', NULL, 1, 2, 3, 'bb', 100, 500, 9, 'alice-asset', 'memo', 'rules', 7, 10, 11),
-				 ('named', 'alice', 'Named', ' Rotation ', '[{"name":"Big Bet","variants":["nlh","Razz"],"blind1":10,"blind2":20}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 10, 11),
-				 ('custom', 'alice', 'Custom', 'mix', '[{"variants":["Pot Limit Omaha","Missing"," missing ",42],"blind1":5,"blind2":10},{"variants":["Razz"],"ante":2}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 10, 11),
-				 ('unknown', 'bob', 'Unknown', 'Mystery', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 10, 11),
-				 ('unknown-again', 'bob', 'Unknown Again', ' mystery ', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 10, 11),
-				 ('builtin', 'charlie', 'Builtin', 'mix', '[{"variants":["nlh"]}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 10, 11),
-				 ('cross-owner', 'alice', 'Cross Owner', 'nlh', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'bob-asset', NULL, NULL, NULL, 10, 11),
-				 ('broken', 'alice', 'Broken', 'mix', '{bad json', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 10, 11),
-				 ('absent-mix', 'alice', 'Absent Mix', 'Lost Rotation', '[{"variants":["nlh","Razz"],"blind1":4,"blind2":8}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 10, 11),
-				 ('malformed', 'alice', 'Malformed', 'mix', '[{"variants":["nlh",null,{"x":1}]},null,{"variants":42},{"variants":{"x":"Razz"}}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 10, 11),
-				 ('horse', 'dana', 'Horse', 'HORSE', '[{"variants":["Limit Hold''em"],"blind1":2,"blind2":4}]', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 10, 11);
-				INSERT INTO game_session (id, user_id, kind, source, status, session_date, created_at, updated_at) VALUES
-				 ('session', 'alice', 'cash_game', 'manual', 'completed', 1791417600, 1, 2);
-				INSERT INTO session_cash_detail (session_id, ring_game_id, buy_in, cash_out) VALUES
-				 ('session', 'single', 100, 150);
-				INSERT INTO entry (id, user_id, kind, source, status, played_on, updated_at) VALUES
-				 ('entry', 'alice', 'cash', 'manual', 'settled', '2026-10-08', 2);
-				INSERT INTO entry_cash (entry_id, user_id, kind, ring_game_id, ev_diff) VALUES
-				 ('entry', 'alice', 'cash', 'single', 12);
-			`);
-			const sessionBefore = values(
-				db,
-				"SELECT * FROM session_cash_detail ORDER BY session_id"
-			);
-			const entryBefore = values(
-				db,
-				"SELECT * FROM entry_cash ORDER BY entry_id"
-			);
-
-			apply(db, statementsOf(TARGET));
-
-			expect(values(db, "PRAGMA foreign_keys")).toEqual([[1]]);
-			expect(values(db, "PRAGMA foreign_key_check")).toEqual([]);
-			expect(
-				values(db, "SELECT * FROM session_cash_detail ORDER BY session_id")
-			).toEqual(sessionBefore);
-			expect(values(db, "SELECT * FROM entry_cash ORDER BY entry_id")).toEqual(
-				entryBefore
-			);
-			expect(
-				values(db, "SELECT id, current_rule_id FROM ring_game ORDER BY id")
-			).toEqual([
-				["absent-mix", "cr:absent-mix"],
-				["broken", "cr:broken"],
-				["builtin", "cr:builtin"],
-				["cross-owner", "cr:cross-owner"],
-				["custom", "cr:custom"],
-				["horse", "cr:horse"],
-				["malformed", "cr:malformed"],
-				["named", "cr:named"],
-				["single", "cr:single"],
-				["unknown", "cr:unknown"],
-				["unknown-again", "cr:unknown-again"],
-			]);
-			expect(
-				values(
-					db,
-					"SELECT room_id, default_asset_id, memo, archived_at, created_at, updated_at FROM ring_game WHERE id = 'single'"
-				)
-			).toEqual([[null, "alice-asset", "memo", 7, 10, 11]]);
-			expect(
-				values(
-					db,
-					"SELECT default_asset_id FROM ring_game WHERE id = 'cross-owner'"
-				)
-			).toEqual([[null]]);
-			expect(
-				values(
-					db,
-					"SELECT id, builtin_key, games, archived_at IS NOT NULL FROM game_mix WHERE id = 'standin-mix:alice:lost rotation'"
-				)
-			).toEqual([["standin-mix:alice:lost rotation", null, "[]", 1]]);
-			expect(
-				values(
-					db,
-					"SELECT game_mix_id FROM game_lineup WHERE id = 'lu:cr:absent-mix'"
-				)
-			).toEqual([["standin-mix:alice:lost rotation"]]);
-			expect(
-				values(
-					db,
-					"SELECT variant_id FROM game_mix_variant WHERE mix_id = 'standin-mix:alice:lost rotation' ORDER BY position"
-				)
-			).toEqual([["nlh"], ["razz"]]);
-			expect(
-				values(
-					db,
-					"SELECT ring_game_id, parent_rule_id, lineup_id, min_buy_in, max_buy_in, table_size, house_rules FROM cash_rule WHERE id = 'cr:single'"
-				)
-			).toEqual([["single", null, "lu:cr:single", 100, 500, 9, "rules"]]);
-			expect(
-				values(
-					db,
-					"SELECT blind1, blind2, ante, ante_type FROM cash_rule_stake WHERE rule_id = 'cr:single'"
-				)
-			).toEqual([[1, 2, 3, "bb"]]);
-			expect(
-				values(
-					db,
-					"SELECT game_mix_id FROM game_lineup WHERE id IN ('lu:cr:named', 'lu:cr:custom') ORDER BY id"
-				)
-			).toEqual([[null], ["rotation"]]);
-			expect(
-				values(
-					db,
-					"SELECT v.variant_id FROM game_lineup_variant v JOIN game_lineup_group g ON g.id = v.lineup_group_id WHERE v.lineup_id = 'lu:cr:named' ORDER BY g.position, v.position"
-				)
-			).toEqual([["nlh"], ["razz"]]);
-			expect(
-				values(
-					db,
-					"SELECT game_group_id, name FROM game_lineup_group WHERE lineup_id = 'lu:cr:named'"
-				)
-			).toEqual([["bigbet", null]]);
-			expect(
-				values(
-					db,
-					"SELECT variant_id FROM game_lineup_variant WHERE lineup_id = 'lu:cr:single'"
-				)
-			).toEqual([["nlh"]]);
-			expect(
-				values(
-					db,
-					"SELECT id, group_id, builtin_key, short_label, archived_at IS NOT NULL FROM game_variant WHERE id = 'standin-variant:alice:missing'"
-				)
-			).toEqual([["standin-variant:alice:missing", "bigbet", null, null, 1]]);
-			expect(
-				values(
-					db,
-					"SELECT id, builtin_key, archived_at IS NOT NULL FROM game_variant WHERE id = 'standin-variant:bob:mystery'"
-				)
-			).toEqual([["standin-variant:bob:mystery", null, 1]]);
-			expect(
-				values(
-					db,
-					"SELECT lineup_id, variant_id FROM game_lineup_variant WHERE lineup_id IN ('lu:cr:unknown', 'lu:cr:unknown-again') ORDER BY lineup_id"
-				)
-			).toEqual([
-				["lu:cr:unknown", "standin-variant:bob:mystery"],
-				["lu:cr:unknown-again", "standin-variant:bob:mystery"],
-			]);
-			expect(
-				values(
-					db,
-					"SELECT id, builtin_key, label, short_label, archived_at FROM game_variant WHERE id = 'charlie:builtin-variant:nlh'"
-				)
-			).toEqual([
-				["charlie:builtin-variant:nlh", "nlh", "NL Hold'em", "NLH", null],
-			]);
-			expect(
-				values(
-					db,
-					"SELECT variant_id FROM game_lineup_variant WHERE lineup_id = 'lu:cr:builtin'"
-				)
-			).toEqual([["charlie:builtin-variant:nlh"]]);
-			expect(
-				values(
-					db,
-					"SELECT l.game_mix_id, v.variant_id FROM game_lineup l JOIN game_lineup_variant v ON v.lineup_id = l.id WHERE l.id = 'lu:cr:horse'"
-				)
-			).toEqual([["dana:builtin-mix:horse", "dana:builtin-variant:lhe"]]);
-			expect(
-				values(
-					db,
-					"SELECT id FROM game_mix WHERE user_id = 'dana' AND id LIKE 'standin-%'"
-				)
-			).toEqual([]);
-			for (const owner of ["bob", "charlie", "dana"]) {
-				expect(
-					values(
-						db,
-						`SELECT id, builtin_key, label, blind1_label, blind2_label, blind3_label FROM game_group WHERE user_id = '${owner}' ORDER BY id`
-					)
-				).toEqual(
-					DEFAULT_GAME_GROUPS.map((group) => [
-						`${owner}:builtin-group:${group.key}`,
-						group.key,
-						group.label,
-						group.blind1Label,
-						group.blind2Label,
-						group.blind3Label,
-					]).toSorted((a, b) => String(a[0]).localeCompare(String(b[0])))
-				);
-				expect(
-					values(
-						db,
-						`SELECT builtin_key, label, short_label, group_id, sort_order FROM game_variant WHERE user_id = '${owner}' AND builtin_key IS NOT NULL ORDER BY sort_order`
-					)
-				).toEqual(
-					DEFAULT_GAME_VARIANTS.map((variant, index) => [
-						variant.key,
-						variant.label,
-						variant.shortLabel,
-						`${owner}:builtin-group:${variant.groupKey}`,
-						index,
-					])
-				);
-				for (const mix of DEFAULT_GAME_MIXES) {
-					expect(
-						values(
-							db,
-							`SELECT v.builtin_key FROM game_mix m JOIN game_mix_variant j ON j.mix_id = m.id JOIN game_variant v ON v.id = j.variant_id WHERE m.user_id = '${owner}' AND m.builtin_key = '${mix.key}' AND m.label = '${mix.label}' AND m.archived_at IS NULL ORDER BY j.position`
-						)
-					).toEqual(mix.variantKeys.map((key) => [key]));
-				}
+			source.exec(seed);
+			for (const statements of cutovers) {
+				apply(source, statements);
 			}
-			expect(
-				values(
-					db,
-					"SELECT variant_id FROM game_lineup_variant WHERE lineup_id = 'lu:cr:malformed'"
-				)
-			).toEqual([["nlh"]]);
-			expect(
-				values(
-					db,
-					"SELECT r.id FROM cash_rule r JOIN game_lineup_group g ON g.lineup_id = r.lineup_id LEFT JOIN cash_rule_stake s ON s.rule_id = r.id AND s.lineup_group_id = g.id GROUP BY r.id, g.id HAVING count(s.rule_id) <> 1"
-				)
-			).toEqual([]);
-			expect(
-				values(
-					db,
-					"SELECT r.id FROM ring_game r LEFT JOIN cash_rule c ON c.id = r.current_rule_id AND c.user_id = r.user_id AND c.ring_game_id = r.id WHERE c.id IS NULL"
-				)
-			).toEqual([]);
-			expect(() =>
-				db.exec(
-					"UPDATE ring_game SET default_asset_id = 'bob-asset' WHERE id = 'single'"
-				)
-			).toThrow();
-			expect(() =>
-				db.exec(
-					"UPDATE ring_game SET current_rule_id = 'cr:unknown' WHERE id = 'single'"
-				)
-			).toThrow();
+			source.prepare("VACUUM INTO ?").run(seededPath);
 		} finally {
-			db.close();
+			source.close();
 		}
 	});
-	it("aborts before rebuilding when a cash rule already exists", () => {
-		const db = openDatabase();
-		try {
-			db.exec("PRAGMA foreign_keys=ON");
-			for (const file of migrationFiles(TARGET)) {
-				apply(db, statementsOf(file));
-			}
-			db.exec(`
-				INSERT INTO user (id, name, email) VALUES ('alice', 'Alice', 'alice@example.test');
-				INSERT INTO game_lineup (id, user_id) VALUES ('existing-lineup', 'alice');
-				INSERT INTO cash_rule (id, user_id, lineup_id) VALUES ('existing-rule', 'alice', 'existing-lineup');
-			`);
-			expect(() => apply(db, statementsOf(TARGET))).toThrow(PRECONDITION_GATE);
-			expect(values(db, "SELECT id, lineup_id FROM cash_rule")).toEqual([
-				["existing-rule", "existing-lineup"],
-			]);
-			expect(values(db, "PRAGMA foreign_key_check")).toEqual([]);
-		} finally {
-			db.close();
-		}
+	afterAll(() => rmSync(directory, { recursive: true, force: true }));
+	beforeEach(() => {
+		const path = join(directory, `${index++}.sqlite`);
+		copyFileSync(seededPath, path);
+		db = openDatabase(path);
+		db.exec(
+			"PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF; PRAGMA foreign_keys=ON"
+		);
+	});
+	afterEach(() => db?.close());
+
+	it("guards malformed nested games and retains only valid labels and integer blinds", () => {
+		apply(db);
+		expect(
+			values(
+				db,
+				`SELECT id, lineup_id, inherits_lineup, inherited_lineup_id FROM tournament_rule_level WHERE id IN ('trl:not-array','trl:bad-json','trl:bad-elements') ORDER BY id`
+			)
+		).toEqual([
+			["trl:bad-elements", "lu:trl:bad-elements", 0, null],
+			["trl:bad-json", "lu:tr:main", 1, "lu:tr:main"],
+			["trl:not-array", "lu:tr:main", 1, "lu:tr:main"],
+		]);
+		expect(
+			values(
+				db,
+				`SELECT v.variant_id FROM game_lineup_variant v WHERE v.lineup_id = 'lu:trl:bad-elements'`
+			)
+		).toEqual([["nlh"]]);
+		expect(
+			values(
+				db,
+				`SELECT blind1, blind2, blind3, ante, ante_type FROM tournament_rule_level_stake WHERE level_id = 'trl:bad-elements'`
+			)
+		).toEqual([[null, null, null, 4, null]]);
+	});
+
+	it("resolves builtin keys and preserves unknown names as archived stand-ins in the sibling or fallback group", () => {
+		apply(db);
+		expect(
+			values(db, `SELECT game_mix_id FROM game_lineup WHERE id = 'lu:tr:main'`)
+		).toEqual([["rotation"]]);
+		expect(
+			values(
+				db,
+				`SELECT variant_id FROM game_lineup_variant WHERE lineup_id = 'lu:tr:main' ORDER BY lineup_group_id, position`
+			)
+		).toEqual([["nlh"], ["razz"]]);
+		expect(
+			values(
+				db,
+				`SELECT id, label, group_id, archived_at IS NOT NULL FROM game_variant WHERE id LIKE 'sv:%' ORDER BY id`
+			)
+		).toEqual([
+			["sv:alice:new stud", "New Stud", "stud", 1],
+			["sv:bob:mystery game", "Mystery game", "b-big", 1],
+		]);
+		expect(
+			values(
+				db,
+				`SELECT id, label, archived_at IS NOT NULL, games FROM game_mix WHERE id = 'sm:alice:mystery rotation'`
+			)
+		).toEqual([["sm:alice:mystery rotation", "Mystery rotation", 1, "[]"]]);
+		expect(
+			values(
+				db,
+				`SELECT variant_id, position FROM game_mix_variant WHERE mix_id = 'sm:alice:mystery rotation' ORDER BY position`
+			)
+		).toEqual([
+			["razz", 0],
+			["sv:alice:new stud", 1],
+		]);
+	});
+
+	it("inherits equal compositions and creates an override with a null mirror for different games", () => {
+		apply(db);
+		expect(
+			values(
+				db,
+				`SELECT id, ordinal, level, minutes, lineup_id, inherits_lineup, inherited_lineup_id FROM tournament_rule_level WHERE id IN ('trl:equal','trl:different') ORDER BY ordinal`
+			)
+		).toEqual([
+			["trl:equal", 1, 1, 20, "lu:tr:main", 1, "lu:tr:main"],
+			["trl:different", 2, 2, null, "lu:trl:different", 0, null],
+		]);
+		expect(
+			values(
+				db,
+				`SELECT g.position, g.game_group_id, g.name, v.variant_id FROM game_lineup_group g JOIN game_lineup_variant v ON v.lineup_group_id = g.id WHERE g.lineup_id = 'lu:trl:different' ORDER BY g.position, v.position`
+			)
+		).toEqual([[0, "stud", "Custom", "razz"]]);
+	});
+
+	it("copies flat stakes to every inherited group, discards hidden values, and excludes breaks", () => {
+		apply(db);
+		expect(
+			values(
+				db,
+				`SELECT s.level_id, g.position, s.blind1, s.blind2, s.blind3, s.ante, s.ante_type FROM tournament_rule_level_stake s JOIN game_lineup_group g ON g.id = s.lineup_group_id WHERE s.level_id IN ('trl:equal','trl:flat','trl:break') ORDER BY s.level_id, g.position`
+			)
+		).toEqual([
+			["trl:equal", 0, 10, 20, null, 2, null],
+			["trl:equal", 1, 30, 60, null, 3, null],
+			["trl:flat", 0, 100, 200, null, 25, null],
+			["trl:flat", 1, 100, 200, null, 25, null],
+		]);
+	});
+
+	it("backfills entry and ordered addon prices with owned or unassigned assets", () => {
+		apply(db);
+		expect(
+			values(
+				db,
+				"SELECT id, kind, label, asset_id, amount, fee, chips, ordinal FROM tournament_rule_price ORDER BY rule_id, ordinal"
+			)
+		).toEqual([
+			["trp:tr:main:entry", "entry", "", "a-asset", 1000, 100, null, 1],
+			["trp:addon-a", "addon", "First", "a-asset", 50, 0, 500, 2],
+			["trp:addon-b", "addon", "Second", "a-asset", 200, 0, 1000, 3],
+			[
+				"trp:tr:unknown-variant:entry",
+				"entry",
+				"",
+				"unassigned:bob",
+				25,
+				0,
+				null,
+				1,
+			],
+			["trp:bob-addon", "addon", "Bonus", "unassigned:bob", 10, 0, 100, 2],
+		]);
+		expect(
+			values(
+				db,
+				`SELECT user_id, name, kind, decimals FROM asset WHERE id = 'unassigned:bob'`
+			)
+		).toEqual([["bob", "Unassigned (migrated)", "currency", 0]]);
+		expect(
+			values(
+				db,
+				"SELECT id, default_asset_id, current_rule_id, memo FROM tournament ORDER BY id"
+			)
+		).toEqual([
+			["main", "a-asset", "tr:main", "memo"],
+			["unknown-mix", null, "tr:unknown-mix", null],
+			["unknown-variant", null, "tr:unknown-variant", null],
+		]);
+	});
+
+	it("restores all staged rows and links and permits account deletion with foreign keys enabled", () => {
+		const before = references(db);
+		expect(before.map((rows) => rows.length)).toEqual([8, 3, 1, 1, 1]);
+		expect(before[4]).toEqual([["session", "alice", "main"]]);
+		apply(db);
+		expect(references(db)).toEqual(before);
+		expect(values(db, "PRAGMA foreign_keys")).toEqual([[1]]);
+		expect(values(db, "PRAGMA foreign_key_check")).toEqual([]);
+		expect(
+			values(
+				db,
+				"SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE '\\_\\_%' ESCAPE '\\'"
+			)
+		).toEqual([]);
+		expect(() => db.exec("DELETE FROM user WHERE id = 'alice'")).not.toThrow();
+		expect(values(db, "PRAGMA foreign_key_check")).toEqual([]);
+	});
+
+	it("aborts before rebuilding when tournament rules already exist", () => {
+		db.exec(`INSERT INTO game_lineup (id, user_id) VALUES ('existing-lineup', 'alice');
+   INSERT INTO tournament_rule (id, user_id, lineup_id) VALUES ('existing-rule', 'alice', 'existing-lineup');`);
+		expect(() => apply(db)).toThrow(RULES_EMPTY_GATE);
+		expect(values(db, "SELECT id FROM tournament ORDER BY id")).toEqual([
+			["main"],
+			["unknown-mix"],
+			["unknown-variant"],
+		]);
 	});
 });

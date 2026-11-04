@@ -37,13 +37,6 @@ async function seedOwner(d1: TestD1Database, owner: string) {
 			roomId: `${owner}-room`,
 			name: `Ring ${suffix}`,
 		});
-		await insert(d1, "tournament", {
-			id: `${owner}-tournament-${suffix}`,
-			user_id: owner,
-			room_id: `${owner}-room`,
-			name: `Tournament ${suffix}`,
-			updated_at: 0,
-		});
 	}
 	await insert(d1, "game_group", {
 		id: `${owner}-group`,
@@ -73,6 +66,29 @@ async function seedOwner(d1: TestD1Database, owner: string) {
 			game_group_id: `${owner}-group`,
 		});
 	}
+	for (const suffix of ["a", "b"]) {
+		await seedTournament(d1, owner, `${owner}-tournament-${suffix}`);
+	}
+}
+
+async function seedTournament(d1: TestD1Database, owner: string, id: string) {
+	await insert(d1, "tournament_rule", {
+		id: `${id}-current`,
+		user_id: owner,
+		lineup_id: `${owner}-lineup-1`,
+	});
+	await insert(d1, "tournament", {
+		id,
+		user_id: owner,
+		room_id: `${owner}-room`,
+		name: id,
+		current_rule_id: `${id}-current`,
+		updated_at: 0,
+	});
+	await d1
+		.prepare("UPDATE tournament_rule SET tournament_id = ? WHERE id = ?")
+		.bind(id, `${id}-current`)
+		.run();
 }
 
 function cashRuleRow(
@@ -313,8 +329,12 @@ describe("lineup and rule-version tables on D1", () => {
 			"bob-ring-b-fixture-rule",
 		]);
 		expect(await ids(api.d1, "tournament_rule")).toEqual([
+			"alice-tournament-a-current",
+			"alice-tournament-b-current",
 			"alice-tr-a",
 			"alice-tr-a-child",
+			"bob-tournament-a-current",
+			"bob-tournament-b-current",
 		]);
 		expect(await ids(api.d1, "entry_cash", "entry_id")).toEqual(["alice-cash"]);
 		expect(await ids(api.d1, "entry_tournament", "entry_id")).toEqual([

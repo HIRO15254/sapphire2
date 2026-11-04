@@ -73,8 +73,8 @@ const AMOUNT_CONVENTIONS =
 const RING_GAME_RULE =
 	"rule.game selects exactly one of { variantId }, { gameMixId }, or { lineupId }. Use game_variant_list or game_mix_list for active IDs, or a lineupId from ring_game_list_by_room to preserve an existing composition, including archived selections. Newly selecting archived masters is rejected. rule.stakes, when supplied, must contain exactly one stake per resulting lineup group in order, each with its gameGroupId and optional blind1-3, ante, and anteType. A mix groups variants by their game group in first-appearance order. Omitted stakes carry forward by gameGroupId and occurrence, not position.";
 
-export const LEVEL_GAMES_RULE =
-	'A blind level may carry games: groups of variant labels, each with its own blind1-3 / ante, played in rotation during that level. The known variants of each group must belong to ONE game group (their groupId in game_variant_list) — a group spanning two is rejected with "must share a game group". On update, a group spanning game groups may be sent back using only labels from one group already stored on the tournament being updated; create has no such exception.';
+export const TOURNAMENT_RULE_CONTRACT =
+	'rule describes one immutable rule version. game is exactly one of { variantId } (game_variant_list), { gameMixId } (game_mix_list) or { lineupId } (a lineupId already returned by tournament_get_by_id); an archived variant or mix cannot be newly picked. levels (at most 100) and prices (at most 20) REPLACE the whole list whenever supplied — read tournament_get_by_id first and send back every row you keep. A level whose game is omitted or null plays the rule\'s game; a break (isBreak true) takes no game and no stakes. stakes, when supplied, list exactly one entry per group of the level\'s game, in the order lineups[lineupId].groups gives them, each gameGroupId matching its position; omit stakes to carry the blinds of the same level position by game group. anteType is "none" | "all" | "bb". A price is { kind: "entry" | "reentry" | "addon", assetId (asset_list), amount, fee (integers in the asset\'s smallest unit), chips (stack granted, or null), label? }. Saving content identical to the current version creates nothing; any change creates a new version and keeps the old one.';
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
@@ -168,7 +168,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "tournament_list_by_room",
 		procedurePath: "tournament.listByRoom",
 		description:
-			"List the tournament masters of one room — buy-in, starting stack, chip purchases, and blindLevelCount (the number of blind levels, not the levels themselves; tournament_get_by_id returns those). Set includeArchived to list archived ones instead.",
+			"List the tournament masters of one room, each with its current rule version (game, levels with stakes, prices) and a lineups map that names the games every lineupId points at. Set includeArchived to include archived ones alongside active ones.",
 		inputSchema: tournamentListByRoomInputSchema,
 	},
 
@@ -218,7 +218,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "ring_game_create",
 		procedurePath: "ringGame.create",
-		description: `Create a ring-game master inside a room. Supply roomId, name, and rule; defaultAssetId and memo are optional. The rule holds game, stakes, minBuyIn, maxBuyIn, tableSize, and houseRules; minBuyIn must not exceed maxBuyIn. If game is omitted, the builtin NLH lineup is used. ${RING_GAME_RULE}`,
+		description: `Create a ring-game master inside a room. Supply roomId, name, and rule; defaultAssetId and memo are optional. The rule holds game, stakes, minBuyIn, maxBuyIn, tableSize, and houseRules; minBuyIn must not exceed maxBuyIn. If game is omitted, the builtin NLH lineup is used. ${RING_GAME_RULE} ${AMOUNT_CONVENTIONS}`,
 		inputSchema: ringGameCreateInputSchema,
 		destructiveHint: false,
 		idempotentHint: false,
@@ -226,7 +226,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "ring_game_update",
 		procedurePath: "ringGame.update",
-		description: `Update a ring-game master by id. Supplied rule fields merge with the current rule; omitted fields stay unchanged and nullable fields can be cleared with null. The resulting minBuyIn must not exceed maxBuyIn. A changed rule creates an immutable version; unchanged content reuses the current version. Read ring_game_list_by_room for the current rule and lineup. ${RING_GAME_RULE}`,
+		description: `Update a ring-game master by id. Supplied rule fields merge with the current rule; omitted fields stay unchanged and nullable fields can be cleared with null. The resulting minBuyIn must not exceed maxBuyIn. A changed rule creates an immutable version; unchanged content reuses the current version. Read ring_game_list_by_room for the current rule and lineup. ${RING_GAME_RULE} ${AMOUNT_CONVENTIONS}`,
 		inputSchema: ringGameUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
@@ -253,13 +253,13 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "tournament_get_by_id",
 		procedurePath: "tournament.getById",
 		description:
-			"Get one tournament master by id with its blind levels and tags. Read this before tournament_update_with_levels — that tool replaces the whole blind structure. It does NOT return chip purchases: those come from tournament_list_by_room, which by default lists only non-archived tournaments while includeArchived lists only archived ones — an archived tournament is still readable and updatable here, so pick the right one or its purchases look like none. tournament_update_with_levels replaces them wholesale too whenever chipPurchases is supplied, so an empty or partial list there deletes the rest. Its tags come back as { id, name } objects while the update tool takes plain name strings.",
+			"Get one tournament master by id with its current rule version: ruleVersion.levels (ordinal, level number or null for a break, minutes, game null = plays the rule's game, stakes per game group with blind1-3 / ante / anteType), ruleVersion.prices, and lineups (lineupId -> display name and groups). Read this before tournament_update_with_levels — that tool replaces the whole level list.",
 		inputSchema: tournamentIdInputSchema,
 	},
 	{
 		name: "tournament_create_with_levels",
 		procedurePath: "tournament.createWithLevels",
-		description: `Create a tournament master inside a room, together with its blind levels, chip purchases and tags in one call. Required: roomId, name. blindLevels are ordered as given (level 1 first); every row requires isBreak (true for a break, false for a playing level). ${LEVEL_GAMES_RULE} ${AMOUNT_CONVENTIONS}`,
+		description: `Create a tournament master inside a room with its first rule version and tags in one call. Required: roomId, name, rule.levels (may be empty). rule.game defaults to NL Hold'em. defaultAssetId (asset_list) is the asset sessions default to. ${TOURNAMENT_RULE_CONTRACT}`,
 		inputSchema: tournamentCreateWithLevelsInputSchema,
 		destructiveHint: false,
 		idempotentHint: false,
@@ -267,7 +267,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "tournament_update_with_levels",
 		procedurePath: "tournament.updateWithLevels",
-		description: `Update a tournament master by id. blindLevels is REQUIRED and REPLACES the entire structure — read tournament_get_by_id first and send back the full list, or the existing levels are lost. tags and chipPurchases replace their lists too when supplied. ${LEVEL_GAMES_RULE} ${AMOUNT_CONVENTIONS}`,
+		description: `Update a tournament master by id. rule.levels is REQUIRED and REPLACES the entire level list — read tournament_get_by_id first and send back the full list, or the existing levels are lost. Omitted rule fields (game, startingStack, tableSize, bountyAmount, houseRules, prices) keep the current version's values; tags replaces the tag names when supplied. ${TOURNAMENT_RULE_CONTRACT}`,
 		inputSchema: tournamentUpdateWithLevelsInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
@@ -542,21 +542,13 @@ export const DELIBERATELY_EXCLUDED: {
 	},
 	{
 		reason:
-			"Tournament sub-resources are managed wholesale through tournament.createWithLevels / updateWithLevels (and read back via tournament.getById), so per-row CRUD would be a second, drift-prone way to do the same thing",
-		paths: [
-			"tournament.addTag",
-			"tournament.removeTag",
-			"blindLevel.listByTournament",
-			"blindLevel.create",
-			"blindLevel.update",
-			"blindLevel.delete",
-			"blindLevel.reorder",
-			"tournamentChipPurchase.listByTournament",
-			"tournamentChipPurchase.create",
-			"tournamentChipPurchase.update",
-			"tournamentChipPurchase.delete",
-			"tournamentChipPurchase.reorder",
-		],
+			"Tournament tags are managed wholesale through tournament.createWithLevels / updateWithLevels (and read back via tournament.getById), so per-row tag CRUD would be a second, drift-prone way to do the same thing",
+		paths: ["tournament.addTag", "tournament.removeTag"],
+	},
+	{
+		reason:
+			"Rule-version history is browsed and restored on the tournament screen; the tools expose only the current version, so a model has no version ids to restore from",
+		paths: ["tournament.restoreRule"],
 	},
 	{
 		reason:

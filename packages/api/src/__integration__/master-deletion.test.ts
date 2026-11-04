@@ -1,7 +1,8 @@
 import { entry, entryCash, entryTournament } from "@sapphire2/db/schema/entry";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
-import { blindLevel, tournament } from "@sapphire2/db/schema/tournament";
+import { tournamentRule, tournamentRuleLevel } from "@sapphire2/db/schema/rule";
+import { tournament } from "@sapphire2/db/schema/tournament";
 import { describe, expect } from "vitest";
 import { insertRingGameFixture, test } from "./test-fixture";
 
@@ -19,22 +20,22 @@ describe("entry-referenced master deletion on D1", () => {
 				name: "Club",
 				updatedAt: day,
 			});
-			const master = {
-				id: "referenced",
-				userId: "alice",
-				roomId: "club",
-				name: "Recorded game",
-				updatedAt: day,
-			};
+			const master = { id: "referenced" };
 			if (kind === "cash") {
-				await insertRingGameFixture(api.d1, master);
-			} else {
-				await api.db.insert(tournament).values(master);
-				await api.db.insert(blindLevel).values({
-					id: "level",
-					tournamentId: master.id,
-					level: 1,
+				await insertRingGameFixture(api.d1, {
+					id: master.id,
+					userId: "alice",
+					roomId: "club",
+					name: "Recorded game",
 				});
+			} else {
+				master.id = (
+					await api.alice.tournament.createWithLevels({
+						roomId: "club",
+						name: "Recorded game",
+						rule: { levels: [{ isBreak: false, minutes: 20 }] },
+					})
+				).id;
 			}
 			await api.db.insert(entry).values({
 				id: "recorded-entry",
@@ -61,7 +62,8 @@ describe("entry-referenced master deletion on D1", () => {
 			const snapshot = async () => ({
 				games: await api.db.select().from(ringGame),
 				tournaments: await api.db.select().from(tournament),
-				levels: await api.db.select().from(blindLevel),
+				rules: await api.db.select().from(tournamentRule),
+				levels: await api.db.select().from(tournamentRuleLevel),
 				entries: await api.db.select().from(entry),
 				cash: await api.db.select().from(entryCash),
 				tournament: await api.db.select().from(entryTournament),
@@ -104,11 +106,21 @@ describe("entry-referenced master deletion on D1", () => {
 				});
 				expect(await api.db.select().from(ringGame)).toEqual([]);
 			} else {
-				await api.db.insert(tournament).values(master);
-				expect(await api.alice.tournament.delete({ id: master.id })).toEqual({
+				const created = await api.alice.tournament.createWithLevels({
+					roomId: "club",
+					name: "Unused",
+					rule: { levels: [{ isBreak: false, minutes: 20 }] },
+				});
+				await api.alice.tournament.update({
+					id: created.id,
+					rule: { startingStack: 20_000 },
+				});
+				expect(await api.alice.tournament.delete({ id: created.id })).toEqual({
 					success: true,
 				});
 				expect(await api.db.select().from(tournament)).toEqual([]);
+				expect(await api.db.select().from(tournamentRule)).toEqual([]);
+				expect(await api.db.select().from(tournamentRuleLevel)).toEqual([]);
 			}
 		});
 	}

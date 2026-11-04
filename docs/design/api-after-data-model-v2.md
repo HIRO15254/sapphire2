@@ -24,7 +24,7 @@ All multistatement writes, event changes plus projection, exchange pairs, rule w
 
 The D1 budget is Workers Paid's 1,000 queries per Worker invocation, including authentication/session reads and each batch statement (spec §20.1 item 10). B08 derives/enforces tournament levels × lineup groups/prices maxima and B16 manual playSessions/payments maxima; each records its fixed bounds here. Every mutation's owning task proves with a real D1 integration test counting statements that its maximum admitted input stays within the budget, with nested rule bodies at B07/B08's maxima and days/payments at B16's: entry.create/update B16; live.create B17; tag writes and reorder B18; hand detail writes B21; overrideRule/applyMasterRule/pushRuleToMaster/relink/restoreRule and live.createAndAssignRingGame/Tournament B20; master writes B07/B08. When a combined input exceeds the budget at those maxima, the owning task sets a tighter limit on its own procedure; it never changes another task's maxima. No independent fixed array maximum overrides this budget.
 
-Ring-game rule writes admit at most 30 variants and 30 resulting lineup groups. A mix may contain 30 variants; regrouping its variants by their live game structure can therefore produce up to 30 groups. The statement-count proof remains part of the owning mutation's D1 integration coverage.
+Ring-game rule writes plan one lineup: a newly created lineup spans at most 12 game groups (`MAX_LINEUP_GROUPS`, shared with tournament levels), so a save writes at most 12 stakes. A named mix regrouped by its variants' live game structure beyond that bound is rejected; an existing `lineupId` is reused as stored. The statement-count proof is part of the ring-game D1 integration coverage (`ring-game-rules.test.ts`).
 
 ### Dates, quantities, lists and common results
 
@@ -155,8 +155,6 @@ On manual update, a supplied `ManualPlay.id` identifies an existing Day of that 
 
 `GameInput = { variantId: Id } | { gameMixId: Id } | { lineupId: Id }`. A level's `game:null` means inherit. `StakeInput = { gameGroupId: Id, blind1?:number|null, blind2?:number|null, blind3?:number|null, ante?:number|null, anteType?:'none'|'all'|'bb'|null }`. Exactly one stake per effective lineup group in group order; mismatch is `BAD_REQUEST`. Stored lineup ids round-trip archived selections; newly picking archived masters is rejected. Omitted game inherits the linked master, otherwise builtin NLH. Omitted stakes carry by `(gameGroupId, occurrence within that structure)`, not absolute position.
 
-Ring-game selections are limited to 30 variants and 30 resulting lineup groups, including when a named mix is regrouped by its variants' live game structure.
-
 For newly written stake rows, the server rejects a null/omitted blind marked Required by its game group, or a value in a blind field without a label (`BAD_REQUEST`, B11 / SA2-396). Ante is outside this requirement system. Reusing an existing immutable rule version does not revalidate its stakes. B07/B08's shared rule-write service enforces this, including writes through B13.
 
 ```ts
@@ -180,7 +178,7 @@ type TournamentRuleInput = {
 };
 ```
 
-Table size is 2–10; minBuyIn <= maxBuyIn. Level/group/price array maxima are derived from the invocation budget by B08 and recorded here when fixed; label maximum 100 characters; houseRules maximum 50,000. Price amount/fee/chips are nonnegative integers (amount/fee <=10^12); assetId is required even for a free price. A ticket price is an item asset, not a special branch. Breaks have no stakes/game override. Supplied levels/prices replace the **whole** collection; each structural edit writes one immutable version, never parallel per-row edits.
+Table size is 2–10; minBuyIn <= maxBuyIn. Tournament rule maxima (B08): at most 100 levels, 12 stakes per level (one per lineup group; a new lineup may span at most 12 game groups) and 20 prices. The worst admitted save — 100 levels each on a distinct new 30-game, 12-group lineup, 1,200 stakes and 20 prices — measured 382 statements including reads on D1 (`tournament-rule.test.ts`), inside the 1,000-query budget with the auth reads; label maximum 100 characters; houseRules maximum 50,000. Price amount/fee/chips are nonnegative integers (amount/fee <=10^12); assetId is required even for a free price. A ticket price is an item asset, not a special branch. Breaks have no stakes/game override. Supplied levels/prices replace the **whole** collection; each structural edit writes one immutable version, never parallel per-row edits.
 
 `LineupMap` maps lineup id to `{id,gameMixId,displayName,groups:[{id,gameGroupId,name,variants:[{id,label,shortLabel}]}]}`. `CashRule` is `{id,ringGameId,parentRuleId,lineupId,stakes,...cash scalar fields}`. `TournamentRule` is `{id,tournamentId,parentRuleId,lineupId,...tournament scalar fields,levels,prices}`. Output stake adds `lineupGroupId`; level adds `id,ordinal,level,effectiveLineupId` and returns `game:null` for inheritance; price adds `id,ordinal`. Ordinals derive from array order. Master ownership ids may be null only for standalone entry versions. Display names resolve current user-owned master labels, including archived rows; composition never changes retroactively.
 

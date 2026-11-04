@@ -101,7 +101,7 @@ B06 の切り替えで旧完了セッション・ライブセッション API �
 
 `ring_game_list_by_room` は各マスタの `currentRuleId`、`lineupId` と `stakes` を含む `ruleVersion`、ID をキーとする `lineups` を返します。`ring_game_update` は指定された `rule` のフィールドを現在のルールにマージし、変更時は不変の新しい版を作り、内容が同じなら既存の版を再利用します。API の `ringGame.restoreRule` は画面専用の Undo であり MCP には公開されません。`ringGame.delete` も destructive なため除外されます。参照中のマスタは代わりにアーカイブしてください。
 
-`tournament_update_with_levels`・`game_mix_update` は子リストを**丸ごと置き換える**ので、先に現在の内容を読んでから全件を送ってください。
+`tournament_update_with_levels`・`game_mix_update` は子リストを**丸ごと置き換える**ので、先に現在の内容を読んでから全件を送ってください。トーナメントの `rule` は不変の版です。`game` は `{ variantId }`・`{ gameMixId }`・`{ lineupId }` のいずれか、各レベルの `stakes` はそのゲームのグループごとに lineup の順で 1 件ずつ（`anteType` は none / all / bb）、`prices` は `{ kind: entry | reentry | addon, assetId, amount, fee, chips, label? }` で、レベルは最大 100 件、価格は最大 20 件です。内容が同じ保存では版を作らず、変更があれば新しい版を作って古い版を残します。過去の版への復元（`tournament.restoreRule`）はトーナメント画面だけで行います。
 
 `hand_list` は 1 つの play session のハンドを `handNo` の大きい順に 1 ページ 1〜50 件（既定 20 件）返し、`{ items, nextCursor }` を返します。次のページは `nextCursor` を `cursor` に渡します。cursor は取得したときの `playSessionId` でだけ使えます。play session のハンド数はハンドの件数、現在のボタンは最大の `handNo` のハンドの `buttonSeat` です。ハンドカウンターの書き込み（`hand.add`・`hand.undoLast`）と `hand.delete` は公開していません。
 

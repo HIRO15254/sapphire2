@@ -166,10 +166,10 @@ async function loadEntryEventState(
 			assetId: entry.assetId,
 			buyIn: sql<
 				number | null
-			>`COALESCE(${sessionTournamentDetail.tournamentBuyIn}, ${tournament.buyIn})`,
+			>`COALESCE(${sessionTournamentDetail.tournamentBuyIn}, (SELECT tournament_rule_price.amount FROM tournament_rule_price WHERE tournament_rule_price.rule_id = ${tournament.currentRuleId} AND tournament_rule_price.user_id = ${tournament.userId} AND tournament_rule_price.kind = 'entry' ORDER BY tournament_rule_price.ordinal LIMIT 1))`,
 			entryFee: sql<
 				number | null
-			>`COALESCE(${sessionTournamentDetail.entryFee}, ${tournament.entryFee})`,
+			>`COALESCE(${sessionTournamentDetail.entryFee}, (SELECT tournament_rule_price.fee FROM tournament_rule_price WHERE tournament_rule_price.rule_id = ${tournament.currentRuleId} AND tournament_rule_price.user_id = ${tournament.userId} AND tournament_rule_price.kind = 'entry' ORDER BY tournament_rule_price.ordinal LIMIT 1))`,
 		})
 		.from(entry)
 		.leftJoin(

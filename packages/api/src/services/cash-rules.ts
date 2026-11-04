@@ -3,23 +3,26 @@ import { cashRule, cashRuleStake } from "@sapphire2/db/schema/rule";
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
 import z from "zod";
+import { type BatchStatement, selectInChunks } from "../lib/batch";
 import {
-	type BatchStatement,
-	chunkForInsert,
-	selectInChunks,
-} from "../lib/batch";
-import {
+	findBuiltinVariantId,
+	type GameInput,
 	gameInputSchema,
-	hydrateGameLineups,
-	resolveGameLineup,
-} from "./game-lineups";
-import { resolveRuleStakes, stakeInputSchema } from "./rule-stakes";
+	hydrateLineups,
+	insertChunks,
+	type Lineup,
+	LineupPlanner,
+	loadLineups,
+	MAX_LINEUP_GROUPS,
+} from "./game-lineup";
+import { planStakes, stakeInputSchema, stakeValues } from "./rule-stakes";
+import { seedDefaultGameData } from "./seed-game-data";
 
 const amount = z.number().int().min(0).nullable().optional();
 export const cashRuleInputSchema = z
 	.object({
 		game: gameInputSchema.optional(),
-		stakes: z.array(stakeInputSchema).optional(),
+		stakes: z.array(stakeInputSchema).max(MAX_LINEUP_GROUPS).optional(),
 		minBuyIn: amount,
 		maxBuyIn: amount,
 		tableSize: z.number().int().min(2).max(10).nullable().optional(),
@@ -65,7 +68,7 @@ export async function hydrateCashRules(
 				),
 		1
 	);
-	const lineups = await hydrateGameLineups(
+	const lineups = await hydrateLineups(
 		db,
 		userId,
 		versions.map((v) => v.lineupId)
@@ -127,6 +130,25 @@ function validateBuyInRange(min: number | null, max: number | null): void {
 	}
 }
 
+async function resolveDefaultGame(
+	db: Database,
+	userId: string,
+	game: GameInput | undefined,
+	hasCurrent: boolean
+): Promise<GameInput | undefined> {
+	if (game || hasCurrent) {
+		return game;
+	}
+	await seedDefaultGameData(db, userId);
+	const nlhId = await findBuiltinVariantId(db, userId, "nlh");
+	if (!nlhId) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "Choose a game for the ring game",
+		});
+	}
+	return { variantId: nlhId };
+}
 export async function prepareCashRule(
 	db: Database,
 	userId: string,
@@ -134,29 +156,42 @@ export async function prepareCashRule(
 	input: CashRuleInput,
 	currentId?: string
 ) {
-	const hydrated = currentId
-		? await hydrateCashRules(db, userId, [currentId])
+	const current = currentId
+		? (await hydrateCashRules(db, userId, [currentId])).rules.get(currentId)
 		: undefined;
-	const current = currentId ? hydrated?.rules.get(currentId) : undefined;
 	if (currentId && !current) {
 		throw new TRPCError({ code: "FORBIDDEN", message: "Rule unavailable" });
 	}
-	const previousLineup = current
-		? hydrated?.lineups[current.lineupId]
-		: undefined;
-	const selection = await resolveGameLineup(
+	const planner = new LineupPlanner(db, userId);
+	const currentLineups: Map<string, Lineup> = current
+		? await loadLineups(db, userId, [current.lineupId])
+		: new Map();
+	planner.addCandidates(currentLineups.values());
+	const game = await resolveDefaultGame(
 		db,
 		userId,
 		input.game,
-		current?.lineupId
+		current !== undefined
 	);
-	const stakes = await resolveRuleStakes(
-		db,
-		userId,
-		selection.lineup.groups,
+	if (game) {
+		await planner.prepare([game]);
+	}
+	const lineup = game
+		? planner.resolve(game)
+		: currentLineups.get(current?.lineupId ?? "");
+	if (!lineup) {
+		throw new TRPCError({
+			code: "INTERNAL_SERVER_ERROR",
+			message: "The current rule version has no game",
+		});
+	}
+	const stakes = planStakes(
+		lineup.groups.map((group) => ({
+			gameGroupId: group.gameGroupId,
+			lineupGroupId: group.id,
+		})),
 		input.stakes,
-		previousLineup?.groups,
-		current?.stakes
+		current?.stakes ?? []
 	);
 	const scalars = {
 		minBuyIn:
@@ -179,8 +214,13 @@ export async function prepareCashRule(
 	validateBuyInRange(scalars.minBuyIn, scalars.maxBuyIn);
 	if (
 		current &&
-		current.lineupId === selection.lineup.id &&
-		JSON.stringify(stakes) === JSON.stringify(current.stakes) &&
+		current.lineupId === lineup.id &&
+		JSON.stringify(
+			stakes.map((stake) => [stake.lineupGroupId, stakeValues(stake)])
+		) ===
+			JSON.stringify(
+				current.stakes.map((stake) => [stake.lineupGroupId, stakeValues(stake)])
+			) &&
 		current.minBuyIn === scalars.minBuyIn &&
 		current.maxBuyIn === scalars.maxBuyIn &&
 		current.tableSize === scalars.tableSize &&
@@ -189,33 +229,24 @@ export async function prepareCashRule(
 		return { id: current.id, statements: [] as BatchStatement[] };
 	}
 	const id = crypto.randomUUID();
+	const rows = stakes.map((stake) => ({
+		userId,
+		ruleId: id,
+		lineupId: lineup.id,
+		lineupGroupId: stake.lineupGroupId,
+		...stakeValues(stake),
+	}));
 	const statements: BatchStatement[] = [
-		...selection.statements,
+		...planner.statements(),
 		db.insert(cashRule).values({
 			id,
 			userId,
 			ringGameId,
 			parentRuleId: current?.id ?? null,
-			lineupId: selection.lineup.id,
+			lineupId: lineup.id,
 			...scalars,
 		}),
+		...insertChunks(rows, (chunk) => db.insert(cashRuleStake).values(chunk)),
 	];
-	const rows = stakes.map((stake) => ({
-		userId,
-		ruleId: id,
-		lineupId: selection.lineup.id,
-		lineupGroupId: stake.lineupGroupId,
-		blind1: stake.blind1,
-		blind2: stake.blind2,
-		blind3: stake.blind3,
-		ante: stake.ante,
-		anteType: stake.anteType,
-	}));
-	for (const chunk of chunkForInsert(
-		rows,
-		Object.keys(rows[0] ?? {}).length || 1
-	)) {
-		statements.push(db.insert(cashRuleStake).values(chunk));
-	}
 	return { id, statements };
 }

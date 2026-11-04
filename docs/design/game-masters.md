@@ -53,9 +53,7 @@ Ring-game writes select a variant, named mix, or existing lineup by id; the form
 
 ## Shared write==read schemas and the group-span limit
 
-[`packages/db/src/schemas/game.ts`](../../packages/db/src/schemas/game.ts) holds the legacy shared write=read Zod schemas for mixed-game groups, including `mixGamesSchema` and `levelGamesSchema` for the remaining legacy session and tournament paths. Ring-game rule writes instead use id-based lineups and stakes.
-
-Legacy level-game writes use [`packages/api/src/services/game-structure.ts`](../../packages/api/src/services/game-structure.ts) to enforce one resolved game group per stored group (SA2-224). Existing stored groups are exempt when variants have subsequently moved groups, allowing unchanged compositions to be retained.
+[`packages/db/src/schemas/game.ts`](../../packages/db/src/schemas/game.ts) holds the legacy shared write=read Zod schemas for mixed-game groups, including `mixGamesSchema` for the remaining legacy session paths. Ring-game and tournament rule writes instead use id-based lineups and stakes ([`packages/api/src/services/game-lineup.ts`](../../packages/api/src/services/game-lineup.ts), [`rule-stakes.ts`](../../packages/api/src/services/rule-stakes.ts)); a lineup group holds variants of one game group by construction.
 
 **`MAX_MIX_GROUPS = 12` (c58)** is defined once in `schemas/game.ts` and shared by `mixGamesSchema`/`levelGamesSchema` *and* by the game-mix router's master-mix group-span guard, so the two limits cannot drift apart. The reason the master side must enforce it too: a mix built from variants spanning more than `MAX_MIX_GROUPS` distinct game groups can never be turned into a session's `mixGames` (that array is itself capped at `MAX_MIX_GROUPS` groups), so `assertGroupSpanWithinLimit` rejects at the master-mix level instead of producing a mix that silently truncates or fails later.
 
@@ -71,7 +69,7 @@ Hard deletes use a single `DELETE` with `NOT EXISTS` reference guards and return
 
 [`packages/api/src/services/seed-game-data.ts`](../../packages/api/src/services/seed-game-data.ts) seeds the built-in game groups + variants + named mixes for a user. Each seeded mix's ordered `game_mix_variant` rows reference **this user's** freshly seeded variant ids — `DEFAULT_GAME_MIXES.variantKeys` map to `DEFAULT_GAME_VARIANTS` keys purely as seed-time lookups; the keys themselves are never persisted as memberships.
 
-**Idempotency guard (c09)**: if the user owns any group, variant or mix row, including archived rows, the seed is a no-op. Archiving or deleting builtins therefore never causes them to be re-seeded. Migration `0066` keeps this guard valid: an owner with legacy ring games and no game masters receives the complete default set before any stand-in is created, so stand-ins never land on an unseeded account.
+**Idempotency guard (c09)**: if the user owns any group, variant or mix row, including archived rows, the seed is a no-op. Archiving or deleting builtins therefore never causes them to be re-seeded. Migration `0067_ring_game_rule_versions.sql` keeps this guard valid: an owner with legacy ring games and no game masters receives the complete default set before any stand-in is created, so stand-ins never land on an unseeded account.
 
 **Call sites**:
 

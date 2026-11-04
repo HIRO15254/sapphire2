@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "c09f405c-9e01-4e79-8ee5-eaea6ebb12eb",
+  "id": "8856a3b7-c3e6-4ec8-b439-4deaaf8f17ed",
   "prevId": "cedcb0f7-ebd1-4e03-a371-acb98b664c38",
   "tables": {
     "asset": {
@@ -4080,6 +4080,84 @@
           "notNull": true,
           "autoincrement": false
         },
+        "variant": {
+          "name": "variant",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'NL Hold''em'"
+        },
+        "mix_games": {
+          "name": "mix_games",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "blind1": {
+          "name": "blind1",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "blind2": {
+          "name": "blind2",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "blind3": {
+          "name": "blind3",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ante": {
+          "name": "ante",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ante_type": {
+          "name": "ante_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "min_buy_in": {
+          "name": "min_buy_in",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "max_buy_in": {
+          "name": "max_buy_in",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "table_size": {
+          "name": "table_size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "currency_id": {
+          "name": "currency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "memo": {
           "name": "memo",
           "type": "text",
@@ -4087,18 +4165,11 @@
           "notNull": false,
           "autoincrement": false
         },
-        "default_asset_id": {
-          "name": "default_asset_id",
+        "house_rules": {
+          "name": "house_rules",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
-          "autoincrement": false
-        },
-        "current_rule_id": {
-          "name": "current_rule_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
           "autoincrement": false
         },
         "archived_at": {
@@ -4130,24 +4201,19 @@
           "columns": ["id", "user_id"],
           "isUnique": true
         },
-        "ring_game_room_idx": {
-          "name": "ring_game_room_idx",
+        "ringGame_roomId_idx": {
+          "name": "ringGame_roomId_idx",
           "columns": ["room_id"],
           "isUnique": false
         },
-        "ring_game_user_idx": {
-          "name": "ring_game_user_idx",
+        "ringGame_userId_idx": {
+          "name": "ringGame_userId_idx",
           "columns": ["user_id"],
           "isUnique": false
         },
-        "ring_game_asset_idx": {
-          "name": "ring_game_asset_idx",
-          "columns": ["default_asset_id"],
-          "isUnique": false
-        },
-        "ring_game_rule_idx": {
-          "name": "ring_game_rule_idx",
-          "columns": ["current_rule_id"],
+        "ringGame_currencyId_idx": {
+          "name": "ringGame_currencyId_idx",
+          "columns": ["currency_id"],
           "isUnique": false
         }
       },
@@ -4161,6 +4227,15 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
+        "ring_game_currency_id_asset_id_fk": {
+          "name": "ring_game_currency_id_asset_id_fk",
+          "tableFrom": "ring_game",
+          "tableTo": "asset",
+          "columnsFrom": ["currency_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
         "ring_game_room_owner_fk": {
           "name": "ring_game_room_owner_fk",
           "tableFrom": "ring_game",
@@ -4168,24 +4243,6 @@
           "columnsFrom": ["room_id", "user_id"],
           "columnsTo": ["id", "user_id"],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "ring_game_default_asset_owner_fk": {
-          "name": "ring_game_default_asset_owner_fk",
-          "tableFrom": "ring_game",
-          "tableTo": "asset",
-          "columnsFrom": ["default_asset_id", "user_id"],
-          "columnsTo": ["id", "user_id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "ring_game_current_rule_owner_fk": {
-          "name": "ring_game_current_rule_owner_fk",
-          "tableFrom": "ring_game",
-          "tableTo": "cash_rule",
-          "columnsFrom": ["current_rule_id", "user_id"],
-          "columnsTo": ["id", "user_id"],
-          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -6324,91 +6381,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "room_id": {
-          "name": "room_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "variant": {
-          "name": "variant",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'NL Hold''em'"
-        },
-        "buy_in": {
-          "name": "buy_in",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "entry_fee": {
-          "name": "entry_fee",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "starting_stack": {
-          "name": "starting_stack",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "bounty_amount": {
-          "name": "bounty_amount",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "table_size": {
-          "name": "table_size",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "currency_id": {
-          "name": "currency_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "memo": {
-          "name": "memo",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "house_rules": {
-          "name": "house_rules",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "archived_at": {
-          "name": "archived_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -6423,6 +6395,56 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "room_id": {
+          "name": "room_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "memo": {
+          "name": "memo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "is_favorite": {
+          "name": "is_favorite",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "default_asset_id": {
+          "name": "default_asset_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "current_rule_id": {
+          "name": "current_rule_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -6431,19 +6453,19 @@
           "columns": ["id", "user_id"],
           "isUnique": true
         },
-        "tournament_userId_idx": {
-          "name": "tournament_userId_idx",
-          "columns": ["user_id"],
-          "isUnique": false
-        },
-        "tournament_roomId_idx": {
-          "name": "tournament_roomId_idx",
+        "tournament_room_idx": {
+          "name": "tournament_room_idx",
           "columns": ["room_id"],
           "isUnique": false
         },
-        "tournament_currencyId_idx": {
-          "name": "tournament_currencyId_idx",
-          "columns": ["currency_id"],
+        "tournament_asset_idx": {
+          "name": "tournament_asset_idx",
+          "columns": ["default_asset_id"],
+          "isUnique": false
+        },
+        "tournament_rule_idx": {
+          "name": "tournament_rule_idx",
+          "columns": ["current_rule_id"],
           "isUnique": false
         }
       },
@@ -6457,28 +6479,42 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "tournament_currency_id_asset_id_fk": {
-          "name": "tournament_currency_id_asset_id_fk",
-          "tableFrom": "tournament",
-          "tableTo": "asset",
-          "columnsFrom": ["currency_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
         "tournament_room_owner_fk": {
           "name": "tournament_room_owner_fk",
           "tableFrom": "tournament",
           "tableTo": "room",
           "columnsFrom": ["room_id", "user_id"],
           "columnsTo": ["id", "user_id"],
-          "onDelete": "cascade",
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "tournament_default_asset_owner_fk": {
+          "name": "tournament_default_asset_owner_fk",
+          "tableFrom": "tournament",
+          "tableTo": "asset",
+          "columnsFrom": ["default_asset_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "tournament_current_rule_owner_fk": {
+          "name": "tournament_current_rule_owner_fk",
+          "tableFrom": "tournament",
+          "tableTo": "tournament_rule",
+          "columnsFrom": ["current_rule_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "tournament_is_favorite_check": {
+          "name": "tournament_is_favorite_check",
+          "value": "\"tournament\".\"is_favorite\" IN (0, 1)"
+        }
+      }
     },
     "tournament_chip_purchase": {
       "name": "tournament_chip_purchase",
