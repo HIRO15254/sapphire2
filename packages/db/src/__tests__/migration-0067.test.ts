@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-	DEFAULT_GAME_GROUPS,
 	DEFAULT_GAME_MIXES,
 	DEFAULT_GAME_VARIANTS,
 } from "../constants/game-variants";
@@ -237,16 +236,32 @@ describe("migration 0067 — ring game rule versions", () => {
 						db,
 						`SELECT id, builtin_key, label, blind1_label, blind2_label, blind3_label FROM game_group WHERE user_id = '${owner}' ORDER BY id`
 					)
-				).toEqual(
-					DEFAULT_GAME_GROUPS.map((group) => [
-						`${owner}:builtin-group:${group.key}`,
-						group.key,
-						group.label,
-						group.blind1Label,
-						group.blind2Label,
-						group.blind3Label,
-					]).toSorted((a, b) => String(a[0]).localeCompare(String(b[0])))
-				);
+				).toEqual([
+					[
+						`${owner}:builtin-group:bigbet`,
+						"bigbet",
+						"Big Bet",
+						"SB",
+						"BB",
+						"Straddle",
+					],
+					[
+						`${owner}:builtin-group:limit`,
+						"limit",
+						"Limit",
+						"Small Bet",
+						"Big Bet",
+						null,
+					],
+					[
+						`${owner}:builtin-group:stud`,
+						"stud",
+						"Stud",
+						"Small Bet",
+						"Big Bet",
+						"Bring-in",
+					],
+				]);
 				expect(
 					values(
 						db,

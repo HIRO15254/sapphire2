@@ -16,7 +16,15 @@ describe("ring game rule versions on D1", () => {
 		const created = await api.alice.ringGame.create({
 			roomId: room.id,
 			name: "Cash",
-			rule: {},
+			rule: {
+				stakes: [
+					{
+						gameGroupId: "alice:builtin-group:bigbet",
+						blind1: 1,
+						blind2: 2,
+					},
+				],
+			},
 		});
 		expect(created.lineups[created.ruleVersion.lineupId]).toMatchObject({
 			displayName: "NL Hold'em",
@@ -130,14 +138,21 @@ describe("ring game rule versions on D1", () => {
 		const room = requireCreatedRow(
 			await api.alice.room.create({ name: "Club" })
 		);
-		const variant = (await api.alice.gameVariant.list())[0];
+		const variant = (await api.alice.gameVariant.list()).find(
+			(row) => row.builtinKey === "nlh"
+		);
 		if (!variant) {
 			throw new Error("Missing seeded variant");
 		}
 		const original = await api.alice.ringGame.create({
 			roomId: room.id,
 			name: "Cash",
-			rule: { game: { variantId: variant.id }, minBuyIn: 100, maxBuyIn: 200 },
+			rule: {
+				game: { variantId: variant.id },
+				stakes: [{ gameGroupId: variant.groupId, blind1: 1, blind2: 2 }],
+				minBuyIn: 100,
+				maxBuyIn: 200,
+			},
 		});
 		const repeated = await api.alice.ringGame.update({
 			id: original.id,
@@ -179,8 +194,10 @@ describe("ring game rule versions on D1", () => {
 			await api.alice.room.create({ name: "Club" })
 		);
 		const variants = await api.alice.gameVariant.list();
-		const first = variants[0];
-		const second = variants[1];
+		const first = variants.find((row) => row.builtinKey === "nlh");
+		const second = variants.find(
+			(row) => first && row.groupId === first.groupId && row.id !== first.id
+		);
 		if (!(first && second)) {
 			throw new Error("Missing seeded variants");
 		}
@@ -199,12 +216,18 @@ describe("ring game rule versions on D1", () => {
 		const single = await api.alice.ringGame.create({
 			roomId: room.id,
 			name: "Single",
-			rule: { game: { variantId: variant.id } },
+			rule: {
+				game: { variantId: variant.id },
+				stakes: [{ gameGroupId: first.groupId, blind1: 1, blind2: 2 }],
+			},
 		});
 		const mixed = await api.alice.ringGame.create({
 			roomId: room.id,
 			name: "Mixed",
-			rule: { game: { gameMixId: mix.id } },
+			rule: {
+				game: { gameMixId: mix.id },
+				stakes: [{ gameGroupId: first.groupId, blind1: 1, blind2: 2 }],
+			},
 		});
 		expect(single.lineups[single.ruleVersion.lineupId]?.gameMixId).toBeNull();
 		expect(mixed.lineups[mixed.ruleVersion.lineupId]?.gameMixId).toBe(mix.id);
@@ -218,7 +241,10 @@ describe("ring game rule versions on D1", () => {
 			api.alice.ringGame.create({
 				roomId: room.id,
 				name: "New",
-				rule: { game: { variantId: variant.id } },
+				rule: {
+					game: { variantId: variant.id },
+					stakes: [{ gameGroupId: first.groupId, blind1: 1, blind2: 2 }],
+				},
 			})
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 	});
@@ -226,8 +252,15 @@ describe("ring game rule versions on D1", () => {
 	test("rejects foreign versions, assets and stakes outside the lineup without partial writes", async ({
 		api,
 	}) => {
-		await api.alice.gameVariant.list();
-		await api.bob.gameVariant.list();
+		const aliceNlh = (await api.alice.gameVariant.list()).find(
+			(row) => row.builtinKey === "nlh"
+		);
+		const bobNlh = (await api.bob.gameVariant.list()).find(
+			(row) => row.builtinKey === "nlh"
+		);
+		if (!(aliceNlh && bobNlh)) {
+			throw new Error("Missing builtin NLH");
+		}
 		const aliceRoom = requireCreatedRow(
 			await api.alice.room.create({ name: "Alice" })
 		);
@@ -237,17 +270,21 @@ describe("ring game rule versions on D1", () => {
 		const alice = await api.alice.ringGame.create({
 			roomId: aliceRoom.id,
 			name: "A",
-			rule: {},
+			rule: {
+				stakes: [{ gameGroupId: aliceNlh.groupId, blind1: 1, blind2: 2 }],
+			},
 		});
 		const other = await api.alice.ringGame.create({
 			roomId: aliceRoom.id,
 			name: "Other",
-			rule: {},
+			rule: {
+				stakes: [{ gameGroupId: aliceNlh.groupId, blind1: 1, blind2: 2 }],
+			},
 		});
 		const bob = await api.bob.ringGame.create({
 			roomId: bobRoom.id,
 			name: "B",
-			rule: {},
+			rule: { stakes: [{ gameGroupId: bobNlh.groupId, blind1: 1, blind2: 2 }] },
 		});
 		const asset = requireCreatedRow(
 			await api.bob.asset.create({ name: "Bob chips", kind: "currency" })
@@ -305,7 +342,12 @@ describe("ring game rule versions on D1", () => {
 	test("rejects reversed buy-in bounds on create and update", async ({
 		api,
 	}) => {
-		await api.alice.gameVariant.list();
+		const nlh = (await api.alice.gameVariant.list()).find(
+			(row) => row.builtinKey === "nlh"
+		);
+		if (!nlh) {
+			throw new Error("Missing builtin NLH");
+		}
 		const room = requireCreatedRow(
 			await api.alice.room.create({ name: "Club" })
 		);
@@ -313,13 +355,21 @@ describe("ring game rule versions on D1", () => {
 			api.alice.ringGame.create({
 				roomId: room.id,
 				name: "Invalid",
-				rule: { minBuyIn: 200, maxBuyIn: 100 },
+				rule: {
+					stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+					minBuyIn: 200,
+					maxBuyIn: 100,
+				},
 			})
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		const game = await api.alice.ringGame.create({
 			roomId: room.id,
 			name: "Valid",
-			rule: { minBuyIn: 100, maxBuyIn: 200 },
+			rule: {
+				stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+				minBuyIn: 100,
+				maxBuyIn: 200,
+			},
 		});
 		await expect(
 			api.alice.ringGame.update({ id: game.id, rule: { minBuyIn: 201 } })

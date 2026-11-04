@@ -30,6 +30,12 @@ describe("new masters persist the caller's ownership on D1", () => {
 			api,
 		}) => {
 			const caller = api.caller(userId);
+			const nlh = (await caller.gameVariant.list()).find(
+				(row) => row.builtinKey === "nlh"
+			);
+			if (!nlh) {
+				throw new Error("missing builtin nlh");
+			}
 			const room = requireCreatedRow(
 				await caller.room.create({ name: "Club" })
 			);
@@ -37,7 +43,16 @@ describe("new masters persist the caller's ownership on D1", () => {
 				await caller.tournament.createWithLevels({
 					roomId: room.id,
 					name: "Deepstack",
-					rule: { levels: [{ isBreak: false, minutes: 20 }] },
+					rule: {
+						game: { variantId: nlh.id },
+						levels: [
+							{
+								isBreak: false,
+								minutes: 20,
+								stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+							},
+						],
+					},
 				})
 			);
 			expect(
@@ -50,7 +65,12 @@ describe("new masters persist the caller's ownership on D1", () => {
 
 		test(`${userId}: ringGame.create stores user_id`, async ({ api }) => {
 			const caller = api.caller(userId);
-			await caller.gameVariant.list();
+			const nlh = (await caller.gameVariant.list()).find(
+				(row) => row.builtinKey === "nlh"
+			);
+			if (!nlh) {
+				throw new Error("missing builtin nlh");
+			}
 			const room = requireCreatedRow(
 				await caller.room.create({ name: "Club" })
 			);
@@ -58,7 +78,10 @@ describe("new masters persist the caller's ownership on D1", () => {
 				await caller.ringGame.create({
 					roomId: room.id,
 					name: "Cash",
-					rule: {},
+					rule: {
+						game: { variantId: nlh.id },
+						stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+					},
 				})
 			);
 			expect(

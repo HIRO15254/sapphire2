@@ -91,7 +91,9 @@ describe("tournament rule versions on D1", () => {
 						isBreak: false,
 						minutes: 20,
 						game: { variantId: razz.id },
-						stakes: [{ gameGroupId: razz.groupId, blind1: 50, ante: 10 }],
+						stakes: [
+							{ gameGroupId: razz.groupId, blind1: 50, blind2: 100, ante: 10 },
+						],
 					},
 				],
 				prices: [
@@ -256,7 +258,11 @@ describe("tournament rule versions on D1", () => {
 			rule: { game: { variantId: razz.id } },
 		});
 		expect(stud.ruleVersion.levels[0]?.stakes).toEqual([
-			expect.objectContaining({ gameGroupId: razz.groupId, blind1: 10 }),
+			expect.objectContaining({
+				gameGroupId: razz.groupId,
+				blind1: 10,
+				blind2: 20,
+			}),
 		]);
 	});
 
@@ -287,7 +293,7 @@ describe("tournament rule versions on D1", () => {
 							levels: [
 								{
 									isBreak: false,
-									stakes: [{ gameGroupId: razz.groupId, blind1: 1 }],
+									stakes: [{ gameGroupId: razz.groupId, blind1: 1, blind2: 2 }],
 								},
 							],
 						},
@@ -384,7 +390,12 @@ describe("tournament rule versions on D1", () => {
 			id: created.id,
 			defaultAssetId: cash.id,
 			rule: {
-				levels: [{ isBreak: false, stakes: [{ gameGroupId: nlh.groupId }] }],
+				levels: [
+					{
+						isBreak: false,
+						stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+					},
+				],
 			},
 		});
 		const foreignLineup = other.ruleVersion.lineupId;
@@ -536,13 +547,18 @@ describe("tournament rule versions on D1", () => {
 	test("account deletion removes masters, versions and prices", async ({
 		api,
 	}) => {
-		const { room, cash } = await setup(api);
+		const { room, cash, nlh } = await setup(api);
 		const created = await api.alice.tournament.create({
 			roomId: room.id,
 			name: "Daily",
 			defaultAssetId: cash.id,
 			rule: {
-				levels: [{ isBreak: false }],
+				levels: [
+					{
+						isBreak: false,
+						stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+					},
+				],
 				prices: [
 					{ kind: "entry", assetId: cash.id, amount: 100, fee: 0, chips: null },
 				],
@@ -568,7 +584,11 @@ describe("tournament rule versions on D1", () => {
 		for (let index = groups.length; index < 12; index += 1) {
 			groups.push(
 				requireCreatedRow(
-					await api.alice.gameGroup.create({ label: `Group ${index}` })
+					await api.alice.gameGroup.create({
+						label: `Group ${index}`,
+						blind1Label: "Small Bet",
+						blind2Label: "Big Bet",
+					})
 				).id
 			);
 		}
@@ -608,7 +628,7 @@ describe("tournament rule versions on D1", () => {
 			isBreak: boolean;
 			minutes: number;
 			game: { gameMixId: string };
-			stakes: { gameGroupId: string; blind1: number }[];
+			stakes: { gameGroupId: string; blind1: number; blind2: number }[];
 		}[] = [];
 		const mixRows: (typeof gameMix.$inferInsert)[] = [];
 		const mixVariantRows: (typeof gameMixVariant.$inferInsert)[] = [];
@@ -646,6 +666,7 @@ describe("tournament rule versions on D1", () => {
 				stakes: groupOrder.map((gameGroupId) => ({
 					gameGroupId,
 					blind1: index + 1,
+					blind2: (index + 1) * 2,
 				})),
 			});
 		}

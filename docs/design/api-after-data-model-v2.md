@@ -155,7 +155,7 @@ On manual update, a supplied `ManualPlay.id` identifies an existing Day of that 
 
 `GameInput = { variantId: Id } | { gameMixId: Id } | { lineupId: Id }`. A level's `game:null` means inherit. `StakeInput = { gameGroupId: Id, blind1?:number|null, blind2?:number|null, blind3?:number|null, ante?:number|null, anteType?:'none'|'all'|'bb'|null }`. Exactly one stake per effective lineup group in group order; mismatch is `BAD_REQUEST`. Stored lineup ids round-trip archived selections; newly picking archived masters is rejected. Omitted game inherits the linked master, otherwise builtin NLH. Omitted stakes carry by `(gameGroupId, occurrence within that structure)`, not absolute position.
 
-For newly written stake rows, the server rejects a null/omitted blind marked Required by its game group, or a value in a blind field without a label (`BAD_REQUEST`, B11 / SA2-396). Ante is outside this requirement system. Reusing an existing immutable rule version does not revalidate its stakes. B07/B08's shared rule-write service enforces this, including writes through B13.
+For newly written stake rows, the server rejects a null/omitted blind marked Required by its game group, or a value in a blind field without a label (`BAD_REQUEST`, B11 / SA2-396). Every stake row of a new rule version counts as newly written, including values carried forward from the previous version when `stakes` is omitted. Ante is outside this requirement system. Reusing an existing immutable rule version does not revalidate its stakes. B07/B08's shared rule-write service enforces this, including writes through B13.
 
 ```ts
 type CashRuleInput = {

@@ -15,7 +15,12 @@ import {
 	loadLineups,
 	MAX_LINEUP_GROUPS,
 } from "./game-lineup";
-import { planStakes, stakeInputSchema, stakeValues } from "./rule-stakes";
+import {
+	assertStakeBlinds,
+	planStakes,
+	stakeInputSchema,
+	stakeValues,
+} from "./rule-stakes";
 import { seedDefaultGameData } from "./seed-game-data";
 
 const amount = z.number().int().min(0).nullable().optional();
@@ -228,6 +233,7 @@ export async function prepareCashRule(
 	) {
 		return { id: current.id, statements: [] as BatchStatement[] };
 	}
+	await assertStakeBlinds(db, userId, stakes);
 	const id = crypto.randomUUID();
 	const rows = stakes.map((stake) => ({
 		userId,

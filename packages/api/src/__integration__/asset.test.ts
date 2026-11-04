@@ -109,7 +109,12 @@ describe("asset balances on D1", () => {
 	test("a ring game's default asset cannot be deleted while referenced", async ({
 		api,
 	}) => {
-		await api.alice.gameVariant.list();
+		const nlh = (await api.alice.gameVariant.list()).find(
+			(row) => row.builtinKey === "nlh"
+		);
+		if (!nlh) {
+			throw new Error("missing builtin nlh");
+		}
 		const chips = await createCurrency(api, "Chips");
 		const club = requireCreatedRow(
 			await api.alice.room.create({ name: "Club" })
@@ -118,7 +123,10 @@ describe("asset balances on D1", () => {
 			roomId: club.id,
 			name: "Cash",
 			defaultAssetId: chips.id,
-			rule: {},
+			rule: {
+				game: { variantId: nlh.id },
+				stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+			},
 		});
 		await expect(
 			api.alice.asset.delete({ id: chips.id })

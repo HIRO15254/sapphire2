@@ -2,8 +2,11 @@ export type BuiltinGroupKey = "bigbet" | "limit" | "stud";
 
 export interface DefaultGameGroup {
 	blind1Label: string;
+	blind1Required: boolean;
 	blind2Label: string;
+	blind2Required: boolean;
 	blind3Label: string | null;
+	blind3Required: boolean;
 	key: BuiltinGroupKey;
 	label: string;
 }
@@ -13,22 +16,31 @@ export const DEFAULT_GAME_GROUPS: DefaultGameGroup[] = [
 		key: "limit",
 		label: "Limit",
 		blind1Label: "Small Bet",
+		blind1Required: true,
 		blind2Label: "Big Bet",
+		blind2Required: true,
 		blind3Label: null,
+		blind3Required: false,
 	},
 	{
 		key: "stud",
 		label: "Stud",
 		blind1Label: "Small Bet",
+		blind1Required: true,
 		blind2Label: "Big Bet",
+		blind2Required: true,
 		blind3Label: "Bring-in",
+		blind3Required: false,
 	},
 	{
 		key: "bigbet",
 		label: "Big Bet",
 		blind1Label: "SB",
+		blind1Required: true,
 		blind2Label: "BB",
-		blind3Label: "Straddle",
+		blind2Required: true,
+		blind3Label: null,
+		blind3Required: false,
 	},
 ];
 

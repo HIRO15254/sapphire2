@@ -42,37 +42,39 @@ describe("DEFAULT_GAME_GROUPS", () => {
 		}
 	});
 
-	it("limit group uses Small Bet / Big Bet with no third blind slot", () => {
-		const limit = DEFAULT_GAME_GROUPS.find((g) => g.key === "limit");
-		expect(limit).toEqual({
-			key: "limit",
-			label: "Limit",
-			blind1Label: "Small Bet",
-			blind2Label: "Big Bet",
-			blind3Label: null,
-		});
-	});
-
-	it("stud group uses Small Bet / Big Bet / Bring-in", () => {
-		const stud = DEFAULT_GAME_GROUPS.find((g) => g.key === "stud");
-		expect(stud).toEqual({
-			key: "stud",
-			label: "Stud",
-			blind1Label: "Small Bet",
-			blind2Label: "Big Bet",
-			blind3Label: "Bring-in",
-		});
-	});
-
-	it("bigbet group uses SB / BB / Straddle", () => {
-		const bigbet = DEFAULT_GAME_GROUPS.find((g) => g.key === "bigbet");
-		expect(bigbet).toEqual({
-			key: "bigbet",
-			label: "Big Bet",
-			blind1Label: "SB",
-			blind2Label: "BB",
-			blind3Label: "Straddle",
-		});
+	it("built-in structures carry the Must / Optional blind fields of the spec", () => {
+		expect(DEFAULT_GAME_GROUPS).toEqual([
+			{
+				key: "limit",
+				label: "Limit",
+				blind1Label: "Small Bet",
+				blind1Required: true,
+				blind2Label: "Big Bet",
+				blind2Required: true,
+				blind3Label: null,
+				blind3Required: false,
+			},
+			{
+				key: "stud",
+				label: "Stud",
+				blind1Label: "Small Bet",
+				blind1Required: true,
+				blind2Label: "Big Bet",
+				blind2Required: true,
+				blind3Label: "Bring-in",
+				blind3Required: false,
+			},
+			{
+				key: "bigbet",
+				label: "Big Bet",
+				blind1Label: "SB",
+				blind1Required: true,
+				blind2Label: "BB",
+				blind2Required: true,
+				blind3Label: null,
+				blind3Required: false,
+			},
+		]);
 	});
 });
 
