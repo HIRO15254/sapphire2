@@ -34,6 +34,7 @@ export const B06_MIGRATION = "0061_entry_p1_cutover.sql";
 export const B10_MIGRATION = "0062_hand_count_cutover.sql";
 export const B09_MIGRATION = "0063_ledger_cutover.sql";
 export const B12_MIGRATION = "0064_open_live_cash_ev.sql";
+export const B08_MIGRATION = "0066_tournament_final.sql";
 
 export type Activation =
 	| { state: "active"; since: string | null }
@@ -76,6 +77,7 @@ const SINCE_B06: Activation = { state: "active", since: B06_MIGRATION };
 const SINCE_B10: Activation = { state: "active", since: B10_MIGRATION };
 const SINCE_B09: Activation = { state: "active", since: B09_MIGRATION };
 const SINCE_B12: Activation = { state: "active", since: B12_MIGRATION };
+const SINCE_B08: Activation = { state: "active", since: B08_MIGRATION };
 
 function pending(enabledBy: string): { state: "pending"; enabledBy: string } {
 	return { state: "pending", enabledBy };
@@ -334,7 +336,7 @@ WHERE v.id IS NULL OR v.ring_game_id IS NOT r.id`,
 		audit: "A-13",
 		part: "tournament current rule belongs to that master",
 		kind: "sql",
-		activation: pending(TASK.B08),
+		activation: SINCE_B08,
 		tables: ["tournament", "tournament_rule"],
 		sql: () => `SELECT t.id AS id FROM tournament t
 LEFT JOIN tournament_rule v ON v.id = t.current_rule_id AND v.user_id = t.user_id
@@ -342,9 +344,75 @@ WHERE v.id IS NULL OR v.tournament_id IS NOT t.id`,
 	},
 	{
 		audit: "A-13",
-		part: "master and entry rule content equals staged/source snapshots",
+		part: "tournament master version content equals its legacy levels and chip purchases",
+		kind: "sql",
+		activation: SINCE_B08,
+		deletedBy: TASK.B25,
+		tables: [
+			"tournament",
+			"tournament_rule",
+			"blind_level",
+			"tournament_chip_purchase",
+			"tournament_rule_level",
+			"tournament_rule_level_stake",
+			"tournament_rule_price",
+		],
+		sql: () => `WITH migrated AS (
+SELECT r.id, r.user_id, r.tournament_id FROM tournament_rule r
+JOIN tournament t ON t.id = r.tournament_id AND t.user_id = r.user_id
+WHERE r.id = 'tr:' || t.id
+), legacy_levels AS (
+SELECT m.id AS rule_id, m.user_id, b.*,
+ROW_NUMBER() OVER (PARTITION BY m.id ORDER BY b.level, b.id) AS expected_ordinal
+FROM migrated m JOIN blind_level b ON b.tournament_id = m.tournament_id
+), expected_levels AS (
+SELECT rule_id, user_id, 'trl:' || id AS id, expected_ordinal AS ordinal, level,
+CASE WHEN is_break THEN 1 ELSE 0 END AS is_break,
+CASE WHEN minutes >= 1 THEN minutes END AS minutes FROM legacy_levels
+), actual_levels AS (
+SELECT l.rule_id, l.user_id, l.id, l.ordinal, l.level, l.is_break, l.minutes
+FROM tournament_rule_level l JOIN migrated m ON m.id = l.rule_id AND m.user_id = l.user_id
+), expected_prices AS (
+SELECT m.id AS rule_id, m.user_id, 'trp:' || p.id AS id, 'addon' AS kind, p.name AS label,
+CASE WHEN p.cost < 0 THEN 0 ELSE p.cost END AS amount,
+CASE WHEN p.chips >= 0 THEN p.chips END AS chips
+FROM migrated m JOIN tournament_chip_purchase p ON p.tournament_id = m.tournament_id
+), actual_prices AS (
+SELECT p.rule_id, p.user_id, p.id, p.kind, p.label, p.amount, p.chips
+FROM tournament_rule_price p JOIN migrated m ON m.id = p.rule_id AND m.user_id = p.user_id
+WHERE (p.kind = 'addon' OR p.id LIKE 'trp:%') AND p.id <> 'trp:' || m.id || ':entry'
+), level_diff AS (
+SELECT * FROM expected_levels EXCEPT SELECT * FROM actual_levels
+), extra_levels AS (
+SELECT * FROM actual_levels EXCEPT SELECT * FROM expected_levels
+), price_diff AS (
+SELECT * FROM expected_prices EXCEPT SELECT * FROM actual_prices
+), extra_prices AS (
+SELECT * FROM actual_prices EXCEPT SELECT * FROM expected_prices
+)
+SELECT 'missing or changed level' AS problem, id FROM level_diff
+UNION ALL SELECT 'extra or changed level', id FROM extra_levels
+UNION ALL SELECT 'missing or changed addon', id FROM price_diff
+UNION ALL SELECT 'extra or changed addon', id FROM extra_prices
+UNION ALL
+SELECT 'flat stakes', l.id FROM legacy_levels b
+JOIN tournament_rule_level l ON l.id = 'trl:' || b.id AND l.user_id = b.user_id AND l.rule_id = b.rule_id
+JOIN tournament_rule_level_stake s ON s.level_id = l.id AND s.user_id = l.user_id
+WHERE NOT b.is_break AND NOT EXISTS (
+  SELECT 1 FROM json_each(CASE WHEN json_valid(b.games) THEN CASE WHEN json_type(b.games) = 'array' THEN b.games ELSE '[]' END ELSE '[]' END) g,
+  json_each(CASE WHEN g.type = 'object' THEN CASE WHEN json_type(g.value, '$.variants') = 'array' THEN json_extract(g.value, '$.variants') ELSE '[]' END ELSE '[]' END) v
+  WHERE v.type = 'text' AND trim(v.value) <> ''
+)
+AND (s.blind1 IS NOT CASE WHEN b.blind1 >= 0 THEN b.blind1 END
+OR s.blind2 IS NOT CASE WHEN b.blind2 >= 0 THEN b.blind2 END
+OR s.blind3 IS NOT CASE WHEN b.blind3 >= 0 THEN b.blind3 END
+OR s.ante IS NOT CASE WHEN b.ante >= 0 THEN b.ante END OR s.ante_type IS NOT NULL)`,
+	},
+	{
+		audit: "A-13",
+		part: "ring_game and entry rule content equals staged/source snapshots",
 		kind: "deferred",
-		activation: pending(`${TASK.B07}, ${TASK.B08}, ${TASK.B13}`),
+		activation: pending(`${TASK.B07}, ${TASK.B13}`),
 		deletedBy: TASK.B25,
 		tables: [],
 	},
@@ -463,7 +531,7 @@ WHERE r.ring_game_id IS NOT ec.ring_game_id`,
 		audit: "A-14",
 		part: "tournament rule parent and entry rule keep NULL-master parity",
 		kind: "sql",
-		activation: pending(TASK.B08),
+		activation: SINCE_B08,
 		tables: ["tournament_rule", "entry_tournament"],
 		sql: () => `SELECT 'tournament_rule' AS target, c.id AS id FROM tournament_rule c
 JOIN tournament_rule p ON p.id = c.parent_rule_id AND p.user_id = c.user_id
@@ -487,7 +555,7 @@ WHERE NOT EXISTS (SELECT 1 FROM cash_rule_stake s WHERE s.rule_id = r.id AND s.l
 		audit: "A-14",
 		part: "tournament level stakes cover every group; breaks have none",
 		kind: "sql",
-		activation: pending(TASK.B08),
+		activation: SINCE_B08,
 		tables: [
 			"tournament_rule_level",
 			"game_lineup_group",

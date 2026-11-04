@@ -1,8 +1,5 @@
 import type { Database } from "@sapphire2/db";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
-import { sessionBlindLevel } from "@sapphire2/db/schema/session-blind-level";
-import { blindLevel } from "@sapphire2/db/schema/tournament";
-import type { LevelGameGroup } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 
@@ -22,39 +19,6 @@ function isInsideFrozenGroup(
 	return frozenLabelSets.some((frozen) =>
 		labels.every((label) => frozen.has(label))
 	);
-}
-
-function levelGameGroups(
-	levels: { games?: LevelGameGroup[] | null }[]
-): LevelGameGroup[] {
-	return levels.flatMap((level) => level.games ?? []);
-}
-
-async function storedLevelGroups(
-	db: Database,
-	source: FrozenLevelSource
-): Promise<LevelGameGroup[]> {
-	const groups: LevelGameGroup[] = [];
-	if (source.sessionId) {
-		const rows = await db
-			.select({ games: sessionBlindLevel.games })
-			.from(sessionBlindLevel)
-			.where(eq(sessionBlindLevel.sessionId, source.sessionId));
-		groups.push(...levelGameGroups(rows));
-	}
-	if (source.tournamentId) {
-		const rows = await db
-			.select({ games: blindLevel.games })
-			.from(blindLevel)
-			.where(eq(blindLevel.tournamentId, source.tournamentId));
-		groups.push(...levelGameGroups(rows));
-	}
-	return groups;
-}
-
-interface FrozenLevelSource {
-	sessionId?: string | null;
-	tournamentId?: string | null;
 }
 
 export async function assertSingleStructurePerGroup(
@@ -103,22 +67,4 @@ export async function assertSingleStructurePerGroup(
 			}
 		}
 	}
-}
-
-export async function assertLevelGameStructures(
-	db: Database,
-	userId: string,
-	levels: { games?: LevelGameGroup[] | null }[] | undefined,
-	frozenSource: FrozenLevelSource
-): Promise<void> {
-	const groups = levelGameGroups(levels ?? []);
-	if (groups.every((group) => group.variants.length < 2)) {
-		return;
-	}
-	await assertSingleStructurePerGroup(
-		db,
-		userId,
-		groups,
-		await storedLevelGroups(db, frozenSource)
-	);
 }
