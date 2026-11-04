@@ -20,7 +20,7 @@ A mix is a reusable mixed-game definition — label + ordered game composition �
 
 ### Canonical ordering
 
-Ordering is builtin-first everywhere, produced by the shared `compareBuiltinFirst` comparator factory in [`packages/api/src/routers/_game-masters.ts`](../../packages/api/src/routers/_game-masters.ts): groups `limit → stud → bigbet` (structure-sheet convention), mixes `HORSE → 8-Game → 10-Game`, then user-created rows alphabetically by label; variant `sortOrder` is the `DEFAULT_GAME_VARIANTS` array index at seed time. [`packages/api/src/services/cash-rule-selection.ts`](../../packages/api/src/services/cash-rule-selection.ts) replicates the group ordering and must keep matching `gameGroup.list` / `useGameGroups`. The web treats the server list order as canonical and never re-sorts.
+Ordering is builtin-first everywhere, produced by the shared `compareBuiltinFirst` comparator factory in [`packages/api/src/routers/_game-masters.ts`](../../packages/api/src/routers/_game-masters.ts): groups `limit → stud → bigbet` (structure-sheet convention), mixes `HORSE → 8-Game → 10-Game`, then user-created rows alphabetically by label; variant `sortOrder` is the `DEFAULT_GAME_VARIANTS` array index at seed time. The web treats the server list order as canonical and never re-sorts.
 
 ## Self-freezing labels: two reference styles
 
@@ -71,12 +71,12 @@ Hard deletes use a single `DELETE` with `NOT EXISTS` reference guards and return
 
 [`packages/api/src/services/seed-game-data.ts`](../../packages/api/src/services/seed-game-data.ts) seeds the built-in game groups + variants + named mixes for a user. Each seeded mix's ordered `game_mix_variant` rows reference **this user's** freshly seeded variant ids — `DEFAULT_GAME_MIXES.variantKeys` map to `DEFAULT_GAME_VARIANTS` keys purely as seed-time lookups; the keys themselves are never persisted as memberships.
 
-**Idempotency guard (c09)**: existing user-created variants and existing mixes, including archived rows, stop seeding. Groups alone, migration-created builtin variants, and `standin-` variants and mixes do not count as completion; migration can create these without running the seed. A completed seed's builtin mixes count, so archiving them does not cause reseeding. Existing groups and variants with a builtin key or matching label are reused, and a mix label held by a stand-in is not overwritten.
+**Idempotency guard (c09)**: if the user owns any group, variant or mix row, including archived rows, the seed is a no-op. Archiving or deleting builtins therefore never causes them to be re-seeded. Migration `0066` keeps this guard valid: an owner with legacy ring games and no game masters receives the complete default set before any stand-in is created, so stand-ins never land on an unseeded account.
 
 **Call sites**:
 
 - Once from better-auth's `user.create` hook (`onUserCreated` in [`packages/auth/src/index.ts`](../../packages/auth/src/index.ts)). The hook body wraps it in try/catch: **signup must succeed even if seeding fails** (c13) — every `list` procedure self-seeds on next read, so a seed failure here would otherwise take down account creation entirely for an unrelated, retriable side effect.
-- Defensively from `gameVariant.list` / `gameGroup.list` / `gameMix.list` (c32), for legacy accounts. The seed checks all three tables before inserting, including archived rows subject to the migration exceptions above.
+- Defensively from `gameVariant.list` / `gameGroup.list` / `gameMix.list` (c32), for legacy accounts. The seed checks all three tables, including archived rows, before inserting.
 
 **Race design (stable per-user ids)**: deterministic ids and `onConflictDoNothing` inserts make concurrent seeds converge. All statements run in one `runBatch`; seed errors are not swallowed.
 

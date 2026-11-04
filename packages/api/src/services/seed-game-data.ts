@@ -7,7 +7,7 @@ import {
 import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { gameMix, gameMixVariant } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { BatchStatement } from "../lib/batch";
 import { runBatch } from "../lib/batch";
 import { chunkMembershipRows } from "./game-mix";
@@ -26,16 +26,19 @@ export async function seedDefaultGameData(
 	db: DbInstance,
 	userId: string
 ): Promise<void> {
+	const [existingGroup] = await db
+		.select({ id: gameGroup.id })
+		.from(gameGroup)
+		.where(eq(gameGroup.userId, userId))
+		.limit(1);
+	if (existingGroup) {
+		return;
+	}
+
 	const [existingVariant] = await db
 		.select({ id: gameVariant.id })
 		.from(gameVariant)
-		.where(
-			and(
-				eq(gameVariant.userId, userId),
-				isNull(gameVariant.builtinKey),
-				sql`substr(${gameVariant.id}, 1, 8) <> 'standin-'`
-			)
-		)
+		.where(eq(gameVariant.userId, userId))
 		.limit(1);
 	if (existingVariant) {
 		return;
@@ -44,50 +47,21 @@ export async function seedDefaultGameData(
 	const [existingMix] = await db
 		.select({ id: gameMix.id })
 		.from(gameMix)
-		.where(
-			and(
-				eq(gameMix.userId, userId),
-				sql`substr(${gameMix.id}, 1, 8) <> 'standin-'`
-			)
-		)
+		.where(eq(gameMix.userId, userId))
 		.limit(1);
 	if (existingMix) {
 		return;
 	}
-	const groups = await db
-		.select({
-			id: gameGroup.id,
-			builtinKey: gameGroup.builtinKey,
-			label: sql<string>`lower(trim(${gameGroup.label}))`,
-		})
-		.from(gameGroup)
-		.where(eq(gameGroup.userId, userId));
-	const variants = await db
-		.select({
-			id: gameVariant.id,
-			builtinKey: gameVariant.builtinKey,
-			label: sql<string>`lower(trim(${gameVariant.label}))`,
-		})
-		.from(gameVariant)
-		.where(eq(gameVariant.userId, userId));
-	const mixes = await db
-		.select({ label: sql<string>`lower(trim(${gameMix.label}))` })
-		.from(gameMix)
-		.where(eq(gameMix.userId, userId));
 
 	const now = new Date();
 	const groupIdByKey = new Map(
 		DEFAULT_GAME_GROUPS.map((g) => [
 			g.key,
-			groups.find((row) => row.builtinKey === g.key)?.id ??
-				groups.find((row) => row.label === g.label.trim().toLowerCase())?.id ??
-				builtinSeedId(userId, "group", g.key),
+			builtinSeedId(userId, "group", g.key),
 		])
 	);
 
-	const statements: BatchStatement[] = DEFAULT_GAME_GROUPS.filter(
-		(g) => groupIdByKey.get(g.key) === builtinSeedId(userId, "group", g.key)
-	).map((g) =>
+	const statements: BatchStatement[] = DEFAULT_GAME_GROUPS.map((g) =>
 		db
 			.insert(gameGroup)
 			.values({
@@ -110,10 +84,7 @@ export async function seedDefaultGameData(
 		if (!groupId) {
 			continue;
 		}
-		const variantId =
-			variants.find((row) => row.builtinKey === v.key)?.id ??
-			variants.find((row) => row.label === v.label.trim().toLowerCase())?.id ??
-			builtinSeedId(userId, "variant", v.key);
+		const variantId = builtinSeedId(userId, "variant", v.key);
 		variantIdByKey.set(v.key, variantId);
 		statements.push(
 			db
@@ -133,9 +104,6 @@ export async function seedDefaultGameData(
 	}
 
 	for (const m of DEFAULT_GAME_MIXES) {
-		if (mixes.some((row) => row.label === m.label.trim().toLowerCase())) {
-			continue;
-		}
 		const mixId = builtinSeedId(userId, "mix", m.key);
 		const games = m.variantKeys
 			.map((key) => variantIdByKey.get(key))

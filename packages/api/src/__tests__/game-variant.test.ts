@@ -420,6 +420,17 @@ describe("gameVariant.list scoping", () => {
 		expect(inserted[VARIANT_TABLE]).toHaveLength(21);
 		expect(inserted[MIX_TABLE]).toHaveLength(3);
 	});
+
+	it("does not re-seed when the caller already has a group (even with zero variants)", async () => {
+		const { caller, inserted } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [],
+		});
+		await caller.list();
+		expect(inserted[GROUP_TABLE]).toBeUndefined();
+		expect(inserted[VARIANT_TABLE]).toBeUndefined();
+		expect(inserted[MIX_TABLE]).toBeUndefined();
+	});
 });
 
 describe("gameVariant type guard sanity", () => {

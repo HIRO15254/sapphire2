@@ -86,6 +86,40 @@ INSERT INTO `__stage_0066_labels` (ring_id,user_id,source_pos,variant_pos,label)
 SELECT r.id,r.user_id,0,0,CASE WHEN lower(trim(r.variant))='mix' THEN 'Mixed Game' WHEN length(trim(r.variant)) > 0 THEN trim(r.variant) ELSE 'NL Hold''em' END
 FROM `__stage_0066_ring` r WHERE NOT EXISTS (SELECT 1 FROM `__stage_0066_labels` l WHERE l.ring_id=r.id);--> statement-breakpoint
 
+-- Owners with no game masters were never seeded; give them the complete
+-- default set first so the seed's any-row guard stays a completion marker.
+CREATE TABLE `__stage_0066_unseeded` AS
+SELECT DISTINCT r.user_id FROM `__stage_0066_ring` r
+WHERE NOT EXISTS (SELECT 1 FROM `game_group` g WHERE g.user_id=r.user_id)
+ AND NOT EXISTS (SELECT 1 FROM `game_variant` v WHERE v.user_id=r.user_id)
+ AND NOT EXISTS (SELECT 1 FROM `game_mix` m WHERE m.user_id=r.user_id);--> statement-breakpoint
+CREATE TABLE `__stage_0066_seed_group` (`key` text, `label` text, `b1` text, `b2` text, `b3` text);--> statement-breakpoint
+INSERT INTO `__stage_0066_seed_group` VALUES
+ ('limit','Limit','Small Bet','Big Bet',NULL),('stud','Stud','Small Bet','Big Bet','Bring-in'),('bigbet','Big Bet','SB','BB','Straddle');--> statement-breakpoint
+CREATE TABLE `__stage_0066_seed_mix` (`key` text, `label` text);--> statement-breakpoint
+INSERT INTO `__stage_0066_seed_mix` VALUES ('horse','HORSE'),('8game','8-Game'),('10game','10-Game');--> statement-breakpoint
+CREATE TABLE `__stage_0066_seed_member` (`mix` text, `variant` text, `position` integer);--> statement-breakpoint
+INSERT INTO `__stage_0066_seed_member` VALUES
+ ('horse','lhe',0),('horse','o8',1),('horse','razz',2),('horse','stud',3),('horse','stud8',4),
+ ('8game','27td',0),('8game','lhe',1),('8game','o8',2),('8game','razz',3),('8game','stud',4),('8game','stud8',5),('8game','nlh',6),('8game','plo',7),
+ ('10game','27td',0),('10game','lhe',1),('10game','o8',2),('10game','badugi',3),('10game','razz',4),('10game','stud',5),('10game','stud8',6),('10game','nlh',7),('10game','plo',8),('10game','27sd',9);--> statement-breakpoint
+INSERT INTO `game_group` (id,user_id,builtin_key,label,blind1_label,blind2_label,blind3_label,created_at,updated_at)
+SELECT u.user_id||':builtin-group:'||k.key,u.user_id,k.key,k.label,k.b1,k.b2,k.b3,unixepoch(),unixepoch()
+FROM `__stage_0066_unseeded` u CROSS JOIN `__stage_0066_seed_group` k;--> statement-breakpoint
+INSERT INTO `game_variant` (id,user_id,builtin_key,label,short_label,group_id,sort_order,created_at,updated_at)
+SELECT u.user_id||':builtin-variant:'||b.key,u.user_id,b.key,b.label,b.short_label,u.user_id||':builtin-group:'||b.group_key,b.sort_order,unixepoch(),unixepoch()
+FROM `__stage_0066_unseeded` u CROSS JOIN `__stage_0066_builtin` b;--> statement-breakpoint
+INSERT INTO `game_mix` (id,user_id,builtin_key,label,games,created_at,updated_at)
+SELECT u.user_id||':builtin-mix:'||k.key,u.user_id,k.key,k.label,'[]',unixepoch(),unixepoch()
+FROM `__stage_0066_unseeded` u CROSS JOIN `__stage_0066_seed_mix` k;--> statement-breakpoint
+INSERT INTO `game_mix_variant` (mix_id,user_id,variant_id,position)
+SELECT u.user_id||':builtin-mix:'||k.mix,u.user_id,u.user_id||':builtin-variant:'||k.variant,k.position
+FROM `__stage_0066_unseeded` u CROSS JOIN `__stage_0066_seed_member` k;--> statement-breakpoint
+DROP TABLE `__stage_0066_seed_member`;--> statement-breakpoint
+DROP TABLE `__stage_0066_seed_mix`;--> statement-breakpoint
+DROP TABLE `__stage_0066_seed_group`;--> statement-breakpoint
+DROP TABLE `__stage_0066_unseeded`;--> statement-breakpoint
+
 -- Supply only needed builtin structures; a same-name owned group takes precedence.
 CREATE TABLE `__stage_0066_needed_group` AS
 SELECT DISTINCT l.user_id, b.group_key FROM `__stage_0066_labels` l JOIN `__stage_0066_builtin` b ON lower(trim(l.label)) IN (b.key,lower(trim(b.label)))

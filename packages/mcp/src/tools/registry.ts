@@ -161,7 +161,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "ring_game_list_by_room",
 		procedurePath: "ringGame.listByRoom",
 		description:
-			"List the ring-game (cash-game) masters of one room. Each result includes currentRuleId, ruleVersion with lineupId and stakes, and lineups keyed by ID. Set includeArchived to list archived ones instead.",
+			"List the ring-game (cash-game) masters of one room. Each result includes currentRuleId, ruleVersion with lineupId and stakes, and lineups keyed by ID. Set includeArchived to also include archived ones.",
 		inputSchema: ringGameListByRoomInputSchema,
 	},
 	{

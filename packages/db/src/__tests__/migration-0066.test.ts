@@ -1,4 +1,9 @@
 import { describe, expect, it } from "vitest";
+import {
+	DEFAULT_GAME_GROUPS,
+	DEFAULT_GAME_MIXES,
+	DEFAULT_GAME_VARIANTS,
+} from "../constants/game-variants";
 
 import {
 	type Database,
@@ -201,12 +206,45 @@ describe("migration 0066 — ring game rule versions", () => {
 					"SELECT variant_id FROM game_lineup_variant WHERE lineup_id = 'lu:cr:builtin'"
 				)
 			).toEqual([["charlie:builtin-variant:nlh"]]);
-			expect(
-				values(
-					db,
-					"SELECT builtin_key FROM game_group WHERE user_id = 'bob' AND builtin_key = 'bigbet'"
-				)
-			).toEqual([["bigbet"]]);
+			for (const owner of ["bob", "charlie"]) {
+				expect(
+					values(
+						db,
+						`SELECT id, builtin_key, label, blind1_label, blind2_label, blind3_label FROM game_group WHERE user_id = '${owner}' ORDER BY id`
+					)
+				).toEqual(
+					DEFAULT_GAME_GROUPS.map((group) => [
+						`${owner}:builtin-group:${group.key}`,
+						group.key,
+						group.label,
+						group.blind1Label,
+						group.blind2Label,
+						group.blind3Label,
+					]).toSorted((a, b) => String(a[0]).localeCompare(String(b[0])))
+				);
+				expect(
+					values(
+						db,
+						`SELECT builtin_key, label, short_label, group_id, sort_order FROM game_variant WHERE user_id = '${owner}' AND builtin_key IS NOT NULL ORDER BY sort_order`
+					)
+				).toEqual(
+					DEFAULT_GAME_VARIANTS.map((variant, index) => [
+						variant.key,
+						variant.label,
+						variant.shortLabel,
+						`${owner}:builtin-group:${variant.groupKey}`,
+						index,
+					])
+				);
+				for (const mix of DEFAULT_GAME_MIXES) {
+					expect(
+						values(
+							db,
+							`SELECT v.builtin_key FROM game_mix m JOIN game_mix_variant j ON j.mix_id = m.id JOIN game_variant v ON v.id = j.variant_id WHERE m.user_id = '${owner}' AND m.builtin_key = '${mix.key}' AND m.label = '${mix.label}' AND m.archived_at IS NULL ORDER BY j.position`
+						)
+					).toEqual(mix.variantKeys.map((key) => [key]));
+				}
+			}
 			expect(
 				values(
 					db,

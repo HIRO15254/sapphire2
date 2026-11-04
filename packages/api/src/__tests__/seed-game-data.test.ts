@@ -108,7 +108,7 @@ describe("seedDefaultGameData", () => {
 		}
 	});
 
-	it("seeds when only a game group exists", async () => {
+	it("skips entirely when the user already has a gameGroup row (respects intentional deletion)", async () => {
 		const { db, batch, inserted } = createChainableMockDb({
 			select: {
 				[GROUP_TABLE]: [{ id: "g-1", userId: USER_ID }],
@@ -116,9 +116,10 @@ describe("seedDefaultGameData", () => {
 			},
 		});
 		await seedDefaultGameData(db, USER_ID);
-		expect(batch).toHaveBeenCalledOnce();
-		expect(inserted[VARIANT_TABLE]).toHaveLength(DEFAULT_GAME_VARIANTS.length);
-		expect(inserted[MIX_TABLE]).toHaveLength(DEFAULT_GAME_MIXES.length);
+		expect(batch).not.toHaveBeenCalled();
+		expect(inserted[GROUP_TABLE]).toBeUndefined();
+		expect(inserted[VARIANT_TABLE]).toBeUndefined();
+		expect(inserted[MIX_TABLE]).toBeUndefined();
 	});
 
 	it("skips entirely when the user already has a gameVariant row but no group", async () => {
