@@ -38,7 +38,7 @@ Snapshot fields on [`session_cash_detail`](../../packages/db/src/schema/session-
 
 The blanket rules (object-level authorization, scoped bulk WHEREs, write-IDOR row scoping) live in [`api-security.md`](../../.claude/rules/api-security.md); the session-domain guard inventory:
 
-- **Uniform FORBIDDEN (SA2-183)** — `validateEntityOwnership` ([`session.ts`](../../packages/api/src/routers/session.ts)) treats "missing" and "owned by someone else" identically; shared by the game-group / game-variant / game-mix routers.
+- **Uniform FORBIDDEN (SA2-183)** — `validateEntityOwnership` ([`ownership.ts`](../../packages/api/src/lib/ownership.ts)) treats "missing" and "owned by someone else" identically; shared by the game-group / game-variant / game-mix routers.
 - **Filter ownership (SA2-183)** — `validateSessionFilterOwnership` validates every optional FK filter at the resolver boundary, before an owner-scoped query can turn a foreign id into an empty result.
 - **Live-link ownership (SA2-102)** — `validateLiveLinkOwnership` guards the room / currency links of the live routers. Falsy (`undefined` = omitted, `null` = clear, `""` = empty) skips; a provided id must exist AND belong to the caller. Prevents IDOR on the money-ledger links.
 - **Tag-set ownership (SA2-177)** — `validateTagsOwnership` compares the distinct owned count against the requested distinct count in one scoped query; any mismatch → FORBIDDEN. No-ops on empty/omitted ids.

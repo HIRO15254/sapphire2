@@ -8,7 +8,7 @@ Why writes against Cloudflare D1 are shaped the way they are: the 100-bound-para
 
 D1 rejects any single statement binding more than 100 parameters. A multi-row `INSERT` binds `columnsPerRow × rowCount` parameters, so a large batch — e.g. a 14-level blind structure at 10 columns = 140 params — overflows a single statement and fails at runtime.
 
-The cap constant `D1_MAX_BOUND_PARAMS` and `chunkForInsert` live in [`packages/api/src/lib/batch.ts`](../../packages/api/src/lib/batch.ts), not in the session router, so a `services/` module can size its own `IN (…)` list against the same number without importing from a router — importing the other way would close an import cycle (`routers/session.ts` already imports `services/game-mix.ts`). The helper has exactly one implementation, shared by [`session.ts`](../../packages/api/src/routers/session.ts) (which re-exports it) and [`packages/api/src/services/seed-game-data.ts`](../../packages/api/src/services/seed-game-data.ts) (c40).
+The cap constant `D1_MAX_BOUND_PARAMS` and `chunkForInsert` live in [`packages/api/src/lib/batch.ts`](../../packages/api/src/lib/batch.ts), so services can size their own `IN (…)` lists against the same number without importing from a router. The helper has exactly one implementation.
 
 ### The `session_blind_level` 10 × 10 = 100 coupling
 
@@ -27,7 +27,7 @@ Paths governed by this cap:
 
 ### Chunked `IN (…)` selects
 
-A one-column `IN` binds one param per id, so a batched lookup across more than 100 sessions overflows exactly like a wide multi-row INSERT — 101 session ids in a single `inArray` binds 101 params, which is the outage the SA2 chip-purchase batched lookup hit. `selectInChunks` (in session.ts) reuses `chunkForInsert` with a single "column". Rows from every chunk are concatenated in chunk order; callers bucket by id afterward, and because each id lands in exactly one chunk, per-id ordering (`sortOrder` / `level`) survives the concatenation.
+A one-column `IN` binds one param per id, so a batched lookup across more than 100 sessions overflows exactly like a wide multi-row INSERT — 101 session ids in a single `inArray` binds 101 params, which is the outage the SA2 chip-purchase batched lookup hit. `selectInChunks` (in [`batch.ts`](../../packages/api/src/lib/batch.ts)) sizes chunks using the shared cap, reserving space for any extra bound parameters. Rows from every chunk are concatenated in chunk order; callers bucket by id afterward, and because each id lands in exactly one chunk, per-id ordering (`sortOrder` / `level`) survives the concatenation.
 
 ## `db.batch()` atomicity (SA2-116)
 

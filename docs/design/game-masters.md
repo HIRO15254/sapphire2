@@ -20,7 +20,7 @@ A mix is a reusable mixed-game definition — label + ordered game composition �
 
 ### Canonical ordering
 
-Ordering is builtin-first everywhere, produced by the shared `compareBuiltinFirst` comparator factory in [`packages/api/src/routers/_game-masters.ts`](../../packages/api/src/routers/_game-masters.ts): groups `limit → stud → bigbet` (structure-sheet convention), mixes `HORSE → 8-Game → 10-Game`, then user-created rows alphabetically by label; variant `sortOrder` is the `DEFAULT_GAME_VARIANTS` array index at seed time. [`packages/api/src/routers/session.ts`](../../packages/api/src/routers/session.ts) replicates the group ordering and must keep matching `gameGroup.list` / `useGameGroups`. The web treats the server list order as canonical and never re-sorts.
+Ordering is builtin-first everywhere, produced by the shared `compareBuiltinFirst` comparator factory in [`packages/api/src/routers/_game-masters.ts`](../../packages/api/src/routers/_game-masters.ts): groups `limit → stud → bigbet` (structure-sheet convention), mixes `HORSE → 8-Game → 10-Game`, then user-created rows alphabetically by label; variant `sortOrder` is the `DEFAULT_GAME_VARIANTS` array index at seed time. [`packages/api/src/services/cash-rule-selection.ts`](../../packages/api/src/services/cash-rule-selection.ts) replicates the group ordering and must keep matching `gameGroup.list` / `useGameGroups`. The web treats the server list order as canonical and never re-sorts.
 
 ## Self-freezing labels: two reference styles
 
@@ -43,7 +43,7 @@ Consequences, stated completely:
 
 `mix` is a **mode, not a row**: the fixed key `MIX_VARIANT = "mix"` with display label `MIX_VARIANT_LABEL = "Mixed Game"` ([`packages/db/src/constants/game-variants.ts`](../../packages/db/src/constants/game-variants.ts)). It is the only exception to "frozen values are labels" — it is stored as the fixed key, frozen into old rows before named mix masters existed, and remains valid without a master row. `variantDisplayLabel` maps only this key; every other stored value is already a display label. `DEFAULT_VARIANT_LABEL` (the form default) is the **label** of the seeded NLH row, not a legacy key — forms freeze display labels, so the default must be one.
 
-`reconcileCashRuleSelection` in [`packages/api/src/routers/session.ts`](../../packages/api/src/routers/session.ts) keeps the frozen cash-rule discriminator and its optional mixed-game payload coherent at every write boundary: named mixes are labels of the caller's `game_mix` rows; the legacy `mix` sentinel remains valid without a master row; and because snapshots are deliberately self-freezing, re-submitting an unchanged named mix still works after that master is renamed or deleted.
+`reconcileCashRuleSelection` in [`packages/api/src/services/cash-rule-selection.ts`](../../packages/api/src/services/cash-rule-selection.ts) keeps the frozen cash-rule discriminator and its optional mixed-game payload coherent at every write boundary: named mixes are labels of the caller's `game_mix` rows; the legacy `mix` sentinel remains valid without a master row; and because snapshots are deliberately self-freezing, re-submitting an unchanged named mix still works after that master is renamed or deleted.
 
 ## Label namespace
 

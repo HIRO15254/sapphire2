@@ -120,7 +120,9 @@ AND NOT EXISTS (SELECT 1 FROM game_session gs WHERE gs.id = e.id AND gs.user_id 
 UNION ALL
 SELECT 'session_event', se.id FROM session_event se
 JOIN game_session gs ON gs.id = se.session_id
-WHERE NOT EXISTS (SELECT 1 FROM play_event pe WHERE pe.id = se.id AND pe.entry_id = gs.id AND pe.user_id = gs.user_id)
+WHERE (se.event_type <> 'purchase_chips' OR (CASE WHEN json_valid(se.payload)
+THEN json_type(se.payload, '$.sessionChipPurchaseId') = 'text' AND json_extract(se.payload, '$.sessionChipPurchaseId') <> '' END) IS 1)
+AND NOT EXISTS (SELECT 1 FROM play_event pe WHERE pe.id = se.id AND pe.entry_id = gs.id AND pe.user_id = gs.user_id)
 UNION ALL
 SELECT 'play_event', pe.id FROM play_event pe
 WHERE pe.created_at <= ${cutoverAt}
@@ -133,18 +135,43 @@ AND e.source IS NOT (CASE WHEN gs.source = 'live' OR EXISTS (SELECT 1 FROM sessi
 	},
 	{
 		audit: "A-4",
-		part: "normalized source start/end/break/status equal seq-1 play_session",
+		part: "normalized source start/end/break/status equal seq-1 play_session; a live day folds its session_event rows",
 		kind: "sql",
 		activation: SINCE_B06,
 		deletedBy: TASK.B25,
-		tables: ["game_session", "play_session"],
-		sql: (cutoverAt) => `SELECT p.id AS id FROM game_session gs
-JOIN play_session p ON p.id = gs.id AND p.user_id = gs.user_id AND p.seq = 1
+		tables: ["game_session", "session_event", "play_session"],
+		sql: (cutoverAt) => `WITH state_event AS (
+SELECT session_id, event_type, occurred_at,
+row_number() OVER (PARTITION BY session_id ORDER BY occurred_at, sort_order, id) AS n,
+count(*) OVER (PARTITION BY session_id) AS events
+FROM session_event WHERE event_type IN ('session_start', 'session_pause', 'session_resume', 'session_end')
+), fold_step AS (
+SELECT session_id, event_type, occurred_at, n, events,
+max(CASE WHEN event_type = 'session_pause' THEN n END) OVER earlier AS pause_n,
+max(CASE WHEN event_type = 'session_pause' THEN occurred_at END) OVER earlier AS paused_at,
+max(CASE WHEN event_type = 'session_resume' THEN n END) OVER earlier AS resume_n
+FROM state_event
+WINDOW earlier AS (PARTITION BY session_id ORDER BY n ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)
+), fold AS (
+SELECT session_id, min(CASE WHEN event_type = 'session_start' THEN occurred_at END) AS started_at,
+max(CASE WHEN n = events AND event_type = 'session_end' THEN occurred_at END) AS ended_at,
+CAST(sum(CASE WHEN pause_n > COALESCE(resume_n, 0)
+AND (event_type = 'session_resume' OR (n = events AND event_type = 'session_end'))
+THEN occurred_at - paused_at ELSE 0 END) / 60 AS INTEGER) AS break_minutes
+FROM fold_step GROUP BY session_id
+), legacy AS (
+SELECT gs.id, gs.user_id, gs.status, gs.started_at, gs.ended_at, gs.break_minutes,
+gs.source = 'live' OR EXISTS (SELECT 1 FROM session_event se WHERE se.session_id = gs.id) AS live
+FROM game_session gs
+)
+SELECT p.id AS id FROM legacy s
+JOIN play_session p ON p.id = s.id AND p.user_id = s.user_id AND p.seq = 1
+LEFT JOIN fold f ON f.session_id = s.id
 WHERE p.updated_at <= ${cutoverAt} AND (
-p.started_at IS NOT gs.started_at
-OR p.ended_at IS NOT (CASE WHEN gs.ended_at >= gs.started_at OR gs.started_at IS NULL THEN gs.ended_at END)
-OR p.break_minutes IS NOT (CASE WHEN gs.break_minutes >= 0 THEN gs.break_minutes ELSE 0 END)
-OR p.status IS NOT (CASE gs.status WHEN 'completed' THEN 'ended' WHEN 'paused' THEN 'paused' ELSE 'active' END))`,
+p.started_at IS NOT (CASE WHEN s.live THEN f.started_at ELSE s.started_at END)
+OR p.ended_at IS NOT (CASE WHEN s.live THEN f.ended_at WHEN s.ended_at >= s.started_at OR s.started_at IS NULL THEN s.ended_at END)
+OR p.break_minutes IS NOT (CASE WHEN s.live THEN COALESCE(f.break_minutes, 0) WHEN s.break_minutes >= 0 THEN s.break_minutes ELSE 0 END)
+OR p.status IS NOT (CASE s.status WHEN 'completed' THEN 'ended' WHEN 'paused' THEN 'paused' ELSE 'active' END))`,
 	},
 	{
 		audit: "A-5",

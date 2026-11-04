@@ -53,7 +53,7 @@ INSERT INTO game_session
  ('live-mtt', 'alice', 'tournament', 'live', 'completed', ${midnight}, ${nextDay}, ${nextDay + 60}, 0, NULL, NULL, 1, 2),
  ('active', 'alice', 'cash_game', 'live', 'active', ${midnight}, ${late}, NULL, NULL, NULL, NULL, 1, 2),
  ('paused', 'bob', 'tournament', 'live', 'paused', ${nextDay}, NULL, NULL, 3, NULL, NULL, 1, 2),
- ('bad-cash', 'alice', 'cash_game', 'live', 'completed', ${midnight}, ${nextDay}, ${late}, -5, 'bob-room', 'bob-asset', 1, 2),
+ ('bad-cash', 'alice', 'cash_game', 'manual', 'completed', ${midnight}, ${nextDay}, ${late}, -5, 'bob-room', 'bob-asset', 1, 2),
  ('bad-mtt', 'alice', 'tournament', 'manual', 'completed', ${midnight}, NULL, NULL, 0, 'bob-room', 'bob-asset', 1, 2),
  ('missing-cash', 'alice', 'cash_game', 'manual', 'completed', ${midnight}, NULL, NULL, NULL, NULL, NULL, 1, 2),
  ('missing-mtt', 'alice', 'tournament', 'manual', 'completed', ${midnight}, NULL, NULL, NULL, NULL, NULL, 1, 2),
@@ -77,7 +77,11 @@ INSERT INTO session_tournament_detail
 UPDATE game_session SET memo = '${longMemo}' WHERE id = 'manual-cash';
 INSERT INTO session_event (id, session_id, event_type, occurred_at, sort_order, payload, created_at, updated_at) VALUES
  ('broken', 'live-cash', 'session_end', ${nextDay}, 0, '{broken', 1, 2),
+ ('live-cash-start', 'live-cash', 'session_start', ${late}, 4, '{}', 1, 2),
  ('unknown', 'live-mtt', 'legacy_custom_type', ${nextDay + 30}, 0, '{"kept":true}', 1, 2),
+ ('live-mtt-start', 'live-mtt', 'session_start', ${nextDay}, 1, '{}', 1, 2),
+ ('live-mtt-end', 'live-mtt', 'session_end', ${nextDay + 60}, 2, '{"placement":1,"totalEntries":50}', 1, 2),
+ ('active-start', 'active', 'session_start', ${late}, 1, '{}', 1, 2),
  ('manual-start', 'manual-with-event', 'session_start', ${nextDay}, 0, '{}', 1, 2);
 `;
 
@@ -177,12 +181,12 @@ describe("migration 0061 — entry P1 cutover", () => {
 					"bad-cash",
 					"alice",
 					"cash",
-					"live",
+					"manual",
 					"settled",
 					null,
 					null,
 					"Foreign cash",
-					"2026-10-09",
+					"2026-10-08",
 					null,
 				],
 				[
@@ -326,7 +330,7 @@ describe("migration 0061 — entry P1 cutover", () => {
 			)
 		).toEqual([
 			["active", "alice", "cash", null, null, null],
-			["bad-cash", "alice", "cash", null, null, 0],
+			["bad-cash", "alice", "cash", null, null, 1],
 			["live-cash", "alice", "cash", "alice-ring", null, 0],
 			["manual-cash", "alice", "cash", null, null, null],
 			["manual-with-event", "alice", "cash", null, null, 0],
@@ -370,7 +374,7 @@ describe("migration 0061 — entry P1 cutover", () => {
 					"bad-cash",
 					"alice",
 					"cash",
-					"2026-10-09",
+					"2026-10-08",
 					nextDay,
 					null,
 					0,
@@ -425,10 +429,10 @@ describe("migration 0061 — entry P1 cutover", () => {
 					"2026-10-08",
 					late,
 					nextDay,
-					5,
+					0,
 					"ended",
 					"cashed_out",
-					100,
+					null,
 					null,
 				],
 				[
@@ -476,11 +480,11 @@ describe("migration 0061 — entry P1 cutover", () => {
 					"cash",
 					"2026-10-09",
 					nextDay,
-					nextDay + 60,
+					null,
 					0,
 					"ended",
 					"cashed_out",
-					80,
+					null,
 					null,
 				],
 				[
@@ -516,7 +520,7 @@ describe("migration 0061 — entry P1 cutover", () => {
 					"2026-10-09",
 					null,
 					null,
-					3,
+					0,
 					"paused",
 					null,
 					null,
@@ -561,53 +565,52 @@ describe("migration 0061 — entry P1 cutover", () => {
 				db,
 				"SELECT id, user_id, entry_id, entry_source, play_session_id, type, schema_version, occurred_at, sort_order, payload, created_at, updated_at, hand_id FROM play_event ORDER BY id"
 			)
-		).toEqual([
+		).toEqual(
 			[
-				"broken",
+				["active-start", "active", "session_start", late, 1, "{}"],
+				["broken", "live-cash", "session_end", nextDay, 0, "{}"],
+				["live-cash-start", "live-cash", "session_start", late, 4, "{}"],
+				[
+					"live-mtt-end",
+					"live-mtt",
+					"session_end",
+					nextDay + 60,
+					2,
+					'{"placement":1,"totalEntries":50}',
+				],
+				["live-mtt-start", "live-mtt", "session_start", nextDay, 1, "{}"],
+				[
+					"manual-start",
+					"manual-with-event",
+					"session_start",
+					nextDay,
+					0,
+					"{}",
+				],
+				[
+					"unknown",
+					"live-mtt",
+					"legacy_custom_type",
+					nextDay + 30,
+					0,
+					'{"kept":true}',
+				],
+			].map(([id, entryId, type, occurredAt, sortOrder, payload]) => [
+				id,
 				"alice",
-				"live-cash",
+				entryId,
 				"live",
-				"live-cash",
-				"session_end",
+				entryId,
+				type,
 				1,
-				nextDay,
-				0,
-				"{}",
+				occurredAt,
+				sortOrder,
+				payload,
 				1,
 				2,
 				null,
-			],
-			[
-				"manual-start",
-				"alice",
-				"manual-with-event",
-				"live",
-				"manual-with-event",
-				"session_start",
-				1,
-				nextDay,
-				0,
-				"{}",
-				1,
-				2,
-				null,
-			],
-			[
-				"unknown",
-				"alice",
-				"live-mtt",
-				"live",
-				"live-mtt",
-				"legacy_custom_type",
-				1,
-				nextDay + 30,
-				0,
-				'{"kept":true}',
-				1,
-				2,
-				null,
-			],
-		]);
+			])
+		);
 		expect(legacyRows(db)).toEqual(legacyBefore);
 		expect(values(db, "PRAGMA foreign_key_check")).toEqual([]);
 		expect(
@@ -641,6 +644,79 @@ INSERT INTO session_event (id, session_id, event_type, occurred_at, sort_order, 
 			["manual-cash", 30],
 			["manual-with-event", 0],
 			["missing-cash", null],
+		]);
+	});
+
+	it("takes a live day's start, end, break and cash end stack from its events like the projector, and an open tournament's field size from its latest update_stack", () => {
+		db.exec(`
+DELETE FROM session_event WHERE session_id = 'live-cash';
+UPDATE game_session SET started_at = ${late + 17}, ended_at = ${late + 3357}, break_minutes = 168 WHERE id = 'live-cash';
+UPDATE session_tournament_detail SET placement = 3, total_entries = 50 WHERE session_id = 'paused';
+INSERT INTO session_event (id, session_id, event_type, occurred_at, sort_order, payload, created_at, updated_at) VALUES
+ ('start', 'live-cash', 'session_start', ${late}, 0, '{"buyInAmount":100}', 1, 2),
+ ('pause-1', 'live-cash', 'session_pause', ${late + 600}, 1, '{}', 1, 2),
+ ('pause-2', 'live-cash', 'session_pause', ${late + 1200}, 2, '{}', 1, 2),
+ ('resume-1', 'live-cash', 'session_resume', ${late + 1500}, 3, '{}', 1, 2),
+ ('resume-2', 'live-cash', 'session_resume', ${late + 1600}, 4, '{}', 1, 2),
+ ('pause-3', 'live-cash', 'session_pause', ${late + 3000}, 5, '{}', 1, 2),
+ ('end', 'live-cash', 'session_end', ${late + 3300}, 6, '{"cashOutAmount":500}', 1, 2),
+ ('paused-start', 'paused', 'session_start', ${nextDay}, 0, '{}', 1, 2),
+ ('stack-1', 'paused', 'update_stack', ${nextDay + 100}, 1, '{"stackAmount":1000,"totalEntries":80}', 1, 2),
+ ('stack-2', 'paused', 'update_stack', ${nextDay + 200}, 2, '{"stackAmount":900,"totalEntries":120}', 1, 2),
+ ('stack-3', 'paused', 'update_stack', ${nextDay + 300}, 3, '{"stackAmount":800}', 1, 2),
+ ('paused-pause', 'paused', 'session_pause', ${nextDay + 400}, 4, '{}', 1, 2);
+`);
+
+		apply(db);
+
+		expect(
+			values(
+				db,
+				"SELECT id, started_at, ended_at, break_minutes, status, end_stack FROM play_session WHERE id IN ('live-cash', 'paused') ORDER BY id"
+			)
+		).toEqual([
+			["live-cash", late, late + 3300, 10, "ended", 500],
+			["paused", nextDay, null, 0, "paused", null],
+		]);
+		expect(
+			values(
+				db,
+				"SELECT placement, total_entries, before_deadline FROM entry_tournament WHERE entry_id = 'paused'"
+			)
+		).toEqual([[null, 120, 0]]);
+	});
+
+	it("does not move a purchase_chips event without its sessionChipPurchaseId and removes a payload playerId the user does not own", () => {
+		db.exec(`
+INSERT INTO player (id, user_id, name, updated_at) VALUES
+ ('alice-player', 'alice', 'Villain', 2), ('bob-player', 'bob', 'Regular', 2);
+INSERT INTO session_event (id, session_id, event_type, occurred_at, sort_order, payload, created_at, updated_at) VALUES
+ ('chips-without-id', 'live-cash', 'purchase_chips', ${late + 60}, 1, '{"name":"AddOn","cost":2000,"chips":200000}', 1, 2),
+ ('chips-empty-id', 'live-cash', 'purchase_chips', ${late + 120}, 2, '{"sessionChipPurchaseId":"","name":"AddOn","cost":2000,"chips":200000}', 1, 2),
+ ('chips', 'live-cash', 'purchase_chips', ${late + 180}, 3, '{"sessionChipPurchaseId":"purchase","name":"AddOn","cost":2000,"chips":200000}', 1, 2),
+ ('join-owned', 'live-cash', 'player_join', ${late + 240}, 5, '{"playerId":"alice-player","isHero":false,"seatPosition":2}', 1, 2),
+ ('join-foreign', 'live-cash', 'player_join', ${late + 300}, 6, '{"playerId":"bob-player","isHero":false,"seatPosition":3}', 1, 2),
+ ('leave-missing', 'live-cash', 'player_leave', ${late + 360}, 7, '{"playerId":"ghost","isHero":false}', 1, 2);
+`);
+
+		apply(db);
+
+		expect(
+			values(
+				db,
+				"SELECT id, payload FROM play_event WHERE type IN ('purchase_chips', 'player_join', 'player_leave') ORDER BY id"
+			)
+		).toEqual([
+			[
+				"chips",
+				'{"sessionChipPurchaseId":"purchase","name":"AddOn","cost":2000,"chips":200000}',
+			],
+			["join-foreign", '{"isHero":false,"seatPosition":3}'],
+			[
+				"join-owned",
+				'{"playerId":"alice-player","isHero":false,"seatPosition":2}',
+			],
+			["leave-missing", '{"isHero":false}'],
 		]);
 	});
 
@@ -678,7 +754,12 @@ INSERT INTO session_event (id, session_id, event_type, occurred_at, sort_order, 
 		[
 			"an undeclared source change",
 			"ids_match",
-			"UPDATE entry SET source = 'manual' WHERE id = 'bad-cash'",
+			"UPDATE entry SET source = 'live' WHERE id = 'bad-cash'",
+		],
+		[
+			"an owner change",
+			"ids_match",
+			"PRAGMA foreign_keys=OFF; UPDATE entry SET user_id = 'bob' WHERE id = 'missing-mtt'; UPDATE entry_tournament SET user_id = 'bob' WHERE entry_id = 'missing-mtt'; UPDATE play_session SET user_id = 'bob' WHERE id = 'missing-mtt'; PRAGMA foreign_keys=ON",
 		],
 		[
 			"a changed start",

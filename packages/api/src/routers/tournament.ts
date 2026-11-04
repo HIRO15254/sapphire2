@@ -9,7 +9,15 @@ import {
 import { tournamentTag } from "@sapphire2/db/schema/tournament-tag";
 import { levelGamesSchema } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import {
+	and,
+	asc,
+	eq,
+	inArray,
+	isNotNull,
+	isNull,
+	notExists,
+} from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { selectInChunks } from "../lib/batch";
@@ -495,25 +503,28 @@ export const tournamentRouter = router({
 			const userId = ctx.session.user.id;
 			await validateTournamentOwnership(ctx.db, input.id, userId);
 
-			const [reference] = await ctx.db
-				.select({ id: entryTournament.entryId })
-				.from(entryTournament)
+			const deleted = await ctx.db
+				.delete(tournament)
 				.where(
 					and(
-						eq(entryTournament.tournamentId, input.id),
-						eq(entryTournament.userId, userId)
+						eq(tournament.id, input.id),
+						eq(tournament.userId, userId),
+						notExists(
+							ctx.db
+								.select({ id: entryTournament.entryId })
+								.from(entryTournament)
+								.where(eq(entryTournament.tournamentId, tournament.id))
+						)
 					)
 				)
-				.limit(1);
-			if (reference) {
+				.returning({ id: tournament.id });
+			if (deleted.length === 0) {
 				throw new TRPCError({
 					code: "CONFLICT",
 					message:
 						"This tournament is referenced by entries. Archive the tournament instead of deleting it.",
 				});
 			}
-
-			await ctx.db.delete(tournament).where(eq(tournament.id, input.id));
 			return { success: true };
 		}),
 

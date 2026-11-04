@@ -5,8 +5,8 @@ import {
 	ledgerCategory,
 	ledgerLine,
 } from "@sapphire2/db/schema/ledger";
-import { room } from "@sapphire2/db/schema/room";
-import { tournament } from "@sapphire2/db/schema/tournament";
+import { gameSession } from "@sapphire2/db/schema/session";
+import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { asc, eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
 import { runBatch } from "../lib/batch";
@@ -277,21 +277,6 @@ describe("entry ledger real profit and loss", () => {
 			{ assetId: JPY, profitLoss: cashPl },
 		]);
 
-		await db.insert(room).values({
-			id: "tournament-room",
-			userId: "alice",
-			name: "Club",
-			updatedAt: NOW,
-		});
-		await db.insert(tournament).values({
-			id: "tournament-master",
-			userId: "alice",
-			roomId: "tournament-room",
-			name: "Daily",
-			buyIn: 10_000,
-			entryFee: 1000,
-			updatedAt: NOW,
-		});
 		await runBatch(
 			db,
 			buildLiveEntryStartStatements(
@@ -300,7 +285,7 @@ describe("entry ledger real profit and loss", () => {
 					"live-mtt",
 					{
 						kind: "tournament",
-						tournamentId: "tournament-master",
+						tournamentId: null,
 						buyIn: 10_000,
 						entryFee: 1000,
 					},
@@ -308,6 +293,21 @@ describe("entry ledger real profit and loss", () => {
 				)
 			)
 		);
+		await db.insert(gameSession).values({
+			id: "live-mtt",
+			userId: "alice",
+			kind: "tournament",
+			status: "active",
+			source: "live",
+			sessionDate: NOW,
+			currencyId: JPY,
+			updatedAt: NOW,
+		});
+		await db.insert(sessionTournamentDetail).values({
+			sessionId: "live-mtt",
+			tournamentBuyIn: 10_000,
+			entryFee: 1000,
+		});
 		await appendAndProject(db, "live-mtt", [
 			{
 				type: "purchase_chips",
@@ -344,7 +344,7 @@ describe("entry ledger real profit and loss", () => {
 				},
 			},
 		]);
-		const tournamentPl = 38_000;
+		const tournamentPl = 50_000 + 3000 - 10_000 - 1000 - 2 * 2000;
 		expect(await realProfitLoss(db, "live-mtt")).toEqual([
 			{ assetId: JPY, profitLoss: tournamentPl },
 		]);

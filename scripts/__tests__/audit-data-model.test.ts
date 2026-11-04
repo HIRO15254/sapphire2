@@ -25,12 +25,17 @@ const LEGACY_FIXTURE = [
 	`INSERT INTO user (id, name, email, created_at, updated_at) VALUES ('alice', 'Alice', 'alice@example.test', ${T0}, ${T0})`,
 	`INSERT INTO asset (id, user_id, name, kind, decimals, created_at, updated_at) VALUES ('jpy', 'alice', 'JPY', 'currency', 0, ${T0}, ${T0})`,
 	`INSERT INTO game_session (id, user_id, kind, status, source, session_date, started_at, ended_at, break_minutes, currency_id, created_at, updated_at) VALUES
-	 ('live', 'alice', 'cash_game', 'completed', 'live', ${T0}, ${T0}, ${T0 + 7200}, 0, 'jpy', ${T0}, ${T0}),
+	 ('live', 'alice', 'cash_game', 'completed', 'live', ${T0}, ${T0 + 17}, ${T0 + 7223}, 168, 'jpy', ${T0}, ${T0}),
 	 ('manual', 'alice', 'cash_game', 'completed', 'manual', 1756944000, NULL, NULL, 0, 'jpy', ${T0}, ${T0})`,
 	`INSERT INTO session_cash_detail (session_id, buy_in, cash_out, ev_cash_out) VALUES ('live', 30000, 45000, 45000), ('manual', 10000, 12000, NULL)`,
 	`INSERT INTO session_event (id, session_id, event_type, occurred_at, sort_order, payload, created_at, updated_at) VALUES
 	 ('start', 'live', 'session_start', ${T0}, 1, '{"buyInAmount":30000}', ${T0}, ${T0}),
 	 ('hero', 'live', 'player_join', ${T0 + 60}, 2, '{"isHero":true,"seatPosition":3}', ${T0}, ${T0}),
+	 ('ghost', 'live', 'player_join', ${T0 + 120}, 4, '{"playerId":"ghost","isHero":false,"seatPosition":5}', ${T0}, ${T0}),
+	 ('add-on', 'live', 'purchase_chips', ${T0 + 180}, 5, '{"name":"AddOn","cost":2000,"chips":200000}', ${T0}, ${T0}),
+	 ('pause-1', 'live', 'session_pause', ${T0 + 600}, 6, '{}', ${T0}, ${T0}),
+	 ('pause-2', 'live', 'session_pause', ${T0 + 1200}, 7, '{}', ${T0}, ${T0}),
+	 ('resume', 'live', 'session_resume', ${T0 + 1500}, 8, '{}', ${T0}, ${T0}),
 	 ('end', 'live', 'session_end', ${T0 + 7200}, 3, '{"cashOutAmount":45000}', ${T0}, ${T0})`,
 ];
 const FIXTURE = [

@@ -998,45 +998,45 @@ INSERT INTO entry
  (id,user_id,kind,source,status,room_id,asset_id,title,played_on,memo,created_at,updated_at)
 SELECT gs.id,gs.user_id,
  CASE gs.kind WHEN 'cash_game' THEN 'cash' ELSE 'tournament' END,
- gs.source,CASE gs.status WHEN 'completed' THEN 'settled' ELSE 'open' END,
+ s.source,CASE gs.status WHEN 'completed' THEN 'settled' ELSE 'open' END,
  r.id,a.id,
- CASE WHEN scd.ring_game_id IS NULL AND std.tournament_id IS NULL
+ CASE WHEN rg.id IS NULL AND t.id IS NULL
       THEN COALESCE(scd.rule_name,std.rule_name) END,
- CASE gs.source WHEN 'live' THEN
+ CASE s.source WHEN 'live' THEN
       strftime('%Y-%m-%d',COALESCE(gs.started_at,gs.session_date),'unixepoch','+9 hours')
       ELSE strftime('%Y-%m-%d',gs.session_date,'unixepoch') END,
  gs.memo,gs.created_at,gs.updated_at
 FROM game_session gs
+JOIN __stage_0061_source s ON s.id=gs.id
 LEFT JOIN room r ON r.id=gs.room_id AND r.user_id=gs.user_id
 LEFT JOIN asset a ON a.id=gs.currency_id AND a.user_id=gs.user_id
 LEFT JOIN session_cash_detail scd ON scd.session_id=gs.id
-LEFT JOIN session_tournament_detail std ON std.session_id=gs.id;
+LEFT JOIN ring_game rg ON rg.id=scd.ring_game_id AND rg.user_id=gs.user_id
+LEFT JOIN session_tournament_detail std ON std.session_id=gs.id
+LEFT JOIN tournament t ON t.id=std.tournament_id AND t.user_id=gs.user_id;
 ```
 
-Every entry receives its kind detail even if the legacy detail was missing. entry_tournament is populated before deriving the day end_state, so normalized placement, not dirty legacy placement, decides finished/busted. Normalize total_entries below 1 to NULL; placement to NULL when below 1, beyond a valid total, or before_deadline=1. before_deadline is CASE old=1 THEN 1 ELSE 0, never NULL. Owner-mismatched optional room/asset/master references become NULL; title comes from the legacy rule name whenever the entry has no *owned* master after that normalization, so dropping a foreign master link keeps the name. Cash ev_diff is set only when settled, then B12 replaces this bridge with always-on projection. A live entry takes the projector's value (§12.3): a recursive CTE adds the migrated all_in terms one at a time in `(occurred_at,sort_order,id)` order, because SQLite sum() compensates and can land on the other side of .5 from the projector's plain addition, and rounds the total with `CAST(floor(x + 0.5) AS INTEGER)` to match Math.round (SQLite round(-0.5) differs); without all_in it is 0, as in the projector. A live entry does not read ev_cash_out, whose `cash_out + Σ` already rounded the sum once. A manual entry keeps `CAST(floor(ev_cash_out - cash_out + 0.5) AS INTEGER)` when ev_cash_out is recorded.
+`s.source` is the declared source rule below. Every entry receives its kind detail even if the legacy detail was missing. entry_tournament is populated before deriving the day end_state, so normalized placement, not dirty legacy placement, decides finished/busted. Normalize total_entries below 1 to NULL; placement to NULL when below 1, beyond a valid total, or before_deadline=1. before_deadline is CASE old=1 THEN 1 ELSE 0, never NULL. An open live tournament (its last lifecycle event is not a session_end) instead takes placement NULL, before_deadline 0 and total_entries from its latest update_stack carrying totalEntries, as projectTournament does. Owner-mismatched optional room/asset/master references become NULL; title comes from the legacy rule name whenever the entry has no *owned* master after that normalization, so dropping a foreign master link keeps the name. Cash ev_diff is set only when settled, then B12 replaces this bridge with always-on projection. A live entry takes the projector's value (§12.3): a recursive CTE adds the migrated all_in terms one at a time in `(occurred_at,sort_order,id)` order, because SQLite sum() compensates and can land on the other side of .5 from the projector's plain addition, and rounds the total with `CAST(floor(x + 0.5) AS INTEGER)` to match Math.round (SQLite round(-0.5) differs); without all_in it is 0, as in the projector. A live entry does not read ev_cash_out, whose `cash_out + Σ` already rounded the sum once. A manual entry keeps `CAST(floor(ev_cash_out - cash_out + 0.5) AS INTEGER)` when ev_cash_out is recorded.
 
 ```sql
 INSERT INTO play_session
  (id,user_id,entry_id,kind,seq,local_date,started_at,ended_at,break_minutes,
   status,end_state,end_stack,clock_started_at,created_at,updated_at)
-SELECT gs.id,gs.user_id,e.id,e.kind,1,e.played_on,gs.started_at,
- CASE WHEN gs.ended_at>=gs.started_at OR gs.started_at IS NULL THEN gs.ended_at END,
- CASE WHEN gs.break_minutes>=0 THEN gs.break_minutes ELSE 0 END,
+SELECT gs.id,gs.user_id,e.id,e.kind,1,e.played_on,d.started_at,d.ended_at,d.break_minutes,
  CASE gs.status WHEN 'completed' THEN 'ended' WHEN 'paused' THEN 'paused' ELSE 'active' END,
  CASE WHEN gs.status<>'completed' THEN NULL
       WHEN e.kind='cash' THEN 'cashed_out'
       WHEN et.placement=1 THEN 'finished'
       WHEN e.source='live' OR et.placement>1 THEN 'busted'
       ELSE 'finished' END,
- CASE WHEN e.kind='cash' AND gs.status='completed' AND scd.cash_out>=0 THEN scd.cash_out END,
- std.timer_started_at,gs.created_at,gs.updated_at
+ d.end_stack,std.timer_started_at,gs.created_at,gs.updated_at
 FROM game_session gs JOIN entry e ON e.id=gs.id AND e.user_id=gs.user_id
+JOIN __stage_0061_day d ON d.id=gs.id
 LEFT JOIN entry_tournament et ON et.entry_id=e.id AND et.user_id=e.user_id
-LEFT JOIN session_cash_detail scd ON scd.session_id=gs.id
 LEFT JOIN session_tournament_detail std ON std.session_id=gs.id;
 ```
 
-A live tournament without placement ends busted; a manual one without placement uses finished. An invalid ended_at becomes NULL, a negative cash end_stack becomes NULL, a negative break becomes 0. A-4 compares the declared normalized expectation, not invalid source bytes.
+`d` holds the declared day values. A manual day normalizes the legacy columns: an invalid ended_at becomes NULL, a negative break becomes 0, and a completed cash day's end_stack is cash_out, NULL when negative. A live day takes started_at, ended_at, break_minutes and the cash end_stack from its v1 lifecycle events exactly as the projector folds them: started_at is the first session_start; ended_at and end_stack (the session_end cashOutAmount, NULL when negative or unreadable) exist only when the last lifecycle event in `(occurred_at,sort_order,id)` order is a session_end; break is the paused seconds floored to minutes, where a later pause overwrites the open pause start, a resume closes it, and a pause still open at the closing session_end closes there. The legacy live columns kept seconds the minute-floored events lack and a separately recomputed break, so copying them failed A-6 on most production live days (SA2-391). status and end_state still come from the legacy status, because event-derived status could leave two unfinished days for one user and abort on the one-unfinished-day index. A live tournament without placement ends busted; a manual one without placement uses finished. A-4 compares the declared normalized expectation, not invalid source bytes.
 
 B06 copies v1 events as an explicitly temporary migration source; every row supplies its version and source mirror:
 
@@ -1046,12 +1046,21 @@ INSERT INTO play_event
   occurred_at,sort_order,payload,created_at,updated_at)
 SELECT se.id,e.user_id,e.id,'live',e.id,se.event_type,1,
  se.occurred_at,se.sort_order,
- CASE WHEN json_valid(se.payload) THEN se.payload ELSE '{}' END,
+ CASE WHEN NOT json_valid(se.payload) THEN '{}'
+      WHEN json_extract(se.payload,'$.playerId') IS NULL
+        OR EXISTS (SELECT 1 FROM player pl WHERE pl.id=json_extract(se.payload,'$.playerId') AND pl.user_id=e.user_id)
+      THEN se.payload
+      ELSE json_remove(se.payload,'$.playerId') END,
  se.created_at,se.updated_at
-FROM session_event se JOIN entry e ON e.id=se.session_id AND e.source='live';
+FROM session_event se JOIN entry e ON e.id=se.session_id AND e.source='live'
+WHERE se.event_type<>'purchase_chips'
+   OR (CASE WHEN json_valid(se.payload) THEN json_type(se.payload,'$.sessionChipPurchaseId')='text'
+        AND json_extract(se.payload,'$.sessionChipPurchaseId')<>'' END) IS 1;
 ```
 
-Pre-audit identifies legacy events attached to non-live entries; normalize their source classification according to event-backed provenance before inserting rather than violating INV-13 or dropping facts. The declared rule: a game_session with any session_event migrates as `live` (and takes the live played_on rule); otherwise the source is kept. A-3 checks entry.source against that rule. The shipped migration is `0061_entry_p1_cutover.sql`; its end gates are A-3, A-4 and foreign_key_check, and it enables A-3, A-4, A-6 (core), A-8 and A-9 in the runner.
+A payload playerId the user does not own is removed, as owner-mismatched references become NULL elsewhere; the key is optional in player_join/player_leave. A purchase_chips event without a non-empty sessionChipPurchaseId fails the v1 payload schema (A-15) and is not migrated (SA2-391 user decision). The one production row (an AddOn costing 2000) has no session_chip_purchase_result count, so the legacy P/L formula A-5 compares against never charged it, and B09's live ledger stays consistent with A-5 without it.
+
+Pre-audit identifies legacy events attached to non-live entries; normalize their source classification according to event-backed provenance before inserting rather than violating INV-13 or dropping facts. The declared rule: a game_session with any session_event migrates as `live` (and takes the live played_on rule); otherwise the source is kept. A-3 checks entry.source against that rule and exempts the unmigrated purchase_chips events above. The shipped migration is `0061_entry_p1_cutover.sql`; its end gates are A-3, A-4 and foreign_key_check, and it enables A-3, A-4, A-6 (core), A-8 and A-9 in the runner.
 
 B09 first moves categories and maps duplicates, then money. Live lines are built in migration SQL from the v1 event payloads, reproducing the projector's v1 money fold with ids `<event_id>:<n>`; there is no TypeScript backfill step, and A-6 runs the real projector on every dev deploy and fails on any difference; manual lines come from columns. Missing legacy asset uses `unassigned:<user_id>` as an ordinary asset; new API writes must supply actual asset ids. Representative manual cash rows:
 
@@ -1102,8 +1111,8 @@ Runner contract (B04):
 | --- | --- |
 | A-1 | Retired, not in the runner: tournament.user_id NOT NULL since T02 replaces it |
 | A-2 | Retired, not in the runner: ring_game.user_id NOT NULL since T02 replaces it |
-| A-3 | Bidirectional id difference of source game_session↔entry/seq1 and source session_event↔play_event, with owner and declared source normalization (B06; historical until B25) |
-| A-4 | Compare normalized source start/end/break/status to migrated seq1 (B06; historical) |
+| A-3 | Bidirectional id difference of source game_session↔entry/seq1 and source session_event↔play_event, with owner and declared source normalization and the §16.5 unmigrated purchase_chips exemption (B06; historical until B25) |
+| A-4 | Compare normalized source start/end/break/status to migrated seq1; a live day's start/end/break fold its session_event rows as in §16.5 (B06; historical) |
 | A-5 | Settled per-entry real line PL equals old cash_out+chip_remove−buy_in or prize+bounty−buy_in−fee−Σpurchase cost*count (B09; historical) |
 | A-6 | Replay projectEntry for every live entry using its stored events/rules; compare normalized rows of projected lines, all day times/state/clocks, played_on/status, result/EV, tournament progress (§13.2) and tablePlayer seat fold. Read-only TypeScript, not fake SQL replay |
 | A-7 | **Retired, not in the runner:** single-column exception ownership audit replaced by B01/B07/B08 composite FKs and foreign_key_check |
@@ -1500,3 +1509,4 @@ Every earlier decision is retained below with its present disposition. Historica
 | 2026-10-16 | Data-first implementation replaces intermediate legacy-router cutovers: T07 ports only #704's migration/test and removes old entry/live APIs; L2 services → T40/T41 → L2b, T46 → T39 → T41 | Removes throwaway rewiring, compatibility parent rows, legacy payload branches and temporary Hero-seat API. Dev intentionally has no entry/live API between T07 and T40/T41; production migration, final APIs and audits are unchanged. Supersedes the #704 bridge rows above: no legacy money recompute, ended-day playSessionId fallback or unfinished-live T07 statistics exist, and new live local_date starts at T41 with userSetting.timeZone |
 | 2026-10-17 | Rebuild every task of both projects in execution order (B01–B25, U01–U12, REL, X1, X2; issues SA2-385–SA2-424). Mapping: T38→B01; T42→B02; T44→B03; T45→B04; L0/L6→B05; UI-0→U01; T07→B06; L1→B07; L1b→B08; T12→B09; T22→B10; T47→B11; T14→B12; L2→B13; UI-2→U02; T15→B14; T46/T39→B15; T40→B16; T41→B17; T32→B18; UI-1→U03; T18→B19; L2b→B20; T24→B21; T17→B22; T43→B23; UI-7→U04; UI-5a→U05; T23/T25→B24; UI-3→U06; UI-4→U07; UI-5b→U08; UI-5c→U09; T35/T37→B25; UI-6→U10; UI-8→U11; UI-9→U12; SA2-370→REL; the NEW-UI hub SA2-367→U01 (its requirement tables; REL depends on each phase directly); SA2-383→X1; SA2-384→X2. The old issues are Duplicate of the new ones | User-directed: the old split followed issue creation order. B04's audit runner now precedes the first data cutover; the tag pickers (U04) precede every screen that uses them; four small pairs are merged (L0+L6, T46+T39, T23+T25, T35+T37); the UI hub issue is removed and REL depends on each phase directly; redundant edges are dropped (79 direct edges). Scope, acceptance criteria and recorded decisions are unchanged |
 | 2026-11-04 | B06 (SA2-391): a live entry's migrated ev_diff is the projector's value, the migrated all_in terms added in event order and then rounded like Math.round, 0 without all_in; a manual entry keeps ev_cash_out − cash_out (§16.5) | User decision on the PR #713 review: the legacy `cash_out + Σ` already rounded the float sum once, and SQLite sum() compensates, so either could land on the other side of .5 from A-6's replay |
+| 2026-11-04 | B06 (SA2-391): a live day's migrated start, end, break and cash end_stack, and an open live tournament's placement/total_entries/before_deadline, follow the v1 events the way the projector folds them; a purchase_chips event without sessionChipPurchaseId is not migrated; an unowned payload playerId is removed (§16.5) | User decisions on the PR #713 review: copying the legacy columns failed A-6 on 11 production live entries (seconds the minute-floored events lack, a separately recomputed break, a cash-out missing from the table), which would block the production deploy at the audit; the dropped AddOn was never charged by the legacy P/L; playerId is optional in the v1 schema. status stays legacy-derived so the one-unfinished-day index cannot abort the backfill |

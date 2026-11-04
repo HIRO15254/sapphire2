@@ -16,17 +16,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import type { BatchStatement } from "../lib/batch";
 
-export type LegacySessionKind = "cash_game" | "tournament";
-
-export const CASH_DETAIL_MOVED_COLUMNS = ["ringGameId", "evCashOut"] as const;
-
-export const TOURNAMENT_DETAIL_MOVED_COLUMNS = [
-	"tournamentId",
-	"placement",
-	"totalEntries",
-	"beforeDeadline",
-	"timerStartedAt",
-] as const;
+type LegacySessionKind = "cash_game" | "tournament";
 
 export interface EntryCashFacts {
 	cashOut: number | null;
@@ -65,41 +55,31 @@ export type EntrySessionFacts = EntrySessionFactsBase &
 		  }
 	);
 
-export function toEntryKind(legacyKind: LegacySessionKind): EntryKind {
+function toEntryKind(legacyKind: LegacySessionKind): EntryKind {
 	return legacyKind === "cash_game" ? "cash" : "tournament";
 }
 
-export function utcDateString(date: Date): string {
+function utcDateString(date: Date): string {
 	return date.toISOString().slice(0, 10);
 }
 
-export function legacyKindSql() {
+function legacyKindSql() {
 	return sql<LegacySessionKind>`CASE ${entry.kind} WHEN 'cash' THEN 'cash_game' ELSE 'tournament' END`;
 }
 
-export function legacySessionDateSql() {
+function legacySessionDateSql() {
 	return sql`CASE ${entry.source} WHEN 'live' THEN COALESCE((SELECT ${playSession.startedAt} FROM ${playSession} WHERE ${playSession.entryId} = ${entry.id} AND ${playSession.seq} = 1), ${entry.createdAt}) ELSE unixepoch(${entry.playedOn}) END`.mapWith(
 		entry.createdAt
 	);
 }
 
-export function legacySessionStatusSql() {
-	return sql<string>`CASE WHEN ${entry.status} = 'settled' THEN 'completed' ELSE (SELECT CASE ${playSession.status} WHEN 'ended' THEN 'completed' ELSE ${playSession.status} END FROM ${playSession} WHERE ${playSession.entryId} = ${entry.id} ORDER BY ${playSession.seq} DESC LIMIT 1) END`;
-}
+const firstPlaySession = alias(playSession, "first_play_session");
 
-export const firstPlaySession = alias(playSession, "first_play_session");
-
-export function firstPlaySessionJoin() {
+function firstPlaySessionJoin() {
 	return and(
 		eq(firstPlaySession.entryId, entry.id),
 		eq(firstPlaySession.seq, 1)
 	);
-}
-
-export function legacyBreakMinutesSql() {
-	return sql<
-		number | null
-	>`NULLIF((SELECT SUM(${playSession.breakMinutes}) FROM ${playSession} WHERE ${playSession.entryId} = ${entry.id}), 0)`;
 }
 
 function effectivePlacement(facts: EntryTournamentFacts): number | null {
