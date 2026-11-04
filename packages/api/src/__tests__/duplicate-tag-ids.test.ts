@@ -24,37 +24,6 @@ const writeCases = [
 			tagIds: string[]
 		) => caller.player.update({ id: "player-1", tagIds }),
 	},
-	{
-		name: "session.create",
-		procedure: appRouter.session.create,
-		input: (tagIds?: string[]) => ({
-			type: "cash_game" as const,
-			sessionDate: 1_700_000_000,
-			buyIn: 1000,
-			cashOut: 2000,
-			tagIds,
-		}),
-		call: (
-			caller: ReturnType<typeof appRouter.createCaller>,
-			tagIds: string[]
-		) =>
-			caller.session.create({
-				type: "cash_game",
-				sessionDate: 1_700_000_000,
-				buyIn: 1000,
-				cashOut: 2000,
-				tagIds,
-			}),
-	},
-	{
-		name: "session.update",
-		procedure: appRouter.session.update,
-		input: (tagIds?: string[]) => ({ id: "session-1", tagIds }),
-		call: (
-			caller: ReturnType<typeof appRouter.createCaller>,
-			tagIds: string[]
-		) => caller.session.update({ id: "session-1", tagIds }),
-	},
 ] as const;
 
 describe("unique tagIds input contract (SA2-210)", () => {

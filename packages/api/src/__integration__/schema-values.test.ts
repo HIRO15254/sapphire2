@@ -1,4 +1,3 @@
-import { transactionType } from "@sapphire2/db/schema/currency";
 import { filterPreset } from "@sapphire2/db/schema/filter-preset";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
@@ -9,7 +8,6 @@ import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament
 import { blindLevel, tournament } from "@sapphire2/db/schema/tournament";
 import { eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
-import { ensureSessionResultTypeId } from "../services/session-result-type";
 import { test } from "./test-fixture";
 
 const instant = new Date("2026-09-05T03:04:05.000Z");
@@ -68,41 +66,6 @@ describe("stored defaults and value encoding", () => {
 				aaguid: "test-aaguid",
 			}),
 		]);
-	});
-
-	test("concurrent Session Result initialization converges on one stored type while unrelated names and accounts remain independent", async ({
-		api,
-	}) => {
-		const [first, second] = await Promise.all([
-			ensureSessionResultTypeId(api.db, "alice"),
-			ensureSessionResultTypeId(api.db, "alice"),
-		]);
-		expect(first).toBe(second);
-		const insert = (id: string, userId: string, name: string) =>
-			api.d1
-				.prepare(
-					"INSERT INTO transaction_type (id, user_id, name, updated_at) VALUES (?, ?, ?, 0)"
-				)
-				.bind(id, userId, name)
-				.run();
-		await expect(
-			insert("duplicate", "alice", "Session Result")
-		).rejects.toThrow("UNIQUE constraint failed: transaction_type.user_id");
-		await insert("bob-result", "bob", "Session Result");
-		await insert("normal-one", "alice", "Adjustment");
-		await insert("normal-two", "alice", "Adjustment");
-		expect(
-			(await api.db.select().from(transactionType))
-				.map(({ id, userId, name }) => ({ id, userId, name }))
-				.sort((a, b) => a.id.localeCompare(b.id))
-		).toEqual(
-			[
-				{ id: first, userId: "alice", name: "Session Result" },
-				{ id: "bob-result", userId: "bob", name: "Session Result" },
-				{ id: "normal-one", userId: "alice", name: "Adjustment" },
-				{ id: "normal-two", userId: "alice", name: "Adjustment" },
-			].sort((a, b) => a.id.localeCompare(b.id))
-		);
 	});
 
 	test("round trips JSON game groups, false, zero, coordinates and timestamps while keeping readable default variants", async ({

@@ -6,6 +6,7 @@ import { TRPCError } from "@trpc/server";
 import { and, eq, gte, lte } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { validateEntityOwnership } from "../lib/ownership";
 import {
 	computeCashGamePL,
 	computeTournamentPL,
@@ -13,8 +14,7 @@ import {
 	getSessionChipPurchaseMap,
 	resolveEvCashOut,
 	sumChipPurchaseCost,
-	validateEntityOwnership,
-} from "./session";
+} from "../services/session-stats";
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]

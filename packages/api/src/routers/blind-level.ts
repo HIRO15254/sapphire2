@@ -5,8 +5,8 @@ import { and, asc, eq } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { runBatch } from "../lib/batch";
+import { validateEntityOwnership } from "../lib/ownership";
 import { assertLevelGameStructures } from "../services/game-structure";
-import { validateEntityOwnership } from "./session";
 
 function validateTournamentOwnership(
 	db: Parameters<

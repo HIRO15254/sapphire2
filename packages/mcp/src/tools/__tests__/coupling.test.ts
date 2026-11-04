@@ -27,29 +27,11 @@ describe("tool/router coupling", () => {
 	it("exposes every tool input schema as the exact Zod object the router validates with", () => {
 		for (const def of TOOL_DEFINITIONS) {
 			const procedure = getProcedure(def.procedurePath);
-			if (def.procedurePath === "session.create") {
-				const union = getInputSchema(procedure) as unknown as {
-					options: unknown[];
-				};
-				expect(union.options).toContain(def.inputSchema);
-			} else if (def.inputSchema === undefined) {
+			if (def.inputSchema === undefined) {
 				expect(getProcedureDef(procedure).inputs).toHaveLength(0);
 			} else {
 				expect(def.inputSchema).toBe(getInputSchema(procedure));
 			}
-		}
-	});
-
-	it("covers every branch of the session.create union with a dedicated tool", () => {
-		const union = getInputSchema(getProcedure("session.create")) as unknown as {
-			options: unknown[];
-		};
-		const branchSchemas = TOOL_DEFINITIONS.filter(
-			(d) => d.procedurePath === "session.create"
-		).map((d) => d.inputSchema);
-		expect(union.options).toHaveLength(branchSchemas.length);
-		for (const option of union.options) {
-			expect(branchSchemas).toContain(option);
 		}
 	});
 
@@ -153,13 +135,8 @@ describe("tool/router coupling", () => {
 			"room_list",
 			"room_restore",
 			"room_update",
-			"session_create_cash_game",
-			"session_create_tournament",
-			"session_get_by_id",
-			"session_list",
 			"session_tag_create",
 			"session_tag_list",
-			"session_update",
 			"stats_breakdown",
 			"stats_profit_loss_series",
 			"stats_summary",
@@ -203,7 +180,7 @@ describe("tool/router coupling", () => {
 				?.shape;
 			return shape !== undefined && "mixGames" in shape;
 		});
-		expect(accepting.length).toBeGreaterThanOrEqual(4);
+		expect(accepting.length).toBeGreaterThanOrEqual(2);
 		for (const def of accepting) {
 			expect(def.description).toContain(MIX_RULE);
 		}
@@ -216,8 +193,6 @@ describe("tool/router coupling", () => {
 			return shape !== undefined && "blindLevels" in shape;
 		});
 		expect(accepting.map((def) => def.name).sort()).toEqual([
-			"session_create_tournament",
-			"session_update",
 			"tournament_create_with_levels",
 			"tournament_update_with_levels",
 		]);

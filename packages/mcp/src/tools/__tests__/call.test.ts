@@ -57,20 +57,12 @@ describe("callTool", () => {
 	});
 
 	it("forwards the input verbatim with no transformation layer", async () => {
-		const { caller, procedure } = createCallerMock({ id: "s1" });
+		const { caller, procedure } = createCallerMock({ id: "r1" });
 		const input = {
-			type: "cash_game",
-			sessionDate: 1_753_920_000,
-			buyIn: 10_000,
-			cashOut: 12_345,
-			tagIds: ["t1", "t2"],
+			name: "Poker room",
+			memo: "Regular venue",
 		};
-		await callTool(
-			defByName("session_create_cash_game"),
-			caller,
-			input,
-			vi.fn()
-		);
+		await callTool(defByName("room_create"), caller, input, vi.fn());
 		expect(procedure).toHaveBeenCalledTimes(1);
 		expect(procedure).toHaveBeenNthCalledWith(1, input);
 	});
@@ -84,22 +76,21 @@ describe("callTool", () => {
 
 	it("serializes the result as the same JSON the HTTP API would return", async () => {
 		const { caller } = createCallerMock({
-			id: "s1",
-			sessionDate: new Date(Date.UTC(2026, 6, 30)),
+			id: "r1",
+			createdAt: new Date(Date.UTC(2026, 6, 30)),
 			memo: null,
-			profitLoss: -500,
 		});
 		const result = await callTool(
-			defByName("session_get_by_id"),
+			defByName("room_get_by_id"),
 			caller,
-			{ id: "s1" },
+			{ id: "r1" },
 			vi.fn()
 		);
 		expect(result.isError).toBeUndefined();
 		expect(result.content).toEqual([
 			{
 				type: "text",
-				text: '{"id":"s1","sessionDate":"2026-07-30T00:00:00.000Z","memo":null,"profitLoss":-500}',
+				text: '{"id":"r1","createdAt":"2026-07-30T00:00:00.000Z","memo":null}',
 			},
 		]);
 	});
@@ -108,7 +99,7 @@ describe("callTool", () => {
 		for (const value of [[], null, 0, { items: [], nextCursor: undefined }]) {
 			const { caller } = createCallerMock(value);
 			const result = await callTool(
-				defByName("session_list"),
+				defByName("room_list"),
 				caller,
 				{},
 				vi.fn()
@@ -124,9 +115,9 @@ describe("callTool", () => {
 			new TRPCError({ code: "FORBIDDEN", message: "room r-1 not owned" })
 		);
 		const result = await callTool(
-			defByName("session_list"),
+			defByName("room_get_by_id"),
 			caller,
-			{ roomId: "r-1" },
+			{ id: "r-1" },
 			log
 		);
 		expect(result.isError).toBe(true);

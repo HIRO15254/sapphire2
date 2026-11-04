@@ -49,7 +49,12 @@ function createMockDb(rowsByTable: Map<unknown, Rows>) {
 		update: () => ({
 			set: () => ({ where: () => Promise.resolve(undefined) }),
 		}),
-		delete: () => ({ where: () => Promise.resolve(undefined) }),
+		delete: () => ({
+			where: () =>
+				Object.assign(Promise.resolve(undefined), {
+					returning: () => Promise.resolve([{ id: "deleted" }]),
+				}),
+		}),
 	};
 }
 

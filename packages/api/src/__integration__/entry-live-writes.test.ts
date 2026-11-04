@@ -6,9 +6,8 @@ import {
 	playSession,
 } from "@sapphire2/db/schema/entry";
 import { gameSession } from "@sapphire2/db/schema/session";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
-import { listEntryPlayEvents } from "../services/entry-live-reads";
 import {
 	applyEntryEventChange,
 	buildLiveEntryStartStatements,
@@ -51,9 +50,21 @@ async function startLive(api: ApiFixture, start = cashStart()) {
 	return start.id;
 }
 
+function listEntryPlayEvents(db: Database, userId: string, entryId: string) {
+	return db
+		.select({ eventType: playEvent.type, payload: playEvent.payload })
+		.from(playEvent)
+		.where(and(eq(playEvent.entryId, entryId), eq(playEvent.userId, userId)))
+		.orderBy(
+			asc(playEvent.occurredAt),
+			asc(playEvent.sortOrder),
+			asc(playEvent.id)
+		);
+}
+
 async function everyRow(db: Database) {
 	return {
-		anchors: await db.select().from(gameSession),
+		sessions: await db.select().from(gameSession),
 		entries: await db.select().from(entry),
 		tournaments: await db.select().from(entryTournament),
 		plays: await db.select().from(playSession),
@@ -108,7 +119,7 @@ describe("live entry writes keep the event log and its projection in step", () =
 			status: "open",
 			playedOn: LOCAL_DATE,
 		});
-		expect(await api.db.select().from(gameSession)).toHaveLength(1);
+		expect(await api.db.select().from(gameSession)).toEqual([]);
 		expect(await onlyPlay(api.db, "live-1")).toMatchObject({
 			seq: 1,
 			status: "active",
@@ -505,7 +516,7 @@ describe("live entry writes commit all of a write or none of it on D1", () => {
 
 		expect(errorMessages(failure)).toContain("test forced failure");
 		expect(await everyRow(api.db)).toEqual({
-			anchors: [],
+			sessions: [],
 			entries: [],
 			tournaments: [],
 			plays: [],

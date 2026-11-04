@@ -5,9 +5,9 @@ import { and, asc, eq, max } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { isLabelConflictError } from "../lib/db-errors";
+import { validateEntityOwnership } from "../lib/ownership";
 import { seedDefaultGameData } from "../services/seed-game-data";
 import { assertLabelNamespaceAvailable } from "./_game-masters";
-import { validateEntityOwnership } from "./session";
 
 type Db = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]

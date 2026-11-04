@@ -7,16 +7,11 @@ import { filterPresetRouter } from "./filter-preset";
 import { gameGroupRouter } from "./game-group";
 import { gameMixRouter } from "./game-mix";
 import { gameVariantRouter } from "./game-variant";
-import { liveCashGameSessionRouter } from "./live-cash-game-session";
-import { liveTournamentSessionRouter } from "./live-tournament-session";
 import { locationRouter } from "./location";
 import { playerRouter } from "./player";
 import { playerTagRouter } from "./player-tag";
 import { ringGameRouter } from "./ring-game";
 import { roomRouter } from "./room";
-import { sessionRouter } from "./session";
-import { sessionEventRouter } from "./session-event";
-import { sessionTablePlayerRouter } from "./session-table-player";
 import { sessionTagRouter } from "./session-tag";
 import { statsRouter } from "./stats";
 import { tournamentRouter } from "./tournament";
@@ -47,15 +42,10 @@ export const appRouter = router({
 	tournament: tournamentRouter,
 	blindLevel: blindLevelRouter,
 	tournamentChipPurchase: tournamentChipPurchaseRouter,
-	session: sessionRouter,
 	stats: statsRouter,
-	sessionEvent: sessionEventRouter,
 	sessionTag: sessionTagRouter,
 	player: playerRouter,
 	playerTag: playerTagRouter,
-	liveCashGameSession: liveCashGameSessionRouter,
-	liveTournamentSession: liveTournamentSessionRouter,
-	sessionTablePlayer: sessionTablePlayerRouter,
 	updateNoteView: updateNoteViewRouter,
 	filterPreset: filterPresetRouter,
 });

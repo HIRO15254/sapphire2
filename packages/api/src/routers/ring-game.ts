@@ -1,15 +1,16 @@
 import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
+import { entryCash } from "@sapphire2/db/schema/entry";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { mixGamesSchema } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
-import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, notExists, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { validateEntityOwnership } from "../lib/ownership";
 import {
 	cashMixFlatFieldClearPatch,
 	reconcileCashRuleSelection,
-	validateEntityOwnership,
-} from "./session";
+} from "../services/cash-rule-selection";
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
@@ -361,7 +362,28 @@ export const ringGameRouter = router({
 			const userId = ctx.session.user.id;
 			await validateRingGameOwnership(ctx.db, input.id, userId);
 
-			await ctx.db.delete(ringGame).where(eq(ringGame.id, input.id));
+			const deleted = await ctx.db
+				.delete(ringGame)
+				.where(
+					and(
+						eq(ringGame.id, input.id),
+						eq(ringGame.userId, userId),
+						notExists(
+							ctx.db
+								.select({ id: entryCash.entryId })
+								.from(entryCash)
+								.where(eq(entryCash.ringGameId, ringGame.id))
+						)
+					)
+				)
+				.returning({ id: ringGame.id });
+			if (deleted.length === 0) {
+				throw new TRPCError({
+					code: "CONFLICT",
+					message:
+						"This ring game is referenced by entries. Archive the ring game instead of deleting it.",
+				});
+			}
 			return { success: true };
 		}),
 });

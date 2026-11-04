@@ -2,7 +2,7 @@
 
 > The v2 data model ([data-model-v2.md](data-model-v2.md)) replaces parts of this design in stages.
 
-This document owns the design of the statistics domain: EV semantics end to end (the cash-out fallback, the recording gate, population scoping, cross-surface agreement), the currency-scope guard, normalization, breakdown bucketing, the profit/loss series and P&L graph, the `/statistics` URL filter contract, shared date-window semantics, and stats number formatting. The server side lives in [`packages/api/src/routers/stats.ts`](../../packages/api/src/routers/stats.ts) and the summary/series parts of [`packages/api/src/routers/session.ts`](../../packages/api/src/routers/session.ts); U11 (SA2-420) rebuilds the statistics UI. Session lifecycle and live-editing design is in [`sessions-and-live-editing.md…
+This document owns the design of the statistics domain: EV semantics end to end (the cash-out fallback, the recording gate, population scoping, cross-surface agreement), the currency-scope guard, normalization, breakdown bucketing, the profit/loss series and P&L graph, the `/statistics` URL filter contract, shared date-window semantics, and stats number formatting. The server side lives in [`packages/api/src/routers/stats.ts`](../../packages/api/src/routers/stats.ts) and [`packages/api/src/services/session-stats.ts`](../../packages/api/src/services/session-stats.ts); U11 (SA2-420) rebuilds the statistics UI. Session lifecycle and live-editing design is in [`sessions-and-live-editing.md`](sessions-and-live-editing.md).
 
 ## Query scope: filters and the currency-scope guard
 
@@ -38,7 +38,7 @@ Stats procedures fold sessions into `StatsSessionRow`. Field semantics that are 
 
 ### The cash-out fallback
 
-Recording an EV cash-out is optional. A cash session without one is **defined** to have run exactly as expected: `resolveEvCashOut` ([`session.ts`](../../packages/api/src/routers/session.ts)) falls back to the actual cash-out, so its EV P/L equals its real result and its EV difference is 0. Without the fallback those sessions dropped out of every EV figure entirely, which made the EV totals a sum over an unstated subset of the filtered sessions rather than over all of them.
+Recording an EV cash-out is optional. A cash session without one is **defined** to have run exactly as expected: `resolveEvCashOut` ([`session-stats.ts`](../../packages/api/src/services/session-stats.ts)) falls back to the actual cash-out, so its EV P/L equals its real result and its EV difference is 0. Without the fallback those sessions dropped out of every EV figure entirely, which made the EV totals a sum over an unstated subset of the filtered sessions rather than over all of them.
 
 - An EV cash-out of **0 counts as recorded** — `null` is the only "missing" value.
 - EV is resolved only after the cash-game guard: the fallback is defined for a cash-game cash-out, and a tournament row's `cashOut` carries no EV meaning.
@@ -58,9 +58,9 @@ Either gated-off figure is `null` — "the user never tracked EV in this scope" 
 
 ### Cross-surface agreement
 
-The same EV summary exists on two surfaces, and **the two summaries must not disagree over one scope**: `stats.summary` gates in `buildSummary` as above, and `session.list`'s `SessionSummary` carries cash-only EV aggregates gated the **same way** (`accumulateEvMetrics` in [`session.ts`](../../packages/api/src/routers/session.ts)) — `null` unless a session in scope stored a real EV cash-out, otherwise summed over every finished cash session with fallback rows counting at their actual result. Its `recordedEvCount` counts the sessions that actually **stored** an EV cash-out, not the ones that got a resolved value — the resolved `evCashOut` falls back to the actual cash-out, so counting it would leave the gate true for every finished cash session and report "EV diff: 0" to a user who never tracked EV.
+**An EV summary must not disagree with `stats.summary` over one scope.** The legacy session list carried a second, cash-only EV summary gated the same way as `buildSummary`; it was removed in B06 (SA2-391), and any later surface that summarizes EV over the same scope must reuse that gate: `null` unless a session in scope stored a real EV cash-out, otherwise summed over every finished cash session with fallback rows counting at their actual result. `recordedEvCount` counts the sessions that actually **stored** an EV cash-out, not the ones that got a resolved value — the resolved `evCashOut` falls back to the actual cash-out, so counting it would leave the gate true for every finished cash session and report "EV diff: 0" to a user who never tracked EV.
 
-Editing the gate condition, the fallback, or the population on one surface without the other silently splits the app into two contradicting summaries. Keep them in lockstep, and extend the paired tests on both routers when the rule changes.
+Editing the gate condition, the fallback, or the population on one surface without the other silently splits the app into two contradicting summaries.
 
 ### The per-row display gate (web layer)
 

@@ -245,7 +245,7 @@ Migration and API/DB integration tests must protect plausible losses: account de
 
 ## Retired storage and cleanup
 
-B07/B08 omit the master rule columns immediately; there is no later task to remove those same columns. Legacy `blind_level`, `tournament_chip_purchase`, session detail rule copies, `session_blind_level`, `session_chip_purchase` and their results remain only as migration/audit sources until their readers have moved. B25 drops **all** remaining retired tables/columns, `game_mix.games`, the game_session anchor and fixed-value writes. No compatibility view or pending-drop escape remains.
+B07/B08 omit the master rule columns immediately; there is no later task to remove those same columns. Legacy `blind_level`, `tournament_chip_purchase`, session detail rule copies, `session_blind_level`, `session_chip_purchase` and their results remain only as migration/audit sources until their readers have moved. B25 drops **all** remaining retired tables/columns and `game_mix.games`. No compatibility view or pending-drop escape remains.
 
 Delete obsolete mechanisms in their owning API tasks: `MIX_VARIANT`, `MIX_VARIANT_LABEL`, `RESERVED_LABELS`, label-resolution input paths, cross-table namespace checks, frozen-composition exemptions, `cashMixFlatFieldClearPatch`, rule snapshot copy paths, `updateSnapshot`, and normalized per-column drift comparisons. B22 switches statistics directly to id-based versions. B25 brings related design/rule documents to the final state and walks the SA2-334 resolution table.
 

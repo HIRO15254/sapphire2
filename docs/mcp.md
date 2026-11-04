@@ -2,7 +2,7 @@
 
 > **[日本語版はこちら](mcp.ja.md)**
 
-sapphire2 exposes a remote [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) server so AI agents — claude.ai connectors, Claude Desktop, Claude Code, or any MCP-capable client — can read and record your poker session data.
+sapphire2 exposes a remote [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) server so AI agents — claude.ai connectors, Claude Desktop, Claude Code, or any MCP-capable client — can read poker statistics and manage rooms and game masters.
 
 - **Endpoint**: `https://<your-api-host>/mcp` (Streamable HTTP)
 - **Auth**: OAuth 2.1 with dynamic client registration (RFC 7591), PKCE required
@@ -47,13 +47,10 @@ Unauthenticated `/mcp` requests receive `401` with `WWW-Authenticate: Bearer res
 
 The tool surface is a **projection of the tRPC `appRouter`**: each tool's input schema is the exact Zod schema the API validates with, and each response is the same JSON the HTTP API returns. Conventions follow the backend: **dates are unix seconds** (date-only values are UTC midnight), **amounts are plain integers** in the currency's display unit.
 
+The B06 cutover removes the old completed-session and live-session APIs and their MCP tools. Recording or editing sessions is unavailable until the final entry/live APIs land; the statistics and master-data tools below remain available.
+
 | Tool | tRPC procedure | Kind |
 |---|---|---|
-| `session_list` | `session.list` | read |
-| `session_get_by_id` | `session.getById` | read |
-| `session_create_cash_game` | `session.create` (cash branch) | write |
-| `session_create_tournament` | `session.create` (tournament branch) | write |
-| `session_update` | `session.update` | write |
 | `stats_summary` | `stats.summary` | read |
 | `stats_breakdown` | `stats.breakdown` | read |
 | `stats_profit_loss_series` | `stats.profitLossSeries` | read |
@@ -88,9 +85,9 @@ The tool surface is a **projection of the tRPC `appRouter`**: each tool's input 
 
 Master-data tools mutate rows that existing sessions reference, so `*_update` and the game-master updates are annotated destructive. **Deletion is deliberately not exposed anywhere.** Ring games and tournaments have an archive/restore counterpart, which is exposed instead; rooms and the game masters have none, so a mistaken `room_create` or `game_variant_create` leaves a row only the web UI can clear — check the matching list tool before creating.
 
-`session_update`, `tournament_update_with_levels` and `game_mix_update` REPLACE their child lists (`session_update`: `tagIds`, `blindLevels`, `chipPurchases` — and sending `tournamentId` or `ringGameId` re-copies the master's structure/rule fields even when you send no list at all) — read the entity first and send the full list back. `mixGames` is accepted by the ring-game tools **and** by `session_create_cash_game` / `session_update`, all through the same validator: a named mix must be reproduced exactly, and while a mix is set `blind1`-`blind3`, `ante` and `anteType` are always stored as `null`, so values sent for those flat fields are dropped.
+`tournament_update_with_levels` and `game_mix_update` REPLACE their child lists — read the entity first and send the full list back. `mixGames` is accepted by the ring-game tools: a named mix must be reproduced exactly, and while a mix is set `blind1`-`blind3`, `ante` and `anteType` are always stored as `null`, so values sent for those flat fields are dropped.
 
-Procedures not listed are deliberately excluded (live-session state machinery, irreversible deletes, non-idempotent favourite toggles, bankroll ledger writes, AI extraction, …) — the reasons live in `packages/mcp/src/tools/registry.ts` and are enforced by the coupling test.
+Procedures not listed are deliberately excluded (irreversible deletes, non-idempotent favourite toggles, bankroll ledger writes, AI extraction, …) — the reasons live in `packages/mcp/src/tools/registry.ts` and are enforced by the coupling test.
 
 Authorization is the API's own: every call goes through `appRouter.createCaller` with your user session, so `protectedProcedure` and all ownership checks apply exactly as they do for the web app.
 

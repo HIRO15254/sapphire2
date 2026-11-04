@@ -24,3 +24,25 @@ export async function runBatch(
 	}
 	await db.batch(statements as [BatchStatement, ...BatchStatement[]]);
 }
+
+export async function selectInChunks<Id, Row>(
+	ids: Id[],
+	run: (chunk: Id[]) => Promise<Row[]>,
+	extraBoundParams = 0
+): Promise<Row[]> {
+	if (
+		!Number.isInteger(extraBoundParams) ||
+		extraBoundParams < 0 ||
+		extraBoundParams >= D1_MAX_BOUND_PARAMS
+	) {
+		throw new RangeError(
+			`extraBoundParams must be an integer from 0 to ${D1_MAX_BOUND_PARAMS - 1}`
+		);
+	}
+	const rows: Row[] = [];
+	const perChunk = D1_MAX_BOUND_PARAMS - extraBoundParams;
+	for (let index = 0; index < ids.length; index += perChunk) {
+		rows.push(...(await run(ids.slice(index, index + perChunk))));
+	}
+	return rows;
+}

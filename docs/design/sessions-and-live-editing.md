@@ -1,6 +1,6 @@
 # Sessions & Live Editing
 
-> The v2 data model ([data-model-v2.md](data-model-v2.md)) replaces parts of this design in stages.
+> Legacy record. The session and live-session screens this doc describes were removed in B03, and the session, live-session, session-event and table-player routers in B06 (SA2-391). B16/B17 rebuild them on the entry model ([data-model-v2.md](data-model-v2.md), [api-after-data-model-v2.md](api-after-data-model-v2.md)); the sections below are the legacy contract those phases replace.
 
 Design reference for the session domain: the event-sourced live-session model, event payload invariants, frozen rule snapshots, ownership contracts, the live reopen flow, P/L math (`chipRemoveTotal`), and the live-linked edit sheet. EV semantics (recording gate, cash-out fallback, population rules) are owned by [`statistics.md`](statistics.md); D1 batching/atomicity mechanics by [`data-integrity.md`](data-integrity.md); game-master semantics by [`game-masters.md`](game-masters.md); the generic filter-preset system by [`web-platform.md`](web-platform.md).
 
@@ -38,7 +38,7 @@ Snapshot fields on [`session_cash_detail`](../../packages/db/src/schema/session-
 
 The blanket rules (object-level authorization, scoped bulk WHEREs, write-IDOR row scoping) live in [`api-security.md`](../../.claude/rules/api-security.md); the session-domain guard inventory:
 
-- **Uniform FORBIDDEN (SA2-183)** — `validateEntityOwnership` ([`session.ts`](../../packages/api/src/routers/session.ts)) treats "missing" and "owned by someone else" identically; shared by the game-group / game-variant / game-mix routers.
+- **Uniform FORBIDDEN (SA2-183)** — `validateEntityOwnership` ([`ownership.ts`](../../packages/api/src/lib/ownership.ts)) treats "missing" and "owned by someone else" identically; shared by the game-group / game-variant / game-mix routers.
 - **Filter ownership (SA2-183)** — `validateSessionFilterOwnership` validates every optional FK filter at the resolver boundary, before an owner-scoped query can turn a foreign id into an empty result.
 - **Live-link ownership (SA2-102)** — `validateLiveLinkOwnership` guards the room / currency links of the live routers. Falsy (`undefined` = omitted, `null` = clear, `""` = empty) skips; a provided id must exist AND belong to the caller. Prevents IDOR on the money-ledger links.
 - **Tag-set ownership (SA2-177)** — `validateTagsOwnership` compares the distinct owned count against the requested distinct count in one scoped query; any mismatch → FORBIDDEN. No-ops on empty/omitted ids.

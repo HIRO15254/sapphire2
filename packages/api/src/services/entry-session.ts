@@ -9,7 +9,6 @@ import {
 	entryTournament,
 	playSession,
 } from "@sapphire2/db/schema/entry";
-import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { TRPCError } from "@trpc/server";
@@ -17,19 +16,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import type { BatchStatement } from "../lib/batch";
 
-export type LegacySessionKind = "cash_game" | "tournament";
-
-export const MINIMAL_GAME_SESSION_DATE = new Date(0);
-
-export const CASH_DETAIL_MOVED_COLUMNS = ["ringGameId", "evCashOut"] as const;
-
-export const TOURNAMENT_DETAIL_MOVED_COLUMNS = [
-	"tournamentId",
-	"placement",
-	"totalEntries",
-	"beforeDeadline",
-	"timerStartedAt",
-] as const;
+type LegacySessionKind = "cash_game" | "tournament";
 
 export interface EntryCashFacts {
 	cashOut: number | null;
@@ -68,41 +55,31 @@ export type EntrySessionFacts = EntrySessionFactsBase &
 		  }
 	);
 
-export function toEntryKind(legacyKind: LegacySessionKind): EntryKind {
+function toEntryKind(legacyKind: LegacySessionKind): EntryKind {
 	return legacyKind === "cash_game" ? "cash" : "tournament";
 }
 
-export function utcDateString(date: Date): string {
+function utcDateString(date: Date): string {
 	return date.toISOString().slice(0, 10);
 }
 
-export function legacyKindSql() {
+function legacyKindSql() {
 	return sql<LegacySessionKind>`CASE ${entry.kind} WHEN 'cash' THEN 'cash_game' ELSE 'tournament' END`;
 }
 
-export function legacySessionDateSql() {
+function legacySessionDateSql() {
 	return sql`CASE ${entry.source} WHEN 'live' THEN COALESCE((SELECT ${playSession.startedAt} FROM ${playSession} WHERE ${playSession.entryId} = ${entry.id} AND ${playSession.seq} = 1), ${entry.createdAt}) ELSE unixepoch(${entry.playedOn}) END`.mapWith(
 		entry.createdAt
 	);
 }
 
-export function legacySessionStatusSql() {
-	return sql<string>`CASE WHEN ${entry.status} = 'settled' THEN 'completed' ELSE (SELECT CASE ${playSession.status} WHEN 'ended' THEN 'completed' ELSE ${playSession.status} END FROM ${playSession} WHERE ${playSession.entryId} = ${entry.id} ORDER BY ${playSession.seq} DESC LIMIT 1) END`;
-}
+const firstPlaySession = alias(playSession, "first_play_session");
 
-export const firstPlaySession = alias(playSession, "first_play_session");
-
-export function firstPlaySessionJoin() {
+function firstPlaySessionJoin() {
 	return and(
 		eq(firstPlaySession.entryId, entry.id),
 		eq(firstPlaySession.seq, 1)
 	);
-}
-
-export function legacyBreakMinutesSql() {
-	return sql<
-		number | null
-	>`NULLIF((SELECT SUM(${playSession.breakMinutes}) FROM ${playSession} WHERE ${playSession.entryId} = ${entry.id}), 0)`;
 }
 
 function effectivePlacement(facts: EntryTournamentFacts): number | null {
@@ -183,15 +160,6 @@ export function buildManualEntryInsertStatements(
 ): BatchStatement[] {
 	const kind = toEntryKind(facts.kind);
 	const statements: BatchStatement[] = [
-		db.insert(gameSession).values({
-			id: facts.id,
-			userId: facts.userId,
-			kind: facts.kind,
-			status: "completed",
-			source: "manual",
-			sessionDate: MINIMAL_GAME_SESSION_DATE,
-			updatedAt: now,
-		}),
 		db.insert(entry).values({
 			id: facts.id,
 			userId: facts.userId,
@@ -288,9 +256,6 @@ export function buildEntryDeleteStatements(
 ): BatchStatement[] {
 	return [
 		db.delete(entry).where(and(eq(entry.id, id), eq(entry.userId, userId))),
-		db
-			.delete(gameSession)
-			.where(and(eq(gameSession.id, id), eq(gameSession.userId, userId))),
 	];
 }
 

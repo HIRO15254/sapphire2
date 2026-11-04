@@ -27,7 +27,7 @@ Each procedure therefore has two schemas:
 | `TOURNAMENT_OUTPUT_SCHEMA` / `TABLE_PLAYERS_OUTPUT_SCHEMA` | Sent to OpenAI as the strict JSON Schema | `.nullable()` — every key present, unknown values are `null` |
 | `ExtractedTournamentDataSchema` | The app-facing contract the web client consumes | `.optional()` — unknown keys are absent |
 
-`withoutNulls` bridges them: it strips every `null` from `output_parsed` before `ExtractedTournamentDataSchema.safeParse`, so an unknown field arrives at [`merge-extracted-tournament-data.ts`](../../apps/web/src/features/rooms/utils/merge-extracted-tournament-data.ts) as `undefined`, exactly as it did under the previous provider. Collapsing the two into one schema is what would break: a `.nullable()` app contract would make every blank field a `null` the merge helpers must re-handle, and an `.optional()` wire schema is rejected by strict mode.
+`withoutNulls` bridges them: it strips every `null` from `output_parsed` before `ExtractedTournamentDataSchema.safeParse`, so an unknown field arrives at the web client's merge (below) as `undefined`, exactly as it did under the previous provider. Collapsing the two into one schema is what would break: a `.nullable()` app contract would make every blank field a `null` the merge helpers must re-handle, and an `.optional()` wire schema is rejected by strict mode.
 
 The `.describe()` strings on the wire schema are runtime prompt data sent to the model — they are what tells it to answer `null` rather than invent a value. Numeric bounds (`minimum` / `maximum`) ride along as guidance only; strict mode does not enforce them, which is why the response is re-validated with Zod.
 
@@ -61,7 +61,7 @@ Collapsing them into one error would hide which knob to turn.
 
 ## Merging extracted data into the tournament form (SA2-77)
 
-[`apps/web/src/features/rooms/utils/merge-extracted-tournament-data.ts`](../../apps/web/src/features/rooms/utils/merge-extracted-tournament-data.ts) merges AI-extracted tournament data over the values the user has already entered (`base`). Blank extracted values never overwrite an existing value — only meaningful values are applied.
+The old UI's merge helper and tournament form sheet were deleted with the old UI in B03 (SA2-387); no web code consumes `aiExtract` until the new UI's tournament form does. The semantics below are the contract that form must re-implement: AI-extracted tournament data is merged over the values the user has already entered (`base`). Blank extracted values never overwrite an existing value — only meaningful values are applied.
 
 - **AI-blank fields are ignored** so they never overwrite information the user has already entered (SA2-77). A string counts as blank when it is empty after trim (`hasText`).
 - **An explicit 0 is not blank — for fields where 0 is real.** Only non-negative finite numbers are valid; an explicit 0 (e.g. a freeroll's `buyIn` / `entryFee`) is distinguished from blank and applied (SA2-77). But `startingStack` / `tableSize` real values are always positive, so for those fields 0 is ignored as AI filler.
@@ -69,4 +69,4 @@ Collapsing them into one error would hide which knob to turn.
 
 ### The merge base is the current form values, not `initialFormValues`
 
-So that a blank AI result never overwrites what the user has typed *during* the session, the merge base is the form's **live** values at extraction time, read through a getter ref ([`use-tournament-form-sheet.ts`](../../apps/web/src/features/rooms/components/tournament-form-sheet/use-tournament-form-sheet.ts)'s `registerLiveValues`), not `initialFormValues` (SA2-77). Merging over `initialFormValues` instead would silently wipe anything entered after the sheet opened whenever the AI returned blanks.
+So that a blank AI result never overwrites what the user has typed *during* the session, the merge base is the form's **live** values at extraction time (the old form read them through a getter ref), not `initialFormValues` (SA2-77). Merging over `initialFormValues` instead would silently wipe anything entered after the sheet opened whenever the AI returned blanks.

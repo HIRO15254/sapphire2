@@ -9,6 +9,7 @@ import { protectedProcedure, router } from "../index";
 import type { BatchStatement } from "../lib/batch";
 import { runBatch } from "../lib/batch";
 import { isLabelConflictError } from "../lib/db-errors";
+import { validateEntityOwnership } from "../lib/ownership";
 import {
 	chunkMembershipRows,
 	hydrateOwnedGameMixes,
@@ -19,7 +20,6 @@ import {
 	assertLabelNamespaceAvailable,
 	compareBuiltinFirst,
 } from "./_game-masters";
-import { validateEntityOwnership } from "./session";
 
 type Db = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
