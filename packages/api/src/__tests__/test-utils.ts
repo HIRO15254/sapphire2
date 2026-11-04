@@ -176,10 +176,15 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 			return chain;
 		}),
 	}));
-	const del = vi.fn(() => ({
+	const del = vi.fn((table: unknown) => ({
 		where: vi.fn((cond: unknown) => {
 			deleteWhereParams.push(boundParams(cond));
-			return Promise.resolve(undefined);
+			const chain = Promise.resolve(undefined) as Promise<undefined> & {
+				returning: () => Promise<MockRow[]>;
+			};
+			chain.returning = () =>
+				Promise.resolve(selectRows[getTableName(table as never)] ?? []);
+			return chain;
 		}),
 	}));
 	const update = vi.fn((table: unknown) => ({

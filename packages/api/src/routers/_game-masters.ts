@@ -1,20 +1,19 @@
-import {
-	MIX_VARIANT,
-	MIX_VARIANT_LABEL,
-} from "@sapphire2/db/constants/game-variants";
+import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { gameMix } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { TRPCError } from "@trpc/server";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
+import z from "zod";
 import type { protectedProcedure } from "../index";
+import { isGameMasterLabelConflictError } from "../lib/db-errors";
 
 export type Db = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
 >[0]["ctx"]["db"];
 
-export const RESERVED_LABELS = new Set(
-	[MIX_VARIANT, MIX_VARIANT_LABEL].map((s) => s.toLowerCase())
-);
+export function gameMasterListInputSchema() {
+	return z.object({ includeArchived: z.boolean().optional() }).optional();
+}
 
 export function compareBuiltinFirst(
 	builtinOrder: Map<string, number>
@@ -38,80 +37,41 @@ export function compareBuiltinFirst(
 	};
 }
 
-export async function assertLabelNamespaceAvailable(
+const LABELLED_MASTERS = {
+	"game group": { table: gameGroup, index: "game_group_label_uq" },
+	"game variant": { table: gameVariant, index: "game_variant_label_uq" },
+	"game mix": { table: gameMix, index: "game_mix_label_uq" },
+} as const;
+
+export async function runLabelWrite<T>(
 	db: Db,
+	master: keyof typeof LABELLED_MASTERS,
 	userId: string,
-	label: string,
-	options: { self: "variant" | "mix"; excludeId?: string }
-): Promise<void> {
-	const normalized = label.trim().toLowerCase();
-	if (RESERVED_LABELS.has(normalized)) {
-		throw new TRPCError({
-			code: "CONFLICT",
-			message: "This label is reserved for the mix mode",
-		});
-	}
-
-	if (options.self === "variant") {
-		const existingVariants = await db
-			.select({ id: gameVariant.id, label: gameVariant.label })
-			.from(gameVariant)
-			.where(eq(gameVariant.userId, userId));
-		const collidesVariant = existingVariants.some(
-			(row) =>
-				row.id !== options.excludeId &&
-				row.label.trim().toLowerCase() === normalized
-		);
-		if (collidesVariant) {
-			throw new TRPCError({
-				code: "CONFLICT",
-				message: "You already have a game variant with this label",
-			});
+	label: string | undefined,
+	write: () => Promise<T>
+): Promise<T> {
+	try {
+		return await write();
+	} catch (error) {
+		const { table, index } = LABELLED_MASTERS[master];
+		if (label === undefined || !isGameMasterLabelConflictError(error, index)) {
+			throw error;
 		}
-
-		const existingMixes = await db
-			.select({ id: gameMix.id, label: gameMix.label })
-			.from(gameMix)
-			.where(eq(gameMix.userId, userId));
-		const collidesMix = existingMixes.some(
-			(row) => row.label.trim().toLowerCase() === normalized
-		);
-		if (collidesMix) {
-			throw new TRPCError({
-				code: "CONFLICT",
-				message: "You already have a mix with this label",
-			});
-		}
-		return;
-	}
-
-	const existingMixes = await db
-		.select({ id: gameMix.id, label: gameMix.label })
-		.from(gameMix)
-		.where(eq(gameMix.userId, userId));
-	const collidesMix = existingMixes.some(
-		(row) =>
-			row.id !== options.excludeId &&
-			row.label.trim().toLowerCase() === normalized
-	);
-	if (collidesMix) {
+		const [holder] = await db
+			.select({ archivedAt: table.archivedAt })
+			.from(table)
+			.where(
+				and(
+					eq(table.userId, userId),
+					sql`lower(trim(${table.label})) = lower(trim(${label}))`
+				)
+			)
+			.limit(1);
 		throw new TRPCError({
 			code: "CONFLICT",
-			message: "You already have a mix with this label",
-		});
-	}
-
-	const existingVariants = await db
-		.select({ id: gameVariant.id, label: gameVariant.label })
-		.from(gameVariant)
-		.where(eq(gameVariant.userId, userId));
-	const collidesVariant = existingVariants.some(
-		(row) => row.label.trim().toLowerCase() === normalized
-	);
-	if (collidesVariant) {
-		throw new TRPCError({
-			code: "CONFLICT",
-			message: "You already have a game variant with this label",
+			message: holder?.archivedAt
+				? `An archived ${master} already has this label; restore it instead`
+				: `You already have a ${master} with this label`,
 		});
 	}
 }

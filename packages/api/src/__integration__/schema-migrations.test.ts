@@ -44,6 +44,9 @@ type DeclaredIndex = ReturnType<
 
 const INDEX_EXPRESSIONS: Record<string, string> = {
 	asset_name_uq: 'lower(trim("name"))',
+	game_group_label_uq: 'lower(trim("label"))',
+	game_mix_label_uq: 'lower(trim("label"))',
+	game_variant_label_uq: 'lower(trim("label"))',
 	ledger_category_user_name_unique: 'lower(trim("name"))',
 };
 

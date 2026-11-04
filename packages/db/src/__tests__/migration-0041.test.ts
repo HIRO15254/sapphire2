@@ -24,20 +24,6 @@ const migrationsDirectory = fileURLToPath(
 	new URL("../migrations/", import.meta.url)
 );
 
-const REQUIRED_FINAL_GAME_INTEGRITY_TRIGGERS = [
-	["game_group_label_unique_insert", "game_group"],
-	["game_group_label_unique_update", "game_group"],
-	["game_mix_games_reference_insert", "game_mix"],
-	["game_mix_games_reference_update", "game_mix"],
-	["game_mix_label_unique_insert", "game_mix"],
-	["game_mix_label_unique_update", "game_mix"],
-	["game_mix_variants_compat_insert", "game_mix"],
-	["game_mix_variants_compat_update", "game_mix"],
-	["game_variant_label_unique_insert", "game_variant"],
-	["game_variant_label_unique_update", "game_variant"],
-	["game_variant_mix_reference_delete", "game_variant"],
-	["game_variant_mix_reference_update", "game_variant"],
-] as const;
 const schemaBefore0041 = `
 	CREATE TABLE user (id TEXT PRIMARY KEY NOT NULL);
 	CREATE TABLE room (id TEXT PRIMARY KEY NOT NULL);
@@ -560,7 +546,7 @@ describe("0041_amazing_amphibian migration", () => {
 });
 
 describe("complete migration history", () => {
-	it("keeps rolling-deploy compatibility and integrity triggers after normalization", () => {
+	it("leaves no trigger on the game master tables once 0065 replaces them with constraints", () => {
 		const db = openDatabase();
 		db.exec("PRAGMA foreign_keys=ON");
 
@@ -577,7 +563,7 @@ describe("complete migration history", () => {
 						ORDER BY name
 					`)
 				)
-			).toEqual(REQUIRED_FINAL_GAME_INTEGRITY_TRIGGERS);
+			).toEqual([]);
 		} finally {
 			db.close();
 		}

@@ -3,14 +3,13 @@ import { gameMix } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { TRPCError } from "@trpc/server";
 import { getTableName } from "drizzle-orm";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import {
 	createChainableMockDb,
 	expectAccepts,
 	expectRejects,
 	getInputSchema,
-	withGameMixVariantFixtures,
 } from "./test-utils";
 
 type Rows = Record<string, unknown>[];
@@ -18,12 +17,9 @@ type Rows = Record<string, unknown>[];
 const GROUP_TABLE = getTableName(gameGroup);
 const VARIANT_TABLE = getTableName(gameVariant);
 const MIX_TABLE = getTableName(gameMix);
-const MIX_VARIANT_TABLE = "game_mix_variant";
 
 function gameVariantCaller(userId: string, select: Record<string, Rows>) {
-	const mock = createChainableMockDb({
-		select: withGameMixVariantFixtures(select),
-	});
+	const mock = createChainableMockDb({ select });
 	const caller = appRouter.createCaller({
 		session: { user: { id: userId } },
 		db: mock.db,
@@ -47,7 +43,12 @@ async function expectTrpcCode(
 
 const CUR_OWNER = "user-1";
 const CUR_OTHER = "user-2";
-const OWNED_GROUP = { id: "grp-1", userId: CUR_OWNER, label: "Big Bet" };
+const OWNED_GROUP = {
+	id: "grp-1",
+	userId: CUR_OWNER,
+	label: "Big Bet",
+	archivedAt: null,
+};
 const OTHER_GROUP = { id: "grp-2", userId: CUR_OTHER, label: "Their Group" };
 
 function seededRows(extra: { variant?: Rows; group?: Rows } = {}) {
@@ -267,83 +268,7 @@ describe("gameVariant.update groupId ownership (SA2-183)", () => {
 	});
 });
 
-describe("gameVariant.create collision guard (CONFLICT)", () => {
-	it("rejects the reserved key 'mix' (case-insensitive)", async () => {
-		const { caller } = gameVariantCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [OWNED_GROUP],
-			[VARIANT_TABLE]: [],
-		});
-		await expectTrpcCode(
-			caller.create({ label: "mix", groupId: OWNED_GROUP.id }),
-			"CONFLICT"
-		);
-		await expectTrpcCode(
-			caller.create({ label: "MIX", groupId: OWNED_GROUP.id }),
-			"CONFLICT"
-		);
-	});
-
-	it("rejects the reserved label 'Mixed Game' (case-insensitive)", async () => {
-		const { caller } = gameVariantCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [OWNED_GROUP],
-			[VARIANT_TABLE]: [],
-		});
-		await expectTrpcCode(
-			caller.create({ label: "mixed game", groupId: OWNED_GROUP.id }),
-			"CONFLICT"
-		);
-	});
-
-	it("rejects a label colliding with the caller's existing variant label (case-insensitive)", async () => {
-		const { caller } = gameVariantCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [OWNED_GROUP],
-			[VARIANT_TABLE]: [
-				{ id: "gv-1", userId: CUR_OWNER, label: "My Mix", sortOrder: 0 },
-			],
-		});
-		await expectTrpcCode(
-			caller.create({ label: "my mix", groupId: OWNED_GROUP.id }),
-			"CONFLICT"
-		);
-	});
-
-	it("accepts a genuinely new label with no collision", async () => {
-		const { caller } = gameVariantCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [OWNED_GROUP],
-			[VARIANT_TABLE]: [
-				{ id: "gv-1", userId: CUR_OWNER, label: "Other Mix", sortOrder: 0 },
-			],
-		});
-		await expect(
-			caller.create({ label: "Brand New", groupId: OWNED_GROUP.id })
-		).resolves.toBeDefined();
-	});
-
-	it("rejects a label colliding with the caller's existing named-mix label (case-insensitive, cross-namespace)", async () => {
-		const { caller } = gameVariantCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [OWNED_GROUP],
-			[VARIANT_TABLE]: [],
-			[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OWNER, label: "HORSE" }],
-		});
-		await expectTrpcCode(
-			caller.create({ label: "horse", groupId: OWNED_GROUP.id }),
-			"CONFLICT"
-		);
-	});
-
-	it("accepts a label with no collision in either the variant or mix namespace", async () => {
-		const { caller } = gameVariantCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [OWNED_GROUP],
-			[VARIANT_TABLE]: [
-				{ id: "placeholder", userId: CUR_OWNER, label: "X", sortOrder: 0 },
-			],
-			[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OWNER, label: "8-Game" }],
-		});
-		await expect(
-			caller.create({ label: "Brand New", groupId: OWNED_GROUP.id })
-		).resolves.toBeDefined();
-	});
-
+describe("gameVariant.create", () => {
 	it("stamps the created row with the caller's userId, groupId, and a generated id", async () => {
 		const { caller, inserted } = gameVariantCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
@@ -386,40 +311,6 @@ describe("gameVariant.create collision guard (CONFLICT)", () => {
 		expect(
 			(inserted[VARIANT_TABLE]?.[0] as Record<string, unknown>)?.sortOrder
 		).toBe(0);
-	});
-
-	it("converts a (user_id, label) unique-constraint violation from the insert into the same CONFLICT (c14 backstop)", async () => {
-		const { caller, insert } = gameVariantCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [OWNED_GROUP],
-			[VARIANT_TABLE]: [],
-		});
-		insert.mockImplementation(() => ({
-			values: vi.fn(() => {
-				throw new Error(
-					"UNIQUE constraint failed: game_variant.user_id, game_variant.label"
-				);
-			}),
-		}));
-		await expectTrpcCode(
-			caller.create({ label: "Brand New", groupId: OWNED_GROUP.id }),
-			"CONFLICT"
-		);
-	});
-
-	it("converts the migration-0041 label trigger abort into the same CONFLICT (the guard that actually fires)", async () => {
-		const { caller, insert } = gameVariantCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [OWNED_GROUP],
-			[VARIANT_TABLE]: [],
-		});
-		insert.mockImplementation(() => ({
-			values: vi.fn(() => {
-				throw new Error("game master label already exists");
-			}),
-		}));
-		await expectTrpcCode(
-			caller.create({ label: "Brand New", groupId: OWNED_GROUP.id }),
-			"CONFLICT"
-		);
 	});
 });
 
@@ -467,75 +358,6 @@ describe("gameVariant ownership (uniform FORBIDDEN, SA2-183)", () => {
 	});
 });
 
-describe("gameVariant.delete in-use rejection (c07)", () => {
-	it("rejects with CONFLICT when a mix references the id", async () => {
-		const { caller } = gameVariantCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [OWNED_GROUP],
-			[VARIANT_TABLE]: [{ id: "gv-1", userId: CUR_OWNER, label: "My Mix" }],
-			[MIX_TABLE]: [
-				{ id: "mix-1", userId: CUR_OWNER, label: "HORSE", games: ["gv-1"] },
-			],
-		});
-		await expectTrpcCode(caller.delete({ id: "gv-1" }), "CONFLICT");
-	});
-
-	it("succeeds when no mix references the id", async () => {
-		const { caller } = gameVariantCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [OWNED_GROUP],
-			[VARIANT_TABLE]: [{ id: "gv-1", userId: CUR_OWNER, label: "My Mix" }],
-			[MIX_TABLE]: [
-				{ id: "mix-1", userId: CUR_OWNER, label: "HORSE", games: ["gv-2"] },
-			],
-			[MIX_VARIANT_TABLE]: [],
-		});
-		await expect(caller.delete({ id: "gv-1" })).resolves.toEqual({
-			success: true,
-		});
-	});
-});
-
-describe("gameVariant.update excludes self from collision", () => {
-	it("succeeds when keeping the row's own (unchanged) label", async () => {
-		const { caller } = gameVariantCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [OWNED_GROUP],
-			[VARIANT_TABLE]: [
-				{ id: "gv-1", userId: CUR_OWNER, label: "My Mix", sortOrder: 0 },
-			],
-		});
-		await expect(
-			caller.update({ id: "gv-1", label: "My Mix" })
-		).resolves.toBeDefined();
-	});
-
-	it("still rejects renaming to a different existing variant label (CONFLICT)", async () => {
-		const { caller } = gameVariantCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [OWNED_GROUP],
-			[VARIANT_TABLE]: [
-				{ id: "gv-1", userId: CUR_OWNER, label: "My Mix", sortOrder: 0 },
-				{ id: "gv-2", userId: CUR_OWNER, label: "Other Mix", sortOrder: 1 },
-			],
-		});
-		await expectTrpcCode(
-			caller.update({ id: "gv-1", label: "Other Mix" }),
-			"CONFLICT"
-		);
-	});
-
-	it("rejects renaming to an existing named-mix label (CONFLICT, cross-namespace)", async () => {
-		const { caller } = gameVariantCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [OWNED_GROUP],
-			[VARIANT_TABLE]: [
-				{ id: "gv-1", userId: CUR_OWNER, label: "My Mix", sortOrder: 0 },
-			],
-			[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OWNER, label: "10-Game" }],
-		});
-		await expectTrpcCode(
-			caller.update({ id: "gv-1", label: "10-Game" }),
-			"CONFLICT"
-		);
-	});
-});
-
 describe("gameVariant write-IDOR guard (SA2-176)", () => {
 	it("update WHERE binds both the id and the caller's userId", async () => {
 		const { caller, updateWhereParams } = gameVariantCaller(CUR_OWNER, {
@@ -566,8 +388,20 @@ describe("gameVariant.list scoping", () => {
 	it("queries scoped to the caller's userId when already seeded", async () => {
 		const rows = seededRows({
 			variant: [
-				{ id: "gv-1", userId: CUR_OWNER, label: "Zed Mix", sortOrder: 1 },
-				{ id: "gv-2", userId: CUR_OWNER, label: "Alpha Mix", sortOrder: 0 },
+				{
+					id: "gv-1",
+					userId: CUR_OWNER,
+					label: "Zed Mix",
+					sortOrder: 1,
+					archivedAt: null,
+				},
+				{
+					id: "gv-2",
+					userId: CUR_OWNER,
+					label: "Alpha Mix",
+					sortOrder: 0,
+					archivedAt: null,
+				},
 			],
 		});
 		const { caller, selectWhereParams } = gameVariantCaller(CUR_OWNER, rows);
@@ -603,26 +437,5 @@ describe("gameVariant type guard sanity", () => {
 	it("getInputSchema works for create", () => {
 		const schema = getInputSchema(appRouter.gameVariant.create);
 		expect(schema.safeParse({ label: "x", groupId: "g1" }).success).toBe(true);
-	});
-});
-
-describe("gameVariant.delete normalized mix membership guard", () => {
-	it("rejects with CONFLICT when an owned junction row references the variant", async () => {
-		const { caller, selectWhereParams } = gameVariantCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [OWNED_GROUP],
-			[VARIANT_TABLE]: [{ id: "gv-1", userId: CUR_OWNER, label: "My Variant" }],
-			[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OWNER, label: "HORSE" }],
-			[MIX_VARIANT_TABLE]: [
-				{
-					mixId: "mix-1",
-					variantId: "gv-1",
-					userId: CUR_OWNER,
-					position: 0,
-				},
-			],
-		});
-
-		await expectTrpcCode(caller.delete({ id: "gv-1" }), "CONFLICT");
-		expect(selectWhereParams).toContainEqual(["gv-1", CUR_OWNER]);
 	});
 });

@@ -21,6 +21,7 @@ export const gameGroup = sqliteTable(
 		blind1Label: text("blind1_label"),
 		blind2Label: text("blind2_label"),
 		blind3Label: text("blind3_label"),
+		archivedAt: integer("archived_at", { mode: "timestamp" }),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),
@@ -35,7 +36,10 @@ export const gameGroup = sqliteTable(
 			table.userId,
 			table.builtinKey
 		),
-		uniqueIndex("gameGroup_userId_label_idx").on(table.userId, table.label),
+		uniqueIndex("game_group_label_uq").on(
+			table.userId,
+			sql`lower(trim(${table.label}))`
+		),
 	]
 );
 

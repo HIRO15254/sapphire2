@@ -7,10 +7,9 @@ import {
 import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { gameMix, gameMixVariant } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { BatchStatement } from "../lib/batch";
 import { runBatch } from "../lib/batch";
-import { isLabelConflictError } from "../lib/db-errors";
 import { chunkMembershipRows } from "./game-mix";
 
 type DbInstance = Database;
@@ -133,20 +132,7 @@ export async function seedDefaultGameData(
 				db.insert(gameMixVariant).values(chunk).onConflictDoNothing()
 			);
 		}
-		statements.push(
-			db
-				.update(gameMix)
-				.set({ games, updatedAt: now })
-				.where(and(eq(gameMix.id, mixId), eq(gameMix.userId, userId)))
-		);
 	}
 
-	try {
-		await runBatch(db, statements);
-	} catch (error) {
-		if (isLabelConflictError(error)) {
-			return;
-		}
-		throw error;
-	}
+	await runBatch(db, statements);
 }

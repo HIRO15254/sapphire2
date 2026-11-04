@@ -22,6 +22,7 @@ export const gameMix = sqliteTable(
 		builtinKey: text("builtin_key"),
 		label: text("label").notNull(),
 		games: text("games", { mode: "json" }).$type<string[]>().notNull(),
+		archivedAt: integer("archived_at", { mode: "timestamp" }),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),
@@ -36,7 +37,10 @@ export const gameMix = sqliteTable(
 			table.userId,
 			table.builtinKey
 		),
-		uniqueIndex("gameMix_userId_label_idx").on(table.userId, table.label),
+		uniqueIndex("game_mix_label_uq").on(
+			table.userId,
+			sql`lower(trim(${table.label}))`
+		),
 	]
 );
 

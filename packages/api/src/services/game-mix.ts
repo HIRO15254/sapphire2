@@ -3,7 +3,19 @@ import { gameMix, gameMixVariant } from "@sapphire2/db/schema/game-mix";
 import { and, eq, inArray } from "drizzle-orm";
 import { chunkForInsert, D1_MAX_BOUND_PARAMS } from "../lib/batch";
 
-export type GameMixWithGames = typeof gameMix.$inferSelect & {
+export const gameMixColumns = {
+	id: gameMix.id,
+	userId: gameMix.userId,
+	builtinKey: gameMix.builtinKey,
+	label: gameMix.label,
+	archivedAt: gameMix.archivedAt,
+	createdAt: gameMix.createdAt,
+	updatedAt: gameMix.updatedAt,
+};
+
+export type GameMixRow = Omit<typeof gameMix.$inferSelect, "games">;
+
+export type GameMixWithGames = GameMixRow & {
 	games: string[];
 };
 
@@ -18,7 +30,7 @@ export function chunkMembershipRows(
 export async function hydrateOwnedGameMixes(
 	db: Database,
 	userId: string,
-	mixes: (typeof gameMix.$inferSelect)[]
+	mixes: GameMixRow[]
 ): Promise<GameMixWithGames[]> {
 	const ownedMixes = mixes.filter((mix) => mix.userId === userId);
 	if (ownedMixes.length === 0) {
@@ -65,7 +77,7 @@ export async function listOwnedGameMixes(
 	userId: string
 ): Promise<GameMixWithGames[]> {
 	const mixes = await db
-		.select()
+		.select(gameMixColumns)
 		.from(gameMix)
 		.where(eq(gameMix.userId, userId));
 	return await hydrateOwnedGameMixes(db, userId, mixes);

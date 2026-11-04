@@ -15,6 +15,7 @@ import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
 import type { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
 import type { protectedProcedure } from "../index";
+import { type GameMixRow, gameMixColumns } from "../services/game-mix";
 import { selectInChunks } from "./batch";
 
 type DbInstance = Parameters<
@@ -163,9 +164,9 @@ async function validateGameMixOwnershipBranch(
 	db: DbInstance,
 	entityId: string,
 	userId: string
-): Promise<typeof gameMix.$inferSelect> {
+): Promise<GameMixRow> {
 	const [found] = await db
-		.select()
+		.select(gameMixColumns)
 		.from(gameMix)
 		.where(eq(gameMix.id, entityId));
 	if (!found || found.userId !== userId) {
@@ -289,7 +290,7 @@ async function validateEntityOwnership(
 	entityType: "gameMix",
 	entityId: string,
 	userId: string
-): Promise<typeof gameMix.$inferSelect>;
+): Promise<GameMixRow>;
 async function validateEntityOwnership(
 	db: DbInstance,
 	entityType: "gameVariant",
