@@ -1,6 +1,6 @@
 import { describe, expect } from "vitest";
 import type { TestD1Database } from "./test-database";
-import { test } from "./test-fixture";
+import { insertRingGameFixture, test } from "./test-fixture";
 
 type Row = Record<string, string | number | null>;
 
@@ -94,12 +94,11 @@ async function seedMasters(d1: TestD1Database, owners: string[]) {
 			name: "Chips",
 			updated_at: 0,
 		});
-		await insert(d1, "ring_game", {
+		await insertRingGameFixture(d1, {
 			id: `${owner}-ring`,
-			user_id: owner,
-			room_id: `${owner}-room`,
+			userId: owner,
+			roomId: `${owner}-room`,
 			name: "1/2",
-			updated_at: 0,
 		});
 		await insert(d1, "tournament", {
 			id: `${owner}-tournament`,

@@ -2,12 +2,15 @@ import {
 	getInputSchema,
 	getProcedureDef,
 } from "@sapphire2/api/__tests__/test-utils";
+import {
+	ringGameCreateInputSchema,
+	ringGameUpdateInputSchema,
+} from "@sapphire2/api/routers/ring-game";
 import { describe, expect, it } from "vitest";
 import {
 	DELIBERATELY_EXCLUDED,
 	entityName,
 	LEVEL_GAMES_RULE,
-	MIX_RULE,
 	TOOL_DEFINITIONS,
 	toolAnnotations,
 	toolNamespace,
@@ -184,16 +187,34 @@ describe("tool/router coupling", () => {
 		}
 	});
 
-	it("explains the mixGames contract on every tool that accepts mixGames", () => {
-		const accepting = TOOL_DEFINITIONS.filter((def) => {
-			const shape = (def.inputSchema as { shape?: Record<string, unknown> })
-				?.shape;
-			return shape !== undefined && "mixGames" in shape;
-		});
-		expect(accepting.length).toBeGreaterThanOrEqual(2);
-		for (const def of accepting) {
-			expect(def.description).toContain(MIX_RULE);
+	it("preserves ID-based ring-game selections and stakes in router schemas", () => {
+		for (const game of [
+			{ variantId: "variant" },
+			{ gameMixId: "mix" },
+			{ lineupId: "lineup" },
+		]) {
+			const rule = {
+				game,
+				stakes: [{ gameGroupId: "group", blind1: 1, blind2: 2 }],
+			};
+			expect(
+				ringGameCreateInputSchema.parse({
+					roomId: "room",
+					name: "Cash",
+					rule,
+				}).rule
+			).toEqual(rule);
+			expect(
+				ringGameUpdateInputSchema.parse({ id: "cash", rule }).rule
+			).toEqual(rule);
 		}
+	});
+
+	it("excludes ring-game rule undo and destructive deletion", () => {
+		expect(excludedPaths.has("ringGame.restoreRule")).toBe(true);
+		expect(excludedPaths.has("ringGame.delete")).toBe(true);
+		expect(exposedPaths.has("ringGame.restoreRule")).toBe(false);
+		expect(exposedPaths.has("ringGame.delete")).toBe(false);
 	});
 
 	it("explains the level games contract on every tool that accepts blindLevels", () => {

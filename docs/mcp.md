@@ -97,7 +97,11 @@ The B06 cutover removes the old completed-session and live-session APIs and thei
 
 Master-data updates are annotated destructive. **Deletion is deliberately not exposed.** Rooms, ring games, tournaments and game masters have archive/restore tools instead. Game-master lists exclude archived rows by default; `includeArchived` includes them.
 
-`tournament_update_with_levels` and `game_mix_update` REPLACE their child lists — read the entity first and send the full list back. `mixGames` is accepted by the ring-game tools: a named mix must be reproduced exactly, and while a mix is set `blind1`-`blind3`, `ante` and `anteType` are always stored as `null`, so values sent for those flat fields are dropped.
+`ring_game_create` takes a `rule` with an optional `game` selected by `{variantId}`, `{gameMixId}`, or `{lineupId}`. Find active variant and mix IDs with `game_variant_list` and `game_mix_list`; reuse a `lineupId` from `ring_game_list_by_room` to retain its saved composition, including archived selections. Newly selecting archived masters is not allowed. If omitted on creation, the game defaults to builtin NLH. A mix groups variants by game group in order of first appearance. When supplied, `stakes` must contain one entry per resulting lineup group in order, each naming `gameGroupId` and optionally its blinds and ante. Omitted stakes carry forward by group ID and occurrence within that structure, not absolute position.
+
+`ring_game_list_by_room` returns each master's `currentRuleId`, `ruleVersion` (including `lineupId` and `stakes`), and `lineups` keyed by ID. `ring_game_update` merges supplied `rule` fields into the current rule; a changed rule creates an immutable version and unchanged content reuses the existing version. The API's `ringGame.restoreRule` is screen-only Undo and is not exposed through MCP; `ringGame.delete` is excluded as destructive. Archive a referenced master instead.
+
+`tournament_update_with_levels` and `game_mix_update` REPLACE their child lists — read the entity first and send the full list back.
 
 `hand_list` pages one play session's hands from the highest `handNo` (1–50 per page, default 20) and returns `{ items, nextCursor }`; send `nextCursor` back as `cursor`, which works only with the `playSessionId` it came from. A play session's hand count is the number of its hands, and its current button is the `buttonSeat` of its highest hand. The hand counter writes (`hand.add`, `hand.undoLast`) and `hand.delete` are not exposed.
 

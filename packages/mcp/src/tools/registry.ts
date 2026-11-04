@@ -70,8 +70,8 @@ const DATE_CONVENTIONS =
 const AMOUNT_CONVENTIONS =
 	"Amounts (blinds, ante, buy-in, stack) are plain integers in the currency's display unit.";
 
-export const MIX_RULE =
-	'A mixed-game rule is variant + mixGames together: variant must be the label of a game mix from game_mix_list (or the legacy "mix" sentinel), and mixGames its rotation. Sending mixGames without such a variant is rejected. For an available named mix, mixGames must reproduce that mix EXACTLY: one entry per game group its variants belong to, entries in the order game_group_list returns those groups, and each entry naming its variants by their game_variant_list label in the mix\'s own games order. Note game_mix_list returns variant IDS, not labels, so build the labels from game_variant_list. Any other grouping or order is rejected as "references an unavailable game master" — the message names ownership, but the cause is usually shape. If a named mix is no longer available, an update can retain its stored variant and exact ordered mixGames structure. The legacy "mix" sentinel is the loose form: owned variant labels, or labels already stored on the ring game when retaining that sentinel, grouped and ordered however you like, except that the variants of each entry must belong to ONE game group (their groupId in game_variant_list) — an entry spanning two groups is rejected with "must share a game group". On update, an entry whose variants span groups may be sent back using only labels from one entry already stored on the ring game being updated; create has no such exception. While a mix is set, the top-level blind1-3, ante and anteType are always stored as null, so values sent for those flat fields are dropped — the blinds of a mix live on each mixGames entry instead (its own blind1-3 / ante / anteType, per group).';
+const RING_GAME_RULE =
+	"rule.game selects exactly one of { variantId }, { gameMixId }, or { lineupId }. Use game_variant_list or game_mix_list for active IDs, or a lineupId from ring_game_list_by_room to preserve an existing composition, including archived selections. Newly selecting archived masters is rejected. rule.stakes, when supplied, must contain exactly one stake per resulting lineup group in order, each with its gameGroupId and optional blind1-3, ante, and anteType. A mix groups variants by their game group in first-appearance order. Omitted stakes carry forward by gameGroupId and occurrence, not position.";
 
 export const LEVEL_GAMES_RULE =
 	'A blind level may carry games: groups of variant labels, each with its own blind1-3 / ante, played in rotation during that level. The known variants of each group must belong to ONE game group (their groupId in game_variant_list) — a group spanning two is rejected with "must share a game group". On update, a group spanning game groups may be sent back using only labels from one group already stored on the tournament being updated; create has no such exception.';
@@ -161,7 +161,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "ring_game_list_by_room",
 		procedurePath: "ringGame.listByRoom",
 		description:
-			"List the ring-game (cash-game) rule masters of one room — blinds, variant, buy-in range. Set includeArchived to list archived ones instead.",
+			"List the ring-game (cash-game) masters of one room. Each result includes currentRuleId, ruleVersion with lineupId and stakes, and lineups keyed by ID. Set includeArchived to list archived ones instead.",
 		inputSchema: ringGameListByRoomInputSchema,
 	},
 	{
@@ -218,7 +218,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "ring_game_create",
 		procedurePath: "ringGame.create",
-		description: `Create a ring-game (cash-game) rule master inside a room: blinds, ante, buy-in range, table size, and free-text houseRules (the table's rules — memo is a separate note about the master). Sessions linked to it copy these values at link time. Required: roomId, name. When both buy-in bounds are supplied, minBuyIn must be <= maxBuyIn. ${MIX_RULE} variant defaults to a non-mixed label, so a create that passes mixGames must set variant too. ${AMOUNT_CONVENTIONS}`,
+		description: `Create a ring-game master inside a room. Supply roomId, name, and rule; defaultAssetId and memo are optional. The rule holds game, stakes, minBuyIn, maxBuyIn, tableSize, and houseRules; minBuyIn must not exceed maxBuyIn. If game is omitted, the builtin NLH lineup is used. ${RING_GAME_RULE}`,
 		inputSchema: ringGameCreateInputSchema,
 		destructiveHint: false,
 		idempotentHint: false,
@@ -226,7 +226,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "ring_game_update",
 		procedurePath: "ringGame.update",
-		description: `Update a ring-game rule master by id. Only the supplied fields change; pass null to clear a nullable one. When both resulting buy-in bounds are set, minBuyIn must be <= maxBuyIn; a one-sided update is checked against the stored opposite bound. Omit a bound to keep it, or pass null to remove that bound. ${MIX_RULE} To edit only the blinds of a mixed rule, echo back the mixGames that ring_game_list_by_room returned — but only while the mix master is untouched, because the check rebuilds the expected shape from the CURRENT variant labels and groups and the mix's current games. After a game_mix_update that replaced games, a game_variant_update that changed a label or group, or a game_group_update that renamed a user-created group (those sort by label, and that order is the entry order), rebuild mixGames from the current masters instead. Renaming the mix inverts that: variant is a copied label rather than a foreign key, so it stops resolving and the stored mixGames becomes the reference instead of the masters — send its grouping and variant labels back unchanged (only the per-entry blinds may differ), or set variant to the new mix label and send a rebuilt mixGames. To move a mixed rule back to flat blinds, set variant to a non-mixed label — that clears mixGames for you. Sending mixGames: null on its own is rejected either way, because leaving variant unchanged keeps the rule mixed. ring_game_list_by_room lists either active or archived rules, so pass includeArchived to find archived ones. Rules without a roomId never appear in that list and cannot be assigned a room here. Editing a rule does not change existing sessions' frozen snapshots. ${AMOUNT_CONVENTIONS}`,
+		description: `Update a ring-game master by id. Supplied rule fields merge with the current rule; omitted fields stay unchanged and nullable fields can be cleared with null. The resulting minBuyIn must not exceed maxBuyIn. A changed rule creates an immutable version; unchanged content reuses the current version. Read ring_game_list_by_room for the current rule and lineup. ${RING_GAME_RULE}`,
 		inputSchema: ringGameUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
@@ -353,7 +353,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "game_variant_update",
 		procedurePath: "gameVariant.update",
 		description:
-			'Update a game variant by id. Only the supplied fields change; pass null to clear shortLabel. Renaming rewrites NOTHING already stored: sessions and rule masters keep the label text they were written with, so a renamed variant splits into two buckets in stats_breakdown groupBy "variant" and renaming to tidy up past records leaves their text exactly as it was. It is not inert, though — those rows are tied back to this variant by that stored text alone, so moving it to another group (which is what names the blind fields) applies to every row still naming it, while a rename leaves the old ones matching no variant at all and falling back to generic SB / BB / Straddle blind labels, plus a third blind slot their real group may not have. To relabel rule masters — and to re-link those orphans — write the new label into each row instead: ring_game_update and tournament_update_with_levels accept variant, and a plain (non-mix) label needs no matching master row — except that tournament_update_with_levels also REQUIRES the full blindLevels list and replaces it, so read tournament_get_by_id and send that list back rather than an empty one. Recorded sessions cannot currently be relabeled through MCP. Either edit also changes the mixGames shape every mix containing this variant expects, so ring-game rules using such a mix need a rebuilt mixGames the next time they send one — updates touching neither variant nor mixGames stay unaffected.',
+			"Update a game variant by id. Only supplied fields change; pass null to clear shortLabel. Ring-game lineups reference variants by ID: renaming changes their displayed labels without changing saved composition, and moving a variant to another group affects future lineups but not existing lineup structures. Legacy tournament rules and sessions store labels, so renaming does not rewrite their stored text. Tournament edits require the full blindLevels list; read tournament_get_by_id first.",
 		inputSchema: gameVariantUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
@@ -396,7 +396,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "game_mix_update",
 		procedurePath: "gameMix.update",
 		description:
-			"Update a game mix by id. Only the supplied fields change, with one exception: supplying games REPLACES the whole rotation — read game_mix_list first (with includeArchived: true when the mix is archived, since the default list hides it) and send back the full list. Sending label alone leaves games untouched. Replacing it also changes the mixGames shape ring-game rules using this mix must send when they next send one. Renaming it does the opposite: their variant keeps the old label, which no longer resolves, so from then on their mixGames is checked against their own stored grouping and variant labels rather than against this mix.",
+			"Update a game mix by id. Only supplied fields change, except that games REPLACES the whole rotation — read game_mix_list first (with includeArchived: true when the mix is archived) and send back the full list. Sending label alone leaves games untouched. Existing ring-game lineups retain their saved composition when the mix changes; selecting the mix again uses its current rotation. Renaming changes their displayed mix name without changing their composition.",
 		inputSchema: gameMixUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
@@ -519,6 +519,11 @@ export const DELIBERATELY_EXCLUDED: {
 			"gameVariant.delete",
 			"gameMix.delete",
 		],
+	},
+	{
+		reason:
+			"Screen-only Undo: restore an existing ring-game rule version without creating another version",
+		paths: ["ringGame.restoreRule"],
 	},
 	{
 		reason:

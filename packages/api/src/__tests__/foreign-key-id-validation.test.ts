@@ -5,10 +5,10 @@ import { expectAccepts, expectRejects } from "./test-utils";
 describe("foreign-key id input validation", () => {
 	it.each([
 		[
-			"ring game currencyId",
+			"ring game defaultAssetId",
 			appRouter.ringGame.create,
-			{ roomId: "room-1", name: "Game" },
-			"currencyId",
+			{ roomId: "room-1", name: "Game", rule: {} },
+			"defaultAssetId",
 		],
 		[
 			"tournament currencyId",
@@ -29,7 +29,7 @@ describe("foreign-key id input validation", () => {
 	});
 
 	it.each([
-		["ring game currencyId", appRouter.ringGame.update, "currencyId"],
+		["ring game defaultAssetId", appRouter.ringGame.update, "defaultAssetId"],
 		["tournament currencyId", appRouter.tournament.update, "currencyId"],
 		[
 			"tournament with levels currencyId",

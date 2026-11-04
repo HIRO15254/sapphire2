@@ -3,15 +3,15 @@ import {
 	foreignKey,
 	index,
 	integer,
+	type SQLiteTableExtraConfigValue,
 	sqliteTable,
 	text,
 	uniqueIndex,
 } from "drizzle-orm/sqlite-core";
-import { DEFAULT_VARIANT_LABEL } from "../constants/game-variants";
-import type { MixGameGroup } from "../schemas/game";
 import { asset } from "./asset";
 import { user } from "./auth";
 import { room } from "./room";
+import { cashRule } from "./rule";
 
 export const ringGame = sqliteTable(
 	"ring_game",
@@ -22,21 +22,9 @@ export const ringGame = sqliteTable(
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
 		name: text("name").notNull(),
-		variant: text("variant").notNull().default(DEFAULT_VARIANT_LABEL),
-		mixGames: text("mix_games", { mode: "json" }).$type<MixGameGroup[]>(),
-		blind1: integer("blind1"),
-		blind2: integer("blind2"),
-		blind3: integer("blind3"),
-		ante: integer("ante"),
-		anteType: text("ante_type"),
-		minBuyIn: integer("min_buy_in"),
-		maxBuyIn: integer("max_buy_in"),
-		tableSize: integer("table_size"),
-		currencyId: text("currency_id").references(() => asset.id, {
-			onDelete: "set null",
-		}),
 		memo: text("memo"),
-		houseRules: text("house_rules"),
+		defaultAssetId: text("default_asset_id"),
+		currentRuleId: text("current_rule_id").notNull(),
 		archivedAt: integer("archived_at", { mode: "timestamp" }),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
@@ -45,16 +33,27 @@ export const ringGame = sqliteTable(
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
 	},
-	(table) => [
+	(table): SQLiteTableExtraConfigValue[] => [
 		uniqueIndex("ring_game_id_user_id_unique").on(table.id, table.userId),
-		index("ringGame_roomId_idx").on(table.roomId),
-		index("ringGame_userId_idx").on(table.userId),
-		index("ringGame_currencyId_idx").on(table.currencyId),
+		index("ring_game_room_idx").on(table.roomId),
+		index("ring_game_user_idx").on(table.userId),
+		index("ring_game_asset_idx").on(table.defaultAssetId),
+		index("ring_game_rule_idx").on(table.currentRuleId),
 		foreignKey({
 			columns: [table.roomId, table.userId],
 			foreignColumns: [room.id, room.userId],
 			name: "ring_game_room_owner_fk",
 		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.defaultAssetId, table.userId],
+			foreignColumns: [asset.id, asset.userId],
+			name: "ring_game_default_asset_owner_fk",
+		}).onDelete("no action"),
+		foreignKey({
+			columns: [table.currentRuleId, table.userId],
+			foreignColumns: [cashRule.id, cashRule.userId],
+			name: "ring_game_current_rule_owner_fk",
+		}).onDelete("no action"),
 	]
 );
 
@@ -67,8 +66,8 @@ export const ringGameRelations = relations(ringGame, ({ one }) => ({
 		fields: [ringGame.userId],
 		references: [user.id],
 	}),
-	asset: one(asset, {
-		fields: [ringGame.currencyId],
+	defaultAsset: one(asset, {
+		fields: [ringGame.defaultAssetId],
 		references: [asset.id],
 	}),
 }));

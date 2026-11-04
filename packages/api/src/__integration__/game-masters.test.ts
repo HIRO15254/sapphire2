@@ -65,6 +65,30 @@ async function rowCount(
 }
 
 describe("game masters (real D1)", () => {
+	test("migration-created builtins and archived stand-ins do not prevent completing the builtin seed", async ({
+		api,
+	}) => {
+		await api.d1
+			.prepare(
+				"INSERT INTO game_group (id, user_id, builtin_key, label, updated_at) VALUES ('alice:builtin-group:bigbet', 'alice', 'bigbet', 'Big Bet', 0)"
+			)
+			.run();
+		await api.d1
+			.prepare(
+				"INSERT INTO game_variant (id, user_id, group_id, label, archived_at, updated_at) VALUES ('standin-variant:alice:missing', 'alice', 'alice:builtin-group:bigbet', 'Missing', 1, 0)"
+			)
+			.run();
+		await api.d1
+			.prepare(
+				"INSERT INTO game_mix (id, user_id, label, games, archived_at, updated_at) VALUES ('standin-mix:alice:missing', 'alice', 'Missing', '[]', 1, 0)"
+			)
+			.run();
+		const variants = await api.alice.gameVariant.list();
+		expect(variants.some((variant) => variant.builtinKey === "nlh")).toBe(true);
+		expect((await api.alice.gameGroup.list()).length).toBeGreaterThan(1);
+		expect((await api.alice.gameMix.list()).length).toBeGreaterThan(0);
+	});
+
 	test("an archived master leaves the default list, stays readable with includeArchived, keeps its name and blind slots, and restores", async ({
 		api,
 	}) => {

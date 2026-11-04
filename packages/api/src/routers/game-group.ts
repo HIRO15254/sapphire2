@@ -56,17 +56,11 @@ export const gameGroupRouter = router({
 		.input(gameGroupListInputSchema)
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			let rows = await ctx.db
+			await seedDefaultGameData(ctx.db, userId);
+			const rows = await ctx.db
 				.select()
 				.from(gameGroup)
 				.where(eq(gameGroup.userId, userId));
-			if (rows.length === 0) {
-				await seedDefaultGameData(ctx.db, userId);
-				rows = await ctx.db
-					.select()
-					.from(gameGroup)
-					.where(eq(gameGroup.userId, userId));
-			}
 			return rows
 				.filter((row) => input?.includeArchived || row.archivedAt === null)
 				.sort(compareGroups);

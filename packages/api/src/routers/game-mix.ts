@@ -136,7 +136,7 @@ export const gameMixRouter = router({
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			let rows = await listOwnedGameMixes(ctx.db, userId);
-			if (rows.length === 0) {
+			if (rows.every((row) => row.id.startsWith("standin-"))) {
 				await seedDefaultGameData(ctx.db, userId);
 				rows = await listOwnedGameMixes(ctx.db, userId);
 			}

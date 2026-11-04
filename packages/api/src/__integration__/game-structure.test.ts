@@ -29,8 +29,6 @@ const SINGLE_STRUCTURE_LEVEL = {
 	],
 };
 
-const MIXED_MIX = [MIXED_GROUP, { variants: ["Limit Hold'em"] }];
-
 const STRUCTURE_REJECTION = {
 	code: "BAD_REQUEST",
 	message: expect.stringContaining("must share a game group"),
@@ -100,47 +98,6 @@ describe("one game group per mix group on D1", () => {
 		expect(await persistedRuleRows(api)).toEqual(before);
 	});
 
-	test("every legacy mix cash path rejects a group mixing game groups and accepts one group per structure", async ({
-		api,
-	}) => {
-		await api.alice.gameVariant.list();
-		const room = requireCreatedRow(
-			await api.alice.room.create({ name: "Club" })
-		);
-		const before = await persistedRuleRows(api);
-
-		const writes = [
-			() =>
-				api.alice.ringGame.create({
-					roomId: room.id,
-					name: "Dealer's choice",
-					variant: "mix",
-					mixGames: MIXED_MIX,
-				}),
-		];
-		for (const write of writes) {
-			await expect(write()).rejects.toMatchObject(STRUCTURE_REJECTION);
-		}
-		expect(await persistedRuleRows(api)).toEqual(before);
-
-		const accepted = requireCreatedRow(
-			await api.alice.ringGame.create({
-				roomId: room.id,
-				name: "Dealer's choice",
-				variant: "mix",
-				mixGames: SINGLE_STRUCTURE_LEVEL.games,
-			})
-		);
-		const [stored] = await api.db
-			.select({ mixGames: ringGame.mixGames })
-			.from(ringGame)
-			.where(eq(ringGame.id, accepted.id));
-		expect(stored?.mixGames?.map((group) => group.variants)).toEqual([
-			["NL Hold'em", "Pot Limit Omaha"],
-			["Razz", "Seven Card Stud"],
-		]);
-	});
-
 	test("a stored group that a regroup made mixed stays editable, but no game can join it", async ({
 		api,
 	}) => {
@@ -152,17 +109,6 @@ describe("one game group per mix group on D1", () => {
 			await api.alice.room.create({ name: "Club" })
 		);
 		const drawGroup = { variants: ["Badugi", "Badeucy"] };
-		const ring = requireCreatedRow(
-			await api.alice.ringGame.create({
-				roomId: room.id,
-				name: "Draw mix",
-				variant: "mix",
-				mixGames: [
-					{ ...drawGroup, blind1: 10, blind2: 20 },
-					{ variants: ["Razz"] },
-				],
-			})
-		);
 		const master = requireCreatedRow(
 			await api.alice.tournament.createWithLevels({
 				roomId: room.id,
@@ -175,35 +121,13 @@ describe("one game group per mix group on D1", () => {
 			groupId: bigBet?.id ?? "",
 		});
 
-		await api.alice.ringGame.update({
-			id: ring.id,
-			mixGames: [
-				{ ...drawGroup, blind1: 20, blind2: 40 },
-				{ variants: ["Razz"] },
-			],
-		});
 		await api.alice.tournament.updateWithLevels({
 			id: master.id,
 			blindLevels: [
 				{ isBreak: false, games: [{ variants: ["Badeucy", "Badugi"] }] },
 			],
 		});
-		const [ringAfterEcho] = await api.db
-			.select({ mixGames: ringGame.mixGames })
-			.from(ringGame)
-			.where(eq(ringGame.id, ring.id));
-		expect(ringAfterEcho?.mixGames?.[0]).toMatchObject({
-			blind1: 20,
-			blind2: 40,
-		});
-
 		const grownGroup = { variants: ["Badugi", "Badeucy", "Limit Hold'em"] };
-		await expect(
-			api.alice.ringGame.update({
-				id: ring.id,
-				mixGames: [grownGroup, { variants: ["Razz"] }],
-			})
-		).rejects.toMatchObject(STRUCTURE_REJECTION);
 		await expect(
 			api.alice.tournament.updateWithLevels({
 				id: master.id,

@@ -3,7 +3,7 @@ import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
 import { blindLevel, tournament } from "@sapphire2/db/schema/tournament";
 import { describe, expect } from "vitest";
-import { test } from "./test-fixture";
+import { insertRingGameFixture, test } from "./test-fixture";
 
 const day = new Date("2026-09-05T00:00:00.000Z");
 const ARCHIVE_GUIDANCE = /archive/i;
@@ -27,7 +27,7 @@ describe("entry-referenced master deletion on D1", () => {
 				updatedAt: day,
 			};
 			if (kind === "cash") {
-				await api.db.insert(ringGame).values(master);
+				await insertRingGameFixture(api.d1, master);
 			} else {
 				await api.db.insert(tournament).values(master);
 				await api.db.insert(blindLevel).values({
@@ -98,7 +98,7 @@ describe("entry-referenced master deletion on D1", () => {
 				updatedAt: day,
 			};
 			if (kind === "cash") {
-				await api.db.insert(ringGame).values(master);
+				await insertRingGameFixture(api.d1, master);
 				expect(await api.alice.ringGame.delete({ id: master.id })).toEqual({
 					success: true,
 				});

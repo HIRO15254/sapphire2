@@ -29,21 +29,21 @@ This is the load-bearing invariant of the whole model, and the one [`.claude/rul
 | Reference style | Where | Behavior on master edit |
 |---|---|---|
 | **Real foreign key** | `gameVariant.groupId` → `game_group.id`; `game_mix_variant` rows → `game_variant.id` | Resolved live. Editing the referenced row changes what every reader sees. |
-| **Frozen label copy (self-freezing)** | Every `variant` column elsewhere in the schema (`ring_game`, `tournament`, `session_cash_detail`, `session_tournament_detail`, …) | Stores the master row's display **label verbatim at write time**. Editing or deleting the master row never touches past sessions/games. |
+| **Frozen label copy (self-freezing)** | Legacy `variant` columns (`tournament`, `session_cash_detail`, `session_tournament_detail`, …) | Stores the master row's display **label verbatim at write time**. Editing or deleting the master row never touches past sessions/games. |
 
 Consequences, stated completely:
 
 - `gameGroup.update` re-labels live: a variant's blind-slot labels are resolved at render time through its owning group (`use-variant-labels.ts` / `labelsFor`), so renaming a group's slot labels changes how past sessions render.
 - `gameVariant.update` / `gameMix.update` rewrite **no stored text**: past rows keep the old label. "Nothing stored changed" is still not "nothing changed" — a frozen copy is resolved back to its master **by the copied text**, so a rename orphans the old rows. `labelsFor` in [`apps/web/src/shared/hooks/use-game-groups.ts`](../../apps/web/src/shared/hooks/use-game-groups.ts) then serves the fallback blind-slot labels (SB / BB / Straddle), which silently re-labels past Limit / Stud sessions and gives a Limit session a third blind slot its group does not have. A rename also splits one variant into two [`stats_breakdown`](statistics.md) buckets.
 - **Deletion is guarded**: frozen labels do not themselves reference masters, but normalized composition, lineups and hands do. Referenced masters cannot be hard-deleted; archive them instead (see [Deletion guards](#archive-and-deletion-guards)).
-- Historical session/rule columns intentionally keep frozen labels and value-object JSON (`ring_game.mix_games`, `session_cash_detail.mix_games`, `blind_level.games`, `session_blind_level.games`), so editing or deleting a master never rewrites past play. The session-side snapshot-freezing rule for detail rows is in [`sessions-and-live-editing.md`](sessions-and-live-editing.md).
+- Legacy session/rule columns retain frozen labels and value-object JSON (`session_cash_detail.mix_games`, `blind_level.games`, `session_blind_level.games`). Ring games instead reference immutable rule versions and lineups by id.
 - Frozen values are full display labels ("8-Game", "NL Hold'em") — the UI renders them as-is; uppercasing would mangle them.
 
 ### The mix pseudo-variant
 
 `mix` is a **mode, not a row**: the fixed key `MIX_VARIANT = "mix"` with display label `MIX_VARIANT_LABEL = "Mixed Game"` ([`packages/db/src/constants/game-variants.ts`](../../packages/db/src/constants/game-variants.ts)). It is the only exception to "frozen values are labels" — it is stored as the fixed key, frozen into old rows before named mix masters existed, and remains valid without a master row. `variantDisplayLabel` maps only this key; every other stored value is already a display label. `DEFAULT_VARIANT_LABEL` (the form default) is the **label** of the seeded NLH row, not a legacy key — forms freeze display labels, so the default must be one.
 
-`reconcileCashRuleSelection` in [`packages/api/src/services/cash-rule-selection.ts`](../../packages/api/src/services/cash-rule-selection.ts) keeps the frozen cash-rule discriminator and its optional mixed-game payload coherent at every write boundary: named mixes are labels of the caller's `game_mix` rows; the legacy `mix` sentinel remains valid without a master row; and because snapshots are deliberately self-freezing, re-submitting an unchanged named mix still works after that master is renamed or deleted.
+Ring-game writes select a variant, named mix, or existing lineup by id; the former cash-rule label resolution and sentinel paths are removed.
 
 ## Label namespace
 
@@ -53,11 +53,9 @@ Consequences, stated completely:
 
 ## Shared write==read schemas and the group-span limit
 
-[`packages/db/src/schemas/game.ts`](../../packages/db/src/schemas/game.ts) holds the shared write=read Zod schemas for mixed-game "game groups" — a group bundles the games that share one blind structure. Stored as JSON on `ring_game.mix_games` / `session_cash_detail.mix_games` (`mixGamesSchema`) and `blind_level.games` / `session_blind_level.games` (`levelGamesSchema` — NULL means a legacy single-structure level, and for ring games a non-mix game). `levelGameGroupSchema` reuses the group shape **minus `anteType`** (ante handling is uniform inside a level); minutes/isBreak stay on the level itself. db, api, and web all validate through these exact objects, per [`.claude/rules/api-data-integrity.md`](../../.claude/rules/api-data-integrity.md).
+[`packages/db/src/schemas/game.ts`](../../packages/db/src/schemas/game.ts) holds the legacy shared write=read Zod schemas for mixed-game groups, including `mixGamesSchema` and `levelGamesSchema` for the remaining legacy session and tournament paths. Ring-game rule writes instead use id-based lineups and stakes.
 
-**One game group per group, enforced by the server (SA2-224).** The schemas cannot see the masters, so [`packages/api/src/services/game-structure.ts`](../../packages/api/src/services/game-structure.ts) checks it on every write: the legacy `mix` sentinel inside `reconcileCashRuleSelection` (a named mix is already held to its canonical per-group buckets by `assertNamedMixComposition`), and every level-games path — `tournament.createWithLevels` / `updateWithLevels` and `blindLevel.create` / `update`. Each label resolves to the caller's variant by normalized label; a label that matches no variant is not checked (level labels are free text), and a group whose resolved variants span two `groupId`s is rejected with `BAD_REQUEST`.
-
-A group whose members all sit inside one **stored** group is exempt: the ring game being updated, or the tournament master whose levels are being replaced or edited. A variant can change group after it was used (`gameVariant.update` accepts `groupId`), which turns stored groups mixed; the exemption keeps echoes, blind edits and game removals working on that data while still refusing to add a game to such a group.
+Legacy level-game writes use [`packages/api/src/services/game-structure.ts`](../../packages/api/src/services/game-structure.ts) to enforce one resolved game group per stored group (SA2-224). Existing stored groups are exempt when variants have subsequently moved groups, allowing unchanged compositions to be retained.
 
 **`MAX_MIX_GROUPS = 12` (c58)** is defined once in `schemas/game.ts` and shared by `mixGamesSchema`/`levelGamesSchema` *and* by the game-mix router's master-mix group-span guard, so the two limits cannot drift apart. The reason the master side must enforce it too: a mix built from variants spanning more than `MAX_MIX_GROUPS` distinct game groups can never be turned into a session's `mixGames` (that array is itself capped at `MAX_MIX_GROUPS` groups), so `assertGroupSpanWithinLimit` rejects at the master-mix level instead of producing a mix that silently truncates or fails later.
 
@@ -73,12 +71,12 @@ Hard deletes use a single `DELETE` with `NOT EXISTS` reference guards and return
 
 [`packages/api/src/services/seed-game-data.ts`](../../packages/api/src/services/seed-game-data.ts) seeds the built-in game groups + variants + named mixes for a user. Each seeded mix's ordered `game_mix_variant` rows reference **this user's** freshly seeded variant ids — `DEFAULT_GAME_MIXES.variantKeys` map to `DEFAULT_GAME_VARIANTS` keys purely as seed-time lookups; the keys themselves are never persisted as memberships.
 
-**Idempotency guard (c09)**: if the user owns any group, variant or mix row, including archived rows, the seed is a no-op. Archiving all masters therefore never causes builtins to be re-seeded.
+**Idempotency guard (c09)**: existing user-created variants and existing mixes, including archived rows, stop seeding. Groups alone, migration-created builtin variants, and `standin-` variants and mixes do not count as completion; migration can create these without running the seed. A completed seed's builtin mixes count, so archiving them does not cause reseeding. Existing groups and variants with a builtin key or matching label are reused, and a mix label held by a stand-in is not overwritten.
 
 **Call sites**:
 
 - Once from better-auth's `user.create` hook (`onUserCreated` in [`packages/auth/src/index.ts`](../../packages/auth/src/index.ts)). The hook body wraps it in try/catch: **signup must succeed even if seeding fails** (c13) — every `list` procedure self-seeds on next read, so a seed failure here would otherwise take down account creation entirely for an unrelated, retriable side effect.
-- Defensively from `gameVariant.list` / `gameGroup.list` / `gameMix.list` (c32), for legacy accounts. The seed checks all three tables, including archived rows, before inserting.
+- Defensively from `gameVariant.list` / `gameGroup.list` / `gameMix.list` (c32), for legacy accounts. The seed checks all three tables before inserting, including archived rows subject to the migration exceptions above.
 
 **Race design (stable per-user ids)**: deterministic ids and `onConflictDoNothing` inserts make concurrent seeds converge. All statements run in one `runBatch`; seed errors are not swallowed.
 

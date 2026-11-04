@@ -31,6 +31,7 @@ export const TASK = {
 
 export const B01_MIGRATION = "0059_v2_final_empty_schema.sql";
 export const B06_MIGRATION = "0061_entry_p1_cutover.sql";
+export const B07_MIGRATION = "0066_ring_game_rule_versions.sql";
 export const B10_MIGRATION = "0062_hand_count_cutover.sql";
 export const B09_MIGRATION = "0063_ledger_cutover.sql";
 export const B12_MIGRATION = "0064_open_live_cash_ev.sql";
@@ -73,6 +74,7 @@ export type Check = SqlCheck | ReplayCheck | DeferredCheck;
 
 const SINCE_B01: Activation = { state: "active", since: B01_MIGRATION };
 const SINCE_B06: Activation = { state: "active", since: B06_MIGRATION };
+const SINCE_B07: Activation = { state: "active", since: B07_MIGRATION };
 const SINCE_B10: Activation = { state: "active", since: B10_MIGRATION };
 const SINCE_B09: Activation = { state: "active", since: B09_MIGRATION };
 const SINCE_B12: Activation = { state: "active", since: B12_MIGRATION };
@@ -324,7 +326,7 @@ WHERE COALESCE(g.amount, 0) <> COALESCE(n.amount, 0)`,
 		audit: "A-13",
 		part: "ring_game current rule belongs to that master",
 		kind: "sql",
-		activation: pending(TASK.B07),
+		activation: SINCE_B07,
 		tables: ["ring_game", "cash_rule"],
 		sql: () => `SELECT r.id AS id FROM ring_game r
 LEFT JOIN cash_rule v ON v.id = r.current_rule_id AND v.user_id = r.user_id
@@ -342,9 +344,9 @@ WHERE v.id IS NULL OR v.tournament_id IS NOT t.id`,
 	},
 	{
 		audit: "A-13",
-		part: "master and entry rule content equals staged/source snapshots",
+		part: "tournament master and entry rule content equals staged/source snapshots",
 		kind: "deferred",
-		activation: pending(`${TASK.B07}, ${TASK.B08}, ${TASK.B13}`),
+		activation: pending(`${TASK.B08}, ${TASK.B13}`),
 		deletedBy: TASK.B25,
 		tables: [],
 	},
@@ -449,7 +451,7 @@ WHERE a.kind <> 'currency'`,
 		audit: "A-14",
 		part: "cash rule parent and entry rule keep NULL-master parity",
 		kind: "sql",
-		activation: pending(TASK.B07),
+		activation: SINCE_B07,
 		tables: ["cash_rule", "entry_cash"],
 		sql: () => `SELECT 'cash_rule' AS target, c.id AS id FROM cash_rule c
 JOIN cash_rule p ON p.id = c.parent_rule_id AND p.user_id = c.user_id
@@ -477,7 +479,7 @@ WHERE r.tournament_id IS NOT et.tournament_id`,
 		audit: "A-14",
 		part: "cash rule has one stake per lineup group",
 		kind: "sql",
-		activation: pending(TASK.B07),
+		activation: SINCE_B07,
 		tables: ["cash_rule", "game_lineup_group", "cash_rule_stake"],
 		sql: () => `SELECT r.id AS rule_id, g.id AS lineup_group_id FROM cash_rule r
 JOIN game_lineup_group g ON g.lineup_id = r.lineup_id AND g.user_id = r.user_id

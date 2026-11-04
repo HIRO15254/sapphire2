@@ -2,7 +2,6 @@ import { asset } from "@sapphire2/db/schema/asset";
 import { user } from "@sapphire2/db/schema/auth";
 import { ledgerCategory, ledgerLine } from "@sapphire2/db/schema/ledger";
 import { player, playerToPlayerTag } from "@sapphire2/db/schema/player";
-import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
@@ -100,6 +99,7 @@ describe("installed D1 referential integrity", () => {
 	test("preserves recorded session snapshots while deleted room, currency and ring-game links become null", async ({
 		api,
 	}) => {
+		await api.alice.gameVariant.list();
 		const wallet = requireCreatedRow(
 			await api.alice.asset.create({ name: "Local chips", kind: "currency" })
 		);
@@ -109,14 +109,14 @@ describe("installed D1 referential integrity", () => {
 			name: "Old room",
 			updatedAt: day,
 		});
-		await api.db.insert(ringGame).values({
-			id: "old-game",
-			userId: "alice",
-			roomId: "old-room",
-			currencyId: wallet.id,
-			name: "Old game",
-			updatedAt: day,
-		});
+		const oldGame = requireCreatedRow(
+			await api.alice.ringGame.create({
+				roomId: "old-room",
+				defaultAssetId: wallet.id,
+				name: "Old game",
+				rule: {},
+			})
+		);
 		await api.db.insert(gameSession).values({
 			id: "history",
 			userId: "alice",
@@ -130,7 +130,7 @@ describe("installed D1 referential integrity", () => {
 		});
 		await api.db.insert(sessionCashDetail).values({
 			sessionId: "history",
-			ringGameId: "old-game",
+			ringGameId: oldGame.id,
 			ruleName: "Recorded game",
 			buyIn: 100,
 			cashOut: 150,

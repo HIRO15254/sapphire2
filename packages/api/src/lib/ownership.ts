@@ -373,6 +373,29 @@ async function validateEntityOwnership(
 			return undefined;
 	}
 }
+export async function validateOwnedIds(
+	db: DbInstance,
+	table: SQLiteTable & { id: SQLiteColumn; userId: SQLiteColumn },
+	ids: string[],
+	userId: string
+): Promise<void> {
+	const uniqueIds = [...new Set(ids)];
+	const owned = await selectInChunks(
+		uniqueIds,
+		(chunk) =>
+			db
+				.select({ id: table.id })
+				.from(table)
+				.where(and(inArray(table.id, chunk), eq(table.userId, userId))),
+		1
+	);
+	if (owned.length !== uniqueIds.length) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own one or more of these entities",
+		});
+	}
+}
 
 export async function validateTagsOwnership(
 	db: DbInstance,

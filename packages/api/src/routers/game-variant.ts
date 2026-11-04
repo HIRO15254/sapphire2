@@ -79,7 +79,11 @@ export const gameVariantRouter = router({
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			let rows = await selectOwnedVariants(ctx.db, userId);
-			if (rows.length === 0) {
+			if (
+				rows.every(
+					(row) => row.builtinKey !== null || row.id.startsWith("standin-")
+				)
+			) {
 				await seedDefaultGameData(ctx.db, userId);
 				rows = await selectOwnedVariants(ctx.db, userId);
 			}
