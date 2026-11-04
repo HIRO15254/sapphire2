@@ -31,6 +31,8 @@ export interface AssetHistoryRow {
 
 const REAL = sql`${ledgerLine.effect} = 'real'`;
 
+export const assetBalance = sql<number>`(SELECT COALESCE(SUM(ledger_line.quantity), 0) FROM ledger_line WHERE ledger_line.asset_id = asset.id AND ledger_line.user_id = asset.user_id AND ledger_line.effect = 'real')`;
+
 export async function selectEntryRealTotals(
 	db: Database,
 	userId: string,
@@ -76,21 +78,9 @@ export async function selectAssetBalances(
 	userId: string
 ): Promise<AssetBalance[]> {
 	return await db
-		.select({
-			assetId: asset.id,
-			balance: sql<number>`COALESCE(SUM(${ledgerLine.quantity}), 0)`,
-		})
+		.select({ assetId: asset.id, balance: assetBalance })
 		.from(asset)
-		.leftJoin(
-			ledgerLine,
-			and(
-				eq(ledgerLine.assetId, asset.id),
-				eq(ledgerLine.userId, asset.userId),
-				REAL
-			)
-		)
-		.where(eq(asset.userId, userId))
-		.groupBy(asset.id);
+		.where(eq(asset.userId, userId));
 }
 
 export async function selectAssetHistory(

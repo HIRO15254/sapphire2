@@ -55,7 +55,9 @@ The B06 cutover removes the old completed-session and live-session APIs and thei
 | `stats_breakdown` | `stats.breakdown` | read |
 | `stats_profit_loss_series` | `stats.profitLossSeries` | read |
 | `room_list` | `room.list` | read |
-| `currency_list` | `currency.list` | read |
+| `asset_list` | `asset.list` | read |
+| `asset_rate_list` | `assetRate.list` | read |
+| `user_setting_get` | `userSetting.get` | read |
 | `player_list` | `player.list` | read |
 | `hand_list` | `hand.list` | read |
 | `hand_get_by_id` | `hand.getById` | read |
@@ -90,6 +92,8 @@ Master-data tools mutate rows that existing sessions reference, so `*_update` an
 `tournament_update_with_levels` and `game_mix_update` REPLACE their child lists — read the entity first and send the full list back. `mixGames` is accepted by the ring-game tools: a named mix must be reproduced exactly, and while a mix is set `blind1`-`blind3`, `ante` and `anteType` are always stored as `null`, so values sent for those flat fields are dropped.
 
 `hand_list` pages one play session's hands from the highest `handNo` (1–50 per page, default 20) and returns `{ items, nextCursor }`; send `nextCursor` back as `cursor`, which works only with the `playSessionId` it came from. A play session's hand count is the number of its hands, and its current button is the `buttonSeat` of its highest hand. The hand counter writes (`hand.add`, `hand.undoLast`) and `hand.delete` are not exposed.
+
+`asset_list` returns currencies and items with `balance`: the signed sum of every real ledger line in the asset's smallest unit (for an item, the number held), including buy-ins of entries still in play. Archived assets appear only with `includeArchived`, which returns active and archived ones together. `asset_rate_list` returns the rate history, or with `effectiveAt` the latest rate in force per base/quote direction. `user_setting_get` returns the reporting base currency and time zone (`null` time zone means Asia/Tokyo); a change to either, or to a past rate, also changes past converted figures. Asset, rate and setting writes are not exposed.
 
 Procedures not listed are deliberately excluded (irreversible deletes, non-idempotent favourite toggles, bankroll ledger writes, AI extraction, …) — the reasons live in `packages/mcp/src/tools/registry.ts` and are enforced by the coupling test.
 

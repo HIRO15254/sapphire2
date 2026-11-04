@@ -22,7 +22,6 @@ export const TASK = {
 	B01: "B01 (SA2-385)",
 	B07: "B07 (SA2-392)",
 	B08: "B08 (SA2-393)",
-	B12: "B12 (SA2-397)",
 	B13: "B13 (SA2-398)",
 	B15: "B15 (SA2-401)",
 	B18: "B18 (SA2-404)",
@@ -34,6 +33,7 @@ export const B01_MIGRATION = "0059_v2_final_empty_schema.sql";
 export const B06_MIGRATION = "0061_entry_p1_cutover.sql";
 export const B10_MIGRATION = "0062_hand_count_cutover.sql";
 export const B09_MIGRATION = "0063_ledger_cutover.sql";
+export const B12_MIGRATION = "0064_open_live_cash_ev.sql";
 
 export type Activation =
 	| { state: "active"; since: string | null }
@@ -75,6 +75,7 @@ const SINCE_B01: Activation = { state: "active", since: B01_MIGRATION };
 const SINCE_B06: Activation = { state: "active", since: B06_MIGRATION };
 const SINCE_B10: Activation = { state: "active", since: B10_MIGRATION };
 const SINCE_B09: Activation = { state: "active", since: B09_MIGRATION };
+const SINCE_B12: Activation = { state: "active", since: B12_MIGRATION };
 
 function pending(enabledBy: string): { state: "pending"; enabledBy: string } {
 	return { state: "pending", enabledBy };
@@ -242,7 +243,7 @@ HAVING COALESCE(sum(l.quantity), 0) <> x.pl`,
 		part: "projectEntry replay: open cash entry EV",
 		kind: "replay",
 		replay: "a6-open-ev",
-		activation: pending(TASK.B12),
+		activation: SINCE_B12,
 		tables: ["entry_cash"],
 	},
 	{

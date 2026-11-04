@@ -113,7 +113,8 @@ describe("tool/router coupling", () => {
 
 	it("exposes the agreed tool catalogue and nothing else", () => {
 		expect(TOOL_DEFINITIONS.map((d) => d.name).sort()).toEqual([
-			"currency_list",
+			"asset_list",
+			"asset_rate_list",
 			"game_group_create",
 			"game_group_list",
 			"game_group_update",
@@ -148,6 +149,7 @@ describe("tool/router coupling", () => {
 			"tournament_list_by_room",
 			"tournament_restore",
 			"tournament_update_with_levels",
+			"user_setting_get",
 		]);
 	});
 

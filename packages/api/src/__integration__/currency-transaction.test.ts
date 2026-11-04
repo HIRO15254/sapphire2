@@ -10,7 +10,7 @@ describe("currency transaction SQL boundaries", () => {
 		api,
 	}) => {
 		const wallet = requireCreatedRow(
-			await api.alice.currency.create({ name: "Own" })
+			await api.alice.asset.create({ name: "Own", kind: "currency" })
 		);
 		const kind = requireCreatedRow(
 			await api.alice.transactionType.create({ name: "Own type" })
@@ -41,10 +41,10 @@ describe("currency transaction SQL boundaries", () => {
 		api,
 	}) => {
 		const wallet = requireCreatedRow(
-			await api.alice.currency.create({ name: "Own" })
+			await api.alice.asset.create({ name: "Own", kind: "currency" })
 		);
 		const foreignWallet = requireCreatedRow(
-			await api.bob.currency.create({ name: "Foreign" })
+			await api.bob.asset.create({ name: "Foreign", kind: "currency" })
 		);
 		const kind = requireCreatedRow(
 			await api.alice.transactionType.create({ name: "Own type" })
@@ -109,7 +109,7 @@ describe("currency transaction SQL boundaries", () => {
 		api,
 	}) => {
 		const wallet = requireCreatedRow(
-			await api.alice.currency.create({ name: "Own" })
+			await api.alice.asset.create({ name: "Own", kind: "currency" })
 		);
 		const kind = requireCreatedRow(
 			await api.alice.transactionType.create({ name: "Adjustment" })
@@ -162,7 +162,7 @@ describe("currency transaction SQL boundaries", () => {
 		api,
 	}) => {
 		const wallet = requireCreatedRow(
-			await api.alice.currency.create({ name: "Own" })
+			await api.alice.asset.create({ name: "Own", kind: "currency" })
 		);
 		const kind = requireCreatedRow(
 			await api.alice.transactionType.create({ name: "Adjustment" })
@@ -204,12 +204,10 @@ describe("currency transaction SQL boundaries", () => {
 		api,
 	}) => {
 		const wallet = requireCreatedRow(
-			await api.alice.currency.create({ name: "Own" })
+			await api.alice.asset.create({ name: "Own", kind: "currency" })
 		);
 		const foreignWallet = requireCreatedRow(
-			await api.bob.currency.create({
-				name: "Other account",
-			})
+			await api.bob.asset.create({ name: "Other account", kind: "currency" })
 		);
 		const kind = requireCreatedRow(
 			await api.alice.transactionType.create({ name: "Adjustment" })
@@ -282,7 +280,7 @@ describe("currency transaction SQL boundaries", () => {
 		api,
 	}) => {
 		const wallet = requireCreatedRow(
-			await api.alice.currency.create({ name: "Own" })
+			await api.alice.asset.create({ name: "Own", kind: "currency" })
 		);
 		const ownKind = requireCreatedRow(
 			await api.alice.transactionType.create({ name: "Visible" })

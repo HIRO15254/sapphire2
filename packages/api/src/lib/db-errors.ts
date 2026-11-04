@@ -6,6 +6,9 @@ const FILTER_PRESET_NAME_CONFLICT_RE =
 const ASSET_NAME_CONFLICT_RE =
 	/UNIQUE constraint failed:\s*index 'asset_name_uq'/i;
 
+const ASSET_RATE_CONFLICT_RE =
+	/UNIQUE constraint failed:\s*asset_rate\.user_id,\s*asset_rate\.base_asset_id,\s*asset_rate\.quote_asset_id,\s*asset_rate\.effective_from/i;
+
 const FOREIGN_KEY_FAILED_RE = /FOREIGN KEY constraint failed/i;
 
 function someErrorInChain(error: unknown, pattern: RegExp): boolean {
@@ -25,6 +28,10 @@ export function isForeignKeyConstraintError(error: unknown): boolean {
 
 export function isAssetNameConflictError(error: unknown): boolean {
 	return someErrorInChain(error, ASSET_NAME_CONFLICT_RE);
+}
+
+export function isAssetRateConflictError(error: unknown): boolean {
+	return someErrorInChain(error, ASSET_RATE_CONFLICT_RE);
 }
 
 export function isLabelConflictError(error: unknown): boolean {

@@ -273,13 +273,7 @@ function foldPlaySession(
 	};
 }
 
-function projectCash(
-	events: readonly ProjectorEvent[],
-	settled: boolean
-): EntryDetailProjection {
-	if (!settled) {
-		return { kind: "cash", evDiff: null };
-	}
+function projectCash(events: readonly ProjectorEvent[]): EntryDetailProjection {
 	let evDiff = 0;
 	for (const event of events) {
 		if (event.type === "all_in") {
@@ -500,7 +494,7 @@ export function projectEntry(
 		playSessions,
 		detail:
 			context.kind === "cash"
-				? projectCash(ordered, settled)
+				? projectCash(ordered)
 				: projectTournament(ordered, finalFold.endEvent),
 		lines: projectLines(
 			ordered,
