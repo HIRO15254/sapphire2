@@ -1,5 +1,5 @@
-import { transactionType } from "@sapphire2/db/schema/currency";
 import { filterPreset } from "@sapphire2/db/schema/filter-preset";
+import { ledgerCategory } from "@sapphire2/db/schema/ledger";
 import { playerTag } from "@sapphire2/db/schema/player";
 import { room } from "@sapphire2/db/schema/room";
 import { sessionTag } from "@sapphire2/db/schema/session-tag";
@@ -33,15 +33,17 @@ const cases = [
 			] as const,
 	},
 	{
-		router: "transactionType",
-		table: transactionType,
-		message: "You do not own this transaction type",
+		router: "ledgerCategory",
+		table: ledgerCategory,
+		message: "You do not own this category",
 		create: (caller: ApiFixture["alice"]) =>
-			caller.transactionType.create({ name: "Transfer" }),
+			caller.ledgerCategory.create({ name: "Deposit" }),
 		calls: (caller: ApiFixture["alice"], id: string) =>
 			[
-				() => caller.transactionType.update({ id, name: "Renamed" }),
-				() => caller.transactionType.delete({ id }),
+				() => caller.ledgerCategory.update({ id, name: "Renamed" }),
+				() => caller.ledgerCategory.archive({ id }),
+				() => caller.ledgerCategory.restore({ id }),
+				() => caller.ledgerCategory.delete({ id }),
 			] as const,
 	},
 	{
@@ -107,5 +109,5 @@ test.for(
 	);
 	expect(
 		await api.db.select().from(table).where(eq(table.id, foreign.id))
-	).toEqual([foreign]);
+	).toEqual([expect.objectContaining(foreign)]);
 });

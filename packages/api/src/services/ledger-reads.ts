@@ -1,6 +1,7 @@
 import type { Database } from "@sapphire2/db";
 import type { LedgerRole } from "@sapphire2/db/constants/ledger";
 import { asset } from "@sapphire2/db/schema/asset";
+import { entry } from "@sapphire2/db/schema/entry";
 import { ledgerLine } from "@sapphire2/db/schema/ledger";
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { D1_MAX_BOUND_PARAMS } from "../lib/batch";
@@ -26,6 +27,7 @@ export interface AssetHistoryRow {
 	occurredAt: Date;
 	quantity: number;
 	role: LedgerRole | null;
+	title: string | null;
 	transferId: string | null;
 }
 
@@ -105,6 +107,7 @@ export async function selectAssetHistory(
 			quantity: ledgerLine.quantity,
 			occurredAt: ledgerLine.occurredAt,
 			memo: ledgerLine.memo,
+			title: sql<string | null>`NULL`.as("title"),
 		})
 		.from(ledgerLine)
 		.where(
@@ -127,8 +130,13 @@ export async function selectAssetHistory(
 				.mapWith(ledgerLine.occurredAt)
 				.as("occurred_at"),
 			memo: sql<string | null>`NULL`.as("memo"),
+			title: sql<string | null>`MAX(${entry.title})`.as("title"),
 		})
 		.from(ledgerLine)
+		.innerJoin(
+			entry,
+			and(eq(entry.id, ledgerLine.entryId), eq(entry.userId, ledgerLine.userId))
+		)
 		.where(
 			and(
 				eq(ledgerLine.userId, userId),

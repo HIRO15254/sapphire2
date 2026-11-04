@@ -3,12 +3,13 @@ import { aiExtractRouter } from "./ai-extract";
 import { assetRouter } from "./asset";
 import { assetRateRouter } from "./asset-rate";
 import { blindLevelRouter } from "./blind-level";
-import { currencyTransactionRouter } from "./currency-transaction";
 import { filterPresetRouter } from "./filter-preset";
 import { gameGroupRouter } from "./game-group";
 import { gameMixRouter } from "./game-mix";
 import { gameVariantRouter } from "./game-variant";
 import { handRouter } from "./hand";
+import { ledgerRouter } from "./ledger";
+import { ledgerCategoryRouter } from "./ledger-category";
 import { locationRouter } from "./location";
 import { playerRouter } from "./player";
 import { playerTagRouter } from "./player-tag";
@@ -18,7 +19,6 @@ import { sessionTagRouter } from "./session-tag";
 import { statsRouter } from "./stats";
 import { tournamentRouter } from "./tournament";
 import { tournamentChipPurchaseRouter } from "./tournament-chip-purchase";
-import { transactionTypeRouter } from "./transaction-type";
 import { updateNoteViewRouter } from "./update-note-view";
 import { userSettingRouter } from "./user-setting";
 
@@ -35,11 +35,11 @@ export const appRouter = router({
 	aiExtract: aiExtractRouter,
 	location: locationRouter,
 	room: roomRouter,
-	transactionType: transactionTypeRouter,
 	asset: assetRouter,
 	assetRate: assetRateRouter,
 	userSetting: userSettingRouter,
-	currencyTransaction: currencyTransactionRouter,
+	ledger: ledgerRouter,
+	ledgerCategory: ledgerCategoryRouter,
 	gameVariant: gameVariantRouter,
 	gameGroup: gameGroupRouter,
 	gameMix: gameMixRouter,

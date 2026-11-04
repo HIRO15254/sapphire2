@@ -1,6 +1,6 @@
 import { asset } from "@sapphire2/db/schema/asset";
 import { user } from "@sapphire2/db/schema/auth";
-import { currencyTransaction } from "@sapphire2/db/schema/currency";
+import { ledgerCategory, ledgerLine } from "@sapphire2/db/schema/ledger";
 import { player, playerToPlayerTag } from "@sapphire2/db/schema/player";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
@@ -155,7 +155,7 @@ describe("installed D1 referential integrity", () => {
 		]);
 	});
 
-	test("deleting one account cascades its sessions, events and player links while preserving the other account", async ({
+	test("deleting one account cascades its sessions, events, ledger and player links while preserving the other account", async ({
 		api,
 	}) => {
 		const tag = requireCreatedRow(
@@ -168,8 +168,8 @@ describe("installed D1 referential integrity", () => {
 		const wallet = requireCreatedRow(
 			await api.alice.asset.create({ name: "Owned wallet", kind: "currency" })
 		);
-		const kind = requireCreatedRow(
-			await api.alice.transactionType.create({ name: "Adjustment" })
+		const category = requireCreatedRow(
+			await api.alice.ledgerCategory.create({ name: "Deposit" })
 		);
 		await api.db.insert(gameSession).values({
 			id: "owned-session",
@@ -191,17 +191,18 @@ describe("installed D1 referential integrity", () => {
 			occurredAt: day,
 			sortOrder: 0,
 		});
-		await api.alice.currencyTransaction.create({
-			currencyId: wallet.id,
-			transactionTypeId: kind.id,
-			amount: 100,
-			transactedAt: "2026-09-05",
+		await api.alice.ledger.createAdjustment({
+			assetId: wallet.id,
+			quantity: 100,
+			categoryId: category.id,
+			occurredAt: day.getTime() / 1000,
 		});
 		await api.db.delete(user).where(eq(user.id, "alice"));
 		expect(await api.db.select().from(gameSession)).toEqual([]);
 		expect(await api.db.select().from(sessionCashDetail)).toEqual([]);
 		expect(await api.db.select().from(sessionEvent)).toEqual([]);
-		expect(await api.db.select().from(currencyTransaction)).toEqual([]);
+		expect(await api.db.select().from(ledgerLine)).toEqual([]);
+		expect(await api.db.select().from(ledgerCategory)).toEqual([]);
 		expect(await api.db.select().from(playerToPlayerTag)).toEqual([]);
 		expect(await api.bob.player.list()).toEqual([
 			expect.objectContaining({ id: bobPlayer.id, name: "Bob stays" }),
