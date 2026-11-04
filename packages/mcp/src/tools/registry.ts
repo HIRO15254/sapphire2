@@ -396,7 +396,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "game_mix_update",
 		procedurePath: "gameMix.update",
 		description:
-			"Update a game mix by id. Only the supplied fields change, with one exception: supplying games REPLACES the whole rotation — read game_mix_list first and send back the full list. Sending label alone leaves games untouched. Replacing it also changes the mixGames shape ring-game rules using this mix must send when they next send one. Renaming it does the opposite: their variant keeps the old label, which no longer resolves, so from then on their mixGames is checked against their own stored grouping and variant labels rather than against this mix.",
+			"Update a game mix by id. Only the supplied fields change, with one exception: supplying games REPLACES the whole rotation — read game_mix_list first (with includeArchived: true when the mix is archived, since the default list hides it) and send back the full list. Sending label alone leaves games untouched. Replacing it also changes the mixGames shape ring-game rules using this mix must send when they next send one. Renaming it does the opposite: their variant keeps the old label, which no longer resolves, so from then on their mixGames is checked against their own stored grouping and variant labels rather than against this mix.",
 		inputSchema: gameMixUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
