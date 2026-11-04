@@ -57,6 +57,8 @@ The B06 cutover removes the old completed-session and live-session APIs and thei
 | `room_list` | `room.list` | read |
 | `currency_list` | `currency.list` | read |
 | `player_list` | `player.list` | read |
+| `hand_list` | `hand.list` | read |
+| `hand_get_by_id` | `hand.getById` | read |
 | `session_tag_list` | `sessionTag.list` | read |
 | `session_tag_create` | `sessionTag.create` | write |
 | `ring_game_list_by_room` | `ringGame.listByRoom` | read |
@@ -86,6 +88,8 @@ The B06 cutover removes the old completed-session and live-session APIs and thei
 Master-data tools mutate rows that existing sessions reference, so `*_update` and the game-master updates are annotated destructive. **Deletion is deliberately not exposed anywhere.** Ring games and tournaments have an archive/restore counterpart, which is exposed instead; rooms and the game masters have none, so a mistaken `room_create` or `game_variant_create` leaves a row only the web UI can clear — check the matching list tool before creating.
 
 `tournament_update_with_levels` and `game_mix_update` REPLACE their child lists — read the entity first and send the full list back. `mixGames` is accepted by the ring-game tools: a named mix must be reproduced exactly, and while a mix is set `blind1`-`blind3`, `ante` and `anteType` are always stored as `null`, so values sent for those flat fields are dropped.
+
+`hand_list` pages one play session's hands from the highest `handNo` (1–50 per page, default 20) and returns `{ items, nextCursor }`; send `nextCursor` back as `cursor`, which works only with the `playSessionId` it came from. A play session's hand count is the number of its hands, and its current button is the `buttonSeat` of its highest hand. The hand counter writes (`hand.add`, `hand.undoLast`) and `hand.delete` are not exposed.
 
 Procedures not listed are deliberately excluded (irreversible deletes, non-idempotent favourite toggles, bankroll ledger writes, AI extraction, …) — the reasons live in `packages/mcp/src/tools/registry.ts` and are enforced by the coupling test.
 

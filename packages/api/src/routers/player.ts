@@ -1,10 +1,11 @@
+import { handSeat } from "@sapphire2/db/schema/hand";
 import {
 	player,
 	playerTag,
 	playerToPlayerTag,
 } from "@sapphire2/db/schema/player";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, inArray, like } from "drizzle-orm";
+import { and, asc, eq, exists, inArray, like, not } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import {
@@ -339,7 +340,34 @@ export const playerRouter = router({
 				});
 			}
 
-			await ctx.db.delete(player).where(eq(player.id, input.id));
+			const deleted = await ctx.db
+				.delete(player)
+				.where(
+					and(
+						eq(player.id, input.id),
+						eq(player.userId, userId),
+						not(
+							exists(
+								ctx.db
+									.select({ playerId: handSeat.playerId })
+									.from(handSeat)
+									.where(
+										and(
+											eq(handSeat.playerId, input.id),
+											eq(handSeat.userId, userId)
+										)
+									)
+							)
+						)
+					)
+				)
+				.returning({ id: player.id });
+			if (deleted.length === 0) {
+				throw new TRPCError({
+					code: "CONFLICT",
+					message: "This player is seated in recorded hands",
+				});
+			}
 			return { success: true };
 		}),
 });

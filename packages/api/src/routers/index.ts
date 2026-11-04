@@ -7,6 +7,7 @@ import { filterPresetRouter } from "./filter-preset";
 import { gameGroupRouter } from "./game-group";
 import { gameMixRouter } from "./game-mix";
 import { gameVariantRouter } from "./game-variant";
+import { handRouter } from "./hand";
 import { locationRouter } from "./location";
 import { playerRouter } from "./player";
 import { playerTagRouter } from "./player-tag";
@@ -44,6 +45,7 @@ export const appRouter = router({
 	tournamentChipPurchase: tournamentChipPurchaseRouter,
 	stats: statsRouter,
 	sessionTag: sessionTagRouter,
+	hand: handRouter,
 	player: playerRouter,
 	playerTag: playerTagRouter,
 	updateNoteView: updateNoteViewRouter,

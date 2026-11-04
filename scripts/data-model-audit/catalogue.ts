@@ -23,7 +23,6 @@ export const TASK = {
 	B07: "B07 (SA2-392)",
 	B08: "B08 (SA2-393)",
 	B09: "B09 (SA2-394)",
-	B10: "B10 (SA2-395)",
 	B12: "B12 (SA2-397)",
 	B13: "B13 (SA2-398)",
 	B15: "B15 (SA2-401)",
@@ -34,6 +33,7 @@ export const TASK = {
 
 export const B01_MIGRATION = "0059_v2_final_empty_schema.sql";
 export const B06_MIGRATION = "0061_entry_p1_cutover.sql";
+export const B10_MIGRATION = "0062_hand_count_cutover.sql";
 
 export type Activation =
 	| { state: "active"; since: string | null }
@@ -73,6 +73,7 @@ export type Check = SqlCheck | ReplayCheck | DeferredCheck;
 
 const SINCE_B01: Activation = { state: "active", since: B01_MIGRATION };
 const SINCE_B06: Activation = { state: "active", since: B06_MIGRATION };
+const SINCE_B10: Activation = { state: "active", since: B10_MIGRATION };
 
 function pending(enabledBy: string): { state: "pending"; enabledBy: string } {
 	return { state: "pending", enabledBy };
@@ -271,7 +272,7 @@ AND p.end_state IN ('busted', 'cashed_out', 'finished')))`,
 		audit: "A-10",
 		part: "seq-1 hand count and last button equal source hand_count/dealer_seat",
 		kind: "sql",
-		activation: pending(TASK.B10),
+		activation: SINCE_B10,
 		deletedBy: TASK.B25,
 		tables: ["game_session", "play_session", "hand"],
 		sql: (cutoverAt) => `SELECT p.id AS id,
@@ -283,7 +284,7 @@ WHERE NOT EXISTS (SELECT 1 FROM hand h WHERE h.play_session_id = p.id AND h.user
 AND (
 (SELECT count(*) FROM hand h WHERE h.play_session_id = p.id AND h.user_id = p.user_id)
 <> (CASE WHEN gs.hand_count > 0 THEN gs.hand_count ELSE 0 END)
-OR (gs.hand_count > 0 AND (SELECT h.button_seat FROM hand h WHERE h.play_session_id = p.id AND h.user_id = p.user_id ORDER BY h.hand_no DESC LIMIT 1) IS NOT gs.dealer_seat))`,
+OR (gs.hand_count > 0 AND (SELECT h.button_seat FROM hand h WHERE h.play_session_id = p.id AND h.user_id = p.user_id ORDER BY h.hand_no DESC LIMIT 1) IS NOT (CASE WHEN gs.dealer_seat BETWEEN 0 AND 9 THEN gs.dealer_seat END)))`,
 	},
 	{
 		audit: "A-11",
