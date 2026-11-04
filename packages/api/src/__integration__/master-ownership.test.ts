@@ -50,11 +50,16 @@ describe("new masters persist the caller's ownership on D1", () => {
 
 		test(`${userId}: ringGame.create stores user_id`, async ({ api }) => {
 			const caller = api.caller(userId);
+			await caller.gameVariant.list();
 			const room = requireCreatedRow(
 				await caller.room.create({ name: "Club" })
 			);
 			const created = requireCreatedRow(
-				await caller.ringGame.create({ roomId: room.id, name: "Cash" })
+				await caller.ringGame.create({
+					roomId: room.id,
+					name: "Cash",
+					rule: {},
+				})
 			);
 			expect(
 				await api.db.select().from(ringGame).where(eq(ringGame.id, created.id))

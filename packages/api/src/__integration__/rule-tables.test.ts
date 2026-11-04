@@ -1,6 +1,6 @@
 import { describe, expect } from "vitest";
 import type { TestD1Database } from "./test-database";
-import { test } from "./test-fixture";
+import { insertRingGameFixture, test } from "./test-fixture";
 
 type Row = Record<string, string | number | null>;
 
@@ -31,12 +31,11 @@ async function seedOwner(d1: TestD1Database, owner: string) {
 		updated_at: 0,
 	});
 	for (const suffix of ["a", "b"]) {
-		await insert(d1, "ring_game", {
+		await insertRingGameFixture(d1, {
 			id: `${owner}-ring-${suffix}`,
-			user_id: owner,
-			room_id: `${owner}-room`,
+			userId: owner,
+			roomId: `${owner}-room`,
 			name: `Ring ${suffix}`,
-			updated_at: 0,
 		});
 	}
 	await insert(d1, "game_group", {
@@ -324,6 +323,10 @@ describe("lineup and rule-version tables on D1", () => {
 		expect(await ids(api.d1, "cash_rule")).toEqual([
 			"alice-cr-a",
 			"alice-cr-a-child",
+			"alice-ring-a-fixture-rule",
+			"alice-ring-b-fixture-rule",
+			"bob-ring-a-fixture-rule",
+			"bob-ring-b-fixture-rule",
 		]);
 		expect(await ids(api.d1, "tournament_rule")).toEqual([
 			"alice-tournament-a-current",

@@ -6,7 +6,7 @@ import { test as baseTest } from "vitest";
 import { readWorkerCompatibility } from "../../../../testing/worker-compatibility";
 import type { Context } from "../context";
 import { appRouter } from "../routers";
-import { applyMigrations } from "./test-database";
+import { applyMigrations, type TestD1Database } from "./test-database";
 
 const workerCompatibility = readWorkerCompatibility();
 
@@ -19,6 +19,31 @@ export function requireCreatedRow<T extends { id?: string }>(
 		);
 	}
 	return row as T & { id: string };
+}
+export async function insertRingGameFixture(
+	d1: TestD1Database,
+	values: { id: string; userId: string; roomId: string; name: string }
+) {
+	const lineupId = `${values.id}-fixture-lineup`;
+	const ruleId = `${values.id}-fixture-rule`;
+	await d1
+		.prepare("INSERT INTO game_lineup (id, user_id) VALUES (?, ?)")
+		.bind(lineupId, values.userId)
+		.run();
+	await d1
+		.prepare("INSERT INTO cash_rule (id, user_id, lineup_id) VALUES (?, ?, ?)")
+		.bind(ruleId, values.userId, lineupId)
+		.run();
+	await d1
+		.prepare(
+			"INSERT INTO ring_game (id, user_id, room_id, name, current_rule_id, updated_at) VALUES (?, ?, ?, ?, ?, 0)"
+		)
+		.bind(values.id, values.userId, values.roomId, values.name, ruleId)
+		.run();
+	await d1
+		.prepare("UPDATE cash_rule SET ring_game_id = ? WHERE id = ?")
+		.bind(values.id, ruleId)
+		.run();
 }
 
 async function createApiFixture() {

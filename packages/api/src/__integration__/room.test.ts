@@ -30,14 +30,15 @@ describe("room lifecycle on D1", () => {
 					updatedAt: day,
 				});
 			} else if (reference === "ring game") {
-				await api.db.insert(ringGame).values({
-					id: "game",
-					userId: "alice",
-					name: "Cash",
-					roomId: club.id,
-					archivedAt: day,
-					updatedAt: day,
-				});
+				await api.alice.gameVariant.list();
+				const game = requireCreatedRow(
+					await api.alice.ringGame.create({
+						roomId: club.id,
+						name: "Cash",
+						rule: {},
+					})
+				);
+				await api.alice.ringGame.archive({ id: game.id });
 			} else {
 				const created = await api.alice.tournament.createWithLevels({
 					roomId: club.id,
@@ -143,13 +144,8 @@ describe("room lifecycle on D1", () => {
 		const club = requireCreatedRow(
 			await api.bob.room.create({ name: "Bob's room" })
 		);
-		await api.db.insert(ringGame).values({
-			id: "game",
-			userId: "bob",
-			name: "Cash",
-			roomId: club.id,
-			updatedAt: day,
-		});
+		await api.bob.gameVariant.list();
+		await api.bob.ringGame.create({ roomId: club.id, name: "Cash", rule: {} });
 		const before = await api.db.select().from(room);
 		for (const id of [club.id, "missing"]) {
 			for (const mutate of [

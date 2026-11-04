@@ -86,15 +86,16 @@ describe("stored defaults and value encoding", () => {
 			longitude: 139.125,
 			updatedAt: instant,
 		});
-		await api.db.insert(ringGame).values({
-			id: "ring",
+		await api.alice.gameVariant.list();
+		const createdRing = await api.alice.ringGame.create({
 			roomId: "room",
-			userId: "alice",
 			name: "Game",
-			mixGames: games,
-			archivedAt: instant,
-			updatedAt: instant,
+			rule: {},
 		});
+		await api.db
+			.update(ringGame)
+			.set({ archivedAt: instant, updatedAt: instant })
+			.where(eq(ringGame.id, createdRing.id));
 		await api.db.insert(gameSession).values([
 			{
 				id: "cash",
@@ -133,8 +134,7 @@ describe("stored defaults and value encoding", () => {
 		]);
 		expect(await api.db.select().from(ringGame)).toEqual([
 			expect.objectContaining({
-				variant: "NL Hold'em",
-				mixGames: games,
+				currentRuleId: createdRing.currentRuleId,
 				archivedAt: instant,
 			}),
 		]);
@@ -150,11 +150,7 @@ describe("stored defaults and value encoding", () => {
 		expect(await api.db.select().from(sessionBlindLevel)).toEqual([
 			expect.objectContaining({ games, isBreak: false }),
 		]);
-		expect(
-			await api.d1
-				.prepare("SELECT mix_games FROM ring_game WHERE id = 'ring'")
-				.first("mix_games")
-		).toBe(JSON.stringify(games));
+		expect(createdRing.ruleVersion.id).toBe(createdRing.currentRuleId);
 	});
 
 	test("round trips saved filter JSON and enforces name and default uniqueness within each account and screen", async ({

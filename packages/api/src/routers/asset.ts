@@ -17,7 +17,7 @@ OR EXISTS (SELECT 1 FROM asset_rate WHERE asset_rate.user_id = asset.user_id AND
 OR EXISTS (SELECT 1 FROM entry WHERE entry.asset_id = asset.id AND entry.user_id = asset.user_id)
 OR EXISTS (SELECT 1 FROM tournament_rule_price WHERE tournament_rule_price.asset_id = asset.id AND tournament_rule_price.user_id = asset.user_id)
 OR EXISTS (SELECT 1 FROM user_setting WHERE user_setting.base_asset_id = asset.id AND user_setting.user_id = asset.user_id)
-OR EXISTS (SELECT 1 FROM ring_game WHERE ring_game.currency_id = asset.id)
+OR EXISTS (SELECT 1 FROM ring_game WHERE ring_game.default_asset_id = asset.id AND ring_game.user_id = asset.user_id)
 OR EXISTS (SELECT 1 FROM tournament WHERE tournament.default_asset_id = asset.id AND tournament.user_id = asset.user_id)
 OR EXISTS (SELECT 1 FROM game_session WHERE game_session.currency_id = asset.id)
 OR EXISTS (SELECT 1 FROM currency_transaction WHERE currency_transaction.currency_id = asset.id))`;

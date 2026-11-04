@@ -4,7 +4,7 @@ import { room } from "@sapphire2/db/schema/room";
 import { tournamentRule, tournamentRuleLevel } from "@sapphire2/db/schema/rule";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { describe, expect } from "vitest";
-import { test } from "./test-fixture";
+import { insertRingGameFixture, test } from "./test-fixture";
 
 const day = new Date("2026-09-05T00:00:00.000Z");
 const ARCHIVE_GUIDANCE = /archive/i;
@@ -22,12 +22,11 @@ describe("entry-referenced master deletion on D1", () => {
 			});
 			const master = { id: "referenced" };
 			if (kind === "cash") {
-				await api.db.insert(ringGame).values({
+				await insertRingGameFixture(api.d1, {
 					id: master.id,
 					userId: "alice",
 					roomId: "club",
 					name: "Recorded game",
-					updatedAt: day,
 				});
 			} else {
 				master.id = (
@@ -101,7 +100,7 @@ describe("entry-referenced master deletion on D1", () => {
 				updatedAt: day,
 			};
 			if (kind === "cash") {
-				await api.db.insert(ringGame).values(master);
+				await insertRingGameFixture(api.d1, master);
 				expect(await api.alice.ringGame.delete({ id: master.id })).toEqual({
 					success: true,
 				});

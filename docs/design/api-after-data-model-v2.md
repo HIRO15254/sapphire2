@@ -24,6 +24,8 @@ All multistatement writes, event changes plus projection, exchange pairs, rule w
 
 The D1 budget is Workers Paid's 1,000 queries per Worker invocation, including authentication/session reads and each batch statement (spec §20.1 item 10). B08 derives/enforces tournament levels × lineup groups/prices maxima and B16 manual playSessions/payments maxima; each records its fixed bounds here. Every mutation's owning task proves with a real D1 integration test counting statements that its maximum admitted input stays within the budget, with nested rule bodies at B07/B08's maxima and days/payments at B16's: entry.create/update B16; live.create B17; tag writes and reorder B18; hand detail writes B21; overrideRule/applyMasterRule/pushRuleToMaster/relink/restoreRule and live.createAndAssignRingGame/Tournament B20; master writes B07/B08. When a combined input exceeds the budget at those maxima, the owning task sets a tighter limit on its own procedure; it never changes another task's maxima. No independent fixed array maximum overrides this budget.
 
+Ring-game rule writes plan one lineup: a newly created lineup spans at most 12 game groups (`MAX_LINEUP_GROUPS`, shared with tournament levels), so a save writes at most 12 stakes. A named mix regrouped by its variants' live game structure beyond that bound is rejected; an existing `lineupId` is reused as stored. The statement-count proof is part of the ring-game D1 integration coverage (`ring-game-rules.test.ts`).
+
 ### Dates, quantities, lists and common results
 
 - `DateOnly` is a valid calendar string `'YYYY-MM-DD'`: `playedOn`, `localDate`, `dateFrom`, `dateTo`. Date filters are inclusive and use `played_on`; calendar axes do too.

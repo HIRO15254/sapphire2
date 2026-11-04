@@ -106,6 +106,28 @@ async function storedRows(api: ApiFixture) {
 }
 
 describe("asset balances on D1", () => {
+	test("a ring game's default asset cannot be deleted while referenced", async ({
+		api,
+	}) => {
+		await api.alice.gameVariant.list();
+		const chips = await createCurrency(api, "Chips");
+		const club = requireCreatedRow(
+			await api.alice.room.create({ name: "Club" })
+		);
+		await api.alice.ringGame.create({
+			roomId: club.id,
+			name: "Cash",
+			defaultAssetId: chips.id,
+			rule: {},
+		});
+		await expect(
+			api.alice.asset.delete({ id: chips.id })
+		).rejects.toMatchObject(IN_USE);
+		expect(
+			await api.db.select().from(asset).where(eq(asset.id, chips.id))
+		).toHaveLength(1);
+	});
+
 	test("sum every real line of the asset, including an open live buy-in and item holdings, and are zero without lines", async ({
 		api,
 	}) => {

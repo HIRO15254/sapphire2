@@ -25,6 +25,7 @@ const LEGACY_FIXTURE = [
 	`INSERT INTO user (id, name, email, created_at, updated_at) VALUES ('alice', 'Alice', 'alice@example.test', ${T0}, ${T0}), ('bob', 'Bob', 'bob@example.test', ${T0}, ${T0})`,
 	`INSERT INTO asset (id, user_id, name, kind, decimals, created_at, updated_at) VALUES ('jpy', 'alice', 'JPY', 'currency', 0, ${T0}, ${T0}), ('bob-jpy', 'bob', 'JPY', 'currency', 0, ${T0}, ${T0})`,
 	`INSERT INTO room (id, user_id, name, updated_at) VALUES ('club', 'alice', 'Club', ${T0})`,
+	`INSERT INTO ring_game (id, user_id, room_id, name, updated_at) VALUES ('ring-1', 'alice', 'club', 'First', ${T0}), ('ring-2', 'alice', 'club', 'Second', ${T0})`,
 	`INSERT INTO tournament (id, user_id, room_id, currency_id, name, buy_in, entry_fee, updated_at) VALUES ('daily', 'alice', 'club', 'jpy', 'Daily', 10000, 1000, ${T0})`,
 	`INSERT INTO blind_level (id, tournament_id, level, blind1, blind2, minutes) VALUES ('daily-level', 'daily', 1, 100, 200, 20)`,
 	`INSERT INTO tournament_chip_purchase (id, tournament_id, name, cost, chips) VALUES ('daily-addon', 'daily', 'Add-on', 3000, 10000)`,
@@ -194,7 +195,30 @@ describe("audit-data-model through wrangler's local D1", () => {
 				expect(statuses(gate.report, id), id).toEqual(["pass"]);
 			}
 			expect(statuses(gate.report, "A-6")).toEqual(["pass", "pass", "pass"]);
+			expect(statuses(gate.report, "A-13")).toEqual([
+				"pass",
+				"pass",
+				"pass",
+				"pending",
+			]);
 			expect(statuses(gate.report, "A-14")).toContain("pass");
+		},
+		RUN_TIMEOUT
+	);
+
+	it(
+		"fails the gate for another master's current rule and a missing cash stake",
+		async () => {
+			const dir = await copyWith("broken-ring-rules", [
+				"UPDATE ring_game SET current_rule_id = 'cr:ring-2' WHERE id = 'ring-1'",
+				"DELETE FROM cash_rule_stake WHERE rule_id = 'cr:ring-2'",
+			]);
+			const result = audit(dir);
+			expect(result.status).toBe(1);
+			expect(rows(result.report, "A-13")).toContainEqual({ id: "ring-1" });
+			expect(rows(result.report, "A-14")).toContainEqual(
+				expect.objectContaining({ rule_id: "cr:ring-2" })
+			);
 		},
 		RUN_TIMEOUT
 	);

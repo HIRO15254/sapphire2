@@ -2,11 +2,14 @@ import {
 	getInputSchema,
 	getProcedureDef,
 } from "@sapphire2/api/__tests__/test-utils";
+import {
+	ringGameCreateInputSchema,
+	ringGameUpdateInputSchema,
+} from "@sapphire2/api/routers/ring-game";
 import { describe, expect, it } from "vitest";
 import {
 	DELIBERATELY_EXCLUDED,
 	entityName,
-	MIX_RULE,
 	TOOL_DEFINITIONS,
 	TOURNAMENT_RULE_CONTRACT,
 	toolAnnotations,
@@ -184,15 +187,26 @@ describe("tool/router coupling", () => {
 		}
 	});
 
-	it("explains the mixGames contract on every tool that accepts mixGames", () => {
-		const accepting = TOOL_DEFINITIONS.filter((def) => {
-			const shape = (def.inputSchema as { shape?: Record<string, unknown> })
-				?.shape;
-			return shape !== undefined && "mixGames" in shape;
-		});
-		expect(accepting.length).toBeGreaterThanOrEqual(2);
-		for (const def of accepting) {
-			expect(def.description).toContain(MIX_RULE);
+	it("preserves ID-based ring-game selections and stakes in router schemas", () => {
+		for (const game of [
+			{ variantId: "variant" },
+			{ gameMixId: "mix" },
+			{ lineupId: "lineup" },
+		]) {
+			const rule = {
+				game,
+				stakes: [{ gameGroupId: "group", blind1: 1, blind2: 2 }],
+			};
+			expect(
+				ringGameCreateInputSchema.parse({
+					roomId: "room",
+					name: "Cash",
+					rule,
+				}).rule
+			).toEqual(rule);
+			expect(
+				ringGameUpdateInputSchema.parse({ id: "cash", rule }).rule
+			).toEqual(rule);
 		}
 	});
 
@@ -200,7 +214,11 @@ describe("tool/router coupling", () => {
 		const accepting = TOOL_DEFINITIONS.filter((def) => {
 			const shape = (def.inputSchema as { shape?: Record<string, unknown> })
 				?.shape;
-			return shape !== undefined && "rule" in shape;
+			return (
+				shape !== undefined &&
+				"rule" in shape &&
+				def.procedurePath.startsWith("tournament.")
+			);
 		});
 		expect(accepting.map((def) => def.name).sort()).toEqual([
 			"tournament_create_with_levels",
