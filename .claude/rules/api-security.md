@@ -10,7 +10,7 @@ Why this file exists: the Fable review found ~15 IDOR bugs with one shared root 
 
 ## Every foreign-key id in an input must be ownership-checked
 
-Before any write, link, snapshot, or read that uses an id from `input` (`currencyId`, `roomId`, `tournamentId`, `ringGameId`, `tagIds`, `transactionTypeId`, ids in bulk arrays, cursor ids, …), verify the referenced row belongs to `ctx.session.user.id`.
+Before any write, link, snapshot, or read that uses an id from `input` (`assetId`, `roomId`, `tournamentId`, `ringGameId`, `tagIds`, `categoryId`, ids in bulk arrays, cursor ids, …), verify the referenced row belongs to `ctx.session.user.id`.
 
 - **An existence check (`WHERE id = ?`) is not authorization.** The `ringGame`/`tournament` branches of `validateEntityOwnership` had exactly this bug (SA2-111, 174).
 - Use the shared helpers in [`packages/api/src/lib/ownership.ts`](../../packages/api/src/lib/ownership.ts): `validateEntityOwnership`, `validateTagsOwnership`. For a new entity type, extend the helper — do not hand-roll a one-off existence query inside the router.

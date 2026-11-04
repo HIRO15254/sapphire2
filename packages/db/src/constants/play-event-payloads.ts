@@ -18,13 +18,28 @@ import {
 	updateStackPayload,
 } from "./session-event-types";
 
+export const ledgerQuantitySchema = z
+	.number()
+	.int()
+	.min(1)
+	.max(LEDGER_MAX_QUANTITY);
+
+export const signedLedgerQuantitySchema = z
+	.number()
+	.int()
+	.min(-LEDGER_MAX_QUANTITY)
+	.max(LEDGER_MAX_QUANTITY)
+	.refine((quantity) => quantity !== 0, {
+		message: "A ledger quantity cannot be zero",
+	});
+
 export function paymentsSchema<
 	const Roles extends readonly [LedgerRole, ...LedgerRole[]],
 >(roles: Roles) {
 	return z.array(
 		z.object({
 			assetId: z.string().min(1),
-			quantity: z.number().int().min(1).max(LEDGER_MAX_QUANTITY),
+			quantity: ledgerQuantitySchema,
 			role: z.enum(roles),
 			effect: z.enum(LEDGER_EFFECTS).default("real"),
 			priceId: z.string().min(1).optional(),

@@ -336,17 +336,17 @@ Without effectiveAt, list returns matching history. With it, returns only latest
 
 All procedures are **Excluded: wallet** (delete additionally destructive). Wallet writes cannot mutate projected or manual entry lines: `FORBIDDEN`, regardless of the line's owner. Entry money is changed only through entry/live.
 
-`WalletLine = {id,assetId,role:adjustment|exchange,quantity,effect:real,categoryId:null|Id,entryId:null,transferId:null|Id,occurredAt,memo}`. History items are `{kind:wallet,line:WalletLine}` or `{kind:entry,id,entryId,title,assetId,quantity,occurredAt}`; the latter sums real lines for that entry/asset and uses their earliest timestamp. Virtual entry lines do not masquerade as wallet balance movements.
+`WalletLine = {id,assetId,role:adjustment|exchange,quantity,effect:real,categoryId:null|Id,entryId:null,transferId:null|Id,occurredAt,memo}`. History items are `{kind:wallet,line:WalletLine}` or `{kind:entry,id,entryId,title,assetId,quantity,occurredAt}`; the latter sums real lines for that entry/asset and uses their earliest timestamp, and `id` equals `entryId`. Virtual entry lines do not masquerade as wallet balance movements. The cursor carries the asset id and the boundary `(occurredAt,id)`; another asset's cursor is FORBIDDEN.
 
 | Procedure | Input | Output | Additional errors |
 | --- | --- | --- | --- |
 | `listByAsset` Q | `{assetId,...PageInput}` | Page<HistoryItem> | — |
-| `createAdjustment` M | `{assetId,quantity:signed nonzero integer,categoryId?:Id,occurredAt:Instant,memo?:string}` | WalletLine | Archived new category/asset selection: BAD_REQUEST |
-| `createExchange` M | `{from:{assetId,quantity:Quantity},to:{assetId,quantity:Quantity},occurredAt:Instant,categoryId?:Id,memo?:string}` | `{transferId,lines:[WalletLine,WalletLine]}` | Same asset: BAD_REQUEST |
-| `update` M | `{id,occurredAt?:Instant,memo?:string|null,categoryId?:Id|null,quantity?:signed nonzero integer}` | `{lines:WalletLine[]}` | Entry line: FORBIDDEN; changing exchange sign: BAD_REQUEST |
+| `createAdjustment` M | `{assetId,quantity:signed nonzero integer,categoryId?:Id,occurredAt:Instant,memo?:string<=5000}` | WalletLine | Archived asset or category: BAD_REQUEST |
+| `createExchange` M | `{from:{assetId,quantity:Quantity},to:{assetId,quantity:Quantity},occurredAt:Instant,categoryId?:Id,memo?:string<=5000}` | `{transferId,lines:[WalletLine,WalletLine]}` (from, then to) | Same asset, archived asset or category: BAD_REQUEST |
+| `update` M | `{id,occurredAt?:Instant,memo?:string<=5000|null,categoryId?:Id|null,quantity?:signed nonzero integer}` | `{lines:WalletLine[]}` (both legs of an exchange, outgoing first) | Entry line: FORBIDDEN; changing exchange sign or newly selecting an archived category: BAD_REQUEST |
 | `delete` M | IdInput | Ack | Entry line: FORBIDDEN |
 
-Exchange atomically writes negative from and positive to with one transferId. Editing time/memo/category changes both rows; quantity changes only selected leg and preserves its sign. Delete removes both legs. No automatic equal-value/rate assumption is imposed on the user's entered exchange quantities.
+Exchange atomically writes negative from and positive to with one transferId. Editing time/memo/category changes both rows; quantity changes only selected leg and preserves its sign. Delete removes both legs. Keeping a line's already archived category is allowed. No automatic equal-value/rate assumption is imposed on the user's entered exchange quantities.
 
 ## 12. `ledgerCategory` — B14 (backfill B09, DDL B01)
 
@@ -355,11 +355,11 @@ Exchange atomically writes negative from and positive to with one transferId. Ed
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
 | `list` Q | `{includeArchived?:boolean}` | Category[] | — | Excluded: wallet |
-| `create` M | `{name:string 1..100}` | Category | Duplicate: CONFLICT | Excluded: wallet |
-| `update` M | `{id,name:string 1..100}` | Category | Duplicate: CONFLICT | Excluded: wallet |
+| `create` M | `{name:trimmed string 1..100}` | Category | Duplicate: CONFLICT | Excluded: wallet |
+| `update` M | `{id,name:trimmed string 1..100}` | Category | Duplicate: CONFLICT | Excluded: wallet |
 | `archive` M | IdInput | Category | — | Excluded: wallet |
 | `restore` M | IdInput | Category | — | Excluded: wallet |
-| `delete` M | IdInput | Ack | Referenced: CONFLICT, archive instead | Excluded: destructive |
+| `delete` M | IdInput | Ack | Referenced by a ledger line: CONFLICT, message "Category is in use; archive it instead" | Excluded: destructive |
 
 ## 13. `stats` — B22; hand rates B24
 

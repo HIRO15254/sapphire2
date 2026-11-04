@@ -490,12 +490,8 @@ export const DELIBERATELY_EXCLUDED: {
 	},
 	{
 		reason:
-			"Outside the requested MCP scope: transaction types manage the bankroll ledger, not rooms or game masters. The name 'Session Result' is reserved against creation and renaming to it, but an existing reserved row can still be renamed away; exposing transaction type mutations needs that behavior settled first",
+			"Outside the requested MCP scope: players and player tags are opponent notes maintained on the player screens, not rooms or game masters",
 		paths: [
-			"transactionType.list",
-			"transactionType.create",
-			"transactionType.update",
-			"transactionType.delete",
 			"player.create",
 			"player.update",
 			"player.delete",
@@ -523,6 +519,26 @@ export const DELIBERATELY_EXCLUDED: {
 	},
 	{
 		reason:
+			"Wallet: an asset's history, deposits and withdrawals, exchanges and their categories belong to the wallet screens; asset_list exposes the resulting balances read-only, and entry money changes only through the entry itself",
+		paths: [
+			"ledger.listByAsset",
+			"ledger.createAdjustment",
+			"ledger.createExchange",
+			"ledger.update",
+			"ledgerCategory.list",
+			"ledgerCategory.create",
+			"ledgerCategory.update",
+			"ledgerCategory.archive",
+			"ledgerCategory.restore",
+		],
+	},
+	{
+		reason:
+			"Destructive: deleting a wallet line (both legs of an exchange) or a category cannot be undone; a referenced category is archived instead",
+		paths: ["ledger.delete", "ledgerCategory.delete"],
+	},
+	{
+		reason:
 			"asset.list already returns these rows, so a by-id tool would be a second way to read the same data",
 		paths: ["asset.getById"],
 	},
@@ -540,16 +556,6 @@ export const DELIBERATELY_EXCLUDED: {
 		reason:
 			"player.list already returns these rows, so a by-id tool would be a second way to read the same data",
 		paths: ["player.getById"],
-	},
-	{
-		reason:
-			"Bankroll ledger writes are high-blast-radius; out of scope for the first MCP surface",
-		paths: [
-			"currencyTransaction.listByCurrency",
-			"currencyTransaction.create",
-			"currencyTransaction.update",
-			"currencyTransaction.delete",
-		],
 	},
 	{
 		reason:

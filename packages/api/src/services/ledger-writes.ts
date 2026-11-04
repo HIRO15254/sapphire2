@@ -1,7 +1,7 @@
 import type { Database } from "@sapphire2/db";
 import {
+	isLedgerWalletRole,
 	LEDGER_ENTRY_ROLES_BY_KIND,
-	LEDGER_WALLET_ROLES,
 	type LedgerEffect,
 	type LedgerRole,
 	signedLedgerQuantity,
@@ -9,8 +9,9 @@ import {
 import { paymentsSchema } from "@sapphire2/db/constants/play-event-payloads";
 import { ledgerLine } from "@sapphire2/db/schema/ledger";
 import { TRPCError } from "@trpc/server";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { type BatchStatement, chunkForInsert, runBatch } from "../lib/batch";
+import { validateEntityOwnership } from "../lib/ownership";
 
 export const manualPaymentsSchema = {
 	cash: paymentsSchema(LEDGER_ENTRY_ROLES_BY_KIND.cash),
@@ -68,6 +69,79 @@ export interface WalletLinePatch {
 	memo?: string | null;
 	occurredAt?: Date;
 	quantity?: number;
+}
+
+export const walletLineColumns = {
+	id: ledgerLine.id,
+	assetId: ledgerLine.assetId,
+	role: ledgerLine.role,
+	quantity: ledgerLine.quantity,
+	effect: ledgerLine.effect,
+	categoryId: ledgerLine.categoryId,
+	entryId: ledgerLine.entryId,
+	transferId: ledgerLine.transferId,
+	occurredAt: ledgerLine.occurredAt,
+	memo: ledgerLine.memo,
+};
+
+export function selectWalletLines(
+	db: Database,
+	userId: string,
+	scope: { id: string } | { transferId: string }
+) {
+	return db
+		.select(walletLineColumns)
+		.from(ledgerLine)
+		.where(
+			and(
+				eq(ledgerLine.userId, userId),
+				"id" in scope
+					? eq(ledgerLine.id, scope.id)
+					: eq(ledgerLine.transferId, scope.transferId)
+			)
+		)
+		.orderBy(asc(ledgerLine.quantity));
+}
+
+export async function assertSelectableAssets(
+	db: Database,
+	userId: string,
+	assetIds: readonly string[]
+): Promise<void> {
+	const found = await Promise.all(
+		assetIds.map((assetId) =>
+			validateEntityOwnership(db, "asset", assetId, userId)
+		)
+	);
+	if (found.some(({ archivedAt }) => archivedAt !== null)) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "An archived asset cannot be selected; restore it first",
+		});
+	}
+}
+
+export async function assertSelectableCategory(
+	db: Database,
+	userId: string,
+	categoryId: string | null,
+	currentCategoryId: string | null
+): Promise<void> {
+	if (categoryId === null || categoryId === currentCategoryId) {
+		return;
+	}
+	const found = await validateEntityOwnership(
+		db,
+		"ledgerCategory",
+		categoryId,
+		userId
+	);
+	if (found.archivedAt !== null) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "An archived category cannot be selected; restore it first",
+		});
+	}
 }
 
 export function manualLineOccurredAt(
@@ -233,6 +307,7 @@ async function loadWalletLine(
 			id: ledgerLine.id,
 			role: ledgerLine.role,
 			quantity: ledgerLine.quantity,
+			categoryId: ledgerLine.categoryId,
 			transferId: ledgerLine.transferId,
 		})
 		.from(ledgerLine)
@@ -243,13 +318,13 @@ async function loadWalletLine(
 			message: "You do not own this transaction",
 		});
 	}
-	if (!(LEDGER_WALLET_ROLES as readonly LedgerRole[]).includes(found.role)) {
+	if (!isLedgerWalletRole(found.role)) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
 			message:
 				action === "edited"
-					? "Session-generated transactions cannot be edited. Edit the session instead."
-					: "Session-generated transactions cannot be deleted. Delete the session instead.",
+					? "Entry money cannot be edited from the wallet. Edit the entry instead."
+					: "Entry money cannot be deleted from the wallet. Delete the entry instead.",
 		});
 	}
 	return found;
@@ -261,8 +336,16 @@ export async function updateWalletLine(
 	id: string,
 	patch: WalletLinePatch,
 	now: Date
-): Promise<void> {
+): Promise<{ id: string } | { transferId: string }> {
 	const found = await loadWalletLine(db, userId, id, "edited");
+	if (patch.categoryId !== undefined) {
+		await assertSelectableCategory(
+			db,
+			userId,
+			patch.categoryId,
+			found.categoryId
+		);
+	}
 	const { quantity, ...shared } = patch;
 	const statements: BatchStatement[] = [];
 	if (found.role === "exchange" && found.transferId !== null) {
@@ -295,6 +378,9 @@ export async function updateWalletLine(
 			.where(and(eq(ledgerLine.id, found.id), eq(ledgerLine.userId, userId)))
 	);
 	await runBatch(db, statements);
+	return found.transferId === null
+		? { id: found.id }
+		: { transferId: found.transferId };
 }
 
 export async function deleteWalletLine(
