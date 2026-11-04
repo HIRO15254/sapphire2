@@ -32,7 +32,10 @@ const DrawerOverlay = forwardRef<
 	ComponentPropsWithoutRef<typeof DrawerPrimitive.Overlay>
 >(({ className, ...props }, ref) => (
 	<DrawerPrimitive.Overlay
-		className={cn("fixed inset-0 z-50 bg-black/80", className)}
+		className={cn(
+			"fixed inset-0 z-50 bg-overlay backdrop-blur-[4px]",
+			className
+		)}
 		ref={ref}
 		{...props}
 	/>
@@ -49,7 +52,7 @@ const DrawerContent = forwardRef<
 		<DrawerOverlay className={overlayClassName} />
 		<DrawerPrimitive.Content
 			className={cn(
-				"fixed inset-x-0 bottom-0 z-50 flex max-h-[calc(100svh-2rem)] flex-col rounded-t-[10px] border bg-background",
+				"fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[85svh] w-full max-w-[560px] flex-col rounded-t-[var(--m-sheet-radius)] border border-border border-b-0 bg-popover text-popover-foreground shadow-[var(--shadow-lg)] outline-none",
 				className
 			)}
 			ref={ref}
@@ -61,27 +64,50 @@ const DrawerContent = forwardRef<
 ));
 DrawerContent.displayName = "DrawerContent";
 
+const DrawerGrab = ({
+	className,
+	...props
+}: HTMLAttributes<HTMLDivElement>) => (
+	<div
+		aria-hidden
+		className={cn("flex flex-none justify-center pt-2 pb-1.5", className)}
+		data-slot="drawer-grab"
+		{...props}
+	>
+		<span className="h-1 w-9 rounded-full bg-input" />
+	</div>
+);
+DrawerGrab.displayName = "DrawerGrab";
+
 const DrawerHeader = ({
 	className,
 	...props
 }: HTMLAttributes<HTMLDivElement>) => (
 	<div
-		className={cn("grid gap-1.5 p-4 text-center sm:text-left", className)}
+		className={cn(
+			"flex flex-col gap-1 border-border border-b px-3.5 pb-2.5 text-center",
+			className
+		)}
+		data-slot="drawer-header"
 		{...props}
 	/>
 );
 DrawerHeader.displayName = "DrawerHeader";
 
-const DrawerFooter = ({
+const DrawerBody = ({
 	className,
 	...props
 }: HTMLAttributes<HTMLDivElement>) => (
 	<div
-		className={cn("mt-auto flex flex-col gap-2 p-4", className)}
+		className={cn(
+			"min-h-0 flex-1 overflow-y-auto px-3.5 pt-4 pb-[calc(16px+env(safe-area-inset-bottom))] text-[length:var(--m-text-secondary)]",
+			className
+		)}
+		data-slot="drawer-body"
 		{...props}
 	/>
 );
-DrawerFooter.displayName = "DrawerFooter";
+DrawerBody.displayName = "DrawerBody";
 
 const DrawerTitle = forwardRef<
 	ElementRef<typeof DrawerPrimitive.Title>,
@@ -89,7 +115,7 @@ const DrawerTitle = forwardRef<
 >(({ className, ...props }, ref) => (
 	<DrawerPrimitive.Title
 		className={cn(
-			"font-semibold text-lg leading-none tracking-tight",
+			"m-0 min-w-0 truncate font-semibold text-[length:var(--m-text-title)] tracking-[var(--tracking-heading)]",
 			className
 		)}
 		ref={ref}
@@ -103,7 +129,10 @@ const DrawerDescription = forwardRef<
 	ComponentPropsWithoutRef<typeof DrawerPrimitive.Description>
 >(({ className, ...props }, ref) => (
 	<DrawerPrimitive.Description
-		className={cn("text-muted-foreground text-sm", className)}
+		className={cn(
+			"m-0 text-[length:var(--m-text-secondary)] text-muted-foreground",
+			className
+		)}
 		ref={ref}
 		{...props}
 	/>
@@ -112,10 +141,11 @@ DrawerDescription.displayName = DrawerPrimitive.Description.displayName;
 
 export {
 	Drawer,
+	DrawerBody,
 	DrawerClose,
 	DrawerContent,
 	DrawerDescription,
-	DrawerFooter,
+	DrawerGrab,
 	DrawerHeader,
 	DrawerOverlay,
 	DrawerPortal,

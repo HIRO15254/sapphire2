@@ -37,6 +37,10 @@ The column stays `NOT NULL`: the OIDC tables mirror the plugin's schema definiti
 
 better-auth redirects mid-authorize to `GET /oauth/consent`, rendered by the Worker via [`packages/mcp/src/auth/consent-html.ts`](../../packages/mcp/src/auth/consent-html.ts).
 
+### Look
+
+The page follows the Cryst login layout (440px column, brand, title, inset list, xl buttons, destructive Alert for a failed decision). The Worker cannot load the web bundle's CSS, so `STYLES` carries a **copy of the Cryst token values** from [`apps/web/src/index.css`](../../apps/web/src/index.css): a change to a token used there must update `STYLES` in the same change. The deviations are recorded in [`cryst-exceptions.md`](cryst-exceptions.md).
+
 ### What it shows, and why
 
 - **Real capability, not scopes.** `buildMcpSession` ignores the token's OAuth scopes, so every issued token grants the whole tool surface; the page renders `toolPermissionSummary()` derived from `TOOL_DEFINITIONS` instead of listing scopes ([`mcp-tools.md`](../../.claude/rules/mcp-tools.md) rule 8). Two details beyond the rule:

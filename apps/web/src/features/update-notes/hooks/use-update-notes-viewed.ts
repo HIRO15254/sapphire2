@@ -36,16 +36,9 @@ export function useUpdateNotesViewed() {
 		markViewedMutation.mutate({ version });
 	};
 
-	const handleAccordionChange = (value: string[]) => {
-		for (const version of value) {
-			markViewed(version);
-		}
-	};
-
 	return {
 		viewedVersions,
 		isViewedListLoaded: viewedList !== undefined,
 		markViewed,
-		handleAccordionChange,
 	};
 }

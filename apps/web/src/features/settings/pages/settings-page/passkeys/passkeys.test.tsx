@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("sonner", () => ({
-	toast: { success: vi.fn(), error: vi.fn() },
+	toast: { success: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 
 vi.mock("@/shared/components/ui/drawer", () => ({
@@ -22,6 +22,11 @@ vi.mock("@/shared/components/ui/drawer", () => ({
 	DrawerContent: ({ children }: { children: ReactNode }) => (
 		<div>{children}</div>
 	),
+	DrawerBody: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+	DrawerHeader: ({ children }: { children: ReactNode }) => (
+		<div>{children}</div>
+	),
+	DrawerGrab: () => null,
 	DrawerDescription: ({ children }: { children: ReactNode }) => (
 		<div>{children}</div>
 	),
@@ -39,8 +44,11 @@ vi.mock("@/lib/auth-client", () => ({
 	},
 }));
 
+const MACBOOK_ROW = /MacBook/;
+const PIXEL_ROW = /Pixel 9/;
+const UNSUPPORTED_NOTE = /This browser doesn't support passkeys/;
 const ADDED_ON_PATTERN = /^Added /;
-const PASSKEY_NAME_LABEL = /^Passkey name/;
+const PASSKEY_NAME_LABEL = /^Name/;
 
 const PASSKEY = {
 	backedUp: true,
@@ -64,20 +72,11 @@ describe("Passkeys", () => {
 		restoreWebAuthn();
 	});
 
-	it("shows an empty state and the add button when no passkey is registered", async () => {
+	it("offers adding a passkey when none are registered", async () => {
 		mocks.listUserPasskeys.mockResolvedValue({ data: [] });
 		render(<Passkeys />);
-
-		expect(screen.getByText("Loading passkeys...")).toBeInTheDocument();
-		await waitFor(() =>
-			expect(
-				screen.getByText(
-					"No passkeys yet. Add one to sign in without a password."
-				)
-			).toBeInTheDocument()
-		);
 		expect(
-			screen.getByRole("button", { name: "Add passkey" })
+			await screen.findByRole("button", { name: "Add passkey" })
 		).toBeInTheDocument();
 	});
 
@@ -88,7 +87,9 @@ describe("Passkeys", () => {
 		await waitFor(() =>
 			expect(screen.getByText("MacBook")).toBeInTheDocument()
 		);
-		expect(screen.getByText("Synced")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: MACBOOK_ROW })).toHaveTextContent(
+			"Synced"
+		);
 		expect(screen.getByText(ADDED_ON_PATTERN)).toBeInTheDocument();
 	});
 
@@ -100,7 +101,8 @@ describe("Passkeys", () => {
 		await waitFor(() =>
 			expect(screen.getByText("MacBook")).toBeInTheDocument()
 		);
-		await user.click(screen.getByRole("button", { name: "Remove MacBook" }));
+		await user.click(screen.getByRole("button", { name: MACBOOK_ROW }));
+		await user.click(screen.getByRole("button", { name: "Remove" }));
 
 		expect(
 			await screen.findByRole("heading", { name: "Remove passkey?" })
@@ -117,7 +119,8 @@ describe("Passkeys", () => {
 		await waitFor(() =>
 			expect(screen.getByText("MacBook")).toBeInTheDocument()
 		);
-		await user.click(screen.getByRole("button", { name: "Remove MacBook" }));
+		await user.click(screen.getByRole("button", { name: MACBOOK_ROW }));
+		await user.click(screen.getByRole("button", { name: "Remove" }));
 		await user.click(await screen.findByRole("button", { name: "Remove" }));
 
 		await waitFor(() =>
@@ -133,7 +136,8 @@ describe("Passkeys", () => {
 		await waitFor(() =>
 			expect(screen.getByText("MacBook")).toBeInTheDocument()
 		);
-		await user.click(screen.getByRole("button", { name: "Remove MacBook" }));
+		await user.click(screen.getByRole("button", { name: MACBOOK_ROW }));
+		await user.click(screen.getByRole("button", { name: "Remove" }));
 		await user.click(await screen.findByRole("button", { name: "Cancel" }));
 
 		await waitFor(() =>
@@ -153,7 +157,8 @@ describe("Passkeys", () => {
 		await waitFor(() =>
 			expect(screen.getByText("MacBook")).toBeInTheDocument()
 		);
-		await user.click(screen.getByRole("button", { name: "Rename MacBook" }));
+		await user.click(screen.getByRole("button", { name: MACBOOK_ROW }));
+		await user.click(screen.getByRole("button", { name: "Rename" }));
 
 		const nameField = await screen.findByLabelText(PASSKEY_NAME_LABEL);
 		expect(nameField).toHaveValue("MacBook");
@@ -179,13 +184,15 @@ describe("Passkeys", () => {
 		await waitFor(() =>
 			expect(screen.getByText("MacBook")).toBeInTheDocument()
 		);
-		await user.click(screen.getByRole("button", { name: "Rename MacBook" }));
+		await user.click(screen.getByRole("button", { name: MACBOOK_ROW }));
+		await user.click(screen.getByRole("button", { name: "Rename" }));
 		expect(await screen.findByLabelText(PASSKEY_NAME_LABEL)).toHaveValue(
 			"MacBook"
 		);
 
 		await user.click(screen.getByRole("button", { name: "Cancel" }));
-		await user.click(screen.getByRole("button", { name: "Rename Pixel 9" }));
+		await user.click(screen.getByRole("button", { name: PIXEL_ROW }));
+		await user.click(screen.getByRole("button", { name: "Rename" }));
 		expect(await screen.findByLabelText(PASSKEY_NAME_LABEL)).toHaveValue(
 			"Pixel 9"
 		);
@@ -228,12 +235,66 @@ describe("Passkeys", () => {
 		render(<Passkeys />);
 
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
-		expect(screen.getByRole("button", { name: "Retrying..." })).toBeDisabled();
+		expect(screen.getByRole("button", { name: "Retry" })).toBeDisabled();
+		expect(screen.getByRole("button", { name: "Retry" })).toHaveAttribute(
+			"aria-busy",
+			"true"
+		);
 
 		await act(async () => {
 			release?.({ data: [] });
 			await Promise.resolve();
 		});
+	});
+
+	it("keeps the typed name and displays registration errors", async () => {
+		const user = userEvent.setup();
+		mocks.listUserPasskeys.mockResolvedValue({ data: [] });
+		mocks.addPasskey.mockResolvedValue({
+			error: { message: "Registration failed" },
+		});
+		render(<Passkeys />);
+		await user.click(
+			await screen.findByRole("button", { name: "Add passkey" })
+		);
+		const name = screen.getByLabelText(PASSKEY_NAME_LABEL);
+		await user.clear(name);
+		await user.type(name, "Work laptop");
+		await user.click(screen.getByRole("button", { name: "Add" }));
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			"Registration failed"
+		);
+		expect(name).toHaveValue("Work laptop");
+	});
+
+	it("keeps the rename sheet and input on failure", async () => {
+		const user = userEvent.setup();
+		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY] });
+		mocks.updatePasskey.mockResolvedValue({ error: { message: "offline" } });
+		render(<Passkeys />);
+		await user.click(await screen.findByRole("button", { name: MACBOOK_ROW }));
+		await user.click(screen.getByRole("button", { name: "Rename" }));
+		const name = screen.getByLabelText(PASSKEY_NAME_LABEL);
+		await user.clear(name);
+		await user.type(name, "Work laptop");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		await waitFor(() => expect(mocks.updatePasskey).toHaveBeenCalled());
+		expect(name).toHaveValue("Work laptop");
+		expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+	});
+
+	it("keeps the remove confirmation open on failure", async () => {
+		const user = userEvent.setup();
+		mocks.listUserPasskeys.mockResolvedValue({ data: [PASSKEY] });
+		mocks.deletePasskey.mockResolvedValue({ error: { message: "offline" } });
+		render(<Passkeys />);
+		await user.click(await screen.findByRole("button", { name: MACBOOK_ROW }));
+		await user.click(screen.getByRole("button", { name: "Remove" }));
+		await user.click(await screen.findByRole("button", { name: "Remove" }));
+		await waitFor(() => expect(mocks.deletePasskey).toHaveBeenCalled());
+		expect(
+			screen.getByRole("heading", { name: "Remove passkey?" })
+		).toBeInTheDocument();
 	});
 
 	it("reports the fetch failure instead of an empty list", async () => {
@@ -242,25 +303,9 @@ describe("Passkeys", () => {
 
 		await waitFor(() =>
 			expect(screen.getByRole("alert")).toHaveTextContent(
-				"Unable to load passkeys"
+				"Couldn't load your passkeys."
 			)
 		);
-		expect(
-			screen.queryByText(
-				"No passkeys yet. Add one to sign in without a password."
-			)
-		).not.toBeInTheDocument();
-	});
-
-	it("keeps the page usable when the fetch fails", async () => {
-		mocks.listUserPasskeys.mockRejectedValue(new Error("offline"));
-		render(<Passkeys />);
-
-		await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
-		expect(
-			screen.getByRole("button", { name: "Add passkey" })
-		).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
 	});
 
 	it("recovers through Retry without a page reload", async () => {
@@ -285,9 +330,7 @@ describe("Passkeys", () => {
 		render(<Passkeys />);
 
 		await waitFor(() =>
-			expect(
-				screen.getByText("This browser does not support passkeys.")
-			).toBeInTheDocument()
+			expect(screen.getByText(UNSUPPORTED_NOTE)).toBeInTheDocument()
 		);
 		expect(
 			screen.queryByRole("button", { name: "Add passkey" })

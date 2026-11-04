@@ -45,6 +45,65 @@ async function seedViewedVersion(page: Page) {
 	return version;
 }
 
+test("discards a persisted client from the old API before restoring", async ({
+	page,
+	account,
+}) => {
+	await signIn(page, account);
+	const marker = `old-api-${crypto.randomUUID()}`;
+	await page.evaluate(async (oldMarker) => {
+		const { promise, resolve, reject } = Promise.withResolvers<void>();
+		{
+			const request = indexedDB.open("keyval-store");
+			request.onerror = () => reject(request.error);
+			request.onsuccess = () => {
+				const database = request.result;
+				const transaction = database.transaction("keyval", "readwrite");
+				transaction.objectStore("keyval").put(
+					JSON.stringify({
+						buster: "2026-10-room-archive",
+						timestamp: Date.now(),
+						clientState: {
+							mutations: [],
+							queries: [
+								{
+									queryKey: [["room", "list"], { type: "query" }],
+									queryHash: "old-room-list",
+									state: {
+										data: [{ name: oldMarker, archivedAt: null }],
+										dataUpdatedAt: Date.now(),
+										status: "success",
+										fetchStatus: "idle",
+									},
+								},
+							],
+						},
+					}),
+					"sapphire2-query-cache"
+				);
+				transaction.oncomplete = () => {
+					database.close();
+					resolve();
+				};
+				transaction.onerror = () => reject(transaction.error);
+			};
+		}
+		await promise;
+	}, marker);
+	expect(await persistedCache(page)).toContain(marker);
+	const errors: string[] = [];
+	page.on("pageerror", (error) => errors.push(error.message));
+	page.on("console", (message) => {
+		if (message.type() === "error") {
+			errors.push(message.text());
+		}
+	});
+	await page.reload();
+	await expect(page.getByRole("heading", { name: "Home" })).toBeVisible();
+	await expect.poll(() => persistedCache(page)).not.toContain(marker);
+	expect(errors).toEqual([]);
+});
+
 test("clears A's persisted records before reload and B's sign in in the same browser", async ({
 	page,
 	account,

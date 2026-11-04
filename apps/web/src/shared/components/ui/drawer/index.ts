@@ -1,9 +1,10 @@
 export {
 	Drawer,
+	DrawerBody,
 	DrawerClose,
 	DrawerContent,
 	DrawerDescription,
-	DrawerFooter,
+	DrawerGrab,
 	DrawerHeader,
 	DrawerOverlay,
 	DrawerPortal,

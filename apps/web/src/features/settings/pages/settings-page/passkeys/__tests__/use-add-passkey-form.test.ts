@@ -123,6 +123,10 @@ describe("useAddPasskeyForm", () => {
 		await submitWithName(result, "Pixel 9");
 
 		expect(mocks.toastError).not.toHaveBeenCalled();
+		expect(result.current.errorMessage).toBe(
+			"The request was canceled or timed out. Try again."
+		);
+		expect(result.current.form.state.values.name).toBe("Pixel 9");
 		expect(mocks.toastSuccess).not.toHaveBeenCalled();
 		expect(onSuccess).not.toHaveBeenCalled();
 		expect(onOpenChange).not.toHaveBeenCalled();
@@ -151,9 +155,8 @@ describe("useAddPasskeyForm", () => {
 		});
 		const { result } = renderForm();
 		await submitWithName(result, "Pixel 9");
-		expect(mocks.toastError).toHaveBeenNthCalledWith(
-			1,
-			"This device already has a passkey"
+		expect(result.current.errorMessage).toBe(
+			"This device already has a passkey."
 		);
 	});
 
@@ -164,9 +167,8 @@ describe("useAddPasskeyForm", () => {
 		});
 		const { result } = renderForm();
 		await submitWithName(result, "Pixel 9");
-		expect(mocks.toastError).toHaveBeenNthCalledWith(
-			1,
-			"This device already has a passkey"
+		expect(result.current.errorMessage).toBe(
+			"This device already has a passkey."
 		);
 	});
 
@@ -181,10 +183,7 @@ describe("useAddPasskeyForm", () => {
 		const { result } = renderForm();
 		await submitWithName(result, "Pixel 9");
 
-		expect(mocks.toastError).toHaveBeenNthCalledWith(
-			1,
-			"Failed to verify registration"
-		);
+		expect(result.current.errorMessage).toBe("Failed to verify registration");
 	});
 
 	it("opts back into the silent upgrade after a manual add", async () => {
@@ -208,20 +207,14 @@ describe("useAddPasskeyForm", () => {
 		mocks.addPasskey.mockResolvedValue({ data: null, error: { message: "" } });
 		const { result } = renderForm();
 		await submitWithName(result, "Pixel 9");
-		expect(mocks.toastError).toHaveBeenNthCalledWith(
-			1,
-			"Failed to add passkey"
-		);
+		expect(result.current.errorMessage).toBe("Try again.");
 	});
 
 	it("treats a result without the stored passkey as a failure", async () => {
 		mocks.addPasskey.mockResolvedValue({ data: null, error: null });
 		const { onOpenChange, onSuccess, result } = renderForm();
 		await submitWithName(result, "Pixel 9");
-		expect(mocks.toastError).toHaveBeenNthCalledWith(
-			1,
-			"Failed to add passkey"
-		);
+		expect(result.current.errorMessage).toBe("Try again.");
 		expect(onSuccess).not.toHaveBeenCalled();
 		expect(onOpenChange).not.toHaveBeenCalled();
 	});
@@ -230,10 +223,7 @@ describe("useAddPasskeyForm", () => {
 		mocks.addPasskey.mockResolvedValue(undefined);
 		const { onSuccess, result } = renderForm();
 		await submitWithName(result, "Pixel 9");
-		expect(mocks.toastError).toHaveBeenNthCalledWith(
-			1,
-			"Failed to add passkey"
-		);
+		expect(result.current.errorMessage).toBe("Try again.");
 		expect(mocks.toastSuccess).not.toHaveBeenCalled();
 		expect(onSuccess).not.toHaveBeenCalled();
 	});

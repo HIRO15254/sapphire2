@@ -5,14 +5,14 @@ type DisplayState = "hidden" | "offline" | "syncing" | "back-online";
 
 function getBarClassName(displayState: DisplayState): string {
 	const base =
-		"flex h-6 items-center justify-center gap-1.5 px-3 font-medium text-xs transition-all duration-300";
+		"flex h-6 items-center justify-center gap-1.5 px-3 font-medium text-xs transition-colors duration-[var(--duration-slow)]";
 	if (displayState === "offline") {
-		return `${base} bg-amber-400 text-amber-950 dark:bg-amber-500 dark:text-amber-950`;
+		return `${base} bg-warning-soft text-warning-text`;
 	}
 	if (displayState === "syncing") {
-		return `${base} bg-blue-500 text-white`;
+		return `${base} bg-primary-soft text-primary-text`;
 	}
-	return `${base} bg-green-500 text-white`;
+	return `${base} bg-success-soft text-success-text`;
 }
 
 export function OnlineStatusBar() {

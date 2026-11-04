@@ -71,16 +71,13 @@ describe("LoginRoute", () => {
 		mocks.redirect.mockClear();
 	});
 
-	it("renders preview auto login and defaults to sign up", () => {
+	it("renders preview auto login and defaults to sign in", () => {
 		const Component = routeModule.Route.options.component as ComponentType;
 
 		render(<Component />);
 
 		expect(screen.getByText("Preview Auto Login")).toBeInTheDocument();
-		expect(screen.getByText("Sign Up Form")).toBeInTheDocument();
-		expect(
-			screen.getByRole("heading", { name: "Create your account." })
-		).toBeInTheDocument();
+		expect(screen.getByText("Sign In Form")).toBeInTheDocument();
 	});
 
 	it("switches between sign up and sign in", async () => {
@@ -89,14 +86,11 @@ describe("LoginRoute", () => {
 
 		render(<Component />);
 
-		await user.click(screen.getByRole("button", { name: "Switch To Sign In" }));
-		expect(screen.getByText("Sign In Form")).toBeInTheDocument();
-		expect(
-			screen.getByRole("heading", { name: "Welcome back." })
-		).toBeInTheDocument();
-
 		await user.click(screen.getByRole("button", { name: "Switch To Sign Up" }));
 		expect(screen.getByText("Sign Up Form")).toBeInTheDocument();
+
+		await user.click(screen.getByRole("button", { name: "Switch To Sign In" }));
+		expect(screen.getByText("Sign In Form")).toBeInTheDocument();
 	});
 
 	describe("beforeLoad guard", () => {

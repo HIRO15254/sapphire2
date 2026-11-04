@@ -1,17 +1,18 @@
 import { IconCheck, IconLoader2, IconX } from "@tabler/icons-react";
 import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/shared/components/ui/button";
 import {
 	Drawer,
+	DrawerBody,
 	DrawerContent,
 	DrawerDescription,
 	DrawerTitle,
 } from "@/shared/components/ui/drawer";
+import { IconButton } from "@/shared/components/ui/icon-button";
 
 interface FormSheetProps {
 	children: ReactNode;
 	className?: string;
+	confirmLabel?: string;
 	formId: string;
 	isLoading?: boolean;
 	isSaveDisabled?: boolean;
@@ -23,6 +24,7 @@ interface FormSheetProps {
 export function FormSheet({
 	children,
 	className,
+	confirmLabel = "Save",
 	formId,
 	isLoading = false,
 	isSaveDisabled = false,
@@ -32,47 +34,36 @@ export function FormSheet({
 }: FormSheetProps) {
 	return (
 		<Drawer dismissible={false} onOpenChange={onOpenChange} open={open}>
-			<DrawerContent
-				className={cn(
-					"h-auto max-h-[calc(100svh-2rem)] rounded-t-xl",
-					className
-				)}
-			>
-				<div className="grid shrink-0 grid-cols-[auto_1fr_auto] items-center gap-2 border-b px-2 py-1.5">
-					<Button
-						aria-label="Cancel"
-						className="justify-self-start"
+			<DrawerContent className={className}>
+				<div className="grid min-h-[var(--m-navbar-height)] shrink-0 grid-cols-[1fr_minmax(0,auto)_1fr] items-center border-border border-b px-1 py-0.5">
+					<IconButton
+						className="justify-self-start text-foreground [&_svg:not([class*='size-'])]:size-6"
+						label="Cancel"
 						onClick={() => onOpenChange(false)}
-						size="icon-lg"
+						size="xl"
 						type="button"
-						variant="ghost"
 					>
-						<IconX className="size-6" />
-					</Button>
-					<DrawerTitle className="t-h4 min-w-0 truncate text-center">
-						{title}
-					</DrawerTitle>
-					<Button
+						<IconX aria-hidden />
+					</IconButton>
+					<DrawerTitle className="text-center">{title}</DrawerTitle>
+					<IconButton
 						aria-busy={isLoading}
-						aria-label="Save"
-						className="justify-self-end text-primary hover:text-primary"
+						className="justify-self-end text-primary-text hover:text-primary-text [&_svg:not([class*='size-'])]:size-6"
 						disabled={isLoading || isSaveDisabled}
 						form={formId}
-						size="icon-lg"
+						label={confirmLabel}
+						size="xl"
 						type="submit"
-						variant="ghost"
 					>
 						{isLoading ? (
-							<IconLoader2 className="size-6 animate-spin" />
+							<IconLoader2 aria-hidden className="animate-spin" />
 						) : (
-							<IconCheck className="size-6" />
+							<IconCheck aria-hidden />
 						)}
-					</Button>
+					</IconButton>
 				</div>
 				<DrawerDescription className="sr-only">{title}</DrawerDescription>
-				<div className="flex-1 overflow-y-auto px-4 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-					{children}
-				</div>
+				<DrawerBody>{children}</DrawerBody>
 			</DrawerContent>
 		</Drawer>
 	);

@@ -1,11 +1,19 @@
-import { IconKey, IconPencil, IconTrash } from "@tabler/icons-react";
-import { FormSheet } from "@/shared/components/form-sheet";
 import {
-	ManagementList,
-	ManagementListItem,
-} from "@/shared/components/management/management-list";
+	IconDots,
+	IconKey,
+	IconPencil,
+	IconPlus,
+	IconTrash,
+} from "@tabler/icons-react";
+import { SectionLoadError } from "@/features/settings/pages/settings-page/section-load-error";
+import { SettingsSection } from "@/features/settings/pages/settings-page/settings-section";
+import { FormSheet } from "@/shared/components/form-sheet";
 import { TagNameForm } from "@/shared/components/management/tag-name-form";
-import { Badge } from "@/shared/components/ui/badge";
+import {
+	Alert,
+	AlertDescription,
+	AlertTitle,
+} from "@/shared/components/ui/alert";
 import { Button } from "@/shared/components/ui/button";
 import {
 	Dialog,
@@ -15,8 +23,27 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/shared/components/ui/dialog";
+import {
+	Drawer,
+	DrawerBody,
+	DrawerContent,
+	DrawerDescription,
+	DrawerGrab,
+	DrawerHeader,
+	DrawerTitle,
+} from "@/shared/components/ui/drawer";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
+import {
+	Item,
+	ItemActions,
+	ItemContent,
+	ItemDescription,
+	ItemGroup,
+	ItemMedia,
+	ItemTitle,
+} from "@/shared/components/ui/item";
+import { Spinner } from "@/shared/components/ui/spinner";
 import { formatLocalYmdSlash } from "@/utils/format-number";
 import { useAddPasskeyForm } from "./use-add-passkey-form";
 import { usePasskeys } from "./use-passkeys";
@@ -25,33 +52,42 @@ const ADD_PASSKEY_FORM_ID = "add-passkey-form";
 const RENAME_PASSKEY_FORM_ID = "rename-passkey-form";
 
 function AddPasskeyForm({
+	errorMessage,
 	form,
 	formId,
 }: {
+	errorMessage: string | null;
 	form: ReturnType<typeof useAddPasskeyForm>["form"];
 	formId: string;
 }) {
 	return (
 		<form
-			className="flex flex-col gap-4"
+			className="flex flex-col gap-4 pt-1 pb-2"
 			id={formId}
+			noValidate
 			onSubmit={(event) => {
 				event.preventDefault();
 				event.stopPropagation();
 				form.handleSubmit();
 			}}
 		>
-			<p className="text-muted-foreground text-sm">
-				Your device will ask you to confirm with a fingerprint, face, screen
-				lock, or security key. Name it so you can tell your devices apart later.
+			{errorMessage ? (
+				<Alert variant="destructive">
+					<AlertTitle>Couldn't add the passkey</AlertTitle>
+					<AlertDescription>{errorMessage}</AlertDescription>
+				</Alert>
+			) : null}
+			<p className="m-0 text-muted-foreground leading-normal">
+				Your device asks for your face, fingerprint or screen lock next.
 			</p>
 
 			<form.Field name="name">
 				{(field) => (
 					<Field
+						description="So you can tell your devices apart."
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
-						label="Passkey name"
+						label="Name"
 						required
 					>
 						<Input
@@ -59,6 +95,7 @@ function AddPasskeyForm({
 							name={field.name}
 							onBlur={field.handleBlur}
 							onChange={(event) => field.handleChange(event.target.value)}
+							size="xl"
 							type="text"
 							value={field.state.value}
 						/>
@@ -69,6 +106,11 @@ function AddPasskeyForm({
 	);
 }
 
+function passkeyDescription(createdAt: Date | string, backedUp?: boolean) {
+	const added = `Added ${formatLocalYmdSlash(createdAt)}`;
+	return backedUp ? `${added} · Synced` : added;
+}
+
 export function Passkeys() {
 	const {
 		deleteTarget,
@@ -77,129 +119,176 @@ export function Passkeys() {
 		isDeletePending,
 		isPasskeySupported,
 		isRefreshPending,
+		isRenamePending,
 		loading,
+		menuTarget,
 		onAddOpenChange,
 		onDeletePasskey,
 		onDeleteTargetChange,
+		onMenuTargetChange,
+		onRemoveFromMenu,
+		onRenameFromMenu,
 		onRenamePasskey,
 		onRenameTargetChange,
 		passkeys,
 		refreshPasskeys,
-		isRenamePending,
 		renameTarget,
 		totalPasskeys,
 	} = usePasskeys();
-	const { form: addForm, isSubmitting: isAddSubmitting } = useAddPasskeyForm({
+	const {
+		errorMessage: addErrorMessage,
+		form: addForm,
+		isSubmitting: isAddSubmitting,
+		onSheetOpenChange: onAddSheetOpenChange,
+	} = useAddPasskeyForm({
 		onOpenChange: onAddOpenChange,
 		onSuccess: refreshPasskeys,
 	});
 
-	if (loading) {
-		return (
-			<div className="text-muted-foreground text-sm">Loading passkeys...</div>
-		);
-	}
-
 	function renderList() {
-		if (error) {
+		if (loading) {
 			return (
-				<div className="flex flex-wrap items-center gap-2">
-					<p className="text-destructive text-sm" role="alert">
-						{error}
-					</p>
-					<Button
-						disabled={isRefreshPending}
-						onClick={refreshPasskeys}
-						size="sm"
-						variant="outline"
-					>
-						{isRefreshPending ? "Retrying..." : "Retry"}
-					</Button>
+				<div className="flex justify-center py-3 text-muted-foreground">
+					<Spinner />
 				</div>
 			);
 		}
 
-		if (totalPasskeys === 0) {
+		if (error) {
 			return (
-				<p className="text-muted-foreground text-sm">
-					No passkeys yet. Add one to sign in without a password.
-				</p>
+				<SectionLoadError
+					isRetrying={isRefreshPending}
+					message={error}
+					onRetry={refreshPasskeys}
+				/>
 			);
 		}
 
+		if (totalPasskeys === 0 && !isPasskeySupported) {
+			return null;
+		}
+
 		return (
-			<ManagementList>
+			<ItemGroup aria-label="Passkeys" size="xl" variant="inset">
 				{passkeys.map((entry) => (
-					<ManagementListItem
-						actions={
-							<div className="flex items-center gap-2">
-								<Button
-									aria-label={`Rename ${entry.name || "passkey"}`}
-									onClick={() => onRenameTargetChange(entry)}
-									size="sm"
-									variant="outline"
-								>
-									<IconPencil />
-									Rename
-								</Button>
-								<Button
-									aria-label={`Remove ${entry.name || "passkey"}`}
-									onClick={() => onDeleteTargetChange(entry)}
-									size="sm"
-									variant="outline"
-								>
-									<IconTrash />
-									Remove
-								</Button>
-							</div>
-						}
-						className="min-h-14"
-						description={`Added ${formatLocalYmdSlash(entry.createdAt)}`}
-						key={entry.id}
-						leading={<IconKey className="h-4 w-4" />}
-						title={
-							<span className="flex items-center gap-2">
-								{entry.name || "Passkey"}
-								{entry.backedUp ? (
-									<Badge variant="outline">Synced</Badge>
-								) : null}
-							</span>
-						}
-					/>
+					<Item asChild key={entry.id}>
+						<button onClick={() => onMenuTargetChange(entry)} type="button">
+							<ItemMedia>
+								<IconKey aria-hidden />
+							</ItemMedia>
+							<ItemContent>
+								<ItemTitle>{entry.name || "Passkey"}</ItemTitle>
+								<ItemDescription>
+									{passkeyDescription(entry.createdAt, entry.backedUp)}
+								</ItemDescription>
+							</ItemContent>
+							<ItemActions>
+								<span className="inline-flex size-[var(--control-sm)] items-center justify-center">
+									<IconDots aria-hidden className="size-3.5" />
+								</span>
+							</ItemActions>
+						</button>
+					</Item>
 				))}
-			</ManagementList>
+				{isPasskeySupported ? (
+					<Item asChild>
+						<button
+							className="text-primary-text"
+							onClick={() => onAddOpenChange(true)}
+							type="button"
+						>
+							<ItemMedia>
+								<IconPlus aria-hidden />
+							</ItemMedia>
+							<ItemContent>
+								<ItemTitle>Add passkey</ItemTitle>
+							</ItemContent>
+						</button>
+					</Item>
+				) : null}
+			</ItemGroup>
 		);
 	}
 
 	return (
-		<div className="space-y-3">
+		<SettingsSection
+			heading="Passkeys"
+			note={
+				isPasskeySupported
+					? "Sign in with your face, fingerprint or screen lock instead of a password."
+					: "This browser doesn't support passkeys. Use a recent version of Safari or Chrome to add one."
+			}
+		>
 			{renderList()}
 
-			{isPasskeySupported ? (
-				<Button onClick={() => onAddOpenChange(true)} variant="outline">
-					<IconKey />
-					Add passkey
-				</Button>
-			) : (
-				<p className="text-muted-foreground text-xs">
-					This browser does not support passkeys.
-				</p>
-			)}
+			<Drawer
+				onOpenChange={(open) => {
+					if (!open) {
+						onMenuTargetChange(null);
+					}
+				}}
+				open={menuTarget !== null}
+			>
+				<DrawerContent>
+					<DrawerGrab />
+					<DrawerHeader>
+						<DrawerTitle>{menuTarget?.name || "Passkey"}</DrawerTitle>
+						<DrawerDescription className="sr-only">
+							Passkey actions
+						</DrawerDescription>
+					</DrawerHeader>
+					<DrawerBody className="flex flex-col gap-2 pt-0.5">
+						<ItemGroup aria-label="Passkey actions" size="xl" variant="inset">
+							<Item asChild>
+								<button onClick={onRenameFromMenu} type="button">
+									<ItemMedia>
+										<IconPencil aria-hidden />
+									</ItemMedia>
+									<ItemContent>
+										<ItemTitle>Rename</ItemTitle>
+									</ItemContent>
+								</button>
+							</Item>
+						</ItemGroup>
+						<ItemGroup aria-label="Danger" size="xl" variant="inset">
+							<Item asChild variant="destructive">
+								<button onClick={onRemoveFromMenu} type="button">
+									<ItemMedia>
+										<IconTrash aria-hidden />
+									</ItemMedia>
+									<ItemContent>
+										<ItemTitle>Remove</ItemTitle>
+									</ItemContent>
+								</button>
+							</Item>
+						</ItemGroup>
+						<Button
+							className="w-full"
+							onClick={() => onMenuTargetChange(null)}
+							size="xl"
+							type="button"
+							variant="secondary"
+						>
+							Cancel
+						</Button>
+					</DrawerBody>
+				</DrawerContent>
+			</Drawer>
 
 			<FormSheet
+				confirmLabel="Add"
 				formId={ADD_PASSKEY_FORM_ID}
 				isLoading={isAddSubmitting}
 				isSaveDisabled={isAddSubmitting}
-				onOpenChange={(open) => {
-					if (!open) {
-						addForm.reset();
-					}
-					onAddOpenChange(open);
-				}}
+				onOpenChange={onAddSheetOpenChange}
 				open={isAddOpen}
 				title="Add passkey"
 			>
-				<AddPasskeyForm form={addForm} formId={ADD_PASSKEY_FORM_ID} />
+				<AddPasskeyForm
+					errorMessage={addErrorMessage}
+					form={addForm}
+					formId={ADD_PASSKEY_FORM_ID}
+				/>
 			</FormSheet>
 
 			<FormSheet
@@ -218,7 +307,7 @@ export function Passkeys() {
 					defaultName={renameTarget?.name ?? ""}
 					formId={RENAME_PASSKEY_FORM_ID}
 					key={renameTarget?.id}
-					label="Passkey name"
+					label="Name"
 					onSubmit={onRenamePasskey}
 				/>
 			</FormSheet>
@@ -236,11 +325,11 @@ export function Passkeys() {
 						<DialogTitle>Remove passkey?</DialogTitle>
 						<DialogDescription>
 							{deleteTarget?.name || "This passkey"} will no longer sign you in.
-							You cannot undo this, and the credential stays on the device until
-							you clear it there.
+							You can't undo this, and the passkey stays on the device until you
+							delete it there.
 						</DialogDescription>
 					</DialogHeader>
-					<DialogFooter className="flex-row justify-end gap-2">
+					<DialogFooter>
 						<Button
 							onClick={() => onDeleteTargetChange(null)}
 							type="button"
@@ -249,16 +338,18 @@ export function Passkeys() {
 							Cancel
 						</Button>
 						<Button
+							aria-busy={isDeletePending}
 							disabled={isDeletePending}
 							onClick={onDeletePasskey}
 							type="button"
 							variant="destructive"
 						>
-							{isDeletePending ? "Removing..." : "Remove"}
+							<IconTrash aria-hidden />
+							Remove
 						</Button>
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
-		</div>
+		</SettingsSection>
 	);
 }

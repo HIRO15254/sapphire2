@@ -24,7 +24,7 @@ export function TagNameForm({
 
 	return (
 		<form
-			className="flex flex-col gap-4"
+			className="flex flex-col gap-4 pt-1 pb-2"
 			id={formId}
 			onSubmit={(e) => {
 				e.preventDefault();
@@ -45,6 +45,7 @@ export function TagNameForm({
 							name={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
+							size="xl"
 							value={field.state.value}
 						/>
 					</Field>

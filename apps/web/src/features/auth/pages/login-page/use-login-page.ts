@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 export function useLoginPage() {
-	const [showSignIn, setShowSignIn] = useState(false);
+	const [showSignIn, setShowSignIn] = useState(true);
 
 	return {
 		showSignIn,

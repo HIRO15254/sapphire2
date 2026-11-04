@@ -8,6 +8,8 @@ The whole tRPC query cache is persisted to IndexedDB (store key `sapphire2-query
 
 The mitigation is the persister `buster` string in [`apps/web/src/main.tsx`](../../apps/web/src/main.tsx): bumping it discards the entire persisted cache on the next load. **Invariant: any release whose server changes alter a procedure's output shape or value semantics must bump the buster in the same change.** The bump procedure is kept at the code site as the repo's **only** `NOTE(ops)` comment, because main.tsx is exactly the file a release-time editor sees.
 
+The final data-model-v2 API uses `2026-11-data-model-v2`, replacing `2026-10-room-archive`. TanStack's restore checks the buster before hydration and calls `removeClient()` on mismatch; the browser persistence spec seeds an old-shaped IndexedDB record and checks it is discarded on signed-in startup.
+
 Not every output change needs a bump: a *gained* field whose absence fails safe can ride out the 24h window — e.g. the P&L graph's `evRecorded` flag rehydrates as absent, reads as "no recorded EV", and merely hides the EV toggle until the refetch lands (see [`statistics.md`](statistics.md)). Bump when stale data would render *wrong*, not merely *less*.
 
 ### Sign-out data wipe (SA2-159)
@@ -15,6 +17,10 @@ Not every output change needs a bump: a *gained* field whose absence fails safe 
 The persisted cache is keyed only by procedure name, **not per-user** — on a shared device the next account to sign in would briefly see the previous user's financial data rehydrated from IndexedDB (SA2-159). Two-part wipe in [`apps/web/src/utils/trpc.ts`](../../apps/web/src/utils/trpc.ts): `queryClient.clear()` removes what is currently in memory, and `persister.removeClient()` deletes the persisted store so nothing rehydrates on the next load. Every sign-out entry point routes through the shared [`useSignOut`](../../apps/web/src/shared/hooks/use-sign-out.ts) hook, which runs the wipe after Better Auth's `signOut` — **on `onError` too**, so a failed request never leaves stale data behind. The wipe is deliberately best-effort: a failed IndexedDB delete must not block navigating the user away.
 
 ## Routing shell and MCP OAuth login continuation
+
+- **Authenticated navigation (SA2-390)**: Home, Sessions, Stats, Assets and More form the bottom tabs; More is current for its Library (Rooms, Games, Players, Tags) and App (Settings) destinations. The app is mobile only: from `md` (768px) the authenticated shell shows a "Use on your phone" blocker instead of the app. Unimplemented destinations remain links and resolve to the router's not-found fallback.
+- **Route table**: `/`, `/more`, `/settings`, and `/login` exist. Later phases own `/live/$entryId`, `/sessions`, `/sessions/new`, `/sessions/$entryId`, `/sessions/$entryId/hands/$handId`, `/stats`, `/assets…`, `/rooms…`, `/games`, `/players…`, and `/tags`. The Home live action points to `/live/new` for U05. There are no redirects from old paths. Routes are split automatically at build time.
+- **Back navigation** returns to the previous router history entry, preserving its search parameters; a cold entry navigates to its supplied fallback.
 
 - **MCP OAuth login continuation**: when better-auth's authorize endpoint sees an unauthenticated user, it redirects to this app's `/login` carrying the original authorize query ([`apps/web/src/routes/login.tsx`](../../apps/web/src/routes/login.tsx) parks it, and social sign-in preserves it mid-OAuth) so the authorize flow can resume after sign-in.
 - **Open-redirect closure invariant (security)**: after sign-in, [`resolveMcpAuthorizeRedirect`](../../apps/web/src/features/auth/utils/oauth-redirect.ts) sends the browser back to the **server's** MCP authorize endpoint — *never to any URL taken from the query itself*. The destination is fixed and only allowlisted OAuth parameters are forwarded; the helper returns the absolute authorize URL with the OAuth query re-attached, or `null` when the current query is not an OAuth authorize request. Any change that starts deriving the redirect target from query data reopens the open-redirect vector this design closes. The server-side OAuth provider design lives in [`mcp-and-oauth.md`](mcp-and-oauth.md).
@@ -41,6 +47,12 @@ Saved filter presets store the filter state of one screen (sessions list, statis
 ### Default-preset scoping
 
 At most one default preset per (user, screen). The `setDefault` procedure in [`packages/api/src/routers/filter-preset.ts`](../../packages/api/src/routers/filter-preset.ts) clears every **other** row for the exact `(userId, screenKey)` pair — scoped by **both**, so it can never clear another user's default nor the same user's default on another screen. The unique-index/TOCTOU backstop belongs to [`data-integrity.md`](data-integrity.md).
+
+## Mutation feedback, Undo and load failures
+
+`useUndoableMutation` preserves the caller's optimistic callbacks and uses one toast for the write and its outcome. A successful reversible write offers Undo for six seconds; Undo sends the caller's compensating request using the original variables, result and optimistic rollback context. It never offers redo. Hard deletes and an entry update that removes a Day use destructive feedback without Undo. The inverse table and conflict semantics are in [the API contract](api-after-data-model-v2.md#undo); last-writer-wins is not optimistic concurrency control.
+
+The form awaits the mutation before closing or resetting, so a rejected write retains input for retry. Query failures are rendered inline rather than by a global cache toast: `FORBIDDEN` and `NOT_FOUND` map to the not-found state, and other failures to the retryable state. A loading query must not show an empty or not-found state.
 
 ## Form sheets and the external-submit `form=` contract
 

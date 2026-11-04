@@ -1,10 +1,10 @@
-import { IconDeviceDesktop, IconMoon, IconSun } from "@tabler/icons-react";
+import { IconDeviceMobile, IconMoon, IconSun } from "@tabler/icons-react";
 import { useTheme } from "next-themes";
 
 export const THEME_OPTIONS = [
+	{ value: "system", label: "System", icon: IconDeviceMobile },
 	{ value: "light", label: "Light", icon: IconSun },
 	{ value: "dark", label: "Dark", icon: IconMoon },
-	{ value: "system", label: "System", icon: IconDeviceDesktop },
 ] as const;
 
 export function useThemeSetting() {
@@ -12,7 +12,11 @@ export function useThemeSetting() {
 
 	return {
 		options: THEME_OPTIONS,
-		onValueChange: setTheme,
-		value: theme ?? "",
+		onValueChange: (value: string) => {
+			if (value) {
+				setTheme(value);
+			}
+		},
+		value: theme ?? "system",
 	};
 }

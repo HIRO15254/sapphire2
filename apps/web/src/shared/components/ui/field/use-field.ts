@@ -4,6 +4,6 @@ export function useField() {
 	const id = useId();
 
 	return {
-		errorId: `field-error-${id.replaceAll(":", "")}`,
+		hintId: `field-hint-${id.replaceAll(":", "")}`,
 	};
 }

@@ -1,14 +1,34 @@
+import { cva, type VariantProps } from "class-variance-authority";
 import type * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-function Input({ className, type, ...props }: React.ComponentProps<"input">) {
+const inputVariants = cva(
+	"w-full min-w-0 border border-input bg-card px-2.5 text-foreground outline-none transition-[border-color,box-shadow] placeholder:text-muted-foreground focus:border-ring focus:shadow-[0_0_0_1px_var(--ring)] disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:focus:shadow-[0_0_0_1px_var(--destructive)]",
+	{
+		variants: {
+			size: {
+				default: "h-[var(--control-md)] rounded-md text-sm",
+				xl: "h-[var(--m-control)] rounded-lg text-[length:var(--m-text-body)]",
+			},
+		},
+		defaultVariants: {
+			size: "default",
+		},
+	}
+);
+
+function Input({
+	className,
+	size = "default",
+	type,
+	...props
+}: Omit<React.ComponentProps<"input">, "size"> &
+	VariantProps<typeof inputVariants>) {
 	return (
 		<input
-			className={cn(
-				"h-[var(--h-control-md)] w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none transition-colors file:inline-flex file:h-6 file:border-0 file:bg-transparent file:font-medium file:text-foreground file:text-sm placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 dark:disabled:bg-input/80",
-				className
-			)}
+			className={cn(inputVariants({ size, className }))}
+			data-size={size}
 			data-slot="input"
 			type={type}
 			{...props}

@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => ({
 			mode === "test" ? [] : undefined
 		),
 		tailwindcss(),
-		tanstackRouter({}),
+		tanstackRouter({ target: "react", autoCodeSplitting: true }),
 		react(),
 		VitePWA({
 			registerType: "prompt",

@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import SignUpForm from "./sign-up-form";
 
-const SIGN_UP_BUTTON_NAME = "Sign Up";
+const SIGN_UP_BUTTON_NAME = "Create account";
 
 const mocks = vi.hoisted(() => ({
 	navigate: vi.fn(),
@@ -38,23 +38,6 @@ vi.mock("@/lib/auth-client", () => ({
 }));
 
 describe("SignUpForm", () => {
-	it("renders auth fields and provider buttons", () => {
-		render(<SignUpForm onSwitchToSignIn={mocks.onSwitchToSignIn} />);
-
-		expect(screen.getByLabelText("Name")).toBeInTheDocument();
-		expect(screen.getByLabelText("Email")).toBeInTheDocument();
-		expect(screen.getByLabelText("Password")).toBeInTheDocument();
-		expect(
-			screen.getByRole("button", { name: "Sign up with Google" })
-		).toBeInTheDocument();
-		expect(
-			screen.getByRole("button", { name: "Sign up with Discord" })
-		).toBeInTheDocument();
-		expect(
-			screen.getByRole("button", { name: "Already have an account? Sign In" })
-		).toBeInTheDocument();
-	});
-
 	it("submits valid credentials and calls the switch callback", async () => {
 		const user = userEvent.setup();
 		mocks.signUpEmail.mockResolvedValue(undefined);
@@ -74,9 +57,31 @@ describe("SignUpForm", () => {
 			expect(mocks.signUpEmail).toHaveBeenCalled();
 		});
 
-		await user.click(
-			screen.getByRole("button", { name: "Already have an account? Sign In" })
-		);
+		await user.click(screen.getByRole("button", { name: "Sign in" }));
 		expect(mocks.onSwitchToSignIn).toHaveBeenCalledTimes(1);
+	});
+
+	it("marks the taken email invalid until the email changes", async () => {
+		const user = userEvent.setup();
+		mocks.signUpEmail.mockImplementation((_credentials, callbacks) => {
+			callbacks.onError({ error: { code: "USER_ALREADY_EXISTS" } });
+			return Promise.resolve();
+		});
+		render(<SignUpForm onSwitchToSignIn={mocks.onSwitchToSignIn} />);
+		await user.type(screen.getByLabelText("Name"), "Hero");
+		await user.type(screen.getByLabelText("Email"), "hero@example.com");
+		await user.type(screen.getByLabelText("Password"), "password123");
+		await user.click(screen.getByRole("button", { name: SIGN_UP_BUTTON_NAME }));
+		expect(
+			await screen.findByText("This email is already in use")
+		).toBeInTheDocument();
+		expect(screen.getByLabelText("Email")).toHaveAttribute(
+			"aria-invalid",
+			"true"
+		);
+		await user.type(screen.getByLabelText("Email"), "x");
+		expect(
+			screen.queryByText("This email is already in use")
+		).not.toBeInTheDocument();
 	});
 });

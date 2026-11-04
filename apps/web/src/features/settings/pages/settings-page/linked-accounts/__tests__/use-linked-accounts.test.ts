@@ -7,6 +7,13 @@ const mocks = vi.hoisted(() => ({
 	unlinkAccount: vi.fn(),
 	toastSuccess: vi.fn(),
 	toastError: vi.fn(),
+	navigate: vi.fn(),
+	search: {} as { error?: string; linkError?: "google" | "discord" },
+}));
+
+vi.mock("@tanstack/react-router", () => ({
+	useNavigate: () => mocks.navigate,
+	useSearch: () => mocks.search,
 }));
 
 vi.mock("sonner", () => ({
@@ -18,6 +25,7 @@ vi.mock("@/lib/auth-client", () => ({
 		listAccounts: mocks.listAccounts,
 		linkSocial: mocks.linkSocial,
 		unlinkAccount: mocks.unlinkAccount,
+		useSession: () => ({ data: { user: { email: "user@example.com" } } }),
 	},
 }));
 
@@ -30,6 +38,8 @@ describe("useLinkedAccounts", () => {
 		mocks.unlinkAccount.mockReset();
 		mocks.toastSuccess.mockReset();
 		mocks.toastError.mockReset();
+		mocks.navigate.mockReset();
+		mocks.search = {};
 	});
 
 	it("starts loading with empty accounts", async () => {
@@ -82,6 +92,7 @@ describe("useLinkedAccounts", () => {
 		expect(mocks.linkSocial).toHaveBeenCalledWith({
 			provider: "google",
 			callbackURL: "https://app.test/settings",
+			errorCallbackURL: "https://app.test/settings?linkError=google",
 		});
 
 		Object.defineProperty(window, "location", {
@@ -90,7 +101,7 @@ describe("useLinkedAccounts", () => {
 		});
 	});
 
-	it("handleUnlink on success: toasts and refetches accounts", async () => {
+	it("refetches accounts without a success toast after unlinking", async () => {
 		mocks.listAccounts
 			.mockResolvedValueOnce({
 				data: [{ accountId: "a1", id: "ac1", providerId: "google" }],
@@ -104,7 +115,7 @@ describe("useLinkedAccounts", () => {
 			await result.current.handleUnlink("google");
 		});
 		expect(mocks.unlinkAccount).toHaveBeenCalledWith({ providerId: "google" });
-		expect(mocks.toastSuccess).toHaveBeenCalledWith("Account unlinked");
+		expect(mocks.toastSuccess).not.toHaveBeenCalled();
 		await waitFor(() => expect(result.current.accounts).toEqual([]));
 	});
 
@@ -122,14 +133,14 @@ describe("useLinkedAccounts", () => {
 		await act(async () => {
 			await result.current.handleUnlink("google");
 		});
-		expect(mocks.toastError).toHaveBeenCalledWith(
-			"Last account cannot be unlinked"
-		);
+		expect(mocks.toastError).toHaveBeenCalledWith("Couldn't unlink Google", {
+			description: "Last account cannot be unlinked",
+		});
 		expect(mocks.toastSuccess).not.toHaveBeenCalled();
 		expect(mocks.listAccounts).toHaveBeenCalledTimes(listCallCountBefore);
 	});
 
-	it("handleUnlink on error without message: falls back to fixed 'Failed to unlink account'", async () => {
+	it("reports unlink errors without a message", async () => {
 		mocks.listAccounts.mockResolvedValue({
 			data: [{ accountId: "a1", id: "ac1", providerId: "google" }],
 		});
@@ -140,7 +151,9 @@ describe("useLinkedAccounts", () => {
 		await act(async () => {
 			await result.current.handleUnlink("google");
 		});
-		expect(mocks.toastError).toHaveBeenCalledWith("Failed to unlink account");
+		expect(mocks.toastError).toHaveBeenCalledWith("Couldn't unlink Google", {
+			description: undefined,
+		});
 	});
 
 	it("exposes onSetPasswordOpenChange to control isSetPasswordOpen", async () => {
@@ -152,6 +165,35 @@ describe("useLinkedAccounts", () => {
 		expect(result.current.isSetPasswordOpen).toBe(true);
 		act(() => result.current.onSetPasswordOpenChange(false));
 		expect(result.current.isSetPasswordOpen).toBe(false);
+	});
+
+	it("reports a canceled link from the callback and removes the search parameter", async () => {
+		mocks.listAccounts.mockResolvedValue({ data: [] });
+		mocks.search = { linkError: "discord" };
+		const { result } = renderHook(() => useLinkedAccounts());
+		await waitFor(() => expect(result.current.loading).toBe(false));
+		expect(mocks.toastError).toHaveBeenCalledWith("Couldn't link Discord", {
+			description: "The sign-in was canceled. Try again.",
+			id: "link-error-discord",
+		});
+		expect(mocks.navigate).toHaveBeenCalledWith({
+			to: "/settings",
+			search: {},
+			replace: true,
+		});
+	});
+
+	it("explains a link the provider refused instead of calling it canceled", async () => {
+		mocks.listAccounts.mockResolvedValue({ data: [] });
+		mocks.search = { error: "email_doesn't_match", linkError: "google" };
+		renderHook(() => useLinkedAccounts());
+		await waitFor(() =>
+			expect(mocks.toastError).toHaveBeenCalledWith("Couldn't link Google", {
+				description:
+					"Use a Google account with the same email as this account.",
+				id: "link-error-google",
+			})
+		);
 	});
 
 	it("hasCredential is false when accounts contain only social providers", async () => {
