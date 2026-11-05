@@ -34,7 +34,7 @@ export const LEDGER_WALLET_ROLES = [
 	"adjustment",
 	"exchange",
 ] as const satisfies readonly LedgerRole[];
-export type LedgerWalletRole = (typeof LEDGER_WALLET_ROLES)[number];
+type LedgerWalletRole = (typeof LEDGER_WALLET_ROLES)[number];
 
 export function isLedgerWalletRole(
 	role: LedgerRole | null

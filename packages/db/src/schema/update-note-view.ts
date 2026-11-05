@@ -1,4 +1,4 @@
-import { relations, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
 	index,
 	integer,
@@ -28,10 +28,3 @@ export const updateNoteView = sqliteTable(
 		),
 	]
 );
-
-export const updateNoteViewRelations = relations(updateNoteView, ({ one }) => ({
-	user: one(user, {
-		fields: [updateNoteView.userId],
-		references: [user.id],
-	}),
-}));

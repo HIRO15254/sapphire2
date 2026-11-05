@@ -7,8 +7,9 @@ import {
 	payloadSchemaForScreenKey,
 	presetNameSchema,
 } from "@sapphire2/db/schemas/filter-preset";
+import { idSchema } from "@sapphire2/db/schemas/id";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, exists, ne } from "drizzle-orm";
+import { and, asc, desc, eq, exists, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
@@ -98,7 +99,7 @@ async function assertNameAvailable(
 			and(
 				eq(filterPreset.userId, userId),
 				eq(filterPreset.screenKey, screenKey),
-				eq(filterPreset.name, name),
+				sql`${filterPreset.name} = ${name} COLLATE NOCASE`,
 				excludeId === undefined ? undefined : ne(filterPreset.id, excludeId)
 			)
 		)
@@ -176,7 +177,7 @@ export const filterPresetRouter = router({
 	update: protectedProcedure
 		.input(
 			z.object({
-				id: z.string(),
+				id: idSchema,
 				name: presetNameSchema.optional(),
 				payload: updatePayloadSchema.optional(),
 			})
@@ -223,7 +224,9 @@ export const filterPresetRouter = router({
 						...(payload === undefined ? {} : { payload }),
 						updatedAt: new Date(),
 					})
-					.where(eq(filterPreset.id, input.id));
+					.where(
+						and(eq(filterPreset.id, input.id), eq(filterPreset.userId, userId))
+					);
 			} catch (error) {
 				if (isFilterPresetNameConflictError(error)) {
 					throw new TRPCError({
@@ -242,7 +245,7 @@ export const filterPresetRouter = router({
 		}),
 
 	delete: protectedProcedure
-		.input(z.object({ id: z.string() }))
+		.input(z.object({ id: idSchema }))
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const [found] = await ctx.db
@@ -252,12 +255,16 @@ export const filterPresetRouter = router({
 			if (!found || found.userId !== userId) {
 				throw new TRPCError({ code: "FORBIDDEN", message: FORBIDDEN_MESSAGE });
 			}
-			await ctx.db.delete(filterPreset).where(eq(filterPreset.id, input.id));
+			await ctx.db
+				.delete(filterPreset)
+				.where(
+					and(eq(filterPreset.id, input.id), eq(filterPreset.userId, userId))
+				);
 			return { success: true };
 		}),
 
 	setDefault: protectedProcedure
-		.input(z.object({ id: z.string() }))
+		.input(z.object({ id: idSchema }))
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const [found] = await ctx.db
@@ -295,7 +302,9 @@ export const filterPresetRouter = router({
 				ctx.db
 					.update(filterPreset)
 					.set({ isDefault: true, updatedAt: new Date() })
-					.where(eq(filterPreset.id, input.id)),
+					.where(
+						and(eq(filterPreset.id, input.id), eq(filterPreset.userId, userId))
+					),
 			]);
 
 			const [updated] = await ctx.db
@@ -306,7 +315,7 @@ export const filterPresetRouter = router({
 		}),
 
 	clearDefault: protectedProcedure
-		.input(z.object({ id: z.string() }))
+		.input(z.object({ id: idSchema }))
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const [found] = await ctx.db
@@ -324,7 +333,9 @@ export const filterPresetRouter = router({
 			await ctx.db
 				.update(filterPreset)
 				.set({ isDefault: false, updatedAt: new Date() })
-				.where(eq(filterPreset.id, input.id));
+				.where(
+					and(eq(filterPreset.id, input.id), eq(filterPreset.userId, userId))
+				);
 
 			const [updated] = await ctx.db
 				.select()

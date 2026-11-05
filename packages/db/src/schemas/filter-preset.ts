@@ -1,7 +1,7 @@
 import z from "zod";
 import { refineStatsFilter, statsFilterShape } from "./stats-filter";
 
-export const FILTER_PRESET_SCREEN_KEYS = ["sessions", "statistics"] as const;
+const FILTER_PRESET_SCREEN_KEYS = ["sessions", "statistics"] as const;
 
 export const filterPresetScreenKeySchema = z.enum(FILTER_PRESET_SCREEN_KEYS);
 
@@ -21,7 +21,7 @@ export const sessionsFilterPresetPayloadSchema = z
 		refineStatsFilter(filter, ctx, { requireMode: false })
 	);
 
-export type SessionsFilterPresetPayload = z.infer<
+type SessionsFilterPresetPayload = z.infer<
 	typeof sessionsFilterPresetPayloadSchema
 >;
 
@@ -35,7 +35,7 @@ export const statisticsFilterPresetPayloadSchema = z
 		refineStatsFilter(filter, ctx, { requireMode: true })
 	);
 
-export type StatisticsFilterPresetPayload = z.infer<
+type StatisticsFilterPresetPayload = z.infer<
 	typeof statisticsFilterPresetPayloadSchema
 >;
 

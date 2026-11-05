@@ -1,25 +1,28 @@
-import { asset } from "@sapphire2/db/schema/asset";
 import { tournamentRule } from "@sapphire2/db/schema/rule";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import {
 	tournamentTag,
 	tournamentTagLink,
 } from "@sapphire2/db/schema/tournament-tag";
+import { idSchema } from "@sapphire2/db/schemas/id";
 import { tagIdsSchema } from "@sapphire2/db/schemas/tag-ids";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, inArray, isNull, not, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
-import { type BatchStatement, runBatch, selectInChunks } from "../lib/batch";
+import {
+	type BatchStatement,
+	insertChunks,
+	runBatch,
+	selectInChunks,
+} from "../lib/batch";
+import { isForeignKeyConstraintError } from "../lib/db-errors";
+import { memoSchema } from "../lib/master-input-schemas";
 import {
 	validateEntityOwnership,
 	validateTagsOwnership,
 } from "../lib/ownership";
-import {
-	hydrateLineups,
-	insertChunks,
-	type LineupMap,
-} from "../services/game-lineup";
+import { hydrateLineups, type LineupMap } from "../services/game-lineup";
 import {
 	hydrateTournamentRules,
 	planTournamentRuleWrite,
@@ -35,9 +38,7 @@ type DbInstance = Parameters<
 
 type TournamentRow = typeof tournament.$inferSelect;
 
-const idSchema = z.string().min(1);
 const nameSchema = z.string().trim().min(1).max(100);
-const memoSchema = z.string().max(50_000);
 
 export const tournamentListByRoomInputSchema = z.object({
 	roomId: idSchema,
@@ -210,16 +211,7 @@ async function assertDefaultAsset(
 	if (!assetId || assetId === currentAssetId) {
 		return;
 	}
-	const [found] = await db
-		.select({ archivedAt: asset.archivedAt })
-		.from(asset)
-		.where(and(eq(asset.id, assetId), eq(asset.userId, userId)));
-	if (!found) {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: "You do not own this asset",
-		});
-	}
+	const found = await validateEntityOwnership(db, "asset", assetId, userId);
 	if (found.archivedAt !== null) {
 		throw new TRPCError({
 			code: "BAD_REQUEST",
@@ -366,13 +358,12 @@ async function updateTournament(
 		db
 			.update(tournament)
 			.set({
-				name: input.name ?? found.name,
-				memo: input.memo === undefined ? found.memo : input.memo,
-				defaultAssetId:
-					input.defaultAssetId === undefined
-						? found.defaultAssetId
-						: input.defaultAssetId,
-				currentRuleId,
+				...(input.name === undefined ? {} : { name: input.name }),
+				...(input.memo === undefined ? {} : { memo: input.memo }),
+				...(input.defaultAssetId === undefined
+					? {}
+					: { defaultAssetId: input.defaultAssetId }),
+				...(input.rule === undefined ? {} : { currentRuleId }),
 				updatedAt: new Date(),
 			})
 			.where(and(eq(tournament.id, found.id), eq(tournament.userId, userId))),
@@ -502,22 +493,31 @@ export const tournamentRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await validateEntityOwnership(ctx.db, "tournament", input.id, userId);
-			const deleted = await ctx.db
-				.delete(tournament)
-				.where(
-					and(
-						eq(tournament.id, input.id),
-						eq(tournament.userId, userId),
-						not(tournamentIsReferenced)
-					)
-				)
-				.returning({ id: tournament.id });
-			if (deleted.length === 0) {
-				throw new TRPCError({
+			const conflict = () =>
+				new TRPCError({
 					code: "CONFLICT",
 					message:
 						"This tournament is referenced by entries or ledger lines. Archive the tournament instead of deleting it.",
 				});
+			try {
+				const deleted = await ctx.db
+					.delete(tournament)
+					.where(
+						and(
+							eq(tournament.id, input.id),
+							eq(tournament.userId, userId),
+							not(tournamentIsReferenced)
+						)
+					)
+					.returning({ id: tournament.id });
+				if (deleted.length === 0) {
+					throw conflict();
+				}
+			} catch (error) {
+				if (isForeignKeyConstraintError(error)) {
+					throw conflict();
+				}
+				throw error;
 			}
 			return { success: true };
 		}),

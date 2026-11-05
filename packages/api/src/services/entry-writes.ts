@@ -25,14 +25,19 @@ import { ledgerLine } from "@sapphire2/db/schema/ledger";
 import { tournamentRulePrice } from "@sapphire2/db/schema/rule";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { type BatchStatement, runBatch, selectInChunks } from "../lib/batch";
+import {
+	type BatchStatement,
+	D1_MAX_BOUND_PARAMS,
+	insertChunks,
+	runBatch,
+	selectInChunks,
+} from "../lib/batch";
 import {
 	validateEntityOwnership,
 	validateTagsOwnership,
 } from "../lib/ownership";
 import type { CashRuleInput } from "./cash-rules";
 import { type EntryRuleWrite, planEntryRule } from "./entry-rules";
-import { insertChunks } from "./game-lineup";
 import { manualLineOccurredAt } from "./ledger-writes";
 import type { TournamentRuleInput } from "./tournament-rule";
 
@@ -287,7 +292,8 @@ export async function assertPaymentAssets(
 	db: Database,
 	userId: string,
 	payments: ManualPaymentInput[],
-	keptAssetIds: ReadonlySet<string>
+	keptAssetIds: ReadonlySet<string>,
+	keptAssetCounts?: ReadonlyMap<string, number>
 ) {
 	const ids = [...new Set(payments.map((payment) => payment.assetId))];
 	const rows = await selectInChunks(
@@ -306,6 +312,21 @@ export async function assertPaymentAssets(
 		rows.some((row) => row.archivedAt !== null && !keptAssetIds.has(row.id))
 	) {
 		badRequest("An archived asset cannot be selected; restore it first");
+	}
+	if (keptAssetCounts) {
+		const archived = new Set(
+			rows.filter((row) => row.archivedAt !== null).map((row) => row.id)
+		);
+		const remaining = new Map(keptAssetCounts);
+		for (const payment of payments) {
+			if (archived.has(payment.assetId)) {
+				const count = remaining.get(payment.assetId) ?? 0;
+				if (count === 0) {
+					badRequest("An archived asset cannot be selected; restore it first");
+				}
+				remaining.set(payment.assetId, count - 1);
+			}
+		}
 	}
 }
 
@@ -736,7 +757,7 @@ function dayDeleteStatements(
 	ids: string[]
 ): BatchStatement[] {
 	const statements: BatchStatement[] = [];
-	const perChunk = 100 - DAY_DELETE_CHUNK_EXTRA;
+	const perChunk = D1_MAX_BOUND_PARAMS - DAY_DELETE_CHUNK_EXTRA;
 	for (let index = 0; index < ids.length; index += perChunk) {
 		statements.push(
 			db
@@ -753,6 +774,41 @@ function dayDeleteStatements(
 	return statements;
 }
 
+async function validateUnchangedDays(
+	db: Database,
+	userId: string,
+	input: EntryUpdateInput
+): Promise<void> {
+	if (input.playedOn === undefined) {
+		return;
+	}
+	const [first] = await db
+		.select({ localDate: playSession.localDate })
+		.from(playSession)
+		.where(
+			and(eq(playSession.entryId, input.id), eq(playSession.userId, userId))
+		)
+		.orderBy(asc(playSession.localDate))
+		.limit(1);
+	if (first?.localDate !== input.playedOn) {
+		badRequest("playedOn must equal the first play session's local date");
+	}
+}
+
+function countStoredReferences(
+	lines: { assetId: string; priceId: string | null }[]
+) {
+	const assets = new Map<string, number>();
+	const prices = new Map<string, number>();
+	for (const line of lines) {
+		assets.set(line.assetId, (assets.get(line.assetId) ?? 0) + 1);
+		if (line.priceId) {
+			prices.set(line.priceId, (prices.get(line.priceId) ?? 0) + 1);
+		}
+	}
+	return { assets, prices };
+}
+
 async function manualMoneyStatements(
 	db: Database,
 	userId: string,
@@ -761,19 +817,7 @@ async function manualMoneyStatements(
 	now: Date
 ): Promise<BatchStatement[]> {
 	if (input.playSessions === undefined && input.payments === undefined) {
-		if (input.playedOn !== undefined) {
-			const [first] = await db
-				.select({ localDate: playSession.localDate })
-				.from(playSession)
-				.where(
-					and(eq(playSession.entryId, input.id), eq(playSession.userId, userId))
-				)
-				.orderBy(asc(playSession.localDate))
-				.limit(1);
-			if (first?.localDate !== input.playedOn) {
-				badRequest("playedOn must equal the first play session's local date");
-			}
-		}
+		await validateUnchangedDays(db, userId, input);
 		return [];
 	}
 	const storedPlays = await db
@@ -807,21 +851,15 @@ async function manualMoneyStatements(
 	}
 	validateManualPlays(stored.kind, input.playedOn ?? stored.playedOn, plays);
 	const payments = plays.flatMap((play) => play.payments);
+	const { assets: keptAssetCounts, prices: keptPriceCounts } =
+		countStoredReferences(storedLines);
 	await assertPaymentAssets(
 		db,
 		userId,
 		payments,
-		new Set(storedLines.map((line) => line.assetId))
+		new Set(keptAssetCounts.keys()),
+		keptAssetCounts
 	);
-	const keptPriceCounts = new Map<string, number>();
-	for (const line of storedLines) {
-		if (line.priceId) {
-			keptPriceCounts.set(
-				line.priceId,
-				(keptPriceCounts.get(line.priceId) ?? 0) + 1
-			);
-		}
-	}
 	await assertPaymentPrices(
 		db,
 		userId,

@@ -16,6 +16,29 @@ import { applyMigrations, type TestD1Database } from "./test-database";
 
 const workerCompatibility = readWorkerCompatibility();
 
+export const FOREIGN_KEY_FAILED = "FOREIGN KEY constraint failed";
+
+export function insert(
+	d1: TestD1Database,
+	table: string,
+	row: Record<string, string | number | null>
+) {
+	const columns = Object.keys(row);
+	return d1
+		.prepare(
+			`INSERT INTO ${table} (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`
+		)
+		.bind(...Object.values(row))
+		.run();
+}
+
+export async function ids(d1: TestD1Database, table: string, key = "id") {
+	const rows = await d1
+		.prepare(`SELECT ${key} AS id FROM ${table} ORDER BY ${key}`)
+		.all<{ id: string }>();
+	return rows.results.map(({ id }) => id);
+}
+
 export function requireCreatedRow<T extends { id?: string }>(
 	row: T | undefined
 ): T & { id: string } {
@@ -27,10 +50,10 @@ export function requireCreatedRow<T extends { id?: string }>(
 	return row as T & { id: string };
 }
 
-export async function nlhGame(db: Database, userId = "alice") {
+async function builtinNlh(db: Database, userId = "alice") {
 	await seedDefaultGameData(db, userId);
 	const [nlh] = await db
-		.select({ id: gameVariant.id, groupId: gameVariant.groupId })
+		.select()
 		.from(gameVariant)
 		.where(
 			and(eq(gameVariant.userId, userId), eq(gameVariant.builtinKey, "nlh"))
@@ -38,6 +61,11 @@ export async function nlhGame(db: Database, userId = "alice") {
 	if (!nlh) {
 		throw new Error("missing builtin nlh");
 	}
+	return nlh;
+}
+
+export async function nlhGame(db: Database, userId = "alice") {
+	const nlh = await builtinNlh(db, userId);
 	return {
 		game: { variantId: nlh.id },
 		stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],

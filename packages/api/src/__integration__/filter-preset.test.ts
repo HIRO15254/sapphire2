@@ -3,7 +3,7 @@ import { entryTag } from "@sapphire2/db/schema/entry-tag";
 import { filterPreset } from "@sapphire2/db/schema/filter-preset";
 import { room } from "@sapphire2/db/schema/room";
 import { tournamentTag } from "@sapphire2/db/schema/tournament-tag";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { expect } from "vitest";
 import { requireCreatedRow, test } from "./test-fixture";
 
@@ -24,6 +24,9 @@ test("duplicate names conflict only within the same user's screen", async ({
 		})
 	);
 	const otherUser = requireCreatedRow(await api.bob.filterPreset.create(input));
+	expect(await api.alice.filterPreset.list({ screenKey: "sessions" })).toEqual([
+		first,
+	]);
 	expect(otherScreen).toMatchObject({
 		userId: "alice",
 		screenKey: "statistics",
@@ -37,6 +40,84 @@ test("duplicate names conflict only within the same user's screen", async ({
 	const rows = await api.db.select().from(filterPreset);
 	expect(rows).toHaveLength(3);
 	expect(rows).toEqual(expect.arrayContaining([first, otherScreen, otherUser]));
+});
+
+test("case-insensitive preset names conflict without blocking a case-only self-rename", async ({
+	api,
+}) => {
+	const first = requireCreatedRow(
+		await api.alice.filterPreset.create({
+			screenKey: "sessions",
+			name: "  Morning  ",
+			payload: {},
+		})
+	);
+	await expect(
+		api.alice.filterPreset.create({
+			screenKey: "sessions",
+			name: "morning",
+			payload: {},
+		})
+	).rejects.toMatchObject({ code: "CONFLICT" });
+	expect(
+		(await api.alice.filterPreset.update({ id: first.id, name: "MORNING" }))
+			?.name
+	).toBe("MORNING");
+});
+
+test("setting a default preserves other screens and a default when the target disappears before the batch", async ({
+	api,
+}) => {
+	const first = requireCreatedRow(
+		await api.alice.filterPreset.create({
+			screenKey: "sessions",
+			name: "First",
+			payload: {},
+		})
+	);
+	const second = requireCreatedRow(
+		await api.alice.filterPreset.create({
+			screenKey: "sessions",
+			name: "Second",
+			payload: {},
+		})
+	);
+	const other = requireCreatedRow(
+		await api.alice.filterPreset.create({
+			screenKey: "statistics",
+			name: "Statistics",
+			payload: { normalized: true },
+		})
+	);
+	await api.alice.filterPreset.setDefault({ id: first.id });
+	await api.alice.filterPreset.setDefault({ id: other.id });
+	await api.alice.filterPreset.setDefault({ id: second.id });
+	let sessions = await api.alice.filterPreset.list({ screenKey: "sessions" });
+	expect(sessions.find((row) => row.id === first.id)?.isDefault).toBe(false);
+	expect(sessions.find((row) => row.id === second.id)?.isDefault).toBe(true);
+	expect(
+		(await api.alice.filterPreset.list({ screenKey: "statistics" }))[0]
+			?.isDefault
+	).toBe(true);
+
+	const disappearingDb = new Proxy(api.db, {
+		get(target, property, receiver) {
+			if (property === "batch") {
+				return async (...args: Parameters<typeof api.db.batch>) => {
+					await api.db
+						.delete(filterPreset)
+						.where(eq(filterPreset.id, first.id));
+					return api.db.batch(...args);
+				};
+			}
+			return Reflect.get(target, property, receiver);
+		},
+	});
+	await api
+		.caller("alice", disappearingDb)
+		.filterPreset.setDefault({ id: first.id });
+	sessions = await api.alice.filterPreset.list({ screenKey: "sessions" });
+	expect(sessions.find((row) => row.id === second.id)?.isDefault).toBe(true);
 });
 
 test("conflicting renames preserve stored presets while keeping the current name and omitted payload succeeds", async ({

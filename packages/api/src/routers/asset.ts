@@ -1,7 +1,7 @@
 import { ASSET_KINDS, ASSET_MAX_DECIMALS } from "@sapphire2/db/constants/asset";
 import { asset } from "@sapphire2/db/schema/asset";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, isNull, not, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, not, or, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { isAssetNameConflictError } from "../lib/db-errors";
@@ -138,15 +138,7 @@ export const assetRouter = router({
 		.input(assetUpdateInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const found = await validateEntityOwnership(
-				ctx.db,
-				"asset",
-				input.id,
-				userId
-			);
-			const changesUnit =
-				(input.kind !== undefined && input.kind !== found.kind) ||
-				(input.decimals !== undefined && input.decimals !== found.decimals);
+			await validateEntityOwnership(ctx.db, "asset", input.id, userId);
 			const updated = await runAssetNameWrite(() =>
 				ctx.db
 					.update(asset)
@@ -166,7 +158,19 @@ export const assetRouter = router({
 						and(
 							eq(asset.id, input.id),
 							eq(asset.userId, userId),
-							changesUnit ? not(assetIsReferenced) : undefined
+							input.kind === undefined && input.decimals === undefined
+								? undefined
+								: or(
+										and(
+											input.kind === undefined
+												? undefined
+												: eq(asset.kind, input.kind),
+											input.decimals === undefined
+												? undefined
+												: eq(asset.decimals, input.decimals)
+										),
+										not(assetIsReferenced)
+									)
 						)
 					)
 					.returning({ id: asset.id })
@@ -234,15 +238,13 @@ export const assetRouter = router({
 		.input(assetIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const found = await validateEntityOwnership(
-				ctx.db,
-				"asset",
-				input.id,
-				userId
-			);
+			await validateEntityOwnership(ctx.db, "asset", input.id, userId);
 			await ctx.db
 				.update(asset)
-				.set({ isFavorite: !found.isFavorite, updatedAt: new Date() })
+				.set({
+					isFavorite: sql`NOT ${asset.isFavorite}`,
+					updatedAt: new Date(),
+				})
 				.where(and(eq(asset.id, input.id), eq(asset.userId, userId)));
 			return await selectAsset(ctx.db, userId, input.id);
 		}),

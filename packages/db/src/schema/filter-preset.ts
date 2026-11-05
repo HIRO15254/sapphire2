@@ -1,4 +1,4 @@
-import { relations, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
 	check,
 	index,
@@ -49,10 +49,3 @@ export const filterPreset = sqliteTable(
 			.where(sql`${table.isDefault} = 1`),
 	]
 );
-
-export const filterPresetRelations = relations(filterPreset, ({ one }) => ({
-	user: one(user, {
-		fields: [filterPreset.userId],
-		references: [user.id],
-	}),
-}));

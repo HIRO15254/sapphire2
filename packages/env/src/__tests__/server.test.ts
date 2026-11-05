@@ -26,6 +26,10 @@ describe("createServerEnv", () => {
 		expect(() => createServerEnv(invalid)).toThrow();
 	});
 
+	it("rejects a null D1 binding", () => {
+		expect(() => createServerEnv({ ...validEnv, DB: null })).toThrow();
+	});
+
 	it.each([
 		["an empty secret", ""],
 		["a 31-character secret", "a".repeat(31)],
@@ -49,6 +53,17 @@ describe("createServerEnv", () => {
 		).toThrow();
 		expect(() =>
 			createServerEnv({ ...validEnv, BETTER_AUTH_URL: "invalid" })
+		).toThrow();
+	});
+
+	it.each([
+		"javascript:alert(1)",
+		"https://user@example.com",
+		"https://example.com/path",
+		"https://example.com/?x=1",
+	])("rejects %s as an origin", (origin) => {
+		expect(() =>
+			createServerEnv({ ...validEnv, CORS_ORIGIN: origin })
 		).toThrow();
 	});
 });

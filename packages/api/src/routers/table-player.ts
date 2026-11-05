@@ -1,7 +1,9 @@
 import { MAX_SEAT_POSITION } from "@sapphire2/db/constants/hand";
+import { idSchema } from "@sapphire2/db/schemas/id";
 import { tagIdsSchema } from "@sapphire2/db/schemas/tag-ids";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { memoSchema, playerNameSchema } from "../lib/master-input-schemas";
 
 import {
 	addNewTablePlayer,
@@ -12,7 +14,6 @@ import {
 	updateTablePlayerSeat,
 } from "../services/table-player";
 
-const idSchema = z.string().min(1);
 const seatPositionSchema = z.number().int().min(0).max(MAX_SEAT_POSITION);
 
 export const tablePlayerRouter = router({
@@ -39,8 +40,8 @@ export const tablePlayerRouter = router({
 		.input(
 			z.object({
 				entryId: idSchema,
-				playerName: z.string().min(1).max(100),
-				playerMemo: z.string().max(50_000).optional(),
+				playerName: playerNameSchema,
+				playerMemo: memoSchema.optional(),
 				playerTagIds: tagIdsSchema.optional(),
 				seatPosition: seatPositionSchema.optional(),
 			})

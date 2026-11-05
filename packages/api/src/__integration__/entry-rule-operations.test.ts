@@ -245,6 +245,32 @@ describe("entry rule operations on D1", () => {
 		);
 	});
 
+	test("relink permits an existing archived master but rejects selecting another archived master", async ({
+		api,
+	}) => {
+		const { ringA, ringB } = await cashSetup(api);
+		const created = await api.alice.entry.create({
+			kind: "cash",
+			playedOn: "2026-09-01",
+			ringGameId: ringA.id,
+		});
+		await api.alice.ringGame.archive({ id: ringA.id });
+		await api.alice.ringGame.archive({ id: ringB.id });
+		const kept = await api.alice.entry.relink({
+			id: created.id,
+			ringGameId: ringA.id,
+			keepRule: true,
+		});
+		expect(kept.ruleVersionId).toBe(created.ruleVersionId);
+		await expect(
+			api.alice.entry.relink({
+				id: created.id,
+				ringGameId: ringB.id,
+				keepRule: true,
+			})
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+	});
+
 	test("relink rejects copying cash and tournament stakes that no longer meet blind requirements", async ({
 		api,
 	}) => {

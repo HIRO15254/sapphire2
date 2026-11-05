@@ -1,4 +1,4 @@
-import { relations, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
 	check,
 	foreignKey,
@@ -113,45 +113,4 @@ export const gameLineupVariant = sqliteTable(
 		}).onDelete("no action"),
 		check("game_lineup_variant_position_check", sql`${t.position} >= 0`),
 	]
-);
-
-export const gameLineupRelations = relations(gameLineup, ({ one, many }) => ({
-	user: one(user, {
-		fields: [gameLineup.userId],
-		references: [user.id],
-	}),
-	gameMix: one(gameMix, {
-		fields: [gameLineup.gameMixId, gameLineup.userId],
-		references: [gameMix.id, gameMix.userId],
-	}),
-	groups: many(gameLineupGroup),
-}));
-
-export const gameLineupGroupRelations = relations(
-	gameLineupGroup,
-	({ one, many }) => ({
-		lineup: one(gameLineup, {
-			fields: [gameLineupGroup.lineupId, gameLineupGroup.userId],
-			references: [gameLineup.id, gameLineup.userId],
-		}),
-		gameGroup: one(gameGroup, {
-			fields: [gameLineupGroup.gameGroupId, gameLineupGroup.userId],
-			references: [gameGroup.id, gameGroup.userId],
-		}),
-		variants: many(gameLineupVariant),
-	})
-);
-
-export const gameLineupVariantRelations = relations(
-	gameLineupVariant,
-	({ one }) => ({
-		group: one(gameLineupGroup, {
-			fields: [gameLineupVariant.lineupGroupId, gameLineupVariant.userId],
-			references: [gameLineupGroup.id, gameLineupGroup.userId],
-		}),
-		variant: one(gameVariant, {
-			fields: [gameLineupVariant.variantId, gameLineupVariant.userId],
-			references: [gameVariant.id, gameVariant.userId],
-		}),
-	})
 );

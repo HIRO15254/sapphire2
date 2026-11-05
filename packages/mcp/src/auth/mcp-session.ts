@@ -25,7 +25,7 @@ export function buildMcpSession(
 	if (!(token.userId && user) || user.id !== token.userId) {
 		return null;
 	}
-	if (token.accessTokenExpiresAt.getTime() <= Date.now()) {
+	if (!(token.accessTokenExpiresAt.getTime() > Date.now())) {
 		return null;
 	}
 	const now = new Date();

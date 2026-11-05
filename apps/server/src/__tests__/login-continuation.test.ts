@@ -102,6 +102,7 @@ describe("oidc_login_prompt stripping", () => {
 				headers: {
 					cookie: `${SESSION_COOKIE}; ${LOGIN_PROMPT_COOKIE}`,
 					"content-type": "application/json",
+					origin: env.CORS_ORIGIN,
 				},
 				body: JSON.stringify({ newPassword: "password1234" }),
 			},

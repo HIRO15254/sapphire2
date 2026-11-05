@@ -1,8 +1,10 @@
 import { room } from "@sapphire2/db/schema/room";
+import { idSchema } from "@sapphire2/db/schemas/id";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, isNull, not, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { memoSchema } from "../lib/master-input-schemas";
 import { validateEntityOwnership } from "../lib/ownership";
 
 function coordinatesPaired(value: {
@@ -23,7 +25,7 @@ const COORDINATES_PAIRED_ISSUE = {
 const roomIsReferenced = () =>
 	sql<boolean>`(EXISTS (SELECT 1 FROM entry WHERE entry.room_id = room.id AND entry.user_id = room.user_id) OR EXISTS (SELECT 1 FROM ring_game WHERE ring_game.room_id = room.id AND ring_game.user_id = room.user_id) OR EXISTS (SELECT 1 FROM tournament WHERE tournament.room_id = room.id AND tournament.user_id = room.user_id))`;
 
-export const roomIdInputSchema = z.object({ id: z.string() });
+export const roomIdInputSchema = z.object({ id: idSchema });
 
 export const roomListInputSchema = z
 	.object({ includeArchived: z.boolean().optional() })
@@ -31,8 +33,8 @@ export const roomListInputSchema = z
 
 export const roomCreateInputSchema = z
 	.object({
-		name: z.string().min(1),
-		memo: z.string().optional(),
+		name: z.string().trim().min(1).max(100),
+		memo: memoSchema.optional(),
 		latitude: z.number().min(-90).max(90).nullable().optional(),
 		longitude: z.number().min(-180).max(180).nullable().optional(),
 	})
@@ -40,9 +42,9 @@ export const roomCreateInputSchema = z
 
 export const roomUpdateInputSchema = z
 	.object({
-		id: z.string(),
-		name: z.string().min(1).optional(),
-		memo: z.string().nullable().optional(),
+		id: idSchema,
+		name: z.string().trim().min(1).max(100).optional(),
+		memo: memoSchema.nullable().optional(),
 		latitude: z.number().min(-90).max(90).nullable().optional(),
 		longitude: z.number().min(-180).max(180).nullable().optional(),
 	})
@@ -65,8 +67,8 @@ export const roomRouter = router({
 					latitude: room.latitude,
 					longitude: room.longitude,
 					archivedAt: room.archivedAt,
-					ringGameCount: sql<number>`(SELECT COUNT(*) FROM ring_game WHERE ring_game.room_id = room.id AND ring_game.archived_at IS NULL)`,
-					tournamentCount: sql<number>`(SELECT COUNT(*) FROM tournament WHERE tournament.room_id = room.id AND tournament.archived_at IS NULL)`,
+					ringGameCount: sql<number>`(SELECT COUNT(*) FROM ring_game WHERE ring_game.room_id = room.id AND ring_game.user_id = room.user_id AND ring_game.archived_at IS NULL)`,
+					tournamentCount: sql<number>`(SELECT COUNT(*) FROM tournament WHERE tournament.room_id = room.id AND tournament.user_id = room.user_id AND tournament.archived_at IS NULL)`,
 					isReferenced: roomIsReferenced().mapWith(Boolean),
 				})
 				.from(room)
@@ -86,15 +88,13 @@ export const roomRouter = router({
 			const [found] = await ctx.db
 				.select()
 				.from(room)
-				.where(eq(room.id, input.id));
-
-			if (!found || found.userId !== userId) {
+				.where(and(eq(room.id, input.id), eq(room.userId, userId)));
+			if (!found) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this room",
 				});
 			}
-
 			return found;
 		}),
 
@@ -120,19 +120,9 @@ export const roomRouter = router({
 		.input(roomUpdateInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const [found] = await ctx.db
-				.select()
-				.from(room)
-				.where(eq(room.id, input.id));
+			await validateEntityOwnership(ctx.db, "room", input.id, userId);
 
-			if (!found || found.userId !== userId) {
-				throw new TRPCError({
-					code: "FORBIDDEN",
-					message: "You do not own this room",
-				});
-			}
-
-			await ctx.db
+			const [updated] = await ctx.db
 				.update(room)
 				.set({
 					...(input.name === undefined ? {} : { name: input.name }),
@@ -143,12 +133,8 @@ export const roomRouter = router({
 						: { longitude: input.longitude }),
 					updatedAt: new Date(),
 				})
-				.where(eq(room.id, input.id));
-
-			const [updated] = await ctx.db
-				.select()
-				.from(room)
-				.where(eq(room.id, input.id));
+				.where(and(eq(room.id, input.id), eq(room.userId, userId)))
+				.returning();
 			return updated;
 		}),
 
@@ -183,17 +169,7 @@ export const roomRouter = router({
 		.input(roomIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const [found] = await ctx.db
-				.select()
-				.from(room)
-				.where(eq(room.id, input.id));
-
-			if (!found || found.userId !== userId) {
-				throw new TRPCError({
-					code: "FORBIDDEN",
-					message: "You do not own this room",
-				});
-			}
+			await validateEntityOwnership(ctx.db, "room", input.id, userId);
 
 			const deleted = await ctx.db
 				.delete(room)
@@ -219,27 +195,13 @@ export const roomRouter = router({
 		.input(roomIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const [found] = await ctx.db
-				.select()
-				.from(room)
-				.where(eq(room.id, input.id));
-
-			if (!found || found.userId !== userId) {
-				throw new TRPCError({
-					code: "FORBIDDEN",
-					message: "You do not own this room",
-				});
-			}
-
-			await ctx.db
-				.update(room)
-				.set({ isFavorite: !found.isFavorite, updatedAt: new Date() })
-				.where(eq(room.id, input.id));
+			await validateEntityOwnership(ctx.db, "room", input.id, userId);
 
 			const [updated] = await ctx.db
-				.select()
-				.from(room)
-				.where(eq(room.id, input.id));
+				.update(room)
+				.set({ isFavorite: sql`NOT ${room.isFavorite}`, updatedAt: new Date() })
+				.where(and(eq(room.id, input.id), eq(room.userId, userId)))
+				.returning();
 			return updated;
 		}),
 });

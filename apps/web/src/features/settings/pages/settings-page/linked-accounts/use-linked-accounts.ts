@@ -28,6 +28,8 @@ function linkFailureMessage(providerId: SocialProviderId, reason?: string) {
 			return `Use a ${label} account with the same email as this account.`;
 		case "account_already_linked_to_different_user":
 			return `This ${label} account is already linked to another Sapphire 2 account.`;
+		case "unable_to_link_account":
+			return `Verify the email address on your ${label} account, then try again.`;
 		default:
 			return "Try again.";
 	}

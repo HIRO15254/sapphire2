@@ -62,8 +62,68 @@ function redirect(location: string): Response {
 afterEach(() => {
 	vi.unstubAllGlobals();
 });
+describe("location.search provider boundary", () => {
+	it("rejects oversized provider responses without following redirects", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(
+				Response.json({ places: [], padding: "x".repeat(1_000_000) })
+			);
+		vi.stubGlobal("fetch", fetchMock);
+		const caller = appRouter.createCaller({
+			session: { user: { id: "user-1" } },
+			googleMapsApiKey: "test-key",
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
+		await expect(
+			caller.location.search({ query: "casino" })
+		).rejects.toMatchObject({
+			code: "INTERNAL_SERVER_ERROR",
+		});
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://places.googleapis.com/v1/places:searchText",
+			expect.objectContaining({
+				redirect: "manual",
+				credentials: "omit",
+				signal: expect.any(AbortSignal),
+			})
+		);
+	});
+});
 
 describe("location.resolveLink short-link redirects", () => {
+	it("rejects insecure or credentialed short links and redirect hops", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(redirect("http://goo.gl/maps/next"));
+		vi.stubGlobal("fetch", fetchMock);
+		await expectBadRequest(
+			locationCaller().resolveLink({ url: "http://goo.gl/maps/abc" })
+		);
+		await expectBadRequest(
+			locationCaller().resolveLink({ url: "https://user:pass@goo.gl/maps/abc" })
+		);
+		expect(fetchMock).not.toHaveBeenCalled();
+		await expectBadRequest(
+			locationCaller().resolveLink({ url: "https://goo.gl/maps/abc" })
+		);
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://goo.gl/maps/abc",
+			expect.objectContaining({
+				redirect: "manual",
+				credentials: "omit",
+				signal: expect.any(AbortSignal),
+			})
+		);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("rejects malformed coordinate suffixes instead of returning a truncated location", async () => {
+		await expectBadRequest(
+			locationCaller().resolveLink({
+				url: "https://www.google.com/maps?q=35,139.1.2",
+			})
+		);
+	});
 	it.each([
 		[
 			"https://maps.app.goo.gl/abc",
@@ -124,9 +184,9 @@ describe("location.resolveLink short-link redirects", () => {
 		const fetchMock = vi.fn().mockRejectedValue(new Error("network failure"));
 		vi.stubGlobal("fetch", fetchMock);
 
-		await expectBadRequest(
+		await expect(
 			locationCaller().resolveLink({ url: "https://goo.gl/maps/abc" })
-		);
+		).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
 
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 	});
@@ -225,7 +285,7 @@ describe("isShortMapsUrl", () => {
 describe("extractCoordsFromMapsUrl", () => {
 	it("prefers the place !3d!4d coordinates over the @ map center", () => {
 		const url =
-			"https://www.google.com/maps/place/X/@35.0,139.0,17z/data=!3d35.6812!4d139.7671";
+			"https://www.google.com/maps/place/X/@35.0,139.0,17z/data=!3m1!4b1!4m6!3m5!1s0x0:0x0!8m2!3d35.6812!4d139.7671!16s%2Fg%2F11abc?entry=ttu";
 		expect(extractCoordsFromMapsUrl(url)).toEqual({
 			latitude: 35.6812,
 			longitude: 139.7671,
@@ -240,10 +300,15 @@ describe("extractCoordsFromMapsUrl", () => {
 		).toEqual({ latitude: 35.6812, longitude: 139.7671 });
 	});
 
-	it("falls back to a q= query parameter", () => {
-		expect(
-			extractCoordsFromMapsUrl("https://maps.google.com/?q=35.6812,139.7671")
-		).toEqual({ latitude: 35.6812, longitude: 139.7671 });
+	it.each([
+		"https://maps.google.com/?q=35.6812,139.7671",
+		"https://maps.google.com/maps?q=35.6812,139.7671+(Tokyo+Station)",
+		"https://maps.google.com/maps?q=35.6812,139.7671%20(Tokyo)",
+	])("falls back to a q= query parameter in %s", (url) => {
+		expect(extractCoordsFromMapsUrl(url)).toEqual({
+			latitude: 35.6812,
+			longitude: 139.7671,
+		});
 	});
 
 	it("handles negative coordinates", () => {

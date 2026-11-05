@@ -494,13 +494,15 @@ export async function relinkEntry(
 			currentRuleId: null,
 		});
 	} else {
-		await assertSelectable(
-			db,
-			userId,
-			target.kind === "cash"
-				? { ringGameId: destinationId }
-				: { tournamentId: destinationId }
-		);
+		if (destinationId !== target.masterId) {
+			await assertSelectable(
+				db,
+				userId,
+				target.kind === "cash"
+					? { ringGameId: destinationId }
+					: { tournamentId: destinationId }
+			);
+		}
 		const master = await loadMaster(db, userId, target.kind, destinationId);
 		planned = input.keepRule
 			? await planVersionUnder(db, userId, target.kind, source, {

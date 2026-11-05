@@ -1,7 +1,7 @@
 import type { Database } from "@sapphire2/db";
 import { gameMix, gameMixVariant } from "@sapphire2/db/schema/game-mix";
 import { and, eq, inArray } from "drizzle-orm";
-import { chunkForInsert, D1_MAX_BOUND_PARAMS } from "../lib/batch";
+import { D1_MAX_BOUND_PARAMS } from "../lib/batch";
 
 export const gameMixColumns = {
 	id: gameMix.id,
@@ -20,12 +20,6 @@ export type GameMixWithGames = GameMixRow & {
 };
 
 const MAX_MIX_IDS_PER_LOOKUP = D1_MAX_BOUND_PARAMS - 1;
-
-export function chunkMembershipRows(
-	rows: (typeof gameMixVariant.$inferInsert)[]
-): (typeof gameMixVariant.$inferInsert)[][] {
-	return chunkForInsert(rows, Object.keys(rows[0] ?? {}).length || 1);
-}
 
 export async function hydrateOwnedGameMixes(
 	db: Database,

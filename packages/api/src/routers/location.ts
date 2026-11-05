@@ -9,7 +9,13 @@ const GOOGLE_HOST_RE =
 
 function hostnameOf(rawUrl: string): string | null {
 	try {
-		return new URL(rawUrl).hostname.toLowerCase();
+		const url = new URL(rawUrl);
+		return url.protocol === "https:" &&
+			!url.username &&
+			!url.password &&
+			!url.port
+			? url.hostname.toLowerCase()
+			: null;
 	} catch {
 		return null;
 	}
@@ -43,6 +49,39 @@ function inRange(latitude: number, longitude: number): boolean {
 }
 
 const MAX_SHORT_MAPS_REDIRECTS = 5;
+const FETCH_TIMEOUT_MS = 10_000;
+const MAX_PLACES_RESPONSE_BYTES = 1_000_000;
+
+async function readLimitedJson(response: Response): Promise<unknown> {
+	const reader = response.body?.getReader();
+	if (!reader) {
+		throw new Error("Missing response body");
+	}
+	const chunks: Uint8Array[] = [];
+	let size = 0;
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) {
+				break;
+			}
+			size += value.byteLength;
+			if (size > MAX_PLACES_RESPONSE_BYTES) {
+				throw new Error("Response too large");
+			}
+			chunks.push(value);
+		}
+	} finally {
+		reader.cancel().catch(() => undefined);
+	}
+	const bytes = new Uint8Array(size);
+	let offset = 0;
+	for (const chunk of chunks) {
+		bytes.set(chunk, offset);
+		offset += chunk.byteLength;
+	}
+	return JSON.parse(new TextDecoder().decode(bytes));
+}
 
 function unresolvedShortLink(): TRPCError {
 	return new TRPCError({
@@ -60,12 +99,18 @@ async function resolveShortMapsUrl(initialUrl: string): Promise<string> {
 		try {
 			response = await fetch(currentUrl, {
 				redirect: "manual",
+				credentials: "omit",
+				signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
 				headers: {
 					"User-Agent": "Mozilla/5.0 (compatible; Sapphire2/1.0)",
 				},
 			});
+			response.body?.cancel().catch(() => undefined);
 		} catch {
-			throw unresolvedShortLink();
+			throw new TRPCError({
+				code: "INTERNAL_SERVER_ERROR",
+				message: "Could not resolve the link",
+			});
 		}
 
 		if (response.status < 300 || response.status >= 400) {
@@ -99,9 +144,9 @@ async function resolveShortMapsUrl(initialUrl: string): Promise<string> {
 }
 
 const COORD_PATTERNS = [
-	/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/,
-	/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/,
-	/[?&](?:q|query|ll|center|destination|daddr)=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/,
+	/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)(?![\d.])/,
+	/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?![\d.])/,
+	/[?&](?:q|query|ll|center|destination|daddr)=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?![\d.])/,
 ];
 
 export function extractCoordsFromMapsUrl(
@@ -127,13 +172,22 @@ export function extractCoordsFromMapsUrl(
 	return null;
 }
 
-interface PlacesTextSearchResponse {
-	places?: Array<{
-		displayName?: { text?: string };
-		formattedAddress?: string;
-		location?: { latitude?: number; longitude?: number };
-	}>;
-}
+const placesResponseSchema = z.object({
+	places: z
+		.array(
+			z.object({
+				displayName: z.object({ text: z.string().optional() }).optional(),
+				formattedAddress: z.string().optional(),
+				location: z
+					.object({
+						latitude: z.number().min(-90).max(90),
+						longitude: z.number().min(-180).max(180),
+					})
+					.optional(),
+			})
+		)
+		.optional(),
+});
 
 export const locationRouter = router({
 	search: protectedProcedure
@@ -147,38 +201,43 @@ export const locationRouter = router({
 				});
 			}
 
-			const res = await fetch(
-				"https://places.googleapis.com/v1/places:searchText",
-				{
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-						"X-Goog-Api-Key": ctx.googleMapsApiKey,
-						"X-Goog-FieldMask":
-							"places.displayName,places.formattedAddress,places.location",
-					},
-					body: JSON.stringify({
-						textQuery: input.query,
-						languageCode: "ja",
-						regionCode: "JP",
-					}),
+			let res: Response;
+			let data: z.infer<typeof placesResponseSchema>;
+			try {
+				res = await fetch(
+					"https://places.googleapis.com/v1/places:searchText",
+					{
+						method: "POST",
+						redirect: "manual",
+						credentials: "omit",
+						signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+						headers: {
+							"Content-Type": "application/json",
+							"X-Goog-Api-Key": ctx.googleMapsApiKey,
+							"X-Goog-FieldMask":
+								"places.displayName,places.formattedAddress,places.location",
+						},
+						body: JSON.stringify({
+							textQuery: input.query,
+							languageCode: "ja",
+							regionCode: "JP",
+						}),
+					}
+				);
+				if (!res.ok) {
+					res.body?.cancel().catch(() => undefined);
+					throw new Error("Place search failed");
 				}
-			);
-
-			if (!res.ok) {
+				data = placesResponseSchema.parse(await readLimitedJson(res));
+			} catch {
 				throw new TRPCError({
 					code: "INTERNAL_SERVER_ERROR",
 					message: "Place search failed",
 				});
 			}
 
-			const data = (await res.json()) as PlacesTextSearchResponse;
 			return (data.places ?? [])
-				.filter(
-					(p) =>
-						typeof p.location?.latitude === "number" &&
-						typeof p.location?.longitude === "number"
-				)
+				.filter((p) => p.location !== undefined)
 				.slice(0, 5)
 				.map((p) => ({
 					name: p.displayName?.text ?? "",

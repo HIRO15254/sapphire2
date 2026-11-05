@@ -2,7 +2,6 @@ import type { Database } from "@sapphire2/db";
 import type { HandAction } from "@sapphire2/db/constants/hand";
 import { playSession } from "@sapphire2/db/schema/entry";
 import { hand, handAction, handSeat } from "@sapphire2/db/schema/hand";
-import { player } from "@sapphire2/db/schema/player";
 import { dateOnlySchema } from "@sapphire2/db/schemas/date-only";
 import { TRPCError } from "@trpc/server";
 import {
@@ -17,6 +16,7 @@ import {
 } from "drizzle-orm";
 import z from "zod";
 import { decodeCursor, encodeCursor } from "../lib/cursor";
+import { validateEntityOwnership } from "../lib/ownership";
 import {
 	DEFAULT_HAND_PAGE_SIZE,
 	type HandDetailOutput,
@@ -96,16 +96,7 @@ async function assertOpponent(
 	userId: string,
 	playerId: string
 ): Promise<void> {
-	const [found] = await db
-		.select({ isSelf: player.isSelf })
-		.from(player)
-		.where(and(eq(player.id, playerId), eq(player.userId, userId)));
-	if (!found) {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: "You do not own this player",
-		});
-	}
+	const found = await validateEntityOwnership(db, "player", playerId, userId);
 	if (found.isSelf) {
 		throw new TRPCError({
 			code: "BAD_REQUEST",

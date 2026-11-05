@@ -121,7 +121,7 @@ export const purchaseChipsPayload = z.object({
 	payments: paymentsSchema(["chip_purchase", "fee"]),
 });
 
-export const chipPurchaseCountSchema = z.object({
+const chipPurchaseCountSchema = z.object({
 	name: z.string().min(1),
 	count: z.number().int().min(0),
 	chipsPerUnit: z.number().int().min(0),

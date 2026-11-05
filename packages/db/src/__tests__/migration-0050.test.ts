@@ -66,30 +66,6 @@ describe("migration 0050 — OIDC provider tables for MCP OAuth", () => {
 		db?.close();
 	});
 
-	it("creates the three tables better-auth's mcp plugin reads and writes", () => {
-		applyAll(db);
-		expect(tableNames(db)).toEqual([
-			"oauth_access_token",
-			"oauth_application",
-			"oauth_consent",
-			"user",
-		]);
-	});
-
-	it("creates every unique constraint and lookup index", () => {
-		applyAll(db);
-		expect(indexNames(db)).toEqual([
-			"oauthAccessToken_clientId_idx",
-			"oauthAccessToken_userId_idx",
-			"oauthApplication_userId_idx",
-			"oauthConsent_clientId_idx",
-			"oauthConsent_userId_idx",
-			"oauth_access_token_access_token_unique",
-			"oauth_access_token_refresh_token_unique",
-			"oauth_application_client_id_unique",
-		]);
-	});
-
 	it("points the token and consent client_id FKs at oauth_application(client_id), not its id", () => {
 		applyAll(db);
 		for (const table of ["oauth_access_token", "oauth_consent"]) {
@@ -131,6 +107,30 @@ describe("migration 0050 — OIDC provider tables for MCP OAuth", () => {
 			{
 				n: 0,
 			}
+		);
+	});
+
+	it("rejects a second token row reusing an access or refresh token", () => {
+		applyAll(db);
+		db.exec("INSERT INTO user (id) VALUES ('user-1')");
+		db.exec(
+			"INSERT INTO oauth_application (id, name, client_id, redirect_urls, type, disabled, created_at, updated_at) VALUES ('app-1', 'Claude', 'client-1', 'https://example.test/cb', 'public', 0, 0, 0)"
+		);
+		const insertToken = (
+			id: string,
+			accessToken: string,
+			refreshToken: string
+		) =>
+			db.exec(
+				`INSERT INTO oauth_access_token (id, access_token, refresh_token, access_token_expires_at, refresh_token_expires_at, client_id, user_id, scopes, created_at, updated_at) VALUES ('${id}', '${accessToken}', '${refreshToken}', 1, 1, 'client-1', 'user-1', 'openid', 0, 0)`
+			);
+		insertToken("tok-1", "a", "r");
+
+		expect(() => insertToken("tok-2", "a", "r2")).toThrow(
+			"UNIQUE constraint failed: oauth_access_token.access_token"
+		);
+		expect(() => insertToken("tok-3", "a3", "r")).toThrow(
+			"UNIQUE constraint failed: oauth_access_token.refresh_token"
 		);
 	});
 

@@ -120,7 +120,6 @@ describe.for(kinds)("$kind on D1", ({ kind, table }) => {
 				alice.reorder({ ids: [second.id, first.id, id] })
 			).rejects.toMatchObject({
 				code: "FORBIDDEN",
-				message: "You do not own one or more of these tags",
 			});
 		}
 		await expect(

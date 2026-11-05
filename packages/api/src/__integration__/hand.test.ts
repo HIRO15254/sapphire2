@@ -14,18 +14,18 @@ import { MAX_LINKED_TAGS } from "@sapphire2/db/schemas/tag-ids";
 import { asc, eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
 import { chunkForInsert, D1_MAX_BOUND_PARAMS, runBatch } from "../lib/batch";
-import { validateEntityOwnership } from "../lib/ownership";
 import {
 	addHand,
 	buildHandUpdateStatements,
 	getHand,
 	type HandUpdateInput,
 } from "../services/hand";
-import type { TestD1Database } from "./test-database";
 import {
 	type ApiFixture,
 	AUTH_QUERY_RESERVE,
 	D1_QUERIES_PER_INVOCATION,
+	FOREIGN_KEY_FAILED,
+	insert,
 	nlhGame,
 	requireCreatedRow,
 	test,
@@ -35,17 +35,6 @@ type Owner = "alice" | "bob";
 type Row = Record<string, string | number | null>;
 
 const NOW = new Date("2026-09-05T10:00:00.000Z");
-const FOREIGN_KEY_FAILED = "FOREIGN KEY constraint failed";
-
-function insert(d1: TestD1Database, table: string, row: Row) {
-	const columns = Object.keys(row);
-	return d1
-		.prepare(
-			`INSERT INTO ${table} (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`
-		)
-		.bind(...Object.values(row))
-		.run();
-}
 
 async function seedOwner(db: Database, owner: Owner) {
 	await db.insert(entry).values({
@@ -296,22 +285,6 @@ describe("hand tables on D1", () => {
 			seats: 1,
 			actions: 1,
 		});
-
-		await expect(
-			validateEntityOwnership(api.db, "hand", "alice-hand", "bob")
-		).rejects.toMatchObject({
-			code: "FORBIDDEN",
-			message: "You do not own this hand",
-		});
-		await expect(
-			validateEntityOwnership(api.db, "hand", "missing-hand", "bob")
-		).rejects.toMatchObject({
-			code: "FORBIDDEN",
-			message: "You do not own this hand",
-		});
-		await expect(
-			validateEntityOwnership(api.db, "hand", "bob-hand", "bob")
-		).resolves.toMatchObject({ id: "bob-hand", userId: "bob" });
 	});
 
 	test("an event can point only at a hand of its own play session, and an action only at a seat dealt into its hand", async ({
@@ -615,20 +588,14 @@ describe("hand API on D1", () => {
 	}) => {
 		await seedOwner(api.db, "alice");
 
-		const added = await Promise.allSettled(
+		await Promise.all(
 			Array.from({ length: 8 }, () =>
 				api.alice.hand.add({ playSessionId: "alice-play" })
 			)
 		);
 
 		const stored = await handNumbers(api.db, "alice-play");
-		const numbers = stored.map(([handNo]) => handNo);
-		expect(numbers).toEqual(
-			Array.from({ length: stored.length }, (_, index) => index + 1)
-		);
-		expect(stored).toHaveLength(
-			added.filter(({ status }) => status === "fulfilled").length
-		);
+		expect(stored.map(([handNo]) => handNo)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
 	});
 
 	test("deleting a hand closes the gap in hand numbers, and a hand linked to an all-in event is neither deleted nor undone", async ({

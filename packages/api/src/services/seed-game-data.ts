@@ -9,8 +9,7 @@ import { gameMix, gameMixVariant } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { eq } from "drizzle-orm";
 import type { BatchStatement } from "../lib/batch";
-import { runBatch } from "../lib/batch";
-import { chunkMembershipRows } from "./game-mix";
+import { insertChunks, runBatch } from "../lib/batch";
 
 type DbInstance = Database;
 
@@ -22,17 +21,17 @@ function builtinSeedId(
 	return `${userId}:builtin-${kind}:${key}`;
 }
 
-export async function seedDefaultGameData(
+export async function planDefaultGameData(
 	db: DbInstance,
 	userId: string
-): Promise<void> {
+): Promise<BatchStatement[]> {
 	const [existingGroup] = await db
 		.select({ id: gameGroup.id })
 		.from(gameGroup)
 		.where(eq(gameGroup.userId, userId))
 		.limit(1);
 	if (existingGroup) {
-		return;
+		return [];
 	}
 
 	const [existingVariant] = await db
@@ -41,7 +40,7 @@ export async function seedDefaultGameData(
 		.where(eq(gameVariant.userId, userId))
 		.limit(1);
 	if (existingVariant) {
-		return;
+		return [];
 	}
 
 	const [existingMix] = await db
@@ -50,7 +49,7 @@ export async function seedDefaultGameData(
 		.where(eq(gameMix.userId, userId))
 		.limit(1);
 	if (existingMix) {
-		return;
+		return [];
 	}
 
 	const now = new Date();
@@ -129,12 +128,22 @@ export async function seedDefaultGameData(
 			userId,
 			variantId,
 		}));
-		for (const chunk of chunkMembershipRows(memberships)) {
-			statements.push(
+		statements.push(
+			...insertChunks(memberships, (chunk) =>
 				db.insert(gameMixVariant).values(chunk).onConflictDoNothing()
-			);
-		}
+			)
+		);
 	}
 
-	await runBatch(db, statements);
+	return statements;
+}
+
+export async function seedDefaultGameData(
+	db: DbInstance,
+	userId: string
+): Promise<void> {
+	const statements = await planDefaultGameData(db, userId);
+	if (statements.length > 0) {
+		await runBatch(db, statements);
+	}
 }

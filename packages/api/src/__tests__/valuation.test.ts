@@ -74,19 +74,6 @@ describe("valueEntries: the section 12.1 example (base pt, 1 Main ticket = 20,00
 			virtual: { profitLoss: 3000, buyIn: 5000 },
 		});
 	});
-
-	it("takes ROI as the ratio of the totals", () => {
-		expect(result.real).toMatchObject({ profitLoss: 50_000, buyIn: 3000 });
-		expect(Math.round(result.real.roi ?? 0)).toBe(1667);
-		expect(result.virtual).toMatchObject({
-			profitLoss: 45_000,
-			buyIn: 28_000,
-			cashOut: 73_000,
-		});
-		expect(Math.round(result.virtual.roi ?? 0)).toBe(161);
-		expect(result.real.excludedEntryCount).toBe(0);
-		expect(result.virtual.excludedEntryCount).toBe(0);
-	});
 });
 
 describe("valueEntries: conversion paths", () => {
@@ -132,7 +119,7 @@ describe("valueEntries: conversion paths", () => {
 			lines: [line("e", "pt", 1000)],
 		});
 		expect(result.entries.get("e")?.real).toBeNull();
-		expect(result.real.missingRates).toEqual([
+		expect(result.entries.get("e")?.missingRates.real).toEqual([
 			{ assetId: "pt", earliestOccurredAt: at(0) },
 		]);
 	});
@@ -159,14 +146,6 @@ describe("valueEntries: missing rates", () => {
 				virtual: [{ assetId: "usd", earliestOccurredAt: at(10) }],
 			},
 		});
-		expect(result.real).toMatchObject({
-			profitLoss: 5000,
-			buyIn: 0,
-			roi: null,
-			excludedEntryCount: 1,
-			missingRates: [{ assetId: "usd", earliestOccurredAt: at(10) }],
-		});
-		expect(result.virtual.excludedEntryCount).toBe(1);
 	});
 
 	it("does not apply the first rate to a line older than it", () => {
@@ -177,7 +156,7 @@ describe("valueEntries: missing rates", () => {
 			lines: [line("old", "usd", 10, { second: 59 })],
 		});
 		expect(result.entries.get("old")?.real).toBeNull();
-		expect(result.real.missingRates).toEqual([
+		expect(result.entries.get("old")?.missingRates.real).toEqual([
 			{ assetId: "usd", earliestOccurredAt: at(59) },
 		]);
 	});
@@ -196,11 +175,6 @@ describe("valueEntries: missing rates", () => {
 				real: [],
 				virtual: [{ assetId: "main-ticket", earliestOccurredAt: at(0) }],
 			},
-		});
-		expect(result.real.excludedEntryCount).toBe(0);
-		expect(result.virtual).toMatchObject({
-			excludedEntryCount: 1,
-			missingRates: [{ assetId: "main-ticket", earliestOccurredAt: at(0) }],
 		});
 	});
 });

@@ -1,12 +1,11 @@
 import z from "zod";
 import { ENTRY_KINDS } from "../constants/entry";
 import { dateOnlySchema } from "./date-only";
+import { idSchema } from "./id";
 import { tagIdsSchema } from "./tag-ids";
 
-export const STATS_VALUATIONS = ["real", "virtual"] as const;
+const STATS_VALUATIONS = ["real", "virtual"] as const;
 export type StatsValuation = (typeof STATS_VALUATIONS)[number];
-
-const idSchema = z.string().min(1);
 
 export const statsFilterShape = {
 	kind: z.enum(ENTRY_KINDS).optional(),
@@ -21,7 +20,7 @@ export const statsFilterShape = {
 	normalized: z.boolean().optional(),
 };
 
-export interface StatsFilterFields {
+interface StatsFilterFields {
 	assetId?: string;
 	baseAssetId?: string;
 	dateFrom?: string;
@@ -30,9 +29,9 @@ export interface StatsFilterFields {
 	valuation?: StatsValuation;
 }
 
-export type StatsMode = "asset" | "valuation" | "normalized";
+type StatsMode = "asset" | "valuation" | "normalized";
 
-export function statsModesOf(filter: StatsFilterFields): StatsMode[] {
+function statsModesOf(filter: StatsFilterFields): StatsMode[] {
 	const modes: StatsMode[] = [];
 	if (filter.assetId !== undefined) {
 		modes.push("asset");

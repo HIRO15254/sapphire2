@@ -4,10 +4,13 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import {
 	type BatchStatement,
-	chunkForInsert,
+	insertChunks,
 	selectInChunks,
 } from "../lib/batch";
-import { validateTagsOwnership } from "../lib/ownership";
+import {
+	validateEntityOwnership,
+	validateTagsOwnership,
+} from "../lib/ownership";
 import {
 	commitEntryEventChange,
 	type EntryEventState,
@@ -51,23 +54,6 @@ function badRequest(message: string): never {
 
 function conflict(message: string): never {
 	throw new TRPCError({ code: "CONFLICT", message });
-}
-
-async function assertOwnedPlayer(
-	db: Database,
-	userId: string,
-	playerId: string
-): Promise<void> {
-	const [owned] = await db
-		.select({ id: player.id })
-		.from(player)
-		.where(and(eq(player.id, playerId), eq(player.userId, userId)));
-	if (!owned) {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: "You do not own this player",
-		});
-	}
 }
 
 export async function listTablePlayers(
@@ -240,7 +226,7 @@ export async function addTablePlayer(
 	now: Date
 ): Promise<TablePlayerWriteResult> {
 	const state = await loadEntryEventState(db, userId, input.entryId);
-	await assertOwnedPlayer(db, userId, input.playerId);
+	await validateEntityOwnership(db, "player", input.playerId, userId);
 	const table = openTable(state);
 	if (findActive(table.folded, input.playerId)) {
 		conflict("This player is already at the table");
@@ -305,9 +291,7 @@ async function addCreatedPlayer(
 				isTemporary: input.isTemporary,
 				updatedAt: now,
 			}),
-			...chunkForInsert(links, 4).map((chunk) =>
-				db.insert(playerTagLink).values(chunk)
-			),
+			...insertChunks(links, (chunk) => db.insert(playerTagLink).values(chunk)),
 		],
 		entryId: input.entryId,
 		now,
@@ -373,7 +357,7 @@ export async function updateTablePlayerSeat(
 	now: Date
 ): Promise<TablePlayerWriteResult> {
 	const state = await loadEntryEventState(db, userId, input.entryId);
-	await assertOwnedPlayer(db, userId, input.playerId);
+	await validateEntityOwnership(db, "player", input.playerId, userId);
 	const table = openTable(state);
 	if (!findActive(table.folded, input.playerId)) {
 		badRequest("This player is not at the table");
@@ -404,7 +388,7 @@ export async function removeTablePlayer(
 	now: Date
 ): Promise<TablePlayerWriteResult> {
 	const state = await loadEntryEventState(db, userId, input.entryId);
-	await assertOwnedPlayer(db, userId, input.playerId);
+	await validateEntityOwnership(db, "player", input.playerId, userId);
 	const table = openTable(state);
 	if (!findActive(table.folded, input.playerId)) {
 		badRequest("This player is not at the table");

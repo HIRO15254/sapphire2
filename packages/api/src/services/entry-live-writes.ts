@@ -75,7 +75,6 @@ export interface LiveEntryStart {
 	now: Date;
 	roomId: string | null;
 	startEvent: Pick<NewPlayEvent, "occurredAt" | "payload">;
-	title: string | null;
 	userId: string;
 }
 
@@ -277,7 +276,7 @@ export function buildLiveEntryStartStatements(
 			status: "open",
 			roomId: start.roomId,
 			assetId: start.assetId,
-			title: start.title,
+			title: null,
 			playedOn: start.localDate,
 			memo: start.memo,
 			createdAt: start.now,
@@ -574,21 +573,4 @@ export async function commitEntryEventChange(
 		throw mapLiveWriteConflict(error);
 	});
 	return { eventIds: planned.eventIds, projection };
-}
-
-export async function applyEntryEventChange(
-	db: Database,
-	userId: string,
-	entryId: string,
-	change: EntryEventChange,
-	now: Date
-): Promise<{ eventIds: string[]; projection: EntryProjection }> {
-	const state = await loadEntryEventState(db, userId, entryId);
-	return await commitEntryEventChange(db, {
-		change,
-		entryId,
-		now,
-		state,
-		userId,
-	});
 }

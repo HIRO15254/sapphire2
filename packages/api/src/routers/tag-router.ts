@@ -1,4 +1,5 @@
 import type { TagColor } from "@sapphire2/db/constants/player-tag-colors";
+import { idSchema } from "@sapphire2/db/schemas/id";
 import { TRPCError } from "@trpc/server";
 import { and, asc, count, eq, getTableColumns, sql } from "drizzle-orm";
 import type { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
@@ -39,11 +40,11 @@ export const tagNameSchema = z.string().trim().min(1).max(50);
 export const tagCreateInputSchema = z.object({ name: tagNameSchema });
 
 export const tagUpdateInputSchema = z.object({
-	id: z.string(),
+	id: idSchema,
 	name: tagNameSchema,
 });
 
-export const tagIdInputSchema = z.object({ id: z.string() });
+export const tagIdInputSchema = z.object({ id: idSchema });
 
 export const tagReorderInputSchema = z.object({
 	ids: z

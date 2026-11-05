@@ -205,6 +205,33 @@ describe("tournament rule versions on D1", () => {
 		expect(await versionCount(api)).toBe(2);
 	});
 
+	test("a metadata update preserves independently changed fields and rule selection", async ({
+		api,
+	}) => {
+		const { room } = await setup(api);
+		const created = await api.alice.tournament.create({
+			roomId: room.id,
+			name: "Original",
+			rule: {},
+		});
+		await api.alice.tournament.update({
+			id: created.id,
+			rule: { startingStack: 5000 },
+		});
+		await api.d1
+			.prepare(
+				"CREATE TRIGGER concurrent_tournament_change BEFORE UPDATE OF updated_at ON tournament BEGIN UPDATE tournament SET name = 'Changed', current_rule_id = (SELECT parent_rule_id FROM tournament_rule WHERE id = OLD.current_rule_id) WHERE id = OLD.id; END"
+			)
+			.run();
+		const updated = await api.alice.tournament.update({
+			id: created.id,
+			memo: "Note",
+		});
+		expect(updated.name).toBe("Changed");
+		expect(updated.currentRuleId).toBe(created.currentRuleId);
+		expect(updated.memo).toBe("Note");
+	});
+
 	test("changing the default game moves inheriting levels and carries stakes by game group and occurrence", async ({
 		api,
 	}) => {

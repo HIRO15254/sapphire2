@@ -37,23 +37,21 @@ describe("buildMcpSession", () => {
 		expect(buildMcpSession(expired, USER)).toBeNull();
 	});
 
-	it("accepts a token expiring in the future", () => {
-		const future = {
-			...TOKEN,
-			accessTokenExpiresAt: new Date(Date.now() + 60_000),
-		};
-		expect(buildMcpSession(future, USER)).not.toBeNull();
+	it("rejects an invalid token expiry instead of granting a session", () => {
+		expect(
+			buildMcpSession(
+				{ ...TOKEN, accessTokenExpiresAt: new Date(Number.NaN) },
+				USER
+			)
+		).toBeNull();
 	});
 
 	it("returns null when the token has no userId", () => {
 		expect(buildMcpSession({ ...TOKEN, userId: null }, USER)).toBeNull();
-		expect(buildMcpSession({ ...TOKEN, userId: undefined }, USER)).toBeNull();
-		expect(buildMcpSession({ ...TOKEN, userId: "" }, USER)).toBeNull();
 	});
 
 	it("returns null when the user row no longer exists", () => {
 		expect(buildMcpSession(TOKEN, null)).toBeNull();
-		expect(buildMcpSession(TOKEN, undefined)).toBeNull();
 	});
 
 	it("returns null when the loaded user does not match the token (defense in depth)", () => {

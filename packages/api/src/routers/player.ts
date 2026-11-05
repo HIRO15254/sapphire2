@@ -1,14 +1,23 @@
 import { playEvent } from "@sapphire2/db/schema/entry";
 import { handSeat } from "@sapphire2/db/schema/hand";
 import { player, playerTag, playerTagLink } from "@sapphire2/db/schema/player";
+import { idSchema } from "@sapphire2/db/schemas/id";
 import { tagIdsSchema } from "@sapphire2/db/schemas/tag-ids";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, exists, inArray, like, not, sql } from "drizzle-orm";
+import { and, asc, eq, exists, inArray, not, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
-import { type BatchStatement, runBatch, selectInChunks } from "../lib/batch";
-import { validateTagsOwnership } from "../lib/ownership";
-import { insertChunks } from "../services/game-lineup";
+import {
+	type BatchStatement,
+	insertChunks,
+	runBatch,
+	selectInChunks,
+} from "../lib/batch";
+import { memoSchema, playerNameSchema } from "../lib/master-input-schemas";
+import {
+	validateEntityOwnership,
+	validateTagsOwnership,
+} from "../lib/ownership";
 import {
 	listPlayerHands,
 	playerHandStats,
@@ -29,8 +38,8 @@ interface PlayerTagOutput {
 
 export const playerListInputSchema = z
 	.object({
-		search: z.string().optional(),
-		tagIds: z.array(z.string()).optional(),
+		search: z.string().max(100).optional(),
+		tagIds: tagIdsSchema.optional(),
 	})
 	.optional();
 
@@ -132,7 +141,9 @@ export const playerRouter = router({
 				eq(player.isSelf, false),
 			];
 			if (input?.search) {
-				conditions.push(like(player.name, `%${input.search}%`));
+				conditions.push(
+					sql`instr(lower(${player.name}), lower(${input.search})) > 0`
+				);
 			}
 
 			const players = playerIds
@@ -174,20 +185,15 @@ export const playerRouter = router({
 	}),
 
 	getById: protectedProcedure
-		.input(z.object({ id: z.string() }))
+		.input(z.object({ id: idSchema }))
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const [found] = await ctx.db
-				.select()
-				.from(player)
-				.where(eq(player.id, input.id));
-
-			if (!found || found.userId !== userId) {
-				throw new TRPCError({
-					code: "FORBIDDEN",
-					message: "You do not own this player",
-				});
-			}
+			const found = await validateEntityOwnership(
+				ctx.db,
+				"player",
+				input.id,
+				userId
+			);
 
 			return withTags(ctx.db, userId, found);
 		}),
@@ -207,8 +213,8 @@ export const playerRouter = router({
 	create: protectedProcedure
 		.input(
 			z.object({
-				name: z.string().min(1).max(100),
-				memo: z.string().max(50_000).optional(),
+				name: playerNameSchema,
+				memo: memoSchema.optional(),
 				tagIds: tagIdsSchema.optional(),
 			})
 		)
@@ -241,25 +247,15 @@ export const playerRouter = router({
 	update: protectedProcedure
 		.input(
 			z.object({
-				id: z.string(),
-				name: z.string().min(1).max(100).optional(),
-				memo: z.string().max(50_000).optional().nullable(),
+				id: idSchema,
+				name: playerNameSchema.optional(),
+				memo: memoSchema.optional().nullable(),
 				tagIds: tagIdsSchema.optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const [found] = await ctx.db
-				.select()
-				.from(player)
-				.where(eq(player.id, input.id));
-
-			if (!found || found.userId !== userId) {
-				throw new TRPCError({
-					code: "FORBIDDEN",
-					message: "You do not own this player",
-				});
-			}
+			await validateEntityOwnership(ctx.db, "player", input.id, userId);
 
 			await validateTagsOwnership(ctx.db, playerTag, input.tagIds, userId);
 
@@ -308,20 +304,10 @@ export const playerRouter = router({
 		}),
 
 	delete: protectedProcedure
-		.input(z.object({ id: z.string() }))
+		.input(z.object({ id: idSchema }))
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const [found] = await ctx.db
-				.select()
-				.from(player)
-				.where(eq(player.id, input.id));
-
-			if (!found || found.userId !== userId) {
-				throw new TRPCError({
-					code: "FORBIDDEN",
-					message: "You do not own this player",
-				});
-			}
+			await validateEntityOwnership(ctx.db, "player", input.id, userId);
 
 			const deleted = await ctx.db
 				.delete(player)

@@ -221,12 +221,50 @@ describe("audit-data-model through wrangler's local D1", () => {
 	);
 
 	it(
+		"fails the gate when an activated check's required table is missing",
+		async () => {
+			const dir = await copyWith("missing-audit-table", [
+				"DROP TABLE user_setting",
+			]);
+			const result = audit(dir);
+			expect(result.status).toBe(1);
+			expect(result.report?.results).toContainEqual(
+				expect.objectContaining({
+					audit: "A-14",
+					part: "base setting asset is a currency",
+					status: "error",
+				})
+			);
+		},
+		RUN_TIMEOUT
+	);
+
+	it(
+		"fails the gate when an activated check's SQL cannot execute",
+		async () => {
+			const dir = await copyWith("broken-audit-sql", [
+				"ALTER TABLE user_setting RENAME COLUMN base_asset_id TO renamed_base_asset_id",
+			]);
+			const result = audit(dir);
+			expect(result.status).toBe(1);
+			expect(result.report?.results).toContainEqual(
+				expect.objectContaining({
+					audit: "A-14",
+					part: "base setting asset is a currency",
+					status: "error",
+				})
+			);
+		},
+		RUN_TIMEOUT
+	);
+
+	it(
 		"replays the tournament entry cost from the event payment",
 		async () => {
 			const dir = await copyWith("tournament-rule-price", [
 				"UPDATE play_event SET payload = json_set(payload, '$.payments[0].quantity', 9000) WHERE id = 'mtt-start'",
 			]);
-			const result = audit(dir, "--enable", "A-6");
+			const result = audit(dir);
 			expect(result.status).toBe(1);
 			expect(rows(result.report, "A-6")).toContainEqual(
 				expect.objectContaining({
@@ -241,14 +279,13 @@ describe("audit-data-model through wrangler's local D1", () => {
 	);
 
 	it(
-		"fails A-6 when a projected amount or the Hero seat is broken",
+		"fails A-6 when projected amounts are broken",
 		async () => {
 			const dir = await copyWith("broken-projection", [
 				"UPDATE ledger_line SET quantity = -25000 WHERE id = 'start:0'",
-				"UPDATE hand_seat SET seat = 5 WHERE hand_id = 'h:live:1'",
 				"UPDATE entry_cash SET ev_diff = 50 WHERE entry_id = 'open-cash'",
 			]);
-			const result = audit(dir, "--enable", "A-6");
+			const result = audit(dir);
 			expect(result.status).toBe(1);
 			expect(rows(result.report, "A-6")).toEqual(
 				expect.arrayContaining([
@@ -259,12 +296,6 @@ describe("audit-data-model through wrangler's local D1", () => {
 						projected: -30_000,
 					}),
 					expect.objectContaining({
-						target: "hand h:live:1",
-						field: "hero seat",
-						stored: 5,
-						projected: 3,
-					}),
-					expect.objectContaining({
 						target: "entry_cash",
 						field: "ev_diff",
 						stored: 50,
@@ -272,6 +303,19 @@ describe("audit-data-model through wrangler's local D1", () => {
 					}),
 				])
 			);
+		},
+		RUN_TIMEOUT
+	);
+
+	it(
+		"accepts a corrected hand seat independent of live occupancy",
+		async () => {
+			const dir = await copyWith("corrected-hero-seat", [
+				"UPDATE hand_seat SET seat = 5 WHERE hand_id = 'h:live:1'",
+			]);
+			const result = audit(dir);
+			expect(statuses(result.report, "A-6")).toEqual(["pass", "pass", "pass"]);
+			expect(result.status).toBe(0);
 		},
 		RUN_TIMEOUT
 	);
@@ -320,6 +364,23 @@ describe("audit-data-model through wrangler's local D1", () => {
 					problem: "schema_version 1 is not 2",
 				})
 			);
+		},
+		RUN_TIMEOUT
+	);
+
+	it(
+		"detects a foreign asset in a chips adjustment event",
+		async () => {
+			const dir = await copyWith("foreign-event-asset", [
+				"UPDATE play_event SET payload = json_set(payload, '$.assetId', 'bob-jpy') WHERE id = 'chips-in'",
+			]);
+			const result = audit(dir);
+			expect(result.status).toBe(1);
+			expect(rows(result.report, "A-15")).toContainEqual({
+				id: "chips-in",
+				reference: "asset",
+				ref_id: "bob-jpy",
+			});
 		},
 		RUN_TIMEOUT
 	);

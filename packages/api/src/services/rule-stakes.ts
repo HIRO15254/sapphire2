@@ -1,6 +1,8 @@
 import type { Database } from "@sapphire2/db";
-import { ANTE_TYPES } from "@sapphire2/db/constants/rule";
+import type { ANTE_TYPES } from "@sapphire2/db/constants/rule";
 import { gameGroup } from "@sapphire2/db/schema/game-group";
+import { anteTypeSchema } from "@sapphire2/db/schemas/game";
+import { idSchema } from "@sapphire2/db/schemas/id";
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
 import z from "zod";
@@ -9,12 +11,12 @@ import { selectInChunks } from "../lib/batch";
 const blindAmountSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
 export const stakeInputSchema = z.object({
-	gameGroupId: z.string().min(1),
+	gameGroupId: idSchema,
 	blind1: blindAmountSchema.nullable().optional(),
 	blind2: blindAmountSchema.nullable().optional(),
 	blind3: blindAmountSchema.nullable().optional(),
 	ante: blindAmountSchema.nullable().optional(),
-	anteType: z.enum(ANTE_TYPES).nullable().optional(),
+	anteType: anteTypeSchema.nullable().optional(),
 });
 
 export type StakeInput = z.infer<typeof stakeInputSchema>;

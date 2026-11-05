@@ -1,4 +1,4 @@
-import { relations, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
 	check,
 	foreignKey,
@@ -316,71 +316,3 @@ export const playEvent = sqliteTable(
 		check("play_event_payload_json_check", sql`json_valid(${t.payload})`),
 	]
 );
-
-export const entryRelations = relations(entry, ({ one, many }) => ({
-	user: one(user, {
-		fields: [entry.userId],
-		references: [user.id],
-	}),
-	room: one(room, {
-		fields: [entry.roomId, entry.userId],
-		references: [room.id, room.userId],
-	}),
-	asset: one(asset, {
-		fields: [entry.assetId, entry.userId],
-		references: [asset.id, asset.userId],
-	}),
-	cash: one(entryCash),
-	tournament: one(entryTournament),
-	playSessions: many(playSession),
-	playEvents: many(playEvent),
-}));
-
-export const entryCashRelations = relations(entryCash, ({ one }) => ({
-	entry: one(entry, {
-		fields: [entryCash.entryId, entryCash.userId],
-		references: [entry.id, entry.userId],
-	}),
-	ringGame: one(ringGame, {
-		fields: [entryCash.ringGameId, entryCash.userId],
-		references: [ringGame.id, ringGame.userId],
-	}),
-}));
-
-export const entryTournamentRelations = relations(
-	entryTournament,
-	({ one }) => ({
-		entry: one(entry, {
-			fields: [entryTournament.entryId, entryTournament.userId],
-			references: [entry.id, entry.userId],
-		}),
-		tournament: one(tournament, {
-			fields: [entryTournament.tournamentId, entryTournament.userId],
-			references: [tournament.id, tournament.userId],
-		}),
-	})
-);
-
-export const playSessionRelations = relations(playSession, ({ one, many }) => ({
-	entry: one(entry, {
-		fields: [playSession.entryId, playSession.userId],
-		references: [entry.id, entry.userId],
-	}),
-	playEvents: many(playEvent),
-	hands: many(hand),
-}));
-
-export const playEventRelations = relations(playEvent, ({ one }) => ({
-	entry: one(entry, {
-		fields: [playEvent.entryId, playEvent.userId],
-		references: [entry.id, entry.userId],
-	}),
-	playSession: one(playSession, {
-		fields: [playEvent.playSessionId, playEvent.userId],
-		references: [playSession.id, playSession.userId],
-	}),
-	hand: one(hand, {
-		fields: [playEvent.handId, playEvent.userId],
-		references: [hand.id, hand.userId],
-	}),
-}));

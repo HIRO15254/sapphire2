@@ -1,4 +1,4 @@
-import { relations, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
 	foreignKey,
 	index,
@@ -56,18 +56,3 @@ export const ringGame = sqliteTable(
 		}).onDelete("no action"),
 	]
 );
-
-export const ringGameRelations = relations(ringGame, ({ one }) => ({
-	room: one(room, {
-		fields: [ringGame.roomId],
-		references: [room.id],
-	}),
-	user: one(user, {
-		fields: [ringGame.userId],
-		references: [user.id],
-	}),
-	defaultAsset: one(asset, {
-		fields: [ringGame.defaultAssetId],
-		references: [asset.id],
-	}),
-}));

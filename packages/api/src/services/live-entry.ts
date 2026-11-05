@@ -44,7 +44,6 @@ import {
 	assertMetadata,
 	assertPaymentAssets,
 	assertPaymentPrices,
-	deleteEntry,
 	type ManualPaymentInput,
 	planCreateRule,
 	updateEntry,
@@ -286,7 +285,11 @@ export async function entryKeptReferences(
 	userId: string,
 	entryId: string,
 	eventId?: string
-): Promise<{ assetIds: Set<string>; priceCounts: Map<string, number> }> {
+): Promise<{
+	assetIds: Set<string>;
+	assetCounts: Map<string, number>;
+	priceCounts: Map<string, number>;
+}> {
 	const rows =
 		eventId === undefined
 			? []
@@ -301,12 +304,14 @@ export async function entryKeptReferences(
 						)
 					);
 	const priceCounts = new Map<string, number>();
+	const assetCounts = new Map<string, number>();
 	for (const row of rows) {
+		assetCounts.set(row.assetId, (assetCounts.get(row.assetId) ?? 0) + 1);
 		if (row.priceId) {
 			priceCounts.set(row.priceId, (priceCounts.get(row.priceId) ?? 0) + 1);
 		}
 	}
-	return { assetIds: new Set(rows.map((row) => row.assetId)), priceCounts };
+	return { assetIds: new Set(assetCounts.keys()), assetCounts, priceCounts };
 }
 
 export async function assertEventPayments(
@@ -321,7 +326,13 @@ export async function assertEventPayments(
 		return;
 	}
 	const kept = await entryKeptReferences(db, userId, entryId, eventId);
-	await assertPaymentAssets(db, userId, [...payments], kept.assetIds);
+	await assertPaymentAssets(
+		db,
+		userId,
+		[...payments],
+		kept.assetIds,
+		kept.assetCounts
+	);
 	await assertPaymentPrices(
 		db,
 		userId,
@@ -384,7 +395,6 @@ export async function startLiveEntry(
 						},
 			assetId: input.assetId ?? null,
 			roomId: input.roomId ?? null,
-			title: null,
 			memo: input.memo ?? null,
 			label: input.label ?? null,
 			localDate,
@@ -747,7 +757,23 @@ export async function discardLiveEntry(
 			message: "A completed entry cannot be discarded",
 		});
 	}
-	await deleteEntry(db, userId, id);
+	const deleted = await db
+		.delete(entry)
+		.where(
+			and(
+				eq(entry.id, id),
+				eq(entry.userId, userId),
+				eq(entry.source, "live"),
+				ne(entry.status, "settled")
+			)
+		)
+		.returning({ id: entry.id });
+	if (deleted.length === 0) {
+		throw new TRPCError({
+			code: "PRECONDITION_FAILED",
+			message: "The entry can no longer be discarded",
+		});
+	}
 }
 
 export async function attachProgress(

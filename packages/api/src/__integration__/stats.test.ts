@@ -385,6 +385,121 @@ describe("stats on D1", () => {
 		});
 	});
 
+	test("converts an item-only initial payment before reporting its BI unit", async ({
+		api,
+	}) => {
+		const currency = requireCreatedRow(
+			await api.alice.asset.create({ name: "Points", kind: "currency" })
+		);
+		const ticket = requireCreatedRow(
+			await api.alice.asset.create({ name: "Ticket", kind: "item" })
+		);
+		const entry = await api.alice.entry.create({
+			kind: "tournament",
+			playedOn: "2026-09-01",
+			payments: [pay("buy_in", ticket.id, 1)],
+		});
+		await api.alice.userSetting.update({ baseAssetId: currency.id });
+		const missing = await api.alice.stats.profitLossSeries({
+			normalized: true,
+		});
+		expect(missing.points.find((point) => point.id === entry.id)).toMatchObject(
+			{
+				buyInTotal: null,
+				profitLoss: null,
+			}
+		);
+		await api.alice.assetRate.create({
+			baseAssetId: ticket.id,
+			quoteAssetId: currency.id,
+			rateNum: 20_000,
+			rateDen: 1,
+			effectiveFrom: 0,
+		});
+		const valued = await api.alice.stats.profitLossSeries({ normalized: true });
+		expect(valued.points.find((point) => point.id === entry.id)).toMatchObject({
+			buyInTotal: 20_000,
+			profitLoss: 0,
+		});
+	});
+
+	test("retains seconds in timed play when calculating hourly rates", async ({
+		api,
+	}) => {
+		const asset = requireCreatedRow(
+			await api.alice.asset.create({ name: "Points", kind: "currency" })
+		);
+		const entry = await api.alice.entry.create({
+			kind: "cash",
+			playedOn: "2026-09-01",
+			assetId: asset.id,
+			rule: await nlhGame(api.db),
+			playSessions: [
+				{
+					localDate: "2026-09-01",
+					startedAt: at("2026-09-01T10:00:00Z"),
+					endedAt: at("2026-09-01T10:01:30Z"),
+					endState: "cashed_out",
+					payments: [
+						pay("buy_in", asset.id, 100),
+						pay("cash_out", asset.id, 120),
+					],
+				},
+			],
+		});
+		await insertHands(api, entry.playSessions[0]?.id, ["count"]);
+		const summary = await api.alice.stats.summary({ assetId: asset.id });
+		expect(summary.playMinutes).toBe(1.5);
+		expect(summary.handsPerHour).toBe(40);
+		expect(summary.bbPerHour).toBe(400);
+	});
+
+	test("includes actual results without recorded EV in the cash EV total", async ({
+		api,
+	}) => {
+		const asset = requireCreatedRow(
+			await api.alice.asset.create({ name: "Points", kind: "currency" })
+		);
+		const rule = await nlhGame(api.db);
+		await api.alice.entry.create({
+			kind: "cash",
+			playedOn: "2026-09-01",
+			assetId: asset.id,
+			rule,
+			payments: [
+				pay("buy_in", asset.id, 1000),
+				pay("cash_out", asset.id, 1500),
+			],
+		});
+		expect(await api.alice.stats.summary({ assetId: asset.id })).toMatchObject({
+			evDiff: null,
+			evProfitLoss: null,
+			evRecordedEntryCount: 0,
+		});
+		await api.alice.entry.create({
+			kind: "cash",
+			playedOn: "2026-09-02",
+			assetId: asset.id,
+			rule,
+			evDiff: -1200,
+			payments: [
+				pay("buy_in", asset.id, 1000),
+				pay("cash_out", asset.id, 4000),
+			],
+		});
+		expect(await api.alice.stats.summary({ assetId: asset.id })).toMatchObject({
+			evDiff: -1200,
+			evProfitLoss: 2300,
+			evRecordedEntryCount: 1,
+		});
+		expect(await api.alice.stats.summary({ normalized: true })).toMatchObject({
+			evDiff: null,
+			evProfitLoss: null,
+			evRecordedEntryCount: 1,
+			normalized: { cash: { evProfitLoss: 1150 } },
+		});
+	});
+
 	test("rejects combined modes and foreign filter ids", async ({ api }) => {
 		const { jpy } = await cashFixture(api);
 		expect(
@@ -563,5 +678,145 @@ describe("stats on D1", () => {
 			},
 			{ key: "tournament", bb100: null, handsPerHour: 4 },
 		]);
+	});
+
+	test("scopes filters and breakdowns to owned rooms, kinds, and tournament tags", async ({
+		api,
+	}) => {
+		const asset = requireCreatedRow(
+			await api.alice.asset.create({ name: "Points", kind: "currency" })
+		);
+		const rule = await nlhGame(api.db);
+		const firstRoom = requireCreatedRow(
+			await api.alice.room.create({ name: "First" })
+		);
+		const secondRoom = requireCreatedRow(
+			await api.alice.room.create({ name: "Second" })
+		);
+		const tag = requireCreatedRow(
+			await api.alice.tournamentTag.create({ name: "Featured" })
+		);
+		const tournament = await api.alice.tournament.create({
+			roomId: firstRoom.id,
+			name: "Featured tournament",
+			tagIds: [tag.id],
+			rule: {},
+		});
+		await api.alice.entry.create({
+			kind: "cash",
+			playedOn: "2025-12-31",
+			roomId: firstRoom.id,
+			assetId: asset.id,
+			rule,
+			payments: [pay("buy_in", asset.id, 100), pay("cash_out", asset.id, 200)],
+		});
+		await api.alice.entry.create({
+			kind: "tournament",
+			playedOn: "2026-01-01",
+			roomId: firstRoom.id,
+			tournamentId: tournament.id,
+			payments: [pay("buy_in", asset.id, 100), pay("prize", asset.id, 300)],
+		});
+		await api.alice.entry.create({
+			kind: "tournament",
+			playedOn: "2026-01-02",
+			roomId: secondRoom.id,
+			payments: [pay("buy_in", asset.id, 300)],
+		});
+
+		const scope = { assetId: asset.id };
+		expect(await api.alice.stats.summary(scope)).toMatchObject({
+			entryCount: 3,
+			amounts: { profitLoss: 0 },
+		});
+		expect(
+			await api.alice.stats.summary({ ...scope, roomId: firstRoom.id })
+		).toMatchObject({ entryCount: 2, amounts: { profitLoss: 300 } });
+		expect(
+			await api.alice.stats.summary({ ...scope, kind: "tournament" })
+		).toMatchObject({ entryCount: 2, amounts: { profitLoss: -100 } });
+		expect(
+			await api.alice.stats.summary({ ...scope, tournamentTagIds: [tag.id] })
+		).toMatchObject({ entryCount: 1, amounts: { profitLoss: 200 } });
+		expect(
+			await api.alice.stats.summary({
+				...scope,
+				roomId: secondRoom.id,
+				kind: "tournament",
+				tournamentTagIds: [tag.id],
+			})
+		).toMatchObject({ entryCount: 0, amounts: { profitLoss: 0 } });
+
+		const byRoom = await api.alice.stats.breakdown({
+			...scope,
+			groupBy: "room",
+		});
+		expect(
+			byRoom.groups.map(({ key, entryCount }) => ({ key, entryCount }))
+		).toEqual(
+			expect.arrayContaining([
+				{ key: firstRoom.id, entryCount: 2 },
+				{ key: secondRoom.id, entryCount: 1 },
+			])
+		);
+		expect(byRoom.groups).toHaveLength(2);
+		const byStakes = await api.alice.stats.breakdown({
+			...scope,
+			groupBy: "stakes",
+		});
+		expect(
+			byStakes.groups.map(({ key, entryCount }) => ({ key, entryCount }))
+		).toEqual(
+			expect.arrayContaining([
+				{ key: `${rule.stakes[0]?.gameGroupId}:1/2///`, entryCount: 1 },
+				{ key: "tournament", entryCount: 2 },
+			])
+		);
+		expect(byStakes.groups).toHaveLength(2);
+		const byVariant = await api.alice.stats.breakdown({
+			...scope,
+			groupBy: "variant",
+		});
+		expect(
+			byVariant.groups.map(({ key, entryCount }) => ({ key, entryCount }))
+		).toEqual([{ key: `variant:${rule.game.variantId}`, entryCount: 3 }]);
+		const byYear = await api.alice.stats.breakdown({
+			...scope,
+			groupBy: "year",
+		});
+		expect(
+			byYear.groups.map(({ key, entryCount }) => ({ key, entryCount }))
+		).toEqual([
+			{ key: "2025", entryCount: 1 },
+			{ key: "2026", entryCount: 2 },
+		]);
+
+		const foreignRoom = requireCreatedRow(
+			await api.bob.room.create({ name: "Foreign" })
+		);
+		const foreignTag = requireCreatedRow(
+			await api.bob.tournamentTag.create({ name: "Foreign" })
+		);
+		const foreignAsset = requireCreatedRow(
+			await api.bob.asset.create({ name: "Foreign", kind: "currency" })
+		);
+		expect(
+			await rejection(
+				api.alice.stats.summary({ ...scope, roomId: foreignRoom.id })
+			)
+		).toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(
+				api.alice.stats.summary({ ...scope, tournamentTagIds: [foreignTag.id] })
+			)
+		).toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(
+				api.alice.stats.summary({
+					valuation: "real",
+					baseAssetId: foreignAsset.id,
+				})
+			)
+		).toMatchObject({ code: "FORBIDDEN" });
 	});
 });

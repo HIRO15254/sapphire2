@@ -1,4 +1,4 @@
-import { relations, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
 	check,
 	foreignKey,
@@ -47,14 +47,3 @@ export const gameVariant = sqliteTable(
 		check("game_variant_sort_order_check", sql`${table.sortOrder} >= 0`),
 	]
 );
-
-export const gameVariantRelations = relations(gameVariant, ({ one }) => ({
-	user: one(user, {
-		fields: [gameVariant.userId],
-		references: [user.id],
-	}),
-	group: one(gameGroup, {
-		fields: [gameVariant.groupId, gameVariant.userId],
-		references: [gameGroup.id, gameGroup.userId],
-	}),
-}));

@@ -1,4 +1,4 @@
-import { relations, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
 	check,
 	index,
@@ -46,10 +46,3 @@ export const asset = sqliteTable(
 		),
 	]
 );
-
-export const assetRelations = relations(asset, ({ one }) => ({
-	user: one(user, {
-		fields: [asset.userId],
-		references: [user.id],
-	}),
-}));

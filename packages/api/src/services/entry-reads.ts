@@ -30,6 +30,7 @@ import { type EntryRuleOutput, hydrateEntryRules } from "./entry-rules";
 import type { LineupMap } from "./game-lineup";
 import { ruleLineupIds, type TournamentRuleOutput } from "./tournament-rule";
 import {
+	isPayment,
 	type MissingRate,
 	type ValuationAmounts,
 	type ValuationAsset,
@@ -305,7 +306,7 @@ function nativeTotals(lines: EntryLine[]): AssetTotal[] {
 		role.lineCount += 1;
 		total.roleTotals[line.role] = role;
 		total.profitLoss += line.quantity;
-		if (line.quantity < 0) {
+		if (isPayment(line.quantity)) {
 			total.buyIn -= line.quantity;
 		} else {
 			total.cashOut += line.quantity;
@@ -399,10 +400,7 @@ function entryValuation(
 		baseAssetId: context.baseAssetId,
 		real: valued ? valued.real : ZERO_AMOUNTS,
 		virtual: valued ? valued.virtual : ZERO_AMOUNTS,
-		missingRates: {
-			real: result.real.missingRates,
-			virtual: result.virtual.missingRates,
-		},
+		missingRates: valued?.missingRates ?? { real: [], virtual: [] },
 	};
 }
 
@@ -417,7 +415,7 @@ export function playMinutes(
 				60 * play.breakMinutes;
 		}
 	}
-	return Math.floor(seconds / 60);
+	return seconds / 60;
 }
 
 export function cashBigBlind(rule: CashRuleOutput): number | null {

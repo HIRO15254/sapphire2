@@ -1,3 +1,4 @@
+import { idSchema } from "@sapphire2/db/schemas/id";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { instantSchema } from "../lib/instant";
@@ -9,8 +10,6 @@ import {
 	type PlayEventInputType,
 	updatePlayEvent,
 } from "../services/play-event";
-
-const idSchema = z.string().min(1);
 
 const createFields = {
 	entryId: idSchema,

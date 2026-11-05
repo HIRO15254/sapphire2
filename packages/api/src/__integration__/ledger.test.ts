@@ -498,6 +498,12 @@ describe("ledger.listByAsset on D1", () => {
 		await expect(
 			api.alice.ledger.listByAsset({ assetId: jpy.id, cursor: "not-a-cursor" })
 		).rejects.toMatchObject(BAD_REQUEST);
+		await expect(
+			api.alice.ledger.listByAsset({
+				assetId: jpy.id,
+				cursor: `${first.nextCursor} `,
+			})
+		).rejects.toMatchObject(BAD_REQUEST);
 	});
 
 	test("totals an entry's real lines within the listed asset only, dated at its first line", async ({

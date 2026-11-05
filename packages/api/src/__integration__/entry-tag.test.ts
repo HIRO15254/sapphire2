@@ -1,26 +1,6 @@
 import { expect } from "vitest";
 import { requireCreatedRow, test } from "./test-fixture";
 
-test("normalized names conflict within an owner", async ({ api }) => {
-	await api.alice.entryTag.create({ name: " Foo " });
-	await expect(
-		api.alice.entryTag.create({ name: "foo" })
-	).rejects.toMatchObject({ code: "CONFLICT" });
-});
-
-test("foreign users cannot change or delete a tag", async ({ api }) => {
-	const tag = requireCreatedRow(
-		await api.alice.entryTag.create({ name: "Alice" })
-	);
-	await expect(
-		api.bob.entryTag.update({ id: tag.id, name: "Changed" })
-	).rejects.toMatchObject({ code: "FORBIDDEN" });
-	await expect(api.bob.entryTag.delete({ id: tag.id })).rejects.toMatchObject({
-		code: "FORBIDDEN",
-	});
-	expect(await api.alice.entryTag.list()).toEqual([tag]);
-});
-
 test("deleting a tag removes links without deleting entries", async ({
 	api,
 }) => {

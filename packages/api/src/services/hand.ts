@@ -23,13 +23,14 @@ import {
 import { handTag, handTagLink } from "@sapphire2/db/schema/hand-tag";
 import { player } from "@sapphire2/db/schema/player";
 import { anteTypeSchema } from "@sapphire2/db/schemas/game";
+import { idSchema } from "@sapphire2/db/schemas/id";
 import { MAX_LINKED_TAGS, tagIdsSchema } from "@sapphire2/db/schemas/tag-ids";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import z from "zod";
 import {
 	type BatchStatement,
-	chunkForInsert,
+	insertChunks,
 	runBatch,
 	selectInChunks,
 } from "../lib/batch";
@@ -84,9 +85,9 @@ const handContextFields = {
 };
 
 export const handAddInputSchema = z.object({
-	playSessionId: z.string(),
+	playSessionId: idSchema,
 	...z.object(handContextFields).partial().shape,
-	playedAt: z.number().int().min(0).optional(),
+	playedAt: instantSchema.optional(),
 });
 
 const handSummaryFields = {
@@ -595,11 +596,9 @@ function tagLinkStatements(
 				and(eq(handTagLink.handId, handId), eq(handTagLink.userId, userId))
 			),
 	];
-	if (rows[0]) {
-		for (const chunk of chunkForInsert(rows, Object.keys(rows[0]).length)) {
-			statements.push(db.insert(handTagLink).values(chunk));
-		}
-	}
+	statements.push(
+		...insertChunks(rows, (chunk) => db.insert(handTagLink).values(chunk))
+	);
 	return statements;
 }
 
@@ -654,19 +653,12 @@ export function buildHandUpdateStatements(
 	if (boards.length > 0) {
 		statements.push(db.insert(handBoard).values(boards));
 	}
-	if (seats[0]) {
-		for (const chunk of chunkForInsert(seats, Object.keys(seats[0]).length)) {
-			statements.push(db.insert(handSeat).values(chunk));
-		}
-	}
-	if (actions[0]) {
-		for (const chunk of chunkForInsert(
-			actions,
-			Object.keys(actions[0]).length
-		)) {
-			statements.push(db.insert(handAction).values(chunk));
-		}
-	}
+	statements.push(
+		...insertChunks(seats, (chunk) => db.insert(handSeat).values(chunk))
+	);
+	statements.push(
+		...insertChunks(actions, (chunk) => db.insert(handAction).values(chunk))
+	);
 	statements.push(...tagLinkStatements(db, userId, input.id, plan.tagLinks));
 	return statements;
 }

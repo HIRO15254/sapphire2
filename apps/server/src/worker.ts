@@ -23,7 +23,7 @@ import {
 	redirectHostsFrom,
 	withoutLoginPromptCookie,
 } from "./oauth-consent";
-import { withClientName } from "./oauth-register";
+import { hasUnsafeRedirectUri, withClientName } from "./oauth-register";
 
 interface Env {
 	BETTER_AUTH_SECRET: string;
@@ -87,7 +87,7 @@ app.use("/*", (c, next) => {
 				credentials: false,
 			})
 		: cors({
-				origin: c.env.CORS_ORIGIN,
+				origin: new URL(c.env.CORS_ORIGIN).origin,
 				allowMethods: ["GET", "POST", "OPTIONS"],
 				allowHeaders: ["Content-Type", "Authorization"],
 				credentials: true,
@@ -96,6 +96,13 @@ app.use("/*", (c, next) => {
 });
 
 app.post("/api/auth/set-password", async (c) => {
+	if (
+		c.req.header("Origin") !== new URL(c.env.CORS_ORIGIN).origin ||
+		c.req.header("Content-Type")?.split(";")[0]?.trim().toLowerCase() !==
+			"application/json"
+	) {
+		return c.text("Forbidden", 403);
+	}
 	const db = createDb(c.env.DB);
 	const auth = createAuth(db, buildAuthOptions(c.env, db));
 	const result = await auth.api.setPassword({
@@ -119,6 +126,9 @@ app.use("/api/auth/*", (c, next) => {
 });
 
 app.on(["POST", "GET"], "/api/auth/*", async (c) => {
+	if (await hasUnsafeRedirectUri(c.req.raw)) {
+		return c.json({ error: "invalid_redirect_uri" }, 400);
+	}
 	const db = createDb(c.env.DB);
 	const auth = createAuth(db, buildAuthOptions(c.env, db));
 	const request = await withClientName(c.req.raw);
@@ -148,14 +158,20 @@ app.get("/oauth/consent", async (c) => {
 		clientName = "";
 		redirectHosts = [];
 	}
+	const nonce = btoa(
+		String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16)))
+	);
 	c.header("Cache-Control", "no-store");
 	c.header("X-Frame-Options", "DENY");
-	c.header("Content-Security-Policy", "frame-ancestors 'none'");
+	c.header(
+		"Content-Security-Policy",
+		`frame-ancestors 'none'; script-src 'nonce-${nonce}'`
+	);
 	return c.html(
 		renderConsentHtml({
-			clientId: query.clientId,
 			clientName,
 			code: query.code,
+			nonce,
 			redirectHosts,
 		})
 	);
@@ -178,7 +194,7 @@ app.use("/trpc/*", (c, next) => {
 });
 
 function mcpUnauthorized(env: Env): Response {
-	const wwwAuthenticate = `Bearer resource_metadata="${env.BETTER_AUTH_URL}/.well-known/oauth-protected-resource"`;
+	const wwwAuthenticate = `Bearer resource_metadata="${new URL(env.BETTER_AUTH_URL).origin}/.well-known/oauth-protected-resource"`;
 	return Response.json(
 		{
 			jsonrpc: "2.0",

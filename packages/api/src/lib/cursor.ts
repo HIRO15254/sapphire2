@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import type z from "zod";
 
 const BASE64_PADDING = /=+$/;
+const BASE64URL = /^[A-Za-z0-9_-]+$/;
 
 export function encodeCursor(value: unknown): string {
 	let binary = "";
@@ -17,9 +18,12 @@ export function encodeCursor(value: unknown): string {
 export function decodeCursor<T>(cursor: string, schema: z.ZodType<T>): T {
 	let value: unknown;
 	try {
+		if (!BASE64URL.test(cursor)) {
+			throw new Error("Invalid cursor encoding");
+		}
 		const binary = atob(cursor.replaceAll("-", "+").replaceAll("_", "/"));
 		value = JSON.parse(
-			new TextDecoder().decode(
+			new TextDecoder("utf-8", { fatal: true }).decode(
 				Uint8Array.from(binary, (char) => char.charCodeAt(0))
 			)
 		);

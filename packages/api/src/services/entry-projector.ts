@@ -32,7 +32,7 @@ import {
 } from "@sapphire2/db/schema/entry";
 import { ledgerLine } from "@sapphire2/db/schema/ledger";
 import { and, eq, isNotNull } from "drizzle-orm";
-import { type BatchStatement, chunkForInsert } from "../lib/batch";
+import { type BatchStatement, insertChunks } from "../lib/batch";
 
 export type ProjectorEvent = Pick<
 	typeof playEvent.$inferSelect,
@@ -569,8 +569,8 @@ export function buildProjectionLineStatements(
 				)
 			),
 	];
-	for (const chunk of chunkForInsert(rows, Object.keys(rows[0] ?? {}).length)) {
-		statements.push(db.insert(ledgerLine).values(chunk));
-	}
+	statements.push(
+		...insertChunks(rows, (chunk) => db.insert(ledgerLine).values(chunk))
+	);
 	return statements;
 }

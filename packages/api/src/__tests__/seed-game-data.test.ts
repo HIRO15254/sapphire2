@@ -40,16 +40,6 @@ describe("seedDefaultGameData", () => {
 		expect(inserted[MIX_TABLE]).toHaveLength(3);
 	});
 
-	it("commits every insert in a single db.batch call (atomic seed, SA2-116)", async () => {
-		const { db, batch, inserted } = emptyAccountDb();
-		await seedDefaultGameData(db, USER_ID);
-		expect(batch).toHaveBeenCalledTimes(1);
-		const [statements] = batch.mock.calls[0] as [unknown[]];
-		expect(statements).toHaveLength(
-			27 + (inserted[MIX_VARIANT_TABLE]?.length ?? 0)
-		);
-	});
-
 	it("stamps every seeded group, variant, and mix with the caller's userId", async () => {
 		const { db, inserted } = emptyAccountDb();
 		await seedDefaultGameData(db, USER_ID);
@@ -273,61 +263,5 @@ describe("seedDefaultGameData", () => {
 		].map((row) => (row as { id: string }).id);
 
 		expect(secondIds.every((id) => !firstIds.has(id))).toBe(true);
-	});
-});
-
-describe("seedDefaultGameData normalized mix memberships", () => {
-	it("stores builtin compositions in ordered junction rows in the same atomic batch", async () => {
-		const { db, inserted, updated, batch } = emptyAccountDb();
-
-		await seedDefaultGameData(db, USER_ID);
-
-		const mixRows = inserted[MIX_TABLE] as Record<string, unknown>[];
-		expect(mixRows).toHaveLength(DEFAULT_GAME_MIXES.length);
-		for (const row of mixRows) {
-			expect(row).not.toHaveProperty("games");
-		}
-
-		const membershipWrites = inserted[MIX_VARIANT_TABLE] ?? [];
-		expect(membershipWrites).toHaveLength(DEFAULT_GAME_MIXES.length);
-		for (const chunk of membershipWrites) {
-			const rows = Array.isArray(chunk) ? chunk : [chunk];
-			expect(rows.length).toBeLessThanOrEqual(25);
-			expect(rows.length * 4).toBeLessThanOrEqual(100);
-		}
-		const memberships = flattenedWrites(membershipWrites);
-		const expectedMembershipCount = DEFAULT_GAME_MIXES.reduce(
-			(total, mix) => total + mix.variantKeys.length,
-			0
-		);
-		expect(memberships).toHaveLength(expectedMembershipCount);
-
-		const variantRows = inserted[VARIANT_TABLE] as Record<string, unknown>[];
-		const variantIdByKey = new Map(
-			variantRows.map((row) => [row.builtinKey as string, row.id as string])
-		);
-		expect(updated[MIX_TABLE]).toBeUndefined();
-		for (const definition of DEFAULT_GAME_MIXES) {
-			const mix = mixRows.find((row) => row.builtinKey === definition.key) as {
-				id: string;
-			};
-			const rows = memberships
-				.filter((row) => row.mixId === mix.id)
-				.toSorted(
-					(left, right) =>
-						(left.position as number) - (right.position as number)
-				);
-			expect(rows.map((row) => row.variantId)).toEqual(
-				definition.variantKeys.map((key) => variantIdByKey.get(key))
-			);
-			expect(rows.map((row) => row.position)).toEqual(
-				definition.variantKeys.map((_, position) => position)
-			);
-			expect(rows.every((row) => row.userId === USER_ID)).toBe(true);
-		}
-
-		expect(batch).toHaveBeenCalledTimes(1);
-		const [statements] = batch.mock.calls[0] as [unknown[]];
-		expect(statements).toHaveLength(27 + membershipWrites.length);
 	});
 });

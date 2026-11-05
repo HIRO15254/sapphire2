@@ -1,23 +1,8 @@
 import type { Database } from "@sapphire2/db";
 import type { LedgerRole } from "@sapphire2/db/constants/ledger";
-import { asset } from "@sapphire2/db/schema/asset";
 import { entry } from "@sapphire2/db/schema/entry";
 import { ledgerLine } from "@sapphire2/db/schema/ledger";
-import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
-import { D1_MAX_BOUND_PARAMS } from "../lib/batch";
-
-export interface EntryRealTotals {
-	assetId: string;
-	buyIn: number;
-	entryId: string;
-	profitLoss: number;
-	receipts: number;
-}
-
-export interface AssetBalance {
-	assetId: string;
-	balance: number;
-}
+import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 
 export interface AssetHistoryRow {
 	categoryId: string | null;
@@ -34,56 +19,6 @@ export interface AssetHistoryRow {
 const REAL = sql`${ledgerLine.effect} = 'real'`;
 
 export const assetBalance = sql<number>`(SELECT COALESCE(SUM(ledger_line.quantity), 0) FROM ledger_line WHERE ledger_line.asset_id = asset.id AND ledger_line.user_id = asset.user_id AND ledger_line.effect = 'real')`;
-
-export async function selectEntryRealTotals(
-	db: Database,
-	userId: string,
-	entryIds: readonly string[]
-): Promise<EntryRealTotals[]> {
-	const perChunk = D1_MAX_BOUND_PARAMS - 1;
-	const rows: EntryRealTotals[] = [];
-	for (let index = 0; index < entryIds.length; index += perChunk) {
-		const chunk = entryIds.slice(index, index + perChunk);
-		rows.push(
-			...(await db
-				.select({
-					entryId: sql<string>`${ledgerLine.entryId}`,
-					assetId: ledgerLine.assetId,
-					profitLoss: sql<number>`SUM(${ledgerLine.quantity})`,
-					buyIn: sql<number>`-SUM(MIN(${ledgerLine.quantity}, 0))`,
-					receipts: sql<number>`SUM(MAX(${ledgerLine.quantity}, 0))`,
-				})
-				.from(ledgerLine)
-				.innerJoin(
-					asset,
-					and(
-						eq(asset.id, ledgerLine.assetId),
-						eq(asset.userId, ledgerLine.userId),
-						sql`${asset.kind} = 'currency'`
-					)
-				)
-				.where(
-					and(
-						eq(ledgerLine.userId, userId),
-						inArray(ledgerLine.entryId, chunk),
-						REAL
-					)
-				)
-				.groupBy(ledgerLine.entryId, ledgerLine.assetId))
-		);
-	}
-	return rows;
-}
-
-export async function selectAssetBalances(
-	db: Database,
-	userId: string
-): Promise<AssetBalance[]> {
-	return await db
-		.select({ assetId: asset.id, balance: assetBalance })
-		.from(asset)
-		.where(eq(asset.userId, userId));
-}
 
 export async function selectAssetHistory(
 	db: Database,

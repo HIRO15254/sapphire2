@@ -1,3 +1,4 @@
+import type { Database } from "@sapphire2/db";
 import type { LedgerRole } from "@sapphire2/db/constants/ledger";
 import { entry, playEvent, playSession } from "@sapphire2/db/schema/entry";
 import { ledgerLine } from "@sapphire2/db/schema/ledger";
@@ -5,6 +6,12 @@ import { tournamentRule } from "@sapphire2/db/schema/rule";
 import { describe, expect } from "vitest";
 import type { EntryOutput } from "../services/entry-reads";
 import { MAX_ENTRY_PAYMENTS } from "../services/entry-writes";
+import {
+	discardLiveEntry,
+	startLiveEntry,
+	startNextLivePlay,
+	undoLiveStartNextPlay,
+} from "../services/live-entry";
 import { MAX_RULE_PRICES } from "../services/tournament-rule";
 import {
 	type ApiFixture,
@@ -65,6 +72,75 @@ async function failure(promise: Promise<unknown>) {
 }
 
 describe("live API on D1", () => {
+	test("editing and deleting a reentry reprojects its payment", async ({
+		api,
+	}) => {
+		const { jpy } = await setup(api);
+		const started = await api.alice.live.create({
+			kind: "tournament",
+			payments: [],
+		});
+		const event = await api.alice.playEvent.create({
+			entryId: started.id,
+			eventType: "reentry",
+			payload: { payments: [real("reentry", jpy.id, 1000)] },
+		});
+		await api.alice.playEvent.update({
+			id: event.id,
+			payload: { payments: [real("reentry", jpy.id, 2500)] },
+		});
+		const updated = await api.alice.live.getById({ id: started.id });
+		expect(updated.lines).toMatchObject([
+			{ eventId: event.id, assetId: jpy.id, role: "reentry", quantity: -2500 },
+		]);
+		expect(updated.totals).toMatchObject([
+			{
+				assetId: jpy.id,
+				effect: "real",
+				buyIn: 2500,
+				cashOut: 0,
+				profitLoss: -2500,
+				roleTotals: { reentry: { lineCount: 1, quantity: -2500 } },
+			},
+		]);
+		await api.alice.playEvent.delete({ id: event.id });
+		const deleted = await api.alice.live.getById({ id: started.id });
+		expect(deleted.lines).toEqual([]);
+		expect(deleted.totals).toEqual([]);
+	});
+
+	test("editing an event cannot add new lines for an archived asset", async ({
+		api,
+	}) => {
+		const { jpy } = await setup(api);
+		const started = await api.alice.live.create({
+			kind: "tournament",
+			payments: [],
+		});
+		const payment = real("reentry", jpy.id, 1000);
+		const event = await api.alice.playEvent.create({
+			entryId: started.id,
+			eventType: "reentry",
+			payload: { payments: [payment] },
+		});
+		await api.alice.asset.archive({ id: jpy.id });
+		await api.alice.playEvent.update({
+			id: event.id,
+			payload: { payments: [payment] },
+		});
+		expect(
+			await failure(
+				api.alice.playEvent.update({
+					id: event.id,
+					payload: { payments: [payment, payment] },
+				})
+			)
+		).toMatchObject({ code: "BAD_REQUEST" });
+		expect(
+			(await api.alice.live.getById({ id: started.id })).lines
+		).toHaveLength(1);
+	});
+
 	test("old prices are retained only by their original event", async ({
 		api,
 	}) => {
@@ -91,6 +167,11 @@ describe("live API on D1", () => {
 			eventType: "purchase_chips",
 			payload: { priceId, payments: [payment] },
 		});
+		const freeEvent = await api.alice.playEvent.create({
+			entryId: started.id,
+			eventType: "purchase_chips",
+			payload: { priceId, payments: [] },
+		});
 		await api.alice.live.overrideRule({
 			id: started.id,
 			kind: "tournament",
@@ -100,6 +181,14 @@ describe("live API on D1", () => {
 			id: event.id,
 			payload: { priceId, payments: [payment] },
 		});
+		expect(
+			(
+				await api.alice.playEvent.update({
+					id: freeEvent.id,
+					payload: { priceId, payments: [] },
+				})
+			).payload.priceId
+		).toBe(priceId);
 		expect(
 			await failure(
 				api.alice.playEvent.create({
@@ -302,26 +391,72 @@ describe("live API on D1", () => {
 		expect(completed.playSessions[0]?.endState).toBe("busted");
 	});
 
-	test("two concurrent starts leave exactly one live session and no stray rule rows", async ({
+	test("a competing start at batch time leaves one entry and no stray rule", async ({
 		api,
 	}) => {
 		const { jpy } = await setup(api);
-		const start = () =>
-			api.alice.live.create({
-				kind: "tournament",
-				rule: { startingStack: 10_000 },
-				payments: [real("buy_in", jpy.id, 1000)],
-			});
-		const results = await Promise.allSettled([start(), start()]);
+		const input = {
+			kind: "tournament" as const,
+			rule: { startingStack: 10_000 },
+			payments: [real("buy_in", jpy.id, 1000)],
+		};
+		const racing = new Proxy(api.db, {
+			get(target, property, receiver) {
+				if (property !== "batch") {
+					return Reflect.get(target, property, receiver);
+				}
+				return async (statements: Parameters<Database["batch"]>[0]) => {
+					await startLiveEntry(target, "alice", input, new Date());
+					return target.batch(statements);
+				};
+			},
+		});
 		expect(
-			results.filter((result) => result.status === "fulfilled")
-		).toHaveLength(1);
-		const rejected = results.find((result) => result.status === "rejected");
-		expect(rejected?.reason).toMatchObject({ code: "CONFLICT" });
+			await failure(startLiveEntry(racing, "alice", input, new Date()))
+		).toMatchObject({ code: "CONFLICT" });
 		expect(await api.db.select().from(entry)).toHaveLength(1);
 		expect(await api.db.select().from(tournamentRule)).toHaveLength(1);
-
-		expect(await failure(start())).toMatchObject({ code: "CONFLICT" });
+	});
+	test("discard cannot delete an entry completed after its status was read", async ({
+		api,
+	}) => {
+		const { jpy, rule } = await setup(api);
+		const started = await api.alice.live.create({
+			kind: "cash",
+			rule,
+			payments: [real("buy_in", jpy.id, 100)],
+		});
+		const racing = new Proxy(api.db, {
+			get(target, property, receiver) {
+				if (property !== "delete") {
+					return Reflect.get(target, property, receiver);
+				}
+				return () => {
+					const deleting = target.delete(entry);
+					return {
+						where(condition: Parameters<typeof deleting.where>[0]) {
+							const query = deleting.where(condition);
+							return {
+								async returning() {
+									await api.alice.live.complete({
+										id: started.id,
+										endState: "cashed_out",
+										payments: [real("cash_out", jpy.id, 150)],
+									});
+									return await query.returning({ id: entry.id });
+								},
+							};
+						},
+					};
+				};
+			},
+		});
+		expect(
+			await failure(discardLiveEntry(racing, "alice", started.id))
+		).toMatchObject({ code: "PRECONDITION_FAILED" });
+		const retained = await api.alice.live.getById({ id: started.id });
+		expect(retained.status).toBe("settled");
+		expect(retained.lines).toHaveLength(2);
 	});
 
 	test("the start date is read in the user's time zone, Asia/Tokyo when unset, unless given", async ({
@@ -1140,6 +1275,50 @@ describe("live multi-day API on D1", () => {
 		expect((await api.alice.live.getById({ id })).playSessions).toHaveLength(2);
 	});
 
+	test("undoing a next day preserves a hand added before its batch", async ({
+		api,
+	}) => {
+		const { jpy } = await setup(api);
+		const started = await api.alice.live.create({
+			kind: "tournament",
+			payments: [real("buy_in", jpy.id, 1000)],
+		});
+		await api.alice.live.complete({
+			id: started.id,
+			endState: "busted",
+			beforeDeadline: true,
+			payments: [],
+		});
+		const next = await api.alice.live.startNextPlay({
+			id: started.id,
+			payments: [real("reentry", jpy.id, 1000)],
+		});
+		const playSessionId = next.playSessions[1]?.id ?? "";
+		let beforeBatch: string | undefined;
+		const racing = new Proxy(api.db, {
+			get(target, property, receiver) {
+				if (property !== "batch") {
+					return Reflect.get(target, property, receiver);
+				}
+				return async (statements: Parameters<Database["batch"]>[0]) => {
+					await api.alice.hand.add({ playSessionId });
+					beforeBatch = JSON.stringify(await everyRow(api));
+					return target.batch(statements);
+				};
+			},
+		});
+		expect(
+			await failure(
+				undoLiveStartNextPlay(racing, "alice", started.id, new Date())
+			)
+		).toMatchObject({ code: "CONFLICT" });
+		expect(beforeBatch).toBeDefined();
+		expect(JSON.stringify(await everyRow(api))).toBe(beforeBatch);
+		expect((await api.alice.hand.list({ playSessionId })).items).toHaveLength(
+			1
+		);
+	});
+
 	test("concurrent next-day starts and an undo against another live play leave one unfinished play", async ({
 		api,
 	}) => {
@@ -1155,15 +1334,26 @@ describe("live multi-day API on D1", () => {
 			beforeDeadline: true,
 			payments: [],
 		});
-		const results = await Promise.allSettled([
-			api.alice.live.startNextPlay({ id: first.id }),
-			api.alice.live.startNextPlay({ id: first.id }),
-		]);
+		const racing = new Proxy(api.db, {
+			get(target, property, receiver) {
+				if (property !== "batch") {
+					return Reflect.get(target, property, receiver);
+				}
+				return async (statements: Parameters<Database["batch"]>[0]) => {
+					await startNextLivePlay(
+						target,
+						"alice",
+						{ id: first.id },
+						new Date()
+					);
+					return target.batch(statements);
+				};
+			},
+		});
 		expect(
-			results.filter((result) => result.status === "fulfilled")
-		).toHaveLength(1);
-		expect(
-			results.find((result) => result.status === "rejected")?.reason
+			await failure(
+				startNextLivePlay(racing, "alice", { id: first.id }, new Date())
+			)
 		).toMatchObject({ code: "CONFLICT" });
 		expect(await api.db.select().from(playSession)).toHaveLength(2);
 

@@ -10,10 +10,14 @@ import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { hand } from "@sapphire2/db/schema/hand";
 import { count, eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
-import { type ApiFixture, requireCreatedRow, test } from "./test-fixture";
+import {
+	type ApiFixture,
+	FOREIGN_KEY_FAILED,
+	requireCreatedRow,
+	test,
+} from "./test-fixture";
 
 const NOW = new Date("2026-09-05T10:00:00.000Z");
-const FOREIGN_KEY_FAILED = "FOREIGN KEY constraint failed";
 const UNIQUE_FAILED = "UNIQUE constraint failed";
 
 function rejection(code: string, message?: string) {

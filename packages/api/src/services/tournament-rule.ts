@@ -1,5 +1,10 @@
 import type { Database } from "@sapphire2/db";
-import { RULE_PRICE_KINDS } from "@sapphire2/db/constants/rule";
+import { LEDGER_MAX_QUANTITY } from "@sapphire2/db/constants/ledger";
+import {
+	MAX_RULE_TABLE_SIZE,
+	MIN_RULE_TABLE_SIZE,
+	RULE_PRICE_KINDS,
+} from "@sapphire2/db/constants/rule";
 import { asset } from "@sapphire2/db/schema/asset";
 import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { gameLineupGroup } from "@sapphire2/db/schema/game-lineup";
@@ -9,19 +14,23 @@ import {
 	tournamentRuleLevelStake,
 	tournamentRulePrice,
 } from "@sapphire2/db/schema/rule";
+import { idSchema } from "@sapphire2/db/schemas/id";
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
 import z from "zod";
-import { type BatchStatement, selectInChunks } from "../lib/batch";
+import {
+	type BatchStatement,
+	insertChunks,
+	selectInChunks,
+} from "../lib/batch";
 import { validateOwnedIds } from "../lib/ownership";
 import {
-	findBuiltinVariantId,
-	type GameInput,
 	gameInputSchema,
-	insertChunks,
 	type Lineup,
 	LineupPlanner,
 	loadLineups,
+	MAX_LINEUP_GROUPS,
+	resolveDefaultGame,
 } from "./game-lineup";
 import {
 	assertStakeBlinds,
@@ -32,19 +41,15 @@ import {
 	stakeInputSchema,
 	stakeValues,
 } from "./rule-stakes";
-import { seedDefaultGameData } from "./seed-game-data";
 
 export const MAX_RULE_LEVELS = 100;
 export const MAX_RULE_PRICES = 20;
-export const MAX_LEVEL_STAKES = 12;
-
-const MAX_MONEY = 1_000_000_000_000;
-const moneySchema = z.number().int().min(0).max(MAX_MONEY);
+const moneySchema = z.number().int().min(0).max(LEDGER_MAX_QUANTITY);
 const chipsSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
 export const priceInputSchema = z.object({
 	kind: z.enum(RULE_PRICE_KINDS),
-	assetId: z.string().min(1),
+	assetId: idSchema,
 	amount: moneySchema,
 	fee: moneySchema,
 	chips: chipsSchema.nullable(),
@@ -55,14 +60,20 @@ export const levelInputSchema = z.object({
 	isBreak: z.boolean(),
 	minutes: z.number().int().min(1).max(10_000).nullable().optional(),
 	game: gameInputSchema.nullable().optional(),
-	stakes: z.array(stakeInputSchema).max(MAX_LEVEL_STAKES).optional(),
+	stakes: z.array(stakeInputSchema).max(MAX_LINEUP_GROUPS).optional(),
 });
 
 const ruleScalarFields = {
 	game: gameInputSchema.optional(),
 	startingStack: chipsSchema.nullable().optional(),
 	bountyAmount: moneySchema.nullable().optional(),
-	tableSize: z.number().int().min(2).max(10).nullable().optional(),
+	tableSize: z
+		.number()
+		.int()
+		.min(MIN_RULE_TABLE_SIZE)
+		.max(MAX_RULE_TABLE_SIZE)
+		.nullable()
+		.optional(),
 	houseRules: z.string().max(50_000).nullable().optional(),
 	prices: z.array(priceInputSchema).max(MAX_RULE_PRICES).optional(),
 };
@@ -521,23 +532,6 @@ function carried<Value>(
 	return supplied === undefined ? (current ?? null) : supplied;
 }
 
-async function resolveDefaultGame(
-	db: Database,
-	userId: string,
-	input: TournamentRuleInput,
-	current: TournamentRuleOutput | null
-): Promise<GameInput | undefined> {
-	if (input.game || current) {
-		return input.game;
-	}
-	await seedDefaultGameData(db, userId);
-	const nlhId = await findBuiltinVariantId(db, userId, "nlh");
-	if (!nlhId) {
-		throw badRequest("Choose a game for the tournament");
-	}
-	return { variantId: nlhId };
-}
-
 async function planPrices(
 	db: Database,
 	userId: string,
@@ -585,7 +579,13 @@ export async function planTournamentRuleWrite(params: {
 		: new Map<string, Lineup>();
 	planner.addCandidates(currentLineups.values());
 
-	const defaultGame = await resolveDefaultGame(db, userId, input, current);
+	const defaultGame = await resolveDefaultGame(
+		db,
+		userId,
+		input.game,
+		current !== null,
+		"Choose a game for the tournament"
+	);
 	await validateOwnedIds(
 		db,
 		gameGroup,

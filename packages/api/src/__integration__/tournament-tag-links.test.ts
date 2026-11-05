@@ -92,7 +92,6 @@ describe("tournament tagIds on D1", () => {
 				})
 			).rejects.toMatchObject({
 				code: "FORBIDDEN",
-				message: "You do not own one or more of these tags",
 			});
 			await expect(
 				api.alice.tournament.update({
@@ -102,7 +101,6 @@ describe("tournament tagIds on D1", () => {
 				})
 			).rejects.toMatchObject({
 				code: "FORBIDDEN",
-				message: "You do not own one or more of these tags",
 			});
 		}
 		expect(await api.db.select().from(tournament)).toEqual(tournamentsBefore);

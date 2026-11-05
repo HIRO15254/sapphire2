@@ -1,4 +1,4 @@
-import { relations, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
 	check,
 	foreignKey,
@@ -13,7 +13,6 @@ import { asset } from "./asset";
 import { user } from "./auth";
 import { room } from "./room";
 import { tournamentRule } from "./rule";
-import { tournamentTagLink } from "./tournament-tag";
 
 export const tournament = sqliteTable(
 	"tournament",
@@ -61,19 +60,3 @@ export const tournament = sqliteTable(
 		check("tournament_is_favorite_check", sql`${t.isFavorite} IN (0, 1)`),
 	]
 );
-
-export const tournamentRelations = relations(tournament, ({ one, many }) => ({
-	user: one(user, {
-		fields: [tournament.userId],
-		references: [user.id],
-	}),
-	room: one(room, {
-		fields: [tournament.roomId, tournament.userId],
-		references: [room.id, room.userId],
-	}),
-	defaultAsset: one(asset, {
-		fields: [tournament.defaultAssetId, tournament.userId],
-		references: [asset.id, asset.userId],
-	}),
-	tagLinks: many(tournamentTagLink),
-}));

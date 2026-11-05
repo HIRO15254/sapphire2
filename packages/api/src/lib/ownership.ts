@@ -2,12 +2,8 @@ import { asset } from "@sapphire2/db/schema/asset";
 import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { gameMix } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
-import { hand } from "@sapphire2/db/schema/hand";
-import {
-	assetRate,
-	ledgerCategory,
-	ledgerLine,
-} from "@sapphire2/db/schema/ledger";
+import { assetRate, ledgerCategory } from "@sapphire2/db/schema/ledger";
+import { player } from "@sapphire2/db/schema/player";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
 import { tournament } from "@sapphire2/db/schema/tournament";
@@ -85,27 +81,6 @@ async function validateTournamentOwnershipBranch(
 	return found;
 }
 
-async function validateCurrencyOwnershipBranch(
-	db: DbInstance,
-	entityId: string,
-	userId: string
-): Promise<typeof asset.$inferSelect> {
-	const [found] = await db.select().from(asset).where(eq(asset.id, entityId));
-	if (!found) {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: "You do not own this currency",
-		});
-	}
-	if (found.userId !== userId) {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: "You do not own this currency",
-		});
-	}
-	return found;
-}
-
 async function validateGameGroupOwnershipBranch(
 	db: DbInstance,
 	entityId: string,
@@ -160,16 +135,19 @@ async function validateGameMixOwnershipBranch(
 	return found;
 }
 
-async function validateHandOwnershipBranch(
+async function validatePlayerOwnershipBranch(
 	db: DbInstance,
 	entityId: string,
 	userId: string
-): Promise<typeof hand.$inferSelect> {
-	const [found] = await db.select().from(hand).where(eq(hand.id, entityId));
-	if (!found || found.userId !== userId) {
+): Promise<typeof player.$inferSelect> {
+	const [found] = await db
+		.select()
+		.from(player)
+		.where(and(eq(player.id, entityId), eq(player.userId, userId)));
+	if (!found) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
-			message: "You do not own this hand",
+			message: "You do not own this player",
 		});
 	}
 	return found;
@@ -179,7 +157,6 @@ const LEDGER_ENTITY_FORBIDDEN_MESSAGES = {
 	asset: "You do not own this asset",
 	assetRate: "You do not own this rate",
 	ledgerCategory: "You do not own this category",
-	ledgerLine: "You do not own this transaction",
 } as const;
 
 async function findOwnedLedgerEntity(
@@ -215,15 +192,14 @@ async function findOwnedLedgerEntity(
 						)
 					)
 			)[0];
-		default:
-			return (
-				await db
-					.select()
-					.from(ledgerLine)
-					.where(
-						and(eq(ledgerLine.id, entityId), eq(ledgerLine.userId, userId))
-					)
-			)[0];
+		default: {
+			const exhaustive: never = entityType;
+			throw new TRPCError({
+				code: "FORBIDDEN",
+				message: "You do not own this entity",
+				cause: exhaustive,
+			});
+		}
 	}
 }
 
@@ -257,12 +233,6 @@ async function validateEntityOwnership(
 ): Promise<typeof ledgerCategory.$inferSelect>;
 async function validateEntityOwnership(
 	db: DbInstance,
-	entityType: "ledgerLine",
-	entityId: string,
-	userId: string
-): Promise<typeof ledgerLine.$inferSelect>;
-async function validateEntityOwnership(
-	db: DbInstance,
 	entityType: "gameGroup",
 	entityId: string,
 	userId: string
@@ -281,13 +251,13 @@ async function validateEntityOwnership(
 ): Promise<typeof gameVariant.$inferSelect>;
 async function validateEntityOwnership(
 	db: DbInstance,
-	entityType: "hand",
+	entityType: "player",
 	entityId: string,
 	userId: string
-): Promise<typeof hand.$inferSelect>;
+): Promise<typeof player.$inferSelect>;
 async function validateEntityOwnership(
 	db: DbInstance,
-	entityType: "currency" | "asset",
+	entityType: "asset",
 	entityId: string,
 	userId: string
 ): Promise<typeof asset.$inferSelect>;
@@ -313,11 +283,10 @@ async function validateEntityOwnership(
 	db: DbInstance,
 	entityType:
 		| keyof typeof LEDGER_ENTITY_FORBIDDEN_MESSAGES
-		| "currency"
 		| "gameGroup"
 		| "gameMix"
 		| "gameVariant"
-		| "hand"
+		| "player"
 		| "ringGame"
 		| "room"
 		| "tournament",
@@ -331,35 +300,39 @@ async function validateEntityOwnership(
 			return await validateRingGameOwnershipBranch(db, entityId, userId);
 		case "tournament":
 			return await validateTournamentOwnershipBranch(db, entityId, userId);
-		case "currency":
-			return await validateCurrencyOwnershipBranch(db, entityId, userId);
 		case "gameGroup":
 			return await validateGameGroupOwnershipBranch(db, entityId, userId);
 		case "gameVariant":
 			return await validateGameVariantOwnershipBranch(db, entityId, userId);
 		case "gameMix":
 			return await validateGameMixOwnershipBranch(db, entityId, userId);
-		case "hand":
-			return await validateHandOwnershipBranch(db, entityId, userId);
+		case "player":
+			return await validatePlayerOwnershipBranch(db, entityId, userId);
 		case "asset":
 		case "assetRate":
 		case "ledgerCategory":
-		case "ledgerLine":
 			return await validateLedgerOwnershipBranch(
 				db,
 				entityType,
 				entityId,
 				userId
 			);
-		default:
-			return undefined;
+		default: {
+			const exhaustive: never = entityType;
+			throw new TRPCError({
+				code: "FORBIDDEN",
+				message: "You do not own this entity",
+				cause: exhaustive,
+			});
+		}
 	}
 }
 export async function validateOwnedIds(
 	db: DbInstance,
 	table: SQLiteTable & { id: SQLiteColumn; userId: SQLiteColumn },
 	ids: string[],
-	userId: string
+	userId: string,
+	message = "You do not own one or more of these entities"
 ): Promise<void> {
 	const uniqueIds = [...new Set(ids)];
 	const owned = await selectInChunks(
@@ -374,7 +347,7 @@ export async function validateOwnedIds(
 	if (owned.length !== uniqueIds.length) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
-			message: "You do not own one or more of these entities",
+			message,
 		});
 	}
 }
@@ -388,22 +361,13 @@ export async function validateTagsOwnership(
 	if (!ids || ids.length === 0) {
 		return;
 	}
-	const uniqueIds = [...new Set(ids)];
-	const owned = await selectInChunks(
-		uniqueIds,
-		(chunk) =>
-			db
-				.select({ id: table.id })
-				.from(table)
-				.where(and(inArray(table.id, chunk), eq(table.userId, userId))),
-		1
+	await validateOwnedIds(
+		db,
+		table,
+		ids,
+		userId,
+		"You do not own one or more of these tags"
 	);
-	if (owned.length !== uniqueIds.length) {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: "You do not own one or more of these tags",
-		});
-	}
 }
 
 export { validateEntityOwnership };

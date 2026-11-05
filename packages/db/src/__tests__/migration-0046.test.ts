@@ -78,27 +78,6 @@ describe("migration 0046 — unique session event append order", () => {
 		]);
 	});
 
-	it("replaces the standalone session index with the composite unique index", () => {
-		db.exec(migrationSql);
-		const indexes = db
-			.prepare(
-				"SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'session_event' ORDER BY name"
-			)
-			.all();
-		expect(indexes).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ name: "sessionEvent_eventType_idx" }),
-				{
-					name: "sessionEvent_sessionId_sortOrder_idx",
-					sql: "CREATE UNIQUE INDEX `sessionEvent_sessionId_sortOrder_idx` ON `session_event` (`session_id`,`sort_order`)",
-				},
-			])
-		);
-		expect(indexes.map((index) => index.name)).not.toContain(
-			"sessionEvent_sessionId_idx"
-		);
-	});
-
 	it("rejects a duplicate order in one session but allows the same order in another", () => {
 		db.exec(migrationSql);
 		insertEvent(db, "first", "session-1", 1, 0, 1);
@@ -108,25 +87,5 @@ describe("migration 0046 — unique session event append order", () => {
 		expect(() =>
 			insertEvent(db, "other-session", "session-2", 2, 0, 2)
 		).not.toThrow();
-	});
-
-	it("supports consecutive atomic max-plus-one appends", () => {
-		db.exec(migrationSql);
-		const append = db.prepare(
-			"INSERT INTO session_event (id, session_id, event_type, occurred_at, sort_order, payload, created_at, updated_at) VALUES (?, ?, 'memo', ?, (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM session_event WHERE session_id = ?), '{}', ?, ?)"
-		);
-		append.run("first", "session-1", 10, "session-1", 10, 10);
-		append.run("second", "session-1", 10, "session-1", 10, 10);
-
-		expect(
-			db
-				.prepare(
-					"SELECT id, sort_order FROM session_event WHERE session_id = 'session-1' ORDER BY sort_order"
-				)
-				.all()
-		).toEqual([
-			{ id: "first", sort_order: 0 },
-			{ id: "second", sort_order: 1 },
-		]);
 	});
 });

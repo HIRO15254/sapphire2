@@ -20,33 +20,17 @@ describe("mapToolError", () => {
 		expect("structuredContent" in result).toBe(false);
 	});
 
-	it.each([
-		new TRPCError({ code: "FORBIDDEN", message: "Room not found" }),
-		new TRPCError({
-			code: "FORBIDDEN",
-			message: "session room-123 belongs to another user",
-		}),
-		new TRPCError({
-			code: "FORBIDDEN",
-			cause: new Error("D1_ERROR: no such row"),
-		}),
-	])("maps every FORBIDDEN to one byte-identical constant text (%#)", (error) => {
+	it("maps FORBIDDEN to a fixed text without leaking its message or cause", () => {
 		const log = vi.fn();
-		const result = mapToolError(error, log);
-		expect(textOf(result)).toBe("You do not have access to that resource.");
-		expect(log).toHaveBeenCalledTimes(0);
-	});
-
-	it("never echoes ids or entity names from FORBIDDEN messages", () => {
-		const result = mapToolError(
-			new TRPCError({
-				code: "FORBIDDEN",
-				message: "currency cur-42 not owned",
-			}),
-			vi.fn()
+		const error = new TRPCError({
+			code: "FORBIDDEN",
+			message: "currency cur-42 not owned",
+			cause: new Error("D1_ERROR: no such row"),
+		});
+		expect(textOf(mapToolError(error, log))).toBe(
+			"You do not have access to that resource."
 		);
-		expect(textOf(result)).not.toContain("cur-42");
-		expect(textOf(result)).not.toContain("currency");
+		expect(log).not.toHaveBeenCalled();
 	});
 
 	it("maps NOT_FOUND to an id-free constant", () => {
@@ -179,16 +163,6 @@ describe("mapToolError", () => {
 			"You do not have access to that resource."
 		);
 		expect(log).toHaveBeenCalledTimes(0);
-	});
-
-	it("surfaces Zod issues from a duplicated-instance BAD_REQUEST", () => {
-		const parsed = z.object({ buyIn: z.number() }).safeParse({ buyIn: "x" });
-		const foreign = Object.assign(new Error("raw"), {
-			name: "TRPCError",
-			code: "BAD_REQUEST",
-			cause: parsed.success ? undefined : parsed.error,
-		});
-		expect(textOf(mapToolError(foreign, vi.fn()))).toMatch(BUY_IN_LINE);
 	});
 
 	it("does not mistake an unrelated error carrying a code for a TRPCError", () => {

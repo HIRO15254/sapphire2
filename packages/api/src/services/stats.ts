@@ -2,6 +2,8 @@ import type { StatsValuation } from "@sapphire2/db/schemas/stats-filter";
 import { playMinutes } from "./entry-reads";
 import type { StatsBucket, StatsEntry } from "./stats-data";
 import {
+	isPayment,
+	isRealCurrencyLine,
 	type MissingRate,
 	type ValuationAmounts,
 	type ValuationAsset,
@@ -115,7 +117,7 @@ function nativeAmounts(
 	let buyIn = 0;
 	let cashOut = 0;
 	for (const line of lines) {
-		if (line.quantity < 0) {
+		if (isPayment(line.quantity)) {
 			buyIn -= line.quantity;
 		} else {
 			cashOut += line.quantity;
@@ -167,7 +169,11 @@ export function initialPaymentLines(
 		(first.priceId === null
 			? undefined
 			: fees
-					.filter((line) => line.priceId === first.priceId)
+					.filter(
+						(line) =>
+							line.priceId === first.priceId &&
+							(line.eventId === null || line.eventId === first.eventId)
+					)
 					.sort(compareLines)[0]) ??
 		fees
 			.filter((line) => line.eventId === null && line.priceId === null)
@@ -187,10 +193,7 @@ class NormalizationContext {
 	}
 
 	realCurrencyLines(entry: StatsEntry) {
-		return entry.lines.filter(
-			(line) =>
-				line.effect === "real" && this.kinds.get(line.assetId) === "currency"
-		);
+		return entry.lines.filter((line) => isRealCurrencyLine(line, this.kinds));
 	}
 
 	cashNativeProfitLoss(entry: StatsEntry): number | null {
@@ -237,12 +240,15 @@ class NormalizationContext {
 		entry: StatsEntry
 	): { buyInTotal: number; profitLoss: number } | null {
 		const initial = initialPaymentLines(entry.lines);
-		if (initial.length === 0) {
+		if (!initial[0]) {
 			return null;
 		}
 		const real = this.realCurrencyLines(entry);
 		const assets = new Set([...real, ...initial].map((line) => line.assetId));
-		if (assets.size === 1) {
+		if (
+			assets.size === 1 &&
+			this.kinds.get(initial[0].assetId) === "currency"
+		) {
 			const buyInTotal = nativeAmounts(initial).buyIn;
 			return buyInTotal > 0
 				? { buyInTotal, profitLoss: nativeAmounts(real).profitLoss }

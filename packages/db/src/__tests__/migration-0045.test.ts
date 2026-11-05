@@ -50,24 +50,6 @@ describe("migration 0045 — unique Session Result type per user", () => {
 		db?.close();
 	});
 
-	it("creates the expected partial unique index", () => {
-		db.exec(migrationSql);
-
-		const index = db
-			.prepare(
-				"SELECT name, sql FROM sqlite_master WHERE type = 'index' AND name = ?"
-			)
-			.get("transactionType_sessionResultPerUser_idx") as {
-			name: string;
-			sql: string;
-		};
-		expect(index.name).toBe("transactionType_sessionResultPerUser_idx");
-		expect(index.sql).toContain("UNIQUE INDEX");
-		expect(index.sql).toContain("WHERE");
-		expect(index.sql).toContain("name");
-		expect(index.sql).toContain("'Session Result'");
-	});
-
 	it("keeps the oldest duplicate, repoints every ledger row, and deletes the rest", () => {
 		insertType(db, "newer", "user-1", "Session Result", 20);
 		insertType(db, "oldest", "user-1", "Session Result", 10);

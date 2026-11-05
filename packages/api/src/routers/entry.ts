@@ -14,6 +14,7 @@ import {
 } from "@sapphire2/db/constants/ledger";
 import { paymentsSchema } from "@sapphire2/db/constants/play-event-payloads";
 import { dateOnlySchema } from "@sapphire2/db/schemas/date-only";
+import { idSchema } from "@sapphire2/db/schemas/id";
 import { tagIdsSchema } from "@sapphire2/db/schemas/tag-ids";
 import { TRPCError } from "@trpc/server";
 import z from "zod";
@@ -49,7 +50,6 @@ const DEFAULT_ENTRY_PAGE_SIZE = 20;
 const MAX_ENTRY_PAGE_SIZE = 100;
 const MAX_EV_DIFF = 1_000_000_000_000;
 
-const idSchema = z.string().min(1);
 const titleSchema = z.string().max(100);
 const memoSchema = z.string().max(5000);
 const positiveCountSchema = z.number().int().min(1);

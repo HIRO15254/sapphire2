@@ -11,6 +11,19 @@ const conflictMessage =
 	"This room is referenced by sessions or games. Archive the room instead of deleting it.";
 
 describe("room lifecycle on D1", () => {
+	test("concurrent favorite toggles both take effect", async ({ api }) => {
+		const club = requireCreatedRow(
+			await api.alice.room.create({ name: "Club" })
+		);
+		await Promise.all([
+			api.alice.room.toggleFavorite({ id: club.id }),
+			api.alice.room.toggleFavorite({ id: club.id }),
+		]);
+		expect((await api.alice.room.getById({ id: club.id })).isFavorite).toBe(
+			false
+		);
+	});
+
 	for (const reference of ["entry", "ring game", "tournament"] as const) {
 		test(`refuses deleting a room referenced by a ${reference} and preserves its children`, async ({
 			api,

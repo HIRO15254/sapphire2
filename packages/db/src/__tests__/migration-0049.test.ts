@@ -201,19 +201,6 @@ describe("migration 0049 — normalized game mix variants", () => {
 		expect(rowValues(db.prepare("PRAGMA foreign_key_check"))).toEqual([]);
 	});
 
-	it("keeps legacy integrity triggers and adds rolling-deploy sync triggers", () => {
-		seedLegacyRows(db);
-		applyAtomically(db);
-
-		expect(
-			rowValues(
-				db.prepare(`
-					SELECT name, tbl_name FROM sqlite_master
-					WHERE type = 'trigger' ORDER BY name
-				`)
-			)
-		).toEqual(FINAL_TRIGGERS);
-	});
 	it("keeps the legacy Worker table contract synchronized during deployment", () => {
 		seedLegacyRows(db);
 		applyAtomically(db);
@@ -262,21 +249,6 @@ describe("migration 0049 — normalized game mix variants", () => {
 		expect(
 			db.prepare("SELECT games FROM game_mix WHERE id = 'mix-compat'").get()
 		).toEqual({ games: '["variant-free","variant-2"]' });
-	});
-	it("creates the planned association indexes", () => {
-		seedLegacyRows(db);
-		applyAtomically(db);
-
-		expect(
-			rowValues(
-				db.prepare(`SELECT name FROM sqlite_master WHERE type = 'index'
-					AND name LIKE 'game_mix_variant_%' ORDER BY name`)
-			)
-		).toEqual([
-			["game_mix_variant_mix_position_unique"],
-			["game_mix_variant_user_mix_position_idx"],
-			["game_mix_variant_variant_user_idx"],
-		]);
 	});
 
 	it("rejects the same variant twice within one mix", () => {

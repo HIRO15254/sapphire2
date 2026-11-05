@@ -1,11 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { foldPlayerSeat } from "../services/table-player-fold";
+import {
+	foldTablePlayers,
+	type TimedSeatEvent,
+} from "../services/table-player-fold";
 
-describe("foldPlayerSeat", () => {
+describe("foldTablePlayers", () => {
 	const ev = (type: string, payload: Record<string, unknown>) => ({
 		type,
 		payload: JSON.stringify(payload),
+		occurredAt: new Date(0),
 	});
+
+	const foldPlayerSeat = (events: TimedSeatEvent[], playerId: string) =>
+		foldTablePlayers(events).find((item) => item.playerId === playerId)
+			?.seatPosition ?? null;
 
 	it("returns null when there are no matching joins", () => {
 		expect(foldPlayerSeat([], "hero")).toBeNull();

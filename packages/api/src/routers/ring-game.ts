@@ -1,12 +1,14 @@
 import type { Database } from "@sapphire2/db";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { cashRule } from "@sapphire2/db/schema/rule";
+import { idSchema as id } from "@sapphire2/db/schemas/id";
 import { TRPCError } from "@trpc/server";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { type BatchStatement, runBatch } from "../lib/batch";
 import { isForeignKeyConstraintError } from "../lib/db-errors";
+import { memoSchema } from "../lib/master-input-schemas";
 import { validateEntityOwnership, validateOwnedIds } from "../lib/ownership";
 import {
 	cashRuleInputSchema,
@@ -14,7 +16,6 @@ import {
 	prepareCashRule,
 } from "../services/cash-rules";
 
-const id = z.string().min(1);
 const name = z.string().trim().min(1).max(100);
 export const ringGameListByRoomInputSchema = z.object({
 	roomId: id,
@@ -24,15 +25,15 @@ export const ringGameIdInputSchema = z.object({ id });
 export const ringGameCreateInputSchema = z.object({
 	roomId: id,
 	name,
-	defaultAssetId: id.optional(),
-	memo: z.string().optional(),
+	defaultAssetId: id.nullable().optional(),
+	memo: memoSchema.nullable().optional(),
 	rule: cashRuleInputSchema,
 });
 export const ringGameUpdateInputSchema = z.object({
 	id,
 	name: name.optional(),
 	defaultAssetId: id.nullable().optional(),
-	memo: z.string().nullable().optional(),
+	memo: memoSchema.nullable().optional(),
 	rule: cashRuleInputSchema.optional(),
 });
 export const ringGameRestoreRuleInputSchema = z.object({
@@ -53,7 +54,7 @@ async function validateAsset(
 	if (asset.archivedAt && assetId !== current) {
 		throw new TRPCError({
 			code: "BAD_REQUEST",
-			message: "Cannot select an archived asset",
+			message: "An archived asset cannot be newly selected",
 		});
 	}
 }

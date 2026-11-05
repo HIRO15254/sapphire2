@@ -14,7 +14,7 @@ export const updateNoteViewRouter = router({
 	}),
 
 	markViewed: protectedProcedure
-		.input(z.object({ version: z.string().min(1) }))
+		.input(z.object({ version: z.string().min(1).max(100) }))
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 

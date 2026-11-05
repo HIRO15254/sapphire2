@@ -1,5 +1,6 @@
 import type { Database } from "@sapphire2/db";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
+import { cashRule, tournamentRule } from "@sapphire2/db/schema/rule";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
@@ -58,8 +59,19 @@ async function currentRuleOf(
 	const [row] =
 		selection.kind === "cash"
 			? await db
-					.select({ currentRuleId: ringGame.currentRuleId })
+					.select({
+						currentRuleId: ringGame.currentRuleId,
+						memberRuleId: cashRule.id,
+					})
 					.from(ringGame)
+					.leftJoin(
+						cashRule,
+						and(
+							eq(cashRule.id, ringGame.currentRuleId),
+							eq(cashRule.userId, ringGame.userId),
+							eq(cashRule.ringGameId, ringGame.id)
+						)
+					)
 					.where(
 						and(
 							eq(ringGame.id, selection.ringGameId ?? ""),
@@ -67,8 +79,19 @@ async function currentRuleOf(
 						)
 					)
 			: await db
-					.select({ currentRuleId: tournament.currentRuleId })
+					.select({
+						currentRuleId: tournament.currentRuleId,
+						memberRuleId: tournamentRule.id,
+					})
 					.from(tournament)
+					.leftJoin(
+						tournamentRule,
+						and(
+							eq(tournamentRule.id, tournament.currentRuleId),
+							eq(tournamentRule.userId, tournament.userId),
+							eq(tournamentRule.tournamentId, tournament.id)
+						)
+					)
 					.where(
 						and(
 							eq(tournament.id, selection.tournamentId ?? ""),
@@ -79,6 +102,15 @@ async function currentRuleOf(
 		throw new TRPCError({
 			code: "FORBIDDEN",
 			message: MASTER_FORBIDDEN_MESSAGE,
+		});
+	}
+	if (!row.memberRuleId) {
+		throw new TRPCError({
+			code: "INTERNAL_SERVER_ERROR",
+			message:
+				selection.kind === "cash"
+					? "Invalid current ring game rule"
+					: "Invalid current tournament rule",
 		});
 	}
 	return row.currentRuleId;

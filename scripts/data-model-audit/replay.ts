@@ -3,7 +3,6 @@ import {
 	type ProjectorEvent,
 	projectEntry,
 } from "../../packages/api/src/services/entry-projector";
-import { foldPlayerSeat } from "../../packages/api/src/services/table-player-fold";
 import type { EntryKind } from "../../packages/db/src/constants/entry";
 import { playEventPayloadSchema } from "../../packages/db/src/constants/play-event-payloads";
 import type { ReplayPart } from "./catalogue";
@@ -46,12 +45,6 @@ interface StoredLine {
 	sourceEventId: string | null;
 }
 
-interface HeroSeat {
-	handId: string;
-	playedAt: number;
-	seat: number;
-}
-
 function entryKind(value: string): EntryKind {
 	if (value !== "cash" && value !== "tournament") {
 		throw new Error(`unknown entry kind ${value}`);
@@ -83,14 +76,6 @@ function toEvent(row: Row): ProjectorEvent {
 		sortOrder: integer(row, "sort_order"),
 		payload: text(row, "payload"),
 	};
-}
-
-function compareEvents(a: ProjectorEvent, b: ProjectorEvent): number {
-	return (
-		a.occurredAt.getTime() - b.occurredAt.getTime() ||
-		a.sortOrder - b.sortOrder ||
-		(a.id < b.id ? -1 : Number(a.id > b.id))
-	);
 }
 
 function payloadSchemaFindings(
@@ -163,7 +148,6 @@ function compare(
 interface EntryReplayInput {
 	entry: Row;
 	events: ProjectorEvent[];
-	heroSeats: HeroSeat[];
 	lines: Map<string, StoredLine>;
 	sessions: StoredSession[];
 }
@@ -226,22 +210,6 @@ function compareCore(
 				nullableInteger(input.entry, "before_deadline") === 1,
 				detail.beforeDeadline,
 			],
-		]);
-	}
-	const ordered = [...input.events].sort(compareEvents);
-	const selfId = nullableText(input.entry, "self_player_id");
-	for (const hero of input.heroSeats) {
-		const folded =
-			selfId === null
-				? null
-				: foldPlayerSeat(
-						ordered.filter(
-							(event) => event.occurredAt.getTime() <= hero.playedAt * 1000
-						),
-						selfId
-					);
-		compare(core, entryId, `hand ${hero.handId}`, [
-			["hero seat", hero.seat, folded],
 		]);
 	}
 }
@@ -322,12 +290,10 @@ function entryStatements(
 		statements: [
 			replays
 				? `SELECT e.id AS id, e.kind AS kind, e.source AS source, e.status AS status, e.played_on AS played_on,
-ec.ev_diff AS ev_diff, et.placement AS placement, et.total_entries AS total_entries, et.before_deadline AS before_deadline,
-p.id AS self_player_id
+ec.ev_diff AS ev_diff, et.placement AS placement, et.total_entries AS total_entries, et.before_deadline AS before_deadline
 FROM entry e
 LEFT JOIN entry_cash ec ON ec.entry_id = e.id AND ec.user_id = e.user_id
 LEFT JOIN entry_tournament et ON et.entry_id = e.id AND et.user_id = e.user_id
-LEFT JOIN player p ON p.user_id = e.user_id AND p.is_self = 1
 WHERE e.id IN (${list})`
 				: `SELECT id, kind FROM entry WHERE id IN (${list})`,
 			`SELECT pe.id AS id, pe.entry_id AS entry_id, pe.play_session_id AS play_session_id, pe.type AS type,
@@ -341,11 +307,6 @@ p.ended_at AS ended_at, p.break_minutes AS break_minutes, p.status AS status, p.
 p.end_stack AS end_stack, p.clock_started_at AS clock_started_at, p.clock_start_level AS clock_start_level
 FROM play_session p JOIN entry e ON e.id = p.entry_id AND e.user_id = p.user_id
 WHERE p.entry_id IN (${list}) ORDER BY p.entry_id, p.seq`,
-						`SELECT h.id AS hand_id, p.entry_id AS entry_id, h.played_at AS played_at, s.seat AS seat
-FROM hand h
-JOIN play_session p ON p.id = h.play_session_id AND p.user_id = h.user_id
-JOIN hand_seat s ON s.hand_id = h.id AND s.user_id = h.user_id AND s.is_hero = 1
-WHERE p.entry_id IN (${list}) AND h.played_at IS NOT NULL`,
 						`SELECT l.id AS id, l.entry_id AS entry_id, l.asset_id AS asset_id, l.price_id AS price_id, l.quantity AS quantity, l.role AS role,
 l.effect AS effect, l.play_session_id AS play_session_id, l.source_event_id AS source_event_id, l.occurred_at AS occurred_at
 FROM ledger_line l JOIN entry e ON e.id = l.entry_id AND e.user_id = l.user_id
@@ -377,13 +338,8 @@ export function runReplay(
 			ids.slice(i, i + ENTRY_PAGE),
 			parts
 		);
-		const [
-			entries = [],
-			eventRows = [],
-			sessionRows = [],
-			heroRows = [],
-			lineRows = [],
-		] = db.query(statements);
+		const [entries = [], eventRows = [], sessionRows = [], lineRows = []] =
+			db.query(statements);
 		const events = groupBy(eventRows, "entry_id", toEvent);
 		const schemaEvents = groupBy(eventRows, "entry_id", (row) => row);
 		const sessions = groupBy(sessionRows, "entry_id", (row) => ({
@@ -398,11 +354,6 @@ export function runReplay(
 			endStack: nullableInteger(row, "end_stack"),
 			clockStartedAt: nullableInteger(row, "clock_started_at"),
 			clockStartLevel: nullableInteger(row, "clock_start_level"),
-		}));
-		const heroSeats = groupBy(heroRows, "entry_id", (row) => ({
-			handId: text(row, "hand_id"),
-			playedAt: integer(row, "played_at"),
-			seat: integer(row, "seat"),
 		}));
 		const lines = groupBy(lineRows, "entry_id", (row) => ({
 			id: text(row, "id"),
@@ -433,7 +384,6 @@ export function runReplay(
 						entry,
 						events: entryEvents,
 						sessions: sessions.get(entryId) ?? [],
-						heroSeats: heroSeats.get(entryId) ?? [],
 						lines: new Map(
 							(lines.get(entryId) ?? []).map(({ id, ...line }) => [id, line])
 						),

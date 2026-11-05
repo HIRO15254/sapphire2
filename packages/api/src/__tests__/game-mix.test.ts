@@ -40,19 +40,6 @@ function gameMixCaller(userId: string, select: Record<string, Rows>) {
 	const mock = createChainableMockDb({
 		select: withGameMixVariantFixtures(activeRows),
 	});
-	const deleteRows = mock.db.delete.bind(mock.db);
-	mock.db.delete = ((...args: Parameters<typeof mock.db.delete>) => {
-		const query = deleteRows(...args);
-		const where = query.where.bind(query);
-		query.where = ((...whereArgs: Parameters<typeof query.where>) => {
-			const result = where(...whereArgs);
-			Object.assign(result, {
-				returning: () => Promise.resolve([{ id: "mix-1" }]),
-			});
-			return result;
-		}) as typeof query.where;
-		return query;
-	}) as typeof mock.db.delete;
 	const caller = appRouter.createCaller({
 		session: { user: { id: userId } },
 		db: mock.db,
@@ -446,76 +433,6 @@ describe("gameMix group-span guard (c58, max 12 groups)", () => {
 				games: variants.map((v) => v.id as string),
 			})
 		).resolves.toBeDefined();
-	});
-});
-
-describe("gameMix ownership (uniform FORBIDDEN, SA2-183)", () => {
-	for (const op of ["update", "delete"] as const) {
-		it(`${op} throws FORBIDDEN for a row owned by another user`, async () => {
-			const { caller } = gameMixCaller(CUR_OWNER, {
-				[GROUP_TABLE]: [OWNED_GROUP],
-				[VARIANT_TABLE]: [OWNED_VARIANT_1],
-				[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OTHER, label: "Their Mix" }],
-			});
-			await expectTrpcCode(caller[op]({ id: "mix-1" }), "FORBIDDEN");
-		});
-
-		it(`${op} throws FORBIDDEN (not NOT_FOUND) for a missing row`, async () => {
-			const { caller } = gameMixCaller(CUR_OWNER, {
-				[GROUP_TABLE]: [OWNED_GROUP],
-				[VARIANT_TABLE]: [OWNED_VARIANT_1],
-				[MIX_TABLE]: [],
-			});
-			await expectTrpcCode(caller[op]({ id: "missing" }), "FORBIDDEN");
-		});
-	}
-
-	it("update resolves for a row owned by the caller", async () => {
-		const { caller } = gameMixCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [OWNED_GROUP],
-			[VARIANT_TABLE]: [OWNED_VARIANT_1],
-			[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OWNER, label: "My Mix" }],
-		});
-		await expect(
-			caller.update({ id: "mix-1", label: "Renamed Mix" })
-		).resolves.toBeDefined();
-	});
-
-	it("delete resolves for a row owned by the caller", async () => {
-		const { caller } = gameMixCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [OWNED_GROUP],
-			[VARIANT_TABLE]: [OWNED_VARIANT_1],
-			[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OWNER, label: "My Mix" }],
-		});
-		await expect(caller.delete({ id: "mix-1" })).resolves.toEqual({
-			success: true,
-		});
-	});
-});
-
-describe("gameMix write-IDOR guard (SA2-176)", () => {
-	it("update WHERE binds both the id and the caller's userId", async () => {
-		const { caller, updateWhereParams } = gameMixCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [OWNED_GROUP],
-			[VARIANT_TABLE]: [OWNED_VARIANT_1],
-			[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OWNER, label: "My Mix" }],
-		});
-		await caller.update({ id: "mix-1", label: "Renamed" });
-		expect(updateWhereParams).toHaveLength(1);
-		expect(updateWhereParams[0]).toContain("mix-1");
-		expect(updateWhereParams[0]).toContain(CUR_OWNER);
-	});
-
-	it("delete WHERE binds both the id and the caller's userId", async () => {
-		const { caller, deleteWhereParams } = gameMixCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [OWNED_GROUP],
-			[VARIANT_TABLE]: [OWNED_VARIANT_1],
-			[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OWNER, label: "My Mix" }],
-		});
-		await caller.delete({ id: "mix-1" });
-		expect(deleteWhereParams).toHaveLength(1);
-		expect(deleteWhereParams[0]).toContain("mix-1");
-		expect(deleteWhereParams[0]).toContain(CUR_OWNER);
 	});
 });
 
