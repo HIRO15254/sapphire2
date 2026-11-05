@@ -1,4 +1,4 @@
-import { MAX_SEAT_POSITION } from "@sapphire2/db/constants/session-event-types";
+import { MAX_SEAT_POSITION } from "@sapphire2/db/constants/hand";
 import { TRPCError } from "@trpc/server";
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";

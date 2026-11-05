@@ -95,6 +95,8 @@ B06 の切り替えで旧完了セッション・ライブセッション API �
 | `game_mix_archive` | `gameMix.archive` | 記録 |
 | `game_mix_restore` | `gameMix.restore` | 記録 |
 
+`player_list` はユーザー自身の self（Hero）プレイヤーと一時プレイヤーを除外します。`player.getSelf` は公開していません。
+
 マスタの更新は destructive として注釈されています。**削除は公開していません。** 代わりにルーム、リングゲーム、トーナメント、ゲームマスタのアーカイブ/復元ツールを利用できます。ゲームマスタの一覧は既定でアーカイブ済みを除外し、`includeArchived` で含めます。
 
 `ring_game_create` の `rule` は、任意の `game` を `{variantId}`・`{gameMixId}`・`{lineupId}` のいずれかで指定します。有効な variant / mix の ID は `game_variant_list` / `game_mix_list` で取得できます。`ring_game_list_by_room` が返す `lineupId` を再利用すると、アーカイブ済みの選択を含め保存時の構成を維持できます。アーカイブ済みマスタの新規選択はできません。作成時に game を省略すると builtin NLH が使われます。mix の variant はゲームグループごとにまとめられ、グループの順序は最初に現れた順です。`stakes` を指定する場合、構成の各グループに対応する要素を順番に一つずつ送り、それぞれ `gameGroupId` と任意の blind / ante を指定します。省略した stakes は絶対位置ではなくグループ ID と同じ構造内の出現順で引き継がれます。

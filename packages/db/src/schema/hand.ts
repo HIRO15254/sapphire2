@@ -18,9 +18,9 @@ import {
 	MAX_HAND_STREET,
 	MAX_HAND_TABLE_SIZE,
 	MAX_HOLE_CARDS,
+	MAX_SEAT_POSITION,
 	MIN_HAND_TABLE_SIZE,
 } from "../constants/hand";
-import { MAX_SEAT_POSITION } from "../constants/session-event-types";
 import { user } from "./auth";
 import { playEvent, playSession } from "./entry";
 import { gameVariant } from "./game-variant";

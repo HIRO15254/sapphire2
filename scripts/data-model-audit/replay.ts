@@ -3,7 +3,7 @@ import {
 	type ProjectorEvent,
 	projectEntry,
 } from "../../packages/api/src/services/entry-projector";
-import { computeHeroSeatPositionFromEvents } from "../../packages/api/src/services/live-session-pl";
+import { foldPlayerSeat } from "../../packages/api/src/services/table-player-fold";
 import type { EntryKind } from "../../packages/db/src/constants/entry";
 import { playEventPayloadSchema } from "../../packages/db/src/constants/play-event-payloads";
 import type { ReplayPart } from "./catalogue";
@@ -40,6 +40,7 @@ interface StoredLine {
 	effect: string;
 	occurredAt: number;
 	playSessionId: string | null;
+	priceId: string | null;
 	quantity: number;
 	role: string;
 	sourceEventId: string | null;
@@ -78,7 +79,6 @@ function toEvent(row: Row): ProjectorEvent {
 		id: text(row, "id"),
 		playSessionId: text(row, "play_session_id"),
 		type: text(row, "type"),
-		schemaVersion: integer(row, "schema_version"),
 		occurredAt: new Date(integer(row, "occurred_at") * 1000),
 		sortOrder: integer(row, "sort_order"),
 		payload: text(row, "payload"),
@@ -96,30 +96,37 @@ function compareEvents(a: ProjectorEvent, b: ProjectorEvent): number {
 function payloadSchemaFindings(
 	entryId: string,
 	kind: EntryKind,
-	events: readonly ProjectorEvent[]
+	events: readonly Row[]
 ): Row[] {
 	const findings: Row[] = [];
 	for (const event of events) {
-		const schema = playEventPayloadSchema(
-			kind,
-			event.type,
-			event.schemaVersion
-		);
+		const id = text(event, "id");
+		const type = text(event, "type");
+		const version = integer(event, "schema_version");
+		if (version !== 2) {
+			findings.push({
+				entry_id: entryId,
+				event_id: id,
+				problem: `schema_version ${version} is not 2`,
+			});
+			continue;
+		}
+		const schema = playEventPayloadSchema(kind, type);
 		if (schema === null) {
 			findings.push({
 				entry_id: entryId,
-				event_id: event.id,
-				problem: `no ${kind} payload schema for ${event.type} v${event.schemaVersion}`,
+				event_id: id,
+				problem: `no ${kind} payload schema for ${type} v${version}`,
 			});
 			continue;
 		}
 		let payload: unknown;
 		try {
-			payload = JSON.parse(event.payload);
+			payload = JSON.parse(text(event, "payload"));
 		} catch {
 			findings.push({
 				entry_id: entryId,
-				event_id: event.id,
+				event_id: id,
 				problem: "payload is not valid JSON",
 			});
 			continue;
@@ -128,7 +135,7 @@ function payloadSchemaFindings(
 		if (!parsed.success) {
 			findings.push({
 				entry_id: entryId,
-				event_id: event.id,
+				event_id: id,
 				problem: parsed.error.issues
 					.map((issue) => `${issue.path.join(".")}: ${issue.message}`)
 					.join("; "),
@@ -162,24 +169,16 @@ interface EntryReplayInput {
 }
 
 function project(
-	{ entry, events, sessions }: EntryReplayInput,
+	{ events, sessions }: EntryReplayInput,
 	kind: EntryKind
 ): EntryProjection {
 	return projectEntry(events, {
 		kind,
-		assetId: nullableText(entry, "asset_id"),
 		playSessions: sessions.map(({ id, seq, localDate }) => ({
 			id,
 			seq,
 			localDate,
 		})),
-		tournamentEntryCost:
-			kind === "tournament"
-				? {
-						buyIn: nullableInteger(entry, "buy_in"),
-						fee: nullableInteger(entry, "entry_fee"),
-					}
-				: null,
 	});
 }
 
@@ -230,12 +229,17 @@ function compareCore(
 		]);
 	}
 	const ordered = [...input.events].sort(compareEvents);
+	const selfId = nullableText(input.entry, "self_player_id");
 	for (const hero of input.heroSeats) {
-		const folded = computeHeroSeatPositionFromEvents(
-			ordered
-				.filter((event) => event.occurredAt.getTime() <= hero.playedAt * 1000)
-				.map((event) => ({ eventType: event.type, payload: event.payload }))
-		);
+		const folded =
+			selfId === null
+				? null
+				: foldPlayerSeat(
+						ordered.filter(
+							(event) => event.occurredAt.getTime() <= hero.playedAt * 1000
+						),
+						selfId
+					);
 		compare(core, entryId, `hand ${hero.handId}`, [
 			["hero seat", hero.seat, folded],
 		]);
@@ -258,6 +262,7 @@ function compareLines(
 		}
 		compare(found, entryId, target, [
 			["asset_id", row.assetId, line.assetId],
+			["price_id", row.priceId, line.priceId],
 			["quantity", row.quantity, line.quantity],
 			["role", row.role, line.role],
 			["effect", row.effect, line.effect],
@@ -316,13 +321,13 @@ function entryStatements(
 		replays,
 		statements: [
 			replays
-				? `SELECT e.id AS id, e.kind AS kind, e.status AS status, e.played_on AS played_on, e.asset_id AS asset_id,
+				? `SELECT e.id AS id, e.kind AS kind, e.source AS source, e.status AS status, e.played_on AS played_on,
 ec.ev_diff AS ev_diff, et.placement AS placement, et.total_entries AS total_entries, et.before_deadline AS before_deadline,
-(SELECT pr.amount FROM tournament_rule_price pr WHERE pr.rule_id = et.tournament_rule_id AND pr.user_id = et.user_id AND pr.kind = 'entry' ORDER BY pr.ordinal LIMIT 1) AS buy_in,
-(SELECT pr.fee FROM tournament_rule_price pr WHERE pr.rule_id = et.tournament_rule_id AND pr.user_id = et.user_id AND pr.kind = 'entry' ORDER BY pr.ordinal LIMIT 1) AS entry_fee
+p.id AS self_player_id
 FROM entry e
 LEFT JOIN entry_cash ec ON ec.entry_id = e.id AND ec.user_id = e.user_id
 LEFT JOIN entry_tournament et ON et.entry_id = e.id AND et.user_id = e.user_id
+LEFT JOIN player p ON p.user_id = e.user_id AND p.is_self = 1
 WHERE e.id IN (${list})`
 				: `SELECT id, kind FROM entry WHERE id IN (${list})`,
 			`SELECT pe.id AS id, pe.entry_id AS entry_id, pe.play_session_id AS play_session_id, pe.type AS type,
@@ -341,7 +346,7 @@ FROM hand h
 JOIN play_session p ON p.id = h.play_session_id AND p.user_id = h.user_id
 JOIN hand_seat s ON s.hand_id = h.id AND s.user_id = h.user_id AND s.is_hero = 1
 WHERE p.entry_id IN (${list}) AND h.played_at IS NOT NULL`,
-						`SELECT l.id AS id, l.entry_id AS entry_id, l.asset_id AS asset_id, l.quantity AS quantity, l.role AS role,
+						`SELECT l.id AS id, l.entry_id AS entry_id, l.asset_id AS asset_id, l.price_id AS price_id, l.quantity AS quantity, l.role AS role,
 l.effect AS effect, l.play_session_id AS play_session_id, l.source_event_id AS source_event_id, l.occurred_at AS occurred_at
 FROM ledger_line l JOIN entry e ON e.id = l.entry_id AND e.user_id = l.user_id
 WHERE l.entry_id IN (${list}) AND l.source_event_id IS NOT NULL`,
@@ -361,10 +366,12 @@ export function runReplay(
 		"a6-open-ev": [],
 		"a15-payload-schema": [],
 	};
-	const [liveEntries = []] = db.query([
-		"SELECT id FROM entry WHERE source = 'live' ORDER BY id",
+	const [selectedEntries = []] = db.query([
+		parts.has("a15-payload-schema")
+			? "SELECT id FROM entry ORDER BY id"
+			: "SELECT id FROM entry WHERE source = 'live' ORDER BY id",
 	]);
-	const ids = liveEntries.map((row) => text(row, "id"));
+	const ids = selectedEntries.map((row) => text(row, "id"));
 	for (let i = 0; i < ids.length; i += ENTRY_PAGE) {
 		const { replays, statements } = entryStatements(
 			ids.slice(i, i + ENTRY_PAGE),
@@ -378,6 +385,7 @@ export function runReplay(
 			lineRows = [],
 		] = db.query(statements);
 		const events = groupBy(eventRows, "entry_id", toEvent);
+		const schemaEvents = groupBy(eventRows, "entry_id", (row) => row);
 		const sessions = groupBy(sessionRows, "entry_id", (row) => ({
 			id: text(row, "id"),
 			seq: integer(row, "seq"),
@@ -399,6 +407,7 @@ export function runReplay(
 		const lines = groupBy(lineRows, "entry_id", (row) => ({
 			id: text(row, "id"),
 			assetId: text(row, "asset_id"),
+			priceId: nullableText(row, "price_id"),
 			quantity: integer(row, "quantity"),
 			role: text(row, "role"),
 			effect: text(row, "effect"),
@@ -414,11 +423,11 @@ export function runReplay(
 					...payloadSchemaFindings(
 						entryId,
 						entryKind(text(entry, "kind")),
-						entryEvents
+						schemaEvents.get(entryId) ?? []
 					)
 				);
 			}
-			if (replays) {
+			if (replays && text(entry, "source") === "live") {
 				replayEntry(
 					{
 						entry,

@@ -72,9 +72,8 @@ async function startLiveCash(db: Database, id: string, assetId: string) {
 			localDate: "2026-09-05",
 			now: NOW,
 			startEvent: {
-				schemaVersion: 1,
 				occurredAt: NOW,
-				payload: { buyInAmount: 30_000 },
+				payload: { payments: [{ assetId, quantity: 30_000, role: "buy_in" }] },
 			},
 		})
 	);
@@ -87,9 +86,8 @@ async function startLiveCash(db: Database, id: string, assetId: string) {
 			events: [
 				{
 					type: "chips_add_remove",
-					schemaVersion: 1,
 					occurredAt: NOW,
-					payload: { amount: 5000 },
+					payload: { amount: 5000, assetId, effect: "real" },
 				},
 			],
 		},

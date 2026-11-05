@@ -12,25 +12,17 @@ import {
 	signedLedgerQuantity,
 } from "@sapphire2/db/constants/ledger";
 import {
-	cashSessionEndPayloadV2,
-	cashSessionStartPayloadV2,
-	dayEndPayload,
-	purchaseChipsPayloadV2,
-	reentryPayload,
-	tournamentSessionEndPayloadV2,
-	tournamentSessionStartPayloadV2,
-	updateStackPayloadV2,
-} from "@sapphire2/db/constants/play-event-payloads";
-import {
 	allInPayload,
 	cashSessionEndPayload,
 	cashSessionStartPayload,
 	chipsAddRemovePayload,
+	dayEndPayload,
 	purchaseChipsPayload,
+	reentryPayload,
 	tournamentSessionEndPayload,
 	tournamentSessionStartPayload,
 	updateStackPayload,
-} from "@sapphire2/db/constants/session-event-types";
+} from "@sapphire2/db/constants/play-event-payloads";
 import {
 	entry,
 	entryCash,
@@ -39,26 +31,17 @@ import {
 	playSession,
 } from "@sapphire2/db/schema/entry";
 import { ledgerLine } from "@sapphire2/db/schema/ledger";
-import { TRPCError } from "@trpc/server";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { type BatchStatement, chunkForInsert } from "../lib/batch";
 
 export type ProjectorEvent = Pick<
 	typeof playEvent.$inferSelect,
-	| "id"
-	| "playSessionId"
-	| "type"
-	| "schemaVersion"
-	| "occurredAt"
-	| "sortOrder"
-	| "payload"
+	"id" | "playSessionId" | "type" | "occurredAt" | "sortOrder" | "payload"
 >;
 
 export interface ProjectorContext {
-	assetId: string | null;
 	kind: EntryKind;
 	playSessions: { id: string; seq: number; localDate: string }[];
-	tournamentEntryCost: { buyIn: number | null; fee: number | null } | null;
 }
 
 export interface PlaySessionProjection {
@@ -83,11 +66,12 @@ export type EntryDetailProjection =
 	  };
 
 export interface ProjectedLine {
-	assetId: string | null;
+	assetId: string;
 	effect: LedgerEffect;
 	id: string;
 	occurredAt: Date;
 	playSessionId: string;
+	priceId: string | null;
 	quantity: number;
 	role: LedgerRole;
 	sourceEventId: string;
@@ -102,8 +86,9 @@ export interface EntryProjection {
 }
 
 interface LinePayment {
-	assetId: string | null;
+	assetId: string;
 	effect: LedgerEffect;
+	priceId?: string;
 	quantity: number;
 	role: LedgerRole;
 }
@@ -135,34 +120,18 @@ function compareEvents(a: ProjectorEvent, b: ProjectorEvent): number {
 	return a.id < b.id ? -1 : 1;
 }
 
-function isV2(event: ProjectorEvent): boolean {
-	if (event.schemaVersion === 1) {
-		return false;
-	}
-	if (event.schemaVersion === 2) {
-		return true;
-	}
-	throw new Error(
-		`Unsupported payload schema version ${event.schemaVersion} on event ${event.id}`
-	);
-}
-
 function readClock(
 	startEvent: ProjectorEvent | null,
 	kind: EntryKind
 ): Pick<PlaySessionProjection, "clockStartedAt" | "clockStartLevel"> {
-	if (startEvent === null || (kind === "cash" && !isV2(startEvent))) {
+	if (startEvent === null) {
 		return { clockStartedAt: null, clockStartLevel: null };
 	}
 	const payload = JSON.parse(startEvent.payload);
-	let clock: { timerStartedAt?: number | null; startLevel?: number };
-	if (!isV2(startEvent)) {
-		clock = tournamentSessionStartPayload.parse(payload);
-	} else if (kind === "cash") {
-		clock = cashSessionStartPayloadV2.parse(payload);
-	} else {
-		clock = tournamentSessionStartPayloadV2.parse(payload);
-	}
+	const clock =
+		kind === "cash"
+			? cashSessionStartPayload.parse(payload)
+			: tournamentSessionStartPayload.parse(payload);
 	return {
 		clockStartedAt:
 			typeof clock.timerStartedAt === "number"
@@ -173,19 +142,15 @@ function readClock(
 }
 
 function readCashOut(event: ProjectorEvent): number {
-	if (isV2(event)) {
-		return cashSessionEndPayloadV2
-			.parse(JSON.parse(event.payload))
-			.payments.reduce((sum, payment) => sum + payment.quantity, 0);
-	}
-	return cashSessionEndPayload.parse(JSON.parse(event.payload)).cashOutAmount;
+	return cashSessionEndPayload
+		.parse(JSON.parse(event.payload))
+		.payments.reduce((sum, payment) => sum + payment.quantity, 0);
 }
 
 function readTournamentResult(event: ProjectorEvent): TournamentResult {
-	const payload = JSON.parse(event.payload);
-	const parsed = isV2(event)
-		? tournamentSessionEndPayloadV2.safeParse(payload)
-		: tournamentSessionEndPayload.safeParse(payload);
+	const parsed = tournamentSessionEndPayload.safeParse(
+		JSON.parse(event.payload)
+	);
 	if (!parsed.success) {
 		return { beforeDeadline: false, placement: null, totalEntries: null };
 	}
@@ -292,10 +257,7 @@ function latestStackTotalEntries(
 	let totalEntries: number | null = null;
 	for (const event of events) {
 		if (event.type === "update_stack") {
-			const payload = JSON.parse(event.payload);
-			const data = isV2(event)
-				? updateStackPayloadV2.parse(payload)
-				: updateStackPayload.parse(payload);
+			const data = updateStackPayload.parse(JSON.parse(event.payload));
 			totalEntries = data.totalEntries ?? totalEntries;
 		}
 	}
@@ -317,107 +279,51 @@ function projectTournament(
 	};
 }
 
-function mainAssetPayment(
-	context: ProjectorContext,
-	role: LedgerRole,
-	quantity: number
-): LinePayment[] {
-	return quantity > 0
-		? [{ assetId: context.assetId, quantity, role, effect: "real" }]
-		: [];
-}
-
 function sessionStartPayments(
 	event: ProjectorEvent,
-	context: ProjectorContext,
-	isEntryStart: boolean
+	kind: EntryKind
 ): LinePayment[] {
 	const payload = JSON.parse(event.payload);
-	if (isV2(event)) {
-		const schema =
-			context.kind === "cash"
-				? cashSessionStartPayloadV2
-				: tournamentSessionStartPayloadV2;
-		return schema.parse(payload).payments ?? [];
-	}
-	if (context.kind === "cash") {
-		return mainAssetPayment(
-			context,
-			"buy_in",
-			cashSessionStartPayload.parse(payload).buyInAmount
-		);
-	}
-	if (!isEntryStart) {
-		return [];
-	}
-	return [
-		...mainAssetPayment(
-			context,
-			"buy_in",
-			context.tournamentEntryCost?.buyIn ?? 0
-		),
-		...mainAssetPayment(context, "fee", context.tournamentEntryCost?.fee ?? 0),
-	];
+	const schema =
+		kind === "cash" ? cashSessionStartPayload : tournamentSessionStartPayload;
+	return schema.parse(payload).payments ?? [];
 }
 
 function sessionEndPayments(
 	event: ProjectorEvent,
-	context: ProjectorContext
+	kind: EntryKind
 ): LinePayment[] {
 	const payload = JSON.parse(event.payload);
-	if (context.kind === "cash") {
-		return isV2(event)
-			? cashSessionEndPayloadV2.parse(payload).payments
-			: mainAssetPayment(
-					context,
-					"cash_out",
-					cashSessionEndPayload.parse(payload).cashOutAmount
-				);
-	}
-	if (isV2(event)) {
-		const parsed = tournamentSessionEndPayloadV2.safeParse(payload);
-		return parsed.success ? parsed.data.payments : [];
+	if (kind === "cash") {
+		return cashSessionEndPayload.parse(payload).payments;
 	}
 	const parsed = tournamentSessionEndPayload.safeParse(payload);
-	if (!parsed.success) {
-		return [];
-	}
-	return [
-		...mainAssetPayment(context, "prize", parsed.data.prizeMoney),
-		...mainAssetPayment(context, "bounty", parsed.data.bountyPrizes),
-	];
+	return parsed.success ? parsed.data.payments : [];
 }
 
 function eventPayments(
 	event: ProjectorEvent,
-	context: ProjectorContext,
-	entryStartId: string | null,
+	kind: EntryKind,
 	closingEventIds: ReadonlySet<string>
 ): LinePayment[] {
 	switch (event.type) {
 		case "session_start":
-			return sessionStartPayments(event, context, event.id === entryStartId);
+			return sessionStartPayments(event, kind);
 		case "chips_add_remove": {
-			const { amount } = chipsAddRemovePayload.parse(JSON.parse(event.payload));
+			const { amount, assetId, effect } = chipsAddRemovePayload.parse(
+				JSON.parse(event.payload)
+			);
 			return amount > 0
-				? mainAssetPayment(context, "addon", amount)
-				: mainAssetPayment(context, "chip_remove", -amount);
+				? [{ assetId, effect, quantity: amount, role: "addon" }]
+				: [{ assetId, effect, quantity: -amount, role: "chip_remove" }];
 		}
-		case "purchase_chips": {
-			const payload = JSON.parse(event.payload);
-			return isV2(event)
-				? purchaseChipsPayloadV2.parse(payload).payments
-				: mainAssetPayment(
-						context,
-						"chip_purchase",
-						purchaseChipsPayload.parse(payload).cost
-					);
-		}
+		case "purchase_chips":
+			return purchaseChipsPayload.parse(JSON.parse(event.payload)).payments;
 		case "reentry":
 			return reentryPayload.parse(JSON.parse(event.payload)).payments;
 		case "session_end":
 			return closingEventIds.has(event.id)
-				? sessionEndPayments(event, context)
+				? sessionEndPayments(event, kind)
 				: [];
 		default:
 			return [];
@@ -426,23 +332,21 @@ function eventPayments(
 
 function projectLines(
 	ordered: readonly ProjectorEvent[],
-	context: ProjectorContext,
-	entryStartId: string | null,
+	kind: EntryKind,
 	closingEventIds: ReadonlySet<string>
 ): ProjectedLine[] {
 	return ordered.flatMap((event) =>
-		eventPayments(event, context, entryStartId, closingEventIds).map(
-			(payment, n) => ({
-				id: `${event.id}:${n}`,
-				assetId: payment.assetId,
-				quantity: signedLedgerQuantity(payment.role, payment.quantity),
-				role: payment.role,
-				effect: payment.effect,
-				playSessionId: event.playSessionId,
-				sourceEventId: event.id,
-				occurredAt: event.occurredAt,
-			})
-		)
+		eventPayments(event, kind, closingEventIds).map((payment, n) => ({
+			id: `${event.id}:${n}`,
+			assetId: payment.assetId,
+			priceId: payment.priceId ?? null,
+			quantity: signedLedgerQuantity(payment.role, payment.quantity),
+			role: payment.role,
+			effect: payment.effect,
+			playSessionId: event.playSessionId,
+			sourceEventId: event.id,
+			occurredAt: event.occurredAt,
+		}))
 	);
 }
 
@@ -498,10 +402,7 @@ export function projectEntry(
 				: projectTournament(ordered, finalFold.endEvent),
 		lines: projectLines(
 			ordered,
-			context,
-			(eventsBySession.get(sessions[0]?.id ?? "") ?? []).find(
-				(event) => event.type === "session_start"
-			)?.id ?? null,
+			context.kind,
 			new Set(
 				folds.flatMap((fold) =>
 					fold.endEvent?.type === "session_end" ? [fold.endEvent.id] : []
@@ -577,22 +478,13 @@ export function buildProjectionLineStatements(
 	lines: readonly ProjectedLine[],
 	now: Date
 ): BatchStatement[] {
-	const rows = lines.map(({ assetId, ...line }) => {
-		if (assetId === null) {
-			throw new TRPCError({
-				code: "PRECONDITION_FAILED",
-				message: "Choose a currency for this session before recording money",
-			});
-		}
-		return {
-			...line,
-			assetId,
-			userId: scope.userId,
-			entryId: scope.entryId,
-			createdAt: now,
-			updatedAt: now,
-		};
-	});
+	const rows = lines.map((line) => ({
+		...line,
+		userId: scope.userId,
+		entryId: scope.entryId,
+		createdAt: now,
+		updatedAt: now,
+	}));
 	const statements: BatchStatement[] = [
 		db
 			.delete(ledgerLine)

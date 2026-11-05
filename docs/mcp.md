@@ -95,6 +95,8 @@ The B06 cutover removes the old completed-session and live-session APIs and thei
 | `game_mix_archive` | `gameMix.archive` | write |
 | `game_mix_restore` | `gameMix.restore` | write |
 
+`player_list` excludes the user's own self (Hero) player and temporary players. `player.getSelf` is not exposed.
+
 Master-data updates are annotated destructive. **Deletion is deliberately not exposed.** Rooms, ring games, tournaments and game masters have archive/restore tools instead. Game-master lists exclude archived rows by default; `includeArchived` includes them.
 
 `ring_game_create` takes a `rule` with an optional `game` selected by `{variantId}`, `{gameMixId}`, or `{lineupId}`. Find active variant and mix IDs with `game_variant_list` and `game_mix_list`; reuse a `lineupId` from `ring_game_list_by_room` to retain its saved composition, including archived selections. Newly selecting archived masters is not allowed. If omitted on creation, the game defaults to builtin NLH. A mix groups variants by game group in order of first appearance. When supplied, `stakes` must contain one entry per resulting lineup group in order, each naming `gameGroupId` and optionally its blinds and ante. Omitted stakes carry forward by group ID and occurrence within that structure, not absolute position.

@@ -1,4 +1,5 @@
 import type { Database } from "@sapphire2/db";
+import { asset } from "@sapphire2/db/schema/asset";
 import {
 	entry,
 	entryCash,
@@ -7,11 +8,17 @@ import {
 	playSession,
 } from "@sapphire2/db/schema/entry";
 import { gameLineup } from "@sapphire2/db/schema/game-lineup";
-import { cashRule, tournamentRule } from "@sapphire2/db/schema/rule";
+import { ledgerLine } from "@sapphire2/db/schema/ledger";
+import {
+	cashRule,
+	tournamentRule,
+	tournamentRulePrice,
+} from "@sapphire2/db/schema/rule";
 import { asc, eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
 import { runBatch } from "../lib/batch";
 import {
+	buildProjectionLineStatements,
 	buildProjectionStatements,
 	projectEntry,
 } from "../services/entry-projector";
@@ -33,7 +40,6 @@ async function addEvent(
 		type: string;
 		minute: number;
 		payload: Record<string, unknown>;
-		version?: number;
 	}
 ) {
 	await db.insert(playEvent).values({
@@ -42,7 +48,7 @@ async function addEvent(
 		entryId,
 		playSessionId,
 		type: event.type,
-		schemaVersion: event.version ?? 1,
+		schemaVersion: 2,
 		occurredAt: at(event.minute),
 		sortOrder,
 		payload: JSON.stringify(event.payload),
@@ -52,7 +58,7 @@ async function addEvent(
 
 async function reproject(db: Database, entryId: string) {
 	const [owner] = await db
-		.select({ kind: entry.kind, assetId: entry.assetId })
+		.select({ kind: entry.kind })
 		.from(entry)
 		.where(eq(entry.id, entryId));
 	const sessions = await db
@@ -72,13 +78,20 @@ async function reproject(db: Database, entryId: string) {
 	}
 	const projection = projectEntry(events, {
 		kind: owner.kind,
-		assetId: owner.assetId,
 		playSessions: sessions,
-		tournamentEntryCost: null,
 	});
 	await runBatch(
 		db,
 		buildProjectionStatements(db, { entryId, userId }, projection)
+	);
+	await runBatch(
+		db,
+		buildProjectionLineStatements(
+			db,
+			{ entryId, userId },
+			projection.lines,
+			START
+		)
 	);
 }
 
@@ -111,6 +124,9 @@ describe("projection statements against D1", () => {
 	test("persist a two-day tournament through bagging, day two and the final bust", async ({
 		api: { db },
 	}) => {
+		await db
+			.insert(asset)
+			.values({ id: "jpy", userId, name: "JPY", updatedAt: START });
 		await db.insert(gameLineup).values({ id: "lineup", userId });
 		await db
 			.insert(tournamentRule)
@@ -168,13 +184,11 @@ describe("projection statements against D1", () => {
 			type: "day_end",
 			minute: 300,
 			payload: { endState: "bagged", stackAmount: 61_000 },
-			version: 2,
 		});
 		await addEvent(db, entryId, "mtt-day-2", 3, {
 			type: "session_start",
 			minute: 1440,
 			payload: { startLevel: 15 },
-			version: 2,
 		});
 		await addEvent(db, entryId, "mtt-day-2", 4, {
 			type: "session_pause",
@@ -223,8 +237,7 @@ describe("projection statements against D1", () => {
 				beforeDeadline: false,
 				placement: 9,
 				totalEntries: 200,
-				prizeMoney: 40_000,
-				bountyPrizes: 0,
+				payments: [{ assetId: "jpy", quantity: 40_000, role: "prize" }],
 			},
 		});
 		await reproject(db, entryId);
@@ -253,7 +266,23 @@ describe("projection statements against D1", () => {
 	test("persist a cash-out with its end stack and EV difference", async ({
 		api: { db },
 	}) => {
+		await db
+			.insert(asset)
+			.values({ id: "jpy", userId, name: "JPY", updatedAt: START });
 		await db.insert(gameLineup).values({ id: "lineup", userId });
+		await db
+			.insert(tournamentRule)
+			.values({ id: "price-rule", userId, lineupId: "lineup" });
+		await db.insert(tournamentRulePrice).values({
+			id: "cash-price",
+			userId,
+			ruleId: "price-rule",
+			kind: "entry",
+			label: "Entry",
+			assetId: "jpy",
+			amount: 30_000,
+			ordinal: 0,
+		});
 		await db
 			.insert(cashRule)
 			.values({ id: "rule", userId, lineupId: "lineup" });
@@ -286,7 +315,16 @@ describe("projection statements against D1", () => {
 		await addEvent(db, entryId, "ring-day-1", 0, {
 			type: "session_start",
 			minute: 0,
-			payload: { buyInAmount: 30_000 },
+			payload: {
+				payments: [
+					{
+						assetId: "jpy",
+						quantity: 30_000,
+						role: "buy_in",
+						priceId: "cash-price",
+					},
+				],
+			},
 		});
 		await addEvent(db, entryId, "ring-day-1", 1, {
 			type: "all_in",
@@ -299,7 +337,6 @@ describe("projection statements against D1", () => {
 			payload: {
 				payments: [{ assetId: "jpy", quantity: 22_000, role: "cash_out" }],
 			},
-			version: 2,
 		});
 
 		await reproject(db, entryId);
@@ -325,5 +362,19 @@ describe("projection statements against D1", () => {
 			.from(entryCash)
 			.where(eq(entryCash.entryId, entryId));
 		expect(detail).toEqual({ evDiff: 7500 });
+		const lines = await db
+			.select({
+				role: ledgerLine.role,
+				quantity: ledgerLine.quantity,
+				priceId: ledgerLine.priceId,
+			})
+			.from(ledgerLine)
+			.where(eq(ledgerLine.entryId, entryId));
+		expect(lines).toEqual(
+			expect.arrayContaining([
+				{ role: "buy_in", quantity: -30_000, priceId: "cash-price" },
+				{ role: "cash_out", quantity: 22_000, priceId: null },
+			])
+		);
 	});
 });

@@ -264,11 +264,10 @@ describe("audit-data-model through wrangler's local D1", () => {
 	);
 
 	it(
-		"replays the tournament entry cost from the entry's rule price",
+		"replays the tournament entry cost from the event payment",
 		async () => {
 			const dir = await copyWith("tournament-rule-price", [
-				"UPDATE session_tournament_detail SET tournament_buy_in = NULL, entry_fee = NULL WHERE session_id = 'mtt'",
-				"UPDATE tournament_rule_price SET amount = 9000 WHERE id = 'trp:tr:e:mtt:entry'",
+				"UPDATE play_event SET payload = json_set(payload, '$.payments[0].quantity', 9000) WHERE id = 'mtt-start'",
 			]);
 			const result = audit(dir, "--enable", "A-6");
 			expect(result.status).toBe(1);
@@ -397,6 +396,33 @@ describe("audit-data-model through wrangler's local D1", () => {
 	);
 
 	it(
+		"detects inconsistent self players and non-v2 events",
+		async () => {
+			const dir = await copyWith("broken-self-and-version", [
+				"UPDATE player SET is_temporary = 1 WHERE id = 'self:alice'",
+				`INSERT INTO player (id, user_id, name, updated_at) VALUES ('opponent', 'alice', 'Opponent', ${T0})`,
+				"UPDATE hand_seat SET player_id = 'opponent' WHERE hand_id = 'h:live:1'",
+				"UPDATE play_event SET schema_version = 1 WHERE id = 'hero'",
+			]);
+			const result = audit(dir);
+			expect(result.status).toBe(1);
+			expect(rows(result.report, "A-14")).toEqual(
+				expect.arrayContaining([
+					{ id: "self:alice", problem: "temporary self" },
+					{ id: "h:live:1", problem: "hero player" },
+				])
+			);
+			expect(rows(result.report, "A-15")).toContainEqual(
+				expect.objectContaining({
+					event_id: "hero",
+					problem: "schema_version 1 is not 2",
+				})
+			);
+		},
+		RUN_TIMEOUT
+	);
+
+	it(
 		"reports v2 audits as not introduced on a database before the v2 schema migration",
 		async () => {
 			const dir = await createDatabase("before-v2", {
@@ -407,7 +433,7 @@ describe("audit-data-model through wrangler's local D1", () => {
 			expect(result.status).toBe(0);
 			expect(statuses(result.report, "FK")).toEqual(["pass"]);
 			expect(new Set(statuses(result.report, "A-14"))).toEqual(
-				new Set(["not-introduced", "pending"])
+				new Set(["not-introduced"])
 			);
 			expect(new Set(statuses(result.report, "A-15"))).toEqual(
 				new Set(["not-introduced"])

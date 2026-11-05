@@ -9,6 +9,84 @@ import { D1_MAX_BOUND_PARAMS } from "../lib/batch";
 import { requireCreatedRow, test } from "./test-fixture";
 
 describe("player tags and atomic writes on D1", () => {
+	test("hides self and temporary players in every list path without hiding opponents named Hero", async ({
+		api,
+	}) => {
+		const self = await api.alice.player.getSelf();
+		const tag = requireCreatedRow(
+			await api.alice.playerTag.create({ name: "Regular" })
+		);
+		await api.alice.player.update({ id: self.id, tagIds: [tag.id] });
+		const opponent = requireCreatedRow(
+			await api.alice.player.create({ name: "Hero opponent", tagIds: [tag.id] })
+		);
+		await api.db.insert(player).values({
+			id: "temporary",
+			userId: "alice",
+			name: "Hero temporary",
+			isTemporary: true,
+			updatedAt: new Date(),
+		});
+		for (const input of [undefined, { search: "Hero" }, { tagIds: [tag.id] }]) {
+			expect((await api.alice.player.list(input)).map(({ id }) => id)).toEqual([
+				opponent.id,
+			]);
+		}
+	});
+
+	test("concurrent self requests create one persistent identity and enforce ownership and deletion", async ({
+		api,
+	}) => {
+		const [self, ...rest] = await Promise.all([
+			api.alice.player.getSelf(),
+			api.alice.player.getSelf(),
+			api.alice.player.getSelf(),
+			api.alice.player.getSelf(),
+			api.alice.player.getSelf(),
+		]);
+		expect(self).toMatchObject({
+			name: "Hero",
+			isSelf: true,
+			isTemporary: false,
+			tags: [],
+		});
+		expect(rest.map(({ id }) => id)).toEqual(new Array(4).fill(self.id));
+		expect(await api.alice.player.getSelf()).toEqual(self);
+		expect(
+			await api.db.select().from(player).where(eq(player.userId, "alice"))
+		).toHaveLength(1);
+		await expect(
+			api.alice.player.delete({ id: self.id })
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		expect(await api.alice.player.getById({ id: self.id })).toEqual(self);
+		const foreign = await api.bob.player.getSelf();
+		await expect(
+			api.alice.player.getById({ id: foreign.id })
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		await expect(
+			api.alice.player.update({ id: foreign.id, name: "No" })
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		await expect(
+			api.alice.player.delete({ id: foreign.id })
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+	});
+
+	test("database enforces one boolean self identity per user", async ({
+		api,
+	}) => {
+		await api.alice.player.getSelf();
+		const insert = (id: string, userId: string, isSelf: number) =>
+			api.d1
+				.prepare(
+					"INSERT INTO player (id, user_id, name, is_self, updated_at) VALUES (?, ?, ?, ?, 0)"
+				)
+				.bind(id, userId, "Hero", isSelf)
+				.run();
+		await expect(insert("duplicate-self", "alice", 1)).rejects.toThrow();
+		await expect(insert("invalid-self", "alice", 2)).rejects.toThrow();
+		await expect(insert("bob-self", "bob", 1)).resolves.toBeDefined();
+	});
+
 	test("rejects valid unauthenticated player requests without reading or changing stored players", async ({
 		api,
 	}) => {
