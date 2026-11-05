@@ -11,15 +11,15 @@ import {
 	stringValue,
 } from "./sqlite";
 
-const TARGET = "0073_stand_in_cleanup.sql";
-const LOCAL_DATES_GATE = /NOT NULL constraint failed: __gate_0073\.local_dates/;
-const PRICES_GATE = /NOT NULL constraint failed: __gate_0073\.prices/;
+const TARGET = "0074_stand_in_cleanup.sql";
+const LOCAL_DATES_GATE = /NOT NULL constraint failed: __gate_0074\.local_dates/;
+const PRICES_GATE = /NOT NULL constraint failed: __gate_0074\.prices/;
 const beforeEntry = migrationFiles("0061_").map(statementsOf);
 const cutovers = migrationFiles(TARGET)
 	.filter((name) => name >= "0061_")
 	.map(statementsOf);
 const targetStatements = statementsOf(TARGET);
-const directory = mkdtempSync(join(tmpdir(), "sapphire2-migration-0073-"));
+const directory = mkdtempSync(join(tmpdir(), "sapphire2-migration-0074-"));
 let index = 0;
 
 const day = Date.parse("2026-10-08T00:00:00Z") / 1000;
@@ -105,7 +105,7 @@ function payload(db: Database, id: string): unknown {
 	return JSON.parse(stringValue(row?.[0]));
 }
 
-describe("migration 0073 — stand-in cleanup", () => {
+describe("migration 0074 — stand-in cleanup", () => {
 	const seededPath = join(directory, "seeded.sqlite");
 	let seeded = (): Database => {
 		throw new Error("seed not built");
@@ -204,7 +204,7 @@ describe("migration 0073 — stand-in cleanup", () => {
 			).toEqual([["room-asset:far"]]);
 			expect(values(db, "PRAGMA foreign_key_check")).toEqual([]);
 			expect(
-				values(db, "SELECT name FROM sqlite_master WHERE name LIKE '%0073%'")
+				values(db, "SELECT name FROM sqlite_master WHERE name LIKE '%0074%'")
 			).toEqual([]);
 		} finally {
 			db.close();

@@ -38,7 +38,7 @@ export const B13_MIGRATION = "0069_entry_rule_versions.sql";
 export const B15_MIGRATION = "0070_self_player_event_v2.sql";
 export const B16_MIGRATION = "0071_entry_tag_tables.sql";
 export const B18_MIGRATION = "0072_tag_tables.sql";
-export const B23_MIGRATION = "0073_stand_in_cleanup.sql";
+export const B23_MIGRATION = "0074_stand_in_cleanup.sql";
 
 export type Activation =
 	| { state: "active"; since: string | null }
