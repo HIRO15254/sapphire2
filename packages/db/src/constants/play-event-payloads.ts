@@ -50,21 +50,25 @@ export const tournamentSessionStartPayload = z.object({
 });
 
 export const cashSessionEndPayload = z.object({
+	endState: z.enum(["cashed_out", "finished"]).optional(),
 	payments: paymentsSchema(["cash_out"]),
 });
 
 const prizePayments = paymentsSchema(["prize", "bounty"]);
+const tournamentEndState = z.enum(["busted", "finished"]).optional();
 
 export const tournamentSessionEndPayload = z
 	.discriminatedUnion("beforeDeadline", [
 		z.object({
 			beforeDeadline: z.literal(false),
+			endState: tournamentEndState,
 			placement: z.number().int().min(1),
 			totalEntries: z.number().int().min(1),
 			payments: prizePayments,
 		}),
 		z.object({
 			beforeDeadline: z.literal(true),
+			endState: tournamentEndState,
 			payments: prizePayments,
 		}),
 	])
@@ -116,7 +120,7 @@ export const purchaseChipsPayload = z.object({
 	priceId: z.string().min(1),
 	label: z.string().min(1),
 	chips: z.number().int().min(0),
-	payments: paymentsSchema(["chip_purchase"]),
+	payments: paymentsSchema(["chip_purchase", "fee"]),
 });
 
 export const chipPurchaseCountSchema = z.object({
@@ -134,7 +138,13 @@ export const updateStackPayload = z.object({
 
 export const playerJoinPayload = z.object({
 	playerId: z.string().min(1),
-	seatPosition: z.number().int().min(0).max(MAX_SEAT_POSITION).optional(),
+	seatPosition: z
+		.number()
+		.int()
+		.min(0)
+		.max(MAX_SEAT_POSITION)
+		.nullable()
+		.optional(),
 });
 
 export const playerLeavePayload = z.object({
@@ -145,6 +155,11 @@ export const memoPayload = z.object({
 	text: z.string().min(1),
 });
 
+export const tableChangePayload = z.object({
+	tableLabel: z.string().min(1).max(100).optional(),
+	seatPosition: z.number().int().min(0).max(MAX_SEAT_POSITION).optional(),
+});
+
 const SHARED_PAYLOADS = {
 	session_pause: sessionPausePayload,
 	session_resume: sessionResumePayload,
@@ -153,6 +168,7 @@ const SHARED_PAYLOADS = {
 	player_join: playerJoinPayload,
 	player_leave: playerLeavePayload,
 	memo: memoPayload,
+	table_change: tableChangePayload,
 } as const satisfies Record<string, z.ZodType>;
 
 const PAYLOADS: Record<EntryKind, Record<string, z.ZodType>> = {

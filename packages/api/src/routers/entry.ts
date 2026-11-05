@@ -1,5 +1,7 @@
+import type { Database } from "@sapphire2/db";
 import {
 	ENTRY_KINDS,
+	ENTRY_SOURCES,
 	ENTRY_STATUSES,
 	endStatesForKind,
 	PLAY_SESSION_END_STATES,
@@ -20,6 +22,7 @@ import { validateEntityOwnership } from "../lib/ownership";
 import { cashRuleInputSchema } from "../services/cash-rules";
 import {
 	type EntryListFilters,
+	type EntryRow,
 	getEntry,
 	hydrateEntries,
 	selectEntryPage,
@@ -191,6 +194,7 @@ export const entryListInputSchema = z
 const entryCursorSchema = z.object({
 	scope: z.object({
 		userId: z.string(),
+		source: z.enum(ENTRY_SOURCES).nullable(),
 		kind: z.enum(ENTRY_KINDS).nullable(),
 		status: z.enum(ENTRY_STATUSES).nullable(),
 		roomId: z.string().nullable(),
@@ -205,6 +209,7 @@ const entryCursorSchema = z.object({
 function cursorScope(userId: string, filters: EntryListFilters) {
 	return {
 		userId,
+		source: filters.source ?? null,
 		kind: filters.kind ?? null,
 		status: filters.status ?? null,
 		roomId: filters.roomId ?? null,
@@ -214,45 +219,57 @@ function cursorScope(userId: string, filters: EntryListFilters) {
 	};
 }
 
+export async function listEntryPage<Item>(
+	db: Database,
+	userId: string,
+	input: z.infer<typeof entryListInputSchema> &
+		Pick<EntryListFilters, "source">,
+	hydrate: (rows: EntryRow[]) => Promise<Item[]>
+): Promise<{ items: Item[]; nextCursor: string | null }> {
+	const { cursor: rawCursor, limit, ...filters } = input;
+	const scope = cursorScope(userId, filters);
+	const cursor =
+		rawCursor === undefined
+			? undefined
+			: decodeCursor(rawCursor, entryCursorSchema);
+	if (cursor && JSON.stringify(cursor.scope) !== JSON.stringify(scope)) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "This cursor belongs to another entry list",
+		});
+	}
+	if (filters.roomId) {
+		await validateEntityOwnership(db, "room", filters.roomId, userId);
+	}
+	if (filters.assetId) {
+		await validateEntityOwnership(db, "asset", filters.assetId, userId);
+	}
+	const rows = await selectEntryPage(db, userId, filters, {
+		after: cursor && { playedOn: cursor.playedOn, id: cursor.id },
+		limit: limit + 1,
+	});
+	const page = rows.slice(0, limit);
+	const boundary = rows.length > limit ? page.at(-1) : undefined;
+	return {
+		items: await hydrate(page),
+		nextCursor: boundary
+			? encodeCursor({
+					scope,
+					playedOn: boundary.playedOn,
+					id: boundary.id,
+				})
+			: null,
+	};
+}
+
 export const entryRouter = router({
 	list: protectedProcedure
 		.input(entryListInputSchema)
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const { cursor: rawCursor, limit, ...filters } = input;
-			const scope = cursorScope(userId, filters);
-			const cursor =
-				rawCursor === undefined
-					? undefined
-					: decodeCursor(rawCursor, entryCursorSchema);
-			if (cursor && JSON.stringify(cursor.scope) !== JSON.stringify(scope)) {
-				throw new TRPCError({
-					code: "FORBIDDEN",
-					message: "This cursor belongs to another entry list",
-				});
-			}
-			if (filters.roomId) {
-				await validateEntityOwnership(ctx.db, "room", filters.roomId, userId);
-			}
-			if (filters.assetId) {
-				await validateEntityOwnership(ctx.db, "asset", filters.assetId, userId);
-			}
-			const rows = await selectEntryPage(ctx.db, userId, filters, {
-				after: cursor && { playedOn: cursor.playedOn, id: cursor.id },
-				limit: limit + 1,
-			});
-			const page = rows.slice(0, limit);
-			const boundary = rows.length > limit ? page.at(-1) : undefined;
-			return {
-				items: await hydrateEntries(ctx.db, userId, page),
-				nextCursor: boundary
-					? encodeCursor({
-							scope,
-							playedOn: boundary.playedOn,
-							id: boundary.id,
-						})
-					: null,
-			};
+			return await listEntryPage(ctx.db, userId, input, (rows) =>
+				hydrateEntries(ctx.db, userId, rows)
+			);
 		}),
 
 	getById: protectedProcedure

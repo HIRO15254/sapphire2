@@ -209,13 +209,13 @@ Payments may reference only existing prices in the selected immutable tournament
 
 ## 4. `live` — B17, B19; rule operations B20
 
-All reads and successful entry mutations return EntryOutput, never game_session/sessionDate/completed/evCashOut output. Live tournament records additionally return `progress:{currentStack:number|null,remainingPlayers:number|null,totalEntries:number|null,chipTotal:number,averageStack:number|null}`. The server fold and formula are owned by spec §13.2 and checked by A-6; charts consume these values without recomputing them. `getById` additionally returns `{events:PlayEvent[],currentPlaySessionId:Id|null,currentButtonSeat:number|null}`. All procedures are **Excluded: cockpit** in MCP, including reads and rule operations, except `restoreRule` (**Excluded: screen**).
+All reads and successful entry mutations return EntryOutput, never game_session/sessionDate/completed/evCashOut output. Live tournament records additionally return `progress:{currentStack:number|null,remainingPlayers:number|null,totalEntries:number|null,chipTotal:number,averageStack:number|null}`; live cash records return `progress:null`. The server fold and formula are owned by spec §13.2 and checked by A-6; charts consume these values without recomputing them. `getById` additionally returns `{events:PlayEvent[],currentPlaySessionId:Id|null,currentButtonSeat:number|null}`. Every by-id procedure rejects a manual or imported entry with BAD_REQUEST. All procedures are **Excluded: cockpit** in MCP, including reads and rule operations, except `restoreRule` (**Excluded: screen**).
 
 | Procedure | Input | Output | Additional errors / task |
 | --- | --- | --- | --- |
 | `list` Q | Entry list filters + PageInput; source is live | Page<EntryOutput> | B17 |
 | `getById` Q | IdInput | EntryOutput + live detail above | Non-live target: BAD_REQUEST; B17 |
-| `create` M | `kind:cash|tournament,roomId?,assetId?,memo?,startedAt?:Instant,localDate?:DateOnly,label?:string<=50,payments:Payment[]`; matching `ringGameId?`/`tournamentId?`, `rule?`; tournament `initialStack?:nonnegative integer,timerStartedAt?:Instant,startLevel?:positive integer` | EntryOutput + tournament progress | Existing active/paused play: CONFLICT; initialStack writes the first update_stack in the creation batch; B17 |
+| `create` M | `kind:cash|tournament,roomId?,assetId?,memo?,startedAt?:Instant,localDate?:DateOnly,label?:string<=50,payments:Payment[]`; matching `ringGameId?`/`tournamentId?`, `rule?`; tournament `initialStack?:nonnegative integer,timerStartedAt?:Instant,startLevel?:positive integer` | EntryOutput + tournament progress | Existing active/paused play: CONFLICT; initialStack writes the first update_stack in the creation batch; payments at most 1000 (cash buy_in; tournament buy_in/fee); with a B08-maximal inline rule and 1000 payments the call issues 539 D1 statements (`live.test.ts`); B17 |
 | `createAndAssignRingGame` M | `{entryId,...ringGame.create input}` | EntryOutput | Cash only; create and relink one batch; B20 |
 | `createAndAssignTournament` M | `{entryId,...tournament.createWithLevels input}` | EntryOutput | Tournament only; create and relink one batch; B20 |
 | `update` M | `{id,memo?:string|null,roomId?:Id|null,assetId?:Id|null}` | EntryOutput | Derived fields cannot be patched; B17 |
@@ -241,7 +241,7 @@ EndPlay writes day_end, leaving entry open; complete writes session_end. State i
 | --- | --- | --- | --- |
 | `list` Q | `{entryId,playSessionId?:Id}` | PlayEvent[] ordered `(occurredAt,sortOrder,id)` ascending | — |
 | `create` M | `{entryId,playSessionId?:Id,eventType,occurredAt?:Instant,payload}` discriminated by type | PlayEvent | No active/paused target or ended target: PRECONDITION_FAILED |
-| `update` M | `{id,occurredAt?:Instant,payload?:matching payload}`; type immutable | PlayEvent | Lifecycle changes outside live operations: BAD_REQUEST |
+| `update` M | `{id,occurredAt?:Instant,payload?:matching payload}`; type immutable | PlayEvent | Lifecycle changes outside live operations, or player_join/player_leave (changed only through tablePlayer and undone through delete): BAD_REQUEST |
 | `delete` M | IdInput | Ack | Lifecycle event: BAD_REQUEST; use named live undo. Participation/seat event in an ended Day or with subsequent events: CONFLICT (unsafe undo) |
 
 Omitted playSessionId selects the non-ended play only; it never falls back to an ended latest play. Ordinary event edits/deletes must leave the complete ordered stream valid and atomically reproject. Ended-play historical ordinary-event corrections are allowed only if the final lifecycle remains ended; new appends to it are not. Kind and state validation use spec §13.
@@ -251,16 +251,16 @@ Omitted playSessionId selects the non-ended play only; it never falls back to an
 | eventType | Payload object | User create/update/delete |
 | --- | --- | --- |
 | session_start | `{payments:Payment[],timerStartedAt?:Instant,startLevel?:number}` | Live lifecycle only |
-| session_end | `{endState,payments:Payment[],beforeDeadline?,placement?,totalEntries?}` | Live lifecycle only |
+| session_end | `{endState?:cashed_out|busted|finished,payments:Payment[],beforeDeadline?,placement?,totalEntries?}`; live.complete stores the endState it was given, and a stored row without one (migrated) derives cashed_out for cash, finished for placement 1, else busted | Live lifecycle only |
 | day_end | `{endState:held|bagged,stackAmount:number}` | Live lifecycle only |
 | reentry | `{payments:Payment[]}` | Active tournament only; same-day re-entry; terminal-play continuation uses startNextPlay |
 | table_change | `{tableLabel?:string,seatPosition?:integer 0..9}` | Yes |
 | session_pause / session_resume | `{}` | Yes; matching active/paused transition |
 | chips_add_remove | `{amount:signed nonzero integer,assetId:Id,effect?:real|virtual}` | Cash only; explicit asset |
 | all_in | `{potSize:nonnegative integer,trials:positive integer,equity:number 0..100,wins:number 0..trials,handId?:Id}` | Cash only; fractional wins represent chopped pots; hand must belong to same playSessionId |
-| purchase_chips | `{priceId:Id,payments:Payment[]}` | Tournament only; server resolves immutable label/chips from price |
+| purchase_chips | `{priceId:Id,payments:Payment[]}`; payment roles chip_purchase and fee (an add-on price's fee is its own line), every payment pays priceId | Tournament only; add-on price of the entry's rule version or one the entry already used; server resolves immutable label/chips from price |
 | update_stack | `{stackAmount:nonnegative integer,remainingPlayers?:positive integer|null,totalEntries?:positive integer|null,chipPurchaseCounts?:{name:string,count:nonnegative integer,chipsPerUnit:nonnegative integer}[]}` | Yes; explicit null clears field size/progress, omission keeps it; cumulative chip counts are progress-only, not payments (spec §13.2) |
-| player_join | `{playerId:Id,seatPosition?:integer 0..9}` | Via tablePlayer operations |
+| player_join | `{playerId:Id,seatPosition?:integer 0..9|null}`; while the player is active, a number moves them, `null` stands them up and omission keeps the seat | Via tablePlayer operations |
 | player_leave | `{playerId:Id}` | Via tablePlayer operations |
 | memo | `{text:string<=5000}` | Yes |
 

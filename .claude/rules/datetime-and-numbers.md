@@ -14,7 +14,7 @@ Why this file exists: the Fable review found repeated one-day-off and negative-d
 
 ### Live-recorded dates
 
-The legacy live session date writer was removed in B06. B17 (SA2-403) rewrites the live `local_date` rules.
+A live play's `local_date` is the caller's explicit `localDate` when given, otherwise the start instant read as a calendar date in `userSetting.timeZone`, falling back to `Asia/Tokyo` when the setting is null (`zonedLocalDate` in `packages/api/src/services/live-entry.ts`). Never derive it from the server's local zone, UTC, or a fixed +9h offset: the same instant falls on different dates across zones (SA2-403).
 
 ## Composing times from one date: handle day crossing
 

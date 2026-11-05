@@ -1,6 +1,15 @@
 import type { Database } from "@sapphire2/db";
-import type { EntryKind } from "@sapphire2/db/constants/entry";
-import { PLAY_EVENT_SCHEMA_VERSION } from "@sapphire2/db/constants/play-event-payloads";
+import {
+	type EntryKind,
+	type EntrySource,
+	endStatesForKind,
+	type PlaySessionStatus,
+} from "@sapphire2/db/constants/entry";
+import {
+	dayEndPayload,
+	PLAY_EVENT_SCHEMA_VERSION,
+	playEventPayloadSchema,
+} from "@sapphire2/db/constants/play-event-payloads";
 import {
 	entry,
 	entryCash,
@@ -12,15 +21,21 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { type BatchStatement, runBatch } from "../lib/batch";
 import {
+	isPlayEventOrderConflictError,
+	isUnfinishedPlaySessionConflictError,
+} from "../lib/db-errors";
+import {
+	buildProjectionLineStatements,
 	buildProjectionStatements,
+	compareEvents,
 	type EntryProjection,
-	type ProjectorContext,
 	type ProjectorEvent,
 	projectEntry,
 } from "./entry-projector";
 
-const SESSION_FORBIDDEN_MESSAGE = "You do not own this session";
+const ENTRY_FORBIDDEN_MESSAGE = "Entry unavailable";
 const EVENT_FORBIDDEN_MESSAGE = "You do not own this event";
+const PLAY_FORBIDDEN_MESSAGE = "This play session does not belong to the entry";
 
 export interface NewPlayEvent {
 	id?: string;
@@ -49,7 +64,9 @@ export interface LiveEntryStart {
 				tournamentId: string | null;
 				tournamentRuleId: string;
 		  };
+	followUps?: readonly Pick<NewPlayEvent, "occurredAt" | "payload" | "type">[];
 	id: string;
+	label?: string | null;
 	localDate: string;
 	memo: string | null;
 	now: Date;
@@ -59,14 +76,53 @@ export interface LiveEntryStart {
 	userId: string;
 }
 
-interface StoredPlayEvent extends ProjectorEvent {
+export interface StoredPlayEvent extends ProjectorEvent {
+	createdAt: Date;
 	entryId: string;
+	schemaVersion: number;
+	updatedAt: Date;
 }
 
-type EntryEventState = ProjectorContext & { events: StoredPlayEvent[] };
+export interface EntryEventState {
+	events: StoredPlayEvent[];
+	kind: EntryKind;
+	playSessions: {
+		id: string;
+		localDate: string;
+		seq: number;
+		status: PlaySessionStatus;
+	}[];
+	source: EntrySource;
+}
+
+interface EntryScope {
+	entryId: string;
+	userId: string;
+}
+
+function badRequest(message: string): never {
+	throw new TRPCError({ code: "BAD_REQUEST", message });
+}
+
+function canonicalPayload(
+	kind: EntryKind,
+	type: string,
+	payload: unknown
+): string {
+	const schema = playEventPayloadSchema(kind, type);
+	if (!schema) {
+		badRequest(`A ${kind} entry has no ${type} event`);
+	}
+	const parsed = schema.safeParse(payload);
+	if (!parsed.success) {
+		badRequest(`Invalid ${type} payload: ${parsed.error.issues[0]?.message}`);
+	}
+	return JSON.stringify(parsed.data);
+}
 
 function playEventRow(
-	scope: { entryId: string; userId: string },
+	scope: EntryScope,
+	kind: EntryKind,
 	playSessionId: string,
 	sortOrder: number,
 	event: NewPlayEvent,
@@ -81,9 +137,103 @@ function playEventRow(
 		schemaVersion: PLAY_EVENT_SCHEMA_VERSION,
 		occurredAt: event.occurredAt,
 		sortOrder,
-		payload: JSON.stringify(event.payload),
+		payload: canonicalPayload(kind, event.type, event.payload),
+		createdAt: now,
 		updatedAt: now,
 	};
+}
+
+function nextSortOrderSql(entryId: string) {
+	return sql<number>`(SELECT COALESCE(MAX(${playEvent.sortOrder}), -1) + 1 FROM ${playEvent} WHERE ${playEvent.entryId} = ${entryId})`;
+}
+
+type PlayStreamState = PlaySessionStatus | "none";
+
+const LIFECYCLE_TRANSITIONS: Record<
+	string,
+	{ from: readonly PlayStreamState[]; message: string; to: PlayStreamState }
+> = {
+	session_start: {
+		from: ["none"],
+		to: "active",
+		message: "A play session starts once, with its first event",
+	},
+	session_pause: {
+		from: ["active"],
+		to: "paused",
+		message: "Only an active play session can be paused",
+	},
+	session_resume: {
+		from: ["paused"],
+		to: "active",
+		message: "Only a paused play session can be resumed",
+	},
+	day_end: {
+		from: ["active", "paused"],
+		to: "ended",
+		message: "Only a play session in progress can end",
+	},
+	session_end: {
+		from: ["active", "paused"],
+		to: "ended",
+		message: "Only a play session in progress can end",
+	},
+};
+
+function nextPlayState(
+	kind: EntryKind,
+	state: PlayStreamState,
+	event: ProjectorEvent
+): PlayStreamState {
+	canonicalPayload(kind, event.type, JSON.parse(event.payload));
+	if (state === "ended") {
+		badRequest("No event can follow the end of its play session");
+	}
+	const transition = LIFECYCLE_TRANSITIONS[event.type];
+	if (!transition) {
+		if (state === "none") {
+			badRequest("A play session begins with its session_start");
+		}
+		return state;
+	}
+	if (!transition.from.includes(state)) {
+		badRequest(transition.message);
+	}
+	if (
+		event.type === "day_end" &&
+		!(endStatesForKind(kind) as readonly string[]).includes(
+			dayEndPayload.parse(JSON.parse(event.payload)).endState
+		)
+	) {
+		badRequest(`A ${kind} day cannot end with this state`);
+	}
+	return transition.to;
+}
+
+export function validateEventStream(
+	kind: EntryKind,
+	playSessions: readonly { id: string; seq: number }[],
+	events: readonly ProjectorEvent[]
+): void {
+	const ordered = [...playSessions].sort((a, b) => a.seq - b.seq);
+	const buckets = new Map<string, ProjectorEvent[]>(
+		ordered.map((play) => [play.id, []])
+	);
+	for (const event of [...events].sort(compareEvents)) {
+		buckets.get(event.playSessionId)?.push(event);
+	}
+	for (const [index, play] of ordered.entries()) {
+		const state = (buckets.get(play.id) ?? []).reduce<PlayStreamState>(
+			(current, event) => nextPlayState(kind, current, event),
+			"none"
+		);
+		if (state === "none") {
+			badRequest("A play session begins with its session_start");
+		}
+		if (index < ordered.length - 1 && state !== "ended") {
+			badRequest("Every play session before the last must have ended");
+		}
+	}
 }
 
 export function buildLiveEntryStartStatements(
@@ -93,17 +243,17 @@ export function buildLiveEntryStartStatements(
 	const kind: EntryKind = start.detail.kind;
 	const scope = { entryId: start.id, userId: start.userId };
 	const playSessionId = crypto.randomUUID();
-	const startRow = playEventRow(
-		scope,
-		playSessionId,
-		0,
+	const rows = [
 		{ ...start.startEvent, type: "session_start" },
-		start.now
+		...(start.followUps ?? []),
+	].map((event, sortOrder) =>
+		playEventRow(scope, kind, playSessionId, sortOrder, event, start.now)
 	);
-	const projection = projectEntry([startRow], {
-		kind,
-		playSessions: [{ id: playSessionId, seq: 1, localDate: start.localDate }],
-	});
+	const playSessions = [
+		{ id: playSessionId, seq: 1, localDate: start.localDate },
+	];
+	validateEventStream(kind, playSessions, rows);
+	const projection = projectEntry(rows, { kind, playSessions });
 
 	return [
 		db.insert(entry).values({
@@ -117,6 +267,7 @@ export function buildLiveEntryStartStatements(
 			title: start.title,
 			playedOn: start.localDate,
 			memo: start.memo,
+			createdAt: start.now,
 			updatedAt: start.now,
 		}),
 		start.detail.kind === "cash"
@@ -138,28 +289,31 @@ export function buildLiveEntryStartStatements(
 			entryId: start.id,
 			kind,
 			seq: 1,
+			label: start.label ?? null,
 			localDate: start.localDate,
 			status: "active",
+			createdAt: start.now,
 			updatedAt: start.now,
 		}),
-		db.insert(playEvent).values(startRow),
+		...rows.map((row) => db.insert(playEvent).values(row)),
 		...buildProjectionStatements(db, scope, projection),
+		...buildProjectionLineStatements(db, scope, projection.lines, start.now),
 	];
 }
 
-async function loadEntryEventState(
+export async function loadEntryEventState(
 	db: Database,
 	userId: string,
 	entryId: string
 ): Promise<EntryEventState> {
 	const [owned] = await db
-		.select({ kind: entry.kind })
+		.select({ kind: entry.kind, source: entry.source })
 		.from(entry)
 		.where(and(eq(entry.id, entryId), eq(entry.userId, userId)));
 	if (!owned) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
-			message: SESSION_FORBIDDEN_MESSAGE,
+			message: ENTRY_FORBIDDEN_MESSAGE,
 		});
 	}
 	const playSessions = await db
@@ -167,6 +321,7 @@ async function loadEntryEventState(
 			id: playSession.id,
 			seq: playSession.seq,
 			localDate: playSession.localDate,
+			status: playSession.status,
 		})
 		.from(playSession)
 		.where(
@@ -182,13 +337,20 @@ async function loadEntryEventState(
 			occurredAt: playEvent.occurredAt,
 			sortOrder: playEvent.sortOrder,
 			payload: playEvent.payload,
+			schemaVersion: playEvent.schemaVersion,
+			createdAt: playEvent.createdAt,
+			updatedAt: playEvent.updatedAt,
 		})
 		.from(playEvent)
 		.where(and(eq(playEvent.entryId, entryId), eq(playEvent.userId, userId)));
-	return { kind: owned.kind, playSessions, events };
+	events.sort(compareEvents);
+	return { kind: owned.kind, source: owned.source, playSessions, events };
 }
 
-function findStoredEvent(state: EntryEventState, id: string): StoredPlayEvent {
+export function findStoredEvent(
+	state: EntryEventState,
+	id: string
+): StoredPlayEvent {
 	const found = state.events.find((event) => event.id === id);
 	if (!found) {
 		throw new TRPCError({
@@ -199,41 +361,62 @@ function findStoredEvent(state: EntryEventState, id: string): StoredPlayEvent {
 	return found;
 }
 
+export function resolveAppendTarget(
+	state: EntryEventState,
+	playSessionId: string | undefined
+): string {
+	if (playSessionId !== undefined) {
+		const play = state.playSessions.find(({ id }) => id === playSessionId);
+		if (!play) {
+			throw new TRPCError({
+				code: "FORBIDDEN",
+				message: PLAY_FORBIDDEN_MESSAGE,
+			});
+		}
+		if (play.status === "ended") {
+			throw new TRPCError({
+				code: "PRECONDITION_FAILED",
+				message: "No event can be added to an ended play session",
+			});
+		}
+		return play.id;
+	}
+	const open = state.playSessions.find(({ status }) => status !== "ended");
+	if (!open) {
+		throw new TRPCError({
+			code: "PRECONDITION_FAILED",
+			message: "The entry has no play session in progress",
+		});
+	}
+	return open.id;
+}
+
 function planAppend(
 	db: Database,
-	scope: { entryId: string; userId: string },
+	scope: EntryScope,
 	state: EntryEventState,
 	events: readonly NewPlayEvent[],
 	now: Date
 ) {
-	const latest = state.playSessions.at(-1);
-	if (!latest) {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: SESSION_FORBIDDEN_MESSAGE,
-		});
-	}
-	const knownSessions = new Set(state.playSessions.map(({ id }) => id));
 	let nextSortOrder =
 		state.events.reduce((max, event) => Math.max(max, event.sortOrder), -1) + 1;
 	const rows = events.map((event) => {
-		const playSessionId = event.playSessionId ?? latest.id;
-		if (!knownSessions.has(playSessionId)) {
-			throw new TRPCError({
-				code: "BAD_REQUEST",
-				message: "The play session does not belong to this session",
-			});
-		}
-		const row = playEventRow(scope, playSessionId, nextSortOrder, event, now);
+		const row = playEventRow(
+			scope,
+			state.kind,
+			resolveAppendTarget(state, event.playSessionId),
+			nextSortOrder,
+			event,
+			now
+		);
 		nextSortOrder += 1;
 		return row;
 	});
 	return {
 		statements: rows.map((row) =>
-			db.insert(playEvent).values({
-				...row,
-				sortOrder: sql<number>`(SELECT COALESCE(MAX(${playEvent.sortOrder}), -1) + 1 FROM ${playEvent} WHERE ${playEvent.entryId} = ${scope.entryId})`,
-			})
+			db
+				.insert(playEvent)
+				.values({ ...row, sortOrder: nextSortOrderSql(scope.entryId) })
 		),
 		events: [...state.events, ...rows],
 		eventIds: rows.map((row) => row.id),
@@ -242,13 +425,13 @@ function planAppend(
 
 function planChange(
 	db: Database,
-	scope: { entryId: string; userId: string },
+	scope: EntryScope,
 	state: EntryEventState,
 	change: EntryEventChange,
 	now: Date
 ): {
 	eventIds: string[];
-	events: StoredPlayEvent[];
+	events: ProjectorEvent[];
 	statements: BatchStatement[];
 } {
 	if (change.op === "append") {
@@ -270,13 +453,18 @@ function planChange(
 	const payload =
 		change.payload === undefined
 			? target.payload
-			: JSON.stringify(change.payload);
+			: canonicalPayload(state.kind, target.type, change.payload);
 	const occurredAt = change.occurredAt ?? target.occurredAt;
 	return {
 		statements: [
 			db
 				.update(playEvent)
-				.set({ occurredAt, payload, updatedAt: now })
+				.set({
+					occurredAt,
+					payload,
+					schemaVersion: PLAY_EVENT_SCHEMA_VERSION,
+					updatedAt: now,
+				})
 				.where(owned),
 		],
 		events: state.events.map((event) =>
@@ -286,6 +474,54 @@ function planChange(
 	};
 }
 
+export function mapLiveWriteConflict(error: unknown): unknown {
+	if (isUnfinishedPlaySessionConflictError(error)) {
+		return new TRPCError({
+			code: "CONFLICT",
+			message: "Another play session is already in progress",
+			cause: error,
+		});
+	}
+	if (isPlayEventOrderConflictError(error)) {
+		return new TRPCError({
+			code: "CONFLICT",
+			message: "Another change to this entry was saved at the same time",
+			cause: error,
+		});
+	}
+	return error;
+}
+
+export async function commitEntryEventChange(
+	db: Database,
+	options: {
+		before?: BatchStatement[];
+		change: EntryEventChange;
+		entryId: string;
+		now: Date;
+		state: EntryEventState;
+		userId: string;
+	}
+): Promise<{ eventIds: string[]; projection: EntryProjection }> {
+	const { change, now, state } = options;
+	if (state.source !== "live") {
+		badRequest("Only a live entry records events");
+	}
+	const scope = { entryId: options.entryId, userId: options.userId };
+	const planned = planChange(db, scope, state, change, now);
+	validateEventStream(state.kind, state.playSessions, planned.events);
+	const projection = projectEntry(planned.events, state);
+	await runBatch(db, [
+		...(options.before ?? []),
+		...planned.statements,
+		...buildProjectionStatements(db, scope, projection),
+		...buildProjectionLineStatements(db, scope, projection.lines, now),
+	]).catch((error: unknown) => {
+		throw mapLiveWriteConflict(error);
+	});
+	return { eventIds: planned.eventIds, projection };
+}
+
 export async function applyEntryEventChange(
 	db: Database,
 	userId: string,
@@ -293,13 +529,12 @@ export async function applyEntryEventChange(
 	change: EntryEventChange,
 	now: Date
 ): Promise<{ eventIds: string[]; projection: EntryProjection }> {
-	const scope = { entryId, userId };
 	const state = await loadEntryEventState(db, userId, entryId);
-	const planned = planChange(db, scope, state, change, now);
-	const projection = projectEntry(planned.events, state);
-	await runBatch(db, [
-		...planned.statements,
-		...buildProjectionStatements(db, scope, projection),
-	]);
-	return { eventIds: planned.eventIds, projection };
+	return await commitEntryEventChange(db, {
+		change,
+		entryId,
+		now,
+		state,
+		userId,
+	});
 }

@@ -693,6 +693,28 @@ export const DELIBERATELY_EXCLUDED: {
 		paths: ["hand.delete"],
 	},
 	{
+		reason:
+			"Cockpit: live recording follows the table in real time — starts, completions, events and seat changes are timestamped as they happen and retried calls append duplicate events; agents record finished play through the entry tools",
+		paths: [
+			"live.list",
+			"live.getById",
+			"live.create",
+			"live.update",
+			"live.complete",
+			"live.discard",
+			"playEvent.list",
+			"playEvent.create",
+			"playEvent.update",
+			"playEvent.delete",
+			"tablePlayer.list",
+			"tablePlayer.add",
+			"tablePlayer.addNew",
+			"tablePlayer.addTemporary",
+			"tablePlayer.updateSeat",
+			"tablePlayer.remove",
+		],
+	},
+	{
 		reason: "Web-only release-note read tracking",
 		paths: ["updateNoteView.list", "updateNoteView.markViewed"],
 	},

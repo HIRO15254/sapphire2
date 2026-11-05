@@ -23,6 +23,12 @@ const GAME_MASTER_LABEL_CONFLICT_RE = {
 
 const FOREIGN_KEY_FAILED_RE = /FOREIGN KEY constraint failed/i;
 
+const UNFINISHED_PLAY_SESSION_CONFLICT_RE =
+	/UNIQUE constraint failed:\s*(play_session\.user_id|index 'play_session_one_unfinished_per_user_idx')/i;
+
+const PLAY_EVENT_ORDER_CONFLICT_RE =
+	/UNIQUE constraint failed:\s*(play_event\.entry_id,\s*play_event\.sort_order|index 'play_event_entry_sort_order_unique')/i;
+
 function someErrorInChain(error: unknown, pattern: RegExp): boolean {
 	let current = error;
 	while (current instanceof Error) {
@@ -36,6 +42,14 @@ function someErrorInChain(error: unknown, pattern: RegExp): boolean {
 
 export function isForeignKeyConstraintError(error: unknown): boolean {
 	return someErrorInChain(error, FOREIGN_KEY_FAILED_RE);
+}
+
+export function isUnfinishedPlaySessionConflictError(error: unknown): boolean {
+	return someErrorInChain(error, UNFINISHED_PLAY_SESSION_CONFLICT_RE);
+}
+
+export function isPlayEventOrderConflictError(error: unknown): boolean {
+	return someErrorInChain(error, PLAY_EVENT_ORDER_CONFLICT_RE);
 }
 
 export function isAssetNameConflictError(error: unknown): boolean {

@@ -106,7 +106,7 @@ interface TournamentResult {
 
 const MS_PER_MINUTE = 60_000;
 
-function compareEvents(a: ProjectorEvent, b: ProjectorEvent): number {
+export function compareEvents(a: ProjectorEvent, b: ProjectorEvent): number {
 	const byTime = a.occurredAt.getTime() - b.occurredAt.getTime();
 	if (byTime !== 0) {
 		return byTime;
@@ -141,10 +141,12 @@ function readClock(
 	};
 }
 
-function readCashOut(event: ProjectorEvent): number {
-	return cashSessionEndPayload
-		.parse(JSON.parse(event.payload))
-		.payments.reduce((sum, payment) => sum + payment.quantity, 0);
+function readCashEnd(event: ProjectorEvent) {
+	const data = cashSessionEndPayload.parse(JSON.parse(event.payload));
+	return {
+		endState: data.endState ?? "cashed_out",
+		endStack: data.payments.reduce((sum, payment) => sum + payment.quantity, 0),
+	};
 }
 
 function readTournamentResult(event: ProjectorEvent): TournamentResult {
@@ -164,6 +166,16 @@ function readTournamentResult(event: ProjectorEvent): TournamentResult {
 	};
 }
 
+function readTournamentEndState(event: ProjectorEvent): PlaySessionEndState {
+	const parsed = tournamentSessionEndPayload.safeParse(
+		JSON.parse(event.payload)
+	);
+	if (parsed.success && parsed.data.endState) {
+		return parsed.data.endState;
+	}
+	return readTournamentResult(event).placement === 1 ? "finished" : "busted";
+}
+
 function readEnd(
 	endEvent: ProjectorEvent,
 	kind: EntryKind
@@ -173,10 +185,9 @@ function readEnd(
 		return { endState: data.endState, endStack: data.stackAmount };
 	}
 	if (kind === "cash") {
-		return { endState: "cashed_out", endStack: readCashOut(endEvent) };
+		return readCashEnd(endEvent);
 	}
-	const { placement } = readTournamentResult(endEvent);
-	return { endState: placement === 1 ? "finished" : "busted", endStack: null };
+	return { endState: readTournamentEndState(endEvent), endStack: null };
 }
 
 function foldPlaySession(
@@ -409,6 +420,66 @@ export function projectEntry(
 				)
 			)
 		),
+	};
+}
+
+export interface TournamentProgress {
+	averageStack: number | null;
+	chipTotal: number;
+	currentStack: number | null;
+	remainingPlayers: number | null;
+	totalEntries: number | null;
+}
+
+export function projectTournamentProgress(
+	events: readonly ProjectorEvent[],
+	startingStack: number | null
+): TournamentProgress {
+	let currentStack: number | null = null;
+	let remainingPlayers: number | null = null;
+	let totalEntries: number | null = null;
+	let reportedChips = 0;
+	let purchasedChips = 0;
+	for (const event of [...events].sort(compareEvents)) {
+		if (event.type === "update_stack") {
+			const data = updateStackPayload.parse(JSON.parse(event.payload));
+			currentStack = data.stackAmount;
+			if (data.remainingPlayers !== undefined) {
+				remainingPlayers = data.remainingPlayers;
+			}
+			if (data.totalEntries !== undefined) {
+				totalEntries = data.totalEntries;
+			}
+			if (data.chipPurchaseCounts !== undefined) {
+				reportedChips = data.chipPurchaseCounts.reduce(
+					(sum, row) => sum + row.count * row.chipsPerUnit,
+					0
+				);
+				purchasedChips = 0;
+			}
+		} else if (event.type === "purchase_chips") {
+			purchasedChips += purchaseChipsPayload.parse(
+				JSON.parse(event.payload)
+			).chips;
+		} else if (event.type === "day_end") {
+			currentStack = dayEndPayload.parse(JSON.parse(event.payload)).stackAmount;
+		}
+	}
+	const chipTotal = reportedChips + purchasedChips;
+	return {
+		currentStack,
+		remainingPlayers,
+		totalEntries,
+		chipTotal,
+		averageStack:
+			startingStack === null ||
+			totalEntries === null ||
+			remainingPlayers === null ||
+			remainingPlayers <= 0
+				? null
+				: Math.round(
+						(startingStack * totalEntries + chipTotal) / remainingPlayers
+					),
 	};
 }
 

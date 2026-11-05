@@ -42,6 +42,19 @@ describe("foldPlayerSeat", () => {
 		).toBe(6);
 	});
 
+	it("stands the player up on a join with an explicit null seat", () => {
+		expect(
+			foldPlayerSeat(
+				[
+					ev("player_join", { playerId: "hero", seatPosition: 6 }),
+					ev("player_join", { playerId: "hero", seatPosition: null }),
+					ev("player_join", { playerId: "hero" }),
+				],
+				"hero"
+			)
+		).toBeNull();
+	});
+
 	it("ignores other players and unrelated event types", () => {
 		expect(
 			foldPlayerSeat(

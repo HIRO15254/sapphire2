@@ -64,7 +64,7 @@ The SA2-150 regression defined the two invariants every cursor implementation he
 
 ## N+1 collapse on list endpoints (SA2-151)
 
-The legacy live-session `list` endpoints fetched `session_event` with one `WHERE session_id = ?` query per page item — up to limit+1 ≈ 100 extra round-trips, and on D1 per-query latency dominates, so the N+1 was the whole cost of the page. The fix collected the page's ids, fetched every event in one `inArray` query (chunked via `selectInChunks`), then bucketed rows by id. Those endpoints were removed in B06; the B17 live list must load its events the same way.
+The legacy live-session `list` endpoints fetched `session_event` with one `WHERE session_id = ?` query per page item — up to limit+1 ≈ 100 extra round-trips, and on D1 per-query latency dominates, so the N+1 was the whole cost of the page. The fix collected the page's ids, fetched every event in one `inArray` query (chunked via `selectInChunks`), then bucketed rows by id. Those endpoints were removed in B06; `live.list` loads the progress events of its page the same way (`attachProgress` in `packages/api/src/services/live-entry.ts`).
 
 Two details of the design are load-bearing:
 

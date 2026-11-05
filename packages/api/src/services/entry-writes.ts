@@ -252,7 +252,7 @@ function attachTopLevelPayments(
 	return [{ ...only, payments }];
 }
 
-async function assertSelectable(
+export async function assertSelectable(
 	db: Database,
 	userId: string,
 	target: { ringGameId: string } | { roomId: string } | { tournamentId: string }
@@ -284,7 +284,7 @@ async function assertSelectable(
 	}
 }
 
-async function assertPaymentAssets(
+export async function assertPaymentAssets(
 	db: Database,
 	userId: string,
 	payments: ManualPaymentInput[],
@@ -310,7 +310,7 @@ async function assertPaymentAssets(
 	}
 }
 
-async function assertPaymentPrices(
+export async function assertPaymentPrices(
 	db: Database,
 	userId: string,
 	ruleVersionId: string | null,
@@ -368,7 +368,7 @@ async function assertPaymentPrices(
 	}
 }
 
-async function assertMetadata(
+export async function assertMetadata(
 	db: Database,
 	userId: string,
 	input: EntryMetadataInput,
@@ -488,10 +488,14 @@ function tagStatements(
 	];
 }
 
-async function planCreateRule(
+export type EntryRuleRequest =
+	| { kind: "cash"; ringGameId?: string; rule?: CashRuleInput }
+	| { kind: "tournament"; rule?: TournamentRuleInput; tournamentId?: string };
+
+export async function planCreateRule(
 	db: Database,
 	userId: string,
-	input: EntryCreateInput
+	input: EntryRuleRequest
 ): Promise<EntryRuleWrite> {
 	if (input.kind === "cash") {
 		if (input.ringGameId) {
