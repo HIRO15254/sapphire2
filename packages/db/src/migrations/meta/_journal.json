@@ -512,13 +512,6 @@
       "when": 1793853004743,
       "tag": "0072_tag_tables",
       "breakpoints": true
-    },
-    {
-      "idx": 73,
-      "version": "6",
-      "when": 1793861626259,
-      "tag": "0073_stand_in_cleanup",
-      "breakpoints": true
     }
   ]
 }
