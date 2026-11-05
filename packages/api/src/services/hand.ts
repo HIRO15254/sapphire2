@@ -20,6 +20,7 @@ import {
 	handBoard,
 	handSeat,
 } from "@sapphire2/db/schema/hand";
+import { handTag, handTagLink } from "@sapphire2/db/schema/hand-tag";
 import { player } from "@sapphire2/db/schema/player";
 import { anteTypeSchema } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
@@ -196,9 +197,16 @@ type HandRow = typeof hand.$inferSelect;
 type HandSeatRow = typeof handSeat.$inferSelect;
 type HandActionRow = typeof handAction.$inferSelect;
 
+export interface HandTagOutput {
+	id: string;
+	name: string;
+	reviewedAt: Date | null;
+}
+
 export type HandOutput = Omit<HandRow, "stakes" | "userId"> & {
 	boards: string[];
 	stakes: HandStakes | null;
+	tags: HandTagOutput[];
 };
 export type HandSeatOutput = Omit<HandSeatRow, "handId" | "userId">;
 export type HandActionOutput = Omit<HandActionRow, "handId" | "userId">;
@@ -212,12 +220,14 @@ interface OwnedHand {
 
 function toHandOutput(
 	{ stakes, userId: _userId, ...row }: HandRow,
-	boards: string[]
+	boards: string[],
+	tags: HandTagOutput[]
 ): HandOutput {
 	return {
 		...row,
 		boards,
 		stakes: stakes === null ? null : handStakesSchema.parse(JSON.parse(stakes)),
+		tags,
 	};
 }
 
@@ -246,6 +256,45 @@ async function loadBoards(
 		}
 	}
 	return boards;
+}
+
+async function loadTags(
+	db: Database,
+	userId: string,
+	handIds: string[]
+): Promise<Map<string, HandTagOutput[]>> {
+	const tags = new Map<string, HandTagOutput[]>();
+	if (handIds.length === 0) {
+		return tags;
+	}
+	const rows = await db
+		.select({
+			handId: handTagLink.handId,
+			id: handTag.id,
+			name: handTag.name,
+			reviewedAt: handTagLink.reviewedAt,
+		})
+		.from(handTagLink)
+		.innerJoin(
+			handTag,
+			and(
+				eq(handTag.id, handTagLink.tagId),
+				eq(handTag.userId, handTagLink.userId)
+			)
+		)
+		.where(
+			and(eq(handTagLink.userId, userId), inArray(handTagLink.handId, handIds))
+		)
+		.orderBy(asc(handTag.sortOrder), asc(handTag.id));
+	for (const { handId, ...tag } of rows) {
+		const list = tags.get(handId);
+		if (list) {
+			list.push(tag);
+		} else {
+			tags.set(handId, [tag]);
+		}
+	}
+	return tags;
 }
 
 function forbidden(message: string): TRPCError {
@@ -511,7 +560,7 @@ export async function addHand(
 	if (!row) {
 		throw new Error("The hand insert returned no row");
 	}
-	return toHandOutput(row, []);
+	return toHandOutput(row, [], []);
 }
 
 export async function undoLastHand(
@@ -636,14 +685,14 @@ export async function listHands(
 						)
 					)
 					.orderBy(asc(handSeat.seat));
-	const boards = await loadBoards(
-		db,
-		userId,
-		page.map(({ id }) => id)
-	);
+	const pageIds = page.map(({ id }) => id);
+	const [boards, tags] = await Promise.all([
+		loadBoards(db, userId, pageIds),
+		loadTags(db, userId, pageIds),
+	]);
 	return {
 		items: page.map((row) => ({
-			...toHandOutput(row, boards.get(row.id) ?? []),
+			...toHandOutput(row, boards.get(row.id) ?? [], tags.get(row.id) ?? []),
 			seats: seats
 				.filter((seat) => seat.handId === row.id)
 				.map(({ handId: _handId, userId: _userId, ...seat }) => seat),
@@ -684,7 +733,11 @@ export async function getHand(
 		.orderBy(asc(handAction.seq));
 	const boards = await loadBoards(db, userId, [handId]);
 	return {
-		...toHandOutput(row, boards.get(handId) ?? []),
+		...toHandOutput(
+			row,
+			boards.get(handId) ?? [],
+			(await loadTags(db, userId, [handId])).get(handId) ?? []
+		),
 		seats: seats.map(({ handId: _handId, userId: _userId, ...seat }) => seat),
 		actions: actions.map(
 			({ handId: _handId, userId: _userId, ...action }) => action

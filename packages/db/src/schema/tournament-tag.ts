@@ -1,25 +1,35 @@
-import { relations, sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { relations } from "drizzle-orm";
+import { user } from "./auth";
+import { defineTagTables } from "./tag-tables";
 import { tournament } from "./tournament";
 
-export const tournamentTag = sqliteTable(
-	"tournament_tag",
-	{
-		id: text("id").primaryKey(),
-		tournamentId: text("tournament_id")
-			.notNull()
-			.references(() => tournament.id, { onDelete: "cascade" }),
-		name: text("name").notNull(),
-		createdAt: integer("created_at", { mode: "timestamp" })
-			.default(sql`(unixepoch())`)
-			.notNull(),
-	},
-	(table) => [index("tournamentTag_tournamentId_idx").on(table.tournamentId)]
+export const { tag: tournamentTag, link: tournamentTagLink } = defineTagTables(
+	"tournament",
+	() => tournament,
+	{ tagTable: "tournament_tag_def" }
 );
 
-export const tournamentTagRelations = relations(tournamentTag, ({ one }) => ({
-	tournament: one(tournament, {
-		fields: [tournamentTag.tournamentId],
-		references: [tournament.id],
-	}),
-}));
+export const tournamentTagRelations = relations(
+	tournamentTag,
+	({ one, many }) => ({
+		user: one(user, {
+			fields: [tournamentTag.userId],
+			references: [user.id],
+		}),
+		links: many(tournamentTagLink),
+	})
+);
+
+export const tournamentTagLinkRelations = relations(
+	tournamentTagLink,
+	({ one }) => ({
+		tournament: one(tournament, {
+			fields: [tournamentTagLink.tournamentId, tournamentTagLink.userId],
+			references: [tournament.id, tournament.userId],
+		}),
+		tag: one(tournamentTag, {
+			fields: [tournamentTagLink.tagId, tournamentTagLink.userId],
+			references: [tournamentTag.id, tournamentTag.userId],
+		}),
+	})
+);

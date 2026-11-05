@@ -9,6 +9,7 @@ import {
 	uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 import { user } from "./auth";
+import { defineTagTables } from "./tag-tables";
 
 export const player = sqliteTable(
 	"player",
@@ -40,26 +41,13 @@ export const player = sqliteTable(
 	]
 );
 
-export const playerTag = sqliteTable(
-	"player_tag",
+export const { tag: playerTag, link: playerTagLink } = defineTagTables(
+	"player",
+	() => player,
 	{
-		id: text("id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		name: text("name").notNull(),
-		color: text("color").notNull().default("gray"),
-		createdAt: integer("created_at", { mode: "timestamp" })
-			.default(sql`(unixepoch())`)
-			.notNull(),
-		updatedAt: integer("updated_at", { mode: "timestamp" })
-			.$onUpdate(() => new Date())
-			.notNull(),
-	},
-	(table) => [
-		uniqueIndex("player_tag_id_user_id_unique").on(table.id, table.userId),
-		index("playerTag_userId_idx").on(table.userId),
-	]
+		tagColumns: { color: text("color").notNull().default("gray") },
+		linkColumns: { position: integer("position").notNull().default(0) },
+	}
 );
 
 export const playerToPlayerTag = sqliteTable(
@@ -84,7 +72,7 @@ export const playerRelations = relations(player, ({ one, many }) => ({
 		fields: [player.userId],
 		references: [user.id],
 	}),
-	tagLinks: many(playerToPlayerTag),
+	tagLinks: many(playerTagLink),
 }));
 
 export const playerTagRelations = relations(playerTag, ({ one, many }) => ({
@@ -92,7 +80,18 @@ export const playerTagRelations = relations(playerTag, ({ one, many }) => ({
 		fields: [playerTag.userId],
 		references: [user.id],
 	}),
-	playerLinks: many(playerToPlayerTag),
+	links: many(playerTagLink),
+}));
+
+export const playerTagLinkRelations = relations(playerTagLink, ({ one }) => ({
+	player: one(player, {
+		fields: [playerTagLink.playerId, playerTagLink.userId],
+		references: [player.id, player.userId],
+	}),
+	tag: one(playerTag, {
+		fields: [playerTagLink.tagId, playerTagLink.userId],
+		references: [playerTag.id, playerTag.userId],
+	}),
 }));
 
 export const playerToPlayerTagRelations = relations(

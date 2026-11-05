@@ -1,22 +1,24 @@
 import { handSeat } from "@sapphire2/db/schema/hand";
-import {
-	player,
-	playerTag,
-	playerToPlayerTag,
-} from "@sapphire2/db/schema/player";
+import { player, playerTag, playerTagLink } from "@sapphire2/db/schema/player";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, exists, inArray, like, not } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
-import {
-	type BatchStatement,
-	chunkForInsert,
-	runBatch,
-	selectInChunks,
-} from "../lib/batch";
+import { type BatchStatement, runBatch, selectInChunks } from "../lib/batch";
 import { validateTagsOwnership } from "../lib/ownership";
-import { optionalUniqueTagIdsSchema } from "../lib/tag-ids";
+import { tagIdsSchema } from "../lib/tag-ids";
+import { insertChunks } from "../services/game-lineup";
 import { ensureSelfPlayer } from "../services/self-player";
+
+type DbInstance = Parameters<
+	Parameters<typeof protectedProcedure.query>[0]
+>[0]["ctx"]["db"];
+
+interface PlayerTagOutput {
+	color: string;
+	id: string;
+	name: string;
+}
 
 export const playerListInputSchema = z
 	.object({
@@ -24,6 +26,68 @@ export const playerListInputSchema = z
 		tagIds: z.array(z.string()).optional(),
 	})
 	.optional();
+
+async function tagsByPlayer(
+	db: DbInstance,
+	userId: string,
+	playerIds: string[]
+): Promise<Map<string, PlayerTagOutput[]>> {
+	const links = await selectInChunks(
+		playerIds,
+		(chunk) =>
+			db
+				.select({
+					playerId: playerTagLink.playerId,
+					id: playerTag.id,
+					name: playerTag.name,
+					color: playerTag.color,
+				})
+				.from(playerTagLink)
+				.innerJoin(
+					playerTag,
+					and(
+						eq(playerTag.id, playerTagLink.tagId),
+						eq(playerTag.userId, playerTagLink.userId)
+					)
+				)
+				.where(
+					and(
+						eq(playerTagLink.userId, userId),
+						inArray(playerTagLink.playerId, chunk)
+					)
+				)
+				.orderBy(asc(playerTagLink.position), asc(playerTag.id)),
+		1
+	);
+	const grouped = new Map<string, PlayerTagOutput[]>();
+	for (const { playerId, ...tag } of links) {
+		const tags = grouped.get(playerId) ?? [];
+		tags.push(tag);
+		grouped.set(playerId, tags);
+	}
+	return grouped;
+}
+
+function linkStatements(
+	db: DbInstance,
+	userId: string,
+	playerId: string,
+	tagIds: string[]
+): BatchStatement[] {
+	return insertChunks(
+		tagIds.map((tagId, position) => ({ userId, playerId, tagId, position })),
+		(chunk) => db.insert(playerTagLink).values(chunk)
+	);
+}
+
+async function withTags<T extends { id: string }>(
+	db: DbInstance,
+	userId: string,
+	row: T
+): Promise<T & { tags: PlayerTagOutput[] }> {
+	const tags = await tagsByPlayer(db, userId, [row.id]);
+	return { ...row, tags: tags.get(row.id) ?? [] };
+}
 
 export const playerRouter = router({
 	list: protectedProcedure
@@ -35,11 +99,19 @@ export const playerRouter = router({
 
 			if (input?.tagIds && input.tagIds.length > 0) {
 				await validateTagsOwnership(ctx.db, playerTag, input.tagIds, userId);
-				const tagLinks = await selectInChunks(input.tagIds, (chunk) =>
-					ctx.db
-						.select({ playerId: playerToPlayerTag.playerId })
-						.from(playerToPlayerTag)
-						.where(inArray(playerToPlayerTag.playerTagId, chunk))
+				const tagLinks = await selectInChunks(
+					input.tagIds,
+					(chunk) =>
+						ctx.db
+							.select({ playerId: playerTagLink.playerId })
+							.from(playerTagLink)
+							.where(
+								and(
+									eq(playerTagLink.userId, userId),
+									inArray(playerTagLink.tagId, chunk)
+								)
+							),
+					1
 				);
 				playerIds = [...new Set(tagLinks.map((link) => link.playerId))];
 				if (playerIds.length === 0) {
@@ -74,76 +146,24 @@ export const playerRouter = router({
 			const uniquePlayers = [
 				...new Map(players.map((item) => [item.id, item])).values(),
 			];
-			const allPlayerIds = uniquePlayers.map((item) => item.id);
-			if (allPlayerIds.length === 0) {
+			if (uniquePlayers.length === 0) {
 				return [];
 			}
 
-			const tagLinks = await selectInChunks(
-				allPlayerIds,
-				(chunk) =>
-					ctx.db
-						.select({
-							playerId: playerToPlayerTag.playerId,
-							tagId: playerTag.id,
-							tagName: playerTag.name,
-							tagColor: playerTag.color,
-						})
-						.from(playerToPlayerTag)
-						.innerJoin(
-							playerTag,
-							eq(playerToPlayerTag.playerTagId, playerTag.id)
-						)
-						.where(
-							and(
-								inArray(playerToPlayerTag.playerId, chunk),
-								eq(playerTag.userId, userId)
-							)
-						)
-						.orderBy(asc(playerToPlayerTag.position)),
-				1
+			const tags = await tagsByPlayer(
+				ctx.db,
+				userId,
+				uniquePlayers.map((item) => item.id)
 			);
-
-			const tagsByPlayer = new Map<
-				string,
-				Array<{ id: string; name: string; color: string }>
-			>();
-			for (const link of tagLinks) {
-				const tags = tagsByPlayer.get(link.playerId) ?? [];
-				tags.push({
-					id: link.tagId,
-					name: link.tagName,
-					color: link.tagColor,
-				});
-				tagsByPlayer.set(link.playerId, tags);
-			}
-
 			return uniquePlayers.map((item) => ({
 				...item,
-				tags: tagsByPlayer.get(item.id) ?? [],
+				tags: tags.get(item.id) ?? [],
 			}));
 		}),
 
 	getSelf: protectedProcedure.query(async ({ ctx }) => {
 		const userId = ctx.session.user.id;
-		const self = await ensureSelfPlayer(ctx.db, userId);
-		const tags = await ctx.db
-			.select({
-				id: playerTag.id,
-				name: playerTag.name,
-				color: playerTag.color,
-			})
-			.from(playerToPlayerTag)
-			.innerJoin(
-				playerTag,
-				and(
-					eq(playerToPlayerTag.playerTagId, playerTag.id),
-					eq(playerTag.userId, userId)
-				)
-			)
-			.where(eq(playerToPlayerTag.playerId, self.id))
-			.orderBy(asc(playerToPlayerTag.position));
-		return { ...self, tags };
+		return withTags(ctx.db, userId, await ensureSelfPlayer(ctx.db, userId));
 	}),
 
 	getById: protectedProcedure
@@ -162,31 +182,7 @@ export const playerRouter = router({
 				});
 			}
 
-			const tagLinks = await ctx.db
-				.select({
-					tagId: playerTag.id,
-					tagName: playerTag.name,
-					tagColor: playerTag.color,
-				})
-				.from(playerToPlayerTag)
-				.innerJoin(
-					playerTag,
-					and(
-						eq(playerToPlayerTag.playerTagId, playerTag.id),
-						eq(playerTag.userId, userId)
-					)
-				)
-				.where(eq(playerToPlayerTag.playerId, found.id))
-				.orderBy(asc(playerToPlayerTag.position));
-
-			return {
-				...found,
-				tags: tagLinks.map((tag) => ({
-					id: tag.tagId,
-					name: tag.tagName,
-					color: tag.tagColor,
-				})),
-			};
+			return withTags(ctx.db, userId, found);
 		}),
 
 	create: protectedProcedure
@@ -194,7 +190,7 @@ export const playerRouter = router({
 			z.object({
 				name: z.string().min(1).max(100),
 				memo: z.string().max(50_000).optional(),
-				tagIds: optionalUniqueTagIdsSchema,
+				tagIds: tagIdsSchema.optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -202,7 +198,7 @@ export const playerRouter = router({
 			await validateTagsOwnership(ctx.db, playerTag, input.tagIds, userId);
 
 			const id = crypto.randomUUID();
-			const statements: BatchStatement[] = [
+			await runBatch(ctx.db, [
 				ctx.db.insert(player).values({
 					id,
 					userId,
@@ -210,51 +206,17 @@ export const playerRouter = router({
 					memo: input.memo ?? null,
 					updatedAt: new Date(),
 				}),
-			];
-
-			if (input.tagIds && input.tagIds.length > 0) {
-				const links = input.tagIds.map((tagId, position) => ({
-					playerId: id,
-					playerTagId: tagId,
-					position,
-				}));
-				for (const chunk of chunkForInsert(links, 3)) {
-					statements.push(ctx.db.insert(playerToPlayerTag).values(chunk));
-				}
-			}
-
-			await runBatch(ctx.db, statements);
+				...linkStatements(ctx.db, userId, id, input.tagIds ?? []),
+			]);
 
 			const [created] = await ctx.db
 				.select()
 				.from(player)
-				.where(eq(player.id, id));
-
-			const tagLinks = await ctx.db
-				.select({
-					tagId: playerTag.id,
-					tagName: playerTag.name,
-					tagColor: playerTag.color,
-				})
-				.from(playerToPlayerTag)
-				.innerJoin(
-					playerTag,
-					and(
-						eq(playerToPlayerTag.playerTagId, playerTag.id),
-						eq(playerTag.userId, userId)
-					)
-				)
-				.where(eq(playerToPlayerTag.playerId, id))
-				.orderBy(asc(playerToPlayerTag.position));
-
-			return {
-				...created,
-				tags: tagLinks.map((tag) => ({
-					id: tag.tagId,
-					name: tag.tagName,
-					color: tag.tagColor,
-				})),
-			};
+				.where(and(eq(player.id, id), eq(player.userId, userId)));
+			if (!created) {
+				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+			}
+			return withTags(ctx.db, userId, created);
 		}),
 
 	update: protectedProcedure
@@ -263,7 +225,7 @@ export const playerRouter = router({
 				id: z.string(),
 				name: z.string().min(1).max(100).optional(),
 				memo: z.string().max(50_000).optional().nullable(),
-				tagIds: optionalUniqueTagIdsSchema,
+				tagIds: tagIdsSchema.optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -280,38 +242,38 @@ export const playerRouter = router({
 				});
 			}
 
-			if (input.tagIds !== undefined) {
-				await validateTagsOwnership(ctx.db, playerTag, input.tagIds, userId);
-			}
+			await validateTagsOwnership(ctx.db, playerTag, input.tagIds, userId);
 
 			const statements: BatchStatement[] = [];
-
-			if (input.name !== undefined || input.memo !== undefined) {
+			if (
+				input.name !== undefined ||
+				input.memo !== undefined ||
+				input.tagIds !== undefined
+			) {
 				statements.push(
 					ctx.db
 						.update(player)
 						.set({
 							...(input.name === undefined ? {} : { name: input.name }),
 							...(input.memo === undefined ? {} : { memo: input.memo }),
+							updatedAt: new Date(),
 						})
-						.where(eq(player.id, input.id))
+						.where(and(eq(player.id, input.id), eq(player.userId, userId)))
 				);
 			}
 
 			if (input.tagIds !== undefined) {
 				statements.push(
 					ctx.db
-						.delete(playerToPlayerTag)
-						.where(eq(playerToPlayerTag.playerId, input.id))
+						.delete(playerTagLink)
+						.where(
+							and(
+								eq(playerTagLink.playerId, input.id),
+								eq(playerTagLink.userId, userId)
+							)
+						),
+					...linkStatements(ctx.db, userId, input.id, input.tagIds)
 				);
-				const links = input.tagIds.map((tagId, position) => ({
-					playerId: input.id,
-					playerTagId: tagId,
-					position,
-				}));
-				for (const chunk of chunkForInsert(links, 3)) {
-					statements.push(ctx.db.insert(playerToPlayerTag).values(chunk));
-				}
 			}
 
 			await runBatch(ctx.db, statements);
@@ -319,33 +281,11 @@ export const playerRouter = router({
 			const [updated] = await ctx.db
 				.select()
 				.from(player)
-				.where(eq(player.id, input.id));
-
-			const tagLinks = await ctx.db
-				.select({
-					tagId: playerTag.id,
-					tagName: playerTag.name,
-					tagColor: playerTag.color,
-				})
-				.from(playerToPlayerTag)
-				.innerJoin(
-					playerTag,
-					and(
-						eq(playerToPlayerTag.playerTagId, playerTag.id),
-						eq(playerTag.userId, userId)
-					)
-				)
-				.where(eq(playerToPlayerTag.playerId, input.id))
-				.orderBy(asc(playerToPlayerTag.position));
-
-			return {
-				...updated,
-				tags: tagLinks.map((tag) => ({
-					id: tag.tagId,
-					name: tag.tagName,
-					color: tag.tagColor,
-				})),
-			};
+				.where(and(eq(player.id, input.id), eq(player.userId, userId)));
+			if (!updated) {
+				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+			}
+			return withTags(ctx.db, userId, updated);
 		}),
 
 	delete: protectedProcedure

@@ -1,14 +1,25 @@
 import { asset } from "@sapphire2/db/schema/asset";
 import { tournamentRule } from "@sapphire2/db/schema/rule";
 import { tournament } from "@sapphire2/db/schema/tournament";
-import { tournamentTag } from "@sapphire2/db/schema/tournament-tag";
+import {
+	tournamentTag,
+	tournamentTagLink,
+} from "@sapphire2/db/schema/tournament-tag";
 import { TRPCError } from "@trpc/server";
-import { and, eq, inArray, isNull, not, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, not, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { type BatchStatement, runBatch, selectInChunks } from "../lib/batch";
-import { validateEntityOwnership } from "../lib/ownership";
-import { hydrateLineups, type LineupMap } from "../services/game-lineup";
+import {
+	validateEntityOwnership,
+	validateTagsOwnership,
+} from "../lib/ownership";
+import { tagIdsSchema } from "../lib/tag-ids";
+import {
+	hydrateLineups,
+	insertChunks,
+	type LineupMap,
+} from "../services/game-lineup";
 import {
 	hydrateTournamentRules,
 	planTournamentRuleWrite,
@@ -27,7 +38,6 @@ type TournamentRow = typeof tournament.$inferSelect;
 const idSchema = z.string().min(1);
 const nameSchema = z.string().trim().min(1).max(100);
 const memoSchema = z.string().max(50_000);
-const tagsSchema = z.array(z.string().trim().min(1).max(50)).max(50);
 
 export const tournamentListByRoomInputSchema = z.object({
 	roomId: idSchema,
@@ -41,7 +51,7 @@ const createFields = {
 	name: nameSchema,
 	defaultAssetId: idSchema.nullable().optional(),
 	memo: memoSchema.nullable().optional(),
-	tags: tagsSchema.optional(),
+	tagIds: tagIdsSchema.optional(),
 };
 
 const updateFields = {
@@ -49,7 +59,7 @@ const updateFields = {
 	name: nameSchema.optional(),
 	defaultAssetId: idSchema.nullable().optional(),
 	memo: memoSchema.nullable().optional(),
-	tags: tagsSchema.optional(),
+	tagIds: tagIdsSchema.optional(),
 };
 
 export const tournamentCreateInputSchema = z.object({
@@ -118,10 +128,24 @@ async function hydrateTournaments(
 					.select({
 						id: tournamentTag.id,
 						name: tournamentTag.name,
-						tournamentId: tournamentTag.tournamentId,
+						tournamentId: tournamentTagLink.tournamentId,
 					})
-					.from(tournamentTag)
-					.where(inArray(tournamentTag.tournamentId, chunk))
+					.from(tournamentTagLink)
+					.innerJoin(
+						tournamentTag,
+						and(
+							eq(tournamentTag.id, tournamentTagLink.tagId),
+							eq(tournamentTag.userId, tournamentTagLink.userId)
+						)
+					)
+					.where(
+						and(
+							eq(tournamentTagLink.userId, userId),
+							inArray(tournamentTagLink.tournamentId, chunk)
+						)
+					)
+					.orderBy(asc(tournamentTag.sortOrder), asc(tournamentTag.id)),
+			1
 		),
 	]);
 	const lineups = await hydrateLineups(
@@ -207,26 +231,30 @@ async function assertDefaultAsset(
 function tagStatements(
 	db: DbInstance,
 	tournamentId: string,
-	tags: string[] | undefined
+	userId: string,
+	tagIds: string[] | undefined,
+	replace: boolean
 ): BatchStatement[] {
-	if (tags === undefined) {
+	if (tagIds === undefined) {
 		return [];
 	}
 	return [
-		db
-			.delete(tournamentTag)
-			.where(eq(tournamentTag.tournamentId, tournamentId)),
-		...(tags.length > 0
+		...(replace
 			? [
-					db.insert(tournamentTag).values(
-						tags.map((name) => ({
-							id: crypto.randomUUID(),
-							tournamentId,
-							name,
-						}))
-					),
+					db
+						.delete(tournamentTagLink)
+						.where(
+							and(
+								eq(tournamentTagLink.tournamentId, tournamentId),
+								eq(tournamentTagLink.userId, userId)
+							)
+						),
 				]
 			: []),
+		...insertChunks(
+			tagIds.map((tagId) => ({ userId, tournamentId, tagId })),
+			(chunk) => db.insert(tournamentTagLink).values(chunk)
+		),
 	];
 }
 
@@ -236,6 +264,7 @@ async function createTournament(
 	input: TournamentCreateInput
 ): Promise<TournamentOutput> {
 	await validateEntityOwnership(db, "room", input.roomId, userId);
+	await validateTagsOwnership(db, tournamentTag, input.tagIds, userId);
 	await assertDefaultAsset(db, userId, input.defaultAssetId, null);
 	const id = crypto.randomUUID();
 	const write = await planTournamentRuleWrite({
@@ -268,7 +297,7 @@ async function createTournament(
 					eq(tournamentRule.userId, userId)
 				)
 			),
-		...tagStatements(db, id, input.tags),
+		...tagStatements(db, id, userId, input.tagIds, false),
 	]);
 	return await getTournament(db, userId, id);
 }
@@ -284,6 +313,7 @@ async function updateTournament(
 		input.id,
 		userId
 	);
+	await validateTagsOwnership(db, tournamentTag, input.tagIds, userId);
 	await assertDefaultAsset(
 		db,
 		userId,
@@ -327,7 +357,7 @@ async function updateTournament(
 				updatedAt: new Date(),
 			})
 			.where(and(eq(tournament.id, found.id), eq(tournament.userId, userId))),
-		...tagStatements(db, found.id, input.tags),
+		...tagStatements(db, found.id, userId, input.tagIds, true),
 	]);
 	return await getTournament(db, userId, found.id);
 }
@@ -470,51 +500,6 @@ export const tournamentRouter = router({
 						"This tournament is referenced by entries or ledger lines. Archive the tournament instead of deleting it.",
 				});
 			}
-			return { success: true };
-		}),
-
-	addTag: protectedProcedure
-		.input(
-			z.object({
-				tournamentId: idSchema,
-				name: z.string().trim().min(1).max(50),
-			})
-		)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateEntityOwnership(
-				ctx.db,
-				"tournament",
-				input.tournamentId,
-				userId
-			);
-			const id = crypto.randomUUID();
-			await ctx.db.insert(tournamentTag).values({
-				id,
-				tournamentId: input.tournamentId,
-				name: input.name,
-			});
-			return { id, tournamentId: input.tournamentId, name: input.name };
-		}),
-
-	removeTag: protectedProcedure
-		.input(z.object({ id: idSchema }))
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			const [tag] = await ctx.db
-				.select({ id: tournamentTag.id })
-				.from(tournamentTag)
-				.innerJoin(tournament, eq(tournament.id, tournamentTag.tournamentId))
-				.where(
-					and(eq(tournamentTag.id, input.id), eq(tournament.userId, userId))
-				);
-			if (!tag) {
-				throw new TRPCError({
-					code: "FORBIDDEN",
-					message: "You do not own this tag",
-				});
-			}
-			await ctx.db.delete(tournamentTag).where(eq(tournamentTag.id, input.id));
 			return { success: true };
 		}),
 });
