@@ -11,15 +11,15 @@ import {
 	stringValue,
 } from "./sqlite";
 
-const TARGET = "0072_stand_in_cleanup.sql";
-const LOCAL_DATES_GATE = /NOT NULL constraint failed: __gate_0072\.local_dates/;
-const PRICES_GATE = /NOT NULL constraint failed: __gate_0072\.prices/;
+const TARGET = "0073_stand_in_cleanup.sql";
+const LOCAL_DATES_GATE = /NOT NULL constraint failed: __gate_0073\.local_dates/;
+const PRICES_GATE = /NOT NULL constraint failed: __gate_0073\.prices/;
 const beforeEntry = migrationFiles("0061_").map(statementsOf);
 const cutovers = migrationFiles(TARGET)
 	.filter((name) => name >= "0061_")
 	.map(statementsOf);
 const targetStatements = statementsOf(TARGET);
-const directory = mkdtempSync(join(tmpdir(), "sapphire2-migration-0072-"));
+const directory = mkdtempSync(join(tmpdir(), "sapphire2-migration-0073-"));
 let index = 0;
 
 const day = Date.parse("2026-10-08T00:00:00Z") / 1000;
@@ -75,7 +75,7 @@ function apply(db: Database, statements: string[]): void {
 	}
 }
 
-function migratedThrough0071(extraSeed = ""): Database {
+function migratedBeforeTarget(extraSeed = ""): Database {
 	const path = join(directory, `${index++}.sqlite`);
 	const db = openDatabase(path);
 	db.exec(
@@ -105,13 +105,13 @@ function payload(db: Database, id: string): unknown {
 	return JSON.parse(stringValue(row?.[0]));
 }
 
-describe("migration 0072 — stand-in cleanup", () => {
+describe("migration 0073 — stand-in cleanup", () => {
 	const seededPath = join(directory, "seeded.sqlite");
 	let seeded = (): Database => {
 		throw new Error("seed not built");
 	};
 	beforeAll(() => {
-		const source = migratedThrough0071();
+		const source = migratedBeforeTarget();
 		source.prepare("VACUUM INTO ?").run(seededPath);
 		source.close();
 		seeded = () => {
@@ -204,7 +204,7 @@ describe("migration 0072 — stand-in cleanup", () => {
 			).toEqual([["room-asset:far"]]);
 			expect(values(db, "PRAGMA foreign_key_check")).toEqual([]);
 			expect(
-				values(db, "SELECT name FROM sqlite_master WHERE name LIKE '%0072%'")
+				values(db, "SELECT name FROM sqlite_master WHERE name LIKE '%0073%'")
 			).toEqual([]);
 		} finally {
 			db.close();
@@ -244,7 +244,7 @@ describe("migration 0072 — stand-in cleanup", () => {
 	});
 
 	it("aborts when an entry's room and its master's room map a shared price to different assets", () => {
-		const db = migratedThrough0071(SHARED_PRICE_SEED);
+		const db = migratedBeforeTarget(SHARED_PRICE_SEED);
 		try {
 			expect(() => apply(db, targetStatements)).toThrow(PRICES_GATE);
 		} finally {

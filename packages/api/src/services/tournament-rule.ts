@@ -317,7 +317,7 @@ interface PlannedContent {
 	tableSize: number | null;
 }
 
-function contentSignature(content: {
+interface TournamentRuleContent {
 	bountyAmount: number | null;
 	houseRules: string | null;
 	levels: {
@@ -332,7 +332,9 @@ function contentSignature(content: {
 	prices: PlannedPrice[];
 	startingStack: number | null;
 	tableSize: number | null;
-}): string {
+}
+
+function contentSignature(content: TournamentRuleContent): string {
 	return JSON.stringify([
 		content.lineupId,
 		content.startingStack,
@@ -361,9 +363,13 @@ function contentSignature(content: {
 	]);
 }
 
-function storedSignature(rule: TournamentRuleOutput): string {
-	return contentSignature({
-		...rule,
+function storedContent(rule: TournamentRuleOutput): TournamentRuleContent {
+	return {
+		bountyAmount: rule.bountyAmount,
+		houseRules: rule.houseRules,
+		lineupId: rule.lineupId,
+		startingStack: rule.startingStack,
+		tableSize: rule.tableSize,
 		levels: rule.levels.map((level) => ({
 			inherits: level.game === null,
 			isBreak: level.isBreak,
@@ -372,19 +378,26 @@ function storedSignature(rule: TournamentRuleOutput): string {
 			minutes: level.minutes,
 			stakes: level.stakes,
 		})),
-		prices: rule.prices,
-	});
+		prices: rule.prices.map((price) => ({
+			kind: price.kind,
+			assetId: price.assetId,
+			amount: price.amount,
+			fee: price.fee,
+			chips: price.chips,
+			label: price.label,
+		})),
+	};
 }
 
-function plannedSignature(content: PlannedContent): string {
-	return contentSignature({
+function plannedContent(content: PlannedContent): TournamentRuleContent {
+	return {
 		...content,
 		lineupId: content.lineup.id,
 		levels: content.levels.map((level) => ({
 			...level,
 			lineupId: level.lineup.id,
 		})),
-	});
+	};
 }
 
 function stakeTargets(lineup: Lineup) {
@@ -607,7 +620,11 @@ export async function planTournamentRuleWrite(params: {
 		prices,
 	};
 
-	if (current && plannedSignature(content) === storedSignature(current)) {
+	const planned = plannedContent(content);
+	if (
+		current &&
+		contentSignature(planned) === contentSignature(storedContent(current))
+	) {
 		return { ruleId: current.id, statements: [] };
 	}
 	await assertStakeBlinds(
@@ -617,17 +634,45 @@ export async function planTournamentRuleWrite(params: {
 	);
 
 	const ruleId = crypto.randomUUID();
+	return {
+		ruleId,
+		statements: [
+			...planner.statements(),
+			...tournamentRuleInsertStatements(
+				db,
+				userId,
+				{
+					id: ruleId,
+					tournamentId: params.tournamentId,
+					parentRuleId: current?.id ?? null,
+				},
+				planned
+			),
+		],
+	};
+}
+
+function tournamentRuleInsertStatements(
+	db: Database,
+	userId: string,
+	version: {
+		id: string;
+		parentRuleId: string | null;
+		tournamentId: string | null;
+	},
+	content: TournamentRuleContent
+): BatchStatement[] {
 	const levelRows = content.levels.map((level, index) => ({
 		id: crypto.randomUUID(),
 		userId,
-		ruleId,
+		ruleId: version.id,
 		ordinal: index + 1,
 		level: level.level,
 		isBreak: level.isBreak,
 		minutes: level.minutes,
-		lineupId: level.lineup.id,
+		lineupId: level.lineupId,
 		inheritsLineup: level.inherits,
-		inheritedLineupId: level.inherits ? level.lineup.id : null,
+		inheritedLineupId: level.inherits ? level.lineupId : null,
 	}));
 	const stakeRows = levelRows.flatMap((row, index) =>
 		(content.levels[index]?.stakes ?? []).map((stake) => ({
@@ -641,34 +686,64 @@ export async function planTournamentRuleWrite(params: {
 	const priceRows = content.prices.map((price, index) => ({
 		id: crypto.randomUUID(),
 		userId,
-		ruleId,
+		ruleId: version.id,
 		ordinal: index + 1,
-		...price,
+		kind: price.kind,
+		assetId: price.assetId,
+		amount: price.amount,
+		fee: price.fee,
+		chips: price.chips,
+		label: price.label,
 	}));
+	return [
+		db.insert(tournamentRule).values({
+			id: version.id,
+			userId,
+			tournamentId: version.tournamentId,
+			parentRuleId: version.parentRuleId,
+			lineupId: content.lineupId,
+			startingStack: content.startingStack,
+			tableSize: content.tableSize,
+			bountyAmount: content.bountyAmount,
+			houseRules: content.houseRules,
+		}),
+		...insertChunks(levelRows, (chunk) =>
+			db.insert(tournamentRuleLevel).values(chunk)
+		),
+		...insertChunks(stakeRows, (chunk) =>
+			db.insert(tournamentRuleLevelStake).values(chunk)
+		),
+		...insertChunks(priceRows, (chunk) =>
+			db.insert(tournamentRulePrice).values(chunk)
+		),
+	];
+}
+
+export function planTournamentRuleCopy(
+	db: Database,
+	userId: string,
+	source: TournamentRuleOutput,
+	target: { parent: TournamentRuleOutput | null; tournamentId: string | null }
+): TournamentRuleWrite {
+	const content = storedContent(source);
+	if (
+		target.parent &&
+		contentSignature(storedContent(target.parent)) === contentSignature(content)
+	) {
+		return { ruleId: target.parent.id, statements: [] };
+	}
+	const ruleId = crypto.randomUUID();
 	return {
 		ruleId,
-		statements: [
-			...planner.statements(),
-			db.insert(tournamentRule).values({
+		statements: tournamentRuleInsertStatements(
+			db,
+			userId,
+			{
 				id: ruleId,
-				userId,
-				tournamentId: params.tournamentId,
-				parentRuleId: current?.id ?? null,
-				lineupId: defaultLineup.id,
-				startingStack: content.startingStack,
-				tableSize: content.tableSize,
-				bountyAmount: content.bountyAmount,
-				houseRules: content.houseRules,
-			}),
-			...insertChunks(levelRows, (chunk) =>
-				db.insert(tournamentRuleLevel).values(chunk)
-			),
-			...insertChunks(stakeRows, (chunk) =>
-				db.insert(tournamentRuleLevelStake).values(chunk)
-			),
-			...insertChunks(priceRows, (chunk) =>
-				db.insert(tournamentRulePrice).values(chunk)
-			),
-		],
+				tournamentId: target.tournamentId,
+				parentRuleId: target.parent?.id ?? null,
+			},
+			content
+		),
 	};
 }

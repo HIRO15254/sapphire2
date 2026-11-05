@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { handSaveInputSchema } from "../services/hand";
+import { handUpdateInputSchema } from "../services/hand";
 
 const context = {
 	id: "hand-1",
@@ -21,7 +21,6 @@ function seat(position: number, overrides: Record<string, unknown> = {}) {
 	return {
 		seat: position,
 		playerId: null,
-		isHero: false,
 		startStack: 20_000,
 		holeCards: null,
 		net: null,
@@ -35,7 +34,7 @@ function fullHand(overrides: Record<string, unknown> = {}) {
 		...context,
 		...summaryValues,
 		detail: "full",
-		seats: [seat(0, { isHero: true, holeCards: "As Ks" }), seat(3)],
+		seats: [seat(0, { playerId: "self", holeCards: "As Ks" }), seat(3)],
 		actions: [
 			{ street: 0, seat: 3, action: "raise", amount: 600, allIn: false },
 			{ street: 0, seat: 0, action: "call", amount: 400, allIn: false },
@@ -44,15 +43,16 @@ function fullHand(overrides: Record<string, unknown> = {}) {
 	};
 }
 
-describe("handSaveInputSchema", () => {
+describe("handUpdateInputSchema", () => {
 	it("accepts a full hand, a summary with only Hero's seat, and a bare count", () => {
-		expect(handSaveInputSchema.safeParse(fullHand()).success).toBe(true);
+		expect(handUpdateInputSchema.safeParse(fullHand()).success).toBe(true);
 		expect(
-			handSaveInputSchema.safeParse({
+			handUpdateInputSchema.safeParse({
 				...context,
 				...summaryValues,
 				detail: "summary",
 				hero: {
+					playerId: "self",
 					seat: 2,
 					startStack: 5000,
 					holeCards: "Ts 9s",
@@ -62,17 +62,17 @@ describe("handSaveInputSchema", () => {
 			}).success
 		).toBe(true);
 		expect(
-			handSaveInputSchema.safeParse({ ...context, detail: "count" }).success
+			handUpdateInputSchema.safeParse({ ...context, detail: "count" }).success
 		).toBe(true);
 	});
 
 	it("accepts a run-it-twice whose boards share the flop and a shown seat with its cards", () => {
 		expect(
-			handSaveInputSchema.safeParse(
+			handUpdateInputSchema.safeParse(
 				fullHand({
 					boards: ["Ah Kd 7c 2s 9h", "Ah Kd 7c 3d 4c"],
 					seats: [
-						seat(0, { isHero: true, holeCards: "As Ks" }),
+						seat(0, { playerId: "self", holeCards: "As Ks" }),
 						seat(3, { holeCards: "Qd Qc", showed: true }),
 					],
 					actions: [
@@ -85,7 +85,7 @@ describe("handSaveInputSchema", () => {
 		).toBe(true);
 	});
 
-	const hero = seat(0, { isHero: true });
+	const hero = seat(0, { playerId: "self" });
 	const villain = seat(3);
 	it.each<[string, Record<string, unknown>, (string | number)[]]>([
 		["a malformed card", { boards: ["Ah 1d 7c"] }, ["boards", 0]],
@@ -106,13 +106,17 @@ describe("handSaveInputSchema", () => {
 			"hole cards of eight cards",
 			{
 				seats: [
-					seat(0, { isHero: true, holeCards: "2s 3s 4s 5s 6s 7s 8s 9s" }),
+					seat(0, { playerId: "self", holeCards: "2s 3s 4s 5s 6s 7s 8s 9s" }),
 					villain,
 				],
 			},
 			["seats", 0, "holeCards"],
 		],
-		["two Hero seats", { seats: [hero, seat(3, { isHero: true })] }, ["seats"]],
+		[
+			"the same player in two seats",
+			{ seats: [hero, seat(3, { playerId: "self" })] },
+			["seats"],
+		],
 		["the same seat twice", { seats: [hero, villain, seat(3)] }, ["seats"]],
 		[
 			"a shown seat without its hole cards",
@@ -167,12 +171,12 @@ describe("handSaveInputSchema", () => {
 			["stakes", "anteType"],
 		],
 	])("rejects %s", (_label, overrides, path) => {
-		const result = handSaveInputSchema.safeParse(fullHand(overrides));
+		const result = handUpdateInputSchema.safeParse(fullHand(overrides));
 		expect(result.error?.issues.map((issue) => issue.path)).toEqual([path]);
 	});
 
 	it("rejects a summary without Hero's seat", () => {
-		const result = handSaveInputSchema.safeParse({
+		const result = handUpdateInputSchema.safeParse({
 			...context,
 			...summaryValues,
 			detail: "summary",
@@ -181,11 +185,12 @@ describe("handSaveInputSchema", () => {
 	});
 
 	it("rejects a summary whose Hero showed without hole cards", () => {
-		const result = handSaveInputSchema.safeParse({
+		const result = handUpdateInputSchema.safeParse({
 			...context,
 			...summaryValues,
 			detail: "summary",
 			hero: {
+				playerId: "self",
 				seat: 2,
 				startStack: null,
 				holeCards: null,

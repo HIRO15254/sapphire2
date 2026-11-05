@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { appRouter } from "../routers";
 import { getInputSchema } from "./test-utils";
 
-const TAG_IDS_UNIQUE_MESSAGE = "Tag IDs must be unique";
+const TAG_IDS_UNIQUE_MESSAGE = "tagIds must not repeat a tag";
 
 const writeCases = [
 	{

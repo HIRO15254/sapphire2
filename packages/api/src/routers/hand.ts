@@ -6,9 +6,11 @@ import {
 	deleteHand,
 	getHand,
 	handAddInputSchema,
+	handUpdateInputSchema,
 	listHands,
 	MAX_HAND_PAGE_SIZE,
 	undoLastHand,
+	updateHand,
 } from "../services/hand";
 
 export const handIdInputSchema = z.object({ id: z.string() });
@@ -47,6 +49,12 @@ export const handRouter = router({
 			await undoLastHand(ctx.db, ctx.session.user.id, input.playSessionId);
 			return { success: true as const };
 		}),
+
+	update: protectedProcedure
+		.input(handUpdateInputSchema)
+		.mutation(({ ctx, input }) =>
+			updateHand(ctx.db, ctx.session.user.id, input, new Date())
+		),
 
 	delete: protectedProcedure
 		.input(handIdInputSchema)

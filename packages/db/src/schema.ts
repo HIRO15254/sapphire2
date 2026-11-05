@@ -60,6 +60,12 @@ import {
 	handSeatRelations,
 } from "./schema/hand";
 import {
+	handTag,
+	handTagLink,
+	handTagLinkRelations,
+	handTagRelations,
+} from "./schema/hand-tag";
+import {
 	assetRate,
 	assetRateRelations,
 	ledgerCategory,
@@ -69,6 +75,10 @@ import {
 	userSetting,
 	userSettingRelations,
 } from "./schema/ledger";
+import {
+	legacyTournamentTag,
+	legacyTournamentTagRelations,
+} from "./schema/legacy-tournament-tag";
 import {
 	oauthAccessToken,
 	oauthAccessTokenRelations,
@@ -82,6 +92,8 @@ import {
 	player,
 	playerRelations,
 	playerTag,
+	playerTagLink,
+	playerTagLinkRelations,
 	playerTagRelations,
 	playerToPlayerTag,
 	playerToPlayerTagRelations,
@@ -138,7 +150,12 @@ import {
 	tournamentChipPurchaseRelations,
 	tournamentRelations,
 } from "./schema/tournament";
-import { tournamentTag, tournamentTagRelations } from "./schema/tournament-tag";
+import {
+	tournamentTag,
+	tournamentTagLink,
+	tournamentTagLinkRelations,
+	tournamentTagRelations,
+} from "./schema/tournament-tag";
 import {
 	updateNoteView,
 	updateNoteViewRelations,
@@ -170,8 +187,12 @@ export const schema = {
 	blindLevelRelations,
 	tournamentChipPurchase,
 	tournamentChipPurchaseRelations,
+	legacyTournamentTag,
+	legacyTournamentTagRelations,
 	tournamentTag,
 	tournamentTagRelations,
+	tournamentTagLink,
+	tournamentTagLinkRelations,
 	sessionTag,
 	sessionTagRelations,
 	sessionToSessionTag,
@@ -194,6 +215,8 @@ export const schema = {
 	gameMixVariantRelations,
 	playerTag,
 	playerTagRelations,
+	playerTagLink,
+	playerTagLinkRelations,
 	playerToPlayerTag,
 	playerToPlayerTagRelations,
 	updateNoteView,
@@ -246,6 +269,10 @@ export const schema = {
 	entryTagRelations,
 	entryTagLink,
 	entryTagLinkRelations,
+	handTag,
+	handTagRelations,
+	handTagLink,
+	handTagLinkRelations,
 	hand,
 	handRelations,
 	handBoard,

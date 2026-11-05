@@ -19,6 +19,7 @@ import { protectedProcedure, router } from "../index";
 import { decodeCursor, encodeCursor } from "../lib/cursor";
 import { dateOnlySchema, instantSchema } from "../lib/date-only";
 import { validateEntityOwnership } from "../lib/ownership";
+import { tagIdsSchema } from "../lib/tag-ids";
 import { cashRuleInputSchema } from "../services/cash-rules";
 import {
 	type EntryListFilters,
@@ -28,11 +29,17 @@ import {
 	selectEntryPage,
 } from "../services/entry-reads";
 import {
+	applyMasterRule,
+	overrideEntryRule,
+	pushRuleToMaster,
+	relinkEntry,
+	restoreEntryRule,
+} from "../services/entry-rule-operations";
+import {
 	createManualEntry,
 	deleteEntry,
 	MAX_ENTRY_PAYMENTS,
 	MAX_ENTRY_PLAY_SESSIONS,
-	MAX_ENTRY_TAGS,
 	updateEntry,
 } from "../services/entry-writes";
 import { tournamentRuleInputSchema } from "../services/tournament-rule";
@@ -47,13 +54,6 @@ const memoSchema = z.string().max(5000);
 const positiveCountSchema = z.number().int().min(1);
 // NOTE(rule): api-data-integrity.md — evDiff is a signed EV difference, so a negative value is valid
 const evDiffSchema = z.number().int().min(-MAX_EV_DIFF).max(MAX_EV_DIFF);
-
-const tagIdsSchema = z
-	.array(idSchema)
-	.max(MAX_ENTRY_TAGS)
-	.refine((ids) => new Set(ids).size === ids.length, {
-		message: "tagIds must not repeat a tag",
-	});
 
 function endStateSchema(states: readonly PlaySessionEndState[]) {
 	return z.enum(states as [PlaySessionEndState, ...PlaySessionEndState[]]);
@@ -166,6 +166,39 @@ export const entryUpdateInputSchema = z.object({
 });
 
 export const entryIdInputSchema = z.object({ id: idSchema });
+
+export const entryOverrideRuleInputSchema = z.discriminatedUnion("kind", [
+	z.object({
+		id: idSchema,
+		kind: z.literal("cash"),
+		rule: cashRuleInputSchema,
+	}),
+	z.object({
+		id: idSchema,
+		kind: z.literal("tournament"),
+		rule: tournamentRuleInputSchema,
+	}),
+]);
+
+export const entryRelinkInputSchema = z.union([
+	z.object({
+		id: idSchema,
+		ringGameId: idSchema.nullable(),
+		keepRule: z.boolean(),
+	}),
+	z.object({
+		id: idSchema,
+		tournamentId: idSchema.nullable(),
+		keepRule: z.boolean(),
+	}),
+]);
+
+export const entryRestoreRuleInputSchema = z.object({
+	id: idSchema,
+	masterId: idSchema.nullable(),
+	ruleVersionId: idSchema,
+	masterRuleVersionId: idSchema.optional(),
+});
 
 export const entryListInputSchema = z
 	.object({
@@ -300,5 +333,60 @@ export const entryRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			await deleteEntry(ctx.db, ctx.session.user.id, input.id);
 			return { success: true as const };
+		}),
+
+	overrideRule: protectedProcedure
+		.input(entryOverrideRuleInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await overrideEntryRule(ctx.db, userId, input, {
+				live: false,
+				now: new Date(),
+			});
+			return await getEntry(ctx.db, userId, input.id);
+		}),
+
+	applyMasterRule: protectedProcedure
+		.input(entryIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await applyMasterRule(ctx.db, userId, input.id, {
+				live: false,
+				now: new Date(),
+			});
+			return await getEntry(ctx.db, userId, input.id);
+		}),
+
+	pushRuleToMaster: protectedProcedure
+		.input(entryIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await pushRuleToMaster(ctx.db, userId, input.id, {
+				live: false,
+				now: new Date(),
+			});
+			return await getEntry(ctx.db, userId, input.id);
+		}),
+
+	relink: protectedProcedure
+		.input(entryRelinkInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await relinkEntry(ctx.db, userId, input, {
+				live: false,
+				now: new Date(),
+			});
+			return await getEntry(ctx.db, userId, input.id);
+		}),
+
+	restoreRule: protectedProcedure
+		.input(entryRestoreRuleInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await restoreEntryRule(ctx.db, userId, input, {
+				live: false,
+				now: new Date(),
+			});
+			return await getEntry(ctx.db, userId, input.id);
 		}),
 });

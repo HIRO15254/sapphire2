@@ -20,6 +20,7 @@ import {
 	handBoard,
 	handSeat,
 } from "@sapphire2/db/schema/hand";
+import { handTag, handTagLink } from "@sapphire2/db/schema/hand-tag";
 import { player } from "@sapphire2/db/schema/player";
 import { anteTypeSchema } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
@@ -27,7 +28,10 @@ import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import z from "zod";
 import { type BatchStatement, chunkForInsert, runBatch } from "../lib/batch";
 import { decodeCursor, encodeCursor } from "../lib/cursor";
+import { instantSchema } from "../lib/date-only";
 import { isForeignKeyConstraintError } from "../lib/db-errors";
+import { validateTagsOwnership } from "../lib/ownership";
+import { MAX_LINKED_TAGS, tagIdsSchema } from "../lib/tag-ids";
 
 export const MAX_HAND_PAGE_SIZE = 50;
 export const DEFAULT_HAND_PAGE_SIZE = 20;
@@ -89,13 +93,33 @@ const handSummaryFields = {
 
 const handSeatSchema = z.object({
 	seat: seatNumberSchema,
-	playerId: z.string().nullable(),
-	isHero: z.boolean(),
+	playerId: z.string().min(1).nullable(),
 	startStack: chipsSchema.nullable(),
 	holeCards: cardListSchema(MAX_HOLE_CARDS).nullable(),
 	net: chipResultSchema.nullable(),
 	showed: z.boolean(),
 });
+
+const tagReviewsSchema = z
+	.array(
+		z.object({
+			tagId: z.string().min(1),
+			reviewedAt: instantSchema.nullable(),
+		})
+	)
+	.max(MAX_LINKED_TAGS)
+	.refine(
+		(reviews) =>
+			new Set(reviews.map(({ tagId }) => tagId)).size === reviews.length,
+		{ message: "tagReviews must not repeat a tag" }
+	);
+
+const handUpdateFields = {
+	id: z.string().min(1),
+	...handContextFields,
+	tagIds: tagIdsSchema.optional(),
+	tagReviews: tagReviewsSchema.optional(),
+};
 
 const handActionSchema = z.object({
 	street: z.number().int().min(0).max(MAX_HAND_STREET),
@@ -119,28 +143,25 @@ function checkShowedCards(
 	}
 }
 
-export const handSaveInputSchema = z.discriminatedUnion("detail", [
+export const handUpdateInputSchema = z.discriminatedUnion("detail", [
 	z.object({
-		id: z.string(),
+		...handUpdateFields,
 		detail: z.literal("count"),
-		...handContextFields,
 	}),
 	z
 		.object({
-			id: z.string(),
+			...handUpdateFields,
 			detail: z.literal("summary"),
-			...handContextFields,
 			...handSummaryFields,
-			hero: handSeatSchema.omit({ playerId: true, isHero: true }),
+			hero: handSeatSchema.extend({ playerId: z.string().min(1) }),
 		})
 		.superRefine((input, ctx) => {
 			checkShowedCards(input.hero, ctx, ["hero"]);
 		}),
 	z
 		.object({
-			id: z.string(),
+			...handUpdateFields,
 			detail: z.literal("full"),
-			...handContextFields,
 			...handSummaryFields,
 			seats: z
 				.array(handSeatSchema)
@@ -160,11 +181,14 @@ export const handSaveInputSchema = z.discriminatedUnion("detail", [
 					message: "A seat appears more than once",
 				});
 			}
-			if (input.seats.filter(({ isHero }) => isHero).length > 1) {
+			const playerIds = input.seats.flatMap(({ playerId }) =>
+				playerId === null ? [] : [playerId]
+			);
+			if (new Set(playerIds).size !== playerIds.length) {
 				ctx.addIssue({
 					code: "custom",
 					path: ["seats"],
-					message: "Only one seat can be Hero",
+					message: "A player sits in more than one seat",
 				});
 			}
 			const shownSeats = new Set(
@@ -189,19 +213,30 @@ export const handSaveInputSchema = z.discriminatedUnion("detail", [
 ]);
 
 export type HandAddInput = z.infer<typeof handAddInputSchema>;
-export type HandSaveInput = z.infer<typeof handSaveInputSchema>;
+export type HandUpdateInput = z.infer<typeof handUpdateInputSchema>;
 export type HandStakes = z.infer<typeof handStakesSchema>;
 
 type HandRow = typeof hand.$inferSelect;
 type HandSeatRow = typeof handSeat.$inferSelect;
 type HandActionRow = typeof handAction.$inferSelect;
 
+export interface HandTagOutput {
+	id: string;
+	name: string;
+	reviewedAt: Date | null;
+}
+
 export type HandOutput = Omit<HandRow, "stakes" | "userId"> & {
 	boards: string[];
 	stakes: HandStakes | null;
+	tags: HandTagOutput[];
 };
 export type HandSeatOutput = Omit<HandSeatRow, "handId" | "userId">;
 export type HandActionOutput = Omit<HandActionRow, "handId" | "userId">;
+export type HandDetailOutput = HandOutput & {
+	actions: HandActionOutput[];
+	seats: HandSeatOutput[];
+};
 
 interface OwnedHand {
 	detail: HandRow["detail"];
@@ -212,12 +247,14 @@ interface OwnedHand {
 
 function toHandOutput(
 	{ stakes, userId: _userId, ...row }: HandRow,
-	boards: string[]
+	boards: string[],
+	tags: HandTagOutput[]
 ): HandOutput {
 	return {
 		...row,
 		boards,
 		stakes: stakes === null ? null : handStakesSchema.parse(JSON.parse(stakes)),
+		tags,
 	};
 }
 
@@ -246,6 +283,45 @@ async function loadBoards(
 		}
 	}
 	return boards;
+}
+
+async function loadTags(
+	db: Database,
+	userId: string,
+	handIds: string[]
+): Promise<Map<string, HandTagOutput[]>> {
+	const tags = new Map<string, HandTagOutput[]>();
+	if (handIds.length === 0) {
+		return tags;
+	}
+	const rows = await db
+		.select({
+			handId: handTagLink.handId,
+			id: handTag.id,
+			name: handTag.name,
+			reviewedAt: handTagLink.reviewedAt,
+		})
+		.from(handTagLink)
+		.innerJoin(
+			handTag,
+			and(
+				eq(handTag.id, handTagLink.tagId),
+				eq(handTag.userId, handTagLink.userId)
+			)
+		)
+		.where(
+			and(eq(handTagLink.userId, userId), inArray(handTagLink.handId, handIds))
+		)
+		.orderBy(asc(handTag.sortOrder), asc(handTag.id));
+	for (const { handId, ...tag } of rows) {
+		const list = tags.get(handId);
+		if (list) {
+			list.push(tag);
+		} else {
+			tags.set(handId, [tag]);
+		}
+	}
+	return tags;
 }
 
 function forbidden(message: string): TRPCError {
@@ -287,7 +363,7 @@ async function assertOwnedReferences(
 	db: Database,
 	userId: string,
 	references: { playerIds: string[]; variantId: string | null | undefined }
-): Promise<void> {
+): Promise<{ selfPlayerId: string | null }> {
 	if (references.variantId) {
 		const [found] = await db
 			.select({ id: gameVariant.id })
@@ -304,15 +380,16 @@ async function assertOwnedReferences(
 	}
 	const playerIds = [...new Set(references.playerIds)];
 	if (playerIds.length === 0) {
-		return;
+		return { selfPlayerId: null };
 	}
 	const owned = await db
-		.select({ id: player.id })
+		.select({ id: player.id, isSelf: player.isSelf })
 		.from(player)
 		.where(and(inArray(player.id, playerIds), eq(player.userId, userId)));
 	if (owned.length !== playerIds.length) {
 		throw forbidden("You do not own this player");
 	}
+	return { selfPlayerId: owned.find(({ isSelf }) => isSelf)?.id ?? null };
 }
 
 async function loadOwnedHand(
@@ -371,20 +448,21 @@ export function buildHandAddStatement(
 		.returning();
 }
 
-function seatRows(userId: string, input: HandSaveInput) {
+function seatRows(
+	userId: string,
+	input: HandUpdateInput,
+	selfPlayerId: string | null
+) {
 	if (input.detail === "count") {
 		return [];
 	}
-	const seats =
-		input.detail === "summary"
-			? [{ ...input.hero, playerId: null, isHero: true }]
-			: input.seats;
+	const seats = input.detail === "summary" ? [input.hero] : input.seats;
 	return seats.map((seat) => ({
 		handId: input.id,
 		userId,
 		seat: seat.seat,
 		playerId: seat.playerId,
-		isHero: seat.isHero,
+		isHero: seat.playerId !== null && seat.playerId === selfPlayerId,
 		startStack: seat.startStack,
 		holeCards: seat.holeCards,
 		net: seat.net,
@@ -392,7 +470,7 @@ function seatRows(userId: string, input: HandSaveInput) {
 	}));
 }
 
-function actionRows(userId: string, input: HandSaveInput) {
+function actionRows(userId: string, input: HandUpdateInput) {
 	if (input.detail !== "full") {
 		return [];
 	}
@@ -408,10 +486,51 @@ function actionRows(userId: string, input: HandSaveInput) {
 	}));
 }
 
-export function buildHandSaveStatements(
+export interface HandTagLinkPlan {
+	reviewedAt: Date | null;
+	tagId: string;
+}
+
+export interface HandUpdatePlan {
+	selfPlayerId: string | null;
+	tagLinks: HandTagLinkPlan[] | undefined;
+}
+
+function tagLinkStatements(
 	db: Database,
 	userId: string,
-	input: HandSaveInput,
+	handId: string,
+	tagLinks: HandTagLinkPlan[] | undefined
+): BatchStatement[] {
+	if (tagLinks === undefined) {
+		return [];
+	}
+	const rows = tagLinks.map(({ tagId, reviewedAt }) => ({
+		userId,
+		handId,
+		tagId,
+		reviewedAt,
+	}));
+	const statements: BatchStatement[] = [
+		db
+			.delete(handTagLink)
+			.where(
+				and(eq(handTagLink.handId, handId), eq(handTagLink.userId, userId))
+			),
+	];
+	if (rows[0]) {
+		for (const chunk of chunkForInsert(rows, Object.keys(rows[0]).length)) {
+			statements.push(db.insert(handTagLink).values(chunk));
+		}
+	}
+	return statements;
+}
+
+export function buildHandUpdateStatements(
+	db: Database,
+	userId: string,
+	input: HandUpdateInput,
+	plan: HandUpdatePlan,
 	now: Date
 ): BatchStatement[] {
 	const summary =
@@ -427,7 +546,7 @@ export function buildHandSaveStatements(
 					boardNo: index + 1,
 					cards,
 				}));
-	const seats = seatRows(userId, input);
+	const seats = seatRows(userId, input, plan.selfPlayerId);
 	const actions = actionRows(userId, input);
 	const statements: BatchStatement[] = [
 		db
@@ -471,6 +590,7 @@ export function buildHandSaveStatements(
 			statements.push(db.insert(handAction).values(chunk));
 		}
 	}
+	statements.push(...tagLinkStatements(db, userId, input.id, plan.tagLinks));
 	return statements;
 }
 
@@ -511,7 +631,7 @@ export async function addHand(
 	if (!row) {
 		throw new Error("The hand insert returned no row");
 	}
-	return toHandOutput(row, []);
+	return toHandOutput(row, [], []);
 }
 
 export async function undoLastHand(
@@ -550,21 +670,80 @@ export async function undoLastHand(
 	}
 }
 
-export async function saveHand(
+async function planTagLinks(
 	db: Database,
 	userId: string,
-	input: HandSaveInput,
+	input: HandUpdateInput
+): Promise<HandTagLinkPlan[] | undefined> {
+	if (input.tagIds === undefined && input.tagReviews === undefined) {
+		return;
+	}
+	await validateTagsOwnership(db, handTag, input.tagIds, userId);
+	const current = await db
+		.select({ tagId: handTagLink.tagId, reviewedAt: handTagLink.reviewedAt })
+		.from(handTagLink)
+		.where(
+			and(eq(handTagLink.handId, input.id), eq(handTagLink.userId, userId))
+		);
+	const kept = new Map(
+		current.map(({ tagId, reviewedAt }) => [tagId, reviewedAt] as const)
+	);
+	const tagIds = input.tagIds ?? current.map(({ tagId }) => tagId);
+	const attached = new Set(tagIds);
+	const reviews = new Map<string, Date | null>();
+	for (const { tagId, reviewedAt } of input.tagReviews ?? []) {
+		if (!attached.has(tagId)) {
+			throw new TRPCError({
+				code: "BAD_REQUEST",
+				message: "A tag review must name a tag attached to the hand",
+			});
+		}
+		reviews.set(
+			tagId,
+			reviewedAt === null ? null : new Date(reviewedAt * 1000)
+		);
+	}
+	return tagIds.map((tagId) => {
+		const review = reviews.get(tagId);
+		return {
+			tagId,
+			reviewedAt: review === undefined ? (kept.get(tagId) ?? null) : review,
+		};
+	});
+}
+
+export async function updateHand(
+	db: Database,
+	userId: string,
+	input: HandUpdateInput,
 	now: Date
-): Promise<void> {
+): Promise<HandDetailOutput> {
 	await loadOwnedHand(db, userId, input.id);
-	await assertOwnedReferences(db, userId, {
-		playerIds:
-			input.detail === "full"
-				? input.seats.flatMap(({ playerId }) => (playerId ? [playerId] : []))
-				: [],
+	const { selfPlayerId } = await assertOwnedReferences(db, userId, {
+		playerIds: seatRows(userId, input, null).flatMap(({ playerId }) =>
+			playerId === null ? [] : [playerId]
+		),
 		variantId: input.variantId,
 	});
-	await runBatch(db, buildHandSaveStatements(db, userId, input, now));
+	if (input.detail === "summary" && input.hero.playerId !== selfPlayerId) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message:
+				"A summary hand's seat is Hero's, so it must name your own player",
+		});
+	}
+	const tagLinks = await planTagLinks(db, userId, input);
+	await runBatch(
+		db,
+		buildHandUpdateStatements(
+			db,
+			userId,
+			input,
+			{ selfPlayerId, tagLinks },
+			now
+		)
+	);
+	return await getHand(db, userId, input.id);
 }
 
 export async function deleteHand(
@@ -636,14 +815,14 @@ export async function listHands(
 						)
 					)
 					.orderBy(asc(handSeat.seat));
-	const boards = await loadBoards(
-		db,
-		userId,
-		page.map(({ id }) => id)
-	);
+	const pageIds = page.map(({ id }) => id);
+	const [boards, tags] = await Promise.all([
+		loadBoards(db, userId, pageIds),
+		loadTags(db, userId, pageIds),
+	]);
 	return {
 		items: page.map((row) => ({
-			...toHandOutput(row, boards.get(row.id) ?? []),
+			...toHandOutput(row, boards.get(row.id) ?? [], tags.get(row.id) ?? []),
 			seats: seats
 				.filter((seat) => seat.handId === row.id)
 				.map(({ handId: _handId, userId: _userId, ...seat }) => seat),
@@ -662,9 +841,7 @@ export async function getHand(
 	db: Database,
 	userId: string,
 	handId: string
-): Promise<
-	HandOutput & { actions: HandActionOutput[]; seats: HandSeatOutput[] }
-> {
+): Promise<HandDetailOutput> {
 	const [row] = await db
 		.select()
 		.from(hand)
@@ -684,7 +861,11 @@ export async function getHand(
 		.orderBy(asc(handAction.seq));
 	const boards = await loadBoards(db, userId, [handId]);
 	return {
-		...toHandOutput(row, boards.get(handId) ?? []),
+		...toHandOutput(
+			row,
+			boards.get(handId) ?? [],
+			(await loadTags(db, userId, [handId])).get(handId) ?? []
+		),
 		seats: seats.map(({ handId: _handId, userId: _userId, ...seat }) => seat),
 		actions: actions.map(
 			({ handId: _handId, userId: _userId, ...action }) => action
