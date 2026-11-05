@@ -45,7 +45,7 @@ export const cashSessionStartPayload = z.object({
 });
 
 export const tournamentSessionStartPayload = z.object({
-	payments: paymentsSchema(["buy_in", "fee"]).optional(),
+	payments: paymentsSchema(["buy_in", "reentry", "fee"]).optional(),
 	...clockFields,
 });
 

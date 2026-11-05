@@ -798,7 +798,7 @@ A Payment is `{ assetId, quantity, role, effect, priceId? }`: quantity is positi
 
 | Event type | v2 payload and allowed effects |
 | --- | --- |
-| session_start | payments[] (buy_in, plus tournament fee), timerStartedAt?, startLevel? |
+| session_start | payments[] (buy_in, plus tournament fee; a startNextPlay re-entry start carries reentry/fee instead), timerStartedAt?, startLevel? |
 | session_end | cash payments[] (cash_out); tournament payments[] (prize/bounty), beforeDeadline, placement?, totalEntries? |
 | day_end | endState bagged/held, stackAmount |
 | reentry | tournament payments[] (reentry/fee) |

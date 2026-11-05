@@ -47,7 +47,7 @@ Unauthenticated `/mcp` requests receive `401` with `WWW-Authenticate: Bearer res
 
 The tool surface is a **projection of the tRPC `appRouter`**: each tool's input schema is the exact Zod schema the API validates with (a tool for one branch of a union input uses that branch's schema), and each response is the same JSON the HTTP API returns. Conventions follow the backend: **instants are unix seconds**, **date-only values are `YYYY-MM-DD` strings** in entry tools (the statistics tools still take UTC-midnight seconds), and **amounts are plain integers** in the asset's smallest unit.
 
-The B06 cutover removed the old completed-session and live-session APIs and their MCP tools. Finished entries are recorded and edited with the `entry_*` tools. Live recording (`live.*`, `playEvent.*`, `tablePlayer.*`) belongs to the cockpit screens and is deliberately not exposed: it is timestamped as play happens, and a retried call appends a duplicate event.
+The B06 cutover removed the old completed-session and live-session APIs and their MCP tools. Finished entries are recorded and edited with the `entry_*` tools. Live recording (`live.*`, `playEvent.*`, `tablePlayer.*`) belongs to the cockpit screens and is deliberately not exposed: it is timestamped as play happens, and a retried call appends a duplicate event. That includes the multi-day operations — ending a day (`live.endPlay`), starting the next day or a re-entry (`live.startNextPlay`) and their undos (`live.undoEndPlay`, `live.undoStartNextPlay`): a retried start adds another day.
 
 | Tool | tRPC procedure | Kind |
 |---|---|---|

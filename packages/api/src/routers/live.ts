@@ -1,3 +1,4 @@
+import { END_STATES_REQUIRING_STACK } from "@sapphire2/db/constants/entry";
 import { paymentsSchema } from "@sapphire2/db/constants/play-event-payloads";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
@@ -7,10 +8,14 @@ import { MAX_ENTRY_PAYMENTS } from "../services/entry-writes";
 import {
 	completeLiveEntry,
 	discardLiveEntry,
+	endLivePlay,
 	getLiveEntry,
 	getLiveEntryDetail,
 	hydrateLiveEntries,
 	startLiveEntry,
+	startNextLivePlay,
+	undoLiveEndPlay,
+	undoLiveStartNextPlay,
 	updateLiveEntry,
 } from "../services/live-entry";
 import { tournamentRuleInputSchema } from "../services/tournament-rule";
@@ -59,6 +64,24 @@ export const liveCompleteInputSchema = z.object({
 	beforeDeadline: z.boolean().optional(),
 	placement: positiveCountSchema.optional(),
 	totalEntries: positiveCountSchema.optional(),
+});
+
+export const liveEndPlayInputSchema = z.object({
+	id: idSchema,
+	occurredAt: instantSchema.optional(),
+	endState: z.enum(END_STATES_REQUIRING_STACK),
+	stackAmount: z.number().int().min(0),
+});
+
+export const liveStartNextPlayInputSchema = z.object({
+	id: idSchema,
+	startedAt: instantSchema.optional(),
+	localDate: dateOnlySchema.optional(),
+	label: z.string().max(50).optional(),
+	startLevel: positiveCountSchema.optional(),
+	payments: paymentsSchema(["reentry", "fee"])
+		.max(MAX_ENTRY_PAYMENTS)
+		.optional(),
 });
 
 const liveIdInputSchema = z.object({ id: idSchema });
@@ -111,6 +134,38 @@ export const liveRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await completeLiveEntry(ctx.db, userId, input, new Date());
+			return await getLiveEntry(ctx.db, userId, input.id);
+		}),
+
+	endPlay: protectedProcedure
+		.input(liveEndPlayInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await endLivePlay(ctx.db, userId, input, new Date());
+			return await getLiveEntry(ctx.db, userId, input.id);
+		}),
+
+	startNextPlay: protectedProcedure
+		.input(liveStartNextPlayInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await startNextLivePlay(ctx.db, userId, input, new Date());
+			return await getLiveEntry(ctx.db, userId, input.id);
+		}),
+
+	undoEndPlay: protectedProcedure
+		.input(liveIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await undoLiveEndPlay(ctx.db, userId, input.id, new Date());
+			return await getLiveEntry(ctx.db, userId, input.id);
+		}),
+
+	undoStartNextPlay: protectedProcedure
+		.input(liveIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await undoLiveStartNextPlay(ctx.db, userId, input.id, new Date());
 			return await getLiveEntry(ctx.db, userId, input.id);
 		}),
 
