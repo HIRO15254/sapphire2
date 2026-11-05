@@ -28,6 +28,13 @@ import {
 	selectEntryPage,
 } from "../services/entry-reads";
 import {
+	applyMasterRule,
+	overrideEntryRule,
+	pushRuleToMaster,
+	relinkEntry,
+	restoreEntryRule,
+} from "../services/entry-rule-operations";
+import {
 	createManualEntry,
 	deleteEntry,
 	MAX_ENTRY_PAYMENTS,
@@ -167,6 +174,39 @@ export const entryUpdateInputSchema = z.object({
 
 export const entryIdInputSchema = z.object({ id: idSchema });
 
+export const entryOverrideRuleInputSchema = z.discriminatedUnion("kind", [
+	z.object({
+		id: idSchema,
+		kind: z.literal("cash"),
+		rule: cashRuleInputSchema,
+	}),
+	z.object({
+		id: idSchema,
+		kind: z.literal("tournament"),
+		rule: tournamentRuleInputSchema,
+	}),
+]);
+
+export const entryRelinkInputSchema = z.union([
+	z.object({
+		id: idSchema,
+		ringGameId: idSchema.nullable(),
+		keepRule: z.boolean(),
+	}),
+	z.object({
+		id: idSchema,
+		tournamentId: idSchema.nullable(),
+		keepRule: z.boolean(),
+	}),
+]);
+
+export const entryRestoreRuleInputSchema = z.object({
+	id: idSchema,
+	masterId: idSchema.nullable(),
+	ruleVersionId: idSchema,
+	masterRuleVersionId: idSchema.optional(),
+});
+
 export const entryListInputSchema = z
 	.object({
 		cursor: z.string().optional(),
@@ -300,5 +340,60 @@ export const entryRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			await deleteEntry(ctx.db, ctx.session.user.id, input.id);
 			return { success: true as const };
+		}),
+
+	overrideRule: protectedProcedure
+		.input(entryOverrideRuleInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await overrideEntryRule(ctx.db, userId, input, {
+				live: false,
+				now: new Date(),
+			});
+			return await getEntry(ctx.db, userId, input.id);
+		}),
+
+	applyMasterRule: protectedProcedure
+		.input(entryIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await applyMasterRule(ctx.db, userId, input.id, {
+				live: false,
+				now: new Date(),
+			});
+			return await getEntry(ctx.db, userId, input.id);
+		}),
+
+	pushRuleToMaster: protectedProcedure
+		.input(entryIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await pushRuleToMaster(ctx.db, userId, input.id, {
+				live: false,
+				now: new Date(),
+			});
+			return await getEntry(ctx.db, userId, input.id);
+		}),
+
+	relink: protectedProcedure
+		.input(entryRelinkInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await relinkEntry(ctx.db, userId, input, {
+				live: false,
+				now: new Date(),
+			});
+			return await getEntry(ctx.db, userId, input.id);
+		}),
+
+	restoreRule: protectedProcedure
+		.input(entryRestoreRuleInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await restoreEntryRule(ctx.db, userId, input, {
+				live: false,
+				now: new Date(),
+			});
+			return await getEntry(ctx.db, userId, input.id);
 		}),
 });

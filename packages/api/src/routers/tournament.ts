@@ -8,7 +8,11 @@ import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { type BatchStatement, runBatch, selectInChunks } from "../lib/batch";
 import { validateEntityOwnership } from "../lib/ownership";
-import { hydrateLineups, type LineupMap } from "../services/game-lineup";
+import {
+	hydrateLineups,
+	insertChunks,
+	type LineupMap,
+} from "../services/game-lineup";
 import {
 	hydrateTournamentRules,
 	planTournamentRuleWrite,
@@ -216,28 +220,21 @@ function tagStatements(
 		db
 			.delete(tournamentTag)
 			.where(eq(tournamentTag.tournamentId, tournamentId)),
-		...(tags.length > 0
-			? [
-					db.insert(tournamentTag).values(
-						tags.map((name) => ({
-							id: crypto.randomUUID(),
-							tournamentId,
-							name,
-						}))
-					),
-				]
-			: []),
+		...insertChunks(
+			tags.map((name) => ({ id: crypto.randomUUID(), tournamentId, name })),
+			(chunk) => db.insert(tournamentTag).values(chunk)
+		),
 	];
 }
 
-async function createTournament(
+export async function planTournamentCreate(
 	db: DbInstance,
 	userId: string,
+	id: string,
 	input: TournamentCreateInput
-): Promise<TournamentOutput> {
+): Promise<{ ruleId: string; statements: BatchStatement[] }> {
 	await validateEntityOwnership(db, "room", input.roomId, userId);
 	await assertDefaultAsset(db, userId, input.defaultAssetId, null);
-	const id = crypto.randomUUID();
 	const write = await planTournamentRuleWrite({
 		db,
 		userId,
@@ -246,30 +243,43 @@ async function createTournament(
 		tournamentId: null,
 	});
 	const now = new Date();
-	await runBatch(db, [
-		...write.statements,
-		db.insert(tournament).values({
-			id,
-			userId,
-			roomId: input.roomId,
-			name: input.name,
-			memo: input.memo ?? null,
-			defaultAssetId: input.defaultAssetId ?? null,
-			currentRuleId: write.ruleId,
-			createdAt: now,
-			updatedAt: now,
-		}),
-		db
-			.update(tournamentRule)
-			.set({ tournamentId: id })
-			.where(
-				and(
-					eq(tournamentRule.id, write.ruleId),
-					eq(tournamentRule.userId, userId)
-				)
-			),
-		...tagStatements(db, id, input.tags),
-	]);
+	return {
+		ruleId: write.ruleId,
+		statements: [
+			...write.statements,
+			db.insert(tournament).values({
+				id,
+				userId,
+				roomId: input.roomId,
+				name: input.name,
+				memo: input.memo ?? null,
+				defaultAssetId: input.defaultAssetId ?? null,
+				currentRuleId: write.ruleId,
+				createdAt: now,
+				updatedAt: now,
+			}),
+			db
+				.update(tournamentRule)
+				.set({ tournamentId: id })
+				.where(
+					and(
+						eq(tournamentRule.id, write.ruleId),
+						eq(tournamentRule.userId, userId)
+					)
+				),
+			...tagStatements(db, id, input.tags),
+		],
+	};
+}
+
+async function createTournament(
+	db: DbInstance,
+	userId: string,
+	input: TournamentCreateInput
+): Promise<TournamentOutput> {
+	const id = crypto.randomUUID();
+	const { statements } = await planTournamentCreate(db, userId, id, input);
+	await runBatch(db, statements);
 	return await getTournament(db, userId, id);
 }
 
