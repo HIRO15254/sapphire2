@@ -1,28 +1,24 @@
 # D1 / SQLite Data Integrity
 
-Historical context is preserved in the [archive](../archive/data-integrity-history.md).
+The current model is specified in [data-model.md](data-model.md); incidents and migration history are in the [archive](../archive/data-integrity-history.md).
 
-The current model is specified in [data-model.md](data-model.md).
-
-Why writes against Cloudflare D1 are shaped the way they are: the 100-bound-parameter cap and chunk math, the `db.batch()` atomicity contract and its statement-ordering rules, keyset pagination cursors, N+1 collapse on list endpoints, TOCTOU backstops and unique-constraint error shapes, write==read schema identity, and the UTC round-trip rules. The enforceable imperatives live in [`.claude/rules/api-data-integrity.md`](../../.claude/rules/api-data-integrity.md) (and [`.claude/rules/datetime-and-numbers.md`](../../.claude/rules/datetime-and-numbers.md) for dates); this document explains the mechanics behind them.
+The 100-bound-parameter cap, `db.batch()` atomicity and ordering, pagination, list queries, uniqueness, calendar dates and instant handling shape D1 writes and reads. Enforceable rules live in [`.claude/rules/api-data-integrity.md`](../../.claude/rules/api-data-integrity.md) and [`.claude/rules/datetime-and-numbers.md`](../../.claude/rules/datetime-and-numbers.md).
 
 ## The 100-bound-parameter cap and chunking
 
 D1 rejects any single statement binding more than 100 parameters. A multi-row `INSERT` binds `columnsPerRow × rowCount` parameters, so a large batch — e.g. a 14-level blind structure at 10 columns = 140 params — overflows a single statement and fails at runtime.
 
-The cap constant `D1_MAX_BOUND_PARAMS` and `chunkForInsert` live in [`packages/api/src/lib/batch.ts`](../../packages/api/src/lib/batch.ts), so services can size their own `IN (…)` lists against the same number without importing from a router. The helper has exactly one implementation.
-
-Current multi-row writers use `chunkForInsert`, including ledger, hand, mix and tag-link writes. ID-list lookups use `selectInChunks`.
+The cap constant `D1_MAX_BOUND_PARAMS`, `chunkForInsert` and `insertChunks` live in [`packages/api/src/lib/batch.ts`](../../packages/api/src/lib/batch.ts). `insertChunks` derives the column count from the first row, uses `chunkForInsert` and builds a batch statement for each chunk; callers must supply rows of the same shape. ID-list lookups use `selectInChunks`.
 
 ### Chunked `IN (…)` selects
 
-A one-column `IN` binds one param per id, so a batched lookup across more than 100 sessions overflows exactly like a wide multi-row INSERT — 101 session ids in a single `inArray` bind 101 params. `selectInChunks` (in [`batch.ts`](../../packages/api/src/lib/batch.ts)) sizes chunks using the shared cap, reserving space for any extra bound parameters. Rows from every chunk are concatenated in chunk order; callers bucket by id afterward, and because each id lands in exactly one chunk, per-id ordering (`sortOrder` / `level`) survives the concatenation.
+A one-column `IN` binds one parameter per id, so a lookup across more than 100 ids can exceed the cap. `selectInChunks` (in [`batch.ts`](../../packages/api/src/lib/batch.ts)) reserves space for extra bound parameters and concatenates results in chunk order. Callers that require ordering across chunks must arrange it themselves.
 
 ## `db.batch()` atomicity
 
-The repo-wide contract: **every multi-statement write in the api package commits through a single `db.batch([...])`**, so a mid-sequence failure can no longer leave a DELETE committed with its re-INSERT missing (permanent data loss) or a parent row committed without its children (orphan). Sequential awaited statements auto-commit one by one.
+Related writes that must commit together use `db.batch([...])`, preventing a failed re-insert from leaving a replacement empty or a parent without its children. Sequential awaited statements auto-commit one by one.
 
-`runBatch` in [`packages/api/src/lib/batch.ts`](../../packages/api/src/lib/batch.ts) is the funnel: D1's `db.batch` requires a non-empty tuple, so an empty statement array is treated as a no-op. Every caller builds its statements first, then hands the whole group to a single `batch`.
+`runBatch` in [`packages/api/src/lib/batch.ts`](../../packages/api/src/lib/batch.ts) wraps D1's non-empty batch requirement; an empty statement array is a no-op.
 
 Writes governed by the contract:
 
@@ -41,10 +37,6 @@ The ordering inside a batch is load-bearing, not stylistic:
 - **A ledger change rides the batch of the entry it belongs to**, so failure cannot move the ledger independently of its source.
 - **A pure copy never deletes**: only replacement flows carry a DELETE.
 
-### FK-checked upserts as concurrency guards
-
-A create path that links a new master to an existing parent keeps an FK-checked child write (an upsert rather than select-then-update/insert) **inside** the batch: if the parent disappears between the authorization read and the write (a concurrent deletion), the FK violation rolls the master insert back instead of committing an orphan ring game / tournament.
-
 ## Keyset pagination cursors
 
 Entry and live lists order by `(playedOn, id)` descending, and opaque cursors carry the whole ordering tuple ([`api.md`](api.md) §1). Cursor implementations follow two invariants:
@@ -56,12 +48,7 @@ Entry and live lists order by `(playedOn, id)` descending, and opaque cursors ca
 
 ## N+1 collapse on list endpoints
 
-`live.list` fetches page events in chunks and buckets them by id (`attachProgress` in `packages/api/src/services/live-entry.ts`).
-
-Two details of the design are load-bearing:
-
-- **Ordering `(occurredAt asc, sortOrder asc, id asc)`** is the order the event consumers fold in. Each bucket is **re-sorted in application code**, because `selectInChunks` concatenates chunk results (and a mocked db may ignore `ORDER BY`).
-- **Sessions with no events are absent from the map** — callers treat a missing key as "no events", not an error.
+`live.list` fetches tournament progress events for the page in chunks (`attachProgress` in `packages/api/src/services/live-entry.ts`), scoped to the user. It passes each tournament's events to `projectTournamentProgress`; cash entries have no tournament progress.
 
 ### The Drizzle unqualified-column subquery trap
 
@@ -90,11 +77,9 @@ Instances of the pattern:
 
 Update procedures distinguish a value (set), explicit `null` (clear a nullable field), and an omitted key (unchanged). JSON serialization drops `undefined`, so clients must send `null` to clear.
 
-## UTC round-trip drift and day crossing
+## Calendar dates and day crossing
 
-The imperatives (UTC getters for date-only values, day-crossing handling, backfill duty) are in [`.claude/rules/datetime-and-numbers.md`](../../.claude/rules/datetime-and-numbers.md). The mechanics this doc adds:
-
-- Date-only entry and play-session values are calendar strings; do not convert them through local getters. Event timestamps are instants. Per-day durations subtract that day's breaks; negative durations are invalid.
+The imperatives for calendar text, instants, day-crossing handling and backfill duty are in [`.claude/rules/datetime-and-numbers.md`](../../.claude/rules/datetime-and-numbers.md). Entry `playedOn` and play-session `localDate` are calendar strings, never parsed as UTC or local instants. Event timestamps are instants. Per-day durations subtract that day's breaks; negative durations are invalid.
 
 ## Room archive and deletion
 

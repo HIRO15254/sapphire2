@@ -27,7 +27,9 @@ The author-side rules are in [`AGENTS.md`](../../AGENTS.md); historical review-l
 
 **Reviewer** — [`.claude/skills/pr-review/SKILL.md`](../../.claude/skills/pr-review/SKILL.md) routes every PR to the lean reviewer, which explores, refutes and verifies in one context. The workflow passes `full` or `incremental`, the diff range, the round number, `--post`, and the linked Linear issue. A local `/pr-review full` does not post and reads the issue through the Linear MCP. The diff is also checked against the issue's requirement ledger. Only confirmed `important` findings are posted inline; nits, pre-existing and unverified findings go to the summary. The trailing JSON trailer and resolution of fixed threads are kept.
 
-**Hooks** — the review session runs with `disableAllHooks` so the repo's Stop hook (`ultracite fix && vitest --changed && check-rules`) does not fire at the end of a review; it exists for authoring sessions.
+The reviewer runs with an explicit tool allowlist and without `gh api`; untrusted diff content cannot use that command to write to the PR. Thread resolution is performed separately from the machine-readable trailer.
+
+**Hooks** — the review session runs with `disableAllHooks` so the repo's Stop hook (`bun x ultracite fix && bun run test:unit --changed HEAD && bun x ultracite check && bun scripts/check-rules.ts`) does not fire at the end of a review; it exists for authoring sessions.
 
 ## Outcome job: Linear status and auto-merge
 

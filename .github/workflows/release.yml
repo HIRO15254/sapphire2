@@ -15,8 +15,6 @@ jobs:
       contents: write
       pull-requests: write
       id-token: write
-      # write (includes read) — the "Trigger production deploy" step dispatches
-      # production-deploy.yml via `gh workflow run`, which needs actions: write.
       actions: write
     steps:
       - name: Checkout
@@ -39,13 +37,6 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Resolved version: $VERSION"
 
-      # Capture the notes via the action's structured output instead of asking
-      # Claude to write a file. A headless run does not reliably produce a
-      # /tmp file, which silently left the publish step with no notes — the same
-      # failure mode pre-merge-review.yml hit (it solved it via track_progress;
-      # here we use structured output). --json-schema forces the result onto
-      # steps.<id>.outputs.structured_output, the officially documented
-      # machine-readable channel.
       - name: Generate release notes with Claude
         id: notes
         uses: anthropics/claude-code-action@v1
@@ -85,9 +76,6 @@ jobs:
             echo "::error::Claude produced no structured output; cannot build release notes"
             exit 1
           fi
-          # jq -e fails on invalid JSON and a null/missing release_notes; the
-          # extra -z check also rejects an empty-string body ("" // empty is ""),
-          # so a bad payload surfaces the dump below instead of publishing empty.
           if ! BODY=$(printf '%s' "$STRUCTURED_OUTPUT" | jq -er '.release_notes // empty') || [ -z "$BODY" ]; then
             echo "::error::structured output had no usable release_notes (invalid JSON or empty body)"
             echo "structured_output was: $STRUCTURED_OUTPUT"
@@ -114,11 +102,6 @@ jobs:
           gh pr comment "$PR_NUMBER" --repo "$REPO" \
             --body "Released as **$RELEASE_VERSION** → $RELEASE_URL"
 
-      # A Release published with the default GITHUB_TOKEN does not emit a
-      # `release: published` event that starts production-deploy.yml (GitHub's
-      # recursive-run guard). workflow_dispatch is exempt from that guard, so we
-      # explicitly kick the production deploy here. Deploy the tag we just cut so
-      # the deployed tree matches the Release exactly.
       - name: Trigger production deploy
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -133,12 +116,6 @@ jobs:
         with:
           bun-version-file: package.json
 
-      # Moves the Linear issues of this release from Done to Released. The
-      # release's PRs come from the commits between the previous tag and this
-      # merge (every change reaches dev through a PR, per the dev ruleset), and
-      # the issues are the ones Linear itself linked to those PRs — not IDs
-      # parsed from titles or branch names. A failure here must not hold back
-      # the release, so the step is allowed to fail.
       - name: Move the release's Linear issues to Released
         continue-on-error: true
         env:

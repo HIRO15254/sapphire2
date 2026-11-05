@@ -38,7 +38,7 @@ The reusable [checks.yml](../../.github/workflows/checks.yml) separates static c
 
 ## Seed tests: module replacement
 
-A test that `vi.mock`s the seed-constants module gets its own file, because the mock is module-wide. The two dedicated specs exist precisely because the real `DEFAULT_GAME_*` data cannot express their scenarios: [`seed-game-data-chunking.test.ts`](../../packages/api/src/__tests__/seed-game-data-chunking.test.ts) needs a mix wide enough to overflow D1's 100-bind-param cap, and [`seed-game-data-unresolvable-variant.test.ts`](../../packages/api/src/__tests__/seed-game-data-unresolvable-variant.test.ts) needs a mix whose `variantKeys` do not all resolve to a seeded variant.
+A test that `vi.mock`s the seed-constants module gets its own file, because the mock is module-wide. [`seed-game-data-unresolvable-variant.test.ts`](../../packages/api/src/__tests__/seed-game-data-unresolvable-variant.test.ts) supplies a mix whose `variantKeys` do not all resolve to a seeded variant. [`batch.test.ts`](../../packages/api/src/__tests__/batch.test.ts) covers chunk arithmetic.
 
 ## Web test gotchas
 

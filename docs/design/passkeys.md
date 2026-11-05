@@ -26,6 +26,8 @@ have to stub it. A passkey is bound to `rpID`, so passkeys registered against a
 preview deployment do not work in production, and moving the web app to a new domain
 invalidates every stored passkey.
 
+The server validates `CORS_ORIGIN` as an HTTP(S) origin and normalizes it before deriving the RP; see [MCP and OAuth](mcp-and-oauth.md) for the origin constraints.
+
 The challenge cookie rides on the existing `advanced.defaultCookieAttributes`
 (`sameSite: "none"`, `secure`, `httpOnly`), which is what lets the split-origin flow work
 at all.
@@ -45,10 +47,8 @@ plugin's schema definition. better-auth reads and writes it through the Drizzle 
 **JS property name**, so the property names (`credentialID`, `publicKey`, `backedUp`, …)
 are the contract — the snake_case column names are ours to choose.
 
-`credentialID` carries a UNIQUE index on top of the plugin's plain index. Authentication
-resolves a credential with a single `findOne({ credentialID })`, so a duplicate would make
-*which account you land in* non-deterministic. Two accounts cannot legitimately share one
-credential: an authenticator mints a new credential per (relying party, user handle) pair.
+`credentialID` has a UNIQUE constraint. Authentication resolves a credential by that ID,
+so duplicates could otherwise make account selection ambiguous.
 
 Ownership of a passkey row is enforced by the plugin: `deletePasskey` and `updatePasskey`
 both run `requireResourceOwnership`, so the client may pass an id freely.
@@ -57,7 +57,7 @@ both run `requireResourceOwnership`, so the client may pass an id freely.
 
 After a successful password sign-in or sign-up,
 [`offerAutomaticPasskey`](../../apps/web/src/features/auth/utils/auto-register-passkey.ts)
-silently stores a passkey next to the password the user just used.
+attempts to register a passkey without interrupting the signed-in user.
 
 **Feature detection is mandatory, not an optimization.** The mechanism is
 `navigator.credentials.create()` under `mediation: "conditional"`. `mediation` is an
@@ -107,59 +107,22 @@ deliberately blunt, and the two consequences are known:
 Every access is wrapped in try/catch: `localStorage` throws outright in some privacy modes,
 and the fallback is simply that the upgrade stays enabled.
 
-A dismissed browser prompt is not an error either. better-auth returns cancellation as
-`{ error: { code } }` rather than throwing — `AUTH_CANCELLED` for sign-in, and one of
-several codes for registration, which the next paragraph works through — so without
-`isCancelledCeremony` the user gets an error toast for simply pressing Escape, which is not
-how the social providers behave.
-That helper matches on `name` as well as `code`, because a raw `DOMException`
-(`NotAllowedError`, `AbortError`) carries its identity in `name`; `DOMException.code` is a
-legacy *number* and never matches a string.
+### Ceremony errors
 
-The registration path needs one more code. A dismissed prompt raises `NotAllowedError`,
-which `@simplewebauthn/browser` deliberately passes through as
-`ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY` — its stated reason is that platforms overload this
-error well beyond what the spec defines, so it keeps the original message rather than
-overwriting something potentially useful. (That matters for the limitation below: the
-detail is *there*, in `cause`, and would be usable if better-auth stopped discarding it.)
-better-auth forwards that code verbatim. `ERROR_CEREMONY_ABORTED` is reserved for an
-`AbortSignal` abort and does *not* cover the user closing the sheet. Following
-`error.cause` down to the original `DOMException` does not help: better-auth rebuilds the
-error as a plain `{ code, message, status, statusText }` object and drops `cause` entirely.
+[`isCancelledCeremony`](../../apps/web/src/shared/lib/webauthn.ts) recognizes better-auth
+and SimpleWebAuthn cancellation codes as well as raw `NotAllowedError` and `AbortError`
+names. The sign-in handler suppresses those errors; other failures are shown. The add form
+instead reports "The request was canceled or timed out. Try again." for recognized
+cancellations and "This device already has a passkey." for
+`ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED` or `InvalidStateError`.
 
-`ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY` is broader than "the user closed the prompt", and
-the cost is accepted rather than solved: SimpleWebAuthn stamps it on **every**
-`NotAllowedError`, so a timeout (easy to hit on mobile), a
-`publickey-credentials-create` permissions-policy denial, and the
-already-registered case on authenticators that report `NotAllowedError` instead of
-`InvalidStateError` all land here and are swallowed silently — leaving the add sheet open
-with no feedback. The alternative is a toast every time someone presses Escape, which is
-worse and is what the social providers already avoid. Consequently the
-"This device already has a passkey" message below only appears on platforms that raise
-`InvalidStateError` (Chrome's platform authenticator does; a security key may not).
+The cancellation classification is broader than a deliberate dismissal:
+`ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY` can also represent timeout or policy failures.
+Similarly, better-auth may classify authentication failures as `AUTH_CANCELLED`, so the
+sign-in UI cannot always distinguish cancellation from a real ceremony failure.
 
-Sign-in needs no such care, for a blunter reason: better-auth funnels **every**
-`startAuthentication` throw into `AUTH_CANCELLED`. The flip side is that the sign-in button
-is silent on real breakage too — a wrong `rpID`, a non-secure context, a timeout. That is
-precisely the failure this document opens by warning about, and it presents to the user as
-a button that does nothing at all. The one breadcrumb is that better-auth `console.error`s
-the underlying error ("[Better Auth] Error verifying passkey") before collapsing it, so the
-real cause is visible in devtools even though the UI stays quiet.
-
-`ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED` is the one failure worth rewording rather than
-silencing: on a device that already holds a passkey, `excludeCredentials` makes "Add
-passkey" fail by design, and the plugin's own "Previously registered" says nothing about
-what to do. Code and message come from different layers on purpose — better-auth keeps
-SimpleWebAuthn's `ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED` as the code but swaps in its
-own `PASSKEY_ERROR_CODES.PREVIOUSLY_REGISTERED.message`, so that pair is what actually
-reaches the client and there is no second, server-side `PREVIOUSLY_REGISTERED` code to
-match on. The screen is still the way to register a *different* device over cross-device
-QR, so the button stays.
-
-Ceremonies are also guarded against a second press: WebAuthn aborts an in-flight request
-when a new one starts, so a double-click would cancel the user's own prompt and surface a
-`NotAllowedError`. The sign-in button, the add form and the rename/delete handlers each
-refuse re-entry while one is in flight.
+The sign-in button and add form guard against starting a second ceremony while one is in
+flight; the rename and delete handlers similarly guard against duplicate submissions.
 
 The upgrade is **skipped on the MCP OAuth branch**, where `location.assign` tears the
 document down and would abort the ceremony mid-flight. See
@@ -204,16 +167,9 @@ behind on the authenticator, where the user has to clear it themselves.
 Affordances are hidden, not shown-and-broken, where `PublicKeyCredential` is absent
 (`isPasskeySupported`).
 
-The list is populated from `listUserPasskeys`, whose failures do **not** throw: better-auth
-resolves with `{ data: null, error }` unless `throw: true` is passed. Reading only `data`
-would render a 401 or a 500 as "No passkeys yet", telling a user who has passkeys that they
-have none — so the error branch is keyed off `result.error`, not off a thrown exception
-(the `catch` only ever sees a network-level rejection).
-
-Because that branch is now genuinely reachable, the failure state has to be recoverable:
-the error replaces the *list* only, keeping "Add passkey" available and offering `Retry`
-(`refreshPasskeys`). Replacing the whole section instead would strand a user on an expired
-session with no way out short of reloading the page.
+The list handles better-auth's resolved `{ data: null, error }` response as an error,
+rather than mistaking it for an empty list; a rejected request is also handled. The
+failure state replaces only the list, retaining "Add passkey" and offering `Retry`.
 
 `refreshPasskeys` is sequence-guarded rather than re-entry-guarded. Two refreshes can
 legitimately overlap (a `Retry` press while the refresh that follows a delete is still in

@@ -32,12 +32,10 @@ jobs:
           PAGES_PROJECT="sapphire2-web"
           D1_DB_NAME="sapphire2-db-pr-${PR_NUMBER}"
 
-          # Fetch Workers subdomain from Cloudflare API
           WORKERS_SUBDOMAIN=$(curl -sf \
             "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain" \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | jq -r '.result.subdomain')
 
-          # Fetch Pages domain from Cloudflare API (returns "xxx.pages.dev")
           PAGES_DOMAIN=$(curl -sf \
             "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${PAGES_PROJECT}" \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | jq -r '.result.subdomain')
@@ -62,10 +60,6 @@ jobs:
           DB_NAME="${{ needs.setup.outputs.d1_db_name }}"
           API="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database"
 
-          # Resolve an existing DB id by exact name. The list endpoint is
-          # paginated and also accepts a `name` filter, so pass a large per_page
-          # plus the name filter, then still select by exact name to guard
-          # against prefix matches.
           resolve_id() {
             curl -sf "${API}?per_page=1000&name=${DB_NAME}" \
               -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
@@ -77,9 +71,6 @@ jobs:
           IS_NEW=false
 
           if [ -z "$DB_ID" ]; then
-            # No existing DB found — create it. Capture the full response so a
-            # duplicate-name error (7502) or an empty uuid does not silently
-            # leave DB_ID blank and break the migrate job downstream.
             CREATE_RESP=$(curl -s -X POST "${API}" \
               -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
               -H "Content-Type: application/json" \
@@ -89,13 +80,6 @@ jobs:
               IS_NEW=true
               echo "Created D1 database: $DB_ID"
             else
-              # Create returned no id. Distinguish the cause so the downstream
-              # seed step (gated on is_new_db) still runs when appropriate:
-              #   - duplicate-name (7502): the DB already existed -> not new,
-              #     the seed was already applied on its first deploy, skip it.
-              #   - any other transient failure: the DB may have just been
-              #     created but the response was unparseable -> treat as new so
-              #     the seed runs and the preview DB is not left empty.
               if echo "$CREATE_RESP" | jq -e '.errors[]? | select(.code == 7502)' >/dev/null 2>&1; then
                 echo "DB already exists (7502); re-resolving id. Response: $CREATE_RESP"
                 IS_NEW=false
@@ -125,18 +109,6 @@ jobs:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
 
-      # For brand-new preview DBs we seed from the master DB, whose schema
-      # may trail HEAD by any number of unreleased migrations. To make the
-      # seed succeed, we:
-      #   1. Query master's `d1_migrations` table to find what tag it is at.
-      #   2. Stash every migration file in the repo that is newer than that.
-      #   3. Apply only the migrations master already has → preview DB
-      #      schema matches master.
-      #   4. Disarm every trigger, seed from master (must succeed cleanly
-      #      now), then re-arm them — a bulk restore is not an application
-      #      write, so triggers must not derive rows the dump already has.
-      #   5. Restore the stashed migrations and apply them, running their
-      #      own backfills against the seeded data.
       - name: Stash unreleased migrations (new DB only)
         if: needs.d1-setup.outputs.is_new_db == 'true'
         working-directory: apps/server
@@ -160,7 +132,6 @@ jobs:
           STASHED_TAGS=()
           for f in "$MIGRATIONS_DIR"/[0-9]*_*.sql; do
             base=$(basename "$f")
-            # Stash if filename sorts strictly after master's last applied.
             if [[ "$base" > "$LAST_APPLIED" ]]; then
               tag="${base%.sql}"
               echo "Stashing $tag (newer than master)"
@@ -198,58 +169,22 @@ jobs:
           git checkout wrangler.toml
           bunx wrangler d1 export "$SOURCE_DB" --remote --no-schema --output=dump.sql
 
-          # Remove d1_migrations data (already applied via migrations step)
           sed -i '/INSERT INTO.*d1_migrations/d' dump.sql
 
-          # The dump may insert children before their parents. Foreign keys are
-          # turned back on by fk-on.sql after the restore, not by a trailing
-          # PRAGMA here — see the comment there.
           sed -i '1i PRAGMA foreign_keys = OFF;' dump.sql
           echo 'PRAGMA foreign_keys = ON;' > fk-on.sql
 
           sed -i "s/database_id = \".*\"/database_id = \"${{ needs.d1-setup.outputs.d1_database_id }}\"/" wrangler.toml
           sed -i "s/database_name = \".*\"/database_name = \"${{ needs.setup.outputs.d1_db_name }}\"/" wrangler.toml
 
-          # Triggers keep derived tables in sync with *application* writes. A
-          # bulk restore is not an application write: the dump already carries
-          # the derived rows, so an armed trigger generates a second copy of
-          # them. 0049's game_mix compat triggers do exactly that — inserting a
-          # `game_mix` row rebuilds `game_mix_variant` from the legacy JSON
-          # mirror, and the dump's own `game_mix_variant` rows then collide on
-          # `game_mix_variant_mix_position_unique`. So disarm every trigger for
-          # the duration of the restore and re-arm it afterwards, leaving the
-          # dump as the single source of truth for seeded data.
-          #
-          # Read back from sqlite_master rather than re-running a migration:
-          # that captures exactly the triggers this DB has, so the step stays
-          # correct as migrations add or drop them.
           bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --json \
             --command="SELECT name, sql FROM sqlite_master WHERE type = 'trigger' AND sql IS NOT NULL ORDER BY name" \
             > triggers.json
           jq -r '.[0].results[] | "DROP TRIGGER IF EXISTS `" + .name + "`;"' triggers.json > drop-triggers.sql
           jq -r '.[0].results[] | .sql + ";"' triggers.json > restore-triggers.sql
-          # SQLite strips `IF NOT EXISTS` before storing DDL in sqlite_master,
-          # so the read-back CREATEs are NOT idempotent — re-running them over
-          # a surviving trigger aborts the file and every CREATE behind it is
-          # skipped. Prefix the drops so the re-arm converges from ANY state,
-          # including a DROP batch that only partially applied.
           cat drop-triggers.sql restore-triggers.sql > rearm-triggers.sql
           echo "Stashing $(wc -l < drop-triggers.sql) trigger(s) for the restore"
 
-          # Re-arm on the way out however we leave, because there is no second
-          # chance: this whole step is gated on is_new_db, so once the database
-          # exists a later run resolves it as existing and skips straight past
-          # here. A seed that failed after the DROP would otherwise leave the
-          # preview permanently trigger-less — rows intact, but nothing syncing
-          # game_mix_variant and no 0041 integrity checks.
-          #
-          # Both exits are decided explicitly: a failed seed keeps its own
-          # status (a half-seeded preview must not go green), and a failed
-          # re-arm fails the step even when the seed succeeded — the outcome
-          # there is a trigger-less preview that no later run will repair, so
-          # it must not be silent. Under `bash -e` a failing command in the
-          # handler already propagates, but saying it outright survives a shell
-          # without -e and names the consequence in the log.
           restore_triggers() {
             seed_status=$?
             if [ -s rearm-triggers.sql ]; then
@@ -266,22 +201,8 @@ jobs:
             bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=drop-triggers.sql
           fi
 
-          # Stash logic above ensures preview DB schema matches master, so the
-          # seed must succeed cleanly. A failure here means the stash logic
-          # missed something — fail the job so we notice instead of shipping
-          # a preview with incomplete data.
           bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=dump.sql
 
-          # The dump's `PRAGMA foreign_keys = OFF` outlives the import: D1 keeps
-          # it on the database connection, while a `= ON` at the end of the same
-          # file has no effect, and neither has one sent with --command (the
-          # pragma is a no-op inside that request's implicit transaction). Left
-          # off, the stashed migrations in the next step run without the FK
-          # actions production enforces — 0054's DROP TABLE then cascaded
-          # nothing and its restore collided on blind_level.id. Only a separate
-          # import re-enables it, so do that and verify it, which turns a
-          # change in D1's behavior into a failure here instead of a
-          # migration that diverges from production.
           bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=fk-on.sql
           FOREIGN_KEYS=$(bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --json \
             --command="PRAGMA foreign_keys" | jq -r '.[0].results[0].foreign_keys')
@@ -347,8 +268,6 @@ jobs:
           VITE_PREVIEW_AUTO_LOGIN: "true"
           VITE_PREVIEW_LOGIN_EMAIL: ${{ secrets.PREVIEW_LOGIN_EMAIL }}
           VITE_PREVIEW_LOGIN_PASSWORD: ${{ secrets.PREVIEW_LOGIN_PASSWORD }}
-          # vite-plugin-github-releases が Releases API を叩く。未認証だと
-          # 60 req/時/IP の制限に共有ランナーで引っかかり、403 でビルドが落ちる。
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Deploy to Cloudflare Pages

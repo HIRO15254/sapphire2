@@ -1,14 +1,12 @@
 # API contract
 
-Status: **design contract**.
-
 This document owns procedure names, request/response shapes and the MCP projection. [data-model.md](data-model.md) owns tables, invariants, calculations and event projections. [game-lineups.md](game-lineups.md) owns immutable lineups, rule versions and version-write semantics.
 
 ## 1. Conventions
 
 ### Authentication, identifiers and errors
 
-Every procedure except root `healthCheck` is authenticated (`UNAUTHORIZED` otherwise). `Id` means a nonempty opaque string, never a label or a legacy session-id discriminator. Every supplied id, including nested arrays, price ids, linked hand ids and cursor scope, is ownership-checked. Missing and foreign ids uniformly return `FORBIDDEN`; `getById` does not expose existence through `NOT_FOUND`. Parent membership is checked in addition to ownership. User-scoped joins and chunked child hydration must not introduce an existence oracle or N+1 queries.
+Every procedure except root `healthCheck` is authenticated (`UNAUTHORIZED` otherwise). `Id` is a nonempty opaque string; an empty id is `BAD_REQUEST`. Entity references and cursor scopes are ownership-checked. Missing and foreign entities return `FORBIDDEN`; parent membership is checked in addition to ownership.
 
 | Error | Contract |
 | --- | --- |
@@ -16,11 +14,13 @@ Every procedure except root `healthCheck` is authenticated (`UNAUTHORIZED` other
 | `FORBIDDEN` | Missing/foreign entity or cursor scope; accessing a child outside its validated parent; editing entry money through wallet procedures. |
 | `CONFLICT` | Unique-name/label collision, duplicate rate effective instant, reference-protected delete, second active/paused play session, unsafe undo (including undoEndPlay/undoStartNextPlay without an undoable step), immutable referenced asset kind/decimals. Reference-protected master deletion explicitly recommends archive. |
 | `PRECONDITION_FAILED` | Invalid lifecycle state (including append to an ended play or count add/undo outside active play); missing configured base asset for requested conversion; continuing an explicitly finished entry; rule operation requiring an absent linked master. |
-| `INTERNAL_SERVER_ERROR` | Configured external service unavailable or malformed provider response; never an ownership substitute. |
+| `INTERNAL_SERVER_ERROR` | External service unavailable or malformed response, or an internal data-integrity failure; never an ownership substitute. |
 
-Omitted update fields mean unchanged; `null` clears only nullable fields. Supplied arrays replace the entire collection, unless explicitly described otherwise. Validation applies to the resulting merged object on create **and** update. Unknown legacy fields are not given compatibility handlers or special strict-rejection code.
+HTTP error responses omit stack traces. An `INTERNAL_SERVER_ERROR` with a non-tRPC cause is returned as `Internal server error`; deliberate tRPC error messages without such a cause remain visible. MCP maps internal errors to generic text.
 
-All multistatement writes, event changes plus projection, exchange pairs, rule writes, and replace-all child writes use one D1 `db.batch()`. Inserts respect the 100-bound-parameter limit. Event/hand sequence allocation occurs inside INSERT, not from an earlier application-side MAX. These are observable atomicity requirements, not optional implementation advice.
+Omitted update fields mean unchanged; `null` clears only nullable fields. Supplied arrays replace the entire collection, unless explicitly described otherwise. Validation applies to the resulting merged object where cross-field constraints require it.
+
+Event changes plus projection, exchange pairs, rule writes, and replace-all child writes use D1 `db.batch()`. Default-game seeding can commit separately before a rule write. Inserts respect the 100-bound-parameter limit. Event/hand sequence allocation occurs inside INSERT, not from an earlier application-side MAX.
 
 The D1 budget is Workers Paid's 1,000 queries per Worker invocation, including authentication/session reads and each batch statement. Each mutation must stay within this budget at its maximum admitted input, including nested rule bodies and authentication reads.
 
@@ -33,12 +33,12 @@ Ring-game rule writes plan one lineup: a newly created lineup spans at most 12 g
 ### Dates, quantities, lists and common results
 
 - `DateOnly` is a valid calendar string `'YYYY-MM-DD'`: `playedOn`, `localDate`, `dateFrom`, `dateTo`. Date filters are inclusive and use `played_on`; calendar axes do too.
-- `Instant` input is an integer Unix **second**, not milliseconds or a date string. Timestamp output is a `Date` through tRPC's transformer and an ISO-8601 string in JSON/MCP. This includes ledger `occurredAt`, rate `effectiveFrom` and all event timestamps. Rate `effectiveFrom: 0` means effective from the beginning.
+- `Instant` input is an integer Unix **second** in 0–8,640,000,000,000, not milliseconds or a date string. In-process callers receive `Date` values; HTTP and MCP serialize timestamps as ISO-8601 strings. This includes ledger `occurredAt`, rate `effectiveFrom` and all event timestamps. Rate `effectiveFrom: 0` means effective from the beginning.
 - Live local dates derive from `userSetting.timeZone`; null means `Asia/Tokyo`. An explicitly supplied local date is validated as a date-only value. Manual money timestamps follow the [data model](data-model.md) manual-line rule, not the server's locale.
 - Every written event time in playEvent.create/update and live.create/complete/endPlay/startNextPlay must be at most server now + 60 seconds; otherwise BAD_REQUEST. Check only the time being written, not unchanged existing rows; non-event payload clocks such as timerStartedAt are exempt ([data model](data-model.md) §13.2).
 - Money quantities are integers in the asset's smallest unit; `asset.decimals` is 0–4. `Quantity` is 1–10^12. Payment inputs are unsigned; role determines the stored sign. Adjustment inputs are signed nonzero integers with absolute value at most 10^12. Chips, blinds, pots and counts are nonnegative integers, not converted asset amounts. Equity is a percentage in [0,100].
-- `assetId` replaces `currencyId` everywhere. Every money line has its **own required assetId**. Entry/master default asset metadata never makes an omitted payment asset valid. Items/tickets use quantity units exactly like currency lines; they are not silently treated as currency.
-- All paginated inputs use opaque **string keyset cursors** and all pages return `{ items: T[], nextCursor: string | null }`. Cursors contain the complete ordering tuple and filter/owner scope, survive deletion of the boundary row, and are not numeric hand numbers. Invalid encoding is `BAD_REQUEST`, invalid ownership is `FORBIDDEN`.
+- Every money line has its **own required assetId**. Entry/master default asset metadata never makes an omitted payment asset valid. Items/tickets use quantity units exactly like currency lines; they are not silently treated as currency.
+- Paginated inputs use opaque **string keyset cursors** and pages return `{ items: T[], nextCursor: string | null }`. Cursors contain the ordering tuple and relevant scope; malformed encoding, JSON or cursor shape is `BAD_REQUEST` and invalid scope is `FORBIDDEN`. Entry cursors include source and filters, but not limit. Hand deletion compacts hand numbers, so a hand cursor is not stable across deletions.
 - `PageInput = { cursor?: string, limit?: integer }`; entry/live limits default 20, range 1–100; hand/player-hand default 20, range 1–50; ledger default 20, range 1–100. Entry/live order `(playedOn,id)` descending; hand `(handNo,id)` descending; ledger `(occurredAt,id)` descending. Series are chronological.
 - Every archivable master list accepts `includeArchived?: boolean` (default false); true includes active **and** archived rows. Historical references always hydrate archived masters regardless of this flag. This applies to asset, room, ringGame, tournament, gameGroup, gameVariant, gameMix and ledgerCategory.
 - `IdInput = { id: Id }`; `Ack = { success: true }`; `IdResult = { id: Id }`. Procedures returning a record return the complete documented record, not a database-only fragment. Common auth, ownership and input errors apply to every row below; the error column lists additional cases.
@@ -89,7 +89,7 @@ type EntryRole = 'buy_in' | 'reentry' | 'fee' | 'chip_purchase' | 'addon'
 type Amounts = { buyIn: number; cashOut: number; profitLoss: number };
 type MissingRate = { assetId: Id; earliestOccurredAt: Timestamp };
 type EntryLine = {
-  id: Id; entryId: Id; playSessionId: Id; eventId: Id | null;
+  id: Id; entryId: Id; playSessionId: Id | null; eventId: Id | null;
   assetId: Id; role: EntryRole; effect: 'real' | 'virtual';
   quantity: number; occurredAt: Timestamp; priceId: Id | null;
 };
@@ -111,7 +111,7 @@ type EntryMoney = {
 
 `lines` preserve signed quantities and line-level provenance; order `(occurredAt,id)` ascending. `totals` are exact native-asset sums, separately for each asset/effect, never a cross-asset number. Role totals expose prize versus bounty and chip-purchase/addon counts without storing a second count. `valuation` delegates to `valuation.ts` and [data model](data-model.md) §12: real and virtual are the service's two valuation modes, **not** two disjoint subtotals to add together. Missing conversion makes the affected valuation null, never zero; no configured base asset makes both null with `baseAssetId:null`. Native totals remain available. Entry reads use the user's configured base asset, not a hidden entry-level currency conversion.
 
-Manual cash permits `buy_in, addon, chip_remove, cash_out`; tournament permits `buy_in, reentry, fee, chip_purchase, prize, bounty`. Start permits cash buy_in and tournament buy_in/fee; re-entry permits reentry/fee; complete permits cash cash_out and tournament prize/bounty; addon-kind tournament prices produce chip_purchase lines (plus fee when present), not cash addon lines. Real/virtual role restrictions are those of [data model](data-model.md) §7/§11. Prices never infer an asset omitted from a payment. Zero-cost attendance uses no money line, not a zero line.
+Manual cash permits `buy_in, addon, chip_remove, cash_out`; tournament permits `buy_in, reentry, fee, chip_purchase, prize, bounty`. Start permits cash buy_in and tournament buy_in/fee; re-entry permits reentry/fee; complete permits cash cash_out and tournament prize/bounty; addon-kind tournament prices produce chip_purchase lines (plus fee when present), not cash addon lines. Entry payment effects may be real or virtual and default to real. Prices never infer an asset omitted from a payment. Zero-cost attendance uses no money line, not a zero line.
 
 ### Play sessions and entry records
 
@@ -149,15 +149,15 @@ type EntryOutput = EntryMoney & {
 };
 ```
 
-Kind-specific details are mutually exclusive. The tournament's `totalEntries` is field size; aggregate counts are always `entryCount`. `ruleDrift` is false without a linked master, otherwise `ruleVersionId !== currentMasterRuleId`, not a field comparison. Play sessions are seq ascending. Derived time, big blind, EV and settled status follow [data model](data-model.md) §12/§13, not legacy summary columns.
+Kind-specific details are mutually exclusive. The tournament's `totalEntries` is field size; aggregate counts are always `entryCount`. `ruleDrift` is false without a linked master, otherwise `ruleVersionId !== currentMasterRuleId`, not a field comparison. Play sessions are seq ascending. `playMinutes` sums each timed Day's duration less breaks at second resolution, expressed as fractional minutes; Days without both endpoints contribute zero. Big blind, EV and settled status follow [data model](data-model.md) §12/§13.
 
-`ManualPlay` times must be ordered, break duration valid, and plays chronological/nonoverlapping. Earlier plays close held/bagged; the last closes in a settled end state valid for kind; held/bagged require endStack. Manual records may omit wall-clock times without fabricating duration. `playedOn` equals the minimum local date. Entry create accepts either one top-level `payments` array for a single play or payments inside `playSessions[]`; multi-play requests must use per-play payments, and simultaneous top-level/per-play money is `BAD_REQUEST`. This fixes attribution without an array-index foreign key or a second input generation.
+`ManualPlay` times must be ordered, break duration valid, and plays chronological/nonoverlapping. Earlier plays close held/bagged; the last closes in a settled end state valid for kind; held/bagged require endStack. Manual records may omit wall-clock times without fabricating duration. `playedOn` equals the minimum local date. Entry create accepts either one top-level `payments` array for a single play or payments inside `playSessions[]`; multi-play requests must use per-play payments, and simultaneous top-level/per-play money is `BAD_REQUEST`.
 
-On manual update, a supplied `ManualPlay.id` identifies an existing Day of that entry; preserve its id and attached hands rather than delete/recreate it. Omit id for a new Day. Ownership and parent-membership checks apply.
+On manual update, a supplied `ManualPlay.id` identifies an existing Day of that entry; preserve its id and attached hands rather than delete/recreate it. Omit id for a new Day. An id on create is FORBIDDEN; duplicate ids are BAD_REQUEST. Ownership and parent-membership checks apply. Break minutes are integers from 0 to 100,000 and endStack is nonnegative.
 
 ### Games and immutable rule bodies
 
-`GameInput = { variantId: Id } | { gameMixId: Id } | { lineupId: Id }`. A level's `game:null` means inherit. `StakeInput = { gameGroupId: Id, blind1?:number|null, blind2?:number|null, blind3?:number|null, ante?:number|null, anteType?:'none'|'all'|'bb'|null }`. Exactly one stake per effective lineup group in group order; mismatch is `BAD_REQUEST`. Stored lineup ids round-trip archived selections; newly picking archived masters is rejected. Omitted game inherits the linked master, otherwise builtin NLH. Omitted stakes carry by `(gameGroupId, occurrence within that structure)`, not absolute position.
+`GameInput = { variantId: Id } | { gameMixId: Id } | { lineupId: Id }`; each branch is strict. A level's `game:null` means inherit. `StakeInput = { gameGroupId: Id, blind1?:number|null, blind2?:number|null, blind3?:number|null, ante?:number|null, anteType?:'none'|'all'|'bb'|null }`. Exactly one stake per effective lineup group in group order; mismatch is `BAD_REQUEST`. An owned lineup id can preserve archived selections; newly selecting an archived variant, its archived group, or an archived mix is rejected. Omitted game inherits the linked master, otherwise builtin NLH. Omitted stakes carry by `(gameGroupId, occurrence within that structure)`; tournament levels carry from the same level index.
 
 For newly written stake rows, the server rejects a null/omitted blind marked Required by its game group, or a value in a blind field without a label (`BAD_REQUEST`). Every stake row of a new rule version counts as newly written, including values carried forward from the previous version when `stakes` is omitted. Ante is outside this requirement system. Reusing an existing immutable rule version does not revalidate its stakes. The shared rule-write service enforces this.
 
@@ -182,7 +182,7 @@ type TournamentRuleInput = {
 };
 ```
 
-Table size is 2–10; minBuyIn <= maxBuyIn. Tournament rule maxima: at most 100 levels, 12 stakes per level (one per lineup group; a new lineup may span at most 12 game groups) and 20 prices. Label maximum 100 characters; houseRules maximum 50,000. Price amount/fee/chips are nonnegative integers (amount/fee <=10^12); assetId is required even for a free price. A ticket price is an item asset, not a special branch. Breaks have no stakes/game override. Supplied levels/prices replace the **whole** collection; each structural edit writes one immutable version, never parallel per-row edits.
+Table size is 2–10; minBuyIn and maxBuyIn are nonnegative integers at most 10^12, and minBuyIn <= maxBuyIn. Tournament rule maxima: 100 levels, 12 stakes per level (one per lineup group) and 20 prices. Level minutes are 1–10,000 or null; starting stack and chips are nonnegative safe integers, bounty amount and price amount/fee are nonnegative integers at most 10^12. Price label is trimmed to at most 100 characters and defaults to an empty string; houseRules maximum is 50,000. AssetId is required even for a free price. Breaks have no stakes/game override. Supplied levels/prices replace the whole collection; each structural edit writes one immutable version.
 
 `LineupMap` maps lineup id to `{id,gameMixId,displayName,groups:[{id,gameGroupId,name,variants:[{id,label,shortLabel}]}]}`. `CashRule` is `{id,ringGameId,parentRuleId,lineupId,stakes,...cash scalar fields}`. `TournamentRule` is `{id,tournamentId,parentRuleId,lineupId,...tournament scalar fields,levels,prices}`. Output stake adds `lineupGroupId`; level adds `id,ordinal,level,effectiveLineupId` and returns `game:null` for inheritance; price adds `id,ordinal`. Ordinals derive from array order. Master ownership ids may be null only for standalone entry versions. Display names resolve current user-owned master labels, including archived rows; composition never changes retroactively.
 
@@ -193,27 +193,29 @@ Table size is 2–10; minBuyIn <= maxBuyIn. Tournament rule maxima: at most 100 
 | `list` Q | PageInput; `kind?,status?:open|settled,roomId?,assetId?,dateFrom?,dateTo?` | Page<EntryOutput> | Date range reversed: BAD_REQUEST | `entry_list` |
 | `getById` Q | IdInput | EntryOutput | — | `entry_get_by_id` |
 | `create` M | Discriminator `kind:cash|tournament`; `playedOn:DateOnly`, `playSessions?:ManualPlay[]` (nonempty; at most 100 plays and 1000 payments), `payments?:Payment[]` (single play), `roomId?,assetId?,title?:string<=100,memo?:string<=5000,tagIds?:Id[]`; cash: `ringGameId?,rule?:CashRuleInput,evDiff?:signed integer`; tournament: `tournamentId?,rule?:TournamentRuleInput,placement?:positive integer,totalEntries?:positive integer,beforeDeadline?:boolean=false` | EntryOutput, source manual | placement > totalEntries unless beforeDeadline; inconsistent playedOn/plays: BAD_REQUEST | `entry_create_cash`, `entry_create_tournament` |
-| `update` M | `id`; mutable create fields optional; kind/source immutable; nullable metadata may clear; playSessions/payments/tagIds replace all when supplied | EntryOutput | Live event-derived fields (money, time, status, results, EV) cannot be patched: BAD_REQUEST | `entry_update` |
+| `update` M | `id`; mutable create fields optional; kind/source immutable; nullable metadata may clear; playSessions/payments/tagIds replace all when supplied | EntryOutput | Live event-derived fields, wrong-kind fields, invalid playedOn/plays or top-level payments on a multi-play entry: BAD_REQUEST | `entry_update` |
 | `delete` M | IdInput | Ack | — | Excluded: destructive |
 | `overrideRule` M | Discriminator `kind`: `{id,kind:cash,rule:CashRuleInput}` or `{id,kind:tournament,rule:TournamentRuleInput}`; omitted rule fields keep the entry's current version | EntryOutput | Kind other than the entry's, invalid stake coverage or live seat outside reduced tableSize: BAD_REQUEST | Excluded: rule workflow |
 | `applyMasterRule` M | IdInput | EntryOutput | No linked master: PRECONDITION_FAILED | Excluded: rule workflow |
 | `pushRuleToMaster` M | IdInput | EntryOutput | No linked master: PRECONDITION_FAILED | Excluded: rule workflow |
 | `relink` M | `{id,ringGameId:Id|null,keepRule:boolean}` or tournament twin, matching kind | EntryOutput | Wrong-kind link: BAD_REQUEST | Excluded: rule workflow |
-| `restoreRule` M | `{id,masterId:Id|null,ruleVersionId:Id,masterRuleVersionId?:Id}` | EntryOutput | Version not owned by the specified master (or not standalone when masterId is null), or masterRuleVersionId without a master: BAD_REQUEST | Excluded: screen |
+| `restoreRule` M | `{id,masterId:Id|null,ruleVersionId:Id,masterRuleVersionId?:Id}` | EntryOutput | Owned version belongs to another master (or is not standalone when masterId is null), or masterRuleVersionId without a master: BAD_REQUEST; missing/foreign version: FORBIDDEN | Excluded: screen |
 
-List asset filtering means **has a ledger line in that asset**, not entry default asset equality. List has no ambiguous all-asset aggregate `summary`; use `stats` with an explicit mode. Open entries remain visible; statistics do not count them. Omitting playSessions on manual create synthesizes one ended play on playedOn; no legacy top-level startedAt/endedAt/breakMinutes fields. `beforeDeadline:true` stores placement null. Array tag ids are unique and owner-checked.
+List asset filtering means **has a ledger line in that asset**, real or virtual, not entry default asset equality. By contrast, native `stats` mode requires a real line in the selected asset. Use `stats` with an explicit mode for aggregate results. Open entries remain visible; statistics do not count them. Omitting playSessions on manual create synthesizes one ended play on playedOn. `beforeDeadline:true` stores placement null. Array tag ids are unique and owner-checked.
 
 Limits: one entry holds at most 100 playSessions, 1000 payments in total and 100 tagIds; list pages hold at most 100 entries. Update reads the rule version only for output and price checks; it never takes `ringGameId`, `tournamentId` or `rule`. A ManualPlay `id` must name an existing Day of that entry (else FORBIDDEN); kept Days keep their id and hands, Days left out are deleted with their hands, and Days without id are inserted, so an update that keeps every Day is undone by sending the previous values. Days before the last end held (cash) or bagged (tournament) with endStack; the last ends cashed_out/finished (cash) or busted/finished (tournament); placement is not cross-checked against the end state. A synthesized Day ends cashed_out (cash), finished when placement is 1, busted otherwise (tournament). Payment priceIds must belong to the entry's rule version or already be used by the entry, with the price's asset and a role its kind pays (entry: buy_in/fee, reentry: reentry/fee, addon: chip_purchase/fee). Live entries accept only roomId, assetId, title, memo and tagIds. Delete removes the entry, its Days, hands, lines and tag links; its standalone rule version stays.
 
-Rule operations are also present on live (§4), with the same semantics. Override inserts a child under the same master and changes only the entry; unchanged signature reuses the version. Apply points to the linked master's current version. Push points the master to the entry's same-master version (or creates an equal version under that master) and aligns both ids. Relink with keepRule false applies the destination's current version; true copies the entry version under the destination master, never points across masters. Unlink preserves content as a parentless standalone version. Ordinary `update` may change metadata, but changing an already-linked master must use `relink`, and subsequent rule edits use the named rule operations. No keepSnapshot flag remains.
+Rule operations are also present on live (§4). Override inserts a child under the same master and changes only the entry; unchanged signature reuses the version. Apply points to the linked master's current version. Push points the master to the entry's same-master version (or creates an equal version under that master) and aligns both ids. Relink with keepRule false applies the destination's current version; true preserves the entry's rule under that master, reusing a suitable version or creating a copy. A null destination preserves the content in a standalone version and ignores keepRule. Ordinary `update` may change metadata, but changing an already-linked master uses `relink`.
 
 `restoreRule` restores the entry's master link and existing rule version in one batch; when supplied, `masterRuleVersionId` also restores that master's current version in the same batch. Every version must belong to that master; with `masterId:null`, the entry version must be standalone. No new version is created. Archived masters and versions are allowed because this only restores saved values. Live entries also apply the tableSize/active player and self-seat validation. This is the inverse of overrideRule, applyMasterRule, pushRuleToMaster and relink; to undo createAndAssign*, follow restoreRule with deletion of the created master.
 
-Payments may reference only existing prices in the selected immutable tournament version. To create a new price and pay it, first write the rule through a rule operation/master operation, read the returned price id, then record the payment. Manual payments may omit priceId; no guessed price-id mapping or temporary client id is accepted. Changing a rule version with existing priced lines preserves those references to their original price; new payments use the new version's price ids.
+New payments may reference only existing prices in the selected immutable tournament version. When replacing manual payments, an older price already used by the entry may be retained up to its existing line count. To create a new price and pay it, first write the rule through a rule operation/master operation, read the returned price id, then record the payment. Manual payments may omit priceId; no temporary client id is accepted. Changing a rule version preserves existing priced lines' original references.
+
+On update, top-level payments apply only to a single stored Day. A changed first local date requires a matching `playedOn` in the same request. A priced payment with the wrong asset or role is BAD_REQUEST; a foreign or unavailable price is FORBIDDEN. Manual `evDiff` is bounded to ±10^12.
 
 ## 4. `live`
 
-All reads and successful entry mutations return EntryOutput, never game_session/sessionDate/completed/evCashOut output. Live tournament records additionally return `progress:{currentStack:number|null,remainingPlayers:number|null,totalEntries:number|null,chipTotal:number,averageStack:number|null}`; live cash records return `progress:null`. The server fold and formula are owned by [data model](data-model.md) §13.2; charts consume these values without recomputing them. `getById` additionally returns `{events:PlayEvent[],currentPlaySessionId:Id|null,currentButtonSeat:number|null}`. Every by-id procedure rejects a manual or imported entry with BAD_REQUEST. All procedures are **Excluded: cockpit** in MCP, including reads and rule operations, except `restoreRule` (**Excluded: screen**).
+Live reads and successful entry mutations return EntryOutput, except `discard`, which returns Ack. Live tournament records additionally return `progress:{currentStack:number|null,remainingPlayers:number|null,totalEntries:number|null,chipTotal:number,averageStack:number|null}`; live cash records return `progress:null`. The server fold and formula are owned by [data model](data-model.md) §13.2. `getById` additionally returns `{events:PlayEvent[],currentPlaySessionId:Id|null,currentButtonSeat:number|null}`. Every by-id procedure rejects a manual or imported entry with BAD_REQUEST. All procedures are **Excluded: cockpit** in MCP, including reads and rule operations, except `restoreRule` (**Excluded: screen**).
 
 | Procedure | Input | Output | Additional errors |
 | --- | --- | --- | --- |
@@ -222,31 +224,33 @@ All reads and successful entry mutations return EntryOutput, never game_session/
 | `create` M | `kind:cash|tournament,roomId?,assetId?,memo?,startedAt?:Instant,localDate?:DateOnly,label?:string<=50,payments:Payment[]`; matching `ringGameId?`/`tournamentId?`, `rule?`; tournament `initialStack?:nonnegative integer,timerStartedAt?:Instant,startLevel?:positive integer` | EntryOutput + tournament progress | Existing active/paused play: CONFLICT; initialStack writes the first update_stack in the creation batch; payments at most 1000 (cash buy_in; tournament buy_in/fee) |
 | `createAndAssignRingGame` M | `{entryId,...ringGame.create input}` | EntryOutput | Cash only; create and relink one batch |
 | `createAndAssignTournament` M | `{entryId,...tournament.createWithLevels input}` | EntryOutput | Tournament only; create and relink one batch |
-| `update` M | `{id,memo?:string|null,roomId?:Id|null,assetId?:Id|null}` | EntryOutput | Derived fields cannot be patched |
-| `complete` M | `{id,occurredAt?:Instant,endState:cashed_out|busted|finished,payments:Payment[],beforeDeadline?:boolean,placement?:positive integer,totalEntries?:positive integer}` | EntryOutput | Terminal time earlier than an existing event of this play or beyond now+60s: BAD_REQUEST before writes; no active/paused play: PRECONDITION_FAILED |
+| `update` M | `{id,memo?:string|null,roomId?:Id|null,assetId?:Id|null}` | EntryOutput | Other fields are not accepted as updates |
+| `complete` M | `{id,occurredAt?:Instant,endState:cashed_out|busted|finished,payments:Payment[],beforeDeadline?:boolean,placement?:positive integer,totalEntries?:positive integer}` | EntryOutput | Invalid kind/result or terminal time: BAD_REQUEST; no active/paused play: PRECONDITION_FAILED |
 | `endPlay` M | `{id,occurredAt?:Instant,endState:held|bagged,stackAmount:nonnegative integer}` | EntryOutput | held cash only, bagged tournament only; terminal time earlier than an existing event of this play or beyond now+60s: BAD_REQUEST before writes |
-| `startNextPlay` M | `{id,startedAt?:Instant,localDate?:DateOnly,label?:string<=50,startLevel?:positive integer,payments?:Payment[]}` | EntryOutput | No ended predecessor or finished: PRECONDITION_FAILED; competing active play: CONFLICT |
+| `startNextPlay` M | `{id,startedAt?:Instant,localDate?:DateOnly,label?:string<=50,startLevel?:positive integer,payments?:Payment[]}` | EntryOutput | No ended predecessor, finished or cashed_out: PRECONDITION_FAILED; competing active play: CONFLICT; invalid payment, level or time: BAD_REQUEST |
 | `undoEndPlay` M | IdInput | EntryOutput | Highest-seq play must end with its terminal event and have no later dependent event: CONFLICT |
 | `undoStartNextPlay` M | IdInput | EntryOutput | Highest seq must be >1 and contain only its start event, no hands/other descendants: CONFLICT |
 | `discard` M | IdInput | Ack | Settled target: PRECONDITION_FAILED |
 | `overrideRule` M | Same as entry.overrideRule | EntryOutput | Reduced tableSize excludes active player/self seat: BAD_REQUEST |
-| `applyMasterRule` M | IdInput | EntryOutput | Reduced tableSize excludes active player/self seat: BAD_REQUEST |
-| `pushRuleToMaster` M | IdInput | EntryOutput | — |
+| `applyMasterRule` M | IdInput | EntryOutput | Reduced tableSize excludes active player/self seat: BAD_REQUEST; no linked master: PRECONDITION_FAILED |
+| `pushRuleToMaster` M | IdInput | EntryOutput | No linked master: PRECONDITION_FAILED |
 | `relink` M | Same as entry.relink | EntryOutput | Reduced tableSize excludes active player/self seat: BAD_REQUEST |
 | `restoreRule` M | `{id,masterId:Id|null,ruleVersionId:Id,masterRuleVersionId?:Id}`; same atomic restore and version-membership rules as entry.restoreRule | EntryOutput | Wrong-master/non-standalone version or masterRuleVersionId without a master: BAD_REQUEST; reduced tableSize excludes active player/self seat: BAD_REQUEST; archived masters/versions allowed; MCP Excluded: screen |
+
+For `complete`, cash permits `cashed_out` or `finished` and cash_out payments; tournament permits `busted` or `finished` and prize/bounty payments. Tournament completion requires placement and totalEntries unless beforeDeadline is true; in that case supplied placement and totalEntries are omitted. Cash rejects tournament result fields. `startNextPlay` permits reentry/fee payments only after a tournament bust, rejects `startLevel` for cash, and requires a start time no earlier than the preceding end.
 
 EndPlay writes day_end, leaving entry open; complete writes session_end. State is taken from play_session.status, so no ordinary append can revive an ended play. Next-play after held/bagged continues; after tournament busted it re-enters; after finished it fails. Cash cashed_out requires explicit undo/correction before continuation, as specified in [data model](data-model.md) §13.3; startNextPlay never silently rewrites a receipt or terminal event. Re-entry payments are embedded in the new session_start and written in that **same batch**, not a second API call/event; allowed only for tournament re-entry, roles reentry/fee. Seat state carries forward. `undoEndPlay` removes the terminal event and reprojects to active (the global active-play guard still applies). `undoStartNextPlay` removes that empty last play plus its start/payment projection. These are the only lifecycle undo procedures; there is no reopen.
 
 ## 5. `playEvent`
 
-`PlayEvent = {id,entryId,playSessionId,eventType,occurredAt,sortOrder,payload,schemaVersion:2,createdAt,updatedAt}`. Writers validate payloads and explicitly set schema version 2. Reads return the registry-parsed payload when parsing succeeds; otherwise they return the stored JSON value. Event ids are the only event identity. All procedures are **Excluded: cockpit**.
+`PlayEvent = {id,entryId,playSessionId,eventType,occurredAt,sortOrder,payload,schemaVersion:number,createdAt,updatedAt}`. Writers validate payloads and set schema version 2. Reads return the stored schema version and the registry-parsed payload when parsing succeeds; otherwise they return the stored JSON value. A linked hand id is reinserted into the returned payload. Event ids are the only event identity. All procedures are **Excluded: cockpit**.
 
 | Procedure | Input | Output | Additional errors |
 | --- | --- | --- | --- |
 | `list` Q | `{entryId,playSessionId?:Id}` | PlayEvent[] ordered `(occurredAt,sortOrder,id)` ascending | — |
 | `create` M | `{entryId,playSessionId?:Id,eventType,occurredAt?:Instant,payload}` discriminated by type | PlayEvent | No active/paused target or ended target: PRECONDITION_FAILED |
 | `update` M | `{id,occurredAt?:Instant,payload?:matching payload}`; type immutable | PlayEvent | Lifecycle changes outside live operations, or player_join/player_leave (changed only through tablePlayer and undone through delete): BAD_REQUEST |
-| `delete` M | IdInput | Ack | Lifecycle event: BAD_REQUEST; use named live undo. Participation/seat event in an ended Day or with subsequent events: CONFLICT (unsafe undo) |
+| `delete` M | IdInput | Ack | Lifecycle event: BAD_REQUEST; use named live undo. player_join/player_leave in an ended Day or with subsequent events: CONFLICT; invalid resulting event stream: BAD_REQUEST |
 
 Omitted playSessionId selects the non-ended play only; it never falls back to an ended latest play. Ordinary event edits/deletes must leave the complete ordered stream valid and atomically reproject. Ended-play historical ordinary-event corrections are allowed only if the final lifecycle remains ended; new appends to it are not. Kind and state validation use [data model](data-model.md) §13.
 
@@ -254,19 +258,19 @@ Omitted playSessionId selects the non-ended play only; it never falls back to an
 
 | eventType | Payload object | User create/update/delete |
 | --- | --- | --- |
-| session_start | `{payments:Payment[],timerStartedAt?:Instant,startLevel?:number}` | Live lifecycle only |
+| session_start | `{payments?:Payment[],timerStartedAt?:integer|null,startLevel?:nonnegative integer}` | Live lifecycle only |
 | session_end | `{endState?:cashed_out|busted|finished,payments:Payment[],beforeDeadline?,placement?,totalEntries?}`; live.complete stores the endState it was given, and a stored row without one derives cashed_out for cash, finished for placement 1, else busted | Live lifecycle only |
 | day_end | `{endState:held|bagged,stackAmount:number}` | Live lifecycle only |
 | reentry | `{payments:Payment[]}` | Active tournament only; same-day re-entry; terminal-play continuation uses startNextPlay |
-| table_change | `{tableLabel?:string,seatPosition?:integer 0..9}` | Yes |
+| table_change | `{tableLabel?:string 1..100,seatPosition?:integer 0..9}` | Yes; seat must fit the table size |
 | session_pause / session_resume | `{}` | Yes; matching active/paused transition |
 | chips_add_remove | `{amount:signed nonzero integer with absolute value at most 10^12,assetId:Id,effect?:real|virtual}` | Cash only; explicit asset |
-| all_in | `{potSize:nonnegative integer,trials:positive integer,equity:number 0..100,wins:number 0..trials,handId?:Id}` | Cash only; fractional wins represent chopped pots; hand must belong to same playSessionId and user (otherwise FORBIDDEN). `handId` is stored as `play_event.hand_id`, not in the payload text; an update payload without it unlinks the hand |
-| purchase_chips | `{priceId:Id,payments:Payment[]}`; payment roles chip_purchase and fee (an add-on price's fee is its own line), every payment pays priceId | Tournament only; add-on price of the entry's rule version or one the entry already used; server resolves immutable label/chips from price |
-| update_stack | `{stackAmount:nonnegative integer,remainingPlayers?:positive integer|null,totalEntries?:positive integer|null,chipPurchaseCounts?:{name:string,count:nonnegative integer,chipsPerUnit:nonnegative integer}[]}` | Yes; explicit null clears field size/progress, omission keeps it; cumulative chip counts are progress-only, not payments ([data model](data-model.md) §13.2) |
+| all_in | `{potSize:nonnegative integer,trials:positive integer,equity:number 0..100,wins:number 0..trials,handId?:Id}` | Cash only; fractional wins represent chopped pots; hand must belong to the same play and user (otherwise FORBIDDEN). `handId` is stored as `play_event.hand_id` and returned in the payload; an update payload without it unlinks the hand |
+| purchase_chips | `{priceId:Id,payments:Payment[]}`; payment roles chip_purchase and fee (an add-on price's fee is its own line), every payment pays priceId | Tournament only; add-on price of the entry's current rule version, or a price retained by the same event when updating it; server resolves immutable label/chips from price |
+| update_stack | `{stackAmount:nonnegative integer,remainingPlayers?:positive integer|null,totalEntries?:positive integer|null,chipPurchaseCounts?:{name:string 1..100,count:nonnegative integer,chipsPerUnit:nonnegative integer}[]}` | Yes; at most 100 chipPurchaseCounts rows on input; explicit null clears field size/progress, omission keeps it; cumulative chip counts are progress-only, not payments ([data model](data-model.md) §13.2) |
 | player_join | `{playerId:Id,seatPosition?:integer 0..9|null}`; while the player is active, a number moves them, `null` stands them up and omission keeps the seat | Via tablePlayer operations |
 | player_leave | `{playerId:Id}` | Via tablePlayer operations |
-| memo | `{text:string<=5000}` | Yes |
+| memo | `{text:string 1..5000}` | Yes |
 
 Every append, including memo/seats, writes version 2. Event reads use the registry schemas with the fallback described above.
 
@@ -276,26 +280,28 @@ Event-derived membership, not a second table. `TablePlayer = {id,player:Player,i
 
 | Procedure | Input | Output | Additional errors |
 | --- | --- | --- | --- |
-| `list` Q | `{entryId,activeOnly?:boolean=false}` | `{items:TablePlayer[]}` | — |
+| `list` Q | `{entryId,activeOnly?:boolean=false}` | `{items:TablePlayer[]}` in first-join order across Days | — |
 | `add` M | `{entryId,playerId,seatPosition?:integer 0..9}` | `{id,playerId,eventId:Id}` | Duplicate active membership/seat: CONFLICT |
-| `addNew` M | `{entryId,playerName:string 1..100,playerMemo?:string<=50000,playerTagIds?:Id[],seatPosition?:integer 0..9}` | `{id,playerId,eventId:Id}` | — |
+| `addNew` M | `{entryId,playerName:trimmed string 1..100,playerMemo?:string<=50000,playerTagIds?:Id[],seatPosition?:integer 0..9}` | `{id,playerId,eventId:Id}` | — |
 | `addTemporary` M | `{entryId,seatPosition?:integer 0..9}` | `{id,playerId,eventId:Id}` | — |
-| `updateSeat` M | `{entryId,playerId,seatPosition:integer 0..9|null}` | `{id,playerId,eventId:Id}` | Occupied seat: CONFLICT |
-| `remove` M | `{entryId,playerId}` | `{id,playerId,eventId:Id}` | — |
+| `updateSeat` M | `{entryId,playerId,seatPosition:integer 0..9|null}` | `{id,playerId,eventId:Id}` | Occupied seat: CONFLICT; player not active or seat outside table size: BAD_REQUEST |
+| `remove` M | `{entryId,playerId}` | `{id,playerId,eventId:Id}` | Player not active: BAD_REQUEST |
 
 Every mutation returns the emitted event's `eventId`. Undo deletes it through `playEvent.delete`; only that player's latest participation/seat event is eligible. An ended Day or subsequent events make deletion unsafe (`CONFLICT`), with no partial state change.
 
-Hero is the user's single `player.isSelf:true` row, returned here like any other seated player and obtained with player.getSelf. `isHero` is derived from that identity, never independently editable. Hero joins/moves/leaves through these same procedures; no updateHeroSeat or separate hero-seat storage survives. Regular player lists, opponent statistics and new-opponent pickers exclude self.
+Mutations require a live entry and a non-ended play; join/leave event times use server time. `addTemporary` creates a temporary player named `Anonymous`. `list` accepts manual entries, which have no table-player events.
+
+Hero is the user's `player.isSelf:true` row, returned here like any other seated player and obtained with player.getSelf. `isHero` is derived from that identity, never independently editable. Hero joins/moves/leaves through these same procedures. Regular player lists, opponent statistics and new-opponent pickers exclude self.
 
 ## 7. `hand`
 
-`Hand = {id,playSessionId,handNo,playedAt,detail:count|summary|full,buttonSeat,tableSize,levelOrdinal,stakes,variantId,pot,rake,memo,boards:string[],tags,createdAt,updatedAt}`. Nullable scalar fields are explicit null. `Seat = {seat,playerId,isHero,startStack,holeCards,net,showed}`; `Action = {seq,street,seat,action,amount,allIn}`. Net is signed; other chip amounts nonnegative. isHero is output-derived from the self player, not a conflicting identity input.
+`Hand = {id,playSessionId,handNo,playedAt,detail:count|summary|full,buttonSeat,tableSize,levelOrdinal,stakes,variantId,pot,rake,memo,boards:string[],tags,createdAt,updatedAt}`. Nullable scalar fields are explicit null. `Seat = {seat,playerId,isHero,startStack,holeCards,net,showed}`; playerId, startStack, holeCards and net are nullable. `Action = {seq,street,seat,action,amount,allIn}`; amount is nullable. Net is signed; other chip amounts nonnegative. isHero is stored from the self-player identity on write, not supplied as an independent input.
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
 | `list` Q | `{playSessionId,...PageInput}` (max 50) | Page<Hand & {seats:Seat[]}> | — | `hand_list` |
 | `getById` Q | IdInput | Hand & `{seats:Seat[],actions:Action[]}` | — | `hand_get_by_id` |
-| `add` M | `{playSessionId,buttonSeat?:0..9,tableSize?:2..10,levelOrdinal?:positive integer,stakes?,variantId?:Id,playedAt?:Instant}` | Hand | Play must be active (not paused/ended): PRECONDITION_FAILED | Excluded: cockpit |
+| `add` M | `{playSessionId,buttonSeat?:0..9|null,tableSize?:2..10|null,levelOrdinal?:positive integer|null,stakes?,variantId?:Id|null,playedAt?:Instant}` | Hand | Play must be active (not paused/ended): PRECONDITION_FAILED | Excluded: cockpit |
 | `undoLast` M | `{playSessionId}` | Ack | Not active: PRECONDITION_FAILED; no hand, last hand not count or linked all-in: CONFLICT | Excluded: cockpit |
 | `update` M | `{id,detail:count|summary|full,buttonSeat,tableSize,levelOrdinal,stakes,variantId,tagIds?:Id[],tagReviews?:{tagId:Id,reviewedAt:Instant|null}[],...detail body}` | Hand & `{seats,actions}` | Invalid seats/actions/cards, summary hero not self, review of an unattached tag: BAD_REQUEST | Excluded: cockpit |
 | `delete` M | IdInput | Ack | Linked all-in: CONFLICT | Excluded: destructive |
@@ -308,7 +314,7 @@ Every level writes the context fields `buttonSeat,tableSize,levelOrdinal,stakes,
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
-| `list` Q | `{includeArchived?:boolean}` | Asset[] | — | `asset_list` |
+| `list` Q | `{includeArchived?:boolean}` | Asset[] ordered favorite first, then createdAt and id ascending | — | `asset_list` |
 | `getById` Q | IdInput | Asset | — | Excluded: duplicate read |
 | `create` M | `{name:trimmed string 1..100,unit?:string<=20,description?:string<=50000,kind:currency|item,decimals?:integer 0..4=0}` | Asset | Case-insensitive trimmed name collision: CONFLICT | Excluded: wallet |
 | `update` M | `{id,name?,unit?:string<=20|null,description?:string<=50000|null,kind?,decimals?}` | Asset | Name collision: CONFLICT; kind or decimals change when referenced anywhere: CONFLICT | Excluded: wallet |
@@ -317,7 +323,7 @@ Every level writes the context fields `buttonSeat,tableSize,levelOrdinal,stakes,
 | `delete` M | IdInput | Ack | Any ledger/rate/entry/master-default/price/setting reference: CONFLICT, message "Asset is in use; archive it instead" | Excluded: destructive |
 | `toggleFavorite` M | IdInput | Asset | — | Excluded: toggle |
 
-Archived assets retain references, rates and balances. New selections must be active; unchanged historical references remain readable/editable.
+Archived assets retain references, rates and balances. New selections must be active; unchanged historical references remain readable. For manual payment replacement, archived asset references may be retained up to their existing count in the entry. For live event edits the limit is the existing count in that event; new events cannot select an archived asset.
 
 ## 9. `assetRate`
 
@@ -329,7 +335,7 @@ Archived assets retain references, rates and balances. New selections must be ac
 | `create` M | `{baseAssetId,quoteAssetId,rateNum:integer 1..10^12,rateDen:integer 1..10^12,effectiveFrom:Instant>=0,memo?:string<=5000}` | Rate | Same asset: BAD_REQUEST; same directed pair/effectiveFrom: CONFLICT | Excluded: wallet |
 | `delete` M | IdInput | Ack | — | Excluded: destructive |
 
-Without effectiveAt, list returns matching history. With it, returns only latest `effectiveFrom <= effectiveAt` per directed pair (not synthesized reciprocal/two-hop rates). Rates are immutable; correction deletes then creates. Base/quote naming here does not require an item to be a currency; userSetting's reporting base does. Rates are effective-time history: creating or deleting a rate re-values every past line whose occurredAt it now governs, so past converted figures change with it.
+Without effectiveAt, list returns matching history. With it, returns only latest `effectiveFrom <= effectiveAt` per directed pair (not synthesized reciprocal/two-hop rates). Rates are immutable; correction deletes then creates. Rate creation accepts owned archived assets. Base/quote naming here does not require an item to be a currency; userSetting's reporting base does. Rates are effective-time history: creating or deleting a rate re-values every past line whose occurredAt it now governs.
 
 ## 10. `userSetting`
 
@@ -344,7 +350,7 @@ Without effectiveAt, list returns matching history. With it, returns only latest
 
 All procedures are **Excluded: wallet** (delete additionally destructive). Wallet writes cannot mutate projected or manual entry lines: `FORBIDDEN`, regardless of the line's owner. Entry money is changed only through entry/live.
 
-`WalletLine = {id,assetId,role:adjustment|exchange,quantity,effect:real,categoryId:null|Id,entryId:null,transferId:null|Id,occurredAt,memo}`. History items are `{kind:wallet,line:WalletLine}` or `{kind:entry,id,entryId,title,assetId,quantity,occurredAt}`; the latter sums real lines for that entry/asset and uses their earliest timestamp, and `id` equals `entryId`. Virtual entry lines do not masquerade as wallet balance movements. The cursor carries the asset id and the boundary `(occurredAt,id)`; another asset's cursor is FORBIDDEN.
+`WalletLine = {id,assetId,role:adjustment|exchange,quantity,effect:real,categoryId:null|Id,entryId:null,transferId:null|Id,occurredAt,memo:string|null}`. History items are `{kind:wallet,line:WalletLine}` or `{kind:entry,id,entryId,title:string|null,assetId,quantity,occurredAt}`; the latter sums real lines for that entry/asset and uses their earliest timestamp, and `id` equals `entryId`. Virtual entry lines do not masquerade as wallet balance movements. The cursor carries the asset id and the boundary `(occurredAt,id)`; another asset's cursor is FORBIDDEN.
 
 | Procedure | Input | Output | Additional errors |
 | --- | --- | --- | --- |
@@ -354,15 +360,15 @@ All procedures are **Excluded: wallet** (delete additionally destructive). Walle
 | `update` M | `{id,occurredAt?:Instant,memo?:string<=5000|null,categoryId?:Id|null,quantity?:signed nonzero integer}` | `{lines:WalletLine[]}` (both legs of an exchange, outgoing first) | Entry line: FORBIDDEN; changing exchange sign or newly selecting an archived category: BAD_REQUEST |
 | `delete` M | IdInput | Ack | Entry line: FORBIDDEN |
 
-Exchange atomically writes negative from and positive to with one transferId. Editing time/memo/category changes both rows; quantity changes only selected leg and preserves its sign. Delete removes both legs. Keeping a line's already archived category is allowed. No automatic equal-value/rate assumption is imposed on the user's entered exchange quantities.
+Exchange atomically writes negative from and positive to with one transferId. Editing time/memo/category changes both rows; a quantity edit affects only the selected leg and must carry its existing sign. Delete removes both legs. Keeping a line's already archived category is allowed. No automatic equal-value/rate assumption is imposed on the user's entered exchange quantities.
 
 ## 12. `ledgerCategory`
 
-`Category = {id,name,archivedAt,createdAt,updatedAt}`. Names are trimmed, case-insensitively unique per user including archived rows. No reserved Session Result category or DEFAULT_TRANSACTION_TYPES behavior remains.
+`Category = {id,name,archivedAt,createdAt,updatedAt}`. Names are trimmed, case-insensitively unique per user including archived rows.
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
-| `list` Q | `{includeArchived?:boolean}` | Category[] | — | Excluded: wallet |
+| `list` Q | `{includeArchived?:boolean}` | Category[] ordered lower(name), id ascending | — | Excluded: wallet |
 | `create` M | `{name:trimmed string 1..100}` | Category | Duplicate: CONFLICT | Excluded: wallet |
 | `update` M | `{id,name:trimmed string 1..100}` | Category | Duplicate: CONFLICT | Excluded: wallet |
 | `archive` M | IdInput | Category | — | Excluded: wallet |
@@ -377,33 +383,37 @@ Exactly one mode is required:
 
 | Mode input | Meaning / output unit |
 | --- | --- |
-| `{assetId:Id}` | Native single-asset lines only. No conversion. Entries with this asset plus others are included, not silently zeroed. |
+| `{assetId:Id}` | Native real lines in the selected asset only, without conversion. Population requires at least one real line in that asset; entries with other assets are included. |
 | `{valuation:'real'|'virtual',baseAssetId?:Id}` | Converted mode; base defaults to userSetting.baseAssetId and must be currency. Missing configured base: PRECONDITION_FAILED. |
-| `{normalized:true}` | Currency-independent BB for cash and BI for tournaments; separate outputs/series, never a BB+BI total. No raw cross-asset amount/ROI is fabricated. |
+| `{normalized:true}` | BB for cash and BI for tournaments; separate outputs/series, never a BB+BI total. BI normalization can require the configured base and rates for multi-asset or item payments. No raw cross-asset amount/ROI is fabricated. |
 
-Supplying conflicting mode fields is BAD_REQUEST; normalized:false is absence, not another mode. Common filters: `{kind?:cash|tournament,roomId?:Id,dateFrom?:DateOnly,dateTo?:DateOnly,entryTagIds?:Id[],tournamentTagIds?:Id[]}`. Within a tag kind, ids mean any matching tag; across kinds filters intersect. Tournament-tag filtering selects entries linked to tagged tournament masters. Id arrays are unique and validated. Tag ownership failures are FORBIDDEN.
+Supplying conflicting mode fields or a baseAssetId without valuation is BAD_REQUEST; normalized:false is absence, not another mode. Common filters: `{kind?:cash|tournament,roomId?:Id,dateFrom?:DateOnly,dateTo?:DateOnly,entryTagIds?:Id[],tournamentTagIds?:Id[]}`. Within a tag kind, ids mean any matching tag; across kinds filters intersect. Empty arrays do not filter. Tournament-tag filtering selects entries linked to tagged tournament masters. Each array contains at most 100 unique ids. Foreign filter ids return FORBIDDEN.
 
-`Coverage = {entryCount,excludedEntryCount,missingRates:MissingRate[],multiAssetEntryCount,otherAssetIds:Id[],unavailableNormalizationEntryCount}`. entryCount counts the settled population before missing-rate/denominator exclusions; excludedEntryCount reports entries excluded from a selected valuation. Native mode reports the other assets and multi-asset entry count, making partial-asset P/L explicit. No native total claims to be whole-entry P/L when another asset exists.
+`Coverage = {entryCount,excludedEntryCount,missingRates:MissingRate[],multiAssetEntryCount,otherAssetIds:Id[],unavailableNormalizationEntryCount}`. entryCount counts the settled population before missing-rate/denominator exclusions; excludedEntryCount reports entries excluded from a selected valuation. In native mode otherAssetIds includes other assets from lines of either effect, sorted by id, and multiAssetEntryCount counts entries with any such line. No native total claims to be whole-entry P/L when another asset exists.
 
 `Metrics = {winCount,lossCount,winRate,playMinutes,handCount,cashEntryCount,tournamentEntryCount,itmCount,itmRate,averagePlacement,roi,bbPerHour,bb100,handsPerHour,evRecordedEntryCount,evDiff,evProfitLoss}` (formulas in [statistics.md](statistics.md#hands)). Undefined ratios/EV are null, not zero. Monetary fields in normalized mode are null; `normalized:{cash:{unit:'bb',entryCount,unavailableEntryCount,profitLoss,evProfitLoss}|null,tournament:{unit:'bi',entryCount,unavailableEntryCount,profitLoss}|null}` carries the dimensionless alternatives. Other modes return `amounts:Amounts` in the selected asset/base and `normalized:null`. Coverage reports exclusions for each normalized branch as well as overall.
 
+`winRate` and `itmRate` are percentages from 0 to 100. `bbPerHour` and `bb100` use eligible cash entries even when valuation excludes an entry; `handsPerHour` uses entries counted in the selected mode. The length bucket is `unknown` only when no play has both start and end.
+
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
-| `summary` Q | Mode + common filters | `{mode,assetId:Id|null,valuation:real|virtual|null,baseAssetId:Id|null,...Coverage,...Metrics,amounts:Amounts|null,normalized}` | Invalid mode/date range: BAD_REQUEST | `stats_summary` |
-| `breakdown` Q | Summary input + `groupBy:room|stakes|kind|dayOfWeek|length|month|year|variant` | `{groups:[{key:string,label:string,...summary fields}],coverage:Coverage}` | — | `stats_breakdown` |
-| `profitLossSeries` Q | Summary input | `{points:[{id,kind,playedOn,profitLoss:number|null,evProfitLoss:number|null,evRecorded:boolean,playMinutes,bigBlind:number|null,buyInTotal:number|null,unit:asset|bb|bi}],coverage:Coverage}` | — | `stats_profit_loss_series` |
+| `summary` Q | Mode + common filters | `{mode:asset|valuation|normalized,assetId:Id|null,valuation:real|virtual|null,baseAssetId:Id|null,...Coverage,...Metrics,amounts:Amounts|null,normalized}` | Invalid mode, date range or non-currency base: BAD_REQUEST; absent base: PRECONDITION_FAILED | `stats_summary` |
+| `breakdown` Q | Summary input + `groupBy:room|stakes|kind|dayOfWeek|length|month|year|variant` | `{groups:[{key:string,label:string,...Coverage,...Metrics,amounts,normalized}],coverage:Coverage}` | Same mode, filter and base errors as summary | `stats_breakdown` |
+| `profitLossSeries` Q | Summary input | `{points:[{id,kind,playedOn,profitLoss:number|null,evProfitLoss:number|null,evRecorded:boolean,playMinutes:number|null,bigBlind:number|null,buyInTotal:number|null,unit:asset|bb|bi}],coverage:Coverage}` | Same mode, filter and base errors as summary | `stats_profit_loss_series` |
 
-Points are per-entry **deltas**, not running totals, ordered `(playedOn,id)` ascending. `buyInTotal` is the [data model](data-model.md) normalization denominator, not all re-entry costs. Variant keys are `mix:<id>`, `variant:<id>`, or `custom`; labels resolve current masters. Stakes keys derive game-group ids and native stake values; multi-group lineups receive an explicit multi-group bucket, never "0/0". Room keys are ids (null room is `none`). Date buckets use ISO dates/month/year and weekday 0–6; length buckets are `<1h`, `1-2h`, `2-4h`, `4-8h`, `8h+`, `unknown`. Unknown/noneligible dimensions are explicit groups rather than silent missing totals; unavailable BB still cannot contribute to BB rates. Mixed cash/tournament normalized series have distinct units on every point.
+Points are per-entry **deltas**, not running totals, ordered `(playedOn,id)` ascending. `buyInTotal` is the [data model](data-model.md) normalization denominator, not all re-entry costs. Variant keys are `mix:<id>`, `variant:<id>`, or `custom`; labels resolve current masters. Stakes keys derive game-group ids and native stake values; multi-group lineups use a multi-group bucket and tournaments use a tournament bucket. Room keys are ids (null room is `none`). Calendar buckets are month, year and weekday 0–6. Length buckets are `<1h`, `1-2h`, `2-4h`, `4-8h`, `8h+`, `unknown`. Mixed cash/tournament normalized series have distinct units on every point.
+
+Breakdown groups sort weekday numerically, length by the bucket order above, and month/year chronologically. Room, stakes, kind and variant groups sort by entry count descending, then label and key.
 
 ## 14. `ringGame`
 
-`RingGame = {id,roomId,name,defaultAssetId:Id|null,memo,archivedAt,currentRuleId,ruleVersion:CashRule,lineups:LineupMap,createdAt,updatedAt}`. Rule fields belong to ruleVersion, not duplicated top-level columns. Referenced masters cannot be hard-deleted; archive is reversible.
+`RingGame = {id,roomId:Id|null,name,defaultAssetId:Id|null,memo,archivedAt,currentRuleId,ruleVersion:CashRule,lineups:LineupMap,createdAt,updatedAt}`. Rule fields belong to ruleVersion, not duplicated top-level columns. Referenced masters cannot be hard-deleted; archive is reversible.
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
 | `listByRoom` Q | `{roomId,includeArchived?:boolean}` | RingGame[] | — | `ring_game_list_by_room` |
-| `create` M | `{roomId,name:string 1..100,defaultAssetId?:Id,memo?:string,rule:CashRuleInput}` | RingGame | Invalid range/structure: BAD_REQUEST | `ring_game_create` |
-| `update` M | `{id,name?,defaultAssetId?:Id|null,memo?:string|null,rule?:CashRuleInput}` | RingGame | Invalid resulting range: BAD_REQUEST | `ring_game_update` |
+| `create` M | `{roomId,name:string 1..100,defaultAssetId?:Id|null,memo?:string<=50000|null,rule:CashRuleInput}` | RingGame | Invalid range/structure: BAD_REQUEST | `ring_game_create` |
+| `update` M | `{id,name?,defaultAssetId?:Id|null,memo?:string<=50000|null,rule?:CashRuleInput}` | RingGame | Invalid resulting range: BAD_REQUEST | `ring_game_update` |
 | `restoreRule` M | `{id,ruleVersionId:Id}` | RingGame | Version must belong to this master: BAD_REQUEST; archived master/version allowed | Excluded: screen |
 | `archive` M | IdInput | RingGame | — | `ring_game_archive` |
 | `restore` M | IdInput | RingGame | — | `ring_game_restore` |
@@ -413,9 +423,9 @@ Points are per-entry **deltas**, not running totals, ordered `(playedOn,id)` asc
 
 ## 15. `tournament`
 
-`Tournament = {id,roomId,name,defaultAssetId:Id|null,memo,archivedAt,currentRuleId,ruleVersion:TournamentRule,lineups:LineupMap,tags:{id,name}[],createdAt,updatedAt}`. Get/list both return the complete version, levels and prices; no separate chip-purchase read is needed.
+`Tournament = {id,roomId:Id|null,name,defaultAssetId:Id|null,memo,archivedAt,currentRuleId,ruleVersion:TournamentRule,lineups:LineupMap,tags:{id,name}[],createdAt,updatedAt}`. Get/list both return the complete version, levels and prices.
 
-`TournamentCreate = {roomId,name:string 1..100,defaultAssetId?:Id,memo?:string,tagIds?:Id[],rule:TournamentRuleInput}`. `TournamentUpdate = {id,name?,defaultAssetId?:Id|null,memo?:string|null,tagIds?:Id[],rule?:TournamentRuleInput}`. Tags are ids, not names. Structures and prices are whole-version writes; omitted collections carry forward on update. `updateWithLevels` requires `rule.levels` and replaces it as a whole, while prices change only when supplied. Ticket, entry, reentry and addon price definitions all use the same prices array.
+`TournamentCreate = {roomId,name:trimmed string 1..100,defaultAssetId?:Id|null,memo?:string|null,tagIds?:Id[],rule:TournamentRuleInput}`. `TournamentUpdate = {id,name?,defaultAssetId?:Id|null,memo?:string|null,tagIds?:Id[],rule?:TournamentRuleInput}`. Memo is at most 50,000 characters. Tags are ids, not names. Structures and prices are whole-version writes; omitted collections carry forward on update. `updateWithLevels` requires `rule.levels` and replaces it as a whole, while prices change only when supplied.
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
@@ -430,13 +440,13 @@ Points are per-entry **deltas**, not running totals, ordered `(playedOn,id)` asc
 | `restore` M | IdInput | Tournament | — | `tournament_restore` |
 | `delete` M | IdInput | Ack | Entry links/version/price use: CONFLICT, archive instead | Excluded: destructive |
 
-`create/update` accept the same TournamentRuleInput, including `levels` and `prices`; they are not aliases. MCP exposes only the WithLevels pair because it requires `rule.levels`, so a tool call cannot silently carry forward a structure. Every call writes at most one resulting immutable rule version. Row-level blindLevel and tournamentChipPurchase routers are deleted, not wrapped.
+`create/update` accept the same TournamentRuleInput, including `levels` and `prices`. MCP exposes only the WithLevels pair because it requires `rule.levels`, so a tool call cannot silently carry forward a structure. Every call writes at most one resulting immutable rule version.
 
 `tournament.restoreRule` points currentRuleId to an existing version of that master without creating a version, even when archived. It is the inverse of `update{rule}` / `updateWithLevels{rule}`.
 
 ## 16. `gameGroup`
 
-`GameGroup = {id,label,blind1Label,blind2Label,blind3Label,blind1Required:boolean,blind2Required:boolean,blind3Required:boolean,builtinKey,archivedAt,createdAt,updatedAt}`. Label trimmed 1–30 characters; blind labels nullable, trimmed 1–20. Case-insensitive trimmed label uniqueness is within this master kind, enforced without triggers. Archived rows keep their label reservation.
+`GameGroup = {id,userId,label,blind1Label,blind2Label,blind3Label,blind1Required:boolean,blind2Required:boolean,blind3Required:boolean,builtinKey,archivedAt,createdAt,updatedAt}`. Label trimmed 1–30 characters; blind labels nullable, trimmed 1–20. Case-insensitive trimmed label uniqueness is within this master kind. Archived rows keep their label reservation.
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
@@ -453,12 +463,12 @@ Builtin defaults: Limit requires Small Bet and Big Bet; Stud requires Small Bet 
 
 ## 17. `gameVariant`
 
-`GameVariant = {id,label,shortLabel,groupId,builtinKey,sortOrder,archivedAt,createdAt,updatedAt}`. Label 1–30 trimmed; shortLabel nullable 1–15 trimmed. Moving a variant's group changes future lineups only; immutable historical lineup groups retain their structure. Renaming changes current display labels, not composition ids.
+`GameVariant = {id,userId,label,shortLabel,groupId,builtinKey,sortOrder,archivedAt,createdAt,updatedAt}`. Label 1–30 trimmed; shortLabel nullable 1–15 trimmed. Moving a variant's group changes future lineups only; immutable historical lineup groups retain their structure. Renaming changes current display labels, not composition ids.
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
 | `list` Q | `{includeArchived?:boolean}` | GameVariant[] | — | `game_variant_list` |
-| `create` M | `{label,shortLabel?,groupId}` | GameVariant | Duplicate within variant namespace: CONFLICT; a mix may share the label | `game_variant_create` |
+| `create` M | `{label,shortLabel?,groupId}` | GameVariant | Duplicate within variant namespace: CONFLICT; archived group: BAD_REQUEST; a mix may share the label | `game_variant_create` |
 | `update` M | `{id,label?,shortLabel?:string|null,groupId?,sortOrder?:nonnegative integer}` | GameVariant | Duplicate: CONFLICT; archived new group: BAD_REQUEST | `game_variant_update` |
 | `archive` M | IdInput | GameVariant | Used by active mix: CONFLICT | `game_variant_archive` |
 | `restore` M | IdInput | GameVariant | Archived group: BAD_REQUEST | `game_variant_restore` |
@@ -466,7 +476,7 @@ Builtin defaults: Limit requires Small Bet and Big Bet; Stud requires Small Bet 
 
 ## 18. `gameMix`
 
-`GameMix = {id,label,builtinKey,archivedAt,games:Id[],createdAt,updatedAt}` with variant ids in rotation order. Labels 1–30 trimmed; the label namespace guard is defined by [data model](data-model.md) §5.2. Games: 2–30 unique owned ids. Restoring a label collision is never an implicit rename.
+`GameMix = {id,userId,label,builtinKey,archivedAt,games:Id[],createdAt,updatedAt}` with variant ids in rotation order. Labels 1–30 trimmed; the label namespace guard is defined by [data model](data-model.md) §5.2. Games: 2–30 unique owned ids spanning at most 12 groups. Update may retain an archived member already in the mix, but cannot add a newly selected archived member.
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
@@ -501,7 +511,7 @@ Same Tag shape and all five procedures/inputs/errors as §19, instantiated as `t
 
 ## 21. `handTag`
 
-Same five Tag procedures, shapes, constraints and errors as §19, instantiated as `handTag.list/create/update/delete/reorder`. MCP `hand_tag_list`, `hand_tag_create`; update/reorder excluded tag maintenance/screen ordering, delete excluded destructive. hand.list/getById return `tags: {id,name,reviewedAt}[]` from `hand_tag_link`. hand.update accepts `tagIds` for attachment and `tagReviews?:{tagId:Id,reviewedAt:Instant|null}[]`; reviews must name attached owned tags, otherwise BAD_REQUEST. Link `reviewedAt` does not mutate the tag itself.
+Same five Tag procedures, shapes, constraints and errors as §19, instantiated as `handTag.list/create/update/delete/reorder`. MCP `hand_tag_list`, `hand_tag_create`; update/reorder excluded tag maintenance/screen ordering, delete excluded destructive. hand.list/getById return `tags: {id,name,reviewedAt}[]`. hand.update accepts `tagIds` and `tagReviews?:{tagId:Id,reviewedAt:Instant|null}[]`; foreign or missing tags return FORBIDDEN, and an owned but unattached review tag returns BAD_REQUEST. Without `tagIds`, reviews apply to the current attachments.
 
 ## 22. `playerTag`
 
@@ -509,12 +519,12 @@ Same five procedures as §19, instantiated as `playerTag.list/create/update/dele
 
 ## 23. `player`
 
-`Player = {id,name,memo,isTemporary,isSelf,createdAt,updatedAt,tags:{id,name,color}[]}`. Names 1–100; memo <=50,000. isSelf/isTemporary cannot be supplied to ordinary create/update. Self exists exactly once per user and cannot be deleted; tablePlayer.addTemporary owns temporary creation.
+`Player = {id,userId,name,memo,isTemporary,isSelf,createdAt,updatedAt,tags:{id,name,color}[]}`. Names are trimmed 1–100; memo <=50,000. isSelf/isTemporary cannot be supplied to ordinary create/update. At most one self player exists per user; `getSelf` creates it if absent. The self player cannot be deleted; tablePlayer.addTemporary owns temporary creation.
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
-| `list` Q | `{search?:string,tagIds?:Id[]}` | Player[], excludes temporary/self | — | `player_list` |
-| `getById` Q | IdInput | Player | — | Excluded: duplicate read |
+| `list` Q | `{search?:string<=100,tagIds?:Id[]}` | Player[], excludes temporary/self; search is an ASCII case-insensitive literal substring and tags match any | More than 100 tag ids or duplicates: BAD_REQUEST (`tagIds must not repeat a tag` for duplicates) | `player_list` |
+| `getById` Q | IdInput | Player, including self or temporary players | — | Excluded: opponent maintenance |
 | `getSelf` Q | none | Player with isSelf:true | — | Excluded: cockpit identity |
 | `create` M | `{name,memo?:string,tagIds?:Id[]}` | Player | — | Excluded: opponent maintenance |
 | `update` M | `{id,name?,memo?:string|null,tagIds?:Id[]}` | Player | — | Excluded: opponent maintenance |
@@ -522,17 +532,17 @@ Same five procedures as §19, instantiated as `playerTag.list/create/update/dele
 | `hands` Q | `{id,dateFrom?:DateOnly,dateTo?:DateOnly,...PageInput}` | Page<Hand & {seats:Seat[],actions:Action[]}> | Self as opponent target: BAD_REQUEST | Excluded: opponent review |
 | `handStats` Q | `{id,dateFrom?:DateOnly,dateTo?:DateOnly}` | `{handCount,fullHandCount,vpipOpportunities,vpipCount,vpip:number|null,pfrOpportunities,pfrCount,pfr:number|null}` | Self as opponent target: BAD_REQUEST | Excluded: opponent review |
 
-Opponent full-hand denominators and VPIP/PFR follow [data model](data-model.md) §12; count/summary hands are not fabricated action observations. Date filters resolve the hand's parent play local date. Pagination for player.hands orders `(playedAt,id)` descending with a stable null-time ordering encoded in the string cursor.
+Opponent full-hand denominators and VPIP/PFR follow [statistics](statistics.md); rates are percentages and count/summary hands are not fabricated action observations. Date filters resolve the hand's parent play local date. Pagination for player.hands orders `(playedAt,id)` descending with null times last; its cursor is scoped to the player and date filters. Reversed date ranges are BAD_REQUEST.
 
 ## 24. `room`
 
-`Room = {id,name,memo,latitude,longitude,isFavorite,archivedAt,createdAt,updatedAt}`. Coordinates must be supplied or cleared together, latitude [-90,90], longitude [-180,180]. Name is nonempty. No API fetches arbitrary user URLs to populate a room.
+`Room = {id,userId,name,memo,latitude,longitude,isFavorite,archivedAt,createdAt,updatedAt}`. The list additionally returns active `ringGameCount`, `tournamentCount` and `isReferenced`. Coordinates must be supplied or cleared together, latitude [-90,90], longitude [-180,180]. Name is trimmed 1–100; memo <=50,000. No API fetches arbitrary user URLs to populate a room.
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
-| `list` Q | `{includeArchived?:boolean}` | Room[] | — | `room_list` |
+| `list` Q | `{includeArchived?:boolean}` | Room[] ordered favorite first, then createdAt ascending | — | `room_list` |
 | `getById` Q | IdInput | Room | — | `room_get_by_id` |
-| `create` M | `{name:string min1,memo?:string,latitude?:number,longitude?:number}` | Room | Coordinate mismatch: BAD_REQUEST | `room_create` |
+| `create` M | `{name:trimmed string 1..100,memo?:string<=50000,latitude?:number|null,longitude?:number|null}` | Room | Coordinate mismatch: BAD_REQUEST | `room_create` |
 | `update` M | `{id,name?,memo?:string|null,latitude?:number|null,longitude?:number|null}` | Room | Coordinate mismatch: BAD_REQUEST | `room_update` |
 | `archive` M | IdInput | Room | — | `room_archive` |
 | `restore` M | IdInput | Room | — | `room_restore` |
@@ -541,26 +551,26 @@ Opponent full-hand denominators and VPIP/PFR follow [data model](data-model.md) 
 
 ## 25. `location`
 
-Both are mutations (external requests), **Excluded: external quota** in MCP. They do not create rooms.
+Both are mutations and do not create rooms. `search` uses Google Places quota; `resolveLink` is a screen workflow that can fetch Google Maps short links. Both are excluded from MCP.
 
 | Procedure | Input | Output | Additional errors |
 | --- | --- | --- | --- |
 | `search` M | `{query:string 1..200}` | Up to five `{name,address,latitude,longitude}` results | Missing provider key/provider failure: INTERNAL_SERVER_ERROR |
-| `resolveLink` M | `{url:valid URL string}` | `{latitude:number,longitude:number}` | Not allowlisted Google Maps link/no coordinates: BAD_REQUEST; upstream failure: INTERNAL_SERVER_ERROR |
+| `resolveLink` M | `{url:valid URL string}` | `{latitude:number,longitude:number}` | Invalid Maps link, redirect or missing coordinates: BAD_REQUEST; short-link network failure: INTERNAL_SERVER_ERROR |
 
-Only allowlisted Maps hosts/redirect paths are resolved; arbitrary URL fetching is forbidden by api-security.md. Coordinates still require caller validation when attached to room.
+Accepted links use HTTPS without credentials or nondefault ports and have a Google host matching the server allowlist, or the short hosts `maps.app.goo.gl` and `goo.gl`. Only short links are fetched, with at most five redirects; every redirect host is checked. Coordinates are parsed from the resulting URL.
 
 ## 26. `filterPreset`
 
-All **Excluded: screen**. `Preset = {id,screenKey:'sessions'|'statistics',name,payload,isDefault,createdAt,updatedAt}`. Name trimmed 1–50; unique case-insensitively within user/screen. The retained screenKey is a UI storage identifier, not an API alias for entry.
+All **Excluded: screen**. `Preset = {id,userId,screenKey:'sessions'|'statistics',name,payload,isDefault,createdAt,updatedAt}`. Name is trimmed to 1–50 characters; duplicate checks within user/screen use SQLite `NOCASE`.
 
-Payload keys: `period?:string` (1–30 characters; client date-range shortcut), `dateFrom?:DateOnly,dateTo?:DateOnly,kind?:cash|tournament,roomId?:Id,assetId?:Id,valuation?:real|virtual,baseAssetId?:Id,normalized?:boolean,entryTagIds?:Id[],tournamentTagIds?:Id[]`. Statistics payload obeys the stats mode union; sessions may omit mode. Setting a default clears the previous default only within that screen, atomically.
+Payload keys: `period?:string` (1–30 characters; client date-range shortcut), `dateFrom?:DateOnly,dateTo?:DateOnly,kind?:cash|tournament,roomId?:Id,assetId?:Id,valuation?:real|virtual,baseAssetId?:Id,normalized?:boolean,entryTagIds?:Id[],tournamentTagIds?:Id[]`. Unknown keys are rejected; tag arrays are unique and capped at 100. Date ranges must be ordered. Statistics requires exactly one stats mode; sessions may omit it. Updating payload replaces it in full and validates it against the preset's immutable screen key. Setting a default clears the previous default within that screen in one batch.
 
 | Procedure | Input | Output | Additional errors |
 | --- | --- | --- | --- |
-| `list` Q | `{screenKey:sessions|statistics}` | Preset[] | — |
+| `list` Q | `{screenKey:sessions|statistics}` | Preset[] ordered default first, then createdAt ascending | Invalid stored payload: INTERNAL_SERVER_ERROR |
 | `create` M | `{screenKey,name,payload}` | Preset | Duplicate name: CONFLICT |
-| `update` M | `{id,name?,payload?}` | Preset | Duplicate name / invalid merged payload: CONFLICT / BAD_REQUEST |
+| `update` M | `{id,name?,payload?}` | Preset | Duplicate name: CONFLICT; invalid replacement payload: BAD_REQUEST |
 | `delete` M | IdInput | Ack | — |
 | `setDefault` M | IdInput | Preset | — |
 | `clearDefault` M | IdInput | Preset | — |
@@ -574,18 +584,18 @@ All **Excluded: screen** (read tracking). `View = {id,userId,version,viewedAt}`.
 | Procedure | Input | Output | Additional errors |
 | --- | --- | --- | --- |
 | `list` Q | none | View[] newest viewedAt first | — |
-| `markViewed` M | `{version:string min1}` | View | — |
+| `markViewed` M | `{version:string 1..100}` | View | — |
 
 Mark is idempotent per user/version and never duplicates a view on retries.
 
 ## 28. `aiExtract`
 
-Both **Excluded: extraction**: MCP clients can interpret images themselves. Inputs share `sources:{kind:'image',data:nonempty base64 string,mediaType:image/jpeg|image/png|image/gif|image/webp}[]`, length 1–5. These procedures return **untrusted extraction suggestions**, not persisted rules/payments; callers choose owned asset/game/tag ids before writing. Legacy OCR vocabulary in the suggestion is not an alternative persisted tournament contract.
+Both **Excluded: extraction**: MCP clients can interpret images themselves. Inputs share `sources:{kind:'image',data:nonempty base64 string,mediaType:image/jpeg|image/png|image/gif|image/webp}[]`, length 1–5. These procedures return **untrusted extraction suggestions**, not persisted rules/payments; callers choose owned asset/game/tag ids before writing.
 
 | Procedure | Input | Output | Additional errors |
 | --- | --- | --- | --- |
 | `extractTournamentData` M | `{sources}` | `{name?,buyIn?:nonnegative integer,entryFee?:nonnegative integer,startingStack?:nonnegative integer,tableSize?:2..10,chipPurchases?:{name,cost,chips}[],blindLevels?:{isBreak,minutes?,blind1?,blind2?,blind3?,ante?}[]}`; absent unknown fields | Missing key, truncated/missing/invalid structured response: INTERNAL_SERVER_ERROR |
-| `extractTablePlayers` M | `{sourceApp:'dmm_waitinglist',sources}` | `{seats:{seatNumber:integer 1..10,name:nonempty string}[]}`; duplicate seat numbers deduplicated | Same provider errors |
+| `extractTablePlayers` M | `{sourceApp:'dmm_waitinglist',sources}` | `{seats:{seatNumber:integer 1..10,name:nonempty string,isHero:boolean|null}[]}`; duplicate seat numbers deduplicated | Same provider errors |
 
 ## 29. Root infrastructure
 
@@ -639,4 +649,4 @@ Restore operations for Undo are deliberately excluded from MCP:
 | Excluded: screen | ringGame.restoreRule |
 | Excluded: screen | tournament.restoreRule |
 
-Each union branch tool uses the router's exact branch schema object, not an MCP-specific schema wrapper. Tool descriptions state array replacement, archive recovery, date/quantity units and all cross-field constraints JSON Schema cannot express. Creates are non-idempotent/non-destructive; in-place referenced-master edits are idempotent/destructive; archive/restore are idempotent/non-destructive. No delete or toggle tool is exposed. The UI consumes this same API.
+Each union branch tool uses the router's exact branch schema object. Tool descriptions state array replacement, archive recovery, date/quantity units and cross-field constraints. Creates and `entry_update` are annotated non-idempotent; archive/restore are idempotent and non-destructive. No delete or toggle tool is exposed.

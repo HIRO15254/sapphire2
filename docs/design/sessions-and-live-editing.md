@@ -1,6 +1,6 @@
 # Entries and Live Editing
 
-The current participation model is an `entry` with one or more `play_session` days. Manual entries store ended days and payments directly; live entries derive their state and event-sourced ledger lines from `play_event`. The authoritative API contracts are in [api.md](api.md), and projection and undo rules are in [data-model.md](data-model.md) §§13–14.
+The participation model is an `entry` with one or more `play_session` days. Manual entries store ended days and payments directly; live entries derive their state and event-sourced ledger lines from `play_event`. The authoritative API contracts are in [api.md](api.md), and projection and undo rules are in [data-model.md](data-model.md) §13.
 
 ## Lifecycle and projection
 

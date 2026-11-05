@@ -1,13 +1,8 @@
 #!/usr/bin/env sh
-# Auto-stage routeTree.gen.ts if it has unstaged changes
-# (prevents lint-staged stash conflicts with this auto-generated file)
 if git diff --name-only | grep -q 'routeTree.gen.ts'; then
   git add apps/web/src/routeTree.gen.ts
 fi
 
-# When Claude Code is driving, the Stop hook already runs
-# formatting, changed tests, lint, and check:rules
-# inside the same turn, so running lint-staged + vitest here is wasted work.
 if [ "${CLAUDECODE:-}" = "1" ]; then
   echo "[husky] pre-commit skipped (CLAUDECODE=1 — Stop hook enforces checks)."
   exit 0
@@ -15,8 +10,6 @@ fi
 
 bun x lint-staged
 
-# Let Vitest read changed paths from Git to avoid Windows argument-length limits.
-# This also includes unstaged changes; CI remains the full-suite gate, including D1 integration.
 STAGED=$(git diff --cached --name-only --diff-filter=ACMR -- '*.ts' '*.tsx' '*.js' '*.jsx')
 if [ -n "$STAGED" ]; then
   bun run test:unit --changed HEAD

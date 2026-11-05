@@ -32,4 +32,4 @@ The comments that do exist are written in English.
 
 ## Verification
 
-Enforced by `scripts/check-rules.ts` (Stop hook + CI): a banned-divider pattern and a per-file count of non-whitelisted line-leading comments with a threshold of **zero**.
+`scripts/check-rules.ts` (Stop hook + CI) checks TypeScript and TSX files, not CSS: it rejects banned dividers under `apps/`, `packages/`, and `scripts/`, and non-whitelisted line-leading comments there and under `e2e/` and `testing/`.

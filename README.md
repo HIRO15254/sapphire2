@@ -2,7 +2,7 @@
 
 > **[日本語版はこちら](README.ja.md)**
 
-This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines React, TanStack Router, Hono, tRPC, and more.
+A poker tracking application built with React, TanStack Router, Hono and tRPC.
 
 ## Tech Stack
 
@@ -30,7 +30,8 @@ sapphire2/
 │   ├── auth/           # Better Auth configuration
 │   ├── config/         # Shared TypeScript config
 │   ├── db/             # Drizzle ORM schema and migrations
-│   └── env/            # Environment variable validation (Zod)
+│   ├── env/            # Environment variable validation (Zod)
+│   └── mcp/            # MCP server and tool definitions
 ├── AGENTS.md           # Agent guide (source of truth); CLAUDE.md imports it via @AGENTS.md
 ├── .claude/            # Claude Code config (rules, skills, settings)
 ├── docs/
@@ -132,8 +133,8 @@ bun run dev
 The project deploys to **Cloudflare Workers** (API) + **Cloudflare Pages** (Web) + **Cloudflare D1** (DB).
 
 - **Preview**: Isolated Worker and D1 per PR, plus a PR branch deployment in the shared Pages project
-- **Dev**: Persistent dev environment, deployed on push to `dev`
-- **Production**: Deployed automatically when a GitHub Release is published
+- **Dev**: Stable URLs with a D1 database recreated on each deployment; triggered by pushes to `dev` or manual dispatch
+- **Production**: Deployed from a published GitHub Release or manual dispatch
 
 See [docs/deploy.md](docs/deploy.md) for detailed setup instructions.
 

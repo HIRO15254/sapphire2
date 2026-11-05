@@ -2,9 +2,10 @@
 
 Historical snapshot; for current operation see [Automated PR Review](../design/pr-review.md).
 
-2026-10-09: レビュアーがリンクされたLinear issue（description と comments）を仕様として読み、要件ごとに met / missing / contradicted / deferred / unsettled を判定する。PR本文は作者の主張にすぎず、issue に記録された決定（後のコメントが先の記述を上書き）と突き合わせないと「PRの説明どおりだが issue の要件を落としている」実装を見逃すため。CIのレビュアーはLinearへのアクセスを持たないので、`issue` ジョブがベースブランチの [`scripts/review-issue-context.ts`](../../scripts/review-issue-context.ts) で `feature/sa2-<n>` から issue を取得し、プロンプトの `## Linear issue` に渡す。`LINEAR_API_KEY` はPRのコードをcheckout・installしないこのジョブだけが持つ。取得失敗はレビューを止めず、要約の Issue 行に理由が出る。missing / contradicted は通常の候補と同じ検証を経て、scope `spec` の行になる。
 
 2026-09-29: レビューモデルを `--model opus`（action同梱CLIの別名解決で `claude-opus-5` になっていた）から `claude-opus-5-5` の明示指定へ変更。effort は medium のまま（Opus 5.5 の既定値も medium）。
+
+Review runs on PR #604 and #620 ended without a published summary while their action reported success; the latter showed that a trailer in the execution log alone did not prove the tracking comment contained the summary. The round-recording gate subsequently required both.
 
 2026-09-05: 全PRのレビュー手順を単一コンテキストのleanへ統一する。Opus・medium・上限80ターン、サブエージェントとFast modeは無効。OAuth認証を継続し、追加使用はアカウント側でオフにして運用する。計測結果と条件は[Claudeレビューの軽量化評価](pr-review-lean-evaluation.md)を参照。以下の過去の運用データと、最大2巡・CI待機の根拠は維持する。
 
@@ -46,26 +47,6 @@ Three conclusions shaped the design:
 
 The four retracted findings were all built on an assumed library behaviour the reviewer could not check because `node_modules` was absent in the runner. That is why the runner now installs dependencies and the prompt forbids findings that were not read from source or exercised in a test.
 
-## Mechanics
-
-**Gate job** — a pure decision in `scripts/review-gate.ts` (`decideReview`), fed by a shell step that collects the event, draft flag, head/dev tree ids, the state comment, and the files changed since the last reviewed sha. Decisions, in order:
-
-1. `labeled` with the `re-review` label → always run (draft included, cap ignored); any other label → skip. The review job removes the label before waiting for CI so the next push does not re-fire; if a push cancels that run, re-add the label. The label must exist in the repository (create it once from the labels page).
-2. draft → skip.
-3. `release/*` whose `HEAD^{tree}` equals `origin/dev^{tree}` → skip. A release branch with a hotfix on top has a different tree and is reviewed normally.
-4. head sha already reviewed → skip (covers `reopened` / `ready_for_review` after a review).
-5. automatic round count ≥ `MAX_AUTO_ROUNDS` (2) → skip; the state comment tells the author to use the label.
-6. no state → full round 1.
-7. push touching only `*.md` files → skip (docs-only pushes produced only wording rounds).
-8. otherwise incremental round N+1 from the last reviewed sha.
-
-**State comment** — one PR comment starting with `<!-- pre-merge-review:state {"rounds":N,"lastSha":"…"} -->`, updated after every successful round (`renderStateComment`). It is the only memory the loop has; deleting it resets the PR to round 1. `parseReviewState` rejects malformed payloads instead of guessing, so a damaged comment also resets rather than misfiring. A round is recorded only when the run actually reported **and the report reached the PR**: `parseReviewResult` reads the action's execution log and looks for the summary's machine-readable trailer, `Confirm the summary reached the tracking comment` then re-reads that comment from the API and requires `hasPublishedSummary` (the `### レビュー結果` heading the skill mandates, or the trailer), and `Record the round` requires both. Two ways of not reviewing hide behind an outcome of `success`, and neither may spend one of the two rounds. `claude-code-action` exits `success` with no execution log at all on a PR whose copy of the workflow file differs from the default branch's (its OIDC validation), so a PR that edits `pre-merge-review.yml` is never reviewed until it merges (it spent a round on #596 before that guard); this one is reported in the step summary only, because every run on such a PR would otherwise repeat the same PR comment. And a run can produce a log, exit `success`, and still never post a summary, leaving the tracking comment an empty checklist that reads exactly like "the review found nothing" (#604 round 2 — SA2-231). The trailer check alone did not close that: the action fetches the tracking comment and adds its job link, never filling the body from the final message, so a reviewer that skips `update_claude_comment` publishes nothing while the trailer still says the round finished — which is how #620 round 2 spent a round on a summary nobody could read. The skill now states plainly that the summary goes in that comment, and the tracking-comment check is what makes the round conditional on it. Anything that ends without a trailer — that case, a turn-cap cutoff, or an internal error — gets the `<!-- pre-merge-review:truncated -->` notice on the PR naming the result `subtype`, and the notice is deleted once a round completes so a stale warning does not mislead in the other direction.
-
-**CI wait** — the review job polls the `ci` check run on the head for up to 30 minutes and runs Claude only on `success`. A red head is skipped (step summary only, no PR comment: the author is about to push a fix and CI already reports the failure). Because the wait sits inside the concurrency group, a new push cancels a *waiting* run instead of a *running* one — the 37 cancelled runs above were all mid-review.
-
-**Thread resolution permissions (SA2-280)** — GitHub's `resolveReviewThread` mutation requires `contents: write` in addition to `pull-requests: write` ([reproduction in github/gh-aw](https://github.com/github/gh-aw/issues/35726)). Resolution runs in a separate job with these permissions, without checkout, dependency installation, or reviewer execution; the job executing PR code retains `contents: read`. Only a successful review with a published summary on a same-repository PR can start resolution. The trailer is passed through an environment variable and matched against unresolved Claude threads by path and original line. Fetch and mutation failures have distinct diagnostics and remain non-blocking. The outcome job waits for resolution before counting unresolved threads, so it cannot race resolution when deciding auto-merge.
-
-**現在のレビュアー** — [`.claude/skills/pr-review/SKILL.md`](../../.claude/skills/pr-review/SKILL.md)が全PRをleanへ振り分け、同じコンテキストで探索・反証・検証する。workflowは`full`または`incremental`、差分範囲、巡数、`--post`、リンクされたLinear issueを渡す。ローカルの`/pr-review full`は投稿なしで、issue はLinear MCPで読む。差分はissueの要件台帳とも突き合わせる。確定したimportantのみインラインに投稿し、nit・既存・未確認は要約に集約する。末尾のJSON trailerと修正済みスレッドのresolveは維持する。
 
 **以下は比較対象となった従来手順の記録** — AnthropicのOSS `code-review`を基にした複数エージェント構成で、現在の運用手順ではない。過去の測定結果を解釈するために保持する。
 
@@ -89,7 +70,6 @@ Surveyed September 2026 (Anthropic and GitHub documentation, 12 commercial revie
 
 Rejected on this evidence: eight-way majority voting, unlimited push-triggered rounds, `high`-or-above effort in CI (recall-biased by design), and a second commercial reviewer. Anthropic's managed Code Review (Team/Enterprise only, $15–25 per review) is the migration target if the plan changes; `claude ultrareview` is a possible on-demand deep pass for large PRs.
 
-**Hooks** — the review session runs with `disableAllHooks` so the repo's Stop hook (`ultracite fix && vitest --changed && check-rules`) does not fire at the end of a review; it exists for authoring sessions.
 
 ## Measured accuracy (2026-09-04, skill as of this commit)
 
@@ -242,16 +222,3 @@ Run 11 measured the validator confidence definition (single F1 restored) on #590
 
 Re-run the thread classification (round × outcome × real-defect) on the next ~10 PRs and compare with the table above. The signals that the cap is too tight are a drop in real defects caught per PR or authors reaching for the label on most PRs; the signal that the prompt is too loose is retractions or prose threads coming back. The full review is always one label away, so tightening was chosen over the reverse.
 
-## Outcome job: Linear status and auto-merge (SA2-257)
-
-The `outcome` job of `pre-merge-review.yml` runs after `review`, from the base branch's copy of [`scripts/review-outcome.ts`](../../scripts/review-outcome.ts) (a PR cannot rewrite the code that decides its own merge; a PR that edits the workflow file itself is a human merge anyway). It needs `LINEAR_API_KEY`; without it the job only warns.
-
-**Status** (moves only from AI Review or In Progress, so a human's Needs Input / Human Review is never overwritten): red `ci` → In Progress; approve with no important finding → Ready to Merge; anything else → In Progress, or Needs Input (plus a Linear comment) once the round reached `MAX_AUTO_ROUNDS`. A timed-out CI wait or a review that never published changes nothing.
-
-**Auto-merge** happens only when every condition holds, and merges with `merge_method: merge` guarded by the reviewed head sha, then dispatches `dev-deploy.yml` (a `GITHUB_TOKEN` merge does not trigger the `push` event) and sets Done:
-
-- the issue is found from the branch name (`feature/sa2-NNN`; a title naming another `SA2-` id rejects it) and, read from the Linear API, carries exactly one `level` label, `auto-merge`, and is not closed. The PR's own labels are never read.
-- same-repo PR, not draft, base `dev`; the approve came from an automatic round (not the `re-review` label, round ≤ 2) with zero `unverified` findings; the reviewed sha is still the PR head; no unresolved review thread (any author, so a nit the reviewer posted inline also sends the PR to a human).
-- no changed file (or rename source) matches `packages/db/src/migrations/**`, `packages/auth/**`, `apps/server/wrangler.toml`, `.github/**`, `.claude/**`, `AGENTS.md` (decision 15), plus `CLAUDE.md`, `.gemini/**`, `.husky/**` and `scripts/review-*.ts`, which hold agent instructions or the gate itself.
-
-A blocked auto-merge still moves the issue to Ready to Merge and leaves a Linear comment with the reasons. The residual risk is that the issue lookup trusts the branch name: an agent could name its branch after another issue that has `auto-merge`, which the title check and the closed-state check only narrow. This guards against mistakes, not against an agent with push access that edits workflows.

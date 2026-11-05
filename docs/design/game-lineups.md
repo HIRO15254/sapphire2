@@ -4,7 +4,7 @@ Historical context is preserved in the [archive](../archive/game-lineups-history
 
 This document describes lineups and immutable rule versions. [`data-model.md`](data-model.md) owns the shared invariants; [`api.md`](api.md) owns procedure schemas and the MCP map.
 
-## Purpose and final shape
+## Purpose and structure
 
 A **lineup** answers which games are played, grouped by blind structure. A **rule version** adds stakes, scalar rules and, for a tournament, levels and prices. An entry shares its master's immutable version until it overrides it. Editing a master advances its current version without changing any historical entry.
 
@@ -35,7 +35,7 @@ Unless stated otherwise, every row carries `user_id NOT NULL`; id-bearing rows u
 
 Positions are nonnegative integers. `lineup_id` on the variant junction makes “a variant occurs at most once in a lineup” an enforceable UNIQUE constraint, not a cross-group API convention. `game_group(id, user_id)` must have a UNIQUE key before these references exist.
 
-A lineup has at least one group and each group at least one variant (API validation plus the structural audits of data-model.md §16). A newly assembled group contains variants whose current group matches `game_group_id`; existing compositions are not revalidated against later variant moves. There is no frozen-label exemption.
+A lineup has at least one group and each group at least one variant (API validation and [structural audit A-14](data-audits.md)). A newly assembled group contains variants whose current group matches `game_group_id`; existing compositions are not revalidated against later variant moves.
 
 Built-in structures define these blind fields and required flags (`blind1Required`, `blind2Required`, `blind3Required`):
 
@@ -55,7 +55,7 @@ Only a labeled field may be Required (BAD_REQUEST otherwise). Rule writes reject
 
 - `(ring_game_id, user_id) → ring_game(id, user_id)` CASCADE. A NULL master is valid only for an unlinked rule.
 - `(lineup_id, user_id) → game_lineup(id, user_id)` NO ACTION.
-- `(parent_rule_id, user_id) → cash_rule(id, user_id)` NO ACTION and `(parent_rule_id, ring_game_id) → cash_rule(id, ring_game_id)` NO ACTION. The second FK prevents a child belonging to another non-NULL master (G1); the API also validates NULL-master cases, which SQLite's nullable composites cannot compare.
+- `(parent_rule_id, user_id) → cash_rule(id, user_id)` NO ACTION and `(parent_rule_id, ring_game_id) → cash_rule(id, ring_game_id)` NO ACTION. The second FK prevents a child belonging to another non-NULL master; the API also validates NULL-master cases, which SQLite's nullable composites cannot compare.
 - UNIQUE `(id, ring_game_id)` and `(id, lineup_id)`, in addition to `(id, user_id)`.
 - CHECK: buy-in bounds are nonnegative and `min_buy_in <= max_buy_in` when both exist; table size is 2–10. Text validation limits are owned by the API reference §2, not destructive DDL gates.
 
@@ -77,7 +77,7 @@ Its owner, lineup and parent references follow `cash_rule`: the master reference
 
 - `(rule_id, user_id) → tournament_rule` CASCADE; `(lineup_id, user_id) → game_lineup` NO ACTION.
 - UNIQUE `(rule_id, ordinal)`, `(id, lineup_id)` and `(id, user_id)`.
-- G2 is enforced by a **mirror column**, not by an API-only comparison:
+- Inheritance is enforced by a **mirror column**, not by an API-only comparison:
 
   ```sql
   CHECK (
@@ -91,11 +91,11 @@ Its owner, lineup and parent references follow `cash_rule`: the master reference
 
   An inheriting level therefore cannot store a lineup different from its version's default. An overriding level keeps its effective lineup but has no inheritance mirror. API `game: null` expresses inheritance; it never makes the persisted effective `lineup_id` NULL.
 
-`tournament_rule_level_stake` has PK `(level_id, lineup_group_id)` and otherwise the cash stake shape. Its owner FKs are `(level_id, user_id) → tournament_rule_level` CASCADE and `(level_id, lineup_id) → tournament_rule_level(id, lineup_id)` CASCADE; its lineup-group references match the cash table. A non-break level has exactly one row per effective lineup group; a break has none. Tournament ante type is per **level × group**, with legacy missing values remaining NULL.
+`tournament_rule_level_stake` has PK `(level_id, lineup_group_id)` and otherwise the cash stake shape. Its owner FKs are `(level_id, user_id) → tournament_rule_level` CASCADE and `(level_id, lineup_id) → tournament_rule_level(id, lineup_id)` CASCADE; its lineup-group references match the cash table. A non-break level has exactly one row per effective lineup group; a break has none. Tournament ante type is per **level × group** and can be NULL.
 
 `tournament_rule_price` contains `id`, `user_id`, `rule_id`, `kind`, `asset_id`, `amount`, `fee`, nullable `chips`, `label`, and `ordinal`.
 
-- `kind` is `entry | reentry | addon` (U7). Old `chip_purchase` is not a final price kind.
+- `kind` is `entry | reentry | addon`.
 - `asset_id` is NOT NULL: `(asset_id, user_id) → asset(id, user_id)` NO ACTION. There is no implicit “entry's currency” fallback.
 - `(rule_id, user_id) → tournament_rule(id, user_id)` CASCADE; UNIQUE `(rule_id, ordinal)` and `(id, user_id)`.
 - `amount` and `fee` are nonnegative integers in the paying asset's smallest unit; fee defaults to 0. `chips` is NULL or nonnegative. Label validation and omission semantics are owned by the API reference §2.
@@ -113,7 +113,7 @@ Each master has `current_rule_id NOT NULL` and nullable `default_asset_id`:
 
 Entry details reference their cash or tournament rule by ownership and master composites. Rule ids are required, including for unlinked entries, which have standalone rules. NULL-master parity is validated by the API and structural audits.
 
-G7 indexes include `entry_cash(cash_rule_id)`, `entry_tournament(tournament_rule_id)`, `ledger_line(price_id)`, both masters' `(current_rule_id)`, version `(ring_game_id)` / `(tournament_id)` and `(parent_rule_id)`, and child `(rule_id)` / `(level_id)` indexes where not already the leading columns of a key. Index the asset and lineup reference columns used for deletion guards and hydration too.
+Indexes supporting rule and price references are defined in the [Drizzle schema](../../packages/db/src/schema/).
 
 ## Immutable writes and reuse
 
@@ -123,7 +123,7 @@ Published lineups, versions, levels, stakes and prices are immutable. Master cre
 
 - A variant produces one group with one variant.
 - A mix buckets its ordered variants by their current group, with groups ordered by the first appearance of that structure in the mix. Renames cannot reorder them.
-- A lineup id reuses the immutable composition, including legacy custom mixes with several groups of the same structure.
+- A lineup id reuses the immutable composition, including custom mixes with several groups of the same structure.
 - On create, omitted game inherits from the linked master or uses the user's builtin NLH when unlinked. No API manufactures an archived stand-in master.
 
 Reuse a lineup with the same signature (`game_mix_id`, ordered structures and ordered variant ids) from the request, current rule's whole structure, or linked master's whole structure. Do not globally deduplicate or garbage-collect lineups. Reuse an unchanged rule version only within the same master identity: its signature includes lineup, scalar fields, stakes, levels with inheritance and effective lineups, and prices. Saving unchanged content must not churn ids.
@@ -145,10 +145,10 @@ The `entry` and `live` routers expose these operations:
 | `overrideRule { id, rule }` | Build/reuse a child version under the entry's existing master (or an unlinked child when unlinked), with the entry's current version as parent, and repoint only the entry. No `updateSnapshot` alias. |
 | `applyMasterRule { id }` | Repoint the entry to its linked master's current version. |
 | `pushRuleToMaster { id }` | Require a linked master; point its current rule at the entry's version when already under that master. If content must be copied under the destination master, insert an equal version with that master's current rule as parent, and repoint both. |
-| `relink { id, ringGameId \| tournamentId, keepRule }` | Validate the destination's ownership and kind. With `keepRule: false`, adopt its current version. With `keepRule: true`, copy the entry's complete version under the new master (parent = new master's current version), then change the master link and rule id in the same batch. Unlinking with keepRule creates a standalone copy with `parent_rule_id` NULL; never leave a version owned by the previous master attached to a different link. |
+| `relink { id, ringGameId \| tournamentId, keepRule }` | Validate the destination's ownership and kind. With a destination and `keepRule: false`, adopt its current version. With `keepRule: true`, reuse the entry's version if already under that master, or its equal current version; otherwise copy the entry's version under the destination with its current version as parent. A null destination ignores `keepRule` and keeps or creates a standalone version. The link and rule id change in the same batch. |
 | `restoreRule { id, masterId: Id \| null, ruleVersionId, masterRuleVersionId? }` | Restore the entry's master link and existing version in one batch; when supplied, also restore the master's current version in that batch. Versions must belong to that master (or be standalone when masterId is NULL), otherwise BAD_REQUEST. Archived masters and versions are allowed. |
 
-Drift is **version id comparison**, not normalized field comparison: for a linked entry, `ruleDrift = ruleVersionId !== currentMasterRuleId`; an unlinked entry has no master drift. Applying or pushing rules makes the ids equal. Relinking with keepRule may intentionally leave drift even when some values happen to match. The old column-by-column comparison and its normalization are no longer used.
+Drift is **version id comparison**, not normalized field comparison: for a linked entry, `ruleDrift = ruleVersionId !== currentMasterRuleId`; an unlinked entry has no master drift. Applying or pushing rules makes the ids equal. Relinking with keepRule may intentionally leave drift even when some values happen to match.
 
 `restoreRule` only repoints to existing versions; it creates no version and therefore restores the original ids and drift. It reverses overrideRule/applyMasterRule/pushRuleToMaster/relink; reversing createAndAssign also deletes the created master afterward. `ringGame.restoreRule` and `tournament.restoreRule` similarly repoint the master's current selection to an existing version owned by that master, without creating a version. These screen-only Undo operations are excluded from MCP.
 
@@ -156,7 +156,7 @@ The API rejects a live overrideRule/applyMasterRule/relink/restoreRule with BAD_
 
 ## Reads, statistics and MCP
 
-Master outputs include `defaultAssetId`, `currentRuleId`, nested `ruleVersion` and a `lineups` map. Entry/live outputs expose `ruleVersionId`, `currentMasterRuleId`, `ruleDrift`, nested `ruleVersion` and the same map. There are no legacy label I/O fields or parallel flat rule fields.
+Master outputs include `defaultAssetId`, `currentRuleId`, nested `ruleVersion` and a `lineups` map. Entry/live outputs expose `ruleVersionId`, `currentMasterRuleId`, `ruleDrift`, nested `ruleVersion` and the same map. Rule and game inputs use the structured fields described above.
 
 Hydrate each lineup once, keyed by id: `gameMixId`, display name, ordered groups (`gameGroupId`, optional stored name, ordered variants with id/label/shortLabel). Levels return inheritance (`game: null`) separately from their effective lineup. Names resolve through user-scoped joins, archived rows included. The display name is the saved mix's current label, the lone variant's label for one group/one variant, or the groups' short labels. Unnamed groups use the live game-group name and an ordinal when structures repeat. Hydration is batched.
 

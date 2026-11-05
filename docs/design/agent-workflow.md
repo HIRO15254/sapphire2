@@ -14,7 +14,7 @@ The semi-automated loop in [`AGENTS.md`](../../AGENTS.md) (Issue Tracking, PR Re
 
 ## Linear (team Sapphire2)
 
-- **Plan**: Plus. The Free plan caps non-archived issues (completed and canceled included) and blocked issue creation on 2026-10-02.
+- **Plan**: Plus. The Free plan caps non-archived issues, including completed and canceled issues.
 - **Statuses** — the name says whose turn it is:
 
   | Type | Statuses |
@@ -66,6 +66,7 @@ The semi-automated loop in [`AGENTS.md`](../../AGENTS.md) (Issue Tracking, PR Re
 | Gemini CLI | [`.gemini/settings.json`](../../.gemini/settings.json) `context.fileName` | `GEMINI_CLI` |
 
 - [`.claude/settings.json`](../../.claude/settings.json) denies `gh pr merge` and `gh pr ready` for Claude Code, raises `BASH_MAX_TIMEOUT_MS` so [pr-watch](#pr-watch) can wait for days, and its Stop hook runs format, changed tests (`test:unit`, so D1 integration stays in CI), lint, and `check:rules`; `.husky/pre-commit` is skipped under Claude Code for that reason. Codex and Gemini have no equivalent deny and follow the `AGENTS.md` text.
+- `.husky/pre-commit` stages an unstaged generated route tree before lint-staged to avoid stash conflicts. When staged source files exist, it runs changed unit tests using Git-based selection; this includes unstaged changes and avoids Windows command-line length limits.
 - `.husky/pre-push` and the `branch-name` job in `ci.yml` reject non-ASCII branch names ([`scripts/check-branch-name.ts`](../../scripts/check-branch-name.ts)); `claude-code-action` refuses them, so the automated review would never run.
 - Linear MCP is configured for all three agents (Gemini: `/mcp auth linear`).
 

@@ -18,8 +18,8 @@ The Worker also serves the MCP endpoint (`/mcp`) and its OAuth discovery routes 
 |-------------|---------|-------------|
 | **Local** | `bun run dev` | `wrangler dev` (local Workers simulation) |
 | **Preview** | PR opened, synchronized, or reopened | Isolated Worker and D1 per PR; PR branch deployment in the shared Pages project |
-| **Dev** | Push to `dev` | Persistent dev environment (`sapphire2-api-dev`) |
-| **Production** | GitHub Release published | Deploy Worker + Pages after CI passes |
+| **Dev** | Push to `dev` or workflow dispatch | Stable Worker and Pages URLs; D1 is recreated and seeded on each deploy |
+| **Production** | GitHub Release published or workflow dispatch | Deploy Worker + Pages after CI passes |
 
 ## 2. Prerequisites
 
@@ -58,6 +58,8 @@ DISCORD_CLIENT_SECRET=your-discord-client-secret
 `OPENAI_API_KEY` and `GOOGLE_MAPS_API_KEY` are optional unless AI extraction or Google Places search is used.
 
 `apps/web/.env` configures the Vite client. Its default `VITE_SERVER_URL` points to the local API at `http://localhost:8787`.
+
+`BETTER_AUTH_URL` and `CORS_ORIGIN` must be HTTP(S) origins without credentials, a path, query, or fragment. A trailing slash is accepted and normalized.
 
 ### 3.2 Run Migrations
 
@@ -212,13 +214,23 @@ Update every workflow that deploys or cleans up Pages:
 
 ### Production Deployment
 
-`release.yml` publishes the tag and GitHub Release, then explicitly dispatches `production-deploy.yml` at that tag because releases created by the default `GITHUB_TOKEN` do not recursively start another workflow. `production-deploy.yml` also supports external `release: published` events and manual `workflow_dispatch` redeploys. The pipeline is CI → migration → [data audit](design/data-audits.md) → Worker deploy → Pages deploy.
+`release.yml` publishes the tag and GitHub Release, then explicitly dispatches `production-deploy.yml` at that tag because releases created by the default `GITHUB_TOKEN` do not recursively start another workflow. `production-deploy.yml` also supports external `release: published` events and manual `workflow_dispatch` redeploys. The pipeline is CI → migration → [data audit](design/data-audits.md) → Worker deploy → Pages deploy. The audit runs `bun scripts/audit-data-model.ts --remote --database sapphire2-db` and can be rerun manually; its failure blocks both deployments.
 
 `release.yml` then moves the release's Linear issues from Done to Released with [`scripts/release-linear-issues.ts`](../scripts/release-linear-issues.ts). The release's PRs are the merged PRs whose merge commit lies between the previous tag and the release merge, and the issues are the ones Linear linked to those PRs. Only issues in Done move. The step may fail without holding back the release.
 
 Uses `concurrency` for sequential execution. The CI job calls the same reusable [`checks.yml`](../.github/workflows/checks.yml) as pull-request CI, so dev and production deploys pass the identical gate; deployment is skipped if it fails.
 
-Before a release that requires restore-based migration recovery, freeze data entry, retain the previous deployable tag, and record a D1 Time Travel bookmark immediately before migration: `bunx wrangler d1 time-travel info sapphire2-db -c apps/server/wrangler.toml`. Do not allow writes during migration and deployment. If migration or the audit fails, restore with `bunx wrangler d1 time-travel restore sapphire2-db --bookmark=<bookmark> -c apps/server/wrangler.toml`; redeploy the previous tag if necessary, fix and rehearse before retrying. Restoration loses writes after the bookmark. Verify the release before resuming data entry. Follow the [migration rules](../.claude/rules/db-migrations.md) for the applicable recovery policy.
+### Preview and dev database seeding
+
+Dev recreates its D1 database on every deployment; preview reuses its database after the first deployment. A new database is migrated to the production database's latest applied migration, seeded from a data-only production export, then migrated through the remaining files. The dump omits `d1_migrations` rows. Existing preview databases receive migrations without being reseeded. Dev then runs `bun scripts/audit-data-model.ts --remote --database sapphire2-db-dev --config apps/server/wrangler.toml`; a failed query or violation fails the job and blocks Worker deployment. The audit reports statuses and row counts without patching data; see the [catalogue](design/data-audits.md) for local and remote usage.
+
+During import, triggers read from `sqlite_master` are dropped so the dump's derived rows are not duplicated. An exit trap re-arms them even after a failed import; re-arm failure also fails the job. The re-arm file prefixes CREATE statements with DROP statements because SQLite does not retain `IF NOT EXISTS` in stored trigger definitions. Foreign keys are disabled for the dump, then enabled through a separate import and checked before remaining migrations run.
+
+Preview resolves database names exactly; duplicate-name error 7502 is treated as an existing database, while another creation response without an ID is re-resolved and treated as new. The web build passes `GITHUB_TOKEN` to the releases plugin to avoid unauthenticated API rate limits.
+
+Release notes use the Claude action's structured output and reject an empty or invalid `release_notes` field before publishing. The dispatch uses `actions: write` and the release tag, so production checks out the released tree.
+
+Before a release that requires restore-based migration recovery, freeze data entry, retain the previous deployable tag, and record a D1 Time Travel bookmark immediately before migration: `bunx wrangler d1 time-travel info sapphire2-db -c apps/server/wrangler.toml`. Do not allow writes during migration and deployment. If migration or the audit fails, do not patch forward or retry the partial chain: restore with `bunx wrangler d1 time-travel restore sapphire2-db --bookmark=<bookmark> -c apps/server/wrangler.toml`; if the Worker was replaced, redeploy the previous tag with `gh workflow run production-deploy.yml --ref <previous tag>`. Fix on `dev` and rehearse before retrying. Restoration loses writes after the bookmark. Verify the release before resuming data entry. Follow the [migration rules](../.claude/rules/db-migrations.md) for the applicable recovery policy.
 
 ## 8. Verification
 
@@ -301,7 +313,7 @@ PR close/merge
 ```
 push to dev
   |
-  +-> CI -> Migration -> Worker deploy (sapphire2-api-dev) -> Pages deploy (dev)
+  +-> CI -> Recreate D1 -> Base migrations -> Seed -> Remaining migrations -> Audit -> Worker deploy (sapphire2-api-dev) -> Pages deploy (dev)
 ```
 
 ### Production Deploy (on release PR merge or manual dispatch)
@@ -315,7 +327,7 @@ release PR merged into main
         |     |
         |     +-> CI (type check, lint, test)
         |           |
-        |           +-> Migration -> Worker deploy -> Pages deploy
+        |           +-> Migration -> Audit -> Worker deploy -> Pages deploy
         |
         +-> Move the release's Linear issues from Done to Released
 ```

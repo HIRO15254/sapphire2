@@ -16,7 +16,7 @@ Division of labor with [`.claude/rules/`](../../.claude/rules/): rule files hold
 | [`statistics.md`](statistics.md) | Settled-entry population, native / valuation / normalized modes and coverage, bb and bi units, time, EV, breakdown and series keys |
 | [`mcp-and-oauth.md`](mcp-and-oauth.md) | MCP OAuth consent gate threat model, discovery endpoints, token expiry, tool projection, Workers runtime constraints |
 | [`passkeys.md`](passkeys.md) | WebAuthn relying-party pinning across the split origin, the `passkey` table contract, silent conditional-create upgrades, device naming, plugin version coupling |
-| [`ai-extraction.md`](ai-extraction.md) | AI extraction truncation failure model, schema design, model pinning, form-merge semantics |
+| [`ai-extraction.md`](ai-extraction.md) | AI extraction timeout and retry, structured-output contracts, truncation failure model and model pinning |
 | [`web-platform.md`](web-platform.md) | Persisted-cache busting, open-redirect guard, shared UI component traps, filter presets, geolocation and maps, number formatting |
 | [`cryst-exceptions.md`](cryst-exceptions.md) | Exceptions policy for future Cryst screens: record local departures with reasons, promote repeated needs to the design system, and remove obsolete exceptions |
 | [`testing-and-tooling.md`](testing-and-tooling.md) | Test mechanisms, D1 integration, HTTP/browser boundaries, Vitest, CI, migrations, seed/restore and `check-rules.ts`. Rules live in [testing.md](../../.claude/rules/testing.md); commands in the [run guide](../testing-environment.ja.md) |

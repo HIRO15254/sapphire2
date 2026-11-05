@@ -6,7 +6,7 @@ Historical context for these decisions is retained in the [web platform history]
 
 ## Persisted query cache and the cache buster
 
-The whole tRPC query cache is persisted to IndexedDB (store key `sapphire2-query-cache`) with `maxAge` of 24 hours, and rehydrates on boot before any network round-trip. A client can therefore rehydrate old-shaped cache into new code until each query refetches.
+Successful tRPC queries are persisted to IndexedDB (store key `sapphire2-query-cache`) with `maxAge` of 24 hours and restored on boot. A client can therefore rehydrate old-shaped cache into new code until each query refetches.
 
 The mitigation is the persister `buster` string in [`apps/web/src/main.tsx`](../../apps/web/src/main.tsx): bumping it discards the entire persisted cache on the next load. **Invariant: any release whose server changes alter a procedure's output shape or value semantics must bump the buster in the same change.** The bump procedure is kept at the code site as the repo's **only** `NOTE(ops)` comment, because main.tsx is exactly the file a release-time editor sees.
 
@@ -21,7 +21,7 @@ The persisted cache is keyed only by procedure name, **not per-user**. Two-part 
 ## Routing shell and MCP OAuth login continuation
 
 - **Authenticated navigation**: Home, Sessions, Stats, Assets and More form the bottom tabs; More is current for its Library (Rooms, Games, Players, Tags) and App (Settings) destinations. The app is mobile only: from `md` (768px) the authenticated shell shows a "Use on your phone" blocker instead of the app. Unimplemented destinations remain links and resolve to the router's not-found fallback.
-- **Route table**: `/`, `/more`, `/settings`, and `/login` exist. Later phases own `/live/$entryId`, `/sessions`, `/sessions/new`, `/sessions/$entryId`, `/sessions/$entryId/hands/$handId`, `/stats`, `/assets…`, `/rooms…`, `/games`, `/players…`, and `/tags`. The Home live action points to `/live/new` for U05. There are no redirects from old paths. Routes are split automatically at build time.
+- **Route table**: `/`, `/more`, `/settings`, and `/login` exist. Unimplemented destinations resolve to the router's not-found fallback, including the Home live action at `/live/new`. Routes are split automatically at build time.
 - **Back navigation** returns to the previous router history entry, preserving its search parameters; a cold entry navigates to its supplied fallback.
 
 - **MCP OAuth login continuation**: when better-auth's authorize endpoint sees an unauthenticated user, it redirects to this app's `/login` carrying the original authorize query ([`apps/web/src/routes/login.tsx`](../../apps/web/src/routes/login.tsx) parks it, and social sign-in preserves it mid-OAuth) so the authorize flow can resume after sign-in.
@@ -42,8 +42,8 @@ Saved filter presets store the filter state of one screen (sessions list, statis
 ### Storage and payload schemas
 
 - One JSON `payload` per preset row on `filter_preset.payload` ([`packages/db/src/schema/filter-preset.ts`](../../packages/db/src/schema/filter-preset.ts)). The **shared write=read Zod schemas** live in [`packages/db/src/schemas/filter-preset.ts`](../../packages/db/src/schemas/filter-preset.ts): db, api, and web must all validate through these exact objects, never a looser inline copy (see [`.claude/rules/api-data-integrity.md`](../../.claude/rules/api-data-integrity.md)).
-- **Per-screen validation.** Both payloads use the shared statistics filter fields: `kind`, `roomId`, `dateFrom`/`dateTo`, entry and tournament tag IDs, `assetId`, `valuation`, `baseAssetId`, and `normalized`, plus `period`. Unknown and legacy keys are rejected. Statistics requires exactly one mode (`assetId`, `valuation`, or `normalized: true`); sessions permits no mode, but rejects conflicting modes. `baseAssetId` requires `valuation`. The `update` procedure re-validates a provided payload against the **stored row's** `screenKey`.
-- **Layering: `period` is only a bounded string here.** `packages/db` must not import from `apps/web`, so the screen-owned period vocabulary is out of reach and the shared schema validates `period` only as a bounded non-empty string. Screens must type-assert when applying a preset and **degrade gracefully** (keep current filters, never throw) when a stored payload carries a period the current build no longer understands — the screen-side halves of that contract are documented in [`statistics.md`](statistics.md) and [`sessions-and-live-editing.md`](sessions-and-live-editing.md).
+- **Per-screen validation.** Both payloads use the shared statistics filter fields: `kind`, `roomId`, `dateFrom`/`dateTo`, entry and tournament tag IDs, `assetId`, `valuation`, `baseAssetId`, and `normalized`, plus optional `period`. Unknown keys are rejected. Statistics requires exactly one mode (`assetId`, `valuation`, or `normalized: true`); sessions permits no mode, but rejects conflicting modes. `baseAssetId` requires `valuation`. The `update` procedure re-validates a provided payload against the **stored row's** `screenKey`.
+- **Layering:** `packages/db` cannot import the screen-owned period vocabulary from `apps/web`, so the shared schema accepts any non-empty period string up to 30 characters. Future screens applying presets must handle unrecognized periods gracefully.
 
 ### Default-preset scoping
 
@@ -51,9 +51,9 @@ At most one default preset per (user, screen). The `setDefault` procedure in [`p
 
 ## Mutation feedback, Undo and load failures
 
-`useUndoableMutation` preserves the caller's optimistic callbacks and uses one toast for the write and its outcome. A successful reversible write offers Undo for six seconds; Undo sends the caller's compensating request using the original variables, result and optimistic rollback context. It never offers redo. Hard deletes and an entry update that removes a Day use destructive feedback without Undo. The inverse table and conflict semantics are in [the API contract](api.md#undo); last-writer-wins is not optimistic concurrency control.
+The shared `useUndoableMutation` hook preserves the caller's optimistic callbacks and uses one toast for the write and its outcome. A successful reversible write offers Undo for six seconds; Undo sends the caller's compensating request using the original variables, result and optimistic rollback context. It never offers redo. Hard deletes and an entry update that removes a Day use destructive feedback without Undo. The inverse table and conflict semantics are in [the API contract](api.md#undo); last-writer-wins is not optimistic concurrency control.
 
-The form awaits the mutation before closing or resetting, so a rejected write retains input for retry. Query failures are rendered inline rather than by a global cache toast: `FORBIDDEN` and `NOT_FOUND` map to the not-found state, and other failures to the retryable state. A loading query must not show an empty or not-found state.
+Forms should await mutations before closing or resetting so a rejected write retains input for retry. Query failures should render inline rather than by a global cache toast: `FORBIDDEN` and `NOT_FOUND` map to the not-found state, and other failures to the retryable state. A loading query must not show an empty or not-found state.
 
 ## Form sheets and the external-submit `form=` contract
 
@@ -72,23 +72,22 @@ The bottom-sheet design contract and the `form={formId}` external-submit mechani
 
 Optimistic-update mechanics go through the helpers mandated by [`.claude/rules/web-data-fetching.md`](../../.claude/rules/web-data-fetching.md). Two cross-cutting traps beyond the rule:
 
-- **`fetchNextPage` needs a zero-arg wrapper** (a raw click handler passes the event as `FetchNextPageOptions`), guarded to no-op when there is no next page — otherwise React Query **re-fetches page 1** — or while a page is in flight.
-- **Optimistic re-sort must exactly replicate the server's `ORDER BY`.** Favorite toggles must replicate `ORDER BY is_favorite DESC, created_at ASC` so a newly-favorited row interleaves chronologically among existing favorites instead of jumping to the top. If the server ordering ever changes, these client comparators must change in the same task — a deliberate cross-layer copy with no mechanical sync.
+- **`fetchNextPage` needs a zero-arg wrapper** (a raw click handler passes the event as `FetchNextPageOptions`), guarded to no-op when there is no next page or while a page is in flight.
+- **Optimistic re-sort must exactly replicate the server's `ORDER BY`.** Favorite toggles must replicate `ORDER BY is_favorite DESC, created_at ASC` so a newly-favorited row interleaves chronologically among existing favorites instead of jumping to the top. If the server ordering changes, client comparators must change in the same task.
 
 ## Location and maps
 
-The room location picker accepts a pasted Google Maps link and resolves it to coordinates. Security posture, spread across [`packages/api/src/routers/location.ts`](../../packages/api/src/routers/location.ts) (server) and the client-side maps URL parser:
+The server's [`location` router](../../packages/api/src/routers/location.ts) resolves Google Maps links and searches places. A room location picker is not yet implemented in `apps/web`.
 
-- **SSRF bound.** Short-link hosts (`maps.app.goo.gl`, `goo.gl`) are the only URLs the server ever fetches (to follow the redirect), so they form an **exact allowlist** — this bounds the SSRF surface. Full URLs are parsed directly with no outbound fetch. This is the sanctioned, allowlisted exception to the "never fetch user-supplied URLs server-side" rule in [`.claude/rules/api-security.md`](../../.claude/rules/api-security.md).
-- **Lookalike-host regex.** Accepted hosts are `google.<tld>` or `*.google.<tld>`, where `google` must be the **registrable label immediately followed by the TLD**: a gTLD (`com`), a 2-letter ccTLD (`google.de`), or a `co`/`com` second-level ccTLD (`google.co.jp`, `google.com.au`). This rejects lookalikes such as `evil-google.com`, `google.com.evil.com`, **and** `google.evil.com` (where `google` would be a subdomain of `evil.com`).
-- **Client/server allowlist sync trap.** The client-side allowlist in `maps-url.ts` (used to decide whether a pasted link is worth sending) **mirrors the server-side allowlist in `location.ts`**. There is no mechanical coupling: any change to accepted hosts must be made in both files in the same task, or pasted links will be accepted client-side and rejected server-side (or vice versa).
-- **Paired-coordinates contract**: latitude and longitude move as a pair — both omitted, both `null`, or both numbers. The server-side `.refine` in `packages/api/src/routers/room.ts` mirrors the web form's, so a direct tRPC call can't persist a half-set location; a change to either side must update both.
-- **API cost bound**: place-name search uses Google Places API (New) Text Search, triggered by an explicit search action — never per keystroke.
+- **SSRF bound.** Links require HTTPS, no URL credentials and no nondefault port. Only the exact short-link hosts `maps.app.goo.gl` and `goo.gl` are fetched. Redirects are followed manually, with each destination checked against the allowlist, a five-hop limit and a ten-second fetch timeout; full Google URLs are parsed without fetching them. This is the sanctioned exception to the server-side user-supplied URL rule in [`.claude/rules/api-security.md`](../../.claude/rules/api-security.md).
+- **Host matching.** The server accepts `google.com`, `google.<two-letter ccTLD>`, and `google.co.<ccTLD>` or `google.com.<ccTLD>`, including subdomains, as well as the two short-link hosts. It rejects lookalikes such as `evil-google.com` and `google.evil.com`. A future client-side precheck must match the server.
+- **Paired coordinates:** latitude and longitude must be supplied or cleared together; the room router validates the pair. Future web forms must preserve the same contract.
+- **API cost and response bounds:** place-name search uses Google Places API (New) Text Search; its request omits credentials, uses manual redirects and a ten-second timeout, and limits the response body to 1,000,000 bytes. Future web controls should trigger it with an explicit search action, not per keystroke.
 
 ## Number and date formatting
 
-Formatter imperatives (locale-fixed formatters, UTC-vs-local getters) are mandated by [`.claude/rules/datetime-and-numbers.md`](../../.claude/rules/datetime-and-numbers.md). In [`apps/web/src/utils/format-number.ts`](../../apps/web/src/utils/format-number.ts), `formatYmdSlash` (UTC getters, for date-only values like `sessionDate`) and `formatLocalYmdSlash` (local getters, for real instants like event timestamps) live side by side — picking the wrong one is a one-day-off bug.
+Formatter imperatives are mandated by [`.claude/rules/datetime-and-numbers.md`](../../.claude/rules/datetime-and-numbers.md). Date-only values such as `playedOn` and `localDate` are calendar text, never UTC or local instants. For actual instants, [`apps/web/src/utils/format-number.ts`](../../apps/web/src/utils/format-number.ts) provides UTC and local date formatters; select the appropriate time basis.
 
 ## Update-notes auto-open
 
-The update-notes sheet auto-opens iff the latest release is absent from the **full viewed set** ([`should-auto-open-update-notes.ts`](../../apps/web/src/features/update-notes/utils/should-auto-open-update-notes.ts)) and records the latest release as viewed immediately so the sheet surfaces once per release.
+The update-notes sheet auto-opens when a latest release exists and the loaded full viewed set does not contain it ([`should-auto-open-update-notes.ts`](../../apps/web/src/features/update-notes/utils/should-auto-open-update-notes.ts)); an unresolved viewed set does not trigger it. Auto-open records the latest release as viewed so the sheet surfaces once per release.

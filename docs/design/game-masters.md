@@ -52,16 +52,16 @@ Hard deletes use a single `DELETE` with `NOT EXISTS` reference guards and return
 
 **Call sites**:
 
-- Once from better-auth's `user.create` hook (`onUserCreated` in [`packages/auth/src/index.ts`](../../packages/auth/src/index.ts)). The hook body wraps it in try/catch: **signup must succeed even if seeding fails** — every `list` procedure self-seeds on next read, so a seed failure here would otherwise take down account creation entirely for an unrelated, retriable side effect.
-- Defensively from `gameVariant.list` / `gameGroup.list` / `gameMix.list`, for legacy accounts. The seed checks all three tables, including archived rows, before inserting.
+- The signup `onUserCreated` hook in [`apps/server/src/auth-options.ts`](../../apps/server/src/auth-options.ts) batches the self-player insertion with statements from `planDefaultGameData`. Better Auth rethrows hook errors, but `runUserCreatedHook` catches and logs provisioning failures so signup succeeds. `player.getSelf` and the game list procedures re-provision missing data lazily.
+- Lazily from `gameVariant.list` / `gameGroup.list` / `gameMix.list` when their own table has no rows for the user; the idempotency guard above still makes the seed a no-op if any other game-master row exists.
 
-**Race design (stable per-user ids)**: deterministic ids and `onConflictDoNothing` inserts make concurrent seeds converge. All statements run in one `runBatch`; seed errors are not swallowed.
+**Race design (stable per-user ids)**: deterministic ids and `onConflictDoNothing` inserts make concurrent seeds converge. `seedDefaultGameData` batches the planned statements; errors propagate to its caller.
 
 **Fail-closed data-entry guards**: a `groupKey` with no matching seeded group fails closed instead of inserting a dangling `groupId`; a mix with no resolvable `variantKey` seeds an empty composition rather than handing Drizzle `values([])` (which throws — and would turn all three `list` procedures into a 500 for that user). Membership inserts are chunked through the same helper as the mix router ([Normalized composition reads](#normalized-composition-reads)) so a future builtin mix wide enough to overflow D1's bind-param cap is split, not rejected at runtime.
 
-**Atomicity**: the seed statements commit as one atomic batch, so a failure cannot leave partial built-in game data. Batch mechanics: [`data-integrity.md`](data-integrity.md).
+**Atomicity**: seed statements commit as one atomic batch, so a failure cannot leave partial built-in game data. At signup the self-player insertion shares that batch. Batch mechanics: [`data-integrity.md`](data-integrity.md).
 
 ## Normalized composition reads
 
-[`packages/api/src/services/game-mix.ts`](../../packages/api/src/services/game-mix.ts) reconstructs the public `games: string[]` contract from the normalized junction rows with owner-scoped queries. `chunkForInsert` splits membership rows across INSERTs that stay under D1's bind-param cap, with the width computed from the **row shape rather than a literal**, so adding a column to `gameMixVariant` cannot silently overflow the cap. It is shared by the mix router and the seed so both size their INSERTs the same way. The D1 bind-param arithmetic itself is owned by [`data-integrity.md`](data-integrity.md).
+[`packages/api/src/services/game-mix.ts`](../../packages/api/src/services/game-mix.ts) reconstructs the public `games: string[]` contract from normalized junction rows with owner-scoped queries. The mix router and seed use [`insertChunks`](../../packages/api/src/lib/batch.ts) to split membership inserts under D1's bind-parameter cap, deriving the width from the row shape. The bind-parameter arithmetic is owned by [`data-integrity.md`](data-integrity.md).
 
