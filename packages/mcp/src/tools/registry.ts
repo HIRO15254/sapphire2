@@ -730,6 +730,21 @@ export const DELIBERATELY_EXCLUDED: {
 	},
 	{
 		reason:
+			"Rule workflow: override, apply, push and relink rewrite which immutable rule version an entry and its master point to and branch or copy versions on the entry screen, where the drift between them is shown; entry_create_* and entry_update cover recording finished play",
+		paths: [
+			"entry.overrideRule",
+			"entry.applyMasterRule",
+			"entry.pushRuleToMaster",
+			"entry.relink",
+		],
+	},
+	{
+		reason:
+			"Screen-only Undo: restore an entry's master link and an existing rule version (and optionally the master's current version) without creating another version",
+		paths: ["entry.restoreRule", "live.restoreRule"],
+	},
+	{
+		reason:
 			"player.list already returns these rows, so a by-id tool would be a second way to read the same data",
 		paths: ["player.getById"],
 	},
@@ -767,6 +782,12 @@ export const DELIBERATELY_EXCLUDED: {
 			"live.undoEndPlay",
 			"live.undoStartNextPlay",
 			"live.discard",
+			"live.createAndAssignRingGame",
+			"live.createAndAssignTournament",
+			"live.overrideRule",
+			"live.applyMasterRule",
+			"live.pushRuleToMaster",
+			"live.relink",
 			"playEvent.list",
 			"playEvent.create",
 			"playEvent.update",

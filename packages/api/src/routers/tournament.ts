@@ -258,15 +258,15 @@ function tagStatements(
 	];
 }
 
-async function createTournament(
+export async function planTournamentCreate(
 	db: DbInstance,
 	userId: string,
+	id: string,
 	input: TournamentCreateInput
-): Promise<TournamentOutput> {
+): Promise<{ ruleId: string; statements: BatchStatement[] }> {
 	await validateEntityOwnership(db, "room", input.roomId, userId);
 	await validateTagsOwnership(db, tournamentTag, input.tagIds, userId);
 	await assertDefaultAsset(db, userId, input.defaultAssetId, null);
-	const id = crypto.randomUUID();
 	const write = await planTournamentRuleWrite({
 		db,
 		userId,
@@ -275,30 +275,43 @@ async function createTournament(
 		tournamentId: null,
 	});
 	const now = new Date();
-	await runBatch(db, [
-		...write.statements,
-		db.insert(tournament).values({
-			id,
-			userId,
-			roomId: input.roomId,
-			name: input.name,
-			memo: input.memo ?? null,
-			defaultAssetId: input.defaultAssetId ?? null,
-			currentRuleId: write.ruleId,
-			createdAt: now,
-			updatedAt: now,
-		}),
-		db
-			.update(tournamentRule)
-			.set({ tournamentId: id })
-			.where(
-				and(
-					eq(tournamentRule.id, write.ruleId),
-					eq(tournamentRule.userId, userId)
-				)
-			),
-		...tagStatements(db, id, userId, input.tagIds, false),
-	]);
+	return {
+		ruleId: write.ruleId,
+		statements: [
+			...write.statements,
+			db.insert(tournament).values({
+				id,
+				userId,
+				roomId: input.roomId,
+				name: input.name,
+				memo: input.memo ?? null,
+				defaultAssetId: input.defaultAssetId ?? null,
+				currentRuleId: write.ruleId,
+				createdAt: now,
+				updatedAt: now,
+			}),
+			db
+				.update(tournamentRule)
+				.set({ tournamentId: id })
+				.where(
+					and(
+						eq(tournamentRule.id, write.ruleId),
+						eq(tournamentRule.userId, userId)
+					)
+				),
+			...tagStatements(db, id, userId, input.tagIds, false),
+		],
+	};
+}
+
+async function createTournament(
+	db: DbInstance,
+	userId: string,
+	input: TournamentCreateInput
+): Promise<TournamentOutput> {
+	const id = crypto.randomUUID();
+	const { statements } = await planTournamentCreate(db, userId, id, input);
+	await runBatch(db, statements);
 	return await getTournament(db, userId, id);
 }
 
