@@ -11,12 +11,15 @@ import { gameVariantRouter } from "./game-variant";
 import { handRouter } from "./hand";
 import { ledgerRouter } from "./ledger";
 import { ledgerCategoryRouter } from "./ledger-category";
+import { liveRouter } from "./live";
 import { locationRouter } from "./location";
+import { playEventRouter } from "./play-event";
 import { playerRouter } from "./player";
 import { playerTagRouter } from "./player-tag";
 import { ringGameRouter } from "./ring-game";
 import { roomRouter } from "./room";
 import { statsRouter } from "./stats";
+import { tablePlayerRouter } from "./table-player";
 import { tournamentRouter } from "./tournament";
 import { updateNoteViewRouter } from "./update-note-view";
 import { userSettingRouter } from "./user-setting";
@@ -26,6 +29,9 @@ export const appRouter = router({
 		return "OK";
 	}),
 	entry: entryRouter,
+	live: liveRouter,
+	playEvent: playEventRouter,
+	tablePlayer: tablePlayerRouter,
 	entryTag: entryTagRouter,
 	aiExtract: aiExtractRouter,
 	location: locationRouter,

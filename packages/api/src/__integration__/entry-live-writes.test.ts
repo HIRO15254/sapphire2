@@ -154,7 +154,9 @@ describe("live entry writes keep the event log and its projection in step", () =
 		const events = await listEntryPlayEvents(api.db, "alice", "live-1");
 		expect(events.map((event) => event.eventType)).toEqual(["session_start"]);
 		expect(JSON.parse(events[0]?.payload ?? "null")).toEqual({
-			payments: [{ assetId: "chips", quantity: 1000, role: "buy_in" }],
+			payments: [
+				{ assetId: "chips", effect: "real", quantity: 1000, role: "buy_in" },
+			],
 		});
 	});
 
@@ -221,7 +223,7 @@ describe("live entry writes keep the event log and its projection in step", () =
 		expect(row.status).toBe("settled");
 	});
 
-	test("deleting the pause and editing the end time re-project the entry", async ({
+	test("deleting the resume and editing the end time re-project the entry", async ({
 		api,
 	}) => {
 		await startLive(api);
@@ -261,11 +263,11 @@ describe("live entry writes keep the event log and its projection in step", () =
 			api.db,
 			"alice",
 			"live-1",
-			{ op: "delete", id: eventIds[0] as string },
+			{ op: "delete", id: eventIds[1] as string },
 			minutes(61)
 		);
 		expect(await onlyPlay(api.db, "live-1")).toMatchObject({
-			breakMinutes: 0,
+			breakMinutes: 50,
 			status: "ended",
 		});
 
@@ -286,7 +288,39 @@ describe("live entry writes keep the event log and its projection in step", () =
 		expect(await onlyPlay(api.db, "live-1")).toMatchObject({
 			endedAt: minutes(90),
 			endStack: 500,
+			breakMinutes: 80,
 		});
+	});
+
+	test("an edit that leaves the event stream invalid is rejected before anything is written", async ({
+		api,
+	}) => {
+		await startLive(api);
+		const { eventIds } = await applyEntryEventChange(
+			api.db,
+			"alice",
+			"live-1",
+			{
+				op: "append",
+				events: [
+					{ type: "session_pause", occurredAt: minutes(10), payload: {} },
+					{ type: "session_resume", occurredAt: minutes(25), payload: {} },
+				],
+			},
+			minutes(30)
+		);
+		const before = await everyRow(api.db);
+
+		const failure = await applyEntryEventChange(
+			api.db,
+			"alice",
+			"live-1",
+			{ op: "delete", id: eventIds[0] as string },
+			minutes(31)
+		).catch((error: unknown) => error);
+
+		expect(failure).toMatchObject({ code: "BAD_REQUEST" });
+		expect(await everyRow(api.db)).toEqual(before);
 	});
 
 	test("deleting the only session_end reopens a settled entry", async ({
@@ -395,9 +429,9 @@ describe("live entry writes keep the event log and its projection in step", () =
 							op: "append",
 							events: [
 								{
-									type: "session_pause",
+									type: "memo",
 									occurredAt: minutes(5),
-									payload: {},
+									payload: { text: "first" },
 								},
 							],
 						},
@@ -416,9 +450,9 @@ describe("live entry writes keep the event log and its projection in step", () =
 				op: "append",
 				events: [
 					{
-						type: "session_resume",
+						type: "memo",
 						occurredAt: minutes(6),
-						payload: {},
+						payload: { text: "second" },
 					},
 				],
 			},
@@ -428,9 +462,63 @@ describe("live entry writes keep the event log and its projection in step", () =
 		const events = await listEntryPlayEvents(api.db, "alice", "live-1");
 		expect(events.map((event) => event.eventType)).toEqual([
 			"session_start",
-			"session_pause",
-			"session_resume",
+			"memo",
+			"memo",
 		]);
+	});
+
+	test("an append racing a session_end that ended the play first is rejected and leaves one end", async ({
+		api,
+	}) => {
+		await startLive(api);
+		const end = (quantity: number) => ({
+			op: "append" as const,
+			events: [
+				{
+					type: "session_end",
+					occurredAt: minutes(30),
+					payload: {
+						payments: [{ assetId: "chips", quantity, role: "cash_out" }],
+					},
+				},
+			],
+		});
+		const racing = new Proxy(api.db, {
+			get(target, property, receiver) {
+				if (property !== "batch") {
+					return Reflect.get(target, property, receiver);
+				}
+				return async (statements: Parameters<Database["batch"]>[0]) => {
+					await applyEntryEventChange(
+						target,
+						"alice",
+						"live-1",
+						end(1200),
+						minutes(30)
+					);
+					return target.batch(statements);
+				};
+			},
+		});
+
+		const failure = await applyEntryEventChange(
+			racing,
+			"alice",
+			"live-1",
+			end(900),
+			minutes(30)
+		).catch((error: unknown) => error);
+
+		expect(failure).toMatchObject({ code: "PRECONDITION_FAILED" });
+		const events = await listEntryPlayEvents(api.db, "alice", "live-1");
+		expect(events.map((event) => event.eventType)).toEqual([
+			"session_start",
+			"session_end",
+		]);
+		expect(await onlyPlay(api.db, "live-1")).toMatchObject({
+			status: "ended",
+			endStack: 1200,
+		});
 	});
 
 	test("another user can neither append to nor edit nor delete an entry's events", async ({
@@ -505,7 +593,7 @@ describe("live entry writes keep the event log and its projection in step", () =
 			minutes(5)
 		).catch((error: unknown) => error);
 
-		expect(failure).toMatchObject({ code: "BAD_REQUEST" });
+		expect(failure).toMatchObject({ code: "FORBIDDEN" });
 		expect(await everyRow(api.db)).toEqual(before);
 	});
 });

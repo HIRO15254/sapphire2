@@ -14,7 +14,6 @@ describe("play event payload v2 registry", () => {
 		["tournament", "chips_add_remove"],
 		["cash", "purchase_chips"],
 		["cash", "reentry"],
-		["cash", "table_change"],
 	] as const)("has no %s %s payload", (kind, type) => {
 		expect(playEventPayloadSchema(kind, type)).toBeNull();
 	});

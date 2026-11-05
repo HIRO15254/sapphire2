@@ -45,6 +45,7 @@ export interface EntryListFilters {
 	dateTo?: string;
 	kind?: EntryKind;
 	roomId?: string;
+	source?: EntrySource;
 	status?: EntryStatus;
 }
 
@@ -219,6 +220,7 @@ export function entryFilterConditions(
 		eq(entry.userId, userId),
 		filters.kind ? eq(entry.kind, filters.kind) : undefined,
 		filters.status ? eq(entry.status, filters.status) : undefined,
+		filters.source ? eq(entry.source, filters.source) : undefined,
 		filters.roomId ? eq(entry.roomId, filters.roomId) : undefined,
 		filters.dateFrom
 			? sql`${entry.playedOn} >= ${filters.dateFrom}`
