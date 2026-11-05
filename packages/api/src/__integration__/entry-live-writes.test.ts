@@ -12,7 +12,6 @@ import {
 	applyEntryEventChange,
 	buildLiveEntryStartStatements,
 	type LiveEntryStart,
-	updateEntryHeroSeat,
 } from "../services/entry-live-writes";
 import { type ApiFixture, test } from "./test-fixture";
 
@@ -35,9 +34,10 @@ function cashStart(overrides: Partial<LiveEntryStart> = {}): LiveEntryStart {
 		localDate: LOCAL_DATE,
 		now: START,
 		startEvent: {
-			schemaVersion: 1,
 			occurredAt: START,
-			payload: { buyInAmount: 1000 },
+			payload: {
+				payments: [{ assetId: "chips", quantity: 1000, role: "buy_in" }],
+			},
 		},
 		...overrides,
 	};
@@ -47,6 +47,12 @@ async function startLive(api: ApiFixture, start = cashStart()) {
 	await api.d1
 		.prepare("INSERT INTO game_lineup (id, user_id) VALUES (?, ?)")
 		.bind("lineup", "alice")
+		.run();
+	await api.d1
+		.prepare(
+			"INSERT INTO asset (id, user_id, name, updated_at) VALUES (?, ?, ?, 0)"
+		)
+		.bind("chips", "alice", "Chips")
 		.run();
 	if (start.detail.kind === "cash") {
 		await api.d1
@@ -61,25 +67,6 @@ async function startLive(api: ApiFixture, start = cashStart()) {
 				"INSERT INTO tournament_rule (id, user_id, lineup_id) VALUES (?, ?, ?)"
 			)
 			.bind(start.detail.tournamentRuleId, "alice", "lineup")
-			.run();
-		await api.d1
-			.prepare(
-				"INSERT INTO asset (id, user_id, name, updated_at) VALUES (?, ?, ?, 0)"
-			)
-			.bind("chips", "alice", "Chips")
-			.run();
-		await api.d1
-			.prepare(
-				"INSERT INTO tournament_rule_price (id, user_id, rule_id, kind, label, asset_id, amount, fee, ordinal) VALUES (?, ?, ?, 'entry', 'Entry', ?, ?, ?, 0)"
-			)
-			.bind(
-				"price",
-				"alice",
-				start.detail.tournamentRuleId,
-				"chips",
-				start.detail.buyIn,
-				start.detail.entryFee
-			)
 			.run();
 	}
 	await api.db.batch(
@@ -167,7 +154,7 @@ describe("live entry writes keep the event log and its projection in step", () =
 		const events = await listEntryPlayEvents(api.db, "alice", "live-1");
 		expect(events.map((event) => event.eventType)).toEqual(["session_start"]);
 		expect(JSON.parse(events[0]?.payload ?? "null")).toEqual({
-			buyInAmount: 1000,
+			payments: [{ assetId: "chips", quantity: 1000, role: "buy_in" }],
 		});
 	});
 
@@ -185,13 +172,11 @@ describe("live entry writes keep the event log and its projection in step", () =
 				events: [
 					{
 						type: "session_pause",
-						schemaVersion: 1,
 						occurredAt: minutes(10),
 						payload: {},
 					},
 					{
 						type: "session_resume",
-						schemaVersion: 1,
 						occurredAt: minutes(25),
 						payload: {},
 					},
@@ -213,9 +198,12 @@ describe("live entry writes keep the event log and its projection in step", () =
 				events: [
 					{
 						type: "session_end",
-						schemaVersion: 1,
 						occurredAt: minutes(60),
-						payload: { cashOutAmount: 3000 },
+						payload: {
+							payments: [
+								{ assetId: "chips", quantity: 3000, role: "cash_out" },
+							],
+						},
 					},
 				],
 			},
@@ -246,21 +234,22 @@ describe("live entry writes keep the event log and its projection in step", () =
 				events: [
 					{
 						type: "session_pause",
-						schemaVersion: 1,
 						occurredAt: minutes(10),
 						payload: {},
 					},
 					{
 						type: "session_resume",
-						schemaVersion: 1,
 						occurredAt: minutes(25),
 						payload: {},
 					},
 					{
 						type: "session_end",
-						schemaVersion: 1,
 						occurredAt: minutes(60),
-						payload: { cashOutAmount: 3000 },
+						payload: {
+							payments: [
+								{ assetId: "chips", quantity: 3000, role: "cash_out" },
+							],
+						},
 					},
 				],
 			},
@@ -288,7 +277,9 @@ describe("live entry writes keep the event log and its projection in step", () =
 				op: "update",
 				id: eventIds[2] as string,
 				occurredAt: minutes(90),
-				payload: { cashOutAmount: 500 },
+				payload: {
+					payments: [{ assetId: "chips", quantity: 500, role: "cash_out" }],
+				},
 			},
 			minutes(62)
 		);
@@ -311,9 +302,12 @@ describe("live entry writes keep the event log and its projection in step", () =
 				events: [
 					{
 						type: "session_end",
-						schemaVersion: 1,
 						occurredAt: minutes(30),
-						payload: { cashOutAmount: 1200 },
+						payload: {
+							payments: [
+								{ assetId: "chips", quantity: 1200, role: "cash_out" },
+							],
+						},
 					},
 				],
 			},
@@ -347,13 +341,12 @@ describe("live entry writes keep the event log and its projection in step", () =
 					kind: "tournament",
 					tournamentId: null,
 					tournamentRuleId: "tournament-rule",
-					buyIn: 1000,
-					entryFee: 100,
 				},
 				startEvent: {
-					schemaVersion: 1,
 					occurredAt: START,
-					payload: { buyInAmount: 1000, entryFee: 0 },
+					payload: {
+						payments: [{ assetId: "chips", quantity: 1000, role: "buy_in" }],
+					},
 				},
 			})
 		);
@@ -367,9 +360,8 @@ describe("live entry writes keep the event log and its projection in step", () =
 				events: [
 					{
 						type: "session_end",
-						schemaVersion: 1,
 						occurredAt: minutes(120),
-						payload: { beforeDeadline: true, prizeMoney: 0, bountyPrizes: 0 },
+						payload: { beforeDeadline: true, payments: [] },
 					},
 				],
 			},
@@ -383,28 +375,6 @@ describe("live entry writes keep the event log and its projection in step", () =
 		const detail = only(await api.db.select().from(entryTournament));
 		expect(detail).toMatchObject({ placement: null, beforeDeadline: true });
 		expect(only(await api.db.select().from(entry)).status).toBe("settled");
-	});
-
-	test("hero seat changes append a leave and a join, and an unchanged seat writes nothing", async ({
-		api,
-	}) => {
-		await startLive(api);
-
-		await updateEntryHeroSeat(api.db, "alice", "live-1", 3, minutes(1));
-		await updateEntryHeroSeat(api.db, "alice", "live-1", 3, minutes(2));
-		await updateEntryHeroSeat(api.db, "alice", "live-1", 5, minutes(3));
-		await updateEntryHeroSeat(api.db, "alice", "live-1", null, minutes(4));
-
-		const events = await listEntryPlayEvents(api.db, "alice", "live-1");
-		expect(
-			events.map((event) => [event.eventType, JSON.parse(event.payload)])
-		).toEqual([
-			["session_start", { buyInAmount: 1000 }],
-			["player_join", { isHero: true, seatPosition: 3 }],
-			["player_leave", { isHero: true }],
-			["player_join", { isHero: true, seatPosition: 5 }],
-			["player_leave", { isHero: true }],
-		]);
 	});
 
 	test("an append racing another append to the same entry keeps both events", async ({
@@ -426,7 +396,6 @@ describe("live entry writes keep the event log and its projection in step", () =
 							events: [
 								{
 									type: "session_pause",
-									schemaVersion: 1,
 									occurredAt: minutes(5),
 									payload: {},
 								},
@@ -448,7 +417,6 @@ describe("live entry writes keep the event log and its projection in step", () =
 				events: [
 					{
 						type: "session_resume",
-						schemaVersion: 1,
 						occurredAt: minutes(6),
 						payload: {},
 					},
@@ -478,7 +446,6 @@ describe("live entry writes keep the event log and its projection in step", () =
 				events: [
 					{
 						type: "session_pause",
-						schemaVersion: 1,
 						occurredAt: minutes(5),
 						payload: {},
 					},
@@ -494,7 +461,6 @@ describe("live entry writes keep the event log and its projection in step", () =
 				events: [
 					{
 						type: "session_resume",
-						schemaVersion: 1,
 						occurredAt: minutes(6),
 						payload: {},
 					},
@@ -530,7 +496,6 @@ describe("live entry writes keep the event log and its projection in step", () =
 				events: [
 					{
 						type: "session_pause",
-						schemaVersion: 1,
 						occurredAt: minutes(5),
 						payload: {},
 						playSessionId: "someone-elses-play",
@@ -579,9 +544,12 @@ describe("live entry writes commit all of a write or none of it on D1", () => {
 				events: [
 					{
 						type: "session_end",
-						schemaVersion: 1,
 						occurredAt: minutes(30),
-						payload: { cashOutAmount: 1200 },
+						payload: {
+							payments: [
+								{ assetId: "chips", quantity: 1200, role: "cash_out" },
+							],
+						},
 					},
 				],
 			},
@@ -605,9 +573,12 @@ describe("live entry writes commit all of a write or none of it on D1", () => {
 				events: [
 					{
 						type: "session_end",
-						schemaVersion: 1,
 						occurredAt: minutes(30),
-						payload: { cashOutAmount: 1200 },
+						payload: {
+							payments: [
+								{ assetId: "chips", quantity: 1200, role: "cash_out" },
+							],
+						},
 					},
 				],
 			},
@@ -623,7 +594,9 @@ describe("live entry writes commit all of a write or none of it on D1", () => {
 			{
 				op: "update",
 				id: eventIds[0] as string,
-				payload: { cashOutAmount: 9 },
+				payload: {
+					payments: [{ assetId: "chips", quantity: 9, role: "cash_out" }],
+				},
 			},
 			minutes(31)
 		).catch((error: unknown) => error);
@@ -635,15 +608,23 @@ describe("live entry writes commit all of a write or none of it on D1", () => {
 	test("an entry with 50 chip purchases stays within the 100-parameter limit on append, update and delete", async ({
 		api,
 	}) => {
-		await startLive(api);
+		await startLive(
+			api,
+			cashStart({
+				detail: {
+					kind: "tournament",
+					tournamentId: null,
+					tournamentRuleId: "tournament-rule",
+				},
+			})
+		);
 		const purchases = Array.from({ length: 50 }, (_, index) => ({
 			type: "purchase_chips",
-			schemaVersion: 1,
 			occurredAt: minutes(index + 1),
 			payload: {
-				sessionChipPurchaseId: `chip-${index}`,
-				name: "Rebuy",
-				cost: 100,
+				priceId: `chip-${index}`,
+				label: "Rebuy",
+				payments: [{ assetId: "chips", quantity: 100, role: "chip_purchase" }],
 				chips: 1000,
 			},
 		}));
@@ -665,9 +646,8 @@ describe("live entry writes commit all of a write or none of it on D1", () => {
 				events: [
 					{
 						type: "session_end",
-						schemaVersion: 1,
 						occurredAt: minutes(60),
-						payload: { cashOutAmount: 7000 },
+						payload: { beforeDeadline: true, payments: [] },
 					},
 				],
 			},
@@ -691,7 +671,6 @@ describe("live entry writes commit all of a write or none of it on D1", () => {
 		expect(await api.db.select().from(playEvent)).toHaveLength(51 + 1 - 1);
 		expect(await onlyPlay(api.db, "live-1")).toMatchObject({
 			status: "ended",
-			endStack: 7000,
 		});
 	});
 });

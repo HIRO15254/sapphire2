@@ -162,7 +162,7 @@ function liveStart(
 		memo: null,
 		localDate: "2026-09-05",
 		now: NOW,
-		startEvent: { schemaVersion: 1, occurredAt: NOW, payload },
+		startEvent: { occurredAt: NOW, payload },
 	};
 }
 
@@ -287,30 +287,29 @@ describe("entry ledger real profit and loss", () => {
 						ringGameId: null,
 						cashRuleId: cashRule.ruleVersionId,
 					},
-					{ buyInAmount: 30_000 }
+					{ payments: [{ assetId: JPY, quantity: 30_000, role: "buy_in" }] }
 				)
 			)
 		);
 		await appendAndProject(db, "live-cash", [
 			{
 				type: "chips_add_remove",
-				schemaVersion: 1,
 				occurredAt: minutes(30),
-				payload: { amount: 10_000 },
+				payload: { amount: 10_000, assetId: JPY, effect: "real" },
 			},
 			{
 				type: "chips_add_remove",
-				schemaVersion: 1,
 				occurredAt: minutes(60),
-				payload: { amount: -5000 },
+				payload: { amount: -5000, assetId: JPY, effect: "real" },
 			},
 		]);
 		await appendAndProject(db, "live-cash", [
 			{
 				type: "session_end",
-				schemaVersion: 1,
 				occurredAt: minutes(240),
-				payload: { cashOutAmount: 20_000 },
+				payload: {
+					payments: [{ assetId: JPY, quantity: 20_000, role: "cash_out" }],
+				},
 			},
 		]);
 		const cashPl = -15_000;
@@ -328,10 +327,14 @@ describe("entry ledger real profit and loss", () => {
 						kind: "tournament",
 						tournamentId: null,
 						tournamentRuleId: tournamentRule.ruleVersionId,
-						buyIn: 10_000,
-						entryFee: 1000,
 					},
-					{ timerStartedAt: null }
+					{
+						timerStartedAt: null,
+						payments: [
+							{ assetId: JPY, quantity: 10_000, role: "buy_in" },
+							{ assetId: JPY, quantity: 1000, role: "fee" },
+						],
+					}
 				)
 			)
 		);
@@ -353,36 +356,35 @@ describe("entry ledger real profit and loss", () => {
 		await appendAndProject(db, "live-mtt", [
 			{
 				type: "purchase_chips",
-				schemaVersion: 1,
 				occurredAt: minutes(60),
 				payload: {
-					sessionChipPurchaseId: "rebuy",
-					name: "Rebuy",
-					cost: 2000,
+					priceId: "rebuy",
+					label: "Rebuy",
 					chips: 10_000,
+					payments: [{ assetId: JPY, quantity: 2000, role: "chip_purchase" }],
 				},
 			},
 			{
 				type: "purchase_chips",
-				schemaVersion: 1,
 				occurredAt: minutes(90),
 				payload: {
-					sessionChipPurchaseId: "rebuy",
-					name: "Rebuy",
-					cost: 2000,
+					priceId: "rebuy",
+					label: "Rebuy",
 					chips: 10_000,
+					payments: [{ assetId: JPY, quantity: 2000, role: "chip_purchase" }],
 				},
 			},
 			{
 				type: "session_end",
-				schemaVersion: 1,
 				occurredAt: minutes(400),
 				payload: {
 					beforeDeadline: false,
 					placement: 4,
 					totalEntries: 120,
-					prizeMoney: 50_000,
-					bountyPrizes: 3000,
+					payments: [
+						{ assetId: JPY, quantity: 50_000, role: "prize" },
+						{ assetId: JPY, quantity: 3000, role: "bounty" },
+					],
 				},
 			},
 		]);
@@ -392,7 +394,7 @@ describe("entry ledger real profit and loss", () => {
 		]);
 	});
 
-	test("a live money event in an entry without a currency is rejected before any line is written", async ({
+	test("live money events use their explicit asset even without an entry currency", async ({
 		api: { db },
 	}) => {
 		await seedAssets(db);
@@ -412,22 +414,23 @@ describe("entry ledger real profit and loss", () => {
 						ringGameId: null,
 						cashRuleId: cashRule.ruleVersionId,
 					},
-					{ buyInAmount: 30_000 }
+					{ payments: [] }
 				),
 				assetId: null,
 			})
 		);
-		await expect(
-			appendAndProject(db, "no-currency", [
-				{
-					type: "session_end",
-					schemaVersion: 1,
-					occurredAt: minutes(60),
-					payload: { cashOutAmount: 10_000 },
+		await appendAndProject(db, "no-currency", [
+			{
+				type: "session_end",
+				occurredAt: minutes(60),
+				payload: {
+					payments: [{ assetId: JPY, quantity: 10_000, role: "cash_out" }],
 				},
-			])
-		).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
-		expect(await db.select().from(ledgerLine)).toEqual([]);
+			},
+		]);
+		expect(await realProfitLoss(db, "no-currency")).toEqual([
+			{ assetId: JPY, profitLoss: 10_000 },
+		]);
 	});
 });
 

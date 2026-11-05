@@ -9,9 +9,9 @@ import {
 	MAX_HAND_STREET,
 	MAX_HAND_TABLE_SIZE,
 	MAX_HOLE_CARDS,
+	MAX_SEAT_POSITION,
 	MIN_HAND_TABLE_SIZE,
 } from "@sapphire2/db/constants/hand";
-import { MAX_SEAT_POSITION } from "@sapphire2/db/constants/session-event-types";
 import { playSession } from "@sapphire2/db/schema/entry";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import {

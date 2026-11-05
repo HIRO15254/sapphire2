@@ -1,4 +1,5 @@
 import { seedDefaultGameData } from "@sapphire2/api/services/seed-game-data";
+import { ensureSelfPlayer } from "@sapphire2/api/services/self-player";
 import type { createAuth } from "@sapphire2/auth";
 import type { Database } from "@sapphire2/db";
 
@@ -24,6 +25,7 @@ interface AuthEnv {
 }
 
 interface BuildAuthOptionsDeps {
+	ensureSelfPlayer?: (db: Database, userId: string) => Promise<unknown>;
 	seedGameData?: (db: Database, userId: string) => Promise<void>;
 }
 
@@ -33,6 +35,7 @@ export function buildAuthOptions(
 	deps: BuildAuthOptionsDeps = {}
 ): AuthOptions {
 	const seedGameData = deps.seedGameData ?? seedDefaultGameData;
+	const ensureSelf = deps.ensureSelfPlayer ?? ensureSelfPlayer;
 	return {
 		corsOrigin: env.CORS_ORIGIN,
 		secret: env.BETTER_AUTH_SECRET,
@@ -41,7 +44,10 @@ export function buildAuthOptions(
 		googleClientSecret: env.GOOGLE_CLIENT_SECRET,
 		discordClientId: env.DISCORD_CLIENT_ID,
 		discordClientSecret: env.DISCORD_CLIENT_SECRET,
-		onUserCreated: (userId) => seedGameData(db, userId),
+		onUserCreated: async (userId) => {
+			await ensureSelf(db, userId);
+			await seedGameData(db, userId);
+		},
 		passkey: resolvePasskeyRp(env.CORS_ORIGIN),
 		mcp: {
 			consentPage: `${env.BETTER_AUTH_URL}/oauth/consent`,
