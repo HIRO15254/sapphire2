@@ -31,12 +31,14 @@ export interface StatsCoverage {
 
 export interface StatsMetrics {
 	averagePlacement: number | null;
+	bb100: number | null;
 	bbPerHour: number | null;
 	cashEntryCount: number;
 	evDiff: number | null;
 	evProfitLoss: number | null;
 	evRecordedEntryCount: number;
 	handCount: number;
+	handsPerHour: number | null;
 	itmCount: number;
 	itmRate: number | null;
 	lossCount: number;
@@ -471,6 +473,33 @@ function bbPerHour(facts: EntryFacts[]): number | null {
 	);
 }
 
+function bb100(facts: EntryFacts[]): number | null {
+	const counted = facts.filter(
+		(fact) =>
+			fact.entry.kind === "cash" &&
+			fact.normalized !== null &&
+			fact.entry.handCount > 0
+	);
+	const value = ratio(
+		sum(counted.map((fact) => fact.normalized ?? 0)),
+		sum(counted.map((fact) => fact.entry.handCount))
+	);
+	return value === null ? null : value * 100;
+}
+
+function handsPerHour(facts: EntryFacts[]): number | null {
+	const plays = facts.flatMap((fact) =>
+		fact.entry.plays.filter(
+			(play) =>
+				play.handCount > 0 && play.startedAt !== null && play.endedAt !== null
+		)
+	);
+	return ratio(
+		sum(plays.map((play) => play.handCount)),
+		playMinutes(plays) / 60
+	);
+}
+
 function evMetrics(
 	counted: EntryFacts[],
 	mode: StatsMode
@@ -579,6 +608,8 @@ export function summarizeFacts(
 		averagePlacement: ratio(sum(placements), placements.length),
 		roi: monetary ? roi : null,
 		bbPerHour: bbPerHour(facts),
+		bb100: bb100(facts),
+		handsPerHour: handsPerHour(counted),
 		...evMetrics(counted, mode),
 		amounts: monetary ? sumAmounts(counted) : null,
 		normalized: monetary ? null : normalizedBranches(facts),

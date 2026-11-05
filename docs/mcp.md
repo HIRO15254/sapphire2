@@ -108,7 +108,9 @@ The B06 cutover removed the old completed-session and live-session APIs and thei
 | `game_mix_archive` | `gameMix.archive` | write |
 | `game_mix_restore` | `gameMix.restore` | write |
 
-`player_list` excludes the user's own self (Hero) player and temporary players. `player.getSelf` is not exposed.
+`player_list` excludes the user's own self (Hero) player and temporary players. `player.getSelf` is not exposed, and neither are an opponent's hand history and VPIP/PFR (`player.hands`, `player.handStats`), which belong to the player screens.
+
+`stats_summary` and `stats_breakdown` report `handCount` (hands at every detail level), `bb100` and `handsPerHour`. `bb100` is 100 × the summed bb results ÷ the summed hands over cash entries with a big blind and at least one hand — one pooled ratio, never an average of per-entry rates. `handsPerHour` counts only days with at least one hand and both a start and an end, so its hands and hours come from the same days. Both are `null` when nothing qualifies.
 
 Master-data updates are annotated destructive. **Deletion is deliberately not exposed.** Rooms, ring games, tournaments and game masters have archive/restore tools instead. Game-master lists exclude archived rows by default; `includeArchived` includes them.
 

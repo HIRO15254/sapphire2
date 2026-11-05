@@ -76,7 +76,7 @@ const STATS_SCOPE =
 	"Only SETTLED entries count; open (still running) live entries never do. Exactly one mode is required: { assetId } sums that asset's real ledger lines unconverted (an entry that also used other assets still counts, but only its lines in this asset are summed — multiAssetEntryCount and otherAssetIds report those entries); { valuation: 'real' | 'virtual', baseAssetId? } converts every line into a base currency (baseAssetId defaults to the base in user settings; with neither, the call fails with PRECONDITION_FAILED) — real counts real currency lines only, virtual also values items and virtual lines; an entry with a line that has no rate at its time is EXCLUDED, never counted as 0, and reported in excludedEntryCount and missingRates (asset and earliest uncovered occurredAt); { normalized: true } reports cash in big blinds and tournaments in buy-ins, separately, never summed — monetary fields (amounts, roi, evDiff, evProfitLoss) are null in this mode and normalized.cash / normalized.tournament carry the bb / bi totals. Combining mode fields is BAD_REQUEST; normalized: false is the same as omitting it. Filters: kind (cash | tournament), roomId (room_list), dateFrom/dateTo (inclusive YYYY-MM-DD compared with the entry's playedOn), entryTagIds (entry_tag_list; any of them), tournamentTagIds (tournament_tag_list; entries of tournaments carrying any of them). Different filters intersect. A cash big blind exists only when the rule's lineup has exactly one game group and a positive blind2, and the P/L is taken in the entry's asset; a tournament's 1 buy-in is its FIRST buy-in plus that buy-in's fee — re-entries, their fees and add-ons are not part of the unit (they still count as money paid in roi). Entries without a usable denominator are counted in unavailableNormalizationEntryCount. Amounts are integers in each asset's smallest unit (asset_list decimals).";
 
 const STATS_FIGURES =
-	"entryCount is the settled population after filters, before exclusions. Every other figure covers only the entries that produced a value in the chosen mode. winRate is the share with profitLoss > 0; roi is total profitLoss / total buy-ins of tournament entries only, times 100 (null when nothing was paid). playMinutes sums each day separately from its start to end minus breaks — days without both times add nothing, and time between days is never counted. bbPerHour divides the bb of cash entries whose every day has both times by those entries' hours. itmCount counts tournaments with a prize line. The EV figures are null until a cash entry in scope recorded an EV difference whose asset fits the mode; once one did, evProfitLoss spans every cash entry, an unrecorded one counting at its actual result.";
+	"entryCount is the settled population after filters, before exclusions. Every other figure covers only the entries that produced a value in the chosen mode. winRate is the share with profitLoss > 0; roi is total profitLoss / total buy-ins of tournament entries only, times 100 (null when nothing was paid). playMinutes sums each day separately from its start to end minus breaks — days without both times add nothing, and time between days is never counted. bbPerHour divides the bb of cash entries whose every day has both times by those entries' hours. handCount counts recorded hands at every detail level. bb100 is 100 × the summed bb results ÷ the summed hands of cash entries that have a big blind and at least one hand — one pooled ratio, not an average of per-entry rates. handsPerHour divides the hands by the hours of the days that have at least one hand and both times. Ratios are null when nothing qualifies. itmCount counts tournaments with a prize line. The EV figures are null until a cash entry in scope recorded an EV difference whose asset fits the mode; once one did, evProfitLoss spans every cash entry, an unrecorded one counting at its actual result.";
 
 const AMOUNT_CONVENTIONS =
 	"Amounts (blinds, ante, buy-in, stack) are plain integers in the currency's display unit.";
@@ -99,7 +99,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "stats_summary",
 		procedurePath: "stats.summary",
-		description: `Aggregate statistics over the user's poker entries: counts, win/ITM rates, play time, hand count, roi, bbPerHour, EV figures, and amounts (buyIn, cashOut, profitLoss) or normalized bb/bi totals. ${STATS_SCOPE} ${STATS_FIGURES}`,
+		description: `Aggregate statistics over the user's poker entries: counts, win/ITM rates, play time, hand count, roi, bbPerHour, bb100, handsPerHour, EV figures, and amounts (buyIn, cashOut, profitLoss) or normalized bb/bi totals. ${STATS_SCOPE} ${STATS_FIGURES}`,
 		inputSchema: statsInputSchema,
 	},
 	{
@@ -755,6 +755,11 @@ export const DELIBERATELY_EXCLUDED: {
 		reason:
 			"Cockpit identity: the live table screen reads the Hero identity; an agent has no use for it and player_list deliberately hides it",
 		paths: ["player.getSelf"],
+	},
+	{
+		reason:
+			"Opponent review: an opponent's hand history and VPIP/PFR are read on the player screens; player_list covers what an agent needs to name opponents",
+		paths: ["player.hands", "player.handStats"],
 	},
 	{
 		reason:

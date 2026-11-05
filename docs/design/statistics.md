@@ -36,7 +36,22 @@ Exactly one mode is required; combining them is `BAD_REQUEST`.
 
 Time is summed per `play_session`: `(ended_at − started_at − 60 × break_minutes) / 3600` for each day that has both endpoints. A day missing either endpoint adds nothing, and time between days is never counted. An entry with no timed day has `playMinutes = null` and lands in the `unknown` length bucket.
 
-`bbPerHour` divides the bb of cash entries whose days are all timed by those entries' hours, so an untimed entry's result is never spread over other entries' hours. `bb100` and `handsPerHour` are deferred to B24 (SA2-413); `handCount` is reported.
+`bbPerHour` divides the bb of cash entries whose days are all timed by those entries' hours, so an untimed entry's result is never spread over other entries' hours.
+
+## Hands
+
+A hand is one `hand` row whatever its detail (`count`, `summary` or `full`); `handCount` sums the rows of the counted entries' days.
+
+- `bb100 = 100 × Σ(PL / BB) ÷ Σ hands` over cash entries that have a bb (the unit above) and at least one hand. It is one pooled ratio, so an entry with many hands weighs more than one with few; it is never the mean of per-entry rates. A tournament, an entry without a bb (multi-group lineup, missing `blind2`, mixed-asset table money) and an entry without hands add to neither side. Like `bbPerHour`, it divides bb results rather than the mode's amounts, so a valuation exclusion does not drop an entry that has a bb.
+- `handsPerHour = Σ hands ÷ Σ hours` over the days (`play_session`) of the counted entries that have at least one hand and both endpoints, so the hands and the hours always come from the same days: an untimed day's hands and a handless day's hours are both left out. Breaks are deducted per day as above, and time between held or bagged days is never counted.
+- Both are `null` when nothing qualifies or the denominator is 0.
+
+## Opponents
+
+`player.hands` and `player.handStats` read the hands an opponent sat in (a `hand_seat` row with the player's id and `is_hero = 0`). The target must be an owned player (`FORBIDDEN` otherwise) and not the user's own self player (`BAD_REQUEST`). `dateFrom` / `dateTo` compare the hand's parent `play_session.local_date`.
+
+- `player.hands` pages `(playedAt, id)` descending, a hand without `playedAt` sorting after every timed one. The cursor carries the boundary values and the user, player and date filters, so it keeps working after its boundary hand is deleted and is rejected (`FORBIDDEN`) with any other scope. Each item is the hand with its boards, tags, seats and actions, loaded in chunked batches for the whole page.
+- `player.handStats` returns `handCount` (every detail) and `fullHandCount`. VPIP and PFR read only full hands, since a count or summary hand has no actions to observe: both opportunities equal `fullHandCount`; `vpipCount` counts full hands where the player has a street-0 `call`, `bet` or `raise`, `pfrCount` those with a street-0 `bet` or `raise`, each hand at most once. Blind posts, straddles, bring-ins and the big blind's check are not voluntary. `vpip` / `pfr` are percentages, `null` without a full hand.
 
 ## EV
 

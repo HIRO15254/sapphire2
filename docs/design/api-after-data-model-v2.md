@@ -385,7 +385,7 @@ Supplying conflicting mode fields is BAD_REQUEST; normalized:false is absence, n
 
 `Coverage = {entryCount,excludedEntryCount,missingRates:MissingRate[],multiAssetEntryCount,otherAssetIds:Id[],unavailableNormalizationEntryCount}`. entryCount counts the settled population before missing-rate/denominator exclusions; excludedEntryCount reports entries excluded from a selected valuation. Native mode reports the other assets and multi-asset entry count, making partial-asset P/L explicit. No native total claims to be whole-entry P/L when another asset exists.
 
-`Metrics = {winCount,lossCount,winRate,playMinutes,handCount,cashEntryCount,tournamentEntryCount,itmCount,itmRate,averagePlacement,roi,bbPerHour,evRecordedEntryCount,evDiff,evProfitLoss}`; B24 adds `handsPerHour` and `bb100`. Undefined ratios/EV are null, not zero. Monetary fields in normalized mode are null; `normalized:{cash:{unit:'bb',entryCount,unavailableEntryCount,profitLoss,evProfitLoss}|null,tournament:{unit:'bi',entryCount,unavailableEntryCount,profitLoss}|null}` carries the dimensionless alternatives. Other modes return `amounts:Amounts` in the selected asset/base and `normalized:null`. Coverage reports exclusions for each normalized branch as well as overall.
+`Metrics = {winCount,lossCount,winRate,playMinutes,handCount,cashEntryCount,tournamentEntryCount,itmCount,itmRate,averagePlacement,roi,bbPerHour,bb100,handsPerHour,evRecordedEntryCount,evDiff,evProfitLoss}` (B24 added `bb100` and `handsPerHour`, formulas in [statistics.md](statistics.md#hands)). Undefined ratios/EV are null, not zero. Monetary fields in normalized mode are null; `normalized:{cash:{unit:'bb',entryCount,unavailableEntryCount,profitLoss,evProfitLoss}|null,tournament:{unit:'bi',entryCount,unavailableEntryCount,profitLoss}|null}` carries the dimensionless alternatives. Other modes return `amounts:Amounts` in the selected asset/base and `normalized:null`. Coverage reports exclusions for each normalized branch as well as overall.
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
@@ -521,7 +521,7 @@ Same five procedures as §19, instantiated as `playerTag.list/create/update/dele
 | `create` M | `{name,memo?:string,tagIds?:Id[]}` | Player | — | Excluded: opponent maintenance |
 | `update` M | `{id,name?,memo?:string|null,tagIds?:Id[]}` | Player | — | Excluded: opponent maintenance |
 | `delete` M | IdInput | Ack | Referenced hand_seat or self row: CONFLICT | Excluded: destructive |
-| `hands` Q (B24) | `{id,dateFrom?:DateOnly,dateTo?:DateOnly,...PageInput}` | Page<Hand & {seats:Seat[]}> | Self as opponent target: BAD_REQUEST | Excluded: opponent review |
+| `hands` Q (B24) | `{id,dateFrom?:DateOnly,dateTo?:DateOnly,...PageInput}` | Page<Hand & {seats:Seat[],actions:Action[]}> | Self as opponent target: BAD_REQUEST | Excluded: opponent review |
 | `handStats` Q (B24) | `{id,dateFrom?:DateOnly,dateTo?:DateOnly}` | `{handCount,fullHandCount,vpipOpportunities,vpipCount,vpip:number|null,pfrOpportunities,pfrCount,pfr:number|null}` | Self as opponent target: BAD_REQUEST | Excluded: opponent review |
 
 Opponent full-hand denominators and VPIP/PFR follow spec §12; count/summary hands are not fabricated action observations. Date filters resolve the hand's parent play local date. Pagination for player.hands orders `(playedAt,id)` descending with a stable null-time ordering encoded in the string cursor.

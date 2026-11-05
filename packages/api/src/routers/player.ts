@@ -8,6 +8,12 @@ import { protectedProcedure, router } from "../index";
 import { type BatchStatement, runBatch, selectInChunks } from "../lib/batch";
 import { validateTagsOwnership } from "../lib/ownership";
 import { insertChunks } from "../services/game-lineup";
+import {
+	listPlayerHands,
+	playerHandStats,
+	playerHandStatsInputSchema,
+	playerHandsInputSchema,
+} from "../services/player-hands";
 import { ensureSelfPlayer } from "../services/self-player";
 
 type DbInstance = Parameters<
@@ -184,6 +190,18 @@ export const playerRouter = router({
 
 			return withTags(ctx.db, userId, found);
 		}),
+
+	hands: protectedProcedure
+		.input(playerHandsInputSchema)
+		.query(({ ctx, input }) =>
+			listPlayerHands(ctx.db, ctx.session.user.id, input)
+		),
+
+	handStats: protectedProcedure
+		.input(playerHandStatsInputSchema)
+		.query(({ ctx, input }) =>
+			playerHandStats(ctx.db, ctx.session.user.id, input)
+		),
 
 	create: protectedProcedure
 		.input(
