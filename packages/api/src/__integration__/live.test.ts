@@ -487,6 +487,33 @@ describe("live API on D1", () => {
 		}
 	});
 
+	test("a player added at the table keeps its tags in order for the player and table reads", async ({
+		api,
+	}) => {
+		const { rule } = await setup(api);
+		const started = await api.alice.live.create({
+			kind: "cash",
+			rule,
+			payments: [],
+		});
+		const tagIds = await api.createPlayerTags("alice", 2);
+		const ordered = tagIds.toReversed();
+		const added = await api.alice.tablePlayer.addNew({
+			entryId: started.id,
+			playerName: "Reg",
+			playerTagIds: ordered,
+		});
+
+		const saved = await api.alice.player.getById({ id: added.playerId });
+		expect(saved.tags.map((tag) => tag.id)).toEqual(ordered);
+		const seated = await api.alice.tablePlayer.list({ entryId: started.id });
+		expect(
+			seated.items
+				.find((item) => item.id === added.playerId)
+				?.player.tags.map((tag) => tag.id)
+		).toEqual(ordered);
+	});
+
 	test("table players keep seat stints, reject occupied seats and undo only their latest change", async ({
 		api,
 	}) => {
