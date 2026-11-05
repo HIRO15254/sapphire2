@@ -66,13 +66,17 @@ describe("buildAuthOptions", () => {
 		expect(options.passkey?.origin).toBe("https://sapphire2.example.com");
 	});
 
-	it("wires onUserCreated to the game-data seeder", async () => {
+	it("wires onUserCreated to self-player creation and game-data seeding", async () => {
 		const seed = vi.fn().mockResolvedValue(undefined);
+		const ensureSelf = vi.fn().mockResolvedValue(undefined);
 		const options = buildAuthOptions(createFakeEnv(), FAKE_DB, {
 			seedGameData: seed,
+			ensureSelfPlayer: ensureSelf,
 		});
 		await options.onUserCreated?.("user-9");
 		expect(seed).toHaveBeenCalledTimes(1);
 		expect(seed).toHaveBeenNthCalledWith(1, FAKE_DB, "user-9");
+		expect(ensureSelf).toHaveBeenCalledOnce();
+		expect(ensureSelf).toHaveBeenCalledWith(FAKE_DB, "user-9");
 	});
 });

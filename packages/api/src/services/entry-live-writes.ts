@@ -1,5 +1,6 @@
 import type { Database } from "@sapphire2/db";
 import type { EntryKind } from "@sapphire2/db/constants/entry";
+import { PLAY_EVENT_SCHEMA_VERSION } from "@sapphire2/db/constants/play-event-payloads";
 import {
 	entry,
 	entryCash,
@@ -10,7 +11,6 @@ import {
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { type BatchStatement, runBatch } from "../lib/batch";
-import { floorToMinute } from "../utils/session-event-time";
 import {
 	buildProjectionStatements,
 	type EntryProjection,
@@ -18,7 +18,6 @@ import {
 	type ProjectorEvent,
 	projectEntry,
 } from "./entry-projector";
-import { computeHeroSeatPositionFromEvents } from "./live-session-pl";
 
 const SESSION_FORBIDDEN_MESSAGE = "You do not own this session";
 const EVENT_FORBIDDEN_MESSAGE = "You do not own this event";
@@ -28,7 +27,6 @@ export interface NewPlayEvent {
 	occurredAt: Date;
 	payload: unknown;
 	playSessionId?: string;
-	schemaVersion: number;
 	type: string;
 }
 
@@ -50,15 +48,13 @@ export interface LiveEntryStart {
 				kind: "tournament";
 				tournamentId: string | null;
 				tournamentRuleId: string;
-				buyIn: number | null;
-				entryFee: number | null;
 		  };
 	id: string;
 	localDate: string;
 	memo: string | null;
 	now: Date;
 	roomId: string | null;
-	startEvent: Pick<NewPlayEvent, "occurredAt" | "payload" | "schemaVersion">;
+	startEvent: Pick<NewPlayEvent, "occurredAt" | "payload">;
 	title: string | null;
 	userId: string;
 }
@@ -82,7 +78,7 @@ function playEventRow(
 		entryId: scope.entryId,
 		playSessionId,
 		type: event.type,
-		schemaVersion: event.schemaVersion,
+		schemaVersion: PLAY_EVENT_SCHEMA_VERSION,
 		occurredAt: event.occurredAt,
 		sortOrder,
 		payload: JSON.stringify(event.payload),
@@ -106,12 +102,7 @@ export function buildLiveEntryStartStatements(
 	);
 	const projection = projectEntry([startRow], {
 		kind,
-		assetId: start.assetId,
 		playSessions: [{ id: playSessionId, seq: 1, localDate: start.localDate }],
-		tournamentEntryCost:
-			start.detail.kind === "tournament"
-				? { buyIn: start.detail.buyIn, fee: start.detail.entryFee }
-				: null,
 	});
 
 	return [
@@ -162,24 +153,8 @@ async function loadEntryEventState(
 	entryId: string
 ): Promise<EntryEventState> {
 	const [owned] = await db
-		.select({
-			kind: entry.kind,
-			assetId: entry.assetId,
-			buyIn: sql<
-				number | null
-			>`(SELECT tournament_rule_price.amount FROM tournament_rule_price WHERE tournament_rule_price.rule_id = ${entryTournament.tournamentRuleId} AND tournament_rule_price.user_id = ${entryTournament.userId} AND tournament_rule_price.kind = 'entry' ORDER BY tournament_rule_price.ordinal LIMIT 1)`,
-			entryFee: sql<
-				number | null
-			>`(SELECT tournament_rule_price.fee FROM tournament_rule_price WHERE tournament_rule_price.rule_id = ${entryTournament.tournamentRuleId} AND tournament_rule_price.user_id = ${entryTournament.userId} AND tournament_rule_price.kind = 'entry' ORDER BY tournament_rule_price.ordinal LIMIT 1)`,
-		})
+		.select({ kind: entry.kind })
 		.from(entry)
-		.leftJoin(
-			entryTournament,
-			and(
-				eq(entryTournament.entryId, entry.id),
-				eq(entryTournament.userId, entry.userId)
-			)
-		)
 		.where(and(eq(entry.id, entryId), eq(entry.userId, userId)));
 	if (!owned) {
 		throw new TRPCError({
@@ -204,23 +179,13 @@ async function loadEntryEventState(
 			entryId: playEvent.entryId,
 			playSessionId: playEvent.playSessionId,
 			type: playEvent.type,
-			schemaVersion: playEvent.schemaVersion,
 			occurredAt: playEvent.occurredAt,
 			sortOrder: playEvent.sortOrder,
 			payload: playEvent.payload,
 		})
 		.from(playEvent)
 		.where(and(eq(playEvent.entryId, entryId), eq(playEvent.userId, userId)));
-	return {
-		kind: owned.kind,
-		assetId: owned.assetId,
-		tournamentEntryCost:
-			owned.kind === "tournament"
-				? { buyIn: owned.buyIn, fee: owned.entryFee }
-				: null,
-		playSessions,
-		events,
-	};
+	return { kind: owned.kind, playSessions, events };
 }
 
 function findStoredEvent(state: EntryEventState, id: string): StoredPlayEvent {
@@ -337,54 +302,4 @@ export async function applyEntryEventChange(
 		...buildProjectionStatements(db, scope, projection),
 	]);
 	return { eventIds: planned.eventIds, projection };
-}
-
-export async function updateEntryHeroSeat(
-	db: Database,
-	userId: string,
-	entryId: string,
-	heroSeatPosition: number | null,
-	now: Date
-): Promise<void> {
-	const state = await loadEntryEventState(db, userId, entryId);
-	const ordered = [...state.events].sort(
-		(a, b) =>
-			a.occurredAt.getTime() - b.occurredAt.getTime() ||
-			a.sortOrder - b.sortOrder ||
-			a.id.localeCompare(b.id)
-	);
-	const previous = computeHeroSeatPositionFromEvents(
-		ordered.map((event) => ({
-			eventType: event.type,
-			payload: event.payload,
-		}))
-	);
-	if (previous === heroSeatPosition) {
-		return;
-	}
-	const occurredAt = floorToMinute(now);
-	const events: NewPlayEvent[] = [];
-	if (previous !== null) {
-		events.push({
-			type: "player_leave",
-			schemaVersion: 1,
-			occurredAt,
-			payload: { isHero: true },
-		});
-	}
-	if (heroSeatPosition !== null) {
-		events.push({
-			type: "player_join",
-			schemaVersion: 1,
-			occurredAt,
-			payload: { isHero: true, seatPosition: heroSeatPosition },
-		});
-	}
-	await applyEntryEventChange(
-		db,
-		userId,
-		entryId,
-		{ op: "append", events },
-		now
-	);
 }

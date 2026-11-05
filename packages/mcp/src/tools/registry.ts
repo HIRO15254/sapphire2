@@ -141,7 +141,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "player_list",
 		procedurePath: "player.list",
 		description:
-			"List the user's tracked opponents/players. Optional: search (name substring), tagIds (player-tag ids).",
+			"List the user's tracked opponents, excluding their own Hero (self) player and temporary players. Optional: search (name substring), tagIds (player-tag ids).",
 		inputSchema: playerListInputSchema,
 	},
 	{
@@ -676,6 +676,11 @@ export const DELIBERATELY_EXCLUDED: {
 		reason:
 			"player.list already returns these rows, so a by-id tool would be a second way to read the same data",
 		paths: ["player.getById"],
+	},
+	{
+		reason:
+			"Cockpit identity: the live table screen reads the Hero identity; an agent has no use for it and player_list deliberately hides it",
+		paths: ["player.getSelf"],
 	},
 	{
 		reason:

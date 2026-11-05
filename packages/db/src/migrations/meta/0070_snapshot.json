@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a649a665-1f94-48b0-97ab-e80c66e01325",
+  "id": "c7069029-3701-4ab0-bb3b-b77108fa87b6",
   "prevId": "2600a10b-be31-4494-a8a5-4b09a8afe4a8",
   "tables": {
     "asset": {
@@ -644,151 +644,6 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "entry_tag": {
-      "name": "entry_tag",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "sort_order": {
-          "name": "sort_order",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(unixepoch())"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "entry_tag_id_user_id_unique": {
-          "name": "entry_tag_id_user_id_unique",
-          "columns": ["id", "user_id"],
-          "isUnique": true
-        },
-        "entry_tag_name_uq": {
-          "name": "entry_tag_name_uq",
-          "columns": ["user_id", "lower(trim(\"name\"))"],
-          "isUnique": true
-        }
-      },
-      "foreignKeys": {
-        "entry_tag_user_id_user_id_fk": {
-          "name": "entry_tag_user_id_user_id_fk",
-          "tableFrom": "entry_tag",
-          "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "entry_tag_link": {
-      "name": "entry_tag_link",
-      "columns": {
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "entry_id": {
-          "name": "entry_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "tag_id": {
-          "name": "tag_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "entry_tag_link_tag_idx": {
-          "name": "entry_tag_link_tag_idx",
-          "columns": ["tag_id"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "entry_tag_link_user_id_user_id_fk": {
-          "name": "entry_tag_link_user_id_user_id_fk",
-          "tableFrom": "entry_tag_link",
-          "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "entry_tag_link_entry_owner_fk": {
-          "name": "entry_tag_link_entry_owner_fk",
-          "tableFrom": "entry_tag_link",
-          "tableTo": "entry",
-          "columnsFrom": ["entry_id", "user_id"],
-          "columnsTo": ["id", "user_id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "entry_tag_link_tag_owner_fk": {
-          "name": "entry_tag_link_tag_owner_fk",
-          "tableFrom": "entry_tag_link",
-          "tableTo": "entry_tag",
-          "columnsFrom": ["tag_id", "user_id"],
-          "columnsTo": ["id", "user_id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "entry_tag_link_entry_id_tag_id_pk": {
-          "columns": ["entry_id", "tag_id"],
-          "name": "entry_tag_link_entry_id_tag_id_pk"
-        }
-      },
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
@@ -4051,6 +3906,14 @@
           "autoincrement": false,
           "default": false
         },
+        "is_self": {
+          "name": "is_self",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -4077,6 +3940,12 @@
           "name": "player_userId_idx",
           "columns": ["user_id"],
           "isUnique": false
+        },
+        "player_self_uq": {
+          "name": "player_self_uq",
+          "columns": ["user_id"],
+          "isUnique": true,
+          "where": "\"player\".\"is_self\" = 1"
         }
       },
       "foreignKeys": {
@@ -4092,7 +3961,12 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "player_is_self_check": {
+          "name": "player_is_self_check",
+          "value": "\"player\".\"is_self\" IN (0, 1)"
+        }
+      }
     },
     "player_tag": {
       "name": "player_tag",
@@ -6781,13 +6655,6 @@
   "internal": {
     "indexes": {
       "asset_name_uq": {
-        "columns": {
-          "lower(trim(\"name\"))": {
-            "isExpression": true
-          }
-        }
-      },
-      "entry_tag_name_uq": {
         "columns": {
           "lower(trim(\"name\"))": {
             "isExpression": true

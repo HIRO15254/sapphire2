@@ -23,7 +23,6 @@ export const TASK = {
 	B07: "B07 (SA2-392)",
 	B08: "B08 (SA2-393)",
 	B13: "B13 (SA2-398)",
-	B15: "B15 (SA2-401)",
 	B18: "B18 (SA2-404)",
 	B23: "B23 (SA2-410)",
 	B25: "B25 (SA2-418)",
@@ -37,7 +36,8 @@ export const B09_MIGRATION = "0063_ledger_cutover.sql";
 export const B12_MIGRATION = "0064_open_live_cash_ev.sql";
 export const B08_MIGRATION = "0066_tournament_final.sql";
 export const B13_MIGRATION = "0069_entry_rule_versions.sql";
-export const B16_MIGRATION = "0070_entry_tag_tables.sql";
+export const B15_MIGRATION = "0070_self_player_event_v2.sql";
+export const B16_MIGRATION = "0071_entry_tag_tables.sql";
 
 export type Activation =
 	| { state: "active"; since: string | null }
@@ -83,6 +83,7 @@ const SINCE_B09: Activation = { state: "active", since: B09_MIGRATION };
 const SINCE_B12: Activation = { state: "active", since: B12_MIGRATION };
 const SINCE_B08: Activation = { state: "active", since: B08_MIGRATION };
 const SINCE_B13: Activation = { state: "active", since: B13_MIGRATION };
+const SINCE_B15: Activation = { state: "active", since: B15_MIGRATION };
 const SINCE_B16: Activation = { state: "active", since: B16_MIGRATION };
 
 function pending(enabledBy: string): { state: "pending"; enabledBy: string } {
@@ -117,6 +118,8 @@ export const CHECKS: readonly Check[] = [
 			"entry",
 			"play_session",
 			"play_event",
+			"player",
+			"d1_migrations",
 		],
 		sql: (
 			cutoverAt
@@ -133,6 +136,12 @@ SELECT 'session_event', se.id FROM session_event se
 JOIN game_session gs ON gs.id = se.session_id
 WHERE (se.event_type <> 'purchase_chips' OR (CASE WHEN json_valid(se.payload)
 THEN json_type(se.payload, '$.sessionChipPurchaseId') = 'text' AND json_extract(se.payload, '$.sessionChipPurchaseId') <> '' END) IS 1)
+AND NOT (se.event_type IN ('player_join', 'player_leave')
+AND EXISTS (SELECT 1 FROM d1_migrations WHERE name = '${B15_MIGRATION}')
+AND CASE WHEN json_valid(se.payload) THEN
+  json_extract(se.payload, '$.isHero') IS NOT 1
+  AND NOT EXISTS (SELECT 1 FROM player p WHERE p.id = json_extract(se.payload, '$.playerId') AND p.user_id = gs.user_id)
+ELSE 1 END)
 AND NOT EXISTS (SELECT 1 FROM play_event pe WHERE pe.id = se.id AND pe.entry_id = gs.id AND pe.user_id = gs.user_id)
 UNION ALL
 SELECT 'play_event', pe.id FROM play_event pe
@@ -234,7 +243,7 @@ HAVING COALESCE(sum(l.quantity), 0) <> x.pl`,
 			"play_event",
 			"hand",
 			"hand_seat",
-			"tournament_rule_price",
+			"player",
 		],
 	},
 	{
@@ -734,16 +743,29 @@ OR (et.tournament_id IS NOT NULL AND r.tournament_id IS et.tournament_id))`,
 	{
 		audit: "A-14",
 		part: "self player / Hero consistency",
-		kind: "deferred",
-		activation: pending(TASK.B15),
-		tables: [],
+		kind: "sql",
+		activation: SINCE_B15,
+		tables: ["user", "player", "hand_seat"],
+		sql: () => `SELECT u.id AS id, 'self count' AS problem FROM user u
+LEFT JOIN player p ON p.user_id = u.id AND p.is_self = 1
+GROUP BY u.id HAVING count(p.id) <> 1
+UNION ALL
+SELECT p.id, 'temporary self' FROM player p WHERE p.is_self = 1 AND p.is_temporary = 1
+UNION ALL
+SELECT s.hand_id, 'hero player' FROM hand_seat s
+WHERE s.is_hero = 1 AND s.player_id IS NOT NULL
+AND NOT EXISTS (SELECT 1 FROM player p WHERE p.id = s.player_id AND p.user_id = s.user_id AND p.is_self = 1)
+UNION ALL
+SELECT s.hand_id, 'non-hero self' FROM hand_seat s
+JOIN player p ON p.id = s.player_id AND p.user_id = s.user_id AND p.is_self = 1
+WHERE s.is_hero = 0`,
 	},
 	{
 		audit: "A-15",
-		part: "stored events use a supported schema_version and parse with the payload registry",
+		part: "stored events use schema_version 2 and parse with the payload registry",
 		kind: "replay",
 		replay: "a15-payload-schema",
-		activation: SINCE_B01,
+		activation: SINCE_B15,
 		tables: ["entry", "play_event"],
 	},
 	{
@@ -783,14 +805,13 @@ AND NOT EXISTS (SELECT 1 FROM player x WHERE x.id = json_extract(pe.payload, '$.
 		audit: "A-15",
 		part: "projected line price equals the same event's payment priceId",
 		kind: "sql",
-		activation: SINCE_B01,
+		activation: SINCE_B15,
 		tables: ["ledger_line", "play_event"],
 		sql: () => `SELECT l.id AS id, l.price_id AS line_price_id,
 json_extract(pe.payload, '$.payments[' || substr(l.id, length(pe.id) + 2) || '].priceId') AS payload_price_id
 FROM ledger_line l
 JOIN play_event pe ON pe.id = l.source_event_id AND pe.user_id = l.user_id
-WHERE pe.schema_version = 2
-AND l.price_id IS NOT json_extract(pe.payload, '$.payments[' || substr(l.id, length(pe.id) + 2) || '].priceId')`,
+WHERE l.price_id IS NOT json_extract(pe.payload, '$.payments[' || substr(l.id, length(pe.id) + 2) || '].priceId')`,
 	},
 	{
 		audit: "A-16",

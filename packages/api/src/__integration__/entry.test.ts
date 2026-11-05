@@ -478,9 +478,10 @@ describe("entry API on D1", () => {
 				localDate: "2026-09-05",
 				now: new Date(),
 				startEvent: {
-					schemaVersion: 1,
 					occurredAt: new Date(),
-					payload: { buyInAmount: 30_000 },
+					payload: {
+						payments: [{ assetId: jpy.id, quantity: 30_000, role: "buy_in" }],
+					},
 				},
 			}),
 		]);

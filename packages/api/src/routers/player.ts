@@ -16,6 +16,7 @@ import {
 } from "../lib/batch";
 import { validateTagsOwnership } from "../lib/ownership";
 import { optionalUniqueTagIdsSchema } from "../lib/tag-ids";
+import { ensureSelfPlayer } from "../services/self-player";
 
 export const playerListInputSchema = z
 	.object({
@@ -49,6 +50,7 @@ export const playerRouter = router({
 			const conditions = [
 				eq(player.userId, userId),
 				eq(player.isTemporary, false),
+				eq(player.isSelf, false),
 			];
 			if (input?.search) {
 				conditions.push(like(player.name, `%${input.search}%`));
@@ -121,6 +123,28 @@ export const playerRouter = router({
 				tags: tagsByPlayer.get(item.id) ?? [],
 			}));
 		}),
+
+	getSelf: protectedProcedure.query(async ({ ctx }) => {
+		const userId = ctx.session.user.id;
+		const self = await ensureSelfPlayer(ctx.db, userId);
+		const tags = await ctx.db
+			.select({
+				id: playerTag.id,
+				name: playerTag.name,
+				color: playerTag.color,
+			})
+			.from(playerToPlayerTag)
+			.innerJoin(
+				playerTag,
+				and(
+					eq(playerToPlayerTag.playerTagId, playerTag.id),
+					eq(playerTag.userId, userId)
+				)
+			)
+			.where(eq(playerToPlayerTag.playerId, self.id))
+			.orderBy(asc(playerToPlayerTag.position));
+		return { ...self, tags };
+	}),
 
 	getById: protectedProcedure
 		.input(z.object({ id: z.string() }))
@@ -346,6 +370,7 @@ export const playerRouter = router({
 					and(
 						eq(player.id, input.id),
 						eq(player.userId, userId),
+						eq(player.isSelf, false),
 						not(
 							exists(
 								ctx.db
@@ -365,7 +390,7 @@ export const playerRouter = router({
 			if (deleted.length === 0) {
 				throw new TRPCError({
 					code: "CONFLICT",
-					message: "This player is seated in recorded hands",
+					message: "This player cannot be deleted",
 				});
 			}
 			return { success: true };
