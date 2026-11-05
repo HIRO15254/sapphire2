@@ -1,8 +1,8 @@
+import { entryTag } from "@sapphire2/db/schema/entry-tag";
 import { filterPreset } from "@sapphire2/db/schema/filter-preset";
 import { ledgerCategory } from "@sapphire2/db/schema/ledger";
 import { playerTag } from "@sapphire2/db/schema/player";
 import { room } from "@sapphire2/db/schema/room";
-import { sessionTag } from "@sapphire2/db/schema/session-tag";
 import { eq } from "drizzle-orm";
 import { expect } from "vitest";
 import { type ApiFixture, requireCreatedRow, test } from "./test-fixture";
@@ -21,15 +21,15 @@ const cases = [
 			] as const,
 	},
 	{
-		router: "sessionTag",
-		table: sessionTag,
+		router: "entryTag",
+		table: entryTag,
 		message: "You do not own this tag",
 		create: (caller: ApiFixture["alice"]) =>
-			caller.sessionTag.create({ name: "Tag" }),
+			caller.entryTag.create({ name: "Tag" }),
 		calls: (caller: ApiFixture["alice"], id: string) =>
 			[
-				() => caller.sessionTag.update({ id, name: "Renamed" }),
-				() => caller.sessionTag.delete({ id }),
+				() => caller.entryTag.update({ id, name: "Renamed" }),
+				() => caller.entryTag.delete({ id }),
 			] as const,
 	},
 	{
@@ -109,5 +109,5 @@ test.for(
 	);
 	expect(
 		await api.db.select().from(table).where(eq(table.id, foreign.id))
-	).toEqual([expect.objectContaining(foreign)]);
+	).toEqual([expect.objectContaining({ id: foreign.id, userId: "bob" })]);
 });

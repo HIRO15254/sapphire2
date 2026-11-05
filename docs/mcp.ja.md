@@ -45,9 +45,9 @@ claude mcp add --transport http sapphire2 https://<APIホスト>/mcp
 
 ## ツール
 
-ツール群は **tRPC `appRouter` の射影**です: 各ツールの入力スキーマは API が検証に使う Zod スキーマそのもので、レスポンスは HTTP API と同じ JSON です。規約もバックエンドに従います — **日付は unix 秒**（date-only 値は UTC midnight）、**金額はその通貨の表示単位の整数**。
+ツール群は **tRPC `appRouter` の射影**です: 各ツールの入力スキーマは API が検証に使う Zod スキーマそのもの（union 入力の分岐ごとのツールはその分岐のスキーマ）で、レスポンスは HTTP API と同じ JSON です。規約もバックエンドに従います — **時刻は unix 秒**、entry ツールの **date-only 値は `YYYY-MM-DD` 文字列**（統計ツールは引き続き UTC midnight の秒）、**金額はその資産の最小単位の整数**。
 
-B06 の切り替えで旧完了セッション・ライブセッション API と対応する MCP ツールは削除されます。最終版の entry/live API が導入されるまではセッションの記録・編集は利用できません。以下の統計・マスタ系ツールは引き続き利用できます。
+B06 の切り替えで旧完了セッション・ライブセッション API と対応する MCP ツールは削除されました。完了した entry の記録・編集は `entry_*` ツールで行います。ライブプレイの記録はまだ公開していません。
 
 | ツール | tRPC 手続き | 種別 |
 |---|---|---|
@@ -61,8 +61,13 @@ B06 の切り替えで旧完了セッション・ライブセッション API �
 | `player_list` | `player.list` | 参照 |
 | `hand_list` | `hand.list` | 参照 |
 | `hand_get_by_id` | `hand.getById` | 参照 |
-| `session_tag_list` | `sessionTag.list` | 参照 |
-| `session_tag_create` | `sessionTag.create` | 記録 |
+| `entry_list` | `entry.list` | 参照 |
+| `entry_get_by_id` | `entry.getById` | 参照 |
+| `entry_create_cash` | `entry.create`（`kind: "cash"`） | 記録 |
+| `entry_create_tournament` | `entry.create`（`kind: "tournament"`） | 記録 |
+| `entry_update` | `entry.update` | 記録 |
+| `entry_tag_list` | `entryTag.list` | 参照 |
+| `entry_tag_create` | `entryTag.create` | 記録 |
 | `ring_game_list_by_room` | `ringGame.listByRoom` | 参照 |
 | `tournament_list_by_room` | `tournament.listByRoom` | 参照 |
 | `room_get_by_id` | `room.getById` | 参照 |
@@ -108,6 +113,8 @@ B06 の切り替えで旧完了セッション・ライブセッション API �
 ゲームグループはブラインドのラベルと並んで `blind1Required`〜`blind3Required` を持ちます。組み込みの Limit と Stud は Small Bet と Big Bet が必須（Stud の Bring-in は任意）、Big Bet は SB と BB が必須で 3 番目の欄はありません。`game_group_create` ではすべて false が既定で、必須にできるのはラベルのある欄だけです。新しく書くリングゲーム・トーナメントのルール版（引き継いだ stakes を含む）は、必須の欄をすべて埋め、ラベルのない欄を空にする必要があります（`BAD_REQUEST`）。ante は対象外で、変更のない版の再利用は検査しません。`game_group_update` は、保存済みの stake にその欄の値が残っている間はラベルを消せません（`CONFLICT`）。
 
 `hand_list` は 1 つの play session のハンドを `handNo` の大きい順に 1 ページ 1〜50 件（既定 20 件）返し、`{ items, nextCursor }` を返します。次のページは `nextCursor` を `cursor` に渡します。cursor は取得したときの `playSessionId` でだけ使えます。play session のハンド数はハンドの件数、現在のボタンは最大の `handNo` のハンドの `buttonSeat` です。ハンドカウンターの書き込み（`hand.add`・`hand.undoLast`）と `hand.delete` は公開していません。
+
+`entry_list` はユーザーの entry を `playedOn` の新しい順に 1 ページ 1〜100 件（既定 20 件）返し、任意で `kind`・`status`・`roomId`・`assetId`・両端を含む `dateFrom`/`dateTo`（`YYYY-MM-DD`）で絞り込めます。`nextCursor` は取得したときと同じ絞り込みでだけ使えます。各 entry は日（`playSessions`）、すべての金額明細（`lines`。数量は資産の最小単位の符号付き整数）、資産ごとの `totals`、基準通貨での `valuation` と `missingRates`、`ruleDrift` 付きのルール版、タグを持ちます。`entry_create_cash` と `entry_create_tournament` は `entry.create` の `kind` 別の分岐です。`playedOn` は必須で、最初の日の `localDate` と一致させます。`playSessions` を省略するとトップレベルの `payments` で 1 日分を記録します。支払いは `{ role, assetId, quantity, effect, priceId? }` で、数量は正の整数、符号は role で決まります。entry は `ringGameId` / `tournamentId` でマスタを紐付けるか、独自の `rule` を記録します。`entry_update` は指定したフィールドだけを変え、`tagIds`・`playSessions`・`payments` は**丸ごと置き換え**ます。`id` を送った日はハンドごと残り、送らなかった日はハンドごと削除されます。ライブの entry で変えられるのは `roomId`・`assetId`・`title`・`memo`・`tagIds` だけです。紐付けたマスタとルールは `entry_update` では変えられず、`entry.delete` は公開していません。1 つの entry は最大 100 日、支払い 1000 件、タグ 100 件です。`entry_tag_list` / `entry_tag_create` で `tagIds` に使うタグを扱います。タグの名前変更と削除はタグ画面で行います。
 
 `asset_list` は通貨とアイテムを `balance` 付きで返します。`balance` はその資産の real な台帳明細の符号付き合計（最小単位の整数。アイテムでは保有数）で、プレイ中の entry の buy-in も含みます。アーカイブ済みの資産は `includeArchived` を指定したときだけ、アクティブなものと合わせて返します。`asset_rate_list` はレートの履歴を、`effectiveAt` を指定するとベース/クォートの向きごとにその時点で有効な最新のレートを返します。`user_setting_get` は換算の基準通貨とタイムゾーン（`null` は Asia/Tokyo）を返します。どちらかや過去のレートを変えると、過去の換算値も変わります。資産・レート・設定の書き込みは公開していません。財布の台帳（`ledger.*`: 資産ごとの履歴、入出金、両替）とその分類（`ledgerCategory.*`）も公開していません。
 

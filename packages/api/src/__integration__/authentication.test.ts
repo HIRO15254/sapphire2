@@ -21,19 +21,13 @@ describe("API authentication contract", () => {
 		}
 	});
 
-	test("the shared middleware denies guests and returns only the authenticated account identity", async ({
+	test("healthCheck stays public while the shared middleware denies guests", async ({
 		api,
 	}) => {
 		expect(await api.caller(null).healthCheck()).toBe("OK");
-		await expect(api.caller(null).privateData()).rejects.toMatchObject({
+		await expect(api.caller(null).entry.list({})).rejects.toMatchObject({
 			code: "UNAUTHORIZED",
 			message: "Authentication required",
-		});
-		expect(await api.alice.privateData()).toMatchObject({
-			user: { id: "alice", email: "alice@example.test" },
-		});
-		expect(await api.bob.privateData()).toMatchObject({
-			user: { id: "bob", email: "bob@example.test" },
 		});
 	});
 });

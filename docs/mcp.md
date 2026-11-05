@@ -45,9 +45,9 @@ Unauthenticated `/mcp` requests receive `401` with `WWW-Authenticate: Bearer res
 
 ## Tools
 
-The tool surface is a **projection of the tRPC `appRouter`**: each tool's input schema is the exact Zod schema the API validates with, and each response is the same JSON the HTTP API returns. Conventions follow the backend: **dates are unix seconds** (date-only values are UTC midnight), **amounts are plain integers** in the currency's display unit.
+The tool surface is a **projection of the tRPC `appRouter`**: each tool's input schema is the exact Zod schema the API validates with (a tool for one branch of a union input uses that branch's schema), and each response is the same JSON the HTTP API returns. Conventions follow the backend: **instants are unix seconds**, **date-only values are `YYYY-MM-DD` strings** in entry tools (the statistics tools still take UTC-midnight seconds), and **amounts are plain integers** in the asset's smallest unit.
 
-The B06 cutover removes the old completed-session and live-session APIs and their MCP tools. Recording or editing sessions is unavailable until the final entry/live APIs land; the statistics and master-data tools below remain available.
+The B06 cutover removed the old completed-session and live-session APIs and their MCP tools. Finished entries are recorded and edited with the `entry_*` tools; recording live play is not exposed yet.
 
 | Tool | tRPC procedure | Kind |
 |---|---|---|
@@ -61,8 +61,13 @@ The B06 cutover removes the old completed-session and live-session APIs and thei
 | `player_list` | `player.list` | read |
 | `hand_list` | `hand.list` | read |
 | `hand_get_by_id` | `hand.getById` | read |
-| `session_tag_list` | `sessionTag.list` | read |
-| `session_tag_create` | `sessionTag.create` | write |
+| `entry_list` | `entry.list` | read |
+| `entry_get_by_id` | `entry.getById` | read |
+| `entry_create_cash` | `entry.create` (`kind: "cash"`) | write |
+| `entry_create_tournament` | `entry.create` (`kind: "tournament"`) | write |
+| `entry_update` | `entry.update` | write |
+| `entry_tag_list` | `entryTag.list` | read |
+| `entry_tag_create` | `entryTag.create` | write |
 | `ring_game_list_by_room` | `ringGame.listByRoom` | read |
 | `tournament_list_by_room` | `tournament.listByRoom` | read |
 | `room_get_by_id` | `room.getById` | read |
@@ -108,6 +113,8 @@ Master-data updates are annotated destructive. **Deletion is deliberately not ex
 Game groups carry `blind1Required`–`blind3Required` next to their blind labels. The built-in Limit and Stud groups require Small Bet and Big Bet (Stud's Bring-in stays optional), and Big Bet requires SB and BB and has no third field. `game_group_create` defaults every flag to false, and only a labeled field can be required. Every newly written ring-game or tournament rule version, carried stakes included, must fill each required blind and leave fields without a label empty (`BAD_REQUEST`); ante is exempt and keeping an unchanged version is not rechecked. `game_group_update` rejects clearing a label while a saved stake still has a value in that field (`CONFLICT`).
 
 `hand_list` pages one play session's hands from the highest `handNo` (1–50 per page, default 20) and returns `{ items, nextCursor }`; send `nextCursor` back as `cursor`, which works only with the `playSessionId` it came from. A play session's hand count is the number of its hands, and its current button is the `buttonSeat` of its highest hand. The hand counter writes (`hand.add`, `hand.undoLast`) and `hand.delete` are not exposed.
+
+`entry_list` pages the user's entries newest `playedOn` first (1–100 per page, default 20) with optional `kind`, `status`, `roomId`, `assetId` and inclusive `dateFrom`/`dateTo` (`YYYY-MM-DD`); a `nextCursor` works only with the filters it came from. Each entry carries its days (`playSessions`), every money line (`lines`, signed quantity in the asset's smallest unit), per-asset `totals`, `valuation` in the base asset with `missingRates`, its rule version with `ruleDrift`, and tags. `entry_create_cash` and `entry_create_tournament` are the two `kind` branches of `entry.create`: `playedOn` is required and equals the first day's `localDate`; without `playSessions` one day is recorded with the top-level `payments`. Payments are `{ role, assetId, quantity, effect, priceId? }` with a positive quantity whose sign the role gives. An entry links a master by `ringGameId` / `tournamentId` or records its own `rule`. `entry_update` changes only supplied fields; `tagIds`, `playSessions` and `payments` REPLACE the whole list, a day kept by its `id` keeps its hands, and a day left out is deleted with them. A live entry accepts only `roomId`, `assetId`, `title`, `memo` and `tagIds`. The linked master and rule cannot be changed through `entry_update`, and `entry.delete` is not exposed. One entry holds at most 100 days, 1000 payments and 100 tags. `entry_tag_list` / `entry_tag_create` manage the tags `tagIds` refer to; renaming and deleting tags stay on the tag screen.
 
 `asset_list` returns currencies and items with `balance`: the signed sum of every real ledger line in the asset's smallest unit (for an item, the number held), including buy-ins of entries still in play. Archived assets appear only with `includeArchived`, which returns active and archived ones together. `asset_rate_list` returns the rate history, or with `effectiveAt` the latest rate in force per base/quote direction. `user_setting_get` returns the reporting base currency and time zone (`null` time zone means Asia/Tokyo); a change to either, or to a past rate, also changes past converted figures. Asset, rate and setting writes are not exposed, and neither is the wallet ledger (`ledger.*`: an asset's history, deposits and withdrawals, exchanges) or its categories (`ledgerCategory.*`).
 

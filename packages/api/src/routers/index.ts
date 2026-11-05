@@ -1,7 +1,9 @@
-import { protectedProcedure, publicProcedure, router } from "../index";
+import { publicProcedure, router } from "../index";
 import { aiExtractRouter } from "./ai-extract";
 import { assetRouter } from "./asset";
 import { assetRateRouter } from "./asset-rate";
+import { entryRouter } from "./entry";
+import { entryTagRouter } from "./entry-tag";
 import { filterPresetRouter } from "./filter-preset";
 import { gameGroupRouter } from "./game-group";
 import { gameMixRouter } from "./game-mix";
@@ -14,7 +16,6 @@ import { playerRouter } from "./player";
 import { playerTagRouter } from "./player-tag";
 import { ringGameRouter } from "./ring-game";
 import { roomRouter } from "./room";
-import { sessionTagRouter } from "./session-tag";
 import { statsRouter } from "./stats";
 import { tournamentRouter } from "./tournament";
 import { updateNoteViewRouter } from "./update-note-view";
@@ -24,12 +25,8 @@ export const appRouter = router({
 	healthCheck: publicProcedure.query(() => {
 		return "OK";
 	}),
-	privateData: protectedProcedure.query(({ ctx }) => {
-		return {
-			message: "This is private",
-			user: ctx.session.user,
-		};
-	}),
+	entry: entryRouter,
+	entryTag: entryTagRouter,
 	aiExtract: aiExtractRouter,
 	location: locationRouter,
 	room: roomRouter,
@@ -44,7 +41,6 @@ export const appRouter = router({
 	ringGame: ringGameRouter,
 	tournament: tournamentRouter,
 	stats: statsRouter,
-	sessionTag: sessionTagRouter,
 	hand: handRouter,
 	player: playerRouter,
 	playerTag: playerTagRouter,

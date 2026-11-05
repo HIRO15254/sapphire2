@@ -6,7 +6,12 @@ import {
 	ringGameCreateInputSchema,
 	ringGameUpdateInputSchema,
 } from "@sapphire2/api/routers/ring-game";
+import {
+	tournamentRuleInputSchema,
+	tournamentRuleWithLevelsInputSchema,
+} from "@sapphire2/api/services/tournament-rule";
 import { describe, expect, it } from "vitest";
+import z from "zod";
 import {
 	DELIBERATELY_EXCLUDED,
 	entityName,
@@ -33,7 +38,12 @@ describe("tool/router coupling", () => {
 			if (def.inputSchema === undefined) {
 				expect(getProcedureDef(procedure).inputs).toHaveLength(0);
 			} else {
-				expect(def.inputSchema).toBe(getInputSchema(procedure));
+				const routerSchema = getInputSchema(procedure);
+				const branches =
+					routerSchema instanceof z.ZodDiscriminatedUnion
+						? routerSchema.options
+						: [routerSchema];
+				expect(branches).toContain(def.inputSchema);
 			}
 		}
 	});
@@ -118,6 +128,13 @@ describe("tool/router coupling", () => {
 		expect(TOOL_DEFINITIONS.map((d) => d.name).sort()).toEqual([
 			"asset_list",
 			"asset_rate_list",
+			"entry_create_cash",
+			"entry_create_tournament",
+			"entry_get_by_id",
+			"entry_list",
+			"entry_tag_create",
+			"entry_tag_list",
+			"entry_update",
 			"game_group_archive",
 			"game_group_create",
 			"game_group_list",
@@ -147,8 +164,6 @@ describe("tool/router coupling", () => {
 			"room_list",
 			"room_restore",
 			"room_update",
-			"session_tag_create",
-			"session_tag_list",
 			"stats_breakdown",
 			"stats_profit_loss_series",
 			"stats_summary",
@@ -212,15 +227,18 @@ describe("tool/router coupling", () => {
 
 	it("explains the rule version contract on every tool that accepts a tournament rule", () => {
 		const accepting = TOOL_DEFINITIONS.filter((def) => {
-			const shape = (def.inputSchema as { shape?: Record<string, unknown> })
-				?.shape;
+			const rule =
+				def.inputSchema instanceof z.ZodObject
+					? def.inputSchema.shape.rule
+					: undefined;
+			const inner = rule instanceof z.ZodOptional ? rule.unwrap() : rule;
 			return (
-				shape !== undefined &&
-				"rule" in shape &&
-				def.procedurePath.startsWith("tournament.")
+				inner === tournamentRuleInputSchema ||
+				inner === tournamentRuleWithLevelsInputSchema
 			);
 		});
 		expect(accepting.map((def) => def.name).sort()).toEqual([
+			"entry_create_tournament",
 			"tournament_create_with_levels",
 			"tournament_update_with_levels",
 		]);

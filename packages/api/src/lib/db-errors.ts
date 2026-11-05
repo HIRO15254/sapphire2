@@ -10,6 +10,9 @@ const ASSET_RATE_CONFLICT_RE =
 const LEDGER_CATEGORY_NAME_CONFLICT_RE =
 	/UNIQUE constraint failed:\s*index 'ledger_category_user_name_unique'/i;
 
+const ENTRY_TAG_NAME_CONFLICT_RE =
+	/UNIQUE constraint failed:\s*index 'entry_tag_name_uq'/i;
+
 const GAME_MASTER_LABEL_CONFLICT_RE = {
 	game_group_label_uq:
 		/UNIQUE constraint failed:\s*index 'game_group_label_uq'/i,
@@ -45,6 +48,10 @@ export function isAssetRateConflictError(error: unknown): boolean {
 
 export function isLedgerCategoryNameConflictError(error: unknown): boolean {
 	return someErrorInChain(error, LEDGER_CATEGORY_NAME_CONFLICT_RE);
+}
+
+export function isEntryTagNameConflictError(error: unknown): boolean {
+	return someErrorInChain(error, ENTRY_TAG_NAME_CONFLICT_RE);
 }
 
 export function isGameMasterLabelConflictError(

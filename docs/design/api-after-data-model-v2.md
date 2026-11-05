@@ -182,7 +182,7 @@ Table size is 2–10; minBuyIn <= maxBuyIn. Tournament rule maxima (B08): at mos
 
 `LineupMap` maps lineup id to `{id,gameMixId,displayName,groups:[{id,gameGroupId,name,variants:[{id,label,shortLabel}]}]}`. `CashRule` is `{id,ringGameId,parentRuleId,lineupId,stakes,...cash scalar fields}`. `TournamentRule` is `{id,tournamentId,parentRuleId,lineupId,...tournament scalar fields,levels,prices}`. Output stake adds `lineupGroupId`; level adds `id,ordinal,level,effectiveLineupId` and returns `game:null` for inheritance; price adds `id,ordinal`. Ordinals derive from array order. Master ownership ids may be null only for standalone entry versions. Display names resolve current user-owned master labels, including archived rows; composition never changes retroactively.
 
-## 3. `entry` — B16; rule operations B20; tags B18
+## 3. `entry` — B16; rule operations B20
 
 | Procedure | Input (constraints) | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
@@ -198,6 +198,8 @@ Table size is 2–10; minBuyIn <= maxBuyIn. Tournament rule maxima (B08): at mos
 | `restoreRule` M (B20) | `{id,masterId:Id|null,ruleVersionId:Id,masterRuleVersionId?:Id}` | EntryOutput | Version not owned by the specified master (or not standalone when masterId is null), or masterRuleVersionId without a master: BAD_REQUEST | Excluded: screen |
 
 List asset filtering means **has a ledger line in that asset**, not entry default asset equality. List has no ambiguous all-asset aggregate `summary`; use `stats` with an explicit mode. Open entries remain visible; statistics do not count them. Omitting playSessions on manual create synthesizes one ended play on playedOn; no legacy top-level startedAt/endedAt/breakMinutes fields. `beforeDeadline:true` stores placement null. Array tag ids are unique and owner-checked.
+
+B16 maxima, measured against the 1000-statement invocation budget (10 reserved for authentication) with a maximal B08 tournament rule written in the same request: one entry holds at most 100 playSessions, 1000 payments in total and 100 tagIds; list pages hold at most 100 entries. At these maxima create runs 534 statements and update 259 (`entry.test.ts`). Update reads the rule version only for output and price checks; it never takes `ringGameId`, `tournamentId` or `rule`. A ManualPlay `id` must name an existing Day of that entry (else FORBIDDEN); kept Days keep their id and hands, Days left out are deleted with their hands, and Days without id are inserted, so an update that keeps every Day is undone by sending the previous values. Days before the last end held (cash) or bagged (tournament) with endStack; the last ends cashed_out/finished (cash) or busted/finished (tournament); placement is not cross-checked against the end state. A synthesized Day ends cashed_out (cash), finished when placement is 1, busted otherwise (tournament). Payment priceIds must belong to the entry's rule version or already be used by the entry, with the price's asset and a role its kind pays (entry: buy_in/fee, reentry: reentry/fee, addon: chip_purchase/fee). Live entries accept only roomId, assetId, title, memo and tagIds. Delete removes the entry, its Days, hands, lines and tag links; its standalone rule version stays.
 
 Rule operations are also present on live (§4), with the same semantics. Override inserts a child under the same master and changes only the entry; unchanged signature reuses the version. Apply points to the linked master's current version. Push points the master to the entry's same-master version (or creates an equal version under that master) and aligns both ids. Relink with keepRule false applies the destination's current version; true copies the entry version under the destination master, never points across masters. Unlink preserves content as a parentless standalone version. Ordinary `update` may change metadata, but changing an already-linked master must use `relink`, and subsequent rule edits use the named rule operations. No keepSnapshot flag remains.
 
@@ -473,7 +475,7 @@ Builtin defaults: Limit requires Small Bet and Big Bet; Stud requires Small Bet 
 
 B05 retains guarded hard delete only for unreferenced game masters, alongside archive/restore; no MCP delete is exposed. New selections reject archived composition members; echoing an unchanged stored lineup keeps history valid.
 
-## 19. `entryTag` — B18
+## 19. `entryTag` — B16 (tables, list/create/update/delete), B18 (factory, reorder)
 
 Created by `createTagRouter()`. `Tag = {id,name,position,createdAt,updatedAt}`; names trimmed 1–50, case-insensitively unique within user/kind. Common tag procedures below are instantiated per router; no cross-kind id is valid.
 
@@ -486,6 +488,8 @@ Created by `createTagRouter()`. `Tag = {id,name,position,createdAt,updatedAt}`; 
 | `reorder` M | `{ids:Id[]}` unique complete permutation of owned tags of this kind | Tag[] | Incomplete/duplicate permutation: BAD_REQUEST | Excluded: screen ordering |
 
 Entry attachment is entry.create/update tagIds; no separate toggle/addTag/removeTag procedures.
+
+B16 pulls the entry_tag/entry_tag_link tables, their migration and `entryTag.list/create/update/delete` forward so entry.create/update can take tagIds (user decision, SA2-402). B18 still owns `createTagRouter()`, `reorder` and the other three tag kinds; it replaces the B16 router with the factory instance without changing the procedures above.
 
 ## 20. `tournamentTag` — B18
 
@@ -604,7 +608,7 @@ Names below disappear in the `Removed in` task's PR together with their MCP regi
 | currency.* | asset.* | B12 | B12 |
 | currencyTransaction.listByCurrency/create/update/delete | ledger.listByAsset/createAdjustment/update/delete; exchange uses createExchange | B14 | B14 |
 | transactionType.* | ledgerCategory.*; no reserved result category | B14 | B14 |
-| sessionTag.* | entryTag.* | B18 | B18 |
+| sessionTag.* | entryTag.* | B16 | B16 |
 | tournament.addTag/removeTag | tournament update tagIds | B18 | B18 |
 | blindLevel.* | tournament.getById / whole-version WithLevels writes | B08 | B08 |
 | tournamentChipPurchase.* | tournament rule.prices read/write | B08 | B08 |
@@ -646,7 +650,7 @@ Each row is an exact registry mapping; a comma-separated tool list corresponds p
 | game_variant_archive, game_variant_restore | gameVariant.archive, gameVariant.restore | B05 |
 | game_mix_list, game_mix_create, game_mix_update | gameMix.list, gameMix.create, gameMix.update | B05 |
 | game_mix_archive, game_mix_restore | gameMix.archive, gameMix.restore | B05 |
-| entry_tag_list, entry_tag_create | entryTag.list, entryTag.create | B18 |
+| entry_tag_list, entry_tag_create | entryTag.list, entryTag.create | B16 |
 | tournament_tag_list, tournament_tag_create | tournamentTag.list, tournamentTag.create | B18 |
 | hand_tag_list, hand_tag_create | handTag.list, handTag.create | B18 |
 | player_tag_list, player_tag_create | playerTag.list, playerTag.create | B18 |
@@ -670,7 +674,7 @@ Renamed tools, **old → new, without aliases**:
 | session_create_tournament | entry_create_tournament | B16 |
 | session_update | entry_update | B16 |
 | currency_list | asset_list | B12 |
-| session_tag_list | entry_tag_list | B18 |
-| session_tag_create | entry_tag_create | B18 |
+| session_tag_list | entry_tag_list | B16 |
+| session_tag_create | entry_tag_create | B16 |
 
 Each union branch tool uses the router's exact branch schema object, not an MCP-specific schema wrapper. Tool descriptions state array replacement, archive recovery, date/quantity units and all cross-field constraints JSON Schema cannot express. Creates are non-idempotent/non-destructive; in-place referenced-master edits are idempotent/destructive; archive/restore are idempotent/non-destructive. No delete or toggle tool is exposed. The new UI consumes this same API; cache-buster and screen work belong to the UI v3 phases (U01–U12), not a second backend contract.

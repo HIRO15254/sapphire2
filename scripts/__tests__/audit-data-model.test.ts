@@ -34,6 +34,8 @@ const LEGACY_FIXTURE = [
 	 ('mtt', 'alice', 'tournament', 'completed', 'live', ${T0}, ${T0 + 10_000}, ${T0 + 20_000}, 0, 'jpy', NULL, NULL, ${T0}, ${T0}),
 	 ('manual', 'alice', 'cash_game', 'completed', 'manual', 1756944000, NULL, NULL, 0, 'jpy', NULL, NULL, ${T0}, ${T0}),
 	 ('open-cash', 'bob', 'cash_game', 'active', 'live', ${T0}, ${T0 + 30_000}, NULL, 0, 'bob-jpy', NULL, NULL, ${T0}, ${T0})`,
+	`INSERT INTO session_tag (id, user_id, name, created_at) VALUES ('tag-first', 'alice', 'Focus', ${T0}), ('tag-duplicate', 'alice', ' focus ', ${T0 + 1}), ('tag-other', 'alice', 'Other', ${T0}), ('bob-tag', 'bob', 'Focus', ${T0})`,
+	"INSERT INTO session_to_session_tag (session_id, session_tag_id) VALUES ('manual', 'tag-first'), ('manual', 'tag-duplicate'), ('manual', 'bob-tag')",
 	`INSERT INTO session_cash_detail (session_id, buy_in, cash_out, chip_remove_total, ev_cash_out) VALUES ('live', 35000, 45000, 2000, 45000), ('manual', 10000, 12000, NULL, NULL), ('open-cash', 10000, NULL, NULL, NULL)`,
 	`INSERT INTO session_tournament_detail (session_id, tournament_id, tournament_buy_in, entry_fee, placement, total_entries, before_deadline, prize_money, bounty_prizes) VALUES ('mtt', 'daily', 10000, 1000, 3, 50, 0, 30000, 2000)`,
 	`INSERT INTO session_chip_purchase (id, session_id, name, cost, chips, sort_order) VALUES ('rebuy', 'mtt', 'Rebuy', 3000, 10000, 0)`,
@@ -195,6 +197,7 @@ describe("audit-data-model through wrangler's local D1", () => {
 				expect(statuses(gate.report, id), id).toEqual(["pass"]);
 			}
 			expect(statuses(gate.report, "A-6")).toEqual(["pass", "pass", "pass"]);
+			expect(statuses(gate.report, "A-12")).toEqual(["pass", "pending"]);
 			expect(statuses(gate.report, "A-13")).toEqual([
 				"pass",
 				"pass",
@@ -202,6 +205,35 @@ describe("audit-data-model through wrangler's local D1", () => {
 				"pass",
 			]);
 			expect(statuses(gate.report, "A-14")).toContain("pass");
+		},
+		RUN_TIMEOUT
+	);
+
+	it(
+		"detects missing and unexpected historical entry tag links",
+		async () => {
+			const dir = await copyWith("broken-entry-tags", [
+				"DELETE FROM entry_tag_link WHERE entry_id = 'manual' AND tag_id = 'tag-first'",
+				"INSERT INTO entry_tag_link (entry_id, user_id, tag_id) VALUES ('manual', 'alice', 'tag-other')",
+			]);
+			const result = audit(dir);
+			expect(result.status).toBe(1);
+			expect(rows(result.report, "A-12")).toEqual(
+				expect.arrayContaining([
+					{
+						problem: "missing",
+						entry_id: "manual",
+						user_id: "alice",
+						tag_id: "tag-first",
+					},
+					{
+						problem: "unexpected",
+						entry_id: "manual",
+						user_id: "alice",
+						tag_id: "tag-other",
+					},
+				])
+			);
 		},
 		RUN_TIMEOUT
 	);

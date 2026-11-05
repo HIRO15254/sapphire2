@@ -1,5 +1,4 @@
 import { entry, entryTournament } from "@sapphire2/db/schema/entry";
-import { gameMix, gameMixVariant } from "@sapphire2/db/schema/game-mix";
 import { ledgerLine } from "@sapphire2/db/schema/ledger";
 import {
 	tournamentRule,
@@ -10,12 +9,16 @@ import {
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
-import { chunkForInsert } from "../lib/batch";
 import { MAX_RULE_LEVELS, MAX_RULE_PRICES } from "../services/tournament-rule";
-import { type ApiFixture, requireCreatedRow, test } from "./test-fixture";
+import {
+	type ApiFixture,
+	AUTH_QUERY_RESERVE,
+	D1_QUERIES_PER_INVOCATION,
+	requireCreatedRow,
+	seedMaxRuleLevels,
+	test,
+} from "./test-fixture";
 
-const D1_QUERIES_PER_INVOCATION = 1000;
-const AUTH_QUERY_RESERVE = 10;
 const FOREIGN_KEY_FAILURE = /FOREIGN KEY/;
 const ARCHIVE_GUIDANCE = /archive/i;
 const day = new Date("2026-09-05T00:00:00.000Z");
@@ -578,104 +581,7 @@ describe("tournament rule versions on D1", () => {
 		api,
 	}) => {
 		const { room, cash } = await setup(api);
-		const groups = [
-			...(await api.alice.gameGroup.list()).map((group) => group.id),
-		];
-		for (let index = groups.length; index < 12; index += 1) {
-			groups.push(
-				requireCreatedRow(
-					await api.alice.gameGroup.create({
-						label: `Group ${index}`,
-						blind1Label: "Small Bet",
-						blind2Label: "Big Bet",
-					})
-				).id
-			);
-		}
-		const variants = (await api.alice.gameVariant.list()).map((variant) => ({
-			id: variant.id,
-			groupId: variant.groupId,
-		}));
-		for (let index = 0; index < groups.length; index += 1) {
-			const groupId = groups[index] ?? "";
-			if (variants.some((variant) => variant.groupId === groupId)) {
-				continue;
-			}
-			variants.push({
-				id: requireCreatedRow(
-					await api.alice.gameVariant.create({
-						label: `Variant ${index}`,
-						groupId,
-					})
-				).id,
-				groupId,
-			});
-		}
-		const pool = variants.filter((variant) => groups.includes(variant.groupId));
-		const byGroup = groups.map((groupId) =>
-			pool.filter((variant) => variant.groupId === groupId)
-		);
-		const spanning = [
-			...byGroup.map((members) => members[0]),
-			...pool.filter(
-				(variant) => !byGroup.some((members) => members[0] === variant)
-			),
-		]
-			.filter((variant) => variant !== undefined)
-			.slice(0, 30);
-		let seed = 7;
-		const levels: {
-			isBreak: boolean;
-			minutes: number;
-			game: { gameMixId: string };
-			stakes: { gameGroupId: string; blind1: number; blind2: number }[];
-		}[] = [];
-		const mixRows: (typeof gameMix.$inferInsert)[] = [];
-		const mixVariantRows: (typeof gameMixVariant.$inferInsert)[] = [];
-		for (let index = 0; index < MAX_RULE_LEVELS; index += 1) {
-			const order = [...spanning];
-			for (let swap = order.length - 1; swap > 0; swap -= 1) {
-				seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648;
-				const target = seed % (swap + 1);
-				[order[swap], order[target]] = [
-					order[target] as (typeof order)[number],
-					order[swap] as (typeof order)[number],
-				];
-			}
-			const mix = { id: `max-mix-${index}` };
-			mixRows.push({
-				id: mix.id,
-				userId: "alice",
-				label: `Mix ${index}`,
-				games: [],
-				updatedAt: day,
-			});
-			mixVariantRows.push(
-				...order.map((variant, position) => ({
-					mixId: mix.id,
-					variantId: variant.id,
-					userId: "alice",
-					position,
-				}))
-			);
-			const groupOrder = [...new Set(order.map((variant) => variant.groupId))];
-			levels.push({
-				isBreak: false,
-				minutes: 20,
-				game: { gameMixId: mix.id },
-				stakes: groupOrder.map((gameGroupId) => ({
-					gameGroupId,
-					blind1: index + 1,
-					blind2: (index + 1) * 2,
-				})),
-			});
-		}
-		for (const chunk of chunkForInsert(mixRows, 6)) {
-			await api.db.insert(gameMix).values(chunk);
-		}
-		for (const chunk of chunkForInsert(mixVariantRows, 4)) {
-			await api.db.insert(gameMixVariant).values(chunk);
-		}
+		const { groupCount, levels } = await seedMaxRuleLevels(api);
 		const created = await api.alice.tournament.create({
 			roomId: room.id,
 			name: "Max",
@@ -700,7 +606,7 @@ describe("tournament rule versions on D1", () => {
 			new Set(saved.ruleVersion.levels.map((level) => level.effectiveLineupId))
 				.size
 		).toBe(MAX_RULE_LEVELS);
-		expect(saved.ruleVersion.levels[0]?.stakes).toHaveLength(12);
+		expect(saved.ruleVersion.levels[0]?.stakes).toHaveLength(groupCount);
 		expect(meter.statements).toBeLessThanOrEqual(
 			D1_QUERIES_PER_INVOCATION - AUTH_QUERY_RESERVE
 		);

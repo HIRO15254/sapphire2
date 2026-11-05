@@ -1,8 +1,4 @@
 import { playerTag, playerToPlayerTag } from "@sapphire2/db/schema/player";
-import {
-	sessionTag,
-	sessionToSessionTag,
-} from "@sapphire2/db/schema/session-tag";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 
@@ -108,23 +104,6 @@ describe("tag deletion batch composition (SA2-116)", () => {
 		expect(batch[1]).toMatchObject({ kind: "delete", table: playerTag });
 	});
 
-	it("deletes session-tag links and the session tag in one batch", async () => {
-		const rows = new Map<unknown, Rows>([
-			[sessionTag, [{ id: "st-1", userId: "user-1" }]],
-		]);
-		const { db, batchCalls } = createBatchTrackingDb(rows);
-
-		await callerFor(db, "user-1").sessionTag.delete({ id: "st-1" });
-
-		const batch = sole(batchCalls);
-		expect(batch).toHaveLength(2);
-		expect(batch[0]).toMatchObject({
-			kind: "delete",
-			table: sessionToSessionTag,
-		});
-		expect(batch[1]).toMatchObject({ kind: "delete", table: sessionTag });
-	});
-
 	it("propagates player-tag deletion batch failure without a second batch", async () => {
 		const rows = new Map<unknown, Rows>([
 			[playerTag, [{ id: "pt-1", userId: "user-1" }]],
@@ -135,21 +114,6 @@ describe("tag deletion batch composition (SA2-116)", () => {
 
 		await expect(
 			callerFor(db, "user-1").playerTag.delete({ id: "pt-1" })
-		).rejects.toThrow("D1 batch failed");
-
-		expect(sole(batchCalls)).toHaveLength(2);
-	});
-
-	it("propagates session-tag deletion batch failure without a second batch", async () => {
-		const rows = new Map<unknown, Rows>([
-			[sessionTag, [{ id: "st-1", userId: "user-1" }]],
-		]);
-		const { db, batchCalls } = createBatchTrackingDb(rows, {
-			batchError: new Error("D1 batch failed"),
-		});
-
-		await expect(
-			callerFor(db, "user-1").sessionTag.delete({ id: "st-1" })
 		).rejects.toThrow("D1 batch failed");
 
 		expect(sole(batchCalls)).toHaveLength(2);
