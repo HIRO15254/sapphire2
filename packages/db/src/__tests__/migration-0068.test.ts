@@ -24,6 +24,7 @@ const PRECONDITION_GATE =
 const BIG_BET_GATE = /NOT NULL constraint failed: __gate_0068\.big_bet_blind3/;
 const RULE_ID_REQUIRED = /NOT NULL constraint failed: entry_cash\.cash_rule_id/;
 const FOREIGN_KEY_FAILED = /FOREIGN KEY constraint failed/;
+const PRICES_GATE = /NOT NULL constraint failed: __gate_0068\.prices/;
 const beforeEntry = migrationFiles("0061_").map(statementsOf);
 const cutovers = migrationFiles(TARGET)
 	.filter((name) => name >= "0061_")
@@ -262,6 +263,23 @@ describe("migration 0068 — entry rule versions", () => {
 			"UPDATE session_cash_detail SET blind3 = 4 WHERE session_id = 'c-diff-a'"
 		);
 		expect(() => apply(db)).toThrow(BIG_BET_GATE);
+	});
+
+	it("prices a live purchase event without a purchase id by its unique name, cost and chips", () => {
+		db.exec(
+			`UPDATE play_event SET payload = '{"name":"Add-on","cost":500,"chips":5000}' WHERE id = 'live-addon'`
+		);
+		apply(db);
+		expect(
+			values(db, "SELECT price_id FROM ledger_line WHERE id = 'live-addon:0'")
+		).toEqual([["trp:m-addon"]]);
+	});
+
+	it("stops when a live purchase event names a purchase that no longer exists", () => {
+		db.exec(
+			`UPDATE play_event SET payload = '{"sessionChipPurchaseId":"gone","name":"Add-on","cost":500,"chips":5000}' WHERE id = 'live-addon'`
+		);
+		expect(() => apply(db)).toThrow(PRICES_GATE);
 	});
 
 	it("rebuilds the details so a rule id is required", () => {

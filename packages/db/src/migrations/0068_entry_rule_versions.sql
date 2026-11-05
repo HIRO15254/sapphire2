@@ -641,6 +641,9 @@ JOIN `__stage_0068_purchase` cp ON cp.entry_id=l.entry_id AND (
  (l.source_event_id IS NULL AND cp.cost > 0 AND cp.count > 0 AND substr(l.id,1,length('m:'||l.entry_id||':chip_purchase:'))='m:'||l.entry_id||':chip_purchase:' AND
  CAST(substr(l.id,length('m:'||l.entry_id||':chip_purchase:')+1) AS integer) BETWEEN cp.first_n AND cp.first_n+cp.count-1)
  OR (l.source_event_id IS NOT NULL AND json_valid(pe.payload) AND json_extract(pe.payload,'$.sessionChipPurchaseId') = cp.id)
+ OR (l.source_event_id IS NOT NULL AND json_valid(pe.payload) AND json_type(pe.payload,'$.sessionChipPurchaseId') IS NULL AND cp.id=(
+  SELECT min(x.id) FROM `session_chip_purchase` x WHERE x.session_id=l.entry_id AND x.name IS json_extract(pe.payload,'$.name')
+  AND x.cost IS json_extract(pe.payload,'$.cost') AND x.chips IS json_extract(pe.payload,'$.chips') HAVING count(*)=1))
 )
 WHERE l.role='chip_purchase';--> statement-breakpoint
 UPDATE `ledger_line` SET price_id=(SELECT m.price_id FROM `__stage_0068_price_map` m WHERE m.line_id=ledger_line.id)
@@ -733,7 +736,7 @@ INSERT INTO `__gate_0068` (`prices`) SELECT NULL WHERE EXISTS (
 ) OR EXISTS (
  SELECT 1 FROM `ledger_line` l JOIN `entry` e ON e.id=l.entry_id AND e.user_id=l.user_id JOIN `entry_tournament` et ON et.entry_id=l.entry_id AND et.user_id=l.user_id
  LEFT JOIN `tournament_rule_price` p ON p.id=l.price_id AND p.user_id=l.user_id
- WHERE l.role='chip_purchase' AND e.source='manual' AND (p.id IS NULL OR p.rule_id<>et.tournament_rule_id OR p.kind<>'addon' OR p.asset_id<>l.asset_id OR -l.quantity<>p.amount)
+ WHERE l.role='chip_purchase' AND (p.id IS NULL OR p.rule_id<>et.tournament_rule_id OR p.kind<>'addon' OR p.asset_id<>l.asset_id OR (e.source='manual' AND -l.quantity<>p.amount))
 ) OR EXISTS (
  SELECT 1 FROM `__stage_0068_price_map` m JOIN `ledger_line` l ON l.id=m.line_id
  WHERE m.role='chip_purchase' AND (m.price_id IS NULL OR l.price_id IS NOT m.price_id
