@@ -152,14 +152,14 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "hand_list",
 		procedurePath: "hand.list",
 		description:
-			"List the hands of one play session (one day of an entry), highest handNo first, limit 1-50 per page (default 20). Returns { items, nextCursor }: pass nextCursor back as cursor for the next page; null means there is no further page. A cursor only works with the playSessionId it came from. The play session's hand count is the number of its hands and its current button is buttonSeat of the hand with the highest handNo. Each item carries detail (count | summary | full), playedAt (null for hands migrated from the old hand counter), button seat, stakes snapshot, boards and seats; use hand_get_by_id for the actions. Deleting a hand renumbers the later ones, so paging across a deletion can repeat a hand but never skips one.",
+			"List the hands of one play session (one day of an entry), highest handNo first, limit 1-50 per page (default 20). Returns { items, nextCursor }: pass nextCursor back as cursor for the next page; null means there is no further page. A cursor only works with the playSessionId it came from. The play session's hand count is the number of its hands at every detail level and its current button is buttonSeat of the hand with the highest handNo. Each item carries detail, playedAt (null for hands migrated from the old hand counter), button seat, stakes snapshot, boards and seats; use hand_get_by_id for the actions. detail is count (no boards, seats, pot, rake or memo), summary (a note taken at the table: Hero's single seat, boards, pot, rake and memo, never actions) or full (every seat and the actions). Summary values are notes, not statistics input. isHero marks the seat whose playerId is the user's own player. Deleting a hand renumbers the later ones, so paging across a deletion can repeat a hand but never skips one.",
 		inputSchema: handListInputSchema,
 	},
 	{
 		name: "hand_get_by_id",
 		procedurePath: "hand.getById",
 		description:
-			"Get one hand by id with its boards, seats, actions (ordered by seq) and tags (with reviewedAt). Use hand_list to find hand ids.",
+			"Get one hand by id with its boards, seats, actions (ordered by seq; empty unless detail is full) and tags (with reviewedAt). A summary hand has exactly one seat, Hero's; isHero marks the seat whose playerId is the user's own player. Use hand_list to find hand ids.",
 		inputSchema: handIdInputSchema,
 	},
 	{
@@ -733,6 +733,21 @@ export const DELIBERATELY_EXCLUDED: {
 	},
 	{
 		reason:
+			"Rule workflow: override, apply, push and relink rewrite which immutable rule version an entry and its master point to and branch or copy versions on the entry screen, where the drift between them is shown; entry_create_* and entry_update cover recording finished play",
+		paths: [
+			"entry.overrideRule",
+			"entry.applyMasterRule",
+			"entry.pushRuleToMaster",
+			"entry.relink",
+		],
+	},
+	{
+		reason:
+			"Screen-only Undo: restore an entry's master link and an existing rule version (and optionally the master's current version) without creating another version",
+		paths: ["entry.restoreRule", "live.restoreRule"],
+	},
+	{
+		reason:
 			"player.list already returns these rows, so a by-id tool would be a second way to read the same data",
 		paths: ["player.getById"],
 	},
@@ -748,19 +763,34 @@ export const DELIBERATELY_EXCLUDED: {
 	},
 	{
 		reason:
+			"Cockpit: hand details (Hero's summary, or every seat with up to 200 actions) are entered on the hand screens; one call replaces the hand's boards, seats, actions and tags wholesale, so a model working from a partial read silently erases the rest",
+		paths: ["hand.update"],
+	},
+	{
+		reason:
 			"Destructive: deleting a hand drops its boards, seats and actions and renumbers the later hands, and no API can restore them",
 		paths: ["hand.delete"],
 	},
 	{
 		reason:
-			"Cockpit: live recording follows the table in real time — starts, completions, events and seat changes are timestamped as they happen and retried calls append duplicate events; agents record finished play through the entry tools",
+			"Cockpit: live recording follows the table in real time — starts, day ends, next-day starts, completions, events and seat changes are timestamped as they happen and retried calls append duplicate events or days; the end and next-day undos belong to the same screen; agents record finished play through the entry tools",
 		paths: [
 			"live.list",
 			"live.getById",
 			"live.create",
 			"live.update",
 			"live.complete",
+			"live.endPlay",
+			"live.startNextPlay",
+			"live.undoEndPlay",
+			"live.undoStartNextPlay",
 			"live.discard",
+			"live.createAndAssignRingGame",
+			"live.createAndAssignTournament",
+			"live.overrideRule",
+			"live.applyMasterRule",
+			"live.pushRuleToMaster",
+			"live.relink",
 			"playEvent.list",
 			"playEvent.create",
 			"playEvent.update",

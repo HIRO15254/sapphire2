@@ -2,6 +2,7 @@ import { MAX_SEAT_POSITION } from "@sapphire2/db/constants/hand";
 import { tagIdsSchema } from "@sapphire2/db/schemas/tag-ids";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+
 import {
 	addNewTablePlayer,
 	addTablePlayer,

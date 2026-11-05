@@ -231,42 +231,94 @@ export async function prepareCashRule(
 				: input.houseRules,
 	};
 	validateBuyInRange(scalars.minBuyIn, scalars.maxBuyIn);
-	if (
-		current &&
-		current.lineupId === lineup.id &&
-		JSON.stringify(
-			stakes.map((stake) => [stake.lineupGroupId, stakeValues(stake)])
-		) ===
-			JSON.stringify(
-				current.stakes.map((stake) => [stake.lineupGroupId, stakeValues(stake)])
-			) &&
-		current.minBuyIn === scalars.minBuyIn &&
-		current.maxBuyIn === scalars.maxBuyIn &&
-		current.tableSize === scalars.tableSize &&
-		current.houseRules === scalars.houseRules
-	) {
+	const content: CashRuleContent = { lineupId: lineup.id, stakes, ...scalars };
+	if (current && cashSignature(current) === cashSignature(content)) {
 		return { id: current.id, statements: [] as BatchStatement[] };
 	}
 	await assertStakeBlinds(db, userId, stakes);
 	const id = crypto.randomUUID();
-	const rows = stakes.map((stake) => ({
+	const statements: BatchStatement[] = [
+		...planner.statements(),
+		...cashRuleInsertStatements(
+			db,
+			userId,
+			{ id, ringGameId, parentRuleId: current?.id ?? null },
+			content
+		),
+	];
+	return { id, statements };
+}
+
+type CashRuleContent = Omit<
+	CashRuleOutput,
+	"id" | "parentRuleId" | "ringGameId"
+>;
+
+function cashSignature(content: CashRuleContent): string {
+	return JSON.stringify([
+		content.lineupId,
+		content.stakes.map((stake) => [stake.lineupGroupId, stakeValues(stake)]),
+		content.minBuyIn,
+		content.maxBuyIn,
+		content.tableSize,
+		content.houseRules,
+	]);
+}
+
+function cashRuleInsertStatements(
+	db: Database,
+	userId: string,
+	version: {
+		id: string;
+		parentRuleId: string | null;
+		ringGameId: string | null;
+	},
+	content: CashRuleContent
+): BatchStatement[] {
+	const rows = content.stakes.map((stake) => ({
 		userId,
-		ruleId: id,
-		lineupId: lineup.id,
+		ruleId: version.id,
+		lineupId: content.lineupId,
 		lineupGroupId: stake.lineupGroupId,
 		...stakeValues(stake),
 	}));
-	const statements: BatchStatement[] = [
-		...planner.statements(),
+	return [
 		db.insert(cashRule).values({
-			id,
+			id: version.id,
 			userId,
-			ringGameId,
-			parentRuleId: current?.id ?? null,
-			lineupId: lineup.id,
-			...scalars,
+			ringGameId: version.ringGameId,
+			parentRuleId: version.parentRuleId,
+			lineupId: content.lineupId,
+			minBuyIn: content.minBuyIn,
+			maxBuyIn: content.maxBuyIn,
+			tableSize: content.tableSize,
+			houseRules: content.houseRules,
 		}),
 		...insertChunks(rows, (chunk) => db.insert(cashRuleStake).values(chunk)),
 	];
-	return { id, statements };
+}
+
+export function planCashRuleCopy(
+	db: Database,
+	userId: string,
+	source: CashRuleOutput,
+	target: { parent: CashRuleOutput | null; ringGameId: string | null }
+): { id: string; statements: BatchStatement[] } {
+	if (target.parent && cashSignature(target.parent) === cashSignature(source)) {
+		return { id: target.parent.id, statements: [] };
+	}
+	const id = crypto.randomUUID();
+	return {
+		id,
+		statements: cashRuleInsertStatements(
+			db,
+			userId,
+			{
+				id,
+				ringGameId: target.ringGameId,
+				parentRuleId: target.parent?.id ?? null,
+			},
+			source
+		),
+	};
 }

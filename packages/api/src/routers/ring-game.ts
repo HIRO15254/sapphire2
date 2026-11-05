@@ -58,7 +58,7 @@ async function validateAsset(
 	}
 }
 
-export async function buildRingGameCreateStatement(
+export async function planRingGameCreate(
 	db: Database,
 	params: {
 		id: string;
@@ -66,7 +66,7 @@ export async function buildRingGameCreateStatement(
 		userId: string;
 		now: Date;
 	}
-) {
+): Promise<{ ruleId: string; statements: BatchStatement[] }> {
 	await validateEntityOwnership(db, "room", params.input.roomId, params.userId);
 	await validateAsset(db, params.userId, params.input.defaultAssetId);
 	const version = await prepareCashRule(
@@ -94,7 +94,7 @@ export async function buildRingGameCreateStatement(
 				and(eq(cashRule.id, version.id), eq(cashRule.userId, params.userId))
 			),
 	];
-	return statements;
+	return { ruleId: version.id, statements };
 }
 
 async function hydrateRingGames(
@@ -178,15 +178,13 @@ export const ringGameRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const gameId = crypto.randomUUID();
-			await runBatch(
-				ctx.db,
-				await buildRingGameCreateStatement(ctx.db, {
-					id: gameId,
-					input,
-					userId,
-					now: new Date(),
-				})
-			);
+			const { statements } = await planRingGameCreate(ctx.db, {
+				id: gameId,
+				input,
+				userId,
+				now: new Date(),
+			});
+			await runBatch(ctx.db, statements);
 			return fetchRingGame(ctx.db, userId, gameId);
 		}),
 	update: protectedProcedure
