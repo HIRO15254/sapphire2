@@ -21,8 +21,10 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { type BatchStatement, runBatch } from "../lib/batch";
 import {
+	isDiscardedPlayDependentError,
 	isEndedPlayAppendError,
 	isPlayEventOrderConflictError,
+	isPlaySeqConflictError,
 	isUnfinishedPlaySessionConflictError,
 } from "../lib/db-errors";
 import {
@@ -483,7 +485,7 @@ export function mapLiveWriteConflict(error: unknown): unknown {
 			cause: error,
 		});
 	}
-	if (isPlayEventOrderConflictError(error)) {
+	if (isPlayEventOrderConflictError(error) || isPlaySeqConflictError(error)) {
 		return new TRPCError({
 			code: "CONFLICT",
 			message: "Another change to this entry was saved at the same time",
@@ -497,12 +499,21 @@ export function mapLiveWriteConflict(error: unknown): unknown {
 			cause: error,
 		});
 	}
+	if (isDiscardedPlayDependentError(error)) {
+		return new TRPCError({
+			code: "CONFLICT",
+			message:
+				"The play session gained events or hands; it can no longer be discarded",
+			cause: error,
+		});
+	}
 	return error;
 }
 
 export async function commitEntryEventChange(
 	db: Database,
 	options: {
+		after?: BatchStatement[];
 		before?: BatchStatement[];
 		change: EntryEventChange;
 		entryId: string;
@@ -545,6 +556,7 @@ export async function commitEntryEventChange(
 		...planned.statements,
 		...buildProjectionStatements(db, scope, projection),
 		...buildProjectionLineStatements(db, scope, projection.lines, now),
+		...(options.after ?? []),
 	]).catch((error: unknown) => {
 		throw mapLiveWriteConflict(error);
 	});

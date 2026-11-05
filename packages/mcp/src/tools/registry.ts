@@ -750,13 +750,17 @@ export const DELIBERATELY_EXCLUDED: {
 	},
 	{
 		reason:
-			"Cockpit: live recording follows the table in real time — starts, completions, events and seat changes are timestamped as they happen and retried calls append duplicate events; agents record finished play through the entry tools",
+			"Cockpit: live recording follows the table in real time — starts, day ends, next-day starts, completions, events and seat changes are timestamped as they happen and retried calls append duplicate events or days; the end and next-day undos belong to the same screen; agents record finished play through the entry tools",
 		paths: [
 			"live.list",
 			"live.getById",
 			"live.create",
 			"live.update",
 			"live.complete",
+			"live.endPlay",
+			"live.startNextPlay",
+			"live.undoEndPlay",
+			"live.undoStartNextPlay",
 			"live.discard",
 			"playEvent.list",
 			"playEvent.create",

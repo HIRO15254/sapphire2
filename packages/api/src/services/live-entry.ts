@@ -1,6 +1,8 @@
 import type { Database } from "@sapphire2/db";
 import {
+	type END_STATES_REQUIRING_STACK,
 	type EntryKind,
+	endStatesForKind,
 	type PlaySessionEndState,
 	SETTLING_END_STATES,
 } from "@sapphire2/db/constants/entry";
@@ -16,7 +18,7 @@ import { hand } from "@sapphire2/db/schema/hand";
 import { ledgerLine, userSetting } from "@sapphire2/db/schema/ledger";
 import { cashRule, tournamentRule } from "@sapphire2/db/schema/rule";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { runBatch, selectInChunks } from "../lib/batch";
 import type { CashRuleInput } from "./cash-rules";
 import {
@@ -28,6 +30,7 @@ import {
 	resolveAppendTarget,
 } from "./entry-live-writes";
 import {
+	projectEntry,
 	projectTournamentProgress,
 	type TournamentProgress,
 } from "./entry-projector";
@@ -113,8 +116,62 @@ export interface LiveCompleteInput {
 	totalEntries?: number;
 }
 
+export interface LiveEndPlayInput {
+	endState: (typeof END_STATES_REQUIRING_STACK)[number];
+	id: string;
+	occurredAt?: number;
+	stackAmount: number;
+}
+
+export interface LiveStartNextPlayInput {
+	id: string;
+	label?: string;
+	localDate?: string;
+	payments?: ManualPaymentInput[];
+	startedAt?: number;
+	startLevel?: number;
+}
+
+const TERMINAL_EVENT_TYPES = ["session_end", "day_end"];
+
 function badRequest(message: string): never {
 	throw new TRPCError({ code: "BAD_REQUEST", message });
+}
+
+function undoConflict(message: string): never {
+	throw new TRPCError({ code: "CONFLICT", message });
+}
+
+async function assertNoUnfinishedPlay(
+	db: Database,
+	userId: string
+): Promise<void> {
+	const [unfinished] = await db
+		.select({ id: playSession.id })
+		.from(playSession)
+		.where(and(eq(playSession.userId, userId), ne(playSession.status, "ended")))
+		.limit(1);
+	if (unfinished) {
+		throw new TRPCError({
+			code: "CONFLICT",
+			message: "Another play session is already in progress",
+		});
+	}
+}
+
+function assertTerminalTime(
+	state: EntryEventState,
+	playSessionId: string,
+	occurredAt: Date
+): void {
+	const latest = state.events
+		.filter((event) => event.playSessionId === playSessionId)
+		.reduce((max, event) => Math.max(max, event.occurredAt.getTime()), 0);
+	if (occurredAt.getTime() < latest) {
+		badRequest(
+			"The end time is earlier than an event already recorded in this play session"
+		);
+	}
 }
 
 export function eventInstant(seconds: number | undefined, now: Date): Date {
@@ -280,17 +337,7 @@ export async function startLiveEntry(
 		input.payments,
 		new Set()
 	);
-	const [unfinished] = await db
-		.select({ id: playSession.id })
-		.from(playSession)
-		.where(and(eq(playSession.userId, userId), ne(playSession.status, "ended")))
-		.limit(1);
-	if (unfinished) {
-		throw new TRPCError({
-			code: "CONFLICT",
-			message: "Another play session is already in progress",
-		});
-	}
+	await assertNoUnfinishedPlay(db, userId);
 	const localDate =
 		input.localDate ?? (await userLocalDate(db, userId, startedAt));
 	const id = crypto.randomUUID();
@@ -410,14 +457,7 @@ export async function completeLiveEntry(
 	}
 	assertRoles(input.payments, COMPLETE_ROLES[state.kind], "Completing");
 	const playSessionId = resolveAppendTarget(state, undefined);
-	const latest = state.events
-		.filter((event) => event.playSessionId === playSessionId)
-		.reduce((max, event) => Math.max(max, event.occurredAt.getTime()), 0);
-	if (occurredAt.getTime() < latest) {
-		badRequest(
-			"The end time is earlier than an event already recorded in this play session"
-		);
-	}
+	assertTerminalTime(state, playSessionId, occurredAt);
 	const payload = completePayload(state.kind, input);
 	const facts = await loadEntryRuleFacts(db, userId, input.id, state.kind);
 	await assertEventPayments(
@@ -435,6 +475,227 @@ export async function completeLiveEntry(
 		entryId: input.id,
 		now,
 		state,
+		userId,
+	});
+}
+
+export async function endLivePlay(
+	db: Database,
+	userId: string,
+	input: LiveEndPlayInput,
+	now: Date
+): Promise<void> {
+	const state = await loadEntryEventState(db, userId, input.id);
+	assertLiveEntry(state);
+	const occurredAt = eventInstant(input.occurredAt, now);
+	if (!endStatesForKind(state.kind).includes(input.endState)) {
+		badRequest(`A ${state.kind} day cannot end as ${input.endState}`);
+	}
+	const playSessionId = resolveAppendTarget(state, undefined);
+	assertTerminalTime(state, playSessionId, occurredAt);
+	await commitEntryEventChange(db, {
+		change: {
+			op: "append",
+			events: [
+				{
+					type: "day_end",
+					occurredAt,
+					playSessionId,
+					payload: { endState: input.endState, stackAmount: input.stackAmount },
+				},
+			],
+		},
+		entryId: input.id,
+		now,
+		state,
+		userId,
+	});
+}
+
+function assertContinuable(
+	kind: EntryKind,
+	endState: PlaySessionEndState | null,
+	input: LiveStartNextPlayInput
+): void {
+	if (endState === null) {
+		throw new TRPCError({
+			code: "PRECONDITION_FAILED",
+			message: "The entry's last play session has not ended",
+		});
+	}
+	if (endState === "finished" || endState === "cashed_out") {
+		throw new TRPCError({
+			code: "PRECONDITION_FAILED",
+			message:
+				"A finished entry cannot continue; undo its end to correct a mistaken finish",
+		});
+	}
+	if ((input.payments ?? []).length > 0 && endState !== "busted") {
+		badRequest("Only a re-entry after a bust records payments");
+	}
+	if (kind === "cash" && input.startLevel !== undefined) {
+		badRequest("A cash play session has no start level");
+	}
+}
+
+export async function startNextLivePlay(
+	db: Database,
+	userId: string,
+	input: LiveStartNextPlayInput,
+	now: Date
+): Promise<void> {
+	const state = await loadEntryEventState(db, userId, input.id);
+	assertLiveEntry(state);
+	const startedAt = eventInstant(input.startedAt, now);
+	const previous = state.playSessions.at(-1);
+	const projected = projectEntry(state.events, state).playSessions.at(-1);
+	if (!(previous && projected)) {
+		throw new TRPCError({
+			code: "INTERNAL_SERVER_ERROR",
+			message: "Entry is missing its play sessions",
+		});
+	}
+	assertContinuable(state.kind, projected.endState, input);
+	if (projected.endedAt && startedAt < projected.endedAt) {
+		badRequest(
+			"The next play session cannot start before the previous one ended"
+		);
+	}
+	const payments = input.payments ?? [];
+	const facts = await loadEntryRuleFacts(db, userId, input.id, state.kind);
+	await assertEventPayments(
+		db,
+		userId,
+		input.id,
+		facts.ruleVersionId,
+		payments
+	);
+	await assertNoUnfinishedPlay(db, userId);
+	const localDate =
+		input.localDate ?? (await userLocalDate(db, userId, startedAt));
+	const next = {
+		id: crypto.randomUUID(),
+		seq: previous.seq + 1,
+		localDate,
+		status: "active" as const,
+	};
+	await commitEntryEventChange(db, {
+		before: [
+			db.insert(playSession).values({
+				...next,
+				userId,
+				entryId: input.id,
+				kind: state.kind,
+				label: input.label ?? null,
+				createdAt: now,
+				updatedAt: now,
+			}),
+		],
+		change: {
+			op: "append",
+			events: [
+				{
+					type: "session_start",
+					occurredAt: startedAt,
+					playSessionId: next.id,
+					payload: {
+						payments,
+						...(input.startLevel === undefined
+							? {}
+							: { startLevel: input.startLevel }),
+					},
+				},
+			],
+		},
+		entryId: input.id,
+		now,
+		state: { ...state, playSessions: [...state.playSessions, next] },
+		userId,
+	});
+}
+
+export async function undoLiveEndPlay(
+	db: Database,
+	userId: string,
+	id: string,
+	now: Date
+): Promise<void> {
+	const state = await loadEntryEventState(db, userId, id);
+	assertLiveEntry(state);
+	const last = state.playSessions.at(-1);
+	const terminal = state.events
+		.filter((event) => event.playSessionId === last?.id)
+		.at(-1);
+	if (
+		!(
+			last?.status === "ended" &&
+			terminal &&
+			TERMINAL_EVENT_TYPES.includes(terminal.type)
+		)
+	) {
+		undoConflict("The entry's last play session has no end to undo");
+	}
+	await assertNoUnfinishedPlay(db, userId);
+	await commitEntryEventChange(db, {
+		change: { op: "delete", id: terminal.id },
+		entryId: id,
+		now,
+		state,
+		userId,
+	});
+}
+
+export async function undoLiveStartNextPlay(
+	db: Database,
+	userId: string,
+	id: string,
+	now: Date
+): Promise<void> {
+	const state = await loadEntryEventState(db, userId, id);
+	assertLiveEntry(state);
+	const last = state.playSessions.at(-1);
+	if (!last || last.seq <= 1) {
+		undoConflict("Only a later play session of the entry can be discarded");
+	}
+	const events = state.events.filter(
+		(event) => event.playSessionId === last.id
+	);
+	const [start] = events;
+	if (!(events.length === 1 && start?.type === "session_start")) {
+		undoConflict(
+			"The last play session has events beyond its start and cannot be discarded"
+		);
+	}
+	const [counted] = await db
+		.select({ id: hand.id })
+		.from(hand)
+		.where(and(eq(hand.playSessionId, last.id), eq(hand.userId, userId)))
+		.limit(1);
+	if (counted) {
+		undoConflict("The last play session has hands and cannot be discarded");
+	}
+	const owned = and(
+		eq(playSession.id, last.id),
+		eq(playSession.entryId, id),
+		eq(playSession.userId, userId)
+	);
+	await commitEntryEventChange(db, {
+		before: [
+			db
+				.update(playSession)
+				.set({
+					seq: sql`CASE WHEN EXISTS (SELECT 1 FROM ${hand} WHERE ${hand.playSessionId} = ${last.id}) OR EXISTS (SELECT 1 FROM ${playEvent} WHERE ${playEvent.playSessionId} = ${last.id} AND ${playEvent.id} <> ${start.id}) THEN NULL ELSE ${playSession.seq} END`,
+				})
+				.where(owned),
+		],
+		change: { op: "delete", id: start.id },
+		after: [db.delete(playSession).where(owned)],
+		entryId: id,
+		now,
+		state: {
+			...state,
+			playSessions: state.playSessions.filter((play) => play.id !== last.id),
+		},
 		userId,
 	});
 }

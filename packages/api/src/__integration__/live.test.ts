@@ -420,6 +420,14 @@ describe("live API on D1", () => {
 					beforeDeadline: true,
 					payments: [],
 				}),
+				api.bob.live.endPlay({
+					id: aliceEntry.id,
+					endState: "bagged",
+					stackAmount: 1000,
+				}),
+				api.bob.live.startNextPlay({ id: aliceEntry.id }),
+				api.bob.live.undoEndPlay({ id: aliceEntry.id }),
+				api.bob.live.undoStartNextPlay({ id: aliceEntry.id }),
 				api.bob.live.discard({ id: aliceEntry.id }),
 				api.bob.playEvent.list({ entryId: aliceEntry.id }),
 				api.bob.playEvent.create({
@@ -674,5 +682,397 @@ describe("live API on D1", () => {
 		expect(created.meter.statements).toBeLessThanOrEqual(
 			D1_QUERIES_PER_INVOCATION - AUTH_QUERY_RESERVE
 		);
+	});
+});
+
+function linesOf(output: EntryOutput) {
+	return output.lines.map(({ role, quantity, playSessionId }) => ({
+		role,
+		quantity,
+		playSessionId,
+	}));
+}
+
+async function rowsWithoutWriteTimes(api: ApiFixture) {
+	const rows = await everyRow(api);
+	return {
+		entries: rows.entries.map(({ updatedAt: _, ...row }) => row),
+		plays: rows.plays.map(({ updatedAt: _, ...row }) => row),
+		events: rows.events,
+		lines: rows.lines.map((line) => line.id),
+	};
+}
+
+describe("live multi-day API on D1", () => {
+	test("a tournament busts on Day 1A, re-enters on Day 1C, bags and busts on Day 2", async ({
+		api,
+	}) => {
+		const { jpy } = await setup(api);
+		const t0 = nowSeconds() - 30 * HOUR;
+		const day1a = await api.alice.live.create({
+			kind: "tournament",
+			startedAt: t0,
+			localDate: "2026-11-01",
+			label: "Day 1A",
+			rule: { startingStack: 20_000 },
+			payments: [real("buy_in", jpy.id, 10_000), real("fee", jpy.id, 1000)],
+		});
+		const busted = await api.alice.live.complete({
+			id: day1a.id,
+			occurredAt: t0 + HOUR,
+			endState: "busted",
+			beforeDeadline: true,
+			payments: [],
+		});
+		expect(busted.status).toBe("settled");
+
+		const day1c = await api.alice.live.startNextPlay({
+			id: day1a.id,
+			startedAt: t0 + 2 * HOUR,
+			localDate: "2026-11-01",
+			label: "Day 1C",
+			startLevel: 5,
+			payments: [real("reentry", jpy.id, 10_000), real("fee", jpy.id, 1000)],
+		});
+		const day1cId = day1c.playSessions[1]?.id;
+		expect(day1c.status).toBe("open");
+		expect(day1c.playSessions).toMatchObject([
+			{ seq: 1, label: "Day 1A", status: "ended", endState: "busted" },
+			{
+				seq: 2,
+				label: "Day 1C",
+				status: "active",
+				endState: null,
+				clockStartLevel: 5,
+			},
+		]);
+		expect(linesOf(day1c).filter((line) => line.role === "reentry")).toEqual([
+			{ role: "reentry", quantity: -10_000, playSessionId: day1cId },
+		]);
+
+		await api.alice.playEvent.create({
+			entryId: day1a.id,
+			eventType: "session_pause",
+			occurredAt: t0 + 2 * HOUR + 1800,
+			payload: {},
+		});
+		const bagged = await api.alice.live.endPlay({
+			id: day1a.id,
+			occurredAt: t0 + 4 * HOUR,
+			endState: "bagged",
+			stackAmount: 55_000,
+		});
+		expect(bagged.status).toBe("open");
+		expect(bagged.playSessions[1]).toMatchObject({
+			status: "ended",
+			endState: "bagged",
+			endStack: 55_000,
+			breakMinutes: 90,
+		});
+		for (const error of await Promise.all(
+			[
+				api.alice.playEvent.create({
+					entryId: day1a.id,
+					eventType: "session_resume",
+					payload: {},
+				}),
+				api.alice.playEvent.create({
+					entryId: day1a.id,
+					eventType: "memo",
+					payload: { text: "late" },
+				}),
+			].map(failure)
+		)) {
+			expect(error).toMatchObject({ code: "PRECONDITION_FAILED" });
+		}
+		expect(
+			await failure(
+				api.alice.live.startNextPlay({
+					id: day1a.id,
+					payments: [real("reentry", jpy.id, 10_000)],
+				})
+			)
+		).toMatchObject({ code: "BAD_REQUEST" });
+
+		await api.alice.live.startNextPlay({
+			id: day1a.id,
+			startedAt: t0 + 24 * HOUR,
+			localDate: "2026-11-02",
+			label: "Day 2",
+		});
+		const final = await api.alice.live.complete({
+			id: day1a.id,
+			occurredAt: t0 + 27 * HOUR,
+			endState: "busted",
+			placement: 12,
+			totalEntries: 300,
+			payments: [real("prize", jpy.id, 50_000)],
+		});
+		expect(final).toMatchObject({
+			status: "settled",
+			playedOn: "2026-11-01",
+			playMinutes: 60 + 30 + 180,
+			tournament: { placement: 12, totalEntries: 300, beforeDeadline: false },
+		});
+		expect(final.playSessions.map((play) => play.endState)).toEqual([
+			"busted",
+			"bagged",
+			"busted",
+		]);
+		expect(
+			linesOf(final).map(({ role, quantity }) => [role, quantity])
+		).toEqual([
+			["buy_in", -10_000],
+			["fee", -1000],
+			["reentry", -10_000],
+			["fee", -1000],
+			["prize", 50_000],
+		]);
+		expect(final.totals[0]?.profitLoss).toBe(50_000 - 22_000);
+	});
+
+	test("a cash day is held, resumed as a new day and cashed out; continuing then needs undoEndPlay", async ({
+		api,
+	}) => {
+		const { jpy, rule } = await setup(api);
+		const t0 = nowSeconds() - 30 * HOUR;
+		const started = await api.alice.live.create({
+			kind: "cash",
+			startedAt: t0,
+			localDate: "2026-11-01",
+			rule,
+			payments: [real("buy_in", jpy.id, 10_000)],
+		});
+		const id = started.id;
+		await api.alice.playEvent.create({
+			entryId: id,
+			eventType: "session_pause",
+			occurredAt: t0 + HOUR,
+			payload: {},
+		});
+		const held = await api.alice.live.endPlay({
+			id,
+			occurredAt: t0 + 2 * HOUR,
+			endState: "held",
+			stackAmount: 12_000,
+		});
+		expect(held).toMatchObject({ status: "open", totals: [{ cashOut: 0 }] });
+		expect(held.playSessions[0]).toMatchObject({
+			status: "ended",
+			endState: "held",
+			endStack: 12_000,
+			breakMinutes: 60,
+		});
+
+		for (const input of [
+			{ id, startedAt: t0 + HOUR },
+			{ id, startLevel: 2 },
+			{ id, payments: [real("reentry", jpy.id, 100)] },
+		]) {
+			expect(await failure(api.alice.live.startNextPlay(input))).toMatchObject({
+				code: "BAD_REQUEST",
+			});
+		}
+		await api.alice.live.startNextPlay({
+			id,
+			startedAt: t0 + 20 * HOUR,
+			localDate: "2026-11-02",
+		});
+		const cashed = await api.alice.live.complete({
+			id,
+			occurredAt: t0 + 22 * HOUR,
+			endState: "cashed_out",
+			payments: [real("cash_out", jpy.id, 15_000)],
+		});
+		expect(cashed).toMatchObject({
+			status: "settled",
+			playMinutes: 60 + 120,
+			totals: [{ buyIn: 10_000, cashOut: 15_000, profitLoss: 5000 }],
+		});
+
+		expect(await failure(api.alice.live.startNextPlay({ id }))).toMatchObject({
+			code: "PRECONDITION_FAILED",
+		});
+		const reopened = await api.alice.live.undoEndPlay({ id });
+		expect(reopened).toMatchObject({
+			status: "open",
+			totals: [{ cashOut: 0, profitLoss: -10_000 }],
+		});
+		expect(reopened.playSessions[1]).toMatchObject({
+			status: "active",
+			endState: null,
+			endedAt: null,
+		});
+	});
+
+	test("a finished tournament cannot continue but undoEndPlay reverts a mistaken finish", async ({
+		api,
+	}) => {
+		const { jpy } = await setup(api);
+		const started = await api.alice.live.create({
+			kind: "tournament",
+			startedAt: nowSeconds() - HOUR,
+			payments: [real("buy_in", jpy.id, 1000)],
+		});
+		await api.alice.live.complete({
+			id: started.id,
+			endState: "finished",
+			placement: 1,
+			totalEntries: 9,
+			payments: [real("prize", jpy.id, 5000)],
+		});
+		expect(
+			await failure(api.alice.live.startNextPlay({ id: started.id }))
+		).toMatchObject({ code: "PRECONDITION_FAILED" });
+
+		const reverted = await api.alice.live.undoEndPlay({ id: started.id });
+		expect(reverted).toMatchObject({
+			status: "open",
+			tournament: { placement: null, beforeDeadline: false },
+		});
+		expect(reverted.lines.map((line) => line.role)).toEqual(["buy_in"]);
+		expect(
+			await failure(api.alice.live.undoEndPlay({ id: started.id }))
+		).toMatchObject({ code: "CONFLICT" });
+	});
+
+	test("endPlay rejects a wrong-kind state, a future time and an end before the day's last event without writes", async ({
+		api,
+	}) => {
+		const { jpy } = await setup(api);
+		const startedAt = nowSeconds() - HOUR;
+		const started = await api.alice.live.create({
+			kind: "tournament",
+			startedAt,
+			payments: [real("buy_in", jpy.id, 1000)],
+		});
+		await api.alice.playEvent.create({
+			entryId: started.id,
+			eventType: "memo",
+			occurredAt: startedAt + 1800,
+			payload: { text: "Level 5" },
+		});
+		const before = await everyRow(api);
+		for (const input of [
+			{ endState: "held" as const },
+			{ occurredAt: nowSeconds() + 600 },
+			{ occurredAt: startedAt + 600 },
+		]) {
+			expect(
+				await failure(
+					api.alice.live.endPlay({
+						id: started.id,
+						endState: "bagged",
+						stackAmount: 1000,
+						...input,
+					})
+				)
+			).toMatchObject({ code: "BAD_REQUEST" });
+		}
+		expect(await everyRow(api)).toEqual(before);
+	});
+
+	test("undoStartNextPlay removes the re-entry payment with the empty day and refuses a day with events or hands", async ({
+		api,
+	}) => {
+		const { jpy } = await setup(api);
+		const started = await api.alice.live.create({
+			kind: "tournament",
+			startedAt: nowSeconds() - 2 * HOUR,
+			payments: [real("buy_in", jpy.id, 1000)],
+		});
+		const id = started.id;
+		expect(
+			await failure(api.alice.live.undoStartNextPlay({ id }))
+		).toMatchObject({ code: "CONFLICT" });
+		await api.alice.live.complete({
+			id,
+			occurredAt: nowSeconds() - HOUR,
+			endState: "busted",
+			beforeDeadline: true,
+			payments: [],
+		});
+		const beforeNext = await rowsWithoutWriteTimes(api);
+
+		const bobAsset = requireCreatedRow(
+			await api.bob.asset.create({ name: "Bob JPY", kind: "currency" })
+		);
+		expect(
+			await failure(
+				api.alice.live.startNextPlay({
+					id,
+					payments: [real("reentry", bobAsset.id, 1000)],
+				})
+			)
+		).toMatchObject({ code: "FORBIDDEN" });
+		expect(await rowsWithoutWriteTimes(api)).toEqual(beforeNext);
+
+		await api.alice.live.startNextPlay({
+			id,
+			payments: [real("reentry", jpy.id, 1000), real("fee", jpy.id, 100)],
+		});
+		const undone = await api.alice.live.undoStartNextPlay({ id });
+		expect(undone).toMatchObject({
+			status: "settled",
+			playSessions: [{ seq: 1, endState: "busted" }],
+		});
+		expect(await rowsWithoutWriteTimes(api)).toEqual(beforeNext);
+
+		const next = await api.alice.live.startNextPlay({ id });
+		const memo = await api.alice.playEvent.create({
+			entryId: id,
+			eventType: "memo",
+			payload: { text: "Seat 4" },
+		});
+		expect(
+			await failure(api.alice.live.undoStartNextPlay({ id }))
+		).toMatchObject({ code: "CONFLICT" });
+		await api.alice.playEvent.delete({ id: memo.id });
+		await api.alice.hand.add({ playSessionId: next.playSessions[1]?.id ?? "" });
+		expect(
+			await failure(api.alice.live.undoStartNextPlay({ id }))
+		).toMatchObject({ code: "CONFLICT" });
+		expect((await api.alice.live.getById({ id })).playSessions).toHaveLength(2);
+	});
+
+	test("concurrent next-day starts and an undo against another live play leave one unfinished play", async ({
+		api,
+	}) => {
+		const { jpy, rule } = await setup(api);
+		const first = await api.alice.live.create({
+			kind: "tournament",
+			startedAt: nowSeconds() - HOUR,
+			payments: [real("buy_in", jpy.id, 1000)],
+		});
+		await api.alice.live.complete({
+			id: first.id,
+			endState: "busted",
+			beforeDeadline: true,
+			payments: [],
+		});
+		const results = await Promise.allSettled([
+			api.alice.live.startNextPlay({ id: first.id }),
+			api.alice.live.startNextPlay({ id: first.id }),
+		]);
+		expect(
+			results.filter((result) => result.status === "fulfilled")
+		).toHaveLength(1);
+		expect(
+			results.find((result) => result.status === "rejected")?.reason
+		).toMatchObject({ code: "CONFLICT" });
+		expect(await api.db.select().from(playSession)).toHaveLength(2);
+
+		await api.alice.live.endPlay({
+			id: first.id,
+			endState: "bagged",
+			stackAmount: 5000,
+		});
+		await api.alice.live.create({ kind: "cash", rule, payments: [] });
+		expect(
+			await failure(api.alice.live.undoEndPlay({ id: first.id }))
+		).toMatchObject({ code: "CONFLICT" });
+		expect(
+			await failure(api.alice.live.startNextPlay({ id: first.id }))
+		).toMatchObject({ code: "CONFLICT" });
 	});
 });
