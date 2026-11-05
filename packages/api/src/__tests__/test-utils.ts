@@ -196,7 +196,11 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 			return {
 				where: vi.fn((cond: unknown) => {
 					updateWhereParams.push(boundParams(cond));
-					return Promise.resolve(undefined);
+					const chain = Promise.resolve(undefined) as Promise<undefined> & {
+						returning: () => Promise<MockRow[]>;
+					};
+					chain.returning = () => Promise.resolve(selectRows[name] ?? []);
+					return chain;
 				}),
 			};
 		}),

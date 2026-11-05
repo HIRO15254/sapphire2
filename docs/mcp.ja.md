@@ -103,6 +103,8 @@ B06 の切り替えで旧完了セッション・ライブセッション API �
 
 `tournament_update_with_levels`・`game_mix_update` は子リストを**丸ごと置き換える**ので、先に現在の内容を読んでから全件を送ってください。トーナメントの `rule` は不変の版です。`game` は `{ variantId }`・`{ gameMixId }`・`{ lineupId }` のいずれか、各レベルの `stakes` はそのゲームのグループごとに lineup の順で 1 件ずつ（`anteType` は none / all / bb）、`prices` は `{ kind: entry | reentry | addon, assetId, amount, fee, chips, label? }` で、レベルは最大 100 件、価格は最大 20 件です。内容が同じ保存では版を作らず、変更があれば新しい版を作って古い版を残します。過去の版への復元（`tournament.restoreRule`）はトーナメント画面だけで行います。
 
+ゲームグループはブラインドのラベルと並んで `blind1Required`〜`blind3Required` を持ちます。組み込みの Limit と Stud は Small Bet と Big Bet が必須（Stud の Bring-in は任意）、Big Bet は SB と BB が必須で 3 番目の欄はありません。`game_group_create` ではすべて false が既定で、必須にできるのはラベルのある欄だけです。新しく書くリングゲーム・トーナメントのルール版（引き継いだ stakes を含む）は、必須の欄をすべて埋め、ラベルのない欄を空にする必要があります（`BAD_REQUEST`）。ante は対象外で、変更のない版の再利用は検査しません。`game_group_update` は、保存済みの stake にその欄の値が残っている間はラベルを消せません（`CONFLICT`）。
+
 `hand_list` は 1 つの play session のハンドを `handNo` の大きい順に 1 ページ 1〜50 件（既定 20 件）返し、`{ items, nextCursor }` を返します。次のページは `nextCursor` を `cursor` に渡します。cursor は取得したときの `playSessionId` でだけ使えます。play session のハンド数はハンドの件数、現在のボタンは最大の `handNo` のハンドの `buttonSeat` です。ハンドカウンターの書き込み（`hand.add`・`hand.undoLast`）と `hand.delete` は公開していません。
 
 `asset_list` は通貨とアイテムを `balance` 付きで返します。`balance` はその資産の real な台帳明細の符号付き合計（最小単位の整数。アイテムでは保有数）で、プレイ中の entry の buy-in も含みます。アーカイブ済みの資産は `includeArchived` を指定したときだけ、アクティブなものと合わせて返します。`asset_rate_list` はレートの履歴を、`effectiveAt` を指定するとベース/クォートの向きごとにその時点で有効な最新のレートを返します。`user_setting_get` は換算の基準通貨とタイムゾーン（`null` は Asia/Tokyo）を返します。どちらかや過去のレートを変えると、過去の換算値も変わります。資産・レート・設定の書き込みは公開していません。財布の台帳（`ledger.*`: 資産ごとの履歴、入出金、両替）とその分類（`ledgerCategory.*`）も公開していません。

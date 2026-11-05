@@ -99,7 +99,12 @@ describe("installed D1 referential integrity", () => {
 	test("preserves recorded session snapshots while deleted room, currency and ring-game links become null", async ({
 		api,
 	}) => {
-		await api.alice.gameVariant.list();
+		const nlh = (await api.alice.gameVariant.list()).find(
+			(row) => row.builtinKey === "nlh"
+		);
+		if (!nlh) {
+			throw new Error("missing builtin nlh");
+		}
 		const wallet = requireCreatedRow(
 			await api.alice.asset.create({ name: "Local chips", kind: "currency" })
 		);
@@ -114,7 +119,10 @@ describe("installed D1 referential integrity", () => {
 				roomId: "old-room",
 				defaultAssetId: wallet.id,
 				name: "Old game",
-				rule: {},
+				rule: {
+					game: { variantId: nlh.id },
+					stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+				},
 			})
 		);
 		await api.db.insert(gameSession).values({

@@ -72,6 +72,9 @@ export async function seedDefaultGameData(
 				blind1Label: g.blind1Label,
 				blind2Label: g.blind2Label,
 				blind3Label: g.blind3Label,
+				blind1Required: g.blind1Required,
+				blind2Required: g.blind2Required,
+				blind3Required: g.blind3Required,
 				updatedAt: now,
 			})
 			.onConflictDoNothing()

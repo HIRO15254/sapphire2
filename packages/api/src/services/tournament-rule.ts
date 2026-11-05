@@ -22,6 +22,7 @@ import {
 	loadLineups,
 } from "./game-lineup";
 import {
+	assertStakeBlinds,
 	type CarriedStake,
 	type PlannedStake,
 	planStakes,
@@ -609,6 +610,11 @@ export async function planTournamentRuleWrite(params: {
 	if (current && plannedSignature(content) === storedSignature(current)) {
 		return { ruleId: current.id, statements: [] };
 	}
+	await assertStakeBlinds(
+		db,
+		userId,
+		content.levels.flatMap((level) => level.stakes)
+	);
 
 	const ruleId = crypto.randomUUID();
 	const levelRows = content.levels.map((level, index) => ({

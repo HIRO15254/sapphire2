@@ -1,6 +1,10 @@
+import type { Database } from "@sapphire2/db";
 import { ANTE_TYPES } from "@sapphire2/db/constants/rule";
+import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { TRPCError } from "@trpc/server";
+import { and, eq, inArray } from "drizzle-orm";
 import z from "zod";
+import { selectInChunks } from "../lib/batch";
 
 const blindAmountSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
@@ -97,4 +101,56 @@ export function planStakes(
 			anteType: stake.anteType ?? null,
 		};
 	});
+}
+
+const BLIND_FIELDS = [
+	{ value: "blind1", label: "blind1Label", required: "blind1Required" },
+	{ value: "blind2", label: "blind2Label", required: "blind2Required" },
+	{ value: "blind3", label: "blind3Label", required: "blind3Required" },
+] as const;
+
+export async function assertStakeBlinds(
+	db: Database,
+	userId: string,
+	stakes: (StakeValues & { gameGroupId: string })[]
+): Promise<void> {
+	const ids = [...new Set(stakes.map((stake) => stake.gameGroupId))];
+	if (ids.length === 0) {
+		return;
+	}
+	const rows = await selectInChunks(
+		ids,
+		(chunk) =>
+			db
+				.select()
+				.from(gameGroup)
+				.where(and(eq(gameGroup.userId, userId), inArray(gameGroup.id, chunk))),
+		1
+	);
+	const groups = new Map(rows.map((row) => [row.id, row]));
+	for (const stake of stakes) {
+		const group = groups.get(stake.gameGroupId);
+		if (!group) {
+			throw new TRPCError({
+				code: "FORBIDDEN",
+				message: "You do not own this game group",
+			});
+		}
+		for (const field of BLIND_FIELDS) {
+			const label = group[field.label];
+			const value = stake[field.value];
+			if (label === null && value !== null) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: `${group.label} has no ${field.value} field; leave it empty`,
+				});
+			}
+			if (label !== null && group[field.required] && value === null) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: `${label} is required for ${group.label}`,
+				});
+			}
+		}
+	}
 }
