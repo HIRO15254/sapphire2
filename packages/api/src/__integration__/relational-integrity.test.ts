@@ -1,7 +1,7 @@
 import { asset } from "@sapphire2/db/schema/asset";
 import { user } from "@sapphire2/db/schema/auth";
 import { ledgerCategory, ledgerLine } from "@sapphire2/db/schema/ledger";
-import { player, playerToPlayerTag } from "@sapphire2/db/schema/player";
+import { player, playerTagLink } from "@sapphire2/db/schema/player";
 import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
@@ -87,13 +87,13 @@ describe("installed D1 referential integrity", () => {
 		await expect(
 			api.d1
 				.prepare(
-					"INSERT INTO player_to_player_tag (player_id, player_tag_id, position) VALUES (?, 'absent-tag', 0)"
+					"INSERT INTO player_tag_link (user_id, player_id, tag_id, position) VALUES ('alice', ?, 'absent-tag', 0)"
 				)
 				.bind(saved.id)
 				.run()
 		).rejects.toThrow("FOREIGN KEY constraint failed");
 		expect(await api.db.select().from(player)).toHaveLength(1);
-		expect(await api.db.select().from(playerToPlayerTag)).toEqual([]);
+		expect(await api.db.select().from(playerTagLink)).toEqual([]);
 	});
 
 	test("preserves recorded session snapshots while deleted room, currency and ring-game links become null", async ({
@@ -211,7 +211,7 @@ describe("installed D1 referential integrity", () => {
 		expect(await api.db.select().from(sessionEvent)).toEqual([]);
 		expect(await api.db.select().from(ledgerLine)).toEqual([]);
 		expect(await api.db.select().from(ledgerCategory)).toEqual([]);
-		expect(await api.db.select().from(playerToPlayerTag)).toEqual([]);
+		expect(await api.db.select().from(playerTagLink)).toEqual([]);
 		expect(await api.bob.player.list()).toEqual([
 			expect.objectContaining({ id: bobPlayer.id, name: "Bob stays" }),
 		]);

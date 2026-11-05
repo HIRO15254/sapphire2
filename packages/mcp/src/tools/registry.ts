@@ -7,7 +7,6 @@ import {
 	entryListInputSchema,
 	entryUpdateInputSchema,
 } from "@sapphire2/api/routers/entry";
-import { entryTagCreateInputSchema } from "@sapphire2/api/routers/entry-tag";
 import {
 	gameGroupCreateInputSchema,
 	gameGroupIdInputSchema,
@@ -31,6 +30,7 @@ import {
 	handListInputSchema,
 } from "@sapphire2/api/routers/hand";
 import { playerListInputSchema } from "@sapphire2/api/routers/player";
+import { playerTagCreateInputSchema } from "@sapphire2/api/routers/player-tag";
 import {
 	ringGameCreateInputSchema,
 	ringGameIdInputSchema,
@@ -47,6 +47,7 @@ import {
 	breakdownFilterSchema,
 	statsFilterSchema,
 } from "@sapphire2/api/routers/stats";
+import { tagCreateInputSchema } from "@sapphire2/api/routers/tag-router";
 import {
 	tournamentCreateWithLevelsInputSchema,
 	tournamentIdInputSchema,
@@ -141,7 +142,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "player_list",
 		procedurePath: "player.list",
 		description:
-			"List the user's tracked opponents, excluding their own Hero (self) player and temporary players. Optional: search (name substring), tagIds (player-tag ids).",
+			"List the user's tracked opponents, excluding their own Hero (self) player and temporary players. Optional: search (name substring), tagIds (player_tag_list ids; a player matches when it has any of them).",
 		inputSchema: playerListInputSchema,
 	},
 	{
@@ -155,7 +156,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "hand_get_by_id",
 		procedurePath: "hand.getById",
 		description:
-			"Get one hand by id with its boards, seats and actions (ordered by seq). Use hand_list to find hand ids.",
+			"Get one hand by id with its boards, seats, actions (ordered by seq) and tags (with reviewedAt). Use hand_list to find hand ids.",
 		inputSchema: handIdInputSchema,
 	},
 	{
@@ -204,8 +205,53 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "entry_tag_create",
 		procedurePath: "entryTag.create",
 		description:
-			"Create an entry tag by name (trimmed, 1-50 characters). Names are unique per user ignoring case; a duplicate is rejected, so check entry_tag_list first.",
-		inputSchema: entryTagCreateInputSchema,
+			"Create an entry tag by name (trimmed, 1-50 characters). Names are unique per user ignoring case; a duplicate is rejected, so check entry_tag_list first. A user has at most 500 entry tags.",
+		inputSchema: tagCreateInputSchema,
+		destructiveHint: false,
+		idempotentHint: false,
+	},
+	{
+		name: "tournament_tag_list",
+		procedurePath: "tournamentTag.list",
+		description:
+			"List the user's tournament tags ordered by position. Use the returned ids as tagIds of tournament_create_with_levels and tournament_update_with_levels.",
+	},
+	{
+		name: "tournament_tag_create",
+		procedurePath: "tournamentTag.create",
+		description:
+			"Create a tournament tag by name (trimmed, 1-50 characters). Names are unique per user ignoring case; a duplicate is rejected, so check tournament_tag_list first. A user has at most 500 tournament tags.",
+		inputSchema: tagCreateInputSchema,
+		destructiveHint: false,
+		idempotentHint: false,
+	},
+	{
+		name: "hand_tag_list",
+		procedurePath: "handTag.list",
+		description:
+			"List the user's hand tags ordered by position. hand_get_by_id and hand_list return the tags attached to each hand.",
+	},
+	{
+		name: "hand_tag_create",
+		procedurePath: "handTag.create",
+		description:
+			"Create a hand tag by name (trimmed, 1-50 characters). Names are unique per user ignoring case; a duplicate is rejected, so check hand_tag_list first. A user has at most 500 hand tags.",
+		inputSchema: tagCreateInputSchema,
+		destructiveHint: false,
+		idempotentHint: false,
+	},
+	{
+		name: "player_tag_list",
+		procedurePath: "playerTag.list",
+		description:
+			"List the user's player tags ordered by position, with their color. Use the returned ids as tagIds of player_list.",
+	},
+	{
+		name: "player_tag_create",
+		procedurePath: "playerTag.create",
+		description:
+			"Create a player tag by name (trimmed, 1-50 characters) and optional color (default gray). Names are unique per user ignoring case; a duplicate is rejected, so check player_tag_list first. A user has at most 500 player tags.",
+		inputSchema: playerTagCreateInputSchema,
 		destructiveHint: false,
 		idempotentHint: false,
 	},
@@ -311,7 +357,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "tournament_create_with_levels",
 		procedurePath: "tournament.createWithLevels",
-		description: `Create a tournament master inside a room with its first rule version and tags in one call. Required: roomId, name, rule.levels (may be empty). rule.game defaults to NL Hold'em. defaultAssetId (asset_list) is the asset sessions default to. ${TOURNAMENT_RULE_CONTRACT}`,
+		description: `Create a tournament master inside a room with its first rule version and tags in one call. Required: roomId, name, rule.levels (may be empty). rule.game defaults to NL Hold'em. defaultAssetId (asset_list) is the asset sessions default to. tagIds are tournament tag ids from tournament_tag_list (unique, at most 100). ${TOURNAMENT_RULE_CONTRACT}`,
 		inputSchema: tournamentCreateWithLevelsInputSchema,
 		destructiveHint: false,
 		idempotentHint: false,
@@ -319,7 +365,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "tournament_update_with_levels",
 		procedurePath: "tournament.updateWithLevels",
-		description: `Update a tournament master by id. rule.levels is REQUIRED and REPLACES the entire level list — read tournament_get_by_id first and send back the full list, or the existing levels are lost. Omitted rule fields (game, startingStack, tableSize, bountyAmount, houseRules, prices) keep the current version's values; tags replaces the tag names when supplied. ${TOURNAMENT_RULE_CONTRACT}`,
+		description: `Update a tournament master by id. rule.levels is REQUIRED and REPLACES the entire level list — read tournament_get_by_id first and send back the full list, or the existing levels are lost. Omitted rule fields (game, startingStack, tableSize, bountyAmount, houseRules, prices) keep the current version's values. tagIds (tournament_tag_list ids, unique, at most 100) REPLACES the whole tag list when supplied — send back every tag you keep; [] removes all, omitted keeps them. ${TOURNAMENT_RULE_CONTRACT}`,
 		inputSchema: tournamentUpdateWithLevelsInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
@@ -477,6 +523,9 @@ const ENTITY_NAMES: Record<string, string> = {
 	stats: "statistics",
 	entry: "entries",
 	entryTag: "entry tags",
+	tournamentTag: "tournament tags",
+	handTag: "hand tags",
+	playerTag: "player tags",
 	room: "rooms",
 	asset: "assets",
 	assetRate: "asset rates",
@@ -580,8 +629,13 @@ export const DELIBERATELY_EXCLUDED: {
 	},
 	{
 		reason:
-			"Destructive: deleting a tag removes it from every entry, and no API can restore the links",
-		paths: ["entryTag.delete"],
+			"Destructive: deleting a tag removes it from every entry, tournament, hand or player it is linked to, and no API can restore the links",
+		paths: [
+			"entryTag.delete",
+			"tournamentTag.delete",
+			"handTag.delete",
+			"playerTag.delete",
+		],
 	},
 	{
 		reason:
@@ -595,26 +649,13 @@ export const DELIBERATELY_EXCLUDED: {
 	},
 	{
 		reason:
-			"Tournament tags are managed wholesale through tournament.createWithLevels / updateWithLevels (and read back via tournament.getById), so per-row tag CRUD would be a second, drift-prone way to do the same thing",
-		paths: ["tournament.addTag", "tournament.removeTag"],
-	},
-	{
-		reason:
 			"Rule-version history is browsed and restored on the tournament screen; the tools expose only the current version, so a model has no version ids to restore from",
 		paths: ["tournament.restoreRule"],
 	},
 	{
 		reason:
-			"Outside the requested MCP scope: players and player tags are opponent notes maintained on the player screens, not rooms or game masters",
-		paths: [
-			"player.create",
-			"player.update",
-			"player.delete",
-			"playerTag.list",
-			"playerTag.create",
-			"playerTag.update",
-			"playerTag.delete",
-		],
+			"Outside the requested MCP scope: players are opponent notes maintained on the player screens, not rooms or game masters",
+		paths: ["player.create", "player.update", "player.delete"],
 	},
 	{
 		reason:
@@ -664,8 +705,23 @@ export const DELIBERATELY_EXCLUDED: {
 	},
 	{
 		reason:
-			"Tag maintenance: renaming a tag relabels every entry it is linked to, which belongs to the tag screen; entry_tag_list and entry_tag_create cover what an agent needs to tag entries",
-		paths: ["entryTag.update"],
+			"Tag maintenance: renaming a tag relabels every entry, tournament, hand or player it is linked to, and recoloring a player tag restyles every opponent, which belongs to the tag screen; the *_tag_list and *_tag_create tools cover what an agent needs to attach tags",
+		paths: [
+			"entryTag.update",
+			"tournamentTag.update",
+			"handTag.update",
+			"playerTag.update",
+		],
+	},
+	{
+		reason:
+			"Screen ordering: tag order is arranged by drag on the tag screen and every call must list all tags of the kind; list order does not change what a tag means",
+		paths: [
+			"entryTag.reorder",
+			"tournamentTag.reorder",
+			"handTag.reorder",
+			"playerTag.reorder",
+		],
 	},
 	{
 		reason:

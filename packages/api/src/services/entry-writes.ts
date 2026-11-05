@@ -38,7 +38,6 @@ import type { TournamentRuleInput } from "./tournament-rule";
 
 export const MAX_ENTRY_PLAY_SESSIONS = 100;
 export const MAX_ENTRY_PAYMENTS = 1000;
-export const MAX_ENTRY_TAGS = 100;
 
 const SEQ_SHIFT = 1_000_000;
 const OWNER_SCOPED_CHUNK_EXTRA = 1;
