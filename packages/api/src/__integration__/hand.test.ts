@@ -8,20 +8,28 @@ import {
 	handBoard,
 	handSeat,
 } from "@sapphire2/db/schema/hand";
+import { handTag } from "@sapphire2/db/schema/hand-tag";
 import { player } from "@sapphire2/db/schema/player";
 import { asc, eq } from "drizzle-orm";
-import { describe, expect, vi } from "vitest";
-import { D1_MAX_BOUND_PARAMS } from "../lib/batch";
+import { describe, expect } from "vitest";
+import { chunkForInsert, D1_MAX_BOUND_PARAMS, runBatch } from "../lib/batch";
 import { validateEntityOwnership } from "../lib/ownership";
+import { MAX_LINKED_TAGS } from "../lib/tag-ids";
 import {
 	addHand,
-	buildHandSaveStatements,
+	buildHandUpdateStatements,
 	getHand,
-	type HandSaveInput,
-	saveHand,
+	type HandUpdateInput,
 } from "../services/hand";
 import type { TestD1Database } from "./test-database";
-import { test } from "./test-fixture";
+import {
+	type ApiFixture,
+	AUTH_QUERY_RESERVE,
+	D1_QUERIES_PER_INVOCATION,
+	nlhGame,
+	requireCreatedRow,
+	test,
+} from "./test-fixture";
 
 type Owner = "alice" | "bob";
 type Row = Record<string, string | number | null>;
@@ -72,14 +80,21 @@ async function seedOwner(db: Database, owner: Owner) {
 		groupId: `${owner}-group`,
 		updatedAt: NOW,
 	});
-	await db.insert(player).values(
-		Array.from({ length: 9 }, (_, index) => ({
+	await db.insert(player).values([
+		{
+			id: `${owner}-self`,
+			userId: owner,
+			name: "Hero",
+			isSelf: true,
+			updatedAt: NOW,
+		},
+		...Array.from({ length: 9 }, (_, index) => ({
 			id: `${owner}-player-${index + 1}`,
 			userId: owner,
 			name: `Villain ${index + 1}`,
 			updatedAt: NOW,
-		}))
-	);
+		})),
+	]);
 }
 
 function handRow(id: string, owner: Owner, overrides: Row = {}): Row {
@@ -137,11 +152,9 @@ function actionRow(handId: string, owner: Owner, overrides: Row = {}): Row {
 	};
 }
 
-function fullHand(
-	id: string,
-	seats: number,
-	actions: number
-): Extract<HandSaveInput, { detail: "full" }> {
+type FullHand = Extract<HandUpdateInput, { detail: "full" }>;
+
+function fullHand(id: string, seats: number, actions: number): FullHand {
 	return {
 		id,
 		detail: "full",
@@ -156,8 +169,7 @@ function fullHand(
 		memo: "Long hand",
 		seats: Array.from({ length: seats }, (_, seat) => ({
 			seat,
-			playerId: seat === 0 ? null : `alice-player-${seat}`,
-			isHero: seat === 0,
+			playerId: seat === 0 ? "alice-self" : `alice-player-${seat}`,
 			startStack: 20_000 + seat,
 			holeCards: seat === 0 ? "As Ks" : null,
 			net: null,
@@ -475,7 +487,7 @@ describe("hand tables on D1", () => {
 			{ playSessionId: "alice-play", buttonSeat: 2 },
 			NOW
 		);
-		await saveHand(api.db, "alice", fullHand(added.id, 3, 4), NOW);
+		await api.alice.hand.update(fullHand(added.id, 3, 4));
 		const kept = await addHand(
 			api.db,
 			"bob",
@@ -546,7 +558,7 @@ describe("hand API on D1", () => {
 			buttonSeat: 5,
 		});
 		expect(third.handNo).toBe(2);
-		await saveHand(api.db, "alice", fullHand(third.id, 2, 2), NOW);
+		await api.alice.hand.update(fullHand(third.id, 2, 2));
 		await expect(
 			api.alice.hand.undoLast({ playSessionId: "alice-play" })
 		).rejects.toMatchObject({ code: "CONFLICT" });
@@ -627,7 +639,7 @@ describe("hand API on D1", () => {
 		const second = await countHand(api.db);
 		const third = await countHand(api.db);
 		const fourth = await countHand(api.db);
-		await saveHand(api.db, "alice", fullHand(second, 2, 3), NOW);
+		await api.alice.hand.update(fullHand(second, 2, 3));
 
 		await api.alice.hand.delete({ id: second });
 		expect(await handNumbers(api.db, "alice-play")).toEqual([
@@ -686,7 +698,7 @@ describe("hand API on D1", () => {
 				handRow(id, "alice", { hand_no: index + 1 })
 			);
 		}
-		await saveHand(api.db, "alice", fullHand(fourth, 2, 1), NOW);
+		await api.alice.hand.update(fullHand(fourth, 2, 1));
 
 		const firstPage = await api.alice.hand.list({
 			playSessionId: "alice-play",
@@ -783,7 +795,7 @@ describe("hand API on D1", () => {
 	}) => {
 		await seedOwner(api.db, "alice");
 		const added = await countHand(api.db);
-		await saveHand(api.db, "alice", fullHand(added, 3, 2), NOW);
+		await api.alice.hand.update(fullHand(added, 3, 2));
 
 		await expect(
 			api.alice.player.delete({ id: "alice-player-1" })
@@ -796,7 +808,7 @@ describe("hand API on D1", () => {
 				({ seat, playerId }) => [seat, playerId]
 			)
 		).toEqual([
-			[0, null],
+			[0, "alice-self"],
 			[1, "alice-player-1"],
 			[2, "alice-player-2"],
 		]);
@@ -811,142 +823,80 @@ describe("hand API on D1", () => {
 	});
 });
 
-describe("hand service on D1", () => {
-	test("saving a 10-seat, 120-action hand is one batch whose statements stay within the D1 bind-parameter limit", async ({
+function countBody(id: string): Extract<HandUpdateInput, { detail: "count" }> {
+	return {
+		id,
+		detail: "count",
+		buttonSeat: 2,
+		tableSize: null,
+		levelOrdinal: null,
+		stakes: null,
+		variantId: null,
+	};
+}
+
+function summaryBody(
+	id: string,
+	heroPlayerId = "alice-self"
+): Extract<HandUpdateInput, { detail: "summary" }> {
+	return {
+		id,
+		detail: "summary",
+		buttonSeat: 1,
+		tableSize: 6,
+		levelOrdinal: null,
+		stakes: null,
+		variantId: null,
+		boards: ["Qh Jh Th"],
+		pot: 900,
+		rake: null,
+		memo: "Hero flopped a straight",
+		hero: {
+			seat: 4,
+			playerId: heroPlayerId,
+			startStack: 10_000,
+			holeCards: "9h 8h",
+			net: -300,
+			showed: true,
+		},
+	};
+}
+
+async function seedHandTags(api: ApiFixture, count: number) {
+	const rows = Array.from({ length: count }, (_, index) => ({
+		id: `alice-hand-tag-${index}`,
+		userId: "alice",
+		name: `Tag ${index}`,
+		sortOrder: index,
+		updatedAt: NOW,
+	}));
+	for (const chunk of chunkForInsert(rows, Object.keys(rows[0] ?? {}).length)) {
+		await api.db.insert(handTag).values(chunk);
+	}
+	return rows.map(({ id }) => id);
+}
+
+describe("hand.update on D1", () => {
+	test("count, summary, full, summary and count replace the whole detail each time and leave no child of a lowered level", async ({
 		api,
 	}) => {
 		await seedOwner(api.db, "alice");
-		const added = await addHand(
-			api.db,
-			"alice",
-			{ playSessionId: "alice-play" },
-			NOW
-		);
-		const input = fullHand(added.id, 10, 120);
+		const added = await countHand(api.db);
 
-		const statements = buildHandSaveStatements(api.db, "alice", input, NOW);
-		for (const statement of statements) {
-			if (!("toSQL" in statement && typeof statement.toSQL === "function")) {
-				throw new Error("Expected a query builder statement");
-			}
-			expect(statement.toSQL().params.length).toBeLessThanOrEqual(
-				D1_MAX_BOUND_PARAMS
-			);
-		}
-		const batch = vi.spyOn(api.db, "batch");
-		await saveHand(api.db, "alice", input, NOW);
-		expect(batch).toHaveBeenCalledTimes(1);
-		batch.mockRestore();
-
-		const saved = await getHand(api.db, "alice", added.id);
-		expect(saved).toMatchObject({
-			detail: "full",
-			handNo: 1,
-			boards: ["Ah Kd 7c 2s 9h", "Ah Kd 7c 3d 4c"],
-			stakes: { blind1: 100, blind2: 200, ante: 200, anteType: "bb" },
-			rake: 500,
-		});
-		expect(saved.seats.map(({ seat }) => seat)).toEqual([
-			0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
-		]);
-		expect(saved.seats.filter(({ isHero }) => isHero)).toEqual([
-			expect.objectContaining({ seat: 0, holeCards: "As Ks" }),
-		]);
-		expect(saved.actions).toHaveLength(120);
-		expect(saved.actions.map(({ seq }) => seq)).toEqual(
-			Array.from({ length: 120 }, (_, index) => index + 1)
-		);
-		expect(saved.actions.at(-1)).toEqual({
-			seq: 120,
-			street: 3,
-			seat: 9,
-			action: "call",
-			amount: 24_000,
-			allIn: false,
-		});
-	});
-
-	test("the DB rejects a save that makes Hero sit in two seats and the hand keeps its previous details", async ({
-		api,
-	}) => {
-		await seedOwner(api.db, "alice");
-		const added = await addHand(
-			api.db,
-			"alice",
-			{ playSessionId: "alice-play" },
-			NOW
-		);
-		await saveHand(api.db, "alice", fullHand(added.id, 3, 4), NOW);
-		const twoHeroes = fullHand(added.id, 4, 6);
-		twoHeroes.seats = twoHeroes.seats.map((seat) => ({
-			...seat,
-			isHero: seat.seat < 2,
-		}));
-		twoHeroes.memo = "Two heroes";
-
-		await expect(saveHand(api.db, "alice", twoHeroes, NOW)).rejects.toThrow(
-			"UNIQUE constraint failed: hand_seat.hand_id"
-		);
-		const kept = await getHand(api.db, "alice", added.id);
-		expect(kept.memo).toBe("Long hand");
-		expect(kept.seats.map(({ seat, isHero }) => [seat, isHero])).toEqual([
-			[0, true],
-			[1, false],
-			[2, false],
-		]);
-		expect(kept.actions).toHaveLength(4);
-	});
-
-	test("lowering a hand's detail removes the child rows and summary values of the higher level", async ({
-		api,
-	}) => {
-		await seedOwner(api.db, "alice");
-		await seedOwner(api.db, "bob");
-		const added = await addHand(
-			api.db,
-			"alice",
-			{ playSessionId: "alice-play" },
-			NOW
-		);
-		await saveHand(api.db, "alice", fullHand(added.id, 6, 12), NOW);
-
-		await saveHand(
-			api.db,
-			"alice",
-			{
-				id: added.id,
-				detail: "summary",
-				buttonSeat: 1,
-				tableSize: 6,
-				levelOrdinal: null,
-				stakes: null,
-				variantId: null,
-				boards: ["Qh Jh Th"],
-				pot: 900,
-				rake: null,
-				memo: null,
-				hero: {
-					seat: 4,
-					startStack: 10_000,
-					holeCards: "9h 8h",
-					net: -300,
-					showed: true,
-				},
-			},
-			NOW
-		);
-		const summary = await getHand(api.db, "alice", added.id);
+		const summary = await api.alice.hand.update(summaryBody(added));
 		expect(summary).toMatchObject({
+			id: added,
+			handNo: 1,
 			detail: "summary",
 			boards: ["Qh Jh Th"],
 			pot: 900,
-			variantId: null,
+			memo: "Hero flopped a straight",
 			actions: [],
 		});
 		expect(summary.seats).toEqual([
 			{
 				seat: 4,
-				playerId: null,
+				playerId: "alice-self",
 				isHero: true,
 				startStack: 10_000,
 				holeCards: "9h 8h",
@@ -955,21 +905,35 @@ describe("hand service on D1", () => {
 			},
 		]);
 
-		await saveHand(
-			api.db,
-			"alice",
-			{
-				id: added.id,
-				detail: "count",
-				buttonSeat: 2,
-				tableSize: null,
-				levelOrdinal: null,
-				stakes: null,
-				variantId: null,
-			},
-			NOW
+		const full = await api.alice.hand.update(fullHand(added, 6, 12));
+		expect(full).toMatchObject({
+			detail: "full",
+			boards: ["Ah Kd 7c 2s 9h", "Ah Kd 7c 3d 4c"],
+			stakes: { blind1: 100, blind2: 200, ante: 200, anteType: "bb" },
+			memo: "Long hand",
+		});
+		expect(full.seats.map(({ seat, isHero }) => [seat, isHero])).toEqual([
+			[0, true],
+			[1, false],
+			[2, false],
+			[3, false],
+			[4, false],
+			[5, false],
+		]);
+		expect(full.actions.map(({ seq }) => seq)).toEqual(
+			Array.from({ length: 12 }, (_, index) => index + 1)
 		);
-		expect(await getHand(api.db, "alice", added.id)).toMatchObject({
+		expect(await api.alice.hand.getById({ id: added })).toEqual(full);
+
+		await api.alice.hand.update(summaryBody(added));
+		expect(await childCounts(api.db, added)).toEqual({
+			boards: 1,
+			seats: 1,
+			actions: 0,
+		});
+
+		const count = await api.alice.hand.update(countBody(added));
+		expect(count).toMatchObject({
 			detail: "count",
 			buttonSeat: 2,
 			boards: [],
@@ -979,32 +943,249 @@ describe("hand service on D1", () => {
 			seats: [],
 			actions: [],
 		});
-
-		await expect(
-			saveHand(api.db, "bob", fullHand(added.id, 2, 2), NOW)
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(getHand(api.db, "bob", added.id)).rejects.toMatchObject({
-			code: "FORBIDDEN",
-		});
-		const bobHand = await addHand(
-			api.db,
-			"bob",
-			{ playSessionId: "bob-play" },
-			NOW
-		);
-		await expect(
-			saveHand(
-				api.db,
-				"bob",
-				{ ...fullHand(bobHand.id, 2, 2), variantId: null },
-				NOW
-			)
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
-		expect(await childCounts(api.db, bobHand.id)).toEqual({
+		expect(await childCounts(api.db, added)).toEqual({
 			boards: 0,
 			seats: 0,
 			actions: 0,
 		});
+		expect(await handNumbers(api.db, "alice-play")).toEqual([[1, added]]);
+	});
+
+	test("isHero follows the self player, and a summary seat that is not self is rejected without touching the hand", async ({
+		api,
+	}) => {
+		await seedOwner(api.db, "alice");
+		await seedOwner(api.db, "bob");
+		const added = await countHand(api.db);
+		const heroOnSeatTwo = fullHand(added, 3, 0);
+		heroOnSeatTwo.seats = heroOnSeatTwo.seats.map((seat) => ({
+			...seat,
+			playerId: [null, "alice-player-1", "alice-self"][seat.seat] ?? null,
+		}));
+
+		const saved = await api.alice.hand.update(heroOnSeatTwo);
+		expect(
+			saved.seats.map(({ seat, playerId, isHero }) => [seat, playerId, isHero])
+		).toEqual([
+			[0, null, false],
+			[1, "alice-player-1", false],
+			[2, "alice-self", true],
+		]);
+
+		await expect(
+			api.alice.hand.update(summaryBody(added, "alice-player-1"))
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		const twice = fullHand(added, 3, 0);
+		twice.seats = twice.seats.map((seat) => ({
+			...seat,
+			playerId: "alice-self",
+		}));
+		await expect(api.alice.hand.update(twice)).rejects.toMatchObject({
+			code: "BAD_REQUEST",
+		});
+		expect(await api.alice.hand.getById({ id: added })).toEqual(saved);
+	});
+
+	test("another user's hand, player, game variant and tag are forbidden and leave both users' hands as they were", async ({
+		api,
+	}) => {
+		await seedOwner(api.db, "alice");
+		await seedOwner(api.db, "bob");
+		const added = await countHand(api.db);
+		const aliceTag = await api.alice.handTag.create({ name: "Mine" });
+		const bobHand = (await api.bob.hand.add({ playSessionId: "bob-play" })).id;
+		const bobBody = (body: FullHand): FullHand => ({
+			...body,
+			variantId: null,
+			seats: body.seats.map((seat) => ({
+				...seat,
+				playerId: seat.playerId?.replace("alice", "bob") ?? null,
+			})),
+		});
+		const before = await api.bob.hand.getById({ id: bobHand });
+
+		for (const attempt of [
+			() => api.bob.hand.update(bobBody(fullHand(added, 2, 2))),
+			() => api.bob.hand.update(fullHand(bobHand, 2, 2)),
+			() =>
+				api.bob.hand.update({
+					...bobBody(fullHand(bobHand, 2, 2)),
+					variantId: "alice-variant",
+				}),
+			() => api.bob.hand.update(summaryBody(bobHand, "alice-self")),
+			() =>
+				api.bob.hand.update({ ...countBody(bobHand), tagIds: [aliceTag.id] }),
+		]) {
+			await expect(attempt()).rejects.toMatchObject({ code: "FORBIDDEN" });
+		}
+		expect(await api.bob.hand.getById({ id: bobHand })).toEqual(before);
+		expect(await childCounts(api.db, added)).toEqual({
+			boards: 0,
+			seats: 0,
+			actions: 0,
+		});
+		expect(
+			await api.bob.hand.update(bobBody(fullHand(bobHand, 2, 2)))
+		).toMatchObject({
+			detail: "full",
+			seats: [
+				{ playerId: "bob-self", isHero: true },
+				{ playerId: "bob-player-1", isHero: false },
+			],
+		});
+	});
+
+	test("tagIds replace the links, a kept tag keeps its review time, and tagReviews may name only attached tags", async ({
+		api,
+	}) => {
+		await seedOwner(api.db, "alice");
+		const added = await countHand(api.db);
+		const first = await api.alice.handTag.create({ name: "A" });
+		const second = await api.alice.handTag.create({ name: "B" });
+		const third = await api.alice.handTag.create({ name: "C" });
+		const reviewed = NOW.getTime() / 1000;
+		const later = new Date(NOW.getTime() + 60_000);
+		const tagsOf = async () =>
+			(await api.alice.hand.getById({ id: added })).tags
+				.map(({ name, reviewedAt }) => [name, reviewedAt])
+				.sort(([a], [b]) => String(a).localeCompare(String(b)));
+
+		await api.alice.hand.update({
+			...countBody(added),
+			tagIds: [first.id, second.id],
+			tagReviews: [{ tagId: first.id, reviewedAt: reviewed }],
+		});
+		expect(await tagsOf()).toEqual([
+			["A", NOW],
+			["B", null],
+		]);
+
+		await api.alice.hand.update({
+			...countBody(added),
+			tagIds: [first.id, third.id],
+		});
+		await api.alice.hand.update(countBody(added));
+		expect(await tagsOf()).toEqual([
+			["A", NOW],
+			["C", null],
+		]);
+
+		await api.alice.hand.update({
+			...countBody(added),
+			tagReviews: [
+				{ tagId: first.id, reviewedAt: null },
+				{ tagId: third.id, reviewedAt: later.getTime() / 1000 },
+			],
+		});
+		expect(await tagsOf()).toEqual([
+			["A", null],
+			["C", later],
+		]);
+
+		for (const body of [
+			{ tagReviews: [{ tagId: second.id, reviewedAt: reviewed }] },
+			{
+				tagIds: [first.id],
+				tagReviews: [{ tagId: third.id, reviewedAt: reviewed }],
+			},
+		]) {
+			await expect(
+				api.alice.hand.update({ ...countBody(added), ...body })
+			).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		}
+		expect(await tagsOf()).toEqual([
+			["A", null],
+			["C", later],
+		]);
+	});
+
+	test("a full hand at the seat, action, board and tag maxima is saved within the D1 query budget", async ({
+		api,
+	}) => {
+		await seedOwner(api.db, "alice");
+		const added = await countHand(api.db);
+		const tagIds = await seedHandTags(api, MAX_LINKED_TAGS);
+		const input: FullHand = {
+			...fullHand(added, 10, 200),
+			boards: [
+				"Ah Kd 7c 2s 9h",
+				"Ah Kd 7c 3d 4c",
+				"Ah Kd 7c 5h 6h",
+				"Ah Kd 7c 8d Tc",
+			],
+			tagIds,
+			tagReviews: tagIds.map((tagId) => ({
+				tagId,
+				reviewedAt: NOW.getTime() / 1000,
+			})),
+		};
+
+		for (const statement of buildHandUpdateStatements(
+			api.db,
+			"alice",
+			input,
+			{
+				selfPlayerId: "alice-self",
+				tagLinks: tagIds.map((tagId) => ({ tagId, reviewedAt: NOW })),
+			},
+			NOW
+		)) {
+			if (!("toSQL" in statement && typeof statement.toSQL === "function")) {
+				throw new Error("Expected a query builder statement");
+			}
+			expect(statement.toSQL().params.length).toBeLessThanOrEqual(
+				D1_MAX_BOUND_PARAMS
+			);
+		}
+		const { caller, meter } = api.meteredCaller("alice");
+		const saved = await caller.hand.update(input);
+		expect(meter.statements).toBeLessThanOrEqual(
+			D1_QUERIES_PER_INVOCATION - AUTH_QUERY_RESERVE
+		);
+		expect(saved.boards).toHaveLength(4);
+		expect(saved.seats).toHaveLength(10);
+		expect(saved.actions.map(({ seq }) => seq)).toEqual(
+			Array.from({ length: 200 }, (_, index) => index + 1)
+		);
+		expect(saved.actions.at(-1)).toEqual({
+			seq: 200,
+			street: 3,
+			seat: 9,
+			action: "call",
+			amount: 40_000,
+			allIn: false,
+		});
+		expect(saved.tags).toHaveLength(MAX_LINKED_TAGS);
+		expect(
+			saved.tags.every(
+				({ reviewedAt }) => reviewedAt?.getTime() === NOW.getTime()
+			)
+		).toBe(true);
+	});
+
+	test("a save whose last action statement fails keeps every previous detail of the hand", async ({
+		api,
+	}) => {
+		await seedOwner(api.db, "alice");
+		const added = await countHand(api.db);
+		const before = await api.alice.hand.update(fullHand(added, 3, 4));
+		const broken = fullHand(added, 3, 200);
+		broken.memo = "Overwritten";
+		broken.actions = broken.actions.map((action, index) =>
+			index === broken.actions.length - 1 ? { ...action, seat: 9 } : action
+		);
+
+		const statements = buildHandUpdateStatements(
+			api.db,
+			"alice",
+			broken,
+			{ selfPlayerId: "alice-self", tagLinks: undefined },
+			NOW
+		);
+		await expect(runBatch(api.db, statements)).rejects.toThrow(
+			FOREIGN_KEY_FAILED
+		);
+		expect(await getHand(api.db, "alice", added)).toEqual(before);
 	});
 
 	test("hand reads return the owner's linked tags in tag order with their review time", async ({
@@ -1041,5 +1222,110 @@ describe("hand service on D1", () => {
 			[later, []],
 			[added, expected],
 		]);
+	});
+});
+
+describe("all-in hand link on D1", () => {
+	async function startCash(api: ApiFixture) {
+		const rule = await nlhGame(api.db);
+		const jpy = requireCreatedRow(
+			await api.alice.asset.create({ name: "JPY", kind: "currency" })
+		);
+		const started = await api.alice.live.create({
+			kind: "cash",
+			rule,
+			startedAt: Math.floor(Date.now() / 1000) - 3600,
+			payments: [
+				{ role: "buy_in", assetId: jpy.id, quantity: 10_000, effect: "real" },
+			],
+		});
+		const playSessionId = started.playSessions[0]?.id ?? "";
+		const manual = await api.alice.entry.create({
+			kind: "cash",
+			playedOn: "2026-09-01",
+			rule,
+		});
+		return {
+			entryId: started.id,
+			playSessionId,
+			otherDayId: manual.playSessions[0]?.id ?? "",
+		};
+	}
+
+	async function storedLink(api: ApiFixture, id: string) {
+		const [row] = await api.db
+			.select({ handId: playEvent.handId, payload: playEvent.payload })
+			.from(playEvent)
+			.where(eq(playEvent.id, id));
+		return row && { handId: row.handId, payload: JSON.parse(row.payload) };
+	}
+
+	test("an all-in links a hand of its own play session, refuses other users' and other days' hands, and must be unlinked before the hand is deleted", async ({
+		api,
+	}) => {
+		const { entryId, playSessionId, otherDayId } = await startCash(api);
+		await seedOwner(api.db, "bob");
+		await insert(api.d1, "hand", handRow("bob-hand", "bob"));
+		await insert(
+			api.d1,
+			"hand",
+			handRow("other-day-hand", "alice", { play_session_id: otherDayId })
+		);
+		const linked = await api.alice.hand.add({ playSessionId });
+		const later = await api.alice.hand.add({ playSessionId });
+		const values = { potSize: 1000, trials: 1, equity: 50, wins: 1 };
+
+		const allIn = await api.alice.playEvent.create({
+			entryId,
+			eventType: "all_in",
+			payload: { ...values, handId: linked.id },
+		});
+		expect(allIn.payload).toEqual({ ...values, handId: linked.id });
+		expect(await storedLink(api, allIn.id)).toEqual({
+			handId: linked.id,
+			payload: values,
+		});
+
+		for (const handId of ["bob-hand", "other-day-hand", "missing"]) {
+			await expect(
+				api.alice.playEvent.create({
+					entryId,
+					eventType: "all_in",
+					payload: { ...values, handId },
+				})
+			).rejects.toMatchObject({ code: "FORBIDDEN" });
+			await expect(
+				api.alice.playEvent.update({
+					id: allIn.id,
+					payload: { ...values, handId },
+				})
+			).rejects.toMatchObject({ code: "FORBIDDEN" });
+		}
+		expect(await storedLink(api, allIn.id)).toEqual({
+			handId: linked.id,
+			payload: values,
+		});
+		expect(await api.alice.playEvent.list({ entryId })).toHaveLength(2);
+
+		await expect(
+			api.alice.hand.delete({ id: linked.id })
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		const occurred = await api.alice.playEvent.update({
+			id: allIn.id,
+			occurredAt: Math.floor(Date.now() / 1000) - 60,
+		});
+		expect(occurred.payload).toEqual({ ...values, handId: linked.id });
+
+		const unlinked = await api.alice.playEvent.update({
+			id: allIn.id,
+			payload: values,
+		});
+		expect(unlinked.payload).toEqual(values);
+		expect(await storedLink(api, allIn.id)).toEqual({
+			handId: null,
+			payload: values,
+		});
+		await api.alice.hand.delete({ id: linked.id });
+		expect(await handNumbers(api.db, playSessionId)).toEqual([[1, later.id]]);
 	});
 });

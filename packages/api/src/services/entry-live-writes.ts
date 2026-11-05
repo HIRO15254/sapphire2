@@ -80,6 +80,7 @@ export interface LiveEntryStart {
 export interface StoredPlayEvent extends ProjectorEvent {
 	createdAt: Date;
 	entryId: string;
+	handId: string | null;
 	schemaVersion: number;
 	updatedAt: Date;
 }
@@ -105,11 +106,11 @@ function badRequest(message: string): never {
 	throw new TRPCError({ code: "BAD_REQUEST", message });
 }
 
-function canonicalPayload(
+function storedPayload(
 	kind: EntryKind,
 	type: string,
 	payload: unknown
-): string {
+): { handId: string | null; payload: string } {
 	const schema = playEventPayloadSchema(kind, type);
 	if (!schema) {
 		badRequest(`A ${kind} entry has no ${type} event`);
@@ -118,7 +119,11 @@ function canonicalPayload(
 	if (!parsed.success) {
 		badRequest(`Invalid ${type} payload: ${parsed.error.issues[0]?.message}`);
 	}
-	return JSON.stringify(parsed.data);
+	if (type !== "all_in") {
+		return { handId: null, payload: JSON.stringify(parsed.data) };
+	}
+	const { handId, ...rest } = parsed.data as { handId?: string };
+	return { handId: handId ?? null, payload: JSON.stringify(rest) };
 }
 
 function playEventRow(
@@ -129,6 +134,7 @@ function playEventRow(
 	event: NewPlayEvent,
 	now: Date
 ) {
+	const stored = storedPayload(kind, event.type, event.payload);
 	return {
 		id: event.id ?? crypto.randomUUID(),
 		userId: scope.userId,
@@ -138,7 +144,8 @@ function playEventRow(
 		schemaVersion: PLAY_EVENT_SCHEMA_VERSION,
 		occurredAt: event.occurredAt,
 		sortOrder,
-		payload: canonicalPayload(kind, event.type, event.payload),
+		payload: stored.payload,
+		handId: stored.handId,
 		createdAt: now,
 		updatedAt: now,
 	};
@@ -186,7 +193,7 @@ function nextPlayState(
 	state: PlayStreamState,
 	event: ProjectorEvent
 ): PlayStreamState {
-	canonicalPayload(kind, event.type, JSON.parse(event.payload));
+	storedPayload(kind, event.type, JSON.parse(event.payload));
 	if (state === "ended") {
 		badRequest("No event can follow the end of its play session");
 	}
@@ -338,6 +345,7 @@ export async function loadEntryEventState(
 			occurredAt: playEvent.occurredAt,
 			sortOrder: playEvent.sortOrder,
 			payload: playEvent.payload,
+			handId: playEvent.handId,
 			schemaVersion: playEvent.schemaVersion,
 			createdAt: playEvent.createdAt,
 			updatedAt: playEvent.updatedAt,
@@ -451,10 +459,11 @@ function planChange(
 			eventIds: [target.id],
 		};
 	}
-	const payload =
+	const stored =
 		change.payload === undefined
-			? target.payload
-			: canonicalPayload(state.kind, target.type, change.payload);
+			? { payload: target.payload, handId: target.handId }
+			: storedPayload(state.kind, target.type, change.payload);
+	const { payload } = stored;
 	const occurredAt = change.occurredAt ?? target.occurredAt;
 	return {
 		statements: [
@@ -463,6 +472,7 @@ function planChange(
 				.set({
 					occurredAt,
 					payload,
+					handId: stored.handId,
 					schemaVersion: PLAY_EVENT_SCHEMA_VERSION,
 					updatedAt: now,
 				})
