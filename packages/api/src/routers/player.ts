@@ -1,12 +1,12 @@
 import { handSeat } from "@sapphire2/db/schema/hand";
 import { player, playerTag, playerTagLink } from "@sapphire2/db/schema/player";
+import { tagIdsSchema } from "@sapphire2/db/schemas/tag-ids";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, exists, inArray, like, not } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { type BatchStatement, runBatch, selectInChunks } from "../lib/batch";
 import { validateTagsOwnership } from "../lib/ownership";
-import { tagIdsSchema } from "../lib/tag-ids";
 import { insertChunks } from "../services/game-lineup";
 import { ensureSelfPlayer } from "../services/self-player";
 

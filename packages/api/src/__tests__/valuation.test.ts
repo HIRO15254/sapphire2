@@ -117,6 +117,7 @@ describe("valueEntries: conversion paths", () => {
 		expect(result.entries.get("e")).toEqual({
 			real: { profitLoss: -10_000, buyIn: 10_000, cashOut: 0 },
 			virtual: { profitLoss: 20_000, buyIn: 10_000, cashOut: 30_000 },
+			missingRates: { real: [], virtual: [] },
 		});
 	});
 
@@ -153,6 +154,10 @@ describe("valueEntries: missing rates", () => {
 		expect(result.entries.get("no-rate")).toEqual({
 			real: null,
 			virtual: null,
+			missingRates: {
+				real: [{ assetId: "usd", earliestOccurredAt: at(10) }],
+				virtual: [{ assetId: "usd", earliestOccurredAt: at(10) }],
+			},
 		});
 		expect(result.real).toMatchObject({
 			profitLoss: 5000,
@@ -187,6 +192,10 @@ describe("valueEntries: missing rates", () => {
 		expect(result.entries.get("e")).toEqual({
 			real: { profitLoss: -3000, buyIn: 3000, cashOut: 0 },
 			virtual: null,
+			missingRates: {
+				real: [],
+				virtual: [{ assetId: "main-ticket", earliestOccurredAt: at(0) }],
+			},
 		});
 		expect(result.real.excludedEntryCount).toBe(0);
 		expect(result.virtual).toMatchObject({

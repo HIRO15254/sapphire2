@@ -268,7 +268,7 @@ async function selectEntryRows(
 	);
 }
 
-function groupBy<Row>(
+export function groupBy<Row>(
 	rows: Row[],
 	key: (row: Row) => string
 ): Map<string, Row[]> {
@@ -323,18 +323,10 @@ interface ValuationContext {
 	rates: ValuationRate[];
 }
 
-async function loadValuationContext(
+export async function loadValuationTables(
 	db: Database,
 	userId: string
-): Promise<ValuationContext> {
-	const [setting] = await db
-		.select({ baseAssetId: userSetting.baseAssetId })
-		.from(userSetting)
-		.where(eq(userSetting.userId, userId));
-	const baseAssetId = setting?.baseAssetId ?? null;
-	if (baseAssetId === null) {
-		return { assets: [], baseAssetId, rates: [] };
-	}
+): Promise<{ assets: ValuationAsset[]; rates: ValuationRate[] }> {
 	const assets = await db
 		.select({ id: asset.id, kind: asset.kind })
 		.from(asset)
@@ -350,7 +342,29 @@ async function loadValuationContext(
 		})
 		.from(assetRate)
 		.where(eq(assetRate.userId, userId));
-	return { assets, baseAssetId, rates };
+	return { assets, rates };
+}
+
+export async function selectBaseAssetId(
+	db: Database,
+	userId: string
+): Promise<string | null> {
+	const [setting] = await db
+		.select({ baseAssetId: userSetting.baseAssetId })
+		.from(userSetting)
+		.where(eq(userSetting.userId, userId));
+	return setting?.baseAssetId ?? null;
+}
+
+async function loadValuationContext(
+	db: Database,
+	userId: string
+): Promise<ValuationContext> {
+	const baseAssetId = await selectBaseAssetId(db, userId);
+	if (baseAssetId === null) {
+		return { assets: [], baseAssetId, rates: [] };
+	}
+	return { baseAssetId, ...(await loadValuationTables(db, userId)) };
 }
 
 const ZERO_AMOUNTS: ValuationAmounts = { buyIn: 0, cashOut: 0, profitLoss: 0 };
@@ -392,7 +406,9 @@ function entryValuation(
 	};
 }
 
-function playMinutes(plays: PlaySessionOutput[]): number {
+export function playMinutes(
+	plays: Pick<PlaySessionOutput, "breakMinutes" | "endedAt" | "startedAt">[]
+): number {
 	let seconds = 0;
 	for (const play of plays) {
 		if (play.startedAt && play.endedAt) {
@@ -404,7 +420,7 @@ function playMinutes(plays: PlaySessionOutput[]): number {
 	return Math.floor(seconds / 60);
 }
 
-function cashBigBlind(rule: CashRuleOutput): number | null {
+export function cashBigBlind(rule: CashRuleOutput): number | null {
 	const [only, ...rest] = rule.stakes;
 	if (!only || rest.length > 0) {
 		return null;
@@ -443,63 +459,9 @@ export async function hydrateEntries(
 		return [];
 	}
 	const ids = rows.map((row) => row.id);
-	const plays = await selectInChunks(
-		ids,
-		(chunk) =>
-			db
-				.select()
-				.from(playSession)
-				.where(
-					and(
-						eq(playSession.userId, userId),
-						inArray(playSession.entryId, chunk)
-					)
-				)
-				.orderBy(asc(playSession.entryId), asc(playSession.seq)),
-		OWNER_SCOPED_CHUNK_EXTRA
-	);
-	const handCounts = await selectInChunks(
-		ids,
-		(chunk) =>
-			db
-				.select({ entryId: playSession.entryId, hands: count(hand.id) })
-				.from(hand)
-				.innerJoin(
-					playSession,
-					and(
-						eq(playSession.id, hand.playSessionId),
-						eq(playSession.userId, hand.userId)
-					)
-				)
-				.where(
-					and(eq(hand.userId, userId), inArray(playSession.entryId, chunk))
-				)
-				.groupBy(playSession.entryId),
-		OWNER_SCOPED_CHUNK_EXTRA
-	);
-	const lineRows = await selectInChunks(
-		ids,
-		(chunk) =>
-			db
-				.select({
-					id: ledgerLine.id,
-					entryId: sql<string>`${ledgerLine.entryId}`,
-					playSessionId: ledgerLine.playSessionId,
-					eventId: ledgerLine.sourceEventId,
-					assetId: ledgerLine.assetId,
-					role: ledgerLine.role,
-					effect: ledgerLine.effect,
-					quantity: ledgerLine.quantity,
-					occurredAt: ledgerLine.occurredAt,
-					priceId: ledgerLine.priceId,
-				})
-				.from(ledgerLine)
-				.where(
-					and(eq(ledgerLine.userId, userId), inArray(ledgerLine.entryId, chunk))
-				)
-				.orderBy(asc(ledgerLine.occurredAt), asc(ledgerLine.id)),
-		OWNER_SCOPED_CHUNK_EXTRA
-	);
+	const plays = await selectEntryPlaySessions(db, userId, ids);
+	const handsByEntry = await countEntryHands(db, userId, ids);
+	const lineRows = await selectEntryLines(db, userId, ids);
 	const tagRows = await selectInChunks(
 		ids,
 		(chunk) =>
@@ -549,9 +511,6 @@ export async function hydrateEntries(
 	const playsByEntry = groupBy(plays, (play) => play.entryId);
 	const linesByEntry = groupBy(lineRows, (line) => line.entryId);
 	const tagsByEntry = groupBy(tagRows, (tag) => tag.entryId);
-	const handsByEntry = new Map(
-		handCounts.map((row) => [row.entryId, row.hands] as const)
-	);
 	return rows.map((row) => {
 		const rule = rules.entries.get(row.id) ?? missingDetail();
 		const entryPlays: PlaySessionOutput[] = (
@@ -623,6 +582,85 @@ export async function hydrateEntries(
 			},
 		};
 	});
+}
+
+export async function selectEntryPlaySessions(
+	db: Database,
+	userId: string,
+	entryIds: string[]
+) {
+	return await selectInChunks(
+		entryIds,
+		(chunk) =>
+			db
+				.select()
+				.from(playSession)
+				.where(
+					and(
+						eq(playSession.userId, userId),
+						inArray(playSession.entryId, chunk)
+					)
+				)
+				.orderBy(asc(playSession.entryId), asc(playSession.seq)),
+		OWNER_SCOPED_CHUNK_EXTRA
+	);
+}
+
+export async function countEntryHands(
+	db: Database,
+	userId: string,
+	entryIds: string[]
+): Promise<Map<string, number>> {
+	const rows = await selectInChunks(
+		entryIds,
+		(chunk) =>
+			db
+				.select({ entryId: playSession.entryId, hands: count(hand.id) })
+				.from(hand)
+				.innerJoin(
+					playSession,
+					and(
+						eq(playSession.id, hand.playSessionId),
+						eq(playSession.userId, hand.userId)
+					)
+				)
+				.where(
+					and(eq(hand.userId, userId), inArray(playSession.entryId, chunk))
+				)
+				.groupBy(playSession.entryId),
+		OWNER_SCOPED_CHUNK_EXTRA
+	);
+	return new Map(rows.map((row) => [row.entryId, row.hands] as const));
+}
+
+export async function selectEntryLines(
+	db: Database,
+	userId: string,
+	entryIds: string[]
+): Promise<EntryLine[]> {
+	return await selectInChunks(
+		entryIds,
+		(chunk) =>
+			db
+				.select({
+					id: ledgerLine.id,
+					entryId: sql<string>`${ledgerLine.entryId}`,
+					playSessionId: ledgerLine.playSessionId,
+					eventId: ledgerLine.sourceEventId,
+					assetId: ledgerLine.assetId,
+					role: ledgerLine.role,
+					effect: ledgerLine.effect,
+					quantity: ledgerLine.quantity,
+					occurredAt: ledgerLine.occurredAt,
+					priceId: ledgerLine.priceId,
+				})
+				.from(ledgerLine)
+				.where(
+					and(eq(ledgerLine.userId, userId), inArray(ledgerLine.entryId, chunk))
+				)
+				.orderBy(asc(ledgerLine.occurredAt), asc(ledgerLine.id)),
+		OWNER_SCOPED_CHUNK_EXTRA
+	);
 }
 
 export async function getEntry(

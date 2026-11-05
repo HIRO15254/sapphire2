@@ -45,7 +45,9 @@ claude mcp add --transport http sapphire2 https://<APIホスト>/mcp
 
 ## ツール
 
-ツール群は **tRPC `appRouter` の射影**です: 各ツールの入力スキーマは API が検証に使う Zod スキーマそのもの（union 入力の分岐ごとのツールはその分岐のスキーマ）で、レスポンスは HTTP API と同じ JSON です。規約もバックエンドに従います — **時刻は unix 秒**、entry ツールの **date-only 値は `YYYY-MM-DD` 文字列**（統計ツールは引き続き UTC midnight の秒）、**金額はその資産の最小単位の整数**。
+ツール群は **tRPC `appRouter` の射影**です: 各ツールの入力スキーマは API が検証に使う Zod スキーマそのもの（union 入力の分岐ごとのツールはその分岐のスキーマ）で、レスポンスは HTTP API と同じ JSON です。規約もバックエンドに従います — **時刻は unix 秒**、**date-only 値は `YYYY-MM-DD` 文字列**、**金額はその資産の最小単位の整数**。
+
+統計ツールは **確定済み（settled）の entry だけ** を集計し、モードを必ず 1 つ指定します: `assetId`（その資産の実ラインを換算せずに合計。他の資産も使った entry は `multiAssetEntryCount` / `otherAssetIds` で報告）、`valuation: "real" | "virtual"` と任意の `baseAssetId`（省略時はユーザー設定の基準資産。どちらも無ければ `PRECONDITION_FAILED`。レートの無いラインを持つ entry は除外され `excludedEntryCount` / `missingRates` で報告）、`normalized: true`（キャッシュは BB、トーナメントは BI で、合算しない）。`dateFrom` / `dateTo` は両端を含み entry の `playedOn` と比較します。`entryTagIds` / `tournamentTagIds` でタグ絞り込みができます。
 
 B06 の切り替えで旧完了セッション・ライブセッション API と対応する MCP ツールは削除されました。完了した entry の記録・編集は `entry_*` ツールで行います。ライブ記録（`live.*`・`playEvent.*`・`tablePlayer.*`）はコックピット画面のもので、意図的に公開していません。プレイの進行に合わせて時刻を記録し、再試行した呼び出しはイベントを重複して追加するためです。複数 Day の操作 — Day の終了（`live.endPlay`）、次の Day やリエントリーの開始（`live.startNextPlay`）とその取り消し（`live.undoEndPlay`・`live.undoStartNextPlay`）— も同じで、開始を再試行すると Day がもう一つ増えます。
 

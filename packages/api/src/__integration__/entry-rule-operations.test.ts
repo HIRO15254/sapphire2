@@ -1,8 +1,8 @@
 import { ledgerLine } from "@sapphire2/db/schema/ledger";
 import { cashRule, tournamentRule } from "@sapphire2/db/schema/rule";
+import { MAX_LINKED_TAGS } from "@sapphire2/db/schemas/tag-ids";
 import { inArray } from "drizzle-orm";
 import { describe, expect } from "vitest";
-import { MAX_LINKED_TAGS } from "../lib/tag-ids";
 import type { EntryOutput } from "../services/entry-reads";
 import { MAX_RULE_LEVELS, MAX_RULE_PRICES } from "../services/tournament-rule";
 import {
