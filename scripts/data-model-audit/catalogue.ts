@@ -24,7 +24,6 @@ export const TASK = {
 	B08: "B08 (SA2-393)",
 	B13: "B13 (SA2-398)",
 	B18: "B18 (SA2-404)",
-	B23: "B23 (SA2-410)",
 	B25: "B25 (SA2-418)",
 } as const;
 
@@ -38,6 +37,7 @@ export const B08_MIGRATION = "0066_tournament_final.sql";
 export const B13_MIGRATION = "0069_entry_rule_versions.sql";
 export const B15_MIGRATION = "0070_self_player_event_v2.sql";
 export const B16_MIGRATION = "0071_entry_tag_tables.sql";
+export const B23_MIGRATION = "0072_stand_in_cleanup.sql";
 
 export type Activation =
 	| { state: "active"; since: string | null }
@@ -85,6 +85,7 @@ const SINCE_B08: Activation = { state: "active", since: B08_MIGRATION };
 const SINCE_B13: Activation = { state: "active", since: B13_MIGRATION };
 const SINCE_B15: Activation = { state: "active", since: B15_MIGRATION };
 const SINCE_B16: Activation = { state: "active", since: B16_MIGRATION };
+const SINCE_B23: Activation = { state: "active", since: B23_MIGRATION };
 
 function pending(enabledBy: string): { state: "pending"; enabledBy: string } {
 	return { state: "pending", enabledBy };
@@ -96,6 +97,12 @@ function sqlList(values: readonly string[]): string {
 
 const contiguousFromOne = (table: string, group: string, ordinal: string) =>
 	`SELECT ${group} AS id, min(${ordinal}) AS first_ordinal, max(${ordinal}) AS last_ordinal, count(*) AS row_count FROM ${table} GROUP BY ${group} HAVING min(${ordinal}) <> 1 OR max(${ordinal}) <> count(*)`;
+
+const UNASSIGNED = (user: string) => `'unassigned:' || ${user}`;
+
+const mappedRoom = (user: string, room: string) =>
+	`EXISTS (SELECT 1 FROM room rm WHERE rm.id = ${room} AND rm.user_id = ${user} AND trim(rm.name) <> ''
+AND lower(trim(rm.name)) IS NOT (SELECT lower(trim(u.name)) FROM asset u WHERE u.id = ${UNASSIGNED(user)}))`;
 
 export const CHECKS: readonly Check[] = [
 	{
@@ -815,9 +822,89 @@ WHERE l.price_id IS NOT json_extract(pe.payload, '$.payments[' || substr(l.id, l
 	},
 	{
 		audit: "A-16",
-		part: "B23 cleanup mappings, recomputed local dates and no seed placeholder",
-		kind: "deferred",
-		activation: pending(TASK.B23),
-		tables: [],
+		part: "migrated entries, lines and payments in a named room left the Unassigned asset",
+		kind: "sql",
+		activation: SINCE_B23,
+		tables: ["entry", "ledger_line", "play_event", "room", "asset"],
+		sql: (cutoverAt) => `SELECT 'entry' AS source, e.id AS id FROM entry e
+WHERE e.asset_id = ${UNASSIGNED("e.user_id")} AND e.created_at <= ${cutoverAt} AND e.updated_at <= ${cutoverAt}
+AND ${mappedRoom("e.user_id", "e.room_id")}
+UNION ALL
+SELECT 'ledger_line', l.id FROM ledger_line l
+JOIN entry e ON e.id = l.entry_id AND e.user_id = l.user_id
+WHERE l.asset_id = ${UNASSIGNED("l.user_id")} AND l.created_at <= ${cutoverAt} AND l.updated_at <= ${cutoverAt}
+AND ${mappedRoom("e.user_id", "e.room_id")}
+UNION ALL
+SELECT 'play_event', pe.id FROM play_event pe
+JOIN entry e ON e.id = pe.entry_id AND e.user_id = pe.user_id
+WHERE pe.created_at <= ${cutoverAt} AND pe.updated_at <= ${cutoverAt}
+AND ${mappedRoom("e.user_id", "e.room_id")}
+AND (json_extract(pe.payload, '$.assetId') = ${UNASSIGNED("pe.user_id")}
+OR EXISTS (SELECT 1 FROM json_each(CASE WHEN json_type(pe.payload, '$.payments') = 'array' THEN json_extract(pe.payload, '$.payments') ELSE '[]' END) p
+WHERE json_extract(p.value, '$.assetId') = ${UNASSIGNED("pe.user_id")}))`,
+	},
+	{
+		audit: "A-16",
+		part: "migrated prices and master default assets in a named room left the Unassigned asset",
+		kind: "sql",
+		activation: SINCE_B23,
+		tables: [
+			"tournament_rule_price",
+			"tournament_rule",
+			"tournament",
+			"ring_game",
+			"entry_tournament",
+			"entry",
+			"room",
+			"asset",
+		],
+		sql: (
+			cutoverAt
+		) => `SELECT 'tournament_rule_price' AS source, p.id AS id FROM tournament_rule_price p
+JOIN tournament_rule r ON r.id = p.rule_id AND r.user_id = p.user_id
+LEFT JOIN tournament t ON t.id = r.tournament_id AND t.user_id = r.user_id
+WHERE p.asset_id = ${UNASSIGNED("p.user_id")} AND p.created_at <= ${cutoverAt}
+AND ${mappedRoom(
+			"p.user_id",
+			`COALESCE(t.room_id, (SELECT CASE WHEN count(DISTINCT e.room_id) = 1 THEN min(e.room_id) END
+FROM entry_tournament et JOIN entry e ON e.id = et.entry_id AND e.user_id = et.user_id
+WHERE et.tournament_rule_id = p.rule_id AND et.user_id = p.user_id AND e.room_id IS NOT NULL))`
+		)}
+UNION ALL
+SELECT 'tournament', t.id FROM tournament t
+WHERE t.default_asset_id = ${UNASSIGNED("t.user_id")} AND t.created_at <= ${cutoverAt} AND t.updated_at <= ${cutoverAt}
+AND ${mappedRoom("t.user_id", "t.room_id")}
+UNION ALL
+SELECT 'ring_game', g.id FROM ring_game g
+WHERE g.default_asset_id = ${UNASSIGNED("g.user_id")} AND g.created_at <= ${cutoverAt} AND g.updated_at <= ${cutoverAt}
+AND ${mappedRoom("g.user_id", "g.room_id")}`,
+	},
+	{
+		audit: "A-16",
+		part: "no migrated live play_session kept a JST date for an owner outside Asia/Tokyo",
+		kind: "sql",
+		activation: SINCE_B23,
+		tables: ["play_session", "entry", "user_setting"],
+		sql: (
+			cutoverAt
+		) => `SELECT p.id AS id, s.time_zone AS time_zone FROM play_session p
+JOIN entry e ON e.id = p.entry_id AND e.user_id = p.user_id AND e.source = 'live'
+JOIN user_setting s ON s.user_id = p.user_id
+WHERE s.time_zone IS NOT NULL AND s.time_zone <> 'Asia/Tokyo'
+AND s.updated_at <= ${cutoverAt} AND p.created_at <= ${cutoverAt} AND p.updated_at <= ${cutoverAt}`,
+	},
+	{
+		audit: "A-16",
+		part: "no Unassigned asset or stand-in master created after the cleanup, and no stand-in carries a builtin key",
+		kind: "sql",
+		activation: SINCE_B23,
+		tables: ["asset", "game_variant", "game_mix"],
+		sql: (
+			cutoverAt
+		) => `SELECT 'asset' AS source, id FROM asset WHERE id LIKE 'unassigned:%' AND created_at > ${cutoverAt}
+UNION ALL
+SELECT 'game_variant', id FROM game_variant WHERE id LIKE 'sv:%' AND (created_at > ${cutoverAt} OR builtin_key IS NOT NULL)
+UNION ALL
+SELECT 'game_mix', id FROM game_mix WHERE id LIKE 'sm:%' AND (created_at > ${cutoverAt} OR builtin_key IS NOT NULL)`,
 	},
 ];
