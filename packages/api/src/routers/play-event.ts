@@ -1,6 +1,6 @@
 import z from "zod";
 import { protectedProcedure, router } from "../index";
-import { instantSchema } from "../lib/date-only";
+import { instantSchema } from "../lib/instant";
 import {
 	createPlayEvent,
 	deletePlayEvent,

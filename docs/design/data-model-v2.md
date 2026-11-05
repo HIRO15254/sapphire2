@@ -768,6 +768,30 @@ Owners accept tagIds, never tag names. All four tag kinds expose MCP list/create
 
 B22 rebuilds the leaf `filter_preset` table while migrating its payloads, preserving every row and adding `CHECK (json_valid(payload))` in Drizzle and SQL. Its only FK is to user, with no inbound children to stage. End checks prove equal row counts and `foreign_key_check`; payloads also validate against the final filter schema.
 
+Migration 0073 maps integer Unix-second `from`/`to` to UTC calendar dates (discarding both when reversed), `type` cash_game/tournament to kind cash/tournament, and drops all/unknown types. It retains a 1–30 character period. Sessions use roomId/currencyId and display; statistics use room/currency and norm. IDs survive only when the referenced room or asset belongs to the preset owner. Sessions display normalized drops the asset and selects normalized; currency selects normalized false; an absent or unknown display leaves the surviving asset as the mode. Statistics norm off selects the surviving asset with normalized false; normalized, absent, unknown or off without a surviving asset selects normalized true. Invalid JSON and non-object payloads become empty legacy objects. Unknown keys and invalid selections are discarded, not interpreted as labels. Row identity, owner, screen, name, default and timestamps are preserved; the cutover gates compare these fields and counts, reject legacy keys and invalid statistics modes, and check foreign keys.
+
+Before the frozen migration, record the counts below on the source database. Selection counts include wrong-owner and nonexistent IDs; malformed and non-object payloads are counted separately because no selections can be recovered from them. The payload schema is additionally checked by parsing every migrated row in the migration regression test; the SQL gates do not substitute for the application schema.
+
+```sql
+WITH source AS (
+  SELECT user_id, screen_key, payload,
+    CASE WHEN json_valid(payload) THEN
+      CASE WHEN json_type(payload) = 'object' THEN payload ELSE '{}' END
+    ELSE '{}' END AS p
+  FROM filter_preset
+), selected AS (
+  SELECT *, CASE WHEN screen_key = 'sessions' THEN json_extract(p, '$.roomId') ELSE json_extract(p, '$.room') END AS room_id,
+    CASE WHEN screen_key = 'sessions' THEN json_extract(p, '$.currencyId') ELSE json_extract(p, '$.currency') END AS asset_id
+  FROM source
+)
+SELECT
+  sum(CASE WHEN NOT json_valid(payload) THEN 1 ELSE 0 END) AS malformed_json,
+  sum(CASE WHEN json_valid(payload) THEN CASE WHEN json_type(payload) <> 'object' THEN 1 ELSE 0 END ELSE 0 END) AS non_object,
+  sum(CASE WHEN room_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM room r WHERE r.id = room_id AND r.user_id = selected.user_id) THEN 1 ELSE 0 END) AS discarded_room,
+  sum(CASE WHEN asset_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM asset a WHERE a.id = asset_id AND a.user_id = selected.user_id) THEN 1 ELSE 0 END) AS discarded_asset
+FROM selected;
+```
+
 ## 11. Enumerated values
 
 Enums live as `as const` arrays in packages/db/src/constants; CHECKs and Zod share those arrays. Event payload schemas share one registry between write validation, replay and B15 conversion.

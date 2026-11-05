@@ -10,11 +10,11 @@ import {
 } from "@sapphire2/db/schema/hand";
 import { handTag } from "@sapphire2/db/schema/hand-tag";
 import { player } from "@sapphire2/db/schema/player";
+import { MAX_LINKED_TAGS } from "@sapphire2/db/schemas/tag-ids";
 import { asc, eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
 import { chunkForInsert, D1_MAX_BOUND_PARAMS, runBatch } from "../lib/batch";
 import { validateEntityOwnership } from "../lib/ownership";
-import { MAX_LINKED_TAGS } from "../lib/tag-ids";
 import {
 	addHand,
 	buildHandUpdateStatements,

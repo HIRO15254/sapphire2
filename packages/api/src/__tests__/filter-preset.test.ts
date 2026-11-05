@@ -71,67 +71,28 @@ describe("filterPreset.create input validation", () => {
 		});
 	});
 
-	it("accepts a full sessions payload", () => {
+	it("accepts the shared statistics filters", () => {
 		expectAccepts(appRouter.filterPreset.create, {
-			screenKey: "sessions",
+			screenKey: "statistics",
 			name: "My Preset",
 			payload: {
 				period: "last_7_days",
-				from: 1,
-				to: 2,
-				type: "cash_game",
+				dateFrom: "2026-01-01",
+				dateTo: "2026-01-31",
+				valuation: "real",
+				baseAssetId: "base-1",
 				roomId: "room-1",
-				currencyId: "cur-1",
-				display: "normalized",
+				entryTagIds: ["entry-tag-1"],
+				tournamentTagIds: ["tournament-tag-1"],
 			},
 		});
 	});
 
-	it("accepts display: 'currency' on a sessions payload", () => {
-		expectAccepts(appRouter.filterPreset.create, {
-			screenKey: "sessions",
-			name: "My Preset",
-			payload: { display: "currency" },
-		});
-	});
-
-	it("rejects an invalid 'display' value on sessions payload", () => {
+	it("requires a statistics mode", () => {
 		expectRejects(appRouter.filterPreset.create, {
-			screenKey: "sessions",
-			name: "My Preset",
-			payload: { display: "bb" },
-		});
-	});
-
-	it("rejects a sessions-only payload field ('display') under screenKey: statistics", () => {
-		expectRejects(appRouter.filterPreset.create, {
-			screenKey: "statistics",
-			name: "My Preset",
-			payload: { display: "currency" },
-		});
-	});
-
-	it("accepts a minimal statistics payload", () => {
-		expectAccepts(appRouter.filterPreset.create, {
 			screenKey: "statistics",
 			name: "My Preset",
 			payload: {},
-		});
-	});
-
-	it("accepts a full statistics payload", () => {
-		expectAccepts(appRouter.filterPreset.create, {
-			screenKey: "statistics",
-			name: "My Preset",
-			payload: {
-				period: "last_7_days",
-				from: 1,
-				to: 2,
-				currency: "cur-1",
-				norm: "normalized",
-				type: "all",
-				room: "room-1",
-			},
 		});
 	});
 
@@ -196,60 +157,20 @@ describe("filterPreset.create input validation", () => {
 		});
 	});
 
-	it("rejects a statistics-only payload field ('norm') under screenKey: sessions", () => {
-		expectRejects(appRouter.filterPreset.create, {
-			screenKey: "sessions",
-			name: "My Preset",
-			payload: { norm: "off" },
-		});
-	});
-
-	it("rejects a sessions-only payload field ('roomId') under screenKey: statistics", () => {
-		expectRejects(appRouter.filterPreset.create, {
-			screenKey: "statistics",
-			name: "My Preset",
-			payload: { roomId: "room-1" },
-		});
-	});
-
-	it("rejects a non-integer 'from' on sessions payload", () => {
-		expectRejects(appRouter.filterPreset.create, {
-			screenKey: "sessions",
-			name: "My Preset",
-			payload: { from: 1.5 },
-		});
-	});
-
-	it("rejects a non-integer 'to' on statistics payload", () => {
-		expectRejects(appRouter.filterPreset.create, {
-			screenKey: "statistics",
-			name: "My Preset",
-			payload: { to: 2.5 },
-		});
-	});
-
-	it("rejects an invalid 'type' enum value on sessions payload", () => {
-		expectRejects(appRouter.filterPreset.create, {
-			screenKey: "sessions",
-			name: "My Preset",
-			payload: { type: "sit_n_go" },
-		});
-	});
-
-	it("rejects an invalid 'norm' enum value on statistics payload", () => {
-		expectRejects(appRouter.filterPreset.create, {
-			screenKey: "statistics",
-			name: "My Preset",
-			payload: { norm: "adjusted" },
-		});
-	});
-
-	it("rejects a non-string roomId on sessions payload", () => {
-		expectRejects(appRouter.filterPreset.create, {
-			screenKey: "sessions",
-			name: "My Preset",
-			payload: { roomId: 123 },
-		});
+	it("rejects legacy and conflicting filter fields", () => {
+		for (const payload of [
+			{ display: "currency" },
+			{ norm: "off" },
+			{ type: "cash_game" },
+			{ assetId: "asset-1", normalized: true },
+			{ dateFrom: "2026-02-01", dateTo: "2026-01-01" },
+		]) {
+			expectRejects(appRouter.filterPreset.create, {
+				screenKey: "sessions",
+				name: "My Preset",
+				payload,
+			});
+		}
 	});
 });
 
@@ -287,31 +208,17 @@ describe("filterPreset.update input validation", () => {
 		});
 	});
 
-	it("accepts a payload shaped like a sessions payload", () => {
+	it("accepts a shared payload", () => {
 		expectAccepts(appRouter.filterPreset.update, {
 			id: "fp-1",
-			payload: { type: "cash_game" },
+			payload: { valuation: "real", baseAssetId: "base-1" },
 		});
 	});
 
-	it("accepts a payload shaped like a statistics payload", () => {
-		expectAccepts(appRouter.filterPreset.update, {
+	it("rejects legacy payload fields", () => {
+		expectRejects(appRouter.filterPreset.update, {
 			id: "fp-1",
 			payload: { norm: "off" },
-		});
-	});
-
-	it("rejects a payload matching neither payload shape (invalid enum on a shared field)", () => {
-		expectRejects(appRouter.filterPreset.update, {
-			id: "fp-1",
-			payload: { type: "sit_n_go" },
-		});
-	});
-
-	it("rejects a non-integer 'from' in the payload (fails both shapes)", () => {
-		expectRejects(appRouter.filterPreset.update, {
-			id: "fp-1",
-			payload: { from: 1.5 },
 		});
 	});
 
@@ -431,7 +338,7 @@ describe("filterPreset.create behavior", () => {
 		await caller.create({
 			screenKey: "sessions",
 			name: "My Preset",
-			payload: { type: "cash_game" },
+			payload: { kind: "cash" },
 		});
 		expect(inserted[TABLE]).toHaveLength(1);
 		const row = inserted[TABLE]?.[0] as Record<string, unknown>;
@@ -440,7 +347,7 @@ describe("filterPreset.create behavior", () => {
 			screenKey: "sessions",
 			name: "My Preset",
 			isDefault: false,
-			payload: { type: "cash_game" },
+			payload: { kind: "cash" },
 		});
 		expect(typeof row.id).toBe("string");
 		expect((row.id as string).length).toBeGreaterThan(0);
@@ -450,10 +357,16 @@ describe("filterPreset.create behavior", () => {
 describe("filterPreset.update behavior", () => {
 	it("re-validates a provided payload against the STORED row's screenKey, not any caller assumption", async () => {
 		const { caller } = filterPresetCaller(OWNER, {
-			[TABLE]: [SESSIONS_ROW],
+			[TABLE]: [
+				{
+					...SESSIONS_ROW,
+					screenKey: "statistics",
+					payload: { normalized: true },
+				},
+			],
 		});
 		await expectTrpcCode(
-			caller.update({ id: "fp-1", payload: { norm: "off" } }),
+			caller.update({ id: "fp-1", payload: {} }),
 			"BAD_REQUEST"
 		);
 	});
@@ -462,9 +375,9 @@ describe("filterPreset.update behavior", () => {
 		const { caller, updated } = filterPresetCaller(OWNER, {
 			[TABLE]: [SESSIONS_ROW],
 		});
-		await caller.update({ id: "fp-1", payload: { type: "tournament" } });
+		await caller.update({ id: "fp-1", payload: { kind: "tournament" } });
 		expect(updated[TABLE]?.[0]).toMatchObject({
-			payload: { type: "tournament" },
+			payload: { kind: "tournament" },
 		});
 	});
 

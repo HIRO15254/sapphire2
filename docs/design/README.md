@@ -14,7 +14,7 @@ Issue references (`SA2-NNN`) point at the Linear issues that motivated a decisio
 | [`sessions-and-live-editing.md`](sessions-and-live-editing.md) | Event-sourced session lifecycle, payload invariants, ownership contracts, frozen rule snapshots, live-linked editing, optimistic updates, session wizard, live session sheet mix groups |
 | [`game-masters.md`](game-masters.md) | Game group / variant / mix master data: self-freezing labels, the migration-0049 compat mirror, seeding idempotency, derived mix buckets |
 | [`game-lineups.md`](game-lineups.md) | Lineups and rule versions replacing the self-freezing labels (SA2-242): id-referenced immutable lineups, rule versions with stakes and prices, master archiving, master ↔ entry rule operations, the game/rule-task cutovers |
-| [`statistics.md`](statistics.md) | EV recording gate and population semantics, summary agreement, breakdown bucketing, URL-based stats filters, period boundaries |
+| [`statistics.md`](statistics.md) | Settled-entry population, native / valuation / normalized modes and coverage, bb and bi units, time, EV, breakdown and series keys |
 | [`mcp-and-oauth.md`](mcp-and-oauth.md) | MCP OAuth consent gate threat model, discovery endpoints, token expiry, tool projection, Workers runtime constraints |
 | [`passkeys.md`](passkeys.md) | WebAuthn relying-party pinning across the split origin, the `passkey` table contract, silent conditional-create upgrades, device naming, plugin version coupling |
 | [`ai-extraction.md`](ai-extraction.md) | AI extraction truncation failure model, schema design, model pinning, form-merge semantics |

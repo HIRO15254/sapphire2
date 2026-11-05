@@ -23,15 +23,15 @@ import {
 import { handTag, handTagLink } from "@sapphire2/db/schema/hand-tag";
 import { player } from "@sapphire2/db/schema/player";
 import { anteTypeSchema } from "@sapphire2/db/schemas/game";
+import { MAX_LINKED_TAGS, tagIdsSchema } from "@sapphire2/db/schemas/tag-ids";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import z from "zod";
 import { type BatchStatement, chunkForInsert, runBatch } from "../lib/batch";
 import { decodeCursor, encodeCursor } from "../lib/cursor";
-import { instantSchema } from "../lib/date-only";
 import { isForeignKeyConstraintError } from "../lib/db-errors";
+import { instantSchema } from "../lib/instant";
 import { validateTagsOwnership } from "../lib/ownership";
-import { MAX_LINKED_TAGS, tagIdsSchema } from "../lib/tag-ids";
 
 export const MAX_HAND_PAGE_SIZE = 50;
 export const DEFAULT_HAND_PAGE_SIZE = 20;

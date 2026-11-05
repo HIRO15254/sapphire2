@@ -16,5 +16,3 @@ export function isCalendarDate(value: string): boolean {
 export const dateOnlySchema = z.string().refine(isCalendarDate, {
 	message: "Expected a calendar date as YYYY-MM-DD",
 });
-
-export const instantSchema = z.number().int().min(0);

@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import {
+	check,
 	index,
 	integer,
 	sqliteTable,
@@ -32,6 +33,7 @@ export const filterPreset = sqliteTable(
 			.notNull(),
 	},
 	(table) => [
+		check("filterPreset_payload_json_check", sql`json_valid(${table.payload})`),
 		index("filterPreset_userId_idx").on(table.userId),
 		index("filterPreset_userId_screenKey_idx").on(
 			table.userId,

@@ -1,4 +1,6 @@
+import { entryTag } from "@sapphire2/db/schema/entry-tag";
 import { filterPreset } from "@sapphire2/db/schema/filter-preset";
+import { tournamentTag } from "@sapphire2/db/schema/tournament-tag";
 import {
 	type FilterPresetPayload,
 	filterPresetScreenKeySchema,
@@ -11,6 +13,10 @@ import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { runBatch } from "../lib/batch";
 import { isFilterPresetNameConflictError } from "../lib/db-errors";
+import {
+	validateEntityOwnership,
+	validateTagsOwnership,
+} from "../lib/ownership";
 
 type Db = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
@@ -43,6 +49,40 @@ function payloadSchemaForStoredScreenKey(screenKey: string) {
 		: payloadSchemaForScreenKey("statistics");
 }
 
+async function validatePayloadOwnership(
+	db: Db,
+	userId: string,
+	payload: FilterPresetPayload
+): Promise<void> {
+	if (payload.roomId !== undefined) {
+		await validateEntityOwnership(db, "room", payload.roomId, userId);
+	}
+	if (payload.assetId !== undefined) {
+		await validateEntityOwnership(db, "asset", payload.assetId, userId);
+	}
+	if (payload.baseAssetId !== undefined) {
+		const base = await validateEntityOwnership(
+			db,
+			"asset",
+			payload.baseAssetId,
+			userId
+		);
+		if (base.kind !== "currency") {
+			throw new TRPCError({
+				code: "BAD_REQUEST",
+				message: "Base asset must be a currency",
+			});
+		}
+	}
+	await validateTagsOwnership(db, entryTag, payload.entryTagIds, userId);
+	await validateTagsOwnership(
+		db,
+		tournamentTag,
+		payload.tournamentTagIds,
+		userId
+	);
+}
+
 async function assertNameAvailable(
 	db: Db,
 	userId: string,
@@ -72,7 +112,7 @@ export const filterPresetRouter = router({
 		.input(z.object({ screenKey: filterPresetScreenKeySchema }))
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			return await ctx.db
+			const rows = await ctx.db
 				.select()
 				.from(filterPreset)
 				.where(
@@ -82,12 +122,25 @@ export const filterPresetRouter = router({
 					)
 				)
 				.orderBy(desc(filterPreset.isDefault), asc(filterPreset.createdAt));
+			return rows.map((row) => {
+				const parsed = payloadSchemaForScreenKey(input.screenKey).safeParse(
+					row.payload
+				);
+				if (!parsed.success) {
+					throw new TRPCError({
+						code: "INTERNAL_SERVER_ERROR",
+						message: "Invalid stored filter preset payload",
+					});
+				}
+				return { ...row, payload: parsed.data };
+			});
 		}),
 
 	create: protectedProcedure
 		.input(createInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
+			await validatePayloadOwnership(ctx.db, userId, input.payload);
 
 			await assertNameAvailable(ctx.db, userId, input.screenKey, input.name);
 
@@ -148,6 +201,7 @@ export const filterPresetRouter = router({
 					});
 				}
 				payload = parsed.data as FilterPresetPayload;
+				await validatePayloadOwnership(ctx.db, userId, payload);
 			}
 
 			if (input.name !== undefined && input.name !== found.name) {
