@@ -36,6 +36,7 @@ export const B10_MIGRATION = "0062_hand_count_cutover.sql";
 export const B09_MIGRATION = "0063_ledger_cutover.sql";
 export const B12_MIGRATION = "0064_open_live_cash_ev.sql";
 export const B08_MIGRATION = "0066_tournament_final.sql";
+export const B13_MIGRATION = "0068_entry_rule_versions.sql";
 
 export type Activation =
 	| { state: "active"; since: string | null }
@@ -80,6 +81,7 @@ const SINCE_B10: Activation = { state: "active", since: B10_MIGRATION };
 const SINCE_B09: Activation = { state: "active", since: B09_MIGRATION };
 const SINCE_B12: Activation = { state: "active", since: B12_MIGRATION };
 const SINCE_B08: Activation = { state: "active", since: B08_MIGRATION };
+const SINCE_B13: Activation = { state: "active", since: B13_MIGRATION };
 
 function pending(enabledBy: string): { state: "pending"; enabledBy: string } {
 	return { state: "pending", enabledBy };
@@ -230,8 +232,7 @@ HAVING COALESCE(sum(l.quantity), 0) <> x.pl`,
 			"play_event",
 			"hand",
 			"hand_seat",
-			"session_tournament_detail",
-			"tournament",
+			"tournament_rule_price",
 		],
 	},
 	{
@@ -413,10 +414,111 @@ OR s.ante IS NOT CASE WHEN b.ante >= 0 THEN b.ante END OR s.ante_type IS NOT NUL
 	{
 		audit: "A-13",
 		part: "entry rule content equals staged/source snapshots",
-		kind: "deferred",
-		activation: pending(TASK.B13),
+		kind: "sql",
+		activation: SINCE_B13,
 		deletedBy: TASK.B25,
-		tables: [],
+		tables: [
+			"entry",
+			"entry_cash",
+			"entry_tournament",
+			"cash_rule",
+			"cash_rule_stake",
+			"tournament_rule",
+			"tournament_rule_level",
+			"tournament_rule_level_stake",
+			"tournament_rule_price",
+			"session_cash_detail",
+			"session_tournament_detail",
+			"session_blind_level",
+			"session_chip_purchase",
+		],
+		sql: (cutoverAt) => `WITH cash AS (
+SELECT ec.entry_id, r.id AS rule_id, r.user_id, r.min_buy_in, r.max_buy_in, r.table_size, r.house_rules, s.session_id IS NOT NULL AS has_detail,
+CASE WHEN typeof(s.min_buy_in) = 'integer' AND s.min_buy_in >= 0 THEN s.min_buy_in END AS e_min,
+CASE WHEN typeof(s.max_buy_in) = 'integer' AND s.max_buy_in >= 0 AND (s.min_buy_in IS NULL OR typeof(s.min_buy_in) <> 'integer' OR s.min_buy_in < 0 OR s.max_buy_in >= s.min_buy_in) THEN s.max_buy_in END AS e_max,
+CASE WHEN typeof(s.table_size) = 'integer' AND s.table_size BETWEEN 2 AND 10 THEN s.table_size END AS e_table_size,
+s.house_rules AS e_house_rules,
+CASE WHEN typeof(s.blind1) = 'integer' AND s.blind1 >= 0 THEN s.blind1 END AS e_blind1,
+CASE WHEN typeof(s.blind2) = 'integer' AND s.blind2 >= 0 THEN s.blind2 END AS e_blind2,
+CASE WHEN typeof(s.blind3) = 'integer' AND s.blind3 >= 0 THEN s.blind3 END AS e_blind3,
+CASE WHEN typeof(s.ante) = 'integer' AND s.ante >= 0 THEN s.ante END AS e_ante,
+CASE WHEN s.ante_type IN ('none','all','bb') THEN s.ante_type END AS e_ante_type,
+NOT COALESCE(json_valid(s.mix_games) AND json_type(s.mix_games) = 'array' AND json_array_length(s.mix_games) > 0, 0) AS flat
+FROM entry_cash ec JOIN entry e ON e.id = ec.entry_id AND e.user_id = ec.user_id
+JOIN cash_rule r ON r.id = ec.cash_rule_id AND r.user_id = ec.user_id
+LEFT JOIN session_cash_detail s ON s.session_id = ec.entry_id
+WHERE e.updated_at <= ${cutoverAt} AND r.created_at <= ${cutoverAt}
+), tour AS (
+SELECT et.entry_id, r.id AS rule_id, r.user_id, r.starting_stack, r.table_size, r.bounty_amount, r.house_rules, s.session_id IS NOT NULL AS has_detail,
+s.tournament_buy_in, s.entry_fee,
+CASE WHEN s.starting_stack >= 0 THEN s.starting_stack END AS e_starting_stack,
+CASE WHEN s.table_size BETWEEN 2 AND 10 THEN s.table_size END AS e_table_size,
+CASE WHEN s.bounty_amount >= 0 THEN s.bounty_amount END AS e_bounty_amount, s.house_rules AS e_house_rules
+FROM entry_tournament et JOIN entry e ON e.id = et.entry_id AND e.user_id = et.user_id
+JOIN tournament_rule r ON r.id = et.tournament_rule_id AND r.user_id = et.user_id
+LEFT JOIN session_tournament_detail s ON s.session_id = et.entry_id
+WHERE e.updated_at <= ${cutoverAt} AND r.created_at <= ${cutoverAt}
+), source_levels AS (
+SELECT t.entry_id, t.rule_id, t.user_id, b.*, ROW_NUMBER() OVER (PARTITION BY t.entry_id ORDER BY b.level, b.id) AS ordinal
+FROM tour t JOIN session_blind_level b ON b.session_id = t.entry_id
+), expected_levels AS (
+SELECT entry_id, ordinal, level, CASE WHEN is_break THEN 1 ELSE 0 END AS is_break, CASE WHEN minutes >= 1 THEN minutes END AS minutes
+FROM source_levels
+), actual_levels AS (
+SELECT t.entry_id, l.ordinal, l.level, l.is_break, l.minutes
+FROM tour t JOIN tournament_rule_level l ON l.rule_id = t.rule_id AND l.user_id = t.user_id
+), expected_addons AS (
+SELECT t.entry_id, ROW_NUMBER() OVER (PARTITION BY t.entry_id ORDER BY p.sort_order, p.id) AS position, p.name AS label,
+CASE WHEN p.cost >= 0 THEN p.cost ELSE 0 END AS amount, CASE WHEN p.chips >= 0 THEN p.chips END AS chips
+FROM tour t JOIN session_chip_purchase p ON p.session_id = t.entry_id
+), actual_addons AS (
+SELECT t.entry_id, ROW_NUMBER() OVER (PARTITION BY t.entry_id ORDER BY p.ordinal) AS position, p.label, p.amount, p.chips
+FROM tour t JOIN tournament_rule_price p ON p.rule_id = t.rule_id AND p.user_id = t.user_id AND p.kind = 'addon'
+), missing_levels AS (
+SELECT * FROM expected_levels EXCEPT SELECT * FROM actual_levels
+), extra_levels AS (
+SELECT * FROM actual_levels EXCEPT SELECT * FROM expected_levels
+), missing_addons AS (
+SELECT * FROM expected_addons EXCEPT SELECT * FROM actual_addons
+), extra_addons AS (
+SELECT * FROM actual_addons EXCEPT SELECT * FROM expected_addons
+)
+SELECT * FROM (
+SELECT 'cash scalars' AS problem, entry_id AS id FROM cash
+WHERE has_detail AND (min_buy_in IS NOT e_min OR max_buy_in IS NOT e_max OR table_size IS NOT e_table_size
+OR trim(replace(replace(COALESCE(house_rules, ''), char(13, 10), char(10)), char(13), char(10)), char(32, 9, 10, 11, 12, 13, 160, 65279, 8232, 8233, 12288))
+IS NOT trim(replace(replace(COALESCE(e_house_rules, ''), char(13, 10), char(10)), char(13), char(10)), char(32, 9, 10, 11, 12, 13, 160, 65279, 8232, 8233, 12288)))
+UNION ALL
+SELECT 'cash flat stakes', c.entry_id FROM cash c JOIN cash_rule_stake st ON st.rule_id = c.rule_id AND st.user_id = c.user_id
+WHERE c.has_detail AND c.flat AND (st.blind1 IS NOT c.e_blind1 OR st.blind2 IS NOT c.e_blind2 OR st.blind3 IS NOT c.e_blind3 OR st.ante IS NOT c.e_ante OR st.ante_type IS NOT c.e_ante_type)
+UNION ALL
+SELECT 'tournament scalars', entry_id FROM tour
+WHERE has_detail AND (starting_stack IS NOT e_starting_stack OR table_size IS NOT e_table_size OR bounty_amount IS NOT e_bounty_amount
+OR trim(replace(replace(COALESCE(house_rules, ''), char(13, 10), char(10)), char(13), char(10)), char(32, 9, 10, 11, 12, 13, 160, 65279, 8232, 8233, 12288))
+IS NOT trim(replace(replace(COALESCE(e_house_rules, ''), char(13, 10), char(10)), char(13), char(10)), char(32, 9, 10, 11, 12, 13, 160, 65279, 8232, 8233, 12288))
+OR (tournament_buy_in IS NOT NULL AND NOT EXISTS (SELECT 1 FROM tournament_rule_price p WHERE p.rule_id = tour.rule_id AND p.user_id = tour.user_id AND p.kind = 'entry' AND p.amount = CASE WHEN tournament_buy_in >= 0 THEN tournament_buy_in ELSE 0 END))
+OR (entry_fee IS NOT NULL AND NOT EXISTS (SELECT 1 FROM tournament_rule_price p WHERE p.rule_id = tour.rule_id AND p.user_id = tour.user_id AND p.kind = 'entry' AND p.fee = CASE WHEN entry_fee >= 0 THEN entry_fee ELSE 0 END)))
+)
+UNION ALL
+SELECT * FROM (
+SELECT 'missing or changed level' AS problem, entry_id AS id FROM missing_levels
+UNION ALL SELECT 'extra or changed level', entry_id FROM extra_levels
+UNION ALL SELECT 'missing or changed addon', entry_id FROM missing_addons
+UNION ALL SELECT 'extra or changed addon', entry_id FROM extra_addons
+)
+UNION ALL
+SELECT 'tournament flat stakes', b.entry_id FROM source_levels b
+JOIN tournament_rule_level l ON l.rule_id = b.rule_id AND l.user_id = b.user_id AND l.ordinal = b.ordinal
+JOIN tournament_rule_level_stake s ON s.level_id = l.id AND s.user_id = l.user_id
+WHERE NOT b.is_break AND NOT EXISTS (
+  SELECT 1 FROM json_each(CASE WHEN json_valid(b.games) THEN CASE WHEN json_type(b.games) = 'array' THEN b.games ELSE '[]' END ELSE '[]' END) g,
+  json_each(CASE WHEN g.type = 'object' THEN CASE WHEN json_type(g.value, '$.variants') = 'array' THEN json_extract(g.value, '$.variants') ELSE '[]' END ELSE '[]' END) v
+  WHERE v.type = 'text' AND trim(v.value) <> ''
+)
+AND (s.blind1 IS NOT CASE WHEN b.blind1 >= 0 THEN b.blind1 END
+OR s.blind2 IS NOT CASE WHEN b.blind2 >= 0 THEN b.blind2 END
+OR s.blind3 IS NOT CASE WHEN b.blind3 >= 0 THEN b.blind3 END
+OR s.ante IS NOT CASE WHEN b.ante >= 0 THEN b.ante END OR s.ante_type IS NOT NULL)`,
 	},
 	{
 		audit: "A-14",
@@ -576,7 +678,7 @@ WHERE l.is_break = 1`,
 		audit: "A-14",
 		part: "line price belongs to the entry's tournament rule or master and pays in its asset",
 		kind: "sql",
-		activation: pending(TASK.B13),
+		activation: SINCE_B13,
 		tables: [
 			"ledger_line",
 			"tournament_rule_price",

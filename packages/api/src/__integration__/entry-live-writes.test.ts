@@ -27,7 +27,7 @@ function cashStart(overrides: Partial<LiveEntryStart> = {}): LiveEntryStart {
 	return {
 		id: "live-1",
 		userId: "alice",
-		detail: { kind: "cash", ringGameId: null },
+		detail: { kind: "cash", ringGameId: null, cashRuleId: "cash-rule" },
 		assetId: null,
 		roomId: null,
 		title: "Cash Game",
@@ -44,6 +44,44 @@ function cashStart(overrides: Partial<LiveEntryStart> = {}): LiveEntryStart {
 }
 
 async function startLive(api: ApiFixture, start = cashStart()) {
+	await api.d1
+		.prepare("INSERT INTO game_lineup (id, user_id) VALUES (?, ?)")
+		.bind("lineup", "alice")
+		.run();
+	if (start.detail.kind === "cash") {
+		await api.d1
+			.prepare(
+				"INSERT INTO cash_rule (id, user_id, lineup_id) VALUES (?, ?, ?)"
+			)
+			.bind(start.detail.cashRuleId, "alice", "lineup")
+			.run();
+	} else {
+		await api.d1
+			.prepare(
+				"INSERT INTO tournament_rule (id, user_id, lineup_id) VALUES (?, ?, ?)"
+			)
+			.bind(start.detail.tournamentRuleId, "alice", "lineup")
+			.run();
+		await api.d1
+			.prepare(
+				"INSERT INTO asset (id, user_id, name, updated_at) VALUES (?, ?, ?, 0)"
+			)
+			.bind("chips", "alice", "Chips")
+			.run();
+		await api.d1
+			.prepare(
+				"INSERT INTO tournament_rule_price (id, user_id, rule_id, kind, label, asset_id, amount, fee, ordinal) VALUES (?, ?, ?, 'entry', 'Entry', ?, ?, ?, 0)"
+			)
+			.bind(
+				"price",
+				"alice",
+				start.detail.tournamentRuleId,
+				"chips",
+				start.detail.buyIn,
+				start.detail.entryFee
+			)
+			.run();
+	}
 	await api.db.batch(
 		buildLiveEntryStartStatements(api.db, start) as [never, ...never[]]
 	);
@@ -308,8 +346,9 @@ describe("live entry writes keep the event log and its projection in step", () =
 				detail: {
 					kind: "tournament",
 					tournamentId: null,
-					buyIn: null,
-					entryFee: null,
+					tournamentRuleId: "tournament-rule",
+					buyIn: 1000,
+					entryFee: 100,
 				},
 				startEvent: {
 					schemaVersion: 1,

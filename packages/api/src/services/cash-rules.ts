@@ -11,11 +11,17 @@ import {
 	hydrateLineups,
 	insertChunks,
 	type Lineup,
+	type LineupMap,
 	LineupPlanner,
 	loadLineups,
 	MAX_LINEUP_GROUPS,
 } from "./game-lineup";
-import { planStakes, stakeInputSchema, stakeValues } from "./rule-stakes";
+import {
+	type PlannedStake,
+	planStakes,
+	stakeInputSchema,
+	stakeValues,
+} from "./rule-stakes";
 import { seedDefaultGameData } from "./seed-game-data";
 
 const amount = z.number().int().min(0).nullable().optional();
@@ -40,11 +46,23 @@ export const cashRuleInputSchema = z
 	);
 export type CashRuleInput = z.infer<typeof cashRuleInputSchema>;
 
+export interface CashRuleOutput {
+	houseRules: string | null;
+	id: string;
+	lineupId: string;
+	maxBuyIn: number | null;
+	minBuyIn: number | null;
+	parentRuleId: string | null;
+	ringGameId: string | null;
+	stakes: PlannedStake[];
+	tableSize: number | null;
+}
+
 export async function hydrateCashRules(
 	db: Database,
 	userId: string,
 	ids: string[]
-) {
+): Promise<{ rules: Map<string, CashRuleOutput>; lineups: LineupMap }> {
 	const versions = await selectInChunks(
 		[...new Set(ids)],
 		(chunk) =>
@@ -73,7 +91,7 @@ export async function hydrateCashRules(
 		userId,
 		versions.map((v) => v.lineupId)
 	);
-	const rules = new Map(
+	const rules = new Map<string, CashRuleOutput>(
 		versions.map((v) => {
 			const lineup = lineups[v.lineupId];
 			if (!lineup) {

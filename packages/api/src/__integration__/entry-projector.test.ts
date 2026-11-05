@@ -6,6 +6,8 @@ import {
 	playEvent,
 	playSession,
 } from "@sapphire2/db/schema/entry";
+import { gameLineup } from "@sapphire2/db/schema/game-lineup";
+import { cashRule, tournamentRule } from "@sapphire2/db/schema/rule";
 import { asc, eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
 import { runBatch } from "../lib/batch";
@@ -109,6 +111,10 @@ describe("projection statements against D1", () => {
 	test("persist a two-day tournament through bagging, day two and the final bust", async ({
 		api: { db },
 	}) => {
+		await db.insert(gameLineup).values({ id: "lineup", userId });
+		await db
+			.insert(tournamentRule)
+			.values({ id: "rule", userId, lineupId: "lineup" });
 		const entryId = "mtt";
 		await db.insert(entry).values({
 			id: entryId,
@@ -119,9 +125,12 @@ describe("projection statements against D1", () => {
 			playedOn: "2026-09-06",
 			updatedAt: START,
 		});
-		await db
-			.insert(entryTournament)
-			.values({ entryId, userId, tournamentId: null });
+		await db.insert(entryTournament).values({
+			entryId,
+			userId,
+			tournamentId: null,
+			tournamentRuleId: "rule",
+		});
 		await db.insert(playSession).values([
 			{
 				id: "mtt-day-1",
@@ -244,6 +253,10 @@ describe("projection statements against D1", () => {
 	test("persist a cash-out with its end stack and EV difference", async ({
 		api: { db },
 	}) => {
+		await db.insert(gameLineup).values({ id: "lineup", userId });
+		await db
+			.insert(cashRule)
+			.values({ id: "rule", userId, lineupId: "lineup" });
 		const entryId = "ring";
 		await db.insert(entry).values({
 			id: entryId,
@@ -254,7 +267,12 @@ describe("projection statements against D1", () => {
 			playedOn: "2026-09-05",
 			updatedAt: START,
 		});
-		await db.insert(entryCash).values({ entryId, userId, ringGameId: null });
+		await db.insert(entryCash).values({
+			entryId,
+			userId,
+			ringGameId: null,
+			cashRuleId: "rule",
+		});
 		await db.insert(playSession).values({
 			id: "ring-day-1",
 			userId,
