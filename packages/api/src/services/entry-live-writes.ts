@@ -21,6 +21,7 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { type BatchStatement, runBatch } from "../lib/batch";
 import {
+	isEndedPlayAppendError,
 	isPlayEventOrderConflictError,
 	isUnfinishedPlaySessionConflictError,
 } from "../lib/db-errors";
@@ -489,6 +490,13 @@ export function mapLiveWriteConflict(error: unknown): unknown {
 			cause: error,
 		});
 	}
+	if (isEndedPlayAppendError(error)) {
+		return new TRPCError({
+			code: "PRECONDITION_FAILED",
+			message: "No event can be added to an ended play session",
+			cause: error,
+		});
+	}
 	return error;
 }
 
@@ -511,7 +519,28 @@ export async function commitEntryEventChange(
 	const planned = planChange(db, scope, state, change, now);
 	validateEventStream(state.kind, state.playSessions, planned.events);
 	const projection = projectEntry(planned.events, state);
+	const appendTargets =
+		change.op === "append"
+			? new Set(
+					planned.events
+						.filter((event) => planned.eventIds.includes(event.id))
+						.map((event) => event.playSessionId)
+				)
+			: new Set<string>();
 	await runBatch(db, [
+		...[...appendTargets].map((playSessionId) =>
+			db
+				.update(playSession)
+				.set({
+					status: sql`CASE WHEN ${playSession.status} = 'ended' THEN NULL ELSE ${playSession.status} END`,
+				})
+				.where(
+					and(
+						eq(playSession.id, playSessionId),
+						eq(playSession.userId, scope.userId)
+					)
+				)
+		),
 		...(options.before ?? []),
 		...planned.statements,
 		...buildProjectionStatements(db, scope, projection),

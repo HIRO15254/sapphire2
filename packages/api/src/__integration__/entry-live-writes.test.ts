@@ -467,6 +467,60 @@ describe("live entry writes keep the event log and its projection in step", () =
 		]);
 	});
 
+	test("an append racing a session_end that ended the play first is rejected and leaves one end", async ({
+		api,
+	}) => {
+		await startLive(api);
+		const end = (quantity: number) => ({
+			op: "append" as const,
+			events: [
+				{
+					type: "session_end",
+					occurredAt: minutes(30),
+					payload: {
+						payments: [{ assetId: "chips", quantity, role: "cash_out" }],
+					},
+				},
+			],
+		});
+		const racing = new Proxy(api.db, {
+			get(target, property, receiver) {
+				if (property !== "batch") {
+					return Reflect.get(target, property, receiver);
+				}
+				return async (statements: Parameters<Database["batch"]>[0]) => {
+					await applyEntryEventChange(
+						target,
+						"alice",
+						"live-1",
+						end(1200),
+						minutes(30)
+					);
+					return target.batch(statements);
+				};
+			},
+		});
+
+		const failure = await applyEntryEventChange(
+			racing,
+			"alice",
+			"live-1",
+			end(900),
+			minutes(30)
+		).catch((error: unknown) => error);
+
+		expect(failure).toMatchObject({ code: "PRECONDITION_FAILED" });
+		const events = await listEntryPlayEvents(api.db, "alice", "live-1");
+		expect(events.map((event) => event.eventType)).toEqual([
+			"session_start",
+			"session_end",
+		]);
+		expect(await onlyPlay(api.db, "live-1")).toMatchObject({
+			status: "ended",
+			endStack: 1200,
+		});
+	});
+
 	test("another user can neither append to nor edit nor delete an entry's events", async ({
 		api,
 	}) => {

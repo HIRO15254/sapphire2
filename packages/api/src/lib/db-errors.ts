@@ -29,6 +29,9 @@ const UNFINISHED_PLAY_SESSION_CONFLICT_RE =
 const PLAY_EVENT_ORDER_CONFLICT_RE =
 	/UNIQUE constraint failed:\s*(play_event\.entry_id,\s*play_event\.sort_order|index 'play_event_entry_sort_order_unique')/i;
 
+const ENDED_PLAY_APPEND_RE =
+	/NOT NULL constraint failed:\s*play_session\.status/i;
+
 function someErrorInChain(error: unknown, pattern: RegExp): boolean {
 	let current = error;
 	while (current instanceof Error) {
@@ -50,6 +53,10 @@ export function isUnfinishedPlaySessionConflictError(error: unknown): boolean {
 
 export function isPlayEventOrderConflictError(error: unknown): boolean {
 	return someErrorInChain(error, PLAY_EVENT_ORDER_CONFLICT_RE);
+}
+
+export function isEndedPlayAppendError(error: unknown): boolean {
+	return someErrorInChain(error, ENDED_PLAY_APPEND_RE);
 }
 
 export function isAssetNameConflictError(error: unknown): boolean {
