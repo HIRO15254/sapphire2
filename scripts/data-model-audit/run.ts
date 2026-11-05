@@ -16,7 +16,6 @@ import { runReplay } from "./replay";
 export const CHECK_STATUSES = [
 	"pass",
 	"violation",
-	"report",
 	"error",
 	"pending",
 	"not-introduced",
@@ -103,10 +102,7 @@ function plan(
 
 function findingsResult(planned: Plan, rows: Row[]): CheckResult {
 	const { check } = planned;
-	let status: CheckStatus = "pass";
-	if (rows.length > 0) {
-		status = check.reportOnly ? "report" : "violation";
-	}
+	const status: CheckStatus = rows.length > 0 ? "violation" : "pass";
 	return {
 		audit: check.audit,
 		part: check.part,

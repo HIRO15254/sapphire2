@@ -172,7 +172,7 @@ Game-master lists support archive/restore and `includeArchived`. Default lists e
 
 A ring game or tournament referenced by an entry, by an entry's version, or through a historical price cannot be deleted; archive it instead. An unused master may be deleted: versions belong to its aggregate and cascade with their children. API guards prevent raw FK errors; the NO ACTION references remain the DB backstop. Room deletion must check referenced descendants as well. Account deletion succeeds because references use NO ACTION rather than RESTRICT.
 
-## Implementation path
+## Implementation path (completed history)
 
 These are implementation dependencies, not separate release steps. The authoritative full graph is data-model-v2.md §18.
 
@@ -189,7 +189,7 @@ These are implementation dependencies, not separate release steps. The authorita
 
 Canceled tasks have explicit destinations: L3 / SA2-246 → B07, B08, B13, B22, B16, B17; L4a / SA2-247 → U06, L4b / SA2-248 → U08, L4c / SA2-249 → U07, plus U02's shared editors; L5 / SA2-250 → B07, B08, B13, B05, B16, B17, B25. SA2-242 is the completed design, not an additional implementation gate. B11 owns Must/Optional blind-field validation after B08; its screens are U02 (shared stakes components) and the phases that use them.
 
-## Migration choreography and traps
+## Migration choreography and traps (completed history)
 
 ### DDL first, then populated master rebuilds
 
@@ -245,8 +245,6 @@ Migration and API/DB integration tests must protect plausible losses: account de
 
 ## Retired storage and cleanup
 
-B07/B08 omit the master rule columns immediately; there is no later task to remove those same columns. Legacy `blind_level`, `tournament_chip_purchase`, session detail rule copies, `session_blind_level`, `session_chip_purchase` and their results remain only as migration/audit sources until their readers have moved. B25 drops **all** remaining retired tables/columns and `game_mix.games`. No compatibility view or pending-drop escape remains.
-
-Delete obsolete mechanisms in their owning API tasks: `MIX_VARIANT`, `MIX_VARIANT_LABEL`, `RESERVED_LABELS`, label-resolution input paths, cross-table namespace checks, frozen-composition exemptions, `cashMixFlatFieldClearPatch`, rule snapshot copy paths, `updateSnapshot`, and normalized per-column drift comparisons. B22 switches statistics directly to id-based versions. B25 brings related design/rule documents to the final state and walks the SA2-334 resolution table.
+B25 dropped the remaining legacy session and rule source tables and `game_mix.games`. The older label-resolution, snapshot-copy and compatibility paths are retired; current reads and writes use id-based lineups and immutable rule versions. The choreography above is completed history, not a runtime contract.
 
 SA2-239's custom-mix retirement is represented by lineups without a saved mix id. SA2-214's four legacy game JSON columns disappear with the relevant master rebuild or B25; do not add replacement JSON storage. The release rehearsal and Time Travel restore procedure are defined once in data-model-v2.md §16.

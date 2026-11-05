@@ -3,7 +3,6 @@ import {
 	check,
 	index,
 	integer,
-	primaryKey,
 	sqliteTable,
 	text,
 	uniqueIndex,
@@ -50,23 +49,6 @@ export const { tag: playerTag, link: playerTagLink } = defineTagTables(
 	}
 );
 
-export const playerToPlayerTag = sqliteTable(
-	"player_to_player_tag",
-	{
-		playerId: text("player_id")
-			.notNull()
-			.references(() => player.id, { onDelete: "cascade" }),
-		playerTagId: text("player_tag_id")
-			.notNull()
-			.references(() => playerTag.id, { onDelete: "cascade" }),
-		position: integer("position").notNull().default(0),
-	},
-	(table) => [
-		primaryKey({ columns: [table.playerId, table.playerTagId] }),
-		index("playerToPlayerTag_playerTagId_idx").on(table.playerTagId),
-	]
-);
-
 export const playerRelations = relations(player, ({ one, many }) => ({
 	user: one(user, {
 		fields: [player.userId],
@@ -93,17 +75,3 @@ export const playerTagLinkRelations = relations(playerTagLink, ({ one }) => ({
 		references: [playerTag.id, playerTag.userId],
 	}),
 }));
-
-export const playerToPlayerTagRelations = relations(
-	playerToPlayerTag,
-	({ one }) => ({
-		player: one(player, {
-			fields: [playerToPlayerTag.playerId],
-			references: [player.id],
-		}),
-		tag: one(playerTag, {
-			fields: [playerToPlayerTag.playerTagId],
-			references: [playerTag.id],
-		}),
-	})
-);

@@ -1,167 +1,19 @@
-# Sessions & Live Editing
+# Entries and Live Editing
 
-> Legacy record. The session and live-session screens this doc describes were removed in B03, and the session, live-session, session-event and table-player routers in B06 (SA2-391). B16/B17 rebuild them on the entry model ([data-model-v2.md](data-model-v2.md), [api-after-data-model-v2.md](api-after-data-model-v2.md)); the sections below are the legacy contract those phases replace.
+The current participation model is an `entry` with one or more `play_session` days. Manual entries store ended days and payments directly; live entries derive their state and event-sourced ledger lines from `play_event`. The authoritative API contracts are in [api-after-data-model-v2.md](api-after-data-model-v2.md), and projection and undo rules are in [data-model-v2.md](data-model-v2.md) §§13–14.
 
-Design reference for the session domain: the event-sourced live-session model, event payload invariants, frozen rule snapshots, ownership contracts, the live reopen flow, P/L math (`chipRemoveTotal`), and the live-linked edit sheet. EV semantics (recording gate, cash-out fallback, population rules) are owned by [`statistics.md`](statistics.md); D1 batching/atomicity mechanics by [`data-integrity.md`](data-integrity.md); game-master semantics by [`game-masters.md`](game-masters.md); the generic filter-preset system by [`web-platform.md`](web-platform.md).
+## Lifecycle and projection
 
-## The event-sourced session model
+`live.create` starts an entry and its first day. Events are ordered by `(occurred_at, sort_order, id)` and the projector folds them into the entry, its days, details and event-sourced ledger lines. Event mutation and projection are committed together in one D1 batch. Each payment carries its own asset; projected signed ledger quantities determine the result. Manual lines are not replaced by the live projector.
 
-A live-recorded session is an event stream, not a form submission. The session row's derived columns (`startedAt`, `cashOut`, `placement`, buy-in, break minutes, P/L, …) are recalculated from the events on every event write, so columns and events can never drift. **The live session id and the recorded session id are the same row** (SA2-167).
+A day may end held or bagged while the entry remains open. `startNextPlay` creates the next day; tournament re-entry payments belong to its start event. `complete` settles the entry. Ended days cannot receive ordinary events. `undoEndPlay` and `undoStartNextPlay` provide constrained reversal without silently discarding dependent facts. The database permits at most one unfinished play session per user.
 
-- State is derived, never stored ([`session-event-types.ts`](../../packages/db/src/constants/session-event-types.ts), `getSessionCurrentState`): **completed** = a `session_end` exists; **paused** = the latest lifecycle/pause/resume event is `session_pause`; **active** otherwise. Derived state uses the **first** `session_start` and the **last** `session_end` — a reopened cash session carries more than one of each — and the web's [`live-linked-edit.ts`](../../apps/web/src/features/sessions/utils/live-linked-edit.ts) picks lifecycle events by the same rule, matching `computeSessionStateFromEvents`.
-- An omitted `occurredAt` resolves to **`now`**, never a fixed value like `sessionDate` ([`session-event-time.ts`](../../packages/api/src/utils/session-event-time.ts)) — a `sessionDate` default once stacked every default-timestamped event on a single instant.
-- Events are read ordered by `(occurredAt, sortOrder, id)`; `session_resume` must sort **strictly after** `session_pause` or break-minute calculation cannot close the pause.
-- The cross-field rule "exactly one session id" on event procedures is enforced at runtime via `validateExactlyOneSessionId` — the Zod schema accepts any combination.
-- **Minute-granularity trap**: the server compares event times **by minute** (`floorToMinute` + `assertOccurredAtOrdering`). Every client-side bound check must floor the same way — [`live-linked-edit.ts`](../../apps/web/src/features/sessions/utils/live-linked-edit.ts) does, and treats "both editors landed on the same minute" as nothing left to write. Keep the two in lockstep whenever either side's comparison changes.
+## Editing and ownership
 
-## Event payload invariants
+Live-linked edits validate and change events, then reproject; they do not patch derived results directly. Event payloads use the current v2 schema, and ownership checks include nested assets, prices, players and hand links. `all_in` hand links must belong to the same play session. Table occupancy is folded from player events, including the user's self player for Hero.
 
-Payload schemas live in [`session-event-types.ts`](../../packages/db/src/constants/session-event-types.ts).
+Entries retain immutable rule-version references. Rule changes create or select versions through the entry/live rule operations rather than mutating the master or an old snapshot. Archived masters remain resolvable for historical reads. Manual updates replace the submitted complete days and payments atomically; see the API reference for precise replacement and validation semantics.
 
-- **Seat bounds (SA2-131)** — seats are 0-indexed; a 10-max table uses positions 0–9. Every server-side `seatPosition` / `heroSeatPosition` bound derives from the single constant `MAX_SEAT_POSITION = 9`, so it can never again drift from the client's `MAX_SEAT_COUNT` (10).
-- **`chips_add_remove.amount` is signed** — a deliberate deviation from the `.int().min(0)` convention in [`api-data-integrity.md`](../../.claude/rules/api-data-integrity.md): positive = chips added, negative = chips removed (feeds `chipRemoveTotal`). Zero is rejected so no-op events are never stored.
-- **`all_in`: `wins <= trials` (SA2-156)** — `wins` counts favorable run-outs as a **fraction** on chopped pots, so it is a non-negative number, not necessarily an integer. The object-level refine blocks the real bug: `{ potSize: 1000, trials: 1, wins: 5 }` once validated and let EV math compute a wins-share larger than the pot, corrupting `evCashOut` / `evDiff`. The web mirrors the bound with a single shared `superRefine` ([`all-in-validation.ts`](../../apps/web/src/features/live-sessions/utils/all-in-validation.ts)) attached by **both** the create sheet and the timeline editor so it cannot drift between them.
-- **`purchase_chips`** keeps `name` / `cost` / `chips` as a **denormalized snapshot** for display and P/L math even if the linked rule (`sessionChipPurchaseId`) changes later.
-- **`update_stack`**: `averageStack = (startingStack × totalEntries + chipTotal) / remainingPlayers` is **derived on read**, never stored — storing it would let it drift from its inputs.
+## Progress and statistics
 
-## Frozen rule snapshots (self-freezing sessions)
-
-Snapshot fields on [`session_cash_detail`](../../packages/db/src/schema/session-cash-detail.ts) / [`session_tournament_detail`](../../packages/db/src/schema/session-tournament-detail.ts) (plus `session_blind_level` / `session_chip_purchase` rows) are copied from the parent `ring_game` / `tournament` at session-create time and frozen — parent rename / blind / config changes never propagate. Web reads must come from the **session** snapshot (`getById` returns it); only `tags` / `memo` / `currencyId` fall back to the master, since they are not part of the rule snapshot.
-
-- **Create**: explicit snapshot fields override the parent's values; with no master referenced they define the rule wholesale (manual and wizard sessions need no master row). `variant` on the cash create schema is **plain optional** — a schema-level default would coerce an omitted variant *before* `mergeCashSnapshotWithParent`, permanently defeating inheritance from the ring game (c10); the `"NL Hold'em"` fallback lives solely in `defaultCashSnapshot`. Every chip purchase is seeded with a count-0 result row.
-- **Update**: overrides go to the detail row, **never the parent**. Changing the parent link re-snapshots from the new parent, with explicit inputs still winning. `null` for blind levels / chip purchases **keeps** the frozen snapshot; explicit arrays **override** it — the explicit-array write runs *after* the re-snapshot in the same batch, so arrays win when both apply. `kind` is fixed: the update keys off the persisted kind. For live sessions, `session.update` **refuses every event-derived field** (times, cash-out, placement, buy-in, catalogs, blind structure) — those change only through event edits (below).
-- **House rules** (`houseRules`, free text) are a snapshot field on both masters and both detail tables, copied and frozen like the blinds — unlike `memo`, which the master and the session each keep for their own note and which is never copied. The roomless ring game that `session.create` auto-creates for a masterless cash session carries the house rules too, so re-snapshotting the session onto that shadow row does not drop them. The web treats them as a master field (drift, Reset to master, Update master, Same rules, Create new master) but compares them after normalizing line endings and trimming outer whitespace, so a textarea's `\r\n` or a trailing newline never reads as drift; a blank val…
-- **`updateSnapshot` mutations** edit the frozen snapshot for this session only (the tournament variant includes full-list replacement of blind levels / chip purchases); the master `ring_game` / `tournament` row is **never touched**.
-- Mix-game rendering: `null` ≈ `undefined` for ante type. The display drops both, so any comparison of a frozen snapshot against its master (the old `snapshot-diff.ts` did this; its Cryst successor will too) must normalize the two the same way, or the diff counts an ante the display silently drops. The structural "group" type in [`game-scene-formatters.ts`](../../apps/web/src/features/live-sessions/utils/game-scene-formatters.ts) is local on purpose — reconcile with the game-group zod schema when that phase lands.
-
-## Ownership contracts
-
-The blanket rules (object-level authorization, scoped bulk WHEREs, write-IDOR row scoping) live in [`api-security.md`](../../.claude/rules/api-security.md); the session-domain guard inventory:
-
-- **Uniform FORBIDDEN (SA2-183)** — `validateEntityOwnership` ([`ownership.ts`](../../packages/api/src/lib/ownership.ts)) treats "missing" and "owned by someone else" identically; shared by the game-group / game-variant / game-mix routers.
-- **Filter ownership (SA2-183)** — `validateSessionFilterOwnership` validates every optional FK filter at the resolver boundary, before an owner-scoped query can turn a foreign id into an empty result.
-- **Live-link ownership (SA2-102)** — `validateLiveLinkOwnership` guards the room / currency links of the live routers. Falsy (`undefined` = omitted, `null` = clear, `""` = empty) skips; a provided id must exist AND belong to the caller. Prevents IDOR on the money-ledger links.
-- **Tag-set ownership (SA2-177)** — `validateTagsOwnership` compares the distinct owned count against the requested distinct count in one scoped query; any mismatch → FORBIDDEN. No-ops on empty/omitted ids.
-- **Ring game (SA2-174 / SA2-181 / SA2-296)** — a ring game carries its **own `userId`** (`NOT NULL`, see [`data-integrity.md`](data-integrity.md)). Ownership is verified **before any `ring_game` read**, so a caller cannot probe another user's config via the buy-in bounds.
-- **Tournament** — carries a `NOT NULL` `userId` that the composite FK keeps equal to its room's owner (SA2-296), and every create path writes the caller's id. Read-side ownership still derives from its room, validated **before** `snapshotTournamentStructure` reads anything (IDOR on another user's blind structure otherwise).
-- **Transaction type (SA2-179)** — ownership verified before the type is linked to a transaction (read-IDOR otherwise).
-
-## Session lifecycle: reopen and deletion
-
-- **Live reopen (SA2-211)** — `persistCashSessionReopenEvents` deletes the `session_end` and re-stamps the closing stack as an `update_stack` plus a `session_pause`/`session_resume` pair. Event replacement, row reopen, and ledger-entry removal share **one `db.batch`**, so any failure rolls back the entire reopen (SA2-116; batch mechanics in [`data-integrity.md`](data-integrity.md)). Replacement events use contiguous sortOrders (the deleted end's order, +1, +2) — the "fixed sort-order ranges only within one atomic replacement batch" case of [`api-data-integrity.md`](../../.claude/rules/api-data-integrity.md); the pause→resume ordering matters because break minutes close a pause only when the resume sorts strictly after it.
-- **Deletion** also unwinds the linked currency transaction server-side — the confirmation copy stays explicit about permanence because the ledger entry disappears with it.
-
-## Hand count and dealer button
-
-`game_session.hand_count` (nullable — `null` means the session has not started counting) and `game_session.dealer_seat` (nullable — `null` means the button has not been placed) are per-session table state, not part of the rule snapshot and not event-sourced. `dealer_seat` stores the button's current seat (0-based, the same numbering as `heroSeatPosition`) on its own; it is not derived from the hand count. The button only ever sits in front of someone: the hero or a seated player. The client resolves the stored seat against the seats occupied right now ([`hand-tracking.ts`](../../apps/web/src/features/live-sessions/utils/hand-tracking.ts)) — a stored seat that has since been vacated (or no longer exists after a table-size change) shows the button on the next occupied seat clockwise, an unplaced button starts at the lowest occupied seat, and an empty table shows no button. The server therefore validates only the range (`0..MAX_SEAT_POSITION`), not occupancy or table size: both change after the write, so the read side has to resolve the seat regardless. Adding a hand advances the button to the next occupied seat and removing one moves it back, in the same write as the count; the Hand count sheet's arrows move it without touching the count. The D badge on the table is display-only and ignores pointer events: it overlaps the corner of the seat marker, and tapping a seat must always open that player's panel (notes included) rather than move the button. Both are written as **absolute values** through the live `update` procedures, and only while the session is `active` — a paused or completed session rejects them with `BAD_REQUEST`, matching the paused-state event rule that only notes may be logged. Because the writes are absolute and last-write-wins, a client that lets the user tap faster than the round trip must serialize its hand-count mutations rather than send overlapping ones. The Cryst cockpit ([`use-hand-tracking.ts`](../../apps/web/src/features/live-sessions/hooks/use-hand-tracking.ts)) keeps one request in flight and coalesces the taps made meanwhile into the next absolute write, projecting each tap optimistically so the counter and the button move immediately. Each tap computes its step from the optimistic cache, so the coalesced write carries the seat the last tap produced.
-
-## Seated players: event-sourced stints
-
-Seated players are not stored in a table — every read folds the `player_join` / `player_leave` stream ([`live-session-pl.ts`](../../packages/api/src/services/live-session-pl.ts)):
-
-- Only events carrying a `playerId` are folded; the hero's seat has no `playerId` and is derived by `computeHeroSeatPositionFromEvents`.
-- Each `player_join` opens a **stint**, each `player_leave` closes the latest open one; a leave with no open stint is a no-op. Each player appears once, full history on `stints`, top-level fields reflecting the most recent stint.
-- The seat lives on the player's **most recent `player_join` event**; patching that event keeps the seat fully event-sourced.
-
-## P/L and `chipRemoveTotal` (SA2-124)
-
-**Cash P/L is `cashOut + chipRemoveTotal − totalBuyIn`, identical at every site that computes it.** Chips racked off mid-session are already-pocketed value, not a loss; the chip-remove-blind `cashOut − buyIn` undercounts by exactly the removed chips. `session_cash_detail.chipRemoveTotal` (Σ of the negative `chips_add_remove` amounts) is persisted separately from `cashOut` so completed-session P/L (list / detail / stats) can add it back in.
-
-The four formula sites that must never drift:
-
-1. Server: [`live-session-pl.ts`](../../packages/api/src/services/live-session-pl.ts) (also surfaces `chipRemoveTotal` for the live header).
-2. Chart: [`session-timeline.ts`](../../apps/web/src/features/live-sessions/utils/session-timeline.ts).
-3. Optimistic layer: [`optimistic-session-event.ts`](../../apps/web/src/features/live-sessions/utils/optimistic-session-event.ts) (`session_end`: `cashOutAmount` drives `profitLoss` via the same formula).
-4. Live cockpit: [`computeCashGamePL`](../../apps/web/src/features/live-sessions/utils/live-session-summary.ts), consumed by [`use-cash-cockpit.ts`](../../apps/web/src/features/live-sessions/pages/live-session-page/cash-cockpit/use-cash-cockpit.ts) (`stack + chipRemoveTotal − totalBuyIn`).
-
-Recalculation runs on **every** event write, so editing an unrelated field (e.g. memo) must not regress the currency ledger to the chip-remove-blind value. The same figure feeds the fallback EV so `evDiff` stays isolated to all-in equity (EV semantics: [`statistics.md`](statistics.md)).
-
-## Chip purchases and result sync
-
-- `session_chip_purchase_result` stores one row per `session_chip_purchase` (`sessionChipPurchaseId` doubles as the primary key); cost is derived on read from the linked rule, never duplicated.
-- Recalculation **upserts** the event-derived counts — **every** purchase gets a row (count 0 when never bought), chunked and batched under D1's bind-parameter cap so a failed upsert cannot leave a partially refreshed set ([`data-integrity.md`](data-integrity.md)).
-- `count` is deliberately kept out of the shared `ChipPurchaseRow` type — it is shared with the Rooms tournament form, where a result count is meaningless.
-
-## Session timeline chart
-
-[`session-timeline.ts`](../../apps/web/src/features/live-sessions/utils/session-timeline.ts) plots only stack records; buy-in-affecting events, all-ins (`evDiff`), and chip purchases feed running state, reflected at the next stack point. **Tournament start counts as a stack record equal to the starting stack**, so the curve begins there. The opening point is the first `update_stack` because the create flow ([`use-create-session.ts`](../../apps/web/src/features/live-sessions/hooks/use-create-session.ts)) logs one with the starting stack — the two are coupled; changing the create flow breaks the chart's opening point. Related timer contract: **zero-minute blind rows are accepted** by the structure schema (skipped placeholders, not indeterminate durations), so the tournament timer advances over them instead of pinning.
-
-## Live-linked session editing
-
-The sync layer between the session edit form and the live event history: [`live-linked-edit.ts`](../../apps/web/src/features/sessions/utils/live-linked-edit.ts) and its page hook [`use-live-linked-session-edit.ts`](../../apps/web/src/features/sessions/pages/session-detail-page/use-live-linked-session-edit.ts).
-
-### The field → event map
-
-Most of a live session's edit form is read-only (derived columns). Editable fields are exactly those determined by one value of one event; anything aggregated over several events (cash buy-in, EV cash-out, break minutes, chip-purchase counts) stays read-only, and `sessionDate` is never editable (below).
-
-| Form field                                   | Event         | Value                  |
-|----------------------------------------------|---------------|------------------------|
-| `startTime`                                  | session_start | `occurredAt` (time)    |
-| `endTime`                                    | session_end   | `occurredAt` (time)    |
-| `cashOut`                                    | session_end   | `payload.cashOutAmount`|
-| `beforeDeadline` / `placement` / `totalEntries` / `prizeMoney` / `bountyPrizes` | session_end | `payload` |
-
-These write through `sessionEvent.update` (which `session.update` refuses): the server revalidates the payload, enforces neighbour ordering, and recalculates the session. `sessionEvent.update` **replaces the payload wholesale**, so an unchanged payload is simply not sent. Rules-step catalogs and the blind structure are likewise event-derived and disabled for live sessions.
-
-### The locked date and the day-stretch hazard
-
-Both times are edited **within their own event's calendar day**, never recombined with the form's single `sessionDate` — which is why the date input is locked. Moving a lifecycle event to another day leaves every other event in place, so the session silently stretches: a start dragged one day back once turned a 5-hour session into a **29-hour** one, feeding phantom play time into statistics. A day move would mean moving the whole event stream — not a single-event edit — so a stale submitted date must never move an event. Same semantics as the Events-section editors, and the reason a session spanning more than a day survives an edit.
-
-Day hints (SA2-145): the displayed date can disagree with a time's actual day — the session crossed midnight, or `sessionDate` is the start timestamp rendered with UTC getters while the times render locally (for JST, every session starting 00:00–09:00). Each time field therefore spells out its actual calendar day whenever it differs from the form's date.
-
-### Required and disabled field sets (SA2-113)
-
-Two disjoint sets govern live result fields. **Disabled** = the backing event does not exist yet (no `session_end` while running) or has not loaded — the form never offers an edit the server would reject. **Required** = the backing event exists, so the payload requires a value and a blank is either a rejection or — worse — a silent 0. The shared schema marks these optional for manual sessions, hence the separate live-only set. On submit, values compare 0-normalized so an untouched blank on a bounty-less session is a no-op, but a *cleared* non-zero value stays `undefined` and is **rejected** — a blank saved as 0 silently corrupts P/L (SA2-113).
-
-### Seed snapshot vs. current events
-
-The edit sheet embeds the Events section, which edits the same events live. The invariant: the form diffs against **`seedEvents`** (the events as of sheet-open), and per key the merge is **last-write-wins between the two editors** — a key the form left at its seed keeps whatever the event holds now, so an Events-side prize edit and a form-side placement edit both survive. The actual writes go against the **current** events. `FormSheet` unmounts on close, so the form re-seeds exactly when the snapshot clears; the date is seeded at the same moment, so the day hints must compare against the **frozen** date — an Events-side start-time edit can change the session's UTC calendar day while the form keeps showing the old one.
-
-### Building and applying the edits
-
-- **Bounds**: a new time must respect its neighbours — substituting the other lifecycle event's *pending* time when it is the neighbour, or moving start and end together would be rejected against a time about to change.
-- **Order**: edits are returned in application order — **when the end moves later it goes first**, so a start moving past the end's *old* time never trips the server's neighbour check (and vice versa). Validation errors abort before anything is written.
-- **Application is sequential on purpose** — each edit satisfies the neighbour check against the state the previous one left behind. A rejected edit keeps the sheet open; only the failed step is unapplied, since the server recalculates after every event write.
-
-## Session display contract
-
-Whether a row shows an EV figure is decided in exactly one function — `displayableEvProfitLoss` in [`session-display.ts`](../../apps/web/src/features/sessions/utils/session-display.ts) — read by the list card, the detail hero, and the share text, so the three surfaces cannot disagree. Gate semantics: [`statistics.md`](statistics.md).
-
-## Session wizard: live vs. manual schema split
-
-A live session is created before it ends, so the result-only `cashOut` is unknown and the live form never renders it — keeping the shared `cashOut` requirement made ✓ Confirm silently fail (the always-empty field failed validation and routed to a Result step the live form doesn't render). The live cash schema therefore drops `cashOut` (the initial buy-in stays required), and live mode drops the Result step entirely.
-
-Mix-editor invariants ([`use-session-form-state.ts`](../../apps/web/src/features/sessions/components/session-wizard/use-session-form-state.ts)):
-
-- Every all-levels value **clears** per-level game assignments so hidden per-level games cannot leak into the snapshot; entering a mix clears the flat blind/ante fields, leaving clears the editor rows — the editor rows are the single submit-time authority (c02/c04).
-- Gates read the **editor state, never a live master lookup**: a deleted or renamed mix master must not wipe the frozen snapshot on an unrelated edit (c02/c02b).
-- The one-shot reseed from the stored snapshot stands down once the user touches the mix editor, so it can never clobber their edits (c05).
-
-Room geolocation (SA2-100): `room.latitude` / `longitude` are nullable on purpose — **(0, 0) is a valid coordinate** and cannot mean "unset". The "you are at this venue" radius is **500 m** (venue footprint + GPS jitter, without matching across town). The suggested nearest room applies only while the user hasn't picked one; a manual choice or explicit clear always wins.
-
-## Live session sheet: game type and mix groups (SA2-224)
-
-The game type picker ([`game-type-sheet/`](../../apps/web/src/features/live-sessions/pages/live-session-page/sheets/game-type-sheet/)) serves the session and each tournament level with one flow: **pick a master, then set values outside the picker**. Masters are edited only through the picker's explicit New / Edit actions ([`game-master-sheet/`](../../apps/web/src/features/live-sessions/pages/live-session-page/sheets/game-master-sheet/), [`mix-master-sheet/`](../../apps/web/src/features/live-sessions/pages/live-session-page/sheets/mix-master-sheet/)), so picking can never change a master by accident.
-
-- **The session holds a variant or a saved mix, never an ad-hoc composition.** The composition comes from the `gameMix` master; the session keeps its own copy in `mixGames`, which carries the per-group stakes. A session stored as `variant: "mix"` (a custom mix from before this flow) keeps its composition and editable stakes; picking any game or mix replaces it, and nothing creates a new one.
-- **Picking, saving a master, and clearing all close the picker.** A master save hands the picker the saved composition labels (`SavedMix`) instead of letting the parent look them up: the parent's master lookups belong to the render that opened the sheet and still hold the pre-save list.
-- A group holds games of **one blind structure** (one game group); the saved composition is split into groups by structure. The server enforces the same rule on every write ([`game-masters.md`](game-masters.md#shared-writeread-schemas-and-the-group-span-limit)). Re-picking reseeds the groups from the new games and keeps the stakes of a group whose structure is unchanged; stakes typed for a different structure are dropped rather than carried across slots that mean something else. `levelGroupsFor` re-resolves each row's structure from its games before reseeding, so a row seeded while the masters were still loading (a pending group id) keeps its stakes.
-- A cash mix needs at least two games and no empty group ([`mix-composition.ts`](../../apps/web/src/features/live-sessions/utils/mix-composition.ts) `describeMixValidity`); the error sends the sheet back to Basics next to the Game type button. Stakes and ante type are edited per group in Basics, like a single game. The ante type is chosen explicitly; nothing derives it from the ante amount.
-- **Level games replace the level's blinds.** A tournament level with games shows a Games pill in place of its SB / BB cells and takes each group's stakes on its own Blinds tab row. The level's own blind cells stay in the form but hidden, so "Use session game" (games = null) brings them back unchanged.
-- A level's selection in the picker is derived from its games: one game → that variant; a composition equal to a saved mix → that mix; anything else → `"mix"`, shown as the games' short codes.
-- `name: null` means an automatic name: the structure label, numbered when several groups share a structure. A stored name that matches that pattern reads back as automatic, so numbering follows later edits; the resolved names are what is saved. A level with a single game names its group after the game.
-- Seeded rows take index-based uids. TanStack Form deep-compares `defaultValues` on every render and resets an untouched form when they differ, so random uids would re-seed the form on each render.
-
-## Draft state must not outlive the session (SA2-171)
-
-Stack-recording drafts (the pending stack amount, all-ins, a tournament's `chipPurchaseCounts`, remaining players, entries) belong to one session. The old shell held them in an app-scoped `SessionFormProvider` and had to reset every field whenever the active session id changed, **including when it cleared to null** — otherwise a finished tournament's `chipPurchaseCounts` carried into the next session's `update_stack` payload and corrupted the average-stack calculation (SA2-171). The Cryst cockpit avoids the hazard structurally: its quick input and sheets keep their drafts in component state inside `CashCockpit` / `TournamentCockpit`, which unmount when the session completes (the page shows its empty state until the next session starts), and the shell holds no session-scoped state (SA2-230). Keep it that way — a draft that has to survive navigation belongs to the session's query cache or the server, never to a provider above the route.
-
-## Optimistic updates
-
-The mandated helper API and its pitfalls: [`web-data-fetching.md`](../../.claude/rules/web-data-fetching.md) + [`optimistic-update.ts`](../../apps/web/src/utils/optimistic-update.ts). Server couplings of the feature-level wrapper [`optimistic-session-event.ts`](../../apps/web/src/features/live-sessions/utils/optimistic-session-event.ts):
-
-- `chips_add_remove` affects `totalBuyIn` **server-side**, so the optimistic layer skips the stack update rather than guessing.
-- `session_end` P/L uses the SA2-124 formula (above).
-- EV parity: the layer mirrors the server's `resolveEvCashOut` (omitted EV cash-out → EV equals the actual result, diff 0), kept identical to what the server returns so nothing shifts when the mutation settles; whether a row *shows* an EV line is decided by the raw `evCashOut`, not these two (fallback semantics: [`statistics.md`](statistics.md)).
-
-Invalidation contracts: the no-input `session.list` key **prefix-matches every filtered list variant**, so one invalidation covers all filter combinations. Editing an event must also invalidate `session.getById` / `session.list` — the live and recorded session ids are the same row, and without it the detail page keeps showing pre-edit numbers (SA2-167).
+Tournament progress is folded server-side from events, including cumulative purchase counts and later purchases. Charts consume the returned progress instead of recomputing it. Statistics include settled entries only and use ledger valuation; see [statistics.md](statistics.md). Hand count and dealer button are represented by hand rows, not a separate session counter.

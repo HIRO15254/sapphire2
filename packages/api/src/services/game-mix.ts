@@ -13,7 +13,7 @@ export const gameMixColumns = {
 	updatedAt: gameMix.updatedAt,
 };
 
-export type GameMixRow = Omit<typeof gameMix.$inferSelect, "games">;
+export type GameMixRow = typeof gameMix.$inferSelect;
 
 export type GameMixWithGames = GameMixRow & {
 	games: string[];

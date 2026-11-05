@@ -285,7 +285,7 @@ describe("seedDefaultGameData normalized mix memberships", () => {
 		const mixRows = inserted[MIX_TABLE] as Record<string, unknown>[];
 		expect(mixRows).toHaveLength(DEFAULT_GAME_MIXES.length);
 		for (const row of mixRows) {
-			expect(row).toMatchObject({ games: [] });
+			expect(row).not.toHaveProperty("games");
 		}
 
 		const membershipWrites = inserted[MIX_VARIANT_TABLE] ?? [];

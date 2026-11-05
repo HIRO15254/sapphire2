@@ -23,9 +23,7 @@ const SAMPLE_ROWS = 20;
 
 function describe(result: CheckResult): string {
 	const count =
-		result.status === "pass" ||
-		result.status === "violation" ||
-		result.status === "report"
+		result.status === "pass" || result.status === "violation"
 			? ` — ${result.rows.length} row(s)`
 			: "";
 	const detail = result.detail ? ` (${result.detail})` : "";

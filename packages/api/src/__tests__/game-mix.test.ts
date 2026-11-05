@@ -89,9 +89,7 @@ function seededRows(extra: { variant?: Rows; group?: Rows; mix?: Rows } = {}) {
 	return {
 		[GROUP_TABLE]: extra.group ?? [OWNED_GROUP],
 		[VARIANT_TABLE]: extra.variant ?? [OWNED_VARIANT_1],
-		[MIX_TABLE]: extra.mix ?? [
-			{ id: "mix-1", userId: CUR_OWNER, label: "X", games: [] },
-		],
+		[MIX_TABLE]: extra.mix ?? [{ id: "mix-1", userId: CUR_OWNER, label: "X" }],
 	};
 }
 
@@ -261,7 +259,6 @@ describe("gameMix.create games ownership (SA2-183)", () => {
 					id: "placeholder",
 					userId: CUR_OWNER,
 					label: "Placeholder",
-					games: [],
 				},
 			],
 		});
@@ -284,7 +281,6 @@ describe("gameMix.create games ownership (SA2-183)", () => {
 						id: "placeholder",
 						userId: CUR_OWNER,
 						label: "Placeholder",
-						games: [],
 					},
 				],
 			}
@@ -299,7 +295,7 @@ describe("gameMix.create games ownership (SA2-183)", () => {
 			label: "Brand New",
 			builtinKey: null,
 		});
-		expect(inserted[MIX_TABLE]?.[0]).toMatchObject({ games: [] });
+		expect(inserted[MIX_TABLE]?.[0]).not.toHaveProperty("games");
 		expect(
 			typeof (inserted[MIX_TABLE]?.[0] as Record<string, unknown>)?.id
 		).toBe("string");
@@ -328,9 +324,7 @@ describe("gameMix.update games ownership (SA2-183)", () => {
 		const { caller } = gameMixCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: [OWNED_VARIANT_1],
-			[MIX_TABLE]: [
-				{ id: "mix-1", userId: CUR_OWNER, label: "My Mix", games: [] },
-			],
+			[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OWNER, label: "My Mix" }],
 		});
 		await expectTrpcCode(
 			caller.update({
@@ -364,9 +358,7 @@ describe("gameMix.update duplicate games guard (BAD_REQUEST)", () => {
 		const { caller } = gameMixCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: [OWNED_VARIANT_1],
-			[MIX_TABLE]: [
-				{ id: "mix-1", userId: CUR_OWNER, label: "My Mix", games: [] },
-			],
+			[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OWNER, label: "My Mix" }],
 		});
 		await expectTrpcCode(
 			caller.update({
@@ -414,7 +406,6 @@ describe("gameMix group-span guard (c58, max 12 groups)", () => {
 					id: "placeholder",
 					userId: CUR_OWNER,
 					label: "Placeholder",
-					games: [],
 				},
 			],
 		});
@@ -431,9 +422,7 @@ describe("gameMix group-span guard (c58, max 12 groups)", () => {
 		const { caller } = gameMixCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: variants,
-			[MIX_TABLE]: [
-				{ id: "mix-1", userId: CUR_OWNER, label: "My Mix", games: [] },
-			],
+			[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OWNER, label: "My Mix" }],
 		});
 		await expectTrpcCode(
 			caller.update({
@@ -449,9 +438,7 @@ describe("gameMix group-span guard (c58, max 12 groups)", () => {
 		const { caller } = gameMixCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: variants,
-			[MIX_TABLE]: [
-				{ id: "mix-1", userId: CUR_OWNER, label: "My Mix", games: [] },
-			],
+			[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OWNER, label: "My Mix" }],
 		});
 		await expect(
 			caller.update({
@@ -468,9 +455,7 @@ describe("gameMix ownership (uniform FORBIDDEN, SA2-183)", () => {
 			const { caller } = gameMixCaller(CUR_OWNER, {
 				[GROUP_TABLE]: [OWNED_GROUP],
 				[VARIANT_TABLE]: [OWNED_VARIANT_1],
-				[MIX_TABLE]: [
-					{ id: "mix-1", userId: CUR_OTHER, label: "Their Mix", games: [] },
-				],
+				[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OTHER, label: "Their Mix" }],
 			});
 			await expectTrpcCode(caller[op]({ id: "mix-1" }), "FORBIDDEN");
 		});
@@ -489,9 +474,7 @@ describe("gameMix ownership (uniform FORBIDDEN, SA2-183)", () => {
 		const { caller } = gameMixCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: [OWNED_VARIANT_1],
-			[MIX_TABLE]: [
-				{ id: "mix-1", userId: CUR_OWNER, label: "My Mix", games: [] },
-			],
+			[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OWNER, label: "My Mix" }],
 		});
 		await expect(
 			caller.update({ id: "mix-1", label: "Renamed Mix" })
@@ -502,9 +485,7 @@ describe("gameMix ownership (uniform FORBIDDEN, SA2-183)", () => {
 		const { caller } = gameMixCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: [OWNED_VARIANT_1],
-			[MIX_TABLE]: [
-				{ id: "mix-1", userId: CUR_OWNER, label: "My Mix", games: [] },
-			],
+			[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OWNER, label: "My Mix" }],
 		});
 		await expect(caller.delete({ id: "mix-1" })).resolves.toEqual({
 			success: true,
@@ -517,9 +498,7 @@ describe("gameMix write-IDOR guard (SA2-176)", () => {
 		const { caller, updateWhereParams } = gameMixCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: [OWNED_VARIANT_1],
-			[MIX_TABLE]: [
-				{ id: "mix-1", userId: CUR_OWNER, label: "My Mix", games: [] },
-			],
+			[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OWNER, label: "My Mix" }],
 		});
 		await caller.update({ id: "mix-1", label: "Renamed" });
 		expect(updateWhereParams).toHaveLength(1);
@@ -531,9 +510,7 @@ describe("gameMix write-IDOR guard (SA2-176)", () => {
 		const { caller, deleteWhereParams } = gameMixCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: [OWNED_VARIANT_1],
-			[MIX_TABLE]: [
-				{ id: "mix-1", userId: CUR_OWNER, label: "My Mix", games: [] },
-			],
+			[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OWNER, label: "My Mix" }],
 		});
 		await caller.delete({ id: "mix-1" });
 		expect(deleteWhereParams).toHaveLength(1);
@@ -611,7 +588,7 @@ describe("gameMix.list ordering + self-seed", () => {
 
 	it("scopes the list query to the caller's userId", async () => {
 		const rows = seededRows({
-			mix: [{ id: "mix-1", userId: CUR_OWNER, label: "X", games: [] }],
+			mix: [{ id: "mix-1", userId: CUR_OWNER, label: "X" }],
 		});
 		const { caller, selectWhereParams } = gameMixCaller(CUR_OWNER, rows);
 		await caller.list();
@@ -778,7 +755,7 @@ describe("gameMix normalized membership persistence", () => {
 		const created = await caller.create({ label: "Thirty Game", games });
 
 		expect(inserted[MIX_TABLE]).toHaveLength(1);
-		expect(inserted[MIX_TABLE]?.[0]).toMatchObject({ games: [] });
+		expect(inserted[MIX_TABLE]?.[0]).not.toHaveProperty("games");
 		expect(updated[MIX_TABLE]).toBeUndefined();
 		expect(created?.games).toEqual(games);
 		const membershipWrites = inserted[MIX_VARIANT_TABLE] ?? [];

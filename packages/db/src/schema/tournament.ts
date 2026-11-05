@@ -9,7 +9,6 @@ import {
 	text,
 	uniqueIndex,
 } from "drizzle-orm/sqlite-core";
-import type { LevelGameGroup } from "../schemas/game";
 import { asset } from "./asset";
 import { user } from "./auth";
 import { room } from "./room";
@@ -63,42 +62,6 @@ export const tournament = sqliteTable(
 	]
 );
 
-export const blindLevel = sqliteTable(
-	"blind_level",
-	{
-		id: text("id").primaryKey(),
-		tournamentId: text("tournament_id")
-			.notNull()
-			.references(() => tournament.id, { onDelete: "cascade" }),
-		level: integer("level").notNull(),
-		isBreak: integer("is_break", { mode: "boolean" }).notNull().default(false),
-		blind1: integer("blind1"),
-		blind2: integer("blind2"),
-		blind3: integer("blind3"),
-		ante: integer("ante"),
-		minutes: integer("minutes"),
-		games: text("games", { mode: "json" }).$type<LevelGameGroup[]>(),
-	},
-	(table) => [index("blindLevel_tournamentId_idx").on(table.tournamentId)]
-);
-
-export const tournamentChipPurchase = sqliteTable(
-	"tournament_chip_purchase",
-	{
-		id: text("id").primaryKey(),
-		tournamentId: text("tournament_id")
-			.notNull()
-			.references(() => tournament.id, { onDelete: "cascade" }),
-		name: text("name").notNull(),
-		cost: integer("cost").notNull(),
-		chips: integer("chips").notNull(),
-		sortOrder: integer("sort_order").notNull().default(0),
-	},
-	(table) => [
-		index("tournamentChipPurchase_tournamentId_idx").on(table.tournamentId),
-	]
-);
-
 export const tournamentRelations = relations(tournament, ({ one, many }) => ({
 	user: one(user, {
 		fields: [tournament.userId],
@@ -112,24 +75,5 @@ export const tournamentRelations = relations(tournament, ({ one, many }) => ({
 		fields: [tournament.defaultAssetId, tournament.userId],
 		references: [asset.id, asset.userId],
 	}),
-	blindLevels: many(blindLevel),
-	chipPurchases: many(tournamentChipPurchase),
 	tagLinks: many(tournamentTagLink),
 }));
-
-export const blindLevelRelations = relations(blindLevel, ({ one }) => ({
-	tournament: one(tournament, {
-		fields: [blindLevel.tournamentId],
-		references: [tournament.id],
-	}),
-}));
-
-export const tournamentChipPurchaseRelations = relations(
-	tournamentChipPurchase,
-	({ one }) => ({
-		tournament: one(tournament, {
-			fields: [tournamentChipPurchase.tournamentId],
-			references: [tournament.id],
-		}),
-	})
-);

@@ -31,7 +31,7 @@ Blanket coverage of every branch and boundary value increased tests of declarati
 
 Derive expectations from requirements, public contracts, invariants, and known failures. AI must not copy the current implementation's output into expected values or duplicate its calculations in tests. When recording existing behavior whose intent is unclear, explicitly identify it as a characterization test and state which specifications remain unresolved. Review expectations for important monetary values and authorization, and changes that reduce protection, independently of the implementation.
 
-Select success cases and failure or boundary cases that produce distinct business outcomes. There is no need to pass `null` / `undefined` / `NaN` / `Infinity` to every function. Do not omit reachable scenarios involving runtime validation of external inputs, authentication and ownership, monetary calculations, UTC date boundaries, partial failures, or concurrency. Use coverage to find untested areas; do not target 100% overall coverage or a deletion percentage.
+Select success cases and failure or boundary cases that produce distinct business outcomes. There is no need to pass `null` / `undefined` / `NaN` / `Infinity` to every function. Do not omit reachable scenarios involving runtime validation of external inputs, authentication and ownership, monetary calculations, calendar-date and timestamp boundaries, partial failures, or concurrency. Use coverage to find untested areas; do not target 100% overall coverage or a deletion percentage.
 
 ## Admitting a New Test
 

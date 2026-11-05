@@ -33,7 +33,7 @@ claude mcp add --transport http sapphire2 https://<APIホスト>/mcp
 1. クライアントが `POST /api/auth/mcp/register`（動的クライアント登録 — 事前共有シークレット不要）。
 2. クライアントがブラウザで `GET /api/auth/mcp/authorize?...` を開く。
 3. 未ログインの場合、better-auth がリクエストを保存して web アプリの `/login` へリダイレクト。サインイン後、アプリが authorize エンドポイントへブラウザを戻す。
-4. Worker が同意画面（アプリ名＋スコープ）を表示。**Approve** で `/api/auth/oauth2/consent` に送信され、認可コード付きでクライアントへリダイレクト。
+4. Worker が同意画面（アプリ名、リダイレクト先ホスト、実際のツール権限）を表示。**Approve** で `/api/auth/oauth2/consent` に送信され、認可コード付きでクライアントへリダイレクト。
 5. クライアントが `POST /api/auth/mcp/token` でコードを交換（PKCE 検証）し、`Authorization: Bearer <アクセストークン>` で `/mcp` を呼ぶ。
 
 ディスカバリ文書は RFC 8414 / RFC 9728 に従いルート直下で配信されます:
@@ -45,11 +45,11 @@ claude mcp add --transport http sapphire2 https://<APIホスト>/mcp
 
 ## ツール
 
-ツール群は **tRPC `appRouter` の射影**です: 各ツールの入力スキーマは API が検証に使う Zod スキーマそのもの（union 入力の分岐ごとのツールはその分岐のスキーマ）で、レスポンスは HTTP API と同じ JSON です。規約もバックエンドに従います — **時刻は unix 秒**、**date-only 値は `YYYY-MM-DD` 文字列**、**金額はその資産の最小単位の整数**。
+ツール群は **tRPC `appRouter` の射影**です: 各ツールの入力スキーマは API が検証に使う Zod スキーマそのもの（union 入力の分岐ごとのツールはその分岐のスキーマ）で、レスポンスは HTTP API と同じ JSON です。時刻の入力は unix 秒、出力はルーターの JSON シリアライズに従います。**date-only 値は `YYYY-MM-DD` 文字列**、**金額はその資産の最小単位の整数**です。
 
 統計ツールは **確定済み（settled）の entry だけ** を集計し、モードを必ず 1 つ指定します: `assetId`（その資産の実ラインを換算せずに合計。他の資産も使った entry は `multiAssetEntryCount` / `otherAssetIds` で報告）、`valuation: "real" | "virtual"` と任意の `baseAssetId`（省略時はユーザー設定の基準資産。どちらも無ければ `PRECONDITION_FAILED`。レートの無いラインを持つ entry は除外され `excludedEntryCount` / `missingRates` で報告）、`normalized: true`（キャッシュは BB、トーナメントは BI で、合算しない）。`dateFrom` / `dateTo` は両端を含み entry の `playedOn` と比較します。`entryTagIds` / `tournamentTagIds` でタグ絞り込みができます。
 
-B06 の切り替えで旧完了セッション・ライブセッション API と対応する MCP ツールは削除されました。完了した entry の記録・編集は `entry_*` ツールで行います。ライブ記録（`live.*`・`playEvent.*`・`tablePlayer.*`）はコックピット画面のもので、意図的に公開していません。プレイの進行に合わせて時刻を記録し、再試行した呼び出しはイベントを重複して追加するためです。複数 Day の操作 — Day の終了（`live.endPlay`）、次の Day やリエントリーの開始（`live.startNextPlay`）とその取り消し（`live.undoEndPlay`・`live.undoStartNextPlay`）— も同じで、開始を再試行すると Day がもう一つ増えます。
+B06 の切り替えで旧完了セッション・ライブセッション API と対応する MCP ツールは削除されました。完了した entry の記録・編集は `entry_*` ツールで行います。ライブ記録（`live.*`・`playEvent.*`・`tablePlayer.*`）は新 UI のコックピット向け（SA2-390 / U01 以降）で、意図的に公開していません。プレイの進行に合わせて時刻を記録し、再試行した呼び出しはイベントを重複して追加するためです。複数 Day の操作 — Day の終了（`live.endPlay`）、次の Day やリエントリーの開始（`live.startNextPlay`）とその取り消し（`live.undoEndPlay`・`live.undoStartNextPlay`）— も同じで、開始を再試行すると Day がもう一つ増えます。
 
 | ツール | tRPC 手続き | 種別 |
 |---|---|---|

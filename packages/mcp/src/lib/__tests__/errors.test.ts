@@ -137,7 +137,7 @@ describe("mapToolError", () => {
 		const log = vi.fn();
 		const error = new TRPCError({
 			code: "INTERNAL_SERVER_ERROR",
-			message: "D1_ERROR: no such table game_session",
+			message: "D1_ERROR: no such table entry",
 		});
 		const result = mapToolError(error, log);
 		expect(textOf(result)).toBe("Internal error.");

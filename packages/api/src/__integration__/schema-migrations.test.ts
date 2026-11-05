@@ -72,11 +72,13 @@ describe("application schema agrees with the installed production migrations", (
 		api,
 	}) => {
 		const missingChecks: string[] = [];
+		const declaredTables: string[] = [];
 		for (const value of Object.values(schema)) {
 			if (!is(value, SQLiteTable)) {
 				continue;
 			}
 			const config = getTableConfig(value);
+			declaredTables.push(config.name);
 			const columns = await api.d1
 				.prepare("SELECT name, type, [notnull], pk FROM pragma_table_info(?)")
 				.bind(config.name)
@@ -214,8 +216,14 @@ describe("application schema agrees with the installed production migrations", (
 				`${config.name} unique keys including column-level declarations`
 			).toEqual(uniqueKeys.map((columns) => JSON.stringify(columns)).sort());
 		}
-		expect(missingChecks).toEqual([
-			"game_session.session_manual_completed_check",
-		]);
+		const installedTables = await api.d1
+			.prepare(
+				"SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\' AND name NOT IN ('_cf_KV', '_cf_METADATA', 'd1_migrations', '__drizzle_migrations')"
+			)
+			.all<{ name: string }>();
+		expect(installedTables.results.map(({ name }) => name).sort()).toEqual(
+			declaredTables.sort()
+		);
+		expect(missingChecks).toEqual([]);
 	});
 });

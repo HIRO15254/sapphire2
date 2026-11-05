@@ -23,7 +23,7 @@ Worker は MCP エンドポイント（`/mcp`）と OAuth ディスカバリル�
 
 ## 2. 前提条件
 
-- [Cloudflare](https://dash.cloudflare.com/sign-up) アカウント（Free plan OK）
+- [Cloudflare](https://dash.cloudflare.com/sign-up) アカウントと Workers Paid が必要。D1 の入力上限は Paid の Worker 1回の呼び出しあたり 1,000 クエリという制限から決めています。[v2 の決定事項](design/data-model-v2.md#201-decisions-confirmed-by-the-user)を参照。
 - GitHub リポジトリの管理者権限（Secrets 設定に必要）
 - [Bun](https://bun.sh/) がローカルにインストール済み
 - [Node.js](https://nodejs.org/) 22.16.0 以上がローカルにインストール済み（Cloudflare Wrangler CLI と Vitest の実行用。パッケージマネージャーは引き続き Bun）
@@ -251,29 +251,7 @@ Error: D1_ERROR
 
 `apps/server/wrangler.toml` の `d1_databases` の設定を確認。
 
-#### Migration 0044 事前確認: 未完了 live session の重複
-
-永続 D1 に `0044_oval_captain_flint.sql` を適用する前に、次のSQLを実行します。
-
-```sql
-SELECT
-  user_id,
-  COUNT(*) AS unfinished_count,
-  GROUP_CONCAT(id) AS session_ids
-FROM game_session
-WHERE source = 'live' AND status != 'completed'
-GROUP BY user_id
-HAVING COUNT(*) > 1;
-```
-
-結果が1行以上ある場合:
-
-1. 対象 D1 をバックアップする。
-2. ユーザーごとに、未完了のまま残す live session を決める。
-3. 余分な session はアプリの通常フローで完了または破棄する。
-4. SQLを再実行し、0行になってからデプロイする。
-
-`game_session.status` だけを直接更新したり、行を直接削除したりしないでください。session event、cash/tournament result、currency ledger の整合性を保つ必要があります。重複が残っている場合、migration はユーザーデータを書き換えず意図的に失敗します。
+v2 切り替えには専用の[リリース手順](design/data-model-v2.md#168-final-release-runbook)があります。データ入力を停止し、D1 Time Travel の復元点を記録してから migration と監査を行い、その後 Worker と新 UI をデプロイします。失敗時は途中まで適用されたチェーンを再試行せず、記録した復元点に戻してください。
 
 ### Worker デプロイ失敗
 

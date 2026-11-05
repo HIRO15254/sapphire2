@@ -80,9 +80,9 @@ Outside the frozen v2 cutover below, any migration that touches existing rows mu
   `json_each()` raises on malformed input, and a `WHERE` clause cannot guard it because the
   table-valued function is evaluated first.
 - **Audit production before merging** so the rows the backfill would drop are known, not
-  discovered later. `0049_normalize_game_mix_variants` normalized `game_mix.games` (a JSON id
-  array) into `game_mix_variant`; the shape below generalizes to any JSON-array → junction-table
-  normalization (run with `bunx wrangler d1 execute <db> --remote --command "…"`):
+  discovered later. Historically, `0049_normalize_game_mix_variants` normalized `game_mix.games`
+  (a JSON id array) into `game_mix_variant`; migration 0075 drops the source column. The historical
+  queries below illustrate a pre-migration audit, not queries to run against the current schema:
 
   ```sql
   -- 1. malformed or non-array payloads — run this FIRST: json_each() below
