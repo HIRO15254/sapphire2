@@ -199,7 +199,7 @@ describe("audit-data-model through wrangler's local D1", () => {
 				"pass",
 				"pass",
 				"pass",
-				"pending",
+				"pass",
 			]);
 			expect(statuses(gate.report, "A-14")).toContain("pass");
 		},
@@ -245,13 +245,41 @@ describe("audit-data-model through wrangler's local D1", () => {
 	);
 
 	it(
-		"replays tournament prices from the current rule when session prices are absent",
+		"detects an entry version whose content no longer matches its snapshot",
 		async () => {
-			const dir = await copyWith("tournament-price-fallback", [
+			const dir = await copyWith("broken-entry-rule", [
+				"UPDATE cash_rule SET table_size = 6 WHERE id = 'cr:e:manual'",
+				"UPDATE cash_rule_stake SET blind1 = 7 WHERE rule_id = 'cr:e:live'",
+			]);
+			const result = audit(dir);
+			expect(result.status).toBe(1);
+			expect(rows(result.report, "A-13")).toEqual(
+				expect.arrayContaining([
+					{ problem: "cash scalars", id: "manual" },
+					{ problem: "cash flat stakes", id: "live" },
+				])
+			);
+		},
+		RUN_TIMEOUT
+	);
+
+	it(
+		"replays the tournament entry cost from the entry's rule price",
+		async () => {
+			const dir = await copyWith("tournament-rule-price", [
 				"UPDATE session_tournament_detail SET tournament_buy_in = NULL, entry_fee = NULL WHERE session_id = 'mtt'",
+				"UPDATE tournament_rule_price SET amount = 9000 WHERE id = 'trp:tr:e:mtt:entry'",
 			]);
 			const result = audit(dir, "--enable", "A-6");
-			expect(statuses(result.report, "A-6")).toEqual(["pass", "pass", "pass"]);
+			expect(result.status).toBe(1);
+			expect(rows(result.report, "A-6")).toContainEqual(
+				expect.objectContaining({
+					target: "ledger_line mtt-start:0",
+					field: "quantity",
+					stored: -10_000,
+					projected: -9000,
+				})
+			);
 		},
 		RUN_TIMEOUT
 	);

@@ -1,11 +1,14 @@
-import { createDb } from "@sapphire2/db";
+import { createDb, type Database } from "@sapphire2/db";
 import { user } from "@sapphire2/db/schema/auth";
+import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { playerTag } from "@sapphire2/db/schema/player";
+import { and, eq } from "drizzle-orm";
 import { Miniflare } from "miniflare";
 import { test as baseTest } from "vitest";
 import { readWorkerCompatibility } from "../../../../testing/worker-compatibility";
 import type { Context } from "../context";
 import { appRouter } from "../routers";
+import { seedDefaultGameData } from "../services/seed-game-data";
 import { applyMigrations, type TestD1Database } from "./test-database";
 
 const workerCompatibility = readWorkerCompatibility();
@@ -19,6 +22,23 @@ export function requireCreatedRow<T extends { id?: string }>(
 		);
 	}
 	return row as T & { id: string };
+}
+
+export async function nlhGame(db: Database, userId = "alice") {
+	await seedDefaultGameData(db, userId);
+	const [nlh] = await db
+		.select({ id: gameVariant.id, groupId: gameVariant.groupId })
+		.from(gameVariant)
+		.where(
+			and(eq(gameVariant.userId, userId), eq(gameVariant.builtinKey, "nlh"))
+		);
+	if (!nlh) {
+		throw new Error("missing builtin nlh");
+	}
+	return {
+		game: { variantId: nlh.id },
+		stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+	};
 }
 export async function insertRingGameFixture(
 	d1: TestD1Database,

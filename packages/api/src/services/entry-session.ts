@@ -20,6 +20,7 @@ type LegacySessionKind = "cash_game" | "tournament";
 
 export interface EntryCashFacts {
 	cashOut: number | null;
+	cashRuleId: string;
 	evCashOut: number | null;
 	ringGameId: string | null;
 }
@@ -29,6 +30,7 @@ export interface EntryTournamentFacts {
 	placement: number | null;
 	totalEntries: number | null;
 	tournamentId: string | null;
+	tournamentRuleId: string;
 }
 
 interface EntrySessionFactsBase {
@@ -147,6 +149,7 @@ function playSessionRow(facts: EntrySessionFacts, now: Date) {
 function tournamentRow(facts: EntryTournamentFacts) {
 	return {
 		tournamentId: facts.tournamentId,
+		tournamentRuleId: facts.tournamentRuleId,
 		placement: effectivePlacement(facts),
 		totalEntries: facts.totalEntries,
 		beforeDeadline: facts.beforeDeadline === true,
@@ -173,6 +176,7 @@ export function buildManualEntryInsertStatements(
 					entryId: facts.id,
 					userId: facts.userId,
 					ringGameId: facts.cash.ringGameId,
+					cashRuleId: facts.cash.cashRuleId,
 					evDiff: evDiff(facts.cash),
 				})
 			: db.insert(entryTournament).values({
@@ -219,6 +223,7 @@ export function buildEntryRewriteStatements(
 					.update(entryCash)
 					.set({
 						ringGameId: facts.cash.ringGameId,
+						cashRuleId: facts.cash.cashRuleId,
 						evDiff: evDiff(facts.cash),
 					})
 					.where(
@@ -278,10 +283,12 @@ export async function loadEntrySessionFacts(
 			roomId: entry.roomId,
 			currencyId: entry.assetId,
 			ringGameId: entryCash.ringGameId,
+			cashRuleId: entryCash.cashRuleId,
 			evDiff: entryCash.evDiff,
 			cashOut: sessionCashDetail.cashOut,
 			cashRuleName: sessionCashDetail.ruleName,
 			tournamentId: entryTournament.tournamentId,
+			tournamentRuleId: entryTournament.tournamentRuleId,
 			placement: entryTournament.placement,
 			totalEntries: entryTournament.totalEntries,
 			beforeDeadline: entryTournament.beforeDeadline,
@@ -318,16 +325,29 @@ export async function loadEntrySessionFacts(
 		currencyId: row.currencyId,
 	};
 	if (row.kind === "cash_game") {
+		if (row.cashRuleId === null) {
+			throw new TRPCError({
+				code: "INTERNAL_SERVER_ERROR",
+				message: "Cash entry has no detail row",
+			});
+		}
 		return {
 			...base,
 			kind: "cash_game",
 			ruleName: row.cashRuleName,
 			cash: {
 				ringGameId: row.ringGameId,
+				cashRuleId: row.cashRuleId,
 				cashOut: row.cashOut,
 				evCashOut: row.evDiff === null ? null : (row.cashOut ?? 0) + row.evDiff,
 			},
 		};
+	}
+	if (row.tournamentRuleId === null) {
+		throw new TRPCError({
+			code: "INTERNAL_SERVER_ERROR",
+			message: "Tournament entry has no detail row",
+		});
 	}
 	return {
 		...base,
@@ -335,6 +355,7 @@ export async function loadEntrySessionFacts(
 		ruleName: row.tournamentRuleName,
 		tournament: {
 			tournamentId: row.tournamentId,
+			tournamentRuleId: row.tournamentRuleId,
 			placement: row.placement,
 			totalEntries: row.totalEntries,
 			beforeDeadline: row.beforeDeadline,

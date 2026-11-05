@@ -18,6 +18,7 @@ import {
 	type NewPlayEvent,
 } from "../services/entry-live-writes";
 import { buildProjectionLineStatements } from "../services/entry-projector";
+import { planEntryRule } from "../services/entry-rules";
 import {
 	buildManualEntryInsertStatements,
 	type EntrySessionFacts,
@@ -37,7 +38,7 @@ import {
 	manualMoneyPayments,
 	updateWalletLine,
 } from "../services/ledger-writes";
-import { test } from "./test-fixture";
+import { nlhGame, test } from "./test-fixture";
 
 const NOW = new Date("2026-09-05T10:00:00.000Z");
 const JPY = "alice-jpy";
@@ -67,10 +68,19 @@ async function seedAssets(db: Database) {
 	]);
 }
 
-function manualFacts(
+async function manualFacts(
+	db: Database,
 	id: string,
 	kind: "cash_game" | "tournament"
-): EntrySessionFacts {
+): Promise<EntrySessionFacts> {
+	const rule = await planEntryRule(
+		db,
+		"alice",
+		kind === "cash_game"
+			? { kind: "cash", ringGameId: null, rule: await nlhGame(db) }
+			: { kind: "tournament", tournamentId: null }
+	);
+	await runBatch(db, rule.statements);
 	const base = {
 		id,
 		userId: "alice",
@@ -88,13 +98,19 @@ function manualFacts(
 		? {
 				...base,
 				kind,
-				cash: { ringGameId: null, cashOut: null, evCashOut: null },
+				cash: {
+					ringGameId: null,
+					cashRuleId: rule.ruleVersionId,
+					cashOut: null,
+					evCashOut: null,
+				},
 			}
 		: {
 				...base,
 				kind,
 				tournament: {
 					tournamentId: null,
+					tournamentRuleId: rule.ruleVersionId,
 					placement: null,
 					totalEntries: null,
 					beforeDeadline: null,
@@ -178,7 +194,7 @@ describe("entry ledger real profit and loss", () => {
 		api: { db },
 	}) => {
 		await seedAssets(db);
-		const cash = manualFacts("manual-cash", "cash_game");
+		const cash = await manualFacts(db, "manual-cash", "cash_game");
 		await writeManual(
 			db,
 			cash,
@@ -199,7 +215,7 @@ describe("entry ledger real profit and loss", () => {
 			{ assetId: JPY, profitLoss: 0 + 0 - 30_000 },
 		]);
 
-		const mtt = manualFacts("manual-mtt", "tournament");
+		const mtt = await manualFacts(db, "manual-mtt", "tournament");
 		await writeManual(
 			db,
 			mtt,
@@ -239,13 +255,38 @@ describe("entry ledger real profit and loss", () => {
 		api: { db },
 	}) => {
 		await seedAssets(db);
+		const cashRule = await planEntryRule(db, "alice", {
+			kind: "cash",
+			ringGameId: null,
+			rule: await nlhGame(db),
+		});
+		const tournamentRule = await planEntryRule(db, "alice", {
+			kind: "tournament",
+			tournamentId: null,
+			rule: {
+				prices: [
+					{
+						kind: "entry",
+						assetId: JPY,
+						amount: 10_000,
+						fee: 1000,
+						chips: null,
+					},
+				],
+			},
+		});
+		await runBatch(db, [...cashRule.statements, ...tournamentRule.statements]);
 		await runBatch(
 			db,
 			buildLiveEntryStartStatements(
 				db,
 				liveStart(
 					"live-cash",
-					{ kind: "cash", ringGameId: null },
+					{
+						kind: "cash",
+						ringGameId: null,
+						cashRuleId: cashRule.ruleVersionId,
+					},
 					{ buyInAmount: 30_000 }
 				)
 			)
@@ -286,6 +327,7 @@ describe("entry ledger real profit and loss", () => {
 					{
 						kind: "tournament",
 						tournamentId: null,
+						tournamentRuleId: tournamentRule.ruleVersionId,
 						buyIn: 10_000,
 						entryFee: 1000,
 					},
@@ -354,12 +396,22 @@ describe("entry ledger real profit and loss", () => {
 		api: { db },
 	}) => {
 		await seedAssets(db);
+		const cashRule = await planEntryRule(db, "alice", {
+			kind: "cash",
+			ringGameId: null,
+			rule: await nlhGame(db),
+		});
+		await runBatch(db, cashRule.statements);
 		await runBatch(
 			db,
 			buildLiveEntryStartStatements(db, {
 				...liveStart(
 					"no-currency",
-					{ kind: "cash", ringGameId: null },
+					{
+						kind: "cash",
+						ringGameId: null,
+						cashRuleId: cashRule.ruleVersionId,
+					},
 					{ buyInAmount: 30_000 }
 				),
 				assetId: null,
@@ -386,7 +438,7 @@ describe("wallet lines, balances and history", () => {
 		await seedAssets(db);
 		await writeManual(
 			db,
-			manualFacts("settled", "cash_game"),
+			await manualFacts(db, "settled", "cash_game"),
 			{ kind: "cash", buyIn: 30_000, chipRemoveTotal: null, cashOut: 50_000 },
 			{ insertEntry: true }
 		);
@@ -455,7 +507,7 @@ describe("wallet lines, balances and history", () => {
 		await seedAssets(db);
 		await writeManual(
 			db,
-			manualFacts("settled", "cash_game"),
+			await manualFacts(db, "settled", "cash_game"),
 			{ kind: "cash", buyIn: 30_000, chipRemoveTotal: null, cashOut: 50_000 },
 			{ insertEntry: true }
 		);

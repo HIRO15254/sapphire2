@@ -6,6 +6,8 @@ import {
 	playEvent,
 	playSession,
 } from "@sapphire2/db/schema/entry";
+import { gameLineup } from "@sapphire2/db/schema/game-lineup";
+import { cashRule, tournamentRule } from "@sapphire2/db/schema/rule";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
@@ -46,13 +48,19 @@ function facts(kind: "cash_game" | "tournament"): EntrySessionFacts {
 		? {
 				...base,
 				kind,
-				cash: { ringGameId: null, cashOut: 300, evCashOut: 350 },
+				cash: {
+					ringGameId: null,
+					cashRuleId: "cash-rule",
+					cashOut: 300,
+					evCashOut: 350,
+				},
 			}
 		: {
 				...base,
 				kind,
 				tournament: {
 					tournamentId: null,
+					tournamentRuleId: "tournament-rule",
 					placement: 3,
 					totalEntries: 50,
 					beforeDeadline: false,
@@ -71,11 +79,22 @@ async function stored(db: Database) {
 	};
 }
 
+async function seedRules(db: Database) {
+	await db.insert(gameLineup).values({ id: "lineup", userId: "alice" });
+	await db
+		.insert(cashRule)
+		.values({ id: "cash-rule", userId: "alice", lineupId: "lineup" });
+	await db
+		.insert(tournamentRule)
+		.values({ id: "tournament-rule", userId: "alice", lineupId: "lineup" });
+}
+
 describe("manual entry persistence without compatibility session rows", () => {
 	for (const kind of ["cash_game", "tournament"] as const) {
 		test(`${kind}: inserts and rewrites the entry, detail and first play session without a game_session row`, async ({
 			api: { db },
 		}) => {
+			await seedRules(db);
 			const input = facts(kind);
 			await runBatch(db, buildManualEntryInsertStatements(db, input, NOW));
 			expect(await db.select().from(gameSession)).toEqual([]);
@@ -142,6 +161,7 @@ describe("manual entry persistence without compatibility session rows", () => {
 	test("ownership failures do not reveal entries or mutate another user's aggregate", async ({
 		api: { db },
 	}) => {
+		await seedRules(db);
 		const input = facts("cash_game");
 		await runBatch(db, buildManualEntryInsertStatements(db, input, NOW));
 		const before = await stored(db);
@@ -165,6 +185,7 @@ describe("manual entry persistence without compatibility session rows", () => {
 	test("deletion cascades the entry children while retaining another entry", async ({
 		api: { db },
 	}) => {
+		await seedRules(db);
 		const input = facts("cash_game");
 		await runBatch(db, buildManualEntryInsertStatements(db, input, NOW));
 		await runBatch(

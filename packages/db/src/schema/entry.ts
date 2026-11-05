@@ -88,7 +88,7 @@ export const entryCash = sqliteTable(
 			.notNull()
 			.$default(() => "cash"),
 		ringGameId: text("ring_game_id"),
-		cashRuleId: text("cash_rule_id"),
+		cashRuleId: text("cash_rule_id").notNull(),
 		evDiff: integer("ev_diff"),
 	},
 	(t) => [
@@ -129,7 +129,7 @@ export const entryTournament = sqliteTable(
 			.notNull()
 			.$default(() => "tournament"),
 		tournamentId: text("tournament_id"),
-		tournamentRuleId: text("tournament_rule_id"),
+		tournamentRuleId: text("tournament_rule_id").notNull(),
 		placement: integer("placement"),
 		totalEntries: integer("total_entries"),
 		beforeDeadline: integer("before_deadline", { mode: "boolean" })

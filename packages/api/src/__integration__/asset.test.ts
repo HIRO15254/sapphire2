@@ -14,8 +14,14 @@ import {
 	buildLiveEntryStartStatements,
 } from "../services/entry-live-writes";
 import { buildProjectionLineStatements } from "../services/entry-projector";
+import { planEntryRule } from "../services/entry-rules";
 import { buildAdjustmentStatements } from "../services/ledger-writes";
-import { type ApiFixture, requireCreatedRow, test } from "./test-fixture";
+import {
+	type ApiFixture,
+	nlhGame,
+	requireCreatedRow,
+	test,
+} from "./test-fixture";
 
 const NOW = new Date("2026-09-05T10:00:00.000Z");
 const FORBIDDEN = { code: "FORBIDDEN" };
@@ -43,12 +49,22 @@ async function adjust(
 }
 
 async function startLiveCash(db: Database, id: string, assetId: string) {
+	const rule = await planEntryRule(db, "alice", {
+		kind: "cash",
+		ringGameId: null,
+		rule: await nlhGame(db),
+	});
+	await runBatch(db, rule.statements);
 	await runBatch(
 		db,
 		buildLiveEntryStartStatements(db, {
 			id,
 			userId: "alice",
-			detail: { kind: "cash", ringGameId: null },
+			detail: {
+				kind: "cash",
+				ringGameId: null,
+				cashRuleId: rule.ruleVersionId,
+			},
 			assetId,
 			roomId: null,
 			title: null,

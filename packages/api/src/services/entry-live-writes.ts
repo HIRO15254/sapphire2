@@ -7,8 +7,6 @@ import {
 	playEvent,
 	playSession,
 } from "@sapphire2/db/schema/entry";
-import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
-import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { type BatchStatement, runBatch } from "../lib/batch";
@@ -47,10 +45,11 @@ export type EntryEventChange =
 export interface LiveEntryStart {
 	assetId: string | null;
 	detail:
-		| { kind: "cash"; ringGameId: string | null }
+		| { kind: "cash"; cashRuleId: string; ringGameId: string | null }
 		| {
 				kind: "tournament";
 				tournamentId: string | null;
+				tournamentRuleId: string;
 				buyIn: number | null;
 				entryFee: number | null;
 		  };
@@ -134,11 +133,13 @@ export function buildLiveEntryStartStatements(
 					entryId: start.id,
 					userId: start.userId,
 					ringGameId: start.detail.ringGameId,
+					cashRuleId: start.detail.cashRuleId,
 				})
 			: db.insert(entryTournament).values({
 					entryId: start.id,
 					userId: start.userId,
 					tournamentId: start.detail.tournamentId,
+					tournamentRuleId: start.detail.tournamentRuleId,
 				}),
 		db.insert(playSession).values({
 			id: playSessionId,
@@ -166,22 +167,17 @@ async function loadEntryEventState(
 			assetId: entry.assetId,
 			buyIn: sql<
 				number | null
-			>`COALESCE(${sessionTournamentDetail.tournamentBuyIn}, (SELECT tournament_rule_price.amount FROM tournament_rule_price WHERE tournament_rule_price.rule_id = ${tournament.currentRuleId} AND tournament_rule_price.user_id = ${tournament.userId} AND tournament_rule_price.kind = 'entry' ORDER BY tournament_rule_price.ordinal LIMIT 1))`,
+			>`(SELECT tournament_rule_price.amount FROM tournament_rule_price WHERE tournament_rule_price.rule_id = ${entryTournament.tournamentRuleId} AND tournament_rule_price.user_id = ${entryTournament.userId} AND tournament_rule_price.kind = 'entry' ORDER BY tournament_rule_price.ordinal LIMIT 1)`,
 			entryFee: sql<
 				number | null
-			>`COALESCE(${sessionTournamentDetail.entryFee}, (SELECT tournament_rule_price.fee FROM tournament_rule_price WHERE tournament_rule_price.rule_id = ${tournament.currentRuleId} AND tournament_rule_price.user_id = ${tournament.userId} AND tournament_rule_price.kind = 'entry' ORDER BY tournament_rule_price.ordinal LIMIT 1))`,
+			>`(SELECT tournament_rule_price.fee FROM tournament_rule_price WHERE tournament_rule_price.rule_id = ${entryTournament.tournamentRuleId} AND tournament_rule_price.user_id = ${entryTournament.userId} AND tournament_rule_price.kind = 'entry' ORDER BY tournament_rule_price.ordinal LIMIT 1)`,
 		})
 		.from(entry)
 		.leftJoin(
-			sessionTournamentDetail,
-			eq(sessionTournamentDetail.sessionId, entry.id)
-		)
-		.leftJoin(entryTournament, eq(entryTournament.entryId, entry.id))
-		.leftJoin(
-			tournament,
+			entryTournament,
 			and(
-				eq(tournament.id, entryTournament.tournamentId),
-				eq(tournament.userId, userId)
+				eq(entryTournament.entryId, entry.id),
+				eq(entryTournament.userId, entry.userId)
 			)
 		)
 		.where(and(eq(entry.id, entryId), eq(entry.userId, userId)));

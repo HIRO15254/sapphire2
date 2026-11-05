@@ -318,13 +318,11 @@ function entryStatements(
 			replays
 				? `SELECT e.id AS id, e.kind AS kind, e.status AS status, e.played_on AS played_on, e.asset_id AS asset_id,
 ec.ev_diff AS ev_diff, et.placement AS placement, et.total_entries AS total_entries, et.before_deadline AS before_deadline,
-COALESCE(std.tournament_buy_in, (SELECT pr.amount FROM tournament_rule_price pr WHERE pr.rule_id = t.current_rule_id AND pr.user_id = t.user_id AND pr.kind = 'entry' ORDER BY pr.ordinal LIMIT 1)) AS buy_in,
-COALESCE(std.entry_fee, (SELECT pr.fee FROM tournament_rule_price pr WHERE pr.rule_id = t.current_rule_id AND pr.user_id = t.user_id AND pr.kind = 'entry' ORDER BY pr.ordinal LIMIT 1)) AS entry_fee
+(SELECT pr.amount FROM tournament_rule_price pr WHERE pr.rule_id = et.tournament_rule_id AND pr.user_id = et.user_id AND pr.kind = 'entry' ORDER BY pr.ordinal LIMIT 1) AS buy_in,
+(SELECT pr.fee FROM tournament_rule_price pr WHERE pr.rule_id = et.tournament_rule_id AND pr.user_id = et.user_id AND pr.kind = 'entry' ORDER BY pr.ordinal LIMIT 1) AS entry_fee
 FROM entry e
 LEFT JOIN entry_cash ec ON ec.entry_id = e.id AND ec.user_id = e.user_id
 LEFT JOIN entry_tournament et ON et.entry_id = e.id AND et.user_id = e.user_id
-LEFT JOIN session_tournament_detail std ON std.session_id = e.id
-LEFT JOIN tournament t ON t.id = et.tournament_id AND t.user_id = e.user_id
 WHERE e.id IN (${list})`
 				: `SELECT id, kind FROM entry WHERE id IN (${list})`,
 			`SELECT pe.id AS id, pe.entry_id AS entry_id, pe.play_session_id AS play_session_id, pe.type AS type,

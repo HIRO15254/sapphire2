@@ -21,6 +21,7 @@ describe("entry-referenced master deletion on D1", () => {
 				updatedAt: day,
 			});
 			const master = { id: "referenced" };
+			let ruleId = `${master.id}-fixture-rule`;
 			if (kind === "cash") {
 				await insertRingGameFixture(api.d1, {
 					id: master.id,
@@ -35,22 +36,22 @@ describe("entry-referenced master deletion on D1", () => {
 				if (!nlh) {
 					throw new Error("missing builtin nlh");
 				}
-				master.id = (
-					await api.alice.tournament.createWithLevels({
-						roomId: "club",
-						name: "Recorded game",
-						rule: {
-							game: { variantId: nlh.id },
-							levels: [
-								{
-									isBreak: false,
-									minutes: 20,
-									stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
-								},
-							],
-						},
-					})
-				).id;
+				const created = await api.alice.tournament.createWithLevels({
+					roomId: "club",
+					name: "Recorded game",
+					rule: {
+						game: { variantId: nlh.id },
+						levels: [
+							{
+								isBreak: false,
+								minutes: 20,
+								stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+							},
+						],
+					},
+				});
+				master.id = created.id;
+				ruleId = created.currentRuleId;
 			}
 			await api.db.insert(entry).values({
 				id: "recorded-entry",
@@ -66,12 +67,14 @@ describe("entry-referenced master deletion on D1", () => {
 					entryId: "recorded-entry",
 					userId: "alice",
 					ringGameId: master.id,
+					cashRuleId: ruleId,
 				});
 			} else {
 				await api.db.insert(entryTournament).values({
 					entryId: "recorded-entry",
 					userId: "alice",
 					tournamentId: master.id,
+					tournamentRuleId: ruleId,
 				});
 			}
 			const snapshot = async () => ({

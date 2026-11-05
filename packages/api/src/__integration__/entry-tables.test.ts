@@ -136,6 +136,7 @@ async function seedEntryAggregate(d1: TestD1Database, owner: string) {
 		user_id: owner,
 		kind: "cash",
 		ring_game_id: `${owner}-ring`,
+		cash_rule_id: `${owner}-ring-fixture-rule`,
 	});
 	await insert(
 		d1,
@@ -165,6 +166,7 @@ async function seedEntryAggregate(d1: TestD1Database, owner: string) {
 		user_id: owner,
 		kind: "tournament",
 		tournament_id: `${owner}-tournament`,
+		tournament_rule_id: `${owner}-rule`,
 		placement: 3,
 		total_entries: 40,
 	});
@@ -216,6 +218,7 @@ describe("entry aggregate tables on D1", () => {
 					user_id: "bob",
 					kind: "cash",
 					ring_game_id: "alice-ring",
+					cash_rule_id: "bob-ring-fixture-rule",
 				},
 			],
 			[
@@ -225,6 +228,7 @@ describe("entry aggregate tables on D1", () => {
 					user_id: "bob",
 					kind: "tournament",
 					tournament_id: "alice-tournament",
+					tournament_rule_id: "bob-rule",
 				},
 			],
 			[
@@ -273,12 +277,14 @@ describe("entry aggregate tables on D1", () => {
 			user_id: "bob",
 			kind: "cash",
 			ring_game_id: "bob-ring",
+			cash_rule_id: "bob-ring-fixture-rule",
 		});
 		await insert(api.d1, "entry_tournament", {
 			entry_id: "bob-mtt",
 			user_id: "bob",
 			kind: "tournament",
 			tournament_id: "bob-tournament",
+			tournament_rule_id: "bob-rule",
 		});
 		await insert(
 			api.d1,
@@ -353,6 +359,7 @@ describe("entry aggregate tables on D1", () => {
 	test("a detail of the other kind, an event on a manual entry and an event without a schema version are rejected", async ({
 		api,
 	}) => {
+		await seedMasters(api.d1, ["alice"]);
 		await insert(api.d1, "entry", entryRow("cash", "alice"));
 		await insert(
 			api.d1,
@@ -380,6 +387,7 @@ describe("entry aggregate tables on D1", () => {
 				entry_id: "mtt",
 				user_id: "alice",
 				kind: "cash",
+				cash_rule_id: "alice-ring-fixture-rule",
 			}),
 			"cash detail on a tournament entry"
 		).rejects.toThrow(FOREIGN_KEY_FAILED);
@@ -388,6 +396,7 @@ describe("entry aggregate tables on D1", () => {
 				entry_id: "mtt",
 				user_id: "alice",
 				kind: "tournament",
+				cash_rule_id: "alice-ring-fixture-rule",
 			}),
 			"cash detail claiming the tournament kind"
 		).rejects.toThrow("CHECK constraint failed: entry_cash_kind_check");
@@ -396,6 +405,7 @@ describe("entry aggregate tables on D1", () => {
 				entry_id: "cash",
 				user_id: "alice",
 				kind: "tournament",
+				tournament_rule_id: "alice-rule",
 			}),
 			"tournament detail on a cash entry"
 		).rejects.toThrow(FOREIGN_KEY_FAILED);
@@ -432,6 +442,7 @@ describe("entry aggregate tables on D1", () => {
 				entry_id: "mtt",
 				user_id: "alice",
 				kind: "tournament",
+				tournament_rule_id: "alice-rule",
 				before_deadline: null,
 			}),
 			"before_deadline NULL"
@@ -443,11 +454,13 @@ describe("entry aggregate tables on D1", () => {
 			entry_id: "cash",
 			user_id: "alice",
 			kind: "cash",
+			cash_rule_id: "alice-ring-fixture-rule",
 		});
 		await insert(api.d1, "entry_tournament", {
 			entry_id: "mtt",
 			user_id: "alice",
 			kind: "tournament",
+			tournament_rule_id: "alice-rule",
 		});
 		await insert(
 			api.d1,
@@ -678,6 +691,7 @@ describe("entry aggregate tables on D1", () => {
 	test("entries, tournament results, play times and event payloads outside the specification are rejected", async ({
 		api,
 	}) => {
+		await seedMasters(api.d1, ["alice"]);
 		const rejected: [string, Row, string][] = [
 			["entry", entryRow("sng", "alice", { kind: "sng" }), "entry_kind_check"],
 			[
@@ -737,6 +751,7 @@ describe("entry aggregate tables on D1", () => {
 				entry_id: id,
 				user_id: "alice",
 				kind: "tournament",
+				tournament_rule_id: "alice-rule",
 				...result,
 			});
 			if (constraint) {

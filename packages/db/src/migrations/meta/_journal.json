@@ -484,6 +484,13 @@
       "when": 1793833557535,
       "tag": "0068_required_blinds",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "6",
+      "when": 1793842253999,
+      "tag": "0069_entry_rule_versions",
+      "breakpoints": true
     }
   ]
 }
