@@ -1006,4 +1006,40 @@ describe("hand service on D1", () => {
 			actions: 0,
 		});
 	});
+
+	test("hand reads return the owner's linked tags in tag order with their review time", async ({
+		api,
+	}) => {
+		await seedOwner(api.db, "alice");
+		const added = await countHand(api.db);
+		const later = await countHand(api.db);
+		const second = await api.alice.handTag.create({ name: "Second" });
+		const first = await api.alice.handTag.create({ name: "First" });
+		await api.alice.handTag.reorder({ ids: [first.id, second.id] });
+		await insert(api.d1, "hand_tag_link", {
+			user_id: "alice",
+			hand_id: added,
+			tag_id: second.id,
+			reviewed_at: null,
+		});
+		await insert(api.d1, "hand_tag_link", {
+			user_id: "alice",
+			hand_id: added,
+			tag_id: first.id,
+			reviewed_at: NOW.getTime() / 1000,
+		});
+		const expected = [
+			{ id: first.id, name: "First", reviewedAt: NOW },
+			{ id: second.id, name: "Second", reviewedAt: null },
+		];
+
+		expect((await api.alice.hand.getById({ id: added })).tags).toEqual(
+			expected
+		);
+		const listed = await api.alice.hand.list({ playSessionId: "alice-play" });
+		expect(listed.items.map(({ id, tags }) => [id, tags])).toEqual([
+			[later, []],
+			[added, expected],
+		]);
+	});
 });

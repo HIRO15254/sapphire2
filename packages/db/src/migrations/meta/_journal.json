@@ -505,6 +505,13 @@
       "when": 1793849454440,
       "tag": "0071_entry_tag_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "6",
+      "when": 1793853004743,
+      "tag": "0072_tag_tables",
+      "breakpoints": true
     }
   ]
 }

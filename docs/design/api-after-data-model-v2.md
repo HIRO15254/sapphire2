@@ -24,6 +24,8 @@ All multistatement writes, event changes plus projection, exchange pairs, rule w
 
 The D1 budget is Workers Paid's 1,000 queries per Worker invocation, including authentication/session reads and each batch statement (spec §20.1 item 10). B08 derives/enforces tournament levels × lineup groups/prices maxima and B16 manual playSessions/payments maxima; each records its fixed bounds here. Every mutation's owning task proves with a real D1 integration test counting statements that its maximum admitted input stays within the budget, with nested rule bodies at B07/B08's maxima and days/payments at B16's: entry.create/update B16; live.create B17; tag writes and reorder B18; hand detail writes B21; overrideRule/applyMasterRule/pushRuleToMaster/relink/restoreRule and live.createAndAssignRingGame/Tournament B20; master writes B07/B08. When a combined input exceeds the budget at those maxima, the owning task sets a tighter limit on its own procedure; it never changes another task's maxima. No independent fixed array maximum overrides this budget.
 
+B18 bounds reorder at 500 tag ids and owner `tagIds` at 100; the integration coverage is in `tag-router.test.ts` (reorder) and the existing owner tests.
+
 Ring-game rule writes plan one lineup: a newly created lineup spans at most 12 game groups (`MAX_LINEUP_GROUPS`, shared with tournament levels), so a save writes at most 12 stakes. A named mix regrouped by its variants' live game structure beyond that bound is rejected; an existing `lineupId` is reused as stored. The statement-count proof is part of the ring-game D1 integration coverage (`ring-game-rules.test.ts`).
 
 ### Dates, quantities, lists and common results
@@ -482,14 +484,16 @@ Created by `createTagRouter()`. `Tag = {id,name,position,createdAt,updatedAt}`; 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
 | `list` Q | none | Tag[] ordered position,id | — | `entry_tag_list` |
-| `create` M | `{name:string 1..50}` | Tag | Duplicate: CONFLICT | `entry_tag_create` |
+| `create` M | `{name:string 1..50}` | Tag | Duplicate: CONFLICT; more than 500 tags per user/kind: PRECONDITION_FAILED | `entry_tag_create` |
 | `update` M | `{id,name:string 1..50}` | Tag | Duplicate: CONFLICT | Excluded: tag maintenance |
 | `delete` M | IdInput | Ack; removes links, not entries | — | Excluded: destructive |
-| `reorder` M | `{ids:Id[]}` unique complete permutation of owned tags of this kind | Tag[] | Incomplete/duplicate permutation: BAD_REQUEST | Excluded: screen ordering |
+| `reorder` M | `{ids:Id[]}` unique complete permutation of owned tags of this kind, max 500 | Tag[] | Foreign/missing id: FORBIDDEN; incomplete/duplicate permutation: BAD_REQUEST | Excluded: screen ordering |
 
 Entry attachment is entry.create/update tagIds; no separate toggle/addTag/removeTag procedures.
 
-B16 pulls the entry_tag/entry_tag_link tables, their migration and `entryTag.list/create/update/delete` forward so entry.create/update can take tagIds (user decision, SA2-402). B18 still owns `createTagRouter()`, `reorder` and the other three tag kinds; it replaces the B16 router with the factory instance without changing the procedures above.
+For entry, tournament and player create/update, `tagIds` are unique and limited to 100; omission leaves links unchanged on update, `[]` clears them, and a supplied list replaces all links in one batch. Foreign or missing tag ids return FORBIDDEN.
+
+B16 introduced the entry tag tables and procedures; B18 replaced its router with the factory, added reorder and introduced the other three kinds.
 
 ## 20. `tournamentTag` — B18
 
@@ -497,7 +501,7 @@ Same Tag shape and all five procedures/inputs/errors as §19, instantiated as `t
 
 ## 21. `handTag` — B18
 
-Same five Tag procedures, shapes, constraints and errors as §19, instantiated as `handTag.list/create/update/delete/reorder`. MCP `hand_tag_list`, `hand_tag_create`; update/reorder excluded tag maintenance/screen ordering, delete excluded destructive. B21 (after B18) adds to hand.update `tagIds` for attachment and `tagReviews?:{tagId:Id,reviewedAt:Instant|null}[]`; reviews must name attached owned tags, otherwise BAD_REQUEST. Link `reviewedAt` is returned in hand.tags as `{id,name,reviewedAt}` and does not mutate the tag itself.
+Same five Tag procedures, shapes, constraints and errors as §19, instantiated as `handTag.list/create/update/delete/reorder`. MCP `hand_tag_list`, `hand_tag_create`; update/reorder excluded tag maintenance/screen ordering, delete excluded destructive. Since B18, hand.list/getById return `tags: {id,name,reviewedAt}[]` from `hand_tag_link`. B21 adds to hand.update `tagIds` for attachment and `tagReviews?:{tagId:Id,reviewedAt:Instant|null}[]`; reviews must name attached owned tags, otherwise BAD_REQUEST. Link `reviewedAt` does not mutate the tag itself.
 
 ## 22. `playerTag` — B18
 

@@ -29,6 +29,10 @@ const LEGACY_FIXTURE = [
 	`INSERT INTO tournament (id, user_id, room_id, currency_id, name, buy_in, entry_fee, updated_at) VALUES ('daily', 'alice', 'club', 'jpy', 'Daily', 10000, 1000, ${T0})`,
 	`INSERT INTO blind_level (id, tournament_id, level, blind1, blind2, minutes) VALUES ('daily-level', 'daily', 1, 100, 200, 20)`,
 	`INSERT INTO tournament_chip_purchase (id, tournament_id, name, cost, chips) VALUES ('daily-addon', 'daily', 'Add-on', 3000, 10000)`,
+	`INSERT INTO tournament_tag (id, tournament_id, name, created_at) VALUES ('tt-old', 'daily', 'Main Event', ${T0}), ('tt-dup', 'daily', ' main event ', ${T0 + 1})`,
+	`INSERT INTO player (id, user_id, name, created_at, updated_at) VALUES ('tagged-player', 'alice', 'Tagged', ${T0}, ${T0})`,
+	`INSERT INTO player_tag (id, user_id, name, color, created_at, updated_at) VALUES ('player-first', 'alice', 'Focus', 'red', ${T0}, ${T0}), ('player-dup', 'alice', ' focus ', 'blue', ${T0 + 1}, ${T0 + 1})`,
+	"INSERT INTO player_to_player_tag (player_id, player_tag_id, position) VALUES ('tagged-player', 'player-dup', 3)",
 	`INSERT INTO game_session (id, user_id, kind, status, source, session_date, started_at, ended_at, break_minutes, currency_id, hand_count, dealer_seat, created_at, updated_at) VALUES
 	 ('live', 'alice', 'cash_game', 'completed', 'live', ${T0}, ${T0 + 17}, ${T0 + 7223}, 168, 'jpy', 2, 4, ${T0}, ${T0}),
 	 ('mtt', 'alice', 'tournament', 'completed', 'live', ${T0}, ${T0 + 10_000}, ${T0 + 20_000}, 0, 'jpy', NULL, NULL, ${T0}, ${T0}),
@@ -197,7 +201,7 @@ describe("audit-data-model through wrangler's local D1", () => {
 				expect(statuses(gate.report, id), id).toEqual(["pass"]);
 			}
 			expect(statuses(gate.report, "A-6")).toEqual(["pass", "pass", "pass"]);
-			expect(statuses(gate.report, "A-12")).toEqual(["pass", "pending"]);
+			expect(statuses(gate.report, "A-12")).toEqual(["pass", "pass", "pass"]);
 			expect(statuses(gate.report, "A-13")).toEqual([
 				"pass",
 				"pass",
@@ -231,6 +235,40 @@ describe("audit-data-model through wrangler's local D1", () => {
 						entry_id: "manual",
 						user_id: "alice",
 						tag_id: "tag-other",
+					},
+				])
+			);
+		},
+		RUN_TIMEOUT
+	);
+
+	it(
+		"detects missing historical tournament and player tag links",
+		async () => {
+			const dir = await copyWith("broken-other-tags", [
+				"DELETE FROM tournament_tag_link WHERE tournament_id = 'daily'",
+				"DELETE FROM player_tag_link WHERE player_id = 'tagged-player'",
+			]);
+			const result = audit(dir);
+			expect(result.status).toBe(1);
+			expect(statuses(result.report, "A-12")).toEqual([
+				"pass",
+				"violation",
+				"violation",
+			]);
+			expect(rows(result.report, "A-12")).toEqual(
+				expect.arrayContaining([
+					{
+						problem: "missing",
+						tournament_id: "daily",
+						user_id: "alice",
+						tag_id: "tt:alice:6D61696E206576656E74",
+					},
+					{
+						problem: "missing",
+						player_id: "tagged-player",
+						user_id: "alice",
+						tag_id: "player-first",
 					},
 				])
 			);
