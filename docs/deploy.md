@@ -23,7 +23,7 @@ The Worker also serves the MCP endpoint (`/mcp`) and its OAuth discovery routes 
 
 ## 2. Prerequisites
 
-- [Cloudflare](https://dash.cloudflare.com/sign-up) account with Workers Paid. D1's input limit is derived from the 1,000 queries per Worker invocation available on Paid; see [the v2 decision](design/data-model-v2.md#201-decisions-confirmed-by-the-user).
+- [Cloudflare](https://dash.cloudflare.com/sign-up) account with Workers Paid. D1's input limit is derived from the 1,000 queries per Worker invocation available on Paid.
 - GitHub repository admin access (required for Secrets configuration)
 - [Bun](https://bun.sh/) installed locally
 - [Node.js](https://nodejs.org/) 22.16.0 or later installed locally (required to run the Cloudflare Wrangler CLI and Vitest; Bun remains the package manager)
@@ -212,11 +212,13 @@ Update every workflow that deploys or cleans up Pages:
 
 ### Production Deployment
 
-`release.yml` publishes the tag and GitHub Release, then explicitly dispatches `production-deploy.yml` at that tag because releases created by the default `GITHUB_TOKEN` do not recursively start another workflow. `production-deploy.yml` also supports external `release: published` events and manual `workflow_dispatch` redeploys. The pipeline is CI → migration → Worker deploy → Pages deploy.
+`release.yml` publishes the tag and GitHub Release, then explicitly dispatches `production-deploy.yml` at that tag because releases created by the default `GITHUB_TOKEN` do not recursively start another workflow. `production-deploy.yml` also supports external `release: published` events and manual `workflow_dispatch` redeploys. The pipeline is CI → migration → [data audit](design/data-audits.md) → Worker deploy → Pages deploy.
 
 `release.yml` then moves the release's Linear issues from Done to Released with [`scripts/release-linear-issues.ts`](../scripts/release-linear-issues.ts). The release's PRs are the merged PRs whose merge commit lies between the previous tag and the release merge, and the issues are the ones Linear linked to those PRs. Only issues in Done move. The step may fail without holding back the release.
 
 Uses `concurrency` for sequential execution. The CI job calls the same reusable [`checks.yml`](../.github/workflows/checks.yml) as pull-request CI, so dev and production deploys pass the identical gate; deployment is skipped if it fails.
+
+Before a release that requires restore-based migration recovery, freeze data entry, retain the previous deployable tag, and record a D1 Time Travel bookmark immediately before migration: `bunx wrangler d1 time-travel info sapphire2-db -c apps/server/wrangler.toml`. Do not allow writes during migration and deployment. If migration or the audit fails, restore with `bunx wrangler d1 time-travel restore sapphire2-db --bookmark=<bookmark> -c apps/server/wrangler.toml`; redeploy the previous tag if necessary, fix and rehearse before retrying. Restoration loses writes after the bookmark. Verify the release before resuming data entry. Follow the [migration rules](../.claude/rules/db-migrations.md) for the applicable recovery policy.
 
 ## 8. Verification
 
@@ -251,7 +253,6 @@ Error: D1_ERROR
 
 Check the `d1_databases` configuration in `apps/server/wrangler.toml`.
 
-The v2 cutover has a separate [release runbook](design/data-model-v2.md#168-final-release-runbook). Freeze data entry, record a D1 Time Travel point, migrate and audit before deploying the Worker and new UI; restore the recorded point on failure rather than retrying a partially applied chain.
 
 ### Worker Deployment Failure
 

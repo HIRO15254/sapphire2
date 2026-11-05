@@ -1,10 +1,10 @@
 # Statistics
 
-This document owns the statistics domain on the v2 data model ([data-model-v2.md](data-model-v2.md) §12, API contract in [api-after-data-model-v2.md](api-after-data-model-v2.md) §13): the population, the three modes, coverage, the normalization units, EV semantics, time, and the breakdown and series keys. The procedures live in [`routers/stats.ts`](../../packages/api/src/routers/stats.ts); [`services/stats-data.ts`](../../packages/api/src/services/stats-data.ts) loads the population and [`services/stats.ts`](../../packages/api/src/services/stats.ts) computes the figures. Every conversion goes through [`services/valuation.ts`](../../packages/api/src/services/valuation.ts). U11 (SA2-420) rebuilds the statistics UI.
+This document owns the statistics domain on the current data model ([data-model.md](data-model.md) §12, API contract in [api.md](api.md) §13): the population, the three modes, coverage, the normalization units, EV semantics, time, and the breakdown and series keys. The procedures live in [`routers/stats.ts`](../../packages/api/src/routers/stats.ts); [`services/stats-data.ts`](../../packages/api/src/services/stats-data.ts) loads the population and [`services/stats.ts`](../../packages/api/src/services/stats.ts) computes the figures. Every conversion goes through [`services/valuation.ts`](../../packages/api/src/services/valuation.ts).
 
 ## Filter and population
 
-The filter is `statsFilterSchema` in [`packages/db/src/schemas/stats-filter.ts`](../../packages/db/src/schemas/stats-filter.ts), shared with the saved filter presets so a preset can always be replayed as a query. It is one flat object refined with `refineStatsFilter`, not a union, so MCP clients see a single plain schema.
+The filter uses `statsFilterShape` in [`packages/db/src/schemas/stats-filter.ts`](../../packages/db/src/schemas/stats-filter.ts), shared with the saved filter presets so a preset can always be replayed as a query. It is one flat object refined with `refineStatsFilter`, not a union, so MCP clients see a single plain schema.
 
 - **Only `status = 'settled'` entries count.** An open live entry has no final result and never enters a figure.
 - `dateFrom` / `dateTo` are inclusive `YYYY-MM-DD` strings compared with `entry.played_on` as text. The day, month, year and series axes read `played_on` too, so an entry played across UTC midnight stays on the local day the user recorded.

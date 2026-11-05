@@ -1,6 +1,6 @@
 # Entries and Live Editing
 
-The current participation model is an `entry` with one or more `play_session` days. Manual entries store ended days and payments directly; live entries derive their state and event-sourced ledger lines from `play_event`. The authoritative API contracts are in [api-after-data-model-v2.md](api-after-data-model-v2.md), and projection and undo rules are in [data-model-v2.md](data-model-v2.md) §§13–14.
+The current participation model is an `entry` with one or more `play_session` days. Manual entries store ended days and payments directly; live entries derive their state and event-sourced ledger lines from `play_event`. The authoritative API contracts are in [api.md](api.md), and projection and undo rules are in [data-model.md](data-model.md) §§13–14.
 
 ## Lifecycle and projection
 
@@ -10,7 +10,7 @@ A day may end held or bagged while the entry remains open. `startNextPlay` creat
 
 ## Editing and ownership
 
-Live-linked edits validate and change events, then reproject; they do not patch derived results directly. Event payloads use the current v2 schema, and ownership checks include nested assets, prices, players and hand links. `all_in` hand links must belong to the same play session. Table occupancy is folded from player events, including the user's self player for Hero.
+`entry.update` rejects event-derived fields on live-linked entries. Event changes through live operations validate and reproject; they do not patch derived results directly. Chip add/remove event amounts are bounded by `signedLedgerQuantitySchema`, matching the ledger quantity limit. Event reads return registry-parsed payloads, falling back to stored JSON if parsing fails. Ownership checks include nested assets, prices, players and hand links. `all_in` hand links must belong to the same play session. Table occupancy is folded from player events, including the user's self player for Hero.
 
 Entries retain immutable rule-version references. Rule changes create or select versions through the entry/live rule operations rather than mutating the master or an old snapshot. Archived masters remain resolvable for historical reads. Manual updates replace the submitted complete days and payments atomically; see the API reference for precise replacement and validation semantics.
 

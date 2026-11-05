@@ -36,7 +36,7 @@ jobs:
 
   # Read-only data-model-v2 audit of the migrated production database. A
   # violation fails this job, so neither the Worker nor the web deploys over it;
-  # recover with the Time Travel restore in data-model-v2.md §16.8.
+  # recovery guidance is in docs/deploy.md.
   audit:
     needs: db-migrate
     runs-on: ubuntu-latest

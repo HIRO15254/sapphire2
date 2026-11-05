@@ -23,7 +23,7 @@ Worker は MCP エンドポイント（`/mcp`）と OAuth ディスカバリル�
 
 ## 2. 前提条件
 
-- [Cloudflare](https://dash.cloudflare.com/sign-up) アカウントと Workers Paid が必要。D1 の入力上限は Paid の Worker 1回の呼び出しあたり 1,000 クエリという制限から決めています。[v2 の決定事項](design/data-model-v2.md#201-decisions-confirmed-by-the-user)を参照。
+- [Cloudflare](https://dash.cloudflare.com/sign-up) アカウントと Workers Paid が必要。D1 の入力上限は Paid の Worker 1回の呼び出しあたり 1,000 クエリという制限から決めています。
 - GitHub リポジトリの管理者権限（Secrets 設定に必要）
 - [Bun](https://bun.sh/) がローカルにインストール済み
 - [Node.js](https://nodejs.org/) 22.16.0 以上がローカルにインストール済み（Cloudflare Wrangler CLI と Vitest の実行用。パッケージマネージャーは引き続き Bun）
@@ -212,11 +212,13 @@ Pages のデプロイまたはクリーンアップを行う全 workflow を更�
 
 ### 本番デプロイ
 
-`release.yml` が tag と GitHub Release を公開し、その tag を指定して `production-deploy.yml` を明示的に dispatch します。既定の `GITHUB_TOKEN` で作成した Release は別 workflow を再帰起動しないためです。`production-deploy.yml` は外部の `release: published` と手動 `workflow_dispatch` にも対応します。処理順は CI → マイグレーション → Worker デプロイ → Pages デプロイです。
+`release.yml` が tag と GitHub Release を公開し、その tag を指定して `production-deploy.yml` を明示的に dispatch します。既定の `GITHUB_TOKEN` で作成した Release は別 workflow を再帰起動しないためです。`production-deploy.yml` は外部の `release: published` と手動 `workflow_dispatch` にも対応します。処理順は CI → マイグレーション → [データ監査](design/data-audits.md) → Worker デプロイ → Pages デプロイです。
 
 続いて `release.yml` は、[`scripts/release-linear-issues.ts`](../scripts/release-linear-issues.ts) でリリースに含まれる Linear の issue を Done から Released に移します。リリースの PR は、マージコミットが前回のタグから今回のリリースのマージまでの間にあるマージ済み PR です。issue は、その PR に Linear が紐付けたものです。移すのは Done の issue だけです。この step は失敗してもリリースを止めません。
 
 `concurrency` 設定により直列実行。CI job は PR の CI と同じ再利用 workflow [`checks.yml`](../.github/workflows/checks.yml) を呼ぶため、dev と本番のデプロイは同一のゲートを通る。失敗時はデプロイをスキップ。
+
+復元によるマイグレーション復旧が必要なリリースでは、データ入力を停止し、前のデプロイ可能な tag を保持して、マイグレーション直前に `bunx wrangler d1 time-travel info sapphire2-db -c apps/server/wrangler.toml` で D1 Time Travel の bookmark を記録します。マイグレーションとデプロイの間は書き込みを行いません。マイグレーションまたは監査が失敗した場合は `bunx wrangler d1 time-travel restore sapphire2-db --bookmark=<bookmark> -c apps/server/wrangler.toml` で復元し、必要なら前の tag を再デプロイして、修正とリハーサルの後に再試行します。復元すると bookmark 以降の書き込みは失われます。入力再開前にリリースを確認してください。適用する復旧方針は[マイグレーションルール](../.claude/rules/db-migrations.md)に従います。
 
 ## 8. 動作確認
 
@@ -251,7 +253,6 @@ Error: D1_ERROR
 
 `apps/server/wrangler.toml` の `d1_databases` の設定を確認。
 
-v2 切り替えには専用の[リリース手順](design/data-model-v2.md#168-final-release-runbook)があります。データ入力を停止し、D1 Time Travel の復元点を記録してから migration と監査を行い、その後 Worker と新 UI をデプロイします。失敗時は途中まで適用されたチェーンを再試行せず、記録した復元点に戻してください。
 
 ### Worker デプロイ失敗
 

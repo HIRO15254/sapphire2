@@ -1,16 +1,15 @@
 # Design Documentation
 
-This directory is the durable home for **why the code is shaped the way it is**: domain invariants, constraints, threat models, and the traps that past incidents taught us. Source code stays comment-free by policy (see [`.claude/rules/comments.md`](../../.claude/rules/comments.md)) — the knowledge that used to live in comments lives here instead, indexed and reviewed.
+This directory describes the current implementation: domain invariants, constraints, threat models, and mechanics. Source code stays comment-free by policy (see [`.claude/rules/comments.md`](../../.claude/rules/comments.md)); historical records are in the [archive](../archive/README.md).
 
 Division of labor with [`.claude/rules/`](../../.claude/rules/): rule files hold **imperatives** agents and reviewers must follow (short, path-scoped, auto-loaded); design docs hold the **reasoning and mechanics** behind them. When a doc states a constraint that is mechanically enforceable, the enforcement lives in [`scripts/check-rules.ts`](../../scripts/check-rules.ts) and the imperative in a rule file — the doc links both.
 
-Issue references (`SA2-NNN`) point at the Linear issues that motivated a decision; `(cNN)` marks findings from review threads.
-
 | Doc | Domain |
 |---|---|
-| [`data-model-v2.md`](data-model-v2.md) | Final schema, invariants, calculations, projection, completed migration history, live audit catalogue and release runbook |
-| [`api-after-data-model-v2.md`](api-after-data-model-v2.md) | Final tRPC and MCP contract after data model v2: every router's procedures with inputs, outputs, errors and owning task, the removed procedures, the MCP tool map |
+| [`data-model.md`](data-model.md) | Schema, invariants, calculations and projection |
+| [`api.md`](api.md) | tRPC and MCP contracts: procedures, inputs, outputs and errors |
 | [`data-integrity.md`](data-integrity.md) | Cloudflare D1 limits (100 bound parameters, chunking), `db.batch()` atomicity and statement ordering, keyset pagination, N+1 avoidance, TOCTOU guards, unique-constraint error shapes, UTC date handling |
+| [`data-audits.md`](data-audits.md) | Current database audit checks, activation and deployment gates |
 | [`sessions-and-live-editing.md`](sessions-and-live-editing.md) | Entry and play-session lifecycle, projection, rule versions and live editing |
 | [`game-masters.md`](game-masters.md) | Game group / variant / mix masters, normalized composition and seeding |
 | [`game-lineups.md`](game-lineups.md) | Immutable lineups and rule versions, stakes, prices and master ↔ entry rule operations |
@@ -20,6 +19,6 @@ Issue references (`SA2-NNN`) point at the Linear issues that motivated a decisio
 | [`ai-extraction.md`](ai-extraction.md) | AI extraction truncation failure model, schema design, model pinning, form-merge semantics |
 | [`web-platform.md`](web-platform.md) | Persisted-cache busting, open-redirect guard, shared UI component traps, filter presets, geolocation and maps, number formatting |
 | [`cryst-exceptions.md`](cryst-exceptions.md) | Exceptions policy for future Cryst screens: record local departures with reasons, promote repeated needs to the design system, and remove obsolete exceptions |
-| [`testing-and-tooling.md`](testing-and-tooling.md) | Test mechanisms and rationale: Miniflare/D1 selection, HTTP/browser boundaries, Vitest discovery and CI, mock-db limitations, `node:sqlite` migrations and the scoped v2 recovery exception, preview seed/restore, `check-rules.ts`. Rules live in [testing.md](../../.claude/rules/testing.md); commands in the [run guide](../testing-environment.ja.md) |
-| [`pr-review.md`](pr-review.md) | Automated PR review loop: the round-by-round audit data, the two-round cap and `re-review` label, CI-green gating, the state comment, the reviewer prompt's severity rubric |
+| [`testing-and-tooling.md`](testing-and-tooling.md) | Test mechanisms, D1 integration, HTTP/browser boundaries, Vitest, CI, migrations, seed/restore and `check-rules.ts`. Rules live in [testing.md](../../.claude/rules/testing.md); commands in the [run guide](../testing-environment.ja.md) |
+| [`pr-review.md`](pr-review.md) | Automated PR review loop, gating, state and severity rubric |
 | [`agent-workflow.md`](agent-workflow.md) | Settings outside the repo that the agent loop relies on: Linear statuses and GitHub integration, GitHub rulesets / merge settings / secrets, Orca base ref and setup, per-agent hooks, the release Released step |

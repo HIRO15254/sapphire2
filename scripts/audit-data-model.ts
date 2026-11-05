@@ -15,7 +15,7 @@ import {
 const USAGE = `usage: bun scripts/audit-data-model.ts (--local | --remote) --database <name>
   [--config apps/server/wrangler.toml] [--persist-to <dir>] [--enable A-6,A-8] [--json]
 
-Read-only data-model-v2 audit (docs/design/data-model-v2.md §16.7).
+Read-only data model audit (docs/design/data-audits.md).
 --enable runs the named pending audits ahead of their enabling task (rehearsal and pre-audit).
 Exit 0: no gate violation. Exit 1: a violation or a check error. Exit 2: usage or database failure.`;
 

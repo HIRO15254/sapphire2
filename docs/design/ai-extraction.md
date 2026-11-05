@@ -1,6 +1,8 @@
 # AI Extraction
 
-This document covers the AI extraction subsystem: the two `aiExtractRouter` procedures in [`packages/api/src/routers/ai-extract.ts`](../../packages/api/src/routers/ai-extract.ts) — `extractTournamentData` (tournament details from screenshots) and `extractTablePlayers` (seated players from a poker-app screenshot) — the model and token configuration in [`packages/api/src/ai/models.ts`](../../packages/api/src/ai/models.ts), and how the web tournament form merges extraction results over user input (SA2-77).
+Historical context is preserved in the [archive](../archive/ai-extraction-history.md).
+
+This document covers the AI extraction subsystem: the two `aiExtractRouter` procedures in [`packages/api/src/routers/ai-extract.ts`](../../packages/api/src/routers/ai-extract.ts) — `extractTournamentData` (tournament details from screenshots) and `extractTablePlayers` (seated players from a poker-app screenshot) — the model and token configuration in [`packages/api/src/ai/models.ts`](../../packages/api/src/ai/models.ts), and how the web tournament form merges extraction results over user input.
 
 ## Model registry (`AI_MODELS`)
 
@@ -59,14 +61,14 @@ These have different causes and different remedies, so they are reported as **se
 
 Collapsing them into one error would hide which knob to turn.
 
-## Merging extracted data into the tournament form (SA2-77)
+## Merging extracted data into the tournament form
 
-The old UI's merge helper and tournament form sheet were deleted with the old UI in B03 (SA2-387); no web code consumes `aiExtract` until the new UI's tournament form does. The semantics below are the contract that form must re-implement: AI-extracted tournament data is merged over the values the user has already entered (`base`). Blank extracted values never overwrite an existing value — only meaningful values are applied.
+No web code currently consumes `aiExtract`; when the tournament form integrates it, the contract is: AI-extracted tournament data is merged over the values the user has already entered (`base`). Blank extracted values never overwrite an existing value — only meaningful values are applied.
 
-- **AI-blank fields are ignored** so they never overwrite information the user has already entered (SA2-77). A string counts as blank when it is empty after trim (`hasText`).
-- **An explicit 0 is not blank — for fields where 0 is real.** Only non-negative finite numbers are valid; an explicit 0 (e.g. a freeroll's `buyIn` / `entryFee`) is distinguished from blank and applied (SA2-77). But `startingStack` / `tableSize` real values are always positive, so for those fields 0 is ignored as AI filler.
+- **AI-blank fields are ignored** so they never overwrite information the user has already entered. A string counts as blank when it is empty after trim (`hasText`).
+- **An explicit 0 is not blank — for fields where 0 is real.** Only non-negative finite numbers are valid; an explicit 0 (e.g. a freeroll's `buyIn` / `entryFee`) is distinguished from blank and applied. But `startingStack` / `tableSize` real values are always positive, so for those fields 0 is ignored as AI filler.
 - **Non-AI fields carried on `base`** are preserved as-is. The new tournament form uses the current asset and rule model rather than the retired form's currency fields.
 
 ### The merge base is the current form values, not `initialFormValues`
 
-So that a blank AI result never overwrites what the user has typed *during* the session, the merge base is the form's **live** values at extraction time (the old form read them through a getter ref), not `initialFormValues` (SA2-77). Merging over `initialFormValues` instead would silently wipe anything entered after the sheet opened whenever the AI returned blanks.
+So that a blank AI result never overwrites what the user has typed *during* the session, the merge base is the form's **live** values at extraction time, not `initialFormValues`. Merging over `initialFormValues` instead would silently wipe anything entered after the sheet opened whenever the AI returned blanks.

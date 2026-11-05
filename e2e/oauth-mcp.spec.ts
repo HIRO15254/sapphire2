@@ -38,7 +38,6 @@ async function registerClient(
 	expect(discovery.ok()).toBe(true);
 	const metadata = await discovery.json();
 	const clientName = `Sapphire E2E ${crypto.randomUUID()}`;
-	// A real local callback endpoint; no route interception or external service.
 	const redirectUri = `${API_URL}/?oauth_callback=${crypto.randomUUID()}`;
 	const response = await request.post(metadata.registration_endpoint, {
 		headers: { Origin: API_URL },
@@ -81,7 +80,6 @@ async function requestConsent(
 		code_challenge: challenge,
 		code_challenge_method: "S256",
 		state,
-		// Even a client asking to bypass interaction must see explicit consent.
 		prompt: "none",
 	}).toString();
 	let response = await page.goto(url.toString());
@@ -174,7 +172,6 @@ async function rpc<T>(
 		data: { jsonrpc: "2.0", id, method, params },
 	});
 	expect(response.ok(), await response.text()).toBe(true);
-	// The supported legacy MCP profile may frame even initialize as SSE.
 	const body = await response.text();
 	const messages = response
 		.headers()
@@ -354,8 +351,6 @@ test("a wrong PKCE verifier cannot exchange an approved authorization code", asy
 	});
 	expect(response.status()).toBe(401);
 	const body = await response.json();
-	// Check the rejection cause rather than pinning the dependency's OAuth error
-	// enum (Better Auth 1.6 returns invalid_request for this invalid grant).
 	expect(body.error_description).toBe("code verification failed");
 	expect(body).not.toHaveProperty("access_token");
 });

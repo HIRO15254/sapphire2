@@ -19,9 +19,8 @@ const { compatibilityDate, compatibilityFlags } = readWorkerCompatibility();
 await mkdir(runtime, { recursive: true });
 await mkdir(resultsDirectory, { recursive: true });
 await writeFile(workerLog, "");
-// Vite empties this build output. Never resolve it outside the test directory.
 if (path.relative(runtime, webDirectory) !== "web") {
-	throw new Error("Unexpected test build output directory");
+	throw new Error("Test build output must stay inside the test directory");
 }
 
 class TestLog extends Log {

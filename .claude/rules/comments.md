@@ -3,6 +3,8 @@ paths:
   - "apps/**"
   - "packages/**"
   - "scripts/**"
+  - "e2e/**"
+  - "testing/**"
 ---
 
 # Code Comments (near-zero policy)

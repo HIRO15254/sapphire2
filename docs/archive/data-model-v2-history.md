@@ -1,8 +1,10 @@
 # Data Model v2
 
+> Historical record: this document preserves the v2 planning, migrations, incidents, and decisions as written. For the current contract, see [Data Model](../design/data-model.md).
+
 ## 1. Overview
 
-This is the final backend specification for data model v2. It separates participation and results (`entry`), time at the table (`play_session`), asset movements (`ledger_line`), immutable rules, and hand history. The end state is specified first; §16 defines the migration path. [Game lineups](game-lineups.md) owns rule-version and lineup detail. [API after data model v2](api-after-data-model-v2.md) owns procedure contracts and the MCP tool map.
+This is the final backend specification for data model v2. It separates participation and results (`entry`), time at the table (`play_session`), asset movements (`ledger_line`), immutable rules, and hand history. The end state is specified first; §16 defines the migration path. [Game lineups](../design/game-lineups.md) owns rule-version and lineup detail. [API after data model v2](../design/api.md) owns procedure contracts and the MCP tool map.
 
 Goals: multi-day participation and re-entry in one result; tickets and other non-currency assets; historical valuation; count, summary and full hand history; one source per fact; database-enforced ownership. Non-goals: imports, staking, sharing, and building the new UI.
 
@@ -297,7 +299,7 @@ B15 creates the existing user's self row, ensures one when needed for a new user
 
 ### 5.3 Rule and lineup schema contract
 
-[game-lineups.md](game-lineups.md) is the authoritative detailed DDL and write protocol for the following tables. They are created empty by B01, used by B07/B08/B13, and have the same ownership, integer, CHECK and immutable conventions as this section. This inventory fixes names and the constraints shared with other aggregates; it does not duplicate the detailed rule specification.
+[game-lineups.md](../design/game-lineups.md) is the authoritative detailed DDL and write protocol for the following tables. They are created empty by B01, used by B07/B08/B13, and have the same ownership, integer, CHECK and immutable conventions as this section. This inventory fixes names and the constraints shared with other aggregates; it does not duplicate the detailed rule specification.
 
 | Table | Final columns beyond common columns | Keys and guards |
 | --- | --- | --- |
@@ -323,7 +325,7 @@ FOREIGN KEY (rule_id,inherited_lineup_id)
 
 Every rule FK also has an ownership FK, so nullable master ids cannot bypass ownership. G1 same-master FKs apply to both parent versions and entry details (§6). API validation rejects parent lineage whose NULL/non-NULL master relationship does not match. Complete stake coverage and no stakes on a break are API rules audited by A-14; duplicate lineup variants are prevented by UNIQUE(lineup_id,variant_id). All rule/price parents carry UNIQUE(id,user_id); indexes cover master id, parent_rule_id, lineup_id, rule_id/level_id, price.asset_id and every FK lookup. Entry rule-id, ledger price-id and master current-rule-id indexes are required (G7).
 
-Prices are explicit assets, not NULL = main currency. A cash and a ticket entry option are separate `entry` prices. Tournament editing replaces the complete immutable structure, including levels and prices; row-level blindLevel and tournamentChipPurchase procedures are deleted by B08. B13 provides version creation/reuse, hydration and version-id drift services without router wiring; B16/B17 use them. B20 adds entry/live override/apply/push/relink and restoreRule operations. Restore only repoints existing versions without creating a version. [game-lineups.md](game-lineups.md) owns the detailed write protocol.
+Prices are explicit assets, not NULL = main currency. A cash and a ticket entry option are separate `entry` prices. Tournament editing replaces the complete immutable structure, including levels and prices; row-level blindLevel and tournamentChipPurchase procedures are deleted by B08. B13 provides version creation/reuse, hydration and version-id drift services without router wiring; B16/B17 use them. B20 adds entry/live override/apply/push/relink and restoreRule operations. Restore only repoints existing versions without creating a version. [game-lineups.md](../design/game-lineups.md) owns the detailed write protocol.
 
 ## 6. Tables 2: entry, details and play_session
 
@@ -930,7 +932,7 @@ hand.add/undoLast only while active; tablePlayer and all_in links obey the same 
 
 ## 14. API and MCP
 
-This section defines policy only; the sole procedure contracts and tool map are [api-after-data-model-v2.md](api-after-data-model-v2.md). There is no duplicate router map here.
+This section defines policy only; the sole procedure contracts and tool map are [api-after-data-model-v2.md](../design/api.md). There is no duplicate router map here.
 
 P1/P2: each API task directly builds the final names and shapes, deletes its replaced path and updates MCP in the same PR. D1 names the participation API `entry`, D3 gives one `live` router, with `playEvent` and `tablePlayer` for their own concerns. Money uses assetId, rule/game references use ids, kind is cash/tournament, dates are playedOn/localDate strings, state is open/settled plus per-day status. No session alias, flat legacy-money fallback, stringified event payload, compatibility view or strict removed-input rejection is carried forward. B06 deletes the old session API, including unused session.profitLossSeries; B16 deletes privateData.
 

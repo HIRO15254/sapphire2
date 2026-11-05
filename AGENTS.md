@@ -144,7 +144,7 @@ The following rule files live in `.claude/rules/` and are loaded automatically w
 | `datetime-and-numbers.md` | `apps/web/**`, `packages/api/**` | Date-only values are UTC midnight (read with UTC getters), day-crossing handling + backfill, period boundaries, shared locale-fixed number formatters. |
 | `db-migrations.md` | `packages/db/**` | Applied by `wrangler`; `db:generate` is the default for schema-shape changes, hand-write data/rename/destructive ones; how the Drizzle `meta/` ledger works and how to keep it from drifting. |
 | `mcp-tools.md` | `packages/mcp/**`, `packages/api/**` | MCP tools are a projection of `appRouter`: backend procedure changes must update `TOOL_DEFINITIONS`/`DELIBERATELY_EXCLUDED` in the same task; tools go through `createCaller`, schemas are the router's Zod objects, errors through `mapToolError`. |
-| `comments.md` | `apps/**`, `packages/**`, `scripts/**` | Near-zero comments: only lint/type directives + `NOTE(ops)`/`NOTE(rule)` markers; rationale goes to `docs/design/`. |
+| `comments.md` | `apps/**`, `packages/**`, `scripts/**`, `e2e/**`, `testing/**` | Near-zero comments: only lint/type directives + `NOTE(ops)`/`NOTE(rule)` markers; rationale goes to `docs/design/`. |
 
 ## Maintaining This File (Self-Evolution)
 
