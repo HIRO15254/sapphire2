@@ -491,6 +491,13 @@
       "when": 1793842253999,
       "tag": "0069_entry_rule_versions",
       "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "6",
+      "when": 1793844661476,
+      "tag": "0070_entry_tag_tables",
+      "breakpoints": true
     }
   ]
 }

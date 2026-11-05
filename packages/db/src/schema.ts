@@ -26,6 +26,12 @@ import {
 	playSession,
 	playSessionRelations,
 } from "./schema/entry";
+import {
+	entryTag,
+	entryTagLink,
+	entryTagLinkRelations,
+	entryTagRelations,
+} from "./schema/entry-tag";
 import { filterPreset, filterPresetRelations } from "./schema/filter-preset";
 import { gameGroup, gameGroupRelations } from "./schema/game-group";
 import {
@@ -236,6 +242,10 @@ export const schema = {
 	playSessionRelations,
 	playEvent,
 	playEventRelations,
+	entryTag,
+	entryTagRelations,
+	entryTagLink,
+	entryTagLinkRelations,
 	hand,
 	handRelations,
 	handBoard,

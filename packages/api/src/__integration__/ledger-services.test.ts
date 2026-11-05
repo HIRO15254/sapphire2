@@ -19,10 +19,7 @@ import {
 } from "../services/entry-live-writes";
 import { buildProjectionLineStatements } from "../services/entry-projector";
 import { planEntryRule } from "../services/entry-rules";
-import {
-	buildManualEntryInsertStatements,
-	type EntrySessionFacts,
-} from "../services/entry-session";
+import { createManualEntry } from "../services/entry-writes";
 import {
 	selectAssetBalances,
 	selectAssetHistory,
@@ -31,11 +28,7 @@ import {
 import {
 	buildAdjustmentStatements,
 	buildExchangeStatements,
-	buildManualLineStatements,
 	deleteWalletLine,
-	type ManualEntryMoney,
-	manualLineOccurredAt,
-	manualMoneyPayments,
 	updateWalletLine,
 } from "../services/ledger-writes";
 import { nlhGame, test } from "./test-fixture";
@@ -68,78 +61,21 @@ async function seedAssets(db: Database) {
 	]);
 }
 
-async function manualFacts(
-	db: Database,
-	id: string,
-	kind: "cash_game" | "tournament"
-): Promise<EntrySessionFacts> {
-	const rule = await planEntryRule(
+async function seedSettledCash(db: Database): Promise<string> {
+	return await createManualEntry(
 		db,
 		"alice",
-		kind === "cash_game"
-			? { kind: "cash", ringGameId: null, rule: await nlhGame(db) }
-			: { kind: "tournament", tournamentId: null }
+		{
+			kind: "cash",
+			playedOn: "2026-09-01",
+			rule: await nlhGame(db),
+			payments: [
+				{ role: "buy_in", assetId: JPY, quantity: 30_000, effect: "real" },
+				{ role: "cash_out", assetId: JPY, quantity: 50_000, effect: "real" },
+			],
+		},
+		NOW
 	);
-	await runBatch(db, rule.statements);
-	const base = {
-		id,
-		userId: "alice",
-		source: "manual",
-		sessionDate: new Date("2026-09-01T00:00:00.000Z"),
-		startedAt: null,
-		endedAt: null,
-		breakMinutes: null,
-		memo: null,
-		roomId: null,
-		currencyId: JPY,
-		ruleName: null,
-	};
-	return kind === "cash_game"
-		? {
-				...base,
-				kind,
-				cash: {
-					ringGameId: null,
-					cashRuleId: rule.ruleVersionId,
-					cashOut: null,
-					evCashOut: null,
-				},
-			}
-		: {
-				...base,
-				kind,
-				tournament: {
-					tournamentId: null,
-					tournamentRuleId: rule.ruleVersionId,
-					placement: null,
-					totalEntries: null,
-					beforeDeadline: null,
-				},
-			};
-}
-
-async function writeManual(
-	db: Database,
-	facts: EntrySessionFacts,
-	money: ManualEntryMoney,
-	options: { insertEntry: boolean }
-) {
-	await runBatch(db, [
-		...(options.insertEntry
-			? buildManualEntryInsertStatements(db, facts, NOW)
-			: []),
-		...buildManualLineStatements(
-			db,
-			{
-				entryId: facts.id,
-				userId: facts.userId,
-				playSessionId: facts.id,
-				occurredAt: manualLineOccurredAt(null, "2026-09-01"),
-			},
-			manualMoneyPayments(JPY, money),
-			NOW
-		),
-	]);
 }
 
 async function realProfitLoss(db: Database, entryId: string) {
@@ -190,67 +126,6 @@ async function appendAndProject(
 }
 
 describe("entry ledger real profit and loss", () => {
-	test("for manual cash and tournament input, including a rewrite of the same entry", async ({
-		api: { db },
-	}) => {
-		await seedAssets(db);
-		const cash = await manualFacts(db, "manual-cash", "cash_game");
-		await writeManual(
-			db,
-			cash,
-			{ kind: "cash", buyIn: 30_000, chipRemoveTotal: 5000, cashOut: 42_000 },
-			{ insertEntry: true }
-		);
-		expect(await realProfitLoss(db, cash.id)).toEqual([
-			{ assetId: JPY, profitLoss: 42_000 + 5000 - 30_000 },
-		]);
-
-		await writeManual(
-			db,
-			cash,
-			{ kind: "cash", buyIn: 30_000, chipRemoveTotal: null, cashOut: 0 },
-			{ insertEntry: false }
-		);
-		expect(await realProfitLoss(db, cash.id)).toEqual([
-			{ assetId: JPY, profitLoss: 0 + 0 - 30_000 },
-		]);
-
-		const mtt = await manualFacts(db, "manual-mtt", "tournament");
-		await writeManual(
-			db,
-			mtt,
-			{
-				kind: "tournament",
-				buyIn: 10_000,
-				entryFee: 1000,
-				prizeMoney: 30_000,
-				bountyPrizes: 2000,
-				chipPurchases: [
-					{ cost: 2000, count: 2 },
-					{ cost: 3000, count: 1 },
-					{ cost: 9000, count: 0 },
-				],
-			},
-			{ insertEntry: true }
-		);
-		expect(await realProfitLoss(db, mtt.id)).toEqual([
-			{
-				assetId: JPY,
-				profitLoss: 30_000 + 2000 - (10_000 + 1000 + 2000 * 2 + 3000 * 1),
-			},
-		]);
-		const rebuys = await db
-			.select({ id: ledgerLine.id })
-			.from(ledgerLine)
-			.where(eq(ledgerLine.role, "chip_purchase"))
-			.orderBy(asc(ledgerLine.id));
-		expect(rebuys.map(({ id }) => id)).toEqual([
-			"m:manual-mtt:chip_purchase:0",
-			"m:manual-mtt:chip_purchase:1",
-			"m:manual-mtt:chip_purchase:2",
-		]);
-	});
-
 	test("for live cash and tournament event logs, rebuilt as often as the events change", async ({
 		api: { db },
 	}) => {
@@ -436,12 +311,7 @@ describe("wallet lines, balances and history", () => {
 		api: { db },
 	}) => {
 		await seedAssets(db);
-		await writeManual(
-			db,
-			await manualFacts(db, "settled", "cash_game"),
-			{ kind: "cash", buyIn: 30_000, chipRemoveTotal: null, cashOut: 50_000 },
-			{ insertEntry: true }
-		);
+		const settled = await seedSettledCash(db);
 		const deposit = buildAdjustmentStatements(
 			db,
 			"alice",
@@ -480,7 +350,7 @@ describe("wallet lines, balances and history", () => {
 		const firstPage = await selectAssetHistory(db, "alice", JPY, { limit: 2 });
 		expect(firstPage).toMatchObject([
 			{ id: exchange.ids[0], quantity: -15_000, role: "exchange" },
-			{ id: "settled", entryId: "settled", quantity: 20_000, role: null },
+			{ id: settled, entryId: settled, quantity: 20_000, role: null },
 		]);
 		const last = firstPage.at(-1);
 		if (!last) {
@@ -505,12 +375,7 @@ describe("wallet lines, balances and history", () => {
 		api: { db },
 	}) => {
 		await seedAssets(db);
-		await writeManual(
-			db,
-			await manualFacts(db, "settled", "cash_game"),
-			{ kind: "cash", buyIn: 30_000, chipRemoveTotal: null, cashOut: 50_000 },
-			{ insertEntry: true }
-		);
+		const settled = await seedSettledCash(db);
 		const exchange = buildExchangeStatements(
 			db,
 			"alice",
@@ -550,10 +415,16 @@ describe("wallet lines, balances and history", () => {
 			code: "FORBIDDEN",
 		});
 		await expect(
-			updateWalletLine(db, "alice", "m:settled:cash_out:0", { memo: "x" }, NOW)
+			updateWalletLine(
+				db,
+				"alice",
+				`m:${settled}:cash_out:0`,
+				{ memo: "x" },
+				NOW
+			)
 		).rejects.toMatchObject({ code: "FORBIDDEN" });
 		await expect(
-			deleteWalletLine(db, "alice", "m:settled:buy_in:0")
+			deleteWalletLine(db, "alice", `m:${settled}:buy_in:0`)
 		).rejects.toMatchObject({ code: "FORBIDDEN" });
 
 		await updateWalletLine(
@@ -595,8 +466,8 @@ describe("wallet lines, balances and history", () => {
 			.from(ledgerLine)
 			.orderBy(asc(ledgerLine.id));
 		expect(remaining.map(({ id }) => id)).toEqual([
-			"m:settled:buy_in:0",
-			"m:settled:cash_out:0",
+			`m:${settled}:buy_in:0`,
+			`m:${settled}:cash_out:0`,
 		]);
 	});
 });

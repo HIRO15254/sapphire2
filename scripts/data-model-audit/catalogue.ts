@@ -37,6 +37,7 @@ export const B09_MIGRATION = "0063_ledger_cutover.sql";
 export const B12_MIGRATION = "0064_open_live_cash_ev.sql";
 export const B08_MIGRATION = "0066_tournament_final.sql";
 export const B13_MIGRATION = "0069_entry_rule_versions.sql";
+export const B16_MIGRATION = "0070_entry_tag_tables.sql";
 
 export type Activation =
 	| { state: "active"; since: string | null }
@@ -82,6 +83,7 @@ const SINCE_B09: Activation = { state: "active", since: B09_MIGRATION };
 const SINCE_B12: Activation = { state: "active", since: B12_MIGRATION };
 const SINCE_B08: Activation = { state: "active", since: B08_MIGRATION };
 const SINCE_B13: Activation = { state: "active", since: B13_MIGRATION };
+const SINCE_B16: Activation = { state: "active", since: B16_MIGRATION };
 
 function pending(enabledBy: string): { state: "pending"; enabledBy: string } {
 	return { state: "pending", enabledBy };
@@ -319,7 +321,43 @@ WHERE COALESCE(g.amount, 0) <> COALESCE(n.amount, 0)`,
 	},
 	{
 		audit: "A-12",
-		part: "mapped/deduplicated old tag-link set equals the new set per target",
+		part: "mapped/deduplicated session tag links equal entry tag links",
+		kind: "sql",
+		activation: SINCE_B16,
+		deletedBy: TASK.B25,
+		tables: [
+			"game_session",
+			"session_tag",
+			"session_to_session_tag",
+			"entry",
+			"entry_tag_link",
+		],
+		sql: (cutoverAt) => `WITH historical AS (
+SELECT e.id, e.user_id FROM entry e
+JOIN game_session gs ON gs.id = e.id AND gs.user_id = e.user_id
+WHERE e.created_at <= ${cutoverAt} AND e.updated_at <= ${cutoverAt}
+),
+expected AS (
+SELECT DISTINCT h.id AS entry_id, h.user_id, (
+SELECT representative.id FROM session_tag representative
+WHERE representative.user_id = t.user_id AND lower(trim(representative.name)) = lower(trim(t.name))
+ORDER BY representative.created_at, representative.id LIMIT 1
+) AS tag_id
+FROM historical h
+JOIN session_to_session_tag l ON l.session_id = h.id
+JOIN session_tag t ON t.id = l.session_tag_id AND t.user_id = h.user_id
+),
+actual AS (
+SELECT l.entry_id, l.user_id, l.tag_id FROM entry_tag_link l
+JOIN historical h ON h.id = l.entry_id AND h.user_id = l.user_id
+)
+SELECT 'missing' AS problem, entry_id, user_id, tag_id FROM (SELECT * FROM expected EXCEPT SELECT * FROM actual)
+UNION ALL
+SELECT 'unexpected', entry_id, user_id, tag_id FROM (SELECT * FROM actual EXCEPT SELECT * FROM expected)`,
+	},
+	{
+		audit: "A-12",
+		part: "mapped/deduplicated tournament, hand and player tag links equal the new sets",
 		kind: "deferred",
 		activation: pending(TASK.B18),
 		deletedBy: TASK.B25,

@@ -657,6 +657,8 @@ Append hand_no is MAX+1 inside INSERT. Undo deletes only the highest count hand,
 
 `defineTagTables()` expands the following exact per-kind schema; `createTagRouter()` provides the same list/create/update/delete/reorder contract. Every tag has id/user_id/created_at/updated_at from §5, `name TEXT NOT NULL`, `sort_order INTEGER NOT NULL DEFAULT 0`, UNIQUE(id,user_id), and UNIQUE(user_id,lower(trim(name))). No polymorphic target FK is used.
 
+The entry kind ships first, in B16 (SA2-402), because entry.create/update take tagIds: its tables, the session_tag backfill and `entryTag.list/create/update/delete` exist before the factories, and B18 rebuilds that router through `createTagRouter()` without changing its contract.
+
 ```sql
 CREATE TABLE entry_tag (
   id TEXT PRIMARY KEY NOT NULL,
@@ -1204,9 +1206,9 @@ This is the final task list, numbered in execution order (rebuilt on 2026-10-17;
 | U02 | SA2-399 | UI v3 | Games screens (archive/restore) and the shared id-based game/group/mix and stakes/lineup editors, including Must/Optional blind display and ante type input | 5 | U12, B11 |
 | B14 | SA2-400 | Data Model v2 | Final wallet/category API and guarded archive/delete; delete currencyTransaction/transactionType routers, MCP and DEFAULT_TRANSACTION_TYPES | 3 | B12 |
 | B15 | SA2-401 | Data Model v2 | Self-player DDL/backfill, getSelf and opponent exclusions; backend only; rewrite all v1 payloads with resolved price/self-player ids; remove v1 from projector and registry | 5 | B13 |
-| B16 | SA2-402 | Data Model v2 | Final entry API, playSessions/payments with invocation-budget maxima; wire B13 services and drift; delete privateData only (old session API already removed) | 5 | B10, B13 |
+| B16 | SA2-402 | Data Model v2 | Final entry API, playSessions/payments with invocation-budget maxima; wire B13 services and drift; delete privateData only (old session API already removed); entry_tag/entry_tag_link tables, backfill and entryTag list/create/update/delete pulled forward from B18 | 5 | B10, B13 |
 | B17 | SA2-403 | Data Model v2 | Final live/playEvent/tablePlayer, including self/Hero seat source; B13 service wiring; no v1 branch; zoned dates, event-time/terminal-order guards, initialStack and server progress | 5 | B12, B15, B16 |
-| B18 | SA2-404 | Data Model v2 | Four tag factories/backfill and APIs/MCP; mapped ids, A-12 | 5 | B16 |
+| B18 | SA2-404 | Data Model v2 | Four tag factories and APIs/MCP for tournament/hand/player tags plus entryTag reorder; mapped ids, A-12 (entry part shipped in B16) | 5 | B16 |
 | U03 | SA2-405 | UI v3 | Asset, wallet, rate and settings screens | 5 | U12, B14 |
 | B19 | SA2-406 | Data Model v2 | endPlay/startNextPlay and undo, ended-day state machine | 3 | B17 |
 | B20 | SA2-407 | Non-NLH games | Entry/live rule-operation APIs, including restoreRule and live.createAndAssignRingGame/Tournament | 3 | B17 |

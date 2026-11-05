@@ -1,52 +1,10 @@
 import type { Database } from "@sapphire2/db";
-import {
-	isLedgerWalletRole,
-	LEDGER_ENTRY_ROLES_BY_KIND,
-	type LedgerEffect,
-	type LedgerRole,
-	signedLedgerQuantity,
-} from "@sapphire2/db/constants/ledger";
-import { paymentsSchema } from "@sapphire2/db/constants/play-event-payloads";
+import { isLedgerWalletRole } from "@sapphire2/db/constants/ledger";
 import { ledgerLine } from "@sapphire2/db/schema/ledger";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, isNull } from "drizzle-orm";
-import { type BatchStatement, chunkForInsert, runBatch } from "../lib/batch";
+import { and, asc, eq } from "drizzle-orm";
+import { type BatchStatement, runBatch } from "../lib/batch";
 import { validateEntityOwnership } from "../lib/ownership";
-
-export const manualPaymentsSchema = {
-	cash: paymentsSchema(LEDGER_ENTRY_ROLES_BY_KIND.cash),
-	tournament: paymentsSchema(LEDGER_ENTRY_ROLES_BY_KIND.tournament),
-};
-
-export interface ManualPayment {
-	assetId: string;
-	effect: LedgerEffect;
-	quantity: number;
-	role: LedgerRole;
-}
-
-export type ManualEntryMoney =
-	| {
-			kind: "cash";
-			buyIn: number | null;
-			cashOut: number | null;
-			chipRemoveTotal: number | null;
-	  }
-	| {
-			kind: "tournament";
-			bountyPrizes: number | null;
-			buyIn: number | null;
-			chipPurchases: readonly { cost: number; count: number }[];
-			entryFee: number | null;
-			prizeMoney: number | null;
-	  };
-
-export interface ManualLineScope {
-	entryId: string;
-	occurredAt: Date;
-	playSessionId: string;
-	userId: string;
-}
 
 export interface AdjustmentInput {
 	assetId: string;
@@ -149,77 +107,6 @@ export function manualLineOccurredAt(
 	localDate: string
 ): Date {
 	return startedAt ?? new Date(`${localDate}T12:00:00.000Z`);
-}
-
-export function manualMoneyPayments(
-	assetId: string,
-	money: ManualEntryMoney
-): ManualPayment[] {
-	const amounts: [LedgerRole, number | null][] =
-		money.kind === "cash"
-			? [
-					["buy_in", money.buyIn],
-					["chip_remove", money.chipRemoveTotal],
-					["cash_out", money.cashOut],
-				]
-			: [
-					["buy_in", money.buyIn],
-					["fee", money.entryFee],
-					...money.chipPurchases.flatMap(({ cost, count }) =>
-						Array.from({ length: count }, (): [LedgerRole, number] => [
-							"chip_purchase",
-							cost,
-						])
-					),
-					["prize", money.prizeMoney],
-					["bounty", money.bountyPrizes],
-				];
-	return amounts.flatMap(([role, quantity]) =>
-		quantity !== null && quantity > 0
-			? [{ assetId, quantity, role, effect: "real" as const }]
-			: []
-	);
-}
-
-export function buildManualLineStatements(
-	db: Database,
-	scope: ManualLineScope,
-	payments: readonly ManualPayment[],
-	now: Date
-): BatchStatement[] {
-	const nextIndexByRole: Partial<Record<LedgerRole, number>> = {};
-	const rows = payments.map((payment) => {
-		const n = nextIndexByRole[payment.role] ?? 0;
-		nextIndexByRole[payment.role] = n + 1;
-		return {
-			id: `m:${scope.entryId}:${payment.role}:${n}`,
-			userId: scope.userId,
-			assetId: payment.assetId,
-			quantity: signedLedgerQuantity(payment.role, payment.quantity),
-			role: payment.role,
-			effect: payment.effect,
-			entryId: scope.entryId,
-			playSessionId: scope.playSessionId,
-			occurredAt: scope.occurredAt,
-			createdAt: now,
-			updatedAt: now,
-		};
-	});
-	const statements: BatchStatement[] = [
-		db
-			.delete(ledgerLine)
-			.where(
-				and(
-					eq(ledgerLine.entryId, scope.entryId),
-					eq(ledgerLine.userId, scope.userId),
-					isNull(ledgerLine.sourceEventId)
-				)
-			),
-	];
-	for (const chunk of chunkForInsert(rows, Object.keys(rows[0] ?? {}).length)) {
-		statements.push(db.insert(ledgerLine).values(chunk));
-	}
-	return statements;
 }
 
 export function buildAdjustmentStatements(
