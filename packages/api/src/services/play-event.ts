@@ -12,6 +12,7 @@ import {
 	updateStackPayload,
 } from "@sapphire2/db/constants/play-event-payloads";
 import { playEvent } from "@sapphire2/db/schema/entry";
+import { hand } from "@sapphire2/db/schema/hand";
 import { tournamentRulePrice } from "@sapphire2/db/schema/rule";
 import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
@@ -21,6 +22,7 @@ import {
 	type EntryEventState,
 	findStoredEvent,
 	loadEntryEventState,
+	resolveAppendTarget,
 } from "./entry-live-writes";
 import { compareEvents } from "./entry-projector";
 import { MAX_ENTRY_PAYMENTS, type ManualPaymentInput } from "./entry-writes";
@@ -149,10 +151,31 @@ async function resolvePayload(
 	userId: string,
 	entryId: string,
 	state: EntryEventState,
+	playSessionId: string,
 	input: PlayEventInputPayload
 ): Promise<unknown> {
 	const facts = await loadEntryRuleFacts(db, userId, entryId, state.kind);
 	switch (input.eventType) {
+		case "all_in":
+			if (input.payload.handId !== undefined) {
+				const [linked] = await db
+					.select({ id: hand.id })
+					.from(hand)
+					.where(
+						and(
+							eq(hand.id, input.payload.handId),
+							eq(hand.playSessionId, playSessionId),
+							eq(hand.userId, userId)
+						)
+					);
+				if (!linked) {
+					throw new TRPCError({
+						code: "FORBIDDEN",
+						message: "This hand is not part of the event's play session",
+					});
+				}
+			}
+			return input.payload;
 		case "chips_add_remove":
 			await assertEventPayments(db, userId, entryId, facts.ruleVersionId, [
 				{
@@ -238,7 +261,14 @@ export async function createPlayEvent(
 		badRequest(`A ${state.kind} entry has no ${input.eventType} event`);
 	}
 	const occurredAt = eventInstant(input.occurredAt, now);
-	const payload = await resolvePayload(db, userId, input.entryId, state, input);
+	const payload = await resolvePayload(
+		db,
+		userId,
+		input.entryId,
+		state,
+		resolveAppendTarget(state, input.playSessionId),
+		input
+	);
 	const { eventIds } = await commitEntryEventChange(db, {
 		change: {
 			op: "append",
@@ -312,6 +342,7 @@ export async function updatePlayEvent(
 					userId,
 					entryId,
 					state,
+					target.playSessionId,
 					parseInputPayload(target.type, input.payload)
 				);
 	await commitEntryEventChange(db, {

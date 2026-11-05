@@ -106,6 +106,7 @@ export const allInPayload = z
 		equity: z.number().min(0).max(100),
 		// NOTE(rule): api-data-integrity.md — wins deviates from .int(): chopped pots count as fractional wins; non-negative, and the object-level refine (wins <= trials) blocks the EV-corruption bug (SA2-156).
 		wins: z.number().min(0),
+		handId: z.string().min(1).optional(),
 	})
 	.refine((data) => data.wins <= data.trials, {
 		message: "wins must not exceed trials",

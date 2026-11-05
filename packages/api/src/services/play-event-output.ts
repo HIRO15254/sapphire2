@@ -21,6 +21,10 @@ export function toPlayEventOutput(
 ): PlayEventOutput {
 	const raw: unknown = JSON.parse(event.payload);
 	const parsed = playEventPayloadSchema(kind, event.type)?.safeParse(raw);
+	const payload = (parsed?.success ? parsed.data : raw) as Record<
+		string,
+		unknown
+	>;
 	return {
 		id: event.id,
 		entryId: event.entryId,
@@ -28,7 +32,8 @@ export function toPlayEventOutput(
 		eventType: event.type,
 		occurredAt: event.occurredAt,
 		sortOrder: event.sortOrder,
-		payload: (parsed?.success ? parsed.data : raw) as Record<string, unknown>,
+		payload:
+			event.handId === null ? payload : { ...payload, handId: event.handId },
 		schemaVersion: event.schemaVersion,
 		createdAt: event.createdAt,
 		updatedAt: event.updatedAt,
