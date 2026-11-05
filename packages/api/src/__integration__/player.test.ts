@@ -1,8 +1,4 @@
-import {
-	player,
-	playerTag,
-	playerToPlayerTag,
-} from "@sapphire2/db/schema/player";
+import { player, playerTag, playerTagLink } from "@sapphire2/db/schema/player";
 import { asc, eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
 import { D1_MAX_BOUND_PARAMS } from "../lib/batch";
@@ -120,7 +116,7 @@ describe("player tags and atomic writes on D1", () => {
 			})
 		);
 		const playersBefore = await api.db.select().from(player);
-		const linksBefore = await api.db.select().from(playerToPlayerTag);
+		const linksBefore = await api.db.select().from(playerTagLink);
 		for (const id of [saved.id, "missing-player"]) {
 			await expect(api.alice.player.getById({ id })).rejects.toMatchObject({
 				code: "FORBIDDEN",
@@ -138,7 +134,7 @@ describe("player tags and atomic writes on D1", () => {
 			});
 		}
 		expect(await api.db.select().from(player)).toEqual(playersBefore);
-		expect(await api.db.select().from(playerToPlayerTag)).toEqual(linksBefore);
+		expect(await api.db.select().from(playerTagLink)).toEqual(linksBefore);
 	});
 
 	test("omitted tagIds preserves associations while updating another field", async ({
@@ -196,17 +192,12 @@ describe("player tags and atomic writes on D1", () => {
 				name: `Match ${id}`,
 				updatedAt: new Date("2026-09-05"),
 			});
-			await api.db.insert(playerToPlayerTag).values([
-				{ playerId: id, playerTagId: tag.id, position: 0 },
-				{ playerId: id, playerTagId: secondTag.id, position: 1 },
+			await api.db.insert(playerTagLink).values([
+				{ userId: "alice", playerId: id, tagId: tag.id, position: 0 },
+				{ userId: "alice", playerId: id, tagId: secondTag.id, position: 1 },
 			]);
 		}
-		const foreign = requireCreatedRow(
-			await api.bob.player.create({ name: "Match private" })
-		);
-		await api.db
-			.insert(playerToPlayerTag)
-			.values({ playerId: foreign.id, playerTagId: tag.id, position: 0 });
+		await api.bob.player.create({ name: "Match private" });
 		const result = await api.alice.player.list({
 			search: "Match",
 			tagIds: [tag.id, secondTag.id],
@@ -276,8 +267,8 @@ describe("player tags and atomic writes on D1", () => {
 		expect(
 			await api.db
 				.select()
-				.from(playerToPlayerTag)
-				.where(eq(playerToPlayerTag.playerId, other.id))
+				.from(playerTagLink)
+				.where(eq(playerTagLink.playerId, other.id))
 		).toEqual([]);
 	});
 
@@ -297,7 +288,7 @@ describe("player tags and atomic writes on D1", () => {
 			})
 		);
 		const beforePlayers = await api.db.select().from(player);
-		const beforeLinks = await api.db.select().from(playerToPlayerTag);
+		const beforeLinks = await api.db.select().from(playerTagLink);
 		for (const id of [foreign.id, "missing-tag"]) {
 			await expect(
 				api.alice.player.create({ name: "Rejected", tagIds: [owned.id, id] })
@@ -314,10 +305,10 @@ describe("player tags and atomic writes on D1", () => {
 			).rejects.toMatchObject({ code: "FORBIDDEN" });
 		}
 		expect(await api.db.select().from(player)).toEqual(beforePlayers);
-		expect(await api.db.select().from(playerToPlayerTag)).toEqual(beforeLinks);
+		expect(await api.db.select().from(playerTagLink)).toEqual(beforeLinks);
 	});
 
-	test("omits foreign tag names from list and detail even when legacy cross-account links exist", async ({
+	test("rejects a link to another user's tag in the database, so foreign tag names never reach list or detail", async ({
 		api,
 	}) => {
 		const ownTag = requireCreatedRow(
@@ -339,9 +330,16 @@ describe("player tags and atomic writes on D1", () => {
 			})
 		);
 
-		await api.db
-			.insert(playerToPlayerTag)
-			.values({ playerId: saved.id, playerTagId: privateTag.id, position: 1 });
+		for (const userId of ["alice", "bob"]) {
+			await expect(
+				api.db.insert(playerTagLink).values({
+					userId,
+					playerId: saved.id,
+					tagId: privateTag.id,
+					position: 1,
+				})
+			).rejects.toThrow();
+		}
 		const expectedTags = [{ id: ownTag.id, name: "Visible", color: "green" }];
 		expect((await api.alice.player.getById({ id: saved.id })).tags).toEqual(
 			expectedTags
@@ -357,7 +355,7 @@ describe("player tags and atomic writes on D1", () => {
 	test("inserts more than one D1 binding chunk and preserves the supplied tag order", async ({
 		api,
 	}) => {
-		const tagCount = Math.floor(D1_MAX_BOUND_PARAMS / 3) + 1;
+		const tagCount = Math.floor(D1_MAX_BOUND_PARAMS / 4) + 1;
 		const ids = await api.createPlayerTags("alice", tagCount);
 		const saved = requireCreatedRow(
 			await api.alice.player.create({
@@ -373,13 +371,14 @@ describe("player tags and atomic writes on D1", () => {
 		expect(
 			await api.db
 				.select()
-				.from(playerToPlayerTag)
-				.where(eq(playerToPlayerTag.playerId, saved.id))
-				.orderBy(asc(playerToPlayerTag.position))
+				.from(playerTagLink)
+				.where(eq(playerTagLink.playerId, saved.id))
+				.orderBy(asc(playerTagLink.position))
 		).toEqual(
-			ids.toReversed().map((playerTagId, position) => ({
+			ids.toReversed().map((tagId, position) => ({
+				userId: "alice",
 				playerId: saved.id,
-				playerTagId,
+				tagId,
 				position,
 			}))
 		);
@@ -406,17 +405,17 @@ describe("player tags and atomic writes on D1", () => {
 		);
 		const ids = await api.createPlayerTags(
 			"alice",
-			Math.floor(D1_MAX_BOUND_PARAMS / 3) + 1
+			Math.floor(D1_MAX_BOUND_PARAMS / 4) + 1
 		);
 		const beforePlayer = await api.db
 			.select()
 			.from(player)
 			.where(eq(player.id, saved.id));
-		const beforeLinks = await api.db.select().from(playerToPlayerTag);
+		const beforeLinks = await api.db.select().from(playerTagLink);
 
 		await api.d1
 			.prepare(
-				`CREATE TRIGGER test_fail_later_tag BEFORE INSERT ON player_to_player_tag WHEN NEW.position >= ${Math.floor(D1_MAX_BOUND_PARAMS / 3)} BEGIN SELECT RAISE(ABORT, 'test forced later insert failure'); END;`
+				`CREATE TRIGGER test_fail_later_tag BEFORE INSERT ON player_tag_link WHEN NEW.position >= ${Math.floor(D1_MAX_BOUND_PARAMS / 4)} BEGIN SELECT RAISE(ABORT, 'test forced later insert failure'); END;`
 			)
 			.run();
 		const failure = await api.alice.player
@@ -439,7 +438,7 @@ describe("player tags and atomic writes on D1", () => {
 		expect(
 			await api.db.select().from(player).where(eq(player.id, saved.id))
 		).toEqual(beforePlayer);
-		expect(await api.db.select().from(playerToPlayerTag)).toEqual(beforeLinks);
+		expect(await api.db.select().from(playerTagLink)).toEqual(beforeLinks);
 		expect(await api.db.select().from(playerTag)).toHaveLength(ids.length + 1);
 	});
 });

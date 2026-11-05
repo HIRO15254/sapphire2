@@ -48,7 +48,10 @@ const INDEX_EXPRESSIONS: Record<string, string> = {
 	game_group_label_uq: 'lower(trim("label"))',
 	game_mix_label_uq: 'lower(trim("label"))',
 	game_variant_label_uq: 'lower(trim("label"))',
+	hand_tag_name_uq: 'lower(trim("name"))',
 	ledger_category_user_name_unique: 'lower(trim("name"))',
+	player_tag_name_uq: 'lower(trim("name"))',
+	tournament_tag_name_uq: 'lower(trim("name"))',
 };
 
 function declaredIndexColumns(index: DeclaredIndex) {

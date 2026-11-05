@@ -24,6 +24,8 @@ All multistatement writes, event changes plus projection, exchange pairs, rule w
 
 The D1 budget is Workers Paid's 1,000 queries per Worker invocation, including authentication/session reads and each batch statement (spec §20.1 item 10). B08 derives/enforces tournament levels × lineup groups/prices maxima and B16 manual playSessions/payments maxima; each records its fixed bounds here. Every mutation's owning task proves with a real D1 integration test counting statements that its maximum admitted input stays within the budget, with nested rule bodies at B07/B08's maxima and days/payments at B16's: entry.create/update B16; live.create B17; tag writes and reorder B18; hand detail writes B21; overrideRule/applyMasterRule/pushRuleToMaster/relink/restoreRule and live.createAndAssignRingGame/Tournament B20; master writes B07/B08. When a combined input exceeds the budget at those maxima, the owning task sets a tighter limit on its own procedure; it never changes another task's maxima. No independent fixed array maximum overrides this budget.
 
+B18 bounds reorder at 500 tag ids and owner `tagIds` at 100; the integration coverage is in `tag-router.test.ts` (reorder) and the existing owner tests.
+
 Ring-game rule writes plan one lineup: a newly created lineup spans at most 12 game groups (`MAX_LINEUP_GROUPS`, shared with tournament levels), so a save writes at most 12 stakes. A named mix regrouped by its variants' live game structure beyond that bound is rejected; an existing `lineupId` is reused as stored. The statement-count proof is part of the ring-game D1 integration coverage (`ring-game-rules.test.ts`).
 
 ### Dates, quantities, lists and common results
@@ -203,7 +205,7 @@ B16 maxima, measured against the 1000-statement invocation budget (10 reserved f
 
 Rule operations are also present on live (§4), with the same semantics. Override inserts a child under the same master and changes only the entry; unchanged signature reuses the version. Apply points to the linked master's current version. Push points the master to the entry's same-master version (or creates an equal version under that master) and aligns both ids. Relink with keepRule false applies the destination's current version; true copies the entry version under the destination master, never points across masters. Unlink preserves content as a parentless standalone version. Ordinary `update` may change metadata, but changing an already-linked master must use `relink`, and subsequent rule edits use the named rule operations. No keepSnapshot flag remains.
 
-`restoreRule` restores the entry's master link and existing rule version in one batch; when supplied, `masterRuleVersionId` also restores that master's current version in the same batch. Every version must belong to that master; with `masterId:null`, the entry version must be standalone. No new version is created. Archived masters and versions are allowed because this only restores saved values. Live entries also apply the tableSize/active player and self-seat validation. This is the inverse of overrideRule, applyMasterRule, pushRuleToMaster and relink; to undo createAndAssign*, follow restoreRule with deletion of the created master. With a B08-maximal tournament rule (100 levels on distinct 12-group lineups, 20 prices) and 50 tags, the live calls measured on D1 (`entry-rule-operations.test.ts`): createAndAssignTournament 394 statements, overrideRule 165, keepRule relink copying the version 155, and pushRuleToMaster, applyMasterRule, adopting relink and restoreRule under 30 each, so B20 keeps B08's limits and adds none of its own. Unlinking always keeps the content as a parentless standalone copy, whatever keepRule says, and the seat check folds tablePlayer seats, Hero included.
+`restoreRule` restores the entry's master link and existing rule version in one batch; when supplied, `masterRuleVersionId` also restores that master's current version in the same batch. Every version must belong to that master; with `masterId:null`, the entry version must be standalone. No new version is created. Archived masters and versions are allowed because this only restores saved values. Live entries also apply the tableSize/active player and self-seat validation. This is the inverse of overrideRule, applyMasterRule, pushRuleToMaster and relink; to undo createAndAssign*, follow restoreRule with deletion of the created master. With a B08-maximal tournament rule (100 levels on distinct 12-group lineups, 20 prices) and 100 tagIds, the live calls measured on D1 (`entry-rule-operations.test.ts`): createAndAssignTournament 397 statements, overrideRule 165, keepRule relink copying the version 155, and pushRuleToMaster, applyMasterRule, adopting relink and restoreRule under 30 each, so B20 keeps B08's limits and adds none of its own. Unlinking always keeps the content as a parentless standalone copy, whatever keepRule says, and the seat check folds tablePlayer seats, Hero included.
 
 Payments may reference only existing prices in the selected immutable tournament version. To create a new price and pay it, first write the rule through a rule operation/master operation, read the returned price id, then record the payment. Manual payments may omit priceId; no guessed price-id mapping or temporary client id is accepted. Changing a rule version with existing priced lines preserves those references to their original price; new payments use the new version's price ids.
 
@@ -482,14 +484,16 @@ Created by `createTagRouter()`. `Tag = {id,name,position,createdAt,updatedAt}`; 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
 | `list` Q | none | Tag[] ordered position,id | — | `entry_tag_list` |
-| `create` M | `{name:string 1..50}` | Tag | Duplicate: CONFLICT | `entry_tag_create` |
+| `create` M | `{name:string 1..50}` | Tag | Duplicate: CONFLICT; more than 500 tags per user/kind: PRECONDITION_FAILED | `entry_tag_create` |
 | `update` M | `{id,name:string 1..50}` | Tag | Duplicate: CONFLICT | Excluded: tag maintenance |
 | `delete` M | IdInput | Ack; removes links, not entries | — | Excluded: destructive |
-| `reorder` M | `{ids:Id[]}` unique complete permutation of owned tags of this kind | Tag[] | Incomplete/duplicate permutation: BAD_REQUEST | Excluded: screen ordering |
+| `reorder` M | `{ids:Id[]}` unique complete permutation of owned tags of this kind, max 500 | Tag[] | Foreign/missing id: FORBIDDEN; incomplete/duplicate permutation: BAD_REQUEST | Excluded: screen ordering |
 
 Entry attachment is entry.create/update tagIds; no separate toggle/addTag/removeTag procedures.
 
-B16 pulls the entry_tag/entry_tag_link tables, their migration and `entryTag.list/create/update/delete` forward so entry.create/update can take tagIds (user decision, SA2-402). B18 still owns `createTagRouter()`, `reorder` and the other three tag kinds; it replaces the B16 router with the factory instance without changing the procedures above.
+For entry, tournament and player create/update, `tagIds` are unique and limited to 100; omission leaves links unchanged on update, `[]` clears them, and a supplied list replaces all links in one batch. Foreign or missing tag ids return FORBIDDEN.
+
+B16 introduced the entry tag tables and procedures; B18 replaced its router with the factory, added reorder and introduced the other three kinds.
 
 ## 20. `tournamentTag` — B18
 
@@ -497,7 +501,7 @@ Same Tag shape and all five procedures/inputs/errors as §19, instantiated as `t
 
 ## 21. `handTag` — B18
 
-Same five Tag procedures, shapes, constraints and errors as §19, instantiated as `handTag.list/create/update/delete/reorder`. MCP `hand_tag_list`, `hand_tag_create`; update/reorder excluded tag maintenance/screen ordering, delete excluded destructive. B21 (after B18) adds to hand.update `tagIds` for attachment and `tagReviews?:{tagId:Id,reviewedAt:Instant|null}[]`; reviews must name attached owned tags, otherwise BAD_REQUEST. Link `reviewedAt` is returned in hand.tags as `{id,name,reviewedAt}` and does not mutate the tag itself.
+Same five Tag procedures, shapes, constraints and errors as §19, instantiated as `handTag.list/create/update/delete/reorder`. MCP `hand_tag_list`, `hand_tag_create`; update/reorder excluded tag maintenance/screen ordering, delete excluded destructive. Since B18, hand.list/getById return `tags: {id,name,reviewedAt}[]` from `hand_tag_link`. B21 adds to hand.update `tagIds` for attachment and `tagReviews?:{tagId:Id,reviewedAt:Instant|null}[]`; reviews must name attached owned tags, otherwise BAD_REQUEST. Link `reviewedAt` does not mutate the tag itself.
 
 ## 22. `playerTag` — B18
 

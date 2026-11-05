@@ -14,7 +14,7 @@ import { asset } from "./asset";
 import { user } from "./auth";
 import { room } from "./room";
 import { tournamentRule } from "./rule";
-import { tournamentTag } from "./tournament-tag";
+import { tournamentTagLink } from "./tournament-tag";
 
 export const tournament = sqliteTable(
 	"tournament",
@@ -114,7 +114,7 @@ export const tournamentRelations = relations(tournament, ({ one, many }) => ({
 	}),
 	blindLevels: many(blindLevel),
 	chipPurchases: many(tournamentChipPurchase),
-	tags: many(tournamentTag),
+	tagLinks: many(tournamentTagLink),
 }));
 
 export const blindLevelRelations = relations(blindLevel, ({ one }) => ({

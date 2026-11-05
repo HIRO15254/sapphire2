@@ -38,6 +38,7 @@ export const B08_MIGRATION = "0066_tournament_final.sql";
 export const B13_MIGRATION = "0069_entry_rule_versions.sql";
 export const B15_MIGRATION = "0070_self_player_event_v2.sql";
 export const B16_MIGRATION = "0071_entry_tag_tables.sql";
+export const B18_MIGRATION = "0072_tag_tables.sql";
 
 export type Activation =
 	| { state: "active"; since: string | null }
@@ -85,6 +86,7 @@ const SINCE_B08: Activation = { state: "active", since: B08_MIGRATION };
 const SINCE_B13: Activation = { state: "active", since: B13_MIGRATION };
 const SINCE_B15: Activation = { state: "active", since: B15_MIGRATION };
 const SINCE_B16: Activation = { state: "active", since: B16_MIGRATION };
+const SINCE_B18: Activation = { state: "active", since: B18_MIGRATION };
 
 function pending(enabledBy: string): { state: "pending"; enabledBy: string } {
 	return { state: "pending", enabledBy };
@@ -366,11 +368,52 @@ SELECT 'unexpected', entry_id, user_id, tag_id FROM (SELECT * FROM actual EXCEPT
 	},
 	{
 		audit: "A-12",
-		part: "mapped/deduplicated tournament, hand and player tag links equal the new sets",
-		kind: "deferred",
-		activation: pending(TASK.B18),
+		part: "mapped/deduplicated tournament tag links equal the new set",
+		kind: "sql",
+		activation: SINCE_B18,
 		deletedBy: TASK.B25,
-		tables: [],
+		tables: ["tournament", "tournament_tag", "tournament_tag_link"],
+		sql: (cutoverAt) => `WITH historical AS (
+SELECT id, user_id FROM tournament
+WHERE created_at <= ${cutoverAt} AND updated_at <= ${cutoverAt}
+), expected AS (
+SELECT DISTINCT h.id AS tournament_id, h.user_id,
+'tt:' || h.user_id || ':' || hex(lower(trim(t.name))) AS tag_id
+FROM historical h JOIN tournament_tag t ON t.tournament_id = h.id
+), actual AS (
+SELECT l.tournament_id, l.user_id, l.tag_id FROM tournament_tag_link l
+JOIN historical h ON h.id = l.tournament_id AND h.user_id = l.user_id
+)
+SELECT 'missing' AS problem, tournament_id, user_id, tag_id FROM (SELECT * FROM expected EXCEPT SELECT * FROM actual)
+UNION ALL
+SELECT 'unexpected', tournament_id, user_id, tag_id FROM (SELECT * FROM actual EXCEPT SELECT * FROM expected)`,
+	},
+	{
+		audit: "A-12",
+		part: "mapped/deduplicated player tag links equal the new set",
+		kind: "sql",
+		activation: SINCE_B18,
+		deletedBy: TASK.B25,
+		tables: ["player", "player_tag", "player_to_player_tag", "player_tag_link"],
+		sql: (cutoverAt) => `WITH historical AS (
+SELECT id, user_id FROM player
+WHERE created_at <= ${cutoverAt} AND updated_at <= ${cutoverAt}
+), expected AS (
+SELECT DISTINCT h.id AS player_id, h.user_id, (
+SELECT representative.id FROM player_tag representative
+WHERE representative.user_id = t.user_id AND lower(trim(representative.name)) = lower(trim(t.name))
+ORDER BY representative.created_at, representative.id LIMIT 1
+) AS tag_id
+FROM historical h
+JOIN player_to_player_tag l ON l.player_id = h.id
+JOIN player_tag t ON t.id = l.player_tag_id AND t.user_id = h.user_id
+), actual AS (
+SELECT l.player_id, l.user_id, l.tag_id FROM player_tag_link l
+JOIN historical h ON h.id = l.player_id AND h.user_id = l.user_id
+)
+SELECT 'missing' AS problem, player_id, user_id, tag_id FROM (SELECT * FROM expected EXCEPT SELECT * FROM actual)
+UNION ALL
+SELECT 'unexpected', player_id, user_id, tag_id FROM (SELECT * FROM actual EXCEPT SELECT * FROM expected)`,
 	},
 	{
 		audit: "A-13",

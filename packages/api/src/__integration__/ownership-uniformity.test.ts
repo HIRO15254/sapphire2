@@ -1,8 +1,10 @@
 import { entryTag } from "@sapphire2/db/schema/entry-tag";
 import { filterPreset } from "@sapphire2/db/schema/filter-preset";
+import { handTag } from "@sapphire2/db/schema/hand-tag";
 import { ledgerCategory } from "@sapphire2/db/schema/ledger";
 import { playerTag } from "@sapphire2/db/schema/player";
 import { room } from "@sapphire2/db/schema/room";
+import { tournamentTag } from "@sapphire2/db/schema/tournament-tag";
 import { eq } from "drizzle-orm";
 import { expect } from "vitest";
 import { type ApiFixture, requireCreatedRow, test } from "./test-fixture";
@@ -30,6 +32,30 @@ const cases = [
 			[
 				() => caller.entryTag.update({ id, name: "Renamed" }),
 				() => caller.entryTag.delete({ id }),
+			] as const,
+	},
+	{
+		router: "tournamentTag",
+		table: tournamentTag,
+		message: "You do not own this tag",
+		create: (caller: ApiFixture["alice"]) =>
+			caller.tournamentTag.create({ name: "Tag" }),
+		calls: (caller: ApiFixture["alice"], id: string) =>
+			[
+				() => caller.tournamentTag.update({ id, name: "Renamed" }),
+				() => caller.tournamentTag.delete({ id }),
+			] as const,
+	},
+	{
+		router: "handTag",
+		table: handTag,
+		message: "You do not own this tag",
+		create: (caller: ApiFixture["alice"]) =>
+			caller.handTag.create({ name: "Tag" }),
+		calls: (caller: ApiFixture["alice"], id: string) =>
+			[
+				() => caller.handTag.update({ id, name: "Renamed" }),
+				() => caller.handTag.delete({ id }),
 			] as const,
 	},
 	{

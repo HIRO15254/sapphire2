@@ -9,6 +9,7 @@ import {
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
+import { MAX_LINKED_TAGS } from "../lib/tag-ids";
 import { MAX_RULE_LEVELS, MAX_RULE_PRICES } from "../services/tournament-rule";
 import {
 	type ApiFixture,
@@ -577,19 +578,31 @@ describe("tournament rule versions on D1", () => {
 		expect(await api.db.select().from(tournamentRulePrice)).toEqual([]);
 	});
 
-	test("a save at the level, price and lineup maxima stays inside the D1 query budget", async ({
+	test("a save at the level, price, lineup and tag maxima stays inside the D1 query budget", async ({
 		api,
 	}) => {
 		const { room, cash } = await setup(api);
 		const { groupCount, levels } = await seedMaxRuleLevels(api);
+		await api.d1
+			.prepare(
+				"WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i + 1 < ?) INSERT INTO tournament_tag_def (id, user_id, name, sort_order, updated_at) SELECT 'tt-' || i, 'alice', 'Tag ' || i, i, 0 FROM n"
+			)
+			.bind(MAX_LINKED_TAGS)
+			.run();
+		const tagIds = Array.from(
+			{ length: MAX_LINKED_TAGS },
+			(_, index) => `tt-${index}`
+		);
 		const created = await api.alice.tournament.create({
 			roomId: room.id,
 			name: "Max",
 			rule: {},
+			tagIds: tagIds.slice(0, 1),
 		});
 		const { caller, meter } = api.meteredCaller("alice");
 		const saved = await caller.tournament.updateWithLevels({
 			id: created.id,
+			tagIds,
 			rule: {
 				levels,
 				prices: Array.from({ length: MAX_RULE_PRICES }, (_, index) => ({
@@ -602,6 +615,7 @@ describe("tournament rule versions on D1", () => {
 			},
 		});
 		expect(saved.ruleVersion.levels).toHaveLength(MAX_RULE_LEVELS);
+		expect(saved.tags.map(({ id }) => id)).toEqual(tagIds);
 		expect(
 			new Set(saved.ruleVersion.levels.map((level) => level.effectiveLineupId))
 				.size

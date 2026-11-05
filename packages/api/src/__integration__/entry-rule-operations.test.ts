@@ -2,6 +2,7 @@ import { ledgerLine } from "@sapphire2/db/schema/ledger";
 import { cashRule, tournamentRule } from "@sapphire2/db/schema/rule";
 import { inArray } from "drizzle-orm";
 import { describe, expect } from "vitest";
+import { MAX_LINKED_TAGS } from "../lib/tag-ids";
 import type { EntryOutput } from "../services/entry-reads";
 import { MAX_RULE_LEVELS, MAX_RULE_PRICES } from "../services/tournament-rule";
 import {
@@ -687,6 +688,14 @@ describe("entry rule operations on D1", () => {
 			],
 		});
 		const id = started.id;
+		const tagIds: string[] = [];
+		for (let index = 0; index < MAX_LINKED_TAGS; index += 1) {
+			tagIds.push(
+				requireCreatedRow(
+					await api.alice.tournamentTag.create({ name: `Tag ${index}` })
+				).id
+			);
+		}
 		const measured: Record<string, number> = {};
 		async function metered<Output>(
 			name: string,
@@ -703,7 +712,7 @@ describe("entry rule operations on D1", () => {
 				entryId: id,
 				roomId: room.id,
 				name: "Max",
-				tags: Array.from({ length: 50 }, (_, index) => `tag ${index}`),
+				tagIds,
 				rule: { startingStack: 30_000, levels, prices },
 			})
 		);

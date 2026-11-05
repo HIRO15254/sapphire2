@@ -45,8 +45,8 @@ describe("playerTag.create input validation", () => {
 });
 
 describe("playerTag.update input validation", () => {
-	it("accepts id-only payload (no changes)", () => {
-		expectAccepts(appRouter.playerTag.update, { id: "pt1" });
+	it("rejects an id-only payload, which would change nothing", () => {
+		expectRejects(appRouter.playerTag.update, { id: "pt1" });
 	});
 
 	it("accepts name change", () => {

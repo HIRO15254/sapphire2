@@ -6,12 +6,12 @@ import { tournamentRule } from "@sapphire2/db/schema/rule";
 import { eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
 import { runBatch } from "../lib/batch";
+import { MAX_LINKED_TAGS } from "../lib/tag-ids";
 import { buildLiveEntryStartStatements } from "../services/entry-live-writes";
 import { planEntryRule } from "../services/entry-rules";
 import {
 	MAX_ENTRY_PAYMENTS,
 	MAX_ENTRY_PLAY_SESSIONS,
-	MAX_ENTRY_TAGS,
 } from "../services/entry-writes";
 import { MAX_RULE_PRICES } from "../services/tournament-rule";
 import {
@@ -656,7 +656,7 @@ describe("entry API on D1", () => {
 		const { jpy } = await setup(api);
 		const { levels } = await seedMaxRuleLevels(api);
 		const tagIds: string[] = [];
-		for (let index = 0; index < MAX_ENTRY_TAGS; index += 1) {
+		for (let index = 0; index < MAX_LINKED_TAGS; index += 1) {
 			tagIds.push(
 				(await api.alice.entryTag.create({ name: `Tag ${index}` })).id
 			);
