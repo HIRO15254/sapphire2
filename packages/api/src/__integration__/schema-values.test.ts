@@ -86,11 +86,19 @@ describe("stored defaults and value encoding", () => {
 			longitude: 139.125,
 			updatedAt: instant,
 		});
-		await api.alice.gameVariant.list();
+		const nlh = (await api.alice.gameVariant.list()).find(
+			(row) => row.builtinKey === "nlh"
+		);
+		if (!nlh) {
+			throw new Error("missing builtin nlh");
+		}
 		const createdRing = await api.alice.ringGame.create({
 			roomId: "room",
 			name: "Game",
-			rule: {},
+			rule: {
+				game: { variantId: nlh.id },
+				stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+			},
 		});
 		await api.db
 			.update(ringGame)

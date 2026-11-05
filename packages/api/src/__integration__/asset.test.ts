@@ -16,7 +16,12 @@ import {
 import { buildProjectionLineStatements } from "../services/entry-projector";
 import { planEntryRule } from "../services/entry-rules";
 import { buildAdjustmentStatements } from "../services/ledger-writes";
-import { type ApiFixture, requireCreatedRow, test } from "./test-fixture";
+import {
+	type ApiFixture,
+	nlhGame,
+	requireCreatedRow,
+	test,
+} from "./test-fixture";
 
 const NOW = new Date("2026-09-05T10:00:00.000Z");
 const FORBIDDEN = { code: "FORBIDDEN" };
@@ -47,6 +52,7 @@ async function startLiveCash(db: Database, id: string, assetId: string) {
 	const rule = await planEntryRule(db, "alice", {
 		kind: "cash",
 		ringGameId: null,
+		rule: await nlhGame(db),
 	});
 	await runBatch(db, rule.statements);
 	await runBatch(
@@ -119,7 +125,12 @@ describe("asset balances on D1", () => {
 	test("a ring game's default asset cannot be deleted while referenced", async ({
 		api,
 	}) => {
-		await api.alice.gameVariant.list();
+		const nlh = (await api.alice.gameVariant.list()).find(
+			(row) => row.builtinKey === "nlh"
+		);
+		if (!nlh) {
+			throw new Error("missing builtin nlh");
+		}
 		const chips = await createCurrency(api, "Chips");
 		const club = requireCreatedRow(
 			await api.alice.room.create({ name: "Club" })
@@ -128,7 +139,10 @@ describe("asset balances on D1", () => {
 			roomId: club.id,
 			name: "Cash",
 			defaultAssetId: chips.id,
-			rule: {},
+			rule: {
+				game: { variantId: nlh.id },
+				stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+			},
 		});
 		await expect(
 			api.alice.asset.delete({ id: chips.id })

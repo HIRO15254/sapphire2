@@ -2,8 +2,12 @@ import { DEFAULT_GAME_GROUPS } from "@sapphire2/db/constants/game-variants";
 import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { gameLineupGroup } from "@sapphire2/db/schema/game-lineup";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
+import {
+	cashRuleStake,
+	tournamentRuleLevelStake,
+} from "@sapphire2/db/schema/rule";
 import { TRPCError } from "@trpc/server";
-import { and, eq, isNull, notExists } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, notExists } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { validateEntityOwnership } from "../lib/ownership";
@@ -17,6 +21,57 @@ import {
 
 const labelSchema = z.string().trim().min(1).max(30);
 const blindLabelSchema = z.string().trim().min(1).max(20).nullish();
+const BLIND_FIELDS = [1, 2, 3] as const;
+type BlindField = (typeof BLIND_FIELDS)[number];
+
+interface BlindState {
+	blind1Label: string | null;
+	blind1Required: boolean;
+	blind2Label: string | null;
+	blind2Required: boolean;
+	blind3Label: string | null;
+	blind3Required: boolean;
+}
+
+function assertRequiredFieldsLabeled(state: BlindState): void {
+	for (const field of BLIND_FIELDS) {
+		if (
+			state[`blind${field}Required`] &&
+			state[`blind${field}Label`] === null
+		) {
+			throw new TRPCError({
+				code: "BAD_REQUEST",
+				message: `Blind ${field} needs a label to be required`,
+			});
+		}
+	}
+}
+
+const STAKE_TABLES = [cashRuleStake, tournamentRuleLevelStake] as const;
+
+function noStoredStakeValues(db: Db, groupId: string, field: BlindField) {
+	return STAKE_TABLES.map((stake) =>
+		notExists(
+			db
+				.select({ id: gameLineupGroup.id })
+				.from(stake)
+				.innerJoin(
+					gameLineupGroup,
+					and(
+						eq(gameLineupGroup.id, stake.lineupGroupId),
+						eq(gameLineupGroup.userId, stake.userId)
+					)
+				)
+				.where(
+					and(
+						eq(gameLineupGroup.gameGroupId, groupId),
+						eq(gameLineupGroup.userId, gameGroup.userId),
+						isNotNull(stake[`blind${field}`])
+					)
+				)
+		)
+	);
+}
 
 const BUILTIN_ORDER: Map<string, number> = new Map(
 	DEFAULT_GAME_GROUPS.map((g, index) => [g.key, index])
@@ -39,6 +94,9 @@ export const gameGroupCreateInputSchema = z.object({
 	blind1Label: blindLabelSchema,
 	blind2Label: blindLabelSchema,
 	blind3Label: blindLabelSchema,
+	blind1Required: z.boolean().optional(),
+	blind2Required: z.boolean().optional(),
+	blind3Required: z.boolean().optional(),
 });
 
 export const gameGroupUpdateInputSchema = z.object({
@@ -47,6 +105,9 @@ export const gameGroupUpdateInputSchema = z.object({
 	blind1Label: blindLabelSchema,
 	blind2Label: blindLabelSchema,
 	blind3Label: blindLabelSchema,
+	blind1Required: z.boolean().optional(),
+	blind2Required: z.boolean().optional(),
+	blind3Required: z.boolean().optional(),
 });
 
 export const gameGroupIdInputSchema = z.object({ id: z.string() });
@@ -77,15 +138,22 @@ export const gameGroupRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const id = crypto.randomUUID();
+			const blinds: BlindState = {
+				blind1Label: input.blind1Label ?? null,
+				blind1Required: input.blind1Required ?? false,
+				blind2Label: input.blind2Label ?? null,
+				blind2Required: input.blind2Required ?? false,
+				blind3Label: input.blind3Label ?? null,
+				blind3Required: input.blind3Required ?? false,
+			};
+			assertRequiredFieldsLabeled(blinds);
 			await runLabelWrite(ctx.db, "game group", userId, input.label, () =>
 				ctx.db.insert(gameGroup).values({
 					id,
 					userId,
 					builtinKey: null,
 					label: input.label,
-					blind1Label: input.blind1Label ?? null,
-					blind2Label: input.blind2Label ?? null,
-					blind3Label: input.blind3Label ?? null,
+					...blinds,
 					updatedAt: new Date(),
 				})
 			);
@@ -103,26 +171,61 @@ export const gameGroupRouter = router({
 				userId
 			);
 
-			const updateData: Partial<typeof found> = { updatedAt: new Date() };
-			if (input.label !== undefined) {
-				updateData.label = input.label;
-			}
-			if (input.blind1Label !== undefined) {
-				updateData.blind1Label = input.blind1Label;
-			}
-			if (input.blind2Label !== undefined) {
-				updateData.blind2Label = input.blind2Label;
-			}
-			if (input.blind3Label !== undefined) {
-				updateData.blind3Label = input.blind3Label;
-			}
-
-			await runLabelWrite(ctx.db, "game group", userId, input.label, () =>
-				ctx.db
-					.update(gameGroup)
-					.set(updateData)
-					.where(and(eq(gameGroup.id, input.id), eq(gameGroup.userId, userId)))
+			const blinds: BlindState = {
+				blind1Label:
+					input.blind1Label === undefined
+						? found.blind1Label
+						: input.blind1Label,
+				blind1Required: input.blind1Required ?? found.blind1Required,
+				blind2Label:
+					input.blind2Label === undefined
+						? found.blind2Label
+						: input.blind2Label,
+				blind2Required: input.blind2Required ?? found.blind2Required,
+				blind3Label:
+					input.blind3Label === undefined
+						? found.blind3Label
+						: input.blind3Label,
+				blind3Required: input.blind3Required ?? found.blind3Required,
+			};
+			assertRequiredFieldsLabeled(blinds);
+			const clearedFields = BLIND_FIELDS.filter(
+				(field) =>
+					found[`blind${field}Label`] !== null &&
+					blinds[`blind${field}Label`] === null
 			);
+
+			const updated = await runLabelWrite(
+				ctx.db,
+				"game group",
+				userId,
+				input.label,
+				() =>
+					ctx.db
+						.update(gameGroup)
+						.set({
+							...(input.label === undefined ? {} : { label: input.label }),
+							...blinds,
+							updatedAt: new Date(),
+						})
+						.where(
+							and(
+								eq(gameGroup.id, input.id),
+								eq(gameGroup.userId, userId),
+								...clearedFields.flatMap((field) =>
+									noStoredStakeValues(ctx.db, input.id, field)
+								)
+							)
+						)
+						.returning({ id: gameGroup.id })
+			);
+			if (updated.length === 0) {
+				throw new TRPCError({
+					code: "CONFLICT",
+					message:
+						"Saved stakes still have a value in a blind field whose label you are removing; clear those values first",
+				});
+			}
 			return await selectGroup(ctx.db, userId, input.id);
 		}),
 

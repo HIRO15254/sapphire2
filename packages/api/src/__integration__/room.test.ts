@@ -30,20 +30,43 @@ describe("room lifecycle on D1", () => {
 					updatedAt: day,
 				});
 			} else if (reference === "ring game") {
-				await api.alice.gameVariant.list();
+				const nlh = (await api.alice.gameVariant.list()).find(
+					(row) => row.builtinKey === "nlh"
+				);
+				if (!nlh) {
+					throw new Error("missing builtin nlh");
+				}
 				const game = requireCreatedRow(
 					await api.alice.ringGame.create({
 						roomId: club.id,
 						name: "Cash",
-						rule: {},
+						rule: {
+							game: { variantId: nlh.id },
+							stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+						},
 					})
 				);
 				await api.alice.ringGame.archive({ id: game.id });
 			} else {
+				const nlh = (await api.alice.gameVariant.list()).find(
+					(row) => row.builtinKey === "nlh"
+				);
+				if (!nlh) {
+					throw new Error("missing builtin nlh");
+				}
 				const created = await api.alice.tournament.createWithLevels({
 					roomId: club.id,
 					name: "Tournament",
-					rule: { levels: [{ isBreak: false, minutes: 20 }] },
+					rule: {
+						game: { variantId: nlh.id },
+						levels: [
+							{
+								isBreak: false,
+								minutes: 20,
+								stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+							},
+						],
+					},
 				});
 				await api.alice.tournament.archive({ id: created.id });
 			}
@@ -144,8 +167,20 @@ describe("room lifecycle on D1", () => {
 		const club = requireCreatedRow(
 			await api.bob.room.create({ name: "Bob's room" })
 		);
-		await api.bob.gameVariant.list();
-		await api.bob.ringGame.create({ roomId: club.id, name: "Cash", rule: {} });
+		const nlh = (await api.bob.gameVariant.list()).find(
+			(row) => row.builtinKey === "nlh"
+		);
+		if (!nlh) {
+			throw new Error("missing builtin nlh");
+		}
+		await api.bob.ringGame.create({
+			roomId: club.id,
+			name: "Cash",
+			rule: {
+				game: { variantId: nlh.id },
+				stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+			},
+		});
 		const before = await api.db.select().from(room);
 		for (const id of [club.id, "missing"]) {
 			for (const mutate of [

@@ -17,6 +17,7 @@ import {
 	MAX_LINEUP_GROUPS,
 } from "./game-lineup";
 import {
+	assertStakeBlinds,
 	type PlannedStake,
 	planStakes,
 	stakeInputSchema,
@@ -246,6 +247,7 @@ export async function prepareCashRule(
 	) {
 		return { id: current.id, statements: [] as BatchStatement[] };
 	}
+	await assertStakeBlinds(db, userId, stakes);
 	const id = crypto.randomUUID();
 	const rows = stakes.map((stake) => ({
 		userId,

@@ -70,11 +70,12 @@ const DATE_CONVENTIONS =
 const AMOUNT_CONVENTIONS =
 	"Amounts (blinds, ante, buy-in, stack) are plain integers in the currency's display unit.";
 
-const RING_GAME_RULE =
-	"rule.game selects exactly one of { variantId }, { gameMixId }, or { lineupId }. Use game_variant_list or game_mix_list for active IDs, or a lineupId from ring_game_list_by_room to preserve an existing composition, including archived selections. Newly selecting archived masters is rejected. rule.stakes, when supplied, must contain exactly one stake per resulting lineup group in order, each with its gameGroupId and optional blind1-3, ante, and anteType. A mix groups variants by their game group in first-appearance order. Omitted stakes carry forward by gameGroupId and occurrence, not position.";
+const STAKE_BLINDS =
+	"Each written stake must fill every blind its game group marks required (blind1Required-blind3Required in game_group_list) and leave empty every blind whose label is null; ante is exempt. This is checked whenever a new rule version is written, carried stakes included, and not when an unchanged version is kept.";
 
-export const TOURNAMENT_RULE_CONTRACT =
-	'rule describes one immutable rule version. game is exactly one of { variantId } (game_variant_list), { gameMixId } (game_mix_list) or { lineupId } (a lineupId already returned by tournament_get_by_id); an archived variant or mix cannot be newly picked. levels (at most 100) and prices (at most 20) REPLACE the whole list whenever supplied — read tournament_get_by_id first and send back every row you keep. A level whose game is omitted or null plays the rule\'s game; a break (isBreak true) takes no game and no stakes. stakes, when supplied, list exactly one entry per group of the level\'s game, in the order lineups[lineupId].groups gives them, each gameGroupId matching its position; omit stakes to carry the blinds of the same level position by game group. anteType is "none" | "all" | "bb". A price is { kind: "entry" | "reentry" | "addon", assetId (asset_list), amount, fee (integers in the asset\'s smallest unit), chips (stack granted, or null), label? }. Saving content identical to the current version creates nothing; any change creates a new version and keeps the old one.';
+const RING_GAME_RULE = `rule.game selects exactly one of { variantId }, { gameMixId }, or { lineupId }. Use game_variant_list or game_mix_list for active IDs, or a lineupId from ring_game_list_by_room to preserve an existing composition, including archived selections. Newly selecting archived masters is rejected. rule.stakes, when supplied, must contain exactly one stake per resulting lineup group in order, each with its gameGroupId and optional blind1-3, ante, and anteType. A mix groups variants by their game group in first-appearance order. Omitted stakes carry forward by gameGroupId and occurrence, not position. ${STAKE_BLINDS}`;
+
+export const TOURNAMENT_RULE_CONTRACT = `rule describes one immutable rule version. game is exactly one of { variantId } (game_variant_list), { gameMixId } (game_mix_list) or { lineupId } (a lineupId already returned by tournament_get_by_id); an archived variant or mix cannot be newly picked. levels (at most 100) and prices (at most 20) REPLACE the whole list whenever supplied — read tournament_get_by_id first and send back every row you keep. A level whose game is omitted or null plays the rule's game; a break (isBreak true) takes no game and no stakes. stakes, when supplied, list exactly one entry per group of the level's game, in the order lineups[lineupId].groups gives them, each gameGroupId matching its position; omit stakes to carry the blinds of the same level position by game group. ${STAKE_BLINDS} anteType is "none" | "all" | "bb". A price is { kind: "entry" | "reentry" | "addon", assetId (asset_list), amount, fee (integers in the asset's smallest unit), chips (stack granted, or null), label? }. Saving content identical to the current version creates nothing; any change creates a new version and keeps the old one.`;
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
@@ -294,14 +295,14 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "game_group_list",
 		procedurePath: "gameGroup.list",
 		description:
-			"List the user's game groups (the families game variants belong to, e.g. Hold'em / Omaha), including the labels their three blind fields use. Archived groups are omitted unless includeArchived is true.",
+			"List the user's game groups (the families game variants belong to, e.g. Hold'em / Omaha), including the labels their three blind fields use and whether each field is required (blind1Required-blind3Required). Archived groups are omitted unless includeArchived is true.",
 		inputSchema: gameGroupListInputSchema,
 	},
 	{
 		name: "game_group_create",
 		procedurePath: "gameGroup.create",
 		description:
-			"Create a game group. label must be unique across the user's groups, ignoring case and surrounding spaces, archived groups included — a label held by an archived group is rejected with a hint to restore that group with game_group_restore instead. The blind label fields name that family's blind columns (e.g. SB / BB / straddle).",
+			"Create a game group. label must be unique across the user's groups, ignoring case and surrounding spaces, archived groups included — a label held by an archived group is rejected with a hint to restore that group with game_group_restore instead. The blind label fields name that family's blind columns (e.g. SB / BB). blind1Required-blind3Required (default false) mark a field that every newly written stake must fill; only a labeled field can be required.",
 		inputSchema: gameGroupCreateInputSchema,
 		destructiveHint: false,
 		idempotentHint: false,
@@ -310,7 +311,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "game_group_update",
 		procedurePath: "gameGroup.update",
 		description:
-			"Update a game group by id. Only the supplied fields change; pass null to clear a blind label. Renaming it re-labels every variant shown under it, and for a user-created group it also moves the group's position in game_group_list — which is the entry order mixGames must use.",
+			"Update a game group by id. Only the supplied fields change; pass null to clear a blind label. Only a labeled field can be required, so clearing the label of a required field needs its blindNRequired false in the same call. Clearing a label is rejected while any saved ring-game or tournament stake still has a value in that field. Renaming it re-labels every variant shown under it, and for a user-created group it also moves the group's position in game_group_list — which is the entry order mixGames must use.",
 		inputSchema: gameGroupUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,

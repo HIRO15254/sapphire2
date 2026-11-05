@@ -36,7 +36,7 @@ export const B10_MIGRATION = "0062_hand_count_cutover.sql";
 export const B09_MIGRATION = "0063_ledger_cutover.sql";
 export const B12_MIGRATION = "0064_open_live_cash_ev.sql";
 export const B08_MIGRATION = "0066_tournament_final.sql";
-export const B13_MIGRATION = "0068_entry_rule_versions.sql";
+export const B13_MIGRATION = "0069_entry_rule_versions.sql";
 
 export type Activation =
 	| { state: "active"; since: string | null }

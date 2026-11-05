@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "341e8fca-5bae-4342-9c96-469b068d19dc",
+  "id": "5b04d469-2495-4617-8691-21fd32b6c9e4",
   "prevId": "3470e90a-2a26-46db-9c8c-a59451534cbb",
   "tables": {
     "asset": {
@@ -862,7 +862,7 @@
           "name": "cash_rule_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "ev_diff": {
@@ -976,7 +976,7 @@
           "name": "tournament_rule_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "placement": {
@@ -1634,6 +1634,30 @@
           "notNull": false,
           "autoincrement": false
         },
+        "blind1_required": {
+          "name": "blind1_required",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "blind2_required": {
+          "name": "blind2_required",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "blind3_required": {
+          "name": "blind3_required",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
         "archived_at": {
           "name": "archived_at",
           "type": "integer",
@@ -1692,7 +1716,20 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "game_group_blind1_required_check": {
+          "name": "game_group_blind1_required_check",
+          "value": "\"game_group\".\"blind1_required\" IN (0, 1)"
+        },
+        "game_group_blind2_required_check": {
+          "name": "game_group_blind2_required_check",
+          "value": "\"game_group\".\"blind2_required\" IN (0, 1)"
+        },
+        "game_group_blind3_required_check": {
+          "name": "game_group_blind3_required_check",
+          "value": "\"game_group\".\"blind3_required\" IN (0, 1)"
+        }
+      }
     },
     "game_lineup": {
       "name": "game_lineup",

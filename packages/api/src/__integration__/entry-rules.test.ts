@@ -13,7 +13,12 @@ import {
 	hydrateEntryRules,
 	planEntryRule,
 } from "../services/entry-rules";
-import { type ApiFixture, requireCreatedRow, test } from "./test-fixture";
+import {
+	type ApiFixture,
+	nlhGame,
+	requireCreatedRow,
+	test,
+} from "./test-fixture";
 
 const DAY = new Date("2026-09-05T00:00:00.000Z");
 const RULE_ID_REQUIRED = /NOT NULL constraint failed: entry_cash\.cash_rule_id/;
@@ -54,7 +59,7 @@ async function ringGameWithRoom(api: ApiFixture) {
 	const created = await api.alice.ringGame.create({
 		roomId: room.id,
 		name: "Cash",
-		rule: { minBuyIn: 100, maxBuyIn: 500 },
+		rule: { ...(await nlhGame(api.db)), minBuyIn: 100, maxBuyIn: 500 },
 	});
 	const [master] = await api.db
 		.select({ id: ringGame.id, currentRuleId: ringGame.currentRuleId })
@@ -88,6 +93,7 @@ describe("entry rule versions on D1", () => {
 		const standalone = await versionFor(api.db, {
 			kind: "cash",
 			ringGameId: null,
+			rule: await nlhGame(api.db),
 		});
 		expect([shared, unchanged]).toEqual([
 			master.currentRuleId,
@@ -173,11 +179,11 @@ describe("entry rule versions on D1", () => {
 		const other = await api.alice.ringGame.create({
 			roomId: master.roomId,
 			name: "Other",
-			rule: {},
+			rule: await nlhGame(api.db),
 		});
 		const bobRule = await versionFor(
 			api.db,
-			{ kind: "cash", ringGameId: null },
+			{ kind: "cash", ringGameId: null, rule: await nlhGame(api.db, "bob") },
 			"bob"
 		);
 		await insertEntry(api.db, "cash-entry", "cash");
@@ -260,13 +266,12 @@ describe("entry rule versions on D1", () => {
 			fee: 1000,
 			chips: null,
 		};
+		const { game, stakes } = await nlhGame(api.db);
+		const levels = [{ isBreak: false, minutes: 20, stakes }];
 		const created = await api.alice.tournament.createWithLevels({
 			roomId: room.id,
 			name: "Daily",
-			rule: {
-				levels: [{ isBreak: false, minutes: 20 }],
-				prices: [{ ...price, amount: 10_000 }],
-			},
+			rule: { game, levels, prices: [{ ...price, amount: 10_000 }] },
 		});
 		const version = await versionFor(api.db, {
 			kind: "tournament",
@@ -301,16 +306,9 @@ describe("entry rule versions on D1", () => {
 			occurredAt: DAY,
 			updatedAt: DAY,
 		});
-		const current = await api.alice.tournament.getById({ id: created.id });
 		await api.alice.tournament.updateWithLevels({
 			id: created.id,
-			rule: {
-				levels: current.ruleVersion.levels.map((level) => ({
-					isBreak: level.isBreak,
-					minutes: level.minutes,
-				})),
-				prices: [{ ...price, amount: 12_000 }],
-			},
+			rule: { game, levels, prices: [{ ...price, amount: 12_000 }] },
 		});
 		const [master] = await api.db
 			.select({ currentRuleId: tournament.currentRuleId })

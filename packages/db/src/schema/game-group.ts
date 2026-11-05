@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import {
+	check,
 	index,
 	integer,
 	sqliteTable,
@@ -21,6 +22,15 @@ export const gameGroup = sqliteTable(
 		blind1Label: text("blind1_label"),
 		blind2Label: text("blind2_label"),
 		blind3Label: text("blind3_label"),
+		blind1Required: integer("blind1_required", { mode: "boolean" })
+			.notNull()
+			.default(false),
+		blind2Required: integer("blind2_required", { mode: "boolean" })
+			.notNull()
+			.default(false),
+		blind3Required: integer("blind3_required", { mode: "boolean" })
+			.notNull()
+			.default(false),
 		archivedAt: integer("archived_at", { mode: "timestamp" }),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
@@ -39,6 +49,18 @@ export const gameGroup = sqliteTable(
 		uniqueIndex("game_group_label_uq").on(
 			table.userId,
 			sql`lower(trim(${table.label}))`
+		),
+		check(
+			"game_group_blind1_required_check",
+			sql`${table.blind1Required} IN (0, 1)`
+		),
+		check(
+			"game_group_blind2_required_check",
+			sql`${table.blind2Required} IN (0, 1)`
+		),
+		check(
+			"game_group_blind3_required_check",
+			sql`${table.blind3Required} IN (0, 1)`
 		),
 	]
 );

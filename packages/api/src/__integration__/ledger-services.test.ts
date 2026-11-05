@@ -38,7 +38,7 @@ import {
 	manualMoneyPayments,
 	updateWalletLine,
 } from "../services/ledger-writes";
-import { test } from "./test-fixture";
+import { nlhGame, test } from "./test-fixture";
 
 const NOW = new Date("2026-09-05T10:00:00.000Z");
 const JPY = "alice-jpy";
@@ -77,7 +77,7 @@ async function manualFacts(
 		db,
 		"alice",
 		kind === "cash_game"
-			? { kind: "cash", ringGameId: null }
+			? { kind: "cash", ringGameId: null, rule: await nlhGame(db) }
 			: { kind: "tournament", tournamentId: null }
 	);
 	await runBatch(db, rule.statements);
@@ -258,6 +258,7 @@ describe("entry ledger real profit and loss", () => {
 		const cashRule = await planEntryRule(db, "alice", {
 			kind: "cash",
 			ringGameId: null,
+			rule: await nlhGame(db),
 		});
 		const tournamentRule = await planEntryRule(db, "alice", {
 			kind: "tournament",
@@ -398,6 +399,7 @@ describe("entry ledger real profit and loss", () => {
 		const cashRule = await planEntryRule(db, "alice", {
 			kind: "cash",
 			ringGameId: null,
+			rule: await nlhGame(db),
 		});
 		await runBatch(db, cashRule.statements);
 		await runBatch(

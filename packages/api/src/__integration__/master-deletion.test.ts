@@ -30,10 +30,25 @@ describe("entry-referenced master deletion on D1", () => {
 					name: "Recorded game",
 				});
 			} else {
+				const nlh = (await api.alice.gameVariant.list()).find(
+					(row) => row.builtinKey === "nlh"
+				);
+				if (!nlh) {
+					throw new Error("missing builtin nlh");
+				}
 				const created = await api.alice.tournament.createWithLevels({
 					roomId: "club",
 					name: "Recorded game",
-					rule: { levels: [{ isBreak: false, minutes: 20 }] },
+					rule: {
+						game: { variantId: nlh.id },
+						levels: [
+							{
+								isBreak: false,
+								minutes: 20,
+								stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+							},
+						],
+					},
 				});
 				master.id = created.id;
 				ruleId = created.currentRuleId;
@@ -109,10 +124,25 @@ describe("entry-referenced master deletion on D1", () => {
 				});
 				expect(await api.db.select().from(ringGame)).toEqual([]);
 			} else {
+				const nlh = (await api.alice.gameVariant.list()).find(
+					(row) => row.builtinKey === "nlh"
+				);
+				if (!nlh) {
+					throw new Error("missing builtin nlh");
+				}
 				const created = await api.alice.tournament.createWithLevels({
 					roomId: "club",
 					name: "Unused",
-					rule: { levels: [{ isBreak: false, minutes: 20 }] },
+					rule: {
+						game: { variantId: nlh.id },
+						levels: [
+							{
+								isBreak: false,
+								minutes: 20,
+								stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+							},
+						],
+					},
 				});
 				await api.alice.tournament.update({
 					id: created.id,
