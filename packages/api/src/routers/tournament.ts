@@ -264,7 +264,13 @@ export async function planTournamentCreate(
 	id: string,
 	input: TournamentCreateInput
 ): Promise<{ ruleId: string; statements: BatchStatement[] }> {
-	await validateEntityOwnership(db, "room", input.roomId, userId);
+	const room = await validateEntityOwnership(db, "room", input.roomId, userId);
+	if (room.archivedAt !== null) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "Cannot select an archived room",
+		});
+	}
 	await validateTagsOwnership(db, tournamentTag, input.tagIds, userId);
 	await assertDefaultAsset(db, userId, input.defaultAssetId, null);
 	const write = await planTournamentRuleWrite({

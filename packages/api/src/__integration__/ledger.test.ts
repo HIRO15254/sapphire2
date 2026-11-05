@@ -3,6 +3,7 @@ import { ledgerCategory, ledgerLine } from "@sapphire2/db/schema/ledger";
 import { asc, eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
 import { runBatch } from "../lib/batch";
+import { encodeCursor } from "../lib/cursor";
 import { buildExchangeStatements } from "../services/ledger-writes";
 import { type ApiFixture, requireCreatedRow, test } from "./test-fixture";
 
@@ -252,6 +253,29 @@ describe("wallet writes on D1", () => {
 			})
 		).rejects.toMatchObject(BAD_REQUEST);
 		expect(await lines(api)).toEqual(before);
+	});
+
+	test("rejects out-of-range instants without writing and invalid cursor timestamps", async ({
+		api,
+	}) => {
+		const jpy = await createAsset(api.alice, "JPY");
+		const invalid = 8_640_000_000_001;
+		await expect(
+			api.alice.ledger.createAdjustment({
+				assetId: jpy.id,
+				quantity: 1,
+				occurredAt: invalid,
+			})
+		).rejects.toMatchObject(BAD_REQUEST);
+		expect(await lines(api)).toEqual([]);
+		for (const occurredAt of [invalid, -invalid]) {
+			await expect(
+				api.alice.ledger.listByAsset({
+					assetId: jpy.id,
+					cursor: encodeCursor({ assetId: jpy.id, id: "boundary", occurredAt }),
+				})
+			).rejects.toMatchObject(BAD_REQUEST);
+		}
 	});
 
 	test("refuses entry money, foreign and missing ids, archived new selections and anonymous callers, while the owner succeeds", async ({

@@ -179,16 +179,3 @@ export const DEFAULT_GAME_MIXES: DefaultGameMix[] = [
 		],
 	},
 ];
-
-export const DEFAULT_VARIANT_LABEL = "NL Hold'em";
-
-export const MIX_VARIANT = "mix";
-export const MIX_VARIANT_LABEL = "Mixed Game";
-
-export function isMixVariant(variant: string): boolean {
-	return variant === MIX_VARIANT;
-}
-
-export function variantDisplayLabel(variant: string): string {
-	return isMixVariant(variant) ? MIX_VARIANT_LABEL : variant;
-}

@@ -108,8 +108,8 @@ const SCRIPT = `
 			document.getElementById("deny").disabled = false;
 		}
 	}
-	document.getElementById("approve").addEventListener("click", () => decide(/* accept: true */ true));
-	document.getElementById("deny").addEventListener("click", () => decide(/* accept: false */ false));
+	document.getElementById("approve").addEventListener("click", () => decide(true));
+	document.getElementById("deny").addEventListener("click", () => decide(false));
 `;
 
 function renderDestination(redirectHosts: string[]): string {

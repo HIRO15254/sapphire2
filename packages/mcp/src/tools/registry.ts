@@ -139,7 +139,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "user_setting_get",
 		procedurePath: "userSetting.get",
 		description:
-			"Get the user's settings: baseAssetId, the currency asset converted figures are reported in (null means conversion is not configured), and timeZone, the IANA zone that dates live play by (null means Asia/Tokyo). Both apply to past records as well: converted figures always use the current base, and each line uses the rate in force at its own time, so changing the base or a past rate changes past converted figures.",
+			"Get the user's settings: baseAssetId, the currency asset converted figures are reported in (null means conversion is not configured), and timeZone, the IANA zone used to date new live play when no localDate is supplied (null means Asia/Tokyo). Changing the time zone does not change previously recorded dates. Converted figures always use the current base, and each line uses the rate in force at its own time, so changing the base or a past rate changes past converted figures.",
 	},
 	{
 		name: "player_list",
@@ -319,7 +319,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "ring_game_create",
 		procedurePath: "ringGame.create",
-		description: `Create a ring-game master inside a room. Supply roomId, name, and rule; defaultAssetId and memo are optional. The rule holds game, stakes, minBuyIn, maxBuyIn, tableSize, and houseRules; minBuyIn must not exceed maxBuyIn. If game is omitted, the builtin NLH lineup is used. ${RING_GAME_RULE} ${AMOUNT_CONVENTIONS}`,
+		description: `Create a ring-game master inside a room. Supply roomId, name, and rule; defaultAssetId and memo are optional. roomId must be an active room from room_list (restore an archived room first). The rule holds game, stakes, minBuyIn, maxBuyIn, tableSize, and houseRules; minBuyIn must not exceed maxBuyIn. If game is omitted, the builtin NLH lineup is used. ${RING_GAME_RULE} ${AMOUNT_CONVENTIONS}`,
 		inputSchema: ringGameCreateInputSchema,
 		destructiveHint: false,
 		idempotentHint: false,
@@ -360,7 +360,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "tournament_create_with_levels",
 		procedurePath: "tournament.createWithLevels",
-		description: `Create a tournament master inside a room with its first rule version and tags in one call. Required: roomId, name, rule.levels (may be empty). rule.game defaults to NL Hold'em. defaultAssetId (asset_list) is the asset new entries of this tournament default to. tagIds are tournament tag ids from tournament_tag_list (unique, at most 100). ${TOURNAMENT_RULE_CONTRACT}`,
+		description: `Create a tournament master inside a room with its first rule version and tags in one call. Required: roomId, name, rule.levels (may be empty). roomId must be an active room from room_list (restore an archived room first). rule.game defaults to NL Hold'em. defaultAssetId (asset_list) is the asset new entries of this tournament default to. tagIds are tournament tag ids from tournament_tag_list (unique, at most 100). ${TOURNAMENT_RULE_CONTRACT}`,
 		inputSchema: tournamentCreateWithLevelsInputSchema,
 		destructiveHint: false,
 		idempotentHint: false,
@@ -411,7 +411,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "game_group_update",
 		procedurePath: "gameGroup.update",
 		description:
-			"Update a game group by id. Only the supplied fields change; pass null to clear a blind label. Only a labeled field can be required, so clearing the label of a required field needs its blindNRequired false in the same call. Clearing a label is rejected while any saved ring-game or tournament stake still has a value in that field. Renaming it re-labels every variant shown under it, and for a user-created group it also moves the group's position in game_group_list — which is the entry order mixGames must use.",
+			"Update a game group by id. Only the supplied fields change; pass null to clear a blind label. Only a labeled field can be required, so clearing the label of a required field needs its blindNRequired false in the same call. Clearing a label is rejected while any saved ring-game or tournament stake still has a value in that field. Renaming it re-labels every variant shown under it, and for a user-created group it also moves the group's position in game_group_list.",
 		inputSchema: gameGroupUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
@@ -438,7 +438,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "game_variant_list",
 		procedurePath: "gameVariant.list",
 		description:
-			"List the user's game variants (NLH, PLO, …) with their group and short labels. Use a variant's label as the variant field of a rule master. Archived variants are omitted unless includeArchived is true.",
+			"List the user's game variants (NLH, PLO, …) with their group and short labels. Use a variant's id in rule.game.variantId. Archived variants are omitted unless includeArchived is true.",
 		inputSchema: gameVariantListInputSchema,
 	},
 	{
@@ -703,7 +703,7 @@ export const DELIBERATELY_EXCLUDED: {
 	},
 	{
 		reason:
-			"Screen settings: the base asset and time zone change how every past figure and live date is shown, so they are edited on the settings screen; user_setting_get exposes them read-only",
+			"Screen settings: the base asset changes converted figures and the time zone dates new live play, so they are edited on the settings screen; user_setting_get exposes them read-only",
 		paths: ["userSetting.update"],
 	},
 	{

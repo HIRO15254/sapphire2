@@ -80,7 +80,7 @@ const handContextFields = {
 		.nullable(),
 	levelOrdinal: z.number().int().min(1).nullable(),
 	stakes: handStakesSchema.nullable(),
-	variantId: z.string().nullable(),
+	variantId: z.string().min(1).nullable(),
 };
 
 export const handAddInputSchema = z.object({
@@ -755,7 +755,15 @@ async function planTagLinks(
 	if (input.tagIds === undefined && input.tagReviews === undefined) {
 		return;
 	}
-	await validateTagsOwnership(db, handTag, input.tagIds, userId);
+	await validateTagsOwnership(
+		db,
+		handTag,
+		[
+			...(input.tagIds ?? []),
+			...(input.tagReviews ?? []).map(({ tagId }) => tagId),
+		],
+		userId
+	);
 	const current = await db
 		.select({ tagId: handTagLink.tagId, reviewedAt: handTagLink.reviewedAt })
 		.from(handTagLink)

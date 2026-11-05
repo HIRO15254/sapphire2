@@ -323,6 +323,19 @@ describe("projectEntry: events without a play-session or detail projection", () 
 });
 
 describe("projectEntry: update_stack", () => {
+	it("clears a previously reported total when an update explicitly sets null", () => {
+		const projection = projectEntry(
+			[
+				ev("session_start", 0),
+				ev("update_stack", 10, { stackAmount: 25_000, totalEntries: 120 }),
+				ev("update_stack", 20, { stackAmount: 30_000, totalEntries: null }),
+				ev("update_stack", 30, { stackAmount: 28_000 }),
+			],
+			tournament
+		);
+		expect(projection.detail).toMatchObject({ totalEntries: null });
+	});
+
 	it("takes total entries from the latest stack update that reports them", () => {
 		const projection = projectEntry(
 			[

@@ -67,7 +67,18 @@ export async function planRingGameCreate(
 		now: Date;
 	}
 ): Promise<{ ruleId: string; statements: BatchStatement[] }> {
-	await validateEntityOwnership(db, "room", params.input.roomId, params.userId);
+	const room = await validateEntityOwnership(
+		db,
+		"room",
+		params.input.roomId,
+		params.userId
+	);
+	if (room.archivedAt !== null) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "Cannot select an archived room",
+		});
+	}
 	await validateAsset(db, params.userId, params.input.defaultAssetId);
 	const version = await prepareCashRule(
 		db,

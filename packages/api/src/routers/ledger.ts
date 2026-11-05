@@ -8,6 +8,7 @@ import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { runBatch } from "../lib/batch";
 import { decodeCursor, encodeCursor } from "../lib/cursor";
+import { instantSchema } from "../lib/instant";
 import { validateEntityOwnership } from "../lib/ownership";
 import {
 	type AssetHistoryRow,
@@ -26,7 +27,6 @@ import {
 const DEFAULT_LEDGER_PAGE_SIZE = 20;
 const MAX_LEDGER_PAGE_SIZE = 100;
 
-const instant = z.number().int().min(0);
 const ledgerMemo = z.string().max(5000);
 
 function fromInstant(seconds: number): Date {
@@ -35,7 +35,7 @@ function fromInstant(seconds: number): Date {
 
 const ledgerCursorSchema = z.object({
 	assetId: z.string(),
-	occurredAt: z.number().int(),
+	occurredAt: z.number().int().min(-8_640_000_000_000).max(8_640_000_000_000),
 	id: z.string(),
 });
 
@@ -56,7 +56,7 @@ export const ledgerCreateAdjustmentInputSchema = z.object({
 	assetId: z.string().min(1),
 	quantity: signedLedgerQuantitySchema,
 	categoryId: z.string().min(1).optional(),
-	occurredAt: instant,
+	occurredAt: instantSchema,
 	memo: ledgerMemo.optional(),
 });
 
@@ -69,7 +69,7 @@ export const ledgerCreateExchangeInputSchema = z
 	.object({
 		from: exchangeLeg,
 		to: exchangeLeg,
-		occurredAt: instant,
+		occurredAt: instantSchema,
 		categoryId: z.string().min(1).optional(),
 		memo: ledgerMemo.optional(),
 	})
@@ -80,7 +80,7 @@ export const ledgerCreateExchangeInputSchema = z
 
 export const ledgerUpdateInputSchema = z.object({
 	id: z.string().min(1),
-	occurredAt: instant.optional(),
+	occurredAt: instantSchema.optional(),
 	memo: ledgerMemo.nullable().optional(),
 	categoryId: z.string().min(1).nullable().optional(),
 	quantity: signedLedgerQuantitySchema.optional(),

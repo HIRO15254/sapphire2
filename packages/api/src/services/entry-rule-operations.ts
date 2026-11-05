@@ -224,12 +224,17 @@ async function planVersionUnder(
 		: [source.id];
 	if (kind === "cash") {
 		const { rules } = await hydrateCashRules(db, userId, ids);
-		const copy = planCashRuleCopy(db, userId, hydrated(rules.get(source.id)), {
-			ringGameId: target.masterId,
-			parent: target.currentRuleId
-				? hydrated(rules.get(target.currentRuleId))
-				: null,
-		});
+		const copy = await planCashRuleCopy(
+			db,
+			userId,
+			hydrated(rules.get(source.id)),
+			{
+				ringGameId: target.masterId,
+				parent: target.currentRuleId
+					? hydrated(rules.get(target.currentRuleId))
+					: null,
+			}
+		);
 		return {
 			ruleVersionId: copy.id,
 			statements: copy.statements,
@@ -237,7 +242,7 @@ async function planVersionUnder(
 		};
 	}
 	const rules = await hydrateTournamentRules(db, userId, ids);
-	const copy = planTournamentRuleCopy(
+	const copy = await planTournamentRuleCopy(
 		db,
 		userId,
 		hydrated(rules.get(source.id)),

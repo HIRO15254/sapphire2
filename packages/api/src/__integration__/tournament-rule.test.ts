@@ -64,6 +64,19 @@ async function versionCount(api: ApiFixture): Promise<number> {
 }
 
 describe("tournament rule versions on D1", () => {
+	test("does not create a tournament in an archived room", async ({ api }) => {
+		const room = requireCreatedRow(
+			await api.alice.room.create({ name: "Club" })
+		);
+		await api.alice.room.archive({ id: room.id });
+		await expect(
+			api.alice.tournament.create({ roomId: room.id, name: "Daily", rule: {} })
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(await api.alice.tournament.listByRoom({ roomId: room.id })).toEqual(
+			[]
+		);
+	});
+
 	test("saves whole versions, reuses an unchanged one, and restoreRule repoints without a new version", async ({
 		api,
 	}) => {
@@ -303,6 +316,23 @@ describe("tournament rule versions on D1", () => {
 						},
 					}),
 				"BAD_REQUEST",
+			],
+			[
+				() =>
+					api.alice.tournament.update({
+						id: created.id,
+						rule: {
+							levels: [
+								{
+									isBreak: false,
+									stakes: [
+										{ gameGroupId: bobVariants[0]?.groupId ?? "missing" },
+									],
+								},
+							],
+						},
+					}),
+				"FORBIDDEN",
 			],
 			[
 				() =>

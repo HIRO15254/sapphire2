@@ -1,9 +1,11 @@
 import type { Database } from "@sapphire2/db";
+import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { cashRule, cashRuleStake } from "@sapphire2/db/schema/rule";
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
 import z from "zod";
 import { type BatchStatement, selectInChunks } from "../lib/batch";
+import { validateOwnedIds } from "../lib/ownership";
 import {
 	findBuiltinVariantId,
 	type GameInput,
@@ -168,6 +170,34 @@ async function resolveDefaultGame(
 	}
 	return { variantId: nlhId };
 }
+
+function mergeCashScalars(
+	input: CashRuleInput,
+	current: Pick<
+		CashRuleContent,
+		"minBuyIn" | "maxBuyIn" | "tableSize" | "houseRules"
+	> | null
+) {
+	return {
+		minBuyIn:
+			input.minBuyIn === undefined
+				? (current?.minBuyIn ?? null)
+				: input.minBuyIn,
+		maxBuyIn:
+			input.maxBuyIn === undefined
+				? (current?.maxBuyIn ?? null)
+				: input.maxBuyIn,
+		tableSize:
+			input.tableSize === undefined
+				? (current?.tableSize ?? null)
+				: input.tableSize,
+		houseRules:
+			input.houseRules === undefined
+				? (current?.houseRules ?? null)
+				: input.houseRules,
+	};
+}
+
 export async function prepareCashRule(
 	db: Database,
 	userId: string,
@@ -192,6 +222,12 @@ export async function prepareCashRule(
 		input.game,
 		current !== undefined
 	);
+	await validateOwnedIds(
+		db,
+		gameGroup,
+		(input.stakes ?? []).map((stake) => stake.gameGroupId),
+		userId
+	);
 	if (game) {
 		await planner.prepare([game]);
 	}
@@ -212,24 +248,7 @@ export async function prepareCashRule(
 		input.stakes,
 		current?.stakes ?? []
 	);
-	const scalars = {
-		minBuyIn:
-			input.minBuyIn === undefined
-				? (current?.minBuyIn ?? null)
-				: input.minBuyIn,
-		maxBuyIn:
-			input.maxBuyIn === undefined
-				? (current?.maxBuyIn ?? null)
-				: input.maxBuyIn,
-		tableSize:
-			input.tableSize === undefined
-				? (current?.tableSize ?? null)
-				: input.tableSize,
-		houseRules:
-			input.houseRules === undefined
-				? (current?.houseRules ?? null)
-				: input.houseRules,
-	};
+	const scalars = mergeCashScalars(input, current ?? null);
 	validateBuyInRange(scalars.minBuyIn, scalars.maxBuyIn);
 	const content: CashRuleContent = { lineupId: lineup.id, stakes, ...scalars };
 	if (current && cashSignature(current) === cashSignature(content)) {
@@ -298,15 +317,16 @@ function cashRuleInsertStatements(
 	];
 }
 
-export function planCashRuleCopy(
+export async function planCashRuleCopy(
 	db: Database,
 	userId: string,
 	source: CashRuleOutput,
 	target: { parent: CashRuleOutput | null; ringGameId: string | null }
-): { id: string; statements: BatchStatement[] } {
+): Promise<{ id: string; statements: BatchStatement[] }> {
 	if (target.parent && cashSignature(target.parent) === cashSignature(source)) {
 		return { id: target.parent.id, statements: [] };
 	}
+	await assertStakeBlinds(db, userId, source.stakes);
 	const id = crypto.randomUUID();
 	return {
 		id,

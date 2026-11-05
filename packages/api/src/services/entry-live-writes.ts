@@ -199,6 +199,9 @@ function nextPlayState(
 	if (state === "ended") {
 		badRequest("No event can follow the end of its play session");
 	}
+	if (event.type === "reentry" && state !== "active") {
+		badRequest("A re-entry requires an active play session");
+	}
 	const transition = LIFECYCLE_TRANSITIONS[event.type];
 	if (!transition) {
 		if (state === "none") {

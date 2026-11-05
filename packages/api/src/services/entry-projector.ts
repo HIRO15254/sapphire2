@@ -269,7 +269,9 @@ function latestStackTotalEntries(
 	for (const event of events) {
 		if (event.type === "update_stack") {
 			const data = updateStackPayload.parse(JSON.parse(event.payload));
-			totalEntries = data.totalEntries ?? totalEntries;
+			if (data.totalEntries !== undefined) {
+				totalEntries = data.totalEntries;
+			}
 		}
 	}
 	return totalEntries;

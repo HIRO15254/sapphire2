@@ -790,6 +790,36 @@ describe("hand API on D1", () => {
 		expect(await handNumbers(api.db, "bob-play")).toEqual([]);
 	});
 
+	test("a player in a table event cannot be deleted even without a hand seat", async ({
+		api,
+	}) => {
+		await seedOwner(api.db, "alice");
+		await insert(
+			api.d1,
+			"play_event",
+			eventRow("join", "alice", {
+				type: "player_join",
+				payload: JSON.stringify({
+					playerId: "alice-player-1",
+					seatPosition: 2,
+				}),
+			})
+		);
+		await expect(
+			api.alice.player.delete({ id: "alice-player-1" })
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		expect(
+			await api.alice.player.getById({ id: "alice-player-1" })
+		).toMatchObject({
+			id: "alice-player-1",
+		});
+		await expect(
+			api.alice.player.delete({ id: "alice-player-2" })
+		).resolves.toEqual({
+			success: true,
+		});
+	});
+
 	test("a player seated in a recorded hand cannot be deleted, so the hand keeps its opponent", async ({
 		api,
 	}) => {
@@ -951,6 +981,20 @@ describe("hand.update on D1", () => {
 		expect(await handNumbers(api.db, "alice-play")).toEqual([[1, added]]);
 	});
 
+	test("an empty variant id is rejected before it can reach the foreign key", async ({
+		api,
+	}) => {
+		await seedOwner(api.db, "alice");
+		const added = await countHand(api.db);
+		await expect(
+			api.alice.hand.add({ playSessionId: "alice-play", variantId: "" })
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		await expect(
+			api.alice.hand.update({ ...countBody(added), variantId: "" })
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect((await api.alice.hand.getById({ id: added })).variantId).toBeNull();
+	});
+
 	test("isHero follows the self player, and a summary seat that is not self is rejected without touching the hand", async ({
 		api,
 	}) => {
@@ -1015,6 +1059,16 @@ describe("hand.update on D1", () => {
 			() => api.bob.hand.update(summaryBody(bobHand, "alice-self")),
 			() =>
 				api.bob.hand.update({ ...countBody(bobHand), tagIds: [aliceTag.id] }),
+			() =>
+				api.bob.hand.update({
+					...countBody(bobHand),
+					tagReviews: [{ tagId: aliceTag.id, reviewedAt: null }],
+				}),
+			() =>
+				api.bob.hand.update({
+					...countBody(bobHand),
+					tagReviews: [{ tagId: "missing-tag", reviewedAt: null }],
+				}),
 		]) {
 			await expect(attempt()).rejects.toMatchObject({ code: "FORBIDDEN" });
 		}

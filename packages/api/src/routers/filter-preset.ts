@@ -8,7 +8,8 @@ import {
 	presetNameSchema,
 } from "@sapphire2/db/schemas/filter-preset";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, ne } from "drizzle-orm";
+import { and, asc, desc, eq, exists, ne } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { runBatch } from "../lib/batch";
@@ -271,6 +272,7 @@ export const filterPresetRouter = router({
 				return found;
 			}
 
+			const target = alias(filterPreset, "target_preset");
 			await runBatch(ctx.db, [
 				ctx.db
 					.update(filterPreset)
@@ -279,7 +281,15 @@ export const filterPresetRouter = router({
 						and(
 							eq(filterPreset.userId, userId),
 							eq(filterPreset.screenKey, found.screenKey),
-							ne(filterPreset.id, input.id)
+							ne(filterPreset.id, input.id),
+							exists(
+								ctx.db
+									.select({ id: target.id })
+									.from(target)
+									.where(
+										and(eq(target.id, input.id), eq(target.userId, userId))
+									)
+							)
 						)
 					),
 				ctx.db

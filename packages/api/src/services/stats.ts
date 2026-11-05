@@ -155,30 +155,23 @@ export function initialPaymentLines(
 	if (!first) {
 		return [];
 	}
-	if (first.eventId !== null) {
-		return lines.filter(
-			(line) =>
-				line.eventId === first.eventId &&
-				(line.role === "buy_in" || line.role === "fee")
-		);
-	}
-	if (first.priceId !== null) {
-		return lines.filter(
-			(line) =>
-				line.priceId === first.priceId &&
-				line.playSessionId === first.playSessionId &&
-				(line.role === "buy_in" || line.role === "fee")
-		);
-	}
-	const fee = lines
-		.filter(
-			(line) =>
-				line.role === "fee" &&
-				line.eventId === null &&
-				line.priceId === null &&
-				line.playSessionId === first.playSessionId
-		)
-		.sort(compareLines)[0];
+	const fees = lines.filter(
+		(line) => line.role === "fee" && line.playSessionId === first.playSessionId
+	);
+	const fee =
+		(first.eventId === null
+			? undefined
+			: fees
+					.filter((line) => line.eventId === first.eventId)
+					.sort(compareLines)[0]) ??
+		(first.priceId === null
+			? undefined
+			: fees
+					.filter((line) => line.priceId === first.priceId)
+					.sort(compareLines)[0]) ??
+		fees
+			.filter((line) => line.eventId === null && line.priceId === null)
+			.sort(compareLines)[0];
 	return fee ? [first, fee] : [first];
 }
 
@@ -631,7 +624,7 @@ const LENGTH_ORDER = [...LENGTH_BUCKETS.map((bucket) => bucket.key), "unknown"];
 const KIND_LABELS = { cash: "Cash game", tournament: "Tournament" } as const;
 
 function lengthBucket(fact: EntryFacts): StatsBucket {
-	if (!fact.timed || fact.playMinutes === null) {
+	if (fact.playMinutes === null) {
 		return { key: "unknown", label: "Unknown" };
 	}
 	const minutes = fact.playMinutes;

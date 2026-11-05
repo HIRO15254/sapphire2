@@ -310,9 +310,11 @@ describe("filterPreset.create collision guard (CONFLICT)", () => {
 		});
 		insert.mockImplementation(() => ({
 			values: vi.fn(() => {
-				throw new Error(
-					"UNIQUE constraint failed: filter_preset.user_id, filter_preset.screen_key, filter_preset.name"
-				);
+				throw new Error("Failed query", {
+					cause: new Error(
+						"UNIQUE constraint failed: filter_preset.user_id, filter_preset.screen_key, filter_preset.name"
+					),
+				});
 			}),
 		}));
 		await expectTrpcCode(

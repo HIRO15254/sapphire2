@@ -102,7 +102,8 @@ async function resolvePurchase(
 	userId: string,
 	entryId: string,
 	ruleVersionId: string,
-	payload: { payments: ManualPaymentInput[]; priceId: string }
+	payload: { payments: ManualPaymentInput[]; priceId: string },
+	eventId?: string
 ) {
 	const [price] = await db
 		.select({
@@ -118,10 +119,10 @@ async function resolvePurchase(
 				eq(tournamentRulePrice.userId, userId)
 			)
 		);
-	const kept = await entryKeptReferences(db, userId, entryId);
+	const kept = await entryKeptReferences(db, userId, entryId, eventId);
 	if (
 		!price ||
-		(price.ruleId !== ruleVersionId && !kept.priceIds.has(payload.priceId))
+		(price.ruleId !== ruleVersionId && !kept.priceCounts.has(payload.priceId))
 	) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
@@ -137,7 +138,14 @@ async function resolvePurchase(
 		}
 		return { ...payment, priceId: payload.priceId };
 	});
-	await assertEventPayments(db, userId, entryId, ruleVersionId, payments);
+	await assertEventPayments(
+		db,
+		userId,
+		entryId,
+		ruleVersionId,
+		payments,
+		eventId
+	);
 	return {
 		priceId: payload.priceId,
 		label: price.label || "Add-on",
@@ -152,7 +160,8 @@ async function resolvePayload(
 	entryId: string,
 	state: EntryEventState,
 	playSessionId: string,
-	input: PlayEventInputPayload
+	input: PlayEventInputPayload,
+	eventId?: string
 ): Promise<unknown> {
 	const facts = await loadEntryRuleFacts(db, userId, entryId, state.kind);
 	switch (input.eventType) {
@@ -177,14 +186,21 @@ async function resolvePayload(
 			}
 			return input.payload;
 		case "chips_add_remove":
-			await assertEventPayments(db, userId, entryId, facts.ruleVersionId, [
-				{
-					assetId: input.payload.assetId,
-					effect: input.payload.effect,
-					quantity: Math.abs(input.payload.amount),
-					role: input.payload.amount > 0 ? "addon" : "chip_remove",
-				},
-			]);
+			await assertEventPayments(
+				db,
+				userId,
+				entryId,
+				facts.ruleVersionId,
+				[
+					{
+						assetId: input.payload.assetId,
+						effect: input.payload.effect,
+						quantity: Math.abs(input.payload.amount),
+						role: input.payload.amount > 0 ? "addon" : "chip_remove",
+					},
+				],
+				eventId
+			);
 			return input.payload;
 		case "reentry":
 			await assertEventPayments(
@@ -192,7 +208,8 @@ async function resolvePayload(
 				userId,
 				entryId,
 				facts.ruleVersionId,
-				input.payload.payments
+				input.payload.payments,
+				eventId
 			);
 			return input.payload;
 		case "purchase_chips":
@@ -201,7 +218,8 @@ async function resolvePayload(
 				userId,
 				entryId,
 				facts.ruleVersionId,
-				input.payload
+				input.payload,
+				eventId
 			);
 		case "table_change":
 			assertSeatFits(input.payload.seatPosition, facts.tableSize);
@@ -343,7 +361,8 @@ export async function updatePlayEvent(
 					entryId,
 					state,
 					target.playSessionId,
-					parseInputPayload(target.type, input.payload)
+					parseInputPayload(target.type, input.payload),
+					target.id
 				);
 	await commitEntryEventChange(db, {
 		change: { op: "update", id: input.id, occurredAt, payload },

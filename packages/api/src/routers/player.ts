@@ -1,8 +1,9 @@
+import { playEvent } from "@sapphire2/db/schema/entry";
 import { handSeat } from "@sapphire2/db/schema/hand";
 import { player, playerTag, playerTagLink } from "@sapphire2/db/schema/player";
 import { tagIdsSchema } from "@sapphire2/db/schemas/tag-ids";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, exists, inArray, like, not } from "drizzle-orm";
+import { and, asc, eq, exists, inArray, like, not, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { type BatchStatement, runBatch, selectInChunks } from "../lib/batch";
@@ -338,6 +339,20 @@ export const playerRouter = router({
 										and(
 											eq(handSeat.playerId, input.id),
 											eq(handSeat.userId, userId)
+										)
+									)
+							)
+						),
+						not(
+							exists(
+								ctx.db
+									.select({ id: playEvent.id })
+									.from(playEvent)
+									.where(
+										and(
+											eq(playEvent.userId, userId),
+											inArray(playEvent.type, ["player_join", "player_leave"]),
+											sql`json_extract(${playEvent.payload}, '$.playerId') = ${input.id}`
 										)
 									)
 							)

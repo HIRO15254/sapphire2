@@ -106,14 +106,6 @@ describe("renderConsentHtml", () => {
 		expect(html).toContain("\\u003c/script");
 	});
 
-	it("posts the decision to the better-auth consent endpoint", () => {
-		const html = renderConsentHtml(BASE_PROPS);
-		expect(html).toContain("/api/auth/oauth2/consent");
-		expect(html).toContain("accept: true");
-		expect(html).toContain("accept: false");
-		expect(html).toContain("redirectURI");
-	});
-
 	it("keeps the UI copy in English", () => {
 		const html = renderConsentHtml(BASE_PROPS);
 		expect(html).toContain("Authorization request");

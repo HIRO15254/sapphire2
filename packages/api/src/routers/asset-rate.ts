@@ -16,9 +16,9 @@ import { alias } from "drizzle-orm/sqlite-core";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { isAssetRateConflictError } from "../lib/db-errors";
+import { instantSchema } from "../lib/instant";
 import { validateEntityOwnership } from "../lib/ownership";
 
-const instant = z.number().int().min(0);
 const rateTerm = z.number().int().min(1).max(ASSET_RATE_MAX_TERM);
 
 const rateColumns = {
@@ -38,7 +38,7 @@ export const assetRateListInputSchema = z
 	.object({
 		baseAssetId: z.string().min(1).optional(),
 		quoteAssetId: z.string().min(1).optional(),
-		effectiveAt: instant.optional(),
+		effectiveAt: instantSchema.optional(),
 	})
 	.optional();
 
@@ -48,7 +48,7 @@ export const assetRateCreateInputSchema = z
 		quoteAssetId: z.string().min(1),
 		rateNum: rateTerm,
 		rateDen: rateTerm,
-		effectiveFrom: instant,
+		effectiveFrom: instantSchema,
 		memo: z.string().max(5000).optional(),
 	})
 	.refine((value) => value.baseAssetId !== value.quoteAssetId, {

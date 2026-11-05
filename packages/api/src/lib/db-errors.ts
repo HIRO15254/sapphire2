@@ -100,7 +100,5 @@ export function isGameMasterLabelConflictError(
 }
 
 export function isFilterPresetNameConflictError(error: unknown): boolean {
-	return (
-		error instanceof Error && FILTER_PRESET_NAME_CONFLICT_RE.test(error.message)
-	);
+	return someErrorInChain(error, FILTER_PRESET_NAME_CONFLICT_RE);
 }

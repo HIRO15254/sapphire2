@@ -284,18 +284,29 @@ export async function loadEntryRuleFacts(
 export async function entryKeptReferences(
 	db: Database,
 	userId: string,
-	entryId: string
-): Promise<{ assetIds: Set<string>; priceIds: Set<string> }> {
-	const rows = await db
-		.select({ assetId: ledgerLine.assetId, priceId: ledgerLine.priceId })
-		.from(ledgerLine)
-		.where(and(eq(ledgerLine.entryId, entryId), eq(ledgerLine.userId, userId)));
-	return {
-		assetIds: new Set(rows.map((row) => row.assetId)),
-		priceIds: new Set(
-			rows.flatMap((row) => (row.priceId ? [row.priceId] : []))
-		),
-	};
+	entryId: string,
+	eventId?: string
+): Promise<{ assetIds: Set<string>; priceCounts: Map<string, number> }> {
+	const rows =
+		eventId === undefined
+			? []
+			: await db
+					.select({ assetId: ledgerLine.assetId, priceId: ledgerLine.priceId })
+					.from(ledgerLine)
+					.where(
+						and(
+							eq(ledgerLine.entryId, entryId),
+							eq(ledgerLine.userId, userId),
+							eq(ledgerLine.sourceEventId, eventId)
+						)
+					);
+	const priceCounts = new Map<string, number>();
+	for (const row of rows) {
+		if (row.priceId) {
+			priceCounts.set(row.priceId, (priceCounts.get(row.priceId) ?? 0) + 1);
+		}
+	}
+	return { assetIds: new Set(rows.map((row) => row.assetId)), priceCounts };
 }
 
 export async function assertEventPayments(
@@ -303,19 +314,21 @@ export async function assertEventPayments(
 	userId: string,
 	entryId: string,
 	ruleVersionId: string,
-	payments: readonly ManualPaymentInput[]
+	payments: readonly ManualPaymentInput[],
+	eventId?: string
 ): Promise<void> {
 	if (payments.length === 0) {
 		return;
 	}
-	const kept = await entryKeptReferences(db, userId, entryId);
+	const kept = await entryKeptReferences(db, userId, entryId, eventId);
 	await assertPaymentAssets(db, userId, [...payments], kept.assetIds);
 	await assertPaymentPrices(
 		db,
 		userId,
 		ruleVersionId,
 		[...payments],
-		kept.priceIds
+		new Set(kept.priceCounts.keys()),
+		kept.priceCounts
 	);
 }
 

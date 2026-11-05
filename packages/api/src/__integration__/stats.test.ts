@@ -342,6 +342,49 @@ describe("stats on D1", () => {
 		).toBeNull();
 	});
 
+	test("includes an unpriced fee paired with a priced initial buy-in", async ({
+		api,
+	}) => {
+		const asset = requireCreatedRow(
+			await api.alice.asset.create({ name: "Chips", kind: "currency" })
+		);
+		const room = requireCreatedRow(
+			await api.alice.room.create({ name: "Hall" })
+		);
+		const tournament = await api.alice.tournament.create({
+			roomId: room.id,
+			name: "Main",
+			rule: {
+				prices: [
+					{
+						kind: "entry",
+						assetId: asset.id,
+						amount: 1000,
+						fee: 100,
+						chips: 10_000,
+					},
+				],
+			},
+		});
+		const master = await api.alice.tournament.getById({ id: tournament.id });
+		const priceId = master.ruleVersion.prices[0]?.id ?? "";
+		const entry = await api.alice.entry.create({
+			kind: "tournament",
+			playedOn: "2026-09-01",
+			tournamentId: tournament.id,
+			payments: [
+				{ ...pay("buy_in", asset.id, 1000), priceId },
+				pay("fee", asset.id, 100),
+				pay("prize", asset.id, 2200),
+			],
+		});
+		const series = await api.alice.stats.profitLossSeries({ normalized: true });
+		expect(series.points.find((point) => point.id === entry.id)).toMatchObject({
+			buyInTotal: 1100,
+			profitLoss: 1,
+		});
+	});
+
 	test("rejects combined modes and foreign filter ids", async ({ api }) => {
 		const { jpy } = await cashFixture(api);
 		expect(
@@ -495,6 +538,13 @@ describe("stats on D1", () => {
 
 		const normalized = await api.alice.stats.summary({ normalized: true });
 		expect(normalized.bb100).toBeCloseTo(1800);
+		const byLength = await api.alice.stats.breakdown({
+			assetId: jpy.id,
+			groupBy: "length",
+		});
+		expect(
+			byLength.groups.find((group) => group.key === "4-8h")?.entryCount
+		).toBe(1);
 		const byKind = await api.alice.stats.breakdown({
 			assetId: jpy.id,
 			groupBy: "kind",

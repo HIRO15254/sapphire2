@@ -65,6 +65,60 @@ async function failure(promise: Promise<unknown>) {
 }
 
 describe("live API on D1", () => {
+	test("old prices are retained only by their original event", async ({
+		api,
+	}) => {
+		const { jpy } = await setup(api);
+		const started = await api.alice.live.create({
+			kind: "tournament",
+			rule: {
+				prices: [
+					{
+						kind: "addon",
+						assetId: jpy.id,
+						amount: 5000,
+						fee: 0,
+						chips: 30_000,
+					},
+				],
+			},
+			payments: [],
+		});
+		const priceId = tournamentPrices(started)[0]?.id ?? "";
+		const payment = real("chip_purchase", jpy.id, 5000);
+		const event = await api.alice.playEvent.create({
+			entryId: started.id,
+			eventType: "purchase_chips",
+			payload: { priceId, payments: [payment] },
+		});
+		await api.alice.live.overrideRule({
+			id: started.id,
+			kind: "tournament",
+			rule: { startingStack: 12_345 },
+		});
+		await api.alice.playEvent.update({
+			id: event.id,
+			payload: { priceId, payments: [payment] },
+		});
+		expect(
+			await failure(
+				api.alice.playEvent.create({
+					entryId: started.id,
+					eventType: "purchase_chips",
+					payload: { priceId, payments: [payment] },
+				})
+			)
+		).toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await failure(
+				api.alice.playEvent.update({
+					id: event.id,
+					payload: { priceId, payments: [payment, payment] },
+				})
+			)
+		).toMatchObject({ code: "FORBIDDEN" });
+	});
+
 	test("a cash session starts, records events and completes as a settled entry with its profit", async ({
 		api,
 	}) => {
@@ -704,6 +758,57 @@ async function rowsWithoutWriteTimes(api: ApiFixture) {
 }
 
 describe("live multi-day API on D1", () => {
+	test("re-entry cannot be written or moved into a paused interval", async ({
+		api,
+	}) => {
+		const { jpy } = await setup(api);
+		const startedAt = nowSeconds() - HOUR;
+		const started = await api.alice.live.create({
+			kind: "tournament",
+			startedAt,
+			payments: [],
+		});
+		await api.alice.playEvent.create({
+			entryId: started.id,
+			eventType: "session_pause",
+			occurredAt: startedAt + 10,
+			payload: {},
+		});
+		await api.alice.playEvent.create({
+			entryId: started.id,
+			eventType: "session_resume",
+			occurredAt: startedAt + 30,
+			payload: {},
+		});
+		const payment = real("reentry", jpy.id, 1000);
+		const reentry = await api.alice.playEvent.create({
+			entryId: started.id,
+			eventType: "reentry",
+			occurredAt: startedAt + 40,
+			payload: { payments: [payment] },
+		});
+		const before = await everyRow(api);
+		expect(
+			await failure(
+				api.alice.playEvent.create({
+					entryId: started.id,
+					eventType: "reentry",
+					occurredAt: startedAt + 20,
+					payload: { payments: [payment] },
+				})
+			)
+		).toMatchObject({ code: "BAD_REQUEST" });
+		expect(
+			await failure(
+				api.alice.playEvent.update({
+					id: reentry.id,
+					occurredAt: startedAt + 20,
+				})
+			)
+		).toMatchObject({ code: "BAD_REQUEST" });
+		expect(await everyRow(api)).toEqual(before);
+	});
+
 	test("a tournament busts on Day 1A, re-enters on Day 1C, bags and busts on Day 2", async ({
 		api,
 	}) => {

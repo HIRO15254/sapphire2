@@ -314,7 +314,8 @@ export async function assertPaymentPrices(
 	userId: string,
 	ruleVersionId: string | null,
 	payments: ManualPaymentInput[],
-	keptPriceIds: ReadonlySet<string>
+	keptPriceIds: ReadonlySet<string>,
+	keptPriceCounts?: ReadonlyMap<string, number>
 ) {
 	const ids = [
 		...new Set(
@@ -350,6 +351,7 @@ export async function assertPaymentPrices(
 			.filter((row) => row.ruleId === ruleVersionId || keptPriceIds.has(row.id))
 			.map((row) => [row.id, row] as const)
 	);
+	const remaining = keptPriceCounts ? new Map(keptPriceCounts) : undefined;
 	for (const payment of payments) {
 		if (payment.priceId === undefined) {
 			continue;
@@ -357,6 +359,13 @@ export async function assertPaymentPrices(
 		const price = prices.get(payment.priceId);
 		if (!price) {
 			forbidden("This price is not part of the entry's tournament rule");
+		}
+		if (price.ruleId !== ruleVersionId && remaining) {
+			const count = remaining.get(price.id) ?? 0;
+			if (count === 0) {
+				forbidden("This price is not part of the entry's tournament rule");
+			}
+			remaining.set(price.id, count - 1);
 		}
 		if (price.assetId !== payment.assetId) {
 			badRequest("A priced payment must be paid in the price's asset");
@@ -804,12 +813,22 @@ async function manualMoneyStatements(
 		payments,
 		new Set(storedLines.map((line) => line.assetId))
 	);
+	const keptPriceCounts = new Map<string, number>();
+	for (const line of storedLines) {
+		if (line.priceId) {
+			keptPriceCounts.set(
+				line.priceId,
+				(keptPriceCounts.get(line.priceId) ?? 0) + 1
+			);
+		}
+	}
 	await assertPaymentPrices(
 		db,
 		userId,
 		stored.ruleVersionId,
 		payments,
-		new Set(storedLines.flatMap((line) => (line.priceId ? [line.priceId] : [])))
+		new Set(keptPriceCounts.keys()),
+		keptPriceCounts
 	);
 	const plan = planPlayRows(plays);
 	const keptIds = new Set(

@@ -1,6 +1,7 @@
 import type { Database } from "@sapphire2/db";
 import { RULE_PRICE_KINDS } from "@sapphire2/db/constants/rule";
 import { asset } from "@sapphire2/db/schema/asset";
+import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { gameLineupGroup } from "@sapphire2/db/schema/game-lineup";
 import {
 	tournamentRule,
@@ -12,6 +13,7 @@ import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
 import z from "zod";
 import { type BatchStatement, selectInChunks } from "../lib/batch";
+import { validateOwnedIds } from "../lib/ownership";
 import {
 	findBuiltinVariantId,
 	type GameInput,
@@ -584,6 +586,14 @@ export async function planTournamentRuleWrite(params: {
 	planner.addCandidates(currentLineups.values());
 
 	const defaultGame = await resolveDefaultGame(db, userId, input, current);
+	await validateOwnedIds(
+		db,
+		gameGroup,
+		(input.levels ?? []).flatMap((level) =>
+			(level.stakes ?? []).map((stake) => stake.gameGroupId)
+		),
+		userId
+	);
 	const games = [
 		...(defaultGame ? [defaultGame] : []),
 		...(input.levels ?? []).flatMap((level) =>
@@ -719,12 +729,12 @@ function tournamentRuleInsertStatements(
 	];
 }
 
-export function planTournamentRuleCopy(
+export async function planTournamentRuleCopy(
 	db: Database,
 	userId: string,
 	source: TournamentRuleOutput,
 	target: { parent: TournamentRuleOutput | null; tournamentId: string | null }
-): TournamentRuleWrite {
+): Promise<TournamentRuleWrite> {
 	const content = storedContent(source);
 	if (
 		target.parent &&
@@ -732,6 +742,11 @@ export function planTournamentRuleCopy(
 	) {
 		return { ruleId: target.parent.id, statements: [] };
 	}
+	await assertStakeBlinds(
+		db,
+		userId,
+		source.levels.flatMap((level) => level.stakes)
+	);
 	const ruleId = crypto.randomUUID();
 	return {
 		ruleId,

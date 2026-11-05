@@ -7,6 +7,19 @@ import { MAX_LINEUP_GROUPS } from "../services/game-lineup";
 import { requireCreatedRow, test } from "./test-fixture";
 
 describe("ring game rule versions on D1", () => {
+	test("does not create a ring game in an archived room", async ({ api }) => {
+		const room = requireCreatedRow(
+			await api.alice.room.create({ name: "Club" })
+		);
+		await api.alice.room.archive({ id: room.id });
+		await expect(
+			api.alice.ringGame.create({ roomId: room.id, name: "Cash", rule: {} })
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(await api.alice.ringGame.listByRoom({ roomId: room.id })).toEqual(
+			[]
+		);
+	});
+
 	test("an omitted game on a fresh account seeds the masters and uses builtin NLH", async ({
 		api,
 	}) => {
@@ -298,6 +311,12 @@ describe("ring game rule versions on D1", () => {
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		await expect(
 			api.alice.ringGame.update({ id: alice.id, defaultAssetId: asset.id })
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		await expect(
+			api.alice.ringGame.update({
+				id: alice.id,
+				rule: { stakes: [{ gameGroupId: bobNlh.groupId, blind1: 1 }] },
+			})
 		).rejects.toMatchObject({ code: "FORBIDDEN" });
 		const groups = await api.alice.gameGroup.list();
 		const lineupGroup =
