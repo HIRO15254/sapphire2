@@ -1,9 +1,5 @@
 import type { Database } from "@sapphire2/db";
-import {
-	player,
-	playerTag,
-	playerToPlayerTag,
-} from "@sapphire2/db/schema/player";
+import { player, playerTag, playerTagLink } from "@sapphire2/db/schema/player";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import {
@@ -98,21 +94,26 @@ export async function listTablePlayers(
 		(chunk) =>
 			db
 				.select({
-					playerId: playerToPlayerTag.playerId,
+					playerId: playerTagLink.playerId,
 					id: playerTag.id,
 					name: playerTag.name,
 					color: playerTag.color,
 				})
-				.from(playerToPlayerTag)
+				.from(playerTagLink)
 				.innerJoin(
 					playerTag,
 					and(
-						eq(playerToPlayerTag.playerTagId, playerTag.id),
-						eq(playerTag.userId, userId)
+						eq(playerTag.id, playerTagLink.tagId),
+						eq(playerTag.userId, playerTagLink.userId)
 					)
 				)
-				.where(inArray(playerToPlayerTag.playerId, chunk))
-				.orderBy(asc(playerToPlayerTag.position)),
+				.where(
+					and(
+						eq(playerTagLink.userId, userId),
+						inArray(playerTagLink.playerId, chunk)
+					)
+				)
+				.orderBy(asc(playerTagLink.position), asc(playerTag.id)),
 		1
 	);
 	const playersById = new Map(players.map((row) => [row.id, row]));
@@ -288,9 +289,10 @@ async function addCreatedPlayer(
 		playerId,
 		input.seatPosition
 	);
-	const links = (input.tagIds ?? []).map((playerTagId, position) => ({
+	const links = (input.tagIds ?? []).map((tagId, position) => ({
+		userId,
 		playerId,
-		playerTagId,
+		tagId,
 		position,
 	}));
 	return await writeTableEvent(db, {
@@ -303,8 +305,8 @@ async function addCreatedPlayer(
 				isTemporary: input.isTemporary,
 				updatedAt: now,
 			}),
-			...chunkForInsert(links, 3).map((chunk) =>
-				db.insert(playerToPlayerTag).values(chunk)
+			...chunkForInsert(links, 4).map((chunk) =>
+				db.insert(playerTagLink).values(chunk)
 			),
 		],
 		entryId: input.entryId,
