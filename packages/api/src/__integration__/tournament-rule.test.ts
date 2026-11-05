@@ -7,9 +7,9 @@ import {
 	tournamentRulePrice,
 } from "@sapphire2/db/schema/rule";
 import { tournament } from "@sapphire2/db/schema/tournament";
+import { MAX_LINKED_TAGS } from "@sapphire2/db/schemas/tag-ids";
 import { eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
-import { MAX_LINKED_TAGS } from "../lib/tag-ids";
 import { MAX_RULE_LEVELS, MAX_RULE_PRICES } from "../services/tournament-rule";
 import {
 	type ApiFixture,

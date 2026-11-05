@@ -3,10 +3,10 @@ import { entryTagLink } from "@sapphire2/db/schema/entry-tag";
 import { hand } from "@sapphire2/db/schema/hand";
 import { ledgerLine } from "@sapphire2/db/schema/ledger";
 import { tournamentRule } from "@sapphire2/db/schema/rule";
+import { MAX_LINKED_TAGS } from "@sapphire2/db/schemas/tag-ids";
 import { eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
 import { runBatch } from "../lib/batch";
-import { MAX_LINKED_TAGS } from "../lib/tag-ids";
 import { buildLiveEntryStartStatements } from "../services/entry-live-writes";
 import { planEntryRule } from "../services/entry-rules";
 import {

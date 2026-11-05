@@ -33,6 +33,7 @@ export interface ValuationAmounts {
 }
 
 export interface EntryValuation {
+	missingRates: { real: MissingRate[]; virtual: MissingRate[] };
 	real: ValuationAmounts | null;
 	virtual: ValuationAmounts | null;
 }
@@ -222,23 +223,33 @@ function sumBuckets(buckets: Map<string, Bucket>): bigint {
 	return total;
 }
 
+function recordMissing(missing: Map<string, Date>, line: ValuationLine) {
+	const earliest = missing.get(line.assetId);
+	if (!earliest || line.occurredAt < earliest) {
+		missing.set(line.assetId, line.occurredAt);
+	}
+}
+
+function sortedMissing(missing: Map<string, Date>): MissingRate[] {
+	return [...missing]
+		.map(([assetId, earliestOccurredAt]) => ({ assetId, earliestOccurredAt }))
+		.sort((a, b) => a.assetId.localeCompare(b.assetId));
+}
+
 function valueEntryLines(
 	lines: ValuationLine[],
 	resolve: (line: ValuationLine) => ConversionPath | null,
 	accumulator: ModeAccumulator
-): ValuationAmounts | null {
+): { amounts: ValuationAmounts | null; missingRates: MissingRate[] } {
 	const all = new Map<string, Bucket>();
 	const payments = new Map<string, Bucket>();
 	const receipts = new Map<string, Bucket>();
-	let convertible = true;
+	const missing = new Map<string, Date>();
 	for (const line of lines) {
 		const path = resolve(line);
 		if (!path) {
-			convertible = false;
-			const earliest = accumulator.missing.get(line.assetId);
-			if (!earliest || line.occurredAt < earliest) {
-				accumulator.missing.set(line.assetId, line.occurredAt);
-			}
+			recordMissing(missing, line);
+			recordMissing(accumulator.missing, line);
 			continue;
 		}
 		addToBucket(all, line.assetId, path, line.quantity);
@@ -249,9 +260,9 @@ function valueEntryLines(
 			line.quantity
 		);
 	}
-	if (!convertible) {
+	if (missing.size > 0) {
 		accumulator.excludedEntryCount += 1;
-		return null;
+		return { amounts: null, missingRates: sortedMissing(missing) };
 	}
 	const profitLoss = sumBuckets(all);
 	const buyIn = -sumBuckets(payments);
@@ -260,9 +271,12 @@ function valueEntryLines(
 	accumulator.buyIn += buyIn;
 	accumulator.cashOut += cashOut;
 	return {
-		profitLoss: Number(profitLoss),
-		buyIn: Number(buyIn),
-		cashOut: Number(cashOut),
+		amounts: {
+			profitLoss: Number(profitLoss),
+			buyIn: Number(buyIn),
+			cashOut: Number(cashOut),
+		},
+		missingRates: [],
 	};
 }
 
@@ -275,9 +289,7 @@ function toTotals(accumulator: ModeAccumulator): ValuationTotals {
 		cashOut: Number(accumulator.cashOut),
 		roi: buyIn === 0 ? null : (profitLoss / buyIn) * 100,
 		excludedEntryCount: accumulator.excludedEntryCount,
-		missingRates: [...accumulator.missing]
-			.map(([assetId, earliestOccurredAt]) => ({ assetId, earliestOccurredAt }))
-			.sort((a, b) => a.assetId.localeCompare(b.assetId)),
+		missingRates: sortedMissing(accumulator.missing),
 	};
 }
 
@@ -328,9 +340,15 @@ export function valueEntries(input: ValuationInput): ValuationResult {
 		const realLines = lines.filter(
 			(line) => line.effect === "real" && kinds.get(line.assetId) === "currency"
 		);
+		const realValue = valueEntryLines(realLines, resolve, real);
+		const virtualValue = valueEntryLines(lines, resolve, virtual);
 		entries.set(entryId, {
-			real: valueEntryLines(realLines, resolve, real),
-			virtual: valueEntryLines(lines, resolve, virtual),
+			real: realValue.amounts,
+			virtual: virtualValue.amounts,
+			missingRates: {
+				real: realValue.missingRates,
+				virtual: virtualValue.missingRates,
+			},
 		});
 	}
 	return { entries, real: toTotals(real), virtual: toTotals(virtual) };

@@ -5,6 +5,7 @@ import {
 	tournamentTag,
 	tournamentTagLink,
 } from "@sapphire2/db/schema/tournament-tag";
+import { tagIdsSchema } from "@sapphire2/db/schemas/tag-ids";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, inArray, isNull, not, sql } from "drizzle-orm";
 import z from "zod";
@@ -14,7 +15,6 @@ import {
 	validateEntityOwnership,
 	validateTagsOwnership,
 } from "../lib/ownership";
-import { tagIdsSchema } from "../lib/tag-ids";
 import {
 	hydrateLineups,
 	insertChunks,

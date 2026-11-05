@@ -45,7 +45,9 @@ Unauthenticated `/mcp` requests receive `401` with `WWW-Authenticate: Bearer res
 
 ## Tools
 
-The tool surface is a **projection of the tRPC `appRouter`**: each tool's input schema is the exact Zod schema the API validates with (a tool for one branch of a union input uses that branch's schema), and each response is the same JSON the HTTP API returns. Conventions follow the backend: **instants are unix seconds**, **date-only values are `YYYY-MM-DD` strings** in entry tools (the statistics tools still take UTC-midnight seconds), and **amounts are plain integers** in the asset's smallest unit.
+The tool surface is a **projection of the tRPC `appRouter`**: each tool's input schema is the exact Zod schema the API validates with (a tool for one branch of a union input uses that branch's schema), and each response is the same JSON the HTTP API returns. Conventions follow the backend: **instants are unix seconds**, **date-only values are `YYYY-MM-DD` strings**, and **amounts are plain integers** in the asset's smallest unit.
+
+The statistics tools count **settled entries only** and take exactly one mode: `assetId` (that asset's real lines, unconverted; entries that also used other assets are reported in `multiAssetEntryCount` / `otherAssetIds`), `valuation: "real" | "virtual"` with an optional `baseAssetId` (defaults to the base in user settings; with neither the call fails with `PRECONDITION_FAILED`; an entry with an unrated line is excluded and reported in `excludedEntryCount` / `missingRates`), or `normalized: true` (cash in big blinds and tournaments in buy-ins, never summed). `dateFrom` / `dateTo` are inclusive and compare with the entry's `playedOn`; `entryTagIds` / `tournamentTagIds` filter by tag.
 
 The B06 cutover removed the old completed-session and live-session APIs and their MCP tools. Finished entries are recorded and edited with the `entry_*` tools. Live recording (`live.*`, `playEvent.*`, `tablePlayer.*`) belongs to the cockpit screens and is deliberately not exposed: it is timestamped as play happens, and a retried call appends a duplicate event.
 

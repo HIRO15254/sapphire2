@@ -1,8 +1,8 @@
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { tournamentTagLink } from "@sapphire2/db/schema/tournament-tag";
+import { MAX_LINKED_TAGS } from "@sapphire2/db/schemas/tag-ids";
 import { eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
-import { MAX_LINKED_TAGS } from "../lib/tag-ids";
 import { type ApiFixture, requireCreatedRow, test } from "./test-fixture";
 
 async function setup(api: ApiFixture) {

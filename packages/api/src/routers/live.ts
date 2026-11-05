@@ -1,7 +1,8 @@
 import { paymentsSchema } from "@sapphire2/db/constants/play-event-payloads";
+import { dateOnlySchema } from "@sapphire2/db/schemas/date-only";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
-import { dateOnlySchema, instantSchema } from "../lib/date-only";
+import { instantSchema } from "../lib/instant";
 import { cashRuleInputSchema } from "../services/cash-rules";
 import { MAX_ENTRY_PAYMENTS } from "../services/entry-writes";
 import {
