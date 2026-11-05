@@ -65,7 +65,7 @@ The old UI's merge helper and tournament form sheet were deleted with the old UI
 
 - **AI-blank fields are ignored** so they never overwrite information the user has already entered (SA2-77). A string counts as blank when it is empty after trim (`hasText`).
 - **An explicit 0 is not blank — for fields where 0 is real.** Only non-negative finite numbers are valid; an explicit 0 (e.g. a freeroll's `buyIn` / `entryFee`) is distinguished from blank and applied (SA2-77). But `startingStack` / `tableSize` real values are always positive, so for those fields 0 is ignored as AI filler.
-- **Non-AI fields carried on `base`** (`bountyAmount` / `currencyId` / `memo` / `tags`) are preserved as-is.
+- **Non-AI fields carried on `base`** are preserved as-is. The new tournament form uses the current asset and rule model rather than the retired form's currency fields.
 
 ### The merge base is the current form values, not `initialFormValues`
 

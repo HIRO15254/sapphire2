@@ -8,9 +8,9 @@ paths:
 
 Why this file exists: the Fable review found repeated one-day-off and negative-duration bugs from mixing UTC storage with local-time reads (SA2-117, 133, 145, 157, 184), plus inconsistent number rendering (SA2-160, 164).
 
-## Date-only values are UTC midnight — read them with UTC getters
+## Date-only values are calendar text, not instants
 
-`sessionDate`, transaction dates, and any other date-only field are stored as UTC midnight and travel as UTC ISO strings. **Display, editing, and grouping must use `getUTCFullYear` / `getUTCMonth` / `getUTCDate`** (or an explicit `timeZone: "UTC"` formatter). Local getters show the previous day for users west of UTC, and a local-read → save round-trip shifts the stored date one more day per edit (SA2-145, 133).
+`entry.played_on` and `play_session.local_date` are `YYYY-MM-DD` text. Preserve and compare these calendar dates as text; do not parse them as local or UTC instants and shift their day. Instants such as `started_at` and `ended_at` are epoch-second timestamps, distinct from date-only values.
 
 ### Live-recorded dates
 
@@ -24,7 +24,7 @@ When start and end times are combined with a single date (e.g. 22:00–02:00), a
 
 ## Period-filter boundaries
 
-An exclusive upper bound (`dateTo` = next-day 00:00) must be compared with `lt`, an inclusive one with `lte` on the last instant. Mixing next-day-midnight with `lte` leaks next-day rows into "last N days" filters (SA2-117).
+For `played_on` and `local_date`, compare inclusive `YYYY-MM-DD` bounds directly to the text date. For instant ranges, compare an exclusive next-day upper bound with `lt`, not `lte`; the latter leaks the next day's midnight into the result (SA2-117).
 
 ## Number formatting
 

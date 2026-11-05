@@ -8,12 +8,12 @@ Issue references (`SA2-NNN`) point at the Linear issues that motivated a decisio
 
 | Doc | Domain |
 |---|---|
-| [`data-model-v2.md`](data-model-v2.md) | Data model v2 final specification: entry / play_session / ledger_line / rule versions / hands / tags, invariants with their DB constraint or audit guard, valuation and statistics population, event projection rules, the migration procedure (cutovers, staging, dev-deploy rehearsal, data-model audit, single release), task breakdown and dependency graph |
+| [`data-model-v2.md`](data-model-v2.md) | Final schema, invariants, calculations, projection, completed migration history, live audit catalogue and release runbook |
 | [`api-after-data-model-v2.md`](api-after-data-model-v2.md) | Final tRPC and MCP contract after data model v2: every router's procedures with inputs, outputs, errors and owning task, the removed procedures, the MCP tool map |
 | [`data-integrity.md`](data-integrity.md) | Cloudflare D1 limits (100 bound parameters, chunking), `db.batch()` atomicity and statement ordering, keyset pagination, N+1 avoidance, TOCTOU guards, unique-constraint error shapes, UTC date handling |
-| [`sessions-and-live-editing.md`](sessions-and-live-editing.md) | Event-sourced session lifecycle, payload invariants, ownership contracts, frozen rule snapshots, live-linked editing, optimistic updates, session wizard, live session sheet mix groups |
-| [`game-masters.md`](game-masters.md) | Game group / variant / mix master data: self-freezing labels, the migration-0049 compat mirror, seeding idempotency, derived mix buckets |
-| [`game-lineups.md`](game-lineups.md) | Lineups and rule versions replacing the self-freezing labels (SA2-242): id-referenced immutable lineups, rule versions with stakes and prices, master archiving, master ↔ entry rule operations, the game/rule-task cutovers |
+| [`sessions-and-live-editing.md`](sessions-and-live-editing.md) | Entry and play-session lifecycle, projection, rule versions and live editing |
+| [`game-masters.md`](game-masters.md) | Game group / variant / mix masters, normalized composition and seeding |
+| [`game-lineups.md`](game-lineups.md) | Immutable lineups and rule versions, stakes, prices and master ↔ entry rule operations |
 | [`statistics.md`](statistics.md) | Settled-entry population, native / valuation / normalized modes and coverage, bb and bi units, time, EV, breakdown and series keys |
 | [`mcp-and-oauth.md`](mcp-and-oauth.md) | MCP OAuth consent gate threat model, discovery endpoints, token expiry, tool projection, Workers runtime constraints |
 | [`passkeys.md`](passkeys.md) | WebAuthn relying-party pinning across the split origin, the `passkey` table contract, silent conditional-create upgrades, device naming, plugin version coupling |

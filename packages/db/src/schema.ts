@@ -9,12 +9,6 @@ import {
 	verification,
 } from "./schema/auth";
 import {
-	currencyTransaction,
-	currencyTransactionRelations,
-	transactionType,
-	transactionTypeRelations,
-} from "./schema/currency";
-import {
 	entry,
 	entryCash,
 	entryCashRelations,
@@ -76,10 +70,6 @@ import {
 	userSettingRelations,
 } from "./schema/ledger";
 import {
-	legacyTournamentTag,
-	legacyTournamentTagRelations,
-} from "./schema/legacy-tournament-tag";
-import {
 	oauthAccessToken,
 	oauthAccessTokenRelations,
 	oauthApplication,
@@ -95,8 +85,6 @@ import {
 	playerTagLink,
 	playerTagLinkRelations,
 	playerTagRelations,
-	playerToPlayerTag,
-	playerToPlayerTagRelations,
 } from "./schema/player";
 import { ringGame, ringGameRelations } from "./schema/ring-game";
 import { room, roomRelations } from "./schema/room";
@@ -114,42 +102,7 @@ import {
 	tournamentRulePriceRelations,
 	tournamentRuleRelations,
 } from "./schema/rule";
-import { gameSession, gameSessionRelations } from "./schema/session";
-import {
-	sessionBlindLevel,
-	sessionBlindLevelRelations,
-} from "./schema/session-blind-level";
-import {
-	sessionCashDetail,
-	sessionCashDetailRelations,
-} from "./schema/session-cash-detail";
-import {
-	sessionChipPurchase,
-	sessionChipPurchaseRelations,
-} from "./schema/session-chip-purchase";
-import {
-	sessionChipPurchaseResult,
-	sessionChipPurchaseResultRelations,
-} from "./schema/session-chip-purchase-result";
-import { sessionEvent, sessionEventRelations } from "./schema/session-event";
-import {
-	sessionTag,
-	sessionTagRelations,
-	sessionToSessionTag,
-	sessionToSessionTagRelations,
-} from "./schema/session-tag";
-import {
-	sessionTournamentDetail,
-	sessionTournamentDetailRelations,
-} from "./schema/session-tournament-detail";
-import {
-	blindLevel,
-	blindLevelRelations,
-	tournament,
-	tournamentChipPurchase,
-	tournamentChipPurchaseRelations,
-	tournamentRelations,
-} from "./schema/tournament";
+import { tournament, tournamentRelations } from "./schema/tournament";
 import {
 	tournamentTag,
 	tournamentTagLink,
@@ -173,42 +126,14 @@ export const schema = {
 	roomRelations,
 	asset,
 	assetRelations,
-	transactionType,
-	transactionTypeRelations,
-	currencyTransaction,
-	currencyTransactionRelations,
-	gameSession,
-	gameSessionRelations,
 	ringGame,
 	ringGameRelations,
 	tournament,
 	tournamentRelations,
-	blindLevel,
-	blindLevelRelations,
-	tournamentChipPurchase,
-	tournamentChipPurchaseRelations,
-	legacyTournamentTag,
-	legacyTournamentTagRelations,
 	tournamentTag,
 	tournamentTagRelations,
 	tournamentTagLink,
 	tournamentTagLinkRelations,
-	sessionTag,
-	sessionTagRelations,
-	sessionToSessionTag,
-	sessionToSessionTagRelations,
-	sessionEvent,
-	sessionEventRelations,
-	sessionCashDetail,
-	sessionCashDetailRelations,
-	sessionTournamentDetail,
-	sessionTournamentDetailRelations,
-	sessionBlindLevel,
-	sessionBlindLevelRelations,
-	sessionChipPurchase,
-	sessionChipPurchaseRelations,
-	sessionChipPurchaseResult,
-	sessionChipPurchaseResultRelations,
 	player,
 	playerRelations,
 	gameMixVariant,
@@ -217,8 +142,6 @@ export const schema = {
 	playerTagRelations,
 	playerTagLink,
 	playerTagLinkRelations,
-	playerToPlayerTag,
-	playerToPlayerTagRelations,
 	updateNoteView,
 	updateNoteViewRelations,
 	gameGroup,

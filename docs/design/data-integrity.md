@@ -1,6 +1,6 @@
 # D1 / SQLite Data Integrity
 
-> The v2 data model ([data-model-v2.md](data-model-v2.md)) replaces parts of this design in stages.
+The current model is specified in [data-model-v2.md](data-model-v2.md).
 
 Why writes against Cloudflare D1 are shaped the way they are: the 100-bound-parameter cap and chunk math, the `db.batch()` atomicity contract and its statement-ordering rules, keyset pagination cursors, N+1 collapse on list endpoints, TOCTOU backstops and unique-constraint error shapes, write==read schema identity, and the UTC round-trip rules. The enforceable imperatives live in [`.claude/rules/api-data-integrity.md`](../../.claude/rules/api-data-integrity.md) (and [`.claude/rules/datetime-and-numbers.md`](../../.claude/rules/datetime-and-numbers.md) for dates); this doc holds the mechanics and the incident history behind them.
 
@@ -10,13 +10,11 @@ D1 rejects any single statement binding more than 100 parameters. A multi-row `I
 
 The cap constant `D1_MAX_BOUND_PARAMS` and `chunkForInsert` live in [`packages/api/src/lib/batch.ts`](../../packages/api/src/lib/batch.ts), so services can size their own `IN (…)` lists against the same number without importing from a router. The helper has exactly one implementation.
 
-### The `session_blind_level` 10 × 10 = 100 coupling
+### Historical blind-level incident
 
-`session_blind_level` is at exactly **10 columns → 10 rows per INSERT (10 × 10 = 100)**. The `games` column took it from 9 to 10 columns; at 10 columns the safe max is **floor(100 / 10) = 10 rows/INSERT**, which leaves **zero headroom**: adding an 11th column requires dropping the chunk size to 9, or the re-INSERT overflows.
+The retired `session_blind_level` writer had ten columns and could insert at most ten rows per statement. An unchunked replacement failed after deleting the existing structure (SA2-115). B06 removed that writer and B25 dropped its source table. Derive chunk widths from the row shape rather than hardcoding them.
 
-The failure mode is what makes this the most dangerous coupling in the schema: the blind-structure writes are DELETE-then-reINSERT, so a single unchunked INSERT of ≥11 levels (≥110 params) throws at runtime **after the DELETE has already committed**, permanently wiping the session's blind structure (SA2-115). Deriving the width from the row shape (`Object.keys(rows[0]).length`, per the rule file) is what keeps a future column from silently reintroducing the overflow.
-
-Paths governed by this cap: every multi-row insert chunks through `chunkForInsert` (ledger lines in `services/ledger-writes.ts` and `services/entry-projector.ts`, hand rows in `services/hand.ts`, mix members in `services/game-mix.ts`, player tag links in `routers/player.ts`), and every id-list lookup goes through `selectInChunks` (below). The session blind-level writer the 10 × 10 coupling was written for was removed in B06 (SA2-391); `session_blind_level` stays only as a migration source until B25.
+Current multi-row writers use `chunkForInsert`, including ledger, hand, mix and tag-link writes. ID-list lookups use `selectInChunks`.
 
 ### Chunked `IN (…)` selects
 
@@ -32,9 +30,8 @@ Writes governed by the contract:
 
 | Write | Batch shape |
 |---|---|
-| `tournament.createWithLevels` / `updateWithLevels` ([`tournament.ts`](../../packages/api/src/routers/tournament.ts)) | tournament row/UPDATE first, then each clear-and-reseed group |
-
-The session writes this table also listed (chip purchases and result counts, blind re-seeds, the currency-ledger sync, session create/update, cash reopen events) were removed in B06 (SA2-391); their B16/B17 replacements follow the same contract.
+| Tournament rule writes | Create an immutable rule structure and assign its master in a single batch |
+| Entry and live writes | Validate first, then write entry, events and projected ledger lines atomically |
 
 ### Batch composition rules
 
@@ -42,9 +39,8 @@ The ordering inside a batch is load-bearing, not stylistic:
 
 - **The DELETE leads the group.** "Clear then re-seed" must run as one atomic unit; a DELETE that commits separately can strand the table empty on a later failure.
 - **The parent row precedes child rows**, so FK checks pass inside the transaction.
-- **Ensure-persistent-master runs outside (before) the batch.** The shared transaction-type ensure commits first; the accepted consequence is that an unused master may remain when the parent batch fails — an orphan master is harmless, an orphan session is not.
 - **Validate every link and tag ownership, and resolve every rule snapshot, before any write**, so the batch never starts if it cannot finish. A cash session update whose rule was rejected used to have already saved its session fields.
-- **A ledger change rides the batch of the session it belongs to** — even a lone DELETE (currency cleared) or UPDATE (same currency, new amount), so a rejected or failed update never moves the ledger on its own.
+- **A ledger change rides the batch of the entry it belongs to**, so failure cannot move the ledger independently of its source.
 - **A pure copy never deletes**: only replacement flows carry a DELETE.
 
 ### FK-checked upserts as concurrency guards
@@ -92,45 +88,23 @@ The rule ("if a stored payload is later re-`parse`d, validate the write with tha
 Instances of the pattern:
 
 - **Filter presets** ([`filter-preset.ts`](../../packages/api/src/routers/filter-preset.ts)): the input's discriminated union routes payload validation per screen and is built from `payloadSchemaForScreenKey`, so `create()` and `list()` use the same strict schemas from the db package. Both screens share the statistics filter fields, but only statistics requires a mode. `update()` cannot know which schema applies until the stored row's `screenKey` is loaded, so its input schema only proves the payload is valid for *some* screen; the handler **re-validates against the stored row's `screenKey`**, never the caller's assumption. Feature-level preset design (payload contents, apply paths) lives in [`web-platform.md`](web-platform.md).
-- **Signed ledger amounts**: `currency_transaction.amount` is a deliberate deviation from the `.int().min(0)` default — a ledger transaction is signed (withdrawals and negative session P/L written through `syncCurrencyTransaction` are legitimate negatives). The deviation is documented at the schema site per the rule file's "deviate only with a comment saying why".
+- **Signed ledger amounts**: `ledger_line.quantity` is signed; role and effect determine the permitted sign and accounting semantics.
 
 ## Update payloads: `null` clears, `undefined` leaves unchanged
 
-Update procedures distinguish three states per field: a value (set it), an explicit `null` (clear it), and an omitted key (leave it unchanged) — the `.nullable().optional()` pattern on the server. The client-side trap is that **JSON serialization drops `undefined` keys**, so a UI that clears a field must send an explicit `null`; sending `undefined` silently turns "clear" into "keep". The currency, room, and ring-game web hooks all encode this ([`use-currencies.ts`](../../apps/web/src/features/currencies/hooks/use-currencies.ts), [`use-rooms.ts`](../../apps/web/src/features/rooms/hooks/use-rooms.ts), [`use-ring-games.ts`](../../apps/web/src/features/rooms/hooks/use-ring-games.ts)).
+Update procedures distinguish a value (set), explicit `null` (clear a nullable field), and an omitted key (unchanged). JSON serialization drops `undefined`, so clients must send `null` to clear.
 
 ## UTC round-trip drift and day crossing (SA2-145, SA2-157)
 
 The imperatives (UTC getters for date-only values, day-crossing handling, backfill duty) are in [`.claude/rules/datetime-and-numbers.md`](../../.claude/rules/datetime-and-numbers.md). The mechanics this doc adds:
 
-- **Round-trip drift is cumulative** (SA2-145): `sessionDate` is stored and returned as UTC midnight, and the create/update payloads re-encode a date-only string as UTC midnight, so the edit form must read back the **UTC** calendar day ([`session-form-helpers.ts`](../../apps/web/src/features/sessions/utils/session-form-helpers.ts)). Local getters shift the day back one for users west of UTC — and because the save re-encodes what was read, each edit-save drifts the stored date **one more day earlier**. The same UTC-forcing applies to share text, so the shared date is the calendar day the user saved.
-- **Day crossing and the 0-length boundary** (SA2-157): `computeSessionTimes` in [`use-sessions.ts`](../../apps/web/src/features/sessions/hooks/use-sessions.ts) converts start/end clock times — both entered against a single `sessionDate` with no separate end-date field — into Unix seconds, rolling the end forward 24h when it lands **strictly before** the start (22:00 → 02:00 crossed midnight). Without the roll, the end was stored ~20h before the start: the UI showed a negative duration and the server clamped play time to 0, dropping the session out of every play-time statistic. The boundary decision: **equal start and end is a 0-length span, never a 24h one** — only a strictly earlier end means the session crossed midnight.
+- Date-only entry and play-session values are calendar strings; do not convert them through local getters. Event timestamps are instants. Per-day durations subtract that day's breaks; negative durations are invalid.
 
 ## Room archive and deletion (SA2-295)
 
-Rooms use nullable `archived_at`, matching ring games and tournaments. `room.archive` and
-`room.restore` preserve all links and update `updated_at`. `room.list()` (or
-`includeArchived: false`) returns only active rooms; `includeArchived: true` returns only
-archived rooms, as it does for `ringGame.listByRoom` and `tournament.listByRoom`. Every list
-row includes `archivedAt`. Room detail reads and existing session references still resolve
-archived rooms. New-data pickers use the active list; session edits additionally retain their
-currently referenced archived room. Historical filters — the statistics filters and the Sessions
-list room filter (`useRoomFilterOptions`) — include both lists, so archiving a room never hides
-its past sessions from a filter.
+Rooms use nullable `archived_at`. `room.list` excludes archived rows by default and `includeArchived: true` includes both active and archived rows. Historical references remain resolvable.
 
-`room.delete` validates ownership first, then deletes only when no `game_session`, `ring_game`,
-or `tournament` references the room, including archived masters. A referenced room returns
-`CONFLICT` with a message asking the user to archive it. The reference checks are `NOT EXISTS`
-predicates inside the DELETE statement to avoid a check/write race; they use literal qualified
-column names for the same reason as the room-count subqueries above. Existing foreign-key
-cascade/set-null declarations remain in place; the API blocks those effects for room deletion.
-The migration adds one nullable column without rebuilding `room`, so existing children remain.
-
-Every `room.list` row also carries `isReferenced`, built from the same predicate the DELETE
-negates, so the flag and the delete rule cannot drift apart. The room actions drawer offers
-Delete only when `isReferenced` is false; a referenced room can only be archived. The CONFLICT
-stays as the guard for a reference added after the list was fetched.
-
-MCP exposes `room_archive` and `room_restore`, while `room.delete` stays deliberately excluded.
+`room.delete` checks owned references from entries, ring games and tournaments, including archived masters, in the delete predicate. Referenced rooms return `CONFLICT` with archive guidance. The atomic predicate prevents a check/write race. MCP exposes archive and restore, not hard delete.
 
 ## Schema-level integrity anchors
 

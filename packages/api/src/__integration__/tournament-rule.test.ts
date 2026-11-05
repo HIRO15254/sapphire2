@@ -585,7 +585,7 @@ describe("tournament rule versions on D1", () => {
 		const { groupCount, levels } = await seedMaxRuleLevels(api);
 		await api.d1
 			.prepare(
-				"WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i + 1 < ?) INSERT INTO tournament_tag_def (id, user_id, name, sort_order, updated_at) SELECT 'tt-' || i, 'alice', 'Tag ' || i, i, 0 FROM n"
+				"WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i + 1 < ?) INSERT INTO tournament_tag (id, user_id, name, sort_order, updated_at) SELECT 'tt-' || i, 'alice', 'Tag ' || i, i, 0 FROM n"
 			)
 			.bind(MAX_LINKED_TAGS)
 			.run();

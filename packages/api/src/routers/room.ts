@@ -1,6 +1,6 @@
 import { room } from "@sapphire2/db/schema/room";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, isNotNull, isNull, not, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, not, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { validateEntityOwnership } from "../lib/ownership";
@@ -21,7 +21,7 @@ const COORDINATES_PAIRED_ISSUE = {
 };
 
 const roomIsReferenced = () =>
-	sql<boolean>`(EXISTS (SELECT 1 FROM game_session WHERE game_session.room_id = room.id) OR EXISTS (SELECT 1 FROM ring_game WHERE ring_game.room_id = room.id) OR EXISTS (SELECT 1 FROM tournament WHERE tournament.room_id = room.id))`;
+	sql<boolean>`(EXISTS (SELECT 1 FROM entry WHERE entry.room_id = room.id AND entry.user_id = room.user_id) OR EXISTS (SELECT 1 FROM ring_game WHERE ring_game.room_id = room.id AND ring_game.user_id = room.user_id) OR EXISTS (SELECT 1 FROM tournament WHERE tournament.room_id = room.id AND tournament.user_id = room.user_id))`;
 
 export const roomIdInputSchema = z.object({ id: z.string() });
 
@@ -73,9 +73,7 @@ export const roomRouter = router({
 				.where(
 					and(
 						eq(room.userId, userId),
-						input?.includeArchived
-							? isNotNull(room.archivedAt)
-							: isNull(room.archivedAt)
+						input?.includeArchived ? undefined : isNull(room.archivedAt)
 					)
 				)
 				.orderBy(desc(room.isFavorite), asc(room.createdAt));

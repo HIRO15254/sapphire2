@@ -119,7 +119,6 @@ export async function seedDefaultGameData(
 					userId,
 					builtinKey: m.key,
 					label: m.label,
-					games: [],
 					updatedAt: now,
 				})
 				.onConflictDoNothing()

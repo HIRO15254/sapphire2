@@ -27,18 +27,15 @@ type TargetIdColumns<TKind extends string> = Record<
 >;
 
 export interface TagTablesOptions<
-	TTagName extends string,
 	TTagColumns extends Record<string, SQLiteColumnBuilderBase>,
 	TLinkColumns extends Record<string, SQLiteColumnBuilderBase>,
 > {
 	linkColumns?: TLinkColumns;
 	tagColumns?: TTagColumns;
-	tagTable?: TTagName;
 }
 
 export function defineTagTables<
 	TKind extends string,
-	TTagName extends string = `${TKind}_tag`,
 	TTagColumns extends Record<string, SQLiteColumnBuilderBase> = Record<
 		never,
 		never
@@ -50,9 +47,9 @@ export function defineTagTables<
 >(
 	kind: TKind,
 	target: () => OwnedTarget,
-	options: TagTablesOptions<TTagName, TTagColumns, TLinkColumns> = {}
+	options: TagTablesOptions<TTagColumns, TLinkColumns> = {}
 ) {
-	const tagTableName = (options.tagTable ?? `${kind}_tag`) as TTagName;
+	const tagTableName = `${kind}_tag` as `${TKind}_tag`;
 	const linkTableName = `${kind}_tag_link` as `${TKind}_tag_link`;
 	const targetKey = `${kind}Id` as `${TKind}Id`;
 

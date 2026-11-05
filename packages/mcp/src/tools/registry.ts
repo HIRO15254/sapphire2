@@ -118,14 +118,14 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "room_list",
 		procedurePath: "room.list",
 		description:
-			"List the user's active poker rooms (venues/apps they play at), including favorites and archivedAt. Set includeArchived to list archived rooms instead. Use active ids as roomId for new data; archived rooms retain existing references.",
+			"List the user's poker rooms (venues/apps they play at), including favorites and archivedAt. Archived rooms are left out unless includeArchived is true, which returns active and archived ones together. Use active ids as roomId for new data; archived rooms retain existing references.",
 		inputSchema: roomListInputSchema,
 	},
 	{
 		name: "asset_list",
 		procedurePath: "asset.list",
 		description:
-			"List the user's assets: currencies and items (for example tournament tickets), with kind, decimals, unit and balance. balance is the signed sum of every real ledger line of the asset, as an integer in its smallest unit (decimals is the number of digits after the point); for an item it is the number held. It already includes the buy-ins of entries still in play, and virtual lines never count. Archived assets are left out unless includeArchived is true, which returns active and archived ones together. Use the returned ids wherever a tool asks for an assetId or a currencyId.",
+			"List the user's assets: currencies and items (for example tournament tickets), with kind, decimals, unit and balance. balance is the signed sum of every real ledger line of the asset, as an integer in its smallest unit (decimals is the number of digits after the point); for an item it is the number held. It already includes the buy-ins of entries still in play, and virtual lines never count. Archived assets are left out unless includeArchived is true, which returns active and archived ones together. Use the returned ids wherever a tool asks for an assetId.",
 		inputSchema: assetListInputSchema,
 	},
 	{
@@ -293,7 +293,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "room_update",
 		procedurePath: "room.update",
 		description:
-			"Update a room by id. Only the supplied fields change; pass null to clear memo or the coordinates (latitude and longitude must be set or cleared together — sending only one is rejected even when the other is already stored). Existing sessions display the new name.",
+			"Update a room by id. Only the supplied fields change; pass null to clear memo or the coordinates (latitude and longitude must be set or cleared together — sending only one is rejected even when the other is already stored). Existing entries display the new name.",
 		inputSchema: roomUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
@@ -302,7 +302,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "room_archive",
 		procedurePath: "room.archive",
 		description:
-			"Archive a poker room so it stops appearing in pickers for new data. Reversible with room_restore; existing sessions and games keep their links. List archived rooms with room_list and includeArchived.",
+			"Archive a poker room so it stops appearing in pickers for new data. Reversible with room_restore; existing entries and masters keep their links. List archived rooms with room_list and includeArchived.",
 		inputSchema: roomIdInputSchema,
 		destructiveHint: false,
 		idempotentHint: true,
@@ -336,7 +336,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "ring_game_archive",
 		procedurePath: "ringGame.archive",
 		description:
-			"Archive a ring-game rule master so it stops appearing in pickers. Reversible with ring_game_restore; existing sessions keep their link. List archived ones with ring_game_list_by_room and includeArchived.",
+			"Archive a ring-game rule master so it stops appearing in pickers. Reversible with ring_game_restore; existing entries keep their link. List archived ones with ring_game_list_by_room and includeArchived.",
 		inputSchema: ringGameIdInputSchema,
 		destructiveHint: false,
 		idempotentHint: true,
@@ -360,7 +360,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
 		name: "tournament_create_with_levels",
 		procedurePath: "tournament.createWithLevels",
-		description: `Create a tournament master inside a room with its first rule version and tags in one call. Required: roomId, name, rule.levels (may be empty). rule.game defaults to NL Hold'em. defaultAssetId (asset_list) is the asset sessions default to. tagIds are tournament tag ids from tournament_tag_list (unique, at most 100). ${TOURNAMENT_RULE_CONTRACT}`,
+		description: `Create a tournament master inside a room with its first rule version and tags in one call. Required: roomId, name, rule.levels (may be empty). rule.game defaults to NL Hold'em. defaultAssetId (asset_list) is the asset new entries of this tournament default to. tagIds are tournament tag ids from tournament_tag_list (unique, at most 100). ${TOURNAMENT_RULE_CONTRACT}`,
 		inputSchema: tournamentCreateWithLevelsInputSchema,
 		destructiveHint: false,
 		idempotentHint: false,
@@ -377,7 +377,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "tournament_archive",
 		procedurePath: "tournament.archive",
 		description:
-			"Archive a tournament master so it stops appearing in pickers. Reversible with tournament_restore; existing sessions keep their link.",
+			"Archive a tournament master so it stops appearing in pickers. Reversible with tournament_restore; existing entries keep their link.",
 		inputSchema: tournamentIdInputSchema,
 		destructiveHint: false,
 		idempotentHint: true,
@@ -454,7 +454,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		name: "game_variant_update",
 		procedurePath: "gameVariant.update",
 		description:
-			"Update a game variant by id. Only supplied fields change; pass null to clear shortLabel. Ring-game lineups reference variants by ID: renaming changes their displayed labels without changing saved composition, and moving a variant to another group affects future lineups but not existing lineup structures. Legacy tournament rules and sessions store labels, so renaming does not rewrite their stored text. Tournament edits require the full blindLevels list; read tournament_get_by_id first.",
+			"Update a game variant by id. Only supplied fields change; pass null to clear shortLabel. Rule lineups of ring games, tournaments and entries reference variants by ID: renaming changes their displayed labels without changing saved composition, and moving a variant to another group affects future lineups but not existing lineup structures.",
 		inputSchema: gameVariantUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,

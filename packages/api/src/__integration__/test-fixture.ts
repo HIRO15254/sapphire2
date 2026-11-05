@@ -122,7 +122,6 @@ export async function seedMaxRuleLevels(api: ApiFixture): Promise<{
 			id: mixId,
 			userId: "alice",
 			label: `Mix ${index}`,
-			games: [],
 			updatedAt: new Date("2026-09-05T00:00:00.000Z"),
 		});
 		mixVariantRows.push(

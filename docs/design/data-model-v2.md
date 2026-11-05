@@ -167,11 +167,10 @@ CREATE TABLE ring_game (
   room_id TEXT,
   name TEXT NOT NULL,
   memo TEXT,
-  is_favorite INTEGER NOT NULL DEFAULT 0 CHECK (is_favorite IN (0,1)),
   archived_at INTEGER,
   default_asset_id TEXT,
   current_rule_id TEXT NOT NULL,
-  FOREIGN KEY (room_id,user_id) REFERENCES room(id,user_id) ON DELETE NO ACTION,
+  FOREIGN KEY (room_id,user_id) REFERENCES room(id,user_id) ON DELETE CASCADE,
   FOREIGN KEY (default_asset_id,user_id) REFERENCES asset(id,user_id) ON DELETE NO ACTION,
   FOREIGN KEY (current_rule_id,user_id) REFERENCES cash_rule(id,user_id) ON DELETE NO ACTION,
   UNIQUE (id,user_id)
@@ -469,7 +468,7 @@ CREATE TABLE ledger_category (
 CREATE UNIQUE INDEX ledger_category_name_uq ON ledger_category(user_id,lower(trim(name)));
 ```
 
-B09 moves transaction_type with the same ids except the reserved Session Result row, which is not a category. Normalized duplicate names merge into the oldest (created_at,id) representative and all referencing lines use that representative. B09 only migrates categories; the old transactionType router keeps its own table until B14, which deletes the reserved-name machinery and DEFAULT_TRANSACTION_TYPES with that router and provides archive/restore and referenced-delete CONFLICT guidance.
+B09 migrated transaction types to ledger categories, excluding the reserved Session Result row and merging normalized duplicate names. B14 removed the old router; categories now support archive/restore and referenced-delete conflict guidance.
 
 ```sql
 CREATE TABLE ledger_line (
@@ -762,7 +761,7 @@ CREATE TABLE player_tag_link (
 CREATE INDEX player_tag_link_tag_idx ON player_tag_link(tag_id);
 ```
 
-B18 retains source ids except deterministic normalized-name merges: oldest (created_at,id) is representative, links are remapped and deduplicated. Tournament tags use `tt:<user_id>:<hash(normalized-name)>`, keeping the oldest spelling; the hash is `hex(lower(trim(name)))`, an injective encoding used because D1 SQL has no hash function. `player_tag_link` replaces `player_to_player_tag`, preserving the survivor's color and the minimum link position. Before deleting merged player-tag duplicates, B18 repoints legacy `player_to_player_tag` rows to the survivor so A-12 compares a consistent retired source. The old `tournament_tag` and `player_to_player_tag` remain retired until B25; B18 stores tournament definitions in `tournament_tag_def`, which B25 renames after dropping the old table. A-12's tournament and player parts are active since migration 0072 and compare mapped expected link sets per target, not raw duplicate source row counts; hand has no legacy source.
+B18 retained source ids except deterministic normalized-name merges: oldest (created_at,id) was representative, links were remapped and deduplicated. Tournament tags use `tt:<user_id>:<hash(normalized-name)>`, keeping the oldest spelling; the hash is `hex(lower(trim(name)))`, an injective encoding. `player_tag_link` replaced `player_to_player_tag`, preserving the survivor's color and minimum position. B25 dropped the legacy sources and renamed `tournament_tag_def` to `tournament_tag`; historical A-12 comparisons are retired (§16.7).
 
 Owners accept tagIds, never tag names. All four tag kinds expose MCP list/create. Classification derivable from rules (bounty, turbo) is not stored as a tag. B22 retains filter_preset's columns while rebuilding it with the JSON guard below, and migrates JSON keys and values from currency/type/session-tag names to final stats asset/kind/tag mode fields, validating the same stats filter schema on save and load. A legacy payload is transformed, not silently read through indefinite defaults. The final payload is a saved query, not a mutable relationship store.
 
@@ -882,7 +881,7 @@ All date filters are inclusive `'YYYY-MM-DD'` comparisons on entry.played_on (C5
 
 ### 12.4 Balance
 
-For every asset, balance = Σquantity where effect='real', including entry and wallet lines, including open entries, and including items. asset.list returns zero for an asset without lines. There is no separate holding formula or currency-only balance. A buy-in reduces balance immediately, even before settlement; virtual lines never change it. This intentional change is separate from settled-only statistics. A-11 compares legacy balances only over settled entry lines plus wallet lines and reports historical drift rather than overwriting the ledger to match it.
+For every asset, balance = Σquantity where effect='real', including entry and wallet lines, including open entries and items. An asset without lines has zero balance. Virtual lines never change it. This differs intentionally from settled-only statistics. Retired audit A-11's last historical balance comparison is recorded on SA2-418.
 
 ## 13. Event-to-projection rules
 
@@ -951,7 +950,9 @@ B03 records every deleted test's protected contract and the last old-UI SHA on U
 
 All screen requirements, persisted-cache buster/reload behavior, client formula removal, new asset/statistics/entry/multi-day/hand/tag screens, lineup screens and self-player UI move to the UI v3 phases U01–U12, outside this project. Production does not deploy intermediate v2 API states. The new UI defines its own route structure and display names from the supplied `.dc.html`; v3.5.2 paths are not preserved and no redirect layer is added. Two paths stay fixed: `/login`, the MCP OAuth login page configured in `apps/server/src/auth-options.ts`, and `/`, the PWA `start_url`. Retired v3.5.2 paths render the router's default not-found fallback. Hotfixes during the freeze branch release/vX.Y.Z from origin/main and merge main back into dev. Current dev is not released before B01/B02 (§20.1 item 9); the next normal release is v2 plus the new UI.
 
-## 16. Migration procedure
+## 16. Migration history (completed) and operational runbooks
+
+Sections 16.1–16.6 describe the completed procedure, not current tables or active APIs. Historical instructions and source names explain the shipped cutovers. Sections 16.7 and 16.8 remain live audit and release runbooks.
 
 ### 16.1 Order and one-home cutovers
 
@@ -1129,7 +1130,7 @@ B23 starts with category counts posted to its issue and Needs Input. Only the ow
 
 B23's shipped migration is `0074_stand_in_cleanup.sql`, applying the owner's rule recorded on SA2-410: a reference to `unassigned:<user_id>` in a room moves to the one other asset that room's entries use, otherwise to the asset named after the room (created as `room-asset:<room_id>` unless an asset with that normalized name exists). Entries, their ledger lines, their events' payment and chips `assetId`, tournament rule prices (by the master's room, else the single room of the entries using the version) and master default assets move together, so A-6 replays unchanged. A room-less entry, a line without an entry and a price without a room keep Unassigned as an ordinary asset. The production copy had no stand-in masters, so no master is remapped and the lineup duplicate check has no subject. SQLite cannot evaluate an IANA zone and `user_setting` is empty on the release copy (0059/0060 gates), so instead of recomputing, the migration aborts if an owner with a non-Tokyo zone has a migrated live play_session; NULL and Asia/Tokyo are no-ops. End gates: payload `assetId` equals the line asset for every remapped entry, every priced line pays in its price's asset, and foreign_key_check. No seed placeholder special case existed in code; A-16 checks that no Unassigned asset or `sv:`/`sm:` stand-in is created after the cleanup.
 
-B18 backfills tags with mapped ids and deduped link sets (§10). B25 drops, child-first, everything retired that remains: session_chip_purchase_result, session_chip_purchase, session_blind_level, session_to_session_tag, currency_transaction, session_cash_detail, session_tournament_detail, session_event, game_session, session_tag, transaction_type, the old tournament_tag shape, player_to_player_tag, blind_level, tournament_chip_purchase, todo, and game_mix.games. The orphan todo table comes from migration 0000 and is absent from the Drizzle schema. Remove temporary tournament_tag_def by final rename if not already done. Actual table inventory decides whether an already-removed table needs a DROP, not whether an obsolete table may stay. No session_table_player table is invented: tablePlayer is an event fold; B06 already deletes its legacy router. Remove any actual residual store discovered in the merge-time schema. No compatibility views remain.
+B18 backfilled tags with mapped ids and deduplicated link sets (§10). B25 shipped as `0075_retire_legacy_schema.sql`: it dropped `session_chip_purchase_result`, `session_chip_purchase`, `session_blind_level`, `session_to_session_tag`, `currency_transaction`, `session_cash_detail`, `session_tournament_detail`, `session_event`, `game_session`, `session_tag`, `transaction_type`, the old `tournament_tag`, `player_to_player_tag`, `blind_level`, `tournament_chip_purchase` and `todo`; dropped `game_mix.games`; and renamed `tournament_tag_def` to `tournament_tag`. Its gates check row preservation, foreign keys and the final table inventory. No compatibility view or legacy source remains.
 
 ### 16.6 Dev rehearsal and pre-audit
 
@@ -1139,33 +1140,32 @@ Optional production pre-audit informs normalization: NULL/cross-owner links, mal
 
 ### 16.7 Audit catalogue
 
-`scripts/audit-data-model.ts` (B04) owns **every** live A-x below. A retired audit has no runner code: its ID stays in this table so citations resolve and is never reused. Historical source comparisons operate on the cutover's migration-origin population and staged expected values while those sources exist; they never compare subsequently edited/new v2 rows with stale retired columns. Run each historical gate before its stage/source is discarded and record the result in its cutover issue. B25 deletes the historical parts (marked `deletedBy: TASK.B25`) and their code together with the sources they compare, so the runner never reports a fake zero or carries a part that cannot run. Every fresh dev production-copy replay exercises the same cutover gates again. Current-state guards (FK, A-6/8/9/14/15/16 and A-13 master membership) continue. B04 ships the runner with every check its schema and data can evaluate; a check that reads columns or data a later task creates is enabled by that task in the same PR and listed in its gate: A-6/A-8/A-9 by B06 (A-6's projected-line comparison by B09, its open-entry EV by B12); A-5 and A-11 by B09; A-13's master half and A-14's master rule parity/stakes by B07 (ring games) and B08 (tournaments); A-13's entry half and A-14's line price ownership/provenance by B13; A-14's self-player/Hero consistency by B15; A-16 by B23. A-15 states its own versions. Until enabled, the runner reports a check as pending with its enabling task, never as pass or fail. A-11 is report-only; every other active violation fails dev-deploy/release.
+`scripts/audit-data-model.ts` owns the live audits below. Retired IDs remain here for citations and are never reused. B25 removed source-dependent comparisons and their runner code with the tables dropped by migration 0075. Their last results are recorded on SA2-418. FK and A-6, A-8, A-9, A-13 membership, A-14, A-15 and A-16 remain current-state guards.
 
 Runner contract (B04):
 
 - **Read-only.** The runner sends only `SELECT`, `WITH` and `PRAGMA foreign_key_check` through `wrangler d1 execute --json` and refuses anything else. A-6 replays with the real `projectEntry` in TypeScript; payloads are validated with `playEventPayloadSchema` in `packages/db/src/constants/play-event-payloads.ts`.
-- **Statuses.** Each catalogue part reports one of `pass`, `violation`, `report` (A-11 only), `error`, `pending` (with the enabling task) or `not-introduced` (its `since` migration is not in `d1_migrations`). Exit 0 means no violation and no error; exit 1 means at least one; exit 2 means the database could not be read at all (missing `d1_migrations`, unknown database, wrangler failure), which never reports success. A required table that is missing for a runnable part is an `error`, never a skip.
-- **Enabling and deletion.** Each part lives in `scripts/data-model-audit/catalogue.ts`. The enabling task changes its `pending(TASK.Bxx)` activation to `{ state: "active", since: "<its migration>.sql" }` in the same PR; parts marked `deferred` (A-12, A-13 content, A-14 self player, A-16) also receive their query there. A part that stops being runnable is deleted, not kept as a status: B25 removes every `deletedBy: TASK.B25` part, its ID from `AUDIT_IDS`, and any runner code only those parts used. `--enable A-6,A-8` runs named pending parts ahead of their task for rehearsal and pre-audit; a deferred part stays pending.
-- **Historical population.** A historical part compares only migration-origin rows: ids present in the retired source, created no later than the cutover migration's `d1_migrations.applied_at`, and not updated after it. A row added or edited through the v2 API afterwards is outside the comparison, while a source id with no migrated row is a violation.
-- **A-6 and A-15 scope.** A-6 compares, for every live entry, the stored entry status/played_on, each play_session's times/break/state/stack/clock, the kind detail (settled cash EV; open cash EV from B12), the source-event ledger lines (from B09) by id with asset/quantity/role/effect/day/event/time, and the Hero seat of every hand with `played_at` against the tablePlayer fold of the events up to that time. Metadata (`created_at`, `updated_at`) is never compared. Until B15, A-15 accepts schema_version 1 and 2 and validates each with the registry for the entry kind.
+- **Statuses.** A part reports `pass`, `violation`, `error`, `pending` or `not-introduced`. Exit 0 means no violation or error; exit 1 means at least one; exit 2 means the database could not be read at all. A missing required table for a runnable part is an error.
+- **Activation.** The live parts and their migration activation are defined in `scripts/data-model-audit/catalogue.ts`; `--enable A-6,A-8` can run named pending parts for rehearsal.
+- **Replay scope.** A-6 compares live entries against the real projector, including days, event-sourced ledger lines, results, EV and seat folds. A-15 validates the current event payload registry and references.
 
 | ID | Query/algorithm and lifecycle |
 | --- | --- |
 | A-1 | Retired, not in the runner: tournament.user_id NOT NULL since T02 replaces it |
 | A-2 | Retired, not in the runner: ring_game.user_id NOT NULL since T02 replaces it |
-| A-3 | Bidirectional id difference of source game_session↔entry/seq1 and source session_event↔play_event, with owner and declared source normalization and the §16.5 unmigrated purchase_chips exemption (B06; historical until B25) |
-| A-4 | Compare normalized source start/end/break/status to migrated seq1; a live day's start/end/break fold its session_event rows as in §16.5 (B06; historical) |
-| A-5 | Settled per-entry real line PL equals old cash_out+chip_remove−buy_in or prize+bounty−buy_in−fee−Σpurchase cost*count (B09; historical) |
+| A-3 | **Retired, not in the runner:** bidirectional source `game_session` ↔ entry/first day and `session_event` ↔ play_event ID comparisons, including ownership and source normalization (B06). Source tables dropped by B25 (`0075_retire_legacy_schema.sql`); last result recorded on SA2-418. Replacement: A-6/A-8/A-9 and composite FKs with `foreign_key_check` guard current state; one-time migration parity has no replacement. |
+| A-4 | **Retired, not in the runner:** comparison of normalized source start/end/break/status, including live event folds, against the migrated first day (B06). Source tables dropped by B25 (`0075_retire_legacy_schema.sql`); last result recorded on SA2-418. Replacement: A-6/A-8/A-9 guard current state; one-time migration parity has no replacement. |
+| A-5 | **Retired, not in the runner:** settled entry real ledger P/L compared with the legacy cash or tournament result formula (B09). Source tables dropped by B25 (`0075_retire_legacy_schema.sql`); last result recorded on SA2-418. Replacement: A-6 guards live projection; one-time migration parity has no replacement. |
 | A-6 | Replay projectEntry for every live entry using its stored events/rules; compare normalized rows of projected lines, all day times/state/clocks, played_on/status, result/EV, tournament progress (§13.2) and tablePlayer seat fold. Read-only TypeScript, not fake SQL replay |
 | A-7 | **Retired, not in the runner:** single-column exception ownership audit replaced by B01/B07/B08 composite FKs and foreign_key_check |
 | A-8 | Missing days or entry.played_on different from MIN(local_date) |
 | A-9 | entry.status differs from settled iff no unfinished days and final highest-seq end_state; manual entries/days must be settled/ended |
-| A-10 | Backfilled hand count and last button differ from source hand_count/dealer_seat on seq1 (B10; historical) |
-| A-11 | Per-asset balance differs from legacy transactions over settled entries plus wallet lines; record as historical drift, never fail or copy drift into the ledger |
-| A-12 | Mapped/deduplicated old tag-link set differs from new set per target (B18; historical) |
-| A-13 | Master/entry rule content differs from staged/source snapshots at B07/B08/B13; permanently also checks selected current rule belongs to that master and entry rule same-master/standalone relationship |
+| A-10 | **Retired, not in the runner:** backfilled hand count and last button compared with source hand_count/dealer_seat on the first day (B10). Source table dropped by B25 (`0075_retire_legacy_schema.sql`); last result recorded on SA2-418. Replacement: none — one-time migration parity. |
+| A-11 | **Retired, not in the runner:** per-asset balance comparison with legacy transactions over settled entries and wallet lines, reporting historical drift (B09). Source table dropped by B25 (`0075_retire_legacy_schema.sql`); last result recorded on SA2-418. Replacement: none — one-time migration parity. |
+| A-12 | **Retired, not in the runner:** mapped and deduplicated legacy tag-link sets compared with new links per target (B18). Source tables dropped by B25 (`0075_retire_legacy_schema.sql`); last result recorded on SA2-418. Replacement: composite FKs and `foreign_key_check` guard current links, not migration parity. |
+| A-13 | Checks that each ring game's and tournament's current rule exists and belongs to that master. Entry rule same-master references are enforced by `(rule_id, master_id)` composite FKs (§5/§6); A-14 checks NULL-master parity for standalone rules. Historical content comparisons were retired with their B25 / 0075 source tables; last results are on SA2-418. |
 | A-14 | Structural query suite: missing/wrong detail; contiguous play_session/hand/action/level ordinals; manual days ended; rule parent/master NULL parity; nonempty lineups/groups and complete stakes, breaks without stakes; exchange pair count/distinct asset/opposite sign/common metadata; line role-kind/price ownership and version provenance (historical prices survive rule changes); base setting currency; self-player/Hero consistency. INSERT-only application services plus migration fingerprints/A-13 protect immutable content; do not claim a query can reconstruct an unrecorded past mutation |
-| A-15 | All stored events use schema_version=2 after B15, parse with the v2 registry and have owned payload references; canonical hand/price links match payload and immutable price provenance (historical payment prices survive later rule changes). Before B15, validate the explicitly supported migration-source versions; after B17 every new writer emits 2 |
+| A-15 | Stored events use schema_version=2, parse with the current registry and have owned payload references; canonical hand/price links match payload and immutable price provenance. |
 | A-16 | B23 cleanup policy: mapped assets/masters/payload ids and recomputed migrated local dates match recorded rules; no seed placeholder special case or runtime placeholder creator remains; ordinary retained Unassigned/archived masters are allowed by the declared defaults, not exceptions |
 
 Representative current-state SQL:
@@ -1190,13 +1190,13 @@ GROUP BY user_id,transfer_id
 HAVING count(*)<>2 OR count(DISTINCT asset_id)<>2
  OR sum(quantity>0)<>1 OR sum(quantity<0)<>1;
 
--- Current-rule membership, permanent A-13 master half.
-SELECT r.id FROM ring_game r JOIN cash_rule v
+-- Current-rule membership (ring-game half of A-13).
+SELECT r.id FROM ring_game r LEFT JOIN cash_rule v
  ON v.id=r.current_rule_id AND v.user_id=r.user_id
-WHERE v.ring_game_id IS NOT r.id;
+WHERE v.id IS NULL OR v.ring_game_id IS NOT r.id;
 ```
 
-The script supplements these examples with the tournament twin, ownership-qualified joins and full metadata comparison. It runs PRAGMA foreign_key_check in addition to A-x, fails with actionable ids/counts, and never writes repairs. A-6 executes the real projector; SQL alone is not an implementation of replay.
+The script supplements these examples with the tournament membership check and ownership-qualified joins. It runs PRAGMA foreign_key_check in addition to A-x, fails with actionable ids/counts, and never writes repairs. A-6 executes the real projector; SQL alone is not an implementation of replay.
 
 ### 16.8 Final release runbook
 
@@ -1415,7 +1415,7 @@ Follow [testing.md](../../.claude/rules/testing.md): expectations come from this
 | D1 100-parameter failure after DELETE | Integration: large full hand and long purchase/line/level replacement, failure preserves prior data; use actual batch helpers | B10/B21/B08 |
 | Tag identity/ownership/link loss | Migration and caller/D1: deterministic merge/remap with color/position/reviewed metadata, every tag kind owned; preset restored final ids | B18/B22 |
 | Hero leaks into opponents or moves as separate state | D1 caller: one self row, hidden opponent lists, tablePlayer seat folding, payload backfill matches it | B15/B17 |
-| Audit misses projector drift or source removal | Runner integration on local D1: plant projection/structural drift, observe named failing audits; historical parts run until B25 deletes them with their sources; A-11 remains report-only | B04/B25 |
+| Audit misses projector drift or source removal | Runner integration on local D1: plant projection/structural drift and observe named failing audits. B25 retired historical source comparisons; their final results are recorded on SA2-418. | B04/B25 |
 | MCP diverges from API | Existing coupling/serialization/auth tests use real caller and schema identity; update expected final catalogue and errors, no unchanged-snapshot criterion | Every API task |
 | Old UI contract deletion | Record protected contract→replacement/existing check→remaining risk and last SHA on U01; no screen tests inside backend work | B03 |
 

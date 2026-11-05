@@ -9,7 +9,6 @@ import {
 } from "drizzle-orm/sqlite-core";
 import { ASSET_KINDS, ASSET_MAX_DECIMALS } from "../constants/asset";
 import { user } from "./auth";
-import { currencyTransaction } from "./currency";
 import { oneOf } from "./sql-checks";
 
 export const asset = sqliteTable(
@@ -48,10 +47,9 @@ export const asset = sqliteTable(
 	]
 );
 
-export const assetRelations = relations(asset, ({ one, many }) => ({
+export const assetRelations = relations(asset, ({ one }) => ({
 	user: one(user, {
 		fields: [asset.userId],
 		references: [user.id],
 	}),
-	transactions: many(currencyTransaction),
 }));

@@ -1,11 +1,13 @@
-import { asset } from "@sapphire2/db/schema/asset";
 import { user } from "@sapphire2/db/schema/auth";
+import {
+	entry,
+	entryCash,
+	playEvent,
+	playSession,
+} from "@sapphire2/db/schema/entry";
 import { ledgerCategory, ledgerLine } from "@sapphire2/db/schema/ledger";
 import { player, playerTagLink } from "@sapphire2/db/schema/player";
 import { room } from "@sapphire2/db/schema/room";
-import { gameSession } from "@sapphire2/db/schema/session";
-import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
-import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
 import { requireCreatedRow, test } from "./test-fixture";
@@ -96,7 +98,7 @@ describe("installed D1 referential integrity", () => {
 		expect(await api.db.select().from(playerTagLink)).toEqual([]);
 	});
 
-	test("preserves recorded session snapshots while deleted room, currency and ring-game links become null", async ({
+	test("preserves referenced entry and rule snapshots when room, asset and ring-game deletion is attempted", async ({
 		api,
 	}) => {
 		const nlh = (await api.alice.gameVariant.list()).find(
@@ -125,45 +127,52 @@ describe("installed D1 referential integrity", () => {
 				},
 			})
 		);
-		await api.db.insert(gameSession).values({
+		await api.db.insert(entry).values({
 			id: "history",
 			userId: "alice",
-			kind: "cash_game",
-			status: "completed",
+			kind: "cash",
+			status: "settled",
 			source: "manual",
-			sessionDate: day,
+			playedOn: "2026-09-05",
 			roomId: "old-room",
-			currencyId: wallet.id,
+			assetId: wallet.id,
 			updatedAt: day,
 		});
-		await api.db.insert(sessionCashDetail).values({
-			sessionId: "history",
+		await api.db.insert(entryCash).values({
+			entryId: "history",
+			userId: "alice",
 			ringGameId: oldGame.id,
-			ruleName: "Recorded game",
-			buyIn: 100,
-			cashOut: 150,
+			cashRuleId: oldGame.ruleVersion.id,
 		});
-		await api.db.delete(room).where(eq(room.id, "old-room"));
-		await api.db.delete(asset).where(eq(asset.id, wallet.id));
-		expect(await api.db.select().from(gameSession)).toEqual([
+		await expect(
+			api.d1.prepare("DELETE FROM room WHERE id = ?").bind("old-room").run()
+		).rejects.toThrow("FOREIGN KEY constraint failed");
+		await expect(
+			api.d1.prepare("DELETE FROM asset WHERE id = ?").bind(wallet.id).run()
+		).rejects.toThrow("FOREIGN KEY constraint failed");
+		await expect(
+			api.d1
+				.prepare("DELETE FROM ring_game WHERE id = ?")
+				.bind(oldGame.id)
+				.run()
+		).rejects.toThrow("FOREIGN KEY constraint failed");
+		expect(await api.db.select().from(entry)).toEqual([
 			expect.objectContaining({
 				id: "history",
-				roomId: null,
-				currencyId: null,
+				roomId: "old-room",
+				assetId: wallet.id,
 			}),
 		]);
-		expect(await api.db.select().from(sessionCashDetail)).toEqual([
+		expect(await api.db.select().from(entryCash)).toEqual([
 			expect.objectContaining({
-				sessionId: "history",
-				ringGameId: null,
-				ruleName: "Recorded game",
-				buyIn: 100,
-				cashOut: 150,
+				entryId: "history",
+				ringGameId: oldGame.id,
+				cashRuleId: oldGame.ruleVersion.id,
 			}),
 		]);
 	});
 
-	test("deleting one account cascades its sessions, events, ledger and player links while preserving the other account", async ({
+	test("deleting one account cascades its entries, events, ledger and player links while preserving the other account", async ({
 		api,
 	}) => {
 		const tag = requireCreatedRow(
@@ -179,25 +188,36 @@ describe("installed D1 referential integrity", () => {
 		const category = requireCreatedRow(
 			await api.alice.ledgerCategory.create({ name: "Deposit" })
 		);
-		await api.db.insert(gameSession).values({
-			id: "owned-session",
+		await api.db.insert(entry).values({
+			id: "owned-entry",
 			userId: "alice",
-			kind: "cash_game",
-			status: "completed",
-			source: "manual",
-			sessionDate: day,
+			kind: "cash",
+			status: "open",
+			source: "live",
+			playedOn: "2026-09-05",
 			updatedAt: day,
 		});
-		await api.db
-			.insert(sessionCashDetail)
-			.values({ sessionId: "owned-session" });
-		await api.db.insert(sessionEvent).values({
+		await api.db.insert(playSession).values({
+			id: "owned-play",
+			userId: "alice",
+			entryId: "owned-entry",
+			kind: "cash",
+			seq: 1,
+			localDate: "2026-09-05",
+			status: "active",
+			updatedAt: day,
+		});
+		await api.db.insert(playEvent).values({
 			id: "owned-event",
-			sessionId: "owned-session",
-			eventType: "session_start",
+			userId: "alice",
+			entryId: "owned-entry",
+			playSessionId: "owned-play",
+			type: "session_start",
+			schemaVersion: 1,
 			payload: "{}",
 			occurredAt: day,
 			sortOrder: 0,
+			updatedAt: day,
 		});
 		await api.alice.ledger.createAdjustment({
 			assetId: wallet.id,
@@ -206,9 +226,9 @@ describe("installed D1 referential integrity", () => {
 			occurredAt: day.getTime() / 1000,
 		});
 		await api.db.delete(user).where(eq(user.id, "alice"));
-		expect(await api.db.select().from(gameSession)).toEqual([]);
-		expect(await api.db.select().from(sessionCashDetail)).toEqual([]);
-		expect(await api.db.select().from(sessionEvent)).toEqual([]);
+		expect(await api.db.select().from(entry)).toEqual([]);
+		expect(await api.db.select().from(playSession)).toEqual([]);
+		expect(await api.db.select().from(playEvent)).toEqual([]);
 		expect(await api.db.select().from(ledgerLine)).toEqual([]);
 		expect(await api.db.select().from(ledgerCategory)).toEqual([]);
 		expect(await api.db.select().from(playerTagLink)).toEqual([]);
@@ -217,29 +237,50 @@ describe("installed D1 referential integrity", () => {
 		]);
 	});
 
-	test("manual sessions must be completed and concurrent unfinished live sessions are unique per owner", async ({
+	test("manual entries must be settled and concurrent unfinished play sessions are unique per owner", async ({
 		api,
 	}) => {
 		await expect(
 			api.d1
 				.prepare(
-					"INSERT INTO game_session (id, user_id, kind, status, source, session_date, updated_at) VALUES ('invalid-manual', 'alice', 'cash_game', 'active', 'manual', 0, 0)"
+					"INSERT INTO entry (id, user_id, kind, status, source, played_on, updated_at) VALUES ('invalid-manual', 'alice', 'cash', 'open', 'manual', '2026-09-05', 0)"
 				)
 				.run()
 		).rejects.toThrow("CHECK constraint failed");
-		const create = (id: string, userId: string) =>
-			api.db.insert(gameSession).values({
+		await api.db.insert(entry).values([
+			{
+				id: "alice-entry",
+				userId: "alice",
+				kind: "cash",
+				status: "open",
+				source: "live",
+				playedOn: "2026-09-05",
+				updatedAt: day,
+			},
+			{
+				id: "bob-entry",
+				userId: "bob",
+				kind: "cash",
+				status: "open",
+				source: "live",
+				playedOn: "2026-09-05",
+				updatedAt: day,
+			},
+		]);
+		const create = (id: string, userId: string, entryId: string, seq: number) =>
+			api.db.insert(playSession).values({
 				id,
 				userId,
-				kind: "cash_game",
+				entryId,
+				kind: "cash",
+				seq,
+				localDate: "2026-09-05",
 				status: "active",
-				source: "live",
-				sessionDate: day,
 				updatedAt: day,
 			});
 		const results = await Promise.allSettled([
-			create("race-a", "alice"),
-			create("race-b", "alice"),
+			create("race-a", "alice", "alice-entry", 1),
+			create("race-b", "alice", "alice-entry", 2),
 		]);
 		expect(results.filter(({ status }) => status === "fulfilled")).toHaveLength(
 			1
@@ -250,15 +291,15 @@ describe("installed D1 referential integrity", () => {
 		expect(
 			await api.db
 				.select()
-				.from(gameSession)
-				.where(eq(gameSession.userId, "alice"))
+				.from(playSession)
+				.where(eq(playSession.userId, "alice"))
 		).toHaveLength(1);
-		await create("bob-active", "bob");
+		await create("bob-active", "bob", "bob-entry", 1);
 		await api.db
-			.update(gameSession)
-			.set({ status: "completed" })
-			.where(eq(gameSession.userId, "alice"));
-		await create("alice-next", "alice");
-		expect(await api.db.select().from(gameSession)).toHaveLength(3);
+			.update(playSession)
+			.set({ status: "ended", endState: "finished" })
+			.where(eq(playSession.userId, "alice"));
+		await create("alice-next", "alice", "alice-entry", 3);
+		expect(await api.db.select().from(playSession)).toHaveLength(3);
 	});
 });

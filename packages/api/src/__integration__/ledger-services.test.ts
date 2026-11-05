@@ -5,8 +5,6 @@ import {
 	ledgerCategory,
 	ledgerLine,
 } from "@sapphire2/db/schema/ledger";
-import { gameSession } from "@sapphire2/db/schema/session";
-import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { asc, eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
 import { runBatch } from "../lib/batch";
@@ -213,21 +211,6 @@ describe("entry ledger real profit and loss", () => {
 				)
 			)
 		);
-		await db.insert(gameSession).values({
-			id: "live-mtt",
-			userId: "alice",
-			kind: "tournament",
-			status: "active",
-			source: "live",
-			sessionDate: NOW,
-			currencyId: JPY,
-			updatedAt: NOW,
-		});
-		await db.insert(sessionTournamentDetail).values({
-			sessionId: "live-mtt",
-			tournamentBuyIn: 10_000,
-			entryFee: 1000,
-		});
 		await appendAndProject(db, "live-mtt", [
 			{
 				type: "purchase_chips",

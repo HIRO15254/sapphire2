@@ -465,14 +465,14 @@ describe("game masters (real D1)", () => {
 		await expect(
 			api.d1
 				.prepare(
-					"INSERT INTO game_mix (id, user_id, label, games, updated_at) VALUES ('dup', 'alice', 'DRAW MIX ', '[]', 0)"
+					"INSERT INTO game_mix (id, user_id, label, updated_at) VALUES ('dup', 'alice', 'DRAW MIX ', 0)"
 				)
 				.run()
 		).rejects.toThrow(UNIQUE_FAILED);
 		await expect(
 			api.d1
 				.prepare(
-					"INSERT INTO game_mix (id, user_id, label, games, updated_at) VALUES ('shared', 'alice', 'Triple Draw', '[]', 0)"
+					"INSERT INTO game_mix (id, user_id, label, updated_at) VALUES ('shared', 'alice', 'Triple Draw', 0)"
 				)
 				.run()
 		).resolves.toBeDefined();

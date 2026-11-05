@@ -5,8 +5,7 @@ import { tournament } from "./tournament";
 
 export const { tag: tournamentTag, link: tournamentTagLink } = defineTagTables(
 	"tournament",
-	() => tournament,
-	{ tagTable: "tournament_tag_def" }
+	() => tournament
 );
 
 export const tournamentTagRelations = relations(

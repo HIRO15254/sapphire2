@@ -21,7 +21,6 @@ export const gameMix = sqliteTable(
 			.references(() => user.id, { onDelete: "cascade" }),
 		builtinKey: text("builtin_key"),
 		label: text("label").notNull(),
-		games: text("games", { mode: "json" }).$type<string[]>().notNull(),
 		archivedAt: integer("archived_at", { mode: "timestamp" }),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)

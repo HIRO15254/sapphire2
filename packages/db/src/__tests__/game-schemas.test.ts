@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-	levelGameGroupSchema,
-	levelGamesSchema,
-	mixGameGroupSchema,
-	mixGamesSchema,
-} from "../schemas/game";
+import { mixGameGroupSchema, mixGamesSchema } from "../schemas/game";
 
 function group(overrides: Record<string, unknown> = {}) {
 	return {
@@ -175,57 +170,6 @@ describe("mixGamesSchema", () => {
 	it("rejects a duplicate variant within one group", () => {
 		expect(
 			mixGamesSchema.safeParse([group({ variants: ["nlh", "nlh"] })]).success
-		).toBe(false);
-	});
-});
-
-describe("levelGameGroupSchema", () => {
-	it("rejects anteType (level groups have no ante-type dimension)", () => {
-		const parsed = levelGameGroupSchema.safeParse(group({ anteType: "bb" }));
-		expect(parsed.success).toBe(true);
-		expect(
-			parsed.success && "anteType" in (parsed.data as Record<string, unknown>)
-		).toBe(false);
-	});
-
-	it("accepts a bring-in style stud group (blind3 + ante set)", () => {
-		expect(
-			levelGameGroupSchema.safeParse({
-				name: "Stud",
-				variants: ["stud", "razz"],
-				blind1: 400,
-				blind2: 800,
-				blind3: 100,
-				ante: 75,
-			}).success
-		).toBe(true);
-	});
-});
-
-describe("levelGamesSchema", () => {
-	it("accepts a single single-variant group (a level may host one game)", () => {
-		expect(
-			levelGamesSchema.safeParse([
-				{ variants: ["nlh"], blind1: 100, blind2: 200 },
-			]).success
-		).toBe(true);
-	});
-
-	it("rejects an empty array and accepts up to 12 groups", () => {
-		expect(levelGamesSchema.safeParse([]).success).toBe(false);
-		const groups = Array.from({ length: 12 }, (_, i) => ({
-			variants: [`v${i}`],
-		}));
-		expect(levelGamesSchema.safeParse(groups).success).toBe(true);
-		expect(
-			levelGamesSchema.safeParse([...groups, { variants: ["extra"] }]).success
-		).toBe(false);
-	});
-
-	it("rejects duplicate variants across level groups", () => {
-		expect(
-			levelGamesSchema.safeParse([{ variants: ["lhe"] }, { variants: ["lhe"] }])
-				.success
 		).toBe(false);
 	});
 });

@@ -33,7 +33,7 @@ Claude Code runs the same OAuth flow on first use (`/mcp` → authenticate).
 1. Client `POST /api/auth/mcp/register` (dynamic client registration — no pre-shared secrets).
 2. Client opens `GET /api/auth/mcp/authorize?...` in the browser.
 3. Not signed in? better-auth stores the request and redirects to the web app's `/login`; after sign-in the app returns the browser to the authorize endpoint.
-4. The Worker renders the consent page (app name + scopes). **Approve** posts to `/api/auth/oauth2/consent` and redirects back to the client with an authorization code.
+4. The Worker renders the consent page (app name, redirect hosts and actual tool capabilities). **Approve** posts to `/api/auth/oauth2/consent` and redirects back to the client with an authorization code.
 5. Client exchanges the code at `POST /api/auth/mcp/token` (PKCE-verified) and calls `/mcp` with `Authorization: Bearer <access_token>`.
 
 Discovery documents are served at the root, per RFC 8414 / RFC 9728:
@@ -45,11 +45,11 @@ Unauthenticated `/mcp` requests receive `401` with `WWW-Authenticate: Bearer res
 
 ## Tools
 
-The tool surface is a **projection of the tRPC `appRouter`**: each tool's input schema is the exact Zod schema the API validates with (a tool for one branch of a union input uses that branch's schema), and each response is the same JSON the HTTP API returns. Conventions follow the backend: **instants are unix seconds**, **date-only values are `YYYY-MM-DD` strings**, and **amounts are plain integers** in the asset's smallest unit.
+The tool surface is a **projection of the tRPC `appRouter`**: each tool's input schema is the exact Zod schema the API validates with (a tool for one branch of a union input uses that branch's schema), and each response is the same JSON the HTTP API returns. Timestamp inputs are unix seconds and outputs follow the router's JSON serialization; **date-only values are `YYYY-MM-DD` strings**, and **amounts are plain integers** in the asset's smallest unit.
 
 The statistics tools count **settled entries only** and take exactly one mode: `assetId` (that asset's real lines, unconverted; entries that also used other assets are reported in `multiAssetEntryCount` / `otherAssetIds`), `valuation: "real" | "virtual"` with an optional `baseAssetId` (defaults to the base in user settings; with neither the call fails with `PRECONDITION_FAILED`; an entry with an unrated line is excluded and reported in `excludedEntryCount` / `missingRates`), or `normalized: true` (cash in big blinds and tournaments in buy-ins, never summed). `dateFrom` / `dateTo` are inclusive and compare with the entry's `playedOn`; `entryTagIds` / `tournamentTagIds` filter by tag.
 
-The B06 cutover removed the old completed-session and live-session APIs and their MCP tools. Finished entries are recorded and edited with the `entry_*` tools. Live recording (`live.*`, `playEvent.*`, `tablePlayer.*`) belongs to the cockpit screens and is deliberately not exposed: it is timestamped as play happens, and a retried call appends a duplicate event. That includes the multi-day operations — ending a day (`live.endPlay`), starting the next day or a re-entry (`live.startNextPlay`) and their undos (`live.undoEndPlay`, `live.undoStartNextPlay`): a retried start adds another day.
+The B06 cutover removed the old completed-session and live-session APIs and their MCP tools. Finished entries are recorded and edited with the `entry_*` tools. Live recording (`live.*`, `playEvent.*`, `tablePlayer.*`) is intended for the new UI's cockpit (SA2-390 / U01 onward) and is deliberately not exposed: it is timestamped as play happens, and a retried call appends a duplicate event. That includes the multi-day operations — ending a day (`live.endPlay`), starting the next day or a re-entry (`live.startNextPlay`) and their undos (`live.undoEndPlay`, `live.undoStartNextPlay`): a retried start adds another day.
 
 | Tool | tRPC procedure | Kind |
 |---|---|---|

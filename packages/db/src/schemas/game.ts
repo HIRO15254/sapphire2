@@ -47,17 +47,3 @@ export const mixGamesSchema = z
 	.refine((groups) => totalVariantCount(groups) >= 2, {
 		message: "A mix needs at least two games",
 	});
-
-export const levelGameGroupSchema = mixGameGroupSchema.omit({
-	anteType: true,
-});
-
-export type LevelGameGroup = z.infer<typeof levelGameGroupSchema>;
-
-export const levelGamesSchema = z
-	.array(levelGameGroupSchema)
-	.min(1)
-	.max(MAX_MIX_GROUPS)
-	.refine(hasNoDuplicateVariants, {
-		message: "Each game may appear in only one group",
-	});

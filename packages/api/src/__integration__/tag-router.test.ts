@@ -12,7 +12,7 @@ type Caller = ApiFixture["alice"];
 
 const kinds = [
 	{ kind: "entryTag", table: "entry_tag" },
-	{ kind: "tournamentTag", table: "tournament_tag_def" },
+	{ kind: "tournamentTag", table: "tournament_tag" },
 	{ kind: "handTag", table: "hand_tag" },
 	{ kind: "playerTag", table: "player_tag" },
 ] as const;

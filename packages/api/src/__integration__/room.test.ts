@@ -1,7 +1,7 @@
+import { entry } from "@sapphire2/db/schema/entry";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
 import { tournamentRuleLevel } from "@sapphire2/db/schema/rule";
-import { gameSession } from "@sapphire2/db/schema/session";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { describe, expect } from "vitest";
 import { requireCreatedRow, test } from "./test-fixture";
@@ -11,21 +11,21 @@ const conflictMessage =
 	"This room is referenced by sessions or games. Archive the room instead of deleting it.";
 
 describe("room lifecycle on D1", () => {
-	for (const reference of ["session", "ring game", "tournament"] as const) {
+	for (const reference of ["entry", "ring game", "tournament"] as const) {
 		test(`refuses deleting a room referenced by a ${reference} and preserves its children`, async ({
 			api,
 		}) => {
 			const club = requireCreatedRow(
 				await api.alice.room.create({ name: "Club" })
 			);
-			if (reference === "session") {
-				await api.db.insert(gameSession).values({
+			if (reference === "entry") {
+				await api.db.insert(entry).values({
 					id: "session",
 					userId: "alice",
-					kind: "cash_game",
-					status: "completed",
+					kind: "cash",
+					status: "settled",
 					source: "manual",
-					sessionDate: day,
+					playedOn: "2026-09-05",
 					roomId: club.id,
 					updatedAt: day,
 				});
@@ -75,7 +75,7 @@ describe("room lifecycle on D1", () => {
 			]);
 			const before = {
 				rooms: await api.db.select().from(room),
-				sessions: await api.db.select().from(gameSession),
+				entries: await api.db.select().from(entry),
 				games: await api.db.select().from(ringGame),
 				tournaments: await api.db.select().from(tournament),
 				levels: await api.db.select().from(tournamentRuleLevel),
@@ -85,7 +85,7 @@ describe("room lifecycle on D1", () => {
 			).rejects.toMatchObject({ code: "CONFLICT", message: conflictMessage });
 			expect({
 				rooms: await api.db.select().from(room),
-				sessions: await api.db.select().from(gameSession),
+				entries: await api.db.select().from(entry),
 				games: await api.db.select().from(ringGame),
 				tournaments: await api.db.select().from(tournament),
 				levels: await api.db.select().from(tournamentRuleLevel),
@@ -117,13 +117,13 @@ describe("room lifecycle on D1", () => {
 		const club = requireCreatedRow(
 			await api.alice.room.create({ name: "Club" })
 		);
-		await api.db.insert(gameSession).values({
+		await api.db.insert(entry).values({
 			id: "session",
 			userId: "alice",
-			kind: "cash_game",
-			status: "completed",
+			kind: "cash",
+			status: "settled",
 			source: "manual",
-			sessionDate: day,
+			playedOn: "2026-09-05",
 			roomId: club.id,
 			updatedAt: day,
 		});
@@ -142,7 +142,7 @@ describe("room lifecycle on D1", () => {
 			}),
 		]);
 		expect(await api.alice.room.getById({ id: club.id })).toEqual(archived);
-		expect(await api.db.select().from(gameSession)).toEqual([
+		expect(await api.db.select().from(entry)).toEqual([
 			expect.objectContaining({ id: "session", roomId: club.id }),
 		]);
 		const restored = requireCreatedRow(
@@ -158,7 +158,9 @@ describe("room lifecycle on D1", () => {
 		expect(await api.alice.room.list()).toEqual([
 			expect.objectContaining({ id: club.id, archivedAt: null }),
 		]);
-		expect(await api.alice.room.list({ includeArchived: true })).toEqual([]);
+		expect(await api.alice.room.list({ includeArchived: true })).toEqual([
+			expect.objectContaining({ id: club.id, archivedAt: null }),
+		]);
 	});
 
 	test("rejects another user's and missing rooms uniformly before lifecycle changes", async ({

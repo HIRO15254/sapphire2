@@ -597,9 +597,9 @@ Both **Excluded: extraction**: MCP clients can interpret images themselves. Inpu
 
 ## 30. Removed procedures and input generations
 
-Names below disappear in the `Removed in` task's PR together with their MCP registration; the `Replacement` task adds the final procedure. This table is a removal map, not a compatibility layer.
+These procedures and fields have been removed together with their MCP registrations. The table records the completed cutovers and their replacements; it is not a compatibility layer.
 
-| Current procedure / field family | Final replacement | Removed in | Replacement |
+| Retired procedure / field family | Final replacement | Removed in | Replacement |
 | --- | --- | --- | --- |
 | session.list/getById/create/update/delete | entry counterparts with final schemas | B06 | B16 |
 | session.profitLossSeries | stats.profitLossSeries only | B06 | B22 |

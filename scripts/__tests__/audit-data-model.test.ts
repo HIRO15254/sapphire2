@@ -189,89 +189,16 @@ afterAll(() => {
 
 describe("audit-data-model through wrangler's local D1", () => {
 	it(
-		"passes sessions migrated by the cutover and keeps pending audits out of the gate",
+		"passes every remaining audit on clean migrated data",
 		() => {
-			const enabled = audit(seeded, "--enable", "A-6");
-			expect(enabled.status).toBe(0);
-			expect(statuses(enabled.report, "A-6")).toEqual(["pass", "pass", "pass"]);
-
 			const gate = audit(seeded);
 			expect(gate.status).toBe(0);
-			for (const id of ["A-3", "A-4", "A-5", "A-8", "A-9", "A-10"]) {
-				expect(statuses(gate.report, id), id).toEqual(["pass"]);
-			}
+			expect(gate.report?.results.length).toBeGreaterThan(0);
+			expect(
+				gate.report?.results.filter((result) => result.status !== "pass")
+			).toEqual([]);
 			expect(statuses(gate.report, "A-6")).toEqual(["pass", "pass", "pass"]);
-			expect(statuses(gate.report, "A-12")).toEqual(["pass", "pass", "pass"]);
-			expect(statuses(gate.report, "A-13")).toEqual([
-				"pass",
-				"pass",
-				"pass",
-				"pass",
-			]);
-			expect(statuses(gate.report, "A-14")).toContain("pass");
-		},
-		RUN_TIMEOUT
-	);
-
-	it(
-		"detects missing and unexpected historical entry tag links",
-		async () => {
-			const dir = await copyWith("broken-entry-tags", [
-				"DELETE FROM entry_tag_link WHERE entry_id = 'manual' AND tag_id = 'tag-first'",
-				"INSERT INTO entry_tag_link (entry_id, user_id, tag_id) VALUES ('manual', 'alice', 'tag-other')",
-			]);
-			const result = audit(dir);
-			expect(result.status).toBe(1);
-			expect(rows(result.report, "A-12")).toEqual(
-				expect.arrayContaining([
-					{
-						problem: "missing",
-						entry_id: "manual",
-						user_id: "alice",
-						tag_id: "tag-first",
-					},
-					{
-						problem: "unexpected",
-						entry_id: "manual",
-						user_id: "alice",
-						tag_id: "tag-other",
-					},
-				])
-			);
-		},
-		RUN_TIMEOUT
-	);
-
-	it(
-		"detects missing historical tournament and player tag links",
-		async () => {
-			const dir = await copyWith("broken-other-tags", [
-				"DELETE FROM tournament_tag_link WHERE tournament_id = 'daily'",
-				"DELETE FROM player_tag_link WHERE player_id = 'tagged-player'",
-			]);
-			const result = audit(dir);
-			expect(result.status).toBe(1);
-			expect(statuses(result.report, "A-12")).toEqual([
-				"pass",
-				"violation",
-				"violation",
-			]);
-			expect(rows(result.report, "A-12")).toEqual(
-				expect.arrayContaining([
-					{
-						problem: "missing",
-						tournament_id: "daily",
-						user_id: "alice",
-						tag_id: "tt:alice:6D61696E206576656E74",
-					},
-					{
-						problem: "missing",
-						player_id: "tagged-player",
-						user_id: "alice",
-						tag_id: "player-first",
-					},
-				])
-			);
+			expect(statuses(gate.report, "A-13")).toEqual(["pass", "pass"]);
 		},
 		RUN_TIMEOUT
 	);
@@ -288,46 +215,6 @@ describe("audit-data-model through wrangler's local D1", () => {
 			expect(rows(result.report, "A-13")).toContainEqual({ id: "ring-1" });
 			expect(rows(result.report, "A-14")).toContainEqual(
 				expect.objectContaining({ rule_id: "cr:ring-2" })
-			);
-		},
-		RUN_TIMEOUT
-	);
-
-	it(
-		"detects changes to migrated tournament levels, flat stakes and addon prices",
-		async () => {
-			const dir = await copyWith("broken-tournament-content", [
-				"UPDATE tournament_rule_level SET minutes = 30 WHERE id = 'trl:daily-level'",
-				"UPDATE tournament_rule_level_stake SET blind1 = 150 WHERE level_id = 'trl:daily-level'",
-				"UPDATE tournament_rule_price SET amount = 4000 WHERE id = 'trp:daily-addon'",
-			]);
-			const result = audit(dir);
-			expect(result.status).toBe(1);
-			expect(rows(result.report, "A-13")).toEqual(
-				expect.arrayContaining([
-					{ problem: "missing or changed level", id: "trl:daily-level" },
-					{ problem: "flat stakes", id: "trl:daily-level" },
-					{ problem: "missing or changed addon", id: "trp:daily-addon" },
-				])
-			);
-		},
-		RUN_TIMEOUT
-	);
-
-	it(
-		"detects an entry version whose content no longer matches its snapshot",
-		async () => {
-			const dir = await copyWith("broken-entry-rule", [
-				"UPDATE cash_rule SET table_size = 6 WHERE id = 'cr:e:manual'",
-				"UPDATE cash_rule_stake SET blind1 = 7 WHERE rule_id = 'cr:e:live'",
-			]);
-			const result = audit(dir);
-			expect(result.status).toBe(1);
-			expect(rows(result.report, "A-13")).toEqual(
-				expect.arrayContaining([
-					{ problem: "cash scalars", id: "manual" },
-					{ problem: "cash flat stakes", id: "live" },
-				])
 			);
 		},
 		RUN_TIMEOUT
@@ -354,24 +241,7 @@ describe("audit-data-model through wrangler's local D1", () => {
 	);
 
 	it(
-		"fails A-3 on a lost event and A-4 on a changed break",
-		async () => {
-			const dir = await copyWith("broken-cutover", [
-				"DELETE FROM play_event WHERE id = 'hero'",
-				"UPDATE play_session SET break_minutes = 7 WHERE id = 'live'",
-			]);
-			const result = audit(dir);
-			expect(result.status).toBe(1);
-			expect(rows(result.report, "A-3")).toEqual([
-				{ source: "session_event", id: "hero" },
-			]);
-			expect(rows(result.report, "A-4")).toEqual([{ id: "live" }]);
-		},
-		RUN_TIMEOUT
-	);
-
-	it(
-		"fails A-5 and A-6 when a projected amount or the Hero seat is broken",
+		"fails A-6 when a projected amount or the Hero seat is broken",
 		async () => {
 			const dir = await copyWith("broken-projection", [
 				"UPDATE ledger_line SET quantity = -25000 WHERE id = 'start:0'",
@@ -402,9 +272,6 @@ describe("audit-data-model through wrangler's local D1", () => {
 					}),
 				])
 			);
-			expect(rows(result.report, "A-5")).toEqual([
-				{ id: "live", expected: 12_000, actual: 17_000 },
-			]);
 		},
 		RUN_TIMEOUT
 	);
@@ -425,41 +292,6 @@ describe("audit-data-model through wrangler's local D1", () => {
 			expect(statuses(result.report, "A-9")).toEqual(["violation"]);
 			expect(rows(result.report, "A-9")).toEqual([
 				expect.objectContaining({ id: "live" }),
-			]);
-		},
-		RUN_TIMEOUT
-	);
-
-	it(
-		"fails A-10 when the migrated last hand no longer carries the legacy dealer seat",
-		async () => {
-			const dir = await copyWith("broken-hands", [
-				"UPDATE hand SET button_seat = 5 WHERE id = 'h:live:2'",
-			]);
-			const result = audit(dir);
-			expect(result.status).toBe(1);
-			expect(rows(result.report, "A-10")).toEqual([
-				{ id: "live", hands: 2, hand_count: 2, dealer_seat: 4 },
-			]);
-		},
-		RUN_TIMEOUT
-	);
-
-	it(
-		"reports a per-asset A-11 balance drift without failing",
-		async () => {
-			const dir = await copyWith("balance-drift", [
-				`INSERT INTO transaction_type (id, user_id, name, created_at, updated_at) VALUES ('result', 'alice', 'Session Result', ${T0}, ${T0})`,
-				`INSERT INTO currency_transaction (id, currency_id, transaction_type_id, session_id, amount, transacted_at, created_at) VALUES
-				 ('manual-result', 'jpy', 'result', 'manual', 2000, ${T0}, ${T0}),
-				 ('live-result', 'jpy', 'result', 'live', 11000, ${T0}, ${T0}),
-				 ('mtt-result', 'jpy', 'result', 'mtt', 18000, ${T0}, ${T0})`,
-			]);
-			const result = audit(dir);
-			expect(result.status).toBe(0);
-			expect(statuses(result.report, "A-11")).toEqual(["report"]);
-			expect(rows(result.report, "A-11")).toEqual([
-				{ user_id: "alice", asset_id: "jpy", legacy: 31_000, ledger: 32_000 },
 			]);
 		},
 		RUN_TIMEOUT

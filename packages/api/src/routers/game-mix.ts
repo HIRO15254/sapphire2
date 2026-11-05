@@ -165,7 +165,6 @@ export const gameMixRouter = router({
 					userId,
 					builtinKey: null,
 					label: input.label,
-					games: [],
 					updatedAt: new Date(),
 				}),
 			];

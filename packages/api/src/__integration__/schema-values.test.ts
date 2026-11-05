@@ -1,10 +1,7 @@
 import { filterPreset } from "@sapphire2/db/schema/filter-preset";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
-import { gameSession } from "@sapphire2/db/schema/session";
-import { sessionBlindLevel } from "@sapphire2/db/schema/session-blind-level";
-import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
-import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
+import { cashRuleStake } from "@sapphire2/db/schema/rule";
 import { eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
 import { test } from "./test-fixture";
@@ -67,17 +64,9 @@ describe("stored defaults and value encoding", () => {
 		]);
 	});
 
-	test("round trips JSON game groups, false, zero, coordinates and timestamps while keeping readable default variants", async ({
+	test("round trips zero, coordinates and timestamps in rooms and rule stakes", async ({
 		api,
 	}) => {
-		const games = [
-			{
-				name: "Big Bet",
-				variants: ["NL Hold'em", "Pot Limit Omaha"],
-				blind1: 0,
-				blind2: 100,
-			},
-		];
 		await api.db.insert(room).values({
 			id: "room",
 			userId: "alice",
@@ -97,42 +86,13 @@ describe("stored defaults and value encoding", () => {
 			name: "Game",
 			rule: {
 				game: { variantId: nlh.id },
-				stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+				stakes: [{ gameGroupId: nlh.groupId, blind1: 0, blind2: 100 }],
 			},
 		});
 		await api.db
 			.update(ringGame)
 			.set({ archivedAt: instant, updatedAt: instant })
 			.where(eq(ringGame.id, createdRing.id));
-		await api.db.insert(gameSession).values([
-			{
-				id: "cash",
-				userId: "alice",
-				kind: "cash_game",
-				status: "completed",
-				source: "manual",
-				sessionDate: instant,
-				updatedAt: instant,
-			},
-			{
-				id: "tour",
-				userId: "alice",
-				kind: "tournament",
-				status: "completed",
-				source: "manual",
-				sessionDate: instant,
-				updatedAt: instant,
-			},
-		]);
-		await api.db
-			.insert(sessionCashDetail)
-			.values({ sessionId: "cash", mixGames: games });
-		await api.db
-			.insert(sessionTournamentDetail)
-			.values({ sessionId: "tour", timerStartedAt: instant });
-		await api.db
-			.insert(sessionBlindLevel)
-			.values({ id: "snapshot-level", sessionId: "tour", level: 1, games });
 		expect(await api.db.select().from(room)).toEqual([
 			expect.objectContaining({
 				latitude: 35.5,
@@ -146,17 +106,8 @@ describe("stored defaults and value encoding", () => {
 				archivedAt: instant,
 			}),
 		]);
-		expect(await api.db.select().from(sessionCashDetail)).toEqual([
-			expect.objectContaining({ variant: "NL Hold'em", mixGames: games }),
-		]);
-		expect(await api.db.select().from(sessionTournamentDetail)).toEqual([
-			expect.objectContaining({
-				variant: "NL Hold'em",
-				timerStartedAt: instant,
-			}),
-		]);
-		expect(await api.db.select().from(sessionBlindLevel)).toEqual([
-			expect.objectContaining({ games, isBreak: false }),
+		expect(await api.db.select().from(cashRuleStake)).toEqual([
+			expect.objectContaining({ blind1: 0, blind2: 100 }),
 		]);
 		expect(createdRing.ruleVersion.id).toBe(createdRing.currentRuleId);
 	});

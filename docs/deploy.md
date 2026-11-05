@@ -23,7 +23,7 @@ The Worker also serves the MCP endpoint (`/mcp`) and its OAuth discovery routes 
 
 ## 2. Prerequisites
 
-- [Cloudflare](https://dash.cloudflare.com/sign-up) account (Free plan OK)
+- [Cloudflare](https://dash.cloudflare.com/sign-up) account with Workers Paid. D1's input limit is derived from the 1,000 queries per Worker invocation available on Paid; see [the v2 decision](design/data-model-v2.md#201-decisions-confirmed-by-the-user).
 - GitHub repository admin access (required for Secrets configuration)
 - [Bun](https://bun.sh/) installed locally
 - [Node.js](https://nodejs.org/) 22.16.0 or later installed locally (required to run the Cloudflare Wrangler CLI and Vitest; Bun remains the package manager)
@@ -251,29 +251,7 @@ Error: D1_ERROR
 
 Check the `d1_databases` configuration in `apps/server/wrangler.toml`.
 
-#### Migration 0044 preflight: duplicate unfinished live sessions
-
-Before deploying migration `0044_oval_captain_flint.sql` to a persistent D1 database, run:
-
-```sql
-SELECT
-  user_id,
-  COUNT(*) AS unfinished_count,
-  GROUP_CONCAT(id) AS session_ids
-FROM game_session
-WHERE source = 'live' AND status != 'completed'
-GROUP BY user_id
-HAVING COUNT(*) > 1;
-```
-
-If the query returns rows:
-
-1. Back up the target D1 database.
-2. For each user, decide which live session should remain unfinished.
-3. Complete or discard every extra session through the normal application flow.
-4. Re-run the query and deploy only after it returns zero rows.
-
-Do not update only `game_session.status` or delete rows directly: session events, cash/tournament results, and currency ledger entries must remain consistent. The migration intentionally fails on remaining duplicates instead of rewriting user data.
+The v2 cutover has a separate [release runbook](design/data-model-v2.md#168-final-release-runbook). Freeze data entry, record a D1 Time Travel point, migrate and audit before deploying the Worker and new UI; restore the recorded point on failure rather than retrying a partially applied chain.
 
 ### Worker Deployment Failure
 

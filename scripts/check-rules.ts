@@ -83,11 +83,11 @@ const CHECKS: Check[] = [
 		excludePath: /__tests__|\.test\./,
 	},
 	{
-		name: "session-event append pre-read — allocate order inside the INSERT",
+		name: "play-event append pre-read — allocate order inside the INSERT",
 		rule: ".claude/rules/api-data-integrity.md (SA2-196)",
 		globs: ["packages/api/src/**/*.ts"],
 		pattern:
-			/max\s*\(\s*sessionEvent\.sortOrder\s*\)|orderBy\(desc\(sessionEvent\.sortOrder\)\)[\s\S]{0,300}\+\s*1|nextAppendSortOrder(?!Sql)\s*\(/,
+			/max\s*\(\s*playEvent\.sortOrder\s*\)|orderBy\(desc\(playEvent\.sortOrder\)\)[\s\S]{0,300}\+\s*1|nextAppendSortOrder(?!Sql)\s*\(/,
 		excludePath: /__tests__|\.test\./,
 	},
 	{
