@@ -108,7 +108,9 @@ B06 の切り替えで旧完了セッション・ライブセッション API �
 | `game_mix_archive` | `gameMix.archive` | 記録 |
 | `game_mix_restore` | `gameMix.restore` | 記録 |
 
-`player_list` はユーザー自身の self（Hero）プレイヤーと一時プレイヤーを除外します。`player.getSelf` は公開していません。
+`player_list` はユーザー自身の self（Hero）プレイヤーと一時プレイヤーを除外します。`player.getSelf` は公開しておらず、相手のハンド履歴と VPIP/PFR（`player.hands`、`player.handStats`）もプレイヤー画面のものなので公開していません。
+
+`stats_summary` と `stats_breakdown` は `handCount`（すべての詳細度のハンド数）、`bb100`、`handsPerHour` を返します。`bb100` は BB が分かりハンドが 1 件以上ある cash entry について、bb 単位の損益の合計 ÷ ハンド数の合計 × 100 で、entry ごとの率の平均ではありません。`handsPerHour` はハンドが 1 件以上あり開始と終了がそろう日だけを数えるので、ハンド数と時間は同じ日から取られます。対象がなければどちらも `null` です。
 
 マスタの更新は destructive として注釈されています。**削除は公開していません。** 代わりにルーム、リングゲーム、トーナメント、ゲームマスタのアーカイブ/復元ツールを利用できます。ゲームマスタの一覧は既定でアーカイブ済みを除外し、`includeArchived` で含めます。
 

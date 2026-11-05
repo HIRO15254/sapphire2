@@ -27,7 +27,12 @@ import { MAX_LINKED_TAGS, tagIdsSchema } from "@sapphire2/db/schemas/tag-ids";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import z from "zod";
-import { type BatchStatement, chunkForInsert, runBatch } from "../lib/batch";
+import {
+	type BatchStatement,
+	chunkForInsert,
+	runBatch,
+	selectInChunks,
+} from "../lib/batch";
 import { decodeCursor, encodeCursor } from "../lib/cursor";
 import { isForeignKeyConstraintError } from "../lib/db-errors";
 import { instantSchema } from "../lib/instant";
@@ -258,31 +263,42 @@ function toHandOutput(
 	};
 }
 
+const OWNER_SCOPED_CHUNK_EXTRA = 1;
+
+function groupByHand<Row extends { handId: string }, Value>(
+	rows: Row[],
+	value: (row: Row) => Value
+): Map<string, Value[]> {
+	const grouped = new Map<string, Value[]>();
+	for (const row of rows) {
+		const list = grouped.get(row.handId);
+		if (list) {
+			list.push(value(row));
+		} else {
+			grouped.set(row.handId, [value(row)]);
+		}
+	}
+	return grouped;
+}
+
 async function loadBoards(
 	db: Database,
 	userId: string,
 	handIds: string[]
 ): Promise<Map<string, string[]>> {
-	const boards = new Map<string, string[]>();
-	if (handIds.length === 0) {
-		return boards;
-	}
-	const rows = await db
-		.select({ handId: handBoard.handId, cards: handBoard.cards })
-		.from(handBoard)
-		.where(
-			and(inArray(handBoard.handId, handIds), eq(handBoard.userId, userId))
-		)
-		.orderBy(asc(handBoard.handId), asc(handBoard.boardNo));
-	for (const { handId, cards } of rows) {
-		const list = boards.get(handId);
-		if (list) {
-			list.push(cards);
-		} else {
-			boards.set(handId, [cards]);
-		}
-	}
-	return boards;
+	const rows = await selectInChunks(
+		handIds,
+		(chunk) =>
+			db
+				.select({ handId: handBoard.handId, cards: handBoard.cards })
+				.from(handBoard)
+				.where(
+					and(inArray(handBoard.handId, chunk), eq(handBoard.userId, userId))
+				)
+				.orderBy(asc(handBoard.handId), asc(handBoard.boardNo)),
+		OWNER_SCOPED_CHUNK_EXTRA
+	);
+	return groupByHand(rows, ({ cards }) => cards);
 }
 
 async function loadTags(
@@ -290,38 +306,99 @@ async function loadTags(
 	userId: string,
 	handIds: string[]
 ): Promise<Map<string, HandTagOutput[]>> {
-	const tags = new Map<string, HandTagOutput[]>();
-	if (handIds.length === 0) {
-		return tags;
-	}
-	const rows = await db
-		.select({
-			handId: handTagLink.handId,
-			id: handTag.id,
-			name: handTag.name,
-			reviewedAt: handTagLink.reviewedAt,
-		})
-		.from(handTagLink)
-		.innerJoin(
-			handTag,
-			and(
-				eq(handTag.id, handTagLink.tagId),
-				eq(handTag.userId, handTagLink.userId)
-			)
-		)
-		.where(
-			and(eq(handTagLink.userId, userId), inArray(handTagLink.handId, handIds))
-		)
-		.orderBy(asc(handTag.sortOrder), asc(handTag.id));
-	for (const { handId, ...tag } of rows) {
-		const list = tags.get(handId);
-		if (list) {
-			list.push(tag);
-		} else {
-			tags.set(handId, [tag]);
-		}
-	}
-	return tags;
+	const rows = await selectInChunks(
+		handIds,
+		(chunk) =>
+			db
+				.select({
+					handId: handTagLink.handId,
+					id: handTag.id,
+					name: handTag.name,
+					reviewedAt: handTagLink.reviewedAt,
+				})
+				.from(handTagLink)
+				.innerJoin(
+					handTag,
+					and(
+						eq(handTag.id, handTagLink.tagId),
+						eq(handTag.userId, handTagLink.userId)
+					)
+				)
+				.where(
+					and(
+						eq(handTagLink.userId, userId),
+						inArray(handTagLink.handId, chunk)
+					)
+				)
+				.orderBy(asc(handTag.sortOrder), asc(handTag.id)),
+		OWNER_SCOPED_CHUNK_EXTRA
+	);
+	return groupByHand(rows, ({ handId: _handId, ...tag }) => tag);
+}
+
+async function loadSeats(
+	db: Database,
+	userId: string,
+	handIds: string[]
+): Promise<Map<string, HandSeatOutput[]>> {
+	const rows = await selectInChunks(
+		handIds,
+		(chunk) =>
+			db
+				.select()
+				.from(handSeat)
+				.where(
+					and(inArray(handSeat.handId, chunk), eq(handSeat.userId, userId))
+				)
+				.orderBy(asc(handSeat.handId), asc(handSeat.seat)),
+		OWNER_SCOPED_CHUNK_EXTRA
+	);
+	return groupByHand(
+		rows,
+		({ handId: _handId, userId: _userId, ...seat }) => seat
+	);
+}
+
+async function loadActions(
+	db: Database,
+	userId: string,
+	handIds: string[]
+): Promise<Map<string, HandActionOutput[]>> {
+	const rows = await selectInChunks(
+		handIds,
+		(chunk) =>
+			db
+				.select()
+				.from(handAction)
+				.where(
+					and(inArray(handAction.handId, chunk), eq(handAction.userId, userId))
+				)
+				.orderBy(asc(handAction.handId), asc(handAction.seq)),
+		OWNER_SCOPED_CHUNK_EXTRA
+	);
+	return groupByHand(
+		rows,
+		({ handId: _handId, userId: _userId, ...action }) => action
+	);
+}
+
+export async function hydrateHandDetails(
+	db: Database,
+	userId: string,
+	rows: HandRow[]
+): Promise<HandDetailOutput[]> {
+	const ids = rows.map(({ id }) => id);
+	const [boards, tags, seats, actions] = await Promise.all([
+		loadBoards(db, userId, ids),
+		loadTags(db, userId, ids),
+		loadSeats(db, userId, ids),
+		loadActions(db, userId, ids),
+	]);
+	return rows.map((row) => ({
+		...toHandOutput(row, boards.get(row.id) ?? [], tags.get(row.id) ?? []),
+		seats: seats.get(row.id) ?? [],
+		actions: actions.get(row.id) ?? [],
+	}));
 }
 
 function forbidden(message: string): TRPCError {
@@ -799,33 +876,16 @@ export async function listHands(
 		.limit(pageSize + 1);
 	const page = rows.slice(0, pageSize);
 	const boundary = rows.length > pageSize ? page.at(-1) : undefined;
-	const seats =
-		page.length === 0
-			? []
-			: await db
-					.select()
-					.from(handSeat)
-					.where(
-						and(
-							inArray(
-								handSeat.handId,
-								page.map(({ id }) => id)
-							),
-							eq(handSeat.userId, userId)
-						)
-					)
-					.orderBy(asc(handSeat.seat));
 	const pageIds = page.map(({ id }) => id);
-	const [boards, tags] = await Promise.all([
+	const [boards, tags, seats] = await Promise.all([
 		loadBoards(db, userId, pageIds),
 		loadTags(db, userId, pageIds),
+		loadSeats(db, userId, pageIds),
 	]);
 	return {
 		items: page.map((row) => ({
 			...toHandOutput(row, boards.get(row.id) ?? [], tags.get(row.id) ?? []),
-			seats: seats
-				.filter((seat) => seat.handId === row.id)
-				.map(({ handId: _handId, userId: _userId, ...seat }) => seat),
+			seats: seats.get(row.id) ?? [],
 		})),
 		nextCursor: boundary
 			? encodeCursor({
@@ -849,26 +909,9 @@ export async function getHand(
 	if (!row) {
 		throw forbidden("You do not own this hand");
 	}
-	const seats = await db
-		.select()
-		.from(handSeat)
-		.where(and(eq(handSeat.handId, handId), eq(handSeat.userId, userId)))
-		.orderBy(asc(handSeat.seat));
-	const actions = await db
-		.select()
-		.from(handAction)
-		.where(and(eq(handAction.handId, handId), eq(handAction.userId, userId)))
-		.orderBy(asc(handAction.seq));
-	const boards = await loadBoards(db, userId, [handId]);
-	return {
-		...toHandOutput(
-			row,
-			boards.get(handId) ?? [],
-			(await loadTags(db, userId, [handId])).get(handId) ?? []
-		),
-		seats: seats.map(({ handId: _handId, userId: _userId, ...seat }) => seat),
-		actions: actions.map(
-			({ handId: _handId, userId: _userId, ...action }) => action
-		),
-	};
+	const [detail] = await hydrateHandDetails(db, userId, [row]);
+	if (!detail) {
+		throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+	}
+	return detail;
 }

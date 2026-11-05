@@ -1,19 +1,24 @@
 import type { Database } from "@sapphire2/db";
 import type { EntryKind } from "@sapphire2/db/constants/entry";
-import { entry, entryCash, entryTournament } from "@sapphire2/db/schema/entry";
+import {
+	entry,
+	entryCash,
+	entryTournament,
+	playSession,
+} from "@sapphire2/db/schema/entry";
 import { entryTagLink } from "@sapphire2/db/schema/entry-tag";
+import { hand } from "@sapphire2/db/schema/hand";
 import { ledgerLine } from "@sapphire2/db/schema/ledger";
 import { room } from "@sapphire2/db/schema/room";
 import { tournamentRule } from "@sapphire2/db/schema/rule";
 import { tournamentTagLink } from "@sapphire2/db/schema/tournament-tag";
 import type { StatsFilter } from "@sapphire2/db/schemas/stats-filter";
 import { TRPCError } from "@trpc/server";
-import { and, eq, inArray, type SQL, sql } from "drizzle-orm";
+import { and, count, eq, inArray, type SQL, sql } from "drizzle-orm";
 import { selectInChunks } from "../lib/batch";
 import { hydrateCashRules } from "./cash-rules";
 import {
 	cashBigBlind,
-	countEntryHands,
 	type EntryLine,
 	groupBy,
 	selectEntryLines,
@@ -31,6 +36,7 @@ const OWNER_SCOPED_CHUNK_EXTRA = 1;
 export interface StatsPlay {
 	breakMinutes: number;
 	endedAt: Date | null;
+	handCount: number;
 	startedAt: Date | null;
 }
 
@@ -254,6 +260,33 @@ async function tournamentRuleLineups(
 	};
 }
 
+async function countPlaySessionHands(
+	db: Database,
+	userId: string,
+	entryIds: string[]
+): Promise<Map<string, number>> {
+	const rows = await selectInChunks(
+		entryIds,
+		(chunk) =>
+			db
+				.select({ playSessionId: hand.playSessionId, hands: count(hand.id) })
+				.from(hand)
+				.innerJoin(
+					playSession,
+					and(
+						eq(playSession.id, hand.playSessionId),
+						eq(playSession.userId, hand.userId)
+					)
+				)
+				.where(
+					and(eq(hand.userId, userId), inArray(playSession.entryId, chunk))
+				)
+				.groupBy(hand.playSessionId),
+		OWNER_SCOPED_CHUNK_EXTRA
+	);
+	return new Map(rows.map((row) => [row.playSessionId, row.hands] as const));
+}
+
 export async function loadStatsPopulation(
 	db: Database,
 	userId: string,
@@ -268,7 +301,7 @@ export async function loadStatsPopulation(
 		await selectEntryPlaySessions(db, userId, ids),
 		(play) => play.entryId
 	);
-	const hands = await countEntryHands(db, userId, ids);
+	const hands = await countPlaySessionHands(db, userId, ids);
 	const linesByEntry = groupBy(
 		await selectEntryLines(db, userId, ids),
 		(line) => line.entryId
@@ -284,6 +317,12 @@ export async function loadStatsPopulation(
 		rows.flatMap((row) => (row.tournamentRuleId ? [row.tournamentRuleId] : []))
 	);
 	return rows.map((row) => {
+		const plays = (playsByEntry.get(row.id) ?? []).map((play) => ({
+			startedAt: play.startedAt,
+			endedAt: play.endedAt,
+			breakMinutes: play.breakMinutes,
+			handCount: hands.get(play.id) ?? 0,
+		}));
 		const shared = {
 			id: row.id,
 			kind: row.kind,
@@ -291,13 +330,9 @@ export async function loadStatsPopulation(
 			roomId: row.roomId,
 			roomName: row.roomName,
 			assetId: row.assetId,
-			handCount: hands.get(row.id) ?? 0,
+			handCount: plays.reduce((total, play) => total + play.handCount, 0),
 			lines: linesByEntry.get(row.id) ?? [],
-			plays: (playsByEntry.get(row.id) ?? []).map((play) => ({
-				startedAt: play.startedAt,
-				endedAt: play.endedAt,
-				breakMinutes: play.breakMinutes,
-			})),
+			plays,
 		};
 		if (row.kind === "cash") {
 			const cashRule = row.cashRuleId

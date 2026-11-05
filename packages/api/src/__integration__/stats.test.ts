@@ -1,10 +1,16 @@
+import type { HandDetail } from "@sapphire2/db/constants/hand";
+import { hand } from "@sapphire2/db/schema/hand";
 import { describe, expect } from "vitest";
+import type z from "zod";
+import type { entryCreateCashInputSchema } from "../routers/entry";
 import {
 	type ApiFixture,
 	nlhGame,
 	requireCreatedRow,
 	test,
 } from "./test-fixture";
+
+type CashInput = z.input<typeof entryCreateCashInputSchema>;
 
 type TournamentRole = "buy_in" | "reentry" | "fee" | "prize" | "bounty";
 type CashRole = "buy_in" | "addon" | "chip_remove" | "cash_out";
@@ -110,6 +116,26 @@ async function cashFixture(api: ApiFixture) {
 		],
 	});
 	return { jpy, room, tag, twoDays, untimed };
+}
+
+async function insertHands(
+	api: ApiFixture,
+	playSessionId: string | undefined,
+	details: HandDetail[]
+) {
+	if (!playSessionId) {
+		throw new Error("missing play session");
+	}
+	await api.db.insert(hand).values(
+		details.map((detail, index) => ({
+			id: `${playSessionId}-hand-${index + 1}`,
+			userId: "alice",
+			playSessionId,
+			handNo: index + 1,
+			detail,
+			updatedAt: new Date(),
+		}))
+	);
 }
 
 describe("stats on D1", () => {
@@ -334,5 +360,158 @@ describe("stats on D1", () => {
 		expect(
 			await rejection(api.bob.stats.summary({ assetId: jpy.id }))
 		).toMatchObject({ code: "FORBIDDEN" });
+	});
+
+	test("pools bb/100 over cash hands and paces hands/hour on the days that have both hands and time", async ({
+		api,
+	}) => {
+		const jpy = requireCreatedRow(
+			await api.alice.asset.create({ name: "JPY", kind: "currency" })
+		);
+		const nlh = await nlhGame(api.db);
+		const cash = (
+			rule: CashInput["rule"],
+			playSessions: NonNullable<CashInput["playSessions"]>
+		) =>
+			api.alice.entry.create({
+				kind: "cash",
+				playedOn: playSessions[0]?.localDate ?? "",
+				assetId: jpy.id,
+				rule,
+				playSessions,
+			});
+		const multiDay = await cash(nlh, [
+			{
+				localDate: "2026-09-01",
+				startedAt: at("2026-09-01T10:00:00Z"),
+				endedAt: at("2026-09-01T14:00:00Z"),
+				breakMinutes: 30,
+				endState: "held",
+				endStack: 1200,
+				payments: [pay("buy_in", jpy.id, 1000)],
+			},
+			{
+				localDate: "2026-09-02",
+				endState: "held",
+				endStack: 1300,
+				payments: [],
+			},
+			{
+				localDate: "2026-09-03",
+				startedAt: at("2026-09-03T10:00:00Z"),
+				endedAt: at("2026-09-03T11:00:00Z"),
+				endState: "cashed_out",
+				payments: [pay("cash_out", jpy.id, 1400)],
+			},
+		]);
+		const bigBlindFive = await cash(
+			{
+				...nlh,
+				stakes: nlh.stakes.map((stake) => ({ ...stake, blind1: 2, blind2: 5 })),
+			},
+			[
+				{
+					localDate: "2026-09-04",
+					startedAt: at("2026-09-04T10:00:00Z"),
+					endedAt: at("2026-09-04T12:00:00Z"),
+					endState: "cashed_out",
+					payments: [pay("buy_in", jpy.id, 500), pay("cash_out", jpy.id, 400)],
+				},
+			]
+		);
+		const multiGroup = await cash(
+			{
+				game: { gameMixId: "alice:builtin-mix:horse" },
+				stakes: [
+					{ gameGroupId: "alice:builtin-group:limit", blind1: 2, blind2: 4 },
+					{ gameGroupId: "alice:builtin-group:stud", blind1: 2, blind2: 4 },
+				],
+			},
+			[
+				{
+					localDate: "2026-09-05",
+					startedAt: at("2026-09-05T10:00:00Z"),
+					endedAt: at("2026-09-05T11:00:00Z"),
+					endState: "cashed_out",
+					payments: [pay("buy_in", jpy.id, 100), pay("cash_out", jpy.id, 900)],
+				},
+			]
+		);
+		await cash(nlh, [
+			{
+				localDate: "2026-09-06",
+				startedAt: at("2026-09-06T10:00:00Z"),
+				endedAt: at("2026-09-06T11:00:00Z"),
+				endState: "cashed_out",
+				payments: [pay("buy_in", jpy.id, 100), pay("cash_out", jpy.id, 1100)],
+			},
+		]);
+		const tournament = await api.alice.entry.create({
+			kind: "tournament",
+			playedOn: "2026-09-07",
+			assetId: jpy.id,
+			playSessions: [
+				{
+					localDate: "2026-09-07",
+					startedAt: at("2026-09-07T10:00:00Z"),
+					endedAt: at("2026-09-07T11:00:00Z"),
+					endState: "busted",
+					payments: [pay("buy_in", jpy.id, 300)],
+				},
+			],
+		});
+		const [day1, untimedDay] = multiDay.playSessions;
+		await insertHands(api, day1?.id, [
+			"count",
+			"count",
+			"count",
+			"summary",
+			"full",
+		]);
+		await insertHands(api, untimedDay?.id, ["count", "full"]);
+		await insertHands(api, bigBlindFive.playSessions[0]?.id, [
+			"count",
+			"count",
+			"count",
+		]);
+		await insertHands(
+			api,
+			multiGroup.playSessions[0]?.id,
+			Array.from({ length: 10 }, () => "count" as const)
+		);
+		await insertHands(api, tournament.playSessions[0]?.id, [
+			"count",
+			"count",
+			"count",
+			"count",
+		]);
+
+		const summary = await api.alice.stats.summary({ assetId: jpy.id });
+		expect(summary).toMatchObject({ entryCount: 5, handCount: 24 });
+		expect(summary.bb100).toBeCloseTo((100 * (400 / 2 + -100 / 5)) / (7 + 3));
+		expect(summary.handsPerHour).toBeCloseTo(
+			(5 + 3 + 10 + 4) / ((210 + 120 + 60 + 60) / 60)
+		);
+
+		const normalized = await api.alice.stats.summary({ normalized: true });
+		expect(normalized.bb100).toBeCloseTo(1800);
+		const byKind = await api.alice.stats.breakdown({
+			assetId: jpy.id,
+			groupBy: "kind",
+		});
+		expect(
+			byKind.groups.map(({ key, bb100, handsPerHour }) => ({
+				key,
+				bb100,
+				handsPerHour,
+			}))
+		).toEqual([
+			{
+				key: "cash",
+				bb100: expect.closeTo(1800),
+				handsPerHour: expect.closeTo(18 / (390 / 60)),
+			},
+			{ key: "tournament", bb100: null, handsPerHour: 4 },
+		]);
 	});
 });
