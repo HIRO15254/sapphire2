@@ -568,6 +568,20 @@
       "when": 1793930758977,
       "tag": "0080_player_preset_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "6",
+      "when": 1793935466299,
+      "tag": "0081_room_player_checks",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "6",
+      "when": 1793935529228,
+      "tag": "0082_session_hand_event_checks",
+      "breakpoints": true
     }
   ]
 }

@@ -36,6 +36,7 @@ export const player = sqliteTable(
 		uniqueIndex("player_self_uq")
 			.on(table.userId)
 			.where(sql`${table.isSelf} = 1`),
+		check("player_is_temporary_check", sql`${table.isTemporary} IN (0, 1)`),
 		check("player_is_self_check", sql`${table.isSelf} IN (0, 1)`),
 	]
 );
