@@ -1,4 +1,4 @@
-const ACCEPTED_BRANCH_NAME = /^[A-Za-z0-9_@][A-Za-z0-9/_.#+,@()-]*$/;
+const ACCEPTED_BRANCH_NAME = /^[A-Za-z0-9_@][A-Za-z0-9/_.#+,@()-]*$/u;
 
 export function isAcceptedBranchName(name: string): boolean {
 	return ACCEPTED_BRANCH_NAME.test(name);

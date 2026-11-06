@@ -21,8 +21,8 @@ const MIX_TABLE = getTableName(gameMix);
 function gameVariantCaller(userId: string, select: Record<string, Rows>) {
 	const mock = createChainableMockDb({ select });
 	const caller = appRouter.createCaller({
-		session: { user: { id: userId } },
 		db: mock.db,
+		session: { user: { id: userId } },
 	} as unknown as Parameters<typeof appRouter.createCaller>[0]).gameVariant;
 	return { caller, ...mock };
 }
@@ -44,12 +44,12 @@ async function expectTrpcCode(
 const CUR_OWNER = "user-1";
 const CUR_OTHER = "user-2";
 const OWNED_GROUP = {
-	id: "grp-1",
-	userId: CUR_OWNER,
-	label: "Big Bet",
 	archivedAt: null,
+	id: "grp-1",
+	label: "Big Bet",
+	userId: CUR_OWNER,
 };
-const OTHER_GROUP = { id: "grp-2", userId: CUR_OTHER, label: "Their Group" };
+const OTHER_GROUP = { id: "grp-2", label: "Their Group", userId: CUR_OTHER };
 
 function seededRows(extra: { variant?: Rows; group?: Rows } = {}) {
 	return {
@@ -61,8 +61,8 @@ function seededRows(extra: { variant?: Rows; group?: Rows } = {}) {
 describe("gameVariant.create input validation", () => {
 	it("accepts a minimal valid payload", () => {
 		expectAccepts(appRouter.gameVariant.create, {
-			label: "My Mix",
 			groupId: "grp-1",
+			label: "My Mix",
 		});
 	});
 
@@ -72,29 +72,29 @@ describe("gameVariant.create input validation", () => {
 
 	it("rejects an empty label", () => {
 		expectRejects(appRouter.gameVariant.create, {
-			label: "",
 			groupId: "grp-1",
+			label: "",
 		});
 	});
 
 	it("rejects a whitespace-only label (trimmed to empty)", () => {
 		expectRejects(appRouter.gameVariant.create, {
-			label: "   ",
 			groupId: "grp-1",
+			label: "   ",
 		});
 	});
 
 	it("accepts a label at the 30-character boundary", () => {
 		expectAccepts(appRouter.gameVariant.create, {
-			label: "a".repeat(30),
 			groupId: "grp-1",
+			label: "a".repeat(30),
 		});
 	});
 
 	it("rejects a label longer than 30 characters", () => {
 		expectRejects(appRouter.gameVariant.create, {
-			label: "a".repeat(31),
 			groupId: "grp-1",
+			label: "a".repeat(31),
 		});
 	});
 
@@ -104,39 +104,39 @@ describe("gameVariant.create input validation", () => {
 
 	it("accepts shortLabel omitted (nullish)", () => {
 		expectAccepts(appRouter.gameVariant.create, {
-			label: "My Mix",
 			groupId: "grp-1",
+			label: "My Mix",
 		});
 	});
 
 	it("accepts shortLabel explicitly null", () => {
 		expectAccepts(appRouter.gameVariant.create, {
-			label: "My Mix",
 			groupId: "grp-1",
+			label: "My Mix",
 			shortLabel: null,
 		});
 	});
 
 	it("accepts shortLabel at the 15-character boundary", () => {
 		expectAccepts(appRouter.gameVariant.create, {
-			label: "My Mix",
 			groupId: "grp-1",
+			label: "My Mix",
 			shortLabel: "a".repeat(15),
 		});
 	});
 
 	it("rejects a shortLabel longer than 15 characters", () => {
 		expectRejects(appRouter.gameVariant.create, {
-			label: "My Mix",
 			groupId: "grp-1",
+			label: "My Mix",
 			shortLabel: "a".repeat(16),
 		});
 	});
 
 	it("rejects an empty shortLabel", () => {
 		expectRejects(appRouter.gameVariant.create, {
-			label: "My Mix",
 			groupId: "grp-1",
+			label: "My Mix",
 			shortLabel: "",
 		});
 	});
@@ -185,8 +185,8 @@ describe("gameVariant.update input validation", () => {
 
 	it("accepts a groupId change", () => {
 		expectAccepts(appRouter.gameVariant.update, {
-			id: "gv-1",
 			groupId: "grp-2",
+			id: "gv-1",
 		});
 	});
 
@@ -226,7 +226,7 @@ describe("gameVariant.create groupId ownership (SA2-183)", () => {
 			[VARIANT_TABLE]: [],
 		});
 		await expectTrpcCode(
-			caller.create({ label: "Brand New", groupId: OTHER_GROUP.id }),
+			caller.create({ groupId: OTHER_GROUP.id, label: "Brand New" }),
 			"FORBIDDEN"
 		);
 	});
@@ -237,7 +237,7 @@ describe("gameVariant.create groupId ownership (SA2-183)", () => {
 			[VARIANT_TABLE]: [],
 		});
 		await expectTrpcCode(
-			caller.create({ label: "Brand New", groupId: "missing" }),
+			caller.create({ groupId: "missing", label: "Brand New" }),
 			"FORBIDDEN"
 		);
 	});
@@ -245,10 +245,10 @@ describe("gameVariant.create groupId ownership (SA2-183)", () => {
 	it("accepts a groupId owned by the caller", async () => {
 		const { caller } = gameVariantCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
-			[VARIANT_TABLE]: [{ id: "placeholder", userId: CUR_OWNER, label: "X" }],
+			[VARIANT_TABLE]: [{ id: "placeholder", label: "X", userId: CUR_OWNER }],
 		});
 		await expect(
-			caller.create({ label: "Brand New", groupId: OWNED_GROUP.id })
+			caller.create({ groupId: OWNED_GROUP.id, label: "Brand New" })
 		).resolves.toBeDefined();
 	});
 });
@@ -258,11 +258,11 @@ describe("gameVariant.update groupId ownership (SA2-183)", () => {
 		const { caller } = gameVariantCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OTHER_GROUP],
 			[VARIANT_TABLE]: [
-				{ id: "gv-1", userId: CUR_OWNER, label: "Mine", groupId: "grp-1" },
+				{ groupId: "grp-1", id: "gv-1", label: "Mine", userId: CUR_OWNER },
 			],
 		});
 		await expectTrpcCode(
-			caller.update({ id: "gv-1", groupId: OTHER_GROUP.id }),
+			caller.update({ groupId: OTHER_GROUP.id, id: "gv-1" }),
 			"FORBIDDEN"
 		);
 	});
@@ -274,14 +274,14 @@ describe("gameVariant.create", () => {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: [],
 		});
-		await caller.create({ label: "Brand New", groupId: OWNED_GROUP.id });
+		await caller.create({ groupId: OWNED_GROUP.id, label: "Brand New" });
 		expect(inserted[VARIANT_TABLE]).toHaveLength(1);
 		expect(inserted[VARIANT_TABLE]?.[0]).toMatchObject({
-			userId: CUR_OWNER,
-			label: "Brand New",
-			groupId: OWNED_GROUP.id,
 			builtinKey: null,
+			groupId: OWNED_GROUP.id,
+			label: "Brand New",
 			sortOrder: 0,
+			userId: CUR_OWNER,
 		});
 		expect(
 			typeof (inserted[VARIANT_TABLE]?.[0] as Record<string, unknown>)?.id
@@ -292,11 +292,11 @@ describe("gameVariant.create", () => {
 		const { caller, inserted } = gameVariantCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: [
-				{ id: "gv-1", userId: CUR_OWNER, label: "A", sortOrder: 3 },
-				{ id: "gv-2", userId: CUR_OWNER, label: "B", sortOrder: 7 },
+				{ id: "gv-1", label: "A", sortOrder: 3, userId: CUR_OWNER },
+				{ id: "gv-2", label: "B", sortOrder: 7, userId: CUR_OWNER },
 			],
 		});
-		await caller.create({ label: "Brand New", groupId: OWNED_GROUP.id });
+		await caller.create({ groupId: OWNED_GROUP.id, label: "Brand New" });
 		expect(
 			(inserted[VARIANT_TABLE]?.[0] as Record<string, unknown>)?.sortOrder
 		).toBe(8);
@@ -307,7 +307,7 @@ describe("gameVariant.create", () => {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: [],
 		});
-		await caller.create({ label: "First", groupId: OWNED_GROUP.id });
+		await caller.create({ groupId: OWNED_GROUP.id, label: "First" });
 		expect(
 			(inserted[VARIANT_TABLE]?.[0] as Record<string, unknown>)?.sortOrder
 		).toBe(0);
@@ -319,18 +319,18 @@ describe("gameVariant.list scoping", () => {
 		const rows = seededRows({
 			variant: [
 				{
+					archivedAt: null,
 					id: "gv-1",
-					userId: CUR_OWNER,
 					label: "Zed Mix",
 					sortOrder: 1,
-					archivedAt: null,
+					userId: CUR_OWNER,
 				},
 				{
+					archivedAt: null,
 					id: "gv-2",
-					userId: CUR_OWNER,
 					label: "Alpha Mix",
 					sortOrder: 0,
-					archivedAt: null,
+					userId: CUR_OWNER,
 				},
 			],
 		});
@@ -366,6 +366,6 @@ describe("gameVariant.list scoping", () => {
 describe("gameVariant type guard sanity", () => {
 	it("getInputSchema works for create", () => {
 		const schema = getInputSchema(appRouter.gameVariant.create);
-		expect(schema.safeParse({ label: "x", groupId: "g1" }).success).toBe(true);
+		expect(schema.safeParse({ groupId: "g1", label: "x" }).success).toBe(true);
 	});
 });

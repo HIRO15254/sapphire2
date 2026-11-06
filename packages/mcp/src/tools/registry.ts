@@ -97,464 +97,464 @@ const ENTRY_WRITE_RULES =
 const ENTRY_WRITE = `Required: playedOn (YYYY-MM-DD). Without playSessions one day on playedOn is recorded with the top-level payments, ending cashed_out (cash) or finished when placement is 1, busted otherwise (tournament). roomId comes from room_list and must be active. ${ENTRY_WRITE_RULES}`;
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
 	{
-		name: "stats_summary",
-		procedurePath: "stats.summary",
 		description: `Aggregate statistics over the user's poker entries: counts, win/ITM rates, play time, hand count, roi, bbPerHour, bb100, handsPerHour, EV figures, and amounts (buyIn, cashOut, profitLoss) or normalized bb/bi totals. ${STATS_SCOPE} ${STATS_FIGURES}`,
 		inputSchema: statsInputSchema,
+		name: "stats_summary",
+		procedurePath: "stats.summary",
 	},
 	{
-		name: "stats_breakdown",
-		procedurePath: "stats.breakdown",
 		description: `The same statistics as stats_summary per group. groupBy: "room" (key is the room id or "none"), "stakes" (key is the game group id plus the stake values; a multi-group lineup is one "multi-group" bucket and every tournament is one "tournament" bucket), "kind", "dayOfWeek" (0 = Sunday, from playedOn), "length" (<1h, 1-2h, 2-4h, 4-8h, 8h+, or "unknown" when no day has both times), "month" (YYYY-MM), "year", "variant" (mix:<gameMixId>, variant:<gameVariantId>, or "custom"; labels are current names). Every entry lands in exactly one group, so the groups partition the population. coverage is the overall coverage. ${STATS_SCOPE}`,
 		inputSchema: statsBreakdownInputSchema,
+		name: "stats_breakdown",
+		procedurePath: "stats.breakdown",
 	},
 	{
-		name: "stats_profit_loss_series",
-		procedurePath: "stats.profitLossSeries",
 		description: `Per-entry points ordered by playedOn then id, for trend questions. points[] are per-entry DELTAS, not a running total — sum them for a period figure, or read stats_summary instead. Each point has profitLoss in the mode's unit (unit: "asset" for assetId/valuation, "bb" for a cash point and "bi" for a tournament point in normalized mode — never add bb and bi), null when the entry was excluded (missing rate or no normalization denominator). bigBlind and buyInTotal are the normalization denominators (buyInTotal is the first buy-in plus its fee, not every re-entry). evRecorded tells whether the cash entry recorded an EV difference; evProfitLoss is null when no EV was recorded or it cannot be valued in the selected mode. playMinutes is null when no day has both times. coverage reports the same exclusions as stats_summary. ${STATS_SCOPE}`,
 		inputSchema: statsInputSchema,
+		name: "stats_profit_loss_series",
+		procedurePath: "stats.profitLossSeries",
 	},
 	{
-		name: "room_list",
-		procedurePath: "room.list",
 		description:
 			"List the user's poker rooms (venues/apps they play at), including favorites and archivedAt. Archived rooms are left out unless includeArchived is true, which returns active and archived ones together. Use active ids as roomId for new data; archived rooms retain existing references.",
 		inputSchema: roomListInputSchema,
+		name: "room_list",
+		procedurePath: "room.list",
 	},
 	{
-		name: "asset_list",
-		procedurePath: "asset.list",
 		description:
 			"List the user's assets: currencies and items (for example tournament tickets), with kind, decimals, unit and balance. balance is the signed sum of every real ledger line of the asset, as an integer in its smallest unit (decimals is the number of digits after the point); for an item it is the number held. It already includes the buy-ins of entries still in play, and virtual lines never count. Archived assets are left out unless includeArchived is true, which returns active and archived ones together. Use the returned ids wherever a tool asks for an assetId.",
 		inputSchema: assetListInputSchema,
+		name: "asset_list",
+		procedurePath: "asset.list",
 	},
 	{
-		name: "asset_rate_list",
-		procedurePath: "assetRate.list",
 		description:
 			"List the exchange rates between the user's assets. A rate states that one smallest unit of baseAssetId is worth rateNum / rateDen smallest units of quoteAssetId, from effectiveFrom on (the Unix epoch means from the beginning). Without effectiveAt it returns the whole history, ordered by pair and then newest effectiveFrom first. With effectiveAt (Unix seconds) it returns, for each base/quote direction, only the rate in force at that instant: the latest effectiveFrom at or before it. Only stored directions are returned; no reciprocal or chained rate is derived. baseAssetId and quoteAssetId filter by ids from asset_list. Existing rates remain available for archived assets, but creating a rate requires both assets to be active.",
 		inputSchema: assetRateListInputSchema,
+		name: "asset_rate_list",
+		procedurePath: "assetRate.list",
 	},
 	{
-		name: "user_setting_get",
-		procedurePath: "userSetting.get",
 		description:
 			"Get the user's settings: baseAssetId, the currency asset converted figures are reported in (null means conversion is not configured), and timeZone, the IANA zone used to date new live play when no localDate is supplied (null means Asia/Tokyo). Changing the time zone does not change previously recorded dates. Converted figures always use the current base, and each line uses the rate in force at its own time, so changing the base or a past rate changes past converted figures.",
+		name: "user_setting_get",
+		procedurePath: "userSetting.get",
 	},
 	{
-		name: "player_list",
-		procedurePath: "player.list",
 		description:
 			"List the user's tracked opponents, excluding their own Hero (self) player and temporary players. Optional: search (ASCII case-insensitive literal name substring, at most 100 characters), tagIds (at most 100 unique player_tag_list ids; a player matches when it has any of them).",
 		inputSchema: playerListInputSchema,
+		name: "player_list",
+		procedurePath: "player.list",
 	},
 	{
-		name: "hand_list",
-		procedurePath: "hand.list",
 		description:
 			"List the hands of one play session (one day of an entry), highest handNo first, limit 1-50 per page (default 20). Returns { items, nextCursor }: pass nextCursor back as cursor for the next page; null means there is no further page. A cursor only works with the playSessionId it came from. The play session's hand count is the number of its hands at every detail level and its current button is buttonSeat of the hand with the highest handNo. Each item carries detail, playedAt (null for hands migrated from the old hand counter), button seat, stakes snapshot, boards and seats; use hand_get_by_id for the actions. detail is count (no boards, seats, pot, rake or memo), summary (a note taken at the table: Hero's single seat, boards, pot, rake and memo, never actions) or full (every seat and the actions). Summary values are notes, not statistics input. isHero marks the seat whose playerId is the user's own player. Deleting a hand renumbers later hands without disrupting pagination.",
 		inputSchema: handListInputSchema,
+		name: "hand_list",
+		procedurePath: "hand.list",
 	},
 	{
-		name: "hand_get_by_id",
-		procedurePath: "hand.getById",
 		description:
 			"Get one hand by id with its boards, seats, actions (ordered by seq; empty unless detail is full) and tags (with reviewedAt). A summary hand has exactly one seat, Hero's; isHero marks the seat whose playerId is the user's own player. Use hand_list to find hand ids.",
 		inputSchema: handIdInputSchema,
+		name: "hand_get_by_id",
+		procedurePath: "hand.getById",
 	},
 	{
-		name: "entry_list",
-		procedurePath: "entry.list",
 		description: `List the user's entries (one cash game or tournament each, possibly spanning several days), newest playedOn first, limit 1-100 per page (default 20). Returns { items, nextCursor }: pass nextCursor back as cursor with the same filters for the next page; null means no further page. Optional filters: kind (cash | tournament), status (open = live and still in play, settled), roomId, assetId (entries with any money line in that asset), dateFrom/dateTo (inclusive, compared with playedOn). ${ENTRY_OUTPUT}`,
 		inputSchema: entryListInputSchema,
+		name: "entry_list",
+		procedurePath: "entry.list",
 	},
 	{
-		name: "entry_get_by_id",
-		procedurePath: "entry.getById",
 		description: `Get one entry by id. ${ENTRY_OUTPUT}`,
 		inputSchema: entryIdInputSchema,
+		name: "entry_get_by_id",
+		procedurePath: "entry.getById",
 	},
 	{
+		description: `Record a finished cash-game entry (kind must be "cash"). ${ENTRY_WRITE} Link a ring game with ringGameId (ring_game_list_by_room; archived ones are rejected — restore first) to use its current rule. Supplying rule with a linked master overrides its current rule for this entry without changing the master; without a master, rule records the table's own rule. rule.game picks { variantId }, { gameMixId } or an owned { lineupId } (when omitted, uses built-in NLH without a linked master or keeps the linked master's current game); rule.stakes gives each lineup group's blinds. Set assetId for cash bb and EV statistics; it is not inferred from payments or the master. ${STAKE_BLINDS} evDiff is the signed all-in EV difference in the entry's asset smallest unit.`,
+		destructiveHint: false,
+		idempotentHint: false,
+		inputSchema: entryCreateCashInputSchema,
 		name: "entry_create_cash",
 		procedurePath: "entry.create",
-		description: `Record a finished cash-game entry (kind must be "cash"). ${ENTRY_WRITE} Link a ring game with ringGameId (ring_game_list_by_room; archived ones are rejected — restore first) to use its current rule. Supplying rule with a linked master overrides its current rule for this entry without changing the master; without a master, rule records the table's own rule. rule.game picks { variantId }, { gameMixId } or an owned { lineupId } (when omitted, uses built-in NLH without a linked master or keeps the linked master's current game); rule.stakes gives each lineup group's blinds. Set assetId for cash bb and EV statistics; it is not inferred from payments or the master. ${STAKE_BLINDS} evDiff is the signed all-in EV difference in the entry's asset smallest unit.`,
-		inputSchema: entryCreateCashInputSchema,
-		destructiveHint: false,
-		idempotentHint: false,
 	},
 	{
+		description: `Record a finished tournament entry (kind must be "tournament"). ${ENTRY_WRITE} Link a tournament with tournamentId (tournament_list_by_room; archived ones are rejected — restore first) to use its current rule. Supplying rule with a linked master overrides its current rule for this entry without changing the master; without a master, rule records this entry's own structure (${TOURNAMENT_RULE_CONTRACT}). A payment may carry priceId for a price of the selected rule; to use a price from tournament_get_by_id, the entry must keep that linked tournament's current rule rather than create a changed version. Its asset must match; an entry price pays buy_in or fee, a reentry price reentry or fee, an addon price chip_purchase or fee. placement and totalEntries are positive integers and placement must be <= totalEntries unless beforeDeadline is true; with beforeDeadline true no placement is stored.`,
+		destructiveHint: false,
+		idempotentHint: false,
+		inputSchema: entryCreateTournamentInputSchema,
 		name: "entry_create_tournament",
 		procedurePath: "entry.create",
-		description: `Record a finished tournament entry (kind must be "tournament"). ${ENTRY_WRITE} Link a tournament with tournamentId (tournament_list_by_room; archived ones are rejected — restore first) to use its current rule. Supplying rule with a linked master overrides its current rule for this entry without changing the master; without a master, rule records this entry's own structure (${TOURNAMENT_RULE_CONTRACT}). A payment may carry priceId for a price of the selected rule; to use a price from tournament_get_by_id, the entry must keep that linked tournament's current rule rather than create a changed version. Its asset must match; an entry price pays buy_in or fee, a reentry price reentry or fee, an addon price chip_purchase or fee. placement and totalEntries are positive integers and placement must be <= totalEntries unless beforeDeadline is true; with beforeDeadline true no placement is stored.`,
-		inputSchema: entryCreateTournamentInputSchema,
-		destructiveHint: false,
-		idempotentHint: false,
 	},
 	{
-		name: "entry_update",
-		procedurePath: "entry.update",
 		description: `Update an entry by id. Only supplied fields change; pass null to clear roomId, assetId, title, memo, evDiff, placement or totalEntries. kind, source, the linked master and the rule cannot be changed here. tagIds, playSessions and payments REPLACE the whole list when supplied — read entry_get_by_id first and send back everything you keep. To keep an existing day (and its hands), send its playSessions[].id; a day left out is deleted with its hands and a day without id is created. Top-level payments are only for a single-day entry. Sending playSessions whose first localDate differs from the stored playedOn needs playedOn too. Live entries (source "live") accept only roomId, assetId, title, memo and tagIds: their days, money and results come from their events. Cash entries reject tournament fields and tournament entries reject evDiff. ${ENTRY_WRITE_RULES}`,
-		inputSchema: entryUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: false,
+		inputSchema: entryUpdateInputSchema,
+		name: "entry_update",
+		procedurePath: "entry.update",
 	},
 	{
-		name: "entry_tag_list",
-		procedurePath: "entryTag.list",
 		description:
 			"List the user's entry tags ordered by position. Use the returned ids as tagIds of entry tools.",
+		name: "entry_tag_list",
+		procedurePath: "entryTag.list",
 	},
 	{
-		name: "entry_tag_create",
-		procedurePath: "entryTag.create",
 		description:
 			"Create an entry tag by name (trimmed, 1-50 characters). Names are unique per user ignoring case; a duplicate is rejected, so check entry_tag_list first. A user has at most 500 entry tags.",
-		inputSchema: tagCreateInputSchema,
 		destructiveHint: false,
 		idempotentHint: false,
+		inputSchema: tagCreateInputSchema,
+		name: "entry_tag_create",
+		procedurePath: "entryTag.create",
 	},
 	{
-		name: "tournament_tag_list",
-		procedurePath: "tournamentTag.list",
 		description:
 			"List the user's tournament tags ordered by position. Use the returned ids as tagIds of tournament_create_with_levels and tournament_update_with_levels.",
+		name: "tournament_tag_list",
+		procedurePath: "tournamentTag.list",
 	},
 	{
-		name: "tournament_tag_create",
-		procedurePath: "tournamentTag.create",
 		description:
 			"Create a tournament tag by name (trimmed, 1-50 characters). Names are unique per user ignoring case; a duplicate is rejected, so check tournament_tag_list first. A user has at most 500 tournament tags.",
-		inputSchema: tagCreateInputSchema,
 		destructiveHint: false,
 		idempotentHint: false,
+		inputSchema: tagCreateInputSchema,
+		name: "tournament_tag_create",
+		procedurePath: "tournamentTag.create",
 	},
 	{
-		name: "hand_tag_list",
-		procedurePath: "handTag.list",
 		description:
 			"List the user's hand tags ordered by position. hand_get_by_id and hand_list return the tags attached to each hand; attaching tags to hands is only available on the hand screen.",
+		name: "hand_tag_list",
+		procedurePath: "handTag.list",
 	},
 	{
-		name: "hand_tag_create",
-		procedurePath: "handTag.create",
 		description:
 			"Create a hand tag by name (trimmed, 1-50 characters). Names are unique per user ignoring case; a duplicate is rejected, so check hand_tag_list first. A user has at most 500 hand tags. Attaching tags to hands is only available on the hand screen.",
-		inputSchema: tagCreateInputSchema,
 		destructiveHint: false,
 		idempotentHint: false,
+		inputSchema: tagCreateInputSchema,
+		name: "hand_tag_create",
+		procedurePath: "handTag.create",
 	},
 	{
-		name: "player_tag_list",
-		procedurePath: "playerTag.list",
 		description:
 			"List the user's player tags ordered by position, with their color. Use the returned ids as tagIds of player_list; attaching tags to players is only available on the player screen.",
+		name: "player_tag_list",
+		procedurePath: "playerTag.list",
 	},
 	{
-		name: "player_tag_create",
-		procedurePath: "playerTag.create",
 		description:
 			"Create a player tag by name (trimmed, 1-50 characters) and optional color (default gray). Names are unique per user ignoring case; a duplicate is rejected, so check player_tag_list first. A user has at most 500 player tags. Attaching tags to players is only available on the player screen.",
-		inputSchema: playerTagCreateInputSchema,
 		destructiveHint: false,
 		idempotentHint: false,
+		inputSchema: playerTagCreateInputSchema,
+		name: "player_tag_create",
+		procedurePath: "playerTag.create",
 	},
 	{
-		name: "ring_game_list_by_room",
-		procedurePath: "ringGame.listByRoom",
 		description:
 			"List the ring-game (cash-game) masters of one room. Each result includes currentRuleId, ruleVersion with lineupId and stakes, and lineups keyed by ID. Set includeArchived to also include archived ones.",
 		inputSchema: ringGameListByRoomInputSchema,
+		name: "ring_game_list_by_room",
+		procedurePath: "ringGame.listByRoom",
 	},
 	{
-		name: "tournament_list_by_room",
-		procedurePath: "tournament.listByRoom",
 		description:
 			"List the tournament masters of one room, each with its current rule version (lineupId, levels with stakes, prices) and a lineups map that names the games every lineupId points at. Set includeArchived to include archived ones alongside active ones.",
 		inputSchema: tournamentListByRoomInputSchema,
+		name: "tournament_list_by_room",
+		procedurePath: "tournament.listByRoom",
 	},
 
 	{
-		name: "room_get_by_id",
-		procedurePath: "room.getById",
 		description:
 			"Get one poker room by id, including its memo and coordinates. Use room_list to find the id.",
 		inputSchema: roomIdInputSchema,
+		name: "room_get_by_id",
+		procedurePath: "room.getById",
 	},
 	{
-		name: "room_create",
-		procedurePath: "room.create",
 		description:
 			"Create a poker room (a venue or app the user plays at). Only name is required. latitude and longitude must be supplied together or not at all.",
-		inputSchema: roomCreateInputSchema,
 		destructiveHint: false,
 		idempotentHint: false,
+		inputSchema: roomCreateInputSchema,
+		name: "room_create",
+		procedurePath: "room.create",
 	},
 	{
-		name: "room_update",
-		procedurePath: "room.update",
 		description:
 			"Update a room by id. Only the supplied fields change; pass null to clear memo or the coordinates (latitude and longitude must be set or cleared together — sending only one is rejected even when the other is already stored). Existing entries display the new name.",
-		inputSchema: roomUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
+		inputSchema: roomUpdateInputSchema,
+		name: "room_update",
+		procedurePath: "room.update",
 	},
 	{
-		name: "room_archive",
-		procedurePath: "room.archive",
 		description:
 			"Archive a poker room so it stops appearing in pickers for new data. Reversible with room_restore; existing entries and masters keep their links. List archived rooms with room_list and includeArchived.",
-		inputSchema: roomIdInputSchema,
 		destructiveHint: false,
 		idempotentHint: true,
+		inputSchema: roomIdInputSchema,
+		name: "room_archive",
+		procedurePath: "room.archive",
 	},
 	{
-		name: "room_restore",
-		procedurePath: "room.restore",
 		description:
 			"Restore an archived poker room so it appears in pickers again.",
-		inputSchema: roomIdInputSchema,
 		destructiveHint: false,
 		idempotentHint: true,
+		inputSchema: roomIdInputSchema,
+		name: "room_restore",
+		procedurePath: "room.restore",
 	},
 	{
-		name: "ring_game_create",
-		procedurePath: "ringGame.create",
 		description: `Create a ring-game master inside a room. Supply roomId, name, and rule; defaultAssetId and memo are optional. roomId must be an active room from room_list (restore an archived room first); defaultAssetId must be active. The rule holds game, stakes, minBuyIn, maxBuyIn, tableSize, and houseRules; minBuyIn must not exceed maxBuyIn. If game is omitted, the builtin NLH lineup is used; restore NLH first if it is archived. ${RING_GAME_RULE} ${AMOUNT_CONVENTIONS}`,
-		inputSchema: ringGameCreateInputSchema,
 		destructiveHint: false,
 		idempotentHint: false,
+		inputSchema: ringGameCreateInputSchema,
+		name: "ring_game_create",
+		procedurePath: "ringGame.create",
 	},
 	{
-		name: "ring_game_update",
-		procedurePath: "ringGame.update",
 		description: `Update a ring-game master by id. Supplied rule fields merge with the current rule; omitted fields stay unchanged and nullable fields can be cleared with null. A newly selected defaultAssetId must be active; an existing archived default may be retained. The resulting minBuyIn must not exceed maxBuyIn. A changed rule creates an immutable version; unchanged content reuses the current version. Read ring_game_list_by_room for the current rule and lineup. ${RING_GAME_RULE} ${AMOUNT_CONVENTIONS}`,
-		inputSchema: ringGameUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
+		inputSchema: ringGameUpdateInputSchema,
+		name: "ring_game_update",
+		procedurePath: "ringGame.update",
 	},
 	{
-		name: "ring_game_archive",
-		procedurePath: "ringGame.archive",
 		description:
 			"Archive a ring-game rule master so it stops appearing in pickers. Reversible with ring_game_restore; existing entries keep their link. List archived ones with ring_game_list_by_room and includeArchived.",
-		inputSchema: ringGameIdInputSchema,
 		destructiveHint: false,
 		idempotentHint: true,
+		inputSchema: ringGameIdInputSchema,
+		name: "ring_game_archive",
+		procedurePath: "ringGame.archive",
 	},
 	{
-		name: "ring_game_restore",
-		procedurePath: "ringGame.restore",
 		description:
 			"Un-archive a ring-game rule master so it appears in pickers again.",
-		inputSchema: ringGameIdInputSchema,
 		destructiveHint: false,
 		idempotentHint: true,
+		inputSchema: ringGameIdInputSchema,
+		name: "ring_game_restore",
+		procedurePath: "ringGame.restore",
 	},
 	{
-		name: "tournament_get_by_id",
-		procedurePath: "tournament.getById",
 		description:
 			"Get one tournament master by id with its current rule version: ruleVersion.levels (ordinal, level number or null for a break, minutes, game null = plays the rule's game, stakes per game group with blind1-3 / ante / anteType), ruleVersion.prices, and lineups (lineupId -> display name and groups). Read this before tournament_update_with_levels — that tool replaces the whole level list.",
 		inputSchema: tournamentIdInputSchema,
+		name: "tournament_get_by_id",
+		procedurePath: "tournament.getById",
 	},
 	{
-		name: "tournament_create_with_levels",
-		procedurePath: "tournament.createWithLevels",
 		description: `Create a tournament master inside a room with its first rule version and tags in one call. Required: roomId, name, rule.levels (may be empty). roomId must be an active room from room_list (restore an archived room first). rule.game defaults to NL Hold'em; restore NLH first if it is archived. defaultAssetId (asset_list) is the active asset new entries of this tournament default to. tagIds are tournament tag ids from tournament_tag_list (unique, at most 100). ${TOURNAMENT_RULE_CONTRACT}`,
-		inputSchema: tournamentCreateWithLevelsInputSchema,
 		destructiveHint: false,
 		idempotentHint: false,
+		inputSchema: tournamentCreateWithLevelsInputSchema,
+		name: "tournament_create_with_levels",
+		procedurePath: "tournament.createWithLevels",
 	},
 	{
-		name: "tournament_update_with_levels",
-		procedurePath: "tournament.updateWithLevels",
 		description: `Update a tournament master by id. rule.levels is REQUIRED and REPLACES the entire level list — read tournament_get_by_id first and send back the full list, or the existing levels are lost. A newly selected defaultAssetId must be active; an existing archived default may be retained. Omitted rule fields (game, startingStack, tableSize, bountyAmount, houseRules, prices) keep the current version's values. tagIds (tournament_tag_list ids, unique, at most 100) REPLACES the whole tag list when supplied — send back every tag you keep; [] removes all, omitted keeps them. ${TOURNAMENT_RULE_CONTRACT}`,
-		inputSchema: tournamentUpdateWithLevelsInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
+		inputSchema: tournamentUpdateWithLevelsInputSchema,
+		name: "tournament_update_with_levels",
+		procedurePath: "tournament.updateWithLevels",
 	},
 	{
-		name: "tournament_archive",
-		procedurePath: "tournament.archive",
 		description:
 			"Archive a tournament master so it stops appearing in pickers. Reversible with tournament_restore; existing entries keep their link.",
-		inputSchema: tournamentIdInputSchema,
 		destructiveHint: false,
 		idempotentHint: true,
+		inputSchema: tournamentIdInputSchema,
+		name: "tournament_archive",
+		procedurePath: "tournament.archive",
 	},
 	{
-		name: "tournament_restore",
-		procedurePath: "tournament.restore",
 		description:
 			"Un-archive a tournament master so it appears in pickers again.",
-		inputSchema: tournamentIdInputSchema,
 		destructiveHint: false,
 		idempotentHint: true,
+		inputSchema: tournamentIdInputSchema,
+		name: "tournament_restore",
+		procedurePath: "tournament.restore",
 	},
 	{
-		name: "game_group_list",
-		procedurePath: "gameGroup.list",
 		description:
 			"List the user's game groups (the families game variants belong to, e.g. Limit / Stud / Big Bet), including the labels their three blind fields use and whether each field is required (blind1Required-blind3Required). Archived groups are omitted unless includeArchived is true.",
 		inputSchema: gameGroupListInputSchema,
+		name: "game_group_list",
+		procedurePath: "gameGroup.list",
 	},
 	{
-		name: "game_group_create",
-		procedurePath: "gameGroup.create",
 		description:
 			"Create a game group. label must be unique across the user's groups, ignoring case and surrounding spaces, archived groups included — a label held by an archived group is rejected with a hint to restore that group with game_group_restore instead. The blind label fields name that family's blind columns (e.g. SB / BB). blind1Required-blind3Required (default false) mark a field that every newly written stake must fill; only a labeled field can be required.",
-		inputSchema: gameGroupCreateInputSchema,
 		destructiveHint: false,
 		idempotentHint: false,
+		inputSchema: gameGroupCreateInputSchema,
+		name: "game_group_create",
+		procedurePath: "gameGroup.create",
 	},
 	{
-		name: "game_group_update",
-		procedurePath: "gameGroup.update",
 		description:
 			"Update a game group by id. Only the supplied fields change; pass null to clear a blind label. Only a labeled field can be required, so clearing the label of a required field needs its blindNRequired false in the same call. Clearing a label is rejected while any saved ring-game or tournament stake still has a value in that field. Renaming it re-labels every variant shown under it, and for a user-created group it also moves the group's position in game_group_list.",
-		inputSchema: gameGroupUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
+		inputSchema: gameGroupUpdateInputSchema,
+		name: "game_group_update",
+		procedurePath: "gameGroup.update",
 	},
 	{
-		name: "game_group_archive",
-		procedurePath: "gameGroup.archive",
 		description:
 			"Archive a game group so it stops appearing in game_group_list and cannot be picked for new variants. Reversible with game_group_restore; existing variants and records keep their link, name and blind labels. Rejected while any active variant still belongs to the group — archive those variants first.",
-		inputSchema: gameGroupIdInputSchema,
 		destructiveHint: false,
 		idempotentHint: true,
+		inputSchema: gameGroupIdInputSchema,
+		name: "game_group_archive",
+		procedurePath: "gameGroup.archive",
 	},
 	{
-		name: "game_group_restore",
-		procedurePath: "gameGroup.restore",
 		description:
 			"Restore an archived game group so it appears in game_group_list and can be picked again.",
-		inputSchema: gameGroupIdInputSchema,
 		destructiveHint: false,
 		idempotentHint: true,
+		inputSchema: gameGroupIdInputSchema,
+		name: "game_group_restore",
+		procedurePath: "gameGroup.restore",
 	},
 	{
-		name: "game_variant_list",
-		procedurePath: "gameVariant.list",
 		description:
 			"List the user's game variants (NLH, PLO, …) with their group and short labels. Use a variant's id in rule.game.variantId. Archived variants are omitted unless includeArchived is true.",
 		inputSchema: gameVariantListInputSchema,
+		name: "game_variant_list",
+		procedurePath: "gameVariant.list",
 	},
 	{
-		name: "game_variant_create",
-		procedurePath: "gameVariant.create",
 		description:
 			"Create a game variant inside an active group. label must be unique across the user's variants, ignoring case and surrounding spaces, archived variants included — a label held by an archived variant is rejected with a hint to restore it with game_variant_restore instead. A mix may share a variant's label. shortLabel is the compact form shown in mixes and blind levels.",
-		inputSchema: gameVariantCreateInputSchema,
 		destructiveHint: false,
 		idempotentHint: false,
+		inputSchema: gameVariantCreateInputSchema,
+		name: "game_variant_create",
+		procedurePath: "gameVariant.create",
 	},
 	{
-		name: "game_variant_update",
-		procedurePath: "gameVariant.update",
 		description:
 			"Update a game variant by id. Only supplied fields change; pass null to clear shortLabel. A newly selected groupId must be active. Moving a variant is rejected if any mix containing it, including an archived mix, would span more than 12 distinct groups; the error identifies the mix. Rule lineups of ring games, tournaments and entries reference variants by ID: renaming changes their displayed labels without changing saved composition, and moving a variant to another group affects future lineups but not existing lineup structures.",
-		inputSchema: gameVariantUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
+		inputSchema: gameVariantUpdateInputSchema,
+		name: "game_variant_update",
+		procedurePath: "gameVariant.update",
 	},
 	{
-		name: "game_variant_archive",
-		procedurePath: "gameVariant.archive",
 		description:
 			"Archive a game variant so it stops appearing in game_variant_list and cannot be added to a mix. Reversible with game_variant_restore; mixes, lineups and hands already naming it keep their link and label. Rejected while an active game mix contains it — remove it from that mix or archive the mix first.",
-		inputSchema: gameVariantIdInputSchema,
 		destructiveHint: false,
 		idempotentHint: true,
+		inputSchema: gameVariantIdInputSchema,
+		name: "game_variant_archive",
+		procedurePath: "gameVariant.archive",
 	},
 	{
-		name: "game_variant_restore",
-		procedurePath: "gameVariant.restore",
 		description:
 			"Restore an archived game variant so it appears in game_variant_list again. Rejected while its group is archived — restore the group first with game_group_restore.",
-		inputSchema: gameVariantIdInputSchema,
 		destructiveHint: false,
 		idempotentHint: true,
+		inputSchema: gameVariantIdInputSchema,
+		name: "game_variant_restore",
+		procedurePath: "gameVariant.restore",
 	},
 	{
-		name: "game_mix_list",
-		procedurePath: "gameMix.list",
 		description:
 			"List the user's game mixes (named rotations such as HORSE), with games as variant IDs in rotation order; use game_variant_list to resolve the IDs. Archived mixes are omitted unless includeArchived is true.",
 		inputSchema: gameMixListInputSchema,
+		name: "game_mix_list",
+		procedurePath: "gameMix.list",
 	},
 	{
-		name: "game_mix_create",
-		procedurePath: "gameMix.create",
 		description:
 			"Create a game mix from existing active variants. label must be unique across the user's mixes, ignoring case and surrounding spaces, archived mixes included — a label held by an archived mix is rejected with a hint to restore it with game_mix_restore instead. A variant may share the mix's label. games lists 2–30 distinct variant IDs in rotation order, spanning at most 12 game groups.",
-		inputSchema: gameMixCreateInputSchema,
 		destructiveHint: false,
 		idempotentHint: false,
+		inputSchema: gameMixCreateInputSchema,
+		name: "game_mix_create",
+		procedurePath: "gameMix.create",
 	},
 	{
-		name: "game_mix_update",
-		procedurePath: "gameMix.update",
 		description:
 			"Update a game mix by id. Only supplied fields change, except that games REPLACES the whole rotation — read game_mix_list first (with includeArchived: true when the mix is archived) and send back the full list. games contains 2–30 distinct variant IDs spanning at most 12 game groups; already-member archived variants may be retained but not newly added. Sending label alone leaves games untouched. Existing ring-game lineups retain their saved composition when the mix changes; selecting the mix again uses its current rotation. Renaming changes their displayed mix name without changing their composition.",
-		inputSchema: gameMixUpdateInputSchema,
 		destructiveHint: true,
 		idempotentHint: true,
+		inputSchema: gameMixUpdateInputSchema,
+		name: "game_mix_update",
+		procedurePath: "gameMix.update",
 	},
 	{
-		name: "game_mix_archive",
-		procedurePath: "gameMix.archive",
 		description:
 			"Archive a game mix so it stops appearing in game_mix_list. Reversible with game_mix_restore; lineups already using it keep their link.",
-		inputSchema: gameMixIdInputSchema,
 		destructiveHint: false,
 		idempotentHint: true,
+		inputSchema: gameMixIdInputSchema,
+		name: "game_mix_archive",
+		procedurePath: "gameMix.archive",
 	},
 	{
-		name: "game_mix_restore",
-		procedurePath: "gameMix.restore",
 		description:
 			"Restore an archived game mix so it appears in game_mix_list again. Rejected while any of its variants is archived — restore them first with game_variant_restore.",
-		inputSchema: gameMixIdInputSchema,
 		destructiveHint: false,
 		idempotentHint: true,
+		inputSchema: gameMixIdInputSchema,
+		name: "game_mix_restore",
+		procedurePath: "gameMix.restore",
 	},
 ];
 
-const ENTITY_NAMES: Record<string, string> = {
-	stats: "statistics",
-	entry: "entries",
-	entryTag: "entry tags",
-	tournamentTag: "tournament tags",
-	handTag: "hand tags",
-	playerTag: "player tags",
-	room: "rooms",
-	asset: "assets",
-	assetRate: "asset rates",
-	userSetting: "settings",
-	player: "players",
-	hand: "hands",
-	ringGame: "ring-game rules",
-	tournament: "tournament rules",
-	gameGroup: "game groups",
-	gameVariant: "game variants",
-	gameMix: "game mixes",
-};
+const ENTITY_NAMES = new Map<string, string>([
+	["stats", "statistics"],
+	["entry", "entries"],
+	["entryTag", "entry tags"],
+	["tournamentTag", "tournament tags"],
+	["handTag", "hand tags"],
+	["playerTag", "player tags"],
+	["room", "rooms"],
+	["asset", "assets"],
+	["assetRate", "asset rates"],
+	["userSetting", "settings"],
+	["player", "players"],
+	["hand", "hands"],
+	["ringGame", "ring-game rules"],
+	["tournament", "tournament rules"],
+	["gameGroup", "game groups"],
+	["gameVariant", "game variants"],
+	["gameMix", "game mixes"],
+]);
 
 export function toolNamespace(def: ToolDefinition): string {
 	return def.procedurePath.split(".")[0] ?? def.procedurePath;
 }
 
 export function entityName(namespace: string): string | undefined {
-	return ENTITY_NAMES[namespace];
+	return ENTITY_NAMES.get(namespace);
 }
 
 function entityNames(predicate: (def: ToolDefinition) => boolean): string[] {
 	const namespaces = new Set(
 		TOOL_DEFINITIONS.filter(predicate).map(toolNamespace)
 	);
-	return Object.entries(ENTITY_NAMES)
+	return [...ENTITY_NAMES]
 		.filter(([namespace]) => namespaces.has(namespace))
 		.map(([, name]) => name);
 }
@@ -588,10 +588,10 @@ export function toolPermissionSummary(): string[] {
 export function toolAnnotations(def: ToolDefinition): ToolAnnotations {
 	const readOnly = getProcedureType(def.procedurePath) === "query";
 	return {
-		readOnlyHint: readOnly,
 		destructiveHint: readOnly ? false : (def.destructiveHint ?? true),
 		idempotentHint: readOnly ? true : (def.idempotentHint ?? false),
 		openWorldHint: false,
+		readOnlyHint: readOnly,
 	};
 }
 
@@ -600,22 +600,20 @@ export const DELIBERATELY_EXCLUDED: {
 	paths: string[];
 }[] = [
 	{
-		reason: "Infra/debug endpoints with no agent value",
 		paths: ["healthCheck"],
+		reason: "Infra/debug endpoints with no agent value",
 	},
 	{
+		paths: ["aiExtract.extractTournamentData", "aiExtract.extractTablePlayers"],
 		reason:
 			"Product decision: MCP clients are themselves multimodal LLMs and can read images directly",
-		paths: ["aiExtract.extractTournamentData", "aiExtract.extractTablePlayers"],
 	},
 	{
+		paths: ["location.search", "location.resolveLink"],
 		reason:
 			"Venue search calls Google Places and uses external quota; link resolution is a screen workflow that can fetch Google Maps short links. Agents can search the web themselves",
-		paths: ["location.search", "location.resolveLink"],
 	},
 	{
-		reason:
-			"Irreversible master deletion: these masters have reversible archive/restore counterparts, which are exposed instead. Deletion is refused while records reference the master",
 		paths: [
 			"room.delete",
 			"ringGame.delete",
@@ -624,49 +622,49 @@ export const DELIBERATELY_EXCLUDED: {
 			"gameVariant.delete",
 			"gameMix.delete",
 		],
+		reason:
+			"Irreversible master deletion: these masters have reversible archive/restore counterparts, which are exposed instead. Deletion is refused while records reference the master",
 	},
 	{
+		paths: ["ringGame.restoreRule"],
 		reason:
 			"Screen-only Undo: restore an existing ring-game rule version without creating another version",
-		paths: ["ringGame.restoreRule"],
 	},
 	{
-		reason:
-			"Destructive: deleting a tag removes it from every entry, tournament, hand or player it is linked to, and no API can restore the links",
 		paths: [
 			"entryTag.delete",
 			"tournamentTag.delete",
 			"handTag.delete",
 			"playerTag.delete",
 		],
+		reason:
+			"Destructive: deleting a tag removes it from every entry, tournament, hand or player it is linked to, and no API can restore the links",
 	},
 	{
+		paths: ["room.toggleFavorite", "asset.toggleFavorite"],
 		reason:
 			"Toggle semantics are not idempotent — a retried call silently reverses the previous one, which a model cannot detect",
-		paths: ["room.toggleFavorite", "asset.toggleFavorite"],
 	},
 	{
+		paths: ["tournament.create", "tournament.update"],
 		reason:
 			"Narrower structure workflow: the exposed WithLevels variants require a full level list, preventing a tool call from silently carrying forward the existing structure",
-		paths: ["tournament.create", "tournament.update"],
 	},
 	{
+		paths: ["tournament.restoreRule"],
 		reason:
 			"Rule-version history is browsed and restored on the tournament screen; the tools expose the current version and parent id, not the complete version history",
-		paths: ["tournament.restoreRule"],
 	},
 	{
+		paths: ["player.create", "player.update"],
 		reason:
 			"Opponent maintenance belongs to the player screens; player_list exposes tracked opponents read-only",
-		paths: ["player.create", "player.update"],
 	},
 	{
-		reason: "Destructive: deleting a player cannot be undone",
 		paths: ["player.delete"],
+		reason: "Destructive: deleting a player cannot be undone",
 	},
 	{
-		reason:
-			"Wallet: assets and rates define how every balance and converted figure is read, so creating, editing, archiving or restoring them belongs to the asset screens; asset_list and asset_rate_list expose them read-only",
 		paths: [
 			"asset.create",
 			"asset.update",
@@ -674,15 +672,15 @@ export const DELIBERATELY_EXCLUDED: {
 			"asset.restore",
 			"assetRate.create",
 		],
+		reason:
+			"Wallet: assets and rates define how every balance and converted figure is read, so creating, editing, archiving or restoring them belongs to the asset screens; asset_list and asset_rate_list expose them read-only",
 	},
 	{
+		paths: ["asset.delete", "assetRate.delete"],
 		reason:
 			"Destructive: deleting an asset or a rate cannot be undone, and a deleted rate silently changes every past converted figure that used it",
-		paths: ["asset.delete", "assetRate.delete"],
 	},
 	{
-		reason:
-			"Wallet: an asset's history, deposits and withdrawals, exchanges and their categories belong to the wallet screens; asset_list exposes the resulting balances read-only, and entry money changes only through the entry itself",
 		paths: [
 			"ledger.listByAsset",
 			"ledger.createAdjustment",
@@ -694,95 +692,95 @@ export const DELIBERATELY_EXCLUDED: {
 			"ledgerCategory.archive",
 			"ledgerCategory.restore",
 		],
+		reason:
+			"Wallet: an asset's history, deposits and withdrawals, exchanges and their categories belong to the wallet screens; asset_list exposes the resulting balances read-only, and entry money changes only through the entry itself",
 	},
 	{
+		paths: ["ledger.delete", "ledgerCategory.delete"],
 		reason:
 			"Destructive: deleting a wallet line (both legs of an exchange) or a category cannot be undone; a referenced category is archived instead",
-		paths: ["ledger.delete", "ledgerCategory.delete"],
 	},
 	{
+		paths: ["asset.getById"],
 		reason:
 			"asset.list with includeArchived: true already returns these rows, so a by-id tool would be a second way to read the same data",
-		paths: ["asset.getById"],
 	},
 	{
+		paths: ["userSetting.update"],
 		reason:
 			"Screen settings: the base asset changes converted figures and the time zone dates new live play, so they are edited on the settings screen; user_setting_get exposes them read-only",
-		paths: ["userSetting.update"],
 	},
 	{
-		reason:
-			"Tag maintenance: renaming a tag relabels every linked entry, tournament, hand or player, and recoloring a player tag restyles every opponent; these operations belong to the tag screen",
 		paths: [
 			"entryTag.update",
 			"tournamentTag.update",
 			"handTag.update",
 			"playerTag.update",
 		],
+		reason:
+			"Tag maintenance: renaming a tag relabels every linked entry, tournament, hand or player, and recoloring a player tag restyles every opponent; these operations belong to the tag screen",
 	},
 	{
-		reason:
-			"Screen ordering: tag order is arranged by drag on the tag screen and every call must list all tags of the kind; list order does not change what a tag means",
 		paths: [
 			"entryTag.reorder",
 			"tournamentTag.reorder",
 			"handTag.reorder",
 			"playerTag.reorder",
 		],
+		reason:
+			"Screen ordering: tag order is arranged by drag on the tag screen and every call must list all tags of the kind; list order does not change what a tag means",
 	},
 	{
+		paths: ["entry.delete"],
 		reason:
 			"Destructive: deleting an entry removes its days, hands and money lines, and no API can restore them",
-		paths: ["entry.delete"],
 	},
 	{
-		reason:
-			"Rule workflow: override, apply, push and relink rewrite which immutable rule version an entry and its master point to and branch or copy versions on the entry screen, where the drift between them is shown; entry_create_* and entry_update cover recording finished play",
 		paths: [
 			"entry.overrideRule",
 			"entry.applyMasterRule",
 			"entry.pushRuleToMaster",
 			"entry.relink",
 		],
+		reason:
+			"Rule workflow: override, apply, push and relink rewrite which immutable rule version an entry and its master point to and branch or copy versions on the entry screen, where the drift between them is shown; entry_create_* and entry_update cover recording finished play",
 	},
 	{
+		paths: ["entry.restoreRule", "live.restoreRule"],
 		reason:
 			"Screen-only Undo: restore an entry's master link and an existing rule version (and optionally the master's current version) without creating another version",
-		paths: ["entry.restoreRule", "live.restoreRule"],
 	},
 	{
+		paths: ["player.getById"],
 		reason:
 			"Opponent maintenance: player.list returns tracked opponents; by-id also admits Hero and temporary players, which belong to the live table workflow",
-		paths: ["player.getById"],
 	},
 	{
+		paths: ["player.getSelf"],
 		reason:
 			"Cockpit identity: the live table screen reads the Hero identity; an agent has no use for it and player_list deliberately hides it",
-		paths: ["player.getSelf"],
 	},
 	{
+		paths: ["player.hands", "player.handStats"],
 		reason:
 			"Opponent review: an opponent's hand history and VPIP/PFR are read on the player screens; player_list covers what an agent needs to name opponents",
-		paths: ["player.hands", "player.handStats"],
 	},
 	{
+		paths: ["hand.add", "hand.undoLast"],
 		reason:
 			"Cockpit: the live hand counter's +1 and undo belong to the table screen and are allowed only while the play session is active; a retried call silently adds or removes a hand, which a model cannot detect",
-		paths: ["hand.add", "hand.undoLast"],
 	},
 	{
+		paths: ["hand.update"],
 		reason:
 			"Cockpit: hand details (Hero's summary, or every seat with up to 200 actions) are entered on the hand screens; one call replaces the hand's boards, seats and actions wholesale, and replaces tags when supplied, so a model working from a partial read can erase data",
-		paths: ["hand.update"],
 	},
 	{
+		paths: ["hand.delete"],
 		reason:
 			"Destructive: deleting a hand drops its boards, seats and actions and renumbers the later hands, and no API can restore them",
-		paths: ["hand.delete"],
 	},
 	{
-		reason:
-			"Cockpit: live recording follows the table in real time — starts, day ends, next-day starts, completions, events and seat changes are timestamped as they happen and retried calls append duplicate events or days; the end and next-day undos belong to the same screen; agents record finished play through the entry tools",
 		paths: [
 			"live.list",
 			"live.getById",
@@ -811,19 +809,19 @@ export const DELIBERATELY_EXCLUDED: {
 			"tablePlayer.updateSeat",
 			"tablePlayer.remove",
 		],
+		reason:
+			"Cockpit: live recording follows the table in real time — starts, day ends, next-day starts, completions, events and seat changes are timestamped as they happen and retried calls append duplicate events or days; the end and next-day undos belong to the same screen; agents record finished play through the entry tools",
 	},
 	{
-		reason: "Web-only release-note read tracking",
 		paths: ["updateNoteView.list", "updateNoteView.markViewed"],
+		reason: "Web-only release-note read tracking",
 	},
 	{
+		paths: ["mcpConnection.list", "mcpConnection.revoke"],
 		reason:
 			"Web-only control over MCP OAuth grants: one connected client must not enumerate or disconnect the user's other clients",
-		paths: ["mcpConnection.list", "mcpConnection.revoke"],
 	},
 	{
-		reason:
-			"Web UI filter presets — screen state persistence, not data an agent needs",
 		paths: [
 			"filterPreset.list",
 			"filterPreset.create",
@@ -832,5 +830,7 @@ export const DELIBERATELY_EXCLUDED: {
 			"filterPreset.setDefault",
 			"filterPreset.clearDefault",
 		],
+		reason:
+			"Web UI filter presets — screen state persistence, not data an agent needs",
 	},
 ];

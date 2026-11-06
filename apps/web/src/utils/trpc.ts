@@ -13,13 +13,13 @@ import { isConcurrentChange } from "@/shared/lib/query-failure";
 
 export const queryClient = new QueryClient({
 	defaultOptions: {
-		queries: {
-			gcTime: 1000 * 60 * 60 * 24,
-			staleTime: 0,
-			networkMode: "offlineFirst",
-		},
 		mutations: {
 			networkMode: "offlineFirst",
+		},
+		queries: {
+			gcTime: 1000 * 60 * 60 * 24,
+			networkMode: "offlineFirst",
+			staleTime: 0,
 		},
 	},
 });
@@ -34,26 +34,26 @@ queryClient.getMutationCache().subscribe((event) => {
 	}
 	toast.custom(
 		() =>
-			createElement(Toast, { variant: "destructive", title: error.message }),
+			createElement(Toast, { title: error.message, variant: "destructive" }),
 		{
+			classNames: {
+				content: "!w-full",
+				toast: "!border-0 !bg-transparent !p-0 !shadow-[none]",
+			},
 			duration: 6000,
 			unstyled: true,
-			classNames: {
-				toast: "!border-0 !bg-transparent !p-0 !shadow-[none]",
-				content: "!w-full",
-			},
 		}
 	);
 	queryClient.invalidateQueries();
 });
 
 export const persister = createAsyncStoragePersister({
+	key: "sapphire2-query-cache",
 	storage: {
 		getItem: (key) => get(key),
-		setItem: (key, value) => set(key, value),
 		removeItem: (key) => del(key),
+		setItem: (key, value) => set(key, value),
 	},
-	key: "sapphire2-query-cache",
 });
 
 export function clearPersistedQueryCache(): Promise<void> {
@@ -64,13 +64,13 @@ export function clearPersistedQueryCache(): Promise<void> {
 export const trpcClient = createTRPCClient<AppRouter>({
 	links: [
 		httpBatchLink({
-			url: `${env.VITE_SERVER_URL}/trpc`,
 			fetch(url, options) {
 				return fetch(url, {
 					...options,
 					credentials: "include",
 				});
 			},
+			url: `${env.VITE_SERVER_URL}/trpc`,
 		}),
 	],
 });

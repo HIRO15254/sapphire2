@@ -77,7 +77,7 @@ function AddPasskeyForm({
 					<AlertDescription>{errorMessage}</AlertDescription>
 				</Alert>
 			) : null}
-			<p className="m-0 text-muted-foreground leading-normal">
+			<p className="text-muted-foreground m-0 leading-normal">
 				Your device asks for your face, fingerprint or screen lock next.
 			</p>
 
@@ -148,7 +148,7 @@ export function Passkeys() {
 	function renderList() {
 		if (loading) {
 			return (
-				<div className="flex justify-center py-3 text-muted-foreground">
+				<div className="text-muted-foreground flex justify-center py-3">
 					<Spinner />
 				</div>
 			);

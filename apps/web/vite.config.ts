@@ -7,7 +7,7 @@ import { VitePWA } from "vite-plugin-pwa";
 import { githubReleasesPlugin } from "./src/plugins/vite-plugin-github-releases";
 import { pwaManifest } from "./src/shared/lib/pwa-manifest";
 
-const NOTO_SANS_JP_ASSET = /\/assets\/noto-sans-jp-.*\.woff2$/;
+const NOTO_SANS_JP_ASSET = /\/assets\/noto-sans-jp-.*\.woff2$/u;
 
 export default defineConfig(({ mode }) => ({
 	plugins: [
@@ -16,23 +16,23 @@ export default defineConfig(({ mode }) => ({
 			mode === "test" ? [] : undefined
 		),
 		tailwindcss(),
-		tanstackRouter({ target: "react", autoCodeSplitting: true }),
+		tanstackRouter({ autoCodeSplitting: true, target: "react" }),
 		react(),
 		VitePWA({
-			registerType: "prompt",
-			manifest: pwaManifest,
-			pwaAssets: { disabled: false, config: true },
 			devOptions: { enabled: false },
+			manifest: pwaManifest,
+			pwaAssets: { config: true, disabled: false },
+			registerType: "prompt",
 			workbox: {
 				runtimeCaching: [
 					{
-						urlPattern: NOTO_SANS_JP_ASSET,
 						handler: "CacheFirst",
 						options: {
-							cacheName: "noto-sans-jp",
 							cacheableResponse: { statuses: [200] },
-							expiration: { maxEntries: 128, maxAgeSeconds: 31_536_000 },
+							cacheName: "noto-sans-jp",
+							expiration: { maxAgeSeconds: 31_536_000, maxEntries: 128 },
 						},
+						urlPattern: NOTO_SANS_JP_ASSET,
 					},
 				],
 			},

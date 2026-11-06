@@ -5,7 +5,7 @@ import { protectedProcedure, router } from "../index";
 const SHORT_MAPS_HOSTS = new Set(["maps.app.goo.gl", "goo.gl"]);
 
 const GOOGLE_HOST_RE =
-	/^([a-z0-9-]+\.)*google\.(com|[a-z]{2}|(?:co|com)\.[a-z]{2})$/;
+	/^([a-z0-9-]+\.)*google\.(com|[a-z]{2}|(?:co|com)\.[a-z]{2})$/u;
 
 function hostnameOf(rawUrl: string): string | null {
 	try {
@@ -98,12 +98,12 @@ async function resolveShortMapsUrl(initialUrl: string): Promise<string> {
 		let response: Response;
 		try {
 			response = await fetch(currentUrl, {
-				redirect: "manual",
 				credentials: "omit",
-				signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
 				headers: {
 					"User-Agent": "Mozilla/5.0 (compatible; Sapphire2/1.0)",
 				},
+				redirect: "manual",
+				signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
 			});
 			response.body?.cancel().catch(() => undefined);
 		} catch {
@@ -144,9 +144,9 @@ async function resolveShortMapsUrl(initialUrl: string): Promise<string> {
 }
 
 const COORD_PATTERNS = [
-	/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)(?![\d.])/,
-	/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?![\d.])/,
-	/[?&](?:q|query|ll|center|destination|daddr)=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?![\d.])/,
+	/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)(?![\d.])/u,
+	/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?![\d.])/u,
+	/[?&](?:q|query|ll|center|destination|daddr)=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?![\d.])/u,
 ];
 
 export function extractCoordsFromMapsUrl(
@@ -190,63 +190,6 @@ const placesResponseSchema = z.object({
 });
 
 export const locationRouter = router({
-	search: protectedProcedure
-		.input(z.object({ query: z.string().min(1).max(200) }))
-		.mutation(async ({ ctx, input }) => {
-			if (!ctx.googleMapsApiKey) {
-				throw new TRPCError({
-					code: "INTERNAL_SERVER_ERROR",
-					message:
-						"Place search is not configured (missing GOOGLE_MAPS_API_KEY)",
-				});
-			}
-
-			let res: Response;
-			let data: z.infer<typeof placesResponseSchema>;
-			try {
-				res = await fetch(
-					"https://places.googleapis.com/v1/places:searchText",
-					{
-						method: "POST",
-						redirect: "manual",
-						credentials: "omit",
-						signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-						headers: {
-							"Content-Type": "application/json",
-							"X-Goog-Api-Key": ctx.googleMapsApiKey,
-							"X-Goog-FieldMask":
-								"places.displayName,places.formattedAddress,places.location",
-						},
-						body: JSON.stringify({
-							textQuery: input.query,
-							languageCode: "ja",
-							regionCode: "JP",
-						}),
-					}
-				);
-				if (!res.ok) {
-					res.body?.cancel().catch(() => undefined);
-					throw new Error("Place search failed");
-				}
-				data = placesResponseSchema.parse(await readLimitedJson(res));
-			} catch {
-				throw new TRPCError({
-					code: "INTERNAL_SERVER_ERROR",
-					message: "Place search failed",
-				});
-			}
-
-			return (data.places ?? [])
-				.filter((p) => p.location !== undefined)
-				.slice(0, 5)
-				.map((p) => ({
-					name: p.displayName?.text ?? "",
-					address: p.formattedAddress ?? "",
-					latitude: p.location?.latitude as number,
-					longitude: p.location?.longitude as number,
-				}));
-		}),
-
 	resolveLink: protectedProcedure
 		.input(z.object({ url: z.string().url() }))
 		.mutation(async ({ input }) => {
@@ -269,5 +212,61 @@ export const locationRouter = router({
 				});
 			}
 			return coords;
+		}),
+	search: protectedProcedure
+		.input(z.object({ query: z.string().min(1).max(200) }))
+		.mutation(async ({ ctx, input }) => {
+			if (!ctx.googleMapsApiKey) {
+				throw new TRPCError({
+					code: "INTERNAL_SERVER_ERROR",
+					message:
+						"Place search is not configured (missing GOOGLE_MAPS_API_KEY)",
+				});
+			}
+
+			let res: Response;
+			let data: z.infer<typeof placesResponseSchema>;
+			try {
+				res = await fetch(
+					"https://places.googleapis.com/v1/places:searchText",
+					{
+						body: JSON.stringify({
+							languageCode: "ja",
+							regionCode: "JP",
+							textQuery: input.query,
+						}),
+						credentials: "omit",
+						headers: {
+							"Content-Type": "application/json",
+							"X-Goog-Api-Key": ctx.googleMapsApiKey,
+							"X-Goog-FieldMask":
+								"places.displayName,places.formattedAddress,places.location",
+						},
+						method: "POST",
+						redirect: "manual",
+						signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+					}
+				);
+				if (!res.ok) {
+					res.body?.cancel().catch(() => undefined);
+					throw new Error("Place search failed");
+				}
+				data = placesResponseSchema.parse(await readLimitedJson(res));
+			} catch {
+				throw new TRPCError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Place search failed",
+				});
+			}
+
+			return (data.places ?? [])
+				.filter((p) => p.location !== undefined)
+				.slice(0, 5)
+				.map((p) => ({
+					address: p.formattedAddress ?? "",
+					latitude: p.location?.latitude as number,
+					longitude: p.location?.longitude as number,
+					name: p.displayName?.text ?? "",
+				}));
 		}),
 });

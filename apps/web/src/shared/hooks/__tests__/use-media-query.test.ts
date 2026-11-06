@@ -14,11 +14,11 @@ interface FakeMediaQueryList {
 function makeFakeMediaQueryList(matches: boolean): FakeMediaQueryList {
 	const listeners: Listener[] = [];
 	return {
-		matches,
-		listeners,
 		addEventListener: vi.fn((_type: string, listener: Listener) => {
 			listeners.push(listener);
 		}),
+		listeners,
+		matches,
 		removeEventListener: vi.fn((_type: string, listener: Listener) => {
 			const index = listeners.indexOf(listener);
 			if (index >= 0) {
@@ -46,16 +46,16 @@ describe("useMediaQuery", () => {
 		matchMediaSpy.mockClear();
 		Object.defineProperty(window, "matchMedia", {
 			configurable: true,
-			writable: true,
 			value: matchMediaSpy,
+			writable: true,
 		});
 	});
 
 	afterEach(() => {
 		Object.defineProperty(window, "matchMedia", {
 			configurable: true,
-			writable: true,
 			value: originalMatchMedia,
+			writable: true,
 		});
 	});
 

@@ -13,22 +13,22 @@ import { defineTagTables } from "./tag-tables";
 export const player = sqliteTable(
 	"player",
 	{
-		id: text("id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		name: text("name").notNull(),
-		memo: text("memo"),
-		isTemporary: integer("is_temporary", { mode: "boolean" })
-			.notNull()
-			.default(false),
-		isSelf: integer("is_self", { mode: "boolean" }).notNull().default(false),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),
+		id: text("id").primaryKey(),
+		isSelf: integer("is_self", { mode: "boolean" }).notNull().default(false),
+		isTemporary: integer("is_temporary", { mode: "boolean" })
+			.notNull()
+			.default(false),
+		memo: text("memo"),
+		name: text("name").notNull(),
 		updatedAt: integer("updated_at", { mode: "timestamp" })
 			.$onUpdate(() => new Date())
 			.notNull(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(table) => [
 		uniqueIndex("player_id_user_id_unique").on(table.id, table.userId),
@@ -45,7 +45,7 @@ export const { tag: playerTag, link: playerTagLink } = defineTagTables(
 	"player",
 	() => player,
 	{
-		tagColumns: { color: text("color").notNull().default("gray") },
 		linkColumns: { position: integer("position").notNull().default(0) },
+		tagColumns: { color: text("color").notNull().default("gray") },
 	}
 );

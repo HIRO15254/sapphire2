@@ -24,7 +24,7 @@ function Group({
 }) {
 	return (
 		<section>
-			<h2 className="px-3 pt-3 pb-1 font-semibold text-muted-foreground text-xs uppercase tracking-[var(--tracking-caps)]">
+			<h2 className="text-muted-foreground px-3 pt-3 pb-1 text-xs font-semibold tracking-[var(--tracking-caps)] uppercase">
 				{title}
 			</h2>
 			<ItemGroup size="xl">

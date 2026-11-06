@@ -13,8 +13,8 @@ import {
 
 const createFields = {
 	entryId: idSchema,
-	playSessionId: idSchema.optional(),
 	occurredAt: instantSchema.optional(),
+	playSessionId: idSchema.optional(),
 };
 
 function createVariant<Type extends PlayEventInputType>(eventType: Type) {
@@ -38,18 +38,24 @@ export const playEventCreateInputSchema = z.discriminatedUnion("eventType", [
 ]);
 
 export const playEventRouter = router({
-	list: protectedProcedure
-		.input(z.object({ entryId: idSchema, playSessionId: idSchema.optional() }))
-		.query(
-			async ({ ctx, input }) =>
-				await listPlayEvents(ctx.db, ctx.session.user.id, input)
-		),
-
 	create: protectedProcedure
 		.input(playEventCreateInputSchema)
 		.mutation(
 			async ({ ctx, input }) =>
 				await createPlayEvent(ctx.db, ctx.session.user.id, input, new Date())
+		),
+
+	delete: protectedProcedure
+		.input(z.object({ id: idSchema }))
+		.mutation(async ({ ctx, input }) => {
+			await deletePlayEvent(ctx.db, ctx.session.user.id, input.id, new Date());
+			return { success: true as const };
+		}),
+	list: protectedProcedure
+		.input(z.object({ entryId: idSchema, playSessionId: idSchema.optional() }))
+		.query(
+			async ({ ctx, input }) =>
+				await listPlayEvents(ctx.db, ctx.session.user.id, input)
 		),
 
 	update: protectedProcedure
@@ -64,11 +70,4 @@ export const playEventRouter = router({
 			async ({ ctx, input }) =>
 				await updatePlayEvent(ctx.db, ctx.session.user.id, input, new Date())
 		),
-
-	delete: protectedProcedure
-		.input(z.object({ id: idSchema }))
-		.mutation(async ({ ctx, input }) => {
-			await deletePlayEvent(ctx.db, ctx.session.user.id, input.id, new Date());
-			return { success: true as const };
-		}),
 });

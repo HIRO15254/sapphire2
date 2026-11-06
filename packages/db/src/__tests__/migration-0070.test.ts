@@ -22,11 +22,11 @@ import {
 } from "./sqlite";
 
 const TARGET = "0070_self_player_event_v2.sql";
-const PRICES_GATE = /NOT NULL constraint failed: __gate_0070\.prices/;
+const PRICES_GATE = /NOT NULL constraint failed: __gate_0070\.prices/u;
 const PAYMENTS_GATE =
-	/NOT NULL constraint failed: __gate_0070\.payments_match_lines/;
-const SELF_UNIQUE = /UNIQUE constraint failed: player\.user_id/;
-const SELF_CHECK = /CHECK constraint failed: player_is_self_check/;
+	/NOT NULL constraint failed: __gate_0070\.payments_match_lines/u;
+const SELF_UNIQUE = /UNIQUE constraint failed: player\.user_id/u;
+const SELF_CHECK = /CHECK constraint failed: player_is_self_check/u;
 const beforeEntry = migrationFiles("0061_").map(statementsOf);
 const cutovers = migrationFiles(TARGET)
 	.filter((name) => name >= "0061_")
@@ -117,7 +117,7 @@ describe("migration 0070 — self player and play event payload v2", () => {
 			source.close();
 		}
 	});
-	afterAll(() => rmSync(directory, { recursive: true, force: true }));
+	afterAll(() => rmSync(directory, { force: true, recursive: true }));
 	beforeEach(() => {
 		const path = join(directory, `${index++}.sqlite`);
 		copyFileSync(seededPath, path);
@@ -195,7 +195,7 @@ describe("migration 0070 — self player and play event payload v2", () => {
 		apply(db);
 		expect(payload(db, "c-start")).toEqual({
 			payments: [
-				{ assetId: "jpy", quantity: 100, role: "buy_in", effect: "real" },
+				{ assetId: "jpy", effect: "real", quantity: 100, role: "buy_in" },
 			],
 		});
 		expect(payload(db, "c-add")).toEqual({
@@ -210,66 +210,66 @@ describe("migration 0070 — self player and play event payload v2", () => {
 		});
 		expect(payload(db, "c-end")).toEqual({
 			payments: [
-				{ assetId: "jpy", quantity: 150, role: "cash_out", effect: "real" },
+				{ assetId: "jpy", effect: "real", quantity: 150, role: "cash_out" },
 			],
 		});
 		expect(payload(db, "t-start")).toEqual({
-			timerStartedAt: live,
 			payments: [
 				{
 					assetId: "jpy",
+					effect: "real",
+					priceId: "trp:tr:mtt:entry",
 					quantity: 1000,
 					role: "buy_in",
-					effect: "real",
-					priceId: "trp:tr:mtt:entry",
 				},
 				{
 					assetId: "jpy",
-					quantity: 100,
-					role: "fee",
 					effect: "real",
 					priceId: "trp:tr:mtt:entry",
+					quantity: 100,
+					role: "fee",
 				},
 			],
+			timerStartedAt: live,
 		});
 		expect(payload(db, "t-addon")).toEqual({
-			priceId: "trp:m-addon",
-			label: "Add-on",
 			chips: 5000,
+			label: "Add-on",
 			payments: [
 				{
 					assetId: "jpy",
-					quantity: 500,
-					role: "chip_purchase",
 					effect: "real",
 					priceId: "trp:m-addon",
+					quantity: 500,
+					role: "chip_purchase",
 				},
 			],
+			priceId: "trp:m-addon",
 		});
 		expect(payload(db, "t-end")).toEqual({
 			beforeDeadline: false,
+			payments: [
+				{ assetId: "jpy", effect: "real", quantity: 300, role: "prize" },
+				{ assetId: "jpy", effect: "real", quantity: 50, role: "bounty" },
+			],
 			placement: 4,
 			totalEntries: 10,
-			payments: [
-				{ assetId: "jpy", quantity: 300, role: "prize", effect: "real" },
-				{ assetId: "jpy", quantity: 50, role: "bounty", effect: "real" },
-			],
 		});
 		expect(payload(db, "t-stack")).toEqual({
-			stackAmount: 9000,
+			chipPurchaseCounts: [{ chipsPerUnit: 5000, count: 1, name: "Add-on" }],
 			remainingPlayers: 5,
+			stackAmount: 9000,
 			totalEntries: 10,
-			chipPurchaseCounts: [{ name: "Add-on", count: 1, chipsPerUnit: 5000 }],
 		});
 	});
 
 	it("prices a zero-cost purchase without a line by its snapshot position", () => {
 		apply(db);
 		expect(payload(db, "t-bonus")).toEqual({
-			priceId: "trp:m-bonus",
-			label: "Bonus",
 			chips: 8000,
+			label: "Bonus",
 			payments: [],
+			priceId: "trp:m-bonus",
 		});
 	});
 

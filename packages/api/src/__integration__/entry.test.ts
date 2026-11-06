@@ -34,16 +34,16 @@ const SEP_1 = Date.UTC(2026, 8, 1) / 1000;
 
 async function setup(api: ApiFixture) {
 	const jpy = requireCreatedRow(
-		await api.alice.asset.create({ name: "JPY", kind: "currency" })
+		await api.alice.asset.create({ kind: "currency", name: "JPY" })
 	);
 	const usd = requireCreatedRow(
-		await api.alice.asset.create({ name: "USD", kind: "currency", decimals: 2 })
+		await api.alice.asset.create({ decimals: 2, kind: "currency", name: "USD" })
 	);
 	const ticket = requireCreatedRow(
-		await api.alice.asset.create({ name: "Main ticket", kind: "item" })
+		await api.alice.asset.create({ kind: "item", name: "Main ticket" })
 	);
 	const room = requireCreatedRow(await api.alice.room.create({ name: "Club" }));
-	return { jpy, usd, ticket, room, rule: await nlhGame(api.db) };
+	return { jpy, room, rule: await nlhGame(api.db), ticket, usd };
 }
 
 function real(
@@ -51,7 +51,7 @@ function real(
 	assetId: string,
 	quantity: number
 ) {
-	return { role, assetId, quantity, effect: "real" as const };
+	return { assetId, effect: "real" as const, quantity, role };
 }
 
 describe("entry API on D1", () => {
@@ -86,8 +86,8 @@ describe("entry API on D1", () => {
 				playedOn: "2026-09-02",
 				playSessions: [
 					{
-						localDate: "2026-09-02",
 						endState: "cashed_out",
+						localDate: "2026-09-02",
 						payments: [],
 					},
 				],
@@ -109,51 +109,51 @@ describe("entry API on D1", () => {
 		const { jpy, room, rule } = await setup(api);
 		const originalDays = [
 			{
-				localDate: "2026-09-01",
-				startedAt: SEP_1 + 18 * 3600,
-				endedAt: SEP_1 + 23 * 3600,
 				breakMinutes: 30,
-				endState: "held" as const,
+				endedAt: SEP_1 + 23 * 3600,
 				endStack: 41_000,
+				endState: "held" as const,
+				localDate: "2026-09-01",
 				payments: [real("buy_in", jpy.id, 30_000)],
+				startedAt: SEP_1 + 18 * 3600,
 			},
 			{
-				localDate: "2026-09-02",
-				startedAt: SEP_1 + DAY + 18 * 3600,
 				endedAt: SEP_1 + DAY + 20 * 3600 + 30,
 				endState: "cashed_out" as const,
+				localDate: "2026-09-02",
 				payments: [
 					real("addon", jpy.id, 10_000),
 					real("chip_remove", jpy.id, 5000),
 					real("cash_out", jpy.id, 42_000),
 				],
+				startedAt: SEP_1 + DAY + 18 * 3600,
 			},
 		];
 		const created = await api.alice.entry.create({
+			assetId: jpy.id,
+			evDiff: -1200,
 			kind: "cash",
 			playedOn: "2026-09-01",
-			roomId: room.id,
-			assetId: jpy.id,
-			title: "Weekend",
-			rule,
-			evDiff: -1200,
 			playSessions: originalDays,
+			roomId: room.id,
+			rule,
+			title: "Weekend",
 		});
 		expect(created).toMatchObject({
+			cash: { bigBlind: 2, evDiff: -1200 },
 			kind: "cash",
+			playedOn: "2026-09-01",
+			playMinutes: 270 + 120.5,
+			roomName: "Club",
+			ruleDrift: false,
 			source: "manual",
 			status: "settled",
-			playedOn: "2026-09-01",
-			roomName: "Club",
-			playMinutes: 270 + 120.5,
-			cash: { evDiff: -1200, bigBlind: 2 },
-			ruleDrift: false,
 			totals: [
 				{
 					assetId: jpy.id,
-					effect: "real",
 					buyIn: 40_000,
 					cashOut: 47_000,
+					effect: "real",
 					profitLoss: 42_000 + 5000 - 30_000 - 10_000,
 				},
 			],
@@ -164,12 +164,12 @@ describe("entry API on D1", () => {
 		}
 		expect([first.seq, second.seq]).toEqual([1, 2]);
 		await api.db.insert(hand).values({
-			id: "kept-hand",
-			userId: "alice",
-			playSessionId: first.id,
-			handNo: 1,
 			detail: "count",
+			handNo: 1,
+			id: "kept-hand",
+			playSessionId: first.id,
 			updatedAt: new Date(),
+			userId: "alice",
 		});
 		expect(await api.alice.entry.getById({ id: created.id })).toEqual({
 			...created,
@@ -181,18 +181,18 @@ describe("entry API on D1", () => {
 			id: created.id,
 			playSessions: [
 				{
+					endedAt: SEP_1 + 22 * 3600,
+					endStack: 41_000,
+					endState: "held",
 					id: first.id,
 					localDate: "2026-09-01",
-					startedAt: SEP_1 + 18 * 3600,
-					endedAt: SEP_1 + 22 * 3600,
-					endState: "held",
-					endStack: 41_000,
 					payments: [real("buy_in", jpy.id, 20_000)],
+					startedAt: SEP_1 + 18 * 3600,
 				},
 				{
+					endState: "cashed_out",
 					id: second.id,
 					localDate: "2026-09-02",
-					endState: "cashed_out",
 					payments: [real("cash_out", jpy.id, 25_000)],
 				},
 			],
@@ -220,29 +220,29 @@ describe("entry API on D1", () => {
 		const { jpy, rule } = await setup(api);
 		const created = await api.alice.entry.create({
 			kind: "cash",
+			payments: [real("buy_in", jpy.id, 100)],
 			playedOn: "2026-09-01",
 			rule,
-			payments: [real("buy_in", jpy.id, 100)],
 		});
 		const day = created.playSessions[0];
 		if (!day) {
 			throw new Error("expected a day");
 		}
 		await api.db.insert(hand).values({
-			id: "rollback-hand",
-			userId: "alice",
-			playSessionId: day.id,
-			handNo: 1,
 			detail: "count",
+			handNo: 1,
+			id: "rollback-hand",
+			playSessionId: day.id,
 			updatedAt: new Date(),
+			userId: "alice",
 		});
 		const snapshot = async () => ({
-			entries: await api.db.select().from(entry),
 			cash: await api.db.select().from(entryCash),
-			tournaments: await api.db.select().from(entryTournament),
-			plays: await api.db.select().from(playSession),
+			entries: await api.db.select().from(entry),
 			hands: await api.db.select().from(hand),
 			lines: await api.db.select().from(ledgerLine),
+			plays: await api.db.select().from(playSession),
+			tournaments: await api.db.select().from(entryTournament),
 		});
 		const before = await snapshot();
 		await api.d1
@@ -253,23 +253,23 @@ describe("entry API on D1", () => {
 		await expect(
 			api.alice.entry.update({
 				id: created.id,
-				title: "Changed",
 				playSessions: [
 					{
-						localDate: "2026-09-01",
 						endState: "cashed_out",
+						localDate: "2026-09-01",
 						payments: [real("buy_in", jpy.id, 987_654)],
 					},
 				],
+				title: "Changed",
 			})
 		).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
 		expect(await snapshot()).toEqual(before);
 		await expect(
 			api.alice.entry.create({
 				kind: "cash",
+				payments: [real("buy_in", jpy.id, 987_654)],
 				playedOn: "2026-09-02",
 				rule,
-				payments: [real("buy_in", jpy.id, 987_654)],
 			})
 		).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
 		expect(await snapshot()).toEqual(before);
@@ -282,37 +282,37 @@ describe("entry API on D1", () => {
 		const created = await api.alice.entry.create({
 			kind: "cash",
 			playedOn: "2026-09-01",
-			rule,
 			playSessions: [
 				{
-					localDate: "2026-09-01",
-					endState: "held",
 					endStack: 100,
+					endState: "held",
+					localDate: "2026-09-01",
 					payments: [real("buy_in", jpy.id, 300)],
 				},
 				{
-					localDate: "2026-09-03",
 					endState: "cashed_out",
+					localDate: "2026-09-03",
 					payments: [real("cash_out", jpy.id, 100)],
 				},
 			],
+			rule,
 		});
 		const dropped = created.playSessions[1]?.id ?? "";
 		await api.db.insert(hand).values({
-			id: "dropped-hand",
-			userId: "alice",
-			playSessionId: dropped,
-			handNo: 1,
 			detail: "count",
+			handNo: 1,
+			id: "dropped-hand",
+			playSessionId: dropped,
 			updatedAt: new Date(),
+			userId: "alice",
 		});
 		const updated = await api.alice.entry.update({
 			id: created.id,
 			playSessions: [
 				{
+					endState: "cashed_out",
 					id: created.playSessions[0]?.id,
 					localDate: "2026-09-01",
-					endState: "cashed_out",
 					payments: [real("buy_in", jpy.id, 300), real("cash_out", jpy.id, 50)],
 				},
 			],
@@ -332,23 +332,23 @@ describe("entry API on D1", () => {
 		await api.alice.userSetting.update({ baseAssetId: jpy.id });
 		await api.alice.assetRate.create({
 			baseAssetId: ticket.id,
-			quoteAssetId: jpy.id,
-			rateNum: 10_000,
-			rateDen: 1,
 			effectiveFrom: 0,
+			quoteAssetId: jpy.id,
+			rateDen: 1,
+			rateNum: 10_000,
 		});
 		const linked = await api.alice.tournament.create({
+			name: "Main",
 			roomId: requireCreatedRow(await api.alice.room.create({ name: "Hall" }))
 				.id,
-			name: "Main",
 			rule: {
 				prices: [
 					{
-						kind: "entry",
-						assetId: ticket.id,
 						amount: 1,
-						fee: 0,
+						assetId: ticket.id,
 						chips: 20_000,
+						fee: 0,
+						kind: "entry",
 					},
 				],
 			},
@@ -357,60 +357,60 @@ describe("entry API on D1", () => {
 		const priceId = master.ruleVersion.prices[0]?.id ?? "";
 		const valued = await api.alice.entry.create({
 			kind: "tournament",
-			playedOn: "2026-09-01",
-			tournamentId: linked.id,
-			placement: 3,
-			totalEntries: 120,
 			payments: [
 				{
-					role: "buy_in",
 					assetId: ticket.id,
-					quantity: 1,
 					effect: "real",
 					priceId,
+					quantity: 1,
+					role: "buy_in",
 				},
-				{ role: "fee", assetId: jpy.id, quantity: 1000, effect: "real" },
+				{ assetId: jpy.id, effect: "real", quantity: 1000, role: "fee" },
 				{
-					role: "chip_purchase",
 					assetId: jpy.id,
-					quantity: 2000,
 					effect: "real",
+					quantity: 2000,
+					role: "chip_purchase",
 				},
-				{ role: "prize", assetId: jpy.id, quantity: 30_000, effect: "real" },
-				{ role: "bounty", assetId: jpy.id, quantity: 2000, effect: "real" },
+				{ assetId: jpy.id, effect: "real", quantity: 30_000, role: "prize" },
+				{ assetId: jpy.id, effect: "real", quantity: 2000, role: "bounty" },
 			],
+			placement: 3,
+			playedOn: "2026-09-01",
+			totalEntries: 120,
+			tournamentId: linked.id,
 		});
 		expect(valued.playSessions).toMatchObject([{ endState: "busted" }]);
 		expect(valued.totals).toEqual(
 			[
 				{
 					assetId: jpy.id,
-					effect: "real",
 					buyIn: 3000,
 					cashOut: 32_000,
+					effect: "real",
 					profitLoss: 30_000 + 2000 - 1000 - 2000,
 					roleTotals: {
-						fee: { quantity: -1000, lineCount: 1 },
-						chip_purchase: { quantity: -2000, lineCount: 1 },
-						prize: { quantity: 30_000, lineCount: 1 },
-						bounty: { quantity: 2000, lineCount: 1 },
+						bounty: { lineCount: 1, quantity: 2000 },
+						chip_purchase: { lineCount: 1, quantity: -2000 },
+						fee: { lineCount: 1, quantity: -1000 },
+						prize: { lineCount: 1, quantity: 30_000 },
 					},
 				},
 				{
 					assetId: ticket.id,
-					effect: "real",
 					buyIn: 1,
 					cashOut: 0,
+					effect: "real",
 					profitLoss: -1,
-					roleTotals: { buy_in: { quantity: -1, lineCount: 1 } },
+					roleTotals: { buy_in: { lineCount: 1, quantity: -1 } },
 				},
 			].sort((a, b) => a.assetId.localeCompare(b.assetId))
 		);
 		expect(valued.valuation).toMatchObject({
 			baseAssetId: jpy.id,
+			missingRates: { real: [], virtual: [] },
 			real: { buyIn: 3000, cashOut: 32_000, profitLoss: 29_000 },
 			virtual: { buyIn: 13_000, cashOut: 32_000, profitLoss: 19_000 },
-			missingRates: { real: [], virtual: [] },
 		});
 		expect(valued.lines.find((line) => line.role === "buy_in")?.priceId).toBe(
 			priceId
@@ -418,9 +418,9 @@ describe("entry API on D1", () => {
 
 		const unrated = await api.alice.entry.create({
 			kind: "cash",
+			payments: [real("buy_in", usd.id, 100), real("cash_out", usd.id, 300)],
 			playedOn: "2026-09-02",
 			rule: await nlhGame(api.db),
-			payments: [real("buy_in", usd.id, 100), real("cash_out", usd.id, 300)],
 		});
 		expect(unrated.valuation.missingRates.real).toEqual([
 			expect.objectContaining({ assetId: usd.id }),
@@ -433,32 +433,32 @@ describe("entry API on D1", () => {
 		await expect(
 			api.alice.entry.create({
 				kind: "tournament",
-				playedOn: "2026-09-01",
-				tournamentId: linked.id,
 				payments: [
 					{
-						role: "buy_in",
 						assetId: jpy.id,
-						quantity: 1,
 						effect: "real",
 						priceId,
+						quantity: 1,
+						role: "buy_in",
 					},
 				],
+				playedOn: "2026-09-01",
+				tournamentId: linked.id,
 			})
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		await expect(
 			api.alice.entry.create({
 				kind: "tournament",
-				playedOn: "2026-09-01",
 				payments: [
 					{
-						role: "buy_in",
 						assetId: ticket.id,
-						quantity: 1,
 						effect: "real",
 						priceId,
+						quantity: 1,
+						role: "buy_in",
 					},
 				],
+				playedOn: "2026-09-01",
 			})
 		).rejects.toMatchObject({ code: "FORBIDDEN" });
 	});
@@ -469,9 +469,9 @@ describe("entry API on D1", () => {
 		const { jpy, rule } = await setup(api);
 		const created = await api.alice.entry.create({
 			kind: "cash",
+			payments: [real("buy_in", jpy.id, 100)],
 			playedOn: "2026-09-01",
 			rule,
-			payments: [real("buy_in", jpy.id, 100)],
 		});
 		await api.alice.asset.archive({ id: jpy.id });
 		await api.alice.entry.update({
@@ -497,52 +497,52 @@ describe("entry API on D1", () => {
 		const rejected = [
 			{
 				kind: "cash" as const,
+				payments: [real("buy_in", usd.id, 100)],
 				playedOn: "2026-09-01",
 				rule,
-				payments: [real("buy_in", usd.id, 100)],
 			},
 			{
 				kind: "cash" as const,
 				playedOn: "2026-09-02",
-				rule,
 				playSessions: [
 					{
-						localDate: "2026-09-01",
 						endState: "cashed_out" as const,
+						localDate: "2026-09-01",
 						payments: [real("buy_in", jpy.id, 100)],
 					},
 				],
+				rule,
 			},
 			{
 				kind: "cash" as const,
 				playedOn: "2026-09-01",
-				rule,
 				playSessions: [
 					{
-						localDate: "2026-09-01",
 						endState: "cashed_out" as const,
+						localDate: "2026-09-01",
 						payments: [],
 					},
 					{
-						localDate: "2026-09-02",
 						endState: "cashed_out" as const,
+						localDate: "2026-09-02",
 						payments: [],
 					},
 				],
+				rule,
 			},
 			{
 				kind: "cash" as const,
 				playedOn: "2026-09-01",
-				rule,
 				playSessions: [
 					{
-						localDate: "2026-09-01",
-						startedAt: SEP_1 + 7200,
 						endedAt: SEP_1 + 3600,
 						endState: "cashed_out" as const,
+						localDate: "2026-09-01",
 						payments: [],
+						startedAt: SEP_1 + 7200,
 					},
 				],
+				rule,
 			},
 		];
 		for (const input of rejected) {
@@ -558,8 +558,8 @@ describe("entry API on D1", () => {
 		await expect(
 			api.alice.entry.create({
 				kind: "tournament",
-				playedOn: "2026-09-01",
 				placement: 5,
+				playedOn: "2026-09-01",
 				totalEntries: 4,
 			})
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
@@ -578,19 +578,19 @@ describe("entry API on D1", () => {
 
 		const settled = await api.alice.entry.create({
 			kind: "tournament",
-			playedOn: "2026-09-01",
 			placement: 4,
+			playedOn: "2026-09-01",
 			totalEntries: 10,
 		});
 		await expect(
 			api.alice.entry.update({ id: settled.id, totalEntries: 3 })
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		expect(
-			(await api.alice.entry.update({ id: settled.id, beforeDeadline: true }))
+			(await api.alice.entry.update({ beforeDeadline: true, id: settled.id }))
 				.tournament
-		).toEqual({ placement: null, totalEntries: 10, beforeDeadline: true });
+		).toEqual({ beforeDeadline: true, placement: null, totalEntries: 10 });
 		await expect(
-			api.alice.entry.update({ id: settled.id, evDiff: 10 })
+			api.alice.entry.update({ evDiff: 10, id: settled.id })
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 	});
 
@@ -604,38 +604,38 @@ describe("entry API on D1", () => {
 		await runBatch(api.db, [
 			...planned.statements,
 			...buildLiveEntryStartStatements(api.db, {
-				id: "live-cash",
-				userId: "alice",
+				assetId: jpy.id,
 				detail: {
+					cashRuleId: planned.ruleVersionId,
 					kind: "cash",
 					ringGameId: null,
-					cashRuleId: planned.ruleVersionId,
 				},
-				assetId: jpy.id,
-				roomId: null,
-				memo: null,
+				id: "live-cash",
 				localDate: "2026-09-05",
+				memo: null,
 				now: new Date(),
+				roomId: null,
 				startEvent: {
 					occurredAt: new Date(),
 					payload: {
 						payments: [{ assetId: jpy.id, quantity: 30_000, role: "buy_in" }],
 					},
 				},
+				userId: "alice",
 			}),
 		]);
 		const tag = await api.alice.entryTag.create({ name: "Live" });
 		expect(
 			await api.alice.entry.update({
 				id: "live-cash",
-				title: "Friday",
 				tagIds: [tag.id],
+				title: "Friday",
 			})
 		).toMatchObject({
 			source: "live",
 			status: "open",
-			title: "Friday",
 			tags: [{ id: tag.id, name: "Live" }],
+			title: "Friday",
 		});
 		for (const patch of [
 			{ playedOn: "2026-09-04" },
@@ -664,10 +664,10 @@ describe("entry API on D1", () => {
 				(
 					await api.alice.entry.create({
 						kind: "cash",
+						payments: [real("buy_in", assetId, 10)],
 						playedOn,
 						roomId: room.id,
 						rule,
-						payments: [real("buy_in", assetId, 10)],
 					})
 				).id
 			);
@@ -678,18 +678,18 @@ describe("entry API on D1", () => {
 			)
 		).toEqual([ids[2]]);
 		const page = await api.alice.entry.list({
-			limit: 2,
 			dateFrom: "2026-09-02",
 			dateTo: "2026-09-02",
+			limit: 2,
 		});
 		expect(page.items).toHaveLength(2);
 		const boundary = page.items[1]?.id ?? "";
 		await api.alice.entry.delete({ id: boundary });
 		const rest = await api.alice.entry.list({
-			limit: 2,
+			cursor: page.nextCursor ?? undefined,
 			dateFrom: "2026-09-02",
 			dateTo: "2026-09-02",
-			cursor: page.nextCursor ?? undefined,
+			limit: 2,
 		});
 		expect(
 			[...page.items, ...rest.items].map((item) => item.id).sort()
@@ -701,9 +701,9 @@ describe("entry API on D1", () => {
 		).rejects.toMatchObject({ code: "FORBIDDEN" });
 		await expect(
 			api.bob.entry.list({
+				cursor: page.nextCursor ?? undefined,
 				dateFrom: "2026-09-02",
 				dateTo: "2026-09-02",
-				cursor: page.nextCursor ?? undefined,
 				limit: 2,
 			})
 		).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -720,17 +720,17 @@ describe("entry API on D1", () => {
 		const tag = await api.alice.entryTag.create({ name: "Mine" });
 		const owned = await api.alice.entry.create({
 			kind: "cash",
+			payments: [real("buy_in", jpy.id, 10)],
 			playedOn: "2026-09-01",
 			roomId: room.id,
 			rule,
 			tagIds: [tag.id],
-			payments: [real("buy_in", jpy.id, 10)],
 		});
 		const kept = await api.alice.entry.create({
 			kind: "cash",
+			payments: [real("buy_in", jpy.id, 20)],
 			playedOn: "2026-09-01",
 			rule,
-			payments: [real("buy_in", jpy.id, 20)],
 		});
 		const bobRule = await nlhGame(api.db, "bob");
 		for (const call of [
@@ -742,15 +742,15 @@ describe("entry API on D1", () => {
 				api.bob.entry.create({
 					kind: "cash",
 					playedOn: "2026-09-01",
-					rule: bobRule,
 					roomId: room.id,
+					rule: bobRule,
 				}),
 			() =>
 				api.bob.entry.create({
 					kind: "cash",
+					payments: [real("buy_in", jpy.id, 1)],
 					playedOn: "2026-09-01",
 					rule: bobRule,
-					payments: [real("buy_in", jpy.id, 1)],
 				}),
 			() =>
 				api.bob.entry.create({
@@ -764,9 +764,9 @@ describe("entry API on D1", () => {
 					id: kept.id,
 					playSessions: [
 						{
+							endState: "cashed_out",
 							id: owned.playSessions[0]?.id,
 							localDate: "2026-09-01",
-							endState: "cashed_out",
 							payments: [],
 						},
 					],
@@ -803,40 +803,40 @@ describe("entry API on D1", () => {
 		const perDay = MAX_ENTRY_PAYMENTS / MAX_ENTRY_PLAY_SESSIONS;
 		const days = (ids: (string | undefined)[]) =>
 			ids.map((id, index) => ({
+				endedAt: SEP_1 + index * DAY + 3600,
+				endStack: index === ids.length - 1 ? undefined : 1000,
+				endState:
+					index === ids.length - 1 ? ("busted" as const) : ("bagged" as const),
 				id,
 				localDate: new Date((SEP_1 + index * DAY) * 1000)
 					.toISOString()
 					.slice(0, 10),
-				startedAt: SEP_1 + index * DAY,
-				endedAt: SEP_1 + index * DAY + 3600,
-				endState:
-					index === ids.length - 1 ? ("busted" as const) : ("bagged" as const),
-				endStack: index === ids.length - 1 ? undefined : 1000,
 				payments: Array.from({ length: perDay }, (_, n) => ({
-					role: "chip_purchase" as const,
 					assetId: jpy.id,
-					quantity: n + 1,
 					effect: "real" as const,
+					quantity: n + 1,
+					role: "chip_purchase" as const,
 				})),
+				startedAt: SEP_1 + index * DAY,
 			}));
 		const created = api.meteredCaller("alice");
 		const entryOutput = await created.caller.entry.create({
 			kind: "tournament",
 			playedOn: "2026-09-01",
-			tagIds,
-			rule: {
-				levels,
-				prices: Array.from({ length: MAX_RULE_PRICES }, (_, index) => ({
-					kind: "addon" as const,
-					assetId: jpy.id,
-					amount: index,
-					fee: 0,
-					chips: 1000,
-				})),
-			},
 			playSessions: days(
 				Array.from({ length: MAX_ENTRY_PLAY_SESSIONS }, () => undefined)
 			),
+			rule: {
+				levels,
+				prices: Array.from({ length: MAX_RULE_PRICES }, (_, index) => ({
+					amount: index,
+					assetId: jpy.id,
+					chips: 1000,
+					fee: 0,
+					kind: "addon" as const,
+				})),
+			},
+			tagIds,
 		});
 		expect(entryOutput.lines).toHaveLength(MAX_ENTRY_PAYMENTS);
 		expect(created.meter.statements).toBeLessThanOrEqual(
@@ -846,8 +846,8 @@ describe("entry API on D1", () => {
 		const updated = api.meteredCaller("alice");
 		const output = await updated.caller.entry.update({
 			id: entryOutput.id,
-			tagIds: [...tagIds].reverse(),
 			playSessions: days(entryOutput.playSessions.map((play) => play.id)),
+			tagIds: [...tagIds].reverse(),
 		});
 		expect(output.playSessions).toHaveLength(MAX_ENTRY_PLAY_SESSIONS);
 		expect(updated.meter.statements).toBeLessThanOrEqual(

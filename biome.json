@@ -1,116 +1,116 @@
 {
-	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
-	"vcs": {
-		"enabled": false,
-		"clientKind": "git",
-		"useIgnoreFile": false
-	},
-	"files": {
-		"ignoreUnknown": false,
-		"includes": [
-			"!**/.next",
-			"!**/dist",
-			"!**/.turbo",
-			"!**/dev-dist",
-			"!**/.zed",
-			"!**/.vscode",
-			"!**/routeTree.gen.ts",
-			"!**/src-tauri",
-			"!**/.nuxt",
-			"!bts.jsonc",
-			"!**/.expo",
-			"!**/.wrangler",
-			"!**/.alchemy",
-			"!**/.svelte-kit",
-			"!**/wrangler.jsonc",
-			"!**/.source",
-			"!**/convex/_generated",
-			"!**/.test-runtime",
-			"!**/test-results",
-			"!**/playwright-report",
-			"!**/coverage"
-		]
-	},
-	"formatter": {
-		"enabled": true,
-		"indentStyle": "tab"
-	},
-	"assist": {
-		"actions": {
-			"source": {
-				"organizeImports": "on"
-			}
-		}
-	},
-	"linter": {
-		"enabled": true,
-		"rules": {
-			"preset": "recommended",
-			"correctness": {
-				"useExhaustiveDependencies": "info"
-			},
-			"nursery": {
-				"useTailwindSortedClasses": {
-					"level": "warn",
-					"fix": "safe"
-				}
-			},
-			"performance": {
-				"noBarrelFile": "off"
-			},
-			"style": {
-				"noRestrictedImports": {
-					"level": "error",
-					"options": {
-						"paths": {
-							"zod": {
-								"importNames": ["z"],
-								"message": "Import zod's `z` as a default import: `import z from \"zod\"`. The named import (`import { z } from \"zod\"`) breaks the Vite bundler. See AGENTS.md > Stack > Validation."
-							}
-						}
-					}
-				},
-				"noParameterAssign": "error",
-				"useAsConstAssertion": "error",
-				"useDefaultParameterLast": "error",
-				"useEnumInitializers": "error",
-				"useSelfClosingElements": "error",
-				"useSingleVarDeclarator": "error",
-				"noUnusedTemplateLiteral": "error",
-				"useNumberNamespace": "error",
-				"noInferrableTypes": "error",
-				"noUselessElse": "error"
-			}
-		}
-	},
-	"javascript": {
-		"formatter": {
-			"quoteStyle": "double"
-		},
-		"globals": ["HTMLRewriter"]
-	},
-	"css": {
-		"parser": {
-			"tailwindDirectives": true
-		}
-	},
-	"extends": ["ultracite/biome/core", "ultracite/biome/react"],
-	"overrides": [
-		{
-			"includes": [
-				"**/routes/**/$*.tsx",
-				"**/routes/**/$*.ts",
-				"**/routes/**/-*.tsx",
-				"**/routes/**/-*.ts"
-			],
-			"linter": {
-				"rules": {
-					"style": {
-						"useFilenamingConvention": "off"
-					}
-				}
-			}
-		}
-	],
-	"tailwind": { "mergeFunctions": ["clsx", "cn"], "variantFunctions": ["cva"] }
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": {
+    "enabled": false,
+    "clientKind": "git",
+    "useIgnoreFile": false
+  },
+  "files": {
+    "ignoreUnknown": false,
+    "includes": [
+      "!**/.next",
+      "!**/dist",
+      "!**/.turbo",
+      "!**/dev-dist",
+      "!**/.zed",
+      "!**/.vscode",
+      "!**/routeTree.gen.ts",
+      "!**/src-tauri",
+      "!**/.nuxt",
+      "!bts.jsonc",
+      "!**/.expo",
+      "!**/.wrangler",
+      "!**/.alchemy",
+      "!**/.svelte-kit",
+      "!**/wrangler.jsonc",
+      "!**/.source",
+      "!**/convex/_generated",
+      "!**/.test-runtime",
+      "!**/test-results",
+      "!**/playwright-report",
+      "!**/coverage"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "tab"
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "correctness": {
+        "useExhaustiveDependencies": "info"
+      },
+      "nursery": {
+        "useTailwindSortedClasses": {
+          "level": "warn",
+          "fix": "safe"
+        }
+      },
+      "performance": {
+        "noBarrelFile": "off"
+      },
+      "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "zod": {
+                "importNames": ["z"],
+                "message": "Import zod's `z` as a default import: `import z from \"zod\"`. The named import (`import { z } from \"zod\"`) breaks the Vite bundler. See AGENTS.md > Stack > Validation."
+              }
+            }
+          }
+        },
+        "noParameterAssign": "error",
+        "useAsConstAssertion": "error",
+        "useDefaultParameterLast": "error",
+        "useEnumInitializers": "error",
+        "useSelfClosingElements": "error",
+        "useSingleVarDeclarator": "error",
+        "noUnusedTemplateLiteral": "error",
+        "useNumberNamespace": "error",
+        "noInferrableTypes": "error",
+        "noUselessElse": "error"
+      }
+    }
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double"
+    },
+    "globals": ["HTMLRewriter"]
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
+  "extends": ["ultracite/biome/core", "ultracite/biome/react"],
+  "overrides": [
+    {
+      "includes": [
+        "**/routes/**/$*.tsx",
+        "**/routes/**/$*.ts",
+        "**/routes/**/-*.tsx",
+        "**/routes/**/-*.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "useFilenamingConvention": "off"
+          }
+        }
+      }
+    }
+  ],
+  "tailwind": { "mergeFunctions": ["clsx", "cn"], "variantFunctions": ["cva"] }
 }

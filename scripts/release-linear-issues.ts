@@ -16,7 +16,7 @@ const LINEAR_API = "https://api.linear.app/graphql";
 const TEAM_KEY = "SA2";
 const MERGED_STATE = "Done";
 const RELEASED_STATE = "Released";
-const WHITESPACE = /\s+/;
+const WHITESPACE = /\s+/u;
 
 export function pullRequestsInRelease(
 	pullRequests: MergedPullRequest[],
@@ -47,9 +47,9 @@ async function linear<T>(
 	variables: Record<string, unknown> = {}
 ): Promise<T> {
 	const response = await fetch(LINEAR_API, {
-		method: "POST",
-		headers: { "Content-Type": "application/json", Authorization: apiKey },
 		body: JSON.stringify({ query, variables }),
+		headers: { Authorization: apiKey, "Content-Type": "application/json" },
+		method: "POST",
 	});
 	const payload = (await response.json()) as {
 		data?: T;
@@ -90,7 +90,7 @@ async function releasedStateId(apiKey: string): Promise<string> {
 				nodes { id }
 			}
 		}`,
-		{ team: TEAM_KEY, name: RELEASED_STATE }
+		{ name: RELEASED_STATE, team: TEAM_KEY }
 	);
 	const [state, ...others] = data.workflowStates.nodes;
 	if (!state || others.length > 0) {

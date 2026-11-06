@@ -56,7 +56,7 @@ function badRequestText(error: TrpcLikeError): string {
 }
 
 function toolError(text: string): ToolErrorResult {
-	return { isError: true, content: [{ type: "text", text }] };
+	return { content: [{ text, type: "text" }], isError: true };
 }
 
 export function mapToolError(

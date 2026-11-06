@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import type { Miniflare } from "miniflare";
 
-const MIGRATION_FILE_PATTERN = /^\d{4}_.+\.sql$/;
+const MIGRATION_FILE_PATTERN = /^\d{4}_.+\.sql$/u;
 const migrationsDirectory = new URL(
 	"../../../db/src/migrations/",
 	import.meta.url

@@ -18,7 +18,7 @@ export function createContextFactory(
 		const session = await authInstance.api.getSession({
 			headers: context.req.raw.headers,
 		});
-		return { session, db: dbInstance, openaiApiKey, googleMapsApiKey };
+		return { db: dbInstance, googleMapsApiKey, openaiApiKey, session };
 	};
 }
 

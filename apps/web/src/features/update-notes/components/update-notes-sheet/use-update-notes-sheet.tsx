@@ -47,12 +47,12 @@ export function UpdateNotesProvider({
 	return (
 		<UpdateNotesSheetContext.Provider
 			value={{
-				isOpen,
-				open: () => setIsOpen(true),
 				close: () => setIsOpen(false),
+				isOpen,
+				markViewed,
+				open: () => setIsOpen(true),
 				setIsOpen,
 				viewedVersions,
-				markViewed,
 			}}
 		>
 			{children}

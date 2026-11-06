@@ -84,7 +84,7 @@ function FieldLabel({
 function FieldDescription({ className, ...props }: ComponentProps<"p">) {
 	return (
 		<p
-			className={cn("m-0 text-muted-foreground text-xs", className)}
+			className={cn("text-muted-foreground m-0 text-xs", className)}
 			data-slot="field-description"
 			{...props}
 		/>
@@ -94,7 +94,7 @@ function FieldDescription({ className, ...props }: ComponentProps<"p">) {
 function FieldError({ className, ...props }: ComponentProps<"p">) {
 	return (
 		<p
-			className={cn("m-0 text-destructive-text text-xs", className)}
+			className={cn("text-destructive-text m-0 text-xs", className)}
 			data-slot="field-error"
 			role="alert"
 			{...props}
@@ -110,7 +110,7 @@ function FieldSeparator({
 	return (
 		<div
 			className={cn(
-				"my-0.5 flex items-center gap-2.5 text-muted-foreground text-xs before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border",
+				"text-muted-foreground before:bg-border after:bg-border my-0.5 flex items-center gap-2.5 text-xs before:h-px before:flex-1 after:h-px after:flex-1",
 				className
 			)}
 			data-slot="field-separator"

@@ -7,7 +7,7 @@ import { describe, expect } from "vitest";
 import { insertRingGameFixture, test } from "./test-fixture";
 
 const day = new Date("2026-09-05T00:00:00.000Z");
-const ARCHIVE_GUIDANCE = /archive/i;
+const ARCHIVE_GUIDANCE = /archive/iu;
 
 describe("entry-referenced master deletion on D1", () => {
 	for (const kind of ["cash", "tournament"] as const) {
@@ -16,18 +16,18 @@ describe("entry-referenced master deletion on D1", () => {
 		}) => {
 			await api.db.insert(room).values({
 				id: "club",
-				userId: "alice",
 				name: "Club",
 				updatedAt: day,
+				userId: "alice",
 			});
 			const master = { id: "referenced" };
 			let ruleId = `${master.id}-fixture-rule`;
 			if (kind === "cash") {
 				await insertRingGameFixture(api.d1, {
 					id: master.id,
-					userId: "alice",
-					roomId: "club",
 					name: "Recorded game",
+					roomId: "club",
+					userId: "alice",
 				});
 			} else {
 				const nlh = (await api.alice.gameVariant.list()).find(
@@ -37,15 +37,15 @@ describe("entry-referenced master deletion on D1", () => {
 					throw new Error("missing builtin nlh");
 				}
 				const created = await api.alice.tournament.createWithLevels({
-					roomId: "club",
 					name: "Recorded game",
+					roomId: "club",
 					rule: {
 						game: { variantId: nlh.id },
 						levels: [
 							{
 								isBreak: false,
 								minutes: 20,
-								stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+								stakes: [{ blind1: 1, blind2: 2, gameGroupId: nlh.groupId }],
 							},
 						],
 					},
@@ -55,36 +55,36 @@ describe("entry-referenced master deletion on D1", () => {
 			}
 			await api.db.insert(entry).values({
 				id: "recorded-entry",
-				userId: "alice",
 				kind,
+				playedOn: "2026-09-05",
 				source: "manual",
 				status: "settled",
-				playedOn: "2026-09-05",
 				updatedAt: day,
+				userId: "alice",
 			});
 			if (kind === "cash") {
 				await api.db.insert(entryCash).values({
-					entryId: "recorded-entry",
-					userId: "alice",
-					ringGameId: master.id,
 					cashRuleId: ruleId,
+					entryId: "recorded-entry",
+					ringGameId: master.id,
+					userId: "alice",
 				});
 			} else {
 				await api.db.insert(entryTournament).values({
 					entryId: "recorded-entry",
-					userId: "alice",
 					tournamentId: master.id,
 					tournamentRuleId: ruleId,
+					userId: "alice",
 				});
 			}
 			const snapshot = async () => ({
-				games: await api.db.select().from(ringGame),
-				tournaments: await api.db.select().from(tournament),
-				rules: await api.db.select().from(tournamentRule),
-				levels: await api.db.select().from(tournamentRuleLevel),
-				entries: await api.db.select().from(entry),
 				cash: await api.db.select().from(entryCash),
+				entries: await api.db.select().from(entry),
+				games: await api.db.select().from(ringGame),
+				levels: await api.db.select().from(tournamentRuleLevel),
+				rules: await api.db.select().from(tournamentRule),
 				tournament: await api.db.select().from(entryTournament),
+				tournaments: await api.db.select().from(tournament),
 			});
 			const before = await snapshot();
 			const owner = kind === "cash" ? api.alice.ringGame : api.alice.tournament;
@@ -106,16 +106,16 @@ describe("entry-referenced master deletion on D1", () => {
 		}) => {
 			await api.db.insert(room).values({
 				id: "club",
-				userId: "alice",
 				name: "Club",
 				updatedAt: day,
+				userId: "alice",
 			});
 			const master = {
 				id: "unused",
-				userId: "alice",
-				roomId: "club",
 				name: "Unused",
+				roomId: "club",
 				updatedAt: day,
+				userId: "alice",
 			};
 			if (kind === "cash") {
 				await insertRingGameFixture(api.d1, master);
@@ -131,15 +131,15 @@ describe("entry-referenced master deletion on D1", () => {
 					throw new Error("missing builtin nlh");
 				}
 				const created = await api.alice.tournament.createWithLevels({
-					roomId: "club",
 					name: "Unused",
+					roomId: "club",
 					rule: {
 						game: { variantId: nlh.id },
 						levels: [
 							{
 								isBreak: false,
 								minutes: 20,
-								stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+								stakes: [{ blind1: 1, blind2: 2, gameGroupId: nlh.groupId }],
 							},
 						],
 					},

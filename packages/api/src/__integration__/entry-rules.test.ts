@@ -21,7 +21,8 @@ import {
 } from "./test-fixture";
 
 const DAY = new Date("2026-09-05T00:00:00.000Z");
-const RULE_ID_REQUIRED = /NOT NULL constraint failed: entry_cash\.cash_rule_id/;
+const RULE_ID_REQUIRED =
+	/NOT NULL constraint failed: entry_cash\.cash_rule_id/u;
 
 async function insertEntry(
 	db: Database,
@@ -31,12 +32,12 @@ async function insertEntry(
 ) {
 	await db.insert(entry).values({
 		id,
-		userId,
 		kind,
+		playedOn: "2026-09-05",
 		source: "manual",
 		status: "settled",
-		playedOn: "2026-09-05",
 		updatedAt: DAY,
+		userId,
 	});
 }
 
@@ -57,12 +58,12 @@ async function versionFor(
 async function ringGameWithRoom(api: ApiFixture) {
 	const room = requireCreatedRow(await api.alice.room.create({ name: "Club" }));
 	const created = await api.alice.ringGame.create({
-		roomId: room.id,
 		name: "Cash",
-		rule: { ...(await nlhGame(api.db)), minBuyIn: 100, maxBuyIn: 500 },
+		roomId: room.id,
+		rule: { ...(await nlhGame(api.db)), maxBuyIn: 500, minBuyIn: 100 },
 	});
 	const [master] = await api.db
-		.select({ id: ringGame.id, currentRuleId: ringGame.currentRuleId })
+		.select({ currentRuleId: ringGame.currentRuleId, id: ringGame.id })
 		.from(ringGame)
 		.where(eq(ringGame.id, created.id));
 	if (!master) {
@@ -103,20 +104,20 @@ describe("entry rule versions on D1", () => {
 			await api.db
 				.select({
 					id: cashRule.id,
-					ringGameId: cashRule.ringGameId,
-					parentRuleId: cashRule.parentRuleId,
-					minBuyIn: cashRule.minBuyIn,
 					maxBuyIn: cashRule.maxBuyIn,
+					minBuyIn: cashRule.minBuyIn,
+					parentRuleId: cashRule.parentRuleId,
+					ringGameId: cashRule.ringGameId,
 				})
 				.from(cashRule)
 				.where(eq(cashRule.id, child))
 		).toEqual([
 			{
 				id: child,
-				ringGameId: master.id,
-				parentRuleId: master.currentRuleId,
-				minBuyIn: 200,
 				maxBuyIn: 500,
+				minBuyIn: 200,
+				parentRuleId: master.currentRuleId,
+				ringGameId: master.id,
 			},
 		]);
 		for (const [id, ruleId, ringGameId] of [
@@ -126,10 +127,10 @@ describe("entry rule versions on D1", () => {
 		] as const) {
 			await insertEntry(api.db, id, "cash");
 			await api.db.insert(entryCash).values({
-				entryId: id,
-				userId: "alice",
-				ringGameId,
 				cashRuleId: ruleId,
+				entryId: id,
+				ringGameId,
+				userId: "alice",
 			});
 		}
 		const { entries, lineups } = await hydrateEntryRules(api.db, "alice", [
@@ -177,8 +178,8 @@ describe("entry rule versions on D1", () => {
 	}) => {
 		const master = await ringGameWithRoom(api);
 		const other = await api.alice.ringGame.create({
-			roomId: master.roomId,
 			name: "Other",
+			roomId: master.roomId,
 			rule: await nlhGame(api.db),
 		});
 		const bobRule = await versionFor(
@@ -194,8 +195,8 @@ describe("entry rule versions on D1", () => {
 				.where(eq(ringGame.id, other.id))
 		)[0]?.currentRuleId;
 		for (const values of [
-			{ ringGameId: master.id, cashRuleId: otherRule ?? "" },
-			{ ringGameId: null, cashRuleId: bobRule },
+			{ cashRuleId: otherRule ?? "", ringGameId: master.id },
+			{ cashRuleId: bobRule, ringGameId: null },
 		]) {
 			await expect(
 				api.db
@@ -219,8 +220,8 @@ describe("entry rule versions on D1", () => {
 	}) => {
 		const first = await ringGameWithRoom(api);
 		const second = await api.alice.ringGame.create({
-			roomId: first.roomId,
 			name: "Other",
+			roomId: first.roomId,
 			rule: await nlhGame(api.db),
 		});
 		await api.db
@@ -232,13 +233,13 @@ describe("entry rule versions on D1", () => {
 		).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
 
 		const a = await api.alice.tournament.create({
-			roomId: first.roomId,
 			name: "A",
+			roomId: first.roomId,
 			rule: {},
 		});
 		const b = await api.alice.tournament.create({
-			roomId: first.roomId,
 			name: "B",
+			roomId: first.roomId,
 			rule: {},
 		});
 		await api.db
@@ -264,10 +265,10 @@ describe("entry rule versions on D1", () => {
 		});
 		await insertEntry(api.db, "cash-entry", "cash");
 		await api.db.insert(entryCash).values({
-			entryId: "cash-entry",
-			userId: "alice",
-			ringGameId: master.id,
 			cashRuleId: child,
+			entryId: "cash-entry",
+			ringGameId: master.id,
+			userId: "alice",
 		});
 		await expect(
 			api.alice.ringGame.delete({ id: master.id })
@@ -297,19 +298,19 @@ describe("entry rule versions on D1", () => {
 			await api.alice.room.create({ name: "Club" })
 		);
 		const jpy = requireCreatedRow(
-			await api.alice.asset.create({ name: "JPY", kind: "currency" })
+			await api.alice.asset.create({ kind: "currency", name: "JPY" })
 		);
 		const price = {
-			kind: "entry" as const,
 			assetId: jpy.id,
-			fee: 1000,
 			chips: null,
+			fee: 1000,
+			kind: "entry" as const,
 		};
 		const { game, stakes } = await nlhGame(api.db);
 		const levels = [{ isBreak: false, minutes: 20, stakes }];
 		const created = await api.alice.tournament.createWithLevels({
-			roomId: room.id,
 			name: "Daily",
+			roomId: room.id,
 			rule: { game, levels, prices: [{ ...price, amount: 10_000 }] },
 		});
 		const version = await versionFor(api.db, {
@@ -320,9 +321,9 @@ describe("entry rule versions on D1", () => {
 		await insertEntry(api.db, "mtt", "tournament");
 		await api.db.insert(entryTournament).values({
 			entryId: "mtt",
-			userId: "alice",
 			tournamentId: created.id,
 			tournamentRuleId: version,
+			userId: "alice",
 		});
 		const [paid] = await api.db
 			.select({ id: tournamentRulePrice.id })
@@ -334,16 +335,16 @@ describe("entry rule versions on D1", () => {
 				)
 			);
 		await api.db.insert(ledgerLine).values({
-			id: "mtt:buy_in",
-			userId: "alice",
 			assetId: jpy.id,
-			quantity: -10_000,
-			role: "buy_in",
 			effect: "real",
 			entryId: "mtt",
-			priceId: paid?.id,
+			id: "mtt:buy_in",
 			occurredAt: DAY,
+			priceId: paid?.id,
+			quantity: -10_000,
+			role: "buy_in",
 			updatedAt: DAY,
+			userId: "alice",
 		});
 		await api.alice.tournament.updateWithLevels({
 			id: created.id,
@@ -357,8 +358,8 @@ describe("entry rule versions on D1", () => {
 		expect(
 			await api.db
 				.select({
-					quantity: ledgerLine.quantity,
 					amount: tournamentRulePrice.amount,
+					quantity: ledgerLine.quantity,
 					ruleId: tournamentRulePrice.ruleId,
 				})
 				.from(ledgerLine)
@@ -367,7 +368,7 @@ describe("entry rule versions on D1", () => {
 					eq(tournamentRulePrice.id, ledgerLine.priceId)
 				)
 				.where(eq(ledgerLine.id, "mtt:buy_in"))
-		).toEqual([{ quantity: -10_000, amount: 10_000, ruleId: version }]);
+		).toEqual([{ amount: 10_000, quantity: -10_000, ruleId: version }]);
 		const { entries } = await hydrateEntryRules(api.db, "alice", [
 			{
 				entryId: "mtt",
@@ -377,9 +378,9 @@ describe("entry rule versions on D1", () => {
 			},
 		]);
 		expect(entries.get("mtt")).toMatchObject({
-			ruleVersionId: version,
 			currentMasterRuleId: master?.currentRuleId,
 			ruleDrift: true,
+			ruleVersionId: version,
 		});
 	});
 });

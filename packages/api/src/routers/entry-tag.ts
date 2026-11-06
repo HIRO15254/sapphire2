@@ -12,9 +12,9 @@ export const entryTagRouter = createTagRouter<
 	typeof tagCreateInputSchema,
 	typeof tagUpdateInputSchema
 >({
-	table: entryTag,
+	createInputSchema: tagCreateInputSchema,
 	nameIndex: "entry_tag_name_uq",
 	selection: tagSelection(entryTag),
-	createInputSchema: tagCreateInputSchema,
+	table: entryTag,
 	updateInputSchema: tagUpdateInputSchema,
 });

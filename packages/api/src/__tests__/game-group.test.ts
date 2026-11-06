@@ -20,8 +20,8 @@ const MIX_TABLE = getTableName(gameMix);
 function gameGroupCaller(userId: string, select: Record<string, Rows>) {
 	const mock = createChainableMockDb({ select });
 	const caller = appRouter.createCaller({
-		session: { user: { id: userId } },
 		db: mock.db,
+		session: { user: { id: userId } },
 	} as unknown as Parameters<typeof appRouter.createCaller>[0]).gameGroup;
 	return { caller, ...mock };
 }
@@ -66,41 +66,41 @@ describe("gameGroup.create input validation", () => {
 
 	it("accepts blind labels explicitly null", () => {
 		expectAccepts(appRouter.gameGroup.create, {
-			label: "My Group",
 			blind1Label: null,
 			blind2Label: null,
 			blind3Label: null,
+			label: "My Group",
 		});
 	});
 
 	it("accepts blind labels at the 20-character boundary", () => {
 		expectAccepts(appRouter.gameGroup.create, {
-			label: "My Group",
 			blind1Label: "a".repeat(20),
 			blind2Label: "a".repeat(20),
 			blind3Label: "a".repeat(20),
+			label: "My Group",
 		});
 	});
 
 	it("rejects a blind label longer than 20 characters", () => {
 		expectRejects(appRouter.gameGroup.create, {
-			label: "My Group",
 			blind1Label: "a".repeat(21),
+			label: "My Group",
 		});
 	});
 
 	it("rejects an empty blind label", () => {
 		expectRejects(appRouter.gameGroup.create, {
-			label: "My Group",
 			blind1Label: "",
+			label: "My Group",
 		});
 	});
 
 	it("rejects a builtinKey supplied in the input (immutable, not settable)", () => {
 		const schema = getInputSchema(appRouter.gameGroup.create);
 		const parsed = schema.safeParse({
-			label: "My Group",
 			builtinKey: "limit",
+			label: "My Group",
 		}) as unknown as { data?: Record<string, unknown>; success: boolean };
 		expect(parsed.success).toBe(true);
 		expect(parsed.data?.builtinKey).toBeUndefined();
@@ -129,25 +129,25 @@ describe("gameGroup.update input validation", () => {
 
 	it("accepts blind labels cleared to null", () => {
 		expectAccepts(appRouter.gameGroup.update, {
-			id: "grp-1",
 			blind1Label: null,
 			blind2Label: null,
 			blind3Label: null,
+			id: "grp-1",
 		});
 	});
 
 	it("rejects a blind label longer than 20 characters", () => {
 		expectRejects(appRouter.gameGroup.update, {
-			id: "grp-1",
 			blind1Label: "a".repeat(21),
+			id: "grp-1",
 		});
 	});
 
 	it("strips a builtinKey supplied in the input (immutable)", () => {
 		const schema = getInputSchema(appRouter.gameGroup.update);
 		const parsed = schema.safeParse({
-			id: "grp-1",
 			builtinKey: "stud",
+			id: "grp-1",
 		}) as unknown as { data?: Record<string, unknown>; success: boolean };
 		expect(parsed.success).toBe(true);
 		expect(parsed.data?.builtinKey).toBeUndefined();
@@ -172,9 +172,9 @@ describe("gameGroup.create", () => {
 		await caller.create({ label: "Brand New" });
 		expect(inserted[GROUP_TABLE]).toHaveLength(1);
 		expect(inserted[GROUP_TABLE]?.[0]).toMatchObject({
-			userId: CUR_OWNER,
-			label: "Brand New",
 			builtinKey: null,
+			label: "Brand New",
+			userId: CUR_OWNER,
 		});
 		expect(
 			typeof (inserted[GROUP_TABLE]?.[0] as Record<string, unknown>)?.id
@@ -187,39 +187,39 @@ describe("gameGroup.list ordering + self-seed", () => {
 		const { caller } = gameGroupCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [
 				{
-					id: "custom-1",
-					userId: CUR_OWNER,
 					archivedAt: null,
 					builtinKey: null,
+					id: "custom-1",
 					label: "Zeta Custom",
+					userId: CUR_OWNER,
 				},
 				{
-					id: "bigbet-1",
-					userId: CUR_OWNER,
 					archivedAt: null,
 					builtinKey: "bigbet",
+					id: "bigbet-1",
 					label: "Big Bet",
+					userId: CUR_OWNER,
 				},
 				{
-					id: "custom-2",
-					userId: CUR_OWNER,
 					archivedAt: null,
 					builtinKey: null,
+					id: "custom-2",
 					label: "Alpha Custom",
+					userId: CUR_OWNER,
 				},
 				{
-					id: "stud-1",
-					userId: CUR_OWNER,
 					archivedAt: null,
 					builtinKey: "stud",
+					id: "stud-1",
 					label: "Stud",
+					userId: CUR_OWNER,
 				},
 				{
-					id: "limit-1",
-					userId: CUR_OWNER,
 					archivedAt: null,
 					builtinKey: "limit",
+					id: "limit-1",
 					label: "Limit",
+					userId: CUR_OWNER,
 				},
 			],
 			[VARIANT_TABLE]: [{ id: "gv-1", userId: CUR_OWNER }],
@@ -254,7 +254,7 @@ describe("gameGroup.list ordering + self-seed", () => {
 
 	it("scopes the list query to the caller's userId", async () => {
 		const rows = seededRows({
-			group: [{ id: "grp-1", userId: CUR_OWNER, builtinKey: null, label: "X" }],
+			group: [{ builtinKey: null, id: "grp-1", label: "X", userId: CUR_OWNER }],
 		});
 		const { caller, selectWhereParams } = gameGroupCaller(CUR_OWNER, rows);
 		await caller.list();

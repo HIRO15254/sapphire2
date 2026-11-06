@@ -9,25 +9,25 @@ import { createChainableMockDb } from "./test-utils";
 vi.mock("@sapphire2/db/constants/game-variants", () => ({
 	DEFAULT_GAME_GROUPS: [
 		{
-			key: "limit",
-			label: "Limit",
 			blind1Label: "Small Bet",
 			blind2Label: "Big Bet",
 			blind3Label: null,
-		},
-	],
-	DEFAULT_GAME_VARIANTS: [
-		{
-			key: "lhe",
-			label: "Limit Hold'em",
-			shortLabel: "LHE",
-			groupKey: "limit",
+			key: "limit",
+			label: "Limit",
 		},
 	],
 	DEFAULT_GAME_MIXES: [
 		{ key: "solo", label: "Solo", variantKeys: ["lhe"] },
 		{ key: "ghost", label: "Ghost", variantKeys: ["not-seeded"] },
 		{ key: "partial", label: "Partial", variantKeys: ["not-seeded", "lhe"] },
+	],
+	DEFAULT_GAME_VARIANTS: [
+		{
+			groupKey: "limit",
+			key: "lhe",
+			label: "Limit Hold'em",
+			shortLabel: "LHE",
+		},
 	],
 }));
 

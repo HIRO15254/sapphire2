@@ -20,11 +20,12 @@ import {
 
 const TARGET = "0069_entry_rule_versions.sql";
 const PRECONDITION_GATE =
-	/NOT NULL constraint failed: __gate_0069\.precondition/;
-const BIG_BET_GATE = /NOT NULL constraint failed: __gate_0069\.big_bet_blind3/;
-const RULE_ID_REQUIRED = /NOT NULL constraint failed: entry_cash\.cash_rule_id/;
-const FOREIGN_KEY_FAILED = /FOREIGN KEY constraint failed/;
-const PRICES_GATE = /NOT NULL constraint failed: __gate_0069\.prices/;
+	/NOT NULL constraint failed: __gate_0069\.precondition/u;
+const BIG_BET_GATE = /NOT NULL constraint failed: __gate_0069\.big_bet_blind3/u;
+const RULE_ID_REQUIRED =
+	/NOT NULL constraint failed: entry_cash\.cash_rule_id/u;
+const FOREIGN_KEY_FAILED = /FOREIGN KEY constraint failed/u;
+const PRICES_GATE = /NOT NULL constraint failed: __gate_0069\.prices/u;
 const beforeEntry = migrationFiles("0061_").map(statementsOf);
 const cutovers = migrationFiles(TARGET)
 	.filter((name) => name >= "0061_")
@@ -135,7 +136,7 @@ describe("migration 0069 — entry rule versions", () => {
 			source.close();
 		}
 	});
-	afterAll(() => rmSync(directory, { recursive: true, force: true }));
+	afterAll(() => rmSync(directory, { force: true, recursive: true }));
 	beforeEach(() => {
 		const path = join(directory, `${index++}.sqlite`);
 		copyFileSync(seededPath, path);

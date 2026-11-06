@@ -8,8 +8,8 @@ const mocks = vi.hoisted(() => ({
 		VITE_PREVIEW_LOGIN_PASSWORD: undefined as string | undefined,
 		VITE_SERVER_URL: "http://localhost:8787",
 	},
-	signInEmail: vi.fn(),
 	navigate: vi.fn(),
+	signInEmail: vi.fn(),
 }));
 
 vi.mock("@sapphire2/env/web", () => ({

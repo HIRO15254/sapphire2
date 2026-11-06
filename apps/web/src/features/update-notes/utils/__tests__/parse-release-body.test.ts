@@ -13,7 +13,7 @@ describe("parseReleaseBody", () => {
 	it("returns a section with no items when a heading has no bullets", () => {
 		expect(
 			parseReleaseBody("## v1.0.0 Release Notes\n\n### New Features\n")
-		).toEqual([{ section: "New Features", items: [] }]);
+		).toEqual([{ items: [], section: "New Features" }]);
 	});
 
 	it("groups bullets under their ### heading", () => {
@@ -31,12 +31,12 @@ describe("parseReleaseBody", () => {
 
 		expect(parseReleaseBody(body)).toEqual([
 			{
-				section: "New Features",
 				items: ["Players can now seat themselves (#154)"],
+				section: "New Features",
 			},
 			{
-				section: "Bug Fixes",
 				items: ["Fixed HTML parsing errors (#154)"],
+				section: "Bug Fixes",
 			},
 		]);
 	});
@@ -47,7 +47,7 @@ describe("parseReleaseBody", () => {
 		);
 
 		expect(parseReleaseBody(body)).toEqual([
-			{ section: "UI Improvements", items: ["Dash item", "Star item"] },
+			{ items: ["Dash item", "Star item"], section: "UI Improvements" },
 		]);
 	});
 
@@ -58,7 +58,7 @@ describe("parseReleaseBody", () => {
 		].join("\n");
 
 		expect(parseReleaseBody(body)).toEqual([
-			{ section: "", items: ["orphan bullet before any ### heading"] },
+			{ items: ["orphan bullet before any ### heading"], section: "" },
 		]);
 	});
 
@@ -66,7 +66,7 @@ describe("parseReleaseBody", () => {
 		const body = ["### New Features", "- first", "", "- second"].join("\n");
 
 		expect(parseReleaseBody(body)).toEqual([
-			{ section: "New Features", items: ["first", "second"] },
+			{ items: ["first", "second"], section: "New Features" },
 		]);
 	});
 
@@ -78,8 +78,8 @@ describe("parseReleaseBody", () => {
 		].join("\n");
 
 		expect(parseReleaseBody(body)).toEqual([
-			{ section: "New Features", items: ["only item"] },
-			{ section: "UI Improvements", items: [] },
+			{ items: ["only item"], section: "New Features" },
+			{ items: [], section: "UI Improvements" },
 		]);
 	});
 });

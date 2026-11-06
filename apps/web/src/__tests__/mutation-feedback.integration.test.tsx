@@ -22,7 +22,11 @@ import { FormSheet } from "@/shared/components/form-sheet";
 import { LoadErrorState } from "@/shared/components/query-state";
 import { Toaster } from "@/shared/components/ui/sonner";
 import { useUndoableMutation } from "@/shared/hooks/use-undoable-mutation";
-import { restoreSnapshots, snapshotQuery } from "@/utils/optimistic-update";
+import {
+	type QuerySnapshot,
+	restoreSnapshots,
+	snapshotQuery,
+} from "@/utils/optimistic-update";
 import { queryClient as appQueryClient } from "@/utils/trpc";
 import { renderIntegrationPage, trpcHttpHandler } from "./integration";
 import { createTestQueryClient } from "./test-utils";
@@ -32,8 +36,8 @@ vi.mock("@sapphire2/env/web", () => ({
 }));
 
 const t = initTRPC.create();
-const undoName = /Undo/;
-const notFoundText = /not found/i;
+const undoName = /Undo/u;
+const notFoundText = /not found/iu;
 let value = "before";
 let failSave = false;
 let failUndo = false;
@@ -83,10 +87,10 @@ function Probe({ destructive = false }: { destructive?: boolean }) {
 		destructive
 			? { destructive: true, message: "Record deleted" }
 			: {
-					message: "Record updated",
 					inverse: async (_variables, _data, previous) => {
 						await client.write.mutate(previous ?? "before");
 					},
+					message: "Record updated",
 				}
 	);
 	const form = useForm({
@@ -95,9 +99,7 @@ function Probe({ destructive = false }: { destructive?: boolean }) {
 			try {
 				await mutation.mutateAsync(fields.name);
 				setOpen(false);
-			} catch {
-				return;
-			}
+			} catch {}
 		},
 	});
 	return (
@@ -140,8 +142,8 @@ beforeAll(() => {
 	Object.defineProperty(window, "matchMedia", {
 		configurable: true,
 		value: () => ({
-			matches: false,
 			addEventListener: vi.fn(),
+			matches: false,
 			removeEventListener: vi.fn(),
 		}),
 	});
@@ -210,13 +212,13 @@ function ConflictProbe() {
 	const query = useQuery(trpc.read.queryOptions());
 	const mutation = useUndoableMutation(
 		trpc.write.mutationOptions({
+			onError: (_error, _next, snapshot: QuerySnapshot | undefined) => {
+				restoreSnapshots(queryClient, [snapshot]);
+			},
 			onMutate: (next) => {
 				const snapshot = snapshotQuery(queryClient, key);
 				queryClient.setQueryData(key, next);
 				return snapshot;
-			},
-			onError: (_error, _next, snapshot) => {
-				restoreSnapshots(queryClient, [snapshot]);
 			},
 		}),
 		{ destructive: true, message: "Saved" }

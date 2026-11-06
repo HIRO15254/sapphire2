@@ -95,12 +95,6 @@ async function fetchIssueContext(
 		return null;
 	}
 	return {
-		identifier: data.issue.identifier,
-		title: data.issue.title,
-		url: data.issue.url,
-		description: data.issue.description ?? "",
-		state: data.issue.state.name,
-		project: data.issue.project?.name ?? null,
 		comments: data.issue.comments.nodes
 			.filter((comment) => comment.user !== null)
 			.map((comment) => ({
@@ -108,6 +102,12 @@ async function fetchIssueContext(
 				body: comment.body,
 				createdAt: comment.createdAt,
 			})),
+		description: data.issue.description ?? "",
+		identifier: data.issue.identifier,
+		project: data.issue.project?.name ?? null,
+		state: data.issue.state.name,
+		title: data.issue.title,
+		url: data.issue.url,
 	};
 }
 

@@ -56,7 +56,7 @@ async function expectBadRequest(promise: Promise<unknown>): Promise<void> {
 }
 
 function redirect(location: string): Response {
-	return new Response(null, { status: 302, headers: { location } });
+	return new Response(null, { headers: { location }, status: 302 });
 }
 
 afterEach(() => {
@@ -67,12 +67,12 @@ describe("location.search provider boundary", () => {
 		const fetchMock = vi
 			.fn()
 			.mockResolvedValue(
-				Response.json({ places: [], padding: "x".repeat(1_000_000) })
+				Response.json({ padding: "x".repeat(1_000_000), places: [] })
 			);
 		vi.stubGlobal("fetch", fetchMock);
 		const caller = appRouter.createCaller({
-			session: { user: { id: "user-1" } },
 			googleMapsApiKey: "test-key",
+			session: { user: { id: "user-1" } },
 		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
 		await expect(
 			caller.location.search({ query: "casino" })
@@ -82,8 +82,8 @@ describe("location.search provider boundary", () => {
 		expect(fetchMock).toHaveBeenCalledWith(
 			"https://places.googleapis.com/v1/places:searchText",
 			expect.objectContaining({
-				redirect: "manual",
 				credentials: "omit",
+				redirect: "manual",
 				signal: expect.any(AbortSignal),
 			})
 		);
@@ -109,8 +109,8 @@ describe("location.resolveLink short-link redirects", () => {
 		expect(fetchMock).toHaveBeenCalledWith(
 			"https://goo.gl/maps/abc",
 			expect.objectContaining({
-				redirect: "manual",
 				credentials: "omit",
+				redirect: "manual",
 				signal: expect.any(AbortSignal),
 			})
 		);

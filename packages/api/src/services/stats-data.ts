@@ -186,17 +186,17 @@ async function selectPopulationRows(
 ) {
 	const rows = await db
 		.select({
-			id: entry.id,
-			kind: entry.kind,
-			playedOn: entry.playedOn,
-			roomId: entry.roomId,
-			roomName: room.name,
 			assetId: entry.assetId,
 			cashRuleId: entryCash.cashRuleId,
 			evDiff: entryCash.evDiff,
+			id: entry.id,
+			kind: entry.kind,
+			placement: entryTournament.placement,
+			playedOn: entry.playedOn,
+			roomId: entry.roomId,
+			roomName: room.name,
 			tournamentId: entryTournament.tournamentId,
 			tournamentRuleId: entryTournament.tournamentRuleId,
-			placement: entryTournament.placement,
 		})
 		.from(entry)
 		.leftJoin(
@@ -269,7 +269,7 @@ async function countPlaySessionHands(
 		entryIds,
 		(chunk) =>
 			db
-				.select({ playSessionId: hand.playSessionId, hands: count(hand.id) })
+				.select({ hands: count(hand.id), playSessionId: hand.playSessionId })
 				.from(hand)
 				.innerJoin(
 					playSession,
@@ -318,21 +318,21 @@ export async function loadStatsPopulation(
 	);
 	return rows.map((row) => {
 		const plays = (playsByEntry.get(row.id) ?? []).map((play) => ({
-			startedAt: play.startedAt,
-			endedAt: play.endedAt,
 			breakMinutes: play.breakMinutes,
+			endedAt: play.endedAt,
 			handCount: hands.get(play.id) ?? 0,
+			startedAt: play.startedAt,
 		}));
 		const shared = {
-			id: row.id,
-			kind: row.kind,
-			playedOn: row.playedOn,
-			roomId: row.roomId,
-			roomName: row.roomName,
 			assetId: row.assetId,
 			handCount: plays.reduce((total, play) => total + play.handCount, 0),
+			id: row.id,
+			kind: row.kind,
 			lines: linesByEntry.get(row.id) ?? [],
+			playedOn: row.playedOn,
 			plays,
+			roomId: row.roomId,
+			roomName: row.roomName,
 		};
 		if (row.kind === "cash") {
 			const cashRule = row.cashRuleId
@@ -347,11 +347,11 @@ export async function loadStatsPopulation(
 			const lineup = cash.lineups[cashRule.lineupId];
 			return {
 				...shared,
+				bigBlind: cashBigBlind(cashRule),
 				evDiff: row.evDiff,
 				placement: null,
-				bigBlind: cashBigBlind(cashRule),
-				variant: variantBucket(lineup),
 				stakes: cashStakesBucket(cashRule.stakes, lineup),
+				variant: variantBucket(lineup),
 			};
 		}
 		const lineupId = row.tournamentRuleId
@@ -359,13 +359,13 @@ export async function loadStatsPopulation(
 			: undefined;
 		return {
 			...shared,
+			bigBlind: null,
 			evDiff: null,
 			placement: row.placement,
-			bigBlind: null,
+			stakes: TOURNAMENT_STAKES,
 			variant: variantBucket(
 				lineupId ? tournament.lineups[lineupId] : undefined
 			),
-			stakes: TOURNAMENT_STAKES,
 		};
 	});
 }

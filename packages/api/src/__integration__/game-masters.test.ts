@@ -30,31 +30,31 @@ async function createDrawMasters(api: ApiFixture) {
 	await api.alice.gameGroup.list();
 	const group = requireCreatedRow(
 		await api.alice.gameGroup.create({
-			label: "Draw",
 			blind1Label: "SB",
 			blind2Label: "BB",
+			label: "Draw",
 		})
 	);
 	const variant = requireCreatedRow(
 		await api.alice.gameVariant.create({
+			groupId: group.id,
 			label: "Triple Draw",
 			shortLabel: "TD",
-			groupId: group.id,
 		})
 	);
 	const partner = requireCreatedRow(
 		await api.alice.gameVariant.create({
-			label: "Single Draw",
 			groupId: group.id,
+			label: "Single Draw",
 		})
 	);
 	const mix = requireCreatedRow(
 		await api.alice.gameMix.create({
-			label: "Draw Mix",
 			games: [variant.id, partner.id],
+			label: "Draw Mix",
 		})
 	);
-	return { group, variant, partner, mix };
+	return { group, mix, partner, variant };
 }
 
 async function rowCount(
@@ -79,8 +79,8 @@ describe("game masters (real D1)", () => {
 		);
 		await expect(
 			raced.gameMix.create({
-				label: "Raced Mix",
 				games: [variant.id, partner.id],
+				label: "Raced Mix",
 			})
 		).rejects.toMatchObject({ code: "CONFLICT" });
 		expect(
@@ -101,12 +101,12 @@ describe("game masters (real D1)", () => {
 		await api.alice.gameMix.archive({ id: mix.id });
 		await api.alice.gameVariant.archive({ id: variant.id });
 		const raced = api.raceCaller("alice", () =>
-			api.alice.gameMix.update({ id: mix.id, games: [partner.id, third.id] })
+			api.alice.gameMix.update({ games: [partner.id, third.id], id: mix.id })
 		);
 		await expect(
 			raced.gameMix.update({
-				id: mix.id,
 				games: [variant.id, partner.id],
+				id: mix.id,
 			})
 		).rejects.toMatchObject({ code: "CONFLICT" });
 		const current = (
@@ -157,18 +157,18 @@ describe("game masters (real D1)", () => {
 		);
 		const raced = api.raceCaller("alice", async () => {
 			await api.alice.gameGroup.update({
-				id: variant.groupId,
 				blind3Label: "Straddle",
 				blind3Required: true,
+				id: variant.groupId,
 			});
 		});
 		await expect(
 			raced.ringGame.create({
-				roomId: room.id,
 				name: "Cash",
+				roomId: room.id,
 				rule: {
 					game: { variantId: variant.id },
-					stakes: [{ gameGroupId: variant.groupId, blind1: 1, blind2: 2 }],
+					stakes: [{ blind1: 1, blind2: 2, gameGroupId: variant.groupId }],
 				},
 			})
 		).rejects.toMatchObject({ code: "CONFLICT" });
@@ -203,25 +203,25 @@ describe("game masters (real D1)", () => {
 				(row) => row.id === group.id
 			)
 		).toMatchObject({
-			label: "Draw",
 			blind1Label: "SB",
 			blind2Label: "BB",
 			blind3Label: null,
+			label: "Draw",
 		});
 		expect(
 			(await api.alice.gameVariant.list({ includeArchived: true })).find(
 				(row) => row.id === variant.id
 			)
 		).toMatchObject({
+			groupId: group.id,
 			label: "Triple Draw",
 			shortLabel: "TD",
-			groupId: group.id,
 		});
 		expect(
 			(await api.alice.gameMix.list({ includeArchived: true })).find(
 				(row) => row.id === mix.id
 			)
-		).toMatchObject({ label: "Draw Mix", games: [variant.id, partner.id] });
+		).toMatchObject({ games: [variant.id, partner.id], label: "Draw Mix" });
 
 		await expect(
 			api.alice.gameVariant.restore({ id: variant.id })
@@ -264,23 +264,23 @@ describe("game masters (real D1)", () => {
 		).rejects.toMatchObject(rejection("CONFLICT", "archive it instead"));
 
 		await api.db.insert(gameLineup).values({
+			gameMixId: mix.id,
 			id: "lineup",
 			userId: "alice",
-			gameMixId: mix.id,
 		});
 		await api.db.insert(gameLineupGroup).values({
+			gameGroupId: group.id,
 			id: "lineup-group",
-			userId: "alice",
 			lineupId: "lineup",
 			position: 0,
-			gameGroupId: group.id,
+			userId: "alice",
 		});
 		await api.db.insert(gameLineupVariant).values({
-			userId: "alice",
-			lineupId: "lineup",
 			lineupGroupId: "lineup-group",
-			variantId: partner.id,
+			lineupId: "lineup",
 			position: 0,
+			userId: "alice",
+			variantId: partner.id,
 		});
 		await expect(
 			api.alice.gameMix.delete({ id: mix.id })
@@ -297,31 +297,31 @@ describe("game masters (real D1)", () => {
 
 		await api.db.insert(entry).values({
 			id: "entry",
-			userId: "alice",
 			kind: "cash",
+			playedOn: "2026-09-05",
 			source: "live",
 			status: "open",
-			playedOn: "2026-09-05",
 			updatedAt: NOW,
+			userId: "alice",
 		});
 		await api.db.insert(playSession).values({
-			id: "play",
-			userId: "alice",
 			entryId: "entry",
+			id: "play",
 			kind: "cash",
-			seq: 1,
 			localDate: "2026-09-05",
+			seq: 1,
 			status: "active",
 			updatedAt: NOW,
+			userId: "alice",
 		});
 		await api.db.insert(hand).values({
-			id: "hand",
-			userId: "alice",
-			playSessionId: "play",
-			handNo: 1,
 			detail: "count",
-			variantId: variant.id,
+			handNo: 1,
+			id: "hand",
+			playSessionId: "play",
 			updatedAt: NOW,
+			userId: "alice",
+			variantId: variant.id,
 		});
 		await expect(
 			api.alice.gameVariant.delete({ id: variant.id })
@@ -355,8 +355,8 @@ describe("game masters (real D1)", () => {
 
 		await expect(
 			api.alice.gameVariant.create({
-				label: " triple DRAW ",
 				groupId: group.id,
+				label: " triple DRAW ",
 			})
 		).rejects.toMatchObject(
 			rejection("CONFLICT", "You already have a game variant")
@@ -366,11 +366,11 @@ describe("game masters (real D1)", () => {
 		).rejects.toMatchObject(rejection("CONFLICT", "game group"));
 
 		const solo = requireCreatedRow(
-			await api.alice.gameVariant.create({ label: "Solo", groupId: group.id })
+			await api.alice.gameVariant.create({ groupId: group.id, label: "Solo" })
 		);
 		await api.alice.gameVariant.archive({ id: solo.id });
 		await expect(
-			api.alice.gameVariant.create({ label: "SOLO", groupId: group.id })
+			api.alice.gameVariant.create({ groupId: group.id, label: "SOLO" })
 		).rejects.toMatchObject(rejection("CONFLICT", "restore it instead"));
 		await expect(
 			api.alice.gameVariant.update({ id: variant.id, label: "solo" })
@@ -381,16 +381,16 @@ describe("game masters (real D1)", () => {
 		).resolves.toMatchObject({ label: "TRIPLE DRAW" });
 		await expect(
 			api.alice.gameMix.create({
-				label: "Triple Draw",
 				games: [variant.id, (await api.alice.gameVariant.list())[0]?.id ?? ""],
+				label: "Triple Draw",
 			})
 		).resolves.toMatchObject({ label: "Triple Draw" });
 		await expect(
 			api.bob.gameVariant.create({
-				label: "Triple Draw",
 				groupId: requireCreatedRow(
 					await api.bob.gameGroup.create({ label: "Draw" })
 				).id,
+				label: "Triple Draw",
 			})
 		).resolves.toMatchObject({ label: "Triple Draw" });
 	});
@@ -408,41 +408,41 @@ describe("game masters (real D1)", () => {
 		await api.alice.gameGroup.archive({ id: other.id });
 
 		await expect(
-			api.alice.gameVariant.create({ label: "Badugi 2", groupId: other.id })
+			api.alice.gameVariant.create({ groupId: other.id, label: "Badugi 2" })
 		).rejects.toMatchObject(rejection("BAD_REQUEST"));
 		await expect(
-			api.alice.gameVariant.update({ id: variant.id, groupId: other.id })
+			api.alice.gameVariant.update({ groupId: other.id, id: variant.id })
 		).rejects.toMatchObject(rejection("BAD_REQUEST"));
 
 		await api.alice.gameMix.archive({ id: mix.id });
 		await api.alice.gameVariant.archive({ id: partner.id });
 		await expect(
 			api.alice.gameMix.update({
+				games: [variant.id, partner.id],
 				id: mix.id,
 				label: "Old Draw Mix",
-				games: [variant.id, partner.id],
 			})
 		).resolves.toMatchObject({
-			label: "Old Draw Mix",
 			games: [variant.id, partner.id],
+			label: "Old Draw Mix",
 		});
 		await expect(
 			api.alice.gameMix.create({
-				label: "Fresh",
 				games: [variant.id, partner.id],
+				label: "Fresh",
 			})
 		).rejects.toMatchObject(rejection("BAD_REQUEST", "restore it first"));
 
 		const active = requireCreatedRow(
 			await api.alice.gameMix.create({
-				label: "Active",
 				games: [variant.id, holdem?.id ?? ""],
+				label: "Active",
 			})
 		);
 		await expect(
 			api.alice.gameMix.update({
-				id: active.id,
 				games: [variant.id, holdem?.id ?? "", partner.id],
+				id: active.id,
 			})
 		).rejects.toMatchObject(rejection("BAD_REQUEST", "restore it first"));
 	});
@@ -458,15 +458,15 @@ describe("game masters (real D1)", () => {
 			() => api.bob.gameVariant.archive({ id: variant.id }),
 			() => api.bob.gameVariant.restore({ id: variant.id }),
 			() => api.bob.gameVariant.delete({ id: variant.id }),
-			() => api.bob.gameVariant.create({ label: "X", groupId: group.id }),
+			() => api.bob.gameVariant.create({ groupId: group.id, label: "X" }),
 			() => api.bob.gameMix.update({ id: mix.id, label: "Mine" }),
 			() => api.bob.gameMix.archive({ id: mix.id }),
 			() => api.bob.gameMix.restore({ id: mix.id }),
 			() => api.bob.gameMix.delete({ id: mix.id }),
 			() =>
 				api.bob.gameMix.create({
-					label: "Stolen",
 					games: [variant.id, "missing"],
+					label: "Stolen",
 				}),
 			() => api.alice.gameGroup.archive({ id: "missing" }),
 			() => api.alice.gameVariant.delete({ id: "missing" }),
@@ -478,7 +478,7 @@ describe("game masters (real D1)", () => {
 		}
 		expect(
 			await api.db.select().from(gameMix).where(eq(gameMix.id, mix.id))
-		).toMatchObject([{ label: "Draw Mix", archivedAt: null }]);
+		).toMatchObject([{ archivedAt: null, label: "Draw Mix" }]);
 	});
 
 	test("archiving every builtin does not re-seed them", async ({ api }) => {
@@ -487,8 +487,8 @@ describe("game masters (real D1)", () => {
 		const groups = await api.alice.gameGroup.list();
 		const before = {
 			groups: await rowCount(api, gameGroup),
-			variants: await rowCount(api, gameVariant),
 			mixes: await rowCount(api, gameMix),
+			variants: await rowCount(api, gameVariant),
 		};
 
 		for (const row of mixes) {
@@ -506,8 +506,8 @@ describe("game masters (real D1)", () => {
 		expect(await api.alice.gameMix.list()).toEqual([]);
 		expect({
 			groups: await rowCount(api, gameGroup),
-			variants: await rowCount(api, gameVariant),
 			mixes: await rowCount(api, gameMix),
+			variants: await rowCount(api, gameVariant),
 		}).toEqual(before);
 		expect(
 			await api.alice.gameMix.list({ includeArchived: true })
@@ -520,18 +520,18 @@ describe("game masters (real D1)", () => {
 		const { group, variant } = await createDrawMasters(api);
 
 		await api.alice.gameGroup.update({
-			id: group.id,
 			blind1Label: null,
 			blind3Label: "Straddle",
+			id: group.id,
 		});
 		await api.alice.gameVariant.update({
 			id: variant.id,
 			shortLabel: null,
 		});
 		const undoneGroup = await api.alice.gameGroup.update({
-			id: group.id,
 			blind1Label: group.blind1Label,
 			blind3Label: group.blind3Label,
+			id: group.id,
 		});
 		const undoneVariant = await api.alice.gameVariant.update({
 			id: variant.id,

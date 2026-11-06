@@ -34,11 +34,11 @@ export const mcpConnectionRouter = router({
 		const [consents, accessTokens, refreshTokens] = await ctx.db.batch([
 			ctx.db
 				.select({
-					clientId: oauthConsent.clientId,
 					approvedAt:
 						sql<Date | null>`max(coalesce(${oauthConsent.updatedAt}, ${oauthConsent.createdAt}))`.mapWith(
 							oauthConsent.createdAt
 						),
+					clientId: oauthConsent.clientId,
 				})
 				.from(oauthConsent)
 				.where(eq(oauthConsent.userId, userId))
@@ -46,11 +46,11 @@ export const mcpConnectionRouter = router({
 			ctx.db
 				.select({
 					clientId: oauthAccessToken.clientId,
-					lastActiveAt: max(oauthAccessToken.createdAt),
 					hasLiveToken:
 						sql<number>`max(${oauthAccessToken.revoked} is null and ${oauthAccessToken.expiresAt} > ${now.getTime()})`.mapWith(
 							Number
 						),
+					lastActiveAt: max(oauthAccessToken.createdAt),
 				})
 				.from(oauthAccessToken)
 				.where(eq(oauthAccessToken.userId, userId))
@@ -96,10 +96,10 @@ export const mcpConnectionRouter = router({
 		return clientIds
 			.map(
 				(clientId): McpConnection => ({
-					clientId,
-					name: names.get(clientId) ?? null,
 					approvedAt: approvedAt.get(clientId) ?? null,
+					clientId,
 					lastActiveAt: lastActiveAt.get(clientId) ?? null,
+					name: names.get(clientId) ?? null,
 				})
 			)
 			.sort(latestFirst);

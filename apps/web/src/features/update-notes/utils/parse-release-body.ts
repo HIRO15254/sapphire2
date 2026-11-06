@@ -3,8 +3,8 @@ export interface UpdateNoteSection {
 	section: string;
 }
 
-const LIST_ITEM_PREFIX = /^[-*]\s+/;
-const SECTION_HEADING_PREFIX = /^###\s+/;
+const LIST_ITEM_PREFIX = /^[-*]\s+/u;
+const SECTION_HEADING_PREFIX = /^###\s+/u;
 
 export function parseReleaseBody(body: string | null): UpdateNoteSection[] {
 	if (!body) {
@@ -19,8 +19,8 @@ export function parseReleaseBody(body: string | null): UpdateNoteSection[] {
 
 		if (SECTION_HEADING_PREFIX.test(line)) {
 			current = {
-				section: line.replace(SECTION_HEADING_PREFIX, "").trim(),
 				items: [],
+				section: line.replace(SECTION_HEADING_PREFIX, "").trim(),
 			};
 			sections.push(current);
 			continue;
@@ -36,7 +36,7 @@ export function parseReleaseBody(body: string | null): UpdateNoteSection[] {
 		}
 
 		if (!current) {
-			current = { section: "", items: [] };
+			current = { items: [], section: "" };
 			sections.push(current);
 		}
 		current.items.push(item);

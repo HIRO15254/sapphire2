@@ -8,12 +8,12 @@ export function useSignOut() {
 	const onSignOut = () => {
 		authClient.signOut({
 			fetchOptions: {
+				onError: () => {
+					clearPersistedQueryCache().catch(() => undefined);
+				},
 				onSuccess: async () => {
 					await clearPersistedQueryCache().catch(() => undefined);
 					navigate({ to: "/" });
-				},
-				onError: () => {
-					clearPersistedQueryCache().catch(() => undefined);
 				},
 			},
 		});

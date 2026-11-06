@@ -1,4 +1,4 @@
-const TRAILING_ZERO = /\.0$/;
+const TRAILING_ZERO = /\.0$/u;
 
 const NUMBER_FORMATTER = new Intl.NumberFormat("en-US");
 
@@ -24,9 +24,9 @@ interface UnitTier {
 }
 
 const TIERS: UnitTier[] = [
-	{ threshold: 10_000_000_000, divisor: 1_000_000_000, suffix: "B" },
-	{ threshold: 10_000_000, divisor: 1_000_000, suffix: "M" },
-	{ threshold: 10_000, divisor: 1000, suffix: "k" },
+	{ divisor: 1_000_000_000, suffix: "B", threshold: 10_000_000_000 },
+	{ divisor: 1_000_000, suffix: "M", threshold: 10_000_000 },
+	{ divisor: 1000, suffix: "k", threshold: 10_000 },
 ];
 
 function formatWithTier(value: number, tier: UnitTier | undefined): string {

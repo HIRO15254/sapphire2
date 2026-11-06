@@ -7,9 +7,9 @@ function textOf(result: ReturnType<typeof mapToolError>): string {
 	return result.content[0]?.text ?? "";
 }
 
-const BUY_IN_LINE = /^buyIn: /;
-const ROOM_ID_LINE = /^roomId: /;
-const INPUT_LINE = /^input: /;
+const BUY_IN_LINE = /^buyIn: /u;
+const ROOM_ID_LINE = /^roomId: /u;
+const INPUT_LINE = /^input: /u;
 
 describe("mapToolError", () => {
 	it("returns an isError text result with no structuredContent", () => {
@@ -23,9 +23,9 @@ describe("mapToolError", () => {
 	it("maps FORBIDDEN to a fixed text without leaking its message or cause", () => {
 		const log = vi.fn();
 		const error = new TRPCError({
+			cause: new Error("D1_ERROR: no such row"),
 			code: "FORBIDDEN",
 			message: "currency cur-42 not owned",
-			cause: new Error("D1_ERROR: no such row"),
 		});
 		expect(textOf(mapToolError(error, log))).toBe(
 			"You do not have access to that resource."
@@ -61,9 +61,9 @@ describe("mapToolError", () => {
 		expect(parsed.success).toBe(false);
 		const result = mapToolError(
 			new TRPCError({
+				cause: parsed.error,
 				code: "BAD_REQUEST",
 				message: "raw json blob",
-				cause: parsed.error,
 			}),
 			vi.fn()
 		);
@@ -78,9 +78,9 @@ describe("mapToolError", () => {
 		expect(parsed.success).toBe(false);
 		const result = mapToolError(
 			new TRPCError({
+				cause: parsed.error,
 				code: "BAD_REQUEST",
 				message: "raw",
-				cause: parsed.error,
 			}),
 			vi.fn()
 		);
@@ -90,7 +90,7 @@ describe("mapToolError", () => {
 	it("falls back to the message when the Zod cause has no issues", () => {
 		const empty = new z.ZodError([]);
 		const result = mapToolError(
-			new TRPCError({ code: "BAD_REQUEST", message: "fallback", cause: empty }),
+			new TRPCError({ cause: empty, code: "BAD_REQUEST", message: "fallback" }),
 			vi.fn()
 		);
 		expect(textOf(result)).toBe("fallback");
@@ -106,16 +106,16 @@ describe("mapToolError", () => {
 		);
 	});
 
-	it.each([
-		"CONFLICT",
-		"PRECONDITION_FAILED",
-	] as const)("passes the %s message through", (code) => {
-		const result = mapToolError(
-			new TRPCError({ code, message: "already exists" }),
-			vi.fn()
-		);
-		expect(textOf(result)).toBe("already exists");
-	});
+	it.each(["CONFLICT", "PRECONDITION_FAILED"] as const)(
+		"passes the %s message through",
+		(code) => {
+			const result = mapToolError(
+				new TRPCError({ code, message: "already exists" }),
+				vi.fn()
+			);
+			expect(textOf(result)).toBe("already exists");
+		}
+	);
 
 	it("hides INTERNAL_SERVER_ERROR details and logs the original error once", () => {
 		const log = vi.fn();
@@ -140,23 +140,21 @@ describe("mapToolError", () => {
 		expect(log).toHaveBeenNthCalledWith(1, error);
 	});
 
-	it.each([
-		["a string"],
-		[null],
-		[undefined],
-		[42],
-	])("survives a thrown non-Error value (%s)", (value) => {
-		const log = vi.fn();
-		const result = mapToolError(value, log);
-		expect(result.isError).toBe(true);
-		expect(textOf(result)).toBe("Internal error.");
-		expect(log).toHaveBeenCalledTimes(1);
-	});
+	it.each([["a string"], [null], [undefined], [42]])(
+		"survives a thrown non-Error value (%s)",
+		(value) => {
+			const log = vi.fn();
+			const result = mapToolError(value, log);
+			expect(result.isError).toBe(true);
+			expect(textOf(result)).toBe("Internal error.");
+			expect(log).toHaveBeenCalledTimes(1);
+		}
+	);
 
 	it("recognizes a TRPCError from a duplicated @trpc/server instance", () => {
 		const foreign = Object.assign(new Error("Room not found"), {
-			name: "TRPCError",
 			code: "FORBIDDEN",
+			name: "TRPCError",
 		});
 		const log = vi.fn();
 		expect(textOf(mapToolError(foreign, log))).toBe(

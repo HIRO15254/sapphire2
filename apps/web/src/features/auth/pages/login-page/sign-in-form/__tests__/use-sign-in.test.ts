@@ -8,11 +8,11 @@ import {
 import { useSignIn } from "../use-sign-in";
 
 const mocks = vi.hoisted(() => ({
-	navigate: vi.fn(),
 	email: vi.fn(),
-	social: vi.fn(),
-	passkey: vi.fn(),
+	navigate: vi.fn(),
 	offer: vi.fn(),
+	passkey: vi.fn(),
+	social: vi.fn(),
 }));
 vi.mock("@sapphire2/env/web", () => ({
 	env: { VITE_SERVER_URL: "http://localhost:8787" },
@@ -25,12 +25,12 @@ vi.mock("@/features/auth/utils/auto-register-passkey", () => ({
 }));
 vi.mock("@/lib/auth-client", () => ({
 	authClient: {
-		useSession: () => ({ isPending: false }),
 		signIn: {
 			email: mocks.email,
-			social: mocks.social,
 			passkey: mocks.passkey,
+			social: mocks.social,
 		},
+		useSession: () => ({ isPending: false }),
 	},
 }));
 
@@ -137,9 +137,9 @@ describe("useSignIn", () => {
 			await result.current.onSignInWithGoogle();
 		});
 		expect(mocks.social).toHaveBeenCalledWith({
-			provider: "google",
 			callbackURL: `https://app.test/login${OAUTH_AUTHORIZE_SEARCH}`,
 			errorCallbackURL: `https://app.test/login${OAUTH_AUTHORIZE_SEARCH}&socialError=google`,
+			provider: "google",
 		});
 	});
 	it("explains an unlinked social account when the provider sends the user back", () => {

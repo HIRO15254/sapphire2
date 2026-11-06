@@ -2,18 +2,18 @@ import { describe, expect, it } from "vitest";
 import { buildMcpSession } from "../mcp-session";
 
 const USER = {
-	id: "user-1",
-	name: "Test User",
+	createdAt: new Date(0),
 	email: "test@example.com",
 	emailVerified: true,
+	id: "user-1",
 	image: null,
-	createdAt: new Date(0),
+	name: "Test User",
 	updatedAt: new Date(0),
 };
 
 const TOKEN = {
-	userId: "user-1",
 	expiresAt: new Date(Date.now() + 3_600_000),
+	userId: "user-1",
 };
 
 describe("buildMcpSession", () => {

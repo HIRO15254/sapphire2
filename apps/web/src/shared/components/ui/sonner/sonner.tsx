@@ -18,27 +18,27 @@ export function Toaster() {
 		<Sonner
 			className="toaster"
 			icons={{
-				success: <IconCircleCheck className="size-4 text-success-text" />,
-				error: <IconCircleX className="size-4 text-destructive-text" />,
-				warning: <IconAlertTriangle className="size-4 text-warning-text" />,
-				info: <IconInfoCircle className="size-4 text-muted-foreground" />,
+				error: <IconCircleX className="text-destructive-text size-4" />,
+				info: <IconInfoCircle className="text-muted-foreground size-4" />,
 				loading: (
-					<IconLoader2 className="size-4 animate-spin text-muted-foreground" />
+					<IconLoader2 className="text-muted-foreground size-4 animate-spin" />
 				),
+				success: <IconCircleCheck className="text-success-text size-4" />,
+				warning: <IconAlertTriangle className="text-warning-text size-4" />,
 			}}
 			mobileOffset={{ bottom: "calc(62px + env(safe-area-inset-bottom))" }}
 			offset={{ bottom: "calc(62px + env(safe-area-inset-bottom))" }}
 			position="bottom-center"
 			theme={theme as ToasterProps["theme"]}
 			toastOptions={{
-				unstyled: true,
 				classNames: {
-					toast: TOAST_CARD_CLASS,
+					actionButton: buttonVariants({ size: "sm", variant: "ghost" }),
 					content: "min-w-0 flex-1",
-					title: "font-medium text-sm leading-[1.4]",
 					description: "mt-0.5 text-muted-foreground text-xs leading-[1.4]",
-					actionButton: buttonVariants({ variant: "ghost", size: "sm" }),
+					title: "font-medium text-sm leading-[1.4]",
+					toast: TOAST_CARD_CLASS,
 				},
+				unstyled: true,
 			}}
 		/>
 	);

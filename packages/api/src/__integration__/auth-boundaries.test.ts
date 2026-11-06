@@ -32,16 +32,16 @@ function stubGoogleTokenEndpoint(): void {
 			return Promise.resolve(
 				Response.json({
 					access_token: "google-access-token",
-					token_type: "Bearer",
 					expires_in: 3600,
 					id_token: unsignedIdToken({
-						sub: "google-victim",
 						email: VICTIM_EMAIL,
 						email_verified: true,
-						name: "Victim",
-						iat: Math.floor(Date.now() / 1000),
 						exp: Math.floor(Date.now() / 1000) + 3600,
+						iat: Math.floor(Date.now() / 1000),
+						name: "Victim",
+						sub: "google-victim",
 					}),
+					token_type: "Bearer",
 				})
 			);
 		}
@@ -53,60 +53,58 @@ afterEach(() => {
 });
 
 describe("social sign-in account linking", () => {
-	test.for([
-		{ localEmailVerified: false },
-		{ localEmailVerified: true },
-	])("a verified Google sign-in does not attach to an account someone pre-registered with the same email (local email verified: $localEmailVerified)", async ({
-		localEmailVerified,
-	}, { api }) => {
-		const request = createWorkerClient(api.d1);
-		await signUp(request, VICTIM_EMAIL);
-		const [attacker] = await api.db
-			.update(user)
-			.set({ emailVerified: localEmailVerified })
-			.where(eq(user.email, VICTIM_EMAIL))
-			.returning({ id: user.id });
+	test.for([{ localEmailVerified: false }, { localEmailVerified: true }])(
+		"a verified Google sign-in does not attach to an account someone pre-registered with the same email (local email verified: $localEmailVerified)",
+		async ({ localEmailVerified }, { api }) => {
+			const request = createWorkerClient(api.d1);
+			await signUp(request, VICTIM_EMAIL);
+			const [attacker] = await api.db
+				.update(user)
+				.set({ emailVerified: localEmailVerified })
+				.where(eq(user.email, VICTIM_EMAIL))
+				.returning({ id: user.id });
 
-		const victim = new CookieJar();
-		const errorCallbackURL = `${WEB_ORIGIN}/login?socialError=google`;
-		const started = await request("/api/auth/sign-in/social", {
-			...jsonPost({
-				provider: "google",
-				callbackURL: `${WEB_ORIGIN}/`,
-				errorCallbackURL,
-			}),
-			jar: victim,
-		});
-		expect(started.status).toBe(200);
-		const { url } = (await started.json()) as { url: string };
-		const state = new URL(url).searchParams.get("state");
-		expect(state).toBeTruthy();
+			const victim = new CookieJar();
+			const errorCallbackURL = `${WEB_ORIGIN}/login?socialError=google`;
+			const started = await request("/api/auth/sign-in/social", {
+				...jsonPost({
+					callbackURL: `${WEB_ORIGIN}/`,
+					errorCallbackURL,
+					provider: "google",
+				}),
+				jar: victim,
+			});
+			expect(started.status).toBe(200);
+			const { url } = (await started.json()) as { url: string };
+			const state = new URL(url).searchParams.get("state");
+			expect(state).toBeTruthy();
 
-		stubGoogleTokenEndpoint();
-		const callback = await request(
-			`/api/auth/callback/google?code=google-code&state=${encodeURIComponent(state ?? "")}`,
-			{ method: "GET", jar: victim }
-		);
+			stubGoogleTokenEndpoint();
+			const callback = await request(
+				`/api/auth/callback/google?code=google-code&state=${encodeURIComponent(state ?? "")}`,
+				{ jar: victim, method: "GET" }
+			);
 
-		expect(callback.status).toBe(302);
-		const location = new URL(callback.headers.get("location") ?? "");
-		expect(`${location.origin}${location.pathname}`).toBe(
-			`${WEB_ORIGIN}/login`
-		);
-		expect(location.searchParams.get("socialError")).toBe("google");
-		expect(location.searchParams.get("error")).toBe("account_not_linked");
-		expect(
-			await api.db
-				.select({ providerId: account.providerId })
-				.from(account)
-				.where(eq(account.userId, attacker?.id ?? ""))
-		).toEqual([{ providerId: "credential" }]);
-		const session = await request("/api/auth/get-session", {
-			method: "GET",
-			jar: victim,
-		});
-		expect(await session.json()).toBeNull();
-	});
+			expect(callback.status).toBe(302);
+			const location = new URL(callback.headers.get("location") ?? "");
+			expect(`${location.origin}${location.pathname}`).toBe(
+				`${WEB_ORIGIN}/login`
+			);
+			expect(location.searchParams.get("socialError")).toBe("google");
+			expect(location.searchParams.get("error")).toBe("account_not_linked");
+			expect(
+				await api.db
+					.select({ providerId: account.providerId })
+					.from(account)
+					.where(eq(account.userId, attacker?.id ?? ""))
+			).toEqual([{ providerId: "credential" }]);
+			const session = await request("/api/auth/get-session", {
+				jar: victim,
+				method: "GET",
+			});
+			expect(await session.json()).toBeNull();
+		}
+	);
 });
 
 describe("tRPC mutations", () => {

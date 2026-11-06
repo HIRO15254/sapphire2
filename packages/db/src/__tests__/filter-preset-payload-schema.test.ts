@@ -33,7 +33,7 @@ describe("filter presets", () => {
 
 	it.each([
 		{ assetId: "asset-1", normalized: false },
-		{ valuation: "real", baseAssetId: "asset-2" },
+		{ baseAssetId: "asset-2", valuation: "real" },
 		{ valuation: "virtual" },
 		{ normalized: true },
 	])("accepts a single statistics mode: %o", (mode) => {
@@ -44,69 +44,78 @@ describe("filter presets", () => {
 	it.each([
 		{ assetId: "asset-1", valuation: "real" },
 		{ assetId: "asset-1", normalized: true },
-		{ valuation: "virtual", normalized: true },
+		{ normalized: true, valuation: "virtual" },
 		{ baseAssetId: "asset-2", normalized: true },
-	])("rejects incompatible modes or a base asset without valuation: %o", (mode) => {
-		expect(sessionsFilterPresetPayloadSchema.safeParse(mode).success).toBe(
-			false
-		);
-		expect(statisticsFilterPresetPayloadSchema.safeParse(mode).success).toBe(
-			false
-		);
-	});
+	])(
+		"rejects incompatible modes or a base asset without valuation: %o",
+		(mode) => {
+			expect(sessionsFilterPresetPayloadSchema.safeParse(mode).success).toBe(
+				false
+			);
+			expect(statisticsFilterPresetPayloadSchema.safeParse(mode).success).toBe(
+				false
+			);
+		}
+	);
 
 	it.each([
 		sessionsFilterPresetPayloadSchema,
 		statisticsFilterPresetPayloadSchema,
-	])("preserves valid dates and tag filters and rejects invalid ones", (schema) => {
-		const payload = {
-			period: "this_month",
-			kind: "cash",
-			roomId: "room-1",
-			dateFrom: "2024-02-01",
-			dateTo: "2024-02-29",
-			entryTagIds: ["entry-tag-1"],
-			tournamentTagIds: ["tournament-tag-1"],
-			valuation: "real",
-			baseAssetId: "asset-1",
-		};
-		expect(schema.parse(payload)).toEqual(payload);
-		expect(
-			schema.safeParse({ ...payload, dateFrom: "2024-03-01" }).success
-		).toBe(false);
-		expect(schema.safeParse({ ...payload, dateTo: "2024-02-30" }).success).toBe(
-			false
-		);
-		expect(
-			schema.safeParse({ ...payload, entryTagIds: ["tag", "tag"] }).success
-		).toBe(false);
-		expect(
-			schema.safeParse({ ...payload, tournamentTagIds: [""] }).success
-		).toBe(false);
-		expect(schema.safeParse({ ...payload, period: "" }).success).toBe(false);
-		expect(
-			schema.safeParse({ ...payload, period: "a".repeat(31) }).success
-		).toBe(false);
-	});
-
-	it.each([
-		sessionsFilterPresetPayloadSchema,
-		statisticsFilterPresetPayloadSchema,
-	])("rejects unknown and legacy keys rather than silently discarding them", (schema) => {
-		for (const key of [
-			"unknown",
-			"from",
-			"to",
-			"type",
-			"currency",
-			"currencyId",
-			"room",
-			"display",
-			"norm",
-		]) {
+	])(
+		"preserves valid dates and tag filters and rejects invalid ones",
+		(schema) => {
+			const payload = {
+				baseAssetId: "asset-1",
+				dateFrom: "2024-02-01",
+				dateTo: "2024-02-29",
+				entryTagIds: ["entry-tag-1"],
+				kind: "cash",
+				period: "this_month",
+				roomId: "room-1",
+				tournamentTagIds: ["tournament-tag-1"],
+				valuation: "real",
+			};
+			expect(schema.parse(payload)).toEqual(payload);
 			expect(
-				schema.safeParse({ normalized: true, [key]: "legacy" }).success
+				schema.safeParse({ ...payload, dateFrom: "2024-03-01" }).success
+			).toBe(false);
+			expect(
+				schema.safeParse({ ...payload, dateTo: "2024-02-30" }).success
+			).toBe(false);
+			expect(
+				schema.safeParse({ ...payload, entryTagIds: ["tag", "tag"] }).success
+			).toBe(false);
+			expect(
+				schema.safeParse({ ...payload, tournamentTagIds: [""] }).success
+			).toBe(false);
+			expect(schema.safeParse({ ...payload, period: "" }).success).toBe(false);
+			expect(
+				schema.safeParse({ ...payload, period: "a".repeat(31) }).success
 			).toBe(false);
 		}
-	});
+	);
+
+	it.each([
+		sessionsFilterPresetPayloadSchema,
+		statisticsFilterPresetPayloadSchema,
+	])(
+		"rejects unknown and legacy keys rather than silently discarding them",
+		(schema) => {
+			for (const key of [
+				"unknown",
+				"from",
+				"to",
+				"type",
+				"currency",
+				"currencyId",
+				"room",
+				"display",
+				"norm",
+			]) {
+				expect(
+					schema.safeParse({ normalized: true, [key]: "legacy" }).success
+				).toBe(false);
+			}
+		}
+	);
 });

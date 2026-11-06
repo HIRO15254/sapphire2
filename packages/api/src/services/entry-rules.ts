@@ -175,7 +175,7 @@ async function currentMasterRules(
 		masterIds("cash"),
 		(chunk) =>
 			db
-				.select({ id: ringGame.id, currentRuleId: ringGame.currentRuleId })
+				.select({ currentRuleId: ringGame.currentRuleId, id: ringGame.id })
 				.from(ringGame)
 				.where(and(eq(ringGame.userId, userId), inArray(ringGame.id, chunk))),
 		1
@@ -185,8 +185,8 @@ async function currentMasterRules(
 		(chunk) =>
 			db
 				.select({
-					id: tournament.id,
 					currentRuleId: tournament.currentRuleId,
+					id: tournament.id,
 				})
 				.from(tournament)
 				.where(
@@ -231,11 +231,11 @@ export async function hydrateEntryRules(
 			? (currents.get(`${ref.kind}:${ref.masterId}`) ?? null)
 			: null;
 		const shared = {
-			ruleVersionId: ref.ruleVersionId,
 			currentMasterRuleId,
 			ruleDrift:
 				currentMasterRuleId !== null &&
 				currentMasterRuleId !== ref.ruleVersionId,
+			ruleVersionId: ref.ruleVersionId,
 		};
 		const cashVersion =
 			ref.kind === "cash" ? cash.rules.get(ref.ruleVersionId) : undefined;

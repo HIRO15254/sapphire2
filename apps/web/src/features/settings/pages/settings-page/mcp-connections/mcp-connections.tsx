@@ -54,7 +54,7 @@ export function McpConnections() {
 	function renderList() {
 		if (isLoading) {
 			return (
-				<div className="flex justify-center py-3 text-muted-foreground">
+				<div className="text-muted-foreground flex justify-center py-3">
 					<Spinner />
 				</div>
 			);

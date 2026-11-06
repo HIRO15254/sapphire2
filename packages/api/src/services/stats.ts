@@ -132,11 +132,11 @@ function toValuationLine(
 	line: StatsEntry["lines"][number]
 ): ValuationLine {
 	return {
-		entryId,
 		assetId: line.assetId,
-		quantity: line.quantity,
 		effect: line.effect,
+		entryId,
 		occurredAt: line.occurredAt,
+		quantity: line.quantity,
 	};
 }
 
@@ -220,19 +220,19 @@ class NormalizationContext {
 			}
 			return {
 				buyInTotal: null,
-				normalized: profitLoss / entry.bigBlind,
 				evNormalized:
 					entry.evDiff === null
 						? null
 						: addSafeIntegers(profitLoss, entry.evDiff) / entry.bigBlind,
+				normalized: profitLoss / entry.bigBlind,
 			};
 		}
 		const unit = this.tournamentUnit(entry);
 		return unit
 			? {
 					buyInTotal: unit.buyInTotal,
-					normalized: unit.profitLoss / unit.buyInTotal,
 					evNormalized: null,
+					normalized: unit.profitLoss / unit.buyInTotal,
 				}
 			: { buyInTotal: null, evNormalized: null, normalized: null };
 	}
@@ -303,11 +303,11 @@ function valuedEvDiffs(
 			continue;
 		}
 		lines.push({
-			entryId: entry.id,
 			assetId: entry.assetId,
-			quantity: entry.evDiff,
 			effect: "real",
+			entryId: entry.id,
 			occurredAt,
+			quantity: entry.evDiff,
 		});
 	}
 	const valued = valueEntries({
@@ -393,11 +393,11 @@ export function computeEntryFacts(
 		const normalizedFacts = normalization.entryUnits(entry);
 
 		return {
-			entry,
 			amounts,
+			entry,
+			evDiff,
 			missingRates,
 			otherAssetIds,
-			evDiff,
 			...normalizedFacts,
 			itm: entry.lines.some((line) => line.role === "prize"),
 			...timing(entry),
@@ -507,18 +507,17 @@ function evMetrics(
 	const cash = counted.filter((fact) => fact.entry.kind === "cash");
 	if (mode.kind === "normalized") {
 		return {
-			evRecordedEntryCount: cash.filter((fact) => fact.evNormalized !== null)
-				.length,
 			evDiff: null,
 			evProfitLoss: null,
+			evRecordedEntryCount: cash.filter((fact) => fact.evNormalized !== null)
+				.length,
 		};
 	}
 	const recorded = cash.filter((fact) => fact.evDiff !== null);
 	if (recorded.length === 0) {
-		return { evRecordedEntryCount: 0, evDiff: null, evProfitLoss: null };
+		return { evDiff: null, evProfitLoss: null, evRecordedEntryCount: 0 };
 	}
 	return {
-		evRecordedEntryCount: recorded.length,
 		evDiff: recorded.reduce(
 			(total, fact) => addSafeIntegers(total, fact.evDiff ?? 0),
 			0
@@ -531,6 +530,7 @@ function evMetrics(
 				),
 			0
 		),
+		evRecordedEntryCount: recorded.length,
 	};
 }
 
@@ -562,10 +562,7 @@ function normalizedBranches(facts: EntryFacts[]): StatsNormalized {
 			cash.length === 0
 				? null
 				: {
-						unit: "bb",
 						entryCount: cashCounted.length,
-						unavailableEntryCount: cash.length - cashCounted.length,
-						profitLoss: sum(cashCounted.map((fact) => fact.normalized ?? 0)),
 						evProfitLoss: evRecorded
 							? sum(
 									cashCounted.map(
@@ -573,18 +570,21 @@ function normalizedBranches(facts: EntryFacts[]): StatsNormalized {
 									)
 								)
 							: null,
+						profitLoss: sum(cashCounted.map((fact) => fact.normalized ?? 0)),
+						unavailableEntryCount: cash.length - cashCounted.length,
+						unit: "bb",
 					},
 		tournament:
 			tournaments.length === 0
 				? null
 				: {
-						unit: "bi",
 						entryCount: tournamentCounted.length,
-						unavailableEntryCount:
-							tournaments.length - tournamentCounted.length,
 						profitLoss: sum(
 							tournamentCounted.map((fact) => fact.normalized ?? 0)
 						),
+						unavailableEntryCount:
+							tournaments.length - tournamentCounted.length,
+						unit: "bi",
 					},
 	};
 }
@@ -607,20 +607,20 @@ export function summarizeFacts(
 	const roi = percent(tournamentAmounts.profitLoss, tournamentAmounts.buyIn);
 	return {
 		...statsCoverage(facts, mode),
-		winCount,
-		lossCount: counted.filter((fact) => (fact.value ?? 0) < 0).length,
-		winRate: percent(winCount, counted.length),
-		playMinutes: sum(counted.map((fact) => fact.playMinutes ?? 0)),
-		handCount: sum(counted.map((fact) => fact.entry.handCount)),
+		averagePlacement: ratio(sum(placements), placements.length),
+		bb100: bb100(facts),
+		bbPerHour: bbPerHour(facts),
 		cashEntryCount: counted.length - tournaments.length,
-		tournamentEntryCount: tournaments.length,
+		handCount: sum(counted.map((fact) => fact.entry.handCount)),
+		handsPerHour: handsPerHour(counted),
 		itmCount,
 		itmRate: percent(itmCount, tournaments.length),
-		averagePlacement: ratio(sum(placements), placements.length),
+		lossCount: counted.filter((fact) => (fact.value ?? 0) < 0).length,
+		playMinutes: sum(counted.map((fact) => fact.playMinutes ?? 0)),
 		roi: monetary ? roi : null,
-		bbPerHour: bbPerHour(facts),
-		bb100: bb100(facts),
-		handsPerHour: handsPerHour(counted),
+		tournamentEntryCount: tournaments.length,
+		winCount,
+		winRate: percent(winCount, counted.length),
 		...evMetrics(counted, mode),
 		amounts: monetary ? sumAmounts(counted) : null,
 		normalized: monetary ? null : normalizedBranches(facts),
@@ -630,11 +630,11 @@ export function summarizeFacts(
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
 const LENGTH_BUCKETS = [
-	{ key: "<1h", below: 60 },
-	{ key: "1-2h", below: 120 },
-	{ key: "2-4h", below: 240 },
-	{ key: "4-8h", below: 480 },
-	{ key: "8h+", below: Number.POSITIVE_INFINITY },
+	{ below: 60, key: "<1h" },
+	{ below: 120, key: "1-2h" },
+	{ below: 240, key: "2-4h" },
+	{ below: 480, key: "4-8h" },
+	{ below: Number.POSITIVE_INFINITY, key: "8h+" },
 ] as const;
 
 const LENGTH_ORDER = [...LENGTH_BUCKETS.map((bucket) => bucket.key), "unknown"];
@@ -760,15 +760,15 @@ export function seriesPoints(
 				unit = fact.entry.kind === "cash" ? "bb" : "bi";
 			}
 			return {
+				bigBlind: fact.entry.bigBlind,
+				buyInTotal: fact.buyInTotal,
+				evProfitLoss,
+				evRecorded: fact.entry.evDiff !== null,
 				id: fact.entry.id,
 				kind: fact.entry.kind,
 				playedOn: fact.entry.playedOn,
-				profitLoss: fact.value,
-				evProfitLoss,
-				evRecorded: fact.entry.evDiff !== null,
 				playMinutes: fact.playMinutes,
-				bigBlind: fact.entry.bigBlind,
-				buyInTotal: fact.buyInTotal,
+				profitLoss: fact.value,
 				unit,
 			};
 		});

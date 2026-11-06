@@ -47,19 +47,19 @@ export type GateDecision =
 	  };
 
 export const STATE_MARKER = "<!-- pre-merge-review:state";
-const MARKER_PATTERN = /<!-- pre-merge-review:state (\{.*?\}) -->/;
-const SHA_PATTERN = /^[0-9a-f]{40}$/;
-const DOC_FILE = /\.md$/;
-const TRAILER_PATTERN = /<!-- pr-review: (\{.*?\}) -->/g;
-const SUMMARY_HEADING_PATTERN = /^#{1,6}\s*レビュー結果/m;
+const MARKER_PATTERN = /<!-- pre-merge-review:state (\{.*?\}) -->/u;
+const SHA_PATTERN = /^[0-9a-f]{40}$/u;
+const DOC_FILE = /\.md$/u;
+const TRAILER_PATTERN = /<!-- pr-review: (\{.*?\}) -->/gu;
+const SUMMARY_HEADING_PATTERN = /^#{1,6}\s*レビュー結果/mu;
 
 function nextRound(state: ReviewState | null, reason: string): GateDecision {
 	return {
-		run: true,
 		mode: state ? "incremental" : "full",
-		round: (state?.rounds ?? 0) + 1,
-		sinceSha: state?.lastSha ?? null,
 		reason,
+		round: (state?.rounds ?? 0) + 1,
+		run: true,
+		sinceSha: state?.lastSha ?? null,
 	};
 }
 
@@ -67,30 +67,30 @@ export function decideReview(input: GateInput): GateDecision {
 	if (input.event === "labeled") {
 		if (input.label !== input.reReviewLabel) {
 			return {
-				run: false,
 				reason: `label ${input.label ?? ""} is not ${input.reReviewLabel}`,
+				run: false,
 			};
 		}
 		return nextRound(input.state, `label ${input.reReviewLabel}`);
 	}
 	if (input.draft) {
-		return { run: false, reason: "draft" };
+		return { reason: "draft", run: false };
 	}
 	if (
 		input.headRef.startsWith("release/") &&
 		input.devTree !== null &&
 		input.headTree === input.devTree
 	) {
-		return { run: false, reason: "release branch tree identical to dev" };
+		return { reason: "release branch tree identical to dev", run: false };
 	}
 	if (input.state?.lastSha === input.headSha) {
-		return { run: false, reason: "head already reviewed" };
+		return { reason: "head already reviewed", run: false };
 	}
 	const rounds = input.state?.rounds ?? 0;
 	if (rounds >= input.maxAutoRounds) {
 		return {
-			run: false,
 			reason: `automatic round cap (${input.maxAutoRounds}) reached; add the ${input.reReviewLabel} label`,
+			run: false,
 		};
 	}
 	if (input.state === null) {
@@ -102,7 +102,7 @@ export function decideReview(input: GateInput): GateDecision {
 		changed.length > 0 &&
 		changed.every((path) => DOC_FILE.test(path))
 	) {
-		return { run: false, reason: "docs-only push" };
+		return { reason: "docs-only push", run: false };
 	}
 	return nextRound(
 		input.state,
@@ -132,7 +132,7 @@ export function parseReviewState(commentBodies: string[]): ReviewState | null {
 		if (typeof lastSha !== "string" || !SHA_PATTERN.test(lastSha)) {
 			return null;
 		}
-		return { rounds: rounds as number, lastSha };
+		return { lastSha, rounds: rounds as number };
 	}
 	return null;
 }
@@ -143,8 +143,8 @@ export function renderStateComment(
 	reReviewLabel: string
 ): string {
 	const payload = JSON.stringify({
-		rounds: state.rounds,
 		lastSha: state.lastSha,
+		rounds: state.rounds,
 	});
 	const capReached = state.rounds >= maxAutoRounds;
 	const status = capReached
@@ -247,13 +247,13 @@ export function formatSummaryOutputs(
 	return [
 		`has_log=${hasLog}`,
 		`has_summary=${result.trailer !== null}`,
-		`subtype=${result.subtype.replace(/\s+/g, " ")}`,
+		`subtype=${result.subtype.replace(/\s+/gu, " ")}`,
 		"",
 	].join("\n");
 }
 
 export function formatGithubOutputs(decision: GateDecision): string {
-	const oneLine = (value: string) => value.replace(/\s*\n\s*/g, " ");
+	const oneLine = (value: string) => value.replace(/\s*\n\s*/gu, " ");
 	const lines = decision.run
 		? [
 				"run=true",
@@ -307,7 +307,7 @@ function decideCommand(): void {
 function renderStateCommand(): void {
 	console.log(
 		renderStateComment(
-			{ rounds: Number(requireEnv("ROUNDS")), lastSha: requireEnv("LAST_SHA") },
+			{ lastSha: requireEnv("LAST_SHA"), rounds: Number(requireEnv("ROUNDS")) },
 			Number(requireEnv("MAX_AUTO_ROUNDS")),
 			requireEnv("RE_REVIEW_LABEL")
 		)

@@ -11,25 +11,25 @@ import { shouldPersistQuery } from "./utils/query-persistence";
 import { persister, queryClient, trpc } from "./utils/trpc";
 
 const router = createRouter({
-	routeTree,
-	defaultPreload: "intent",
-	defaultPendingComponent: () => <Loader />,
-	context: { trpc, queryClient },
+	context: { queryClient, trpc },
 	defaultErrorComponent: RouterErrorFallback,
 	defaultNotFoundComponent: RouterNotFoundFallback,
+	defaultPendingComponent: () => <Loader />,
+	defaultPreload: "intent",
+	routeTree,
 	Wrap({ children }: { children: React.ReactNode }) {
 		return (
 			<PersistQueryClientProvider
 				client={queryClient}
 				persistOptions={{
-					persister,
-					maxAge: 1000 * 60 * 60 * 24,
 					// NOTE(ops): When a release changes any tRPC procedure's output shape or
 					// value semantics, bump this buster string in the same change (SA2-154).
 					buster: "2026-11-data-model-v2",
 					dehydrateOptions: {
 						shouldDehydrateQuery: shouldPersistQuery,
 					},
+					maxAge: 1000 * 60 * 60 * 24,
+					persister,
 				}}
 			>
 				{children}

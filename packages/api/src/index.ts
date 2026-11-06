@@ -11,8 +11,8 @@ export const t = initTRPC.context<Context>().create({
 		) {
 			return {
 				...shape,
-				message: "Internal server error",
 				data: { ...shape.data, stack: undefined },
+				message: "Internal server error",
 			};
 		}
 		return { ...shape, data: { ...shape.data, stack: undefined } };
@@ -26,9 +26,9 @@ export const publicProcedure = t.procedure;
 export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
 	if (!ctx.session) {
 		throw new TRPCError({
+			cause: "No session",
 			code: "UNAUTHORIZED",
 			message: "Authentication required",
-			cause: "No session",
 		});
 	}
 	return next({

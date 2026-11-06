@@ -8,10 +8,10 @@ import {
 import { useSignUp } from "../use-sign-up";
 
 const mocks = vi.hoisted(() => ({
-	navigate: vi.fn(),
 	email: vi.fn(),
-	social: vi.fn(),
+	navigate: vi.fn(),
 	offer: vi.fn(),
+	social: vi.fn(),
 }));
 vi.mock("@sapphire2/env/web", () => ({
 	env: { VITE_SERVER_URL: "http://localhost:8787" },
@@ -24,9 +24,9 @@ vi.mock("@/features/auth/utils/auto-register-passkey", () => ({
 }));
 vi.mock("@/lib/auth-client", () => ({
 	authClient: {
-		useSession: () => ({ isPending: false }),
-		signUp: { email: mocks.email },
 		signIn: { social: mocks.social },
+		signUp: { email: mocks.email },
+		useSession: () => ({ isPending: false }),
 	},
 }));
 
@@ -109,9 +109,9 @@ describe("useSignUp", () => {
 			await result.current.onSignUpWithDiscord();
 		});
 		expect(mocks.social).toHaveBeenCalledWith({
-			provider: "discord",
 			callbackURL: `https://app.test/login${OAUTH_AUTHORIZE_SEARCH}`,
 			errorCallbackURL: `https://app.test/login${OAUTH_AUTHORIZE_SEARCH}&socialError=discord`,
+			provider: "discord",
 		});
 	});
 });

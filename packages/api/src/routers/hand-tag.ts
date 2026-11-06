@@ -12,9 +12,9 @@ export const handTagRouter = createTagRouter<
 	typeof tagCreateInputSchema,
 	typeof tagUpdateInputSchema
 >({
-	table: handTag,
+	createInputSchema: tagCreateInputSchema,
 	nameIndex: "hand_tag_name_uq",
 	selection: tagSelection(handTag),
-	createInputSchema: tagCreateInputSchema,
+	table: handTag,
 	updateInputSchema: tagUpdateInputSchema,
 });

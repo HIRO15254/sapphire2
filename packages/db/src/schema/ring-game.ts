@@ -16,22 +16,22 @@ import { cashRule } from "./rule";
 export const ringGame = sqliteTable(
 	"ring_game",
 	{
-		id: text("id").primaryKey(),
-		roomId: text("room_id"),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		name: text("name").notNull(),
-		memo: text("memo"),
-		defaultAssetId: text("default_asset_id"),
-		currentRuleId: text("current_rule_id").notNull(),
 		archivedAt: integer("archived_at", { mode: "timestamp" }),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),
+		currentRuleId: text("current_rule_id").notNull(),
+		defaultAssetId: text("default_asset_id"),
+		id: text("id").primaryKey(),
+		memo: text("memo"),
+		name: text("name").notNull(),
+		roomId: text("room_id"),
 		updatedAt: integer("updated_at", { mode: "timestamp" })
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(table): SQLiteTableExtraConfigValue[] => [
 		uniqueIndex("ring_game_id_user_id_unique").on(table.id, table.userId),

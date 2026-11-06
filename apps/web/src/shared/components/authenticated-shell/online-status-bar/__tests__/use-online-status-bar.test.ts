@@ -2,8 +2,8 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-	onlineStatus: true,
 	mutatingCount: 0,
+	onlineStatus: true,
 }));
 
 vi.mock("@/shared/hooks/use-online-status", () => ({

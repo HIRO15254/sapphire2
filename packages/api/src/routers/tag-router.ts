@@ -58,10 +58,10 @@ export const tagReorderInputSchema = z.object({
 
 export function tagSelection(table: TagTable) {
 	return {
+		createdAt: table.createdAt,
 		id: table.id,
 		name: table.name,
 		position: table.sortOrder,
-		createdAt: table.createdAt,
 		updatedAt: table.updatedAt,
 	};
 }
@@ -95,9 +95,9 @@ export function createTagRouter<
 	const handleConflict = (error: unknown): never => {
 		if (isUniqueIndexConflictError(error, config.nameIndex)) {
 			throw new TRPCError({
+				cause: error,
 				code: "CONFLICT",
 				message: "A tag with this name already exists",
-				cause: error,
 			});
 		}
 		throw error;
@@ -110,9 +110,6 @@ export function createTagRouter<
 			.orderBy(asc(table.sortOrder), asc(table.id))) as TTag[];
 
 	return router({
-		list: protectedProcedure.query(({ ctx }) =>
-			listTags(ctx.db, ctx.session.user.id)
-		),
 		create: protectedProcedure
 			.input(config.createInputSchema)
 			.mutation(async ({ ctx, input }) => {
@@ -164,31 +161,6 @@ export function createTagRouter<
 				}
 				return created as TTag;
 			}),
-		update: protectedProcedure
-			.input(config.updateInputSchema)
-			.mutation(async ({ ctx, input }) => {
-				const values: Record<string, unknown> = Object.fromEntries(
-					extraValues(input)
-				);
-				if (input.name !== undefined) {
-					values.name = input.name;
-				}
-				try {
-					const [updated] = (await ctx.db
-						.update(table)
-						.set(values)
-						.where(
-							and(eq(table.id, input.id), eq(table.userId, ctx.session.user.id))
-						)
-						.returning(selection)) as TTag[];
-					if (!updated) {
-						return forbidden();
-					}
-					return updated;
-				} catch (error) {
-					return handleConflict(error);
-				}
-			}),
 		delete: protectedProcedure
 			.input(tagIdInputSchema)
 			.mutation(async ({ ctx, input }) => {
@@ -203,6 +175,9 @@ export function createTagRouter<
 				}
 				return { success: true as const };
 			}),
+		list: protectedProcedure.query(({ ctx }) =>
+			listTags(ctx.db, ctx.session.user.id)
+		),
 		reorder: protectedProcedure
 			.input(tagReorderInputSchema)
 			.mutation(async ({ ctx, input }) => {
@@ -237,6 +212,31 @@ export function createTagRouter<
 					),
 				]);
 				return listTags(ctx.db, userId);
+			}),
+		update: protectedProcedure
+			.input(config.updateInputSchema)
+			.mutation(async ({ ctx, input }) => {
+				const values: Record<string, unknown> = Object.fromEntries(
+					extraValues(input)
+				);
+				if (input.name !== undefined) {
+					values.name = input.name;
+				}
+				try {
+					const [updated] = (await ctx.db
+						.update(table)
+						.set(values)
+						.where(
+							and(eq(table.id, input.id), eq(table.userId, ctx.session.user.id))
+						)
+						.returning(selection)) as TTag[];
+					if (!updated) {
+						return forbidden();
+					}
+					return updated;
+				} catch (error) {
+					return handleConflict(error);
+				}
 			}),
 	});
 }

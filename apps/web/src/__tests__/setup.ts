@@ -3,17 +3,11 @@ import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 
 class ResizeObserverMock {
-	disconnect() {
-		return undefined;
-	}
+	disconnect() {}
 
-	observe() {
-		return undefined;
-	}
+	observe() {}
 
-	unobserve() {
-		return undefined;
-	}
+	unobserve() {}
 }
 
 Object.defineProperty(globalThis, "ResizeObserver", {

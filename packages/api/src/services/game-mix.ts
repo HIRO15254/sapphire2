@@ -4,13 +4,13 @@ import { and, eq, inArray } from "drizzle-orm";
 import { D1_MAX_BOUND_PARAMS } from "../lib/batch";
 
 export const gameMixColumns = {
-	id: gameMix.id,
-	userId: gameMix.userId,
-	builtinKey: gameMix.builtinKey,
-	label: gameMix.label,
 	archivedAt: gameMix.archivedAt,
+	builtinKey: gameMix.builtinKey,
 	createdAt: gameMix.createdAt,
+	id: gameMix.id,
+	label: gameMix.label,
 	updatedAt: gameMix.updatedAt,
+	userId: gameMix.userId,
 };
 
 export type GameMixRow = typeof gameMix.$inferSelect;

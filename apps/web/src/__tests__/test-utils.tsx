@@ -26,12 +26,12 @@ export function locationAssignCalls(): unknown[][] {
 export function createTestQueryClient(): QueryClient {
 	return new QueryClient({
 		defaultOptions: {
+			mutations: { retry: false },
 			queries: {
-				retry: false,
 				gcTime: 0,
+				retry: false,
 				staleTime: Number.POSITIVE_INFINITY,
 			},
-			mutations: { retry: false },
 		},
 	});
 }

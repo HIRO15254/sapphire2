@@ -2,8 +2,8 @@ name: pr-target-guard
 
 on:
   pull_request:
-    branches: [main]
-    types: [opened, reopened, edited, synchronize]
+    branches: [ main ]
+    types: [ opened, reopened, edited, synchronize ]
 
 jobs:
   pr-target-guard:

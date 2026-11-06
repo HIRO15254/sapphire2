@@ -18,7 +18,7 @@ export function SettingsPage() {
 	const { onSignOut } = useSettingsPage();
 
 	return (
-		<div className="min-h-full bg-background text-foreground">
+		<div className="bg-background text-foreground min-h-full">
 			<PageHeader back={{ fallbackTo: "/more" }} heading="Settings" />
 
 			<main className="flex flex-col gap-[22px] px-3.5 pt-4 pb-6 text-[length:var(--m-text-secondary)]">

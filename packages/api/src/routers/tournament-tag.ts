@@ -12,9 +12,9 @@ export const tournamentTagRouter = createTagRouter<
 	typeof tagCreateInputSchema,
 	typeof tagUpdateInputSchema
 >({
-	table: tournamentTag,
+	createInputSchema: tagCreateInputSchema,
 	nameIndex: "tournament_tag_name_uq",
 	selection: tagSelection(tournamentTag),
-	createInputSchema: tagCreateInputSchema,
+	table: tournamentTag,
 	updateInputSchema: tagUpdateInputSchema,
 });

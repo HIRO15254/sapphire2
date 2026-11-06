@@ -21,7 +21,7 @@ import {
 
 const TARGET_MIGRATION = "0060_rebuild_currency_as_asset.sql";
 const V2_CHILDREN_GATE =
-	/NOT NULL constraint failed: __gate_0060\.v2_children_empty/;
+	/NOT NULL constraint failed: __gate_0060\.v2_children_empty/u;
 
 const earlierMigrations = migrationFiles("0060_").map(statementsOf);
 const targetStatements = statementsOf(TARGET_MIGRATION);
@@ -58,10 +58,10 @@ const SEED = `
 `;
 
 const LEGACY_QUERIES = {
-	transactions: "SELECT * FROM currency_transaction ORDER BY id",
-	sessionLinks: "SELECT id, currency_id FROM game_session ORDER BY id",
 	ringGameLinks: "SELECT id, currency_id FROM ring_game ORDER BY id",
+	sessionLinks: "SELECT id, currency_id FROM game_session ORDER BY id",
 	tournamentLinks: "SELECT id, currency_id FROM tournament ORDER BY id",
+	transactions: "SELECT * FROM currency_transaction ORDER BY id",
 } as const;
 
 function legacyChildren(db: Database) {
@@ -123,7 +123,7 @@ describe("migration 0060 — currency rebuilt and renamed to asset", () => {
 	});
 
 	afterAll(() => {
-		rmSync(snapshotDirectory, { recursive: true, force: true });
+		rmSync(snapshotDirectory, { force: true, recursive: true });
 	});
 
 	beforeEach(() => {

@@ -20,22 +20,22 @@ const FEEDBACK_DURATION_MS = 6000;
 const NEUTRAL_ICON_CLASS = "size-4 text-muted-foreground";
 
 const SAVING: Feedback = {
-	variant: "neutral",
-	title: "Saving…",
 	icon: createElement(IconLoader2, {
 		className: `${NEUTRAL_ICON_CLASS} animate-spin`,
 	}),
+	title: "Saving…",
+	variant: "neutral",
 };
 
 const SAVE_FAILED: Feedback = {
-	variant: "destructive",
-	title: "Couldn't save changes",
 	description: "Your input is still in the form. Try again.",
+	title: "Couldn't save changes",
+	variant: "destructive",
 };
 
 const DELETE_FAILED: Feedback = {
-	variant: "destructive",
 	title: "Couldn't delete",
+	variant: "destructive",
 };
 
 function showFeedback(
@@ -52,13 +52,13 @@ function showFeedback(
 			)
 		: undefined;
 	return toast.custom(() => createElement(Toast, { ...feedback, action }), {
-		id,
-		duration,
-		unstyled: true,
 		classNames: {
-			toast: "!border-0 !bg-transparent !p-0 !shadow-[none]",
 			content: "!w-full",
+			toast: "!border-0 !bg-transparent !p-0 !shadow-[none]",
 		},
+		duration,
+		id,
+		unstyled: true,
 	});
 }
 
@@ -86,16 +86,6 @@ export function useUndoableMutation<TData, TError, TVariables, TContext>(
 		{ original: TContext | undefined; id: string | number }
 	>({
 		...options,
-		onMutate: async (variables, mutationContext) => {
-			const id = showFeedback(undefined, SAVING, Number.POSITIVE_INFINITY);
-			try {
-				const original = await options.onMutate?.(variables, mutationContext);
-				return { original, id };
-			} catch (error) {
-				showFeedback(id, failure, FEEDBACK_DURATION_MS);
-				throw error;
-			}
-		},
 		onError: async (error, variables, context, mutationContext) => {
 			if (context) {
 				if (isConcurrentChange(error)) {
@@ -105,6 +95,25 @@ export function useUndoableMutation<TData, TError, TVariables, TContext>(
 				}
 			}
 			await options.onError?.(
+				error,
+				variables,
+				context?.original,
+				mutationContext
+			);
+		},
+		onMutate: async (variables, mutationContext) => {
+			const id = showFeedback(undefined, SAVING, Number.POSITIVE_INFINITY);
+			try {
+				const original = await options.onMutate?.(variables, mutationContext);
+				return { id, original };
+			} catch (error) {
+				showFeedback(id, failure, FEEDBACK_DURATION_MS);
+				throw error;
+			}
+		},
+		onSettled: async (data, error, variables, context, mutationContext) => {
+			await options.onSettled?.(
+				data,
 				error,
 				variables,
 				context?.original,
@@ -125,9 +134,9 @@ export function useUndoableMutation<TData, TError, TVariables, TContext>(
 				showFeedback(
 					context.id,
 					{
-						variant: "neutral",
-						title: feedback.message,
 						icon: createElement(IconTrash, { className: NEUTRAL_ICON_CLASS }),
+						title: feedback.message,
+						variant: "neutral",
 					},
 					FEEDBACK_DURATION_MS
 				);
@@ -152,11 +161,11 @@ export function useUndoableMutation<TData, TError, TVariables, TContext>(
 							showFeedback(
 								context.id,
 								{
-									variant: "neutral",
-									title: "Change undone",
 									icon: createElement(IconArrowBackUp, {
 										className: NEUTRAL_ICON_CLASS,
 									}),
+									title: "Change undone",
+									variant: "neutral",
 								},
 								FEEDBACK_DURATION_MS
 							),
@@ -164,12 +173,12 @@ export function useUndoableMutation<TData, TError, TVariables, TContext>(
 							showFeedback(
 								context.id,
 								{
-									variant: "warning",
-									title: "Couldn't undo",
 									description:
 										trpcErrorCode(error) === "CONFLICT"
 											? "It changed again after your edit. Nothing was reverted."
 											: "Nothing was reverted.",
+									title: "Couldn't undo",
+									variant: "warning",
 								},
 								FEEDBACK_DURATION_MS
 							)
@@ -177,23 +186,14 @@ export function useUndoableMutation<TData, TError, TVariables, TContext>(
 			};
 			showFeedback(
 				context.id,
-				{ variant: "success", title: feedback.message, onUndo },
+				{ onUndo, title: feedback.message, variant: "success" },
 				Number.POSITIVE_INFINITY
-			);
-		},
-		onSettled: async (data, error, variables, context, mutationContext) => {
-			await options.onSettled?.(
-				data,
-				error,
-				variables,
-				context?.original,
-				mutationContext
 			);
 		},
 	});
 	return {
-		mutateAsync: mutation.mutateAsync,
-		isPending: mutation.isPending,
 		error: mutation.error,
+		isPending: mutation.isPending,
+		mutateAsync: mutation.mutateAsync,
 	};
 }

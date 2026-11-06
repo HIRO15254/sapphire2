@@ -29,9 +29,9 @@ const VPIP_ACTIONS = ["call", "bet", "raise"] as const satisfies HandAction[];
 const PFR_ACTIONS = ["bet", "raise"] as const satisfies HandAction[];
 
 const playerHandScopeFields = {
-	id: z.string().min(1),
 	dateFrom: dateOnlySchema.optional(),
 	dateTo: dateOnlySchema.optional(),
+	id: z.string().min(1),
 };
 
 function validDateRange(input: { dateFrom?: string; dateTo?: string }) {
@@ -70,14 +70,14 @@ type PlayerHandScope = Pick<
 >;
 
 const playerHandCursorSchema = z.object({
+	id: z.string(),
+	playedAt: z.number().int(),
 	scope: z.object({
-		userId: z.string(),
-		playerId: z.string(),
 		dateFrom: z.string().nullable(),
 		dateTo: z.string().nullable(),
+		playerId: z.string(),
+		userId: z.string(),
 	}),
-	playedAt: z.number().int(),
-	id: z.string(),
 });
 
 export interface PlayerHandStats {
@@ -150,10 +150,10 @@ export async function listPlayerHands(
 	input: z.infer<typeof playerHandsInputSchema>
 ): Promise<{ items: HandDetailOutput[]; nextCursor: string | null }> {
 	const scope = {
-		userId,
-		playerId: input.id,
 		dateFrom: input.dateFrom ?? null,
 		dateTo: input.dateTo ?? null,
+		playerId: input.id,
+		userId,
 	};
 	const cursor =
 		input.cursor === undefined
@@ -185,12 +185,12 @@ export async function listPlayerHands(
 		items: await hydrateHandDetails(db, userId, page),
 		nextCursor: boundary
 			? encodeCursor({
-					scope,
+					id: boundary.id,
 					playedAt:
 						boundary.playedAt === null
 							? NULL_PLAYED_AT
 							: Math.floor(boundary.playedAt.getTime() / 1000),
-					id: boundary.id,
+					scope,
 				})
 			: null,
 	};
@@ -242,13 +242,13 @@ export async function playerHandStats(
 		);
 	const [row] = await db
 		.select({
-			handCount: sql<number>`count(*)`.mapWith(Number),
 			fullHandCount: countWhere(full),
-			vpipCount: countWhere(
-				sql`${full} and ${preflopAction(db, userId, input.id, VPIP_ACTIONS)}`
-			),
+			handCount: sql<number>`count(*)`.mapWith(Number),
 			pfrCount: countWhere(
 				sql`${full} and ${preflopAction(db, userId, input.id, PFR_ACTIONS)}`
+			),
+			vpipCount: countWhere(
+				sql`${full} and ${preflopAction(db, userId, input.id, VPIP_ACTIONS)}`
 			),
 		})
 		.from(hand)
@@ -259,13 +259,13 @@ export async function playerHandStats(
 	const vpipCount = row?.vpipCount ?? 0;
 	const pfrCount = row?.pfrCount ?? 0;
 	return {
-		handCount,
 		fullHandCount,
-		vpipOpportunities: fullHandCount,
-		vpipCount,
-		vpip: percent(vpipCount, fullHandCount),
-		pfrOpportunities: fullHandCount,
-		pfrCount,
+		handCount,
 		pfr: percent(pfrCount, fullHandCount),
+		pfrCount,
+		pfrOpportunities: fullHandCount,
+		vpip: percent(vpipCount, fullHandCount),
+		vpipCount,
+		vpipOpportunities: fullHandCount,
 	};
 }

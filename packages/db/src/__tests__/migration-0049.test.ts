@@ -13,10 +13,10 @@ import {
 const migrationsDirectory = fileURLToPath(
 	new URL("../migrations/", import.meta.url)
 );
-const MIGRATION_0049_PATTERN = /^0049_.+\.sql$/;
-const UNIQUE_CONSTRAINT_PATTERN = /UNIQUE constraint failed/;
-const CHECK_CONSTRAINT_PATTERN = /CHECK constraint failed/;
-const FOREIGN_KEY_CONSTRAINT_PATTERN = /FOREIGN KEY constraint failed/;
+const MIGRATION_0049_PATTERN = /^0049_.+\.sql$/u;
+const UNIQUE_CONSTRAINT_PATTERN = /UNIQUE constraint failed/u;
+const CHECK_CONSTRAINT_PATTERN = /CHECK constraint failed/u;
+const FOREIGN_KEY_CONSTRAINT_PATTERN = /FOREIGN KEY constraint failed/u;
 const migrationFile = readdirSync(migrationsDirectory).find((name) =>
 	MIGRATION_0049_PATTERN.test(name)
 );

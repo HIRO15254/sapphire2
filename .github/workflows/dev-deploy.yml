@@ -2,7 +2,7 @@ name: Dev Deploy
 
 on:
   push:
-    branches: [dev]
+    branches: [ dev ]
   workflow_dispatch:
 
 concurrency:
@@ -83,7 +83,7 @@ jobs:
           echo "d1_database_id=${NEW_ID}" >> "$GITHUB_OUTPUT"
 
   db-migrate:
-    needs: [setup, d1-recreate]
+    needs: [ setup, d1-recreate ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -204,7 +204,7 @@ jobs:
         run: bun scripts/audit-data-model.ts --remote --database "${D1_DB_NAME}" --config apps/server/wrangler.toml
 
   deploy-api:
-    needs: [setup, d1-recreate, db-migrate]
+    needs: [ setup, d1-recreate, db-migrate ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -233,7 +233,7 @@ jobs:
           echo "${{ secrets.GOOGLE_MAPS_API_KEY }}" | bunx wrangler secret put GOOGLE_MAPS_API_KEY --name "${WORKER_NAME}"
 
   deploy-web:
-    needs: [setup, deploy-api]
+    needs: [ setup, deploy-api ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

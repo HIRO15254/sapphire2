@@ -41,18 +41,19 @@ const LIFECYCLE_EVENT_TYPES = ["session_start", "session_end", "day_end"];
 const PARTICIPATION_EVENT_TYPES = ["player_join", "player_leave"];
 
 export const PLAY_EVENT_INPUT_PAYLOADS = {
-	table_change: tableChangePayload,
-	session_pause: sessionPausePayload,
-	session_resume: sessionResumePayload,
-	chips_add_remove: chipsAddRemovePayload,
 	all_in: allInPayload,
+	chips_add_remove: chipsAddRemovePayload,
+	memo: z.object({ text: memoPayload.shape.text.max(5000) }),
 	purchase_chips: z.object({
-		priceId: idSchema,
 		payments: paymentsSchema(["chip_purchase", "fee"]).max(MAX_ENTRY_PAYMENTS),
+		priceId: idSchema,
 	}),
 	reentry: z.object({
 		payments: reentryPayload.shape.payments.max(MAX_ENTRY_PAYMENTS),
 	}),
+	session_pause: sessionPausePayload,
+	session_resume: sessionResumePayload,
+	table_change: tableChangePayload,
 	update_stack: updateStackPayload.extend({
 		chipPurchaseCounts: z
 			.array(
@@ -63,7 +64,6 @@ export const PLAY_EVENT_INPUT_PAYLOADS = {
 			.max(100)
 			.optional(),
 	}),
-	memo: z.object({ text: memoPayload.shape.text.max(5000) }),
 } as const;
 
 export type PlayEventInputType = keyof typeof PLAY_EVENT_INPUT_PAYLOADS;
@@ -119,10 +119,10 @@ async function resolvePurchase(
 ) {
 	const [price] = await db
 		.select({
-			ruleId: tournamentRulePrice.ruleId,
+			chips: tournamentRulePrice.chips,
 			kind: tournamentRulePrice.kind,
 			label: tournamentRulePrice.label,
-			chips: tournamentRulePrice.chips,
+			ruleId: tournamentRulePrice.ruleId,
 		})
 		.from(tournamentRulePrice)
 		.where(
@@ -161,10 +161,10 @@ async function resolvePurchase(
 		eventId
 	);
 	return {
-		priceId: payload.priceId,
-		label: price.label || "Add-on",
 		chips: price.chips ?? 0,
+		label: price.label || "Add-on",
 		payments,
+		priceId: payload.priceId,
 	};
 }
 
@@ -309,15 +309,15 @@ export async function createPlayEvent(
 	);
 	const { eventIds } = await commitEntryEventChange(db, {
 		change: {
-			op: "append",
 			events: [
 				{
-					type: input.eventType,
 					occurredAt,
-					playSessionId: input.playSessionId,
 					payload,
+					playSessionId: input.playSessionId,
+					type: input.eventType,
 				},
 			],
+			op: "append",
 		},
 		entryId: input.entryId,
 		now,
@@ -385,7 +385,7 @@ export async function updatePlayEvent(
 					target.id
 				);
 	await commitEntryEventChange(db, {
-		change: { op: "update", id: input.id, occurredAt, payload },
+		change: { id: input.id, occurredAt, op: "update", payload },
 		entryId,
 		now,
 		state,
@@ -422,7 +422,7 @@ export async function deletePlayEvent(
 		assertSafeParticipationUndo(state, target);
 	}
 	await commitEntryEventChange(db, {
-		change: { op: "delete", id },
+		change: { id, op: "delete" },
 		entryId,
 		now,
 		state,

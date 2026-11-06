@@ -14,9 +14,9 @@ const ROOM_ID = "room-1";
 async function seedRoom(api: ApiFixture) {
 	await api.db.insert(room).values({
 		id: ROOM_ID,
-		userId: "alice",
 		name: "Before",
 		updatedAt: new Date("2026-09-05T00:00:00.000Z"),
+		userId: "alice",
 	});
 }
 

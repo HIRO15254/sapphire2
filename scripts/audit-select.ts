@@ -40,15 +40,15 @@ export const STALE_DAYS = 30;
 export const DIFF_MODE_CHURN_RATIO = 0.25;
 export const AGENTS = ["claude", "codex"] as const;
 
-const SOURCE_ROOT = /^((?:apps|packages)\/[^/]+\/src)\//;
+const SOURCE_ROOT = /^((?:apps|packages)\/[^/]+\/src)\//u;
 const EXCLUDED_PATH =
-	/(^|\/)(__tests__|__integration__|migrations)\/|\.test\.tsx?$|\.d\.ts$|\.gen\.ts$|\.(css|json|sql)$/;
-const SOURCE_PATH = /\.(ts|tsx)$/;
+	/(^|\/)(__tests__|__integration__|migrations)\/|\.test\.tsx?$|\.d\.ts$|\.gen\.ts$|\.(css|json|sql)$/u;
+const SOURCE_PATH = /\.(ts|tsx)$/u;
 const DAY_MS = 86_400_000;
 const WEIGHT_PER_DAY = 1;
 const NEVER_AUDITED_DAYS = 90;
-const SEPARATOR_CELL = /^-+$/;
-const MARKDOWN_CELL = /\s*\|\s*/;
+const SEPARATOR_CELL = /^-+$/u;
+const MARKDOWN_CELL = /\s*\|\s*/u;
 
 const RISK_WEIGHTS: [string, number][] = [
 	["packages/api/", 1.5],
@@ -103,7 +103,7 @@ export function parseLedger(markdown: string): LedgerRow[] {
 		) {
 			continue;
 		}
-		rows.push({ path, sha, date, agent, filed: Number(filed) || 0 });
+		rows.push({ agent, date, filed: Number(filed) || 0, path, sha });
 	}
 	return rows;
 }
@@ -206,7 +206,7 @@ function looseUnits(
 	}
 	const sorted = [...loose].sort((a, b) => a.path.localeCompare(b.path, "en"));
 	if (sumLoc(sorted) <= budget) {
-		return [{ path: `${dir}/*`, loc: sumLoc(sorted), files: sorted }];
+		return [{ files: sorted, loc: sumLoc(sorted), path: `${dir}/*` }];
 	}
 	const chunks: AuditFile[][] = [];
 	let current: AuditFile[] = [];
@@ -223,9 +223,9 @@ function looseUnits(
 		const first = chunk[0] as AuditFile;
 		const last = chunk.at(-1) as AuditFile;
 		return {
-			path: `${dir}/*:${name(first)}..${name(last)}`,
-			loc: sumLoc(chunk),
 			files: chunk,
+			loc: sumLoc(chunk),
+			path: `${dir}/*:${name(first)}..${name(last)}`,
 		};
 	});
 }
@@ -236,7 +236,7 @@ function atomsOf(
 	budget: number
 ): AuditUnit[] {
 	if (sumLoc(members) <= budget) {
-		return [{ path: dir, loc: sumLoc(members), files: members }];
+		return [{ files: members, loc: sumLoc(members), path: dir }];
 	}
 	const loose: AuditFile[] = [];
 	const children = new Map<string, AuditFile[]>();
@@ -275,9 +275,9 @@ export function splitUnits(
 		for (const atom of atomsOf(root, members, budget)) {
 			if (bin && bin.loc + atom.loc <= budget) {
 				bin = {
-					path: `${bin.path}${PART_SEPARATOR}${atom.path}`,
-					loc: bin.loc + atom.loc,
 					files: [...bin.files, ...atom.files],
+					loc: bin.loc + atom.loc,
+					path: `${bin.path}${PART_SEPARATOR}${atom.path}`,
 				};
 				continue;
 			}
@@ -317,7 +317,7 @@ export function scoreUnit(unit: AuditUnit, now: Date) {
 	const score =
 		(churn + ageDays * WEIGHT_PER_DAY * Math.sqrt(unit.loc)) *
 		weightFor(unit.path);
-	return { score, churn, ageDays, stale };
+	return { ageDays, churn, score, stale };
 }
 
 export function nextAgent(rows: LedgerRow[]): string {
@@ -364,17 +364,17 @@ export function selectUnit(
 		new Set(shas).size === 1 &&
 		sinceSha !== null;
 	return {
-		path: top.unit.path,
+		agent: nextAgent(rows),
 		files: top.unit.files.map((file) => file.path),
 		loc: top.unit.loc,
-		score: Math.round(top.score),
 		mode: diffMode ? "diff" : "sweep",
-		sinceSha: diffMode ? sinceSha : null,
-		rules: rulesFor(top.unit.path),
-		agent: nextAgent(rows),
+		path: top.unit.path,
 		reason: top.stale
 			? `unaudited for ${STALE_DAYS}+ days or never (avg age ${Math.round(top.ageDays)}d)`
 			: `${top.churn} lines changed since last audit, avg age ${Math.round(top.ageDays)}d`,
+		rules: rulesFor(top.unit.path),
+		score: Math.round(top.score),
+		sinceSha: diffMode ? sinceSha : null,
 	};
 }
 
@@ -429,7 +429,7 @@ export function collectFiles(rows: LedgerRow[]): AuditFile[] {
 			}
 		}
 		const loc = readFileSync(path, "utf8").split("\n").length;
-		return { path, loc, auditedAt, auditedSha, churn };
+		return { auditedAt, auditedSha, churn, loc, path };
 	});
 }
 
@@ -455,11 +455,11 @@ function main(argv: string[]) {
 			throw new Error("record needs --unit and --agent");
 		}
 		const run: LedgerRow = {
-			path,
 			agent,
-			filed,
-			sha: git("rev-parse", "--short=12", "HEAD").trim(),
 			date: `${new Date().toISOString().slice(0, 19)}Z`,
+			filed,
+			path,
+			sha: git("rev-parse", "--short=12", "HEAD").trim(),
 		};
 		const current = collectFiles([]).map((file) => file.path);
 		process.stdout.write(

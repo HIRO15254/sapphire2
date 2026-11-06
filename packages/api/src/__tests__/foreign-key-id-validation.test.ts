@@ -7,13 +7,13 @@ describe("foreign-key id input validation", () => {
 		[
 			"ring game defaultAssetId",
 			appRouter.ringGame.create,
-			{ roomId: "room-1", name: "Game", rule: {} },
+			{ name: "Game", roomId: "room-1", rule: {} },
 			"defaultAssetId",
 		],
 		[
 			"tournament defaultAssetId",
 			appRouter.tournament.create,
-			{ roomId: "room-1", name: "Tournament", rule: {} },
+			{ name: "Tournament", roomId: "room-1", rule: {} },
 			"defaultAssetId",
 		],
 	] as const)("rejects an empty %s", (_label, procedure, base, field) => {

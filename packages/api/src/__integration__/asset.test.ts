@@ -42,7 +42,7 @@ async function adjust(
 		buildAdjustmentStatements(
 			db,
 			userId,
-			{ assetId, quantity, categoryId: null, memo: null, occurredAt: NOW },
+			{ assetId, categoryId: null, memo: null, occurredAt: NOW, quantity },
 			NOW
 		).statements
 	);
@@ -58,46 +58,46 @@ async function startLiveCash(db: Database, id: string, assetId: string) {
 	await runBatch(
 		db,
 		buildLiveEntryStartStatements(db, {
-			id,
-			userId: "alice",
+			assetId,
 			detail: {
+				cashRuleId: rule.ruleVersionId,
 				kind: "cash",
 				ringGameId: null,
-				cashRuleId: rule.ruleVersionId,
 			},
-			assetId,
-			roomId: null,
-			memo: null,
+			id,
 			localDate: "2026-09-05",
+			memo: null,
 			now: NOW,
+			roomId: null,
 			startEvent: {
 				occurredAt: NOW,
 				payload: { payments: [{ assetId, quantity: 30_000, role: "buy_in" }] },
 			},
+			userId: "alice",
 		})
 	);
 	const state = await loadEntryEventState(db, "alice", id);
 	await commitEntryEventChange(db, {
-		userId: "alice",
-		entryId: id,
-		state,
 		change: {
-			op: "append",
 			events: [
 				{
-					type: "chips_add_remove",
 					occurredAt: NOW,
 					payload: { amount: 5000, assetId, effect: "real" },
+					type: "chips_add_remove",
 				},
 			],
+			op: "append",
 		},
+		entryId: id,
 		now: NOW,
+		state,
+		userId: "alice",
 	});
 }
 
 async function createCurrency(api: ApiFixture, name: string) {
 	return requireCreatedRow(
-		await api.alice.asset.create({ name, kind: "currency" })
+		await api.alice.asset.create({ kind: "currency", name })
 	);
 }
 
@@ -125,12 +125,12 @@ describe("asset balances on D1", () => {
 			await api.alice.room.create({ name: "Club" })
 		);
 		await api.alice.ringGame.create({
-			roomId: club.id,
-			name: "Cash",
 			defaultAssetId: chips.id,
+			name: "Cash",
+			roomId: club.id,
 			rule: {
 				game: { variantId: nlh.id },
-				stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+				stakes: [{ blind1: 1, blind2: 2, gameGroupId: nlh.groupId }],
 			},
 		});
 		await expect(
@@ -146,26 +146,26 @@ describe("asset balances on D1", () => {
 	}) => {
 		const jpy = await createCurrency(api, "JPY");
 		const ticket = requireCreatedRow(
-			await api.alice.asset.create({ name: "Main ticket", kind: "item" })
+			await api.alice.asset.create({ kind: "item", name: "Main ticket" })
 		);
 		const empty = await createCurrency(api, "Empty");
 		const bobJpy = requireCreatedRow(
-			await api.bob.asset.create({ name: "JPY", kind: "currency" })
+			await api.bob.asset.create({ kind: "currency", name: "JPY" })
 		);
 		await startLiveCash(api.db, "live", jpy.id);
 		await adjust(api.db, "alice", jpy.id, 100_000);
 		await adjust(api.db, "alice", ticket.id, 2);
 		await adjust(api.db, "bob", bobJpy.id, 999_999);
 		await api.db.insert(ledgerLine).values({
-			id: "virtual-buy-in",
-			userId: "alice",
 			assetId: jpy.id,
-			quantity: -5000,
-			role: "buy_in",
 			effect: "virtual",
 			entryId: "live",
+			id: "virtual-buy-in",
 			occurredAt: NOW,
+			quantity: -5000,
+			role: "buy_in",
 			updatedAt: NOW,
+			userId: "alice",
 		});
 
 		const [live] = await api.db
@@ -174,21 +174,21 @@ describe("asset balances on D1", () => {
 			.where(eq(entry.id, "live"));
 		expect(live).toEqual({ status: "open" });
 		const balances = (await api.alice.asset.list()).map(
-			({ id, kind, balance }) => ({ id, kind, balance })
+			({ id, kind, balance }) => ({ balance, id, kind })
 		);
 		expect(balances).toHaveLength(3);
 		expect(balances).toEqual(
 			expect.arrayContaining([
-				{ id: jpy.id, kind: "currency", balance: 65_000 },
-				{ id: ticket.id, kind: "item", balance: 2 },
-				{ id: empty.id, kind: "currency", balance: 0 },
+				{ balance: 65_000, id: jpy.id, kind: "currency" },
+				{ balance: 2, id: ticket.id, kind: "item" },
+				{ balance: 0, id: empty.id, kind: "currency" },
 			])
 		);
 		expect(await api.alice.asset.getById({ id: jpy.id })).toMatchObject({
 			balance: 65_000,
 		});
 		expect(await api.bob.asset.list()).toEqual([
-			expect.objectContaining({ id: bobJpy.id, balance: 999_999 }),
+			expect.objectContaining({ balance: 999_999, id: bobJpy.id }),
 		]);
 	});
 });
@@ -203,17 +203,17 @@ describe("asset references on D1", () => {
 			await api.alice.room.create({ name: "Hall" })
 		);
 		await api.alice.tournament.create({
-			roomId: room.id,
-			name: "Main",
 			defaultAssetId: defaultAsset.id,
+			name: "Main",
+			roomId: room.id,
 			rule: {
 				prices: [
 					{
-						kind: "entry",
-						assetId: priced.id,
 						amount: 1000,
-						fee: 0,
+						assetId: priced.id,
 						chips: null,
+						fee: 0,
+						kind: "entry",
 					},
 				],
 			},
@@ -226,7 +226,7 @@ describe("asset references on D1", () => {
 				api.alice.asset.update({ id: assetId, kind: "item" })
 			).rejects.toMatchObject({ code: "CONFLICT" });
 			await expect(
-				api.alice.asset.update({ id: assetId, decimals: 2 })
+				api.alice.asset.update({ decimals: 2, id: assetId })
 			).rejects.toMatchObject({ code: "CONFLICT" });
 		}
 	});
@@ -243,10 +243,10 @@ describe("asset references on D1", () => {
 		await adjust(api.db, "alice", lined.id, 500);
 		await api.alice.assetRate.create({
 			baseAssetId: base.id,
-			quoteAssetId: quote.id,
-			rateNum: 3,
-			rateDen: 2,
 			effectiveFrom: 0,
+			quoteAssetId: quote.id,
+			rateDen: 2,
+			rateNum: 3,
 		});
 		await api.alice.userSetting.update({ baseAssetId: setting.id });
 		await startLiveCash(api.db, "live", played.id);
@@ -275,10 +275,10 @@ describe("asset references on D1", () => {
 		await adjust(api.db, "alice", old.id, 1200);
 		await api.alice.assetRate.create({
 			baseAssetId: old.id,
-			quoteAssetId: kept.id,
-			rateNum: 1,
-			rateDen: 1,
 			effectiveFrom: 0,
+			quoteAssetId: kept.id,
+			rateDen: 1,
+			rateNum: 1,
 		});
 
 		const archived = await api.alice.asset.archive({ id: old.id });
@@ -289,15 +289,15 @@ describe("asset references on D1", () => {
 		const everything = (
 			await api.alice.asset.list({ includeArchived: true })
 		).map(({ id, balance, archivedAt }) => ({
-			id,
-			balance,
 			archived: archivedAt !== null,
+			balance,
+			id,
 		}));
 		expect(everything).toHaveLength(2);
 		expect(everything).toEqual(
 			expect.arrayContaining([
-				{ id: kept.id, balance: 0, archived: false },
-				{ id: old.id, balance: 1200, archived: true },
+				{ archived: false, balance: 0, id: kept.id },
+				{ archived: true, balance: 1200, id: old.id },
 			])
 		);
 		expect(await api.alice.assetRate.list()).toHaveLength(1);
@@ -316,8 +316,8 @@ describe("asset references on D1", () => {
 	}) => {
 		const fresh = await createCurrency(api, "Fresh");
 		expect(
-			await api.alice.asset.update({ id: fresh.id, kind: "item", decimals: 2 })
-		).toMatchObject({ kind: "item", decimals: 2 });
+			await api.alice.asset.update({ decimals: 2, id: fresh.id, kind: "item" })
+		).toMatchObject({ decimals: 2, kind: "item" });
 
 		const used = await createCurrency(api, "Used");
 		await adjust(api.db, "alice", used.id, 100);
@@ -330,7 +330,7 @@ describe("asset references on D1", () => {
 			message: "Asset is in use, so its kind and decimals can no longer change",
 		};
 		await expect(
-			api.alice.asset.update({ id: used.id, decimals: 2 })
+			api.alice.asset.update({ decimals: 2, id: used.id })
 		).rejects.toMatchObject(frozen);
 		await expect(
 			api.alice.asset.update({ id: used.id, kind: "item", name: "Renamed" })
@@ -341,12 +341,12 @@ describe("asset references on D1", () => {
 
 		expect(
 			await api.alice.asset.update({
+				decimals: 0,
 				id: used.id,
 				kind: "currency",
-				decimals: 0,
 				name: "Renamed",
 			})
-		).toMatchObject({ name: "Renamed", kind: "currency", decimals: 0 });
+		).toMatchObject({ decimals: 0, kind: "currency", name: "Renamed" });
 	});
 });
 
@@ -368,11 +368,11 @@ describe("asset writes on D1", () => {
 		const noUnit = await createCurrency(api, "No unit");
 		const withUnit = requireCreatedRow(
 			await api.alice.asset.create({
-				name: "With unit",
-				kind: "currency",
-				unit: "JPY",
-				description: "Cash",
 				decimals: 2,
+				description: "Cash",
+				kind: "currency",
+				name: "With unit",
+				unit: "JPY",
 			})
 		);
 		for (const [created, changed] of [
@@ -400,14 +400,14 @@ describe("asset writes on D1", () => {
 			message: "You already have an asset with this name",
 		};
 		await expect(
-			api.alice.asset.create({ name: " chips ", kind: "item" })
+			api.alice.asset.create({ kind: "item", name: " chips " })
 		).rejects.toMatchObject(conflict);
 		await expect(
 			api.alice.asset.update({ id: other.id, name: "CHIPS" })
 		).rejects.toMatchObject(conflict);
 		expect(await api.db.select().from(asset)).toEqual(before);
 		requireCreatedRow(
-			await api.bob.asset.create({ name: "Chips", kind: "currency" })
+			await api.bob.asset.create({ kind: "currency", name: "Chips" })
 		);
 	});
 });
@@ -420,10 +420,10 @@ describe("asset rates on D1", () => {
 		const quote = await createCurrency(api, "Quote");
 		const input = {
 			baseAssetId: base.id,
-			quoteAssetId: quote.id,
-			rateNum: 1,
-			rateDen: 1,
 			effectiveFrom: 100,
+			quoteAssetId: quote.id,
+			rateDen: 1,
+			rateNum: 1,
 		};
 		const created = requireCreatedRow(await api.alice.assetRate.create(input));
 		await api.alice.asset.archive({ id: base.id });
@@ -460,10 +460,10 @@ describe("asset rates on D1", () => {
 			(
 				await api.alice.assetRate.create({
 					baseAssetId,
-					quoteAssetId,
-					rateNum: effectiveFrom + 1,
-					rateDen: 1,
 					effectiveFrom,
+					quoteAssetId,
+					rateDen: 1,
+					rateNum: effectiveFrom + 1,
 				})
 			)?.id;
 		const usdJpy0 = await rate(usd.id, jpy.id, 0);
@@ -481,11 +481,11 @@ describe("asset rates on D1", () => {
 			})
 		).toEqual([
 			expect.objectContaining({
-				id: usdJpy200,
-				rateNum: 201,
-				rateDen: 1,
 				effectiveFrom: new Date(200_000),
+				id: usdJpy200,
 				memo: null,
+				rateDen: 1,
+				rateNum: 201,
 			}),
 			expect.objectContaining({ id: usdJpy100 }),
 			expect.objectContaining({ id: usdJpy0 }),
@@ -514,10 +514,10 @@ describe("asset rates on D1", () => {
 		const jpy = await createCurrency(api, "JPY");
 		const valid = {
 			baseAssetId: usd.id,
-			quoteAssetId: jpy.id,
-			rateNum: 150,
-			rateDen: 1,
 			effectiveFrom: 1_700_000_000,
+			quoteAssetId: jpy.id,
+			rateDen: 1,
+			rateNum: 150,
 		};
 		for (const invalid of [
 			{ ...valid, quoteAssetId: usd.id },
@@ -559,7 +559,7 @@ describe("user settings on D1", () => {
 		const jpy = await createCurrency(api, "JPY");
 		const usd = await createCurrency(api, "USD");
 		const ticket = requireCreatedRow(
-			await api.alice.asset.create({ name: "Ticket", kind: "item" })
+			await api.alice.asset.create({ kind: "item", name: "Ticket" })
 		);
 		expect(await api.alice.userSetting.get()).toEqual({
 			baseAssetId: null,
@@ -612,17 +612,17 @@ describe("asset, rate and setting ownership on D1", () => {
 	}) => {
 		const own = await createCurrency(api, "Own");
 		const bobAsset = requireCreatedRow(
-			await api.bob.asset.create({ name: "Private", kind: "currency" })
+			await api.bob.asset.create({ kind: "currency", name: "Private" })
 		);
 		const bobQuote = requireCreatedRow(
-			await api.bob.asset.create({ name: "Other", kind: "currency" })
+			await api.bob.asset.create({ kind: "currency", name: "Other" })
 		);
 		const bobRate = await api.bob.assetRate.create({
 			baseAssetId: bobAsset.id,
-			quoteAssetId: bobQuote.id,
-			rateNum: 1,
-			rateDen: 1,
 			effectiveFrom: 0,
+			quoteAssetId: bobQuote.id,
+			rateDen: 1,
+			rateNum: 1,
 		});
 		const before = await storedRows(api);
 
@@ -639,18 +639,18 @@ describe("asset, rate and setting ownership on D1", () => {
 				() =>
 					api.alice.assetRate.create({
 						baseAssetId: id,
-						quoteAssetId: own.id,
-						rateNum: 1,
-						rateDen: 1,
 						effectiveFrom: 0,
+						quoteAssetId: own.id,
+						rateDen: 1,
+						rateNum: 1,
 					}),
 				() =>
 					api.alice.assetRate.create({
 						baseAssetId: own.id,
-						quoteAssetId: id,
-						rateNum: 1,
-						rateDen: 1,
 						effectiveFrom: 0,
+						quoteAssetId: id,
+						rateDen: 1,
+						rateNum: 1,
 					}),
 				() => api.alice.userSetting.update({ baseAssetId: id }),
 			];
@@ -669,7 +669,7 @@ describe("asset, rate and setting ownership on D1", () => {
 		const guestRequests = [
 			() => guest.asset.list(),
 			() => guest.asset.getById({ id: own.id }),
-			() => guest.asset.create({ name: "Guest", kind: "currency" }),
+			() => guest.asset.create({ kind: "currency", name: "Guest" }),
 			() => guest.asset.update({ id: own.id, name: "Guest" }),
 			() => guest.asset.archive({ id: own.id }),
 			() => guest.asset.restore({ id: own.id }),
@@ -679,10 +679,10 @@ describe("asset, rate and setting ownership on D1", () => {
 			() =>
 				guest.assetRate.create({
 					baseAssetId: own.id,
-					quoteAssetId: bobAsset.id,
-					rateNum: 1,
-					rateDen: 1,
 					effectiveFrom: 0,
+					quoteAssetId: bobAsset.id,
+					rateDen: 1,
+					rateNum: 1,
 				}),
 			() => guest.assetRate.delete({ id: bobRate?.id ?? "" }),
 			() => guest.userSetting.get(),

@@ -89,14 +89,12 @@ describe("redirectHostsFrom", () => {
 		).toEqual(["ok.test"]);
 	});
 
-	it.each([
-		null,
-		undefined,
-		"",
-		"https://claude.ai/cb",
-	])("returns [] for the non-array %s", (value) => {
-		expect(redirectHostsFrom(value)).toEqual([]);
-	});
+	it.each([null, undefined, "", "https://claude.ai/cb"])(
+		"returns [] for the non-array %s",
+		(value) => {
+			expect(redirectHostsFrom(value)).toEqual([]);
+		}
+	);
 });
 
 describe("parseConsentPageQuery", () => {

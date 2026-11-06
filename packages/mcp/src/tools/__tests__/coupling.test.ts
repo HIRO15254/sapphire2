@@ -82,10 +82,10 @@ describe("tool/router coupling", () => {
 			const { type } = getProcedureDef(getProcedure(def.procedurePath));
 			if (type === "query") {
 				expect(toolAnnotations(def)).toEqual({
-					readOnlyHint: true,
 					destructiveHint: false,
 					idempotentHint: true,
 					openWorldHint: false,
+					readOnlyHint: true,
 				});
 			}
 		}

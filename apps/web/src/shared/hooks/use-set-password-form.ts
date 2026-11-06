@@ -29,8 +29,8 @@ export function useSetPasswordForm({
 		},
 		onSubmit: async ({ value }) => {
 			const { error } = await authClient.$fetch("/set-password", {
-				method: "POST",
 				body: { newPassword: value.newPassword },
+				method: "POST",
 			});
 
 			if (error) {

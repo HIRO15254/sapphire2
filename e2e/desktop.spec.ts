@@ -10,9 +10,9 @@ test("directs desktop users to the supported mobile experience after login", asy
 		entry.name.endsWith("better-auth.session_token")
 	);
 	expect(cookie).toMatchObject({
-		secure: true,
 		httpOnly: true,
 		sameSite: "None",
+		secure: true,
 	});
 	await expect(
 		page.getByText("Use on your phone", { exact: true })

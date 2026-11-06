@@ -19,11 +19,11 @@ function line(
 	options: { effect?: "real" | "virtual"; second?: number } = {}
 ): ValuationLine {
 	return {
-		entryId,
 		assetId,
-		quantity,
 		effect: options.effect ?? "real",
+		entryId,
 		occurredAt: at(options.second ?? 0),
+		quantity,
 	};
 }
 
@@ -35,7 +35,7 @@ function rate(
 	rateDen: number,
 	effectiveFrom: Date
 ): ValuationRate {
-	return { id, baseAssetId, quoteAssetId, rateNum, rateDen, effectiveFrom };
+	return { baseAssetId, effectiveFrom, id, quoteAssetId, rateDen, rateNum };
 }
 
 const assets: ValuationAsset[] = [
@@ -47,10 +47,10 @@ const assets: ValuationAsset[] = [
 
 it("rejects conversion overflow rather than returning rounded money", () => {
 	const input = {
-		baseAssetId: "pt",
 		assets,
-		rates: [rate("usd-pt", "usd", "pt", 2, 1, new Date(0))],
+		baseAssetId: "pt",
 		lines: [line("e", "usd", 4_503_599_627_370_495)],
+		rates: [rate("usd-pt", "usd", "pt", 2, 1, new Date(0))],
 	};
 	expect(valueEntries(input).entries.get("e")?.real?.profitLoss).toBe(
 		9_007_199_254_740_990
@@ -65,9 +65,8 @@ it("rejects conversion overflow rather than returning rounded money", () => {
 
 describe("valueEntries: the section 12.1 example (base pt, 1 Main ticket = 20,000 pt)", () => {
 	const result = valueEntries({
-		baseAssetId: "pt",
 		assets,
-		rates: [rate("ticket-pt", "main-ticket", "pt", 20_000, 1, new Date(0))],
+		baseAssetId: "pt",
 		lines: [
 			line("satellite", "pt", -3000),
 			line("satellite", "main-ticket", 1),
@@ -76,20 +75,21 @@ describe("valueEntries: the section 12.1 example (base pt, 1 Main ticket = 20,00
 			line("freeroll", "pt", -5000, { effect: "virtual" }),
 			line("freeroll", "pt", 8000),
 		],
+		rates: [rate("ticket-pt", "main-ticket", "pt", 20_000, 1, new Date(0))],
 	});
 
 	it("values each entry's real and virtual P/L and BI", () => {
 		expect(result.entries.get("satellite")).toMatchObject({
-			real: { profitLoss: -3000, buyIn: 3000 },
-			virtual: { profitLoss: 17_000, buyIn: 3000 },
+			real: { buyIn: 3000, profitLoss: -3000 },
+			virtual: { buyIn: 3000, profitLoss: 17_000 },
 		});
 		expect(result.entries.get("main")).toMatchObject({
-			real: { profitLoss: 45_000, buyIn: 0 },
-			virtual: { profitLoss: 25_000, buyIn: 20_000 },
+			real: { buyIn: 0, profitLoss: 45_000 },
+			virtual: { buyIn: 20_000, profitLoss: 25_000 },
 		});
 		expect(result.entries.get("freeroll")).toMatchObject({
-			real: { profitLoss: 8000, buyIn: 0 },
-			virtual: { profitLoss: 3000, buyIn: 5000 },
+			real: { buyIn: 0, profitLoss: 8000 },
+			virtual: { buyIn: 5000, profitLoss: 3000 },
 		});
 	});
 });
@@ -97,44 +97,44 @@ describe("valueEntries: the section 12.1 example (base pt, 1 Main ticket = 20,00
 describe("valueEntries: conversion paths", () => {
 	it("inverts a rate registered from the base currency to the asset", () => {
 		const result = valueEntries({
-			baseAssetId: "jpy",
 			assets,
-			rates: [rate("jpy-usd", "jpy", "usd", 1, 150, new Date(0))],
+			baseAssetId: "jpy",
 			lines: [line("e", "usd", -100), line("e", "usd", 250)],
+			rates: [rate("jpy-usd", "jpy", "usd", 1, 150, new Date(0))],
 		});
 		expect(result.entries.get("e")?.real).toEqual({
-			profitLoss: 22_500,
 			buyIn: 15_000,
 			cashOut: 37_500,
+			profitLoss: 22_500,
 		});
 	});
 
 	it("converts an item through a currency in two steps", () => {
 		const result = valueEntries({
-			baseAssetId: "jpy",
 			assets,
+			baseAssetId: "jpy",
+			lines: [line("e", "jpy", -10_000), line("e", "main-ticket", 1)],
 			rates: [
 				rate("ticket-usd", "main-ticket", "usd", 200, 1, new Date(0)),
 				rate("jpy-usd", "jpy", "usd", 1, 150, new Date(0)),
 			],
-			lines: [line("e", "jpy", -10_000), line("e", "main-ticket", 1)],
 		});
 		expect(result.entries.get("e")).toEqual({
-			real: { profitLoss: -10_000, buyIn: 10_000, cashOut: 0 },
-			virtual: { profitLoss: 20_000, buyIn: 10_000, cashOut: 30_000 },
 			missingRates: { real: [], virtual: [] },
+			real: { buyIn: 10_000, cashOut: 0, profitLoss: -10_000 },
+			virtual: { buyIn: 10_000, cashOut: 30_000, profitLoss: 20_000 },
 		});
 	});
 
 	it("does not route a currency through another currency", () => {
 		const result = valueEntries({
-			baseAssetId: "jpy",
 			assets,
+			baseAssetId: "jpy",
+			lines: [line("e", "pt", 1000)],
 			rates: [
 				rate("pt-usd", "pt", "usd", 1, 100, new Date(0)),
 				rate("usd-jpy", "usd", "jpy", 150, 1, new Date(0)),
 			],
-			lines: [line("e", "pt", 1000)],
 		});
 		expect(result.entries.get("e")?.real).toBeNull();
 		expect(result.entries.get("e")?.missingRates.real).toEqual([
@@ -146,32 +146,32 @@ describe("valueEntries: conversion paths", () => {
 describe("valueEntries: missing rates", () => {
 	it("excludes an entry with an unconvertible line instead of counting it as 0", () => {
 		const result = valueEntries({
-			baseAssetId: "jpy",
 			assets,
-			rates: [],
+			baseAssetId: "jpy",
 			lines: [
 				line("ok", "jpy", 5000),
 				line("no-rate", "jpy", -1000),
 				line("no-rate", "usd", 50, { second: 30 }),
 				line("no-rate", "usd", 70, { second: 10 }),
 			],
+			rates: [],
 		});
 		expect(result.entries.get("no-rate")).toEqual({
-			real: null,
-			virtual: null,
 			missingRates: {
 				real: [{ assetId: "usd", earliestOccurredAt: at(10) }],
 				virtual: [{ assetId: "usd", earliestOccurredAt: at(10) }],
 			},
+			real: null,
+			virtual: null,
 		});
 	});
 
 	it("does not apply the first rate to a line older than it", () => {
 		const result = valueEntries({
-			baseAssetId: "jpy",
 			assets,
-			rates: [rate("usd-jpy", "usd", "jpy", 150, 1, at(60))],
+			baseAssetId: "jpy",
 			lines: [line("old", "usd", 10, { second: 59 })],
+			rates: [rate("usd-jpy", "usd", "jpy", 150, 1, at(60))],
 		});
 		expect(result.entries.get("old")?.real).toBeNull();
 		expect(result.entries.get("old")?.missingRates.real).toEqual([
@@ -181,18 +181,18 @@ describe("valueEntries: missing rates", () => {
 
 	it("excludes an entry whose item has no rate only from virtual amounts", () => {
 		const result = valueEntries({
-			baseAssetId: "pt",
 			assets,
-			rates: [],
+			baseAssetId: "pt",
 			lines: [line("e", "pt", -3000), line("e", "main-ticket", 1)],
+			rates: [],
 		});
 		expect(result.entries.get("e")).toEqual({
-			real: { profitLoss: -3000, buyIn: 3000, cashOut: 0 },
-			virtual: null,
 			missingRates: {
 				real: [],
 				virtual: [{ assetId: "main-ticket", earliestOccurredAt: at(0) }],
 			},
+			real: { buyIn: 3000, cashOut: 0, profitLoss: -3000 },
+			virtual: null,
 		});
 	});
 });
@@ -200,33 +200,33 @@ describe("valueEntries: missing rates", () => {
 describe("valueEntries: effective time", () => {
 	it("applies a row with effective_from = 0 to lines before it was registered", () => {
 		const result = valueEntries({
-			baseAssetId: "jpy",
 			assets,
-			rates: [rate("usd-jpy", "usd", "jpy", 150, 1, new Date(0))],
+			baseAssetId: "jpy",
 			lines: [
 				{
-					entryId: "e",
 					assetId: "usd",
-					quantity: 10,
 					effect: "real",
+					entryId: "e",
 					occurredAt: new Date("2015-01-01T00:00:00.000Z"),
+					quantity: 10,
 				},
 			],
+			rates: [rate("usd-jpy", "usd", "jpy", 150, 1, new Date(0))],
 		});
 		expect(result.entries.get("e")?.real?.profitLoss).toBe(1500);
 	});
 
 	it("switches to a new rate at the same second as its effective_from", () => {
 		const result = valueEntries({
-			baseAssetId: "jpy",
 			assets,
-			rates: [
-				rate("old", "usd", "jpy", 150, 1, new Date(0)),
-				rate("new", "usd", "jpy", 160, 1, at(60)),
-			],
+			baseAssetId: "jpy",
 			lines: [
 				line("before", "usd", 10, { second: 59 }),
 				line("same-second", "usd", 10, { second: 60 }),
+			],
+			rates: [
+				rate("old", "usd", "jpy", 150, 1, new Date(0)),
+				rate("new", "usd", "jpy", 160, 1, at(60)),
 			],
 		});
 		expect(result.entries.get("before")?.real?.profitLoss).toBe(1500);
@@ -239,25 +239,25 @@ describe("valueEntries: rounding", () => {
 
 	it("rounds 0.5 and -0.5 away from zero", () => {
 		const result = valueEntries({
-			baseAssetId: "jpy",
 			assets,
-			rates: halfRate,
+			baseAssetId: "jpy",
 			lines: [line("plus", "pt", 1), line("minus", "pt", -1)],
+			rates: halfRate,
 		});
 		expect(result.entries.get("plus")?.real?.profitLoss).toBe(1);
 		expect(result.entries.get("minus")?.real).toEqual({
-			profitLoss: -1,
 			buyIn: 1,
 			cashOut: 0,
+			profitLoss: -1,
 		});
 	});
 
 	it("rounds once per asset and rate after summing the quantities", () => {
 		const result = valueEntries({
-			baseAssetId: "jpy",
 			assets,
-			rates: halfRate,
+			baseAssetId: "jpy",
 			lines: [line("e", "pt", 1), line("e", "pt", 1, { second: 5 })],
+			rates: halfRate,
 		});
 		expect(result.entries.get("e")?.real?.profitLoss).toBe(1);
 	});

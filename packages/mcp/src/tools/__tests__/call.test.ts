@@ -35,7 +35,7 @@ function createRoutedCallerMock(result: unknown = null) {
 					{},
 					{
 						get: (_t, procedure: string) => (input: unknown) => {
-							calls.push({ path: `${namespace}.${procedure}`, input });
+							calls.push({ input, path: `${namespace}.${procedure}` });
 							return Promise.resolve(result);
 						},
 					}
@@ -51,7 +51,7 @@ describe("callTool", () => {
 			const { caller, calls } = createRoutedCallerMock({ ok: true });
 			await callTool(def, caller, { some: "input" }, vi.fn());
 			expect(calls).toEqual([
-				{ path: def.procedurePath, input: { some: "input" } },
+				{ input: { some: "input" }, path: def.procedurePath },
 			]);
 		}
 	});
@@ -59,8 +59,8 @@ describe("callTool", () => {
 	it("forwards the input verbatim with no transformation layer", async () => {
 		const { caller, procedure } = createCallerMock({ id: "r1" });
 		const input = {
-			name: "Poker room",
 			memo: "Regular venue",
+			name: "Poker room",
 		};
 		await callTool(defByName("room_create"), caller, input, vi.fn());
 		expect(procedure).toHaveBeenCalledTimes(1);
@@ -76,8 +76,8 @@ describe("callTool", () => {
 
 	it("serializes the result as the same JSON the HTTP API would return", async () => {
 		const { caller } = createCallerMock({
-			id: "r1",
 			createdAt: new Date(Date.UTC(2026, 6, 30)),
+			id: "r1",
 			memo: null,
 		});
 		const result = await callTool(
@@ -89,8 +89,8 @@ describe("callTool", () => {
 		expect(result.isError).toBeUndefined();
 		expect(result.content).toEqual([
 			{
+				text: '{"createdAt":"2026-07-30T00:00:00.000Z","id":"r1","memo":null}',
 				type: "text",
-				text: '{"id":"r1","createdAt":"2026-07-30T00:00:00.000Z","memo":null}',
 			},
 		]);
 	});

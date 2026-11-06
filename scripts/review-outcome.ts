@@ -36,8 +36,8 @@ export interface OutcomeDecision {
 	status: TargetStatus | null;
 }
 
-const BRANCH_PATTERN = /^feature\/sa2-(\d+)$/i;
-const TITLE_PATTERN = /\(SA2-(\d+)\)/gi;
+const BRANCH_PATTERN = /^feature\/sa2-(\d+)$/iu;
+const TITLE_PATTERN = /\(SA2-(\d+)\)/giu;
 const TEAM_KEY = "SA2";
 const LEVEL_GROUP = "level";
 const AUTO_MERGE_LEVEL = "auto-merge";
@@ -46,16 +46,16 @@ const RED_CI_STATES = new Set(["failure", "timed_out"]);
 const MOVABLE_STATES = new Set(["AI Review", "In Progress"]);
 const CLOSED_STATES = new Set(["Done", "Released", "Canceled", "Duplicate"]);
 const EXCLUDED_PATHS = [
-	/^packages\/db\/src\/migrations\//,
-	/^packages\/auth\//,
-	/^apps\/server\/wrangler\.toml$/,
-	/^\.github\//,
-	/^\.claude\//,
-	/^\.gemini\//,
-	/^\.husky\//,
-	/^AGENTS\.md$/,
-	/^CLAUDE\.md$/,
-	/^scripts\/review-[^/]+\.ts$/,
+	/^packages\/db\/src\/migrations\//u,
+	/^packages\/auth\//u,
+	/^apps\/server\/wrangler\.toml$/u,
+	/^\.github\//u,
+	/^\.claude\//u,
+	/^\.gemini\//u,
+	/^\.husky\//u,
+	/^AGENTS\.md$/u,
+	/^CLAUDE\.md$/u,
+	/^scripts\/review-[^/]+\.ts$/u,
 ];
 
 export function issueIdentifier(headRef: string, title: string): string | null {
@@ -97,9 +97,9 @@ export function parseTrailer(text: string): ReviewTrailer | null {
 		return null;
 	}
 	return {
-		verdict,
 		important: important as number,
 		unverified: unverified as number,
+		verdict,
 	};
 }
 
@@ -153,23 +153,23 @@ function mergeBlockers(input: OutcomeInput, issue: LinearIssue | null) {
 
 export function decideOutcome(input: OutcomeInput): OutcomeDecision {
 	if (RED_CI_STATES.has(input.ciState)) {
-		return { status: "In Progress", merge: false, blockers: ["ci is red"] };
+		return { blockers: ["ci is red"], merge: false, status: "In Progress" };
 	}
 	if (input.ciState !== "success" || input.trailer === null) {
-		return { status: null, merge: false, blockers: ["no completed review"] };
+		return { blockers: ["no completed review"], merge: false, status: null };
 	}
 	const approved =
 		input.trailer.verdict === "approve" && input.trailer.important === 0;
 	if (!approved) {
 		return {
+			blockers: ["the review did not approve"],
+			merge: false,
 			status:
 				input.round >= input.maxAutoRounds ? "Needs Input" : "In Progress",
-			merge: false,
-			blockers: ["the review did not approve"],
 		};
 	}
 	const blockers = mergeBlockers(input, input.issue);
-	return { status: "Ready to Merge", merge: blockers.length === 0, blockers };
+	return { blockers, merge: blockers.length === 0, status: "Ready to Merge" };
 }
 
 export function canMoveFrom(state: string): boolean {
@@ -185,9 +185,9 @@ export async function linear<T>(
 	variables: Record<string, unknown> = {}
 ): Promise<T> {
 	const response = await fetch(LINEAR_API, {
-		method: "POST",
-		headers: { "Content-Type": "application/json", Authorization: apiKey },
 		body: JSON.stringify({ query, variables }),
+		headers: { Authorization: apiKey, "Content-Type": "application/json" },
+		method: "POST",
 	});
 	const payload = (await response.json()) as {
 		data?: T;
@@ -208,13 +208,13 @@ async function github<T>(
 	init: { method?: string; body?: unknown } = {}
 ): Promise<T> {
 	const response = await fetch(`${GITHUB_API}${path}`, {
-		method: init.method ?? "GET",
+		body: init.body === undefined ? undefined : JSON.stringify(init.body),
 		headers: {
-			Authorization: `Bearer ${token}`,
 			Accept: "application/vnd.github+json",
+			Authorization: `Bearer ${token}`,
 			"X-GitHub-Api-Version": "2022-11-28",
 		},
-		body: init.body === undefined ? undefined : JSON.stringify(init.body),
+		method: init.method ?? "GET",
 	});
 	if (!response.ok) {
 		throw new Error(
@@ -252,12 +252,12 @@ async function fetchIssue(
 	return {
 		id: data.issue.id,
 		identifier: data.issue.identifier,
-		state: data.issue.state.name,
-		team: data.issue.team.key,
 		labels: data.issue.labels.nodes.map((label) => ({
 			name: label.name,
 			parent: label.parent?.name ?? null,
 		})),
+		state: data.issue.state.name,
+		team: data.issue.team.key,
 	};
 }
 
@@ -269,7 +269,7 @@ async function stateId(apiKey: string, name: string): Promise<string> {
 				nodes { id }
 			}
 		}`,
-		{ team: TEAM_KEY, name }
+		{ name, team: TEAM_KEY }
 	);
 	const [state, ...others] = data.workflowStates.nodes;
 	if (!state || others.length > 0) {
@@ -308,7 +308,7 @@ async function comment(
 		`mutation ($issueId: String!, $body: String!) {
 			commentCreate(input: { issueId: $issueId, body: $body }) { success }
 		}`,
-		{ issueId: issue.id, body }
+		{ body, issueId: issue.id }
 	);
 }
 
@@ -353,15 +353,15 @@ async function unresolvedThreads(
 			};
 		};
 	}>(token, "/graphql", {
-		method: "POST",
 		body: {
 			query: `query ($owner: String!, $name: String!, $pr: Int!) {
 				repository(owner: $owner, name: $name) { pullRequest(number: $pr) {
 					reviewThreads(first: 100) { pageInfo { hasNextPage } nodes { isResolved } }
 				} }
 			}`,
-			variables: { owner, name, pr: Number(pr) },
+			variables: { name, owner, pr: Number(pr) },
 		},
+		method: "POST",
 	});
 	const threads = data.data.repository.pullRequest.reviewThreads;
 	const open = threads.nodes.filter((thread) => !thread.isResolved).length;
@@ -422,15 +422,15 @@ async function main(): Promise<void> {
 	if (decision.merge) {
 		try {
 			await github(token, `/repos/${repo}/pulls/${pr}/merge`, {
-				method: "PUT",
 				body: { merge_method: "merge", sha: pull.head.sha },
+				method: "PUT",
 			});
 			await github(
 				token,
 				`/repos/${repo}/actions/workflows/dev-deploy.yml/dispatches`,
 				{
-					method: "POST",
 					body: { ref: "dev" },
+					method: "POST",
 				}
 			);
 			await setState(apiKey, issue, "Done");

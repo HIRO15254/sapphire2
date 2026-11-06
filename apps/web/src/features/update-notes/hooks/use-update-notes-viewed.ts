@@ -37,8 +37,8 @@ export function useUpdateNotesViewed() {
 	};
 
 	return {
-		viewedVersions,
 		isViewedListLoaded: viewedList !== undefined,
 		markViewed,
+		viewedVersions,
 	};
 }

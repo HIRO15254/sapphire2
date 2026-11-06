@@ -48,11 +48,6 @@ export function useSignIn() {
 					password: value.password,
 				},
 				{
-					onSuccess: () => {
-						if (enterApp()) {
-							offerAutomaticPasskey();
-						}
-					},
 					onError: (error) => {
 						if (error.error.status === 401) {
 							formApi.setFieldValue("password", "");
@@ -62,6 +57,11 @@ export function useSignIn() {
 						setErrorMessage(
 							error.error.message || error.error.statusText || RETRY_MESSAGE
 						);
+					},
+					onSuccess: () => {
+						if (enterApp()) {
+							offerAutomaticPasskey();
+						}
 					},
 				}
 			);
@@ -99,9 +99,9 @@ export function useSignIn() {
 	const signInWithProvider = async (provider: SocialProvider) => {
 		setErrorMessage(null);
 		const result = await authClient.signIn.social({
-			provider,
 			callbackURL: socialCallbackUrl(),
 			errorCallbackURL: socialErrorCallbackUrl(provider),
+			provider,
 		});
 		if (result.error) {
 			setErrorMessage(result.error.message || RETRY_MESSAGE);

@@ -14,7 +14,7 @@ const OAUTH_AUTHORIZE_PARAMS = [
 	"resource",
 ] as const;
 
-const TRAILING_SLASH = /\/$/;
+const TRAILING_SLASH = /\/$/u;
 
 function toRecord(
 	search: Record<string, unknown> | string

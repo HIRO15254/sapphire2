@@ -43,9 +43,9 @@ async function validateGamesOwnership(
 ): Promise<{ archivedAt: Date | null; groupId: string; id: string }[]> {
 	const owned = await db
 		.select({
-			id: gameVariant.id,
-			groupId: gameVariant.groupId,
 			archivedAt: gameVariant.archivedAt,
+			groupId: gameVariant.groupId,
+			id: gameVariant.id,
 		})
 		.from(gameVariant)
 		.where(and(inArray(gameVariant.id, ids), eq(gameVariant.userId, userId)));
@@ -134,29 +134,28 @@ export const gameMixListInputSchema = gameMasterListInputSchema();
 export const gameMixIdInputSchema = z.object({ id: idSchema });
 
 export const gameMixCreateInputSchema = z.object({
-	label: labelSchema,
 	games: gamesSchema,
+	label: labelSchema,
 });
 
 export const gameMixUpdateInputSchema = z.object({
+	games: gamesSchema.optional(),
 	id: idSchema,
 	label: labelSchema.optional(),
-	games: gamesSchema.optional(),
 });
 
 export const gameMixRouter = router({
-	list: protectedProcedure
-		.input(gameMixListInputSchema)
-		.query(async ({ ctx, input }) => {
+	archive: protectedProcedure
+		.input(gameMixIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			let rows = await listOwnedGameMixes(ctx.db, userId);
-			if (rows.length === 0) {
-				await seedDefaultGameData(ctx.db, userId);
-				rows = await listOwnedGameMixes(ctx.db, userId);
-			}
-			return rows
-				.filter((row) => input?.includeArchived || row.archivedAt === null)
-				.sort(compareMixes);
+			await validateEntityOwnership(ctx.db, "gameMix", input.id, userId);
+			const now = new Date();
+			await ctx.db
+				.update(gameMix)
+				.set({ archivedAt: now, updatedAt: now })
+				.where(and(eq(gameMix.id, input.id), eq(gameMix.userId, userId)));
+			return await selectMix(ctx.db, userId, input.id);
 		}),
 
 	create: protectedProcedure
@@ -177,11 +176,11 @@ export const gameMixRouter = router({
 				groupSpanGuard(ctx.db, userId, input.games),
 				activeReferencesGuard(ctx.db, gameVariant, input.games, userId),
 				ctx.db.insert(gameMix).values({
-					id,
-					userId,
 					builtinKey: null,
+					id,
 					label: input.label,
 					updatedAt: new Date(),
+					userId,
 				}),
 			];
 			statements.push(
@@ -193,6 +192,97 @@ export const gameMixRouter = router({
 				runGuardedBatch(ctx.db, statements)
 			);
 			return await selectMix(ctx.db, userId, id);
+		}),
+
+	delete: protectedProcedure
+		.input(gameMixIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await validateEntityOwnership(ctx.db, "gameMix", input.id, userId);
+			const deleted = await ctx.db
+				.delete(gameMix)
+				.where(
+					and(
+						eq(gameMix.id, input.id),
+						eq(gameMix.userId, userId),
+						notExists(
+							ctx.db
+								.select({ id: gameLineup.id })
+								.from(gameLineup)
+								.where(
+									and(
+										eq(gameLineup.gameMixId, gameMix.id),
+										eq(gameLineup.userId, gameMix.userId)
+									)
+								)
+						)
+					)
+				)
+				.returning({ id: gameMix.id });
+			if (deleted.length === 0) {
+				throw new TRPCError({
+					code: "CONFLICT",
+					message: "This game mix is in use; archive it instead",
+				});
+			}
+			return { success: true as const };
+		}),
+	list: protectedProcedure
+		.input(gameMixListInputSchema)
+		.query(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			let rows = await listOwnedGameMixes(ctx.db, userId);
+			if (rows.length === 0) {
+				await seedDefaultGameData(ctx.db, userId);
+				rows = await listOwnedGameMixes(ctx.db, userId);
+			}
+			return rows
+				.filter((row) => input?.includeArchived || row.archivedAt === null)
+				.sort(compareMixes);
+		}),
+
+	restore: protectedProcedure
+		.input(gameMixIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await validateEntityOwnership(ctx.db, "gameMix", input.id, userId);
+			const restored = await ctx.db
+				.update(gameMix)
+				.set({ archivedAt: null, updatedAt: new Date() })
+				.where(
+					and(
+						eq(gameMix.id, input.id),
+						eq(gameMix.userId, userId),
+						notExists(
+							ctx.db
+								.select({ id: gameVariant.id })
+								.from(gameMixVariant)
+								.innerJoin(
+									gameVariant,
+									and(
+										eq(gameVariant.id, gameMixVariant.variantId),
+										eq(gameVariant.userId, gameMixVariant.userId)
+									)
+								)
+								.where(
+									and(
+										eq(gameMixVariant.mixId, gameMix.id),
+										eq(gameMixVariant.userId, gameMix.userId),
+										isNotNull(gameVariant.archivedAt)
+									)
+								)
+						)
+					)
+				)
+				.returning({ id: gameMix.id });
+			if (restored.length === 0) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message:
+						"This game mix contains archived game variants; restore them first",
+				});
+			}
+			return await selectMix(ctx.db, userId, input.id);
 		}),
 
 	update: protectedProcedure
@@ -211,8 +301,8 @@ export const gameMixRouter = router({
 				);
 				const current = await ctx.db
 					.select({
-						variantId: gameMixVariant.variantId,
 						position: gameMixVariant.position,
+						variantId: gameMixVariant.variantId,
 					})
 					.from(gameMixVariant)
 					.where(
@@ -297,96 +387,5 @@ export const gameMixRouter = router({
 				runGuardedBatch(ctx.db, statements)
 			);
 			return await selectMix(ctx.db, userId, input.id);
-		}),
-
-	archive: protectedProcedure
-		.input(gameMixIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "gameMix", input.id, userId);
-			const now = new Date();
-			await ctx.db
-				.update(gameMix)
-				.set({ archivedAt: now, updatedAt: now })
-				.where(and(eq(gameMix.id, input.id), eq(gameMix.userId, userId)));
-			return await selectMix(ctx.db, userId, input.id);
-		}),
-
-	restore: protectedProcedure
-		.input(gameMixIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "gameMix", input.id, userId);
-			const restored = await ctx.db
-				.update(gameMix)
-				.set({ archivedAt: null, updatedAt: new Date() })
-				.where(
-					and(
-						eq(gameMix.id, input.id),
-						eq(gameMix.userId, userId),
-						notExists(
-							ctx.db
-								.select({ id: gameVariant.id })
-								.from(gameMixVariant)
-								.innerJoin(
-									gameVariant,
-									and(
-										eq(gameVariant.id, gameMixVariant.variantId),
-										eq(gameVariant.userId, gameMixVariant.userId)
-									)
-								)
-								.where(
-									and(
-										eq(gameMixVariant.mixId, gameMix.id),
-										eq(gameMixVariant.userId, gameMix.userId),
-										isNotNull(gameVariant.archivedAt)
-									)
-								)
-						)
-					)
-				)
-				.returning({ id: gameMix.id });
-			if (restored.length === 0) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message:
-						"This game mix contains archived game variants; restore them first",
-				});
-			}
-			return await selectMix(ctx.db, userId, input.id);
-		}),
-
-	delete: protectedProcedure
-		.input(gameMixIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "gameMix", input.id, userId);
-			const deleted = await ctx.db
-				.delete(gameMix)
-				.where(
-					and(
-						eq(gameMix.id, input.id),
-						eq(gameMix.userId, userId),
-						notExists(
-							ctx.db
-								.select({ id: gameLineup.id })
-								.from(gameLineup)
-								.where(
-									and(
-										eq(gameLineup.gameMixId, gameMix.id),
-										eq(gameLineup.userId, gameMix.userId)
-									)
-								)
-						)
-					)
-				)
-				.returning({ id: gameMix.id });
-			if (deleted.length === 0) {
-				throw new TRPCError({
-					code: "CONFLICT",
-					message: "This game mix is in use; archive it instead",
-				});
-			}
-			return { success: true as const };
 		}),
 });

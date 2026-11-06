@@ -142,18 +142,18 @@ function playEventRow(
 ) {
 	const stored = storedPayload(kind, event.type, event.payload);
 	return {
-		id: event.id ?? crypto.randomUUID(),
-		userId: scope.userId,
-		entryId: scope.entryId,
-		playSessionId,
-		type: event.type,
-		schemaVersion: PLAY_EVENT_SCHEMA_VERSION,
-		occurredAt: event.occurredAt,
-		sortOrder,
-		payload: stored.payload,
-		handId: stored.handId,
 		createdAt: now,
+		entryId: scope.entryId,
+		handId: stored.handId,
+		id: event.id ?? crypto.randomUUID(),
+		occurredAt: event.occurredAt,
+		payload: stored.payload,
+		playSessionId,
+		schemaVersion: PLAY_EVENT_SCHEMA_VERSION,
+		sortOrder,
+		type: event.type,
 		updatedAt: now,
+		userId: scope.userId,
 	};
 }
 
@@ -167,30 +167,30 @@ const LIFECYCLE_TRANSITIONS: Record<
 	string,
 	{ from: readonly PlayStreamState[]; message: string; to: PlayStreamState }
 > = {
-	session_start: {
-		from: ["none"],
-		to: "active",
-		message: "A play session starts once, with its first event",
-	},
-	session_pause: {
-		from: ["active"],
-		to: "paused",
-		message: "Only an active play session can be paused",
-	},
-	session_resume: {
-		from: ["paused"],
-		to: "active",
-		message: "Only a paused play session can be resumed",
-	},
 	day_end: {
 		from: ["active", "paused"],
-		to: "ended",
 		message: "Only a play session in progress can end",
+		to: "ended",
 	},
 	session_end: {
 		from: ["active", "paused"],
-		to: "ended",
 		message: "Only a play session in progress can end",
+		to: "ended",
+	},
+	session_pause: {
+		from: ["active"],
+		message: "Only an active play session can be paused",
+		to: "paused",
+	},
+	session_resume: {
+		from: ["paused"],
+		message: "Only a paused play session can be resumed",
+		to: "active",
+	},
+	session_start: {
+		from: ["none"],
+		message: "A play session starts once, with its first event",
+		to: "active",
 	},
 };
 
@@ -267,50 +267,50 @@ export function buildLiveEntryStartStatements(
 		playEventRow(scope, kind, playSessionId, sortOrder, event, start.now)
 	);
 	const playSessions = [
-		{ id: playSessionId, seq: 1, localDate: start.localDate },
+		{ id: playSessionId, localDate: start.localDate, seq: 1 },
 	];
 	validateEventStream(kind, playSessions, rows);
 	const projection = projectEntry(rows, { kind, playSessions });
 
 	return [
 		db.insert(entry).values({
+			assetId: start.assetId,
+			createdAt: start.now,
 			id: start.id,
-			userId: start.userId,
 			kind,
+			memo: start.memo,
+			playedOn: start.localDate,
+			roomId: start.roomId,
 			source: "live",
 			status: "open",
-			roomId: start.roomId,
-			assetId: start.assetId,
 			title: null,
-			playedOn: start.localDate,
-			memo: start.memo,
-			createdAt: start.now,
 			updatedAt: start.now,
+			userId: start.userId,
 		}),
 		start.detail.kind === "cash"
 			? db.insert(entryCash).values({
-					entryId: start.id,
-					userId: start.userId,
-					ringGameId: start.detail.ringGameId,
 					cashRuleId: start.detail.cashRuleId,
+					entryId: start.id,
+					ringGameId: start.detail.ringGameId,
+					userId: start.userId,
 				})
 			: db.insert(entryTournament).values({
 					entryId: start.id,
-					userId: start.userId,
 					tournamentId: start.detail.tournamentId,
 					tournamentRuleId: start.detail.tournamentRuleId,
+					userId: start.userId,
 				}),
 		db.insert(playSession).values({
-			id: playSessionId,
-			userId: start.userId,
+			createdAt: start.now,
 			entryId: start.id,
+			id: playSessionId,
 			kind,
-			seq: 1,
 			label: start.label ?? null,
 			localDate: start.localDate,
+			seq: 1,
 			status: "active",
-			createdAt: start.now,
 			updatedAt: start.now,
+			userId: start.userId,
 		}),
 		...rows.map((row) => db.insert(playEvent).values(row)),
 		...buildProjectionStatements(db, scope, projection),
@@ -336,8 +336,8 @@ export async function loadEntryEventState(
 	const playSessions = await db
 		.select({
 			id: playSession.id,
-			seq: playSession.seq,
 			localDate: playSession.localDate,
+			seq: playSession.seq,
 			status: playSession.status,
 		})
 		.from(playSession)
@@ -347,22 +347,22 @@ export async function loadEntryEventState(
 		.orderBy(asc(playSession.seq));
 	const events = await db
 		.select({
-			id: playEvent.id,
-			entryId: playEvent.entryId,
-			playSessionId: playEvent.playSessionId,
-			type: playEvent.type,
-			occurredAt: playEvent.occurredAt,
-			sortOrder: playEvent.sortOrder,
-			payload: playEvent.payload,
-			handId: playEvent.handId,
-			schemaVersion: playEvent.schemaVersion,
 			createdAt: playEvent.createdAt,
+			entryId: playEvent.entryId,
+			handId: playEvent.handId,
+			id: playEvent.id,
+			occurredAt: playEvent.occurredAt,
+			payload: playEvent.payload,
+			playSessionId: playEvent.playSessionId,
+			schemaVersion: playEvent.schemaVersion,
+			sortOrder: playEvent.sortOrder,
+			type: playEvent.type,
 			updatedAt: playEvent.updatedAt,
 		})
 		.from(playEvent)
 		.where(and(eq(playEvent.entryId, entryId), eq(playEvent.userId, userId)));
 	events.sort(compareEvents);
-	return { kind: owned.kind, source: owned.source, playSessions, events };
+	return { events, kind: owned.kind, playSessions, source: owned.source };
 }
 
 export function findStoredEvent(
@@ -431,13 +431,13 @@ function planAppend(
 		return row;
 	});
 	return {
+		eventIds: rows.map((row) => row.id),
+		events: [...state.events, ...rows],
 		statements: rows.map((row) =>
 			db
 				.insert(playEvent)
 				.values({ ...row, sortOrder: nextSortOrderSql(scope.entryId) })
 		),
-		events: [...state.events, ...rows],
-		eventIds: rows.map((row) => row.id),
 	};
 }
 
@@ -463,65 +463,65 @@ function planChange(
 	);
 	if (change.op === "delete") {
 		return {
-			statements: [db.delete(playEvent).where(owned)],
-			events: state.events.filter((event) => event.id !== target.id),
 			eventIds: [target.id],
+			events: state.events.filter((event) => event.id !== target.id),
+			statements: [db.delete(playEvent).where(owned)],
 		};
 	}
 	const stored =
 		change.payload === undefined
-			? { payload: target.payload, handId: target.handId }
+			? { handId: target.handId, payload: target.payload }
 			: storedPayload(state.kind, target.type, change.payload);
 	const { payload } = stored;
 	const occurredAt = change.occurredAt ?? target.occurredAt;
 	return {
+		eventIds: [target.id],
+		events: state.events.map((event) =>
+			event.id === target.id ? { ...event, occurredAt, payload } : event
+		),
 		statements: [
 			db
 				.update(playEvent)
 				.set({
+					handId: stored.handId,
 					occurredAt,
 					payload,
-					handId: stored.handId,
 					schemaVersion: PLAY_EVENT_SCHEMA_VERSION,
 					updatedAt: now,
 				})
 				.where(owned),
 		],
-		events: state.events.map((event) =>
-			event.id === target.id ? { ...event, occurredAt, payload } : event
-		),
-		eventIds: [target.id],
 	};
 }
 
 export function mapLiveWriteConflict(error: unknown): unknown {
 	if (isUnfinishedPlaySessionConflictError(error)) {
 		return new TRPCError({
+			cause: error,
 			code: "CONFLICT",
 			message: "Another play session is already in progress",
-			cause: error,
 		});
 	}
 	if (isPlayEventOrderConflictError(error) || isPlaySeqConflictError(error)) {
 		return new TRPCError({
+			cause: error,
 			code: "CONFLICT",
 			message: "Another change to this entry was saved at the same time",
-			cause: error,
 		});
 	}
 	if (isEndedPlayAppendError(error)) {
 		return new TRPCError({
+			cause: error,
 			code: "PRECONDITION_FAILED",
 			message: "No event can be added to an ended play session",
-			cause: error,
 		});
 	}
 	if (isDiscardedPlayDependentError(error)) {
 		return new TRPCError({
+			cause: error,
 			code: "CONFLICT",
 			message:
 				"The play session gained events or hands; it can no longer be discarded",
-			cause: error,
 		});
 	}
 	return error;
@@ -578,14 +578,14 @@ export async function commitEntryEventChange(
 			: new Set<string>();
 	const snapshot = JSON.stringify(
 		state.events.map((event) => ({
-			id: event.id,
-			playSessionId: event.playSessionId,
-			type: event.type,
-			occurredAt: Math.floor(event.occurredAt.getTime() / 1000),
-			sortOrder: event.sortOrder,
-			payload: event.payload,
 			handId: event.handId,
+			id: event.id,
+			occurredAt: Math.floor(event.occurredAt.getTime() / 1000),
+			payload: event.payload,
+			playSessionId: event.playSessionId,
 			schemaVersion: event.schemaVersion,
+			sortOrder: event.sortOrder,
+			type: event.type,
 		}))
 	);
 	const playerIds = new Set(

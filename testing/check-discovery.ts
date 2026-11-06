@@ -4,7 +4,7 @@ import { Glob, spawn } from "bun";
 const root = path.resolve(import.meta.dirname, "..");
 const child = spawn(
 	[process.execPath, "x", "vitest", "list", "--filesOnly", "--json"],
-	{ cwd: root, stdout: "pipe", stderr: "inherit" }
+	{ cwd: root, stderr: "inherit", stdout: "pipe" }
 );
 const output = await new Response(child.stdout).text();
 if ((await child.exited) !== 0) {

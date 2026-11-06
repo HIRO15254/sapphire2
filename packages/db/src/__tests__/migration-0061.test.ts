@@ -144,7 +144,7 @@ describe("migration 0061 — entry P1 cutover", () => {
 	});
 
 	afterAll(() => {
-		rmSync(snapshotDirectory, { recursive: true, force: true });
+		rmSync(snapshotDirectory, { force: true, recursive: true });
 	});
 
 	beforeEach(() => {

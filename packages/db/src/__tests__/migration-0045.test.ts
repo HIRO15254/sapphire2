@@ -9,7 +9,7 @@ const migrationPath = fileURLToPath(
 );
 const migrationSql = readFileSync(migrationPath, "utf8");
 const UNIQUE_USER_CONFLICT_RE =
-	/UNIQUE constraint failed: transaction_type\.user_id/;
+	/UNIQUE constraint failed: transaction_type\.user_id/u;
 
 const baseSchema = [
 	"CREATE TABLE transaction_type (",

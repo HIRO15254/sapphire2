@@ -2,9 +2,9 @@ import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+	clearPersistedQueryCache: vi.fn(),
 	navigate: vi.fn(),
 	signOut: vi.fn(),
-	clearPersistedQueryCache: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({

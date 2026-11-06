@@ -12,7 +12,7 @@ type Db = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
 >[0]["ctx"]["db"];
 
-const IANA_ZONE_NAME = /^[A-Za-z][A-Za-z0-9_+\-/]*$/;
+const IANA_ZONE_NAME = /^[A-Za-z][A-Za-z0-9_+\-/]*$/u;
 
 function isIanaTimeZone(value: string): boolean {
 	if (!IANA_ZONE_NAME.test(value)) {
@@ -94,7 +94,7 @@ export const userSettingRouter = router({
 				ctx.db
 					.insert(userSetting)
 					.values({ userId, ...changes })
-					.onConflictDoUpdate({ target: userSetting.userId, set: changes }),
+					.onConflictDoUpdate({ set: changes, target: userSetting.userId }),
 			]);
 			return await selectSetting(ctx.db, userId);
 		}),

@@ -23,7 +23,7 @@ export function PageHeader({
 	return (
 		<header
 			className={cn(
-				"flex h-[var(--m-navbar-height)] shrink-0 items-center gap-2 border-border border-b px-3.5",
+				"border-border flex h-[var(--m-navbar-height)] shrink-0 items-center gap-2 border-b px-3.5",
 				back && "gap-0.5 pl-0.5",
 				className
 			)}
@@ -34,11 +34,11 @@ export function PageHeader({
 					<IconChevronLeft aria-hidden />
 				</IconButton>
 			)}
-			<h1 className="min-w-0 flex-1 font-semibold text-[length:var(--m-text-title)] tracking-[var(--tracking-heading)]">
+			<h1 className="min-w-0 flex-1 font-semibold tracking-[var(--tracking-heading)] text-[length:var(--m-text-title)]">
 				{heading}
 			</h1>
 			{meta && (
-				<span className="text-[length:var(--m-text-footnote)] text-muted-foreground">
+				<span className="text-muted-foreground text-[length:var(--m-text-footnote)]">
 					{meta}
 				</span>
 			)}

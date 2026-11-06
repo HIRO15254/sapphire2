@@ -17,7 +17,7 @@ const MIGRATIONS = path.join(ROOT, "packages/db/src/migrations");
 const WRANGLER_TOML = path.join(ROOT, "apps/server/wrangler.toml");
 const DATABASE = "sapphire2-db";
 const RUN_TIMEOUT = 180_000;
-const MIGRATION_FILE = /^\d{4}_.+\.sql$/;
+const MIGRATION_FILE = /^\d{4}_.+\.sql$/u;
 const CUTOVER_MIGRATION = "0061_entry_p1_cutover.sql";
 
 const T0 = 1_757_066_400;
@@ -66,7 +66,7 @@ const FIXTURE = [
 	`INSERT INTO hand_seat (hand_id, user_id, seat, is_hero) VALUES ('h:live:1', 'alice', 3, 1)`,
 ];
 
-const databaseId = /database_id = "([^"]+)"/.exec(
+const databaseId = /database_id = "([^"]+)"/u.exec(
 	readFileSync(WRANGLER_TOML, "utf8")
 )?.[1];
 
@@ -81,10 +81,10 @@ async function withD1(
 		throw new Error("wrangler.toml has no database_id");
 	}
 	const miniflare = new Miniflare({
-		modules: true,
-		script: "export default { fetch() { return new Response('') } }",
 		d1Databases: { DB: databaseId },
 		d1Persist: path.join(dir, "v3/d1"),
+		modules: true,
+		script: "export default { fetch() { return new Response('') } }",
 	});
 	try {
 		await use(await miniflare.getD1Database("DB"));
@@ -161,7 +161,7 @@ function audit(dir: string, ...args: string[]) {
 		run.status === 0 || run.status === 1
 			? (JSON.parse(run.stdout) as AuditReport)
 			: null;
-	return { status: run.status, report, stderr: run.stderr };
+	return { report, status: run.status, stderr: run.stderr };
 }
 
 function statuses(report: AuditReport | null, audit: string): CheckStatus[] {
@@ -184,7 +184,7 @@ beforeAll(async () => {
 }, RUN_TIMEOUT);
 
 afterAll(() => {
-	rmSync(scratch, { recursive: true, force: true });
+	rmSync(scratch, { force: true, recursive: true });
 });
 
 describe("audit-data-model through wrangler's local D1", () => {
@@ -268,10 +268,10 @@ describe("audit-data-model through wrangler's local D1", () => {
 			expect(result.status).toBe(1);
 			expect(rows(result.report, "A-6")).toContainEqual(
 				expect.objectContaining({
-					target: "ledger_line mtt-start:0",
 					field: "quantity",
-					stored: -10_000,
 					projected: -9000,
+					stored: -10_000,
+					target: "ledger_line mtt-start:0",
 				})
 			);
 		},
@@ -290,16 +290,16 @@ describe("audit-data-model through wrangler's local D1", () => {
 			expect(rows(result.report, "A-6")).toEqual(
 				expect.arrayContaining([
 					expect.objectContaining({
-						target: "ledger_line start:0",
 						field: "quantity",
-						stored: -25_000,
 						projected: -30_000,
+						stored: -25_000,
+						target: "ledger_line start:0",
 					}),
 					expect.objectContaining({
-						target: "entry_cash",
 						field: "ev_diff",
-						stored: 50,
 						projected: 51,
+						stored: 50,
+						target: "entry_cash",
 					}),
 				])
 			);
@@ -378,8 +378,8 @@ describe("audit-data-model through wrangler's local D1", () => {
 			expect(result.status).toBe(1);
 			expect(rows(result.report, "A-15")).toContainEqual({
 				id: "chips-in",
-				reference: "asset",
 				ref_id: "bob-jpy",
+				reference: "asset",
 			});
 		},
 		RUN_TIMEOUT
@@ -389,8 +389,8 @@ describe("audit-data-model through wrangler's local D1", () => {
 		"reports v2 audits as not introduced on a database before the v2 schema migration",
 		async () => {
 			const dir = await createDatabase("before-v2", {
-				through: "0058_wonderful_wolfpack.sql",
 				statements: [],
+				through: "0058_wonderful_wolfpack.sql",
 			});
 			const result = audit(dir);
 			expect(result.status).toBe(0);

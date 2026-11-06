@@ -10,18 +10,18 @@ async function setup(api: ApiFixture) {
 	const room = requireCreatedRow(await api.alice.room.create({ name: "Club" }));
 	const group = requireCreatedRow(
 		await api.alice.gameGroup.create({
-			label: "Double Board",
 			blind1Label: "Small",
 			blind2Label: "Big",
+			label: "Double Board",
 		})
 	);
 	const variant = requireCreatedRow(
 		await api.alice.gameVariant.create({
-			label: "Double Board PLO",
 			groupId: group.id,
+			label: "Double Board PLO",
 		})
 	);
-	return { room, nlh, group, variant };
+	return { group, nlh, room, variant };
 }
 
 describe("required blinds on D1", () => {
@@ -31,20 +31,20 @@ describe("required blinds on D1", () => {
 		const { room, nlh } = await setup(api);
 		const game = { variantId: nlh.id };
 		for (const stake of [
-			{ gameGroupId: nlh.groupId, blind1: 1 },
-			{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2, blind3: 4 },
+			{ blind1: 1, gameGroupId: nlh.groupId },
+			{ blind1: 1, blind2: 2, blind3: 4, gameGroupId: nlh.groupId },
 		]) {
 			await expect(
 				api.alice.ringGame.create({
-					roomId: room.id,
 					name: "Cash",
+					roomId: room.id,
 					rule: { game, stakes: [stake] },
 				})
 			).rejects.toMatchObject({ code: "BAD_REQUEST" });
 			await expect(
 				api.alice.tournament.createWithLevels({
-					roomId: room.id,
 					name: "Daily",
+					roomId: room.id,
 					rule: {
 						game,
 						levels: [{ isBreak: false, minutes: 20, stakes: [stake] }],
@@ -53,15 +53,15 @@ describe("required blinds on D1", () => {
 			).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		}
 		const created = await api.alice.ringGame.create({
-			roomId: room.id,
 			name: "Cash",
+			roomId: room.id,
 			rule: {
 				game,
-				stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2, ante: 2 }],
+				stakes: [{ ante: 2, blind1: 1, blind2: 2, gameGroupId: nlh.groupId }],
 			},
 		});
 		expect(created.ruleVersion.stakes).toEqual([
-			expect.objectContaining({ blind1: 1, blind2: 2, blind3: null, ante: 2 }),
+			expect.objectContaining({ ante: 2, blind1: 1, blind2: 2, blind3: null }),
 		]);
 	});
 
@@ -70,18 +70,18 @@ describe("required blinds on D1", () => {
 	}) => {
 		const { room, group, variant } = await setup(api);
 		const created = await api.alice.ringGame.create({
-			roomId: room.id,
 			name: "Cash",
+			roomId: room.id,
 			rule: {
 				game: { variantId: variant.id },
-				stakes: [{ gameGroupId: group.id, blind2: 2 }],
+				stakes: [{ blind2: 2, gameGroupId: group.id }],
 			},
 		});
-		await api.alice.gameGroup.update({ id: group.id, blind1Required: true });
+		await api.alice.gameGroup.update({ blind1Required: true, id: group.id });
 
 		const kept = await api.alice.ringGame.update({
 			id: created.id,
-			rule: { stakes: [{ gameGroupId: group.id, blind2: 2 }] },
+			rule: { stakes: [{ blind2: 2, gameGroupId: group.id }] },
 		});
 		expect(kept.currentRuleId).toBe(created.currentRuleId);
 		await expect(
@@ -95,14 +95,14 @@ describe("required blinds on D1", () => {
 		const { group } = await setup(api);
 		await expect(
 			api.alice.gameGroup.create({
-				label: "Unlabeled",
 				blind1Label: "Small",
 				blind3Required: true,
+				label: "Unlabeled",
 			})
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		const required = await api.alice.gameGroup.update({
-			id: group.id,
 			blind2Required: true,
+			id: group.id,
 		});
 		expect(required).toMatchObject({
 			blind1Required: false,
@@ -110,45 +110,46 @@ describe("required blinds on D1", () => {
 			blind3Required: false,
 		});
 		await expect(
-			api.alice.gameGroup.update({ id: group.id, blind2Label: null })
+			api.alice.gameGroup.update({ blind2Label: null, id: group.id })
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 	});
 
-	test.for([
-		"cash",
-		"tournament",
-	] as const)("clearing a label is a CONFLICT while a saved %s stake has a value there", async (kind, {
-		api,
-	}) => {
-		const { room, group, variant } = await setup(api);
-		const game = { variantId: variant.id };
-		const stake = { gameGroupId: group.id, blind1: 1, blind2: 2 };
-		if (kind === "cash") {
-			await api.alice.ringGame.create({
-				roomId: room.id,
-				name: "Cash",
-				rule: { game, stakes: [stake] },
-			});
-		} else {
-			await api.alice.tournament.createWithLevels({
-				roomId: room.id,
-				name: "Daily",
-				rule: {
-					game,
-					levels: [{ isBreak: false, minutes: 20, stakes: [stake] }],
-				},
-			});
-		}
+	test.for(["cash", "tournament"] as const)(
+		"clearing a label is a CONFLICT while a saved %s stake has a value there",
+		async (kind, { api }) => {
+			const { room, group, variant } = await setup(api);
+			const game = { variantId: variant.id };
+			const stake = { blind1: 1, blind2: 2, gameGroupId: group.id };
+			if (kind === "cash") {
+				await api.alice.ringGame.create({
+					name: "Cash",
+					roomId: room.id,
+					rule: { game, stakes: [stake] },
+				});
+			} else {
+				await api.alice.tournament.createWithLevels({
+					name: "Daily",
+					roomId: room.id,
+					rule: {
+						game,
+						levels: [{ isBreak: false, minutes: 20, stakes: [stake] }],
+					},
+				});
+			}
 
-		await expect(
-			api.alice.gameGroup.update({ id: group.id, blind2Label: null })
-		).rejects.toMatchObject({ code: "CONFLICT" });
-		expect(
-			(await api.alice.gameGroup.list()).find((row) => row.id === group.id)
-		).toMatchObject({ blind2Label: "Big" });
-		await api.alice.gameGroup.update({ id: group.id, blind3Label: "Straddle" });
-		expect(
-			await api.alice.gameGroup.update({ id: group.id, blind3Label: null })
-		).toMatchObject({ blind3Label: null });
-	});
+			await expect(
+				api.alice.gameGroup.update({ blind2Label: null, id: group.id })
+			).rejects.toMatchObject({ code: "CONFLICT" });
+			expect(
+				(await api.alice.gameGroup.list()).find((row) => row.id === group.id)
+			).toMatchObject({ blind2Label: "Big" });
+			await api.alice.gameGroup.update({
+				blind3Label: "Straddle",
+				id: group.id,
+			});
+			expect(
+				await api.alice.gameGroup.update({ blind3Label: null, id: group.id })
+			).toMatchObject({ blind3Label: null });
+		}
+	);
 });

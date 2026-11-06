@@ -18,27 +18,27 @@ integrationTest(
 		);
 		const group = requireCreatedRow(
 			await api.alice.gameGroup.create({
-				label: "MCP group",
 				blind1Label: "Small",
 				blind2Label: "Big",
+				label: "MCP group",
 			})
 		);
 		const first = requireCreatedRow(
 			await api.alice.gameVariant.create({
-				label: "MCP first",
 				groupId: group.id,
+				label: "MCP first",
 			})
 		);
 		const second = requireCreatedRow(
 			await api.alice.gameVariant.create({
-				label: "MCP second",
 				groupId: group.id,
+				label: "MCP second",
 			})
 		);
 		const mix = requireCreatedRow(
 			await api.alice.gameMix.create({
-				label: "MCP mix",
 				games: [first.id, second.id],
+				label: "MCP mix",
 			})
 		);
 		const caller = api.alice as unknown as RouterCaller;
@@ -53,11 +53,11 @@ integrationTest(
 		expect(mixes.map((item) => item.id)).toContain(mix.id);
 
 		const created = await invoke("ring_game_create", {
-			roomId: room.id,
 			name: "Cash",
+			roomId: room.id,
 			rule: {
 				game: { gameMixId: mix.id },
-				stakes: [{ gameGroupId: group.id, blind1: 1, blind2: 2 }],
+				stakes: [{ blind1: 1, blind2: 2, gameGroupId: group.id }],
 			},
 		});
 		const lineupId = created.ruleVersion.lineupId;
@@ -71,7 +71,7 @@ integrationTest(
 			id: created.id,
 			rule: {
 				game: { lineupId },
-				stakes: [{ gameGroupId: group.id, blind1: 2, blind2: 4 }],
+				stakes: [{ blind1: 2, blind2: 4, gameGroupId: group.id }],
 			},
 		});
 		expect(updated.ruleVersion.lineupId).toBe(lineupId);

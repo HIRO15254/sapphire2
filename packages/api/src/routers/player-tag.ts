@@ -19,15 +19,15 @@ export interface PlayerTag extends Tag {
 }
 
 export const playerTagCreateInputSchema = z.object({
-	name: tagNameSchema,
 	color: colorSchema.default("gray"),
+	name: tagNameSchema,
 });
 
 export const playerTagUpdateInputSchema = z
 	.object({
+		color: colorSchema.optional(),
 		id: idSchema,
 		name: tagNameSchema.optional(),
-		color: colorSchema.optional(),
 	})
 	.refine((input) => input.name !== undefined || input.color !== undefined, {
 		message: "Supply name or color",
@@ -38,10 +38,10 @@ export const playerTagRouter = createTagRouter<
 	typeof playerTagCreateInputSchema,
 	typeof playerTagUpdateInputSchema
 >({
-	table: playerTag,
+	createInputSchema: playerTagCreateInputSchema,
+	extraColumns: ["color"],
 	nameIndex: "player_tag_name_uq",
 	selection: { ...tagSelection(playerTag), color: playerTag.color },
-	createInputSchema: playerTagCreateInputSchema,
+	table: playerTag,
 	updateInputSchema: playerTagUpdateInputSchema,
-	extraColumns: ["color"],
 });

@@ -32,34 +32,34 @@ describe("DEFAULT_GAME_GROUPS", () => {
 	it("built-in structures carry the Must / Optional blind fields of the spec", () => {
 		expect(DEFAULT_GAME_GROUPS).toEqual([
 			{
-				key: "limit",
-				label: "Limit",
 				blind1Label: "Small Bet",
 				blind1Required: true,
 				blind2Label: "Big Bet",
 				blind2Required: true,
 				blind3Label: null,
 				blind3Required: false,
+				key: "limit",
+				label: "Limit",
 			},
 			{
-				key: "stud",
-				label: "Stud",
 				blind1Label: "Small Bet",
 				blind1Required: true,
 				blind2Label: "Big Bet",
 				blind2Required: true,
 				blind3Label: "Bring-in",
 				blind3Required: false,
+				key: "stud",
+				label: "Stud",
 			},
 			{
-				key: "bigbet",
-				label: "Big Bet",
 				blind1Label: "SB",
 				blind1Required: true,
 				blind2Label: "BB",
 				blind2Required: true,
 				blind3Label: null,
 				blind3Required: false,
+				key: "bigbet",
+				label: "Big Bet",
 			},
 		]);
 	});

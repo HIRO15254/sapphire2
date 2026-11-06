@@ -15,7 +15,5 @@ export function setAutomaticPasskeyOptOut(optedOut: boolean): void {
 		} else {
 			window.localStorage.removeItem(STORAGE_KEY);
 		}
-	} catch {
-		return;
-	}
+	} catch {}
 }

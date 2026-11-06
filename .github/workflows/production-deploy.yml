@@ -2,7 +2,7 @@ name: Production Deploy
 
 on:
   release:
-    types: [published]
+    types: [ published ]
   workflow_dispatch:
 
 concurrency:
@@ -37,7 +37,7 @@ jobs:
         run: bun scripts/audit-data-model.ts --remote --database sapphire2-db
 
   deploy-api:
-    needs: [ci, db-migrate, audit]
+    needs: [ ci, db-migrate, audit ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -63,7 +63,7 @@ jobs:
           echo "${{ secrets.GOOGLE_MAPS_API_KEY }}" | bunx wrangler secret put GOOGLE_MAPS_API_KEY
 
   deploy-web:
-    needs: [ci, deploy-api]
+    needs: [ ci, deploy-api ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

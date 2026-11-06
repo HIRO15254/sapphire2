@@ -11,10 +11,10 @@ type Db = Parameters<
 >[0]["ctx"]["db"];
 
 const categoryColumns = {
-	id: ledgerCategory.id,
-	name: ledgerCategory.name,
 	archivedAt: ledgerCategory.archivedAt,
 	createdAt: ledgerCategory.createdAt,
+	id: ledgerCategory.id,
+	name: ledgerCategory.name,
 	updatedAt: ledgerCategory.updatedAt,
 };
 
@@ -62,61 +62,6 @@ export const ledgerCategoryUpdateInputSchema = z.object({
 });
 
 export const ledgerCategoryRouter = router({
-	list: protectedProcedure
-		.input(ledgerCategoryListInputSchema)
-		.query(({ ctx, input }) =>
-			ctx.db
-				.select(categoryColumns)
-				.from(ledgerCategory)
-				.where(
-					and(
-						eq(ledgerCategory.userId, ctx.session.user.id),
-						input?.includeArchived
-							? undefined
-							: isNull(ledgerCategory.archivedAt)
-					)
-				)
-				.orderBy(
-					asc(sql`lower(${ledgerCategory.name})`),
-					asc(ledgerCategory.id)
-				)
-		),
-
-	create: protectedProcedure
-		.input(ledgerCategoryCreateInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			const id = crypto.randomUUID();
-			await runCategoryNameWrite(() =>
-				ctx.db.insert(ledgerCategory).values({
-					id,
-					userId,
-					name: input.name,
-					updatedAt: new Date(),
-				})
-			);
-			return await selectCategory(ctx.db, userId, id);
-		}),
-
-	update: protectedProcedure
-		.input(ledgerCategoryUpdateInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "ledgerCategory", input.id, userId);
-			await runCategoryNameWrite(() =>
-				ctx.db
-					.update(ledgerCategory)
-					.set({ name: input.name, updatedAt: new Date() })
-					.where(
-						and(
-							eq(ledgerCategory.id, input.id),
-							eq(ledgerCategory.userId, userId)
-						)
-					)
-			);
-			return await selectCategory(ctx.db, userId, input.id);
-		}),
-
 	archive: protectedProcedure
 		.input(ledgerCategoryIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
@@ -135,21 +80,20 @@ export const ledgerCategoryRouter = router({
 			return await selectCategory(ctx.db, userId, input.id);
 		}),
 
-	restore: protectedProcedure
-		.input(ledgerCategoryIdInputSchema)
+	create: protectedProcedure
+		.input(ledgerCategoryCreateInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "ledgerCategory", input.id, userId);
-			await ctx.db
-				.update(ledgerCategory)
-				.set({ archivedAt: null, updatedAt: new Date() })
-				.where(
-					and(
-						eq(ledgerCategory.id, input.id),
-						eq(ledgerCategory.userId, userId)
-					)
-				);
-			return await selectCategory(ctx.db, userId, input.id);
+			const id = crypto.randomUUID();
+			await runCategoryNameWrite(() =>
+				ctx.db.insert(ledgerCategory).values({
+					id,
+					name: input.name,
+					updatedAt: new Date(),
+					userId,
+				})
+			);
+			return await selectCategory(ctx.db, userId, id);
 		}),
 
 	delete: protectedProcedure
@@ -184,5 +128,60 @@ export const ledgerCategoryRouter = router({
 				});
 			}
 			return { success: true as const };
+		}),
+	list: protectedProcedure
+		.input(ledgerCategoryListInputSchema)
+		.query(({ ctx, input }) =>
+			ctx.db
+				.select(categoryColumns)
+				.from(ledgerCategory)
+				.where(
+					and(
+						eq(ledgerCategory.userId, ctx.session.user.id),
+						input?.includeArchived
+							? undefined
+							: isNull(ledgerCategory.archivedAt)
+					)
+				)
+				.orderBy(
+					asc(sql`lower(${ledgerCategory.name})`),
+					asc(ledgerCategory.id)
+				)
+		),
+
+	restore: protectedProcedure
+		.input(ledgerCategoryIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await validateEntityOwnership(ctx.db, "ledgerCategory", input.id, userId);
+			await ctx.db
+				.update(ledgerCategory)
+				.set({ archivedAt: null, updatedAt: new Date() })
+				.where(
+					and(
+						eq(ledgerCategory.id, input.id),
+						eq(ledgerCategory.userId, userId)
+					)
+				);
+			return await selectCategory(ctx.db, userId, input.id);
+		}),
+
+	update: protectedProcedure
+		.input(ledgerCategoryUpdateInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await validateEntityOwnership(ctx.db, "ledgerCategory", input.id, userId);
+			await runCategoryNameWrite(() =>
+				ctx.db
+					.update(ledgerCategory)
+					.set({ name: input.name, updatedAt: new Date() })
+					.where(
+						and(
+							eq(ledgerCategory.id, input.id),
+							eq(ledgerCategory.userId, userId)
+						)
+					)
+			);
+			return await selectCategory(ctx.db, userId, input.id);
 		}),
 });

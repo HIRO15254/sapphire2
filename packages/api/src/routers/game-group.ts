@@ -91,29 +91,138 @@ async function selectGroup(db: Db, userId: string, id: string) {
 export const gameGroupListInputSchema = gameMasterListInputSchema();
 
 export const gameGroupCreateInputSchema = z.object({
-	label: labelSchema,
 	blind1Label: blindLabelSchema,
-	blind2Label: blindLabelSchema,
-	blind3Label: blindLabelSchema,
 	blind1Required: z.boolean().optional(),
+	blind2Label: blindLabelSchema,
 	blind2Required: z.boolean().optional(),
+	blind3Label: blindLabelSchema,
 	blind3Required: z.boolean().optional(),
+	label: labelSchema,
 });
 
 export const gameGroupUpdateInputSchema = z.object({
+	blind1Label: blindLabelSchema,
+	blind1Required: z.boolean().optional(),
+	blind2Label: blindLabelSchema,
+	blind2Required: z.boolean().optional(),
+	blind3Label: blindLabelSchema,
+	blind3Required: z.boolean().optional(),
 	id: idSchema,
 	label: labelSchema.optional(),
-	blind1Label: blindLabelSchema,
-	blind2Label: blindLabelSchema,
-	blind3Label: blindLabelSchema,
-	blind1Required: z.boolean().optional(),
-	blind2Required: z.boolean().optional(),
-	blind3Required: z.boolean().optional(),
 });
 
 export const gameGroupIdInputSchema = z.object({ id: idSchema });
 
 export const gameGroupRouter = router({
+	archive: protectedProcedure
+		.input(gameGroupIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await validateEntityOwnership(ctx.db, "gameGroup", input.id, userId);
+			const now = new Date();
+			const updated = await ctx.db
+				.update(gameGroup)
+				.set({ archivedAt: now, updatedAt: now })
+				.where(
+					and(
+						eq(gameGroup.id, input.id),
+						eq(gameGroup.userId, userId),
+						notExists(
+							ctx.db
+								.select({ id: gameVariant.id })
+								.from(gameVariant)
+								.where(
+									and(
+										eq(gameVariant.groupId, gameGroup.id),
+										eq(gameVariant.userId, gameGroup.userId),
+										isNull(gameVariant.archivedAt)
+									)
+								)
+						)
+					)
+				)
+				.returning({ id: gameGroup.id });
+			if (updated.length === 0) {
+				throw new TRPCError({
+					code: "CONFLICT",
+					message:
+						"This game group still has active game variants; archive them first",
+				});
+			}
+			return await selectGroup(ctx.db, userId, input.id);
+		}),
+
+	create: protectedProcedure
+		.input(gameGroupCreateInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const id = crypto.randomUUID();
+			const blinds: BlindState = {
+				blind1Label: input.blind1Label ?? null,
+				blind1Required: input.blind1Required ?? false,
+				blind2Label: input.blind2Label ?? null,
+				blind2Required: input.blind2Required ?? false,
+				blind3Label: input.blind3Label ?? null,
+				blind3Required: input.blind3Required ?? false,
+			};
+			assertRequiredFieldsLabeled(blinds);
+			await runLabelWrite(ctx.db, "game group", userId, input.label, () =>
+				ctx.db.insert(gameGroup).values({
+					builtinKey: null,
+					id,
+					label: input.label,
+					userId,
+					...blinds,
+					updatedAt: new Date(),
+				})
+			);
+			return await selectGroup(ctx.db, userId, id);
+		}),
+
+	delete: protectedProcedure
+		.input(gameGroupIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await validateEntityOwnership(ctx.db, "gameGroup", input.id, userId);
+			const deleted = await ctx.db
+				.delete(gameGroup)
+				.where(
+					and(
+						eq(gameGroup.id, input.id),
+						eq(gameGroup.userId, userId),
+						notExists(
+							ctx.db
+								.select({ id: gameVariant.id })
+								.from(gameVariant)
+								.where(
+									and(
+										eq(gameVariant.groupId, gameGroup.id),
+										eq(gameVariant.userId, gameGroup.userId)
+									)
+								)
+						),
+						notExists(
+							ctx.db
+								.select({ id: gameLineupGroup.id })
+								.from(gameLineupGroup)
+								.where(
+									and(
+										eq(gameLineupGroup.gameGroupId, gameGroup.id),
+										eq(gameLineupGroup.userId, gameGroup.userId)
+									)
+								)
+						)
+					)
+				)
+				.returning({ id: gameGroup.id });
+			if (deleted.length === 0) {
+				throw new TRPCError({
+					code: "CONFLICT",
+					message: "This game group is in use; archive it instead",
+				});
+			}
+			return { success: true as const };
+		}),
 	list: protectedProcedure
 		.input(gameGroupListInputSchema)
 		.query(async ({ ctx, input }) => {
@@ -134,31 +243,16 @@ export const gameGroupRouter = router({
 				.sort(compareGroups);
 		}),
 
-	create: protectedProcedure
-		.input(gameGroupCreateInputSchema)
+	restore: protectedProcedure
+		.input(gameGroupIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const id = crypto.randomUUID();
-			const blinds: BlindState = {
-				blind1Label: input.blind1Label ?? null,
-				blind1Required: input.blind1Required ?? false,
-				blind2Label: input.blind2Label ?? null,
-				blind2Required: input.blind2Required ?? false,
-				blind3Label: input.blind3Label ?? null,
-				blind3Required: input.blind3Required ?? false,
-			};
-			assertRequiredFieldsLabeled(blinds);
-			await runLabelWrite(ctx.db, "game group", userId, input.label, () =>
-				ctx.db.insert(gameGroup).values({
-					id,
-					userId,
-					builtinKey: null,
-					label: input.label,
-					...blinds,
-					updatedAt: new Date(),
-				})
-			);
-			return await selectGroup(ctx.db, userId, id);
+			await validateEntityOwnership(ctx.db, "gameGroup", input.id, userId);
+			await ctx.db
+				.update(gameGroup)
+				.set({ archivedAt: null, updatedAt: new Date() })
+				.where(and(eq(gameGroup.id, input.id), eq(gameGroup.userId, userId)));
+			return await selectGroup(ctx.db, userId, input.id);
 		}),
 
 	update: protectedProcedure
@@ -228,100 +322,5 @@ export const gameGroupRouter = router({
 				});
 			}
 			return await selectGroup(ctx.db, userId, input.id);
-		}),
-
-	archive: protectedProcedure
-		.input(gameGroupIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "gameGroup", input.id, userId);
-			const now = new Date();
-			const updated = await ctx.db
-				.update(gameGroup)
-				.set({ archivedAt: now, updatedAt: now })
-				.where(
-					and(
-						eq(gameGroup.id, input.id),
-						eq(gameGroup.userId, userId),
-						notExists(
-							ctx.db
-								.select({ id: gameVariant.id })
-								.from(gameVariant)
-								.where(
-									and(
-										eq(gameVariant.groupId, gameGroup.id),
-										eq(gameVariant.userId, gameGroup.userId),
-										isNull(gameVariant.archivedAt)
-									)
-								)
-						)
-					)
-				)
-				.returning({ id: gameGroup.id });
-			if (updated.length === 0) {
-				throw new TRPCError({
-					code: "CONFLICT",
-					message:
-						"This game group still has active game variants; archive them first",
-				});
-			}
-			return await selectGroup(ctx.db, userId, input.id);
-		}),
-
-	restore: protectedProcedure
-		.input(gameGroupIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "gameGroup", input.id, userId);
-			await ctx.db
-				.update(gameGroup)
-				.set({ archivedAt: null, updatedAt: new Date() })
-				.where(and(eq(gameGroup.id, input.id), eq(gameGroup.userId, userId)));
-			return await selectGroup(ctx.db, userId, input.id);
-		}),
-
-	delete: protectedProcedure
-		.input(gameGroupIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "gameGroup", input.id, userId);
-			const deleted = await ctx.db
-				.delete(gameGroup)
-				.where(
-					and(
-						eq(gameGroup.id, input.id),
-						eq(gameGroup.userId, userId),
-						notExists(
-							ctx.db
-								.select({ id: gameVariant.id })
-								.from(gameVariant)
-								.where(
-									and(
-										eq(gameVariant.groupId, gameGroup.id),
-										eq(gameVariant.userId, gameGroup.userId)
-									)
-								)
-						),
-						notExists(
-							ctx.db
-								.select({ id: gameLineupGroup.id })
-								.from(gameLineupGroup)
-								.where(
-									and(
-										eq(gameLineupGroup.gameGroupId, gameGroup.id),
-										eq(gameLineupGroup.userId, gameGroup.userId)
-									)
-								)
-						)
-					)
-				)
-				.returning({ id: gameGroup.id });
-			if (deleted.length === 0) {
-				throw new TRPCError({
-					code: "CONFLICT",
-					message: "This game group is in use; archive it instead",
-				});
-			}
-			return { success: true as const };
 		}),
 });

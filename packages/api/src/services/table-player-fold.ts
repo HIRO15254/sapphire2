@@ -96,10 +96,10 @@ export function foldTablePlayers(
 				continue;
 			}
 			current = {
-				playerId: change.playerId,
 				isActive: false,
 				joinedAt: event.occurredAt,
 				leftAt: null,
+				playerId: change.playerId,
 				seatPosition: null,
 				stints: [],
 			};

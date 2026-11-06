@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createFakeEnv } from "./test-utils";
 
-const CSP_NONCE = /script-src 'nonce-([^']+)'/;
+const CSP_NONCE = /script-src 'nonce-([^']+)'/u;
 
 const { handlerUrls, setPassword } = vi.hoisted(() => ({
 	handlerUrls: [] as string[],
@@ -36,19 +36,17 @@ describe("authorize consent gate wiring", () => {
 		setPassword.mockResolvedValue({ status: true });
 	});
 
-	it.each([
-		"POST",
-		"PUT",
-		"DELETE",
-		"PATCH",
-	] as const)("gates %s on the authorize path too (default-deny across methods)", async (method) => {
-		await app.request(
-			"/api/auth/oauth2/authorize?client_id=c1&response_type=code",
-			{ method },
-			env
-		);
-		expect(lastHandlerUrl().searchParams.get("prompt")).toBe("consent");
-	});
+	it.each(["POST", "PUT", "DELETE", "PATCH"] as const)(
+		"gates %s on the authorize path too (default-deny across methods)",
+		async (method) => {
+			await app.request(
+				"/api/auth/oauth2/authorize?client_id=c1&response_type=code",
+				{ method },
+				env
+			);
+			expect(lastHandlerUrl().searchParams.get("prompt")).toBe("consent");
+		}
+	);
 
 	it("gates an authorize path better-auth does not serve today", async () => {
 		await app.request(
@@ -93,12 +91,12 @@ describe("authorize consent gate wiring", () => {
 		const response = await app.request(
 			"/api/auth/set-password",
 			{
-				method: "POST",
+				body: JSON.stringify({ newPassword: "password1234" }),
 				headers: {
 					"content-type": "application/json",
 					origin: env.CORS_ORIGIN,
 				},
-				body: JSON.stringify({ newPassword: "password1234" }),
+				method: "POST",
 			},
 			env
 		);
@@ -108,15 +106,15 @@ describe("authorize consent gate wiring", () => {
 	});
 
 	it.each([
-		{ origin: "https://attacker.example", "content-type": "application/json" },
-		{ origin: "http://localhost:3001", "content-type": "text/plain" },
+		{ "content-type": "application/json", origin: "https://attacker.example" },
+		{ "content-type": "text/plain", origin: "http://localhost:3001" },
 	])("rejects cross-origin or non-JSON password changes", async (headers) => {
 		const response = await app.request(
 			"/api/auth/set-password",
 			{
-				method: "POST",
-				headers,
 				body: JSON.stringify({ newPassword: "password1234" }),
+				headers,
+				method: "POST",
 			},
 			env
 		);

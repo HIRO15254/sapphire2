@@ -17,11 +17,11 @@ const NOW = new Date("2026-10-10T00:00:00Z");
 
 function file(path: string, loc: number, overrides: Partial<AuditFile> = {}) {
 	return {
-		path,
-		loc,
 		auditedAt: null,
 		auditedSha: null,
 		churn: 0,
+		loc,
+		path,
 		...overrides,
 	};
 }
@@ -145,18 +145,18 @@ describe("selectUnit", () => {
 describe("ledger", () => {
 	const rows: LedgerRow[] = [
 		{
+			agent: "claude",
+			date: "2026-09-01",
+			filed: 2,
 			path: "apps/web/src/features/rooms",
 			sha: "a1",
-			date: "2026-09-01",
-			agent: "claude",
-			filed: 2,
 		},
 		{
+			agent: "codex",
+			date: "2026-09-20",
+			filed: 0,
 			path: "packages/api/src/routers/*",
 			sha: "b2",
-			date: "2026-09-20",
-			agent: "codex",
-			filed: 0,
 		},
 	];
 
@@ -200,11 +200,11 @@ describe("ledger", () => {
 
 	it("replaces only the rows a new run covers", () => {
 		const next = applyRun(rows, {
+			agent: "codex",
+			date: "2026-10-02",
+			filed: 1,
 			path: "apps/web/src/features",
 			sha: "c3",
-			date: "2026-10-02",
-			agent: "codex",
-			filed: 1,
 		});
 		expect(next.map((row) => row.path).sort()).toEqual([
 			"apps/web/src/features",
@@ -224,11 +224,11 @@ describe("ledger", () => {
 
 	it("alternates when both agents run on the same UTC day, as in Codex 06:00 then Claude 18:00", () => {
 		const row = (agent: string, date: string, path: string) => ({
+			agent,
+			date,
+			filed: 0,
 			path,
 			sha: "x",
-			date,
-			agent,
-			filed: 0,
 		});
 		expect(
 			nextAgent([
@@ -246,11 +246,11 @@ describe("ledger", () => {
 
 	it("takes the later-appended row when two rows carry the same date", () => {
 		const row = (agent: string, path: string) => ({
+			agent,
+			date: "2026-10-03",
+			filed: 0,
 			path,
 			sha: "x",
-			date: "2026-10-03",
-			agent,
-			filed: 0,
 		});
 		expect(nextAgent([row("codex", "a"), row("claude", "b")])).toBe("codex");
 	});

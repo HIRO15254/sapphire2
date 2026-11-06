@@ -16,9 +16,9 @@ test("does not pair a re-entry event's fee with the initial buy-in", () => {
 		role: "fee",
 		...values,
 	});
-	const buyIn = line({ id: "a", role: "buy_in", eventId: "initial" });
-	const reentryFee = line({ id: "b", eventId: "reentry" });
-	const initialFee = line({ id: "c", priceId: null, eventId: null });
+	const buyIn = line({ eventId: "initial", id: "a", role: "buy_in" });
+	const reentryFee = line({ eventId: "reentry", id: "b" });
+	const initialFee = line({ eventId: null, id: "c", priceId: null });
 	expect(initialPaymentLines([buyIn, reentryFee, initialFee])).toEqual([
 		buyIn,
 		initialFee,

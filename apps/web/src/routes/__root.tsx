@@ -45,19 +45,19 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 	component: RootComponent,
 	errorComponent: RouterErrorFallback,
 	head: () => ({
+		links: [
+			{
+				href: "/favicon.ico",
+				rel: "icon",
+			},
+		],
 		meta: [
 			{
 				title: "sapphire2",
 			},
 			{
-				name: "description",
 				content: "sapphire2 is a web application",
-			},
-		],
-		links: [
-			{
-				rel: "icon",
-				href: "/favicon.ico",
+				name: "description",
 			},
 		],
 	}),

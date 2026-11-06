@@ -13,9 +13,9 @@ function createTestRouter(path: string) {
 	const root = createRootRoute({ component: MobileNav });
 	const routes = ["/", "/settings"].map((routePath) =>
 		createRoute({
+			component: () => null,
 			getParentRoute: () => root,
 			path: routePath,
-			component: () => null,
 		})
 	);
 	return createRouter({
@@ -29,11 +29,11 @@ describe("MobileNav", () => {
 		const router = createTestRouter("/");
 		render(<RouterProvider router={router} />);
 		expect(
-			await screen.findByRole("link", { name: "Home", current: "page" })
+			await screen.findByRole("link", { current: "page", name: "Home" })
 		).toBeInTheDocument();
 		await router.navigate({ to: "/settings" });
 		expect(
-			await screen.findByRole("link", { name: "More", current: "page" })
+			await screen.findByRole("link", { current: "page", name: "More" })
 		).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: "Home" })).not.toHaveAttribute(
 			"aria-current"

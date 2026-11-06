@@ -21,16 +21,16 @@ OR EXISTS (SELECT 1 FROM ring_game WHERE ring_game.default_asset_id = asset.id A
 OR EXISTS (SELECT 1 FROM tournament WHERE tournament.default_asset_id = asset.id AND tournament.user_id = asset.user_id))`;
 
 const assetColumns = {
-	id: asset.id,
-	name: asset.name,
-	unit: asset.unit,
-	description: asset.description,
-	kind: asset.kind,
-	decimals: asset.decimals,
 	archivedAt: asset.archivedAt,
-	isFavorite: asset.isFavorite,
 	balance: assetBalance,
 	createdAt: asset.createdAt,
+	decimals: asset.decimals,
+	description: asset.description,
+	id: asset.id,
+	isFavorite: asset.isFavorite,
+	kind: asset.kind,
+	name: asset.name,
+	unit: asset.unit,
 	updatedAt: asset.updatedAt,
 };
 
@@ -75,23 +75,85 @@ export const assetListInputSchema = z
 	.optional();
 
 export const assetCreateInputSchema = z.object({
-	name: assetName,
-	unit: assetUnit.optional(),
+	decimals: assetDecimals.default(0),
 	description: assetDescription.optional(),
 	kind: assetKind,
-	decimals: assetDecimals.default(0),
+	name: assetName,
+	unit: assetUnit.optional(),
 });
 
 export const assetUpdateInputSchema = z.object({
+	decimals: assetDecimals.optional(),
+	description: assetDescription.nullable().optional(),
 	id: z.string().min(1),
+	kind: assetKind.optional(),
 	name: assetName.optional(),
 	unit: assetUnit.nullable().optional(),
-	description: assetDescription.nullable().optional(),
-	kind: assetKind.optional(),
-	decimals: assetDecimals.optional(),
 });
 
 export const assetRouter = router({
+	archive: protectedProcedure
+		.input(assetIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await validateEntityOwnership(ctx.db, "asset", input.id, userId);
+			const now = new Date();
+			await ctx.db
+				.update(asset)
+				.set({ archivedAt: now, updatedAt: now })
+				.where(and(eq(asset.id, input.id), eq(asset.userId, userId)));
+			return await selectAsset(ctx.db, userId, input.id);
+		}),
+
+	create: protectedProcedure
+		.input(assetCreateInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const id = crypto.randomUUID();
+			await runAssetNameWrite(() =>
+				ctx.db.insert(asset).values({
+					decimals: input.decimals,
+					description: input.description ?? null,
+					id,
+					kind: input.kind,
+					name: input.name,
+					unit: input.unit ?? null,
+					updatedAt: new Date(),
+					userId,
+				})
+			);
+			return await selectAsset(ctx.db, userId, id);
+		}),
+
+	delete: protectedProcedure
+		.input(assetIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await validateEntityOwnership(ctx.db, "asset", input.id, userId);
+			const deleted = await ctx.db
+				.delete(asset)
+				.where(
+					and(
+						eq(asset.id, input.id),
+						eq(asset.userId, userId),
+						not(assetIsReferenced)
+					)
+				)
+				.returning({ id: asset.id });
+			if (deleted.length === 0) {
+				throw new TRPCError({
+					code: "CONFLICT",
+					message: "Asset is in use; archive it instead",
+				});
+			}
+			return { success: true as const };
+		}),
+
+	getById: protectedProcedure
+		.input(assetIdInputSchema)
+		.query(({ ctx, input }) =>
+			selectAsset(ctx.db, ctx.session.user.id, input.id)
+		),
 	list: protectedProcedure
 		.input(assetListInputSchema)
 		.query(({ ctx, input }) => {
@@ -108,30 +170,31 @@ export const assetRouter = router({
 				.orderBy(desc(asset.isFavorite), asc(asset.createdAt), asc(asset.id));
 		}),
 
-	getById: protectedProcedure
+	restore: protectedProcedure
 		.input(assetIdInputSchema)
-		.query(({ ctx, input }) =>
-			selectAsset(ctx.db, ctx.session.user.id, input.id)
-		),
-
-	create: protectedProcedure
-		.input(assetCreateInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const id = crypto.randomUUID();
-			await runAssetNameWrite(() =>
-				ctx.db.insert(asset).values({
-					id,
-					userId,
-					name: input.name,
-					unit: input.unit ?? null,
-					description: input.description ?? null,
-					kind: input.kind,
-					decimals: input.decimals,
+			await validateEntityOwnership(ctx.db, "asset", input.id, userId);
+			await ctx.db
+				.update(asset)
+				.set({ archivedAt: null, updatedAt: new Date() })
+				.where(and(eq(asset.id, input.id), eq(asset.userId, userId)));
+			return await selectAsset(ctx.db, userId, input.id);
+		}),
+
+	toggleFavorite: protectedProcedure
+		.input(assetIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await validateEntityOwnership(ctx.db, "asset", input.id, userId);
+			await ctx.db
+				.update(asset)
+				.set({
+					isFavorite: sql`NOT ${asset.isFavorite}`,
 					updatedAt: new Date(),
 				})
-			);
-			return await selectAsset(ctx.db, userId, id);
+				.where(and(eq(asset.id, input.id), eq(asset.userId, userId)));
+			return await selectAsset(ctx.db, userId, input.id);
 		}),
 
 	update: protectedProcedure
@@ -182,70 +245,6 @@ export const assetRouter = router({
 						"Asset is in use, so its kind and decimals can no longer change",
 				});
 			}
-			return await selectAsset(ctx.db, userId, input.id);
-		}),
-
-	archive: protectedProcedure
-		.input(assetIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "asset", input.id, userId);
-			const now = new Date();
-			await ctx.db
-				.update(asset)
-				.set({ archivedAt: now, updatedAt: now })
-				.where(and(eq(asset.id, input.id), eq(asset.userId, userId)));
-			return await selectAsset(ctx.db, userId, input.id);
-		}),
-
-	restore: protectedProcedure
-		.input(assetIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "asset", input.id, userId);
-			await ctx.db
-				.update(asset)
-				.set({ archivedAt: null, updatedAt: new Date() })
-				.where(and(eq(asset.id, input.id), eq(asset.userId, userId)));
-			return await selectAsset(ctx.db, userId, input.id);
-		}),
-
-	delete: protectedProcedure
-		.input(assetIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "asset", input.id, userId);
-			const deleted = await ctx.db
-				.delete(asset)
-				.where(
-					and(
-						eq(asset.id, input.id),
-						eq(asset.userId, userId),
-						not(assetIsReferenced)
-					)
-				)
-				.returning({ id: asset.id });
-			if (deleted.length === 0) {
-				throw new TRPCError({
-					code: "CONFLICT",
-					message: "Asset is in use; archive it instead",
-				});
-			}
-			return { success: true as const };
-		}),
-
-	toggleFavorite: protectedProcedure
-		.input(assetIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "asset", input.id, userId);
-			await ctx.db
-				.update(asset)
-				.set({
-					isFavorite: sql`NOT ${asset.isFavorite}`,
-					updatedAt: new Date(),
-				})
-				.where(and(eq(asset.id, input.id), eq(asset.userId, userId)));
 			return await selectAsset(ctx.db, userId, input.id);
 		}),
 });

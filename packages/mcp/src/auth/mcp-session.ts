@@ -30,22 +30,22 @@ export function buildMcpSession(
 	const now = new Date();
 	return {
 		session: {
-			id: `mcp-${user.id}`,
-			token: "",
-			userId: user.id,
-			expiresAt: token.expiresAt,
 			createdAt: now,
-			updatedAt: now,
+			expiresAt: token.expiresAt,
+			id: `mcp-${user.id}`,
 			ipAddress: null,
+			token: "",
+			updatedAt: now,
 			userAgent: "mcp",
+			userId: user.id,
 		},
 		user: {
-			id: user.id,
-			name: user.name,
+			createdAt: user.createdAt,
 			email: user.email,
 			emailVerified: user.emailVerified,
+			id: user.id,
 			image: user.image ?? null,
-			createdAt: user.createdAt,
+			name: user.name,
 			updatedAt: user.updatedAt,
 		},
 	} as McpTrpcSession;

@@ -1,6 +1,7 @@
 {
   "name": "sapphire2",
   "private": true,
+  "type": "module",
   "workspaces": {
     "packages": [
       "apps/*",
@@ -25,30 +26,34 @@
       "miniflare": "4.20260730.0"
     }
   },
-  "type": "module",
   "scripts": {
-    "dev": "bun run --filter '*' dev",
     "build": "bun run --filter '*' build",
+    "check:rules": "bun scripts/check-rules.ts",
+    "check:test-discovery": "bun testing/check-discovery.ts",
     "check-types": "bun run --filter '*' check-types && tsc --noEmit -p scripts && tsc --noEmit -p testing",
-    "dev:web": "bun run --filter web dev",
-    "dev:server": "bun run --filter server dev",
-    "db:studio": "bun run --filter @sapphire2/db db:studio",
     "db:generate": "bun run --filter @sapphire2/db db:generate",
     "db:migrate:local": "node ./node_modules/wrangler/bin/wrangler.js d1 migrations apply sapphire2-db --local -c apps/server/wrangler.toml",
     "db:migrate:remote": "node ./node_modules/wrangler/bin/wrangler.js d1 migrations apply sapphire2-db --remote -c apps/server/wrangler.toml",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:unit": "vitest run --project=!api-integration",
-    "test:integration": "vitest run --project api-integration",
-    "test:e2e": "playwright test",
-    "test:coverage": "bun run test:unit --coverage",
-    "check:test-discovery": "bun testing/check-discovery.ts",
-    "lint": "ultracite check",
-    "check:rules": "bun scripts/check-rules.ts",
-    "pr-watch": "bun scripts/pr-watch.ts",
-    "try:ai-extract": "bun scripts/try-ai-extract.ts",
+    "db:studio": "bun run --filter @sapphire2/db db:studio",
+    "dev": "bun run --filter '*' dev",
+    "dev:server": "bun run --filter server dev",
+    "dev:web": "bun run --filter web dev",
     "fix": "ultracite fix",
-    "prepare": "husky"
+    "lint": "ultracite check",
+    "pr-watch": "bun scripts/pr-watch.ts",
+    "prepare": "husky",
+    "test": "vitest run",
+    "test:coverage": "bun run test:unit --coverage",
+    "test:e2e": "playwright test",
+    "test:integration": "vitest run --project api-integration",
+    "test:unit": "vitest run --project=!api-integration",
+    "test:watch": "vitest",
+    "try:ai-extract": "bun scripts/try-ai-extract.ts"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,json,jsonc,css,scss,md,mdx}": [
+      "bun x ultracite fix"
+    ]
   },
   "dependencies": {
     "@sapphire2/env": "workspace:*",
@@ -72,14 +77,9 @@
     "wrangler": "^4.158.0",
     "yaml": "2.9.1"
   },
+  "packageManager": "bun@1.4.4",
   "engines": {
-    "node": "^22.22.2 || >=24.15.0",
-    "bun": ">=1.4.0"
-  },
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx,json,jsonc,css,scss,md,mdx}": [
-      "bun x ultracite fix"
-    ]
-  },
-  "packageManager": "bun@1.4.4"
+    "bun": ">=1.4.0",
+    "node": "^22.22.2 || >=24.15.0"
+  }
 }

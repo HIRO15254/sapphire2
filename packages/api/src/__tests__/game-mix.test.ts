@@ -41,8 +41,8 @@ function gameMixCaller(userId: string, select: Record<string, Rows>) {
 		select: withGameMixVariantFixtures(activeRows),
 	});
 	const caller = appRouter.createCaller({
-		session: { user: { id: userId } },
 		db: mock.db,
+		session: { user: { id: userId } },
 	} as unknown as Parameters<typeof appRouter.createCaller>[0]).gameMix;
 	return { caller, ...mock };
 }
@@ -63,28 +63,28 @@ async function expectTrpcCode(
 
 const CUR_OWNER = "user-1";
 const CUR_OTHER = "user-2";
-const OWNED_GROUP = { id: "grp-1", userId: CUR_OWNER, label: "Big Bet" };
-const OWNED_VARIANT_1 = { id: "gv-1", userId: CUR_OWNER, label: "NL Hold'em" };
+const OWNED_GROUP = { id: "grp-1", label: "Big Bet", userId: CUR_OWNER };
+const OWNED_VARIANT_1 = { id: "gv-1", label: "NL Hold'em", userId: CUR_OWNER };
 const OWNED_VARIANT_2 = {
 	id: "gv-2",
-	userId: CUR_OWNER,
 	label: "Limit Hold'em",
+	userId: CUR_OWNER,
 };
-const OTHER_VARIANT = { id: "gv-x", userId: CUR_OTHER, label: "Their Mix" };
+const OTHER_VARIANT = { id: "gv-x", label: "Their Mix", userId: CUR_OTHER };
 
 function seededRows(extra: { variant?: Rows; group?: Rows; mix?: Rows } = {}) {
 	return {
 		[GROUP_TABLE]: extra.group ?? [OWNED_GROUP],
 		[VARIANT_TABLE]: extra.variant ?? [OWNED_VARIANT_1],
-		[MIX_TABLE]: extra.mix ?? [{ id: "mix-1", userId: CUR_OWNER, label: "X" }],
+		[MIX_TABLE]: extra.mix ?? [{ id: "mix-1", label: "X", userId: CUR_OWNER }],
 	};
 }
 
 describe("gameMix.create input validation", () => {
 	it("accepts a minimal valid payload", () => {
 		expectAccepts(appRouter.gameMix.create, {
-			label: "My Mix",
 			games: ["v1", "v2"],
+			label: "My Mix",
 		});
 	});
 
@@ -93,27 +93,27 @@ describe("gameMix.create input validation", () => {
 	});
 
 	it("rejects an empty label", () => {
-		expectRejects(appRouter.gameMix.create, { label: "", games: ["v1", "v2"] });
+		expectRejects(appRouter.gameMix.create, { games: ["v1", "v2"], label: "" });
 	});
 
 	it("rejects a whitespace-only label (trimmed to empty)", () => {
 		expectRejects(appRouter.gameMix.create, {
-			label: "   ",
 			games: ["v1", "v2"],
+			label: "   ",
 		});
 	});
 
 	it("accepts a label at the 30-character boundary", () => {
 		expectAccepts(appRouter.gameMix.create, {
-			label: "a".repeat(30),
 			games: ["v1", "v2"],
+			label: "a".repeat(30),
 		});
 	});
 
 	it("rejects a label longer than 30 characters", () => {
 		expectRejects(appRouter.gameMix.create, {
-			label: "a".repeat(31),
 			games: ["v1", "v2"],
+			label: "a".repeat(31),
 		});
 	});
 
@@ -122,28 +122,28 @@ describe("gameMix.create input validation", () => {
 	});
 
 	it("rejects an empty games array", () => {
-		expectRejects(appRouter.gameMix.create, { label: "My Mix", games: [] });
+		expectRejects(appRouter.gameMix.create, { games: [], label: "My Mix" });
 	});
 
 	it("rejects a games array with a single entry (a mix needs at least two games)", () => {
-		expectRejects(appRouter.gameMix.create, { label: "My Mix", games: ["v1"] });
+		expectRejects(appRouter.gameMix.create, { games: ["v1"], label: "My Mix" });
 	});
 
 	it("accepts a games array at the 2-entry boundary", () => {
 		expectAccepts(appRouter.gameMix.create, {
-			label: "My Mix",
 			games: ["v1", "v2"],
+			label: "My Mix",
 		});
 	});
 
 	it("accepts a games array at the 30-entry boundary", () => {
 		const games = Array.from({ length: 30 }, (_, i) => `v${i}`);
-		expectAccepts(appRouter.gameMix.create, { label: "My Mix", games });
+		expectAccepts(appRouter.gameMix.create, { games, label: "My Mix" });
 	});
 
 	it("rejects a games array with 31 entries", () => {
 		const games = Array.from({ length: 31 }, (_, i) => `v${i}`);
-		expectRejects(appRouter.gameMix.create, { label: "My Mix", games });
+		expectRejects(appRouter.gameMix.create, { games, label: "My Mix" });
 	});
 });
 
@@ -176,23 +176,23 @@ describe("gameMix.update input validation", () => {
 
 	it("accepts a games array when provided", () => {
 		expectAccepts(appRouter.gameMix.update, {
-			id: "mix-1",
 			games: ["v1", "v2"],
+			id: "mix-1",
 		});
 	});
 
 	it("rejects a provided games array with a single entry", () => {
-		expectRejects(appRouter.gameMix.update, { id: "mix-1", games: ["v1"] });
+		expectRejects(appRouter.gameMix.update, { games: ["v1"], id: "mix-1" });
 	});
 
 	it("rejects a provided games array with 31 entries", () => {
 		const games = Array.from({ length: 31 }, (_, i) => `v${i}`);
-		expectRejects(appRouter.gameMix.update, { id: "mix-1", games });
+		expectRejects(appRouter.gameMix.update, { games, id: "mix-1" });
 	});
 
 	it("accepts a games array at the 30-entry boundary", () => {
 		const games = Array.from({ length: 30 }, (_, i) => `v${i}`);
-		expectAccepts(appRouter.gameMix.update, { id: "mix-1", games });
+		expectAccepts(appRouter.gameMix.update, { games, id: "mix-1" });
 	});
 });
 
@@ -215,8 +215,8 @@ describe("gameMix.create games ownership (SA2-183)", () => {
 		});
 		await expectTrpcCode(
 			caller.create({
-				label: "Brand New",
 				games: [OWNED_VARIANT_1.id, OTHER_VARIANT.id],
+				label: "Brand New",
 			}),
 			"FORBIDDEN"
 		);
@@ -230,8 +230,8 @@ describe("gameMix.create games ownership (SA2-183)", () => {
 		});
 		await expectTrpcCode(
 			caller.create({
-				label: "Brand New",
 				games: [OWNED_VARIANT_1.id, "missing-id"],
+				label: "Brand New",
 			}),
 			"FORBIDDEN"
 		);
@@ -244,15 +244,15 @@ describe("gameMix.create games ownership (SA2-183)", () => {
 			[MIX_TABLE]: [
 				{
 					id: "placeholder",
-					userId: CUR_OWNER,
 					label: "Placeholder",
+					userId: CUR_OWNER,
 				},
 			],
 		});
 		await expect(
 			caller.create({
-				label: "Brand New",
 				games: [OWNED_VARIANT_1.id, OWNED_VARIANT_2.id],
+				label: "Brand New",
 			})
 		).resolves.toBeDefined();
 	});
@@ -266,21 +266,21 @@ describe("gameMix.create games ownership (SA2-183)", () => {
 				[MIX_TABLE]: [
 					{
 						id: "placeholder",
-						userId: CUR_OWNER,
 						label: "Placeholder",
+						userId: CUR_OWNER,
 					},
 				],
 			}
 		);
 		await caller.create({
-			label: "Brand New",
 			games: [OWNED_VARIANT_1.id, OWNED_VARIANT_2.id],
+			label: "Brand New",
 		});
 		expect(inserted[MIX_TABLE]).toHaveLength(1);
 		expect(inserted[MIX_TABLE]?.[0]).toMatchObject({
-			userId: CUR_OWNER,
-			label: "Brand New",
 			builtinKey: null,
+			label: "Brand New",
+			userId: CUR_OWNER,
 		});
 		expect(inserted[MIX_TABLE]?.[0]).not.toHaveProperty("games");
 		expect(
@@ -311,12 +311,12 @@ describe("gameMix.update games ownership (SA2-183)", () => {
 		const { caller } = gameMixCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: [OWNED_VARIANT_1],
-			[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OWNER, label: "My Mix" }],
+			[MIX_TABLE]: [{ id: "mix-1", label: "My Mix", userId: CUR_OWNER }],
 		});
 		await expectTrpcCode(
 			caller.update({
-				id: "mix-1",
 				games: [OWNED_VARIANT_1.id, OTHER_VARIANT.id],
+				id: "mix-1",
 			}),
 			"FORBIDDEN"
 		);
@@ -332,8 +332,8 @@ describe("gameMix.create duplicate games guard (BAD_REQUEST)", () => {
 		});
 		await expectTrpcCode(
 			caller.create({
-				label: "Brand New",
 				games: [OWNED_VARIANT_1.id, OWNED_VARIANT_1.id],
+				label: "Brand New",
 			}),
 			"BAD_REQUEST"
 		);
@@ -345,12 +345,12 @@ describe("gameMix.update duplicate games guard (BAD_REQUEST)", () => {
 		const { caller } = gameMixCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: [OWNED_VARIANT_1],
-			[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OWNER, label: "My Mix" }],
+			[MIX_TABLE]: [{ id: "mix-1", label: "My Mix", userId: CUR_OWNER }],
 		});
 		await expectTrpcCode(
 			caller.update({
-				id: "mix-1",
 				games: [OWNED_VARIANT_1.id, OWNED_VARIANT_1.id],
+				id: "mix-1",
 			}),
 			"BAD_REQUEST"
 		);
@@ -359,10 +359,10 @@ describe("gameMix.update duplicate games guard (BAD_REQUEST)", () => {
 
 function variantsAcrossGroups(n: number): Rows {
 	return Array.from({ length: n }, (_, i) => ({
-		id: `gv-span-${i}`,
-		userId: CUR_OWNER,
 		groupId: `grp-span-${i}`,
+		id: `gv-span-${i}`,
 		label: `Span Variant ${i}`,
+		userId: CUR_OWNER,
 	}));
 }
 
@@ -376,8 +376,8 @@ describe("gameMix group-span guard (c58, max 12 groups)", () => {
 		});
 		await expectTrpcCode(
 			caller.create({
-				label: "Too Wide",
 				games: variants.map((v) => v.id as string),
+				label: "Too Wide",
 			}),
 			"BAD_REQUEST"
 		);
@@ -391,15 +391,15 @@ describe("gameMix group-span guard (c58, max 12 groups)", () => {
 			[MIX_TABLE]: [
 				{
 					id: "placeholder",
-					userId: CUR_OWNER,
 					label: "Placeholder",
+					userId: CUR_OWNER,
 				},
 			],
 		});
 		await expect(
 			caller.create({
-				label: "Exactly 12",
 				games: variants.map((v) => v.id as string),
+				label: "Exactly 12",
 			})
 		).resolves.toBeDefined();
 	});
@@ -409,12 +409,12 @@ describe("gameMix group-span guard (c58, max 12 groups)", () => {
 		const { caller } = gameMixCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: variants,
-			[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OWNER, label: "My Mix" }],
+			[MIX_TABLE]: [{ id: "mix-1", label: "My Mix", userId: CUR_OWNER }],
 		});
 		await expectTrpcCode(
 			caller.update({
-				id: "mix-1",
 				games: variants.map((v) => v.id as string),
+				id: "mix-1",
 			}),
 			"BAD_REQUEST"
 		);
@@ -425,12 +425,12 @@ describe("gameMix group-span guard (c58, max 12 groups)", () => {
 		const { caller } = gameMixCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: variants,
-			[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OWNER, label: "My Mix" }],
+			[MIX_TABLE]: [{ id: "mix-1", label: "My Mix", userId: CUR_OWNER }],
 		});
 		await expect(
 			caller.update({
-				id: "mix-1",
 				games: variants.map((v) => v.id as string),
+				id: "mix-1",
 			})
 		).resolves.toBeDefined();
 	});
@@ -443,34 +443,34 @@ describe("gameMix.list ordering + self-seed", () => {
 			[VARIANT_TABLE]: [OWNED_VARIANT_1],
 			[MIX_TABLE]: [
 				{
+					builtinKey: null,
 					id: "custom-1",
-					userId: CUR_OWNER,
-					builtinKey: null,
 					label: "Zeta Custom",
+					userId: CUR_OWNER,
 				},
 				{
-					id: "eight-1",
-					userId: CUR_OWNER,
 					builtinKey: "8game",
+					id: "eight-1",
 					label: "8-Game",
+					userId: CUR_OWNER,
 				},
 				{
-					id: "custom-2",
-					userId: CUR_OWNER,
 					builtinKey: null,
+					id: "custom-2",
 					label: "Alpha Custom",
+					userId: CUR_OWNER,
 				},
 				{
-					id: "ten-1",
-					userId: CUR_OWNER,
 					builtinKey: "10game",
+					id: "ten-1",
 					label: "10-Game",
+					userId: CUR_OWNER,
 				},
 				{
-					id: "horse-1",
-					userId: CUR_OWNER,
 					builtinKey: "horse",
+					id: "horse-1",
 					label: "HORSE",
+					userId: CUR_OWNER,
 				},
 			],
 		});
@@ -505,7 +505,7 @@ describe("gameMix.list ordering + self-seed", () => {
 
 	it("scopes the list query to the caller's userId", async () => {
 		const rows = seededRows({
-			mix: [{ id: "mix-1", userId: CUR_OWNER, label: "X" }],
+			mix: [{ id: "mix-1", label: "X", userId: CUR_OWNER }],
 		});
 		const { caller, selectWhereParams } = gameMixCaller(CUR_OWNER, rows);
 		await caller.list();
@@ -522,36 +522,36 @@ describe("gameMix normalized membership persistence", () => {
 				[VARIANT_TABLE]: [OWNED_VARIANT_1, OWNED_VARIANT_2],
 				[MIX_TABLE]: [
 					{
-						id: "mix-a",
-						userId: CUR_OWNER,
 						builtinKey: "horse",
+						id: "mix-a",
 						label: "HORSE",
+						userId: CUR_OWNER,
 					},
 					{
-						id: "mix-b",
-						userId: CUR_OWNER,
 						builtinKey: null,
+						id: "mix-b",
 						label: "Custom",
+						userId: CUR_OWNER,
 					},
 				],
 				[MIX_VARIANT_TABLE]: [
 					{
 						mixId: "mix-a",
-						variantId: OWNED_VARIANT_1.id,
-						userId: CUR_OWNER,
 						position: 1,
+						userId: CUR_OWNER,
+						variantId: OWNED_VARIANT_1.id,
 					},
 					{
 						mixId: "mix-b",
-						variantId: OWNED_VARIANT_1.id,
-						userId: CUR_OWNER,
 						position: 0,
+						userId: CUR_OWNER,
+						variantId: OWNED_VARIANT_1.id,
 					},
 					{
 						mixId: "mix-a",
-						variantId: OWNED_VARIANT_2.id,
-						userId: CUR_OWNER,
 						position: 0,
+						userId: CUR_OWNER,
+						variantId: OWNED_VARIANT_2.id,
 					},
 				],
 			}
@@ -580,15 +580,15 @@ describe("gameMix normalized membership persistence", () => {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: [OWNED_VARIANT_1],
 			[MIX_TABLE]: [
-				{ id: "mix-a", userId: CUR_OWNER, builtinKey: null, label: "A" },
-				{ id: "mix-b", userId: CUR_OWNER, builtinKey: null, label: "B" },
+				{ builtinKey: null, id: "mix-a", label: "A", userId: CUR_OWNER },
+				{ builtinKey: null, id: "mix-b", label: "B", userId: CUR_OWNER },
 			],
 			[MIX_VARIANT_TABLE]: [
 				{
 					mixId: "mix-a",
-					variantId: OWNED_VARIANT_1.id,
-					userId: CUR_OWNER,
 					position: 0,
+					userId: CUR_OWNER,
+					variantId: OWNED_VARIANT_1.id,
 				},
 			],
 		});
@@ -600,10 +600,10 @@ describe("gameMix normalized membership persistence", () => {
 
 	it("keeps the junction read owner-scoped only when the id list would overflow D1's bind cap", async () => {
 		const mixes = Array.from({ length: 100 }, (_, index) => ({
-			id: `mix-${index}`,
-			userId: CUR_OWNER,
 			builtinKey: null,
+			id: `mix-${index}`,
 			label: `Mix ${index}`,
+			userId: CUR_OWNER,
 		}));
 		const { caller, selectWhereParams } = gameMixCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
@@ -622,14 +622,14 @@ describe("gameMix normalized membership persistence", () => {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: [OWNED_VARIANT_1],
 			[MIX_TABLE]: [
-				{ id: "mix-1", userId: CUR_OWNER, builtinKey: null, label: "Renamed" },
+				{ builtinKey: null, id: "mix-1", label: "Renamed", userId: CUR_OWNER },
 			],
 			[MIX_VARIANT_TABLE]: [
 				{
 					mixId: "mix-1",
-					variantId: OWNED_VARIANT_1.id,
-					userId: CUR_OWNER,
 					position: 0,
+					userId: CUR_OWNER,
+					variantId: OWNED_VARIANT_1.id,
 				},
 			],
 		});
@@ -645,10 +645,10 @@ describe("gameMix normalized membership persistence", () => {
 
 	it("creates a 30-game mix with normalized rows in one batch", async () => {
 		const variants = Array.from({ length: 30 }, (_, index) => ({
-			id: `variant-${index}`,
-			userId: CUR_OWNER,
 			groupId: OWNED_GROUP.id,
+			id: `variant-${index}`,
 			label: `Variant ${index}`,
+			userId: CUR_OWNER,
 		}));
 		const games = variants.map((variant) => variant.id);
 		const { caller, inserted, updated, batch } = gameMixCaller(CUR_OWNER, {
@@ -657,19 +657,19 @@ describe("gameMix normalized membership persistence", () => {
 			[MIX_TABLE]: [
 				{
 					id: "placeholder",
-					userId: CUR_OWNER,
 					label: "Placeholder",
+					userId: CUR_OWNER,
 				},
 			],
 			[MIX_VARIANT_TABLE]: games.map((variantId, position) => ({
 				mixId: "placeholder",
+				position,
 				userId: CUR_OWNER,
 				variantId,
-				position,
 			})),
 		});
 
-		const created = await caller.create({ label: "Thirty Game", games });
+		const created = await caller.create({ games, label: "Thirty Game" });
 
 		expect(inserted[MIX_TABLE]).toHaveLength(1);
 		expect(inserted[MIX_TABLE]?.[0]).not.toHaveProperty("games");
@@ -696,21 +696,21 @@ describe("gameMix normalized membership persistence", () => {
 
 	it("chunks membership inserts by the row's real column count, not a literal width", async () => {
 		const variants = Array.from({ length: 30 }, (_, index) => ({
-			id: `variant-${index}`,
-			userId: CUR_OWNER,
 			groupId: OWNED_GROUP.id,
+			id: `variant-${index}`,
 			label: `Variant ${index}`,
+			userId: CUR_OWNER,
 		}));
 		const { caller, inserted } = gameMixCaller(CUR_OWNER, {
 			[GROUP_TABLE]: [OWNED_GROUP],
 			[VARIANT_TABLE]: variants,
-			[MIX_TABLE]: [{ id: "placeholder", userId: CUR_OWNER, label: "P" }],
+			[MIX_TABLE]: [{ id: "placeholder", label: "P", userId: CUR_OWNER }],
 			[MIX_VARIANT_TABLE]: [],
 		});
 
 		await caller.create({
-			label: "Thirty Game",
 			games: variants.map((variant) => variant.id),
+			label: "Thirty Game",
 		});
 
 		const chunks = (inserted[MIX_VARIANT_TABLE] ?? []).map((entry) =>
@@ -729,10 +729,10 @@ describe("gameMix normalized membership persistence", () => {
 
 	it("replaces a 30-game composition atomically", async () => {
 		const variants = Array.from({ length: 30 }, (_, index) => ({
-			id: `replacement-${index}`,
-			userId: CUR_OWNER,
 			groupId: OWNED_GROUP.id,
+			id: `replacement-${index}`,
 			label: `Replacement ${index}`,
+			userId: CUR_OWNER,
 		}));
 		const games = variants.map((variant) => variant.id);
 		const { caller, inserted, updated, batch, deleteWhereParams } =
@@ -742,19 +742,19 @@ describe("gameMix normalized membership persistence", () => {
 				[MIX_TABLE]: [
 					{
 						id: "mix-1",
-						userId: CUR_OWNER,
 						label: "My Mix",
+						userId: CUR_OWNER,
 					},
 				],
 				[MIX_VARIANT_TABLE]: games.map((variantId, position) => ({
 					mixId: "mix-1",
-					variantId,
-					userId: CUR_OWNER,
 					position,
+					userId: CUR_OWNER,
+					variantId,
 				})),
 			});
 
-		const updatedMix = await caller.update({ id: "mix-1", games });
+		const updatedMix = await caller.update({ games, id: "mix-1" });
 
 		expect(updated[MIX_TABLE]).toHaveLength(1);
 		expect(updated[MIX_TABLE]?.[0]).not.toHaveProperty("games");

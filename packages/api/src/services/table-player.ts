@@ -82,10 +82,10 @@ export async function listTablePlayers(
 		(chunk) =>
 			db
 				.select({
-					playerId: playerTagLink.playerId,
+					color: playerTag.color,
 					id: playerTag.id,
 					name: playerTag.name,
-					color: playerTag.color,
+					playerId: playerTagLink.playerId,
 				})
 				.from(playerTagLink)
 				.innerJoin(
@@ -113,15 +113,15 @@ export async function listTablePlayers(
 		return [
 			{
 				id: item.playerId,
+				isActive: item.isActive,
+				joinedAt: item.joinedAt,
+				leftAt: item.leftAt,
 				player: {
 					...row,
 					tags: tags
 						.filter((tag) => tag.playerId === item.playerId)
-						.map(({ id, name, color }) => ({ id, name, color })),
+						.map(({ id, name, color }) => ({ color, id, name })),
 				},
-				isActive: item.isActive,
-				joinedAt: item.joinedAt,
-				leftAt: item.leftAt,
 				seatPosition: item.seatPosition,
 				stints: item.stints,
 			},
@@ -147,17 +147,17 @@ async function writeTableEvent(
 	const { eventIds } = await commitEntryEventChange(db, {
 		before: write.before,
 		change: {
-			op: "append",
 			events: [
 				{
-					type: write.type,
 					occurredAt: new Date(Math.floor(write.now.getTime() / 1000) * 1000),
 					payload:
 						write.type === "player_leave" || write.seatPosition === undefined
 							? { playerId: write.playerId }
 							: { playerId: write.playerId, seatPosition: write.seatPosition },
+					type: write.type,
 				},
 			],
+			op: "append",
 		},
 		entryId: write.entryId,
 		now: write.now,
@@ -165,9 +165,9 @@ async function writeTableEvent(
 		userId: write.userId,
 	});
 	return {
+		eventId: eventIds[0] ?? "",
 		id: write.playerId,
 		playerId: write.playerId,
-		eventId: eventIds[0] ?? "",
 	};
 }
 
@@ -177,7 +177,7 @@ function openTable(state: EntryEventState): {
 } {
 	assertLiveEntry(state);
 	resolveAppendTarget(state, undefined);
-	return { state, folded: foldTablePlayers(state.events) };
+	return { folded: foldTablePlayers(state.events), state };
 }
 
 async function assertSeatAvailable(
@@ -294,21 +294,21 @@ async function addCreatedPlayer(
 		input.seatPosition
 	);
 	const links = (input.tagIds ?? []).map((tagId, position) => ({
-		userId,
 		playerId,
-		tagId,
 		position,
+		tagId,
+		userId,
 	}));
 	return await writeTableEvent(db, {
 		before: [
 			...seatGuards,
 			db.insert(player).values({
 				id: playerId,
-				userId,
-				name: input.name,
-				memo: input.memo,
 				isTemporary: input.isTemporary,
+				memo: input.memo,
+				name: input.name,
 				updatedAt: now,
+				userId,
 			}),
 			...insertChunks(links, (chunk) => db.insert(playerTagLink).values(chunk)),
 		],

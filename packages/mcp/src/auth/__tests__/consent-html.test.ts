@@ -2,12 +2,12 @@ import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 import { renderConsentHtml } from "../consent-html";
 
-const CONSENT_SCRIPT = /<script nonce="test-nonce">([\s\S]*?)<\/script>/;
+const CONSENT_SCRIPT = /<script nonce="test-nonce">([\s\S]*?)<\/script>/u;
 
 const BASE_PROPS = {
 	clientName: "Claude",
-	oauthQuery: "client_id=c1&sig=abc",
 	nonce: "test-nonce",
+	oauthQuery: "client_id=c1&sig=abc",
 	redirectHosts: ["claude.ai"],
 };
 
@@ -115,18 +115,18 @@ describe("renderConsentHtml", () => {
 		for (const [redirectURI, allowed] of cases) {
 			const handlers: Record<string, () => Promise<void>> = {};
 			const elements = {
-				"consent-data": { textContent: JSON.stringify({ oauthQuery: "q" }) },
 				approve: {
-					disabled: false,
 					addEventListener: (_: string, fn: () => Promise<void>) => {
 						handlers.approve = fn;
 					},
-				},
-				deny: {
 					disabled: false,
+				},
+				"consent-data": { textContent: JSON.stringify({ oauthQuery: "q" }) },
+				deny: {
 					addEventListener: (_: string, fn: () => Promise<void>) => {
 						handlers.deny = fn;
 					},
+					disabled: false,
 				},
 				error: { hidden: true },
 			};
@@ -136,11 +136,11 @@ describe("renderConsentHtml", () => {
 					getElementById: (id: keyof typeof elements) => elements[id],
 				},
 				fetch: async () => ({
-					ok: true,
 					json: async () => ({ redirect: true, url: redirectURI }),
+					ok: true,
 				}),
-				window: { location },
 				URL,
+				window: { location },
 			});
 			await handlers.approve?.();
 			expect(location.href).toBe(allowed ? redirectURI : "");

@@ -24,14 +24,14 @@ import { guardStatement, withWriteGuardConflict } from "../lib/write-guard";
 const rateTerm = z.number().int().min(1).max(ASSET_RATE_MAX_TERM);
 
 const rateColumns = {
-	id: assetRate.id,
 	baseAssetId: assetRate.baseAssetId,
-	quoteAssetId: assetRate.quoteAssetId,
-	rateNum: assetRate.rateNum,
-	rateDen: assetRate.rateDen,
-	effectiveFrom: assetRate.effectiveFrom,
-	memo: assetRate.memo,
 	createdAt: assetRate.createdAt,
+	effectiveFrom: assetRate.effectiveFrom,
+	id: assetRate.id,
+	memo: assetRate.memo,
+	quoteAssetId: assetRate.quoteAssetId,
+	rateDen: assetRate.rateDen,
+	rateNum: assetRate.rateNum,
 };
 
 export const assetRateIdInputSchema = z.object({ id: z.string().min(1) });
@@ -39,19 +39,19 @@ export const assetRateIdInputSchema = z.object({ id: z.string().min(1) });
 export const assetRateListInputSchema = z
 	.object({
 		baseAssetId: z.string().min(1).optional(),
-		quoteAssetId: z.string().min(1).optional(),
 		effectiveAt: instantSchema.optional(),
+		quoteAssetId: z.string().min(1).optional(),
 	})
 	.optional();
 
 export const assetRateCreateInputSchema = z
 	.object({
 		baseAssetId: z.string().min(1),
-		quoteAssetId: z.string().min(1),
-		rateNum: rateTerm,
-		rateDen: rateTerm,
 		effectiveFrom: instantSchema,
 		memo: z.string().max(5000).optional(),
+		quoteAssetId: z.string().min(1),
+		rateDen: rateTerm,
+		rateNum: rateTerm,
 	})
 	.refine((value) => value.baseAssetId !== value.quoteAssetId, {
 		message: "A rate needs two different assets",
@@ -59,6 +59,80 @@ export const assetRateCreateInputSchema = z
 	});
 
 export const assetRateRouter = router({
+	create: protectedProcedure
+		.input(assetRateCreateInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const base = await validateEntityOwnership(
+				ctx.db,
+				"asset",
+				input.baseAssetId,
+				userId
+			);
+			const quote = await validateEntityOwnership(
+				ctx.db,
+				"asset",
+				input.quoteAssetId,
+				userId
+			);
+			if (base.archivedAt !== null || quote.archivedAt !== null) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "An archived asset cannot be newly selected for a rate",
+				});
+			}
+			try {
+				const [, , rows] = await withWriteGuardConflict(() =>
+					ctx.db.batch([
+						guardStatement(
+							ctx.db,
+							"rate_base_active",
+							sql`EXISTS (SELECT 1 FROM ${asset} WHERE ${asset.id} = ${input.baseAssetId} AND ${asset.userId} = ${userId} AND ${asset.archivedAt} IS NULL)`
+						),
+						guardStatement(
+							ctx.db,
+							"rate_quote_active",
+							sql`EXISTS (SELECT 1 FROM ${asset} WHERE ${asset.id} = ${input.quoteAssetId} AND ${asset.userId} = ${userId} AND ${asset.archivedAt} IS NULL)`
+						),
+						ctx.db
+							.insert(assetRate)
+							.values({
+								baseAssetId: input.baseAssetId,
+								effectiveFrom: new Date(input.effectiveFrom * 1000),
+								id: crypto.randomUUID(),
+								memo: input.memo ?? null,
+								quoteAssetId: input.quoteAssetId,
+								rateDen: input.rateDen,
+								rateNum: input.rateNum,
+								userId,
+							})
+							.returning(rateColumns),
+					])
+				);
+				const [created] = rows;
+				return created;
+			} catch (error) {
+				if (isAssetRateConflictError(error)) {
+					throw new TRPCError({
+						code: "CONFLICT",
+						message:
+							"A rate for this asset pair already starts at this time; delete it and create the corrected one",
+					});
+				}
+				throw error;
+			}
+		}),
+
+	delete: protectedProcedure
+		.input(assetRateIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await validateEntityOwnership(ctx.db, "assetRate", input.id, userId);
+			await ctx.db
+				.delete(assetRate)
+				.where(and(eq(assetRate.id, input.id), eq(assetRate.userId, userId)));
+			return { success: true as const };
+		}),
 	list: protectedProcedure
 		.input(assetRateListInputSchema)
 		.query(async ({ ctx, input }) => {
@@ -105,80 +179,5 @@ export const assetRateRouter = router({
 					asc(assetRate.quoteAssetId),
 					desc(assetRate.effectiveFrom)
 				);
-		}),
-
-	create: protectedProcedure
-		.input(assetRateCreateInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			const base = await validateEntityOwnership(
-				ctx.db,
-				"asset",
-				input.baseAssetId,
-				userId
-			);
-			const quote = await validateEntityOwnership(
-				ctx.db,
-				"asset",
-				input.quoteAssetId,
-				userId
-			);
-			if (base.archivedAt !== null || quote.archivedAt !== null) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message: "An archived asset cannot be newly selected for a rate",
-				});
-			}
-			try {
-				const [, , rows] = await withWriteGuardConflict(() =>
-					ctx.db.batch([
-						guardStatement(
-							ctx.db,
-							"rate_base_active",
-							sql`EXISTS (SELECT 1 FROM ${asset} WHERE ${asset.id} = ${input.baseAssetId} AND ${asset.userId} = ${userId} AND ${asset.archivedAt} IS NULL)`
-						),
-						guardStatement(
-							ctx.db,
-							"rate_quote_active",
-							sql`EXISTS (SELECT 1 FROM ${asset} WHERE ${asset.id} = ${input.quoteAssetId} AND ${asset.userId} = ${userId} AND ${asset.archivedAt} IS NULL)`
-						),
-						ctx.db
-							.insert(assetRate)
-							.values({
-								id: crypto.randomUUID(),
-								userId,
-								baseAssetId: input.baseAssetId,
-								quoteAssetId: input.quoteAssetId,
-								rateNum: input.rateNum,
-								rateDen: input.rateDen,
-								effectiveFrom: new Date(input.effectiveFrom * 1000),
-								memo: input.memo ?? null,
-							})
-							.returning(rateColumns),
-					])
-				);
-				const [created] = rows;
-				return created;
-			} catch (error) {
-				if (isAssetRateConflictError(error)) {
-					throw new TRPCError({
-						code: "CONFLICT",
-						message:
-							"A rate for this asset pair already starts at this time; delete it and create the corrected one",
-					});
-				}
-				throw error;
-			}
-		}),
-
-	delete: protectedProcedure
-		.input(assetRateIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "assetRate", input.id, userId);
-			await ctx.db
-				.delete(assetRate)
-				.where(and(eq(assetRate.id, input.id), eq(assetRate.userId, userId)));
-			return { success: true as const };
 		}),
 });

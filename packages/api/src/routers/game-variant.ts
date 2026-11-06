@@ -69,32 +69,63 @@ export const gameVariantListInputSchema = gameMasterListInputSchema();
 export const gameVariantIdInputSchema = z.object({ id: idSchema });
 
 export const gameVariantCreateInputSchema = z.object({
+	groupId: idSchema,
 	label: labelSchema,
 	shortLabel: shortLabelSchema,
-	groupId: idSchema,
 });
 
 export const gameVariantUpdateInputSchema = z.object({
+	groupId: idSchema.optional(),
 	id: idSchema,
 	label: labelSchema.optional(),
 	shortLabel: shortLabelSchema,
-	groupId: idSchema.optional(),
 	sortOrder: z.number().int().min(0).optional(),
 });
 
 export const gameVariantRouter = router({
-	list: protectedProcedure
-		.input(gameVariantListInputSchema)
-		.query(async ({ ctx, input }) => {
+	archive: protectedProcedure
+		.input(gameVariantIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			let rows = await selectOwnedVariants(ctx.db, userId);
-			if (rows.length === 0) {
-				await seedDefaultGameData(ctx.db, userId);
-				rows = await selectOwnedVariants(ctx.db, userId);
+			await validateEntityOwnership(ctx.db, "gameVariant", input.id, userId);
+			const now = new Date();
+			const updated = await ctx.db
+				.update(gameVariant)
+				.set({ archivedAt: now, updatedAt: now })
+				.where(
+					and(
+						eq(gameVariant.id, input.id),
+						eq(gameVariant.userId, userId),
+						notExists(
+							ctx.db
+								.select({ id: gameMix.id })
+								.from(gameMixVariant)
+								.innerJoin(
+									gameMix,
+									and(
+										eq(gameMix.id, gameMixVariant.mixId),
+										eq(gameMix.userId, gameMixVariant.userId)
+									)
+								)
+								.where(
+									and(
+										eq(gameMixVariant.variantId, gameVariant.id),
+										eq(gameMixVariant.userId, gameVariant.userId),
+										isNull(gameMix.archivedAt)
+									)
+								)
+						)
+					)
+				)
+				.returning({ id: gameVariant.id });
+			if (updated.length === 0) {
+				throw new TRPCError({
+					code: "CONFLICT",
+					message:
+						"This game variant is used by an active game mix; remove it from the mix or archive the mix first",
+				});
 			}
-			return rows.filter(
-				(row) => input?.includeArchived || row.archivedAt === null
-			);
+			return await selectVariant(ctx.db, userId, input.id);
 		}),
 
 	create: protectedProcedure
@@ -109,18 +140,140 @@ export const gameVariantRouter = router({
 				runGuardedBatch(ctx.db, [
 					activeReferenceGuard(ctx.db, gameGroup, input.groupId, userId),
 					ctx.db.insert(gameVariant).values({
-						id,
-						userId,
 						builtinKey: null,
+						groupId: input.groupId,
+						id,
 						label: input.label,
 						shortLabel: input.shortLabel ?? null,
-						groupId: input.groupId,
 						sortOrder,
 						updatedAt: new Date(),
+						userId,
 					}),
 				])
 			);
 			return await selectVariant(ctx.db, userId, id);
+		}),
+
+	delete: protectedProcedure
+		.input(gameVariantIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await validateEntityOwnership(ctx.db, "gameVariant", input.id, userId);
+			const deleted = await ctx.db
+				.delete(gameVariant)
+				.where(
+					and(
+						eq(gameVariant.id, input.id),
+						eq(gameVariant.userId, userId),
+						notExists(
+							ctx.db
+								.select({ variantId: gameMixVariant.variantId })
+								.from(gameMixVariant)
+								.where(
+									and(
+										eq(gameMixVariant.variantId, gameVariant.id),
+										eq(gameMixVariant.userId, gameVariant.userId)
+									)
+								)
+						),
+						notExists(
+							ctx.db
+								.select({ variantId: gameLineupVariant.variantId })
+								.from(gameLineupVariant)
+								.where(
+									and(
+										eq(gameLineupVariant.variantId, gameVariant.id),
+										eq(gameLineupVariant.userId, gameVariant.userId)
+									)
+								)
+						),
+						notExists(
+							ctx.db
+								.select({ id: hand.id })
+								.from(hand)
+								.where(
+									and(
+										eq(hand.variantId, gameVariant.id),
+										eq(hand.userId, gameVariant.userId)
+									)
+								)
+						)
+					)
+				)
+				.returning({ id: gameVariant.id });
+			if (deleted.length === 0) {
+				throw new TRPCError({
+					code: "CONFLICT",
+					message: "This game variant is in use; archive it instead",
+				});
+			}
+			return { success: true as const };
+		}),
+	list: protectedProcedure
+		.input(gameVariantListInputSchema)
+		.query(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			let rows = await selectOwnedVariants(ctx.db, userId);
+			if (rows.length === 0) {
+				await seedDefaultGameData(ctx.db, userId);
+				rows = await selectOwnedVariants(ctx.db, userId);
+			}
+			return rows.filter(
+				(row) => input?.includeArchived || row.archivedAt === null
+			);
+		}),
+
+	restore: protectedProcedure
+		.input(gameVariantIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const found = await validateEntityOwnership(
+				ctx.db,
+				"gameVariant",
+				input.id,
+				userId
+			);
+			const group = await validateEntityOwnership(
+				ctx.db,
+				"gameGroup",
+				found.groupId,
+				userId
+			);
+			if (group.archivedAt !== null) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "This game variant's group is archived; restore it first",
+				});
+			}
+			const restored = await ctx.db
+				.update(gameVariant)
+				.set({ archivedAt: null, updatedAt: new Date() })
+				.where(
+					and(
+						eq(gameVariant.id, input.id),
+						eq(gameVariant.userId, userId),
+						exists(
+							ctx.db
+								.select({ id: gameGroup.id })
+								.from(gameGroup)
+								.where(
+									and(
+										eq(gameGroup.id, gameVariant.groupId),
+										eq(gameGroup.userId, gameVariant.userId),
+										isNull(gameGroup.archivedAt)
+									)
+								)
+						)
+					)
+				)
+				.returning({ id: gameVariant.id });
+			if (restored.length === 0) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "This game variant's group is archived; restore it first",
+				});
+			}
+			return await selectVariant(ctx.db, userId, input.id);
 		}),
 
 	update: protectedProcedure
@@ -220,159 +373,5 @@ export const gameVariantRouter = router({
 				])
 			);
 			return await selectVariant(ctx.db, userId, input.id);
-		}),
-
-	archive: protectedProcedure
-		.input(gameVariantIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "gameVariant", input.id, userId);
-			const now = new Date();
-			const updated = await ctx.db
-				.update(gameVariant)
-				.set({ archivedAt: now, updatedAt: now })
-				.where(
-					and(
-						eq(gameVariant.id, input.id),
-						eq(gameVariant.userId, userId),
-						notExists(
-							ctx.db
-								.select({ id: gameMix.id })
-								.from(gameMixVariant)
-								.innerJoin(
-									gameMix,
-									and(
-										eq(gameMix.id, gameMixVariant.mixId),
-										eq(gameMix.userId, gameMixVariant.userId)
-									)
-								)
-								.where(
-									and(
-										eq(gameMixVariant.variantId, gameVariant.id),
-										eq(gameMixVariant.userId, gameVariant.userId),
-										isNull(gameMix.archivedAt)
-									)
-								)
-						)
-					)
-				)
-				.returning({ id: gameVariant.id });
-			if (updated.length === 0) {
-				throw new TRPCError({
-					code: "CONFLICT",
-					message:
-						"This game variant is used by an active game mix; remove it from the mix or archive the mix first",
-				});
-			}
-			return await selectVariant(ctx.db, userId, input.id);
-		}),
-
-	restore: protectedProcedure
-		.input(gameVariantIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			const found = await validateEntityOwnership(
-				ctx.db,
-				"gameVariant",
-				input.id,
-				userId
-			);
-			const group = await validateEntityOwnership(
-				ctx.db,
-				"gameGroup",
-				found.groupId,
-				userId
-			);
-			if (group.archivedAt !== null) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message: "This game variant's group is archived; restore it first",
-				});
-			}
-			const restored = await ctx.db
-				.update(gameVariant)
-				.set({ archivedAt: null, updatedAt: new Date() })
-				.where(
-					and(
-						eq(gameVariant.id, input.id),
-						eq(gameVariant.userId, userId),
-						exists(
-							ctx.db
-								.select({ id: gameGroup.id })
-								.from(gameGroup)
-								.where(
-									and(
-										eq(gameGroup.id, gameVariant.groupId),
-										eq(gameGroup.userId, gameVariant.userId),
-										isNull(gameGroup.archivedAt)
-									)
-								)
-						)
-					)
-				)
-				.returning({ id: gameVariant.id });
-			if (restored.length === 0) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message: "This game variant's group is archived; restore it first",
-				});
-			}
-			return await selectVariant(ctx.db, userId, input.id);
-		}),
-
-	delete: protectedProcedure
-		.input(gameVariantIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "gameVariant", input.id, userId);
-			const deleted = await ctx.db
-				.delete(gameVariant)
-				.where(
-					and(
-						eq(gameVariant.id, input.id),
-						eq(gameVariant.userId, userId),
-						notExists(
-							ctx.db
-								.select({ variantId: gameMixVariant.variantId })
-								.from(gameMixVariant)
-								.where(
-									and(
-										eq(gameMixVariant.variantId, gameVariant.id),
-										eq(gameMixVariant.userId, gameVariant.userId)
-									)
-								)
-						),
-						notExists(
-							ctx.db
-								.select({ variantId: gameLineupVariant.variantId })
-								.from(gameLineupVariant)
-								.where(
-									and(
-										eq(gameLineupVariant.variantId, gameVariant.id),
-										eq(gameLineupVariant.userId, gameVariant.userId)
-									)
-								)
-						),
-						notExists(
-							ctx.db
-								.select({ id: hand.id })
-								.from(hand)
-								.where(
-									and(
-										eq(hand.variantId, gameVariant.id),
-										eq(hand.userId, gameVariant.userId)
-									)
-								)
-						)
-					)
-				)
-				.returning({ id: gameVariant.id });
-			if (deleted.length === 0) {
-				throw new TRPCError({
-					code: "CONFLICT",
-					message: "This game variant is in use; archive it instead",
-				});
-			}
-			return { success: true as const };
 		}),
 });

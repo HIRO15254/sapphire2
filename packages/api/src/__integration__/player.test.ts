@@ -30,10 +30,10 @@ describe("player tags and atomic writes on D1", () => {
 		);
 		await api.db.insert(player).values({
 			id: "temporary",
-			userId: "alice",
-			name: "Hero temporary",
 			isTemporary: true,
+			name: "Hero temporary",
 			updatedAt: new Date(),
+			userId: "alice",
 		});
 		for (const input of [undefined, { search: "Hero" }, { tagIds: [tag.id] }]) {
 			expect((await api.alice.player.list(input)).map(({ id }) => id)).toEqual([
@@ -53,9 +53,9 @@ describe("player tags and atomic writes on D1", () => {
 			api.alice.player.getSelf(),
 		]);
 		expect(self).toMatchObject({
-			name: "Hero",
 			isSelf: true,
 			isTemporary: false,
+			name: "Hero",
 			tags: [],
 		});
 		expect(rest.map(({ id }) => id)).toEqual(new Array(4).fill(self.id));
@@ -188,13 +188,13 @@ describe("player tags and atomic writes on D1", () => {
 		for (const id of ids) {
 			await api.db.insert(player).values({
 				id,
-				userId: "alice",
 				name: `Match ${id}`,
 				updatedAt: new Date("2026-09-05"),
+				userId: "alice",
 			});
 			await api.db.insert(playerTagLink).values([
-				{ userId: "alice", playerId: id, tagId: tag.id, position: 0 },
-				{ userId: "alice", playerId: id, tagId: secondTag.id, position: 1 },
+				{ playerId: id, position: 0, tagId: tag.id, userId: "alice" },
+				{ playerId: id, position: 1, tagId: secondTag.id, userId: "alice" },
 			]);
 		}
 		await api.bob.player.create({ name: "Match private" });
@@ -213,20 +213,20 @@ describe("player tags and atomic writes on D1", () => {
 	}) => {
 		const aggressive = requireCreatedRow(
 			await api.alice.playerTag.create({
-				name: "Aggressive",
 				color: "red",
+				name: "Aggressive",
 			})
 		);
 		const regular = requireCreatedRow(
 			await api.alice.playerTag.create({
-				name: "Regular",
 				color: "blue",
+				name: "Regular",
 			})
 		);
 		const created = requireCreatedRow(
 			await api.alice.player.create({
-				name: "Alex",
 				memo: "Initial read",
+				name: "Alex",
 				tagIds: [regular.id, aggressive.id],
 			})
 		);
@@ -240,8 +240,8 @@ describe("player tags and atomic writes on D1", () => {
 		expect(
 			await api.caller("alice").player.getById({ id: created.id })
 		).toMatchObject({
-			name: "Alex",
 			memo: "Initial read",
+			name: "Alex",
 			tags: [{ id: regular.id }, { id: aggressive.id }],
 		});
 		expect(
@@ -251,13 +251,13 @@ describe("player tags and atomic writes on D1", () => {
 		).toEqual([created.id]);
 		await api.alice.player.update({
 			id: created.id,
-			name: "Alex updated",
 			memo: null,
+			name: "Alex updated",
 			tagIds: [],
 		});
 		expect(await api.alice.player.getById({ id: created.id })).toMatchObject({
-			name: "Alex updated",
 			memo: null,
+			name: "Alex updated",
 			tags: [],
 		});
 		expect(await api.alice.player.getById({ id: other.id })).toMatchObject({
@@ -313,14 +313,14 @@ describe("player tags and atomic writes on D1", () => {
 	}) => {
 		const ownTag = requireCreatedRow(
 			await api.alice.playerTag.create({
-				name: "Visible",
 				color: "green",
+				name: "Visible",
 			})
 		);
 		const privateTag = requireCreatedRow(
 			await api.bob.playerTag.create({
-				name: "Secret scouting",
 				color: "red",
+				name: "Secret scouting",
 			})
 		);
 		const saved = requireCreatedRow(
@@ -333,14 +333,14 @@ describe("player tags and atomic writes on D1", () => {
 		for (const userId of ["alice", "bob"]) {
 			await expect(
 				api.db.insert(playerTagLink).values({
-					userId,
 					playerId: saved.id,
-					tagId: privateTag.id,
 					position: 1,
+					tagId: privateTag.id,
+					userId,
 				})
 			).rejects.toThrow();
 		}
-		const expectedTags = [{ id: ownTag.id, name: "Visible", color: "green" }];
+		const expectedTags = [{ color: "green", id: ownTag.id, name: "Visible" }];
 		expect((await api.alice.player.getById({ id: saved.id })).tags).toEqual(
 			expectedTags
 		);
@@ -376,10 +376,10 @@ describe("player tags and atomic writes on D1", () => {
 				.orderBy(asc(playerTagLink.position))
 		).toEqual(
 			ids.toReversed().map((tagId, position) => ({
-				userId: "alice",
 				playerId: saved.id,
-				tagId,
 				position,
+				tagId,
+				userId: "alice",
 			}))
 		);
 		await api.alice.player.update({ id: saved.id, tagIds: ids });
@@ -398,8 +398,8 @@ describe("player tags and atomic writes on D1", () => {
 		);
 		const saved = requireCreatedRow(
 			await api.alice.player.create({
-				name: "Original name",
 				memo: "Keep me",
+				name: "Original name",
 				tagIds: [originalTag.id],
 			})
 		);
@@ -421,8 +421,8 @@ describe("player tags and atomic writes on D1", () => {
 		const failure = await api.alice.player
 			.update({
 				id: saved.id,
-				name: "Must roll back",
 				memo: null,
+				name: "Must roll back",
 				tagIds: ids,
 			})
 			.catch((error: unknown) => error);

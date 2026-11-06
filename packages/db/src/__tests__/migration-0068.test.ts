@@ -9,8 +9,8 @@ import {
 } from "./sqlite";
 
 const TARGET = "0068_required_blinds.sql";
-const BIG_BET_BLIND3_GATE = /NOT NULL constraint failed: __gate_0068/;
-const REQUIRED_FLAG_CHECK = /game_group_blind1_required_check/;
+const BIG_BET_BLIND3_GATE = /NOT NULL constraint failed: __gate_0068/u;
+const REQUIRED_FLAG_CHECK = /game_group_blind1_required_check/u;
 
 const beforeTarget = migrationFiles(TARGET).map(statementsOf);
 
@@ -93,12 +93,17 @@ describe("migration 0068 — required blinds", () => {
 			"tournament",
 			"UPDATE tournament_rule_level_stake SET blind3 = 0 WHERE level_id = 'tl-1'",
 		],
-	])("aborts before any change when a Big Bet %s stake has a blind3 value", (_kind, dirty) => {
-		db.exec(dirty);
-		const labels = "SELECT id, blind3_label FROM game_group ORDER BY id";
-		const before = rowValues(db.prepare(labels));
+	])(
+		"aborts before any change when a Big Bet %s stake has a blind3 value",
+		(_kind, dirty) => {
+			db.exec(dirty);
+			const labels = "SELECT id, blind3_label FROM game_group ORDER BY id";
+			const before = rowValues(db.prepare(labels));
 
-		expect(() => apply(db, statementsOf(TARGET))).toThrow(BIG_BET_BLIND3_GATE);
-		expect(rowValues(db.prepare(labels))).toEqual(before);
-	});
+			expect(() => apply(db, statementsOf(TARGET))).toThrow(
+				BIG_BET_BLIND3_GATE
+			);
+			expect(rowValues(db.prepare(labels))).toEqual(before);
+		}
+	);
 });

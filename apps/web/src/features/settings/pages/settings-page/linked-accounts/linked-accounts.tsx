@@ -23,8 +23,8 @@ import { SOCIAL_PROVIDERS, useLinkedAccounts } from "./use-linked-accounts";
 const SET_PASSWORD_FORM_ID = "set-password-form";
 
 const PROVIDER_ICONS = {
-	google: <GoogleIcon className="size-[18px]" />,
 	discord: <DiscordIcon className="size-[18px]" />,
+	google: <GoogleIcon className="size-[18px]" />,
 };
 
 function SetPasswordForm({
@@ -51,7 +51,7 @@ function SetPasswordForm({
 				form.handleSubmit();
 			}}
 		>
-			<p className="m-0 text-muted-foreground leading-normal">{intro}</p>
+			<p className="text-muted-foreground m-0 leading-normal">{intro}</p>
 
 			<form.Field name="newPassword">
 				{(field) => (
@@ -130,7 +130,7 @@ export function LinkedAccounts() {
 	if (loading) {
 		return (
 			<SettingsSection heading="Sign-in methods">
-				<div className="flex justify-center py-3 text-muted-foreground">
+				<div className="text-muted-foreground flex justify-center py-3">
 					<Spinner />
 				</div>
 			</SettingsSection>

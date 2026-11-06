@@ -2,13 +2,13 @@ import { createEnv } from "@t3-oss/env-core";
 import z from "zod";
 
 export const webEnvSchema = {
-	clientPrefix: "VITE_" as const,
 	client: {
-		VITE_SERVER_URL: z.url(),
 		VITE_PREVIEW_AUTO_LOGIN: z.string().optional(),
 		VITE_PREVIEW_LOGIN_EMAIL: z.string().optional(),
 		VITE_PREVIEW_LOGIN_PASSWORD: z.string().optional(),
+		VITE_SERVER_URL: z.url(),
 	},
+	clientPrefix: "VITE_" as const,
 	emptyStringAsUndefined: true as const,
 };
 

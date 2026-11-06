@@ -18,7 +18,8 @@ import {
 	statementsOf,
 } from "./sqlite";
 
-const RULES_EMPTY_GATE = /NOT NULL constraint failed: __gate_0066\.rules_empty/;
+const RULES_EMPTY_GATE =
+	/NOT NULL constraint failed: __gate_0066\.rules_empty/u;
 
 const target = "0066_tournament_final.sql";
 const beforeEntry = migrationFiles("0061_").map(statementsOf);
@@ -107,7 +108,7 @@ describe("migration 0066 — tournament rule cutover", () => {
 			source.close();
 		}
 	});
-	afterAll(() => rmSync(directory, { recursive: true, force: true }));
+	afterAll(() => rmSync(directory, { force: true, recursive: true }));
 	beforeEach(() => {
 		const path = join(directory, `${index++}.sqlite`);
 		copyFileSync(seededPath, path);

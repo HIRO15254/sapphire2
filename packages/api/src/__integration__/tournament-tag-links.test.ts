@@ -31,8 +31,8 @@ describe("tournament tagIds on D1", () => {
 			string,
 		];
 		const created = await api.alice.tournament.create({
-			roomId: room.id,
 			name: "Daily",
+			roomId: room.id,
 			rule: {},
 			tagIds: [third, first],
 		});
@@ -75,8 +75,8 @@ describe("tournament tagIds on D1", () => {
 			await api.bob.tournamentTag.create({ name: "Private" })
 		);
 		const saved = await api.alice.tournament.create({
-			roomId: room.id,
 			name: "Daily",
+			roomId: room.id,
 			rule: {},
 			tagIds: [own],
 		});
@@ -85,8 +85,8 @@ describe("tournament tagIds on D1", () => {
 		for (const id of [foreign.id, "missing-tag"]) {
 			await expect(
 				api.alice.tournament.create({
-					roomId: room.id,
 					name: "Rejected",
+					roomId: room.id,
 					rule: {},
 					tagIds: [own, id],
 				})
@@ -115,15 +115,15 @@ describe("tournament tagIds on D1", () => {
 			await api.bob.tournamentTag.create({ name: "Secret" })
 		);
 		const saved = await api.alice.tournament.create({
-			roomId: room.id,
 			name: "Daily",
+			roomId: room.id,
 			rule: {},
 		});
 		for (const userId of ["alice", "bob"]) {
 			await expect(
 				api.db
 					.insert(tournamentTagLink)
-					.values({ userId, tournamentId: saved.id, tagId: foreign.id })
+					.values({ tagId: foreign.id, tournamentId: saved.id, userId })
 			).rejects.toThrow();
 		}
 		expect((await api.alice.tournament.getById({ id: saved.id })).tags).toEqual(
@@ -136,8 +136,8 @@ describe("tournament tagIds on D1", () => {
 	}) => {
 		const { room, tags } = await setup(api);
 		const saved = await api.alice.tournament.create({
-			roomId: room.id,
 			name: "Original",
+			roomId: room.id,
 			rule: {},
 			tagIds: [tags[0]?.id as string],
 		});

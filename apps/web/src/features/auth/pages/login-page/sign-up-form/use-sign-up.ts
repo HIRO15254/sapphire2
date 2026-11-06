@@ -31,19 +31,10 @@ export function useSignUp() {
 			await authClient.signUp.email(
 				{
 					email: value.email,
-					password: value.password,
 					name: value.name,
+					password: value.password,
 				},
 				{
-					onSuccess: () => {
-						const authorizeUrl = pendingAuthorizeUrl();
-						if (authorizeUrl) {
-							window.location.assign(authorizeUrl);
-							return;
-						}
-						navigate({ to: "/" });
-						offerAutomaticPasskey();
-					},
 					onError: (error) => {
 						if (error.error.code?.startsWith("USER_ALREADY_EXISTS")) {
 							setEmailInUse(value.email);
@@ -53,13 +44,22 @@ export function useSignUp() {
 							error.error.message || error.error.statusText || RETRY_MESSAGE
 						);
 					},
+					onSuccess: () => {
+						const authorizeUrl = pendingAuthorizeUrl();
+						if (authorizeUrl) {
+							window.location.assign(authorizeUrl);
+							return;
+						}
+						navigate({ to: "/" });
+						offerAutomaticPasskey();
+					},
 				}
 			);
 		},
 		validators: {
 			onSubmit: z.object({
-				name: z.string().trim().min(2, "Use at least 2 characters"),
 				email: z.email("Enter a valid email address"),
+				name: z.string().trim().min(2, "Use at least 2 characters"),
 				password: z.string().min(8, "Use at least 8 characters"),
 			}),
 		},
@@ -69,9 +69,9 @@ export function useSignUp() {
 	const signUpWithProvider = async (provider: SocialProvider) => {
 		setErrorMessage(null);
 		const result = await authClient.signIn.social({
-			provider,
 			callbackURL: socialCallbackUrl(),
 			errorCallbackURL: socialErrorCallbackUrl(provider),
+			provider,
 		});
 		if (result.error) {
 			setErrorMessage(result.error.message || RETRY_MESSAGE);

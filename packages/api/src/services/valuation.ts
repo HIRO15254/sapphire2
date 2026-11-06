@@ -61,7 +61,7 @@ interface Bucket {
 
 type RateIndex = Map<string, Map<string, ValuationRate[]>>;
 
-const IDENTITY_PATH: ConversionPath = { key: "", num: 1n, den: 1n };
+const IDENTITY_PATH: ConversionPath = { den: 1n, key: "", num: 1n };
 
 export function isPayment(quantity: number): boolean {
 	return quantity < 0;
@@ -131,17 +131,17 @@ function singleStep(
 	const direct = latestRate(index.get(from)?.get(to), at);
 	if (direct) {
 		return {
+			den: BigInt(direct.rateDen),
 			key: direct.id,
 			num: BigInt(direct.rateNum),
-			den: BigInt(direct.rateDen),
 		};
 	}
 	const inverse = latestRate(index.get(to)?.get(from), at);
 	if (inverse) {
 		return {
+			den: BigInt(inverse.rateNum),
 			key: inverse.id,
 			num: BigInt(inverse.rateDen),
-			den: BigInt(inverse.rateNum),
 		};
 	}
 	return null;
@@ -180,9 +180,9 @@ function resolvePath(
 		const second = singleStep(index, first.quoteAssetId, baseAssetId, at);
 		if (second) {
 			return {
+				den: BigInt(first.rateDen) * second.den,
 				key: `${first.id}>${second.key}`,
 				num: BigInt(first.rateNum) * second.num,
-				den: BigInt(first.rateDen) * second.den,
 			};
 		}
 	}
@@ -262,9 +262,9 @@ function valueEntryLines(
 	const cashOut = sumBuckets(receipts);
 	return {
 		amounts: {
-			profitLoss: safeInteger(profitLoss),
 			buyIn: safeInteger(buyIn),
 			cashOut: safeInteger(cashOut),
+			profitLoss: safeInteger(profitLoss),
 		},
 		missingRates: [],
 	};
@@ -304,12 +304,12 @@ export function valueEntries(input: ValuationInput): ValuationResult {
 		const realValue = valueEntryLines(realLines, resolve);
 		const virtualValue = valueEntryLines(lines, resolve);
 		entries.set(entryId, {
-			real: realValue.amounts,
-			virtual: virtualValue.amounts,
 			missingRates: {
 				real: realValue.missingRates,
 				virtual: virtualValue.missingRates,
 			},
+			real: realValue.amounts,
+			virtual: virtualValue.amounts,
 		});
 	}
 	return { entries };

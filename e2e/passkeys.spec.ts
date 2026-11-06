@@ -18,26 +18,26 @@ test("registers a passkey in Settings and signs back into the same account", asy
 		"WebAuthn.addVirtualAuthenticator",
 		{
 			options: {
-				protocol: "ctap2",
-				transport: "internal",
+				automaticPresenceSimulation: true,
 				hasResidentKey: true,
 				hasUserVerification: true,
 				isUserVerified: true,
-				automaticPresenceSimulation: true,
+				protocol: "ctap2",
+				transport: "internal",
 			},
 		}
 	);
 	try {
 		await page
-			.getByRole("button", { name: "Add passkey", exact: true })
+			.getByRole("button", { exact: true, name: "Add passkey" })
 			.click();
 		const form = page.getByRole("dialog", {
-			name: "Add passkey",
 			exact: true,
+			name: "Add passkey",
 		});
 		const passkeyName = "E2E mobile authenticator";
 		await form.getByLabel("Name").fill(passkeyName);
-		await form.getByRole("button", { name: "Add", exact: true }).click();
+		await form.getByRole("button", { exact: true, name: "Add" }).click();
 		await expect(form).toBeHidden();
 		await expect(page.getByText(passkeyName, { exact: true })).toBeVisible();
 		const registered = await cdp.send("WebAuthn.getCredentials", {
@@ -52,20 +52,20 @@ test("registers a passkey in Settings and signs back into the same account", asy
 
 		await page.reload();
 		await expect(page.getByText(passkeyName, { exact: true })).toBeVisible();
-		await page.getByRole("button", { name: "Sign out", exact: true }).click();
+		await page.getByRole("button", { exact: true, name: "Sign out" }).click();
 		await expect(page).toHaveURL((url) => url.pathname === "/login");
 		const signedOut = await page.request.get(`${API_URL}/api/auth/get-session`);
 		expect(signedOut.ok()).toBe(true);
 		expect(await signedOut.json()).toBeNull();
 		await page
-			.getByRole("button", { name: "Sign in with a passkey", exact: true })
+			.getByRole("button", { exact: true, name: "Sign in with a passkey" })
 			.click();
 		await expect(page).toHaveURL((url) => url.pathname === "/");
 		const resumed = await page.request.get(`${API_URL}/api/auth/get-session`);
 		expect(resumed.ok()).toBe(true);
 		expect((await resumed.json()).user).toMatchObject({
-			id: originalSession.user.id,
 			email: account.email,
+			id: originalSession.user.id,
 		});
 		const authenticated = await cdp.send("WebAuthn.getCredentials", {
 			authenticatorId,

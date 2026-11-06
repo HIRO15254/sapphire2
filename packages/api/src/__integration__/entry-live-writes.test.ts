@@ -25,20 +25,20 @@ function minutes(count: number): Date {
 
 function cashStart(overrides: Partial<LiveEntryStart> = {}): LiveEntryStart {
 	return {
-		id: "live-1",
-		userId: "alice",
-		detail: { kind: "cash", ringGameId: null, cashRuleId: "cash-rule" },
 		assetId: null,
-		roomId: null,
-		memo: null,
+		detail: { cashRuleId: "cash-rule", kind: "cash", ringGameId: null },
+		id: "live-1",
 		localDate: LOCAL_DATE,
+		memo: null,
 		now: START,
+		roomId: null,
 		startEvent: {
 			occurredAt: START,
 			payload: {
 				payments: [{ assetId: "chips", quantity: 1000, role: "buy_in" }],
 			},
 		},
+		userId: "alice",
 		...overrides,
 	};
 }
@@ -52,11 +52,11 @@ async function applyEntryEventChange(
 ) {
 	const state = await loadEntryEventState(db, userId, entryId);
 	return await commitEntryEventChange(db, {
-		userId,
-		entryId,
 		change,
+		entryId,
 		now,
 		state,
+		userId,
 	});
 }
 
@@ -107,9 +107,9 @@ function listEntryPlayEvents(db: Database, userId: string, entryId: string) {
 async function everyRow(db: Database) {
 	return {
 		entries: await db.select().from(entry),
-		tournaments: await db.select().from(entryTournament),
-		plays: await db.select().from(playSession),
 		events: await db.select().from(playEvent).orderBy(asc(playEvent.sortOrder)),
+		plays: await db.select().from(playSession),
+		tournaments: await db.select().from(entryTournament),
 	};
 }
 
@@ -154,28 +154,28 @@ describe("live entry writes keep the event log and its projection in step", () =
 			"alice",
 			"live-1",
 			{
-				op: "append",
 				events: [
 					{
-						type: "session_pause",
 						occurredAt: minutes(10),
 						payload: {},
+						type: "session_pause",
 					},
 					{
-						type: "session_resume",
 						occurredAt: minutes(25),
 						payload: {},
+						type: "session_resume",
 					},
 					{
-						type: "session_end",
 						occurredAt: minutes(60),
 						payload: {
 							payments: [
 								{ assetId: "chips", quantity: 3000, role: "cash_out" },
 							],
 						},
+						type: "session_end",
 					},
 				],
+				op: "append",
 			},
 			minutes(60)
 		);
@@ -185,7 +185,7 @@ describe("live entry writes keep the event log and its projection in step", () =
 			api.db,
 			"alice",
 			"live-1",
-			{ op: "delete", id: eventIds[1] as string },
+			{ id: eventIds[1] as string, op: "delete" },
 			minutes(61)
 		);
 		expect(await onlyPlay(api.db, "live-1")).toMatchObject({
@@ -203,11 +203,11 @@ describe("live entry writes keep the event log and its projection in step", () =
 			"alice",
 			"live-1",
 			{
-				op: "append",
 				events: [
-					{ type: "session_pause", occurredAt: minutes(10), payload: {} },
-					{ type: "session_resume", occurredAt: minutes(25), payload: {} },
+					{ occurredAt: minutes(10), payload: {}, type: "session_pause" },
+					{ occurredAt: minutes(25), payload: {}, type: "session_resume" },
 				],
+				op: "append",
 			},
 			minutes(30)
 		);
@@ -217,7 +217,7 @@ describe("live entry writes keep the event log and its projection in step", () =
 			api.db,
 			"alice",
 			"live-1",
-			{ op: "delete", id: eventIds[0] as string },
+			{ id: eventIds[0] as string, op: "delete" },
 			minutes(31)
 		).catch((error: unknown) => error);
 
@@ -250,24 +250,24 @@ describe("live entry writes keep the event log and its projection in step", () =
 			"alice",
 			"live-1",
 			{
-				op: "append",
 				events: [
 					{
-						type: "session_end",
 						occurredAt: minutes(120),
 						payload: { beforeDeadline: true, payments: [] },
+						type: "session_end",
 					},
 				],
+				op: "append",
 			},
 			minutes(120)
 		);
 
 		expect(await onlyPlay(api.db, "live-1")).toMatchObject({
-			status: "ended",
 			endState: "busted",
+			status: "ended",
 		});
 		const detail = only(await api.db.select().from(entryTournament));
-		expect(detail).toMatchObject({ placement: null, beforeDeadline: true });
+		expect(detail).toMatchObject({ beforeDeadline: true, placement: null });
 		expect(only(await api.db.select().from(entry)).status).toBe("settled");
 	});
 
@@ -286,14 +286,14 @@ describe("live entry writes keep the event log and its projection in step", () =
 						"alice",
 						"live-1",
 						{
-							op: "append",
 							events: [
 								{
-									type: "memo",
 									occurredAt: minutes(5),
 									payload: { text: "first" },
+									type: "memo",
 								},
 							],
+							op: "append",
 						},
 						minutes(5)
 					);
@@ -308,14 +308,14 @@ describe("live entry writes keep the event log and its projection in step", () =
 				"alice",
 				"live-1",
 				{
-					op: "append",
 					events: [
 						{
-							type: "memo",
 							occurredAt: minutes(6),
 							payload: { text: "second" },
+							type: "memo",
 						},
 					],
+					op: "append",
 				},
 				minutes(6)
 			)
@@ -333,16 +333,16 @@ describe("live entry writes keep the event log and its projection in step", () =
 	}) => {
 		await startLive(api);
 		const end = (quantity: number) => ({
-			op: "append" as const,
 			events: [
 				{
-					type: "session_end",
 					occurredAt: minutes(30),
 					payload: {
 						payments: [{ assetId: "chips", quantity, role: "cash_out" }],
 					},
+					type: "session_end",
 				},
 			],
+			op: "append" as const,
 		});
 		const racing = new Proxy(api.db, {
 			get(target, property, receiver) {
@@ -377,8 +377,8 @@ describe("live entry writes keep the event log and its projection in step", () =
 			"session_end",
 		]);
 		expect(await onlyPlay(api.db, "live-1")).toMatchObject({
-			status: "ended",
 			endStack: 1200,
+			status: "ended",
 		});
 	});
 });
@@ -394,9 +394,9 @@ describe("live entry writes commit all of a write or none of it on D1", () => {
 		expect(errorMessages(failure)).toContain("test forced failure");
 		expect(await everyRow(api.db)).toEqual({
 			entries: [],
-			tournaments: [],
-			plays: [],
 			events: [],
+			plays: [],
+			tournaments: [],
 		});
 	});
 
@@ -412,18 +412,18 @@ describe("live entry writes commit all of a write or none of it on D1", () => {
 			"alice",
 			"live-1",
 			{
-				op: "append",
 				events: [
 					{
-						type: "session_end",
 						occurredAt: minutes(30),
 						payload: {
 							payments: [
 								{ assetId: "chips", quantity: 1200, role: "cash_out" },
 							],
 						},
+						type: "session_end",
 					},
 				],
+				op: "append",
 			},
 			minutes(30)
 		).catch((error: unknown) => error);
@@ -441,18 +441,18 @@ describe("live entry writes commit all of a write or none of it on D1", () => {
 			"alice",
 			"live-1",
 			{
-				op: "append",
 				events: [
 					{
-						type: "session_end",
 						occurredAt: minutes(30),
 						payload: {
 							payments: [
 								{ assetId: "chips", quantity: 1200, role: "cash_out" },
 							],
 						},
+						type: "session_end",
 					},
 				],
+				op: "append",
 			},
 			minutes(30)
 		);
@@ -464,8 +464,8 @@ describe("live entry writes commit all of a write or none of it on D1", () => {
 			"alice",
 			"live-1",
 			{
-				op: "update",
 				id: eventIds[0] as string,
+				op: "update",
 				payload: {
 					payments: [{ assetId: "chips", quantity: 9, role: "cash_out" }],
 				},

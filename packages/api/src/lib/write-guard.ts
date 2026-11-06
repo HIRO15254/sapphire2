@@ -31,7 +31,7 @@ export async function withWriteGuardConflict<T>(
 		return await run();
 	} catch (error) {
 		if (isWriteGuardError(error)) {
-			throw new TRPCError({ code: "CONFLICT", message, cause: error });
+			throw new TRPCError({ cause: error, code: "CONFLICT", message });
 		}
 		throw error;
 	}

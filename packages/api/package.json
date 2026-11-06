@@ -13,12 +13,12 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "openai": "catalog:",
     "@sapphire2/auth": "workspace:*",
     "@sapphire2/db": "workspace:*",
     "@trpc/client": "catalog:",
     "@trpc/server": "catalog:",
     "drizzle-orm": "catalog:",
+    "openai": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

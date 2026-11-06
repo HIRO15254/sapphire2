@@ -158,6 +158,7 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 		},
 	}));
 	const insert = vi.fn((table: unknown) => ({
+		select: vi.fn(() => Promise.resolve(undefined)),
 		values: vi.fn((values: unknown) => {
 			const name = getTableName(table as never);
 			const bucket = inserted[name] ?? [];
@@ -170,7 +171,6 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 			chain.onConflictDoUpdate = () => chain;
 			return chain;
 		}),
-		select: vi.fn(() => Promise.resolve(undefined)),
 	}));
 	const del = vi.fn((table: unknown) => ({
 		where: vi.fn((cond: unknown) => {
@@ -204,19 +204,19 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 	const batch = vi.fn((statements: unknown[]) =>
 		Promise.all(statements as Promise<unknown>[])
 	);
-	const db: Database = { select, insert, delete: del, update, batch } as never;
+	const db: Database = { batch, delete: del, insert, select, update } as never;
 
 	return {
+		batch,
 		db,
-		selectLimits,
-		selectWhereParams,
 		deleteWhereParams,
-		select,
 		insert,
 		inserted,
+		select,
 		selectedTables,
-		batch,
-		updated,
+		selectLimits,
+		selectWhereParams,
 		update,
+		updated,
 	};
 }

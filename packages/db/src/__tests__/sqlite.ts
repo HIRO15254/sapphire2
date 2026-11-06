@@ -13,7 +13,7 @@ export type SqliteRow = Record<string, SQLOutputValue>;
 export const migrationsDirectory = fileURLToPath(
 	new URL("../migrations/", import.meta.url)
 );
-const MIGRATION_FILE_PATTERN = /^\d{4}_.+\.sql$/;
+const MIGRATION_FILE_PATTERN = /^\d{4}_.+\.sql$/u;
 
 export function openDatabase(path = ":memory:"): Database {
 	return new DatabaseSync(path, { enableForeignKeyConstraints: false });

@@ -17,12 +17,6 @@ import {
 const seatPositionSchema = z.number().int().min(0).max(MAX_SEAT_POSITION);
 
 export const tablePlayerRouter = router({
-	list: protectedProcedure
-		.input(z.object({ entryId: idSchema, activeOnly: z.boolean().optional() }))
-		.query(async ({ ctx, input }) => ({
-			items: await listTablePlayers(ctx.db, ctx.session.user.id, input),
-		})),
-
 	add: protectedProcedure
 		.input(
 			z.object({
@@ -40,8 +34,8 @@ export const tablePlayerRouter = router({
 		.input(
 			z.object({
 				entryId: idSchema,
-				playerName: playerNameSchema,
 				playerMemo: memoSchema.optional(),
+				playerName: playerNameSchema,
 				playerTagIds: tagIdsSchema.optional(),
 				seatPosition: seatPositionSchema.optional(),
 			})
@@ -67,6 +61,18 @@ export const tablePlayerRouter = router({
 					new Date()
 				)
 		),
+	list: protectedProcedure
+		.input(z.object({ activeOnly: z.boolean().optional(), entryId: idSchema }))
+		.query(async ({ ctx, input }) => ({
+			items: await listTablePlayers(ctx.db, ctx.session.user.id, input),
+		})),
+
+	remove: protectedProcedure
+		.input(z.object({ entryId: idSchema, playerId: idSchema }))
+		.mutation(
+			async ({ ctx, input }) =>
+				await removeTablePlayer(ctx.db, ctx.session.user.id, input, new Date())
+		),
 
 	updateSeat: protectedProcedure
 		.input(
@@ -84,12 +90,5 @@ export const tablePlayerRouter = router({
 					input,
 					new Date()
 				)
-		),
-
-	remove: protectedProcedure
-		.input(z.object({ entryId: idSchema, playerId: idSchema }))
-		.mutation(
-			async ({ ctx, input }) =>
-				await removeTablePlayer(ctx.db, ctx.session.user.id, input, new Date())
 		),
 });

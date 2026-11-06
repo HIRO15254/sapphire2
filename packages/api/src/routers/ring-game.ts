@@ -22,22 +22,22 @@ import {
 
 const name = z.string().trim().min(1).max(100);
 export const ringGameListByRoomInputSchema = z.object({
-	roomId: id,
 	includeArchived: z.boolean().optional(),
+	roomId: id,
 });
 export const ringGameIdInputSchema = z.object({ id });
 export const ringGameCreateInputSchema = z.object({
-	roomId: id,
-	name,
 	defaultAssetId: id.nullable().optional(),
 	memo: memoSchema.nullable().optional(),
+	name,
+	roomId: id,
 	rule: cashRuleInputSchema,
 });
 export const ringGameUpdateInputSchema = z.object({
-	id,
-	name: name.optional(),
 	defaultAssetId: id.nullable().optional(),
+	id,
 	memo: memoSchema.nullable().optional(),
+	name: name.optional(),
 	rule: cashRuleInputSchema.optional(),
 });
 export const ringGameRestoreRuleInputSchema = z.object({
@@ -105,14 +105,14 @@ export async function planRingGameCreate(
 			: []),
 		...version.statements,
 		db.insert(ringGame).values({
-			id: params.id,
-			userId: params.userId,
-			roomId: params.input.roomId,
-			name: params.input.name,
-			defaultAssetId: params.input.defaultAssetId ?? null,
-			memo: params.input.memo ?? null,
 			currentRuleId: version.id,
+			defaultAssetId: params.input.defaultAssetId ?? null,
+			id: params.id,
+			memo: params.input.memo ?? null,
+			name: params.input.name,
+			roomId: params.input.roomId,
 			updatedAt: params.now,
+			userId: params.userId,
 		}),
 		db
 			.update(cashRule)
@@ -150,16 +150,16 @@ async function hydrateRingGames(
 			});
 		}
 		return {
-			id: row.id,
-			roomId: row.roomId,
-			name: row.name,
-			defaultAssetId: row.defaultAssetId,
-			memo: row.memo,
 			archivedAt: row.archivedAt,
-			currentRuleId: row.currentRuleId,
-			ruleVersion,
-			lineups: { [ruleVersion.lineupId]: lineup },
 			createdAt: row.createdAt,
+			currentRuleId: row.currentRuleId,
+			defaultAssetId: row.defaultAssetId,
+			id: row.id,
+			lineups: { [ruleVersion.lineupId]: lineup },
+			memo: row.memo,
+			name: row.name,
+			roomId: row.roomId,
+			ruleVersion,
 			updatedAt: row.updatedAt,
 		};
 	});
@@ -183,6 +183,59 @@ const conflict = () =>
 	});
 
 export const ringGameRouter = router({
+	archive: protectedProcedure
+		.input(ringGameIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await validateEntityOwnership(ctx.db, "ringGame", input.id, userId);
+			await ctx.db
+				.update(ringGame)
+				.set({ archivedAt: new Date(), updatedAt: new Date() })
+				.where(and(eq(ringGame.id, input.id), eq(ringGame.userId, userId)));
+			return fetchRingGame(ctx.db, userId, input.id);
+		}),
+	create: protectedProcedure
+		.input(ringGameCreateInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const gameId = crypto.randomUUID();
+			const { statements } = await planRingGameCreate(ctx.db, {
+				id: gameId,
+				input,
+				now: new Date(),
+				userId,
+			});
+			await runGuardedBatch(ctx.db, statements);
+			return fetchRingGame(ctx.db, userId, gameId);
+		}),
+	delete: protectedProcedure
+		.input(ringGameIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await validateEntityOwnership(ctx.db, "ringGame", input.id, userId);
+			try {
+				const deleted = await ctx.db
+					.delete(ringGame)
+					.where(
+						and(
+							eq(ringGame.id, input.id),
+							eq(ringGame.userId, userId),
+							sql`NOT EXISTS (SELECT 1 FROM entry_cash e WHERE e.ring_game_id = ${ringGame.id} OR e.cash_rule_id IN (SELECT id FROM cash_rule WHERE ring_game_id = ${ringGame.id}))`,
+							sql`NOT EXISTS (SELECT 1 FROM cash_rule child WHERE (child.ring_game_id IS NULL OR child.ring_game_id <> ${ringGame.id}) AND child.parent_rule_id IN (SELECT id FROM cash_rule WHERE ring_game_id = ${ringGame.id}))`
+						)
+					)
+					.returning({ id: ringGame.id });
+				if (!deleted.length) {
+					throw conflict();
+				}
+			} catch (error) {
+				if (isForeignKeyConstraintError(error)) {
+					throw conflict();
+				}
+				throw error;
+			}
+			return { success: true };
+		}),
 	listByRoom: protectedProcedure
 		.input(ringGameListByRoomInputSchema)
 		.query(async ({ ctx, input }) => {
@@ -200,19 +253,54 @@ export const ringGameRouter = router({
 				);
 			return hydrateRingGames(ctx.db, userId, rows);
 		}),
-	create: protectedProcedure
-		.input(ringGameCreateInputSchema)
+	restore: protectedProcedure
+		.input(ringGameIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const gameId = crypto.randomUUID();
-			const { statements } = await planRingGameCreate(ctx.db, {
-				id: gameId,
-				input,
-				userId,
-				now: new Date(),
-			});
-			await runGuardedBatch(ctx.db, statements);
-			return fetchRingGame(ctx.db, userId, gameId);
+			await validateEntityOwnership(ctx.db, "ringGame", input.id, userId);
+			await ctx.db
+				.update(ringGame)
+				.set({ archivedAt: null, updatedAt: new Date() })
+				.where(and(eq(ringGame.id, input.id), eq(ringGame.userId, userId)));
+			return fetchRingGame(ctx.db, userId, input.id);
+		}),
+	restoreRule: protectedProcedure
+		.input(ringGameRestoreRuleInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const existing = await validateEntityOwnership(
+				ctx.db,
+				"ringGame",
+				input.id,
+				userId
+			);
+			await validateOwnedIds(ctx.db, cashRule, [input.ruleVersionId], userId);
+			const [version] = await ctx.db
+				.select()
+				.from(cashRule)
+				.where(
+					and(eq(cashRule.id, input.ruleVersionId), eq(cashRule.userId, userId))
+				);
+			if (version?.ringGameId !== input.id) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "Rule version belongs to another ring game",
+				});
+			}
+			await runGuardedBatch(ctx.db, [
+				ctx.db
+					.update(ringGame)
+					.set({ currentRuleId: version.id, updatedAt: new Date() })
+					.where(
+						and(
+							eq(ringGame.id, input.id),
+							eq(ringGame.userId, userId),
+							eq(ringGame.currentRuleId, existing.currentRuleId)
+						)
+					),
+				changedRowsGuardStatement(ctx.db, "ring-game-restore-rule"),
+			]);
+			return fetchRingGame(ctx.db, userId, input.id);
 		}),
 	update: protectedProcedure
 		.input(ringGameUpdateInputSchema)
@@ -270,93 +358,5 @@ export const ringGameRouter = router({
 			];
 			await runGuardedBatch(ctx.db, statements);
 			return fetchRingGame(ctx.db, userId, input.id);
-		}),
-	restoreRule: protectedProcedure
-		.input(ringGameRestoreRuleInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			const existing = await validateEntityOwnership(
-				ctx.db,
-				"ringGame",
-				input.id,
-				userId
-			);
-			await validateOwnedIds(ctx.db, cashRule, [input.ruleVersionId], userId);
-			const [version] = await ctx.db
-				.select()
-				.from(cashRule)
-				.where(
-					and(eq(cashRule.id, input.ruleVersionId), eq(cashRule.userId, userId))
-				);
-			if (version?.ringGameId !== input.id) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message: "Rule version belongs to another ring game",
-				});
-			}
-			await runGuardedBatch(ctx.db, [
-				ctx.db
-					.update(ringGame)
-					.set({ currentRuleId: version.id, updatedAt: new Date() })
-					.where(
-						and(
-							eq(ringGame.id, input.id),
-							eq(ringGame.userId, userId),
-							eq(ringGame.currentRuleId, existing.currentRuleId)
-						)
-					),
-				changedRowsGuardStatement(ctx.db, "ring-game-restore-rule"),
-			]);
-			return fetchRingGame(ctx.db, userId, input.id);
-		}),
-	archive: protectedProcedure
-		.input(ringGameIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "ringGame", input.id, userId);
-			await ctx.db
-				.update(ringGame)
-				.set({ archivedAt: new Date(), updatedAt: new Date() })
-				.where(and(eq(ringGame.id, input.id), eq(ringGame.userId, userId)));
-			return fetchRingGame(ctx.db, userId, input.id);
-		}),
-	restore: protectedProcedure
-		.input(ringGameIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "ringGame", input.id, userId);
-			await ctx.db
-				.update(ringGame)
-				.set({ archivedAt: null, updatedAt: new Date() })
-				.where(and(eq(ringGame.id, input.id), eq(ringGame.userId, userId)));
-			return fetchRingGame(ctx.db, userId, input.id);
-		}),
-	delete: protectedProcedure
-		.input(ringGameIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "ringGame", input.id, userId);
-			try {
-				const deleted = await ctx.db
-					.delete(ringGame)
-					.where(
-						and(
-							eq(ringGame.id, input.id),
-							eq(ringGame.userId, userId),
-							sql`NOT EXISTS (SELECT 1 FROM entry_cash e WHERE e.ring_game_id = ${ringGame.id} OR e.cash_rule_id IN (SELECT id FROM cash_rule WHERE ring_game_id = ${ringGame.id}))`,
-							sql`NOT EXISTS (SELECT 1 FROM cash_rule child WHERE (child.ring_game_id IS NULL OR child.ring_game_id <> ${ringGame.id}) AND child.parent_rule_id IN (SELECT id FROM cash_rule WHERE ring_game_id = ${ringGame.id}))`
-						)
-					)
-					.returning({ id: ringGame.id });
-				if (!deleted.length) {
-					throw conflict();
-				}
-			} catch (error) {
-				if (isForeignKeyConstraintError(error)) {
-					throw conflict();
-				}
-				throw error;
-			}
-			return { success: true };
 		}),
 });

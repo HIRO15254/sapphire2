@@ -8,7 +8,7 @@ import {
 	formatYmdSlash,
 } from "@/utils/format-number";
 
-const B_SUFFIX = /B$/;
+const B_SUFFIX = /B$/u;
 
 describe("formatCompactNumber", () => {
 	describe("below the 10k threshold", () => {

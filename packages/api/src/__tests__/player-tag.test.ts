@@ -15,8 +15,8 @@ describe("playerTag.create input validation", () => {
 
 	it("rejects unknown color", () => {
 		expectRejects(appRouter.playerTag.create, {
-			name: "tag",
 			color: "neon_pink",
+			name: "tag",
 		});
 	});
 });
@@ -28,8 +28,8 @@ describe("playerTag.update input validation", () => {
 
 	it("rejects unknown color", () => {
 		expectRejects(appRouter.playerTag.update, {
-			id: "pt1",
 			color: "chartreuse",
+			id: "pt1",
 		});
 	});
 });

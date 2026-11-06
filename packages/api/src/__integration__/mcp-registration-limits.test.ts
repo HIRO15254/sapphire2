@@ -41,42 +41,40 @@ async function clientCount(d1: TestD1Database): Promise<number> {
 }
 
 test.for([
-	{ bytes: MAX_BODY_BYTES, status: 201, clients: 1 },
-	{ bytes: MAX_BODY_BYTES + 1, status: 413, clients: 0 },
-])("a $bytes-byte registration body answers $status", async ({
-	bytes,
-	status,
-	clients,
-}, { api }) => {
-	const request = createWorkerClient(api.d1);
-	const body = registrationOfSize(bytes);
-	expect(new TextEncoder().encode(JSON.stringify(body)).length).toBe(bytes);
-	const response = await request(
-		REGISTER_PATH,
-		jsonPost(body, { "cf-connecting-ip": `198.51.100.${bytes % 200}` })
-	);
-	expect(response.status).toBe(status);
-	expect(await clientCount(api.d1)).toBe(clients);
-});
+	{ bytes: MAX_BODY_BYTES, clients: 1, status: 201 },
+	{ bytes: MAX_BODY_BYTES + 1, clients: 0, status: 413 },
+])(
+	"a $bytes-byte registration body answers $status",
+	async ({ bytes, status, clients }, { api }) => {
+		const request = createWorkerClient(api.d1);
+		const body = registrationOfSize(bytes);
+		expect(new TextEncoder().encode(JSON.stringify(body)).length).toBe(bytes);
+		const response = await request(
+			REGISTER_PATH,
+			jsonPost(body, { "cf-connecting-ip": `198.51.100.${bytes % 200}` })
+		);
+		expect(response.status).toBe(status);
+		expect(await clientCount(api.d1)).toBe(clients);
+	}
+);
 
 test.for([
-	{ count: 10, status: 201, clients: 1 },
-	{ count: 11, status: 400, clients: 0 },
-])("registering $count redirect URIs answers $status", async ({
-	count,
-	status,
-	clients,
-}, { api }) => {
-	const request = createWorkerClient(api.d1);
-	const response = await request(
-		REGISTER_PATH,
-		jsonPost(registration(redirectUris(count)), {
-			"cf-connecting-ip": `198.51.100.2${count}`,
-		})
-	);
-	expect(response.status).toBe(status);
-	expect(await clientCount(api.d1)).toBe(clients);
-});
+	{ clients: 1, count: 10, status: 201 },
+	{ clients: 0, count: 11, status: 400 },
+])(
+	"registering $count redirect URIs answers $status",
+	async ({ count, status, clients }, { api }) => {
+		const request = createWorkerClient(api.d1);
+		const response = await request(
+			REGISTER_PATH,
+			jsonPost(registration(redirectUris(count)), {
+				"cf-connecting-ip": `198.51.100.2${count}`,
+			})
+		);
+		expect(response.status).toBe(status);
+		expect(await clientCount(api.d1)).toBe(clients);
+	}
+);
 
 test("one connecting IP registers at most 20 clients per hour", async ({
 	api,

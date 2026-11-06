@@ -33,7 +33,7 @@ describe("OAuth discovery endpoints", () => {
 	it("allows cross-origin reads of the discovery documents", async () => {
 		const response = await app.request(
 			"/.well-known/oauth-authorization-server",
-			{ method: "GET", headers: { origin: "https://claude.ai" } },
+			{ headers: { origin: "https://claude.ai" }, method: "GET" },
 			env
 		);
 		expect(response.headers.get("access-control-allow-origin")).toBe("*");

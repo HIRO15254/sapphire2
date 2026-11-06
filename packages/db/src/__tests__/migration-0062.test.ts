@@ -99,7 +99,7 @@ describe("migration 0062 — hand count cutover", () => {
 	});
 
 	afterAll(() => {
-		rmSync(snapshotDirectory, { recursive: true, force: true });
+		rmSync(snapshotDirectory, { force: true, recursive: true });
 	});
 
 	beforeEach(() => {

@@ -39,8 +39,8 @@ const MCP_REGISTRATION_MAX_PER_WINDOW = 20;
 export function hashMcpAccessToken(token: string): Promise<string> {
 	return Promise.resolve(
 		getOAuthProviderApi({} as Parameters<typeof getOAuthProviderApi>[0], {
-			loginPage: "",
 			consentPage: "",
+			loginPage: "",
 			storeTokens: MCP_TOKEN_STORAGE,
 		}).hashToken(token, "access_token")
 	);
@@ -51,7 +51,7 @@ function hexEncode(bytes: Uint8Array): string {
 }
 
 function hexDecode(hex: string): Uint8Array {
-	const matches = hex.match(/.{2}/g) ?? [];
+	const matches = hex.match(/.{2}/gu) ?? [];
 	return new Uint8Array(matches.map((byte) => Number.parseInt(byte, 16)));
 }
 
@@ -80,10 +80,10 @@ async function hashPassword(password: string): Promise<string> {
 	);
 	const derivedBits = await crypto.subtle.deriveBits(
 		{
+			hash: "SHA-256",
+			iterations: 100_000,
 			name: "PBKDF2",
 			salt: salt.buffer,
-			iterations: 100_000,
-			hash: "SHA-256",
 		} as never,
 		keyMaterial,
 		256
@@ -108,10 +108,10 @@ async function verifyPassword(data: {
 	);
 	const derivedBits = await crypto.subtle.deriveBits(
 		{
+			hash: "SHA-256",
+			iterations: 100_000,
 			name: "PBKDF2",
 			salt: salt.buffer,
-			iterations: 100_000,
-			hash: "SHA-256",
 		} as never,
 		keyMaterial,
 		256
@@ -122,26 +122,26 @@ async function verifyPassword(data: {
 const authSchema = {
 	account,
 	accountRelations,
+	oauthAccessToken,
+	oauthAccessTokenRelations,
+	oauthClient,
+	oauthClientAssertion,
+	oauthClientRelations,
+	oauthClientResource,
+	oauthClientResourceRelations,
+	oauthConsent,
+	oauthConsentRelations,
+	oauthRefreshToken,
+	oauthRefreshTokenRelations,
+	oauthResource,
+	oauthResourceRelations,
+	passkey,
+	passkeyRelations,
 	session,
 	sessionRelations,
 	user,
 	userRelations,
 	verification,
-	oauthClient,
-	oauthClientRelations,
-	oauthResource,
-	oauthResourceRelations,
-	oauthClientResource,
-	oauthClientResourceRelations,
-	oauthRefreshToken,
-	oauthRefreshTokenRelations,
-	oauthAccessToken,
-	oauthAccessTokenRelations,
-	oauthConsent,
-	oauthConsentRelations,
-	oauthClientAssertion,
-	passkey,
-	passkeyRelations,
 };
 
 interface AuthOptions {
@@ -187,35 +187,35 @@ export function createAuth(
 	if (options.mcp) {
 		plugins.push(
 			mcp({
-				loginPage: options.mcp.loginPage,
-				consentPage: options.mcp.consentPage,
-				resource: options.mcp.resource,
-				disableJwtPlugin: true,
-				storeTokens: MCP_TOKEN_STORAGE,
 				allowDynamicClientRegistration: true,
 				allowUnauthenticatedClientRegistration: true,
 				clientRegistrationDefaultApplicationType: "infer",
-				refreshTokenReuseInterval: 0,
-				refreshTokenExpiresIn: MCP_REFRESH_TOKEN_EXPIRES_IN_SECONDS,
+				consentPage: options.mcp.consentPage,
+				disableJwtPlugin: true,
+				loginPage: options.mcp.loginPage,
 				rateLimit: {
 					register: {
-						window: MCP_REGISTRATION_WINDOW_SECONDS,
 						max: MCP_REGISTRATION_MAX_PER_WINDOW,
+						window: MCP_REGISTRATION_WINDOW_SECONDS,
 					},
 				},
+				refreshTokenExpiresIn: MCP_REFRESH_TOKEN_EXPIRES_IN_SECONDS,
+				refreshTokenReuseInterval: 0,
+				resource: options.mcp.resource,
+				storeTokens: MCP_TOKEN_STORAGE,
 			})
 		);
 	}
 	if (options.passkey) {
 		plugins.push(
 			passkeyPlugin({
-				rpID: options.passkey.rpID,
-				rpName: options.passkey.rpName,
-				origin: options.passkey.origin,
 				authenticatorSelection: {
 					residentKey: "required",
 					userVerification: "preferred",
 				},
+				origin: options.passkey.origin,
+				rpID: options.passkey.rpID,
+				rpName: options.passkey.rpName,
 			}) as BetterAuthPlugin
 		);
 	}
@@ -224,13 +224,35 @@ export function createAuth(
 		trustedOrigins.push(new URL(options.baseURL).origin);
 	}
 	return betterAuth({
-		secret: options.secret,
+		account: {
+			accountLinking: {
+				disableImplicitLinking: true,
+				enabled: true,
+				trustedProviders: ["google", "discord"],
+			},
+		},
+		advanced: {
+			defaultCookieAttributes: {
+				httpOnly: true,
+				sameSite: "none",
+				secure: true,
+			},
+			ipAddress: {
+				ipAddressHeaders: ["cf-connecting-ip"],
+			},
+		},
 		baseURL: options.baseURL,
 		database: drizzleAdapter(dbInstance, {
 			provider: "sqlite",
 			schema: authSchema,
 		}),
-		trustedOrigins,
+		databaseHooks: {
+			user: {
+				create: {
+					after: (createdUser) => runUserCreatedHook(options, createdUser),
+				},
+			},
+		},
 		emailAndPassword: {
 			enabled: true,
 			password: {
@@ -238,19 +260,11 @@ export function createAuth(
 				verify: verifyPassword,
 			},
 		},
+		plugins,
+		secret: options.secret,
 		session: {
 			expiresIn: SESSION_EXPIRES_IN_SECONDS,
 			updateAge: SESSION_UPDATE_AGE_SECONDS,
-		},
-		advanced: {
-			ipAddress: {
-				ipAddressHeaders: ["cf-connecting-ip"],
-			},
-			defaultCookieAttributes: {
-				sameSite: "none",
-				secure: true,
-				httpOnly: true,
-			},
 		},
 		socialProviders: {
 			...(options.googleClientId &&
@@ -268,20 +282,6 @@ export function createAuth(
 					},
 				}),
 		},
-		account: {
-			accountLinking: {
-				enabled: true,
-				disableImplicitLinking: true,
-				trustedProviders: ["google", "discord"],
-			},
-		},
-		databaseHooks: {
-			user: {
-				create: {
-					after: (createdUser) => runUserCreatedHook(options, createdUser),
-				},
-			},
-		},
-		plugins,
+		trustedOrigins,
 	});
 }

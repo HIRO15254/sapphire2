@@ -20,8 +20,8 @@ import {
 	test,
 } from "./test-fixture";
 
-const FOREIGN_KEY_FAILURE = /FOREIGN KEY/;
-const ARCHIVE_GUIDANCE = /archive/i;
+const FOREIGN_KEY_FAILURE = /FOREIGN KEY/u;
+const ARCHIVE_GUIDANCE = /archive/iu;
 const day = new Date("2026-09-05T00:00:00.000Z");
 
 async function setup(api: ApiFixture) {
@@ -35,18 +35,18 @@ async function setup(api: ApiFixture) {
 	};
 	const room = requireCreatedRow(await api.alice.room.create({ name: "Club" }));
 	const cash = requireCreatedRow(
-		await api.alice.asset.create({ name: "JPY", kind: "currency" })
+		await api.alice.asset.create({ kind: "currency", name: "JPY" })
 	);
 	const ticket = requireCreatedRow(
-		await api.alice.asset.create({ name: "Satellite ticket", kind: "item" })
+		await api.alice.asset.create({ kind: "item", name: "Satellite ticket" })
 	);
 	return {
-		room,
 		cash,
-		ticket,
 		nlh: variant("nlh"),
 		plo: variant("plo"),
 		razz: variant("razz"),
+		room,
+		ticket,
 	};
 }
 
@@ -71,8 +71,8 @@ describe("tournament rule versions on D1", () => {
 			await api.alice.room.create({ name: "Club" })
 		);
 		const created = await api.alice.tournament.create({
-			roomId: room.id,
 			name: "Daily",
+			roomId: room.id,
 			rule: {},
 		});
 		const raced = api.raceCaller("alice", async () => {
@@ -98,7 +98,7 @@ describe("tournament rule versions on D1", () => {
 		);
 		await api.alice.room.archive({ id: room.id });
 		await expect(
-			api.alice.tournament.create({ roomId: room.id, name: "Daily", rule: {} })
+			api.alice.tournament.create({ name: "Daily", roomId: room.id, rule: {} })
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		expect(await api.alice.tournament.listByRoom({ roomId: room.id })).toEqual(
 			[]
@@ -110,54 +110,54 @@ describe("tournament rule versions on D1", () => {
 	}) => {
 		const { room, cash, ticket, nlh, razz } = await setup(api);
 		const created = await api.alice.tournament.createWithLevels({
-			roomId: room.id,
-			name: "Sunday",
 			defaultAssetId: cash.id,
+			name: "Sunday",
+			roomId: room.id,
 			rule: {
 				game: { variantId: nlh.id },
-				startingStack: 20_000,
-				tableSize: 9,
 				levels: [
 					{
 						isBreak: false,
 						minutes: 20,
 						stakes: [
 							{
-								gameGroupId: nlh.groupId,
-								blind1: 100,
-								blind2: 200,
 								ante: 200,
 								anteType: "bb",
+								blind1: 100,
+								blind2: 200,
+								gameGroupId: nlh.groupId,
 							},
 						],
 					},
 					{ isBreak: true, minutes: 10 },
 					{
+						game: { variantId: razz.id },
 						isBreak: false,
 						minutes: 20,
-						game: { variantId: razz.id },
 						stakes: [
-							{ gameGroupId: razz.groupId, blind1: 50, blind2: 100, ante: 10 },
+							{ ante: 10, blind1: 50, blind2: 100, gameGroupId: razz.groupId },
 						],
 					},
 				],
 				prices: [
 					{
-						kind: "entry",
-						assetId: cash.id,
 						amount: 10_000,
-						fee: 1000,
+						assetId: cash.id,
 						chips: null,
+						fee: 1000,
+						kind: "entry",
 					},
 					{
-						kind: "addon",
-						assetId: ticket.id,
 						amount: 1,
-						fee: 0,
+						assetId: ticket.id,
 						chips: 10_000,
+						fee: 0,
+						kind: "addon",
 						label: "Ticket add-on",
 					},
 				],
+				startingStack: 20_000,
+				tableSize: 9,
 			},
 		});
 		const v1 = created.ruleVersion;
@@ -169,12 +169,12 @@ describe("tournament rule versions on D1", () => {
 		expect(v1.levels[0]?.game).toBeNull();
 		expect(v1.levels[0]?.stakes).toEqual([
 			expect.objectContaining({
-				gameGroupId: nlh.groupId,
+				ante: 200,
+				anteType: "bb",
 				blind1: 100,
 				blind2: 200,
 				blind3: null,
-				ante: 200,
-				anteType: "bb",
+				gameGroupId: nlh.groupId,
 			}),
 		]);
 		expect(v1.levels[1]?.stakes).toEqual([]);
@@ -183,22 +183,22 @@ describe("tournament rule versions on D1", () => {
 		expect(created.lineups[v1.lineupId]?.displayName).toBe("NL Hold'em");
 		expect(withoutIds(v1.prices)).toEqual([
 			{
-				ordinal: 1,
-				kind: "entry",
-				assetId: cash.id,
 				amount: 10_000,
-				fee: 1000,
+				assetId: cash.id,
 				chips: null,
+				fee: 1000,
+				kind: "entry",
 				label: "",
+				ordinal: 1,
 			},
 			{
-				ordinal: 2,
-				kind: "addon",
-				assetId: ticket.id,
 				amount: 1,
-				fee: 0,
+				assetId: ticket.id,
 				chips: 10_000,
+				fee: 0,
+				kind: "addon",
 				label: "Ticket add-on",
+				ordinal: 2,
 			},
 		]);
 
@@ -219,7 +219,7 @@ describe("tournament rule versions on D1", () => {
 
 		const resaved = await api.alice.tournament.update({
 			id: created.id,
-			rule: { startingStack: 30_000, game: { variantId: nlh.id } },
+			rule: { game: { variantId: nlh.id }, startingStack: 30_000 },
 		});
 		expect(resaved.currentRuleId).toBe(updated.currentRuleId);
 		expect(await versionCount(api)).toBe(2);
@@ -238,8 +238,8 @@ describe("tournament rule versions on D1", () => {
 	}) => {
 		const { room } = await setup(api);
 		const created = await api.alice.tournament.create({
-			roomId: room.id,
 			name: "Original",
+			roomId: room.id,
 			rule: {},
 		});
 		await api.alice.tournament.update({
@@ -266,33 +266,33 @@ describe("tournament rule versions on D1", () => {
 		const { room, nlh, plo, razz } = await setup(api);
 		const forward = requireCreatedRow(
 			await api.alice.gameMix.create({
-				label: "NLH Razz",
 				games: [nlh.id, razz.id],
+				label: "NLH Razz",
 			})
 		);
 		const reversed = requireCreatedRow(
 			await api.alice.gameMix.create({
-				label: "Razz NLH",
 				games: [razz.id, nlh.id],
+				label: "Razz NLH",
 			})
 		);
 		const created = await api.alice.tournament.createWithLevels({
-			roomId: room.id,
 			name: "Mixed",
+			roomId: room.id,
 			rule: {
 				game: { gameMixId: forward.id },
 				levels: [
 					{
 						isBreak: false,
 						stakes: [
-							{ gameGroupId: nlh.groupId, blind1: 100, blind2: 200 },
-							{ gameGroupId: razz.groupId, blind1: 10, blind2: 20 },
+							{ blind1: 100, blind2: 200, gameGroupId: nlh.groupId },
+							{ blind1: 10, blind2: 20, gameGroupId: razz.groupId },
 						],
 					},
 					{
-						isBreak: false,
 						game: { variantId: plo.id },
-						stakes: [{ gameGroupId: plo.groupId, blind1: 300, blind2: 600 }],
+						isBreak: false,
+						stakes: [{ blind1: 300, blind2: 600, gameGroupId: plo.groupId }],
 					},
 				],
 			},
@@ -321,8 +321,8 @@ describe("tournament rule versions on D1", () => {
 			stakes: overrideLevel?.stakes,
 		});
 		expect(reordered.lineups[reordered.ruleVersion.lineupId]).toMatchObject({
-			gameMixId: reversed.id,
 			displayName: "Razz NLH",
+			gameMixId: reversed.id,
 		});
 
 		const stud = await api.alice.tournament.update({
@@ -331,9 +331,9 @@ describe("tournament rule versions on D1", () => {
 		});
 		expect(stud.ruleVersion.levels[0]?.stakes).toEqual([
 			expect.objectContaining({
-				gameGroupId: razz.groupId,
 				blind1: 10,
 				blind2: 20,
+				gameGroupId: razz.groupId,
 			}),
 		]);
 	});
@@ -343,22 +343,22 @@ describe("tournament rule versions on D1", () => {
 	}) => {
 		const { room, cash, ticket } = await setup(api);
 		const price = {
-			kind: "entry" as const,
-			assetId: cash.id,
 			amount: 100,
-			fee: 0,
+			assetId: cash.id,
 			chips: null,
+			fee: 0,
+			kind: "entry" as const,
 		};
 		const created = await api.alice.tournament.create({
-			roomId: room.id,
 			name: "Daily",
+			roomId: room.id,
 			rule: { prices: [price, { ...price, kind: "reentry" }] },
 		});
 		await api.alice.asset.archive({ id: cash.id });
 		await expect(
 			api.alice.tournament.create({
-				roomId: room.id,
 				name: "Archived asset",
+				roomId: room.id,
 				rule: { prices: [price] },
 			})
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
@@ -372,7 +372,7 @@ describe("tournament rule versions on D1", () => {
 			rule: {
 				prices: [
 					{ ...price, amount: 200 },
-					{ ...price, kind: "addon", assetId: ticket.id },
+					{ ...price, assetId: ticket.id, kind: "addon" },
 					{ ...price, kind: "reentry" },
 				],
 			},
@@ -406,17 +406,17 @@ describe("tournament rule versions on D1", () => {
 	}) => {
 		const { room, cash, nlh, razz } = await setup(api);
 		const bobAsset = requireCreatedRow(
-			await api.bob.asset.create({ name: "USD", kind: "currency" })
+			await api.bob.asset.create({ kind: "currency", name: "USD" })
 		);
 		const bobVariants = await api.bob.gameVariant.list();
 		const created = await api.alice.tournament.create({
-			roomId: room.id,
 			name: "Daily",
+			roomId: room.id,
 			rule: {},
 		});
 		const other = await api.alice.tournament.create({
-			roomId: room.id,
 			name: "Other",
+			roomId: room.id,
 			rule: {},
 		});
 		const attempts: [() => Promise<unknown>, string][] = [
@@ -428,7 +428,7 @@ describe("tournament rule versions on D1", () => {
 							levels: [
 								{
 									isBreak: false,
-									stakes: [{ gameGroupId: razz.groupId, blind1: 1, blind2: 2 }],
+									stakes: [{ blind1: 1, blind2: 2, gameGroupId: razz.groupId }],
 								},
 							],
 						},
@@ -457,7 +457,7 @@ describe("tournament rule versions on D1", () => {
 					api.alice.tournament.update({
 						id: created.id,
 						rule: {
-							levels: [{ isBreak: true, game: { variantId: nlh.id } }],
+							levels: [{ game: { variantId: nlh.id }, isBreak: true }],
 						},
 					}),
 				"BAD_REQUEST",
@@ -469,11 +469,11 @@ describe("tournament rule versions on D1", () => {
 						rule: {
 							prices: [
 								{
-									kind: "entry",
-									assetId: bobAsset.id,
 									amount: 1,
-									fee: 0,
+									assetId: bobAsset.id,
 									chips: null,
+									fee: 0,
+									kind: "entry",
 								},
 							],
 						},
@@ -491,8 +491,8 @@ describe("tournament rule versions on D1", () => {
 			[
 				() =>
 					api.alice.tournament.update({
-						id: created.id,
 						defaultAssetId: bobAsset.id,
+						id: created.id,
 					}),
 				"FORBIDDEN",
 			],
@@ -521,9 +521,9 @@ describe("tournament rule versions on D1", () => {
 		expect(await versionCount(api)).toBe(2);
 
 		const bobRule = await api.bob.tournament.create({
+			name: "Bob",
 			roomId: requireCreatedRow(await api.bob.room.create({ name: "Bob club" }))
 				.id,
-			name: "Bob",
 			rule: {},
 		});
 		await expect(
@@ -539,13 +539,13 @@ describe("tournament rule versions on D1", () => {
 				.run()
 		).rejects.toThrow(FOREIGN_KEY_FAILURE);
 		const withStake = await api.alice.tournament.update({
-			id: created.id,
 			defaultAssetId: cash.id,
+			id: created.id,
 			rule: {
 				levels: [
 					{
 						isBreak: false,
-						stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+						stakes: [{ blind1: 1, blind2: 2, gameGroupId: nlh.groupId }],
 					},
 				],
 			},
@@ -567,8 +567,8 @@ describe("tournament rule versions on D1", () => {
 	}) => {
 		const { room, cash, nlh } = await setup(api);
 		const created = await api.alice.tournament.create({
-			roomId: room.id,
 			name: "Deep",
+			roomId: room.id,
 			rule: { game: { variantId: nlh.id } },
 		});
 		const levels = Array.from({ length: 30 }, (_, index) => ({
@@ -579,19 +579,19 @@ describe("tournament rule versions on D1", () => {
 				: {
 						stakes: [
 							{
-								gameGroupId: nlh.groupId,
 								blind1: (index + 1) * 100,
 								blind2: (index + 1) * 200,
+								gameGroupId: nlh.groupId,
 							},
 						],
 					}),
 		}));
 		const prices = Array.from({ length: 12 }, (_, index) => ({
-			kind: "reentry" as const,
-			assetId: cash.id,
 			amount: index * 100,
-			fee: 0,
+			assetId: cash.id,
 			chips: 10_000,
+			fee: 0,
+			kind: "reentry" as const,
 		}));
 		await api.d1
 			.prepare(
@@ -636,16 +636,16 @@ describe("tournament rule versions on D1", () => {
 		const { room, cash } = await setup(api);
 		const make = async (name: string) =>
 			await api.alice.tournament.create({
-				roomId: room.id,
 				name,
+				roomId: room.id,
 				rule: {
 					prices: [
 						{
-							kind: "entry",
-							assetId: cash.id,
 							amount: 100,
-							fee: 0,
+							assetId: cash.id,
 							chips: null,
+							fee: 0,
+							kind: "entry",
 						},
 					],
 				},
@@ -659,30 +659,30 @@ describe("tournament rule versions on D1", () => {
 		await api.db.insert(entry).values(
 			["pinned", "charged"].map((id) => ({
 				id,
-				userId: "alice",
 				kind: "tournament" as const,
+				playedOn: "2026-09-05",
 				source: "manual" as const,
 				status: "settled" as const,
-				playedOn: "2026-09-05",
 				updatedAt: day,
+				userId: "alice",
 			}))
 		);
 		await api.db.insert(entryTournament).values({
 			entryId: "pinned",
-			userId: "alice",
 			tournamentRuleId: byRule.currentRuleId,
+			userId: "alice",
 		});
 		await api.db.insert(ledgerLine).values({
-			id: "line",
-			userId: "alice",
 			assetId: cash.id,
-			quantity: -100,
-			role: "buy_in",
 			effect: "real",
 			entryId: "charged",
-			priceId: byPrice.ruleVersion.prices[0]?.id,
+			id: "line",
 			occurredAt: day,
+			priceId: byPrice.ruleVersion.prices[0]?.id,
+			quantity: -100,
+			role: "buy_in",
 			updatedAt: day,
+			userId: "alice",
 		});
 		for (const id of [byRule.id, byPrice.id]) {
 			await expect(api.alice.tournament.delete({ id })).rejects.toMatchObject({
@@ -701,18 +701,18 @@ describe("tournament rule versions on D1", () => {
 	}) => {
 		const { room, cash, nlh } = await setup(api);
 		const created = await api.alice.tournament.create({
-			roomId: room.id,
-			name: "Daily",
 			defaultAssetId: cash.id,
+			name: "Daily",
+			roomId: room.id,
 			rule: {
 				levels: [
 					{
 						isBreak: false,
-						stakes: [{ gameGroupId: nlh.groupId, blind1: 1, blind2: 2 }],
+						stakes: [{ blind1: 1, blind2: 2, gameGroupId: nlh.groupId }],
 					},
 				],
 				prices: [
-					{ kind: "entry", assetId: cash.id, amount: 100, fee: 0, chips: null },
+					{ amount: 100, assetId: cash.id, chips: null, fee: 0, kind: "entry" },
 				],
 			},
 		});
@@ -742,25 +742,25 @@ describe("tournament rule versions on D1", () => {
 			(_, index) => `tt-${index}`
 		);
 		const created = await api.alice.tournament.create({
-			roomId: room.id,
 			name: "Max",
+			roomId: room.id,
 			rule: {},
 			tagIds: tagIds.slice(0, 1),
 		});
 		const { caller, meter } = api.meteredCaller("alice");
 		const saved = await caller.tournament.updateWithLevels({
 			id: created.id,
-			tagIds,
 			rule: {
 				levels,
 				prices: Array.from({ length: MAX_RULE_PRICES }, (_, index) => ({
-					kind: "addon" as const,
-					assetId: cash.id,
 					amount: index,
-					fee: 0,
+					assetId: cash.id,
 					chips: 1000,
+					fee: 0,
+					kind: "addon" as const,
 				})),
 			},
+			tagIds,
 		});
 		expect(saved.ruleVersion.levels).toHaveLength(MAX_RULE_LEVELS);
 		expect(saved.tags.map(({ id }) => id)).toEqual(tagIds);

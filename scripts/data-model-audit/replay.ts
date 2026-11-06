@@ -70,11 +70,11 @@ function groupBy<T>(rows: Row[], key: string, map: (row: Row) => T) {
 function toEvent(row: Row): ProjectorEvent {
 	return {
 		id: text(row, "id"),
-		playSessionId: text(row, "play_session_id"),
-		type: text(row, "type"),
 		occurredAt: new Date(integer(row, "occurred_at") * 1000),
-		sortOrder: integer(row, "sort_order"),
 		payload: text(row, "payload"),
+		playSessionId: text(row, "play_session_id"),
+		sortOrder: integer(row, "sort_order"),
+		type: text(row, "type"),
 	};
 }
 
@@ -140,7 +140,7 @@ function compare(
 ): void {
 	for (const [field, stored, projected] of pairs) {
 		if (stored !== projected) {
-			findings.push({ entry_id: entryId, target, field, stored, projected });
+			findings.push({ entry_id: entryId, field, projected, stored, target });
 		}
 	}
 }
@@ -160,8 +160,8 @@ function project(
 		kind,
 		playSessions: sessions.map(({ id, seq, localDate }) => ({
 			id,
-			seq,
 			localDate,
+			seq,
 		})),
 	});
 }
@@ -343,28 +343,28 @@ export function runReplay(
 		const events = groupBy(eventRows, "entry_id", toEvent);
 		const schemaEvents = groupBy(eventRows, "entry_id", (row) => row);
 		const sessions = groupBy(sessionRows, "entry_id", (row) => ({
-			id: text(row, "id"),
-			seq: integer(row, "seq"),
-			localDate: text(row, "local_date"),
-			startedAt: nullableInteger(row, "started_at"),
-			endedAt: nullableInteger(row, "ended_at"),
 			breakMinutes: integer(row, "break_minutes"),
-			status: text(row, "status"),
-			endState: nullableText(row, "end_state"),
-			endStack: nullableInteger(row, "end_stack"),
 			clockStartedAt: nullableInteger(row, "clock_started_at"),
 			clockStartLevel: nullableInteger(row, "clock_start_level"),
+			endedAt: nullableInteger(row, "ended_at"),
+			endStack: nullableInteger(row, "end_stack"),
+			endState: nullableText(row, "end_state"),
+			id: text(row, "id"),
+			localDate: text(row, "local_date"),
+			seq: integer(row, "seq"),
+			startedAt: nullableInteger(row, "started_at"),
+			status: text(row, "status"),
 		}));
 		const lines = groupBy(lineRows, "entry_id", (row) => ({
-			id: text(row, "id"),
 			assetId: text(row, "asset_id"),
+			effect: text(row, "effect"),
+			id: text(row, "id"),
+			occurredAt: integer(row, "occurred_at"),
+			playSessionId: nullableText(row, "play_session_id"),
 			priceId: nullableText(row, "price_id"),
 			quantity: integer(row, "quantity"),
 			role: text(row, "role"),
-			effect: text(row, "effect"),
-			playSessionId: nullableText(row, "play_session_id"),
 			sourceEventId: nullableText(row, "source_event_id"),
-			occurredAt: integer(row, "occurred_at"),
 		}));
 		for (const entry of entries) {
 			const entryId = text(entry, "id");
@@ -383,10 +383,10 @@ export function runReplay(
 					{
 						entry,
 						events: entryEvents,
-						sessions: sessions.get(entryId) ?? [],
 						lines: new Map(
 							(lines.get(entryId) ?? []).map(({ id, ...line }) => [id, line])
 						),
+						sessions: sessions.get(entryId) ?? [],
 					},
 					parts,
 					findings

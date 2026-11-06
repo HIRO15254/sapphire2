@@ -7,11 +7,11 @@ export function selfPlayerInsert(db: Database, userId: string) {
 		.insert(player)
 		.values({
 			id: crypto.randomUUID(),
-			userId,
-			name: "Hero",
 			isSelf: true,
 			isTemporary: false,
+			name: "Hero",
 			updatedAt: new Date(),
+			userId,
 		})
 		.onConflictDoNothing();
 }

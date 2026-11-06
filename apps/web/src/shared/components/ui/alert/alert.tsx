@@ -5,26 +5,26 @@ import type * as React from "react";
 import { cn } from "@/lib/utils";
 
 const alertVariants = cva(
-	"grid grid-cols-[auto_1fr] gap-2.5 rounded-lg border border-border px-3.5 py-3 text-foreground text-sm",
+	"border-border text-foreground grid grid-cols-[auto_1fr] gap-2.5 rounded-lg border px-3.5 py-3 text-sm",
 	{
+		defaultVariants: {
+			variant: "default",
+		},
 		variants: {
 			variant: {
 				default: "bg-card",
 				destructive: "bg-destructive-soft",
 			},
 		},
-		defaultVariants: {
-			variant: "default",
-		},
 	}
 );
 
 const ALERT_ICONS = {
 	default: (
-		<IconInfoCircle aria-hidden className="mt-px size-4 text-primary-text" />
+		<IconInfoCircle aria-hidden className="text-primary-text mt-px size-4" />
 	),
 	destructive: (
-		<IconCircleX aria-hidden className="mt-px size-4 text-destructive-text" />
+		<IconCircleX aria-hidden className="text-destructive-text mt-px size-4" />
 	),
 };
 
@@ -51,7 +51,7 @@ function AlertTitle({ className, ...props }: React.ComponentProps<"p">) {
 	return (
 		<p
 			className={cn(
-				"m-0 font-semibold text-sm tracking-[var(--tracking-heading)]",
+				"m-0 text-sm font-semibold tracking-[var(--tracking-heading)]",
 				className
 			)}
 			data-slot="alert-title"
@@ -63,7 +63,7 @@ function AlertTitle({ className, ...props }: React.ComponentProps<"p">) {
 function AlertDescription({ className, ...props }: React.ComponentProps<"p">) {
 	return (
 		<p
-			className={cn("mt-0.5 mb-0 text-muted-foreground text-sm", className)}
+			className={cn("text-muted-foreground mt-0.5 mb-0 text-sm", className)}
 			data-slot="alert-description"
 			{...props}
 		/>

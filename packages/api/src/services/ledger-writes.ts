@@ -32,16 +32,16 @@ export interface WalletLinePatch {
 }
 
 export const walletLineColumns = {
-	id: ledgerLine.id,
 	assetId: ledgerLine.assetId,
-	role: ledgerLine.role,
-	quantity: ledgerLine.quantity,
-	effect: ledgerLine.effect,
 	categoryId: ledgerLine.categoryId,
+	effect: ledgerLine.effect,
 	entryId: ledgerLine.entryId,
-	transferId: ledgerLine.transferId,
-	occurredAt: ledgerLine.occurredAt,
+	id: ledgerLine.id,
 	memo: ledgerLine.memo,
+	occurredAt: ledgerLine.occurredAt,
+	quantity: ledgerLine.quantity,
+	role: ledgerLine.role,
+	transferId: ledgerLine.transferId,
 };
 
 export function selectWalletLines(
@@ -122,17 +122,17 @@ export function buildAdjustmentStatements(
 		id,
 		statements: [
 			db.insert(ledgerLine).values({
-				id,
-				userId,
 				assetId: input.assetId,
+				categoryId: input.categoryId,
+				createdAt: now,
+				effect: "real",
+				id,
+				memo: input.memo,
+				occurredAt: input.occurredAt,
 				quantity: input.quantity,
 				role: "adjustment",
-				effect: "real",
-				categoryId: input.categoryId,
-				occurredAt: input.occurredAt,
-				memo: input.memo,
-				createdAt: now,
 				updatedAt: now,
+				userId,
 			}),
 		],
 	};
@@ -153,35 +153,35 @@ export function buildExchangeStatements(
 	const transferId = crypto.randomUUID();
 	const ids: [string, string] = [crypto.randomUUID(), crypto.randomUUID()];
 	const shared = {
-		userId,
-		role: "exchange" as const,
-		effect: "real" as const,
 		categoryId: input.categoryId,
-		transferId,
-		occurredAt: input.occurredAt,
-		memo: input.memo,
 		createdAt: now,
+		effect: "real" as const,
+		memo: input.memo,
+		occurredAt: input.occurredAt,
+		role: "exchange" as const,
+		transferId,
 		updatedAt: now,
+		userId,
 	};
 	return {
 		ids,
-		transferId,
 		statements: [
 			db.insert(ledgerLine).values([
 				{
 					...shared,
-					id: ids[0],
 					assetId: input.from.assetId,
+					id: ids[0],
 					quantity: -input.from.quantity,
 				},
 				{
 					...shared,
-					id: ids[1],
 					assetId: input.to.assetId,
+					id: ids[1],
 					quantity: input.to.quantity,
 				},
 			]),
 		],
+		transferId,
 	};
 }
 
@@ -193,10 +193,10 @@ async function loadWalletLine(
 ) {
 	const [found] = await db
 		.select({
-			id: ledgerLine.id,
-			role: ledgerLine.role,
-			quantity: ledgerLine.quantity,
 			categoryId: ledgerLine.categoryId,
+			id: ledgerLine.id,
+			quantity: ledgerLine.quantity,
+			role: ledgerLine.role,
 			transferId: ledgerLine.transferId,
 		})
 		.from(ledgerLine)

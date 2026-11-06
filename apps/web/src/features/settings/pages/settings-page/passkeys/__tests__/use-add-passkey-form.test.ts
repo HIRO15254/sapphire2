@@ -5,9 +5,9 @@ const DEVICE_NAME = "Chrome on macOS";
 
 const mocks = vi.hoisted(() => ({
 	addPasskey: vi.fn(),
-	toastSuccess: vi.fn(),
-	toastError: vi.fn(),
 	setAutomaticPasskeyOptOut: vi.fn(),
+	toastError: vi.fn(),
+	toastSuccess: vi.fn(),
 }));
 
 vi.mock("@/shared/lib/passkey-opt-out", () => ({
@@ -15,7 +15,7 @@ vi.mock("@/shared/lib/passkey-opt-out", () => ({
 }));
 
 vi.mock("sonner", () => ({
-	toast: { success: mocks.toastSuccess, error: mocks.toastError },
+	toast: { error: mocks.toastError, success: mocks.toastSuccess },
 }));
 
 vi.mock("@/lib/auth-client", () => ({

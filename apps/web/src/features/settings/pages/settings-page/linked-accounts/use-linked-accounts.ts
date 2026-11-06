@@ -104,7 +104,7 @@ export function useLinkedAccounts() {
 				linkError,
 				linkFailureMessage(linkError, linkErrorReason)
 			);
-			navigate({ to: "/settings", search: {}, replace: true });
+			navigate({ replace: true, search: {}, to: "/settings" });
 		});
 		return () => window.clearTimeout(timer);
 	}, [linkError, linkErrorReason, navigate]);
@@ -112,9 +112,9 @@ export function useLinkedAccounts() {
 	const handleLink = async (providerId: SocialProviderId) => {
 		const settingsUrl = `${window.location.origin}/settings`;
 		const result = await authClient.linkSocial({
-			provider: providerId,
 			callbackURL: settingsUrl,
 			errorCallbackURL: `${settingsUrl}?linkError=${providerId}`,
+			provider: providerId,
 		});
 		if (result?.error) {
 			toastLinkFailure(providerId, result.error.message || "Try again.");

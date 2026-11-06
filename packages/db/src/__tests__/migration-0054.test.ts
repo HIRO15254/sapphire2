@@ -22,8 +22,8 @@ import {
 } from "./sqlite";
 
 const TARGET_MIGRATION = "0054_stale_redwing.sql";
-const FOREIGN_KEY_VIOLATION = /FOREIGN KEY constraint failed/;
-const NOT_NULL_VIOLATION = /NOT NULL constraint failed/;
+const FOREIGN_KEY_VIOLATION = /FOREIGN KEY constraint failed/u;
+const NOT_NULL_VIOLATION = /NOT NULL constraint failed/u;
 
 const earlierMigrations = migrationFiles("0054_").map(statementsOf);
 const targetStatements = statementsOf(TARGET_MIGRATION);
@@ -66,15 +66,15 @@ const SEED = `
 `;
 
 const SNAPSHOT_QUERIES = {
-	tournament: "SELECT * FROM tournament ORDER BY id",
-	ringGame: "SELECT * FROM ring_game ORDER BY id",
 	blindLevel: "SELECT * FROM blind_level ORDER BY id",
-	chipPurchase: "SELECT * FROM tournament_chip_purchase ORDER BY id",
-	tournamentTag: "SELECT * FROM tournament_tag ORDER BY id",
 	cashLinks:
 		"SELECT session_id, ring_game_id, buy_in FROM session_cash_detail ORDER BY session_id",
+	chipPurchase: "SELECT * FROM tournament_chip_purchase ORDER BY id",
+	ringGame: "SELECT * FROM ring_game ORDER BY id",
+	tournament: "SELECT * FROM tournament ORDER BY id",
 	tournamentLinks:
 		"SELECT session_id, tournament_id, placement FROM session_tournament_detail ORDER BY session_id",
+	tournamentTag: "SELECT * FROM tournament_tag ORDER BY id",
 } as const;
 
 type Snapshot = Record<keyof typeof SNAPSHOT_QUERIES, SqliteRow[]>;
@@ -97,16 +97,16 @@ const LEGACY_RING_GAME_FIXES: Record<string, object> = {
 function expectedAfterMigration(before: Snapshot): Snapshot {
 	return {
 		...before,
-		tournament: before.tournament.map((row) => ({
-			...row,
-			user_id: stringValue(ROOM_OWNERS[stringValue(row.room_id)]),
-		})),
 		ringGame: before.ringGame
 			.filter((row) => row.id !== "unused")
 			.map((row) => ({
 				...row,
 				...LEGACY_RING_GAME_FIXES[stringValue(row.id)],
 			})),
+		tournament: before.tournament.map((row) => ({
+			...row,
+			user_id: stringValue(ROOM_OWNERS[stringValue(row.room_id)]),
+		})),
 	};
 }
 
@@ -170,7 +170,7 @@ describe("migration 0054 — owned ring_game / tournament rebuild", () => {
 	});
 
 	afterAll(() => {
-		rmSync(snapshotDirectory, { recursive: true, force: true });
+		rmSync(snapshotDirectory, { force: true, recursive: true });
 	});
 
 	beforeEach(() => {
@@ -193,10 +193,10 @@ describe("migration 0054 — owned ring_game / tournament rebuild", () => {
 		expect(
 			db.prepare("SELECT id, user_id, room_id FROM ring_game ORDER BY id").all()
 		).toEqual([
-			{ id: "cross-room", user_id: "alice", room_id: null },
-			{ id: "owned", user_id: "alice", room_id: "alice-room" },
-			{ id: "room-only", user_id: "alice", room_id: "alice-room" },
-			{ id: "session-only", user_id: "bob", room_id: null },
+			{ id: "cross-room", room_id: null, user_id: "alice" },
+			{ id: "owned", room_id: "alice-room", user_id: "alice" },
+			{ id: "room-only", room_id: "alice-room", user_id: "alice" },
+			{ id: "session-only", room_id: null, user_id: "bob" },
 		]);
 	});
 
@@ -240,16 +240,16 @@ describe("migration 0054 — owned ring_game / tournament rebuild", () => {
 			n: 0,
 		});
 		expect(snapshot(db).cashLinks).toEqual([
-			{ session_id: "cash-owned", ring_game_id: null, buy_in: 100 },
+			{ buy_in: 100, ring_game_id: null, session_id: "cash-owned" },
 			{
-				session_id: "cash-roomless",
-				ring_game_id: "session-only",
 				buy_in: 100,
+				ring_game_id: "session-only",
+				session_id: "cash-roomless",
 			},
-			{ session_id: "cash-unlinked", ring_game_id: null, buy_in: 100 },
+			{ buy_in: 100, ring_game_id: null, session_id: "cash-unlinked" },
 		]);
 		expect(snapshot(db).tournamentLinks).toEqual([
-			{ session_id: "mtt", tournament_id: null, placement: 3 },
+			{ placement: 3, session_id: "mtt", tournament_id: null },
 		]);
 	});
 
@@ -260,11 +260,11 @@ describe("migration 0054 — owned ring_game / tournament rebuild", () => {
 			INSERT INTO player_tag (id, user_id, name, updated_at) VALUES ('player_tag', 'alice', 'Fish', 1);
 		`);
 		const parents = {
-			room: "alice-room",
 			currency: "chips",
 			player: "player",
 			player_tag: "player_tag",
 			ring_game: "owned",
+			room: "alice-room",
 			tournament: "daily",
 		};
 		for (const [table, id] of Object.entries(parents)) {
@@ -344,7 +344,7 @@ describe("migration 0054 — owned ring_game / tournament rebuild", () => {
 
 		apply(db);
 
-		expect(snapshot(db)).toEqual({ ...expected, ringGame, cashLinks });
+		expect(snapshot(db)).toEqual({ ...expected, cashLinks, ringGame });
 		expect(ringGame).toContainEqual(
 			expect.objectContaining({ id: "late-ring", user_id: "alice" })
 		);

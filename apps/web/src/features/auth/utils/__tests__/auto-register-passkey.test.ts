@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
 	addPasskey: vi.fn(),
-	supportsAutomaticPasskeyRegistration: vi.fn(),
 	isAutomaticPasskeyOptedOut: vi.fn(),
+	supportsAutomaticPasskeyRegistration: vi.fn(),
 	toastSuccess: vi.fn(),
 }));
 

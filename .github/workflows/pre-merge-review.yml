@@ -2,8 +2,8 @@ name: PR review
 
 on:
   pull_request:
-    branches: [dev, main]
-    types: [opened, synchronize, reopened, ready_for_review, labeled]
+    branches: [ dev, main ]
+    types: [ opened, synchronize, reopened, ready_for_review, labeled ]
 
 permissions:
   contents: read
@@ -133,7 +133,7 @@ jobs:
 
   review:
     name: review
-    needs: [gate, issue]
+    needs: [ gate, issue ]
     if: ${{ !cancelled() && needs.gate.outputs.run == 'true' }}
     runs-on: ubuntu-latest
     outputs:
@@ -399,7 +399,7 @@ jobs:
 
   outcome:
     name: outcome
-    needs: [gate, review, resolve-threads]
+    needs: [ gate, review, resolve-threads ]
     if: ${{ !cancelled() && needs.review.result == 'success' && needs.review.outputs.ci_state != '' && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     permissions:

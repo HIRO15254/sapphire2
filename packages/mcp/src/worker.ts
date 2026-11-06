@@ -27,9 +27,9 @@ export function createSapphireMcpHandler({
 			return createSapphireMcpServer({ caller, log: logError });
 		},
 		{
-			responseMode: "json",
 			legacy: "stateless",
 			onerror: (error) => logError(error),
+			responseMode: "json",
 		}
 	);
 }

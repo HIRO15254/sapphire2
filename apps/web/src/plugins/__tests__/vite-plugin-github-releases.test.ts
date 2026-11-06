@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { githubReleasesPlugin } from "../vite-plugin-github-releases";
 
-const RELEASE_DATE = /"releasedAt":\s*"2026-04-01"/;
-const RELEASE_TITLE = /"title":\s*"Test release"/;
+const RELEASE_DATE = /"releasedAt":\s*"2026-04-01"/u;
+const RELEASE_TITLE = /"title":\s*"Test release"/u;
 
 const fixture = [
 	{
@@ -80,8 +80,8 @@ describe("githubReleasesPlugin", () => {
 				.mockResolvedValue(
 					new Response(
 						JSON.stringify([
-							release({ tag_name: "v2.0.0-rc.1", prerelease: true }),
-							release({ tag_name: "v1.5.0", draft: true }),
+							release({ prerelease: true, tag_name: "v2.0.0-rc.1" }),
+							release({ draft: true, tag_name: "v1.5.0" }),
 							release({ tag_name: "v1.0.0" }),
 						]),
 						{ status: 200 }

@@ -33,7 +33,7 @@ const DrawerOverlay = forwardRef<
 >(({ className, ...props }, ref) => (
 	<DrawerPrimitive.Overlay
 		className={cn(
-			"fixed inset-0 z-50 bg-overlay backdrop-blur-[4px]",
+			"bg-overlay fixed inset-0 z-50 backdrop-blur-[4px]",
 			className
 		)}
 		ref={ref}
@@ -52,7 +52,7 @@ const DrawerContent = forwardRef<
 		<DrawerOverlay className={overlayClassName} />
 		<DrawerPrimitive.Content
 			className={cn(
-				"fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[85svh] w-full max-w-[560px] flex-col rounded-t-[var(--m-sheet-radius)] border border-border border-b-0 bg-popover text-popover-foreground shadow-[var(--shadow-lg)] outline-none",
+				"border-border bg-popover text-popover-foreground fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[85svh] w-full max-w-[560px] flex-col rounded-t-[var(--m-sheet-radius)] border border-b-0 shadow-[var(--shadow-lg)] outline-none",
 				className
 			)}
 			ref={ref}
@@ -74,7 +74,7 @@ const DrawerGrab = ({
 		data-slot="drawer-grab"
 		{...props}
 	>
-		<span className="h-1 w-9 rounded-full bg-input" />
+		<span className="bg-input h-1 w-9 rounded-full" />
 	</div>
 );
 DrawerGrab.displayName = "DrawerGrab";
@@ -85,7 +85,7 @@ const DrawerHeader = ({
 }: HTMLAttributes<HTMLDivElement>) => (
 	<div
 		className={cn(
-			"flex flex-col gap-1 border-border border-b px-3.5 pb-2.5 text-center",
+			"border-border flex flex-col gap-1 border-b px-3.5 pb-2.5 text-center",
 			className
 		)}
 		data-slot="drawer-header"
@@ -115,7 +115,7 @@ const DrawerTitle = forwardRef<
 >(({ className, ...props }, ref) => (
 	<DrawerPrimitive.Title
 		className={cn(
-			"m-0 min-w-0 truncate font-semibold text-[length:var(--m-text-title)] tracking-[var(--tracking-heading)]",
+			"m-0 min-w-0 truncate font-semibold tracking-[var(--tracking-heading)] text-[length:var(--m-text-title)]",
 			className
 		)}
 		ref={ref}
@@ -130,7 +130,7 @@ const DrawerDescription = forwardRef<
 >(({ className, ...props }, ref) => (
 	<DrawerPrimitive.Description
 		className={cn(
-			"m-0 text-[length:var(--m-text-secondary)] text-muted-foreground",
+			"text-muted-foreground m-0 text-[length:var(--m-text-secondary)]",
 			className
 		)}
 		ref={ref}

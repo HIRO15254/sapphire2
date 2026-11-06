@@ -38,8 +38,8 @@ function fromInstant(seconds: number): Date {
 
 const ledgerCursorSchema = z.object({
 	assetId: z.string(),
-	occurredAt: z.number().int().min(-8_640_000_000_000).max(8_640_000_000_000),
 	id: z.string(),
+	occurredAt: z.number().int().min(-8_640_000_000_000).max(8_640_000_000_000),
 });
 
 export const ledgerIdInputSchema = z.object({ id: z.string().min(1) });
@@ -57,10 +57,10 @@ export const ledgerListByAssetInputSchema = z.object({
 
 export const ledgerCreateAdjustmentInputSchema = z.object({
 	assetId: z.string().min(1),
-	quantity: signedLedgerQuantitySchema,
 	categoryId: z.string().min(1).optional(),
-	occurredAt: instantSchema,
 	memo: ledgerMemo.optional(),
+	occurredAt: instantSchema,
+	quantity: signedLedgerQuantitySchema,
 });
 
 const exchangeLeg = z.object({
@@ -70,11 +70,11 @@ const exchangeLeg = z.object({
 
 export const ledgerCreateExchangeInputSchema = z
 	.object({
-		from: exchangeLeg,
-		to: exchangeLeg,
-		occurredAt: instantSchema,
 		categoryId: z.string().min(1).optional(),
+		from: exchangeLeg,
 		memo: ledgerMemo.optional(),
+		occurredAt: instantSchema,
+		to: exchangeLeg,
 	})
 	.refine((value) => value.from.assetId !== value.to.assetId, {
 		message: "An exchange moves value between two different assets",
@@ -82,10 +82,10 @@ export const ledgerCreateExchangeInputSchema = z
 	});
 
 export const ledgerUpdateInputSchema = z.object({
-	id: z.string().min(1),
-	occurredAt: instantSchema.optional(),
-	memo: ledgerMemo.nullable().optional(),
 	categoryId: z.string().min(1).nullable().optional(),
+	id: z.string().min(1),
+	memo: ledgerMemo.nullable().optional(),
+	occurredAt: instantSchema.optional(),
 	quantity: signedLedgerQuantitySchema.optional(),
 });
 
@@ -94,31 +94,101 @@ function toHistoryItem(assetId: string, row: AssetHistoryRow) {
 		return {
 			kind: "wallet" as const,
 			line: {
-				id: row.id,
 				assetId,
-				role: row.role,
-				quantity: row.quantity,
-				effect: "real" as const,
 				categoryId: row.categoryId,
+				effect: "real" as const,
 				entryId: null,
-				transferId: row.transferId,
-				occurredAt: row.occurredAt,
+				id: row.id,
 				memo: row.memo,
+				occurredAt: row.occurredAt,
+				quantity: row.quantity,
+				role: row.role,
+				transferId: row.transferId,
 			},
 		};
 	}
 	return {
-		kind: "entry" as const,
-		id: row.id,
-		entryId: row.id,
-		title: row.title,
 		assetId,
-		quantity: row.quantity,
+		entryId: row.id,
+		id: row.id,
+		kind: "entry" as const,
 		occurredAt: row.occurredAt,
+		quantity: row.quantity,
+		title: row.title,
 	};
 }
 
 export const ledgerRouter = router({
+	createAdjustment: protectedProcedure
+		.input(ledgerCreateAdjustmentInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const categoryId = input.categoryId ?? null;
+			await assertSelectableAssets(ctx.db, userId, [input.assetId]);
+			await assertSelectableCategory(ctx.db, userId, categoryId, null);
+			const { id, statements } = buildAdjustmentStatements(
+				ctx.db,
+				userId,
+				{
+					assetId: input.assetId,
+					categoryId,
+					memo: input.memo ?? null,
+					occurredAt: fromInstant(input.occurredAt),
+					quantity: input.quantity,
+				},
+				new Date()
+			);
+			await runGuardedBatch(ctx.db, [
+				activeReferenceGuard(ctx.db, asset, input.assetId, userId),
+				...(categoryId
+					? [activeReferenceGuard(ctx.db, ledgerCategory, categoryId, userId)]
+					: []),
+				...statements,
+			]);
+			const [line] = await selectWalletLines(ctx.db, userId, { id });
+			return line;
+		}),
+
+	createExchange: protectedProcedure
+		.input(ledgerCreateExchangeInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const categoryId = input.categoryId ?? null;
+			await assertSelectableAssets(ctx.db, userId, [
+				input.from.assetId,
+				input.to.assetId,
+			]);
+			await assertSelectableCategory(ctx.db, userId, categoryId, null);
+			const { transferId, statements } = buildExchangeStatements(
+				ctx.db,
+				userId,
+				{
+					categoryId,
+					from: input.from,
+					memo: input.memo ?? null,
+					occurredAt: fromInstant(input.occurredAt),
+					to: input.to,
+				},
+				new Date()
+			);
+			await runGuardedBatch(ctx.db, [
+				activeReferenceGuard(ctx.db, asset, input.from.assetId, userId),
+				activeReferenceGuard(ctx.db, asset, input.to.assetId, userId),
+				...(categoryId
+					? [activeReferenceGuard(ctx.db, ledgerCategory, categoryId, userId)]
+					: []),
+				...statements,
+			]);
+			const lines = await selectWalletLines(ctx.db, userId, { transferId });
+			return { lines, transferId };
+		}),
+
+	delete: protectedProcedure
+		.input(ledgerIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			await deleteWalletLine(ctx.db, ctx.session.user.id, input.id);
+			return { success: true as const };
+		}),
 	listByAsset: protectedProcedure
 		.input(ledgerListByAssetInputSchema)
 		.query(async ({ ctx, input }) => {
@@ -148,75 +218,11 @@ export const ledgerRouter = router({
 				nextCursor: boundary
 					? encodeCursor({
 							assetId: input.assetId,
-							occurredAt: Math.floor(boundary.occurredAt.getTime() / 1000),
 							id: boundary.id,
+							occurredAt: Math.floor(boundary.occurredAt.getTime() / 1000),
 						})
 					: null,
 			};
-		}),
-
-	createAdjustment: protectedProcedure
-		.input(ledgerCreateAdjustmentInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			const categoryId = input.categoryId ?? null;
-			await assertSelectableAssets(ctx.db, userId, [input.assetId]);
-			await assertSelectableCategory(ctx.db, userId, categoryId, null);
-			const { id, statements } = buildAdjustmentStatements(
-				ctx.db,
-				userId,
-				{
-					assetId: input.assetId,
-					quantity: input.quantity,
-					categoryId,
-					occurredAt: fromInstant(input.occurredAt),
-					memo: input.memo ?? null,
-				},
-				new Date()
-			);
-			await runGuardedBatch(ctx.db, [
-				activeReferenceGuard(ctx.db, asset, input.assetId, userId),
-				...(categoryId
-					? [activeReferenceGuard(ctx.db, ledgerCategory, categoryId, userId)]
-					: []),
-				...statements,
-			]);
-			const [line] = await selectWalletLines(ctx.db, userId, { id });
-			return line;
-		}),
-
-	createExchange: protectedProcedure
-		.input(ledgerCreateExchangeInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			const categoryId = input.categoryId ?? null;
-			await assertSelectableAssets(ctx.db, userId, [
-				input.from.assetId,
-				input.to.assetId,
-			]);
-			await assertSelectableCategory(ctx.db, userId, categoryId, null);
-			const { transferId, statements } = buildExchangeStatements(
-				ctx.db,
-				userId,
-				{
-					from: input.from,
-					to: input.to,
-					categoryId,
-					occurredAt: fromInstant(input.occurredAt),
-					memo: input.memo ?? null,
-				},
-				new Date()
-			);
-			await runGuardedBatch(ctx.db, [
-				activeReferenceGuard(ctx.db, asset, input.from.assetId, userId),
-				activeReferenceGuard(ctx.db, asset, input.to.assetId, userId),
-				...(categoryId
-					? [activeReferenceGuard(ctx.db, ledgerCategory, categoryId, userId)]
-					: []),
-				...statements,
-			]);
-			const lines = await selectWalletLines(ctx.db, userId, { transferId });
-			return { transferId, lines };
 		}),
 
 	update: protectedProcedure
@@ -239,12 +245,5 @@ export const ledgerRouter = router({
 				new Date()
 			);
 			return { lines: await selectWalletLines(ctx.db, userId, scope) };
-		}),
-
-	delete: protectedProcedure
-		.input(ledgerIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			await deleteWalletLine(ctx.db, ctx.session.user.id, input.id);
-			return { success: true as const };
 		}),
 });

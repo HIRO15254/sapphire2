@@ -18,7 +18,7 @@ export interface AuditDatabase {
 
 export class AuditDatabaseError extends Error {}
 
-const READ_ONLY_STATEMENT = /^\s*(SELECT|WITH|PRAGMA\s+foreign_key_check)\b/i;
+const READ_ONLY_STATEMENT = /^\s*(SELECT|WITH|PRAGMA\s+foreign_key_check)\b/iu;
 const MAX_BUFFER = 1024 * 1024 * 1024;
 const STATEMENT_BATCH = 12;
 const WRANGLER = path.resolve(
@@ -28,8 +28,8 @@ const WRANGLER = path.resolve(
 
 const wranglerResults = z.array(
 	z.object({
-		success: z.literal(true),
 		results: z.array(z.record(z.string(), z.unknown())),
+		success: z.literal(true),
 	})
 );
 

@@ -15,8 +15,8 @@
     "@sapphire2/env": "workspace:*",
     "@sapphire2/mcp": "workspace:*",
     "@trpc/server": "catalog:",
-    "drizzle-orm": "catalog:",
     "better-auth": "catalog:",
+    "drizzle-orm": "catalog:",
     "hono": "catalog:",
     "zod": "catalog:"
   },

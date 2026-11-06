@@ -21,7 +21,7 @@ async function createAsset(
 	name: string,
 	kind: "currency" | "item" = "currency"
 ) {
-	return requireCreatedRow(await caller.asset.create({ name, kind }));
+	return requireCreatedRow(await caller.asset.create({ kind, name }));
 }
 
 async function seedEntry(
@@ -38,25 +38,25 @@ async function seedEntry(
 ) {
 	await api.db.insert(entry).values({
 		id,
-		userId: "alice",
 		kind: "cash",
+		playedOn: "2026-09-01",
 		source: "manual",
 		status: "settled",
 		title,
-		playedOn: "2026-09-01",
 		updatedAt: NOW,
+		userId: "alice",
 	});
 	await api.db.insert(ledgerLine).values(
 		lines.map((line, index) => ({
-			id: `${id}:${index}`,
-			userId: "alice",
 			assetId: line.assetId,
-			quantity: line.quantity,
-			role: line.role,
 			effect: line.effect ?? "real",
 			entryId: id,
+			id: `${id}:${index}`,
 			occurredAt: at(line.occurredAt),
+			quantity: line.quantity,
+			role: line.role,
 			updatedAt: NOW,
+			userId: "alice",
 		}))
 	);
 }
@@ -76,8 +76,8 @@ describe("wallet writes on D1", () => {
 		await expect(
 			raced.ledger.createAdjustment({
 				assetId: currency.id,
-				quantity: 100,
 				occurredAt: T0,
+				quantity: 100,
 			})
 		).rejects.toMatchObject({ code: "CONFLICT" });
 		expect(await lines(api)).toEqual([]);
@@ -91,47 +91,47 @@ describe("wallet writes on D1", () => {
 
 		const deposit = await api.alice.ledger.createAdjustment({
 			assetId: jpy.id,
-			quantity: 100_000,
-			occurredAt: T0,
 			memo: "Opening balance",
+			occurredAt: T0,
+			quantity: 100_000,
 		});
 		expect(deposit).toEqual({
-			id: deposit?.id,
 			assetId: jpy.id,
-			role: "adjustment",
-			quantity: 100_000,
-			effect: "real",
 			categoryId: null,
+			effect: "real",
 			entryId: null,
-			transferId: null,
-			occurredAt: at(T0),
+			id: deposit?.id,
 			memo: "Opening balance",
+			occurredAt: at(T0),
+			quantity: 100_000,
+			role: "adjustment",
+			transferId: null,
 		});
 		await api.alice.ledger.createAdjustment({
 			assetId: jpy.id,
-			quantity: -5000,
 			occurredAt: T0 + 1,
+			quantity: -5000,
 		});
 
 		const exchange = await api.alice.ledger.createExchange({
 			from: { assetId: jpy.id, quantity: 15_000 },
-			to: { assetId: usd.id, quantity: 100 },
 			occurredAt: T0 + 59,
+			to: { assetId: usd.id, quantity: 100 },
 		});
 		expect(exchange.lines).toEqual([
 			expect.objectContaining({
 				assetId: jpy.id,
-				role: "exchange",
-				quantity: -15_000,
-				transferId: exchange.transferId,
 				occurredAt: at(T0 + 59),
+				quantity: -15_000,
+				role: "exchange",
+				transferId: exchange.transferId,
 			}),
 			expect.objectContaining({
 				assetId: usd.id,
-				role: "exchange",
-				quantity: 100,
-				transferId: exchange.transferId,
 				occurredAt: at(T0 + 59),
+				quantity: 100,
+				role: "exchange",
+				transferId: exchange.transferId,
 			}),
 		]);
 
@@ -158,11 +158,11 @@ describe("wallet writes on D1", () => {
 			api.db,
 			"alice",
 			{
-				from: { assetId: jpy.id, quantity: 15_000 },
-				to: { assetId: bobUsd.id, quantity: 100 },
 				categoryId: null,
-				occurredAt: NOW,
+				from: { assetId: jpy.id, quantity: 15_000 },
 				memo: null,
+				occurredAt: NOW,
+				to: { assetId: bobUsd.id, quantity: 100 },
 			},
 			NOW
 		);
@@ -180,9 +180,9 @@ describe("wallet writes on D1", () => {
 		);
 		const exchange = await api.alice.ledger.createExchange({
 			from: { assetId: jpy.id, quantity: 15_000 },
-			to: { assetId: usd.id, quantity: 100 },
-			occurredAt: T0,
 			memo: "Airport",
+			occurredAt: T0,
+			to: { assetId: usd.id, quantity: 100 },
 		});
 		const [outgoing, incoming] = exchange.lines;
 		if (!(outgoing && incoming)) {
@@ -190,26 +190,26 @@ describe("wallet writes on D1", () => {
 		}
 
 		const edited = await api.alice.ledger.update({
-			id: incoming.id,
-			occurredAt: T0 + 3600,
-			memo: null,
 			categoryId: category.id,
+			id: incoming.id,
+			memo: null,
+			occurredAt: T0 + 3600,
 			quantity: 110,
 		});
 		expect(edited.lines).toEqual([
 			expect.objectContaining({
-				id: outgoing.id,
-				quantity: -15_000,
-				occurredAt: at(T0 + 3600),
-				memo: null,
 				categoryId: category.id,
+				id: outgoing.id,
+				memo: null,
+				occurredAt: at(T0 + 3600),
+				quantity: -15_000,
 			}),
 			expect.objectContaining({
-				id: incoming.id,
-				quantity: 110,
-				occurredAt: at(T0 + 3600),
-				memo: null,
 				categoryId: category.id,
+				id: incoming.id,
+				memo: null,
+				occurredAt: at(T0 + 3600),
+				quantity: 110,
 			}),
 		]);
 
@@ -235,8 +235,8 @@ describe("wallet writes on D1", () => {
 		const adjustment = requireCreatedRow(
 			await api.alice.ledger.createAdjustment({
 				assetId: jpy.id,
-				quantity: 1,
 				occurredAt: T0,
+				quantity: 1,
 			})
 		);
 		const before = await lines(api);
@@ -244,8 +244,8 @@ describe("wallet writes on D1", () => {
 			await expect(
 				api.alice.ledger.createAdjustment({
 					assetId: jpy.id,
-					quantity,
 					occurredAt: T0,
+					quantity,
 				})
 			).rejects.toMatchObject(BAD_REQUEST);
 			await expect(
@@ -257,16 +257,16 @@ describe("wallet writes on D1", () => {
 			await expect(
 				api.alice.ledger.createExchange({
 					from: { assetId: jpy.id, quantity },
-					to: { assetId: usd.id, quantity: 1 },
 					occurredAt: T0,
+					to: { assetId: usd.id, quantity: 1 },
 				})
 			).rejects.toMatchObject(BAD_REQUEST);
 		}
 		await expect(
 			api.alice.ledger.createExchange({
 				from: { assetId: jpy.id, quantity: 1 },
-				to: { assetId: jpy.id, quantity: 1 },
 				occurredAt: T0,
+				to: { assetId: jpy.id, quantity: 1 },
 			})
 		).rejects.toMatchObject(BAD_REQUEST);
 		expect(await lines(api)).toEqual(before);
@@ -280,8 +280,8 @@ describe("wallet writes on D1", () => {
 		await expect(
 			api.alice.ledger.createAdjustment({
 				assetId: jpy.id,
-				quantity: 1,
 				occurredAt: invalid,
+				quantity: 1,
 			})
 		).rejects.toMatchObject(BAD_REQUEST);
 		expect(await lines(api)).toEqual([]);
@@ -312,8 +312,8 @@ describe("wallet writes on D1", () => {
 		const bobLine = requireCreatedRow(
 			await api.bob.ledger.createAdjustment({
 				assetId: bobAsset.id,
-				quantity: 1,
 				occurredAt: T0,
+				quantity: 1,
 			})
 		);
 		await seedEntry(api, "cash", "Friday cash", [
@@ -322,9 +322,9 @@ describe("wallet writes on D1", () => {
 		const own = requireCreatedRow(
 			await api.alice.ledger.createAdjustment({
 				assetId: jpy.id,
-				quantity: 500,
 				categoryId: oldCategory.id,
 				occurredAt: T0,
+				quantity: 500,
 			})
 		);
 		await api.alice.ledgerCategory.archive({ id: oldCategory.id });
@@ -342,15 +342,15 @@ describe("wallet writes on D1", () => {
 			await expect(
 				api.alice.ledger.createAdjustment({
 					assetId,
-					quantity: 1,
 					occurredAt: T0,
+					quantity: 1,
 				})
 			).rejects.toMatchObject(FORBIDDEN);
 			await expect(
 				api.alice.ledger.createExchange({
 					from: { assetId: jpy.id, quantity: 1 },
-					to: { assetId, quantity: 1 },
 					occurredAt: T0,
+					to: { assetId, quantity: 1 },
 				})
 			).rejects.toMatchObject(FORBIDDEN);
 			await expect(
@@ -361,35 +361,35 @@ describe("wallet writes on D1", () => {
 			await expect(
 				api.alice.ledger.createAdjustment({
 					assetId: jpy.id,
-					quantity: 1,
 					categoryId,
 					occurredAt: T0,
+					quantity: 1,
 				})
 			).rejects.toMatchObject(FORBIDDEN);
 			await expect(
-				api.alice.ledger.update({ id: own.id, categoryId })
+				api.alice.ledger.update({ categoryId, id: own.id })
 			).rejects.toMatchObject(FORBIDDEN);
 		}
 		await expect(
 			api.alice.ledger.createAdjustment({
 				assetId: retired.id,
-				quantity: 1,
 				occurredAt: T0,
+				quantity: 1,
 			})
 		).rejects.toMatchObject(BAD_REQUEST);
 		await expect(
 			api.alice.ledger.createExchange({
 				from: { assetId: retired.id, quantity: 1 },
-				to: { assetId: usd.id, quantity: 1 },
 				occurredAt: T0,
+				to: { assetId: usd.id, quantity: 1 },
 			})
 		).rejects.toMatchObject(BAD_REQUEST);
 		await expect(
 			api.alice.ledger.createAdjustment({
 				assetId: jpy.id,
-				quantity: 1,
 				categoryId: oldCategory.id,
 				occurredAt: T0,
+				quantity: 1,
 			})
 		).rejects.toMatchObject(BAD_REQUEST);
 		const guest = api.caller(null);
@@ -398,14 +398,14 @@ describe("wallet writes on D1", () => {
 			() =>
 				guest.ledger.createAdjustment({
 					assetId: jpy.id,
-					quantity: 1,
 					occurredAt: T0,
+					quantity: 1,
 				}),
 			() =>
 				guest.ledger.createExchange({
 					from: { assetId: jpy.id, quantity: 1 },
-					to: { assetId: usd.id, quantity: 1 },
 					occurredAt: T0,
+					to: { assetId: usd.id, quantity: 1 },
 				}),
 			() => guest.ledger.update({ id: own.id, memo: "x" }),
 			() => guest.ledger.delete({ id: own.id }),
@@ -417,8 +417,8 @@ describe("wallet writes on D1", () => {
 		expect(await lines(api)).toEqual(before);
 
 		const kept = await api.alice.ledger.update({
-			id: own.id,
 			categoryId: oldCategory.id,
+			id: own.id,
 			memo: "Still the old category",
 		});
 		expect(kept.lines).toEqual([
@@ -428,8 +428,8 @@ describe("wallet writes on D1", () => {
 			}),
 		]);
 		const cleared = await api.alice.ledger.update({
-			id: own.id,
 			categoryId: null,
+			id: own.id,
 		});
 		expect(cleared.lines).toEqual([
 			expect.objectContaining({
@@ -455,21 +455,21 @@ describe("ledger.listByAsset on D1", () => {
 		const bobJpy = await createAsset(api.bob, "JPY");
 		await api.bob.ledger.createAdjustment({
 			assetId: bobJpy.id,
-			quantity: 7,
 			occurredAt: T0,
+			quantity: 7,
 		});
 		await api.alice.ledger.createAdjustment({
 			assetId: usd.id,
-			quantity: 9,
 			occurredAt: T0,
+			quantity: 9,
 		});
 		const ids: string[] = [];
 		for (let index = 0; index < 5; index++) {
 			const line = requireCreatedRow(
 				await api.alice.ledger.createAdjustment({
 					assetId: jpy.id,
-					quantity: index + 1,
 					occurredAt: T0,
+					quantity: index + 1,
 				})
 			);
 			ids.push(line.id);
@@ -491,13 +491,13 @@ describe("ledger.listByAsset on D1", () => {
 		await api.alice.ledger.delete({ id: expected[1] as string });
 		const second = await api.alice.ledger.listByAsset({
 			assetId: jpy.id,
-			limit: 2,
 			cursor: first.nextCursor,
+			limit: 2,
 		});
 		const third = await api.alice.ledger.listByAsset({
 			assetId: jpy.id,
-			limit: 2,
 			cursor: second.nextCursor ?? undefined,
+			limit: 2,
 		});
 		expect(
 			[...second.items, ...third.items].map((item) =>
@@ -543,10 +543,10 @@ describe("ledger.listByAsset on D1", () => {
 			},
 			{
 				assetId: jpy.id,
+				effect: "virtual",
 				occurredAt: T0,
 				quantity: -9999,
 				role: "buy_in",
-				effect: "virtual",
 			},
 			{ assetId: usd.id, occurredAt: T0, quantity: -200, role: "buy_in" },
 		]);
@@ -554,13 +554,13 @@ describe("ledger.listByAsset on D1", () => {
 		expect(await api.alice.ledger.listByAsset({ assetId: jpy.id })).toEqual({
 			items: [
 				{
-					kind: "entry",
-					id: "trip",
-					entryId: "trip",
-					title: "Vegas trip",
 					assetId: jpy.id,
-					quantity: 20_000,
+					entryId: "trip",
+					id: "trip",
+					kind: "entry",
 					occurredAt: at(T0 + 60),
+					quantity: 20_000,
+					title: "Vegas trip",
 				},
 			],
 			nextCursor: null,
@@ -570,8 +570,8 @@ describe("ledger.listByAsset on D1", () => {
 		).toEqual([
 			expect.objectContaining({
 				kind: "entry",
-				quantity: -200,
 				occurredAt: at(T0),
+				quantity: -200,
 			}),
 		]);
 	});
@@ -609,9 +609,9 @@ describe("ledgerCategory on D1", () => {
 		const jpy = await createAsset(api.alice, "JPY");
 		await api.db.insert(ledgerCategory).values({
 			id: "migrated-type",
-			userId: "alice",
 			name: "Purchase",
 			updatedAt: NOW,
+			userId: "alice",
 		});
 		const unused = requireCreatedRow(
 			await api.alice.ledgerCategory.create({ name: "Unused" })
@@ -619,9 +619,9 @@ describe("ledgerCategory on D1", () => {
 		const line = requireCreatedRow(
 			await api.alice.ledger.createAdjustment({
 				assetId: jpy.id,
-				quantity: -1000,
 				categoryId: "migrated-type",
 				occurredAt: T0,
+				quantity: -1000,
 			})
 		);
 

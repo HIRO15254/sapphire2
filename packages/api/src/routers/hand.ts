@@ -17,7 +17,6 @@ import {
 export const handIdInputSchema = z.object({ id: idSchema });
 
 export const handListInputSchema = z.object({
-	playSessionId: idSchema,
 	cursor: z.string().optional(),
 	limit: z
 		.number()
@@ -25,24 +24,31 @@ export const handListInputSchema = z.object({
 		.min(1)
 		.max(MAX_HAND_PAGE_SIZE)
 		.default(DEFAULT_HAND_PAGE_SIZE),
+	playSessionId: idSchema,
 });
 
 export const handUndoLastInputSchema = z.object({ playSessionId: idSchema });
 
 export const handRouter = router({
-	list: protectedProcedure
-		.input(handListInputSchema)
-		.query(({ ctx, input }) => listHands(ctx.db, ctx.session.user.id, input)),
-
-	getById: protectedProcedure
-		.input(handIdInputSchema)
-		.query(({ ctx, input }) => getHand(ctx.db, ctx.session.user.id, input.id)),
-
 	add: protectedProcedure
 		.input(handAddInputSchema)
 		.mutation(({ ctx, input }) =>
 			addHand(ctx.db, ctx.session.user.id, input, new Date())
 		),
+
+	delete: protectedProcedure
+		.input(handIdInputSchema)
+		.mutation(async ({ ctx, input }) => {
+			await deleteHand(ctx.db, ctx.session.user.id, input.id);
+			return { success: true as const };
+		}),
+
+	getById: protectedProcedure
+		.input(handIdInputSchema)
+		.query(({ ctx, input }) => getHand(ctx.db, ctx.session.user.id, input.id)),
+	list: protectedProcedure
+		.input(handListInputSchema)
+		.query(({ ctx, input }) => listHands(ctx.db, ctx.session.user.id, input)),
 
 	undoLast: protectedProcedure
 		.input(handUndoLastInputSchema)
@@ -56,11 +62,4 @@ export const handRouter = router({
 		.mutation(({ ctx, input }) =>
 			updateHand(ctx.db, ctx.session.user.id, input, new Date())
 		),
-
-	delete: protectedProcedure
-		.input(handIdInputSchema)
-		.mutation(async ({ ctx, input }) => {
-			await deleteHand(ctx.db, ctx.session.user.id, input.id);
-			return { success: true as const };
-		}),
 });

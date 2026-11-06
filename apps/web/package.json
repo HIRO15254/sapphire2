@@ -4,12 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "kill-port 3001 && vite dev",
     "build": "vite build",
-    "serve": "vite preview",
-    "start": "vite",
     "check-types": "tsc --noEmit",
-    "generate-pwa-assets": "pwa-assets-generator"
+    "dev": "kill-port 3001 && vite dev",
+    "generate-pwa-assets": "pwa-assets-generator",
+    "serve": "vite preview",
+    "start": "vite"
   },
   "dependencies": {
     "@better-auth/passkey": "catalog:",

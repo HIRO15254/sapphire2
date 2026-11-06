@@ -61,7 +61,7 @@ async function resolveMode(
 	const userBaseAssetId = await selectBaseAssetId(db, userId);
 	if (filter.assetId !== undefined) {
 		await validateEntityOwnership(db, "asset", filter.assetId, userId);
-		return { kind: "asset", assetId: filter.assetId, userBaseAssetId };
+		return { assetId: filter.assetId, kind: "asset", userBaseAssetId };
 	}
 	if (filter.valuation !== undefined) {
 		const baseAssetId = filter.baseAssetId ?? userBaseAssetId;
@@ -84,7 +84,7 @@ async function resolveMode(
 				message: "The base asset must be a currency",
 			});
 		}
-		return { kind: "valuation", valuation: filter.valuation, baseAssetId };
+		return { baseAssetId, kind: "valuation", valuation: filter.valuation };
 	}
 	return { kind: "normalized", userBaseAssetId };
 }
@@ -93,27 +93,10 @@ async function loadFacts(db: DbInstance, userId: string, filter: StatsFilter) {
 	const mode = await resolveMode(db, userId, filter);
 	const entries = await loadStatsPopulation(db, userId, filter);
 	const tables = await loadValuationTables(db, userId);
-	return { mode, facts: computeEntryFacts(entries, mode, tables) };
+	return { facts: computeEntryFacts(entries, mode, tables), mode };
 }
 
 export const statsRouter = router({
-	summary: protectedProcedure
-		.input(statsInputSchema)
-		.query(async ({ ctx, input }) => {
-			const { mode, facts } = await loadFacts(
-				ctx.db,
-				ctx.session.user.id,
-				input
-			);
-			return {
-				mode: mode.kind,
-				assetId: mode.kind === "asset" ? mode.assetId : null,
-				valuation: mode.kind === "valuation" ? mode.valuation : null,
-				baseAssetId: mode.kind === "valuation" ? mode.baseAssetId : null,
-				...summarizeFacts(facts, mode),
-			};
-		}),
-
 	breakdown: protectedProcedure
 		.input(statsBreakdownInputSchema)
 		.query(async ({ ctx, input }) => {
@@ -123,8 +106,8 @@ export const statsRouter = router({
 				input
 			);
 			return {
-				groups: breakdownFacts(facts, mode, input.groupBy),
 				coverage: statsCoverage(facts, mode),
+				groups: breakdownFacts(facts, mode, input.groupBy),
 			};
 		}),
 
@@ -137,8 +120,24 @@ export const statsRouter = router({
 				input
 			);
 			return {
-				points: seriesPoints(facts, mode),
 				coverage: statsCoverage(facts, mode),
+				points: seriesPoints(facts, mode),
+			};
+		}),
+	summary: protectedProcedure
+		.input(statsInputSchema)
+		.query(async ({ ctx, input }) => {
+			const { mode, facts } = await loadFacts(
+				ctx.db,
+				ctx.session.user.id,
+				input
+			);
+			return {
+				assetId: mode.kind === "asset" ? mode.assetId : null,
+				baseAssetId: mode.kind === "valuation" ? mode.baseAssetId : null,
+				mode: mode.kind,
+				valuation: mode.kind === "valuation" ? mode.valuation : null,
+				...summarizeFacts(facts, mode),
 			};
 		}),
 });

@@ -2,29 +2,29 @@ import { describe, expect, it } from "vitest";
 import { handUpdateInputSchema } from "../services/hand";
 
 const context = {
-	id: "hand-1",
 	buttonSeat: 0,
-	tableSize: 6,
+	id: "hand-1",
 	levelOrdinal: null,
-	stakes: { blind1: 100, blind2: 200, ante: 200, anteType: "bb" },
+	stakes: { ante: 200, anteType: "bb", blind1: 100, blind2: 200 },
+	tableSize: 6,
 	variantId: null,
 };
 
 const summaryValues = {
 	boards: ["Ah Kd 7c 2s 9h"],
+	memo: null,
 	pot: 1200,
 	rake: 60,
-	memo: null,
 };
 
 function seat(position: number, overrides: Record<string, unknown> = {}) {
 	return {
-		seat: position,
-		playerId: null,
-		startStack: 20_000,
 		holeCards: null,
 		net: null,
+		playerId: null,
+		seat: position,
 		showed: false,
+		startStack: 20_000,
 		...overrides,
 	};
 }
@@ -33,12 +33,12 @@ function fullHand(overrides: Record<string, unknown> = {}) {
 	return {
 		...context,
 		...summaryValues,
-		detail: "full",
-		seats: [seat(0, { playerId: "self", holeCards: "As Ks" }), seat(3)],
 		actions: [
-			{ street: 0, seat: 3, action: "raise", amount: 600, allIn: false },
-			{ street: 0, seat: 0, action: "call", amount: 400, allIn: false },
+			{ action: "raise", allIn: false, amount: 600, seat: 3, street: 0 },
+			{ action: "call", allIn: false, amount: 400, seat: 0, street: 0 },
 		],
+		detail: "full",
+		seats: [seat(0, { holeCards: "As Ks", playerId: "self" }), seat(3)],
 		...overrides,
 	};
 }
@@ -52,12 +52,12 @@ describe("handUpdateInputSchema", () => {
 				...summaryValues,
 				detail: "summary",
 				hero: {
-					playerId: "self",
-					seat: 2,
-					startStack: 5000,
 					holeCards: "Ts 9s",
 					net: -600,
+					playerId: "self",
+					seat: 2,
 					showed: false,
+					startStack: 5000,
 				},
 			}).success
 		).toBe(true);
@@ -70,15 +70,15 @@ describe("handUpdateInputSchema", () => {
 		expect(
 			handUpdateInputSchema.safeParse(
 				fullHand({
+					actions: [
+						{ action: "raise", allIn: true, amount: 600, seat: 3, street: 0 },
+						{ action: "call", allIn: false, amount: 400, seat: 0, street: 0 },
+						{ action: "show", allIn: false, amount: null, seat: 3, street: 3 },
+					],
 					boards: ["Ah Kd 7c 2s 9h", "Ah Kd 7c 3d 4c"],
 					seats: [
-						seat(0, { playerId: "self", holeCards: "As Ks" }),
+						seat(0, { holeCards: "As Ks", playerId: "self" }),
 						seat(3, { holeCards: "Qd Qc", showed: true }),
-					],
-					actions: [
-						{ street: 0, seat: 3, action: "raise", amount: 600, allIn: true },
-						{ street: 0, seat: 0, action: "call", amount: 400, allIn: false },
-						{ street: 3, seat: 3, action: "show", amount: null, allIn: false },
 					],
 				})
 			).success
@@ -106,7 +106,7 @@ describe("handUpdateInputSchema", () => {
 			"hole cards of eight cards",
 			{
 				seats: [
-					seat(0, { playerId: "self", holeCards: "2s 3s 4s 5s 6s 7s 8s 9s" }),
+					seat(0, { holeCards: "2s 3s 4s 5s 6s 7s 8s 9s", playerId: "self" }),
 					villain,
 				],
 			},
@@ -126,10 +126,10 @@ describe("handUpdateInputSchema", () => {
 		[
 			"a show action from a seat not marked as shown",
 			{
-				seats: [hero, seat(3, { holeCards: "Qd Qc" })],
 				actions: [
-					{ street: 3, seat: 3, action: "show", amount: null, allIn: false },
+					{ action: "show", allIn: false, amount: null, seat: 3, street: 3 },
 				],
+				seats: [hero, seat(3, { holeCards: "Qd Qc" })],
 			},
 			["actions", 0, "seat"],
 		],
@@ -137,7 +137,7 @@ describe("handUpdateInputSchema", () => {
 			"an action from an empty seat",
 			{
 				actions: [
-					{ street: 0, seat: 5, action: "fold", amount: null, allIn: false },
+					{ action: "fold", allIn: false, amount: null, seat: 5, street: 0 },
 				],
 			},
 			["actions", 0, "seat"],
@@ -146,7 +146,7 @@ describe("handUpdateInputSchema", () => {
 			"an action outside the eleven values",
 			{
 				actions: [
-					{ street: 0, seat: 3, action: "limp", amount: null, allIn: false },
+					{ action: "limp", allIn: false, amount: null, seat: 3, street: 0 },
 				],
 			},
 			["actions", 0, "action"],
@@ -155,14 +155,14 @@ describe("handUpdateInputSchema", () => {
 			"a street past 7",
 			{
 				actions: [
-					{ street: 8, seat: 3, action: "check", amount: null, allIn: false },
+					{ action: "check", allIn: false, amount: null, seat: 3, street: 8 },
 				],
 			},
 			["actions", 0, "street"],
 		],
 		[
 			"a stakes key outside blind1-3, ante and anteType",
-			{ stakes: { sb: 100, bb: 200 } },
+			{ stakes: { bb: 200, sb: 100 } },
 			["stakes"],
 		],
 		[
@@ -190,12 +190,12 @@ describe("handUpdateInputSchema", () => {
 			...summaryValues,
 			detail: "summary",
 			hero: {
-				playerId: "self",
-				seat: 2,
-				startStack: null,
 				holeCards: null,
 				net: 600,
+				playerId: "self",
+				seat: 2,
 				showed: true,
+				startStack: null,
 			},
 		});
 		expect(result.error?.issues.map((issue) => issue.path)).toEqual([

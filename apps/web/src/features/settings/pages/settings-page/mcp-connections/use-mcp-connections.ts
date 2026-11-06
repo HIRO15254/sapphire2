@@ -28,15 +28,13 @@ export function useMcpConnections() {
 		try {
 			await revokeMutation.mutateAsync({ clientId: revokeTarget.clientId });
 			setRevokeTarget(null);
-		} catch {
-			return;
-		}
+		} catch {}
 	};
 
 	return {
 		connections: listQuery.data ?? [],
-		isLoading: listQuery.isPending,
 		isError: listQuery.isError,
+		isLoading: listQuery.isPending,
 		isRefetching: listQuery.isFetching,
 		isRevokePending: revokeMutation.isPending,
 		onRetry: () => {

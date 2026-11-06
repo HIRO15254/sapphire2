@@ -95,8 +95,8 @@ describe("application schema agrees with the installed production migrations", (
 					`${config.name}.${column.name}`
 				).toMatchObject({
 					name: column.name,
-					type: column.getSQLType().toUpperCase(),
 					notnull: Number(column.notNull),
+					type: column.getSQLType().toUpperCase(),
 				});
 			}
 			const primary = config.primaryKeys.flatMap(({ columns: keyColumns }) =>

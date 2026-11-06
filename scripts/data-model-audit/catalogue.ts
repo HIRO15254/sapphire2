@@ -76,19 +76,19 @@ AND lower(trim(rm.name)) IS NOT (SELECT lower(trim(u.name)) FROM asset u WHERE u
 
 export const CHECKS: readonly Check[] = [
 	{
-		audit: "FK",
-		part: "PRAGMA foreign_key_check",
-		kind: "sql",
 		activation: { since: null },
-		tables: [],
+		audit: "FK",
+		kind: "sql",
+		part: "PRAGMA foreign_key_check",
 		sql: () => "PRAGMA foreign_key_check",
+		tables: [],
 	},
 	{
-		audit: "A-6",
-		part: "projectEntry replay: entry status/played_on, every play_session, kind detail",
-		kind: "replay",
-		replay: "a6-core",
 		activation: SINCE_B06,
+		audit: "A-6",
+		kind: "replay",
+		part: "projectEntry replay: entry status/played_on, every play_session, kind detail",
+		replay: "a6-core",
 		tables: [
 			"entry",
 			"entry_cash",
@@ -98,168 +98,167 @@ export const CHECKS: readonly Check[] = [
 		],
 	},
 	{
-		audit: "A-6",
-		part: "projectEntry replay: projected ledger lines",
-		kind: "replay",
-		replay: "a6-lines",
 		activation: SINCE_B09,
+		audit: "A-6",
+		kind: "replay",
+		part: "projectEntry replay: projected ledger lines",
+		replay: "a6-lines",
 		tables: ["ledger_line"],
 	},
 	{
-		audit: "A-6",
-		part: "projectEntry replay: open cash entry EV",
-		kind: "replay",
-		replay: "a6-open-ev",
 		activation: SINCE_B12,
+		audit: "A-6",
+		kind: "replay",
+		part: "projectEntry replay: open cash entry EV",
+		replay: "a6-open-ev",
 		tables: ["entry_cash"],
 	},
 	{
-		audit: "A-8",
-		part: "every entry has a day and played_on = MIN(local_date)",
-		kind: "sql",
 		activation: SINCE_B06,
-		tables: ["entry", "play_session"],
+		audit: "A-8",
+		kind: "sql",
+		part: "every entry has a day and played_on = MIN(local_date)",
 		sql: () => `SELECT e.id AS id, e.played_on AS played_on, min(p.local_date) AS first_local_date
 FROM entry e LEFT JOIN play_session p ON p.entry_id = e.id AND p.user_id = e.user_id
 GROUP BY e.id, e.played_on
 HAVING count(p.id) = 0 OR e.played_on <> min(p.local_date)`,
+		tables: ["entry", "play_session"],
 	},
 	{
-		audit: "A-9",
-		part: "entry settled iff every day ended and the highest seq settles",
-		kind: "sql",
 		activation: SINCE_B06,
-		tables: ["entry", "play_session"],
+		audit: "A-9",
+		kind: "sql",
+		part: "entry settled iff every day ended and the highest seq settles",
 		sql: () => `SELECT e.id AS id, e.source AS source, e.status AS status FROM entry e WHERE
 (e.status = 'settled') <> (
 NOT EXISTS (SELECT 1 FROM play_session p WHERE p.entry_id = e.id AND p.user_id = e.user_id AND p.status <> 'ended')
 AND EXISTS (SELECT 1 FROM play_session p WHERE p.entry_id = e.id AND p.user_id = e.user_id
 AND p.seq = (SELECT max(q.seq) FROM play_session q WHERE q.entry_id = e.id AND q.user_id = e.user_id)
 AND p.end_state IN ('busted', 'cashed_out', 'finished')))`,
+		tables: ["entry", "play_session"],
 	},
 	{
-		audit: "A-13",
-		part: "ring_game current rule belongs to that master",
-		kind: "sql",
 		activation: SINCE_B07,
-		tables: ["ring_game", "cash_rule"],
+		audit: "A-13",
+		kind: "sql",
+		part: "ring_game current rule belongs to that master",
 		sql: () => `SELECT r.id AS id FROM ring_game r
 LEFT JOIN cash_rule v ON v.id = r.current_rule_id AND v.user_id = r.user_id
 WHERE v.id IS NULL OR v.ring_game_id IS NOT r.id`,
+		tables: ["ring_game", "cash_rule"],
 	},
 	{
-		audit: "A-13",
-		part: "tournament current rule belongs to that master",
-		kind: "sql",
 		activation: SINCE_B08,
-		tables: ["tournament", "tournament_rule"],
+		audit: "A-13",
+		kind: "sql",
+		part: "tournament current rule belongs to that master",
 		sql: () => `SELECT t.id AS id FROM tournament t
 LEFT JOIN tournament_rule v ON v.id = t.current_rule_id AND v.user_id = t.user_id
 WHERE v.id IS NULL OR v.tournament_id IS NOT t.id`,
+		tables: ["tournament", "tournament_rule"],
 	},
 	{
-		audit: "A-14",
-		part: "every entry has its kind detail",
-		kind: "sql",
 		activation: SINCE_B01,
-		tables: ["entry", "entry_cash", "entry_tournament"],
+		audit: "A-14",
+		kind: "sql",
+		part: "every entry has its kind detail",
 		sql: () => `SELECT e.id AS id, e.kind AS kind FROM entry e
 WHERE NOT EXISTS (SELECT 1 FROM entry_cash c WHERE c.entry_id = e.id AND c.user_id = e.user_id)
 AND NOT EXISTS (SELECT 1 FROM entry_tournament t WHERE t.entry_id = e.id AND t.user_id = e.user_id)`,
+		tables: ["entry", "entry_cash", "entry_tournament"],
 	},
 	{
+		activation: SINCE_B01,
 		audit: "A-14",
+		kind: "sql",
 		part: "play_session seq contiguous from 1",
-		kind: "sql",
-		activation: SINCE_B01,
-		tables: ["play_session"],
 		sql: () => contiguousFromOne("play_session", "entry_id", "seq"),
+		tables: ["play_session"],
 	},
 	{
+		activation: SINCE_B01,
 		audit: "A-14",
+		kind: "sql",
 		part: "hand_no contiguous from 1",
-		kind: "sql",
-		activation: SINCE_B01,
-		tables: ["hand"],
 		sql: () => contiguousFromOne("hand", "play_session_id", "hand_no"),
+		tables: ["hand"],
 	},
 	{
+		activation: SINCE_B01,
 		audit: "A-14",
+		kind: "sql",
 		part: "hand_action seq contiguous from 1",
-		kind: "sql",
-		activation: SINCE_B01,
-		tables: ["hand_action"],
 		sql: () => contiguousFromOne("hand_action", "hand_id", "seq"),
+		tables: ["hand_action"],
 	},
 	{
+		activation: SINCE_B01,
 		audit: "A-14",
+		kind: "sql",
 		part: "tournament_rule_level ordinal contiguous from 1",
-		kind: "sql",
-		activation: SINCE_B01,
-		tables: ["tournament_rule_level"],
 		sql: () => contiguousFromOne("tournament_rule_level", "rule_id", "ordinal"),
+		tables: ["tournament_rule_level"],
 	},
 	{
-		audit: "A-14",
-		part: "manual entry days are ended",
-		kind: "sql",
 		activation: SINCE_B01,
-		tables: ["entry", "play_session"],
+		audit: "A-14",
+		kind: "sql",
+		part: "manual entry days are ended",
 		sql: () => `SELECT p.id AS id, p.status AS status FROM play_session p
 JOIN entry e ON e.id = p.entry_id AND e.user_id = p.user_id
 WHERE e.source = 'manual' AND p.status <> 'ended'`,
+		tables: ["entry", "play_session"],
 	},
 	{
-		audit: "A-14",
-		part: "lineups have groups and groups have variants",
-		kind: "sql",
 		activation: SINCE_B01,
-		tables: ["game_lineup", "game_lineup_group", "game_lineup_variant"],
+		audit: "A-14",
+		kind: "sql",
+		part: "lineups have groups and groups have variants",
 		sql: () => `SELECT 'game_lineup' AS target, l.id AS id FROM game_lineup l
 WHERE NOT EXISTS (SELECT 1 FROM game_lineup_group g WHERE g.lineup_id = l.id AND g.user_id = l.user_id)
 UNION ALL
 SELECT 'game_lineup_group', g.id FROM game_lineup_group g
 WHERE NOT EXISTS (SELECT 1 FROM game_lineup_variant v WHERE v.lineup_group_id = g.id AND v.user_id = g.user_id)`,
+		tables: ["game_lineup", "game_lineup_group", "game_lineup_variant"],
 	},
 	{
-		audit: "A-14",
-		part: "exchange is two real lines of distinct assets with opposite signs",
-		kind: "sql",
 		activation: SINCE_B01,
-		tables: ["ledger_line"],
+		audit: "A-14",
+		kind: "sql",
+		part: "exchange is two real lines of distinct assets with opposite signs",
 		sql: () => `SELECT user_id, transfer_id FROM ledger_line WHERE role = 'exchange'
 GROUP BY user_id, transfer_id
 HAVING count(*) <> 2 OR count(DISTINCT asset_id) <> 2
 OR sum(quantity > 0) <> 1 OR sum(quantity < 0) <> 1
 OR count(DISTINCT occurred_at) <> 1 OR count(DISTINCT COALESCE(memo, '')) <> 1`,
+		tables: ["ledger_line"],
 	},
 	{
-		audit: "A-14",
-		part: "entry line role matches the entry kind",
-		kind: "sql",
 		activation: SINCE_B01,
-		tables: ["ledger_line", "entry"],
+		audit: "A-14",
+		kind: "sql",
+		part: "entry line role matches the entry kind",
 		sql: () => `SELECT l.id AS id, e.kind AS kind, l.role AS role FROM ledger_line l
 JOIN entry e ON e.id = l.entry_id AND e.user_id = l.user_id
 WHERE NOT ((e.kind = 'cash' AND l.role IN (${sqlList(LEDGER_ENTRY_ROLES_BY_KIND.cash)}))
 OR (e.kind = 'tournament' AND l.role IN (${sqlList(LEDGER_ENTRY_ROLES_BY_KIND.tournament)})))`,
+		tables: ["ledger_line", "entry"],
 	},
 	{
-		audit: "A-14",
-		part: "base setting asset is a currency",
-		kind: "sql",
 		activation: SINCE_B01,
-		tables: ["user_setting", "asset"],
+		audit: "A-14",
+		kind: "sql",
+		part: "base setting asset is a currency",
 		sql: () => `SELECT s.user_id AS user_id, s.base_asset_id AS asset_id FROM user_setting s
 JOIN asset a ON a.id = s.base_asset_id AND a.user_id = s.user_id
 WHERE a.kind <> 'currency'`,
+		tables: ["user_setting", "asset"],
 	},
 	{
-		audit: "A-14",
-		part: "cash rule parent and entry rule keep NULL-master parity",
-		kind: "sql",
 		activation: SINCE_B07,
-		tables: ["cash_rule", "entry_cash"],
+		audit: "A-14",
+		kind: "sql",
+		part: "cash rule parent and entry rule keep NULL-master parity",
 		sql: () => `SELECT 'cash_rule' AS target, c.id AS id FROM cash_rule c
 JOIN cash_rule p ON p.id = c.parent_rule_id AND p.user_id = c.user_id
 WHERE p.ring_game_id IS NOT c.ring_game_id
@@ -267,13 +266,13 @@ UNION ALL
 SELECT 'entry_cash', ec.entry_id FROM entry_cash ec
 JOIN cash_rule r ON r.id = ec.cash_rule_id AND r.user_id = ec.user_id
 WHERE r.ring_game_id IS NOT ec.ring_game_id`,
+		tables: ["cash_rule", "entry_cash"],
 	},
 	{
-		audit: "A-14",
-		part: "tournament rule parent and entry rule keep NULL-master parity",
-		kind: "sql",
 		activation: SINCE_B08,
-		tables: ["tournament_rule", "entry_tournament"],
+		audit: "A-14",
+		kind: "sql",
+		part: "tournament rule parent and entry rule keep NULL-master parity",
 		sql: () => `SELECT 'tournament_rule' AS target, c.id AS id FROM tournament_rule c
 JOIN tournament_rule p ON p.id = c.parent_rule_id AND p.user_id = c.user_id
 WHERE p.tournament_id IS NOT c.tournament_id
@@ -281,27 +280,23 @@ UNION ALL
 SELECT 'entry_tournament', et.entry_id FROM entry_tournament et
 JOIN tournament_rule r ON r.id = et.tournament_rule_id AND r.user_id = et.user_id
 WHERE r.tournament_id IS NOT et.tournament_id`,
+		tables: ["tournament_rule", "entry_tournament"],
 	},
 	{
-		audit: "A-14",
-		part: "cash rule has one stake per lineup group",
-		kind: "sql",
 		activation: SINCE_B07,
-		tables: ["cash_rule", "game_lineup_group", "cash_rule_stake"],
+		audit: "A-14",
+		kind: "sql",
+		part: "cash rule has one stake per lineup group",
 		sql: () => `SELECT r.id AS rule_id, g.id AS lineup_group_id FROM cash_rule r
 JOIN game_lineup_group g ON g.lineup_id = r.lineup_id AND g.user_id = r.user_id
 WHERE NOT EXISTS (SELECT 1 FROM cash_rule_stake s WHERE s.rule_id = r.id AND s.lineup_group_id = g.id)`,
+		tables: ["cash_rule", "game_lineup_group", "cash_rule_stake"],
 	},
 	{
-		audit: "A-14",
-		part: "tournament level stakes cover every group; breaks have none",
-		kind: "sql",
 		activation: SINCE_B08,
-		tables: [
-			"tournament_rule_level",
-			"game_lineup_group",
-			"tournament_rule_level_stake",
-		],
+		audit: "A-14",
+		kind: "sql",
+		part: "tournament level stakes cover every group; breaks have none",
 		sql: () => `SELECT 'missing' AS problem, l.id AS level_id, g.id AS lineup_group_id FROM tournament_rule_level l
 JOIN game_lineup_group g ON g.lineup_id = l.lineup_id AND g.user_id = l.user_id
 WHERE l.is_break = 0
@@ -310,18 +305,17 @@ UNION ALL
 SELECT 'break', l.id, s.lineup_group_id FROM tournament_rule_level l
 JOIN tournament_rule_level_stake s ON s.level_id = l.id
 WHERE l.is_break = 1`,
+		tables: [
+			"tournament_rule_level",
+			"game_lineup_group",
+			"tournament_rule_level_stake",
+		],
 	},
 	{
-		audit: "A-14",
-		part: "line price belongs to the entry's tournament rule or master and pays in its asset",
-		kind: "sql",
 		activation: SINCE_B13,
-		tables: [
-			"ledger_line",
-			"tournament_rule_price",
-			"tournament_rule",
-			"entry_tournament",
-		],
+		audit: "A-14",
+		kind: "sql",
+		part: "line price belongs to the entry's tournament rule or master and pays in its asset",
 		sql: () => `SELECT l.id AS id, l.price_id AS price_id FROM ledger_line l
 JOIN tournament_rule_price pr ON pr.id = l.price_id AND pr.user_id = l.user_id
 JOIN tournament_rule r ON r.id = pr.rule_id AND r.user_id = pr.user_id
@@ -329,13 +323,18 @@ LEFT JOIN entry_tournament et ON et.entry_id = l.entry_id AND et.user_id = l.use
 WHERE pr.asset_id <> l.asset_id OR et.entry_id IS NULL
 OR NOT (pr.rule_id IS et.tournament_rule_id
 OR (et.tournament_id IS NOT NULL AND r.tournament_id IS et.tournament_id))`,
+		tables: [
+			"ledger_line",
+			"tournament_rule_price",
+			"tournament_rule",
+			"entry_tournament",
+		],
 	},
 	{
-		audit: "A-14",
-		part: "self player / Hero consistency",
-		kind: "sql",
 		activation: SINCE_B15,
-		tables: ["user", "player", "hand_seat"],
+		audit: "A-14",
+		kind: "sql",
+		part: "self player / Hero consistency",
 		sql: () => `SELECT u.id AS id, 'self count' AS problem FROM user u
 LEFT JOIN player p ON p.user_id = u.id AND p.is_self = 1
 GROUP BY u.id HAVING count(p.id) <> 1
@@ -349,21 +348,21 @@ UNION ALL
 SELECT s.hand_id, 'non-hero self' FROM hand_seat s
 JOIN player p ON p.id = s.player_id AND p.user_id = s.user_id AND p.is_self = 1
 WHERE s.is_hero = 0`,
+		tables: ["user", "player", "hand_seat"],
 	},
 	{
-		audit: "A-15",
-		part: "stored events use schema_version 2 and parse with the payload registry",
-		kind: "replay",
-		replay: "a15-payload-schema",
 		activation: SINCE_B15,
+		audit: "A-15",
+		kind: "replay",
+		part: "stored events use schema_version 2 and parse with the payload registry",
+		replay: "a15-payload-schema",
 		tables: ["entry", "play_event"],
 	},
 	{
-		audit: "A-15",
-		part: "payload asset, price and player ids are owned",
-		kind: "sql",
 		activation: SINCE_B01,
-		tables: ["play_event", "asset", "tournament_rule_price", "player"],
+		audit: "A-15",
+		kind: "sql",
+		part: "payload asset, price and player ids are owned",
 		sql: () => `SELECT pe.id AS id, 'asset' AS reference, json_extract(p.value, '$.assetId') AS ref_id
 FROM play_event pe, json_each(pe.payload, '$.payments') p
 WHERE json_type(pe.payload, '$.payments') = 'array'
@@ -385,34 +384,34 @@ UNION ALL
 SELECT pe.id, 'player', json_extract(pe.payload, '$.playerId') FROM play_event pe
 WHERE json_extract(pe.payload, '$.playerId') IS NOT NULL
 AND NOT EXISTS (SELECT 1 FROM player x WHERE x.id = json_extract(pe.payload, '$.playerId') AND x.user_id = pe.user_id)`,
+		tables: ["play_event", "asset", "tournament_rule_price", "player"],
 	},
 	{
-		audit: "A-15",
-		part: "only all_in events link a hand",
-		kind: "sql",
 		activation: SINCE_B01,
-		tables: ["play_event"],
+		audit: "A-15",
+		kind: "sql",
+		part: "only all_in events link a hand",
 		sql: () =>
 			`SELECT id, type FROM play_event WHERE hand_id IS NOT NULL AND type <> 'all_in'`,
+		tables: ["play_event"],
 	},
 	{
-		audit: "A-15",
-		part: "projected line price equals the same event's payment priceId",
-		kind: "sql",
 		activation: SINCE_B15,
-		tables: ["ledger_line", "play_event"],
+		audit: "A-15",
+		kind: "sql",
+		part: "projected line price equals the same event's payment priceId",
 		sql: () => `SELECT l.id AS id, l.price_id AS line_price_id,
 json_extract(pe.payload, '$.payments[' || substr(l.id, length(pe.id) + 2) || '].priceId') AS payload_price_id
 FROM ledger_line l
 JOIN play_event pe ON pe.id = l.source_event_id AND pe.user_id = l.user_id
 WHERE l.price_id IS NOT json_extract(pe.payload, '$.payments[' || substr(l.id, length(pe.id) + 2) || '].priceId')`,
+		tables: ["ledger_line", "play_event"],
 	},
 	{
-		audit: "A-16",
-		part: "migrated entries, lines and payments in a named room left the Unassigned asset",
-		kind: "sql",
 		activation: SINCE_B23,
-		tables: ["entry", "ledger_line", "play_event", "room", "asset"],
+		audit: "A-16",
+		kind: "sql",
+		part: "migrated entries, lines and payments in a named room left the Unassigned asset",
 		sql: (cutoverAt) => `SELECT 'entry' AS source, e.id AS id FROM entry e
 WHERE e.asset_id = ${UNASSIGNED("e.user_id")} AND e.created_at <= ${cutoverAt} AND e.updated_at <= ${cutoverAt}
 AND ${mappedRoom("e.user_id", "e.room_id")}
@@ -429,22 +428,13 @@ AND ${mappedRoom("e.user_id", "e.room_id")}
 AND (json_extract(pe.payload, '$.assetId') = ${UNASSIGNED("pe.user_id")}
 OR EXISTS (SELECT 1 FROM json_each(CASE WHEN json_type(pe.payload, '$.payments') = 'array' THEN json_extract(pe.payload, '$.payments') ELSE '[]' END) p
 WHERE json_extract(p.value, '$.assetId') = ${UNASSIGNED("pe.user_id")}))`,
+		tables: ["entry", "ledger_line", "play_event", "room", "asset"],
 	},
 	{
-		audit: "A-16",
-		part: "migrated prices and master default assets in a named room left the Unassigned asset",
-		kind: "sql",
 		activation: SINCE_B23,
-		tables: [
-			"tournament_rule_price",
-			"tournament_rule",
-			"tournament",
-			"ring_game",
-			"entry_tournament",
-			"entry",
-			"room",
-			"asset",
-		],
+		audit: "A-16",
+		kind: "sql",
+		part: "migrated prices and master default assets in a named room left the Unassigned asset",
 		sql: (
 			cutoverAt
 		) => `SELECT 'tournament_rule_price' AS source, p.id AS id FROM tournament_rule_price p
@@ -465,13 +455,22 @@ UNION ALL
 SELECT 'ring_game', g.id FROM ring_game g
 WHERE g.default_asset_id = ${UNASSIGNED("g.user_id")} AND g.created_at <= ${cutoverAt} AND g.updated_at <= ${cutoverAt}
 AND ${mappedRoom("g.user_id", "g.room_id")}`,
+		tables: [
+			"tournament_rule_price",
+			"tournament_rule",
+			"tournament",
+			"ring_game",
+			"entry_tournament",
+			"entry",
+			"room",
+			"asset",
+		],
 	},
 	{
-		audit: "A-16",
-		part: "no migrated live play_session kept a JST date for an owner outside Asia/Tokyo",
-		kind: "sql",
 		activation: SINCE_B23,
-		tables: ["play_session", "entry", "user_setting"],
+		audit: "A-16",
+		kind: "sql",
+		part: "no migrated live play_session kept a JST date for an owner outside Asia/Tokyo",
 		sql: (
 			cutoverAt
 		) => `SELECT p.id AS id, s.time_zone AS time_zone FROM play_session p
@@ -479,13 +478,13 @@ JOIN entry e ON e.id = p.entry_id AND e.user_id = p.user_id AND e.source = 'live
 JOIN user_setting s ON s.user_id = p.user_id
 WHERE s.time_zone IS NOT NULL AND s.time_zone <> 'Asia/Tokyo'
 AND s.updated_at <= ${cutoverAt} AND p.created_at <= ${cutoverAt} AND p.updated_at <= ${cutoverAt}`,
+		tables: ["play_session", "entry", "user_setting"],
 	},
 	{
-		audit: "A-16",
-		part: "no Unassigned asset or stand-in master created after the cleanup, and no stand-in carries a builtin key",
-		kind: "sql",
 		activation: SINCE_B23,
-		tables: ["asset", "game_variant", "game_mix"],
+		audit: "A-16",
+		kind: "sql",
+		part: "no Unassigned asset or stand-in master created after the cleanup, and no stand-in carries a builtin key",
 		sql: (
 			cutoverAt
 		) => `SELECT 'asset' AS source, id FROM asset WHERE id LIKE 'unassigned:%' AND created_at > ${cutoverAt}
@@ -493,5 +492,6 @@ UNION ALL
 SELECT 'game_variant', id FROM game_variant WHERE id LIKE 'sv:%' AND (created_at > ${cutoverAt} OR builtin_key IS NOT NULL)
 UNION ALL
 SELECT 'game_mix', id FROM game_mix WHERE id LIKE 'sm:%' AND (created_at > ${cutoverAt} OR builtin_key IS NOT NULL)`,
+		tables: ["asset", "game_variant", "game_mix"],
 	},
 ];

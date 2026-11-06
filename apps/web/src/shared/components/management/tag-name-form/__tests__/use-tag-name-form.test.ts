@@ -21,7 +21,7 @@ describe("useTagNameForm", () => {
 	it("seeds the form with defaultName", () => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() =>
-			useTagNameForm({ onSubmit, defaultName: "Existing" })
+			useTagNameForm({ defaultName: "Existing", onSubmit })
 		);
 		expect(result.current.form.state.values).toEqual({ name: "Existing" });
 	});
@@ -166,7 +166,7 @@ describe("useTagNameForm", () => {
 	it("overrides label when provided", () => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() =>
-			useTagNameForm({ onSubmit, label: "Preset name" })
+			useTagNameForm({ label: "Preset name", onSubmit })
 		);
 		expect(result.current.label).toBe("Preset name");
 	});

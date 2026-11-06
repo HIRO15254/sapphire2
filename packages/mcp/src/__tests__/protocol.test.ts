@@ -29,24 +29,24 @@ async function readMessages(response: Response): Promise<JsonRpcResponse[]> {
 
 function rpcRequest(body: unknown, headers: Record<string, string> = {}) {
 	return new Request(ENDPOINT, {
-		method: "POST",
+		body: typeof body === "string" ? body : JSON.stringify(body),
 		headers: {
-			"content-type": "application/json",
 			accept: "application/json, text/event-stream",
+			"content-type": "application/json",
 			...headers,
 		},
-		body: typeof body === "string" ? body : JSON.stringify(body),
+		method: "POST",
 	});
 }
 
 const INITIALIZE = {
-	jsonrpc: "2.0",
 	id: 1,
+	jsonrpc: "2.0",
 	method: "initialize",
 	params: {
-		protocolVersion: "2025-03-26",
 		capabilities: {},
 		clientInfo: { name: "vitest", version: "0.0.0" },
+		protocolVersion: "2025-03-26",
 	},
 };
 
@@ -60,7 +60,7 @@ function createHandlerHarness(options?: { result?: unknown; error?: unknown }) {
 					{},
 					{
 						get: (_t, procedure: string) => (input: unknown) => {
-							calls.push({ path: `${namespace}.${procedure}`, input });
+							calls.push({ input, path: `${namespace}.${procedure}` });
 							if (options?.error) {
 								return Promise.reject(options.error);
 							}
@@ -75,7 +75,7 @@ function createHandlerHarness(options?: { result?: unknown; error?: unknown }) {
 		buildCaller: () => caller as never,
 		log,
 	});
-	return { handler, calls, log };
+	return { calls, handler, log };
 }
 
 describe("MCP protocol layer", () => {
@@ -102,7 +102,7 @@ describe("MCP protocol layer", () => {
 
 	it("lists every registered tool with an object input schema and annotations", async () => {
 		const response = await harness.handler.fetch(
-			rpcRequest({ jsonrpc: "2.0", id: 2, method: "tools/list" })
+			rpcRequest({ id: 2, jsonrpc: "2.0", method: "tools/list" })
 		);
 		const [message] = await readMessages(response);
 		expect(message?.error).toBeUndefined();
@@ -130,10 +130,10 @@ describe("MCP protocol layer", () => {
 		});
 		const response = await withResult.handler.fetch(
 			rpcRequest({
-				jsonrpc: "2.0",
 				id: 4,
+				jsonrpc: "2.0",
 				method: "tools/call",
-				params: { name: "room_list", arguments: { includeArchived: true } },
+				params: { arguments: { includeArchived: true }, name: "room_list" },
 			})
 		);
 		const [message] = await readMessages(response);
@@ -147,7 +147,7 @@ describe("MCP protocol layer", () => {
 			JSON.stringify({ items: [], nextCursor: undefined, summary: null })
 		);
 		expect(withResult.calls).toEqual([
-			{ path: "room.list", input: { includeArchived: true } },
+			{ input: { includeArchived: true }, path: "room.list" },
 		]);
 	});
 
@@ -157,10 +157,10 @@ describe("MCP protocol layer", () => {
 		});
 		const response = await failing.handler.fetch(
 			rpcRequest({
-				jsonrpc: "2.0",
 				id: 5,
+				jsonrpc: "2.0",
 				method: "tools/call",
-				params: { name: "room_list", arguments: {} },
+				params: { arguments: {}, name: "room_list" },
 			})
 		);
 		const [message] = await readMessages(response);
@@ -177,10 +177,10 @@ describe("MCP protocol layer", () => {
 	it("rejects an unknown tool name with a JSON-RPC error, not a 500", async () => {
 		const response = await harness.handler.fetch(
 			rpcRequest({
-				jsonrpc: "2.0",
 				id: 6,
+				jsonrpc: "2.0",
 				method: "tools/call",
-				params: { name: "no_such_tool", arguments: {} },
+				params: { arguments: {}, name: "no_such_tool" },
 			})
 		);
 		const [message] = await readMessages(response);
@@ -191,12 +191,12 @@ describe("MCP protocol layer", () => {
 	it("rejects arguments that violate the router schema before the procedure runs", async () => {
 		const response = await harness.handler.fetch(
 			rpcRequest({
-				jsonrpc: "2.0",
 				id: 7,
+				jsonrpc: "2.0",
 				method: "tools/call",
 				params: {
-					name: "room_get_by_id",
 					arguments: { id: 42 },
+					name: "room_get_by_id",
 				},
 			})
 		);
@@ -210,7 +210,7 @@ describe("MCP protocol layer", () => {
 
 	it("answers an unknown method with -32601", async () => {
 		const response = await harness.handler.fetch(
-			rpcRequest({ jsonrpc: "2.0", id: 8, method: "foo/bar" })
+			rpcRequest({ id: 8, jsonrpc: "2.0", method: "foo/bar" })
 		);
 		const [message] = await readMessages(response);
 		expect(message?.error?.code).toBe(-32_601);
@@ -229,17 +229,17 @@ describe("MCP protocol layer", () => {
 		expect(response.status).toBe(202);
 	});
 
-	it.each([
-		"GET",
-		"DELETE",
-	] as const)("refuses stateless-unsupported %s requests without crashing", async (method) => {
-		const response = await harness.handler.fetch(
-			new Request(ENDPOINT, {
-				method,
-				headers: { accept: "application/json, text/event-stream" },
-			})
-		);
-		expect(response.status).toBeGreaterThanOrEqual(400);
-		expect(response.status).toBeLessThan(500);
-	});
+	it.each(["GET", "DELETE"] as const)(
+		"refuses stateless-unsupported %s requests without crashing",
+		async (method) => {
+			const response = await harness.handler.fetch(
+				new Request(ENDPOINT, {
+					headers: { accept: "application/json, text/event-stream" },
+					method,
+				})
+			);
+			expect(response.status).toBeGreaterThanOrEqual(400);
+			expect(response.status).toBeLessThan(500);
+		}
+	);
 });

@@ -12,7 +12,7 @@ const migrationSql = readFileSync(migrationPath, "utf8");
 const baseSchema =
 	"CREATE TABLE game_session (id TEXT PRIMARY KEY NOT NULL, user_id TEXT NOT NULL, kind TEXT NOT NULL, status TEXT NOT NULL, source TEXT NOT NULL, session_date INTEGER NOT NULL);";
 const UNIQUE_USER_CONFLICT_RE =
-	/UNIQUE constraint failed: game_session\.user_id/;
+	/UNIQUE constraint failed: game_session\.user_id/u;
 
 describe("migration 0044 — one unfinished live session per user", () => {
 	let db: Database;

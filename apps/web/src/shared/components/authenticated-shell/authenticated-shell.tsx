@@ -20,7 +20,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
 
 	if (isDesktop) {
 		return (
-			<Empty className="min-h-svh bg-background p-6">
+			<Empty className="bg-background min-h-svh p-6">
 				<EmptyHeader>
 					<EmptyMedia>
 						<IconDeviceMobile aria-hidden />
@@ -37,7 +37,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
 
 	return (
 		<UpdateNotesProvider>
-			<div className="flex h-svh flex-col bg-background text-foreground">
+			<div className="bg-background text-foreground flex h-svh flex-col">
 				<OnlineStatusBar />
 				<div className="min-h-0 flex-1 overflow-auto">{children}</div>
 				<MobileNav />

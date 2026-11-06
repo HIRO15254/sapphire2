@@ -93,7 +93,7 @@ export function UpdateNotesSheet() {
 												{release.changes.map((group) => (
 													<Fragment key={group.section || "general"}>
 														{group.section ? (
-															<p className="mt-2.5 mb-1 font-semibold text-[length:var(--m-text-footnote)] text-muted-foreground uppercase tracking-[var(--tracking-caps)]">
+															<p className="text-muted-foreground mt-2.5 mb-1 font-semibold tracking-[var(--tracking-caps)] text-[length:var(--m-text-footnote)] uppercase">
 																{group.section}
 															</p>
 														) : null}

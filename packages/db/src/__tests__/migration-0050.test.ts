@@ -72,13 +72,13 @@ describe("migration 0050 — OIDC provider tables for MCP OAuth", () => {
 			const fks = db.prepare(`PRAGMA foreign_key_list(${table})`).all();
 			expect(
 				fks.map((fk) => ({
-					table: fk.table,
 					from: fk.from,
+					table: fk.table,
 					to: fk.to,
 				}))
 			).toContainEqual({
-				table: "oauth_application",
 				from: "client_id",
+				table: "oauth_application",
 				to: "client_id",
 			});
 		}
@@ -173,6 +173,6 @@ describe("migration 0050 — OIDC provider tables for MCP OAuth", () => {
 
 		expect(
 			db.prepare("SELECT id, client_id FROM oauth_application").all()
-		).toEqual([{ id: "app-1", client_id: "client-1" }]);
+		).toEqual([{ client_id: "client-1", id: "app-1" }]);
 	});
 });
