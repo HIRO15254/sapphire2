@@ -55,7 +55,7 @@ sapphire2/
 ### Prerequisites
 
 - [Bun](https://bun.sh/) installed
-- [Node.js](https://nodejs.org/) 22.16.0 or later installed (runs the Cloudflare Wrangler CLI and Vitest, whose migration tests use `node:sqlite`; Bun remains the package manager)
+- [Node.js](https://nodejs.org/) 22.22.2 or later on the 22 line, or 24.15.0 or later, installed (runs the Cloudflare Wrangler CLI, Vitest, whose migration tests use `node:sqlite`, and Ultracite; Bun remains the package manager)
 
 ### Setup
 

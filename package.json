@@ -7,19 +7,22 @@
       "packages/*"
     ],
     "catalog": {
-      "dotenv": "^17.4.1",
-      "zod": "^4.3.6",
+      "dotenv": "^18.0.9",
+      "zod": "^4.6.7",
       "typescript": "^7.0.2",
-      "@types/bun": "^1.3.11",
-      "hono": "^4.12.12",
-      "@trpc/server": "^11.16.0",
+      "@types/bun": "^1.4.4",
+      "hono": "^4.13.16",
+      "@trpc/server": "^11.24.0",
       "better-auth": "^1.7.18",
       "@better-auth/mcp": "1.7.18",
       "@better-auth/oauth-provider": "1.7.18",
       "@better-auth/passkey": "1.7.18",
-      "@trpc/client": "^11.16.0",
-      "drizzle-orm": "^0.45.2",
-      "openai": "^7.21.0"
+      "@trpc/client": "^11.24.0",
+      "drizzle-orm": "^0.45.4",
+      "openai": "^7.52.0",
+      "vitest": "5.1.0",
+      "msw": "^3.0.4",
+      "miniflare": "4.20260730.0"
     }
   },
   "type": "module",
@@ -53,30 +56,30 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.10",
-    "@cloudflare/workers-types": "^4.20260405.1",
-    "@playwright/test": "1.63.0",
+    "@biomejs/biome": "2.6.5",
+    "@cloudflare/workers-types": "^5.20261106.1",
+    "@playwright/test": "1.65.0",
     "@sapphire2/config": "workspace:*",
     "@types/bun": "catalog:",
-    "@vitest/coverage-v8": "4.1.2",
+    "@vitest/coverage-v8": "5.1.0",
     "husky": "^9.1.7",
-    "lint-staged": "^16.4.0",
-    "miniflare": "4.20260401.0",
-    "msw": "^3.0.3",
+    "lint-staged": "^17.6.0",
+    "miniflare": "catalog:",
+    "msw": "catalog:",
     "typescript": "catalog:",
-    "ultracite": "7.4.3",
-    "vitest": "4.1.2",
-    "wrangler": "^4.80.0",
-    "yaml": "2.8.2"
+    "ultracite": "8.1.1",
+    "vitest": "catalog:",
+    "wrangler": "^4.158.0",
+    "yaml": "2.9.1"
   },
   "engines": {
-    "node": ">=22.16.0",
-    "bun": ">=1.3.0"
+    "node": "^22.22.2 || >=24.15.0",
+    "bun": ">=1.4.0"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,json,jsonc,css,scss,md,mdx}": [
       "bun x ultracite fix"
     ]
   },
-  "packageManager": "bun@1.3.10"
+  "packageManager": "bun@1.4.4"
 }

@@ -22,9 +22,11 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260405.1",
+    "@cloudflare/workers-types": "^5.20261106.1",
     "@sapphire2/config": "workspace:*",
     "hono": "catalog:",
-    "typescript": "catalog:"
+    "miniflare": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

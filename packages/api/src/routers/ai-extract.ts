@@ -7,7 +7,7 @@ import { TRPCError } from "@trpc/server";
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import type {
-	ResponseInput,
+	EasyInputMessage,
 	ResponseInputContent,
 } from "openai/resources/responses/responses";
 import z from "zod";
@@ -193,7 +193,7 @@ async function parseStructuredResponse<T>(call: Promise<T>): Promise<T> {
 	}
 }
 
-function buildInput(sources: Source[], prompt: string): ResponseInput {
+function buildInput(sources: Source[], prompt: string): [EasyInputMessage] {
 	const content: ResponseInputContent[] = sources.map((source) => ({
 		type: "input_image",
 		detail: "auto",
