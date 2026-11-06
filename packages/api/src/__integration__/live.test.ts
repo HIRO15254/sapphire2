@@ -72,6 +72,112 @@ async function failure(promise: Promise<unknown>) {
 }
 
 describe("live API on D1", () => {
+	test("rejects a stale projection after a competing event", async ({
+		api,
+	}) => {
+		const started = await api.alice.live.create({
+			kind: "tournament",
+			payments: [],
+		});
+		const raced = api.raceCaller("alice", async () => {
+			await api.alice.playEvent.create({
+				entryId: started.id,
+				eventType: "reentry",
+				payload: { payments: [] },
+			});
+		});
+		await expect(
+			raced.playEvent.create({
+				entryId: started.id,
+				eventType: "reentry",
+				payload: { payments: [] },
+			})
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		expect(
+			(await api.db.select().from(playEvent)).filter(
+				(e) => e.type === "reentry"
+			)
+		).toHaveLength(1);
+	});
+
+	test("rejects a competing claim on the same seat", async ({ api }) => {
+		const started = await api.alice.live.create({
+			kind: "tournament",
+			payments: [],
+		});
+		const first = requireCreatedRow(
+			await api.alice.player.create({ name: "First" })
+		);
+		const second = requireCreatedRow(
+			await api.alice.player.create({ name: "Second" })
+		);
+		const raced = api.raceCaller("alice", async () => {
+			await api.alice.tablePlayer.add({
+				entryId: started.id,
+				playerId: first.id,
+				seatPosition: 1,
+			});
+		});
+		await expect(
+			raced.tablePlayer.add({
+				entryId: started.id,
+				playerId: second.id,
+				seatPosition: 1,
+			})
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		expect(
+			(await api.alice.tablePlayer.list({ entryId: started.id })).items.map(
+				(p) => p.id
+			)
+		).toEqual([first.id]);
+	});
+
+	test("rejects a player event after the player is deleted", async ({
+		api,
+	}) => {
+		const started = await api.alice.live.create({
+			kind: "tournament",
+			payments: [],
+		});
+		const saved = requireCreatedRow(
+			await api.alice.player.create({ name: "Opponent" })
+		);
+		const raced = api.raceCaller("alice", async () => {
+			await api.alice.player.delete({ id: saved.id });
+		});
+		await expect(
+			raced.tablePlayer.add({ entryId: started.id, playerId: saved.id })
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		expect(
+			(await api.alice.tablePlayer.list({ entryId: started.id })).items
+		).toEqual([]);
+	});
+
+	test("rejects deleting a player referenced by a competing event", async ({
+		api,
+	}) => {
+		const started = await api.alice.live.create({
+			kind: "tournament",
+			payments: [],
+		});
+		const saved = requireCreatedRow(
+			await api.alice.player.create({ name: "Opponent" })
+		);
+		const raced = api.raceCaller("alice", async () => {
+			await api.alice.tablePlayer.add({
+				entryId: started.id,
+				playerId: saved.id,
+			});
+		});
+		await expect(raced.player.delete({ id: saved.id })).rejects.toMatchObject({
+			code: "CONFLICT",
+			message: "This player cannot be deleted",
+		});
+		expect(await api.alice.player.getById({ id: saved.id })).toMatchObject({
+			id: saved.id,
+		});
+	});
+
 	test("editing and deleting a reentry reprojects its payment", async ({
 		api,
 	}) => {

@@ -1,4 +1,5 @@
 import type { StatsValuation } from "@sapphire2/db/schemas/stats-filter";
+import { addSafeIntegers } from "../lib/safe-integer";
 import { playMinutes } from "./entry-reads";
 import type { StatsBucket, StatsEntry } from "./stats-data";
 import {
@@ -118,12 +119,12 @@ function nativeAmounts(
 	let cashOut = 0;
 	for (const line of lines) {
 		if (isPayment(line.quantity)) {
-			buyIn -= line.quantity;
+			buyIn = addSafeIntegers(buyIn, -line.quantity);
 		} else {
-			cashOut += line.quantity;
+			cashOut = addSafeIntegers(cashOut, line.quantity);
 		}
 	}
-	return { buyIn, cashOut, profitLoss: cashOut - buyIn };
+	return { buyIn, cashOut, profitLoss: addSafeIntegers(cashOut, -buyIn) };
 }
 
 function toValuationLine(
@@ -223,7 +224,7 @@ class NormalizationContext {
 				evNormalized:
 					entry.evDiff === null
 						? null
-						: (profitLoss + entry.evDiff) / entry.bigBlind,
+						: addSafeIntegers(profitLoss, entry.evDiff) / entry.bigBlind,
 			};
 		}
 		const unit = this.tournamentUnit(entry);
@@ -518,9 +519,17 @@ function evMetrics(
 	}
 	return {
 		evRecordedEntryCount: recorded.length,
-		evDiff: sum(recorded.map((fact) => fact.evDiff ?? 0)),
-		evProfitLoss: sum(
-			cash.map((fact) => (fact.value ?? 0) + (fact.evDiff ?? 0))
+		evDiff: recorded.reduce(
+			(total, fact) => addSafeIntegers(total, fact.evDiff ?? 0),
+			0
+		),
+		evProfitLoss: cash.reduce(
+			(total, fact) =>
+				addSafeIntegers(
+					addSafeIntegers(total, fact.value ?? 0),
+					fact.evDiff ?? 0
+				),
+			0
 		),
 	};
 }
@@ -529,9 +538,12 @@ function sumAmounts(facts: EntryFacts[]): ValuationAmounts {
 	const total = { buyIn: 0, cashOut: 0, profitLoss: 0 };
 	for (const fact of facts) {
 		if (fact.amounts) {
-			total.buyIn += fact.amounts.buyIn;
-			total.cashOut += fact.amounts.cashOut;
-			total.profitLoss += fact.amounts.profitLoss;
+			total.buyIn = addSafeIntegers(total.buyIn, fact.amounts.buyIn);
+			total.cashOut = addSafeIntegers(total.cashOut, fact.amounts.cashOut);
+			total.profitLoss = addSafeIntegers(
+				total.profitLoss,
+				fact.amounts.profitLoss
+			);
 		}
 	}
 	return total;

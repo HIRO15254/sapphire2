@@ -4,9 +4,10 @@ import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { anteTypeSchema } from "@sapphire2/db/schemas/game";
 import { idSchema } from "@sapphire2/db/schemas/id";
 import { TRPCError } from "@trpc/server";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import z from "zod";
-import { selectInChunks } from "../lib/batch";
+import { type BatchStatement, selectInChunks } from "../lib/batch";
+import { guardStatement } from "../lib/write-guard";
 
 const blindAmountSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
@@ -115,10 +116,10 @@ export async function assertStakeBlinds(
 	db: Database,
 	userId: string,
 	stakes: (StakeValues & { gameGroupId: string })[]
-): Promise<void> {
+): Promise<BatchStatement[]> {
 	const ids = [...new Set(stakes.map((stake) => stake.gameGroupId))];
 	if (ids.length === 0) {
-		return;
+		return [];
 	}
 	const rows = await selectInChunks(
 		ids,
@@ -155,4 +156,23 @@ export async function assertStakeBlinds(
 			}
 		}
 	}
+	const guards: BatchStatement[] = [];
+	for (let index = 0; index < rows.length; index += 10) {
+		const conditions = rows.slice(index, index + 10).map(
+			(group) =>
+				sql`EXISTS (SELECT 1 FROM ${gameGroup}
+				WHERE ${gameGroup.id} = ${group.id} AND ${gameGroup.userId} = ${userId}
+				AND ${gameGroup.label} IS ${group.label}
+				AND ${gameGroup.blind1Label} IS ${group.blind1Label}
+				AND ${gameGroup.blind2Label} IS ${group.blind2Label}
+				AND ${gameGroup.blind3Label} IS ${group.blind3Label}
+				AND ${gameGroup.blind1Required} IS ${Number(group.blind1Required)}
+				AND ${gameGroup.blind2Required} IS ${Number(group.blind2Required)}
+				AND ${gameGroup.blind3Required} IS ${Number(group.blind3Required)})`
+		);
+		guards.push(
+			guardStatement(db, "stake-blinds", sql.join(conditions, sql` AND `))
+		);
+	}
+	return guards;
 }

@@ -308,7 +308,6 @@ export const playerRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await validateEntityOwnership(ctx.db, "player", input.id, userId);
-
 			const deleted = await ctx.db
 				.delete(player)
 				.where(
@@ -337,7 +336,6 @@ export const playerRouter = router({
 									.where(
 										and(
 											eq(playEvent.userId, userId),
-											inArray(playEvent.type, ["player_join", "player_leave"]),
 											sql`json_extract(${playEvent.payload}, '$.playerId') = ${input.id}`
 										)
 									)

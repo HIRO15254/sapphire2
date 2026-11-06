@@ -18,6 +18,7 @@ import { idSchema } from "@sapphire2/db/schemas/id";
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
 import z from "zod";
+import { activeReferencesGuard } from "../lib/active-reference-guard";
 import {
 	type BatchStatement,
 	insertChunks,
@@ -434,7 +435,7 @@ async function assertPriceAssets(
 	db: Database,
 	userId: string,
 	prices: PlannedPrice[],
-	keptAssetIds: Set<string>
+	keptPrices: TournamentRulePriceOutput[]
 ): Promise<void> {
 	const ids = [...new Set(prices.map((price) => price.assetId))];
 	if (ids.length === 0) {
@@ -455,10 +456,23 @@ async function assertPriceAssets(
 			message: "You do not own this asset",
 		});
 	}
-	if (
-		rows.some((row) => row.archivedAt !== null && !keptAssetIds.has(row.id))
-	) {
-		throw badRequest("An archived asset cannot be newly selected for a price");
+	const archived = new Set(
+		rows.filter((row) => row.archivedAt !== null).map((row) => row.id)
+	);
+	const remaining = new Map<string, number>();
+	for (const price of keptPrices) {
+		remaining.set(price.assetId, (remaining.get(price.assetId) ?? 0) + 1);
+	}
+	for (const price of prices) {
+		if (archived.has(price.assetId)) {
+			const count = remaining.get(price.assetId) ?? 0;
+			if (count === 0) {
+				throw badRequest(
+					"An archived asset cannot be newly selected for a price"
+				);
+			}
+			remaining.set(price.assetId, count - 1);
+		}
 	}
 }
 
@@ -556,12 +570,7 @@ async function planPrices(
 		chips: price.chips,
 		label: price.label ?? "",
 	}));
-	await assertPriceAssets(
-		db,
-		userId,
-		prices,
-		new Set(current?.prices.map((price) => price.assetId))
-	);
+	await assertPriceAssets(db, userId, prices, current?.prices ?? []);
 	return prices;
 }
 
@@ -637,16 +646,36 @@ export async function planTournamentRuleWrite(params: {
 	) {
 		return { ruleId: current.id, statements: [] };
 	}
-	await assertStakeBlinds(
+	const stakeGuards = await assertStakeBlinds(
 		db,
 		userId,
 		content.levels.flatMap((level) => level.stakes)
 	);
 
+	const remainingAssets = new Map<string, number>();
+	for (const price of current?.prices ?? []) {
+		remainingAssets.set(
+			price.assetId,
+			(remainingAssets.get(price.assetId) ?? 0) + 1
+		);
+	}
+	const newAssets = new Set<string>();
+	for (const price of prices) {
+		const count = remainingAssets.get(price.assetId) ?? 0;
+		if (count > 0) {
+			remainingAssets.set(price.assetId, count - 1);
+		} else {
+			newAssets.add(price.assetId);
+		}
+	}
 	const ruleId = crypto.randomUUID();
 	return {
 		ruleId,
 		statements: [
+			...(newAssets.size
+				? [activeReferencesGuard(db, asset, newAssets, userId)]
+				: []),
+			...stakeGuards,
 			...planner.statements(),
 			...tournamentRuleInsertStatements(
 				db,
@@ -742,7 +771,7 @@ export async function planTournamentRuleCopy(
 	) {
 		return { ruleId: target.parent.id, statements: [] };
 	}
-	await assertStakeBlinds(
+	const stakeGuards = await assertStakeBlinds(
 		db,
 		userId,
 		source.levels.flatMap((level) => level.stakes)
@@ -750,15 +779,18 @@ export async function planTournamentRuleCopy(
 	const ruleId = crypto.randomUUID();
 	return {
 		ruleId,
-		statements: tournamentRuleInsertStatements(
-			db,
-			userId,
-			{
-				id: ruleId,
-				tournamentId: target.tournamentId,
-				parentRuleId: target.parent?.id ?? null,
-			},
-			content
-		),
+		statements: [
+			...stakeGuards,
+			...tournamentRuleInsertStatements(
+				db,
+				userId,
+				{
+					id: ruleId,
+					tournamentId: target.tournamentId,
+					parentRuleId: target.parent?.id ?? null,
+				},
+				content
+			),
+		],
 	};
 }

@@ -14,6 +14,7 @@ import { MAX_LINKED_TAGS } from "@sapphire2/db/schemas/tag-ids";
 import { asc, eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
 import { chunkForInsert, D1_MAX_BOUND_PARAMS, runBatch } from "../lib/batch";
+import { encodeCursor } from "../lib/cursor";
 import {
 	addHand,
 	buildHandUpdateStatements,
@@ -92,6 +93,7 @@ function handRow(id: string, owner: Owner, overrides: Row = {}): Row {
 		user_id: owner,
 		play_session_id: `${owner}-play`,
 		hand_no: 1,
+		seq: overrides.hand_no ?? 1,
 		detail: "count",
 		updated_at: 0,
 		...overrides,
@@ -348,7 +350,7 @@ describe("hand tables on D1", () => {
 		await insert(api.d1, "hand_seat", seatRow("first", "alice", { seat: 3 }));
 
 		await expect(
-			insert(api.d1, "hand", handRow("duplicate-no", "alice"))
+			insert(api.d1, "hand", handRow("duplicate-no", "alice", { seq: 2 }))
 		).rejects.toThrow(
 			"UNIQUE constraint failed: hand.play_session_id, hand.hand_no"
 		);
@@ -583,6 +585,108 @@ describe("hand API on D1", () => {
 		expect(await handNumbers(api.db, "alice-play")).toEqual([[1, second]]);
 	});
 
+	test("undo rejects a hand that gained detail before deletion", async ({
+		api,
+	}) => {
+		await seedOwner(api.db, "alice");
+		const added = await api.alice.hand.add({ playSessionId: "alice-play" });
+		const raced = api.raceCaller("alice", () =>
+			api.alice.hand.update(fullHand(added.id, 2, 2))
+		);
+		await expect(
+			raced.hand.undoLast({ playSessionId: "alice-play" })
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		expect((await api.alice.hand.getById({ id: added.id })).detail).toBe(
+			"full"
+		);
+	});
+
+	test("undo rejects a hand that stopped being the last before deletion", async ({
+		api,
+	}) => {
+		await seedOwner(api.db, "alice");
+		const added = await api.alice.hand.add({ playSessionId: "alice-play" });
+		let newer = "";
+		const raced = api.raceCaller("alice", async () => {
+			newer = (await api.alice.hand.add({ playSessionId: "alice-play" })).id;
+		});
+		await expect(
+			raced.hand.undoLast({ playSessionId: "alice-play" })
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		expect(await handNumbers(api.db, "alice-play")).toEqual([
+			[1, added.id],
+			[2, newer],
+		]);
+	});
+
+	test("adding a hand rejects a session paused before the write", async ({
+		api,
+	}) => {
+		await seedOwner(api.db, "alice");
+		const raced = api.raceCaller("alice", () =>
+			api.db
+				.update(playSession)
+				.set({ status: "paused" })
+				.where(eq(playSession.id, "alice-play"))
+		);
+		await expect(
+			raced.hand.add({ playSessionId: "alice-play" })
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		expect(await handNumbers(api.db, "alice-play")).toEqual([]);
+	});
+
+	test("paging survives deletion of an older hand", async ({ api }) => {
+		await seedOwner(api.db, "alice");
+		const ids = ["page-1", "page-2", "page-3", "page-4", "page-5"];
+		for (const [index, id] of ids.entries()) {
+			await insert(
+				api.d1,
+				"hand",
+				handRow(id, "alice", { hand_no: index + 1, seq: index + 1 })
+			);
+		}
+		await api.db
+			.update(playSession)
+			.set({ nextHandSeq: 5 })
+			.where(eq(playSession.id, "alice-play"));
+		const first = await api.alice.hand.list({
+			playSessionId: "alice-play",
+			limit: 2,
+		});
+		await api.alice.hand.delete({ id: ids[1] as string });
+		const second = await api.alice.hand.list({
+			playSessionId: "alice-play",
+			limit: 2,
+			cursor: first.nextCursor ?? undefined,
+		});
+		expect([...first.items, ...second.items].map(({ id }) => id)).toEqual([
+			ids[4],
+			ids[3],
+			ids[2],
+			ids[0],
+		]);
+		expect(second.nextCursor).toBeNull();
+	});
+
+	test("a delete still lands after an overlapping delete renumbers its hand", async ({
+		api,
+	}) => {
+		await seedOwner(api.db, "alice");
+		const ids: string[] = [];
+		for (let index = 0; index < 5; index++) {
+			ids.push((await api.alice.hand.add({ playSessionId: "alice-play" })).id);
+		}
+		const raced = api.raceCaller("alice", () =>
+			api.alice.hand.delete({ id: ids[2] as string })
+		);
+		await raced.hand.delete({ id: ids[4] as string });
+		expect(await handNumbers(api.db, "alice-play")).toEqual([
+			[1, ids[0]],
+			[2, ids[1]],
+			[3, ids[3]],
+		]);
+	});
+
 	test("concurrent +1 calls give every hand its own number", async ({
 		api,
 	}) => {
@@ -665,6 +769,10 @@ describe("hand API on D1", () => {
 				handRow(id, "alice", { hand_no: index + 1 })
 			);
 		}
+		await api.db
+			.update(playSession)
+			.set({ nextHandSeq: ids.length })
+			.where(eq(playSession.id, "alice-play"));
 		await api.alice.hand.update(fullHand(fourth, 2, 1));
 
 		const firstPage = await api.alice.hand.list({
@@ -706,6 +814,16 @@ describe("hand API on D1", () => {
 			api.alice.hand.list({
 				playSessionId: "alice-play",
 				cursor: "not-a-cursor",
+			})
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		await expect(
+			api.alice.hand.list({
+				playSessionId: "alice-play",
+				cursor: encodeCursor({
+					playSessionId: "alice-play",
+					handNo: 4,
+					id: fourth,
+				}),
 			})
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		expect(

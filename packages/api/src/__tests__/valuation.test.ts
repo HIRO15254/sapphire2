@@ -45,6 +45,24 @@ const assets: ValuationAsset[] = [
 	{ id: "main-ticket", kind: "item" },
 ];
 
+it("rejects conversion overflow rather than returning rounded money", () => {
+	const input = {
+		baseAssetId: "pt",
+		assets,
+		rates: [rate("usd-pt", "usd", "pt", 2, 1, new Date(0))],
+		lines: [line("e", "usd", 4_503_599_627_370_495)],
+	};
+	expect(valueEntries(input).entries.get("e")?.real?.profitLoss).toBe(
+		9_007_199_254_740_990
+	);
+	expect(() =>
+		valueEntries({
+			...input,
+			lines: [line("e", "usd", 4_503_599_627_370_496)],
+		})
+	).toThrow("Integer total exceeds the safe integer range");
+});
+
 describe("valueEntries: the section 12.1 example (base pt, 1 Main ticket = 20,000 pt)", () => {
 	const result = valueEntries({
 		baseAssetId: "pt",

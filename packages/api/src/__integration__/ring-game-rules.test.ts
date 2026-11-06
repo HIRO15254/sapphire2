@@ -1,4 +1,5 @@
 import { user } from "@sapphire2/db/schema/auth";
+import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { cashRule } from "@sapphire2/db/schema/rule";
 import { eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
@@ -16,6 +17,35 @@ import {
 } from "./test-fixture";
 
 describe("ring game rule versions on D1", () => {
+	test("rejects a rule edit planned before another edit commits", async ({
+		api,
+	}) => {
+		const room = requireCreatedRow(
+			await api.alice.room.create({ name: "Club" })
+		);
+		const created = await api.alice.ringGame.create({
+			roomId: room.id,
+			name: "Cash",
+			rule: {
+				stakes: [
+					{ gameGroupId: "alice:builtin-group:bigbet", blind1: 1, blind2: 2 },
+				],
+			},
+		});
+		const raced = api.raceCaller("alice", async () => {
+			await api.alice.ringGame.update({
+				id: created.id,
+				rule: { minBuyIn: 100 },
+			});
+		});
+		await expect(
+			raced.ringGame.update({ id: created.id, rule: { minBuyIn: 200 } })
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		const [saved] = await api.alice.ringGame.listByRoom({ roomId: room.id });
+		expect(saved?.ruleVersion.minBuyIn).toBe(100);
+		expect((await api.db.select().from(cashRule)).length).toBe(2);
+	});
+
 	test("rejects reusing a version under a different master", async ({
 		api,
 	}) => {
@@ -215,12 +245,32 @@ describe("ring game rule versions on D1", () => {
 		const wider = requireCreatedRow(
 			await api.alice.gameMix.create({ label: "Wider", games })
 		);
-		for (let index = 1; index <= MAX_LINEUP_GROUPS; index++) {
+		for (let index = 1; index < MAX_LINEUP_GROUPS; index++) {
 			await api.alice.gameVariant.update({
 				id: games[index] as string,
 				groupId: groups[index] as string,
 			});
 		}
+		await api.alice.gameMix.archive({ id: wider.id });
+		await expect(
+			api.alice.gameVariant.update({
+				id: games[MAX_LINEUP_GROUPS] as string,
+				groupId: groups[MAX_LINEUP_GROUPS] as string,
+			})
+		).rejects.toMatchObject({
+			code: "CONFLICT",
+			message: expect.stringContaining("Wider"),
+		});
+		expect(
+			(await api.alice.gameVariant.list()).find(
+				(variant) => variant.id === games[MAX_LINEUP_GROUPS]
+			)?.groupId
+		).toBe(first.id);
+		await api.alice.gameMix.restore({ id: wider.id });
+		await api.db
+			.update(gameVariant)
+			.set({ groupId: groups[MAX_LINEUP_GROUPS] as string })
+			.where(eq(gameVariant.id, games[MAX_LINEUP_GROUPS] as string));
 		const { caller, meter } = api.meteredCaller("alice");
 		const game = await caller.ringGame.create({
 			roomId: room.id,

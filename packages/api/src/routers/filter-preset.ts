@@ -9,16 +9,19 @@ import {
 } from "@sapphire2/db/schemas/filter-preset";
 import { idSchema } from "@sapphire2/db/schemas/id";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, exists, ne, sql } from "drizzle-orm";
-import { alias } from "drizzle-orm/sqlite-core";
+import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
-import { runBatch } from "../lib/batch";
 import { isFilterPresetNameConflictError } from "../lib/db-errors";
 import {
 	validateEntityOwnership,
 	validateTagsOwnership,
 } from "../lib/ownership";
+import {
+	changedRowsGuardStatement,
+	guardStatement,
+	runGuardedBatch,
+} from "../lib/write-guard";
 
 type Db = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
@@ -276,11 +279,22 @@ export const filterPresetRouter = router({
 			}
 
 			if (found.isDefault) {
+				await runGuardedBatch(ctx.db, [
+					guardStatement(
+						ctx.db,
+						"filter-preset-default",
+						sql`exists (
+						select 1 from ${filterPreset}
+						where ${filterPreset.id} = ${input.id}
+						and ${filterPreset.userId} = ${userId}
+						and ${filterPreset.isDefault} = 1
+					)`
+					),
+				]);
 				return found;
 			}
 
-			const target = alias(filterPreset, "target_preset");
-			await runBatch(ctx.db, [
+			await runGuardedBatch(ctx.db, [
 				ctx.db
 					.update(filterPreset)
 					.set({ isDefault: false, updatedAt: new Date() })
@@ -288,15 +302,7 @@ export const filterPresetRouter = router({
 						and(
 							eq(filterPreset.userId, userId),
 							eq(filterPreset.screenKey, found.screenKey),
-							ne(filterPreset.id, input.id),
-							exists(
-								ctx.db
-									.select({ id: target.id })
-									.from(target)
-									.where(
-										and(eq(target.id, input.id), eq(target.userId, userId))
-									)
-							)
+							ne(filterPreset.id, input.id)
 						)
 					),
 				ctx.db
@@ -305,6 +311,7 @@ export const filterPresetRouter = router({
 					.where(
 						and(eq(filterPreset.id, input.id), eq(filterPreset.userId, userId))
 					),
+				changedRowsGuardStatement(ctx.db, "filter-preset-default"),
 			]);
 
 			const [updated] = await ctx.db
@@ -327,15 +334,30 @@ export const filterPresetRouter = router({
 			}
 
 			if (!found.isDefault) {
+				await runGuardedBatch(ctx.db, [
+					guardStatement(
+						ctx.db,
+						"filter-preset-default",
+						sql`exists (
+						select 1 from ${filterPreset}
+						where ${filterPreset.id} = ${input.id}
+						and ${filterPreset.userId} = ${userId}
+						and ${filterPreset.isDefault} = 0
+					)`
+					),
+				]);
 				return found;
 			}
 
-			await ctx.db
-				.update(filterPreset)
-				.set({ isDefault: false, updatedAt: new Date() })
-				.where(
-					and(eq(filterPreset.id, input.id), eq(filterPreset.userId, userId))
-				);
+			await runGuardedBatch(ctx.db, [
+				ctx.db
+					.update(filterPreset)
+					.set({ isDefault: false, updatedAt: new Date() })
+					.where(
+						and(eq(filterPreset.id, input.id), eq(filterPreset.userId, userId))
+					),
+				changedRowsGuardStatement(ctx.db, "filter-preset-default"),
+			]);
 
 			const [updated] = await ctx.db
 				.select()

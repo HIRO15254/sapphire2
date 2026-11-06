@@ -47,7 +47,7 @@ Built-in structures define these blind fields and required flags (`blind1Require
 
 Big Bet has only SB and BB; there is no Straddle field. User-created structures default all three flags to false (Optional). Ante is outside this requirement.
 
-Only a labeled field may be Required (BAD_REQUEST otherwise). Rule writes reject a NULL required blind or a value in an unlabeled field using the lineup group’s stored `game_group_id`. Reusing an existing version does not revalidate its stakes. Clearing a label while saved stakes still contain a value in that field returns CONFLICT.
+Only a labeled field may be Required (BAD_REQUEST otherwise). Rule writes reject a NULL required blind or a value in an unlabeled field using the lineup group’s stored `game_group_id`. New stake writes guard the validated group labels and required flags in the same batch; a concurrent change returns CONFLICT. Reusing an existing version does not revalidate its stakes. Clearing a label while saved stakes still contain a value in that field returns CONFLICT.
 
 ### Cash versions
 
@@ -132,6 +132,8 @@ All referenced ids are ownership-checked with uniform FORBIDDEN, including asset
 
 A rule write is one `db.batch()`: insert lineups and their children, insert the new version, insert stakes/levels/level stakes/prices, then repoint the master and/or entry. If the default lineup changes, inheriting levels in the **new** version receive the new default and mirror; stakes carry forward by structure plus ordinal. Old versions remain untouched. Whole tournament writes replace the supplied structure atomically; levels have an explicit input maximum and inserts derive their chunk width from the declared row shape to stay under D1's 100-bind limit.
 
+Master rule edits, pushes, and restores compare the current version against the version read when planning; a concurrent change causes CONFLICT and rolls back the whole batch, including newly inserted versions.
+
 Tournament writes must stay within the D1 invocation budget, including auth/session reads and each batch statement; see [data-model.md](data-model.md).
 
 There is no row-level edit facade over immutable versions. `tournament.create/update` and `createWithLevels/updateWithLevels` all use complete version bodies; the latter pair is exposed by MCP. Procedure details and omission semantics live in the API reference.
@@ -153,6 +155,8 @@ Drift is **version id comparison**, not normalized field comparison: for a linke
 `restoreRule` only repoints to existing versions; it creates no version and therefore restores the original ids and drift. It reverses overrideRule/applyMasterRule/pushRuleToMaster/relink; reversing createAndAssign also deletes the created master afterward. `ringGame.restoreRule` and `tournament.restoreRule` similarly repoint the master's current selection to an existing version owned by that master, without creating a version. These screen-only Undo operations are excluded from MCP.
 
 The API rejects a live overrideRule/applyMasterRule/relink/restoreRule with BAD_REQUEST before any write if lowering tableSize would put an active table player or the self player outside the new seat range. Validate the resulting version and folded seats together, not only the supplied partial rule.
+
+Live seat validation guards the event snapshot and entry rule selection in the write batch. Seat assignments also guard the rule version used to validate table size, so either ordering of a concurrent seat change and table-size reduction fails with CONFLICT rather than leaving a seat outside the table.
 
 ## Reads, statistics and MCP
 

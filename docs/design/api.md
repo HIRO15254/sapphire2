@@ -30,6 +30,12 @@ hand.update accepts at most 10 seats, 200 actions, 4 boards and 100 `tagIds`/`ta
 
 Ring-game rule writes plan one lineup: a newly created lineup spans at most 12 game groups (`MAX_LINEUP_GROUPS`, shared with tournament levels), so a save writes at most 12 stakes. A named mix regrouped by its variants' live game structure beyond that bound is rejected; an existing `lineupId` is reused as stored. 
 
+### Concurrent writes
+
+Writes that depend on earlier reads reassert their preconditions in the atomic batch using the write-guard helpers. A failed guard aborts the whole batch and maps to `CONFLICT`. Any mutation may return `CONFLICT` with "This was changed elsewhere. Reload and try again." when a concurrent change invalidated its precondition. So may the gameGroup, gameVariant and gameMix list queries when they seed the built-in masters while a custom game group is created. The web rolls back optimistic changes, shows that message, and invalidates cached queries for refetch.
+
+Newly selected references that must be active are rechecked atomically; a concurrent archive causes `CONFLICT`. References that the operation permits retaining while archived remain permitted.
+
 ### Dates, quantities, lists and common results
 
 - `DateOnly` is a valid calendar string `'YYYY-MM-DD'`: `playedOn`, `localDate`, `dateFrom`, `dateTo`. Date filters are inclusive and use `played_on`; calendar axes do too.
@@ -37,9 +43,10 @@ Ring-game rule writes plan one lineup: a newly created lineup spans at most 12 g
 - Live local dates derive from `userSetting.timeZone`; null means `Asia/Tokyo`. An explicitly supplied local date is validated as a date-only value. Manual money timestamps follow the [data model](data-model.md) manual-line rule, not the server's locale.
 - Every written event time in playEvent.create/update and live.create/complete/endPlay/startNextPlay must be at most server now + 60 seconds; otherwise BAD_REQUEST. Check only the time being written, not unchanged existing rows; non-event payload clocks such as timerStartedAt are exempt ([data model](data-model.md) §13.2).
 - Money quantities are integers in the asset's smallest unit; `asset.decimals` is 0–4. `Quantity` is 1–10^12. Payment inputs are unsigned; role determines the stored sign. Adjustment inputs are signed nonzero integers with absolute value at most 10^12. Chips, blinds, pots and counts are nonnegative integers, not converted asset amounts. Equity is a percentage in [0,100].
+- Aggregate and conversion results outside JavaScript's safe integer range fail with `INTERNAL_SERVER_ERROR` and the message `Integer total exceeds the safe integer range`, rather than returning a rounded amount. MCP maps internal errors to generic text.
 - Every money line has its **own required assetId**. Entry/master default asset metadata never makes an omitted payment asset valid. Items/tickets use quantity units exactly like currency lines; they are not silently treated as currency.
-- Paginated inputs use opaque **string keyset cursors** and pages return `{ items: T[], nextCursor: string | null }`. Cursors contain the ordering tuple and relevant scope; malformed encoding, JSON or cursor shape is `BAD_REQUEST` and invalid scope is `FORBIDDEN`. Entry cursors include source and filters, but not limit. Hand deletion compacts hand numbers, so a hand cursor is not stable across deletions.
-- `PageInput = { cursor?: string, limit?: integer }`; entry/live limits default 20, range 1–100; hand/player-hand default 20, range 1–50; ledger default 20, range 1–100. Entry/live order `(playedOn,id)` descending; hand `(handNo,id)` descending; ledger `(occurredAt,id)` descending. Series are chronological.
+- Paginated inputs use opaque **string keyset cursors** and pages return `{ items: T[], nextCursor: string | null }`. Cursors contain the ordering tuple and relevant scope; malformed encoding, JSON or cursor shape is `BAD_REQUEST` and invalid scope is `FORBIDDEN`. Entry cursors include source and filters, but not limit. Hand cursors use the immutable hand sequence, so they stay stable when a hand is deleted and the hand numbers are compacted.
+- `PageInput = { cursor?: string, limit?: integer }`; entry/live limits default 20, range 1–100; hand/player-hand default 20, range 1–50; ledger default 20, range 1–100. Entry/live order `(playedOn,id)` descending; hand `(seq,id)` descending; ledger `(occurredAt,id)` descending. Series are chronological.
 - Every archivable master list accepts `includeArchived?: boolean` (default false); true includes active **and** archived rows. Historical references always hydrate archived masters regardless of this flag. This applies to asset, room, ringGame, tournament, gameGroup, gameVariant, gameMix and ledgerCategory.
 - `IdInput = { id: Id }`; `Ack = { success: true }`; `IdResult = { id: Id }`. Procedures returning a record return the complete documented record, not a database-only fragment. Common auth, ownership and input errors apply to every row below; the error column lists additional cases.
 - `Q` / `M` in procedure tables mean query / mutation. `Excluded: <reason>` is an explicit MCP exclusion recorded in DELIBERATELY_EXCLUDED, not an unregistered procedure. The reasons are `cockpit`, `cockpit identity`, `wallet`, `destructive`, `screen`, `screen settings`, `screen ordering`, `duplicate read`, `toggle`, `extraction`, `external quota`, `infrastructure`, `rule workflow`, `narrower structure workflow`, `tag maintenance`, `opponent maintenance` and `opponent review`.
@@ -50,7 +57,7 @@ All non-destructive mutations in the UI show a toast while running and offer **U
 
 Do not offer Undo for an Undo (no redo), hard deletes (`*.delete`, `live.discard`), non-persisting operations (`location`, `aiExtract`) or read tracking (`markViewed`). Hard deletes use only a confirmation Dialog, as required by `web-theme.md`; no API can restore them exactly. An `entry.update` whose `playSessions` omits an existing Day deletes that Day with its hands, so the UI treats it as a hard delete: confirmation Dialog, no Undo.
 
-Conflicts use last-writer-wins, without optimistic concurrency control. If a documented error rejects the inverse, show **"Couldn't undo"** and leave state unchanged.
+If a documented error rejects the inverse, show **"Couldn't undo"** and leave state unchanged.
 
 | Operation | Inverse |
 | --- | --- |
@@ -212,6 +219,8 @@ Rule operations are also present on live (§4). Override inserts a child under t
 New payments may reference only existing prices in the selected immutable tournament version. When replacing manual payments, an older price already used by the entry may be retained up to its existing line count. To create a new price and pay it, first write the rule through a rule operation/master operation, read the returned price id, then record the payment. Manual payments may omit priceId; no temporary client id is accepted. Changing a rule version preserves existing priced lines' original references.
 
 On update, top-level payments apply only to a single stored Day. A changed first local date requires a matching `playedOn` in the same request. A priced payment with the wrong asset or role is BAD_REQUEST; a foreign or unavailable price is FORBIDDEN. Manual `evDiff` is bounded to ±10^12.
+
+Entry updates reject with CONFLICT if the entry facts, play days or stored payment references used for validation change before the write batch commits. The batch applies no part of the rejected update.
 
 ## 4. `live`
 
@@ -493,13 +502,15 @@ Hard delete is guarded and available only for unreferenced game masters, alongsi
 
 Created by `createTagRouter()`. `Tag = {id,name,position,createdAt,updatedAt}`; names trimmed 1–50, case-insensitively unique within user/kind. Common tag procedures below are instantiated per router; no cross-kind id is valid.
 
+Deleting a tag may leave gaps in its stored sort order; the relative display order is unchanged. A subsequent reorder compacts the positions.
+
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
 | `list` Q | none | Tag[] ordered position,id | — | `entry_tag_list` |
 | `create` M | `{name:string 1..50}` | Tag | Duplicate: CONFLICT; more than 500 tags per user/kind: PRECONDITION_FAILED | `entry_tag_create` |
 | `update` M | `{id,name:string 1..50}` | Tag | Duplicate: CONFLICT | Excluded: tag maintenance |
 | `delete` M | IdInput | Ack; removes links, not entries | — | Excluded: destructive |
-| `reorder` M | `{ids:Id[]}` unique complete permutation of owned tags of this kind, max 500 | Tag[] | Foreign/missing id: FORBIDDEN; incomplete/duplicate permutation: BAD_REQUEST | Excluded: screen ordering |
+| `reorder` M | `{ids:Id[]}` unique complete permutation of owned tags of this kind, max 500 | Tag[] | Foreign/missing id: FORBIDDEN; incomplete/duplicate permutation: BAD_REQUEST; tag membership changed before write: CONFLICT | Excluded: screen ordering |
 
 Entry attachment is entry.create/update tagIds; no separate toggle/addTag/removeTag procedures.
 
@@ -520,6 +531,8 @@ Same five procedures as §19, instantiated as `playerTag.list/create/update/dele
 ## 23. `player`
 
 `Player = {id,userId,name,memo,isTemporary,isSelf,createdAt,updatedAt,tags:{id,name,color}[]}`. Names are trimmed 1–100; memo <=50,000. isSelf/isTemporary cannot be supplied to ordinary create/update. At most one self player exists per user; `getSelf` creates it if absent. The self player cannot be deleted; tablePlayer.addTemporary owns temporary creation.
+
+Opponent name search uses SQLite `lower()`, which folds ASCII case only; it does not perform Unicode case folding.
 
 | Procedure | Input | Output | Additional errors | MCP |
 | --- | --- | --- | --- | --- |
@@ -562,7 +575,7 @@ Accepted links use HTTPS without credentials or nondefault ports and have a Goog
 
 ## 26. `filterPreset`
 
-All **Excluded: screen**. `Preset = {id,userId,screenKey:'sessions'|'statistics',name,payload,isDefault,createdAt,updatedAt}`. Name is trimmed to 1–50 characters; duplicate checks within user/screen use SQLite `NOCASE`.
+All **Excluded: screen**. `Preset = {id,userId,screenKey:'sessions'|'statistics',name,payload,isDefault,createdAt,updatedAt}`. Name is trimmed to 1–50 characters; duplicate checks within user/screen use SQLite `NOCASE`, which folds ASCII case only, not Unicode case.
 
 Payload keys: `period?:string` (1–30 characters; client date-range shortcut), `dateFrom?:DateOnly,dateTo?:DateOnly,kind?:cash|tournament,roomId?:Id,assetId?:Id,valuation?:real|virtual,baseAssetId?:Id,normalized?:boolean,entryTagIds?:Id[],tournamentTagIds?:Id[]`. Unknown keys are rejected; tag arrays are unique and capped at 100. Date ranges must be ordered. Statistics requires exactly one stats mode; sessions may omit it. Updating payload replaces it in full and validates it against the preset's immutable screen key. Setting a default clears the previous default within that screen in one batch.
 

@@ -87,6 +87,8 @@ Rooms use nullable `archived_at`. `room.list` excludes archived rows by default 
 
 `room.delete` checks owned references from entries, ring games and tournaments, including archived masters, in the delete predicate. Referenced rooms return `CONFLICT` with archive guidance. The atomic predicate prevents a check/write race. MCP exposes archive and restore, not hard delete.
 
+Room update, archive, restore and favorite toggle bind the owner in the update itself and require a returned row. A missing, foreign or concurrently deleted room therefore returns the same `FORBIDDEN` rather than a successful empty result.
+
 ## Schema-level integrity anchors
 
 - **Owned masters support composite foreign keys**: `room`, `ring_game`, `tournament`, `player`, `player_tag`, and `asset` have `UNIQUE (id, user_id)` indexes, following the existing `game_variant_id_user_id_unique` and `game_mix_id_user_id_unique` naming convention. Children reference `(parent_id, user_id)` so they cannot point at another user's row. Without the parent unique index, SQLite reports `foreign key mismatch`, including on parent deletion.

@@ -132,6 +132,7 @@ async function insertHands(
 			userId: "alice",
 			playSessionId,
 			handNo: index + 1,
+			seq: index + 1,
 			detail,
 			updatedAt: new Date(),
 		}))

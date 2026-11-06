@@ -271,7 +271,7 @@ describe("live entry writes keep the event log and its projection in step", () =
 		expect(only(await api.db.select().from(entry)).status).toBe("settled");
 	});
 
-	test("an append racing another append to the same entry keeps both events", async ({
+	test("an append racing another append rejects the stale projection", async ({
 		api,
 	}) => {
 		await startLive(api);
@@ -302,27 +302,28 @@ describe("live entry writes keep the event log and its projection in step", () =
 			},
 		});
 
-		await applyEntryEventChange(
-			racing,
-			"alice",
-			"live-1",
-			{
-				op: "append",
-				events: [
-					{
-						type: "memo",
-						occurredAt: minutes(6),
-						payload: { text: "second" },
-					},
-				],
-			},
-			minutes(6)
-		);
+		await expect(
+			applyEntryEventChange(
+				racing,
+				"alice",
+				"live-1",
+				{
+					op: "append",
+					events: [
+						{
+							type: "memo",
+							occurredAt: minutes(6),
+							payload: { text: "second" },
+						},
+					],
+				},
+				minutes(6)
+			)
+		).rejects.toMatchObject({ code: "CONFLICT" });
 
 		const events = await listEntryPlayEvents(api.db, "alice", "live-1");
 		expect(events.map((event) => event.eventType)).toEqual([
 			"session_start",
-			"memo",
 			"memo",
 		]);
 	});

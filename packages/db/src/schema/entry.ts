@@ -187,6 +187,7 @@ export const playSession = sqliteTable(
 		entryId: text("entry_id").notNull(),
 		kind: text("kind", { enum: ENTRY_KINDS }).notNull(),
 		seq: integer("seq").notNull(),
+		nextHandSeq: integer("next_hand_seq").notNull().default(0),
 		label: text("label"),
 		localDate: text("local_date").notNull(),
 		startedAt: integer("started_at", { mode: "timestamp" }),
@@ -296,6 +297,10 @@ export const playEvent = sqliteTable(
 			t.sortOrder
 		),
 		index("play_event_hand_idx").on(t.handId),
+		index("play_event_user_player_ref_idx").on(
+			t.userId,
+			sql`json_extract(${t.payload}, '$.playerId')`
+		),
 		foreignKey({
 			columns: [t.entryId, t.entrySource, t.userId],
 			foreignColumns: [entry.id, entry.source, entry.userId],

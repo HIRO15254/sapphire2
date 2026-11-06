@@ -116,6 +116,8 @@ The authoritative table definitions, constraints and indexes are the Drizzle [sc
 
 Some API-validated properties are not database CHECKs: room favorite boolean and paired coordinates, player temporary boolean, hand level ordinal, event sort order and play-session clock start level. `game_mix_variant.user_id` has composite owner foreign keys, not a direct user FK.
 
+`write_guard` is a sentinel table for atomic write preconditions. Its `CHECK(0)` rejects every inserted row, so it never holds rows; a conditional insert aborts the batch when a guarded precondition no longer holds.
+
 ### 5.2 Masters
 
 Asset names are unique per user after `lower(trim(name))`. Game groups, variants and mixes have separate normalized label namespaces, including archived rows; see [game masters](game-masters.md). Archive hides a master from new selections while historical references remain readable. Immutable rule and lineup structure, same-master references and write semantics are described in [game lineups](game-lineups.md).
@@ -132,13 +134,21 @@ Each line has an explicit owned asset and a nonzero signed quantity; role and ef
 
 Events are mutable facts whose changes require reprojection in the same batch. Writers set schema version 2 explicitly; the event registry validates payloads, and A-15 audits persisted versions and references.
 
+The player-delete reference guard uses `play_event_user_player_ref_idx` on `(user_id, json_extract(payload, '$.playerId'))`; guard queries must retain that expression.
+
 ## 9. Hands
 
 Each hand is one row regardless of detail level. Hand append and undo require an active play session; detail editing is separate. Hero is represented by the user's self-player row. The `CHECK(json_valid(stakes))` permits NULL because a SQLite CHECK accepts NULL.
 
+`hand.seq` is an immutable per-play-session append sequence, unique with `play_session_id`; `play_session.next_hand_seq` holds the last allocated sequence, including sequences of deleted hands. Migration 0079 orders existing hands by `(hand_no, id)`. Hand seat positions range from 0 to 9 independently of table size.
+
+Append increments the session counter in a guarded batch. Cursors use immutable `(seq, id)`; undo checks the maximum sequence and count, and deletion compacts hand numbers by shifting by `next_hand_seq + 1` before shifting back minus one. Migrations 0077–0079 are part of the pending v2 cutover chain. They add the columns without rebuilding either parent, backfill in `(hand_no, id)` order, and then create the unique index.
+
 ## 10. Tags and presets
 
 Tag links use owned foreign keys rather than a polymorphic target reference. Filter presets store validated JSON for statistics filters.
+
+Preset names are unique per user and screen under SQLite `NOCASE`. Migration 0080 retains the earliest `(created_at, id)` name and renames later case-insensitive duplicates with the first available numbered suffix, truncating the base to 50 characters.
 
 ## 11. Enumerated values
 
@@ -238,7 +248,7 @@ For every asset, balance = Σquantity where effect='real', including entry and w
 
 Load the owned entry, its days/events/rule/prices; apply the proposed event mutation in memory; call pure `projectEntry(events,context)`; write the event change, delete/reinsert projected ledger lines, update days, entry detail and entry in one `db.batch()`. Batch construction fails before any write if ownership, asset or payload validation fails. Insert chunks and IN selects use the shared 100-parameter helpers. Replacing lines deletes only source_event_id IS NOT NULL; manual lines never pass through the live projector.
 
-Append order is allocated inside INSERT, not from a previously loaded MAX. Concurrent writes must not lose an event; unique order is DB-backed. A projection computed from a stale read may drift: the next write rebuilds the complete entry, and A-6 detects it at every dev deploy/release. This is the recorded concurrency limitation, not a claim of serializable reads.
+Append order is allocated inside INSERT, not from a previously loaded MAX; unique order is DB-backed. Before changing the event stream or its projection, the batch compares the loaded event snapshot with the current stream and fails with CONFLICT if it changed. This also protects seat occupancy derived from the same events. Player references in new or updated events are checked in the batch, and player deletion checks for event references in its own batch.
 
 ### 13.2 Fold and state machine
 

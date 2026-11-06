@@ -4,6 +4,7 @@ import {
 	type ProjectorContext,
 	type ProjectorEvent,
 	projectEntry,
+	projectTournamentProgress,
 } from "../services/entry-projector";
 
 const START = Date.parse("2026-09-05T10:00:00.000Z");
@@ -47,6 +48,23 @@ function contextFor(
 }
 const cash = contextFor("cash");
 const tournament = contextFor("tournament");
+
+it("rejects overflowing tournament chip totals", () => {
+	const payload = { priceId: "price", label: "chips", payments: [] };
+	const safe = ev("purchase_chips", 1, {
+		...payload,
+		chips: Number.MAX_SAFE_INTEGER,
+	});
+	expect(projectTournamentProgress([safe], null).chipTotal).toBe(
+		Number.MAX_SAFE_INTEGER
+	);
+	expect(() =>
+		projectTournamentProgress(
+			[safe, ev("purchase_chips", 2, { ...payload, chips: 1 })],
+			null
+		)
+	).toThrow("Integer total exceeds the safe integer range");
+});
 
 function onlySession(projection: EntryProjection) {
 	expect(projection.playSessions).toHaveLength(1);

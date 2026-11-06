@@ -55,7 +55,7 @@ Hard deletes use a single `DELETE` with `NOT EXISTS` reference guards and return
 - The signup `onUserCreated` hook in [`apps/server/src/auth-options.ts`](../../apps/server/src/auth-options.ts) batches the self-player insertion with statements from `planDefaultGameData`. Better Auth rethrows hook errors, but `runUserCreatedHook` catches and logs provisioning failures so signup succeeds. `player.getSelf` and the game list procedures re-provision missing data lazily.
 - Lazily from `gameVariant.list` / `gameGroup.list` / `gameMix.list` when their own table has no rows for the user; the idempotency guard above still makes the seed a no-op if any other game-master row exists.
 
-**Race design (stable per-user ids)**: deterministic ids and `onConflictDoNothing` inserts make concurrent seeds converge. `seedDefaultGameData` batches the planned statements; errors propagate to its caller.
+**Race design (stable per-user ids)**: deterministic ids and conflict-safe inserts let concurrent seeds converge. The batch checks that no custom group, variant or mix has appeared since the empty check; a concurrent custom create causes `CONFLICT` instead of mixing stale seed data with the new rows.
 
 **Fail-closed data-entry guards**: a `groupKey` with no matching seeded group fails closed instead of inserting a dangling `groupId`; a mix with no resolvable `variantKey` seeds an empty composition rather than handing Drizzle `values([])` (which throws — and would turn all three `list` procedures into a 500 for that user). Membership inserts are chunked through the same helper as the mix router ([Normalized composition reads](#normalized-composition-reads)) so a future builtin mix wide enough to overflow D1's bind-param cap is split, not rejected at runtime.
 

@@ -1,13 +1,24 @@
 import type { Database } from "@sapphire2/db";
 import type { EntryKind, EntrySource } from "@sapphire2/db/constants/entry";
-import { entry, entryCash, entryTournament } from "@sapphire2/db/schema/entry";
+import {
+	entry,
+	entryCash,
+	entryTournament,
+	playEvent,
+} from "@sapphire2/db/schema/entry";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { cashRule, tournamentRule } from "@sapphire2/db/schema/rule";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
-import { and, eq } from "drizzle-orm";
-import { type BatchStatement, runBatch } from "../lib/batch";
+import { and, eq, sql } from "drizzle-orm";
+import { activeReferenceGuard } from "../lib/active-reference-guard";
+import type { BatchStatement } from "../lib/batch";
 import { validateEntityOwnership } from "../lib/ownership";
+import {
+	changedRowsGuardStatement,
+	guardStatement,
+	runGuardedBatch,
+} from "../lib/write-guard";
 import {
 	type CashRuleInput,
 	hydrateCashRules,
@@ -265,9 +276,9 @@ async function assertSeatsFit(
 	userId: string,
 	target: EntryRuleTarget,
 	tableSize: number | null
-): Promise<void> {
+): Promise<BatchStatement[]> {
 	if (target.source !== "live" || tableSize === null) {
-		return;
+		return [];
 	}
 	const { events } = await loadEntryEventState(db, userId, target.id);
 	const outside = foldTablePlayers(events).find(
@@ -281,6 +292,40 @@ async function assertSeatsFit(
 			`Seat ${outside.seatPosition} is taken and would be outside a ${tableSize}-handed table`
 		);
 	}
+	const snapshot = JSON.stringify(
+		events.map((event) => ({
+			id: event.id,
+			type: event.type,
+			payload: event.payload,
+			sortOrder: event.sortOrder,
+			occurredAt: Math.floor(event.occurredAt.getTime() / 1000),
+		}))
+	);
+	const detail = target.kind === "cash" ? entryCash : entryTournament;
+	const ruleId =
+		target.kind === "cash"
+			? entryCash.cashRuleId
+			: entryTournament.tournamentRuleId;
+	return [
+		guardStatement(
+			db,
+			"seat-fit",
+			sql`
+		EXISTS (SELECT 1 FROM ${detail} WHERE ${detail.entryId} = ${target.id}
+			AND ${detail.userId} = ${userId} AND ${ruleId} = ${target.ruleVersionId})
+		AND (SELECT count(*) FROM ${playEvent} WHERE ${playEvent.entryId} = ${target.id}
+			AND ${playEvent.userId} = ${userId}) = ${events.length}
+		AND NOT EXISTS (SELECT 1 FROM json_each(${snapshot}) AS expected WHERE NOT EXISTS (
+			SELECT 1 FROM ${playEvent} WHERE ${playEvent.entryId} = ${target.id}
+			AND ${playEvent.userId} = ${userId} AND ${playEvent.id} = json_extract(expected.value, '$.id')
+			AND ${playEvent.type} = json_extract(expected.value, '$.type')
+			AND ${playEvent.payload} = json_extract(expected.value, '$.payload')
+			AND ${playEvent.sortOrder} = json_extract(expected.value, '$.sortOrder')
+			AND ${playEvent.occurredAt} = json_extract(expected.value, '$.occurredAt')
+		))
+	`
+		),
+	];
 }
 
 function linkStatements(
@@ -324,6 +369,7 @@ function masterCurrentStatement(
 	userId: string,
 	kind: EntryKind,
 	masterId: string,
+	plannedRuleId: string,
 	ruleVersionId: string,
 	now: Date
 ): BatchStatement {
@@ -331,11 +377,23 @@ function masterCurrentStatement(
 		? db
 				.update(ringGame)
 				.set({ currentRuleId: ruleVersionId, updatedAt: now })
-				.where(and(eq(ringGame.id, masterId), eq(ringGame.userId, userId)))
+				.where(
+					and(
+						eq(ringGame.id, masterId),
+						eq(ringGame.userId, userId),
+						eq(ringGame.currentRuleId, plannedRuleId)
+					)
+				)
 		: db
 				.update(tournament)
 				.set({ currentRuleId: ruleVersionId, updatedAt: now })
-				.where(and(eq(tournament.id, masterId), eq(tournament.userId, userId)));
+				.where(
+					and(
+						eq(tournament.id, masterId),
+						eq(tournament.userId, userId),
+						eq(tournament.currentRuleId, plannedRuleId)
+					)
+				);
 }
 
 async function planOverride(
@@ -383,7 +441,7 @@ export async function overrideEntryRule(
 		target.kind,
 		target.ruleVersionId
 	);
-	await assertSeatsFit(
+	const seatGuards = await assertSeatsFit(
 		db,
 		userId,
 		target,
@@ -392,7 +450,8 @@ export async function overrideEntryRule(
 			: input.rule.tableSize
 	);
 	const planned = await planOverride(db, userId, target, input);
-	await runBatch(db, [
+	await runGuardedBatch(db, [
+		...seatGuards,
 		...planned.statements,
 		...linkStatements(
 			db,
@@ -419,17 +478,22 @@ export async function applyMasterRule(
 		target.kind,
 		master.currentRuleId
 	);
-	await assertSeatsFit(db, userId, target, version.tableSize);
-	await runBatch(
+	const seatGuards = await assertSeatsFit(
 		db,
-		linkStatements(
+		userId,
+		target,
+		version.tableSize
+	);
+	await runGuardedBatch(db, [
+		...seatGuards,
+		...linkStatements(
 			db,
 			userId,
 			target,
 			{ masterId, ruleVersionId: master.currentRuleId },
 			context.now
-		)
-	);
+		),
+	]);
 }
 
 export async function pushRuleToMaster(
@@ -451,16 +515,18 @@ export async function pushRuleToMaster(
 		masterId,
 		currentRuleId: master.currentRuleId,
 	});
-	await runBatch(db, [
+	await runGuardedBatch(db, [
 		...planned.statements,
 		masterCurrentStatement(
 			db,
 			userId,
 			target.kind,
 			masterId,
+			master.currentRuleId,
 			planned.ruleVersionId,
 			context.now
 		),
+		changedRowsGuardStatement(db, "master-rule-push"),
 		...linkStatements(
 			db,
 			userId,
@@ -517,8 +583,24 @@ export async function relinkEntry(
 					).tableSize,
 				};
 	}
-	await assertSeatsFit(db, userId, target, planned.tableSize);
-	await runBatch(db, [
+	const seatGuards = await assertSeatsFit(
+		db,
+		userId,
+		target,
+		planned.tableSize
+	);
+	await runGuardedBatch(db, [
+		...seatGuards,
+		...(destinationId !== null && destinationId !== target.masterId
+			? [
+					activeReferenceGuard(
+						db,
+						target.kind === "cash" ? ringGame : tournament,
+						destinationId,
+						userId
+					),
+				]
+			: []),
 		...planned.statements,
 		...linkStatements(
 			db,
@@ -540,9 +622,10 @@ export async function restoreEntryRule(
 	if (input.masterRuleVersionId !== undefined && input.masterId === null) {
 		badRequest("masterRuleVersionId needs a masterId");
 	}
-	if (input.masterId !== null) {
-		await loadMaster(db, userId, target.kind, input.masterId);
-	}
+	const master =
+		input.masterId === null
+			? null
+			: await loadMaster(db, userId, target.kind, input.masterId);
 	const owner = input.masterId
 		? `this ${MASTER_LABEL[target.kind]}`
 		: "no master";
@@ -562,18 +645,26 @@ export async function restoreEntryRule(
 	if (masterVersion && masterVersion.masterId !== input.masterId) {
 		badRequest(`The master rule version does not belong to ${owner}`);
 	}
-	await assertSeatsFit(db, userId, target, version.tableSize);
-	await runBatch(db, [
-		...(masterVersion && input.masterId
+	const seatGuards = await assertSeatsFit(
+		db,
+		userId,
+		target,
+		version.tableSize
+	);
+	await runGuardedBatch(db, [
+		...seatGuards,
+		...(masterVersion && input.masterId && master
 			? [
 					masterCurrentStatement(
 						db,
 						userId,
 						target.kind,
 						input.masterId,
+						master.currentRuleId,
 						masterVersion.id,
 						context.now
 					),
+					changedRowsGuardStatement(db, "master-rule-restore"),
 				]
 			: []),
 		...linkStatements(
@@ -600,9 +691,10 @@ export async function assignCreatedMaster(
 ): Promise<void> {
 	const target = await loadTarget(db, userId, input.entryId, context);
 	assertKind(target, input.kind);
-	await assertSeatsFit(db, userId, target, input.tableSize);
+	const seatGuards = await assertSeatsFit(db, userId, target, input.tableSize);
 	const { ruleId, statements } = await input.plan();
-	await runBatch(db, [
+	await runGuardedBatch(db, [
+		...seatGuards,
 		...statements,
 		...linkStatements(
 			db,

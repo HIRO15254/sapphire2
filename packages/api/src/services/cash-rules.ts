@@ -259,9 +259,10 @@ export async function prepareCashRule(
 	if (current && cashSignature(current) === cashSignature(content)) {
 		return { id: current.id, statements: [] as BatchStatement[] };
 	}
-	await assertStakeBlinds(db, userId, stakes);
+	const stakeGuards = await assertStakeBlinds(db, userId, stakes);
 	const id = crypto.randomUUID();
 	const statements: BatchStatement[] = [
+		...stakeGuards,
 		...planner.statements(),
 		...cashRuleInsertStatements(
 			db,
@@ -337,19 +338,22 @@ export async function planCashRuleCopy(
 	if (target.parent && cashSignature(target.parent) === cashSignature(source)) {
 		return { id: target.parent.id, statements: [] };
 	}
-	await assertStakeBlinds(db, userId, source.stakes);
+	const stakeGuards = await assertStakeBlinds(db, userId, source.stakes);
 	const id = crypto.randomUUID();
 	return {
 		id,
-		statements: cashRuleInsertStatements(
-			db,
-			userId,
-			{
-				id,
-				ringGameId: target.ringGameId,
-				parentRuleId: target.parent?.id ?? null,
-			},
-			source
-		),
+		statements: [
+			...stakeGuards,
+			...cashRuleInsertStatements(
+				db,
+				userId,
+				{
+					id,
+					ringGameId: target.ringGameId,
+					parentRuleId: target.parent?.id ?? null,
+				},
+				source
+			),
+		],
 	};
 }

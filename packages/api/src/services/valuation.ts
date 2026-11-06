@@ -1,6 +1,7 @@
 import type { AssetKind } from "@sapphire2/db/constants/asset";
 import type { asset } from "@sapphire2/db/schema/asset";
 import type { assetRate, ledgerLine } from "@sapphire2/db/schema/ledger";
+import { safeInteger } from "../lib/safe-integer";
 
 export type ValuationAsset = Pick<typeof asset.$inferSelect, "id" | "kind">;
 
@@ -261,9 +262,9 @@ function valueEntryLines(
 	const cashOut = sumBuckets(receipts);
 	return {
 		amounts: {
-			profitLoss: Number(profitLoss),
-			buyIn: Number(buyIn),
-			cashOut: Number(cashOut),
+			profitLoss: safeInteger(profitLoss),
+			buyIn: safeInteger(buyIn),
+			cashOut: safeInteger(cashOut),
 		},
 		missingRates: [],
 	};

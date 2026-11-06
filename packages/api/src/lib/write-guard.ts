@@ -2,11 +2,9 @@ import type { Database } from "@sapphire2/db";
 import { writeGuard } from "@sapphire2/db/schema/write-guard";
 import { TRPCError } from "@trpc/server";
 import { type SQL, sql } from "drizzle-orm";
+import { CONCURRENT_CHANGE_MESSAGE } from "../concurrent-change";
 import { type BatchStatement, runBatch } from "./batch";
 import { isWriteGuardError } from "./db-errors";
-
-export const CONCURRENT_CHANGE_MESSAGE =
-	"This was changed elsewhere. Reload and try again.";
 
 export function guardStatement(
 	db: Database,

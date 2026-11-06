@@ -170,6 +170,7 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 			chain.onConflictDoUpdate = () => chain;
 			return chain;
 		}),
+		select: vi.fn(() => Promise.resolve(undefined)),
 	}));
 	const del = vi.fn((table: unknown) => ({
 		where: vi.fn((cond: unknown) => {

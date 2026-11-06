@@ -1,15 +1,19 @@
 import type { Database } from "@sapphire2/db";
+import { asset } from "@sapphire2/db/schema/asset";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
+import { room as roomTable } from "@sapphire2/db/schema/room";
 import { cashRule } from "@sapphire2/db/schema/rule";
 import { idSchema as id } from "@sapphire2/db/schemas/id";
 import { TRPCError } from "@trpc/server";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
-import { type BatchStatement, runBatch } from "../lib/batch";
+import { activeReferenceGuard } from "../lib/active-reference-guard";
+import type { BatchStatement } from "../lib/batch";
 import { isForeignKeyConstraintError } from "../lib/db-errors";
 import { memoSchema } from "../lib/master-input-schemas";
 import { validateEntityOwnership, validateOwnedIds } from "../lib/ownership";
+import { changedRowsGuardStatement, runGuardedBatch } from "../lib/write-guard";
 import {
 	cashRuleInputSchema,
 	hydrateCashRules,
@@ -88,6 +92,17 @@ export async function planRingGameCreate(
 		params.input.rule
 	);
 	const statements: BatchStatement[] = [
+		activeReferenceGuard(db, roomTable, params.input.roomId, params.userId),
+		...(params.input.defaultAssetId
+			? [
+					activeReferenceGuard(
+						db,
+						asset,
+						params.input.defaultAssetId,
+						params.userId
+					),
+				]
+			: []),
 		...version.statements,
 		db.insert(ringGame).values({
 			id: params.id,
@@ -196,7 +211,7 @@ export const ringGameRouter = router({
 				userId,
 				now: new Date(),
 			});
-			await runBatch(ctx.db, statements);
+			await runGuardedBatch(ctx.db, statements);
 			return fetchRingGame(ctx.db, userId, gameId);
 		}),
 	update: protectedProcedure
@@ -226,6 +241,10 @@ export const ringGameRouter = router({
 							existing.currentRuleId
 						);
 			const statements: BatchStatement[] = [
+				...(input.defaultAssetId &&
+				input.defaultAssetId !== existing.defaultAssetId
+					? [activeReferenceGuard(ctx.db, asset, input.defaultAssetId, userId)]
+					: []),
 				...(version?.statements ?? []),
 				ctx.db
 					.update(ringGame)
@@ -238,16 +257,30 @@ export const ringGameRouter = router({
 						}),
 						...(version && { currentRuleId: version.id }),
 					})
-					.where(and(eq(ringGame.id, input.id), eq(ringGame.userId, userId))),
+					.where(
+						and(
+							eq(ringGame.id, input.id),
+							eq(ringGame.userId, userId),
+							version
+								? eq(ringGame.currentRuleId, existing.currentRuleId)
+								: undefined
+						)
+					),
+				changedRowsGuardStatement(ctx.db, "ring-game-update"),
 			];
-			await runBatch(ctx.db, statements);
+			await runGuardedBatch(ctx.db, statements);
 			return fetchRingGame(ctx.db, userId, input.id);
 		}),
 	restoreRule: protectedProcedure
 		.input(ringGameRestoreRuleInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "ringGame", input.id, userId);
+			const existing = await validateEntityOwnership(
+				ctx.db,
+				"ringGame",
+				input.id,
+				userId
+			);
 			await validateOwnedIds(ctx.db, cashRule, [input.ruleVersionId], userId);
 			const [version] = await ctx.db
 				.select()
@@ -261,10 +294,19 @@ export const ringGameRouter = router({
 					message: "Rule version belongs to another ring game",
 				});
 			}
-			await ctx.db
-				.update(ringGame)
-				.set({ currentRuleId: version.id, updatedAt: new Date() })
-				.where(and(eq(ringGame.id, input.id), eq(ringGame.userId, userId)));
+			await runGuardedBatch(ctx.db, [
+				ctx.db
+					.update(ringGame)
+					.set({ currentRuleId: version.id, updatedAt: new Date() })
+					.where(
+						and(
+							eq(ringGame.id, input.id),
+							eq(ringGame.userId, userId),
+							eq(ringGame.currentRuleId, existing.currentRuleId)
+						)
+					),
+				changedRowsGuardStatement(ctx.db, "ring-game-restore-rule"),
+			]);
 			return fetchRingGame(ctx.db, userId, input.id);
 		}),
 	archive: protectedProcedure

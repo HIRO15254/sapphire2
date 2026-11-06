@@ -413,6 +413,39 @@ describe("asset writes on D1", () => {
 });
 
 describe("asset rates on D1", () => {
+	test("rates require active assets, including at commit time", async ({
+		api,
+	}) => {
+		const base = await createCurrency(api, "Base");
+		const quote = await createCurrency(api, "Quote");
+		const input = {
+			baseAssetId: base.id,
+			quoteAssetId: quote.id,
+			rateNum: 1,
+			rateDen: 1,
+			effectiveFrom: 100,
+		};
+		const created = requireCreatedRow(await api.alice.assetRate.create(input));
+		await api.alice.asset.archive({ id: base.id });
+		await expect(
+			api.alice.assetRate.create({ ...input, effectiveFrom: 101 })
+		).rejects.toMatchObject(BAD_REQUEST);
+		await api.alice.asset.restore({ id: base.id });
+		await api.alice.asset.archive({ id: quote.id });
+		await expect(
+			api.alice.assetRate.create({ ...input, effectiveFrom: 102 })
+		).rejects.toMatchObject(BAD_REQUEST);
+		await api.alice.assetRate.delete({ id: created.id });
+		await api.alice.asset.restore({ id: quote.id });
+		const raced = api.raceCaller("alice", () =>
+			api.alice.asset.archive({ id: quote.id })
+		);
+		await expect(
+			raced.assetRate.create({ ...input, effectiveFrom: 103 })
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		expect(await api.alice.assetRate.list()).toHaveLength(0);
+	});
+
 	test("list returns the history, or the latest rate at or before effectiveAt for each directed pair", async ({
 		api,
 	}) => {

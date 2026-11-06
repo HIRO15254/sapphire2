@@ -3,12 +3,19 @@ import { gameLineupVariant } from "@sapphire2/db/schema/game-lineup";
 import { gameMix, gameMixVariant } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { hand } from "@sapphire2/db/schema/hand";
+import { MAX_MIX_GROUPS } from "@sapphire2/db/schemas/game";
 import { idSchema } from "@sapphire2/db/schemas/id";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, exists, isNull, max, notExists } from "drizzle-orm";
+import { and, asc, eq, exists, isNull, max, notExists, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { activeReferenceGuard } from "../lib/active-reference-guard";
 import { validateEntityOwnership } from "../lib/ownership";
+import {
+	changedRowsGuardStatement,
+	guardStatement,
+	runGuardedBatch,
+} from "../lib/write-guard";
 import { seedDefaultGameData } from "../services/seed-game-data";
 import {
 	type Db,
@@ -99,16 +106,19 @@ export const gameVariantRouter = router({
 			const id = crypto.randomUUID();
 			const sortOrder = await nextSortOrder(ctx.db, userId);
 			await runLabelWrite(ctx.db, "game variant", userId, input.label, () =>
-				ctx.db.insert(gameVariant).values({
-					id,
-					userId,
-					builtinKey: null,
-					label: input.label,
-					shortLabel: input.shortLabel ?? null,
-					groupId: input.groupId,
-					sortOrder,
-					updatedAt: new Date(),
-				})
+				runGuardedBatch(ctx.db, [
+					activeReferenceGuard(ctx.db, gameGroup, input.groupId, userId),
+					ctx.db.insert(gameVariant).values({
+						id,
+						userId,
+						builtinKey: null,
+						label: input.label,
+						shortLabel: input.shortLabel ?? null,
+						groupId: input.groupId,
+						sortOrder,
+						updatedAt: new Date(),
+					}),
+				])
 			);
 			return await selectVariant(ctx.db, userId, id);
 		}),
@@ -125,6 +135,41 @@ export const gameVariantRouter = router({
 			);
 			if (input.groupId !== undefined && input.groupId !== found.groupId) {
 				await assertActiveGroup(ctx.db, userId, input.groupId);
+				const affected = await ctx.db
+					.select({ label: gameMix.label })
+					.from(gameMix)
+					.innerJoin(
+						gameMixVariant,
+						and(
+							eq(gameMixVariant.mixId, gameMix.id),
+							eq(gameMixVariant.userId, gameMix.userId)
+						)
+					)
+					.innerJoin(
+						gameVariant,
+						and(
+							eq(gameVariant.id, gameMixVariant.variantId),
+							eq(gameVariant.userId, gameMixVariant.userId)
+						)
+					)
+					.where(
+						and(
+							eq(gameMix.userId, userId),
+							sql`${gameMix.id} IN (
+						SELECT mix_id FROM game_mix_variant
+						WHERE user_id = ${userId} AND variant_id = ${input.id}
+					)`
+						)
+					)
+					.groupBy(gameMix.id, gameMix.label)
+					.having(sql`COUNT(DISTINCT CASE WHEN ${gameMixVariant.variantId} = ${input.id}
+						THEN ${input.groupId} ELSE ${gameVariant.groupId} END) > ${MAX_MIX_GROUPS}`);
+				if (affected.length > 0) {
+					throw new TRPCError({
+						code: "CONFLICT",
+						message: `Moving this variant would exceed ${MAX_MIX_GROUPS} game groups in: ${affected.map((mix) => mix.label).join(", ")}`,
+					});
+				}
 			}
 
 			const updateData: Partial<typeof found> = { updatedAt: new Date() };
@@ -141,44 +186,39 @@ export const gameVariantRouter = router({
 				updateData.sortOrder = input.sortOrder;
 			}
 
-			const updated = await runLabelWrite(
-				ctx.db,
-				"game variant",
-				userId,
-				input.label,
-				() =>
+			await runLabelWrite(ctx.db, "game variant", userId, input.label, () =>
+				runGuardedBatch(ctx.db, [
+					...(input.groupId !== undefined && input.groupId !== found.groupId
+						? [
+								activeReferenceGuard(ctx.db, gameGroup, input.groupId, userId),
+								guardStatement(
+									ctx.db,
+									"mix group limit",
+									sql`NOT EXISTS (
+									SELECT 1 FROM game_mix_variant AS member
+									JOIN game_variant AS variant ON variant.id = member.variant_id
+										AND variant.user_id = member.user_id
+									WHERE member.user_id = ${userId}
+										AND member.mix_id IN (
+											SELECT mix_id FROM game_mix_variant
+											WHERE user_id = ${userId} AND variant_id = ${input.id}
+										)
+									GROUP BY member.mix_id
+									HAVING COUNT(DISTINCT CASE WHEN member.variant_id = ${input.id}
+										THEN ${input.groupId} ELSE variant.group_id END) > ${MAX_MIX_GROUPS}
+								)`
+								),
+							]
+						: []),
 					ctx.db
 						.update(gameVariant)
 						.set(updateData)
 						.where(
-							and(
-								eq(gameVariant.id, input.id),
-								eq(gameVariant.userId, userId),
-								input.groupId !== undefined && input.groupId !== found.groupId
-									? exists(
-											ctx.db
-												.select({ id: gameGroup.id })
-												.from(gameGroup)
-												.where(
-													and(
-														eq(gameGroup.id, input.groupId),
-														eq(gameGroup.userId, userId),
-														isNull(gameGroup.archivedAt)
-													)
-												)
-										)
-									: undefined
-							)
-						)
-						.returning({ id: gameVariant.id })
+							and(eq(gameVariant.id, input.id), eq(gameVariant.userId, userId))
+						),
+					changedRowsGuardStatement(ctx.db, "game-variant-update"),
+				])
 			);
-			if (updated.length === 0) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message:
-						"An archived game group cannot be selected; restore it first",
-				});
-			}
 			return await selectVariant(ctx.db, userId, input.id);
 		}),
 

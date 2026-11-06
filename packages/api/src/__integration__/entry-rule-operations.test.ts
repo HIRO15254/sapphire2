@@ -72,6 +72,85 @@ async function cashVersions(api: ApiFixture) {
 }
 
 describe("entry rule operations on D1", () => {
+	test("rejects a rule change when a concurrent seat move no longer fits", async ({
+		api,
+	}) => {
+		const { ringA } = await cashSetup(api);
+		const jpy = requireCreatedRow(
+			await api.alice.asset.create({ name: "JPY", kind: "currency" })
+		);
+		const started = await api.alice.live.create({
+			kind: "cash",
+			ringGameId: ringA.id,
+			startedAt: Math.floor(Date.now() / 1000) - HOUR,
+			payments: [
+				{ role: "buy_in", assetId: jpy.id, quantity: 100, effect: "real" },
+			],
+		});
+		const player = requireCreatedRow(
+			await api.alice.player.create({ name: "Villain" })
+		);
+		await api.alice.tablePlayer.add({
+			entryId: started.id,
+			playerId: player.id,
+			seatPosition: 2,
+		});
+		const raced = api.raceCaller("alice", async () => {
+			await api.alice.tablePlayer.updateSeat({
+				entryId: started.id,
+				playerId: player.id,
+				seatPosition: 7,
+			});
+		});
+		await expect(
+			raced.live.overrideRule({
+				id: started.id,
+				kind: "cash",
+				rule: { tableSize: 6 },
+			})
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		expect(
+			(await api.alice.live.getById({ id: started.id })).ruleVersionId
+		).toBe(started.ruleVersionId);
+	});
+
+	test("rejects a seat add when a concurrent rule change shrinks the table", async ({
+		api,
+	}) => {
+		const { ringA } = await cashSetup(api);
+		const jpy = requireCreatedRow(
+			await api.alice.asset.create({ name: "JPY", kind: "currency" })
+		);
+		const started = await api.alice.live.create({
+			kind: "cash",
+			ringGameId: ringA.id,
+			startedAt: Math.floor(Date.now() / 1000) - HOUR,
+			payments: [
+				{ role: "buy_in", assetId: jpy.id, quantity: 100, effect: "real" },
+			],
+		});
+		const player = requireCreatedRow(
+			await api.alice.player.create({ name: "Villain" })
+		);
+		const raced = api.raceCaller("alice", async () => {
+			await api.alice.live.overrideRule({
+				id: started.id,
+				kind: "cash",
+				rule: { tableSize: 6 },
+			});
+		});
+		await expect(
+			raced.tablePlayer.add({
+				entryId: started.id,
+				playerId: player.id,
+				seatPosition: 7,
+			})
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		expect(
+			(await api.alice.live.getById({ id: started.id })).ruleVersion.tableSize
+		).toBe(6);
+	});
+
 	test("override, apply, push and relink repoint versions by id, and restoreRule returns ids, drift and content to the previous state", async ({
 		api,
 	}) => {

@@ -1,3 +1,5 @@
+import { asset } from "@sapphire2/db/schema/asset";
+import { room as roomTable } from "@sapphire2/db/schema/room";
 import { tournamentRule } from "@sapphire2/db/schema/rule";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import {
@@ -10,10 +12,10 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, eq, inArray, isNull, not, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { activeReferenceGuard } from "../lib/active-reference-guard";
 import {
 	type BatchStatement,
 	insertChunks,
-	runBatch,
 	selectInChunks,
 } from "../lib/batch";
 import { isForeignKeyConstraintError } from "../lib/db-errors";
@@ -22,6 +24,7 @@ import {
 	validateEntityOwnership,
 	validateTagsOwnership,
 } from "../lib/ownership";
+import { changedRowsGuardStatement, runGuardedBatch } from "../lib/write-guard";
 import { hydrateLineups, type LineupMap } from "../services/game-lineup";
 import {
 	hydrateTournamentRules,
@@ -276,6 +279,10 @@ export async function planTournamentCreate(
 	return {
 		ruleId: write.ruleId,
 		statements: [
+			activeReferenceGuard(db, roomTable, input.roomId, userId),
+			...(input.defaultAssetId
+				? [activeReferenceGuard(db, asset, input.defaultAssetId, userId)]
+				: []),
 			...write.statements,
 			db.insert(tournament).values({
 				id,
@@ -309,7 +316,7 @@ async function createTournament(
 ): Promise<TournamentOutput> {
 	const id = crypto.randomUUID();
 	const { statements } = await planTournamentCreate(db, userId, id, input);
-	await runBatch(db, statements);
+	await runGuardedBatch(db, statements);
 	return await getTournament(db, userId, id);
 }
 
@@ -353,7 +360,10 @@ async function updateTournament(
 		ruleStatements = write.statements;
 		currentRuleId = write.ruleId;
 	}
-	await runBatch(db, [
+	await runGuardedBatch(db, [
+		...(input.defaultAssetId && input.defaultAssetId !== found.defaultAssetId
+			? [activeReferenceGuard(db, asset, input.defaultAssetId, userId)]
+			: []),
 		...ruleStatements,
 		db
 			.update(tournament)
@@ -366,7 +376,16 @@ async function updateTournament(
 				...(input.rule === undefined ? {} : { currentRuleId }),
 				updatedAt: new Date(),
 			})
-			.where(and(eq(tournament.id, found.id), eq(tournament.userId, userId))),
+			.where(
+				and(
+					eq(tournament.id, found.id),
+					eq(tournament.userId, userId),
+					input.rule
+						? eq(tournament.currentRuleId, found.currentRuleId)
+						: undefined
+				)
+			),
+		changedRowsGuardStatement(db, "tournament-update"),
 		...tagStatements(db, found.id, userId, input.tagIds, true),
 	]);
 	return await getTournament(db, userId, found.id);
@@ -434,7 +453,12 @@ export const tournamentRouter = router({
 		.input(tournamentRestoreRuleInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "tournament", input.id, userId);
+			const existing = await validateEntityOwnership(
+				ctx.db,
+				"tournament",
+				input.id,
+				userId
+			);
 			const [version] = await ctx.db
 				.select({ tournamentId: tournamentRule.tournamentId })
 				.from(tournamentRule)
@@ -456,10 +480,19 @@ export const tournamentRouter = router({
 					message: "This rule version belongs to another tournament",
 				});
 			}
-			await ctx.db
-				.update(tournament)
-				.set({ currentRuleId: input.ruleVersionId, updatedAt: new Date() })
-				.where(and(eq(tournament.id, input.id), eq(tournament.userId, userId)));
+			await runGuardedBatch(ctx.db, [
+				ctx.db
+					.update(tournament)
+					.set({ currentRuleId: input.ruleVersionId, updatedAt: new Date() })
+					.where(
+						and(
+							eq(tournament.id, input.id),
+							eq(tournament.userId, userId),
+							eq(tournament.currentRuleId, existing.currentRuleId)
+						)
+					),
+				changedRowsGuardStatement(ctx.db, "tournament-restore-rule"),
+			]);
 			return await getTournament(ctx.db, userId, input.id);
 		}),
 

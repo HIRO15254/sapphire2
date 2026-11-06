@@ -22,20 +22,27 @@ import {
 } from "@sapphire2/db/schema/entry";
 import { entryTag, entryTagLink } from "@sapphire2/db/schema/entry-tag";
 import { ledgerLine } from "@sapphire2/db/schema/ledger";
+import { ringGame } from "@sapphire2/db/schema/ring-game";
+import { room } from "@sapphire2/db/schema/room";
 import { tournamentRulePrice } from "@sapphire2/db/schema/rule";
+import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import {
+	activeReferenceGuard,
+	activeReferencesGuard,
+} from "../lib/active-reference-guard";
 import {
 	type BatchStatement,
 	D1_MAX_BOUND_PARAMS,
 	insertChunks,
-	runBatch,
 	selectInChunks,
 } from "../lib/batch";
 import {
 	validateEntityOwnership,
 	validateTagsOwnership,
 } from "../lib/ownership";
+import { guardStatement, runGuardedBatch } from "../lib/write-guard";
 import type { CashRuleInput } from "./cash-rules";
 import { type EntryRuleWrite, planEntryRule } from "./entry-rules";
 import { manualLineOccurredAt } from "./ledger-writes";
@@ -546,6 +553,41 @@ export async function planCreateRule(
 	});
 }
 
+type NewEntryReferences = {
+	assetId?: string | null;
+	roomId?: string | null;
+} & (
+	| { kind: "cash"; ringGameId?: string | null }
+	| { kind: "tournament"; tournamentId?: string | null }
+);
+
+export function newEntryReferenceGuards(
+	db: Database,
+	userId: string,
+	references: NewEntryReferences,
+	paymentAssetIds: readonly string[]
+): BatchStatement[] {
+	const guards: BatchStatement[] = [];
+	if (references.roomId) {
+		guards.push(activeReferenceGuard(db, room, references.roomId, userId));
+	}
+	if (references.assetId) {
+		guards.push(activeReferenceGuard(db, asset, references.assetId, userId));
+	}
+	if (references.kind === "cash" && references.ringGameId) {
+		guards.push(
+			activeReferenceGuard(db, ringGame, references.ringGameId, userId)
+		);
+	}
+	if (references.kind === "tournament" && references.tournamentId) {
+		guards.push(
+			activeReferenceGuard(db, tournament, references.tournamentId, userId)
+		);
+	}
+	guards.push(activeReferencesGuard(db, asset, paymentAssetIds, userId));
+	return guards;
+}
+
 export async function createManualEntry(
 	db: Database,
 	userId: string,
@@ -590,7 +632,13 @@ export async function createManualEntry(
 	);
 	const id = crypto.randomUUID();
 	const plan = planPlayRows(plays);
-	await runBatch(db, [
+	await runGuardedBatch(db, [
+		...newEntryReferenceGuards(
+			db,
+			userId,
+			input,
+			payments.map((payment) => payment.assetId)
+		),
 		...rule.statements,
 		db.insert(entry).values({
 			id,
@@ -643,6 +691,20 @@ export async function createManualEntry(
 	return id;
 }
 
+function entryValidationSnapshot() {
+	return sql<string>`json_array(
+		${entry.kind}, ${entry.source}, ${entry.playedOn}, ${entry.roomId}, ${entry.assetId},
+		(SELECT json_array(cash_rule_id, ev_diff) FROM entry_cash
+		 WHERE entry_id = ${entry.id} AND user_id = ${entry.userId}),
+		(SELECT json_array(tournament_rule_id, placement, total_entries, before_deadline)
+		 FROM entry_tournament WHERE entry_id = ${entry.id} AND user_id = ${entry.userId}),
+		(SELECT json_group_array(json_array(id, seq, local_date, label, started_at, ended_at, break_minutes, end_state, end_stack))
+		 FROM (SELECT * FROM play_session WHERE entry_id = ${entry.id} AND user_id = ${entry.userId} ORDER BY id)),
+		(SELECT json_group_array(json_array(id, asset_id, price_id))
+		 FROM (SELECT id, asset_id, price_id FROM ledger_line WHERE entry_id = ${entry.id} AND user_id = ${entry.userId} ORDER BY id))
+	)`;
+}
+
 interface StoredEntry {
 	assetId: string | null;
 	beforeDeadline: boolean;
@@ -652,6 +714,7 @@ interface StoredEntry {
 	playedOn: string;
 	roomId: string | null;
 	ruleVersionId: string;
+	snapshot: string;
 	source: string;
 	totalEntries: number | null;
 }
@@ -673,6 +736,7 @@ async function loadStoredEntry(
 			tournamentRuleId: entryTournament.tournamentRuleId,
 			placement: entryTournament.placement,
 			totalEntries: entryTournament.totalEntries,
+			snapshot: entryValidationSnapshot(),
 			beforeDeadline: entryTournament.beforeDeadline,
 		})
 		.from(entry)
@@ -868,6 +932,16 @@ async function manualMoneyStatements(
 		new Set(keptPriceCounts.keys()),
 		keptPriceCounts
 	);
+	const remainingAssets = new Map(keptAssetCounts);
+	const newAssets = new Set<string>();
+	for (const payment of payments) {
+		const count = remainingAssets.get(payment.assetId) ?? 0;
+		if (count > 0) {
+			remainingAssets.set(payment.assetId, count - 1);
+		} else {
+			newAssets.add(payment.assetId);
+		}
+	}
 	const plan = planPlayRows(plays);
 	const keptIds = new Set(
 		plan.filter((row) => row.existing).map((row) => row.id)
@@ -877,6 +951,7 @@ async function manualMoneyStatements(
 		eq(playSession.userId, userId)
 	);
 	return [
+		activeReferencesGuard(db, asset, newAssets, userId),
 		db
 			.delete(ledgerLine)
 			.where(
@@ -997,7 +1072,20 @@ export async function updateEntry(
 	await assertMetadata(db, userId, input, stored);
 	const detail = detailStatement(db, userId, stored, input);
 	const money = await manualMoneyStatements(db, userId, stored, input, now);
-	await runBatch(db, [
+	await runGuardedBatch(db, [
+		...(input.roomId && input.roomId !== stored.roomId
+			? [activeReferenceGuard(db, room, input.roomId, userId)]
+			: []),
+		...(input.assetId && input.assetId !== stored.assetId
+			? [activeReferenceGuard(db, asset, input.assetId, userId)]
+			: []),
+		guardStatement(
+			db,
+			"entry-validation-snapshot",
+			sql`EXISTS (SELECT 1 FROM ${entry}
+				WHERE ${entry.id} = ${input.id} AND ${entry.userId} = ${userId}
+				AND ${entryValidationSnapshot()} = ${stored.snapshot})`
+		),
 		db
 			.update(entry)
 			.set({

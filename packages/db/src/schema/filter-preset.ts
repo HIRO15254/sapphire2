@@ -42,7 +42,7 @@ export const filterPreset = sqliteTable(
 		uniqueIndex("filterPreset_userId_screenKey_name_idx").on(
 			table.userId,
 			table.screenKey,
-			table.name
+			sql`${table.name} COLLATE NOCASE`
 		),
 		uniqueIndex("filterPreset_userId_screenKey_defaultUnique_idx")
 			.on(table.userId, table.screenKey)

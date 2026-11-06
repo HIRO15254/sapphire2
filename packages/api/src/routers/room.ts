@@ -25,6 +25,16 @@ const COORDINATES_PAIRED_ISSUE = {
 const roomIsReferenced = () =>
 	sql<boolean>`(EXISTS (SELECT 1 FROM entry WHERE entry.room_id = room.id AND entry.user_id = room.user_id) OR EXISTS (SELECT 1 FROM ring_game WHERE ring_game.room_id = room.id AND ring_game.user_id = room.user_id) OR EXISTS (SELECT 1 FROM tournament WHERE tournament.room_id = room.id AND tournament.user_id = room.user_id))`;
 
+function requireOwnedRoom(updated: typeof room.$inferSelect | undefined) {
+	if (!updated) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this room",
+		});
+	}
+	return updated;
+}
+
 export const roomIdInputSchema = z.object({ id: idSchema });
 
 export const roomListInputSchema = z
@@ -120,7 +130,6 @@ export const roomRouter = router({
 		.input(roomUpdateInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "room", input.id, userId);
 
 			const [updated] = await ctx.db
 				.update(room)
@@ -135,34 +144,32 @@ export const roomRouter = router({
 				})
 				.where(and(eq(room.id, input.id), eq(room.userId, userId)))
 				.returning();
-			return updated;
+			return requireOwnedRoom(updated);
 		}),
 
 	archive: protectedProcedure
 		.input(roomIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "room", input.id, userId);
 			const now = new Date();
 			const [updated] = await ctx.db
 				.update(room)
 				.set({ archivedAt: now, updatedAt: now })
 				.where(and(eq(room.id, input.id), eq(room.userId, userId)))
 				.returning();
-			return updated;
+			return requireOwnedRoom(updated);
 		}),
 
 	restore: protectedProcedure
 		.input(roomIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "room", input.id, userId);
 			const [updated] = await ctx.db
 				.update(room)
 				.set({ archivedAt: null, updatedAt: new Date() })
 				.where(and(eq(room.id, input.id), eq(room.userId, userId)))
 				.returning();
-			return updated;
+			return requireOwnedRoom(updated);
 		}),
 
 	delete: protectedProcedure
@@ -195,13 +202,12 @@ export const roomRouter = router({
 		.input(roomIdInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "room", input.id, userId);
 
 			const [updated] = await ctx.db
 				.update(room)
 				.set({ isFavorite: sql`NOT ${room.isFavorite}`, updatedAt: new Date() })
 				.where(and(eq(room.id, input.id), eq(room.userId, userId)))
 				.returning();
-			return updated;
+			return requireOwnedRoom(updated);
 		}),
 });

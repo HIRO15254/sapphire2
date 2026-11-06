@@ -19,7 +19,8 @@ import { ledgerLine, userSetting } from "@sapphire2/db/schema/ledger";
 import { cashRule, tournamentRule } from "@sapphire2/db/schema/rule";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
-import { runBatch, selectInChunks } from "../lib/batch";
+import { selectInChunks } from "../lib/batch";
+import { runGuardedBatch } from "../lib/write-guard";
 import type { CashRuleInput } from "./cash-rules";
 import {
 	buildLiveEntryStartStatements,
@@ -45,6 +46,7 @@ import {
 	assertPaymentAssets,
 	assertPaymentPrices,
 	type ManualPaymentInput,
+	newEntryReferenceGuards,
 	planCreateRule,
 	updateEntry,
 } from "./entry-writes";
@@ -148,7 +150,9 @@ async function assertNoUnfinishedPlay(
 	const [unfinished] = await db
 		.select({ id: playSession.id })
 		.from(playSession)
-		.where(and(eq(playSession.userId, userId), ne(playSession.status, "ended")))
+		.where(
+			and(eq(playSession.userId, userId), sql`${playSession.status} <> 'ended'`)
+		)
 		.limit(1);
 	if (unfinished) {
 		throw new TRPCError({
@@ -376,7 +380,13 @@ export async function startLiveEntry(
 						: { startLevel: input.startLevel }),
 				}
 			: {};
-	await runBatch(db, [
+	await runGuardedBatch(db, [
+		...newEntryReferenceGuards(
+			db,
+			userId,
+			input,
+			input.payments.map((payment) => payment.assetId)
+		),
 		...rule.statements,
 		...buildLiveEntryStartStatements(db, {
 			id,

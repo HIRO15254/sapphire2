@@ -1,8 +1,8 @@
 import { room } from "@sapphire2/db/schema/room";
 import { eq, type SQL, sql } from "drizzle-orm";
 import { describe, expect } from "vitest";
+import { CONCURRENT_CHANGE_MESSAGE } from "../concurrent-change";
 import {
-	CONCURRENT_CHANGE_MESSAGE,
 	changedRowsGuardStatement,
 	guardStatement,
 	runGuardedBatch,

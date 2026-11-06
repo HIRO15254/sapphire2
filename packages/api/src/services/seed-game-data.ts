@@ -7,9 +7,10 @@ import {
 import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { gameMix, gameMixVariant } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { BatchStatement } from "../lib/batch";
-import { insertChunks, runBatch } from "../lib/batch";
+import { insertChunks } from "../lib/batch";
+import { guardStatement, runGuardedBatch } from "../lib/write-guard";
 
 type DbInstance = Database;
 
@@ -135,6 +136,16 @@ export async function planDefaultGameData(
 		);
 	}
 
+	statements.unshift(
+		guardStatement(
+			db,
+			"game-seed-empty",
+			sql`NOT EXISTS (SELECT 1 FROM ${gameGroup} WHERE ${gameGroup.userId} = ${userId} AND ${gameGroup.builtinKey} IS NULL)
+				AND NOT EXISTS (SELECT 1 FROM ${gameVariant} WHERE ${gameVariant.userId} = ${userId} AND ${gameVariant.builtinKey} IS NULL)
+				AND NOT EXISTS (SELECT 1 FROM ${gameMix} WHERE ${gameMix.userId} = ${userId} AND ${gameMix.builtinKey} IS NULL)`
+		)
+	);
+
 	return statements;
 }
 
@@ -144,6 +155,6 @@ export async function seedDefaultGameData(
 ): Promise<void> {
 	const statements = await planDefaultGameData(db, userId);
 	if (statements.length > 0) {
-		await runBatch(db, statements);
+		await runGuardedBatch(db, statements);
 	}
 }

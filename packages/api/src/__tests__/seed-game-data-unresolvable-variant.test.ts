@@ -100,6 +100,6 @@ describe("seedDefaultGameData with an unresolvable mix variantKey", () => {
 
 		await expect(seedDefaultGameData(db, USER_ID)).resolves.toBeUndefined();
 		expect(batch).toHaveBeenCalledTimes(1);
-		expect(batch.mock.calls[0]?.[0]).toHaveLength(7);
+		expect(batch.mock.calls[0]?.[0]).toHaveLength(8);
 	});
 });

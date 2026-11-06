@@ -691,7 +691,7 @@ describe("gameMix normalized membership persistence", () => {
 		expect(memberships.every((row) => row.userId === CUR_OWNER)).toBe(true);
 		expect(new Set(memberships.map((row) => row.mixId)).size).toBe(1);
 		expect(batch).toHaveBeenCalledTimes(1);
-		expect(batch.mock.calls[0]?.[0]).toHaveLength(3);
+		expect(batch.mock.calls[0]?.[0]).toHaveLength(5);
 	});
 
 	it("chunks membership inserts by the row's real column count, not a literal width", async () => {
@@ -769,6 +769,6 @@ describe("gameMix normalized membership persistence", () => {
 		expect(memberships.every((row) => row.userId === CUR_OWNER)).toBe(true);
 		expect(deleteWhereParams).toContainEqual(["mix-1", CUR_OWNER]);
 		expect(batch).toHaveBeenCalledTimes(1);
-		expect(batch.mock.calls[0]?.[0]).toHaveLength(4);
+		expect(batch.mock.calls[0]?.[0]).toHaveLength(7);
 	});
 });

@@ -49,6 +49,7 @@ describe("filterPreset.create collision guard", () => {
 					),
 				});
 			}),
+			select: vi.fn(() => Promise.resolve(undefined)),
 		}));
 		await expectTrpcCode(
 			caller.create({ screenKey: "sessions", name: "Dup", payload: {} }),

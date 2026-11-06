@@ -25,6 +25,7 @@ import { room } from "@sapphire2/db/schema/room";
 import { TRPCError } from "@trpc/server";
 import { and, asc, count, desc, eq, inArray, type SQL, sql } from "drizzle-orm";
 import { selectInChunks } from "../lib/batch";
+import { addSafeIntegers } from "../lib/safe-integer";
 import type { CashRuleOutput } from "./cash-rules";
 import { type EntryRuleOutput, hydrateEntryRules } from "./entry-rules";
 import type { LineupMap } from "./game-lineup";
@@ -302,14 +303,14 @@ function nativeTotals(lines: EntryLine[]): AssetTotal[] {
 			totals.set(key, total);
 		}
 		const role = total.roleTotals[line.role] ?? { quantity: 0, lineCount: 0 };
-		role.quantity += line.quantity;
+		role.quantity = addSafeIntegers(role.quantity, line.quantity);
 		role.lineCount += 1;
 		total.roleTotals[line.role] = role;
-		total.profitLoss += line.quantity;
+		total.profitLoss = addSafeIntegers(total.profitLoss, line.quantity);
 		if (isPayment(line.quantity)) {
-			total.buyIn -= line.quantity;
+			total.buyIn = addSafeIntegers(total.buyIn, -line.quantity);
 		} else {
-			total.cashOut += line.quantity;
+			total.cashOut = addSafeIntegers(total.cashOut, line.quantity);
 		}
 	}
 	return [...totals.values()].sort(

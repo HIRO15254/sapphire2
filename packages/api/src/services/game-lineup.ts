@@ -12,6 +12,7 @@ import { idSchema } from "@sapphire2/db/schemas/id";
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
 import z from "zod";
+import { activeReferencesGuard } from "../lib/active-reference-guard";
 import {
 	type BatchStatement,
 	insertChunks,
@@ -313,6 +314,30 @@ export class LineupPlanner {
 			)
 		);
 		return [
+			...(lineupRows.length === 0
+				? []
+				: [
+						activeReferencesGuard(
+							this.db,
+							gameMix,
+							lineupRows.flatMap((row) =>
+								row.gameMixId ? [row.gameMixId] : []
+							),
+							this.userId
+						),
+						activeReferencesGuard(
+							this.db,
+							gameGroup,
+							groupRows.map((row) => row.gameGroupId),
+							this.userId
+						),
+						activeReferencesGuard(
+							this.db,
+							gameVariant,
+							variantRows.map((row) => row.variantId),
+							this.userId
+						),
+					]),
 			...insertChunks(lineupRows, (chunk) =>
 				this.db.insert(gameLineup).values(chunk)
 			),

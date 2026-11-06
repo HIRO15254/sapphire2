@@ -1,6 +1,6 @@
 import type { Database } from "@sapphire2/db";
 import { player } from "@sapphire2/db/schema/player";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 export function selfPlayerInsert(db: Database, userId: string) {
 	return db
@@ -21,7 +21,7 @@ export async function ensureSelfPlayer(db: Database, userId: string) {
 	const [self] = await db
 		.select()
 		.from(player)
-		.where(and(eq(player.userId, userId), eq(player.isSelf, true)));
+		.where(and(eq(player.userId, userId), sql`${player.isSelf} = 1`));
 	if (!self) {
 		throw new Error("Failed to ensure self player");
 	}

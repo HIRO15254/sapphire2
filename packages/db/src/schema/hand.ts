@@ -38,6 +38,7 @@ export const hand = sqliteTable(
 			.references(() => user.id, { onDelete: "cascade" }),
 		playSessionId: text("play_session_id").notNull(),
 		handNo: integer("hand_no").notNull(),
+		seq: integer("seq").notNull().default(0),
 		playedAt: integer("played_at", { mode: "timestamp" }),
 		detail: text("detail", { enum: HAND_DETAILS }).notNull(),
 		buttonSeat: integer("button_seat"),
@@ -66,6 +67,7 @@ export const hand = sqliteTable(
 			t.playSessionId,
 			t.handNo
 		),
+		uniqueIndex("hand_play_session_seq_unique").on(t.playSessionId, t.seq),
 		index("hand_user_played_at_idx").on(t.userId, t.playedAt),
 		index("hand_variant_idx").on(t.variantId),
 		foreignKey({

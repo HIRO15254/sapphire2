@@ -55,6 +55,54 @@ function real(
 }
 
 describe("entry API on D1", () => {
+	test("rejects a room archived while creating an entry", async ({ api }) => {
+		const { room, rule } = await setup(api);
+		const raced = api.raceCaller("alice", () =>
+			api.alice.room.archive({ id: room.id })
+		);
+		await expect(
+			raced.entry.create({
+				kind: "cash",
+				playedOn: "2026-09-01",
+				roomId: room.id,
+				rule,
+			})
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		expect(await api.db.select().from(entry)).toEqual([]);
+	});
+
+	test("rejects a stale date validation after a concurrent day replacement", async ({
+		api,
+	}) => {
+		const { rule } = await setup(api);
+		const created = await api.alice.entry.create({
+			kind: "cash",
+			playedOn: "2026-09-01",
+			rule,
+		});
+		const raced = api.raceCaller("alice", () =>
+			api.alice.entry.update({
+				id: created.id,
+				playedOn: "2026-09-02",
+				playSessions: [
+					{
+						localDate: "2026-09-02",
+						endState: "cashed_out",
+						payments: [],
+					},
+				],
+			})
+		);
+		await expect(
+			raced.entry.update({ id: created.id, playedOn: "2026-09-01" })
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		const current = await api.alice.entry.getById({ id: created.id });
+		expect(current.playedOn).toBe("2026-09-02");
+		expect(current.playSessions.map((play) => play.localDate)).toEqual([
+			"2026-09-02",
+		]);
+	});
+
 	test("a two-day cash entry round-trips, keeps a day with its hands across an edit, and an inverse update restores it", async ({
 		api,
 	}) => {

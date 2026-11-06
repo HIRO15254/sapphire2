@@ -1,5 +1,5 @@
 const FILTER_PRESET_NAME_CONFLICT_RE =
-	/UNIQUE constraint failed:\s*filter_preset\.user_id,\s*filter_preset\.screen_key,\s*filter_preset\.name(?=\s*(?::|$))/i;
+	/UNIQUE constraint failed:\s*(?:index 'filterPreset_userId_screenKey_name_idx'|filter_preset\.user_id,\s*filter_preset\.screen_key,\s*filter_preset\.name)(?=\s*(?::|$))/i;
 
 const ASSET_NAME_CONFLICT_RE =
 	/UNIQUE constraint failed:\s*index 'asset_name_uq'/i;

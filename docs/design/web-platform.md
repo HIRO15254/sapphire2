@@ -49,6 +49,8 @@ Saved filter presets store the filter state of one screen (sessions list, statis
 
 At most one default preset per (user, screen). The `setDefault` procedure in [`packages/api/src/routers/filter-preset.ts`](../../packages/api/src/routers/filter-preset.ts) clears every **other** row for the exact `(userId, screenKey)` pair — scoped by **both**, so it can never clear another user's default nor the same user's default on another screen. The unique-index/TOCTOU backstop belongs to [`data-integrity.md`](data-integrity.md).
 
+Default changes are guarded atomically against a target deleted after authorization. `setDefault` rolls back the clearing of other presets if the target no longer exists; `clearDefault` likewise rejects a stale target. Both report `CONFLICT` for that race, while an initially missing or foreign target remains `FORBIDDEN`. Idempotent requests also check that the observed default state still holds before returning.
+
 ## Mutation feedback, Undo and load failures
 
 The shared `useUndoableMutation` hook preserves the caller's optimistic callbacks and uses one toast for the write and its outcome. A successful reversible write offers Undo for six seconds; Undo sends the caller's compensating request using the original variables, result and optimistic rollback context. It never offers redo. Hard deletes and an entry update that removes a Day use destructive feedback without Undo. The inverse table and conflict semantics are in [the API contract](api.md#undo); last-writer-wins is not optimistic concurrency control.

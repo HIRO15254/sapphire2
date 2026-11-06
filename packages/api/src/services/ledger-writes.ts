@@ -1,10 +1,12 @@
 import type { Database } from "@sapphire2/db";
 import { isLedgerWalletRole } from "@sapphire2/db/constants/ledger";
-import { ledgerLine } from "@sapphire2/db/schema/ledger";
+import { ledgerCategory, ledgerLine } from "@sapphire2/db/schema/ledger";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq } from "drizzle-orm";
-import { type BatchStatement, runBatch } from "../lib/batch";
+import { activeReferenceGuard } from "../lib/active-reference-guard";
+import type { BatchStatement } from "../lib/batch";
 import { validateEntityOwnership } from "../lib/ownership";
+import { runGuardedBatch } from "../lib/write-guard";
 
 export interface AdjustmentInput {
 	assetId: string;
@@ -235,6 +237,11 @@ export async function updateWalletLine(
 	}
 	const { quantity, ...shared } = patch;
 	const statements: BatchStatement[] = [];
+	if (patch.categoryId && patch.categoryId !== found.categoryId) {
+		statements.push(
+			activeReferenceGuard(db, ledgerCategory, patch.categoryId, userId)
+		);
+	}
 	if (found.role === "exchange" && found.transferId !== null) {
 		if (quantity !== undefined && quantity > 0 !== found.quantity > 0) {
 			throw new TRPCError({
@@ -264,7 +271,7 @@ export async function updateWalletLine(
 			})
 			.where(and(eq(ledgerLine.id, found.id), eq(ledgerLine.userId, userId)))
 	);
-	await runBatch(db, statements);
+	await runGuardedBatch(db, statements);
 	return found.transferId === null
 		? { id: found.id }
 		: { transferId: found.transferId };

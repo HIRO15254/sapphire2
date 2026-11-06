@@ -3,13 +3,16 @@ import {
 	ledgerQuantitySchema,
 	signedLedgerQuantitySchema,
 } from "@sapphire2/db/constants/play-event-payloads";
+import { asset } from "@sapphire2/db/schema/asset";
+import { ledgerCategory } from "@sapphire2/db/schema/ledger";
 import { TRPCError } from "@trpc/server";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
-import { runBatch } from "../lib/batch";
+import { activeReferenceGuard } from "../lib/active-reference-guard";
 import { decodeCursor, encodeCursor } from "../lib/cursor";
 import { instantSchema } from "../lib/instant";
 import { validateEntityOwnership } from "../lib/ownership";
+import { runGuardedBatch } from "../lib/write-guard";
 import {
 	type AssetHistoryRow,
 	selectAssetHistory,
@@ -171,7 +174,13 @@ export const ledgerRouter = router({
 				},
 				new Date()
 			);
-			await runBatch(ctx.db, statements);
+			await runGuardedBatch(ctx.db, [
+				activeReferenceGuard(ctx.db, asset, input.assetId, userId),
+				...(categoryId
+					? [activeReferenceGuard(ctx.db, ledgerCategory, categoryId, userId)]
+					: []),
+				...statements,
+			]);
 			const [line] = await selectWalletLines(ctx.db, userId, { id });
 			return line;
 		}),
@@ -198,7 +207,14 @@ export const ledgerRouter = router({
 				},
 				new Date()
 			);
-			await runBatch(ctx.db, statements);
+			await runGuardedBatch(ctx.db, [
+				activeReferenceGuard(ctx.db, asset, input.from.assetId, userId),
+				activeReferenceGuard(ctx.db, asset, input.to.assetId, userId),
+				...(categoryId
+					? [activeReferenceGuard(ctx.db, ledgerCategory, categoryId, userId)]
+					: []),
+				...statements,
+			]);
 			const lines = await selectWalletLines(ctx.db, userId, { transferId });
 			return { transferId, lines };
 		}),

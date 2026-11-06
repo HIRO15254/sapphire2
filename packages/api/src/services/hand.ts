@@ -38,11 +38,16 @@ import { decodeCursor, encodeCursor } from "../lib/cursor";
 import { isForeignKeyConstraintError } from "../lib/db-errors";
 import { instantSchema } from "../lib/instant";
 import { validateTagsOwnership } from "../lib/ownership";
+import {
+	changedRowsGuardStatement,
+	guardStatement,
+	runGuardedBatch,
+	withWriteGuardConflict,
+} from "../lib/write-guard";
 
 export const MAX_HAND_PAGE_SIZE = 50;
 export const DEFAULT_HAND_PAGE_SIZE = 20;
 
-const HAND_NO_SHIFT = 1_000_000;
 const CARD_PATTERN = "[2-9TJQKA][shdc]";
 
 function cardListSchema(maxCards: number) {
@@ -249,6 +254,7 @@ interface OwnedHand {
 	handNo: number;
 	id: string;
 	playSessionId: string;
+	seq: number;
 }
 
 function toHandOutput(
@@ -480,6 +486,7 @@ async function loadOwnedHand(
 			id: hand.id,
 			playSessionId: hand.playSessionId,
 			handNo: hand.handNo,
+			seq: hand.seq,
 			detail: hand.detail,
 		})
 		.from(hand)
@@ -513,6 +520,7 @@ export function buildHandAddStatement(
 			userId,
 			playSessionId: input.playSessionId,
 			handNo: sql`(SELECT COALESCE(MAX(${hand.handNo}), 0) + 1 FROM ${hand} WHERE ${hand.playSessionId} = ${input.playSessionId})`,
+			seq: sql`(SELECT ${playSession.nextHandSeq} FROM ${playSession} WHERE ${playSession.id} = ${input.playSessionId})`,
 			playedAt:
 				input.playedAt === undefined ? now : new Date(input.playedAt * 1000),
 			detail: "count",
@@ -663,25 +671,27 @@ export function buildHandUpdateStatements(
 	return statements;
 }
 
-export function buildHandDeleteStatements(
+function buildHandDeleteStatements(
 	db: Database,
 	userId: string,
-	target: Pick<OwnedHand, "handNo" | "id" | "playSessionId">
+	target: Pick<OwnedHand, "id" | "playSessionId" | "seq">
 ): BatchStatement[] {
 	const sameSession = and(
 		eq(hand.playSessionId, target.playSessionId),
 		eq(hand.userId, userId)
 	);
+	const shift = sql`(SELECT ${playSession.nextHandSeq} + 1 FROM ${playSession} WHERE ${playSession.id} = ${target.playSessionId})`;
 	return [
 		db.delete(hand).where(and(eq(hand.id, target.id), eq(hand.userId, userId))),
+		changedRowsGuardStatement(db, "hand-delete"),
 		db
 			.update(hand)
-			.set({ handNo: sql`${hand.handNo} + ${HAND_NO_SHIFT}` })
-			.where(and(sameSession, gt(hand.handNo, target.handNo))),
+			.set({ handNo: sql`${hand.handNo} + ${shift}` })
+			.where(and(sameSession, gt(hand.seq, target.seq))),
 		db
 			.update(hand)
-			.set({ handNo: sql`${hand.handNo} - ${HAND_NO_SHIFT + 1}` })
-			.where(and(sameSession, gt(hand.handNo, HAND_NO_SHIFT))),
+			.set({ handNo: sql`${hand.handNo} - ${shift} - 1` })
+			.where(and(sameSession, gt(hand.seq, target.seq))),
 	];
 }
 
@@ -696,7 +706,26 @@ export async function addHand(
 		playerIds: [],
 		variantId: input.variantId,
 	});
-	const [row] = await buildHandAddStatement(db, userId, input, now);
+	const [, , rows] = await withWriteGuardConflict(() =>
+		db.batch([
+			guardStatement(
+				db,
+				"hand-add-active",
+				sql`EXISTS (SELECT 1 FROM ${playSession} WHERE ${playSession.id} = ${input.playSessionId} AND ${playSession.userId} = ${userId} AND ${playSession.status} = 'active')`
+			),
+			db
+				.update(playSession)
+				.set({ nextHandSeq: sql`${playSession.nextHandSeq} + 1` })
+				.where(
+					and(
+						eq(playSession.id, input.playSessionId),
+						eq(playSession.userId, userId)
+					)
+				),
+			buildHandAddStatement(db, userId, input, now),
+		])
+	);
+	const [row] = rows;
 	if (!row) {
 		throw new Error("The hand insert returned no row");
 	}
@@ -714,11 +743,12 @@ export async function undoLastHand(
 			id: hand.id,
 			playSessionId: hand.playSessionId,
 			handNo: hand.handNo,
+			seq: hand.seq,
 			detail: hand.detail,
 		})
 		.from(hand)
 		.where(and(eq(hand.playSessionId, playSessionId), eq(hand.userId, userId)))
-		.orderBy(desc(hand.handNo))
+		.orderBy(desc(hand.seq))
 		.limit(1);
 	if (!last) {
 		throw new TRPCError({
@@ -733,7 +763,20 @@ export async function undoLastHand(
 		});
 	}
 	try {
-		await runBatch(db, buildHandDeleteStatements(db, userId, last));
+		await runGuardedBatch(db, [
+			db
+				.delete(hand)
+				.where(
+					and(
+						eq(hand.id, last.id),
+						eq(hand.userId, userId),
+						eq(hand.detail, "count"),
+						sql`${hand.seq} = (SELECT MAX(h.seq) FROM hand h WHERE h.play_session_id = ${playSessionId})`,
+						sql`EXISTS (SELECT 1 FROM ${playSession} WHERE ${playSession.id} = ${playSessionId} AND ${playSession.userId} = ${userId} AND ${playSession.status} = 'active')`
+					)
+				),
+			changedRowsGuardStatement(db, "hand-undo"),
+		]);
 	} catch (error) {
 		throw linkedHandConflict(error);
 	}
@@ -830,7 +873,7 @@ export async function deleteHand(
 ): Promise<void> {
 	const target = await loadOwnedHand(db, userId, handId);
 	try {
-		await runBatch(db, buildHandDeleteStatements(db, userId, target));
+		await runGuardedBatch(db, buildHandDeleteStatements(db, userId, target));
 	} catch (error) {
 		throw linkedHandConflict(error);
 	}
@@ -838,7 +881,7 @@ export async function deleteHand(
 
 const handCursorSchema = z.object({
 	playSessionId: z.string(),
-	handNo: z.number().int().min(1),
+	seq: z.number().int().min(0),
 	id: z.string(),
 });
 
@@ -865,14 +908,14 @@ export async function listHands(
 	];
 	if (cursor) {
 		conditions.push(
-			sql`(${hand.handNo}, ${hand.id}) < (${cursor.handNo}, ${cursor.id})`
+			sql`(${hand.seq}, ${hand.id}) < (${cursor.seq}, ${cursor.id})`
 		);
 	}
 	const rows = await db
 		.select()
 		.from(hand)
 		.where(and(...conditions))
-		.orderBy(desc(hand.handNo), desc(hand.id))
+		.orderBy(desc(hand.seq), desc(hand.id))
 		.limit(pageSize + 1);
 	const page = rows.slice(0, pageSize);
 	const boundary = rows.length > pageSize ? page.at(-1) : undefined;
@@ -890,7 +933,7 @@ export async function listHands(
 		nextCursor: boundary
 			? encodeCursor({
 					playSessionId: input.playSessionId,
-					handNo: boundary.handNo,
+					seq: boundary.seq,
 					id: boundary.id,
 				})
 			: null,

@@ -69,6 +69,114 @@ async function rowCount(
 }
 
 describe("game masters (real D1)", () => {
+	test("rejects a mix when a newly selected variant is archived during creation", async ({
+		api,
+	}) => {
+		const { variant, partner, mix } = await createDrawMasters(api);
+		await api.alice.gameMix.archive({ id: mix.id });
+		const raced = api.raceCaller("alice", () =>
+			api.alice.gameVariant.archive({ id: variant.id })
+		);
+		await expect(
+			raced.gameMix.create({
+				label: "Raced Mix",
+				games: [variant.id, partner.id],
+			})
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		expect(
+			(await api.alice.gameMix.list()).some((row) => row.label === "Raced Mix")
+		).toBe(false);
+	});
+
+	test("rejects a stale mix update that retains a concurrently removed archived variant", async ({
+		api,
+	}) => {
+		const { group, variant, partner, mix } = await createDrawMasters(api);
+		const third = requireCreatedRow(
+			await api.alice.gameVariant.create({
+				groupId: group.id,
+				label: "Custom Draw Variant",
+			})
+		);
+		await api.alice.gameMix.archive({ id: mix.id });
+		await api.alice.gameVariant.archive({ id: variant.id });
+		const raced = api.raceCaller("alice", () =>
+			api.alice.gameMix.update({ id: mix.id, games: [partner.id, third.id] })
+		);
+		await expect(
+			raced.gameMix.update({
+				id: mix.id,
+				games: [variant.id, partner.id],
+			})
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		const current = (
+			await api.alice.gameMix.list({ includeArchived: true })
+		).find((row) => row.id === mix.id);
+		expect(current?.games).toEqual([partner.id, third.id]);
+	});
+
+	test("concurrent seeding converges on the built-in groups", async ({
+		api,
+	}) => {
+		const raced = api.raceCaller("alice", async () => {
+			await api.alice.gameGroup.list();
+		});
+		const groups = await raced.gameGroup.list();
+		expect(groups.map((group) => group.builtinKey).sort()).toEqual([
+			"bigbet",
+			"limit",
+			"stud",
+		]);
+	});
+
+	test("seeding conflicts with a concurrent custom group create", async ({
+		api,
+	}) => {
+		const raced = api.raceCaller("alice", async () => {
+			await api.alice.gameGroup.create({ label: "Custom" });
+		});
+		await expect(raced.gameGroup.list()).rejects.toMatchObject({
+			code: "CONFLICT",
+		});
+		expect(
+			(await api.alice.gameGroup.list()).map((group) => group.label)
+		).toEqual(["Custom"]);
+	});
+
+	test("stake creation conflicts with a concurrent blind requirement change", async ({
+		api,
+	}) => {
+		const variant = (await api.alice.gameVariant.list()).find(
+			(row) => row.builtinKey === "nlh"
+		);
+		if (!variant) {
+			throw new Error("Missing builtin variant");
+		}
+		const room = requireCreatedRow(
+			await api.alice.room.create({ name: "Club" })
+		);
+		const raced = api.raceCaller("alice", async () => {
+			await api.alice.gameGroup.update({
+				id: variant.groupId,
+				blind3Label: "Straddle",
+				blind3Required: true,
+			});
+		});
+		await expect(
+			raced.ringGame.create({
+				roomId: room.id,
+				name: "Cash",
+				rule: {
+					game: { variantId: variant.id },
+					stakes: [{ gameGroupId: variant.groupId, blind1: 1, blind2: 2 }],
+				},
+			})
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		expect(await api.alice.ringGame.listByRoom({ roomId: room.id })).toEqual(
+			[]
+		);
+	});
+
 	test("an archived master leaves the default list, stays readable with includeArchived, keeps its name and blind slots, and restores", async ({
 		api,
 	}) => {

@@ -66,6 +66,23 @@ async function lines(api: ApiFixture) {
 }
 
 describe("wallet writes on D1", () => {
+	test("rejects an adjustment when its asset is archived before the write", async ({
+		api,
+	}) => {
+		const currency = await createAsset(api.alice, "Race currency");
+		const raced = api.raceCaller("alice", () =>
+			api.alice.asset.archive({ id: currency.id })
+		);
+		await expect(
+			raced.ledger.createAdjustment({
+				assetId: currency.id,
+				quantity: 100,
+				occurredAt: T0,
+			})
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		expect(await lines(api)).toEqual([]);
+	});
+
 	test("an adjustment moves the balance and an exchange stores two opposite real lines of distinct assets under one transfer id, keeping epoch seconds exact", async ({
 		api,
 	}) => {

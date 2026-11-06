@@ -3,6 +3,7 @@ import type { LedgerRole } from "@sapphire2/db/constants/ledger";
 import { entry } from "@sapphire2/db/schema/entry";
 import { ledgerLine } from "@sapphire2/db/schema/ledger";
 import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { safeInteger } from "../lib/safe-integer";
 
 export interface AssetHistoryRow {
 	categoryId: string | null;
@@ -18,7 +19,10 @@ export interface AssetHistoryRow {
 
 const REAL = sql`${ledgerLine.effect} = 'real'`;
 
-export const assetBalance = sql<number>`(SELECT COALESCE(SUM(ledger_line.quantity), 0) FROM ledger_line WHERE ledger_line.asset_id = asset.id AND ledger_line.user_id = asset.user_id AND ledger_line.effect = 'real')`;
+export const assetBalance =
+	sql<number>`(SELECT COALESCE(SUM(ledger_line.quantity), 0) FROM ledger_line WHERE ledger_line.asset_id = asset.id AND ledger_line.user_id = asset.user_id AND ledger_line.effect = 'real')`.mapWith(
+		safeInteger
+	);
 
 export async function selectAssetHistory(
 	db: Database,
@@ -60,7 +64,9 @@ export async function selectAssetHistory(
 			role: sql<LedgerRole | null>`NULL`.as("role"),
 			categoryId: sql<string | null>`NULL`.as("category_id"),
 			transferId: sql<string | null>`NULL`.as("transfer_id"),
-			quantity: sql<number>`SUM(${ledgerLine.quantity})`.as("quantity"),
+			quantity: sql<number>`SUM(${ledgerLine.quantity})`
+				.mapWith(safeInteger)
+				.as("quantity"),
 			occurredAt: sql<Date>`${firstOccurredAt}`
 				.mapWith(ledgerLine.occurredAt)
 				.as("occurred_at"),
@@ -82,8 +88,9 @@ export async function selectAssetHistory(
 		)
 		.groupBy(ledgerLine.entryId)
 		.having(before(firstOccurredAt, ledgerLine.entryId));
-	return await walletLines
+	const rows = await walletLines
 		.unionAll(entryTotals)
 		.orderBy(desc(sql`occurred_at`), desc(sql`id`))
 		.limit(options.limit);
+	return rows.map((row) => ({ ...row, quantity: safeInteger(row.quantity) }));
 }

@@ -3,7 +3,7 @@ import { entryTag } from "@sapphire2/db/schema/entry-tag";
 import { filterPreset } from "@sapphire2/db/schema/filter-preset";
 import { room } from "@sapphire2/db/schema/room";
 import { tournamentTag } from "@sapphire2/db/schema/tournament-tag";
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { expect } from "vitest";
 import { requireCreatedRow, test } from "./test-fixture";
 
@@ -100,24 +100,36 @@ test("setting a default preserves other screens and a default when the target di
 			?.isDefault
 	).toBe(true);
 
-	const disappearingDb = new Proxy(api.db, {
-		get(target, property, receiver) {
-			if (property === "batch") {
-				return async (...args: Parameters<typeof api.db.batch>) => {
-					await api.db
-						.delete(filterPreset)
-						.where(eq(filterPreset.id, first.id));
-					return api.db.batch(...args);
-				};
-			}
-			return Reflect.get(target, property, receiver);
-		},
-	});
-	await api
-		.caller("alice", disappearingDb)
-		.filterPreset.setDefault({ id: first.id });
+	const raced = api.raceCaller("alice", () =>
+		api.alice.filterPreset.delete({ id: first.id })
+	);
+	await expect(
+		raced.filterPreset.setDefault({ id: first.id })
+	).rejects.toMatchObject({ code: "CONFLICT" });
 	sessions = await api.alice.filterPreset.list({ screenKey: "sessions" });
 	expect(sessions.find((row) => row.id === second.id)?.isDefault).toBe(true);
+});
+
+test("clearing a default conflicts if the target is deleted after authorization", async ({
+	api,
+}) => {
+	const preset = requireCreatedRow(
+		await api.alice.filterPreset.create({
+			screenKey: "sessions",
+			name: "Default",
+			payload: {},
+		})
+	);
+	await api.alice.filterPreset.setDefault({ id: preset.id });
+	const raced = api.raceCaller("alice", () =>
+		api.alice.filterPreset.delete({ id: preset.id })
+	);
+	await expect(
+		raced.filterPreset.clearDefault({ id: preset.id })
+	).rejects.toMatchObject({ code: "CONFLICT" });
+	expect(await api.alice.filterPreset.list({ screenKey: "sessions" })).toEqual(
+		[]
+	);
 });
 
 test("conflicting renames preserve stored presets while keeping the current name and omitted payload succeeds", async ({
