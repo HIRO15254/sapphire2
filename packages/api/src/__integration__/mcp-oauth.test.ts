@@ -271,6 +271,7 @@ describe("MCP OAuth authorization server", () => {
 		const statuses = responses.map((response) => response.status).sort();
 		expect(statuses).toEqual([200, 400]);
 		const rejected = responses.find((response) => response.status === 400);
+		// biome-ignore lint/correctness/noUnsafeOptionalChaining: The preceding status assertion guarantees a rejected response.
 		expect(((await rejected?.json()) as TokenResponse).error).toBe(
 			"invalid_grant"
 		);

@@ -31,7 +31,9 @@ async function nextSortOrder(db: Db, userId: string): Promise<number> {
 		.select({ maxSort: max(gameVariant.sortOrder) })
 		.from(gameVariant)
 		.where(eq(gameVariant.userId, userId));
-	return row?.maxSort == null ? 0 : row.maxSort + 1;
+	return row?.maxSort === null || row?.maxSort === undefined
+		? 0
+		: row.maxSort + 1;
 }
 
 async function selectVariant(db: Db, userId: string, id: string) {

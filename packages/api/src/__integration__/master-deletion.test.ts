@@ -90,6 +90,7 @@ describe("entry-referenced master deletion on D1", () => {
 			const owner = kind === "cash" ? api.alice.ringGame : api.alice.tournament;
 			const other = kind === "cash" ? api.bob.ringGame : api.bob.tournament;
 			for (const id of [master.id, "missing"]) {
+				// biome-ignore lint/performance/noAwaitInLoops: Keep D1 operations sequential.
 				await expect(other.delete({ id })).rejects.toMatchObject({
 					code: "FORBIDDEN",
 				});

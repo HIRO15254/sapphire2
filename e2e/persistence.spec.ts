@@ -24,6 +24,7 @@ async function persistedCache(page: Page) {
 				const read = transaction
 					.objectStore("keyval")
 					.get("sapphire2-query-cache");
+				// biome-ignore lint/suspicious/noUnnecessaryConditions: IndexedDB can return undefined for a missing key.
 				read.onsuccess = () => resolve(JSON.stringify(read.result) ?? "");
 				read.onerror = () => reject(read.error);
 				transaction.oncomplete = () => database.close();

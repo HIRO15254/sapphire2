@@ -47,11 +47,14 @@ export function McpConnections() {
 		isRevokePending,
 		onRetry,
 		onRevoke,
-		onRevokeTargetChange,
+		onSelectConnection,
+		onCloseDialog,
+		onDialogOpenChange,
 		revokeTarget,
 	} = useMcpConnections();
 
 	function renderList() {
+		// biome-ignore lint/suspicious/noUnnecessaryConditions: Query pending state changes after the initial render.
 		if (isLoading) {
 			return (
 				<div className="text-muted-foreground flex justify-center py-3">
@@ -103,7 +106,7 @@ export function McpConnections() {
 							<ItemActions>
 								<IconButton
 									label={`Disconnect ${name}`}
-									onClick={() => onRevokeTargetChange(connection)}
+									onClick={onSelectConnection(connection)}
 									type="button"
 								>
 									<IconUnlink aria-hidden />
@@ -123,14 +126,7 @@ export function McpConnections() {
 		>
 			{renderList()}
 
-			<Dialog
-				onOpenChange={(open) => {
-					if (!open) {
-						onRevokeTargetChange(null);
-					}
-				}}
-				open={revokeTarget !== null}
-			>
+			<Dialog onOpenChange={onDialogOpenChange} open={revokeTarget !== null}>
 				<DialogContent>
 					<DialogHeader>
 						<DialogTitle>Disconnect client?</DialogTitle>
@@ -141,11 +137,7 @@ export function McpConnections() {
 						</DialogDescription>
 					</DialogHeader>
 					<DialogFooter>
-						<Button
-							onClick={() => onRevokeTargetChange(null)}
-							type="button"
-							variant="outline"
-						>
+						<Button onClick={onCloseDialog} type="button" variant="outline">
 							Cancel
 						</Button>
 						<Button

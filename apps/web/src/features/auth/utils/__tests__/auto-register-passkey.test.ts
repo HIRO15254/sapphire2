@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	autoRegisterPasskey,
+	offerAutomaticPasskey,
+} from "@/features/auth/utils/auto-register-passkey";
 
 const mocks = vi.hoisted(() => ({
 	addPasskey: vi.fn(),
@@ -27,11 +31,6 @@ vi.mock("@/shared/lib/webauthn", () => ({
 	supportsAutomaticPasskeyRegistration:
 		mocks.supportsAutomaticPasskeyRegistration,
 }));
-
-import {
-	autoRegisterPasskey,
-	offerAutomaticPasskey,
-} from "@/features/auth/utils/auto-register-passkey";
 
 describe("autoRegisterPasskey", () => {
 	beforeEach(() => {

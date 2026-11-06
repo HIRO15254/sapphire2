@@ -284,8 +284,10 @@ describe("gameMix.create games ownership (SA2-183)", () => {
 		});
 		expect(inserted[MIX_TABLE]?.[0]).not.toHaveProperty("games");
 		expect(
-			typeof (inserted[MIX_TABLE]?.[0] as Record<string, unknown>)?.id
+			typeof (inserted[MIX_TABLE]?.[0] as Record<string, unknown> | undefined)
+				?.id
 		).toBe("string");
+		// biome-ignore lint/correctness/noUnsafeOptionalChaining: Preserve the failure if the expected inserted row is missing.
 		const createdId = (inserted[MIX_TABLE]?.[0] as Record<string, unknown>).id;
 		expect(selectWhereParams).toContainEqual([createdId, CUR_OWNER]);
 		expect(flattenedWrites(inserted[MIX_VARIANT_TABLE])).toEqual([

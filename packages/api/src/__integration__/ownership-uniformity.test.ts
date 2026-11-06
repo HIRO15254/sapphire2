@@ -41,6 +41,7 @@ test("ring game rejects foreign and missing identifiers uniformly without writes
 		const errors: ({ code: string; message: string } | null)[] = [];
 		for (const id of [index < 2 ? club.id : game.id, "missing"]) {
 			errors.push(
+				// biome-ignore lint/performance/noAwaitInLoops: Keep D1 requests sequential.
 				await call(id).then(
 					() => null,
 					(error: { code: string; message: string }) => ({
@@ -161,6 +162,7 @@ test.for(cases)(
 			if (!missingCall) {
 				throw new Error("Missing ownership test call");
 			}
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 test cases sequential.
 			const errors = await Promise.all(
 				[foreignCall, missingCall].map((call) =>
 					call().then(
@@ -230,6 +232,7 @@ test("tournament procedures reject foreign and missing rooms and masters uniform
 		],
 	] as const) {
 		for (const call of calls) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 test cases sequential.
 			const errors = await Promise.all(
 				[foreignId, "missing"].map((id) =>
 					call(id).then(

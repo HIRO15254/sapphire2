@@ -15,6 +15,7 @@ describe("API authentication contract", () => {
 			const invoke = Reflect.get(guest, path) as (
 				input?: unknown
 			) => Promise<unknown>;
+			// biome-ignore lint/performance/noAwaitInLoops: Procedure calls share the test database and retain their original order.
 			await expect(invoke(undefined), path).rejects.toMatchObject({
 				code: "UNAUTHORIZED",
 			});

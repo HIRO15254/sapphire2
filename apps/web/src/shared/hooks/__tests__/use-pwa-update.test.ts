@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { usePwaUpdate } from "@/shared/hooks/use-pwa-update";
 
 const mocks = vi.hoisted(() => ({
 	onNeedRefresh: undefined as undefined | ((value: boolean) => void),
@@ -17,8 +18,6 @@ vi.mock("@/shared/lib/pwa-register", () => ({
 vi.mock("sonner", () => ({
 	toast: { info: mocks.toastInfo },
 }));
-
-import { usePwaUpdate } from "@/shared/hooks/use-pwa-update";
 
 describe("usePwaUpdate", () => {
 	it("offers a reload action only after an update is available", () => {

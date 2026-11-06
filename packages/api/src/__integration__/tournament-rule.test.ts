@@ -297,7 +297,7 @@ describe("tournament rule versions on D1", () => {
 				],
 			},
 		});
-		const overrideLevel = created.ruleVersion.levels[1];
+		const [, overrideLevel] = created.ruleVersion.levels;
 
 		const reordered = await api.alice.tournament.update({
 			id: created.id,
@@ -514,6 +514,7 @@ describe("tournament rule versions on D1", () => {
 			],
 		];
 		for (const [attempt, code] of attempts) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database operations and assertions.
 			await expect(attempt()).rejects.toMatchObject({ code });
 		}
 		const after = await api.alice.tournament.getById({ id: created.id });
@@ -685,6 +686,7 @@ describe("tournament rule versions on D1", () => {
 			userId: "alice",
 		});
 		for (const id of [byRule.id, byPrice.id]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database operations and assertions.
 			await expect(api.alice.tournament.delete({ id })).rejects.toMatchObject({
 				code: "CONFLICT",
 				message: expect.stringMatching(ARCHIVE_GUIDANCE),

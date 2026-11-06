@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createFakeEnv } from "./test-utils";
 
-const CSP_NONCE = /script-src 'nonce-([^']+)'/u;
+const CSP_NONCE = /script-src 'nonce-(?<nonce>[^']+)'/u;
 
 const { handlerUrls, setPassword } = vi.hoisted(() => ({
 	handlerUrls: [] as string[],
@@ -129,7 +129,7 @@ describe("authorize consent gate wiring", () => {
 			env
 		);
 		const csp = response.headers.get("content-security-policy");
-		const nonce = csp?.match(CSP_NONCE)?.[1];
+		const nonce = csp?.match(CSP_NONCE)?.groups?.nonce;
 		expect(nonce).toBeTruthy();
 		expect(await response.text()).toContain(`nonce="${nonce}"`);
 	});

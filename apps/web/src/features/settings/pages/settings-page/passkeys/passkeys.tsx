@@ -55,21 +55,23 @@ function AddPasskeyForm({
 	errorMessage,
 	form,
 	formId,
+	onSubmit,
+	onFieldChange,
 }: {
 	errorMessage: string | null;
 	form: ReturnType<typeof useAddPasskeyForm>["form"];
 	formId: string;
+	onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+	onFieldChange: (field: {
+		handleChange: (value: string) => void;
+	}) => (event: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
 	return (
 		<form
 			className="flex flex-col gap-4 pt-1 pb-2"
 			id={formId}
 			noValidate
-			onSubmit={(event) => {
-				event.preventDefault();
-				event.stopPropagation();
-				form.handleSubmit();
-			}}
+			onSubmit={onSubmit}
 		>
 			{errorMessage ? (
 				<Alert variant="destructive">
@@ -94,7 +96,7 @@ function AddPasskeyForm({
 							id={field.name}
 							name={field.name}
 							onBlur={field.handleBlur}
-							onChange={(event) => field.handleChange(event.target.value)}
+							onChange={onFieldChange(field)}
 							size="xl"
 							type="text"
 							value={field.state.value}
@@ -123,13 +125,17 @@ export function Passkeys() {
 		loading,
 		menuTarget,
 		onAddOpenChange,
+		onSelectPasskey,
+		onOpenAdd,
+		onCloseMenu,
+		onMenuOpenChange,
+		onRenameOpenChange,
+		onDeleteOpenChange,
+		onCancelDelete,
 		onDeletePasskey,
-		onDeleteTargetChange,
-		onMenuTargetChange,
 		onRemoveFromMenu,
 		onRenameFromMenu,
 		onRenamePasskey,
-		onRenameTargetChange,
 		passkeys,
 		refreshPasskeys,
 		renameTarget,
@@ -140,6 +146,8 @@ export function Passkeys() {
 		form: addForm,
 		isSubmitting: isAddSubmitting,
 		onSheetOpenChange: onAddSheetOpenChange,
+		onSubmit: onAddSubmit,
+		onFieldChange: onAddFieldChange,
 	} = useAddPasskeyForm({
 		onOpenChange: onAddOpenChange,
 		onSuccess: refreshPasskeys,
@@ -172,7 +180,7 @@ export function Passkeys() {
 			<ItemGroup aria-label="Passkeys" size="xl" variant="inset">
 				{passkeys.map((entry) => (
 					<Item asChild key={entry.id}>
-						<button onClick={() => onMenuTargetChange(entry)} type="button">
+						<button onClick={onSelectPasskey(entry)} type="button">
 							<ItemMedia>
 								<IconKey aria-hidden />
 							</ItemMedia>
@@ -194,7 +202,7 @@ export function Passkeys() {
 					<Item asChild>
 						<button
 							className="text-primary-text"
-							onClick={() => onAddOpenChange(true)}
+							onClick={onOpenAdd}
 							type="button"
 						>
 							<ItemMedia>
@@ -221,14 +229,7 @@ export function Passkeys() {
 		>
 			{renderList()}
 
-			<Drawer
-				onOpenChange={(open) => {
-					if (!open) {
-						onMenuTargetChange(null);
-					}
-				}}
-				open={menuTarget !== null}
-			>
+			<Drawer onOpenChange={onMenuOpenChange} open={menuTarget !== null}>
 				<DrawerContent>
 					<DrawerGrab />
 					<DrawerHeader>
@@ -264,7 +265,7 @@ export function Passkeys() {
 						</ItemGroup>
 						<Button
 							className="w-full"
-							onClick={() => onMenuTargetChange(null)}
+							onClick={onCloseMenu}
 							size="xl"
 							type="button"
 							variant="secondary"
@@ -288,6 +289,8 @@ export function Passkeys() {
 					errorMessage={addErrorMessage}
 					form={addForm}
 					formId={ADD_PASSKEY_FORM_ID}
+					onFieldChange={onAddFieldChange}
+					onSubmit={onAddSubmit}
 				/>
 			</FormSheet>
 
@@ -295,11 +298,7 @@ export function Passkeys() {
 				formId={RENAME_PASSKEY_FORM_ID}
 				isLoading={isRenamePending}
 				isSaveDisabled={isRenamePending}
-				onOpenChange={(open) => {
-					if (!open) {
-						onRenameTargetChange(null);
-					}
-				}}
+				onOpenChange={onRenameOpenChange}
 				open={renameTarget !== null}
 				title="Rename passkey"
 			>
@@ -312,14 +311,7 @@ export function Passkeys() {
 				/>
 			</FormSheet>
 
-			<Dialog
-				onOpenChange={(open) => {
-					if (!open) {
-						onDeleteTargetChange(null);
-					}
-				}}
-				open={deleteTarget !== null}
-			>
+			<Dialog onOpenChange={onDeleteOpenChange} open={deleteTarget !== null}>
 				<DialogContent>
 					<DialogHeader>
 						<DialogTitle>Remove passkey?</DialogTitle>
@@ -330,11 +322,7 @@ export function Passkeys() {
 						</DialogDescription>
 					</DialogHeader>
 					<DialogFooter>
-						<Button
-							onClick={() => onDeleteTargetChange(null)}
-							type="button"
-							variant="outline"
-						>
+						<Button onClick={onCancelDelete} type="button" variant="outline">
 							Cancel
 						</Button>
 						<Button

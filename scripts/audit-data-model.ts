@@ -19,7 +19,7 @@ Exit 0: no gate violation. Exit 1: a violation or a check error. Exit 2: usage o
 
 const SAMPLE_ROWS = 20;
 
-function describe(result: CheckResult): string {
+function describeResult(result: CheckResult): string {
 	const count =
 		result.status === "pass" || result.status === "violation"
 			? ` — ${result.rows.length} row(s)`
@@ -31,7 +31,7 @@ function describe(result: CheckResult): string {
 function printText(report: AuditReport): void {
 	console.log(`Data model audit of ${report.database}`);
 	for (const result of report.results) {
-		console.log(describe(result));
+		console.log(describeResult(result));
 		for (const row of result.rows.slice(0, SAMPLE_ROWS)) {
 			console.log(`    ${JSON.stringify(row)}`);
 		}

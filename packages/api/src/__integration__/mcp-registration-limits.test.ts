@@ -16,10 +16,10 @@ afterAll(() => {
 const REGISTER_PATH = "/api/auth/oauth2/register";
 const MAX_BODY_BYTES = 16 * 1024;
 
-function registration(redirectUris: string[], clientName = "Limit test") {
+function registration(uris: string[], clientName = "Limit test") {
 	return {
 		client_name: clientName,
-		redirect_uris: redirectUris,
+		redirect_uris: uris,
 		token_endpoint_auth_method: "none",
 	};
 }
@@ -81,7 +81,8 @@ test("one connecting IP registers at most 20 clients per hour", async ({
 }) => {
 	const request = createWorkerClient(api.d1);
 	const statuses: number[] = [];
-	for (let attempt = 0; attempt < 21; attempt++) {
+	for (let attempt = 0; attempt < 21; attempt += 1) {
+		// biome-ignore lint/performance/noAwaitInLoops: Rate-limit requests must remain sequential.
 		const response = await request(
 			REGISTER_PATH,
 			jsonPost(registration(redirectUris(1)), {

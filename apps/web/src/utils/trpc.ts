@@ -28,7 +28,7 @@ queryClient.getMutationCache().subscribe((event) => {
 	if (event.type !== "updated" || event.action.type !== "error") {
 		return;
 	}
-	const error = event.action.error;
+	const { error } = event.action;
 	if (!isConcurrentChange(error)) {
 		return;
 	}
@@ -64,12 +64,11 @@ export function clearPersistedQueryCache(): Promise<void> {
 export const trpcClient = createTRPCClient<AppRouter>({
 	links: [
 		httpBatchLink({
-			fetch(url, options) {
-				return fetch(url, {
+			fetch: (url, options) =>
+				fetch(url, {
 					...options,
 					credentials: "include",
-				});
-			},
+				}),
 			url: `${env.VITE_SERVER_URL}/trpc`,
 		}),
 	],

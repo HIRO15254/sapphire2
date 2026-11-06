@@ -266,6 +266,7 @@ test("foreign filter references are forbidden on create and update without chang
 		{ entryTagIds: ["bob-entry-tag"] },
 		{ tournamentTagIds: ["bob-tournament-tag"] },
 	]) {
+		// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 		await expect(
 			api.alice.filterPreset.create({
 				name: "Foreign",

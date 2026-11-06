@@ -21,8 +21,9 @@ const POLL_MS = 30_000;
 const DEBOUNCE_MS = 60_000;
 const MAX_BATCH_MS = 240_000;
 const MAX_POLL_FAILURES = 10;
-const ISSUE_BRANCH = /^feature\/sa2-(\d+)$/iu;
-const PR_URL = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/pull\/\d+$/u;
+const ISSUE_BRANCH = /^feature\/sa2-(?<number>\d+)$/iu;
+const PR_URL =
+	/^https:\/\/github\.com\/(?<owner>[^/]+)\/(?<name>[^/]+)\/pull\/\d+$/u;
 const PR_NUMBER = /^\d+$/u;
 const CI_KEY = "ci:";
 const FAILED_CHECK = [
@@ -348,7 +349,7 @@ export function formatBatch(
 	items: WatchItem[],
 	state: Snapshot["state"]
 ): string {
-	const issue = ISSUE_BRANCH.exec(target.branch)?.[1];
+	const issue = ISSUE_BRANCH.exec(target.branch)?.groups?.number;
 	const next =
 		state === "OPEN"
 			? "Handle the items under AGENTS.md > PR Review Loop, then start `bun run pr-watch` in the background again."
@@ -402,8 +403,8 @@ function resolveTarget(pr: string | undefined): WatchTarget {
 		? prViewSchema.safeParse(JSON.parse(view.stdout)).data
 		: undefined;
 	const match = parsed ? PR_URL.exec(parsed.url) : null;
-	const owner = match?.[1];
-	const name = match?.[2];
+	const owner = match?.groups?.owner;
+	const name = match?.groups?.name;
 	if (!(parsed && owner && name)) {
 		console.error(
 			"pr-watch: no PR found. Run it in the PR's worktree, or pass --pr <number>."
@@ -530,6 +531,7 @@ async function watch(target: WatchTarget): Promise<string> {
 				return output;
 			}
 		}
+		// biome-ignore lint/performance/noAwaitInLoops: Polling requires a delay between successive requests.
 		await sleep(POLL_MS);
 	}
 }

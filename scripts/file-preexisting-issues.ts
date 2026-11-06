@@ -138,7 +138,7 @@ async function loadTeam(apiKey: string): Promise<TeamSetup> {
 		}`,
 		{ key: TEAM_KEY }
 	);
-	const team = data.teams.nodes[0];
+	const [team] = data.teams.nodes;
 	const triage = team?.states.nodes.find((state) => state.type === TRIAGE_TYPE);
 	if (!(team && triage)) {
 		throw new Error(
@@ -197,6 +197,7 @@ async function main(args: string[]): Promise<void> {
 	}
 	for (const finding of findings) {
 		const issue = buildIssue(finding, { number: prNumber, url: prUrl });
+		// biome-ignore lint/performance/noAwaitInLoops: Each lookup must see issues filed by earlier iterations.
 		if (await alreadyFiled(apiKey, issue.fingerprint)) {
 			console.log(`already filed: ${finding.file} ${finding.title}`);
 			continue;

@@ -73,6 +73,15 @@ export function useSignIn() {
 			}),
 		},
 	});
+	const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		event.stopPropagation();
+		form.handleSubmit();
+	};
+	const onFieldChange =
+		(field: { handleChange: (value: string) => void }) =>
+		(event: React.ChangeEvent<HTMLInputElement>) =>
+			field.handleChange(event.target.value);
 	const isSubmitting = useStore(form.store, (state) => state.isSubmitting);
 
 	const onSignInWithPasskey = async () => {
@@ -116,8 +125,10 @@ export function useSignIn() {
 		isPasskeySupported: isPasskeySupported(),
 		isPending,
 		isSubmitting,
+		onFieldChange,
 		onSignInWithDiscord: () => signInWithProvider("discord"),
 		onSignInWithGoogle: () => signInWithProvider("google"),
 		onSignInWithPasskey,
+		onSubmit,
 	};
 }

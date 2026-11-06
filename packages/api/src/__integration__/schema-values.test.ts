@@ -1,3 +1,5 @@
+import { schema } from "@sapphire2/db/schema";
+import { user } from "@sapphire2/db/schema/auth";
 import { filterPreset } from "@sapphire2/db/schema/filter-preset";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
@@ -162,6 +164,3 @@ describe("stored defaults and value encoding", () => {
 		).toEqual(["initial", "non-default", "other-account", "other-screen"]);
 	});
 });
-
-import { schema } from "@sapphire2/db/schema";
-import { user } from "@sapphire2/db/schema/auth";

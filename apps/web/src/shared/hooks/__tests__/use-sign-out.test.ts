@@ -1,5 +1,6 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useSignOut } from "@/shared/hooks/use-sign-out";
 
 const mocks = vi.hoisted(() => ({
 	clearPersistedQueryCache: vi.fn(),
@@ -21,15 +22,13 @@ vi.mock("@/utils/trpc", () => ({
 	clearPersistedQueryCache: mocks.clearPersistedQueryCache,
 }));
 
-import { useSignOut } from "@/shared/hooks/use-sign-out";
-
 interface FetchOptions {
 	onError: () => void;
 	onSuccess: () => void;
 }
 
 function getFetchOptions(): FetchOptions {
-	const call = mocks.signOut.mock.calls[0];
+	const [call] = mocks.signOut.mock.calls;
 	if (!call) {
 		throw new Error("Expected a sign-out request");
 	}
@@ -66,7 +65,7 @@ describe("useSignOut", () => {
 		expect(mocks.clearPersistedQueryCache).toHaveBeenCalledTimes(1);
 		expect(mocks.navigate).toHaveBeenCalledTimes(1);
 		expect(mocks.navigate).toHaveBeenNthCalledWith(1, { to: "/" });
-		const navigateOrder = mocks.navigate.mock.invocationCallOrder[0];
+		const [navigateOrder] = mocks.navigate.mock.invocationCallOrder;
 		if (navigateOrder === undefined) {
 			throw new Error("Expected navigation to be called");
 		}

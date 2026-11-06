@@ -215,7 +215,7 @@ describe("ledger", () => {
 	it("alternates the agent from the most recent run", () => {
 		expect(nextAgent([])).toBe("claude");
 		expect(nextAgent(rows)).toBe("claude");
-		const first = rows[0];
+		const [first] = rows;
 		if (!first) {
 			throw new Error("Expected a ledger fixture row");
 		}

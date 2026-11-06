@@ -207,7 +207,7 @@ async function callTool<T>(
 	});
 	expect(result.isError, JSON.stringify(result.content)).not.toBe(true);
 	const [content] = result.content;
-	if (!content || content.type !== "text") {
+	if (content?.type !== "text") {
 		throw new Error("Expected a text tool result");
 	}
 	return JSON.parse(content.text) as T;
@@ -282,6 +282,7 @@ test("OAuth login continuation and PKCE connect MCP writes to cookie reads with 
 			await callTool<Room[]>(otherContext.request, otherToken, "room_list")
 		).toEqual([]);
 		for (const name of ["room_get_by_id", "room_update"]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Requests share server state and must retain their original order.
 			const result = await rpc<ToolResult>(
 				otherContext.request,
 				otherToken,
@@ -367,6 +368,7 @@ test("missing and invalid bearer tokens receive an OAuth discovery challenge", a
 	request,
 }) => {
 	for (const token of [undefined, "invalid-e2e-access-token"]) {
+		// biome-ignore lint/performance/noAwaitInLoops: Authentication requests share rate limits and must remain sequential.
 		const response = await request.post(`${API_URL}/mcp`, {
 			data: { id: 1, jsonrpc: "2.0", method: "tools/list" },
 			headers: token ? { Authorization: `Bearer ${token}` } : {},

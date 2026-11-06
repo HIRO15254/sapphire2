@@ -28,6 +28,7 @@ export function useUpdateNotesReleases() {
 			...note,
 			isExpanded: expandedVersions.has(note.version),
 			isNew: !viewedVersions.has(note.version),
+			onToggle: () => onToggleRelease(note.version),
 			releasedOn: note.releasedAt.replaceAll("-", "/"),
 		})),
 	};

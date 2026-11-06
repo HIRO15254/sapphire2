@@ -2,6 +2,7 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
+import { useSetPasswordForm } from "@/shared/hooks/use-set-password-form";
 
 interface LinkedAccount {
 	accountId: string;
@@ -64,6 +65,23 @@ function onlyMethodNote(
 	return `${only.label} is your only way to sign in, so it can't be unlinked. Set a password or link ${other?.label} first.`;
 }
 
+export function useLinkedPasswordForm(options: {
+	onOpenChange: (open: boolean) => void;
+	onSuccess: () => void;
+}) {
+	const { form } = useSetPasswordForm(options);
+	const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		event.stopPropagation();
+		form.handleSubmit();
+	};
+	const onFieldChange =
+		(field: { handleChange: (value: string) => void }) =>
+		(event: React.ChangeEvent<HTMLInputElement>) =>
+			field.handleChange(event.target.value);
+	return { form, onFieldChange, onSubmit };
+}
+
 export function useLinkedAccounts() {
 	const navigate = useNavigate();
 	const { error: linkErrorReason, linkError } = useSearch({
@@ -80,7 +98,7 @@ export function useLinkedAccounts() {
 		setIsRefreshPending(true);
 		try {
 			const result = await authClient.listAccounts();
-			setAccounts((result.data as LinkedAccount[]) ?? []);
+			setAccounts((result.data as LinkedAccount[] | null) ?? []);
 			setError(null);
 		} catch {
 			setError("Couldn't load your sign-in methods.");
@@ -164,7 +182,10 @@ export function useLinkedAccounts() {
 		note:
 			onlyMethodNote(linkedProviderIds, totalLinked) ??
 			"Keep at least one way to sign in. Linking opens the provider's sign-in page.",
+		onLink: (providerId: SocialProviderId) => () => handleLink(providerId),
+		onOpenSetPassword: () => setIsSetPasswordOpen(true),
 		onSetPasswordOpenChange: setIsSetPasswordOpen,
+		onUnlink: (providerId: SocialProviderId) => () => handleUnlink(providerId),
 		totalLinked,
 	};
 }

@@ -1,6 +1,7 @@
 import { render } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { Drawer } from "./drawer";
 
 const rootSpy = vi.hoisted(() => vi.fn());
 
@@ -19,8 +20,6 @@ vi.mock("vaul", () => ({
 		Trigger: ({ children }: { children?: ReactNode }) => children ?? null,
 	},
 }));
-
-import { Drawer } from "./drawer";
 
 describe("Drawer", () => {
 	it("disables vaul's repositionInputs by default", () => {

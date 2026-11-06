@@ -38,6 +38,7 @@ describe("installed D1 referential integrity", () => {
 				.bind(id, token)
 				.run();
 		for (const table of ["oauth_access_token", "oauth_refresh_token"]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database operations and assertions.
 			await insertToken(table, "token", "token-key");
 			await expect(
 				insertToken(table, "duplicate-token", "token-key")
@@ -51,6 +52,7 @@ describe("installed D1 referential integrity", () => {
 		).toEqual([{ id: "client" }]);
 		for (const table of ["oauth_access_token", "oauth_refresh_token"]) {
 			expect(
+				// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database operations and assertions.
 				(await api.d1.prepare(`SELECT id, token FROM ${table}`).all()).results
 			).toEqual([{ id: "token", token: "token-key" }]);
 		}

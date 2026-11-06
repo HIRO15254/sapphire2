@@ -66,9 +66,9 @@ const FIXTURE = [
 	`INSERT INTO hand_seat (hand_id, user_id, seat, is_hero) VALUES ('h:live:1', 'alice', 3, 1)`,
 ];
 
-const databaseId = /database_id = "([^"]+)"/u.exec(
+const databaseId = /database_id = "(?<id>[^"]+)"/u.exec(
 	readFileSync(WRANGLER_TOML, "utf8")
-)?.[1];
+)?.groups?.id;
 
 const scratch = mkdtempSync(path.join(tmpdir(), "audit-data-model-"));
 let seeded = "";
@@ -115,6 +115,7 @@ async function createDatabase(
 		for (const file of files) {
 			if (file === CUTOVER_MIGRATION) {
 				for (const statement of legacy) {
+					// biome-ignore lint/performance/noAwaitInLoops: Migration fixtures must execute in order.
 					await d1.prepare(statement).run();
 				}
 			}
@@ -125,6 +126,7 @@ async function createDatabase(
 				.run();
 		}
 		for (const statement of statements) {
+			// biome-ignore lint/performance/noAwaitInLoops: Fixture statements must execute in order.
 			await d1.prepare(statement).run();
 		}
 	});
@@ -136,6 +138,7 @@ async function copyWith(name: string, statements: string[]): Promise<string> {
 	cpSync(seeded, dir, { recursive: true });
 	await withD1(dir, async (d1) => {
 		for (const statement of statements) {
+			// biome-ignore lint/performance/noAwaitInLoops: Fixture statements must execute in order.
 			await d1.prepare(statement).run();
 		}
 	});
@@ -164,15 +167,15 @@ function audit(dir: string, ...args: string[]) {
 	return { report, status: run.status, stderr: run.stderr };
 }
 
-function statuses(report: AuditReport | null, audit: string): CheckStatus[] {
+function statuses(report: AuditReport | null, auditId: string): CheckStatus[] {
 	return (report?.results ?? [])
-		.filter((result) => result.audit === audit)
+		.filter((result) => result.audit === auditId)
 		.map((result) => result.status);
 }
 
-function rows(report: AuditReport | null, audit: string) {
+function rows(report: AuditReport | null, auditId: string) {
 	return (report?.results ?? [])
-		.filter((result) => result.audit === audit)
+		.filter((result) => result.audit === auditId)
 		.flatMap((result) => result.rows);
 }
 

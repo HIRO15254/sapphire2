@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useAddPasskeyForm } from "@/features/settings/pages/settings-page/passkeys/use-add-passkey-form";
 
 const DEVICE_NAME = "Chrome on macOS";
 
@@ -25,8 +26,6 @@ vi.mock("@/lib/auth-client", () => ({
 vi.mock("@/shared/lib/device-name", () => ({
 	describeCurrentDevice: () => "Chrome on macOS",
 }));
-
-import { useAddPasskeyForm } from "@/features/settings/pages/settings-page/passkeys/use-add-passkey-form";
 
 function renderForm() {
 	const onOpenChange = vi.fn();

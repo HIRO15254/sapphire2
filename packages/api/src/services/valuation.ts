@@ -271,7 +271,7 @@ function valueEntryLines(
 }
 
 export function valueEntries(input: ValuationInput): ValuationResult {
-	const kinds = new Map(input.assets.map((asset) => [asset.id, asset.kind]));
+	const kinds = new Map(input.assets.map((item) => [item.id, item.kind]));
 	const index = indexRates(input.rates);
 	const pathCache = new Map<string, ConversionPath | null>();
 	const resolve = (line: ValuationLine) => {

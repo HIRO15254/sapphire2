@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useSetPasswordForm } from "@/shared/hooks/use-set-password-form";
 
 const mocks = vi.hoisted(() => ({
 	fetch: vi.fn(),
@@ -14,8 +15,6 @@ vi.mock("sonner", () => ({
 vi.mock("@/lib/auth-client", () => ({
 	authClient: { $fetch: mocks.fetch },
 }));
-
-import { useSetPasswordForm } from "@/shared/hooks/use-set-password-form";
 
 describe("useSetPasswordForm", () => {
 	beforeEach(() => {

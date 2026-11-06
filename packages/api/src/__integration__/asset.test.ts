@@ -219,6 +219,7 @@ describe("asset references on D1", () => {
 			},
 		});
 		for (const assetId of [priced.id, defaultAsset.id]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(
 				api.alice.asset.delete({ id: assetId })
 			).rejects.toMatchObject(IN_USE);
@@ -253,6 +254,7 @@ describe("asset references on D1", () => {
 		const before = await storedRows(api);
 
 		for (const referenced of [lined, base, quote, setting, played]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(
 				api.alice.asset.delete({ id: referenced.id })
 			).rejects.toMatchObject(IN_USE);
@@ -379,6 +381,7 @@ describe("asset writes on D1", () => {
 			[noUnit, "pt"],
 			[withUnit, null],
 		] as const) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			const before = await api.alice.asset.getById({ id: created.id });
 			await api.alice.asset.update({ id: created.id, unit: changed });
 			await api.alice.asset.update({ id: created.id, unit: before.unit });
@@ -526,6 +529,7 @@ describe("asset rates on D1", () => {
 			{ ...valid, rateNum: 1.5 },
 			{ ...valid, effectiveFrom: -1 },
 		]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(api.alice.assetRate.create(invalid)).rejects.toMatchObject(
 				BAD_REQUEST
 			);
@@ -581,6 +585,7 @@ describe("user settings on D1", () => {
 		});
 
 		for (const timeZone of ["Mars/Olympus", "+09:00", "", "Asia/Tokyo "]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(
 				api.alice.userSetting.update({ timeZone })
 			).rejects.toMatchObject(BAD_REQUEST);
@@ -655,10 +660,12 @@ describe("asset, rate and setting ownership on D1", () => {
 				() => api.alice.userSetting.update({ baseAssetId: id }),
 			];
 			for (const request of requests) {
+				// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 				await expect(request()).rejects.toMatchObject(FORBIDDEN);
 			}
 		}
 		for (const id of [bobRate?.id ?? "", "missing-rate"]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(api.alice.assetRate.delete({ id })).rejects.toMatchObject(
 				FORBIDDEN
 			);
@@ -689,6 +696,7 @@ describe("asset, rate and setting ownership on D1", () => {
 			() => guest.userSetting.update({ timeZone: "UTC" }),
 		];
 		for (const request of guestRequests) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(request()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
 		}
 		expect(await storedRows(api)).toEqual(before);

@@ -68,13 +68,19 @@ function Field({
 function FieldLabel({
 	children,
 	className,
+	htmlFor,
 	required = false,
 	...props
 }: ComponentProps<typeof Label> & {
 	required?: boolean;
 }) {
 	return (
-		<Label className={cn(className)} data-slot="field-label" {...props}>
+		<Label
+			className={cn(className)}
+			data-slot="field-label"
+			htmlFor={htmlFor}
+			{...props}
+		>
 			{children}
 			{required ? <span className="text-destructive-text"> *</span> : null}
 		</Label>

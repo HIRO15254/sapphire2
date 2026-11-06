@@ -474,6 +474,7 @@ describe("game masters (real D1)", () => {
 		];
 
 		for (const call of calls) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(call()).rejects.toMatchObject(rejection("FORBIDDEN"));
 		}
 		expect(
@@ -492,12 +493,15 @@ describe("game masters (real D1)", () => {
 		};
 
 		for (const row of mixes) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await api.alice.gameMix.archive({ id: row.id });
 		}
 		for (const row of variants) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await api.alice.gameVariant.archive({ id: row.id });
 		}
 		for (const row of groups) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await api.alice.gameGroup.archive({ id: row.id });
 		}
 

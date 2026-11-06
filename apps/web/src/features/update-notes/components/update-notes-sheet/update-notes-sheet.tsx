@@ -27,8 +27,7 @@ import {
 import { useUpdateNotesReleases } from "./use-update-notes-releases";
 
 export function UpdateNotesSheet() {
-	const { isOpen, onOpenChange, onToggleRelease, releases } =
-		useUpdateNotesReleases();
+	const { isOpen, onOpenChange, releases } = useUpdateNotesReleases();
 
 	return (
 		<Drawer onOpenChange={onOpenChange} open={isOpen}>
@@ -63,7 +62,7 @@ export function UpdateNotesSheet() {
 											<button
 												aria-controls={panelId}
 												aria-expanded={release.isExpanded}
-												onClick={() => onToggleRelease(release.version)}
+												onClick={release.onToggle}
 												type="button"
 											>
 												<ItemContent>

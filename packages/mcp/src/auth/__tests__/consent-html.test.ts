@@ -2,7 +2,8 @@ import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 import { renderConsentHtml } from "../consent-html";
 
-const CONSENT_SCRIPT = /<script nonce="test-nonce">([\s\S]*?)<\/script>/u;
+const CONSENT_SCRIPT =
+	/<script nonce="test-nonce">(?<script>[\s\S]*?)<\/script>/u;
 
 const BASE_PROPS = {
 	clientName: "Claude",
@@ -94,7 +95,7 @@ describe("renderConsentHtml", () => {
 
 	it("rejects unsafe consent redirects while allowing secure and native callbacks", async () => {
 		const html = renderConsentHtml(BASE_PROPS);
-		const script = html.match(CONSENT_SCRIPT)?.[1];
+		const script = html.match(CONSENT_SCRIPT)?.groups?.script;
 		expect(script).toBeDefined();
 		const cases = [
 			["javascript:alert(1)", false],
@@ -113,7 +114,7 @@ describe("renderConsentHtml", () => {
 			["cursor://callback", true],
 		] as const;
 		for (const [redirectURI, allowed] of cases) {
-			const handlers: Record<string, () => Promise<void>> = {};
+			const handlers: Partial<Record<string, () => Promise<void>>> = {};
 			const elements = {
 				approve: {
 					addEventListener: (_: string, fn: () => Promise<void>) => {
@@ -142,6 +143,7 @@ describe("renderConsentHtml", () => {
 				URL,
 				window: { location },
 			});
+			// biome-ignore lint/performance/noAwaitInLoops: Each case completes before the next isolated setup.
 			await handlers.approve?.();
 			expect(location.href).toBe(allowed ? redirectURI : "");
 			expect(elements.error.hidden).toBe(allowed);

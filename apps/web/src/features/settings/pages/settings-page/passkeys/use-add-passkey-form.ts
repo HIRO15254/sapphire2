@@ -94,5 +94,21 @@ export function useAddPasskeyForm({
 		onOpenChange(open);
 	};
 
-	return { errorMessage, form, isSubmitting, onSheetOpenChange };
+	const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		event.stopPropagation();
+		form.handleSubmit();
+	};
+	const onFieldChange =
+		(field: { handleChange: (value: string) => void }) =>
+		(event: React.ChangeEvent<HTMLInputElement>) =>
+			field.handleChange(event.target.value);
+	return {
+		errorMessage,
+		form,
+		isSubmitting,
+		onFieldChange,
+		onSheetOpenChange,
+		onSubmit,
+	};
 }

@@ -40,10 +40,10 @@ export const STALE_DAYS = 30;
 export const DIFF_MODE_CHURN_RATIO = 0.25;
 export const AGENTS = ["claude", "codex"] as const;
 
-const SOURCE_ROOT = /^((?:apps|packages)\/[^/]+\/src)\//u;
+const SOURCE_ROOT = /^(?<root>(?:apps|packages)\/[^/]+\/src)\//u;
 const EXCLUDED_PATH =
-	/(^|\/)(__tests__|__integration__|migrations)\/|\.test\.tsx?$|\.d\.ts$|\.gen\.ts$|\.(css|json|sql)$/u;
-const SOURCE_PATH = /\.(ts|tsx)$/u;
+	/(?:^|\/)(?:__tests__|__integration__|migrations)\/|\.test\.tsx?$|\.d\.ts$|\.gen\.ts$|\.(?:css|json|sql)$/u;
+const SOURCE_PATH = /\.(?:ts|tsx)$/u;
 const DAY_MS = 86_400_000;
 const WEIGHT_PER_DAY = 1;
 const NEVER_AUDITED_DAYS = 90;
@@ -264,7 +264,7 @@ export function splitUnits(
 	const units: AuditUnit[] = [];
 	const byRoot = new Map<string, AuditFile[]>();
 	for (const file of files) {
-		const root = SOURCE_ROOT.exec(file.path)?.[1];
+		const root = SOURCE_ROOT.exec(file.path)?.groups?.root;
 		if (root) {
 			byRoot.set(root, [...(byRoot.get(root) ?? []), file]);
 		}

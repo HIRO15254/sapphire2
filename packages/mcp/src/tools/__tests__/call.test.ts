@@ -49,6 +49,7 @@ describe("callTool", () => {
 	it("routes each tool to its own procedure path", async () => {
 		for (const def of TOOL_DEFINITIONS) {
 			const { caller, calls } = createRoutedCallerMock({ ok: true });
+			// biome-ignore lint/performance/noAwaitInLoops: Each routing case completes before the next isolated setup.
 			await callTool(def, caller, { some: "input" }, vi.fn());
 			expect(calls).toEqual([
 				{ input: { some: "input" }, path: def.procedurePath },

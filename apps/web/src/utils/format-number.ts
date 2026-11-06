@@ -39,7 +39,9 @@ function formatWithTier(value: number, tier: UnitTier | undefined): string {
 export function createGroupFormatter(
 	values: (number | null | undefined)[]
 ): (value: number) => string {
-	const nums = values.filter((v): v is number => v != null && v !== 0);
+	const nums = values.filter(
+		(v): v is number => v !== null && v !== undefined && v !== 0
+	);
 	const maxAbs = nums.length > 0 ? Math.max(...nums.map(Math.abs)) : 0;
 	const tier = TIERS.find((t) => maxAbs >= t.threshold);
 	return (value: number) => formatWithTier(value, tier);

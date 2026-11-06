@@ -44,10 +44,12 @@ export function Toast({
 			</span>
 			<div className="min-w-0 flex-1">
 				<p className="text-sm leading-[1.4] font-medium">{title}</p>
-				{description && (
+				{description ? (
 					<p className="text-muted-foreground mt-0.5 text-xs leading-[1.4]">
 						{description}
 					</p>
+				) : (
+					description
 				)}
 			</div>
 			{action}

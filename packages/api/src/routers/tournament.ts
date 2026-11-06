@@ -339,7 +339,7 @@ async function updateTournament(
 		found.defaultAssetId
 	);
 	let ruleStatements: BatchStatement[] = [];
-	let currentRuleId = found.currentRuleId;
+	let { currentRuleId } = found;
 	if (input.rule) {
 		const current = (
 			await hydrateTournamentRules(db, userId, [found.currentRuleId])

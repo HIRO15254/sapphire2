@@ -252,6 +252,7 @@ describe("hand tables on D1", () => {
 			],
 		];
 		for (const [table, row] of crossOwner) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(
 				insert(api.d1, table, row),
 				`${table} ${JSON.stringify(row)}`
@@ -418,6 +419,7 @@ describe("hand tables on D1", () => {
 			],
 		];
 		for (const [table, row, constraint] of rejected) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(
 				insert(api.d1, table, row),
 				`${table} ${JSON.stringify(row)}`
@@ -562,6 +564,7 @@ describe("hand API on D1", () => {
 			{ endState: null, status: "paused" },
 			{ endState: "cashed_out", status: "ended" },
 		] as const) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await api.db
 				.update(playSession)
 				.set(state)
@@ -639,6 +642,7 @@ describe("hand API on D1", () => {
 		await seedOwner(api.db, "alice");
 		const ids = ["page-1", "page-2", "page-3", "page-4", "page-5"];
 		for (const [index, id] of ids.entries()) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await insert(
 				api.d1,
 				"hand",
@@ -673,7 +677,8 @@ describe("hand API on D1", () => {
 	}) => {
 		await seedOwner(api.db, "alice");
 		const ids: string[] = [];
-		for (let index = 0; index < 5; index++) {
+		for (let index = 0; index < 5; index += 1) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			ids.push((await api.alice.hand.add({ playSessionId: "alice-play" })).id);
 		}
 		const raced = api.raceCaller("alice", () =>
@@ -763,6 +768,7 @@ describe("hand API on D1", () => {
 		const ids = ["hand-1", "hand-2", "hand-3", "hand-4", "hand-5"] as const;
 		const [first, second, third, fourth, fifth] = ids;
 		for (const [index, id] of ids.entries()) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await insert(
 				api.d1,
 				"hand",
@@ -869,6 +875,7 @@ describe("hand API on D1", () => {
 			() => api.bob.hand.list({ playSessionId: "missing" }),
 		];
 		for (const attempt of attempts) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(attempt()).rejects.toMatchObject({ code: "FORBIDDEN" });
 		}
 		expect((await handNumbers(api.db, "alice-play")).length).toBe(2);
@@ -986,6 +993,7 @@ async function seedHandTags(api: ApiFixture, count: number) {
 		userId: "alice",
 	}));
 	for (const chunk of chunkForInsert(rows, Object.keys(rows[0] ?? {}).length)) {
+		// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 		await api.db.insert(handTag).values(chunk);
 	}
 	return rows.map(({ id }) => id);
@@ -1155,6 +1163,7 @@ describe("hand.update on D1", () => {
 					tagReviews: [{ reviewedAt: null, tagId: "missing-tag" }],
 				}),
 		]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(attempt()).rejects.toMatchObject({ code: "FORBIDDEN" });
 		}
 		expect(await api.bob.hand.getById({ id: bobHand })).toEqual(before);
@@ -1228,6 +1237,7 @@ describe("hand.update on D1", () => {
 				tagReviews: [{ reviewedAt: reviewed, tagId: third.id }],
 			},
 		]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(
 				api.alice.hand.update({ ...countBody(added), ...body })
 			).rejects.toMatchObject({ code: "BAD_REQUEST" });
@@ -1426,6 +1436,7 @@ describe("all-in hand link on D1", () => {
 		});
 
 		for (const handId of ["bob-hand", "other-day-hand", "missing"]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(
 				api.alice.playEvent.create({
 					entryId,

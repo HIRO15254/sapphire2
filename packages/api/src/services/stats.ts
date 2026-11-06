@@ -152,9 +152,9 @@ function compareLines(
 export function initialPaymentLines(
 	lines: StatsEntry["lines"]
 ): StatsEntry["lines"] {
-	const first = lines
+	const [first] = lines
 		.filter((line) => line.role === "buy_in")
-		.sort(compareLines)[0];
+		.sort(compareLines);
 	if (!first) {
 		return [];
 	}

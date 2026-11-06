@@ -2,6 +2,10 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	UpdateNotesProvider,
+	useUpdateNotesSheet,
+} from "@/features/update-notes/components/update-notes-sheet/use-update-notes-sheet";
 
 const state = vi.hoisted(() => ({
 	isViewedListLoaded: true,
@@ -24,11 +28,6 @@ vi.mock("@/features/update-notes/hooks/use-update-notes-viewed", () => ({
 		viewedVersions: state.viewedVersions,
 	}),
 }));
-
-import {
-	UpdateNotesProvider,
-	useUpdateNotesSheet,
-} from "@/features/update-notes/components/update-notes-sheet/use-update-notes-sheet";
 
 function Probe() {
 	const { isOpen, close, viewedVersions } = useUpdateNotesSheet();

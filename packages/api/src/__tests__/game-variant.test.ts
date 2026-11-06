@@ -284,7 +284,9 @@ describe("gameVariant.create", () => {
 			userId: CUR_OWNER,
 		});
 		expect(
-			typeof (inserted[VARIANT_TABLE]?.[0] as Record<string, unknown>)?.id
+			typeof (
+				inserted[VARIANT_TABLE]?.[0] as Record<string, unknown> | undefined
+			)?.id
 		).toBe("string");
 	});
 
@@ -298,7 +300,8 @@ describe("gameVariant.create", () => {
 		});
 		await caller.create({ groupId: OWNED_GROUP.id, label: "Brand New" });
 		expect(
-			(inserted[VARIANT_TABLE]?.[0] as Record<string, unknown>)?.sortOrder
+			(inserted[VARIANT_TABLE]?.[0] as Record<string, unknown> | undefined)
+				?.sortOrder
 		).toBe(8);
 	});
 
@@ -309,7 +312,8 @@ describe("gameVariant.create", () => {
 		});
 		await caller.create({ groupId: OWNED_GROUP.id, label: "First" });
 		expect(
-			(inserted[VARIANT_TABLE]?.[0] as Record<string, unknown>)?.sortOrder
+			(inserted[VARIANT_TABLE]?.[0] as Record<string, unknown> | undefined)
+				?.sortOrder
 		).toBe(0);
 	});
 });

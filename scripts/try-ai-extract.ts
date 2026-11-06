@@ -28,9 +28,10 @@ async function readApiKey(): Promise<string> {
 	let devVars = "";
 	try {
 		devVars = await readFile("apps/server/.dev.vars", "utf8");
-	} catch {
+	} catch (error) {
 		throw new Error(
-			"OPENAI_API_KEY is not set and apps/server/.dev.vars was not found"
+			"OPENAI_API_KEY is not set and apps/server/.dev.vars was not found",
+			{ cause: error }
 		);
 	}
 	const line = devVars

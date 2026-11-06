@@ -26,6 +26,7 @@ export function useOnlineStatusBar(): UseOnlineStatusBarResult {
 			return;
 		}
 
+		// biome-ignore lint/suspicious/noUnnecessaryConditions: The ref changes across effect executions.
 		if (!wasOfflineRef.current) {
 			setDisplayState("hidden");
 			return;

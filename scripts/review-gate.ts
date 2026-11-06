@@ -47,10 +47,10 @@ export type GateDecision =
 	  };
 
 export const STATE_MARKER = "<!-- pre-merge-review:state";
-const MARKER_PATTERN = /<!-- pre-merge-review:state (\{.*?\}) -->/u;
+const MARKER_PATTERN = /<!-- pre-merge-review:state (?<payload>\{.*?\}) -->/u;
 const SHA_PATTERN = /^[0-9a-f]{40}$/u;
 const DOC_FILE = /\.md$/u;
-const TRAILER_PATTERN = /<!-- pr-review: (\{.*?\}) -->/gu;
+const TRAILER_PATTERN = /<!-- pr-review: (?<payload>\{.*?\}) -->/gu;
 const SUMMARY_HEADING_PATTERN = /^#{1,6}\s*レビュー結果/mu;
 
 function nextRound(state: ReviewState | null, reason: string): GateDecision {
@@ -118,7 +118,7 @@ export function parseReviewState(commentBodies: string[]): ReviewState | null {
 		}
 		let payload: unknown;
 		try {
-			payload = JSON.parse(match[1] ?? "");
+			payload = JSON.parse(match.groups?.payload ?? "");
 		} catch {
 			return null;
 		}
@@ -196,7 +196,7 @@ function parseJson(text: string): unknown {
 export function extractReviewTrailer(finalMessage: string): string | null {
 	let payload: string | null = null;
 	for (const match of finalMessage.matchAll(TRAILER_PATTERN)) {
-		const candidate = match[1] ?? "";
+		const candidate = match.groups?.payload ?? "";
 		const parsed = parseJson(candidate);
 		if (
 			typeof parsed === "object" &&

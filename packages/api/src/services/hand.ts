@@ -54,7 +54,7 @@ function cardListSchema(maxCards: number) {
 	return z
 		.string()
 		.max(cardListMaxLength(maxCards))
-		.regex(new RegExp(`^${CARD_PATTERN}(?: ${CARD_PATTERN})*$`))
+		.regex(new RegExp(`^${CARD_PATTERN}(?: ${CARD_PATTERN})*$`, "u"))
 		.refine((value) => {
 			const cards = value.split(" ");
 			return new Set(cards).size === cards.length;

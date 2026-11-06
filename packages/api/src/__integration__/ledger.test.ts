@@ -28,7 +28,7 @@ async function seedEntry(
 	api: ApiFixture,
 	id: string,
 	title: string,
-	lines: {
+	entryLines: {
 		assetId: string;
 		occurredAt: number;
 		quantity: number;
@@ -47,7 +47,7 @@ async function seedEntry(
 		userId: "alice",
 	});
 	await api.db.insert(ledgerLine).values(
-		lines.map((line, index) => ({
+		entryLines.map((line, index) => ({
 			assetId: line.assetId,
 			effect: line.effect ?? "real",
 			entryId: id,
@@ -241,6 +241,7 @@ describe("wallet writes on D1", () => {
 		);
 		const before = await lines(api);
 		for (const quantity of [0, 1_000_000_000_001, -1_000_000_000_001, 1.5]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 operations sequential.
 			await expect(
 				api.alice.ledger.createAdjustment({
 					assetId: jpy.id,
@@ -254,6 +255,7 @@ describe("wallet writes on D1", () => {
 		}
 		const usd = await createAsset(api.alice, "USD");
 		for (const quantity of [0, -1, 1_000_000_000_001]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 operations sequential.
 			await expect(
 				api.alice.ledger.createExchange({
 					from: { assetId: jpy.id, quantity },
@@ -286,6 +288,7 @@ describe("wallet writes on D1", () => {
 		).rejects.toMatchObject(BAD_REQUEST);
 		expect(await lines(api)).toEqual([]);
 		for (const occurredAt of [invalid, -invalid]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 operations sequential.
 			await expect(
 				api.alice.ledger.listByAsset({
 					assetId: jpy.id,
@@ -331,6 +334,7 @@ describe("wallet writes on D1", () => {
 		const before = await lines(api);
 
 		for (const id of ["cash:0", bobLine.id, "missing"]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 operations sequential.
 			await expect(
 				api.alice.ledger.update({ id, memo: "mine" })
 			).rejects.toMatchObject(FORBIDDEN);
@@ -339,6 +343,7 @@ describe("wallet writes on D1", () => {
 			);
 		}
 		for (const assetId of [bobAsset.id, "missing"]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 operations sequential.
 			await expect(
 				api.alice.ledger.createAdjustment({
 					assetId,
@@ -358,6 +363,7 @@ describe("wallet writes on D1", () => {
 			).rejects.toMatchObject(FORBIDDEN);
 		}
 		for (const categoryId of [bobCategory.id, "missing"]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 operations sequential.
 			await expect(
 				api.alice.ledger.createAdjustment({
 					assetId: jpy.id,
@@ -412,6 +418,7 @@ describe("wallet writes on D1", () => {
 			() => guest.ledgerCategory.list(),
 			() => guest.ledgerCategory.create({ name: "x" }),
 		]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep requests sequential.
 			await expect(request()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
 		}
 		expect(await lines(api)).toEqual(before);
@@ -464,8 +471,9 @@ describe("ledger.listByAsset on D1", () => {
 			quantity: 9,
 		});
 		const ids: string[] = [];
-		for (let index = 0; index < 5; index++) {
+		for (let index = 0; index < 5; index += 1) {
 			const line = requireCreatedRow(
+				// biome-ignore lint/performance/noAwaitInLoops: Keep D1 writes in creation order.
 				await api.alice.ledger.createAdjustment({
 					assetId: jpy.id,
 					occurredAt: T0,

@@ -70,6 +70,7 @@ function playEventRow(
 
 async function seedMasters(d1: TestD1Database, owners: string[]) {
 	for (const owner of owners) {
+		// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 		await insert(d1, "room", {
 			id: `${owner}-room`,
 			name: "Room",
@@ -246,6 +247,7 @@ describe("entry aggregate tables on D1", () => {
 			],
 		];
 		for (const [table, row] of crossOwner) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(
 				insert(api.d1, table, row),
 				`${table} ${row.id ?? row.entry_id}`
@@ -612,6 +614,7 @@ describe("entry aggregate tables on D1", () => {
 			["mtt", { end_state: "finished" }],
 		];
 		for (const [entryId, overrides] of accepted) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await play(entryId, overrides);
 		}
 
@@ -642,6 +645,7 @@ describe("entry aggregate tables on D1", () => {
 			],
 		];
 		for (const [entryId, overrides, constraint] of rejected) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(
 				play(entryId, overrides),
 				`${entryId} ${JSON.stringify(overrides)}`
@@ -704,6 +708,7 @@ describe("entry aggregate tables on D1", () => {
 			],
 		];
 		for (const [table, row, constraint] of rejected) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(insert(api.d1, table, row), `${row.id}`).rejects.toThrow(
 				`CHECK constraint failed: ${constraint}`
 			);
@@ -730,6 +735,7 @@ describe("entry aggregate tables on D1", () => {
 		];
 		for (const [index, [result, constraint]] of results.entries()) {
 			const id = `mtt-${index}`;
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await insert(
 				api.d1,
 				"entry",
@@ -804,6 +810,7 @@ describe("entry aggregate tables on D1", () => {
 			["ring_game", "alice-ring"],
 			["tournament", "alice-tournament"],
 		]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(
 				api.d1.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(id).run(),
 				table
@@ -814,9 +821,11 @@ describe("entry aggregate tables on D1", () => {
 			.prepare("DELETE FROM entry WHERE id IN ('alice-cash', 'alice-mtt')")
 			.run();
 		for (const table of ["play_event", "play_session"]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			expect(await ids(api.d1, table), table).toEqual([]);
 		}
 		for (const table of ["entry_cash", "entry_tournament"]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			expect(await ids(api.d1, table, "entry_id"), table).toEqual([]);
 		}
 		await api.d1.prepare("DELETE FROM asset WHERE id = 'alice-currency'").run();

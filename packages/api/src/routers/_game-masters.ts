@@ -67,7 +67,9 @@ export async function runLabelWrite<T>(
 				)
 			)
 			.limit(1);
+		// biome-ignore lint/style/useErrorCause: TRPCError receives the original error in its cause option.
 		throw new TRPCError({
+			cause: error,
 			code: "CONFLICT",
 			message: holder?.archivedAt
 				? `An archived ${master} already has this label; restore it instead`

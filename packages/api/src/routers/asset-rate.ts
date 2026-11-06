@@ -113,7 +113,9 @@ export const assetRateRouter = router({
 				return created;
 			} catch (error) {
 				if (isAssetRateConflictError(error)) {
+					// biome-ignore lint/style/useErrorCause: TRPCError receives the original error in its cause option.
 					throw new TRPCError({
+						cause: error,
 						code: "CONFLICT",
 						message:
 							"A rate for this asset pair already starts at this time; delete it and create the corrected one",
@@ -140,6 +142,7 @@ export const assetRateRouter = router({
 			const conditions: SQL[] = [eq(assetRate.userId, userId)];
 			for (const assetId of [input?.baseAssetId, input?.quoteAssetId]) {
 				if (assetId !== undefined) {
+					// biome-ignore lint/performance/noAwaitInLoops: Validate assets sequentially to preserve failure ordering.
 					await validateEntityOwnership(ctx.db, "asset", assetId, userId);
 				}
 			}

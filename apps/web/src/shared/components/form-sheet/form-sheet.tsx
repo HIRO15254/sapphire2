@@ -8,6 +8,7 @@ import {
 	DrawerTitle,
 } from "@/shared/components/ui/drawer";
 import { IconButton } from "@/shared/components/ui/icon-button";
+import { useFormSheet } from "./use-form-sheet";
 
 interface FormSheetProps {
 	children: ReactNode;
@@ -32,6 +33,7 @@ export function FormSheet({
 	open,
 	title,
 }: FormSheetProps) {
+	const { onCancel } = useFormSheet(onOpenChange);
 	return (
 		<Drawer dismissible={false} onOpenChange={onOpenChange} open={open}>
 			<DrawerContent className={className}>
@@ -39,7 +41,7 @@ export function FormSheet({
 					<IconButton
 						className="text-foreground justify-self-start [&_svg:not([class*='size-'])]:size-6"
 						label="Cancel"
-						onClick={() => onOpenChange(false)}
+						onClick={onCancel}
 						size="xl"
 						type="button"
 					>

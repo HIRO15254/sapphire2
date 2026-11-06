@@ -177,7 +177,8 @@ describe("gameGroup.create", () => {
 			userId: CUR_OWNER,
 		});
 		expect(
-			typeof (inserted[GROUP_TABLE]?.[0] as Record<string, unknown>)?.id
+			typeof (inserted[GROUP_TABLE]?.[0] as Record<string, unknown> | undefined)
+				?.id
 		).toBe("string");
 	});
 });

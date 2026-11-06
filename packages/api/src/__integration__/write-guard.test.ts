@@ -39,6 +39,7 @@ describe("write guard", () => {
 		await seedRoom(api);
 		const failing: SQL[] = [sql`0`, sql`NULL`];
 		for (const condition of failing) {
+			// biome-ignore lint/performance/noAwaitInLoops: Each rollback must be checked before the next batch.
 			await expect(
 				runGuardedBatch(api.db, [
 					rename(api, "After"),

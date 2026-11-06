@@ -25,6 +25,8 @@ export default function SignUpForm({
 		isBusy,
 		isPending,
 		isSubmitting,
+		onFieldChange,
+		onSubmit,
 		onSignUpWithDiscord,
 		onSignUpWithGoogle,
 	} = useSignUp();
@@ -76,15 +78,7 @@ export default function SignUpForm({
 			switchPrompt="Already have an account?"
 			title="Create your account"
 		>
-			<form
-				className="contents"
-				noValidate
-				onSubmit={(e) => {
-					e.preventDefault();
-					e.stopPropagation();
-					form.handleSubmit();
-				}}
-			>
+			<form className="contents" noValidate onSubmit={onSubmit}>
 				<div className="flex flex-col gap-4">
 					<form.Field name="name">
 						{(field) => (
@@ -99,7 +93,7 @@ export default function SignUpForm({
 									id={field.name}
 									name={field.name}
 									onBlur={field.handleBlur}
-									onChange={(e) => field.handleChange(e.target.value)}
+									onChange={onFieldChange(field)}
 									size="xl"
 									value={field.state.value}
 								/>
@@ -122,7 +116,7 @@ export default function SignUpForm({
 									id={field.name}
 									name={field.name}
 									onBlur={field.handleBlur}
-									onChange={(e) => field.handleChange(e.target.value)}
+									onChange={onFieldChange(field)}
 									size="xl"
 									type="email"
 									value={field.state.value}
@@ -144,7 +138,7 @@ export default function SignUpForm({
 									id={field.name}
 									name={field.name}
 									onBlur={field.handleBlur}
-									onChange={(e) => field.handleChange(e.target.value)}
+									onChange={onFieldChange(field)}
 									size="xl"
 									type="password"
 									value={field.state.value}

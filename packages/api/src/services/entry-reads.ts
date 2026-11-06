@@ -241,7 +241,7 @@ export async function selectEntryPage(
 	filters: EntryListFilters,
 	options: { after?: { id: string; playedOn: string }; limit: number }
 ): Promise<EntryRow[]> {
-	const after = options.after;
+	const { after } = options;
 	return await entryRowQuery(db)
 		.where(
 			and(

@@ -95,6 +95,7 @@ export async function seedMaxRuleLevels(api: ApiFixture): Promise<{
 	for (let index = groups.length; index < 12; index += 1) {
 		groups.push(
 			requireCreatedRow(
+				// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential fixture creation and ordering.
 				await api.alice.gameGroup.create({
 					blind1Label: "Small Bet",
 					blind2Label: "Big Bet",
@@ -115,6 +116,7 @@ export async function seedMaxRuleLevels(api: ApiFixture): Promise<{
 		variants.push({
 			groupId,
 			id: requireCreatedRow(
+				// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential fixture creation and ordering.
 				await api.alice.gameVariant.create({
 					groupId,
 					label: `Variant ${index}`,
@@ -176,9 +178,11 @@ export async function seedMaxRuleLevels(api: ApiFixture): Promise<{
 		});
 	}
 	for (const chunk of chunkForInsert(mixRows, 6)) {
+		// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database inserts.
 		await api.db.insert(gameMix).values(chunk);
 	}
 	for (const chunk of chunkForInsert(mixVariantRows, 4)) {
+		// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database inserts.
 		await api.db.insert(gameMixVariant).values(chunk);
 	}
 	return { groupCount: groups.length, levels };
@@ -373,6 +377,7 @@ async function createApiFixture() {
 				}));
 
 				for (const row of rows) {
+					// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database inserts.
 					await db.insert(playerTag).values(row);
 				}
 				return rows.map(({ id }) => id);

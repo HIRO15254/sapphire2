@@ -77,7 +77,8 @@ function apply(db: Database, statements: string[]): void {
 }
 
 function migratedBeforeTarget(extraSeed = ""): Database {
-	const path = join(directory, `${index++}.sqlite`);
+	const path = join(directory, `${index}.sqlite`);
+	index += 1;
 	const db = openDatabase(path);
 	db.exec(
 		"PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF; PRAGMA foreign_keys=ON"
@@ -116,7 +117,8 @@ describe("migration 0074 — stand-in cleanup", () => {
 		source.prepare("VACUUM INTO ?").run(seededPath);
 		source.close();
 		seeded = () => {
-			const path = join(directory, `${index++}.sqlite`);
+			const path = join(directory, `${index}.sqlite`);
+			index += 1;
 			copyFileSync(seededPath, path);
 			const db = openDatabase(path);
 			db.exec(

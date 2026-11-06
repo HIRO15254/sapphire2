@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { stubWebAuthnSupport } from "@/__tests__/test-utils";
+import { usePasskeys } from "@/features/settings/pages/settings-page/passkeys/use-passkeys";
 
 const mocks = vi.hoisted(() => ({
 	deletePasskey: vi.fn(),
@@ -33,8 +34,6 @@ vi.mock("@/lib/auth-client", () => ({
 		},
 	},
 }));
-
-import { usePasskeys } from "@/features/settings/pages/settings-page/passkeys/use-passkeys";
 
 const PASSKEY_A = {
 	backedUp: true,

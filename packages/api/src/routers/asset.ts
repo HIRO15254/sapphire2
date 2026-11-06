@@ -53,7 +53,9 @@ async function runAssetNameWrite<T>(write: () => Promise<T>): Promise<T> {
 		return await write();
 	} catch (error) {
 		if (isAssetNameConflictError(error)) {
+			// biome-ignore lint/style/useErrorCause: TRPCError receives the original error in its cause option.
 			throw new TRPCError({
+				cause: error,
 				code: "CONFLICT",
 				message: "You already have an asset with this name",
 			});

@@ -36,8 +36,8 @@ export interface OutcomeDecision {
 	status: TargetStatus | null;
 }
 
-const BRANCH_PATTERN = /^feature\/sa2-(\d+)$/iu;
-const TITLE_PATTERN = /\(SA2-(\d+)\)/giu;
+const BRANCH_PATTERN = /^feature\/sa2-(?<number>\d+)$/iu;
+const TITLE_PATTERN = /\(SA2-(?<number>\d+)\)/giu;
 const TEAM_KEY = "SA2";
 const LEVEL_GROUP = "level";
 const AUTO_MERGE_LEVEL = "auto-merge";
@@ -63,9 +63,9 @@ export function issueIdentifier(headRef: string, title: string): string | null {
 	if (!branch) {
 		return null;
 	}
-	const number = branch[1];
+	const number = branch.groups?.number;
 	for (const match of title.matchAll(TITLE_PATTERN)) {
-		if (match[1] !== number) {
+		if (match.groups?.number !== number) {
 			return null;
 		}
 	}
@@ -319,6 +319,7 @@ async function changedFiles(
 ): Promise<string[]> {
 	const files: string[] = [];
 	for (let page = 1; page <= 30; page += 1) {
+		// biome-ignore lint/performance/noAwaitInLoops: Pagination stops when the current page is incomplete.
 		const batch = await github<
 			{ filename: string; previous_filename?: string }[]
 		>(token, `/repos/${repo}/pulls/${pr}/files?per_page=100&page=${page}`);

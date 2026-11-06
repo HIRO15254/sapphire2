@@ -155,16 +155,16 @@ describe("entry rule operations on D1", () => {
 		api,
 	}) => {
 		const { room, ringA, ringB } = await cashSetup(api);
-		const currentOf = async (id: string) =>
+		const currentOf = async (gameId: string) =>
 			(await api.alice.ringGame.listByRoom({ roomId: room.id })).find(
-				(row) => row.id === id
+				(row) => row.id === gameId
 			)?.currentRuleId;
 		const created = await api.alice.entry.create({
 			kind: "cash",
 			playedOn: "2026-09-01",
 			ringGameId: ringA.id,
 		});
-		const id = created.id;
+		const { id } = created;
 		expect(ruleState(created)).toMatchObject({
 			ringGameId: ringA.id,
 			ruleDrift: false,
@@ -528,7 +528,7 @@ describe("entry rule operations on D1", () => {
 			playedOn: "2026-09-01",
 			tournamentId: main.id,
 		});
-		const id = created.id;
+		const { id } = created;
 
 		const overridden = await api.alice.entry.overrideRule({
 			id,
@@ -713,6 +713,7 @@ describe("entry rule operations on D1", () => {
 			[() => api.alice.live.applyMasterRule({ id: linked.id }), "BAD_REQUEST"],
 		] as const;
 		for (const [call, code] of rejected) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			expect(await failure(call())).toMatchObject({ code });
 		}
 
@@ -764,7 +765,7 @@ describe("entry rule operations on D1", () => {
 			ringGameId: ringA.id,
 			startedAt: Math.floor(Date.now() / 1000) - HOUR,
 		});
-		const id = started.id;
+		const { id } = started;
 		const villain = requireCreatedRow(
 			await api.alice.player.create({ name: "Villain" })
 		);
@@ -809,6 +810,7 @@ describe("entry rule operations on D1", () => {
 				}),
 		];
 		for (const call of rejected) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			expect(await failure(call())).toMatchObject({ code: "BAD_REQUEST" });
 		}
 		await api.alice.ringGame.update({ id: ringA.id, rule: { tableSize: 6 } });
@@ -919,14 +921,14 @@ describe("entry rule operations on D1", () => {
 			],
 			startedAt: Math.floor(Date.now() / 1000) - HOUR,
 		});
-		const id = started.id;
+		const { id } = started;
 		const tagIds: string[] = [];
 		for (let index = 0; index < MAX_LINKED_TAGS; index += 1) {
-			tagIds.push(
-				requireCreatedRow(
-					await api.alice.tournamentTag.create({ name: `Tag ${index}` })
-				).id
-			);
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
+			const tag = await api.alice.tournamentTag.create({
+				name: `Tag ${index}`,
+			});
+			tagIds.push(requireCreatedRow(tag).id);
 		}
 		const measured: Record<string, number> = {};
 		async function metered<Output>(

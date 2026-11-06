@@ -57,9 +57,8 @@ export function describeCurrentDevice(): string {
 	if (typeof navigator === "undefined") {
 		return UNKNOWN_DEVICE_NAME;
 	}
-	const userAgentData = (
-		navigator as Navigator & Partial<{ userAgentData: UserAgentData }>
-	).userAgentData;
+	const { userAgentData } = navigator as Navigator &
+		Partial<{ userAgentData: UserAgentData }>;
 	return describeDevice({
 		maxTouchPoints: navigator.maxTouchPoints,
 		platformHint: userAgentData?.platform,

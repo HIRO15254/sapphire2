@@ -1189,7 +1189,7 @@ describe("live multi-day API on D1", () => {
 			rule,
 			startedAt: t0,
 		});
-		const id = started.id;
+		const { id } = started;
 		await api.alice.playEvent.create({
 			entryId: id,
 			eventType: "session_pause",
@@ -1215,6 +1215,7 @@ describe("live multi-day API on D1", () => {
 			{ id, startLevel: 2 },
 			{ id, payments: [real("reentry", jpy.id, 100)] },
 		]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 operations sequential.
 			expect(await failure(api.alice.live.startNextPlay(input))).toMatchObject({
 				code: "BAD_REQUEST",
 			});
@@ -1305,6 +1306,7 @@ describe("live multi-day API on D1", () => {
 			{ occurredAt: startedAt + 600 },
 		]) {
 			expect(
+				// biome-ignore lint/performance/noAwaitInLoops: Keep D1 operations sequential.
 				await failure(
 					api.alice.live.endPlay({
 						endState: "bagged",
@@ -1327,7 +1329,7 @@ describe("live multi-day API on D1", () => {
 			payments: [real("buy_in", jpy.id, 1000)],
 			startedAt: nowSeconds() - 2 * HOUR,
 		});
-		const id = started.id;
+		const { id } = started;
 		expect(
 			await failure(api.alice.live.undoStartNextPlay({ id }))
 		).toMatchObject({ code: "CONFLICT" });

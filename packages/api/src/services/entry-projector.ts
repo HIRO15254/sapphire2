@@ -274,7 +274,7 @@ function latestStackTotalEntries(
 		if (event.type === "update_stack") {
 			const data = updateStackPayload.parse(JSON.parse(event.payload));
 			if (data.totalEntries !== undefined) {
-				totalEntries = data.totalEntries;
+				({ totalEntries } = data);
 			}
 		}
 	}
@@ -423,6 +423,7 @@ export function projectEntry(
 		),
 		playedOn: sessions
 			.map((session) => session.localDate)
+			// biome-ignore lint/complexity/useMathMinMax: Calendar dates are compared lexicographically, not numerically.
 			.reduce((earliest, date) => (date < earliest ? date : earliest)),
 		playSessions,
 		status: settled ? "settled" : "open",
@@ -451,10 +452,10 @@ export function projectTournamentProgress(
 			const data = updateStackPayload.parse(JSON.parse(event.payload));
 			currentStack = data.stackAmount;
 			if (data.remainingPlayers !== undefined) {
-				remainingPlayers = data.remainingPlayers;
+				({ remainingPlayers } = data);
 			}
 			if (data.totalEntries !== undefined) {
-				totalEntries = data.totalEntries;
+				({ totalEntries } = data);
 			}
 			if (data.chipPurchaseCounts !== undefined) {
 				reportedChips = data.chipPurchaseCounts.reduce(

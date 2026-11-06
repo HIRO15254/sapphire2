@@ -152,7 +152,7 @@ describe("ring game rule versions on D1", () => {
 				stakes: [{ blind1: 1, blind2: 2, gameGroupId: variant.groupId }],
 			},
 		});
-		const lineupId = game.ruleVersion.lineupId;
+		const { lineupId } = game.ruleVersion;
 		const planner = new LineupPlanner(api.db, "alice");
 		await planner.prepare([{ lineupId }, { variantId: variant.id }]);
 		expect(planner.resolve({ variantId: variant.id }).id).toBe(lineupId);
@@ -215,9 +215,10 @@ describe("ring game rule versions on D1", () => {
 			})
 		);
 		groups.push(first.id);
-		for (let index = 0; index <= MAX_LINEUP_GROUPS; index++) {
+		for (let index = 0; index <= MAX_LINEUP_GROUPS; index += 1) {
 			if (index > 0) {
 				const group = requireCreatedRow(
+					// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database operations and fixture ordering.
 					await api.alice.gameGroup.create({
 						blind1Label: "Blind",
 						label: `Group ${index}`,
@@ -245,7 +246,8 @@ describe("ring game rule versions on D1", () => {
 		const wider = requireCreatedRow(
 			await api.alice.gameMix.create({ games, label: "Wider" })
 		);
-		for (let index = 1; index < MAX_LINEUP_GROUPS; index++) {
+		for (let index = 1; index < MAX_LINEUP_GROUPS; index += 1) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database operations and fixture ordering.
 			await api.alice.gameVariant.update({
 				groupId: groups[index] as string,
 				id: games[index] as string,

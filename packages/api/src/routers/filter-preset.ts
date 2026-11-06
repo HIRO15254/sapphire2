@@ -179,7 +179,9 @@ export const filterPresetRouter = router({
 				});
 			} catch (error) {
 				if (isFilterPresetNameConflictError(error)) {
+					// biome-ignore lint/style/useErrorCause: TRPCError receives the original error in its cause option.
 					throw new TRPCError({
+						cause: error,
 						code: "CONFLICT",
 						message: NAME_CONFLICT_MESSAGE,
 					});
@@ -350,7 +352,9 @@ export const filterPresetRouter = router({
 					);
 			} catch (error) {
 				if (isFilterPresetNameConflictError(error)) {
+					// biome-ignore lint/style/useErrorCause: TRPCError receives the original error in its cause option.
 					throw new TRPCError({
+						cause: error,
 						code: "CONFLICT",
 						message: NAME_CONFLICT_MESSAGE,
 					});

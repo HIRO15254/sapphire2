@@ -20,7 +20,7 @@ interface ProcedureDef {
 }
 
 export function getProcedureDef(procedure: unknown): ProcedureDef {
-	const def = (procedure as { _def?: ProcedureDef })?._def;
+	const def = (procedure as { _def?: ProcedureDef } | null | undefined)?._def;
 	if (!def) {
 		throw new Error("procedure has no _def; is it really a tRPC procedure?");
 	}
@@ -29,7 +29,7 @@ export function getProcedureDef(procedure: unknown): ProcedureDef {
 
 export function getInputSchema(procedure: unknown): ZodLikeSchema {
 	const def = getProcedureDef(procedure);
-	const candidate = def.inputs[0];
+	const [candidate] = def.inputs;
 	if (
 		!candidate ||
 		typeof (candidate as ZodLikeSchema).safeParse !== "function"
@@ -110,6 +110,7 @@ export function withGameMixVariantFixtures(
 	if ("game_mix_variant" in select) {
 		return select;
 	}
+	// biome-ignore lint/suspicious/noUnnecessaryConditions: Fixture maps can omit the game mix table.
 	const memberships = (select.game_mix ?? []).flatMap((mix) => {
 		const games = Array.isArray(mix.games) ? mix.games : [];
 		return games.map((variantId, position) => ({

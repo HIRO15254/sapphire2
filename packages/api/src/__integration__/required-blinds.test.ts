@@ -34,6 +34,7 @@ describe("required blinds on D1", () => {
 			{ blind1: 1, gameGroupId: nlh.groupId },
 			{ blind1: 1, blind2: 2, blind3: 4, gameGroupId: nlh.groupId },
 		]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database operations and assertions.
 			await expect(
 				api.alice.ringGame.create({
 					name: "Cash",

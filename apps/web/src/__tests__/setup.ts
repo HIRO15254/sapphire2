@@ -3,11 +3,14 @@ import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 
 class ResizeObserverMock {
-	disconnect() {}
+	// biome-ignore lint/style/useThisInClassMethods: The ResizeObserver mock implements the instance API without state.
+	disconnect = () => undefined;
 
-	observe() {}
+	// biome-ignore lint/style/useThisInClassMethods: The ResizeObserver mock implements the instance API without state.
+	observe = () => undefined;
 
-	unobserve() {}
+	// biome-ignore lint/style/useThisInClassMethods: The ResizeObserver mock implements the instance API without state.
+	unobserve = () => undefined;
 }
 
 Object.defineProperty(globalThis, "ResizeObserver", {

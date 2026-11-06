@@ -57,8 +57,10 @@ export const cashRuleInputSchema = z
 	})
 	.refine(
 		(value) =>
-			value.minBuyIn == null ||
-			value.maxBuyIn == null ||
+			value.minBuyIn === null ||
+			value.minBuyIn === undefined ||
+			value.maxBuyIn === null ||
+			value.maxBuyIn === undefined ||
 			value.minBuyIn <= value.maxBuyIn,
 		{
 			message: "Minimum buy-in must not exceed maximum buy-in",

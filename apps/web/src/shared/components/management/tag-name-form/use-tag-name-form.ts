@@ -1,4 +1,6 @@
 import { useForm } from "@tanstack/react-form";
+import type { ChangeEvent, FormEvent } from "react";
+import { useCallback } from "react";
 import z from "zod";
 
 const buildTagNameFormSchema = (label: string) =>
@@ -33,5 +35,19 @@ export function useTagNameForm({
 		},
 	});
 
-	return { form, label };
+	const onFormSubmit = useCallback(
+		(event: FormEvent<HTMLFormElement>) => {
+			event.preventDefault();
+			event.stopPropagation();
+			form.handleSubmit();
+		},
+		[form]
+	);
+	const onNameChange = useCallback(
+		(handleChange: (value: string) => void) =>
+			(event: ChangeEvent<HTMLInputElement>) =>
+				handleChange(event.target.value),
+		[]
+	);
+	return { form, label, onFormSubmit, onNameChange };
 }

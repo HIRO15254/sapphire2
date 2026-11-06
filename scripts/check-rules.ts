@@ -14,7 +14,8 @@ interface Check {
 	rule: string;
 }
 
-const IGNORED_DIRS = /(^|\/)(node_modules|dist|\.wrangler|coverage|\.git)\//u;
+const IGNORED_DIRS =
+	/(?:^|\/)(?:node_modules|dist|\.wrangler|coverage|\.git)\//u;
 
 const CHECKS: Check[] = [
 	{
@@ -72,14 +73,14 @@ const CHECKS: Check[] = [
 		],
 		name: "React/library hooks called directly in a component file — move into a use-*.ts hook",
 		pattern:
-			/\b(useState|useEffect|useMemo|useRef|useCallback|useForm|useQuery|useMutation|useQueryClient|useReducer|useDeferredValue|useTransition|useLayoutEffect|useIsMutating)\b/u,
+			/\b(?:useState|useEffect|useMemo|useRef|useCallback|useForm|useQuery|useMutation|useQueryClient|useReducer|useDeferredValue|useTransition|useLayoutEffect|useIsMutating)\b/u,
 		rule: ".claude/rules/web-hooks-separation.md",
 	},
 	{
 		excludePath: /__tests__|\.test\./u,
 		globs: ["apps/web/src/features/**/*.{ts,tsx}"],
 		name: "raw queryClient cache write in a feature — use optimistic-update helpers",
-		pattern: /queryClient\.(setQueryData|setQueriesData)\b/u,
+		pattern: /queryClient\.(?:setQueryData|setQueriesData)\b/u,
 		rule: ".claude/rules/web-data-fetching.md (SA2-162)",
 	},
 	{
@@ -137,6 +138,7 @@ for (const check of CHECKS) {
 	const seen = new Set<string>();
 	for (const glob of check.globs) {
 		const cwd = check.cwd ?? ".";
+		// biome-ignore lint/performance/noAwaitInLoops: Sequential scans preserve deduplication and diagnostic order.
 		for await (const scannedPath of new Glob(glob).scan(cwd)) {
 			const path = normalizeRulePath(
 				cwd === "." ? scannedPath : `${cwd}/${scannedPath}`
@@ -223,7 +225,9 @@ for await (const scannedPath of new Glob("apps/web/src/**/*.{ts,tsx}").scan(
 	"."
 )) {
 	const path = normalizeRulePath(scannedPath);
-	const sourceFeature = /^apps\/web\/src\/features\/([^/]+)\//u.exec(path)?.[1];
+	const sourceFeature = /^apps\/web\/src\/features\/(?<feature>[^/]+)\//u.exec(
+		path
+	)?.groups?.feature;
 	const restricted =
 		/^apps\/web\/src\/(?:shared|utils|lib)\//u.test(path) &&
 		!path.startsWith("apps/web/src/shared/components/authenticated-shell/");
@@ -232,9 +236,9 @@ for await (const scannedPath of new Glob("apps/web/src/**/*.{ts,tsx}").scan(
 	}
 	const text = await readFile(path, "utf8");
 	const imports =
-		/\b(?:import|export)\s+(?:type\s+)?(?:[^"'();]*?\s+from\s*)?["']([^"']+)["']|\b(?:import|require)\s*\(\s*["']([^"']+)["']/gu;
+		/\b(?:import|export)\s+(?:type\s+)?(?:[^"'();]*?\s+from\s*)?["'](?<staticImport>[^"']+)["']|\b(?:import|require)\s*\(\s*["'](?<dynamicImport>[^"']+)["']/gu;
 	for (const match of text.matchAll(imports)) {
-		const value = match[1] ?? match[2];
+		const value = match.groups?.staticImport ?? match.groups?.dynamicImport;
 		if (value === undefined) {
 			continue;
 		}
@@ -246,9 +250,9 @@ for await (const scannedPath of new Glob("apps/web/src/**/*.{ts,tsx}").scan(
 				posix.join(dirname(path).replaceAll("\\", "/"), value)
 			);
 		}
-		const destination = /^apps\/web\/src\/features\/([^/]+)(?:\/|$)/u.exec(
-			target
-		)?.[1];
+		const destination =
+			/^apps\/web\/src\/features\/(?<feature>[^/]+)(?:\/|$)/u.exec(target)
+				?.groups?.feature;
 		if (
 			destination &&
 			(restricted ||
@@ -270,7 +274,7 @@ if (featureHits.length > 0) {
 }
 
 const SESSION_ENTRY_GLOB = "apps/web/src/**/*.{ts,tsx}";
-const SESSION_ENTRY_CALL = /authClient\s*\.\s*(signIn|signUp)\b/u;
+const SESSION_ENTRY_CALL = /authClient\s*\.\s*(?:signIn|signUp)\b/u;
 const LOGIN_CONTINUATION_IMPORT = /features\/auth\/utils\/login-continuation/u;
 const LOGIN_CONTINUATION_SELF = /login-continuation\.ts$/u;
 const unguardedEntries: string[] = [];
@@ -369,12 +373,13 @@ const COMMENT_EXCLUDE_PATH = /routeTree\.gen\.ts$/u;
 const COMMENT_LINE = /^\s*(?:\/\/|\/\*|\*\/|\*(?![\w([])|\{\/\*)/u;
 const DIRECTIVE_LINE =
 	/biome-ignore|@ts-expect-error|@ts-nocheck|@__PURE__|^\s*\/\/\/\s*<reference\b/u;
-const NOTE_MARKER_START = /^\s*\/\/\s*NOTE\((ops|rule)\):\s*\S/u;
+const NOTE_MARKER_START = /^\s*\/\/\s*NOTE\((?:ops|rule)\):\s*\S/u;
 const LINE_COMMENT_START = /^\s*\/\//u;
 
 const commentHits: string[] = [];
 const commentSeen = new Set<string>();
 for (const glob of COMMENT_GLOBS) {
+	// biome-ignore lint/performance/noAwaitInLoops: Sequential scans preserve deduplication and diagnostic order.
 	for await (const scannedPath of new Glob(glob).scan(".")) {
 		const path = normalizeRulePath(scannedPath);
 		if (

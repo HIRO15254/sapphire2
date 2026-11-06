@@ -18,6 +18,7 @@ async function seedOwner(d1: TestD1Database, owner: string) {
 		user_id: owner,
 	});
 	for (const suffix of ["a", "b"]) {
+		// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database fixture operations.
 		await insertRingGameFixture(d1, {
 			id: `${owner}-ring-${suffix}`,
 			name: `Ring ${suffix}`,
@@ -32,6 +33,7 @@ async function seedOwner(d1: TestD1Database, owner: string) {
 		user_id: owner,
 	});
 	for (const variant of ["nlh", "plo"]) {
+		// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database fixture operations.
 		await insert(d1, "game_variant", {
 			group_id: `${owner}-group`,
 			id: `${owner}-${variant}`,
@@ -41,6 +43,7 @@ async function seedOwner(d1: TestD1Database, owner: string) {
 		});
 	}
 	for (const lineup of ["lineup-1", "lineup-2"]) {
+		// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database fixture operations.
 		await insert(d1, "game_lineup", {
 			id: `${owner}-${lineup}`,
 			user_id: owner,
@@ -54,6 +57,7 @@ async function seedOwner(d1: TestD1Database, owner: string) {
 		});
 	}
 	for (const suffix of ["a", "b"]) {
+		// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database fixture operations.
 		await seedTournament(d1, owner, `${owner}-tournament-${suffix}`);
 	}
 }
@@ -197,6 +201,7 @@ describe("lineup and rule-version tables on D1", () => {
 			["bob-cash", "cash"],
 			["bob-mtt", "tournament"],
 		] as const) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database fixture operations.
 			await insert(api.d1, "entry", {
 				id,
 				kind,
@@ -273,6 +278,7 @@ describe("lineup and rule-version tables on D1", () => {
 			],
 		];
 		for (const [table, row] of rejected) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database operations and assertions.
 			await expect(
 				insert(api.d1, table, row),
 				`${table} ${row.id ?? row.entry_id}`
@@ -388,6 +394,7 @@ describe("lineup and rule-version tables on D1", () => {
 			],
 		];
 		for (const [row, error] of rejected) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database operations and assertions.
 			await expect(
 				insert(api.d1, "tournament_rule_level", row),
 				`${row.id}`

@@ -1,5 +1,11 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	locationAssignCalls,
+	OAUTH_AUTHORIZE_SEARCH,
+	stubLocation,
+} from "@/__tests__/test-utils";
+import { usePreviewAutoLogin } from "@/features/auth/pages/login-page/preview-auto-login/use-preview-auto-login";
 
 const mocks = vi.hoisted(() => ({
 	env: {
@@ -25,13 +31,6 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("@/lib/auth-client", () => ({
 	authClient: { signIn: { email: mocks.signInEmail } },
 }));
-
-import {
-	locationAssignCalls,
-	OAUTH_AUTHORIZE_SEARCH,
-	stubLocation,
-} from "@/__tests__/test-utils";
-import { usePreviewAutoLogin } from "@/features/auth/pages/login-page/preview-auto-login/use-preview-auto-login";
 
 describe("usePreviewAutoLogin", () => {
 	beforeEach(() => {

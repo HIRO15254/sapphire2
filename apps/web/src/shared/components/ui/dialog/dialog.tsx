@@ -66,7 +66,7 @@ function DialogContent({
 				{...props}
 			>
 				{children}
-				{showCloseButton && (
+				{showCloseButton ? (
 					<DialogPrimitive.Close asChild data-slot="dialog-close">
 						<IconButton
 							className="absolute top-3 right-3"
@@ -76,7 +76,7 @@ function DialogContent({
 							<IconX />
 						</IconButton>
 					</DialogPrimitive.Close>
-				)}
+				) : null}
 			</DialogPrimitive.Content>
 		</DialogPortal>
 	);

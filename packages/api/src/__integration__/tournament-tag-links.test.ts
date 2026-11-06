@@ -10,6 +10,7 @@ async function setup(api: ApiFixture) {
 	const tags: { id: string; name: string }[] = [];
 	for (const name of ["First", "Second", "Third"]) {
 		tags.push(
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential tag creation and ordering.
 			requireCreatedRow(await api.alice.tournamentTag.create({ name }))
 		);
 	}
@@ -83,6 +84,7 @@ describe("tournament tagIds on D1", () => {
 		const tournamentsBefore = await api.db.select().from(tournament);
 		const linksBefore = await api.db.select().from(tournamentTagLink);
 		for (const id of [foreign.id, "missing-tag"]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database operations and assertions.
 			await expect(
 				api.alice.tournament.create({
 					name: "Rejected",
@@ -120,6 +122,7 @@ describe("tournament tagIds on D1", () => {
 			rule: {},
 		});
 		for (const userId of ["alice", "bob"]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database operations and assertions.
 			await expect(
 				api.db
 					.insert(tournamentTagLink)
@@ -142,9 +145,10 @@ describe("tournament tagIds on D1", () => {
 			tagIds: [tags[0]?.id as string],
 		});
 		const ids: string[] = [];
-		for (let index = 0; index < MAX_LINKED_TAGS; index++) {
+		for (let index = 0; index < MAX_LINKED_TAGS; index += 1) {
 			ids.push(
 				requireCreatedRow(
+					// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential tag creation and ordering.
 					await api.alice.tournamentTag.create({ name: `Bulk ${index}` })
 				).id
 			);

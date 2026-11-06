@@ -125,6 +125,7 @@ describe("entry rule versions on D1", () => {
 			["child", child, master.id],
 			["standalone", standalone, null],
 		] as const) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await insertEntry(api.db, id, "cash");
 			await api.db.insert(entryCash).values({
 				cashRuleId: ruleId,
@@ -198,6 +199,7 @@ describe("entry rule versions on D1", () => {
 			{ cashRuleId: otherRule ?? "", ringGameId: master.id },
 			{ cashRuleId: bobRule, ringGameId: null },
 		]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(
 				api.db
 					.insert(entryCash)

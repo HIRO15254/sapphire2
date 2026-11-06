@@ -119,7 +119,8 @@ describe("migration 0070 — self player and play event payload v2", () => {
 	});
 	afterAll(() => rmSync(directory, { force: true, recursive: true }));
 	beforeEach(() => {
-		const path = join(directory, `${index++}.sqlite`);
+		const path = join(directory, `${index}.sqlite`);
+		index += 1;
 		copyFileSync(seededPath, path);
 		db = openDatabase(path);
 		db.exec(

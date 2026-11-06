@@ -23,6 +23,7 @@ export function usePreviewAutoLogin(): void {
 	const navigate = useNavigate();
 
 	useEffect(() => {
+		// biome-ignore lint/suspicious/noUnnecessaryConditions: The ref persists across effect invocations.
 		if (attempted.current) {
 			return;
 		}

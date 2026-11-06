@@ -97,6 +97,7 @@ export function isUniqueIndexConflictError(
 ): boolean {
 	return someErrorInChain(
 		error,
+		// biome-ignore lint/style/useUnicodeRegex: Unicode case folding changes which index names match.
 		new RegExp(
 			`UNIQUE constraint failed:\\s*index '${index.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}'`,
 			"i"

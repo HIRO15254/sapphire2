@@ -36,6 +36,7 @@ describe("player tags and atomic writes on D1", () => {
 			userId: "alice",
 		});
 		for (const input of [undefined, { search: "Hero" }, { tagIds: [tag.id] }]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 requests sequential.
 			expect((await api.alice.player.list(input)).map(({ id }) => id)).toEqual([
 				opponent.id,
 			]);
@@ -117,6 +118,7 @@ describe("player tags and atomic writes on D1", () => {
 				() => api.alice.player.delete({ id }),
 			]) {
 				errors.push(
+					// biome-ignore lint/performance/noAwaitInLoops: Keep D1 requests sequential.
 					await call().then(
 						() => null,
 						(error: unknown) => error
@@ -126,7 +128,8 @@ describe("player tags and atomic writes on D1", () => {
 			return errors;
 		};
 		const missingErrors = await errorsFor("missing-player");
-		for (const [index, error] of (await errorsFor(saved.id)).entries()) {
+		const savedErrors = await errorsFor(saved.id);
+		for (const [index, error] of savedErrors.entries()) {
 			expect(error).toMatchObject({ code: "FORBIDDEN" });
 			expect(missingErrors[index]).toMatchObject({
 				code: "FORBIDDEN",
@@ -186,6 +189,7 @@ describe("player tags and atomic writes on D1", () => {
 			(_, index) => `matching-player-${index}`
 		);
 		for (const id of ids) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 inserts sequential.
 			await api.db.insert(player).values({
 				id,
 				name: `Match ${id}`,
@@ -290,6 +294,7 @@ describe("player tags and atomic writes on D1", () => {
 		const beforePlayers = await api.db.select().from(player);
 		const beforeLinks = await api.db.select().from(playerTagLink);
 		for (const id of [foreign.id, "missing-tag"]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 operations sequential.
 			await expect(
 				api.alice.player.create({ name: "Rejected", tagIds: [owned.id, id] })
 			).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -331,6 +336,7 @@ describe("player tags and atomic writes on D1", () => {
 		);
 
 		for (const userId of ["alice", "bob"]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 constraint checks sequential.
 			await expect(
 				api.db.insert(playerTagLink).values({
 					playerId: saved.id,

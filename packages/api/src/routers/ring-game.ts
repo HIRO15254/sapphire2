@@ -54,8 +54,13 @@ async function validateAsset(
 	if (!assetId) {
 		return;
 	}
-	const asset = await validateEntityOwnership(db, "asset", assetId, userId);
-	if (asset.archivedAt && assetId !== current) {
+	const ownedAsset = await validateEntityOwnership(
+		db,
+		"asset",
+		assetId,
+		userId
+	);
+	if (ownedAsset.archivedAt && assetId !== current) {
 		throw new TRPCError({
 			code: "BAD_REQUEST",
 			message: "An archived asset cannot be newly selected",

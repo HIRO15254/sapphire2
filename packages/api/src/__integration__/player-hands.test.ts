@@ -68,6 +68,7 @@ async function insertHands(
 	specs: HandSpec[]
 ) {
 	for (const [index, spec] of specs.entries()) {
+		// biome-ignore lint/performance/noAwaitInLoops: Keep D1 inserts sequential.
 		await api.db.insert(hand).values({
 			detail: spec.detail,
 			handNo: index + 1,
@@ -290,6 +291,7 @@ describe("opponent hands on D1", () => {
 			() => api.alice.player.hands({ id: hero.id }),
 			() => api.alice.player.handStats({ id: hero.id }),
 		]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 requests sequential.
 			await expect(call()).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		}
 		for (const call of [
@@ -301,6 +303,7 @@ describe("opponent hands on D1", () => {
 					id: bobPlayer.id,
 				}),
 		]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 requests sequential.
 			await expect(call()).rejects.toMatchObject({ code: "FORBIDDEN" });
 		}
 	});

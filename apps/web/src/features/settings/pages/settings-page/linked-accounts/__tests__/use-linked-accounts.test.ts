@@ -1,5 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useLinkedAccounts } from "@/features/settings/pages/settings-page/linked-accounts/use-linked-accounts";
 
 const mocks = vi.hoisted(() => ({
 	linkSocial: vi.fn(),
@@ -28,8 +29,6 @@ vi.mock("@/lib/auth-client", () => ({
 		useSession: () => ({ data: { user: { email: "user@example.com" } } }),
 	},
 }));
-
-import { useLinkedAccounts } from "@/features/settings/pages/settings-page/linked-accounts/use-linked-accounts";
 
 describe("useLinkedAccounts", () => {
 	beforeEach(() => {

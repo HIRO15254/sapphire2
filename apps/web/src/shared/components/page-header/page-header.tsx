@@ -29,21 +29,25 @@ export function PageHeader({
 			)}
 			{...props}
 		>
-			{back && (
+			{back ? (
 				<IconButton label="Back" onClick={onBack} size="xl" type="button">
 					<IconChevronLeft aria-hidden />
 				</IconButton>
-			)}
+			) : null}
 			<h1 className="min-w-0 flex-1 font-semibold tracking-[var(--tracking-heading)] text-[length:var(--m-text-title)]">
 				{heading}
 			</h1>
-			{meta && (
+			{meta ? (
 				<span className="text-muted-foreground text-[length:var(--m-text-footnote)]">
 					{meta}
 				</span>
+			) : (
+				meta
 			)}
-			{actions && (
+			{actions ? (
 				<div className="flex shrink-0 items-center gap-2">{actions}</div>
+			) : (
+				actions
 			)}
 		</header>
 	);

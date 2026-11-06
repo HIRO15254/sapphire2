@@ -227,6 +227,7 @@ describe("room lifecycle on D1", () => {
 				api.alice.room.restore,
 				api.alice.room.delete,
 			]) {
+				// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database operations and assertions.
 				await expect(mutate({ id })).rejects.toMatchObject({
 					code: "FORBIDDEN",
 					message: "You do not own this room",

@@ -224,7 +224,7 @@ describe("entry API on D1", () => {
 			playedOn: "2026-09-01",
 			rule,
 		});
-		const day = created.playSessions[0];
+		const [day] = created.playSessions;
 		if (!day) {
 			throw new Error("expected a day");
 		}
@@ -546,11 +546,13 @@ describe("entry API on D1", () => {
 			},
 		];
 		for (const input of rejected) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(api.alice.entry.create(input)).rejects.toMatchObject({
 				code: "BAD_REQUEST",
 			});
 		}
 		for (const playedOn of ["2026-02-30", "2026-09-01T00:00:00Z"]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(
 				api.alice.entry.create({ kind: "cash", playedOn, rule })
 			).rejects.toMatchObject({ code: "BAD_REQUEST" });
@@ -642,6 +644,7 @@ describe("entry API on D1", () => {
 			{ payments: [real("buy_in", jpy.id, 1)] },
 			{ evDiff: 5 },
 		]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(
 				api.alice.entry.update({ id: "live-cash", ...patch })
 			).rejects.toMatchObject({ code: "BAD_REQUEST" });
@@ -660,17 +663,15 @@ describe("entry API on D1", () => {
 			["2026-09-02", jpy.id],
 			["2026-09-03", jpy.id],
 		] as const) {
-			ids.push(
-				(
-					await api.alice.entry.create({
-						kind: "cash",
-						payments: [real("buy_in", assetId, 10)],
-						playedOn,
-						roomId: room.id,
-						rule,
-					})
-				).id
-			);
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
+			const createdEntry = await api.alice.entry.create({
+				kind: "cash",
+				payments: [real("buy_in", assetId, 10)],
+				playedOn,
+				roomId: room.id,
+				rule,
+			});
+			ids.push(createdEntry.id);
 		}
 		expect(
 			(await api.alice.entry.list({ assetId: usd.id })).items.map(
@@ -772,6 +773,7 @@ describe("entry API on D1", () => {
 					],
 				}),
 		]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
 			await expect(call()).rejects.toMatchObject({ code: "FORBIDDEN" });
 		}
 
@@ -796,9 +798,9 @@ describe("entry API on D1", () => {
 		const { levels } = await seedMaxRuleLevels(api);
 		const tagIds: string[] = [];
 		for (let index = 0; index < MAX_LINKED_TAGS; index += 1) {
-			tagIds.push(
-				(await api.alice.entryTag.create({ name: `Tag ${index}` })).id
-			);
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve sequential database operations and assertion order.
+			const tag = await api.alice.entryTag.create({ name: `Tag ${index}` });
+			tagIds.push(tag.id);
 		}
 		const perDay = MAX_ENTRY_PAYMENTS / MAX_ENTRY_PLAY_SESSIONS;
 		const days = (ids: (string | undefined)[]) =>

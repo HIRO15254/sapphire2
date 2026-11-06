@@ -92,7 +92,7 @@ describe("SettingsComponent", () => {
 		expect(mocks.signOut).toHaveBeenCalledOnce();
 		expect(mocks.clearPersistedQueryCache).toHaveBeenCalledTimes(1);
 		expect(mocks.navigate).toHaveBeenCalledWith({ to: "/" });
-		const navigateOrder = mocks.navigate.mock.invocationCallOrder[0];
+		const [navigateOrder] = mocks.navigate.mock.invocationCallOrder;
 		if (navigateOrder === undefined) {
 			throw new Error("Expected navigation to be called");
 		}

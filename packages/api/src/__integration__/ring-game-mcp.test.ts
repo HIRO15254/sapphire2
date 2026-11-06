@@ -60,7 +60,7 @@ integrationTest(
 				stakes: [{ blind1: 1, blind2: 2, gameGroupId: group.id }],
 			},
 		});
-		const lineupId = created.ruleVersion.lineupId;
+		const { lineupId } = created.ruleVersion;
 		expect(created.lineups[lineupId].gameMixId).toBe(mix.id);
 		expect(created.ruleVersion.stakes[0]).toMatchObject({
 			blind1: 1,

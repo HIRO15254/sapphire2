@@ -109,7 +109,7 @@ describe("Root route beforeLoad guard", () => {
 
 	it("does not redirect when the user is visiting /login", async () => {
 		const { Route } = await import("../routes/__root");
-		const beforeLoad = (Route as unknown as RouteWithBeforeLoad).beforeLoad;
+		const { beforeLoad } = Route as unknown as RouteWithBeforeLoad;
 
 		await expect(
 			beforeLoad({ location: { pathname: "/login" } })
@@ -121,7 +121,7 @@ describe("Root route beforeLoad guard", () => {
 	it("redirects to /login when there is no authenticated session", async () => {
 		mocks.getSession.mockResolvedValue({ data: null });
 		const { Route } = await import("../routes/__root");
-		const beforeLoad = (Route as unknown as RouteWithBeforeLoad).beforeLoad;
+		const { beforeLoad } = Route as unknown as RouteWithBeforeLoad;
 
 		await expect(
 			beforeLoad({ location: { pathname: "/settings" } })
@@ -133,7 +133,7 @@ describe("Root route beforeLoad guard", () => {
 		const session = { data: { user: { id: "u1" } } };
 		mocks.getSession.mockResolvedValue(session);
 		const { Route } = await import("../routes/__root");
-		const beforeLoad = (Route as unknown as RouteWithBeforeLoad).beforeLoad;
+		const { beforeLoad } = Route as unknown as RouteWithBeforeLoad;
 
 		await expect(
 			beforeLoad({ location: { pathname: "/settings" } })
@@ -148,7 +148,7 @@ describe("Root route beforeLoad guard", () => {
 			value: false,
 		});
 		const { Route } = await import("../routes/__root");
-		const beforeLoad = (Route as unknown as RouteWithBeforeLoad).beforeLoad;
+		const { beforeLoad } = Route as unknown as RouteWithBeforeLoad;
 		await expect(
 			beforeLoad({ location: { pathname: "/settings" } })
 		).resolves.toEqual({ session: null, sessionUnavailable: true });
@@ -162,7 +162,7 @@ describe("Root route beforeLoad guard", () => {
 			value: true,
 		});
 		const { Route } = await import("../routes/__root");
-		const beforeLoad = (Route as unknown as RouteWithBeforeLoad).beforeLoad;
+		const { beforeLoad } = Route as unknown as RouteWithBeforeLoad;
 		await expect(
 			beforeLoad({ location: { pathname: "/settings" } })
 		).rejects.toThrow("network unavailable");

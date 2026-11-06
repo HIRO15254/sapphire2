@@ -106,8 +106,8 @@ describe("MCP protocol layer", () => {
 		);
 		const [message] = await readMessages(response);
 		expect(message?.error).toBeUndefined();
-		const tools = (message?.result as { tools: Record<string, unknown>[] })
-			.tools;
+		const result = message?.result as { tools: Record<string, unknown>[] };
+		const { tools } = result;
 		expect(tools.map((t) => t.name).sort()).toEqual(
 			TOOL_DEFINITIONS.map((d) => d.name).sort()
 		);

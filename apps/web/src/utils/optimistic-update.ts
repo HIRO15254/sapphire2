@@ -187,7 +187,12 @@ export function beginOptimisticQueryUpdate(
 	} finally {
 		group.writing = false;
 	}
-	const update = { apply, failed: false, replayFailed: false, settled: false };
+	const update: PendingQueryUpdate = {
+		apply,
+		failed: false,
+		replayFailed: false,
+		settled: false,
+	};
 	group.updates.push(update);
 	return {
 		replaceApply(replacement: () => void): void {

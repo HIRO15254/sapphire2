@@ -27,7 +27,7 @@ interface InfiniteCache {
 function lastSetQueryDataUpdater(
 	queryClient: QueryClient
 ): (old: InfiniteCache | undefined) => InfiniteCache | undefined {
-	const calls = vi.mocked(queryClient.setQueryData).mock.calls;
+	const { calls } = vi.mocked(queryClient.setQueryData).mock;
 	return calls.at(-1)?.[1] as (
 		old: InfiniteCache | undefined
 	) => InfiniteCache | undefined;
@@ -434,7 +434,7 @@ describe("optimistic-update helpers", () => {
 		function entityUpdater(
 			queryClient: QueryClient
 		): (old: Entity | null | undefined) => Entity | null | undefined {
-			const calls = vi.mocked(queryClient.setQueryData).mock.calls;
+			const { calls } = vi.mocked(queryClient.setQueryData).mock;
 			return calls.at(-1)?.[1] as (
 				old: Entity | null | undefined
 			) => Entity | null | undefined;
@@ -550,7 +550,7 @@ describe("optimistic-update helpers", () => {
 		function itemsUpdater(
 			queryClient: QueryClient
 		): (old: Item[] | undefined) => Item[] | undefined {
-			const calls = vi.mocked(queryClient.setQueryData).mock.calls;
+			const { calls } = vi.mocked(queryClient.setQueryData).mock;
 			return calls.at(-1)?.[1] as (
 				old: Item[] | undefined
 			) => Item[] | undefined;

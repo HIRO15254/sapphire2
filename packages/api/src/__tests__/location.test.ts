@@ -206,6 +206,7 @@ describe("location.resolveLink short-link redirects", () => {
 				);
 			vi.stubGlobal("fetch", fetchMock);
 
+			// biome-ignore lint/performance/noAwaitInLoops: Each scenario replaces the shared fetch mock and must finish before the next.
 			await expectBadRequest(
 				locationCaller().resolveLink({ url: "https://goo.gl/maps/abc" })
 			);

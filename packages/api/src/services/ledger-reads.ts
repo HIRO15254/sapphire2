@@ -30,7 +30,7 @@ export async function selectAssetHistory(
 	assetId: string,
 	options: { cursor?: { id: string; occurredAt: Date }; limit: number }
 ): Promise<AssetHistoryRow[]> {
-	const cursor = options.cursor;
+	const { cursor } = options;
 	const before = (occurredAt: unknown, id: unknown) =>
 		cursor
 			? sql`(${occurredAt}, ${id}) < (${sql.param(cursor.occurredAt, ledgerLine.occurredAt)}, ${cursor.id})`

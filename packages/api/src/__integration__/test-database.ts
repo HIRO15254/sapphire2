@@ -14,6 +14,7 @@ export async function applyMigrations(d1: TestD1Database): Promise<void> {
 		.filter((name) => MIGRATION_FILE_PATTERN.test(name))
 		.sort();
 	for (const name of names) {
+		// biome-ignore lint/performance/noAwaitInLoops: Migrations must be read and applied in order.
 		const sql = await readFile(new URL(name, migrationsDirectory), "utf8");
 		try {
 			await d1.prepare(sql).run();

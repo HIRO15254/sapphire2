@@ -26,6 +26,8 @@ export default function SignInForm({
 		isPasskeySupported,
 		isPending,
 		isSubmitting,
+		onFieldChange,
+		onSubmit,
 		onSignInWithDiscord,
 		onSignInWithGoogle,
 		onSignInWithPasskey,
@@ -91,15 +93,7 @@ export default function SignInForm({
 			switchPrompt="New to Sapphire 2?"
 			title="Sign in"
 		>
-			<form
-				className="contents"
-				noValidate
-				onSubmit={(e) => {
-					e.preventDefault();
-					e.stopPropagation();
-					form.handleSubmit();
-				}}
-			>
+			<form className="contents" noValidate onSubmit={onSubmit}>
 				<div className="flex flex-col gap-4">
 					<form.Field name="email">
 						{(field) => (
@@ -114,7 +108,7 @@ export default function SignInForm({
 									id={field.name}
 									name={field.name}
 									onBlur={field.handleBlur}
-									onChange={(e) => field.handleChange(e.target.value)}
+									onChange={onFieldChange(field)}
 									size="xl"
 									type="email"
 									value={field.state.value}
@@ -135,7 +129,7 @@ export default function SignInForm({
 									id={field.name}
 									name={field.name}
 									onBlur={field.handleBlur}
-									onChange={(e) => field.handleChange(e.target.value)}
+									onChange={onFieldChange(field)}
 									size="xl"
 									type="password"
 									value={field.state.value}

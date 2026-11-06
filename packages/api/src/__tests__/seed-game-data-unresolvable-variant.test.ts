@@ -43,7 +43,7 @@ function emptyAccountDb() {
 	});
 }
 
-function membershipRows(inserted: Record<string, unknown[]>) {
+function membershipRows(inserted: Partial<Record<string, unknown[]>>) {
 	return (inserted[MIX_VARIANT_TABLE] ?? []).flatMap((entry) =>
 		Array.isArray(entry) ? entry : [entry]
 	) as Record<string, unknown>[];
@@ -55,6 +55,7 @@ describe("seedDefaultGameData with an unresolvable mix variantKey", () => {
 
 		await seedDefaultGameData(db, USER_ID);
 
+		// biome-ignore lint/suspicious/noUnnecessaryConditions: The mock omits the table key when no rows are inserted.
 		for (const write of inserted[MIX_VARIANT_TABLE] ?? []) {
 			expect(Array.isArray(write) ? write : [write]).not.toHaveLength(0);
 		}

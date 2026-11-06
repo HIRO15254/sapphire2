@@ -64,6 +64,15 @@ export function useSignUp() {
 			}),
 		},
 	});
+	const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		event.stopPropagation();
+		form.handleSubmit();
+	};
+	const onFieldChange =
+		(field: { handleChange: (value: string) => void }) =>
+		(event: React.ChangeEvent<HTMLInputElement>) =>
+			field.handleChange(event.target.value);
 	const isSubmitting = useStore(form.store, (state) => state.isSubmitting);
 
 	const signUpWithProvider = async (provider: SocialProvider) => {
@@ -86,7 +95,9 @@ export function useSignUp() {
 		isBusy: isSubmitting,
 		isPending,
 		isSubmitting,
+		onFieldChange,
 		onSignUpWithDiscord: () => signUpWithProvider("discord"),
 		onSignUpWithGoogle: () => signUpWithProvider("google"),
+		onSubmit,
 	};
 }

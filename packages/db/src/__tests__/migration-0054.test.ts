@@ -117,7 +117,8 @@ const seededPath = join(snapshotDirectory, "seeded.sqlite");
 let databaseIndex = 0;
 
 function migratedDatabase(): Database {
-	const path = join(snapshotDirectory, `${databaseIndex++}.sqlite`);
+	const path = join(snapshotDirectory, `${databaseIndex}.sqlite`);
+	databaseIndex += 1;
 	copyFileSync(seededPath, path);
 	const db = openDatabase(path);
 	db.exec(
@@ -267,13 +268,16 @@ describe("migration 0054 — owned ring_game / tournament rebuild", () => {
 			room: "alice-room",
 			tournament: "daily",
 		};
+		const currentDb = db;
 		for (const [table, id] of Object.entries(parents)) {
 			db.exec(`CREATE TABLE child_${table} (
 				parent_id TEXT, user_id TEXT,
 				FOREIGN KEY (parent_id, user_id) REFERENCES ${table}(id, user_id) ON DELETE CASCADE
 			)`);
 			expect(() =>
-				db.prepare(`INSERT INTO child_${table} VALUES (?, 'bob')`).run(id)
+				currentDb
+					.prepare(`INSERT INTO child_${table} VALUES (?, 'bob')`)
+					.run(id)
 			).toThrow(FOREIGN_KEY_VIOLATION);
 			db.prepare(`INSERT INTO child_${table} VALUES (?, 'alice')`).run(id);
 		}
@@ -286,7 +290,7 @@ describe("migration 0054 — owned ring_game / tournament rebuild", () => {
 
 	it("reaches the same result when the retry follows a failure at any statement", () => {
 		const expected = expectedAfterMigration(snapshot(db));
-		for (let failedAt = 1; failedAt < targetStatements.length; failedAt++) {
+		for (let failedAt = 1; failedAt < targetStatements.length; failedAt += 1) {
 			const partial = migratedDatabase();
 			try {
 				apply(partial, targetStatements.slice(0, failedAt));

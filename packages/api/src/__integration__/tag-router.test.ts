@@ -116,6 +116,7 @@ describe.for(kinds)("$kind on D1", ({ kind, table }) => {
 		);
 		const before = await alice.list();
 		for (const id of [foreign.id, "missing"]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Preserve the sequential database operations and assertions.
 			await expect(
 				alice.reorder({ ids: [second.id, first.id, id] })
 			).rejects.toMatchObject({

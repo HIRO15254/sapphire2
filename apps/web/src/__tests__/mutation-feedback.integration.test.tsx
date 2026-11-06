@@ -5,7 +5,7 @@ import { createTRPCClient, httpBatchLink } from "@trpc/client";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { createTRPCOptionsProxy } from "@trpc/tanstack-react-query";
 import { setupServer } from "msw/node";
-import { useState } from "react";
+import { type ChangeEvent, type FormEvent, useState } from "react";
 import { toast } from "sonner";
 import {
 	afterAll,
@@ -80,7 +80,7 @@ const client = createTRPCClient<typeof router>({
 let queryClient = createTestQueryClient();
 let trpc = createTRPCOptionsProxy({ client, queryClient });
 
-function Probe({ destructive = false }: { destructive?: boolean }) {
+function useProbe(destructive: boolean) {
 	const [open, setOpen] = useState(true);
 	const mutation = useUndoableMutation(
 		trpc.write.mutationOptions({ onMutate: () => value }),
@@ -99,9 +99,47 @@ function Probe({ destructive = false }: { destructive?: boolean }) {
 			try {
 				await mutation.mutateAsync(fields.name);
 				setOpen(false);
+				// biome-ignore lint/suspicious/noEmptyBlockStatements: Failed saves leave the form open.
 			} catch {}
 		},
 	});
+	const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		form.handleSubmit();
+	};
+	return { form, mutation, onSubmit, open, setOpen };
+}
+
+function useProbeInput(handleChange: (value: string) => void) {
+	return {
+		onChange: (event: ChangeEvent<HTMLInputElement>) =>
+			handleChange(event.target.value),
+	};
+}
+
+function ProbeInput({
+	handleBlur,
+	handleChange,
+	value: inputValue,
+}: {
+	handleBlur: () => void;
+	handleChange: (value: string) => void;
+	value: string;
+}) {
+	const { onChange } = useProbeInput(handleChange);
+	return (
+		<input
+			aria-label="Name"
+			id="probe-name"
+			onBlur={handleBlur}
+			onChange={onChange}
+			value={inputValue}
+		/>
+	);
+}
+
+function Probe({ destructive = false }: { destructive?: boolean }) {
+	const { form, mutation, onSubmit, open, setOpen } = useProbe(destructive);
 	return (
 		<>
 			<Toaster />
@@ -112,21 +150,14 @@ function Probe({ destructive = false }: { destructive?: boolean }) {
 				open={open}
 				title="Edit record"
 			>
-				<form
-					id="probe"
-					onSubmit={(event) => {
-						event.preventDefault();
-						form.handleSubmit();
-					}}
-				>
+				<form id="probe" onSubmit={onSubmit}>
 					<form.Field name="name">
 						{(field) => (
-							<label>
+							<label htmlFor="probe-name">
 								Name
-								<input
-									aria-label="Name"
-									onBlur={field.handleBlur}
-									onChange={(event) => field.handleChange(event.target.value)}
+								<ProbeInput
+									handleBlur={field.handleBlur}
+									handleChange={field.handleChange}
 									value={field.state.value}
 								/>
 							</label>
@@ -167,8 +198,17 @@ afterEach(() => {
 	vi.useRealTimers();
 });
 
-function QueryProbe() {
+function useQueryProbe() {
 	const query = useQuery(trpc.read.queryOptions());
+	const onRetry = () => {
+		query.refetch();
+	};
+	return { onRetry, query };
+}
+
+function QueryProbe() {
+	const { onRetry, query } = useQueryProbe();
+	// biome-ignore lint/suspicious/noUnnecessaryConditions: The query is pending during the controlled loading state.
 	if (query.isPending) {
 		return <div>Loading</div>;
 	}
@@ -177,9 +217,7 @@ function QueryProbe() {
 			<LoadErrorState
 				entity="record"
 				isRetrying={query.isFetching}
-				onRetry={() => {
-					query.refetch();
-				}}
+				onRetry={onRetry}
 			/>
 		);
 	}
@@ -207,7 +245,7 @@ async function submit(name = "after") {
 	fireEvent.click(screen.getByRole("button", { name: "Save" }));
 }
 
-function ConflictProbe() {
+function useConflictProbe() {
 	const key = trpc.read.queryKey();
 	const query = useQuery(trpc.read.queryOptions());
 	const mutation = useUndoableMutation(
@@ -223,16 +261,18 @@ function ConflictProbe() {
 		}),
 		{ destructive: true, message: "Saved" }
 	);
+	const onSave = () =>
+		mutation.mutateAsync("optimistic").catch(() => undefined);
+	return { onSave, query };
+}
+
+function ConflictProbe() {
+	const { onSave, query } = useConflictProbe();
 	return (
 		<>
 			<Toaster />
 			<div>{query.data}</div>
-			<button
-				onClick={() =>
-					mutation.mutateAsync("optimistic").catch(() => undefined)
-				}
-				type="button"
-			>
+			<button onClick={onSave} type="button">
 				Save conflict
 			</button>
 		</>

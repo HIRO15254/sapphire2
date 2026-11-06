@@ -167,6 +167,7 @@ describe("asset and ledger tables on D1", () => {
 			],
 		];
 		for (const [table, row] of crossOwner) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 constraint checks sequential.
 			await expect(
 				insert(api.d1, table, row),
 				`${table} ${row.id ?? row.user_id}`
@@ -275,6 +276,7 @@ describe("asset and ledger tables on D1", () => {
 			},
 		];
 		for (const [index, overrides] of accepted.entries()) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 inserts sequential.
 			await insert(
 				api.d1,
 				"ledger_line",
@@ -360,6 +362,7 @@ describe("asset and ledger tables on D1", () => {
 			[{ effect: "estimated" }, "ledger_line_effect_check"],
 		];
 		for (const [index, [overrides, constraint]] of rejected.entries()) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 constraint checks sequential.
 			await expect(
 				insert(
 					api.d1,
@@ -407,6 +410,7 @@ describe("asset and ledger tables on D1", () => {
 			[{ decimals: 5 }, "asset_decimals_check"],
 			[{ decimals: -1 }, "asset_decimals_check"],
 		] as const) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 constraint checks sequential.
 			await expect(
 				insert(api.d1, "asset", {
 					id: "bad-asset",
@@ -466,6 +470,7 @@ describe("asset and ledger tables on D1", () => {
 			[{ rate_num: 0 }, "asset_rate_rate_num_check"],
 			[{ rate_den: 1_000_000_000_001 }, "asset_rate_rate_den_check"],
 		] as const) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 constraint checks sequential.
 			await expect(
 				insert(
 					api.d1,
@@ -552,6 +557,7 @@ describe("asset and ledger tables on D1", () => {
 			["asset", "yen"],
 			["ledger_category", "alice-deposit"],
 		]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 constraint checks sequential.
 			await expect(
 				api.d1.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(id).run(),
 				`${table} ${id}`
@@ -572,6 +578,7 @@ describe("asset and ledger tables on D1", () => {
 		api,
 	}) => {
 		for (const owner of ["alice", "bob"]) {
+			// biome-ignore lint/performance/noAwaitInLoops: Keep D1 setup sequential.
 			await seedOwner(api.d1, owner);
 			await insert(api.d1, "asset_rate", rateRow(`${owner}-rate`, owner));
 			await insert(api.d1, "ledger_line", lineRow(`${owner}-line`, owner));

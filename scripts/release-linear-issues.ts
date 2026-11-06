@@ -144,6 +144,7 @@ async function main(args: string[]): Promise<void> {
 	}
 	const stateId = await releasedStateId(apiKey);
 	for (const issue of targets) {
+		// biome-ignore lint/performance/noAwaitInLoops: Preserve update order and stop on the first failure.
 		const data = await linear<{ issueUpdate: { success: boolean } }>(
 			apiKey,
 			`mutation ($id: String!, $stateId: String!) {
