@@ -9,7 +9,6 @@ on:
     types: [submitted]
 
 jobs:
-  # General @claude mention handler
   claude:
     if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
