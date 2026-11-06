@@ -13,6 +13,7 @@ import {
 } from "@sapphire2/mcp";
 import { and, eq, isNull, or } from "drizzle-orm";
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { buildAuthOptions } from "./auth-options";
 import {
@@ -21,6 +22,12 @@ import {
 	parseConsentPageQuery,
 	redirectHostsFrom,
 } from "./oauth-consent";
+import {
+	exceedsRedirectUriLimit,
+	isRegistrationRequest,
+	REGISTRATION_MAX_BODY_BYTES,
+	REGISTRATION_MAX_REDIRECT_URIS,
+} from "./oauth-registration";
 
 interface Env {
 	BETTER_AUTH_SECRET: string;
@@ -105,6 +112,49 @@ app.use("/api/auth/*", (c, next) => {
 	const db = createDb(c.env.DB);
 	const auth = createAuth(db, buildAuthOptions(c.env, db));
 	return auth.handler(new Request(forceConsentPrompt(c.req.url), c.req.raw));
+});
+
+const registrationBodyLimit = bodyLimit({
+	maxSize: REGISTRATION_MAX_BODY_BYTES,
+	onError: (c) =>
+		c.json(
+			{
+				error: "invalid_client_metadata",
+				error_description: `Registration request body exceeds ${REGISTRATION_MAX_BODY_BYTES} bytes`,
+			},
+			413
+		),
+});
+
+app.use("/api/auth/*", (c, next) =>
+	isRegistrationRequest(c.req.method, c.req.path)
+		? registrationBodyLimit(c, next)
+		: next()
+);
+
+app.use("/api/auth/*", async (c, next) => {
+	if (!isRegistrationRequest(c.req.method, c.req.path)) {
+		return next();
+	}
+	const body = await c.req.text();
+	if (exceedsRedirectUriLimit(body)) {
+		return c.json(
+			{
+				error: "invalid_redirect_uri",
+				error_description: `At most ${REGISTRATION_MAX_REDIRECT_URIS} redirect URIs may be registered`,
+			},
+			400
+		);
+	}
+	const db = createDb(c.env.DB);
+	const auth = createAuth(db, buildAuthOptions(c.env, db));
+	return auth.handler(
+		new Request(c.req.url, {
+			method: c.req.method,
+			headers: c.req.raw.headers,
+			body,
+		})
+	);
 });
 
 app.on(["POST", "GET"], "/api/auth/*", (c) => {
