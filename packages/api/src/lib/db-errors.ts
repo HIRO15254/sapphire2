@@ -35,6 +35,9 @@ const PLAY_SEQ_CONFLICT_RE =
 const DISCARDED_PLAY_DEPENDENT_RE =
 	/NOT NULL constraint failed:\s*play_session\.seq(?=\s*(?::|$))/i;
 
+const WRITE_GUARD_FAILED_RE =
+	/CHECK constraint failed:\s*write_guard_failed(?=\s*(?::|$))/i;
+
 function someErrorInChain(error: unknown, pattern: RegExp): boolean {
 	let current = error;
 	const seen = new Set<Error>();
@@ -50,6 +53,10 @@ function someErrorInChain(error: unknown, pattern: RegExp): boolean {
 
 export function isForeignKeyConstraintError(error: unknown): boolean {
 	return someErrorInChain(error, FOREIGN_KEY_FAILED_RE);
+}
+
+export function isWriteGuardError(error: unknown): boolean {
+	return someErrorInChain(error, WRITE_GUARD_FAILED_RE);
 }
 
 export function isUnfinishedPlaySessionConflictError(error: unknown): boolean {

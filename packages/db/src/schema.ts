@@ -56,6 +56,7 @@ import {
 import { tournament } from "./schema/tournament";
 import { tournamentTag, tournamentTagLink } from "./schema/tournament-tag";
 import { updateNoteView } from "./schema/update-note-view";
+import { writeGuard } from "./schema/write-guard";
 
 export const schema = {
 	account,
@@ -114,4 +115,5 @@ export const schema = {
 	ledgerCategory,
 	ledgerLine,
 	userSetting,
+	writeGuard,
 };
