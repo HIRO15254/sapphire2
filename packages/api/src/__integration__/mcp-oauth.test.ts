@@ -7,6 +7,7 @@ import {
 	jsonPost,
 	SERVER_URL,
 	signUp,
+	WEB_ORIGIN,
 	type WorkerClient,
 } from "./worker-http";
 
@@ -155,6 +156,29 @@ function callMcp(request: WorkerClient, accessToken: string) {
 	});
 }
 
+async function listConnections(request: WorkerClient, jar: CookieJar) {
+	const response = await request("/trpc/mcpConnection.list", {
+		method: "GET",
+		jar,
+	});
+	expect(response.status).toBe(200);
+	const body = (await response.json()) as {
+		result: { data: { clientId: string; name: string | null }[] };
+	};
+	return body.result.data;
+}
+
+function revokeConnection(
+	request: WorkerClient,
+	jar: CookieJar,
+	clientId: string
+) {
+	return request("/trpc/mcpConnection.revoke", {
+		...jsonPost({ clientId }, { origin: WEB_ORIGIN }),
+		jar,
+	});
+}
+
 describe("MCP OAuth authorization server", () => {
 	test("an approved connection yields a token /mcp accepts, and an unknown token is refused", async ({
 		api,
@@ -192,6 +216,50 @@ describe("MCP OAuth authorization server", () => {
 		expect((await callMcp(request, refreshed.access_token ?? "")).status).toBe(
 			200
 		);
+	});
+
+	test("disconnecting a client stops its access and refresh tokens and drops it from the list, without touching another user's connection", async ({
+		api,
+	}) => {
+		const request = createWorkerClient(api.d1);
+		const owner = await connect(request, "revoke-owner@example.test");
+		const ownerTokens = (await (
+			await owner.exchange()
+		).json()) as TokenResponse;
+		const other = await connect(request, "revoke-other@example.test");
+		const otherTokens = (await (
+			await other.exchange()
+		).json()) as TokenResponse;
+
+		expect(await listConnections(request, owner.jar)).toEqual([
+			expect.objectContaining({
+				clientId: owner.clientId,
+				name: "Test MCP client",
+			}),
+		]);
+		expect(
+			(await revokeConnection(request, other.jar, owner.clientId)).status
+		).toBe(403);
+		expect(
+			(await revokeConnection(request, owner.jar, owner.clientId)).status
+		).toBe(200);
+
+		expect(
+			(await callMcp(request, ownerTokens.access_token ?? "")).status
+		).toBe(401);
+		const refreshed = await refresh(
+			request,
+			owner.clientId,
+			ownerTokens.refresh_token ?? ""
+		);
+		expect(refreshed.status).toBe(400);
+		expect(((await refreshed.json()) as TokenResponse).error).toBe(
+			"invalid_grant"
+		);
+		expect(await listConnections(request, owner.jar)).toEqual([]);
+		expect(
+			(await callMcp(request, otherTokens.access_token ?? "")).status
+		).toBe(200);
 	});
 
 	test("the same authorization code exchanged twice issues tokens only once", async ({
