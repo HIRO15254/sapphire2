@@ -33,6 +33,8 @@ const SESSION_EXPIRES_IN_SECONDS = 60 * 60 * 24;
 const SESSION_UPDATE_AGE_SECONDS = 60 * 60;
 const MCP_REFRESH_TOKEN_EXPIRES_IN_SECONDS = 60 * 60 * 24 * 7;
 const MCP_TOKEN_STORAGE = "hashed";
+const MCP_REGISTRATION_WINDOW_SECONDS = 60 * 60;
+const MCP_REGISTRATION_MAX_PER_WINDOW = 20;
 
 export function hashMcpAccessToken(token: string): Promise<string> {
 	return Promise.resolve(
@@ -195,6 +197,12 @@ export function createAuth(
 				clientRegistrationDefaultApplicationType: "infer",
 				refreshTokenReuseInterval: 0,
 				refreshTokenExpiresIn: MCP_REFRESH_TOKEN_EXPIRES_IN_SECONDS,
+				rateLimit: {
+					register: {
+						window: MCP_REGISTRATION_WINDOW_SECONDS,
+						max: MCP_REGISTRATION_MAX_PER_WINDOW,
+					},
+				},
 			})
 		);
 	}
