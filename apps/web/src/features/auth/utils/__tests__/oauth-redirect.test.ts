@@ -31,7 +31,7 @@ describe("resolveMcpAuthorizeRedirect", () => {
 		const url = resolveMcpAuthorizeRedirect(SERVER, OAUTH_SEARCH);
 		expect(url).not.toBeNull();
 		expect(
-			url?.startsWith("http://localhost:8787/api/auth/mcp/authorize?")
+			url?.startsWith("http://localhost:8787/api/auth/oauth2/authorize?")
 		).toBe(true);
 		expect(url).not.toContain("claude.ai/api/mcp/auth_callback?");
 	});
@@ -88,7 +88,7 @@ describe("resolveMcpAuthorizeRedirect", () => {
 	it("normalizes a trailing slash on the server URL", () => {
 		const url = resolveMcpAuthorizeRedirect(`${SERVER}/`, OAUTH_SEARCH);
 		expect(
-			url?.startsWith("http://localhost:8787/api/auth/mcp/authorize?")
+			url?.startsWith("http://localhost:8787/api/auth/oauth2/authorize?")
 		).toBe(true);
 	});
 

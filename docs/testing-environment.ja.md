@@ -54,6 +54,5 @@ LinuxでブラウザーのOS依存も入れる場合は、後者を `bunx playwr
 - ブラウザー結果は `test-results/` と `playwright-report/`。失敗時trace・画面・error-context、起動ログ `test-results/worker.log` を調べる。`bunx playwright show-trace <trace.zip>` で操作と通信を追える。
 - カバレッジHTMLは `coverage/`。Worker側まで測定された数値とは解釈しない（[計測範囲](design/testing-and-tooling.md#discovery-ci-and-measurement)）。
 - Node 22の `node:sqlite` の `ExperimentalWarning` は既知の通知（[migration harness](design/testing-and-tooling.md#nodesqlite-migration-tests)）。失敗とは分けて読む。
-- OAuthの依存patchと更新時の回帰確認は [patches/README.md](../patches/README.md) を参照する。
 
 検証結果の報告と故障注入の方針は [テスト規則](../.claude/rules/testing.md) を参照する。

@@ -43,7 +43,7 @@ describe("authorize consent gate wiring", () => {
 		"PATCH",
 	] as const)("gates %s on the authorize path too (default-deny across methods)", async (method) => {
 		await app.request(
-			"/api/auth/mcp/authorize?client_id=c1&response_type=code",
+			"/api/auth/oauth2/authorize?client_id=c1&response_type=code",
 			{ method },
 			env
 		);
@@ -52,7 +52,7 @@ describe("authorize consent gate wiring", () => {
 
 	it("gates an authorize path better-auth does not serve today", async () => {
 		await app.request(
-			"/api/auth/oauth2/authorize?client_id=c1&response_type=code",
+			"/api/auth/some-future-plugin/authorize?client_id=c1&response_type=code",
 			{ method: "GET" },
 			env
 		);
@@ -61,12 +61,12 @@ describe("authorize consent gate wiring", () => {
 
 	it("passes non-authorize better-auth routes through unmodified", async () => {
 		await app.request(
-			"/api/auth/mcp/token?grant_type=authorization_code",
+			"/api/auth/oauth2/token?grant_type=authorization_code",
 			{ method: "POST" },
 			env
 		);
 		const url = lastHandlerUrl();
-		expect(url.pathname).toBe("/api/auth/mcp/token");
+		expect(url.pathname).toBe("/api/auth/oauth2/token");
 		expect(url.searchParams.get("prompt")).toBeNull();
 		expect(url.searchParams.get("grant_type")).toBe("authorization_code");
 	});
@@ -74,7 +74,7 @@ describe("authorize consent gate wiring", () => {
 	it.each([
 		"/api/auth/sign-in/email",
 		"/api/auth/oauth2/consent",
-		"/api/auth/mcp/authorized",
+		"/api/auth/oauth2/continue",
 	])("does not touch %s", async (path) => {
 		await app.request(path, { method: "POST" }, env);
 		expect(lastHandlerUrl().searchParams.get("prompt")).toBeNull();
@@ -82,7 +82,7 @@ describe("authorize consent gate wiring", () => {
 
 	it("reaches better-auth exactly once per request (no double dispatch)", async () => {
 		await app.request(
-			"/api/auth/mcp/authorize?client_id=c1&response_type=code",
+			"/api/auth/oauth2/authorize?client_id=c1&response_type=code",
 			{ method: "GET" },
 			env
 		);
@@ -126,7 +126,7 @@ describe("authorize consent gate wiring", () => {
 
 	it("limits consent scripts to the nonce in the rendered page", async () => {
 		const response = await app.request(
-			"/oauth/consent?client_id=client&consent_code=code",
+			"/oauth/consent?client_id=client&sig=signature",
 			undefined,
 			env
 		);

@@ -3,8 +3,7 @@ import type { Context } from "@sapphire2/api/context";
 export type McpTrpcSession = NonNullable<Context["session"]>;
 
 export interface McpAccessToken {
-	accessTokenExpiresAt: Date;
-	scopes: string;
+	expiresAt: Date | null;
 	userId?: string | null;
 }
 
@@ -25,7 +24,7 @@ export function buildMcpSession(
 	if (!(token.userId && user) || user.id !== token.userId) {
 		return null;
 	}
-	if (!(token.accessTokenExpiresAt.getTime() > Date.now())) {
+	if (!(token.expiresAt && token.expiresAt.getTime() > Date.now())) {
 		return null;
 	}
 	const now = new Date();
@@ -34,7 +33,7 @@ export function buildMcpSession(
 			id: `mcp-${user.id}`,
 			token: "",
 			userId: user.id,
-			expiresAt: token.accessTokenExpiresAt,
+			expiresAt: token.expiresAt,
 			createdAt: now,
 			updatedAt: now,
 			ipAddress: null,

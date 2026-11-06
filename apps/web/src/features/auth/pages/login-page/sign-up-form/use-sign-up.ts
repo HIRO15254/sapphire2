@@ -5,7 +5,9 @@ import z from "zod";
 import { offerAutomaticPasskey } from "@/features/auth/utils/auto-register-passkey";
 import {
 	pendingAuthorizeUrl,
+	type SocialProvider,
 	socialCallbackUrl,
+	socialErrorCallbackUrl,
 } from "@/features/auth/utils/login-continuation";
 import { authClient } from "@/lib/auth-client";
 
@@ -64,11 +66,12 @@ export function useSignUp() {
 	});
 	const isSubmitting = useStore(form.store, (state) => state.isSubmitting);
 
-	const signUpWithProvider = async (provider: "discord" | "google") => {
+	const signUpWithProvider = async (provider: SocialProvider) => {
 		setErrorMessage(null);
 		const result = await authClient.signIn.social({
 			provider,
 			callbackURL: socialCallbackUrl(),
+			errorCallbackURL: socialErrorCallbackUrl(provider),
 		});
 		if (result.error) {
 			setErrorMessage(result.error.message || RETRY_MESSAGE);

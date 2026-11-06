@@ -30,18 +30,22 @@ claude mcp add --transport http sapphire2 https://<APIホスト>/mcp
 
 ## OAuth フロー
 
-1. クライアントが `POST /api/auth/mcp/register`（動的クライアント登録 — 事前共有シークレット不要）。
-2. クライアントがブラウザで `GET /api/auth/mcp/authorize?...` を開く。
-3. 未ログインの場合、better-auth がリクエストを保存して web アプリの `/login` へリダイレクト。サインイン後、アプリが authorize エンドポイントへブラウザを戻す。
+1. クライアントが `POST /api/auth/oauth2/register`（動的クライアント登録 — 事前共有シークレット不要）。リダイレクト URI は HTTPS、ループバックの HTTP（`localhost`、`127.0.0.1`、`[::1]`）、またはアプリ独自スキームに限られます。
+2. クライアントがブラウザで `GET /api/auth/oauth2/authorize?...` を開く。PKCE は `S256` のみ（`plain` は拒否）。
+3. 未ログインの場合、authorize エンドポイントが web アプリの `/login` へリダイレクト。サインイン後、アプリが authorize エンドポイントへブラウザを戻す。
 4. Worker が同意画面（アプリ名、リダイレクト先ホスト、実際のツール権限）を表示。**Approve** で `/api/auth/oauth2/consent` に送信され、認可コード付きでクライアントへリダイレクト。
-5. クライアントが `POST /api/auth/mcp/token` でコードを交換（PKCE 検証）し、`Authorization: Bearer <アクセストークン>` で `/mcp` を呼ぶ。
+5. クライアントが `POST /api/auth/oauth2/token` でコードを交換（PKCE 検証）し、`Authorization: Bearer <アクセストークン>` で `/mcp` を呼ぶ。アクセストークンの有効期間は 1 時間。`offline_access` スコープを要求するとリフレッシュトークン（有効期間 7 日）が発行され、リフレッシュのたびに新しいものへ置き換わります。古いリフレッシュトークンを再利用するとクライアントの接続が切れます。
 
-ディスカバリ文書は RFC 8414 / RFC 9728 に従いルート直下で配信されます:
+MCP の接続は web アプリへのログイン状態に依存しません。
 
-- `GET /.well-known/oauth-authorization-server`
+ディスカバリ文書（RFC 8414 / RFC 9728）。認可サーバーの issuer は `https://<your-api-host>/api/auth` です:
+
+- `GET /.well-known/oauth-authorization-server/api/auth`（`/.well-known/oauth-authorization-server` と `/api/auth/.well-known/oauth-authorization-server` にも併設）
 - `GET /.well-known/oauth-protected-resource`（`/.well-known/oauth-protected-resource/mcp` にも併設）
 
 未認証の `/mcp` リクエストには `401` と `WWW-Authenticate: Bearer resource_metadata="…"` が返り、クライアントはここからディスカバリを開始できます。
+
+OAuth プロバイダの更新（better-auth 1.7）以前に作成した接続は一度使えなくなります。コネクタを削除して追加し直すか、Claude Code では `/mcp` → authenticate を再実行してください。
 
 ## ツール
 

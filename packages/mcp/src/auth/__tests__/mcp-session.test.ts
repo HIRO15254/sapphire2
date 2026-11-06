@@ -13,8 +13,7 @@ const USER = {
 
 const TOKEN = {
 	userId: "user-1",
-	scopes: "openid profile",
-	accessTokenExpiresAt: new Date(Date.now() + 3_600_000),
+	expiresAt: new Date(Date.now() + 3_600_000),
 };
 
 describe("buildMcpSession", () => {
@@ -26,23 +25,21 @@ describe("buildMcpSession", () => {
 
 	it("carries the token expiry into the synthetic session record", () => {
 		const session = buildMcpSession(TOKEN, USER);
-		expect(session?.session.expiresAt).toEqual(TOKEN.accessTokenExpiresAt);
+		expect(session?.session.expiresAt).toEqual(TOKEN.expiresAt);
 	});
 
-	it("rejects an expired access token (better-auth getMcpSession does not check expiry)", () => {
+	it("rejects an expired access token", () => {
 		const expired = {
 			...TOKEN,
-			accessTokenExpiresAt: new Date(Date.now() - 1000),
+			expiresAt: new Date(Date.now() - 1000),
 		};
 		expect(buildMcpSession(expired, USER)).toBeNull();
 	});
 
-	it("rejects an invalid token expiry instead of granting a session", () => {
+	it("rejects a missing or invalid token expiry instead of granting a session", () => {
+		expect(buildMcpSession({ ...TOKEN, expiresAt: null }, USER)).toBeNull();
 		expect(
-			buildMcpSession(
-				{ ...TOKEN, accessTokenExpiresAt: new Date(Number.NaN) },
-				USER
-			)
+			buildMcpSession({ ...TOKEN, expiresAt: new Date(Number.NaN) }, USER)
 		).toBeNull();
 	});
 

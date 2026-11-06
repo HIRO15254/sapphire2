@@ -128,7 +128,7 @@ describe("usePreviewAutoLogin", () => {
 		);
 		const url = new URL(locationAssignCalls()[0]?.[0] as string);
 		expect(url.origin).toBe("http://localhost:8787");
-		expect(url.pathname).toBe("/api/auth/mcp/authorize");
+		expect(url.pathname).toBe("/api/auth/oauth2/authorize");
 		expect(url.searchParams.get("client_id")).toBe("c1");
 		expect(url.searchParams.get("response_type")).toBe("code");
 		expect(url.searchParams.get("redirect_uri")).toBe("https://claude.ai/cb");

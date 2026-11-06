@@ -114,7 +114,7 @@ describe("useLinkedAccounts", () => {
 		await act(async () => {
 			await result.current.handleUnlink("google");
 		});
-		expect(mocks.unlinkAccount).toHaveBeenCalledWith({ providerId: "google" });
+		expect(mocks.unlinkAccount).toHaveBeenCalledWith({ accountId: "ac1" });
 		expect(mocks.toastSuccess).not.toHaveBeenCalled();
 		await waitFor(() => expect(result.current.accounts).toEqual([]));
 	});
@@ -185,7 +185,7 @@ describe("useLinkedAccounts", () => {
 
 	it("explains a link the provider refused instead of calling it canceled", async () => {
 		mocks.listAccounts.mockResolvedValue({ data: [] });
-		mocks.search = { error: "email_doesn't_match", linkError: "google" };
+		mocks.search = { error: "email_does_not_match", linkError: "google" };
 		renderHook(() => useLinkedAccounts());
 		await waitFor(() =>
 			expect(mocks.toastError).toHaveBeenCalledWith("Couldn't link Google", {

@@ -88,7 +88,7 @@ describe("/oauth/consent page", () => {
 
 	it("renders the consent page with placeholders when the client lookup fails", async () => {
 		const response = await app.request(
-			"/oauth/consent?consent_code=abc&client_id=c1&scope=openid%20profile",
+			"/oauth/consent?sig=abc&client_id=c1&scope=openid%20profile",
 			{ method: "GET" },
 			env
 		);
@@ -98,21 +98,5 @@ describe("/oauth/consent page", () => {
 		expect(html).toContain("did not register a recognizable destination");
 		expect(html).toContain("/api/auth/oauth2/consent");
 		expect(html).toContain("Approve");
-	});
-});
-
-describe("better-auth authorize surface", () => {
-	it.each([
-		["POST", "/api/auth/mcp/authorize"],
-		["GET", "/api/auth/oauth2/authorize"],
-		["POST", "/api/auth/oauth2/authorize"],
-	] as const)("does not serve %s %s (no second authorize route to protect)", async (method, path) => {
-		const response = await app.request(
-			`${path}?client_id=c1&response_type=code`,
-			{ method },
-			env
-		);
-		expect(response.status).toBe(404);
-		expect(response.headers.get("location")).toBeNull();
 	});
 });

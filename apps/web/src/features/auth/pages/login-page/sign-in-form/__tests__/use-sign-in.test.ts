@@ -67,7 +67,7 @@ describe("useSignIn", () => {
 		await submit(result);
 		const url = new URL(locationAssignCalls()[0]?.[0] as string);
 		expect(url.origin + url.pathname).toBe(
-			"http://localhost:8787/api/auth/mcp/authorize"
+			"http://localhost:8787/api/auth/oauth2/authorize"
 		);
 		expect(url.searchParams.get("client_id")).toBe("c1");
 		expect(url.searchParams.get("state")).toBe("s1");
@@ -139,6 +139,17 @@ describe("useSignIn", () => {
 		expect(mocks.social).toHaveBeenCalledWith({
 			provider: "google",
 			callbackURL: `https://app.test/login${OAUTH_AUTHORIZE_SEARCH}`,
+			errorCallbackURL: `https://app.test/login${OAUTH_AUTHORIZE_SEARCH}&socialError=google`,
 		});
+	});
+	it("explains an unlinked social account when the provider sends the user back", () => {
+		stubLocation({
+			origin: "https://app.test",
+			search: "?socialError=google&error=account_not_linked",
+		});
+		const { result } = renderHook(() => useSignIn());
+		expect(result.current.errorMessage).toBe(
+			"This email is already registered. Sign in the way you did before, then link Google in Settings."
+		);
 	});
 });

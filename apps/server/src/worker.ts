@@ -1,18 +1,17 @@
 import { trpcServer } from "@hono/trpc-server";
 import { createContextFactory } from "@sapphire2/api/context";
 import { appRouter } from "@sapphire2/api/routers/index";
-import { createAuth } from "@sapphire2/auth";
+import { createAuth, hashMcpAccessToken } from "@sapphire2/auth";
 import { createDb } from "@sapphire2/db";
 import { user } from "@sapphire2/db/schema/auth";
-import { oauthApplication } from "@sapphire2/db/schema/oauth";
+import { oauthAccessToken, oauthClient } from "@sapphire2/db/schema/oauth";
 import { createServerEnv } from "@sapphire2/env/server";
 import {
 	buildMcpSession,
 	createSapphireMcpHandler,
-	type McpAccessToken,
 	renderConsentHtml,
 } from "@sapphire2/mcp";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { buildAuthOptions } from "./auth-options";
@@ -21,9 +20,7 @@ import {
 	isAuthorizePath,
 	parseConsentPageQuery,
 	redirectHostsFrom,
-	withoutLoginPromptCookie,
 } from "./oauth-consent";
-import { hasUnsafeRedirectUri, withClientName } from "./oauth-register";
 
 interface Env {
 	BETTER_AUTH_SECRET: string;
@@ -38,18 +35,6 @@ interface Env {
 	OPENAI_API_KEY?: string;
 }
 
-interface McpPluginApi {
-	getMCPProtectedResource: () => Promise<Record<string, unknown>>;
-	getMcpOAuthConfig: () => Promise<Record<string, unknown>>;
-	getMcpSession: (options: {
-		headers: Headers;
-	}) => Promise<(McpAccessToken & Record<string, unknown>) | null>;
-}
-
-function mcpApi(auth: ReturnType<typeof createAuth>): McpPluginApi {
-	return auth.api as unknown as McpPluginApi;
-}
-
 const app = new Hono<{ Bindings: Env }>();
 
 app.use("*", async (c, next) => {
@@ -61,7 +46,8 @@ function isMcpClientPath(path: string): boolean {
 	return (
 		path === "/mcp" ||
 		path.startsWith("/.well-known/") ||
-		path.startsWith("/api/auth/mcp/")
+		path.startsWith("/api/auth/.well-known/") ||
+		path.startsWith("/api/auth/oauth2/")
 	);
 }
 
@@ -118,21 +104,13 @@ app.use("/api/auth/*", (c, next) => {
 	}
 	const db = createDb(c.env.DB);
 	const auth = createAuth(db, buildAuthOptions(c.env, db));
-	return auth.handler(
-		withoutLoginPromptCookie(
-			new Request(forceConsentPrompt(c.req.url), c.req.raw)
-		)
-	);
+	return auth.handler(new Request(forceConsentPrompt(c.req.url), c.req.raw));
 });
 
-app.on(["POST", "GET"], "/api/auth/*", async (c) => {
-	if (await hasUnsafeRedirectUri(c.req.raw)) {
-		return c.json({ error: "invalid_redirect_uri" }, 400);
-	}
+app.on(["POST", "GET"], "/api/auth/*", (c) => {
 	const db = createDb(c.env.DB);
 	const auth = createAuth(db, buildAuthOptions(c.env, db));
-	const request = await withClientName(c.req.raw);
-	return auth.handler(withoutLoginPromptCookie(request));
+	return auth.handler(c.req.raw);
 });
 
 app.get("/oauth/consent", async (c) => {
@@ -146,14 +124,14 @@ app.get("/oauth/consent", async (c) => {
 		const db = createDb(c.env.DB);
 		const rows = await db
 			.select({
-				name: oauthApplication.name,
-				redirectUrls: oauthApplication.redirectUrls,
+				name: oauthClient.name,
+				redirectUris: oauthClient.redirectUris,
 			})
-			.from(oauthApplication)
-			.where(eq(oauthApplication.clientId, query.clientId))
+			.from(oauthClient)
+			.where(eq(oauthClient.clientId, query.clientId))
 			.limit(1);
 		clientName = rows[0]?.name ?? "";
-		redirectHosts = redirectHostsFrom(rows[0]?.redirectUrls);
+		redirectHosts = redirectHostsFrom(rows[0]?.redirectUris);
 	} catch {
 		clientName = "";
 		redirectHosts = [];
@@ -170,14 +148,20 @@ app.get("/oauth/consent", async (c) => {
 	return c.html(
 		renderConsentHtml({
 			clientName,
-			code: query.code,
+			oauthQuery: query.oauthQuery,
 			nonce,
 			redirectHosts,
 		})
 	);
 });
 
-app.use("/trpc/*", (c, next) => {
+app.use("/trpc/*", async (c, next) => {
+	if (
+		c.req.method === "POST" &&
+		c.req.header("Origin") !== new URL(c.env.CORS_ORIGIN).origin
+	) {
+		return c.text("Forbidden", 403);
+	}
 	const db = createDb(c.env.DB);
 	const auth = createAuth(db, buildAuthOptions(c.env, db));
 	const contextFactory = createContextFactory(
@@ -189,8 +173,13 @@ app.use("/trpc/*", (c, next) => {
 	const middleware = trpcServer({
 		router: appRouter,
 		createContext: (_opts, context) => contextFactory({ context }),
+		onError: ({ error, path, type }) => {
+			if (error.code === "INTERNAL_SERVER_ERROR") {
+				console.error(`[trpc] ${type} ${path ?? "<unknown>"} failed`, error);
+			}
+		},
 	});
-	return middleware(c, next);
+	return await middleware(c, next);
 });
 
 function mcpUnauthorized(env: Env): Response {
@@ -219,13 +208,36 @@ function mcpInternalError(): Response {
 	);
 }
 
+const BEARER_PREFIX = /^Bearer\s+/i;
+
 app.all("/mcp", async (c) => {
 	try {
+		const authorization = c.req.header("Authorization") ?? "";
+		const bearer = BEARER_PREFIX.test(authorization)
+			? authorization.replace(BEARER_PREFIX, "").trim()
+			: "";
+		if (!bearer) {
+			return mcpUnauthorized(c.env);
+		}
 		const db = createDb(c.env.DB);
-		const auth = createAuth(db, buildAuthOptions(c.env, db));
-		const token = await mcpApi(auth).getMcpSession({
-			headers: c.req.raw.headers,
-		});
+		const [token] = await db
+			.select({
+				userId: oauthAccessToken.userId,
+				expiresAt: oauthAccessToken.expiresAt,
+			})
+			.from(oauthAccessToken)
+			.innerJoin(
+				oauthClient,
+				eq(oauthClient.clientId, oauthAccessToken.clientId)
+			)
+			.where(
+				and(
+					eq(oauthAccessToken.token, await hashMcpAccessToken(bearer)),
+					isNull(oauthAccessToken.revoked),
+					or(isNull(oauthClient.disabled), eq(oauthClient.disabled, false))
+				)
+			)
+			.limit(1);
 		if (!token) {
 			return mcpUnauthorized(c.env);
 		}
@@ -255,21 +267,17 @@ app.all("/mcp", async (c) => {
 app.get("/.well-known/oauth-authorization-server", async (c) => {
 	const db = createDb(c.env.DB);
 	const auth = createAuth(db, buildAuthOptions(c.env, db));
-	return c.json(await mcpApi(auth).getMcpOAuthConfig());
+	const api = auth.api as unknown as {
+		getOAuthServerConfig: () => Promise<Record<string, unknown>>;
+	};
+	return c.json(await api.getOAuthServerConfig());
 });
 
-app.on(
-	"GET",
-	[
-		"/.well-known/oauth-protected-resource",
-		"/.well-known/oauth-protected-resource/mcp",
-	],
-	async (c) => {
-		const db = createDb(c.env.DB);
-		const auth = createAuth(db, buildAuthOptions(c.env, db));
-		return c.json(await mcpApi(auth).getMCPProtectedResource());
-	}
-);
+app.get("/.well-known/*", (c) => {
+	const db = createDb(c.env.DB);
+	const auth = createAuth(db, buildAuthOptions(c.env, db));
+	return auth.handler(c.req.raw);
+});
 
 app.get("/", (c) => c.text("OK"));
 

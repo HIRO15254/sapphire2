@@ -44,5 +44,5 @@ export function resolveMcpAuthorizeRedirect(
 		}
 	}
 	const base = serverUrl.replace(TRAILING_SLASH, "");
-	return `${base}/api/auth/mcp/authorize?${params.toString()}`;
+	return `${base}/api/auth/oauth2/authorize?${params.toString()}`;
 }
