@@ -5,7 +5,10 @@ import z from "zod";
 import { offerAutomaticPasskey } from "@/features/auth/utils/auto-register-passkey";
 import {
 	pendingAuthorizeUrl,
+	type SocialProvider,
 	socialCallbackUrl,
+	socialErrorCallbackUrl,
+	socialSignInErrorMessage,
 } from "@/features/auth/utils/login-continuation";
 import { authClient } from "@/lib/auth-client";
 import { isCancelledCeremony, isPasskeySupported } from "@/shared/lib/webauthn";
@@ -18,7 +21,9 @@ export function useSignIn() {
 	const navigate = useNavigate({ from: "/" });
 	const { isPending } = authClient.useSession();
 	const [isPasskeyPending, setIsPasskeyPending] = useState(false);
-	const [errorMessage, setErrorMessage] = useState<string | null>(null);
+	const [errorMessage, setErrorMessage] = useState<string | null>(() =>
+		socialSignInErrorMessage(window.location.search)
+	);
 
 	const enterApp = () => {
 		const authorizeUrl = pendingAuthorizeUrl();
@@ -91,11 +96,12 @@ export function useSignIn() {
 		}
 	};
 
-	const signInWithProvider = async (provider: "discord" | "google") => {
+	const signInWithProvider = async (provider: SocialProvider) => {
 		setErrorMessage(null);
 		const result = await authClient.signIn.social({
 			provider,
 			callbackURL: socialCallbackUrl(),
+			errorCallbackURL: socialErrorCallbackUrl(provider),
 		});
 		if (result.error) {
 			setErrorMessage(result.error.message || RETRY_MESSAGE);

@@ -24,12 +24,10 @@ function linkFailureMessage(providerId: SocialProviderId, reason?: string) {
 		case undefined:
 		case "access_denied":
 			return LINK_CANCELED_MESSAGE;
-		case "email_doesn't_match":
+		case "email_does_not_match":
 			return `Use a ${label} account with the same email as this account.`;
 		case "account_already_linked_to_different_user":
 			return `This ${label} account is already linked to another Sapphire 2 account.`;
-		case "unable_to_link_account":
-			return `Verify the email address on your ${label} account, then try again.`;
 		default:
 			return "Try again.";
 	}
@@ -124,7 +122,13 @@ export function useLinkedAccounts() {
 	};
 
 	const handleUnlink = async (providerId: SocialProviderId) => {
-		const result = await authClient.unlinkAccount({ providerId });
+		const linked = accounts.find(
+			(account) => account.providerId === providerId
+		);
+		if (!linked) {
+			return;
+		}
+		const result = await authClient.unlinkAccount({ accountId: linked.id });
 		if (result.error) {
 			toast.error(`Couldn't unlink ${providerLabel(providerId)}`, {
 				description: result.error.message ?? undefined,

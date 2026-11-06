@@ -22,49 +22,38 @@ describe("installed D1 referential integrity", () => {
 		const insertClient = (id: string) =>
 			api.d1
 				.prepare(
-					"INSERT INTO oauth_application (id, name, client_id, redirect_urls, type) VALUES (?, 'Test client', 'client-key', 'https://example.test/callback', 'public')"
+					`INSERT INTO oauth_client (id, client_id, redirect_uris) VALUES (?, 'client-key', '["https://example.test/callback"]')`
 				)
 				.bind(id)
 				.run();
 		await insertClient("client");
 		await expect(insertClient("duplicate-client")).rejects.toThrow(
-			"UNIQUE constraint failed: oauth_application.client_id"
+			"UNIQUE constraint failed: oauth_client.client_id"
 		);
-		const insertToken = (id: string, access: string, refresh: string) =>
+		const insertToken = (table: string, id: string, token: string) =>
 			api.d1
 				.prepare(
-					"INSERT INTO oauth_access_token (id, access_token, refresh_token, access_token_expires_at, refresh_token_expires_at, client_id, user_id, scopes) VALUES (?, ?, ?, 1000, 2000, 'client-key', 'alice', 'openid')"
+					`INSERT INTO ${table} (id, token, client_id, user_id, scopes) VALUES (?, ?, 'client-key', 'alice', '["openid"]')`
 				)
-				.bind(id, access, refresh)
+				.bind(id, token)
 				.run();
-		await insertToken("token", "access-key", "refresh-key");
-		await expect(
-			insertToken("duplicate-access", "access-key", "other-refresh")
-		).rejects.toThrow(
-			"UNIQUE constraint failed: oauth_access_token.access_token"
-		);
-		await expect(
-			insertToken("duplicate-refresh", "other-access", "refresh-key")
-		).rejects.toThrow(
-			"UNIQUE constraint failed: oauth_access_token.refresh_token"
-		);
+		for (const table of ["oauth_access_token", "oauth_refresh_token"]) {
+			await insertToken(table, "token", "token-key");
+			await expect(
+				insertToken(table, "duplicate-token", "token-key")
+			).rejects.toThrow(`UNIQUE constraint failed: ${table}.token`);
+		}
 		expect(
 			(await api.db.select().from(user)).map(({ id }) => id).sort()
 		).toEqual(["alice", "bob"]);
 		expect(
-			(await api.d1.prepare("SELECT id FROM oauth_application").all()).results
+			(await api.d1.prepare("SELECT id FROM oauth_client").all()).results
 		).toEqual([{ id: "client" }]);
-		expect(
-			(
-				await api.d1
-					.prepare(
-						"SELECT id, access_token, refresh_token FROM oauth_access_token"
-					)
-					.all()
-			).results
-		).toEqual([
-			{ id: "token", access_token: "access-key", refresh_token: "refresh-key" },
-		]);
+		for (const table of ["oauth_access_token", "oauth_refresh_token"]) {
+			expect(
+				(await api.d1.prepare(`SELECT id, token FROM ${table}`).all()).results
+			).toEqual([{ id: "token", token: "token-key" }]);
+		}
 	});
 
 	test("rejects dangling foreign keys instead of persisting orphan players or tag links", async ({

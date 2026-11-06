@@ -64,7 +64,7 @@ describe("useSignUp", () => {
 		await submit(result.current.form);
 		const url = new URL(locationAssignCalls()[0]?.[0] as string);
 		expect(url.origin + url.pathname).toBe(
-			"http://localhost:8787/api/auth/mcp/authorize"
+			"http://localhost:8787/api/auth/oauth2/authorize"
 		);
 		expect(url.searchParams.get("client_id")).toBe("c1");
 		expect(url.searchParams.get("state")).toBe("s1");
@@ -111,6 +111,7 @@ describe("useSignUp", () => {
 		expect(mocks.social).toHaveBeenCalledWith({
 			provider: "discord",
 			callbackURL: `https://app.test/login${OAUTH_AUTHORIZE_SEARCH}`,
+			errorCallbackURL: `https://app.test/login${OAUTH_AUTHORIZE_SEARCH}&socialError=discord`,
 		});
 	});
 });

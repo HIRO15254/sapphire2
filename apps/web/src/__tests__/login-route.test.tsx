@@ -129,7 +129,7 @@ describe("LoginRoute", () => {
 			expect(mocks.redirect).toHaveBeenCalledTimes(1);
 			const arg = mocks.redirect.mock.calls[0]?.[0] as { href: string };
 			expect(
-				arg.href.startsWith("http://localhost:8787/api/auth/mcp/authorize?")
+				arg.href.startsWith("http://localhost:8787/api/auth/oauth2/authorize?")
 			).toBe(true);
 			expect(arg.href).toContain("client_id=c1");
 		});

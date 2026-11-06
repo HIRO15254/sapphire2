@@ -1,3 +1,5 @@
+import { mcp } from "@better-auth/mcp";
+import { getOAuthProviderApi } from "@better-auth/oauth-provider";
 import { passkey as passkeyPlugin } from "@better-auth/passkey";
 import {
 	account,
@@ -11,15 +13,36 @@ import {
 import {
 	oauthAccessToken,
 	oauthAccessTokenRelations,
-	oauthApplication,
-	oauthApplicationRelations,
+	oauthClient,
+	oauthClientAssertion,
+	oauthClientRelations,
+	oauthClientResource,
+	oauthClientResourceRelations,
 	oauthConsent,
 	oauthConsentRelations,
+	oauthRefreshToken,
+	oauthRefreshTokenRelations,
+	oauthResource,
+	oauthResourceRelations,
 } from "@sapphire2/db/schema/oauth";
 import { passkey, passkeyRelations } from "@sapphire2/db/schema/passkey";
 import { type BetterAuthPlugin, betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { mcp } from "better-auth/plugins";
+
+const SESSION_EXPIRES_IN_SECONDS = 60 * 60 * 24;
+const SESSION_UPDATE_AGE_SECONDS = 60 * 60;
+const MCP_REFRESH_TOKEN_EXPIRES_IN_SECONDS = 60 * 60 * 24 * 7;
+const MCP_TOKEN_STORAGE = "hashed";
+
+export function hashMcpAccessToken(token: string): Promise<string> {
+	return Promise.resolve(
+		getOAuthProviderApi({} as Parameters<typeof getOAuthProviderApi>[0], {
+			loginPage: "",
+			consentPage: "",
+			storeTokens: MCP_TOKEN_STORAGE,
+		}).hashToken(token, "access_token")
+	);
+}
 
 function hexEncode(bytes: Uint8Array): string {
 	return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -102,12 +125,19 @@ const authSchema = {
 	user,
 	userRelations,
 	verification,
-	oauthApplication,
-	oauthApplicationRelations,
+	oauthClient,
+	oauthClientRelations,
+	oauthResource,
+	oauthResourceRelations,
+	oauthClientResource,
+	oauthClientResourceRelations,
+	oauthRefreshToken,
+	oauthRefreshTokenRelations,
 	oauthAccessToken,
 	oauthAccessTokenRelations,
 	oauthConsent,
 	oauthConsentRelations,
+	oauthClientAssertion,
 	passkey,
 	passkeyRelations,
 };
@@ -156,14 +186,15 @@ export function createAuth(
 		plugins.push(
 			mcp({
 				loginPage: options.mcp.loginPage,
+				consentPage: options.mcp.consentPage,
 				resource: options.mcp.resource,
-				oidcConfig: {
-					loginPage: options.mcp.loginPage,
-					consentPage: options.mcp.consentPage,
-					requirePKCE: true,
-					allowPlainCodeChallengeMethod: false,
-					allowDynamicClientRegistration: true,
-				},
+				disableJwtPlugin: true,
+				storeTokens: MCP_TOKEN_STORAGE,
+				allowDynamicClientRegistration: true,
+				allowUnauthenticatedClientRegistration: true,
+				clientRegistrationDefaultApplicationType: "infer",
+				refreshTokenReuseInterval: 0,
+				refreshTokenExpiresIn: MCP_REFRESH_TOKEN_EXPIRES_IN_SECONDS,
 			})
 		);
 	}
@@ -199,7 +230,14 @@ export function createAuth(
 				verify: verifyPassword,
 			},
 		},
+		session: {
+			expiresIn: SESSION_EXPIRES_IN_SECONDS,
+			updateAge: SESSION_UPDATE_AGE_SECONDS,
+		},
 		advanced: {
+			ipAddress: {
+				ipAddressHeaders: ["cf-connecting-ip"],
+			},
 			defaultCookieAttributes: {
 				sameSite: "none",
 				secure: true,
@@ -225,6 +263,8 @@ export function createAuth(
 		account: {
 			accountLinking: {
 				enabled: true,
+				disableImplicitLinking: true,
+				trustedProviders: ["google", "discord"],
 			},
 		},
 		databaseHooks: {

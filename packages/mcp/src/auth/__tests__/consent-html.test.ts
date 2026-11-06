@@ -6,7 +6,7 @@ const CONSENT_SCRIPT = /<script nonce="test-nonce">([\s\S]*?)<\/script>/;
 
 const BASE_PROPS = {
 	clientName: "Claude",
-	code: "consent-code-123",
+	oauthQuery: "client_id=c1&sig=abc",
 	nonce: "test-nonce",
 	redirectHosts: ["claude.ai"],
 };
@@ -75,10 +75,10 @@ describe("renderConsentHtml", () => {
 		expect(html).toContain("Unknown application");
 	});
 
-	it("embeds the consent code as JSON with < escaped so </script> cannot break out", () => {
+	it("embeds the signed query as JSON with < escaped so </script> cannot break out", () => {
 		const html = renderConsentHtml({
 			...BASE_PROPS,
-			code: "</script><script>alert(1)//",
+			oauthQuery: "</script><script>alert(1)//",
 		});
 		expect(html).not.toContain("</script><script>alert(1)//");
 		expect(html).toContain("\\u003c/script");
@@ -115,7 +115,7 @@ describe("renderConsentHtml", () => {
 		for (const [redirectURI, allowed] of cases) {
 			const handlers: Record<string, () => Promise<void>> = {};
 			const elements = {
-				"consent-data": { textContent: JSON.stringify({ code: "code" }) },
+				"consent-data": { textContent: JSON.stringify({ oauthQuery: "q" }) },
 				approve: {
 					disabled: false,
 					addEventListener: (_: string, fn: () => Promise<void>) => {
@@ -135,7 +135,10 @@ describe("renderConsentHtml", () => {
 				document: {
 					getElementById: (id: keyof typeof elements) => elements[id],
 				},
-				fetch: async () => ({ ok: true, json: async () => ({ redirectURI }) }),
+				fetch: async () => ({
+					ok: true,
+					json: async () => ({ redirect: true, url: redirectURI }),
+				}),
 				window: { location },
 				URL,
 			});

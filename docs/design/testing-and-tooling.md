@@ -12,7 +12,7 @@ Integration tests use local Miniflare/D1 with the repository's real migrations. 
 
 ### Isolation and HTTP boundaries
 
-The API [fixture](../../packages/api/src/__integration__/test-fixture.ts) creates and disposes a non-persistent Miniflare D1 database per case, using [the real migrations](../../packages/api/src/__integration__/test-database.ts). Its typed session caller tests SQL and router behavior, not Cookie or OAuth authentication.
+The API [fixture](../../packages/api/src/__integration__/test-fixture.ts) creates and disposes a non-persistent Miniflare D1 database per case, using [the real migrations](../../packages/api/src/__integration__/test-database.ts). Its typed session caller tests SQL and router behavior, not Cookie or OAuth authentication. Those boundaries go through [`worker-http.ts`](../../packages/api/src/__integration__/worker-http.ts), which sends real HTTP requests to the server Worker's Hono app bound to the same D1 database and carries cookies between them; tests stub only the external IdP's token endpoint.
 
 The browser [server harness](../../testing/serve-e2e.ts) bundles the production Worker entrypoint with Wrangler's dry-run build and serves the Web test build over HTTPS. API and Web use `https://localhost:18787` and `https://localhost:13001`: separate origins on the same site exercise Cookie attributes and CORS without weakening production settings. Test Chromium accepts the local self-signed certificate, including Service Worker fetches. This does not cover cross-site third-party Cookie restrictions, real external IdPs, physical biometric prompts, or a deployed PWA upgrade.
 

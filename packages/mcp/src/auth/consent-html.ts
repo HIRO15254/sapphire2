@@ -2,8 +2,8 @@ import { toolPermissionSummary } from "../tools/registry";
 
 export interface ConsentHtmlProps {
 	clientName: string;
-	code: string;
 	nonce: string;
+	oauthQuery: string;
 	redirectHosts: string[];
 }
 
@@ -97,12 +97,12 @@ const SCRIPT = `
 				method: "POST",
 				credentials: "same-origin",
 				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ accept, consent_code: data.code }),
+				body: JSON.stringify({ accept, oauth_query: data.oauthQuery }),
 			});
 			if (!response.ok) { throw new Error("consent request failed"); }
-			const { redirectURI } = await response.json();
-			if (typeof redirectURI !== "string") { throw new Error("unsafe redirect"); }
-			const target = new URL(redirectURI);
+			const { url } = await response.json();
+			if (typeof url !== "string") { throw new Error("unsafe redirect"); }
+			const target = new URL(url);
 			const blocked = ["javascript:", "data:", "vbscript:", "file:", "blob:", "about:"];
 			if (blocked.includes(target.protocol) || (target.protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(target.hostname))) {
 				throw new Error("unsafe redirect");
@@ -161,7 +161,7 @@ ${renderDestination(props.redirectHosts)}
 <button id="approve" type="button">Approve</button>
 </div>
 </main>
-<script type="application/json" id="consent-data">${scriptSafeJson({ code: props.code })}</script>
+<script type="application/json" id="consent-data">${scriptSafeJson({ oauthQuery: props.oauthQuery })}</script>
 <script nonce="${escapeHtml(props.nonce)}">${SCRIPT}</script>
 </body>
 </html>`;

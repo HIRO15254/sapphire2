@@ -9,6 +9,8 @@ import {
 	test,
 } from "./fixtures";
 
+const CALLBACK_ORIGIN = "http://127.0.0.1:18999";
+
 interface OAuthClient {
 	authorizeUrl: string;
 	clientId: string;
@@ -38,7 +40,7 @@ async function registerClient(
 	expect(discovery.ok()).toBe(true);
 	const metadata = await discovery.json();
 	const clientName = `Sapphire E2E ${crypto.randomUUID()}`;
-	const redirectUri = `${API_URL}/?oauth_callback=${crypto.randomUUID()}`;
+	const redirectUri = `${CALLBACK_ORIGIN}/callback?oauth_callback=${crypto.randomUUID()}`;
 	const response = await request.post(metadata.registration_endpoint, {
 		headers: { Origin: API_URL },
 		data: {
@@ -118,8 +120,13 @@ async function requestConsent(
 }
 
 async function decideConsent(page: Page, state: string, accept: boolean) {
+	await page.route(`${CALLBACK_ORIGIN}/**`, (route) =>
+		route.fulfill({ status: 200, contentType: "text/plain", body: "callback" })
+	);
 	await Promise.all([
-		page.waitForURL((url) => url.origin === API_URL && url.pathname === "/"),
+		page.waitForURL(
+			(url) => url.origin === CALLBACK_ORIGIN && url.pathname === "/callback"
+		),
 		page
 			.getByRole("button", { name: accept ? "Approve" : "Deny", exact: true })
 			.click(),
@@ -349,8 +356,9 @@ test("a wrong PKCE verifier cannot exchange an approved authorization code", asy
 			code_verifier: randomBytes(32).toString("base64url"),
 		},
 	});
-	expect(response.status()).toBe(401);
+	expect(response.status()).toBe(400);
 	const body = await response.json();
+	expect(body.error).toBe("invalid_grant");
 	expect(body.error_description).toBe("code verification failed");
 	expect(body).not.toHaveProperty("access_token");
 });

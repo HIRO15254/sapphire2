@@ -30,18 +30,22 @@ Claude Code runs the same OAuth flow on first use (`/mcp` → authenticate).
 
 ## OAuth flow
 
-1. Client `POST /api/auth/mcp/register` (dynamic client registration — no pre-shared secrets).
-2. Client opens `GET /api/auth/mcp/authorize?...` in the browser.
-3. Not signed in? better-auth stores the request and redirects to the web app's `/login`; after sign-in the app returns the browser to the authorize endpoint.
+1. Client `POST /api/auth/oauth2/register` (dynamic client registration — no pre-shared secrets). Redirect URIs must be HTTPS, loopback HTTP (`localhost`, `127.0.0.1`, `[::1]`) or a private app scheme.
+2. Client opens `GET /api/auth/oauth2/authorize?...` in the browser, with a PKCE `S256` challenge (`plain` is refused).
+3. Not signed in? The authorize endpoint redirects to the web app's `/login`; after sign-in the app returns the browser to the authorize endpoint.
 4. The Worker renders the consent page (app name, redirect hosts and actual tool capabilities). **Approve** posts to `/api/auth/oauth2/consent` and redirects back to the client with an authorization code.
-5. Client exchanges the code at `POST /api/auth/mcp/token` (PKCE-verified) and calls `/mcp` with `Authorization: Bearer <access_token>`.
+5. Client exchanges the code at `POST /api/auth/oauth2/token` (PKCE-verified) and calls `/mcp` with `Authorization: Bearer <access_token>`. Access tokens last one hour. Request the `offline_access` scope to receive a refresh token: it lasts seven days, and every refresh returns a new one that replaces it — reusing an old refresh token disconnects the client.
 
-Discovery documents are served at the root, per RFC 8414 / RFC 9728:
+The MCP connection does not depend on staying signed in to the web app.
 
-- `GET /.well-known/oauth-authorization-server`
+Discovery documents (RFC 8414 / RFC 9728); the authorization server's issuer is `https://<your-api-host>/api/auth`:
+
+- `GET /.well-known/oauth-authorization-server/api/auth` (also at `/.well-known/oauth-authorization-server` and `/api/auth/.well-known/oauth-authorization-server`)
 - `GET /.well-known/oauth-protected-resource` (also at `/.well-known/oauth-protected-resource/mcp`)
 
 Unauthenticated `/mcp` requests receive `401` with `WWW-Authenticate: Bearer resource_metadata="…"` so clients can bootstrap discovery.
+
+Connections made before the OAuth provider upgrade (better-auth 1.7) stopped working once: remove and re-add the connector, or run `/mcp` → authenticate again in Claude Code.
 
 ## Tools
 

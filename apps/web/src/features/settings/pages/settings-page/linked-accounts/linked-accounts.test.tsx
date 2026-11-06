@@ -146,9 +146,7 @@ describe("LinkedAccounts", () => {
 		);
 
 		await waitFor(() => {
-			expect(mocks.unlinkAccount).toHaveBeenCalledWith({
-				providerId: "google",
-			});
+			expect(mocks.unlinkAccount).toHaveBeenCalledWith({ accountId: "2" });
 		});
 		expect(mocks.toastSuccess).not.toHaveBeenCalled();
 	});
