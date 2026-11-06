@@ -36,7 +36,11 @@ change or would do it unsafely:**
   is complete (the old shape, or the rebuilt shape with the index created last as a marker), and is
   tested by failing at every statement and by old-Worker writes after each finished section. Name
   the columns in any `INSERT … SELECT` that can run against both shapes — a column-count mismatch
-  fails at prepare time even when the `WHERE` selects nothing.
+  fails at prepare time even when the `WHERE` selects nothing. When one migration rebuilds two
+  tables that share a cascade child (`play_session` and `play_event` both cascade into
+  `ledger_line`), drop and recreate them one at a time, parent first: dropping the second table
+  after the first is gone fails with `no such table`, because its implicit `DELETE` compiles the
+  child's cascade, which looks up every parent of that child (`0082_session_hand_event_checks`).
 
 When you hand-write a migration, still run `db:generate` afterward (see below) so the snapshot stays
 in sync — let it write the fresh snapshot, then replace/delete its auto `.sql` so `wrangler` applies

@@ -252,6 +252,10 @@ export const playSession = sqliteTable(
 				END_STATES_REQUIRING_STACK
 			)})`
 		),
+		check(
+			"play_session_clock_start_level_check",
+			sql`${t.clockStartLevel} >= 1`
+		),
 	]
 );
 
@@ -319,5 +323,6 @@ export const playEvent = sqliteTable(
 		check("play_event_entry_source_check", sql`${t.entrySource} = 'live'`),
 		check("play_event_schema_version_check", sql`${t.schemaVersion} >= 1`),
 		check("play_event_payload_json_check", sql`json_valid(${t.payload})`),
+		check("play_event_sort_order_check", sql`${t.sortOrder} >= 0`),
 	]
 );
