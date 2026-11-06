@@ -90,6 +90,7 @@ export const hand = sqliteTable(
 		check("hand_stakes_json_check", sql`json_valid(${t.stakes})`),
 		check("hand_pot_check", sql`${t.pot} >= 0`),
 		check("hand_rake_check", sql`${t.rake} >= 0`),
+		check("hand_level_ordinal_check", sql`${t.levelOrdinal} >= 1`),
 	]
 );
 

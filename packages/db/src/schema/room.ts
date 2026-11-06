@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+	check,
 	index,
 	integer,
 	real,
@@ -34,5 +35,10 @@ export const room = sqliteTable(
 	(table) => [
 		uniqueIndex("room_id_user_id_unique").on(table.id, table.userId),
 		index("room_userId_idx").on(table.userId),
+		check("room_is_favorite_check", sql`${table.isFavorite} IN (0, 1)`),
+		check(
+			"room_coordinates_pair_check",
+			sql`(${table.latitude} IS NULL) = (${table.longitude} IS NULL)`
+		),
 	]
 );
