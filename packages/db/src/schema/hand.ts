@@ -1,4 +1,4 @@
-import { relations, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
 	check,
 	foreignKey,
@@ -22,7 +22,7 @@ import {
 	MIN_HAND_TABLE_SIZE,
 } from "../constants/hand";
 import { user } from "./auth";
-import { playEvent, playSession } from "./entry";
+import { playSession } from "./entry";
 import { gameVariant } from "./game-variant";
 import { player } from "./player";
 import { oneOf } from "./sql-checks";
@@ -38,6 +38,7 @@ export const hand = sqliteTable(
 			.references(() => user.id, { onDelete: "cascade" }),
 		playSessionId: text("play_session_id").notNull(),
 		handNo: integer("hand_no").notNull(),
+		seq: integer("seq").notNull().default(0),
 		playedAt: integer("played_at", { mode: "timestamp" }),
 		detail: text("detail", { enum: HAND_DETAILS }).notNull(),
 		buttonSeat: integer("button_seat"),
@@ -66,6 +67,7 @@ export const hand = sqliteTable(
 			t.playSessionId,
 			t.handNo
 		),
+		uniqueIndex("hand_play_session_seq_unique").on(t.playSessionId, t.seq),
 		index("hand_user_played_at_idx").on(t.userId, t.playedAt),
 		index("hand_variant_idx").on(t.variantId),
 		foreignKey({
@@ -206,43 +208,3 @@ export const handAction = sqliteTable(
 		check("hand_action_all_in_check", sql`${t.allIn} IN (0, 1)`),
 	]
 );
-
-export const handRelations = relations(hand, ({ one, many }) => ({
-	playSession: one(playSession, {
-		fields: [hand.playSessionId, hand.userId],
-		references: [playSession.id, playSession.userId],
-	}),
-	variant: one(gameVariant, {
-		fields: [hand.variantId, hand.userId],
-		references: [gameVariant.id, gameVariant.userId],
-	}),
-	boards: many(handBoard),
-	seats: many(handSeat),
-	actions: many(handAction),
-	playEvents: many(playEvent),
-}));
-
-export const handBoardRelations = relations(handBoard, ({ one }) => ({
-	hand: one(hand, {
-		fields: [handBoard.handId, handBoard.userId],
-		references: [hand.id, hand.userId],
-	}),
-}));
-
-export const handSeatRelations = relations(handSeat, ({ one }) => ({
-	hand: one(hand, {
-		fields: [handSeat.handId, handSeat.userId],
-		references: [hand.id, hand.userId],
-	}),
-	player: one(player, {
-		fields: [handSeat.playerId, handSeat.userId],
-		references: [player.id, player.userId],
-	}),
-}));
-
-export const handActionRelations = relations(handAction, ({ one }) => ({
-	hand: one(hand, {
-		fields: [handAction.handId, handAction.userId],
-		references: [hand.id, hand.userId],
-	}),
-}));

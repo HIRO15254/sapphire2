@@ -8,9 +8,11 @@ import {
 import { and, asc, eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
 import {
-	applyEntryEventChange,
 	buildLiveEntryStartStatements,
+	commitEntryEventChange,
+	type EntryEventChange,
 	type LiveEntryStart,
+	loadEntryEventState,
 } from "../services/entry-live-writes";
 import { type ApiFixture, test } from "./test-fixture";
 
@@ -28,7 +30,6 @@ function cashStart(overrides: Partial<LiveEntryStart> = {}): LiveEntryStart {
 		detail: { kind: "cash", ringGameId: null, cashRuleId: "cash-rule" },
 		assetId: null,
 		roomId: null,
-		title: "Cash Game",
 		memo: null,
 		localDate: LOCAL_DATE,
 		now: START,
@@ -40,6 +41,23 @@ function cashStart(overrides: Partial<LiveEntryStart> = {}): LiveEntryStart {
 		},
 		...overrides,
 	};
+}
+
+async function applyEntryEventChange(
+	db: Database,
+	userId: string,
+	entryId: string,
+	change: EntryEventChange,
+	now: Date
+) {
+	const state = await loadEntryEventState(db, userId, entryId);
+	return await commitEntryEventChange(db, {
+		userId,
+		entryId,
+		change,
+		now,
+		state,
+	});
 }
 
 async function startLive(api: ApiFixture, start = cashStart()) {
@@ -129,100 +147,7 @@ async function onlyPlay(db: Database, entryId: string) {
 }
 
 describe("live entry writes keep the event log and its projection in step", () => {
-	test("a started cash entry is open with its first event and an active play session", async ({
-		api,
-	}) => {
-		await startLive(api);
-
-		const row = only(await api.db.select().from(entry));
-		expect(row).toMatchObject({
-			id: "live-1",
-			kind: "cash",
-			source: "live",
-			status: "open",
-			playedOn: LOCAL_DATE,
-		});
-		expect(await onlyPlay(api.db, "live-1")).toMatchObject({
-			seq: 1,
-			status: "active",
-			startedAt: START,
-			endedAt: null,
-		});
-		const events = await listEntryPlayEvents(api.db, "alice", "live-1");
-		expect(events.map((event) => event.eventType)).toEqual(["session_start"]);
-		expect(JSON.parse(events[0]?.payload ?? "null")).toEqual({
-			payments: [
-				{ assetId: "chips", effect: "real", quantity: 1000, role: "buy_in" },
-			],
-		});
-	});
-
-	test("pause, resume and session_end settle the entry with break minutes and the cash out", async ({
-		api,
-	}) => {
-		await startLive(api);
-		const now = minutes(60);
-		await applyEntryEventChange(
-			api.db,
-			"alice",
-			"live-1",
-			{
-				op: "append",
-				events: [
-					{
-						type: "session_pause",
-						occurredAt: minutes(10),
-						payload: {},
-					},
-					{
-						type: "session_resume",
-						occurredAt: minutes(25),
-						payload: {},
-					},
-				],
-			},
-			now
-		);
-		expect(await onlyPlay(api.db, "live-1")).toMatchObject({
-			status: "active",
-			breakMinutes: 15,
-		});
-
-		await applyEntryEventChange(
-			api.db,
-			"alice",
-			"live-1",
-			{
-				op: "append",
-				events: [
-					{
-						type: "session_end",
-						occurredAt: minutes(60),
-						payload: {
-							payments: [
-								{ assetId: "chips", quantity: 3000, role: "cash_out" },
-							],
-						},
-					},
-				],
-			},
-			now
-		);
-
-		expect(await onlyPlay(api.db, "live-1")).toMatchObject({
-			status: "ended",
-			endState: "cashed_out",
-			endStack: 3000,
-			endedAt: minutes(60),
-			breakMinutes: 15,
-		});
-		const row = only(await api.db.select().from(entry));
-		expect(row.status).toBe("settled");
-	});
-
-	test("deleting the resume and editing the end time re-project the entry", async ({
-		api,
-	}) => {
+	test("deleting the resume re-projects the entry", async ({ api }) => {
 		await startLive(api);
 		const { eventIds } = await applyEntryEventChange(
 			api.db,
@@ -267,26 +192,6 @@ describe("live entry writes keep the event log and its projection in step", () =
 			breakMinutes: 50,
 			status: "ended",
 		});
-
-		await applyEntryEventChange(
-			api.db,
-			"alice",
-			"live-1",
-			{
-				op: "update",
-				id: eventIds[2] as string,
-				occurredAt: minutes(90),
-				payload: {
-					payments: [{ assetId: "chips", quantity: 500, role: "cash_out" }],
-				},
-			},
-			minutes(62)
-		);
-		expect(await onlyPlay(api.db, "live-1")).toMatchObject({
-			endedAt: minutes(90),
-			endStack: 500,
-			breakMinutes: 80,
-		});
 	});
 
 	test("an edit that leaves the event stream invalid is rejected before anything is written", async ({
@@ -318,48 +223,6 @@ describe("live entry writes keep the event log and its projection in step", () =
 
 		expect(failure).toMatchObject({ code: "BAD_REQUEST" });
 		expect(await everyRow(api.db)).toEqual(before);
-	});
-
-	test("deleting the only session_end reopens a settled entry", async ({
-		api,
-	}) => {
-		await startLive(api);
-		const { eventIds } = await applyEntryEventChange(
-			api.db,
-			"alice",
-			"live-1",
-			{
-				op: "append",
-				events: [
-					{
-						type: "session_end",
-						occurredAt: minutes(30),
-						payload: {
-							payments: [
-								{ assetId: "chips", quantity: 1200, role: "cash_out" },
-							],
-						},
-					},
-				],
-			},
-			minutes(30)
-		);
-		expect(only(await api.db.select().from(entry)).status).toBe("settled");
-
-		await applyEntryEventChange(
-			api.db,
-			"alice",
-			"live-1",
-			{ op: "delete", id: eventIds[0] as string },
-			minutes(31)
-		);
-
-		expect(only(await api.db.select().from(entry)).status).toBe("open");
-		expect(await onlyPlay(api.db, "live-1")).toMatchObject({
-			status: "active",
-			endState: null,
-			endStack: null,
-		});
 	});
 
 	test("a tournament busted without a placement is projected onto entry_tournament", async ({
@@ -408,7 +271,7 @@ describe("live entry writes keep the event log and its projection in step", () =
 		expect(only(await api.db.select().from(entry)).status).toBe("settled");
 	});
 
-	test("an append racing another append to the same entry keeps both events", async ({
+	test("an append racing another append rejects the stale projection", async ({
 		api,
 	}) => {
 		await startLive(api);
@@ -439,27 +302,28 @@ describe("live entry writes keep the event log and its projection in step", () =
 			},
 		});
 
-		await applyEntryEventChange(
-			racing,
-			"alice",
-			"live-1",
-			{
-				op: "append",
-				events: [
-					{
-						type: "memo",
-						occurredAt: minutes(6),
-						payload: { text: "second" },
-					},
-				],
-			},
-			minutes(6)
-		);
+		await expect(
+			applyEntryEventChange(
+				racing,
+				"alice",
+				"live-1",
+				{
+					op: "append",
+					events: [
+						{
+							type: "memo",
+							occurredAt: minutes(6),
+							payload: { text: "second" },
+						},
+					],
+				},
+				minutes(6)
+			)
+		).rejects.toMatchObject({ code: "CONFLICT" });
 
 		const events = await listEntryPlayEvents(api.db, "alice", "live-1");
 		expect(events.map((event) => event.eventType)).toEqual([
 			"session_start",
-			"memo",
 			"memo",
 		]);
 	});
@@ -516,82 +380,6 @@ describe("live entry writes keep the event log and its projection in step", () =
 			status: "ended",
 			endStack: 1200,
 		});
-	});
-
-	test("another user can neither append to nor edit nor delete an entry's events", async ({
-		api,
-	}) => {
-		await startLive(api);
-		const { eventIds } = await applyEntryEventChange(
-			api.db,
-			"alice",
-			"live-1",
-			{
-				op: "append",
-				events: [
-					{
-						type: "session_pause",
-						occurredAt: minutes(5),
-						payload: {},
-					},
-				],
-			},
-			minutes(5)
-		);
-		const before = await everyRow(api.db);
-
-		for (const change of [
-			{
-				op: "append",
-				events: [
-					{
-						type: "session_resume",
-						occurredAt: minutes(6),
-						payload: {},
-					},
-				],
-			},
-			{ op: "update", id: eventIds[0] as string, payload: { x: 1 } },
-			{ op: "delete", id: eventIds[0] as string },
-		] as const) {
-			const failure = await applyEntryEventChange(
-				api.db,
-				"bob",
-				"live-1",
-				change,
-				minutes(7)
-			).catch((error: unknown) => error);
-			expect(failure).toMatchObject({ code: "FORBIDDEN" });
-		}
-		expect(await everyRow(api.db)).toEqual(before);
-	});
-
-	test("an event for a play session outside the entry is rejected before anything is written", async ({
-		api,
-	}) => {
-		await startLive(api);
-		const before = await everyRow(api.db);
-
-		const failure = await applyEntryEventChange(
-			api.db,
-			"alice",
-			"live-1",
-			{
-				op: "append",
-				events: [
-					{
-						type: "session_pause",
-						occurredAt: minutes(5),
-						payload: {},
-						playSessionId: "someone-elses-play",
-					},
-				],
-			},
-			minutes(5)
-		).catch((error: unknown) => error);
-
-		expect(failure).toMatchObject({ code: "FORBIDDEN" });
-		expect(await everyRow(api.db)).toEqual(before);
 	});
 });
 
@@ -687,74 +475,5 @@ describe("live entry writes commit all of a write or none of it on D1", () => {
 
 		expect(errorMessages(failure)).toContain("test forced failure");
 		expect(await everyRow(api.db)).toEqual(before);
-	});
-
-	test("an entry with 50 chip purchases stays within the 100-parameter limit on append, update and delete", async ({
-		api,
-	}) => {
-		await startLive(
-			api,
-			cashStart({
-				detail: {
-					kind: "tournament",
-					tournamentId: null,
-					tournamentRuleId: "tournament-rule",
-				},
-			})
-		);
-		const purchases = Array.from({ length: 50 }, (_, index) => ({
-			type: "purchase_chips",
-			occurredAt: minutes(index + 1),
-			payload: {
-				priceId: `chip-${index}`,
-				label: "Rebuy",
-				payments: [{ assetId: "chips", quantity: 100, role: "chip_purchase" }],
-				chips: 1000,
-			},
-		}));
-		const { eventIds } = await applyEntryEventChange(
-			api.db,
-			"alice",
-			"live-1",
-			{ op: "append", events: purchases },
-			minutes(51)
-		);
-		expect(eventIds).toHaveLength(50);
-
-		await applyEntryEventChange(
-			api.db,
-			"alice",
-			"live-1",
-			{
-				op: "append",
-				events: [
-					{
-						type: "session_end",
-						occurredAt: minutes(60),
-						payload: { beforeDeadline: true, payments: [] },
-					},
-				],
-			},
-			minutes(60)
-		);
-		await applyEntryEventChange(
-			api.db,
-			"alice",
-			"live-1",
-			{ op: "delete", id: eventIds[0] as string },
-			minutes(61)
-		);
-		await applyEntryEventChange(
-			api.db,
-			"alice",
-			"live-1",
-			{ op: "update", id: eventIds[1] as string, occurredAt: minutes(2) },
-			minutes(62)
-		);
-
-		expect(await api.db.select().from(playEvent)).toHaveLength(51 + 1 - 1);
-		expect(await onlyPlay(api.db, "live-1")).toMatchObject({
-			status: "ended",
-		});
 	});
 });

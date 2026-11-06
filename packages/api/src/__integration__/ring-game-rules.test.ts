@@ -1,12 +1,112 @@
-import { createDb } from "@sapphire2/db";
 import { user } from "@sapphire2/db/schema/auth";
+import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { cashRule } from "@sapphire2/db/schema/rule";
 import { eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
-import { MAX_LINEUP_GROUPS } from "../services/game-lineup";
-import { requireCreatedRow, test } from "./test-fixture";
+import {
+	hydrateCashRules,
+	planCashRuleCopy,
+	prepareCashRule,
+} from "../services/cash-rules";
+import { LineupPlanner, MAX_LINEUP_GROUPS } from "../services/game-lineup";
+import {
+	AUTH_QUERY_RESERVE,
+	D1_QUERIES_PER_INVOCATION,
+	requireCreatedRow,
+	test,
+} from "./test-fixture";
 
 describe("ring game rule versions on D1", () => {
+	test("rejects a rule edit planned before another edit commits", async ({
+		api,
+	}) => {
+		const room = requireCreatedRow(
+			await api.alice.room.create({ name: "Club" })
+		);
+		const created = await api.alice.ringGame.create({
+			roomId: room.id,
+			name: "Cash",
+			rule: {
+				stakes: [
+					{ gameGroupId: "alice:builtin-group:bigbet", blind1: 1, blind2: 2 },
+				],
+			},
+		});
+		const raced = api.raceCaller("alice", async () => {
+			await api.alice.ringGame.update({
+				id: created.id,
+				rule: { minBuyIn: 100 },
+			});
+		});
+		await expect(
+			raced.ringGame.update({ id: created.id, rule: { minBuyIn: 200 } })
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		const [saved] = await api.alice.ringGame.listByRoom({ roomId: room.id });
+		expect(saved?.ruleVersion.minBuyIn).toBe(100);
+		expect((await api.db.select().from(cashRule)).length).toBe(2);
+	});
+
+	test("rejects reusing a version under a different master", async ({
+		api,
+	}) => {
+		const room = requireCreatedRow(
+			await api.alice.room.create({ name: "Club" })
+		);
+		const rule = {
+			stakes: [
+				{ gameGroupId: "alice:builtin-group:bigbet", blind1: 1, blind2: 2 },
+			],
+		};
+		const first = await api.alice.ringGame.create({
+			roomId: room.id,
+			name: "First",
+			rule,
+		});
+		const second = await api.alice.ringGame.create({
+			roomId: room.id,
+			name: "Second",
+			rule,
+		});
+		const { rules } = await hydrateCashRules(api.db, "alice", [
+			first.currentRuleId,
+		]);
+		const parent = rules.get(first.currentRuleId);
+		if (!parent) {
+			throw new Error("Missing rule");
+		}
+		await expect(
+			prepareCashRule(api.db, "alice", second.id, {}, first.currentRuleId)
+		).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+		await expect(
+			planCashRuleCopy(api.db, "alice", parent, { parent, ringGameId: null })
+		).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+	});
+
+	test("does not create a ring game in an archived room", async ({ api }) => {
+		const room = requireCreatedRow(
+			await api.alice.room.create({ name: "Club" })
+		);
+		await api.alice.room.archive({ id: room.id });
+		await expect(
+			api.alice.ringGame.create({
+				roomId: room.id,
+				name: "Cash",
+				rule: {
+					stakes: [
+						{
+							gameGroupId: "alice:builtin-group:bigbet",
+							blind1: 1,
+							blind2: 2,
+						},
+					],
+				},
+			})
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(await api.alice.ringGame.listByRoom({ roomId: room.id })).toEqual(
+			[]
+		);
+	});
+
 	test("an omitted game on a fresh account seeds the masters and uses builtin NLH", async ({
 		api,
 	}) => {
@@ -30,6 +130,72 @@ describe("ring game rule versions on D1", () => {
 			displayName: "NL Hold'em",
 			gameMixId: null,
 		});
+	});
+
+	test("reuses an explicitly selected lineup for the same variant in one plan", async ({
+		api,
+	}) => {
+		const variant = (await api.alice.gameVariant.list()).find(
+			(row) => row.builtinKey === "nlh"
+		);
+		if (!variant) {
+			throw new Error("Missing builtin NLH");
+		}
+		const room = requireCreatedRow(
+			await api.alice.room.create({ name: "Club" })
+		);
+		const game = await api.alice.ringGame.create({
+			roomId: room.id,
+			name: "Cash",
+			rule: {
+				game: { variantId: variant.id },
+				stakes: [{ gameGroupId: variant.groupId, blind1: 1, blind2: 2 }],
+			},
+		});
+		const lineupId = game.ruleVersion.lineupId;
+		const planner = new LineupPlanner(api.db, "alice");
+		await planner.prepare([{ lineupId }, { variantId: variant.id }]);
+		expect(planner.resolve({ variantId: variant.id }).id).toBe(lineupId);
+		expect(planner.resolve({ lineupId }).id).toBe(lineupId);
+		expect(planner.statements()).toHaveLength(0);
+	});
+
+	test("rejects new selections containing archived composition members", async ({
+		api,
+	}) => {
+		const variants = await api.alice.gameVariant.list();
+		const variant = variants.find((row) => row.builtinKey === "nlh");
+		const second = variants.find((row) => row.builtinKey === "plo");
+		if (!(variant && second)) {
+			throw new Error("Missing builtin variants");
+		}
+		const mix = requireCreatedRow(
+			await api.alice.gameMix.create({
+				label: "Test mix",
+				games: [variant.id, second.id],
+			})
+		);
+		await api.d1
+			.prepare("UPDATE game_variant SET archived_at = 1 WHERE id = ?")
+			.bind(variant.id)
+			.run();
+		await expect(
+			new LineupPlanner(api.db, "alice").prepare([{ gameMixId: mix.id }])
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		await api.d1
+			.prepare("UPDATE game_variant SET archived_at = NULL WHERE id = ?")
+			.bind(variant.id)
+			.run();
+		await api.d1
+			.prepare("UPDATE game_group SET archived_at = 1 WHERE id = ?")
+			.bind(variant.groupId)
+			.run();
+		await expect(
+			new LineupPlanner(api.db, "alice").prepare([{ variantId: variant.id }])
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		await expect(
+			new LineupPlanner(api.db, "alice").prepare([{ gameMixId: mix.id }])
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 	});
 
 	test("persists a mix at the lineup group limit within D1's statement budget and rejects one more group", async ({
@@ -79,41 +245,49 @@ describe("ring game rule versions on D1", () => {
 		const wider = requireCreatedRow(
 			await api.alice.gameMix.create({ label: "Wider", games })
 		);
-		for (let index = 1; index <= MAX_LINEUP_GROUPS; index++) {
+		for (let index = 1; index < MAX_LINEUP_GROUPS; index++) {
 			await api.alice.gameVariant.update({
 				id: games[index] as string,
 				groupId: groups[index] as string,
 			});
 		}
-		let statements = 0;
-		const counted = new Proxy(api.d1, {
-			get(target, property) {
-				if (property === "prepare") {
-					return (query: string) => {
-						statements++;
-						return target.prepare(query);
-					};
-				}
-				const value = Reflect.get(target, property, target);
-				return typeof value === "function" ? value.bind(target) : value;
-			},
+		await api.alice.gameMix.archive({ id: wider.id });
+		await expect(
+			api.alice.gameVariant.update({
+				id: games[MAX_LINEUP_GROUPS] as string,
+				groupId: groups[MAX_LINEUP_GROUPS] as string,
+			})
+		).rejects.toMatchObject({
+			code: "CONFLICT",
+			message: expect.stringContaining("Wider"),
 		});
-		const caller = api.caller(
-			"alice",
-			createDb(counted as unknown as Parameters<typeof createDb>[0])
-		);
+		expect(
+			(await api.alice.gameVariant.list()).find(
+				(variant) => variant.id === games[MAX_LINEUP_GROUPS]
+			)?.groupId
+		).toBe(first.id);
+		await api.alice.gameMix.restore({ id: wider.id });
+		await api.db
+			.update(gameVariant)
+			.set({ groupId: groups[MAX_LINEUP_GROUPS] as string })
+			.where(eq(gameVariant.id, games[MAX_LINEUP_GROUPS] as string));
+		const { caller, meter } = api.meteredCaller("alice");
 		const game = await caller.ringGame.create({
 			roomId: room.id,
 			name: "Wide",
 			rule: { game: { gameMixId: mix.id }, stakes },
 		});
-		expect(statements).toBeLessThan(1000);
-		statements = 0;
+		expect(meter.statements).toBeLessThanOrEqual(
+			D1_QUERIES_PER_INVOCATION - AUTH_QUERY_RESERVE
+		);
+		meter.statements = 0;
 		await caller.ringGame.update({
 			id: game.id,
 			rule: { stakes, minBuyIn: 50 },
 		});
-		expect(statements).toBeLessThan(1000);
+		expect(meter.statements).toBeLessThanOrEqual(
+			D1_QUERIES_PER_INVOCATION - AUTH_QUERY_RESERVE
+		);
 		expect(game.ruleVersion.stakes).toHaveLength(MAX_LINEUP_GROUPS);
 		expect(game.lineups[game.ruleVersion.lineupId]?.groups).toHaveLength(
 			MAX_LINEUP_GROUPS
@@ -298,6 +472,12 @@ describe("ring game rule versions on D1", () => {
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		await expect(
 			api.alice.ringGame.update({ id: alice.id, defaultAssetId: asset.id })
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		await expect(
+			api.alice.ringGame.update({
+				id: alice.id,
+				rule: { stakes: [{ gameGroupId: bobNlh.groupId, blind1: 1 }] },
+			})
 		).rejects.toMatchObject({ code: "FORBIDDEN" });
 		const groups = await api.alice.gameGroup.list();
 		const lineupGroup =

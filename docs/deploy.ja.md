@@ -18,12 +18,12 @@ Worker は MCP エンドポイント（`/mcp`）と OAuth ディスカバリル�
 |------|---------|------|
 | **ローカル** | `bun run dev` | `wrangler dev`（Workers ローカルシミュレーション） |
 | **プレビュー** | PR 作成・同期・再オープン | PR ごとに独立した Worker と D1、共有 Pages プロジェクトの PR ブランチへデプロイ |
-| **dev** | `dev` への push | 常設の dev 環境（`sapphire2-api-dev`） |
-| **本番** | GitHub Release 公開 | CI 通過後に Worker + Pages をデプロイ |
+| **dev** | `dev` への push または workflow dispatch | Worker と Pages の URL は固定。D1 はデプロイごとに再作成してシード |
+| **本番** | GitHub Release 公開または workflow dispatch | CI 通過後に Worker + Pages をデプロイ |
 
 ## 2. 前提条件
 
-- [Cloudflare](https://dash.cloudflare.com/sign-up) アカウントと Workers Paid が必要。D1 の入力上限は Paid の Worker 1回の呼び出しあたり 1,000 クエリという制限から決めています。[v2 の決定事項](design/data-model-v2.md#201-decisions-confirmed-by-the-user)を参照。
+- [Cloudflare](https://dash.cloudflare.com/sign-up) アカウントと Workers Paid が必要。D1 の入力上限は Paid の Worker 1回の呼び出しあたり 1,000 クエリという制限から決めています。
 - GitHub リポジトリの管理者権限（Secrets 設定に必要）
 - [Bun](https://bun.sh/) がローカルにインストール済み
 - [Node.js](https://nodejs.org/) 22.16.0 以上がローカルにインストール済み（Cloudflare Wrangler CLI と Vitest の実行用。パッケージマネージャーは引き続き Bun）
@@ -58,6 +58,8 @@ DISCORD_CLIENT_SECRET=your-discord-client-secret
 `OPENAI_API_KEY` と `GOOGLE_MAPS_API_KEY` は、AI 抽出または Google Places 検索を使う場合だけ必要です。
 
 `apps/web/.env` は Vite クライアントを設定します。既定の `VITE_SERVER_URL` はローカル API の `http://localhost:8787` を指します。
+
+`BETTER_AUTH_URL` と `CORS_ORIGIN` は認証情報・パス・クエリ・フラグメントを含まない HTTP(S) origin にします。末尾のスラッシュは指定でき、正規化されます。
 
 ### 3.2 マイグレーション実行
 
@@ -212,11 +214,23 @@ Pages のデプロイまたはクリーンアップを行う全 workflow を更�
 
 ### 本番デプロイ
 
-`release.yml` が tag と GitHub Release を公開し、その tag を指定して `production-deploy.yml` を明示的に dispatch します。既定の `GITHUB_TOKEN` で作成した Release は別 workflow を再帰起動しないためです。`production-deploy.yml` は外部の `release: published` と手動 `workflow_dispatch` にも対応します。処理順は CI → マイグレーション → Worker デプロイ → Pages デプロイです。
+`release.yml` が tag と GitHub Release を公開し、その tag を指定して `production-deploy.yml` を明示的に dispatch します。既定の `GITHUB_TOKEN` で作成した Release は別 workflow を再帰起動しないためです。`production-deploy.yml` は外部の `release: published` と手動 `workflow_dispatch` にも対応します。処理順は CI → マイグレーション → [データ監査](design/data-audits.md) → Worker デプロイ → Pages デプロイです。監査は `bun scripts/audit-data-model.ts --remote --database sapphire2-db` を実行し、手動で再実行することもできます。監査失敗時は両方のデプロイを停止します。
 
 続いて `release.yml` は、[`scripts/release-linear-issues.ts`](../scripts/release-linear-issues.ts) でリリースに含まれる Linear の issue を Done から Released に移します。リリースの PR は、マージコミットが前回のタグから今回のリリースのマージまでの間にあるマージ済み PR です。issue は、その PR に Linear が紐付けたものです。移すのは Done の issue だけです。この step は失敗してもリリースを止めません。
 
 `concurrency` 設定により直列実行。CI job は PR の CI と同じ再利用 workflow [`checks.yml`](../.github/workflows/checks.yml) を呼ぶため、dev と本番のデプロイは同一のゲートを通る。失敗時はデプロイをスキップ。
+
+### プレビューと dev のデータベースシード
+
+dev の D1 はデプロイごとに再作成し、プレビューの D1 は初回以降再利用します。新規 DB は本番 DB の最新適用済みマイグレーションまで適用し、本番のデータのみをエクスポートしてシードした後、残りのマイグレーションを適用します。ダンプの `d1_migrations` 行は除外します。既存プレビュー DB は再シードせずマイグレーションを適用します。その後 dev では `bun scripts/audit-data-model.ts --remote --database sapphire2-db-dev --config apps/server/wrangler.toml` を実行します。クエリ失敗または違反があれば job は失敗し、Worker デプロイを停止します。監査はデータを修正せずステータスと行数を報告します。ローカルとリモートでの使い方は[監査一覧](design/data-audits.md)を参照してください。
+
+インポート時は派生行の重複を防ぐため `sqlite_master` から取得した trigger を一時削除します。終了時の trap は失敗時も trigger を復元し、復元失敗も job の失敗とします。SQLite は保存済み trigger 定義から `IF NOT EXISTS` を除去するため、復元ファイルは CREATE の前に DROP を付けます。外部キーはダンプ中だけ無効にし、別のインポートで有効化してから確認し、残りのマイグレーションを実行します。
+
+プレビューは DB 名を完全一致で解決します。名前重複エラー 7502 は既存 DB と扱い、それ以外の ID のない作成応答は再解決して新規扱いにします。Web ビルドは Releases API の未認証レート制限を避けるため `GITHUB_TOKEN` をプラグインに渡します。
+
+リリースノートは Claude action の structured output から取得し、空または不正な `release_notes` では公開しません。dispatch は `actions: write` とリリース tag を使用し、本番にリリース済みのツリーをデプロイします。
+
+復元によるマイグレーション復旧が必要なリリースでは、データ入力を停止し、前のデプロイ可能な tag を保持して、マイグレーション直前に `bunx wrangler d1 time-travel info sapphire2-db -c apps/server/wrangler.toml` で D1 Time Travel の bookmark を記録します。マイグレーションとデプロイの間は書き込みを行いません。マイグレーションまたは監査が失敗した場合は、部分適用されたチェーンの再試行や追加修正をせず、`bunx wrangler d1 time-travel restore sapphire2-db --bookmark=<bookmark> -c apps/server/wrangler.toml` で復元します。Worker が置き換わった場合は `gh workflow run production-deploy.yml --ref <previous tag>` で前の tag を再デプロイします。`dev` で修正とリハーサルを行ってから再試行します。復元すると bookmark 以降の書き込みは失われます。入力再開前にリリースを確認してください。適用する復旧方針は[マイグレーションルール](../.claude/rules/db-migrations.md)に従います。
 
 ## 8. 動作確認
 
@@ -251,7 +265,6 @@ Error: D1_ERROR
 
 `apps/server/wrangler.toml` の `d1_databases` の設定を確認。
 
-v2 切り替えには専用の[リリース手順](design/data-model-v2.md#168-final-release-runbook)があります。データ入力を停止し、D1 Time Travel の復元点を記録してから migration と監査を行い、その後 Worker と新 UI をデプロイします。失敗時は途中まで適用されたチェーンを再試行せず、記録した復元点に戻してください。
 
 ### Worker デプロイ失敗
 
@@ -300,7 +313,7 @@ PR close/merge
 ```
 push to dev
   |
-  +-> CI -> マイグレーション -> Worker デプロイ (sapphire2-api-dev) -> Pages デプロイ (dev)
+  +-> CI -> D1 再作成 -> 基礎マイグレーション -> シード -> 残りのマイグレーション -> 監査 -> Worker デプロイ (sapphire2-api-dev) -> Pages デプロイ (dev)
 ```
 
 ### 本番デプロイ（release PR マージ時または手動 dispatch）
@@ -314,7 +327,7 @@ release PR を main へマージ
         |     |
         |     +-> CI (型チェック, lint, テスト)
         |           |
-        |           +-> マイグレーション -> Worker デプロイ -> Pages デプロイ
+        |           +-> マイグレーション -> 監査 -> Worker デプロイ -> Pages デプロイ
         |
         +-> リリースに含まれる Linear の issue を Done から Released に移す
 ```

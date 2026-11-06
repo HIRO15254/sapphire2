@@ -1,28 +1,16 @@
 import { describe, expect } from "vitest";
 import type { TestD1Database } from "./test-database";
-import { insertRingGameFixture, test } from "./test-fixture";
+import {
+	FOREIGN_KEY_FAILED,
+	ids,
+	insert,
+	insertRingGameFixture,
+	test,
+} from "./test-fixture";
 
 type Row = Record<string, string | number | null>;
 
 const day = "2026-09-05";
-const FOREIGN_KEY_FAILED = "FOREIGN KEY constraint failed";
-
-function insert(d1: TestD1Database, table: string, row: Row) {
-	const columns = Object.keys(row);
-	return d1
-		.prepare(
-			`INSERT INTO ${table} (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`
-		)
-		.bind(...Object.values(row))
-		.run();
-}
-
-async function ids(d1: TestD1Database, table: string, key = "id") {
-	const rows = await d1
-		.prepare(`SELECT ${key} AS id FROM ${table} ORDER BY ${key}`)
-		.all<{ id: string }>();
-	return rows.results.map(({ id }) => id);
-}
 
 function entryRow(id: string, userId: string, overrides: Row = {}): Row {
 	return {

@@ -6,9 +6,9 @@ Pre-commit delegates changed-test selection to Vitest rather than passing every 
 
 ## API/D1 integration and browser infrastructure
 
-### Why local Miniflare/D1
+### Local Miniflare/D1
 
-At the initial assessment's base SHA `37371fd8`, Cloudflare's guidance recommended [`@cloudflare/vitest-plugin`](https://developers.cloudflare.com/workers/testing/vitest-integration/) and Wrangler's [`createTestHarness()`](https://developers.cloudflare.com/workers/testing/test-harness/); it did not assume the older `@cloudflare/vitest-pool-workers`. The minimal lockfile-compatible setup was tried. The new API required large dependency updates, so the implementation chose local Miniflare/D1 with the real repository migrations. This was neither a dependency downgrade nor a custom SQL interpreter. Local D1 does not prove production distributed behavior. The implementation and subsequent retirement of legacy test surfaces are traceable through [PR #603](https://github.com/HIRO15254/sapphire2/pull/603) and [PR #657](https://github.com/HIRO15254/sapphire2/pull/657), rather than a second, frozen inventory of current tests.
+Integration tests use local Miniflare/D1 with the repository's real migrations. Local D1 does not prove production distributed behavior. The [historical testing record](../archive/testing-and-tooling-history.md) describes the infrastructure selection and migration.
 
 ### Isolation and HTTP boundaries
 
@@ -30,15 +30,15 @@ The reusable [checks.yml](../../.github/workflows/checks.yml) separates static c
 
 [`packages/api/src/__tests__/test-utils.ts`](../../packages/api/src/__tests__/test-utils.ts) supplies shared helpers for schema checks and existing unit tests. SQL, ownership, persistence, and atomicity checks use real D1 through [`test-fixture.ts`](../../packages/api/src/__integration__/test-fixture.ts). Do not extend the existing mocks into a SQL interpreter.
 
-**`createChainableMockDb`** is a minimal chainable Drizzle-style mock `db` for exercising router procedures without a real database. Beyond resolving the rows configured per table, it records the bound params of every join and `where(...)` call on select/update/delete (`selectJoinParams`, `selectWhereParams` / `updateWhereParams` / `deleteWhereParams`), allowing assertions about predicate construction, not proof of SQL authorization (SA2-176, SA2-183). Execution is **eager**, unlike a real DB: an insert is already recorded when `.values()` runs, and `db.batch([...])` just awaits already-resolved statements together (SA2-116).
+**`createChainableMockDb`** is a minimal chainable Drizzle-style mock `db` for exercising router procedures without a real database. Beyond resolving the rows configured per table, it records the bound params of every join and `where(...)` call on select/update/delete (`selectJoinParams`, `selectWhereParams` / `updateWhereParams` / `deleteWhereParams`), allowing assertions about predicate construction, not proof of SQL authorization. Execution is **eager**, unlike a real DB: an insert is already recorded when `.values()` runs, and `db.batch([...])` just awaits already-resolved statements together.
 
-**The projection contract (c35).** A `select({ ... })` projection with a single-key aggregate (`{ maxSort: max(table.sortOrder) }`) collapses to one computed row like a real DB would. Every **other** select shape returns the configured rows unchanged — every existing fixture is written keyed by the query's **output** field names (including join projections that alias a joined table's column), so re-deriving keys from the Column reference would break that established convention.
+**The projection contract.** A `select({ ... })` projection with a single-key aggregate (`{ maxSort: max(table.sortOrder) }`) collapses to one computed row like a real DB would. Every **other** select shape returns the configured rows unchanged — fixtures are keyed by the query's **output** field names, including join aliases.
 
 **The mock-placeholder gotcha.** The mock's post-insert lookup does **not** filter by the freshly inserted id, so a create-path test whose procedure re-reads the row after inserting must seed a dummy pre-existing row for that table — otherwise the lookup resolves to nothing and the procedure's post-insert branch is silently never exercised.
 
 ## Seed tests: module replacement
 
-A test that `vi.mock`s the seed-constants module gets its own file, because the mock is module-wide. The two dedicated specs exist precisely because the real `DEFAULT_GAME_*` data cannot express their scenarios: [`seed-game-data-chunking.test.ts`](../../packages/api/src/__tests__/seed-game-data-chunking.test.ts) needs a mix wide enough to overflow D1's 100-bind-param cap, and [`seed-game-data-unresolvable-variant.test.ts`](../../packages/api/src/__tests__/seed-game-data-unresolvable-variant.test.ts) needs a mix whose `variantKeys` do not all resolve to a seeded variant.
+A test that `vi.mock`s the seed-constants module gets its own file, because the mock is module-wide. [`seed-game-data-unresolvable-variant.test.ts`](../../packages/api/src/__tests__/seed-game-data-unresolvable-variant.test.ts) supplies a mix whose `variantKeys` do not all resolve to a seeded variant. [`batch.test.ts`](../../packages/api/src/__tests__/batch.test.ts) covers chunk arithmetic.
 
 ## Web test gotchas
 
@@ -50,7 +50,7 @@ A test that `vi.mock`s the seed-constants module gets its own file, because the 
 
 Importing `@/utils/trpc` loads environment validation and the real client. Unit tests of isolated state may mock the required network dependencies; UI integration exercises the real client, QueryClient, and forms and controls only the HTTP boundary. Configure the environment with test URLs instead of requiring every jsdom test to replace the client. See [`web-platform.md`](web-platform.md) for the lazy environment proxy.
 
-The screen-integration helpers restored from `07e141e6` live in [`integration.tsx`](../../apps/web/src/__tests__/integration.tsx). `trpcHttpHandler` passes intercepted `/trpc/*` requests to a supplied test router through the tRPC fetch adapter, preserving batching and serialization; the test owns the router and MSW server lifecycle, including resetting handlers and rejecting unhandled frames with `server.listen({ onUnhandledFrame: "error" })`. `renderIntegrationPage` wraps a page in the supplied per-test QueryClient and a fresh memory router. Since jsdom has no animation timeline, it also sets animation-name to none so Radix Presence does not wait for an animationend event that cannot occur; such checks do not verify actual animations or layout. The handler's empty context is for test routers, not production authentication or database integration.
+The screen-integration helpers live in [`integration.tsx`](../../apps/web/src/__tests__/integration.tsx). `trpcHttpHandler` passes intercepted `/trpc/*` requests to a supplied test router through the tRPC fetch adapter, preserving batching and serialization; the test owns the router and MSW server lifecycle, including resetting handlers and rejecting unhandled frames with `server.listen({ onUnhandledFrame: "error" })`. `renderIntegrationPage` wraps a page in the supplied per-test QueryClient and a fresh memory router. Since jsdom has no animation timeline, it also sets animation-name to none so Radix Presence does not wait for an animationend event that cannot occur; such checks do not verify actual animations or layout. The handler's empty context is for test routers, not production authentication or database integration.
 
 [`trpc-keys.ts`](../../apps/web/src/__tests__/trpc-keys.ts) exposes keys from the real typed tRPC options proxy for cache tests; its client has no transport links and is not for making requests.
 
@@ -64,7 +64,7 @@ A create retains one temporary ID and timestamp across replays. On confirmation,
 
 Projection and rollback use the query selected when the mutation starts. Final invalidation follows the affected data, independently of the current selection. When cached variants of one procedure can overlap — a row written under one filter can also belong to the filter selected before completion — writes invalidate the procedure prefix, marking all cached variants stale and refetching active ones; a pending group on another variant reapplies its own projections over that refetch. When variants are disjoint, such as lists scoped to different parents, the mutation context retains the starting key for targeted invalidation instead of refetching an unrelated selected variant.
 
-The procedure prefix comes from `pathKey()` or `pathFilter()`, not `queryKey()`. The installed tRPC options proxy includes `type: "query"` in ordinary query keys and `type: "infinite"` in infinite keys; TanStack's partial matching treats them as distinct even without an input filter. Invalidation tests use the real options proxy for keys and control only query responses; flattening keys to `[namespace, procedure, input]` previously hid a complete failure to invalidate infinite caches. A screen-integration fixture should return joined fields only after the successful write is refetched, so an optimistic ID replacement alone cannot satisfy its list assertion.
+The procedure prefix comes from `pathKey()` or `pathFilter()`, not `queryKey()`. The installed tRPC options proxy includes `type: "query"` in ordinary query keys and `type: "infinite"` in infinite keys; TanStack's partial matching treats them as distinct even without an input filter. Invalidation tests use the real options proxy for keys and control only query responses. A screen-integration fixture should return joined fields only after the successful write is refetched, so an optimistic ID replacement alone cannot satisfy its list assertion.
 
 The rollback baseline follows successful query responses and authoritative cache replacements rather than remaining frozen at the first mutation. A query-cache subscription reapplies the active projections over that baseline, preserving server changes to other rows and fields during focus, reconnect, or manual refetches. The group suppresses its own cache events while restoring or replaying data. Other optimistic writers must join the group; an external cache replacement is treated as authoritative data, not another unregistered projection.
 
@@ -74,11 +74,11 @@ An initial apply exception restores the immediately preceding cache and does not
 
 ## Deterministic time in tests
 
-**`withTz`** ([`apps/web/src/__tests__/tz.ts`](../../apps/web/src/__tests__/tz.ts)) provides deterministic time-zone control for date-formatting tests (SA2-145 — CI/local divergence). Node/Bun re-reads `process.env.TZ` on every `Date` operation, so wrapping an assertion in `withTz` exercises a specific zone regardless of the host machine. Design points:
+**`withTz`** ([`apps/web/src/__tests__/tz.ts`](../../apps/web/src/__tests__/tz.ts)) provides deterministic time-zone control for date-formatting tests. Node/Bun re-reads `process.env.TZ` on every `Date` operation, so wrapping an assertion in `withTz` exercises a specific zone regardless of the host machine. Design points:
 
 - The pristine host zone is captured once at module load and restored in a `finally`, so a test can never leak a zone into sibling files sharing the same worker.
-- **When the host had no `TZ` set, the restore must actually delete the variable.** `process.env.TZ = undefined` coerces to the string `"undefined"`, which Node treats as an invalid zone and silently falls back to UTC (SA2-145) — leaking instead of restoring the pristine "no TZ" state. `Reflect.deleteProperty` is used because `lint/performance/noDelete` forbids the `delete` operator.
-- Canonical zones: `TZ_WEST = "America/Los_Angeles"` (reproduces the original off-by-one bug), `TZ_EAST = "Asia/Tokyo"`, plus UTC itself.
+- **When the host had no `TZ` set, the restore must actually delete the variable.** `process.env.TZ = undefined` coerces to the string `"undefined"`, which Node treats as an invalid zone and silently falls back to UTC. `Reflect.deleteProperty` is used because `lint/performance/noDelete` forbids the `delete` operator.
+- Canonical zones: `TZ_WEST = "America/Los_Angeles"`, `TZ_EAST = "Asia/Tokyo"`, plus UTC itself.
 
 The root [`vitest.config.ts`](../../vitest.config.ts) sets `process.env.TZ = "Asia/Tokyo"` before any project starts, for the same reason: date assertions must not depend on the host timezone, and a non-UTC zone makes any accidental local-getter usage fail loudly ([`.claude/rules/datetime-and-numbers.md`](../../.claude/rules/datetime-and-numbers.md)). It is the single pin for every Vitest project, locally and in CI; Playwright's `timezoneId` separately sets the emulated browser zone.
 
@@ -86,7 +86,7 @@ The root [`vitest.config.ts`](../../vitest.config.ts) sets `process.env.TZ = "As
 
 ## node:sqlite migration tests
 
-Migration specs (`packages/db/src/__tests__/migration-*.test.ts`, `preview-seed-restore.test.ts`) run against `node:sqlite` — a real SQLite engine, matching what D1 executes — inside the ordinary `db` Vitest project, so they are discovered, type-checked, and reported like every other test (SA2-425). They used `bun:sqlite` before; that only exists in the Bun runtime, so Vitest skipped the bodies and a separate `bun test` CI step plus a `check:rules` listing check had to close the resulting "runs nowhere, reports green" hole. One runner removes the hole instead of guarding it.
+Migration specs (`packages/db/src/__tests__/migration-*.test.ts`, `preview-seed-restore.test.ts`) run against `node:sqlite` — a real SQLite engine, matching what D1 executes — inside the ordinary `db` Vitest project, so they are discovered, type-checked, and reported like every other test.
 
 [`sqlite.ts`](../../packages/db/src/__tests__/sqlite.ts) is the shared harness: `openDatabase()`, migration listing and `--> statement-breakpoint` splitting, and typed row accessors. Differences from `bun:sqlite` that a ported or new spec must respect:
 
@@ -95,7 +95,7 @@ Migration specs (`packages/db/src/__tests__/migration-*.test.ts`, `preview-seed-
 
 The harness needs Node 22.16 or later (`setReturnArrays`; `node:sqlite` itself is unflagged from 22.13), which `engines.node` requires. Node 22 prints an `ExperimentalWarning` for `node:sqlite`; the warning is expected.
 
-The `applyThrough(db, marker)` helpers in [migration-0049.test.ts](../../packages/db/src/__tests__/migration-0049.test.ts) and [migration-0050.test.ts](../../packages/db/src/__tests__/migration-0050.test.ts) apply statements through the first match **without** a transaction, modelling the committed prefix left by a failed production migration. Replay-safe migrations use them to test self-healing retry under the [migration rules](../../.claude/rules/db-migrations.md#a-migration-file-is-not-one-transaction-in-production). The frozen v2 cutover is explicitly different: [data-model-v2 §16.4](data-model-v2.md#164-migration-authorship-and-abort-gates) and [§16.8](data-model-v2.md#168-final-release-runbook) require restore-and-fix, with no re-runnable-migration or `applyThrough` tests. That exception covers the pending v2 chain rehearsed and shipped under the production freeze, not future post-release migrations; other migrations retain replay-safe tests.
+The `applyThrough(db, marker)` helpers in [migration-0049.test.ts](../../packages/db/src/__tests__/migration-0049.test.ts) and [migration-0050.test.ts](../../packages/db/src/__tests__/migration-0050.test.ts) apply statements through the first match **without** a transaction, modelling the committed prefix left by a failed production migration. Replay-safe migrations use them to test self-healing retry under the [migration rules](../../.claude/rules/db-migrations.md#a-migration-file-is-not-one-transaction-in-production). The [frozen v2 cutover](../archive/data-model-v2-history.md#164-migration-authorship-and-abort-gates) instead uses restore-and-fix; that exception applies to its migration chain, not future migrations.
 
 ## The preview/dev seed-restore pipeline tests
 

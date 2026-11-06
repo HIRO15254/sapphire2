@@ -120,7 +120,6 @@ describe.for(kinds)("$kind on D1", ({ kind, table }) => {
 				alice.reorder({ ids: [second.id, first.id, id] })
 			).rejects.toMatchObject({
 				code: "FORBIDDEN",
-				message: "You do not own one or more of these tags",
 			});
 		}
 		await expect(
@@ -131,6 +130,33 @@ describe.for(kinds)("$kind on D1", ({ kind, table }) => {
 		});
 		expect(await alice.list()).toEqual(before);
 		expect(await tags(api.bob, kind).list()).toEqual([foreign]);
+	});
+
+	test.for([
+		"create",
+		"delete",
+	] as const)("reorder conflicts if a tag is changed by %s before its write", async (operation, {
+		api,
+	}) => {
+		const alice = tags(api.alice, kind);
+		const first = requireCreatedRow(await alice.create({ name: "First" }));
+		const second = requireCreatedRow(await alice.create({ name: "Second" }));
+		const raced = tags(
+			api.raceCaller("alice", () =>
+				operation === "create"
+					? alice.create({ name: "Third" })
+					: alice.delete({ id: first.id })
+			),
+			kind
+		);
+		await expect(
+			raced.reorder({ ids: [second.id, first.id] })
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		const remaining = await alice.list();
+		expect(remaining.find((tag) => tag.id === second.id)?.position).toBe(1);
+		expect(remaining.map((tag) => tag.name)).toEqual(
+			operation === "create" ? ["First", "Second", "Third"] : ["Second"]
+		);
 	});
 
 	test("a reorder of the maximum tag count stays inside the D1 query budget and the cap blocks one more", async ({

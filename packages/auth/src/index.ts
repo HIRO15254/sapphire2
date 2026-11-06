@@ -161,6 +161,7 @@ export function createAuth(
 					loginPage: options.mcp.loginPage,
 					consentPage: options.mcp.consentPage,
 					requirePKCE: true,
+					allowPlainCodeChallengeMethod: false,
 					allowDynamicClientRegistration: true,
 				},
 			})
@@ -224,7 +225,6 @@ export function createAuth(
 		account: {
 			accountLinking: {
 				enabled: true,
-				trustedProviders: ["google", "discord", "credential"],
 			},
 		},
 		databaseHooks: {

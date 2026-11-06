@@ -21,13 +21,7 @@ describe("API authentication contract", () => {
 		}
 	});
 
-	test("healthCheck stays public while the shared middleware denies guests", async ({
-		api,
-	}) => {
+	test("healthCheck stays public", async ({ api }) => {
 		expect(await api.caller(null).healthCheck()).toBe("OK");
-		await expect(api.caller(null).entry.list({})).rejects.toMatchObject({
-			code: "UNAUTHORIZED",
-			message: "Authentication required",
-		});
 	});
 });

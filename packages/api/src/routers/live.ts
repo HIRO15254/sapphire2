@@ -1,6 +1,10 @@
-import { END_STATES_REQUIRING_STACK } from "@sapphire2/db/constants/entry";
+import {
+	END_STATES_REQUIRING_STACK,
+	SETTLING_END_STATES,
+} from "@sapphire2/db/constants/entry";
 import { paymentsSchema } from "@sapphire2/db/constants/play-event-payloads";
 import { dateOnlySchema } from "@sapphire2/db/schemas/date-only";
+import { idSchema } from "@sapphire2/db/schemas/id";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { instantSchema } from "../lib/instant";
@@ -42,7 +46,6 @@ import {
 	tournamentCreateWithLevelsInputSchema,
 } from "./tournament";
 
-const idSchema = z.string().min(1);
 const memoSchema = z.string().max(5000);
 const positiveCountSchema = z.number().int().min(1);
 
@@ -78,7 +81,7 @@ export const liveCreateInputSchema = z.discriminatedUnion("kind", [
 export const liveCompleteInputSchema = z.object({
 	id: idSchema,
 	occurredAt: instantSchema.optional(),
-	endState: z.enum(["cashed_out", "busted", "finished"]),
+	endState: z.enum(SETTLING_END_STATES),
 	payments: paymentsSchema(["cash_out", "prize", "bounty"]).max(
 		MAX_ENTRY_PAYMENTS
 	),

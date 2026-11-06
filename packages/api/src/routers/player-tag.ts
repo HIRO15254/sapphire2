@@ -3,6 +3,7 @@ import {
 	type TagColor,
 } from "@sapphire2/db/constants/player-tag-colors";
 import { playerTag } from "@sapphire2/db/schema/player";
+import { idSchema } from "@sapphire2/db/schemas/id";
 import z from "zod";
 import {
 	createTagRouter,
@@ -24,7 +25,7 @@ export const playerTagCreateInputSchema = z.object({
 
 export const playerTagUpdateInputSchema = z
 	.object({
-		id: z.string(),
+		id: idSchema,
 		name: tagNameSchema.optional(),
 		color: colorSchema.optional(),
 	})

@@ -362,6 +362,8 @@ const COMMENT_GLOBS = [
 	"apps/**/*.{ts,tsx}",
 	"packages/**/*.{ts,tsx}",
 	"scripts/**/*.{ts,tsx}",
+	"e2e/**/*.{ts,tsx}",
+	"testing/**/*.{ts,tsx}",
 ];
 const COMMENT_EXCLUDE_PATH = /routeTree\.gen\.ts$/;
 const COMMENT_LINE = /^\s*(?:\/\/|\/\*|\*\/|\*(?![\w([])|\{\/\*)/;

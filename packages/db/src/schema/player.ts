@@ -1,4 +1,4 @@
-import { relations, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
 	check,
 	index,
@@ -48,30 +48,3 @@ export const { tag: playerTag, link: playerTagLink } = defineTagTables(
 		linkColumns: { position: integer("position").notNull().default(0) },
 	}
 );
-
-export const playerRelations = relations(player, ({ one, many }) => ({
-	user: one(user, {
-		fields: [player.userId],
-		references: [user.id],
-	}),
-	tagLinks: many(playerTagLink),
-}));
-
-export const playerTagRelations = relations(playerTag, ({ one, many }) => ({
-	user: one(user, {
-		fields: [playerTag.userId],
-		references: [user.id],
-	}),
-	links: many(playerTagLink),
-}));
-
-export const playerTagLinkRelations = relations(playerTagLink, ({ one }) => ({
-	player: one(player, {
-		fields: [playerTagLink.playerId, playerTagLink.userId],
-		references: [player.id, player.userId],
-	}),
-	tag: one(playerTag, {
-		fields: [playerTagLink.tagId, playerTagLink.userId],
-		references: [playerTag.id, playerTag.userId],
-	}),
-}));

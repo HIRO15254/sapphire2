@@ -10,10 +10,10 @@ import { eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
 import { runBatch } from "../lib/batch";
 import {
-	applyEntryEventChange,
 	buildLiveEntryStartStatements,
+	commitEntryEventChange,
+	loadEntryEventState,
 } from "../services/entry-live-writes";
-import { buildProjectionLineStatements } from "../services/entry-projector";
 import { planEntryRule } from "../services/entry-rules";
 import { buildAdjustmentStatements } from "../services/ledger-writes";
 import {
@@ -67,7 +67,6 @@ async function startLiveCash(db: Database, id: string, assetId: string) {
 			},
 			assetId,
 			roomId: null,
-			title: null,
 			memo: null,
 			localDate: "2026-09-05",
 			now: NOW,
@@ -77,11 +76,12 @@ async function startLiveCash(db: Database, id: string, assetId: string) {
 			},
 		})
 	);
-	const { projection } = await applyEntryEventChange(
-		db,
-		"alice",
-		id,
-		{
+	const state = await loadEntryEventState(db, "alice", id);
+	await commitEntryEventChange(db, {
+		userId: "alice",
+		entryId: id,
+		state,
+		change: {
 			op: "append",
 			events: [
 				{
@@ -91,17 +91,8 @@ async function startLiveCash(db: Database, id: string, assetId: string) {
 				},
 			],
 		},
-		NOW
-	);
-	await runBatch(
-		db,
-		buildProjectionLineStatements(
-			db,
-			{ entryId: id, userId: "alice" },
-			projection.lines,
-			NOW
-		)
-	);
+		now: NOW,
+	});
 }
 
 async function createCurrency(api: ApiFixture, name: string) {
@@ -203,6 +194,43 @@ describe("asset balances on D1", () => {
 });
 
 describe("asset references on D1", () => {
+	test("tournament price and default references freeze and protect their assets", async ({
+		api,
+	}) => {
+		const priced = await createCurrency(api, "Priced");
+		const defaultAsset = await createCurrency(api, "Default");
+		const room = requireCreatedRow(
+			await api.alice.room.create({ name: "Hall" })
+		);
+		await api.alice.tournament.create({
+			roomId: room.id,
+			name: "Main",
+			defaultAssetId: defaultAsset.id,
+			rule: {
+				prices: [
+					{
+						kind: "entry",
+						assetId: priced.id,
+						amount: 1000,
+						fee: 0,
+						chips: null,
+					},
+				],
+			},
+		});
+		for (const assetId of [priced.id, defaultAsset.id]) {
+			await expect(
+				api.alice.asset.delete({ id: assetId })
+			).rejects.toMatchObject(IN_USE);
+			await expect(
+				api.alice.asset.update({ id: assetId, kind: "item" })
+			).rejects.toMatchObject({ code: "CONFLICT" });
+			await expect(
+				api.alice.asset.update({ id: assetId, decimals: 2 })
+			).rejects.toMatchObject({ code: "CONFLICT" });
+		}
+	});
+
 	test("delete refuses an asset any ledger line, rate, entry or setting references, pointing to archive, and keeps every reference", async ({
 		api,
 	}) => {
@@ -323,6 +351,17 @@ describe("asset references on D1", () => {
 });
 
 describe("asset writes on D1", () => {
+	test("concurrent favorite toggles both take effect", async ({ api }) => {
+		const created = await createCurrency(api, "Favorite");
+		await Promise.all([
+			api.alice.asset.toggleFavorite({ id: created.id }),
+			api.alice.asset.toggleFavorite({ id: created.id }),
+		]);
+		expect(await api.alice.asset.getById({ id: created.id })).toMatchObject({
+			isFavorite: false,
+		});
+	});
+
 	test("undoing a unit change with the previous value, null included, restores the asset", async ({
 		api,
 	}) => {
@@ -374,6 +413,39 @@ describe("asset writes on D1", () => {
 });
 
 describe("asset rates on D1", () => {
+	test("rates require active assets, including at commit time", async ({
+		api,
+	}) => {
+		const base = await createCurrency(api, "Base");
+		const quote = await createCurrency(api, "Quote");
+		const input = {
+			baseAssetId: base.id,
+			quoteAssetId: quote.id,
+			rateNum: 1,
+			rateDen: 1,
+			effectiveFrom: 100,
+		};
+		const created = requireCreatedRow(await api.alice.assetRate.create(input));
+		await api.alice.asset.archive({ id: base.id });
+		await expect(
+			api.alice.assetRate.create({ ...input, effectiveFrom: 101 })
+		).rejects.toMatchObject(BAD_REQUEST);
+		await api.alice.asset.restore({ id: base.id });
+		await api.alice.asset.archive({ id: quote.id });
+		await expect(
+			api.alice.assetRate.create({ ...input, effectiveFrom: 102 })
+		).rejects.toMatchObject(BAD_REQUEST);
+		await api.alice.assetRate.delete({ id: created.id });
+		await api.alice.asset.restore({ id: quote.id });
+		const raced = api.raceCaller("alice", () =>
+			api.alice.asset.archive({ id: quote.id })
+		);
+		await expect(
+			raced.assetRate.create({ ...input, effectiveFrom: 103 })
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		expect(await api.alice.assetRate.list()).toHaveLength(0);
+	});
+
 	test("list returns the history, or the latest rate at or before effectiveAt for each directed pair", async ({
 		api,
 	}) => {

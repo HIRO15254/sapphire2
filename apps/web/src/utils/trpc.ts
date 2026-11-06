@@ -6,6 +6,10 @@ import { QueryClient } from "@tanstack/react-query";
 import { createTRPCClient, httpBatchLink } from "@trpc/client";
 import { createTRPCOptionsProxy } from "@trpc/tanstack-react-query";
 import { del, get, set } from "idb-keyval";
+import { createElement } from "react";
+import { toast } from "sonner";
+import { Toast } from "@/shared/components/ui/sonner";
+import { isConcurrentChange } from "@/shared/lib/query-failure";
 
 export const queryClient = new QueryClient({
 	defaultOptions: {
@@ -18,6 +22,29 @@ export const queryClient = new QueryClient({
 			networkMode: "offlineFirst",
 		},
 	},
+});
+
+queryClient.getMutationCache().subscribe((event) => {
+	if (event.type !== "updated" || event.action.type !== "error") {
+		return;
+	}
+	const error = event.action.error;
+	if (!isConcurrentChange(error)) {
+		return;
+	}
+	toast.custom(
+		() =>
+			createElement(Toast, { variant: "destructive", title: error.message }),
+		{
+			duration: 6000,
+			unstyled: true,
+			classNames: {
+				toast: "!border-0 !bg-transparent !p-0 !shadow-[none]",
+				content: "!w-full",
+			},
+		}
+	);
+	queryClient.invalidateQueries();
 });
 
 export const persister = createAsyncStoragePersister({

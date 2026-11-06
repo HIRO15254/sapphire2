@@ -1,4 +1,4 @@
-import { asset, assetRelations } from "./schema/asset";
+import { asset } from "./schema/asset";
 import {
 	account,
 	accountRelations,
@@ -11,63 +11,27 @@ import {
 import {
 	entry,
 	entryCash,
-	entryCashRelations,
-	entryRelations,
 	entryTournament,
-	entryTournamentRelations,
 	playEvent,
-	playEventRelations,
 	playSession,
-	playSessionRelations,
 } from "./schema/entry";
-import {
-	entryTag,
-	entryTagLink,
-	entryTagLinkRelations,
-	entryTagRelations,
-} from "./schema/entry-tag";
-import { filterPreset, filterPresetRelations } from "./schema/filter-preset";
-import { gameGroup, gameGroupRelations } from "./schema/game-group";
+import { entryTag, entryTagLink } from "./schema/entry-tag";
+import { filterPreset } from "./schema/filter-preset";
+import { gameGroup } from "./schema/game-group";
 import {
 	gameLineup,
 	gameLineupGroup,
-	gameLineupGroupRelations,
-	gameLineupRelations,
 	gameLineupVariant,
-	gameLineupVariantRelations,
 } from "./schema/game-lineup";
-import {
-	gameMix,
-	gameMixRelations,
-	gameMixVariant,
-	gameMixVariantRelations,
-} from "./schema/game-mix";
-import { gameVariant, gameVariantRelations } from "./schema/game-variant";
-import {
-	hand,
-	handAction,
-	handActionRelations,
-	handBoard,
-	handBoardRelations,
-	handRelations,
-	handSeat,
-	handSeatRelations,
-} from "./schema/hand";
-import {
-	handTag,
-	handTagLink,
-	handTagLinkRelations,
-	handTagRelations,
-} from "./schema/hand-tag";
+import { gameMix, gameMixVariant } from "./schema/game-mix";
+import { gameVariant } from "./schema/game-variant";
+import { hand, handAction, handBoard, handSeat } from "./schema/hand";
+import { handTag, handTagLink } from "./schema/hand-tag";
 import {
 	assetRate,
-	assetRateRelations,
 	ledgerCategory,
-	ledgerCategoryRelations,
 	ledgerLine,
-	ledgerLineRelations,
 	userSetting,
-	userSettingRelations,
 } from "./schema/ledger";
 import {
 	oauthAccessToken,
@@ -78,41 +42,21 @@ import {
 	oauthConsentRelations,
 } from "./schema/oauth";
 import { passkey, passkeyRelations } from "./schema/passkey";
-import {
-	player,
-	playerRelations,
-	playerTag,
-	playerTagLink,
-	playerTagLinkRelations,
-	playerTagRelations,
-} from "./schema/player";
-import { ringGame, ringGameRelations } from "./schema/ring-game";
-import { room, roomRelations } from "./schema/room";
+import { player, playerTag, playerTagLink } from "./schema/player";
+import { ringGame } from "./schema/ring-game";
+import { room } from "./schema/room";
 import {
 	cashRule,
-	cashRuleRelations,
 	cashRuleStake,
-	cashRuleStakeRelations,
 	tournamentRule,
 	tournamentRuleLevel,
-	tournamentRuleLevelRelations,
 	tournamentRuleLevelStake,
-	tournamentRuleLevelStakeRelations,
 	tournamentRulePrice,
-	tournamentRulePriceRelations,
-	tournamentRuleRelations,
 } from "./schema/rule";
-import { tournament, tournamentRelations } from "./schema/tournament";
-import {
-	tournamentTag,
-	tournamentTagLink,
-	tournamentTagLinkRelations,
-	tournamentTagRelations,
-} from "./schema/tournament-tag";
-import {
-	updateNoteView,
-	updateNoteViewRelations,
-} from "./schema/update-note-view";
+import { tournament } from "./schema/tournament";
+import { tournamentTag, tournamentTagLink } from "./schema/tournament-tag";
+import { updateNoteView } from "./schema/update-note-view";
+import { writeGuard } from "./schema/write-guard";
 
 export const schema = {
 	account,
@@ -123,35 +67,20 @@ export const schema = {
 	userRelations,
 	verification,
 	room,
-	roomRelations,
 	asset,
-	assetRelations,
 	ringGame,
-	ringGameRelations,
 	tournament,
-	tournamentRelations,
 	tournamentTag,
-	tournamentTagRelations,
 	tournamentTagLink,
-	tournamentTagLinkRelations,
 	player,
-	playerRelations,
 	gameMixVariant,
-	gameMixVariantRelations,
 	playerTag,
-	playerTagRelations,
 	playerTagLink,
-	playerTagLinkRelations,
 	updateNoteView,
-	updateNoteViewRelations,
 	gameGroup,
-	gameGroupRelations,
 	gameVariant,
-	gameVariantRelations,
 	gameMix,
-	gameMixRelations,
 	filterPreset,
-	filterPresetRelations,
 	oauthApplication,
 	oauthApplicationRelations,
 	oauthAccessToken,
@@ -161,55 +90,30 @@ export const schema = {
 	passkey,
 	passkeyRelations,
 	entry,
-	entryRelations,
 	gameLineup,
-	gameLineupRelations,
 	gameLineupGroup,
-	gameLineupGroupRelations,
 	gameLineupVariant,
-	gameLineupVariantRelations,
 	cashRule,
-	cashRuleRelations,
 	cashRuleStake,
-	cashRuleStakeRelations,
 	tournamentRule,
-	tournamentRuleRelations,
 	tournamentRuleLevel,
-	tournamentRuleLevelRelations,
 	tournamentRuleLevelStake,
-	tournamentRuleLevelStakeRelations,
 	tournamentRulePrice,
-	tournamentRulePriceRelations,
 	entryCash,
-	entryCashRelations,
 	entryTournament,
-	entryTournamentRelations,
 	playSession,
-	playSessionRelations,
 	playEvent,
-	playEventRelations,
 	entryTag,
-	entryTagRelations,
 	entryTagLink,
-	entryTagLinkRelations,
 	handTag,
-	handTagRelations,
 	handTagLink,
-	handTagLinkRelations,
 	hand,
-	handRelations,
 	handBoard,
-	handBoardRelations,
 	handSeat,
-	handSeatRelations,
 	handAction,
-	handActionRelations,
 	assetRate,
-	assetRateRelations,
 	ledgerCategory,
-	ledgerCategoryRelations,
 	ledgerLine,
-	ledgerLineRelations,
 	userSetting,
-	userSettingRelations,
+	writeGuard,
 };

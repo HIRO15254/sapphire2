@@ -13,7 +13,6 @@ export default defineConfig({
 	use: {
 		baseURL: "https://localhost:13001",
 		ignoreHTTPSErrors: true,
-		// Service workers also fetch the local Miniflare self-signed certificate.
 		launchOptions: { args: ["--ignore-certificate-errors"] },
 		locale: "en-US",
 		timezoneId: "Asia/Tokyo",

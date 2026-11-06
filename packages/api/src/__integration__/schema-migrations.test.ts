@@ -45,11 +45,13 @@ type DeclaredIndex = ReturnType<
 const INDEX_EXPRESSIONS: Record<string, string> = {
 	asset_name_uq: 'lower(trim("name"))',
 	entry_tag_name_uq: 'lower(trim("name"))',
+	filterPreset_userId_screenKey_name_idx: "name COLLATE NOCASE",
 	game_group_label_uq: 'lower(trim("label"))',
 	game_mix_label_uq: 'lower(trim("label"))',
 	game_variant_label_uq: 'lower(trim("label"))',
 	hand_tag_name_uq: 'lower(trim("name"))',
 	ledger_category_user_name_unique: 'lower(trim("name"))',
+	play_event_user_player_ref_idx: "json_extract(payload, '$.playerId')",
 	player_tag_name_uq: 'lower(trim("name"))',
 	tournament_tag_name_uq: 'lower(trim("name"))',
 };
@@ -150,9 +152,11 @@ describe("application schema agrees with the installed production migrations", (
 			const installedIndexColumns = new Map<string, string[]>();
 			for (const index of indexes.results) {
 				const columns = await api.d1
-					.prepare("SELECT name FROM pragma_index_info(?) ORDER BY seqno")
+					.prepare(
+						"SELECT name, coll FROM pragma_index_xinfo(?) WHERE key = 1 ORDER BY seqno"
+					)
 					.bind(index.name)
-					.all<{ name: string | null }>();
+					.all<{ coll: string; name: string | null }>();
 				const definition = await api.d1
 					.prepare(
 						"SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?"
@@ -162,9 +166,9 @@ describe("application schema agrees with the installed production migrations", (
 				const expression = INDEX_EXPRESSIONS[index.name];
 				installedIndexColumns.set(
 					index.name,
-					columns.results.map(({ name }) => {
+					columns.results.map(({ coll, name }) => {
 						if (name !== null) {
-							return name;
+							return coll === "BINARY" ? name : `${name} COLLATE ${coll}`;
 						}
 						return expression && definition?.sql?.includes(expression)
 							? expression

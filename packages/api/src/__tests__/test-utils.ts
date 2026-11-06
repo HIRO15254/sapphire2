@@ -128,9 +128,7 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 	const updated: Record<string, unknown[]> = {};
 	const selectedTables: string[] = [];
 	const selectWhereParams: unknown[][] = [];
-	const selectJoinParams: unknown[][] = [];
 	const selectLimits: unknown[] = [];
-	const updateWhereParams: unknown[][] = [];
 	const deleteWhereParams: unknown[][] = [];
 
 	function makeSelectChain(rows: MockRow[]) {
@@ -145,10 +143,7 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 			return chain;
 		};
 		chain.orderBy = () => chain;
-		chain.leftJoin = (_table: unknown, cond: unknown) => {
-			selectJoinParams.push(boundParams(cond));
-			return chain;
-		};
+		chain.leftJoin = () => chain;
 		chain.innerJoin = chain.leftJoin;
 		return chain;
 	}
@@ -175,6 +170,7 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 			chain.onConflictDoUpdate = () => chain;
 			return chain;
 		}),
+		select: vi.fn(() => Promise.resolve(undefined)),
 	}));
 	const del = vi.fn((table: unknown) => ({
 		where: vi.fn((cond: unknown) => {
@@ -194,8 +190,7 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 			bucket.push(values);
 			updated[name] = bucket;
 			return {
-				where: vi.fn((cond: unknown) => {
-					updateWhereParams.push(boundParams(cond));
+				where: vi.fn(() => {
 					const chain = Promise.resolve(undefined) as Promise<undefined> & {
 						returning: () => Promise<MockRow[]>;
 					};
@@ -213,10 +208,8 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 
 	return {
 		db,
-		selectJoinParams,
 		selectLimits,
 		selectWhereParams,
-		updateWhereParams,
 		deleteWhereParams,
 		select,
 		insert,

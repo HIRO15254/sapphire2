@@ -11,6 +11,41 @@ const conflictMessage =
 	"This room is referenced by sessions or games. Archive the room instead of deleting it.";
 
 describe("room lifecycle on D1", () => {
+	for (const operation of [
+		"update",
+		"archive",
+		"restore",
+		"toggleFavorite",
+	] as const) {
+		test(`${operation} rejects a concurrent room deletion`, async ({ api }) => {
+			const club = requireCreatedRow(
+				await api.alice.room.create({ name: "Club" })
+			);
+			const caller = api.raceCaller("alice", () =>
+				api.alice.room.delete({ id: club.id })
+			);
+			await expect(
+				caller.room[operation]({ id: club.id })
+			).rejects.toMatchObject({
+				code: "FORBIDDEN",
+			});
+			expect(await api.db.select().from(room)).toEqual([]);
+		});
+	}
+
+	test("concurrent favorite toggles both take effect", async ({ api }) => {
+		const club = requireCreatedRow(
+			await api.alice.room.create({ name: "Club" })
+		);
+		await Promise.all([
+			api.alice.room.toggleFavorite({ id: club.id }),
+			api.alice.room.toggleFavorite({ id: club.id }),
+		]);
+		expect((await api.alice.room.getById({ id: club.id })).isFavorite).toBe(
+			false
+		);
+	});
+
 	for (const reference of ["entry", "ring game", "tournament"] as const) {
 		test(`refuses deleting a room referenced by a ${reference} and preserves its children`, async ({
 			api,
@@ -186,6 +221,8 @@ describe("room lifecycle on D1", () => {
 		const before = await api.db.select().from(room);
 		for (const id of [club.id, "missing"]) {
 			for (const mutate of [
+				api.alice.room.update,
+				api.alice.room.toggleFavorite,
 				api.alice.room.archive,
 				api.alice.room.restore,
 				api.alice.room.delete,

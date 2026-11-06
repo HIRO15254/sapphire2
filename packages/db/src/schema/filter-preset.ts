@@ -1,4 +1,4 @@
-import { relations, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
 	check,
 	index,
@@ -42,17 +42,10 @@ export const filterPreset = sqliteTable(
 		uniqueIndex("filterPreset_userId_screenKey_name_idx").on(
 			table.userId,
 			table.screenKey,
-			table.name
+			sql`${table.name} COLLATE NOCASE`
 		),
 		uniqueIndex("filterPreset_userId_screenKey_defaultUnique_idx")
 			.on(table.userId, table.screenKey)
 			.where(sql`${table.isDefault} = 1`),
 	]
 );
-
-export const filterPresetRelations = relations(filterPreset, ({ one }) => ({
-	user: one(user, {
-		fields: [filterPreset.userId],
-		references: [user.id],
-	}),
-}));

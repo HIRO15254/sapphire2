@@ -64,6 +64,47 @@ async function versionCount(api: ApiFixture): Promise<number> {
 }
 
 describe("tournament rule versions on D1", () => {
+	test("rejects a rule edit planned before another edit commits", async ({
+		api,
+	}) => {
+		const room = requireCreatedRow(
+			await api.alice.room.create({ name: "Club" })
+		);
+		const created = await api.alice.tournament.create({
+			roomId: room.id,
+			name: "Daily",
+			rule: {},
+		});
+		const raced = api.raceCaller("alice", async () => {
+			await api.alice.tournament.update({
+				id: created.id,
+				rule: { startingStack: 10_000 },
+			});
+		});
+		await expect(
+			raced.tournament.update({
+				id: created.id,
+				rule: { startingStack: 20_000 },
+			})
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		const saved = await api.alice.tournament.getById({ id: created.id });
+		expect(saved.ruleVersion.startingStack).toBe(10_000);
+		expect(await versionCount(api)).toBe(2);
+	});
+
+	test("does not create a tournament in an archived room", async ({ api }) => {
+		const room = requireCreatedRow(
+			await api.alice.room.create({ name: "Club" })
+		);
+		await api.alice.room.archive({ id: room.id });
+		await expect(
+			api.alice.tournament.create({ roomId: room.id, name: "Daily", rule: {} })
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(await api.alice.tournament.listByRoom({ roomId: room.id })).toEqual(
+			[]
+		);
+	});
+
 	test("saves whole versions, reuses an unchanged one, and restoreRule repoints without a new version", async ({
 		api,
 	}) => {
@@ -192,6 +233,33 @@ describe("tournament rule versions on D1", () => {
 		expect(await versionCount(api)).toBe(2);
 	});
 
+	test("a metadata update preserves independently changed fields and rule selection", async ({
+		api,
+	}) => {
+		const { room } = await setup(api);
+		const created = await api.alice.tournament.create({
+			roomId: room.id,
+			name: "Original",
+			rule: {},
+		});
+		await api.alice.tournament.update({
+			id: created.id,
+			rule: { startingStack: 5000 },
+		});
+		await api.d1
+			.prepare(
+				"CREATE TRIGGER concurrent_tournament_change BEFORE UPDATE OF updated_at ON tournament BEGIN UPDATE tournament SET name = 'Changed', current_rule_id = (SELECT parent_rule_id FROM tournament_rule WHERE id = OLD.current_rule_id) WHERE id = OLD.id; END"
+			)
+			.run();
+		const updated = await api.alice.tournament.update({
+			id: created.id,
+			memo: "Note",
+		});
+		expect(updated.name).toBe("Changed");
+		expect(updated.currentRuleId).toBe(created.currentRuleId);
+		expect(updated.memo).toBe("Note");
+	});
+
 	test("changing the default game moves inheriting levels and carries stakes by game group and occurrence", async ({
 		api,
 	}) => {
@@ -270,6 +338,69 @@ describe("tournament rule versions on D1", () => {
 		]);
 	});
 
+	test("archived price assets may be retained but not added to more prices", async ({
+		api,
+	}) => {
+		const { room, cash, ticket } = await setup(api);
+		const price = {
+			kind: "entry" as const,
+			assetId: cash.id,
+			amount: 100,
+			fee: 0,
+			chips: null,
+		};
+		const created = await api.alice.tournament.create({
+			roomId: room.id,
+			name: "Daily",
+			rule: { prices: [price, { ...price, kind: "reentry" }] },
+		});
+		await api.alice.asset.archive({ id: cash.id });
+		await expect(
+			api.alice.tournament.create({
+				roomId: room.id,
+				name: "Archived asset",
+				rule: { prices: [price] },
+			})
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		const carried = await api.alice.tournament.update({
+			id: created.id,
+			rule: { startingStack: 5000 },
+		});
+		expect(carried.ruleVersion.prices).toHaveLength(2);
+		const retained = await api.alice.tournament.update({
+			id: created.id,
+			rule: {
+				prices: [
+					{ ...price, amount: 200 },
+					{ ...price, kind: "addon", assetId: ticket.id },
+					{ ...price, kind: "reentry" },
+				],
+			},
+		});
+		expect(retained.ruleVersion.prices).toHaveLength(3);
+		const versions = await versionCount(api);
+		await expect(
+			api.alice.tournament.update({
+				id: created.id,
+				rule: { prices: [price, price, price] },
+			})
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(await versionCount(api)).toBe(versions);
+		const after = await api.alice.tournament.getById({ id: created.id });
+		expect(after.currentRuleId).toBe(retained.currentRuleId);
+		const reduced = await api.alice.tournament.update({
+			id: created.id,
+			rule: { prices: [price] },
+		});
+		expect(reduced.ruleVersion.prices).toHaveLength(1);
+		await expect(
+			api.alice.tournament.update({
+				id: created.id,
+				rule: { prices: [price, price] },
+			})
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+	});
+
 	test("rejects invalid stakes, games on breaks and foreign or misplaced references without moving the pointer", async ({
 		api,
 	}) => {
@@ -303,6 +434,23 @@ describe("tournament rule versions on D1", () => {
 						},
 					}),
 				"BAD_REQUEST",
+			],
+			[
+				() =>
+					api.alice.tournament.update({
+						id: created.id,
+						rule: {
+							levels: [
+								{
+									isBreak: false,
+									stakes: [
+										{ gameGroupId: bobVariants[0]?.groupId ?? "missing" },
+									],
+								},
+							],
+						},
+					}),
+				"FORBIDDEN",
 			],
 			[
 				() =>

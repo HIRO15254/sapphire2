@@ -72,6 +72,85 @@ async function cashVersions(api: ApiFixture) {
 }
 
 describe("entry rule operations on D1", () => {
+	test("rejects a rule change when a concurrent seat move no longer fits", async ({
+		api,
+	}) => {
+		const { ringA } = await cashSetup(api);
+		const jpy = requireCreatedRow(
+			await api.alice.asset.create({ name: "JPY", kind: "currency" })
+		);
+		const started = await api.alice.live.create({
+			kind: "cash",
+			ringGameId: ringA.id,
+			startedAt: Math.floor(Date.now() / 1000) - HOUR,
+			payments: [
+				{ role: "buy_in", assetId: jpy.id, quantity: 100, effect: "real" },
+			],
+		});
+		const player = requireCreatedRow(
+			await api.alice.player.create({ name: "Villain" })
+		);
+		await api.alice.tablePlayer.add({
+			entryId: started.id,
+			playerId: player.id,
+			seatPosition: 2,
+		});
+		const raced = api.raceCaller("alice", async () => {
+			await api.alice.tablePlayer.updateSeat({
+				entryId: started.id,
+				playerId: player.id,
+				seatPosition: 7,
+			});
+		});
+		await expect(
+			raced.live.overrideRule({
+				id: started.id,
+				kind: "cash",
+				rule: { tableSize: 6 },
+			})
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		expect(
+			(await api.alice.live.getById({ id: started.id })).ruleVersionId
+		).toBe(started.ruleVersionId);
+	});
+
+	test("rejects a seat add when a concurrent rule change shrinks the table", async ({
+		api,
+	}) => {
+		const { ringA } = await cashSetup(api);
+		const jpy = requireCreatedRow(
+			await api.alice.asset.create({ name: "JPY", kind: "currency" })
+		);
+		const started = await api.alice.live.create({
+			kind: "cash",
+			ringGameId: ringA.id,
+			startedAt: Math.floor(Date.now() / 1000) - HOUR,
+			payments: [
+				{ role: "buy_in", assetId: jpy.id, quantity: 100, effect: "real" },
+			],
+		});
+		const player = requireCreatedRow(
+			await api.alice.player.create({ name: "Villain" })
+		);
+		const raced = api.raceCaller("alice", async () => {
+			await api.alice.live.overrideRule({
+				id: started.id,
+				kind: "cash",
+				rule: { tableSize: 6 },
+			});
+		});
+		await expect(
+			raced.tablePlayer.add({
+				entryId: started.id,
+				playerId: player.id,
+				seatPosition: 7,
+			})
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		expect(
+			(await api.alice.live.getById({ id: started.id })).ruleVersion.tableSize
+		).toBe(6);
+	});
+
 	test("override, apply, push and relink repoint versions by id, and restoreRule returns ids, drift and content to the previous state", async ({
 		api,
 	}) => {
@@ -243,6 +322,159 @@ describe("entry rule operations on D1", () => {
 				[null, null],
 			].sort()
 		);
+	});
+
+	test("relink permits an existing archived master but rejects selecting another archived master", async ({
+		api,
+	}) => {
+		const { ringA, ringB } = await cashSetup(api);
+		const created = await api.alice.entry.create({
+			kind: "cash",
+			playedOn: "2026-09-01",
+			ringGameId: ringA.id,
+		});
+		await api.alice.ringGame.archive({ id: ringA.id });
+		await api.alice.ringGame.archive({ id: ringB.id });
+		const kept = await api.alice.entry.relink({
+			id: created.id,
+			ringGameId: ringA.id,
+			keepRule: true,
+		});
+		expect(kept.ruleVersionId).toBe(created.ruleVersionId);
+		await expect(
+			api.alice.entry.relink({
+				id: created.id,
+				ringGameId: ringB.id,
+				keepRule: true,
+			})
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+	});
+
+	test("relink rejects copying cash and tournament stakes that no longer meet blind requirements", async ({
+		api,
+	}) => {
+		const room = requireCreatedRow(
+			await api.alice.room.create({ name: "Hall" })
+		);
+		const nlhRule = await nlhGame(api.db);
+		const group = requireCreatedRow(
+			await api.alice.gameGroup.create({
+				label: "Custom",
+				blind1Label: "Small",
+				blind2Label: "Big",
+			})
+		);
+		const variant = requireCreatedRow(
+			await api.alice.gameVariant.create({
+				label: "Custom game",
+				groupId: group.id,
+			})
+		);
+		const stake = { gameGroupId: group.id, blind2: 2 };
+		const ring = await api.alice.ringGame.create({
+			roomId: room.id,
+			name: "Cash",
+			rule: nlhRule,
+		});
+		const tournament = await api.alice.tournament.create({
+			roomId: room.id,
+			name: "MTT",
+			rule: {},
+		});
+		const cash = await api.alice.entry.create({
+			kind: "cash",
+			playedOn: "2026-09-01",
+			rule: { game: { variantId: variant.id }, stakes: [stake] },
+		});
+		const mtt = await api.alice.entry.create({
+			kind: "tournament",
+			playedOn: "2026-09-01",
+			rule: {
+				game: { variantId: variant.id },
+				levels: [{ isBreak: false, minutes: 20, stakes: [stake] }],
+			},
+		});
+		await api.alice.gameGroup.update({ id: group.id, blind1Required: true });
+		await expect(
+			api.alice.entry.relink({
+				id: cash.id,
+				ringGameId: ring.id,
+				keepRule: true,
+			})
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		await expect(
+			api.alice.entry.relink({
+				id: mtt.id,
+				tournamentId: tournament.id,
+				keepRule: true,
+			})
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect((await api.alice.entry.getById({ id: cash.id })).ruleVersionId).toBe(
+			cash.ruleVersionId
+		);
+		expect((await api.alice.entry.getById({ id: mtt.id })).ruleVersionId).toBe(
+			mtt.ruleVersionId
+		);
+	});
+
+	test("replacement payments cannot add uses of an old rule price", async ({
+		api,
+	}) => {
+		const asset = requireCreatedRow(
+			await api.alice.asset.create({ name: "JPY", kind: "currency" })
+		);
+		const room = requireCreatedRow(
+			await api.alice.room.create({ name: "Hall" })
+		);
+		const master = await api.alice.tournament.create({
+			roomId: room.id,
+			name: "Main",
+			rule: {
+				prices: [
+					{
+						kind: "entry",
+						assetId: asset.id,
+						amount: 1000,
+						fee: 0,
+						chips: null,
+					},
+				],
+			},
+		});
+		const priceId = master.ruleVersion.prices[0]?.id ?? "";
+		const payment = {
+			role: "buy_in" as const,
+			assetId: asset.id,
+			quantity: 1000,
+			effect: "real" as const,
+			priceId,
+		};
+		const created = await api.alice.entry.create({
+			kind: "tournament",
+			playedOn: "2026-09-01",
+			tournamentId: master.id,
+			payments: [payment],
+		});
+		await api.alice.entry.overrideRule({
+			id: created.id,
+			kind: "tournament",
+			rule: { startingStack: 30_000 },
+		});
+		const kept = await api.alice.entry.update({
+			id: created.id,
+			payments: [payment],
+		});
+		expect(kept.lines).toHaveLength(1);
+		expect(kept.lines[0]?.priceId).toBe(priceId);
+		await expect(
+			api.alice.entry.update({
+				id: created.id,
+				payments: [payment, payment],
+			})
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			(await api.alice.entry.getById({ id: created.id })).lines
+		).toHaveLength(1);
 	});
 
 	test("tournament override, push and keepRule relink keep paid price references on the earlier version and copy levels and prices under the new master", async ({

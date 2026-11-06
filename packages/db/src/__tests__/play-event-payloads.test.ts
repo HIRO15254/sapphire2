@@ -56,4 +56,12 @@ describe("play event payload v2 registry", () => {
 		).toBe(false);
 		expect(accepts("cash", "chips_add_remove", { amount: 20 })).toBe(false);
 	});
+
+	it("rejects chip movements beyond the ledger quantity limit", () => {
+		for (const amount of [1_000_000_000_001, -1_000_000_000_001]) {
+			expect(
+				accepts("cash", "chips_add_remove", { amount, assetId: "jpy" })
+			).toBe(false);
+		}
+	});
 });

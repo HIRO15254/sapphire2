@@ -1,9 +1,9 @@
 import { toolPermissionSummary } from "../tools/registry";
 
 export interface ConsentHtmlProps {
-	clientId: string;
 	clientName: string;
 	code: string;
+	nonce: string;
 	redirectHosts: string[];
 }
 
@@ -101,15 +101,21 @@ const SCRIPT = `
 			});
 			if (!response.ok) { throw new Error("consent request failed"); }
 			const { redirectURI } = await response.json();
-			window.location.href = redirectURI;
+			if (typeof redirectURI !== "string") { throw new Error("unsafe redirect"); }
+			const target = new URL(redirectURI);
+			const blocked = ["javascript:", "data:", "vbscript:", "file:", "blob:", "about:"];
+			if (blocked.includes(target.protocol) || (target.protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(target.hostname))) {
+				throw new Error("unsafe redirect");
+			}
+			window.location.href = target.href;
 		} catch {
 			document.getElementById("error").hidden = false;
 			document.getElementById("approve").disabled = false;
 			document.getElementById("deny").disabled = false;
 		}
 	}
-	document.getElementById("approve").addEventListener("click", () => decide(/* accept: true */ true));
-	document.getElementById("deny").addEventListener("click", () => decide(/* accept: false */ false));
+	document.getElementById("approve").addEventListener("click", () => decide(true));
+	document.getElementById("deny").addEventListener("click", () => decide(false));
 `;
 
 function renderDestination(redirectHosts: string[]): string {
@@ -156,7 +162,7 @@ ${renderDestination(props.redirectHosts)}
 </div>
 </main>
 <script type="application/json" id="consent-data">${scriptSafeJson({ code: props.code })}</script>
-<script>${SCRIPT}</script>
+<script nonce="${escapeHtml(props.nonce)}">${SCRIPT}</script>
 </body>
 </html>`;
 }

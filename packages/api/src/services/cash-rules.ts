@@ -1,20 +1,29 @@
 import type { Database } from "@sapphire2/db";
+import { LEDGER_MAX_QUANTITY } from "@sapphire2/db/constants/ledger";
+import {
+	MAX_RULE_TABLE_SIZE,
+	MIN_RULE_TABLE_SIZE,
+} from "@sapphire2/db/constants/rule";
+import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { cashRule, cashRuleStake } from "@sapphire2/db/schema/rule";
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
 import z from "zod";
-import { type BatchStatement, selectInChunks } from "../lib/batch";
 import {
-	findBuiltinVariantId,
-	type GameInput,
+	type BatchStatement,
+	insertChunks,
+	selectInChunks,
+} from "../lib/batch";
+import { validateOwnedIds } from "../lib/ownership";
+import {
 	gameInputSchema,
 	hydrateLineups,
-	insertChunks,
 	type Lineup,
 	type LineupMap,
 	LineupPlanner,
 	loadLineups,
 	MAX_LINEUP_GROUPS,
+	resolveDefaultGame,
 } from "./game-lineup";
 import {
 	assertStakeBlinds,
@@ -23,16 +32,27 @@ import {
 	stakeInputSchema,
 	stakeValues,
 } from "./rule-stakes";
-import { seedDefaultGameData } from "./seed-game-data";
 
-const amount = z.number().int().min(0).nullable().optional();
+const amount = z
+	.number()
+	.int()
+	.min(0)
+	.max(LEDGER_MAX_QUANTITY)
+	.nullable()
+	.optional();
 export const cashRuleInputSchema = z
 	.object({
 		game: gameInputSchema.optional(),
 		stakes: z.array(stakeInputSchema).max(MAX_LINEUP_GROUPS).optional(),
 		minBuyIn: amount,
 		maxBuyIn: amount,
-		tableSize: z.number().int().min(2).max(10).nullable().optional(),
+		tableSize: z
+			.number()
+			.int()
+			.min(MIN_RULE_TABLE_SIZE)
+			.max(MAX_RULE_TABLE_SIZE)
+			.nullable()
+			.optional(),
 		houseRules: z.string().max(50_000).nullable().optional(),
 	})
 	.refine(
@@ -149,25 +169,33 @@ function validateBuyInRange(min: number | null, max: number | null): void {
 	}
 }
 
-async function resolveDefaultGame(
-	db: Database,
-	userId: string,
-	game: GameInput | undefined,
-	hasCurrent: boolean
-): Promise<GameInput | undefined> {
-	if (game || hasCurrent) {
-		return game;
-	}
-	await seedDefaultGameData(db, userId);
-	const nlhId = await findBuiltinVariantId(db, userId, "nlh");
-	if (!nlhId) {
-		throw new TRPCError({
-			code: "BAD_REQUEST",
-			message: "Choose a game for the ring game",
-		});
-	}
-	return { variantId: nlhId };
+function mergeCashScalars(
+	input: CashRuleInput,
+	current: Pick<
+		CashRuleContent,
+		"minBuyIn" | "maxBuyIn" | "tableSize" | "houseRules"
+	> | null
+) {
+	return {
+		minBuyIn:
+			input.minBuyIn === undefined
+				? (current?.minBuyIn ?? null)
+				: input.minBuyIn,
+		maxBuyIn:
+			input.maxBuyIn === undefined
+				? (current?.maxBuyIn ?? null)
+				: input.maxBuyIn,
+		tableSize:
+			input.tableSize === undefined
+				? (current?.tableSize ?? null)
+				: input.tableSize,
+		houseRules:
+			input.houseRules === undefined
+				? (current?.houseRules ?? null)
+				: input.houseRules,
+	};
 }
+
 export async function prepareCashRule(
 	db: Database,
 	userId: string,
@@ -181,6 +209,12 @@ export async function prepareCashRule(
 	if (currentId && !current) {
 		throw new TRPCError({ code: "FORBIDDEN", message: "Rule unavailable" });
 	}
+	if (current && current.ringGameId !== ringGameId) {
+		throw new TRPCError({
+			code: "INTERNAL_SERVER_ERROR",
+			message: "Invalid current ring game rule",
+		});
+	}
 	const planner = new LineupPlanner(db, userId);
 	const currentLineups: Map<string, Lineup> = current
 		? await loadLineups(db, userId, [current.lineupId])
@@ -190,7 +224,14 @@ export async function prepareCashRule(
 		db,
 		userId,
 		input.game,
-		current !== undefined
+		current !== undefined,
+		"Choose a game for the ring game"
+	);
+	await validateOwnedIds(
+		db,
+		gameGroup,
+		(input.stakes ?? []).map((stake) => stake.gameGroupId),
+		userId
 	);
 	if (game) {
 		await planner.prepare([game]);
@@ -212,32 +253,16 @@ export async function prepareCashRule(
 		input.stakes,
 		current?.stakes ?? []
 	);
-	const scalars = {
-		minBuyIn:
-			input.minBuyIn === undefined
-				? (current?.minBuyIn ?? null)
-				: input.minBuyIn,
-		maxBuyIn:
-			input.maxBuyIn === undefined
-				? (current?.maxBuyIn ?? null)
-				: input.maxBuyIn,
-		tableSize:
-			input.tableSize === undefined
-				? (current?.tableSize ?? null)
-				: input.tableSize,
-		houseRules:
-			input.houseRules === undefined
-				? (current?.houseRules ?? null)
-				: input.houseRules,
-	};
+	const scalars = mergeCashScalars(input, current ?? null);
 	validateBuyInRange(scalars.minBuyIn, scalars.maxBuyIn);
 	const content: CashRuleContent = { lineupId: lineup.id, stakes, ...scalars };
 	if (current && cashSignature(current) === cashSignature(content)) {
 		return { id: current.id, statements: [] as BatchStatement[] };
 	}
-	await assertStakeBlinds(db, userId, stakes);
+	const stakeGuards = await assertStakeBlinds(db, userId, stakes);
 	const id = crypto.randomUUID();
 	const statements: BatchStatement[] = [
+		...stakeGuards,
 		...planner.statements(),
 		...cashRuleInsertStatements(
 			db,
@@ -298,27 +323,37 @@ function cashRuleInsertStatements(
 	];
 }
 
-export function planCashRuleCopy(
+export async function planCashRuleCopy(
 	db: Database,
 	userId: string,
 	source: CashRuleOutput,
 	target: { parent: CashRuleOutput | null; ringGameId: string | null }
-): { id: string; statements: BatchStatement[] } {
+): Promise<{ id: string; statements: BatchStatement[] }> {
+	if (target.parent && target.parent.ringGameId !== target.ringGameId) {
+		throw new TRPCError({
+			code: "INTERNAL_SERVER_ERROR",
+			message: "Invalid current ring game rule",
+		});
+	}
 	if (target.parent && cashSignature(target.parent) === cashSignature(source)) {
 		return { id: target.parent.id, statements: [] };
 	}
+	const stakeGuards = await assertStakeBlinds(db, userId, source.stakes);
 	const id = crypto.randomUUID();
 	return {
 		id,
-		statements: cashRuleInsertStatements(
-			db,
-			userId,
-			{
-				id,
-				ringGameId: target.ringGameId,
-				parentRuleId: target.parent?.id ?? null,
-			},
-			source
-		),
+		statements: [
+			...stakeGuards,
+			...cashRuleInsertStatements(
+				db,
+				userId,
+				{
+					id,
+					ringGameId: target.ringGameId,
+					parentRuleId: target.parent?.id ?? null,
+				},
+				source
+			),
+		],
 	};
 }

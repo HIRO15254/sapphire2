@@ -26,24 +26,6 @@ describe("migration 0044 — one unfinished live session per user", () => {
 		db?.close();
 	});
 
-	it("creates the expected partial unique index", () => {
-		db.exec(migrationSql);
-
-		const index = db
-			.prepare(
-				"SELECT name, sql FROM sqlite_master WHERE type = 'index' AND name = ?"
-			)
-			.get("session_one_unfinished_live_per_user_idx") as {
-			name: string;
-			sql: string;
-		};
-		expect(index.name).toBe("session_one_unfinished_live_per_user_idx");
-		expect(index.sql).toContain("UNIQUE INDEX");
-		expect(index.sql).toContain(
-			'WHERE "game_session"."source" = \'live\' AND "game_session"."status" != \'completed\''
-		);
-	});
-
 	it("blocks active and paused sessions across cash and tournament kinds", () => {
 		db.exec(migrationSql);
 		db.exec(

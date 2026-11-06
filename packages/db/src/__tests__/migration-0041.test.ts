@@ -1,11 +1,9 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
 	type Database,
-	migrationFiles,
 	migrationStatements,
 	openDatabase,
 	rowValues,
@@ -20,9 +18,6 @@ const legacyMigrationPath = fileURLToPath(
 
 const migrationSql = readFileSync(migrationPath, "utf8");
 const legacyMigrationSql = readFileSync(legacyMigrationPath, "utf8");
-const migrationsDirectory = fileURLToPath(
-	new URL("../migrations/", import.meta.url)
-);
 
 const schemaBefore0041 = `
 	CREATE TABLE user (id TEXT PRIMARY KEY NOT NULL);
@@ -198,16 +193,6 @@ const applyAsD1Migration = (db: Database, sql: string) => {
 	} catch (error) {
 		db.exec("ROLLBACK");
 		throw error;
-	}
-};
-
-const applyCompleteMigrationHistory = (db: Database) => {
-	const filenames = migrationFiles();
-	for (const filename of filenames) {
-		applyAsD1Migration(
-			db,
-			readFileSync(join(migrationsDirectory, filename), "utf8")
-		);
 	}
 };
 
@@ -542,30 +527,5 @@ describe("0041_amazing_amphibian migration", () => {
 			rowValues(db.prepare("SELECT games FROM game_mix WHERE id = 'mix-valid'"))
 		).toEqual([['["variant-2","variant-1"]']]);
 		expect(rowValues(db.prepare("PRAGMA foreign_key_check"))).toEqual([]);
-	});
-});
-
-describe("complete migration history", () => {
-	it("leaves no trigger on the game master tables once 0065 replaces them with constraints", () => {
-		const db = openDatabase();
-		db.exec("PRAGMA foreign_keys=ON");
-
-		try {
-			applyCompleteMigrationHistory(db);
-
-			expect(
-				rowValues(
-					db.prepare(`
-						SELECT name, tbl_name
-						FROM sqlite_master
-						WHERE type = 'trigger'
-							AND tbl_name IN ('game_group', 'game_mix', 'game_variant')
-						ORDER BY name
-					`)
-				)
-			).toEqual([]);
-		} finally {
-			db.close();
-		}
 	});
 });

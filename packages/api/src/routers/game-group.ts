@@ -6,6 +6,7 @@ import {
 	cashRuleStake,
 	tournamentRuleLevelStake,
 } from "@sapphire2/db/schema/rule";
+import { idSchema } from "@sapphire2/db/schemas/id";
 import { TRPCError } from "@trpc/server";
 import { and, eq, isNotNull, isNull, notExists } from "drizzle-orm";
 import z from "zod";
@@ -100,7 +101,7 @@ export const gameGroupCreateInputSchema = z.object({
 });
 
 export const gameGroupUpdateInputSchema = z.object({
-	id: z.string(),
+	id: idSchema,
 	label: labelSchema.optional(),
 	blind1Label: blindLabelSchema,
 	blind2Label: blindLabelSchema,
@@ -110,7 +111,7 @@ export const gameGroupUpdateInputSchema = z.object({
 	blind3Required: z.boolean().optional(),
 });
 
-export const gameGroupIdInputSchema = z.object({ id: z.string() });
+export const gameGroupIdInputSchema = z.object({ id: idSchema });
 
 export const gameGroupRouter = router({
 	list: protectedProcedure
@@ -234,29 +235,36 @@ export const gameGroupRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await validateEntityOwnership(ctx.db, "gameGroup", input.id, userId);
-			const [activeVariant] = await ctx.db
-				.select({ id: gameVariant.id })
-				.from(gameVariant)
+			const now = new Date();
+			const updated = await ctx.db
+				.update(gameGroup)
+				.set({ archivedAt: now, updatedAt: now })
 				.where(
 					and(
-						eq(gameVariant.groupId, input.id),
-						eq(gameVariant.userId, userId),
-						isNull(gameVariant.archivedAt)
+						eq(gameGroup.id, input.id),
+						eq(gameGroup.userId, userId),
+						notExists(
+							ctx.db
+								.select({ id: gameVariant.id })
+								.from(gameVariant)
+								.where(
+									and(
+										eq(gameVariant.groupId, gameGroup.id),
+										eq(gameVariant.userId, gameGroup.userId),
+										isNull(gameVariant.archivedAt)
+									)
+								)
+						)
 					)
 				)
-				.limit(1);
-			if (activeVariant) {
+				.returning({ id: gameGroup.id });
+			if (updated.length === 0) {
 				throw new TRPCError({
 					code: "CONFLICT",
 					message:
 						"This game group still has active game variants; archive them first",
 				});
 			}
-			const now = new Date();
-			await ctx.db
-				.update(gameGroup)
-				.set({ archivedAt: now, updatedAt: now })
-				.where(and(eq(gameGroup.id, input.id), eq(gameGroup.userId, userId)));
 			return await selectGroup(ctx.db, userId, input.id);
 		}),
 

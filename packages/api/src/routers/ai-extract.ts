@@ -1,4 +1,8 @@
 import { MAX_SEAT_POSITION } from "@sapphire2/db/constants/hand";
+import {
+	MAX_RULE_TABLE_SIZE,
+	MIN_RULE_TABLE_SIZE,
+} from "@sapphire2/db/constants/rule";
 import { TRPCError } from "@trpc/server";
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
@@ -23,14 +27,18 @@ const MEDIA_TYPES = [
 
 const SourceSchema = z.object({
 	kind: z.literal("image"),
-	data: z.string().min(1),
+	data: z.string().min(1).base64(),
 	mediaType: z.enum(MEDIA_TYPES),
 });
 
 type Source = z.infer<typeof SourceSchema>;
 
 const nonNegativeIntegerSchema = z.number().int().min(0);
-const tableSizeSchema = z.number().int().min(2).max(10);
+const tableSizeSchema = z
+	.number()
+	.int()
+	.min(MIN_RULE_TABLE_SIZE)
+	.max(MAX_RULE_TABLE_SIZE);
 
 export const ExtractedTournamentDataSchema = z.object({
 	name: z.string().optional(),
@@ -60,10 +68,6 @@ export const ExtractedTournamentDataSchema = z.object({
 		)
 		.optional(),
 });
-
-export type ExtractedTournamentData = z.infer<
-	typeof ExtractedTournamentDataSchema
->;
 
 export const TOURNAMENT_OUTPUT_SCHEMA = z.object({
 	name: z
@@ -135,13 +139,15 @@ export const TABLE_PLAYERS_OUTPUT_SCHEMA = z.object({
 	),
 });
 
-export type ExtractedTablePlayers = z.infer<typeof TABLE_PLAYERS_OUTPUT_SCHEMA>;
-
 function missingApiKeyError(): TRPCError {
 	return new TRPCError({
 		code: "INTERNAL_SERVER_ERROR",
 		message: "AI extraction is not configured (missing OPENAI_API_KEY)",
 	});
+}
+
+function createExtractionClient(apiKey: string): OpenAI {
+	return new OpenAI({ apiKey, timeout: 180_000, maxRetries: 1 });
 }
 
 function assertNotTruncated(response: {
@@ -223,7 +229,7 @@ export const aiExtractRouter = router({
 				throw missingApiKeyError();
 			}
 
-			const client = new OpenAI({ apiKey: ctx.openaiApiKey });
+			const client = createExtractionClient(ctx.openaiApiKey);
 
 			const response = await parseStructuredResponse(
 				client.responses.parse({
@@ -270,7 +276,7 @@ export const aiExtractRouter = router({
 				throw missingApiKeyError();
 			}
 
-			const client = new OpenAI({ apiKey: ctx.openaiApiKey });
+			const client = createExtractionClient(ctx.openaiApiKey);
 			const appConfig = TABLE_PLAYER_SOURCE_APPS[input.sourceApp];
 
 			const response = await parseStructuredResponse(

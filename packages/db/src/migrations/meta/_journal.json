@@ -533,6 +533,41 @@
       "when": 1793867186361,
       "tag": "0075_retire_legacy_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "6",
+      "when": 1793929941168,
+      "tag": "0076_write_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "6",
+      "when": 1793930716969,
+      "tag": "0077_hand_seq",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "6",
+      "when": 1793930726225,
+      "tag": "0078_next_hand_seq",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "6",
+      "when": 1793930734076,
+      "tag": "0079_hand_seq_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "6",
+      "when": 1793930758977,
+      "tag": "0080_player_preset_indexes",
+      "breakpoints": true
     }
   ]
 }

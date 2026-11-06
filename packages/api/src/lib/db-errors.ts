@@ -1,11 +1,11 @@
 const FILTER_PRESET_NAME_CONFLICT_RE =
-	/UNIQUE constraint failed:\s*filter_preset\.user_id,\s*filter_preset\.screen_key,\s*filter_preset\.name/i;
+	/UNIQUE constraint failed:\s*(?:index 'filterPreset_userId_screenKey_name_idx'|filter_preset\.user_id,\s*filter_preset\.screen_key,\s*filter_preset\.name)(?=\s*(?::|$))/i;
 
 const ASSET_NAME_CONFLICT_RE =
 	/UNIQUE constraint failed:\s*index 'asset_name_uq'/i;
 
 const ASSET_RATE_CONFLICT_RE =
-	/UNIQUE constraint failed:\s*asset_rate\.user_id,\s*asset_rate\.base_asset_id,\s*asset_rate\.quote_asset_id,\s*asset_rate\.effective_from/i;
+	/UNIQUE constraint failed:\s*asset_rate\.user_id,\s*asset_rate\.base_asset_id,\s*asset_rate\.quote_asset_id,\s*asset_rate\.effective_from(?=\s*(?::|$))/i;
 
 const LEDGER_CATEGORY_NAME_CONFLICT_RE =
 	/UNIQUE constraint failed:\s*index 'ledger_category_user_name_unique'/i;
@@ -21,23 +21,28 @@ const GAME_MASTER_LABEL_CONFLICT_RE = {
 const FOREIGN_KEY_FAILED_RE = /FOREIGN KEY constraint failed/i;
 
 const UNFINISHED_PLAY_SESSION_CONFLICT_RE =
-	/UNIQUE constraint failed:\s*(play_session\.user_id|index 'play_session_one_unfinished_per_user_idx')/i;
+	/UNIQUE constraint failed:\s*(?:play_session\.user_id(?=\s*(?::|$))|index 'play_session_one_unfinished_per_user_idx')/i;
 
 const PLAY_EVENT_ORDER_CONFLICT_RE =
-	/UNIQUE constraint failed:\s*(play_event\.entry_id,\s*play_event\.sort_order|index 'play_event_entry_sort_order_unique')/i;
+	/UNIQUE constraint failed:\s*(?:play_event\.entry_id,\s*play_event\.sort_order(?=\s*(?::|$))|index 'play_event_entry_sort_order_unique')/i;
 
 const ENDED_PLAY_APPEND_RE =
-	/NOT NULL constraint failed:\s*play_session\.status/i;
+	/NOT NULL constraint failed:\s*play_session\.status(?=\s*(?::|$))/i;
 
 const PLAY_SEQ_CONFLICT_RE =
-	/UNIQUE constraint failed:\s*(play_session\.entry_id,\s*play_session\.seq|index 'play_session_entry_seq_unique')/i;
+	/UNIQUE constraint failed:\s*(?:play_session\.entry_id,\s*play_session\.seq(?=\s*(?::|$))|index 'play_session_entry_seq_unique')/i;
 
 const DISCARDED_PLAY_DEPENDENT_RE =
-	/NOT NULL constraint failed:\s*play_session\.seq/i;
+	/NOT NULL constraint failed:\s*play_session\.seq(?=\s*(?::|$))/i;
+
+const WRITE_GUARD_FAILED_RE =
+	/CHECK constraint failed:\s*write_guard_failed(?=\s*(?::|$))/i;
 
 function someErrorInChain(error: unknown, pattern: RegExp): boolean {
 	let current = error;
-	while (current instanceof Error) {
+	const seen = new Set<Error>();
+	while (current instanceof Error && !seen.has(current)) {
+		seen.add(current);
 		if (pattern.test(current.message)) {
 			return true;
 		}
@@ -48,6 +53,10 @@ function someErrorInChain(error: unknown, pattern: RegExp): boolean {
 
 export function isForeignKeyConstraintError(error: unknown): boolean {
 	return someErrorInChain(error, FOREIGN_KEY_FAILED_RE);
+}
+
+export function isWriteGuardError(error: unknown): boolean {
+	return someErrorInChain(error, WRITE_GUARD_FAILED_RE);
 }
 
 export function isUnfinishedPlaySessionConflictError(error: unknown): boolean {
@@ -88,7 +97,10 @@ export function isUniqueIndexConflictError(
 ): boolean {
 	return someErrorInChain(
 		error,
-		new RegExp(`UNIQUE constraint failed:\\s*index '${index}'`, "i")
+		new RegExp(
+			`UNIQUE constraint failed:\\s*index '${index.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}'`,
+			"i"
+		)
 	);
 }
 
@@ -100,7 +112,5 @@ export function isGameMasterLabelConflictError(
 }
 
 export function isFilterPresetNameConflictError(error: unknown): boolean {
-	return (
-		error instanceof Error && FILTER_PRESET_NAME_CONFLICT_RE.test(error.message)
-	);
+	return someErrorInChain(error, FILTER_PRESET_NAME_CONFLICT_RE);
 }

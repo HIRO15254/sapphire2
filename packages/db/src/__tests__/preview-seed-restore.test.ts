@@ -26,6 +26,11 @@ describe("seed restore (preview-deploy.yml, dev-deploy.yml)", () => {
 					db.exec(statement);
 				}
 			}
+			expect(
+				rowValues(
+					db.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger'")
+				)
+			).toEqual([]);
 
 			db.exec("PRAGMA foreign_keys=OFF");
 			db.exec(`

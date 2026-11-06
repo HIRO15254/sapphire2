@@ -1,4 +1,5 @@
 import { ASSET_RATE_MAX_TERM } from "@sapphire2/db/constants/asset";
+import { asset } from "@sapphire2/db/schema/asset";
 import { assetRate } from "@sapphire2/db/schema/ledger";
 import { TRPCError } from "@trpc/server";
 import {
@@ -16,9 +17,10 @@ import { alias } from "drizzle-orm/sqlite-core";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { isAssetRateConflictError } from "../lib/db-errors";
+import { instantSchema } from "../lib/instant";
 import { validateEntityOwnership } from "../lib/ownership";
+import { guardStatement, withWriteGuardConflict } from "../lib/write-guard";
 
-const instant = z.number().int().min(0);
 const rateTerm = z.number().int().min(1).max(ASSET_RATE_MAX_TERM);
 
 const rateColumns = {
@@ -38,7 +40,7 @@ export const assetRateListInputSchema = z
 	.object({
 		baseAssetId: z.string().min(1).optional(),
 		quoteAssetId: z.string().min(1).optional(),
-		effectiveAt: instant.optional(),
+		effectiveAt: instantSchema.optional(),
 	})
 	.optional();
 
@@ -48,7 +50,7 @@ export const assetRateCreateInputSchema = z
 		quoteAssetId: z.string().min(1),
 		rateNum: rateTerm,
 		rateDen: rateTerm,
-		effectiveFrom: instant,
+		effectiveFrom: instantSchema,
 		memo: z.string().max(5000).optional(),
 	})
 	.refine((value) => value.baseAssetId !== value.quoteAssetId, {
@@ -109,27 +111,53 @@ export const assetRateRouter = router({
 		.input(assetRateCreateInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await validateEntityOwnership(ctx.db, "asset", input.baseAssetId, userId);
-			await validateEntityOwnership(
+			const base = await validateEntityOwnership(
+				ctx.db,
+				"asset",
+				input.baseAssetId,
+				userId
+			);
+			const quote = await validateEntityOwnership(
 				ctx.db,
 				"asset",
 				input.quoteAssetId,
 				userId
 			);
+			if (base.archivedAt !== null || quote.archivedAt !== null) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "An archived asset cannot be newly selected for a rate",
+				});
+			}
 			try {
-				const [created] = await ctx.db
-					.insert(assetRate)
-					.values({
-						id: crypto.randomUUID(),
-						userId,
-						baseAssetId: input.baseAssetId,
-						quoteAssetId: input.quoteAssetId,
-						rateNum: input.rateNum,
-						rateDen: input.rateDen,
-						effectiveFrom: new Date(input.effectiveFrom * 1000),
-						memo: input.memo ?? null,
-					})
-					.returning(rateColumns);
+				const [, , rows] = await withWriteGuardConflict(() =>
+					ctx.db.batch([
+						guardStatement(
+							ctx.db,
+							"rate_base_active",
+							sql`EXISTS (SELECT 1 FROM ${asset} WHERE ${asset.id} = ${input.baseAssetId} AND ${asset.userId} = ${userId} AND ${asset.archivedAt} IS NULL)`
+						),
+						guardStatement(
+							ctx.db,
+							"rate_quote_active",
+							sql`EXISTS (SELECT 1 FROM ${asset} WHERE ${asset.id} = ${input.quoteAssetId} AND ${asset.userId} = ${userId} AND ${asset.archivedAt} IS NULL)`
+						),
+						ctx.db
+							.insert(assetRate)
+							.values({
+								id: crypto.randomUUID(),
+								userId,
+								baseAssetId: input.baseAssetId,
+								quoteAssetId: input.quoteAssetId,
+								rateNum: input.rateNum,
+								rateDen: input.rateDen,
+								effectiveFrom: new Date(input.effectiveFrom * 1000),
+								memo: input.memo ?? null,
+							})
+							.returning(rateColumns),
+					])
+				);
+				const [created] = rows;
 				return created;
 			} catch (error) {
 				if (isAssetRateConflictError(error)) {

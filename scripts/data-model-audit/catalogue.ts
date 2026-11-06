@@ -22,9 +22,9 @@ export const B13_MIGRATION = "0069_entry_rule_versions.sql";
 export const B15_MIGRATION = "0070_self_player_event_v2.sql";
 export const B23_MIGRATION = "0074_stand_in_cleanup.sql";
 
-export type Activation =
-	| { state: "active"; since: string | null }
-	| { state: "pending"; enabledBy: string };
+export interface Activation {
+	since: string | null;
+}
 
 export type ReplayPart =
 	| "a6-core"
@@ -49,22 +49,17 @@ export interface ReplayCheck extends CheckBase {
 	replay: ReplayPart;
 }
 
-export interface DeferredCheck extends CheckBase {
-	activation: { state: "pending"; enabledBy: string };
-	kind: "deferred";
-}
+export type Check = SqlCheck | ReplayCheck;
 
-export type Check = SqlCheck | ReplayCheck | DeferredCheck;
-
-const SINCE_B01: Activation = { state: "active", since: B01_MIGRATION };
-const SINCE_B06: Activation = { state: "active", since: B06_MIGRATION };
-const SINCE_B07: Activation = { state: "active", since: B07_MIGRATION };
-const SINCE_B09: Activation = { state: "active", since: B09_MIGRATION };
-const SINCE_B12: Activation = { state: "active", since: B12_MIGRATION };
-const SINCE_B08: Activation = { state: "active", since: B08_MIGRATION };
-const SINCE_B13: Activation = { state: "active", since: B13_MIGRATION };
-const SINCE_B15: Activation = { state: "active", since: B15_MIGRATION };
-const SINCE_B23: Activation = { state: "active", since: B23_MIGRATION };
+const SINCE_B01: Activation = { since: B01_MIGRATION };
+const SINCE_B06: Activation = { since: B06_MIGRATION };
+const SINCE_B07: Activation = { since: B07_MIGRATION };
+const SINCE_B09: Activation = { since: B09_MIGRATION };
+const SINCE_B12: Activation = { since: B12_MIGRATION };
+const SINCE_B08: Activation = { since: B08_MIGRATION };
+const SINCE_B13: Activation = { since: B13_MIGRATION };
+const SINCE_B15: Activation = { since: B15_MIGRATION };
+const SINCE_B23: Activation = { since: B23_MIGRATION };
 
 function sqlList(values: readonly string[]): string {
 	return values.map((value) => `'${value}'`).join(",");
@@ -84,13 +79,13 @@ export const CHECKS: readonly Check[] = [
 		audit: "FK",
 		part: "PRAGMA foreign_key_check",
 		kind: "sql",
-		activation: { state: "active", since: null },
+		activation: { since: null },
 		tables: [],
 		sql: () => "PRAGMA foreign_key_check",
 	},
 	{
 		audit: "A-6",
-		part: "projectEntry replay: entry status/played_on, every play_session, kind detail, Hero seat fold",
+		part: "projectEntry replay: entry status/played_on, every play_session, kind detail",
 		kind: "replay",
 		replay: "a6-core",
 		activation: SINCE_B06,
@@ -100,9 +95,6 @@ export const CHECKS: readonly Check[] = [
 			"entry_tournament",
 			"play_session",
 			"play_event",
-			"hand",
-			"hand_seat",
-			"player",
 		],
 	},
 	{
@@ -376,6 +368,10 @@ WHERE s.is_hero = 0`,
 FROM play_event pe, json_each(pe.payload, '$.payments') p
 WHERE json_type(pe.payload, '$.payments') = 'array'
 AND NOT EXISTS (SELECT 1 FROM asset a WHERE a.id = json_extract(p.value, '$.assetId') AND a.user_id = pe.user_id)
+UNION ALL
+SELECT pe.id, 'asset', json_extract(pe.payload, '$.assetId') FROM play_event pe
+WHERE json_extract(pe.payload, '$.assetId') IS NOT NULL
+AND NOT EXISTS (SELECT 1 FROM asset a WHERE a.id = json_extract(pe.payload, '$.assetId') AND a.user_id = pe.user_id)
 UNION ALL
 SELECT pe.id, 'price', json_extract(p.value, '$.priceId')
 FROM play_event pe, json_each(pe.payload, '$.payments') p

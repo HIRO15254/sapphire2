@@ -4,7 +4,7 @@ import { createElement, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
 import { Toast, type ToastVariant } from "@/shared/components/ui/sonner";
-import { trpcErrorCode } from "@/shared/lib/query-failure";
+import { isConcurrentChange, trpcErrorCode } from "@/shared/lib/query-failure";
 
 interface Feedback {
 	description?: string;
@@ -98,7 +98,11 @@ export function useUndoableMutation<TData, TError, TVariables, TContext>(
 		},
 		onError: async (error, variables, context, mutationContext) => {
 			if (context) {
-				showFeedback(context.id, failure, FEEDBACK_DURATION_MS);
+				if (isConcurrentChange(error)) {
+					toast.dismiss(context.id);
+				} else {
+					showFeedback(context.id, failure, FEEDBACK_DURATION_MS);
+				}
 			}
 			await options.onError?.(
 				error,

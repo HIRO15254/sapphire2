@@ -4,6 +4,7 @@ import {
 	type ProjectorContext,
 	type ProjectorEvent,
 	projectEntry,
+	projectTournamentProgress,
 } from "../services/entry-projector";
 
 const START = Date.parse("2026-09-05T10:00:00.000Z");
@@ -47,6 +48,23 @@ function contextFor(
 }
 const cash = contextFor("cash");
 const tournament = contextFor("tournament");
+
+it("rejects overflowing tournament chip totals", () => {
+	const payload = { priceId: "price", label: "chips", payments: [] };
+	const safe = ev("purchase_chips", 1, {
+		...payload,
+		chips: Number.MAX_SAFE_INTEGER,
+	});
+	expect(projectTournamentProgress([safe], null).chipTotal).toBe(
+		Number.MAX_SAFE_INTEGER
+	);
+	expect(() =>
+		projectTournamentProgress(
+			[safe, ev("purchase_chips", 2, { ...payload, chips: 1 })],
+			null
+		)
+	).toThrow("Integer total exceeds the safe integer range");
+});
 
 function onlySession(projection: EntryProjection) {
 	expect(projection.playSessions).toHaveLength(1);
@@ -323,6 +341,19 @@ describe("projectEntry: events without a play-session or detail projection", () 
 });
 
 describe("projectEntry: update_stack", () => {
+	it("clears a previously reported total when an update explicitly sets null", () => {
+		const projection = projectEntry(
+			[
+				ev("session_start", 0),
+				ev("update_stack", 10, { stackAmount: 25_000, totalEntries: 120 }),
+				ev("update_stack", 20, { stackAmount: 30_000, totalEntries: null }),
+				ev("update_stack", 30, { stackAmount: 28_000 }),
+			],
+			tournament
+		);
+		expect(projection.detail).toMatchObject({ totalEntries: null });
+	});
+
 	it("takes total entries from the latest stack update that reports them", () => {
 		const projection = projectEntry(
 			[

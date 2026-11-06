@@ -1,4 +1,9 @@
-import { entry, playSession } from "@sapphire2/db/schema/entry";
+import {
+	entry,
+	entryCash,
+	entryTournament,
+	playSession,
+} from "@sapphire2/db/schema/entry";
 import { entryTagLink } from "@sapphire2/db/schema/entry-tag";
 import { hand } from "@sapphire2/db/schema/hand";
 import { ledgerLine } from "@sapphire2/db/schema/ledger";
@@ -50,6 +55,54 @@ function real(
 }
 
 describe("entry API on D1", () => {
+	test("rejects a room archived while creating an entry", async ({ api }) => {
+		const { room, rule } = await setup(api);
+		const raced = api.raceCaller("alice", () =>
+			api.alice.room.archive({ id: room.id })
+		);
+		await expect(
+			raced.entry.create({
+				kind: "cash",
+				playedOn: "2026-09-01",
+				roomId: room.id,
+				rule,
+			})
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		expect(await api.db.select().from(entry)).toEqual([]);
+	});
+
+	test("rejects a stale date validation after a concurrent day replacement", async ({
+		api,
+	}) => {
+		const { rule } = await setup(api);
+		const created = await api.alice.entry.create({
+			kind: "cash",
+			playedOn: "2026-09-01",
+			rule,
+		});
+		const raced = api.raceCaller("alice", () =>
+			api.alice.entry.update({
+				id: created.id,
+				playedOn: "2026-09-02",
+				playSessions: [
+					{
+						localDate: "2026-09-02",
+						endState: "cashed_out",
+						payments: [],
+					},
+				],
+			})
+		);
+		await expect(
+			raced.entry.update({ id: created.id, playedOn: "2026-09-01" })
+		).rejects.toMatchObject({ code: "CONFLICT" });
+		const current = await api.alice.entry.getById({ id: created.id });
+		expect(current.playedOn).toBe("2026-09-02");
+		expect(current.playSessions.map((play) => play.localDate)).toEqual([
+			"2026-09-02",
+		]);
+	});
+
 	test("a two-day cash entry round-trips, keeps a day with its hands across an edit, and an inverse update restores it", async ({
 		api,
 	}) => {
@@ -67,7 +120,7 @@ describe("entry API on D1", () => {
 			{
 				localDate: "2026-09-02",
 				startedAt: SEP_1 + DAY + 18 * 3600,
-				endedAt: SEP_1 + DAY + 20 * 3600,
+				endedAt: SEP_1 + DAY + 20 * 3600 + 30,
 				endState: "cashed_out" as const,
 				payments: [
 					real("addon", jpy.id, 10_000),
@@ -92,7 +145,7 @@ describe("entry API on D1", () => {
 			status: "settled",
 			playedOn: "2026-09-01",
 			roomName: "Club",
-			playMinutes: 270 + 120,
+			playMinutes: 270 + 120.5,
 			cash: { evDiff: -1200, bigBlind: 2 },
 			ruleDrift: false,
 			totals: [
@@ -159,6 +212,67 @@ describe("entry API on D1", () => {
 			})),
 		});
 		expect({ ...restored, updatedAt: before.updatedAt }).toEqual(before);
+	});
+
+	test("manual create and day replacement roll back when a ledger insert fails", async ({
+		api,
+	}) => {
+		const { jpy, rule } = await setup(api);
+		const created = await api.alice.entry.create({
+			kind: "cash",
+			playedOn: "2026-09-01",
+			rule,
+			payments: [real("buy_in", jpy.id, 100)],
+		});
+		const day = created.playSessions[0];
+		if (!day) {
+			throw new Error("expected a day");
+		}
+		await api.db.insert(hand).values({
+			id: "rollback-hand",
+			userId: "alice",
+			playSessionId: day.id,
+			handNo: 1,
+			detail: "count",
+			updatedAt: new Date(),
+		});
+		const snapshot = async () => ({
+			entries: await api.db.select().from(entry),
+			cash: await api.db.select().from(entryCash),
+			tournaments: await api.db.select().from(entryTournament),
+			plays: await api.db.select().from(playSession),
+			hands: await api.db.select().from(hand),
+			lines: await api.db.select().from(ledgerLine),
+		});
+		const before = await snapshot();
+		await api.d1
+			.prepare(
+				"CREATE TRIGGER fail_manual_ledger BEFORE INSERT ON ledger_line WHEN NEW.quantity = -987654 BEGIN SELECT RAISE(ABORT, 'forced'); END;"
+			)
+			.run();
+		await expect(
+			api.alice.entry.update({
+				id: created.id,
+				title: "Changed",
+				playSessions: [
+					{
+						localDate: "2026-09-01",
+						endState: "cashed_out",
+						payments: [real("buy_in", jpy.id, 987_654)],
+					},
+				],
+			})
+		).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+		expect(await snapshot()).toEqual(before);
+		await expect(
+			api.alice.entry.create({
+				kind: "cash",
+				playedOn: "2026-09-02",
+				rule,
+				payments: [real("buy_in", jpy.id, 987_654)],
+			})
+		).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+		expect(await snapshot()).toEqual(before);
 	});
 
 	test("omitting a day deletes it with its hands; the entry keeps the rest", async ({
@@ -349,6 +463,32 @@ describe("entry API on D1", () => {
 		).rejects.toMatchObject({ code: "FORBIDDEN" });
 	});
 
+	test("archived payment assets cannot be added to existing entries", async ({
+		api,
+	}) => {
+		const { jpy, rule } = await setup(api);
+		const created = await api.alice.entry.create({
+			kind: "cash",
+			playedOn: "2026-09-01",
+			rule,
+			payments: [real("buy_in", jpy.id, 100)],
+		});
+		await api.alice.asset.archive({ id: jpy.id });
+		await api.alice.entry.update({
+			id: created.id,
+			payments: [real("buy_in", jpy.id, 120)],
+		});
+		await expect(
+			api.alice.entry.update({
+				id: created.id,
+				payments: [real("buy_in", jpy.id, 120), real("cash_out", jpy.id, 200)],
+			})
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		const saved = await api.alice.entry.getById({ id: created.id });
+		expect(saved.lines).toHaveLength(1);
+		expect(saved.lines[0]?.quantity).toBe(-120);
+	});
+
 	test("an archived asset and an inconsistent request write nothing", async ({
 		api,
 	}) => {
@@ -473,7 +613,6 @@ describe("entry API on D1", () => {
 				},
 				assetId: jpy.id,
 				roomId: null,
-				title: null,
 				memo: null,
 				localDate: "2026-09-05",
 				now: new Date(),

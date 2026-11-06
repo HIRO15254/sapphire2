@@ -3,12 +3,16 @@ import {
 	ledgerQuantitySchema,
 	signedLedgerQuantitySchema,
 } from "@sapphire2/db/constants/play-event-payloads";
+import { asset } from "@sapphire2/db/schema/asset";
+import { ledgerCategory } from "@sapphire2/db/schema/ledger";
 import { TRPCError } from "@trpc/server";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
-import { runBatch } from "../lib/batch";
+import { activeReferenceGuard } from "../lib/active-reference-guard";
 import { decodeCursor, encodeCursor } from "../lib/cursor";
+import { instantSchema } from "../lib/instant";
 import { validateEntityOwnership } from "../lib/ownership";
+import { runGuardedBatch } from "../lib/write-guard";
 import {
 	type AssetHistoryRow,
 	selectAssetHistory,
@@ -26,7 +30,6 @@ import {
 const DEFAULT_LEDGER_PAGE_SIZE = 20;
 const MAX_LEDGER_PAGE_SIZE = 100;
 
-const instant = z.number().int().min(0);
 const ledgerMemo = z.string().max(5000);
 
 function fromInstant(seconds: number): Date {
@@ -35,7 +38,7 @@ function fromInstant(seconds: number): Date {
 
 const ledgerCursorSchema = z.object({
 	assetId: z.string(),
-	occurredAt: z.number().int(),
+	occurredAt: z.number().int().min(-8_640_000_000_000).max(8_640_000_000_000),
 	id: z.string(),
 });
 
@@ -56,7 +59,7 @@ export const ledgerCreateAdjustmentInputSchema = z.object({
 	assetId: z.string().min(1),
 	quantity: signedLedgerQuantitySchema,
 	categoryId: z.string().min(1).optional(),
-	occurredAt: instant,
+	occurredAt: instantSchema,
 	memo: ledgerMemo.optional(),
 });
 
@@ -69,7 +72,7 @@ export const ledgerCreateExchangeInputSchema = z
 	.object({
 		from: exchangeLeg,
 		to: exchangeLeg,
-		occurredAt: instant,
+		occurredAt: instantSchema,
 		categoryId: z.string().min(1).optional(),
 		memo: ledgerMemo.optional(),
 	})
@@ -80,7 +83,7 @@ export const ledgerCreateExchangeInputSchema = z
 
 export const ledgerUpdateInputSchema = z.object({
 	id: z.string().min(1),
-	occurredAt: instant.optional(),
+	occurredAt: instantSchema.optional(),
 	memo: ledgerMemo.nullable().optional(),
 	categoryId: z.string().min(1).nullable().optional(),
 	quantity: signedLedgerQuantitySchema.optional(),
@@ -171,7 +174,13 @@ export const ledgerRouter = router({
 				},
 				new Date()
 			);
-			await runBatch(ctx.db, statements);
+			await runGuardedBatch(ctx.db, [
+				activeReferenceGuard(ctx.db, asset, input.assetId, userId),
+				...(categoryId
+					? [activeReferenceGuard(ctx.db, ledgerCategory, categoryId, userId)]
+					: []),
+				...statements,
+			]);
 			const [line] = await selectWalletLines(ctx.db, userId, { id });
 			return line;
 		}),
@@ -198,7 +207,14 @@ export const ledgerRouter = router({
 				},
 				new Date()
 			);
-			await runBatch(ctx.db, statements);
+			await runGuardedBatch(ctx.db, [
+				activeReferenceGuard(ctx.db, asset, input.from.assetId, userId),
+				activeReferenceGuard(ctx.db, asset, input.to.assetId, userId),
+				...(categoryId
+					? [activeReferenceGuard(ctx.db, ledgerCategory, categoryId, userId)]
+					: []),
+				...statements,
+			]);
 			const lines = await selectWalletLines(ctx.db, userId, { transferId });
 			return { transferId, lines };
 		}),

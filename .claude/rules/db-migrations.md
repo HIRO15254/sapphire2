@@ -103,24 +103,25 @@ Outside the frozen v2 cutover below, any migration that touches existing rows mu
 
 ### Scoped exception: the frozen data model v2 cutover
 
-The binding rules are [`data-model-v2.md` §16.4](../../docs/design/data-model-v2.md#164-migration-authorship-and-abort-gates),
-[§16.6](../../docs/design/data-model-v2.md#166-dev-rehearsal-and-pre-audit) and
-[§16.8](../../docs/design/data-model-v2.md#168-final-release-runbook), not the historical decision-log rows.
+The cutover's migration authorship and abort gates are in
+[`data-model-v2-history.md` §16.4](../../docs/archive/data-model-v2-history.md#164-migration-authorship-and-abort-gates).
+The active release procedure and audit catalogue are in [deployment](../../docs/deploy.md#production-deployment)
+and [data audits](../../docs/design/data-audits.md).
 This exception covers the pending migration chain rehearsed during the v2 production freeze and
 shipped once with the new UI. It is not a permanent exception for every migration authored after v2:
 other migrations, including subsequent post-release changes, retain the default replay-safe rules.
 
 For this cutover, do not add re-runnable statements, self-healing retries or `applyThrough` tests.
-Every dev deploy replays the pending chain on a fresh production copy and runs B04's
-[§16.7 audits](../../docs/design/data-model-v2.md#167-audit-catalogue). At release, freeze data entry,
+Every dev deploy replays the pending chain on a fresh production copy and runs the
+[data audits](../../docs/design/data-audits.md). At release, freeze data entry,
 record a D1 Time Travel point, migrate, audit, and only then deploy Worker and new UI.
 A failed migration or audit requires restoring that point, fixing on `dev`, and rehearsing again;
 never retry the partially applied production chain or patch forward.
 
 Backfill normalization, populated-rebuild staging and failing end checks remain mandatory
-([§16.2–§16.4](../../docs/design/data-model-v2.md#162-empty-schema-precondition-and-asset-rebuild)).
-The default mandatory production pre-audit is replaced by rehearsal/end checks/B04; §16.6 makes
-the pre-audit optional except for B23's mandatory categorized counts.
+([§16.2–§16.4](../../docs/archive/data-model-v2-history.md#162-empty-schema-precondition-and-asset-rebuild)).
+The default mandatory production pre-audit is replaced for this cutover by rehearsal and end checks;
+the pre-audit was optional except for B23's mandatory categorized counts.
 
 ## D1 caps a compound SELECT at five terms
 

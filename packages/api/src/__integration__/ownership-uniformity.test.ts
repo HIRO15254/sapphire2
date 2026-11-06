@@ -3,17 +3,66 @@ import { filterPreset } from "@sapphire2/db/schema/filter-preset";
 import { handTag } from "@sapphire2/db/schema/hand-tag";
 import { ledgerCategory } from "@sapphire2/db/schema/ledger";
 import { playerTag } from "@sapphire2/db/schema/player";
+import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
+import { cashRule } from "@sapphire2/db/schema/rule";
+import { tournament } from "@sapphire2/db/schema/tournament";
 import { tournamentTag } from "@sapphire2/db/schema/tournament-tag";
 import { eq } from "drizzle-orm";
 import { expect } from "vitest";
 import { type ApiFixture, requireCreatedRow, test } from "./test-fixture";
 
+test("ring game rejects foreign and missing identifiers uniformly without writes", async ({
+	api,
+}) => {
+	const club = requireCreatedRow(await api.bob.room.create({ name: "Club" }));
+	const game = await api.bob.ringGame.create({
+		roomId: club.id,
+		name: "Cash",
+		rule: {
+			stakes: [
+				{ gameGroupId: "bob:builtin-group:bigbet", blind1: 1, blind2: 2 },
+			],
+		},
+	});
+	const before = {
+		games: await api.db.select().from(ringGame),
+		rules: await api.db.select().from(cashRule),
+	};
+	const calls = [
+		(id: string) =>
+			api.alice.ringGame.create({ roomId: id, name: "Cash", rule: {} }),
+		(id: string) => api.alice.ringGame.listByRoom({ roomId: id }),
+		(id: string) => api.alice.ringGame.update({ id, name: "Changed" }),
+		(id: string) => api.alice.ringGame.archive({ id }),
+		(id: string) => api.alice.ringGame.restore({ id }),
+	];
+	for (const [index, call] of calls.entries()) {
+		const errors: ({ code: string; message: string } | null)[] = [];
+		for (const id of [index < 2 ? club.id : game.id, "missing"]) {
+			errors.push(
+				await call(id).then(
+					() => null,
+					(error: { code: string; message: string }) => ({
+						code: error.code,
+						message: error.message,
+					})
+				)
+			);
+		}
+		expect(errors[0]).toMatchObject({ code: "FORBIDDEN" });
+		expect(errors[1]).toEqual(errors[0]);
+	}
+	expect({
+		games: await api.db.select().from(ringGame),
+		rules: await api.db.select().from(cashRule),
+	}).toEqual(before);
+});
+
 const cases = [
 	{
 		router: "playerTag",
 		table: playerTag,
-		message: "You do not own this tag",
 		create: (caller: ApiFixture["alice"]) =>
 			caller.playerTag.create({ name: "Tag" }),
 		calls: (caller: ApiFixture["alice"], id: string) =>
@@ -25,7 +74,6 @@ const cases = [
 	{
 		router: "entryTag",
 		table: entryTag,
-		message: "You do not own this tag",
 		create: (caller: ApiFixture["alice"]) =>
 			caller.entryTag.create({ name: "Tag" }),
 		calls: (caller: ApiFixture["alice"], id: string) =>
@@ -37,7 +85,6 @@ const cases = [
 	{
 		router: "tournamentTag",
 		table: tournamentTag,
-		message: "You do not own this tag",
 		create: (caller: ApiFixture["alice"]) =>
 			caller.tournamentTag.create({ name: "Tag" }),
 		calls: (caller: ApiFixture["alice"], id: string) =>
@@ -49,7 +96,6 @@ const cases = [
 	{
 		router: "handTag",
 		table: handTag,
-		message: "You do not own this tag",
 		create: (caller: ApiFixture["alice"]) =>
 			caller.handTag.create({ name: "Tag" }),
 		calls: (caller: ApiFixture["alice"], id: string) =>
@@ -61,7 +107,6 @@ const cases = [
 	{
 		router: "ledgerCategory",
 		table: ledgerCategory,
-		message: "You do not own this category",
 		create: (caller: ApiFixture["alice"]) =>
 			caller.ledgerCategory.create({ name: "Deposit" }),
 		calls: (caller: ApiFixture["alice"], id: string) =>
@@ -75,7 +120,6 @@ const cases = [
 	{
 		router: "room",
 		table: room,
-		message: "You do not own this room",
 		create: (caller: ApiFixture["alice"]) =>
 			caller.room.create({ name: "Room" }),
 		calls: (caller: ApiFixture["alice"], id: string) =>
@@ -88,7 +132,6 @@ const cases = [
 	{
 		router: "filterPreset",
 		table: filterPreset,
-		message: "You do not own this filter preset",
 		create: (caller: ApiFixture["alice"]) =>
 			caller.filterPreset.create({
 				screenKey: "sessions",
@@ -109,21 +152,33 @@ test.for(
 	cases
 )("$router prevents foreign access and existence disclosure without blocking its owner", async ({
 	table,
-	message,
 	create,
 	calls,
 }, { api }) => {
 	const foreign = requireCreatedRow(await create(api.bob));
 	const own = requireCreatedRow(await create(api.alice));
 	const before = await api.db.select().from(table);
-	for (const id of [foreign.id, "missing"]) {
-		for (const call of calls(api.alice, id)) {
-			await expect(call()).rejects.toMatchObject({
-				code: "FORBIDDEN",
-				message,
-			});
-			expect(await api.db.select().from(table)).toEqual(before);
+	const foreignCalls = calls(api.alice, foreign.id);
+	const missingCalls = calls(api.alice, "missing");
+	for (const [index, foreignCall] of foreignCalls.entries()) {
+		const missingCall = missingCalls[index];
+		if (!missingCall) {
+			throw new Error("Missing ownership test call");
 		}
+		const errors = await Promise.all(
+			[foreignCall, missingCall].map((call) =>
+				call().then(
+					() => null,
+					(error: unknown) => error
+				)
+			)
+		);
+		expect(errors[0]).toMatchObject({ code: "FORBIDDEN" });
+		expect(errors[1]).toMatchObject({
+			code: "FORBIDDEN",
+			message: (errors[0] as Error).message,
+		});
+		expect(await api.db.select().from(table)).toEqual(before);
 	}
 	const [updateOwn] = calls(api.alice, own.id);
 	await expect(updateOwn()).resolves.toMatchObject({
@@ -136,4 +191,60 @@ test.for(
 	expect(
 		await api.db.select().from(table).where(eq(table.id, foreign.id))
 	).toEqual([expect.objectContaining({ id: foreign.id, userId: "bob" })]);
+});
+
+test("tournament procedures reject foreign and missing rooms and masters uniformly", async ({
+	api,
+}) => {
+	const bobRoom = requireCreatedRow(await api.bob.room.create({ name: "Bob" }));
+	const bobTournament = await api.bob.tournament.create({
+		roomId: bobRoom.id,
+		name: "Bob tournament",
+		rule: {},
+	});
+	const before = await api.db.select().from(tournament);
+	for (const [foreignId, calls] of [
+		[
+			bobRoom.id,
+			[
+				(id: string) => api.alice.tournament.listByRoom({ roomId: id }),
+				(id: string) =>
+					api.alice.tournament.create({ roomId: id, name: "Test", rule: {} }),
+				(id: string) =>
+					api.alice.tournament.createWithLevels({
+						roomId: id,
+						name: "Test",
+						rule: { levels: [] },
+					}),
+			],
+		],
+		[
+			bobTournament.id,
+			[
+				(id: string) => api.alice.tournament.getById({ id }),
+				(id: string) => api.alice.tournament.update({ id, name: "Changed" }),
+				(id: string) =>
+					api.alice.tournament.updateWithLevels({ id, rule: { levels: [] } }),
+				(id: string) => api.alice.tournament.archive({ id }),
+				(id: string) => api.alice.tournament.restore({ id }),
+			],
+		],
+	] as const) {
+		for (const call of calls) {
+			const errors = await Promise.all(
+				[foreignId, "missing"].map((id) =>
+					call(id).then(
+						() => null,
+						(error: unknown) => error
+					)
+				)
+			);
+			expect(errors[0]).toMatchObject({ code: "FORBIDDEN" });
+			expect(errors[1]).toMatchObject({
+				code: "FORBIDDEN",
+				message: (errors[0] as Error).message,
+			});
+		}
+	}
+	expect(await api.db.select().from(tournament)).toEqual(before);
 });

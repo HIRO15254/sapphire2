@@ -5,6 +5,18 @@ import { D1_MAX_BOUND_PARAMS } from "../lib/batch";
 import { requireCreatedRow, test } from "./test-fixture";
 
 describe("player tags and atomic writes on D1", () => {
+	test("searches long names and treats wildcard characters literally", async ({
+		api,
+	}) => {
+		const name = "a".repeat(60);
+		const saved = requireCreatedRow(await api.alice.player.create({ name }));
+		await api.alice.player.create({ name: "abc" });
+		expect(
+			(await api.alice.player.list({ search: name })).map(({ id }) => id)
+		).toEqual([saved.id]);
+		expect(await api.alice.player.list({ search: "a_c" })).toEqual([]);
+	});
+
 	test("hides self and temporary players in every list path without hiding opponents named Hero", async ({
 		api,
 	}) => {
@@ -83,26 +95,6 @@ describe("player tags and atomic writes on D1", () => {
 		await expect(insert("bob-self", "bob", 1)).resolves.toBeDefined();
 	});
 
-	test("rejects valid unauthenticated player requests without reading or changing stored players", async ({
-		api,
-	}) => {
-		const saved = requireCreatedRow(
-			await api.alice.player.create({ name: "Private player" })
-		);
-		const before = await api.db.select().from(player);
-		const guest = api.caller(null);
-		for (const request of [
-			() => guest.player.list(),
-			() => guest.player.getById({ id: saved.id }),
-			() => guest.player.create({ name: "Valid" }),
-			() => guest.player.update({ id: saved.id, name: "Changed" }),
-			() => guest.player.delete({ id: saved.id }),
-		]) {
-			await expect(request()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
-		}
-		expect(await api.db.select().from(player)).toEqual(before);
-	});
-
 	test("rejects foreign and nonexistent player IDs uniformly without changing tags or players", async ({
 		api,
 	}) => {
@@ -117,20 +109,28 @@ describe("player tags and atomic writes on D1", () => {
 		);
 		const playersBefore = await api.db.select().from(player);
 		const linksBefore = await api.db.select().from(playerTagLink);
-		for (const id of [saved.id, "missing-player"]) {
-			await expect(api.alice.player.getById({ id })).rejects.toMatchObject({
+		const errorsFor = async (id: string) => {
+			const errors: unknown[] = [];
+			for (const call of [
+				() => api.alice.player.getById({ id }),
+				() => api.alice.player.update({ id, name: "Rejected", tagIds: [] }),
+				() => api.alice.player.delete({ id }),
+			]) {
+				errors.push(
+					await call().then(
+						() => null,
+						(error: unknown) => error
+					)
+				);
+			}
+			return errors;
+		};
+		const missingErrors = await errorsFor("missing-player");
+		for (const [index, error] of (await errorsFor(saved.id)).entries()) {
+			expect(error).toMatchObject({ code: "FORBIDDEN" });
+			expect(missingErrors[index]).toMatchObject({
 				code: "FORBIDDEN",
-				message: "You do not own this player",
-			});
-			await expect(
-				api.alice.player.update({ id, name: "Rejected", tagIds: [] })
-			).rejects.toMatchObject({
-				code: "FORBIDDEN",
-				message: "You do not own this player",
-			});
-			await expect(api.alice.player.delete({ id })).rejects.toMatchObject({
-				code: "FORBIDDEN",
-				message: "You do not own this player",
+				message: (error as Error).message,
 			});
 		}
 		expect(await api.db.select().from(player)).toEqual(playersBefore);

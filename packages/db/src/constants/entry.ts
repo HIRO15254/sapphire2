@@ -19,7 +19,7 @@ export const PLAY_SESSION_END_STATES = [
 ] as const;
 export type PlaySessionEndState = (typeof PLAY_SESSION_END_STATES)[number];
 
-export const END_STATE_KINDS = {
+const END_STATE_KINDS = {
 	bagged: ["tournament"],
 	held: ["cash"],
 	busted: ["tournament"],

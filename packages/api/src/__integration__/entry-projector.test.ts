@@ -369,12 +369,11 @@ describe("projection statements against D1", () => {
 				priceId: ledgerLine.priceId,
 			})
 			.from(ledgerLine)
-			.where(eq(ledgerLine.entryId, entryId));
-		expect(lines).toEqual(
-			expect.arrayContaining([
-				{ role: "buy_in", quantity: -30_000, priceId: "cash-price" },
-				{ role: "cash_out", quantity: 22_000, priceId: null },
-			])
-		);
+			.where(eq(ledgerLine.entryId, entryId))
+			.orderBy(asc(ledgerLine.role));
+		expect(lines).toEqual([
+			{ role: "buy_in", quantity: -30_000, priceId: "cash-price" },
+			{ role: "cash_out", quantity: 22_000, priceId: null },
+		]);
 	});
 });

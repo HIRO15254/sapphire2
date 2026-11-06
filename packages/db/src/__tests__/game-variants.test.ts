@@ -3,20 +3,7 @@ import {
 	DEFAULT_GAME_GROUPS,
 	DEFAULT_GAME_MIXES,
 	DEFAULT_GAME_VARIANTS,
-	DEFAULT_VARIANT_LABEL,
-	isMixVariant,
-	MIX_VARIANT,
-	MIX_VARIANT_LABEL,
-	variantDisplayLabel,
 } from "../constants/game-variants";
-
-describe("DEFAULT_VARIANT_LABEL", () => {
-	it("matches the seeded NLH row's label (form-default variant)", () => {
-		const nlh = DEFAULT_GAME_VARIANTS.find((v) => v.key === "nlh");
-		expect(DEFAULT_VARIANT_LABEL).toBe(nlh?.label);
-		expect(DEFAULT_VARIANT_LABEL).toBe("NL Hold'em");
-	});
-});
 
 describe("DEFAULT_GAME_GROUPS", () => {
 	it("has exactly 3 groups", () => {
@@ -250,51 +237,5 @@ describe("DEFAULT_GAME_MIXES", () => {
 		const tenGame = DEFAULT_GAME_MIXES.find((m) => m.key === "10game");
 		expect(tenGame?.label).toBe("10-Game");
 		expect(tenGame?.variantKeys).toHaveLength(10);
-	});
-});
-
-describe("MIX_VARIANT constants", () => {
-	it("MIX_VARIANT is the fixed key 'mix'", () => {
-		expect(MIX_VARIANT).toBe("mix");
-	});
-
-	it("MIX_VARIANT_LABEL is 'Mixed Game'", () => {
-		expect(MIX_VARIANT_LABEL).toBe("Mixed Game");
-	});
-});
-
-describe("isMixVariant", () => {
-	it("returns true for the mix key", () => {
-		expect(isMixVariant("mix")).toBe(true);
-	});
-
-	it("returns false for a display label (self-frozen variant string)", () => {
-		expect(isMixVariant("NL Hold'em")).toBe(false);
-	});
-
-	it("returns false for an empty string", () => {
-		expect(isMixVariant("")).toBe(false);
-	});
-
-	it("returns false for the mix display label itself", () => {
-		expect(isMixVariant("Mixed Game")).toBe(false);
-	});
-});
-
-describe("variantDisplayLabel", () => {
-	it("maps the mix key to 'Mixed Game'", () => {
-		expect(variantDisplayLabel("mix")).toBe("Mixed Game");
-	});
-
-	it("passes through any other stored label verbatim (self-freezing)", () => {
-		expect(variantDisplayLabel("NL Hold'em")).toBe("NL Hold'em");
-	});
-
-	it("passes through an empty string unchanged", () => {
-		expect(variantDisplayLabel("")).toBe("");
-	});
-
-	it("passes through a user-defined custom variant label unchanged", () => {
-		expect(variantDisplayLabel("My House Mix")).toBe("My House Mix");
 	});
 });

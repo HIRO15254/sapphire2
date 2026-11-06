@@ -20,15 +20,15 @@ export async function callTool(
 	input: unknown,
 	log: (error: unknown) => void
 ): Promise<ToolCallResult> {
-	const [namespace, procedureName] = def.procedurePath.split(".");
-	if (!(namespace && procedureName)) {
-		throw new Error(`malformed procedure path: "${def.procedurePath}"`);
-	}
-	const procedure = caller[namespace]?.[procedureName];
-	if (typeof procedure !== "function") {
-		throw new Error(`caller has no procedure at "${def.procedurePath}"`);
-	}
 	try {
+		const [namespace, procedureName] = def.procedurePath.split(".");
+		if (!(namespace && procedureName)) {
+			throw new Error(`malformed procedure path: "${def.procedurePath}"`);
+		}
+		const procedure = caller[namespace]?.[procedureName];
+		if (typeof procedure !== "function") {
+			throw new Error(`caller has no procedure at "${def.procedurePath}"`);
+		}
 		const result = await procedure(input);
 		return { content: [{ type: "text", text: JSON.stringify(result) }] };
 	} catch (error) {

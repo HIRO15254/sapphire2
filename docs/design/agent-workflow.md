@@ -1,6 +1,8 @@
 # Agent Workflow Setup
 
-The semi-automated loop in [`AGENTS.md`](../../AGENTS.md) (Issue Tracking, PR Review Loop, Commits, Release Flow) depends on settings that live outside the repository: Linear, GitHub, and Orca. This doc records them and the reason for each, so the loop can be rebuilt or audited without replaying the setup issue (SA2-253). The imperatives stay in `AGENTS.md`.
+Historical context is preserved in the [archive](../archive/agent-workflow-history.md).
+
+The semi-automated loop in [`AGENTS.md`](../../AGENTS.md) (Issue Tracking, PR Review Loop, Commits, Release Flow) depends on settings that live outside the repository: Linear, GitHub, and Orca. This doc records them and the reason for each, so the loop can be rebuilt or audited without replaying its setup history. The imperatives stay in `AGENTS.md`.
 
 ## The loop
 
@@ -12,7 +14,7 @@ The semi-automated loop in [`AGENTS.md`](../../AGENTS.md) (Issue Tracking, PR Re
 
 ## Linear (team Sapphire2)
 
-- **Plan**: Plus. The Free plan caps non-archived issues (completed and canceled included) and blocked issue creation on 2026-10-02.
+- **Plan**: Plus. The Free plan caps non-archived issues, including completed and canceled issues.
 - **Statuses** — the name says whose turn it is:
 
   | Type | Statuses |
@@ -37,14 +39,14 @@ The semi-automated loop in [`AGENTS.md`](../../AGENTS.md) (Issue Tracking, PR Re
 
 ## Orca
 
-- **Base ref**: the repository default (`origin/HEAD` = `origin/dev`), with Settings → Git → "Keep Local Main Up to Date" on. Do not set a repository-specific base ref of `dev`: Orca then neither fetches nor updates it, and new worktrees start from a stale tree that lacks the current rules and hooks. That happened on 2026-10-02 — PR #668 was pushed with a Japanese branch name and opened ready from a tree 23 commits behind.
+- **Base ref**: the repository default (`origin/HEAD` = `origin/dev`), with Settings → Git → "Keep Local Main Up to Date" on. Do not set a repository-specific base ref of `dev`: Orca then neither fetches nor updates it, and new worktrees start from a stale tree that lacks the current rules and hooks.
 - **Setup**: `bun install`, and agents start only after setup finishes. [`.worktreeinclude`](../../.worktreeinclude) copies `apps/server/.dev.vars` and `apps/web/.env` so `bun run dev` works in a new worktree.
 - **Status sync**: the workspace board's "Sync board and issue status" changes the Linear status only when a card is dragged. Creating a workspace from a Linear task does not, so the agent sets In Progress itself.
 - **Branch naming** for workspaces not created from Linear: prefix Git Username and "Auto-rename branch & worktree" give names like `HIRO15254/<slug>`; agents still use `feature/sa2-xxx`.
 
 ## PR watch
 
-[`scripts/pr-watch.ts`](../../scripts/pr-watch.ts) (SA2-333) lets the agent that opened a PR learn what the owner, the reviewer, and CI do on it, so a review is answered by the agent that holds the implementation context. It needs only `gh` and a harness that re-invokes the agent when a background command exits, and no terminal host, daemon, or webhook. It is the only background watch an agent keeps for its PR.
+[`scripts/pr-watch.ts`](../../scripts/pr-watch.ts) lets the agent that opened a PR learn what the owner, the reviewer, and CI do on it, so a review is answered by the agent that holds the implementation context. It needs only `gh` and a harness that re-invokes the agent when a background command exits, and no terminal host, daemon, or webhook. It is the only background watch an agent keeps for its PR.
 
 - **Flow.** The agent runs `bun run pr-watch` in the background right after opening its PR and again after each batch until it reports the PR merged or closed. The script finds the PR from the current branch (`--pr <n>` overrides), polls it every 30 s with one GraphQL query (cost 1 of the 5,000 hourly points), and exits with one batch 60 s after the last new item, at most 4 minutes after the first. What it has reported is kept per worktree in `<git dir>/pr-watch/<pr>.json`, so items that arrive while no watch runs are reported by the next one; the first run records what is already on the PR as seen. A merge or close ends the watch with a final batch and deletes the file.
 - **An idle PR costs nothing.** The script has no time limit; only events end it, so the harness must let a background command wait without a deadline. Claude Code caps background commands at `max(7,200,000 ms, BASH_MAX_TIMEOUT_MS)` (2.1.293), so [`.claude/settings.json`](../../.claude/settings.json) raises `BASH_MAX_TIMEOUT_MS` to its ceiling, 2,147,483,647 ms (597 hours); the default timeout of other commands is unchanged. omp's `timeout` is in seconds, defaults to 300 s, and clamps other values to at most 3600 s, so only `timeout: 0` works there, whatever the model. Codex and Gemini CLI are unverified.
@@ -54,7 +56,6 @@ The semi-automated loop in [`AGENTS.md`](../../AGENTS.md) (Issue Tracking, PR Re
 - **Loop guard.** Agents post as the owner's account, so pr-watch skips posts whose last line is `<!-- pr-watch-agent -->`; a post that only quotes the marker still arrives. State changes have no body to mark, and agents do not toggle draft/ready (`gh pr ready` is denied).
 - **Untrusted text.** Text reaches the agent only from `HIRO15254`, `claude[bot]`, and `github-actions[bot]`, wrapped in `<untrusted-github-text>`. A post by anyone else is listed with its URL and without its text. GraphQL reports bot logins without `[bot]`; pr-watch adds it for `__typename: Bot`.
 - **Limits.** Nothing is delivered while the agent's session is closed; the next watch reports what it missed. Starting two watches for one PR delivers each batch twice. Only a top-level session is re-invoked when its background command exits, so an agent that will own a PR runs as its own session.
-- **Rejected designs (2026-10-09).** A webhook daemon typing into Orca terminals (depended on Orca and `gh webhook forward`, one forwarder per repository); a self-stop every 110 minutes to fit Claude Code's default cap (woke an idle agent every two hours — a timer-based check-in); a separate `gh pr checks --watch` (two watchers woke the agent twice per failure, and omp cut it at 300 s).
 
 ## Agents and hooks
 
@@ -65,10 +66,11 @@ The semi-automated loop in [`AGENTS.md`](../../AGENTS.md) (Issue Tracking, PR Re
 | Gemini CLI | [`.gemini/settings.json`](../../.gemini/settings.json) `context.fileName` | `GEMINI_CLI` |
 
 - [`.claude/settings.json`](../../.claude/settings.json) denies `gh pr merge` and `gh pr ready` for Claude Code, raises `BASH_MAX_TIMEOUT_MS` so [pr-watch](#pr-watch) can wait for days, and its Stop hook runs format, changed tests (`test:unit`, so D1 integration stays in CI), lint, and `check:rules`; `.husky/pre-commit` is skipped under Claude Code for that reason. Codex and Gemini have no equivalent deny and follow the `AGENTS.md` text.
+- `.husky/pre-commit` stages an unstaged generated route tree before lint-staged to avoid stash conflicts. When staged source files exist, it runs changed unit tests using Git-based selection; this includes unstaged changes and avoids Windows command-line length limits.
 - `.husky/pre-push` and the `branch-name` job in `ci.yml` reject non-ASCII branch names ([`scripts/check-branch-name.ts`](../../scripts/check-branch-name.ts)); `claude-code-action` refuses them, so the automated review would never run.
 - Linear MCP is configured for all three agents (Gemini: `/mcp auth linear`).
 
-## Discovery (SA2-254)
+## Discovery
 
 Agents find problems and file them, with evidence, to Linear Triage; a human only decides whether to accept. Discovery runs never write code, push, or open PRs.
 
@@ -82,4 +84,4 @@ Agents find problems and file them, with evidence, to Linear Triage; a human onl
 
 ## Released step
 
-[`scripts/release-linear-issues.ts`](../../scripts/release-linear-issues.ts) takes the merged PRs whose merge commit lies between the previous tag and the release merge, asks Linear for the issues attached to each PR (`attachmentsForURL`), and moves the Sapphire2 issues in Done to Released. It does not use `(SA2-xxx)` in titles or branch names, which no check guarantees. The first run (v3.5.2) moved SA2-187, SA2-190, and SA2-237. An issue that is not Done at release time (a phase issue still open for non-code work) is moved to Released by hand when it closes.
+[`scripts/release-linear-issues.ts`](../../scripts/release-linear-issues.ts) takes the merged PRs whose merge commit lies between the previous tag and the release merge, asks Linear for the issues attached to each PR (`attachmentsForURL`), and moves the Sapphire2 issues in Done to Released. It does not use `(SA2-xxx)` in titles or branch names, which no check guarantees. An issue that is not Done at release time (a phase issue still open for non-code work) is moved to Released by hand when it closes.

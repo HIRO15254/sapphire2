@@ -1,7 +1,10 @@
 import type { StatsValuation } from "@sapphire2/db/schemas/stats-filter";
+import { addSafeIntegers } from "../lib/safe-integer";
 import { playMinutes } from "./entry-reads";
 import type { StatsBucket, StatsEntry } from "./stats-data";
 import {
+	isPayment,
+	isRealCurrencyLine,
 	type MissingRate,
 	type ValuationAmounts,
 	type ValuationAsset,
@@ -115,13 +118,13 @@ function nativeAmounts(
 	let buyIn = 0;
 	let cashOut = 0;
 	for (const line of lines) {
-		if (line.quantity < 0) {
-			buyIn -= line.quantity;
+		if (isPayment(line.quantity)) {
+			buyIn = addSafeIntegers(buyIn, -line.quantity);
 		} else {
-			cashOut += line.quantity;
+			cashOut = addSafeIntegers(cashOut, line.quantity);
 		}
 	}
-	return { buyIn, cashOut, profitLoss: cashOut - buyIn };
+	return { buyIn, cashOut, profitLoss: addSafeIntegers(cashOut, -buyIn) };
 }
 
 function toValuationLine(
@@ -155,30 +158,27 @@ export function initialPaymentLines(
 	if (!first) {
 		return [];
 	}
-	if (first.eventId !== null) {
-		return lines.filter(
-			(line) =>
-				line.eventId === first.eventId &&
-				(line.role === "buy_in" || line.role === "fee")
-		);
-	}
-	if (first.priceId !== null) {
-		return lines.filter(
-			(line) =>
-				line.priceId === first.priceId &&
-				line.playSessionId === first.playSessionId &&
-				(line.role === "buy_in" || line.role === "fee")
-		);
-	}
-	const fee = lines
-		.filter(
-			(line) =>
-				line.role === "fee" &&
-				line.eventId === null &&
-				line.priceId === null &&
-				line.playSessionId === first.playSessionId
-		)
-		.sort(compareLines)[0];
+	const fees = lines.filter(
+		(line) => line.role === "fee" && line.playSessionId === first.playSessionId
+	);
+	const fee =
+		(first.eventId === null
+			? undefined
+			: fees
+					.filter((line) => line.eventId === first.eventId)
+					.sort(compareLines)[0]) ??
+		(first.priceId === null
+			? undefined
+			: fees
+					.filter(
+						(line) =>
+							line.priceId === first.priceId &&
+							(line.eventId === null || line.eventId === first.eventId)
+					)
+					.sort(compareLines)[0]) ??
+		fees
+			.filter((line) => line.eventId === null && line.priceId === null)
+			.sort(compareLines)[0];
 	return fee ? [first, fee] : [first];
 }
 
@@ -194,10 +194,7 @@ class NormalizationContext {
 	}
 
 	realCurrencyLines(entry: StatsEntry) {
-		return entry.lines.filter(
-			(line) =>
-				line.effect === "real" && this.kinds.get(line.assetId) === "currency"
-		);
+		return entry.lines.filter((line) => isRealCurrencyLine(line, this.kinds));
 	}
 
 	cashNativeProfitLoss(entry: StatsEntry): number | null {
@@ -227,7 +224,7 @@ class NormalizationContext {
 				evNormalized:
 					entry.evDiff === null
 						? null
-						: (profitLoss + entry.evDiff) / entry.bigBlind,
+						: addSafeIntegers(profitLoss, entry.evDiff) / entry.bigBlind,
 			};
 		}
 		const unit = this.tournamentUnit(entry);
@@ -244,12 +241,15 @@ class NormalizationContext {
 		entry: StatsEntry
 	): { buyInTotal: number; profitLoss: number } | null {
 		const initial = initialPaymentLines(entry.lines);
-		if (initial.length === 0) {
+		if (!initial[0]) {
 			return null;
 		}
 		const real = this.realCurrencyLines(entry);
 		const assets = new Set([...real, ...initial].map((line) => line.assetId));
-		if (assets.size === 1) {
+		if (
+			assets.size === 1 &&
+			this.kinds.get(initial[0].assetId) === "currency"
+		) {
 			const buyInTotal = nativeAmounts(initial).buyIn;
 			return buyInTotal > 0
 				? { buyInTotal, profitLoss: nativeAmounts(real).profitLoss }
@@ -519,9 +519,17 @@ function evMetrics(
 	}
 	return {
 		evRecordedEntryCount: recorded.length,
-		evDiff: sum(recorded.map((fact) => fact.evDiff ?? 0)),
-		evProfitLoss: sum(
-			cash.map((fact) => (fact.value ?? 0) + (fact.evDiff ?? 0))
+		evDiff: recorded.reduce(
+			(total, fact) => addSafeIntegers(total, fact.evDiff ?? 0),
+			0
+		),
+		evProfitLoss: cash.reduce(
+			(total, fact) =>
+				addSafeIntegers(
+					addSafeIntegers(total, fact.value ?? 0),
+					fact.evDiff ?? 0
+				),
+			0
 		),
 	};
 }
@@ -530,9 +538,12 @@ function sumAmounts(facts: EntryFacts[]): ValuationAmounts {
 	const total = { buyIn: 0, cashOut: 0, profitLoss: 0 };
 	for (const fact of facts) {
 		if (fact.amounts) {
-			total.buyIn += fact.amounts.buyIn;
-			total.cashOut += fact.amounts.cashOut;
-			total.profitLoss += fact.amounts.profitLoss;
+			total.buyIn = addSafeIntegers(total.buyIn, fact.amounts.buyIn);
+			total.cashOut = addSafeIntegers(total.cashOut, fact.amounts.cashOut);
+			total.profitLoss = addSafeIntegers(
+				total.profitLoss,
+				fact.amounts.profitLoss
+			);
 		}
 	}
 	return total;
@@ -631,7 +642,7 @@ const LENGTH_ORDER = [...LENGTH_BUCKETS.map((bucket) => bucket.key), "unknown"];
 const KIND_LABELS = { cash: "Cash game", tournament: "Tournament" } as const;
 
 function lengthBucket(fact: EntryFacts): StatsBucket {
-	if (!fact.timed || fact.playMinutes === null) {
+	if (fact.playMinutes === null) {
 		return { key: "unknown", label: "Unknown" };
 	}
 	const minutes = fact.playMinutes;

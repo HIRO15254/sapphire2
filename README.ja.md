@@ -2,7 +2,7 @@
 
 > **[English version](README.md)**
 
-[Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack) で作成されたモダン TypeScript スタックプロジェクトです。React, TanStack Router, Hono, tRPC などを組み合わせています。
+React、TanStack Router、Hono、tRPC を使ったポーカー記録アプリです。
 
 ## 技術スタック
 
@@ -30,7 +30,8 @@ sapphire2/
 │   ├── auth/           # Better Auth 設定
 │   ├── config/         # 共有 TypeScript 設定
 │   ├── db/             # Drizzle ORM スキーマとマイグレーション
-│   └── env/            # 環境変数バリデーション (Zod)
+│   ├── env/            # 環境変数バリデーション (Zod)
+│   └── mcp/            # MCP サーバーとツール定義
 ├── AGENTS.md           # エージェント向けガイド (正本); CLAUDE.md は @AGENTS.md でインポート
 ├── .claude/            # Claude Code 設定 (rules, skills, settings)
 ├── docs/
@@ -132,8 +133,8 @@ bun run dev
 **Cloudflare Workers**（API）+ **Cloudflare Pages**（Web）+ **Cloudflare D1**（DB）にデプロイします。
 
 - **プレビュー**: PR ごとに独立した Worker と D1、および共有 Pages プロジェクトの PR ブランチへデプロイ
-- **dev**: 常設の dev 環境。`dev` への push で自動デプロイ
-- **本番**: GitHub Release の公開で自動デプロイ
+- **dev**: 固定 URL を使用し、D1 はデプロイごとに再作成。`dev` への push または手動 dispatch で起動
+- **本番**: GitHub Release の公開または手動 dispatch でデプロイ
 
 詳細なセットアップ手順は [docs/deploy.ja.md](docs/deploy.ja.md) を参照してください。
 

@@ -47,6 +47,25 @@ describe("dynamic client registration wiring", () => {
 		handled.length = 0;
 	});
 
+	it.each([
+		"javascript:alert(document.domain)",
+		"https://example.com/cb,javascript:alert(1)",
+		"http://example.com/cb",
+		"not-a-url",
+	])("rejects unsafe redirect URI %s before registration", async (uri) => {
+		const response = await registerRequest({ redirect_uris: [uri] });
+		expect(response.status).toBe(400);
+		expect(handled).toHaveLength(0);
+	});
+
+	it.each([
+		"http://localhost:8787/cb",
+		"cursor://oauth/cb",
+	])("accepts supported redirect URI %s", async (uri) => {
+		const response = await registerRequest({ redirect_uris: [uri] });
+		expect(response.status).toBe(200);
+	});
+
 	it("hands better-auth a client_name when the client omits one", async () => {
 		await registerRequest({
 			redirect_uris: ["https://claude.ai/api/mcp/auth_callback"],

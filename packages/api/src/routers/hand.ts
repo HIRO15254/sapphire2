@@ -1,3 +1,4 @@
+import { idSchema } from "@sapphire2/db/schemas/id";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import {
@@ -13,10 +14,10 @@ import {
 	updateHand,
 } from "../services/hand";
 
-export const handIdInputSchema = z.object({ id: z.string() });
+export const handIdInputSchema = z.object({ id: idSchema });
 
 export const handListInputSchema = z.object({
-	playSessionId: z.string(),
+	playSessionId: idSchema,
 	cursor: z.string().optional(),
 	limit: z
 		.number()
@@ -26,7 +27,7 @@ export const handListInputSchema = z.object({
 		.default(DEFAULT_HAND_PAGE_SIZE),
 });
 
-export const handUndoLastInputSchema = z.object({ playSessionId: z.string() });
+export const handUndoLastInputSchema = z.object({ playSessionId: idSchema });
 
 export const handRouter = router({
 	list: protectedProcedure

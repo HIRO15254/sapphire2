@@ -19,7 +19,8 @@ import { ledgerLine, userSetting } from "@sapphire2/db/schema/ledger";
 import { cashRule, tournamentRule } from "@sapphire2/db/schema/rule";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
-import { runBatch, selectInChunks } from "../lib/batch";
+import { selectInChunks } from "../lib/batch";
+import { runGuardedBatch } from "../lib/write-guard";
 import type { CashRuleInput } from "./cash-rules";
 import {
 	buildLiveEntryStartStatements,
@@ -44,8 +45,8 @@ import {
 	assertMetadata,
 	assertPaymentAssets,
 	assertPaymentPrices,
-	deleteEntry,
 	type ManualPaymentInput,
+	newEntryReferenceGuards,
 	planCreateRule,
 	updateEntry,
 } from "./entry-writes";
@@ -149,7 +150,9 @@ async function assertNoUnfinishedPlay(
 	const [unfinished] = await db
 		.select({ id: playSession.id })
 		.from(playSession)
-		.where(and(eq(playSession.userId, userId), ne(playSession.status, "ended")))
+		.where(
+			and(eq(playSession.userId, userId), sql`${playSession.status} <> 'ended'`)
+		)
 		.limit(1);
 	if (unfinished) {
 		throw new TRPCError({
@@ -284,18 +287,35 @@ export async function loadEntryRuleFacts(
 export async function entryKeptReferences(
 	db: Database,
 	userId: string,
-	entryId: string
-): Promise<{ assetIds: Set<string>; priceIds: Set<string> }> {
-	const rows = await db
-		.select({ assetId: ledgerLine.assetId, priceId: ledgerLine.priceId })
-		.from(ledgerLine)
-		.where(and(eq(ledgerLine.entryId, entryId), eq(ledgerLine.userId, userId)));
-	return {
-		assetIds: new Set(rows.map((row) => row.assetId)),
-		priceIds: new Set(
-			rows.flatMap((row) => (row.priceId ? [row.priceId] : []))
-		),
-	};
+	entryId: string,
+	eventId?: string
+): Promise<{
+	assetIds: Set<string>;
+	assetCounts: Map<string, number>;
+	priceCounts: Map<string, number>;
+}> {
+	const rows =
+		eventId === undefined
+			? []
+			: await db
+					.select({ assetId: ledgerLine.assetId, priceId: ledgerLine.priceId })
+					.from(ledgerLine)
+					.where(
+						and(
+							eq(ledgerLine.entryId, entryId),
+							eq(ledgerLine.userId, userId),
+							eq(ledgerLine.sourceEventId, eventId)
+						)
+					);
+	const priceCounts = new Map<string, number>();
+	const assetCounts = new Map<string, number>();
+	for (const row of rows) {
+		assetCounts.set(row.assetId, (assetCounts.get(row.assetId) ?? 0) + 1);
+		if (row.priceId) {
+			priceCounts.set(row.priceId, (priceCounts.get(row.priceId) ?? 0) + 1);
+		}
+	}
+	return { assetIds: new Set(assetCounts.keys()), assetCounts, priceCounts };
 }
 
 export async function assertEventPayments(
@@ -303,19 +323,27 @@ export async function assertEventPayments(
 	userId: string,
 	entryId: string,
 	ruleVersionId: string,
-	payments: readonly ManualPaymentInput[]
+	payments: readonly ManualPaymentInput[],
+	eventId?: string
 ): Promise<void> {
 	if (payments.length === 0) {
 		return;
 	}
-	const kept = await entryKeptReferences(db, userId, entryId);
-	await assertPaymentAssets(db, userId, [...payments], kept.assetIds);
+	const kept = await entryKeptReferences(db, userId, entryId, eventId);
+	await assertPaymentAssets(
+		db,
+		userId,
+		[...payments],
+		kept.assetIds,
+		kept.assetCounts
+	);
 	await assertPaymentPrices(
 		db,
 		userId,
 		ruleVersionId,
 		[...payments],
-		kept.priceIds
+		new Set(kept.priceCounts.keys()),
+		kept.priceCounts
 	);
 }
 
@@ -352,7 +380,13 @@ export async function startLiveEntry(
 						: { startLevel: input.startLevel }),
 				}
 			: {};
-	await runBatch(db, [
+	await runGuardedBatch(db, [
+		...newEntryReferenceGuards(
+			db,
+			userId,
+			input,
+			input.payments.map((payment) => payment.assetId)
+		),
 		...rule.statements,
 		...buildLiveEntryStartStatements(db, {
 			id,
@@ -371,7 +405,6 @@ export async function startLiveEntry(
 						},
 			assetId: input.assetId ?? null,
 			roomId: input.roomId ?? null,
-			title: null,
 			memo: input.memo ?? null,
 			label: input.label ?? null,
 			localDate,
@@ -734,7 +767,23 @@ export async function discardLiveEntry(
 			message: "A completed entry cannot be discarded",
 		});
 	}
-	await deleteEntry(db, userId, id);
+	const deleted = await db
+		.delete(entry)
+		.where(
+			and(
+				eq(entry.id, id),
+				eq(entry.userId, userId),
+				eq(entry.source, "live"),
+				ne(entry.status, "settled")
+			)
+		)
+		.returning({ id: entry.id });
+	if (deleted.length === 0) {
+		throw new TRPCError({
+			code: "PRECONDITION_FAILED",
+			message: "The entry can no longer be discarded",
+		});
+	}
 }
 
 export async function attachProgress(

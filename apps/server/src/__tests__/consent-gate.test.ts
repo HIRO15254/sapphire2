@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createFakeEnv } from "./test-utils";
 
+const CSP_NONCE = /script-src 'nonce-([^']+)'/;
+
 const { handlerUrls, setPassword } = vi.hoisted(() => ({
 	handlerUrls: [] as string[],
 	setPassword: vi.fn(),
@@ -92,7 +94,10 @@ describe("authorize consent gate wiring", () => {
 			"/api/auth/set-password",
 			{
 				method: "POST",
-				headers: { "content-type": "application/json" },
+				headers: {
+					"content-type": "application/json",
+					origin: env.CORS_ORIGIN,
+				},
 				body: JSON.stringify({ newPassword: "password1234" }),
 			},
 			env
@@ -100,5 +105,34 @@ describe("authorize consent gate wiring", () => {
 		expect(response.status).toBe(200);
 		expect(setPassword).toHaveBeenCalledTimes(1);
 		expect(handlerUrls).toHaveLength(0);
+	});
+
+	it.each([
+		{ origin: "https://attacker.example", "content-type": "application/json" },
+		{ origin: "http://localhost:3001", "content-type": "text/plain" },
+	])("rejects cross-origin or non-JSON password changes", async (headers) => {
+		const response = await app.request(
+			"/api/auth/set-password",
+			{
+				method: "POST",
+				headers,
+				body: JSON.stringify({ newPassword: "password1234" }),
+			},
+			env
+		);
+		expect(response.status).toBe(403);
+		expect(setPassword).not.toHaveBeenCalled();
+	});
+
+	it("limits consent scripts to the nonce in the rendered page", async () => {
+		const response = await app.request(
+			"/oauth/consent?client_id=client&consent_code=code",
+			undefined,
+			env
+		);
+		const csp = response.headers.get("content-security-policy");
+		const nonce = csp?.match(CSP_NONCE)?.[1];
+		expect(nonce).toBeTruthy();
+		expect(await response.text()).toContain(`nonce="${nonce}"`);
 	});
 });

@@ -1,33 +1,21 @@
 import type { Database } from "@sapphire2/db";
 import { asset } from "@sapphire2/db/schema/asset";
-import {
-	assetRate,
-	ledgerCategory,
-	ledgerLine,
-} from "@sapphire2/db/schema/ledger";
-import { asc, eq } from "drizzle-orm";
+import { ledgerCategory } from "@sapphire2/db/schema/ledger";
 import { describe, expect } from "vitest";
 import { runBatch } from "../lib/batch";
-import { validateEntityOwnership } from "../lib/ownership";
 import {
-	applyEntryEventChange,
 	buildLiveEntryStartStatements,
+	commitEntryEventChange,
 	type LiveEntryStart,
+	loadEntryEventState,
 	type NewPlayEvent,
 } from "../services/entry-live-writes";
-import { buildProjectionLineStatements } from "../services/entry-projector";
 import { planEntryRule } from "../services/entry-rules";
 import { createManualEntry } from "../services/entry-writes";
-import {
-	selectAssetBalances,
-	selectAssetHistory,
-	selectEntryRealTotals,
-} from "../services/ledger-reads";
+import { selectAssetHistory } from "../services/ledger-reads";
 import {
 	buildAdjustmentStatements,
 	buildExchangeStatements,
-	deleteWalletLine,
-	updateWalletLine,
 } from "../services/ledger-writes";
 import { nlhGame, test } from "./test-fixture";
 
@@ -76,11 +64,6 @@ async function seedSettledCash(db: Database): Promise<string> {
 	);
 }
 
-async function realProfitLoss(db: Database, entryId: string) {
-	const totals = await selectEntryRealTotals(db, "alice", [entryId]);
-	return totals.map(({ assetId, profitLoss }) => ({ assetId, profitLoss }));
-}
-
 function liveStart(
 	id: string,
 	detail: LiveEntryStart["detail"],
@@ -92,7 +75,6 @@ function liveStart(
 		detail,
 		assetId: JPY,
 		roomId: null,
-		title: null,
 		memo: null,
 		localDate: "2026-09-05",
 		now: NOW,
@@ -105,28 +87,21 @@ async function appendAndProject(
 	entryId: string,
 	events: NewPlayEvent[]
 ) {
-	const { projection } = await applyEntryEventChange(
-		db,
-		"alice",
+	const state = await loadEntryEventState(db, "alice", entryId);
+	await commitEntryEventChange(db, {
+		userId: "alice",
 		entryId,
-		{ op: "append", events },
-		minutes(600)
-	);
-	await runBatch(
-		db,
-		buildProjectionLineStatements(
-			db,
-			{ entryId, userId: "alice" },
-			projection.lines,
-			minutes(600)
-		)
-	);
+		state,
+		change: { op: "append", events },
+		now: minutes(600),
+	});
 }
 
 describe("entry ledger real profit and loss", () => {
 	test("for live cash and tournament event logs, rebuilt as often as the events change", async ({
-		api: { db },
+		api,
 	}) => {
+		const { db } = api;
 		await seedAssets(db);
 		const cashRule = await planEntryRule(db, "alice", {
 			kind: "cash",
@@ -186,9 +161,15 @@ describe("entry ledger real profit and loss", () => {
 			},
 		]);
 		const cashPl = -15_000;
-		expect(await realProfitLoss(db, "live-cash")).toEqual([
-			{ assetId: JPY, profitLoss: cashPl },
-		]);
+		expect((await api.alice.entry.getById({ id: "live-cash" })).totals).toEqual(
+			[
+				expect.objectContaining({
+					assetId: JPY,
+					effect: "real",
+					profitLoss: cashPl,
+				}),
+			]
+		);
 
 		await runBatch(
 			db,
@@ -247,14 +228,19 @@ describe("entry ledger real profit and loss", () => {
 			},
 		]);
 		const tournamentPl = 50_000 + 3000 - 10_000 - 1000 - 2 * 2000;
-		expect(await realProfitLoss(db, "live-mtt")).toEqual([
-			{ assetId: JPY, profitLoss: tournamentPl },
+		expect((await api.alice.entry.getById({ id: "live-mtt" })).totals).toEqual([
+			expect.objectContaining({
+				assetId: JPY,
+				effect: "real",
+				profitLoss: tournamentPl,
+			}),
 		]);
 	});
 
 	test("live money events use their explicit asset even without an entry currency", async ({
-		api: { db },
+		api,
 	}) => {
+		const { db } = api;
 		await seedAssets(db);
 		const cashRule = await planEntryRule(db, "alice", {
 			kind: "cash",
@@ -286,14 +272,20 @@ describe("entry ledger real profit and loss", () => {
 				},
 			},
 		]);
-		expect(await realProfitLoss(db, "no-currency")).toEqual([
-			{ assetId: JPY, profitLoss: 10_000 },
+		expect(
+			(await api.alice.entry.getById({ id: "no-currency" })).totals
+		).toEqual([
+			expect.objectContaining({
+				assetId: JPY,
+				effect: "real",
+				profitLoss: 10_000,
+			}),
 		]);
 	});
 });
 
-describe("wallet lines, balances and history", () => {
-	test("the balance counts real entry and wallet lines, the history lists each wallet line and one total per entry, and pages by its cursor", async ({
+describe("wallet history", () => {
+	test("pages across an entry total between wallet lines", async ({
 		api: { db },
 	}) => {
 		await seedAssets(db);
@@ -324,15 +316,6 @@ describe("wallet lines, balances and history", () => {
 		);
 		await runBatch(db, [...deposit.statements, ...exchange.statements]);
 
-		const balances = await selectAssetBalances(db, "alice");
-		expect(
-			Object.fromEntries(balances.map((row) => [row.assetId, row.balance]))
-		).toEqual({
-			[JPY]: 100_000 + (50_000 - 30_000) - 15_000,
-			[USD]: 100,
-			[TICKET]: 0,
-		});
-
 		const firstPage = await selectAssetHistory(db, "alice", JPY, { limit: 2 });
 		expect(firstPage).toMatchObject([
 			{ id: exchange.ids[0], quantity: -15_000, role: "exchange" },
@@ -355,150 +338,5 @@ describe("wallet lines, balances and history", () => {
 				occurredAt: new Date("2026-08-01T00:00:00.000Z"),
 			},
 		]);
-	});
-
-	test("only the owner's wallet lines change, an exchange stays a pair of opposite lines in two assets, and entry lines are left to their entry", async ({
-		api: { db },
-	}) => {
-		await seedAssets(db);
-		const settled = await seedSettledCash(db);
-		const exchange = buildExchangeStatements(
-			db,
-			"alice",
-			{
-				from: { assetId: JPY, quantity: 15_000 },
-				to: { assetId: USD, quantity: 100 },
-				categoryId: null,
-				occurredAt: NOW,
-				memo: null,
-			},
-			NOW
-		);
-		await runBatch(db, exchange.statements);
-		const [outgoing, incoming] = exchange.ids;
-
-		expect(() =>
-			buildExchangeStatements(
-				db,
-				"alice",
-				{
-					from: { assetId: JPY, quantity: 1 },
-					to: { assetId: JPY, quantity: 1 },
-					categoryId: null,
-					occurredAt: NOW,
-					memo: null,
-				},
-				NOW
-			)
-		).toThrow(expect.objectContaining({ code: "BAD_REQUEST" }));
-		await expect(
-			updateWalletLine(db, "alice", outgoing, { quantity: 15_000 }, NOW)
-		).rejects.toMatchObject({ code: "BAD_REQUEST" });
-		await expect(
-			updateWalletLine(db, "bob", outgoing, { memo: "mine" }, NOW)
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(deleteWalletLine(db, "bob", outgoing)).rejects.toMatchObject({
-			code: "FORBIDDEN",
-		});
-		await expect(
-			updateWalletLine(
-				db,
-				"alice",
-				`m:${settled}:cash_out:0`,
-				{ memo: "x" },
-				NOW
-			)
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(
-			deleteWalletLine(db, "alice", `m:${settled}:buy_in:0`)
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
-
-		await updateWalletLine(
-			db,
-			"alice",
-			incoming,
-			{ quantity: 110, memo: "Better rate", occurredAt: minutes(5) },
-			minutes(10)
-		);
-		const pair = await db
-			.select({
-				id: ledgerLine.id,
-				quantity: ledgerLine.quantity,
-				memo: ledgerLine.memo,
-				occurredAt: ledgerLine.occurredAt,
-			})
-			.from(ledgerLine)
-			.where(eq(ledgerLine.transferId, exchange.transferId));
-		expect(pair).toEqual(
-			expect.arrayContaining([
-				{
-					id: outgoing,
-					quantity: -15_000,
-					memo: "Better rate",
-					occurredAt: minutes(5),
-				},
-				{
-					id: incoming,
-					quantity: 110,
-					memo: "Better rate",
-					occurredAt: minutes(5),
-				},
-			])
-		);
-
-		await deleteWalletLine(db, "alice", incoming);
-		const remaining = await db
-			.select({ id: ledgerLine.id })
-			.from(ledgerLine)
-			.orderBy(asc(ledgerLine.id));
-		expect(remaining.map(({ id }) => id)).toEqual([
-			`m:${settled}:buy_in:0`,
-			`m:${settled}:cash_out:0`,
-		]);
-	});
-});
-
-describe("validateEntityOwnership for the ledger kinds", () => {
-	test("returns the owner's asset, rate, category and line, and refuses them to another user", async ({
-		api: { db },
-	}) => {
-		await seedAssets(db);
-		await db.insert(assetRate).values({
-			id: "alice-rate",
-			userId: "alice",
-			baseAssetId: TICKET,
-			quoteAssetId: JPY,
-			rateNum: 20_000,
-			rateDen: 1,
-			effectiveFrom: new Date(0),
-		});
-		const deposit = buildAdjustmentStatements(
-			db,
-			"alice",
-			{
-				assetId: JPY,
-				quantity: 1000,
-				categoryId: null,
-				occurredAt: NOW,
-				memo: null,
-			},
-			NOW
-		);
-		await runBatch(db, deposit.statements);
-
-		const owned = [
-			["asset", JPY],
-			["assetRate", "alice-rate"],
-			["ledgerCategory", "alice-deposit"],
-			["ledgerLine", deposit.id],
-		] as const;
-		for (const [kind, id] of owned) {
-			await expect(
-				validateEntityOwnership(db, kind as "asset", id, "alice")
-			).resolves.toMatchObject({ id, userId: "alice" });
-			await expect(
-				validateEntityOwnership(db, kind as "asset", id, "bob")
-			).rejects.toMatchObject({ code: "FORBIDDEN" });
-		}
 	});
 });

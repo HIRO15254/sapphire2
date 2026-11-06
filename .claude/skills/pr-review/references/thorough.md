@@ -18,7 +18,7 @@ Arguments, all optional except `mode`:
 - `--pr <number>` — the pull request; enables `gh pr view` for title/body and is required for `--post`.
 - `--post` — post inline comments with `mcp__github_inline_comment__create_inline_comment`. Without it, report only (local use and evaluation runs).
 
-Why this skill exists, and the data behind every rule below: [`docs/design/pr-review.md`](../../../docs/design/pr-review.md). Its shape is the official `code-review` plugin (finders → one validator per candidate → confidence gate → post) with this repository's rule files injected into the finders and test execution injected into the validators.
+Why this skill exists, and the data behind every rule below: [`docs/design/pr-review.md`](../../../../docs/design/pr-review.md). Its shape is the official `code-review` plugin (finders → one validator per candidate → confidence gate → post) with this repository's rule files injected into the finders and test execution injected into the validators.
 
 **Agent assumptions (repeat verbatim to every subagent):** all tools work; do not test tools or make exploratory calls; call a tool only when the task needs it; never write to the working tree except temporary files under `$TMPDIR`; ignore the working-tree state and review committed history only.
 

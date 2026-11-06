@@ -1,4 +1,4 @@
-import { relations, type SQL, sql } from "drizzle-orm";
+import { type SQL, sql } from "drizzle-orm";
 import {
 	check,
 	foreignKey,
@@ -336,92 +336,4 @@ export const tournamentRulePrice = sqliteTable(
 		check("tournament_rule_price_fee_check", sql`${t.fee} >= 0`),
 		check("tournament_rule_price_chips_check", sql`${t.chips} >= 0`),
 	]
-);
-
-export const cashRuleRelations = relations(cashRule, ({ one, many }) => ({
-	ringGame: one(ringGame, {
-		fields: [cashRule.ringGameId, cashRule.userId],
-		references: [ringGame.id, ringGame.userId],
-	}),
-	lineup: one(gameLineup, {
-		fields: [cashRule.lineupId, cashRule.userId],
-		references: [gameLineup.id, gameLineup.userId],
-	}),
-	stakes: many(cashRuleStake),
-}));
-
-export const cashRuleStakeRelations = relations(cashRuleStake, ({ one }) => ({
-	rule: one(cashRule, {
-		fields: [cashRuleStake.ruleId, cashRuleStake.userId],
-		references: [cashRule.id, cashRule.userId],
-	}),
-	lineupGroup: one(gameLineupGroup, {
-		fields: [cashRuleStake.lineupGroupId, cashRuleStake.userId],
-		references: [gameLineupGroup.id, gameLineupGroup.userId],
-	}),
-}));
-
-export const tournamentRuleRelations = relations(
-	tournamentRule,
-	({ one, many }) => ({
-		tournament: one(tournament, {
-			fields: [tournamentRule.tournamentId, tournamentRule.userId],
-			references: [tournament.id, tournament.userId],
-		}),
-		lineup: one(gameLineup, {
-			fields: [tournamentRule.lineupId, tournamentRule.userId],
-			references: [gameLineup.id, gameLineup.userId],
-		}),
-		levels: many(tournamentRuleLevel),
-		prices: many(tournamentRulePrice),
-	})
-);
-
-export const tournamentRuleLevelRelations = relations(
-	tournamentRuleLevel,
-	({ one, many }) => ({
-		rule: one(tournamentRule, {
-			fields: [tournamentRuleLevel.ruleId, tournamentRuleLevel.userId],
-			references: [tournamentRule.id, tournamentRule.userId],
-		}),
-		lineup: one(gameLineup, {
-			fields: [tournamentRuleLevel.lineupId, tournamentRuleLevel.userId],
-			references: [gameLineup.id, gameLineup.userId],
-		}),
-		stakes: many(tournamentRuleLevelStake),
-	})
-);
-
-export const tournamentRuleLevelStakeRelations = relations(
-	tournamentRuleLevelStake,
-	({ one }) => ({
-		level: one(tournamentRuleLevel, {
-			fields: [
-				tournamentRuleLevelStake.levelId,
-				tournamentRuleLevelStake.userId,
-			],
-			references: [tournamentRuleLevel.id, tournamentRuleLevel.userId],
-		}),
-		lineupGroup: one(gameLineupGroup, {
-			fields: [
-				tournamentRuleLevelStake.lineupGroupId,
-				tournamentRuleLevelStake.userId,
-			],
-			references: [gameLineupGroup.id, gameLineupGroup.userId],
-		}),
-	})
-);
-
-export const tournamentRulePriceRelations = relations(
-	tournamentRulePrice,
-	({ one }) => ({
-		rule: one(tournamentRule, {
-			fields: [tournamentRulePrice.ruleId, tournamentRulePrice.userId],
-			references: [tournamentRule.id, tournamentRule.userId],
-		}),
-		asset: one(asset, {
-			fields: [tournamentRulePrice.assetId, tournamentRulePrice.userId],
-			references: [asset.id, asset.userId],
-		}),
-	})
 );

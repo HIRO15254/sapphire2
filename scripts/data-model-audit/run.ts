@@ -17,7 +17,6 @@ export const CHECK_STATUSES = [
 	"pass",
 	"violation",
 	"error",
-	"pending",
 	"not-introduced",
 ] as const;
 export type CheckStatus = (typeof CHECK_STATUSES)[number];
@@ -25,7 +24,6 @@ export type CheckStatus = (typeof CHECK_STATUSES)[number];
 export interface CheckResult {
 	audit: AuditId;
 	detail: string | null;
-	forced: boolean;
 	part: string;
 	rows: Row[];
 	status: CheckStatus;
@@ -37,16 +35,11 @@ export interface AuditReport {
 	results: CheckResult[];
 }
 
-export interface AuditOptions {
-	enablePending: ReadonlySet<AuditId>;
-}
-
 const NO_CUTOVER_BOUND = 253_402_300_799;
 
 interface Plan {
 	check: Check;
 	cutoverAt: number;
-	forced: boolean;
 }
 
 function settle(check: Check, status: CheckStatus, detail: string | null) {
@@ -55,7 +48,6 @@ function settle(check: Check, status: CheckStatus, detail: string | null) {
 		part: check.part,
 		status,
 		detail,
-		forced: false,
 		rows: [],
 	} satisfies CheckResult;
 }
@@ -63,22 +55,14 @@ function settle(check: Check, status: CheckStatus, detail: string | null) {
 function plan(
 	check: Check,
 	applied: ReadonlyMap<string, number>,
-	tables: ReadonlySet<string>,
-	options: AuditOptions
+	tables: ReadonlySet<string>
 ): Plan | CheckResult {
 	const { activation } = check;
-	if (activation.state === "pending") {
-		if (check.kind === "deferred") {
-			return settle(
-				check,
-				"pending",
-				`implemented and enabled by ${activation.enabledBy}`
-			);
-		}
-		if (!options.enablePending.has(check.audit)) {
-			return settle(check, "pending", `enabled by ${activation.enabledBy}`);
-		}
-	} else if (activation.since !== null && !applied.has(activation.since)) {
+	const cutoverAt =
+		activation.since === null
+			? NO_CUTOVER_BOUND
+			: applied.get(activation.since);
+	if (cutoverAt === undefined) {
 		return settle(
 			check,
 			"not-introduced",
@@ -93,11 +77,7 @@ function plan(
 			`required tables are missing: ${missing.join(", ")}`
 		);
 	}
-	const cutoverAt =
-		activation.state === "active" && activation.since !== null
-			? (applied.get(activation.since) ?? NO_CUTOVER_BOUND)
-			: NO_CUTOVER_BOUND;
-	return { check, cutoverAt, forced: activation.state === "pending" };
+	return { check, cutoverAt };
 }
 
 function findingsResult(planned: Plan, rows: Row[]): CheckResult {
@@ -107,8 +87,7 @@ function findingsResult(planned: Plan, rows: Row[]): CheckResult {
 		audit: check.audit,
 		part: check.part,
 		status,
-		detail: planned.forced ? "run ahead of its enabling task (--enable)" : null,
-		forced: planned.forced,
+		detail: null,
 		rows,
 	};
 }
@@ -165,10 +144,7 @@ function runReplayChecks(
 	}
 }
 
-export function runAudit(
-	db: AuditDatabase,
-	options: AuditOptions
-): AuditReport {
+export function runAudit(db: AuditDatabase): AuditReport {
 	const [migrations = [], tableRows = []] = db.query([
 		"SELECT name, unixepoch(applied_at) AS applied_at FROM d1_migrations",
 		"SELECT name FROM sqlite_master WHERE type = 'table'",
@@ -184,7 +160,7 @@ export function runAudit(
 	const outcomes = new Map<Check, CheckResult>();
 	const runnable: Plan[] = [];
 	for (const check of CHECKS) {
-		const outcome = plan(check, applied, tables, options);
+		const outcome = plan(check, applied, tables);
 		if ("status" in outcome) {
 			outcomes.set(check, outcome);
 		} else {

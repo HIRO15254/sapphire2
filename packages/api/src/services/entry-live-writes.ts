@@ -9,7 +9,9 @@ import {
 	dayEndPayload,
 	PLAY_EVENT_SCHEMA_VERSION,
 	playEventPayloadSchema,
+	playerLeavePayload,
 } from "@sapphire2/db/constants/play-event-payloads";
+import { asset } from "@sapphire2/db/schema/asset";
 import {
 	entry,
 	entryCash,
@@ -17,9 +19,11 @@ import {
 	playEvent,
 	playSession,
 } from "@sapphire2/db/schema/entry";
+import { player } from "@sapphire2/db/schema/player";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, sql } from "drizzle-orm";
-import { type BatchStatement, runBatch } from "../lib/batch";
+import { activeReferencesGuard } from "../lib/active-reference-guard";
+import type { BatchStatement } from "../lib/batch";
 import {
 	isDiscardedPlayDependentError,
 	isEndedPlayAppendError,
@@ -27,6 +31,7 @@ import {
 	isPlaySeqConflictError,
 	isUnfinishedPlaySessionConflictError,
 } from "../lib/db-errors";
+import { guardStatement, runGuardedBatch } from "../lib/write-guard";
 import {
 	buildProjectionLineStatements,
 	buildProjectionStatements,
@@ -75,7 +80,6 @@ export interface LiveEntryStart {
 	now: Date;
 	roomId: string | null;
 	startEvent: Pick<NewPlayEvent, "occurredAt" | "payload">;
-	title: string | null;
 	userId: string;
 }
 
@@ -199,6 +203,9 @@ function nextPlayState(
 	if (state === "ended") {
 		badRequest("No event can follow the end of its play session");
 	}
+	if (event.type === "reentry" && state !== "active") {
+		badRequest("A re-entry requires an active play session");
+	}
 	const transition = LIFECYCLE_TRANSITIONS[event.type];
 	if (!transition) {
 		if (state === "none") {
@@ -274,7 +281,7 @@ export function buildLiveEntryStartStatements(
 			status: "open",
 			roomId: start.roomId,
 			assetId: start.assetId,
-			title: start.title,
+			title: null,
 			playedOn: start.localDate,
 			memo: start.memo,
 			createdAt: start.now,
@@ -540,6 +547,27 @@ export async function commitEntryEventChange(
 	const planned = planChange(db, scope, state, change, now);
 	validateEventStream(state.kind, state.playSessions, planned.events);
 	const projection = projectEntry(planned.events, state);
+	const playSessionIds = new Set(state.playSessions.map((play) => play.id));
+	const oldLines = projectEntry(
+		state.events.filter((event) => playSessionIds.has(event.playSessionId)),
+		state
+	).lines;
+	const remainingAssets = new Map<string, number>();
+	for (const line of oldLines) {
+		remainingAssets.set(
+			line.assetId,
+			(remainingAssets.get(line.assetId) ?? 0) + 1
+		);
+	}
+	const newAssets = new Set<string>();
+	for (const line of projection.lines) {
+		const count = remainingAssets.get(line.assetId) ?? 0;
+		if (count > 0) {
+			remainingAssets.set(line.assetId, count - 1);
+		} else {
+			newAssets.add(line.assetId);
+		}
+	}
 	const appendTargets =
 		change.op === "append"
 			? new Set(
@@ -548,7 +576,32 @@ export async function commitEntryEventChange(
 						.map((event) => event.playSessionId)
 				)
 			: new Set<string>();
-	await runBatch(db, [
+	const snapshot = JSON.stringify(
+		state.events.map((event) => ({
+			id: event.id,
+			playSessionId: event.playSessionId,
+			type: event.type,
+			occurredAt: Math.floor(event.occurredAt.getTime() / 1000),
+			sortOrder: event.sortOrder,
+			payload: event.payload,
+			handId: event.handId,
+			schemaVersion: event.schemaVersion,
+		}))
+	);
+	const playerIds = new Set(
+		planned.events
+			.filter(
+				(event) =>
+					change.op !== "delete" &&
+					planned.eventIds.includes(event.id) &&
+					(event.type === "player_join" || event.type === "player_leave")
+			)
+			.map(
+				(event) => playerLeavePayload.parse(JSON.parse(event.payload)).playerId
+			)
+	);
+	await runGuardedBatch(db, [
+		activeReferencesGuard(db, asset, newAssets, scope.userId),
 		...[...appendTargets].map((playSessionId) =>
 			db
 				.update(playSession)
@@ -563,6 +616,39 @@ export async function commitEntryEventChange(
 				)
 		),
 		...(options.before ?? []),
+		guardStatement(
+			db,
+			"entry-event-stream",
+			sql`
+			(SELECT count(*) FROM ${playEvent}
+			 WHERE ${playEvent.entryId} = ${scope.entryId} AND ${playEvent.userId} = ${scope.userId}) = ${state.events.length}
+			AND NOT EXISTS (
+				SELECT 1 FROM json_each(${snapshot}) AS expected
+				WHERE NOT EXISTS (
+					SELECT 1 FROM ${playEvent}
+					WHERE ${playEvent.entryId} = ${scope.entryId}
+						AND ${playEvent.userId} = ${scope.userId}
+						AND ${playEvent.id} = json_extract(expected.value, '$.id')
+						AND ${playEvent.playSessionId} = json_extract(expected.value, '$.playSessionId')
+						AND ${playEvent.type} = json_extract(expected.value, '$.type')
+						AND ${playEvent.occurredAt} = json_extract(expected.value, '$.occurredAt')
+						AND ${playEvent.sortOrder} = json_extract(expected.value, '$.sortOrder')
+						AND ${playEvent.payload} = json_extract(expected.value, '$.payload')
+						AND ${playEvent.handId} IS json_extract(expected.value, '$.handId')
+						AND ${playEvent.schemaVersion} = json_extract(expected.value, '$.schemaVersion')
+				)
+			)
+		`
+		),
+		...[...playerIds].map((playerId) =>
+			guardStatement(
+				db,
+				"event-player",
+				sql`EXISTS (
+				SELECT 1 FROM ${player} WHERE ${player.id} = ${playerId} AND ${player.userId} = ${scope.userId}
+			)`
+			)
+		),
 		...planned.statements,
 		...buildProjectionStatements(db, scope, projection),
 		...buildProjectionLineStatements(db, scope, projection.lines, now),
@@ -571,21 +657,4 @@ export async function commitEntryEventChange(
 		throw mapLiveWriteConflict(error);
 	});
 	return { eventIds: planned.eventIds, projection };
-}
-
-export async function applyEntryEventChange(
-	db: Database,
-	userId: string,
-	entryId: string,
-	change: EntryEventChange,
-	now: Date
-): Promise<{ eventIds: string[]; projection: EntryProjection }> {
-	const state = await loadEntryEventState(db, userId, entryId);
-	return await commitEntryEventChange(db, {
-		change,
-		entryId,
-		now,
-		state,
-		userId,
-	});
 }

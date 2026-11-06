@@ -1,4 +1,4 @@
-import { relations, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
 	check,
 	foreignKey,
@@ -79,22 +79,3 @@ export const gameMixVariant = sqliteTable(
 		}).onDelete("no action"),
 	]
 );
-
-export const gameMixRelations = relations(gameMix, ({ many, one }) => ({
-	user: one(user, {
-		fields: [gameMix.userId],
-		references: [user.id],
-	}),
-	variantLinks: many(gameMixVariant),
-}));
-
-export const gameMixVariantRelations = relations(gameMixVariant, ({ one }) => ({
-	mix: one(gameMix, {
-		fields: [gameMixVariant.mixId, gameMixVariant.userId],
-		references: [gameMix.id, gameMix.userId],
-	}),
-	variant: one(gameVariant, {
-		fields: [gameMixVariant.variantId, gameMixVariant.userId],
-		references: [gameVariant.id, gameVariant.userId],
-	}),
-}));

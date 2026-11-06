@@ -1,9 +1,12 @@
+import { asset } from "@sapphire2/db/schema/asset";
 import { userSetting } from "@sapphire2/db/schema/ledger";
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { activeReferenceGuard } from "../lib/active-reference-guard";
 import { validateEntityOwnership } from "../lib/ownership";
+import { runGuardedBatch } from "../lib/write-guard";
 
 type Db = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
@@ -52,6 +55,7 @@ export const userSettingRouter = router({
 		.input(userSettingUpdateInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
+			let newBaseId: string | undefined;
 			if (typeof input.baseAssetId === "string") {
 				const base = await validateEntityOwnership(
 					ctx.db,
@@ -72,6 +76,9 @@ export const userSettingRouter = router({
 						message: "An archived asset cannot be newly selected as the base",
 					});
 				}
+				if (current.baseAssetId !== base.id) {
+					newBaseId = base.id;
+				}
 			}
 			const changes = {
 				...(input.baseAssetId === undefined
@@ -80,10 +87,15 @@ export const userSettingRouter = router({
 				...(input.timeZone === undefined ? {} : { timeZone: input.timeZone }),
 				updatedAt: new Date(),
 			};
-			await ctx.db
-				.insert(userSetting)
-				.values({ userId, ...changes })
-				.onConflictDoUpdate({ target: userSetting.userId, set: changes });
+			await runGuardedBatch(ctx.db, [
+				...(newBaseId
+					? [activeReferenceGuard(ctx.db, asset, newBaseId, userId)]
+					: []),
+				ctx.db
+					.insert(userSetting)
+					.values({ userId, ...changes })
+					.onConflictDoUpdate({ target: userSetting.userId, set: changes }),
+			]);
 			return await selectSetting(ctx.db, userId);
 		}),
 });

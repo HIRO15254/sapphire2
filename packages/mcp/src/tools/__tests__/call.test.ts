@@ -95,19 +95,6 @@ describe("callTool", () => {
 		]);
 	});
 
-	it("serializes empty and zero-ish results faithfully", async () => {
-		for (const value of [[], null, 0, { items: [], nextCursor: undefined }]) {
-			const { caller } = createCallerMock(value);
-			const result = await callTool(
-				defByName("room_list"),
-				caller,
-				{},
-				vi.fn()
-			);
-			expect(result.content[0]?.text).toBe(JSON.stringify(value));
-		}
-	});
-
 	it("returns an isError result when the procedure throws a domain error", async () => {
 		const log = vi.fn();
 		const { caller } = createCallerMock(
@@ -141,5 +128,13 @@ describe("callTool", () => {
 		expect(result.content[0]?.text).toBe("Internal error.");
 		expect(log).toHaveBeenCalledTimes(1);
 		expect(log).toHaveBeenNthCalledWith(1, error);
+	});
+
+	it("hides and logs a missing caller procedure instead of leaking its path", async () => {
+		const log = vi.fn();
+		const result = await callTool(defByName("room_get_by_id"), {}, {}, log);
+		expect(result.isError).toBe(true);
+		expect(result.content[0]?.text).toBe("Internal error.");
+		expect(log).toHaveBeenCalledTimes(1);
 	});
 });

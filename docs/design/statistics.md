@@ -1,10 +1,10 @@
 # Statistics
 
-This document owns the statistics domain on the v2 data model ([data-model-v2.md](data-model-v2.md) §12, API contract in [api-after-data-model-v2.md](api-after-data-model-v2.md) §13): the population, the three modes, coverage, the normalization units, EV semantics, time, and the breakdown and series keys. The procedures live in [`routers/stats.ts`](../../packages/api/src/routers/stats.ts); [`services/stats-data.ts`](../../packages/api/src/services/stats-data.ts) loads the population and [`services/stats.ts`](../../packages/api/src/services/stats.ts) computes the figures. Every conversion goes through [`services/valuation.ts`](../../packages/api/src/services/valuation.ts). U11 (SA2-420) rebuilds the statistics UI.
+This document owns the statistics domain on the current data model ([data-model.md](data-model.md) §12, API contract in [api.md](api.md) §13): the population, the three modes, coverage, the normalization units, EV semantics, time, and the breakdown and series keys. The procedures live in [`routers/stats.ts`](../../packages/api/src/routers/stats.ts); [`services/stats-data.ts`](../../packages/api/src/services/stats-data.ts) loads the population and [`services/stats.ts`](../../packages/api/src/services/stats.ts) computes the figures. Every conversion goes through [`services/valuation.ts`](../../packages/api/src/services/valuation.ts).
 
 ## Filter and population
 
-The filter is `statsFilterSchema` in [`packages/db/src/schemas/stats-filter.ts`](../../packages/db/src/schemas/stats-filter.ts), shared with the saved filter presets so a preset can always be replayed as a query. It is one flat object refined with `refineStatsFilter`, not a union, so MCP clients see a single plain schema.
+The filter uses `statsFilterShape` in [`packages/db/src/schemas/stats-filter.ts`](../../packages/db/src/schemas/stats-filter.ts), shared with the saved filter presets so a preset can always be replayed as a query. It is one flat object refined with `refineStatsFilter`, not a union, so MCP clients see a single plain schema.
 
 - **Only `status = 'settled'` entries count.** An open live entry has no final result and never enters a figure.
 - `dateFrom` / `dateTo` are inclusive `YYYY-MM-DD` strings compared with `entry.played_on` as text. The day, month, year and series axes read `played_on` too, so an entry played across UTC midnight stays on the local day the user recorded.
@@ -22,21 +22,21 @@ Exactly one mode is required; combining them is `BAD_REQUEST`.
 | Normalized | `normalized: true` | Cash in bb, tournaments in bi, as two separate branches. `amounts`, `roi` and the monetary EV figures are `null`. |
 
 - **Native mode never zeroes another asset.** An entry that also used other assets still counts with only its lines in the selected asset; it is counted in `multiAssetEntryCount` and the other assets are listed in `otherAssetIds`.
-- **Valuation mode never counts an unconvertible line as 0.** An entry with a line that has no rate at its time is excluded from every figure and reported in `excludedEntryCount` and `missingRates` (asset plus the earliest uncovered `occurredAt`). `real` values real currency lines only; `virtual` also values items and virtual lines (§12.1).
-- `entryCount` is the population after filters, before exclusions. Every other figure — wins, rates, time, hands, ROI, amounts — covers only the entries that produced a value in the mode.
+- **Valuation mode never counts an unconvertible line as 0.** An entry with a line that has no rate at its time is excluded from mode-valued figures and reported in `excludedEntryCount` and `missingRates` (asset plus the earliest uncovered `occurredAt`). `real` values real currency lines only; `virtual` also values items and virtual lines (§12.1).
+- `entryCount` is the population after filters, before exclusions. Wins, time, hands, ROI and amounts cover entries that produced a value in the mode. The bb rates instead use all eligible cash entries, even when valuation excludes an entry.
 
 ## Units
 
 - **1 bb** exists only for a cash entry whose rule lineup has exactly one game group and a positive `blind2`, and whose real currency lines are all in `entry.asset_id`; the P/L in that asset is divided by `blind2`. Anything else is counted in `unavailableNormalizationEntryCount`.
-- **1 bi** is the tournament's **first** `buy_in` line (by `occurredAt`, then id) plus the fee paired with it: the fee with the same event, else the same price on the same play session, else the earliest unpaired fee on the same play session. Re-entries, their fees and add-ons are not part of the unit — they are still money paid, so they stay in ROI. When the unit and the real currency lines share one asset the bi is native; otherwise both are converted with the base (the valuation base, else the user's base) and a conversion failure or a non-positive unit makes the entry unavailable.
+- **1 bi** is the tournament's **first** `buy_in` line (by `occurredAt`, then id) plus the fee paired with it: the fee with the same event, else the same price on the same play session without a different event, else the earliest unpaired fee on the same play session. Re-entries, their fees and add-ons are not part of the unit — they are still money paid, so they stay in ROI. When the unit and the real currency lines share one currency asset the bi is native; otherwise both are converted with the base (the valuation base, else the user's base). An item-only initial payment requires conversion to a currency base. Conversion failure or a non-positive unit makes the entry unavailable.
 - **ROI** = Σ tournament P/L ÷ Σ tournament buy-in × 100, over tournaments only; `null` when the denominator is 0 and in normalized mode.
-- **ITM** is a tournament with a `prize` line; a bounty alone is not ITM.
+- **ITM** is a tournament with a `prize` line; a bounty alone is not ITM. `winRate` and `itmRate` are percentages on a 0–100 scale, or `null` when their denominator is zero.
 
 ## Time and rates
 
-Time is summed per `play_session`: `(ended_at − started_at − 60 × break_minutes) / 3600` for each day that has both endpoints. A day missing either endpoint adds nothing, and time between days is never counted. An entry with no timed day has `playMinutes = null` and lands in the `unknown` length bucket.
+Time is summed per `play_session`: `(ended_at − started_at − 60 × break_minutes) / 3600` for each day that has both endpoints. `playMinutes` can be fractional because timestamps have second resolution. A day missing either endpoint adds nothing, and time between days is never counted. An entry with no timed day has `playMinutes = null` and lands in the `unknown` length bucket.
 
-`bbPerHour` divides the bb of cash entries whose days are all timed by those entries' hours, so an untimed entry's result is never spread over other entries' hours.
+`bbPerHour` divides the bb of cash entries whose days are all timed by those entries' hours, so an untimed entry's result is never spread over other entries' hours. It uses all eligible cash entries, including those excluded from valuation.
 
 ## Hands
 
@@ -55,7 +55,7 @@ A hand is one `hand` row whatever its detail (`count`, `summary` or `full`); `ha
 
 ## EV
 
-The EV figures come from `entry.ev_diff` on cash entries. They are `null` until an entry in scope recorded an EV difference whose asset fits the mode (native: the entry's table asset is the selected asset; valuation: the difference converts at the entry's last line time; normalized: the entry has a bb). Once one has, `evProfitLoss` spans every counted cash entry, an unrecorded one counting at its actual result, so it stays comparable with the cash P/L. A recorded difference of 0 is recorded; only `null` is missing.
+The EV figures come from `entry.ev_diff` on cash entries. They are `null` until an entry in scope recorded an EV difference whose asset fits the mode (native: the entry's table asset is the selected asset; valuation: the difference converts at the entry's last line time; normalized: the entry has a bb). Live cash projection records 0 when there are no all-in events; a manual entry without an EV difference stores `null`. Once a difference qualifies, `evProfitLoss` spans every counted cash entry, an unrecorded one counting at its actual result, so it stays comparable with the cash P/L.
 
 ## Breakdown and series
 

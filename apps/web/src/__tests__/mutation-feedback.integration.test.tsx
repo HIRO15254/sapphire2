@@ -22,8 +22,14 @@ import { FormSheet } from "@/shared/components/form-sheet";
 import { LoadErrorState } from "@/shared/components/query-state";
 import { Toaster } from "@/shared/components/ui/sonner";
 import { useUndoableMutation } from "@/shared/hooks/use-undoable-mutation";
+import { restoreSnapshots, snapshotQuery } from "@/utils/optimistic-update";
+import { queryClient as appQueryClient } from "@/utils/trpc";
 import { renderIntegrationPage, trpcHttpHandler } from "./integration";
 import { createTestQueryClient } from "./test-utils";
+
+vi.mock("@sapphire2/env/web", () => ({
+	env: { VITE_SERVER_URL: "http://localhost:8787" },
+}));
 
 const t = initTRPC.create();
 const undoName = /Undo/;
@@ -33,6 +39,8 @@ let failSave = false;
 let failUndo = false;
 let failLoad = false;
 let loadGate: Promise<void> | undefined;
+let saveGate: Promise<void> | undefined;
+let concurrentSave = false;
 const router = t.router({
 	read: t.procedure.query(async () => {
 		if (loadGate) {
@@ -43,7 +51,17 @@ const router = t.router({
 		}
 		return value;
 	}),
-	write: t.procedure.input(z.string()).mutation(({ input }) => {
+	write: t.procedure.input(z.string()).mutation(async ({ input }) => {
+		if (saveGate) {
+			await saveGate;
+		}
+		if (concurrentSave) {
+			value = "changed elsewhere";
+			throw new TRPCError({
+				code: "CONFLICT",
+				message: "This was changed elsewhere. Reload and try again.",
+			});
+		}
 		if (failSave || (failUndo && input === "before")) {
 			throw new TRPCError({ code: "CONFLICT" });
 		}
@@ -135,6 +153,8 @@ beforeEach(() => {
 	failUndo = false;
 	failLoad = false;
 	loadGate = undefined;
+	saveGate = undefined;
+	concurrentSave = false;
 	queryClient = createTestQueryClient();
 	trpc = createTRPCOptionsProxy({ client, queryClient });
 });
@@ -184,6 +204,60 @@ async function submit(name = "after") {
 	});
 	fireEvent.click(screen.getByRole("button", { name: "Save" }));
 }
+
+function ConflictProbe() {
+	const key = trpc.read.queryKey();
+	const query = useQuery(trpc.read.queryOptions());
+	const mutation = useUndoableMutation(
+		trpc.write.mutationOptions({
+			onMutate: (next) => {
+				const snapshot = snapshotQuery(queryClient, key);
+				queryClient.setQueryData(key, next);
+				return snapshot;
+			},
+			onError: (_error, _next, snapshot) => {
+				restoreSnapshots(queryClient, [snapshot]);
+			},
+		}),
+		{ destructive: true, message: "Saved" }
+	);
+	return (
+		<>
+			<Toaster />
+			<div>{query.data}</div>
+			<button
+				onClick={() =>
+					mutation.mutateAsync("optimistic").catch(() => undefined)
+				}
+				type="button"
+			>
+				Save conflict
+			</button>
+		</>
+	);
+}
+
+it("rolls back and refetches after a concurrent change", async () => {
+	queryClient = appQueryClient;
+	queryClient.clear();
+	trpc = createTRPCOptionsProxy({ client, queryClient });
+	renderIntegrationPage(<ConflictProbe />, { path: "/", queryClient });
+	await screen.findByText("before");
+	const { promise, resolve } = Promise.withResolvers<void>();
+	loadGate = promise;
+	const save = Promise.withResolvers<void>();
+	saveGate = save.promise;
+	concurrentSave = true;
+	fireEvent.click(screen.getByRole("button", { name: "Save conflict" }));
+	await screen.findByText("optimistic");
+	save.resolve();
+	await screen.findByText("This was changed elsewhere. Reload and try again.");
+	expect(screen.getByText("before")).toBeInTheDocument();
+	act(() => {
+		resolve();
+	});
+	await screen.findByText("changed elsewhere");
+});
 
 describe("mutation feedback", () => {
 	it("expires the Undo offer after six seconds", async () => {

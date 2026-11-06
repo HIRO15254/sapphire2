@@ -1,6 +1,7 @@
 import type { AssetKind } from "@sapphire2/db/constants/asset";
 import type { asset } from "@sapphire2/db/schema/asset";
 import type { assetRate, ledgerLine } from "@sapphire2/db/schema/ledger";
+import { safeInteger } from "../lib/safe-integer";
 
 export type ValuationAsset = Pick<typeof asset.$inferSelect, "id" | "kind">;
 
@@ -43,16 +44,8 @@ export interface MissingRate {
 	earliestOccurredAt: Date;
 }
 
-export interface ValuationTotals extends ValuationAmounts {
-	excludedEntryCount: number;
-	missingRates: MissingRate[];
-	roi: number | null;
-}
-
 export interface ValuationResult {
 	entries: Map<string, EntryValuation>;
-	real: ValuationTotals;
-	virtual: ValuationTotals;
 }
 
 interface ConversionPath {
@@ -66,17 +59,20 @@ interface Bucket {
 	quantity: bigint;
 }
 
-interface ModeAccumulator {
-	buyIn: bigint;
-	cashOut: bigint;
-	excludedEntryCount: number;
-	missing: Map<string, Date>;
-	profitLoss: bigint;
-}
-
 type RateIndex = Map<string, Map<string, ValuationRate[]>>;
 
 const IDENTITY_PATH: ConversionPath = { key: "", num: 1n, den: 1n };
+
+export function isPayment(quantity: number): boolean {
+	return quantity < 0;
+}
+
+export function isRealCurrencyLine(
+	line: { effect: string; assetId: string },
+	kinds: ReadonlyMap<string, AssetKind>
+): boolean {
+	return line.effect === "real" && kinds.get(line.assetId) === "currency";
+}
 
 function indexRates(rates: ValuationRate[]): RateIndex {
 	const index: RateIndex = new Map();
@@ -238,8 +234,7 @@ function sortedMissing(missing: Map<string, Date>): MissingRate[] {
 
 function valueEntryLines(
 	lines: ValuationLine[],
-	resolve: (line: ValuationLine) => ConversionPath | null,
-	accumulator: ModeAccumulator
+	resolve: (line: ValuationLine) => ConversionPath | null
 ): { amounts: ValuationAmounts | null; missingRates: MissingRate[] } {
 	const all = new Map<string, Bucket>();
 	const payments = new Map<string, Bucket>();
@@ -249,47 +244,29 @@ function valueEntryLines(
 		const path = resolve(line);
 		if (!path) {
 			recordMissing(missing, line);
-			recordMissing(accumulator.missing, line);
 			continue;
 		}
 		addToBucket(all, line.assetId, path, line.quantity);
 		addToBucket(
-			line.quantity < 0 ? payments : receipts,
+			isPayment(line.quantity) ? payments : receipts,
 			line.assetId,
 			path,
 			line.quantity
 		);
 	}
 	if (missing.size > 0) {
-		accumulator.excludedEntryCount += 1;
 		return { amounts: null, missingRates: sortedMissing(missing) };
 	}
 	const profitLoss = sumBuckets(all);
 	const buyIn = -sumBuckets(payments);
 	const cashOut = sumBuckets(receipts);
-	accumulator.profitLoss += profitLoss;
-	accumulator.buyIn += buyIn;
-	accumulator.cashOut += cashOut;
 	return {
 		amounts: {
-			profitLoss: Number(profitLoss),
-			buyIn: Number(buyIn),
-			cashOut: Number(cashOut),
+			profitLoss: safeInteger(profitLoss),
+			buyIn: safeInteger(buyIn),
+			cashOut: safeInteger(cashOut),
 		},
 		missingRates: [],
-	};
-}
-
-function toTotals(accumulator: ModeAccumulator): ValuationTotals {
-	const profitLoss = Number(accumulator.profitLoss);
-	const buyIn = Number(accumulator.buyIn);
-	return {
-		profitLoss,
-		buyIn,
-		cashOut: Number(accumulator.cashOut),
-		roi: buyIn === 0 ? null : (profitLoss / buyIn) * 100,
-		excludedEntryCount: accumulator.excludedEntryCount,
-		missingRates: sortedMissing(accumulator.missing),
 	};
 }
 
@@ -321,27 +298,11 @@ export function valueEntries(input: ValuationInput): ValuationResult {
 		}
 	}
 
-	const real: ModeAccumulator = {
-		buyIn: 0n,
-		cashOut: 0n,
-		excludedEntryCount: 0,
-		missing: new Map(),
-		profitLoss: 0n,
-	};
-	const virtual: ModeAccumulator = {
-		buyIn: 0n,
-		cashOut: 0n,
-		excludedEntryCount: 0,
-		missing: new Map(),
-		profitLoss: 0n,
-	};
 	const entries = new Map<string, EntryValuation>();
 	for (const [entryId, lines] of linesByEntry) {
-		const realLines = lines.filter(
-			(line) => line.effect === "real" && kinds.get(line.assetId) === "currency"
-		);
-		const realValue = valueEntryLines(realLines, resolve, real);
-		const virtualValue = valueEntryLines(lines, resolve, virtual);
+		const realLines = lines.filter((line) => isRealCurrencyLine(line, kinds));
+		const realValue = valueEntryLines(realLines, resolve);
+		const virtualValue = valueEntryLines(lines, resolve);
 		entries.set(entryId, {
 			real: realValue.amounts,
 			virtual: virtualValue.amounts,
@@ -351,5 +312,5 @@ export function valueEntries(input: ValuationInput): ValuationResult {
 			},
 		});
 	}
-	return { entries, real: toTotals(real), virtual: toTotals(virtual) };
+	return { entries };
 }

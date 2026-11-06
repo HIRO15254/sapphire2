@@ -91,10 +91,7 @@ export const sessionResumePayload = z.object({});
 
 export const chipsAddRemovePayload = z.object({
 	// NOTE(rule): api-data-integrity.md — amount deviates from .int().min(0) by design: positive = chips added (add-on / top-up), negative = chips removed (early cash-out); zero rejected so no-op events are never stored.
-	amount: z
-		.number()
-		.int()
-		.refine((n) => n !== 0, { message: "amount must be non-zero" }),
+	amount: signedLedgerQuantitySchema,
 	assetId: z.string().min(1),
 	effect: z.enum(LEDGER_EFFECTS).default("real"),
 });
@@ -124,7 +121,7 @@ export const purchaseChipsPayload = z.object({
 	payments: paymentsSchema(["chip_purchase", "fee"]),
 });
 
-export const chipPurchaseCountSchema = z.object({
+const chipPurchaseCountSchema = z.object({
 	name: z.string().min(1),
 	count: z.number().int().min(0),
 	chipsPerUnit: z.number().int().min(0),

@@ -3,15 +3,17 @@ import { gameLineup } from "@sapphire2/db/schema/game-lineup";
 import { gameMix, gameMixVariant } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { MAX_MIX_GROUPS } from "@sapphire2/db/schemas/game";
+import { idSchema } from "@sapphire2/db/schemas/id";
 import { TRPCError } from "@trpc/server";
-import { and, eq, inArray, isNotNull, notExists } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, notExists, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { activeReferencesGuard } from "../lib/active-reference-guard";
 import type { BatchStatement } from "../lib/batch";
-import { runBatch } from "../lib/batch";
+import { insertChunks } from "../lib/batch";
 import { validateEntityOwnership } from "../lib/ownership";
+import { guardStatement, runGuardedBatch } from "../lib/write-guard";
 import {
-	chunkMembershipRows,
 	type GameMixWithGames,
 	gameMixColumns,
 	hydrateOwnedGameMixes,
@@ -26,7 +28,7 @@ import {
 } from "./_game-masters";
 
 const labelSchema = z.string().trim().min(1).max(30);
-const gamesSchema = z.array(z.string()).min(2).max(30);
+const gamesSchema = z.array(idSchema).min(2).max(30);
 
 const BUILTIN_ORDER: Map<string, number> = new Map(
 	DEFAULT_GAME_MIXES.map((m, index) => [m.key, index])
@@ -102,6 +104,18 @@ function assertGroupSpanWithinLimit(rows: { groupId: string }[]): void {
 	}
 }
 
+function groupSpanGuard(db: Db, userId: string, games: string[]) {
+	return guardStatement(
+		db,
+		"mix group limit",
+		sql`(
+		SELECT COUNT(DISTINCT ${gameVariant.groupId}) FROM ${gameVariant}
+		WHERE ${gameVariant.userId} = ${userId}
+		AND ${inArray(gameVariant.id, games)}
+	) <= ${MAX_MIX_GROUPS}`
+	);
+}
+
 async function selectMix(
 	db: Db,
 	userId: string,
@@ -117,7 +131,7 @@ async function selectMix(
 
 export const gameMixListInputSchema = gameMasterListInputSchema();
 
-export const gameMixIdInputSchema = z.object({ id: z.string() });
+export const gameMixIdInputSchema = z.object({ id: idSchema });
 
 export const gameMixCreateInputSchema = z.object({
 	label: labelSchema,
@@ -125,7 +139,7 @@ export const gameMixCreateInputSchema = z.object({
 });
 
 export const gameMixUpdateInputSchema = z.object({
-	id: z.string(),
+	id: idSchema,
 	label: labelSchema.optional(),
 	games: gamesSchema.optional(),
 });
@@ -160,6 +174,8 @@ export const gameMixRouter = router({
 
 			const id = crypto.randomUUID();
 			const statements: BatchStatement[] = [
+				groupSpanGuard(ctx.db, userId, input.games),
+				activeReferencesGuard(ctx.db, gameVariant, input.games, userId),
 				ctx.db.insert(gameMix).values({
 					id,
 					userId,
@@ -168,13 +184,13 @@ export const gameMixRouter = router({
 					updatedAt: new Date(),
 				}),
 			];
-			for (const chunk of chunkMembershipRows(
-				mixMembershipRows(id, userId, input.games)
-			)) {
-				statements.push(ctx.db.insert(gameMixVariant).values(chunk));
-			}
+			statements.push(
+				...insertChunks(mixMembershipRows(id, userId, input.games), (chunk) =>
+					ctx.db.insert(gameMixVariant).values(chunk)
+				)
+			);
 			await runLabelWrite(ctx.db, "game mix", userId, input.label, () =>
-				runBatch(ctx.db, statements)
+				runGuardedBatch(ctx.db, statements)
 			);
 			return await selectMix(ctx.db, userId, id);
 		}),
@@ -194,7 +210,10 @@ export const gameMixRouter = router({
 					userId
 				);
 				const current = await ctx.db
-					.select({ variantId: gameMixVariant.variantId })
+					.select({
+						variantId: gameMixVariant.variantId,
+						position: gameMixVariant.position,
+					})
 					.from(gameMixVariant)
 					.where(
 						and(
@@ -207,6 +226,43 @@ export const gameMixRouter = router({
 					new Set(current.map((row) => row.variantId))
 				);
 				assertGroupSpanWithinLimit(ownedGames);
+				const snapshot = JSON.stringify(current);
+				statements.push(
+					guardStatement(
+						ctx.db,
+						"mix membership snapshot",
+						sql`
+					(SELECT count(*) FROM ${gameMixVariant}
+					 WHERE ${gameMixVariant.mixId} = ${input.id} AND ${gameMixVariant.userId} = ${userId}) = ${current.length}
+					AND NOT EXISTS (
+						SELECT 1 FROM json_each(${snapshot}) AS expected WHERE NOT EXISTS (
+							SELECT 1 FROM ${gameMixVariant}
+							WHERE ${gameMixVariant.mixId} = ${input.id}
+							AND ${gameMixVariant.userId} = ${userId}
+							AND ${gameMixVariant.variantId} = json_extract(expected.value, '$.variantId')
+							AND ${gameMixVariant.position} = json_extract(expected.value, '$.position')
+						)
+					)
+				`
+					)
+				);
+				statements.push(groupSpanGuard(ctx.db, userId, input.games));
+				statements.push(
+					guardStatement(
+						ctx.db,
+						"active mix variants",
+						sql`NOT EXISTS (
+						SELECT 1 FROM json_each(${JSON.stringify(input.games)}) AS requested
+						WHERE NOT EXISTS (
+							SELECT 1 FROM ${gameVariant} WHERE ${gameVariant.id} = requested.value
+							AND ${gameVariant.userId} = ${userId} AND ${gameVariant.archivedAt} IS NULL
+						) AND NOT EXISTS (
+							SELECT 1 FROM ${gameMixVariant} WHERE ${gameMixVariant.mixId} = ${input.id}
+							AND ${gameMixVariant.userId} = ${userId} AND ${gameMixVariant.variantId} = requested.value
+						)
+					)`
+					)
+				);
 				statements.push(
 					ctx.db
 						.delete(gameMixVariant)
@@ -217,11 +273,12 @@ export const gameMixRouter = router({
 							)
 						)
 				);
-				for (const chunk of chunkMembershipRows(
-					mixMembershipRows(input.id, userId, input.games)
-				)) {
-					statements.push(ctx.db.insert(gameMixVariant).values(chunk));
-				}
+				statements.push(
+					...insertChunks(
+						mixMembershipRows(input.id, userId, input.games),
+						(chunk) => ctx.db.insert(gameMixVariant).values(chunk)
+					)
+				);
 			}
 
 			const updateData: Partial<typeof gameMix.$inferInsert> = {
@@ -237,7 +294,7 @@ export const gameMixRouter = router({
 					.where(and(eq(gameMix.id, input.id), eq(gameMix.userId, userId)))
 			);
 			await runLabelWrite(ctx.db, "game mix", userId, input.label, () =>
-				runBatch(ctx.db, statements)
+				runGuardedBatch(ctx.db, statements)
 			);
 			return await selectMix(ctx.db, userId, input.id);
 		}),
@@ -260,35 +317,42 @@ export const gameMixRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await validateEntityOwnership(ctx.db, "gameMix", input.id, userId);
-			const [archivedMember] = await ctx.db
-				.select({ id: gameVariant.id })
-				.from(gameMixVariant)
-				.innerJoin(
-					gameVariant,
-					and(
-						eq(gameVariant.id, gameMixVariant.variantId),
-						eq(gameVariant.userId, gameMixVariant.userId)
-					)
-				)
+			const restored = await ctx.db
+				.update(gameMix)
+				.set({ archivedAt: null, updatedAt: new Date() })
 				.where(
 					and(
-						eq(gameMixVariant.mixId, input.id),
-						eq(gameMixVariant.userId, userId),
-						isNotNull(gameVariant.archivedAt)
+						eq(gameMix.id, input.id),
+						eq(gameMix.userId, userId),
+						notExists(
+							ctx.db
+								.select({ id: gameVariant.id })
+								.from(gameMixVariant)
+								.innerJoin(
+									gameVariant,
+									and(
+										eq(gameVariant.id, gameMixVariant.variantId),
+										eq(gameVariant.userId, gameMixVariant.userId)
+									)
+								)
+								.where(
+									and(
+										eq(gameMixVariant.mixId, gameMix.id),
+										eq(gameMixVariant.userId, gameMix.userId),
+										isNotNull(gameVariant.archivedAt)
+									)
+								)
+						)
 					)
 				)
-				.limit(1);
-			if (archivedMember) {
+				.returning({ id: gameMix.id });
+			if (restored.length === 0) {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
 					message:
 						"This game mix contains archived game variants; restore them first",
 				});
 			}
-			await ctx.db
-				.update(gameMix)
-				.set({ archivedAt: null, updatedAt: new Date() })
-				.where(and(eq(gameMix.id, input.id), eq(gameMix.userId, userId)));
 			return await selectMix(ctx.db, userId, input.id);
 		}),
 

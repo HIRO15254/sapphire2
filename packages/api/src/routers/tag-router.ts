@@ -1,12 +1,14 @@
 import type { TagColor } from "@sapphire2/db/constants/player-tag-colors";
+import { idSchema } from "@sapphire2/db/schemas/id";
 import { TRPCError } from "@trpc/server";
 import { and, asc, count, eq, getTableColumns, sql } from "drizzle-orm";
 import type { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
-import { runBatch } from "../lib/batch";
+import type { runBatch } from "../lib/batch";
 import { isUniqueIndexConflictError } from "../lib/db-errors";
 import { validateTagsOwnership } from "../lib/ownership";
+import { guardStatement, runGuardedBatch } from "../lib/write-guard";
 
 export const MAX_TAGS_PER_KIND = 500;
 
@@ -39,11 +41,11 @@ export const tagNameSchema = z.string().trim().min(1).max(50);
 export const tagCreateInputSchema = z.object({ name: tagNameSchema });
 
 export const tagUpdateInputSchema = z.object({
-	id: z.string(),
+	id: idSchema,
 	name: tagNameSchema,
 });
 
-export const tagIdInputSchema = z.object({ id: z.string() });
+export const tagIdInputSchema = z.object({ id: idSchema });
 
 export const tagReorderInputSchema = z.object({
 	ids: z
@@ -216,15 +218,24 @@ export function createTagRouter<
 						message: "ids must list every tag of this kind exactly once",
 					});
 				}
-				await runBatch(
-					ctx.db,
-					input.ids.map((id, position) =>
+				await runGuardedBatch(ctx.db, [
+					guardStatement(
+						ctx.db,
+						"tag_reorder_membership",
+						sql`(SELECT count(*) FROM ${table} WHERE ${table.userId} = ${userId}) = ${input.ids.length}
+							AND NOT EXISTS (
+								SELECT 1 FROM ${table}
+								WHERE ${table.userId} = ${userId}
+								AND ${table.id} NOT IN (SELECT value FROM json_each(${JSON.stringify(input.ids)}))
+							)`
+					),
+					...input.ids.map((id, position) =>
 						ctx.db
 							.update(table)
 							.set({ sortOrder: position })
 							.where(and(eq(table.id, id), eq(table.userId, userId)))
-					)
-				);
+					),
+				]);
 				return listTags(ctx.db, userId);
 			}),
 	});

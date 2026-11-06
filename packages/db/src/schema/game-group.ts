@@ -1,4 +1,4 @@
-import { relations, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
 	check,
 	index,
@@ -64,10 +64,3 @@ export const gameGroup = sqliteTable(
 		),
 	]
 );
-
-export const gameGroupRelations = relations(gameGroup, ({ one }) => ({
-	user: one(user, {
-		fields: [gameGroup.userId],
-		references: [user.id],
-	}),
-}));

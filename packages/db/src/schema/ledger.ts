@@ -1,4 +1,4 @@
-import { relations, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
 	check,
 	foreignKey,
@@ -237,67 +237,3 @@ export const userSetting = sqliteTable(
 		}).onDelete("no action"),
 	]
 );
-
-export const assetRateRelations = relations(assetRate, ({ one }) => ({
-	user: one(user, {
-		fields: [assetRate.userId],
-		references: [user.id],
-	}),
-	baseAsset: one(asset, {
-		fields: [assetRate.baseAssetId, assetRate.userId],
-		references: [asset.id, asset.userId],
-	}),
-	quoteAsset: one(asset, {
-		fields: [assetRate.quoteAssetId, assetRate.userId],
-		references: [asset.id, asset.userId],
-	}),
-}));
-
-export const ledgerCategoryRelations = relations(
-	ledgerCategory,
-	({ one, many }) => ({
-		user: one(user, {
-			fields: [ledgerCategory.userId],
-			references: [user.id],
-		}),
-		lines: many(ledgerLine),
-	})
-);
-
-export const ledgerLineRelations = relations(ledgerLine, ({ one }) => ({
-	user: one(user, {
-		fields: [ledgerLine.userId],
-		references: [user.id],
-	}),
-	asset: one(asset, {
-		fields: [ledgerLine.assetId, ledgerLine.userId],
-		references: [asset.id, asset.userId],
-	}),
-	entry: one(entry, {
-		fields: [ledgerLine.entryId, ledgerLine.userId],
-		references: [entry.id, entry.userId],
-	}),
-	playSession: one(playSession, {
-		fields: [ledgerLine.playSessionId, ledgerLine.userId],
-		references: [playSession.id, playSession.userId],
-	}),
-	sourceEvent: one(playEvent, {
-		fields: [ledgerLine.sourceEventId, ledgerLine.userId],
-		references: [playEvent.id, playEvent.userId],
-	}),
-	category: one(ledgerCategory, {
-		fields: [ledgerLine.categoryId, ledgerLine.userId],
-		references: [ledgerCategory.id, ledgerCategory.userId],
-	}),
-}));
-
-export const userSettingRelations = relations(userSetting, ({ one }) => ({
-	user: one(user, {
-		fields: [userSetting.userId],
-		references: [user.id],
-	}),
-	baseAsset: one(asset, {
-		fields: [userSetting.baseAssetId, userSetting.userId],
-		references: [asset.id, asset.userId],
-	}),
-}));

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	isFilterPresetNameConflictError,
 	isGameMasterLabelConflictError,
+	isUniqueIndexConflictError,
 } from "../lib/db-errors";
 
 describe("isGameMasterLabelConflictError", () => {
@@ -27,6 +28,18 @@ describe("isFilterPresetNameConflictError", () => {
 				new Error(
 					"D1_ERROR: UNIQUE constraint failed: filter_preset.user_id, filter_preset.screen_key, filter_preset.name: SQLITE_CONSTRAINT"
 				)
+			)
+		).toBe(true);
+	});
+
+	it("recognizes the name constraint inside a wrapped D1 error", () => {
+		expect(
+			isFilterPresetNameConflictError(
+				new Error("query failed", {
+					cause: new Error(
+						"UNIQUE constraint failed: filter_preset.user_id, filter_preset.screen_key, filter_preset.name"
+					),
+				})
 			)
 		).toBe(true);
 	});
@@ -79,4 +92,23 @@ describe("isFilterPresetNameConflictError", () => {
 		expect(isFilterPresetNameConflictError(undefined)).toBe(false);
 		expect(isFilterPresetNameConflictError(null)).toBe(false);
 	});
+});
+
+it("does not misclassify a different constraint or loop on cyclic causes", () => {
+	expect(
+		isFilterPresetNameConflictError(
+			new Error(
+				"UNIQUE constraint failed: filter_preset.user_id, filter_preset.screen_key, filter_preset.name_suffix"
+			)
+		)
+	).toBe(false);
+	expect(
+		isUniqueIndexConflictError(
+			new Error("UNIQUE constraint failed: index 'tagXname'"),
+			"tag.name"
+		)
+	).toBe(false);
+	const error = new Error("unrelated");
+	error.cause = error;
+	expect(isFilterPresetNameConflictError(error)).toBe(false);
 });

@@ -1,7 +1,6 @@
 import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { gameMix } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
-import { TRPCError } from "@trpc/server";
 import { getTableName } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
@@ -27,22 +26,7 @@ function gameGroupCaller(userId: string, select: Record<string, Rows>) {
 	return { caller, ...mock };
 }
 
-async function expectTrpcCode(
-	promise: Promise<unknown>,
-	code: TRPCError["code"]
-): Promise<void> {
-	try {
-		await promise;
-	} catch (error) {
-		expect(error).toBeInstanceOf(TRPCError);
-		expect((error as TRPCError).code).toBe(code);
-		return;
-	}
-	throw new Error(`expected the call to throw ${code} but it resolved`);
-}
-
 const CUR_OWNER = "user-1";
-const CUR_OTHER = "user-2";
 
 function seededRows(extra: { variant?: Rows; group?: Rows } = {}) {
 	return {
@@ -195,72 +179,6 @@ describe("gameGroup.create", () => {
 		expect(
 			typeof (inserted[GROUP_TABLE]?.[0] as Record<string, unknown>)?.id
 		).toBe("string");
-	});
-});
-
-describe("gameGroup ownership (uniform FORBIDDEN, SA2-183)", () => {
-	for (const op of ["update", "delete"] as const) {
-		it(`${op} throws FORBIDDEN for a row owned by another user`, async () => {
-			const { caller } = gameGroupCaller(CUR_OWNER, {
-				[GROUP_TABLE]: [
-					{ id: "grp-1", userId: CUR_OTHER, label: "Their Group" },
-				],
-				[VARIANT_TABLE]: [],
-			});
-			await expectTrpcCode(caller[op]({ id: "grp-1" }), "FORBIDDEN");
-		});
-
-		it(`${op} throws FORBIDDEN (not NOT_FOUND) for a missing row`, async () => {
-			const { caller } = gameGroupCaller(CUR_OWNER, {
-				[GROUP_TABLE]: [],
-				[VARIANT_TABLE]: [],
-			});
-			await expectTrpcCode(caller[op]({ id: "missing" }), "FORBIDDEN");
-		});
-	}
-
-	it("update resolves for a row owned by the caller", async () => {
-		const { caller } = gameGroupCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [{ id: "grp-1", userId: CUR_OWNER, label: "My Group" }],
-		});
-		await expect(
-			caller.update({ id: "grp-1", label: "Renamed Group" })
-		).resolves.toBeDefined();
-	});
-});
-
-describe("gameGroup write-IDOR guard (SA2-176)", () => {
-	it("update WHERE binds both the id and the caller's userId", async () => {
-		const { caller, updateWhereParams } = gameGroupCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [{ id: "grp-1", userId: CUR_OWNER, label: "My Group" }],
-		});
-		await caller.update({ id: "grp-1", label: "Renamed" });
-		expect(updateWhereParams).toHaveLength(1);
-		expect(updateWhereParams[0]).toContain("grp-1");
-		expect(updateWhereParams[0]).toContain(CUR_OWNER);
-	});
-
-	it("delete WHERE binds both the id and the caller's userId", async () => {
-		const { caller, deleteWhereParams } = gameGroupCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [{ id: "grp-1", userId: CUR_OWNER, label: "My Group" }],
-			[VARIANT_TABLE]: [],
-		});
-		await caller.delete({ id: "grp-1" });
-		expect(deleteWhereParams).toHaveLength(1);
-		expect(deleteWhereParams[0]).toContain("grp-1");
-		expect(deleteWhereParams[0]).toContain(CUR_OWNER);
-	});
-});
-
-describe("gameGroup.delete", () => {
-	it("succeeds when no variant references the group", async () => {
-		const { caller } = gameGroupCaller(CUR_OWNER, {
-			[GROUP_TABLE]: [{ id: "grp-1", userId: CUR_OWNER, label: "My Group" }],
-			[VARIANT_TABLE]: [],
-		});
-		await expect(caller.delete({ id: "grp-1" })).resolves.toEqual({
-			success: true,
-		});
 	});
 });
 

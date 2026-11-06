@@ -1,6 +1,6 @@
 export type BuiltinGroupKey = "bigbet" | "limit" | "stud";
 
-export interface DefaultGameGroup {
+interface DefaultGameGroup {
 	blind1Label: string;
 	blind1Required: boolean;
 	blind2Label: string;
@@ -44,7 +44,7 @@ export const DEFAULT_GAME_GROUPS: DefaultGameGroup[] = [
 	},
 ];
 
-export interface DefaultGameVariant {
+interface DefaultGameVariant {
 	groupKey: BuiltinGroupKey;
 	key: string;
 	label: string;
@@ -145,7 +145,7 @@ export const DEFAULT_GAME_VARIANTS: DefaultGameVariant[] = [
 	{ key: "razz", label: "Razz", shortLabel: "Razz", groupKey: "stud" },
 ];
 
-export interface DefaultGameMix {
+interface DefaultGameMix {
 	key: string;
 	label: string;
 	variantKeys: string[];
@@ -179,16 +179,3 @@ export const DEFAULT_GAME_MIXES: DefaultGameMix[] = [
 		],
 	},
 ];
-
-export const DEFAULT_VARIANT_LABEL = "NL Hold'em";
-
-export const MIX_VARIANT = "mix";
-export const MIX_VARIANT_LABEL = "Mixed Game";
-
-export function isMixVariant(variant: string): boolean {
-	return variant === MIX_VARIANT;
-}
-
-export function variantDisplayLabel(variant: string): string {
-	return isMixVariant(variant) ? MIX_VARIANT_LABEL : variant;
-}

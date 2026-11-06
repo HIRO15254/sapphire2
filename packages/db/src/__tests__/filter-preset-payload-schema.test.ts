@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
 	filterPresetScreenKeySchema,
-	payloadSchemaForScreenKey,
 	presetNameSchema,
 	sessionsFilterPresetPayloadSchema,
 	statisticsFilterPresetPayloadSchema,
@@ -19,15 +18,6 @@ describe("filter presets", () => {
 		expect(presetNameSchema.parse("  My filters  ")).toBe("My filters");
 		expect(presetNameSchema.safeParse("   ").success).toBe(false);
 		expect(presetNameSchema.safeParse("a".repeat(51)).success).toBe(false);
-	});
-
-	it("routes each screen to its payload schema", () => {
-		expect(payloadSchemaForScreenKey("sessions")).toBe(
-			sessionsFilterPresetPayloadSchema
-		);
-		expect(payloadSchemaForScreenKey("statistics")).toBe(
-			statisticsFilterPresetPayloadSchema
-		);
 	});
 
 	it("allows sessions without a mode but requires one for statistics", () => {

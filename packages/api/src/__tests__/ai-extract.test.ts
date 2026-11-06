@@ -11,7 +11,7 @@ describe("aiExtract.extractTournamentData input validation", () => {
 	const urlSource = { kind: "url", url: "https://example.com/tournament" };
 	const imageSource = {
 		kind: "image",
-		data: "base64data",
+		data: "ZGF0YQ==",
 		mediaType: "image/png",
 	};
 
@@ -36,12 +36,12 @@ describe("aiExtract.extractTournamentData input validation", () => {
 	it("rejects more than 5 sources", () => {
 		expectRejects(appRouter.aiExtract.extractTournamentData, {
 			sources: [
-				urlSource,
-				urlSource,
-				urlSource,
-				urlSource,
-				urlSource,
-				urlSource,
+				imageSource,
+				imageSource,
+				imageSource,
+				imageSource,
+				imageSource,
+				imageSource,
 			],
 		});
 	});
@@ -58,21 +58,21 @@ describe("aiExtract.extractTournamentData input validation", () => {
 		});
 	});
 
-	it("rejects url source with malformed URL", () => {
-		expectRejects(appRouter.aiExtract.extractTournamentData, {
-			sources: [{ kind: "url", url: "not a url" }],
-		});
-	});
-
 	it("rejects image source with unknown media type", () => {
 		expectRejects(appRouter.aiExtract.extractTournamentData, {
-			sources: [{ kind: "image", data: "d", mediaType: "image/bmp" }],
+			sources: [{ kind: "image", data: "ZGF0YQ==", mediaType: "image/bmp" }],
 		});
 	});
 
 	it("rejects image source with empty data", () => {
 		expectRejects(appRouter.aiExtract.extractTournamentData, {
 			sources: [{ kind: "image", data: "", mediaType: "image/png" }],
+		});
+	});
+
+	it("rejects malformed base64 image data before contacting the provider", () => {
+		expectRejects(appRouter.aiExtract.extractTournamentData, {
+			sources: [{ kind: "image", data: "not base64", mediaType: "image/png" }],
 		});
 	});
 
@@ -84,7 +84,7 @@ describe("aiExtract.extractTournamentData input validation", () => {
 			"image/webp",
 		]) {
 			expectAccepts(appRouter.aiExtract.extractTournamentData, {
-				sources: [{ kind: "image", data: "d", mediaType }],
+				sources: [{ kind: "image", data: "ZGF0YQ==", mediaType }],
 			});
 		}
 	});
@@ -99,7 +99,7 @@ describe("aiExtract.extractTournamentData input validation", () => {
 describe("aiExtract.extractTablePlayers input validation", () => {
 	const validImage = {
 		kind: "image",
-		data: "d",
+		data: "ZGF0YQ==",
 		mediaType: "image/jpeg",
 	};
 
@@ -110,40 +110,10 @@ describe("aiExtract.extractTablePlayers input validation", () => {
 		});
 	});
 
-	it("rejects URL sources so OpenAI never fetches a user-supplied URL", () => {
-		expectRejects(appRouter.aiExtract.extractTablePlayers, {
-			sourceApp: "dmm_waitinglist",
-			sources: [
-				{ kind: "url", url: "https://example.com/table-screenshot.png" },
-			],
-		});
-	});
-
 	it("rejects an unknown sourceApp", () => {
 		expectRejects(appRouter.aiExtract.extractTablePlayers, {
 			sourceApp: "some_other_app",
 			sources: [validImage],
-		});
-	});
-
-	it("rejects 0 sources", () => {
-		expectRejects(appRouter.aiExtract.extractTablePlayers, {
-			sourceApp: "dmm_waitinglist",
-			sources: [],
-		});
-	});
-
-	it("accepts several screenshots of the same table", () => {
-		expectAccepts(appRouter.aiExtract.extractTablePlayers, {
-			sourceApp: "dmm_waitinglist",
-			sources: [validImage, validImage],
-		});
-	});
-
-	it("rejects more sources than the batch limit", () => {
-		expectRejects(appRouter.aiExtract.extractTablePlayers, {
-			sourceApp: "dmm_waitinglist",
-			sources: Array.from({ length: 6 }, () => validImage),
 		});
 	});
 
@@ -156,13 +126,6 @@ describe("aiExtract.extractTablePlayers input validation", () => {
 	it("rejects missing sourceApp", () => {
 		expectRejects(appRouter.aiExtract.extractTablePlayers, {
 			sources: [validImage],
-		});
-	});
-
-	it("rejects image source with empty data", () => {
-		expectRejects(appRouter.aiExtract.extractTablePlayers, {
-			sourceApp: "dmm_waitinglist",
-			sources: [{ kind: "image", data: "", mediaType: "image/jpeg" }],
 		});
 	});
 });

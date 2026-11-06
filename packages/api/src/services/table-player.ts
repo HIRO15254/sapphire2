@@ -1,13 +1,18 @@
 import type { Database } from "@sapphire2/db";
+import { entryCash, entryTournament } from "@sapphire2/db/schema/entry";
 import { player, playerTag, playerTagLink } from "@sapphire2/db/schema/player";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
 	type BatchStatement,
-	chunkForInsert,
+	insertChunks,
 	selectInChunks,
 } from "../lib/batch";
-import { validateTagsOwnership } from "../lib/ownership";
+import {
+	validateEntityOwnership,
+	validateTagsOwnership,
+} from "../lib/ownership";
+import { guardStatement } from "../lib/write-guard";
 import {
 	commitEntryEventChange,
 	type EntryEventState,
@@ -51,23 +56,6 @@ function badRequest(message: string): never {
 
 function conflict(message: string): never {
 	throw new TRPCError({ code: "CONFLICT", message });
-}
-
-async function assertOwnedPlayer(
-	db: Database,
-	userId: string,
-	playerId: string
-): Promise<void> {
-	const [owned] = await db
-		.select({ id: player.id })
-		.from(player)
-		.where(and(eq(player.id, playerId), eq(player.userId, userId)));
-	if (!owned) {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: "You do not own this player",
-		});
-	}
 }
 
 export async function listTablePlayers(
@@ -199,11 +187,11 @@ async function assertSeatAvailable(
 	entryId: string,
 	playerId: string,
 	seatPosition: SeatInput
-): Promise<void> {
+): Promise<BatchStatement[]> {
 	if (seatPosition === null || seatPosition === undefined) {
-		return;
+		return [];
 	}
-	const { tableSize } = await loadEntryRuleFacts(
+	const { tableSize, ruleVersionId } = await loadEntryRuleFacts(
 		db,
 		userId,
 		entryId,
@@ -224,6 +212,21 @@ async function assertSeatAvailable(
 	) {
 		conflict(`Seat ${seatPosition} is already taken`);
 	}
+	const detail = table.state.kind === "cash" ? entryCash : entryTournament;
+	const ruleId =
+		table.state.kind === "cash"
+			? entryCash.cashRuleId
+			: entryTournament.tournamentRuleId;
+	return [
+		guardStatement(
+			db,
+			"seat-rule",
+			sql`EXISTS (
+		SELECT 1 FROM ${detail} WHERE ${detail.entryId} = ${entryId}
+		AND ${detail.userId} = ${userId} AND ${ruleId} = ${ruleVersionId}
+	)`
+		),
+	];
 }
 
 function findActive(
@@ -240,12 +243,12 @@ export async function addTablePlayer(
 	now: Date
 ): Promise<TablePlayerWriteResult> {
 	const state = await loadEntryEventState(db, userId, input.entryId);
-	await assertOwnedPlayer(db, userId, input.playerId);
+	await validateEntityOwnership(db, "player", input.playerId, userId);
 	const table = openTable(state);
 	if (findActive(table.folded, input.playerId)) {
 		conflict("This player is already at the table");
 	}
-	await assertSeatAvailable(
+	const seatGuards = await assertSeatAvailable(
 		db,
 		userId,
 		table,
@@ -254,6 +257,7 @@ export async function addTablePlayer(
 		input.seatPosition
 	);
 	return await writeTableEvent(db, {
+		before: seatGuards,
 		entryId: input.entryId,
 		now,
 		playerId: input.playerId,
@@ -281,7 +285,7 @@ async function addCreatedPlayer(
 	await validateTagsOwnership(db, playerTag, input.tagIds, userId);
 	const table = openTable(state);
 	const playerId = crypto.randomUUID();
-	await assertSeatAvailable(
+	const seatGuards = await assertSeatAvailable(
 		db,
 		userId,
 		table,
@@ -297,6 +301,7 @@ async function addCreatedPlayer(
 	}));
 	return await writeTableEvent(db, {
 		before: [
+			...seatGuards,
 			db.insert(player).values({
 				id: playerId,
 				userId,
@@ -305,9 +310,7 @@ async function addCreatedPlayer(
 				isTemporary: input.isTemporary,
 				updatedAt: now,
 			}),
-			...chunkForInsert(links, 4).map((chunk) =>
-				db.insert(playerTagLink).values(chunk)
-			),
+			...insertChunks(links, (chunk) => db.insert(playerTagLink).values(chunk)),
 		],
 		entryId: input.entryId,
 		now,
@@ -373,12 +376,12 @@ export async function updateTablePlayerSeat(
 	now: Date
 ): Promise<TablePlayerWriteResult> {
 	const state = await loadEntryEventState(db, userId, input.entryId);
-	await assertOwnedPlayer(db, userId, input.playerId);
+	await validateEntityOwnership(db, "player", input.playerId, userId);
 	const table = openTable(state);
 	if (!findActive(table.folded, input.playerId)) {
 		badRequest("This player is not at the table");
 	}
-	await assertSeatAvailable(
+	const seatGuards = await assertSeatAvailable(
 		db,
 		userId,
 		table,
@@ -387,6 +390,7 @@ export async function updateTablePlayerSeat(
 		input.seatPosition
 	);
 	return await writeTableEvent(db, {
+		before: seatGuards,
 		entryId: input.entryId,
 		now,
 		playerId: input.playerId,
@@ -404,7 +408,7 @@ export async function removeTablePlayer(
 	now: Date
 ): Promise<TablePlayerWriteResult> {
 	const state = await loadEntryEventState(db, userId, input.entryId);
-	await assertOwnedPlayer(db, userId, input.playerId);
+	await validateEntityOwnership(db, "player", input.playerId, userId);
 	const table = openTable(state);
 	if (!findActive(table.folded, input.playerId)) {
 		badRequest("This player is not at the table");

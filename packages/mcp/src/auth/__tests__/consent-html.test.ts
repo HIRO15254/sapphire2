@@ -1,11 +1,13 @@
+import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
-import { TOOL_DEFINITIONS, toolAnnotations } from "../../tools/registry";
 import { renderConsentHtml } from "../consent-html";
 
+const CONSENT_SCRIPT = /<script nonce="test-nonce">([\s\S]*?)<\/script>/;
+
 const BASE_PROPS = {
-	clientId: "client-1",
 	clientName: "Claude",
 	code: "consent-code-123",
+	nonce: "test-nonce",
 	redirectHosts: ["claude.ai"],
 };
 
@@ -19,22 +21,6 @@ describe("renderConsentHtml", () => {
 		expect(html).not.toContain("openid");
 		expect(html).not.toContain("offline_access");
 		expect(html).toContain("Read your statistics");
-	});
-
-	it("discloses write access while the catalogue contains mutation tools", () => {
-		const hasWriteTool = TOOL_DEFINITIONS.some(
-			(def) => !toolAnnotations(def).readOnlyHint
-		);
-		expect(hasWriteTool).toBe(true);
-		expect(renderConsentHtml(BASE_PROPS)).toContain("Create or change your");
-	});
-
-	it("discloses irreversible edits while the catalogue contains destructive tools", () => {
-		const hasDestructiveTool = TOOL_DEFINITIONS.some(
-			(def) => toolAnnotations(def).destructiveHint
-		);
-		expect(hasDestructiveTool).toBe(true);
-		expect(renderConsentHtml(BASE_PROPS)).toContain("cannot be undone");
 	});
 
 	it("shows the registered redirect host so a look-alike name is detectable", () => {
@@ -84,14 +70,6 @@ describe("renderConsentHtml", () => {
 		expect(html).toContain("&lt;img src=x");
 	});
 
-	it("renders a Japanese client name intact", () => {
-		const html = renderConsentHtml({
-			...BASE_PROPS,
-			clientName: "クロード開発ツール",
-		});
-		expect(html).toContain("クロード開発ツール");
-	});
-
 	it("falls back to a placeholder for an empty client name", () => {
 		const html = renderConsentHtml({ ...BASE_PROPS, clientName: "" });
 		expect(html).toContain("Unknown application");
@@ -106,18 +84,64 @@ describe("renderConsentHtml", () => {
 		expect(html).toContain("\\u003c/script");
 	});
 
-	it("posts the decision to the better-auth consent endpoint", () => {
-		const html = renderConsentHtml(BASE_PROPS);
-		expect(html).toContain("/api/auth/oauth2/consent");
-		expect(html).toContain("accept: true");
-		expect(html).toContain("accept: false");
-		expect(html).toContain("redirectURI");
+	it("escapes the CSP nonce before inserting it into the script attribute", () => {
+		const html = renderConsentHtml({
+			...BASE_PROPS,
+			nonce: 'x" onload="alert(1)',
+		});
+		expect(html).toContain('nonce="x&quot; onload=&quot;alert(1)"');
 	});
 
-	it("keeps the UI copy in English", () => {
+	it("rejects unsafe consent redirects while allowing secure and native callbacks", async () => {
 		const html = renderConsentHtml(BASE_PROPS);
-		expect(html).toContain("Authorization request");
-		expect(html).toContain("Approve");
-		expect(html).toContain("Deny");
+		const script = html.match(CONSENT_SCRIPT)?.[1];
+		expect(script).toBeDefined();
+		const cases = [
+			["javascript:alert(1)", false],
+			["data:text/html,unsafe", false],
+			["vbscript:msgbox(1)", false],
+			["file:///tmp/x", false],
+			["blob:https://example.com/id", false],
+			["about:blank", false],
+			["http://example.com/callback", false],
+			["not a url", false],
+			["https://example.com/callback", true],
+			["https://example.com/callback?state=a,b", true],
+			["http://localhost:1234/callback", true],
+			["http://127.0.0.1:1234/callback", true],
+			["http://[::1]:1234/callback", true],
+			["cursor://callback", true],
+		] as const;
+		for (const [redirectURI, allowed] of cases) {
+			const handlers: Record<string, () => Promise<void>> = {};
+			const elements = {
+				"consent-data": { textContent: JSON.stringify({ code: "code" }) },
+				approve: {
+					disabled: false,
+					addEventListener: (_: string, fn: () => Promise<void>) => {
+						handlers.approve = fn;
+					},
+				},
+				deny: {
+					disabled: false,
+					addEventListener: (_: string, fn: () => Promise<void>) => {
+						handlers.deny = fn;
+					},
+				},
+				error: { hidden: true },
+			};
+			const location = { href: "" };
+			runInNewContext(script as string, {
+				document: {
+					getElementById: (id: keyof typeof elements) => elements[id],
+				},
+				fetch: async () => ({ ok: true, json: async () => ({ redirectURI }) }),
+				window: { location },
+				URL,
+			});
+			await handlers.approve?.();
+			expect(location.href).toBe(allowed ? redirectURI : "");
+			expect(elements.error.hidden).toBe(allowed);
+		}
 	});
 });

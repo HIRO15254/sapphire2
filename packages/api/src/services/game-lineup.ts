@@ -8,18 +8,19 @@ import {
 import { gameMix, gameMixVariant } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { MAX_MIX_GROUPS } from "@sapphire2/db/schemas/game";
+import { idSchema } from "@sapphire2/db/schemas/id";
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
 import z from "zod";
+import { activeReferencesGuard } from "../lib/active-reference-guard";
 import {
 	type BatchStatement,
-	chunkForInsert,
+	insertChunks,
 	selectInChunks,
 } from "../lib/batch";
+import { seedDefaultGameData } from "./seed-game-data";
 
 export const MAX_LINEUP_GROUPS = MAX_MIX_GROUPS;
-
-const idSchema = z.string().min(1);
 
 export const gameInputSchema = z.union([
 	z.object({ variantId: idSchema }).strict(),
@@ -200,6 +201,24 @@ export async function findBuiltinVariantId(
 	return found?.id ?? null;
 }
 
+export async function resolveDefaultGame(
+	db: Database,
+	userId: string,
+	game: GameInput | undefined,
+	hasCurrent: boolean,
+	missingGameMessage: string
+): Promise<GameInput | undefined> {
+	if (game || hasCurrent) {
+		return game;
+	}
+	await seedDefaultGameData(db, userId);
+	const nlhId = await findBuiltinVariantId(db, userId, "nlh");
+	if (!nlhId) {
+		throw new TRPCError({ code: "BAD_REQUEST", message: missingGameMessage });
+	}
+	return { variantId: nlhId };
+}
+
 interface PendingShape {
 	gameMixId: string | null;
 	groups: { gameGroupId: string; variantIds: string[] }[];
@@ -295,6 +314,30 @@ export class LineupPlanner {
 			)
 		);
 		return [
+			...(lineupRows.length === 0
+				? []
+				: [
+						activeReferencesGuard(
+							this.db,
+							gameMix,
+							lineupRows.flatMap((row) =>
+								row.gameMixId ? [row.gameMixId] : []
+							),
+							this.userId
+						),
+						activeReferencesGuard(
+							this.db,
+							gameGroup,
+							groupRows.map((row) => row.gameGroupId),
+							this.userId
+						),
+						activeReferencesGuard(
+							this.db,
+							gameVariant,
+							variantRows.map((row) => row.variantId),
+							this.userId
+						),
+					]),
 			...insertChunks(lineupRows, (chunk) =>
 				this.db.insert(gameLineup).values(chunk)
 			),
@@ -357,8 +400,16 @@ export class LineupPlanner {
 						id: gameVariant.id,
 						groupId: gameVariant.groupId,
 						archivedAt: gameVariant.archivedAt,
+						groupArchivedAt: gameGroup.archivedAt,
 					})
 					.from(gameVariant)
+					.innerJoin(
+						gameGroup,
+						and(
+							eq(gameGroup.id, gameVariant.groupId),
+							eq(gameGroup.userId, gameVariant.userId)
+						)
+					)
 					.where(
 						and(
 							eq(gameVariant.userId, this.userId),
@@ -370,7 +421,11 @@ export class LineupPlanner {
 		if (rows.length !== ids.size) {
 			throw forbidden();
 		}
-		if (rows.some((row) => row.archivedAt !== null)) {
+		if (
+			rows.some(
+				(row) => row.archivedAt !== null || row.groupArchivedAt !== null
+			)
+		) {
 			throw badRequest(
 				"An archived game variant cannot be newly selected; restore it first"
 			);
@@ -413,6 +468,8 @@ export class LineupPlanner {
 						position: gameMixVariant.position,
 						variantId: gameMixVariant.variantId,
 						groupId: gameVariant.groupId,
+						variantArchivedAt: gameVariant.archivedAt,
+						groupArchivedAt: gameGroup.archivedAt,
 					})
 					.from(gameMixVariant)
 					.innerJoin(
@@ -420,6 +477,13 @@ export class LineupPlanner {
 						and(
 							eq(gameVariant.id, gameMixVariant.variantId),
 							eq(gameVariant.userId, gameMixVariant.userId)
+						)
+					)
+					.innerJoin(
+						gameGroup,
+						and(
+							eq(gameGroup.id, gameVariant.groupId),
+							eq(gameGroup.userId, gameVariant.userId)
 						)
 					)
 					.where(
@@ -435,6 +499,16 @@ export class LineupPlanner {
 			const ordered = (membersByMix.get(mixId) ?? []).toSorted(byPosition);
 			if (ordered.length === 0) {
 				throw badRequest("A game mix without games cannot be selected");
+			}
+			if (
+				ordered.some(
+					(member) =>
+						member.variantArchivedAt !== null || member.groupArchivedAt !== null
+				)
+			) {
+				throw badRequest(
+					"An archived game cannot be newly selected; restore it first"
+				);
 			}
 			const groups: PendingShape["groups"] = [];
 			for (const member of ordered) {
@@ -462,21 +536,8 @@ export class LineupPlanner {
 		if (loaded.size !== ids.size) {
 			throw forbidden();
 		}
-		for (const lineup of loaded.values()) {
-			this.lineups.set(lineup.id, lineup);
-		}
+		this.addCandidates(loaded.values());
 	}
-}
-
-export function insertChunks<Row extends Record<string, unknown>>(
-	rows: Row[],
-	insert: (chunk: Row[]) => BatchStatement
-): BatchStatement[] {
-	const [first] = rows;
-	if (!first) {
-		return [];
-	}
-	return chunkForInsert(rows, Object.keys(first).length).map(insert);
 }
 
 function lineupDisplayName(

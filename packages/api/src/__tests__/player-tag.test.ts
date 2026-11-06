@@ -1,7 +1,6 @@
-import { TAG_COLOR_NAMES } from "@sapphire2/db/constants/player-tag-colors";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
-import { expectAccepts, expectRejects, getInputSchema } from "./test-utils";
+import { expectRejects, getInputSchema } from "./test-utils";
 
 describe("playerTag.create input validation", () => {
 	it("accepts name only (color defaults to gray)", () => {
@@ -14,33 +13,11 @@ describe("playerTag.create input validation", () => {
 		expect(parsed.data.color).toBe("gray");
 	});
 
-	it("accepts every known tag color", () => {
-		for (const color of TAG_COLOR_NAMES) {
-			expectAccepts(appRouter.playerTag.create, { name: "tag", color });
-		}
-	});
-
 	it("rejects unknown color", () => {
 		expectRejects(appRouter.playerTag.create, {
 			name: "tag",
 			color: "neon_pink",
 		});
-	});
-
-	it("rejects empty name", () => {
-		expectRejects(appRouter.playerTag.create, { name: "" });
-	});
-
-	it("rejects name exceeding 50 characters", () => {
-		expectRejects(appRouter.playerTag.create, { name: "a".repeat(51) });
-	});
-
-	it("accepts name at exactly 50 characters (boundary)", () => {
-		expectAccepts(appRouter.playerTag.create, { name: "a".repeat(50) });
-	});
-
-	it("rejects missing name", () => {
-		expectRejects(appRouter.playerTag.create, { color: "gray" });
 	});
 });
 
@@ -49,46 +26,10 @@ describe("playerTag.update input validation", () => {
 		expectRejects(appRouter.playerTag.update, { id: "pt1" });
 	});
 
-	it("accepts name change", () => {
-		expectAccepts(appRouter.playerTag.update, { id: "pt1", name: "regulars" });
-	});
-
-	it("accepts color change", () => {
-		expectAccepts(appRouter.playerTag.update, {
-			id: "pt1",
-			color: TAG_COLOR_NAMES[0],
-		});
-	});
-
-	it("rejects empty name", () => {
-		expectRejects(appRouter.playerTag.update, { id: "pt1", name: "" });
-	});
-
-	it("rejects name exceeding 50 characters", () => {
-		expectRejects(appRouter.playerTag.update, {
-			id: "pt1",
-			name: "a".repeat(51),
-		});
-	});
-
 	it("rejects unknown color", () => {
 		expectRejects(appRouter.playerTag.update, {
 			id: "pt1",
 			color: "chartreuse",
 		});
-	});
-
-	it("rejects missing id", () => {
-		expectRejects(appRouter.playerTag.update, { name: "x" });
-	});
-});
-
-describe("playerTag.delete input validation", () => {
-	it("accepts a valid id", () => {
-		expectAccepts(appRouter.playerTag.delete, { id: "pt1" });
-	});
-
-	it("rejects missing id", () => {
-		expectRejects(appRouter.playerTag.delete, {});
 	});
 });

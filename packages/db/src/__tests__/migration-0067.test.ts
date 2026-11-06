@@ -1,8 +1,4 @@
 import { describe, expect, it } from "vitest";
-import {
-	DEFAULT_GAME_MIXES,
-	DEFAULT_GAME_VARIANTS,
-} from "../constants/game-variants";
 
 import {
 	type Database,
@@ -267,22 +263,107 @@ describe("migration 0067 — ring game rule versions", () => {
 						db,
 						`SELECT builtin_key, label, short_label, group_id, sort_order FROM game_variant WHERE user_id = '${owner}' AND builtin_key IS NOT NULL ORDER BY sort_order`
 					)
-				).toEqual(
-					DEFAULT_GAME_VARIANTS.map((variant, index) => [
-						variant.key,
-						variant.label,
-						variant.shortLabel,
-						`${owner}:builtin-group:${variant.groupKey}`,
-						index,
-					])
-				);
-				for (const mix of DEFAULT_GAME_MIXES) {
+				).toEqual([
+					["nlh", "NL Hold'em", "NLH", `${owner}:builtin-group:bigbet`, 0],
+					[
+						"plhe",
+						"Pot Limit Hold'em",
+						"PLHE",
+						`${owner}:builtin-group:bigbet`,
+						1,
+					],
+					["plo", "Pot Limit Omaha", "PLO", `${owner}:builtin-group:bigbet`, 2],
+					["plo5", "5 Card PLO", "PLO5", `${owner}:builtin-group:bigbet`, 3],
+					[
+						"plo8",
+						"Pot Limit Omaha Hi-Lo",
+						"PLO8",
+						`${owner}:builtin-group:bigbet`,
+						4,
+					],
+					["bigo", "Big O", "Big O", `${owner}:builtin-group:bigbet`, 5],
+					["shortdeck", "Short Deck", "6+", `${owner}:builtin-group:bigbet`, 6],
+					[
+						"27sd",
+						"NL 2-7 Single Draw",
+						"2-7SD",
+						`${owner}:builtin-group:bigbet`,
+						7,
+					],
+					[
+						"pl27td",
+						"PL 2-7 Triple Draw",
+						"PL 2-7TD",
+						`${owner}:builtin-group:bigbet`,
+						8,
+					],
+					[
+						"courchevel",
+						"Courchevel",
+						"Courchevel",
+						`${owner}:builtin-group:bigbet`,
+						9,
+					],
+					["lhe", "Limit Hold'em", "LHE", `${owner}:builtin-group:limit`, 10],
+					["lo", "Limit Omaha", "LO", `${owner}:builtin-group:limit`, 11],
+					["o8", "Limit Omaha Hi-Lo", "O8", `${owner}:builtin-group:limit`, 12],
+					[
+						"27td",
+						"Limit 2-7 Triple Draw",
+						"2-7TD",
+						`${owner}:builtin-group:limit`,
+						13,
+					],
+					[
+						"a5td",
+						"A-5 Triple Draw",
+						"A-5TD",
+						`${owner}:builtin-group:limit`,
+						14,
+					],
+					["badugi", "Badugi", "Badugi", `${owner}:builtin-group:limit`, 15],
+					["badeucy", "Badeucy", "Badeucy", `${owner}:builtin-group:limit`, 16],
+					["badacy", "Badacy", "Badacy", `${owner}:builtin-group:limit`, 17],
+					[
+						"stud",
+						"Seven Card Stud",
+						"Stud",
+						`${owner}:builtin-group:stud`,
+						18,
+					],
+					["stud8", "Stud Hi-Lo", "Stud8", `${owner}:builtin-group:stud`, 19],
+					["razz", "Razz", "Razz", `${owner}:builtin-group:stud`, 20],
+				]);
+				for (const [key, label, members] of [
+					["horse", "HORSE", ["lhe", "o8", "razz", "stud", "stud8"]],
+					[
+						"8game",
+						"8-Game",
+						["27td", "lhe", "o8", "razz", "stud", "stud8", "nlh", "plo"],
+					],
+					[
+						"10game",
+						"10-Game",
+						[
+							"27td",
+							"lhe",
+							"o8",
+							"badugi",
+							"razz",
+							"stud",
+							"stud8",
+							"nlh",
+							"plo",
+							"27sd",
+						],
+					],
+				] as const) {
 					expect(
 						values(
 							db,
-							`SELECT v.builtin_key FROM game_mix m JOIN game_mix_variant j ON j.mix_id = m.id JOIN game_variant v ON v.id = j.variant_id WHERE m.user_id = '${owner}' AND m.builtin_key = '${mix.key}' AND m.label = '${mix.label}' AND m.archived_at IS NULL ORDER BY j.position`
+							`SELECT v.builtin_key FROM game_mix m JOIN game_mix_variant j ON j.mix_id = m.id JOIN game_variant v ON v.id = j.variant_id WHERE m.user_id = '${owner}' AND m.builtin_key = '${key}' AND m.label = '${label}' AND m.archived_at IS NULL ORDER BY j.position`
 						)
-					).toEqual(mix.variantKeys.map((key) => [key]));
+					).toEqual(members.map((member) => [member]));
 				}
 			}
 			expect(

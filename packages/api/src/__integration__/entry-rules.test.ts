@@ -214,6 +214,45 @@ describe("entry rule versions on D1", () => {
 		expect(await api.db.select().from(entryCash)).toEqual([]);
 	});
 
+	test("rejects a master pointing at another master's rule before creating an entry", async ({
+		api,
+	}) => {
+		const first = await ringGameWithRoom(api);
+		const second = await api.alice.ringGame.create({
+			roomId: first.roomId,
+			name: "Other",
+			rule: await nlhGame(api.db),
+		});
+		await api.db
+			.update(ringGame)
+			.set({ currentRuleId: second.currentRuleId })
+			.where(eq(ringGame.id, first.id));
+		await expect(
+			planEntryRule(api.db, "alice", { kind: "cash", ringGameId: first.id })
+		).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+
+		const a = await api.alice.tournament.create({
+			roomId: first.roomId,
+			name: "A",
+			rule: {},
+		});
+		const b = await api.alice.tournament.create({
+			roomId: first.roomId,
+			name: "B",
+			rule: {},
+		});
+		await api.db
+			.update(tournament)
+			.set({ currentRuleId: b.currentRuleId })
+			.where(eq(tournament.id, a.id));
+		await expect(
+			planEntryRule(api.db, "alice", {
+				kind: "tournament",
+				tournamentId: a.id,
+			})
+		).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+	});
+
 	test("a master whose child version an entry uses cannot be deleted, nor can its room, but the account can", async ({
 		api,
 	}) => {

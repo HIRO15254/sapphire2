@@ -32,7 +32,8 @@ import {
 } from "@sapphire2/db/schema/entry";
 import { ledgerLine } from "@sapphire2/db/schema/ledger";
 import { and, eq, isNotNull } from "drizzle-orm";
-import { type BatchStatement, chunkForInsert } from "../lib/batch";
+import { type BatchStatement, insertChunks } from "../lib/batch";
+import { addSafeIntegers, safeInteger } from "../lib/safe-integer";
 
 export type ProjectorEvent = Pick<
 	typeof playEvent.$inferSelect,
@@ -145,7 +146,10 @@ function readCashEnd(event: ProjectorEvent) {
 	const data = cashSessionEndPayload.parse(JSON.parse(event.payload));
 	return {
 		endState: data.endState ?? "cashed_out",
-		endStack: data.payments.reduce((sum, payment) => sum + payment.quantity, 0),
+		endStack: data.payments.reduce(
+			(sum, payment) => addSafeIntegers(sum, payment.quantity),
+			0
+		),
 	};
 }
 
@@ -259,7 +263,7 @@ function projectCash(events: readonly ProjectorEvent[]): EntryDetailProjection {
 				(data.potSize / data.trials) * data.wins;
 		}
 	}
-	return { kind: "cash", evDiff: Math.round(evDiff) };
+	return { kind: "cash", evDiff: safeInteger(Math.round(evDiff)) };
 }
 
 function latestStackTotalEntries(
@@ -269,7 +273,9 @@ function latestStackTotalEntries(
 	for (const event of events) {
 		if (event.type === "update_stack") {
 			const data = updateStackPayload.parse(JSON.parse(event.payload));
-			totalEntries = data.totalEntries ?? totalEntries;
+			if (data.totalEntries !== undefined) {
+				totalEntries = data.totalEntries;
+			}
 		}
 	}
 	return totalEntries;
@@ -452,20 +458,25 @@ export function projectTournamentProgress(
 			}
 			if (data.chipPurchaseCounts !== undefined) {
 				reportedChips = data.chipPurchaseCounts.reduce(
-					(sum, row) => sum + row.count * row.chipsPerUnit,
+					(sum, row) =>
+						addSafeIntegers(
+							sum,
+							safeInteger(BigInt(row.count) * BigInt(row.chipsPerUnit))
+						),
 					0
 				);
 				purchasedChips = 0;
 			}
 		} else if (event.type === "purchase_chips") {
-			purchasedChips += purchaseChipsPayload.parse(
-				JSON.parse(event.payload)
-			).chips;
+			purchasedChips = addSafeIntegers(
+				purchasedChips,
+				purchaseChipsPayload.parse(JSON.parse(event.payload)).chips
+			);
 		} else if (event.type === "day_end") {
 			currentStack = dayEndPayload.parse(JSON.parse(event.payload)).stackAmount;
 		}
 	}
-	const chipTotal = reportedChips + purchasedChips;
+	const chipTotal = addSafeIntegers(reportedChips, purchasedChips);
 	return {
 		currentStack,
 		remainingPlayers,
@@ -477,8 +488,11 @@ export function projectTournamentProgress(
 			remainingPlayers === null ||
 			remainingPlayers <= 0
 				? null
-				: Math.round(
-						(startingStack * totalEntries + chipTotal) / remainingPlayers
+				: safeInteger(
+						(BigInt(startingStack) * BigInt(totalEntries) +
+							BigInt(chipTotal) +
+							BigInt(Math.floor(remainingPlayers / 2))) /
+							BigInt(remainingPlayers)
 					),
 	};
 }
@@ -567,8 +581,8 @@ export function buildProjectionLineStatements(
 				)
 			),
 	];
-	for (const chunk of chunkForInsert(rows, Object.keys(rows[0] ?? {}).length)) {
-		statements.push(db.insert(ledgerLine).values(chunk));
-	}
+	statements.push(
+		...insertChunks(rows, (chunk) => db.insert(ledgerLine).values(chunk))
+	);
 	return statements;
 }

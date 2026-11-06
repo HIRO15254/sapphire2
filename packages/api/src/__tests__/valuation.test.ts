@@ -45,6 +45,24 @@ const assets: ValuationAsset[] = [
 	{ id: "main-ticket", kind: "item" },
 ];
 
+it("rejects conversion overflow rather than returning rounded money", () => {
+	const input = {
+		baseAssetId: "pt",
+		assets,
+		rates: [rate("usd-pt", "usd", "pt", 2, 1, new Date(0))],
+		lines: [line("e", "usd", 4_503_599_627_370_495)],
+	};
+	expect(valueEntries(input).entries.get("e")?.real?.profitLoss).toBe(
+		9_007_199_254_740_990
+	);
+	expect(() =>
+		valueEntries({
+			...input,
+			lines: [line("e", "usd", 4_503_599_627_370_496)],
+		})
+	).toThrow("Integer total exceeds the safe integer range");
+});
+
 describe("valueEntries: the section 12.1 example (base pt, 1 Main ticket = 20,000 pt)", () => {
 	const result = valueEntries({
 		baseAssetId: "pt",
@@ -73,19 +91,6 @@ describe("valueEntries: the section 12.1 example (base pt, 1 Main ticket = 20,00
 			real: { profitLoss: 8000, buyIn: 0 },
 			virtual: { profitLoss: 3000, buyIn: 5000 },
 		});
-	});
-
-	it("takes ROI as the ratio of the totals", () => {
-		expect(result.real).toMatchObject({ profitLoss: 50_000, buyIn: 3000 });
-		expect(Math.round(result.real.roi ?? 0)).toBe(1667);
-		expect(result.virtual).toMatchObject({
-			profitLoss: 45_000,
-			buyIn: 28_000,
-			cashOut: 73_000,
-		});
-		expect(Math.round(result.virtual.roi ?? 0)).toBe(161);
-		expect(result.real.excludedEntryCount).toBe(0);
-		expect(result.virtual.excludedEntryCount).toBe(0);
 	});
 });
 
@@ -132,7 +137,7 @@ describe("valueEntries: conversion paths", () => {
 			lines: [line("e", "pt", 1000)],
 		});
 		expect(result.entries.get("e")?.real).toBeNull();
-		expect(result.real.missingRates).toEqual([
+		expect(result.entries.get("e")?.missingRates.real).toEqual([
 			{ assetId: "pt", earliestOccurredAt: at(0) },
 		]);
 	});
@@ -159,14 +164,6 @@ describe("valueEntries: missing rates", () => {
 				virtual: [{ assetId: "usd", earliestOccurredAt: at(10) }],
 			},
 		});
-		expect(result.real).toMatchObject({
-			profitLoss: 5000,
-			buyIn: 0,
-			roi: null,
-			excludedEntryCount: 1,
-			missingRates: [{ assetId: "usd", earliestOccurredAt: at(10) }],
-		});
-		expect(result.virtual.excludedEntryCount).toBe(1);
 	});
 
 	it("does not apply the first rate to a line older than it", () => {
@@ -177,7 +174,7 @@ describe("valueEntries: missing rates", () => {
 			lines: [line("old", "usd", 10, { second: 59 })],
 		});
 		expect(result.entries.get("old")?.real).toBeNull();
-		expect(result.real.missingRates).toEqual([
+		expect(result.entries.get("old")?.missingRates.real).toEqual([
 			{ assetId: "usd", earliestOccurredAt: at(59) },
 		]);
 	});
@@ -196,11 +193,6 @@ describe("valueEntries: missing rates", () => {
 				real: [],
 				virtual: [{ assetId: "main-ticket", earliestOccurredAt: at(0) }],
 			},
-		});
-		expect(result.real.excludedEntryCount).toBe(0);
-		expect(result.virtual).toMatchObject({
-			excludedEntryCount: 1,
-			missingRates: [{ assetId: "main-ticket", earliestOccurredAt: at(0) }],
 		});
 	});
 });

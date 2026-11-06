@@ -51,28 +51,6 @@ function readSeatChange(event: SeatEvent): SeatChange | null {
 	return null;
 }
 
-export function foldPlayerSeat(
-	orderedEvents: readonly SeatEvent[],
-	playerId: string
-): number | null {
-	let active = false;
-	let seat: number | null = null;
-	for (const event of orderedEvents) {
-		const change = readSeatChange(event);
-		if (change?.playerId !== playerId) {
-			continue;
-		}
-		if (change.kind === "leave") {
-			active = false;
-			seat = null;
-		} else if (change.seatPosition !== undefined || !active) {
-			seat = change.seatPosition ?? null;
-			active = true;
-		}
-	}
-	return seat;
-}
-
 function applySeatChange(
 	current: FoldedTablePlayer,
 	change: SeatChange,

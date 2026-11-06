@@ -7,10 +7,10 @@ import {
 import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { gameMix, gameMixVariant } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { BatchStatement } from "../lib/batch";
-import { runBatch } from "../lib/batch";
-import { chunkMembershipRows } from "./game-mix";
+import { insertChunks } from "../lib/batch";
+import { guardStatement, runGuardedBatch } from "../lib/write-guard";
 
 type DbInstance = Database;
 
@@ -22,17 +22,17 @@ function builtinSeedId(
 	return `${userId}:builtin-${kind}:${key}`;
 }
 
-export async function seedDefaultGameData(
+export async function planDefaultGameData(
 	db: DbInstance,
 	userId: string
-): Promise<void> {
+): Promise<BatchStatement[]> {
 	const [existingGroup] = await db
 		.select({ id: gameGroup.id })
 		.from(gameGroup)
 		.where(eq(gameGroup.userId, userId))
 		.limit(1);
 	if (existingGroup) {
-		return;
+		return [];
 	}
 
 	const [existingVariant] = await db
@@ -41,7 +41,7 @@ export async function seedDefaultGameData(
 		.where(eq(gameVariant.userId, userId))
 		.limit(1);
 	if (existingVariant) {
-		return;
+		return [];
 	}
 
 	const [existingMix] = await db
@@ -50,7 +50,7 @@ export async function seedDefaultGameData(
 		.where(eq(gameMix.userId, userId))
 		.limit(1);
 	if (existingMix) {
-		return;
+		return [];
 	}
 
 	const now = new Date();
@@ -129,12 +129,32 @@ export async function seedDefaultGameData(
 			userId,
 			variantId,
 		}));
-		for (const chunk of chunkMembershipRows(memberships)) {
-			statements.push(
+		statements.push(
+			...insertChunks(memberships, (chunk) =>
 				db.insert(gameMixVariant).values(chunk).onConflictDoNothing()
-			);
-		}
+			)
+		);
 	}
 
-	await runBatch(db, statements);
+	statements.unshift(
+		guardStatement(
+			db,
+			"game-seed-empty",
+			sql`NOT EXISTS (SELECT 1 FROM ${gameGroup} WHERE ${gameGroup.userId} = ${userId} AND ${gameGroup.builtinKey} IS NULL)
+				AND NOT EXISTS (SELECT 1 FROM ${gameVariant} WHERE ${gameVariant.userId} = ${userId} AND ${gameVariant.builtinKey} IS NULL)
+				AND NOT EXISTS (SELECT 1 FROM ${gameMix} WHERE ${gameMix.userId} = ${userId} AND ${gameMix.builtinKey} IS NULL)`
+		)
+	);
+
+	return statements;
+}
+
+export async function seedDefaultGameData(
+	db: DbInstance,
+	userId: string
+): Promise<void> {
+	const statements = await planDefaultGameData(db, userId);
+	if (statements.length > 0) {
+		await runGuardedBatch(db, statements);
+	}
 }

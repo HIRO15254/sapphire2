@@ -2,6 +2,20 @@ import { describe, expect, it, vi } from "vitest";
 import { buildAuthOptions } from "../auth-options";
 import { createFakeEnv } from "./test-utils";
 
+const { planSeed, selfInsert, batch } = vi.hoisted(() => ({
+	planSeed: vi.fn(),
+	selfInsert: vi.fn(),
+	batch: vi.fn(),
+}));
+
+vi.mock("@sapphire2/api/services/seed-game-data", () => ({
+	planDefaultGameData: planSeed,
+}));
+vi.mock("@sapphire2/api/services/self-player", () => ({
+	selfPlayerInsert: selfInsert,
+}));
+vi.mock("@sapphire2/api/lib/batch", () => ({ runBatch: batch }));
+
 const FAKE_DB = {} as never;
 
 describe("buildAuthOptions", () => {
@@ -66,17 +80,31 @@ describe("buildAuthOptions", () => {
 		expect(options.passkey?.origin).toBe("https://sapphire2.example.com");
 	});
 
-	it("wires onUserCreated to self-player creation and game-data seeding", async () => {
-		const seed = vi.fn().mockResolvedValue(undefined);
-		const ensureSelf = vi.fn().mockResolvedValue(undefined);
-		const options = buildAuthOptions(createFakeEnv(), FAKE_DB, {
-			seedGameData: seed,
-			ensureSelfPlayer: ensureSelf,
-		});
+	it("normalizes trailing slashes in OAuth endpoints", () => {
+		const options = buildAuthOptions(
+			createFakeEnv({
+				CORS_ORIGIN: "https://app.example.com/",
+				BETTER_AUTH_URL: "https://api.example.com/",
+			}),
+			FAKE_DB
+		);
+		expect(options.corsOrigin).toBe("https://app.example.com");
+		expect(options.mcp?.consentPage).toBe(
+			"https://api.example.com/oauth/consent"
+		);
+		expect(options.mcp?.loginPage).toBe("https://app.example.com/login");
+		expect(options.mcp?.resource).toBe("https://api.example.com/mcp");
+	});
+
+	it("submits self player and seed writes in the same batch", async () => {
+		const self = {};
+		const seed = {};
+		planSeed.mockResolvedValue([seed]);
+		selfInsert.mockReturnValue(self);
+		const options = buildAuthOptions(createFakeEnv(), FAKE_DB);
 		await options.onUserCreated?.("user-9");
-		expect(seed).toHaveBeenCalledTimes(1);
-		expect(seed).toHaveBeenNthCalledWith(1, FAKE_DB, "user-9");
-		expect(ensureSelf).toHaveBeenCalledOnce();
-		expect(ensureSelf).toHaveBeenCalledWith(FAKE_DB, "user-9");
+		expect(planSeed).toHaveBeenCalledWith(FAKE_DB, "user-9");
+		expect(selfInsert).toHaveBeenCalledWith(FAKE_DB, "user-9");
+		expect(batch).toHaveBeenCalledWith(FAKE_DB, [self, seed]);
 	});
 });

@@ -1,5 +1,7 @@
 import type { HandAction, HandDetail } from "@sapphire2/db/constants/hand";
+import { playSession } from "@sapphire2/db/schema/entry";
 import { hand, handAction, handSeat } from "@sapphire2/db/schema/hand";
+import { eq } from "drizzle-orm";
 import { describe, expect } from "vitest";
 import {
 	type ApiFixture,
@@ -71,6 +73,7 @@ async function insertHands(
 			userId: "alice",
 			playSessionId,
 			handNo: index + 1,
+			seq: index + 1,
 			playedAt: spec.playedAt === null ? null : new Date(spec.playedAt),
 			detail: spec.detail,
 			updatedAt: new Date(),
@@ -97,6 +100,10 @@ async function insertHands(
 			);
 		}
 	}
+	await api.db
+		.update(playSession)
+		.set({ nextHandSeq: specs.length })
+		.where(eq(playSession.id, playSessionId));
 }
 
 async function seedHands(api: ApiFixture) {

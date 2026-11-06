@@ -7,12 +7,32 @@ export type BatchStatement = Parameters<DbInstance["batch"]>[0][number];
 export const D1_MAX_BOUND_PARAMS = 100;
 
 export function chunkForInsert<T>(rows: T[], columnsPerRow: number): T[][] {
-	const perChunk = Math.max(1, Math.floor(D1_MAX_BOUND_PARAMS / columnsPerRow));
+	if (rows.length === 0) {
+		return [];
+	}
+	if (
+		!Number.isInteger(columnsPerRow) ||
+		columnsPerRow < 1 ||
+		columnsPerRow > D1_MAX_BOUND_PARAMS
+	) {
+		throw new RangeError("columnsPerRow must be an integer from 1 to 100");
+	}
+	const perChunk = Math.floor(D1_MAX_BOUND_PARAMS / columnsPerRow);
 	const chunks: T[][] = [];
 	for (let i = 0; i < rows.length; i += perChunk) {
 		chunks.push(rows.slice(i, i + perChunk));
 	}
 	return chunks;
+}
+
+export function insertChunks<Row extends Record<string, unknown>>(
+	rows: Row[],
+	insert: (chunk: Row[]) => BatchStatement
+): BatchStatement[] {
+	const first = rows[0];
+	return first
+		? chunkForInsert(rows, Object.keys(first).length).map(insert)
+		: [];
 }
 
 export async function runBatch(

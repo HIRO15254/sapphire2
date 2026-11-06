@@ -1,7 +1,6 @@
 import { appRouter } from "@sapphire2/api/routers/index";
 
 interface ProcedureDef {
-	inputs: unknown[];
 	type: "mutation" | "query" | "subscription";
 }
 
@@ -34,8 +33,4 @@ export function getProcedureType(path: string): "mutation" | "query" {
 		throw new Error(`subscription procedures are not exposable: "${path}"`);
 	}
 	return type;
-}
-
-export function getRouterInputSchema(path: string): unknown {
-	return getProcedure(path)._def.inputs[0];
 }

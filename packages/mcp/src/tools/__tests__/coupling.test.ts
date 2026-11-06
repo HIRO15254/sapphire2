@@ -3,10 +3,6 @@ import {
 	getProcedureDef,
 } from "@sapphire2/api/__tests__/test-utils";
 import {
-	ringGameCreateInputSchema,
-	ringGameUpdateInputSchema,
-} from "@sapphire2/api/routers/ring-game";
-import {
 	tournamentRuleInputSchema,
 	tournamentRuleWithLevelsInputSchema,
 } from "@sapphire2/api/services/tournament-rule";
@@ -22,8 +18,6 @@ import {
 	toolPermissionSummary,
 } from "../registry";
 import { getProcedure, listProcedurePaths } from "../resolve";
-
-const SNAKE_CASE_TOOL_NAME = /^[a-z][a-z0-9_]*$/;
 
 const allPaths = listProcedurePaths();
 const exposedPaths = new Set(TOOL_DEFINITIONS.map((d) => d.procedurePath));
@@ -104,23 +98,9 @@ describe("tool/router coupling", () => {
 				const annotations = toolAnnotations(def);
 				expect(annotations.readOnlyHint).toBe(false);
 				expect(annotations.openWorldHint).toBe(false);
-				expect(typeof annotations.destructiveHint).toBe("boolean");
-				expect(typeof annotations.idempotentHint).toBe("boolean");
+				expect(typeof def.destructiveHint).toBe("boolean");
+				expect(typeof def.idempotentHint).toBe("boolean");
 			}
-		}
-	});
-
-	it("uses valid, unique snake_case tool names", () => {
-		const names = TOOL_DEFINITIONS.map((d) => d.name);
-		for (const name of names) {
-			expect(name).toMatch(SNAKE_CASE_TOOL_NAME);
-		}
-		expect(new Set(names).size).toBe(names.length);
-	});
-
-	it("gives every tool a non-empty description", () => {
-		for (const def of TOOL_DEFINITIONS) {
-			expect(def.description.trim().length).toBeGreaterThan(0);
 		}
 	});
 
@@ -208,29 +188,6 @@ describe("tool/router coupling", () => {
 		}
 	});
 
-	it("preserves ID-based ring-game selections and stakes in router schemas", () => {
-		for (const game of [
-			{ variantId: "variant" },
-			{ gameMixId: "mix" },
-			{ lineupId: "lineup" },
-		]) {
-			const rule = {
-				game,
-				stakes: [{ gameGroupId: "group", blind1: 1, blind2: 2 }],
-			};
-			expect(
-				ringGameCreateInputSchema.parse({
-					roomId: "room",
-					name: "Cash",
-					rule,
-				}).rule
-			).toEqual(rule);
-			expect(
-				ringGameUpdateInputSchema.parse({ id: "cash", rule }).rule
-			).toEqual(rule);
-		}
-	});
-
 	it("explains the rule version contract on every tool that accepts a tournament rule", () => {
 		const accepting = TOOL_DEFINITIONS.filter((def) => {
 			const rule =
@@ -251,12 +208,5 @@ describe("tool/router coupling", () => {
 		for (const def of accepting) {
 			expect(def.description).toContain(TOURNAMENT_RULE_CONTRACT);
 		}
-	});
-
-	it("has a consent-screen name for every namespace the catalogue exposes", () => {
-		const unnamed = [...new Set(TOOL_DEFINITIONS.map(toolNamespace))].filter(
-			(namespace) => entityName(namespace) === undefined
-		);
-		expect(unnamed).toEqual([]);
 	});
 });

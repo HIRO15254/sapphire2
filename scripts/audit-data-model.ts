@@ -1,7 +1,6 @@
 import { appendFileSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import { AUDIT_IDS, type AuditId } from "./data-model-audit/catalogue";
 import {
 	AuditDatabaseError,
 	wranglerDatabase,
@@ -13,10 +12,9 @@ import {
 } from "./data-model-audit/run";
 
 const USAGE = `usage: bun scripts/audit-data-model.ts (--local | --remote) --database <name>
-  [--config apps/server/wrangler.toml] [--persist-to <dir>] [--enable A-6,A-8] [--json]
+  [--config apps/server/wrangler.toml] [--persist-to <dir>] [--json]
 
-Read-only data-model-v2 audit (docs/design/data-model-v2.md §16.7).
---enable runs the named pending audits ahead of their enabling task (rehearsal and pre-audit).
+Read-only data model audit (docs/design/data-audits.md).
 Exit 0: no gate violation. Exit 1: a violation or a check error. Exit 2: usage or database failure.`;
 
 const SAMPLE_ROWS = 20;
@@ -71,7 +69,6 @@ const OPTIONS = {
 	database: { type: "string" },
 	config: { type: "string" },
 	"persist-to": { type: "string" },
-	enable: { type: "string" },
 	json: { type: "boolean" },
 } as const;
 
@@ -84,25 +81,9 @@ function parseOptions(argv: string[]) {
 	}
 }
 
-function parseEnabled(value: string | undefined): Set<AuditId> | null {
-	const ids = (value ?? "").split(",").filter((id) => id !== "");
-	const known: readonly string[] = AUDIT_IDS;
-	const unknown = ids.filter((id) => !known.includes(id));
-	if (unknown.length > 0) {
-		console.error(`unknown audit id: ${unknown.join(", ")}`);
-		return null;
-	}
-	return new Set(AUDIT_IDS.filter((id) => ids.includes(id)));
-}
-
 function main(argv: string[]): number {
 	const values = parseOptions(argv);
-	const enablePending = parseEnabled(values?.enable);
-	if (
-		!(values && enablePending) ||
-		values.local === values.remote ||
-		!values.database
-	) {
+	if (!values || values.local === values.remote || !values.database) {
 		console.error(USAGE);
 		return 2;
 	}
@@ -117,7 +98,7 @@ function main(argv: string[]): number {
 	});
 	let report: AuditReport;
 	try {
-		report = runAudit(db, { enablePending });
+		report = runAudit(db);
 	} catch (error) {
 		if (!(error instanceof AuditDatabaseError)) {
 			throw error;

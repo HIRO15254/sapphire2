@@ -3,7 +3,6 @@ export const TABLE_PLAYER_SOURCE_APP_IDS = ["dmm_waitinglist"] as const;
 export type TablePlayerSourceApp = (typeof TABLE_PLAYER_SOURCE_APP_IDS)[number];
 
 interface TablePlayerSourceAppConfig {
-	label: string;
 	prompt: string;
 }
 
@@ -12,7 +11,6 @@ export const TABLE_PLAYER_SOURCE_APPS: Record<
 	TablePlayerSourceAppConfig
 > = {
 	dmm_waitinglist: {
-		label: "DMM Waitinglist",
 		prompt: `The image is a table view from the DMM Waitinglist app.
 Extract the player name at each seat.
 

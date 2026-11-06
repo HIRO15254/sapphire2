@@ -1,0 +1,1 @@
+ALTER TABLE `play_session` ADD `next_hand_seq` integer DEFAULT 0 NOT NULL;

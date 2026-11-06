@@ -20,7 +20,7 @@ const { appRouter } = await import("../routers");
 
 const IMAGE_SOURCE = {
 	kind: "image" as const,
-	data: "base64data",
+	data: "ZGF0YQ==",
 	mediaType: "image/png" as const,
 };
 
@@ -83,22 +83,6 @@ describe("extractTablePlayers truncation reporting", () => {
 				sources: [IMAGE_SOURCE],
 			}),
 			"AI did not return structured data"
-		);
-	});
-
-	it("reports truncation ahead of the missing structured output it causes", async () => {
-		mocks.parse.mockResolvedValue({
-			output_parsed: null,
-			status: "incomplete",
-			incomplete_details: { reason: "max_output_tokens" },
-		});
-
-		await expectMessage(
-			makeCaller().extractTablePlayers({
-				sourceApp: "dmm_waitinglist",
-				sources: [IMAGE_SOURCE],
-			}),
-			TRUNCATED_MESSAGE
 		);
 	});
 
@@ -165,12 +149,12 @@ describe("extractTablePlayers truncation reporting", () => {
 			{
 				type: "input_image",
 				detail: "auto",
-				image_url: "data:image/png;base64,base64data",
+				image_url: "data:image/png;base64,ZGF0YQ==",
 			},
 			{
 				type: "input_image",
 				detail: "auto",
-				image_url: "data:image/webp;base64,base64data",
+				image_url: "data:image/webp;base64,ZGF0YQ==",
 			},
 		]);
 		expect(input[0].content.at(-1)).toMatchObject({ type: "input_text" });
